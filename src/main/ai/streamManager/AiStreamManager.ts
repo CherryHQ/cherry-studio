@@ -713,6 +713,9 @@ export class AiStreamManager extends BaseService {
         admission = this.admitLiveExecutionChange(topicId, intent.change)
         break
       case 'start':
+        if ((this.activeStreams.get(topicId)?.aggregate ?? this.topicAggregates.get(topicId))?.hasPendingApprovals()) {
+          throw new AiStreamAdmissionError(aiStreamAdmissionReasons.TOPIC_BUSY)
+        }
         admission = this.admitLiveExecutionChange(topicId, { mode: 'start', modelCount: intent.modelCount })
         break
       case 'continue-conversation':
@@ -1101,6 +1104,15 @@ export class AiStreamManager extends BaseService {
     const existing = this.activeStreams.get(input.topicId)
     if (existing?.aggregate.hasPersistenceBlockedAttempts() && input.models.length > 0) {
       throw new AiStreamAdmissionError(aiStreamAdmissionReasons.TOPIC_BUSY)
+    }
+    const reservedAttemptIds = input.receipt?.reservedAttemptIds
+    const reservedAggregate = !existing ? this.topicAggregates.get(input.topicId) : undefined
+    const reservedAbortReason =
+      reservedAggregate && reservedAttemptIds
+        ? reservedAggregate.consumeReservedAttemptAbort(reservedAttemptIds)
+        : undefined
+    if (reservedAbortReason !== undefined && reservedAggregate) {
+      return this.settleAbortedReservation(input, reservedAggregate, reservedAbortReason)
     }
     const liveExecutionChange = input.liveExecutionChange
     const committedLiveExecutionChange =
@@ -1634,6 +1646,12 @@ export class AiStreamManager extends BaseService {
       ? application.get('AgentSessionRuntimeService').abortPendingTurn(extractAgentSessionId(topicId), reason)
       : undefined
     const stream = this.activeStreams.get(topicId)
+    if (!stream) {
+      const aggregate = this.topicAggregates.get(topicId)
+      if (aggregate?.fenceReservedAttempts(reason)) {
+        logger.info('Fenced reserved stream attempts before launch', { topicId, reason })
+      }
+    }
     const runtimeTerminalLeaseId =
       stream && runtimeAbort?.terminalReady
         ? this.holdTopicForRuntimeTerminal(stream, runtimeAbort.terminalReady, runtimeAbort.terminalOutcome)
@@ -2489,6 +2507,96 @@ export class AiStreamManager extends BaseService {
 
   // ── Internal helpers ──────────────────────────────────────────────
 
+  private settleAbortedReservation(input: SendInput, aggregate: TopicStreamAggregate, reason: string): SendResult {
+    const attemptIds = input.receipt?.reservedAttemptIds
+    if (!attemptIds || attemptIds.length !== input.models.length) {
+      throw new Error(`Missing reserved attempts for aborted dispatch on topic ${input.topicId}`)
+    }
+
+    const executions = new Map<UniqueModelId, StreamExecution>()
+    for (const [index, model] of input.models.entries()) {
+      const attemptId = attemptIds[index]
+      if (attemptId === undefined) {
+        throw new Error(`Missing reserved attempt ${index} for aborted dispatch on topic ${input.topicId}`)
+      }
+      const exec = this.createReservedExecution(
+        aggregate,
+        input.topicId,
+        model.modelId,
+        model.request,
+        input.siblingsGroupId,
+        model.runtimeTimingSeed,
+        model.seedFromEmpty,
+        model.rootSpan,
+        model.abortController,
+        attemptId
+      )
+      if (!exec.abortController.signal.aborted) exec.abortController.abort(reason)
+      exec.timings.completedAt = performance.now()
+      if (!this.transitionAttempt(aggregate, exec, { type: 'abort', reason })) {
+        throw new Error(`Attempt ${exec.attemptId} could not consume Stop for topic ${input.topicId}`)
+      }
+      executions.set(model.modelId, exec)
+    }
+
+    const stream: ActiveStream = {
+      topicId: input.topicId,
+      aggregate,
+      executions,
+      persistencePorts: new Map((input.persistencePorts ?? []).map((port) => [port.id, port])),
+      cleanupPorts: new Map((input.cleanupPorts ?? []).map((port) => [port.id, port])),
+      listeners: new Map(input.listeners.map((listener) => [listener.id, listener])),
+      status: 'pending',
+      isMultiModel: executions.size > 1,
+      lifecycle: input.lifecycle ?? this.chatLifecycle
+    }
+    aggregate.activate()
+    this.activeStreams.set(input.topicId, stream)
+    stream.lifecycle.onCreated(stream)
+
+    for (const exec of executions.values()) {
+      exec.loopPromise = Promise.resolve().then(() =>
+        this.onExecutionPaused(input.topicId, exec.modelId, exec.attemptId)
+      )
+    }
+
+    return { mode: 'started', activeExecutions: [...executions.values()].map(toActiveExecution) }
+  }
+
+  private createReservedExecution(
+    aggregate: TopicStreamAggregate,
+    topicId: string,
+    modelId: UniqueModelId,
+    request: ManagedAiStreamRequest,
+    siblingsGroupId: number | undefined,
+    runtimeTimingSeed: MessageRuntimeTiming | undefined,
+    seedFromEmpty: boolean | undefined,
+    rootSpan: Span | undefined,
+    abortController: AbortController | undefined,
+    attemptId: AttemptId
+  ): StreamExecution {
+    const attempt = aggregate.attempt(attemptId)
+    if (!attempt || attempt.state.phase !== 'reserved') {
+      throw new Error(`Attempt ${attemptId} is not reserved for topic ${topicId}`)
+    }
+    return {
+      modelId,
+      attemptId,
+      anchorMessageId: request.messageId,
+      seedFromEmpty,
+      abortController: abortController ?? new AbortController(),
+      attempt,
+      buffer: [],
+      nextChunkSeq: 0,
+      droppedChunks: 0,
+      siblingsGroupId,
+      timings: { startedAt: performance.now() },
+      runtimeTiming: new MessageRuntimeTimingCollector(runtimeTimingSeed),
+      loopPromise: Promise.resolve(),
+      rootSpan
+    }
+  }
+
   /**
    * Loop: pull chunks from `AiService.streamText`, tee into broadcast +
    * `readUIMessageStream` accumulator (writes each snapshot to
@@ -2507,28 +2615,21 @@ export class AiStreamManager extends BaseService {
     reservedAttemptId?: AttemptId
   ): StreamExecution {
     const attemptId = reservedAttemptId ?? toAttemptId(++this.nextExecutionAttemptSequence)
-    const attempt = reservedAttemptId ? aggregate.attempt(attemptId) : aggregate.reserveAttempt(attemptId)
-    if (!attempt || attempt.state.phase !== 'reserved') {
-      throw new Error(`Attempt ${attemptId} is not reserved for topic ${topicId}`)
-    }
+    if (reservedAttemptId === undefined) aggregate.reserveAttempt(attemptId)
     // `loopPromise` is overwritten right after launch; initialise to a resolved sentinel
     // so the `exec` object reference is stable inside the arrow function below.
-    const exec: StreamExecution = {
+    const exec = this.createReservedExecution(
+      aggregate,
+      topicId,
       modelId,
-      attemptId,
-      anchorMessageId: request.messageId,
-      seedFromEmpty,
-      abortController: abortController ?? new AbortController(),
-      attempt,
-      buffer: [],
-      nextChunkSeq: 0,
-      droppedChunks: 0,
+      request,
       siblingsGroupId,
-      timings: { startedAt: performance.now() },
-      runtimeTiming: new MessageRuntimeTimingCollector(runtimeTimingSeed),
-      loopPromise: Promise.resolve(),
-      rootSpan
-    }
+      runtimeTimingSeed,
+      seedFromEmpty,
+      rootSpan,
+      abortController,
+      attemptId
+    )
     this.transitionAttempt(aggregate, exec, { type: 'launch' })
 
     const launchLoop = rootSpan

@@ -40,7 +40,7 @@ describe('attemptMachine', () => {
   })
 
   it.each([
-    [{ phase: 'reserved' } as AttemptState, ['launch', 'reservation-failed']],
+    [{ phase: 'reserved' } as AttemptState, ['launch', 'reservation-failed', 'abort']],
     [
       { phase: 'running', firstChunkAt: null } as AttemptState,
       ['chunk', 'complete', 'fail', 'abort', 'approval-changed']

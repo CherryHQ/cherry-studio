@@ -52,6 +52,12 @@ export function transition(state: AttemptState, event: AttemptEvent): Transition
   switch (state.phase) {
     case 'reserved':
       if (event.type === 'launch') return { ok: true, state: { phase: 'running', firstChunkAt: null } }
+      if (event.type === 'abort') {
+        return {
+          ok: true,
+          state: { phase: 'finalizing', firstChunkAt: null, outcome: { kind: 'aborted', reason: event.reason } }
+        }
+      }
       if (event.type === 'reservation-failed') {
         const outcome = { kind: 'error' as const, error: event.error }
         return {

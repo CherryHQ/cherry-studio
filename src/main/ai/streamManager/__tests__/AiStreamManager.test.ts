@@ -401,6 +401,39 @@ describe('AiStreamManager', () => {
       expect(started.activeExecutions[0].attemptId).toBe(reservation.receipt.reservedAttemptIds?.[0])
     })
 
+    it('settles a reserved dispatch as paused when Stop lands before send', async () => {
+      const topicId = 'reserved-stop-topic'
+      const listener = new FakeListener('wc:reserved-stop')
+      const persistencePort = new FakePersistencePort('persistence:reserved-stop')
+      const reservation = mgr.reserveDispatchCommand(topicId, { kind: 'start', modelCount: 1 }, 1, () => undefined)
+
+      mgr.abort(topicId, 'user-requested')
+      const result = mgr.send({
+        topicId,
+        models: [
+          {
+            modelId: 'provider-a::model-a',
+            request: { ...req(topicId), messageId: 'assistant-reserved' }
+          }
+        ],
+        listeners: [listener],
+        persistencePorts: [persistencePort],
+        receipt: reservation.receipt
+      })
+
+      expect(result.mode).toBe('started')
+      expect(mockStreamText).not.toHaveBeenCalled()
+
+      await vi.advanceTimersByTimeAsync(0)
+      expect(persistencePort.pausedResults).toEqual([
+        expect.objectContaining({ anchorMessageId: 'assistant-reserved', isTopicDone: false, status: 'paused' })
+      ])
+      expect(listener.pausedResults).toEqual([
+        expect.objectContaining({ anchorMessageId: 'assistant-reserved', isTopicDone: true, status: 'paused' })
+      ])
+      expect(mgr.inspect(topicId)?.status).toBe('aborted')
+    })
+
     it('releases a failed dispatch reservation after its durable error write recovers', async () => {
       const topicId = 'reservation-recovery-topic'
       const intent = { kind: 'start' as const, modelCount: 1 }
@@ -2748,6 +2781,31 @@ describe('AiStreamManager', () => {
 
       expect(continued.activeExecutions[0].attemptId).toBe(reservation.receipt.reservedAttemptIds?.[0])
       expect(mgr.inspect(topicId)?.status).toBe('pending')
+    })
+
+    it('rejects an ordinary start before it writes rows while approval is parked', async () => {
+      const topicId = 'approval-start-topic'
+      startSingle(mgr, {
+        topicId,
+        modelId: 'provider-a::model-a',
+        request: { ...req(topicId), messageId: 'assistant-1' },
+        listeners: [new FakeListener('wc:approval')]
+      })
+      mgr.onChunk(topicId, 'provider-a::model-a', {
+        type: 'tool-approval-request',
+        toolCallId: 'tool-1',
+        approvalId: 'approval-1'
+      } as UIMessageChunk)
+      await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+      const writeRows = vi.fn()
+
+      expect(() => mgr.reserveDispatchCommand(topicId, { kind: 'start', modelCount: 1 }, 1, writeRows)).toThrow(
+        aiStreamAdmissionReasons.TOPIC_BUSY
+      )
+
+      expect(writeRows).not.toHaveBeenCalled()
+      expect(mockStreamText).toHaveBeenCalledOnce()
+      expect(mgr.inspect(topicId)?.status).toBe('awaiting-approval')
     })
 
     it('answers a steer that lands in the chaining window instead of dropping it (variant A)', async () => {

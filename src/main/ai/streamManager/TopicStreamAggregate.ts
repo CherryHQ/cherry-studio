@@ -32,6 +32,7 @@ export class TopicStreamAggregate {
   readonly cycleId: number
   private readonly attempts = new Map<AttemptId, TopicAttempt>()
   private readonly continuations = new Map<string, TopicContinuation>()
+  private readonly reservedAttemptAbortReasons = new Map<AttemptId, string>()
   private lifecycle: StreamLifecycleState = 'active'
   private terminalOverride?: 'error' | 'aborted'
   private commandDepth = 0
@@ -93,7 +94,33 @@ export class TopicStreamAggregate {
     return [...this.attempts.values()].some((attempt) => attempt.state.phase === 'persistence-blocked')
   }
 
+  hasPendingApprovals(): boolean {
+    return [...this.attempts.values()].some((attempt) => attempt.pendingApprovalToolCallIds.size > 0)
+  }
+
+  fenceReservedAttempts(reason: string): boolean {
+    let fenced = false
+    for (const attempt of this.attempts.values()) {
+      if (attempt.state.phase !== 'reserved') continue
+      if (!this.reservedAttemptAbortReasons.has(attempt.id)) {
+        this.reservedAttemptAbortReasons.set(attempt.id, reason)
+        fenced = true
+      }
+    }
+    if (fenced) this.touch()
+    return fenced
+  }
+
+  consumeReservedAttemptAbort(ids: readonly AttemptId[]): string | undefined {
+    const reason = ids.map((id) => this.reservedAttemptAbortReasons.get(id)).find((value) => value !== undefined)
+    if (reason === undefined) return undefined
+    for (const id of ids) this.reservedAttemptAbortReasons.delete(id)
+    this.touch()
+    return reason
+  }
+
   forgetAttempt(id: AttemptId): void {
+    this.reservedAttemptAbortReasons.delete(id)
     if (this.attempts.delete(id)) this.touch()
   }
 
@@ -132,6 +159,7 @@ export class TopicStreamAggregate {
     this.lifecycle = 'evicted'
     this.attempts.clear()
     this.continuations.clear()
+    this.reservedAttemptAbortReasons.clear()
     this.touch()
   }
 
