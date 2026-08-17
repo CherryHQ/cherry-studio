@@ -97,8 +97,8 @@ export interface KnowledgeOrganizationTree {
   totalItems: number
   /**
    * True only when the emitted node list was capped at {@link KNOWLEDGE_TREE_MAX_NODES} — it does
-   * NOT flag `maxDepth` filtering. A reliable "whole tree returned" check is therefore
-   * `truncated === false` AND no `maxDepth` was passed.
+   * NOT flag `maxDepth` or `query` filtering. A reliable "whole tree returned" check is therefore
+   * `truncated === false` AND no `maxDepth`/`query` was passed.
    */
   truncated: boolean
   nodes: KnowledgeTreeNode[]
@@ -296,8 +296,14 @@ export class KnowledgeConceptService {
    * a pre-order DFS node list (each node's `depth` carries the hierarchy),
    * capped at {@link KNOWLEDGE_TREE_MAX_NODES}. Throws NOT_FOUND if the base does
    * not exist; available regardless of the base's runtime (search) state.
+   *
+   * A `query` restricts the tree to nodes whose titles contain it as a
+   * case-insensitive substring, keeping each match's ancestor folders so the
+   * result still reads as an outline. The cap then bounds the *matched* nodes —
+   * `truncated` means "more matches exist" — and `totalItems` keeps counting the
+   * whole base.
    */
-  getOrganizationTree(baseId: string, options: { maxDepth?: number } = {}): KnowledgeOrganizationTree {
+  getOrganizationTree(baseId: string, options: { maxDepth?: number; query?: string } = {}): KnowledgeOrganizationTree {
     knowledgeBaseService.getById(baseId)
 
     const items = knowledgeItemService.getItemsByBaseId(baseId)
@@ -316,26 +322,66 @@ export class KnowledgeConceptService {
     }
 
     const maxDepth = options.maxDepth
+    const query = options.query?.trim().toLowerCase() || undefined
+    const matchesQuery = (item: KnowledgeItem): boolean =>
+      query === undefined || getKnowledgeItemDisplayTitle(item).toLowerCase().includes(query)
+
     const nodes: KnowledgeTreeNode[] = []
     let truncated = false
+
+    // Bottom-up pass: whether each directory's subtree holds a match, so the
+    // pre-order pass below can keep a match's ancestor folders without re-scanning.
+    // Stopped at `maxDepth` so matches beyond the visible depth stay invisible.
+    const subtreeMatchesByGroupId = new Map<string | null, boolean>()
+    const markSubtreeMatches = (groupId: string | null, depth: number): boolean => {
+      if (maxDepth !== undefined && depth > maxDepth) {
+        return false
+      }
+      let hasMatch = false
+      for (const item of childrenByGroupId.get(groupId) ?? []) {
+        const childHasMatch = item.type === 'directory' ? markSubtreeMatches(item.id, depth + 1) : false
+        if (matchesQuery(item) || childHasMatch) {
+          hasMatch = true
+        }
+      }
+      subtreeMatchesByGroupId.set(groupId, hasMatch)
+      return hasMatch
+    }
+
+    if (query !== undefined) {
+      markSubtreeMatches(null, 0)
+    }
+
+    const emitNode = (item: KnowledgeItem, depth: number): void => {
+      nodes.push({
+        depth,
+        title: getKnowledgeItemDisplayTitle(item),
+        itemType: item.type,
+        status: item.status,
+        // Only a completed leaf is readable; directories and pending leaves carry no Concept ID.
+        conceptId: item.type !== 'directory' && item.status === 'completed' ? deriveConceptId(item) : undefined
+      })
+    }
 
     const walk = (groupId: string | null, depth: number): void => {
       if (truncated || (maxDepth !== undefined && depth > maxDepth)) {
         return
       }
       for (const item of childrenByGroupId.get(groupId) ?? []) {
+        if (query !== undefined) {
+          const isMatch = matchesQuery(item)
+          const isAncestorOfMatch = item.type === 'directory' && subtreeMatchesByGroupId.get(item.id) === true
+          if (!isMatch && !isAncestorOfMatch) {
+            continue
+          }
+        }
+        // The cap bounds emitted nodes only, so it is checked after the query
+        // filter: `truncated` means "more matches exist", not "the base is big".
         if (nodes.length >= KNOWLEDGE_TREE_MAX_NODES) {
           truncated = true
           return
         }
-        nodes.push({
-          depth,
-          title: getKnowledgeItemDisplayTitle(item),
-          itemType: item.type,
-          status: item.status,
-          // Only a completed leaf is readable; directories and pending leaves carry no Concept ID.
-          conceptId: item.type !== 'directory' && item.status === 'completed' ? deriveConceptId(item) : undefined
-        })
+        emitNode(item, depth)
         if (item.type === 'directory') {
           walk(item.id, depth + 1)
         }
