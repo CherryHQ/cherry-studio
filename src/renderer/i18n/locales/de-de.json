@@ -206,6 +206,12 @@
     },
     "right_pane": {
       "flow": {
+        "completion_receipt": "Abschlussinformationen",
+        "empty": {
+          "description": "Wählen Sie einen Agent-Tool-Aufruf aus, um den Nachrichtenfluss seiner untergeordneten Nachrichten zu inspizieren.",
+          "title": "Kein Werkzeug ausgewählt"
+        },
+        "launch_receipt": "Startinformationen",
         "no_messages": {
           "description": "Dieser Tool-Aufruf hat keinen erfassten untergeordneten Nachrichtenfluss.",
           "title": "Keine Nachrichten"
@@ -229,26 +235,56 @@
         "label": "Sitzungsinformation",
         "more": "+{{count}} weitere",
         "no_artifacts": "Keine erklärten Liefergegenstände",
-        "no_subagents": "Keine Unteragenten"
+        "no_subagents": "Keine Unteragenten",
+        "shell_tasks": "Hintergrundbefehle",
+        "subagents": "Unteragenten",
+        "workflows": "Arbeitsabläufe"
       },
       "status": {
-        "stop_run_task": "Aufgabe beenden",
-        "stop_run_task_failed": "Aufgabe konnte nicht gestoppt werden",
-        "task_count": "{{completed}} / {{total}} abgeschlossen",
-        "task_progress_compact": "Schritt {{current}}/{{total}}",
         "activity": "Aktivität",
         "agent": "Agent",
+        "agent_count_one": "{{count}} Agent",
+        "agent_count_other": "{{count}} Agenten",
+        "background_command": "Hintergrundbefehl",
+        "completed": "Abgeschlossen",
         "context": "Kontext",
+        "context_size": "Kontextgröße",
+        "copy_agent_name": "Agentnamen kopieren: {{name}}",
+        "copy_all": "Alle kopieren",
+        "execution_async": "Asynchr.",
+        "execution_sync": "Synchr.",
+        "hide_output": "Ausgabe einklappen",
         "no_tasks": "Keine aktiven Aufgaben",
         "run_task_live_one": "{{count}} aktiv",
         "run_task_live_other": "{{count}} aktiv",
         "run_tasks": "Unteraufgaben",
+        "running": "Läuft",
         "selected_tool": "Ausgewähltes Werkzeug",
+        "show_output": "Ausgabe anzeigen",
+        "stop_run_task": "Aufgabe beenden",
+        "stop_run_task_failed": "Aufgabe konnte nicht gestoppt werden",
+        "stopped": "Angehalten",
+        "task_count": "{{completed}} / {{total}} abgeschlossen",
+        "task_progress_compact": "Schritt {{current}}/{{total}}",
         "tasks": "Aufgaben",
+        "time": "Zeit",
+        "tool_uses_one": "{{count}} Tool-Aufruf",
+        "tool_uses_other": "{{count}} Tool-Aufrufe",
+        "tools": "Werkzeuge",
         "tools_active": "Aktiv",
         "tools_done": "Fertig",
         "tools_failed": "Fehlgeschlagen",
         "tools_total": "Gesamt",
+        "total": "Gesamt",
+        "view_details": "Details anzeigen",
+        "workflow": "Arbeitsablauf",
+        "workflow_state": {
+          "completed": "Abgeschlossen",
+          "error": "Unterbrochen",
+          "pending": "Nicht gestartet",
+          "running": "Läuft",
+          "unknown": "Unbekannter Status"
+        },
         "workspace": "Arbeitsbereich"
       },
       "tabs": {

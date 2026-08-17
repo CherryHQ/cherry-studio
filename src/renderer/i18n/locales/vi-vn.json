@@ -206,6 +206,12 @@
     },
     "right_pane": {
       "flow": {
+        "completion_receipt": "Thông tin hoàn tất",
+        "empty": {
+          "description": "Chọn một lệnh gọi công cụ của Agent để kiểm tra luồng thông báo con.",
+          "title": "Không có công cụ nào được chọn"
+        },
+        "launch_receipt": "Thông tin khởi chạy",
         "no_messages": {
           "description": "Cuộc gọi công cụ này không có luồng thông báo con nào được ghi lại.",
           "title": "Không có tin nhắn"
@@ -229,26 +235,56 @@
         "label": "Thông tin phiên",
         "more": "+{{count}} nữa",
         "no_artifacts": "Không có sản phẩm giao nộo nào được khai báo",
-        "no_subagents": "Không có Agent phụ"
+        "no_subagents": "Không có Agent phụ",
+        "shell_tasks": "Lệnh nền",
+        "subagents": "Agent phụ",
+        "workflows": "Quy trình làm việc"
       },
       "status": {
-        "stop_run_task": "Dừng tác vụ",
-        "stop_run_task_failed": "Không thể dừng tác vụ",
-        "task_count": "{{completed}} / {{total}} hoàn thành",
-        "task_progress_compact": "Bước {{current}}/{{total}}",
         "activity": "Hoạt động",
         "agent": "Agent",
+        "agent_count_one": "{{count}} Agent",
+        "agent_count_other": "{{count}} Agent",
+        "background_command": "Lệnh nền",
+        "completed": "Đã hoàn thành",
         "context": "Bối cảnh",
+        "context_size": "Kích thước ngữ cảnh",
+        "copy_agent_name": "Sao chép tên Agent: {{name}}",
+        "copy_all": "Sao chép tất cả",
+        "execution_async": "Bất đồng bộ",
+        "execution_sync": "Đồng bộ",
+        "hide_output": "Thu gọn đầu ra",
         "no_tasks": "Không có tác vụ nào đang hoạt động",
         "run_task_live_one": "{{count}} trực tiếp",
         "run_task_live_other": "{{count}} trực tiếp",
         "run_tasks": "Nhiệm vụ phụ",
+        "running": "Đang chạy",
         "selected_tool": "Công cụ đã chọn",
+        "show_output": "Xem đầu ra",
+        "stop_run_task": "Dừng tác vụ",
+        "stop_run_task_failed": "Không thể dừng tác vụ",
+        "stopped": "Đã dừng",
+        "task_count": "{{completed}} / {{total}} hoàn thành",
+        "task_progress_compact": "Bước {{current}}/{{total}}",
         "tasks": "Nhiệm vụ",
+        "time": "Thời gian",
+        "tool_uses_one": "{{count}} lệnh gọi công cụ",
+        "tool_uses_other": "{{count}} lệnh gọi công cụ",
+        "tools": "Công cụ",
         "tools_active": "Hoạt động",
         "tools_done": "Xong",
         "tools_failed": "Thất bại",
         "tools_total": "Tổng",
+        "total": "Tổng",
+        "view_details": "Xem chi tiết",
+        "workflow": "Quy trình làm việc",
+        "workflow_state": {
+          "completed": "Đã hoàn thành",
+          "error": "Bị gián đoạn",
+          "pending": "Chưa bắt đầu",
+          "running": "Đang chạy",
+          "unknown": "Trạng thái không xác định"
+        },
         "workspace": "Không gian làm việc"
       },
       "tabs": {

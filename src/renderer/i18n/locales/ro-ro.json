@@ -206,6 +206,12 @@
     },
     "right_pane": {
       "flow": {
+        "completion_receipt": "Informații de finalizare",
+        "empty": {
+          "description": "Selectează un apel de instrument al agentului pentru a-i examina fluxul de mesaje secundar.",
+          "title": "Niciun instrument selectat"
+        },
+        "launch_receipt": "Informații de lansare",
         "no_messages": {
           "description": "Acest apel de instrument nu are niciun flux de mesaje copil capturat.",
           "title": "Nicio mesaj"
@@ -229,26 +235,56 @@
         "label": "Informații despre sesiune",
         "more": "+{{count}} mai multe",
         "no_artifacts": "Niciun livrabil declarat",
-        "no_subagents": "Fără subagenți"
+        "no_subagents": "Fără subagenți",
+        "shell_tasks": "Comenzi în fundal",
+        "subagents": "Subagenți",
+        "workflows": "Fluxuri de lucru"
       },
       "status": {
-        "stop_run_task": "Opriți sarcina",
-        "stop_run_task_failed": "Nu s-a putut opri sarcina",
-        "task_count": "{{completed}} / {{total}} finalizat",
-        "task_progress_compact": "Pasul {{current}}/{{total}}",
         "activity": "Activitate",
         "agent": "Agent",
+        "agent_count_one": "{{count}} agent",
+        "agent_count_other": "{{count}} agenți",
+        "background_command": "Comandă în fundal",
+        "completed": "Finalizat",
         "context": "Context",
+        "context_size": "Dimensiunea contextului",
+        "copy_agent_name": "Copiază numele agentului: {{name}}",
+        "copy_all": "Copiază tot",
+        "execution_async": "Asincr.",
+        "execution_sync": "Sincr.",
+        "hide_output": "Restrânge ieșirile",
         "no_tasks": "Nicio sarcină activă",
         "run_task_live_one": "{{count}} activă",
         "run_task_live_other": "{{count}} active",
         "run_tasks": "Subtask-uri",
+        "running": "În execuție",
         "selected_tool": "Instrument selectat",
+        "show_output": "Vezi ieșirile",
+        "stop_run_task": "Opriți sarcina",
+        "stop_run_task_failed": "Nu s-a putut opri sarcina",
+        "stopped": "Oprit",
+        "task_count": "{{completed}} / {{total}} finalizat",
+        "task_progress_compact": "Pasul {{current}}/{{total}}",
         "tasks": "Sarcini",
+        "time": "Timp",
+        "tool_uses_one": "{{count}} apel de instrument",
+        "tool_uses_other": "{{count}} apeluri de instrumente",
+        "tools": "Instrumente",
         "tools_active": "Activ",
         "tools_done": "Gata",
         "tools_failed": "Eșuat",
         "tools_total": "Total",
+        "total": "Total",
+        "view_details": "Vezi detalii",
+        "workflow": "Flux de lucru",
+        "workflow_state": {
+          "completed": "Finalizat",
+          "error": "Întrerupt",
+          "pending": "Nepornit",
+          "running": "În execuție",
+          "unknown": "Stare necunoscută"
+        },
         "workspace": "Spațiu de lucru"
       },
       "tabs": {

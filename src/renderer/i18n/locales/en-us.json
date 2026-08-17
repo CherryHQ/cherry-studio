@@ -235,7 +235,10 @@
         "label": "Session information",
         "more": "+{{count}} more",
         "no_artifacts": "No declared outputs",
-        "no_subagents": "No sub-agents"
+        "no_subagents": "No sub-agents",
+        "shell_tasks": "Background commands",
+        "subagents": "Sub-agents",
+        "workflows": "Workflows"
       },
       "status": {
         "activity": "Activity",
@@ -265,6 +268,8 @@
         "task_progress_compact": "Step {{current}}/{{total}}",
         "tasks": "Tasks",
         "time": "Time",
+        "tool_uses_one": "{{count}} tool call",
+        "tool_uses_other": "{{count}} tool calls",
         "tools": "Tools",
         "tools_active": "Active",
         "tools_done": "Done",

@@ -206,6 +206,12 @@
     },
     "right_pane": {
       "flow": {
+        "completion_receipt": "Πληροφορίες ολοκλήρωσης",
+        "empty": {
+          "description": "Επιλέξτε μια κλήση εργαλείου πράκτορα για να επιθεωρήσετε τη ροή των θυγατρικών μηνυμάτων της.",
+          "title": "Κανένα εργαλείο δεν επιλέχθηκε"
+        },
+        "launch_receipt": "Πληροφορίες εκκίνησης",
         "no_messages": {
           "description": "Αυτή η κλήση εργαλείου δεν έχει καταγεγραμμένη ροή θυγατρικών μηνυμάτων.",
           "title": "Κανένα μήνυμα"
@@ -229,26 +235,56 @@
         "label": "Πληροφορίες συνεδρίας",
         "more": "+{{count}} ακόμα",
         "no_artifacts": "Καμία δηλωμένη παράδοση",
-        "no_subagents": "Καμία υπο-αντιπροσωπεία"
+        "no_subagents": "Καμία υπο-αντιπροσωπεία",
+        "shell_tasks": "Εντολές παρασκηνίου",
+        "subagents": "Υπο-πράκτορες",
+        "workflows": "Ροές εργασίας"
       },
       "status": {
-        "stop_run_task": "Διακοπή εργασίας",
-        "stop_run_task_failed": "Αποτυχία διακοπής εργασίας",
-        "task_count": "{{completed}} / {{total}} ολοκληρώθηκαν",
-        "task_progress_compact": "Βήμα {{current}}/{{total}}",
         "activity": "Δραστηριότητα",
         "agent": "Πράκτορας",
+        "agent_count_one": "{{count}} πράκτορας",
+        "agent_count_other": "{{count}} πράκτορες",
+        "background_command": "Εντολή παρασκηνίου",
+        "completed": "Ολοκληρώθηκε",
         "context": "Συμφραζόμενα",
+        "context_size": "Μέγεθος πλαισίου",
+        "copy_agent_name": "Αντιγραφή ονόματος πράκτορα: {{name}}",
+        "copy_all": "Αντιγραφή όλων",
+        "execution_async": "Ασύγχρ.",
+        "execution_sync": "Σύγχρ.",
+        "hide_output": "Σύμπτυξη εξόδου",
         "no_tasks": "Κανένα ενεργό καθήκον",
         "run_task_live_one": "{{count}} ζωντανά",
         "run_task_live_other": "{{count}} ζωντανά",
         "run_tasks": "Υποεργασίες",
+        "running": "Σε εκτέλεση",
         "selected_tool": "Επιλεγμένο εργαλείο",
+        "show_output": "Προβολή εξόδου",
+        "stop_run_task": "Διακοπή εργασίας",
+        "stop_run_task_failed": "Αποτυχία διακοπής εργασίας",
+        "stopped": "Σταμάτησε",
+        "task_count": "{{completed}} / {{total}} ολοκληρώθηκαν",
+        "task_progress_compact": "Βήμα {{current}}/{{total}}",
         "tasks": "Εργασίες",
+        "time": "Χρόνος",
+        "tool_uses_one": "{{count}} κλήση εργαλείου",
+        "tool_uses_other": "{{count}} κλήσεις εργαλείων",
+        "tools": "Εργαλεία",
         "tools_active": "Ενεργός",
         "tools_done": "Έγινε",
         "tools_failed": "Απέτυχε",
         "tools_total": "Σύνολο",
+        "total": "Σύνολο",
+        "view_details": "Προβολή λεπτομερειών",
+        "workflow": "Ροή εργασίας",
+        "workflow_state": {
+          "completed": "Ολοκληρώθηκε",
+          "error": "Διακόπηκε",
+          "pending": "Δεν εκκινήθηκε",
+          "running": "Σε εκτέλεση",
+          "unknown": "Άγνωστη κατάσταση"
+        },
         "workspace": "Χώρος εργασίας"
       },
       "tabs": {

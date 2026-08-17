@@ -235,7 +235,10 @@
         "label": "任务信息",
         "more": "还有 {{count}} 项",
         "no_artifacts": "暂无声明产物",
-        "no_subagents": "暂无子智能体"
+        "no_subagents": "暂无子智能体",
+        "shell_tasks": "后台命令",
+        "subagents": "子智能体",
+        "workflows": "工作流"
       },
       "status": {
         "activity": "活动",
@@ -265,6 +268,8 @@
         "task_progress_compact": "步骤 {{current}}/{{total}}",
         "tasks": "任务",
         "time": "时间",
+        "tool_uses_one": "{{count}} 次工具调用",
+        "tool_uses_other": "{{count}} 次工具调用",
         "tools": "工具",
         "tools_active": "活跃",
         "tools_done": "完成",

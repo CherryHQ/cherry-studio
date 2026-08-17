@@ -206,6 +206,12 @@
     },
     "right_pane": {
       "flow": {
+        "completion_receipt": "Informações de conclusão",
+        "empty": {
+          "description": "Selecione uma chamada de ferramenta de agente para inspecionar o fluxo de mensagens filho.",
+          "title": "Nenhuma ferramenta selecionada"
+        },
+        "launch_receipt": "Informações de início",
         "no_messages": {
           "description": "Esta chamada de ferramenta não possui fluxo de mensagem filho capturado.",
           "title": "Sem mensagens"
@@ -229,26 +235,56 @@
         "label": "Informações da sessão",
         "more": "+{{count}} mais",
         "no_artifacts": "Nenhum entregável declarado",
-        "no_subagents": "Sem subagentes"
+        "no_subagents": "Sem subagentes",
+        "shell_tasks": "Comandos em segundo plano",
+        "subagents": "Subagentes",
+        "workflows": "Fluxos de trabalho"
       },
       "status": {
-        "stop_run_task": "Parar tarefa",
-        "stop_run_task_failed": "Falha ao parar a tarefa",
-        "task_count": "{{completed}} / {{total}} concluído",
-        "task_progress_compact": "Passo {{current}}/{{total}}",
         "activity": "Atividade",
         "agent": "Agente",
+        "agent_count_one": "{{count}} agente",
+        "agent_count_other": "{{count}} agentes",
+        "background_command": "Comando em segundo plano",
+        "completed": "Concluído",
         "context": "Contexto",
+        "context_size": "Tamanho do contexto",
+        "copy_agent_name": "Copiar nome do agente: {{name}}",
+        "copy_all": "Copiar tudo",
+        "execution_async": "Assínc.",
+        "execution_sync": "Sínc.",
+        "hide_output": "Recolher saída",
         "no_tasks": "Sem tarefas ativas",
         "run_task_live_one": "{{count}} ao vivo",
         "run_task_live_other": "{{count}} ao vivo",
         "run_tasks": "Subtarefas",
+        "running": "Em execução",
         "selected_tool": "Ferramenta selecionada",
+        "show_output": "Ver saída",
+        "stop_run_task": "Parar tarefa",
+        "stop_run_task_failed": "Falha ao parar a tarefa",
+        "stopped": "Parado",
+        "task_count": "{{completed}} / {{total}} concluído",
+        "task_progress_compact": "Passo {{current}}/{{total}}",
         "tasks": "Tarefas",
+        "time": "Tempo",
+        "tool_uses_one": "{{count}} chamada de ferramenta",
+        "tool_uses_other": "{{count}} chamadas de ferramenta",
+        "tools": "Ferramentas",
         "tools_active": "Ativo",
         "tools_done": "Feito",
         "tools_failed": "Falhou",
         "tools_total": "Total",
+        "total": "Total",
+        "view_details": "Ver detalhes",
+        "workflow": "Fluxo de trabalho",
+        "workflow_state": {
+          "completed": "Concluído",
+          "error": "Interrompido",
+          "pending": "Não iniciado",
+          "running": "Em execução",
+          "unknown": "Estado desconhecido"
+        },
         "workspace": "Área de Trabalho"
       },
       "tabs": {

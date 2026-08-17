@@ -206,6 +206,12 @@
     },
     "right_pane": {
       "flow": {
+        "completion_receipt": "完成資訊",
+        "empty": {
+          "description": "選擇一個 Agent 工具呼叫以檢視其子訊息流程。",
+          "title": "未選擇任何工具"
+        },
+        "launch_receipt": "啟動資訊",
         "no_messages": {
           "description": "此工具呼叫沒有擷取到的子訊息流程。",
           "title": "沒有訊息"
@@ -229,26 +235,56 @@
         "label": "任務資訊",
         "more": "還有 {{count}} 項",
         "no_artifacts": "目前沒有宣告產物",
-        "no_subagents": "目前沒有子 Agent"
+        "no_subagents": "目前沒有子 Agent",
+        "shell_tasks": "背景指令",
+        "subagents": "子 Agent",
+        "workflows": "工作流程"
       },
       "status": {
-        "stop_run_task": "停止任務",
-        "stop_run_task_failed": "無法停止任務",
-        "task_count": "{{completed}} / {{total}} 完成",
-        "task_progress_compact": "步驟 {{current}}/{{total}}",
         "activity": "活動",
         "agent": "Agent",
+        "agent_count_one": "{{count}} 個 Agent",
+        "agent_count_other": "{{count}} 個 Agent",
+        "background_command": "背景指令",
+        "completed": "已完成",
         "context": "上下文",
+        "context_size": "上下文規模",
+        "copy_agent_name": "複製 Agent 名稱：{{name}}",
+        "copy_all": "複製全部",
+        "execution_async": "非同步",
+        "execution_sync": "同步",
+        "hide_output": "收合輸出",
         "no_tasks": "沒有進行中的任務",
         "run_task_live_one": "{{count}} 直播中",
         "run_task_live_other": "{{count}} 個執行中",
         "run_tasks": "子任務",
+        "running": "執行中",
         "selected_tool": "選取的工具",
+        "show_output": "檢視輸出",
+        "stop_run_task": "停止任務",
+        "stop_run_task_failed": "無法停止任務",
+        "stopped": "已停止",
+        "task_count": "{{completed}} / {{total}} 完成",
+        "task_progress_compact": "步驟 {{current}}/{{total}}",
         "tasks": "任務",
+        "time": "時間",
+        "tool_uses_one": "{{count}} 個工具呼叫",
+        "tool_uses_other": "{{count}} 個工具呼叫",
+        "tools": "工具",
         "tools_active": "活躍",
         "tools_done": "完成",
         "tools_failed": "失敗",
         "tools_total": "總計",
+        "total": "總計",
+        "view_details": "檢視詳細資訊",
+        "workflow": "工作流程",
+        "workflow_state": {
+          "completed": "已完成",
+          "error": "異常中斷",
+          "pending": "尚未執行",
+          "running": "執行中",
+          "unknown": "未知狀態"
+        },
         "workspace": "工作區"
       },
       "tabs": {
