@@ -200,6 +200,60 @@ describe('createPiCodeModeTools', () => {
     expect(result.details).toEqual({ result: { title: 'Example' }, logs: undefined })
   })
 
+  it('joins multiple text blocks for a string output schema', async () => {
+    const name = 'mcp__notes__read'
+    const inner = tool({
+      name,
+      execute: vi.fn(async () => ({
+        content: [
+          { type: 'text' as const, text: 'First paragraph.' },
+          { type: 'text' as const, text: 'Second paragraph.' }
+        ],
+        details: undefined
+      }))
+    })
+    const exec = codeModeTools([{ ...inner, outputSchema: { type: 'string' } }]).find(
+      (item) => item.name === PI_TOOL_EXEC_TOOL_NAME
+    )!
+
+    const result = await exec.execute(
+      'outer-1',
+      { code: `return await tools.invoke('${name}', {})` },
+      undefined,
+      undefined,
+      {} as never
+    )
+
+    expect(result.details).toEqual({ result: 'First paragraph.\nSecond paragraph.', logs: undefined })
+  })
+
+  it('joins multiple text blocks before decoding a structured output schema', async () => {
+    const name = 'mcp__browser__open'
+    const inner = tool({
+      name,
+      execute: vi.fn(async () => ({
+        content: [
+          { type: 'text' as const, text: '{"title":' },
+          { type: 'text' as const, text: '"Example"}' }
+        ],
+        details: undefined
+      }))
+    })
+    const exec = codeModeTools([
+      { ...inner, outputSchema: { type: 'object', properties: { title: { type: 'string' } }, required: ['title'] } }
+    ]).find((item) => item.name === PI_TOOL_EXEC_TOOL_NAME)!
+
+    const result = await exec.execute(
+      'outer-1',
+      { code: `return await tools.invoke('${name}', {})` },
+      undefined,
+      undefined,
+      {} as never
+    )
+
+    expect(result.details).toEqual({ result: { title: 'Example' }, logs: undefined })
+  })
+
   it('matches tool name segments when no description is available', async () => {
     const search = codeModeTools([tool({ name: 'mcp__github__searchIssues', description: '' })]).find(
       (item) => item.name === PI_TOOL_SEARCH_TOOL_NAME

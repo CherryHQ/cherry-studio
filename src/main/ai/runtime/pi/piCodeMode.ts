@@ -286,13 +286,11 @@ function decodeToolResult(result: ToolResult, outputSchema: unknown, toolName: s
   if (result.details !== undefined) return result.details
 
   const textContent = result.content.filter((part) => part.type === 'text')
-  if (textContent.length !== 1) {
-    throw new Error(
-      `Tool ${toolName} declared an output schema but returned non-text content without structuredContent.`
-    )
+  if (textContent.length === 0) {
+    throw new Error(`Tool ${toolName} declared an output schema but returned no text content or structuredContent.`)
   }
 
-  const text = textContent[0].text
+  const text = textContent.map((part) => part.text).join('\n')
   if (isStringSchema(outputSchema)) return text
 
   try {
