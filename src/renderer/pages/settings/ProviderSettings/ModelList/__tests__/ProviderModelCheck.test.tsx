@@ -22,7 +22,7 @@ describe('ProviderModelCheck', () => {
     healthState.isModelChecking = false
   })
 
-  it('renders an accessible icon entry and opens the unified dialog', () => {
+  it('renders an accessible text entry and opens the unified dialog', () => {
     render(<ProviderModelCheck />)
 
     fireEvent.click(screen.getByRole('button', { name: 'settings.models.check.button_caption' }))
