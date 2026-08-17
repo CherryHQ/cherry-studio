@@ -857,6 +857,28 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(settings.fetch).toBe(customFetch)
     })
 
+    it('routes a preset-derived DashScope instance (UUID id) through DashScope config', async () => {
+      // Same defect class as #18537: keyed on a bare `id === 'dashscope'`, a user-added
+      // instance stopped at providerId 'openai-compatible', which has no async image
+      // transport — its image models hit the generic OpenAICompatibleImageModel instead
+      // of DashScope's submit/poll one.
+      const provider = makeProvider({
+        id: 'd4e5f6-uuid',
+        presetProviderId: 'dashscope',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1'
+          }
+        }
+      })
+      const model = makeModel({ providerId: 'd4e5f6-uuid', endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
+
+      const config = await providerToAiSdkConfig(provider, model)
+
+      expect(config.providerId).toBe('dashscope')
+    })
+
     it('routes ModelScope IMAGE models through ModelScope config (so the async submit/poll transport is used)', async () => {
       // modelscope chat declares adapterFamily 'openai-compatible', and an image model
       // resolves to that same fallback id — the override must force providerId 'modelscope'
