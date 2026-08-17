@@ -5,14 +5,13 @@ import MiniAppTabsPool from '@renderer/components/MiniApp/MiniAppTabsPool'
 import { ResourceViewSourceProvider } from '@renderer/components/ResourceViewSourceProvider'
 import { useHasWindowControls, WindowControls } from '@renderer/components/WindowControls'
 import { useTabs } from '@renderer/hooks/tab'
+import { useNativeFullscreen } from '@renderer/hooks/useNativeFullscreen'
 import type { WindowFrame } from '@renderer/hooks/useWindowFrame'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
-import { ipcApi, useIpcOn } from '@renderer/ipc'
-import { isMac } from '@renderer/utils/platform'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import type { SubWindowInitData } from '@shared/types/subWindow'
-import { Activity, type CSSProperties, useEffect, useRef, useState } from 'react'
+import { Activity, type CSSProperties, useEffect, useRef } from 'react'
 
 import { SubWindowTitleBar } from './SubWindowTitleBar'
 
@@ -32,7 +31,7 @@ export const SubWindowAppShell = () => {
   const { tabs, activeTabId, updateTab, openTab } = useTabs()
   const initialized = useRef(false)
   const init = useWindowInitData<SubWindowInitData>()
-  const [isFullscreen, setIsFullscreen] = useState(false)
+  const isFullscreen = useNativeFullscreen()
 
   // Initialize tab from WindowManager init data (delivered via useWindowInitData).
   // First render returns `init === null`; the effect re-runs after one IPC round-trip
@@ -50,32 +49,6 @@ export const SubWindowAppShell = () => {
       forceNew: true
     })
   }, [init, openTab])
-
-  // Track native fullscreen (macOS hides the traffic lights in fullscreen), so the
-  // standalone title bar can drop its traffic-light reserve. Mirrors AppShell.
-  useEffect(() => {
-    if (!isMac) return
-
-    let cancelled = false
-    void ipcApi
-      .request('window.is_full_screen')
-      .then((value) => {
-        if (!cancelled) {
-          setIsFullscreen(value)
-        }
-      })
-      .catch(() => undefined)
-
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  useIpcOn('window.fullscreen_changed', (value) => {
-    if (isMac) {
-      setIsFullscreen(value)
-    }
-  })
 
   // Sync internal navigation back to tab state. Mirror the main AppShell:
   // clear the per-entity icon override so a mini-app logo doesn't stick onto
