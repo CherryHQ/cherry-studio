@@ -714,6 +714,181 @@ describe('TopicStreamSubscription', () => {
     sub.dispose()
   })
 
+  it("delivers the next cycle's first chunk to a reader registered before that cycle opened", async () => {
+    mock.mockApi.streamAttach.mockResolvedValueOnce({
+      status: 'attached',
+      bufferedChunks: [],
+      snapshot: {
+        cycleId: 7,
+        controlRevision: 1,
+        topicOpen: true,
+        attempts: [
+          {
+            executionId: A,
+            attemptId: 1,
+            anchorMessageId: 'assistant-a',
+            phase: 'running',
+            replayChunks: [],
+            throughChunkSeq: 0
+          }
+        ]
+      } satisfies StreamAttachSnapshot
+    })
+    const sub = new TopicStreamSubscription(TOPIC)
+    sub.register(A, 'assistant-a', 1)
+    await tick()
+
+    // The next cycle's open ACK registers attempt 2 before any cycle-8 event
+    // reaches this subscription — it must not be retired as a cycle-7 leftover.
+    const next = sub.register(B, 'assistant-b', 2)
+    mock.emitProtocol({
+      type: 'chunk',
+      topicId: TOPIC,
+      cycleId: 8,
+      executionId: B,
+      attemptId: 2,
+      anchorMessageId: 'assistant-b',
+      chunkSeq: 1,
+      throughChunkSeq: 1,
+      chunk: textChunk('next-cycle')
+    })
+    mock.emitProtocol({
+      type: 'attempt-durably-settled',
+      topicId: TOPIC,
+      cycleId: 8,
+      controlRevision: 1,
+      executionId: B,
+      attemptId: 2,
+      anchorMessageId: 'assistant-b',
+      outcome: 'success'
+    })
+
+    expect(await readAll(next)).toEqual([textChunk('next-cycle')])
+    sub.dispose()
+  })
+
+  it('still retires genuinely old-cycle branches when a pre-registered next-cycle reader survives', async () => {
+    mock.mockApi.streamAttach.mockResolvedValueOnce({
+      status: 'attached',
+      bufferedChunks: [],
+      snapshot: {
+        cycleId: 7,
+        controlRevision: 1,
+        topicOpen: true,
+        attempts: [
+          {
+            executionId: A,
+            attemptId: 1,
+            anchorMessageId: 'assistant-a',
+            phase: 'running',
+            replayChunks: [],
+            throughChunkSeq: 0
+          }
+        ]
+      } satisfies StreamAttachSnapshot
+    })
+    const sub = new TopicStreamSubscription(TOPIC)
+    const onRetired = vi.fn()
+    sub.onBranchesRetired(onRetired)
+    sub.register(A, 'assistant-a', 1)
+    await tick()
+
+    sub.register(B, 'assistant-b', 2)
+    mock.emitProtocol({
+      type: 'chunk',
+      topicId: TOPIC,
+      cycleId: 8,
+      executionId: B,
+      attemptId: 2,
+      anchorMessageId: 'assistant-b',
+      chunkSeq: 1,
+      throughChunkSeq: 1,
+      chunk: textChunk('next-cycle')
+    })
+
+    // Only the branch classified to cycle 7 retires; attempt 2 keeps its reader.
+    const retiredAttempts = onRetired.mock.calls.flatMap(([branches]) => branches.map((branch) => branch.attemptId))
+    expect(retiredAttempts).toEqual([1])
+    expect(sub.hasOpenBranch(B, 'assistant-b', 2)).toBe(true)
+    sub.dispose()
+  })
+
+  it('ignores an attach snapshot from a cycle older than events already applied', async () => {
+    mock.mockApi.streamAttach.mockResolvedValueOnce({
+      status: 'attached',
+      bufferedChunks: [],
+      snapshot: {
+        cycleId: 8,
+        controlRevision: 1,
+        topicOpen: true,
+        attempts: [{ executionId: A, attemptId: 5, phase: 'running', replayChunks: [], throughChunkSeq: 0 }]
+      } satisfies StreamAttachSnapshot
+    })
+    const sub = new TopicStreamSubscription(TOPIC)
+    const first = sub.register(A, undefined, 5)
+    await tick()
+
+    mock.emitProtocol({
+      type: 'attempt-durably-settled',
+      topicId: TOPIC,
+      cycleId: 8,
+      controlRevision: 2,
+      executionId: A,
+      attemptId: 5,
+      outcome: 'success'
+    })
+    mock.emitProtocol({
+      type: 'topic-quiesced',
+      topicId: TOPIC,
+      cycleId: 8,
+      controlRevision: 3,
+      throughAttemptId: 5,
+      outcome: 'success'
+    })
+    expect(await readAll(first)).toEqual([])
+    sub.unregister(A, undefined, 5)
+    await tick() // deferred detach runs
+
+    // Reattach for the next turn races Main: the response snapshot is from a
+    // cycle the live events above already superseded and must change nothing.
+    mock.mockApi.streamAttach.mockResolvedValueOnce({
+      status: 'attached',
+      bufferedChunks: [],
+      snapshot: {
+        cycleId: 7,
+        controlRevision: 9,
+        topicOpen: false,
+        attempts: [
+          { executionId: A, attemptId: 4, phase: 'settled', outcome: 'success', replayChunks: [], throughChunkSeq: 0 }
+        ]
+      } satisfies StreamAttachSnapshot
+    })
+    const next = sub.register(A, undefined, 6)
+    await tick()
+
+    mock.emitProtocol({
+      type: 'chunk',
+      topicId: TOPIC,
+      cycleId: 8,
+      executionId: A,
+      attemptId: 6,
+      chunkSeq: 1,
+      throughChunkSeq: 1,
+      chunk: textChunk('after-reattach')
+    })
+    mock.emitProtocol({
+      type: 'attempt-durably-settled',
+      topicId: TOPIC,
+      cycleId: 8,
+      controlRevision: 4,
+      executionId: A,
+      attemptId: 6,
+      outcome: 'success'
+    })
+    expect(await readAll(next)).toEqual([textChunk('after-reattach')])
+    sub.dispose()
+  })
+
   it('retires covered branches that never saw their own terminal when the topic quiesces', async () => {
     mock.mockApi.streamAttach.mockResolvedValueOnce({
       status: 'attached',

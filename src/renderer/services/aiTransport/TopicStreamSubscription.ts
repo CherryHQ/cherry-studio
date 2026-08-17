@@ -44,8 +44,8 @@ interface Branch {
   executionId: UniqueModelId
   attemptId: AttemptId
   anchorMessageId?: string
-  /** Cycle the subscription believed authoritative when the branch was created;
-   *  undefined until the first attach settles the protocol. */
+  /** Cycle adopted from protocol evidence (this attempt's own event or an attach
+   *  snapshot); undefined = unclassified, exempt from cross-cycle retirement. */
   cycleId?: number
   stream: ReadableStream<UIMessageChunk>
   controller: ReadableStreamDefaultController<UIMessageChunk> | null
@@ -118,7 +118,9 @@ export class TopicStreamSubscription {
     // The branch controller is created synchronously inside `createBranch`,
     // so chunks arriving before this call are already queued — late readers
     // never lose replay/early chunks.
-    const branch = this.#getOrCreateBranch(executionId, anchorMessageId, attemptId)
+    // Registrations (open ACK / SharedCache projection) carry no cycle identity —
+    // the current #cycleId may already be stale, so the branch starts unclassified.
+    const branch = this.#getOrCreateBranch(executionId, anchorMessageId, attemptId, undefined)
     if (!branch.closed) void this.#ensureAttached()
     return branch.stream
   }
@@ -235,7 +237,12 @@ export class TopicStreamSubscription {
 
   // ── internals ──────────────────────────────────────────────────────
 
-  #getOrCreateBranch(executionId: UniqueModelId, anchorMessageId: string | undefined, attemptId: number): Branch {
+  #getOrCreateBranch(
+    executionId: UniqueModelId,
+    anchorMessageId: string | undefined,
+    attemptId: number,
+    cycleId: number | undefined
+  ): Branch {
     const id = toAttemptId(attemptId)
     let branch = this.#branches.get(id)
     if (!branch) {
@@ -251,12 +258,15 @@ export class TopicStreamSubscription {
           })
         }
       }
-      branch = createBranch(executionId, anchorMessageId, id, this.#cycleId)
+      branch = createBranch(executionId, anchorMessageId, id, cycleId)
       if (!registration.accepted || this.#isBranchSettled(id)) {
         this.#closeBranch(branch)
         return branch
       }
       this.#branches.set(id, branch)
+    } else if (branch.cycleId === undefined && cycleId !== undefined) {
+      // An unclassified registration adopts the cycle of its own first event.
+      branch.cycleId = cycleId
     }
     return branch
   }
@@ -291,7 +301,9 @@ export class TopicStreamSubscription {
       return
     }
     if (this.#isBranchSettled(toAttemptId(attemptId))) return
-    const branch = this.#getOrCreateBranch(executionId, payload.anchorMessageId, attemptId)
+    // #cycleId is already synced to this event's cycle (undefined on legacy),
+    // so it is authoritative evidence for the branch.
+    const branch = this.#getOrCreateBranch(executionId, payload.anchorMessageId, attemptId, this.#cycleId)
     if (!branch.closed) branch.controller?.enqueue(payload.chunk)
   }
 
@@ -306,7 +318,7 @@ export class TopicStreamSubscription {
     const chunk: CherryUIMessageChunk = { type: 'data-error', data: { ...error } }
 
     if (executionId && attemptId !== undefined) {
-      const branch = this.#getOrCreateBranch(executionId, anchorMessageId, attemptId)
+      const branch = this.#getOrCreateBranch(executionId, anchorMessageId, attemptId, this.#cycleId)
       if (!branch.closed) branch.controller?.enqueue(chunk)
       return
     }
@@ -494,9 +506,13 @@ export class TopicStreamSubscription {
       this.#controlRevision = 0
       this.#lastChunkSeq.clear()
       this.#lastQuiesced = undefined
-      // Main opened a new topic cycle: every branch of an older cycle is dead
-      // authority — its reader/overlay must retire now, not on a later refresh.
-      this.#retireBranches([...this.#branches.values()].filter((branch) => branch.cycleId !== event.cycleId))
+      // Main opened a new topic cycle: branches classified to an older cycle are dead
+      // authority; unclassified ones may be this cycle's own not-yet-evidenced registrations.
+      this.#retireBranches(
+        [...this.#branches.values()].filter(
+          (branch) => branch.cycleId !== undefined && branch.cycleId !== event.cycleId
+        )
+      )
     }
     if (event.type === 'chunk') {
       if (source === 'snapshot-replay' && 'synthetic' in event && event.synthetic) {
@@ -567,6 +583,9 @@ export class TopicStreamSubscription {
   }
 
   #selectV2Protocol(snapshot: StreamAttachSnapshot): void {
+    // Mirror the live-path newer-only guard: a reattach can race a live cycle bump,
+    // and a snapshot of an already-superseded cycle is dead authority — ignore it wholly.
+    if (this.#cycleId !== undefined && snapshot.cycleId < this.#cycleId) return
     this.#protocol = 'v2'
     this.#cycleId = snapshot.cycleId
     this.#controlRevision = snapshot.controlRevision
