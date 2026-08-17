@@ -3867,6 +3867,8 @@
         "inactive_badge": "Inactif",
         "info_main": "MCP (Model Context Protocol) permet au modèle d'invoquer en toute sécurité des outils externes.",
         "info_sub": "L'activation uniquement des serveurs nécessaires améliore la sécurité et la vitesse de réponse.",
+        "inject_identity": "[to be translated]:Inject model identity",
+        "inject_identity_hint": "[to be translated]:Declare the running model in the system prompt so it answers its identity truthfully (e.g. not misidentify as Claude)",
         "mode": {
           "auto": {
             "desc": "Le modèle décide quels outils MCP activés appeler",

@@ -44,6 +44,8 @@ export interface AssistantFormState {
   enableMaxToolCalls: boolean
   customParameters: CustomParameter[]
   mcpMode: AssistantSettings['mcpMode']
+  // Local patch: identity injection toggle (default on).
+  injectModelIdentity: boolean
   // context management (P2-D assistant override). `contextOverrideEnabled` is
   // the master switch for the OFFLOAD + COMPRESSION fields only.
   contextOverrideEnabled: boolean
@@ -62,7 +64,6 @@ export interface AssistantFormState {
   knowledgeBaseIds: string[]
   mcpServerIds: string[]
 }
-
 export function initialAssistantFormState(assistant: Assistant): AssistantFormState {
   const settings = assistant.settings ?? ({} as AssistantSettings)
   const mcpMode = McpModeSchema.safeParse(settings.mcpMode)
@@ -85,6 +86,7 @@ export function initialAssistantFormState(assistant: Assistant): AssistantFormSt
     enableMaxToolCalls: settings.enableMaxToolCalls ?? true,
     customParameters: settings.customParameters ?? [],
     mcpMode: mcpMode.success ? mcpMode.data : DEFAULT_ASSISTANT_SETTINGS.mcpMode,
+    injectModelIdentity: settings.injectModelIdentity ?? DEFAULT_ASSISTANT_SETTINGS.injectModelIdentity ?? true,
     // Only an offload/compression field means "override": a lone maxMessages is
     // the scope control saved on its own.
     contextOverrideEnabled: ctx != null && (ctx.truncateThreshold !== undefined || ctx.compress !== undefined),
@@ -137,6 +139,8 @@ export function diffAssistantUpdate(
   const customParametersChanged = JSON.stringify(baseline.customParameters) !== JSON.stringify(form.customParameters)
   const maxTokensChanged = baseline.maxTokens !== form.maxTokens
   const enableMaxTokensChanged = baseline.enableMaxTokens !== form.enableMaxTokens
+  // Local patch: identity injection toggle (default on).
+  const injectModelIdentityChanged = baseline.injectModelIdentity !== form.injectModelIdentity
   const contextSettingsChanged =
     baseline.contextOverrideEnabled !== form.contextOverrideEnabled ||
     // Always compared: the scope control persists whether or not the
@@ -160,6 +164,7 @@ export function diffAssistantUpdate(
     ...(baseline.maxToolCalls !== form.maxToolCalls ? { maxToolCalls: form.maxToolCalls } : {}),
     ...(baseline.enableMaxToolCalls !== form.enableMaxToolCalls ? { enableMaxToolCalls: form.enableMaxToolCalls } : {}),
     ...(baseline.mcpMode !== form.mcpMode ? { mcpMode: form.mcpMode } : {}),
+    ...(injectModelIdentityChanged ? { injectModelIdentity: form.injectModelIdentity } : {}),
     ...(customParametersChanged ? { customParameters: form.customParameters } : {}),
     ...(contextSettingsChanged
       ? {

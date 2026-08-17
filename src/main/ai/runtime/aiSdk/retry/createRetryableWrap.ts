@@ -35,6 +35,7 @@ import {
 } from 'ai-retry'
 import { createRetryableModel, error } from 'ai-retry/language-model'
 
+import { withIdentityRewrite } from './identityRewrite'
 import type { RetryPolicy } from './retryPolicy'
 
 const logger = loggerService.withContext('ModelRetry')
@@ -51,6 +52,13 @@ export type FallbackCallOptions = LanguageModelRetryCallOptions
 export interface RetryFallback {
   model: LanguageModelV3
   options?: FallbackCallOptions
+  /**
+   * Local patch (model identity): identity section for THIS fallback model.
+   * When present, the fallback's calls rewrite the primary's identity section
+   * (built for the primary model at prompt-assembly time) so a fallback model
+   * reports itself truthfully instead of inheriting the primary's identity.
+   */
+  identitySection?: string
 }
 
 /**
@@ -135,7 +143,12 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
           cached = undefined
           return undefined
         }
-        return fallback.options ? { model: fallback.model, options: fallback.options } : { model: fallback.model }
+        // Local patch (model identity): rewrite the primary's identity section
+        // to this fallback's own on every fallback call.
+        const model = fallback.identitySection
+          ? withIdentityRewrite(fallback.model, fallback.identitySection)
+          : fallback.model
+        return fallback.options ? { model, options: fallback.options } : { model }
       }
     })
   ]

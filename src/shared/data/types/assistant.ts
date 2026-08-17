@@ -71,6 +71,12 @@ export const AssistantSettingsSchema = z.object({
   /** Offer the `generate_image` tool to the model (needs a painting model in Settings › Default Model). */
   enableGenerateImage: z.boolean(),
 
+  // -- Local patch: identity injection control --
+  /** Inject the real model/provider identity into the system prompt so the model
+   *  answers "what model are you" truthfully instead of guessing (default on).
+   *  Off keeps the original behaviour. */
+  injectModelIdentity: z.boolean().optional(),
+
   /** User-defined model parameters (e.g. {"top_k": 40, "repetition_penalty": 1.1}).
    *  Discriminated union on `type` ensures `value` is type-safe:
    *  - `string` → string value, rendered as text input
@@ -109,7 +115,8 @@ export const DEFAULT_ASSISTANT_SETTINGS: AssistantSettings = {
   enableMaxToolCalls: true,
   enableWebSearch: false,
   enableGenerateImage: false,
-  customParameters: []
+  customParameters: [],
+  injectModelIdentity: true
 }
 
 // ============================================================================

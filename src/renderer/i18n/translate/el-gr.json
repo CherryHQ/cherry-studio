@@ -3867,6 +3867,8 @@
         "inactive_badge": "Ανενεργό",
         "info_main": "Το MCP (Model Context Protocol) επιτρέπει στο μοντέλο να καλεί με ασφάλεια εξωτερικά εργαλεία.",
         "info_sub": "Η ενεργοποίηση μόνο των απαραίτητων διακομιστών βελτιώνει την ασφάλεια και την ταχύτητα απόκρισης.",
+        "inject_identity": "[to be translated]:Inject model identity",
+        "inject_identity_hint": "[to be translated]:Declare the running model in the system prompt so it answers its identity truthfully (e.g. not misidentify as Claude)",
         "mode": {
           "auto": {
             "desc": "Το μοντέλο αποφασίζει ποια ενεργοποιημένα εργαλεία MCP θα καλέσει",

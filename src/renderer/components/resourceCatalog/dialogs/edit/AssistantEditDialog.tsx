@@ -89,6 +89,7 @@ type AssistantEditFormValues = {
   enableMaxToolCalls: boolean
   customParameters: AssistantFormState['customParameters']
   mcpMode: AssistantFormState['mcpMode']
+  injectModelIdentity: boolean
   contextOverrideEnabled: boolean
   contextCompressEnabled: boolean
   contextTruncateThreshold: number
@@ -129,6 +130,7 @@ function defaultValuesForAssistant(resource: AssistantEditDialogResource): Assis
     enableMaxToolCalls: form.enableMaxToolCalls,
     customParameters: form.customParameters.map((parameter) => ({ ...parameter })),
     mcpMode: form.mcpMode,
+    injectModelIdentity: form.injectModelIdentity,
     contextOverrideEnabled: form.contextOverrideEnabled,
     contextCompressEnabled: form.contextCompressEnabled,
     contextTruncateThreshold: form.contextTruncateThreshold,
@@ -168,6 +170,7 @@ function buildAssistantFormState(baseline: AssistantFormState, values: Assistant
     enableMaxToolCalls: values.enableMaxToolCalls,
     customParameters: values.customParameters,
     mcpMode: values.mcpMode,
+    injectModelIdentity: values.injectModelIdentity,
     contextOverrideEnabled: values.contextOverrideEnabled,
     contextCompressEnabled: values.contextCompressEnabled,
     contextTruncateThreshold: values.contextTruncateThreshold,
@@ -647,6 +650,25 @@ function AssistantToolsFields({
           )}
         />
       ) : null}
+
+      {/* Local patch: identity injection toggle */}
+      <FormField
+        control={form.control}
+        name="injectModelIdentity"
+        render={({ field }) => (
+          <FormItem>
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <FormLabel className="font-normal text-[13px]">{t('library.config.tools.inject_identity')}</FormLabel>
+                <p className="text-muted-foreground text-xs">{t('library.config.tools.inject_identity_hint')}</p>
+              </div>
+              <FormControl>
+                <Switch checked={field.value} onCheckedChange={field.onChange} />
+              </FormControl>
+            </div>
+          </FormItem>
+        )}
+      />
     </div>
   )
 }

@@ -3867,6 +3867,8 @@
         "inactive_badge": "未啟用",
         "info_main": "MCP（Model Context Protocol）讓模型能安全地呼叫外部工具。",
         "info_sub": "僅啟用必要的伺服器可提升安全性與回應速度。",
+        "inject_identity": "[to be translated]:Inject model identity",
+        "inject_identity_hint": "[to be translated]:Declare the running model in the system prompt so it answers its identity truthfully (e.g. not misidentify as Claude)",
         "mode": {
           "auto": {
             "desc": "模型決定要呼叫哪些已啟用的 MCP 工具",
