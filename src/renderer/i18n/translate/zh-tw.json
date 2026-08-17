@@ -1089,8 +1089,8 @@
           "label": "執行 Shell 命令"
         },
         "create_goal": {
-          "description": "[to be translated]:Create a session goal to work toward",
-          "label": "[to be translated]:Create goal"
+          "description": "建立要達成的工作階段目標",
+          "label": "建立目標"
         },
         "edit": {
           "description": "編輯檔案",
@@ -1101,8 +1101,8 @@
           "label": "尋找檔案"
         },
         "get_goal": {
-          "description": "[to be translated]:Read the current session goal",
-          "label": "[to be translated]:Read goal"
+          "description": "讀取目前的工作階段目標",
+          "label": "讀取目標"
         },
         "grep": {
           "description": "搜尋檔案內容",
@@ -1129,8 +1129,8 @@
           "label": "管理任務清單"
         },
         "update_goal": {
-          "description": "[to be translated]:Update the session goal status or objective",
-          "label": "[to be translated]:Update goal"
+          "description": "更新工作階段目標的狀態或內容",
+          "label": "更新目標"
         },
         "write": {
           "description": "寫入檔案",
@@ -2227,7 +2227,7 @@
     "cli_tool_placeholder": "選擇要使用的 CLI 工具",
     "cli_tools": {
       "claude_code": "Claude Code",
-      "deepseek_harness": "[to be translated]:DeepSeek Harness",
+      "deepseek_harness": "DeepSeek Harness",
       "gemini_cli": "Gemini CLI",
       "github_copilot_cli": "GitHub Copilot CLI",
       "kimi_code": "Kimi Code",
@@ -2251,39 +2251,39 @@
     "custom_path_required": "此終端機需要設定自訂路徑",
     "custom_path_set": "自訂終端機路徑設定成功",
     "deepseek_harness": {
-      "agent_preset": "[to be translated]:Default agent mode",
+      "agent_preset": "預設智能體模式",
       "agent_presets": {
         "code": {
-          "description": "[to be translated]:Combines multi-step tool work through the PTC Code Mode SDK for complex coding tasks.",
-          "label": "[to be translated]:PTC Code"
+          "description": "透過 PTC Code Mode SDK 組合多步驟工具操作，適用於複雜的程式設計任務。",
+          "label": "PTC 程式碼"
         },
         "inherit": {
-          "description": "[to be translated]:Keeps the existing default preset in the shared ~/.dsh settings.",
-          "label": "[to be translated]:Harness default"
+          "description": "保留共用 ~/.dsh 設定中現有的預設設定。",
+          "label": "Harness 預設"
         },
         "minimal": {
-          "description": "[to be translated]:Uses only a persistent shell and text editor for the smallest tool surface.",
-          "label": "[to be translated]:Minimal"
+          "description": "僅使用持續性 Shell 和文字編輯器，以維持最精簡的工具範圍。",
+          "label": "極簡"
         },
         "standard": {
-          "description": "[to be translated]:Full coding agent with files, shell, search, skills, planning, and subagents.",
-          "label": "[to be translated]:Standard"
+          "description": "完整的程式設計智能體，包含檔案、Shell、搜尋、技能、規劃和子智能體。",
+          "label": "標準"
         }
       },
-      "danger_warning": "[to be translated]:Full access lets the agent reach files outside the workspace and skips operation approval. Use it only for tasks you trust.",
-      "permission_mode": "[to be translated]:Default permission",
+      "danger_warning": "完全存取可讓智能體存取工作區以外的檔案並略過操作核准。僅用於你信任的任務。",
+      "permission_mode": "預設權限",
       "permission_modes": {
         "danger-full-access": {
-          "description": "[to be translated]:Allows unrestricted access without operation approval.",
-          "label": "[to be translated]:Full access"
+          "description": "允許不受限制地存取，且不需核准操作。",
+          "label": "完全存取"
         },
         "read-only": {
-          "description": "[to be translated]:Restricts file writes and asks before risky operations.",
-          "label": "[to be translated]:Read only"
+          "description": "限制寫入檔案，並在執行有風險的操作前要求確認。",
+          "label": "唯讀"
         },
         "workspace-write": {
-          "description": "[to be translated]:Allows writes in the current DSH workspace and asks before risky operations.",
-          "label": "[to be translated]:Workspace write"
+          "description": "允許寫入目前的 DSH 工作區，並在執行有風險的操作前要求確認。",
+          "label": "寫入工作區"
         }
       }
     },
@@ -2337,7 +2337,7 @@
     "no_tools": "目前沒有工具",
     "not_installed": "未安裝",
     "open_provider_settings": "開啟供應商設定",
-    "open_web_ui": "[to be translated]:Open Web UI",
+    "open_web_ui": "開啟 Web UI",
     "own_login": {
       "title": "{{toolName}} 官方"
     },
@@ -2347,10 +2347,10 @@
     "search_provider_placeholder": "搜尋供應商…",
     "select_folder": "選擇資料夾",
     "select_provider_before_launch": "請選擇一個供應商後啟動 {{toolName}}",
-    "select_provider_model": "[to be translated]:Please select a provider and model first",
+    "select_provider_model": "請先選擇供應商和模型",
     "select_tool_to_start": "從左側選擇一個 CLI 工具開始設定",
     "set_custom_path": "設定自訂終端機路徑",
-    "stop": "[to be translated]:Stop",
+    "stop": "停止",
     "supported_providers": "支援的供應商",
     "terminal": "終端機",
     "terminal_hint": "選擇執行命令的終端機應用程式",
