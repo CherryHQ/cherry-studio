@@ -12,7 +12,7 @@ import {
   resolveRealOrNearestExistingPath
 } from '@main/ai/agents/agentDataDirectory'
 import { isMac, isWin } from '@main/core/platform'
-import { isPathInside } from '@main/utils/file'
+import { isPathInside, isSameOrInside } from '@main/utils/file'
 import PQueue from 'p-queue'
 import { validate as isUuid } from 'uuid'
 
@@ -212,9 +212,14 @@ async function realpathIfExists(targetPath: string): Promise<string | undefined>
   }
 }
 
-function isUnsupportedVirtualDriveRealpathError(error: unknown): boolean {
-  const fsError = error as NodeJS.ErrnoException
-  return fsError.code === 'UNKNOWN' && fsError.syscall === 'realpath'
+function isUnknownRealpathError(error: unknown): error is NodeJS.ErrnoException {
+  return (
+    error instanceof Error &&
+    'code' in error &&
+    error.code === 'UNKNOWN' &&
+    'syscall' in error &&
+    error.syscall === 'realpath'
+  )
 }
 
 export interface AgentFileSessionPlan {
@@ -1675,7 +1680,7 @@ async function clearLegacyAgentMigrationTargets(input: {
       const resolvedSource = await realpathIfExists(sourcePath)
       if (resolvedSource) resolvedSources.push({ indexedPath: resolvedSource, ownerPath: sourcePath })
     } catch (error) {
-      if (isPathInsideOrEqual(sourcePath, normalizedRoot) || !isUnsupportedVirtualDriveRealpathError(error)) {
+      if (isSameOrInside(sourcePath, normalizedRoot) || !isUnknownRealpathError(error)) {
         throw error
       }
       const protectedTargetKeys = new Set(
@@ -1687,8 +1692,8 @@ async function clearLegacyAgentMigrationTargets(input: {
       for (const targetKey of protectedTargetKeys) skippedTargetKeys.add(targetKey)
       logger.warn('Skipping Agent filesystem targets because an external legacy source cannot be resolved', {
         sourcePath,
-        code: (error as NodeJS.ErrnoException).code,
-        syscall: (error as NodeJS.ErrnoException).syscall,
+        code: error.code,
+        syscall: error.syscall,
         skippedTargets: protectedTargetKeys.size
       })
     }

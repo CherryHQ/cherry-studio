@@ -1238,7 +1238,7 @@ describe('agentsFilesystemMigration', () => {
     expect(await readFile(path.join(existingTarget, 'keep.txt'), 'utf8')).toBe('keep existing target')
   })
 
-  it('keeps realpath UNKNOWN fatal for a managed legacy workspace', async () => {
+  it('keeps realpath UNKNOWN fatal for a source inside the agents root', async () => {
     const { agentsDataRoot, legacyWorkspace } = await createFixture()
     await mkdir(legacyWorkspace, { recursive: true })
     const managedSession = sessionPlan(agentsDataRoot, legacyWorkspace, {
@@ -1254,6 +1254,36 @@ describe('agentsFilesystemMigration', () => {
         code: 'UNKNOWN',
         errno: -4094,
         path: legacyWorkspace,
+        syscall: 'realpath'
+      })
+    )
+
+    await expect(
+      stageLegacyAgentFiles({
+        agentsDataRoot,
+        agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+        sessions: [managedSession]
+      })
+    ).rejects.toMatchObject({ code: 'UNKNOWN', syscall: 'realpath' })
+  })
+
+  it('keeps realpath UNKNOWN fatal for a case-only agents root on Windows', async () => {
+    const { agentsDataRoot } = await createFixture()
+    platformState.isWin = true
+    const caseVariantRoot = agentsDataRoot.toUpperCase()
+    const managedSession = sessionPlan(agentsDataRoot, caseVariantRoot, {
+      sourceSessionId: 'session_managed',
+      finalSessionId: FINAL_LATEST_SESSION_ID,
+      createdAt: Date.parse('2026-07-22T00:00:00Z'),
+      updatedAt: Date.parse('2026-07-23T00:00:00Z'),
+      managed: false
+    })
+    realpathFailures.set(
+      path.resolve(caseVariantRoot),
+      Object.assign(new Error(`UNKNOWN: unknown error, realpath '${caseVariantRoot}'`), {
+        code: 'UNKNOWN',
+        errno: -4094,
+        path: caseVariantRoot,
         syscall: 'realpath'
       })
     )
