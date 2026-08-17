@@ -162,8 +162,25 @@ describe('ModelCheckStatus', () => {
     })
 
     expect(row).not.toContainElement(popover)
+    expect(within(popover!).queryByText('aggregate provider failure')).not.toBeInTheDocument()
     expect(within(popover!).getByText('first key failure details')).toBeInTheDocument()
     expect(within(popover!).getByText('second key failure details')).toBeInTheDocument()
+  })
+
+  it('shows the model error when no key-level result is available', async () => {
+    const user = userEvent.setup()
+    renderStatus({
+      kind: 'failed',
+      model,
+      status: HealthStatus.FAILED,
+      checking: false,
+      keyResults: [],
+      error: error('model-level failure details')
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Chat: Failed' }))
+
+    expect(await screen.findByText('model-level failure details')).toBeInTheDocument()
   })
 
   it('shows a complete reason for a skipped model', async () => {

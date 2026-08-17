@@ -82,7 +82,7 @@ export default function ModelCheckStatus({ result, apiKeyEntries, savingKeyId, o
           <p className="whitespace-pre-wrap text-muted-foreground text-xs">{getSkipText(result, t)}</p>
         ) : (
           <>
-            {result.kind === 'failed' && result.error ? (
+            {result.kind === 'failed' && result.keyResults.length === 0 && result.error ? (
               <p className="mb-2 whitespace-pre-wrap break-words text-error text-xs">
                 {healthCheckErrorToDisplayString(result.error)}
               </p>
