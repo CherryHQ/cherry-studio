@@ -72,6 +72,13 @@ const mockIpcApiService = {
   broadcastToType: vi.fn()
 }
 
+/** Minimal OAuthRuntimeService mock — defaults to not-signed-in (`null`). */
+const mockOAuthRuntimeService = {
+  getValidAccessToken: vi.fn(() => null),
+  logout: vi.fn(),
+  isSignedIn: vi.fn(() => false)
+}
+
 /** Minimal JobManager mock for handler registration and startup enqueues. */
 export const mockJobManager = {
   registerHandler: vi.fn(),
@@ -88,6 +95,7 @@ export const defaultServiceInstances = {
   MainWindowService: mockMainWindowService,
   WindowManager: mockWindowManager,
   IpcApiService: mockIpcApiService,
+  OAuthRuntimeService: mockOAuthRuntimeService,
   JobManager: mockJobManager
 } as const
 
