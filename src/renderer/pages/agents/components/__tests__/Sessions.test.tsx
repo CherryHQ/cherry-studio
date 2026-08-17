@@ -1855,6 +1855,60 @@ describe('Sessions', () => {
     expect(document.querySelectorAll('[data-resource-list-loading-item]')).toHaveLength(0)
   })
 
+  it('queries only expanded agent groups with an independent cursor scope', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    setSessionGroupExpansionCache({
+      agent: ['session:agent:agent-b'],
+      workdir: []
+    })
+    setupSessions({
+      sessions: [
+        createSession({ id: 'session-a', agentId: 'agent-a' }),
+        createSession({ id: 'session-b', agentId: 'agent-b' })
+      ]
+    })
+
+    render(<SessionsForTest />)
+
+    expect(sessionDataMocks.useSessions).toHaveBeenCalledWith(
+      'agent-a',
+      expect.objectContaining({ pageSize: 5, pinned: false, retainInactive: true })
+    )
+    expect(sessionDataMocks.useSessions).not.toHaveBeenCalledWith(
+      'agent-b',
+      expect.objectContaining({ pinned: false, retainInactive: true })
+    )
+  })
+
+  it('uses the workspace id as the independent workdir cursor scope', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'workdir')
+    setSessionGroupExpansionCache({
+      agent: [],
+      workdir: ['session:workspace:ws-b']
+    })
+    setupSessions({
+      sessions: [
+        createSession({ id: 'session-a', workspaceId: 'ws-a' }),
+        createSession({
+          id: 'session-b',
+          workspaceId: 'ws-b',
+          workspace: makeWorkspace('/Users/jd/project-b', { id: 'ws-b', name: 'Project B Workspace' })
+        })
+      ]
+    })
+
+    render(<SessionsForTest />)
+
+    expect(sessionDataMocks.useSessions).toHaveBeenCalledWith(
+      undefined,
+      expect.objectContaining({ pageSize: 5, pinned: false, retainInactive: true, workspaceId: 'ws-a' })
+    )
+    expect(sessionDataMocks.useSessions).not.toHaveBeenCalledWith(
+      undefined,
+      expect.objectContaining({ pinned: false, retainInactive: true, workspaceId: 'ws-b' })
+    )
+  })
+
   it('keeps workdir sessions loading until workspace rows are ready', () => {
     dataApiMocks.workspacesLoading = true
     setupSessions({ sessions: [] })

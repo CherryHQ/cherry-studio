@@ -211,7 +211,8 @@ function buildVirtualGroups<T extends ResourceListItemBase>(
       header: group.group.label ? { type: 'group', group: group.group } : undefined,
       items,
       footer:
-        (!usesScrollPaginationForGroup && group.hasMore) || group.canCollapseToDefault
+        (!usesScrollPaginationForGroup && (group.hasMore || group.hasError || group.isLoading)) ||
+        group.canCollapseToDefault
           ? {
               group: group.group,
               groupCollapsed: group.collapsed,

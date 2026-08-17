@@ -388,11 +388,18 @@ type GroupShowMoreProps = ComponentProps<'div'> & {
 }
 
 export function GroupShowMore({ groupId, className, ref, style, ...props }: GroupShowMoreProps) {
+  const { t } = useTranslation()
   const actions = useResourceListActions()
   const meta = useResourceListMeta()
   const groupState = useResourceListGroupState(groupId)
   const canCollapseToDefault = groupState.canCollapseToDefault
-  const label = canCollapseToDefault ? meta.groupCollapseLabel : meta.groupShowMoreLabel
+  const label = groupState.hasError
+    ? t('common.retry')
+    : groupState.isLoading
+      ? t('common.loading')
+      : canCollapseToDefault
+        ? meta.groupCollapseLabel
+        : meta.groupShowMoreLabel
 
   if (!label) return null
 
@@ -409,11 +416,16 @@ export function GroupShowMore({ groupId, className, ref, style, ...props }: Grou
       {...props}>
       <button
         type="button"
+        disabled={groupState.isLoading}
         className={cn(
-          'flex h-5 min-w-0 items-center justify-start rounded-sm px-0 text-left text-foreground-tertiary transition-colors duration-150 hover:text-foreground focus-visible:bg-accent focus-visible:text-accent-foreground focus-visible:outline-none',
+          'flex h-5 min-w-0 items-center justify-start rounded-sm px-0 text-left text-foreground-tertiary transition-colors duration-150 hover:text-foreground focus-visible:bg-accent focus-visible:text-accent-foreground focus-visible:outline-none disabled:cursor-wait',
           RESOURCE_LIST_LABEL_CLASS
         )}
         onClick={() => {
+          if (groupState.hasError) {
+            actions.retryGroup(groupId)
+            return
+          }
           if (canCollapseToDefault) {
             actions.collapseGroupItems(groupId)
             return

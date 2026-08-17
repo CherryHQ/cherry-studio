@@ -110,6 +110,7 @@ export type ResourceListActionMap = {
   openContextMenu: (id: string) => void
   selectGroupHeaderItem: (id: string) => void
   showMoreInGroup: (groupId: string) => void
+  retryGroup: (groupId: string) => void
   collapseGroupItems: (groupId: string) => void
   expandGroups: (groupIds: readonly string[]) => void
   collapseGroups: (groupIds: readonly string[]) => void
@@ -184,6 +185,8 @@ export type ResourceListViewGroup<T extends ResourceListItemBase> = {
   hasMore: boolean
   canCollapseToDefault: boolean
   collapsed: boolean
+  hasError: boolean
+  isLoading: boolean
 }
 
 export type ResourceListViewSection<T extends ResourceListItemBase> = {

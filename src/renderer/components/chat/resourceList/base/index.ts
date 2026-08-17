@@ -55,6 +55,13 @@ export {
 } from './ResourceList'
 export { remapResourceListCollapsedGroupIds } from './resourceListExpansion'
 export { RESOURCE_LIST_SELECTED_ROW_CLASS, RESOURCE_LIST_TITLE_FADE_CLASS } from './resourceListLayout'
+export type { ResourceListRemoteGroupSnapshot } from './ResourceListRemoteGroups'
+export {
+  ResourceListRemoteGroupService,
+  useRegisterResourceListRemoteGroup,
+  useResourceListRemoteGroupService,
+  useResourceListRemoteGroupSnapshots
+} from './ResourceListRemoteGroups'
 export { SESSION_DISPLAY_LABEL_KEYS, SessionListOptionsMenu } from './SessionListOptionsMenu'
 export { TopicListOptionsMenu } from './TopicListOptionsMenu'
 export { useDisplayModeRevealRequest } from './useDisplayModeRevealRequest'

@@ -9,6 +9,7 @@
 
 import { loggerService } from '@logger'
 import { dataApiService } from '@renderer/data/DataApiService'
+import { createInfiniteQueryRetentionMiddleware } from '@renderer/data/hooks/createInfiniteQueryRetentionMiddleware'
 import {
   useDataChange,
   useInfiniteFlatItems,
@@ -63,7 +64,15 @@ type UseSessionsOptions = {
   pinned: boolean
   /** Concrete user workspace id, or the aggregate system/no-workdir scope. */
   workspaceId?: AgentSessionWorkspaceScope
+  retainInactive?: boolean
 }
+
+const sessionGroupRetentionMiddleware = createInfiniteQueryRetentionMiddleware({
+  idleTtlMs: 10 * 60_000,
+  maxInactiveGroups: 8,
+  maxInactivePages: 24,
+  releaseDelayMs: 1_000
+})
 
 export type CreateSessionForm = Omit<CreateAgentSessionDto, 'agentId'>
 export type UpdateSessionForm = UpdateAgentSessionDto & { id: string }
@@ -284,7 +293,11 @@ export const useSessions = (agentId: string | null | undefined, options: UseSess
     query,
     limit: pageSize,
     enabled,
-    swrOptions: { revalidateAll: false, revalidateFirstPage: true }
+    swrOptions: {
+      revalidateAll: false,
+      revalidateFirstPage: true,
+      ...(options.retainInactive ? { use: [sessionGroupRetentionMiddleware] } : {})
+    }
   })
   useDataChange('/agent-sessions', () => {
     if (enabled !== false) void refresh()

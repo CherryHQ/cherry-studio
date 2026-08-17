@@ -10,13 +10,17 @@ import {
   type ResourceListGroupSeed,
   type ResourceListItemReorderPayload,
   type ResourceListPresentation,
+  type ResourceListRemoteGroupService,
   type ResourceListReorderPayload,
   type ResourceListRevealRequest,
   type ResourceListSection,
   SESSION_DISPLAY_LABEL_KEYS,
   SessionListOptionsMenu,
   useDisplayModeRevealRequest,
-  useResourceListPinnedItems
+  useRegisterResourceListRemoteGroup,
+  useResourceListPinnedItems,
+  useResourceListRemoteGroupService,
+  useResourceListRemoteGroupSnapshots
 } from '@renderer/components/chat/resourceList/base'
 import { ResourceRefreshErrorBanner } from '@renderer/components/chat/resourceList/ResourceRefreshErrorBanner'
 import { SessionResourceList } from '@renderer/components/chat/resourceList/SessionResourceList'
@@ -86,7 +90,9 @@ import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import type {
   AgentSessionEntity,
   AgentSessionListItem,
-  AgentSessionOwnerScope
+  AgentSessionOwnerScope,
+  AgentSessionSortBy,
+  AgentSessionWorkspaceScope
 } from '@shared/data/api/schemas/agentSessions'
 import {
   AGENT_WORKSPACE_TYPE,
@@ -156,6 +162,64 @@ type SessionCreationDefaults = {
   agentId: string
   workspace?: AgentSessionWorkspaceSource
   workspacePath?: string
+}
+
+type SessionRemoteGroupQueryDescriptor = {
+  agentId?: AgentSessionOwnerScope
+  groupId: string
+  workspaceId?: AgentSessionWorkspaceScope
+}
+
+function SessionRemoteGroupQuery({
+  agentId,
+  groupId,
+  q,
+  service,
+  sortBy,
+  workspaceId
+}: {
+  agentId?: AgentSessionOwnerScope
+  groupId: string
+  q: string
+  service: ResourceListRemoteGroupService<AgentSessionListItem>
+  sortBy: AgentSessionSortBy
+  workspaceId?: AgentSessionWorkspaceScope
+}) {
+  const source = useSessions(agentId, {
+    pageSize: DEFAULT_SESSION_GROUP_VISIBLE_COUNT,
+    pinned: false,
+    q,
+    retainInactive: true,
+    searchScope: 'name',
+    sortBy,
+    workspaceId
+  })
+  const reload = source.reload
+  const retry = useCallback(() => void reload(), [reload])
+  const snapshot = useMemo(
+    () => ({
+      error: source.error,
+      groupId,
+      hasNext: source.hasMore,
+      isLoading: source.isLoading,
+      isRefreshing: source.isValidating,
+      items: source.sessions,
+      loadNext: source.loadMore,
+      retry
+    }),
+    [
+      groupId,
+      retry,
+      source.error,
+      source.hasMore,
+      source.isLoading,
+      source.isValidating,
+      source.loadMore,
+      source.sessions
+    ]
+  )
+  useRegisterResourceListRemoteGroup(service, snapshot)
+  return null
 }
 
 function AgentGroupMoreMenu({
@@ -444,7 +508,7 @@ const Sessions = ({
   )
   const pinnedSessionsSource = useSessions(rightPanelAgentScope, {
     enabled: isSessionListEnabled,
-    pageSize: SESSION_PAGE_SIZE,
+    pageSize: displayMode === 'time' ? SESSION_PAGE_SIZE : DEFAULT_SESSION_GROUP_VISIBLE_COUNT,
     pinned: true,
     q: debouncedRemoteQuery,
     searchScope: 'name'
@@ -459,7 +523,7 @@ const Sessions = ({
     sessions: pinnedSessions
   } = pinnedSessionsSource
   const ordinarySessionsSource = useSessions(rightPanelAgentScope, {
-    enabled: isSessionListEnabled,
+    enabled: isSessionListEnabled && displayMode === 'time',
     pageSize: SESSION_PAGE_SIZE,
     pinned: false,
     q: debouncedRemoteQuery,
@@ -474,6 +538,38 @@ const Sessions = ({
     reload: reloadOrdinarySessions,
     sessions: ordinarySessions
   } = ordinarySessionsSource
+  const remoteSessionGroups = useResourceListRemoteGroupService<AgentSessionListItem>()
+  const remoteSessionGroupSnapshots = useResourceListRemoteGroupSnapshots<AgentSessionListItem>(remoteSessionGroups)
+  const remoteOrdinarySessionGroupSnapshots = useMemo(
+    () => remoteSessionGroupSnapshots.filter((group) => group.groupId !== SESSION_PINNED_GROUP_ID),
+    [remoteSessionGroupSnapshots]
+  )
+  const remoteSessions = useMemo(
+    () => remoteOrdinarySessionGroupSnapshots.flatMap((group) => group.items),
+    [remoteOrdinarySessionGroupSnapshots]
+  )
+  const pinnedSessionRemoteSnapshot = useMemo(
+    () => ({
+      error: pinnedSessionsSource.error,
+      groupId: SESSION_PINNED_GROUP_ID,
+      hasNext: hasMorePinnedSessions,
+      isLoading: pinnedSessionsSource.isLoading,
+      isRefreshing: isPinnedSessionsValidating,
+      items: pinnedSessions,
+      loadNext: loadMorePinnedSessions,
+      retry: () => void reloadPinnedSessions()
+    }),
+    [
+      hasMorePinnedSessions,
+      isPinnedSessionsValidating,
+      loadMorePinnedSessions,
+      pinnedSessions,
+      pinnedSessionsSource.error,
+      pinnedSessionsSource.isLoading,
+      reloadPinnedSessions
+    ]
+  )
+  useRegisterResourceListRemoteGroup(remoteSessionGroups, pinnedSessionRemoteSnapshot)
   const {
     stats: sessionStats,
     isLoading: isSessionStatsLoading,
@@ -542,9 +638,9 @@ const Sessions = ({
   const itemDragReady =
     !isRightPanel &&
     sessionSortBy === 'orderKey' &&
-    !ordinarySessionsSource.error &&
-    !isOrdinarySessionsLoading &&
-    !isOrdinarySessionsValidating
+    (displayMode === 'time'
+      ? !ordinarySessionsSource.error && !isOrdinarySessionsLoading && !isOrdinarySessionsValidating
+      : remoteOrdinarySessionGroupSnapshots.every((group) => !group.error && !group.isLoading && !group.isRefreshing))
   const workspaceRowsForDisplay = useMemo(() => {
     if (!optimisticWorkspaceOrderIds) return workspaceRows
 
@@ -650,10 +746,11 @@ const Sessions = ({
   )
   const sourceSessionItems = useMemo<AgentSessionListItem[]>(() => {
     const byId = new Map<string, AgentSessionListItem>()
-    for (const session of ordinarySessions) byId.set(session.id, session)
+    const ordinaryRows = displayMode === 'time' ? ordinarySessions : remoteSessions
+    for (const session of ordinaryRows) byId.set(session.id, session)
     for (const session of pinnedSessions) byId.set(session.id, session)
     return [...byId.values()]
-  }, [ordinarySessions, pinnedSessions])
+  }, [displayMode, ordinarySessions, pinnedSessions, remoteSessions])
   const { items: projectedSessionItems, togglePinned: togglePinnedSessionItem } = useResourceListPinnedItems({
     disabled: isSessionPinMutating,
     items: sourceSessionItems,
@@ -802,8 +899,13 @@ const Sessions = ({
     [isSessionPinMutating, t, togglePinnedSessionItem]
   )
   const reloadSessionViews = useCallback(async () => {
-    await Promise.all([reloadPinnedSessions(), reloadOrdinarySessions(), refetchSessionStats()])
-  }, [refetchSessionStats, reloadOrdinarySessions, reloadPinnedSessions])
+    if (displayMode !== 'time') remoteSessionGroups.refresh()
+    await Promise.all([
+      reloadPinnedSessions(),
+      refetchSessionStats(),
+      ...(displayMode === 'time' ? [reloadOrdinarySessions()] : [])
+    ])
+  }, [displayMode, refetchSessionStats, reloadOrdinarySessions, reloadPinnedSessions, remoteSessionGroups])
   const workspaceOrderSignature = useMemo(
     () => workspaceRows.map((workspace) => `${workspace.id}:${workspace.orderKey}`).join('|'),
     [workspaceRows]
@@ -984,6 +1086,32 @@ const Sessions = ({
       return path ? (workdirDisplay.groupIdByPath.get(path) ?? groupId) : groupId
     })
   }, [displayMode, sessionExpansion, sessionGroupSeeds, workdirDisplay.groupIdByPath])
+  const remoteSessionGroupQueries = useMemo<SessionRemoteGroupQueryDescriptor[]>(() => {
+    if (displayMode === 'time') return []
+
+    const collapsedIds = new Set(collapsedSessionState)
+    return sessionGroupSeeds.flatMap<SessionRemoteGroupQueryDescriptor>((group) => {
+      if (
+        group.id === SESSION_PINNED_GROUP_ID ||
+        collapsedIds.has(group.id) ||
+        (group.section && collapsedIds.has(group.section.id))
+      ) {
+        return []
+      }
+
+      if (displayMode === 'agent') {
+        const agentId =
+          group.id === SESSION_UNLINKED_AGENT_GROUP_ID ? 'unlinked' : getAgentIdFromSessionGroupId(group.id)
+        return agentId ? [{ agentId, groupId: group.id, workspaceId: undefined }] : []
+      }
+
+      const workspaceId =
+        group.id === SESSION_SYSTEM_WORKSPACE_GROUP_ID
+          ? 'system'
+          : (workdirDisplay.workspaceIdByGroupId.get(group.id) ?? getWorkspaceIdFromSessionGroupId(group.id))
+      return workspaceId ? [{ agentId: undefined, groupId: group.id, workspaceId }] : []
+    })
+  }, [collapsedSessionState, displayMode, sessionGroupSeeds, workdirDisplay.workspaceIdByGroupId])
 
   const handleSessionCollapsedStateChange = useCallback(
     (nextCollapsedIds: string[]) => {
@@ -2225,7 +2353,7 @@ const Sessions = ({
   const currentListError =
     sessionStatsError ??
     pinnedSessionsSource.error ??
-    ordinarySessionsSource.error ??
+    (displayMode === 'time' ? ordinarySessionsSource.error : undefined) ??
     (displayMode === 'agent' ? agentsError : displayMode === 'workdir' ? workspacesError : undefined)
   const refreshError = sessionItems.length > 0 ? currentListError : undefined
   const listError = sessionItems.length > 0 ? undefined : currentListError
@@ -2233,11 +2361,11 @@ const Sessions = ({
     sessionItems.length === 0 &&
     (isSessionStatsLoading ||
       pinnedSessionsSource.isLoading ||
-      isOrdinarySessionsLoading ||
+      (displayMode === 'time' && isOrdinarySessionsLoading) ||
       (displayMode === 'agent' ? isAgentsLoading : displayMode === 'workdir' ? isWorkdirMetadataLoading : false))
   const listValidating =
     pinnedSessionsSource.isValidating ||
-    isOrdinarySessionsValidating ||
+    (displayMode === 'time' && isOrdinarySessionsValidating) ||
     (displayMode === 'workdir' && isWorkdirMetadataRefreshing)
   const visibleGroupedSessions = filteredGroupedSessions
   const listStatus = listError
@@ -2308,10 +2436,11 @@ const Sessions = ({
   const canSetPanePosition = displayMode === 'agent' || isRightPanel
 
   return (
-    <SessionResourceList<SessionListItem>
+    <SessionResourceList<AgentSessionListItem>
       key={isRightPanel ? `session-resource-panel:${agentIdFilter ?? 'blank'}` : 'session-resource-left-panel'}
       presentation={presentation}
       items={visibleGroupedSessions}
+      remoteGroups={displayMode === 'time' ? undefined : remoteSessionGroups}
       status={listStatus}
       groupSeeds={sessionGroupSeeds}
       remoteSearch={sessionListRemoteSearch}
@@ -2348,6 +2477,17 @@ const Sessions = ({
       onRenameItem={handleRenameSession}
       onReorder={handleSessionReorder}
       onCollapsedStateChange={displayMode === 'time' ? undefined : handleSessionCollapsedStateChange}>
+      {remoteSessionGroupQueries.map((group) => (
+        <SessionRemoteGroupQuery
+          key={group.groupId}
+          agentId={group.agentId}
+          groupId={group.groupId}
+          q={debouncedRemoteQuery}
+          service={remoteSessionGroups}
+          sortBy={sessionSortBy}
+          workspaceId={group.workspaceId}
+        />
+      ))}
       <ResourceList.Header>
         {isRightPanel ? (
           <ResourceList.Search

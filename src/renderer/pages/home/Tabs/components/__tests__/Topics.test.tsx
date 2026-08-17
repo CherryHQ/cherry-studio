@@ -3008,6 +3008,31 @@ describe('Topics', () => {
     expect(document.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0)
   })
 
+  it('queries only expanded assistant groups with an independent cursor scope', () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    setTopicGroupExpansionCache({ assistant: ['topic:assistant:assistant-2'] })
+    const fixture = [
+      createApiTopic({ id: 'topic-alpha', assistantId: 'assistant-1' }),
+      createApiTopic({ id: 'topic-beta', assistantId: 'assistant-2' })
+    ]
+    setTopicInfiniteQueryPages(fixture)
+    applyTopicStats(fixture)
+
+    renderTopicList()
+
+    expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
+      '/topics',
+      expect.objectContaining({
+        limit: 5,
+        query: expect.objectContaining({ assistantId: 'assistant-1', pinned: false })
+      })
+    )
+    expect(mockUseInfiniteQuery).not.toHaveBeenCalledWith(
+      '/topics',
+      expect.objectContaining({ query: expect.objectContaining({ assistantId: 'assistant-2', pinned: false }) })
+    )
+  })
+
   it('focuses a history-selected topic in the flat activity stream', async () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
     mockUseInfiniteQuery.mockReturnValue({

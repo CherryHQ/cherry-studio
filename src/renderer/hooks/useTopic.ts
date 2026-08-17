@@ -15,6 +15,7 @@
 
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
+import { createInfiniteQueryRetentionMiddleware } from '@data/hooks/createInfiniteQueryRetentionMiddleware'
 import {
   useDataChange,
   useInfiniteFlatItems,
@@ -55,6 +56,12 @@ const logger = loggerService.withContext('useTopic')
 
 const EMPTY_TOPICS: readonly TopicListItem[] = Object.freeze([])
 const DEFAULT_TOPIC_PAGE_SIZE = 50
+const topicGroupRetentionMiddleware = createInfiniteQueryRetentionMiddleware({
+  idleTtlMs: 10 * 60_000,
+  maxInactiveGroups: 8,
+  maxInactivePages: 24,
+  releaseDelayMs: 1_000
+})
 
 /** Canonical topic-list write refresh. */
 const TOPIC_LIST_REFRESH: ConcreteApiPaths[] = ['/topics', '/topics/stats']
@@ -286,6 +293,7 @@ export function useTopics(opts: {
   pinned: boolean
   pageSize?: number
   enabled?: boolean
+  retainInactive?: boolean
 }) {
   const q = opts.q?.trim()
   const searchScope = opts.searchScope
@@ -309,7 +317,11 @@ export function useTopics(opts: {
     query,
     limit: pageSize,
     enabled: opts.enabled,
-    swrOptions: { revalidateAll: false, revalidateFirstPage: true }
+    swrOptions: {
+      revalidateAll: false,
+      revalidateFirstPage: true,
+      ...(opts.retainInactive ? { use: [topicGroupRetentionMiddleware] } : {})
+    }
   })
   const flatTopics = useInfiniteFlatItems(pages)
   const topics = useStructurallySharedTopics(flatTopics)

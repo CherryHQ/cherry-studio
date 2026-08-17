@@ -22,13 +22,17 @@ import {
   type ResourceListGroupSeed,
   type ResourceListItemReorderPayload,
   type ResourceListPresentation,
+  type ResourceListRemoteGroupService,
   type ResourceListReorderPayload,
   type ResourceListRevealRequest,
   type ResourceListSection,
   TopicListOptionsMenu,
   useDisplayModeRevealRequest,
+  useRegisterResourceListRemoteGroup,
   useResourceListActions,
   useResourceListPinnedItems,
+  useResourceListRemoteGroupService,
+  useResourceListRemoteGroupSnapshots,
   useResourceListRowState
 } from '@renderer/components/chat/resourceList/base'
 import { ResourceRefreshErrorBanner } from '@renderer/components/chat/resourceList/ResourceRefreshErrorBanner'
@@ -88,7 +92,7 @@ import {
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import { classifyTurn, type TopicStatusSnapshotEntry } from '@shared/ai/transport'
-import type { TopicListItem as ApiTopicListItem } from '@shared/data/api/schemas/topics'
+import type { TopicListItem as ApiTopicListItem, TopicSortBy } from '@shared/data/api/schemas/topics'
 import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import { FilePenLine, MoreHorizontal, PinIcon, Plus, Trash2, Unlink, XIcon } from 'lucide-react'
 import type { MouseEvent, RefObject } from 'react'
@@ -145,6 +149,47 @@ function mapApiTopicListItem(topic: ApiTopicListItem): TopicResourceItem {
     pinned: topic.pinned,
     pinId: topic.pinId
   }
+}
+
+function TopicRemoteGroupQuery({
+  assistantId,
+  groupId,
+  q,
+  service,
+  sortBy
+}: {
+  assistantId: string
+  groupId: string
+  q: string
+  service: ResourceListRemoteGroupService<TopicResourceItem>
+  sortBy: TopicSortBy
+}) {
+  const source = useTopics({
+    assistantId,
+    pageSize: DEFAULT_TOPIC_GROUP_VISIBLE_COUNT,
+    pinned: false,
+    q,
+    retainInactive: true,
+    sortBy
+  })
+  const items = useMemo(() => source.topics.map(mapApiTopicListItem), [source.topics])
+  const refetch = source.refetch
+  const retry = useCallback(() => void refetch(), [refetch])
+  const snapshot = useMemo(
+    () => ({
+      error: source.error,
+      groupId,
+      hasNext: source.hasNext,
+      isLoading: source.isLoading,
+      isRefreshing: source.isRefreshing,
+      items,
+      loadNext: source.loadNext,
+      retry
+    }),
+    [groupId, items, retry, source.error, source.hasNext, source.isLoading, source.isRefreshing, source.loadNext]
+  )
+  useRegisterResourceListRemoteGroup(service, snapshot)
+  return null
 }
 
 interface Props {
@@ -321,7 +366,7 @@ export function Topics({
   const pinnedTopicsSource = useTopics({
     assistantId: rightPanelOwnerScope,
     enabled: isTopicListEnabled,
-    pageSize: TOPIC_PAGE_SIZE,
+    pageSize: isAssistantDisplayMode ? DEFAULT_TOPIC_GROUP_VISIBLE_COUNT : TOPIC_PAGE_SIZE,
     pinned: true,
     q: debouncedRemoteQuery
   })
@@ -334,7 +379,7 @@ export function Topics({
   } = pinnedTopicsSource
   const ordinaryTopicsSource = useTopics({
     assistantId: rightPanelOwnerScope,
-    enabled: isTopicListEnabled,
+    enabled: isTopicListEnabled && !isAssistantDisplayMode,
     pageSize: TOPIC_PAGE_SIZE,
     pinned: false,
     q: debouncedRemoteQuery,
@@ -348,6 +393,16 @@ export function Topics({
     refetch: refetchOrdinaryTopics,
     topics: ordinaryTopicRows
   } = ordinaryTopicsSource
+  const remoteTopicGroups = useResourceListRemoteGroupService<TopicResourceItem>()
+  const remoteTopicGroupSnapshots = useResourceListRemoteGroupSnapshots<TopicResourceItem>(remoteTopicGroups)
+  const remoteOrdinaryTopicGroupSnapshots = useMemo(
+    () => remoteTopicGroupSnapshots.filter((group) => group.groupId !== TOPIC_PINNED_GROUP_ID),
+    [remoteTopicGroupSnapshots]
+  )
+  const remoteTopicRows = useMemo(
+    () => remoteOrdinaryTopicGroupSnapshots.flatMap((group) => group.items),
+    [remoteOrdinaryTopicGroupSnapshots]
+  )
   const {
     stats: topicStats,
     isLoading: isTopicStatsLoading,
@@ -568,7 +623,30 @@ export function Topics({
       ? getTopicAssistantDisplayGroupId(activeTopic)
       : undefined
   const pinnedTopics = useMemo(() => pinnedTopicRows.map(mapApiTopicListItem), [pinnedTopicRows])
-  const ordinaryTopics = useMemo(() => ordinaryTopicRows.map(mapApiTopicListItem), [ordinaryTopicRows])
+  const pinnedTopicRemoteSnapshot = useMemo(
+    () => ({
+      error: pinnedTopicsSource.error,
+      groupId: TOPIC_PINNED_GROUP_ID,
+      hasNext: hasMorePinnedTopics,
+      isLoading: pinnedTopicsSource.isLoading,
+      isRefreshing: isPinnedTopicsRefreshing,
+      items: pinnedTopics,
+      loadNext: loadNextPinnedTopics,
+      retry: () => void refetchPinnedTopics()
+    }),
+    [
+      hasMorePinnedTopics,
+      isPinnedTopicsRefreshing,
+      loadNextPinnedTopics,
+      pinnedTopics,
+      pinnedTopicsSource.error,
+      pinnedTopicsSource.isLoading,
+      refetchPinnedTopics
+    ]
+  )
+  useRegisterResourceListRemoteGroup(remoteTopicGroups, pinnedTopicRemoteSnapshot)
+  const flatOrdinaryTopics = useMemo(() => ordinaryTopicRows.map(mapApiTopicListItem), [ordinaryTopicRows])
+  const ordinaryTopics = isAssistantDisplayMode ? remoteTopicRows : flatOrdinaryTopics
   const commitTopicPin = useCallback(
     async (topic: TopicResourceItem) => {
       if (topic.pinId) {
@@ -1044,7 +1122,7 @@ export function Topics({
   const currentListError =
     topicStatsError ||
     pinnedTopicsSource.error ||
-    ordinaryTopicsSource.error ||
+    (!isAssistantDisplayMode ? ordinaryTopicsSource.error : undefined) ||
     (isAssistantDisplayMode ? (assistantsError ?? (isGroupGrouping ? assistantGroupsError : undefined)) : undefined)
   const refreshError = topics.length > 0 ? currentListError : undefined
   const listError = topics.length > 0 ? undefined : currentListError
@@ -1052,7 +1130,7 @@ export function Topics({
     topics.length === 0 &&
     (isTopicStatsLoading ||
       pinnedTopicsSource.isLoading ||
-      isOrdinaryTopicsLoading ||
+      (!isAssistantDisplayMode && isOrdinaryTopicsLoading) ||
       (isAssistantDisplayMode && (isAssistantsLoading || (isGroupGrouping && isAssistantGroupsLoading))))
   const visibleFilteredTopics = filteredTopics
   const listStatus = listError
@@ -1065,7 +1143,7 @@ export function Topics({
   const handleRetry = useCallback(async () => {
     await Promise.all([
       refetchPinnedTopics(),
-      refetchOrdinaryTopics(),
+      ...(!isAssistantDisplayMode ? [refetchOrdinaryTopics()] : []),
       refetchTopicStats(),
       ...(isAssistantDisplayMode ? [refreshAssistants()] : []),
       ...(isAssistantDisplayMode && isGroupGrouping ? [refetchAssistantGroups()] : [])
@@ -1425,6 +1503,24 @@ export function Topics({
     if (!isAssistantDisplayMode) return topicExpansionTime
     return topicExpansionAssistant ?? topicGroupSeeds.filter((group) => group.label).map((group) => group.id)
   }, [isAssistantDisplayMode, isRightPanel, topicExpansionAssistant, topicExpansionTime, topicGroupSeeds])
+  const remoteTopicGroupQueries = useMemo(() => {
+    if (!isAssistantDisplayMode) return []
+
+    const collapsedIds = new Set(collapsedTopicState)
+    return topicGroupSeeds.flatMap((group) => {
+      if (
+        group.id === TOPIC_PINNED_GROUP_ID ||
+        collapsedIds.has(group.id) ||
+        (group.section && collapsedIds.has(group.section.id))
+      ) {
+        return []
+      }
+
+      const assistantId =
+        group.id === TOPIC_UNLINKED_ASSISTANT_GROUP_ID ? 'unlinked' : getAssistantIdFromTopicGroupId(group.id)
+      return assistantId ? [{ assistantId, groupId: group.id }] : []
+    })
+  }, [collapsedTopicState, isAssistantDisplayMode, topicGroupSeeds])
   const topicAssistantSectionIds = useMemo(
     () =>
       isGroupGrouping
@@ -1458,9 +1554,9 @@ export function Topics({
   const topicItemDragReady =
     !isRightPanel &&
     topicSortBy === 'orderKey' &&
-    !ordinaryTopicsSource.error &&
-    !isOrdinaryTopicsLoading &&
-    !isOrdinaryTopicsRefreshing
+    (isAssistantDisplayMode
+      ? remoteOrdinaryTopicGroupSnapshots.every((group) => !group.error && !group.isLoading && !group.isRefreshing)
+      : !ordinaryTopicsSource.error && !isOrdinaryTopicsLoading && !isOrdinaryTopicsRefreshing)
   const canDragTopicItem = useCallback(
     ({ item }: { item: Topic; group: ResourceListGroup }) => topicItemDragReady && !item.pinned,
     [topicItemDragReady]
@@ -1684,10 +1780,21 @@ export function Topics({
 
   return (
     <>
+      {remoteTopicGroupQueries.map((group) => (
+        <TopicRemoteGroupQuery
+          key={group.groupId}
+          assistantId={group.assistantId}
+          groupId={group.groupId}
+          q={debouncedRemoteQuery}
+          service={remoteTopicGroups}
+          sortBy={topicSortBy}
+        />
+      ))}
       <TopicResourceList<TopicResourceItem>
         key={isRightPanel ? `topic-resource-panel:${assistantIdFilter ?? 'blank'}` : 'topic-resource-left-panel'}
         presentation={presentation}
         items={visibleFilteredTopics}
+        remoteGroups={isAssistantDisplayMode ? remoteTopicGroups : undefined}
         status={listStatus}
         groupSeeds={topicGroupSeeds}
         remoteSearch={topicListRemoteSearch}

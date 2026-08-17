@@ -33,6 +33,11 @@ import {
   type ResourceListViewSection
 } from './ResourceListContext'
 import { RESOURCE_LIST_DEFAULT_ROW_LAYOUT } from './resourceListLayout'
+import {
+  type ResourceListRemoteGroupService,
+  type ResourceListRemoteGroupSnapshot,
+  useResourceListRemoteGroupSnapshots
+} from './ResourceListRemoteGroups'
 import { ResourceListUiService } from './ResourceListUiService'
 
 const EMPTY_SORT_OPTIONS: ResourceListSortOption<ResourceListItemBase>[] = []
@@ -65,6 +70,7 @@ type BuildResourceListGroupsOptions<T extends ResourceListItemBase> = {
   groupSeeds?: readonly ResourceListGroup[]
   groupVisibleCounts: Record<string, number>
   items: readonly T[]
+  remoteGroupById?: ReadonlyMap<string, ResourceListRemoteGroupSnapshot<T>>
 }
 
 type BuildResourceListSectionsOptions<T extends ResourceListItemBase> = BuildResourceListGroupsOptions<T> & {
@@ -137,7 +143,8 @@ function buildResourceListGroups<T extends ResourceListItemBase>({
   groupBy,
   groupSeeds = EMPTY_GROUP_SEEDS,
   groupVisibleCounts,
-  items
+  items,
+  remoteGroupById
 }: BuildResourceListGroupsOptions<T>): ResourceListViewGroup<T>[] {
   const collapsedIdSet = new Set(collapsedIds)
 
@@ -152,7 +159,9 @@ function buildResourceListGroups<T extends ResourceListItemBase>({
         visibleCount: items.length,
         hasMore: false,
         canCollapseToDefault: false,
-        collapsed: false
+        collapsed: false,
+        hasError: false,
+        isLoading: false
       }
     ]
   }
@@ -173,8 +182,23 @@ function buildResourceListGroups<T extends ResourceListItemBase>({
   }
 
   return [...groups.values()].map(({ group, items }) => {
-    const totalCount = items.length
+    const remoteGroup = remoteGroupById?.get(group.id)
+    const totalCount = remoteGroup ? (group.count ?? items.length) : items.length
     const collapsed = Boolean(group.label) && collapsedIdSet.has(group.id)
+    if (remoteGroup) {
+      return {
+        group: { ...group, count: group.count ?? totalCount },
+        allItems: items,
+        items: collapsed ? [] : items,
+        totalCount,
+        visibleCount: collapsed ? 0 : items.length,
+        hasMore: !collapsed && remoteGroup.hasNext,
+        canCollapseToDefault: false,
+        collapsed,
+        hasError: !collapsed && Boolean(remoteGroup.error),
+        isLoading: !collapsed && (remoteGroup.isLoading || remoteGroup.isRefreshing)
+      }
+    }
     const configuredVisibleCount = groupVisibleCounts[group.id] ?? defaultGroupVisibleCount
     const visibleCount = Math.min(configuredVisibleCount, totalCount)
     const hasMore = !collapsed && visibleCount < totalCount
@@ -188,7 +212,9 @@ function buildResourceListGroups<T extends ResourceListItemBase>({
       visibleCount: collapsed ? 0 : visibleCount,
       hasMore,
       canCollapseToDefault,
-      collapsed
+      collapsed,
+      hasError: false,
+      isLoading: false
     }
   })
 }
@@ -200,6 +226,7 @@ function buildResourceListSections<T extends ResourceListItemBase>({
   groupSeeds = EMPTY_GROUP_SEEDS,
   groupVisibleCounts,
   items,
+  remoteGroupById,
   sectionBy
 }: BuildResourceListSectionsOptions<T>): ResourceListViewSection<T>[] {
   if (!sectionBy) return []
@@ -240,7 +267,8 @@ function buildResourceListSections<T extends ResourceListItemBase>({
       groupBy,
       groupSeeds,
       groupVisibleCounts,
-      items
+      items,
+      remoteGroupById
     })
     const visibleGroups = collapsed
       ? groups.map((group) => ({
@@ -248,7 +276,9 @@ function buildResourceListSections<T extends ResourceListItemBase>({
           items: [],
           visibleCount: 0,
           hasMore: false,
-          canCollapseToDefault: false
+          canCollapseToDefault: false,
+          hasError: false,
+          isLoading: false
         }))
       : groups
 
@@ -274,7 +304,9 @@ function buildSectionStateGroups<T extends ResourceListItemBase>(
     visibleCount: section.collapsed ? 0 : section.groups.reduce((count, group) => count + group.visibleCount, 0),
     hasMore: false,
     canCollapseToDefault: false,
-    collapsed: section.collapsed
+    collapsed: section.collapsed,
+    hasError: false,
+    isLoading: false
   }))
 }
 
@@ -309,6 +341,7 @@ function findResourceListRevealTarget<T extends ResourceListItemBase>({
 export type ResourceListProviderProps<T extends ResourceListItemBase> = {
   items: readonly T[]
   children: ReactNode
+  remoteGroups?: ResourceListRemoteGroupService<T>
   /** Uses caller-owned server-side search instead of filtering the loaded array locally. */
   remoteSearch?: {
     query: string
@@ -525,6 +558,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
   items,
   children,
   remoteSearch,
+  remoteGroups,
   variant = 'resource',
   status = 'idle',
   selectedId: selectedIdProp,
@@ -589,6 +623,11 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
   const isControlled = collapsedState !== undefined
   const effectiveCollapsedIds = normalizeCollapsedIds(collapsedState ?? state.collapsedGroups)
   const effectiveSelectedId = selectedIdProp !== undefined ? selectedIdProp : state.selectedId
+  const remoteGroupSnapshots = useResourceListRemoteGroupSnapshots<T>(remoteGroups)
+  const remoteGroupById = useMemo(
+    () => new Map(remoteGroupSnapshots.map((group) => [group.groupId, group] as const)),
+    [remoteGroupSnapshots]
+  )
   const isSelectedControlled = selectedIdProp !== undefined
   const handledRevealRequestRef = useRef<string | null>(null)
   const collapsedStateRef = useRef<readonly string[]>([])
@@ -719,6 +758,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       groupSeeds,
       groupVisibleCounts: state.groupVisibleCounts,
       items: viewItems,
+      remoteGroupById,
       sectionBy
     })
   }, [
@@ -726,6 +766,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
     effectiveCollapsedIds,
     groupBy,
     groupSeeds,
+    remoteGroupById,
     sectionBy,
     state.groupVisibleCounts,
     viewItems
@@ -740,12 +781,14 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       groupBy,
       groupSeeds: seedGroups,
       groupVisibleCounts: state.groupVisibleCounts,
-      items: viewItems
+      items: viewItems,
+      remoteGroupById
     })
   }, [
     defaultGroupVisibleCount,
     effectiveCollapsedIds,
     groupBy,
+    remoteGroupById,
     sectionBy,
     seedGroups,
     state.groupVisibleCounts,
@@ -850,7 +893,13 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       },
       openContextMenu: (id: string) => onOpenContextMenu?.(id),
       selectGroupHeaderItem,
-      showMoreInGroup: (groupId: string) => dispatch({ type: 'showMoreInGroup', groupId }),
+      showMoreInGroup: (groupId: string) => {
+        if (remoteGroups?.loadNext(groupId)) return
+        dispatch({ type: 'showMoreInGroup', groupId })
+      },
+      retryGroup: (groupId: string) => {
+        remoteGroups?.retry(groupId)
+      },
       collapseGroupItems: (groupId: string) =>
         dispatch({ type: 'collapseGroupItems', groupId, defaultCount: defaultGroupVisibleCount }),
       expandGroups: (groupIds: readonly string[]) => {
@@ -893,6 +942,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       onRenameItem,
       onReorder,
       onSelectItem,
+      remoteGroups,
       remoteSearch,
       selectGroupHeaderItem,
       uiStore

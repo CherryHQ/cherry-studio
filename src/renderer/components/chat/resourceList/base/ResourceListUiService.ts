@@ -14,6 +14,8 @@ export type ResourceListGroupStateSnapshot = {
   canCollapseToDefault: boolean
   collapsed: boolean
   hasMore: boolean
+  hasError: boolean
+  isLoading: boolean
   selected: boolean
   /** The selected item is one of the rows this group currently renders (not collapsed away or trimmed by show-more). */
   selectedVisible: boolean
@@ -47,6 +49,8 @@ const EMPTY_GROUP_STATE: ResourceListGroupStateSnapshot = Object.freeze({
   canCollapseToDefault: false,
   collapsed: false,
   hasMore: false,
+  hasError: false,
+  isLoading: false,
   selected: false,
   selectedVisible: false,
   visibleCount: 0
@@ -67,6 +71,8 @@ function sameGroupState(a: ResourceListGroupStateSnapshot, b: ResourceListGroupS
     a.canCollapseToDefault === b.canCollapseToDefault &&
     a.collapsed === b.collapsed &&
     a.hasMore === b.hasMore &&
+    a.hasError === b.hasError &&
+    a.isLoading === b.isLoading &&
     a.selected === b.selected &&
     a.selectedVisible === b.selectedVisible &&
     a.visibleCount === b.visibleCount
@@ -129,6 +135,8 @@ export class ResourceListUiService {
       canCollapseToDefault: record.canCollapseToDefault,
       collapsed: record.collapsed,
       hasMore: record.hasMore,
+      hasError: record.hasError,
+      isLoading: record.isLoading,
       selected: this.state.selectedId !== null && record.itemIds.has(this.state.selectedId),
       selectedVisible: this.state.selectedId !== null && record.visibleItemIds.has(this.state.selectedId),
       visibleCount: record.visibleCount
@@ -250,6 +258,8 @@ export class ResourceListUiService {
         canCollapseToDefault: viewGroup.canCollapseToDefault,
         collapsed: viewGroup.collapsed,
         hasMore: viewGroup.hasMore,
+        hasError: viewGroup.hasError,
+        isLoading: viewGroup.isLoading,
         itemIds,
         visibleItemIds,
         visibleCount: viewGroup.visibleCount

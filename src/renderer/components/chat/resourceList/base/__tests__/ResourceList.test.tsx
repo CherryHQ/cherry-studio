@@ -135,6 +135,7 @@ import {
 } from '../ResourceList'
 import type { ResourceListContextValue, ResourceListItemBase } from '../ResourceListContext'
 import { RESOURCE_LIST_DEFAULT_ROW_LAYOUT } from '../resourceListLayout'
+import { ResourceListRemoteGroupService } from '../ResourceListRemoteGroups'
 
 afterEach(() => {
   dndMocks.droppableData.clear()
@@ -2166,6 +2167,84 @@ describe('ResourceList', () => {
     expect(screen.getByText('Item 5')).toBeInTheDocument()
     expect(screen.queryByText('Item 6')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Show more' })).toBeInTheDocument()
+  })
+
+  it('loads the next remote page without applying the local group window', () => {
+    const Provider = ResourceList.Provider<TestItem>
+    const items = Array.from({ length: 5 }, (_, index) => ({
+      id: `remote-${index + 1}`,
+      name: `Remote ${index + 1}`,
+      kind: 'topic' as const,
+      updatedAt: index
+    }))
+    const remoteGroups = new ResourceListRemoteGroupService<TestItem>()
+    const registration = remoteGroups.register('remote')
+    const loadNext = vi.fn()
+    remoteGroups.update(registration, {
+      groupId: 'remote',
+      hasNext: true,
+      isLoading: false,
+      isRefreshing: false,
+      items,
+      loadNext,
+      retry: vi.fn()
+    })
+
+    render(
+      <Provider
+        items={items}
+        remoteGroups={remoteGroups}
+        defaultGroupVisibleCount={2}
+        groupBy={() => ({ id: 'remote', label: 'Remote group', count: 8 })}
+        groupShowMoreLabel="Show more">
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    expect(screen.getByText('Remote 5')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
+    expect(loadNext).toHaveBeenCalledOnce()
+  })
+
+  it('retries only the failed remote group', () => {
+    const Provider = ResourceList.Provider<TestItem>
+    const remoteGroups = new ResourceListRemoteGroupService<TestItem>()
+    const registration = remoteGroups.register('remote')
+    const retry = vi.fn()
+    remoteGroups.update(registration, {
+      error: new Error('Failed request'),
+      groupId: 'remote',
+      hasNext: false,
+      isLoading: false,
+      isRefreshing: false,
+      items: [],
+      loadNext: vi.fn(),
+      retry
+    })
+
+    render(
+      <Provider
+        items={[]}
+        remoteGroups={remoteGroups}
+        groupBy={() => ({ id: 'remote', label: 'Remote group' })}
+        groupSeeds={[{ id: 'remote', label: 'Remote group', count: 3 }]}
+        groupShowMoreLabel="Show more">
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem> renderItem={() => null} />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.retry' }))
+    expect(retry).toHaveBeenCalledOnce()
   })
 
   it('uses controlled remote query state without filtering the server result locally', () => {
