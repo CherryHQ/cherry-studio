@@ -7184,6 +7184,7 @@
         "no": "説明なし",
         "nowledge_mem": "Nowledge Mem アプリをローカルで実行する必要があります。AI チャット、ツール、ノート、エージェント、ファイルをコンピューター上のプライベートメモリに保存します。https://mem.nowledge.co/ からダウンロードしてください",
         "python": "安全なサンドボックス環境でPythonコードを実行します。Pyodideを使用してPythonを実行し、ほとんどの標準ライブラリと科学計算パッケージをサポートしています。",
+        "qveris": "QVeris に接続して、AI エージェントの機能を検出、確認、呼び出しできます。環境変数 QVERIS_API_KEY の設定が必要です。",
         "sequentialthinking": "構造化された思考プロセスを通じて動的かつ反省的な問題解決を行うためのツールを提供するMCPサーバーの実装"
       },
       "command": "コマンド",
@@ -7303,6 +7304,10 @@
       "providerPlaceholder": "プロバイダー名",
       "providerUrl": "プロバイダーURL",
       "providers": "プロバイダー",
+      "qveris": {
+        "get_api_key": "API キーを取得",
+        "missing_api_key": "QVeris には API キーが必要です。<link>登録またはログインして API キーを取得</link>し、QVERIS_API_KEY として入力してください。"
+      },
       "registry": "パッケージ管理レジストリ",
       "registryDefault": "デフォルト",
       "registryOptions": {
