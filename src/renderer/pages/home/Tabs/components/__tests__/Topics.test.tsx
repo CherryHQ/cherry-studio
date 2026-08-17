@@ -1778,7 +1778,7 @@ describe('Topics', () => {
     rerenderTopicList()
 
     const firstRefreshTopics = unrelatedRefreshTopics.map((topic) =>
-      topic.id === 'topic-a' ? { ...topic, name: 'Renamed topic' } : topic
+      topic.id === 'topic-a' ? { ...topic, name: 'Renamed topic', updatedAt: '2026-01-02T00:00:00.000Z' } : topic
     )
     Object.assign(assistantTopicsSource, {
       topics: firstRefreshTopics,
@@ -1791,15 +1791,18 @@ describe('Topics', () => {
     expect(screen.getByText('Alpha topic')).toBeInTheDocument()
     expect(screen.queryByText('Renamed topic')).not.toBeInTheDocument()
 
+    await act(async () => resolveSecondRename())
+    expect(screen.getByText('Alpha topic')).toBeInTheDocument()
+    expect(screen.queryByText('Renamed topic')).not.toBeInTheDocument()
+
     const secondRefreshTopics = firstRefreshTopics.map((topic) =>
-      topic.id === 'topic-a' ? { ...topic, name: 'Alpha topic' } : topic
+      topic.id === 'topic-a' ? { ...topic, name: 'Alpha topic', updatedAt: '2026-01-03T00:00:00.000Z' } : topic
     )
     Object.assign(assistantTopicsSource, {
       topics: secondRefreshTopics,
       ...deriveAssistantTopicsView(secondRefreshTopics)
     })
     rerenderTopicList()
-    await act(async () => resolveSecondRename())
     expect(screen.getByText('Alpha topic')).toBeInTheDocument()
   })
 

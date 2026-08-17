@@ -35,6 +35,7 @@ import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useImageCaptureTargets } from '@renderer/hooks/useImageCaptureTargets'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
+import { useOptimisticResourceName } from '@renderer/hooks/useOptimisticResourceName'
 import { usePins } from '@renderer/hooks/usePins'
 import { finishTopicRenaming, startTopicRenaming } from '@renderer/hooks/useTopic'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
@@ -456,11 +457,12 @@ const Sessions = ({
   const isAgentPinActionDisabled = isAgentPinsLoading || isAgentPinsRefreshing || isAgentPinsMutating
 
   const sessionItemsReconciliationRef = useRef(EMPTY_SESSION_LIST_ITEM_RECONCILIATION)
-  const sessionItems = useMemo(() => {
+  const apiBackedSessionItems = useMemo(() => {
     const reconciliation = reconcileSessionListItems(sessions, pinIdBySessionId, sessionItemsReconciliationRef.current)
     sessionItemsReconciliationRef.current = reconciliation
     return reconciliation.items
   }, [pinIdBySessionId, sessions])
+  const { items: sessionItems, rename: renameSessionOptimistically } = useOptimisticResourceName(apiBackedSessionItems)
   const sessionItemsRef = useRef(sessionItems)
   const activeSessionIdRef = useRef(activeSessionId)
   const togglePinRef = useRef(togglePin)
@@ -880,11 +882,12 @@ const Sessions = ({
       if (!session || !trimmedName || trimmedName === session.name) return
 
       try {
-        const updatedSession = await updateSession(
-          { id, name: trimmedName, isNameManuallyEdited: true },
-          { showSuccessToast: false }
+        const renamed = await renameSessionOptimistically(session, trimmedName, async () =>
+          Boolean(
+            await updateSession({ id, name: trimmedName, isNameManuallyEdited: true }, { showSuccessToast: false })
+          )
         )
-        if (updatedSession) {
+        if (renamed) {
           toast.success(t('common.saved'))
         }
       } catch (err) {
@@ -892,7 +895,7 @@ const Sessions = ({
         toast.error(t('agent.session.update.error.failed'))
       }
     },
-    [t, updateSession]
+    [renameSessionOptimistically, t, updateSession]
   )
   const handleOpenRenameSessionDialog = useCallback((session: AgentSessionEntity) => {
     setRenamingSessionId(session.id)
