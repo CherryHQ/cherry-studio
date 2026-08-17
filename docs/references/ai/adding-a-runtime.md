@@ -21,7 +21,7 @@ Most registration points fail loudly if you miss them:
 | `AGENT_RUNTIME_CAPABILITIES` entry | `satisfies Record<AgentType, AgentRuntimeCapabilities>` — compile error on a missing key |
 | Driver registration in `registerDrivers.ts` | `src/main/ai/runtime/__tests__/registerDrivers.test.ts` — every `AgentType` must resolve to a registered agent-session driver |
 | Descriptor structural invariants | `src/shared/ai/__tests__/agentRuntimeCapabilities.test.ts` |
-| i18n keys present and translated in all locales | `pnpm i18n:check` and `pnpm i18n:validate` in pull request CI |
+| i18n keys present and translated in all locales | `pnpm i18n:check` in pull request CI |
 
 The only registration points *nothing* enforces are the design rules at the
 bottom of this document — read them.
@@ -59,7 +59,7 @@ bottom of this document — read them.
    `agent.tools.builtin.<id>.*` entries for each builtin tool. Add the canonical English
    and Chinese reference values to `src/renderer/i18n/locales/{en-us,zh-cn}.json`, run
    `pnpm i18n:sync`, then translate every remaining locale manually or with an available
-   translation tool. Finish with `pnpm i18n:check` and `pnpm i18n:validate`.
+   translation tool. Finish with `pnpm i18n:check`.
 
 ## Step 2 — main-process driver package
 

@@ -167,7 +167,7 @@ jobs:
             git --no-pager diff -- src/renderer/i18n src/main/i18n
             exit 1
           fi
-          pnpm i18n:validate
+          pnpm i18n:check
 
       - name: Read-only Checks
         run: |
@@ -178,7 +178,7 @@ jobs:
             --prefix-colors "blue,yellow,cyan" \
             "pnpm test:lint" \
             "pnpm typecheck && pnpm i18n:hardcoded:strict" \
-            "pnpm format:check && pnpm build:builtin-knowledge:check && pnpm i18n:check && pnpm skills:check"
+            "pnpm format:check && pnpm build:builtin-knowledge:check && pnpm skills:check"
 
       - name: DB Migrations Check
         run: |

@@ -4,7 +4,7 @@ import * as path from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { validate } from '../i18n-validate'
+import { validate } from '../i18n-check-values'
 
 const ROOT = path.resolve(__dirname, '..', '..')
 const GLOSSARY = JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts/i18n-glossary.json'), 'utf-8'))

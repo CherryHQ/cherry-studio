@@ -1,8 +1,4 @@
-/**
- * Validates every non-base translation before changes merge.
- *
- * Usage: pnpm i18n:validate
- */
+/** Checks every non-base translation value before changes merge. */
 import * as fs from 'fs'
 import * as path from 'path'
 
@@ -68,7 +64,7 @@ export const validate = (english: string, translation: string, doNotTranslate: s
 
 const readJson = (filePath: string): I18N => JSON.parse(fs.readFileSync(filePath, 'utf-8'))
 
-const validateTranslations = (): { checked: number; failures: string[] } => {
+export const checkTranslationValues = (): { checked: number; failures: string[] } => {
   const glossary = JSON.parse(fs.readFileSync(path.join(__dirname, 'i18n-glossary.json'), 'utf-8')) as Glossary
   const failures: string[] = []
   let checked = 0
@@ -95,16 +91,3 @@ const validateTranslations = (): { checked: number; failures: string[] } => {
 
   return { checked, failures }
 }
-
-const main = () => {
-  const { checked, failures } = validateTranslations()
-
-  if (failures.length > 0) {
-    for (const failure of failures) console.error(`  x ${failure}`)
-    throw new Error(`${failures.length} translations failed validation`)
-  }
-
-  console.log(`Validated ${checked} translated strings.`)
-}
-
-if (require.main === module) main()

@@ -47,7 +47,6 @@
     "styles:canonical": "tsx scripts/fix-tailwind-canonical-classes.ts",
     "ui:contract:query": "tsx scripts/uiContract/query.ts",
     "i18n:sync": "dotenv -e .env -- tsx scripts/i18n-sync.ts",
-    "i18n:validate": "dotenv -e .env -- tsx scripts/i18n-validate.ts",
     "skills:sync": "tsx scripts/skills-sync.ts",
     "skills:check": "tsx scripts/skills-check.ts",
     "gen:system-provider-ids": "tsx scripts/generate-system-provider-ids.ts",

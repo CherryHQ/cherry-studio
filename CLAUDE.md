@@ -126,7 +126,7 @@ logger.error("message", error);
 
 - All user-visible strings must use `i18next` — never hardcode UI strings
 - Locale catalogs live in `src/renderer/i18n/locales/` and `src/main/i18n/locales/`; both use `en-us.json` as the source of truth
-- Run `pnpm i18n:sync`, complete every locale, then validate with `pnpm i18n:check` and `pnpm i18n:validate` before submitting
+- Run `pnpm i18n:sync`, complete every locale, then run `pnpm i18n:check` before submitting
 
 ### UI Design
 

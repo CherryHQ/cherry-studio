@@ -1,6 +1,7 @@
 import * as fs from 'fs'
 import * as path from 'path'
 
+import { checkTranslationValues } from './i18n-check-values'
 import { sortedObjectByKeys } from './sort'
 
 const baseLocale = process.env.TRANSLATION_BASE_LOCALE ?? 'en-us'
@@ -215,10 +216,15 @@ function checkTranslations(): void {
 export function main() {
   try {
     checkTranslations()
-    console.log('i18n 检查已通过')
+    const { checked, failures } = checkTranslationValues()
+    if (failures.length > 0) {
+      for (const failure of failures) console.error(`  x ${failure}`)
+      throw new Error(`${failures.length} translations failed validation`)
+    }
+    console.log(`i18n 检查已通过（已校验 ${checked} 条翻译）`)
   } catch (e) {
     console.error(e)
-    throw new Error(`检查未通过。尝试运行 pnpm i18n:sync 以解决问题。`)
+    throw new Error(`检查未通过。请修复上面的 i18n 问题。`)
   }
 }
 
