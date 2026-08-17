@@ -15,7 +15,6 @@
  */
 
 import { loggerService } from '@logger'
-import { HtmlArtifactPopupHost } from '@renderer/components/chat/HtmlArtifactPopupContext'
 import type { ReadOnlyComposerFileTokenPreview } from '@renderer/components/composer/tokenView'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useIsActiveTurnTarget } from '@renderer/hooks/useIsActiveTurnTarget'
@@ -1522,16 +1521,14 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
   const { collapseCompletedToolHistory } = useMessageRenderConfig()
 
   return (
-    <HtmlArtifactPopupHost>
-      <MessagePartsRendererContent
-        collapseCompletedToolHistory={collapseCompletedToolHistory}
-        isActiveTurnProcessing={isActiveTurnProcessing}
-        isStreamLive={isStreamLive}
-        isTranslationOverlayActive={isTranslationOverlayActive}
-        message={message}
-        messageParts={messageParts}
-      />
-    </HtmlArtifactPopupHost>
+    <MessagePartsRendererContent
+      collapseCompletedToolHistory={collapseCompletedToolHistory}
+      isActiveTurnProcessing={isActiveTurnProcessing}
+      isStreamLive={isStreamLive}
+      isTranslationOverlayActive={isTranslationOverlayActive}
+      message={message}
+      messageParts={messageParts}
+    />
   )
 }
 

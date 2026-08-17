@@ -554,11 +554,6 @@
           "helper": "輸入自訂環境變數（每行一個，格式：KEY=value）",
           "label": "環境變數"
         },
-        "maxTurns": {
-          "description": "設定 Agent 自動執行的請求／回覆輪次數。",
-          "helper": "數值越高可自動運作越久；數值越低更容易掌控。",
-          "label": "對話輪次上限"
-        },
         "permissionMode": {
           "description": "控制 Agent 在需要授權時的處理方式。",
           "label": "權限模式",
@@ -1093,6 +1088,10 @@
           "description": "執行 Shell 命令",
           "label": "執行 Shell 命令"
         },
+        "create_goal": {
+          "description": "[to be translated]:Create a session goal to work toward",
+          "label": "[to be translated]:Create goal"
+        },
         "edit": {
           "description": "編輯檔案",
           "label": "編輯檔案"
@@ -1100,6 +1099,10 @@
         "find": {
           "description": "尋找檔案",
           "label": "尋找檔案"
+        },
+        "get_goal": {
+          "description": "[to be translated]:Read the current session goal",
+          "label": "[to be translated]:Read goal"
         },
         "grep": {
           "description": "搜尋檔案內容",
@@ -1112,6 +1115,22 @@
         "read": {
           "description": "讀取檔案",
           "label": "讀取檔案"
+        },
+        "read_image": {
+          "description": "使用支援視覺的模型讀取 PNG、JPEG、WebP 或 GIF 圖片",
+          "label": "讀取圖片"
+        },
+        "skill": {
+          "description": "載入啟用技能的完整指令",
+          "label": "載入技能指令"
+        },
+        "todo_write": {
+          "description": "管理任務清單",
+          "label": "管理任務清單"
+        },
+        "update_goal": {
+          "description": "[to be translated]:Update the session goal status or objective",
+          "label": "[to be translated]:Update goal"
         },
         "write": {
           "description": "寫入檔案",
@@ -2208,6 +2227,7 @@
     "cli_tool_placeholder": "選擇要使用的 CLI 工具",
     "cli_tools": {
       "claude_code": "Claude Code",
+      "deepseek_harness": "[to be translated]:DeepSeek Harness",
       "gemini_cli": "Gemini CLI",
       "github_copilot_cli": "GitHub Copilot CLI",
       "kimi_code": "Kimi Code",
@@ -2230,6 +2250,43 @@
     "custom_path_error": "設定自訂終端機路徑失敗",
     "custom_path_required": "此終端機需要設定自訂路徑",
     "custom_path_set": "自訂終端機路徑設定成功",
+    "deepseek_harness": {
+      "agent_preset": "[to be translated]:Default agent mode",
+      "agent_presets": {
+        "code": {
+          "description": "[to be translated]:Combines multi-step tool work through the PTC Code Mode SDK for complex coding tasks.",
+          "label": "[to be translated]:PTC Code"
+        },
+        "inherit": {
+          "description": "[to be translated]:Keeps the existing default preset in the shared ~/.dsh settings.",
+          "label": "[to be translated]:Harness default"
+        },
+        "minimal": {
+          "description": "[to be translated]:Uses only a persistent shell and text editor for the smallest tool surface.",
+          "label": "[to be translated]:Minimal"
+        },
+        "standard": {
+          "description": "[to be translated]:Full coding agent with files, shell, search, skills, planning, and subagents.",
+          "label": "[to be translated]:Standard"
+        }
+      },
+      "danger_warning": "[to be translated]:Full access lets the agent reach files outside the workspace and skips operation approval. Use it only for tasks you trust.",
+      "permission_mode": "[to be translated]:Default permission",
+      "permission_modes": {
+        "danger-full-access": {
+          "description": "[to be translated]:Allows unrestricted access without operation approval.",
+          "label": "[to be translated]:Full access"
+        },
+        "read-only": {
+          "description": "[to be translated]:Restricts file writes and asks before risky operations.",
+          "label": "[to be translated]:Read only"
+        },
+        "workspace-write": {
+          "description": "[to be translated]:Allows writes in the current DSH workspace and asks before risky operations.",
+          "label": "[to be translated]:Workspace write"
+        }
+      }
+    },
     "description": "快速啟動多個程式碼 CLI 工具，提高開發效率",
     "disable": "停用",
     "edit_config": "編輯設定",
@@ -2280,6 +2337,7 @@
     "no_tools": "目前沒有工具",
     "not_installed": "未安裝",
     "open_provider_settings": "開啟供應商設定",
+    "open_web_ui": "[to be translated]:Open Web UI",
     "own_login": {
       "title": "{{toolName}} 官方"
     },
@@ -2289,8 +2347,10 @@
     "search_provider_placeholder": "搜尋供應商…",
     "select_folder": "選擇資料夾",
     "select_provider_before_launch": "請選擇一個供應商後啟動 {{toolName}}",
+    "select_provider_model": "[to be translated]:Please select a provider and model first",
     "select_tool_to_start": "從左側選擇一個 CLI 工具開始設定",
     "set_custom_path": "設定自訂終端機路徑",
+    "stop": "[to be translated]:Stop",
     "supported_providers": "支援的供應商",
     "terminal": "終端機",
     "terminal_hint": "選擇執行命令的終端機應用程式",
@@ -3384,6 +3444,7 @@
   },
   "launchpad": {
     "apps": "應用程式",
+    "deepseek_harness_shortcut": "DSH",
     "manage_sidebar": "管理側邊欄",
     "minapps": "小程式",
     "miniApps": "小程式",
@@ -3456,10 +3517,6 @@
           "heartbeat_interval": {
             "label": "心跳間隔（分鐘）"
           },
-          "max_turns": {
-            "help": "0 表示使用預設值",
-            "label": "最大對話回合數"
-          },
           "mcps": {
             "add": "新增 MCP 伺服器",
             "empty": "無綁定",
@@ -3493,11 +3550,8 @@
             "label": "執行模式",
             "option": {
               "claude_code": "增強：Claude Agent",
+              "dsh": "DeepSeek Harness",
               "pi": "快速：Pi"
-            },
-            "selected": {
-              "claude_code": "增強",
-              "pi": "快速"
             }
           },
           "small_model": {

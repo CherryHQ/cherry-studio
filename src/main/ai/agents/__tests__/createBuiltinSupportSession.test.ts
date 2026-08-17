@@ -31,7 +31,6 @@ describe('createBuiltinSupportSession', () => {
       configuration: {
         avatar: '🧰',
         permission_mode: 'default',
-        max_turns: 100,
         env_vars: {}
       },
       name: 'Cherry Support',

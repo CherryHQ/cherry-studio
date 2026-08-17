@@ -554,11 +554,6 @@
           "helper": "Entrez des variables d'environnement personnalisées (une par ligne, format : CLÉ=valeur)",
           "label": "Variables d'environnement"
         },
-        "maxTurns": {
-          "description": "Définir le nombre de cycles de requête/réponse exécutés automatiquement par l'agent.",
-          "helper": "Une valeur plus élevée permet une autonomie prolongée ; une valeur plus faible facilite le contrôle.",
-          "label": "Limite maximale de tours de conversation"
-        },
         "permissionMode": {
           "description": "Contrôle la manière dont l'agent gère les demandes d'autorisation.",
           "label": "mode d'autorisation",
@@ -1093,6 +1088,10 @@
           "description": "Exécuter des commandes shell",
           "label": "Exécuter des commandes shell"
         },
+        "create_goal": {
+          "description": "[to be translated]:Create a session goal to work toward",
+          "label": "[to be translated]:Create goal"
+        },
         "edit": {
           "description": "Modifier des fichiers",
           "label": "Modifier des fichiers"
@@ -1100,6 +1099,10 @@
         "find": {
           "description": "Trouver des fichiers",
           "label": "Trouver des fichiers"
+        },
+        "get_goal": {
+          "description": "[to be translated]:Read the current session goal",
+          "label": "[to be translated]:Read goal"
         },
         "grep": {
           "description": "Rechercher dans le contenu des fichiers",
@@ -1112,6 +1115,22 @@
         "read": {
           "description": "Lire des fichiers",
           "label": "Lire des fichiers"
+        },
+        "read_image": {
+          "description": "Lit un fichier PNG, JPEG, WebP ou GIF avec un modèle doté de capacités visuelles",
+          "label": "Lire une image"
+        },
+        "skill": {
+          "description": "[to be translated]:Load the full instructions of an enabled skill",
+          "label": "[to be translated]:Load skill instructions"
+        },
+        "todo_write": {
+          "description": "[to be translated]:Manage the task list",
+          "label": "[to be translated]:Manage the task list"
+        },
+        "update_goal": {
+          "description": "[to be translated]:Update the session goal status or objective",
+          "label": "[to be translated]:Update goal"
         },
         "write": {
           "description": "Écrire des fichiers",
@@ -2208,6 +2227,7 @@
     "cli_tool_placeholder": "Sélectionnez l'outil CLI à utiliser",
     "cli_tools": {
       "claude_code": "Claude Code",
+      "deepseek_harness": "[to be translated]:DeepSeek Harness",
       "gemini_cli": "Gemini CLI",
       "github_copilot_cli": "CLI GitHub Copilot",
       "kimi_code": "Code Kimi",
@@ -2230,6 +2250,43 @@
     "custom_path_error": "Échec de la définition du chemin de terminal personnalisé",
     "custom_path_required": "Ce terminal nécessite la configuration d’un chemin personnalisé",
     "custom_path_set": "Paramétrage personnalisé du chemin du terminal réussi",
+    "deepseek_harness": {
+      "agent_preset": "[to be translated]:Default agent mode",
+      "agent_presets": {
+        "code": {
+          "description": "[to be translated]:Combines multi-step tool work through the PTC Code Mode SDK for complex coding tasks.",
+          "label": "[to be translated]:PTC Code"
+        },
+        "inherit": {
+          "description": "[to be translated]:Keeps the existing default preset in the shared ~/.dsh settings.",
+          "label": "[to be translated]:Harness default"
+        },
+        "minimal": {
+          "description": "[to be translated]:Uses only a persistent shell and text editor for the smallest tool surface.",
+          "label": "[to be translated]:Minimal"
+        },
+        "standard": {
+          "description": "[to be translated]:Full coding agent with files, shell, search, skills, planning, and subagents.",
+          "label": "[to be translated]:Standard"
+        }
+      },
+      "danger_warning": "[to be translated]:Full access lets the agent reach files outside the workspace and skips operation approval. Use it only for tasks you trust.",
+      "permission_mode": "[to be translated]:Default permission",
+      "permission_modes": {
+        "danger-full-access": {
+          "description": "[to be translated]:Allows unrestricted access without operation approval.",
+          "label": "[to be translated]:Full access"
+        },
+        "read-only": {
+          "description": "[to be translated]:Restricts file writes and asks before risky operations.",
+          "label": "[to be translated]:Read only"
+        },
+        "workspace-write": {
+          "description": "[to be translated]:Allows writes in the current DSH workspace and asks before risky operations.",
+          "label": "[to be translated]:Workspace write"
+        }
+      }
+    },
     "description": "Lancer rapidement plusieurs outils CLI de code pour améliorer l'efficacité du développement",
     "disable": "Désactiver",
     "edit_config": "Modifier la configuration",
@@ -2280,6 +2337,7 @@
     "no_tools": "Aucun outil disponible",
     "not_installed": "Non installé",
     "open_provider_settings": "Ouvrir les paramètres du fournisseur",
+    "open_web_ui": "[to be translated]:Open Web UI",
     "own_login": {
       "title": "{{toolName}} Officiel"
     },
@@ -2289,8 +2347,10 @@
     "search_provider_placeholder": "Rechercher des fournisseurs…",
     "select_folder": "Sélectionner le dossier",
     "select_provider_before_launch": "Sélectionnez un fournisseur avant de lancer {{toolName}}",
+    "select_provider_model": "[to be translated]:Please select a provider and model first",
     "select_tool_to_start": "Sélectionnez un outil CLI à gauche pour commencer la configuration",
     "set_custom_path": "Définir un chemin de terminal personnalisé",
+    "stop": "[to be translated]:Stop",
     "supported_providers": "fournisseurs pris en charge",
     "terminal": "Terminal",
     "terminal_hint": "Choisissez l'application de terminal dans laquelle exécuter le CLI",
@@ -3384,6 +3444,7 @@
   },
   "launchpad": {
     "apps": "Applications",
+    "deepseek_harness_shortcut": "DSH",
     "manage_sidebar": "Gérer la barre latérale",
     "minapps": "Mini-apps",
     "miniApps": "Mini-applications",
@@ -3456,10 +3517,6 @@
           "heartbeat_interval": {
             "label": "Intervalle de pulsation (minutes)"
           },
-          "max_turns": {
-            "help": "0 signifie utiliser la valeur par défaut",
-            "label": "Nombre maximal de tours de conversation"
-          },
           "mcps": {
             "add": "Ajouter le serveur MCP",
             "empty": "Aucun lié",
@@ -3493,11 +3550,8 @@
             "label": "Mode d’exécution",
             "option": {
               "claude_code": "Avancé : Claude Agent",
+              "dsh": "[to be translated]:DeepSeek Harness",
               "pi": "Rapide : Pi"
-            },
-            "selected": {
-              "claude_code": "Avancé",
-              "pi": "Rapide"
             }
           },
           "small_model": {

@@ -36,6 +36,20 @@ const toolPart = (
     }
   }) as unknown as CherryMessagePart
 
+// A dsh-runtime tool part: runtime-native lowercase name plus the cherry transport tag its
+// stream adapter stamps — the tag is what lets the projection resolve the canonical tool name.
+const dshToolPart = (toolCallId: string, toolName: string, state: string, input?: unknown): CherryMessagePart =>
+  ({
+    type: 'dynamic-tool',
+    toolCallId,
+    toolName,
+    state,
+    input,
+    callProviderMetadata: {
+      cherry: { transport: 'dsh-agent', tool: { type: 'builtin', name: toolName } }
+    }
+  }) as unknown as CherryMessagePart
+
 const textPart = (text: string, parentToolCallId?: string): CherryMessagePart =>
   ({
     type: 'text',
@@ -155,9 +169,11 @@ describe('agent right pane projections', () => {
     expect(projection.partsByMessageId['root:agent-flow-assistant']).toHaveLength(1)
   })
 
-  it('ignores legacy TodoWrite and aggregates TaskList into status tasks', () => {
-    const parts = [
-      toolPart('todos', 'TodoWrite', undefined, 'output-available', {
+  // TodoWrite snapshots and the task ledger both describe the same plan, so the most
+  // recently written source owns the status list.
+  it('lets the most recent plan writer win between TodoWrite snapshots and the task ledger', () => {
+    const snapshotThenLedger = [
+      toolPart('todos-1', 'TodoWrite', undefined, 'output-available', {
         todos: [
           { content: 'Design pane', activeForm: 'Designing pane', status: 'completed' },
           { content: 'Wire flow', activeForm: 'Wiring flow', status: 'in_progress' }
@@ -174,13 +190,74 @@ describe('agent right pane projections', () => {
         }
       )
     ]
+
+    const ledgerWins = buildAgentRightPaneStatus([message('m1', snapshotThenLedger)], { m1: snapshotThenLedger })
+    expect(ledgerWins.tasks.map((task) => task.title)).toEqual(['Review context'])
+    expect(ledgerWins.completedTaskCount).toBe(0)
+    expect(ledgerWins.totalTaskCount).toBe(1)
+
+    const ledgerThenSnapshot = [
+      ...snapshotThenLedger,
+      toolPart('todos-2', 'TodoWrite', undefined, 'output-available', {
+        todos: [{ content: 'Polish the pane', activeForm: 'Polishing the pane', status: 'in_progress' }]
+      })
+    ]
+
+    const snapshotWins = buildAgentRightPaneStatus([message('m1', ledgerThenSnapshot)], { m1: ledgerThenSnapshot })
+    expect(snapshotWins.tasks.map((task) => task.title)).toEqual(['Polish the pane'])
+    expect(snapshotWins.totalTaskCount).toBe(1)
+  })
+
+  it('projects the latest successful dsh todo_write snapshot into status tasks', () => {
+    const parts = [
+      dshToolPart('dsh-todos-1', 'todo_write', 'output-available', {
+        todos: [
+          { content: 'Inspect the runtime', status: 'completed' },
+          { content: 'Wire the status pane', status: 'in_progress' }
+        ]
+      }),
+      dshToolPart('dsh-todos-failed', 'todo_write', 'output-error', {
+        todos: [{ content: 'Do not show this failed snapshot', status: 'in_progress' }]
+      }),
+      dshToolPart('dsh-todos-2', 'todo_write', 'output-available', {
+        todos: [
+          { content: 'Wire the status pane', status: 'completed' },
+          { content: 'Verify the projection', status: 'pending' }
+        ]
+      })
+    ]
     const messages = [message('m1', parts)]
 
     const status = buildAgentRightPaneStatus(messages, { m1: parts })
 
-    expect(status.tasks.map((task) => task.title)).toEqual(['Review context'])
+    expect(status.tasks.map(({ title, status }) => ({ title, status }))).toEqual([
+      {
+        title: 'Wire the status pane',
+        status: 'completed'
+      },
+      {
+        title: 'Verify the projection',
+        status: 'pending'
+      }
+    ])
+    expect(status.completedTaskCount).toBe(1)
+    expect(status.totalTaskCount).toBe(2)
+  })
+
+  it('clears dsh status tasks when todo_write succeeds with an empty snapshot', () => {
+    const parts = [
+      dshToolPart('dsh-todos-1', 'todo_write', 'output-available', {
+        todos: [{ content: 'Temporary task', status: 'completed' }]
+      }),
+      dshToolPart('dsh-todos-2', 'todo_write', 'output-available', { todos: [] })
+    ]
+    const messages = [message('m1', parts)]
+
+    const status = buildAgentRightPaneStatus(messages, { m1: parts })
+
+    expect(status.tasks).toEqual([])
     expect(status.completedTaskCount).toBe(0)
-    expect(status.totalTaskCount).toBe(1)
+    expect(status.totalTaskCount).toBe(0)
   })
 
   it('uses SDK task subject fields instead of ordinal ids', () => {

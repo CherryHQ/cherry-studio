@@ -85,6 +85,9 @@ const REGISTRY_CACHE_TTL_MS = 10 * 60 * 1000
 // `mise latest` for github: backends hits the rate-limited GitHub releases API,
 // so lookups stay off the boot path and run with a small concurrency bound.
 const LATEST_VERSIONS_CONCURRENCY = 4
+const MISE_PRERELEASE_TOOLS = new Set(
+  CODE_CLI_TOOL_PRESETS.filter((preset) => preset.misePrerelease).map((preset) => preset.miseTool)
+)
 
 // Main-owned session state. Renderer windows receive operations only through
 // snapshots, so this belongs to CacheService's internal tier rather than its
@@ -875,7 +878,10 @@ export class BinaryManager extends BaseService {
     return this.isolatedEnvPromise
   }
 
-  private async runMise(args: string[], opts?: { timeoutMs?: number }): Promise<{ stdout: string; stderr: string }> {
+  private async runMise(
+    args: string[],
+    opts?: { timeoutMs?: number; includePrerelease?: boolean }
+  ): Promise<{ stdout: string; stderr: string }> {
     if (!this.miseBin) {
       // Without mise there is nothing to run. The non-null assertion previously
       // used for the env would have silently fallen back to `process.env`,
@@ -884,7 +890,10 @@ export class BinaryManager extends BaseService {
       // isolation. getIsolatedEnv() always resolves a fully-built isolated env.
       throw new Error('mise binary not available')
     }
-    const env = await this.getIsolatedEnv()
+    const isolatedEnv = await this.getIsolatedEnv()
+    const env = opts?.includePrerelease
+      ? { ...isolatedEnv, MISE_PRERELEASES: '1', MISE_NPM_SHELL_OUT: '1' }
+      : isolatedEnv
     const timeoutMs = opts?.timeoutMs ?? MISE_COMMAND_TIMEOUT_MS
     const startedAt = Date.now()
     // cwd is always a throwaway tmp dir so mise never picks up a project-local
@@ -957,8 +966,13 @@ export class BinaryManager extends BaseService {
       runtime = `${runtimeTool}@${runtimeVersion}`
     }
     const toolSpec = `${definition.tool}@${requested}`
+    const includePrerelease = MISE_PRERELEASE_TOOLS.has(definition.tool)
+    const releaseAgeArgs = includePrerelease ? ['--minimum-release-age', '0s'] : []
 
-    await this.runMise(['use', '-g', ...(runtime ? [runtime] : []), toolSpec], { timeoutMs: MISE_INSTALL_TIMEOUT_MS })
+    await this.runMise(['use', '-g', ...releaseAgeArgs, ...(runtime ? [runtime] : []), toolSpec], {
+      timeoutMs: MISE_INSTALL_TIMEOUT_MS,
+      includePrerelease
+    })
     await this.runMise(['reshim'])
     return this.getInstalledVersion(definition.tool, requested)
   }
@@ -1529,7 +1543,9 @@ export class BinaryManager extends BaseService {
         const name = applied[cursor++]
         const { tool } = candidates.get(name)!
         try {
-          const { stdout } = await this.runMise(['latest', tool])
+          const includePrerelease = MISE_PRERELEASE_TOOLS.has(tool)
+          const releaseAgeArgs = includePrerelease ? ['--minimum-release-age', '0s'] : []
+          const { stdout } = await this.runMise(['latest', ...releaseAgeArgs, tool], { includePrerelease })
           const version = stdout.trim().split(/\r?\n/)[0]?.trim()
           if (version) result[name] = version
         } catch (err) {
