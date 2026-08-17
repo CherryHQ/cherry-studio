@@ -12,7 +12,7 @@ import { HealthStatus } from '../../types/healthCheck'
 import { ModelCheckCredentialsError } from '../../utils/healthCheck'
 import { useHealthCheck } from '../useHealthCheck'
 
-const useProviderMock = vi.fn()
+const useProviderByIdMock = vi.fn()
 const useModelsMock = vi.fn()
 const useProviderEndpointsMock = vi.fn()
 const checkModelsHealthMock = vi.fn()
@@ -21,7 +21,7 @@ const toastErrorMock = vi.fn()
 const toastSuccessMock = vi.fn()
 
 vi.mock('@renderer/hooks/useProvider', () => ({
-  useProvider: (...args: any[]) => useProviderMock(...args)
+  useProviderById: (...args: any[]) => useProviderByIdMock(...args)
 }))
 
 vi.mock('@renderer/hooks/useModel', () => ({
@@ -122,7 +122,7 @@ describe('useHealthCheck', () => {
       { kind: 'api-key', entry: primaryKey },
       { kind: 'api-key', entry: backupKey }
     ])
-    useProviderMock.mockReturnValue({ provider: { id: 'openai', name: 'OpenAI' } })
+    useProviderByIdMock.mockReturnValue({ provider: { id: 'openai', name: 'OpenAI' } })
     useModelsMock.mockImplementation(() => ({ models }))
     useProviderEndpointsMock.mockReturnValue({ apiHost: 'https://api.openai.com', anthropicApiHost: '' })
   })

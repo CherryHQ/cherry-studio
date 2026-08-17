@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useModelCheckCredentials } from '../useModelCheckCredentials'
 
 const useProviderApiKeysMock = vi.fn()
-const useProviderMock = vi.fn()
+const useProviderByIdMock = vi.fn()
 const useAuthenticationApiKeyMock = vi.fn()
 const useProviderMetaMock = vi.fn()
 const commitInputApiKeyNowMock = vi.fn()
@@ -16,7 +16,7 @@ let hasPendingSync = false
 let inputApiKey = 'sk-primary,sk-backup'
 
 vi.mock('@renderer/hooks/useProvider', () => ({
-  useProvider: (...args: any[]) => useProviderMock(...args),
+  useProviderById: (...args: any[]) => useProviderByIdMock(...args),
   useProviderApiKeys: (...args: any[]) => useProviderApiKeysMock(...args)
 }))
 
@@ -37,7 +37,7 @@ describe('useModelCheckCredentials', () => {
     ]
     hasPendingSync = false
     inputApiKey = 'sk-primary,sk-backup'
-    useProviderMock.mockReturnValue({ provider: { id: 'openai', name: 'OpenAI' } })
+    useProviderByIdMock.mockReturnValue({ provider: { id: 'openai', name: 'OpenAI' } })
     useProviderApiKeysMock.mockImplementation(() => ({
       data: { keys: apiKeyEntries },
       refetch: refetchApiKeysMock

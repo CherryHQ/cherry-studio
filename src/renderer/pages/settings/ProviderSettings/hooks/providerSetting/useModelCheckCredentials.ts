@@ -1,4 +1,4 @@
-import { useProvider, useProviderApiKeys } from '@renderer/hooks/useProvider'
+import { useProviderApiKeys, useProviderById } from '@renderer/hooks/useProvider'
 import type {
   ModelCheckCredential,
   ModelCheckKeySelection
@@ -46,7 +46,7 @@ export class ModelCheckCredentialsSaveError extends Error {
 
 /** Owns credential preparation and invalidation shared by provider model checks. */
 export function useModelCheckCredentials(providerId: string): ModelCheckCredentialsState {
-  const { provider } = useProvider(providerId)
+  const { provider } = useProviderById(providerId)
   const { data: apiKeysData, refetch: refetchApiKeys } = useProviderApiKeys(providerId)
   const { commitInputApiKeyNow, hasPendingSync, inputApiKey } = useAuthenticationApiKey()
   const { isApiKeyFieldVisible } = useProviderMeta(providerId)

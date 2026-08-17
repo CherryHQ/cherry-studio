@@ -38,6 +38,16 @@ function clampTimeout(value: number) {
   return Math.min(60, Math.max(5, Math.round(value)))
 }
 
+function getEffectiveKeySelection(
+  selection: ModelCheckKeySelection,
+  entries: readonly ApiKeyEntry[]
+): ModelCheckKeySelection {
+  if (selection.mode === 'single' && !entries.some((entry) => entry.isEnabled && entry.id === selection.keyId)) {
+    return { mode: 'all' }
+  }
+  return selection
+}
+
 function getSkipReasonDescription(model: Model, t: ReturnType<typeof useTranslation>['t']) {
   const reason = getModelHealthCheckSkipReason(model)
   if (!reason) return undefined
@@ -158,6 +168,8 @@ export default function ModelCheckDialog() {
   const [isConcurrent, setIsConcurrent] = useState(true)
   const [timeoutSeconds, setTimeoutSeconds] = useState(15)
   const [isStarting, setIsStarting] = useState(false)
+  const effectiveSingleKeySelection = getEffectiveKeySelection(singleKeySelection, health.apiKeyEntries)
+  const effectiveAllKeySelection = getEffectiveKeySelection(allKeySelection, health.apiKeyEntries)
   const sortedModels = useMemo(() => sortBy(health.models, 'name'), [health.models])
   const checkableModels = useMemo(
     () => sortedModels.filter((model) => !getModelHealthCheckSkipReason(model)),
@@ -194,29 +206,19 @@ export default function ModelCheckDialog() {
     )
   }, [checkableModels, health.modelCheckOpen])
 
-  useEffect(() => {
-    const enabledIds = new Set(health.apiKeyEntries.filter((entry) => entry.isEnabled).map((entry) => entry.id))
-    setSingleKeySelection((current) =>
-      current.mode === 'single' && !enabledIds.has(current.keyId) ? { mode: 'all' } : current
-    )
-    setAllKeySelection((current) =>
-      current.mode === 'single' && !enabledIds.has(current.keyId) ? { mode: 'all' } : current
-    )
-  }, [health.apiKeyEntries])
-
   const handleStart = async () => {
     setIsStarting(true)
     try {
       if (mode === 'single') {
         if (!selectedModel) return
-        await health.startSingleModelCheck({ model: selectedModel, keySelection: singleKeySelection })
+        await health.startSingleModelCheck({ model: selectedModel, keySelection: effectiveSingleKeySelection })
         return
       }
 
       const timeout = clampTimeout(timeoutSeconds)
       setTimeoutSeconds(timeout)
       await health.startHealthCheck({
-        keySelection: allKeySelection,
+        keySelection: effectiveAllKeySelection,
         isConcurrent,
         timeout: timeout * 1000
       })
@@ -277,7 +279,7 @@ export default function ModelCheckDialog() {
               {showKeyScope ? (
                 <ApiKeyScopeField
                   entries={health.apiKeyEntries}
-                  selection={singleKeySelection}
+                  selection={effectiveSingleKeySelection}
                   disabled={controlsDisabled}
                   onChange={(selection) => {
                     setSingleKeySelection(selection)
@@ -299,7 +301,7 @@ export default function ModelCheckDialog() {
               {showKeyScope ? (
                 <ApiKeyScopeField
                   entries={health.apiKeyEntries}
-                  selection={allKeySelection}
+                  selection={effectiveAllKeySelection}
                   disabled={controlsDisabled}
                   onChange={setAllKeySelection}
                 />

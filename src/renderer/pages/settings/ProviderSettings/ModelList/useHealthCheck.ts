@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { useModels } from '@renderer/hooks/useModel'
-import { useProvider } from '@renderer/hooks/useProvider'
+import { useProviderById } from '@renderer/hooks/useProvider'
 import i18n from '@renderer/i18n/resolver'
 import {
   ModelCheckCredentialsSaveError,
@@ -85,7 +85,7 @@ function createInitialStatuses(models: readonly Model[]) {
 
 /** Runs a provider-wide model check in the background and streams row results. */
 export function useHealthCheck(providerId: string, credentialsState: ModelCheckCredentialsState) {
-  const { provider } = useProvider(providerId)
+  const { provider } = useProviderById(providerId)
   const { models } = useModels({ providerId }, { swrOptions: PROVIDER_SETTINGS_MODEL_SWR_OPTIONS })
   const { apiHost, anthropicApiHost } = useProviderEndpoints(provider)
   const { credentialChangeVersion, prepareCredentials } = credentialsState

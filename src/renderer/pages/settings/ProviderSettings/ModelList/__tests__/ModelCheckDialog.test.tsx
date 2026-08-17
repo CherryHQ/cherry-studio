@@ -143,6 +143,52 @@ describe('ModelCheckDialog', () => {
     )
   })
 
+  it('derives key selection from enabled keys without discarding the stored choice', async () => {
+    const user = userEvent.setup()
+    health.apiKeyEntries = [
+      { id: 'key-1', key: 'sk-primary', label: 'Primary', isEnabled: true },
+      { id: 'key-2', key: 'sk-secondary', label: 'Secondary', isEnabled: true }
+    ]
+    const { rerender } = render(<ModelCheckDialog />)
+
+    await user.click(screen.getByRole('radio', { name: 'settings.models.check.single' }))
+    await user.click(
+      screen.getByRole('button', { name: /^settings\.models\.check\.select_api_key Primary · sk\*{4}ry$/ })
+    )
+    await user.click(screen.getByRole('option', { name: /Secondary/ }))
+
+    health.apiKeyEntries = health.apiKeyEntries.map((entry) =>
+      entry.id === 'key-2' ? { ...entry, isEnabled: false } : entry
+    )
+    rerender(<ModelCheckDialog />)
+
+    expect(screen.getByRole('radio', { name: 'settings.models.check.all' })).toBeChecked()
+    await user.click(screen.getByRole('button', { name: 'settings.models.check.start' }))
+    await waitFor(() =>
+      expect(startSingleModelCheck).toHaveBeenLastCalledWith({
+        model: chatModel,
+        keySelection: { mode: 'all' }
+      })
+    )
+
+    health.apiKeyEntries = health.apiKeyEntries.map((entry) =>
+      entry.id === 'key-2' ? { ...entry, isEnabled: true } : entry
+    )
+    rerender(<ModelCheckDialog />)
+
+    expect(screen.getByRole('radio', { name: 'settings.models.check.single' })).toBeChecked()
+    expect(
+      screen.getByRole('button', { name: /settings\.models\.check\.select_api_key Secondary/ })
+    ).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'settings.models.check.start' }))
+    await waitFor(() =>
+      expect(startSingleModelCheck).toHaveBeenLastCalledWith({
+        model: chatModel,
+        keySelection: { mode: 'single', keyId: 'key-2' }
+      })
+    )
+  })
+
   it('switches to the all-model form with concurrency and a clamped timeout', async () => {
     const user = userEvent.setup()
     render(<ModelCheckDialog />)
