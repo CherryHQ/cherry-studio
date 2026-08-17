@@ -330,7 +330,7 @@ describe('SpreadsheetFilePreview', () => {
     expect(screen.getByTestId('xlsx-preview-zoom-value')).toHaveTextContent('75%')
     expect(screen.getByTestId('xlsx-grid')).toHaveAttribute('data-zoom', '0.75')
 
-    // Zoom reset lives nowhere anymore — the top toolbar refresh covers "back to default".
+    // Zoom reset lives nowhere anymore — refreshing the preview restores the default.
     expect(screen.queryByRole('button', { name: 'preview.reset' })).not.toBeInTheDocument()
   })
 

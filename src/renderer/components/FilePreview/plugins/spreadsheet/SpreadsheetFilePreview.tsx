@@ -211,22 +211,23 @@ export default function SpreadsheetFilePreview({ filePath, fileName, metadata, r
               <span className="shrink-0 italic">{t('xlsx_preview.formula_not_evaluated')}</span>
             ) : null}
           </div>
+
+          <SpreadsheetFilePreviewToolbar
+            zoomLabel={formatZoomLabel(zoom)}
+            canZoomOut={zoomIndex > 0}
+            canZoomIn={zoomIndex >= 0 && zoomIndex < ZOOM_LEVELS.length - 1}
+            onZoomOut={zoomOut}
+            onZoomIn={zoomIn}
+          />
         </div>
+
+        <div aria-hidden className="hidden h-24 shrink-0 [[data-shell-maximized-overlay]_&]:block" />
       </div>
     )
   }
 
-  const hasWorkbook = Boolean(model && activeSheet)
-
   return (
     <FilePreviewLayout.Frame>
-      <SpreadsheetFilePreviewToolbar
-        zoomLabel={formatZoomLabel(zoom)}
-        canZoomOut={hasWorkbook && zoomIndex > 0}
-        canZoomIn={hasWorkbook && zoomIndex >= 0 && zoomIndex < ZOOM_LEVELS.length - 1}
-        onZoomOut={zoomOut}
-        onZoomIn={zoomIn}
-      />
       <FilePreviewLayout.Content>{content}</FilePreviewLayout.Content>
     </FilePreviewLayout.Frame>
   )

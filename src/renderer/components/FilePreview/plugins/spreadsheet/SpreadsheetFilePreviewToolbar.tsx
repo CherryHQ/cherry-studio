@@ -2,7 +2,6 @@ import ZoomIn from 'lucide-react/dist/esm/icons/zoom-in'
 import ZoomOut from 'lucide-react/dist/esm/icons/zoom-out'
 import { useTranslation } from 'react-i18next'
 
-import { FilePreviewToolbar } from '../../FilePreviewToolbar'
 import { FilePreviewToolbarButton } from '../../FilePreviewToolbarButton'
 
 interface SpreadsheetFilePreviewToolbarProps {
@@ -23,7 +22,7 @@ export function SpreadsheetFilePreviewToolbar({
   const { t } = useTranslation()
 
   return (
-    <FilePreviewToolbar aria-label={t('preview.label')}>
+    <div role="toolbar" aria-label={t('preview.label')} className="flex shrink-0 items-center gap-1">
       <FilePreviewToolbarButton label={t('preview.zoom_out')} disabled={!canZoomOut} onClick={onZoomOut}>
         <ZoomOut aria-hidden />
       </FilePreviewToolbarButton>
@@ -35,6 +34,6 @@ export function SpreadsheetFilePreviewToolbar({
       <FilePreviewToolbarButton label={t('preview.zoom_in')} disabled={!canZoomIn} onClick={onZoomIn}>
         <ZoomIn aria-hidden />
       </FilePreviewToolbarButton>
-    </FilePreviewToolbar>
+    </div>
   )
 }
