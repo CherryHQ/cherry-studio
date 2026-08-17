@@ -72,6 +72,7 @@ const {
   mockRandomUUID,
   mockZipExtract,
   mockZipClose,
+  mockZipEntries,
   MockStreamZipAsync
 } = vi.hoisted(() => {
   const mockChannelHold = { dispose: vi.fn() }
@@ -80,6 +81,7 @@ const {
   const mockAgentSessionHold = { dispose: vi.fn() }
   const mockZipExtract = vi.fn()
   const mockZipClose = vi.fn()
+  const mockZipEntries = vi.fn(async () => ({}))
   return {
     mockLogger: {
       debug: vi.fn(),
@@ -122,8 +124,9 @@ const {
     mockRandomUUID: vi.fn(),
     mockZipExtract,
     mockZipClose,
+    mockZipEntries,
     MockStreamZipAsync: vi.fn(function () {
-      return { extract: mockZipExtract, close: mockZipClose }
+      return { entries: mockZipEntries, extract: mockZipExtract, close: mockZipClose }
     })
   }
 })
@@ -1204,6 +1207,19 @@ describe('BackupManager direct v2 data compatibility', () => {
     )
 
     expect(mockZipExtract).toHaveBeenCalledOnce()
+    expect(mockZipClose).toHaveBeenCalledOnce()
+    expect(mockWriteRestoreJournal).not.toHaveBeenCalled()
+  })
+
+  it('rejects a backup ZIP whose entries escape the extraction dir (zip-slip)', async () => {
+    mockZipEntries.mockResolvedValueOnce({ '../../../evil.sh': { size: 4 }, 'metadata.json': { size: 2 } })
+
+    await expect(backupManager.restore({} as Electron.IpcMainInvokeEvent, '/backup/evil.zip')).rejects.toThrow(
+      'zip-slip'
+    )
+
+    // The rejection happens before any entry is written and the archive is still closed.
+    expect(mockZipExtract).not.toHaveBeenCalled()
     expect(mockZipClose).toHaveBeenCalledOnce()
     expect(mockWriteRestoreJournal).not.toHaveBeenCalled()
   })

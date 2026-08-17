@@ -30,6 +30,7 @@ import { type AtomicWriteStream, createAtomicWriteStream } from '@main/utils/fil
 import { IdleTimeoutController } from '@main/utils/IdleTimeoutController'
 import { isPathInside, resolveAndValidatePath } from '@main/utils/legacyFile'
 import { getDeviceType, getHostname } from '@main/utils/system'
+import { assertZipEntriesWithin } from '@main/utils/zipSafety'
 import { IpcChannel } from '@shared/IpcChannel'
 import {
   BACKUP_ACTIVE_WRITERS_ERROR_CODE,
@@ -868,6 +869,7 @@ class BackupManager {
       const zip = new StreamZip.async({ file: backupPath })
       try {
         onProgress({ stage: 'extracting', progress: 15, total: 100 })
+        assertZipEntriesWithin(Object.keys(await zip.entries()), extractionDir)
         await zip.extract(null, extractionDir)
       } finally {
         await zip.close()
