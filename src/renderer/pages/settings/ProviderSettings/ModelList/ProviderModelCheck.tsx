@@ -2,7 +2,6 @@ import { Button } from '@cherrystudio/ui'
 import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
 import ModelCheckDialog from './ModelCheckDialog'
 import { useModelListHealthRun } from './modelListHealthContext'
 
@@ -17,7 +16,7 @@ export default function ProviderModelCheck() {
         type="button"
         variant="outline"
         size="sm"
-        className={modelListClasses.fetchActionButton}
+        className="h-8 rounded-lg border-border-subtle bg-background px-2.5 py-0 text-foreground text-sm leading-5 shadow-none hover:bg-accent/40 hover:text-foreground"
         aria-label={label}
         disabled={health.models.length === 0 || health.isModelChecking}
         onClick={health.openModelCheck}>
