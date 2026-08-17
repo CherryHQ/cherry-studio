@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "4c9d22cc-a330-4b40-9dda-4152ba27beaf",
+  "id": "7942693c-340a-43a3-b211-9da1cabf66bf",
   "prevId": "0f5fea5a-c909-4d37-b8ba-6d1f61856523",
   "tables": {
     "agent": {
@@ -241,7 +241,7 @@
         },
         "agent_channel_session_conversation_kind_check": {
           "name": "agent_channel_session_conversation_kind_check",
-          "value": "\"agent_channel_session\".\"conversation_kind\" IS NULL OR \"agent_channel_session\".\"conversation_kind\" IN ('direct', 'group', 'channel')"
+          "value": "\"agent_channel_session\".\"conversation_kind\" IS NULL OR \"agent_channel_session\".\"conversation_kind\" IN ('direct', 'group', 'channel', 'thread')"
         },
         "agent_channel_session_active_conversation_check": {
           "name": "agent_channel_session_active_conversation_check",

@@ -60,15 +60,8 @@
     {
       "idx": 8,
       "version": "6",
-      "when": 1786631439394,
-      "tag": "0008_same_sauron",
-      "breakpoints": true
-    },
-    {
-      "idx": 9,
-      "version": "6",
-      "when": 1786949330606,
-      "tag": "0009_abnormal_starhawk",
+      "when": 1786949933072,
+      "tag": "0008_nice_scalphunter",
       "breakpoints": true
     }
   ],

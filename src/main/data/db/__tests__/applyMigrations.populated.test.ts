@@ -107,7 +107,7 @@ describe('applyMigrations over a populated database', () => {
   }
 
   it('quarantines legacy channel sessions without changing conversation history', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0008_same_sauron'))
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0008_nice_scalphunter'))
     const now = Date.now()
     sqlite
       .prepare(
