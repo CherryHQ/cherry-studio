@@ -708,8 +708,45 @@ describe('ChannelMessageHandler', () => {
 
     const sessionIds = mockStartAgentSessionRun.mock.calls.map(([input]) => input.sessionId)
     expect(sessionIds[0]).not.toBe(sessionIds[1])
+    const listenerIds = mockStartAgentSessionRun.mock.calls.map(
+      ([input]) => input.listeners.find((listener: { id: string }) => listener.id.startsWith('channel:'))?.id
+    )
+    expect(listenerIds[0]).not.toBe(listenerIds[1])
     expect(sessionIds[2]).toBe(sessionIds[0])
     expect(agentSessionService.createTx).toHaveBeenCalledTimes(2)
+  })
+
+  it('isolates threads in the same chat and preserves their reply context', async () => {
+    const adapter = createMockAdapter({ channelType: 'feishu' })
+
+    for (const conversationId of ['thread:one', 'thread:two']) {
+      simulateStream([{ type: 'text-delta', delta: conversationId }])
+      await handleIncomingAndFlush(adapter, {
+        chatId: 'group-1',
+        conversationId,
+        conversationKind: 'thread',
+        userId: 'user-1',
+        userName: 'User',
+        messageId: `${conversationId}:message`,
+        replyInThread: true,
+        text: 'hello'
+      })
+    }
+
+    const sessionIds = mockStartAgentSessionRun.mock.calls.map(([input]) => input.sessionId)
+    expect(sessionIds[0]).not.toBe(sessionIds[1])
+    expect(channelService.activateSessionTx).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ conversationId: 'thread:one', conversationKind: 'thread' })
+    )
+    expect(adapter.sendMessage).toHaveBeenCalledWith('group-1', 'thread:one', {
+      replyToMessageId: 'thread:one:message',
+      replyInThread: true
+    })
+    expect(adapter.sendMessage).toHaveBeenCalledWith('group-1', 'thread:two', {
+      replyToMessageId: 'thread:two:message',
+      replyInThread: true
+    })
   })
 
   // channels-core-3: discarding a pending (un-flushed) batch must settle its callers'

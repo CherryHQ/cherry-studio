@@ -62,7 +62,7 @@ export const agentChannelSessionTable = sqliteTable(
     ),
     check(
       'agent_channel_session_conversation_kind_check',
-      sql`${t.conversationKind} IS NULL OR ${t.conversationKind} IN ('direct', 'group', 'channel')`
+      sql`${t.conversationKind} IS NULL OR ${t.conversationKind} IN ('direct', 'group', 'channel', 'thread')`
     ),
     check(
       'agent_channel_session_active_conversation_check',

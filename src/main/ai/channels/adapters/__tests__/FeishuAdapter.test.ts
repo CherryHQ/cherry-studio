@@ -300,6 +300,30 @@ describe('FeishuAdapter', () => {
     expect(mockSetContent).toHaveBeenNthCalledWith(3, 'final response')
   })
 
+  it('isolates thread events and keeps streamed replies in the originating thread', async () => {
+    const adapter = createAdapter()
+    const onMessage = vi.fn()
+    adapter.on('message', onMessage)
+    await adapter.connect()
+
+    await channelHandlers.message(incomingMessage({ chatType: 'group', threadId: 'thread-1', rootId: 'root-1' }))
+    await adapter.onTextUpdate('oc_123', 'partial', { replyToMessageId: 'msg-in-1', replyInThread: true })
+    await adapter.onStreamComplete('oc_123', 'final', { replyToMessageId: 'msg-in-1', replyInThread: true })
+
+    expect(onMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chatId: 'oc_123',
+        conversationId: 'thread:thread-1',
+        conversationKind: 'thread',
+        replyInThread: true
+      })
+    )
+    expect(mockStream).toHaveBeenCalledWith('oc_123', expect.any(Object), {
+      replyTo: 'msg-in-1',
+      replyInThread: true
+    })
+  })
+
   it('preserves partial output when finalizing a failed stream', async () => {
     const adapter = createAdapter()
     await adapter.connect()

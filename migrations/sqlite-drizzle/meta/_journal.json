@@ -63,6 +63,13 @@
       "when": 1786631439394,
       "tag": "0008_same_sauron",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1786949330606,
+      "tag": "0009_abnormal_starhawk",
+      "breakpoints": true
     }
   ],
   "version": "7"

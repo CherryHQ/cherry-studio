@@ -49,6 +49,25 @@ type PendingBatch = {
   resolvers: BatchResolver[]
 }
 
+function conversationIdOf(event: Pick<ChannelMessageEvent | ChannelCommandEvent, 'chatId' | 'conversationId'>): string {
+  return event.conversationId ?? event.chatId
+}
+
+function responseOptionsFor(
+  event: Pick<ChannelMessageEvent | ChannelCommandEvent, 'messageId' | 'replyInThread'>
+): SendMessageOptions {
+  return {
+    replyToMessageId: event.messageId,
+    ...(event.replyInThread && { replyInThread: true })
+  }
+}
+
+function streamResponseOptionsFor(
+  event: Pick<ChannelMessageEvent | ChannelCommandEvent, 'messageId' | 'replyInThread'>
+): SendMessageOptions | undefined {
+  return event.messageId !== undefined || event.replyInThread ? responseOptionsFor(event) : undefined
+}
+
 export class ChannelMessageHandler {
   // TODO: in v2 use cacheService
   private readonly sessionTracker = new Map<string, string>() // `${agentId}:${channelId}:${chatId}` -> sessionId
@@ -183,7 +202,7 @@ export class ChannelMessageHandler {
       })
       return Promise.resolve()
     }
-    const batchKey = `${adapter.agentId}:${adapter.channelId}:${message.chatId}:${message.userId}`
+    const batchKey = `${adapter.agentId}:${adapter.channelId}:${conversationIdOf(message)}:${message.userId}`
 
     return new Promise<void>((resolve, reject) => {
       const existing = this.pendingBatches.get(batchKey)
@@ -218,7 +237,7 @@ export class ChannelMessageHandler {
 
     const merged = this.mergeMessages(batch.messages)
     const { resolvers } = batch
-    const queueKey = `${batch.adapter.agentId}:${batch.adapter.channelId}:${merged.chatId}`
+    const queueKey = `${batch.adapter.agentId}:${batch.adapter.channelId}:${conversationIdOf(merged)}`
 
     if (batch.messages.length > 1) {
       logger.info('Flushing merged message batch', {
@@ -263,7 +282,7 @@ export class ChannelMessageHandler {
         if (adapter && chatId) {
           adapter
             .sendMessage(chatId, '⚠️ An error occurred while processing your message. Please try again later.', {
-              replyToMessageId: merged.messageId
+              ...responseOptionsFor(merged)
             })
             .catch((sendErr) => {
               logger.debug('Failed to send error notification to channel', {
@@ -295,11 +314,13 @@ export class ChannelMessageHandler {
 
     return {
       chatId: first.chatId,
+      ...(first.conversationId ? { conversationId: first.conversationId } : {}),
       conversationKind: first.conversationKind,
       userId: first.userId,
       userName: first.userName,
       text: mergedText,
       ...(messageId ? { messageId } : {}),
+      ...(first.replyInThread ? { replyInThread: true } : {}),
       ...(mergedImages.length > 0 ? { images: mergedImages } : {}),
       ...(mergedFiles.length > 0 ? { files: mergedFiles } : {})
     }
@@ -313,12 +334,17 @@ export class ChannelMessageHandler {
     const { agentId } = adapter
 
     try {
-      const session = await this.resolveSession(agentId, adapter.channelId, message.chatId, message.conversationKind)
+      const session = await this.resolveSession(
+        agentId,
+        adapter.channelId,
+        conversationIdOf(message),
+        message.conversationKind
+      )
       if (!session) {
         logger.error('Failed to resolve session', { agentId })
         await adapter
           .sendMessage(message.chatId, '⚠️ Failed to resolve a session for this agent. Please try again later.', {
-            replyToMessageId: message.messageId
+            ...responseOptionsFor(message)
           })
           .catch((err) => {
             logger.debug('Failed to send session-error notification to channel', {
@@ -353,9 +379,7 @@ export class ChannelMessageHandler {
           await prepareAgentSessionWorkspaceDirectory(session)
         } catch (error) {
           if (isAgentSessionWorkspaceError(error)) {
-            await adapter
-              .sendMessage(message.chatId, error.message, { replyToMessageId: message.messageId })
-              .catch(() => {})
+            await adapter.sendMessage(message.chatId, error.message, responseOptionsFor(message)).catch(() => {})
           }
           throw error
         }
@@ -418,9 +442,10 @@ export class ChannelMessageHandler {
       this.activeAbortControllers.set(session.id, abortController)
 
       // Show typing indicator immediately and keep refreshing every 4s
-      adapter.sendTypingIndicator(message.chatId).catch(() => {})
+      const responseOptions = streamResponseOptionsFor(message)
+      adapter.sendTypingIndicator(message.chatId, responseOptions).catch(() => {})
       const typingInterval = setInterval(
-        () => adapter.sendTypingIndicator(message.chatId).catch(() => {}),
+        () => adapter.sendTypingIndicator(message.chatId, responseOptions).catch(() => {}),
         TYPING_INTERVAL_MS
       )
 
@@ -435,7 +460,7 @@ export class ChannelMessageHandler {
           abortController,
           adapter,
           message.chatId,
-          message.messageId,
+          responseOptions,
           onAdmitted
         )
       } catch (streamError) {
@@ -444,12 +469,10 @@ export class ChannelMessageHandler {
           // Thrown before streaming starts (validateSession), so no controller exists yet and
           // onStreamError is a no-op on most adapters — send a plain message so the inbound
           // message isn't silently dropped on Telegram/WeChat/QQ/Discord/Slack.
-          adapter
-            .sendMessage(message.chatId, streamErrorMessage, { replyToMessageId: message.messageId })
-            .catch(() => {})
+          adapter.sendMessage(message.chatId, streamErrorMessage, responseOptionsFor(message)).catch(() => {})
         } else {
           // Mid-stream error: let the adapter update its streaming UI.
-          adapter.onStreamError(message.chatId, streamErrorMessage).catch(() => {})
+          adapter.onStreamError(message.chatId, streamErrorMessage, responseOptions).catch(() => {})
         }
         throw streamError
       } finally {
@@ -489,14 +512,14 @@ export class ChannelMessageHandler {
       if (
         batch.adapter.agentId === adapter.agentId &&
         batch.adapter.channelId === adapter.channelId &&
-        batch.messages[0]?.chatId === command.chatId
+        conversationIdOf(batch.messages[0] ?? command) === conversationIdOf(command)
       ) {
         clearTimeout(batch.timer)
         this.flushBatch(batchKey)
       }
     }
 
-    const queueKey = `${adapter.agentId}:${adapter.channelId}:${command.chatId}`
+    const queueKey = `${adapter.agentId}:${adapter.channelId}:${conversationIdOf(command)}`
     const admissionId = `command:${queueKey}#${++this.admissionSeq}`
     let admit!: () => void
     const admission = new Promise<void>((resolve) => {
@@ -522,7 +545,7 @@ export class ChannelMessageHandler {
     onAdmitted: () => void
   ): Promise<void> {
     const { agentId } = adapter
-    const replyOpts: SendMessageOptions = { replyToMessageId: command.messageId }
+    const replyOpts = responseOptionsFor(command)
     try {
       switch (command.command) {
         case 'new': {
@@ -531,10 +554,10 @@ export class ChannelMessageHandler {
           const newSession = this.createSessionForConversation(
             agentId,
             adapter.channelId,
-            command.chatId,
+            conversationIdOf(command),
             command.conversationKind
           )
-          const trackerKey = `${agentId}:${adapter.channelId}:${command.chatId}`
+          const trackerKey = `${agentId}:${adapter.channelId}:${conversationIdOf(command)}`
           this.sessionTracker.set(trackerKey, newSession.id)
           this.evictSessionTracker()
           onAdmitted()
@@ -545,7 +568,7 @@ export class ChannelMessageHandler {
           const session = await this.resolveSession(
             agentId,
             adapter.channelId,
-            command.chatId,
+            conversationIdOf(command),
             command.conversationKind
           )
           if (!session) {
@@ -553,9 +576,10 @@ export class ChannelMessageHandler {
             return
           }
           const abortController = new AbortController()
-          adapter.sendTypingIndicator(command.chatId).catch(() => {})
+          const responseOptions = streamResponseOptionsFor(command)
+          adapter.sendTypingIndicator(command.chatId, responseOptions).catch(() => {})
           const typingInterval = setInterval(
-            () => adapter.sendTypingIndicator(command.chatId).catch(() => {}),
+            () => adapter.sendTypingIndicator(command.chatId, responseOptions).catch(() => {}),
             TYPING_INTERVAL_MS
           )
           try {
@@ -565,7 +589,7 @@ export class ChannelMessageHandler {
               abortController,
               adapter,
               command.chatId,
-              command.messageId,
+              responseOptions,
               onAdmitted
             )
             // The `ChannelAdapterListener` registered inside `collectStreamResponse` already
@@ -584,7 +608,7 @@ export class ChannelMessageHandler {
           const agent = agentService.getAgent(agentId)
           const name = agent?.name ?? 'Cherry Studio'
           const description = agent?.description ?? ''
-          const commands = await this.helpCommandsForChat(agentId, adapter.channelId, command.chatId)
+          const commands = await this.helpCommandsForChat(agentId, adapter.channelId, conversationIdOf(command))
           const helpText = [
             `*${name}*`,
             description ? `_${description}_` : '',
@@ -619,7 +643,7 @@ export class ChannelMessageHandler {
       })
       adapter
         .sendMessage(command.chatId, '⚠️ An error occurred while processing the command. Please try again later.', {
-          replyToMessageId: command.messageId
+          ...responseOptionsFor(command)
         })
         .catch((sendErr) => {
           logger.debug('Failed to send error notification to channel', {
@@ -702,13 +726,13 @@ export class ChannelMessageHandler {
   private async helpCommandsForChat(
     agentId: string,
     channelId: string,
-    chatId: string
+    conversationId: string
   ): Promise<Array<{ name: string; description: string }>> {
     const merged: Array<{ name: string; description: string }> = SLASH_COMMANDS.map((cmd) => ({
       name: cmd.name,
       description: cmd.description
     }))
-    const sessionId = this.peekSessionId(agentId, channelId, chatId)
+    const sessionId = this.peekSessionId(agentId, channelId, conversationId)
     if (!sessionId) return merged
 
     const sessionCommands =
@@ -721,11 +745,11 @@ export class ChannelMessageHandler {
     return merged
   }
 
-  /** Read-only lookup of the session currently bound to a chat — tracker first, then the persisted
+  /** Read-only lookup of the session currently bound to a conversation — tracker first, then the persisted
    *  conversation binding. Mirrors {@link doResolveSession}'s ownership guard (`session.agentId === agentId`)
    *  so a stale/reassigned channel link can't surface another agent's commands; returns null when no
    *  session is bound to this agent yet (unlike {@link resolveSession}, never creates one). */
-  private peekSessionId(agentId: string, channelId: string, chatId: string): string | null {
+  private peekSessionId(agentId: string, channelId: string, conversationId: string): string | null {
     const lookup = (sessionId: string) => {
       try {
         return agentSessionService.getById(sessionId)
@@ -734,13 +758,13 @@ export class ChannelMessageHandler {
       }
     }
 
-    const trackedId = this.sessionTracker.get(`${agentId}:${channelId}:${chatId}`)
+    const trackedId = this.sessionTracker.get(`${agentId}:${channelId}:${conversationId}`)
     if (trackedId) {
       const session = lookup(trackedId)
       if (session?.agentId === agentId) return session.id
     }
 
-    const persistedId = channelService.getActiveSessionId(channelId, chatId)
+    const persistedId = channelService.getActiveSessionId(channelId, conversationId)
     if (persistedId) {
       const session = lookup(persistedId)
       if (session?.agentId === agentId) return session.id
@@ -756,7 +780,7 @@ export class ChannelMessageHandler {
   ): Promise<AgentSessionEntity | null> {
     const trackerKey = `${agentId}:${channelId}:${conversationId}`
 
-    // Coalesce concurrent resolutions for the same chat to avoid duplicate sessions
+    // Coalesce concurrent resolutions for the same conversation to avoid duplicate sessions
     const pending = this.pendingResolutions.get(trackerKey)
     if (pending) return pending
 
@@ -861,7 +885,7 @@ export class ChannelMessageHandler {
     abortController: AbortController,
     adapter: ChannelAdapter,
     chatId: string,
-    replyToMessageId?: string,
+    responseOptions?: SendMessageOptions,
     onAdmitted?: () => void
   ): Promise<string> {
     if (!session.agentId) {
@@ -897,7 +921,7 @@ export class ChannelMessageHandler {
       await startAgentSessionRun({
         sessionId: session.id,
         userParts: [{ type: 'text', text: content }],
-        listeners: [sentinel, new ChannelAdapterListener(adapter, chatId, false, replyToMessageId)],
+        listeners: [sentinel, new ChannelAdapterListener(adapter, chatId, false, responseOptions)],
         headless: true
       })
     } finally {

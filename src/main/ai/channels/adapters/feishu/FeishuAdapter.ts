@@ -36,7 +36,7 @@ class FeishuStreamSession {
   private readonly completion: Promise<void>
   private readonly stream: Promise<Lark.SendResult>
 
-  constructor(channel: Lark.LarkChannel, chatId: string, replyTo?: string) {
+  constructor(channel: Lark.LarkChannel, chatId: string, replyTo?: string, replyInThread?: boolean) {
     this.controllerReady = new Promise((resolve) => {
       this.resolveController = resolve
     })
@@ -51,7 +51,7 @@ class FeishuStreamSession {
           await this.completion
         }
       },
-      replyTo ? { replyTo } : undefined
+      replyTo ? { replyTo, ...(replyInThread && { replyInThread: true }) } : undefined
     )
     void this.stream.catch(() => undefined)
   }
@@ -253,9 +253,13 @@ class FeishuAdapter extends ChannelAdapter {
   }
 
   async sendMessage(chatId: string, text: string, opts?: SendMessageOptions): Promise<void> {
-    await this.transitionChatReaction(chatId, REACTION_DONE, [REACTION_THINKING])
+    await this.transitionChatReaction(chatId, REACTION_DONE, [REACTION_THINKING], opts)
     const replyTo = typeof opts?.replyToMessageId === 'string' ? opts.replyToMessageId : undefined
-    await this.getChannel().send(chatId, { markdown: text }, replyTo ? { replyTo } : undefined)
+    await this.getChannel().send(
+      chatId,
+      { markdown: text },
+      replyTo ? { replyTo, ...(opts?.replyInThread && { replyInThread: true }) } : undefined
+    )
   }
 
   override async sendFile(chatId: string, file: FileAttachment): Promise<void> {
@@ -268,21 +272,27 @@ class FeishuAdapter extends ChannelAdapter {
     this.log.info('Sent file', { chatId, filename: file.filename, size: file.size, mediaType: file.media_type })
   }
 
-  async sendTypingIndicator(chatId: string): Promise<void> {
-    await this.setChatReaction(chatId, REACTION_THINKING)
+  async sendTypingIndicator(chatId: string, opts?: SendMessageOptions): Promise<void> {
+    await this.setChatReaction(chatId, REACTION_THINKING, opts)
   }
 
-  private async setChatReaction(chatId: string, emoji: string): Promise<void> {
-    const messageId = this.latestUserMessageByChat.get(chatId)
+  private responseKey(chatId: string, opts?: SendMessageOptions): string {
+    return typeof opts?.replyToMessageId === 'string' ? `${chatId}:${opts.replyToMessageId}` : chatId
+  }
+
+  private async setChatReaction(chatId: string, emoji: string, opts?: SendMessageOptions): Promise<void> {
+    const messageId =
+      typeof opts?.replyToMessageId === 'string' ? opts.replyToMessageId : this.latestUserMessageByChat.get(chatId)
     if (!messageId || !this.channel) return
 
-    const existing = this.chatReactions.get(chatId)
+    const reactionKey = this.responseKey(chatId, opts)
+    const existing = this.chatReactions.get(reactionKey)
     if (existing?.messageId === messageId && existing.emoji === emoji) return
-    if (existing) await this.clearChatReaction(chatId)
+    if (existing) await this.clearChatReaction(reactionKey)
 
     try {
       const reactionId = await this.channel.addReaction(messageId, emoji)
-      this.chatReactions.set(chatId, { messageId, reactionId, emoji })
+      this.chatReactions.set(reactionKey, { messageId, reactionId, emoji })
     } catch (error) {
       this.log.debug('Failed to add status reaction', {
         chatId,
@@ -293,9 +303,14 @@ class FeishuAdapter extends ChannelAdapter {
     }
   }
 
-  private async transitionChatReaction(chatId: string, emoji: string, from: string[]): Promise<void> {
-    const existing = this.chatReactions.get(chatId)
-    if (existing && from.includes(existing.emoji)) await this.setChatReaction(chatId, emoji)
+  private async transitionChatReaction(
+    chatId: string,
+    emoji: string,
+    from: string[],
+    opts?: SendMessageOptions
+  ): Promise<void> {
+    const existing = this.chatReactions.get(this.responseKey(chatId, opts))
+    if (existing && from.includes(existing.emoji)) await this.setChatReaction(chatId, emoji, opts)
   }
 
   private async clearChatReaction(chatId: string): Promise<void> {
@@ -314,39 +329,49 @@ class FeishuAdapter extends ChannelAdapter {
     }
   }
 
-  override async onTextUpdate(chatId: string, fullText: string): Promise<void> {
-    let stream = this.streams.get(chatId)
+  override async onTextUpdate(chatId: string, fullText: string, opts?: SendMessageOptions): Promise<void> {
+    const streamKey = this.responseKey(chatId, opts)
+    let stream = this.streams.get(streamKey)
     if (!stream) {
-      stream = new FeishuStreamSession(this.getChannel(), chatId, this.latestUserMessageByChat.get(chatId))
-      this.streams.set(chatId, stream)
+      const replyTo =
+        typeof opts?.replyToMessageId === 'string' ? opts.replyToMessageId : this.latestUserMessageByChat.get(chatId)
+      stream = new FeishuStreamSession(this.getChannel(), chatId, replyTo, opts?.replyInThread)
+      this.streams.set(streamKey, stream)
     }
     await stream.update(fullText)
   }
 
-  override async onStreamComplete(chatId: string, finalText: string): Promise<boolean> {
-    await this.transitionChatReaction(chatId, REACTION_DONE, [REACTION_THINKING])
-    const stream = this.streams.get(chatId)
+  override async onStreamComplete(chatId: string, finalText: string, opts?: SendMessageOptions): Promise<boolean> {
+    const streamKey = this.responseKey(chatId, opts)
+    await this.transitionChatReaction(chatId, REACTION_DONE, [REACTION_THINKING], opts)
+    const stream = this.streams.get(streamKey)
     if (!stream) return false
     try {
       await stream.complete(finalText)
       return true
     } finally {
-      this.streams.delete(chatId)
+      this.streams.delete(streamKey)
     }
   }
 
-  override async onStreamError(chatId: string, error: string): Promise<void> {
-    await this.transitionChatReaction(chatId, REACTION_ERROR, [REACTION_THINKING, REACTION_DONE])
-    const stream = this.streams.get(chatId)
+  override async onStreamError(chatId: string, error: string, opts?: SendMessageOptions): Promise<void> {
+    const streamKey = this.responseKey(chatId, opts)
+    await this.transitionChatReaction(chatId, REACTION_ERROR, [REACTION_THINKING, REACTION_DONE], opts)
+    const stream = this.streams.get(streamKey)
     if (stream) {
       try {
         await stream.error(error)
       } finally {
-        this.streams.delete(chatId)
+        this.streams.delete(streamKey)
       }
       return
     }
-    await this.getChannel().send(chatId, { markdown: `**Error**: ${error}` })
+    const replyTo = typeof opts?.replyToMessageId === 'string' ? opts.replyToMessageId : undefined
+    await this.getChannel().send(
+      chatId,
+      { markdown: `**Error**: ${error}` },
+      replyTo ? { replyTo, ...(opts?.replyInThread && { replyInThread: true }) } : undefined
+    )
   }
 
   private async handleMessage(message: Lark.NormalizedMessage): Promise<void> {
@@ -357,11 +382,15 @@ class FeishuAdapter extends ChannelAdapter {
 
     this.latestUserMessageByChat.set(message.chatId, message.messageId)
     const text = message.content.trim()
+    const conversationId = message.threadId ?? message.rootId
+    const conversation = conversationId
+      ? { conversationId: `thread:${conversationId}`, conversationKind: 'thread' as const, replyInThread: true }
+      : { conversationKind: message.chatType === 'p2p' ? ('direct' as const) : ('group' as const) }
     if (isSlashCommand(text)) {
       const parts = text.split(/\s+/)
       this.emit('command', {
         chatId: message.chatId,
-        conversationKind: message.chatType === 'p2p' ? 'direct' : 'group',
+        ...conversation,
         userId: message.senderId,
         userName: message.senderName ?? '',
         messageId: message.messageId,
@@ -375,7 +404,7 @@ class FeishuAdapter extends ChannelAdapter {
     if (!text && images.length === 0 && files.length === 0) return
     this.emit('message', {
       chatId: message.chatId,
-      conversationKind: message.chatType === 'p2p' ? 'direct' : 'group',
+      ...conversation,
       userId: message.senderId,
       userName: message.senderName ?? '',
       messageId: message.messageId,

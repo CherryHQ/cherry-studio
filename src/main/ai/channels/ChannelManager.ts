@@ -336,7 +336,10 @@ export class ChannelManager extends BaseService {
             error: err instanceof Error ? err.message : String(err)
           })
           adapter
-            .sendMessage(msg.chatId, '⚠️ An error occurred while processing your message. Please try again later.')
+            .sendMessage(msg.chatId, '⚠️ An error occurred while processing your message. Please try again later.', {
+              replyToMessageId: msg.messageId,
+              ...(msg.replyInThread && { replyInThread: true })
+            })
             .catch(() => {})
         })
       })
@@ -354,7 +357,10 @@ export class ChannelManager extends BaseService {
             error: err instanceof Error ? err.message : String(err)
           })
           adapter
-            .sendMessage(cmd.chatId, '⚠️ An error occurred while processing the command. Please try again later.')
+            .sendMessage(cmd.chatId, '⚠️ An error occurred while processing the command. Please try again later.', {
+              replyToMessageId: cmd.messageId,
+              ...(cmd.replyInThread && { replyInThread: true })
+            })
             .catch(() => {})
         })
       })
