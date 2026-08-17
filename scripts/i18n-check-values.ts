@@ -1,4 +1,4 @@
-/** Checks every non-base translation value before changes merge. */
+/** Checks source and translated catalog values before changes merge. */
 import * as fs from 'fs'
 import * as path from 'path'
 
@@ -9,6 +9,7 @@ type Glossary = { doNotTranslate: string[] }
 const ROOT = path.resolve(__dirname, '..')
 const BASE_LOCALE = process.env.TRANSLATION_BASE_LOCALE ?? 'en-us'
 const CATALOG_DIRECTORIES = ['src/renderer/i18n/locales', 'src/main/i18n/locales']
+const ALLOWED_EMPTY_SOURCE_KEYS = new Set(['src/renderer/i18n/locales:settings.provider.oauth.provided_by_suffix'])
 
 const flatten = (obj: I18N, prefix = '', out: Record<string, string> = {}): Record<string, string> => {
   for (const [key, value] of Object.entries(obj)) {
@@ -28,6 +29,15 @@ const nestedKeys = (text: string) => (text.match(/\$t\([^)]*\)/g) ?? []).sort()
 
 /** Case and separators vary legitimately: "Github", "Cherry-Studio-Diagnose". Spelling does not. */
 const foldForTermMatch = (text: string) => text.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')
+
+export const validateSource = (source: string): string | null => {
+  const text = source.trim()
+
+  if (!text) return 'empty source value'
+  if (/to be translated/i.test(text)) return 'placeholder marker leaked into the source locale'
+
+  return null
+}
 
 export const validate = (english: string, translation: string, doNotTranslate: string[] = []): string | null => {
   const text = translation.trim()
@@ -52,9 +62,11 @@ export const validate = (english: string, translation: string, doNotTranslate: s
     return `$t() reference mismatch: expected ${nestedKeys(english).join(' ') || '(none)'}`
   }
 
+  const foldedEnglish = foldForTermMatch(english)
   const foldedTranslation = foldForTermMatch(text)
   for (const term of doNotTranslate) {
-    if (english.includes(term) && !foldedTranslation.includes(foldForTermMatch(term))) {
+    const foldedTerm = foldForTermMatch(term)
+    if (foldedEnglish.includes(foldedTerm) && !foldedTranslation.includes(foldedTerm)) {
       return `dropped untranslatable term "${term}"`
     }
   }
@@ -73,6 +85,13 @@ export const checkTranslationValues = (): { checked: number; failures: string[] 
     const catalogPath = path.join(ROOT, catalogDirectory)
     const basePath = path.join(catalogPath, `${BASE_LOCALE}.json`)
     const base = flatten(readJson(basePath))
+
+    for (const [key, source] of Object.entries(base)) {
+      checked++
+      const allowedEmpty = !source.trim() && ALLOWED_EMPTY_SOURCE_KEYS.has(`${catalogDirectory}:${key}`)
+      const reason = allowedEmpty ? null : validateSource(source)
+      if (reason) failures.push(`${catalogDirectory}/${BASE_LOCALE}.json ${key}: ${reason}`)
+    }
 
     for (const filename of fs.readdirSync(catalogPath).filter((file) => file.endsWith('.json'))) {
       if (filename === `${BASE_LOCALE}.json`) continue
