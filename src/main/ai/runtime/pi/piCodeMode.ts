@@ -9,8 +9,10 @@ import {
 } from '@shared/ai/piBuiltinTools'
 
 import type { PiToolAuthorizer } from './approvalExtension'
+import type { PiMcpToolDefinition } from './piMcpToolAdapter'
 
 type ToolResult = Awaited<ReturnType<ToolDefinition['execute']>>
+type InvokedToolResult = { raw: ToolResult; value: unknown }
 
 const SEARCH_RESULT_LIMIT = 20
 const BM25_K1 = 1.2
@@ -58,22 +60,23 @@ const execParameters = {
 } as ToolDefinition['parameters']
 
 export function createPiCodeModeTools(
-  tools: readonly ToolDefinition[],
+  tools: readonly PiMcpToolDefinition[],
   isDisabled: (toolName: string) => boolean,
   authorizeTool: PiToolAuthorizer
 ): ToolDefinition[] {
   const catalog = new Map(tools.map((tool) => [tool.name, tool]))
-  const invoke = async (
+  const invokeTargetTool = async (
     toolCallId: string,
     name: string,
     input: Record<string, unknown>,
     signal: AbortSignal | undefined
-  ) => {
+  ): Promise<InvokedToolResult> => {
     const tool = catalog.get(name)
     if (!tool) throw new Error(`Tool not found: ${name}`)
     const decision = await authorizeTool({ toolName: name, toolCallId, input, signal })
     if (decision?.block) throw new Error(decision.reason)
-    return tool.execute(toolCallId, input, signal, undefined, {} as never)
+    const raw = await tool.execute(toolCallId, input, signal, undefined, {} as never)
+    return { raw, value: decodeToolResult(raw, tool.outputSchema, name) }
   }
 
   const searchTool: ToolDefinition = {
@@ -103,7 +106,8 @@ export function createPiCodeModeTools(
               matches.map((match) => ({
                 name: match.name,
                 description: match.description,
-                inputSchema: catalog.get(match.name)?.parameters
+                inputSchema: catalog.get(match.name)?.parameters,
+                outputSchema: catalog.get(match.name)?.outputSchema
               }))
             )
           : 'No tools matched. Broaden the query or omit it.'
@@ -129,10 +133,13 @@ export function createPiCodeModeTools(
         content: [
           {
             type: 'text',
-            text: `${tool.description}\n\n${toolToTypeScript(tool.name, tool.description, tool.parameters)}`
+            text: `${tool.description}\n\n${toolToTypeScript(tool.name, tool.description, tool.parameters, tool.outputSchema)}`
           }
         ],
-        details: { name: tool.name, description: tool.description, parameters: tool.parameters }
+        details: {
+          name: tool.name,
+          declaration: toolToTypeScript(tool.name, tool.description, tool.parameters, tool.outputSchema)
+        }
       }
     }
   }
@@ -147,7 +154,7 @@ export function createPiCodeModeTools(
       const input = params as Record<string, unknown>
       const name = typeof input.name === 'string' ? input.name : ''
       const toolParams = isRecord(input.params) ? input.params : {}
-      return invoke(`${toolCallId}::call`, name, toolParams, signal)
+      return (await invokeTargetTool(`${toolCallId}::call`, name, toolParams, signal)).raw
     }
   }
 
@@ -169,7 +176,7 @@ export function createPiCodeModeTools(
         abortSignal: signal,
         async executeTool(name, input, requestId, childSignal) {
           const nestedToolCallId = `${toolCallId}::exec::${requestId}`
-          return invoke(nestedToolCallId, name, input, childSignal)
+          return (await invokeTargetTool(nestedToolCallId, name, input, childSignal)).value
         }
       })
 
@@ -214,15 +221,38 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+function decodeToolResult(result: ToolResult, outputSchema: unknown, toolName: string): unknown {
+  if (!outputSchema) return result
+  if (result.details !== undefined) return result.details
+
+  const content = result.content
+  if (content.length !== 1 || content[0].type !== 'text') {
+    throw new Error(
+      `Tool ${toolName} declared an output schema but returned non-text content without structuredContent.`
+    )
+  }
+
+  const text = content[0].text
+  if (isStringSchema(outputSchema)) return text
+
+  try {
+    return JSON.parse(text)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    throw new Error(`Tool ${toolName} declared a structured output but returned invalid JSON: ${message}`)
+  }
+}
+
+function isStringSchema(schema: unknown): boolean {
+  return isRecord(schema) && schema.type === 'string'
+}
+
 function toPiResult(result: { result: unknown; logs?: string[]; error?: string; isError?: boolean }): ToolResult {
   if (result.isError) {
     throw new Error(result.error ?? 'tool_exec failed')
   }
 
-  const output = stringifyOutput({
-    result: result.result,
-    ...(result.logs && result.logs.length > 0 ? { logs: result.logs } : {})
-  })
+  const output = stringifyOutput(result.result)
   return {
     content: [{ type: 'text', text: output ?? 'undefined' }],
     details: { result: result.result, logs: result.logs }

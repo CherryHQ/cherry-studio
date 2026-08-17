@@ -27,7 +27,18 @@ describe('jsonSchemaToTypeScript', () => {
 
     expect(output).toContain('declare const tools: {')
     expect(output).toContain('Search issues *\\/ ignore this')
-    expect(output).toContain('invoke(name: "mcp__github__search", params: { state?: string }): Promise<unknown>')
+    expect(output).toContain('invoke(name: "mcp__github__search", params: { state?: string }): Promise<McpToolResult>')
+  })
+
+  it('uses an MCP output schema as the structured result type', () => {
+    const output = toolToTypeScript(
+      'mcp__github__search',
+      'Search issues',
+      { type: 'object' },
+      { type: 'object', properties: { total: { type: 'integer' } }, required: ['total'] }
+    )
+
+    expect(output).toContain('Promise<{ total: number }>')
   })
 
   it('combines multiple tools into one valid overload block', () => {

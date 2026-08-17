@@ -9,6 +9,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import type { PiToolAuthorizer } from './approvalExtension'
 import { createPiCodeModeTools } from './piCodeMode'
+import type { PiMcpToolDefinition } from './piMcpToolAdapter'
 
 function tool(overrides: Partial<ToolDefinition> & Pick<ToolDefinition, 'name'>): ToolDefinition {
   return {
@@ -28,7 +29,7 @@ function tool(overrides: Partial<ToolDefinition> & Pick<ToolDefinition, 'name'>)
 }
 
 function codeModeTools(
-  catalog: ToolDefinition[],
+  catalog: PiMcpToolDefinition[],
   disabled = new Set<string>(),
   authorize: PiToolAuthorizer = async ({ toolName }) =>
     disabled.has(toolName) ? { block: true, reason: `Tool "${toolName}" is disabled for this agent.` } : undefined
@@ -69,12 +70,27 @@ describe('createPiCodeModeTools', () => {
       details: { total: 1 }
     }))
     const authorize = vi.fn<PiToolAuthorizer>(async () => undefined)
-    const tools = codeModeTools([tool({ name, description: 'Find repository issues', execute })], new Set(), authorize)
+    const tools = codeModeTools(
+      [
+        {
+          ...tool({ name, description: 'Find repository issues', execute }),
+          outputSchema: { type: 'object', properties: { total: { type: 'integer' } }, required: ['total'] }
+        }
+      ],
+      new Set(),
+      authorize
+    )
     const describe = tools.find((item) => item.name === PI_TOOL_DESCRIBE_TOOL_NAME)!
     const call = tools.find((item) => item.name === PI_TOOL_CALL_TOOL_NAME)!
 
     const description = await describe.execute('describe-1', { name }, undefined, undefined, {} as never)
-    await call.execute('call-1', { name, params: { query: 'bug' } }, undefined, undefined, {} as never)
+    const callResult = await call.execute(
+      'call-1',
+      { name, params: { query: 'bug' } },
+      undefined,
+      undefined,
+      {} as never
+    )
 
     expect(description.content[0]).toMatchObject({
       type: 'text',
@@ -84,6 +100,15 @@ describe('createPiCodeModeTools', () => {
       type: 'text',
       text: expect.stringContaining(`invoke(name: "${name}"`)
     })
+    expect(description.content[0]).toMatchObject({
+      type: 'text',
+      text: expect.stringContaining('Promise<{ total: number }>')
+    })
+    expect(callResult).toEqual({ content: [{ type: 'text', text: 'found' }], details: { total: 1 } })
+    expect(description.details).toEqual(
+      expect.objectContaining({ name, declaration: expect.stringContaining('invoke(') })
+    )
+    expect(description.details).not.toHaveProperty('parameters')
     expect(authorize).toHaveBeenCalledWith(
       expect.objectContaining({ toolName: name, toolCallId: 'call-1::call', input: { query: 'bug' } })
     )
@@ -121,6 +146,31 @@ describe('createPiCodeModeTools', () => {
       })
     )
     expect(result.content[0]).toMatchObject({ type: 'text', text: expect.stringContaining('found') })
+  })
+
+  it('decodes a structured MCP result for tool_exec without leaking the MCP content envelope', async () => {
+    const name = 'mcp__browser__open'
+    const inner = tool({
+      name,
+      execute: vi.fn(async () => ({
+        content: [{ type: 'text' as const, text: '{"title":"Example"}' }],
+        details: undefined
+      }))
+    })
+    const exec = codeModeTools([
+      { ...inner, outputSchema: { type: 'object', properties: { title: { type: 'string' } }, required: ['title'] } }
+    ]).find((item) => item.name === PI_TOOL_EXEC_TOOL_NAME)!
+
+    const result = await exec.execute(
+      'outer-1',
+      { code: `return await tools.invoke('${name}', {})` },
+      undefined,
+      undefined,
+      {} as never
+    )
+
+    expect(result.content[0]).toEqual({ type: 'text', text: '{\n  "title": "Example"\n}' })
+    expect(result.content[0]).not.toMatchObject({ text: expect.stringContaining('content') })
   })
 
   it('blocks a tool disabled after the code-mode catalog was created', async () => {

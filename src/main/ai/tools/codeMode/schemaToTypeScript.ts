@@ -82,22 +82,38 @@ interface ToolTypeScriptInput {
   name: string
   description?: string
   inputSchema: unknown
+  outputSchema?: unknown
 }
 
 function toolInvokeToTypeScript(tool: ToolTypeScriptInput, indent: string): string[] {
   const doc = docText(tool.description || tool.name)
+  const output = tool.outputSchema ? jsonSchemaToTypeScript(tool.outputSchema) : 'McpToolResult'
   return [
     `${indent}/** ${doc} */`,
-    `${indent}invoke(name: ${JSON.stringify(tool.name)}, params: ${jsonSchemaToTypeScript(tool.inputSchema)}): Promise<unknown>`
+    `${indent}invoke(name: ${JSON.stringify(tool.name)}, params: ${jsonSchemaToTypeScript(tool.inputSchema)}): Promise<${output}>`
   ]
 }
 
 /** Generate one valid declaration with an overload for every discovered tool. */
 export function toolsToTypeScript(tools: readonly ToolTypeScriptInput[]): string {
-  return ['declare const tools: {', ...tools.flatMap((tool) => toolInvokeToTypeScript(tool, '  ')), '}'].join('\n')
+  return [
+    'type McpToolResult<T = unknown> = {',
+    "  content: Array<{ type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string }>",
+    '  details?: T',
+    '}',
+    '',
+    'declare const tools: {',
+    ...tools.flatMap((tool) => toolInvokeToTypeScript(tool, '  ')),
+    '}'
+  ].join('\n')
 }
 
 /** Generate the `tools.invoke` overload shown for one tool in structured discovery details. */
-export function toolToTypeScript(toolName: string, description: string | undefined, inputSchema: unknown): string {
-  return toolsToTypeScript([{ name: toolName, description, inputSchema }])
+export function toolToTypeScript(
+  toolName: string,
+  description: string | undefined,
+  inputSchema: unknown,
+  outputSchema?: unknown
+): string {
+  return toolsToTypeScript([{ name: toolName, description, inputSchema, outputSchema }])
 }
