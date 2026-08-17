@@ -135,7 +135,14 @@ export function MessageVirtualList<T>({
     keepMountedKeys
   })
   const [scrollerElement, setScrollerElement] = useState<HTMLDivElement | null>(null)
-  const { beginScrollbarDrag, endScrollbarDrag, scrollToBottom, markUserInput, takeUserControl } = runtime
+  const {
+    beginScrollbarDrag,
+    endScrollbarDrag,
+    scrollToBottom,
+    markUserInput,
+    takeUserControl,
+    beginUserScrollGesture
+  } = runtime
   const { onWheel } = runtime.scrollerProps
   // Latch the captured node like TabRouter does: a background tab detaches the
   // ref (element === null) while its DOM node lives on, and clearing this state
@@ -209,6 +216,11 @@ export function MessageVirtualList<T>({
       if (event.defaultPrevented || !isKeyboardScrollIntent(event, scrollerElement)) return
       const nestedScroller = findNestedScroller(event.target, scrollerElement)
       if (nestedScroller && canConsumeVerticalWheel(nestedScroller, getKeyboardScrollDelta(event))) return
+      // Begin a user scroll gesture *before* the browser scrolls so the
+      // ResizeObserver-driven reassertFreeze skips its snap-back while the
+      // native scroll is in flight. Without this, the frozen viewport anchor
+      // fights the arrow-key scroll and causes visible jitter.
+      beginUserScrollGesture()
       markUserInput()
     }
     scrollerElement.addEventListener('pointerdown', onPointerDown, { passive: true })
@@ -223,7 +235,7 @@ export function MessageVirtualList<T>({
       ownerDocument.removeEventListener('pointercancel', onPointerEnd)
       scrollerElement.removeEventListener('keydown', onKeyDown)
     }
-  }, [beginScrollbarDrag, endScrollbarDrag, markUserInput, scrollerElement])
+  }, [beginScrollbarDrag, beginUserScrollGesture, endScrollbarDrag, markUserInput, scrollerElement])
 
   const handleScrollToBottom = useCallback(() => {
     scrollToBottom()

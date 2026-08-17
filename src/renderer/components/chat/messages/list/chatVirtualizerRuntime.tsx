@@ -133,6 +133,11 @@ export interface ChatVirtualizerRuntime<T> {
    * keyboard scroll commands.
    */
   markUserInput(): void
+  /**
+   * Begin a user scroll gesture — set the gesture flag so the viewport freeze
+   * does not fight the in-flight native scroll (keyboard, pointer, wheel).
+   */
+  beginUserScrollGesture(): void
   /** Keep native scrollbar ownership latched until the pointer is actually released. */
   beginScrollbarDrag(): void
   /** Finish a native scrollbar drag and anchor the viewport at its final position. */
@@ -937,6 +942,7 @@ export function useChatVirtualizerRuntime<T>({
     notifyWheelIntent,
     scrollByWheel,
     markUserInput,
+    beginUserScrollGesture,
     beginScrollbarDrag,
     endScrollbarDrag
   }
