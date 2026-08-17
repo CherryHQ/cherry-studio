@@ -6,6 +6,7 @@ const MAX_LOGS = 1000
 
 const logs = []
 const pendingCalls = new Map()
+const calls = new Set()
 let isExecuting = false
 
 const stringify = (value) => {
@@ -41,12 +42,19 @@ const capturedConsole = {
   debug: (...args) => pushLog('debug', args)
 }
 
-const invoke = (name, params) =>
-  new Promise((resolve, reject) => {
+const invoke = (name, params) => {
+  let call
+  const promise = new Promise((resolve, reject) => {
     const requestId = crypto.randomUUID()
-    pendingCalls.set(requestId, { resolve, reject })
+    call = { requestId, resolve, reject, promise: undefined }
+    pendingCalls.set(requestId, call)
     parentPort?.postMessage({ type: 'callTool', requestId, name, params })
   })
+  call.promise = promise
+  calls.add(call)
+
+  return promise
+}
 
 const tools = {
   invoke,
@@ -91,8 +99,10 @@ const handleExec = async (code) => {
   try {
     const context = buildContext()
     const result = await runCode(code, context)
-    if (pendingCalls.size > 0) {
-      throw new Error('tool_exec returned while tools.invoke calls were still pending. Await every tools.invoke call.')
+    const outcomes = await Promise.allSettled([...calls].map((call) => call.promise))
+    const failed = outcomes.find((outcome) => outcome.status === 'rejected')
+    if (failed?.status === 'rejected') {
+      throw failed.reason
     }
     parentPort?.postMessage({ type: 'result', result, logs: logs.length > 0 ? logs : undefined })
   } catch (error) {
@@ -100,6 +110,7 @@ const handleExec = async (code) => {
     parentPort?.postMessage({ type: 'error', error: errorMessage, logs: logs.length > 0 ? logs : undefined })
   } finally {
     pendingCalls.clear()
+    calls.clear()
   }
 }
 

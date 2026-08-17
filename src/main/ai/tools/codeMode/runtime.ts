@@ -68,20 +68,24 @@ export function runExecCode(code: string, ctx: ExecCodeContext): Promise<ExecRes
       if (logs.length < MAX_LOGS) logs.push(entry)
     }
 
+    const abortChildren = (reason: unknown) => {
+      for (const ac of activeChildAborts) {
+        try {
+          ac.abort(reason)
+        } catch {
+          // ignore — abort can throw on already-aborted controllers
+        }
+      }
+      activeChildAborts.clear()
+    }
+
     const finalize = async (output: ExecResult, terminateWorker = true) => {
       if (finished) return
       finished = true
       if (timeoutId) clearTimeout(timeoutId)
       parentSignal?.removeEventListener('abort', onParentAbort)
       worker.removeAllListeners()
-      for (const ac of activeChildAborts) {
-        try {
-          ac.abort(new Error('tool_exec finished'))
-        } catch {
-          // ignore — abort can throw on already-aborted controllers
-        }
-      }
-      activeChildAborts.clear()
+      abortChildren(new Error('tool_exec finished'))
       if (terminateWorker) {
         try {
           await worker.terminate()
@@ -92,9 +96,11 @@ export function runExecCode(code: string, ctx: ExecCodeContext): Promise<ExecRes
       resolve(output)
     }
 
-    const terminateWithError = async (error: string) => {
+    const terminateWithError = async (error: string, childAbortReason: unknown = new Error(error)) => {
       if (finished || terminating) return
       terminating = true
+      if (timeoutId) clearTimeout(timeoutId)
+      abortChildren(childAbortReason)
       worker.removeAllListeners()
       try {
         await worker.terminate()
@@ -115,12 +121,11 @@ export function runExecCode(code: string, ctx: ExecCodeContext): Promise<ExecRes
     const onParentAbort = () => {
       const reason = parentSignal?.reason
       const message = reason instanceof Error ? reason.message : reason === undefined ? 'aborted' : String(reason)
-      for (const ac of activeChildAborts) ac.abort(reason)
-      void terminateWithError(`tool_exec aborted: ${message}`)
+      void terminateWithError(`tool_exec aborted: ${message}`, reason)
     }
 
     const scheduleTimeout = () => {
-      if (finished || timeoutPauseCount > 0) return
+      if (finished || terminating || timeoutPauseCount > 0) return
       timeoutStartedAt = Date.now()
       timeoutId = setTimeout(() => {
         timedOut = true
@@ -128,14 +133,14 @@ export function runExecCode(code: string, ctx: ExecCodeContext): Promise<ExecRes
       }, timeoutRemainingMs)
     }
     const pauseTimeout = () => {
-      if (finished || timeoutPauseCount++ > 0) return
+      if (finished || timedOut || terminating || timeoutPauseCount++ > 0) return
       if (!timeoutId) return
       clearTimeout(timeoutId)
       timeoutId = undefined
       timeoutRemainingMs -= Date.now() - timeoutStartedAt
     }
     const resumeTimeout = () => {
-      if (finished || timeoutPauseCount === 0 || --timeoutPauseCount > 0) return
+      if (finished || timedOut || terminating || timeoutPauseCount === 0 || --timeoutPauseCount > 0) return
       scheduleTimeout()
     }
 
@@ -149,7 +154,7 @@ export function runExecCode(code: string, ctx: ExecCodeContext): Promise<ExecRes
     parentSignal?.addEventListener('abort', onParentAbort, { once: true })
 
     const handleToolCall = async (message: WorkerCallToolMessage) => {
-      if (finished || timedOut) return
+      if (finished || timedOut || terminating) return
       const childAbort = new AbortController()
       activeChildAborts.add(childAbort)
       if (parentSignal?.aborted) childAbort.abort(parentSignal.reason)

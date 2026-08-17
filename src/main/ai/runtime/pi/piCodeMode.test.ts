@@ -212,6 +212,18 @@ describe('createPiCodeModeTools', () => {
     })
   })
 
+  it('splits uppercase abbreviations in tool names', async () => {
+    const search = codeModeTools([tool({ name: 'mcp__server__getHTTPResponse', description: '' })]).find(
+      (item) => item.name === PI_TOOL_SEARCH_TOOL_NAME
+    )!
+
+    const result = await search.execute('search-1', { query: 'http response' }, undefined, undefined, {} as never)
+    expect(result.content[0]).toMatchObject({
+      type: 'text',
+      text: expect.stringContaining('mcp__server__getHTTPResponse')
+    })
+  })
+
   it('normalizes a BigInt code result before storing it in details', async () => {
     const exec = codeModeTools([]).find((item) => item.name === PI_TOOL_EXEC_TOOL_NAME)!
 
@@ -234,19 +246,86 @@ describe('createPiCodeModeTools', () => {
     ).rejects.toThrow('tool_exec result must be JSON-serializable')
   })
 
-  it('rejects a script that returns while an invoke is still pending', async () => {
-    const inner = tool({ name: 'mcp__github__search_issues' })
-    const exec = codeModeTools([inner]).find((item) => item.name === PI_TOOL_EXEC_TOOL_NAME)!
+  it('explains a missing return and preserves logs', async () => {
+    const exec = codeModeTools([]).find((item) => item.name === PI_TOOL_EXEC_TOOL_NAME)!
 
     await expect(
-      exec.execute(
-        'outer-1',
-        { code: "tools.invoke('mcp__github__search_issues', {}); return 'queued'" },
-        undefined,
-        undefined,
-        {} as never
+      exec.execute('outer-1', { code: "console.log('checkpoint')" }, undefined, undefined, {} as never)
+    ).rejects.toThrow(/returned no value; add an explicit return[\s\S]*Logs:[\s\S]*checkpoint/)
+  })
+
+  it('waits for an unobserved invocation to settle before completing', async () => {
+    let resolveTool!: () => void
+    const inner = tool({
+      name: 'mcp__github__search_issues',
+      execute: vi.fn<ToolDefinition['execute']>(
+        () =>
+          new Promise<Awaited<ReturnType<ToolDefinition['execute']>>>((resolve) => {
+            resolveTool = () => resolve({ content: [{ type: 'text', text: 'done' }], details: undefined })
+          })
       )
-    ).rejects.toThrow('Await every tools.invoke call')
+    })
+    const exec = codeModeTools([inner]).find((item) => item.name === PI_TOOL_EXEC_TOOL_NAME)!
+
+    const result = exec.execute(
+      'outer-1',
+      { code: "tools.invoke('mcp__github__search_issues', {}); return 'queued'" },
+      undefined,
+      undefined,
+      {} as never
+    )
+    await vi.waitFor(() => expect(inner.execute).toHaveBeenCalledOnce())
+    let settled = false
+    void result.then(
+      () => {
+        settled = true
+      },
+      () => {
+        settled = true
+      }
+    )
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(settled).toBe(false)
+    resolveTool()
+
+    await expect(result).resolves.toMatchObject({ details: { result: 'queued' } })
+  })
+
+  it('serializes nested authorization while allowing accepted tools to run in parallel', async () => {
+    const resolvers: Array<() => void> = []
+    const authorize = vi.fn<PiToolAuthorizer>(
+      () =>
+        new Promise((resolve) => {
+          resolvers.push(() => resolve(undefined))
+        })
+    )
+    const first = tool({ name: 'mcp__first__mutate' })
+    const second = tool({ name: 'mcp__second__mutate' })
+    const exec = codeModeTools([first, second], new Set(), authorize).find(
+      (item) => item.name === PI_TOOL_EXEC_TOOL_NAME
+    )!
+
+    const result = exec.execute(
+      'outer-1',
+      {
+        code: `return await parallel(tools.invoke('mcp__first__mutate', {}), tools.invoke('mcp__second__mutate', {}))`
+      },
+      undefined,
+      undefined,
+      {} as never
+    )
+    await vi.waitFor(() => expect(authorize).toHaveBeenCalledTimes(1))
+    expect(first.execute).not.toHaveBeenCalled()
+    expect(second.execute).not.toHaveBeenCalled()
+
+    resolvers[0]()
+    await vi.waitFor(() => expect(authorize).toHaveBeenCalledTimes(2))
+    expect(first.execute).toHaveBeenCalledOnce()
+    expect(second.execute).not.toHaveBeenCalled()
+    resolvers[1]()
+
+    await expect(result).resolves.toMatchObject({ details: { result: expect.any(Array) } })
+    expect(second.execute).toHaveBeenCalledOnce()
   })
 
   it('blocks a tool disabled after the code-mode catalog was created', async () => {

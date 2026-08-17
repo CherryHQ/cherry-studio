@@ -8,11 +8,12 @@ import {
   PI_TOOL_SEARCH_TOOL_NAME
 } from '@shared/ai/piBuiltinTools'
 
-import type { PiToolAuthorizer } from './approvalExtension'
+import type { PiToolAuthorizationRequest, PiToolAuthorizer } from './approvalExtension'
 import type { PiMcpToolDefinition } from './piMcpToolAdapter'
 
 type ToolResult = Awaited<ReturnType<ToolDefinition['execute']>>
 type InvokedToolResult = { raw: ToolResult; value: unknown }
+type SerializedAuthorizer = (request: PiToolAuthorizationRequest) => ReturnType<PiToolAuthorizer>
 
 const SEARCH_RESULT_LIMIT = 20
 const BM25_K1 = 1.2
@@ -71,11 +72,12 @@ export function createPiCodeModeTools(
     name: string,
     input: Record<string, unknown>,
     signal: AbortSignal | undefined,
-    onApprovalPending?: () => () => void
+    onApprovalPending?: () => () => void,
+    authorizer: SerializedAuthorizer = authorizeTool
   ): Promise<InvokedToolResult> => {
     const tool = catalog.get(name)
     if (!tool) throw new Error(`Tool not found: ${name}`)
-    const decision = await authorizeTool({
+    const decision = await authorizer({
       toolName: name,
       toolCallId: approvalToolCallId,
       input,
@@ -187,6 +189,7 @@ export function createPiCodeModeTools(
       const code = typeof input.code === 'string' ? input.code : ''
       let pauseExecutionTimeout: (() => void) | undefined
       let resumeExecutionTimeout: (() => void) | undefined
+      const serializeAuthorization = createSerializedAuthorizer(authorizeTool)
       const result = await runExecCode(code, {
         abortSignal: signal,
         onExecutionStarted({ pauseTimeout, resumeTimeout }) {
@@ -196,10 +199,18 @@ export function createPiCodeModeTools(
         async executeTool(name, input, requestId, childSignal) {
           const nestedToolCallId = `${toolCallId}::exec::${requestId}`
           return (
-            await invokeTargetTool(nestedToolCallId, toolCallId, name, input, childSignal, () => {
-              pauseExecutionTimeout?.()
-              return () => resumeExecutionTimeout?.()
-            })
+            await invokeTargetTool(
+              nestedToolCallId,
+              toolCallId,
+              name,
+              input,
+              childSignal,
+              () => {
+                pauseExecutionTimeout?.()
+                return () => resumeExecutionTimeout?.()
+              },
+              serializeAuthorization
+            )
           ).value
         }
       })
@@ -238,9 +249,32 @@ function rankTools(tools: readonly ToolDefinition[], query: string): ToolDefinit
 }
 
 function tokenize(value: string): string[] {
-  const normalized = value.replace(/([\p{Ll}\d])([\p{Lu}])/gu, '$1 $2').toLowerCase()
-  const tokens = normalized.match(/[\p{L}\p{N}]+/gu) ?? []
-  return [...new Set([...tokens, normalized])]
+  const normalized = value
+    .replace(/([\p{Lu}]+)([\p{Lu}][\p{Ll}])/gu, '$1 $2')
+    .replace(/([\p{Ll}\d])([\p{Lu}])/gu, '$1 $2')
+    .toLowerCase()
+  return [...new Set(normalized.match(/[\p{L}\p{N}]+/gu) ?? [])]
+}
+
+function createSerializedAuthorizer(authorizer: PiToolAuthorizer): SerializedAuthorizer {
+  let tail = Promise.resolve()
+  return async (request) => {
+    const previous = tail
+    let release!: () => void
+    tail = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    await previous
+    if (request.signal?.aborted) {
+      const reason = request.signal.reason
+      throw reason instanceof Error ? reason : new Error(reason === undefined ? 'tool_exec aborted' : String(reason))
+    }
+    try {
+      return await authorizer(request)
+    } finally {
+      release()
+    }
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -275,11 +309,16 @@ function isStringSchema(schema: unknown): boolean {
 
 function toPiResult(result: { result: unknown; logs?: string[]; error?: string; isError?: boolean }): ToolResult {
   if (result.isError) {
-    const logs = result.logs?.join('\n')
-    throw new Error([result.error ?? 'tool_exec failed', logs].filter(Boolean).join('\n\nLogs:\n'))
+    throw new Error(withLogs(result.error ?? 'tool_exec failed', result.logs))
   }
 
-  const output = stringifyOutput(result.result)
+  let output: string
+  try {
+    output = stringifyOutput(result.result)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    throw new Error(withLogs(message, result.logs))
+  }
   return {
     content: [{ type: 'text', text: output }],
     details: { result: JSON.parse(output), logs: result.logs }
@@ -289,10 +328,15 @@ function toPiResult(result: { result: unknown; logs?: string[]; error?: string; 
 function stringifyOutput(value: unknown): string {
   try {
     const output = JSON.stringify(value, (_key, nested) => (typeof nested === 'bigint' ? nested.toString() : nested), 2)
-    if (output === undefined) throw new Error('result is not JSON-serializable')
+    if (output === undefined) throw new Error('tool_exec returned no value; add an explicit return')
     return output
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     throw new Error(`tool_exec result must be JSON-serializable: ${message}`)
   }
+}
+
+function withLogs(message: string, logs: string[] | undefined): string {
+  const output = logs?.join('\n')
+  return [message, output].filter(Boolean).join('\n\nLogs:\n')
 }

@@ -382,7 +382,9 @@ MCP catalog, including Cherry autonomy tools, is exposed through four native cus
 - `tool_exec` runs JavaScript in the existing worker-thread executor and routes
   `tools.invoke` calls back to the Pi MCP definitions. The outer `tool_exec` call
   always uses Pi's approval flow (except the explicit `bypassPermissions` mode),
-  and every nested call re-enters the same live permission/approval policy.
+  and every nested call re-enters the same live permission/approval policy. Nested
+  approvals are presented one at a time because the outer Pi tool part carries one
+  active approval card; accepted calls may still execute concurrently.
 
 This executor is an orchestration boundary, not a security sandbox:
 `worker_threads` isolates scheduling but retains the app's Node.js authority.
