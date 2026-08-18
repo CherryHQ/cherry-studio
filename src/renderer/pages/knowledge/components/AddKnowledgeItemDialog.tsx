@@ -4,6 +4,7 @@ import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getFileExtension } from '@renderer/utils/file'
 import { resolveKnowledgeFileData, resolveKnowledgeFileMetadataEntryData } from '@renderer/utils/knowledgeFileEntry'
+import { isValidHttpUrl } from '@renderer/utils/url'
 import type { KnowledgeAddItemConflict, KnowledgeAddItemInput, KnowledgeItemType } from '@shared/data/types/knowledge'
 import { knowledgeSupportedFileExts } from '@shared/utils/file'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -112,8 +113,11 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     }
 
     switch (activeSource) {
+      // The `url` source persists a real data source the moment it's added, so a bad value creates a
+      // broken item that only fails asynchronously (e.g. "Invalid knowledge url: abc"). Gate
+      // submission on a parseable http(s) URL instead of any non-empty text.
       case 'url':
-        return urlValue.trim().length > 0
+        return isValidHttpUrl(urlValue.trim())
       case 'note':
         // A drafted note needs both halves: the title becomes the item's `source`
         // (schema-required, non-empty) and empty content indexes to nothing.
@@ -124,6 +128,19 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
         return false
     }
   }, [activeSource, noteDraft.content, noteDraft.title, noteMode, selectedBaseId, selectedNotes.length, urlValue])
+
+  // Warn once the field holds text that isn't a valid http(s) URL; stays quiet while empty so the
+  // hint reads as guidance for a bad entry rather than a nag on the pristine input.
+  const urlHint = useMemo(() => {
+    if (activeSource !== 'url') {
+      return ''
+    }
+    const value = urlValue.trim()
+    if (value.length === 0 || isValidHttpUrl(value)) {
+      return ''
+    }
+    return t('knowledge.data_source.add_dialog.url.invalid')
+  }, [activeSource, t, urlValue])
 
   const buildPanelSubmitItems = useCallback(async (): Promise<KnowledgeAddItemInput[]> => {
     if (activeSource === 'url') {
@@ -361,7 +378,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
             <AddKnowledgeItemDialogFooter
               activeSource={activeSource}
               canSubmit={canSubmit}
-              errorMessage={submitErrorMessage}
+              errorMessage={submitErrorMessage || urlHint}
               isSubmitting={isSubmitting}
               // A draft submits exactly one note, and picks made before switching modes
               // are not part of it — report nothing so the footer stays quiet.
