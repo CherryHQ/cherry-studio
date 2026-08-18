@@ -269,12 +269,21 @@ export function buildResolvedReasoningProviderOptions(context: {
   providerOptionsKey: string
   endpointType: EndpointType | undefined
   reasoning: ResolvedReasoningInvocation
+  model?: Model
 }): Record<string, Record<string, unknown>> {
   const encoded = encodeReasoningOptions(context.providerOptionsKey, context.reasoning)
   const options = shouldNormalizeOpenAICompatibleReasoning(context.aiSdkProviderId, context.endpointType)
     ? normalizeOpenAICompatibleParams(encoded.options)
     : encoded.options
-  return Object.keys(options).length > 0 ? { [encoded.providerId]: options } : {}
+  const resolvedOptions =
+    Object.keys(options).length > 0 &&
+    context.endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES &&
+    encoded.providerId === 'openai' &&
+    context.model &&
+    isReasoningModel(context.model)
+      ? { ...options, forceReasoning: true }
+      : options
+  return Object.keys(resolvedOptions).length > 0 ? { [encoded.providerId]: resolvedOptions } : {}
 }
 
 /** Whether a custom parameter key names a providerOptions namespace rather than a body field. */
