@@ -105,16 +105,16 @@
     "save_as_pdf": "Αποθήκευση ως PDF",
     "save_file": "Αποθήκευση Αρχείου",
     "screen_capture_permission": {
-      "cancel": "[to be translated]:Cancel",
-      "detail": "[to be translated]:Grant Screen Recording permission to \"{{appName}}\" in System Settings > Privacy & Security > Screen Recording, then restart the app.",
-      "message": "[to be translated]:Screen Recording permission is required to take screenshots.",
-      "open_settings": "[to be translated]:Open System Settings",
-      "title": "[to be translated]:Screen Recording Permission"
+      "cancel": "Ακύρωση",
+      "detail": "Παραχωρήστε στο «{{appName}}» άδεια εγγραφής οθόνης στις Ρυθμίσεις συστήματος > Απόρρητο και ασφάλεια > Εγγραφή οθόνης και, στη συνέχεια, επανεκκινήστε την εφαρμογή.",
+      "message": "Απαιτείται άδεια εγγραφής οθόνης για τη λήψη στιγμιότυπων οθόνης.",
+      "open_settings": "Άνοιγμα ρυθμίσεων συστήματος",
+      "title": "Άδεια εγγραφής οθόνης"
     },
     "screenshot_failed": {
-      "message": "[to be translated]:The screenshot could not be taken.",
-      "ok": "[to be translated]:OK",
-      "title": "[to be translated]:Screenshot Failed"
+      "message": "Δεν ήταν δυνατή η λήψη του στιγμιότυπου οθόνης.",
+      "ok": "OK",
+      "title": "Η λήψη στιγμιότυπου οθόνης απέτυχε"
     },
     "select_folder": "Επιλέξτε φάκελο",
     "word_document": "Έγγραφο Word"

@@ -20,6 +20,7 @@ import {
 } from '@data/db/schemas/assistantRelations'
 import { fileEntryTable } from '@data/db/schemas/file'
 import {
+  agentSessionMessageFileRefTable,
   chatMessageFileRefTable,
   miniAppLogoFileRefTable,
   paintingFileRefTable,
@@ -98,6 +99,7 @@ const MIGRATION_TARGET_TABLES = [
   { table: promptBindingTable, name: 'prompt_binding' }, // Junction: clear before prompt
   { table: promptTable, name: 'prompt' },
   // Agents-domain tables — child → parent order
+  { table: agentSessionMessageFileRefTable, name: 'agent_session_message_file_ref' },
   { table: agentSessionMessageTable, name: 'agent_session_message' },
   { table: agentChannelTaskTable, name: 'agent_channel_task' },
   { table: agentMcpServerTable, name: 'agent_mcp_server' },

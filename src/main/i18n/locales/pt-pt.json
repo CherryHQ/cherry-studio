@@ -105,16 +105,16 @@
     "save_as_pdf": "Guardar como PDF",
     "save_file": "Guardar Ficheiro",
     "screen_capture_permission": {
-      "cancel": "[to be translated]:Cancel",
-      "detail": "[to be translated]:Grant Screen Recording permission to \"{{appName}}\" in System Settings > Privacy & Security > Screen Recording, then restart the app.",
-      "message": "[to be translated]:Screen Recording permission is required to take screenshots.",
-      "open_settings": "[to be translated]:Open System Settings",
-      "title": "[to be translated]:Screen Recording Permission"
+      "cancel": "Cancelar",
+      "detail": "Conceda a «{{appName}}» permissão de gravação do ecrã em Definições do Sistema > Privacidade e Segurança > Gravação do Ecrã e, em seguida, reinicie a aplicação.",
+      "message": "É necessária permissão de gravação do ecrã para fazer capturas.",
+      "open_settings": "Abrir Definições do Sistema",
+      "title": "Permissão de gravação do ecrã"
     },
     "screenshot_failed": {
-      "message": "[to be translated]:The screenshot could not be taken.",
-      "ok": "[to be translated]:OK",
-      "title": "[to be translated]:Screenshot Failed"
+      "message": "Não foi possível fazer a captura de ecrã.",
+      "ok": "OK",
+      "title": "Falha na captura de ecrã"
     },
     "select_folder": "Selecionar Pasta",
     "word_document": "Documento do Word"

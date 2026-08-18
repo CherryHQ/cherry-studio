@@ -105,16 +105,16 @@
     "save_as_pdf": "Lưu dưới dạng PDF",
     "save_file": "Lưu tệp",
     "screen_capture_permission": {
-      "cancel": "[to be translated]:Cancel",
-      "detail": "[to be translated]:Grant Screen Recording permission to \"{{appName}}\" in System Settings > Privacy & Security > Screen Recording, then restart the app.",
-      "message": "[to be translated]:Screen Recording permission is required to take screenshots.",
-      "open_settings": "[to be translated]:Open System Settings",
-      "title": "[to be translated]:Screen Recording Permission"
+      "cancel": "Hủy",
+      "detail": "Cấp quyền ghi màn hình cho “{{appName}}” trong Cài đặt hệ thống > Quyền riêng tư & Bảo mật > Ghi màn hình, sau đó khởi động lại ứng dụng.",
+      "message": "Cần có quyền ghi màn hình để chụp ảnh màn hình.",
+      "open_settings": "Mở Cài đặt hệ thống",
+      "title": "Quyền ghi màn hình"
     },
     "screenshot_failed": {
-      "message": "[to be translated]:The screenshot could not be taken.",
-      "ok": "[to be translated]:OK",
-      "title": "[to be translated]:Screenshot Failed"
+      "message": "Không thể chụp ảnh màn hình.",
+      "ok": "OK",
+      "title": "Chụp ảnh màn hình thất bại"
     },
     "select_folder": "Chọn thư mục",
     "word_document": "Tài liệu Word"

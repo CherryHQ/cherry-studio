@@ -105,16 +105,16 @@
     "save_as_pdf": "Als PDF speichern",
     "save_file": "Datei speichern",
     "screen_capture_permission": {
-      "cancel": "[to be translated]:Cancel",
-      "detail": "[to be translated]:Grant Screen Recording permission to \"{{appName}}\" in System Settings > Privacy & Security > Screen Recording, then restart the app.",
-      "message": "[to be translated]:Screen Recording permission is required to take screenshots.",
-      "open_settings": "[to be translated]:Open System Settings",
-      "title": "[to be translated]:Screen Recording Permission"
+      "cancel": "Abbrechen",
+      "detail": "Erteilen Sie „{{appName}}“ unter Systemeinstellungen > Datenschutz & Sicherheit > Bildschirmaufnahme die Berechtigung zur Bildschirmaufnahme und starten Sie die App anschließend neu.",
+      "message": "Zum Erstellen von Screenshots ist die Berechtigung zur Bildschirmaufnahme erforderlich.",
+      "open_settings": "Systemeinstellungen öffnen",
+      "title": "Berechtigung zur Bildschirmaufnahme"
     },
     "screenshot_failed": {
-      "message": "[to be translated]:The screenshot could not be taken.",
-      "ok": "[to be translated]:OK",
-      "title": "[to be translated]:Screenshot Failed"
+      "message": "Der Screenshot konnte nicht erstellt werden.",
+      "ok": "OK",
+      "title": "Screenshot fehlgeschlagen"
     },
     "select_folder": "Ordner auswählen",
     "word_document": "Word-Dokument"

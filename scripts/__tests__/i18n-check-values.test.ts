@@ -1,29 +1,7 @@
-/**
- * The validation gate in auto-translate-i18n.ts is the only thing standing between a model
- * response and a shipped locale file. The first suite covers translations that actually reached
- * main and broke the UI; the second covers the opposite failure, which is just as damaging: a
- * rule that rejects a correct translation is deterministic, so that key never leaves its
- * `[to be translated]` placeholder and the UI shows the marker forever.
- */
-import * as fs from 'node:fs'
-import * as path from 'node:path'
-
+/** Covers known broken translations and prevents false positives from stranding valid text. */
 import { describe, expect, it } from 'vitest'
 
-import { validate } from '../auto-translate-i18n'
-
-const ROOT = path.resolve(__dirname, '..', '..')
-const GLOSSARY = JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts/i18n-glossary.json'), 'utf-8'))
-
-type I18N = { [key: string]: string | I18N }
-
-const flatten = (obj: I18N, prefix = '', out: Record<string, string> = {}): Record<string, string> => {
-  for (const [key, value] of Object.entries(obj)) {
-    const fullKey = prefix ? `${prefix}.${key}` : key
-    typeof value === 'string' ? (out[fullKey] = value) : flatten(value, fullKey, out)
-  }
-  return out
-}
+import { checkTranslationValues, validate, validateSource } from '../i18n-check-values'
 
 describe('validate rejects broken translations', () => {
   it('rejects a translation that drops an interpolation variable', () => {
@@ -81,8 +59,23 @@ describe('validate rejects broken translations', () => {
     )
   })
 
+  it('rejects a protected term dropped from a source spelling variant', () => {
+    expect(validate('Connect to Github', '连接到代码托管站', ['GitHub'])).toMatch(/GitHub/)
+    expect(validate('Use CherryStudio.exe', '使用樱桃工作室程序', ['Cherry Studio'])).toMatch(/Cherry Studio/)
+  })
+
   it('rejects an empty translation of a real sentence', () => {
     expect(validate('Delete this topic permanently', '   ')).toMatch(/empty/)
+  })
+})
+
+describe('validateSource rejects broken source values', () => {
+  it('rejects an empty source value', () => {
+    expect(validateSource('   ')).toMatch(/empty/)
+  })
+
+  it('rejects a translation placeholder in the source locale', () => {
+    expect(validateSource('[to be translated]: Settings')).toMatch(/marker/)
   })
 })
 
@@ -112,32 +105,11 @@ describe('validate accepts translations the catalog already relies on', () => {
     expect(validate('.', '')).toBeNull()
   })
 
-  /**
-   * The real guard: run the gate over every string already in the repo. These translations are
-   * live, so a flag here is either a defect to fix or a rule that is too strict — both are worth
-   * failing on. Adding a tolerance instead of fixing the cause defeats the point of the check.
-   */
+  /** Runs the validator against the full shipped catalog. */
   it('flags nothing in the shipped catalog', () => {
-    const flagged: string[] = []
-    let checked = 0
-
-    for (const dir of ['src/renderer/i18n', 'src/main/i18n']) {
-      const base = flatten(JSON.parse(fs.readFileSync(path.join(ROOT, dir, 'locales/en-us.json'), 'utf-8')))
-      for (const sub of ['locales', 'translate']) {
-        const subDir = path.join(ROOT, dir, sub)
-        for (const file of fs.readdirSync(subDir).filter((f) => f.endsWith('.json') && f !== 'en-us.json')) {
-          const target = flatten(JSON.parse(fs.readFileSync(path.join(subDir, file), 'utf-8')))
-          for (const [key, value] of Object.entries(target)) {
-            if (base[key] === undefined || value.startsWith('[to be translated]')) continue
-            checked++
-            const reason = validate(base[key], value, GLOSSARY.doNotTranslate)
-            if (reason) flagged.push(`${file} ${key}: ${reason}`)
-          }
-        }
-      }
-    }
+    const { checked, failures } = checkTranslationValues()
 
     expect(checked).toBeGreaterThan(10_000)
-    expect(flagged, `validation would strand these on their placeholder:\n${flagged.join('\n')}`).toEqual([])
+    expect(failures, `catalog validation failures:\n${failures.join('\n')}`).toEqual([])
   })
 })

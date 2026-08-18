@@ -105,16 +105,16 @@
     "save_as_pdf": "Сохранить как PDF",
     "save_file": "Сохранить файл",
     "screen_capture_permission": {
-      "cancel": "[to be translated]:Cancel",
-      "detail": "[to be translated]:Grant Screen Recording permission to \"{{appName}}\" in System Settings > Privacy & Security > Screen Recording, then restart the app.",
-      "message": "[to be translated]:Screen Recording permission is required to take screenshots.",
-      "open_settings": "[to be translated]:Open System Settings",
-      "title": "[to be translated]:Screen Recording Permission"
+      "cancel": "Отмена",
+      "detail": "Предоставьте приложению «{{appName}}» разрешение на запись экрана в разделе «Системные настройки > Конфиденциальность и безопасность > Запись экрана», затем перезапустите приложение.",
+      "message": "Для создания снимков экрана требуется разрешение на запись экрана.",
+      "open_settings": "Открыть системные настройки",
+      "title": "Разрешение на запись экрана"
     },
     "screenshot_failed": {
-      "message": "[to be translated]:The screenshot could not be taken.",
-      "ok": "[to be translated]:OK",
-      "title": "[to be translated]:Screenshot Failed"
+      "message": "Не удалось сделать снимок экрана.",
+      "ok": "ОК",
+      "title": "Не удалось сделать снимок экрана"
     },
     "select_folder": "Выбрать папку",
     "word_document": "Документ Word"

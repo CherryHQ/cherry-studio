@@ -10,8 +10,7 @@ import { sortedObjectByKeys } from './sort'
 
 const ROOT_DIR = path.resolve(__dirname, '..')
 const LOCALES_DIR = path.join(ROOT_DIR, 'src/renderer/i18n/locales')
-const TRANSLATE_DIR = path.join(ROOT_DIR, 'src/renderer/i18n/translate')
-const BASE_LOCALE = 'zh-cn'
+const BASE_LOCALE = process.env.TRANSLATION_BASE_LOCALE ?? 'en-us'
 const BASE_LOCALE_PATH = path.join(LOCALES_DIR, `${BASE_LOCALE}.json`)
 const SCAN_DIRS = ['src/renderer', 'src/main', 'src/shared', 'packages'].map((dir) => path.join(ROOT_DIR, dir))
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx'])
@@ -389,14 +388,10 @@ export function removeI18nKeys(locale: I18N, keys: string[]): I18N {
 }
 
 function findTranslationFiles(): string[] {
-  return [LOCALES_DIR, TRANSLATE_DIR].flatMap((dir) =>
-    fs.existsSync(dir)
-      ? fs
-          .readdirSync(dir)
-          .filter((file) => file.endsWith('.json'))
-          .map((file) => path.join(dir, file))
-      : []
-  )
+  return fs
+    .readdirSync(LOCALES_DIR)
+    .filter((file) => file.endsWith('.json'))
+    .map((file) => path.join(LOCALES_DIR, file))
 }
 
 function parseGroups(groups: string | undefined): string[] {
