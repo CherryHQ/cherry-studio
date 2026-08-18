@@ -13,3 +13,4 @@ export {
   type BridgeToolCallResult,
   type BridgeToolDescriptor
 } from './protocol'
+export { resolveDshRuntimeEntry } from './runtime'

@@ -44,6 +44,7 @@ import {
   useMcpRegistryState
 } from './McpServerFields'
 import McpToolsSection from './McpTool'
+import { isQVerisApiKeyMissing, QVerisApiKeyGuide } from './QVerisApiKeyGuide'
 import { useMcpServerTrust } from './useMcpServerTrust'
 import { toUpdateMcpServerDto } from './utils'
 
@@ -255,6 +256,15 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
     if (!server) return
     if (isFormChanged && active) {
       await onSave()
+      return
+    }
+
+    if (active && isQVerisApiKeyMissing(server)) {
+      void popup.error({
+        title: t('settings.mcp.startError'),
+        content: <QVerisApiKeyGuide />,
+        centered: true
+      })
       return
     }
 

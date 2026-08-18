@@ -1,5 +1,8 @@
+import crypto from 'node:crypto'
+
 import { BaseService } from '@main/core/lifecycle'
 import type { McpServer } from '@shared/data/types/mcpServer'
+import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -59,11 +62,15 @@ const mcpSdkMock = vi.hoisted(() => {
     kind = 'streamableHttp' as const
     close = vi.fn().mockResolvedValue(undefined)
     constructor(url: unknown, opts?: unknown) {
-      void url
-      void opts
+      streamableHttpTransports.push({ url, opts })
     }
   }
-  const clients: Array<{ connectCalls: Array<{ kind: string }>; close: ReturnType<typeof vi.fn> }> = []
+  const clients: Array<{
+    connectCalls: Array<{ kind: string }>
+    close: ReturnType<typeof vi.fn>
+    listPrompts: ReturnType<typeof vi.fn>
+    listResources: ReturnType<typeof vi.fn>
+  }> = []
   class Client {
     setNotificationHandler = vi.fn()
     _transport: { kind: string } | undefined = undefined
@@ -71,6 +78,9 @@ const mcpSdkMock = vi.hoisted(() => {
       this._transport = undefined
     })
     ping = vi.fn().mockResolvedValue(true)
+    getServerCapabilities = vi.fn(() => mcpSdkMock.state.capabilities)
+    listPrompts = vi.fn().mockResolvedValue({ prompts: [{ name: 'a-prompt' }] })
+    listResources = vi.fn().mockResolvedValue({ resources: [{ uri: 'file:///a', name: 'a' }] })
     connectCalls: Array<{ kind: string }> = []
     constructor() {
       clients.push(this)
@@ -100,6 +110,7 @@ const mcpSdkMock = vi.hoisted(() => {
     }
   }
   const stdioTransports: Array<{ env?: Record<string, string> }> = []
+  const streamableHttpTransports: Array<{ url: unknown; opts?: any }> = []
   class StdioClientTransport {
     kind = 'stdio' as const
     stderr = null
@@ -115,8 +126,13 @@ const mcpSdkMock = vi.hoisted(() => {
     StreamableHTTPError,
     StdioClientTransport,
     stdioTransports,
+    streamableHttpTransports,
     clients,
-    state: { failStreamable: false, failStreamableCode: 503 }
+    state: {
+      failStreamable: false,
+      failStreamableCode: 503,
+      capabilities: undefined as Record<string, unknown> | undefined
+    }
   }
 })
 
@@ -139,16 +155,25 @@ const { McpRuntimeService, McpCallToolPayloadSchema, McpGetResourcePayloadSchema
   '../McpRuntimeService'
 )
 
-/** Build the JSON server key the service uses internally (only `id` is read by close logic). */
+/** Build the JSON server key shape the service uses internally (only `id` is read by close logic). */
 function serverKeyFor(id: string): string {
+  const fingerprint = crypto
+    .createHash('sha256')
+    .update(
+      JSON.stringify({
+        baseUrl: undefined,
+        command: undefined,
+        args: [],
+        registryUrl: undefined,
+        env: undefined,
+        headers: undefined
+      })
+    )
+    .digest('hex')
+
   return JSON.stringify({
-    baseUrl: undefined,
-    command: undefined,
-    args: [],
-    registryUrl: undefined,
-    env: undefined,
-    headers: undefined,
-    id
+    id,
+    fingerprint
   })
 }
 
@@ -209,6 +234,76 @@ describe('McpRuntimeService stdio environment', () => {
     expect(transportEnv?.PATH).toBe('/shell/bin')
     expect(transportEnv?.Path).toBe('server-metadata')
     platformSpy.mockRestore()
+  })
+})
+
+describe('McpRuntimeService QVeris hosted transport', () => {
+  beforeEach(() => {
+    BaseService.resetInstances()
+    MockMainCacheServiceUtils.resetMocks()
+    getByIdMock.mockReset()
+    mcpSdkMock.streamableHttpTransports.length = 0
+  })
+
+  it('connects to the hosted endpoint with the configured API key', async () => {
+    const service = new McpRuntimeService()
+    const server = {
+      id: 'qveris-server',
+      name: BuiltinMcpServerNames.qveris,
+      type: 'inMemory',
+      env: { QVERIS_API_KEY: 'qveris-test-key' },
+      isActive: true
+    } as McpServer
+    getByIdMock.mockReturnValue(server)
+
+    await service.withClient(server.id, async () => undefined)
+
+    const transport = mcpSdkMock.streamableHttpTransports.at(-1)
+    expect(String(transport?.url)).toBe('https://mcp.qveris.ai/mcp')
+    expect(transport?.opts).toEqual(
+      expect.objectContaining({
+        requestInit: expect.objectContaining({
+          headers: expect.objectContaining({ Authorization: 'Bearer qveris-test-key' })
+        })
+      })
+    )
+    expect(transport?.opts).not.toHaveProperty('authProvider')
+  })
+
+  it('rejects activation without an API key', async () => {
+    const service = new McpRuntimeService()
+    const server = {
+      id: 'qveris-server',
+      name: BuiltinMcpServerNames.qveris,
+      type: 'inMemory',
+      env: { QVERIS_API_KEY: '' },
+      isActive: true
+    } as McpServer
+    getByIdMock.mockReturnValue(server)
+
+    await expect(service.withClient(server.id, async () => undefined)).rejects.toThrow(
+      'QVeris MCP requires the QVERIS_API_KEY environment variable'
+    )
+  })
+
+  it('uses a distinct secret-free key when the API key changes', () => {
+    const service = new McpRuntimeService()
+    const first = service.getServerKey({
+      id: 'qveris-server',
+      name: BuiltinMcpServerNames.qveris,
+      env: { QVERIS_API_KEY: 'first-key' },
+      isActive: true
+    } as McpServer)
+    const second = service.getServerKey({
+      id: 'qveris-server',
+      name: BuiltinMcpServerNames.qveris,
+      env: { QVERIS_API_KEY: 'second-key' },
+      isActive: true
+    } as McpServer)
+
+    expect(first).not.toContain('first-key')
+    expect(second).not.toContain('second-key')
+    expect(first).not.toBe(second)
   })
 })
 
@@ -829,5 +924,94 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
 
     // The only connect attempt is the configured streamableHttp one — no SSE fallback happened.
     expect(mcpSdkMock.clients.at(-1)?.connectCalls).toEqual([{ kind: 'streamableHttp' }])
+  })
+})
+
+describe('McpRuntimeService prompt/resource capability gate', () => {
+  beforeEach(() => {
+    BaseService.resetInstances()
+    MockMainCacheServiceUtils.resetMocks()
+    mcpSdkMock.clients.length = 0
+    mcpSdkMock.state.capabilities = undefined
+    mcpSdkMock.state.failStreamable = false
+  })
+
+  function stdioServer(id: string): McpServer {
+    return { id, name: id, command: 'npx', args: ['-y', 'example-mcp'], isActive: true } as McpServer
+  }
+
+  it('never sends prompts/list or resources/list to a server declaring neither capability', async () => {
+    mcpSdkMock.state.capabilities = { tools: {} }
+    getByIdMock.mockReturnValue(stdioServer('caps-none'))
+    const service = new McpRuntimeService()
+
+    expect(await service.listPrompts('caps-none')).toEqual([])
+    expect(await service.listResources('caps-none')).toEqual([])
+
+    const client = mcpSdkMock.clients.at(-1)
+    expect(client?.listPrompts).not.toHaveBeenCalled()
+    expect(client?.listResources).not.toHaveBeenCalled()
+  })
+
+  it('lists prompts and resources when the server declares both', async () => {
+    mcpSdkMock.state.capabilities = { prompts: {}, resources: {} }
+    getByIdMock.mockReturnValue(stdioServer('caps-both'))
+    const service = new McpRuntimeService()
+
+    expect(await service.listPrompts('caps-both')).toMatchObject([{ name: 'a-prompt', serverId: 'caps-both' }])
+    expect(await service.listResources('caps-both')).toMatchObject([{ uri: 'file:///a', serverId: 'caps-both' }])
+  })
+
+  it('reports connected capabilities synchronously, and nothing for a server that never connected', async () => {
+    mcpSdkMock.state.capabilities = { resources: {} }
+    getByIdMock.mockReturnValue(stdioServer('caps-sync'))
+    const service = new McpRuntimeService()
+
+    expect(service.getConnectedServerCapabilities('caps-sync')).toBeUndefined()
+    await service.withClient('caps-sync', async () => undefined)
+    expect(service.getConnectedServerCapabilities('caps-sync')?.resources).toBeDefined()
+  })
+})
+
+describe('McpRuntimeService list pagination', () => {
+  beforeEach(() => {
+    BaseService.resetInstances()
+    MockMainCacheServiceUtils.resetMocks()
+    mcpSdkMock.clients.length = 0
+    mcpSdkMock.state.capabilities = { prompts: {}, resources: {} }
+    mcpSdkMock.state.failStreamable = false
+  })
+
+  function stdioServer(id: string): McpServer {
+    return { id, name: id, command: 'npx', args: ['-y', 'example-mcp'], isActive: true } as McpServer
+  }
+
+  it('follows the resources cursor so the model sees every page, not just the first', async () => {
+    getByIdMock.mockReturnValue(stdioServer('paged-resources'))
+    const service = new McpRuntimeService()
+    await service.withClient('paged-resources', async () => undefined)
+    const client = mcpSdkMock.clients.at(-1)
+    client?.listResources
+      .mockResolvedValueOnce({ resources: [{ uri: 'file:///1', name: '1' }], nextCursor: 'page-2' })
+      .mockResolvedValueOnce({ resources: [{ uri: 'file:///2', name: '2' }] })
+
+    const resources = await service.listResources('paged-resources')
+
+    expect(resources.map((resource) => resource.uri)).toEqual(['file:///1', 'file:///2'])
+    expect(client?.listResources).toHaveBeenLastCalledWith({ cursor: 'page-2' })
+  })
+
+  it('follows the prompts cursor too', async () => {
+    getByIdMock.mockReturnValue(stdioServer('paged-prompts'))
+    const service = new McpRuntimeService()
+    await service.withClient('paged-prompts', async () => undefined)
+    const client = mcpSdkMock.clients.at(-1)
+    client?.listPrompts
+      .mockResolvedValueOnce({ prompts: [{ name: 'first' }], nextCursor: 'page-2' })
+      .mockResolvedValueOnce({ prompts: [{ name: 'second' }] })
+
+    const prompts = await service.listPrompts('paged-prompts')
+
+    expect(prompts.map((prompt) => prompt.name)).toEqual(['first', 'second'])
   })
 })

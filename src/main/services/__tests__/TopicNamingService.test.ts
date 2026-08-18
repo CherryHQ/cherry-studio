@@ -76,16 +76,16 @@ const rendererI18nDir = path.join(process.cwd(), 'src/renderer/i18n')
 const unnamedTranslations = [
   'locales/en-us',
   'locales/zh-cn',
-  'translate/de-de',
-  'translate/el-gr',
-  'translate/es-es',
-  'translate/fr-fr',
-  'translate/ja-jp',
-  'translate/pt-pt',
-  'translate/ro-ro',
-  'translate/ru-ru',
-  'translate/vi-vn',
-  'translate/zh-tw'
+  'locales/de-de',
+  'locales/el-gr',
+  'locales/es-es',
+  'locales/fr-fr',
+  'locales/ja-jp',
+  'locales/pt-pt',
+  'locales/ro-ro',
+  'locales/ru-ru',
+  'locales/vi-vn',
+  'locales/zh-tw'
 ].map((rel) => JSON.parse(fs.readFileSync(path.join(rendererI18nDir, `${rel}.json`), 'utf-8')).common.unnamed)
 
 function createService() {

@@ -79,11 +79,12 @@ asarUnpack:
   - "node_modules/@img/sharp-*/**"
   - "node_modules/@anthropic-ai/claude-agent-sdk-*/**" # native CLI binary must live on disk to be spawned
   - "node_modules/@silvia-odwyer/photon-node/**" # pi SDK WASM dep: photon_rs.js does fs.readFileSync(__dirname/photon_rs_bg.wasm)
-  - "node_modules/@deepseek-ai/**" # dsh runtime bin + composition plugins are spawned/imported by a subprocess outside asar
-  - "node_modules/@cherrystudio/dsh-bridge/**" # bridge plugin bundle loaded by the dsh subprocess
+  # beforePack adds the complete DSH subprocess dependency closure here.
   - "node_modules/@aiany/sqlite-vec-*/**" # sqlite-vec extension (.dylib/.so/.dll) is dlopen'd at runtime — must live on disk
   - "node_modules/@node-rs/xxhash-*/**" # native N-API binary must be unpacked for runtime loading
   - "node_modules/@firecrawl/anydoc-*/**" # native N-API binary must be unpacked for runtime loading
+  - "node_modules/node-screenshots-*/**" # native N-API binary must be unpacked for runtime loading
+  - "node_modules/node-mac-permissions/**" # native N-API binary must be unpacked for runtime loading
 extraResources:
   - from: "migrations/sqlite-drizzle"
     to: "migrations/sqlite-drizzle"
@@ -159,9 +160,11 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 2.0.6 - New Features, Fixes, and Performance
+    Cherry Studio 2.0.7 - New Features, Fixes, and Performance
 
     ✨ New Features
+    - [xlsx-preview] Preview .xlsx spreadsheets directly in the artifact preview pane: multi-sheet tabs, cell styles and merged cells, floating images and charts, formula results, click-to-expand cell content, and photographic zoom.
+    - [MCP] Add built-in QVeris Hosted MCP integration with API key setup guidance.
     - [Help] Added a localized Help & Feedback menu with the in-app update feature list and history, documentation and repository shortcuts, anonymous diagnostic upload, Cherry Support feedback, and GitHub Issues
     - [Agent] Agents no longer stop at a maximum turn count — a long autonomous run continues until it finishes or is interrupted. To keep a hard cap, set CLAUDE_CODE_MAX_TURNS in the agent's environment variables
     - [Agent] Fast (Pi) agents gain an "Approve for Me" permission mode and new ones start in it — the agent works on its own and asks when it recognizes a risky action. "Full Access" on a Fast (Pi) agent is now unconditional. The agent create dialog now picks the runtime with flat cards, and the edit dialog shows the (unchangeable) runtime
@@ -170,6 +173,18 @@ releaseInfo:
     - [Chat] Composer shortcuts for send, line break, and steer are now configurable in Settings → Chat → Input. While an Agent is running, the new steer shortcut (⌘Enter on macOS, Ctrl+Enter elsewhere) sends your message straight into the current turn instead of queueing it. Shift+Enter still inserts a line break. On Windows and Linux the send shortcut drops the Win/Super+Enter option that the OS reserved and that never worked
 
     🐛 Bug Fixes
+    - [i18n] Translate previously untranslated Agent, DeepSeek Harness, and spreadsheet preview text across supported locales.
+    - [Shortcuts] Caps Lock can now be bound as a shortcut key.
+    - [Skills] Fixed online Skill installation hanging indefinitely or failing to reach GitHub: the clone step is now bounded by a timeout, never waits on a credential prompt, and follows the proxy configured in Cherry Studio.
+    - [Providers] Fix providers using the native OpenAI adapter (official OpenAI, Codex, TokenHub, DMXAPI, and any provider on an `openai-responses` endpoint) failing to start with `Failed to create provider "openai"`.
+    - [Agent] Fix usage and cost attribution for dsh agent sessions routed through the local API Gateway: provider requests now carry the session usage headers, so usage records attach to the owning agent message and reuse a stable per-session prompt cache key.
+    - [Code Mate] Fixed Code Mate installation of DeepSeek Harness when mise upgrades Node at the same time.
+    - [Composer] Fixed the composer input collapsing to two lines after switching topics/agents, hiding part of a saved draft.
+    - [DSH] Fix DeepSeek Harness agents failing to start in packaged builds when subprocess dependencies were left inside app.asar.
+    - [Backup] Delayed overdue automatic backups briefly after startup so they no longer interrupt messages immediately after launch.
+    - [Models] Restored the SiliconFlow referral link used by the Get API Key action.
+    - [Web Search] Fixed an issue where importing an MCP server from ModelScope could leave settings unresponsive when the Web Search API key dialog was open.
+    - [Chat] Starting a branch from the latest assistant message now creates a real two-way branch instead of a linear empty continuation.
     - [Models] Fix custom OpenAI-compatible providers incorrectly displaying metadata from a same-family model with a different parameter size
     - [Models] Fix MiniMax-M3 requests failing because the app requested more than the provider's supported output-token limit
     - [Models] Fix provider model rows shifting in Settings when a model group is collapsed or expanded
@@ -204,14 +219,17 @@ releaseInfo:
     - [MCP/Security] Fix secrets included in MCP server log notifications reaching the app debug log and the MCP server logs page unredacted — log notification messages are now redacted
 
     ⚡ Performance
+    - [Models] Improve model management performance when adding or removing all models, preventing the drawer from becoming unresponsive.
     - [Export] Exporting long topics to Notion now prepares messages concurrently, noticeably reducing the wait before the upload starts. Output content and ordering are unchanged
     - [Translate] Selection translation now disables model reasoning during LLM language detection when supported, reducing latency and avoiding empty detection output
     - [AI] One-shot AI utility requests (topic/note auto-naming, error classification, prompt polish, export titles, and the model health-check probe) now disable model reasoning when supported, reducing latency and token usage
 
     <!--LANG:zh-CN-->
-    Cherry Studio 2.0.6 - 新功能、修复与性能优化
+    Cherry Studio 2.0.7 - 新功能、修复与性能优化
 
     ✨ 新功能
+    - [xlsx-preview] 在 artifact 预览面板中直接预览 .xlsx 电子表格：多工作表标签、单元格样式和合并单元格、浮动图片和图表、公式结果、点击展开单元格内容、以及摄影式缩放。
+    - [MCP] 新增内置 QVeris Hosted MCP 集成，并提供 API 密钥设置指引。
     - [帮助] 新增本地化的"帮助与反馈"菜单，包含应用内更新功能列表与历史、文档与仓库快捷入口、匿名诊断上传、Cherry Support 反馈和 GitHub Issues
     - [Agent] Agent 不再受最大回合数限制 —— 长时间自主运行会持续到完成或被打断。如需硬性上限，可在 Agent 环境变量中设置 CLAUDE_CODE_MAX_TURNS
     - [Agent] 快速（Pi）Agent 新增"自动批准"权限模式，且新创建的 Agent 默认使用该模式 —— Agent 自主工作，识别到风险操作时才询问。快速（Pi）Agent 的"完全访问"现在为无条件开启。新建 Agent 对话改用扁平卡片选择运行时，编辑对话框会显示（不可更改的）运行时
@@ -220,6 +238,18 @@ releaseInfo:
     - [对话] 发送、换行和干预快捷键现在可在"设置 → 对话 → 输入"中自定义。Agent 运行时，新的干预快捷键（macOS 为 ⌘Enter，其他系统为 Ctrl+Enter）会将消息直接发送到当前回合，而不是排队。Shift+Enter 仍用于插入换行。Windows 和 Linux 上发送快捷键移除了被系统保留且从未生效的 Win/Super+Enter 选项
 
     🐛 问题修复
+    - [i18n] 翻译了之前未翻译的 Agent、DeepSeek Harness 和电子表格预览文本，覆盖所有支持的语言。
+    - [快捷键] 大写锁定键现在可以用作快捷键。
+    - [技能] 修复在线技能安装无限挂起或无法连接 GitHub 的问题：克隆步骤现在有超时限制，不会等待凭据提示，并遵循 Cherry Studio 中配置的代理。
+    - [服务商] 修复使用原生 OpenAI 适配器的服务商（官方 OpenAI、Codex、TokenHub、DMXAPI 以及任何使用 `openai-responses` 端点的服务商）启动失败并显示 `Failed to create provider "openai"` 的问题。
+    - [Agent] 修复通过本地 API Gateway 路由的 dsh agent 会话的用量和费用归属问题：提供商请求现在携带会话用量头部，因此用量记录会关联到所属 agent 消息并复用稳定的每会话提示缓存键。
+    - [Code Mate] 修复当 mise 同时升级 Node 时 Code Mate 安装 DeepSeek Harness 失败的问题。
+    - [对话框] 修复切换话题/Agent 后对话框输入框折叠为两行、隐藏部分已保存草稿的问题。
+    - [DSH] 修复 DeepSeek Harness agent 在打包版本中因子进程依赖被留在 app.asar 内而无法启动的问题。
+    - [备份] 延迟启动后立即执行的过期自动备份，使其不再在启动后立即打断消息发送。
+    - [模型] 恢复 SiliconFlow 的"获取 API 密钥"操作中使用的推荐链接。
+    - [网页搜索] 修复从 ModelScope 导入 MCP 服务器时，如果网页搜索 API 密钥对话框已打开，可能导致设置页面无响应的问题。
+    - [对话] 从最新助手消息创建分支时，现在会创建真正的双向分支，而不是线性的空延续。
     - [模型] 修复自定义 OpenAI 兼容服务商在同族模型存在不同参数尺寸时错误显示其他模型元数据的问题
     - [模型] 修复 MiniMax-M3 因应用请求超过服务商支持的输出 token 上限而请求失败的问题
     - [模型] 修复设置中模型分组展开/折叠时模型行位置错动的问题
@@ -254,6 +284,7 @@ releaseInfo:
     - [MCP/安全] 修复 MCP 服务器日志通知中包含的密钥未经脱敏进入应用调试日志和 MCP 服务器日志页的问题 —— 日志通知消息现在会被脱敏
 
     ⚡ 性能优化
+    - [模型] 提升添加或移除所有模型时的模型管理性能，防止抽屉变得无响应。
     - [导出] 导出长话题到 Notion 现在会并发准备消息，明显缩短上传开始前的等待。输出内容和顺序保持不变
     - [翻译] 划词翻译在支持的模型上现在会在 LLM 语言检测期间禁用推理，降低延迟并避免检测输出为空
     - [AI] 一次性 AI 工具请求（话题/笔记自动命名、错误分类、提示词润色、导出标题和模型健康检查探测）在支持的模型上现在会禁用推理，降低延迟和 token 用量
