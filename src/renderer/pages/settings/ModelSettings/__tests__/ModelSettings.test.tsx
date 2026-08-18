@@ -72,6 +72,22 @@ vi.mock('@renderer/components/ModelSelector', () => ({
   }
 }))
 
+vi.mock('@renderer/components/DefaultModelSelector', () => ({
+  DefaultModelSelector: ({
+    onSelect,
+    trigger,
+    filter
+  }: {
+    onSelect: (model: Model | undefined) => void
+    trigger: ReactNode
+    filter?: (model: Model) => boolean
+  }) => {
+    harness.selectorCallbacks.push(onSelect)
+    harness.selectorFilters.push(filter)
+    return trigger
+  }
+}))
+
 vi.mock('@renderer/hooks/useModel', () => ({
   useDefaultModel: () => ({
     defaultModel: harness.defaultModel,
