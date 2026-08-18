@@ -26,7 +26,8 @@ The map is pinned to desktop commit `12498d68` and is **stale** — measured: de
    `apps/mobile/scripts/desktopSyncAudit.ts`).
 2. Reinterpret the map as the **package membership registry**:
    `semantic-port` → shared package; `blocked` → desktop shell (graduates when mobile ships the
-   feature); `explicit-exclusion` → desktop shell permanently.
+   feature); `explicit-exclusion` → excluded from the current package cut and reclassified only by
+   an explicit architecture decision.
 
 ## Measured Profile (drives the wave partition)
 
@@ -39,11 +40,22 @@ The map is pinned to desktop commit `12498d68` and is **stale** — measured: de
 | `tools` | 5,250 | 1 / 9 | 22 / 45 / 5 | W2 |
 | `mcp` | 13,105 | 7 / 14 | 2 / 72 / 0 | W3 (catalog/process split) |
 | `channels`, `inference`, `contextBuild`, `observability`, `skills` | ≈15,000 | low | blocked wholesale | W3 (product-driven graduation) |
-| `agents`, `agentSession` | 6,037 | low | explicit-exclusion | **Never** (desktop agents platform) |
+| `agents`, `agentSession` | 6,037 | low | explicit-exclusion | **Separate scope** (no dependency on #18802) |
 
 Of the 317 `blocked` entries, **315 carry the reason "No mobile implementation or approved semantic
 equivalence mapping exists"** — product lag, not a platform wall. Genuine platform blocks: 2 files
 (Node-native local inference).
+
+### Non-dependency with the Agent protocol
+
+[#18802](https://github.com/CherryHQ/cherry-studio/issues/18802) is an independent architecture
+initiative, not a migration stage, prerequisite, or residual item. It may proceed before, during, or
+after this track; Track A must not postpone protocol work, and protocol work does not block the
+measured runtime-package moves here.
+
+Independently of that schedule, keep `src/main/ai/runtime/pi` platform-pure: no Electron or Node-only
+API may enter the runtime core. Filesystem, process, network, and secret access stay behind injected
+ports so mobile Pi support does not require a later rewrite.
 
 ## Coupling Disposition (measured `application.get()` histogram over `src/main/ai`)
 

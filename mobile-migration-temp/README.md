@@ -20,7 +20,7 @@ preserve the following invariants:
 | I2 | Desktop import specifiers never change en masse | Strangler-fig re-export shims at original module paths; measured blast radius: 1,989 desktop files import `@shared/*` — all remain valid |
 | I3 | Package name collisions are resolved on the mobile side only | Desktop retains canonical names (`@cherrystudio/ai-core`, …); mobile adopts prefixed names, then converges back when unified |
 | I4 | Every stage lands on `main` as a conventional PR passing the full desktop gate | No long-lived migration branch; merge gate = `pnpm build:check && pnpm test && pnpm test:lint` |
-| M5 | The whole landing is atomically revertible | Stage 1 is one subtree merge commit (`git revert -m 1`) plus one wiring commit |
+| I5 | The whole landing is atomically revertible | Stage 1 is one subtree-landing merge PR (`git revert -m 1`) plus one wiring PR |
 | I6 | Desktop root relocation (`src/` → `apps/desktop/`) is explicitly deferred | Trigger-based (Stage 6), not scheduled; symmetry is an aesthetic property, not a functional dependency |
 
 ## Target Topology
@@ -61,11 +61,16 @@ cherry-studio/
 ## Stage Graph
 
 ```
-stage-0 (hygiene, guards) ──┐
-stage-1 (landing) ──────────┼──► stage-2 (design-tokens/icons, ai-sdk-provider, ai-core)
-                            │        ├──► stage-3 (provider-registry, src/shared strangler extraction)
-                            │        └──► stage-4 (lifecycle-kernel, db-schema) ──► stage-5 (4 parallel tracks)
-                            └──────────────────────────────────────────────────► stage-6 (trigger-based)
+stage-0 (hygiene, guards) ──► stage-1 (landing)
+                                  ├──► stage-2 (design-tokens/icons, ai-sdk-provider, ai-core)
+                                  ├──► stage-3 (provider-registry, src/shared extraction)
+                                  ├──► stage-4 (lifecycle-kernel, db-schema)
+                                  └──► stage-5 Track B (service decomposition)
+
+stage-2b/2c (+ stage-4a for Wave 2) ──► stage-5 Track A
+stage-4a/4b ──► stage-5 Track C
+stage-2a ──► stage-5 Track D
+all migration tracks ──► stage-6 (trigger-based)
 ```
 
 | Document | Scope | Independently pausable |
@@ -78,7 +83,7 @@ stage-1 (landing) ──────────┼──► stage-2 (design-tok
 | [stage-5-track-a-ai-runtime.md](stage-5-track-a-ai-runtime.md) | AI runtime unification, 3 waves over 215 semantically-ported files | Yes, per wave |
 | [stage-5-track-b-services.md](stage-5-track-b-services.md) | `src/main/services` decomposition via ports-and-adapters | Yes, per service |
 | [stage-5-track-c-data-services.md](stage-5-track-c-data-services.md) | 30 same-name data services: business-rule layer extraction | Yes, per service |
-| [stage-5-track-d-ui.md](stage-5-track-d-ui.md) | Universal UI package with platform-forked implementations | Yes, per component |
+| [stage-5-track-d-ui.md](stage-5-track-d-ui.md) | Cross-platform UI primitives with platform-forked implementations | Yes, per component |
 | [stage-6-finish.md](stage-6-finish.md) | Desktop relocation, exit criteria, decommissioning ledger | Trigger-based |
 
 **Stability invariant between stages:** at any pause point, the repository satisfies
@@ -101,14 +106,3 @@ execution time. Key aggregate measurements:
 | `src/main/data/services` ↔ `backend/data/services` | n/a | 30 of 33 services re-implemented under identical class names |
 | `src/main/core/lifecycle` ↔ `backend/core/lifecycle` | near-total textual rewrite, ~90% API-congruent | **Not covered by any sync-manifest domain** (untracked drift) |
 | `src/main/ai` ↔ `ai-runtime` + `backend/ai` | 608-entry file-level map | 215 `semantic-port` / 317 `blocked` / 76 `explicit-exclusion` |
-
-## Current Workspace State (read before executing Stage 1)
-
-This worktree (`bogota-v1`) carries residue from a landing feasibility spike:
-
-- Commit `9ac573a245` — a subtree merge of mobile v0.2 (mechanism validated: 1,978 commits
-  preserved, merge parents verifiable).
-- 281 uncommitted working-tree modifications (package rename rehearsal inside `apps/mobile/`).
-- 138 mobile `v0.x`/`v1.x` tags erroneously fetched into the local tag namespace.
-
-Stage 1 §1a prescribes the exact cleanup sequence before the production landing.

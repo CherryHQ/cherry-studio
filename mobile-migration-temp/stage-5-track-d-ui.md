@@ -1,4 +1,4 @@
-# Stage 5 / Track D — Universal UI Package (Narrowed Dual-Implementation Strategy)
+# Stage 5 / Track D — Cross-Platform UI Primitives (Narrowed Dual-Implementation Strategy)
 
 ## Objective
 
@@ -38,7 +38,7 @@ Fully independent of Tracks A–C.
 ## Package Topology
 
 ```
-packages/ui-universal/                    # new dual-implementation package
+packages/ui-primitives/                   # new dual-implementation package
   src/button/
     button.tsx                            # web implementation (Radix / Base UI)
     button.native.tsx                     # RN implementation (rn-primitives)
@@ -55,7 +55,7 @@ apps/mobile/packages/ui-nitro/            # native-module stratum extracted from
 
 - `apps/mobile/tsconfig.json`: set `"customConditions": ["react-native"]` so the mobile type
   graph resolves RN typings instead of DOM typings.
-- Lint (extends Stage 0d): within `ui-universal`, `.tsx` files may not import RN modules;
+- Lint (extends Stage 0d): within `ui-primitives`, `.tsx` files may not import RN modules;
   `.native.tsx` files may not import DOM/Radix modules; `.shared.ts` may import neither.
 
 ## Procedure
@@ -70,7 +70,7 @@ apps/mobile/packages/ui-nitro/            # native-module stratum extracted from
    - Native implementation lifted from `apps/mobile/packages/ui/src/components/<name>/`, API
      aligned to the shared contract (web contract is the baseline; touch-specific divergence is
      encapsulated inside `.native.tsx`).
-   - Original locations re-export from `ui-universal` (both `packages/ui` and `ui-native`) —
+   - Original locations re-export from `ui-primitives` (both `packages/ui` and `ui-native`) —
      **zero import churn for either application's consumers** (Invariant I2 applied to UI).
 3. **Dual-birth discipline (effective at first seed merge):** every new **design-system-level
    primitive** ships `.tsx` + `.native.tsx` + `.shared.ts` in the same PR. Page-level composites

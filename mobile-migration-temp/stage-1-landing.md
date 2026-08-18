@@ -14,8 +14,9 @@ both applications.
 ## Blast-Radius Contract
 
 Desktop-side diff is confined to: `pnpm-workspace.yaml`, `pnpm-lock.yaml`,
-`.github/workflows/*`. Nothing under desktop `src/` is touched. The stage is two commits:
-one subtree merge (revertible via `git revert -m 1`) and one wiring commit.
+`.github/workflows/*`. Nothing under desktop `src/` is touched. The stage is two PRs: the landing
+branch contains one subtree merge and lands through a GitHub merge commit; the second PR contains
+the workspace wiring. The landed GitHub merge is the atomic `git revert -m 1` target.
 
 ## Design Decisions (ADR summary)
 
@@ -24,32 +25,29 @@ one subtree merge (revertible via `git revert -m 1`) and one wiring commit.
   merge commit whose second parent is the mobile HEAD — full history reachable
   (`git log --follow` works), no rewrite of either history, trivially revertible.
   Mechanism empirically validated: 1,978 commits preserved; repository went 8,369 → 10,347 commits.
-- **`--no-tags` on fetch.** Mobile carries 138 `v0.x`/`v1.x` release tags that would pollute the
-  desktop tag namespace (desktop releases are `v2.x`). Historical mobile tags remain resolvable in
-  the archived origin repository.
+- **`--no-tags` on fetch.** Both repositories already own release tags in the `0.x`/`1.x`
+  namespaces; identical names such as `0.1.0` and `0.1.1` exist on both sides. Importing tags would
+  therefore be ambiguous: existing desktop refs win silently on collisions, while non-colliding
+  mobile refs add a second project's release namespace. The commit history does not require tags,
+  and historical mobile tags remain resolvable in the archived origin repository. Never bulk-delete
+  desktop `v0.*`/`v1.*` tags as landing cleanup.
 - **Collision renames applied on the mobile side only** (Invariant I3), scoped strictly to the
   `apps/mobile/` subtree.
 
 ---
 
-## 1a. Cleanup of spike residue, then production landing
+## 1a. Production landing from a clean branch
 
-This worktree carries a feasibility-spike state (see README). Reset it first:
-
-```bash
-git reset --hard 9754c9267e            # drop the spike subtree merge
-git clean -fd apps                     # drop 281 uncommitted rename rehearsal edits
-# Delete only tags belonging to mobile history (guards against deleting any desktop-owned v0/v1 tag):
-for t in $(git tag -l 'v0.*' 'v1.*'); do
-  git merge-base --is-ancestor "$t" refs/remotes/mobile/v0.2 2>/dev/null && git tag -d "$t"
-done
-```
-
-Production landing:
+Create a dedicated branch at the then-current `origin/main`. Do not reuse a feasibility-spike
+worktree and do not put hard resets or broad clean commands in the landing procedure.
 
 ```bash
+git fetch origin main
+git switch -c feat/mobile-subtree-landing origin/main
+test -z "$(git status --porcelain)"
+test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
 git remote add mobile https://github.com/CherryHQ/cherry-studio-app.git   # skip if present
-git fetch --no-tags mobile refs/remotes/origin/v0.2:refs/remotes/mobile/v0.2
+git fetch --no-tags mobile v0.2:refs/remotes/mobile/v0.2
 git subtree add --prefix=apps/mobile refs/remotes/mobile/v0.2
 ```
 
@@ -59,6 +57,32 @@ Post-conditions (assert before proceeding):
 git merge-base --is-ancestor 3707410b9191e6a8ab5ff1e1271f10c4626f5958 HEAD   # exit 0
 git cat-file -p HEAD | grep -c ^parent                                        # == 2
 ```
+
+### 1a-1. Landing merge strategy (history-preservation blocker)
+
+PR 1 must be merged with **Create a merge commit**. Squash or rebase flattens the subtree commit,
+disconnects the imported 1,978-commit history from `main`, and invalidates the documented
+`git revert -m 1` rollback.
+
+The `main` ruleset measured on 2026-08-18 requires linear history and allows only squash merges, so
+PR 1 cannot land correctly under the normal policy. Immediately before merge, a repository admin
+must make a time-bounded exception: suspend `required_linear_history` and add `merge` to the PR
+rule's allowed merge methods, without weakening review, signature, or status-check requirements.
+Merge this PR only, then restore both settings immediately after the assertions below pass. Do not
+substitute squash, rebase, or a silent history rewrite.
+
+After GitHub merges PR 1, fetch `main` and assert the landed commit, not merely the pre-PR branch:
+
+```bash
+git fetch origin main
+git cat-file -p origin/main | grep -c ^parent                                  # == 2
+git cat-file -p <subtree-merge-sha> | grep -c ^parent                          # == 2
+git merge-base --is-ancestor <subtree-merge-sha> origin/main
+git merge-base --is-ancestor 3707410b9191e6a8ab5ff1e1271f10c4626f5958 origin/main
+```
+
+Record both the subtree merge SHA before opening PR 1 and the landed GitHub merge SHA afterward.
+The latter is the `-m 1` rollback target used below.
 
 **Origin-repository cutover.** After 1c gates pass and the PR merges: freeze
 `cherry-studio-app` (README banner, close PR intake). If `v0.2` advances during the landing window,
@@ -79,8 +103,14 @@ packages:
   - 'apps/mobile/packages/*'
 ```
 
-Merge the following keys from `apps/mobile/pnpm-workspace.yaml` into the root file (pnpm ignores
-nested workspace manifests; leaving the nested file is inert but misleading):
+Prefix and carry over **every** mobile `packages:` glob, not only the known package directory. At
+measurement time mobile declares `packages/*`, which becomes `apps/mobile/packages/*` above. At
+execution time, diff the discovered workspace member set before and after the merge; if mobile has
+added another glob (for example `modules/*`), add its `apps/mobile/…` equivalent before deleting the
+nested manifest.
+
+Merge the following non-member keys from `apps/mobile/pnpm-workspace.yaml` into the root file (pnpm
+ignores nested workspace manifests; leaving the nested file is inert but misleading):
 
 | Key | Action |
 |---|---|
@@ -88,6 +118,11 @@ nested workspace manifests; leaving the nested file is inert but misleading):
 | `trustPolicy: no-downgrade` + `trustPolicyExclude` (5 entries: `eslint-import-resolver-typescript@3.10.1`, `react-native-chart-kit@7.0.2`, `semver@6.3.1`, `tinyexec@1.2.2`, `ua-parser-js@0.7.41\|\|1.0.41`) | Adopt verbatim |
 | `packageExtensions` (`@bottom-tabs/react-navigation@1.4.0` block et al.) | Merge verbatim |
 | `patchedDependencies` | See 1b-2 |
+
+`apps/mobile/package.json` currently declares `"packageManager": "pnpm@11.8.0"`. Remove that leaf
+declaration after verifying compatibility with the root's pinned pnpm version; the root becomes the
+single Corepack authority. Audit `engines` on both manifests and reconcile any incompatible Node or
+pnpm range before install (mobile has no `engines` field at measurement time).
 
 Then delete `apps/mobile/pnpm-workspace.yaml` and `apps/mobile/pnpm-lock.yaml`.
 
@@ -183,8 +218,13 @@ Actions does not read nested workflow directories; all four are dead on arrival.
 | `android-release.yml`, `ios-release.yml` | Relocate as `mobile-android-release.yml` / `mobile-ios-release.yml`; EAS credentials must be provisioned into `CherryHQ/cherry-studio` org secrets (requires org admin; can lag — see Risks) |
 | `port-bot.yml` | **Decommission** (cross-repository sync automation; purpose voided by the monorepo) |
 
-Desktop `ci.yml`: add `paths-ignore: ['apps/mobile/**', 'mobile-migration-temp/**']`.
-Delete the now-inert `apps/mobile/.github/` tree.
+Do **not** add workflow-level `paths-ignore` to desktop `ci.yml`. The `main` ruleset currently
+requires the `basic-checks`, `general-test`, and `render-test` contexts; if the workflow never
+starts, a mobile-only PR remains blocked at "Expected — Waiting for status to be reported."
+Instead, add a change-detection job and keep every required job name present on every PR. On a
+mobile-only diff, those jobs run an explicit no-op step; on desktop or shared-package diffs, they run
+the existing desktop gate. Re-query the active ruleset at execution time and prove the design with a
+mobile-only draft PR before merging Stage 1. Delete the now-inert `apps/mobile/.github/` tree.
 
 ---
 
@@ -203,14 +243,14 @@ pnpm --filter cherry-studio-app dev    # Metro boots; smoke test on simulator/de
 
 ## Rollback
 
-`git revert -m 1 <subtree-merge-sha>` + revert of the wiring commit restores the pre-landing state
+`git revert -m 1 <landing-pr-merge-sha>` + revert of the wiring PR restores the pre-landing state
 exactly (single-lockfile revert included).
 
 ## Risks
 
 | Risk | Mitigation |
 |---|---|
-| Lockfile conflicts against ~110 in-flight branches | Land 1b within one day of 1a; broadcast beforehand. Conflict resolution recipe for branch owners: `git checkout --theirs pnpm-lock.yaml && pnpm install` |
+| Lockfile conflicts against ~110 in-flight branches | Land 1b within one day of 1a; broadcast beforehand. Direction-independent conflict recipe: delete only the conflicted root `pnpm-lock.yaml`, then run `pnpm install` to regenerate it from the reconciled manifests |
 | Faulty reconciliation of the 4 divergent patches | Per-patch gate: desktop `pnpm test:main` + mobile `pnpm --filter cherry-studio-app test:ai-runtime` |
 | Hoisting shift breaks packaging | `build:unpack` is a hard gate; on failure inspect the app-builder-lib collector patch |
 | EAS secrets not yet provisioned | `mobile-ci.yml` (typecheck/test) lands first; release workflows may trail without blocking the landing |
@@ -219,5 +259,5 @@ exactly (single-lockfile revert included).
 
 | PR | Content |
 |---|---|
-| 1 | `feat(monorepo): land mobile application as apps/mobile subtree` — the merge commit only |
+| 1 | `feat(monorepo): land mobile application as apps/mobile subtree` — subtree merge only; repository-admin policy exception + GitHub **Create a merge commit** required; never squash/rebase |
 | 2 | `chore(workspace): integrate apps/mobile into the root workspace` — all of 1b + 1c evidence. 1b-1…3 and 1b-4 are inseparable (the workspace cannot install with duplicate package names); keep them in one PR |

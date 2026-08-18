@@ -55,6 +55,9 @@ the lint guard turns any violation into a CI failure rather than a runtime crash
      edits to the *moved* file surface as regular content conflicts on the package file, not as
      tree conflicts).
    - Type identity is preserved (re-export, not re-declaration).
+   - `export *` does not forward a default export. Audit every moved module and add
+     `export { default } from '@cherrystudio/<package>'` to its shim when the original module has a
+     default export.
 3. Mirror on mobile: the corresponding `apps/mobile/packages/universal/src/` module becomes a shim
    (or is repointed directly — mobile branch pressure is low).
 4. Append the new package glob to `SHARED_PURE_PACKAGES`.
@@ -87,17 +90,23 @@ Adjacent files `model.ts`, `provider.ts`, `providerTopology.ts`, `systemProvider
 `shortcut.ts`: **merge into `provider-registry`** (their content domain) or defer — do not mint
 packages for them.
 
-**Wave 2 — `packages/ai-protocol`**
+**Wave 2 — `packages/ai-primitives`**
 
 Desktop `src/shared/ai/` (24 entries) vs mobile `universal/src/ai/` (9 entries); measured drift
 2,721 lines. Extract the intersection only (⟳ re-verify): `agentSessionCompaction.ts`,
 `anthropicCache.ts`, `builtinTools.ts`, `generateImageTool.ts`, `paintingGenerateError.ts`,
 `prompts.ts`, `reasoning.ts`, `tools/`, `transport/`.
 
+This package is only the measured intersection of platform-pure AI primitives; the name describes
+that content rather than claiming a broader protocol boundary. The Agent protocol tracked by
+[#18802](https://github.com/CherryHQ/cherry-studio/issues/18802) is a separate architecture
+initiative, not a deliverable or prerequisite of this migration, and may proceed independently at
+any stage.
+
 Desktop-only remainder stays in `src/shared/ai/` (`agentSession*` ×5, `claudecode/`, `dsh*`,
-`pi*`, `builtinAgent.ts`, `compaction.ts`, `slashCommands.ts`, …) — predominantly bound to the
-desktop-only agents platform; individual files graduate when mobile ships the corresponding
-feature.
+`pi*`, `builtinAgent.ts`, `compaction.ts`, `slashCommands.ts`, …). Individual files graduate when
+mobile ships the corresponding feature; this extraction does not wait for #18802, and #18802 does
+not wait for this extraction.
 
 **Wave 3 — `packages/data-contract`** (largest: desktop `src/shared/data/` ≈20k lines; measured
 drift 13,867 lines)

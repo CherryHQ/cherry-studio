@@ -28,26 +28,24 @@ makes them invisible to `pnpm --filter`, changesets, and dependency auditing.
    guard allowlist (0d).
 3. Bundler aliases remain untouched — desktop consumption is unchanged; desktop diff is zero.
 
-## 0b. `packages/provider-catalog`: orphaned directory
+## 0b. `packages/provider-catalog`: developer-local notice (no repository change)
 
-**Current state.** The directory contains a single gitignored `.env` (≈40 provider API-key
-placeholders), no manifest, no sources.
+**Current state.** The path is absent from git. Some developer worktrees contain only a gitignored
+`.env` (≈40 provider API-key placeholders), with no manifest or sources.
 
-**Procedure.**
-1. Locate the consumer:
-   `grep -rn "provider-catalog" scripts/ packages/ src/ --include='*.ts' --include='*.json'`.
-2. If a consumer exists, relocate the `.env` convention to the consumer's own directory and update
-   its dotenv path. If none exists, delete the directory and notify developers to retain local
-   `.env` copies out-of-tree.
+There is nothing for a Stage 0 PR to remove. Do not automate deletion of this path because the
+ignored file may contain developer-owned secrets. Developers may inspect their own worktree and
+relocate or remove their local copy after confirming it has no consumer.
 
 ## 0c. `packages/ui`: undeclared dependencies + defective export condition
 
 **Current state.** `@cherrystudio/ui@1.0.0-alpha.1` is a **published** package whose sources import
 12 packages not declared in its manifest (they currently resolve only via pnpm root hoisting; an
 external consumer gets `ERR_MODULE_NOT_FOUND` while CI stays green). Additionally, its
-`exports["."]` map contains `"react-native": "./dist/index.js"` — a tsup scaffold artifact pointing
-the React Native resolution condition at the **web CJS build**; if Metro ever resolved this package
-it would bundle `react-dom` code paths into a native bundle.
+conditional export map repeats `"react-native": "./dist/…/index.js"` at the root and every JS
+subpath (`.`, `./components`, `./hooks`, `./utils`, `./icons`, `./icons/providers`) — tsup scaffold
+artifacts pointing the React Native condition at **web CJS builds**. If Metro ever resolved one of
+these entries it would bundle DOM code paths into a native bundle.
 
 **Procedure.**
 1. Add to `packages/ui/package.json` `dependencies` (versions pinned to the root lockfile's
@@ -57,9 +55,11 @@ it would bundle `react-dom` code paths into a native bundle.
    `@radix-ui/react-switch`.
 2. Add to `devDependencies`: `@testing-library/react`, `@testing-library/user-event`,
    `@types/hast` (the `hast` import is type-only).
-3. Delete the `"react-native"` key from `exports["."]`.
-4. Audit `packages/aiCore/package.json` and `packages/ai-sdk-provider/package.json` for the same
-   scaffold artifact; delete if present and equally unbacked by a native build.
+3. Delete the `"react-native"` condition from every entry in the `exports` map; checking only the
+   root entry leaves subpath imports broken under Metro.
+4. Audit every export entry in `packages/aiCore/package.json` and
+   `packages/ai-sdk-provider/package.json` for the same scaffold artifact; delete any condition
+   equally unbacked by a native build.
 
 ## 0d. Import-purity lint guard
 
@@ -129,6 +129,6 @@ cd packages/ui && pnpm build        # proves the package builds against its own 
 
 | PR | Scope | Conventional commit |
 |---|---|---|
-| 1 | 0a + 0b | `chore(packages): add mcp-trace manifests, remove provider-catalog stub` |
-| 2 | 0c | `fix(ui): declare phantom dependencies, drop bogus react-native export condition` |
+| 1 | 0a | `chore(mcp-trace): add workspace manifests` |
+| 2 | 0c | `fix(ui): declare phantom dependencies, drop bogus react-native export conditions` |
 | 3 | 0d + 0e | `chore(lint): shared-package purity guard` + `docs(shared-packages): conventions` |
