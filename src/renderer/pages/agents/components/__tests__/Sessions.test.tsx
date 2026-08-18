@@ -1265,16 +1265,77 @@ describe('Sessions', () => {
     expect(projectB.compareDocumentPosition(projectA) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it('renders work directories that do not have tasks', () => {
+  it('creates a task in a work directory that does not have tasks', async () => {
+    const onCreateSession = vi.fn()
     dataApiMocks.workspaces = [
       makeWorkspace('/Users/jd/project-a', { id: 'ws-a', name: 'Project A Workspace', orderKey: 'a' }),
       makeWorkspace('/Users/jd/project-empty', { id: 'ws-empty', name: 'Empty Workspace', orderKey: 'c' })
     ]
 
+    render(<SessionsForTest onCreateSession={onCreateSession} />)
+
+    const emptyWorkspaceGroup = screen.getByRole('button', { name: 'Empty Workspace' }).closest('div')
+    expect(emptyWorkspaceGroup).not.toBeNull()
+    expect(screen.getByText('No tasks')).toBeInTheDocument()
+    fireEvent.click(within(emptyWorkspaceGroup as HTMLElement).getByRole('button', { name: 'New task' }))
+
+    await vi.waitFor(() =>
+      expect(onCreateSession).toHaveBeenCalledWith({
+        agentId: 'agent-a',
+        workspace: { type: 'user', workspaceId: 'ws-empty' }
+      })
+    )
+  })
+
+  it('passes an empty work directory to session creation when there are no agents', async () => {
+    const onCreateSession = vi.fn()
+    const onShowMissingAgentSelection = vi.fn()
+    dataApiMocks.workspaces = [
+      makeWorkspace('/Users/jd/project-empty', { id: 'ws-empty', name: 'Empty Workspace', orderKey: 'a' })
+    ]
+    setupSessions({ sessions: [] })
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [],
+      isLoading: false,
+      error: undefined,
+      refetch: dataApiMocks.refetchAgents
+    })
+
+    render(
+      <SessionsForTest onCreateSession={onCreateSession} onShowMissingAgentSelection={onShowMissingAgentSelection} />
+    )
+
+    const emptyWorkspaceGroup = screen.getByRole('button', { name: 'Empty Workspace' }).closest('div')
+    expect(emptyWorkspaceGroup).not.toBeNull()
+    fireEvent.click(within(emptyWorkspaceGroup as HTMLElement).getByRole('button', { name: 'New task' }))
+
+    await vi.waitFor(() =>
+      expect(onCreateSession).toHaveBeenCalledWith({
+        agentId: null,
+        workspace: { type: 'user', workspaceId: 'ws-empty' }
+      })
+    )
+    expect(onShowMissingAgentSelection).not.toHaveBeenCalled()
+  })
+
+  it('deletes a work directory that does not have tasks', async () => {
+    dataApiMocks.workspaces = [
+      makeWorkspace('/Users/jd/project-empty', { id: 'ws-empty', name: 'Empty Workspace', orderKey: 'a' })
+    ]
+    setupSessions({ sessions: [] })
+
     render(<SessionsForTest />)
 
-    expect(screen.getByRole('button', { name: 'Empty Workspace' })).toBeInTheDocument()
-    expect(screen.getByText('No tasks')).toBeInTheDocument()
+    const emptyWorkspaceGroup = screen.getByRole('button', { name: 'Empty Workspace' }).closest('div')
+    expect(emptyWorkspaceGroup).not.toBeNull()
+    fireEvent.pointerDown(within(emptyWorkspaceGroup as HTMLElement).getByRole('button', { name: 'More' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Delete work directory' }))
+
+    await vi.waitFor(() =>
+      expect(dataApiMocks.deleteWorkspace).toHaveBeenCalledWith({
+        params: { workspaceId: 'ws-empty' }
+      })
+    )
   })
 
   it('renders agent groups in agent display mode', () => {

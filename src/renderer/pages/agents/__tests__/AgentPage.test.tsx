@@ -571,6 +571,16 @@ vi.mock('../AgentSidePanel', () => ({
           onClick={() => onCreateSession?.({ agentId: 'agent-a', workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM } })}>
           Create panel session
         </button>
+        <button
+          type="button"
+          onClick={() =>
+            onCreateSession?.({
+              agentId: null,
+              workspace: { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: 'workspace-a' }
+            })
+          }>
+          Create workspace session without agent
+        </button>
         {onManageAgents && (
           <button type="button" onClick={() => void onManageAgents()}>
             agent.manage.title
@@ -2341,6 +2351,39 @@ describe('AgentPage', () => {
     )
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-missing-agent'))
     expect(screen.getByTestId('missing-agent-selection')).toHaveTextContent('false')
+  })
+
+  it('preserves the requested workspace until a missing agent is selected', async () => {
+    agentPageMocks.routeSearch = {}
+    agentPageMocks.agents = []
+    agentPageMocks.dataApiPost.mockResolvedValue({
+      ...agentPageMocks.persistedSession,
+      id: 'session-workspace-agent',
+      agentId: 'agent-b',
+      name: '',
+      workspaceId: 'workspace-a',
+      workspace: agentPageMocks.workspace
+    })
+
+    const { rerender } = render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create workspace session without agent' }))
+    expect(screen.getByTestId('missing-agent-selection')).toHaveTextContent('true')
+    expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
+
+    agentPageMocks.agents = [{ id: 'agent-b', model: 'model-b', name: 'Agent B' }]
+    rerender(<AgentPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'Select missing agent' }))
+
+    await waitFor(() =>
+      expect(agentPageMocks.dataApiPost).toHaveBeenCalledWith('/agent-sessions', {
+        body: {
+          agentId: 'agent-b',
+          name: '',
+          workspace: { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: 'workspace-a' }
+        }
+      })
+    )
   })
 
   it('keeps the new tab session identity while the previous session remains visible', async () => {

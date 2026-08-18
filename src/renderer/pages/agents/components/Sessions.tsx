@@ -143,7 +143,7 @@ const DEFAULT_SESSION_GROUP_VISIBLE_COUNT = 5
 const LEFT_PANEL_TIME_SESSION_GROUP_VISIBLE_COUNT = 50
 
 type CreateSessionSeed = {
-  agentId: string
+  agentId?: string | null
   workspace?: AgentSessionWorkspaceSource
   workspacePath?: string
 }
@@ -1091,44 +1091,35 @@ const Sessions = ({
   const createSessionFromSeed = useCallback(
     async (seed: CreateSessionSeed | null | undefined) => {
       if (creatingSession) return null
-      if (!seed?.agentId) {
-        const defaultAgent = agentsForDisplay[0]
-        if (defaultAgent) {
-          const createdSession = await onCreateSession?.({
-            agentId: defaultAgent.id,
-            workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
-          })
-          if (!createdSession) setActiveSessionId(null)
-          return createdSession ?? null
-        }
-
-        await onShowMissingAgentSelection?.()
-        return null
-      }
-
-      const agent = agentById.get(seed.agentId)
-      if (!agent) return null
-
       setCreatingSession(true)
       try {
         const workspace =
-          seed.workspace ??
-          (seed.workspacePath
+          seed?.workspace ??
+          (seed?.workspacePath
             ? ({
                 type: AGENT_WORKSPACE_TYPE.USER,
                 workspaceId: (await findOrCreateWorkspace({ body: { path: seed.workspacePath } })).id
               } satisfies AgentSessionWorkspaceSource)
             : ({ type: AGENT_WORKSPACE_TYPE.SYSTEM } satisfies AgentSessionWorkspaceSource))
+        const requestedAgentId = seed?.agentId
+        const agentId =
+          (requestedAgentId && agentById.has(requestedAgentId) ? requestedAgentId : undefined) ??
+          agentsForDisplay[0]?.id ??
+          null
 
-        const createdSession = await onCreateSession?.({
-          agentId: seed.agentId,
+        if (!onCreateSession) {
+          await onShowMissingAgentSelection?.()
+          return null
+        }
+
+        const createdSession = await onCreateSession({
+          agentId,
           workspace
         })
 
-        if (!createdSession) setActiveSessionId(null)
         return createdSession ?? null
       } catch (err) {
-        logger.error('Failed to create session from session list', { err, agentId: seed.agentId })
+        logger.error('Failed to create session from session list', { err, agentId: seed?.agentId })
         toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
         return null
       } finally {
@@ -1142,7 +1133,6 @@ const Sessions = ({
       findOrCreateWorkspace,
       onShowMissingAgentSelection,
       onCreateSession,
-      setActiveSessionId,
       t
     ]
   )
@@ -1254,7 +1244,6 @@ const Sessions = ({
       const sessionIds = sessionItems
         .filter((session) => session.workspaceId === workspaceId)
         .map((session) => session.id)
-      if (sessionIds.length === 0) return
 
       const confirmed = await popup.confirm({
         title: t('agent.session.workdir.delete.title'),
@@ -1588,8 +1577,15 @@ const Sessions = ({
           : undefined
       const createSessionSeed =
         createSessionSeedIndex.byGroupId.get(group.id) ??
-        (agentGroupId ? { agentId: agentGroupId, workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM } } : null)
-      const canCreateSession = createSessionSeed !== null && agentById.has(createSessionSeed.agentId)
+        (agentGroupId
+          ? { agentId: agentGroupId, workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM } }
+          : workspaceId
+            ? {
+                agentId: agentsForDisplay[0]?.id ?? null,
+                workspace: { type: AGENT_WORKSPACE_TYPE.USER, workspaceId }
+              }
+            : null)
+      const canCreateSession = createSessionSeed !== null && !!(onCreateSession || onShowMissingAgentSelection)
       const canManageAgentGroup = !!agentGroupId && agentById.has(agentGroupId)
 
       if (!canCreateSession && !workdirPath && !canManageAgentGroup) return null
@@ -1647,6 +1643,7 @@ const Sessions = ({
     [
       agentById,
       agentPinnedIdSet,
+      agentsForDisplay,
       assistantIconType,
       creatingSession,
       deletingAgentId,
@@ -1661,6 +1658,8 @@ const Sessions = ({
       isAgentPinActionDisabled,
       isUpdatingWorkspace,
       openAgentEditor,
+      onCreateSession,
+      onShowMissingAgentSelection,
       requestCreateSessionFromSeed,
       setAssistantIconType,
       t,
@@ -1673,7 +1672,7 @@ const Sessions = ({
       if (section.id !== SESSION_NO_PROJECT_SECTION_ID) return null
 
       const createSessionSeed = createSessionSeedIndex.byGroupId.get(SESSION_NO_PROJECT_GROUP_ID) ?? null
-      const canCreateSession = createSessionSeed !== null && agentById.has(createSessionSeed.agentId)
+      const canCreateSession = !!createSessionSeed?.agentId && agentById.has(createSessionSeed.agentId)
       if (!canCreateSession) return null
 
       return (
@@ -1896,9 +1895,7 @@ const Sessions = ({
   const hasActiveCenterSurface = manageAgentsActive || historyRecordsActive
   const headerCreateLabel = displayMode === 'agent' ? t('agent.add.title') : t('agent.session.new')
   const headerCreateDisabled =
-    displayMode === 'agent'
-      ? !onAddAgent
-      : creatingSession || (!headerCreateSessionSeed && !onShowMissingAgentSelection)
+    displayMode === 'agent' ? !onAddAgent : creatingSession || (!onCreateSession && !onShowMissingAgentSelection)
   const handleHeaderCreate = displayMode === 'agent' ? () => void onAddAgent?.() : handleHeaderCreateSession
   const canSetPanePosition = displayMode === 'agent' || isRightPanel
 
