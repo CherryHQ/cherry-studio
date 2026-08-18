@@ -67,7 +67,6 @@ patchedDependencies:
   '@ai-sdk/openai@3.0.53': b2a56a32b4cf7aee1801b9a74d8098ea211135bcb2545f351f0835894c40db17
   '@ai-sdk/react@3.0.187': 8182f09c37c2d080e4794d30401712c0605e986e985380ea76699758f2ed7230
   '@ai-sdk/xai@3.0.111': 14ac373f04d53e60b277485bdcc1e590b2a2e17dfbe28575f5098c108a32977e
-  '@larksuiteoapi/node-sdk@1.73.0': ee6d35669d1f9a798b5fe624285e430ccb8de35fec06563d9fd43a540560f77d
   '@napi-rs/system-ocr@1.1.0': aa1a73e445ee644774745b620589bb99d85bee6c95cc2a91fe9137e580da5bde
   '@openrouter/ai-sdk-provider@2.10.0': fe61d9ff590828fc0fd3f8b3b8b88a4a1b736a99b595a276c8df9e12c9498009
   '@opeoginni/github-copilot-openai-compatible@1.0.0': 4bea0e526136ed32d0be4849ec5cbb41bd5de7b7418dd6920598357438cfef25
@@ -116,7 +115,7 @@ importers:
         version: 4.2.0(@types/node@24.10.4)
       '@larksuiteoapi/node-sdk':
         specifier: ^1.73.0
-        version: 1.73.0(patch_hash=ee6d35669d1f9a798b5fe624285e430ccb8de35fec06563d9fd43a540560f77d)
+        version: 1.73.0
       '@napi-rs/canvas':
         specifier: 0.1.97
         version: 0.1.97
@@ -19574,7 +19573,7 @@ snapshots:
   '@koromix/koffi-win32-x64@3.1.4':
     optional: true
 
-  '@larksuiteoapi/node-sdk@1.73.0(patch_hash=ee6d35669d1f9a798b5fe624285e430ccb8de35fec06563d9fd43a540560f77d)':
+  '@larksuiteoapi/node-sdk@1.73.0':
     dependencies:
       axios: 1.16.0
       lodash.identity: 3.0.0
