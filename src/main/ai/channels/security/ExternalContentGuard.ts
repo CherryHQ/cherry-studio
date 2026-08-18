@@ -1,18 +1,9 @@
 import { randomBytes } from 'node:crypto'
 
 import { loggerService } from '@logger'
+import { sanitizeUntrustedText, stripInvisibleCharacters } from '@main/ai/untrustedContent'
 
 const logger = loggerService.withContext('ExternalContentGuard')
-
-/**
- * Zero-width and invisible Unicode characters commonly used for steganographic
- * injection or to confuse text-based boundary matching.
- */
-const INVISIBLE_CHARS_RE =
-  // biome-ignore lint/suspicious/noMisleadingCharacterClass: intentional invisible char class
-  // oxlint-disable-next-line no-misleading-character-class -- intentional invisible char detection
-  // eslint-disable-next-line no-misleading-character-class
-  /[\u200B\u200C\u200D\u200E\u200F\uFEFF\u00AD\u2060\u2061\u2062\u2063\u2064\u2066\u2067\u2068\u2069\u206A-\u206F]/g
 
 /**
  * Suspicious prompt-injection patterns (advisory — logged, not blocked).
@@ -33,17 +24,6 @@ const SUSPICIOUS_PATTERNS: Array<{ name: string; re: RegExp }> = [
   { name: 'fake-boundary', re: /<<<\s*EXTERNAL/i }
 ]
 
-/**
- * Full-width and CJK angle brackets → ASCII (prevents boundary tag spoofing).
- */
-function normalizeAngleBrackets(text: string): string {
-  return text
-    .replace(/\uFF1C/g, '<') // fullwidth <
-    .replace(/\uFF1E/g, '>') // fullwidth >
-    .replace(/\u3008/g, '<') // CJK left angle
-    .replace(/\u3009/g, '>') // CJK right angle
-}
-
 export type ExternalContentMetadata = {
   chatId: string
   userId: string
@@ -55,7 +35,7 @@ export type ExternalContentMetadata = {
  * Strip invisible characters from untrusted text.
  */
 export function sanitizeInvisibleChars(text: string): string {
-  return text.replace(INVISIBLE_CHARS_RE, '')
+  return stripInvisibleCharacters(text)
 }
 
 /**
@@ -78,10 +58,7 @@ export function detectSuspiciousPatterns(text: string): string[] {
  */
 export function wrapExternalContent(text: string, metadata: ExternalContentMetadata): string {
   // Step 1: Normalize angle brackets to prevent boundary spoofing
-  let cleaned = normalizeAngleBrackets(text)
-
-  // Step 2: Strip invisible Unicode characters
-  cleaned = sanitizeInvisibleChars(cleaned)
+  const cleaned = sanitizeUntrustedText(text)
 
   // Step 3: Detect suspicious patterns (advisory)
   const suspicious = detectSuspiciousPatterns(cleaned)

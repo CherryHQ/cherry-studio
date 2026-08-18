@@ -9,6 +9,10 @@
       }
     },
     "session": {
+      "run_status": {
+        "busy": "Agent 会话正忙，请稍后重试。",
+        "unavailable": "Agent 会话已不可用。"
+      },
       "workspace_status": {
         "inaccessible": "工作区路径不可访问：{{path}}",
         "missing": "工作区路径不存在：{{path}}",

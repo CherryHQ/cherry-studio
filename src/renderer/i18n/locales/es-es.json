@@ -388,6 +388,15 @@
         "inaccessible": "La ruta del espacio de trabajo no es accesible: {{path}}"
       }
     },
+    "session_delivery": {
+      "from": "De {{agent}} / {{session}}",
+      "status": {
+        "accepted": "Aceptado",
+        "consumed": "Procesado",
+        "delivering": "Entregando",
+        "failed": "Fallido"
+      }
+    },
     "settings": {
       "permissionMode": {
         "title": "Modo de permisos"
@@ -3390,6 +3399,21 @@
         "stderr": "stderr",
         "stdout": "stdout"
       },
+      "sessionCreate": {
+        "created": "Se inició una nueva sesión",
+        "creating": "Iniciando una nueva sesión",
+        "firstMessage": "Primer mensaje",
+        "inheritedContext": "Usando este agente y espacio de trabajo",
+        "open": "Abrir sesión",
+        "sessionId": "ID de sesión",
+        "untitled": "Sesión sin título"
+      },
+      "sessionSend": {
+        "open": "Abrir sesión",
+        "sending": "Enviando a",
+        "sent": "Enviado a",
+        "to": "A"
+      },
       "status": {
         "done": "Hecho",
         "error": "Error",
@@ -5620,6 +5644,10 @@
         "select": "Seleccionar fuente",
         "title": "Configuración de fuente"
       }
+    },
+    "fetch": {
+      "allow_private_network": "Permitir el acceso a direcciones de red local",
+      "allow_private_network_tip": "Permite que las herramientas de obtención web accedan a localhost y a direcciones de red privada. Desactívalo si no quieres que los modelos lean servicios de tu equipo o de tu LAN."
     },
     "font_size": {
       "title": "Tamaño de fuente de mensajes"

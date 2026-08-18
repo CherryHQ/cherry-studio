@@ -388,6 +388,15 @@
         "inaccessible": "Le chemin de l'espace de travail n'est pas accessible : {{path}}"
       }
     },
+    "session_delivery": {
+      "from": "De {{agent}} / {{session}}",
+      "status": {
+        "accepted": "Accepté",
+        "consumed": "Traité",
+        "delivering": "En cours de livraison",
+        "failed": "Échec"
+      }
+    },
     "settings": {
       "permissionMode": {
         "title": "Mode d'autorisation"
@@ -3390,6 +3399,21 @@
         "stderr": "stderr",
         "stdout": "sortie standard"
       },
+      "sessionCreate": {
+        "created": "Nouvelle session démarrée",
+        "creating": "Démarrage d’une nouvelle session",
+        "firstMessage": "Premier message",
+        "inheritedContext": "Utilisation de cet agent et de cet espace de travail",
+        "open": "Ouvrir la session",
+        "sessionId": "ID de session",
+        "untitled": "Session sans titre"
+      },
+      "sessionSend": {
+        "open": "Ouvrir la session",
+        "sending": "Envoi vers",
+        "sent": "Envoyé à",
+        "to": "À"
+      },
       "status": {
         "done": "Fait",
         "error": "Erreur",
@@ -5620,6 +5644,10 @@
         "select": "Sélectionner la police",
         "title": "Paramètres de police"
       }
+    },
+    "fetch": {
+      "allow_private_network": "Autoriser l'accès aux adresses du réseau local",
+      "allow_private_network_tip": "Permet aux outils de récupération web d'accéder à localhost et aux adresses de réseau privé. Désactivez cette option si vous ne souhaitez pas que les modèles lisent les services de votre machine ou de votre réseau local."
     },
     "font_size": {
       "title": "Taille de police des messages"

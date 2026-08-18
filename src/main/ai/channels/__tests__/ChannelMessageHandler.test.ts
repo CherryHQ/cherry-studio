@@ -128,6 +128,7 @@ function simulateStream(parts: Array<{ type: string; delta?: string }>) {
         }
         await listener.onDone({ status: 'success' })
       }
+      return { mode: 'started' }
     }
   )
 }
@@ -210,6 +211,43 @@ describe('ChannelMessageHandler', () => {
     expect(mockEnqueueTerminalDelivery).toHaveBeenCalledTimes(1)
     expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'Hello world!\n\nDone.')
+  })
+
+  it('settles a busy channel message and leaves the chat queue usable', async () => {
+    const adapter = createMockAdapter()
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      agentType: 'claude-code',
+      model: 'openai::gpt-4',
+      workspace: { path: '/tmp/test-workspace' },
+      configuration: {}
+    }
+    vi.mocked(agentSessionService.create).mockReturnValue(session as any)
+    mockStartAgentSessionRun.mockResolvedValueOnce({ mode: 'not-started', reason: 'busy' })
+
+    await handleIncomingAndFlush(adapter, {
+      chatId: 'chat-1',
+      userId: 'user-1',
+      userName: 'User',
+      text: 'first'
+    })
+
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'The Agent Session is busy. Please try again shortly.', {
+      replyToMessageId: undefined
+    })
+    const typingCallsAfterBusy = adapter.sendTypingIndicator.mock.calls.length
+    await vi.advanceTimersByTimeAsync(8_000)
+    expect(adapter.sendTypingIndicator).toHaveBeenCalledTimes(typingCallsAfterBusy)
+
+    simulateStream([{ type: 'text-delta', delta: 'second completed' }])
+    await handleIncomingAndFlush(adapter, {
+      chatId: 'chat-1',
+      userId: 'user-1',
+      userName: 'User',
+      text: 'second'
+    })
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'second completed')
   })
 
   // channels-core-3: the streaming delivery path (real ChannelAdapterListener) must route
@@ -422,6 +460,7 @@ describe('ChannelMessageHandler', () => {
         // Channel-triggered runs have no interactive responder — headless keeps AskUserQuestion
         // disallowed so the run can't stall on an approval prompt.
         headless: true,
+        requireIdle: { expectedAgentId: 'agent-1' },
         listeners: expect.arrayContaining([
           expect.objectContaining({ id: expect.stringContaining('channel-completion:') })
         ])

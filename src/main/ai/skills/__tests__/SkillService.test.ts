@@ -1788,4 +1788,42 @@ describe('SkillService', () => {
       ).toHaveLength(1)
     })
   })
+
+  describe('extractZip (zip-slip guard)', () => {
+    const callExtractZip = (service: SkillService, zipPath: string, destDir: string) =>
+      (service as unknown as { extractZip: (z: string, d: string) => Promise<void> }).extractZip(zipPath, destDir)
+
+    it('rejects entries that escape the destination dir before extracting', async () => {
+      const skillService = new SkillService()
+      const zipDir = await createTempDir('skill-zipslip-')
+      const destDir = await createTempDir('skill-dest-')
+      const zip = new AdmZip()
+      zip.addFile('SKILL.md', Buffer.from('---\nname: x\n---\n'))
+      zip.addFile('../../../evil-slip-marker.sh', Buffer.from('pwn'))
+      const zipPath = path.join(zipDir, 'skill.zip')
+      zip.writeZip(zipPath)
+
+      // node-stream-zip rejects malicious names itself ('Malicious entry') and the
+      // explicit guard is defense-in-depth — either layer rejecting satisfies the contract.
+      await expect(callExtractZip(skillService, zipPath, destDir)).rejects.toThrow(/zip-slip|Malicious entry/)
+
+      // Nothing was written — not the safe entry, and no marker escaped beside destDir.
+      expect(fs.existsSync(path.join(destDir, 'SKILL.md'))).toBe(false)
+      expect(fs.existsSync(path.join(destDir, '..', 'evil-slip-marker.sh'))).toBe(false)
+    })
+
+    it('extracts a well-formed skill zip', async () => {
+      const skillService = new SkillService()
+      const zipDir = await createTempDir('skill-zip-ok-')
+      const destDir = await createTempDir('skill-dest-')
+      const zip = new AdmZip()
+      zip.addFile('SKILL.md', Buffer.from('---\nname: x\n---\n'))
+      zip.addFile('nested/helper.md', Buffer.from('# helper'))
+      const zipPath = path.join(zipDir, 'skill.zip')
+      zip.writeZip(zipPath)
+
+      await callExtractZip(skillService, zipPath, destDir)
+      await expect(fs.promises.readFile(path.join(destDir, 'SKILL.md'), 'utf-8')).resolves.toContain('name: x')
+    })
+  })
 })

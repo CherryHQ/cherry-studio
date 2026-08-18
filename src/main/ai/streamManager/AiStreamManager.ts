@@ -374,6 +374,9 @@ export class AiStreamManager extends BaseService {
   /** Gate-admitted dispatches still inside `prepareDispatch → send`. Registered before the
    *  first async admission gap can yield to pause/drain, then removed after stream handoff. */
   private readonly inFlightDispatches = new Map<Promise<AiStreamOpenResponse>, string>()
+  /** Terminal persistence ports currently writing by topic. Unlike `hasLiveStream`, this remains
+   *  true after execution ends and clears before runtime/renderer terminal listeners run. */
+  private readonly terminalPersistenceCounts = new Map<string, number>()
   /** Steer continuations suppressed by the write-quiesce gate; the last hold's disposal re-kicks
    *  them (mirrors JobManager's suppressed-fires sets). */
   private readonly suppressedChatContinuationTopicIds = new Set<string>()
@@ -1440,6 +1443,11 @@ export class AiStreamManager extends BaseService {
    */
   hasLiveStream(topicId: string): boolean {
     return isStreamExecuting(this.activeStreams.get(topicId))
+  }
+
+  /** True while a terminal persistence port is writing durable state for this topic. */
+  hasTerminalPersistenceInFlight(topicId: string): boolean {
+    return (this.terminalPersistenceCounts.get(topicId) ?? 0) > 0
   }
 
   /** Wait for the displaced attempt's terminal persistence, then decide again
@@ -2945,32 +2953,45 @@ export class AiStreamManager extends BaseService {
     invoke: (port: StreamPersistencePort) => void | Promise<void>,
     portIds?: ReadonlySet<string>
   ): Promise<PersistenceDispatchFailure | undefined> {
+    const ports = [...stream.persistencePorts].filter(([id]) => !portIds || portIds.has(id))
+    if (ports.length === 0) return undefined
+
+    this.terminalPersistenceCounts.set(stream.topicId, (this.terminalPersistenceCounts.get(stream.topicId) ?? 0) + 1)
     let persistenceFailure: PersistenceDispatchFailure | undefined
-    for (const [id, port] of stream.persistencePorts) {
-      if (portIds && !portIds.has(id)) continue
-      try {
-        await invoke(port)
-      } catch (err) {
-        if (err instanceof TerminalPersistenceError) {
-          if (!persistenceFailure) {
-            persistenceFailure = {
-              error: err.serializedError,
-              durableErrorWritten: err.durableErrorWritten,
+    try {
+      for (const [id, port] of ports) {
+        try {
+          await invoke(port)
+        } catch (err) {
+          if (err instanceof TerminalPersistenceError) {
+            if (!persistenceFailure) {
+              persistenceFailure = {
+                error: err.serializedError,
+                durableErrorWritten: err.durableErrorWritten,
+                blockedPortIds: new Set()
+              }
+            } else if (!err.durableErrorWritten) {
+              persistenceFailure.durableErrorWritten = false
+            }
+            if (!err.durableErrorWritten) persistenceFailure.blockedPortIds.add(id)
+          } else {
+            logger.warn('Persistence port threw', { topicId: stream.topicId, persistencePortId: id, event, err })
+            persistenceFailure ??= {
+              error: serializeError(err),
+              durableErrorWritten: false,
               blockedPortIds: new Set()
             }
-          } else if (!err.durableErrorWritten) {
             persistenceFailure.durableErrorWritten = false
+            persistenceFailure.blockedPortIds.add(id)
           }
-          if (!err.durableErrorWritten) persistenceFailure.blockedPortIds.add(id)
-        } else {
-          logger.warn('Persistence port threw', { topicId: stream.topicId, persistencePortId: id, event, err })
-          persistenceFailure ??= { error: serializeError(err), durableErrorWritten: false, blockedPortIds: new Set() }
-          persistenceFailure.durableErrorWritten = false
-          persistenceFailure.blockedPortIds.add(id)
         }
       }
+      return persistenceFailure
+    } finally {
+      const remaining = (this.terminalPersistenceCounts.get(stream.topicId) ?? 1) - 1
+      if (remaining === 0) this.terminalPersistenceCounts.delete(stream.topicId)
+      else this.terminalPersistenceCounts.set(stream.topicId, remaining)
     }
-    return persistenceFailure
   }
 
   private async dispatchCleanupPorts(

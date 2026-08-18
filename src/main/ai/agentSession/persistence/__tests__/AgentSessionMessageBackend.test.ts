@@ -158,4 +158,16 @@ describe('AgentSessionMessageBackend', () => {
       data: { parts: [{ type: 'text', text: 'settled elsewhere' }] }
     })
   })
+
+  it('terminalizes an empty successful Agent reply on its reserved placeholder', () => {
+    seedPendingPlaceholder()
+    const backend = new AgentSessionMessageBackend({
+      sessionId: SESSION_ID,
+      assistantMessageId: ASSISTANT_MESSAGE_ID
+    })
+
+    backend.persistAssistant({ status: 'success' })
+
+    expect(assistantRows()[0]).toMatchObject({ status: 'success', data: { parts: [] } })
+  })
 })
