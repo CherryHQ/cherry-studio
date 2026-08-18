@@ -3493,7 +3493,7 @@
     "pinned": "Fixat",
     "price": {
       "add_tier": "Adaugă nivel de preț",
-      "cache_fallback_help": "Lăsați prețurile cache necompletate pentru a utiliza prețul de intrare al acestui nivel; introduceți 0 pentru gratuit.",
+      "cache_fallback_help": "Lăsați un preț necompletat când este necunoscut; prețurile cache necompletate utilizează prețul de intrare al acestui nivel; introduceți 0 pentru gratuit.",
       "cache_read": "Preț Citire Cache",
       "cache_write": "Preț scriere cache",
       "currency": "Monedă",
@@ -3506,6 +3506,7 @@
       "remove_tier": "Elimină nivelul de preț {{index}}",
       "tier": "Nivel {{index}}",
       "tier_from": "De la {{boundary}} tokenuri de intrare (inclusiv)",
+      "unpriced": "Necunoscut",
       "use_input_price": "Folosește prețul de intrare",
       "validation_min_input_tokens": "Introduceți un număr întreg pozitiv.",
       "validation_min_input_tokens_order": "Nivelul trebuie să înceapă după nivelul anterior.",

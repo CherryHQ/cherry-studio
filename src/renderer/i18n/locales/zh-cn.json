@@ -3493,7 +3493,7 @@
     "pinned": "已固定",
     "price": {
       "add_tier": "添加价格档位",
-      "cache_fallback_help": "缓存价格留空时回退到本档输入价格；输入 0 表示免费。",
+      "cache_fallback_help": "价格未知时请留空；缓存价格留空时回退到本档输入价格；输入 0 表示免费。",
       "cache_read": "缓存读取价格",
       "cache_write": "缓存写入价格",
       "currency": "币种",
@@ -3506,6 +3506,7 @@
       "remove_tier": "删除第 {{index}} 个价格档位",
       "tier": "档位 {{index}}",
       "tier_from": "从 {{boundary}} 个输入 Token 起（含）",
+      "unpriced": "未知",
       "use_input_price": "使用输入价格",
       "validation_min_input_tokens": "请输入正整数。",
       "validation_min_input_tokens_order": "本档起点必须大于上一档。",

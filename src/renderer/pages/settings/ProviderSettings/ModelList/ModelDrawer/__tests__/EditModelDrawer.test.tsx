@@ -276,6 +276,29 @@ describe('EditModelDrawer pricing', () => {
     })
   })
 
+  it('saves a blanked price as unknown instead of free', async () => {
+    const user = userEvent.setup()
+    render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={makePricingModel()} />)
+
+    await user.clear(screen.getByLabelText('models.price.input'))
+    await user.tab()
+
+    expect(updateModelMock).toHaveBeenCalledTimes(1)
+    expect(updateModelMock.mock.calls[0][2].pricing).toEqual({
+      input: { perMillionTokens: null, currency: CURRENCY.USD },
+      output: { perMillionTokens: 15, currency: CURRENCY.USD },
+      cacheWrite: { perMillionTokens: 3.75, currency: CURRENCY.USD }
+    })
+  })
+
+  it('shows an unpriced model as blank rather than 0', () => {
+    const model = { ...makePricingModel(), pricing: undefined } as unknown as Model
+    render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={model} />)
+
+    expect(screen.getByLabelText('models.price.input')).toHaveValue(null)
+    expect(screen.getByLabelText('models.price.output')).toHaveValue(null)
+  })
+
   it('moves every pricing tier to the newly selected currency', async () => {
     const user = userEvent.setup()
     render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={makeTieredPricingModel()} />)

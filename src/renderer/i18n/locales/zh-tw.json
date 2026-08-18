@@ -3493,7 +3493,7 @@
     "pinned": "已固定",
     "price": {
       "add_tier": "新增價格級距",
-      "cache_fallback_help": "將快取價格留空可使用此級距的輸入價格；輸入 0 表示免費。",
+      "cache_fallback_help": "價格未知時請留空；快取價格留空時回退到本級距的輸入價格；輸入 0 表示免費。",
       "cache_read": "快取讀取價格",
       "cache_write": "快取寫入價格",
       "currency": "幣種",
@@ -3506,6 +3506,7 @@
       "remove_tier": "移除價格級距 {{index}}",
       "tier": "級距 {{index}}",
       "tier_from": "從 {{boundary}} 個輸入 Token 起（含）",
+      "unpriced": "未知",
       "use_input_price": "使用輸入價格",
       "validation_min_input_tokens": "請輸入正整數。",
       "validation_min_input_tokens_order": "此級距必須從前一個級距之後開始。",

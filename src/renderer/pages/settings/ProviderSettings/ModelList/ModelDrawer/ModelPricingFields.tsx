@@ -75,12 +75,11 @@ function TierPriceField({
           type="number"
           min="0"
           step="any"
-          required={!optional}
           aria-label={ariaLabel}
           aria-invalid={Boolean(error)}
           aria-describedby={error ? errorId : undefined}
           value={value}
-          placeholder={optional ? t('models.price.use_input_price') : '0.00'}
+          placeholder={optional ? t('models.price.use_input_price') : t('models.price.unpriced')}
           className={drawerClasses.input}
           onChange={(event) => onChange(field, event.target.value)}
           onBlur={onBlur}

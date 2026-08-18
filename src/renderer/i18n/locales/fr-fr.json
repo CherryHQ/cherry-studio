@@ -3493,7 +3493,7 @@
     "pinned": "Épinglé",
     "price": {
       "add_tier": "Ajouter un niveau de tarification",
-      "cache_fallback_help": "Laissez les prix du cache vides pour utiliser le prix d'entrée de ce niveau ; entrez 0 pour gratuit.",
+      "cache_fallback_help": "Laissez un prix vide lorsqu'il est inconnu ; les prix du cache vides utilisent le prix d'entrée de ce niveau ; entrez 0 pour gratuit.",
       "cache_read": "Prix de lecture du cache",
       "cache_write": "Prix d'écriture en cache",
       "currency": "Devise",
@@ -3506,6 +3506,7 @@
       "remove_tier": "Supprimer le niveau tarifaire {{index}}",
       "tier": "Niveau {{index}}",
       "tier_from": "De {{boundary}} jetons d'entrée (inclus)",
+      "unpriced": "Inconnu",
       "use_input_price": "Utilisez le prix d'entrée",
       "validation_min_input_tokens": "Entrez un nombre entier positif.",
       "validation_min_input_tokens_order": "Le niveau doit commencer après le niveau précédent.",

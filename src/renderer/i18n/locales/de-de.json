@@ -3493,7 +3493,7 @@
     "pinned": "Angeheftet",
     "price": {
       "add_tier": "Tarifstufe hinzufügen",
-      "cache_fallback_help": "Lassen Sie die Cache-Preise leer, um den Eingabepreis dieser Stufe zu verwenden; geben Sie 0 für kostenlos ein.",
+      "cache_fallback_help": "Lassen Sie einen Preis leer, wenn er unbekannt ist; leere Cache-Preise verwenden den Eingabepreis dieser Stufe; geben Sie 0 für kostenlos ein.",
       "cache_read": "Cache-Lesepreis",
       "cache_write": "Cache-Schreibpreis",
       "currency": "Währung",
@@ -3506,6 +3506,7 @@
       "remove_tier": "Preisstufe {{index}} entfernen",
       "tier": "Tier {{index}}",
       "tier_from": "Ab {{boundary}} Eingabe-Tokens (einschließlich)",
+      "unpriced": "Unbekannt",
       "use_input_price": "Eingabepreis verwenden",
       "validation_min_input_tokens": "Gib eine positive ganze Zahl ein.",
       "validation_min_input_tokens_order": "Die Stufe muss nach der vorherigen Stufe beginnen.",

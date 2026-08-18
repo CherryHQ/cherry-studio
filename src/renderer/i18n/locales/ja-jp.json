@@ -3493,7 +3493,7 @@
     "pinned": "固定済み",
     "price": {
       "add_tier": "料金階層を追加",
-      "cache_fallback_help": "キャッシュ価格を空白のままにすると、このティアの入力価格が使用されます。無料にする場合は0を入力してください。",
+      "cache_fallback_help": "価格が不明な場合は空白のままにしてください。キャッシュ価格を空白にすると、このティアの入力価格が使用されます。無料にする場合は0を入力してください。",
       "cache_read": "キャッシュ読み取り価格",
       "cache_write": "キャッシュ書き込み料金",
       "currency": "通貨",
@@ -3506,6 +3506,7 @@
       "remove_tier": "価格ティア {{index}} を削除",
       "tier": "ティア {{index}}",
       "tier_from": "{{boundary}}入力トークンから（境界値を含む）",
+      "unpriced": "不明",
       "use_input_price": "入力価格を使用",
       "validation_min_input_tokens": "正の整数を入力してください。",
       "validation_min_input_tokens_order": "ティアは前のティアの後に開始する必要があります。",
