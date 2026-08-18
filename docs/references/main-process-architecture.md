@@ -17,7 +17,7 @@ Exactly these, each with a single charter:
 | `features` | **Domain modules** | Business domains, one directory each. A complex domain bundles its own related services / utils / etc. under `features/<domain>/`. |
 | `services` | **Business services** | Business feature services. A simple service is a single file; a larger one is organized into its own subdirectory. |
 | `utils` | **Stateless helpers** | Cross-domain stateless, domain-agnostic functions with no single owner. "Stateless" is the bar, not "pure": a helper may reach infra through the ambient `@application` / `@logger` (§3); it just owns no state and performs no outward side effects (§2). |
-| `i18n` | **Main-process localization** | Main's own locale catalog (`locales/` human + `translate/` machine) and its `t()` / `getI18n()` resolver. A deliberate, governed expansion of the closed set (§4), mirroring `src/renderer/i18n/` so each process owns an independent catalog; the `utils/i18n/` alternative was rejected for that cross-process symmetry. |
+| `i18n` | **Main-process localization** | Main's own `locales/` catalog and its `t()` / `getI18n()` resolver. A deliberate, governed expansion of the closed set (§4), mirroring `src/renderer/i18n/` so each process owns an independent catalog; the `utils/i18n/` alternative was rejected for that cross-process symmetry. |
 
 Entry files: `main.ts` (process entry — runs preboot, then `application.bootstrap()`; a named file, since `index` is reserved for barrels per [Naming §6.4](./naming-conventions.md)) and `ipc.ts` (legacy IPC registration, being retired into `ipc/`).
 

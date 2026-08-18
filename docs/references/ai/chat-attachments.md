@@ -21,7 +21,7 @@ Decided per file part in `prepareChatMessages`
 |---|---|---|
 | image | model is vision | native image part (inline) |
 | image | non-vision, OCR finds text | OCR text, inline (capped) |
-| image | non-vision, no OCR text (or OCR unconfigured/failed) | native image part (inline base64) |
+| image | non-vision, no OCR text (or OCR unconfigured/failed) | user-facing error; no provider request |
 | pdf | provider+model native PDF | native PDF part (inline) |
 | pdf | otherwise | extracted text, inline (capped) |
 | office (`docx/xlsx/pptx/odf`) | — | extracted text, inline (capped) |
@@ -41,12 +41,12 @@ Decided per file part in `prepareChatMessages`
 - Binary / unsupported types are **not** auto-decoded — they'd inline as mojibake
   — so they get a short note instead.
 - A non-vision image only degrades to OCR text when OCR actually finds text.
-  Otherwise (empty OCR result, unconfigured or failed OCR) the native image is
-  forwarded anyway — the vision verdict describes the model while the request
-  goes to an endpoint, so the provider decides. A model behind a gateway that
-  accepts images, or whose vision capability is merely under-declared, still
-  sees the picture.
-- Any per-file failure (missing entry, parse error, failed materialization)
+  Otherwise (empty OCR result, unconfigured or failed OCR) attachment routing
+  raises a localized error before opening the provider request. A gateway-backed
+  model that accepts images must have **Vision** enabled under Provider Settings
+  → model input modalities; that user override takes precedence over the catalog
+  and sends the native image without running OCR.
+- Any other per-file failure (missing entry, parse error, failed materialization)
   degrades to a `[could not read this file].` note rather than dropping the
   file or failing the request.
 - **Non-native** → the file part is replaced by its extracted text (see the
@@ -129,4 +129,5 @@ pass through inline, non-native PDFs go through extraction.
 - Content visibility never depends on a tool call.
 - `fileEntryId` never reaches the model (filename in, filename out).
 - Native modalities keep provider-native handling.
+- Models not configured for image input never receive native image parts.
 - Per-turn context is bounded by the cap.

@@ -133,23 +133,51 @@ function isSectionVirtualGroup(group: ResourceListVirtualGroupData) {
 
 function useAutoHideScrollbar(delay = SCROLLBAR_AUTO_HIDE_DELAY) {
   const [stage, setStage] = useState<ScrollbarStage>('idle')
-  const timeoutRefs = useRef<ReturnType<typeof setTimeout>[]>([])
+  const stageRef = useRef<ScrollbarStage>('idle')
+  const fadeStartAtRef = useRef(0)
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const clearScrollingTimeout = useCallback(() => {
-    timeoutRefs.current.forEach(clearTimeout)
-    timeoutRefs.current = []
+    if (timeoutRef.current === null) return
+
+    clearTimeout(timeoutRef.current)
+    timeoutRef.current = null
   }, [])
 
+  const updateStage = useCallback((nextStage: ScrollbarStage) => {
+    if (stageRef.current === nextStage) return
+
+    stageRef.current = nextStage
+    setStage(nextStage)
+  }, [])
+
+  const scheduleNextStage = useCallback(
+    function scheduleNextStage(timeout: number) {
+      timeoutRef.current = setTimeout(() => {
+        timeoutRef.current = null
+        const remainingDelay = fadeStartAtRef.current - performance.now()
+        if (remainingDelay > 0) {
+          scheduleNextStage(remainingDelay)
+          return
+        }
+
+        if (stageRef.current === 'active') updateStage('fade-1')
+        else if (stageRef.current === 'fade-1') updateStage('fade-2')
+        else if (stageRef.current === 'fade-2') updateStage('fade-3')
+        else if (stageRef.current === 'fade-3') updateStage('idle')
+
+        if (stageRef.current !== 'idle') scheduleNextStage(SCROLLBAR_FADE_STEP)
+      }, timeout)
+    },
+    [updateStage]
+  )
+
   const handleScroll = useCallback(() => {
-    clearScrollingTimeout()
-    setStage('active')
-    timeoutRefs.current = [
-      setTimeout(() => setStage('fade-1'), delay),
-      setTimeout(() => setStage('fade-2'), delay + SCROLLBAR_FADE_STEP),
-      setTimeout(() => setStage('fade-3'), delay + SCROLLBAR_FADE_STEP * 2),
-      setTimeout(() => setStage('idle'), delay + SCROLLBAR_FADE_STEP * 3)
-    ]
-  }, [clearScrollingTimeout, delay])
+    fadeStartAtRef.current = performance.now() + delay
+    updateStage('active')
+    // Keep one deadline-driven timer alive so a scroll burst only updates the deadline.
+    if (timeoutRef.current === null) scheduleNextStage(delay)
+  }, [delay, scheduleNextStage, updateStage])
 
   useEffect(() => clearScrollingTimeout, [clearScrollingTimeout])
 
