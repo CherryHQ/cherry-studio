@@ -39,9 +39,14 @@ const logger = loggerService.withContext('SkillService')
 // API base URLs for the 3 search sources
 const CLAUDE_PLUGINS_API = 'https://api.claude-plugins.dev'
 
-// ZIP extraction limits
-const MAX_EXTRACTED_SIZE = 100 * 1024 * 1024 // 100MB
-const MAX_FILES_COUNT = 2000
+// What one installed skill may weigh — the directory holding SKILL.md is all that reaches the library.
+const MAX_SKILL_SIZE = 100 * 1024 * 1024 // 100MB
+const MAX_SKILL_FILES = 20_000
+// What may be unpacked while looking for that skill. An archive is routinely a repository zipball
+// carrying one skill plus the whole repository around it, none of which is installed, so this bounds
+// the temp directory rather than the skill.
+const MAX_ARCHIVE_SIZE = 1024 * 1024 * 1024 // 1GB
+const MAX_ARCHIVE_ENTRIES = 50_000
 const MAX_FOLDER_NAME_LENGTH = 80
 // A direct-URL install points git at a repository nobody vetted; no single step may hang forever.
 const GIT_COMMAND_TIMEOUT_MS = 2 * 60 * 1000
@@ -224,6 +229,7 @@ export class SkillService {
     try {
       await this.extractZip(canonicalZipPath, tempDir)
       const skillDir = await this.locateSkillDir(tempDir)
+      await this.assertSkillDirectoryWithinLimits(skillDir)
       return await this.installSkillDir(skillDir, 'zip', sourceUrl)
     } finally {
       await this.safeRemoveDirectory(tempDir)
@@ -602,7 +608,12 @@ export class SkillService {
     await git(['checkout', '--quiet', 'FETCH_HEAD'])
   }
 
-  /** Apply the same ceilings an untrusted ZIP gets — a repository is no more trusted than an archive. */
+  /**
+   * Bound what actually gets installed. Every install path converges here once its skill directory
+   * is known, so the ceilings measure the skill rather than whatever archive or repository carried
+   * it. Measuring the whole directory before rejecting keeps the error honest: stopping at the file
+   * that crosses a ceiling would report the limit plus one file instead of the real total.
+   */
   private async assertSkillDirectoryWithinLimits(skillDir: string): Promise<void> {
     let totalSize = 0
     let fileCount = 0
@@ -618,16 +629,17 @@ export class SkillService {
 
         fileCount += 1
         totalSize += (await fs.promises.stat(entryPath)).size
-        if (totalSize > MAX_EXTRACTED_SIZE) {
-          throw new Error(`Skill directory too large: exceeds ${MAX_EXTRACTED_SIZE} bytes`)
-        }
-        if (fileCount > MAX_FILES_COUNT) {
-          throw new Error(`Skill directory has too many files: exceeds ${MAX_FILES_COUNT}`)
-        }
       }
     }
 
     await walk(skillDir)
+
+    if (totalSize > MAX_SKILL_SIZE) {
+      throw new Error(`Skill holds ${totalSize} bytes, over the ${MAX_SKILL_SIZE}-byte limit`)
+    }
+    if (fileCount > MAX_SKILL_FILES) {
+      throw new Error(`Skill holds ${fileCount} files, over the ${MAX_SKILL_FILES}-file limit`)
+    }
   }
 
   /**
@@ -755,6 +767,7 @@ export class SkillService {
         throw new Error(`No SKILL.md found at the clawhub archive root: ${identifier}`)
       }
       const skillDir = await this.validateRepositorySkillDirectory(extractDir, extractDir, skillMdPath)
+      await this.assertSkillDirectoryWithinLimits(skillDir)
       const metadata = await parseSkillMetadata(skillDir, slug, 'skills', { calculateSize: false })
       if ((metadata.slug ?? metadata.name).toLowerCase() !== slug.toLowerCase()) {
         throw new Error(`clawhub archive did not match the requested skill: ${identifier}`)
@@ -926,20 +939,20 @@ export class SkillService {
     const zip = new StreamZip.async({ file: zipFilePath })
 
     try {
-      const entries = await zip.entries()
-      let totalSize = 0
-      let fileCount = 0
+      const entries = Object.values(await zip.entries())
+      // Measure the whole archive before rejecting it. Stopping at the entry that crosses a ceiling
+      // reports the running counter — always the limit plus one entry — so an archive many times
+      // over the limit reads as barely over it, and the user cannot tell why the install failed.
+      // The central directory is already parsed and in memory here, so the full scan costs no I/O.
+      const totalSize = entries.reduce((sum, entry) => sum + entry.size, 0)
 
-      for (const entry of Object.values(entries)) {
-        totalSize += entry.size
-        fileCount++
-
-        if (totalSize > MAX_EXTRACTED_SIZE) {
-          throw new Error(`ZIP too large: ${totalSize} bytes exceeds ${MAX_EXTRACTED_SIZE}`)
-        }
-        if (fileCount > MAX_FILES_COUNT) {
-          throw new Error(`ZIP has too many files: ${fileCount} exceeds ${MAX_FILES_COUNT}`)
-        }
+      if (totalSize > MAX_ARCHIVE_SIZE) {
+        throw new Error(
+          `Skill archive expands to ${totalSize} bytes when extracted, over the ${MAX_ARCHIVE_SIZE}-byte limit`
+        )
+      }
+      if (entries.length > MAX_ARCHIVE_ENTRIES) {
+        throw new Error(`Skill archive contains ${entries.length} entries, over the ${MAX_ARCHIVE_ENTRIES}-entry limit`)
       }
 
       await zip.extract(null, destDir)

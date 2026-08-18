@@ -955,7 +955,7 @@ describe('SkillService', () => {
       const locatedSkillDir = path.join(extractDir, 'skill')
       await fs.promises.writeFile(realZipPath, new Uint8Array([1, 2, 3]))
       await fs.promises.symlink(realZipPath, linkedZipPath)
-      await fs.promises.mkdir(extractDir, { recursive: true })
+      await fs.promises.mkdir(locatedSkillDir, { recursive: true })
       const canonicalZipPath = await fs.promises.realpath(realZipPath)
 
       vi.spyOn(skillService as never, 'createTempDir').mockResolvedValue(extractDir as never)
@@ -969,30 +969,62 @@ describe('SkillService', () => {
       expect(installSkillDirSpy).toHaveBeenCalledWith(locatedSkillDir, 'zip', pathToFileURL(canonicalZipPath).href)
     })
 
-    it('accepts ZIP archives containing 2,000 entries', async () => {
-      const skillService = new SkillService()
-      const root = await createTempDir('skill-zip-limit-')
-      const zipPath = path.join(root, 'limit.zip')
-      const extractDir = path.join(root, 'extract')
-      const zip = new AdmZip()
-      for (let index = 0; index < 2_000; index++) zip.addFile(`${index}.txt`, Buffer.alloc(0))
-      zip.writeZip(zipPath)
-      await fs.promises.mkdir(extractDir)
-
-      await expect(skillService['extractZip'](zipPath, extractDir)).resolves.toBeUndefined()
-    })
-
-    it('rejects ZIP archives containing more than 2,000 entries', async () => {
+    it('rejects archives with more entries than extraction allows, reporting the archive total', async () => {
       const skillService = new SkillService()
       const root = await createTempDir('skill-zip-limit-')
       const zipPath = path.join(root, 'over-limit.zip')
       const extractDir = path.join(root, 'extract')
       const zip = new AdmZip()
-      for (let index = 0; index < 2_001; index++) zip.addFile(`${index}.txt`, Buffer.alloc(0))
+      for (let index = 0; index < 60_000; index++) zip.addFile(`${index}.txt`, Buffer.alloc(0))
       zip.writeZip(zipPath)
 
+      // 60000, not the 50001 a scan that stopped at the entry crossing the ceiling would report.
       await expect(skillService['extractZip'](zipPath, extractDir)).rejects.toThrow(
-        'ZIP has too many files: 2001 exceeds 2000'
+        'Skill archive contains 60000 entries, over the 50000-entry limit'
+      )
+    })
+
+    /**
+     * The reported failure. `ppt-master-main.zip` is GitHub's zipball of a skill repository: the
+     * skill under `skills/ppt-master/` is 75 MiB, inside the per-skill ceiling, but the repository
+     * around it is 672 MiB. Install refused the whole archive, so a skill within the limits could
+     * not be installed — and said so as `ZIP too large: 106147629 bytes exceeds 104857600`, the
+     * running counter where the scan stopped, which read as 1.2% over rather than 6.4x.
+     */
+    it('installs a repository zipball whose skill is inside the per-skill limits', async () => {
+      const skillService = new SkillService()
+      const root = await createTempDir('skill-zip-repo-')
+      const zipPath = path.join(root, 'repo-main.zip')
+      const extractDir = path.join(root, 'extract')
+
+      const zip = new AdmZip()
+      zip.addFile('repo-main/skills/demo/SKILL.md', Buffer.from('---\nname: demo\n---\n'))
+      // Repository payload that is not part of the skill, over the per-skill ceiling on its own.
+      for (let index = 0; index < 110; index++) zip.addFile(`repo-main/assets/${index}.bin`, Buffer.alloc(1024 * 1024))
+      zip.writeZip(zipPath)
+
+      const skillDir = path.join(extractDir, 'repo-main', 'skills', 'demo')
+      vi.spyOn(skillService as never, 'createTempDir').mockResolvedValue(extractDir as never)
+      vi.spyOn(skillService as never, 'locateSkillDir').mockResolvedValue(skillDir as never)
+      const installSkillDirSpy = vi.spyOn(skillService as never, 'installSkillDir').mockResolvedValue({} as never)
+
+      await skillService.installFromZip({ zipFilePath: zipPath })
+
+      const canonicalZipPath = await fs.promises.realpath(zipPath)
+      expect(installSkillDirSpy).toHaveBeenCalledWith(skillDir, 'zip', pathToFileURL(canonicalZipPath).href)
+    })
+
+    it('refuses a skill directory over the per-skill size limit, reporting its real size', async () => {
+      const skillService = new SkillService()
+      const skillDir = await createTempDir('skill-oversized-')
+      // 110 MiB across 110 files: a scan that stopped at the file crossing the ceiling would report
+      // 105906176 (the 101st file), not what the directory actually holds.
+      for (let index = 0; index < 110; index++) {
+        await fs.promises.writeFile(path.join(skillDir, `${index}.bin`), Buffer.alloc(1024 * 1024))
+      }
+
+      await expect(skillService['assertSkillDirectoryWithinLimits'](skillDir)).rejects.toThrow(
+        'Skill holds 115343360 bytes, over the 104857600-byte limit'
       )
     })
 
