@@ -8,7 +8,8 @@ import {
   type GroupedVirtualListRow
 } from '@renderer/components/VirtualList'
 import { cn } from '@renderer/utils/style'
-import type { KeyboardEvent as ReactKeyboardEvent, ReactNode, Ref, RefObject } from 'react'
+import type { Virtualizer } from '@tanstack/react-virtual'
+import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, ReactNode, Ref, RefObject } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 import {
@@ -31,11 +32,12 @@ import {
   ResourceListGroupHeaderContextMenuOwner,
   SectionHeader
 } from './ResourceListGroups'
-import { RESOURCE_LIST_DEFAULT_ROW_LAYOUT } from './resourceListLayout'
+import { estimateResourceListDefaultRowSize, RESOURCE_LIST_DEFAULT_ROW_LAYOUT } from './resourceListLayout'
 
 const SCROLLBAR_AUTO_HIDE_DELAY = 1200
 const SCROLLBAR_FADE_STEP = 140
 const ITEM_ROW_CLASS = `flex w-full items-center py-[2px] ${RESOURCE_LIST_DEFAULT_ROW_LAYOUT.className}`
+const FIXED_ROW_CONTAINER_STYLE: CSSProperties = { height: RESOURCE_LIST_DEFAULT_ROW_LAYOUT.size }
 
 function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
   if (!ref) return
@@ -160,12 +162,18 @@ function useAutoHideScrollbar(delay = SCROLLBAR_AUTO_HIDE_DELAY) {
 
 function getListViewportClassName(stage: ScrollbarStage, className?: string) {
   return cn(
-    '-mr-2 min-h-0 flex-1 overflow-auto py-1.5 pt-0.5! pr-2 [scrollbar-gutter:stable]',
+    '-mr-2 min-h-0 flex-1 overflow-auto py-1.5 pt-0.5! pr-2 [contain:layout_paint] [scrollbar-gutter:stable]',
+    '[&[data-virtual-scrolling=true]_[data-index]]:pointer-events-none!',
     '[&::-webkit-scrollbar-thumb:hover]:bg-[var(--scrollbar-thumb-hover)]',
     '[&::-webkit-scrollbar-thumb]:transition-[background] [&::-webkit-scrollbar-thumb]:duration-150 [&::-webkit-scrollbar-thumb]:ease-out',
     SCROLLBAR_THUMB_CLASS_BY_STAGE[stage],
     className
   )
+}
+
+function handleVirtualizerChange(virtualizer: Virtualizer<HTMLDivElement, Element>) {
+  if (!virtualizer.scrollElement) return
+  virtualizer.scrollElement.dataset.virtualScrolling = virtualizer.isScrolling ? 'true' : 'false'
 }
 
 function VirtualItemRow({
@@ -514,6 +522,8 @@ export function VirtualItems<T extends ResourceListItemBase>({
     virtualRows
   })
   const isScrolling = stage !== 'idle'
+  const itemContainerStyle =
+    estimateItemSize === estimateResourceListDefaultRowSize ? FIXED_ROW_CONTAINER_STYLE : undefined
   const estimateVirtualItemSize = useCallback(
     (virtualItem: ResourceListVirtualItem<T>) => estimateItemSize(virtualItem.itemIndex),
     [estimateItemSize]
@@ -574,6 +584,8 @@ export function VirtualItems<T extends ResourceListItemBase>({
         }}
         scrollerStyle={{ scrollbarColor: SCROLLBAR_COLOR_BY_STAGE[stage] }}
         getItemKey={getVirtualRowKey}
+        itemContainerStyle={itemContainerStyle}
+        onChange={handleVirtualizerChange}
         onScroll={handleScroll}
         overscan={6}
         estimateGroupHeaderSize={estimateResourceListChromeSize}
@@ -628,6 +640,8 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
     virtualRows
   })
   const isScrolling = stage !== 'idle'
+  const itemContainerStyle =
+    estimateItemSize === estimateResourceListDefaultRowSize ? FIXED_ROW_CONTAINER_STYLE : undefined
   const getGroupId = useCallback((group: ResourceListVirtualGroupData) => group.id, [])
   const getGroupBoundaryId = useCallback(
     (group: ResourceListVirtualGroupData) => group.__resourceListBoundaryId ?? group.id,
@@ -813,6 +827,8 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
         }}
         scrollerStyle={{ scrollbarColor: SCROLLBAR_COLOR_BY_STAGE[stage] }}
         getItemKey={getVirtualRowKey}
+        itemContainerStyle={itemContainerStyle}
+        onChange={handleVirtualizerChange}
         onScroll={handleScroll}
         overscan={6}
         getGroupId={getGroupId}
