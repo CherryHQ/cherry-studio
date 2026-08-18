@@ -7681,6 +7681,7 @@
         "max_messages": "保持する直近メッセージ数",
         "max_messages_description": "直近のメッセージのみを送信し、それより前はコンテキストから除外します。空欄で無制限。アシスタントごとに上書きできます",
         "max_messages_unlimited": "無制限",
+        "scope_description": "Cherry Studio 内のアシスタントとの会話にのみ適用されます。アシスタントごとに個別に上書きできます。",
         "title": "コンテキスト管理",
         "truncate_threshold": "ツール出力の切り詰めしきい値（文字）",
         "truncate_threshold_description": "この文字数を超えるツール出力はファイルへ退避して切り詰めます。モデルは必要に応じて読み戻せます。アシスタントごとに上書きできます"

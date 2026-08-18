@@ -7681,6 +7681,7 @@
         "max_messages": "保留最近訊息數",
         "max_messages_description": "僅傳送最近若干則訊息，更早的訊息不進入上下文；留空表示不限制。助理可單獨覆寫",
         "max_messages_unlimited": "不限制",
+        "scope_description": "僅適用於 Cherry Studio 內的助理對話；助理可在自身設定中單獨覆寫。",
         "title": "上下文管理",
         "truncate_threshold": "工具輸出截斷閾值（字元）",
         "truncate_threshold_description": "超過該字元數的工具輸出會被轉存為檔案並截斷，模型可按需讀回。助理可單獨覆寫"

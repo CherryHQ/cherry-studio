@@ -7681,6 +7681,7 @@
         "max_messages": "Số tin nhắn gần nhất được giữ",
         "max_messages_description": "Chỉ gửi những tin nhắn gần nhất; các tin cũ hơn bị loại khỏi ngữ cảnh. Để trống nếu không giới hạn. Trợ lý có thể ghi đè cài đặt này",
         "max_messages_unlimited": "Không giới hạn",
+        "scope_description": "Chỉ áp dụng cho các cuộc trò chuyện với trợ lý trong Cherry Studio. Mỗi trợ lý có thể ghi đè riêng các cài đặt này.",
         "title": "Quản lý ngữ cảnh",
         "truncate_threshold": "Ngưỡng cắt bớt kết quả công cụ (ký tự)",
         "truncate_threshold_description": "Kết quả công cụ vượt quá số ký tự này sẽ được lưu tách ra tệp và cắt bớt; mô hình có thể đọc lại khi cần. Trợ lý có thể ghi đè cài đặt này"

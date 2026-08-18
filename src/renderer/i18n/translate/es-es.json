@@ -7681,6 +7681,7 @@
         "max_messages": "Mensajes recientes conservados",
         "max_messages_description": "Envía solo los mensajes más recientes; los anteriores se excluyen del contexto. Déjalo vacío para no poner límite. Los asistentes pueden anularlo",
         "max_messages_unlimited": "Sin límite",
+        "scope_description": "Solo se aplica a las conversaciones con asistentes en Cherry Studio. Los asistentes pueden anular estos ajustes de forma individual.",
         "title": "Gestión del contexto",
         "truncate_threshold": "Umbral de truncado de salida de herramientas (caracteres)",
         "truncate_threshold_description": "Las salidas de herramientas que superen este número de caracteres se descargan a un archivo y se truncan; el modelo puede volver a leerlas cuando lo necesite. Los asistentes pueden anularlo"

@@ -7681,6 +7681,7 @@
         "max_messages": "Beibehaltene letzte Nachrichten",
         "max_messages_description": "Nur die neuesten Nachrichten senden; ältere werden vom Kontext ausgeschlossen. Leer lassen für keine Begrenzung. Assistenten können dies überschreiben",
         "max_messages_unlimited": "Unbegrenzt",
+        "scope_description": "Gilt nur für Assistentenkonversationen in Cherry Studio. Assistenten können diese Einstellungen individuell überschreiben.",
         "title": "Kontextverwaltung",
         "truncate_threshold": "Kürzungsschwelle für Werkzeugausgaben (Zeichen)",
         "truncate_threshold_description": "Werkzeugausgaben über dieser Zeichenzahl werden in eine Datei ausgelagert und gekürzt; das Modell kann sie bei Bedarf wieder lesen. Assistenten können dies überschreiben"

@@ -7681,6 +7681,7 @@
         "max_messages": "Mesaje recente păstrate",
         "max_messages_description": "Trimite doar cele mai recente mesaje; cele anterioare sunt excluse din context. Lăsați gol pentru fără limită. Asistenții pot suprascrie această setare",
         "max_messages_unlimited": "Nelimitat",
+        "scope_description": "Se aplică numai conversațiilor cu asistenții din Cherry Studio. Asistenții pot suprascrie individual aceste setări.",
         "title": "Gestionarea contextului",
         "truncate_threshold": "Prag de trunchiere a rezultatelor instrumentelor (caractere)",
         "truncate_threshold_description": "Rezultatele instrumentelor peste acest număr de caractere sunt descărcate într-un fișier și trunchiate; modelul le poate reciti la nevoie. Asistenții pot suprascrie această setare"
