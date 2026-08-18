@@ -139,6 +139,7 @@ describe('WebSearchButton', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     MockUseDataApiUtils.resetMocks()
+    MockUseDataApiUtils.mockQueryData('/providers/:providerId/api-keys', { keys: [] })
     mocks.assistant = {
       id: 'assistant-1',
       name: 'Assistant',

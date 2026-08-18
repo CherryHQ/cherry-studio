@@ -1,6 +1,5 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { type IconRef, useIcon } from '@cherrystudio/ui/icons'
-import { useQuery } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import ActionIconButton from '@renderer/components/ActionIconButton'
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
@@ -44,33 +43,15 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
   const navigate = useNavigate()
   const { assistant, model, updateAssistant } = useAssistant(assistantId)
   const { provider: modelProvider } = useProviderById(model?.providerId)
-  const { defaultFetchUrlsProvider, defaultSearchKeywordsProvider } = useWebSearchProviders()
+  const {
+    defaultFetchUrlsProvider,
+    defaultSearchKeywordsProvider,
+    isLoading: isLoadingWebSearchProviders
+  } = useWebSearchProviders()
   const [clientToolsPreferred] = usePreference('chat.web_search.client_tools_preferred')
-  const shouldInheritZhipuModelApiKeys =
-    defaultSearchKeywordsProvider?.id === 'zhipu' && defaultSearchKeywordsProvider.apiKeys.length === 0
-  const { data: zhipuModelApiKeys, isLoading: isLoadingZhipuModelApiKeys } = useQuery(
-    '/providers/:providerId/api-keys',
-    {
-      params: { providerId: 'zhipu' },
-      query: { enabled: true },
-      enabled: shouldInheritZhipuModelApiKeys
-    }
-  )
-  // Runtime inherits Zhipu's model-provider keys; mirror that availability here
-  // so the preflight route does not disagree with the main-process resolver.
-  const effectiveSearchKeywordsProvider = useMemo(() => {
-    if (!shouldInheritZhipuModelApiKeys || !defaultSearchKeywordsProvider) {
-      return defaultSearchKeywordsProvider
-    }
-
-    return {
-      ...defaultSearchKeywordsProvider,
-      apiKeys: zhipuModelApiKeys?.keys.map(({ key }) => key) ?? []
-    }
-  }, [defaultSearchKeywordsProvider, shouldInheritZhipuModelApiKeys, zhipuModelApiKeys])
 
   const enableWebSearch = assistant?.settings.enableWebSearch ?? false
-  const clientSearchAvailable = isWebSearchProviderReady(effectiveSearchKeywordsProvider, 'searchKeywords')
+  const clientSearchAvailable = isWebSearchProviderReady(defaultSearchKeywordsProvider, 'searchKeywords')
   const clientFetchAvailable = isWebSearchProviderReady(defaultFetchUrlsProvider, 'fetchUrls')
   // Same resolver as the main process; MCP mode stands in for the request's
   // eventual function tools, which only exist at build time.
@@ -95,8 +76,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
       : undefined
   const reasonMessageKey = searchUnavailableReason ? REASON_MESSAGE_KEYS[searchUnavailableReason] : undefined
   const disabledReason = !enableWebSearch && reasonMessageKey ? t(reasonMessageKey) : undefined
-  const isResolvingSearchProvider = shouldInheritZhipuModelApiKeys && isLoadingZhipuModelApiKeys
-  const isDisabled = isResolvingSearchProvider || Boolean(disabledReason)
+  const isDisabled = isLoadingWebSearchProviders || Boolean(disabledReason)
 
   const onClick = useCallback(
     async (restoreFocus?: () => void) => {

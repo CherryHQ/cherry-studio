@@ -1,3 +1,4 @@
+import { useQuery } from '@data/hooks/useDataApi'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
@@ -82,13 +83,32 @@ export const useWebSearchProviders = () => {
   const [defaultFetchUrlsProviderId, setDefaultFetchUrlsProviderId] = usePreference(
     'chat.web_search.default_fetch_urls_provider'
   )
+  const zhipuWebSearchApiKeys = trimStringList(providerOverrides.zhipu?.apiKeys ?? [])
+  const shouldInheritZhipuModelApiKeys = zhipuWebSearchApiKeys.length === 0
+  const { data: zhipuModelApiKeys, isLoading: isLoadingZhipuModelApiKeys } = useQuery(
+    '/providers/:providerId/api-keys',
+    {
+      params: { providerId: 'zhipu' },
+      query: { enabled: true },
+      enabled: shouldInheritZhipuModelApiKeys
+    }
+  )
+  const isLoading = shouldInheritZhipuModelApiKeys && isLoadingZhipuModelApiKeys
   const providers = useMemo<WebSearchProvider[]>(() => {
+    if (isLoading) {
+      return []
+    }
+
     return PRESETS_WEB_SEARCH_PROVIDERS.map((preset) => {
       const override = providerOverrides[preset.id]
+      const apiKeys = trimStringList(override?.apiKeys ?? [])
 
       return {
         ...preset,
-        apiKeys: trimStringList(override?.apiKeys ?? []),
+        apiKeys:
+          preset.id === 'zhipu' && apiKeys.length === 0
+            ? trimStringList(zhipuModelApiKeys?.keys.map(({ key }) => key) ?? [])
+            : apiKeys,
         capabilities: preset.capabilities.map((capability) => {
           const capabilityOverride = override?.capabilities?.[capability.feature]
 
@@ -104,7 +124,7 @@ export const useWebSearchProviders = () => {
         basicAuthPassword: trimString(override?.basicAuthPassword ?? '')
       }
     })
-  }, [providerOverrides])
+  }, [isLoading, providerOverrides, zhipuModelApiKeys])
 
   const defaultSearchKeywordsProvider = useMemo(
     () => providers.find((item) => item.id === defaultSearchKeywordsProviderId),
@@ -176,6 +196,7 @@ export const useWebSearchProviders = () => {
   )
 
   return {
+    isLoading,
     providerOverrides,
     providers,
     defaultSearchKeywordsProvider,
