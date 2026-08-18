@@ -1,5 +1,5 @@
 diff --git a/dist/index.js b/dist/index.js
-index 919a33d..6498fcf 100644
+index 919a33d..054ebf2 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -257,7 +257,11 @@ function convertToOpenAICompatibleChatMessages(prompt) {
@@ -148,7 +148,7 @@ index 919a33d..6498fcf 100644
        },
        failedResponseHandler: (0, import_provider_utils5.createJsonErrorResponseHandler)(
          (_e = this.config.errorStructure) != null ? _e : defaultOpenAICompatibleErrorStructure
-@@ -1692,8 +1748,23 @@ var OpenAICompatibleImageModel = class {
+@@ -1692,8 +1748,28 @@ var OpenAICompatibleImageModel = class {
        abortSignal,
        fetch: this.config.fetch
      });
@@ -157,10 +157,15 @@ index 919a33d..6498fcf 100644
 +    try {
 +      posted = await postImageRequest(defaultResponseFormat);
 +    } catch (error) {
-+      // Models that do not implement `response_format` answer 400; retry once without it
-+      // and let the url/b64_json parsing below take whatever the server defaults to.
-+      if (defaultResponseFormat == null || !error || error.statusCode !== 400) throw error;
-+      posted = await postImageRequest(null);
++      // Models that do not implement `response_format` reject it with 400 or 422; retry once
++      // without it, and surface the ORIGINAL rejection when the retry fails too.
++      const isRejectedRequest = !!error && (error.statusCode === 400 || error.statusCode === 422);
++      if (defaultResponseFormat == null || !isRejectedRequest) throw error;
++      try {
++        posted = await postImageRequest(null);
++      } catch (retryError) {
++        throw error;
++      }
 +    }
 +    const { value: response, responseHeaders } = posted;
      return {
@@ -173,7 +178,7 @@ index 919a33d..6498fcf 100644
        warnings,
        response: {
          timestamp: currentDate,
-@@ -1704,7 +1775,7 @@ var OpenAICompatibleImageModel = class {
+@@ -1704,7 +1780,7 @@ var OpenAICompatibleImageModel = class {
    }
  };
  var openaiCompatibleImageResponseSchema = import_v48.z.object({
@@ -183,7 +188,7 @@ index 919a33d..6498fcf 100644
  async function fileToBlob(file) {
    if (file.type === "url") {
 diff --git a/dist/index.mjs b/dist/index.mjs
-index a619ccf..205696f 100644
+index a619ccf..9ae580a 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
 @@ -241,7 +241,11 @@ function convertToOpenAICompatibleChatMessages(prompt) {
@@ -333,7 +338,7 @@ index a619ccf..205696f 100644
        },
        failedResponseHandler: createJsonErrorResponseHandler4(
          (_e = this.config.errorStructure) != null ? _e : defaultOpenAICompatibleErrorStructure
-@@ -1705,8 +1761,23 @@ var OpenAICompatibleImageModel = class {
+@@ -1705,8 +1761,28 @@ var OpenAICompatibleImageModel = class {
        abortSignal,
        fetch: this.config.fetch
      });
@@ -342,10 +347,15 @@ index a619ccf..205696f 100644
 +    try {
 +      posted = await postImageRequest(defaultResponseFormat);
 +    } catch (error) {
-+      // Models that do not implement `response_format` answer 400; retry once without it
-+      // and let the url/b64_json parsing below take whatever the server defaults to.
-+      if (defaultResponseFormat == null || !error || error.statusCode !== 400) throw error;
-+      posted = await postImageRequest(null);
++      // Models that do not implement `response_format` reject it with 400 or 422; retry once
++      // without it, and surface the ORIGINAL rejection when the retry fails too.
++      const isRejectedRequest = !!error && (error.statusCode === 400 || error.statusCode === 422);
++      if (defaultResponseFormat == null || !isRejectedRequest) throw error;
++      try {
++        posted = await postImageRequest(null);
++      } catch (retryError) {
++        throw error;
++      }
 +    }
 +    const { value: response, responseHeaders } = posted;
      return {
@@ -358,7 +368,7 @@ index a619ccf..205696f 100644
        warnings,
        response: {
          timestamp: currentDate,
-@@ -1717,7 +1788,7 @@ var OpenAICompatibleImageModel = class {
+@@ -1717,7 +1793,7 @@ var OpenAICompatibleImageModel = class {
    }
  };
  var openaiCompatibleImageResponseSchema = z8.object({

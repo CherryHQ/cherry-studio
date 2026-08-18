@@ -51,7 +51,7 @@ index 23c5e35..3a73d98 100644
  
  /**
 diff --git a/dist/index.js b/dist/index.js
-index 5774837..e5fa6d9 100644
+index 5774837..a06b785 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -8468,6 +8468,16 @@ function createUIMessageStream({
@@ -80,7 +80,22 @@ index 5774837..e5fa6d9 100644
            }
          });
        },
-@@ -9647,7 +9657,8 @@ async function generateImage({
+@@ -9636,6 +9646,14 @@ var DefaultEmbedManyResult = class {
+ 
+ // src/generate-image/generate-image.ts
+ var import_provider_utils25 = require("@ai-sdk/provider-utils");
++function toDownloadableImageUrl(value) {
++  try {
++    const url = new URL(value);
++    return url.protocol === "http:" || url.protocol === "https:" ? url : void 0;
++  } catch (invalidUrl) {
++    return void 0;
++  }
++}
+ async function generateImage({
+   model: modelArg,
+   prompt: promptArg,
+@@ -9647,7 +9665,8 @@ async function generateImage({
    providerOptions,
    maxRetries: maxRetriesArg,
    abortSignal,
@@ -90,7 +105,7 @@ index 5774837..e5fa6d9 100644
  }) {
    var _a21, _b;
    const model = resolveImageModel(modelArg);
-@@ -9696,21 +9707,40 @@ async function generateImage({
+@@ -9696,11 +9715,36 @@ async function generateImage({
      outputTokens: void 0,
      totalTokens: void 0
    };
@@ -100,13 +115,6 @@ index 5774837..e5fa6d9 100644
 -      ...result.images.map(
 -        (image) => {
 -          var _a22;
--          return new DefaultGeneratedFile({
--            data: image,
--            mediaType: (_a22 = detectMediaType({
--              data: image,
--              signatures: imageMediaTypeSignatures
--            })) != null ? _a22 : "image/png"
--          });
 +    const processedImages = await Promise.all(
 +      result.images.map(async (image) => {
 +        var _a22;
@@ -115,11 +123,15 @@ index 5774837..e5fa6d9 100644
 +          if (mediaType != null && base64Content != null) {
 +            return new DefaultGeneratedFile({ data: base64Content, mediaType });
 +          }
-         }
--      )
-+        if (typeof image === "string" && (image.startsWith("http://") || image.startsWith("https://"))) {
-+          const downloaded = await downloadFn([{ url: new URL(image), isUrlSupportedByModel: false }]);
-+          const downloadedData = downloaded[0];
++        }
++        const imageUrl = typeof image === "string" ? toDownloadableImageUrl(image) : void 0;
++        if (imageUrl != null) {
++          let downloadedData = null;
++          try {
++            downloadedData = (await downloadFn([{ url: imageUrl, isUrlSupportedByModel: false }]))[0];
++          } catch (downloadError) {
++            downloadedData = null;
++          }
 +          if (downloadedData != null) {
 +            return new DefaultGeneratedFile({
 +              data: downloadedData.data,
@@ -130,21 +142,36 @@ index 5774837..e5fa6d9 100644
 +          // url string as if it were the base64 bytes.
 +          return null;
 +        }
-+        return new DefaultGeneratedFile({
-+          data: image,
-+          mediaType: (_a22 = detectMediaType({
-+            data: image,
-+            signatures: imageMediaTypeSignatures
-+          })) != null ? _a22 : "image/png"
-+        });
++        try {
+           return new DefaultGeneratedFile({
+             data: image,
+             mediaType: (_a22 = detectMediaType({
+@@ -9708,9 +9752,22 @@ async function generateImage({
+               signatures: imageMediaTypeSignatures
+             })) != null ? _a22 : "image/png"
+           });
++        } catch (invalidImageData) {
++          // Neither a fetchable url nor decodable base64 — drop it instead of letting one
++          // malformed entry reject the whole batch.
++          return null;
+         }
+-      )
 +      })
      );
-+    images.push(...processedImages.filter((file) => file != null));
++    const downloadedImages = processedImages.filter((file) => file != null);
++    const droppedImageCount = processedImages.length - downloadedImages.length;
++    if (droppedImageCount > 0) {
++      warnings.push({
++        type: "other",
++        message: `${droppedImageCount} of ${processedImages.length} generated images could not be downloaded and were dropped`
++      });
++    }
++    images.push(...downloadedImages);
      warnings.push(...result.warnings);
      if (result.usage != null) {
        totalUsage = addImageModelUsage(totalUsage, result.usage);
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 6862f01..6d2bd9c 100644
+index 6862f01..ccdb020 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
 @@ -8392,6 +8392,16 @@ function createUIMessageStream({
@@ -173,7 +200,22 @@ index 6862f01..6d2bd9c 100644
            }
          });
        },
-@@ -9586,7 +9596,8 @@ async function generateImage({
+@@ -9575,6 +9585,14 @@ import {
+   convertBase64ToUint8Array as convertBase64ToUint8Array4,
+   withUserAgentSuffix as withUserAgentSuffix5
+ } from "@ai-sdk/provider-utils";
++function toDownloadableImageUrl(value) {
++  try {
++    const url = new URL(value);
++    return url.protocol === "http:" || url.protocol === "https:" ? url : void 0;
++  } catch (invalidUrl) {
++    return void 0;
++  }
++}
+ async function generateImage({
+   model: modelArg,
+   prompt: promptArg,
+@@ -9586,7 +9604,8 @@ async function generateImage({
    providerOptions,
    maxRetries: maxRetriesArg,
    abortSignal,
@@ -183,7 +225,7 @@ index 6862f01..6d2bd9c 100644
  }) {
    var _a21, _b;
    const model = resolveImageModel(modelArg);
-@@ -9635,21 +9646,40 @@ async function generateImage({
+@@ -9635,11 +9654,36 @@ async function generateImage({
      outputTokens: void 0,
      totalTokens: void 0
    };
@@ -193,13 +235,6 @@ index 6862f01..6d2bd9c 100644
 -      ...result.images.map(
 -        (image) => {
 -          var _a22;
--          return new DefaultGeneratedFile({
--            data: image,
--            mediaType: (_a22 = detectMediaType({
--              data: image,
--              signatures: imageMediaTypeSignatures
--            })) != null ? _a22 : "image/png"
--          });
 +    const processedImages = await Promise.all(
 +      result.images.map(async (image) => {
 +        var _a22;
@@ -208,11 +243,15 @@ index 6862f01..6d2bd9c 100644
 +          if (mediaType != null && base64Content != null) {
 +            return new DefaultGeneratedFile({ data: base64Content, mediaType });
 +          }
-         }
--      )
-+        if (typeof image === "string" && (image.startsWith("http://") || image.startsWith("https://"))) {
-+          const downloaded = await downloadFn([{ url: new URL(image), isUrlSupportedByModel: false }]);
-+          const downloadedData = downloaded[0];
++        }
++        const imageUrl = typeof image === "string" ? toDownloadableImageUrl(image) : void 0;
++        if (imageUrl != null) {
++          let downloadedData = null;
++          try {
++            downloadedData = (await downloadFn([{ url: imageUrl, isUrlSupportedByModel: false }]))[0];
++          } catch (downloadError) {
++            downloadedData = null;
++          }
 +          if (downloadedData != null) {
 +            return new DefaultGeneratedFile({
 +              data: downloadedData.data,
@@ -223,16 +262,31 @@ index 6862f01..6d2bd9c 100644
 +          // url string as if it were the base64 bytes.
 +          return null;
 +        }
-+        return new DefaultGeneratedFile({
-+          data: image,
-+          mediaType: (_a22 = detectMediaType({
-+            data: image,
-+            signatures: imageMediaTypeSignatures
-+          })) != null ? _a22 : "image/png"
-+        });
++        try {
+           return new DefaultGeneratedFile({
+             data: image,
+             mediaType: (_a22 = detectMediaType({
+@@ -9647,9 +9691,22 @@ async function generateImage({
+               signatures: imageMediaTypeSignatures
+             })) != null ? _a22 : "image/png"
+           });
++        } catch (invalidImageData) {
++          // Neither a fetchable url nor decodable base64 — drop it instead of letting one
++          // malformed entry reject the whole batch.
++          return null;
+         }
+-      )
 +      })
      );
-+    images.push(...processedImages.filter((file) => file != null));
++    const downloadedImages = processedImages.filter((file) => file != null);
++    const droppedImageCount = processedImages.length - downloadedImages.length;
++    if (droppedImageCount > 0) {
++      warnings.push({
++        type: "other",
++        message: `${droppedImageCount} of ${processedImages.length} generated images could not be downloaded and were dropped`
++      });
++    }
++    images.push(...downloadedImages);
      warnings.push(...result.warnings);
      if (result.usage != null) {
        totalUsage = addImageModelUsage(totalUsage, result.usage);

@@ -32,6 +32,36 @@ describe('patched ai generateImage url download', () => {
 
     expect(result.images).toHaveLength(1)
     expect(result.images[0].uint8Array).toEqual(bytes)
+    expect(result.warnings).toContainEqual({
+      type: 'other',
+      message: '1 of 2 generated images could not be downloaded and were dropped'
+    })
+  })
+
+  it('drops only the failing image when the download throws', async () => {
+    const result = await generateImage({
+      model: imageModel(['https://img/throws.png', 'https://img/ok.png']),
+      prompt: 'a fox',
+      n: 2,
+      experimental_download: async (downloads) => {
+        if (downloads[0].url.href.includes('throws')) throw new Error('DownloadError')
+        return downloads.map(() => ({ data: bytes, mediaType: 'image/png' }))
+      }
+    })
+
+    expect(result.images).toHaveLength(1)
+  })
+
+  it('downloads an uppercase scheme and drops an unparseable one', async () => {
+    const result = await generateImage({
+      model: imageModel(['https://exa mple.com/x.png', 'HTTPS://img/upper.png']),
+      prompt: 'a fox',
+      n: 2,
+      experimental_download: async (downloads) => downloads.map(() => ({ data: bytes, mediaType: 'image/png' }))
+    })
+
+    expect(result.images).toHaveLength(1)
+    expect(result.images[0].uint8Array).toEqual(bytes)
   })
 
   it('reports no image generated when every download failed', async () => {

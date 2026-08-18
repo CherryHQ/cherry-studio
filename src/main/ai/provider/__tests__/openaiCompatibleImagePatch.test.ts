@@ -55,11 +55,35 @@ describe('patched @ai-sdk/openai-compatible image model', () => {
     expect(result.images).toEqual(['https://img/a.png'])
   })
 
+  it('retries a 422 too — strict gateways reject unknown body fields with it', async () => {
+    const { image, bodies } = model((attempt) =>
+      attempt === 0 ? fail(422, 'Unprocessable Entity: response_format') : ok({ data: [{ b64_json: 'QUJD' }] })
+    )
+
+    const result = await image.doGenerate(options)
+
+    expect(bodies).toHaveLength(2)
+    expect(bodies[1]).not.toHaveProperty('response_format')
+    expect(result.images).toEqual(['QUJD'])
+  })
+
   it('does not retry a non-400 failure', async () => {
     const { image, bodies } = model(() => fail(401, 'Invalid API key'))
 
     await expect(image.doGenerate(options)).rejects.toBeInstanceOf(APICallError)
     expect(bodies).toHaveLength(1)
+  })
+
+  it('surfaces the original rejection when the retry fails too', async () => {
+    const { image, bodies } = model((attempt) =>
+      attempt === 0 ? fail(400, 'response_format is not supported') : fail(500, 'upstream exploded')
+    )
+
+    await expect(image.doGenerate(options)).rejects.toMatchObject({
+      statusCode: 400,
+      responseBody: expect.stringContaining('response_format is not supported')
+    })
+    expect(bodies).toHaveLength(2)
   })
 
   it('honours an explicit response_format and never retries it away', async () => {
