@@ -623,6 +623,7 @@
   "chat.input.note_reference.loading": "メモを読み込み中...",
   "chat.input.note_reference.title": "参考注",
   "chat.input.paste_text_file": "入力に貼り付け",
+  "chat.input.paste_text_too_long": "貼り付けたテキストが{{max}}文字を超えているため、入力欄に展開できません。ファイル添付として保持されます。",
   "chat.input.pasted_text_file_name": "貼り付けたテキスト.txt",
   "chat.input.pause": "一時停止",
   "chat.input.placeholder": "ここにメッセージを入力し、{{key}} を押して送信...",

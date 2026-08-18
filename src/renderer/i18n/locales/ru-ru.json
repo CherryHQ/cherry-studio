@@ -623,6 +623,7 @@
   "chat.input.note_reference.loading": "Загрузка заметок...",
   "chat.input.note_reference.title": "Справочная записка",
   "chat.input.paste_text_file": "Вставьте во входные данные",
+  "chat.input.paste_text_too_long": "Вставленный текст длиннее {{max}} символов и не может быть вставлен в поле ввода. Он сохранён как файловое вложение.",
   "chat.input.pasted_text_file_name": "Вставленный текст.txt",
   "chat.input.pause": "Остановить",
   "chat.input.placeholder": "Введите сообщение. Нажмите {{key}}, чтобы отправить его. Введите / для инструментов и действий или @ для ссылки на беседу.",

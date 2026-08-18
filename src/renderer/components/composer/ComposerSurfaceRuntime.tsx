@@ -853,10 +853,15 @@ export default function ComposerSurfaceRuntime({
       try {
         const fileText = await window.api.fs.readText(file.path)
         const currentText = serializeComposerDocument(editor).text
-        const textToInsert = getComposerInputTextWithinLimit(currentText, fileText)
+        // Refuse instead of truncating: pasting a truncated copy and dropping the
+        // file token would silently lose everything beyond the input limit.
+        if (exceedsComposerInputMaxLength(currentText, fileText)) {
+          toast.error(t('chat.input.paste_text_too_long', { max: COMPOSER_INPUT_MAX_LENGTH }))
+          return
+        }
         const position = typeof nodeViewProps.getPos === 'function' ? nodeViewProps.getPos() : undefined
-        const content = textToInsert
-          ? createPromptVariableInlineContent(textToInsert, { startIndex: getNextPromptVariableIndex(editor) })
+        const content = fileText
+          ? createPromptVariableInlineContent(fileText, { startIndex: getNextPromptVariableIndex(editor) })
           : []
 
         if (typeof position === 'number') {
