@@ -97,7 +97,7 @@ function withSessionGroupIdPrefix<T>(resolver: ResourceListGroupResolver<T>): Re
   return withResourceListGroupIdPrefix('session:', resolver)
 }
 
-function getSessionAgentGroupId(agentId: string) {
+export function getSessionAgentGroupId(agentId: string) {
   return `${SESSION_AGENT_GROUP_ID_PREFIX}${agentId}`
 }
 

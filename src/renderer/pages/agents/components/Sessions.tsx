@@ -8,6 +8,7 @@ import {
   ResourceList,
   type ResourceListGroup,
   type ResourceListGroupHeaderKind,
+  type ResourceListGroupSeed,
   type ResourceListItemReorderPayload,
   type ResourceListPresentation,
   type ResourceListReorderPayload,
@@ -56,6 +57,7 @@ import {
   createSessionDisplayGroupResolver,
   createSessionWorkdirDisplayMaps,
   getAgentIdFromSessionGroupId,
+  getSessionAgentGroupId,
   getWorkdirPathFromSessionGroupId,
   isSystemWorkspaceSession,
   moveSessionAgentGroupAfterDrop,
@@ -690,6 +692,19 @@ const Sessions = ({
       }
     }
   }, [displayMode, t])
+  const agentGroupSeeds = useMemo<readonly ResourceListGroupSeed[]>(() => {
+    if (displayMode !== 'agent') return []
+
+    const section = {
+      id: SESSION_AGENT_SECTION_ID,
+      label: t(SESSION_DISPLAY_LABEL_KEYS.agent)
+    }
+    return agentsForDisplay.map((agent) => ({
+      id: getSessionAgentGroupId(agent.id),
+      label: agent.name,
+      section
+    }))
+  }, [agentsForDisplay, displayMode, t])
 
   const collapsedSessionState = useMemo(() => {
     const resolvedSessionExpansion = resolveDefaultCollapsedGroupIds({
@@ -722,12 +737,6 @@ const Sessions = ({
     [displayMode, isRightPanel, setSessionExpansionAgent, setSessionExpansionTime, setSessionExpansionWorkdir]
   )
 
-  // Silent creation for a stranded agent: when the deleted (non-active) session was that agent's
-  // only one, open a fresh empty session for it without activating it or switching the user's view.
-  const { trigger: createSessionSilently } = useMutation('POST', '/agent-sessions', {
-    refresh: ['/agent-sessions']
-  })
-
   const handleDeleteSession = useCallback(
     async (id: string) => {
       // Capture the deleted session before removal so selection can be scoped to its agent even
@@ -756,41 +765,9 @@ const Sessions = ({
           return
         }
 
-        // Deleting a non-active session must not move the active selection (the switch above only
-        // fires when wasActive). But if the removed session was its agent's only one, silently open
-        // a fresh empty session for that agent so it stays in the list instead of vanishing.
-        if (!wasActive) {
-          const deletedAgentHasSessionsLeft = deletedSession
-            ? filteredGroupedSessions.some((session) => session.agentId === deletedSession.agentId && session.id !== id)
-            : true
-          if (!deletedAgentHasSessionsLeft) {
-            const seed = deletedSession
-              ? buildCreateSessionSeed({
-                  agentId: deletedSession.agentId,
-                  workspace: deletedSession.workspace,
-                  workspaceId: deletedSession.workspaceId
-                })
-              : null
-            if (seed?.agentId) {
-              try {
-                await createSessionSilently({
-                  body: {
-                    agentId: seed.agentId,
-                    name: '',
-                    workspace: seed.workspace ?? { type: AGENT_WORKSPACE_TYPE.SYSTEM }
-                  }
-                })
-              } catch (err) {
-                logger.error('Failed to create session after deleting last session of an agent', {
-                  err,
-                  sessionId: id
-                })
-                toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
-              }
-            }
-          }
-          return
-        }
+        // Agent groups are seeded from the agent entities, so deleting a non-active agent's last
+        // session no longer needs to manufacture a replacement to keep that agent visible.
+        if (!wasActive) return
 
         // The deleted session was the active one. We already switched to the neighbour above; if
         // there was none, its agent had no other session left — open a fresh empty one for it
@@ -862,7 +839,6 @@ const Sessions = ({
     },
     [
       agentIdFilter,
-      createSessionSilently,
       deleteSession,
       filteredGroupedSessions,
       onCreateSession,
@@ -1456,6 +1432,18 @@ const Sessions = ({
       displayMode === 'agent' && group.id !== SESSION_PINNED_GROUP_ID ? 'select-first-then-toggle' : 'toggle',
     [displayMode]
   )
+  const handleEmptyGroupHeaderClick = useCallback(
+    (group: ResourceListGroup) => {
+      if (displayMode !== 'agent') return false
+
+      const agentId = getAgentIdFromSessionGroupId(group.id)
+      if (!agentId || !agentById.has(agentId)) return false
+
+      requestCreateSessionFromSeed({ agentId, workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM } })
+      return true
+    },
+    [agentById, displayMode, requestCreateSessionFromSeed]
+  )
   const canDragSessionItem = useCallback(
     ({ item }: { item: SessionListItem }) => itemDragReady && !item.pinned,
     [itemDragReady]
@@ -1646,7 +1634,11 @@ const Sessions = ({
         displayMode === 'workdir'
           ? (workdirDisplay.pathByGroupId.get(group.id) ?? getWorkdirPathFromSessionGroupId(group.id))
           : undefined
-      const createSessionSeed = createSessionSeedIndex.byGroupId.get(group.id) ?? null
+      const createSessionSeed =
+        createSessionSeedIndex.byGroupId.get(group.id) ??
+        (agentGroupId && agentById.has(agentGroupId)
+          ? { agentId: agentGroupId, workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM } }
+          : null)
       const canCreateSession = createSessionSeed !== null && agentById.has(createSessionSeed.agentId)
       const canManageAgentGroup = !!agentGroupId && agentById.has(agentGroupId)
 
@@ -1944,11 +1936,12 @@ const Sessions = ({
     () => (metadataLoading ? [] : filteredGroupedSessions),
     [filteredGroupedSessions, metadataLoading]
   )
+  const visibleAgentGroupSeeds = metadataLoading ? [] : agentGroupSeeds
   const listStatus = listError
     ? 'error'
     : listLoading && visibleGroupedSessions.length === 0
       ? 'loading'
-      : visibleGroupedSessions.length === 0
+      : visibleGroupedSessions.length === 0 && visibleAgentGroupSeeds.length === 0
         ? 'empty'
         : 'idle'
   const hasActiveCenterSurface = manageAgentsActive || historyRecordsActive
@@ -1968,6 +1961,7 @@ const Sessions = ({
       status={listStatus}
       selectedId={hasActiveCenterSurface ? null : activeSessionId}
       groupBy={sessionGroupByForDisplay}
+      groupSeeds={visibleAgentGroupSeeds}
       sectionBy={sessionSectionBy}
       collapsedState={collapsedSessionState}
       revealRequest={revealRequest}
@@ -1982,6 +1976,7 @@ const Sessions = ({
       getGroupHeaderTooltip={getGroupHeaderTooltip}
       getGroupHeaderKind={getGroupHeaderKind}
       groupHeaderClickBehavior={getGroupHeaderClickBehavior}
+      onEmptyGroupHeaderClick={handleEmptyGroupHeaderClick}
       dragCapabilities={{
         groups: displayMode === 'agent' ? agentDragReady : workdirDragReady,
         items: itemDragReady,
