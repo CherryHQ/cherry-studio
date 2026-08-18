@@ -153,7 +153,7 @@ Restoring a stale `temp.*` entry (via backup, sync, or a different machine) can 
 | Availability      | From process start                       | After DB initialization                                         |
 | Use case          | Process-level flags, Chromium switches   | User-modifiable app settings                                    |
 | Cross-window sync | Via PreferenceService delegation         | Native                                                          |
-| Key count         | Minimal (process-level only)             | 158+ keys                                                       |
+| Key set           | Minimal (process-level only)             | Generated fixed schema                                         |
 
 ## PreferenceService Integration
 

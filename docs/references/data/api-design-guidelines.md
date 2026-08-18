@@ -284,18 +284,18 @@ The API server automatically infers status codes based on HTTP method:
 ```typescript
 // Status codes are inferred automatically - no extra code needed
 '/topics': {
-  POST: async ({ body }) => {
-    return await topicService.create(body)  // Returns 201
+  POST: ({ body }) => {
+    return topicService.create(body)  // Returns 201
   }
 },
 
 '/topics/:id': {
-  GET: async ({ params }) => {
-    return await topicService.getById(params.id)  // Returns 200
+  GET: ({ params }) => {
+    return topicService.getById(params.id)  // Returns 200
   },
 
-  DELETE: async ({ params }) => {
-    await topicService.delete(params.id)
+  DELETE: ({ params }) => {
+    topicService.delete(params.id)
     return undefined  // Returns 204
   }
 }
@@ -316,8 +316,8 @@ import { SuccessStatus } from '@shared/data/api/types'
 },
 
 '/topics/:id': {
-  DELETE: async ({ params }) => {
-    const deleted = await topicService.delete(params.id)
+  DELETE: ({ params }) => {
+    const deleted = topicService.delete(params.id)
     return { data: deleted, status: SuccessStatus.OK }  // Returns 200 with data
   }
 }
@@ -427,8 +427,8 @@ error buried in the `.cause` chain. Translate them to `DataApiError` with
 ```typescript
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 
-const [row] = await withSqliteErrors(
-  () => this.db.insert(tagTable).values(dto).returning(),
+const [row] = withSqliteErrors(
+  () => this.db.insert(tagTable).values(dto).returning().all(),
   defaultHandlersFor('Tag', dto.name)
 )
 ```

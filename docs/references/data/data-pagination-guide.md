@@ -139,20 +139,19 @@ calling `DataApiService` directly.
 
 ### Offset
 
-Compute `offset = (page - 1) * limit`, run the page query and a `count(*)` in
-one `Promise.all`, and return `{ items, total, page }`. The canonical real
+Compute `offset = (page - 1) * limit`, run the synchronous page query and
+`count(*)`, and return `{ items, total, page }`. The canonical real
 example is `AssistantService.list` (`src/main/data/services/AssistantService.ts`,
 backing `GET /assistants`):
 
 ```typescript
-async list(query: ListAssistantsQuery): Promise<{ items: Assistant[]; total: number; page: number }> {
+list(query: ListAssistantsQuery): { items: Assistant[]; total: number; page: number } {
   const { page, limit } = query
   const offset = (page - 1) * limit
-  const [rows, [{ count }]] = await Promise.all([
-    this.db.select().from(assistantTable).where(whereClause)
-      .orderBy(...orderByClauses).limit(limit).offset(offset),
-    this.db.select({ count: sql<number>`count(*)` }).from(assistantTable).where(whereClause)
-  ])
+  const rows = this.db.select().from(assistantTable).where(whereClause)
+    .orderBy(...orderByClauses).limit(limit).offset(offset).all()
+  const [{ count }] = this.db.select({ count: sql<number>`count(*)` })
+    .from(assistantTable).where(whereClause).all()
   return { items: rows.map(rowToEntity), total: Number(count), page }
 }
 ```
@@ -179,10 +178,11 @@ const cursor = decodeListCursor(query.cursor, asNumericKey, 'translate-history')
 const conditions: SQL[] = [...filterConditions]
 if (cursor) conditions.push(ordering.where(cursor))
 
-const rows = await db.select().from(table)
+const rows = db.select().from(table)
   .where(and(...conditions))
   .orderBy(...ordering.orderBy)   // cannot drift from ordering.where — same dir spec
   .limit(limit + 1)               // fetch one extra to detect "has next"
+  .all()
 
 const hasNext = rows.length > limit
 const pageRows = hasNext ? rows.slice(0, limit) : rows
