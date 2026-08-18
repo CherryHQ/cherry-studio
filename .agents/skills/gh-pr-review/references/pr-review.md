@@ -18,7 +18,7 @@ is critical for review accuracy.
 
 | File | Purpose |
 |------|---------|
-| `consumer-review.md` | Consumer review stage (feat-shaped changes) |
+| `consumer-review.md` | Consumer review stage (changes adding/expanding shared surface) |
 | `code-checklist.md` | Code review checklist |
 | `doc-checklist.md` | Document review checklist |
 | `cherry-review-guidance.md` | Cherry Studio project-specific review boundaries and reference routing |
@@ -261,8 +261,8 @@ an approval and do not merge; only run these when the user explicitly asks
 afterwards:
 
 ```bash
+# Reuse the viewer's PENDING review id when one exists; otherwise start one
 gh pr-review review start --repo {OWNER_REPO} --pr {number}
-# Save the returned review-id
 gh pr-review review submit --repo {OWNER_REPO} --pr {number} \
   --review-id "<review-id>" --event "APPROVE" --body "LGTM"
 gh pr merge {number} --squash --delete-branch
@@ -295,7 +295,13 @@ gh extension install EurFelux/gh-pr-review
 Use the `gh-pr-review` extension for structured pending reviews with inline
 comments. Do not use `gh pr comment` or raw `gh api` for review submission.
 
-1. Start a pending review:
+1. Obtain `REVIEW_ID`, reusing the current reviewer's existing draft rather
+   than creating a second one. If `CURRENT_REVIEWER_PENDING_REVIEWS` (Step 2)
+   holds a `PENDING` review for the viewer, use its GraphQL node id as
+   `REVIEW_ID` and add this run's findings to that draft; its already-drafted
+   comments stay untouched and are submitted together in step 4. De-duplicate
+   new findings against `CURRENT_REVIEWER_PENDING_COMMENTS` so a drafted point
+   is not repeated. Only when the viewer has no pending draft, start one:
    ```bash
    gh pr-review review start --repo {OWNER_REPO} --pr {number}
    ```
@@ -318,14 +324,15 @@ comments. Do not use `gh pr comment` or raw `gh api` for review submission.
      --body "**[{priority}]** {description and suggested fix}"
    ```
 
-3. Preview before submitting:
+3. Preview before submitting. `review preview` accepts only `--repo`, `--pr`,
+   and `--thread-id` — it has no `--review-id`, so preview the PR's pending
+   comments and, when needed, narrow to a single thread:
    ```bash
-   gh pr-review review preview --repo {OWNER_REPO} --pr {number} \
-     --review-id "{REVIEW_ID}"
+   gh pr-review review preview --repo {OWNER_REPO} --pr {number}
    ```
    Use the preview as a self-check — every comment anchors to a valid diff
-   line and the set matches the confirmed issues. Do not ask the user for
-   confirmation.
+   line and the set matches the confirmed issues, plus any pre-existing draft
+   comments being carried along. Do not ask the user for confirmation.
 
 4. Submit the review:
    ```bash

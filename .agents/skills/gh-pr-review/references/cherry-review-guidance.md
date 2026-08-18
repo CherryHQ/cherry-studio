@@ -236,21 +236,21 @@ violation is migration residue, not precedent.
 
 | Changed area | Consult |
 | --- | --- |
-| DataApi contracts, schemas, types, or errors | `docs/references/data/data-api-overview.md`, `api-design-guidelines.md`, `api-types.md` |
-| DataApi handlers, services, or renderer hooks | Add `docs/references/data/data-api-in-main.md` for main handlers/services and `data-api-in-renderer.md` for renderer consumers |
-| Cache storage, hooks, service calls, or keys | `docs/references/data/cache-overview.md`; add `cache-usage.md` for consumers and `cache-schema-guide.md` only when keys/schemas change |
-| Preference storage, hooks, service calls, or keys | `docs/references/data/preference-overview.md`; add `preference-usage.md` for consumers and `preference-schema-guide.md` only when keys/schemas change |
-| BootConfig behavior, access, or keys | `docs/references/data/boot-config-overview.md`; add `boot-config-schema-guide.md` only when keys/schemas/mappings change |
+| DataApi contracts, schemas, types, or errors | `docs/references/data/data-api-overview.md`, `docs/references/data/api-design-guidelines.md`, `docs/references/data/api-types.md` |
+| DataApi handlers, services, or renderer hooks | Add `docs/references/data/data-api-in-main.md` for main handlers/services and `docs/references/data/data-api-in-renderer.md` for renderer consumers |
+| Cache storage, hooks, service calls, or keys | `docs/references/data/cache-overview.md`; add `docs/references/data/cache-usage.md` for consumers and `docs/references/data/cache-schema-guide.md` only when keys/schemas change |
+| Preference storage, hooks, service calls, or keys | `docs/references/data/preference-overview.md`; add `docs/references/data/preference-usage.md` for consumers and `docs/references/data/preference-schema-guide.md` only when keys/schemas change |
+| BootConfig behavior, access, or keys | `docs/references/data/boot-config-overview.md`; add `docs/references/data/boot-config-schema-guide.md` only when keys/schemas/mappings change |
 | Internal startup continuity markers | `docs/references/data/app-state-overview.md` |
 | v1-to-v2 migrators or migration mappings | `docs/references/data/v2-migration-guide.md` plus the affected target subsystem guide |
-| SQLite schemas, transactions, migrations, defaults, or nullability | `docs/references/data/database-patterns.md`; add `database-construction.md` for migration/custom-SQL/FTS build changes and `best-practice-default-values-and-nullability.md` for default/nullability changes |
+| SQLite schemas, transactions, migrations, defaults, or nullability | `docs/references/data/database-patterns.md`; add `docs/references/data/database-construction.md` for migration/custom-SQL/FTS build changes and `docs/references/data/best-practice-default-values-and-nullability.md` for default/nullability changes |
 | Sortable resources or order keys | `docs/references/data/data-ordering-guide.md` |
 | Offset/cursor pagination or paginated hooks | `docs/references/data/data-pagination-guide.md` |
 | Database seeders or seeding policies | `docs/references/data/database-seeding-guide.md` |
 | Static presets with user overrides | `docs/references/data/best-practice-layered-preset-pattern.md` |
 | Main-process services and long-lived resources | `docs/references/lifecycle/README.md`, `docs/references/lifecycle/lifecycle-usage.md`, `docs/references/lifecycle/lifecycle-decision-guide.md` |
-| Jobs, scheduled tasks, or scheduler handlers | `docs/references/job-and-scheduler/README.md`; add `scheduler-usage.md` for consumers, `handler-authoring.md` for new/changed handlers, `concurrency-and-locks.md` for locking/concurrency changes |
-| IpcApi routes/events, preload exposure, main handlers, renderer calls, or legacy IPC migration | `docs/references/ipc/README.md`; then `ipc-usage.md` for implementation, `ipc-schema-guide.md` for contracts/naming, and `ipc-migration-guide.md` when legacy IPC is touched |
+| Jobs, scheduled tasks, or scheduler handlers | `docs/references/job-and-scheduler/README.md`; add `docs/references/job-and-scheduler/scheduler-usage.md` for consumers, `docs/references/job-and-scheduler/handler-authoring.md` for new/changed handlers, `docs/references/job-and-scheduler/concurrency-and-locks.md` for locking/concurrency changes |
+| IpcApi routes/events, preload exposure, main handlers, renderer calls, or legacy IPC migration | `docs/references/ipc/README.md`; then `docs/references/ipc/ipc-usage.md` for implementation, `docs/references/ipc/ipc-schema-guide.md` for contracts/naming, and `docs/references/ipc/ipc-migration-guide.md` when legacy IPC is touched |
 | Windows | `docs/references/window-manager/README.md` |
 | Main-process filesystem paths | `src/main/core/paths/README.md` |
 | SQLite services, handlers, seeders, migrations | `docs/references/testing/database-testing.md`, `tests/__mocks__/README.md` |

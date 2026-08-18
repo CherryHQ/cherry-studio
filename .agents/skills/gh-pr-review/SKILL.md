@@ -58,13 +58,23 @@ stops safely. No leaf flow may introduce another prompt category.
 Every review runs these stages in order. A later stage reviews only what
 survived the earlier ones, so a stage never re-litigates an earlier verdict.
 
+This table is the single source of truth for stage scope and references; a
+leaf flow may not widen, narrow, or re-reference a stage.
+
 | # | Stage | Applies to | Reference |
 |---|-------|-----------|-----------|
-| 1 | **Product Demand** (gate) | changes with product impact | below |
-| 2 | **Consumer** | `feat`-shaped changes only | `references/consumer-review.md` |
-| 3 | **Architecture-First** | all code changes | `references/cherry-review-guidance.md` |
-| 4 | **Implementation** | all code changes | `references/code-checklist.md` (A/B), `doc-checklist.md` |
-| 5 | **Style / conventions** | all changes | `references/code-checklist.md` (C) |
+| 1 | **Product Demand** (gate) | any change whose semantics affect the product | below |
+| 2 | **Consumer** | any change that adds or expands shared surface | `references/consumer-review.md` |
+| 3 | **Architecture-First** | code, mixed, Cherry architecture docs, project skills | `references/cherry-review-guidance.md` |
+| 4 | **Implementation** | code, mixed | `references/code-checklist.md` (A/B) |
+| 4 | **Implementation** | docs | `references/doc-checklist.md` (correctness rules) |
+| 5 | **Style / conventions** | code, mixed | `references/code-checklist.md` (C) |
+| 5 | **Style / conventions** | docs | `references/doc-checklist.md` (style rules) |
+
+Stage applicability follows the changed content, not the commit label: a
+documentation-only diff still runs stages 3–5 when it changes Cherry
+architecture docs or project skills, and a code diff that also edits docs runs
+both reference sets for stages 4–5.
 
 ### Stage 1: Product Demand gate
 
@@ -128,29 +138,42 @@ capabilities. Set `HAS_SUBAGENTS = true` only when it can launch an independent
 reviewer and a fresh independent verifier. Parallel execution is not required;
 sequential subagents still satisfy the isolation contract.
 
-Use this single size definition everywhere:
+Use this single size definition everywhere. Always measure what the leaf flow
+will actually read, which is a diff for diff-shaped targets and full file text
+for path targets:
 
-- `CHANGED_LINES` is the sum of numeric additions and deletions from
-  `git diff --numstat` for the complete review scope.
-- `CHANGED_FILES` is the number of unique changed paths in that scope.
+- **Diff-shaped targets** (uncommitted changes, branch/merge-base diff, a
+  commit, a commit range, a PR): `CHANGED_LINES` is the sum of numeric
+  additions and deletions from `git diff --numstat` for the complete review
+  scope, and `CHANGED_FILES` is the number of unique changed paths in it.
+- **File/directory path targets**: the leaf flow reviews full contents, so
+  measure full contents — `CHANGED_FILES` is the number of files resolved
+  from the given paths (directories expand recursively, excluding ignored
+  paths), and `CHANGED_LINES` is the total line count of those files. A
+  clean tree never makes a path target small by default.
+- **Untracked text files** in a diff-shaped scope count as one file each with
+  their full line count as additions.
 - Generated files count normally in both totals; do not exclude them because
   they are generated.
-- A binary diff (`-`/`-` in `--numstat`) counts as a changed file and makes the
-  scope non-small because its line size is unknown.
-- For untracked text files, count every file and its full line count as
-  additions; an untracked binary file makes the scope non-small.
+- Any binary file — a binary diff (`-`/`-` in `--numstat`), an untracked
+  binary, or a binary resolved from a path target — counts as a file and makes
+  the scope non-small, because its line size is unknown.
 
 The scope is **small** only when `CHANGED_LINES <= 1000`,
-`CHANGED_FILES <= 20`, and it contains no binary diff. Both numeric conditions
+`CHANGED_FILES <= 20`, and it contains no binary file. Both numeric conditions
 must hold.
 
 Then match the **first** applicable rule top-to-bottom:
 
 1. `$ARGUMENTS` is `diag` → `references/diagnosis.md`.
-2. `$ARGUMENTS` is a PR number or URL containing `/pull/` →
+2. `$ARGUMENTS` is `checklist` (optionally followed by candidate identifiers),
+   or the user explicitly asks to adopt or maintain checklist candidates →
+   `references/checklist-evolution.md`, entering at its Step 2. This is the
+   explicit maintenance mode; it reviews nothing.
+3. `$ARGUMENTS` is a PR number or URL containing `/pull/` →
    `references/pr-review.md` (pass `AUTHORIZED_SUBMIT` and `HAS_SUBAGENTS`;
    the wrapper collects the exact PR scope before selecting the engine).
-3. Everything else: determine the review scope, calculate its size with the
+4. Everything else: determine the review scope, calculate its size with the
    definition above, then select the engine.
    - Scope: uncommitted changes exist and `$ARGUMENTS` is empty →
      `git diff HEAD --stat` plus untracked files; clean tree and empty

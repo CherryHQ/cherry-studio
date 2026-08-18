@@ -39,7 +39,7 @@ artifact or excerpt is explicitly required as evidence.
 
 | File | Purpose |
 |------|---------|
-| `consumer-review.md` | Consumer review stage (feat-shaped changes) |
+| `consumer-review.md` | Consumer review stage (changes adding/expanding shared surface) |
 | `code-checklist.md` | Code review checklist |
 | `doc-checklist.md` | Document review checklist |
 | `cherry-review-guidance.md` | Cherry Studio project-specific review boundaries |
@@ -196,7 +196,8 @@ Each reviewer receives:
   For React/performance-heavy modules, also include relevant rules from
   `vercel-react-best-practices` skill as supplementary checks.
 - **Stages**: run `SKILL.md` § Review Stages 2–5 in order for the module.
-  For a `feat`-shaped module that adds or expands shared surface, include
+  For a module whose diff adds or expands shared surface — judged by diff
+  semantics, never by change label — include
   `consumer-review.md` verbatim and run it first — report its per-surface
   decision, and review implementation quality only for surviving surfaces.
 - **Mandatory docs**: before reviewing, read the docs required by
@@ -417,7 +418,7 @@ Summary:
 - Product Demand summary when the change has product impact and the session
   was automated: impact, direction, and points needing human confirmation,
   explicitly marked as awaiting a product decision — never as approved
-- Consumer review decisions per surface (feat-shaped changes only)
+- Consumer review decisions per surface, when the diff added or expanded shared surface
 - Issues found / fixed (authorized fix only) / reported / failed
 - Reported issues listed with risk, `file:line`, and at-altitude fix guidance
   (`cherry-review-guidance.md` § Fix Recommendation Policy); Medium/High

@@ -21,7 +21,7 @@ no additional prompt category.
 
 | File | Purpose |
 |------|---------|
-| `consumer-review.md` | Consumer review stage (feat-shaped changes) |
+| `consumer-review.md` | Consumer review stage (changes adding/expanding shared surface) |
 | `code-checklist.md` | Code review checklist |
 | `doc-checklist.md` | Document review checklist |
 | `cherry-review-guidance.md` | Cherry Studio project-specific review boundaries |
@@ -77,9 +77,9 @@ Run the review stages defined in `SKILL.md` § Review Stages in order.
    explicitly identifies an automated run, carrying the product-impact
    summary into Step 4's report. Skip this step when the PR wrapper already
    ran the gate.
-2. **Consumer review** — only for `feat`-shaped diffs that add or expand
-   shared surface. Follow `consumer-review.md`; only surviving surfaces
-   continue to the stages below.
+2. **Consumer review** — whenever the diff adds or expands shared surface,
+   judged by diff semantics rather than change label. Follow
+   `consumer-review.md`; only surviving surfaces continue to the stages below.
 3. **Architecture-First, Implementation, Style** — as follows.
 
 Review the diff. Apply `code-checklist.md` to code files,
@@ -148,8 +148,12 @@ product decision, never as approved.
 Validation: when fixes were applied, the session is a coding task — run
 `pnpm lint`, `pnpm test`, and `pnpm format`, and report their results; a
 failure caused by a fix means the fix is reverted or reported as failed.
-When nothing was edited, do not run local lint/test/format — state that
-existing CI covers the reviewed commit and the result is static review only.
+
+When nothing was edited, do not run local lint/test/format and state the CI
+baseline recorded in Step 2, matching it: with an associated PR, existing CI
+covers the reviewed commit but not any unpushed change; with no associated PR
+— file, commit, or local-branch review — CI validation is unavailable and the
+result is static review only. Never claim CI coverage the target does not have.
 
 ---
 

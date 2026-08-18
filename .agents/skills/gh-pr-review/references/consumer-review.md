@@ -4,10 +4,14 @@ The second review stage (after the Product Demand gate, before Architecture-Firs
 It audits whether an added or expanded shared surface has real, legitimate
 consumers — code consumer archaeology, not implementation quality.
 
-**Trigger**: `feat`-shaped changes only — the diff adds or expands shared
-surface area (API, DataApi/IpcApi route, endpoint, parameter, type, field,
-config, or architectural extension point). Skip entirely for `fix`,
-`refactor`, `docs`, `test`, `chore`, and any change that adds no new surface.
+**Trigger**: decided by diff semantics, never by change label. Run this stage
+whenever the diff adds or expands shared surface area — an API, DataApi/IpcApi
+route, endpoint, parameter, type, field, config key, or architectural
+extension point — regardless of whether the change is labelled `feat`, `fix`,
+`refactor`, `docs`, `test`, `chore`, or tooling. A fix or a skill/tooling doc
+change that introduces a new route, parameter, or extension point gets the
+same consumer archaeology. Skip only when the diff adds and expands no shared
+surface.
 
 **Output**: surviving surfaces (with their decision) proceed to
 Architecture-First review; removed, deferred, or consolidated surfaces are
