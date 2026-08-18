@@ -1,12 +1,11 @@
-import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
 import Spinner from '@renderer/components/Spinner'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
-import { generateImageOutputSchema } from '@shared/ai/builtinTools'
 import { toSafeFileUrl } from '@shared/utils/file'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ImageBlock from '../../blocks/ImageBlock'
+import { parseGeneratedImageOutput } from './generateImageTool'
 
 /**
  * Resolve `generate_image` output FileEntry ids to renderable `file://` URLs.
@@ -72,18 +71,7 @@ export const MessageGenerateImageToolTitle = ({
   toolResponse: McpToolResponse | NormalToolResponse
 }) => {
   const { t } = useTranslation()
-  const { inlineUrls, items } = useMemo(() => {
-    const outputParse = generateImageOutputSchema.safeParse(toolResponse.response)
-    const mcpOutputParse = CallToolResultSchema.safeParse(toolResponse.response)
-    return {
-      items: outputParse.success ? outputParse.data : [],
-      inlineUrls: mcpOutputParse.success
-        ? mcpOutputParse.data.content.flatMap((item) =>
-            item.type === 'image' && item.data ? [`data:${item.mimeType ?? 'image/png'};base64,${item.data}`] : []
-          )
-        : []
-    }
-  }, [toolResponse.response])
+  const { inlineUrls, items } = useMemo(() => parseGeneratedImageOutput(toolResponse.response), [toolResponse.response])
   const { urls: resolvedUrls, failed: resolveFailed } = useGeneratedImageUrls(items.map((item) => item.id))
   const urls = inlineUrls.length > 0 ? inlineUrls : resolvedUrls
 

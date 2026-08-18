@@ -2,6 +2,7 @@ import { basename } from 'node:path'
 
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
@@ -1209,6 +1210,73 @@ describe('AgentComposer', () => {
 
     expect(mocks.sendMessage).not.toHaveBeenCalled()
     expect(toast.error).toHaveBeenCalledWith('code.model_required')
+  })
+
+  it('sends directly via the steer option while streaming, bypassing the queue', async () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] }, { steer: true })
+    })
+
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
+    expect(getQueueDock()).toBeFalsy()
+  })
+
+  it('treats the steer option as a plain send when idle', async () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] }, { steer: true })
+    })
+
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
+    expect(getQueueDock()).toBeFalsy()
+  })
+
+  it('restores the draft and leaves the queue empty when a steer send fails while streaming', async () => {
+    mocks.sendMessage.mockRejectedValueOnce(new Error('send failed'))
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] }, { steer: true })
+    })
+
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
+    expect(getQueueDock()).toBeFalsy()
+    expect(toast.error).toHaveBeenCalledWith('chat.input.send_failed')
+    // The failed steer send must not wipe the draft: the composer keeps the pre-send text
+    // and the persisted draft cache is rewritten with the pre-send content.
+    expect(mocks.surfaceProps?.text).toBe('hello')
+    expect(vi.mocked(cacheService.set)).toHaveBeenLastCalledWith(
+      'agent.composer_draft.session_session-1',
+      expect.objectContaining({ text: 'hello' }),
+      expect.anything()
+    )
   })
 
   it('uses the controlled session, agent, and model context', () => {
@@ -4853,6 +4921,29 @@ describe('AgentComposer', () => {
     fireEvent.click(screen.getByText('close edit dialog'))
 
     expect(mocks.inputAdapterFocus).toHaveBeenCalledTimes(1)
+  })
+
+  it('focuses only the current session composer from the focus event', async () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+    mocks.surfaceFocus.mockClear()
+
+    await act(async () => {
+      await EventEmitter.emit(EVENT_NAMES.FOCUS_CHAT_COMPOSER, { topicId: 'agent-session:other-session' })
+    })
+    expect(mocks.surfaceFocus).not.toHaveBeenCalled()
+
+    await act(async () => {
+      await EventEmitter.emit(EVENT_NAMES.FOCUS_CHAT_COMPOSER, { topicId: 'agent-session:session-1' })
+    })
+    expect(mocks.surfaceFocus).toHaveBeenCalledTimes(1)
   })
 
   it('keeps the active session agent control visible in classic layout', () => {

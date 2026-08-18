@@ -209,7 +209,8 @@
       "type": "Ícone de Agente"
     },
     "input": {
-      "placeholder": "Escreva uma mensagem. Prima {{key}} para enviar. Escreva / para procurar caminhos ou comandos e @ para ficheiros e sessões."
+      "placeholder": "Escreva uma mensagem. Prima {{key}} para enviar. Escreva / para procurar caminhos ou comandos e @ para ficheiros e sessões.",
+      "placeholder_streaming": "Agente a trabalhar — {{sendKey}} enfileira uma mensagem de acompanhamento, {{steerKey}} orienta-o agora."
     },
     "list": {
       "error": {
@@ -662,13 +663,16 @@
           },
           "auto": {
             "description": "Executa sem pedidos de rotina. Uma verificação de segurança bloqueia ações arriscadas.",
+            "description_pi": "Atua autonomamente. Pede confirmação ao detetar uma ação de risco.",
             "title": "Aprovar por mim",
-            "warning": "Requer um modelo compatível; outros podem ignorá-lo ou continuar a perguntar."
+            "warning": "Requer um modelo compatível; outros podem ignorá-lo ou continuar a perguntar.",
+            "warning_pi": "A deteção é feita no limite do possível; um comando incomum pode ainda passar despercebido."
           },
           "bypassPermissions": {
             "description": "Ignora as verificações de permissões. Pode eliminar ficheiros e usar a rede.",
             "title": "Acesso total",
-            "warning": "Utilize com cautela: todas as ferramentas serão executadas sem pedir aprovação."
+            "warning": "Utilize com cautela: todas as ferramentas serão executadas sem pedir aprovação.",
+            "warning_pi": "Perigoso — não é pedida confirmação para nada, exceto para ferramentas desativadas, incluindo eliminação de ficheiros e acesso à rede."
           },
           "confirmChange": {
             "description": "Alternar modos atualiza as ferramentas aprovadas automaticamente.",
@@ -1088,17 +1092,37 @@
           "description": "Executar comandos do terminal",
           "label": "Executar comandos do terminal"
         },
+        "create_goal": {
+          "description": "Criar um objetivo de sessão a alcançar",
+          "label": "Criar objetivo"
+        },
         "edit": {
           "description": "Editar ficheiros",
           "label": "Editar ficheiros"
+        },
+        "exit_plan_mode": {
+          "description": "Apresenta o plano para revisão e sai do modo de plano após a aprovação.",
+          "label": "Sair do modo de plano"
         },
         "find": {
           "description": "Procurar ficheiros",
           "label": "Procurar ficheiros"
         },
+        "get_goal": {
+          "description": "Ler o objetivo atual da sessão",
+          "label": "Ler objetivo"
+        },
         "grep": {
           "description": "Pesquisar conteúdos de ficheiros",
           "label": "Pesquisar conteúdos de ficheiros"
+        },
+        "interrupt_agent": {
+          "description": "Interrompe a vez atual de um subagente em segundo plano.",
+          "label": "Interromper subagente"
+        },
+        "list_agents": {
+          "description": "Lista subagentes em segundo plano e o respetivo estado.",
+          "label": "Listar subagentes"
         },
         "ls": {
           "description": "Listar conteúdos do diretório",
@@ -1107,6 +1131,34 @@
         "read": {
           "description": "Ler ficheiros",
           "label": "Ler ficheiros"
+        },
+        "read_image": {
+          "description": "Lê um ficheiro PNG, JPEG, WebP ou GIF com um modelo com capacidade visual",
+          "label": "Ler imagem"
+        },
+        "send_message": {
+          "description": "Envia uma mensagem de acompanhamento a um subagente em segundo plano.",
+          "label": "Mensagem ao subagente"
+        },
+        "skill": {
+          "description": "Carregar as instruções completas de uma competência ativada",
+          "label": "Carregar instruções da competência"
+        },
+        "subagent": {
+          "description": "Delega uma tarefa a um subagente em segundo plano passível de receber mensagens posteriormente.",
+          "label": "Delegar ao subagente"
+        },
+        "subagent_fork": {
+          "description": "Delega uma tarefa subsequente a um subagente com o contexto desta conversa.",
+          "label": "Ramo de subagente"
+        },
+        "todo_write": {
+          "description": "Gerir a lista de tarefas",
+          "label": "Gerir a lista de tarefas"
+        },
+        "update_goal": {
+          "description": "Atualizar o estado ou o conteúdo do objetivo da sessão",
+          "label": "Atualizar objetivo"
         },
         "write": {
           "description": "Escrever ficheiros",
@@ -2203,7 +2255,7 @@
     "cli_tool_placeholder": "Selecione a ferramenta de linha de comando a ser utilizada",
     "cli_tools": {
       "claude_code": "Claude Code",
-      "deepseek_harness": "[to be translated]:DeepSeek Harness",
+      "deepseek_harness": "DeepSeek Harness",
       "gemini_cli": "CLI do Gemini",
       "github_copilot_cli": "GitHub Copilot CLI",
       "kimi_code": "Kimi Code",
@@ -2227,39 +2279,39 @@
     "custom_path_required": "Este terminal requer a definição de um caminho personalizado",
     "custom_path_set": "Configuração personalizada do caminho do terminal bem-sucedida",
     "deepseek_harness": {
-      "agent_preset": "[to be translated]:Default agent mode",
+      "agent_preset": "Modo de agente predefinido",
       "agent_presets": {
         "code": {
-          "description": "[to be translated]:Combines multi-step tool work through the PTC Code Mode SDK for complex coding tasks.",
-          "label": "[to be translated]:PTC Code"
+          "description": "Combina trabalho de ferramentas em vários passos através do SDK PTC Code Mode para tarefas de programação complexas.",
+          "label": "PTC Code"
         },
         "inherit": {
-          "description": "[to be translated]:Keeps the existing default preset in the shared ~/.dsh settings.",
-          "label": "[to be translated]:Harness default"
+          "description": "Mantém a predefinição existente nas definições partilhadas de ~/.dsh.",
+          "label": "Predefinição do Harness"
         },
         "minimal": {
-          "description": "[to be translated]:Uses only a persistent shell and text editor for the smallest tool surface.",
-          "label": "[to be translated]:Minimal"
+          "description": "Utiliza apenas uma shell persistente e um editor de texto para disponibilizar o conjunto mínimo de ferramentas.",
+          "label": "Mínimo"
         },
         "standard": {
-          "description": "[to be translated]:Full coding agent with files, shell, search, skills, planning, and subagents.",
-          "label": "[to be translated]:Standard"
+          "description": "Agente de programação completo com ficheiros, shell, pesquisa, competências, planeamento e subagentes.",
+          "label": "Padrão"
         }
       },
-      "danger_warning": "[to be translated]:Full access lets the agent reach files outside the workspace and skips operation approval. Use it only for tasks you trust.",
-      "permission_mode": "[to be translated]:Default permission",
+      "danger_warning": "O acesso total permite ao agente aceder a ficheiros fora do espaço de trabalho e ignora a aprovação de operações. Utilize-o apenas para tarefas em que confia.",
+      "permission_mode": "Permissão predefinida",
       "permission_modes": {
         "danger-full-access": {
-          "description": "[to be translated]:Allows unrestricted access without operation approval.",
-          "label": "[to be translated]:Full access"
+          "description": "Permite acesso sem restrições e sem aprovação de operações.",
+          "label": "Acesso total"
         },
         "read-only": {
-          "description": "[to be translated]:Restricts file writes and asks before risky operations.",
-          "label": "[to be translated]:Read only"
+          "description": "Restringe a escrita de ficheiros e pede confirmação antes de operações de risco.",
+          "label": "Apenas leitura"
         },
         "workspace-write": {
-          "description": "[to be translated]:Allows writes in the current DSH workspace and asks before risky operations.",
-          "label": "[to be translated]:Workspace write"
+          "description": "Permite a escrita no espaço de trabalho DSH atual e pede confirmação antes de operações de risco.",
+          "label": "Escrita no espaço de trabalho"
         }
       }
     },
@@ -2313,7 +2365,7 @@
     "no_tools": "Nenhuma ferramenta disponível",
     "not_installed": "Não instalado",
     "open_provider_settings": "Abrir configurações do fornecedor",
-    "open_web_ui": "[to be translated]:Open Web UI",
+    "open_web_ui": "Abrir a interface Web",
     "own_login": {
       "title": "{{toolName}} Oficial"
     },
@@ -2323,10 +2375,10 @@
     "search_provider_placeholder": "Fornecedores de pesquisa…",
     "select_folder": "Selecionar pasta",
     "select_provider_before_launch": "Selecione um fornecedor antes de iniciar {{toolName}}",
-    "select_provider_model": "[to be translated]:Please select a provider and model first",
+    "select_provider_model": "Selecione primeiro um fornecedor e um modelo",
     "select_tool_to_start": "Selecione uma ferramenta de CLI à esquerda para começar a configurar",
     "set_custom_path": "Definir caminho personalizado do terminal",
-    "stop": "[to be translated]:Stop",
+    "stop": "Parar",
     "supported_providers": "Fornecedores de serviço suportados",
     "terminal": "terminal",
     "terminal_hint": "Escolha em qual aplicação de terminal executar a CLI",
@@ -2642,7 +2694,6 @@
       "503": "Serviço indisponível, por favor tente novamente mais tarde",
       "504": "Tempo de espera do gateway excedido, por favor tente novamente mais tarde"
     },
-    "image_unreadable_for_non_vision_model": "O modelo selecionado não suporta imagens, e o Cherry Studio não conseguiu extrair texto legível do anexo. Escolha um modelo com capacidade de visão ou remova a imagem e tente novamente.",
     "lastError": "Último erro",
     "maxEmbeddingsPerCall": "Máximo de embeddings por chamada",
     "message": "Mensagem de erro",
@@ -3193,6 +3244,8 @@
         "delete_confirm_title": "Eliminar Fontes de Dados Selecionadas?",
         "loaded_only_hint": "Aplica-se apenas aos itens carregados ({{total}} no total)",
         "reindex": "Reindexar",
+        "reindex_none_eligible": "Todas as fontes de dados selecionadas estão ainda a ser processadas e não podem ser reindexadas de momento.",
+        "reindex_skipped": "Ignoradas {{count}} fonte(s) de dados ainda a processar.",
         "selected_count": "{{count}} selecionado"
       },
       "chunks_count": "{{count}} blocos",
@@ -3526,11 +3579,13 @@
             "label": "Modo de execução",
             "option": {
               "claude_code": "Avançado: Claude Agent",
+              "dsh": "DeepSeek Harness",
               "pi": "Rápido: Pi"
             },
-            "selected": {
-              "claude_code": "Avançado",
-              "pi": "Rápido"
+            "option_description": {
+              "claude_code": "Maior capacidade — modo de plano e modelos por nível.",
+              "dsh": "Ampla compatibilidade com fornecedores e execução orientada por objetivos.",
+              "pi": "Respostas mais rápidas, menor sobrecarga."
             }
           },
           "small_model": {
@@ -7163,6 +7218,7 @@
         "no": "sem descrição",
         "nowledge_mem": "Requer a aplicação Nowledge Mem em execução localmente. Mantém conversas de IA, ferramentas, notas, agentes e ficheiros numa memória privada no seu computador. Transfira de https://mem.nowledge.co/",
         "python": "Executar código Python num ambiente sandbox seguro. Utilizar Pyodide para executar Python, suportando a maioria das bibliotecas padrão e pacotes de computação científica",
+        "qveris": "Conecte-se ao QVeris para descobrir, inspecionar e chamar capacidades de agentes de IA. É necessário configurar a variável de ambiente QVERIS_API_KEY.",
         "sequentialthinking": "Uma implementação de servidor MCP que fornece ferramentas para resolução dinâmica e reflexiva de problemas através de um processo de pensamento estruturado"
       },
       "command": "Comando",
@@ -7282,6 +7338,10 @@
       "providerPlaceholder": "Nome do Fornecedor",
       "providerUrl": "URL do Fornecedor",
       "providers": "Fornecedores",
+      "qveris": {
+        "get_api_key": "Obter chave de API",
+        "missing_api_key": "O QVeris requer uma chave de API. <link>Registe-se ou inicie sessão para obter uma chave de API</link> e, em seguida, introduza-a como QVERIS_API_KEY."
+      },
       "registry": "Fonte de Gestão de Pacotes",
       "registryDefault": "Padrão",
       "registryOptions": {
@@ -7412,8 +7472,11 @@
         "confirm_delete_message": "confirmar antes de eliminar a mensagem",
         "confirm_regenerate_message": "Confirmar antes de regenerar a mensagem",
         "enable_quick_triggers": "Ativar menu rápido com '/' e '@'",
+        "newline_shortcuts": "Atalho para quebra de linha",
         "send_shortcuts": "Atalhos de envio",
         "show_estimated_tokens": "Mostrar número estimado de tokens",
+        "steer_shortcuts": "Atalho de orientação",
+        "steer_shortcuts_hint": "Enquanto um Agente estiver a executar, este envia a sua mensagem imediatamente para a vez atual para a orientar; o atalho de envio coloca-a em espera até a vez terminar.",
         "title": "Configurações de entrada"
       },
       "layout": {
@@ -9012,5 +9075,18 @@
     "quit": "Sair",
     "show_window": "Exibir Janela",
     "visualization": "Visualização"
+  },
+  "xlsx_preview": {
+    "chart": "Gráfico",
+    "chart_unsupported": "Este tipo de gráfico ainda não é suportado",
+    "error": {
+      "description": "Não foi possível pré-visualizar esta folha de cálculo."
+    },
+    "formula_not_evaluated": "Não foi possível avaliar a fórmula",
+    "sheet_tabs_label": "Folhas",
+    "too_large": {
+      "description": "O tamanho do ficheiro {{size}} excede o limite de pré-visualização de {{limit}}.",
+      "title": "Ficheiro demasiado grande para pré-visualizar"
+    }
   }
 }

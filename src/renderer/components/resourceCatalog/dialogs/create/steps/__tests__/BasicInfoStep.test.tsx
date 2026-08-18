@@ -94,12 +94,13 @@ describe('BasicInfoStep', () => {
     )
   })
 
-  it('lays every runtime out flat and marks the choice immutable', () => {
+  it('exposes every supported runtime as a selectable card and marks the choice immutable', () => {
     render(<Harness runtimeSelectable />)
 
     expect(screen.getByText('library.config.agent.field.runtime.immutable_hint')).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: /runtime.option.claude_code/ })).toBeChecked()
     expect(screen.getByRole('radio', { name: /runtime.option.pi/ })).not.toBeChecked()
+    expect(screen.getByRole('radio', { name: /runtime.option.dsh/ })).not.toBeChecked()
     expect(screen.queryByText('library.config.agent.field.runtime.pi_hint')).not.toBeInTheDocument()
   })
 
@@ -118,6 +119,14 @@ describe('BasicInfoStep', () => {
       'agent.settings.tooling.permissionMode.auto.title'
     )
     expect(screen.getByTestId('permission-mode')).toHaveTextContent('auto')
+
+    await user.click(screen.getByRole('radio', { name: /runtime.option.dsh/ }))
+
+    expect(screen.getByRole('radio', { name: /runtime.option.dsh/ })).toBeChecked()
+    expect(screen.getByLabelText('library.config.agent.field.permission_mode.label')).toHaveTextContent(
+      'agent.settings.tooling.permissionMode.default.title'
+    )
+    expect(screen.getByTestId('permission-mode')).toHaveTextContent('default')
   })
 
   it('clears the missing-model warning when a prefilled model resolves asynchronously', async () => {
