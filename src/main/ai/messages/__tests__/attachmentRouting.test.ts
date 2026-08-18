@@ -43,6 +43,9 @@ const fileWithEntry = (id: string, filename: string, mediaType: string): CherryM
     providerMetadata: { cherry: { fileEntryId: id } }
   }) as CherryMessagePart
 
+/** One token per character, so a test's `cap` reads directly as a character cap. */
+const charTokenizer = { id: 'chars', count: (text: string) => text.length }
+
 const run = (
   parts: CherryMessagePart[],
   ns: NativeFileSupport,
@@ -53,7 +56,7 @@ const run = (
     attachments: collectFileAttachments(messages),
     nativeSupport: ns,
     isToolCapable: opts.isToolCapable ?? true,
-    cap: opts.cap
+    budget: opts.cap === undefined ? undefined : { tokens: opts.cap, tokenizer: charTokenizer }
   })
 }
 
@@ -95,28 +98,35 @@ describe('prepareChatMessages — routing', () => {
     expect(textOf(out.parts)[0]).toBe('Attached file "a.png":\nocr body')
   })
 
-  it('rejects before native materialization when OCR finds no text', async () => {
+  // A local vision verdict describes the model, not the endpoint it is called
+  // through: rejecting here locked users of image-capable gateways/proxies out
+  // of sending any image at all (a photo OCRs to nothing, so every turn failed).
+  it.each([
+    ['OCR finds no text', () => ocrMock.mockResolvedValueOnce('   ')],
+    [
+      'OCR is unconfigured or fails',
+      () => ocrMock.mockRejectedValueOnce(new Error('Default file processor for image_to_text is not configured'))
+    ]
+  ])('forwards the native image to a non-vision model when %s', async (_case, arrangeOcr) => {
     getByIdMock.mockResolvedValueOnce({ ext: 'png' })
-    ocrMock.mockResolvedValueOnce('   ')
+    arrangeOcr()
+    const materialized = { type: 'file', url: 'data:image/png;base64,AA', mediaType: 'image/png' }
+    resolveMock.mockResolvedValueOnce(materialized)
 
-    await expect(run([fileWithEntry('e1', 'a.png', 'image/png')], NONE)).rejects.toMatchObject({
-      name: 'NonVisionImageOcrError',
-      i18nKey: 'image_unreadable_for_non_vision_model'
-    })
+    const [out] = await run([fileWithEntry('e1', 'a.png', 'image/png')], NONE)
 
-    expect(resolveMock).not.toHaveBeenCalled()
+    expect(out.parts).toEqual([materialized])
   })
 
-  it('rejects before native materialization when OCR is unconfigured or fails', async () => {
+  it('degrades to a note when the native image fallback also fails', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'png' })
-    ocrMock.mockRejectedValueOnce(new Error('Default file processor for image_to_text is not configured'))
+    ocrMock.mockResolvedValueOnce('')
+    resolveMock.mockResolvedValueOnce(null)
 
-    await expect(run([fileWithEntry('e1', 'a.png', 'image/png')], NONE)).rejects.toMatchObject({
-      name: 'NonVisionImageOcrError',
-      i18nKey: 'image_unreadable_for_non_vision_model'
-    })
+    const [out] = await run([fileWithEntry('e1', 'a.png', 'image/png')], NONE)
 
-    expect(resolveMock).not.toHaveBeenCalled()
+    expect(out.parts.filter((p) => p.type === 'file')).toHaveLength(0)
+    expect(textOf(out.parts)[0]).toBe('Attached file "a.png": [could not read this file].')
   })
 
   it('inlines extracted text for office docs', async () => {
@@ -206,6 +216,45 @@ describe('prepareChatMessages — routing', () => {
     const text = textOf(out.parts)[0]
     expect(text).toContain('[Truncated 5/10 chars.]')
     expect(text).not.toContain('read_file')
+  })
+
+  // The cap used to be per file, so two attachments cost twice the cap and
+  // nothing bounded a turn's total.
+  it('splits one pool across the attachments of a turn instead of giving each the full cap', async () => {
+    getByIdMock.mockResolvedValue({ ext: 'txt' })
+    extractMock.mockResolvedValueOnce('a'.repeat(100)).mockResolvedValueOnce('b'.repeat(100))
+    const [out] = await run(
+      [fileWithEntry('e1', 'a.txt', 'text/plain'), fileWithEntry('e2', 'b.txt', 'text/plain')],
+      NONE,
+      { cap: 60 }
+    )
+
+    expect(textOf(out.parts)).toEqual([
+      expect.stringContaining('[Truncated 30/100 chars'),
+      expect.stringContaining('[Truncated 30/100 chars')
+    ])
+  })
+
+  // The pool is drawn across every message, and each cap has to land back in the
+  // message it came from — the routing pass runs them concurrently.
+  it('shares the pool across messages and writes each cap back to its own message', async () => {
+    getByIdMock.mockResolvedValue({ ext: 'txt' })
+    extractMock.mockResolvedValueOnce('a'.repeat(100)).mockResolvedValueOnce('b'.repeat(20))
+    const messages = [
+      userMessage([fileWithEntry('e1', 'a.txt', 'text/plain')]),
+      userMessage([fileWithEntry('e2', 'b.txt', 'text/plain')])
+    ] as UIMessage[]
+
+    const out = await prepareChatMessages(messages, {
+      attachments: collectFileAttachments(messages),
+      nativeSupport: NONE,
+      isToolCapable: true,
+      budget: { tokens: 60, tokenizer: charTokenizer }
+    })
+
+    // b.txt fits whole, so a.txt takes the 40 it leaves behind rather than half.
+    expect(textOf(out[0].parts)[0]).toContain('[Truncated 40/100 chars')
+    expect(textOf(out[1].parts)[0]).toBe(`Attached file "b.txt":\n${'b'.repeat(20)}`)
   })
 
   it('rethrows on abort instead of degrading', async () => {

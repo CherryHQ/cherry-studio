@@ -4,26 +4,28 @@ const {
   listByCursorMock,
   createSessionMock,
   getByIdMock,
-  getLatestUpdatedMock,
+  getLatestActiveMock,
   updateMock,
   setWorkspaceMock,
   deleteMock,
   deleteByAgentIdMock,
   deleteByIdsMock,
   reorderMock,
-  reorderBatchMock
+  reorderBatchMock,
+  reuseOrCreatePlaceholderMock
 } = vi.hoisted(() => ({
   listByCursorMock: vi.fn(),
   createSessionMock: vi.fn(),
   getByIdMock: vi.fn(),
-  getLatestUpdatedMock: vi.fn(),
+  getLatestActiveMock: vi.fn(),
   updateMock: vi.fn(),
   setWorkspaceMock: vi.fn(),
   deleteMock: vi.fn(),
   deleteByAgentIdMock: vi.fn(),
   deleteByIdsMock: vi.fn(),
   reorderMock: vi.fn(),
-  reorderBatchMock: vi.fn()
+  reorderBatchMock: vi.fn(),
+  reuseOrCreatePlaceholderMock: vi.fn()
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
@@ -31,14 +33,15 @@ vi.mock('@data/services/AgentSessionService', () => ({
     listByCursor: listByCursorMock,
     create: createSessionMock,
     getById: getByIdMock,
-    getLatestUpdated: getLatestUpdatedMock,
+    getLatestActive: getLatestActiveMock,
     update: updateMock,
     setWorkspace: setWorkspaceMock,
     delete: deleteMock,
     deleteByAgentId: deleteByAgentIdMock,
     deleteByIds: deleteByIdsMock,
     reorder: reorderMock,
-    reorderBatch: reorderBatchMock
+    reorderBatch: reorderBatchMock,
+    reuseOrCreatePlaceholder: reuseOrCreatePlaceholderMock
   }
 }))
 
@@ -74,15 +77,50 @@ describe('agentSessionHandlers', () => {
   describe('/agent-sessions/latest', () => {
     it('wraps the latest session from AgentSessionService', async () => {
       const session = { id: 'session-latest' }
-      getLatestUpdatedMock.mockReturnValueOnce(session)
+      getLatestActiveMock.mockReturnValueOnce(session)
 
       await expect(agentSessionHandlers['/agent-sessions/latest'].GET({} as never)).resolves.toEqual({ session })
     })
 
     it('returns { session: null } when there are no sessions', async () => {
-      getLatestUpdatedMock.mockReturnValueOnce(null)
+      getLatestActiveMock.mockReturnValueOnce(null)
 
       await expect(agentSessionHandlers['/agent-sessions/latest'].GET({} as never)).resolves.toEqual({ session: null })
+    })
+  })
+
+  describe('/agent-sessions/reusable-placeholders', () => {
+    it('requires and forwards the full workspace creation target', async () => {
+      const response = {
+        session: { id: 'session-created' },
+        created: true,
+        deletedDuplicateSessionIds: []
+      }
+      reuseOrCreatePlaceholderMock.mockReturnValueOnce(response)
+
+      await expect(
+        agentSessionHandlers['/agent-sessions/reusable-placeholders'].POST({
+          body: {
+            agentId: 'agent-1',
+            workspace: { type: 'user', workspaceId: 'workspace-1' }
+          }
+        } as never)
+      ).resolves.toBe(response)
+
+      expect(reuseOrCreatePlaceholderMock).toHaveBeenCalledWith({
+        agentId: 'agent-1',
+        workspace: { type: 'user', workspaceId: 'workspace-1' }
+      })
+    })
+
+    it('rejects an omitted workspace before calling the service', async () => {
+      await expect(
+        agentSessionHandlers['/agent-sessions/reusable-placeholders'].POST({
+          body: { agentId: 'agent-1' }
+        } as never)
+      ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
+
+      expect(reuseOrCreatePlaceholderMock).not.toHaveBeenCalled()
     })
   })
 

@@ -7,9 +7,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Mock path module to normalize all paths to POSIX format for cross-platform consistency
 // This ensures path operations work the same way regardless of the actual OS
-vi.mock('path', async () => {
+async function posixPathModule() {
   const actual: typeof PathModule = await vi.importActual('path')
-  return {
+  const mocked = {
     ...actual,
     sep: '/', // Always use forward slash for consistency
     delimiter: ':',
@@ -39,7 +39,14 @@ vi.mock('path', async () => {
     posix: actual.posix,
     win32: actual.win32
   }
-})
+  // `default` for the modules that default-import it (legacyFile.ts), named for the rest.
+  return { ...mocked, default: mocked }
+}
+
+// `node:path` is a distinct module id to vitest, and resolveAndValidatePath reaches
+// path through it — mock both or Windows keeps its drive letters.
+vi.mock('path', posixPathModule)
+vi.mock('node:path', posixPathModule)
 
 // Use vi.hoisted to define mocks that are available during hoisting
 const {

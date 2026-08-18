@@ -240,6 +240,14 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
         // focus switches. Mirrors the Main window's choice above; do not remove.
         backgroundThrottling: false
       }
+    },
+    behavior: {
+      // SubWindow must NOT contribute to the macOS Dock — a warm-created standby
+      // instance (standbySize:1 + warmup:'eager') is always resident and hidden.
+      // Without this flag, windowContributesToDock() returns true for it, so
+      // updateDockVisibility()'s some() never resolves to hide, and the Dock icon
+      // stays visible on close-to-tray / tray-on-launch (see issue #18186).
+      macShowInDock: false
     }
     // NOTE: Fields intentionally NOT set here, injected per-call via wm.open({ options }):
     //   - title (per-tab dynamic)
@@ -308,7 +316,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       // blur handler and its internal `isPinnedQuickAssistant` flag.
       // `new BrowserWindow({ alwaysOnTop: true })` cannot accept a level — the
       // floating level is applied by applyWindowBehavior on create, and kept
-      // across show cycles by the macReapplyAlwaysOnTop quirk below.
+      // across show cycles by the reapplyAlwaysOnTop quirk below.
       alwaysOnTop: { level: 'floating' },
       // Quick window is visible across all workspaces and over fullscreen apps.
       // `skipTransformProcessType: true` prevents TransformProcessType(UIElement)
@@ -320,9 +328,10 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       macShowInDock: false
     },
     quirks: {
-      // Re-apply the floating level after every show/showInactive — macOS silently
-      // demotes it across cycles. The actual level is read from `behavior.alwaysOnTop`.
-      macReapplyAlwaysOnTop: true
+      // Re-assert topmost after every show/showInactive — macOS silently demotes the
+      // level across cycles, Windows lets later topmost windows stack above.
+      // The actual level is read from `behavior.alwaysOnTop`.
+      reapplyAlwaysOnTop: true
     }
   },
 
@@ -423,7 +432,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     quirks: {
       macRestoreFocusOnHide: true,
       macClearHoverOnHide: true,
-      macReapplyAlwaysOnTop: true
+      reapplyAlwaysOnTop: true
     }
   },
 

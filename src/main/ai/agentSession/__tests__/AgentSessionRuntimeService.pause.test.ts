@@ -12,8 +12,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   saveMessage: vi.fn(),
   getLastRuntimeResumeToken: vi.fn(),
-  findPendingAssistantMessageIds: vi.fn(),
-  markMessagesError: vi.fn(),
+  findCrashOrphanedAssistantMessages: vi.fn(),
+  resolveCrashOrphanedMessages: vi.fn(),
   maybeRenameAgentSession: vi.fn(),
   applicationGet: vi.fn(),
   startRuntimeTurn: vi.fn(),
@@ -39,8 +39,8 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: {
     saveMessage: mocks.saveMessage,
     getLastRuntimeResumeToken: mocks.getLastRuntimeResumeToken,
-    findPendingAssistantMessageIds: mocks.findPendingAssistantMessageIds,
-    markMessagesError: mocks.markMessagesError
+    findCrashOrphanedAssistantMessages: mocks.findCrashOrphanedAssistantMessages,
+    resolveCrashOrphanedMessages: mocks.resolveCrashOrphanedMessages
   }
 }))
 

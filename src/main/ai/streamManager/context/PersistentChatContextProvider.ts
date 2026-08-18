@@ -17,12 +17,14 @@ import {
   CONTEXT_COMPACT_TRIGGER_RATIO
 } from '@main/ai/constants'
 import { collectFileAttachments } from '@main/ai/messages/attachmentRouting'
+import { collectPersistedOutputPaths } from '@main/ai/messages/persistedOutputRendering'
 import { collectRetainedContext, type RetainedContext } from '@main/ai/messages/retainedContext'
 import { messageService } from '@main/data/services/MessageService'
+import { providerService } from '@main/data/services/ProviderService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { type Span, SpanStatusCode } from '@opentelemetry/api'
 import { compactionAnchorChunkId, type CompactionAnchorData, type CompactionSink } from '@shared/ai/compaction'
-import { applyApprovalDecisions } from '@shared/ai/transport'
+import { aiStreamAdmissionReasons, applyApprovalDecisions } from '@shared/ai/transport'
 import type { ContextSettingsOverride } from '@shared/data/types/contextSettings'
 import {
   type AssistantTurnOptions,
@@ -37,11 +39,16 @@ import { getKnowledgeBaseIdsFromParts, hasClearContextPart } from '@shared/data/
 import type { ModelMessage, UIMessage, UIMessageChunk } from 'ai'
 
 import { resolveMinContextWindow } from '../../contextBuild/resolveContextWindow'
+import { resolveInputRoom } from '../../contextBuild/resolveInputRoom'
+import { resolveOutputReservation } from '../../contextBuild/resolveOutputReservation'
 import { resolveRequestContextSettings } from '../../contextBuild/resolveRequestContextSettings'
+import { applyMaxMessagesWindow } from '../../messages/maxMessagesWindow'
 import { toModelMessages } from '../../messages/messageRules'
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
 import { wrapSteerReminder } from '../../steerReminder'
+import { resolveModelTokenDialect, type TokenDialect } from '../../tokens/dialect'
 import type { AiStreamRequest } from '../../types'
+import { AiStreamAdmissionError } from '../admission'
 import { PersistenceListener } from '../listeners/PersistenceListener'
 import { TraceFlushListener } from '../listeners/TraceFlushListener'
 import { MessageServiceBackend } from '../persistence/backends/MessageServiceBackend'
@@ -73,6 +80,16 @@ const logger = loggerService.withContext('PersistentChatContextProvider')
 function toCompactionSink(subscriber: StreamListener): CompactionSink {
   return (anchorId, data) =>
     subscriber.onChunk({ type: 'data-compaction-anchor', id: anchorId, data } as UIMessageChunk)
+}
+
+/** Media cost table for the turn. Unreachable provider row → the openai table. */
+function resolveRowDialect(model: Model | undefined): TokenDialect {
+  if (!model) return 'openai'
+  try {
+    return resolveModelTokenDialect(providerService.getByProviderId(model.providerId), model)
+  } catch {
+    return 'openai'
+  }
 }
 
 /** The topic's assistant identity, snapshotted onto its replies so the header survives deletion. */
@@ -199,6 +216,12 @@ function toReservedUIMessage(message: SharedMessage): CherryUIMessage {
   } satisfies CherryUIMessage
 }
 
+function assertUniqueMentionedModelIds(modelIds: readonly UniqueModelId[] | undefined): void {
+  if (modelIds && new Set(modelIds).size !== modelIds.length) {
+    throw new Error('mentionedModelIds must not contain duplicate model ids')
+  }
+}
+
 export class PersistentChatContextProvider implements ChatContextProvider {
   readonly name = 'persistent'
 
@@ -212,8 +235,16 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     req: MainDispatchRequest,
     ctx: DispatchContext
   ): Promise<PreparedDispatch> {
+    assertUniqueMentionedModelIds('mentionedModelIds' in req ? req.mentionedModelIds : undefined)
+
     // 1. Resolve context
     const topic = topicService.getById(req.topicId)
+
+    // A failed assistant retry is identity-preserving: reset and rerun the exact row so its
+    // sibling position, descendants, and the topic's active branch remain untouched.
+    if (req.trigger === 'regenerate-message' && req.retryMessageId) {
+      return this.prepareAssistantRetry(subscriber, req, topic?.assistantId ?? undefined)
+    }
 
     // continue-conversation reuses the existing assistant anchor — no new placeholder, no multi-model.
     if (req.trigger === 'continue-conversation') {
@@ -270,19 +301,18 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         topicId: req.topicId,
         models: [],
         listeners: [subscriber],
-        userMessageId: userMessage.id,
         pendingSteerUserMessageId: userMessage.id,
         pendingSteerReasoningEffort: req.reasoningEffort,
         pendingSteerFastMode: req.fastMode === true,
-        reservedMessages: [toReservedUIMessage(userMessage)],
-        isMultiModel: false
+        reservedMessages: [toReservedUIMessage(userMessage)]
       }
     }
 
     // 3. Models (single or multi)
     const isRegenerate = req.trigger === 'regenerate-message'
     const models = resolveModels(req.mentionedModelIds, defaultModelId)
-    const isMultiModel = models.length > 1
+    const liveGroupAppendMessageId = isRegenerate && ctx.hasLiveStream ? req.appendToLiveGroupMessageId : undefined
+    let liveGroupSourceAnchorMessageId: string | undefined
     const turnOptions: AssistantTurnOptions = {
       reasoningEffort: req.reasoningEffort,
       fastMode: req.fastMode === true
@@ -292,16 +322,59 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       throw new Error(`'regenerate-message' requires parentAnchorId`)
     }
 
-    // A regenerate while the topic is still live would build placeholder rows that send()'s inject
-    // path discards — orphaning them as `pending`. The renderer gates regenerate on a non-busy topic,
-    // so reject this should-not-happen state before any DB write instead of failing silently.
-    if (isRegenerate && ctx.hasLiveStream) {
-      throw new Error('Cannot regenerate while a stream is live on this topic')
-    }
-
     // Pure compute; backfill happens inside the reservation tx. Resolver short-circuits
     // for non-regenerate, so passing undefined parentAnchorId is harmless.
     const siblingsGroupId = resolvePersistentSiblingsGroupId(models, isRegenerate, req.parentAnchorId ?? '')
+
+    if (liveGroupAppendMessageId) {
+      const parentAnchorId = req.parentAnchorId
+      if (!parentAnchorId) {
+        throw new Error(`'regenerate-message' requires parentAnchorId`)
+      }
+      if (models.length !== 1) {
+        throw new AiStreamAdmissionError(aiStreamAdmissionReasons.SINGLE_MODEL_REQUIRED)
+      }
+      if (siblingsGroupId === undefined) {
+        throw new AiStreamAdmissionError(aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP)
+      }
+      let targetSiblingsGroupId: number | undefined
+      try {
+        targetSiblingsGroupId = messageService.getById(liveGroupAppendMessageId).siblingsGroupId || undefined
+      } catch {
+        throw new AiStreamAdmissionError(aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP)
+      }
+      const admission = application.get('AiStreamManager').admitLiveExecutionChange(req.topicId, {
+        mode: 'append',
+        modelId: models[0].id,
+        targetMessageId: liveGroupAppendMessageId,
+        parentAnchorId,
+        siblingsGroupId: targetSiblingsGroupId
+      })
+      if (admission.mode === 'append-live') {
+        liveGroupSourceAnchorMessageId = admission.groupAnchorMessageId
+      }
+    } else if (isRegenerate && ctx.hasLiveStream) {
+      // An ordinary regenerate while the topic is live would build placeholder rows that send()'s
+      // inject path discards. Only the explicit @-model live-group append is allowed through.
+      application.get('AiStreamManager').admitLiveExecutionChange(req.topicId, {
+        mode: 'start',
+        modelCount: models.length
+      })
+    }
+
+    if (liveGroupSourceAnchorMessageId && (!req.parentAnchorId || siblingsGroupId === undefined)) {
+      throw new AiStreamAdmissionError(aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP)
+    }
+    const preparedLiveExecutionChange =
+      liveGroupSourceAnchorMessageId && req.parentAnchorId && siblingsGroupId !== undefined
+        ? {
+            mode: 'append' as const,
+            groupAnchorMessageId: liveGroupSourceAnchorMessageId,
+            parentAnchorId: req.parentAnchorId,
+            siblingsGroupId,
+            activateFallback: true
+          }
+        : undefined
     const assistantIdentity = resolveAssistantIdentity(assistantId)
 
     // User message + N placeholders in one tx — SQLite rolls back on any failure.
@@ -336,6 +409,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         topicId: req.topicId,
         userMessage: userMessageInput,
         siblingsGroupId,
+        preserveActiveNode: Boolean(liveGroupSourceAnchorMessageId),
         placeholders: turnRootSpans.map(({ model }) => ({
           role: 'assistant',
           data: { parts: [], turnOptions },
@@ -394,6 +468,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         userMessage.id,
         req.topicId,
         assistantPlaceholders.map((p) => p.model),
+        assistantId,
         contextSettingsOverride,
         toCompactionSink(subscriber)
       )
@@ -428,10 +503,138 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         topicId: req.topicId,
         models: models_,
         listeners,
-        userMessageId: userMessage.id,
         reservedMessages: [userMessage, ...placeholders].map(toReservedUIMessage),
         siblingsGroupId,
-        isMultiModel
+        liveExecutionChange: preparedLiveExecutionChange,
+        preserveActiveNode: Boolean(liveGroupAppendMessageId)
+      }
+    } catch (error) {
+      endTurnRootSpansWithError(turnRootSpans, error)
+      throw error
+    }
+  }
+
+  private async prepareAssistantRetry(
+    subscriber: StreamListener,
+    req: Extract<MainDispatchRequest, { trigger: 'regenerate-message' }>,
+    assistantId: string | undefined
+  ): Promise<PreparedDispatch> {
+    const target = messageService.getById(req.retryMessageId as string)
+    if (target.role !== 'assistant') {
+      throw new Error(`'retryMessageId' must identify an assistant message (got '${target.role}')`)
+    }
+    if (target.topicId !== req.topicId || target.parentId !== req.parentAnchorId) {
+      throw new Error('Retry target does not belong to the requested topic/user anchor')
+    }
+    const parent = messageService.getById(req.parentAnchorId)
+    if (parent.role !== 'user' || parent.topicId !== req.topicId) {
+      throw new Error(`'regenerate-message' parentAnchorId must identify a user message in the topic`)
+    }
+
+    const targetModelId = (target.modelId ?? resolveAssistantModelId(assistantId).defaultModelId) as UniqueModelId
+    if (req.mentionedModelIds && (req.mentionedModelIds.length !== 1 || req.mentionedModelIds[0] !== targetModelId)) {
+      throw new Error('In-place retry cannot change the assistant model')
+    }
+    const [model] = resolveModels([targetModelId], targetModelId)
+    const compatibleSiblingsGroupId = target.siblingsGroupId > 0 ? target.siblingsGroupId : undefined
+    const manager = application.get('AiStreamManager')
+    await manager.awaitExecutionRetry(
+      req.topicId,
+      targetModelId,
+      target.id,
+      req.parentAnchorId,
+      compatibleSiblingsGroupId
+    )
+    const turnOptions: AssistantTurnOptions = {
+      reasoningEffort: req.reasoningEffort ?? target.data.turnOptions?.reasoningEffort,
+      fastMode: req.fastMode ?? target.data.turnOptions?.fastMode ?? false
+    }
+    const contextSettingsOverride = resolveAssistantContextOverride(assistantId)
+    const containerTraceId = topicService.ensureTraceId(req.topicId)
+    const turnRootSpans = startTurnRootSpans(req.topicId, req.trigger, [model], containerTraceId)
+    const [{ span: rootSpan }] = turnRootSpans
+
+    try {
+      const { messages: history, retainedContext } = await this.resolveCompactedHistory(
+        parent.id,
+        req.topicId,
+        [model],
+        assistantId,
+        contextSettingsOverride,
+        toCompactionSink(subscriber)
+      )
+      const request = this.buildStreamRequest(
+        req.topicId,
+        assistantId,
+        model.id,
+        history,
+        target.id,
+        getKnowledgeBaseIdsFromParts(parent.data.parts ?? []),
+        turnOptions.reasoningEffort,
+        turnOptions.fastMode === true,
+        retainedContext
+      )
+      applyTurnInputAttributes(rootSpan, {
+        modelId: model.id,
+        topicId: req.topicId,
+        operation: 'chat',
+        messages: request.messages
+      })
+
+      // Context preparation can outlive the original sibling turn. Re-admit against the exact
+      // model+anchor immediately before the synchronous reset/dispatch handoff, so an unrelated
+      // newer live turn cannot leave this historical row reset to pending without owning it.
+      const admission = await manager.awaitExecutionRetry(
+        req.topicId,
+        targetModelId,
+        target.id,
+        req.parentAnchorId,
+        compatibleSiblingsGroupId
+      )
+
+      // Reset only after all async context preparation and the final admission succeed. This atomic
+      // update deliberately does not write topic.activeNodeId, so retrying an off-path branch cannot
+      // activate it.
+      const resetMessage = messageService.resetAssistantForRetry(target.id)
+      const listeners: StreamListener[] = [
+        subscriber,
+        new PersistenceListener({
+          topicId: req.topicId,
+          modelId: model.id,
+          backend: new MessageServiceBackend({
+            assistantMessageId: target.id,
+            turnOptions,
+            contextSettingsOverride
+          }),
+          onPersistFailed: (error) =>
+            application.get('AiStreamManager').broadcastTopicError(req.topicId, model.id, error)
+        }),
+        new TraceFlushListener(req.topicId)
+      ]
+
+      return {
+        topicId: req.topicId,
+        models: [{ modelId: model.id, request, seedFromEmpty: true, rootSpan }],
+        listeners,
+        reservedMessages: [toReservedUIMessage(resetMessage)],
+        siblingsGroupId: target.siblingsGroupId || undefined,
+        liveExecutionChange:
+          admission.mode === 'replace-live'
+            ? {
+                mode: 'replace',
+                parentAnchorId: req.parentAnchorId,
+                siblingsGroupId: compatibleSiblingsGroupId
+              }
+            : admission.mode === 'append-live'
+              ? {
+                  mode: 'append',
+                  groupAnchorMessageId: admission.groupAnchorMessageId,
+                  parentAnchorId: req.parentAnchorId,
+                  siblingsGroupId: target.siblingsGroupId,
+                  activateFallback: false
+                }
+              : undefined,
+        preserveActiveNode: true
       }
     } catch (error) {
       endTurnRootSpansWithError(turnRootSpans, error)
@@ -501,6 +704,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         anchor.id,
         req.topicId,
         [model],
+        assistantId,
         contextSettingsOverride,
         toCompactionSink(subscriber)
       )
@@ -525,8 +729,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           }
         ],
         listeners,
-        siblingsGroupId: undefined,
-        isMultiModel: false
+        siblingsGroupId: undefined
       }
     } catch (error) {
       endTurnRootSpansWithError(turnRootSpans, error)
@@ -600,6 +803,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         req.userMessageId,
         req.topicId,
         [model],
+        assistantId,
         contextSettingsOverride,
         toCompactionSink(subscriber)
       )
@@ -624,8 +828,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           }
         ],
         listeners,
-        reservedMessages: [toReservedUIMessage(placeholder)],
-        isMultiModel: false
+        reservedMessages: [toReservedUIMessage(placeholder)]
       }
     } catch (error) {
       endTurnRootSpansWithError(turnRootSpans, error)
@@ -649,8 +852,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     return { id: row.id, role: toContentRole(row.role as MessageRole), parts: row.parts } as CherryUIMessage
   }
 
-  private estimateTotal(rows: CompactionRow[]): number {
-    return rows.reduce((s, r) => s + estimateRowTokens(r), 0)
+  private estimateTotal(rows: CompactionRow[], dialect: TokenDialect): number {
+    return rows.reduce((s, r) => s + estimateRowTokens(r, dialect), 0)
   }
 
   /**
@@ -659,7 +862,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
    * totalTokens), adding a tokenx estimate of only the rows after it. Falls back to a
    * full tokenx estimate when no anchor exists or it was folded out by the marker.
    */
-  private estimateContext(effective: CompactionRow[]): number {
+  private estimateContext(effective: CompactionRow[], dialect: TokenDialect): number {
     let anchorIdx = -1
     for (let i = effective.length - 1; i >= 0; i--) {
       if (effective[i].role === 'assistant' && typeof effective[i].contextTokens === 'number') {
@@ -667,9 +870,9 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         break
       }
     }
-    if (anchorIdx < 0) return this.estimateTotal(effective)
+    if (anchorIdx < 0) return this.estimateTotal(effective, dialect)
     const base = effective[anchorIdx].contextTokens as number
-    const tail = effective.slice(anchorIdx + 1).reduce((s, r) => s + estimateRowTokens(r), 0)
+    const tail = effective.slice(anchorIdx + 1).reduce((s, r) => s + estimateRowTokens(r, dialect), 0)
     return base + tail
   }
 
@@ -688,6 +891,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     anchorMessageId: string,
     topicId: string,
     models: Model[],
+    assistantId: string | undefined,
     assistantContextOverride?: ContextSettingsOverride | null,
     /** Reports the turn-start fold to the UI; absent when there is no subscriber. */
     compactionSink?: CompactionSink
@@ -713,7 +917,21 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // (provider prefix caches hold).
     const d = findDeepestMarker(rows)
     const manifestHandles = (endIdx: number) => collectFileAttachments(rawUI.slice(0, endIdx + 1)).map((a) => a.handle)
-    const effective = applyDeepestMarker(rows, d >= 0 ? manifestHandles(d) : undefined)
+    // A folded marker's blob stays allow-listed, so the summary must name its
+    // path or the model holds fs_read with no legal argument.
+    const manifestPaths = (endIdx: number) => [...collectPersistedOutputPaths(rawUI.slice(0, endIdx + 1))]
+    const effective = applyDeepestMarker(
+      rows,
+      d >= 0 ? manifestHandles(d) : undefined,
+      d >= 0 ? manifestPaths(d) : undefined
+    )
+
+    // A user-drawn window, unlike a space-saving fold, must also revoke
+    // read_file / fs_read access to whatever slid out of it.
+    const retainedForWindow = (windowed: CompactionRow[]): RetainedContext => {
+      const servedIds = new Set(windowed.map((r) => r.id))
+      return collectRetainedContext(rawUI.filter((_, i) => servedIds.has(rawMsgs[i].id)))
+    }
 
     const { contextSettings, compressionModel } = await resolveRequestContextSettings(
       models[0],
@@ -721,6 +939,14 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     )
     const on = contextSettings.enabled && contextSettings.compress.enabled && Boolean(compressionModel)
     const serve = (rows_: typeof effective) => ({ messages: rows_.map((r) => this.toServed(r)), retainedContext })
+    // NOT gated on `contextSettings.enabled`: that switch owns the overflow
+    // policy, while this decides how much history is sent at all.
+    if (contextSettings.maxMessages != null) {
+      // RAW rows, no compaction state: a summary covers everything up to its
+      // boundary, so serving one would carry pre-window content back in.
+      const windowed = applyMaxMessagesWindow(rows, contextSettings.maxMessages)
+      return { messages: windowed.map((r) => this.toServed(r)), retainedContext: retainedForWindow(windowed) }
+    }
     if (!on) return serve(effective)
     if (!compressionModel) return serve(effective)
 
@@ -734,12 +960,18 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       logger.warn('no model declares a contextWindow — skipping durable compaction for this request', { topicId })
       return serve(effective)
     }
-    if (this.estimateContext(effective) <= Math.floor(minContextWindow * CONTEXT_COMPACT_TRIGGER_RATIO)) {
+    // Against the room the PROMPT actually has: whatever this request declares
+    // as max_tokens is billed alongside the input, so it is not history's to use.
+    const inputRoom = resolveInputRoom(minContextWindow, resolveOutputReservation(assistantId, models))
+    // Selects the media cost tables only; text stays on tokenx, matching the
+    // in-loop hook so the two triggers cannot disagree on the same history.
+    const dialect = resolveRowDialect(models[0])
+    if (this.estimateContext(effective, dialect) <= Math.floor(inputRoom * CONTEXT_COMPACT_TRIGGER_RATIO)) {
       return serve(effective)
     }
 
     const recent = rows.slice(d + 1) // real rows after the marker (summary row is synthetic)
-    const keepIdx = planKeepBoundary(recent, Math.floor(minContextWindow * CONTEXT_COMPACT_KEEP_BUDGET_RATIO))
+    const keepIdx = planKeepBoundary(recent, Math.floor(inputRoom * CONTEXT_COMPACT_KEEP_BUDGET_RATIO), dialect)
     // Over-budget-without-compacting edge: when everything in `recent` fits the keep
     // budget yet `effective` still exceeds the trigger (a large prior `oldSummary`),
     // there is no boundary to snap, so we serve the marker-applied history as-is. Not a
@@ -754,7 +986,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // this summarize call runs BEFORE the model stream, so without an explicit
     // clear a failed fold would leave "compacting…" pinned on a live turn.
     const startedAt = new Date().toISOString()
-    const preTokens = this.estimateContext(effective)
+    const preTokens = this.estimateContext(effective, dialect)
     // One id per fold: a turn can compact several times, and a shared id would
     // make each later fold overwrite the previous one's anchor.
     const anchorId = compactionAnchorChunkId()
@@ -801,20 +1033,34 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           ...extra
         })
       }
+      // A fold that changed nothing (empty summary) or threw is served with UN-compacted
+      // history, so it must settle as `skipped` (metric-free) — settling `done` here is exactly
+      // what makes an untouched history render a false "context compacted" marker.
+      const skip = () =>
+        compactionSink?.(anchorId, {
+          status: 'skipped',
+          phase: 'turn-start',
+          startedAt,
+          completedAt: new Date().toISOString()
+        })
       if (!summary) {
         logger.warn('durable compaction yielded empty summary; serving marker-applied history', { topicId })
-        settle()
+        skip()
         return serve(effective)
       }
       messageService.setCompactionSummary(boundary.id, summary)
       // Boundary index in rawUI: recent = rows.slice(d + 1), boundary = recent[keepIdx - 1].
-      const served = [summaryRow(boundary.id, summary, manifestHandles(d + keepIdx)), ...recent.slice(keepIdx)]
-      settle({ postTokens: this.estimateContext(served), foldedCount: keepIdx })
+      const served = [
+        summaryRow(boundary.id, summary, manifestHandles(d + keepIdx), manifestPaths(d + keepIdx)),
+        ...recent.slice(keepIdx)
+      ]
+      settle({ postTokens: this.estimateContext(served, dialect), foldedCount: keepIdx })
       return serve(served)
     } catch (error) {
       logger.warn('durable compaction failed; serving marker-applied history', { topicId, error })
+      // Un-compacted history served → settle `skipped`, not `done` (no false marker).
       compactionSink?.(anchorId, {
-        status: 'done',
+        status: 'skipped',
         phase: 'turn-start',
         startedAt,
         completedAt: new Date().toISOString()

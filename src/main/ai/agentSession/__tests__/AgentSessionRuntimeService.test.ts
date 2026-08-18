@@ -12,11 +12,12 @@ const mocks = vi.hoisted(() => ({
   getSessionMessage: vi.fn(),
   applyToolApprovalDecision: vi.fn(),
   getLastRuntimeResumeToken: vi.fn(),
-  findPendingAssistantMessageIds: vi.fn(),
-  markMessagesError: vi.fn(),
+  findCrashOrphanedAssistantMessages: vi.fn(),
+  resolveCrashOrphanedMessages: vi.fn(),
   maybeRenameAgentSession: vi.fn(),
   applicationGet: vi.fn(),
   startRuntimeTurn: vi.fn(),
+  abortStream: vi.fn(),
   suspendUnadmittedRuntimeTurn: vi.fn().mockResolvedValue(undefined),
   pauseRuntimeTurn: vi.fn(),
   broadcastTopicError: vi.fn(),
@@ -51,8 +52,8 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     getSessionMessage: mocks.getSessionMessage,
     applyToolApprovalDecision: mocks.applyToolApprovalDecision,
     getLastRuntimeResumeToken: mocks.getLastRuntimeResumeToken,
-    findPendingAssistantMessageIds: mocks.findPendingAssistantMessageIds,
-    markMessagesError: mocks.markMessagesError
+    findCrashOrphanedAssistantMessages: mocks.findCrashOrphanedAssistantMessages,
+    resolveCrashOrphanedMessages: mocks.resolveCrashOrphanedMessages
   }
 }))
 
@@ -74,7 +75,7 @@ vi.mock('@application', () => ({
 
 const { AgentSessionRuntimeService } = await import('../AgentSessionRuntimeService')
 const { runtimeDriverRegistry } = await import('../../runtime/registry')
-const { toolApprovalRegistry } = await import('../../runtime/claudeCode')
+const { toolApprovalRegistry } = await import('../../runtime/toolApproval/ToolApprovalRegistry')
 const baseTurnInput = {
   sessionId: 'session-1',
   topicId: 'agent-session:session-1',
@@ -246,8 +247,8 @@ describe('AgentSessionRuntimeService', () => {
     })
     mocks.applyToolApprovalDecision.mockReturnValue(true)
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
-    mocks.findPendingAssistantMessageIds.mockReturnValue([])
-    mocks.markMessagesError.mockReturnValue(undefined)
+    mocks.findCrashOrphanedAssistantMessages.mockReturnValue([])
+    mocks.resolveCrashOrphanedMessages.mockReturnValue(undefined)
     mocks.ensureTraceId.mockReturnValue('b'.repeat(32))
     mocks.recordUsage.mockReturnValue(undefined)
     mocks.closeWarmQueries.mockResolvedValue(undefined)
@@ -258,6 +259,7 @@ describe('AgentSessionRuntimeService', () => {
       if (name === 'AiStreamManager') {
         return {
           startRuntimeTurn: mocks.startRuntimeTurn,
+          abort: mocks.abortStream,
           suspendUnadmittedRuntimeTurn: mocks.suspendUnadmittedRuntimeTurn,
           pauseRuntimeTurn: mocks.pauseRuntimeTurn,
           broadcastTopicError: mocks.broadcastTopicError,
@@ -291,8 +293,8 @@ describe('AgentSessionRuntimeService', () => {
 
       const service = new AgentSessionRuntimeService()
       expect(service.respondToolApproval('approval-1', { approved: true })).toBe(true)
-      expect(resolve).toHaveBeenCalledWith({ behavior: 'allow', updatedInput: { command: 'sleep 10' } })
-      expect(mocks.resolveToolApproval).toHaveBeenCalledWith('agent-session:session-1', 'tool-call-1')
+      expect(resolve).toHaveBeenCalledWith({ approved: true })
+      expect(mocks.resolveToolApproval).toHaveBeenCalledWith('agent-session:session-1', 'tool-call-1', true)
     })
 
     it('settles a persisted background interaction before resolving the requesting agent', () => {
@@ -318,7 +320,7 @@ describe('AgentSessionRuntimeService', () => {
         approved: true,
         updatedInput
       })
-      expect(resolve).toHaveBeenCalledWith({ behavior: 'allow', updatedInput })
+      expect(resolve).toHaveBeenCalledWith({ approved: true, updatedInput })
       expect(mocks.resolveToolApproval).not.toHaveBeenCalled()
     })
 
@@ -346,6 +348,15 @@ describe('AgentSessionRuntimeService', () => {
       expect(service.respondToolApproval('missing', { approved: true })).toBe(false)
       expect(mocks.resolveToolApproval).not.toHaveBeenCalled()
     })
+  })
+
+  it('aborts live streams before shutdown clears their pending approvals', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+
+    await (service as unknown as { onStop(): Promise<void> }).onStop()
+
+    expect(mocks.abortStream).toHaveBeenCalledWith('agent-session:session-1', 'agent-session-runtime-stop')
   })
 
   describe('isSessionBusy — inter-turn drain window (issue ①)', () => {
@@ -545,7 +556,7 @@ describe('AgentSessionRuntimeService', () => {
     events.push({
       type: 'usage',
       invocation: {
-        requestId: 'sdk-request-1',
+        requestId: 'claude-agent:sdk-request-1',
         model: 'claude-sonnet-4-5',
         messageAssociation: 'current-turn',
         usage: {
@@ -600,7 +611,7 @@ describe('AgentSessionRuntimeService', () => {
     events.push({
       type: 'usage',
       invocation: {
-        requestId: 'background-request',
+        requestId: 'claude-agent:background-request',
         model: 'claude-sonnet-4-5',
         messageAssociation: 'stateless',
         usage: {
@@ -1033,35 +1044,69 @@ describe('AgentSessionRuntimeService', () => {
   })
 
   describe('reconcileStalePendingMessages — boot crash recovery', () => {
-    it('marks crash-orphaned pending assistant messages as errored on init', async () => {
-      mocks.findPendingAssistantMessageIds.mockReturnValue(['stale-1', 'stale-2'])
+    it('resolves crash-orphaned pending rows with terminalized parts and invalidates their sessions', async () => {
+      mocks.findCrashOrphanedAssistantMessages.mockReturnValue([
+        {
+          id: 'stale-1',
+          sessionId: 'session-a',
+          data: {
+            parts: [
+              { type: 'text', text: 'partial answer' },
+              { type: 'tool-Bash', toolCallId: 'call-1', state: 'input-available', input: { command: 'ls' } }
+            ]
+          }
+        },
+        { id: 'stale-2', sessionId: 'session-a', data: { parts: [] } },
+        { id: 'stale-3', sessionId: 'session-b', data: {} }
+      ])
       const service = new AgentSessionRuntimeService()
 
       await (service as any).onInit()
 
-      expect(mocks.findPendingAssistantMessageIds).toHaveBeenCalledOnce()
-      expect(mocks.markMessagesError).toHaveBeenCalledWith(['stale-1', 'stale-2'])
+      expect(mocks.findCrashOrphanedAssistantMessages).toHaveBeenCalledOnce()
+      expect(mocks.resolveCrashOrphanedMessages).toHaveBeenCalledWith(
+        [
+          {
+            id: 'stale-1',
+            data: {
+              parts: [
+                { type: 'text', text: 'partial answer' },
+                {
+                  type: 'tool-Bash',
+                  toolCallId: 'call-1',
+                  state: 'output-error',
+                  input: { command: 'ls' },
+                  errorText: 'Stream errored before tool completed'
+                }
+              ]
+            }
+          },
+          { id: 'stale-2', data: { parts: [] } },
+          { id: 'stale-3', data: { parts: [] } }
+        ],
+        ['session-a', 'session-b']
+      )
     })
 
-    it('does not mark anything when there are no stale messages', async () => {
-      mocks.findPendingAssistantMessageIds.mockReturnValue([])
+    it('does not resolve anything when there are no stale messages', async () => {
+      mocks.findCrashOrphanedAssistantMessages.mockReturnValue([])
       const service = new AgentSessionRuntimeService()
 
       await (service as any).onInit()
 
-      expect(mocks.markMessagesError).not.toHaveBeenCalled()
+      expect(mocks.resolveCrashOrphanedMessages).not.toHaveBeenCalled()
     })
 
     it('logs and does not rethrow when the reconcile lookup throws, so boot is not blocked', async () => {
       const failure = new Error('db down')
-      mocks.findPendingAssistantMessageIds.mockImplementation(() => {
+      mocks.findCrashOrphanedAssistantMessages.mockImplementation(() => {
         throw failure
       })
       const service = new AgentSessionRuntimeService()
 
       await expect((service as any).onInit()).resolves.toBeUndefined()
 
-      expect(mocks.markMessagesError).not.toHaveBeenCalled()
+      expect(mocks.resolveCrashOrphanedMessages).not.toHaveBeenCalled()
       expect(mockMainLoggerService.error).toHaveBeenCalledWith(
         'Failed to reconcile stale pending agent-session messages',
         { error: failure }
@@ -4362,7 +4407,7 @@ describe('AgentSessionRuntimeService', () => {
       events.push({
         type: 'usage',
         invocation: {
-          requestId: 'pre-steer-request',
+          requestId: 'claude-agent:pre-steer-request',
           model: 'claude-sonnet-4-5',
           messageAssociation: 'current-turn',
           usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 }
@@ -4425,7 +4470,7 @@ describe('AgentSessionRuntimeService', () => {
       events.push({
         type: 'usage',
         invocation: {
-          requestId: 'post-steer-request',
+          requestId: 'claude-agent:post-steer-request',
           model: 'claude-sonnet-4-5',
           messageAssociation: 'current-turn',
           usage: { inputTokens: 7, outputTokens: 3, totalTokens: 10 }

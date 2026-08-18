@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import { describe, expect, it } from 'vitest'
 
 import { nextFreeKnowledgeRelativePath } from '../knowledge'
@@ -28,6 +30,33 @@ describe('nextFreeKnowledgeRelativePath', () => {
 
   it('keeps directory segments and only suffixes the file stem', () => {
     expect(nextFreeKnowledgeRelativePath('sub/dir/report.md', free(['sub/dir/report.md']))).toBe('sub/dir/report_1.md')
+  })
+
+  it('keeps a deduplicated filename within the filesystem limit', () => {
+    const relativePath = `sub/${'a'.repeat(251)}.pdf`
+
+    const result = nextFreeKnowledgeRelativePath(relativePath, free([relativePath]))
+
+    expect(result).toBe(`sub/${'a'.repeat(249)}_1.pdf`)
+    expect(path.posix.basename(result)).toHaveLength(255)
+  })
+
+  it('keeps an unusually long extension within the filesystem limit', () => {
+    const relativePath = `a.${'x'.repeat(253)}`
+
+    const result = nextFreeKnowledgeRelativePath(relativePath, free([relativePath]))
+
+    expect(result).toBe(`_1.${'x'.repeat(252)}`)
+    expect(result).toHaveLength(255)
+  })
+
+  it('removes a Windows-invalid ending exposed by truncating an extension', () => {
+    const relativePath = `a.${'x'.repeat(251)} y`
+
+    const result = nextFreeKnowledgeRelativePath(relativePath, free([relativePath]))
+
+    expect(result).toBe(`_1.${'x'.repeat(251)}`)
+    expect(result).not.toMatch(/[\s.]$/)
   })
 
   it('appends the suffix after a dotted name when splitExtension is false', () => {

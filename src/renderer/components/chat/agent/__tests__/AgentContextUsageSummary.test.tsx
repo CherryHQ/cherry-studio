@@ -9,19 +9,38 @@ vi.mock('react-i18next', () => ({
 
 import { AgentContextUsageSummary } from '../AgentContextUsageSummary'
 
-const buildUsage = (categories: { name: string; tokens: number }[]): AgentSessionContextUsage =>
-  ({
-    categories: categories.map((category) => ({ ...category, color: '#000' })),
-    totalTokens: 1000,
-    maxTokens: 2000,
-    model: 'claude-opus-4-8'
-  }) as AgentSessionContextUsage
+const buildUsage = (categories: { name: string; tokens: number }[]): AgentSessionContextUsage => ({
+  categories,
+  totalTokens: 1000,
+  maxTokens: 2000,
+  percentage: 50,
+  model: 'claude-opus-4-8'
+})
 
 describe('AgentContextUsageSummary', () => {
   it('translates known category names', () => {
     render(<AgentContextUsageSummary usage={buildUsage([{ name: 'System prompt', tokens: 100 }])} percentage={50} />)
 
     expect(screen.getByText('agent.right_pane.info.context_categories.system_prompt')).toBeInTheDocument()
+  })
+
+  it('renders the supplied model window instead of the SDK compaction budget', () => {
+    // usage.maxTokens is the auto-compact window (2000); the model window is what users mean.
+    render(
+      <AgentContextUsageSummary
+        usage={buildUsage([{ name: 'Messages', tokens: 1000 }])}
+        percentage={10}
+        maxTokens={10_000}
+      />
+    )
+
+    expect(screen.getByText('1,000 / 10,000 (10%)')).toBeInTheDocument()
+  })
+
+  it('falls back to the SDK value when the model declares no window', () => {
+    render(<AgentContextUsageSummary usage={buildUsage([{ name: 'Messages', tokens: 1000 }])} percentage={50} />)
+
+    expect(screen.getByText('1,000 / 2,000 (50%)')).toBeInTheDocument()
   })
 
   it('falls back to the raw name for unknown categories', () => {

@@ -34,6 +34,9 @@
     "builtin": {
       "cherry_assistant": {
         "description": "Consilier integrat Cherry Studio. Diagnostică probleme, ghidează operațiuni, colectează întrebări frecvente, trimite rapoarte de erori/cereri de funcționalități și caută/crează Abilități (Skills)"
+      },
+      "cherry_support": {
+        "description": "Agent oficial de asistență Cherry Studio pentru configurare, diagnosticare, întrebări frecvente și feedback"
       }
     },
     "channels": {
@@ -97,6 +100,8 @@
         "clientSecret": "Client Secret",
         "clientSecretPlaceholder": "Introdu secretul clientului pentru botul QQ",
         "description": "Primește și răspunde la mesaje prin API-ul oficial QQ Bot.",
+        "mentionOnlyHint": "Când este activat, botul răspunde doar la @mențiuni. Dezactivați pentru a primi toate mesajele de grup (necesită permisiunea „primirea tuturor mesajelor\" pe QQ Open Platform).",
+        "mentionOnlyLabel": "@Menționează doar",
         "title": "QQ",
         "whoamiTip": "💡 Sfat: Trimiteți /whoami la bot pentru a obține ID-ul de chat în formatul corect."
       },
@@ -204,7 +209,8 @@
       "type": "Pictogramă Agent"
     },
     "input": {
-      "placeholder": "Introdu mesajul aici, trimite cu {{key}} - @ selectează calea, / selectează comanda"
+      "placeholder": "Introdu mesajul aici, trimite cu {{key}} - @ selectează calea, / selectează comanda",
+      "placeholder_streaming": "Agentul lucrează — {{sendKey}} adaugă la coadă un mesaj, {{steerKey}} ghidează acum."
     },
     "list": {
       "error": {
@@ -496,10 +502,28 @@
       },
       "workdir": {
         "delete": {
+          "channels_count_one": "{{count}} canal",
+          "channels_count_other": "{{count}} canale",
+          "channels_empty": "Niciun canal nu va fi schimbat.",
+          "channels_title": "Canalele au fost schimbate fără director de lucru.",
           "content": "Ștergerea acestui director de lucru va șterge, de asemenea, toate sarcinile din cadrul său. Sunt eliminate doar înregistrările din baza de date; directorul real de pe disc nu va fi șters.",
+          "disk_preserved": "Folderul de pe disc și fișierele sale nu vor fi șterse.",
           "error": {
             "failed": "Nu s-a reușit ștergerea directorului de lucru"
           },
+          "more_count_one": "…și încă {{count}} articol",
+          "more_count_other": "…și încă {{count}} articole",
+          "preview": "Ștergerea „{{name}}” îi elimină sesiunile și modifică canalele asociate și sarcinile programate astfel încât să nu aibă director de lucru. Această acțiune nu poate fi anulată.",
+          "preview_failed": "Impactul ștergerii nu a putut fi încărcat, deci acest director de lucru nu poate fi încă șters.",
+          "preview_loading": "Se încarcă impactul ștergerii…",
+          "sessions_count_one": "{{count}} sesiune",
+          "sessions_count_other": "{{count}} sesiuni",
+          "sessions_empty": "Nicio sesiune nu va fi ștearsă.",
+          "sessions_title": "Sesiuni de șters",
+          "tasks_count_one": "{{count}} sarcină programată",
+          "tasks_count_other": "{{count}} sarcini programate",
+          "tasks_empty": "Nicio sarcină programată nu va fi modificată.",
+          "tasks_title": "Sarcinile programate au fost modificate pentru a nu avea director de lucru",
           "title": "Șterge directorul de lucru",
           "trigger": "Șterge directorul de lucru"
         },
@@ -530,11 +554,6 @@
           "description": "Setează variabile de mediu personalizate pentru mediul de execuție al agentului.",
           "helper": "Introdu variabile de mediu personalizate (una pe linie, în formatul CHEIE=valoare)",
           "label": "Variabile de mediu"
-        },
-        "maxTurns": {
-          "description": "Definește câte cicluri cerere/răspuns poate finaliza automat agentul.",
-          "helper": "Valorile mai mari permit rulări autonome mai lungi; valorile mai mici mențin sesiunile scurte.",
-          "label": "Limită de schimburi în conversație"
         },
         "permissionMode": {
           "description": "Controlează modul în care agentul gestionează acțiunile care necesită aprobare.",
@@ -644,13 +663,16 @@
           },
           "auto": {
             "description": "Rulează fără solicitări de rutină. O verificare de siguranță blochează acțiunile riscante.",
+            "description_pi": "Funcționează autonom. Întreabă doar când identifică o acțiune riscantă.",
             "title": "Aprobă în locul meu",
-            "warning": "Necesită un model compatibil; altele îl pot ignora sau pot continua să întrebe."
+            "warning": "Necesită un model compatibil; altele îl pot ignora sau pot continua să întrebe.",
+            "warning_pi": "Identificarea este realizată pe cât posibil; o comandă neobișnuită poate totuși să treacă neobservată."
           },
           "bypassPermissions": {
             "description": "Omite verificările de permisiuni. Poate șterge fișiere și utiliza rețeaua.",
             "title": "Acces complet",
-            "warning": "Folosește cu precauție — toate instrumentele vor rula fără a cere aprobare."
+            "warning": "Folosește cu precauție — toate instrumentele vor rula fără a cere aprobare.",
+            "warning_pi": "Periculos — nu se cere confirmare pentru nicio acțiune, cu excepția instrumentelor dezactivate, inclusiv ștergerea fișierelor și accesul la rețea."
           },
           "confirmChange": {
             "description": "Schimbarea modurilor actualizează instrumentele aprobate automat.",
@@ -958,7 +980,6 @@
       "executing": "Se execută...",
       "expired": "Expirat",
       "inputPreview": "Previzualizare intrare instrument",
-      "pending": "Se așteaptă confirmarea",
       "pendingBadge": "În așteptare",
       "permissionExpired": "Cererea de permisiune a expirat. Se așteaptă instrucțiuni noi...",
       "requiresElevatedPermissions": "Acest instrument necesită permisiuni elevate.",
@@ -1066,6 +1087,82 @@
         "Write": {
           "description": "Creează sau suprascrie fișiere",
           "label": "Scrie"
+        },
+        "bash": {
+          "description": "Rulează comenzi shell",
+          "label": "Rulează comenzi shell"
+        },
+        "create_goal": {
+          "description": "Creează un obiectiv de sesiune de urmărit",
+          "label": "Creează obiectiv"
+        },
+        "edit": {
+          "description": "Editează fișiere",
+          "label": "Editează fișiere"
+        },
+        "exit_plan_mode": {
+          "description": "Prezintă planul pentru revizuire și iese din modul de plan la aprobare",
+          "label": "Ieși din modul de plan"
+        },
+        "find": {
+          "description": "Găsește fișiere",
+          "label": "Găsește fișiere"
+        },
+        "get_goal": {
+          "description": "Citește obiectivul sesiunii curente",
+          "label": "Citește obiectivul"
+        },
+        "grep": {
+          "description": "Caută în conținutul fișierelor",
+          "label": "Caută în conținutul fișierelor"
+        },
+        "interrupt_agent": {
+          "description": "Oprește runda curentă a unui subagent din fundal",
+          "label": "Întrerupe subagentul"
+        },
+        "list_agents": {
+          "description": "Listează subagenții din fundal și starea lor",
+          "label": "Listează subagenți"
+        },
+        "ls": {
+          "description": "Listează conținutul directorului",
+          "label": "Listează conținutul directorului"
+        },
+        "read": {
+          "description": "Citește fișiere",
+          "label": "Citește fișiere"
+        },
+        "read_image": {
+          "description": "Citește un fișier PNG, JPEG, WebP sau GIF cu un model capabil de analiză vizuală",
+          "label": "Citește imaginea"
+        },
+        "send_message": {
+          "description": "Trimite un mesaj de continuare către un subagent din fundal",
+          "label": "Trimite mesaj subagentului"
+        },
+        "skill": {
+          "description": "Încarcă instrucțiunile complete ale unei abilități activate",
+          "label": "Încarcă instrucțiunile abilității"
+        },
+        "subagent": {
+          "description": "Delegează o sarcină unui subagent din fundal care poate fi contactat ulterior",
+          "label": "Delegează subagentului"
+        },
+        "subagent_fork": {
+          "description": "Delegează o sarcină suplimentară unui subagent preîncărcat cu această conversație",
+          "label": "Ramifică subagentul"
+        },
+        "todo_write": {
+          "description": "Gestionează lista de sarcini",
+          "label": "Gestionează lista de sarcini"
+        },
+        "update_goal": {
+          "description": "Actualizează starea sau conținutul obiectivului sesiunii",
+          "label": "Actualizează obiectivul"
+        },
+        "write": {
+          "description": "Scrie fișiere",
+          "label": "Scrie fișiere"
         }
       }
     },
@@ -1131,6 +1228,11 @@
       "startSuccess": "Serverul API a pornit cu succes",
       "stopError": "Nu s-a putut opri serverul API: ",
       "stopSuccess": "Serverul API s-a oprit cu succes"
+    },
+    "required": {
+      "confirm": "Activează",
+      "description": "Modelul acestui agent trebuie să fie conectat prin serverul API local Cherry Studio. Activarea va porni, de asemenea, automat serverul la următoarele lansări; îl puteți dezactiva din nou în Setări.",
+      "title": "Activezi serverul API?"
     },
     "status": {
       "running": "Rulează",
@@ -1544,18 +1646,19 @@
       "resource_panel": {
         "categories": {
           "agents": "Agenți",
-          "files": "Fișiere",
+          "resources": "Fișiere și foldere",
           "skills": "Abilități"
         },
         "description": "Selectează dintre fișiere, agenți sau abilități",
+        "load_failed": "Eroare la încărcarea resurselor spațiului de lucru",
         "loading": "Se încarcă...",
-        "no_file_found": {
-          "description": "Nicio fișier disponibil în directoare accesibile",
-          "label": "Niciun fișier găsit"
-        },
         "no_items_found": {
           "description": "Niciun fișier, agent sau abilitate disponibilă",
           "label": "Niciun element găsit"
+        },
+        "no_resources_found": {
+          "description": "Nu există fișiere sau foldere căutabile în spațiul de lucru curent.",
+          "label": "Nu s-au găsit resurse"
         },
         "title": "Fișiere și sesiuni"
       },
@@ -2152,6 +2255,7 @@
     "cli_tool_placeholder": "Selectează instrumentul CLI de utilizat",
     "cli_tools": {
       "claude_code": "Claude Code",
+      "deepseek_harness": "DeepSeek Harness",
       "gemini_cli": "CLI Gemini",
       "github_copilot_cli": "CLI GitHub Copilot",
       "kimi_code": "Kimi Code",
@@ -2174,6 +2278,43 @@
     "custom_path_error": "Nu s-a putut seta calea personalizată a terminalului",
     "custom_path_required": "Calea personalizată este necesară pentru acest terminal",
     "custom_path_set": "Calea personalizată a terminalului a fost setată cu succes",
+    "deepseek_harness": {
+      "agent_preset": "Mod implicit pentru agent",
+      "agent_presets": {
+        "code": {
+          "description": "Combină lucrul cu instrumente în mai mulți pași prin SDK-ul PTC Code Mode pentru sarcini complexe de programare.",
+          "label": "PTC Code"
+        },
+        "inherit": {
+          "description": "Păstrează presetarea implicită existentă în setările comune ~/.dsh.",
+          "label": "Setarea implicită Harness"
+        },
+        "minimal": {
+          "description": "Folosește doar un shell persistent și un editor de text pentru cel mai restrâns set de instrumente.",
+          "label": "Minimal"
+        },
+        "standard": {
+          "description": "Agent de programare complet, cu fișiere, shell, căutare, abilități, planificare și subagenți.",
+          "label": "Standard"
+        }
+      },
+      "danger_warning": "Accesul complet permite agentului să acceseze fișiere din afara spațiului de lucru și omite aprobarea operațiunilor. Folosește-l numai pentru sarcini de încredere.",
+      "permission_mode": "Permisiune implicită",
+      "permission_modes": {
+        "danger-full-access": {
+          "description": "Permite acces nerestricționat fără aprobarea operațiunilor.",
+          "label": "Acces complet"
+        },
+        "read-only": {
+          "description": "Restricționează scrierea fișierelor și solicită confirmare înaintea operațiunilor riscante.",
+          "label": "Doar citire"
+        },
+        "workspace-write": {
+          "description": "Permite scrierea în spațiul de lucru DSH curent și solicită confirmare înaintea operațiunilor riscante.",
+          "label": "Scriere în spațiul de lucru"
+        }
+      }
+    },
     "description": "Lansează rapid mai multe instrumente CLI de cod pentru a îmbunătăți eficiența dezvoltării",
     "disable": "Dezactivare",
     "edit_config": "Editează Configurația",
@@ -2224,6 +2365,7 @@
     "no_tools": "Nu există instrumente disponibile",
     "not_installed": "Neinstalat",
     "open_provider_settings": "Deschide setările furnizorului",
+    "open_web_ui": "Deschide interfața web",
     "own_login": {
       "title": "{{toolName}} Oficial"
     },
@@ -2233,8 +2375,10 @@
     "search_provider_placeholder": "Furnizori de căutare…",
     "select_folder": "Selectează directorul",
     "select_provider_before_launch": "Selectează un furnizor înainte de a porni {{toolName}}",
+    "select_provider_model": "Selectează mai întâi un furnizor și un model",
     "select_tool_to_start": "Selectează un instrument CLI din stânga pentru a începe configurarea",
     "set_custom_path": "Setează calea personalizată a terminalului",
+    "stop": "Oprește",
     "supported_providers": "Furnizori acceptați",
     "terminal": "Terminal",
     "terminal_hint": "Alege în ce aplicație terminal să rulezi CLI-ul",
@@ -2474,6 +2618,7 @@
     "openai-response": "OpenAI-Response"
   },
   "error": {
+    "api_gateway_required": "Acest model trebuie să fie conectat prin serverul API local Cherry Studio, care este în prezent dezactivat. Activează-l pentru a rula acest agent.",
     "availableProviders": "Furnizori disponibili",
     "availableTools": "Instrumente disponibile",
     "backup": {
@@ -2524,6 +2669,7 @@
       "ocr": "Motorul OCR nu este inițializat; verifică setările OCR",
       "parse": "AI a returnat un răspuns nevalid; încearcă din nou sau schimbă modelul",
       "payload": "Conținutul cererii este prea mare, reduceți dimensiunea fișierului sau a textului.",
+      "permission": "Furnizorul a refuzat această cerere. Verificați detaliile erorii, planul contului, permisiunile cheii API sau accesul la această resursă.",
       "proxy": "Eroare de proxy sau certificat SSL; verifică setările de proxy și rețea",
       "quota": "Cota contului epuizată, reîncărcați sau schimbați furnizorul",
       "rate_limit": "Prea multe solicitări într-un timp scurt. Așteaptă puțin și încearcă din nou sau alege un model cu o limită de frecvență mai mare",
@@ -2859,6 +3005,13 @@
     },
     "title": "GPUStack"
   },
+  "help": {
+    "feedback": "Feedback",
+    "guide": "Ghid de utilizare",
+    "star": "Stea pe GitHub",
+    "title": "Ajutor",
+    "whats_new": "Noutăți"
+  },
   "history": {
     "continue_chat": "Continuă conversația",
     "error": {
@@ -3091,6 +3244,8 @@
         "delete_confirm_title": "Șterge sursele de date selectate?",
         "loaded_only_hint": "Se aplică doar elementelor încărcate ({{total}} în total)",
         "reindex": "Reindexare",
+        "reindex_none_eligible": "Toate sursele de date selectate sunt în procesare și nu pot fi reindexate în acest moment.",
+        "reindex_skipped": "S-au omis {{count}} sursă(s) de date încă în procesare",
         "selected_count": "{{count}} selectate"
       },
       "chunks_count": "{{count}} fragmente",
@@ -3196,7 +3351,6 @@
       "updated_at": "Actualizat {{time}}"
     },
     "name_required": "Numele bazei de cunoștințe este obligatoriu",
-    "not_set": "Nu este setat",
     "provider_not_found": "Furnizorul nu a fost găsit",
     "rag": {
       "chunk_overlap": "Dimensiune Suprapunere",
@@ -3211,12 +3365,13 @@
       "chunking": "Segmentare",
       "default_separator": "Auto (recomandat)",
       "document_count": "Număr de documente",
-      "download_local_embedding": "Descarcă Model Local",
       "download_local_embedding_failed": "Nu s-a putut descărca modelul local de embedding",
+      "download_local_model": "Descărcare Model Local",
       "embedding_model": "model de embedding",
       "embedding_model_select": "Selecția Modelului",
       "file_processing": "Procesare fișiere",
       "file_processing_hint": "Procesarea fișierelor se execută automat în timpul importului documentului. Alegerea furnizorului potrivit poate îmbunătăți calitatea analizei documentelor.",
+      "file_processing_none": "Nu folosi",
       "hints": {
         "chunk_overlap": "Numărul de token-uri suprapuse păstrate între fragmentele adiacente pentru a reduce rupturile semantice.",
         "chunk_separator": "Delimitatorul pe care este împărțit textul, în formă evadată. Cu fragmentarea inteligentă activată, adaugă un punct de întrerupere; cu ea dezactivată, textul este împărțit doar de acest delimitator.",
@@ -3230,6 +3385,8 @@
       },
       "processor": "Furnizor de procesare",
       "processor_not_configured": "Necunfigurat",
+      "processor_not_downloaded": "Nedescărcat",
+      "processor_unreachable": "Serviciul nu rulează",
       "rerank_disabled": "Dezactivat",
       "rerank_model": "Model de Reordonare",
       "reset_action": "Restabilește valorile implicite",
@@ -3316,6 +3473,7 @@
   },
   "launchpad": {
     "apps": "Aplicații",
+    "deepseek_harness_shortcut": "DSH",
     "manage_sidebar": "Gestionați bara laterală",
     "minapps": "Minapp-uri",
     "miniApps": "Mini-aplicații",
@@ -3388,10 +3546,6 @@
           "heartbeat_interval": {
             "label": "Interval de bătăi ale inimii (minute)"
           },
-          "max_turns": {
-            "help": "0 înseamnă să folosească valoarea implicită",
-            "label": "Număr maxim de runde de conversație"
-          },
           "mcps": {
             "add": "Adaugă server MCP",
             "empty": "Niciunul legat",
@@ -3419,6 +3573,20 @@
           "plan_model": {
             "hint": "Descompunerea sarcinii și planificarea",
             "label": "Model de plan (opțional)"
+          },
+          "runtime": {
+            "immutable_hint": "Nu poate fi schimbat după creare",
+            "label": "Mod de rulare",
+            "option": {
+              "claude_code": "Avansat: Claude Agent",
+              "dsh": "DeepSeek Harness",
+              "pi": "Rapid: Pi"
+            },
+            "option_description": {
+              "claude_code": "Mai capabil — modul de plan și modele pe niveluri",
+              "dsh": "Suport larg pentru furnizori, cu execuție orientată pe obiective",
+              "pi": "Răspunsuri mai rapide, overhead redus"
+            }
           },
           "small_model": {
             "hint": "Verificări ușoare și formatare",
@@ -3480,6 +3648,12 @@
         "context_compress_model": "Model de compresie",
         "context_compress_model_follow": "Implicit",
         "context_count": "Număr de contexte",
+        "context_count_follow_global": "Urmează setarea globală ({{count}})",
+        "context_count_unlimited": "Nelimitat",
+        "context_globally_disabled": "Gestionarea contextului este dezactivată global, așa că setările de descărcare și comprimare de aici nu au efect",
+        "context_inherited": "Urmează setările globale: {{compress}}; rezultatele instrumentelor peste {{threshold}} de caractere sunt descărcate",
+        "context_inherited_compress_off": "comprimare automată dezactivată",
+        "context_inherited_compress_on": "comprimare automată activată",
         "context_management": "Gestionarea contextului",
         "context_truncate_threshold": "Prag de trunchiere a ieșirii instrumentului (caractere)",
         "creative": "Creativ",
@@ -3516,7 +3690,7 @@
             "hint": "Lungimea răspunsului Caps când este activată"
           },
           "max_tool_calls": {
-            "hint": "Limitează buclele de apeluri ale funcțiilor când este activat"
+            "hint": "Limitează numărul de runde de apeluri de instrumente când este activat; altfel se aplică limita implicită de {{count}} runde"
           },
           "model": {
             "hint": "Suprascrie modelul implicit global pentru acest asistent"
@@ -3821,10 +3995,17 @@
     "skill_marketplace": {
       "empty_description": "Caută în registrele online abilități care pot fi instalate.",
       "empty_title": "Caută abilități",
+      "github_empty_description": "Lipește un link către fișierul SKILL.md al unei abilități, de exemplu github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
+      "github_empty_title": "Instalează de pe GitHub",
+      "github_url_invalid": "Lipește un link GitHub care se termină cu SKILL.md",
+      "github_url_label": "URL SKILL.md GitHub",
+      "github_url_placeholder": "Link GitHub care se termină cu /SKILL.md",
       "no_results_description": "Încearcă un alt cuvânt cheie sau importă un fișier ZIP sau director local.",
       "no_results_title": "Nu au fost găsite abilități",
       "search_failed_description": "Căutarea a eșuat. Încearcă din nou mai târziu.",
+      "search_label": "Caută abilități",
       "search_placeholder": "Căutare abilități...",
+      "source_label": "Sursa abilității",
       "title": "Căutare abilități online"
     },
     "sort": {
@@ -3851,13 +4032,6 @@
       "placeholder": "Nume nou pentru etichetă..."
     },
     "tag_sync_failed": "Nu s-au putut sincroniza etichetele",
-    "time_ago": {
-      "days": "acum {{count}} zi(zile)",
-      "hours": "{{count}} oră/oră în urmă",
-      "just_now": "Chiar acum",
-      "minutes": "acum {{count}} minut(e",
-      "months": "acum {{count}} lună/luni"
-    },
     "title": "Bibliotecă",
     "toolbar": {
       "add_group_placeholder": "Numele grupului...",
@@ -4021,6 +4195,14 @@
         "export": "Nu s-a putut exporta în Siyuan Note, te rugăm să verifici starea conexiunii și configurarea conform documentației",
         "no_config": "Adresa API Siyuan Note sau tokenul nu sunt configurate"
       },
+      "stream_admission": {
+        "execution_changed": "Răspunsul s-a schimbat înainte de începerea reîncercării. Vă rugăm să încercați din nou.",
+        "execution_not_ready": "Acest răspuns este încă în curs de generare și nu poate fi reîncercat încă.",
+        "model_already_in_live_group": "Acest model generează deja în grupul de răspuns activ.",
+        "single_model_required": "Selectați un model pentru a-l adăuga la grupul de răspuns activ.",
+        "target_not_in_live_group": "Răspunsul selectat nu mai face parte din grupul de răspunsuri activ. Vă rugăm să încercați din nou.",
+        "topic_busy": "Această conversație se generează încă. Așteaptă să se termine și încearcă din nou."
+      },
       "table": {
         "invalid": "Imposibil de recuperat date valide din tabel"
       },
@@ -4035,7 +4217,8 @@
         "content": "Ștergeți toate răspunsurile asistentului din acest grup? Întrebarea utilizatorului și mesajele ulterioare vor fi păstrate.",
         "title": "Șterge răspunsurile grupate"
       },
-      "retry_failed": "Reîncearcă mesajele eșuate"
+      "retry_failed": "Reîncearcă mesajele eșuate",
+      "retry_skipped_same_model": "Au fost omise {{count}} răspunsuri eșuate suplimentare, deoarece Retry All pornește cel mult o reîncercare per model."
     },
     "ignore": {
       "knowledge": {
@@ -4467,14 +4650,27 @@
     },
     "pinned": "Fixat",
     "price": {
+      "add_tier": "Adaugă nivel de preț",
+      "cache_fallback_help": "Lăsați prețurile cache necompletate pentru a utiliza prețul de intrare al acestui nivel; introduceți 0 pentru gratuit.",
       "cache_read": "Preț Citire Cache",
+      "cache_write": "Preț scriere cache",
       "cost": "Cost",
       "currency": "Monedă",
       "custom": "Personalizat",
+      "field_for_tier": "{{field}}, nivel {{index}}",
       "input": "Preț intrare",
       "million_tokens": "M Tokeni",
+      "min_input_tokens": "Începe de la tokeni de intrare",
+      "min_input_tokens_help": "Limită inclusivă; trebuie să fie mai mare decât nivelul anterior.",
       "output": "Preț ieșire",
-      "price": "Preț"
+      "price": "Preț",
+      "remove_tier": "Elimină nivelul de preț {{index}}",
+      "tier": "Nivel {{index}}",
+      "tier_from": "De la {{boundary}} tokenuri de intrare (inclusiv)",
+      "use_input_price": "Folosește prețul de intrare",
+      "validation_min_input_tokens": "Introduceți un număr întreg pozitiv.",
+      "validation_min_input_tokens_order": "Nivelul trebuie să înceapă după nivelul anterior.",
+      "validation_price": "Introduceți un preț mai mare sau egal cu 0."
     },
     "reasoning": "Raționament",
     "rerank_model": "Model de reranking",
@@ -4626,6 +4822,8 @@
         "font_size_medium": "Mediu",
         "font_size_small": "Mic",
         "font_title": "Setări font",
+        "line_breaks": "Mod de întrerupere a liniei",
+        "line_breaks_description": "Randează o singură întrerupere de linie ca o linie nouă (stil Obsidian). Când este dezactivată, întreruperile de linie sunt comprimate în spații până când o linie goală separă paragrafele.",
         "serif_font": "Font cu serife",
         "show_table_of_contents": "Afișează cuprinsul",
         "show_table_of_contents_description": "Afișează o bară laterală cu cuprinsul pentru o navigare ușoară în documente",
@@ -4758,7 +4956,7 @@
     },
     "installed_at": "OpenClaw instalat la",
     "migration": {
-      "description": "A fost detectată o versiune învechită a OpenClaw instalată prin npm. Reinstalați pentru a obține cea mai recentă versiune oficială.",
+      "description": "A fost detectată o instalare externă OpenClaw în PATH, dar Cherry Studio folosește propriul binar OpenClaw gestionat. Instalați versiunea gestionată pentru a continua.",
       "install_button": "Reinstalați OpenClaw",
       "title": "OpenClaw necesită actualizare"
     },
@@ -5393,6 +5591,7 @@
         "insertRowBefore": "Inserează deasupra"
       }
     },
+    "backToTop": "Înapoi sus",
     "commands": {
       "blockMath": {
         "description": "Inserează formulă matematică",
@@ -5882,7 +6081,7 @@
           "title": "Pachet de diagnosticare"
         },
         "errors": {
-          "busy": "Se exportă deja un alt pachet de diagnosticare",
+          "busy": "Este deja în curs o altă operațiune cu un pachet de diagnosticare",
           "copy_failed": "Nu s-a putut copia adresa de e-mail pentru asistență",
           "destination_conflict": "Locația de salvare selectată intră în conflict cu datele de diagnosticare. Alege un alt director.",
           "email_client_failed": "Nu s-a putut deschide un client de e-mail. În schimb, poți copia adresa de e-mail pentru asistență.",
@@ -5931,6 +6130,48 @@
           "title": "Pachet de diagnosticare exportat"
         },
         "unknown": "Necunoscut",
+        "upload": {
+          "actions": {
+            "consent_upload": "Acceptă și încarcă",
+            "open_form": "Deschide formularul",
+            "uploading": "Se încarcă..."
+          },
+          "dialog": {
+            "description": "Creează un pachet de diagnosticare și trimite-l anonim echipei Cherry Studio.",
+            "title": "Încarcă pachetul de diagnosticare"
+          },
+          "errors": {
+            "open_form_failed": "Formularul de feedback nu a putut fi deschis",
+            "upload_failed": "Pachetul de diagnosticare nu a putut fi creat sau salvat"
+          },
+          "manual": {
+            "description": "Arhiva ZIP a fost salvată în Descărcări, iar formularul anonim a fost deschis. Selectează acolo fișierul salvat pentru a finaliza trimiterea.",
+            "title": "Este necesară încărcarea manuală"
+          },
+          "privacy": {
+            "description": "Pachetul include întotdeauna informații despre aplicație și dispozitiv. Jurnalele și înregistrările detaliate selectate pot conține informații introduse de tine, locații de fișiere, conținutul solicitărilor și răspunsurilor și informații despre conexiunile la servicii. Este trimis anonim către un formular Feishu privat și este limitat la {{size}}. Dacă apeși „Acceptă și încarcă”, ești de acord cu crearea și trimiterea acestui pachet.",
+            "title": "Notificare privind confidențialitatea"
+          },
+          "reasons": {
+            "attachment_upload_failed": "Atașamentul nu a putut fi încărcat automat.",
+            "form_changed": "Structura formularului de feedback s-a modificat și nu a putut fi verificată în siguranță.",
+            "form_unavailable": "Formularul de feedback nu este disponibil momentan.",
+            "network_failed": "Solicitarea de rețea nu a putut fi finalizată.",
+            "submission_rejected": "Formularul de feedback a respins trimiterea."
+          },
+          "success": {
+            "description": "Dimensiune fișier {{size}} · {{included}} fișiere colectate · {{omitted}} fișiere necolectate",
+            "title": "Pachetul de diagnosticare a fost încărcat"
+          },
+          "unknown": {
+            "description": "Arhiva ZIP a fost salvată în Descărcări, dar răspunsul serverului a fost întrerupt. Este posibil ca trimiterea să fi fost deja finalizată. Verifică înainte de a deschide formularul pentru a evita trimiterea de două ori.",
+            "title": "Este posibil ca trimiterea să fi reușit"
+          },
+          "unknown_without_copy": {
+            "description": "Răspunsul serverului a fost întrerupt, iar fișierul ZIP de diagnosticare nu a putut fi salvat local. Nu reîncerca încărcarea, deoarece același feedback ar putea fi trimis de două ori.",
+            "title": "Este posibil ca trimiterea să fi reușit, dar nu a fost salvată nicio copie locală"
+          }
+        },
         "warning": "Unele informații de diagnosticare nu au fost disponibile. Este posibil ca pachetul exportat să fie incomplet."
       },
       "downloading": "Se descarcă...",
@@ -5939,24 +6180,25 @@
       },
       "feedback": {
         "agent": {
-          "description": "Discută cu Asistentul Cherry pentru a împărtăși feedback-ul tău.",
-          "title": "Folosește agentul"
+          "description": "Discută cu Agentul Cherry Support integrat pentru ajutor cu Cherry Studio sau pentru a trimite feedback.",
+          "title": "Cere ajutor Cherry Support"
         },
-        "agent_error": "Nu se poate deschide Cherry Assistant pentru feedback. Încearcă din nou.",
+        "agent_error": "Cherry Support nu poate fi deschis. Încearcă din nou.",
         "button": "Feedback",
+        "diagnostics": {
+          "description": "Verifică informațiile recente de diagnosticare, apoi încarcă-le anonim într-un singur pas.",
+          "title": "Încarcă pachetul de diagnosticare"
+        },
         "dialog": {
           "description": "Alege cum să partajezi feedback-ul și ajută-ne să facem Cherry Studio mai bun.",
           "title": "Alege un canal de feedback"
         },
         "github": {
           "description": "Creează un raport de eroare sau o solicitare de funcționalitate pe GitHub.",
+          "error": "Problemele GitHub nu au putut fi deschise. Încearcă din nou.",
           "title": "Problemă GitHub"
         },
         "recommended": "Recomandat",
-        "survey": {
-          "description": "Împărtășiți feedback-ul prin sondajul nostru Feishu.",
-          "title": "Sondaj de feedback"
-        },
         "title": "Feedback"
       },
       "label": "Despre și feedback",
@@ -6669,6 +6911,10 @@
       "installingHint": "Prima instalare poate descărca un runtime și dura câteva minute",
       "invalidTool": "Nume de instrument sau cheie invalid",
       "localModels": {
+        "acceleration": {
+          "description": "Folosiți DirectML sau CoreML pentru a accelera inferența locală de embedding și OCR.",
+          "label": "accelerare hardware"
+        },
         "cancel": "Anulare",
         "description": "Modele care rulează local pe dispozitivul tău — descarcă o dată, apoi folosește offline fără cheie API.",
         "download": "Descărcare",
@@ -6972,10 +7218,12 @@
         "no": "Fără descriere",
         "nowledge_mem": "Necesită aplicația Nowledge Mem rulând local. Păstrează chat-urile AI, instrumentele, notițele, agenții și fișierele în memoria privată de pe computerul tău. Descarcă de la https://mem.nowledge.co/",
         "python": "Execută cod Python într-un mediu sandbox securizat. Rulează Python cu Pyodide, suportând majoritatea bibliotecilor standard și pachetelor de calcul științific",
+        "qveris": "Conectați-vă la QVeris pentru a descoperi, inspecta și apela capabilitățile agenților AI. Este necesară configurarea variabilei de mediu QVERIS_API_KEY.",
         "sequentialthinking": "O implementare de server MCP care oferă instrumente pentru rezolvarea dinamică și reflexivă a problemelor prin procese de gândire structurată"
       },
       "command": "Comandă",
       "config_description": "Configurează serverele Protocolului de Context Model",
+      "copyLogs": "Copiază jurnalele",
       "customRegistryPlaceholder": "Introdu URL registru privat, de ex.: https://npm.company.com",
       "deleteError": "Nu s-a putut șterge serverul",
       "deleteServer": "Șterge serverul",
@@ -7029,6 +7277,7 @@
       },
       "logoUrl": "URL logo",
       "logs": "Jurnale",
+      "logsHint": "Jurnalizări de la procesul serverului MCP",
       "longRunning": "Mod rulare lungă",
       "longRunningTooltip": "Când este activat, serverul acceptă sarcini de lungă durată. La primirea notificărilor de progres, timpul de expirare va fi resetat, iar timpul maxim de execuție va fi extins la 10 minute.",
       "marketplaces": "Piețe",
@@ -7089,6 +7338,10 @@
       "providerPlaceholder": "Nume furnizor",
       "providerUrl": "URL furnizor",
       "providers": "Furnizori",
+      "qveris": {
+        "get_api_key": "Obține cheia API",
+        "missing_api_key": "QVeris necesită o cheie API. <link>Înregistrați-vă sau conectați-vă pentru a obține o cheie API</link>, apoi introduceți-o ca QVERIS_API_KEY."
+      },
       "registry": "Registru pachete",
       "registryDefault": "Implicit",
       "registryOptions": {
@@ -7219,8 +7472,11 @@
         "confirm_delete_message": "Confirmă înainte de ștergerea mesajelor",
         "confirm_regenerate_message": "Confirmă înainte de regenerarea mesajelor",
         "enable_quick_triggers": "Activează declanșatoarele / și @",
+        "newline_shortcuts": "Scurtătură pentru linie nouă",
         "send_shortcuts": "Comenzi rapide trimitere",
         "show_estimated_tokens": "Afișează numărul estimat de tokeni",
+        "steer_shortcuts": "Scurtătură pentru ghidare",
+        "steer_shortcuts_hint": "În timp ce un Agent rulează, aceasta trimite mesajul în runda curentă imediat pentru a-l ghida; scurtătura de trimitere îl adaugă la coadă până la sfârșitul runde.",
         "title": "Setări intrare"
       },
       "layout": {
@@ -7415,6 +7671,20 @@
         "use_all_keys": "Cheie(i)"
       },
       "collapse_all": "Restrânge tot",
+      "context_management": {
+        "compress_enabled": "Comprimare automată",
+        "compress_enabled_description": "Rezumă automat schimburile mai vechi când se apropie limita ferestrei de context. Asistenții pot suprascrie această setare",
+        "compress_model": "Model de comprimare",
+        "compress_model_follow": "Urmează modelul curent",
+        "enabled": "Activează gestionarea contextului",
+        "enabled_description": "Gestionează automat contextul conversației: descarcă rezultatele prea mari ale instrumentelor și comprimă istoricul aproape de limita ferestrei. Dezactivată, nu se gestionează nimic, iar cererile care depășesc fereastra eșuează",
+        "max_messages": "Mesaje recente păstrate",
+        "max_messages_description": "Trimite doar cele mai recente mesaje; cele anterioare sunt excluse din context. Lăsați gol pentru fără limită. Asistenții pot suprascrie această setare",
+        "max_messages_unlimited": "Nelimitat",
+        "title": "Gestionarea contextului",
+        "truncate_threshold": "Prag de trunchiere a rezultatelor instrumentelor (caractere)",
+        "truncate_threshold_description": "Rezultatele instrumentelor peste acest număr de caractere sunt descărcate într-un fișier și trunchiate; modelul le poate reciti la nevoie. Asistenții pot suprascrie această setare"
+      },
       "default_assistant_model": "Model asistent implicit",
       "default_assistant_model_description": "Folosit când un asistent nu are model.",
       "docs": "Documentația modelului",
@@ -7547,7 +7817,6 @@
       "topic_naming": {
         "auto": "Numire automată subiect",
         "label": "Numire subiect",
-        "model": "Model de denumire",
         "prompt": "Prompt numire subiect"
       },
       "translate_model": "Model traducere",
@@ -7570,7 +7839,8 @@
       "assistant": "Mesaj asistent",
       "backup": "Mesaj backup",
       "knowledge_embed": "Mesaj bază de cunoștințe",
-      "title": "Notificări"
+      "title": "Notificări",
+      "update": "Actualizare aplicație"
     },
     "openai": {
       "service_tier": {
@@ -8125,10 +8395,12 @@
       "label": "Tastă",
       "move_tab_to_first": "Mută fila pe prima poziție",
       "new_topic": "Subiect nou",
+      "next_tab": "Următoarea filă",
       "occupied_by_other_application": "Această comandă rapidă este deja utilizată de sistem sau de o altă aplicație",
       "open_tab_in_new_window": "Deschide fila într-o fereastră nouă",
       "pin_tab": "Comutare fixare filă",
       "press_shortcut": "Apasă comanda rapidă",
+      "prev_tab": "Fila anterioară",
       "print": "Tipărire",
       "quick_assistant": "Asistent rapid",
       "rename_topic": "Redenumește subiectul",
@@ -8244,6 +8516,10 @@
           "doc2x": {
             "description": "Motor avansat de restaurare a fișierelor.",
             "name": "Doc2x"
+          },
+          "local_document": {
+            "description": "Convertește PDF-uri în Markdown integral pe acest dispozitiv. Documentele cu strat de text sunt analizate direct; scanările revin la modelul OCR local.",
+            "name": "Document local"
           },
           "local_paddleocr": {
             "description": "PaddleOCR (PP-OCRv6 medium) rulează în proces, complet offline și fără cheie API; recunoașterea are loc pe un fir de fundal pentru ca interfața să rămână receptivă. Descarcă modelul (~140 MB) din Dependențe de mediu înainte de prima utilizare.",
@@ -8736,7 +9012,7 @@
       "aborted": "Traducere anulată"
     },
     "input": {
-      "placeholder": "Textul, fișierele text sau imaginile (cu suport OCR) pot fi lipite sau trase aici"
+      "placeholder": "Introduceți text..."
     },
     "language": {
       "not_pair": "Limba sursă este diferită de limba setată",
@@ -8799,5 +9075,18 @@
     "quit": "Ieșire",
     "show_window": "Afișează fereastra",
     "visualization": "Vizualizare"
+  },
+  "xlsx_preview": {
+    "chart": "Diagramă",
+    "chart_unsupported": "Acest tip de diagramă nu este încă acceptat",
+    "error": {
+      "description": "Această foaie de calcul nu a putut fi previzualizată."
+    },
+    "formula_not_evaluated": "Formula nu a putut fi evaluată",
+    "sheet_tabs_label": "Foi",
+    "too_large": {
+      "description": "Dimensiunea fișierului {{size}} depășește limita de previzualizare de {{limit}}.",
+      "title": "Fișier prea mare pentru previzualizare"
+    }
   }
 }

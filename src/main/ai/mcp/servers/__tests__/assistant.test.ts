@@ -48,7 +48,12 @@ vi.mock('@data/services/ProviderService', () => ({
   providerService: { getByProviderId: mocks.providerGetById }
 }))
 
-import AssistantServer, { isAllowedAssistantNavigationPath, isBlockedSourceFile } from '../assistant'
+import AssistantServer, {
+  type AssistantToolName,
+  isAllowedAssistantNavigationPath,
+  isBlockedSourceFile,
+  SUPPORT_ASSISTANT_TOOL_NAMES
+} from '../assistant'
 
 const temporaryDirectories: string[] = []
 
@@ -61,8 +66,8 @@ function writeProductManifest(content: string): string {
   return manifestPath
 }
 
-async function connectAssistantClient() {
-  const server = new AssistantServer()
+async function connectAssistantClient(enabledToolNames?: readonly AssistantToolName[]) {
+  const server = new AssistantServer(undefined, enabledToolNames)
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
   const client = new Client({ name: 'assistant-test-client', version: '1.0.0' }, { capabilities: {} })
   await server.mcpServer.connect(serverTransport)
@@ -308,6 +313,35 @@ describe('apply_setting', () => {
 })
 
 describe('create_agent', () => {
+  it('is listed and callable for the default Assistant capability set', async () => {
+    const client = await connectAssistantClient()
+
+    expect((await client.listTools()).tools.map((tool) => tool.name)).toContain('create_agent')
+    const result = await client.callTool({
+      name: 'create_agent',
+      arguments: { name: 'Reviewer', instructions: 'Review code.', model: 'anthropic::claude-sonnet' }
+    })
+
+    expect(result.isError).not.toBe(true)
+    expect(mocks.agentCreate).toHaveBeenCalledOnce()
+    await client.close()
+  })
+
+  it('is neither listed nor callable for the Support capability set', async () => {
+    const client = await connectAssistantClient(SUPPORT_ASSISTANT_TOOL_NAMES)
+
+    expect((await client.listTools()).tools.map((tool) => tool.name)).not.toContain('create_agent')
+    const result = await client.callTool({
+      name: 'create_agent',
+      arguments: { name: 'Reviewer', instructions: 'Review code.' }
+    })
+
+    expect(result.isError).toBe(true)
+    expect(toolResultText(result)).toContain('Unknown tool: create_agent')
+    expect(mocks.agentCreate).not.toHaveBeenCalled()
+    await client.close()
+  })
+
   it('creates an agent through the v2 data service', async () => {
     const server = new AssistantServer()
     const result = await (
@@ -329,7 +363,6 @@ describe('create_agent', () => {
       model: 'anthropic::claude-sonnet',
       configuration: {
         permission_mode: 'default',
-        max_turns: 100,
         env_vars: {}
       }
     })
@@ -484,6 +517,25 @@ describe('diagnose mcp_status', () => {
 })
 
 describe('diagnose config', () => {
+  it('reports the quick model used by topic naming', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.quick_assistant.model_id', 'openai::gpt-4o-mini')
+
+    const server = new AssistantServer()
+    const result = await (
+      server as unknown as {
+        diagnoseConfig: () => Promise<{ content: Array<{ text: string }> }>
+      }
+    ).diagnoseConfig()
+    const config = JSON.parse(result.content[0].text) as Record<string, unknown>
+
+    expect(config.quickModel).toEqual({
+      id: 'openai::gpt-4o-mini',
+      provider: 'openai',
+      modelId: 'gpt-4o-mini'
+    })
+    expect(config).not.toHaveProperty('topicNamingModel')
+  })
+
   it('redacts assistant-visible proxy values to origin only', async () => {
     MockMainPreferenceServiceUtils.setPreferenceValue(
       'app.proxy.url',

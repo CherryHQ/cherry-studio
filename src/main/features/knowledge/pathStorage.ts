@@ -6,8 +6,13 @@ import { loggerService } from '@logger'
 import { copy, ensureDir, type PathReadability, probeReadable, remove, removeDir, write } from '@main/utils/file'
 import { nextFreeKnowledgeRelativePath } from '@main/utils/knowledge'
 import { getFileExt } from '@main/utils/legacyFile'
+import { KnowledgeRelativePathSchema } from '@shared/data/types/knowledge'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
-import { knowledgeFileProcessingExts } from '@shared/utils/file'
+import {
+  knowledgeFileProcessingExts,
+  type PosixRelativeFilePath,
+  resolvePosixRelativeSegments
+} from '@shared/utils/file'
 
 const logger = loggerService.withContext('Knowledge:PathStorage')
 
@@ -64,7 +69,26 @@ export function getKnowledgeVectorStoreFilePathSync(baseId: string): AbsoluteFil
 
 export function getKnowledgeBaseFilePath(baseId: string, relativePath: string): AbsoluteFilePath {
   assertSafeKnowledgeRelativePath(relativePath)
-  return AbsoluteFilePathSchema.parse(path.join(getKnowledgeMaterialDir(baseId), relativePath))
+
+  const materialDir = getKnowledgeMaterialDir(baseId)
+  const resolved = path.join(materialDir, relativePath)
+  assertResolvesBelow(materialDir, resolved, relativePath)
+  return AbsoluteFilePathSchema.parse(resolved)
+}
+
+/**
+ * Host-side half of the boundary guard: `assertSafeKnowledgeRelativePath` reads the value as
+ * POSIX (the storage contract), `path.join` reads it as the host, and the two disagree about
+ * `\` — so a legitimately stored `..\outside.pdf` climbs out of `raw/` on Windows, taking
+ * `deleteKnowledgeItemFiles` with it.
+ */
+function assertResolvesBelow(materialDir: string, resolved: string, relativePath: string): void {
+  const rel = path.relative(materialDir, resolved)
+  // `''` means it landed back on the root — returning that as one item's file would let a
+  // single-item delete take the whole tree.
+  if (rel === '' || rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) {
+    throw new Error(`Knowledge relative path escapes the material root on this platform: ${relativePath}`)
+  }
 }
 
 /**
@@ -86,16 +110,22 @@ export async function probeKnowledgeSourcePath(absolutePath: string): Promise<Pa
   return probeReadable(AbsoluteFilePathSchema.parse(absolutePath))
 }
 
-export function getKnowledgeSourceRelativePath(sourcePath: string): string {
+export function getKnowledgeSourceRelativePath(sourcePath: string): PosixRelativeFilePath {
   const fileName = path.basename(sourcePath)
   assertSafeKnowledgeRelativePath(fileName)
   return fileName
 }
 
-export function getProcessedMarkdownRelativePath(relativePath: string): string {
+export function getProcessedMarkdownRelativePath(relativePath: string): PosixRelativeFilePath {
   assertSafeKnowledgeRelativePath(relativePath)
   const parsed = path.parse(relativePath)
-  return normalizeRelativePath(path.join(parsed.dir, `${parsed.name}.md`))
+  // Re-asserted rather than inheriting the input's brand: swapping the extension
+  // builds a NEW string, and `path.parse` on a dotfile (`.env` → name `.env`,
+  // ext '') can turn one into `.env.md` — a different path that has to clear the
+  // guard on its own.
+  const processed = normalizeRelativePath(path.join(parsed.dir, `${parsed.name}.md`))
+  assertSafeKnowledgeRelativePath(processed)
+  return processed
 }
 
 /**
@@ -111,7 +141,7 @@ export function reserveImportedFileRelativePath(
   sourceRelativePath: string,
   reserveProcessedArtifact: boolean,
   reservedPaths: Set<string>
-): string {
+): PosixRelativeFilePath {
   const chosen = nextFreeKnowledgeRelativePath(sourceRelativePath, (candidate) => {
     if (reservedPaths.has(candidate)) {
       return false
@@ -119,6 +149,10 @@ export function reserveImportedFileRelativePath(
     return !reserveProcessedArtifact || !reservedPaths.has(getProcessedMarkdownRelativePath(candidate))
   })
 
+  // `nextFreeKnowledgeRelativePath` derives the suffixed name itself, so the
+  // result is a new string that has not been through the guard — assert before
+  // handing it out as a branded value.
+  assertSafeKnowledgeRelativePath(chosen)
   reservedPaths.add(chosen)
   if (reserveProcessedArtifact) {
     reservedPaths.add(getProcessedMarkdownRelativePath(chosen))
@@ -129,9 +163,9 @@ export function reserveImportedFileRelativePath(
 export async function copyFileIntoKnowledgeBaseAt(
   baseId: string,
   sourcePath: string,
-  relativePath: string,
+  relativePath: PosixRelativeFilePath,
   options: { signal?: AbortSignal; overwrite?: boolean } = {}
-): Promise<string> {
+): Promise<PosixRelativeFilePath> {
   const destPath = getKnowledgeBaseFilePath(baseId, relativePath)
   // `overwrite` lets directory expansion re-copy over its own orphans from a prior
   // aborted attempt (the prefix is unique per container, so a same-named dest can
@@ -147,9 +181,9 @@ export async function copyFileIntoKnowledgeBaseAt(
 /** Write in-memory content (e.g. a captured URL snapshot) to a base-relative file. */
 export async function writeFileIntoKnowledgeBaseAt(
   baseId: string,
-  relativePath: string,
+  relativePath: PosixRelativeFilePath,
   content: string
-): Promise<string> {
+): Promise<PosixRelativeFilePath> {
   const destPath = getKnowledgeBaseFilePath(baseId, relativePath)
   await assertTargetAvailable(destPath)
   await ensureDir(AbsoluteFilePathSchema.parse(path.dirname(destPath)))
@@ -304,21 +338,52 @@ export async function deleteKnowledgeBaseDir(baseId: string): Promise<void> {
   await removeDir(getKnowledgeBaseDir(baseId))
 }
 
-export function assertSafeKnowledgeRelativePath(relativePath: string): void {
-  if (!relativePath || path.isAbsolute(relativePath) || relativePath.includes('\0')) {
+/**
+ * The filesystem-boundary guard for every material path, layered over the shape
+ * rules rather than restating them:
+ *
+ * - **Shape** (not anchored to a root, no null byte, POSIX-legal segments) and
+ *   **containment under `raw/`** both come from `KnowledgeRelativePathSchema`,
+ *   the same gate on the four persisted `relativePath` fields. Kept here as
+ *   defence in depth: paths derived *after* that schema ran
+ *   (`getProcessedMarkdownRelativePath`, `nextFreeKnowledgeRelativePath`) reach
+ *   the filesystem through this function without being re-parsed.
+ * - **Reserved prefix** stays here, because it is about `raw/` specifically and
+ *   not about relative paths in general.
+ *
+ * Reading the first POSIX segment rather than folding separators is what takes
+ * this function off `normalizeRelativePath`, and it fixes a false rejection:
+ * `.cherry\x` is one legal Linux filename sitting directly under `raw/`, not
+ * something inside the reserved `.cherry/` directory. The old unconditional
+ * `\`→`/` fold said otherwise (#17429).
+ *
+ * Declared as an assertion function, which makes it the sole producer of
+ * `PosixRelativeFilePath` on this side: the helpers below return branded values
+ * simply by asserting, with no cast anywhere.
+ */
+export function assertSafeKnowledgeRelativePath(relativePath: string): asserts relativePath is PosixRelativeFilePath {
+  const parsed = KnowledgeRelativePathSchema.safeParse(relativePath)
+  if (!parsed.success) {
     throw new Error(`Invalid knowledge relative path: ${relativePath}`)
   }
 
-  const normalized = normalizeRelativePath(relativePath)
-  if (normalized === '.' || normalized === '..' || normalized.startsWith('../')) {
-    throw new Error(`Invalid knowledge relative path: ${relativePath}`)
-  }
-
-  if (normalized.startsWith(`${CHERRY_META_DIR}/`) || normalized === CHERRY_META_DIR) {
+  // Non-null: the schema above already proved it resolves.
+  const segments = resolvePosixRelativeSegments(relativePath) ?? []
+  if (segments[0] === CHERRY_META_DIR) {
     throw new Error(`Knowledge relative path is reserved: ${relativePath}`)
   }
 }
 
+/**
+ * Producer-side POSIX spelling for a path this module builds with `path.join`,
+ * which emits `\` on Windows while material paths are stored `/`-separated.
+ *
+ * The fold is unconditional and therefore lossy on POSIX, where `\` is an
+ * ordinary filename character: a source truly named `a\b.xls` yields `a/b.md`
+ * here, one segment too deep. Tracked in #17429 — fixing it means teaching this
+ * function the platform distinction that `pathSpec` now draws, which is out of
+ * scope for the type work that removed its other caller.
+ */
 function normalizeRelativePath(relativePath: string): string {
   return path.normalize(relativePath).replace(/\\/g, '/')
 }

@@ -16,9 +16,7 @@ is translated back into the caller's dialect by the adapter system.
 > **Naming.** The code, IPC, preload, hook, and UI all use the
 > **`apiGateway`** name. The persisted **preference / shared-cache** namespace
 > is **`feature.api_gateway.*`** — same feature, two names. (`api_gateway` is the
-> current namespace token; it replaced the retired `csaas` alias.) The legacy v1
-> Redux layer (`apiServer.*`) is deprecated and reaches v2 only through the
-> migrators; do not add fallbacks for it.
+> current namespace token; it replaced the retired `csaas` alias.)
 
 ## Where the code lives
 
@@ -86,7 +84,7 @@ none of the public routes above.
 | Method & path | Dialect | In → out format |
 |---|---|---|
 | `POST /v1/messages` | Anthropic | `anthropic` → `anthropic` |
-| `POST /v1/messages/count_tokens` | Anthropic | local token estimate (`tokenx`), no stream |
+| `POST /v1/messages/count_tokens` | Anthropic | token estimate over the converted request; anthropic-dialect endpoints forward it to the provider's own `count_tokens` (via the app proxy/auth), other dialects stay local; no stream |
 | `POST /v1/chat/completions` | OpenAI Chat | `openai` → `openai` |
 | `POST /v1/responses` | OpenAI Responses | `openai-responses` → `openai-responses` |
 | `GET /v1/models` | OpenAI list | `{ object:'list', data:[…] }`, ids are `providerId:modelId` (offset/limit) |

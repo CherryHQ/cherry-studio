@@ -19,3 +19,10 @@ export const apiGatewayRequestSchemas = {
   'api_gateway.stop': defineRoute({ input: z.void(), output: statusResultSchema }),
   'api_gateway.restart': defineRoute({ input: z.void(), output: statusResultSchema })
 }
+
+// ── Event: main→renderer pushes (pure types, never parsed) ──
+export type ApiGatewayEventSchemas = {
+  // An agent session could not connect because its model must be bridged through the gateway,
+  // which the user keeps disabled. Broadcast; the owning session's UI filters by `sessionId`.
+  'api_gateway.required': { sessionId: string }
+}

@@ -5,16 +5,16 @@ import {
   GithubCopilotCli,
   KimiCli as KimiCode,
   OpenaiCodex,
-  Openclaw,
   OpenCode,
   PiCli,
   QoderCli,
   QwenCode
 } from '@cherrystudio/ui/icons'
+import { Deepseek, Openclaw } from '@cherrystudio/ui/icons/providers'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
-import { isGeminiProvider } from '@shared/utils/provider'
+import { isGeminiProvider, isLoginBasedProvider } from '@shared/utils/provider'
 
 /** `label` is an i18n key (under `code.cli_tools`), not display text — resolve it with `t()` before rendering. */
 export const CLI_TOOLS = [
@@ -27,7 +27,8 @@ export const CLI_TOOLS = [
   { value: CodeCli.QODER_CLI, label: 'code.cli_tools.qoder_cli', icon: QoderCli },
   { value: CodeCli.GITHUB_COPILOT_CLI, label: 'code.cli_tools.github_copilot_cli', icon: GithubCopilotCli },
   { value: CodeCli.PI, label: 'code.cli_tools.pi', icon: PiCli },
-  { value: CodeCli.OPENCLAW, label: 'code.cli_tools.openclaw', icon: Openclaw }
+  { value: CodeCli.OPENCLAW, label: 'code.cli_tools.openclaw', icon: Openclaw },
+  { value: CodeCli.DEEPSEEK_HARNESS, label: 'code.cli_tools.deepseek_harness', icon: Deepseek }
 ] as const satisfies ReadonlyArray<{ value: CodeCli; label: string; icon: IconComponent }>
 
 /**
@@ -62,6 +63,7 @@ const hasGemini = (p: Provider): boolean => hasEndpoint(p, ENDPOINT_TYPE.GOOGLE_
  * - Codex: inject reads `openai-responses` only. Chat-completions is no longer
  *   supported by Codex (its binary rejects `wire_api = "chat"` at parse time).
  * - OpenCode / OpenClaw: inject reads anthropic-or-openai at runtime.
+ * - DeepSeek Harness: direct mode also requires API-key or keyless authentication.
  * - Gemini CLI: inject reads the Gemini-format endpoint (`google-generate-content`).
  * - Qwen Code / Kimi CLI: inject reads an OpenAI-compatible endpoint.
  * - Pi: injects any endpoint supported by Pi's custom-provider schema.
@@ -72,6 +74,13 @@ export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Pr
   [CodeCli.OPENAI_CODEX]: (providers) => providers.filter(hasResponses),
   [CodeCli.OPEN_CODE]: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p) || hasGemini(p)),
   [CodeCli.OPENCLAW]: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p)),
+  [CodeCli.DEEPSEEK_HARNESS]: (providers) =>
+    providers.filter(
+      (p) =>
+        !isLoginBasedProvider(p) &&
+        (p.authOptional || p.apiKeys.some((key) => key.isEnabled)) &&
+        (hasAnthropic(p) || hasOpenAILike(p))
+    ),
   [CodeCli.GEMINI_CLI]: (providers) =>
     providers.filter((p) => isGeminiProvider(p) || hasGemini(p) || GEMINI_AGGREGATOR_PROVIDERS.has(p.id)),
   [CodeCli.QWEN_CODE]: (providers) => providers.filter(hasOpenAILike),

@@ -48,17 +48,27 @@ vi.mock('@renderer/components/CodeViewer', () => ({
 
 vi.mock('../TraceTree', async (importOriginal) => ({
   ...(await importOriginal<typeof TraceTreeModule>()),
-  default: ({ handleClick, node }: { handleClick: (nodeId: string) => void; node: { id: string; name: string } }) => (
-    <button type="button" onClick={() => handleClick(node.id)}>
-      {node.name}
-    </button>
+  default: ({
+    handleClick,
+    model
+  }: {
+    handleClick: (id: string) => void
+    model: { visibleRows: Array<{ id: string }>; getNode: (id: string) => { name: string } }
+  }) => (
+    <div>
+      {model.visibleRows.map((row) => (
+        <button type="button" key={row.id} onClick={() => handleClick(row.id)}>
+          {model.getNode(row.id).name}
+        </button>
+      ))}
+    </div>
   )
 }))
 
-function TracePageHarness({ visible }: { visible: boolean }) {
+function TracePageHarness({ visible, traceId = 'a1b2c3' }: { visible: boolean; traceId?: string }) {
   return (
     <Activity mode={visible ? 'visible' : 'hidden'}>
-      <TracePage topicId="topic-1" traceId="a1b2c3" />
+      <TracePage topicId="topic-1" traceId={traceId} />
     </Activity>
   )
 }
@@ -162,7 +172,6 @@ describe('TracePage', () => {
     await act(async () => {
       await Promise.resolve()
     })
-    // userEvent's async wrapper cannot drain its zero-delay timer while Vitest fake timers are active.
     fireEvent.click(screen.getByRole('button', { name: 'tool.call' }))
     expect(screen.getByTestId('code-viewer')).toHaveTextContent('before')
 
@@ -222,5 +231,37 @@ describe('TracePage', () => {
       resolveRequest?.({ reset: true, cursor: { historyVersion: null, liveRevision: 0 }, spans: [] })
       await Promise.resolve()
     })
+  })
+
+  it('cancels polling when the panel unmounts', async () => {
+    const view = render(<TracePageHarness visible />)
+    await act(async () => {
+      await Promise.resolve()
+    })
+    const callsBeforeUnmount = mocks.getData.mock.calls.length
+
+    view.unmount()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000)
+    })
+
+    expect(mocks.getData).toHaveBeenCalledTimes(callsBeforeUnmount)
+  })
+
+  it('clears selection and starts a fresh cursor when switching traces', async () => {
+    const view = render(<TracePageHarness visible />)
+    await act(async () => {
+      await Promise.resolve()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'ai.turn' }))
+    expect(screen.getByTestId('code-viewer')).toBeInTheDocument()
+
+    view.rerender(<TracePageHarness visible traceId="d4e5f6" />)
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(screen.queryByTestId('code-viewer')).not.toBeInTheDocument()
+    expect(mocks.getData).toHaveBeenLastCalledWith('topic-1', 'd4e5f6', undefined)
   })
 })

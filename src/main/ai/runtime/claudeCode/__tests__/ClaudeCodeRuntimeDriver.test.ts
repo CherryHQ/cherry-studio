@@ -103,7 +103,7 @@ vi.mock('../streamAdapter', async (importActual) => {
       outputTokens: { total: usage?.output_tokens ?? 0, text: undefined, reasoning: undefined }
     }),
     ClaudeCodeStreamAdapter: class {
-      readonly finalizeOpenParts = vi.fn()
+      readonly finalizeOpenTextParts = vi.fn()
       // Mirrors the real adapter: session-scoped, content only flows inside a turn.
       private turnActive = false
       private turnHasActivity = false
@@ -1506,7 +1506,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       {
         type: 'usage',
         invocation: {
-          requestId: 'request-sonnet',
+          requestId: 'claude-agent:request-sonnet',
           model: 'sonnet-sdk',
           messageAssociation: 'current-turn',
           usage: {
@@ -1522,7 +1522,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       {
         type: 'usage',
         invocation: {
-          requestId: 'request-haiku',
+          requestId: 'claude-agent:request-haiku',
           model: 'haiku-sdk',
           messageAssociation: 'current-turn',
           usage: {
@@ -1598,7 +1598,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     expect(seen).toContainEqual({
       type: 'usage',
       invocation: expect.objectContaining({
-        requestId: 'request-without-model',
+        requestId: 'claude-agent:request-without-model',
         model: 'sonnet-sdk'
       })
     })
@@ -1664,7 +1664,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       value: {
         type: 'usage',
         invocation: {
-          requestId: 'completed-step',
+          requestId: 'claude-agent:completed-step',
           usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 }
         }
       }
@@ -1771,7 +1771,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       {
         type: 'usage',
         invocation: {
-          requestId: 'longcat-request',
+          requestId: 'claude-agent:longcat-request',
           model: 'LongCat-2.0',
           messageAssociation: 'current-turn',
           usage: {
@@ -1881,7 +1881,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       {
         type: 'usage',
         invocation: {
-          requestId: 'sparse-terminal-request',
+          requestId: 'claude-agent:sparse-terminal-request',
           model: 'sonnet-sdk',
           messageAssociation: 'current-turn',
           usage: {
@@ -1956,7 +1956,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     expect(seen.find((event) => event?.type === 'usage')).toEqual({
       type: 'usage',
       invocation: {
-        requestId: 'background-request',
+        requestId: 'claude-agent:background-request',
         model: 'sonnet-sdk',
         messageAssociation: 'stateless',
         usage: {
@@ -2965,6 +2965,34 @@ describe('ClaudeCodeRuntimeDriver', () => {
       'Claude Code query loop failed',
       expect.objectContaining({ sessionId: 'session-1', modelId: 'sonnet-sdk', error: expect.any(Error) })
     )
+    void connection.close()
+  })
+
+  it('finalizes open text parts before surfacing an ordinary query error', async () => {
+    const nextQueryResult = createDeferred<IteratorResult<any>>()
+    const query = {
+      interrupt: vi.fn(),
+      close: vi.fn(),
+      return: vi.fn(async () => ({ value: undefined, done: true }) as IteratorResult<any>),
+      [Symbol.asyncIterator]() {
+        return { next: () => nextQueryResult.promise }
+      }
+    }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    nextQueryResult.reject(new Error('ordinary query failure'))
+
+    await expect(events.next()).resolves.toMatchObject({
+      value: { type: 'error', error: expect.objectContaining({ message: 'ordinary query failure' }) }
+    })
+    expect(mocks.adapterInstances[0].finalizeOpenTextParts).toHaveBeenCalledOnce()
     void connection.close()
   })
 

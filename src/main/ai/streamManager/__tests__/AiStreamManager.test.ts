@@ -1,10 +1,13 @@
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import { aiStreamAdmissionReasons } from '@shared/ai/transport'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
-import { APICallError, type UIMessageChunk } from 'ai'
+import { APICallError, readUIMessageStream, type UIMessageChunk } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AiStreamRequest } from '../../types/requests'
+import { AiStreamAdmissionError } from '../admission'
 import type {
   AiStreamManagerConfig,
   CherryUIMessage,
@@ -18,6 +21,7 @@ import type {
 
 class FakeListener implements StreamListener {
   readonly id: string
+  readonly terminalPhase?: 'persistence'
   chunks: UIMessageChunk[] = []
   /** Second argument of each onChunk call, indexed by chunk position. */
   chunkSources: Array<string | undefined> = []
@@ -28,8 +32,9 @@ class FakeListener implements StreamListener {
   onDoneImpl?: (result: StreamDoneResult) => void | Promise<void>
   onPausedImpl?: (result: StreamPausedResult) => void | Promise<void>
 
-  constructor(id: string) {
+  constructor(id: string, terminalPhase?: 'persistence') {
     this.id = id
+    this.terminalPhase = terminalPhase
   }
 
   onChunk(chunk: UIMessageChunk, sourceModelId?: string): void {
@@ -59,9 +64,13 @@ class FakeListener implements StreamListener {
 // ── Mocks ───────────────────────────────────────────────────────────
 
 const mockAbortPendingTurn = vi.fn<(sessionId: string, reason: string) => boolean>(() => false)
+const mockGetMessageById = vi.hoisted(() => vi.fn())
 
 vi.mock('@main/data/services/MessageService', () => ({
-  messageService: { create: vi.fn().mockResolvedValue({ id: 'msg-001' }) }
+  messageService: {
+    create: vi.fn().mockResolvedValue({ id: 'msg-001' }),
+    getById: mockGetMessageById
+  }
 }))
 
 // Default mock: never-closing stream so the execution loop parks in `reader.read()`
@@ -138,6 +147,7 @@ vi.mock('@application', async () => {
 // ── Import after mocks ──────────────────────────────────────────────
 
 const { AiStreamManager } = await import('../AiStreamManager')
+const { TerminalPersistenceError } = await import('../listeners/PersistenceListener')
 const { TraceFlushListener } = await import('../listeners/TraceFlushListener')
 
 // ── Helpers ─────────────────────────────────────────────────────────
@@ -232,6 +242,7 @@ describe('AiStreamManager', () => {
     mockSaveSpans.mockResolvedValue(undefined)
     mockWillContinueTopic.mockReturnValue(false)
     mockAbortPendingTurn.mockReturnValue(false)
+    mockGetMessageById.mockReset()
     sharedCacheStore.clear()
   })
 
@@ -322,6 +333,8 @@ describe('AiStreamManager', () => {
           listeners: [new FakeListener('l:a')]
         })
       ).toThrow('duplicate modelId')
+      expect(mockStreamText).not.toHaveBeenCalled()
+      expect(mgr.inspect('a')).toBeUndefined()
     })
 
     it('no-ops an enqueue-only send (empty models, not live) instead of throwing', () => {
@@ -330,7 +343,7 @@ describe('AiStreamManager', () => {
       // a stream — just return without effect.
       const result = mgr.send({ topicId: 'a', models: [], listeners: [new FakeListener('l:a')] })
 
-      expect(result).toEqual({ mode: 'injected', executionIds: [] })
+      expect(result).toEqual({ mode: 'injected', activeExecutions: [] })
       expect(mgr.inspect('a')).toBeUndefined()
     })
 
@@ -461,7 +474,7 @@ describe('AiStreamManager', () => {
       })
 
       expect(result.mode).toBe('injected')
-      expect(result.executionIds).toEqual(['provider-a::model-a'])
+      expect(result.activeExecutions).toEqual([expect.objectContaining({ executionId: 'provider-a::model-a' })])
       // No second streamText call — the live stream is reused.
       expect(mockStreamText).toHaveBeenCalledTimes(1)
 
@@ -488,13 +501,18 @@ describe('AiStreamManager', () => {
       })
       expect(mockStreamText).toHaveBeenCalledTimes(1)
 
-      expect(() =>
+      let admissionError: unknown
+      try {
         mgr.send({
           topicId: 'a',
           models: [{ modelId: 'provider-a::model-a', request: req('a') }],
           listeners: [new FakeListener('wc:2')]
         })
-      ).toThrow(/refusing to inject/)
+      } catch (error) {
+        admissionError = error
+      }
+      expect(admissionError).toBeInstanceOf(AiStreamAdmissionError)
+      expect((admissionError as AiStreamAdmissionError).reason).toBe(aiStreamAdmissionReasons.TOPIC_BUSY)
       // No second stream launched; the live stream is untouched.
       expect(mockStreamText).toHaveBeenCalledTimes(1)
     })
@@ -515,7 +533,7 @@ describe('AiStreamManager', () => {
       })
 
       expect(result.mode).toBe('injected')
-      expect(result.executionIds).toEqual(['provider-a::model-a'])
+      expect(result.activeExecutions).toEqual([expect.objectContaining({ executionId: 'provider-a::model-a' })])
       expect(mockStreamText).toHaveBeenCalledTimes(1)
       expect(mgr.inspect('agent-session:s1')?.listenerIds).toEqual(['l:a', 'l:b'])
     })
@@ -539,7 +557,7 @@ describe('AiStreamManager', () => {
       const result = mgr.send({ topicId, models: [], listeners: [new FakeListener('l:b')] })
 
       expect(result.mode).toBe('injected')
-      expect(result.executionIds).toEqual([]) // enqueue-only branch, not inject
+      expect(result.activeExecutions).toEqual([]) // enqueue-only branch, not inject
       // The follow-up subscriber must be attached to the grace stream so
       // startRuntimeTurn carries it into the next runtime turn instead of dropping it.
       expect(mgr.inspect(topicId)?.listenerIds).toContain('l:b')
@@ -562,7 +580,18 @@ describe('AiStreamManager', () => {
 
       expect(result).toEqual({
         mode: 'started',
-        executionIds: ['provider-a::model-a', 'provider-b::model-b']
+        activeExecutions: [
+          {
+            executionId: 'provider-a::model-a',
+            attemptId: expect.any(Number),
+            anchorMessageId: undefined
+          },
+          {
+            executionId: 'provider-b::model-b',
+            attemptId: expect.any(Number),
+            anchorMessageId: undefined
+          }
+        ]
       })
       expect(mockStreamText).toHaveBeenCalledTimes(2)
 
@@ -574,6 +603,501 @@ describe('AiStreamManager', () => {
       // Behaviour: the single shared listener receives from either execution.
       mgr.onChunk('a', 'provider-a::model-a', chunk('from-a'))
       expect(listener.chunks).toHaveLength(1)
+    })
+
+    it('publishes the highest topic attempt when the final execution has an older attempt', async () => {
+      const listener = new FakeListener('l:watermark')
+      const result = mgr.send({
+        topicId: 'watermark-topic',
+        models: [
+          { modelId: 'provider-a::model-a', request: req('watermark-topic') },
+          { modelId: 'provider-b::model-b', request: req('watermark-topic') }
+        ],
+        listeners: [listener]
+      })
+      const olderAttempt = result.activeExecutions[0].attemptId
+      const newerAttempt = result.activeExecutions[1].attemptId
+
+      await mgr.onExecutionDone('watermark-topic', 'provider-b::model-b')
+      await mgr.onExecutionDone('watermark-topic', 'provider-a::model-a')
+
+      expect(listener.doneResults[0]).toMatchObject({
+        attemptId: newerAttempt,
+        isTopicDone: false
+      })
+      expect(listener.doneResults[0]).not.toHaveProperty('topicAttemptWatermark')
+      expect(listener.doneResults[1]).toMatchObject({
+        attemptId: olderAttempt,
+        isTopicDone: true,
+        topicAttemptWatermark: newerAttempt
+      })
+    })
+
+    it('keeps a live sibling open when another execution terminal persistence fails', async () => {
+      const topicId = 'persistence-failure-topic'
+      const failedModelId = 'provider-a::model-a'
+      const liveModelId = 'provider-b::model-b'
+      const renderer = new FakeListener('wc:persistence-failure')
+      const persistence = new FakeListener('persistence:sqlite:persistence-failure', 'persistence')
+      persistence.onDoneImpl = (result) => {
+        if (result.modelId !== failedModelId) return
+        mgr.broadcastTopicError(topicId, failedModelId, error('write failed'))
+        throw new TerminalPersistenceError('write failed')
+      }
+      const started = mgr.send({
+        topicId,
+        models: [
+          { modelId: failedModelId, request: req(topicId) },
+          { modelId: liveModelId, request: req(topicId) }
+        ],
+        listeners: [renderer, persistence]
+      })
+
+      await mgr.onExecutionDone(topicId, failedModelId)
+
+      expect(renderer.doneResults).toEqual([])
+      expect(renderer.errorResults).toEqual([
+        expect.objectContaining({
+          modelId: failedModelId,
+          attemptId: started.activeExecutions[0].attemptId,
+          isTopicDone: false
+        })
+      ])
+      expect(renderer.errorResults[0]).not.toHaveProperty('topicAttemptWatermark')
+
+      mgr.onChunk(topicId, liveModelId, chunk('still streaming'))
+      expect(renderer.chunks).toEqual([chunk('still streaming')])
+
+      await mgr.onExecutionDone(topicId, liveModelId)
+      expect(renderer.doneResults).toEqual([
+        expect.objectContaining({
+          modelId: liveModelId,
+          isTopicDone: true,
+          topicAttemptWatermark: started.activeExecutions[1].attemptId
+        })
+      ])
+    })
+
+    it('replaces one terminal execution in place without reordering its live sibling', async () => {
+      const topicId = 'retry-topic'
+      mockGetMessageById.mockImplementation((id) => ({
+        id,
+        role: 'assistant',
+        topicId,
+        parentId: 'user-1',
+        siblingsGroupId: 7
+      }))
+      const first = mgr.send({
+        topicId,
+        models: [
+          {
+            modelId: 'provider-a::model-a',
+            request: { ...req(topicId), messageId: 'assistant-a' }
+          },
+          {
+            modelId: 'provider-b::model-b',
+            request: { ...req(topicId), messageId: 'assistant-b' }
+          }
+        ],
+        listeners: [new FakeListener('l:retry')],
+        siblingsGroupId: 7
+      })
+      const firstAttemptId = first.activeExecutions[0].attemptId
+      await mgr.onExecutionError(topicId, 'provider-a::model-a', error('first attempt failed'))
+
+      const retry = mgr.send({
+        topicId,
+        models: [
+          {
+            modelId: 'provider-a::model-a',
+            request: { ...req(topicId), messageId: 'assistant-a' },
+            seedFromEmpty: true
+          }
+        ],
+        listeners: [new FakeListener('l:retry')],
+        siblingsGroupId: 7,
+        liveExecutionChange: { mode: 'replace', parentAnchorId: 'user-1', siblingsGroupId: 7 }
+      })
+
+      const snapshot = mgr.inspect(topicId)!
+      expect(snapshot.executions.map((execution) => execution.modelId)).toEqual([
+        'provider-a::model-a',
+        'provider-b::model-b'
+      ])
+      expect(snapshot.executions.map((execution) => execution.anchorMessageId)).toEqual(['assistant-a', 'assistant-b'])
+      expect(snapshot.executions[0].attemptId).not.toBe(firstAttemptId)
+      expect(snapshot.executions[0].seedFromEmpty).toBe(true)
+      expect(snapshot.executions[0].status).toBe('streaming')
+      expect(snapshot.executions[1].status).toBe('streaming')
+      expect(retry.activeExecutions).toEqual([
+        {
+          executionId: 'provider-a::model-a',
+          attemptId: snapshot.executions[0].attemptId,
+          anchorMessageId: 'assistant-a',
+          seedFromEmpty: true
+        }
+      ])
+    })
+
+    it('rejects retry admission when the selected assistant is not in the current live reply group', async () => {
+      const topicId = 'unrelated-retry-topic'
+      mockGetMessageById.mockImplementation((id) => ({
+        id,
+        role: 'assistant',
+        topicId,
+        parentId: 'user-1',
+        siblingsGroupId: 7
+      }))
+      mgr.send({
+        topicId,
+        models: [
+          {
+            modelId: 'provider-b::model-b',
+            request: { ...req(topicId), messageId: 'current-assistant' }
+          }
+        ],
+        listeners: [new FakeListener('l:current')]
+      })
+
+      await expect(
+        mgr.awaitExecutionRetry(topicId, 'provider-a::model-a', 'historical-assistant', 'user-1')
+      ).rejects.toMatchObject({ reason: aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP })
+      await expect(
+        mgr.awaitExecutionRetry(topicId, 'provider-b::model-b', 'different-anchor', 'user-1')
+      ).rejects.toMatchObject({ reason: aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP })
+      expect(() =>
+        mgr.send({
+          topicId,
+          models: [
+            {
+              modelId: 'provider-b::model-b',
+              request: { ...req(topicId), messageId: 'historical-assistant' }
+            }
+          ],
+          listeners: [],
+          liveExecutionChange: { mode: 'replace', parentAnchorId: 'user-1', siblingsGroupId: 7 }
+        })
+      ).toThrow(aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP)
+
+      expect(mgr.inspect(topicId)?.executions).toEqual([
+        expect.objectContaining({ modelId: 'provider-b::model-b', anchorMessageId: 'current-assistant' })
+      ])
+    })
+
+    it('maps a missing persisted reply-group anchor to the live-group admission reason', () => {
+      mockGetMessageById.mockImplementation(() => {
+        throw DataApiErrorFactory.notFound('Message', 'missing-assistant')
+      })
+
+      expect(() =>
+        mgr.admitLiveExecutionChange('missing-anchor-topic', {
+          mode: 'replace',
+          modelId: 'provider-a::model-a',
+          anchorMessageId: 'missing-assistant',
+          parentAnchorId: 'user-1'
+        })
+      ).toThrow(aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP)
+    })
+
+    it('propagates database faults while checking a persisted reply-group anchor', () => {
+      const databaseError = new Error('database unavailable')
+      mockGetMessageById.mockImplementation(() => {
+        throw databaseError
+      })
+
+      expect(() =>
+        mgr.admitLiveExecutionChange('database-fault-topic', {
+          mode: 'replace',
+          modelId: 'provider-a::model-a',
+          anchorMessageId: 'assistant-a',
+          parentAnchorId: 'user-1'
+        })
+      ).toThrow(databaseError)
+    })
+
+    it('admits another failed sibling into a retry stream for the same persisted reply group', async () => {
+      const topicId = 'retry-all-topic'
+      mockGetMessageById.mockImplementation((id) => ({
+        id,
+        role: 'assistant',
+        topicId,
+        parentId: 'user-1',
+        siblingsGroupId: 7
+      }))
+      mgr.send({
+        topicId,
+        models: [
+          {
+            modelId: 'provider-a::model-a',
+            request: { ...req(topicId), messageId: 'assistant-a' }
+          }
+        ],
+        listeners: [new FakeListener('l:retry-all')],
+        siblingsGroupId: 7
+      })
+
+      await expect(
+        mgr.awaitExecutionRetry(topicId, 'provider-b::model-b', 'assistant-b', 'user-1', 7)
+      ).resolves.toEqual({ mode: 'append-live', groupAnchorMessageId: 'assistant-a' })
+      await expect(mgr.awaitExecutionRetry(topicId, 'provider-b::model-b', 'assistant-a', 'user-1', 7)).rejects.toThrow(
+        aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP
+      )
+      await expect(mgr.awaitExecutionRetry(topicId, 'provider-b::model-b', 'assistant-b', 'user-1')).rejects.toThrow(
+        aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP
+      )
+    })
+
+    it('appends a new model execution after the existing live group without replacing its members', () => {
+      const topicId = 'append-topic'
+      mockGetMessageById.mockImplementation((id) => ({
+        id,
+        role: 'assistant',
+        topicId,
+        parentId: 'user-1',
+        siblingsGroupId: 7
+      }))
+      mgr.send({
+        topicId,
+        models: [
+          {
+            modelId: 'provider-a::model-a',
+            request: { ...req(topicId), messageId: 'assistant-a' }
+          },
+          {
+            modelId: 'provider-b::model-b',
+            request: { ...req(topicId), messageId: 'assistant-b' }
+          }
+        ],
+        listeners: [new FakeListener('l:initial')],
+        siblingsGroupId: 7
+      })
+
+      expect(() =>
+        mgr.send({
+          topicId,
+          models: [
+            {
+              modelId: 'provider-c::model-c',
+              request: { ...req(topicId), messageId: 'assistant-c' }
+            }
+          ],
+          listeners: [],
+          liveExecutionChange: {
+            mode: 'append',
+            groupAnchorMessageId: 'historical-assistant',
+            parentAnchorId: 'user-1',
+            siblingsGroupId: 7
+          }
+        })
+      ).toThrow(aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP)
+
+      mockGetMessageById.mockImplementationOnce((id) => ({
+        id,
+        role: 'assistant',
+        topicId,
+        parentId: 'another-user',
+        siblingsGroupId: 7
+      }))
+      expect(() =>
+        mgr.send({
+          topicId,
+          models: [
+            {
+              modelId: 'provider-c::model-c',
+              request: { ...req(topicId), messageId: 'assistant-c' }
+            }
+          ],
+          listeners: [],
+          siblingsGroupId: 7,
+          liveExecutionChange: {
+            mode: 'append',
+            groupAnchorMessageId: 'assistant-a',
+            parentAnchorId: 'user-1',
+            siblingsGroupId: 7
+          }
+        })
+      ).toThrow(aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP)
+      expect(mockStreamText).toHaveBeenCalledTimes(2)
+
+      const appended = mgr.send({
+        topicId,
+        models: [
+          {
+            modelId: 'provider-c::model-c',
+            request: { ...req(topicId), messageId: 'assistant-c' }
+          }
+        ],
+        listeners: [new FakeListener('l:append')],
+        siblingsGroupId: 7,
+        liveExecutionChange: {
+          mode: 'append',
+          groupAnchorMessageId: 'assistant-a',
+          parentAnchorId: 'user-1',
+          siblingsGroupId: 7
+        }
+      })
+
+      const snapshot = mgr.inspect(topicId)!
+      expect(snapshot.executions.map((execution) => execution.modelId)).toEqual([
+        'provider-a::model-a',
+        'provider-b::model-b',
+        'provider-c::model-c'
+      ])
+      expect(snapshot.executions.map((execution) => execution.anchorMessageId)).toEqual([
+        'assistant-a',
+        'assistant-b',
+        'assistant-c'
+      ])
+      expect(appended.activeExecutions).toEqual([
+        {
+          executionId: 'provider-c::model-c',
+          attemptId: snapshot.executions[2].attemptId,
+          anchorMessageId: 'assistant-c'
+        }
+      ])
+      expect(snapshot.isMultiModel).toBe(true)
+      expect(mockStreamText).toHaveBeenCalledTimes(3)
+
+      expect(() =>
+        mgr.send({
+          topicId,
+          models: [{ modelId: 'provider-c::model-c', request: req(topicId) }],
+          listeners: [],
+          liveExecutionChange: {
+            mode: 'append',
+            groupAnchorMessageId: 'assistant-a',
+            parentAnchorId: 'user-1',
+            siblingsGroupId: 7
+          }
+        })
+      ).toThrow(aiStreamAdmissionReasons.MODEL_ALREADY_IN_LIVE_GROUP)
+      expect(mockStreamText).toHaveBeenCalledTimes(3)
+    })
+
+    it('uses the same admission reason during preflight and final live-group handoff', () => {
+      const topicId = 'consistent-admission-topic'
+      mockGetMessageById.mockImplementation((id) => ({
+        id,
+        role: 'assistant',
+        topicId,
+        parentId: 'user-1',
+        siblingsGroupId: 7
+      }))
+      mgr.send({
+        topicId,
+        models: [{ modelId: 'provider-a::model-a', request: { ...req(topicId), messageId: 'assistant-a' } }],
+        listeners: [],
+        siblingsGroupId: 7
+      })
+
+      let preflightError: unknown
+      try {
+        mgr.admitLiveExecutionChange(topicId, {
+          mode: 'append',
+          modelId: 'provider-a::model-a',
+          targetMessageId: 'assistant-a',
+          parentAnchorId: 'user-1',
+          siblingsGroupId: 7
+        })
+      } catch (error) {
+        preflightError = error
+      }
+
+      let handoffError: unknown
+      try {
+        mgr.send({
+          topicId,
+          models: [{ modelId: 'provider-a::model-a', request: req(topicId) }],
+          listeners: [],
+          liveExecutionChange: {
+            mode: 'append',
+            groupAnchorMessageId: 'assistant-a',
+            parentAnchorId: 'user-1',
+            siblingsGroupId: 7
+          }
+        })
+      } catch (error) {
+        handoffError = error
+      }
+
+      expect(preflightError).toBeInstanceOf(AiStreamAdmissionError)
+      expect(handoffError).toBeInstanceOf(AiStreamAdmissionError)
+      expect((preflightError as AiStreamAdmissionError).reason).toBe(
+        aiStreamAdmissionReasons.MODEL_ALREADY_IN_LIVE_GROUP
+      )
+      expect((handoffError as AiStreamAdmissionError).reason).toBe((preflightError as AiStreamAdmissionError).reason)
+    })
+
+    it('accepts the exact live anchor after its persisted sibling group is backfilled', () => {
+      const topicId = 'backfilled-group-topic'
+      mgr.send({
+        topicId,
+        models: [{ modelId: 'provider-a::model-a', request: { ...req(topicId), messageId: 'assistant-a' } }],
+        listeners: []
+      })
+      mockGetMessageById.mockImplementation((id) => ({
+        id,
+        role: 'assistant',
+        topicId,
+        parentId: 'user-1',
+        siblingsGroupId: 7
+      }))
+
+      const result = mgr.send({
+        topicId,
+        models: [{ modelId: 'provider-b::model-b', request: { ...req(topicId), messageId: 'assistant-b' } }],
+        listeners: [],
+        siblingsGroupId: 7,
+        liveExecutionChange: {
+          mode: 'append',
+          groupAnchorMessageId: 'assistant-a',
+          parentAnchorId: 'user-1',
+          siblingsGroupId: 7
+        }
+      })
+
+      expect(result.mode).toBe('started')
+      expect(mgr.inspect(topicId)?.executions.map((execution) => execution.anchorMessageId)).toEqual([
+        'assistant-a',
+        'assistant-b'
+      ])
+    })
+
+    it('starts a fresh stream instead of appending to a terminal grace-period group', async () => {
+      const topicId = 'settled-append-topic'
+      mgr.send({
+        topicId,
+        models: [
+          {
+            modelId: 'provider-a::model-a',
+            request: { ...req(topicId), messageId: 'assistant-a' }
+          }
+        ],
+        listeners: [new FakeListener('l:initial')]
+      })
+      await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+
+      const fallback = mgr.send({
+        topicId,
+        models: [
+          {
+            modelId: 'provider-b::model-b',
+            request: { ...req(topicId), messageId: 'assistant-b' }
+          }
+        ],
+        listeners: [new FakeListener('l:fallback')],
+        liveExecutionChange: {
+          mode: 'append',
+          groupAnchorMessageId: 'assistant-a',
+          parentAnchorId: 'user-1',
+          siblingsGroupId: 7
+        }
+      })
+
+      expect(fallback.mode).toBe('started')
+      expect(mgr.inspect(topicId)?.executions).toEqual([
+        expect.objectContaining({ modelId: 'provider-b::model-b', anchorMessageId: 'assistant-b' })
+      ])
     })
 
     it('tags every chunk with its sourceModelId (single- and multi-model)', () => {
@@ -662,7 +1186,8 @@ describe('AiStreamManager', () => {
       const late = new FakeListener('late:a')
       mgr.addListener('a', late)
 
-      expect(late.chunks).toEqual([chunk('a'), chunk('b')])
+      // Contiguous same-part deltas merge into one buffer entry on ingest.
+      expect(late.chunks).toEqual([chunk('ab')])
     })
 
     it('does not deliver to a non-streaming topic', async () => {
@@ -744,6 +1269,51 @@ describe('AiStreamManager', () => {
       // Both listeners received onDone despite thrower throwing
       expect(thrower.doneResults).toHaveLength(1)
       expect(receiver.doneResults).toHaveLength(1)
+    })
+
+    it('waits for terminal persistence before notifying renderer listeners', async () => {
+      let releasePersistence!: () => void
+      const persistence = new FakeListener('persistence:a', 'persistence')
+      persistence.onDoneImpl = () =>
+        new Promise<void>((resolve) => {
+          releasePersistence = resolve
+        })
+      const renderer = new FakeListener('wc:a')
+
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [renderer, persistence]
+      })
+      const terminal = mgr.onExecutionDone('a', 'provider-a::model-a')
+
+      await Promise.resolve()
+      expect(persistence.doneResults).toHaveLength(1)
+      expect(renderer.doneResults).toHaveLength(0)
+
+      releasePersistence()
+      await terminal
+      expect(renderer.doneResults).toHaveLength(1)
+    })
+
+    it('suppresses the original terminal notification after persistence surfaced an error', async () => {
+      const persistence = new FakeListener('persistence:a', 'persistence')
+      persistence.onDoneImpl = () => {
+        throw new TerminalPersistenceError('write failed')
+      }
+      const renderer = new FakeListener('wc:a')
+
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [renderer, persistence]
+      })
+      await mgr.onExecutionDone('a', 'provider-a::model-a')
+
+      expect(persistence.doneResults).toHaveLength(1)
+      expect(renderer.doneResults).toHaveLength(0)
     })
 
     it('flushes trace spans for completed chat topics', async () => {
@@ -989,15 +1559,65 @@ describe('AiStreamManager', () => {
       // `attach` is the public IPC-facing method; tests pass a minimal
       // WebContents-shaped stub.
       const response = mgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
+      const attemptId = mgr.inspect('a')?.executions[0].attemptId
 
       expect(response).toEqual({
         status: 'attached',
         bufferedChunks: [
-          { topicId: 'a', executionId: 'provider-a::model-a', chunk: { type: 'text-start', id: 'p1' } },
-          { topicId: 'a', executionId: 'provider-a::model-a', chunk: { type: 'text-delta', id: 'p1', delta: 'hello' } },
-          { topicId: 'a', executionId: 'provider-a::model-a', chunk: { type: 'text-end', id: 'p1' } }
+          {
+            topicId: 'a',
+            executionId: 'provider-a::model-a',
+            attemptId,
+            chunk: { type: 'text-start', id: 'p1' }
+          },
+          {
+            topicId: 'a',
+            executionId: 'provider-a::model-a',
+            attemptId,
+            chunk: { type: 'text-delta', id: 'p1', delta: 'hello' }
+          },
+          {
+            topicId: 'a',
+            executionId: 'provider-a::model-a',
+            attemptId,
+            chunk: { type: 'text-end', id: 'p1' }
+          }
         ]
       })
+    })
+
+    it('ring buffer merges a same-part delta flood on ingest instead of evicting its opener', () => {
+      // Regression: a long reasoning/text turn used to overflow the ring with
+      // raw deltas, evicting the part's start chunk and leaving a replay that
+      // `readUIMessageStream` rejects. Merged on ingest, the flood occupies a
+      // single entry and nothing is dropped.
+      const ringMgr = createManager({ maxBufferChunks: 3 })
+      startSingle(ringMgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('l:a')]
+      })
+
+      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p' } as UIMessageChunk)
+      for (let i = 0; i < 5; i++) {
+        ringMgr.onChunk('a', 'provider-a::model-a', {
+          type: 'text-delta',
+          id: 'p',
+          delta: String(i)
+        } as UIMessageChunk)
+      }
+
+      const snap = ringMgr.inspect('a')!
+      expect(snap.executions[0].bufferedChunkCount).toBe(2)
+      expect(snap.executions[0].droppedChunks).toBe(0)
+
+      const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
+      const response = ringMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
+      expect(response.status).toBe('attached')
+      if (response.status !== 'attached') throw new Error(`Expected attached, got ${response.status}`)
+      expect(response.bufferedChunks.map(({ chunk }) => chunk.type)).toEqual(['text-start', 'text-delta'])
+      expect(response.bufferedChunks[1].chunk).toMatchObject({ delta: '01234' })
     })
 
     it('per-execution ring buffer drops oldest chunk on overflow and tracks droppedChunks', () => {
@@ -1012,10 +1632,11 @@ describe('AiStreamManager', () => {
         listeners: [new FakeListener('l:a')]
       })
 
+      // Distinct part ids so nothing merges and the ring genuinely overflows.
       for (let i = 0; i < 5; i++) {
         ringMgr.onChunk('a', 'provider-a::model-a', {
           type: 'text-delta',
-          id: 'p',
+          id: `p${i}`,
           delta: String(i)
         } as UIMessageChunk)
       }
@@ -1030,9 +1651,107 @@ describe('AiStreamManager', () => {
       ringMgr.addListener('a', late)
       expect(late.chunks.map((c: any) => c.delta)).toEqual(['2', '3', '4'])
 
-      // Ordinary overflow without a pending approval remains attachable.
+      // Ordinary overflow without a pending approval remains attachable, and
+      // the replay stays protocol-coherent: each surviving orphaned delta gets
+      // its evicted start synthesized back.
       const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
-      expect(ringMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' }).status).toBe('attached')
+      const response = ringMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
+      expect(response.status).toBe('attached')
+      if (response.status !== 'attached') throw new Error(`Expected attached, got ${response.status}`)
+      expect(response.bufferedChunks.map(({ chunk }) => chunk.type)).toEqual([
+        'text-start',
+        'text-delta',
+        'text-start',
+        'text-delta',
+        'text-start',
+        'text-delta'
+      ])
+    })
+
+    it('replays a post-eviction buffer that the real readUIMessageStream accepts', async () => {
+      // Regression for "replay has gaps due to buffer overflow": when the ring
+      // evicts a part's opening chunk, the attach replay must still parse
+      // through AI SDK's actual stream processor — no missing-part errors, and
+      // the surviving reasoning run forms a single coherent part instead of
+      // the fragmented per-delta parts users saw after cold-start reattach.
+      const ringMgr = createManager({ maxBufferChunks: 4 })
+      startSingle(ringMgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('l:a')]
+      })
+
+      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'reasoning-start', id: 'r1' } as UIMessageChunk)
+      for (const delta of ['thinking ', 'in ', 'pieces']) {
+        ringMgr.onChunk('a', 'provider-a::model-a', { type: 'reasoning-delta', id: 'r1', delta } as UIMessageChunk)
+      }
+      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'reasoning-end', id: 'r1' } as UIMessageChunk)
+      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p1' } as UIMessageChunk)
+      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p1', delta: 'answer' } as UIMessageChunk)
+
+      // The final push overflowed the ring and evicted `reasoning-start`.
+      const snap = ringMgr.inspect('a')!
+      expect(snap.executions[0].droppedChunks).toBe(1)
+
+      const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
+      const response = ringMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
+      expect(response.status).toBe('attached')
+      if (response.status !== 'attached') throw new Error(`Expected attached, got ${response.status}`)
+
+      const errors: unknown[] = []
+      const stream = new ReadableStream<UIMessageChunk>({
+        start(controller) {
+          for (const { chunk } of response.bufferedChunks) controller.enqueue(chunk)
+          controller.close()
+        }
+      })
+      let message: CherryUIMessage | undefined
+      for await (const snapshot of readUIMessageStream<CherryUIMessage>({
+        stream,
+        terminateOnError: false,
+        onError: (err) => errors.push(err)
+      })) {
+        message = snapshot
+      }
+
+      expect(errors).toEqual([])
+      expect(message?.parts).toEqual([
+        { type: 'reasoning', text: 'thinking in pieces', state: 'done' },
+        { type: 'text', text: 'answer', state: 'streaming' }
+      ])
+    })
+
+    it('splits one oversized delta at maxDeltaBytes so long content evicts instead of accreting', () => {
+      const ringMgr = createManager({ maxBufferChunks: 2, maxDeltaBytes: 4 })
+      startSingle(ringMgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('l:a')]
+      })
+
+      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p' } as UIMessageChunk)
+      ringMgr.onChunk('a', 'provider-a::model-a', {
+        type: 'text-delta',
+        id: 'p',
+        delta: 'abcdefghijkl'
+      } as UIMessageChunk)
+
+      const snap = ringMgr.inspect('a')!
+      expect(snap.executions[0].bufferedChunkCount).toBe(2)
+      expect(snap.executions[0].droppedChunks).toBe(2)
+
+      const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
+      const response = ringMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
+      expect(response.status).toBe('attached')
+      if (response.status !== 'attached') throw new Error(`Expected attached, got ${response.status}`)
+      // Attach preserves the same ceiling instead of reassembling the retained
+      // segments into one large string.
+      expect(response.bufferedChunks.map(({ chunk }) => chunk.type)).toEqual(['text-start', 'text-delta', 'text-delta'])
+      expect(response.bufferedChunks.slice(1).map(({ chunk }) => ('delta' in chunk ? chunk.delta : undefined))).toEqual(
+        ['efgh', 'ijkl']
+      )
     })
 
     it('attaches when the surviving ring contains a complete pending approval', () => {
@@ -1068,13 +1787,15 @@ describe('AiStreamManager', () => {
 
       expect(response.status).toBe('attached')
       if (response.status !== 'attached') throw new Error(`Expected attached, got ${response.status}`)
+      // The delta flood merged into one entry on ingest (nothing evicted), and
+      // the replay synthesizes the never-sent text-start for the orphaned run.
       expect(response.bufferedChunks.map(({ chunk }) => chunk.type)).toEqual([
+        'text-start',
         'text-delta',
         'tool-input-available',
         'tool-approval-request'
       ])
-      // The approval-request pauses eviction, so both surviving deltas replay merged.
-      expect(response.bufferedChunks[0].chunk).toMatchObject({ delta: '34' })
+      expect(response.bufferedChunks[1].chunk).toMatchObject({ delta: '01234' })
     })
 
     it('pauses ring eviction while an approval is pending and resumes once it resolves', () => {
@@ -1113,7 +1834,8 @@ describe('AiStreamManager', () => {
       } as UIMessageChunk)
 
       const snap = approvalMgr.inspect('a')!
-      expect(snap.executions[0].bufferedChunkCount).toBe(5)
+      // The two same-part deltas merge into one entry on ingest.
+      expect(snap.executions[0].bufferedChunkCount).toBe(4)
       expect(snap.executions[0].droppedChunks).toBe(0)
 
       const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
@@ -1123,8 +1845,10 @@ describe('AiStreamManager', () => {
       if (response.status !== 'attached') throw new Error(`Expected attached, got ${response.status}`)
       expect(response.bufferedChunks.map(({ chunk }) => chunk.type)).toEqual([
         'tool-input-available',
+        'text-start',
         'text-delta',
         'tool-approval-request',
+        'text-start',
         'text-delta'
       ])
       expect(response.bufferedChunks[0].chunk).toMatchObject({ toolCallId: 'call-1' })
@@ -1138,7 +1862,7 @@ describe('AiStreamManager', () => {
       } as UIMessageChunk)
 
       const after = approvalMgr.inspect('a')!
-      expect(after.executions[0].bufferedChunkCount).toBe(5)
+      expect(after.executions[0].bufferedChunkCount).toBe(4)
       expect(after.executions[0].droppedChunks).toBe(1)
     })
 
@@ -1210,11 +1934,11 @@ describe('AiStreamManager', () => {
       expect(paused?.status).toBe('streaming')
       expect(paused?.awaitingApprovalAnchors).toHaveLength(1)
 
-      expect(mgr.resolveToolApproval('a', 'tc-1')).toBe(true)
+      expect(mgr.resolveToolApproval('a', 'tc-1', true)).toBe(true)
       const approved = sharedCacheStore.get('topic.stream.statuses.a') as any
       expect(approved?.status).toBe('streaming')
       expect(approved?.awaitingApprovalAnchors).toHaveLength(0)
-      expect(mgr.resolveToolApproval('a', 'tc-1')).toBe(false)
+      expect(mgr.resolveToolApproval('a', 'tc-1', true)).toBe(false)
 
       mgr.onChunk('a', 'provider-a::model-a', {
         type: 'tool-output-available',
@@ -1225,10 +1949,47 @@ describe('AiStreamManager', () => {
       expect(resumed?.awaitingApprovalAnchors).toHaveLength(0)
     })
 
+    it('advances an approved live tool part so the next parallel approval can surface', async () => {
+      const listener = new FakeListener('wc:1')
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [listener]
+      })
+      const inputChunk = {
+        type: 'tool-input-available',
+        toolCallId: 'tc-1',
+        toolName: 'screenshot',
+        input: { format: 'jpeg' },
+        providerExecuted: true,
+        dynamic: true
+      } as UIMessageChunk
+      mgr.onChunk('a', 'provider-a::model-a', inputChunk)
+      mgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-approval-request',
+        approvalId: 'approval-1',
+        toolCallId: 'tc-1'
+      })
+
+      expect(mgr.resolveToolApproval('a', 'tc-1', true)).toBe(true)
+      expect(listener.chunks.at(-1)).toEqual(inputChunk)
+
+      const stream = new ReadableStream<UIMessageChunk>({
+        start(controller) {
+          for (const event of listener.chunks) controller.enqueue(event)
+          controller.close()
+        }
+      })
+      let message: CherryUIMessage | undefined
+      for await (const snapshot of readUIMessageStream<CherryUIMessage>({ stream })) message = snapshot
+      expect(message?.parts).toContainEqual(expect.objectContaining({ toolCallId: 'tc-1', state: 'input-available' }))
+    })
+
     it('drains a steer that lands right after a clean `done` settle (inter-turn race)', async () => {
       // The turn completed cleanly before the steer's enqueue landed, so no terminal hook fired to
       // chain it — `enqueuePendingSteer` must drain it itself.
-      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
       startSingle(mgr, {
         topicId: 'a',
         modelId: 'provider-a::model-a',
@@ -1248,7 +2009,7 @@ describe('AiStreamManager', () => {
     })
 
     it('a finished turn with a queued steer chains a continuation instead of finishing (no idle flicker)', async () => {
-      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
       const listener = new FakeListener('l:a')
       startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [listener] })
 
@@ -1269,7 +2030,7 @@ describe('AiStreamManager', () => {
     })
 
     it('drains multiple steers FIFO — only the head starts until the next turn finishes', async () => {
-      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
       startSingle(mgr, {
         topicId: 'a',
         modelId: 'provider-a::model-a',
@@ -1290,7 +2051,7 @@ describe('AiStreamManager', () => {
     })
 
     it('drops a queued steer when the turn is aborted instead of chaining onto it', async () => {
-      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
       const listener = new FakeListener('l:a')
       startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [listener] })
       mgr.enqueuePendingSteer('a', 'u2')
@@ -1309,7 +2070,7 @@ describe('AiStreamManager', () => {
       // The user pressed Stop; the steer's enqueue lands AFTER the abort settled. It must not start a
       // turn after Stop, nor sit queued for a later unrelated turn to chain — it's dropped (the
       // persisted row stays resendable).
-      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
       startSingle(mgr, {
         topicId: 'a',
         modelId: 'provider-a::model-a',
@@ -1331,7 +2092,7 @@ describe('AiStreamManager', () => {
       // the stream to 'aborted' synchronously), and the steer enqueue lands BEFORE `onExecutionPaused`
       // runs. The enqueue reads 'aborted' off the in-grace stream and drops — it must not drain off
       // the earlier turn's clean 'done'.
-      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
 
       // 1) an earlier clean turn (settles to 'done')
       startSingle(mgr, {
@@ -1361,7 +2122,7 @@ describe('AiStreamManager', () => {
     it('does not chain while an execution is awaiting approval', async () => {
       // A turn that ends `awaiting-approval` with a steer queued must NOT launch a continuation: the
       // user's Approve dispatches `continue-conversation`, which a live continuation would swallow.
-      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
       const listener = new FakeListener('wc:1')
       startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [listener] })
       // Drive the execution into awaiting-approval, then complete it.
@@ -1378,7 +2139,7 @@ describe('AiStreamManager', () => {
       // A first steer is queued and the turn chains (status flips to 'done'); a SECOND steer lands in
       // that chaining window. The old shadow flag wasn't recorded on the chaining settle, so the late
       // steer read `undefined` and was dropped; now it reads 'done' off the in-grace stream and stays.
-      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
       startSingle(mgr, {
         topicId: 'a',
         modelId: 'provider-a::model-a',
@@ -1397,7 +2158,7 @@ describe('AiStreamManager', () => {
     it('queues a steer that lands after the turn parked on approval, without launching (variant B)', async () => {
       // As above, but the steer lands AFTER the park (not before): it must still queue for the
       // post-approval continuation, not read a non-live status and drop.
-      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
       startSingle(mgr, {
         topicId: 'a',
         modelId: 'provider-a::model-a',
@@ -1414,7 +2175,7 @@ describe('AiStreamManager', () => {
     })
 
     it('never chains a steer onto a multi-model turn that resolved to error, in either settle order', async () => {
-      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
       const twoModels = (topicId: string) => ({
         topicId,
         models: [
@@ -1464,7 +2225,7 @@ describe('AiStreamManager', () => {
     // The single line that prevents the prior turn's PersistenceListener from being carried into the
     // continuation (and writing onto the OLD assistant row) is the renderer-listener filter — cover it.
     it('carries only renderer listeners into the continuation; persistence/trace are dropped', async () => {
-      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
       const addSpy = vi.spyOn(mgr, 'addListener')
       const wc1 = new FakeListener('wc:1:a')
       const wc2 = new FakeListener('wc:2:a')
@@ -1493,7 +2254,7 @@ describe('AiStreamManager', () => {
     })
 
     it('falls back to the null listener when the finished turn had no renderer windows', async () => {
-      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
       // Only a persistence listener (e.g. every window closed mid-turn) — nothing to carry.
       const persist = new FakeListener('persistence:sqlite:a:provider-a::model-a')
       startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [persist] })
@@ -1527,7 +2288,7 @@ describe('AiStreamManager', () => {
     })
 
     it('tracks the queue and starts a continuation immediately when the topic is idle', async () => {
-      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
 
       expect(mgr.hasPendingSteer('a')).toBe(false)
       mgr.enqueuePendingSteer('a', 'u1')
@@ -1540,7 +2301,7 @@ describe('AiStreamManager', () => {
     })
 
     it('a finished turn with a queued steer chains a continuation instead of finishing (no idle flicker)', async () => {
-      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
       const listener = new FakeListener('l:a')
       startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [listener] })
 
@@ -1561,7 +2322,7 @@ describe('AiStreamManager', () => {
     })
 
     it('drains multiple steers FIFO — only the head starts until the next turn finishes', async () => {
-      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
       mgr.enqueuePendingSteer('a', 'u1')
       mgr.enqueuePendingSteer('a', 'u2')
 
@@ -1572,7 +2333,7 @@ describe('AiStreamManager', () => {
     })
 
     it('drops a queued steer when the turn is aborted instead of chaining onto it', async () => {
-      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
       const listener = new FakeListener('l:a')
       startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [listener] })
       mgr.enqueuePendingSteer('a', 'u2')
@@ -1915,6 +2676,49 @@ describe('AiStreamManager', () => {
       expect(listener.errorResults[0].error).toEqual({ name: 'StreamError', message: 'boom', stack: null })
       expect(listener.errorResults[0].status).toBe('error')
       expect(mgr.inspect('a')!.status).toBe('error')
+    })
+
+    it('keeps the thrown error when a lossy error chunk precedes it', async () => {
+      // The chunk carries only `error.message`; rebuilding from it would drop the
+      // statusCode / responseBody that error classification and the error block need.
+      vi.useRealTimers()
+
+      const apiError = new APICallError({
+        message: 'Forbidden',
+        url: 'https://llm.example.com/v1/chat/completions',
+        requestBodyValues: {},
+        statusCode: 403,
+        responseHeaders: {},
+        responseBody: '{"detail":"no access to this model"}',
+        isRetryable: false
+      })
+      // Deliver the chunk on the first pull and reject on the next, so the broadcast loop
+      // records `streamErrorText` *and* `threw` — the desync case where both are set.
+      let pulls = 0
+      mockStreamText.mockResolvedValueOnce(
+        new ReadableStream({
+          pull(controller) {
+            pulls += 1
+            if (pulls === 1) controller.enqueue({ type: 'error', errorText: 'Forbidden' } as UIMessageChunk)
+            else controller.error(apiError)
+          }
+        })
+      )
+
+      const listener = new FakeListener('l:a')
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [listener]
+      })
+
+      await vi.waitFor(() => expect(listener.errorResults).toHaveLength(1))
+
+      expect(listener.errorResults[0].error).toMatchObject({
+        statusCode: 403,
+        responseBody: '{"detail":"no access to this model"}'
+      })
     })
   })
 

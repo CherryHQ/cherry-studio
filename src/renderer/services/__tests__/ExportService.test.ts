@@ -1,4 +1,4 @@
-// Import Message, MessageBlock, and necessary enums
+import { preferenceService } from '@data/PreferenceService'
 import { getTopicMessages } from '@renderer/hooks/useTopic'
 import { addNote } from '@renderer/services/NotesService'
 import { toast } from '@renderer/services/toast'
@@ -7,9 +7,39 @@ import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import type * as MessageFind from '@renderer/utils/message/find'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // --- Mocks Setup ---
+
+const notionMocks = vi.hoisted(() => ({
+  moduleLoads: {
+    client: 0,
+    martian: 0,
+    helper: 0
+  },
+  createPage: vi.fn(),
+  markdownToBlocks: vi.fn((markdown: string) => [{ markdown }, { markdown: `${markdown}\n` }]),
+  appendBlocks: vi.fn()
+}))
+
+vi.mock('@notionhq/client', () => {
+  notionMocks.moduleLoads.client += 1
+  return {
+    Client: class {
+      pages = { create: notionMocks.createPage }
+    }
+  }
+})
+
+vi.mock('@tryfabric/martian', () => {
+  notionMocks.moduleLoads.martian += 1
+  return { markdownToBlocks: notionMocks.markdownToBlocks }
+})
+
+vi.mock('notion-helper', () => {
+  notionMocks.moduleLoads.helper += 1
+  return { appendBlocks: notionMocks.appendBlocks }
+})
 
 // Mock window.api
 beforeEach(() => {
@@ -117,6 +147,8 @@ import { markdownToPlainText } from '@renderer/utils/markdown'
 
 import {
   exportMarkdownToObsidian,
+  exportMessagesToNotion,
+  exportMessageToNotion,
   exportTopicToNotes,
   messagesToMarkdown,
   messageToMarkdown,
@@ -227,6 +259,7 @@ function createTopic(partial: Partial<Topic> = {}): Topic {
     name: 'Test Topic',
     assistantId: 'asst_default',
     messages: [],
+    lastActivityAt: '',
     createdAt: '',
     updatedAt: '',
     type: TopicType.Chat,
@@ -267,6 +300,117 @@ beforeEach(() => {
 // --- Test Suites ---
 
 describe('ExportService', () => {
+  it('loads Notion dependencies only once when a Notion export starts', async () => {
+    const unloaded = { client: 0, martian: 0, helper: 0 }
+    const loaded = { client: 1, martian: 1, helper: 1 }
+
+    expect(notionMocks.moduleLoads).toEqual(unloaded)
+
+    const markdown = await messageToMarkdown(createExportView([{ type: 'text', text: 'Regular export' }]))
+
+    expect(markdown).toContain('Regular export')
+    expect(notionMocks.moduleLoads).toEqual(unloaded)
+
+    await preferenceService.set('data.integration.notion.api_key', 'notion-key')
+    await preferenceService.set('data.integration.notion.database_id', 'database-id')
+    await preferenceService.set('data.integration.notion.page_name_key', 'Name')
+    notionMocks.createPage.mockResolvedValue({ id: 'page-id' })
+    notionMocks.appendBlocks.mockResolvedValue(undefined)
+
+    await expect(exportMessageToNotion('First', 'First export')).resolves.toBe(true)
+    expect(notionMocks.moduleLoads).toEqual(loaded)
+
+    await expect(exportMessageToNotion('Second', 'Second export')).resolves.toBe(true)
+    expect(notionMocks.moduleLoads).toEqual(loaded)
+  })
+
+  describe('exportMessagesToNotion', () => {
+    beforeEach(async () => {
+      await preferenceService.set('data.integration.notion.api_key', 'notion-key')
+      await preferenceService.set('data.integration.notion.database_id', 'database-id')
+      await preferenceService.set('data.integration.notion.page_name_key', 'Name')
+      await preferenceService.set('data.integration.notion.export_reasoning', true)
+      notionMocks.createPage.mockResolvedValue({ id: 'page-id' })
+      notionMocks.appendBlocks.mockResolvedValue(undefined)
+    })
+
+    afterEach(async () => {
+      // Reset notion preferences so they don't leak into sibling suites (set writes to the
+      // file-scoped mock singleton whose values survive vi.clearAllMocks).
+      await preferenceService.set('data.integration.notion.export_reasoning', false)
+      await preferenceService.set('data.integration.notion.api_key', '')
+      await preferenceService.set('data.integration.notion.database_id', '')
+      await preferenceService.set('data.integration.notion.page_name_key', '')
+    })
+
+    const messageWith = (body: string, thinking: string) =>
+      createExportView([
+        { type: 'reasoning', text: thinking },
+        { type: 'text', text: body }
+      ])
+
+    it('appends blocks in input order with reasoning spliced after the first body block', async () => {
+      await expect(
+        exportMessagesToNotion('Ordered Topic', [
+          messageWith('body-one', 'thinking-one'),
+          messageWith('body-two', 'thinking-two')
+        ])
+      ).resolves.toBe(true)
+
+      const children = notionMocks.appendBlocks.mock.calls[0][0].children
+      // title(2) + per message [body(2), reasoning spliced at index 1] x 2 => 8
+      expect(children).toHaveLength(8)
+      expect(children[0]).toEqual({ markdown: '# Ordered Topic' })
+      expect(children[1].markdown).toEqual('# Ordered Topic\n')
+      expect(children[2].markdown).toContain('body-one')
+      expect(children[3].type).toBe('toggle') // spliced right after the first body block
+      expect(children[3].toggle.children[0].markdown).toContain('thinking-one')
+      expect(children[4].markdown).toContain('body-one')
+      expect(children[5].markdown).toContain('body-two')
+      expect(children[6].type).toBe('toggle')
+      expect(children[6].toggle.children[0].markdown).toContain('thinking-two')
+      expect(children[7].markdown).toContain('body-two')
+    })
+
+    it('starts every message conversion before any one completes', async () => {
+      const originalImpl = vi.mocked(preferenceService.getMultiple).getMockImplementation()!
+      const releaseGates: Array<() => void> = []
+      const getMultipleSpy = vi.spyOn(preferenceService, 'getMultiple')
+      getMultipleSpy.mockImplementation(async (keys) => {
+        const values = await originalImpl(keys)
+        // messageToMarkdown is the only caller requesting the standardize flag.
+        const isMessageConversion = Object.values(keys).includes('data.export.markdown.standardize_citations')
+        if (!isMessageConversion) {
+          return values
+        }
+        return new Promise<Record<string, any>>((resolve) => releaseGates.push(() => resolve(values)))
+      })
+
+      try {
+        const exportPromise = exportMessagesToNotion('Concurrent Topic', [
+          messageWith('body-one', 'thinking-one'),
+          messageWith('body-two', 'thinking-two'),
+          messageWith('body-three', 'thinking-three')
+        ])
+
+        // All three message conversions must reach their gate while every gate is
+        // still closed; a serial implementation would block message two on one's gate.
+        await vi.waitFor(() => expect(releaseGates).toHaveLength(3))
+        // Reasoning conversion also runs per message without waiting for any body;
+        // waitFor covers its async hop through loadNotionDependencies on a cold cache.
+        await vi.waitFor(() => {
+          expect(notionMocks.markdownToBlocks).toHaveBeenCalledWith('thinking-one')
+          expect(notionMocks.markdownToBlocks).toHaveBeenCalledWith('thinking-two')
+        })
+
+        releaseGates.forEach((release) => release())
+        await expect(exportPromise).resolves.toBe(true)
+      } finally {
+        getMultipleSpy.mockRestore()
+      }
+    })
+  })
+
   describe('messageToMarkdown', () => {
     beforeEach(() => {
       // Use the specific Block type required by createBlock

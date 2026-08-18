@@ -38,6 +38,7 @@ vi.mock('../defaultImageToTextProcessor', () => ({
   resolveDefaultImageToTextProcessor: resolveDefaultImageToTextProcessorMock
 }))
 
+import { MB } from '@shared/utils/constants'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 
 import { getFileProcessorConfigById, resolveProcessorConfigByFeature } from '../resolveProcessorConfig'
@@ -74,7 +75,8 @@ describe('resolveProcessorConfig', () => {
           feature: 'document_to_markdown',
           inputs: ['document'],
           output: 'markdown',
-          apiHost: 'http://127.0.0.1:9000'
+          apiHost: 'http://127.0.0.1:9000',
+          maxInputBytes: 200 * MB
         }
       ],
       apiKeys: ['secret-key'],

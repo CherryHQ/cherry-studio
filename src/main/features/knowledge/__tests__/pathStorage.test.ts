@@ -4,7 +4,13 @@
 // helpers (the guard itself is private).
 import path from 'node:path'
 
+import type { PosixRelativeFilePath } from '@shared/utils/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+// Legitimately branded, not a type lie: `../escape.md` IS a relative POSIX path.
+// Containment is the knowledge layer's rule, so a traversal reaches these helpers
+// fully typed and the runtime guard is the only thing standing in its way.
+const UNSAFE_RELATIVE_PATH = '../escape.md' as PosixRelativeFilePath
 
 const { copyMock, writeMock, ensureDirMock, removeMock, removeDirMock, rmdirMock, lstatMock, errorMock, warnMock } =
   vi.hoisted(() => ({
@@ -87,6 +93,13 @@ describe('pathStorage relative-path safety', () => {
 
     it('accepts a safe nested relative path', () => {
       expect(getKnowledgeBaseFilePath(BASE_ID, 'sub/dir/file.md')).toBe(path.join(MATERIAL_DIR, 'sub/dir/file.md'))
+    })
+
+    it('reads the reserved-prefix rule as POSIX, so a backslash cannot fake the boundary', () => {
+      // `.cherry\x` is one legal Linux filename sitting directly under raw/, not
+      // something inside `.cherry/`. The old guard folded `\` unconditionally
+      // and rejected it (#17429).
+      expect(getKnowledgeBaseFilePath(BASE_ID, '.cherry\\x')).toBe(path.join(MATERIAL_DIR, '.cherry\\x'))
     })
   })
 
@@ -191,14 +204,14 @@ describe('pathStorage relative-path safety', () => {
     })
 
     it('rejects an unsafe target relative path before any filesystem write', async () => {
-      await expect(copyFileIntoKnowledgeBaseAt(BASE_ID, '/src/a.md', '../escape.md')).rejects.toThrow(
+      await expect(copyFileIntoKnowledgeBaseAt(BASE_ID, '/src/a.md', UNSAFE_RELATIVE_PATH)).rejects.toThrow(
         'Invalid knowledge relative path'
       )
       expect(copyMock).not.toHaveBeenCalled()
     })
 
     it('creates parent directories and copies for a nested target', async () => {
-      const relativePath = 'docs/sub/a.md'
+      const relativePath = 'docs/sub/a.md' as PosixRelativeFilePath
       await expect(copyFileIntoKnowledgeBaseAt(BASE_ID, '/src/a.md', relativePath)).resolves.toBe(relativePath)
       const destPath = path.join(MATERIAL_DIR, relativePath)
       expect(ensureDirMock).toHaveBeenCalledWith(path.dirname(destPath))
@@ -208,7 +221,7 @@ describe('pathStorage relative-path safety', () => {
 
     it('throws when the target already exists', async () => {
       lstatMock.mockResolvedValueOnce({})
-      await expect(copyFileIntoKnowledgeBaseAt(BASE_ID, '/src/a.md', 'a.md')).rejects.toThrow(
+      await expect(copyFileIntoKnowledgeBaseAt(BASE_ID, '/src/a.md', 'a.md' as PosixRelativeFilePath)).rejects.toThrow(
         'Knowledge file already exists'
       )
       expect(copyMock).not.toHaveBeenCalled()
@@ -217,14 +230,18 @@ describe('pathStorage relative-path safety', () => {
     it('overwrites an existing target without throwing when overwrite is set', async () => {
       // overwrite skips the availability guard entirely (lstat is never consulted), so a
       // retry can re-copy over its own orphan from a prior aborted directory expansion.
-      await expect(copyFileIntoKnowledgeBaseAt(BASE_ID, '/src/a.md', 'a.md', { overwrite: true })).resolves.toBe('a.md')
+      await expect(
+        copyFileIntoKnowledgeBaseAt(BASE_ID, '/src/a.md', 'a.md' as PosixRelativeFilePath, { overwrite: true })
+      ).resolves.toBe('a.md')
       expect(lstatMock).not.toHaveBeenCalled()
       expect(copyMock).toHaveBeenCalledWith('/src/a.md', path.join(MATERIAL_DIR, 'a.md'), undefined)
     })
 
     it('forwards the abort signal to copy', async () => {
       const signal = new AbortController().signal
-      await expect(copyFileIntoKnowledgeBaseAt(BASE_ID, '/src/a.md', 'a.md', { signal })).resolves.toBe('a.md')
+      await expect(
+        copyFileIntoKnowledgeBaseAt(BASE_ID, '/src/a.md', 'a.md' as PosixRelativeFilePath, { signal })
+      ).resolves.toBe('a.md')
       expect(copyMock).toHaveBeenCalledWith('/src/a.md', path.join(MATERIAL_DIR, 'a.md'), signal)
     })
   })
@@ -238,14 +255,14 @@ describe('pathStorage relative-path safety', () => {
     })
 
     it('rejects an unsafe target relative path before any filesystem write', async () => {
-      await expect(writeFileIntoKnowledgeBaseAt(BASE_ID, '../escape.md', 'hi')).rejects.toThrow(
+      await expect(writeFileIntoKnowledgeBaseAt(BASE_ID, UNSAFE_RELATIVE_PATH, 'hi')).rejects.toThrow(
         'Invalid knowledge relative path'
       )
       expect(writeMock).not.toHaveBeenCalled()
     })
 
     it('creates parent directories and writes the content for a nested target', async () => {
-      const relativePath = 'docs/sub/page.md'
+      const relativePath = 'docs/sub/page.md' as PosixRelativeFilePath
       await expect(writeFileIntoKnowledgeBaseAt(BASE_ID, relativePath, '# hi')).resolves.toBe(relativePath)
       const destPath = path.join(MATERIAL_DIR, relativePath)
       expect(ensureDirMock).toHaveBeenCalledWith(path.dirname(destPath))
@@ -254,7 +271,7 @@ describe('pathStorage relative-path safety', () => {
 
     it('throws when the target already exists', async () => {
       lstatMock.mockResolvedValueOnce({})
-      await expect(writeFileIntoKnowledgeBaseAt(BASE_ID, 'page.md', '# hi')).rejects.toThrow(
+      await expect(writeFileIntoKnowledgeBaseAt(BASE_ID, 'page.md' as PosixRelativeFilePath, '# hi')).rejects.toThrow(
         'Knowledge file already exists'
       )
       expect(writeMock).not.toHaveBeenCalled()
@@ -264,9 +281,12 @@ describe('pathStorage relative-path safety', () => {
   describe('collectKnowledgeReservedRelativePaths', () => {
     it('collects file source and indexed-artifact paths and url/note snapshot paths', () => {
       const reserved = collectKnowledgeReservedRelativePaths([
-        { type: 'file', data: { relativePath: 'a.pdf', indexedRelativePath: 'a.md' } },
-        { type: 'url', data: { source: 'https://x', url: 'https://x', relativePath: 'x.md' } },
-        { type: 'note', data: { source: 'n', content: 'body', relativePath: 'n.md' } },
+        {
+          type: 'file',
+          data: { relativePath: 'a.pdf' as PosixRelativeFilePath, indexedRelativePath: 'a.md' as PosixRelativeFilePath }
+        },
+        { type: 'url', data: { source: 'https://x', url: 'https://x', relativePath: 'x.md' as PosixRelativeFilePath } },
+        { type: 'note', data: { source: 'n', content: 'body', relativePath: 'n.md' as PosixRelativeFilePath } },
         { type: 'note', data: { source: 'uncaptured', content: 'body' } },
         { type: 'directory', data: { source: 'd', path: '/d' } }
       ])
@@ -286,7 +306,7 @@ describe('pathStorage relative-path safety', () => {
 
     it('reserves the prospective processed-markdown slot for an unprocessed file when a processor is set', () => {
       const reserved = collectKnowledgeReservedRelativePaths(
-        [{ id: 'i1', type: 'file', data: { relativePath: 'paper.pdf' } }],
+        [{ id: 'i1', type: 'file', data: { relativePath: 'paper.pdf' as PosixRelativeFilePath } }],
         {
           fileProcessorId: 'some-processor'
         }
@@ -297,14 +317,14 @@ describe('pathStorage relative-path safety', () => {
 
     it('does not reserve a prospective slot without a processor', () => {
       const noProcessor = collectKnowledgeReservedRelativePaths([
-        { id: 'i1', type: 'file', data: { relativePath: 'paper.pdf' } }
+        { id: 'i1', type: 'file', data: { relativePath: 'paper.pdf' as PosixRelativeFilePath } }
       ])
       expect(noProcessor).toEqual(new Set(['paper.pdf']))
     })
 
     it('does not reserve a prospective slot for a non-processed source extension', () => {
       const reserved = collectKnowledgeReservedRelativePaths(
-        [{ id: 'i1', type: 'file', data: { relativePath: 'notes.md' } }],
+        [{ id: 'i1', type: 'file', data: { relativePath: 'notes.md' as PosixRelativeFilePath } }],
         { fileProcessorId: 'some-processor' }
       )
 
@@ -326,7 +346,7 @@ describe('pathStorage relative-path safety', () => {
       // `.xls` reaches the index through AnydocReader, not a document_to_markdown
       // processor, so it never emits a `.md` artifact and needs no slot.
       const reserved = collectKnowledgeReservedRelativePaths(
-        [{ id: 'i1', type: 'file', data: { relativePath: 'report.xls' } }],
+        [{ id: 'i1', type: 'file', data: { relativePath: 'report.xls' as PosixRelativeFilePath } }],
         { fileProcessorId: 'some-processor' }
       )
 
@@ -335,7 +355,7 @@ describe('pathStorage relative-path safety', () => {
 
     it('does not reserve a prospective slot for an OpenDocument source the base cannot process', () => {
       const reserved = collectKnowledgeReservedRelativePaths(
-        [{ id: 'i1', type: 'file', data: { relativePath: 'legacy.odt' } }],
+        [{ id: 'i1', type: 'file', data: { relativePath: 'legacy.odt' as PosixRelativeFilePath } }],
         { fileProcessorId: 'some-processor' }
       )
 
@@ -346,7 +366,16 @@ describe('pathStorage relative-path safety', () => {
       // The pinned artifact has a name that is NOT the prospective slot, so the set
       // proves the prospective branch was suppressed (paper.md must be absent).
       const reserved = collectKnowledgeReservedRelativePaths(
-        [{ id: 'i1', type: 'file', data: { relativePath: 'paper.pdf', indexedRelativePath: 'paper-out.md' } }],
+        [
+          {
+            id: 'i1',
+            type: 'file',
+            data: {
+              relativePath: 'paper.pdf' as PosixRelativeFilePath,
+              indexedRelativePath: 'paper-out.md' as PosixRelativeFilePath
+            }
+          }
+        ],
         { fileProcessorId: 'some-processor' }
       )
 
@@ -357,8 +386,12 @@ describe('pathStorage relative-path safety', () => {
     it('skips the excluded item so a candidate path can be tested against the rest', () => {
       const reserved = collectKnowledgeReservedRelativePaths(
         [
-          { id: 'self', type: 'url', data: { source: 'https://x', url: 'https://x', relativePath: 'x.md' } },
-          { id: 'other', type: 'file', data: { relativePath: 'a.pdf' } }
+          {
+            id: 'self',
+            type: 'url',
+            data: { source: 'https://x', url: 'https://x', relativePath: 'x.md' as PosixRelativeFilePath }
+          },
+          { id: 'other', type: 'file', data: { relativePath: 'a.pdf' as PosixRelativeFilePath } }
         ],
         { excludeItemId: 'self' }
       )
@@ -377,11 +410,11 @@ describe('deleteKnowledgeItemFiles', () => {
 
   it('removes file and captured url/note snapshot paths, skipping directories and uncaptured notes', async () => {
     await deleteKnowledgeItemFiles(BASE_ID, [
-      { type: 'note', data: { source: 'n', content: 'x', relativePath: 'n.md' } },
-      { type: 'url', data: { source: 'https://x', url: 'https://x', relativePath: 'x.md' } },
+      { type: 'note', data: { source: 'n', content: 'x', relativePath: 'n.md' as PosixRelativeFilePath } },
+      { type: 'url', data: { source: 'https://x', url: 'https://x', relativePath: 'x.md' as PosixRelativeFilePath } },
       { type: 'note', data: { source: 'uncaptured', content: 'y' } },
       { type: 'directory', data: { source: 'd', path: '/d' } },
-      { type: 'file', data: { relativePath: 'a.pdf' } }
+      { type: 'file', data: { relativePath: 'a.pdf' as PosixRelativeFilePath } }
     ])
 
     expect(removeMock).toHaveBeenCalledTimes(3)
@@ -392,7 +425,10 @@ describe('deleteKnowledgeItemFiles', () => {
 
   it('removes both relativePath and indexedRelativePath when they differ', async () => {
     await deleteKnowledgeItemFiles(BASE_ID, [
-      { type: 'file', data: { relativePath: 'a.pdf', indexedRelativePath: 'a.md' } }
+      {
+        type: 'file',
+        data: { relativePath: 'a.pdf' as PosixRelativeFilePath, indexedRelativePath: 'a.md' as PosixRelativeFilePath }
+      }
     ])
 
     expect(removeMock).toHaveBeenCalledTimes(2)
@@ -402,7 +438,10 @@ describe('deleteKnowledgeItemFiles', () => {
 
   it('deduplicates identical relativePath and indexedRelativePath', async () => {
     await deleteKnowledgeItemFiles(BASE_ID, [
-      { type: 'file', data: { relativePath: 'a.pdf', indexedRelativePath: 'a.pdf' } }
+      {
+        type: 'file',
+        data: { relativePath: 'a.pdf' as PosixRelativeFilePath, indexedRelativePath: 'a.pdf' as PosixRelativeFilePath }
+      }
     ])
 
     expect(removeMock).toHaveBeenCalledTimes(1)
@@ -411,21 +450,21 @@ describe('deleteKnowledgeItemFiles', () => {
 
   it('resolves when every removal succeeds (ENOENT idempotency is handled inside remove)', async () => {
     await expect(
-      deleteKnowledgeItemFiles(BASE_ID, [{ type: 'file', data: { relativePath: 'a.pdf' } }])
+      deleteKnowledgeItemFiles(BASE_ID, [{ type: 'file', data: { relativePath: 'a.pdf' as PosixRelativeFilePath } }])
     ).resolves.toBeUndefined()
   })
 
   it('propagates a non-ENOENT removal error', async () => {
     removeMock.mockRejectedValue(Object.assign(new Error('busy'), { code: 'EBUSY' }))
     await expect(
-      deleteKnowledgeItemFiles(BASE_ID, [{ type: 'file', data: { relativePath: 'a.pdf' } }])
+      deleteKnowledgeItemFiles(BASE_ID, [{ type: 'file', data: { relativePath: 'a.pdf' as PosixRelativeFilePath } }])
     ).rejects.toThrow('busy')
   })
 
   it('prunes now-empty ancestor directories deepest-first (the directory data source shell)', async () => {
     await deleteKnowledgeItemFiles(BASE_ID, [
-      { type: 'file', data: { relativePath: 'docs/sub/a.pdf' } },
-      { type: 'file', data: { relativePath: 'docs/b.pdf' } }
+      { type: 'file', data: { relativePath: 'docs/sub/a.pdf' as PosixRelativeFilePath } },
+      { type: 'file', data: { relativePath: 'docs/b.pdf' as PosixRelativeFilePath } }
     ])
 
     const prunedDirs = rmdirMock.mock.calls.map((call) => call[0])
@@ -433,7 +472,9 @@ describe('deleteKnowledgeItemFiles', () => {
   })
 
   it('leaves a top-level file with no ancestor directory to prune', async () => {
-    await deleteKnowledgeItemFiles(BASE_ID, [{ type: 'file', data: { relativePath: 'a.pdf' } }])
+    await deleteKnowledgeItemFiles(BASE_ID, [
+      { type: 'file', data: { relativePath: 'a.pdf' as PosixRelativeFilePath } }
+    ])
 
     expect(rmdirMock).not.toHaveBeenCalled()
   })
@@ -442,7 +483,9 @@ describe('deleteKnowledgeItemFiles', () => {
     rmdirMock.mockRejectedValue(Object.assign(new Error('not empty'), { code: 'ENOTEMPTY' }))
 
     await expect(
-      deleteKnowledgeItemFiles(BASE_ID, [{ type: 'file', data: { relativePath: 'docs/a.pdf' } }])
+      deleteKnowledgeItemFiles(BASE_ID, [
+        { type: 'file', data: { relativePath: 'docs/a.pdf' as PosixRelativeFilePath } }
+      ])
     ).resolves.toBeUndefined()
     expect(rmdirMock).toHaveBeenCalledWith(path.join(MATERIAL_DIR, 'docs'))
     // ENOTEMPTY/ENOENT are expected outcomes — they must not produce log noise.
@@ -453,7 +496,9 @@ describe('deleteKnowledgeItemFiles', () => {
     rmdirMock.mockRejectedValue(Object.assign(new Error('permission denied'), { code: 'EACCES' }))
 
     await expect(
-      deleteKnowledgeItemFiles(BASE_ID, [{ type: 'file', data: { relativePath: 'docs/a.pdf' } }])
+      deleteKnowledgeItemFiles(BASE_ID, [
+        { type: 'file', data: { relativePath: 'docs/a.pdf' as PosixRelativeFilePath } }
+      ])
     ).resolves.toBeUndefined()
     expect(warnMock).toHaveBeenCalledWith(
       'Failed to prune empty knowledge material directory',
@@ -469,9 +514,13 @@ describe('deleteKnowledgeItemFilesBestEffort', () => {
   })
 
   it('delegates to deleteKnowledgeItemFiles on the happy path without logging', async () => {
-    await deleteKnowledgeItemFilesBestEffort(BASE_ID, [{ type: 'file', data: { relativePath: 'a.pdf' } }], {
-      baseId: BASE_ID
-    })
+    await deleteKnowledgeItemFilesBestEffort(
+      BASE_ID,
+      [{ type: 'file', data: { relativePath: 'a.pdf' as PosixRelativeFilePath } }],
+      {
+        baseId: BASE_ID
+      }
+    )
 
     expect(removeMock).toHaveBeenCalledWith(path.join(MATERIAL_DIR, 'a.pdf'))
     expect(errorMock).not.toHaveBeenCalled()
@@ -481,18 +530,26 @@ describe('deleteKnowledgeItemFilesBestEffort', () => {
     removeMock.mockRejectedValue(Object.assign(new Error('busy'), { code: 'EBUSY' }))
 
     await expect(
-      deleteKnowledgeItemFilesBestEffort(BASE_ID, [{ type: 'file', data: { relativePath: 'a.pdf' } }], {
-        baseId: BASE_ID
-      })
+      deleteKnowledgeItemFilesBestEffort(
+        BASE_ID,
+        [{ type: 'file', data: { relativePath: 'a.pdf' as PosixRelativeFilePath } }],
+        {
+          baseId: BASE_ID
+        }
+      )
     ).resolves.toBeUndefined()
     expect(errorMock).toHaveBeenCalledTimes(1)
   })
 
   it('swallows and logs a reserved/unsafe relative path that would throw before any removal', async () => {
     await expect(
-      deleteKnowledgeItemFilesBestEffort(BASE_ID, [{ type: 'file', data: { relativePath: '../escape.pdf' } }], {
-        baseId: BASE_ID
-      })
+      deleteKnowledgeItemFilesBestEffort(
+        BASE_ID,
+        [{ type: 'file', data: { relativePath: '../escape.pdf' as PosixRelativeFilePath } }],
+        {
+          baseId: BASE_ID
+        }
+      )
     ).resolves.toBeUndefined()
     expect(removeMock).not.toHaveBeenCalled()
     expect(errorMock).toHaveBeenCalledTimes(1)
