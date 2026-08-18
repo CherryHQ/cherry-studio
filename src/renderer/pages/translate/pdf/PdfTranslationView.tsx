@@ -10,7 +10,7 @@ import type { TranslateLangCode, TranslateSourceLanguage } from '@shared/data/pr
 import type { UniqueModelId } from '@shared/data/types/model'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { translateErrorCodes } from '@shared/ipc/errors/translate'
-import type { PdfTranslationProgressStage } from '@shared/ipc/schemas/translate'
+import type { PdfTranslationProgressStage, PdfTranslationStage } from '@shared/ipc/schemas/translate'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import type { TFunction } from 'i18next'
 import { AlertCircle, Download, Languages, X } from 'lucide-react'
@@ -25,7 +25,7 @@ export interface PdfTranslationFile {
   path: AbsoluteFilePath
 }
 
-type PdfTranslationPhase = 'idle' | 'preparing' | 'downloading_assets' | 'translating' | 'success' | 'error'
+type PdfTranslationPhase = PdfTranslationStage | 'idle' | 'success' | 'error'
 type PdfTranslationUiStage = 'preparing' | 'analyzing' | 'translating' | 'generating'
 
 export interface PdfTranslationStatus {
