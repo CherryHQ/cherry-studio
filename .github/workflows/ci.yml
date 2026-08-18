@@ -150,6 +150,12 @@ jobs:
       - name: Install Dependencies
         run: pnpm install
 
+      - name: Check provider-registry compatibility baseline policy
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: pnpm --filter @cherrystudio/provider-registry compat:policy -- "origin/$BASE_REF"
+
       - name: Check changesets
         if: github.event_name == 'pull_request' && github.head_ref != 'changeset-release/main'
         env:

@@ -127,7 +127,14 @@ export class ProviderRegistryUpdaterService extends BaseService {
     const manifestBody = await fetchText(MANIFEST_FILE)
     if (manifestBody === null) return null
     const manifest = this.parseManifest(manifestBody)
-    if (!manifest || !this.passesReleaseFloor(manifest.releaseFloor)) return null
+    if (!manifest) return null
+    if (manifest.schemaVersion !== REGISTRY_SCHEMA_VERSION) {
+      logger.warn(
+        `registry update: manifest schema v${manifest.schemaVersion} does not match client schema v${REGISTRY_SCHEMA_VERSION}, skipping`
+      )
+      return null
+    }
+    if (!this.passesReleaseFloor(manifest.releaseFloor)) return null
 
     const staged: StagedFile[] = []
     for (const file of REGISTRY_FILES) {

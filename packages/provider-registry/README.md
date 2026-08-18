@@ -47,3 +47,15 @@ import type {
 ```bash
 pnpm build
 ```
+
+## Remote catalog compatibility
+
+Before publishing into `x-files/provider-registry/vN/`, the three generated files are validated by
+the frozen `compat/vN-validator.mjs`. When an emitted catalog becomes incompatible, increment
+`REGISTRY_SCHEMA_VERSION` by one and create the new immutable baseline with:
+
+```bash
+pnpm --filter @cherrystudio/provider-registry compat:baseline
+```
+
+Run `pnpm --filter @cherrystudio/provider-registry compat:check` to verify the current catalog.

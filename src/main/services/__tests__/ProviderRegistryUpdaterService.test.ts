@@ -155,6 +155,19 @@ describe('ProviderRegistryUpdaterService.check', () => {
     expect(applyOverrideMock).not.toHaveBeenCalled()
   })
 
+  it('rejects a manifest for a different registry schema version', async () => {
+    const files = { 'models.json': 'v2', 'providers.json': 'v2', 'provider-models.json': 'v2' }
+    mockRemote({
+      manifest: JSON.stringify({ releaseFloor: '2.0.0', schemaVersion: 2, files }),
+      dataVersion: 'v2'
+    })
+
+    await service.check()
+
+    expect(applyOverrideMock).not.toHaveBeenCalled()
+    expect(netFetchMock).not.toHaveBeenCalledWith(expect.stringContaining('/models.json'), expect.anything())
+  })
+
   it('uses the GitCode mirror inside China', async () => {
     getCountryMock.mockResolvedValue('CN')
     mockRemote({ dataVersion: 'v2' })

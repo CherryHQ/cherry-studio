@@ -74,6 +74,11 @@ jobs:
           echo "dir=v$VER" >> "$GITHUB_OUTPUT"
           echo "version=$VER" >> "$GITHUB_OUTPUT"
 
+      - name: Validate catalog against frozen schema
+        run: |
+          node "main/packages/provider-registry/compat/v${{ steps.ver.outputs.version }}-validator.mjs" \
+            main/packages/provider-registry/data
+
       - name: Copy catalog into version dir
         run: |
           DEST="pub/${{ steps.ver.outputs.dir }}"
