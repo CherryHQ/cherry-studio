@@ -215,29 +215,34 @@ describe('admitArchive', () => {
     })
   })
 
-  it('round-trips the executable bit without restoring broader permissions', async () => {
-    const dbPath = await snapshotDbAt()
-    const meta = await dbMeta(dbPath)
-    const { dir, payloads } = await buildResources()
-    const blobPath = path.join(dir, 'Data', 'Files', 'blob.bin')
-    await chmod(blobPath, 0o755)
-    const executablePayloads = payloads.map((payload) =>
-      payload.resourceType === 'file' ? { ...payload, executable: true } : payload
-    )
-    const outPath = path.join(work, 'executable.cherrybackup')
-    await publishArchive({
-      outPath,
-      manifest: fullManifest(meta, executablePayloads),
-      dbCopyPath: dbPath,
-      resourcesDir: dir
-    })
+  // NTFS has no executable bit: `chmod 0o755` cannot set one, so there is
+  // nothing for the round-trip to carry there.
+  it.skipIf(process.platform === 'win32')(
+    'round-trips the executable bit without restoring broader permissions',
+    async () => {
+      const dbPath = await snapshotDbAt()
+      const meta = await dbMeta(dbPath)
+      const { dir, payloads } = await buildResources()
+      const blobPath = path.join(dir, 'Data', 'Files', 'blob.bin')
+      await chmod(blobPath, 0o755)
+      const executablePayloads = payloads.map((payload) =>
+        payload.resourceType === 'file' ? { ...payload, executable: true } : payload
+      )
+      const outPath = path.join(work, 'executable.cherrybackup')
+      await publishArchive({
+        outPath,
+        manifest: fullManifest(meta, executablePayloads),
+        dbCopyPath: dbPath,
+        resourcesDir: dir
+      })
 
-    const admitted = await admitArchive({ archivePath: outPath, stagingParent, migrationsFolder: realFolder })
-    const file = admitted.resources.find((resource) => resource.resourceType === 'file')
-    expect(file).toBeDefined()
-    expect((await stat(file!.stagedPath)).mode & 0o777).toBe(0o700)
-    await admitted.cleanup()
-  })
+      const admitted = await admitArchive({ archivePath: outPath, stagingParent, migrationsFolder: realFolder })
+      const file = admitted.resources.find((resource) => resource.resourceType === 'file')
+      expect(file).toBeDefined()
+      expect((await stat(file!.stagedPath)).mode & 0o777).toBe(0o700)
+      await admitted.cleanup()
+    }
+  )
 
   it('migrates a valid older-chain (strict-prefix) archive forward', async () => {
     const truncated = path.join(work, 'm-trunc')
