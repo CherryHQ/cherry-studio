@@ -106,7 +106,6 @@ class FeishuAdapter extends ChannelAdapter {
   private readonly allowedChatIds: string[]
   private readonly domain: FeishuDomain
   private readonly streams = new Map<string, FeishuStreamSession>()
-  private readonly latestUserMessageByChat = new Map<string, string>()
   private readonly chatReactions = new Map<string, ChatReaction>()
 
   constructor(config: ChannelAdapterConfig<'feishu'>) {
@@ -176,7 +175,6 @@ class FeishuAdapter extends ChannelAdapter {
         })
       },
       reconnecting: () => {
-        this.markDisconnected('Feishu WebSocket reconnecting')
         this.log.warn('Feishu WebSocket reconnecting')
       },
       reconnected: () => {
@@ -255,7 +253,6 @@ class FeishuAdapter extends ChannelAdapter {
     for (const stream of this.streams.values()) stream.dispose()
     this.streams.clear()
     this.chatReactions.clear()
-    this.latestUserMessageByChat.clear()
 
     const channel = this.channel
     this.channel = null
@@ -299,8 +296,7 @@ class FeishuAdapter extends ChannelAdapter {
   }
 
   private async setChatReaction(chatId: string, emoji: string, opts?: SendMessageOptions): Promise<void> {
-    const messageId =
-      typeof opts?.replyToMessageId === 'string' ? opts.replyToMessageId : this.latestUserMessageByChat.get(chatId)
+    const messageId = typeof opts?.replyToMessageId === 'string' ? opts.replyToMessageId : undefined
     if (!messageId || !this.channel) return
 
     const reactionKey = this.responseKey(chatId, opts)
@@ -369,6 +365,12 @@ class FeishuAdapter extends ChannelAdapter {
     try {
       await stream.complete(finalText)
       return true
+    } catch (error) {
+      this.log.warn('Failed to finalize Feishu stream, falling back to a message', {
+        chatId,
+        error: error instanceof Error ? error.message : String(error)
+      })
+      return false
     } finally {
       this.streams.delete(streamKey)
     }
@@ -403,7 +405,6 @@ class FeishuAdapter extends ChannelAdapter {
       return
     }
 
-    this.latestUserMessageByChat.set(message.chatId, message.messageId)
     const text = message.content.trim()
     const conversationId = message.threadId
     const conversation = conversationId
@@ -444,10 +445,14 @@ class FeishuAdapter extends ChannelAdapter {
     const files: FileAttachment[] = []
 
     for (const resource of message.resources) {
+      if (resource.type === 'sticker') {
+        this.log.debug('Skipping unsupported Feishu sticker resource', { fileKey: resource.fileKey })
+        continue
+      }
       try {
         const resourceResponse = await this.getChannel().rawClient.im.v1.messageResource.get({
           path: { message_id: message.messageId, file_key: resource.fileKey },
-          params: { type: resource.type }
+          params: { type: resource.type === 'image' ? 'image' : 'file' }
         })
         const chunks: Buffer[] = []
         for await (const chunk of resourceResponse.getReadableStream()) {

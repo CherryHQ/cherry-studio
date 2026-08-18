@@ -8,6 +8,7 @@ import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
 const TELEGRAM_CONFIG = { bot_token: 'test-token-123', allowed_chat_ids: [] }
+const DISCORD_CONFIG = { bot_token: 'test-token-123', allowed_channel_ids: [] }
 const SYSTEM_WORKSPACE = { type: 'system' as const }
 
 describe('AgentChannelService', () => {
@@ -327,8 +328,15 @@ describe('AgentChannelService', () => {
         workspace: SYSTEM_WORKSPACE,
         config: TELEGRAM_CONFIG
       })
+      const otherChannel = agentChannelService.createChannel({
+        type: 'discord',
+        name: 'Discord',
+        agentId,
+        workspace: SYSTEM_WORKSPACE,
+        config: DISCORD_CONFIG
+      })
       const alice = agentSessionService.create({ agentId, name: 'Alice', workspace: SYSTEM_WORKSPACE })
-      const group = agentSessionService.create({ agentId, name: 'Group', workspace: SYSTEM_WORKSPACE })
+      const otherAlice = agentSessionService.create({ agentId, name: 'Other Alice', workspace: SYSTEM_WORKSPACE })
 
       application.get('DbService').withWriteTx((tx) => {
         agentChannelService.activateSessionTx(tx, {
@@ -338,15 +346,15 @@ describe('AgentChannelService', () => {
           sessionId: alice.id
         })
         agentChannelService.activateSessionTx(tx, {
-          channelId: channel.id,
-          conversationId: 'team',
-          conversationKind: 'group',
-          sessionId: group.id
+          channelId: otherChannel.id,
+          conversationId: 'alice',
+          conversationKind: 'direct',
+          sessionId: otherAlice.id
         })
       })
 
       expect(agentChannelService.getActiveSessionId(channel.id, 'alice')).toBe(alice.id)
-      expect(agentChannelService.getActiveSessionId(channel.id, 'team')).toBe(group.id)
+      expect(agentChannelService.getActiveSessionId(otherChannel.id, 'alice')).toBe(otherAlice.id)
     })
   })
 })

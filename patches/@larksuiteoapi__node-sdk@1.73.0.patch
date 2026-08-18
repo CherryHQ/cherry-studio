@@ -2,6 +2,16 @@ diff --git a/es/index.js b/es/index.js
 index c5d5c57488d414e3078f19a235e4db7afebeda80..7892057dab4fbd31ad840f8149978d52f9de1d37 100644
 --- a/es/index.js
 +++ b/es/index.js
+@@ -103671,6 +103671,9 @@ class MarkdownStreamControllerImpl {
+                 // best effort — Feishu auto-closes after 10min anyway
+                 (_b = (_a = this.sender.logger).warn) === null || _b === void 0 ? void 0 : _b.call(_a, '[stream] finishStreamingCard failed', e);
+             }
++            if (this.streamingFailed) {
++                throw new Error('Feishu streaming update failed');
++            }
+         });
+     }
+     failTerminal(_err) {
 @@ -104680,7 +104680,7 @@ class OutboundSender {
                  const id = yield this.sendOneWithFallback({
                      to, idType,
@@ -15,6 +25,16 @@ diff --git a/lib/index.js b/lib/index.js
 index 0728b1d97ddac688b17642924e359c152dd52fd5..e20f32cd2e27f4f0a7a11d69bf531bf78ef05d72 100644
 --- a/lib/index.js
 +++ b/lib/index.js
+@@ -103679,6 +103679,9 @@ class MarkdownStreamControllerImpl {
+                 // best effort — Feishu auto-closes after 10min anyway
+                 (_b = (_a = this.sender.logger).warn) === null || _b === void 0 ? void 0 : _b.call(_a, '[stream] finishStreamingCard failed', e);
+             }
++            if (this.streamingFailed) {
++                throw new Error('Feishu streaming update failed');
++            }
+         });
+     }
+     failTerminal(_err) {
 @@ -104698,7 +104698,7 @@ class OutboundSender {
                  const id = yield this.sendOneWithFallback({
                      to, idType,

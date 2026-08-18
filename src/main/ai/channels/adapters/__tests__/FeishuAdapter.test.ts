@@ -176,16 +176,17 @@ describe('FeishuAdapter', () => {
     })
   })
 
-  it('surfaces reconnect lifecycle through adapter status events', async () => {
+  it('keeps active stream listeners alive while the WebSocket reconnects', async () => {
     const adapter = createAdapter()
     const statuses: Array<{ connected: boolean }> = []
     adapter.on('statusChange', (status) => statuses.push(status))
     await adapter.connect()
 
     channelHandlers.reconnecting()
+    expect(adapter.connected).toBe(true)
     channelHandlers.reconnected()
 
-    expect(statuses.map(({ connected }) => connected)).toEqual([true, false, true])
+    expect(statuses.map(({ connected }) => connected)).toEqual([true, true])
   })
 
   it('disconnects the official channel', async () => {
@@ -300,6 +301,19 @@ describe('FeishuAdapter', () => {
     expect(mockSetContent).toHaveBeenNthCalledWith(1, 'partial')
     expect(mockSetContent).toHaveBeenNthCalledWith(2, 'partial response')
     expect(mockSetContent).toHaveBeenNthCalledWith(3, 'final response')
+  })
+
+  it('falls back to a regular message when stream completion fails', async () => {
+    mockStream.mockImplementationOnce(async (_chatId, input) => {
+      await input.markdown({ messageId: 'stream-1', setContent: mockSetContent, append: vi.fn() })
+      throw new Error('stream failed')
+    })
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    await adapter.onTextUpdate('oc_123', 'partial', { replyToMessageId: 'msg-in-1' })
+
+    await expect(adapter.onStreamComplete('oc_123', 'final', { replyToMessageId: 'msg-in-1' })).resolves.toBe(false)
   })
 
   it('sends proactive streams at the chat root instead of replying to the last inbound message', async () => {
@@ -499,6 +513,42 @@ describe('FeishuAdapter', () => {
           }
         ]
       })
+    )
+  })
+
+  it('downloads audio as a file and skips unsupported stickers', async () => {
+    const adapter = createAdapter()
+    const onMessage = vi.fn()
+    adapter.on('message', onMessage)
+    await adapter.connect()
+    const audio = Buffer.from('audio')
+    mockMessageResourceGet.mockResolvedValue({
+      getReadableStream: async function* () {
+        yield audio
+      }
+    })
+
+    channelHandlers.message(
+      incomingMessage({
+        content: '<audio key="audio-1"/>',
+        resources: [
+          { type: 'audio', fileKey: 'audio-1', fileName: 'note.mp3' },
+          { type: 'sticker', fileKey: 'sticker-1' }
+        ]
+      })
+    )
+    await vi.waitFor(() => expect(mockMessageResourceGet).toHaveBeenCalledOnce())
+
+    expect(mockMessageResourceGet).toHaveBeenCalledWith({
+      path: { message_id: 'msg-in-1', file_key: 'audio-1' },
+      params: { type: 'file' }
+    })
+    await vi.waitFor(() =>
+      expect(onMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          files: [expect.objectContaining({ filename: 'note.mp3', data: audio.toString('base64') })]
+        })
+      )
     )
   })
 

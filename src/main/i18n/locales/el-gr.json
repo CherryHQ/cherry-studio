@@ -86,6 +86,10 @@
   "common": {
     "channel_command_processing_error": "⚠️ Παρουσιάστηκε σφάλμα κατά την επεξεργασία της εντολής. Δοκιμάστε ξανά αργότερα.",
     "channel_message_processing_error": "⚠️ Παρουσιάστηκε σφάλμα κατά την επεξεργασία του μηνύματός σας. Δοκιμάστε ξανά αργότερα.",
+    "channel_new_session_created": "Δημιουργήθηκε νέα συνεδρία.",
+    "channel_no_active_session": "Δεν υπάρχει ενεργή συνεδρία.",
+    "channel_session_compacted": "Η συνεδρία συμπτύχθηκε.",
+    "channel_session_resolution_error": "⚠️ Αποτυχία επίλυσης συνεδρίας για αυτόν τον πράκτορα. Δοκιμάστε ξανά αργότερα.",
     "copy": "Αντιγραφή",
     "cut": "Κοπή",
     "inspect": "Επιθεώρηση",

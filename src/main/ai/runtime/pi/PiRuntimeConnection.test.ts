@@ -49,7 +49,7 @@ const mocks = vi.hoisted(() => ({
   spans: [] as FakeSpan[],
   readdirSync: vi.fn(),
   // agent MCP collaborators
-  listChannels: vi.fn(),
+  findChannelBySessionId: vi.fn(),
   buildPromptParts: vi.fn(),
   buildCitationsGuidance: vi.fn(),
   getAppLanguage: vi.fn(),
@@ -104,7 +104,9 @@ vi.mock('@application', () => ({
 }))
 vi.mock('@data/services/AgentSessionService', () => ({ agentSessionService: { getById: mocks.getById } }))
 vi.mock('@data/services/AgentService', () => ({ agentService: { getAgent: mocks.getAgent } }))
-vi.mock('@data/services/AgentChannelService', () => ({ agentChannelService: { listChannels: mocks.listChannels } }))
+vi.mock('@data/services/AgentChannelService', () => ({
+  agentChannelService: { findBySessionId: mocks.findChannelBySessionId }
+}))
 vi.mock('@main/ai/skills/SkillService', () => ({
   skillService: { list: mocks.skillList, getSkillDirectory: mocks.getSkillDirectory }
 }))
@@ -285,7 +287,7 @@ beforeEach(() => {
   })
   mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', instructions: 'Be helpful.' })
   mocks.getInteractionState.mockReturnValue({ currentTurn: 'interactive', userResponse: 'stream' })
-  mocks.listChannels.mockReturnValue([])
+  mocks.findChannelBySessionId.mockReturnValue(null)
   mocks.buildPromptParts.mockResolvedValue({ base: { kind: 'native' }, context: 'AGENT PROMPT' })
   mocks.buildCitationsGuidance.mockReturnValue(undefined)
   mocks.getAppLanguage.mockReturnValue('en-US')
@@ -297,9 +299,8 @@ beforeEach(() => {
       const agent = mocks.getAgent()
       const session = mocks.getById()
       const skills = await mocks.skillList({ agentId: agent.id })
-      const linkedChannel = mocks
-        .listChannels({ agentId: agent.id })
-        .find((channel: { sessionId: string }) => channel.sessionId === session.id)
+      const channel = mocks.findChannelBySessionId(session.id)
+      const linkedChannel = channel?.agentId === agent.id ? channel : null
       return {
         agent,
         session,
@@ -1551,10 +1552,7 @@ describe('PiRuntimeConnection', () => {
     it('scopes cron/notify default delivery to the channel linked to this session', async () => {
       mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', configuration: {} })
       mocks.getById.mockReturnValue(agentSession)
-      mocks.listChannels.mockReturnValue([
-        { id: 'chan-other', sessionId: 'sess-other' },
-        { id: 'chan-1', sessionId: 'sess-1' }
-      ])
+      mocks.findChannelBySessionId.mockReturnValue({ id: 'chan-1', agentId: 'agent-1' })
       await new PiRuntimeConnection(input).start()
 
       expect(mocks.buildAgentMcpServers).toHaveBeenCalledWith(

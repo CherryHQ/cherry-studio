@@ -780,10 +780,53 @@ describe('ChannelMessageHandler', () => {
       text: 'A2'
     })
 
-    await vi.advanceTimersByTimeAsync(8000)
+    await vi.advanceTimersByTimeAsync(9000)
     await Promise.all([firstA, B, secondA])
 
     expect(mockStartAgentSessionRun.mock.calls.map(([input]) => input.userParts[0].text)).toEqual(['A1\nA2', 'B1'])
+  })
+
+  it('caps a sender debounce so queued messages from another sender are eventually admitted', async () => {
+    const adapter = createMockAdapter()
+    simulateStream([{ type: 'text-delta', delta: 'A reply' }])
+    simulateStream([{ type: 'text-delta', delta: 'B reply' }])
+
+    const firstA = channelMessageHandler.handleIncoming(adapter, {
+      chatId: 'group-1',
+      conversationKind: 'group',
+      userId: 'alice',
+      userName: 'Alice',
+      text: 'A1'
+    })
+    await vi.advanceTimersByTimeAsync(1000)
+    const B = channelMessageHandler.handleIncoming(adapter, {
+      chatId: 'group-1',
+      conversationKind: 'group',
+      userId: 'bob',
+      userName: 'Bob',
+      text: 'B1'
+    })
+    await vi.advanceTimersByTimeAsync(6000)
+    const secondA = channelMessageHandler.handleIncoming(adapter, {
+      chatId: 'group-1',
+      conversationKind: 'group',
+      userId: 'alice',
+      userName: 'Alice',
+      text: 'A2'
+    })
+    await vi.advanceTimersByTimeAsync(7000)
+    const thirdA = channelMessageHandler.handleIncoming(adapter, {
+      chatId: 'group-1',
+      conversationKind: 'group',
+      userId: 'alice',
+      userName: 'Alice',
+      text: 'A3'
+    })
+
+    await vi.advanceTimersByTimeAsync(2000)
+    await Promise.all([firstA, B, secondA, thirdA])
+
+    expect(mockStartAgentSessionRun.mock.calls.map(([input]) => input.userParts[0].text)).toEqual(['A1\nA2\nA3', 'B1'])
   })
 
   it('isolates threads in the same chat and preserves their reply context', async () => {

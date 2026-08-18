@@ -86,6 +86,10 @@
   "common": {
     "channel_command_processing_error": "⚠️ Ocorreu um erro ao processar o comando. Tente novamente mais tarde.",
     "channel_message_processing_error": "⚠️ Ocorreu um erro ao processar a sua mensagem. Tente novamente mais tarde.",
+    "channel_new_session_created": "Nova sessão criada.",
+    "channel_no_active_session": "Não existe sessão ativa.",
+    "channel_session_compacted": "Sessão compactada.",
+    "channel_session_resolution_error": "⚠️ Não foi possível resolver uma sessão para este agente. Tente novamente mais tarde.",
     "copy": "Copiar",
     "cut": "Cortar",
     "inspect": "Verificar",

@@ -277,16 +277,6 @@ describe('buildSystemPrompt — Agent System Prompt authority', () => {
     expect(text).toContain('WORKSPACE_ROLE: You are the workspace reviewer.')
     expect(text).toContain('SOUL_ROLE: You are the friendly historian.')
     expect(text).toContain('<agent_instructions>\nAGENT_ROLE: You are the release manager.\n</agent_instructions>')
-    expect(text).not.toContain('External Channel Security Policy')
-  })
-
-  it('does not add an external-channel policy to linked sessions', async () => {
-    mockFindBySessionId.mockReturnValue({ id: 'channel-1', sessionId: 'sess-1' })
-
-    const text = promptText(
-      await buildSystemPrompt(makeSession(), makeAgent({ instructions: 'Follow the configured role.' }), '/tmp/cwd')
-    )
-    expect(text).not.toContain('External Channel Security Policy')
   })
 
   it('resolves Agent System Prompt variables with the embedded Agent model name', async () => {

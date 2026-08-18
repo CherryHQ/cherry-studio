@@ -43,6 +43,8 @@ const SESSION_TRACKER_MAX_SIZE = 500
  * agent round-trip and avoids concurrent stream interleaving.
  */
 const MESSAGE_BATCH_DELAY_MS = 8000
+// Cap a sender's debounce extension so another sender in the conversation cannot wait forever.
+const MESSAGE_BATCH_MAX_DELAY_MS = 16000
 
 type BatchResolver = {
   resolve: () => void
@@ -53,6 +55,7 @@ type PendingBatch = {
   adapter: ChannelAdapter
   messages: ChannelMessageEvent[]
   timer: ReturnType<typeof setTimeout>
+  deadline: number
   resolvers: BatchResolver[]
   release: () => void
   cancelled: boolean
@@ -225,7 +228,7 @@ export class ChannelMessageHandler {
         existing.messages.push(message)
         existing.resolvers.push({ resolve, reject })
         clearTimeout(existing.timer)
-        existing.timer = setTimeout(() => this.flushBatch(batchKey), MESSAGE_BATCH_DELAY_MS)
+        existing.timer = setTimeout(() => this.flushBatch(batchKey), Math.max(0, existing.deadline - Date.now()))
         logger.debug('Message appended to pending batch', {
           batchKey,
           batchSize: existing.messages.length
@@ -250,6 +253,7 @@ export class ChannelMessageHandler {
         adapter,
         messages: [message],
         timer: setTimeout(() => this.flushBatch(batchKey), MESSAGE_BATCH_DELAY_MS),
+        deadline: Date.now() + MESSAGE_BATCH_MAX_DELAY_MS,
         resolvers: [{ resolve, reject }],
         release,
         cancelled: false,
@@ -366,7 +370,7 @@ export class ChannelMessageHandler {
       if (!session) {
         logger.error('Failed to resolve session', { agentId })
         await adapter
-          .sendMessage(message.chatId, '⚠️ Failed to resolve a session for this agent. Please try again later.', {
+          .sendMessage(message.chatId, t('common.channel_session_resolution_error'), {
             ...responseOptionsFor(message)
           })
           .catch((err) => {
@@ -585,7 +589,7 @@ export class ChannelMessageHandler {
           this.sessionTracker.set(trackerKey, newSession.id)
           this.evictSessionTracker()
           onAdmitted()
-          await adapter.sendMessage(command.chatId, 'New session created.', replyOpts)
+          await adapter.sendMessage(command.chatId, t('common.channel_new_session_created'), replyOpts)
           break
         }
         case 'compact': {
@@ -596,7 +600,7 @@ export class ChannelMessageHandler {
             command.conversationKind
           )
           if (!session) {
-            await adapter.sendMessage(command.chatId, 'No active session.', replyOpts)
+            await adapter.sendMessage(command.chatId, t('common.channel_no_active_session'), replyOpts)
             return
           }
           const abortController = new AbortController()
@@ -620,7 +624,7 @@ export class ChannelMessageHandler {
             // delivered any non-empty output; only send an explicit fallback when compact
             // produced no text, so we don't double-send.
             if (!response) {
-              await adapter.sendMessage(command.chatId, 'Session compacted.', replyOpts)
+              await adapter.sendMessage(command.chatId, t('common.channel_session_compacted'), replyOpts)
             }
           } finally {
             clearInterval(typingInterval)

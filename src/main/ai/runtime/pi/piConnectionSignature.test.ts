@@ -109,4 +109,12 @@ describe('capturePiConnectionSnapshot', () => {
     })
     expect(snapshot.mcpServerSnapshots.get('mcp-1')).toMatchObject({ id: 'mcp-1', name: 'server' })
   })
+
+  it('does not attach a session link owned by another agent', async () => {
+    mocks.findBySessionId.mockReturnValue({ id: 'channel-1', agentId: 'agent-2' })
+
+    await expect(capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')).resolves.toMatchObject({
+      linkedChannel: null
+    })
+  })
 })

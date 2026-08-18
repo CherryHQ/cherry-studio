@@ -22,7 +22,6 @@ export const agentChannelTable = sqliteTable(
     type: text().$type<ChannelType>().notNull(),
     name: text().notNull(),
     agentId: text().references(() => agentTable.id, { onDelete: 'set null' }),
-    sessionId: text().references(() => agentSessionTable.id, { onDelete: 'set null' }),
     workspace: text({ mode: 'json' }).$type<AgentSessionWorkspaceSource>().notNull(),
     config: text({ mode: 'json' }).$type<Record<string, unknown>>().notNull(),
     isActive: integer({ mode: 'boolean' }).notNull().default(true),
@@ -30,11 +29,7 @@ export const agentChannelTable = sqliteTable(
     permissionMode: text().$type<AgentPermissionMode | null>(),
     ...createUpdateTimestamps
   },
-  (t) => [
-    index('agent_channel_agent_id_idx').on(t.agentId),
-    index('agent_channel_type_idx').on(t.type),
-    index('agent_channel_session_id_idx').on(t.sessionId)
-  ]
+  (t) => [index('agent_channel_agent_id_idx').on(t.agentId), index('agent_channel_type_idx').on(t.type)]
 )
 
 export const agentChannelSessionTable = sqliteTable(

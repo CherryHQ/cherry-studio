@@ -52,74 +52,6 @@ function baselineMigrationsFolder(into: string, beforeTag?: string): string {
   return into
 }
 
-function legacyAgentChannelSessionMigrationsFolder(into: string): string {
-  mkdirSync(join(into, 'meta'), { recursive: true })
-  writeFileSync(
-    join(into, 'meta', '_journal.json'),
-    JSON.stringify({
-      dialect: 'sqlite',
-      entries: [
-        { idx: 8, version: '6', when: 1_786_631_439_394, tag: '0008_same_sauron', breakpoints: true },
-        { idx: 9, version: '6', when: 1_786_949_330_606, tag: '0009_abnormal_starhawk', breakpoints: true }
-      ],
-      version: '7'
-    })
-  )
-  writeFileSync(
-    join(into, '0008_same_sauron.sql'),
-    `CREATE TABLE \`agent_channel_session\` (
-      \`session_id\` text PRIMARY KEY NOT NULL,
-      \`channel_id\` text NOT NULL,
-      \`conversation_id\` text,
-      \`conversation_kind\` text,
-      \`is_active\` integer DEFAULT false NOT NULL,
-      FOREIGN KEY (\`session_id\`) REFERENCES \`agent_session\`(\`id\`) ON UPDATE no action ON DELETE cascade,
-      FOREIGN KEY (\`channel_id\`) REFERENCES \`agent_channel\`(\`id\`) ON UPDATE no action ON DELETE cascade,
-      CONSTRAINT "agent_channel_session_conversation_id_nonempty_check" CHECK("agent_channel_session"."conversation_id" IS NULL OR length(trim("agent_channel_session"."conversation_id")) > 0),
-      CONSTRAINT "agent_channel_session_conversation_kind_check" CHECK("agent_channel_session"."conversation_kind" IS NULL OR "agent_channel_session"."conversation_kind" IN ('direct', 'group', 'channel')),
-      CONSTRAINT "agent_channel_session_active_conversation_check" CHECK("agent_channel_session"."is_active" = 0 OR ("agent_channel_session"."conversation_id" IS NOT NULL AND "agent_channel_session"."conversation_kind" IS NOT NULL))
-    );
-    --> statement-breakpoint
-    INSERT INTO \`agent_channel_session\` (\`session_id\`, \`channel_id\`, \`conversation_id\`, \`conversation_kind\`, \`is_active\`)
-    SELECT \`session_id\`, \`channel_id\`, NULL, NULL, false FROM (
-      SELECT \`session_id\`, \`id\` AS \`channel_id\`, row_number() OVER (PARTITION BY \`session_id\` ORDER BY \`updated_at\` DESC, \`id\` DESC) AS \`relation_rank\`
-      FROM \`agent_channel\` WHERE \`session_id\` IS NOT NULL
-    ) WHERE \`relation_rank\` = 1;
-    --> statement-breakpoint
-    UPDATE \`agent_channel\` SET \`session_id\` = NULL WHERE \`session_id\` IS NOT NULL;
-    --> statement-breakpoint
-    CREATE INDEX \`agent_channel_session_channel_id_idx\` ON \`agent_channel_session\` (\`channel_id\`);
-    --> statement-breakpoint
-    CREATE UNIQUE INDEX \`agent_channel_session_active_uniq\` ON \`agent_channel_session\` (\`channel_id\`,\`conversation_id\`) WHERE "agent_channel_session"."is_active" = 1 AND "agent_channel_session"."conversation_id" IS NOT NULL;`
-  )
-  writeFileSync(
-    join(into, '0009_abnormal_starhawk.sql'),
-    `CREATE TABLE \`__new_agent_channel_session\` (
-      \`session_id\` text PRIMARY KEY NOT NULL,
-      \`channel_id\` text NOT NULL,
-      \`conversation_id\` text,
-      \`conversation_kind\` text,
-      \`is_active\` integer DEFAULT false NOT NULL,
-      FOREIGN KEY (\`session_id\`) REFERENCES \`agent_session\`(\`id\`) ON UPDATE no action ON DELETE cascade,
-      FOREIGN KEY (\`channel_id\`) REFERENCES \`agent_channel\`(\`id\`) ON UPDATE no action ON DELETE cascade,
-      CONSTRAINT "agent_channel_session_conversation_id_nonempty_check" CHECK("__new_agent_channel_session"."conversation_id" IS NULL OR length(trim("__new_agent_channel_session"."conversation_id")) > 0),
-      CONSTRAINT "agent_channel_session_conversation_kind_check" CHECK("__new_agent_channel_session"."conversation_kind" IS NULL OR "__new_agent_channel_session"."conversation_kind" IN ('direct', 'group', 'channel', 'thread')),
-      CONSTRAINT "agent_channel_session_active_conversation_check" CHECK("__new_agent_channel_session"."is_active" = 0 OR ("__new_agent_channel_session"."conversation_id" IS NOT NULL AND "__new_agent_channel_session"."conversation_kind" IS NOT NULL))
-    );
-    --> statement-breakpoint
-    INSERT INTO \`__new_agent_channel_session\` SELECT * FROM \`agent_channel_session\`;
-    --> statement-breakpoint
-    DROP TABLE \`agent_channel_session\`;
-    --> statement-breakpoint
-    ALTER TABLE \`__new_agent_channel_session\` RENAME TO \`agent_channel_session\`;
-    --> statement-breakpoint
-    CREATE INDEX \`agent_channel_session_channel_id_idx\` ON \`agent_channel_session\` (\`channel_id\`);
-    --> statement-breakpoint
-    CREATE UNIQUE INDEX \`agent_channel_session_active_uniq\` ON \`agent_channel_session\` (\`channel_id\`,\`conversation_id\`) WHERE "agent_channel_session"."is_active" = 1 AND "agent_channel_session"."conversation_id" IS NOT NULL;`
-  )
-  return into
-}
-
 describe('applyMigrations over a populated database', () => {
   let tempDir: string
   let sqlite: Database.Database
@@ -175,7 +107,7 @@ describe('applyMigrations over a populated database', () => {
   }
 
   it('quarantines legacy channel sessions without changing conversation history', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0009_dapper_magik'))
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0011_far_mordo'))
     const now = Date.now()
     sqlite
       .prepare(
@@ -242,61 +174,10 @@ describe('applyMigrations over a populated database', () => {
         is_active: 0
       }
     ])
-    expect(sqlite.prepare('SELECT count(*) AS count FROM agent_channel WHERE session_id IS NOT NULL').get()).toEqual({
-      count: 0
-    })
+    expect(
+      sqlite.prepare("SELECT name FROM pragma_table_info('agent_channel') WHERE name = 'session_id'").all()
+    ).toEqual([])
     expect(sqlite.prepare('SELECT count(*) AS count FROM agent_session_message').get()).toEqual({ count: 2 })
-  })
-
-  it('upgrades databases that applied the earlier branch-local channel migration', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0009_dapper_magik'))
-    const now = Date.now()
-    sqlite
-      .prepare(
-        `INSERT INTO agent (id, type, name, instructions, order_key, created_at, updated_at)
-         VALUES ('legacy-agent', 'claude-code', 'Agent', '', 'a0', ?, ?)`
-      )
-      .run(now, now)
-    sqlite
-      .prepare(
-        `INSERT INTO agent_workspace (id, name, path, type, order_key, created_at, updated_at)
-         VALUES ('legacy-workspace', 'Workspace', '/tmp/legacy', 'user', 'a0', ?, ?)`
-      )
-      .run(now, now)
-    sqlite
-      .prepare(
-        `INSERT INTO agent_session (id, agent_id, name, workspace_id, order_key, last_activity_at, created_at, updated_at)
-         VALUES ('legacy-session', 'legacy-agent', 'Session', 'legacy-workspace', 'a0', ?, ?, ?)`
-      )
-      .run(now, now, now)
-    sqlite
-      .prepare(
-        `INSERT INTO agent_channel (id, type, name, agent_id, session_id, workspace, config, created_at, updated_at)
-         VALUES ('legacy-channel', 'feishu', 'Channel', 'legacy-agent', 'legacy-session', '{"type":"system"}', '{}', ?, ?)`
-      )
-      .run(now, now)
-    applyMigrations(db, legacyAgentChannelSessionMigrationsFolder(join(tempDir, 'legacy-0008')))
-
-    expect(() => applyMigrations(db, resolveMigrationsPath())).not.toThrow()
-    const table = sqlite
-      .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'agent_channel_session'")
-      .get() as {
-      sql: string
-    }
-    expect(table.sql).toContain("'thread'")
-    expect(
-      sqlite
-        .prepare('SELECT session_id, channel_id, is_active FROM agent_channel_session WHERE session_id = ?')
-        .get('legacy-session')
-    ).toEqual({ session_id: 'legacy-session', channel_id: 'legacy-channel', is_active: 0 })
-    expect(
-      sqlite.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'agent_channel_session'").all()
-    ).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ name: 'agent_channel_session_channel_id_idx' }),
-        expect.objectContaining({ name: 'agent_channel_session_active_uniq' })
-      ])
-    )
   })
 
   it('preserves every file_entry row and its references across the cleanup_policy recreate', () => {

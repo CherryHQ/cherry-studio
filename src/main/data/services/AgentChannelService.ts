@@ -204,10 +204,9 @@ export class AgentChannelService {
   updateChannel(
     id: string,
     updates: Partial<
-      Pick<
-        ChannelRow,
-        'name' | 'agentId' | 'sessionId' | 'config' | 'isActive' | 'activeChatIds' | 'permissionMode'
-      > & { workspace: AgentSessionWorkspaceSource }
+      Pick<ChannelRow, 'name' | 'agentId' | 'config' | 'isActive' | 'activeChatIds' | 'permissionMode'> & {
+        workspace: AgentSessionWorkspaceSource
+      }
     >
   ): AgentChannelEntity | null {
     const database = application.get('DbService').getDb()
