@@ -17,7 +17,8 @@ import {
   assertClaudeAgentSdkNativeVersion,
   assertPrebuiltPackages,
   bundleClaudeAgentSdk,
-  claudeNativePackageName
+  claudeNativePackageName,
+  nativePackageExcludeFilters
 } from '../before-pack'
 
 const hostPlatform = process.platform === 'darwin' ? 'darwin' : process.platform === 'win32' ? 'win32' : 'linux'
@@ -55,6 +56,16 @@ describe('assertPrebuiltPackages', () => {
     expect(() => assertPrebuiltPackages(foreignPlatform, 'x64')).toThrow(
       /Missing prebuilt packages for .+-x64: .*@img\/sharp-/
     )
+  })
+
+  it.each([
+    ['darwin', 'arm64', '@img/sharp-darwin-arm64', '@img/sharp-darwin-x64'],
+    ['win32', 'x64', '@aiany/sqlite-vec-windows-x64', '@aiany/sqlite-vec-windows-arm64']
+  ])('keeps only native packages for %s-%s', (platform, arch, keptPackage, excludedPackage) => {
+    const filters = nativePackageExcludeFilters(platform, arch)
+
+    expect(filters).not.toContain(`!node_modules/${keptPackage}/**`)
+    expect(filters).toContain(`!node_modules/${excludedPackage}/**`)
   })
 
   it('pins macOS system OCR to the legacy Accurate implementation', () => {

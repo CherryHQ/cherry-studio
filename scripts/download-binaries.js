@@ -455,14 +455,16 @@ function writeManifest(outputDir, manifest) {
   }
 }
 
-function artifactArchives(artifact) {
+function artifactArchiveEntries(artifact) {
   if (!artifact) return []
-  return artifact.kind === 'files' ? artifact.files.map((file) => file.archive) : [artifact.archive]
+  return artifact.kind === 'files'
+    ? artifact.files.map((file) => ({ archive: file.archive, sha256: file.archiveSha256 }))
+    : [{ archive: artifact.archive, sha256: artifact.archiveSha256 }]
 }
 
 function removeSupersededArchives(outputDir, previousArtifact, nextArtifact) {
-  const nextArchives = new Set(artifactArchives(nextArtifact))
-  for (const archive of artifactArchives(previousArtifact)) {
+  const nextArchives = new Set(artifactArchiveEntries(nextArtifact).map(({ archive }) => archive))
+  for (const { archive } of artifactArchiveEntries(previousArtifact)) {
     if (!nextArchives.has(archive)) fs.rmSync(path.join(outputDir, archive), { force: true })
   }
 }
@@ -697,13 +699,9 @@ async function verifyBundledArtifacts(platform, arch, options = {}) {
       missing.push(`${tool.name} (missing or stale compressed payload for ${platformKey})`)
       continue
     }
-    for (const archive of artifactArchives(artifact)) {
+    for (const { archive, sha256 } of artifactArchiveEntries(artifact)) {
       const archivePath = path.join(outputDir, archive)
-      const expectedHash =
-        artifact.kind === 'tree'
-          ? artifact.archiveSha256
-          : artifact.files.find((file) => file.archive === archive)?.archiveSha256
-      if (!expectedHash || (await sha256File(archivePath)) !== expectedHash) {
+      if (!sha256 || (await sha256File(archivePath)) !== sha256) {
         missing.push(`${path.join(platformKey, archive)} (checksum mismatch)`)
       }
     }
@@ -716,16 +714,15 @@ async function verifyBundledArtifacts(platform, arch, options = {}) {
 
   for (const artifactName of requiredArtifactNames) {
     const artifact = manifest.artifacts[artifactName]
-    if (!artifact || artifactArchives(artifact).some((archive) => !fs.existsSync(path.join(outputDir, archive)))) {
+    if (
+      !artifact ||
+      artifactArchiveEntries(artifact).some(({ archive }) => !fs.existsSync(path.join(outputDir, archive)))
+    ) {
       missing.push(`${artifactName} (missing compressed payload for ${platformKey})`)
       continue
     }
-    for (const archive of artifactArchives(artifact)) {
-      const expectedHash =
-        artifact.kind === 'tree'
-          ? artifact.archiveSha256
-          : artifact.files.find((file) => file.archive === archive)?.archiveSha256
-      if (!expectedHash || (await sha256File(path.join(outputDir, archive))) !== expectedHash) {
+    for (const { archive, sha256 } of artifactArchiveEntries(artifact)) {
+      if (!sha256 || (await sha256File(path.join(outputDir, archive))) !== sha256) {
         missing.push(`${path.join(platformKey, archive)} (checksum mismatch)`)
       }
     }
@@ -738,17 +735,14 @@ async function verifyBundledArtifacts(platform, arch, options = {}) {
 }
 
 async function artifactArchivesMatch(artifact, outputDir) {
-  for (const archive of artifactArchives(artifact)) {
-    const expectedHash =
-      artifact.kind === 'tree'
-        ? artifact.archiveSha256
-        : artifact.files.find((file) => file.archive === archive)?.archiveSha256
-    if (!expectedHash || (await sha256File(path.join(outputDir, archive))) !== expectedHash) return false
+  for (const { archive, sha256 } of artifactArchiveEntries(artifact)) {
+    if (!sha256 || (await sha256File(path.join(outputDir, archive))) !== sha256) return false
   }
   return true
 }
 
 module.exports = {
+  artifactArchiveEntries,
   bundleFilesArtifact,
   bundleTreeArtifact,
   extract,

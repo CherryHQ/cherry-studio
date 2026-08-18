@@ -9,18 +9,15 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
+import { cleanupOtherArtifactVersions, ensureBundledFiles, ensureBundledTree } from '@main/services/bundledArtifact'
 import { regionService } from '@main/services/RegionService'
-import { getBinaryIsolatedHomeEnv, getBinaryShimsDir, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
-import { getBinaryName } from '@main/utils/binaryResolver'
-import { bundledArtifactPlatformKey, readBundledArtifactManifest } from '@main/utils/bundledArtifactManifest'
 import {
-  cleanupOtherArtifactVersions,
-  isBundledFileReady,
-  isBundledTreeReady,
-  materializeBundledFile,
-  materializeBundledTree,
-  withBundledArtifactLock
-} from '@main/utils/bundledArtifacts'
+  getBinaryIsolatedHomeEnv,
+  getBinaryName,
+  getBinaryShimsDir,
+  mergeBinaryExecutionEnv
+} from '@main/utils/binaryEnv'
+import { bundledArtifactPlatformKey, readBundledArtifactManifest } from '@main/utils/bundledArtifactManifest'
 import { findCommandInShellEnv, findExecutable, findMiseExecutable } from '@main/utils/commandResolver'
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import type { CustomToolDefinition } from '@shared/data/preference/preferenceTypes'
@@ -151,10 +148,6 @@ function isPathWithin(root: string, candidate: string): boolean {
 // artifact's executable set; `internal` keeps infrastructure out of UI probes.
 const BUNDLED_TOOLS = [{ name: 'mise', internal: true }, { name: 'bun' }, { name: 'uv' }, { name: 'rg' }] as const
 
-function bundledVersionFile(name: string): string {
-  return `.${name}-version`
-}
-
 function bundledExecutableName(output: string): string {
   const basename = path.basename(output)
   return isWin && basename.toLowerCase().endsWith('.exe') ? basename.slice(0, -'.exe'.length) : basename
@@ -172,6 +165,17 @@ export type ManagedCliInventoryEntry = {
 /** A code-owned fixed tool definition. Structural — never a persisted custom entry. */
 type FixedToolDefinition = { name: string; tool: string }
 type MiseInstallEntry = { version?: string; active?: boolean; install_path?: string }
+type BundledBinary = { path: string; version: string; internal: boolean }
+
+async function isExecutablePath(filePath: string): Promise<boolean> {
+  if (!fs.existsSync(filePath)) return false
+  try {
+    await fsp.access(filePath, isWin ? fs.constants.F_OK : fs.constants.X_OK)
+    return true
+  } catch {
+    return false
+  }
+}
 
 // Code-owned catalog of the fixed tools Cherry ships: every Dependencies preset
 // executable and every Code CLI executable mapped to its canonical mise recipe.
@@ -197,6 +201,7 @@ export { validateBinaryToolDefinition }
 @ServicePhase(Phase.Background)
 export class BinaryManager extends BaseService {
   private miseBin: string | null = null
+  private readonly bundledBinaries = new Map<string, BundledBinary>()
   // Built lazily on first mise invocation, never in onInit(): the isolated env is
   // only ever consumed by runMise() (install/remove/search/query), none of
   // which run during init. buildIsolatedEnv() blocks on a region lookup
@@ -243,6 +248,7 @@ export class BinaryManager extends BaseService {
     this.isShuttingDown = false
     this.normalizationPromise = null
     this.bundledGitPromise = null
+    this.bundledBinaries.clear()
     // Prime the process-wide login-shell snapshot for system tool discovery, CLIs, MCP, and agent
     // runtimes. Do not await it: consumers share shellEnv's memoized in-flight capture.
     void getRawShellEnv()
@@ -298,6 +304,7 @@ export class BinaryManager extends BaseService {
     if (this.normalizationPromise) await this.normalizationPromise
     this.normalizationPromise = null
     this.bundledGitPromise = null
+    this.bundledBinaries.clear()
   }
 
   /**
@@ -319,36 +326,27 @@ export class BinaryManager extends BaseService {
     )
   }
 
-  /**
-   * Probe which user-facing predefined tools have a bundled copy in cherry.bin.
-   *
-   * Bundled tools (bun, uv, rg) ship inside the app and are extracted at boot.
-   * The UI uses this to distinguish "available (bundled)" from "managed"
-   * vs "not installed" — see docs/references/binary-manager/README.md.
-   *
-   * Returns a map of tool name → version string (from .{name}-version marker)
-   * or null when the marker is missing. Absent keys mean the binary is not
-   * bundled or hasn't been extracted yet.
-   */
-  private probeBundled(): Record<string, string | null> {
-    const binDir = application.getPath('cherry.bin')
-    const result: Record<string, string | null> = {}
-    let manifest
-    try {
-      manifest = readBundledArtifactManifest()
-    } catch {
-      return result
+  private async getBundledBinary(name: string, includeInternal = false): Promise<BundledBinary | null> {
+    const binary = this.bundledBinaries.get(name)
+    if (!binary || (binary.internal && !includeInternal)) return null
+    if (await isExecutablePath(binary.path)) return binary
+    this.bundledBinaries.delete(name)
+    return null
+  }
+
+  private async getBundledBinaries(): Promise<Map<string, BundledBinary>> {
+    const binaries = new Map<string, BundledBinary>()
+    for (const name of this.bundledBinaries.keys()) {
+      const binary = await this.getBundledBinary(name)
+      if (binary) binaries.set(name, binary)
     }
-    for (const tool of BUNDLED_TOOLS) {
-      if ('internal' in tool && tool.internal) continue
-      const artifact = manifest.artifacts[tool.name]
-      if (!artifact || artifact.kind !== 'files') continue
-      const version = this.readVersionMarker(path.join(binDir, bundledVersionFile(tool.name)))
-      for (const file of artifact.files) {
-        if (fs.existsSync(path.join(binDir, file.output))) result[bundledExecutableName(file.output)] = version
-      }
-    }
-    return result
+    return binaries
+  }
+
+  public async resolveBinaryPath(name: string): Promise<string | null> {
+    const shimPath = path.join(getBinaryShimsDir(), getBinaryName(name))
+    if ((await isExecutablePath(shimPath)) && (await this.resolveManagedBinaryPath(name))) return shimPath
+    return (await this.getBundledBinary(name))?.path ?? null
   }
 
   /**
@@ -451,7 +449,7 @@ export class BinaryManager extends BaseService {
       const name = normalizeToolIdentity(spec).split('@')[0]
       if (isRuntimeDependency(spec)) names.add(name)
     }
-    const bundled = this.probeBundled()
+    const bundled = await this.getBundledBinaries()
     const shimsDir = getBinaryShimsDir()
 
     // The exact-application fact is independent of runnable availability. When the
@@ -465,16 +463,6 @@ export class BinaryManager extends BaseService {
 
     type DerivedTool = { application?: BinaryApplication; mise?: { path: string; version?: string } }
 
-    const hasExecutableCandidateShim = async (shimPath: string): Promise<boolean> => {
-      if (!fs.existsSync(shimPath)) return false
-      try {
-        await fsp.access(shimPath, isWin ? fs.constants.F_OK : fs.constants.X_OK)
-        return true
-      } catch {
-        return false
-      }
-    }
-
     // The batched listing proves backend application identity; `mise which`
     // additionally proves every exposed shim still resolves a runnable target.
     const derive = async (name: string): Promise<DerivedTool> => {
@@ -483,11 +471,7 @@ export class BinaryManager extends BaseService {
 
       const shimPath = path.join(shimsDir, getBinaryName(name))
       if (backendUnknown) {
-        if (
-          this.miseBin &&
-          (await hasExecutableCandidateShim(shimPath)) &&
-          (await this.resolveManagedBinaryPath(name))
-        ) {
+        if (this.miseBin && (await isExecutablePath(shimPath)) && (await this.resolveManagedBinaryPath(name))) {
           return { application: backendUnknown, mise: { path: shimPath } }
         }
         return { application: backendUnknown }
@@ -500,7 +484,7 @@ export class BinaryManager extends BaseService {
         if (!activeEntry) {
           // Installed artifacts are not an applied recipe. A leftover shim counts
           // as runnable only when mise itself can still resolve its target.
-          const resolved = (await hasExecutableCandidateShim(shimPath)) && (await this.resolveManagedBinaryPath(name))
+          const resolved = (await isExecutablePath(shimPath)) && (await this.resolveManagedBinaryPath(name))
           return {
             application: { status: 'broken', ...(version ? { version } : {}) },
             ...(resolved ? { mise: { path: shimPath, ...(version ? { version } : {}) } } : {})
@@ -536,7 +520,7 @@ export class BinaryManager extends BaseService {
         }
       }
 
-      if (!(await hasExecutableCandidateShim(shimPath))) return { application: { status: 'absent' } }
+      if (!(await isExecutablePath(shimPath))) return { application: { status: 'absent' } }
       if (await this.resolveManagedBinaryPath(name)) {
         return { application: { status: 'conflict' }, mise: { path: shimPath } }
       }
@@ -546,7 +530,7 @@ export class BinaryManager extends BaseService {
     }
 
     const derived = new Map(await Promise.all([...names].map(async (name) => [name, await derive(name)] as const)))
-    const system = await this.probeSystem([...names].filter((name) => !derived.get(name)?.mise && !(name in bundled)))
+    const system = await this.probeSystem([...names].filter((name) => !derived.get(name)?.mise && !bundled.has(name)))
     const snapshots: Record<string, BinaryToolSnapshot> = {}
     for (const name of names) {
       const derivedTool = derived.get(name)!
@@ -557,11 +541,11 @@ export class BinaryManager extends BaseService {
             path: mise.path,
             ...(mise.version ? { version: mise.version } : {})
           }
-        : name in bundled
+        : bundled.has(name)
           ? {
               source: 'bundled',
-              path: application.getPath('cherry.bin', getBinaryName(name)),
-              ...(bundled[name] ? { version: bundled[name] } : {})
+              path: bundled.get(name)!.path,
+              version: bundled.get(name)!.version
             }
           : system[name]
             ? { source: 'system', path: system[name] }
@@ -594,8 +578,8 @@ export class BinaryManager extends BaseService {
    */
   public async getToolInventory(): Promise<readonly ManagedCliInventoryEntry[]> {
     const customDefinitions = this.getCustomDefinitions().filter((definition) => !FIXED_CATALOG.has(definition.name))
-    const bundled = this.probeBundled()
-    const bundledNames = new Set(Object.keys(bundled))
+    const bundled = await this.getBundledBinaries()
+    const bundledNames = new Set(bundled.keys())
     const definitions = new Map<string, CustomToolDefinition | FixedToolDefinition>([
       ...FIXED_CATALOG,
       ...customDefinitions.map((definition) => [definition.name, definition] as const)
@@ -650,9 +634,9 @@ export class BinaryManager extends BaseService {
       const definition = definitions.get(name)
       const installs = definition ? installedFor(definition.tool) : undefined
       const active = installs?.find((entry) => entry.active)
-      const version = bundled[name] ?? active?.version ?? installs?.at(-1)?.version
+      const version = bundled.get(name)?.version ?? active?.version ?? installs?.at(-1)?.version
       const canonicalName = isWin ? name.toLowerCase() : name
-      const runnable = name in bundled || (active !== undefined && shimNames.has(canonicalName))
+      const runnable = bundled.has(name) || (active !== undefined && shimNames.has(canonicalName))
       const operation = operations[name]
       const statusRules: ReadonlyArray<readonly [matches: boolean, status: ManagedCliStatus]> = [
         [operation?.status === 'installing', 'installing'],
@@ -690,25 +674,16 @@ export class BinaryManager extends BaseService {
       try {
         const artifact = manifest.artifacts[tool.name]
         if (!artifact || artifact.kind !== 'files') throw new Error(`Missing bundled ${tool.name} files artifact`)
-
-        // Re-extract when any expected destination binary is missing, even if
-        // the first one is present and the version marker matches — guards
-        // against partial deletions / AV quarantine of secondary binaries
-        // (e.g. uvx alongside uv).
-        const versionFile = path.join(binDir, bundledVersionFile(tool.name))
-        const installedVersion = this.readVersionMarker(versionFile)
-        const versionChanged = installedVersion !== artifact.version
-        let changed = versionChanged
-        for (const file of artifact.files) {
-          const destination = path.join(binDir, file.output)
-          await withBundledArtifactLock(destination, async () => {
-            if (!versionChanged && (await isBundledFileReady(file, destination))) return
-            await materializeBundledFile(manifest, file, destination)
-            changed = true
+        const result = await ensureBundledFiles(manifest, artifact, binDir)
+        const internal = 'internal' in tool && tool.internal
+        for (const [output, binaryPath] of result.paths) {
+          this.bundledBinaries.set(bundledExecutableName(output), {
+            path: binaryPath,
+            version: artifact.version,
+            internal
           })
         }
-        if (changed) {
-          await fsp.writeFile(versionFile, artifact.version)
+        if (result.status === 'installed') {
           logger.info(`Extracted bundled ${tool.name}`, { binDir, version: artifact.version })
         }
       } catch (err) {
@@ -744,30 +719,19 @@ export class BinaryManager extends BaseService {
 
     const root = application.getPath('feature.binary.mingit')
     const destination = path.join(root, artifact.version, bundledArtifactPlatformKey(manifest.platform, manifest.arch))
-    await withBundledArtifactLock(destination, async () => {
-      if (await isBundledTreeReady(artifact, destination)) return
-      await materializeBundledTree(manifest, artifact, destination)
+    const result = await ensureBundledTree(manifest, artifact, destination)
+    if (result.status === 'installed') {
       logger.info('Extracted bundled MinGit', { destination, version: artifact.version })
-    })
-    await cleanupOtherArtifactVersions(root, artifact.version)
-    return path.join(destination, entrypoint)
-  }
-
-  private readVersionMarker(filePath: string): string | null {
-    try {
-      return fs.readFileSync(filePath, 'utf-8').trim() || null
-    } catch {
-      return null
     }
+    await cleanupOtherArtifactVersions(root, artifact.version)
+    return path.join(result.root, entrypoint)
   }
 
   private async findMiseBin(): Promise<string | null> {
     const binaryName = getBinaryName('mise')
 
-    const cherryBin = path.join(application.getPath('cherry.bin'), binaryName)
-    if (fs.existsSync(cherryBin)) {
-      return cherryBin
-    }
+    const bundledMise = await this.getBundledBinary('mise', true)
+    if (bundledMise) return bundledMise.path
 
     if (isWin) {
       return findMiseExecutable()

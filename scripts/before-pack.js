@@ -88,6 +88,14 @@ const keepPackages = (platform, arch) => {
   return packages.filter((p) => p.includes(arch) && platformTokens.some((t) => p.includes(t)))
 }
 
+const nativePackageExcludeFilters = (platform, arch) => {
+  const currentKeepPackages = new Set(keepPackages(platform, arch))
+  return packages
+    .filter((packageName) => !currentKeepPackages.has(packageName))
+    .map((packageName) => `!node_modules/${packageName}/**`)
+}
+exports.nativePackageExcludeFilters = nativePackageExcludeFilters
+
 // Cross-arch prebuilt packages come from supportedArchitectures in pnpm-workspace.yaml —
 // pnpm ignores that setting once node_modules exists, so it can't be flipped per pack pass.
 // Anything kept for this arch but never installed is a native module the app would fail to
@@ -200,15 +208,7 @@ exports.default = async function (context) {
     context.packager.config.files[0].filter = filters
   }
 
-  const arm64KeepPackages = keepPackages(platform, 'arm64')
-  const arm64ExcludePackages = packages
-    .filter((p) => !arm64KeepPackages.includes(p))
-    .map((p) => '!node_modules/' + p + '/**')
-
-  const x64KeepPackages = keepPackages(platform, 'x64')
-  const x64ExcludePackages = packages
-    .filter((p) => !x64KeepPackages.includes(p))
-    .map((p) => '!node_modules/' + p + '/**')
+  const nativeExcludePackages = nativePackageExcludeFilters(platform, arch)
 
   const currentPlatformKey = `${platform}-${arch}`
   // win32-arm64 is in this list so `build:win` (--x64 --arm64) can package it. The
@@ -219,9 +219,5 @@ exports.default = async function (context) {
     .filter((p) => p !== currentPlatformKey)
     .map((p) => '!resources/binaries/' + p + '/**')
 
-  if (context.arch === Arch.arm64) {
-    await excludePackages([...arm64ExcludePackages, ...excludeBundledBinaryFilters])
-  } else {
-    await excludePackages([...x64ExcludePackages, ...excludeBundledBinaryFilters])
-  }
+  await excludePackages([...nativeExcludePackages, ...excludeBundledBinaryFilters])
 }

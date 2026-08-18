@@ -12,13 +12,14 @@ import {
   bundledArtifactArchivePath,
   type BundledArtifactFile,
   type BundledArtifactManifest,
+  type BundledFilesArtifact,
   type BundledTreeArtifact,
   type BundledTreeFile
 } from '@main/utils/bundledArtifactManifest'
 import lockfile from 'proper-lockfile'
 import { extract } from 'tar'
 
-const logger = loggerService.withContext('BundledArtifacts')
+const logger = loggerService.withContext('BundledArtifact')
 const TREE_MARKER_FILE = '.artifact.json'
 const LOCK_STALE_MS = 30_000
 const LOCK_UPDATE_MS = 10_000
@@ -62,6 +63,39 @@ async function rethrowArchiveFailure(filePath: string, expected: string, error: 
     throw new Error(`Bundled archive checksum mismatch: expected ${expected}, got ${actual}`, { cause: error })
   }
   throw error
+}
+
+async function decompressAndVerifyArchive(
+  archivePath: string,
+  expected: { archiveSha256: string; sha256: string; size: number },
+  destination: NodeJS.WritableStream
+): Promise<void> {
+  const archiveHash = crypto.createHash('sha256')
+  const contentHash = crypto.createHash('sha256')
+  let contentSize = 0
+
+  try {
+    await pipeline(
+      fs.createReadStream(archivePath),
+      hashingTransform(archiveHash),
+      createZstdDecompress(),
+      hashingTransform(contentHash, (chunkSize) => {
+        contentSize += chunkSize
+      }),
+      destination
+    )
+  } catch (error) {
+    await rethrowArchiveFailure(archivePath, expected.archiveSha256, error)
+  }
+
+  assertArchiveHash(archiveHash.digest('hex'), expected.archiveSha256)
+  const actualHash = contentHash.digest('hex')
+  if (contentSize !== expected.size || actualHash !== expected.sha256) {
+    throw new Error(
+      `Bundled payload checksum mismatch for ${archivePath}: expected ${expected.sha256}/${expected.size}, ` +
+        `got ${actualHash}/${contentSize}`
+    )
+  }
 }
 
 async function pathExists(filePath: string): Promise<boolean> {
@@ -131,7 +165,7 @@ async function recoverStaleBundledArtifactPaths(destination: string): Promise<vo
   }
 }
 
-export async function withBundledArtifactLock<T>(destination: string, task: () => Promise<T>): Promise<T> {
+async function withBundledArtifactLock<T>(destination: string, task: () => Promise<T>): Promise<T> {
   await fsp.mkdir(path.dirname(destination), { recursive: true })
   const release = await lockfile.lock(destination, {
     realpath: false,
@@ -147,10 +181,15 @@ export async function withBundledArtifactLock<T>(destination: string, task: () =
   }
 }
 
-async function replacePath(stagingPath: string, destination: string): Promise<void> {
+async function replacePath(
+  stagingPath: string,
+  destination: string,
+  verifyPublished: () => Promise<boolean>
+): Promise<void> {
   const backupPath = `${destination}.old-${process.pid}-${randomUUID()}`
   let backupExists = false
   let published = false
+  let verified = false
   try {
     try {
       await fsp.rename(destination, backupPath)
@@ -159,18 +198,28 @@ async function replacePath(stagingPath: string, destination: string): Promise<vo
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     }
 
-    try {
-      await fsp.rename(stagingPath, destination)
-      published = true
-    } catch (error) {
-      if (backupExists) {
-        await fsp.rename(backupPath, destination)
-        backupExists = false
-      }
-      throw error
+    await fsp.rename(stagingPath, destination)
+    published = true
+
+    if (!(await verifyPublished())) {
+      throw new Error(`Bundled artifact failed post-install verification: ${destination}`)
     }
+    verified = true
+  } catch (error) {
+    if (published) {
+      await fsp.rm(destination, { recursive: true, force: true }).catch((rollbackError) => {
+        throw new AggregateError([error, rollbackError], `Failed to roll back bundled artifact: ${destination}`)
+      })
+    }
+    if (backupExists) {
+      await fsp.rename(backupPath, destination).catch((rollbackError) => {
+        throw new AggregateError([error, rollbackError], `Failed to restore bundled artifact: ${destination}`)
+      })
+      backupExists = false
+    }
+    throw error
   } finally {
-    if (published && backupExists) {
+    if (verified && backupExists) {
       await fsp.rm(backupPath, { recursive: true, force: true }).catch((error) => {
         logger.warn('Failed to clean replaced bundled artifact', { path: backupPath, error })
       })
@@ -178,7 +227,7 @@ async function replacePath(stagingPath: string, destination: string): Promise<vo
   }
 }
 
-export async function isBundledFileReady(file: BundledArtifactFile, destination: string): Promise<boolean> {
+async function isBundledFileReady(file: BundledArtifactFile, destination: string): Promise<boolean> {
   try {
     const stat = await fsp.stat(destination)
     if (!stat.isFile() || stat.size !== file.size) return false
@@ -189,7 +238,7 @@ export async function isBundledFileReady(file: BundledArtifactFile, destination:
   }
 }
 
-export async function materializeBundledFile(
+async function materializeBundledFile(
   manifest: BundledArtifactManifest,
   file: BundledArtifactFile,
   destination: string
@@ -197,34 +246,11 @@ export async function materializeBundledFile(
   const archivePath = bundledArtifactArchivePath(manifest, file.archive)
   await fsp.mkdir(path.dirname(destination), { recursive: true })
   const temporaryPath = `${destination}.tmp-${process.pid}-${randomUUID()}`
-  const archiveHash = crypto.createHash('sha256')
-  const hash = crypto.createHash('sha256')
-  let size = 0
 
   try {
-    try {
-      await pipeline(
-        fs.createReadStream(archivePath),
-        hashingTransform(archiveHash),
-        createZstdDecompress(),
-        hashingTransform(hash, (chunkSize) => {
-          size += chunkSize
-        }),
-        fs.createWriteStream(temporaryPath)
-      )
-    } catch (error) {
-      await rethrowArchiveFailure(archivePath, file.archiveSha256, error)
-    }
-    assertArchiveHash(archiveHash.digest('hex'), file.archiveSha256)
-    const actualHash = hash.digest('hex')
-    if (size !== file.size || actualHash !== file.sha256) {
-      throw new Error(
-        `Bundled file checksum mismatch for ${file.output}: expected ${file.sha256}/${file.size}, ` +
-          `got ${actualHash}/${size}`
-      )
-    }
+    await decompressAndVerifyArchive(archivePath, file, fs.createWriteStream(temporaryPath))
     if (!isWin) await fsp.chmod(temporaryPath, file.mode)
-    await replacePath(temporaryPath, destination)
+    await replacePath(temporaryPath, destination, () => isBundledFileReady(file, destination))
   } finally {
     await fsp.rm(temporaryPath, { force: true })
   }
@@ -264,7 +290,7 @@ async function isBundledTreeContentReady(files: readonly BundledTreeFile[], dest
   }
 }
 
-export async function isBundledTreeReady(artifact: BundledTreeArtifact, destination: string): Promise<boolean> {
+async function isBundledTreeReady(artifact: BundledTreeArtifact, destination: string): Promise<boolean> {
   try {
     if ((await fsp.readFile(path.join(destination, TREE_MARKER_FILE), 'utf8')) !== treeMarker(artifact)) return false
     return isBundledTreeContentReady(artifact.files, destination)
@@ -273,7 +299,7 @@ export async function isBundledTreeReady(artifact: BundledTreeArtifact, destinat
   }
 }
 
-export async function materializeBundledTree(
+async function materializeBundledTree(
   manifest: BundledArtifactManifest,
   artifact: BundledTreeArtifact,
   destination: string
@@ -281,40 +307,71 @@ export async function materializeBundledTree(
   const archivePath = bundledArtifactArchivePath(manifest, artifact.archive)
   await fsp.mkdir(path.dirname(destination), { recursive: true })
   const stagingPath = `${destination}.tmp-${process.pid}-${randomUUID()}`
-  const archiveHash = crypto.createHash('sha256')
-  const hash = crypto.createHash('sha256')
-  let size = 0
 
   try {
     await fsp.mkdir(stagingPath, { recursive: true })
-    try {
-      await pipeline(
-        fs.createReadStream(archivePath),
-        hashingTransform(archiveHash),
-        createZstdDecompress(),
-        hashingTransform(hash, (chunkSize) => {
-          size += chunkSize
-        }),
-        extract({ cwd: stagingPath, preservePaths: false, strict: true })
-      )
-    } catch (error) {
-      await rethrowArchiveFailure(archivePath, artifact.archiveSha256, error)
-    }
-    assertArchiveHash(archiveHash.digest('hex'), artifact.archiveSha256)
-    const actualHash = hash.digest('hex')
-    if (size !== artifact.size || actualHash !== artifact.sha256) {
-      throw new Error(
-        `Bundled tree checksum mismatch: expected ${artifact.sha256}/${artifact.size}, got ${actualHash}/${size}`
-      )
-    }
+    await decompressAndVerifyArchive(
+      archivePath,
+      artifact,
+      extract({ cwd: stagingPath, preservePaths: false, strict: true })
+    )
     if (!(await isBundledTreeContentReady(artifact.files, stagingPath))) {
       throw new Error('Bundled tree does not match its declared file inventory')
     }
     await fsp.writeFile(path.join(stagingPath, TREE_MARKER_FILE), treeMarker(artifact), 'utf8')
-    await replacePath(stagingPath, destination)
+    await replacePath(stagingPath, destination, () => isBundledTreeReady(artifact, destination))
   } finally {
     await fsp.rm(stagingPath, { recursive: true, force: true })
   }
+}
+
+type BundledArtifactStatus = 'ready' | 'installed'
+
+async function ensureBundledDestination(
+  destination: string,
+  isReady: () => Promise<boolean>,
+  install: () => Promise<void>
+): Promise<BundledArtifactStatus> {
+  return withBundledArtifactLock(destination, async () => {
+    if (await isReady()) return 'ready'
+    await install()
+    return 'installed'
+  })
+}
+
+export async function ensureBundledFiles(
+  manifest: BundledArtifactManifest,
+  artifact: BundledFilesArtifact,
+  destinationDirectory: string
+): Promise<{ status: BundledArtifactStatus; paths: ReadonlyMap<string, string> }> {
+  let status: BundledArtifactStatus = 'ready'
+  const paths = new Map<string, string>()
+
+  for (const file of artifact.files) {
+    const destination = path.join(destinationDirectory, file.output)
+    const fileStatus = await ensureBundledDestination(
+      destination,
+      () => isBundledFileReady(file, destination),
+      () => materializeBundledFile(manifest, file, destination)
+    )
+    if (fileStatus === 'installed') status = 'installed'
+    paths.set(file.output, destination)
+  }
+
+  return { status, paths }
+}
+
+export async function ensureBundledTree(
+  manifest: BundledArtifactManifest,
+  artifact: BundledTreeArtifact,
+  destination: string
+): Promise<{ status: BundledArtifactStatus; root: string }> {
+  const status = await ensureBundledDestination(
+    destination,
+    () => isBundledTreeReady(artifact, destination),
+    () => materializeBundledTree(manifest, artifact, destination)
+  )
+  return { status, root: destination }
 }
 
 export async function cleanupOtherArtifactVersions(root: string, currentVersion: string): Promise<void> {

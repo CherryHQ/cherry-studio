@@ -62,7 +62,6 @@ import { type ClaudeToolContext, resolveDisallowedTools } from '@main/ai/tools/a
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { isMac, isWin } from '@main/core/platform'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
-import { getBinaryPath } from '@main/utils/binaryResolver'
 import { autoDiscoverGitBash } from '@main/utils/commandResolver'
 import { isPathInside } from '@main/utils/file'
 import { rtkRewrite } from '@main/utils/rtk'
@@ -691,7 +690,8 @@ async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise
     loginShellEnv = await getClaudeCodeLoginShellEnvironment(proxyEnvironment)
     customGitBashPath = autoDiscoverGitBash(loginShellEnv)
   }
-  const bunPath = await getBinaryPath('bun')
+  const bunPath = await application.get('BinaryManager').resolveBinaryPath('bun')
+  if (!bunPath) throw new Error('Verified bun binary is not available')
 
   // API key and base URL are injected by the agent-session runtime query builder.
   // This function only builds agent-specific env vars.

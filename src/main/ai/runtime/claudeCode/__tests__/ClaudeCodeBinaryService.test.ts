@@ -3,9 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   cleanupOtherArtifactVersions: vi.fn<() => Promise<void>>(async () => undefined),
-  isBundledFileReady: vi.fn(async () => false),
-  materializeBundledFile: vi.fn<() => Promise<void>>(async () => undefined),
-  withBundledArtifactLock: vi.fn(async (_destination: string, task: () => Promise<unknown>) => task()),
+  ensureBundledFiles: vi.fn(),
   packaged: true,
   readBundledArtifactManifest: vi.fn()
 }))
@@ -26,11 +24,9 @@ vi.mock('@application', () => ({
 
 vi.mock('@main/core/platform', () => ({ isLinux: false, isWin: false }))
 
-vi.mock('@main/utils/bundledArtifacts', () => ({
+vi.mock('@main/services/bundledArtifact', () => ({
   cleanupOtherArtifactVersions: mocks.cleanupOtherArtifactVersions,
-  isBundledFileReady: mocks.isBundledFileReady,
-  materializeBundledFile: mocks.materializeBundledFile,
-  withBundledArtifactLock: mocks.withBundledArtifactLock
+  ensureBundledFiles: mocks.ensureBundledFiles
 }))
 
 vi.mock('@main/utils/bundledArtifactManifest', async (importOriginal) => ({
@@ -69,16 +65,18 @@ describe('ClaudeCodeBinaryService', () => {
     vi.clearAllMocks()
     mocks.packaged = true
     mocks.readBundledArtifactManifest.mockReturnValue(manifest)
-    mocks.isBundledFileReady.mockResolvedValue(false)
-    mocks.materializeBundledFile.mockResolvedValue(undefined)
+    mocks.ensureBundledFiles.mockResolvedValue({
+      status: 'installed',
+      paths: new Map([['claude', '/toolchain/claude-agent-sdk/0.3.220/darwin-arm64/claude']])
+    })
     mocks.cleanupOtherArtifactVersions.mockResolvedValue(undefined)
   })
 
   it('coalesces concurrent first-use extraction into one task', async () => {
-    let release: (() => void) | undefined
-    mocks.materializeBundledFile.mockImplementation(
+    let release: ((result: { status: 'installed'; paths: Map<string, string> }) => void) | undefined
+    mocks.ensureBundledFiles.mockImplementation(
       () =>
-        new Promise<void>((resolve) => {
+        new Promise((resolve) => {
           release = resolve
         })
     )
@@ -86,8 +84,11 @@ describe('ClaudeCodeBinaryService', () => {
 
     const first = service.ensureExecutable()
     const second = service.ensureExecutable()
-    await vi.waitFor(() => expect(mocks.materializeBundledFile).toHaveBeenCalledOnce())
-    release?.()
+    await vi.waitFor(() => expect(mocks.ensureBundledFiles).toHaveBeenCalledOnce())
+    release?.({
+      status: 'installed',
+      paths: new Map([['claude', '/toolchain/claude-agent-sdk/0.3.220/darwin-arm64/claude']])
+    })
 
     const expected = '/toolchain/claude-agent-sdk/0.3.220/darwin-arm64/claude'
     await expect(Promise.all([first, second])).resolves.toEqual([expected, expected])
@@ -95,25 +96,27 @@ describe('ClaudeCodeBinaryService', () => {
   })
 
   it('reuses a fully verified version cache without extracting it again', async () => {
-    mocks.isBundledFileReady.mockResolvedValue(true)
+    mocks.ensureBundledFiles.mockResolvedValue({
+      status: 'ready',
+      paths: new Map([['claude', '/toolchain/claude-agent-sdk/0.3.220/darwin-arm64/claude']])
+    })
     const service = new ClaudeCodeBinaryService()
 
     await expect(service.ensureExecutable()).resolves.toBe('/toolchain/claude-agent-sdk/0.3.220/darwin-arm64/claude')
 
-    expect(mocks.materializeBundledFile).not.toHaveBeenCalled()
-    expect(mocks.withBundledArtifactLock).toHaveBeenCalledOnce()
+    expect(mocks.ensureBundledFiles).toHaveBeenCalledOnce()
     expect(mocks.cleanupOtherArtifactVersions).toHaveBeenCalledOnce()
   })
 
   it('does not clean old versions when current-version installation fails and permits a retry', async () => {
-    mocks.materializeBundledFile.mockRejectedValueOnce(new Error('payload checksum mismatch'))
+    mocks.ensureBundledFiles.mockRejectedValueOnce(new Error('payload checksum mismatch'))
     const service = new ClaudeCodeBinaryService()
 
     await expect(service.ensureExecutable()).rejects.toThrow('payload checksum mismatch')
     expect(mocks.cleanupOtherArtifactVersions).not.toHaveBeenCalled()
 
     await expect(service.ensureExecutable()).resolves.toContain('/0.3.220/darwin-arm64/claude')
-    expect(mocks.materializeBundledFile).toHaveBeenCalledTimes(2)
+    expect(mocks.ensureBundledFiles).toHaveBeenCalledTimes(2)
     expect(mocks.cleanupOtherArtifactVersions).toHaveBeenCalledOnce()
   })
 
@@ -122,7 +125,7 @@ describe('ClaudeCodeBinaryService', () => {
     const service = new ClaudeCodeBinaryService()
 
     await expect(service.ensureExecutable()).rejects.toThrow(/payload missing for/)
-    expect(mocks.materializeBundledFile).not.toHaveBeenCalled()
+    expect(mocks.ensureBundledFiles).not.toHaveBeenCalled()
   })
 
   it('resolves the installed native package directly in development', () => {

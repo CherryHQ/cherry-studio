@@ -34,7 +34,7 @@ const mocks = vi.hoisted(() => ({
   applicationGetPath: vi.fn(),
   getShellEnv: vi.fn(),
   refreshShellEnv: vi.fn(),
-  getBinaryPath: vi.fn(),
+  resolveBinaryPath: vi.fn(),
   getProxyEnvironment: vi.fn(),
   getPathStatus: vi.fn(),
   ensureAgentDataDirectory: vi.fn(),
@@ -130,7 +130,10 @@ vi.mock('@main/ai/tools/adapters/claudeCode/agentTools', () => ({
 
 vi.mock('@application', () => ({
   application: {
-    get: mocks.applicationGet,
+    get: (name: string) =>
+      name === 'BinaryManager'
+        ? { ensureBundledGit: mocks.ensureBundledGit, resolveBinaryPath: mocks.resolveBinaryPath }
+        : mocks.applicationGet(name),
     getPath: mocks.applicationGetPath
   }
 }))
@@ -178,10 +181,6 @@ vi.mock('@main/i18n', () => ({
     if (params?.path) return `${key}:${params.path}`
     return key
   }
-}))
-
-vi.mock('@main/utils/binaryResolver', () => ({
-  getBinaryPath: mocks.getBinaryPath
 }))
 
 vi.mock('@main/utils/commandResolver', () => ({
@@ -281,16 +280,13 @@ describe('buildClaudeCodeSessionSettings', () => {
           recordToolExecutionTiming: mocks.recordToolExecutionTiming
         }
       }
-      if (name === 'BinaryManager') {
-        return { ensureBundledGit: mocks.ensureBundledGit }
-      }
       throw new Error(`Unexpected application.get(${name})`)
     })
     mocks.applicationGetPath.mockImplementation((key: string) => `/app/${key}`)
     mocks.platform.isMac = false
     mocks.getShellEnv.mockResolvedValue({})
     mocks.refreshShellEnv.mockResolvedValue({})
-    mocks.getBinaryPath.mockResolvedValue('/usr/local/bin/bun')
+    mocks.resolveBinaryPath.mockResolvedValue('/usr/local/bin/bun')
     mocks.getProxyEnvironment.mockReturnValue({})
     mocks.getPathStatus.mockResolvedValue({ ok: true, kind: 'directory' })
     mocks.ensureAgentDataDirectory.mockImplementation(async (root: string, agentId: string) => path.join(root, agentId))
@@ -319,6 +315,21 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     expect(mocks.ensureClaudeExecutable).toHaveBeenCalledOnce()
     expect(settings.pathToClaudeCodeExecutable).toBe('/toolchain/claude')
+  })
+
+  it('fails clearly when no verified bun binary is available', async () => {
+    mocks.resolveBinaryPath.mockResolvedValue(null)
+
+    await expect(
+      buildClaudeCodeSessionSettings(
+        {
+          id: 'session-1',
+          agentId: 'agent-1',
+          workspace: { type: 'user', path: '/workspace/project' }
+        } as never,
+        {} as never
+      )
+    ).rejects.toThrow('Verified bun binary is not available')
   })
 
   it('retries MinGit materialization before building a Windows Agent environment', async () => {

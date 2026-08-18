@@ -8,7 +8,6 @@ import { loggerService } from '@logger'
 import { createInMemoryMcpServer } from '@main/ai/mcp/servers/factory'
 import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
-import { getBinaryPath, isBinaryExists } from '@main/utils/binaryResolver'
 import { findCommandInShellEnv, findExecutableInEnv } from '@main/utils/commandResolver'
 import { defaultAppHeaders } from '@main/utils/http'
 import { removeEnvProxy } from '@main/utils/processRunner'
@@ -621,13 +620,13 @@ export class McpRuntimeService extends BaseService {
                 cmd = npxPath
                 getServerLogger(server).debug(`Using system npx`, { command: cmd })
               } else {
-                // System npx not found, try bundled bun as fallback
-                getServerLogger(server).debug(`System npx not found, checking for bundled bun`)
+                // System npx not found, try a verified BinaryManager bun fallback.
+                getServerLogger(server).debug(`System npx not found, checking for managed bun`)
 
-                if (await isBinaryExists('bun')) {
-                  // Fall back to bundled bun
-                  cmd = await getBinaryPath('bun')
-                  getServerLogger(server).info(`Using bundled bun as fallback (npx not found in PATH)`, {
+                const bunPath = await application.get('BinaryManager').resolveBinaryPath('bun')
+                if (bunPath) {
+                  cmd = bunPath
+                  getServerLogger(server).info(`Using managed bun as fallback (npx not found in PATH)`, {
                     command: cmd
                   })
 
@@ -643,7 +642,7 @@ export class McpRuntimeService extends BaseService {
                 } else {
                   // Neither npx nor bun available
                   throw new Error(
-                    'npx not found in PATH and bundled bun is not available. This may indicate an installation issue.\n' +
+                    'npx not found in PATH and a verified bun binary is not available. This may indicate an installation issue.\n' +
                       'Please either:\n' +
                       '1. Install Node.js (which includes npx) from https://nodejs.org\n' +
                       '2. Run the MCP dependencies installer from Settings\n' +
@@ -657,7 +656,7 @@ export class McpRuntimeService extends BaseService {
 
                 // if the server name is mcp-auto-install, use the mcp-registry.json file in the bin directory
                 if (server.name.includes('mcp-auto-install')) {
-                  const binPath = await getBinaryPath()
+                  const binPath = application.getPath('cherry.bin')
                   await fs.mkdir(binPath, { recursive: true })
                   connectEnv.MCP_REGISTRY_PATH = path.join(binPath, '..', 'config', 'mcp-registry.json')
                 }
@@ -671,19 +670,19 @@ export class McpRuntimeService extends BaseService {
                 cmd = uvPath
                 getServerLogger(server).debug(`Using system ${effectiveCommand}`, { command: cmd })
               } else {
-                // System command not found, try bundled version as fallback
-                getServerLogger(server).debug(`System ${effectiveCommand} not found, checking for bundled version`)
+                // System command not found, try a verified BinaryManager fallback.
+                getServerLogger(server).debug(`System ${effectiveCommand} not found, checking for managed version`)
 
-                if (await isBinaryExists(effectiveCommand)) {
-                  // Fall back to bundled version
-                  cmd = await getBinaryPath(effectiveCommand)
-                  getServerLogger(server).info(`Using bundled ${effectiveCommand} as fallback (not found in PATH)`, {
+                const managedPath = await application.get('BinaryManager').resolveBinaryPath(effectiveCommand)
+                if (managedPath) {
+                  cmd = managedPath
+                  getServerLogger(server).info(`Using managed ${effectiveCommand} as fallback (not found in PATH)`, {
                     command: cmd
                   })
                 } else {
                   // Neither system nor bundled available
                   throw new Error(
-                    `${effectiveCommand} not found in PATH and bundled version is not available. This may indicate an installation issue.\n` +
+                    `${effectiveCommand} not found in PATH and a verified managed binary is not available. This may indicate an installation issue.\n` +
                       'Please either:\n' +
                       '1. Install uv from https://github.com/astral-sh/uv\n' +
                       '2. Run the MCP dependencies installer from Settings\n' +

@@ -11,8 +11,8 @@ import { getShellEnv } from './shellEnv'
 /**
  * Resolution for arbitrary executables in the user's environment — locating
  * commands (npx, uvx, git, …) in the captured shell env, with Windows-specific
- * fallbacks (PATH/PATHEXT lookup, mise) and Git Bash discovery. Distinct from
- * `binaryResolver.ts`, which resolves Cherry's own managed binaries.
+ * fallbacks (PATH/PATHEXT lookup, mise) and Git Bash discovery. BinaryManager
+ * separately resolves Cherry's own verified managed binaries.
  */
 
 const logger = loggerService.withContext('Utils:CommandResolver')

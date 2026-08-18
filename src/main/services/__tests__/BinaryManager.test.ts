@@ -9,27 +9,21 @@ const {
   bundledManifestRef,
   manifestRef,
   mockCleanupOtherArtifactVersions,
+  mockEnsureBundledFiles,
+  mockEnsureBundledTree,
   mockExecFileAsync,
   mockFs,
   mockFsp,
-  mockIsBundledFileReady,
-  mockIsBundledTreeReady,
-  mockMaterializeBundledFile,
-  mockMaterializeBundledTree,
   mockPreferenceService,
-  mockWithBundledArtifactLock,
   platformMock
 } = vi.hoisted(() => ({
   bundledManifestRef: { value: {} },
   manifestRef: { value: [] as Array<{ name: string; tool: string; requestedVersion?: string }> },
   platformMock: { isWin: false },
   mockCleanupOtherArtifactVersions: vi.fn(async () => undefined),
+  mockEnsureBundledFiles: vi.fn(),
+  mockEnsureBundledTree: vi.fn(),
   mockExecFileAsync: vi.fn(),
-  mockIsBundledFileReady: vi.fn<(...args: unknown[]) => Promise<boolean>>(async () => true),
-  mockIsBundledTreeReady: vi.fn(async () => true),
-  mockMaterializeBundledFile: vi.fn<(...args: any[]) => Promise<void>>(async () => undefined),
-  mockMaterializeBundledTree: vi.fn<(...args: any[]) => Promise<void>>(async () => undefined),
-  mockWithBundledArtifactLock: vi.fn(async (_destination: string, task: () => Promise<unknown>) => task()),
   mockFs: {
     existsSync: vi.fn(() => false),
     readFileSync: vi.fn(),
@@ -79,13 +73,10 @@ vi.mock('@main/utils/bundledArtifactManifest', () => ({
   readBundledArtifactManifest: vi.fn(() => bundledManifestRef.value)
 }))
 
-vi.mock('@main/utils/bundledArtifacts', () => ({
+vi.mock('@main/services/bundledArtifact', () => ({
   cleanupOtherArtifactVersions: mockCleanupOtherArtifactVersions,
-  isBundledFileReady: mockIsBundledFileReady,
-  isBundledTreeReady: mockIsBundledTreeReady,
-  materializeBundledFile: mockMaterializeBundledFile,
-  materializeBundledTree: mockMaterializeBundledTree,
-  withBundledArtifactLock: mockWithBundledArtifactLock
+  ensureBundledFiles: mockEnsureBundledFiles,
+  ensureBundledTree: mockEnsureBundledTree
 }))
 
 vi.mock('@main/core/lifecycle', async (importOriginal) => {
@@ -198,6 +189,16 @@ const makeTreeArtifact = () => ({
   files: [{ path: 'git/cmd/git.exe', sha256: 'c'.repeat(64), size: 50, mode: 0o755 }]
 })
 
+function registerBundled(
+  service: InstanceType<typeof BinaryManager>,
+  name: string,
+  version = '1.2.3',
+  binaryPath = mockApplicationPath('cherry.bin', name),
+  internal = false
+): void {
+  ;(service as any).bundledBinaries.set(name, { path: binaryPath, version, internal })
+}
+
 describe('binary execution env split', () => {
   // The shared execution env runs the launched CLIs (claude/codex/gemini/qwen)
   // and the OpenClaw gateway — it MUST keep the user's real HOME so they find
@@ -227,11 +228,20 @@ describe('BinaryManager', () => {
     platformMock.isWin = false
     mockFs.existsSync.mockReset().mockReturnValue(false)
     mockFs.readFileSync.mockReset()
-    mockIsBundledFileReady.mockReset().mockResolvedValue(true)
-    mockIsBundledTreeReady.mockReset().mockResolvedValue(true)
-    mockMaterializeBundledFile.mockReset().mockResolvedValue(undefined)
-    mockMaterializeBundledTree.mockReset().mockResolvedValue(undefined)
-    mockWithBundledArtifactLock.mockClear()
+    mockEnsureBundledFiles
+      .mockReset()
+      .mockImplementation(
+        async (_manifest: unknown, artifact: { files: Array<{ output: string }> }, destinationDirectory: string) => ({
+          status: 'ready',
+          paths: new Map(artifact.files.map((file) => [file.output, path.join(destinationDirectory, file.output)]))
+        })
+      )
+    mockEnsureBundledTree
+      .mockReset()
+      .mockImplementation(async (_manifest: unknown, _artifact: unknown, destination: string) => ({
+        status: 'ready',
+        root: destination
+      }))
     mockCleanupOtherArtifactVersions.mockReset().mockResolvedValue(undefined)
     mockFsp.readdir.mockReset().mockResolvedValue([])
     mockFsp.access.mockReset().mockResolvedValue(undefined)
@@ -533,13 +543,7 @@ describe('BinaryManager', () => {
           mockApplicationPath('cherry.bin', 'bun')
         ].includes(candidate)
       )
-      mockFs.readFileSync.mockImplementation((candidate: string) =>
-        candidate === mockApplicationPath('cherry.bin', '.bun-version')
-          ? '1.2.3'
-          : (() => {
-              throw new Error('ENOENT')
-            })()
-      )
+      registerBundled(service, 'bun')
       vi.mocked(findCommandInShellEnv).mockImplementation(async (name: string) =>
         name === 'missing' ? '/usr/local/bin/missing' : null
       )
@@ -817,13 +821,7 @@ describe('BinaryManager', () => {
       ;(mockFs.existsSync as any).mockImplementation(
         (candidate: string) => candidate === mockApplicationPath('cherry.bin', 'bun')
       )
-      mockFs.readFileSync.mockImplementation((candidate: string) =>
-        candidate === mockApplicationPath('cherry.bin', '.bun-version')
-          ? '1.2.3'
-          : (() => {
-              throw new Error('ENOENT')
-            })()
-      )
+      registerBundled(service, 'bun')
       mockExecFileAsync.mockResolvedValue({ stdout: '{}', stderr: '' })
 
       const snapshots = await service.getToolSnapshots(['bun'])
@@ -845,13 +843,7 @@ describe('BinaryManager', () => {
       ;(mockFs.existsSync as any).mockImplementation(
         (candidate: string) => candidate === mockApplicationPath('cherry.bin', 'bun')
       )
-      mockFs.readFileSync.mockImplementation((candidate: string) =>
-        candidate === mockApplicationPath('cherry.bin', '.bun-version')
-          ? '1.2.3'
-          : (() => {
-              throw new Error('ENOENT')
-            })()
-      )
+      registerBundled(service, 'bun')
       vi.mocked(findCommandInShellEnv).mockImplementation(async (name: string) =>
         name === 'fd' ? '/usr/local/bin/fd' : null
       )
@@ -863,7 +855,9 @@ describe('BinaryManager', () => {
         }),
         stderr: ''
       })
-      mockFsp.access.mockRejectedValue(new Error('ENOENT'))
+      ;(mockFsp.access as any).mockImplementation(async (candidate: string) => {
+        if (candidate !== mockApplicationPath('cherry.bin', 'bun')) throw new Error('ENOENT')
+      })
 
       const snapshots = await service.getToolSnapshots(['bun', 'fd'])
       expect(snapshots.bun?.definition).toBeUndefined()
@@ -1063,13 +1057,7 @@ describe('BinaryManager', () => {
         ;(mockFs.existsSync as any).mockImplementation(
           (candidate: string) => candidate === mockApplicationPath('cherry.bin', 'bun')
         )
-        mockFs.readFileSync.mockImplementation((candidate: string) =>
-          candidate === mockApplicationPath('cherry.bin', '.bun-version')
-            ? '1.2.3'
-            : (() => {
-                throw new Error('ENOENT')
-              })()
-        )
+        registerBundled(service, 'bun')
         vi.mocked(findCommandInShellEnv).mockResolvedValue(null)
 
         const snapshots = await service.getToolSnapshots(['bun', 'fd'])
@@ -1095,13 +1083,7 @@ describe('BinaryManager', () => {
         ;(mockFs.existsSync as any).mockImplementation(
           (candidate: string) => candidate === mockApplicationPath('cherry.bin', 'bun')
         )
-        mockFs.readFileSync.mockImplementation((candidate: string) =>
-          candidate === mockApplicationPath('cherry.bin', '.bun-version')
-            ? '1.2.3'
-            : (() => {
-                throw new Error('ENOENT')
-              })()
-        )
+        registerBundled(service, 'bun')
         vi.mocked(findCommandInShellEnv).mockImplementation(async (name: string) =>
           name === 'fd' ? '/usr/local/bin/fd' : null
         )
@@ -3094,13 +3076,7 @@ describe('BinaryManager', () => {
       ;(mockFs.existsSync as any).mockImplementation(
         (candidate: string) => candidate === mockApplicationPath('cherry.bin', 'bun')
       )
-      mockFs.readFileSync.mockImplementation((candidate: string) =>
-        candidate === mockApplicationPath('cherry.bin', '.bun-version')
-          ? '1.3.0'
-          : (() => {
-              throw new Error('ENOENT')
-            })()
-      )
+      registerBundled(service, 'bun', '1.3.0')
 
       const inventory = await service.getToolInventory()
 
@@ -3132,128 +3108,119 @@ describe('BinaryManager', () => {
   })
 
   describe('extractBundledBinaries', () => {
-    it('skips extraction when bundled version matches installed version', async () => {
+    it('registers every file only after the complete artifact is verified', async () => {
       const service = new BinaryManager()
-      ;(service as any).miseBin = '/mock/mise'
+      const uv = makeFilesArtifact('0.8.0', ['uv', 'uvx'])
       bundledManifestRef.value = {
         schemaVersion: 1,
         platform: process.platform,
         arch: process.arch,
-        artifacts: { mise: makeFilesArtifact('2025.1.0', ['mise']) }
+        artifacts: { uv }
       }
-
-      mockFs.existsSync.mockReturnValue(true)
-      mockFs.readFileSync.mockImplementation((p: string) => {
-        if (p.includes('.mise-version')) return '2025.1.0'
-        return ''
-      })
 
       await (service as any).extractBundledBinaries()
 
-      expect(mockMaterializeBundledFile).not.toHaveBeenCalled()
-    })
-
-    it('materializes a binary when the bundled version is newer than installed', async () => {
-      const service = new BinaryManager()
-      ;(service as any).miseBin = '/mock/mise'
-      bundledManifestRef.value = {
-        schemaVersion: 1,
-        platform: process.platform,
-        arch: process.arch,
-        artifacts: { mise: makeFilesArtifact('2025.2.0', ['mise']) }
-      }
-
-      mockFs.existsSync.mockReturnValue(true)
-      mockFs.readFileSync.mockImplementation((p: string) => {
-        if (p.includes('.mise-version')) return '2025.1.0'
-        return ''
-      })
-
-      await (service as any).extractBundledBinaries()
-
-      expect(mockMaterializeBundledFile).toHaveBeenCalledWith(
+      expect(mockEnsureBundledFiles).toHaveBeenCalledWith(
         bundledManifestRef.value,
-        expect.objectContaining({ output: 'mise' }),
-        mockApplicationPath('cherry.bin', 'mise')
+        uv,
+        mockApplicationPath('cherry.bin')
+      )
+      expect((service as any).bundledBinaries).toEqual(
+        new Map([
+          ['uv', { path: mockApplicationPath('cherry.bin', 'uv'), version: '0.8.0', internal: false }],
+          ['uvx', { path: mockApplicationPath('cherry.bin', 'uvx'), version: '0.8.0', internal: false }]
+        ])
       )
     })
 
-    it('materializes a binary when no installed version exists', async () => {
+    it('publishes no availability when a multi-file artifact fails', async () => {
+      const service = new BinaryManager()
+      bundledManifestRef.value = {
+        schemaVersion: 1,
+        platform: process.platform,
+        arch: process.arch,
+        artifacts: { uv: makeFilesArtifact('0.8.0', ['uv', 'uvx']) }
+      }
+      mockEnsureBundledFiles.mockRejectedValue(new Error('uvx checksum mismatch'))
+
+      await (service as any).extractBundledBinaries()
+
+      expect((service as any).bundledBinaries.size).toBe(0)
+      await expect(service.resolveBinaryPath('uv')).resolves.toBeNull()
+      await expect(service.resolveBinaryPath('uvx')).resolves.toBeNull()
+      expect((await service.getToolInventory()).find(({ name }) => name === 'uv')?.status).not.toBe('ready')
+    })
+
+    it('ignores obsolete runtime version markers', async () => {
+      const service = new BinaryManager()
+      bundledManifestRef.value = {
+        schemaVersion: 1,
+        platform: process.platform,
+        arch: process.arch,
+        artifacts: { bun: makeFilesArtifact('1.2.3', ['bun']) }
+      }
+
+      await (service as any).extractBundledBinaries()
+
+      expect(mockFs.readFileSync).not.toHaveBeenCalled()
+      expect(mockFsp.writeFile).not.toHaveBeenCalled()
+    })
+
+    it('rebuilds the verified registry after a service restart', async () => {
+      const service = new BinaryManager()
+      mockFs.existsSync.mockReturnValue(true)
+
+      await (service as any).extractBundledBinaries()
+      await expect(service.resolveBinaryPath('bun')).resolves.toBe(mockApplicationPath('cherry.bin', 'bun'))
+      await (service as any).onStop()
+      await expect(service.resolveBinaryPath('bun')).resolves.toBeNull()
+      await (service as any).onInit()
+
+      await expect(service.resolveBinaryPath('bun')).resolves.toBe(mockApplicationPath('cherry.bin', 'bun'))
+      const bunArtifact = (bundledManifestRef.value as { artifacts: { bun: unknown } }).artifacts.bun
+      expect(mockEnsureBundledFiles.mock.calls.filter(([, artifact]) => artifact === bunArtifact)).toHaveLength(2)
+    })
+  })
+
+  describe('resolveBinaryPath', () => {
+    it('prefers a verified mise shim over the verified bundled binary', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
-      bundledManifestRef.value = {
-        schemaVersion: 1,
-        platform: process.platform,
-        arch: process.arch,
-        artifacts: { mise: makeFilesArtifact('2025.1.0', ['mise']) }
-      }
+      ;(service as any).isolatedEnv = {}
+      const shimPath = mockApplicationPath('feature.binary.data', 'shims', 'bun')
+      ;(mockFs.existsSync as any).mockImplementation((candidate: string) =>
+        [shimPath, mockApplicationPath('cherry.bin', 'bun')].includes(candidate)
+      )
+      registerBundled(service, 'bun')
+      mockExecFileAsync.mockResolvedValue({ stdout: '/mock/mise/installs/bun/1.0.0/bin/bun\n', stderr: '' })
 
-      mockFs.readFileSync.mockImplementation(() => {
-        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
-      })
-
-      await (service as any).extractBundledBinaries()
-
-      expect(mockMaterializeBundledFile).toHaveBeenCalledOnce()
+      await expect(service.resolveBinaryPath('bun')).resolves.toBe(shimPath)
     })
 
-    it('derives every runtime file from the bundled manifest instead of a second binary list', async () => {
+    it('falls back to bundled when a mise shim no longer resolves', async () => {
       const service = new BinaryManager()
-      bundledManifestRef.value = {
-        schemaVersion: 1,
-        platform: process.platform,
-        arch: process.arch,
-        artifacts: { mise: makeFilesArtifact('2025.1.0', ['mise', 'mise-helper']) }
-      }
-      mockFs.readFileSync.mockImplementation(() => {
-        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
-      })
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      const shimPath = mockApplicationPath('feature.binary.data', 'shims', 'bun')
+      ;(mockFs.existsSync as any).mockImplementation((candidate: string) =>
+        [shimPath, mockApplicationPath('cherry.bin', 'bun')].includes(candidate)
+      )
+      registerBundled(service, 'bun')
+      mockExecFileAsync.mockRejectedValue(new Error('broken shim'))
 
-      await (service as any).extractBundledBinaries()
-
-      expect(mockMaterializeBundledFile).toHaveBeenCalledTimes(2)
-      expect(mockMaterializeBundledFile.mock.calls.map(([, file]) => file.output)).toEqual(['mise', 'mise-helper'])
+      await expect(service.resolveBinaryPath('bun')).resolves.toBe(mockApplicationPath('cherry.bin', 'bun'))
     })
 
-    it('repairs only mise-shim.exe on Windows when the primary binary and version marker are intact', async () => {
-      platformMock.isWin = true
-      const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')!
-      const originalArch = Object.getOwnPropertyDescriptor(process, 'arch')!
-      Object.defineProperties(process, {
-        platform: { value: 'win32' },
-        arch: { value: 'x64' }
-      })
+    it('removes an invalid bundled entry and returns null', async () => {
+      const service = new BinaryManager()
+      registerBundled(service, 'rg')
 
-      try {
-        const service = new BinaryManager()
-        bundledManifestRef.value = {
-          schemaVersion: 1,
-          platform: 'win32',
-          arch: 'x64',
-          artifacts: { mise: makeFilesArtifact('2026.7.14', ['mise.exe', 'mise-shim.exe']) }
-        }
-
-        mockFs.readFileSync.mockImplementation((p: string) => {
-          if (p.includes('.mise-version')) return '2026.7.14'
-          throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
-        })
-        mockIsBundledFileReady.mockImplementation(async (file: unknown) => {
-          return (file as { output: string }).output === 'mise.exe'
-        })
-
-        await (service as any).extractBundledBinaries()
-
-        expect(mockMaterializeBundledFile).toHaveBeenCalledOnce()
-        expect(mockMaterializeBundledFile).toHaveBeenCalledWith(
-          bundledManifestRef.value,
-          expect.objectContaining({ output: 'mise-shim.exe' }),
-          mockApplicationPath('cherry.bin', 'mise-shim.exe')
-        )
-      } finally {
-        Object.defineProperties(process, { platform: originalPlatform, arch: originalArch })
-      }
+      await expect(service.resolveBinaryPath('rg')).resolves.toBeNull()
+      expect((service as any).bundledBinaries.has('rg')).toBe(false)
     })
+  })
 
+  describe('bundled MinGit', () => {
     it('installs and then prunes versioned MinGit trees on Windows', async () => {
       platformMock.isWin = true
       const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')!
@@ -3271,12 +3238,15 @@ describe('BinaryManager', () => {
           arch: 'x64',
           artifacts: { mingit }
         }
-        mockIsBundledTreeReady.mockResolvedValue(false)
+        mockEnsureBundledTree.mockResolvedValue({
+          status: 'installed',
+          root: mockApplicationPath('feature.binary.mingit', '2.54.0', 'win32-x64')
+        })
         const service = new BinaryManager()
 
         await service.ensureBundledGit()
 
-        expect(mockMaterializeBundledTree).toHaveBeenCalledWith(
+        expect(mockEnsureBundledTree).toHaveBeenCalledWith(
           bundledManifestRef.value,
           mingit,
           mockApplicationPath('feature.binary.mingit', '2.54.0', 'win32-x64')
@@ -3298,7 +3268,7 @@ describe('BinaryManager', () => {
         platform: { value: 'win32' },
         arch: { value: 'x64' }
       })
-      let release: (() => void) | undefined
+      let release: ((result: { status: 'installed'; root: string }) => void) | undefined
 
       try {
         bundledManifestRef.value = {
@@ -3307,10 +3277,9 @@ describe('BinaryManager', () => {
           arch: 'x64',
           artifacts: { mingit: makeTreeArtifact() }
         }
-        mockIsBundledTreeReady.mockResolvedValue(false)
-        mockMaterializeBundledTree.mockImplementation(
+        mockEnsureBundledTree.mockImplementation(
           () =>
-            new Promise<void>((resolve) => {
+            new Promise((resolve) => {
               release = resolve
             })
         )
@@ -3318,8 +3287,11 @@ describe('BinaryManager', () => {
 
         const first = service.ensureBundledGit()
         const second = service.ensureBundledGit()
-        await vi.waitFor(() => expect(mockMaterializeBundledTree).toHaveBeenCalledOnce())
-        release?.()
+        await vi.waitFor(() => expect(mockEnsureBundledTree).toHaveBeenCalledOnce())
+        release?.({
+          status: 'installed',
+          root: mockApplicationPath('feature.binary.mingit', '2.54.0', 'win32-x64')
+        })
 
         await expect(Promise.all([first, second])).resolves.toEqual([
           mockApplicationPath('feature.binary.mingit', '2.54.0', 'win32-x64', 'git', 'cmd', 'git.exe'),
@@ -3347,14 +3319,13 @@ describe('BinaryManager', () => {
           arch: 'x64',
           artifacts: { mingit: makeTreeArtifact() }
         }
-        mockIsBundledTreeReady.mockResolvedValue(false)
-        mockMaterializeBundledTree.mockRejectedValueOnce(new Error('temporary AV lock'))
+        mockEnsureBundledTree.mockRejectedValueOnce(new Error('temporary AV lock'))
         const service = new BinaryManager()
 
         await expect(service.ensureBundledGit()).rejects.toThrow('temporary AV lock')
         await expect(service.ensureBundledGit()).resolves.toContain(path.join('git', 'cmd', 'git.exe'))
 
-        expect(mockMaterializeBundledTree).toHaveBeenCalledTimes(2)
+        expect(mockEnsureBundledTree).toHaveBeenCalledTimes(2)
         expect(mockCleanupOtherArtifactVersions).toHaveBeenCalledOnce()
       } finally {
         Object.defineProperties(process, { platform: originalPlatform, arch: originalArch })

@@ -5,14 +5,9 @@ import path from 'node:path'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isLinux, isWin } from '@main/core/platform'
+import { cleanupOtherArtifactVersions, ensureBundledFiles } from '@main/services/bundledArtifact'
 import { toAsarUnpackedPath } from '@main/utils/asar'
 import { bundledArtifactPlatformKey, readBundledArtifactManifest } from '@main/utils/bundledArtifactManifest'
-import {
-  cleanupOtherArtifactVersions,
-  isBundledFileReady,
-  materializeBundledFile,
-  withBundledArtifactLock
-} from '@main/utils/bundledArtifacts'
 import { app } from 'electron'
 
 const logger = loggerService.withContext('ClaudeCodeBinaryService')
@@ -69,12 +64,13 @@ export class ClaudeCodeBinaryService {
 
     const root = application.getPath('feature.agents.claude.binary')
     const platformKey = bundledArtifactPlatformKey(manifest.platform, manifest.arch)
-    const destination = path.join(root, artifact.version, platformKey, file.output)
-    await withBundledArtifactLock(destination, async () => {
-      if (await isBundledFileReady(file, destination)) return
-      await materializeBundledFile(manifest, file, destination)
+    const destinationDirectory = path.join(root, artifact.version, platformKey)
+    const result = await ensureBundledFiles(manifest, artifact, destinationDirectory)
+    const destination = result.paths.get(file.output)
+    if (!destination) throw new Error(`Bundled Claude Code payload did not install ${file.output}`)
+    if (result.status === 'installed') {
       logger.info('Extracted bundled Claude Code binary', { destination, version: artifact.version })
-    })
+    }
     await cleanupOtherArtifactVersions(root, artifact.version)
     this.readyPath = destination
     return destination

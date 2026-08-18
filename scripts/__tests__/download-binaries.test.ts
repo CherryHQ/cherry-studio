@@ -13,6 +13,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 // CJS build script — vitest interops the module.exports fine.
 import {
+  artifactArchiveEntries,
   bundleFilesArtifact,
   bundleTreeArtifact,
   extract,
@@ -111,6 +112,25 @@ describe('compressed artifact contract', () => {
     packages: { 'win32-x64': { archive: 'zip-tree', dir: 'git', binaries: ['git/cmd/git.exe'] } }
   }
 
+  it('maps file and tree archives to their declared compressed hashes', () => {
+    expect(
+      artifactArchiveEntries({
+        kind: 'files',
+        version: '1.0.0',
+        files: [
+          { archive: 'tool.zst', archiveSha256: 'a'.repeat(64) },
+          { archive: 'helper.zst', archiveSha256: 'b'.repeat(64) }
+        ]
+      })
+    ).toEqual([
+      { archive: 'tool.zst', sha256: 'a'.repeat(64) },
+      { archive: 'helper.zst', sha256: 'b'.repeat(64) }
+    ])
+    expect(
+      artifactArchiveEntries({ kind: 'tree', version: '1.0.0', archive: 'tree.tar.zst', archiveSha256: 'c'.repeat(64) })
+    ).toEqual([{ archive: 'tree.tar.zst', sha256: 'c'.repeat(64) }])
+  })
+
   it('round-trips file payloads and verifies their compressed checksum', async () => {
     const { outputDir, resourcesDir } = makeResourcesDir('linux-x64')
     const manifest: TestManifest = { schemaVersion: 1, platform: 'linux', arch: 'x64', artifacts: {} }
@@ -142,6 +162,29 @@ describe('compressed artifact contract', () => {
 
     await expect(verifyBundledArtifacts('linux', 'x64', { tools: [regularTool], resourcesDir })).rejects.toThrow(
       /checksum mismatch/
+    )
+  })
+
+  it('rejects an artifact whose manifest version is stale', async () => {
+    const { outputDir, resourcesDir } = makeResourcesDir('linux-x64')
+    const manifest: TestManifest = { schemaVersion: 1, platform: 'linux', arch: 'x64', artifacts: {} }
+    await addFilesArtifact(outputDir, manifest, 'mise', '0.9.0', ['mise'])
+    writeManifest(outputDir, manifest)
+
+    await expect(verifyBundledArtifacts('linux', 'x64', { tools: [regularTool], resourcesDir })).rejects.toThrow(
+      /missing or stale compressed payload/
+    )
+  })
+
+  it('rejects an uncompressed original left beside its payload', async () => {
+    const { outputDir, resourcesDir } = makeResourcesDir('linux-x64')
+    const manifest: TestManifest = { schemaVersion: 1, platform: 'linux', arch: 'x64', artifacts: {} }
+    await addFilesArtifact(outputDir, manifest, 'mise', '1.0.0', ['mise'])
+    writeManifest(outputDir, manifest)
+    fs.writeFileSync(path.join(outputDir, 'mise'), 'uncompressed copy', 'utf8')
+
+    await expect(verifyBundledArtifacts('linux', 'x64', { tools: [regularTool], resourcesDir })).rejects.toThrow(
+      /raw binary still present/
     )
   })
 
