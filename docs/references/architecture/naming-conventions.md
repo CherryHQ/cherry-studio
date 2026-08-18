@@ -71,11 +71,11 @@ Three rules trump any specific table below when in conflict:
 
 ### 3.1 React Component Files (`.tsx`)
 
-| Location | Convention | Rationale |
+| Primary role | Convention | Rationale |
 |---|---|---|
-| `src/renderer/components/**` | `PascalCase.tsx` | Filename mirrors the exported component name. |
-| `src/renderer/pages/**` | `PascalCase.tsx` | Filename mirrors the exported component name. |
-| `packages/ui/**` (shadcn-derived) | `kebab-case.tsx` | Required by shadcn CLI for cross-OS file resolution. |
+| One named business component/page under `src/renderer/**` | `PascalCase.tsx` | Filename mirrors the primary exported component name. |
+| JSX-bearing helper/registry/variant module under `src/renderer/**` | `camelCase.tsx` | The file is a module, not one component identity (for example `sidebarVariants.tsx`). |
+| `packages/ui/**` (shadcn-derived) | `kebab-case.tsx` | Follows the package's shadcn file convention. |
 
 The component's **exported identifier** is always `PascalCase`, regardless of filename style:
 
@@ -156,7 +156,7 @@ Directory naming splits into category rules (§4.1–§4.3, §4.5–§4.7, §4.1
 
 ### 4.1 npm Package Directories — `kebab-case`
 
-`packages/*` directory names must be `kebab-case`. The directory name must equal the `name` field in `package.json` (minus the scope prefix).
+New or renamed `packages/*` directory names must be `kebab-case`. For a package that owns a `package.json`, the directory name must equal its `name` field after removing the scope.
 
 ```
 packages/ai-sdk-provider/      ✅
@@ -165,6 +165,8 @@ packages/extension-table-plus/ ✅
 packages/somePkg/              ❌ (camelCase not allowed)
 packages/SomePkg/              ❌ (PascalCase not allowed)
 ```
+
+**Known legacy exception:** `packages/aiCore/` publishes `@cherrystudio/ai-core`. It predates this rule and has not yet been renamed; do not copy its casing into new packages. This package-directory rule is review-enforced outside `packages/ui/`.
 
 ### 4.2 Business React Component Directories — `PascalCase`
 
@@ -306,7 +308,8 @@ Names inside source code — separate axis from filenames.
 | Component, Class, Interface, Type alias, Enum type | `PascalCase` | `class KnowledgeService`, `interface UserConfig`, `type Status` |
 | Variable, function, method, parameter | `camelCase` | `fetchUser`, `isReady` |
 | Hook | `camelCase` with mandatory `use` prefix | `useChatContext` |
-| Constant, enum member | `UPPER_SNAKE_CASE` | `MAX_RETRY_COUNT`, `IpcChannel.GetConfig` |
+| Top-level constant | `UPPER_SNAKE_CASE` | `MAX_RETRY_COUNT` |
+| Enum member | Follow the enum's established domain style | `WindowType.Main`, `ThemeMode.dark`, `IpcChannel.App_SetLaunchOnBoot` |
 | Private class member | no `_` prefix; use `private` modifier | `private cache` |
 | Generic type parameter | `PascalCase`, prefer descriptive | `<TItem>`, `<TError>` (avoid bare `T` for non-trivial cases) |
 
@@ -392,12 +395,14 @@ Do **not** use the alternatives that previously coexisted here: `XxxSelect` / `X
 
 ### 6.1 Acronyms and Initialisms
 
-When an acronym (API, URL, ID, HTTP, MCP, AI) appears inside `PascalCase` or `camelCase`:
+For project-owned names, treat ordinary acronyms (API, URL, ID, HTTP, MCP) as words inside `PascalCase` or `camelCase`:
 
 - **First letter uppercase, rest lowercase** — `HttpClient`, `UserId`, `ApiServer`, `McpService`.
-- **Never all-caps** — `HTTPClient`, `UserID`, `APIServer` are forbidden.
+- **Do not introduce all-caps acronym runs for project-owned concepts** — use `HttpClient`, `UserId`, and `ApiServer`, not `HTTPClient`, `UserID`, or `APIServer`.
 - **At the start of `camelCase`** — entirely lowercase: `httpClient`, `userId`, `apiServer`.
 - **Same form applies to filenames** — `McpService.ts`, not `MCPService.ts`.
+
+Preserve an official product/SDK spelling when the identifier mirrors that external name, for example `OpenAIServiceTier`. Existing unnormalized identifiers such as `currentURL` are review-only legacy gaps because `naming/path-case` does not inspect identifier internals; do not copy them into new APIs.
 
 ### 6.2 Case-Only Renames
 
@@ -433,7 +438,7 @@ Rules 1–3 are lint-enforced; rule 4 is a review judgment.
 
 ### 6.5 Directory Name vs Package Name
 
-In `packages/*`, the directory name and `package.json#name` (after stripping scope) must match exactly. Renaming one requires renaming the other.
+For packages with a `package.json`, the directory name and `package.json#name` (after stripping scope) must match exactly. Renaming one requires renaming the other. `packages/aiCore/` is the tracked legacy exception described in §4.1.
 
 ### 6.6 TanStack Router File-Based Routes
 
@@ -465,10 +470,11 @@ Any of these signals warrants a consolidation review.
 
 ```
 Naming a new FILE
-├─ React component (.tsx)?
+├─ TSX / JSX-bearing file?
 │  ├─ Under src/renderer/routes/?  → kebab-case.tsx  (api-server.tsx)
 │  ├─ Under packages/ui/?              → kebab-case.tsx  (button.tsx)
-│  └─ Under src/renderer/?         → PascalCase.tsx  (Sidebar.tsx)
+│  ├─ One primary named component? → PascalCase.tsx  (Sidebar.tsx)
+│  └─ Helper/registry/variant module? → camelCase.tsx (sidebarVariants.tsx)
 ├─ React hook?                    → useXxx.ts       (useShortcuts.ts)
 ├─ Primary export is a class?     → PascalCase.ts   (KnowledgeService.ts)
 ├─ Primary export is function(s)? → camelCase.ts    (markdownConverter.ts)
@@ -497,7 +503,7 @@ The `naming/path-case` rule (inline plugin in `eslint.config.mjs`, modeled on th
 
 ### 8.1 Enforced
 
-Casing is checked per zone; first matching zone wins. `packages/*` other than `packages/ui/` is not linted — pnpm workspaces already tie a package directory to its `name` (§6.5).
+Casing is checked per zone; first matching zone wins. `packages/*` other than `packages/ui/` is not covered by this lint rule; its directory/package-name contract remains a review check (§6.5).
 
 | Zone | Directory segments | File stems |
 |---|---|---|

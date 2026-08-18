@@ -547,7 +547,7 @@ export default defineConfig([
               },
               messages: {
                 restricted:
-                  'Quit-related APIs and events are managed by the Application lifecycle. Do not use "{{name}}" directly. See docs/en/references/lifecycle/application-overview.md'
+                  'Quit-related APIs and events are managed by the Application lifecycle. Do not use "{{name}}" directly. See docs/references/lifecycle/application-overview.md'
               }
             },
             create(context) {

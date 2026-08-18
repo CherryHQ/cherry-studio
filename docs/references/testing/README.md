@@ -3,6 +3,7 @@ description: Home for testing reference docs covering frontend test policy and t
 sources:
   - tests
   - src/renderer
+  - packages/ui
 ---
 
 # Testing Reference

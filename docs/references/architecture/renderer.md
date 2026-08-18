@@ -125,7 +125,7 @@ A **headless** capability (no UI) that outgrows one file grows **in place** into
 | Satellites skip shape routing | a topic-**specific** helper lives here even though its shape says `utils/` — the §3 shape tests bind **shared** modules only; a **generic** helper (reads naturally with no topic context) still goes to `utils/` |
 | Single consumer, or out | a satellite stays only while this topic is its sole consumer; a second consumer moves it to `utils/` (generic) or promotes it into the barrel (topic public API) |
 | No UI, ever | no JSX and no React hooks inside; UI parts route into the shared buckets by shape (§3 / §6), and the domain promotes to `features/<domain>/` only once the §4.1 trigger holds |
-| Plain internal names | files drop the topic prefix (the directory carries it) — `aiTransport/streamDispatchCoordinator.ts`, not `aiTransportStreamDispatchCoordinator.ts`; the `Service` / `Manager` suffix still marks only stateful singleton classes ([Naming §5.2](./naming-conventions.md)) |
+| Plain internal names | files drop the topic prefix (the directory carries it) — `aiTransport/StreamDispatchService.ts`, not `AiTransportStreamDispatchService.ts`; the `Service` / `Manager` suffix still marks only stateful singleton classes ([Naming §5.2](./naming-conventions.md)) |
 
 ## 4. `features/` Definition
 
@@ -152,8 +152,8 @@ Worked example — `chat` → `features/chat/`:
 ```text
 # scattered today (shared type-buckets)        # promoted
 pages/home/           chat page shell           features/chat/
-components/chat/      ~288 files          →       ├── index.ts      # curated public API (named exports, no export *)
-components/composer/  ~119 files                  ├── pages/        # ← pages/home
+components/chat/      chat UI              →       ├── index.ts      # curated public API (named exports, no export *)
+components/composer/  composer UI                  ├── pages/        # ← pages/home
 hooks/chat/                                       ├── components/   # ← components/chat + components/composer
 services/…            chat-only services          ├── hooks/        # ← hooks/chat
                                                   └── services/     # ← chat-only services
@@ -219,7 +219,7 @@ Only **outstanding** deviations are tracked here: once a deviation is resolved i
 | Area | Current state | Target |
 |---|---|---|
 | App shell | shell chrome in `components/layout/` is partly window-specific, partly cross-window — including `AppShell` and the `Sidebar` it renders (`components/app/Sidebar`, imported by `components/layout/AppShell.tsx` — window-shell UI, **not** dead code) | decompose by ownership: main shell (`AppShell`, `AppShellTabBar`, tab drag, `Sidebar`) → `windows/main/`; sub-window chrome (`SubWindowControls`, `SubWindowTitle`) → `windows/subWindow/`; cross-window building blocks (`TabRouter`, `TabIcon`, `titleBar`, tab icons) → shared `components/` (e.g. `components/shell/`). No new `windows/shell/` bucket |
-| Cross-page imports | ~13 `pages/<domain>/` files import each other (`pages → pages` coupling), held at `warn` by the §5 gate | a page must not import another page; route shared needs through the shared layer, then tighten the gate to `error` |
+| Cross-page imports | `pages/<domain>/` files still import sibling page domains (`pages → pages` coupling), held at `warn` by the §5 gate | a page must not import another page; route shared needs through the shared layer, then tighten the gate to `error` |
 | `utils/message/` topic barrel | `utils/message/` is a multi-file topic subdir with **no `index.ts`** (the `@renderer/utils` root barrel has already been dropped) | give `utils/message/` one curated `index.ts` (named exports, **no `export *`**) |
 | Domain promotion | large multi-file domains (`chat` ≈ `pages/home` + `components/chat` + `components/composer`; `knowledge` ≈ `pages/knowledge` + …) are scattered across the shared type-buckets, and **no `features/` directory exists yet** | promote the largest domains into `features/<domain>/` per the §4.1 trigger (`chat` and `knowledge` first) |
 

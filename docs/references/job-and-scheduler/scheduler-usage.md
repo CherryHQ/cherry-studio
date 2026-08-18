@@ -25,7 +25,7 @@ Walk the questions in order. The first "yes" picks the mechanism.
 
 ### 1. Does the work need to survive process restart with state machine + retry + cancel?
 
-Yes → **JobManager**. Build a `JobHandler`, register it, then call `jobManager.registerJobSchedule({ type, trigger, jobInputTemplate, catchUpPolicy })`.
+Yes → **JobManager**. Build a `JobHandler`, register it, then call `application.get('JobManager').registerJobSchedule({ type, trigger, jobInputTemplate, catchUpPolicy })`.
 
 You get: persistent schedule row in `jobScheduleTable`; recovery on next process start; retry backoff; user-visible status; DataApi listing; renderer progress hooks. See [handler-authoring.md](./handler-authoring.md).
 
@@ -75,12 +75,12 @@ If you need "fire once, then maybe fire again later" semantics this is the path.
 
 ### `interval`: re-arm safety check
 
-After each tick, SchedulerService re-checks that the schedule entry is still in its map *before* re-arming the next interval. Consequence: a callback can synchronously call `scheduler.unregisterSchedule(id)` and the loop will stop cleanly, without a final stray tick.
+After each tick, SchedulerService re-checks that the schedule entry is still in its map *before* re-arming the next interval. Consequence: a callback can synchronously call `scheduler.unregister(id)` and the loop will stop cleanly, without a final stray tick.
 
 ```typescript
 scheduler.registerSchedule('healthcheck.foo', { kind: 'interval', ms: 30_000 }, async () => {
   if (await everythingIsTerminal()) {
-    scheduler.unregisterSchedule('healthcheck.foo')
+    scheduler.unregister('healthcheck.foo')
     return // No further tick.
   }
   // ...

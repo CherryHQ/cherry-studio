@@ -37,7 +37,7 @@ CS_DIAGNOSTICS=1 "./Cherry Studio-<version>-<arch>.AppImage"
 
 ### Output
 
-Both dev and packaged runs write to the **app logs directory** (`~/Library/Logs/CherryStudio/` on macOS; `application.getPath('app.logs')`): signals stream into `app.<date>.log`, and the CPU profile lands beside it as `boot-whenReady.cpuprofile`.
+Both dev and packaged runs write to the platform **app logs directory** exposed as `application.getPath('app.logs')`: signals stream into `app.<date>.log`, and the CPU profile lands beside it as `boot-whenReady.cpuprofile`.
 
 ## Signals
 
@@ -48,7 +48,8 @@ Both dev and packaged runs write to the **app logs directory** (`~/Library/Logs/
 | Event-loop lag | `[Diagnostics]` | `LifecycleManager.startPhase` | `totalLag` high ⇒ loop blocked by sync work; near-zero over a long span ⇒ IO/macrotask bound. `fires=0` ⇒ pure microtask cascade (timer never ran). |
 | whenReady CPU profile | `[Diagnostics] CPU profile written to …` | `LifecycleManager.startPhase` | V8 sampling profile of the whenReady phase. Self-time by function — the only reliable attribution when startup is one microtask chain. |
 | Slow DB queries | `[Diagnostics/slow-query]` | `DbService.installSlowQueryProbe` | Any query >15ms: duration, row count, SQL, caller stack. Covers single statements, multi-statement `exec` blocks, and transaction interiors. |
-| Slow IPC handlers | `[Diagnostics/ipc]` | `BaseService.ipcHandle` | Any service IPC handler >50ms: duration + channel. Covers handlers registered via `this.ipcHandle()` (most); direct `ipcMain.handle` in `ipc.ts` is not covered. |
+| Slow IpcApi requests | `[Diagnostics/ipc-api]` | `IpcApiService.handleRequest` | Any IpcApi request >50ms: total dispatch duration + typed route. |
+| Slow legacy IPC handlers | `[Diagnostics/ipc]` | `BaseService.ipcHandle` | Any handler registered through the legacy BaseService helper that exceeds 50ms. Bare `ipcMain.handle/on` registrations are not covered. |
 | Window creation | `[Diagnostics/window]` | `WindowManager.createWindow` | Per window: synchronous construction cost, then `ready-to-show` paint latency from the same start. |
 | Slow DataApi requests | `[Diagnostics/dataapi]` | `ApiServer.handleRequest` | Any DataApi request >50ms: duration + `method path`. Duration is measured monotonically (`performance.now()`) and only computed when enabled. |
 | Verbose logging | — | `LoggerService` (main + renderer) | The flag makes the logger behave exactly as in dev: file level drops to `silly`, console output turns on, and the `CSLOGGER_*` filters become active in the packaged build. See [Logging](../logging/README.md#filtering-logs-with-environment-variables). |

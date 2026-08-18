@@ -90,7 +90,7 @@ Since the plugin cannot track such usages, developers must manually verify the e
 
 ### Recommended Approach
 
-To avoid missing keys, all dynamically translated texts should first maintain a `FooKeyMap`, then retrieve the translation text through a function.
+For a finite dynamic set, keep an explicit value-to-key map and pass the selected static key to `t()`. This keeps every catalog key discoverable by the editor and unused-key scanner.
 
 For example:
 
@@ -102,9 +102,9 @@ const themeModeKeyMap = {
   system: 'settings.theme.system'
 } as const
 
-export const getThemeModeLabel = (key: string): string => {
-  return themeModeKeyMap[key] ? t(themeModeKeyMap[key]) : key
-}
+export const getThemeModeLabelKey = (mode: keyof typeof themeModeKeyMap) => themeModeKeyMap[mode]
+
+const label = t(getThemeModeLabelKey(themeMode))
 ```
 
 By avoiding template strings, you gain better developer experience, more reliable translation checks, and a more maintainable codebase.

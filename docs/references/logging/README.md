@@ -48,16 +48,15 @@ const logger = loggerService.withContext('moduleName', CONTEXT)
 In your code, you can call `logger` at any time to record logs. The supported levels are: `error`, `warn`, `info`, `verbose`, `debug`, and `silly`.
 For the meaning of each level, please refer to the subsequent sections.
 
-The following are the supported parameters for logging (using `logger.LEVEL` as an example, where `LEVEL` represents one of the levels mentioned above):
+Logging methods take a string message followed by optional `Error` and/or object context values (using `logger.LEVEL` as an example):
 
 ```typescript
 logger.LEVEL(message)
 logger.LEVEL(message, CONTEXT)
 logger.LEVEL(message, error)
 logger.LEVEL(message, error, CONTEXT)
+logger.LEVEL(message, CONTEXT, MORE_CONTEXT)
 ```
-
-**Only the four calling methods above are supported**.
 
 | Parameter | Type     | Description                                                                                                                                                                                                                                                                                                                   |
 | --------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -202,6 +201,8 @@ There are many log levels. The following are the guidelines that should be follo
 | **`error`**   | **Critical error causing the program to crash or core functionality to become unusable.** <br> This is the highest-priority log, usually requiring immediate reporting or user notification.        | - Main or renderer process crash. <br> - Failure to read/write critical user data files (e.g., database, configuration files), preventing the application from running. <br> - All unhandled exceptions.           |
 | **`warn`**    | **Potential issue or unexpected situation that does not affect the program's core functionality.** <br> The program can recover or use a fallback.                                                  | - Configuration file `settings.json` is missing; started with default settings. <br> - Auto-update check failed, but does not affect the use of the current version. <br> - A non-essential plugin failed to load. |
 | **`info`**    | **Records application lifecycle events and key user actions.** <br> This is the default level that should be recorded in a production release to trace the user's main operational path.            | - Application start, exit. <br> - User successfully opens/saves a file. <br> - Main window created/closed. <br> - Starting an important task (e.g., "Start video export").                                         |
-| **`verbose`** | **More detailed flow information than `info`, used for tracing specific features.** <br> Enabled when diagnosing issues with a specific feature to help understand the internal execution flow.     | - Loading `Toolbar` module. <br> - IPC message `open-file-dialog` sent from the renderer process. <br> - Applying filter 'Sepia' to the image.                                                                     |
-| **`debug`**   | **Detailed diagnostic information used during development and debugging.** <br> **Must not be enabled by default in production releases**, as it may contain sensitive data and impact performance. | - Parameters for function `renderImage`: `{ width: 800, ... }`. <br> - Specific data content received by IPC message `save-file`. <br> - Details of Redux/Vuex state changes in the renderer process.              |
+| **`debug`**   | **Diagnostic information useful during ordinary development and debugging.** <br> It is below the production `info` threshold by default. | - A selected execution branch. <br> - Safe identifiers and timing details. <br> - A cache hit/miss. |
+| **`verbose`** | **More detailed execution-flow tracing than `debug`.** <br> Use it for noisy step-by-step diagnostics that are normally hidden. | - Loading a UI module. <br> - An IPC route being invoked. <br> - Individual stages in a multi-step operation. |
 | **`silly`**   | **The most detailed, low-level information, used only for extreme debugging.** <br> Rarely used in regular development; only for solving very difficult problems.                                   | - Real-time mouse coordinates `(x: 150, y: 320)`. <br> - Size of each data chunk when reading a file. <br> - Time taken for each rendered frame.                                                                   |
+
+Never log secrets, authorization headers, full prompts, or user file contents at any level. Lower levels are still written to files in development and when diagnostics is enabled.

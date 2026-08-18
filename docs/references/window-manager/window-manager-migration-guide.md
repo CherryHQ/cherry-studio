@@ -111,7 +111,7 @@ See [Injecting behavior: `onWindowCreated` is the canonical hook](./window-manag
 | `this.window.show()` | `wm.show(windowId)` |
 | `this.window.hide()` | `wm.hide(windowId)` |
 | `this.window.close()` | `wm.close(windowId)` — except when a native `close` listener owns the policy (see note) |
-| `this.window.webContents.send(...)` | `wm.getWindow(windowId)?.webContents.send(...)` or `wm.broadcastToType(...)` |
+| `this.window.webContents.send(...)` | For a typed product event, `IpcApiService.send(...)` / `broadcastToType(...)`; keep WindowManager's raw broadcast only for a remaining legacy channel |
 | `BrowserWindow.fromWebContents(e.sender)` | `wm.getWindowIdByWebContents(e.sender)` |
 
 Note: there is intentionally no entry for `this.window.destroy()`. `wm.close()` already handles destruction for non-pooled windows and pool-return for pooled windows. `wm.destroy()` is an internal primitive — see [Window API layers](./window-manager-usage.md#window-api-layers-consumer-vs-internal).

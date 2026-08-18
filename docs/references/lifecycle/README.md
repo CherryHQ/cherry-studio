@@ -34,7 +34,7 @@ This is the main entry point for Cherry Studio's service lifecycle and applicati
 
 |                         | Lifecycle                                    | Direct-import singleton                        |
 | ----------------------- | -------------------------------------------- | ---------------------------------------------- |
-| Examples                | `DbService`, `CacheService`, `MainWindowService` | `ExportService`, `BackupManager`, `OcrService` |
+| Examples                | `DbService`, `CacheService`, `MainWindowService` | `regionService`, `legacyBackupManager`          |
 | Long-lived resources    | Yes                                          | No (or request-scoped)                         |
 | Persistent side effects | Yes                                          | No                                             |
 | `onInit` / `onStop`     | Meaningful                                   | Would be empty                                 |
