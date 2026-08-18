@@ -35,7 +35,15 @@ vi.mock('../security/OutputSanitizer', () => ({
 // AiStreamManager; the abort path reads it, so override locally.
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({ AiStreamManager: { abort: vi.fn() } } as never)
+  return mockApplicationFactory({
+    AiStreamManager: { abort: vi.fn() },
+    ChannelManager: {
+      enqueueTerminalDelivery: (delivery: { deliver: () => Promise<void> }) => {
+        void delivery.deliver()
+        return true
+      }
+    }
+  } as never)
 })
 
 vi.mock('@data/services/AgentService', () => ({

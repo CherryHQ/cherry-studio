@@ -48,10 +48,19 @@ vi.mock('../security/OutputSanitizer', () => ({
 
 // The global mock (tests/main.setup.ts) wires the default service set, which omits
 // AiStreamManager; the abort path reads it, so override locally with a captured spy.
-const { mockStreamAbort } = vi.hoisted(() => ({ mockStreamAbort: vi.fn() }))
+const { mockStreamAbort, mockEnqueueTerminalDelivery } = vi.hoisted(() => ({
+  mockStreamAbort: vi.fn(),
+  mockEnqueueTerminalDelivery: vi.fn((delivery: { deliver: () => Promise<void> }) => {
+    void delivery.deliver()
+    return true
+  })
+}))
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({ AiStreamManager: { abort: mockStreamAbort } } as never)
+  return mockApplicationFactory({
+    AiStreamManager: { abort: mockStreamAbort },
+    ChannelManager: { enqueueTerminalDelivery: mockEnqueueTerminalDelivery }
+  } as never)
 })
 
 vi.mock('@data/services/AgentService', () => ({
@@ -198,6 +207,7 @@ describe('ChannelMessageHandler', () => {
 
     // Delivery is owned by ChannelAdapterListener (the handler no longer post-sends);
     // it accumulates all text-delta chunks via `.delta`, trims, and sends once.
+    expect(mockEnqueueTerminalDelivery).toHaveBeenCalledTimes(1)
     expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'Hello world!\n\nDone.')
   })

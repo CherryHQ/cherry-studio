@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { type ChannelAdapter, sanitizeChannelOutput } from '@main/ai/channels'
+import { type ChannelAdapter, type ChannelTerminalDeliveryOwner, sanitizeChannelOutput } from '@main/ai/channels'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { UIMessageChunk } from 'ai'
 
@@ -7,40 +7,17 @@ import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedR
 
 const logger = loggerService.withContext('ChannelAdapterListener')
 const INCOMPLETE_CITATION_MARKER_PATTERN = /[ \t]?\[(?:c(?:i(?:t(?:e(?::[\w-]*)?)?)?)?)?$/
-const DELIVERY_TIMEOUT_MS = 15_000
-const DELIVERY_RETRY_DELAY_MS = 1_000
-const DELIVERY_ATTEMPTS = 2
-
-function withTimeout<T>(promise: Promise<T>): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(
-      () => reject(new Error(`Channel delivery timed out after ${DELIVERY_TIMEOUT_MS}ms`)),
-      DELIVERY_TIMEOUT_MS
-    )
-    promise.then(
-      (value) => {
-        clearTimeout(timer)
-        resolve(value)
-      },
-      (error) => {
-        clearTimeout(timer)
-        reject(error)
-      }
-    )
-  })
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
+let nextDeliveryListenerId = 0
 
 /** IM-channel sink (Discord / Slack / Feishu / Telegram / etc). */
 export class ChannelAdapterListener implements StreamListener {
   readonly id: string
-  readonly terminalDispatch = 'delivery' as const
+  private readonly deliveryListenerId = ++nextDeliveryListenerId
   private accumulatedText = ''
+  private terminalDeliveryQueued = false
 
   constructor(
+    private readonly deliveryOwner: ChannelTerminalDeliveryOwner,
     private readonly adapter: ChannelAdapter,
     private readonly platformChatId: string,
     /**
@@ -62,22 +39,19 @@ export class ChannelAdapterListener implements StreamListener {
       : this.adapter.sendMessage(this.platformChatId, text)
   }
 
-  private async runDelivery(event: 'done' | 'paused' | 'error', deliver: () => Promise<void>): Promise<void> {
-    let deliveryError: unknown
-    for (let attempt = 1; attempt <= DELIVERY_ATTEMPTS; attempt += 1) {
-      try {
-        await withTimeout(deliver())
-        return
-      } catch (error) {
-        deliveryError = error
-        if (attempt < DELIVERY_ATTEMPTS) await delay(DELIVERY_RETRY_DELAY_MS)
-      }
-    }
-    logger.error('Failed to deliver terminal message to channel', {
+  private enqueueDelivery(
+    event: 'done' | 'paused' | 'error',
+    attemptId: number | undefined,
+    deliver: () => Promise<void>
+  ): void {
+    if (this.terminalDeliveryQueued) return
+    this.terminalDeliveryQueued = true
+    this.deliveryOwner.enqueueTerminalDelivery({
+      id: `stream:${this.deliveryListenerId}:${event}:${attemptId ?? 'unscoped'}`,
       channelId: this.adapter.channelId,
       chatId: this.platformChatId,
       event,
-      deliveryError
+      deliver
     })
   }
 
@@ -95,7 +69,7 @@ export class ChannelAdapterListener implements StreamListener {
     }
   }
 
-  async onDone(result: StreamDoneResult): Promise<void> {
+  onDone(result: StreamDoneResult): void {
     const text = sanitizeChannelOutput(this.accumulatedText).text.trim()
     if (!text) {
       logger.warn('ChannelAdapterListener.onDone with empty text', {
@@ -106,27 +80,26 @@ export class ChannelAdapterListener implements StreamListener {
       return
     }
 
-    await this.runDelivery('done', async () => {
+    this.enqueueDelivery('done', result.attemptId, async () => {
       // Adapter finalizes its streaming UI first (e.g. close Feishu card).
       const handled = await this.adapter.onStreamComplete(this.platformChatId, text)
       if (!handled) await this.deliver(text)
     })
   }
 
-  // oxlint-disable-next-line no-unused-vars
-  async onPaused(_result: StreamPausedResult): Promise<void> {
+  onPaused(result: StreamPausedResult): void {
     const text = sanitizeChannelOutput(this.accumulatedText).text.trim()
     if (!text) return
 
-    await this.runDelivery('paused', async () => {
+    this.enqueueDelivery('paused', result.attemptId, async () => {
       const handled = await this.adapter.onStreamComplete(this.platformChatId, text)
       if (!handled) await this.deliver(text + '\n\n_(stopped)_')
     })
   }
 
-  async onError(result: StreamErrorResult): Promise<void> {
+  onError(result: StreamErrorResult): void {
     if (this.suppressErrorMessage) return
-    await this.runDelivery('error', async () => {
+    this.enqueueDelivery('error', result.attemptId, async () => {
       await this.deliver(`Error: ${result.error.message ?? 'Unknown error'}`)
     })
   }

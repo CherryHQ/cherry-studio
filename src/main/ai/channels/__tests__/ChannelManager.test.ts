@@ -119,6 +119,99 @@ describe('ChannelManager', () => {
     createdAdapters.forEach((a) => expect(a.disconnect).toHaveBeenCalledTimes(1))
   })
 
+  it('serializes terminal deliveries for the same channel chat', async () => {
+    vi.mocked(channelService.listChannels).mockReturnValueOnce([])
+    await channelManager.start()
+    const events: string[] = []
+    let releaseFirst!: () => void
+
+    channelManager.enqueueTerminalDelivery({
+      id: 'delivery-1',
+      channelId: 'ch-1',
+      chatId: 'chat-1',
+      event: 'done',
+      deliver: () =>
+        new Promise<void>((resolve) => {
+          events.push('first:start')
+          releaseFirst = () => {
+            events.push('first:end')
+            resolve()
+          }
+        })
+    })
+    channelManager.enqueueTerminalDelivery({
+      id: 'delivery-2',
+      channelId: 'ch-1',
+      chatId: 'chat-1',
+      event: 'done',
+      deliver: async () => {
+        events.push('second')
+      }
+    })
+
+    await vi.waitFor(() => expect(events).toEqual(['first:start']))
+    releaseFirst()
+    await vi.waitFor(() => expect(events).toEqual(['first:start', 'first:end', 'second']))
+  })
+
+  it('accepts a terminal delivery id at most once', async () => {
+    vi.mocked(channelService.listChannels).mockReturnValueOnce([])
+    await channelManager.start()
+    const deliver = vi.fn().mockResolvedValue(undefined)
+    const delivery = {
+      id: 'deduplicated-delivery',
+      channelId: 'ch-1',
+      chatId: 'chat-1',
+      event: 'done' as const,
+      deliver
+    }
+
+    expect(channelManager.enqueueTerminalDelivery(delivery)).toBe(true)
+    expect(channelManager.enqueueTerminalDelivery(delivery)).toBe(false)
+    await vi.waitFor(() => expect(deliver).toHaveBeenCalledTimes(1))
+  })
+
+  it('drains terminal deliveries before disconnecting adapters', async () => {
+    vi.mocked(channelService.listChannels).mockReturnValueOnce([makeChannelRow()])
+    await channelManager.start()
+    let releaseDelivery!: () => void
+
+    channelManager.enqueueTerminalDelivery({
+      id: 'delivery-before-stop',
+      channelId: 'ch-1',
+      chatId: 'chat-1',
+      event: 'done',
+      deliver: () =>
+        new Promise<void>((resolve) => {
+          releaseDelivery = resolve
+        })
+    })
+
+    const stopping = channelManager.stop()
+    await vi.waitFor(() => expect(releaseDelivery).toBeTypeOf('function'))
+    expect(createdAdapters[0].disconnect).not.toHaveBeenCalled()
+
+    releaseDelivery()
+    await stopping
+    expect(createdAdapters[0].disconnect).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects new terminal deliveries after shutdown starts', async () => {
+    vi.mocked(channelService.listChannels).mockReturnValueOnce([])
+    await channelManager.start()
+    await channelManager.stop()
+
+    const accepted = channelManager.enqueueTerminalDelivery({
+      id: 'delivery-after-stop',
+      channelId: 'ch-1',
+      chatId: 'chat-1',
+      event: 'done',
+      deliver: vi.fn().mockResolvedValue(undefined)
+    })
+
+    expect(accepted).toBe(false)
+  })
+
   it('disconnectAgent disconnects all adapters for agent and clears session tracker', async () => {
     vi.mocked(channelService.listChannels).mockReturnValueOnce([
       makeChannelRow({ id: 'ch-1', config: { bot_token: 'tok1' } }),

@@ -19,6 +19,7 @@ const {
   mockAbort,
   mockRemoveListener,
   mockGetAdapter,
+  mockEnqueueTerminalDelivery,
   mockStartRun,
   mockBindTaskSessionReuse,
   mockIsSessionBusy,
@@ -29,6 +30,10 @@ const {
     mockAbort: vi.fn(),
     mockRemoveListener: vi.fn(),
     mockGetAdapter: vi.fn(() => undefined),
+    mockEnqueueTerminalDelivery: vi.fn((delivery: { deliver: () => Promise<void> }) => {
+      void delivery.deliver()
+      return true
+    }),
     mockStartRun: vi.fn(async (opts: { listeners: typeof captured.listeners }) => {
       captured.listeners = opts.listeners
       return { mode: 'started' as const }
@@ -44,7 +49,7 @@ vi.mock('@application', async () => {
   return mod.mockApplicationFactory({
     // ChannelManager + AiStreamManager aren't in the default mock service set; the
     // streaming path (post heartbeat-skip) reads both, so wire minimal stubs here.
-    ChannelManager: { getAdapter: mockGetAdapter },
+    ChannelManager: { getAdapter: mockGetAdapter, enqueueTerminalDelivery: mockEnqueueTerminalDelivery },
     AiStreamManager: { abort: mockAbort, removeListener: mockRemoveListener },
     AgentJobsService: { bindTaskSessionReuse: mockBindTaskSessionReuse },
     // Gate that keeps a reusing fire off a session with a live turn.
@@ -218,6 +223,7 @@ describe('runAgentTask', () => {
     mockAbort.mockClear()
     mockRemoveListener.mockClear()
     mockGetAdapter.mockClear()
+    mockEnqueueTerminalDelivery.mockClear()
     captured.listeners = []
   })
 
@@ -592,6 +598,7 @@ describe('runAgentTask', () => {
     expect(mockGetAdapter).toHaveBeenCalledTimes(1)
     expect(mockGetAdapter).toHaveBeenCalledWith('ch-match')
     expect(captured.listeners).toHaveLength(2)
+    expect(mockEnqueueTerminalDelivery).toHaveBeenCalledTimes(1)
   })
 
   // agents-jobs-4: on a non-abort error, a subscribed channel must be notified exactly
@@ -626,6 +633,7 @@ describe('runAgentTask', () => {
     await expect(promise).rejects.toThrow('boom')
 
     // Exactly one channel message, and it's the task-framed summary — not the bare `Error: …`.
+    expect(mockEnqueueTerminalDelivery).toHaveBeenCalledTimes(1)
     expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
     expect(adapter.sendMessage.mock.calls[0][1]).toContain('[Task failed]')
     expect(adapter.sendMessage.mock.calls[0][1]).not.toMatch(/^Error:/)

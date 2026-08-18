@@ -23,7 +23,6 @@ import type {
 
 class FakeListener implements StreamListener {
   readonly id: string
-  terminalDispatch?: 'control' | 'delivery'
   chunks: UIMessageChunk[] = []
   /** Second argument of each onChunk call, indexed by chunk position. */
   chunkSources: Array<string | undefined> = []
@@ -1616,42 +1615,6 @@ describe('AiStreamManager', () => {
       // Both listeners received onDone despite thrower throwing
       expect(thrower.doneResults).toHaveLength(1)
       expect(receiver.doneResults).toHaveLength(1)
-    })
-
-    it('advances local terminal work without waiting for channel delivery', async () => {
-      let releaseDelivery!: () => void
-      const delivery = new FakeListener('channel:a')
-      delivery.terminalDispatch = 'delivery'
-      delivery.onDoneImpl = () =>
-        new Promise<void>((resolve) => {
-          releaseDelivery = resolve
-        })
-      const renderer = new FakeListener('wc:a')
-
-      startSingle(mgr, {
-        topicId: 'a',
-        modelId: 'provider-a::model-a',
-        request: req('a'),
-        listeners: [delivery, renderer],
-        cleanupPorts: [new TraceFlushListener('a')]
-      })
-      await mgr.onExecutionDone('a', 'provider-a::model-a')
-      await Promise.resolve()
-
-      expect(delivery.doneResults).toHaveLength(1)
-      expect(renderer.doneResults).toHaveLength(1)
-      expect(mockSaveSpans).toHaveBeenCalledWith('a')
-
-      let stopped = false
-      const stop = mgr._doStop().then(() => {
-        stopped = true
-      })
-      await Promise.resolve()
-      expect(stopped).toBe(false)
-
-      releaseDelivery()
-      await stop
-      expect(stopped).toBe(true)
     })
 
     it('waits for terminal persistence before notifying renderer listeners', async () => {

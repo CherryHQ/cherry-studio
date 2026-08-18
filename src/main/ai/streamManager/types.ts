@@ -94,8 +94,6 @@ export interface StreamErrorResult {
 export interface StreamListener {
   /** Stable id used for dedup, detach-by-match, and logging. */
   readonly id: string
-  /** Delivery-plane terminal work runs outside the local settlement path. */
-  readonly terminalDispatch?: 'control' | 'delivery'
   onChunk(
     chunk: UIMessageChunk,
     sourceModelId?: UniqueModelId,

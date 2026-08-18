@@ -235,7 +235,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     if (!adapter) return []
     // Suppress the listener's generic `Error: …` — `notifyTaskError` below sends a richer
     // `[Task failed]` summary to the same chats, so leaving it on would double-notify.
-    return adapter.notifyChatIds.map((chatId) => new ChannelAdapterListener(adapter, chatId, true))
+    return adapter.notifyChatIds.map((chatId) => new ChannelAdapterListener(channelManager, adapter, chatId, true))
   })
 
   const { signal: runSignal, dispose } = makeRunSignal(ctx.signal, timeoutMinutes)
@@ -364,7 +364,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     runError = err instanceof Error ? err : new Error(String(err))
     if (!runSignal.aborted && subscribedChannels.length > 0) {
       await notifyTaskError(
-        { id: scheduleId, name: taskName, durationMs: Date.now() - startTimeMs },
+        { deliveryId: ctx.jobId, id: scheduleId, name: taskName, durationMs: Date.now() - startTimeMs },
         runError.message,
         subscribedChannels
       )
@@ -382,7 +382,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
 }
 
 async function notifyTaskError(
-  task: { id: string | null; name: string | null; durationMs: number },
+  task: { deliveryId: string; id: string | null; name: string | null; durationMs: number },
   error: string,
   subscribedChannels: Array<{ id: string }>
 ): Promise<void> {
@@ -396,13 +396,12 @@ async function notifyTaskError(
       const adapter = channelManager.getAdapter(ch.id)
       if (!adapter) continue
       for (const chatId of adapter.notifyChatIds) {
-        adapter.sendMessage(chatId, text).catch((err) => {
-          logger.warn('Failed to deliver task error notification', {
-            scheduleId: task.id,
-            channelId: ch.id,
-            chatId,
-            error: err instanceof Error ? err.message : String(err)
-          })
+        channelManager.enqueueTerminalDelivery({
+          id: `task-error:${task.deliveryId}:${ch.id}:${chatId}`,
+          channelId: ch.id,
+          chatId,
+          event: 'task-error',
+          deliver: () => adapter.sendMessage(chatId, text)
         })
       }
     }

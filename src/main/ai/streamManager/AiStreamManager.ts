@@ -387,8 +387,6 @@ export class AiStreamManager extends BaseService {
    *  `inFlightPersistenceRecoveries` registry serves drain/shutdown only. */
   private readonly activePersistenceRecoveryRuns = new Map<string, Promise<void>>()
   private readonly inFlightPersistenceRecoveries = new Map<Promise<void>, string>()
-  private readonly terminalDeliveryTails = new Map<string, Promise<void>>()
-  private readonly inFlightTerminalDeliveries = new Map<Promise<void>, string>()
   /** Shutdown wins over pause-release compensation (same posture as JobManager). */
   private isShuttingDown = false
   /** Constructed once and reused — `dispatchStreamRequest` passes it through `send()`. */
@@ -703,7 +701,6 @@ export class AiStreamManager extends BaseService {
 
     await Promise.allSettled(loopPromises)
     await Promise.allSettled([...this.inFlightPersistenceRecoveries.keys()])
-    await Promise.allSettled([...this.inFlightTerminalDeliveries.keys()])
   }
 
   // ── Public: unified send ──────────────────────────────────────────
@@ -2919,10 +2916,6 @@ export class AiStreamManager extends BaseService {
     if (listeners) {
       for (const listener of listeners) {
         if (!listener.isAlive()) continue
-        if (listener.terminalDispatch === 'delivery') {
-          this.enqueueTerminalDelivery(stream, event, listener, invoke)
-          continue
-        }
         try {
           await invoke(listener)
         } catch (err) {
@@ -2937,10 +2930,6 @@ export class AiStreamManager extends BaseService {
         dead.push(id)
         continue
       }
-      if (listener.terminalDispatch === 'delivery') {
-        this.enqueueTerminalDelivery(stream, event, listener, invoke)
-        continue
-      }
       try {
         await invoke(listener)
       } catch (err) {
@@ -2948,32 +2937,6 @@ export class AiStreamManager extends BaseService {
       }
     }
     for (const id of dead) stream.listeners.delete(id)
-  }
-
-  private enqueueTerminalDelivery(
-    stream: ActiveStream,
-    event: 'onDone' | 'onPaused' | 'onError',
-    listener: StreamListener,
-    invoke: (listener: StreamListener) => void | Promise<void>
-  ): void {
-    const previous = this.terminalDeliveryTails.get(listener.id) ?? Promise.resolve()
-    const delivery = previous
-      .catch(() => {})
-      .then(async () => {
-        try {
-          if (!listener.isAlive()) return
-          await invoke(listener)
-        } catch (err) {
-          logger.warn('Delivery listener threw', { topicId: stream.topicId, listenerId: listener.id, event, err })
-        }
-      })
-    this.terminalDeliveryTails.set(listener.id, delivery)
-    this.inFlightTerminalDeliveries.set(delivery, `delivery:${listener.id}`)
-    const cleanup = () => {
-      this.inFlightTerminalDeliveries.delete(delivery)
-      if (this.terminalDeliveryTails.get(listener.id) === delivery) this.terminalDeliveryTails.delete(listener.id)
-    }
-    delivery.then(cleanup, cleanup)
   }
 
   private async dispatchToPersistencePorts(

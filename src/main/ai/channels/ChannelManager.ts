@@ -14,6 +14,19 @@ import { channelMessageHandler } from './ChannelMessageHandler'
 import type { ChannelLogEntry, ChannelStatusEvent } from './types'
 
 const logger = loggerService.withContext('ChannelManager')
+const TERMINAL_DELIVERY_DEDUP_LIMIT = 4096
+
+export type ChannelTerminalDelivery = {
+  id: string
+  channelId: string
+  chatId: string
+  event: 'done' | 'paused' | 'error' | 'task-error'
+  deliver: () => Promise<void>
+}
+
+export interface ChannelTerminalDeliveryOwner {
+  enqueueTerminalDelivery(delivery: ChannelTerminalDelivery): boolean
+}
 
 // Adapter factory registry -- adapters register themselves here. The factory
 // for a given channel type receives the matching variant of the discriminated
@@ -55,7 +68,7 @@ async function ensureAdapterLoaded(type: AgentChannelType): Promise<void> {
 @Injectable('ChannelManager')
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['WindowManager'])
-export class ChannelManager extends BaseService {
+export class ChannelManager extends BaseService implements ChannelTerminalDeliveryOwner {
   private readonly adapters = new Map<string, ChannelAdapter>() // key: `${agentId}:${channelId}`
   private readonly qrWaiters = new Map<
     string,
@@ -63,6 +76,11 @@ export class ChannelManager extends BaseService {
   >()
   private readonly channelLogs = new ChannelLogBuffer()
   private readonly channelStatuses = new Map<string, ChannelStatusEvent>()
+  private readonly terminalDeliveryTails = new Map<string, Promise<void>>()
+  private readonly inFlightTerminalDeliveries = new Map<Promise<void>, ChannelTerminalDelivery>()
+  private readonly terminalDeliveryIds = new Set<string>()
+  private readonly blockedDeliveryChannelIds = new Set<string>()
+  private acceptingTerminalDeliveries = false
 
   protected async onReady(): Promise<void> {
     await this.start()
@@ -93,6 +111,9 @@ export class ChannelManager extends BaseService {
   }
 
   async start(): Promise<void> {
+    this.acceptingTerminalDeliveries = true
+    this.blockedDeliveryChannelIds.clear()
+
     let channels: Awaited<ReturnType<typeof channelService.listChannels>>
     try {
       channels = channelService.listChannels()
@@ -116,6 +137,8 @@ export class ChannelManager extends BaseService {
 
   async stop(): Promise<void> {
     logger.info('Stopping channel manager')
+    this.acceptingTerminalDeliveries = false
+    await this.drainTerminalDeliveries()
     const disconnects = Array.from(this.adapters.values()).map((adapter) =>
       adapter.disconnect().catch((err) => {
         logger.warn('Error disconnecting adapter', {
@@ -127,7 +150,73 @@ export class ChannelManager extends BaseService {
     )
     await Promise.all(disconnects)
     this.adapters.clear()
+    this.terminalDeliveryTails.clear()
+    this.inFlightTerminalDeliveries.clear()
+    this.terminalDeliveryIds.clear()
+    this.blockedDeliveryChannelIds.clear()
     logger.info('Channel manager stopped')
+  }
+
+  /**
+   * Accept terminal channel work without holding the stream settlement path.
+   * One owner serializes sends per channel chat and drains them before adapter teardown.
+   */
+  enqueueTerminalDelivery(delivery: ChannelTerminalDelivery): boolean {
+    if (!this.acceptingTerminalDeliveries || this.blockedDeliveryChannelIds.has(delivery.channelId)) {
+      logger.warn('Rejected terminal channel delivery: channel is stopping', {
+        deliveryId: delivery.id,
+        channelId: delivery.channelId,
+        chatId: delivery.chatId,
+        event: delivery.event
+      })
+      return false
+    }
+    if (this.terminalDeliveryIds.has(delivery.id)) {
+      logger.warn('Ignored duplicate terminal channel delivery', {
+        deliveryId: delivery.id,
+        channelId: delivery.channelId,
+        chatId: delivery.chatId,
+        event: delivery.event
+      })
+      return false
+    }
+
+    this.terminalDeliveryIds.add(delivery.id)
+    if (this.terminalDeliveryIds.size > TERMINAL_DELIVERY_DEDUP_LIMIT) {
+      const oldestId = this.terminalDeliveryIds.values().next().value
+      if (oldestId) this.terminalDeliveryIds.delete(oldestId)
+    }
+    const key = `${delivery.channelId}\0${delivery.chatId}`
+    const previous = this.terminalDeliveryTails.get(key) ?? Promise.resolve()
+    const queued = previous.then(async () => {
+      try {
+        await delivery.deliver()
+      } catch (error) {
+        logger.error('Failed to deliver terminal message to channel', {
+          deliveryId: delivery.id,
+          channelId: delivery.channelId,
+          chatId: delivery.chatId,
+          event: delivery.event,
+          error
+        })
+      }
+    })
+
+    this.terminalDeliveryTails.set(key, queued)
+    this.inFlightTerminalDeliveries.set(queued, delivery)
+    const cleanup = () => {
+      this.inFlightTerminalDeliveries.delete(queued)
+      if (this.terminalDeliveryTails.get(key) === queued) this.terminalDeliveryTails.delete(key)
+    }
+    queued.then(cleanup, cleanup)
+    return true
+  }
+
+  private async drainTerminalDeliveries(channelIds?: ReadonlySet<string>): Promise<void> {
+    const pending = [...this.inFlightTerminalDeliveries.entries()]
+      .filter(([, delivery]) => !channelIds || channelIds.has(delivery.channelId))
+      .map(([delivery]) => delivery)
+    if (pending.length > 0) await Promise.allSettled(pending)
   }
 
   /**
@@ -200,6 +289,8 @@ export class ChannelManager extends BaseService {
   /** Disconnect the adapter for a single channel without reconnecting. */
   async disconnectChannel(channelId: string, options: { suppressErrors?: boolean } = {}): Promise<void> {
     const { suppressErrors = true } = options
+    this.blockedDeliveryChannelIds.add(channelId)
+    await this.drainTerminalDeliveries(new Set([channelId]))
     for (const [key, adapter] of this.adapters) {
       if (adapter.channelId !== channelId) continue
 
@@ -245,6 +336,9 @@ export class ChannelManager extends BaseService {
    */
   async disconnectAgent(agentId: string): Promise<void> {
     const toDisconnect = [...this.adapters.entries()].filter(([, a]) => a.agentId === agentId)
+    const channelIds = new Set(toDisconnect.map(([, adapter]) => adapter.channelId))
+    for (const channelId of channelIds) this.blockedDeliveryChannelIds.add(channelId)
+    await this.drainTerminalDeliveries(channelIds)
     await Promise.all(
       toDisconnect.map(([key, adapter]) =>
         adapter
@@ -396,6 +490,7 @@ export class ChannelManager extends BaseService {
       // Register adapter immediately so it's discoverable. Callers can either
       // await connect for strict workflows or leave it in the background.
       this.adapters.set(key, adapter)
+      this.blockedDeliveryChannelIds.delete(row.id)
 
       const connect = async () => {
         try {

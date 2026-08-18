@@ -824,7 +824,10 @@ export class ChannelMessageHandler {
       await startAgentSessionRun({
         sessionId: session.id,
         userParts: [{ type: 'text', text: content }],
-        listeners: [sentinel, new ChannelAdapterListener(adapter, chatId, false, replyToMessageId)],
+        listeners: [
+          sentinel,
+          new ChannelAdapterListener(application.get('ChannelManager'), adapter, chatId, false, replyToMessageId)
+        ],
         headless: true
       })
     } finally {
