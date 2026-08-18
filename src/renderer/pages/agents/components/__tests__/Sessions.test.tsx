@@ -997,7 +997,7 @@ describe('Sessions', () => {
     expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
   })
 
-  it('keeps the header new task action enabled without agents and shows missing-agent selection', () => {
+  it('passes the header creation defaults through when there are no agents', () => {
     const onCreateSession = vi.fn()
     const onShowMissingAgentSelection = vi.fn()
     setupSessions({ sessions: [] })
@@ -1017,8 +1017,11 @@ describe('Sessions', () => {
 
     fireEvent.click(newTaskButton)
 
-    expect(onShowMissingAgentSelection).toHaveBeenCalledTimes(1)
-    expect(onCreateSession).not.toHaveBeenCalled()
+    expect(onCreateSession).toHaveBeenCalledWith({
+      agentId: null,
+      workspace: { type: 'system' }
+    })
+    expect(onShowMissingAgentSelection).not.toHaveBeenCalled()
   })
 
   it('uses only the redesigned search control in right panel mode', () => {
@@ -1568,7 +1571,7 @@ describe('Sessions', () => {
       ]
     })
 
-    const view = render(<SessionsForTest />)
+    const view = render(<SessionsForTest onCreateSession={vi.fn()} />)
 
     const betaGroupButton = screen.getByRole('button', { name: 'Beta agent' })
     expect(groupChevron(betaGroupButton)).toHaveAttribute('aria-expanded', 'true')
@@ -1839,7 +1842,7 @@ describe('Sessions', () => {
     expect(within(todayHeader as HTMLElement).queryByRole('button', { name: 'New task' })).not.toBeInTheDocument()
   })
 
-  it('requests a new session from the header without creating inline', async () => {
+  it('requests a new session from the header without creating inline', () => {
     const onCreateSession = vi.fn()
     dataApiMocks.workspaces = [
       makeWorkspace('/Users/jd/project-b', { id: 'ws-b', name: 'Project B Workspace', orderKey: 'a' }),
@@ -1883,7 +1886,6 @@ describe('Sessions', () => {
       agentId: 'agent-b',
       workspace: { type: 'user', workspaceId: 'ws-b' }
     })
-    await vi.waitFor(() => expect(cacheMocks.setActiveSessionId).toHaveBeenCalledWith(null, null))
   })
 
   it('reveals a history-selected session hidden by search and show-more with row focus', async () => {
@@ -3396,7 +3398,7 @@ describe('Sessions', () => {
       sessions: [createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' })]
     })
 
-    render(<SessionsForTest />)
+    render(<SessionsForTest onCreateSession={vi.fn()} />)
 
     expect(pinMocks.usePins).toHaveBeenCalledWith('agent', { enabled: true })
     const agentGroup = screen.getByRole('button', { name: 'Alpha agent' }).closest('div')
