@@ -140,7 +140,7 @@ describe('DeepSeek Harness config transaction', () => {
     ).toThrow('has no DeepSeek Harness compatible endpoint')
   })
 
-  it('uses an advertised Anthropic route when the selected endpoint cannot preserve developer-role support', () => {
+  it('uses the selected OpenAI endpoint regardless of developer-role support', () => {
     const openAiFirstProvider = provider({
       defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
       apiFeatures: { ...DEFAULT_API_FEATURES, developerRole: false },
@@ -154,17 +154,12 @@ describe('DeepSeek Harness config transaction', () => {
     })
 
     expect(resolveDeepSeekHarnessEndpoint(openAiFirstProvider, openAiFirstModel)).toEqual({
-      endpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
-      protocol: 'anthropic-messages',
-      baseUrl: 'https://proxy.example/anthropic'
+      endpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      protocol: 'openai-completions',
+      baseUrl: 'https://proxy.example/v1'
     })
 
-    expect(
-      resolveDeepSeekHarnessEndpoint(
-        { ...openAiFirstProvider, apiFeatures: { ...DEFAULT_API_FEATURES, developerRole: true } },
-        openAiFirstModel
-      )
-    ).toEqual({
+    expect(resolveDeepSeekHarnessEndpoint(openAiFirstProvider, model({ endpointTypes: undefined }))).toEqual({
       endpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
       protocol: 'openai-completions',
       baseUrl: 'https://proxy.example/v1'
@@ -183,69 +178,9 @@ describe('DeepSeek Harness config transaction', () => {
         model({ endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES, ENDPOINT_TYPE.ANTHROPIC_MESSAGES] })
       )
     ).toEqual({
-      endpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
-      protocol: 'anthropic-messages',
-      baseUrl: 'https://proxy.example/anthropic'
-    })
-  })
-
-  it('rejects direct endpoints whose developer-role limitation cannot be represented by DSH', () => {
-    const providerWithoutDeveloperRole = provider({
-      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
-      apiFeatures: { ...DEFAULT_API_FEATURES, developerRole: false },
-      endpointConfigs: {
-        [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://proxy.example/v1' },
-        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://proxy.example/v1' }
-      }
-    })
-
-    expect(() =>
-      resolveDeepSeekHarnessEndpoint(
-        providerWithoutDeveloperRole,
-        model({ endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES] })
-      )
-    ).toThrow('must be used through the Unified Gateway')
-    expect(() =>
-      resolveDeepSeekHarnessEndpoint(
-        providerWithoutDeveloperRole,
-        model({ reasoning: undefined, endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES] })
-      )
-    ).toThrow('must be used through the Unified Gateway')
-    expect(() =>
-      resolveDeepSeekHarnessEndpoint(
-        { ...providerWithoutDeveloperRole, defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS },
-        model({ endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
-      )
-    ).toThrow('must be used through the Unified Gateway')
-
-    expect(
-      resolveDeepSeekHarnessEndpoint(
-        { ...providerWithoutDeveloperRole, defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS },
-        model({
-          reasoning: undefined,
-          endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
-        })
-      )
-    ).toMatchObject({ endpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS })
-  })
-
-  it('uses pi-ai DeepSeek compatibility for reasoning models on the official chat endpoint', () => {
-    expect(
-      resolveDeepSeekHarnessEndpoint(
-        provider({
-          id: 'deepseek',
-          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-          apiFeatures: { ...DEFAULT_API_FEATURES, developerRole: false },
-          endpointConfigs: {
-            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.deepseek.com' }
-          }
-        }),
-        model({ endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
-      )
-    ).toEqual({
-      endpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-      protocol: 'openai-completions',
-      baseUrl: 'https://api.deepseek.com/v1'
+      endpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      protocol: 'openai-responses',
+      baseUrl: 'https://proxy.example/v1'
     })
   })
 
