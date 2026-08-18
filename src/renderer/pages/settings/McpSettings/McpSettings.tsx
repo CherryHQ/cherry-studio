@@ -113,6 +113,21 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
     }
   }, [watchedServerType])
 
+  const markCapabilityLoaded = (tab: Extract<TabKey, 'tools' | 'prompts' | 'resources'>) => {
+    if (loadedCapabilityTabsRef.current?.serverId !== server.id) {
+      loadedCapabilityTabsRef.current = { serverId: server.id, tabs: new Set() }
+    }
+    loadedCapabilityTabsRef.current.tabs.add(tab)
+  }
+
+  const unmarkCapabilityLoaded = (tab: Extract<TabKey, 'tools' | 'prompts' | 'resources'>) => {
+    if (loadedCapabilityTabsRef.current?.serverId !== server.id) return
+    loadedCapabilityTabsRef.current.tabs.delete(tab)
+  }
+
+  const wasCapabilityLoaded = (tab: Extract<TabKey, 'tools' | 'prompts' | 'resources'>) =>
+    loadedCapabilityTabsRef.current?.serverId === server.id && loadedCapabilityTabsRef.current.tabs.has(tab)
+
   const fetchTools = async () => {
     if (server?.isActive) {
       try {
@@ -120,6 +135,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
         await ipcApi.request('mcp.server.refresh_tools', { serverId: server.id })
       } catch (error) {
         logger.error('Failed to list MCP tools', error as Error)
+        unmarkCapabilityLoaded('tools')
       } finally {
         setLoadingServer(null)
       }
@@ -135,6 +151,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
       } catch (error) {
         logger.error('Failed to list MCP prompts', error as Error)
         setPrompts([])
+        unmarkCapabilityLoaded('prompts')
       } finally {
         setLoadingServer(null)
       }
@@ -150,6 +167,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
       } catch (error) {
         logger.error('Failed to list MCP resources', error as Error)
         setResources([])
+        unmarkCapabilityLoaded('resources')
       } finally {
         setLoadingServer(null)
       }
@@ -167,16 +185,6 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
       }
     }
   }
-
-  const markCapabilityLoaded = (tab: Extract<TabKey, 'tools' | 'prompts' | 'resources'>) => {
-    if (loadedCapabilityTabsRef.current?.serverId !== server.id) {
-      loadedCapabilityTabsRef.current = { serverId: server.id, tabs: new Set() }
-    }
-    loadedCapabilityTabsRef.current.tabs.add(tab)
-  }
-
-  const wasCapabilityLoaded = (tab: Extract<TabKey, 'tools' | 'prompts' | 'resources'>) =>
-    loadedCapabilityTabsRef.current?.serverId === server.id && loadedCapabilityTabsRef.current.tabs.has(tab)
 
   useEffect(() => {
     if (!server?.isActive) {
