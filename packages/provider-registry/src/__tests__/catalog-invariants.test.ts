@@ -34,6 +34,16 @@ const models = modelsRaw.models as Array<{
   inputModalities?: string[]
   outputModalities?: string[]
   ownedBy?: string
+  imageGeneration?: {
+    modes?: {
+      generate?: {
+        supports?: {
+          aspectRatio?: { default?: string; options?: string[]; render?: string; type?: string }
+          imageResolution?: { default?: string; options?: string[]; render?: string; type?: string }
+        }
+      }
+    }
+  }
 }>
 const overrides = providerModelsRaw.overrides as Array<{
   providerId: string
@@ -65,6 +75,24 @@ describe('catalog invariants (data/*.json)', () => {
       ownedBy
     })
   })
+
+  it.each(['gemini-3-1-flash-image', 'gemini-3-1-flash-image-preview'])(
+    'keeps smart aspect ratio and explicit resolution controls for %s',
+    (modelId) => {
+      const supports = models.find((model) => model.id === modelId)?.imageGeneration?.modes?.generate?.supports
+
+      expect(supports?.aspectRatio).toMatchObject({
+        default: 'auto',
+        options: expect.arrayContaining(['auto', 'ASPECT_1_1'])
+      })
+      expect(supports?.imageResolution).toEqual({
+        default: 'auto',
+        options: ['auto', '1K', '2K', '4K'],
+        render: 'chips',
+        type: 'enum'
+      })
+    }
+  )
 
   // `listProviderPresetModels` sends `apiModelId ?? modelId` on the wire, so a row whose canonical key
   // is not the served id must carry `apiModelId` — otherwise the canonical spelling (`glm-5-2` for
