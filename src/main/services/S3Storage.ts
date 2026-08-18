@@ -24,15 +24,8 @@ const PUT_MAX_ATTEMPTS = 3
 // 需要使用 Virtual Host-Style 的服务商域名后缀白名单
 const VIRTUAL_HOST_SUFFIXES = ['aliyuncs.com', 'myqcloud.com', 'qiniucs.com', 'volces.com']
 
-/**
- * 使用 AWS SDK v3 的简单 S3 封装，兼容之前 RemoteStorage 的最常用接口。
- */
-/**
- * What this class actually needs. `S3StorageConfig` also carries `autoSync` /
- * `syncInterval` / `maxBackups`, which are scheduling and rotation policy — no
- * business of a storage client.
- */
-export type S3StorageConfig = {
+/** What this storage client needs; scheduling and rotation belong elsewhere. */
+export interface S3StorageConfig {
   endpoint: string
   region: string
   bucket: string
