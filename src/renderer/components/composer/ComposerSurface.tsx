@@ -99,12 +99,26 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
     [props.draftTokens, props.text, props.tokens]
   )
 
-  // The fallback cannot rebase token offsets or render the editing header, so hand those states
-  // straight to the runtime instead of serving them badly.
-  const needsRuntime = Boolean(props.editingState) || Boolean(props.draftTokens?.length)
+  // The fallback cannot rebase token offsets, render the editing header, grow beyond its fixed
+  // two-line box, or represent structural variants, so hand those states to the runtime instead.
+  const needsRuntime =
+    Boolean(props.editingState) ||
+    Boolean(props.draftTokens?.length) ||
+    props.text.trim().length > 0 ||
+    Boolean(props.compactWhenSingleLine) ||
+    props.isExpanded
   useEffect(() => {
     if (needsRuntime) requestRuntime()
   }, [needsRuntime, requestRuntime])
+
+  // Swap while the app is idle rather than under the user's first keystroke: a swap that lands
+  // between a keydown and its character insertion drops that character, and no hand-off inside
+  // the runtime can recover it. Idle work stays off the first-paint path this fallback protects.
+  useEffect(() => {
+    if (Runtime || !window.requestIdleCallback) return
+    const idleId = window.requestIdleCallback(() => requestRuntime())
+    return () => window.cancelIdleCallback(idleId)
+  }, [Runtime, requestRuntime])
 
   useEffect(() => {
     if (Runtime || !props.onActionsChange) return
@@ -131,6 +145,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
       },
       onTextChange: updateText,
       replaceDraft: (draft) => {
+        selectionRef.current = { start: draft.text.length, end: draft.text.length }
         props.onTextChange(draft.text)
         updateTokens(draft.tokens)
       },
@@ -177,7 +192,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
   }
 
   const navigateInputHistory = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
-    if (!props.isInputHistoryActive || !props.onInputHistoryNavigate) return false
+    if (!props.onInputHistoryNavigate) return false
     if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return false
     if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || event.nativeEvent.isComposing) return false
 
@@ -185,7 +200,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
     const isAllSelected =
       input.value.length > 0 && input.selectionStart === 0 && input.selectionEnd === input.value.length
     const isAtBoundary =
-      event.key === 'ArrowUp' ? input.selectionStart === 0 : input.selectionEnd === input.value.length
+      event.key === 'ArrowUp' ? input.selectionStart === input.value.length : input.selectionEnd === input.value.length
     if (!(props.text.trim().length === 0 || isAllSelected || isAtBoundary)) return false
 
     return props.onInputHistoryNavigate(event.key === 'ArrowUp' ? 'up' : 'down')
@@ -256,7 +271,11 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
             requestRuntime()
           }}
           onFocus={() => {
+            intentRef.current.hadFocus = true
             props.onFocus?.()
+            // Start the rich runtime on focus, not on the first key: with a warm chunk the swap
+            // would otherwise commit before the keystroke's input event, dropping the character.
+            requestRuntime()
           }}
           onSelect={updateSelection}
           onPaste={(event) => {

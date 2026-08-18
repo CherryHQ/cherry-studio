@@ -209,7 +209,8 @@
       "type": "Icône de l'agent"
     },
     "input": {
-      "placeholder": "Entrez votre message ici, envoyez avec {{key}} - @ sélectionner le chemin, / sélectionner la commande"
+      "placeholder": "Entrez votre message ici, envoyez avec {{key}} - @ sélectionner le chemin, / sélectionner la commande",
+      "placeholder_streaming": "L'Agent est actif — {{sendKey}} met une suite en attente, {{steerKey}} l'oriente immédiatement."
     },
     "list": {
       "error": {
@@ -662,13 +663,16 @@
           },
           "auto": {
             "description": "S'exécute sans demandes de routine. Un contrôle de sécurité bloque les actions risquées.",
+            "description_pi": "Fonctionne de manière autonome. Demande confirmation en cas d'action à risque.",
             "title": "Approuver pour moi",
-            "warning": "Nécessite un modèle compatible ; les autres peuvent l'ignorer ou continuer à demander."
+            "warning": "Nécessite un modèle compatible ; les autres peuvent l'ignorer ou continuer à demander.",
+            "warning_pi": "La détection est indicative ; une commande inhabituelle peut tout de même être exécutée."
           },
           "bypassPermissions": {
             "description": "Ignore les contrôles d'autorisation. Peut supprimer des fichiers et utiliser le réseau.",
             "title": "Accès complet",
-            "warning": "Utiliser avec prudence — tous les outils s'exécuteront sans demander d'approbation."
+            "warning": "Utiliser avec prudence — tous les outils s'exécuteront sans demander d'approbation.",
+            "warning_pi": "Dangereux — aucune confirmation n'est demandée, sauf pour les outils désactivés, y compris la suppression de fichiers et l'accès réseau."
           },
           "confirmChange": {
             "description": "Le changement de mode met à jour les outils approuvés automatiquement.",
@@ -1088,17 +1092,37 @@
           "description": "Exécuter des commandes shell",
           "label": "Exécuter des commandes shell"
         },
+        "create_goal": {
+          "description": "Créer un objectif de session à atteindre",
+          "label": "Créer un objectif"
+        },
         "edit": {
           "description": "Modifier des fichiers",
           "label": "Modifier des fichiers"
+        },
+        "exit_plan_mode": {
+          "description": "Soumet le plan à l'examen et quitte le mode planification après approbation",
+          "label": "Quitter le mode planification"
         },
         "find": {
           "description": "Trouver des fichiers",
           "label": "Trouver des fichiers"
         },
+        "get_goal": {
+          "description": "Lire l’objectif de la session en cours",
+          "label": "Lire l’objectif"
+        },
         "grep": {
           "description": "Rechercher dans le contenu des fichiers",
           "label": "Rechercher dans le contenu des fichiers"
+        },
+        "interrupt_agent": {
+          "description": "Arrête le tour en cours d'un sous-agent en arrière-plan",
+          "label": "Interrompre le sous-agent"
+        },
+        "list_agents": {
+          "description": "Répertorie les sous-agents en arrière-plan et leur statut",
+          "label": "Liste des sous-agents"
         },
         "ls": {
           "description": "Lister le contenu du répertoire",
@@ -1107,6 +1131,34 @@
         "read": {
           "description": "Lire des fichiers",
           "label": "Lire des fichiers"
+        },
+        "read_image": {
+          "description": "Lit un fichier PNG, JPEG, WebP ou GIF avec un modèle doté de capacités visuelles",
+          "label": "Lire une image"
+        },
+        "send_message": {
+          "description": "Envoie un message de suivi à un sous-agent en arrière-plan",
+          "label": "Envoyer un message au sous-agent"
+        },
+        "skill": {
+          "description": "Charger les instructions complètes d’une compétence activée",
+          "label": "Charger les instructions de la compétence"
+        },
+        "subagent": {
+          "description": "Délègue une tâche à un sous-agent en arrière-plan susceptible de recevoir des messages ultérieurement",
+          "label": "Délégation au sous-agent"
+        },
+        "subagent_fork": {
+          "description": "Délègue une tâche de suivi à un sous-agent initialisé avec cette conversation",
+          "label": "Bifurquer le sous-agent"
+        },
+        "todo_write": {
+          "description": "Gérer la liste des tâches",
+          "label": "Gérer la liste des tâches"
+        },
+        "update_goal": {
+          "description": "Mettre à jour l’état ou le contenu de l’objectif de session",
+          "label": "Mettre à jour l’objectif"
         },
         "write": {
           "description": "Écrire des fichiers",
@@ -2203,7 +2255,7 @@
     "cli_tool_placeholder": "Sélectionnez l'outil CLI à utiliser",
     "cli_tools": {
       "claude_code": "Claude Code",
-      "deepseek_harness": "[to be translated]:DeepSeek Harness",
+      "deepseek_harness": "DeepSeek Harness",
       "gemini_cli": "Gemini CLI",
       "github_copilot_cli": "CLI GitHub Copilot",
       "kimi_code": "Code Kimi",
@@ -2227,39 +2279,39 @@
     "custom_path_required": "Ce terminal nécessite la configuration d’un chemin personnalisé",
     "custom_path_set": "Paramétrage personnalisé du chemin du terminal réussi",
     "deepseek_harness": {
-      "agent_preset": "[to be translated]:Default agent mode",
+      "agent_preset": "Mode d’agent par défaut",
       "agent_presets": {
         "code": {
-          "description": "[to be translated]:Combines multi-step tool work through the PTC Code Mode SDK for complex coding tasks.",
-          "label": "[to be translated]:PTC Code"
+          "description": "Combine des opérations d’outils en plusieurs étapes via le SDK PTC Code Mode pour les tâches de programmation complexes.",
+          "label": "PTC Code"
         },
         "inherit": {
-          "description": "[to be translated]:Keeps the existing default preset in the shared ~/.dsh settings.",
-          "label": "[to be translated]:Harness default"
+          "description": "Conserve le préréglage par défaut existant dans les paramètres ~/.dsh partagés.",
+          "label": "Harness par défaut"
         },
         "minimal": {
-          "description": "[to be translated]:Uses only a persistent shell and text editor for the smallest tool surface.",
-          "label": "[to be translated]:Minimal"
+          "description": "N’utilise qu’un shell persistant et un éditeur de texte afin de limiter au maximum les outils disponibles.",
+          "label": "Minimal"
         },
         "standard": {
-          "description": "[to be translated]:Full coding agent with files, shell, search, skills, planning, and subagents.",
-          "label": "[to be translated]:Standard"
+          "description": "Agent de programmation complet avec fichiers, shell, recherche, compétences, planification et sous-agents.",
+          "label": "Standard"
         }
       },
-      "danger_warning": "[to be translated]:Full access lets the agent reach files outside the workspace and skips operation approval. Use it only for tasks you trust.",
-      "permission_mode": "[to be translated]:Default permission",
+      "danger_warning": "L’accès complet permet à l’agent d’accéder aux fichiers en dehors de l’espace de travail et ignore l’approbation des opérations. Utilisez-le uniquement pour des tâches fiables.",
+      "permission_mode": "Autorisation par défaut",
       "permission_modes": {
         "danger-full-access": {
-          "description": "[to be translated]:Allows unrestricted access without operation approval.",
-          "label": "[to be translated]:Full access"
+          "description": "Autorise un accès sans restriction et sans approbation des opérations.",
+          "label": "Accès complet"
         },
         "read-only": {
-          "description": "[to be translated]:Restricts file writes and asks before risky operations.",
-          "label": "[to be translated]:Read only"
+          "description": "Restreint l’écriture de fichiers et demande confirmation avant les opérations risquées.",
+          "label": "Lecture seule"
         },
         "workspace-write": {
-          "description": "[to be translated]:Allows writes in the current DSH workspace and asks before risky operations.",
-          "label": "[to be translated]:Workspace write"
+          "description": "Autorise l’écriture dans l’espace de travail DSH actuel et demande confirmation avant les opérations risquées.",
+          "label": "Écriture dans l’espace de travail"
         }
       }
     },
@@ -2313,7 +2365,7 @@
     "no_tools": "Aucun outil disponible",
     "not_installed": "Non installé",
     "open_provider_settings": "Ouvrir les paramètres du fournisseur",
-    "open_web_ui": "[to be translated]:Open Web UI",
+    "open_web_ui": "Ouvrir l’interface Web",
     "own_login": {
       "title": "{{toolName}} Officiel"
     },
@@ -2323,10 +2375,10 @@
     "search_provider_placeholder": "Rechercher des fournisseurs…",
     "select_folder": "Sélectionner le dossier",
     "select_provider_before_launch": "Sélectionnez un fournisseur avant de lancer {{toolName}}",
-    "select_provider_model": "[to be translated]:Please select a provider and model first",
+    "select_provider_model": "Veuillez d’abord sélectionner un fournisseur et un modèle",
     "select_tool_to_start": "Sélectionnez un outil CLI à gauche pour commencer la configuration",
     "set_custom_path": "Définir un chemin de terminal personnalisé",
-    "stop": "[to be translated]:Stop",
+    "stop": "Arrêter",
     "supported_providers": "fournisseurs pris en charge",
     "terminal": "Terminal",
     "terminal_hint": "Choisissez l'application de terminal dans laquelle exécuter le CLI",
@@ -2642,7 +2694,6 @@
       "503": "Service indisponible, veuillez réessayer plus tard.",
       "504": "Délai d'expiration de la passerelle, veuillez réessayer plus tard."
     },
-    "image_unreadable_for_non_vision_model": "Le modèle sélectionné ne prend pas en charge les images, et Cherry Studio n'a pas pu extraire de texte lisible de la pièce jointe. Choisissez un modèle compatible avec la vision ou supprimez l'image et réessayez.",
     "lastError": "Dernière erreur",
     "maxEmbeddingsPerCall": "Nombre maximal d'embeddings par appel",
     "message": "Erreur message",
@@ -3193,6 +3244,8 @@
         "delete_confirm_title": "Supprimer les sources de données sélectionnées ?",
         "loaded_only_hint": "S'applique uniquement aux éléments chargés ({{total}} au total)",
         "reindex": "Réindexer",
+        "reindex_none_eligible": "Toutes les sources de données sélectionnées sont en cours de traitement et ne peuvent pas encore être réindexées",
+        "reindex_skipped": "Ignoré {{count}} source(s) de données en cours de traitement",
         "selected_count": "{{count}} sélectionné"
       },
       "chunks_count": "{{count}} morceaux",
@@ -3526,11 +3579,13 @@
             "label": "Mode d’exécution",
             "option": {
               "claude_code": "Avancé : Claude Agent",
+              "dsh": "DeepSeek Harness",
               "pi": "Rapide : Pi"
             },
-            "selected": {
-              "claude_code": "Avancé",
-              "pi": "Rapide"
+            "option_description": {
+              "claude_code": "Plus performant — mode planification et modèles par niveau",
+              "dsh": "Compatibilité étendue avec les fournisseurs et exécution orientée objectifs",
+              "pi": "Réponses plus rapides, moindre surcharge"
             }
           },
           "small_model": {
@@ -7163,6 +7218,7 @@
         "no": "sans description",
         "nowledge_mem": "Nécessite l’application Nowledge Mem exécutée localement. Conserve les discussions IA, outils, notes, agents et fichiers dans une mémoire privée sur votre ordinateur. Téléchargez depuis https://mem.nowledge.co/",
         "python": "Exécutez du code Python dans un environnement bac à sable sécurisé. Utilisez Pyodide pour exécuter Python, prenant en charge la plupart des bibliothèques standard et des packages de calcul scientifique.",
+        "qveris": "Connectez-vous à QVeris pour découvrir, inspecter et appeler des capacités d’agents IA. Nécessite de configurer la variable d’environnement QVERIS_API_KEY.",
         "sequentialthinking": "Un serveur MCP qui fournit des outils permettant une résolution dynamique et réflexive des problèmes à travers un processus de pensée structuré"
       },
       "command": "Commande",
@@ -7282,6 +7338,10 @@
       "providerPlaceholder": "Nom du fournisseur",
       "providerUrl": "URL du fournisseur",
       "providers": "Fournisseurs",
+      "qveris": {
+        "get_api_key": "Obtenir une clé API",
+        "missing_api_key": "QVeris nécessite une clé API. <link>Inscrivez-vous ou connectez-vous pour obtenir une clé API</link>, puis saisissez-la comme QVERIS_API_KEY."
+      },
       "registry": "Registre de paquets",
       "registryDefault": "Par défaut",
       "registryOptions": {
@@ -7412,8 +7472,11 @@
         "confirm_delete_message": "Confirmer avant de supprimer le message",
         "confirm_regenerate_message": "Confirmer avant de régénérer le message",
         "enable_quick_triggers": "Activer les menus rapides avec '/' et '@'",
+        "newline_shortcuts": "Raccourci pour saut de ligne",
         "send_shortcuts": "Raccourcis d'envoi",
         "show_estimated_tokens": "Afficher le nombre estimatif de tokens",
+        "steer_shortcuts": "Raccourci d'orientation",
+        "steer_shortcuts_hint": "Lorsqu'un Agent est en cours d'exécution, cela envoie immédiatement votre message dans le tour en cours pour l'orienter ; le raccourci d'envoi le met en file d'attente jusqu'à la fin du tour.",
         "title": "Paramètres d'entrée"
       },
       "layout": {
@@ -9012,5 +9075,18 @@
     "quit": "Quitter",
     "show_window": "Afficher la fenêtre",
     "visualization": "Visualisation"
+  },
+  "xlsx_preview": {
+    "chart": "Graphique",
+    "chart_unsupported": "Ce type de graphique n’est pas encore pris en charge",
+    "error": {
+      "description": "Impossible d’afficher un aperçu de cette feuille de calcul."
+    },
+    "formula_not_evaluated": "Impossible d’évaluer la formule",
+    "sheet_tabs_label": "Feuilles",
+    "too_large": {
+      "description": "La taille du fichier {{size}} dépasse la limite d’aperçu de {{limit}}.",
+      "title": "Fichier trop volumineux pour être prévisualisé"
+    }
   }
 }

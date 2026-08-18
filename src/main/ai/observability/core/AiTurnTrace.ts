@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { convertSpanToSpanEntity } from '@mcp-trace/trace-core/core/spanConvert'
-import type { Attributes, Span, SpanOptions, Tracer } from '@opentelemetry/api'
+import type { Attributes, Span, SpanKind, SpanOptions, TimeInput, Tracer } from '@opentelemetry/api'
 import { ROOT_CONTEXT, SpanStatusCode, trace, TraceFlags } from '@opentelemetry/api'
 import type { ReadableSpan } from '@opentelemetry/sdk-trace-base'
 import { deriveRootSpanId } from '@shared/data/types/trace'
@@ -96,6 +96,67 @@ function buildTurnHandle(rootSpan: Span, meta: AiTurnTraceMeta): AiTurnTraceHand
         turnId: meta.turnId,
         modelName: meta.modelName
       }
+    }
+  }
+}
+
+/**
+ * Provider/tool span under an agent-runtime connection's container trace root.
+ * Returns undefined when the session is untraced (developer mode off), so callers
+ * can treat tracing as entirely optional.
+ */
+export function startAgentRuntimeChildSpan(
+  context: AgentRuntimeTraceContext | undefined,
+  name: string,
+  kind: SpanKind,
+  attributes: Attributes,
+  options?: { startTime?: TimeInput }
+): Span | undefined {
+  if (!context) return undefined
+  try {
+    const parent = trace.setSpanContext(ROOT_CONTEXT, {
+      traceId: context.traceId,
+      spanId: context.rootSpanId,
+      traceFlags: TraceFlags.SAMPLED,
+      isRemote: true
+    })
+    return trace.getTracer(TRACER_NAME).startSpan(
+      name,
+      {
+        kind,
+        ...(options?.startTime !== undefined ? { startTime: options.startTime } : {}),
+        attributes: {
+          ...attributes,
+          'trace.topicId': context.topicId,
+          ...(context.modelName ? { 'trace.modelName': context.modelName } : {}),
+          'cs.agent_session_id': context.sessionId,
+          'cs.agent_turn_id': context.turnId
+        }
+      },
+      parent
+    )
+  } catch (error) {
+    logger.warn(`Failed to start runtime span ${name}`, { error })
+    return undefined
+  }
+}
+
+/** End a runtime child span; never lets a tracing failure escape into the turn. */
+export function endAgentRuntimeSpan(
+  span: Span,
+  status: { code: SpanStatusCode; message?: string },
+  error?: Error
+): void {
+  try {
+    span.setStatus(status)
+    if (error) span.recordException(error)
+  } catch (spanError) {
+    logger.warn('Failed to finalize runtime span metadata', { error: spanError })
+  } finally {
+    try {
+      span.end()
+    } catch (spanError) {
+      logger.warn('Failed to end runtime span', { error: spanError })
     }
   }
 }

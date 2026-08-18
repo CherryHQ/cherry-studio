@@ -4,7 +4,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const inMemoryServerMock = vi.hoisted(() => ({ connect: vi.fn().mockResolvedValue(undefined) }))
 const createInMemoryMcpServer = vi.hoisted(() => vi.fn().mockResolvedValue(inMemoryServerMock))
-vi.mock('@main/ai/mcp/servers/factory', () => ({ createInMemoryMcpServer, getBuiltinRegistryEnv: async () => ({}) }))
+vi.mock('@main/ai/mcp/servers/factory', () => ({
+  createInMemoryMcpServer,
+  getBuiltinRegistryEnv: async () => ({}),
+  getBuiltinHttpHeaders: () => ({})
+}))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -83,6 +87,21 @@ describe('createTransport', () => {
     const sse = (await create({ ...config, type: 'sse' })) as unknown as FakeTransport
     expect(sse.options.requestInit.headers).toMatchObject({ 'X-Title': 'Cherry Studio', APP: 'x' })
     expect(sse.options.eventSourceInit.fetch).toBeTypeOf('function')
+  })
+
+  it('skips the OAuth provider when the server carries its own Authorization header', async () => {
+    const withKey = (await create({
+      type: 'streamableHttp',
+      baseUrl: 'https://mcp.example/mcp',
+      headers: { Authorization: 'Bearer key' }
+    })) as unknown as FakeTransport
+    expect(withKey.options.authProvider).toBeUndefined()
+
+    const withoutKey = (await create({
+      type: 'streamableHttp',
+      baseUrl: 'https://mcp.example/mcp'
+    })) as unknown as FakeTransport
+    expect(withoutKey.options.authProvider).toBe(authProvider)
   })
 
   it('honours the transport override so a fallback attempt uses the other transport', async () => {

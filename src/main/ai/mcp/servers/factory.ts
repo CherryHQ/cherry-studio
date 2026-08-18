@@ -3,10 +3,10 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { getBinaryPath } from '@main/utils/binaryResolver'
-import { sanitizeEnvForLogging } from '@main/utils/envRedaction'
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { type BuiltinMcpServerName, BuiltinMcpServerNames } from '@shared/utils/mcp'
+import { redactRecord } from '@shared/utils/redaction'
 
 const logger = loggerService.withContext('McpFactory')
 
@@ -57,13 +57,27 @@ export async function createInMemoryMcpServer(
   envs: Record<string, string> = {}
 ): Promise<Server> {
   logger.debug(
-    `[MCP] Creating in-memory MCP server: ${name} with args: ${args} and envs: ${JSON.stringify(sanitizeEnvForLogging(envs))}`
+    `[MCP] Creating in-memory MCP server: ${name} with args: ${args} and envs: ${JSON.stringify(redactRecord(envs))}`
   )
   const create = inMemoryServers[name as BuiltinMcpServerName]
   if (!create) {
     throw new Error(`Unknown in-memory MCP server: ${name}`)
   }
   return create(args, envs)
+}
+
+/**
+ * Headers a builtin HTTP server derives from its own config: QVeris authenticates with the
+ * API key the user configures as an env var, so it cannot be stored as a static header.
+ */
+export function getBuiltinHttpHeaders(server: McpServer): Record<string, string> {
+  if (server.name !== BuiltinMcpServerNames.qveris) return {}
+
+  const apiKey = server.env?.QVERIS_API_KEY?.trim()
+  if (!apiKey) {
+    throw new Error('QVeris MCP requires the QVERIS_API_KEY environment variable')
+  }
+  return { Authorization: `Bearer ${apiKey}` }
 }
 
 /**

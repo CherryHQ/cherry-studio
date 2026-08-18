@@ -30,6 +30,21 @@ export const PRESET_MCP_SERVERS: McpServerPreset[] = [
     isTrusted: true
   },
   {
+    name: BuiltinMcpServerNames.qveris,
+    reference: 'https://qveris.ai/docs/mcp-server',
+    type: 'streamableHttp',
+    baseUrl: 'https://mcp.qveris.ai/mcp',
+    headers: { APP: 'Cherry Studio' },
+    isActive: false,
+    env: {
+      QVERIS_API_KEY: ''
+    },
+    shouldConfig: true,
+    provider: 'QVeris',
+    installSource: 'builtin',
+    isTrusted: true
+  },
+  {
     name: BuiltinMcpServerNames.mcpAutoInstall,
     reference: 'https://docs.cherry-ai.com/advanced-basic/mcp/auto-install',
     type: 'stdio',

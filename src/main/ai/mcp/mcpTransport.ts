@@ -1,6 +1,6 @@
 import { application } from '@application'
 import type { LoggerService } from '@logger'
-import { createInMemoryMcpServer, getBuiltinRegistryEnv } from '@main/ai/mcp/servers/factory'
+import { createInMemoryMcpServer, getBuiltinHttpHeaders, getBuiltinRegistryEnv } from '@main/ai/mcp/servers/factory'
 import { defaultAppHeaders } from '@main/utils/http'
 import { removeEnvProxy } from '@main/utils/processRunner'
 import { getShellEnv } from '@main/utils/shellEnv'
@@ -9,11 +9,11 @@ import type { StdioServerParameters } from '@modelcontextprotocol/sdk/client/std
 import type { StreamableHTTPClientTransportOptions } from '@modelcontextprotocol/sdk/client/streamableHttp'
 import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
 import type { McpServerLogEntry } from '@shared/types/mcp'
+import { redactDeep } from '@shared/utils/redaction'
 import { net } from 'electron'
 
 import type { McpClientSdk, McpTransport } from './mcpClientSdk'
 import { buildStdioEnvironment, resolveLaunchCommand } from './mcpLaunch'
-import { redactSensitive } from './mcpRedact'
 import type { McpOAuthClientProvider } from './oauth/provider'
 
 type CreateTransportInput = {
@@ -32,14 +32,16 @@ function fetchViaNet(url: string | URL | Request, init?: RequestInit): Promise<R
 }
 
 function buildHttpOptions(server: McpServer, authProvider: McpOAuthClientProvider) {
+  const headers: Record<string, string> = {
+    ...defaultAppHeaders(),
+    ...server.headers,
+    ...getBuiltinHttpHeaders(server)
+  }
   return {
-    requestInit: {
-      headers: {
-        ...defaultAppHeaders(),
-        ...server.headers
-      }
-    },
-    authProvider
+    requestInit: { headers },
+    // A server that already authenticates with its own credential must not be sent
+    // through the OAuth provider — the SDK would start a discovery flow it cannot finish.
+    ...(headers.Authorization ? {} : { authProvider })
   }
 }
 
@@ -69,7 +71,7 @@ function createUrlTransport(
       ...buildHttpOptions(server, authProvider)
     }
     // redact headers before logging
-    logger.debug(`StreamableHTTPClientTransport options`, { options: redactSensitive(options) })
+    logger.debug(`StreamableHTTPClientTransport options`, { options: redactDeep(options) })
     return new sdk.StreamableHTTPClientTransport(new URL(baseUrl), options)
   }
 

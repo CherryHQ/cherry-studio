@@ -18,6 +18,7 @@ import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
 import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
 import type { McpServerLogEntry } from '@shared/types/mcp'
 import type { McpPrompt, McpResource } from '@shared/types/mcp'
+import { redactDeep, redactServerKey } from '@shared/utils/redaction'
 import { safeSerialize } from '@shared/utils/serialize'
 import { app } from 'electron'
 import { EventEmitter } from 'events'
@@ -34,7 +35,7 @@ import {
   type McpTransport
 } from './mcpClientSdk'
 import type { McpPackageService } from './McpPackageService'
-import { redactCacheKey, redactSensitive, redactServerKey } from './mcpRedact'
+import { redactCacheKey } from './mcpRedact'
 import { createTransport } from './mcpTransport'
 import { CallBackServer } from './oauth/callback'
 import { McpOAuthClientProvider } from './oauth/provider'
@@ -254,14 +255,23 @@ export class McpRuntimeService extends BaseService {
   }
 
   public getServerKey(server: McpServer): string {
+    const fingerprint = crypto
+      .createHash('sha256')
+      .update(
+        JSON.stringify({
+          baseUrl: server.baseUrl,
+          command: server.command,
+          args: Array.isArray(server.args) ? server.args : [],
+          registryUrl: server.registryUrl,
+          env: server.env,
+          headers: server.headers
+        })
+      )
+      .digest('hex')
+
     return JSON.stringify({
-      baseUrl: server.baseUrl,
-      command: server.command,
-      args: Array.isArray(server.args) ? server.args : [],
-      registryUrl: server.registryUrl,
-      env: server.env,
-      headers: server.headers,
-      id: server.id
+      id: server.id,
+      fingerprint
     })
   }
 
@@ -415,7 +425,7 @@ export class McpRuntimeService extends BaseService {
         timestamp: Date.now(),
         level: 'error',
         message: `Error activating server: ${(error as Error)?.message}`,
-        data: redactSensitive(error),
+        data: redactDeep(error),
         source: 'client'
       })
       throw error
@@ -481,7 +491,7 @@ export class McpRuntimeService extends BaseService {
           break
         }
         getServerLogger(server).warn(`Transport '${candidateType}' failed, falling back to '${candidates[i + 1]}'`, {
-          error: redactSensitive(error)
+          error: redactDeep(error)
         })
         // Close the whole client (not just the transport) so the SDK resets its internal
         // _transport before we retry. Reusing the client for the fallback mirrors the OAuth
@@ -581,13 +591,16 @@ export class McpRuntimeService extends BaseService {
 
       // Set up cancelled notification handler
       client.setNotificationHandler(sdk.CancelledNotificationSchema, async (notification) => {
-        logger.debug(`Operation cancelled for server: ${server.name}`, redactSensitive(notification.params))
+        logger.debug(
+          `Operation cancelled for server: ${server.name}`,
+          redactDeep(notification.params) as Record<string, unknown>
+        )
       })
 
       // Set up logging message notification handler
       client.setNotificationHandler(sdk.LoggingMessageNotificationSchema, async (notification) => {
         const data = notification.params?.data
-        const redactedData = redactSensitive(data)
+        const redactedData = redactDeep(data)
         const message = safeSerialize(redactedData) ?? 'No data'
         logger.debug(`Message from server ${server.name}: ${message}`)
         if (data) {
@@ -814,7 +827,7 @@ export class McpRuntimeService extends BaseService {
         timestamp: Date.now(),
         level: 'error',
         message: `Connectivity check failed: ${(error as Error).message}`,
-        data: redactSensitive(error),
+        data: redactDeep(error),
         source: 'connectivity'
       })
       // Close the client if connectivity check fails to ensure a clean state for the next attempt
@@ -866,7 +879,7 @@ export class McpRuntimeService extends BaseService {
           throw getAbortReason(effectiveSignal)
         }
         getServerLogger(server, { tool: name, callId: toolCallId }).debug(`Calling tool`, {
-          args: redactSensitive(args)
+          args: redactDeep(args)
         })
         if (typeof args === 'string') {
           if (args.trim() === '') {
@@ -1172,7 +1185,7 @@ export class McpRuntimeService extends BaseService {
 
       // Try to get server information which may include version
       const serverInfo = client.getServerVersion()
-      getServerLogger(server).debug(`Server info`, redactSensitive(serverInfo))
+      getServerLogger(server).debug(`Server info`, redactDeep(serverInfo) as Record<string, unknown>)
 
       if (serverInfo && serverInfo.version) {
         getServerLogger(server).debug(`Server version`, { version: serverInfo.version })

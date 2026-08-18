@@ -358,7 +358,7 @@
         "stop_run_task": "Stop task",
         "stop_run_task_failed": "Failed to stop task",
         "task_count": "{{completed}} / {{total}} complete",
-        "tasks": "Tasks",
+        "task_progress_compact": "Step {{current}}/{{total}}",
         "tool_uses_one": "{{count}} tool call",
         "tool_uses_other": "{{count}} tool calls",
         "tools_active": "Active",
@@ -1092,17 +1092,37 @@
           "description": "Run shell commands",
           "label": "Run shell commands"
         },
+        "create_goal": {
+          "description": "Create a session goal to work toward",
+          "label": "Create goal"
+        },
         "edit": {
           "description": "Edit files",
           "label": "Edit files"
+        },
+        "exit_plan_mode": {
+          "description": "Present the plan for review and leave plan mode on approval",
+          "label": "Exit plan mode"
         },
         "find": {
           "description": "Find files",
           "label": "Find files"
         },
+        "get_goal": {
+          "description": "Read the current session goal",
+          "label": "Read goal"
+        },
         "grep": {
           "description": "Search file contents",
           "label": "Search file contents"
+        },
+        "interrupt_agent": {
+          "description": "Stop a background subagent's current turn",
+          "label": "Interrupt subagent"
+        },
+        "list_agents": {
+          "description": "List background subagents and their status",
+          "label": "List subagents"
         },
         "ls": {
           "description": "List directory contents",
@@ -1111,6 +1131,34 @@
         "read": {
           "description": "Read files",
           "label": "Read files"
+        },
+        "read_image": {
+          "description": "Read a PNG, JPEG, WebP, or GIF file with a vision-capable model",
+          "label": "Read image"
+        },
+        "send_message": {
+          "description": "Send a follow-up message to a background subagent",
+          "label": "Message subagent"
+        },
+        "skill": {
+          "description": "Load the full instructions of an enabled skill",
+          "label": "Load skill instructions"
+        },
+        "subagent": {
+          "description": "Delegate a task to a background subagent that can be messaged later",
+          "label": "Delegate to subagent"
+        },
+        "subagent_fork": {
+          "description": "Delegate a follow-up task to a subagent seeded with this conversation",
+          "label": "Fork subagent"
+        },
+        "todo_write": {
+          "description": "Manage the task list",
+          "label": "Manage the task list"
+        },
+        "update_goal": {
+          "description": "Update the session goal status or objective",
+          "label": "Update goal"
         },
         "write": {
           "description": "Write files",
@@ -3531,10 +3579,12 @@
             "label": "Runtime mode",
             "option": {
               "claude_code": "Advanced: Claude Agent",
+              "dsh": "DeepSeek Harness",
               "pi": "Fast: Pi"
             },
             "option_description": {
               "claude_code": "More capable — plan mode and per-tier models",
+              "dsh": "Broad provider support with goal-driven execution",
               "pi": "Faster responses, lower overhead"
             }
           },
@@ -5746,6 +5796,49 @@
       "undo": "Undo"
     }
   },
+  "screenshot": {
+    "action": {
+      "cancel": "Cancel",
+      "confirm": "Copy and close",
+      "redo": "Redo",
+      "save": "Save image",
+      "undo": "Undo"
+    },
+    "magnifier": {
+      "copied": "Copied!",
+      "hint_color_mode": "Shift: Color format",
+      "hint_copy": "C: Copy color",
+      "hint_move": "↑↓←→: Move"
+    },
+    "ocr": {
+      "copy": "Copy all text, or select it on screen",
+      "disabled_while_annotating": "Text recognition is unavailable while annotating",
+      "failed": "Text recognition failed",
+      "recognize": "Recognize text",
+      "recognizing": "Recognizing text…",
+      "unavailable": "The local OCR model is not ready — click to download it"
+    },
+    "property": {
+      "color": {
+        "black": "Black",
+        "blue": "Blue",
+        "gray": "Gray",
+        "green": "Green",
+        "red": "Red",
+        "white": "White",
+        "yellow": "Yellow"
+      },
+      "font_size": "Text size {{value}}",
+      "stroke_width": "Stroke width {{value}}"
+    },
+    "tool": {
+      "arrow": "Arrow",
+      "brush": "Brush",
+      "mosaic": "Mosaic",
+      "rectangle": "Rectangle",
+      "text": "Text"
+    }
+  },
   "selection": {
     "action": {
       "builtin": {
@@ -7168,6 +7261,7 @@
         "no": "No description",
         "nowledge_mem": "Requires Nowledge Mem app running locally. Keeps AI chats, tools, notes, agents, and files in private memory on your computer. Download from https://mem.nowledge.co/",
         "python": "Execute Python code in a secure sandbox environment. Run Python with Pyodide, supporting most standard libraries and scientific computing packages",
+        "qveris": "Connect to QVeris to discover, inspect, and call AI-agent capabilities. Requires configuring the QVERIS_API_KEY environment variable.",
         "sequentialthinking": "A MCP server implementation that provides tools for dynamic and reflective problem solving through structured thinking processes"
       },
       "command": "Command",
@@ -7287,6 +7381,10 @@
       "providerPlaceholder": "Provider name",
       "providerUrl": "Provider URL",
       "providers": "Providers",
+      "qveris": {
+        "get_api_key": "Get API Key",
+        "missing_api_key": "QVeris requires an API key. <link>Register or sign in to get an API key</link>, then enter it as QVERIS_API_KEY."
+      },
       "registry": "Package Registry",
       "registryDefault": "Default",
       "registryOptions": {
@@ -8313,6 +8411,43 @@
         "prompt": "Enter a task prompt."
       }
     },
+    "screenshot": {
+      "enable": {
+        "description": "Capture the screen with a global shortcut, then select an area, annotate it, and copy or save the result.",
+        "title": "Enable Screenshot"
+      },
+      "ocr": {
+        "auto": {
+          "description": "Recognize text in the captured screen so that it can be selected and copied.",
+          "title": "Recognize Text Automatically"
+        },
+        "model": {
+          "downloading": "Downloading the text recognition model",
+          "link": "Manage local models",
+          "ready": "Text recognition is ready",
+          "unavailable": "Text recognition needs the local OCR model."
+        },
+        "title": "Text Recognition"
+      },
+      "permission": {
+        "denied_hint": "Screen recording permission was denied. Allow Cherry Studio under Privacy & Security > Screen & System Audio Recording in System Settings.",
+        "grant": "Grant Permission",
+        "open_settings": "Open System Settings",
+        "prompt_unavailable_hint": "The system permission dialog did not appear. Allow Cherry Studio manually under Privacy & Security > Screen & System Audio Recording in System Settings.",
+        "request_hint": "macOS requires screen recording permission before the screen can be captured.",
+        "restart": "Restart Now",
+        "restart_hint": "Screen recording permission was granted. Restart the app for it to take effect.",
+        "title": "Screen Recording Permission"
+      },
+      "shortcut": {
+        "description": "Screenshot is triggered by a global shortcut.",
+        "disabled": "Off",
+        "link": "Set shortcut",
+        "title": "Shortcut",
+        "unset": "Not set"
+      },
+      "title": "Screenshot"
+    },
     "shortcuts": {
       "action": "Action",
       "actions": "operation",
@@ -8356,6 +8491,7 @@
       "reset_to_default": "Reset to Default",
       "save_failed": "Failed to save shortcut",
       "save_failed_with_name": "Failed to save shortcut: {{name}}",
+      "screenshot_capture": "Take Screenshot",
       "search_message": "Search Message",
       "search_message_in_chat": "Search Message in Current Chat",
       "search_placeholder": "Search shortcuts...",
@@ -8389,6 +8525,7 @@
       "emptyTip": "Tip: You can also ask an agent to install skills for you.",
       "emptyTitle": "No skill selected",
       "filterPlaceholder": "Filter skills...",
+      "globalToggle": "Globally enable skill {{name}}",
       "install": "Install",
       "installFailed": "Failed to install skill: {{name}}",
       "installFromDirectory": "Install from directory",
@@ -8408,6 +8545,7 @@
       "searchTitle": "Search Skills",
       "selectFile": "Select a file to view",
       "title": "Skills",
+      "toggleFailed": "Failed to update the global state of skill {{name}}",
       "uninstall": "Uninstall",
       "uninstallSuccess": "Skill uninstalled: {{name}}",
       "viewSource": "View Source",
@@ -9020,5 +9158,18 @@
     "quit": "Quit",
     "show_window": "Show Window",
     "visualization": "Visualization"
+  },
+  "xlsx_preview": {
+    "chart": "Chart",
+    "chart_unsupported": "This chart type isn't supported yet",
+    "error": {
+      "description": "This spreadsheet couldn't be previewed."
+    },
+    "formula_not_evaluated": "Formula couldn't be evaluated",
+    "sheet_tabs_label": "Sheets",
+    "too_large": {
+      "description": "File size {{size}} exceeds the {{limit}} preview limit.",
+      "title": "File too large to preview"
+    }
   }
 }
