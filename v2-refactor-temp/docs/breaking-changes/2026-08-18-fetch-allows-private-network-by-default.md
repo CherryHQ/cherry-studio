@@ -8,7 +8,7 @@ date: 2026-08-18
 
 ## What changed
 
-Settings → System gains "Allow fetching local network addresses", **on by default**. While it is on, `@cherry/fetch`, `web_fetch`, web search content extraction, and citation previews may connect to `localhost`, RFC 1918 LAN addresses, and any other private target. Turning it off restores the previous behavior, which rejected them outright.
+Settings → General gains "Allow fetching local network addresses", **on by default**. While it is on, `@cherry/fetch`, `web_fetch`, web search content extraction, and citation previews may connect to `localhost`, RFC 1918 LAN addresses, and any other private target. Turning it off restores the previous behavior, which rejected them outright.
 
 ## Why this matters to the user
 
@@ -16,7 +16,7 @@ Fetching a self-hosted wiki, a NAS, a local dev server, or a router page now wor
 
 ## What the user should do
 
-Nothing to start using it. Users who run sensitive services on localhost or their LAN, or who let assistants fetch untrusted pages, should turn the switch off in Settings → System.
+Nothing to start using it. Users who run sensitive services on localhost or their LAN, or who let assistants fetch untrusted pages, should turn the switch off in Settings → General.
 
 ## Notes for release manager
 
