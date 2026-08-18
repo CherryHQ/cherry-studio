@@ -95,7 +95,7 @@ Use these instead of assembling labels/shortcuts in feature components:
 
 ## Adding a command
 
-1. **Declare it** in `src/shared/command/definitions.ts` — add an entry to
+1. **Declare it** in `src/shared/utils/command/definitions.ts` — add an entry to
    `COMMAND_DEFINITIONS` (`id`, `titleKey`, `categoryKey`, `scope`, optional
    `keybinding` with a `defaultBinding`, optional `enablement`).
 2. **Add its shortcut preference key** `shortcut.<commandId>` through the
