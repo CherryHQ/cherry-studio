@@ -287,20 +287,20 @@ describe('useDetectLang hook', () => {
     expect(toast.error).not.toHaveBeenCalled()
   })
 
-  it('returns the unknown lang code when languages failed to load without duplicating the load error toast', async () => {
+  it('returns the unknown lang code when languages failed to load without showing a load error toast', async () => {
     setLanguagesQuery(undefined, { error: new Error('load failed') })
     const warnSpy = vi.spyOn(mockRendererLoggerService, 'warn').mockImplementation(() => {})
 
     const { result } = renderHook(() => useDetectLang())
 
     await act(async () => {})
-    expect(toast.error).toHaveBeenCalledTimes(1)
+    expect(toast.error).not.toHaveBeenCalled()
 
     const code = await act(async () => result.current.detectLanguage('Hello'))
     expect(code).toBe(UNKNOWN_LANG_CODE)
     expect(generateTextMock).not.toHaveBeenCalled()
     expect(warnSpy).toHaveBeenCalledWith('useDetectLang invoked after languages failed to load, returning UNKNOWN')
-    expect(toast.error).toHaveBeenCalledTimes(1)
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   it('returns the unknown lang code when the language list resolved to an empty array and logs an error', async () => {
@@ -313,6 +313,7 @@ describe('useDetectLang hook', () => {
     expect(code).toBe(UNKNOWN_LANG_CODE)
     expect(generateTextMock).not.toHaveBeenCalled()
     expect(errorSpy).toHaveBeenCalledWith('useDetectLang invoked with an empty language list')
+    expect(toast.error).toHaveBeenCalledOnce()
   })
 
   it('delegates to the method selected via usePreference (franc here)', async () => {

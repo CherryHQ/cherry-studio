@@ -15,6 +15,7 @@ const logger = loggerService.withContext('translate/useTranslateLanguages')
 
 export const useTranslateLanguages = (options?: {
   enabled?: boolean
+  showLoadErrorToast?: boolean
   add?: MutationFeedbackOptions
   update?: MutationFeedbackOptions
   remove?: MutationFeedbackOptions
@@ -22,14 +23,21 @@ export const useTranslateLanguages = (options?: {
   const { data, error, refetch } = useQuery('/translate/languages', { enabled: options?.enabled })
   const { t } = useTranslation()
 
+  const loggedRef = useRef(false)
   const toastedRef = useRef(false)
   useEffect(() => {
-    if (error && !toastedRef.current) {
-      toastedRef.current = true
+    if (!error) return
+
+    if (!loggedRef.current) {
+      loggedRef.current = true
       logger.error('Failed to load translate languages', error)
+    }
+
+    if ((options?.showLoadErrorToast ?? true) && !toastedRef.current) {
+      toastedRef.current = true
       toast.error(t('translate.error.languages_load_failed'))
     }
-  }, [error, t])
+  }, [error, options?.showLoadErrorToast, t])
 
   const languages = useMemo(() => {
     if (data !== undefined) {

@@ -187,7 +187,7 @@ export interface DetectLanguageController {
  */
 export const useDetectLang = (): DetectLanguageController => {
   const [method] = usePreference('feature.translate.auto_detection_method')
-  const { languages, status } = useLanguages()
+  const { languages, status } = useLanguages({ showLoadErrorToast: false })
   const needsQuickModel = method !== 'franc'
   const { model: quickModel, isLoading: isQuickModelLoading } = useQuickModel({ enabled: needsQuickModel })
 

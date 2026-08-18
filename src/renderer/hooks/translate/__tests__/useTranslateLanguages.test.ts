@@ -53,6 +53,17 @@ describe('useTranslateLanguages', () => {
     expect(toast.error).toHaveBeenCalledWith('t(translate.error.languages_load_failed)')
   })
 
+  it('can suppress the load error toast without suppressing error logging', () => {
+    const err = new Error('IPC down')
+    setLanguagesQuery(undefined, { error: err })
+    const loggerSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
+
+    renderHook(() => useTranslateLanguages({ showLoadErrorToast: false }))
+
+    expect(loggerSpy).toHaveBeenCalledWith('Failed to load translate languages', err)
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
   it('logs a warning for invalid lang code strings but stays silent for null', () => {
     setLanguagesQuery(languagesFixture)
     const warnSpy = vi.spyOn(mockRendererLoggerService, 'warn').mockImplementation(() => {})
