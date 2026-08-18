@@ -156,8 +156,9 @@ describe('routeToolResultMedia', () => {
     expect(routed[2]).toEqual({
       role: 'user',
       content: [
-        { type: 'text', text: 'Images returned by the preceding tool result:' },
+        { type: 'text', text: '[tool-result attachment call_id="one" image=1]' },
         { type: 'image', image: 'BASE64', mediaType: 'image/png' },
+        { type: 'text', text: '[tool-result attachment call_id="two" image=1]' },
         { type: 'image', image: 'BASE64', mediaType: 'image/png' }
       ]
     })

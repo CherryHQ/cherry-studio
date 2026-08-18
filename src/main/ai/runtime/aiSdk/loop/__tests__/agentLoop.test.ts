@@ -677,7 +677,7 @@ describe('Agent', () => {
     expect(result?.messages?.[1]).toEqual({
       role: 'user',
       content: [
-        { type: 'text', text: 'Images returned by the preceding tool result:' },
+        { type: 'text', text: '[tool-result attachment call_id="call-1" image=1]' },
         { type: 'image', image: 'BASE64', mediaType: 'image/png' }
       ]
     })
