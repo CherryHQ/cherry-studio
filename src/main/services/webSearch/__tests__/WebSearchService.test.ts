@@ -480,6 +480,7 @@ describe('WebSearchService', () => {
   })
 
   it('falls back from native fetch to Jina after passing the failed hostname through the literal URL guard', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.fetch.allow_private_network', false)
     const primaryError = new Error('native failed')
     const nativeFetch = vi.fn().mockRejectedValue(primaryError)
     const jinaFetch = vi
@@ -495,7 +496,7 @@ describe('WebSearchService', () => {
 
     const result = await webSearchService.fetchUrlsUnprocessed({ urls: ['https://fake-ip.example/article'] })
 
-    expect(sanitizeRemoteUrlMock).toHaveBeenCalledWith('https://fake-ip.example/article')
+    expect(sanitizeRemoteUrlMock).toHaveBeenCalledWith('https://fake-ip.example/article', undefined, false)
     expect(resolveRemoteFetchUrlMock).not.toHaveBeenCalled()
     expect(jinaFetch).toHaveBeenCalledWith('https://fake-ip.example/article', expect.any(Object), undefined)
     expect(result.results).toEqual([
@@ -589,6 +590,7 @@ describe('WebSearchService', () => {
   })
 
   it('keeps the native failure when the literal URL guard rejects a private address before Jina', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.fetch.allow_private_network', false)
     const primaryError = new Error('native failed')
     const nativeFetch = vi.fn().mockRejectedValue(primaryError)
     sanitizeRemoteUrlMock.mockImplementation(() => {
@@ -599,8 +601,29 @@ describe('WebSearchService', () => {
     await expect(webSearchService.fetchUrls({ urls: ['http://127.0.0.1/article'] })).rejects.toBe(primaryError)
 
     expect(createWebSearchProviderMock).toHaveBeenCalledTimes(1)
-    expect(sanitizeRemoteUrlMock).toHaveBeenCalledWith('http://127.0.0.1/article')
+    expect(sanitizeRemoteUrlMock).toHaveBeenCalledWith('http://127.0.0.1/article', undefined, false)
     expect(resolveRemoteFetchUrlMock).not.toHaveBeenCalled()
+  })
+
+  it('reaches the Jina fallback for a private address when app.fetch.allow_private_network is on', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.fetch.allow_private_network', true)
+    const nativeFetch = vi.fn().mockRejectedValue(new Error('native failed'))
+    const jinaFetch = vi
+      .fn()
+      .mockResolvedValue(
+        response('jina', 'fetchUrls', 'http://192.168.1.10/wiki', [
+          { title: 'NAS', content: 'Wiki content', url: 'http://192.168.1.10/wiki' }
+        ])
+      )
+    createWebSearchProviderMock.mockImplementation((provider: WebSearchProvider) =>
+      provider.id === 'fetch' ? { fetchUrls: nativeFetch } : { fetchUrls: jinaFetch }
+    )
+
+    const result = await webSearchService.fetchUrlsUnprocessed({ urls: ['http://192.168.1.10/wiki'] })
+
+    expect(sanitizeRemoteUrlMock).toHaveBeenCalledWith('http://192.168.1.10/wiki', undefined, true)
+    expect(jinaFetch).toHaveBeenCalledWith('http://192.168.1.10/wiki', expect.any(Object), undefined)
+    expect(result.results[0]?.title).toBe('NAS')
   })
 
   it('retains primary and fallback diagnostics when both fetch providers fail', async () => {
