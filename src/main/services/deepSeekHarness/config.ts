@@ -328,29 +328,11 @@ export function resolveDeepSeekHarnessEndpoint(
     Boolean(endpoint && DIRECT_ENDPOINTS.includes(endpoint as (typeof DIRECT_ENDPOINTS)[number]))
   const hasBaseUrl = (endpoint: EndpointType): boolean => Boolean(provider.endpointConfigs?.[endpoint]?.baseUrl)
   const declaredModelEndpoints = model.endpointTypes?.length ? model.endpointTypes.filter(isSupported) : undefined
-  let endpoint = declaredModelEndpoints
+  const endpoint = declaredModelEndpoints
     ? declaredModelEndpoints.find(hasBaseUrl)
     : isSupported(provider.defaultChatEndpoint) && hasBaseUrl(provider.defaultChatEndpoint)
       ? provider.defaultChatEndpoint
       : DIRECT_ENDPOINTS.find(hasBaseUrl)
-
-  const dshMarksModelAsReasoning = typeof projectReasoningEfforts(model) === 'object'
-  const selectedBaseUrl = endpoint ? provider.endpointConfigs?.[endpoint]?.baseUrl : undefined
-  const piAiUsesSystemRole =
-    endpoint === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS && selectedBaseUrl?.includes('deepseek.com')
-  const requiresDeveloperRole =
-    endpoint === ENDPOINT_TYPE.OPENAI_RESPONSES ||
-    (endpoint === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS && dshMarksModelAsReasoning && !piAiUsesSystemRole)
-  if (provider.apiFeatures.developerRole === false && requiresDeveloperRole) {
-    if (
-      declaredModelEndpoints?.includes(ENDPOINT_TYPE.ANTHROPIC_MESSAGES) &&
-      hasBaseUrl(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
-    ) {
-      endpoint = ENDPOINT_TYPE.ANTHROPIC_MESSAGES
-    } else {
-      throw new Error(`Provider ${provider.id} must be used through the Unified Gateway for DeepSeek Harness`)
-    }
-  }
 
   if (!endpoint) throw new Error(`Provider ${provider.id} has no DeepSeek Harness compatible endpoint`)
   const rawBaseUrl = provider.endpointConfigs?.[endpoint]?.baseUrl

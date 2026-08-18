@@ -2,7 +2,7 @@ import type * as NodeFs from 'node:fs'
 
 import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
 import { SpanStatusCode, trace } from '@opentelemetry/api'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent, AgentRuntimeUserInput } from '../types'
 
@@ -386,6 +386,10 @@ beforeEach(() => {
   })
 })
 
+afterEach(() => {
+  vi.unstubAllEnvs()
+})
+
 describe('PiRuntimeConnection', () => {
   it('forces Cherry-owned pi dirs and creates a fresh session (no resume)', async () => {
     await new PiRuntimeConnection(input).start()
@@ -413,6 +417,29 @@ describe('PiRuntimeConnection', () => {
     expect(appendedSystemPrompt()).toContain('<agent_instructions>\nBe helpful.\n</agent_instructions>')
     expect(appendedSystemPrompt()).toContain(REPORT_ARTIFACTS_PROMPT)
     expect(appendedSystemPrompt()).toContain('IMPORTANT: You must respond in English.')
+  })
+
+  it('forwards the active Cherry proxy environment to Pi provider requests', async () => {
+    const injection = mocks.resolveInjection()
+    mocks.resolveInjection.mockReturnValue({
+      ...injection,
+      requestEnvironment: { AZURE_OPENAI_API_VERSION: '2025-04-01-preview' }
+    })
+
+    await new PiRuntimeConnection(input).start()
+    vi.stubEnv('HTTP_PROXY', 'http://127.0.0.1:7890')
+    vi.stubEnv('HTTPS_PROXY', 'http://127.0.0.1:7890')
+    vi.stubEnv('NO_PROXY', 'localhost,127.0.0.1')
+    const providerConfig = mocks.registerProvider.mock.calls[0][1]
+    providerConfig.streamSimple({}, [], { env: { REQUEST_SCOPED: 'preserved' } })
+
+    expect(mocks.providerStreamSimple.mock.calls[0][2].env).toMatchObject({
+      REQUEST_SCOPED: 'preserved',
+      HTTP_PROXY: 'http://127.0.0.1:7890',
+      HTTPS_PROXY: 'http://127.0.0.1:7890',
+      NO_PROXY: 'localhost,127.0.0.1',
+      AZURE_OPENAI_API_VERSION: '2025-04-01-preview'
+    })
   })
 
   it('uses a generation-scoped api namespace so same-session replacements cannot overwrite each other', async () => {
