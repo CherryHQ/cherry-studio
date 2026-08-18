@@ -1,6 +1,7 @@
 import { Button, InfoTooltip, Input, PageSidePanel, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { DefaultModelSelector } from '@renderer/components/DefaultModelSelector'
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import {
   SettingContainer,
@@ -35,8 +36,6 @@ import type { FC, ReactNode } from 'react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { ContextManagementSettings } from './ContextManagementSettings'
-import { DefaultModelSelector } from './DefaultModelSelector'
 import { TopicNamingSettings } from './TopicNamingSettings'
 
 const logger = loggerService.withContext('ModelSettings')
@@ -364,7 +363,6 @@ const ModelSettings: FC<ModelSettingsProps> = ({
             </>
           )}
         </SettingGroup>
-        {!compact && <ContextManagementSettings />}
       </ContainerComponent>
       {showSettingsButton && (
         <>

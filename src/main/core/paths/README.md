@@ -89,6 +89,7 @@ Type-checked via `satisfies` — typos and stale references fail at compile time
 |-----|-------------------|------|
 | `feature.mcp.oauth` | `~/.cherrystudio/config/mcp/oauth` | Under `config/`, not `mcp/` |
 | `feature.agents.skills.install.temp` | `{app.temp}/skill-install` | Sibling `feature.agents.skills` lives at `{userData}/Data/Skills` |
+| `feature.pdf_translation.babeldoc` | `{userData}/Runtime/models/babeldoc` | Grouped with the other downloaded model caches, not under a `pdf_translation/` dir |
 
 **Never assume filesystem nesting from key nesting.** Consult `pathRegistry.ts` directly.
 
