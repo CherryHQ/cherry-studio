@@ -43,7 +43,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const [alterLangCode, setAlterLangCode] = usePreference('feature.translate.action.alter_lang')
   const { languages, getLanguage } = useLanguages()
   const isLanguagesLoaded = languages !== undefined
-  const detectLanguage = useDetectLang()
+  const { detectLanguage } = useDetectLang()
   // The stored default is zh-cn, so preserve the matching UI-locale fallback for zh-TW.
   const effectivePreferredLangCode =
     language === 'zh-TW' && preferredLangCode === BUILTIN_LANGUAGE.zhCN.langCode

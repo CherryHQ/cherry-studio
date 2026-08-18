@@ -21,6 +21,12 @@ const lang = parseTranslateLangCode
 // inspected by the assertions; what matters is whether the LLM path was hit.
 const TEST_MODEL = { id: 'gpt', provider: 'openai' } as never
 
+interface QuickModelHookState {
+  model?: unknown
+  isLoading: boolean
+  error?: Error
+}
+
 const languagesFixture = [
   { langCode: lang('en-us'), value: 'English', emoji: '🇺🇸' },
   { langCode: lang('zh-cn'), value: '中文', emoji: '🇨🇳' }
@@ -68,9 +74,13 @@ vi.mock('@shared/utils/model', () => ({
   isQwenMTModel: (m: any) => isQwenMTModelMock(m)
 }))
 
-const useDefaultModelMock = vi.fn(() => ({ quickModel: TEST_MODEL }))
+const useQuickModelMock = vi.fn<(options?: { enabled?: boolean }) => QuickModelHookState>(() => ({
+  model: TEST_MODEL,
+  isLoading: false,
+  error: undefined
+}))
 vi.mock('@renderer/hooks/useModel', () => ({
-  useDefaultModel: () => useDefaultModelMock()
+  useQuickModel: (options?: { enabled?: boolean }) => useQuickModelMock(options)
 }))
 
 // Token-count threshold: 100 in the hook. Tests drive the branch via the
@@ -224,15 +234,40 @@ describe('useDetectLang hook', () => {
     vi.clearAllMocks()
     mockUsePreference.mockImplementation(() => ['llm', vi.fn()] as any)
     setLanguagesQuery(languagesFixture)
-    useDefaultModelMock.mockReturnValue({ quickModel: TEST_MODEL })
+    useQuickModelMock.mockReturnValue({ model: TEST_MODEL, isLoading: false, error: undefined })
     isQwenMTModelMock.mockReturnValue(false)
     generateTextMock.mockResolvedValue({ text: 'en-us' })
+  })
+
+  it('reports pending while the quick model is loading', () => {
+    useQuickModelMock.mockReturnValue({ model: undefined, isLoading: true, error: undefined })
+
+    const { result } = renderHook(() => useDetectLang())
+
+    expect(result.current.isPending).toBe(true)
+  })
+
+  it('does not remain pending when quick model loading settles with an error', () => {
+    useQuickModelMock.mockReturnValue({ model: undefined, isLoading: false, error: new Error('load failed') })
+
+    const { result } = renderHook(() => useDetectLang())
+
+    expect(result.current.isPending).toBe(false)
+  })
+
+  it('does not depend on quick model readiness in franc-only mode', () => {
+    mockUsePreference.mockImplementation(() => ['franc', vi.fn()] as any)
+    useQuickModelMock.mockReturnValue({ model: undefined, isLoading: true, error: undefined })
+
+    const { result } = renderHook(() => useDetectLang())
+
+    expect(result.current.isPending).toBe(false)
   })
 
   it('returns the unknown lang code for empty/whitespace input without hitting detection', async () => {
     const { result } = renderHook(() => useDetectLang())
 
-    const code = await act(async () => result.current('   '))
+    const code = await act(async () => result.current.detectLanguage('   '))
     expect(code).toBe(UNKNOWN_LANG_CODE)
     expect(generateTextMock).not.toHaveBeenCalled()
     expect(francMock).not.toHaveBeenCalled()
@@ -244,7 +279,8 @@ describe('useDetectLang hook', () => {
 
     const { result } = renderHook(() => useDetectLang())
 
-    const code = await act(async () => result.current('Hello'))
+    expect(result.current.isPending).toBe(true)
+    const code = await act(async () => result.current.detectLanguage('Hello'))
     expect(code).toBe(UNKNOWN_LANG_CODE)
     expect(generateTextMock).not.toHaveBeenCalled()
     expect(warnSpy).toHaveBeenCalledWith('useDetectLang invoked while languages were loading, returning UNKNOWN')
@@ -260,7 +296,7 @@ describe('useDetectLang hook', () => {
     await act(async () => {})
     expect(toast.error).toHaveBeenCalledTimes(1)
 
-    const code = await act(async () => result.current('Hello'))
+    const code = await act(async () => result.current.detectLanguage('Hello'))
     expect(code).toBe(UNKNOWN_LANG_CODE)
     expect(generateTextMock).not.toHaveBeenCalled()
     expect(warnSpy).toHaveBeenCalledWith('useDetectLang invoked after languages failed to load, returning UNKNOWN')
@@ -273,7 +309,7 @@ describe('useDetectLang hook', () => {
 
     const { result } = renderHook(() => useDetectLang())
 
-    const code = await act(async () => result.current('Hello'))
+    const code = await act(async () => result.current.detectLanguage('Hello'))
     expect(code).toBe(UNKNOWN_LANG_CODE)
     expect(generateTextMock).not.toHaveBeenCalled()
     expect(errorSpy).toHaveBeenCalledWith('useDetectLang invoked with an empty language list')
@@ -285,7 +321,7 @@ describe('useDetectLang hook', () => {
 
     const { result } = renderHook(() => useDetectLang())
 
-    const code = await act(async () => result.current('Hello world'))
+    const code = await act(async () => result.current.detectLanguage('Hello world'))
     expect(code).toBe('en-us')
     expect(francMock).toHaveBeenCalledWith('Hello world')
     expect(generateTextMock).not.toHaveBeenCalled()

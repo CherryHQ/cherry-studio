@@ -1,6 +1,6 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { useDefaultModel } from '@renderer/hooks/useModel'
+import { useQuickModel } from '@renderer/hooks/useModel'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
@@ -170,20 +170,26 @@ export const detectLanguageOrUnknown = async (
 // Hook
 // ---------------------------------------------------------------------------
 
+export interface DetectLanguageController {
+  detectLanguage: (text: string) => Promise<TranslateLangCode>
+  isPending: boolean
+}
+
 /**
- * Hook that returns a stable `detectLanguage` callback.
+ * Hook that returns language detection and its readiness state.
  *
  * The detection method (`auto` / `franc` / `llm`) is read from the
  * `feature.translate.auto_detection_method` preference via {@link usePreference},
  * and the candidate language list comes from {@link useLanguages},
  * so both stay in sync with user settings without prop-drilling.
  *
- * @returns `detectLanguage(text: string) => Promise<TranslateLangCode>`
+ * @returns A language detection controller.
  */
-export const useDetectLang = () => {
+export const useDetectLang = (): DetectLanguageController => {
   const [method] = usePreference('feature.translate.auto_detection_method')
   const { languages, status } = useLanguages()
-  const { quickModel } = useDefaultModel()
+  const needsQuickModel = method !== 'franc'
+  const { model: quickModel, isLoading: isQuickModelLoading } = useQuickModel({ enabled: needsQuickModel })
 
   const toastedEmptyRef = useRef(false)
 
@@ -228,5 +234,8 @@ export const useDetectLang = () => {
     [method, languages, quickModel, status]
   )
 
-  return detectLanguage
+  return {
+    detectLanguage,
+    isPending: status === 'loading' || (needsQuickModel && isQuickModelLoading)
+  }
 }

@@ -140,7 +140,7 @@ const TranslatePage: FC = () => {
   const { t } = useTranslation()
   const [translateModelId, setTranslateModelId] = usePreference('feature.translate.model_id')
   const { models } = useModels({ enabled: true })
-  const detectLanguage = useDetectLang()
+  const { detectLanguage } = useDetectLang()
   const { add: addHistory } = useTranslateHistory()
   const { notesPath } = useNotesSettings()
   const { shikiMarkdownIt } = useCodeStyle()
