@@ -66,6 +66,7 @@
       "/settings/data",
       "/settings/dependencies",
       "/settings/file-processing",
+      "/settings/general",
       "/settings/local-models",
       "/settings/mcp",
       "/settings/model",

@@ -735,6 +735,22 @@
           "description": "タスクリストを管理",
           "label": "タスクリストを管理"
         },
+        "tool_call": {
+          "description": "検出されたツールを1つ呼び出す",
+          "label": "ツールを呼び出す"
+        },
+        "tool_describe": {
+          "description": "ツールの完全な説明とTypeScriptシグネチャを取得",
+          "label": "ツールを説明"
+        },
+        "tool_exec": {
+          "description": "検出されたツールを連携させるJavaScriptを実行",
+          "label": "ツールコードを実行"
+        },
+        "tool_search": {
+          "description": "利用可能なツールを検索し、そのTypeScriptシグネチャを確認",
+          "label": "ツールを検索"
+        },
         "update_goal": {
           "description": "セッション目標の状態または内容を更新",
           "label": "目標を更新"
@@ -5643,7 +5659,8 @@
         },
         "sections": {
           "display_language": "表示と言語"
-        }
+        },
+        "title": "共通設定"
       },
       "emoji_picker": "絵文字ピッカー",
       "image_upload": "画像アップロード",
@@ -6113,6 +6130,7 @@
         "max_messages": "保持する直近メッセージ数",
         "max_messages_description": "直近のメッセージのみを送信し、それより前はコンテキストから除外します。空欄で無制限。アシスタントごとに上書きできます",
         "max_messages_unlimited": "無制限",
+        "scope_description": "Cherry Studio 内のアシスタントとの会話にのみ適用されます。アシスタントごとに個別に上書きできます。",
         "title": "コンテキスト管理",
         "truncate_threshold": "ツール出力の切り詰めしきい値（文字）",
         "truncate_threshold_description": "この文字数を超えるツール出力はファイルへ退避して切り詰めます。モデルは必要に応じて読み戻せます。アシスタントごとに上書きできます"

@@ -735,6 +735,22 @@
           "description": "管理任务列表",
           "label": "管理任务列表"
         },
+        "tool_call": {
+          "description": "调用一个已发现的工具",
+          "label": "调用工具"
+        },
+        "tool_describe": {
+          "description": "获取工具的完整描述和 TypeScript 签名",
+          "label": "描述工具"
+        },
+        "tool_exec": {
+          "description": "执行 JavaScript 来编排已发现的工具",
+          "label": "执行工具代码"
+        },
+        "tool_search": {
+          "description": "搜索可用工具并读取其 TypeScript 签名",
+          "label": "搜索工具"
+        },
         "update_goal": {
           "description": "更新会话目标的状态或内容",
           "label": "更新目标"
@@ -5643,7 +5659,8 @@
         },
         "sections": {
           "display_language": "显示与语言"
-        }
+        },
+        "title": "通用"
       },
       "emoji_picker": "表情选择器",
       "image_upload": "图片上传",
@@ -6113,6 +6130,7 @@
         "max_messages": "保留最近消息数",
         "max_messages_description": "仅发送最近若干条消息，更早的消息不进入上下文；留空表示不限制。助手可单独覆盖",
         "max_messages_unlimited": "不限制",
+        "scope_description": "仅适用于 Cherry Studio 内的助手对话；助手可在自身设置中单独覆盖。",
         "title": "上下文管理",
         "truncate_threshold": "工具输出截断阈值(字符)",
         "truncate_threshold_description": "超过该字符数的工具输出会被转存为文件并截断，模型可按需读回。助手可单独覆盖"

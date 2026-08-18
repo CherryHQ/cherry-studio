@@ -735,6 +735,22 @@
           "description": "Gestionar la lista de tareas",
           "label": "Gestionar la lista de tareas"
         },
+        "tool_call": {
+          "description": "Llamar a una herramienta detectada",
+          "label": "Llamar a una herramienta"
+        },
+        "tool_describe": {
+          "description": "Obtener la descripción completa y la firma de TypeScript de una herramienta",
+          "label": "Describir una herramienta"
+        },
+        "tool_exec": {
+          "description": "Ejecutar JavaScript para coordinar las herramientas detectadas",
+          "label": "Ejecutar código de herramientas"
+        },
+        "tool_search": {
+          "description": "Buscar herramientas disponibles y leer sus firmas de TypeScript",
+          "label": "Buscar herramientas"
+        },
         "update_goal": {
           "description": "Actualizar el estado o el contenido del objetivo de la sesión",
           "label": "Actualizar objetivo"
@@ -5643,7 +5659,8 @@
         },
         "sections": {
           "display_language": "Pantalla e idioma"
-        }
+        },
+        "title": "Configuración común"
       },
       "emoji_picker": "Selector de emojis",
       "image_upload": "Carga de imágenes",
@@ -6113,6 +6130,7 @@
         "max_messages": "Mensajes recientes conservados",
         "max_messages_description": "Envía solo los mensajes más recientes; los anteriores se excluyen del contexto. Déjalo vacío para no poner límite. Los asistentes pueden anularlo",
         "max_messages_unlimited": "Sin límite",
+        "scope_description": "Solo se aplica a las conversaciones con asistentes en Cherry Studio. Los asistentes pueden anular estos ajustes de forma individual.",
         "title": "Gestión del contexto",
         "truncate_threshold": "Umbral de truncado de salida de herramientas (caracteres)",
         "truncate_threshold_description": "Las salidas de herramientas que superen este número de caracteres se descargan a un archivo y se truncan; el modelo puede volver a leerlas cuando lo necesite. Los asistentes pueden anularlo"

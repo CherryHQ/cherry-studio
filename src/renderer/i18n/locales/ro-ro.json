@@ -735,6 +735,22 @@
           "description": "Gestionează lista de sarcini",
           "label": "Gestionează lista de sarcini"
         },
+        "tool_call": {
+          "description": "Apelați un instrument descoperit",
+          "label": "Apelați instrumentul"
+        },
+        "tool_describe": {
+          "description": "Obțineți descrierea completă și semnătura TypeScript a unui instrument",
+          "label": "Descrieți instrumentul"
+        },
+        "tool_exec": {
+          "description": "Executați JavaScript care orchestrează instrumentele descoperite",
+          "label": "Executați codul instrumentelor"
+        },
+        "tool_search": {
+          "description": "Căutați instrumentele disponibile și citiți semnăturile lor TypeScript",
+          "label": "Căutați instrumente"
+        },
         "update_goal": {
           "description": "Actualizează starea sau conținutul obiectivului sesiunii",
           "label": "Actualizează obiectivul"
@@ -5643,7 +5659,8 @@
         },
         "sections": {
           "display_language": "Afișare și limbă"
-        }
+        },
+        "title": "Setări comune"
       },
       "emoji_picker": "Selector emoji",
       "image_upload": "Încărcare imagine",
@@ -6113,6 +6130,7 @@
         "max_messages": "Mesaje recente păstrate",
         "max_messages_description": "Trimite doar cele mai recente mesaje; cele anterioare sunt excluse din context. Lăsați gol pentru fără limită. Asistenții pot suprascrie această setare",
         "max_messages_unlimited": "Nelimitat",
+        "scope_description": "Se aplică numai conversațiilor cu asistenții din Cherry Studio. Asistenții pot suprascrie individual aceste setări.",
         "title": "Gestionarea contextului",
         "truncate_threshold": "Prag de trunchiere a rezultatelor instrumentelor (caractere)",
         "truncate_threshold_description": "Rezultatele instrumentelor peste acest număr de caractere sunt descărcate într-un fișier și trunchiate; modelul le poate reciti la nevoie. Asistenții pot suprascrie această setare"
