@@ -316,6 +316,131 @@ describe('agent right pane projections', () => {
     expect(status.totalTaskCount).toBe(1)
   })
 
+  it('keeps a session-wide TaskList scoped when loaded history starts at the current plan', () => {
+    const parts = [
+      toolPart(
+        'create-current',
+        'TaskCreate',
+        undefined,
+        'output-available',
+        { subject: 'Start the current task' },
+        'Task #11 created successfully: Start the current task'
+      ),
+      toolPart(
+        'list-all',
+        'TaskList',
+        undefined,
+        'output-available',
+        {},
+        {
+          tasks: [
+            { id: '1', subject: 'Finish the unloaded old task', status: 'completed', blockedBy: [] },
+            { id: '11', subject: 'Start the current task', status: 'pending', blockedBy: [] }
+          ]
+        }
+      )
+    ]
+    const messages = [message('m2', parts)]
+
+    const status = buildAgentRightPaneStatus(messages, { m2: parts })
+
+    expect(status.tasks).toEqual([
+      expect.objectContaining({ id: '11', title: 'Start the current task', status: 'pending' })
+    ])
+  })
+
+  it('starts a new task plan when a later turn creates tasks after the previous plan completed', () => {
+    const completedParts = [
+      toolPart('create-old', 'TaskCreate', undefined, 'input-available', { subject: 'Finish the old task' }),
+      toolPart('complete-old-1', 'TaskUpdate', undefined, 'output-available', {
+        taskId: '1',
+        status: 'completed'
+      })
+    ]
+    const newParts = [
+      toolPart(
+        'create-new',
+        'TaskCreate',
+        undefined,
+        'output-available',
+        { subject: 'Start the new task' },
+        'Task #11 created successfully: Start the new task'
+      ),
+      toolPart('complete-new', 'TaskUpdate', undefined, 'output-available', {
+        taskId: '11',
+        status: 'completed'
+      }),
+      toolPart(
+        'list-all',
+        'TaskList',
+        undefined,
+        'output-available',
+        {},
+        {
+          tasks: [
+            { id: '1', subject: 'Finish the old task', status: 'completed', blockedBy: [] },
+            { id: '11', subject: 'Start the new task', status: 'completed', blockedBy: [] }
+          ]
+        }
+      )
+    ]
+    const messages = [message('m1', completedParts), message('m2', newParts)]
+
+    const status = buildAgentRightPaneStatus(messages, { m1: completedParts, m2: newParts })
+
+    expect(status.tasks).toHaveLength(1)
+    expect(status.tasks[0]).toMatchObject({ id: '11', title: 'Start the new task', status: 'completed' })
+    expect(status.completedTaskCount).toBe(1)
+    expect(status.totalTaskCount).toBe(1)
+  })
+
+  it('starts a new task plan after the previous plan completes earlier in the same assistant message', () => {
+    const oldParts = [
+      toolPart(
+        'create-old',
+        'TaskCreate',
+        undefined,
+        'output-available',
+        { subject: 'Finish the old task' },
+        'Task #1 created successfully: Finish the old task'
+      )
+    ]
+    const transitionParts = [
+      toolPart('complete-old', 'TaskUpdate', undefined, 'output-available', {
+        taskId: '1',
+        status: 'completed'
+      }),
+      toolPart(
+        'create-new',
+        'TaskCreate',
+        undefined,
+        'output-available',
+        { subject: 'Start the new task' },
+        'Task #11 created successfully: Start the new task'
+      ),
+      toolPart(
+        'list-all',
+        'TaskList',
+        undefined,
+        'output-available',
+        {},
+        {
+          tasks: [
+            { id: '1', subject: 'Finish the old task', status: 'completed', blockedBy: [] },
+            { id: '11', subject: 'Start the new task', status: 'pending', blockedBy: [] }
+          ]
+        }
+      )
+    ]
+    const messages = [message('m1', oldParts), message('m2', transitionParts)]
+
+    const status = buildAgentRightPaneStatus(messages, { m1: oldParts, m2: transitionParts })
+
+    expect(status.tasks).toEqual([
+      expect.objectContaining({ id: '11', title: 'Start the new task', status: 'pending' })
+    ])
+  })
+
   // SDK task events describe spawned processes, not the agent's own plan, so they populate
   // `runTasks` and stay out of the plan's done/total ratio.
   it('applies persisted Claude SDK task events to run tasks, not the plan', () => {
