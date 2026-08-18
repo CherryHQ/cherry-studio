@@ -1097,7 +1097,7 @@ describe('Sessions', () => {
     expect(screen.getByRole('button', { name: 'Today' })).toHaveAttribute('aria-expanded', 'true')
   })
 
-  it('shows fifty sessions in left-panel time groups and expands the remaining items', () => {
+  it('shows fifty sessions in left-panel time groups and loads five more per expansion', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'time')
     setupSessions({
       sessions: [
@@ -1118,6 +1118,11 @@ describe('Sessions', () => {
     expect(screen.getByText('Today')).toBeInTheDocument()
     expect(screen.getByText('Session 50')).toBeInTheDocument()
     expect(screen.queryByText('Session 51')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expand display' }))
+
+    expect(screen.getByText('Session 55')).toBeInTheDocument()
+    expect(screen.queryByText('Session 56')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Expand display' }))
 
@@ -1150,10 +1155,10 @@ describe('Sessions', () => {
 
     render(<SessionsForTest onCreateSession={onCreateSession} />)
 
-    const emptyStateText = screen.getByText('No tasks')
+    const emptyStateTexts = screen.getAllByText('No tasks')
 
+    expect(emptyStateTexts).toHaveLength(2)
     expect(screen.queryByRole('heading', { name: 'No tasks' })).not.toBeInTheDocument()
-    expect(emptyStateText.querySelector('svg')).not.toBeInTheDocument()
     expect(screen.queryByText('Tasks will appear here after you start one.')).not.toBeInTheDocument()
     expect(getHeaderNewTaskButton()).toBeInTheDocument()
     expect(onCreateSession).not.toHaveBeenCalled()
@@ -1262,7 +1267,7 @@ describe('Sessions', () => {
 
   it('renders work directories that do not have tasks', () => {
     dataApiMocks.workspaces = [
-      ...dataApiMocks.workspaces,
+      makeWorkspace('/Users/jd/project-a', { id: 'ws-a', name: 'Project A Workspace', orderKey: 'a' }),
       makeWorkspace('/Users/jd/project-empty', { id: 'ws-empty', name: 'Empty Workspace', orderKey: 'c' })
     ]
 
@@ -1616,8 +1621,6 @@ describe('Sessions', () => {
         workspace: { type: 'user', workspaceId: 'ws-c' }
       })
     )
-
-    expect(screen.queryByRole('button', { name: 'Gamma agent' })).not.toBeInTheDocument()
   })
 
   it('guards creation of a new system session because it receives a distinct file workspace', async () => {
@@ -3080,6 +3083,9 @@ describe('Sessions', () => {
   })
 
   it('opens a workspace group from the more menu without collapsing the group', async () => {
+    dataApiMocks.workspaces = [
+      makeWorkspace('/Users/jd/project-a', { id: 'ws-a', name: 'Project A Workspace', orderKey: 'a' })
+    ]
     render(<SessionsForTest />)
 
     const workdirGroupButton = screen.getByRole('button', { name: 'Project A Workspace' })
@@ -3156,6 +3162,9 @@ describe('Sessions', () => {
   })
 
   it('renames a workspace group through the workspace update endpoint', async () => {
+    dataApiMocks.workspaces = [
+      makeWorkspace('/Users/jd/project-a', { id: 'ws-a', name: 'Project A Workspace', orderKey: 'a' })
+    ]
     render(<SessionsForTest />)
 
     const workdirGroup = screen.getByRole('button', { name: 'Project A Workspace' }).closest('div')

@@ -121,7 +121,7 @@ const AgentPage = () => {
   const { session: routeSession, isLoading: isRouteSessionLoading } = useSession(
     isMessageOnlyView ? routeSessionId : null
   )
-  const { agents } = useAgents()
+  const { agents, isLoading: isAgentsLoading } = useAgents()
   const [activeSessionId, setActiveSessionIdState] = useState<string | null>(() => routeActiveSessionId)
   const requestComposerFocus = useComposerFocusRequest(
     activeSessionId ? buildAgentSessionTopicId(activeSessionId) : null
@@ -194,6 +194,20 @@ const AgentPage = () => {
   const invalidateCache = useInvalidateCache()
   const closeConversationTabs = useCloseConversationTabs()
   const { setSessionWorkspace } = useUpdateSession()
+  useEffect(() => {
+    if (
+      activeSessionId ||
+      agents.length > 0 ||
+      isAgentsLoading ||
+      isFeedbackIntent ||
+      isMessageOnlyView ||
+      missingAgentSelection
+    ) {
+      return
+    }
+
+    setMissingAgentSelection(true)
+  }, [activeSessionId, agents.length, isAgentsLoading, isFeedbackIntent, isMessageOnlyView, missingAgentSelection])
   const initialActiveSession = useMemo(
     () => (activeSessionId ? agentSessions.find((session) => session.id === activeSessionId) : undefined),
     [activeSessionId, agentSessions]

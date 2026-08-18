@@ -1929,11 +1929,10 @@ describe('AgentPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Create empty session from composer' }))
 
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-blank-touched-11'))
-    expect(agentPageMocks.reuseOrCreateSession).toHaveBeenCalledWith(
-      'agent-a',
-      { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: 'workspace-a' },
-      undefined
-    )
+    expect(agentPageMocks.reuseOrCreateSession).toHaveBeenCalledWith('agent-a', {
+      type: AGENT_WORKSPACE_TYPE.USER,
+      workspaceId: 'workspace-a'
+    })
     expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
     const messageProbeCalls = agentPageMocks.dataApiGet.mock.calls.filter(
       ([path]) => typeof path === 'string' && path.startsWith('/agent-sessions/') && path.endsWith('/messages')
