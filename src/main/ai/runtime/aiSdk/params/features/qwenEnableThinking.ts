@@ -36,9 +36,9 @@ export const qwenEnableThinkingFeature: RequestFeature = {
         const enabled = context.extensions.get('__qwenEnableThinkingOn') as boolean | undefined
         if (!key || enabled === undefined) return params
 
-        const providerOptions = { ...((params as any).providerOptions ?? {}) }
-        providerOptions[key] = { ...(providerOptions[key] ?? {}), enable_thinking: enabled }
-        return { ...params, providerOptions } as any
+        const providerOptions = { ...params.providerOptions }
+        providerOptions[key] = { ...providerOptions[key], enable_thinking: enabled }
+        return { ...params, providerOptions }
       }
     })
   ]
