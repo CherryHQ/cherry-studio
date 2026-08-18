@@ -28,6 +28,11 @@ function resolveDomain(domain: FeishuDomain): Lark.Domain {
   return domain === 'lark' ? Lark.Domain.Lark : Lark.Domain.Feishu
 }
 
+function replyOptions(opts?: SendMessageOptions) {
+  const replyTo = typeof opts?.replyToMessageId === 'string' ? opts.replyToMessageId : undefined
+  return replyTo ? { replyTo, ...(opts?.replyInThread && { replyInThread: true }) } : undefined
+}
+
 class FeishuStreamSession {
   private currentText = ''
   private disposed = false
@@ -37,7 +42,7 @@ class FeishuStreamSession {
   private readonly completion: Promise<void>
   private readonly stream: Promise<Lark.SendResult>
 
-  constructor(channel: Lark.LarkChannel, chatId: string, replyTo?: string, replyInThread?: boolean) {
+  constructor(channel: Lark.LarkChannel, chatId: string, opts?: SendMessageOptions) {
     this.controllerReady = new Promise((resolve) => {
       this.resolveController = resolve
     })
@@ -52,7 +57,7 @@ class FeishuStreamSession {
           await this.completion
         }
       },
-      replyTo ? { replyTo, ...(replyInThread && { replyInThread: true }) } : undefined
+      replyOptions(opts)
     )
     void this.stream.catch(() => undefined)
   }
@@ -268,12 +273,7 @@ class FeishuAdapter extends ChannelAdapter {
       await this.transitionChatReaction(chatId, REACTION_DONE, [REACTION_THINKING], opts)
       this.chatReactions.delete(this.responseKey(chatId, opts))
     }
-    const replyTo = typeof opts?.replyToMessageId === 'string' ? opts.replyToMessageId : undefined
-    await this.getChannel().send(
-      chatId,
-      { markdown: text },
-      replyTo ? { replyTo, ...(opts?.replyInThread && { replyInThread: true }) } : undefined
-    )
+    await this.getChannel().send(chatId, { markdown: text }, replyOptions(opts))
   }
 
   override async sendFile(chatId: string, file: FileAttachment): Promise<void> {
@@ -347,8 +347,7 @@ class FeishuAdapter extends ChannelAdapter {
     const streamKey = this.responseKey(chatId, opts)
     let stream = this.streams.get(streamKey)
     if (!stream) {
-      const replyTo = typeof opts?.replyToMessageId === 'string' ? opts.replyToMessageId : undefined
-      stream = new FeishuStreamSession(this.getChannel(), chatId, replyTo, opts?.replyInThread)
+      stream = new FeishuStreamSession(this.getChannel(), chatId, opts)
       this.streams.set(streamKey, stream)
     }
     await stream.update(fullText)
@@ -391,12 +390,7 @@ class FeishuAdapter extends ChannelAdapter {
       }
       return
     }
-    const replyTo = typeof opts?.replyToMessageId === 'string' ? opts.replyToMessageId : undefined
-    await this.getChannel().send(
-      chatId,
-      { markdown: `**Error**: ${error}` },
-      replyTo ? { replyTo, ...(opts?.replyInThread && { replyInThread: true }) } : undefined
-    )
+    await this.getChannel().send(chatId, { markdown: `**Error**: ${error}` }, replyOptions(opts))
   }
 
   private async handleMessage(message: Lark.NormalizedMessage): Promise<void> {

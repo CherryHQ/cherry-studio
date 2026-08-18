@@ -36,6 +36,18 @@ export class ChannelAdapterListener implements StreamListener {
       : this.adapter.sendMessage(this.platformChatId, text)
   }
 
+  private updateStream(text: string): Promise<void> {
+    return this.responseOptions
+      ? this.adapter.onTextUpdate(this.platformChatId, text, this.responseOptions)
+      : this.adapter.onTextUpdate(this.platformChatId, text)
+  }
+
+  private completeStream(text: string): Promise<boolean> {
+    return this.responseOptions
+      ? this.adapter.onStreamComplete(this.platformChatId, text, this.responseOptions)
+      : this.adapter.onStreamComplete(this.platformChatId, text)
+  }
+
   // oxlint-disable-next-line no-unused-vars
   onChunk(chunk: UIMessageChunk, _sourceModelId?: UniqueModelId): void {
     if (chunk.type === 'text-delta' && chunk.delta) {
@@ -44,13 +56,7 @@ export class ChannelAdapterListener implements StreamListener {
       // the live delivery path that reaches the IM platform, so secrets (keys/tokens) must
       // be redacted before they leave.
       const { text } = sanitizeChannelOutput(this.accumulatedText)
-      const update = this.responseOptions
-        ? this.adapter.onTextUpdate(
-            this.platformChatId,
-            text.replace(INCOMPLETE_CITATION_MARKER_PATTERN, ''),
-            this.responseOptions
-          )
-        : this.adapter.onTextUpdate(this.platformChatId, text.replace(INCOMPLETE_CITATION_MARKER_PATTERN, ''))
+      const update = this.updateStream(text.replace(INCOMPLETE_CITATION_MARKER_PATTERN, ''))
       void update.catch(() => {})
     }
   }
@@ -68,9 +74,7 @@ export class ChannelAdapterListener implements StreamListener {
 
     try {
       // Adapter finalizes its streaming UI first (e.g. close Feishu card).
-      const handled = this.responseOptions
-        ? await this.adapter.onStreamComplete(this.platformChatId, text, this.responseOptions)
-        : await this.adapter.onStreamComplete(this.platformChatId, text)
+      const handled = await this.completeStream(text)
       if (!handled) {
         await this.deliver(text)
       }
@@ -89,9 +93,7 @@ export class ChannelAdapterListener implements StreamListener {
     if (!text) return
 
     try {
-      const handled = this.responseOptions
-        ? await this.adapter.onStreamComplete(this.platformChatId, text, this.responseOptions)
-        : await this.adapter.onStreamComplete(this.platformChatId, text)
+      const handled = await this.completeStream(text)
       if (!handled) {
         await this.deliver(text + '\n\n_(stopped)_')
       }

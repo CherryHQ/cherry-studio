@@ -94,7 +94,7 @@ export class AgentChannelService {
       .select({ channel: channelsTable })
       .from(channelSessionsTable)
       .innerJoin(channelsTable, eq(channelSessionsTable.channelId, channelsTable.id))
-      .where(eq(channelSessionsTable.sessionId, sessionId))
+      .where(and(eq(channelSessionsTable.sessionId, sessionId), eq(channelSessionsTable.isActive, true)))
       .limit(1)
       .all()
     return result[0] ? this.rowToEntity(result[0].channel) : null

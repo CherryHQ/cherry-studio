@@ -253,7 +253,7 @@ describe('AgentChannelService', () => {
   })
 
   describe('conversation sessions', () => {
-    it('rotates one active session per conversation while preserving history', async () => {
+    it('rotates one active session per conversation while keeping inactive history out of live channel lookup', async () => {
       const agentId = 'agent-channel-session'
       await insertAgent(agentId)
       const channel = agentChannelService.createChannel({
@@ -282,7 +282,8 @@ describe('AgentChannelService', () => {
       })
 
       expect(agentChannelService.getActiveSessionId(channel.id, 'dm-alice')).toBe(second.id)
-      expect(agentChannelService.findBySessionId(first.id)?.id).toBe(channel.id)
+      expect(agentChannelService.findBySessionId(first.id)).toBeNull()
+      expect(agentChannelService.findBySessionId(second.id)?.id).toBe(channel.id)
       const rows = dbh.db
         .select()
         .from(agentChannelSessionTable)
