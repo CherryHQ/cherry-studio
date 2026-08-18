@@ -45,7 +45,7 @@ const TranslateOutputPane = ({
               <span>{t('translate.processing')}</span>
             </div>
           ) : translatedContent ? (
-            enableMarkdown ? (
+            enableMarkdown && renderedMarkdown ? (
               <div className="markdown" dangerouslySetInnerHTML={{ __html: renderedMarkdown }} />
             ) : (
               <div className="wrap-break-word whitespace-pre-wrap text-foreground">{translatedContent}</div>
