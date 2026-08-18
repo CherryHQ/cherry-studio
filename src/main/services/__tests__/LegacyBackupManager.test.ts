@@ -183,15 +183,10 @@ vi.mock('archiver', () => ({
 }))
 
 import * as path from 'path'
-import * as path from 'path'
 
-import * as fs from 'fs-extra'
 import * as fs from 'fs-extra'
 
 // Import after mocks
-import { WindowType } from '@main/core/window/types'
-import { IpcChannel } from '@shared/IpcChannel'
-
 import BackupManager from '../LegacyBackupManager'
 
 // Helper to construct platform-independent paths for assertions

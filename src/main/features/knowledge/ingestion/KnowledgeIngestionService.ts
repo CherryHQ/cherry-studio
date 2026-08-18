@@ -6,6 +6,7 @@ import { loggerService } from '@logger'
 import type { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { getFileExt } from '@main/utils/legacyFile'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
+import { ACTIVE_JOB_STATUSES } from '@shared/data/api/schemas/jobs'
 import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import { FileProcessorIdSchema } from '@shared/data/presets/fileProcessing'
 import {
@@ -23,7 +24,7 @@ import {
 import { knowledgeSupportedFileExts } from '@shared/utils/file'
 
 import { assertBaseCanRunRuntimeOperation } from '../base/baseGuards'
-import { classifyKnowledgeItemReacquireSource } from '../items'
+import { classifyKnowledgeItemReacquireSource, isIndexableKnowledgeItem, toMaterialRelativePath } from '../items'
 import {
   assertKnowledgeFileTargetAvailable,
   collectKnowledgeReservedRelativePaths,
@@ -33,10 +34,12 @@ import {
   getKnowledgeSourceRelativePath,
   getProcessedMarkdownRelativePath,
   needsProcessedArtifactReservation,
+  probeKnowledgeFile,
   reserveImportedFileRelativePath
 } from '../pathStorage'
 import { type KnowledgeSourcePlanOptions, planKnowledgeItemSource } from '../pipeline/sources/sourcePlanning'
 import { cancelActiveKnowledgeJobs, cancelJobOrThrow } from '../tasks/utils/cancel'
+import { narrowKnowledgeJobInput } from '../tasks/utils/jobInput'
 import {
   type KnowledgeBaseId,
   knowledgeDeleteSubtreeIdempotencyKey,
@@ -46,6 +49,7 @@ import {
   knowledgePrepareIdempotencyKey,
   knowledgeQueueName,
   knowledgeReindexSubtreeIdempotencyKey,
+  knowledgeRestoreIndexIdempotencyKey,
   toKnowledgeBaseId,
   toKnowledgeItemId,
   toKnowledgeItemIds
@@ -332,6 +336,17 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
         timedOut
       })
     }
+  }
+
+  private async listActiveRestoreIndexJobs(baseId: string, restoreId: string) {
+    const jobs = await application.get('JobManager').list({
+      queue: knowledgeQueueName(toKnowledgeBaseId(baseId)),
+      status: [...ACTIVE_JOB_STATUSES]
+    })
+    return jobs.filter((job) => {
+      const narrowed = narrowKnowledgeJobInput(job)
+      return narrowed?.type === 'knowledge.index-documents' && narrowed.input.restoreId === restoreId
+    })
   }
 
   /**

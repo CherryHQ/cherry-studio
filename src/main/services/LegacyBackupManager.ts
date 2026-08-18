@@ -20,7 +20,7 @@ import { pipeline } from 'node:stream/promises'
 import * as path from 'path'
 
 import { ZipArchive } from 'archiver'
-import { Mutex, tryAcquire } from 'async-mutex'
+import { Mutex } from 'async-mutex'
 import * as fs from 'fs-extra'
 
 import { application } from '@application'
@@ -28,7 +28,7 @@ import { loggerService } from '@logger'
 import { WindowType } from '@main/core/window/types'
 import { isPathInside } from '@main/utils/legacyFile'
 import { IpcChannel } from '@shared/IpcChannel'
-import { BACKUP_DISK_FULL_ERROR_CODE, BACKUP_OPERATION_BUSY_ERROR_CODE } from '@shared/types/backup'
+import { BACKUP_DISK_FULL_ERROR_CODE } from '@shared/types/backup'
 
 const logger = loggerService.withContext('BackupManager')
 const STALE_TEMP_ARTIFACT_AGE_MS = 24 * 60 * 60 * 1000
@@ -66,13 +66,6 @@ interface ProgressData {
   stage: string
   progress: number
   total: number
-}
-
-export class BackupOperationBusyError extends Error {
-  constructor() {
-    super(`${BACKUP_OPERATION_BUSY_ERROR_CODE}: Another backup operation is already in progress.`)
-    this.name = 'BackupOperationBusyError'
-  }
 }
 
 class BackupManager {
@@ -132,10 +125,6 @@ class BackupManager {
    * @param skipBackupFile - Whether to skip backing up the Data directory
    * @returns Path to the created backup file
    */
-  private runBackupWorkflow<T>(operation: () => Promise<T>): Promise<T> {
-    return tryAcquire(this.operationMutex, new BackupOperationBusyError()).runExclusive(operation)
-  }
-
   async backupLegacy(
     _event: Electron.IpcMainInvokeEvent,
     fileName: string,
@@ -143,7 +132,9 @@ class BackupManager {
     destinationPath: string = this.backupDir,
     skipBackupFile: boolean = false
   ): Promise<string> {
-    return this.runBackupWorkflow(() => this.backupLegacyUnlocked(fileName, data, destinationPath, skipBackupFile))
+    return this.operationMutex.runExclusive(() =>
+      this.backupLegacyUnlocked(fileName, data, destinationPath, skipBackupFile)
+    )
   }
 
   private async backupLegacyUnlocked(

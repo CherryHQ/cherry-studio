@@ -23,9 +23,6 @@ const S3_SOCKET_IDLE_TIMEOUT_MS = 5 * 60_000
 const SINGLE_PUT_MAX_BYTES = 5 * 1024 * 1024 * 1024
 const PUT_MAX_ATTEMPTS = 3
 
-/**
- * 将可读流转换为 Buffer
- */
 // 需要使用 Virtual Host-Style 的服务商域名后缀白名单
 const VIRTUAL_HOST_SUFFIXES = ['aliyuncs.com', 'myqcloud.com', 'qiniucs.com', 'volces.com']
 

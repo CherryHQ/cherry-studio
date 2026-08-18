@@ -11,7 +11,6 @@ import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
 import { popup } from '@renderer/services/popup'
-import type { AutoBackupType } from '@shared/types/backup'
 
 import { type BackupDestinationId, backupToDestination } from './backupDestination'
 
@@ -31,9 +30,9 @@ export interface BackupOptions {
   autoBackupProcess?: boolean
 }
 
-// Session-local, non-reactive sync status. The auto-sync scheduler writes timestamps here and reads
-// them back; the settings UI reads it best-effort until the native v2 service replaces this module.
-let backupSyncState: Record<AutoBackupType, RemoteSyncState> = {
+// Session-local sync status, replaced (not mutated) on every write so
+// `useSyncExternalStore` sees a new identity. Main's scheduler is the writer.
+let backupSyncState: Record<BackupDestinationId, RemoteSyncState> = {
   webdav: { lastSyncTime: null, syncing: false, lastSyncError: null },
   s3: { lastSyncTime: null, syncing: false, lastSyncError: null },
   local: { lastSyncTime: null, syncing: false, lastSyncError: null },
@@ -47,7 +46,7 @@ export const subscribeBackupSyncState = (listener: () => void) => {
   return () => backupSyncListeners.delete(listener)
 }
 
-export const setBackupSyncState = (type: AutoBackupType, patch: Partial<RemoteSyncState>) => {
+export const setBackupSyncState = (type: BackupDestinationId, patch: Partial<RemoteSyncState>) => {
   backupSyncState = { ...backupSyncState, [type]: { ...backupSyncState[type], ...patch } }
   backupSyncListeners.forEach((listener) => listener())
 }
@@ -227,7 +226,7 @@ export async function startAutoSync(immediate = false, type?: BackupType) {
         webdavSyncTimeout = null
       }
       syncInterval = await preferenceService.get('data.backup.webdav.sync_interval')
-      lastSyncTime = backup.webdav?.lastSyncTime || undefined
+      lastSyncTime = backup.webdav.lastSyncTime || undefined
       logPrefix = '[WebdavAutoSync]'
     } else if (backupType === 's3') {
       if (s3SyncTimeout) {
@@ -235,7 +234,7 @@ export async function startAutoSync(immediate = false, type?: BackupType) {
         s3SyncTimeout = null
       }
       syncInterval = await preferenceService.get('data.backup.s3.sync_interval')
-      lastSyncTime = backup.s3?.lastSyncTime || undefined
+      lastSyncTime = backup.s3.lastSyncTime || undefined
       logPrefix = '[S3AutoSync]'
     } else if (backupType === 'local') {
       if (localSyncTimeout) {
@@ -243,7 +242,7 @@ export async function startAutoSync(immediate = false, type?: BackupType) {
         localSyncTimeout = null
       }
       syncInterval = await preferenceService.get('data.backup.local.sync_interval')
-      lastSyncTime = backup.local?.lastSyncTime || undefined
+      lastSyncTime = backup.local.lastSyncTime || undefined
       logPrefix = '[LocalAutoSync]'
     } else {
       return

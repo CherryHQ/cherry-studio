@@ -11,13 +11,8 @@ import { getBackupSyncState, type RemoteSyncState, setBackupSyncState } from './
 
 const logger = loggerService.withContext('NutstoreService')
 
-// Session-local, non-reactive sync status (mirrors BackupService; see the note there).
-const nutstoreSyncState: RemoteSyncState = { lastSyncTime: null, syncing: false, lastSyncError: null }
-
-export const getNutstoreSyncState = () => nutstoreSyncState
-
 const setNutstoreSyncState = (patch: Partial<RemoteSyncState>) => {
-  Object.assign(nutstoreSyncState, patch)
+  setBackupSyncState('nutstore', patch)
 }
 
 let autoSyncStarted = false

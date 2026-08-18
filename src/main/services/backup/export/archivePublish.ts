@@ -24,8 +24,6 @@ import { type BackupManifest, parseBackupManifest } from '../manifest'
 import { ResourceCoverageIndex } from '../resourceCoverageIndex'
 import { validateResourcePathSet } from '../resources/resourcePaths'
 import { archiveDurability } from './archiveDurability'
-import { archiveDurability } from './archiveDurability'
-import { verifyArchiveReadback } from './archiveReadback'
 import { verifyArchiveReadback } from './archiveReadback'
 
 const logger = loggerService.withContext('backup/archivePublish')

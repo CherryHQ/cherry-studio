@@ -43,7 +43,8 @@ import {
   encodePortableAgentResumePoint
 } from '@main/ai/agents/portableProfilePolicy'
 import { encodeClaudeProjectDir } from '@main/ai/runtime/claudeCode'
-import { createKnowledgeIndexStoreAtPath } from '@main/features/knowledge/vectorstore/indexStore/createIndexStore'
+import { createKnowledgeIndexStoreAtPath } from '@main/features/knowledge/pipeline/vectorstore/indexStore/createIndexStore'
+import type { PosixRelativeFilePath } from '@shared/utils/file'
 
 import { ArchiveAdmissionError } from '../../errors'
 import { exportArchive } from '../../export/exportArchive'
@@ -579,7 +580,7 @@ describe('Full restore, empty target device', () => {
         id: itemId,
         baseId: 'kb-1',
         type: 'file',
-        data: { source: '/source/doc.txt', relativePath: 'doc.txt' },
+        data: { source: '/source/doc.txt', relativePath: 'doc.txt' as PosixRelativeFilePath },
         status: 'completed'
       })
       .run()
@@ -587,14 +588,14 @@ describe('Full restore, empty target device', () => {
     const liveIndexPath = join(sourceUserData, 'Data', 'KnowledgeBase', 'kb-1', '.cherry', 'index.sqlite')
     mkdirSync(join(liveIndexPath, '..'), { recursive: true })
     const indexStore = createKnowledgeIndexStoreAtPath(liveIndexPath, { baseId: 'kb-1' })
-    await indexStore.rebuildMaterial(itemId, {
+    indexStore.rebuildMaterial(itemId, {
       material: { relativePath: 'doc.txt' },
       content: { text: 'SOURCE-KB' },
       units: [{ unitType: 'chunk', unitIndex: 0, charStart: 0, charEnd: 'SOURCE-KB'.length }],
       usesEmbeddings: false,
       embeddings: []
     })
-    await indexStore.close()
+    indexStore.close()
 
     const vectorService = application.get('KnowledgeVectorStoreService')
     vi.mocked(vectorService.snapshotPortableIndex).mockImplementationOnce(async (_baseId, destination) => {

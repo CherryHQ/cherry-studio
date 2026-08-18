@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Input, RowFlex, WarnTooltip } from '@cherrystudio/ui'
-import { Button, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { LocalBackupManager } from '@renderer/components/LocalBackupManager'

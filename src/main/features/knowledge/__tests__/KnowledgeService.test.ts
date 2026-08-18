@@ -1073,7 +1073,7 @@ describe('KnowledgeService', () => {
       const directory = createDirectoryItem('dir-1', null, 'completed')
       knowledgeBaseGetByIdMock.mockReturnValue(createBase())
       knowledgeItemGetItemsByBaseIdMock.mockReturnValue([file, directory])
-      getMaterialByRelativePathMock.mockResolvedValue(null)
+      getMaterialByRelativePathMock.mockReturnValue(null)
 
       await expect(service.reconcileRestoredBaseFromMaterial('kb-1', 'restore-1')).resolves.toBe('pending')
 
@@ -1081,7 +1081,7 @@ describe('KnowledgeService', () => {
       expect(probeKnowledgeSourcePathMock).not.toHaveBeenCalled()
       expect(enqueueMock).toHaveBeenCalledWith(
         'knowledge.index-documents',
-        { baseId: 'kb-1', itemId: 'file-1', parentJobId: null, restoreId: 'restore-1' },
+        { baseId: 'kb-1', itemId: 'file-1', restoreId: 'restore-1' },
         expect.objectContaining({ idempotencyKey: 'knowledge:kb-1:file-1:restore-index:restore-1' })
       )
     })

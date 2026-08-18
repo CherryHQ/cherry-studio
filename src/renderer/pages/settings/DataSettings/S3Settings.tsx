@@ -5,7 +5,6 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, InfoTooltip, Input, RowFlex, WarnTooltip } from '@cherrystudio/ui'
-import { Button, InfoTooltip, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import AppLogo from '@renderer/assets/images/logo.png'
 import { S3BackupManager } from '@renderer/components/S3BackupManager'

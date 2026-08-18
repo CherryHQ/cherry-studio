@@ -2,7 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 
 import { application } from '@application'
-import { hasPendingRestore } from '@data/db/restore/restoreJournal'
+import { hasPendingRestore } from '@data/db/restore/restoreGuard'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
