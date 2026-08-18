@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import { toast } from '@renderer/services/toast'
 import type * as ImageUtils from '@renderer/utils/image'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ImageViewer from '../ImageViewer'
@@ -81,34 +82,37 @@ describe('ImageViewer', () => {
     Object.assign(window, {
       api: { file: { save: mocks.save, saveImage: mocks.saveImage }, fs: { read: mocks.fsRead } }
     })
-    Object.assign(navigator, { clipboard: mocks.clipboard })
     vi.stubGlobal('ClipboardItem', MockClipboardItem)
     vi.stubGlobal('fetch', mocks.fetch)
   })
 
-  it('opens the shared preview dialog with the save-as toolbar action', () => {
+  it('opens the shared preview dialog with the save-as toolbar action', async () => {
+    const user = userEvent.setup()
     render(<ImageViewer src="https://example.com/image.png" alt="Example image" />)
 
-    fireEvent.click(screen.getByRole('img', { name: 'Example image' }))
+    await user.click(screen.getByRole('img', { name: 'Example image' }))
 
     expect(screen.getByTestId('image-preview-dialog')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'preview.save_as' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'preview.copy.image' })).not.toBeInTheDocument()
   })
 
-  it('respects preview=false', () => {
+  it('respects preview=false', async () => {
+    const user = userEvent.setup()
     render(<ImageViewer src="https://example.com/image.png" alt="Example image" preview={false} />)
 
-    fireEvent.click(screen.getByRole('img', { name: 'Example image' }))
+    await user.click(screen.getByRole('img', { name: 'Example image' }))
 
     expect(screen.queryByTestId('image-preview-dialog')).not.toBeInTheDocument()
   })
 
   it('copies image source from the context menu', async () => {
+    const user = userEvent.setup()
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: mocks.clipboard })
     render(<ImageViewer src="https://example.com/image.png" alt="Example image" />)
 
     fireEvent.contextMenu(screen.getByRole('img', { name: 'Example image' }))
-    fireEvent.click(screen.getByRole('button', { name: 'preview.copy.src' }))
+    await user.click(screen.getByRole('button', { name: 'preview.copy.src' }))
 
     await waitFor(() => {
       expect(mocks.clipboard.writeText).toHaveBeenCalledWith('https://example.com/image.png')
@@ -117,10 +121,12 @@ describe('ImageViewer', () => {
   })
 
   it('copies image data from the context menu', async () => {
+    const user = userEvent.setup()
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: mocks.clipboard })
     render(<ImageViewer src="data:image/png;base64,aGVsbG8=" alt="Example image" />)
 
     fireEvent.contextMenu(screen.getByRole('img', { name: 'Example image' }))
-    fireEvent.click(screen.getByRole('button', { name: 'preview.copy.image' }))
+    await user.click(screen.getByRole('button', { name: 'preview.copy.image' }))
 
     await waitFor(() => {
       expect(mocks.clipboard.write).toHaveBeenCalledWith([expect.any(MockClipboardItem)])
@@ -129,10 +135,11 @@ describe('ImageViewer', () => {
   })
 
   it('saves untouched image data with its original bytes and format', async () => {
+    const user = userEvent.setup()
     render(<ImageViewer src="data:image/webp;base64,aGVsbG8=" alt="Example image" />)
 
     fireEvent.contextMenu(screen.getByRole('img', { name: 'Example image' }))
-    fireEvent.click(screen.getByRole('button', { name: 'preview.save_as' }))
+    await user.click(screen.getByRole('button', { name: 'preview.save_as' }))
 
     await waitFor(() => {
       expect(mocks.ipcRequest).toHaveBeenCalledWith('file.save', {
@@ -146,13 +153,14 @@ describe('ImageViewer', () => {
   })
 
   it('uses the original filename suffix when the source MIME is generic', async () => {
+    const user = userEvent.setup()
     mocks.fetch.mockResolvedValueOnce({
       blob: async () => new Blob(['hello'], { type: 'application/octet-stream' })
     })
     render(<ImageViewer src="https://example.com/source.png" alt="Example image.JPEG" />)
 
     fireEvent.contextMenu(screen.getByRole('img', { name: 'Example image.JPEG' }))
-    fireEvent.click(screen.getByRole('button', { name: 'preview.save_as' }))
+    await user.click(screen.getByRole('button', { name: 'preview.save_as' }))
 
     await waitFor(() => {
       expect(mocks.ipcRequest).toHaveBeenCalledWith('file.save', {
@@ -163,6 +171,7 @@ describe('ImageViewer', () => {
   })
 
   it('bakes the external content transform when saving from the context menu', async () => {
+    const user = userEvent.setup()
     render(
       <ImageViewer
         src="data:image/png;base64,aGVsbG8="
@@ -173,7 +182,7 @@ describe('ImageViewer', () => {
     )
 
     fireEvent.contextMenu(screen.getByRole('img', { name: 'Example image' }))
-    fireEvent.click(screen.getByRole('button', { name: 'preview.save_as' }))
+    await user.click(screen.getByRole('button', { name: 'preview.save_as' }))
 
     await waitFor(() => {
       expect(mocks.transformImageToPng).toHaveBeenCalledWith(expect.any(Blob), {
@@ -190,10 +199,11 @@ describe('ImageViewer', () => {
     expect(mocks.saveImage).not.toHaveBeenCalled()
   })
 
-  it('does not expose a download action in the preview toolbar or context menu', () => {
+  it('does not expose a download action in the preview toolbar or context menu', async () => {
+    const user = userEvent.setup()
     render(<ImageViewer src="https://example.com/image.png" alt="Example image" />)
 
-    fireEvent.click(screen.getByRole('img', { name: 'Example image' }))
+    await user.click(screen.getByRole('img', { name: 'Example image' }))
     expect(screen.queryByRole('button', { name: 'common.download' })).not.toBeInTheDocument()
 
     fireEvent.contextMenu(screen.getAllByRole('img', { name: 'Example image' })[0])
