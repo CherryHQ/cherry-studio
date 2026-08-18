@@ -1,5 +1,6 @@
 import { application } from '@application'
 import { decryptToken } from '@main/services/nutstore/NutstoreService'
+import { hasWritePermission, isPathInside } from '@main/utils/legacyFile'
 import type { BackupDestinationId } from '@shared/ipc/schemas/backup'
 import { NUTSTORE_HOST } from '@shared/utils/nutstore'
 
@@ -127,5 +128,27 @@ export async function resolveDestination(id: BackupDestinationId): Promise<Resol
 
   const dir = preferences().get('data.backup.local.dir')
   requireAll('local', { dir })
+  await assertUsableBackupDirectory(dir)
   return { kind: 'local', dir, maxBackups: preferences().get('data.backup.local.max_backups') }
+}
+
+/**
+ * Refuse a local directory the app must not write backups into.
+ *
+ * HERE, not only in the settings page. The settings gate runs when a human
+ * picks a folder; a scheduled backup runs against whatever the preference says
+ * now — which can be a path that was valid when it was chosen and is not any
+ * more (a portable install that moved, a preference synced from another OS).
+ *
+ * Backing up into userData would put each archive inside the next one's source;
+ * backing up into the install directory writes into something an update
+ * replaces.
+ */
+async function assertUsableBackupDirectory(dir: string): Promise<void> {
+  if (isPathInside(dir, application.getPath('app.userdata')) || isPathInside(dir, application.getPath('app.install'))) {
+    throw new DestinationNotConfiguredError('local', 'directory is inside the application data or install directory')
+  }
+  if (!(await hasWritePermission(dir))) {
+    throw new DestinationNotConfiguredError('local', 'directory does not exist or is not writable')
+  }
 }
