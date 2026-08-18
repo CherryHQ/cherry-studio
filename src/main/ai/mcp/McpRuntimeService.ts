@@ -32,6 +32,7 @@ import type {
   PromptListChangedNotificationSchema,
   ResourceListChangedNotificationSchema,
   ResourceUpdatedNotificationSchema,
+  ServerCapabilities,
   ToolListChangedNotificationSchema
 } from '@modelcontextprotocol/sdk/types.js'
 import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
@@ -195,6 +196,10 @@ export interface McpToolListChangedEvent {
 // so a generous floor avoids false positives on slow SSE/streamableHttp handshakes while
 // still letting users raise it further via `server.timeout`.
 const MCP_CONNECT_TIMEOUT_FLOOR_MS = 180_000
+
+// Backstop on `prompts/list` / `resources/list` cursor paging: a server that keeps handing back a
+// cursor would otherwise loop forever. Reaching it is logged, not silently truncated.
+const MCP_LIST_PAGE_LIMIT = 50
 
 // Liveness ping before reusing a cached client. 1s falsely timed out on stdio servers busy
 // with a previous request, forcing needless reconnects.
@@ -387,6 +392,21 @@ export class McpRuntimeService extends BaseService {
       id: server.id,
       fingerprint
     })
+  }
+
+  /**
+   * Capabilities the server declared during the handshake, or `undefined` when it has never
+   * connected. Synchronous and connection-free by design: it is the gate for exposing the
+   * `mcp_resource_*` tools on the chat hot path, which must never open a connection to decide.
+   */
+  public getConnectedServerCapabilities(serverId: string): ServerCapabilities | undefined {
+    let server: McpServer | undefined
+    try {
+      server = this.getServerById(serverId)
+    } catch {
+      return undefined
+    }
+    return this.clients.get(this.getServerKey(server))?.getServerCapabilities()
   }
 
   private isServerKeyForId(serverKey: string, serverId: string): boolean {
@@ -1359,15 +1379,24 @@ export class McpRuntimeService extends BaseService {
    */
   private async listPromptsImpl(server: McpServer): Promise<McpPrompt[]> {
     const client = await this.getOrCreateClient(server)
+    if (!client.getServerCapabilities()?.prompts) {
+      getServerLogger(server).debug(`Server does not declare prompts capability, skipping list`)
+      return []
+    }
     getServerLogger(server).debug(`Listing prompts`)
     try {
-      const { prompts } = await client.listPrompts()
-      return prompts.map((prompt: any) => ({
-        ...prompt,
-        id: `p${nanoid()}`,
-        serverId: server.id,
-        serverName: server.name
-      }))
+      const prompts: McpPrompt[] = []
+      let cursor: string | undefined
+      for (let page = 0; page < MCP_LIST_PAGE_LIMIT; page++) {
+        const result = await client.listPrompts(cursor ? { cursor } : undefined)
+        for (const prompt of result.prompts ?? []) {
+          prompts.push({ ...(prompt as any), id: `p${nanoid()}`, serverId: server.id, serverName: server.name })
+        }
+        cursor = result.nextCursor
+        if (!cursor) return prompts
+      }
+      getServerLogger(server).warn(`Stopped paging prompts at the page limit`, { pageLimit: MCP_LIST_PAGE_LIMIT })
+      return prompts
     } catch (error: unknown) {
       // -32601 (method not found) means the server has no prompts capability — a stable
       // empty result that is safe to cache. Any other error is transient; rethrow it so
@@ -1405,37 +1434,37 @@ export class McpRuntimeService extends BaseService {
   /**
    * Get a specific prompt from an MCP server (implementation)
    */
-  private async getPromptImpl(server: McpServer, name: string, args?: Record<string, any>): Promise<GetPromptResult> {
+  private async getPromptImpl(
+    server: McpServer,
+    name: string,
+    args?: Record<string, any>,
+    signal?: AbortSignal
+  ): Promise<GetPromptResult> {
     logger.debug(`Getting prompt ${name} from server: ${server.name}`)
     const client = await this.getOrCreateClient(server)
-    return await client.getPrompt({ name, arguments: args })
+    return await client.getPrompt({ name, arguments: args }, signal ? { signal } : undefined)
   }
 
   /**
-   * Get a specific prompt from an MCP server with caching
+   * Render a prompt on an MCP server.
+   *
+   * Uncached for the same reason as `getResource`: `prompts/list_changed` and restart clear the list
+   * key only, so a rendered-prompt cache would serve a stale template for its whole TTL after the
+   * server replaced it.
    */
   @TraceMethod({ spanName: 'getPrompt', tag: 'mcp' })
   public async getPrompt({
     serverId,
     name,
-    args
+    args,
+    signal
   }: {
     serverId: string
     name: string
     args?: Record<string, any>
+    signal?: AbortSignal
   }): Promise<GetPromptResult> {
-    const server = this.getServerById(serverId)
-    const cachedGetPrompt = withCache<[McpServer, string, Record<string, any> | undefined], GetPromptResult>(
-      this.getPromptImpl.bind(this),
-      (server, name, args) => {
-        const serverKey = this.getServerKey(server)
-        const argsKey = args ? JSON.stringify(args) : 'no-args'
-        return `mcp:get_prompt:${serverKey}:${name}:${argsKey}`
-      },
-      30 * 60 * 1000, // 30 minutes TTL
-      `[MCP] Prompt ${name} from ${server.name}`
-    )
-    return await cachedGetPrompt(server, name, args)
+    return await this.getPromptImpl(this.getServerById(serverId), name, args, signal)
   }
 
   /**
@@ -1443,15 +1472,24 @@ export class McpRuntimeService extends BaseService {
    */
   private async listResourcesImpl(server: McpServer): Promise<McpResource[]> {
     const client = await this.getOrCreateClient(server)
+    if (!client.getServerCapabilities()?.resources) {
+      logger.debug(`Server ${server.name} does not declare resources capability, skipping list`)
+      return []
+    }
     logger.debug(`Listing resources for server: ${server.name}`)
     try {
-      const result = await client.listResources()
-      const resources = result.resources || []
-      return (Array.isArray(resources) ? resources : []).map((resource: any) => ({
-        ...resource,
-        serverId: server.id,
-        serverName: server.name
-      }))
+      const resources: McpResource[] = []
+      let cursor: string | undefined
+      for (let page = 0; page < MCP_LIST_PAGE_LIMIT; page++) {
+        const result = await client.listResources(cursor ? { cursor } : undefined)
+        for (const resource of Array.isArray(result.resources) ? result.resources : []) {
+          resources.push({ ...(resource as any), serverId: server.id, serverName: server.name })
+        }
+        cursor = result.nextCursor
+        if (!cursor) return resources
+      }
+      getServerLogger(server).warn(`Stopped paging resources at the page limit`, { pageLimit: MCP_LIST_PAGE_LIMIT })
+      return resources
     } catch (error: any) {
       // -32601 (method not found) is a stable empty result safe to cache; rethrow anything
       // else so a transient failure isn't cached as an empty list for the full TTL.
@@ -1487,11 +1525,11 @@ export class McpRuntimeService extends BaseService {
   /**
    * Get a specific resource from an MCP server (implementation)
    */
-  private async getResourceImpl(server: McpServer, uri: string): Promise<GetResourceResponse> {
+  private async getResourceImpl(server: McpServer, uri: string, signal?: AbortSignal): Promise<GetResourceResponse> {
     getServerLogger(server, { uri }).debug(`Getting resource`)
     const client = await this.getOrCreateClient(server)
     try {
-      const result = await client.readResource({ uri: uri })
+      const result = await client.readResource({ uri: uri }, signal ? { signal } : undefined)
       const contents: McpResource[] = []
       if (result.contents && result.contents.length > 0) {
         result.contents.forEach((content: any) => {
@@ -1512,21 +1550,24 @@ export class McpRuntimeService extends BaseService {
   }
 
   /**
-   * Get a specific resource from an MCP server with caching
+   * Read a specific resource from an MCP server.
+   *
+   * Deliberately uncached: resource *content* changes independently of the resource list, and the
+   * only invalidation this service has (`resources/list_changed`, `resources/updated`, restart,
+   * `clearServerCache`) clears list keys. A content cache here would keep serving stale bytes — and
+   * stale permissions — for its whole TTL after the server said the resource changed.
    */
   @TraceMethod({ spanName: 'getResource', tag: 'mcp' })
-  public async getResource({ serverId, uri }: { serverId: string; uri: string }): Promise<GetResourceResponse> {
-    const server = this.getServerById(serverId)
-    const cachedGetResource = withCache<[McpServer, string], GetResourceResponse>(
-      this.getResourceImpl.bind(this),
-      (server, uri) => {
-        const serverKey = this.getServerKey(server)
-        return `mcp:get_resource:${serverKey}:${uri}`
-      },
-      30 * 60 * 1000, // 30 minutes TTL
-      `[MCP] Resource ${uri} from ${server.name}`
-    )
-    return await cachedGetResource(server, uri)
+  public async getResource({
+    serverId,
+    uri,
+    signal
+  }: {
+    serverId: string
+    uri: string
+    signal?: AbortSignal
+  }): Promise<GetResourceResponse> {
+    return await this.getResourceImpl(this.getServerById(serverId), uri, signal)
   }
 
   // 实现 abortTool 方法

@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "a5823247-2c25-423f-acd1-a5e832918ca2",
+  "id": "562deb0e-f421-4303-9a75-c154d4ff272b",
   "prevId": "6411aedf-190d-403e-b590-02663973bcb7",
   "tables": {
     "agent": {
@@ -694,41 +694,6 @@
           "notNull": false,
           "autoincrement": false
         },
-        "delivery": {
-          "name": "delivery",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "delivery_status": {
-          "name": "delivery_status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "delivery_turn_ref": {
-          "name": "delivery_turn_ref",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "delivery_in_reply_to": {
-          "name": "delivery_in_reply_to",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "delivery_sender_session_id": {
-          "name": "delivery_sender_session_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "fts_rowid": {
           "name": "fts_rowid",
           "type": "integer",
@@ -761,26 +726,6 @@
           "name": "agent_session_message_status_idx",
           "columns": ["status"],
           "isUnique": false
-        },
-        "agent_session_message_delivery_status_idx": {
-          "name": "agent_session_message_delivery_status_idx",
-          "columns": ["delivery_status"],
-          "isUnique": false
-        },
-        "agent_session_message_delivery_turn_ref_idx": {
-          "name": "agent_session_message_delivery_turn_ref_idx",
-          "columns": ["delivery_turn_ref"],
-          "isUnique": false
-        },
-        "agent_session_message_delivery_sender_idx": {
-          "name": "agent_session_message_delivery_sender_idx",
-          "columns": ["delivery_sender_session_id", "created_at", "id"],
-          "isUnique": false
-        },
-        "agent_session_message_delivery_reply_uniq": {
-          "name": "agent_session_message_delivery_reply_uniq",
-          "columns": ["delivery_in_reply_to"],
-          "isUnique": true
         },
         "agent_session_message_fts_rowid_uniq": {
           "name": "agent_session_message_fts_rowid_uniq",
@@ -818,14 +763,6 @@
         "agent_session_message_status_check": {
           "name": "agent_session_message_status_check",
           "value": "\"agent_session_message\".\"status\" IN ('pending', 'success', 'error', 'paused')"
-        },
-        "agent_session_message_delivery_status_check": {
-          "name": "agent_session_message_delivery_status_check",
-          "value": "\"agent_session_message\".\"delivery_status\" IS NULL OR \"agent_session_message\".\"delivery_status\" IN ('accepted', 'delivering', 'consumed', 'failed')"
-        },
-        "agent_session_message_delivery_turn_ref_check": {
-          "name": "agent_session_message_delivery_turn_ref_check",
-          "value": "(\"agent_session_message\".\"delivery_status\" = 'delivering' AND \"agent_session_message\".\"delivery_turn_ref\" IS NOT NULL) OR (\"agent_session_message\".\"delivery_status\" != 'delivering' AND \"agent_session_message\".\"delivery_turn_ref\" IS NULL) OR (\"agent_session_message\".\"delivery_status\" IS NULL AND \"agent_session_message\".\"delivery_turn_ref\" IS NULL)"
         }
       }
     },
@@ -2435,6 +2372,98 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
+    },
+    "translate_history_file_ref": {
+      "name": "translate_history_file_ref",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "file_entry_id": {
+          "name": "file_entry_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "source_id": {
+          "name": "source_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "thfr_entry_id_idx": {
+          "name": "thfr_entry_id_idx",
+          "columns": ["file_entry_id"],
+          "isUnique": false
+        },
+        "thfr_source_id_idx": {
+          "name": "thfr_source_id_idx",
+          "columns": ["source_id"],
+          "isUnique": false
+        },
+        "thfr_unique_idx": {
+          "name": "thfr_unique_idx",
+          "columns": ["source_id", "role"],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "translate_history_file_ref_file_entry_id_file_entry_id_fk": {
+          "name": "translate_history_file_ref_file_entry_id_file_entry_id_fk",
+          "tableFrom": "translate_history_file_ref",
+          "tableTo": "file_entry",
+          "columnsFrom": ["file_entry_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "translate_history_file_ref_source_id_translate_history_id_fk": {
+          "name": "translate_history_file_ref_source_id_translate_history_id_fk",
+          "tableFrom": "translate_history_file_ref",
+          "tableTo": "translate_history",
+          "columnsFrom": ["source_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "thfr_role_check": {
+          "name": "thfr_role_check",
+          "value": "\"translate_history_file_ref\".\"role\" IN ('source', 'target')"
+        }
+      }
     },
     "group": {
       "name": "group",
@@ -4251,6 +4280,14 @@
           "primaryKey": true,
           "notNull": true,
           "autoincrement": false
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'text'"
         },
         "source_text": {
           "name": "source_text",
