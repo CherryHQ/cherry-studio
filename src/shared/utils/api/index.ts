@@ -9,6 +9,7 @@ export {
   joinApiKeyString,
   maskApiKey,
   splitApiKeyString,
+  SUPPORTED_ENDPOINT_LIST,
   withoutTrailingApiVersion,
   withoutTrailingSharp,
   withoutTrailingSlash

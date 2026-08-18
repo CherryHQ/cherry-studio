@@ -1,4 +1,4 @@
-import { formatApiHost, validateApiHost } from '@renderer/utils/api'
+import { formatApiHost, routeToEndpoint, validateApiHost } from '@renderer/utils/api'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { EndpointConfig } from '@shared/data/types/provider'
 import { trim } from 'es-toolkit/compat'
@@ -82,8 +82,9 @@ export function buildCustomProviderEndpointPreview(baseUrl: string, endpointType
     return ''
   }
 
+  const { baseURL: host } = routeToEndpoint(value)
   const formattedHost =
-    endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT ? formatApiHost(value, true, 'v1beta') : formatApiHost(value)
+    endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT ? formatApiHost(host, true, 'v1beta') : formatApiHost(host)
   return `${formattedHost}${ENDPOINT_PATHS[endpointType]}`
 }
 
