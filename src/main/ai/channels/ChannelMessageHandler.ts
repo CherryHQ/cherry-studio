@@ -46,6 +46,10 @@ type PendingBatch = {
   messages: ChannelMessageEvent[]
   timer: ReturnType<typeof setTimeout>
   resolvers: BatchResolver[]
+  release: () => void
+  cancelled: boolean
+  admissionId: string
+  admit: () => void
 }
 
 function conversationIdOf(event: Pick<ChannelMessageEvent | ChannelCommandEvent, 'chatId' | 'conversationId'>): string {
@@ -163,10 +167,13 @@ export class ChannelMessageHandler {
   /** Advisory pre-flight enumeration for the restore orchestrator. Read-only, in-memory. */
   listActiveWork(): Array<{ id: string; summary: string }> {
     const work: Array<{ id: string; summary: string }> = []
+    const bufferedAdmissionIds = new Set<string>()
     for (const [batchKey, batch] of this.pendingBatches) {
       work.push({ id: batchKey, summary: `buffered=${batch.messages.length}` })
+      bufferedAdmissionIds.add(batch.admissionId)
     }
     for (const admissionId of this.pendingAdmissions.keys()) {
+      if (bufferedAdmissionIds.has(admissionId)) continue
       work.push({
         id: admissionId,
         summary: admissionId.startsWith('command:')
@@ -219,13 +226,30 @@ export class ChannelMessageHandler {
       }
 
       // Start a new batch
+      let release!: () => void
+      const ready = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      const admissionId = `${batchKey}#${++this.admissionSeq}`
+      let admit!: () => void
+      const admission = new Promise<void>((resolve) => {
+        admit = resolve
+      })
+      this.pendingAdmissions.set(admissionId, admission)
+      void admission.then(() => this.pendingAdmissions.delete(admissionId))
+
       const batch: PendingBatch = {
         adapter,
         messages: [message],
         timer: setTimeout(() => this.flushBatch(batchKey), MESSAGE_BATCH_DELAY_MS),
-        resolvers: [{ resolve, reject }]
+        resolvers: [{ resolve, reject }],
+        release,
+        cancelled: false,
+        admissionId,
+        admit
       }
       this.pendingBatches.set(batchKey, batch)
+      this.enqueueBatch(batchKey, batch, ready)
     })
   }
 
@@ -233,35 +257,26 @@ export class ChannelMessageHandler {
     const batch = this.pendingBatches.get(batchKey)
     if (!batch) return
     this.pendingBatches.delete(batchKey)
+    batch.release()
+  }
 
-    const merged = this.mergeMessages(batch.messages)
-    const { resolvers } = batch
-    const queueKey = `${batch.adapter.agentId}:${batch.adapter.channelId}:${conversationIdOf(merged)}`
-
-    if (batch.messages.length > 1) {
-      logger.info('Flushing merged message batch', {
-        batchKey,
-        messageCount: batch.messages.length
-      })
-    }
-
-    // Admission deferred for the write-quiesce drain: resolved once this batch's agent turn
-    // was admitted (or processIncoming bailed early). `resolve()` is natively idempotent.
-    const admissionId = `${batchKey}#${++this.admissionSeq}`
-    let admit!: () => void
-    const admission = new Promise<void>((resolve) => {
-      admit = resolve
-    })
-    this.pendingAdmissions.set(admissionId, admission)
-    void admission.then(() => this.pendingAdmissions.delete(admissionId))
-
-    // Serialize with any in-flight stream to avoid interleaving
+  private enqueueBatch(batchKey: string, batch: PendingBatch, ready: Promise<void>): void {
+    const queueKey = `${batch.adapter.agentId}:${batch.adapter.channelId}:${conversationIdOf(batch.messages[0])}`
     const prev = this.chatQueues.get(queueKey) ?? Promise.resolve()
     const current = prev
-      .then(() => this.processIncoming(batch.adapter, merged, admit))
+      .then(async () => {
+        await ready
+        if (batch.cancelled) return
+
+        const merged = this.mergeMessages(batch.messages)
+        if (batch.messages.length > 1) {
+          logger.info('Flushing merged message batch', { batchKey, messageCount: batch.messages.length })
+        }
+        await this.processIncoming(batch.adapter, merged, batch.admit)
+      })
       .then(
-        () => resolvers.forEach((r) => r.resolve()),
-        (err) => resolvers.forEach((r) => r.reject(err))
+        () => batch.resolvers.forEach((r) => r.resolve()),
+        (err) => batch.resolvers.forEach((r) => r.reject(err))
       )
       .finally(() => {
         // Clean up queue entry when no newer work has been enqueued
@@ -277,11 +292,12 @@ export class ChannelMessageHandler {
       // Best-effort: notify the user with a generic message (no internal details)
       try {
         const adapter = batch.adapter
-        const chatId = merged.chatId
-        if (adapter && chatId) {
+        const message = batch.messages.at(-1)
+        const chatId = message?.chatId
+        if (adapter && message && chatId) {
           adapter
             .sendMessage(chatId, '⚠️ An error occurred while processing your message. Please try again later.', {
-              ...responseOptionsFor(merged)
+              ...responseOptionsFor(message)
             })
             .catch((sendErr) => {
               logger.debug('Failed to send error notification to channel', {
@@ -682,6 +698,9 @@ export class ChannelMessageHandler {
       if (key.startsWith(`${agentId}:`)) {
         clearTimeout(batch.timer)
         this.pendingBatches.delete(key)
+        batch.cancelled = true
+        batch.admit()
+        batch.release()
         // Settle the discarded batch's callers so their .catch handlers fire
         // instead of leaving handleIncoming promises hanging forever.
         batch.resolvers.forEach((r) => r.reject(new Error('Agent removed; batch discarded')))

@@ -112,7 +112,8 @@ function toWorkspaceSource(session: AgentSessionEntity): AgentSessionWorkspaceSo
 
 function resolveSourceChannel(agentId: string, sessionId: string): string | undefined {
   try {
-    return channelService.listChannels({ agentId }).find((channel) => channel.sessionId === sessionId)?.id
+    const channel = channelService.findBySessionId(sessionId)
+    return channel?.agentId === agentId ? channel.id : undefined
   } catch {
     return undefined
   }

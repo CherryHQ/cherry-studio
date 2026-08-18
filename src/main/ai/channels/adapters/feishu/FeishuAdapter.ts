@@ -253,8 +253,10 @@ class FeishuAdapter extends ChannelAdapter {
   }
 
   async sendMessage(chatId: string, text: string, opts?: SendMessageOptions): Promise<void> {
-    await this.transitionChatReaction(chatId, REACTION_DONE, [REACTION_THINKING], opts)
-    this.chatReactions.delete(this.responseKey(chatId, opts))
+    if (opts?.replyToMessageId) {
+      await this.transitionChatReaction(chatId, REACTION_DONE, [REACTION_THINKING], opts)
+      this.chatReactions.delete(this.responseKey(chatId, opts))
+    }
     const replyTo = typeof opts?.replyToMessageId === 'string' ? opts.replyToMessageId : undefined
     await this.getChannel().send(
       chatId,
@@ -274,6 +276,7 @@ class FeishuAdapter extends ChannelAdapter {
   }
 
   async sendTypingIndicator(chatId: string, opts?: SendMessageOptions): Promise<void> {
+    if (!opts?.replyToMessageId) return
     await this.setChatReaction(chatId, REACTION_THINKING, opts)
   }
 
@@ -334,8 +337,7 @@ class FeishuAdapter extends ChannelAdapter {
     const streamKey = this.responseKey(chatId, opts)
     let stream = this.streams.get(streamKey)
     if (!stream) {
-      const replyTo =
-        typeof opts?.replyToMessageId === 'string' ? opts.replyToMessageId : this.latestUserMessageByChat.get(chatId)
+      const replyTo = typeof opts?.replyToMessageId === 'string' ? opts.replyToMessageId : undefined
       stream = new FeishuStreamSession(this.getChannel(), chatId, replyTo, opts?.replyInThread)
       this.streams.set(streamKey, stream)
     }
@@ -344,8 +346,10 @@ class FeishuAdapter extends ChannelAdapter {
 
   override async onStreamComplete(chatId: string, finalText: string, opts?: SendMessageOptions): Promise<boolean> {
     const streamKey = this.responseKey(chatId, opts)
-    await this.transitionChatReaction(chatId, REACTION_DONE, [REACTION_THINKING], opts)
-    this.chatReactions.delete(streamKey)
+    if (opts?.replyToMessageId) {
+      await this.transitionChatReaction(chatId, REACTION_DONE, [REACTION_THINKING], opts)
+      this.chatReactions.delete(streamKey)
+    }
     const stream = this.streams.get(streamKey)
     if (!stream) return false
     try {
@@ -358,8 +362,10 @@ class FeishuAdapter extends ChannelAdapter {
 
   override async onStreamError(chatId: string, error: string, opts?: SendMessageOptions): Promise<void> {
     const streamKey = this.responseKey(chatId, opts)
-    await this.transitionChatReaction(chatId, REACTION_ERROR, [REACTION_THINKING, REACTION_DONE], opts)
-    this.chatReactions.delete(streamKey)
+    if (opts?.replyToMessageId) {
+      await this.transitionChatReaction(chatId, REACTION_ERROR, [REACTION_THINKING, REACTION_DONE], opts)
+      this.chatReactions.delete(streamKey)
+    }
     const stream = this.streams.get(streamKey)
     if (stream) {
       try {
@@ -425,10 +431,15 @@ class FeishuAdapter extends ChannelAdapter {
 
     for (const resource of message.resources) {
       try {
-        const buffer = await this.getChannel().downloadResource(
-          resource.fileKey,
-          resource.type === 'image' ? 'image' : 'file'
-        )
+        const resourceResponse = await this.getChannel().rawClient.im.v1.messageResource.get({
+          path: { message_id: message.messageId, file_key: resource.fileKey },
+          params: { type: resource.type }
+        })
+        const chunks: Buffer[] = []
+        for await (const chunk of resourceResponse.getReadableStream()) {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+        }
+        const buffer = Buffer.concat(chunks)
         if (buffer.length > MAX_FILE_SIZE_BYTES) {
           this.log.warn('Feishu resource too large', { fileKey: resource.fileKey, size: buffer.length })
           continue

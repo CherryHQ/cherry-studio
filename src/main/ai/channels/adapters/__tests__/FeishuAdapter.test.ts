@@ -30,7 +30,7 @@ const mockConnect = vi.fn()
 const mockDisconnect = vi.fn()
 const mockSend = vi.fn()
 const mockStream = vi.fn()
-const mockDownloadResource = vi.fn()
+const mockMessageResourceGet = vi.fn()
 const mockAddReaction = vi.fn()
 const mockRemoveReaction = vi.fn()
 const mockSetContent = vi.fn()
@@ -42,7 +42,7 @@ const mockChannel = {
   disconnect: mockDisconnect,
   send: mockSend,
   stream: mockStream,
-  downloadResource: mockDownloadResource,
+  rawClient: { im: { v1: { messageResource: { get: mockMessageResourceGet } } } },
   addReaction: mockAddReaction,
   removeReaction: mockRemoveReaction,
   on: vi.fn((handlers: Record<string, (...args: any[]) => any>) => {
@@ -93,7 +93,7 @@ describe('FeishuAdapter', () => {
     mockConnect.mockReset().mockResolvedValue(undefined)
     mockDisconnect.mockReset().mockResolvedValue(undefined)
     mockSend.mockReset().mockResolvedValue({ messageId: 'msg-out-1' })
-    mockDownloadResource.mockReset()
+    mockMessageResourceGet.mockReset()
     mockAddReaction.mockReset().mockResolvedValue('rx-1')
     mockRemoveReaction.mockReset().mockResolvedValue(undefined)
     mockSetContent.mockReset().mockResolvedValue(undefined)
@@ -290,14 +290,25 @@ describe('FeishuAdapter', () => {
     await adapter.connect()
     await channelHandlers.message(incomingMessage())
 
-    await adapter.onTextUpdate('oc_123', 'partial')
-    await adapter.onTextUpdate('oc_123', 'partial response')
-    await expect(adapter.onStreamComplete('oc_123', 'final response')).resolves.toBe(true)
+    const responseOptions = { replyToMessageId: 'msg-in-1' }
+    await adapter.onTextUpdate('oc_123', 'partial', responseOptions)
+    await adapter.onTextUpdate('oc_123', 'partial response', responseOptions)
+    await expect(adapter.onStreamComplete('oc_123', 'final response', responseOptions)).resolves.toBe(true)
 
     expect(mockStream).toHaveBeenCalledWith('oc_123', expect.any(Object), { replyTo: 'msg-in-1' })
     expect(mockSetContent).toHaveBeenNthCalledWith(1, 'partial')
     expect(mockSetContent).toHaveBeenNthCalledWith(2, 'partial response')
     expect(mockSetContent).toHaveBeenNthCalledWith(3, 'final response')
+  })
+
+  it('sends proactive streams at the chat root instead of replying to the last inbound message', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+    await channelHandlers.message(incomingMessage())
+
+    await adapter.onTextUpdate('oc_123', 'proactive update')
+
+    expect(mockStream).toHaveBeenCalledWith('oc_123', expect.any(Object), undefined)
   })
 
   it('isolates thread events and keeps streamed replies in the originating thread', async () => {
@@ -405,7 +416,17 @@ describe('FeishuAdapter', () => {
     await adapter.connect()
     const png = Buffer.from('89504e470d0a1a0a0000000d49484452', 'hex')
     const pdf = Buffer.from('%PDF-1.7')
-    mockDownloadResource.mockResolvedValueOnce(png).mockResolvedValueOnce(pdf)
+    mockMessageResourceGet
+      .mockResolvedValueOnce({
+        getReadableStream: async function* () {
+          yield png
+        }
+      })
+      .mockResolvedValueOnce({
+        getReadableStream: async function* () {
+          yield pdf
+        }
+      })
 
     await channelHandlers.message(
       incomingMessage({
@@ -417,8 +438,14 @@ describe('FeishuAdapter', () => {
       })
     )
 
-    expect(mockDownloadResource).toHaveBeenNthCalledWith(1, 'img-1', 'image')
-    expect(mockDownloadResource).toHaveBeenNthCalledWith(2, 'file-1', 'file')
+    expect(mockMessageResourceGet).toHaveBeenNthCalledWith(1, {
+      path: { message_id: 'msg-in-1', file_key: 'img-1' },
+      params: { type: 'image' }
+    })
+    expect(mockMessageResourceGet).toHaveBeenNthCalledWith(2, {
+      path: { message_id: 'msg-in-1', file_key: 'file-1' },
+      params: { type: 'file' }
+    })
     expect(onMessage).toHaveBeenCalledWith(
       expect.objectContaining({
         images: [{ data: png.toString('base64'), media_type: 'image/png' }],
@@ -440,13 +467,30 @@ describe('FeishuAdapter', () => {
     await channelHandlers.message(incomingMessage())
     mockAddReaction.mockResolvedValueOnce('rx-thinking').mockResolvedValueOnce('rx-done')
 
-    await adapter.sendTypingIndicator('oc_123')
-    await adapter.sendMessage('oc_123', 'Done')
+    const responseOptions = { replyToMessageId: 'msg-in-1' }
+    await adapter.sendTypingIndicator('oc_123', responseOptions)
+    await adapter.sendMessage('oc_123', 'Done', responseOptions)
 
     expect(mockAddReaction).toHaveBeenNthCalledWith(1, 'msg-in-1', 'Typing')
     expect(mockRemoveReaction).toHaveBeenCalledWith('msg-in-1', 'rx-thinking')
     expect(mockAddReaction).toHaveBeenNthCalledWith(2, 'msg-in-1', 'OK')
     expect(adapter.chatReactions.size).toBe(0)
+  })
+
+  it('keeps every long thread reply chunk in the originating thread', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    await adapter.sendMessage('oc_123', 'A'.repeat(4001), { replyToMessageId: 'msg-in-1', replyInThread: true })
+
+    expect(mockSend).toHaveBeenCalledWith(
+      'oc_123',
+      { markdown: 'A'.repeat(4001) },
+      {
+        replyTo: 'msg-in-1',
+        replyInThread: true
+      }
+    )
   })
 
   it('keeps notification chat ids from configuration', () => {
