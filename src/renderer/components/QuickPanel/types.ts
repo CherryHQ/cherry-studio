@@ -7,10 +7,21 @@ export type QuickPanelTriggerInfo = {
   originalText?: string
 }
 
+export interface QuickPanelInsertTextOptions {
+  /** Default true — turn `${name}` in the inserted text into prompt-variable chips. */
+  tokenizeVariables?: boolean
+}
+
 export interface QuickPanelInputAdapter {
   getText: () => string
   getCursorOffset?: () => number
-  insertText: (text: string) => void
+  /**
+   * Inserts at the cursor. By default `${name}` markers in the text become editable prompt-variable
+   * chips (quick phrases rely on it). Pass `tokenizeVariables: false` for text from a source that
+   * did not author those markers as fields — a rendered MCP prompt whose body may contain a shell
+   * `${HOME}` — so it stays literal.
+   */
+  insertText: (text: string, options?: QuickPanelInsertTextOptions) => void
   insertToken?: (token: unknown) => void
   deleteTriggerRange: (range: { from: number; to: number }) => void
   focus: () => void

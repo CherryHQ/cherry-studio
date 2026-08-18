@@ -16,6 +16,7 @@ export type {
   QuickPanelFilterFn,
   QuickPanelInputAdapter,
   QuickPanelInputEvent,
+  QuickPanelInsertTextOptions,
   QuickPanelKeyDownEvent,
   QuickPanelKeyDownHandler,
   QuickPanelListItem,

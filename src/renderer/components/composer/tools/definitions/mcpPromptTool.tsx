@@ -4,7 +4,12 @@ import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
 import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import { defineTool, type ToolRenderContext, TopicType } from '@renderer/components/composer/tools/types'
 import { McpLogo } from '@renderer/components/icons/SvgIcon'
-import { type QuickPanelCallBackOptions, type QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
+import {
+  type QuickPanelCallBackOptions,
+  type QuickPanelInputAdapter,
+  type QuickPanelListItem,
+  useQuickPanel
+} from '@renderer/components/QuickPanel'
 import { useAgent } from '@renderer/hooks/agent/useAgent'
 import { useScopedMcpServers } from '@renderer/hooks/useMcpServer'
 import { ipcApi } from '@renderer/ipc'
@@ -81,6 +86,25 @@ export function splitMcpPromptText(text: string, nonce: string): McpPromptSegmen
 /** Plain-text rendering for composers with no token-capable adapter. */
 export function renderMcpPromptSegmentsAsText(segments: readonly McpPromptSegment[]): string {
   return segments.map((segment) => (segment.type === 'text' ? segment.value : `\${${segment.name}}`)).join('')
+}
+
+/**
+ * Write a rendered prompt into the composer: one chip per argument this insertion declared, and the
+ * body as literal text with variable tokenization off — so a `${HOME}` the server itself wrote stays
+ * text instead of becoming a field the user can silently overwrite.
+ */
+export function insertMcpPromptSegments(
+  segments: readonly McpPromptSegment[],
+  inputAdapter: QuickPanelInputAdapter
+): void {
+  segments.forEach((segment, index) => {
+    if (segment.type === 'text') {
+      inputAdapter.insertText(segment.value, { tokenizeVariables: false })
+      return
+    }
+    inputAdapter.insertToken?.(createPromptVariableToken(segment.name, `\${${segment.name}}`, index))
+  })
+  inputAdapter.focus()
 }
 
 /** Text parts of a `prompts/get` result, in order. Image / resource parts have no composer form. */
@@ -163,16 +187,7 @@ const McpPromptComposerRuntime = ({ context }: { context: McpPromptToolContext }
         return
       }
 
-      // Chips are created here, one per declared argument, instead of letting the editor's generic
-      // `${...}` rule re-scan the server's text and turn its own expressions into fields.
-      segments.forEach((segment, index) => {
-        if (segment.type === 'text') {
-          inputAdapter.insertText(segment.value)
-          return
-        }
-        inputAdapter.insertToken?.(createPromptVariableToken(segment.name, `\${${segment.name}}`, index))
-      })
-      inputAdapter.focus()
+      insertMcpPromptSegments(segments, inputAdapter)
     },
     [actions]
   )
