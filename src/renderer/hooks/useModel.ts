@@ -18,6 +18,14 @@ const logger = loggerService.withContext('useModels')
 
 const EMPTY_MODELS: readonly Model[] = Object.freeze([])
 
+export function useQuickModel(options: { enabled?: boolean } = {}) {
+  const enabled = options.enabled ?? true
+  const [defaultModelId] = usePreference('chat.default_model_id')
+  const [quickModelId] = usePreference('feature.quick_assistant.model_id')
+  const modelId = (quickModelId ?? defaultModelId) as UniqueModelId | null
+  return useModelById(enabled ? modelId : null)
+}
+
 /**
  * Reactive read of the user's default / quick / translate / painting models.
  * Each id lives in Preference; the Model record lives in DataApi. Quick /

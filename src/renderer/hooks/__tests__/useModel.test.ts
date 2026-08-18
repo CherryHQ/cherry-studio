@@ -6,7 +6,7 @@ import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useDefaultModel, useModelById, useModelMutations, useModels } from '../useModel'
+import { useDefaultModel, useModelById, useModelMutations, useModels, useQuickModel } from '../useModel'
 
 // ─── Mock data ────────────────────────────────────────────────────────
 const mockModel1: any = {
@@ -561,6 +561,48 @@ describe('useModelMutations', () => {
     expect(result.current.isBulkDeleting).toBe(true)
     expect(result.current.isUpdating).toBe(false)
     expect(result.current.isBulkUpdating).toBe(false)
+  })
+})
+
+describe('useQuickModel', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    MockUsePreferenceUtils.resetMocks()
+    mockUseQuery.mockImplementation(() => ({
+      data: undefined,
+      isLoading: true,
+      isRefreshing: false,
+      error: undefined,
+      refetch: vi.fn().mockResolvedValue(undefined),
+      mutate: vi.fn()
+    }))
+  })
+
+  it('queries only the configured quick model and exposes its loading state', () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.default_model_id', 'openai::default')
+    MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.model_id', 'openai::quick')
+
+    const { result } = renderHook(() => useQuickModel())
+
+    expect(mockUseQuery).toHaveBeenCalledOnce()
+    expect(mockUseQuery).toHaveBeenCalledWith('/models/openai::quick', {
+      enabled: true,
+      swrOptions: { keepPreviousData: false }
+    })
+    expect(result.current.isLoading).toBe(true)
+  })
+
+  it('falls back to the default model when the quick model is unset', () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.default_model_id', 'openai::default')
+    MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.model_id', null)
+
+    renderHook(() => useQuickModel())
+
+    expect(mockUseQuery).toHaveBeenCalledOnce()
+    expect(mockUseQuery).toHaveBeenCalledWith('/models/openai::default', {
+      enabled: true,
+      swrOptions: { keepPreviousData: false }
+    })
   })
 })
 
