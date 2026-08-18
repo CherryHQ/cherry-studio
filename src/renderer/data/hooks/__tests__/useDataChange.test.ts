@@ -65,6 +65,20 @@ describe('useDataChange', () => {
     expect(mockService.onDataChanged).toHaveBeenCalledTimes(1)
   })
 
+  it('exposes endpoint arrays as unscoped subscriptions', () => {
+    type ArraySubscriptionArguments = Parameters<typeof useDataChange>
+    const listener = vi.fn()
+    const endpoints = ['/topics/:id', '/topics/:topicId/tree'] as const
+    const acceptArraySubscription = (...args: ArraySubscriptionArguments) => args
+    const unscoped = acceptArraySubscription(endpoints, listener)
+
+    // One route-parameter object cannot correctly scope endpoints with different parameter names.
+    // @ts-expect-error Array subscriptions intentionally reject shared routeParams.
+    acceptArraySubscription(endpoints, listener, { routeParams: { id: 't1' } })
+
+    expect(unscoped).toHaveLength(2)
+  })
+
   it('invokes the latest listener without resubscribing', () => {
     const first = vi.fn()
     const second = vi.fn()

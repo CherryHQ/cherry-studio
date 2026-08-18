@@ -1111,10 +1111,12 @@ export function usePaginatedQuery<TPath extends ApiPath>(
  * (safe to pass an inline closure — re-renders do not resubscribe).
  *
  * The listener receives, for each notification, the entries matching any of
- * the subscribed endpoints and optional route parameters merged into one
- * call. Everything below the route is consumer policy: dimension/entityIds filtering, choosing
- * revalidate / rebuild / ignore, and idempotency towards echoes of this
- * window's own writes.
+ * the subscribed endpoints merged into one call. A single template endpoint
+ * may additionally be scoped with `routeParams`. Endpoint arrays are
+ * deliberately unscoped; use separate subscriptions when templates need
+ * different parameter objects. Everything below the route is consumer policy:
+ * dimension/entityIds filtering, choosing revalidate / rebuild / ignore, and
+ * idempotency towards echoes of this window's own writes.
  *
  * @example
  * // Conservative list convergence: any signal → refetch
@@ -1136,9 +1138,18 @@ export type UseDataChangeOptions<Path extends GetMethodApiPaths> = Path extends 
     }
 
 export function useDataChange<Path extends GetMethodApiPaths>(
-  endpoints: Path | readonly Path[],
+  endpoints: Path,
   listener: (effects: DataApiDataChangeEffect[]) => void,
-  options: UseDataChangeOptions<Path> = {} as UseDataChangeOptions<Path>
+  options?: UseDataChangeOptions<Path>
+): void
+export function useDataChange<Path extends GetMethodApiPaths>(
+  endpoints: Path | readonly Path[],
+  listener: (effects: DataApiDataChangeEffect[]) => void
+): void
+export function useDataChange(
+  endpoints: GetMethodApiPaths | readonly GetMethodApiPaths[],
+  listener: (effects: DataApiDataChangeEffect[]) => void,
+  options: { routeParams?: Readonly<Record<string, unknown>> } = {}
 ): void {
   const listenerRef = useRef(listener)
   const routeParamsRef = useRef(options.routeParams)
