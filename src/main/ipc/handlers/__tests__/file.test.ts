@@ -1,4 +1,5 @@
 import type * as FileDispatchModule from '@main/services/file/internal/dispatch'
+import type * as MainFileUtils from '@main/utils/file'
 import { fileRequestSchemas } from '@shared/ipc/schemas/file'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -10,7 +11,9 @@ const {
   readByPathMock,
   readChunkByPathMock,
   safeOpenMock,
+  showSaveDialogMock,
   showPathInFolderMock,
+  writeMock,
   writeIfUnchangedByPathMock
 } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
@@ -19,10 +22,18 @@ const {
   readByPathMock: vi.fn(),
   readChunkByPathMock: vi.fn(),
   safeOpenMock: vi.fn(),
+  showSaveDialogMock: vi.fn(),
   showPathInFolderMock: vi.fn(),
+  writeMock: vi.fn(),
   writeIfUnchangedByPathMock: vi.fn()
 }))
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
+vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
+vi.mock('electron', () => ({ dialog: { showSaveDialog: showSaveDialogMock } }))
+vi.mock('@main/utils/file', async (importOriginal) => ({
+  ...(await importOriginal<typeof MainFileUtils>()),
+  write: writeMock
+}))
 vi.mock('@main/services/file', async () => {
   // dispatchHandle is exercised for real so these tests cover handle routing.
   const { dispatchHandle } = await vi.importActual<typeof FileDispatchModule>('@main/services/file/internal/dispatch')
@@ -124,6 +135,36 @@ const ctx = { senderId: null }
 const windowCtx = { senderId: 'win-1' }
 
 describe('fileHandlers', () => {
+  it('saves exact bytes selected by the user outside managed storage', async () => {
+    const data = new Uint8Array([0, 1, 2, 255])
+    showSaveDialogMock.mockResolvedValueOnce({ canceled: false, filePath: '/tmp/product.webp' })
+    const save = Reflect.get(fileHandlers, 'file.save') as
+      | ((input: { data: Uint8Array; defaultPath: string }, context: typeof ctx) => Promise<string | null>)
+      | undefined
+
+    expect(save).toBeTypeOf('function')
+    if (!save) return
+
+    await expect(save({ data, defaultPath: 'product.webp' }, ctx)).resolves.toBe('/tmp/product.webp')
+    expect(showSaveDialogMock).toHaveBeenCalledWith(expect.objectContaining({ defaultPath: 'product.webp' }))
+    expect(assertOutsideManagedStorageMutationMock).toHaveBeenCalledWith('/tmp/product.webp')
+    expect(writeMock).toHaveBeenCalledWith('/tmp/product.webp', data)
+  })
+
+  it('does not write when the user cancels the save dialog', async () => {
+    showSaveDialogMock.mockResolvedValueOnce({ canceled: true })
+    const save = Reflect.get(fileHandlers, 'file.save') as
+      | ((input: { data: Uint8Array; defaultPath: string }, context: typeof ctx) => Promise<string | null>)
+      | undefined
+
+    expect(save).toBeTypeOf('function')
+    if (!save) return
+
+    await expect(save({ data: new Uint8Array([1]), defaultPath: 'image.png' }, ctx)).resolves.toBeNull()
+    expect(assertOutsideManagedStorageMutationMock).not.toHaveBeenCalled()
+    expect(writeMock).not.toHaveBeenCalled()
+  })
+
   it('does not expose the pure-SQL content-hash lookup through IpcApi', () => {
     expect('file.find_internal_by_content_hash' in fileRequestSchemas).toBe(false)
     expect('file.find_internal_by_content_hash' in fileHandlers).toBe(false)

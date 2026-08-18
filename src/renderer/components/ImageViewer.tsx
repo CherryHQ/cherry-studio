@@ -8,6 +8,7 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
+import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { copyImageToClipboard, getImageBlobFromSource, transformImageToPng } from '@renderer/utils/image'
@@ -66,15 +67,8 @@ const getImageSaveName = (item: ImagePreviewItem) => {
 }
 
 const getFallbackImageExtension = (item: ImagePreviewItem) => {
-  const candidates = [item.alt?.trim(), getSourceBasename(item.src)]
-  for (const candidate of candidates) {
-    const extension = candidate?.match(IMAGE_EXTENSION_PATTERN)?.[1]
-    if (extension) {
-      return normalizeImageExtension(extension)
-    }
-  }
-
-  return undefined
+  const extension = getSourceBasename(item.src)?.match(IMAGE_EXTENSION_PATTERN)?.[1]
+  return extension ? normalizeImageExtension(extension) : undefined
 }
 
 const getImageSaveExtension = (item: ImagePreviewItem, blob: Blob) => {
@@ -178,7 +172,10 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
         const outputBlob = hasPixelTransform ? await transformImageToPng(blob, { flipX, flipY, rotation }) : blob
         const extension = hasPixelTransform ? 'png' : getImageSaveExtension(item, blob)
         const bytes = new Uint8Array(await outputBlob.arrayBuffer())
-        const saved = await window.api.file.save(`${getImageSaveName(item)}.${extension}`, bytes)
+        const saved = await ipcApi.request('file.save', {
+          defaultPath: `${getImageSaveName(item)}.${extension}`,
+          data: bytes
+        })
         if (saved) {
           toast.success(t('common.saved'))
         }

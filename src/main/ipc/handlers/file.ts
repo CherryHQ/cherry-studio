@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { t } from '@main/i18n'
 import {
   assertOutsideManagedStorageMutation,
   ContentCommittedMetadataPendingError,
@@ -11,12 +12,14 @@ import {
   writeIfUnchangedByPath
 } from '@main/services/file'
 import { DirectoryTreeStoppedError, StaleVersionError } from '@main/services/file'
-import { PathStaleVersionError } from '@main/utils/file'
+import { PathStaleVersionError, write as writeFile } from '@main/utils/file'
 import type { FileHandle } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { fileRequestSchemas } from '@shared/ipc/schemas/file'
 import type { IpcHandlersFor, WindowId } from '@shared/ipc/types'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { dialog } from 'electron'
 
 /**
  * The caller window's WebContents — the directory tree addresses its mutation
@@ -39,6 +42,15 @@ function requireSenderWebContents(senderId: WindowId | null): Electron.WebConten
  * on DataApi; these handlers cover live FS metadata and user-triggered mutations.
  */
 export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
+  'file.save': async ({ defaultPath, data }) => {
+    const result = await dialog.showSaveDialog({ title: t('dialog.save_file'), defaultPath })
+    if (result.canceled || !result.filePath) return null
+
+    const target = AbsoluteFilePathSchema.parse(result.filePath)
+    await assertOutsideManagedStorageMutation(target)
+    await writeFile(target, data)
+    return target
+  },
   'file.read': async ({ handle, options }) => {
     const fileManager = application.get('FileManager')
     if (options.mode === 'range') {

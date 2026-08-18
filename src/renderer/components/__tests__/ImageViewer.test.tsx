@@ -15,9 +15,12 @@ const mocks = vi.hoisted(() => ({
     write: vi.fn(),
     writeText: vi.fn()
   },
+  ipcRequest: vi.fn(),
   save: vi.fn(),
   saveImage: vi.fn()
 }))
+
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.ipcRequest } }))
 
 vi.mock('@renderer/utils/image', async (importOriginal) => {
   const actual = await importOriginal<typeof ImageUtils>()
@@ -70,6 +73,7 @@ describe('ImageViewer', () => {
       blob: async () => new Blob(['remote'], { type: 'image/webp' })
     })
     mocks.fsRead.mockResolvedValue(new Uint8Array([1, 2, 3]))
+    mocks.ipcRequest.mockResolvedValue('/tmp/image')
     mocks.save.mockResolvedValue('/tmp/image')
     mocks.saveImage.mockResolvedValue(true)
     mocks.transformImageToPng.mockResolvedValue(new Blob(['transformed'], { type: 'image/png' }))
@@ -131,8 +135,12 @@ describe('ImageViewer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'preview.save_as' }))
 
     await waitFor(() => {
-      expect(mocks.save).toHaveBeenCalledWith('Example image.webp', new Uint8Array([104, 101, 108, 108, 111]))
+      expect(mocks.ipcRequest).toHaveBeenCalledWith('file.save', {
+        data: new Uint8Array([104, 101, 108, 108, 111]),
+        defaultPath: 'Example image.webp'
+      })
     })
+    expect(mocks.save).not.toHaveBeenCalled()
     expect(mocks.saveImage).not.toHaveBeenCalled()
     expect(toast.success).toHaveBeenCalledWith('common.saved')
   })
@@ -147,7 +155,10 @@ describe('ImageViewer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'preview.save_as' }))
 
     await waitFor(() => {
-      expect(mocks.save).toHaveBeenCalledWith('Example image.jpg', new Uint8Array([104, 101, 108, 108, 111]))
+      expect(mocks.ipcRequest).toHaveBeenCalledWith('file.save', {
+        data: new Uint8Array([104, 101, 108, 108, 111]),
+        defaultPath: 'Example image.png'
+      })
     })
   })
 
@@ -170,11 +181,12 @@ describe('ImageViewer', () => {
         flipY: false,
         rotation: -90
       })
-      expect(mocks.save).toHaveBeenCalledWith(
-        'Example image.png',
-        new Uint8Array([116, 114, 97, 110, 115, 102, 111, 114, 109, 101, 100])
-      )
+      expect(mocks.ipcRequest).toHaveBeenCalledWith('file.save', {
+        data: new Uint8Array([116, 114, 97, 110, 115, 102, 111, 114, 109, 101, 100]),
+        defaultPath: 'Example image.png'
+      })
     })
+    expect(mocks.save).not.toHaveBeenCalled()
     expect(mocks.saveImage).not.toHaveBeenCalled()
   })
 

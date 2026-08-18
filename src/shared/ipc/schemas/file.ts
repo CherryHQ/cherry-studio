@@ -63,6 +63,11 @@ const binaryReadResultSchema = z.strictObject({
   version: FileVersionSchema
 })
 
+const saveFileInputSchema = z.strictObject({
+  defaultPath: z.string().trim().min(1),
+  data: uint8ArraySchema
+})
+
 const writeIfUnchangedInputSchema = z.strictObject({
   handle: FileHandleSchema,
   data: uint8ArraySchema,
@@ -114,6 +119,7 @@ const treeIdSchema = z.string().min(1)
  * live FS metadata and mutations / system actions that must run in main.
  */
 export const fileRequestSchemas = {
+  'file.save': defineRoute({ input: saveFileInputSchema, output: AbsoluteFilePathSchema.nullable() }),
   'file.read': defineRoute({ input: binaryReadInputSchema, output: binaryReadResultSchema }),
   'file.write_if_unchanged': defineRoute({ input: writeIfUnchangedInputSchema, output: FileVersionSchema }),
   'file.batch_get_metadata': defineRoute({
