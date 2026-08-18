@@ -186,7 +186,7 @@ The tests will assert user-visible state and external AI/translation effects. Th
 
 Run focused renderer tests only, including the changed hook and component suites. Per explicit user direction, do not run the full `pnpm test` suite.
 
-The implementation may still run the repository's required non-test quality gates (`pnpm lint`, `pnpm format`, and `pnpm build:check`) unless a later user instruction narrows them further.
+The implementation will run the repository's non-test quality gates (`pnpm lint`, `pnpm format`, `pnpm test:lint`, and `pnpm docs:check-links`) plus focused renderer tests. It will not run `pnpm build:check`, because that script transitively invokes the full `pnpm test` suite and would violate the explicit user constraint.
 
 ## Manual Performance Verification
 
