@@ -175,6 +175,9 @@ describe('CherryAutonomyTools', () => {
       'session_deliveries',
       'session_send'
     ])
+    expect(tools.find((tool) => tool.name === 'session_search')?.inputSchema.properties?.query).toMatchObject({
+      maxLength: 4096
+    })
   })
 
   describe('session tools', () => {

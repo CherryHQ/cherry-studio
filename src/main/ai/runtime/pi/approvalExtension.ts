@@ -10,7 +10,7 @@
  *   1. disabledTools  → block (all modes, including bypassPermissions)
  *   2. global-install → block bash that installs into shared/global locations (except bypass)
  *   3. rtk rewrite    → mutate `event.input.command` in place (bash only, all modes)
- *   4. bypass         → allow unconditionally; the mode promises no further gate
+ *   4. bypass         → allow unless the tool is explicitly non-bypassable
  *   5. approval       → per permission mode: auto-allow, fail closed without a
  *      responder, or register + emit a runtime-neutral approval request, then
  *      block / allow / apply the edited input.
@@ -79,6 +79,8 @@ export interface PiApprovalContext {
   autoApprovedTools: ReadonlySet<string>
   /** Runtime-neutral Cherry/Assistant tools that always require a live per-call decision. */
   approvalRequiredTools: ReadonlySet<string>
+  /** Delegation tools whose live-approval ceiling remains in Full Access. */
+  nonBypassableApprovalTools: ReadonlySet<string>
 }
 
 export function createPiApprovalExtension(ctx: PiApprovalContext): ExtensionFactory {
@@ -95,7 +97,8 @@ export function createPiApprovalExtension(ctx: PiApprovalContext): ExtensionFact
       }
 
       const mode = ctx.getPermissionMode() ?? 'default'
-      const bypass = mode === 'bypassPermissions'
+      const approvalRequired = ctx.approvalRequiredTools.has(toolName)
+      const bypass = mode === 'bypassPermissions' && !ctx.nonBypassableApprovalTools.has(toolName)
 
       // (2)/(3) bash-specific guards: block global installs, then rtk-rewrite in place. The rewrite
       // makes commands runnable and applies in every mode; the install block is a permission guard,
@@ -119,15 +122,13 @@ export function createPiApprovalExtension(ctx: PiApprovalContext): ExtensionFact
         }
       }
 
-      // (4) bypassPermissions means bypass: the user asked for an agent that never stops, so nothing
-      // below applies — not the always-prompt tools, not the path containment checks. Only the
-      // disabledTools block in (1) still holds.
+      // (4) Full Access bypasses ordinary approval policy. Cross-Session delegation is the explicit
+      // exception: its one-hop live-approval ceiling must hold in every permission mode.
       if (bypass) return
 
       // (5) approval by permission mode. Cherry-owned soul/autonomy tools are auto-approved in every
       // mode first (unattended heartbeat turns must not block on a renderer prompt). The disabledTools
       // block in (1) already ran, so a disabled soul tool stays hard-blocked — disabled beats auto-allow.
-      const approvalRequired = ctx.approvalRequiredTools.has(toolName)
       if (ctx.autoApprovedTools.has(toolName) && !approvalRequired) return
       if (!(await requiresApproval(mode, toolName, input, ctx.workspacePath, ctx.agentDataPath, approvalRequired)))
         return

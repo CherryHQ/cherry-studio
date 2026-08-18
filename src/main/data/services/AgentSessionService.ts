@@ -430,11 +430,15 @@ export class AgentSessionService {
         and(eq(sessionsTable.agentId, agentId), isNotNull(sessionsTable.taskScheduleId))!
       )
     }
+    const sessionIds = sessions.map((session) => session.id)
     return {
-      sessionIds: sessions.map((session) => session.id),
+      sessionIds,
       taskScheduleIds,
       changeKind: 'projection',
-      deliveryResults: []
+      deliveryResults: getDataService('AgentSessionMessageService').prepareRetainedSessionAgentDeletionTx(
+        tx,
+        sessionIds
+      )
     }
   }
 

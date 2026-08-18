@@ -69,6 +69,8 @@ const SQLITE_INARRAY_CHUNK = 500
 // A ranked tool search runs synchronously on Main. Cap evidence scanning at 20 pages per requested
 // result; raise this only if relevance telemetry shows valid Sessions routinely beyond the ceiling.
 const RANKED_SESSION_SEARCH_SCAN_MULTIPLIER = 20
+// SQLite's default expression-depth ceiling is 1,000. Keep pure-LIKE fallback comfortably below it.
+const RANKED_SESSION_SEARCH_MAX_FALLBACK_TERMS = 128
 const MESSAGE_CURSOR_CONFIG = {
   fieldMessage: 'must be a valid message cursor',
   errorMessage: 'Invalid message cursor'
@@ -363,7 +365,7 @@ export class AgentSessionMessageService {
 
     let rows: SessionMessageSearchRow[]
     if (needsLikeFallback(query.q)) {
-      const terms = extractFtsTokens(query.q)
+      const terms = [...new Set(extractFtsTokens(query.q))].slice(0, RANKED_SESSION_SEARCH_MAX_FALLBACK_TERMS)
       if (terms.length === 0) return []
       const conditions = terms.map((term) => sql`sm.searchable_text LIKE ${toFtsLikePattern(term)} ESCAPE '\\'`)
       rows = collectDistinctSessions((chunkLimit, offset) =>
@@ -1544,6 +1546,87 @@ export class AgentSessionMessageService {
       )
     }
     return results
+  }
+
+  /** Fail active requests before their target Agent is removed while the Session rows are retained. */
+  prepareRetainedSessionAgentDeletionTx(tx: DbOrTx, sessionIds: readonly string[]): AgentSessionMessageEntity[] {
+    const affected = new Set(sessionIds)
+    if (affected.size === 0) return []
+    const requests = tx
+      .select()
+      .from(sessionMessagesTable)
+      .where(
+        and(
+          inArray(sessionMessagesTable.sessionId, [...affected]),
+          inArray(sessionMessagesTable.deliveryStatus, ['accepted', 'delivering'])
+        )
+      )
+      .all()
+    const changes: AgentSessionMessageEntity[] = []
+    const now = new Date().toISOString()
+    const error = { code: AGENT_SESSION_DELIVERY_ERROR_CODES.TARGET_AGENT_DELETED, message: 'Target Agent was deleted' }
+    for (const request of requests) {
+      if (!request.delivery) continue
+      const failedRequest = tx
+        .update(sessionMessagesTable)
+        .set({
+          deliveryStatus: 'failed',
+          deliveryTurnRef: null,
+          delivery: { ...request.delivery, outcome: 'interrupted', error, statusAt: now }
+        })
+        .where(
+          and(
+            eq(sessionMessagesTable.id, request.id),
+            inArray(sessionMessagesTable.deliveryStatus, ['accepted', 'delivering'])
+          )
+        )
+        .returning()
+        .get()
+      if (failedRequest) changes.push(this.rowToEntity(failedRequest))
+
+      if (request.delivery.replyPolicy !== 'completion' || affected.has(request.delivery.sender.sessionId)) continue
+      const existingResult = tx
+        .select({ id: sessionMessagesTable.id })
+        .from(sessionMessagesTable)
+        .where(eq(sessionMessagesTable.deliveryInReplyTo, request.id))
+        .limit(1)
+        .get()
+      if (existingResult) continue
+      const callerExists = tx
+        .select({ id: sessionTable.id })
+        .from(sessionTable)
+        .where(eq(sessionTable.id, request.delivery.sender.sessionId))
+        .limit(1)
+        .get()
+      if (!callerExists) continue
+      changes.push(
+        this.saveMessageTx(tx, {
+          sessionId: request.delivery.sender.sessionId,
+          message: {
+            id: uuidv7(),
+            role: 'user',
+            status: 'success',
+            data: { parts: [{ type: 'text', text: 'Target Agent was deleted before completing the request.' }] },
+            delivery: {
+              version: 1,
+              sender: request.delivery.receiver,
+              receiver: request.delivery.sender,
+              senderSnapshot: request.delivery.receiverSnapshot,
+              receiverSnapshot: request.delivery.senderSnapshot,
+              replyPolicy: 'none',
+              sourceMessageId: null,
+              outcome: 'interrupted',
+              error,
+              statusAt: now
+            },
+            deliveryStatus: 'accepted',
+            deliveryInReplyTo: request.id,
+            deliverySenderSessionId: request.delivery.receiver.sessionId
+          }
+        }).entity
+      )
+    }
+    return changes
   }
 
   private publishDeliveryChange(sessionId: string, messageId: string, kind: 'membership' | 'projection'): void {

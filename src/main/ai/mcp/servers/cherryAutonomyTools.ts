@@ -287,7 +287,11 @@ const SESSION_SEARCH_TOOL: Tool = {
   inputSchema: {
     type: 'object',
     properties: {
-      query: { type: 'string', description: 'Natural-language or keyword query, ranked by lexical relevance.' },
+      query: {
+        type: 'string',
+        maxLength: 4096,
+        description: 'Natural-language or keyword query, ranked by lexical relevance.'
+      },
       agent_id: { type: 'string', description: 'Optional Agent id filter.' },
       limit: { type: 'number', description: 'Maximum Sessions to return (default 20, max 100).' }
     },
@@ -490,6 +494,7 @@ export class CherryAutonomyTools {
     this.assertSessionToolsAuthorized()
     const query = typeof args.query === 'string' ? args.query.trim() : ''
     if (!query) throw new McpError(ErrorCode.InvalidParams, "'query' is required")
+    if (query.length > 4096) throw new McpError(ErrorCode.InvalidParams, "'query' must be at most 4096 characters")
     const agentId = typeof args.agent_id === 'string' && args.agent_id.trim() ? args.agent_id.trim() : undefined
     const limit = typeof args.limit === 'number' ? Math.min(Math.max(Math.trunc(args.limit), 1), 100) : 20
     const matches = agentSessionMessageService.searchRanked({ q: query, limit, agentId, addressableOnly: true })

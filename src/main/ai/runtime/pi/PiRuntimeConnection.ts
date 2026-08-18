@@ -32,6 +32,7 @@ import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { type Span, SpanKind, SpanStatusCode } from '@opentelemetry/api'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
+import { SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 import {
   KB_READ_TOOL_NAME,
   KB_SEARCH_TOOL_NAME,
@@ -85,6 +86,9 @@ const PI_APPROVAL_REQUIRED_MCP_TOOLS = new Set([
   ...ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES.map(toPiMcpRuntimeName),
   ...ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES.map(toPiMcpRuntimeName)
 ])
+const PI_NON_BYPASSABLE_APPROVAL_TOOLS = new Set(
+  [SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME].map((name) => buildPiMcpToolName('cherry-tools', name))
+)
 interface PendingSteer {
   input: AgentRuntimeUserInput
 }
@@ -263,7 +267,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
             // Safe first-party MCP tools may run headlessly; third-party and mutating tools still prompt.
             // disabledTools hard-blocks every class at fire-time.
             autoApprovedTools: PI_AUTO_APPROVED_MCP_TOOLS,
-            approvalRequiredTools: PI_APPROVAL_REQUIRED_MCP_TOOLS
+            approvalRequiredTools: PI_APPROVAL_REQUIRED_MCP_TOOLS,
+            nonBypassableApprovalTools: PI_NON_BYPASSABLE_APPROVAL_TOOLS
           })
         ],
         // Suppress pi's disk-discovered SYSTEM.md / APPEND_SYSTEM.md before the

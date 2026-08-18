@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   activateDispatch: vi.fn(),
   send: vi.fn(),
   hasLiveStream: vi.fn(),
+  pauseRuntimeTurn: vi.fn(),
   hasTerminalPersistenceInFlight: vi.fn(),
   runtimeBusy: vi.fn(),
   closeSession: vi.fn(),
@@ -99,6 +100,7 @@ const manager = {
   isWriteQuiesced: false,
   withDispatchLock: (_topicId: string, fn: () => Promise<void>) => fn(),
   hasLiveStream: mocks.hasLiveStream,
+  pauseRuntimeTurn: mocks.pauseRuntimeTurn,
   hasTerminalPersistenceInFlight: mocks.hasTerminalPersistenceInFlight,
   send: mocks.send
 }
@@ -683,6 +685,23 @@ describe('AgentSessionDeliveryService', () => {
     await service.deleteAgent('agent-1', true)
 
     expect(mocks.closeSession).toHaveBeenCalledWith('target')
+  })
+
+  it('pauses an active retained Session before closing it after Agent deletion', async () => {
+    mocks.deleteAgent.mockReturnValue({
+      deleted: true,
+      affectedSessionIds: ['target'],
+      deliveryResults: [{ ...accepted, delivery: { ...accepted.delivery, status: 'failed' } }]
+    })
+    const service = new AgentSessionDeliveryService()
+    await service._doInit()
+
+    await service.deleteAgent('agent-1', false)
+
+    expect(mocks.pauseRuntimeTurn).toHaveBeenCalledWith('agent-session:target', 'target-agent-deleted')
+    expect(mocks.pauseRuntimeTurn.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.closeSession.mock.invocationCallOrder[0]
+    )
   })
 
   it('deletes every Session owned by a protected Agent through the delivery owner', async () => {

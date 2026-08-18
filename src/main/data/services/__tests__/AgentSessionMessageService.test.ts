@@ -7,6 +7,7 @@ import { fileEntryTable } from '@data/db/schemas/file'
 import { agentSessionMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { agentService } from '@data/services/AgentService'
 import type { AgentSessionDeliveryRoutingError } from '@data/services/AgentSessionMessageService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
@@ -400,6 +401,39 @@ describe('AgentSessionMessageService', () => {
           outcome: 'failed',
           error: { code: 'TARGET_SESSION_DELETED' }
         }
+      })
+    })
+
+    it('interrupts an active completion before deleting its Agent while retaining the target Session', async () => {
+      await seedAgent('agent-a', 'Agent A')
+      await seedAgent('agent-b', 'Agent B')
+      await seedSession({ id: 'sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0' })
+      await seedSession({ id: 'target', agentId: 'agent-b', name: 'Target', orderKey: 'b1' })
+      const request = agentSessionMessageService.acceptSessionDelivery({
+        senderAgentId: 'agent-a',
+        senderSessionId: 'sender',
+        receiverSessionId: 'target',
+        content: 'Do the work',
+        replyPolicy: 'completion'
+      })
+      agentSessionMessageService.transitionSessionDelivery('target', request.id, 'delivering', {
+        expected: ['accepted'],
+        turnRef: 'assistant-turn'
+      })
+
+      agentService.deleteAgent('agent-b', { deleteSessions: false })
+
+      expect(agentSessionMessageService.getSessionMessage('target', request.id).delivery).toMatchObject({
+        status: 'failed',
+        outcome: 'interrupted',
+        error: { code: 'TARGET_AGENT_DELETED' }
+      })
+      expect(agentSessionService.getById('target').agentId).toBeNull()
+      const [result] = agentSessionMessageService.listSessionDeliveries({ sessionId: 'sender', requestId: request.id })
+      expect(result.delivery).toMatchObject({
+        inReplyTo: request.id,
+        outcome: 'interrupted',
+        error: { code: 'TARGET_AGENT_DELETED' }
       })
     })
   })
@@ -1468,6 +1502,30 @@ describe('AgentSessionMessageService', () => {
       '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1ce'
     ])
     expect(agentSessionMessageService.searchRanked({ q: '全部不存在xyzzy' })).toEqual([])
+  })
+
+  it('deduplicates and caps pure-LIKE fallback terms below SQLite expression depth', async () => {
+    await seedSession({ id: 'session-ranked-fallback-cap', name: 'Fallback Cap', orderKey: 'srfc0' })
+    const uniqueShortTerms = Array.from({ length: 512 }, (_, index) => String.fromCodePoint(0x400 + index))
+      .filter((term) => /^\p{L}$/u.test(term))
+      .slice(0, 129)
+    expect(uniqueShortTerms).toHaveLength(129)
+    await dbh.db.insert(agentSessionMessageTable).values({
+      id: 'ranked-fallback-cap',
+      sessionId: 'session-ranked-fallback-cap',
+      role: 'assistant',
+      data: { parts: [{ type: 'text', text: uniqueShortTerms.slice(0, 128).join(' ') }] },
+      status: 'success',
+      createdAt: 100,
+      updatedAt: 100
+    })
+
+    expect(() =>
+      agentSessionMessageService.searchRanked({ q: `${'a '.repeat(993)}${uniqueShortTerms[0]}` })
+    ).not.toThrow()
+    expect(
+      agentSessionMessageService.searchRanked({ q: uniqueShortTerms.join(' ') }).map((item) => item.messageId)
+    ).toEqual(['ranked-fallback-cap'])
   })
 
   it('treats LIKE wildcards as literal session-message search text after FTS prefiltering', async () => {

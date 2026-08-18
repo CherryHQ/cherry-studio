@@ -267,6 +267,12 @@ export class AgentSessionDeliveryService extends BaseService {
   ): Promise<{ deleted: boolean; deletedSessionIds?: string[] }> {
     this.assertWritesAvailable()
     const result = agentService.deleteAgentForDelivery(agentId, { deleteSessions })
+    if (!deleteSessions) {
+      const manager = application.get('AiStreamManager')
+      result.affectedSessionIds.forEach((sessionId) =>
+        manager.pauseRuntimeTurn(buildAgentSessionTopicId(sessionId), 'target-agent-deleted')
+      )
+    }
     await this.finishDeletion(
       result.affectedSessionIds,
       result.deliveryResults,
