@@ -4937,11 +4937,6 @@
         "label": "Logs da aplicação"
       },
       "backup": {
-        "skip_file_data_help": "Ignora ficheiros de dados, como imagens e bases de conhecimento, e inclui apenas as conversas e as definições na cópia de segurança. Reduz o espaço ocupado e acelera o processo.",
-        "skip_file_data_title": "Backup simplificado",
-        "v2_unavailable": "Cloud backup destinations are not available yet. Use Backup & restore to export a backup file and restore from it."
-      },
-      "backup_v2": {
         "compatibility": {
           "ahead_lineage": "This backup contains {{count}} database update(s) this build does not have. Use the build that created it, or a later build from the same migration line, then choose the backup again.",
           "ahead_title": "This backup needs a newer database version",

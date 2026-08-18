@@ -41,20 +41,20 @@ type RestoreState = Extract<OutputFor<'backup.get_status'>['restore'], { kind: '
  */
 const NOTICE_TEXT: Partial<Record<RestoreState, { readonly title: string; readonly description: string }>> = {
   completed: {
-    title: 'settings.data.backup_v2.notice.completed_title',
-    description: 'settings.data.backup_v2.notice.completed_description'
+    title: 'settings.data.backup.notice.completed_title',
+    description: 'settings.data.backup.notice.completed_description'
   },
   'rolled-back': {
-    title: 'settings.data.backup_v2.notice.rolled_back_title',
-    description: 'settings.data.backup_v2.notice.rolled_back_description'
+    title: 'settings.data.backup.notice.rolled_back_title',
+    description: 'settings.data.backup.notice.rolled_back_description'
   },
   failed: {
-    title: 'settings.data.backup_v2.notice.failed_title',
-    description: 'settings.data.backup_v2.notice.failed_description'
+    title: 'settings.data.backup.notice.failed_title',
+    description: 'settings.data.backup.notice.failed_description'
   },
   expired: {
-    title: 'settings.data.backup_v2.notice.expired_title',
-    description: 'settings.data.backup_v2.notice.expired_description'
+    title: 'settings.data.backup.notice.expired_title',
+    description: 'settings.data.backup.notice.expired_description'
   }
 }
 

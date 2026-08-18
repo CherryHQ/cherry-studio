@@ -42,7 +42,7 @@ vi.mock('@renderer/components/SettingsPrimitives', () => ({
   SettingTitle: ({ children }: { children: React.ReactNode }) => <h2>{children}</h2>
 }))
 
-import BackupV2Settings from '../BackupV2Settings'
+import BackupSettings from '../BackupSettings'
 
 /**
  * The screen owns three user-visible guarantees: a restore is never armed
@@ -69,7 +69,7 @@ function statusIs(restore: unknown) {
 }
 
 async function renderSettings() {
-  render(<BackupV2Settings />)
+  render(<BackupSettings />)
   await waitFor(() => expect(requestMock).toHaveBeenCalledWith('backup.get_status'))
   requestMock.mockClear()
 }
@@ -92,7 +92,7 @@ beforeEach(() => {
   statusIs({ kind: 'none' })
 })
 
-describe('BackupV2Settings', () => {
+describe('BackupSettings', () => {
   it('keeps the original compact surface', async () => {
     await renderSettings()
 
@@ -101,9 +101,9 @@ describe('BackupV2Settings', () => {
     expect(backupButton.parentElement).toBe(restoreButton.parentElement)
     // The credentials warning survives the copy cull: it changes how the user
     // must handle the file they are about to create.
-    expect(screen.getByText('settings.data.backup_v2.export.credentials_warning')).toBeInTheDocument()
-    expect(screen.queryByText('settings.data.backup_v2.export.integrations_warning')).not.toBeInTheDocument()
-    expect(screen.queryByText('settings.data.backup_v2.restore.help')).not.toBeInTheDocument()
+    expect(screen.getByText('settings.data.backup.export.credentials_warning')).toBeInTheDocument()
+    expect(screen.queryByText('settings.data.backup.export.integrations_warning')).not.toBeInTheDocument()
+    expect(screen.queryByText('settings.data.backup.restore.help')).not.toBeInTheDocument()
     expect(screen.queryByRole('switch')).not.toBeInTheDocument()
   })
 
@@ -125,7 +125,7 @@ describe('BackupV2Settings', () => {
     // The only dialog is main's own save dialog — the renderer asks nothing first.
     await waitFor(() => expect(requestMock).toHaveBeenCalledWith('backup.export'))
     expect(popup.confirm).not.toHaveBeenCalled()
-    expect(toast.success).toHaveBeenCalledWith('settings.data.backup_v2.export.done')
+    expect(toast.success).toHaveBeenCalledWith('settings.data.backup.export.done')
     expect(requestMock).toHaveBeenCalledWith('backup.get_status')
   })
 
@@ -146,8 +146,8 @@ describe('BackupV2Settings', () => {
 
     await waitFor(() => expect(popup.info).toHaveBeenCalledOnce())
     const details = render(vi.mocked(popup.info).mock.calls[0][0].content as React.ReactElement)
-    expect(details.getByText('settings.data.backup_v2.export.done_degraded')).toBeInTheDocument()
-    expect(details.getByText('settings.data.backup_v2.outcome.degradation.external_reference')).toBeInTheDocument()
+    expect(details.getByText('settings.data.backup.export.done_degraded')).toBeInTheDocument()
+    expect(details.getByText('settings.data.backup.outcome.degradation.external_reference')).toBeInTheDocument()
     expect(details.getByText('Data/Notes/a')).toBeInTheDocument()
     expect(details.getByText('Data/Notes/b')).toBeInTheDocument()
     expect(toast.success).not.toHaveBeenCalled()
@@ -178,14 +178,14 @@ describe('BackupV2Settings', () => {
 
     click('settings.general.restore.button')
 
-    await waitFor(() => expect(screen.getByText('settings.data.backup_v2.preview.destructive')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('settings.data.backup.preview.destructive')).toBeInTheDocument())
     // The coverage buckets are the pipeline's taxonomy, not a decision the user
     // makes here, so the preview must not surface them.
-    expect(screen.queryByText('settings.data.backup_v2.preview.coverage_counts')).not.toBeInTheDocument()
-    expect(screen.queryByText('settings.data.backup_v2.preview.resources_counts')).not.toBeInTheDocument()
+    expect(screen.queryByText('settings.data.backup.preview.coverage_counts')).not.toBeInTheDocument()
+    expect(screen.queryByText('settings.data.backup.preview.resources_counts')).not.toBeInTheDocument()
     expect(
       screen.getByRole('button', {
-        name: 'settings.data.backup_v2.restore.arm_button'
+        name: 'settings.data.backup.restore.arm_button'
       })
     ).toBeInTheDocument()
   })
@@ -210,7 +210,7 @@ describe('BackupV2Settings', () => {
 
     await waitFor(() => expect(screen.getByText('Data/Files/a.pdf')).toBeInTheDocument())
     expect(screen.getByText('Data/Files/b.pdf')).toBeInTheDocument()
-    expect(screen.getByText('settings.data.backup_v2.outcome.degradation.resource_unavailable')).toBeInTheDocument()
+    expect(screen.getByText('settings.data.backup.outcome.degradation.resource_unavailable')).toBeInTheDocument()
   })
 
   it('warns about embedding quota both before and during confirmation', async () => {
@@ -223,14 +223,14 @@ describe('BackupV2Settings', () => {
 
     click('settings.general.restore.button')
     await waitFor(() =>
-      expect(screen.getByText('settings.data.backup_v2.preview.knowledge_rebuild_cost')).toBeInTheDocument()
+      expect(screen.getByText('settings.data.backup.preview.knowledge_rebuild_cost')).toBeInTheDocument()
     )
 
-    click('settings.data.backup_v2.restore.arm_button')
+    click('settings.data.backup.restore.arm_button')
     await waitFor(() => expect(popup.confirm).toHaveBeenCalledOnce())
     render(vi.mocked(popup.confirm).mock.calls[0][0].content as React.ReactElement)
-    expect(screen.getAllByText('settings.data.backup_v2.preview.knowledge_rebuild_cost')).toHaveLength(2)
-    expect(tMock).toHaveBeenCalledWith('settings.data.backup_v2.preview.knowledge_rebuild_cost', { count: 2 })
+    expect(screen.getAllByText('settings.data.backup.preview.knowledge_rebuild_cost')).toHaveLength(2)
+    expect(tMock).toHaveBeenCalledWith('settings.data.backup.preview.knowledge_rebuild_cost', { count: 2 })
   })
 
   it('never arms a restore that the user did not confirm', async () => {
@@ -242,9 +242,9 @@ describe('BackupV2Settings', () => {
     vi.mocked(popup.confirm).mockResolvedValueOnce(false)
     await renderSettings()
     click('settings.general.restore.button')
-    await waitFor(() => expect(screen.getByRole('button', { name: 'settings.data.backup_v2.restore.arm_button' })))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'settings.data.backup.restore.arm_button' })))
 
-    click('settings.data.backup_v2.restore.arm_button')
+    click('settings.data.backup.restore.arm_button')
 
     await waitFor(() => expect(popup.confirm).toHaveBeenCalledOnce())
     expect(requestMock).not.toHaveBeenCalledWith('backup.arm_restore', expect.anything())
@@ -259,9 +259,9 @@ describe('BackupV2Settings', () => {
     vi.mocked(popup.confirm).mockResolvedValueOnce(true)
     await renderSettings()
     click('settings.general.restore.button')
-    await waitFor(() => expect(screen.getByRole('button', { name: 'settings.data.backup_v2.restore.arm_button' })))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'settings.data.backup.restore.arm_button' })))
 
-    click('settings.data.backup_v2.restore.arm_button')
+    click('settings.data.backup.restore.arm_button')
 
     await waitFor(() => expect(requestMock).toHaveBeenCalledWith('backup.arm_restore', { restoreId: 'r1' }))
   })
@@ -270,15 +270,15 @@ describe('BackupV2Settings', () => {
     statusIs({ kind: 'journal', state: 'prepared', restoreId: 'r1' })
     await renderSettings()
 
-    expect(screen.queryByRole('button', { name: 'settings.data.backup_v2.restore.arm_button' })).not.toBeInTheDocument()
-    expect(screen.getByText('settings.data.backup_v2.restore.pending_elsewhere')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'settings.data.backup.restore.arm_button' })).not.toBeInTheDocument()
+    expect(screen.getByText('settings.data.backup.restore.pending_elsewhere')).toBeInTheDocument()
   })
 
   it('discards a preparation without a relaunch', async () => {
     statusIs({ kind: 'journal', state: 'prepared', restoreId: 'r1' })
     await renderSettings()
 
-    click('settings.data.backup_v2.restore.discard_button')
+    click('settings.data.backup.restore.discard_button')
 
     await waitFor(() => expect(requestMock).toHaveBeenCalledWith('backup.cancel_restore'))
     expect(requestMock).not.toHaveBeenCalledWith('backup.arm_restore')
@@ -288,11 +288,11 @@ describe('BackupV2Settings', () => {
     statusIs({ kind: 'journal', state: 'completed', restoreId: 'r1' })
     await renderSettings()
 
-    await waitFor(() => expect(screen.getByText('settings.data.backup_v2.outcome.state.completed')).toBeInTheDocument())
-    expect(screen.getByText('settings.data.backup_v2.outcome.completed_help')).toBeInTheDocument()
-    expect(screen.getByText('settings.data.backup_v2.outcome.reconfirm_integrations')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText('settings.data.backup.outcome.state.completed')).toBeInTheDocument())
+    expect(screen.getByText('settings.data.backup.outcome.completed_help')).toBeInTheDocument()
+    expect(screen.getByText('settings.data.backup.outcome.reconfirm_integrations')).toBeInTheDocument()
 
-    click('settings.data.backup_v2.outcome.acknowledge_button')
+    click('settings.data.backup.outcome.acknowledge_button')
 
     await waitFor(() =>
       expect(requestMock).toHaveBeenCalledWith('backup.acknowledge_restore', {
@@ -307,7 +307,7 @@ describe('BackupV2Settings', () => {
     vi.mocked(popup.confirm).mockResolvedValueOnce(false)
     await renderSettings()
 
-    click('settings.data.backup_v2.rollback.button')
+    click('settings.data.backup.rollback.button')
 
     await waitFor(() => expect(popup.confirm).toHaveBeenCalledOnce())
     expect(requestMock).not.toHaveBeenCalledWith('backup.rollback_restore')
@@ -318,7 +318,7 @@ describe('BackupV2Settings', () => {
     vi.mocked(popup.confirm).mockResolvedValueOnce(true)
     await renderSettings()
 
-    click('settings.data.backup_v2.rollback.button')
+    click('settings.data.backup.rollback.button')
 
     await waitFor(() => expect(requestMock).toHaveBeenCalledWith('backup.rollback_restore'))
   })
@@ -327,17 +327,15 @@ describe('BackupV2Settings', () => {
     statusIs({ kind: 'journal', state: 'rolled-back', restoreId: 'r1' })
     await renderSettings()
 
-    await waitFor(() =>
-      expect(screen.getByText('settings.data.backup_v2.outcome.state.rolled_back')).toBeInTheDocument()
-    )
-    expect(screen.getByText('settings.data.backup_v2.outcome.rolled_back_help')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText('settings.data.backup.outcome.state.rolled_back')).toBeInTheDocument())
+    expect(screen.getByText('settings.data.backup.outcome.rolled_back_help')).toBeInTheDocument()
     expect(
       screen.queryByRole('button', {
-        name: 'settings.data.backup_v2.rollback.button'
+        name: 'settings.data.backup.rollback.button'
       })
     ).not.toBeInTheDocument()
 
-    click('settings.data.backup_v2.outcome.keep_previous_button')
+    click('settings.data.backup.outcome.keep_previous_button')
     await waitFor(() =>
       expect(requestMock).toHaveBeenCalledWith('backup.acknowledge_restore', {
         knowledgeRebuild: 'require-complete'
@@ -357,10 +355,10 @@ describe('BackupV2Settings', () => {
     })
     await renderSettings()
 
-    await waitFor(() => expect(screen.getByText('settings.data.backup_v2.outcome.degradations')).toBeInTheDocument())
-    expect(screen.getByText('settings.data.backup_v2.outcome.degradation.path_unportable')).toBeInTheDocument()
-    expect(tMock).toHaveBeenCalledWith('settings.data.backup_v2.outcome.degradation.path_unportable', { count: 2 })
-    expect(tMock).toHaveBeenCalledWith('settings.data.backup_v2.outcome.degradation.external_file_dropped', {
+    await waitFor(() => expect(screen.getByText('settings.data.backup.outcome.degradations')).toBeInTheDocument())
+    expect(screen.getByText('settings.data.backup.outcome.degradation.path_unportable')).toBeInTheDocument()
+    expect(tMock).toHaveBeenCalledWith('settings.data.backup.outcome.degradation.path_unportable', { count: 2 })
+    expect(tMock).toHaveBeenCalledWith('settings.data.backup.outcome.degradation.external_file_dropped', {
       count: 1
     })
     expect(screen.getByText('Data/Notes/a')).toBeInTheDocument()
@@ -377,13 +375,13 @@ describe('BackupV2Settings', () => {
     await renderSettings()
 
     await waitFor(() =>
-      expect(screen.getByText('settings.data.backup_v2.outcome.resources_incomplete')).toBeInTheDocument()
+      expect(screen.getByText('settings.data.backup.outcome.resources_incomplete')).toBeInTheDocument()
     )
     // The staging tree and the aside are that unit's only two copies, and this
     // button deletes both.
     expect(
       screen.queryByRole('button', {
-        name: 'settings.data.backup_v2.outcome.acknowledge_button'
+        name: 'settings.data.backup.outcome.acknowledge_button'
       })
     ).not.toBeInTheDocument()
   })
@@ -398,18 +396,18 @@ describe('BackupV2Settings', () => {
     await renderSettings()
 
     await waitFor(() =>
-      expect(screen.getByText('settings.data.backup_v2.outcome.knowledge_rebuild_pending')).toBeInTheDocument()
+      expect(screen.getByText('settings.data.backup.outcome.knowledge_rebuild_pending')).toBeInTheDocument()
     )
-    expect(screen.getByRole('button', { name: 'settings.data.backup_v2.rollback.button' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'settings.data.backup.rollback.button' })).toBeInTheDocument()
     expect(
       screen.queryByRole('button', {
-        name: 'settings.data.backup_v2.outcome.acknowledge_button'
+        name: 'settings.data.backup.outcome.acknowledge_button'
       })
     ).not.toBeInTheDocument()
 
     // The button already states that it stops the rebuild and keeps the result,
     // so giving up goes straight through instead of asking again.
-    click('settings.data.backup_v2.outcome.abandon_rebuild_button')
+    click('settings.data.backup.outcome.abandon_rebuild_button')
     expect(popup.confirm).not.toHaveBeenCalled()
     await waitFor(() =>
       expect(requestMock).toHaveBeenCalledWith('backup.acknowledge_restore', { knowledgeRebuild: 'abandon' })
@@ -420,10 +418,10 @@ describe('BackupV2Settings', () => {
     statusIs({ kind: 'journal', state: 'promoting', restoreId: 'r1' })
     await renderSettings()
 
-    await waitFor(() => expect(screen.getByText('settings.data.backup_v2.outcome.state.promoting')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('settings.data.backup.outcome.state.promoting')).toBeInTheDocument())
     expect(
       screen.queryByRole('button', {
-        name: 'settings.data.backup_v2.outcome.acknowledge_button'
+        name: 'settings.data.backup.outcome.acknowledge_button'
       })
     ).not.toBeInTheDocument()
   })
@@ -438,13 +436,13 @@ describe('BackupV2Settings', () => {
     await renderSettings()
 
     await waitFor(() =>
-      expect(screen.getByText('settings.data.backup_v2.outcome.recovery_incomplete')).toBeInTheDocument()
+      expect(screen.getByText('settings.data.backup.outcome.recovery_incomplete')).toBeInTheDocument()
     )
     // Acknowledging would delete exactly what the pending repair needs, so the
     // button is not offered until a boot has finished the rollback.
     expect(
       screen.queryByRole('button', {
-        name: 'settings.data.backup_v2.outcome.acknowledge_button'
+        name: 'settings.data.backup.outcome.acknowledge_button'
       })
     ).not.toBeInTheDocument()
   })
@@ -453,7 +451,7 @@ describe('BackupV2Settings', () => {
     statusIs({ kind: 'unreadable' })
     await renderSettings()
 
-    await waitFor(() => expect(screen.getByText('settings.data.backup_v2.outcome.unreadable')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('settings.data.backup.outcome.unreadable')).toBeInTheDocument())
   })
 
   it('explains an ahead packaged backup, copies bounded diagnostics, and reuses the updater action', async () => {
@@ -484,13 +482,13 @@ describe('BackupV2Settings', () => {
     expect(popup.info).not.toHaveBeenCalled()
     const popupProps = vi.mocked(popup.confirm).mock.calls[0][0]
     expect(popupProps).toMatchObject({
-      title: 'settings.data.backup_v2.compatibility.ahead_title',
-      okText: 'settings.data.backup_v2.compatibility.check_updates'
+      title: 'settings.data.backup.compatibility.ahead_title',
+      okText: 'settings.data.backup.compatibility.check_updates'
     })
-    expect(tMock).toHaveBeenCalledWith('settings.data.backup_v2.compatibility.ahead_update', { count: 2 })
+    expect(tMock).toHaveBeenCalledWith('settings.data.backup.compatibility.ahead_update', { count: 2 })
 
     const details = render(popupProps.content as React.ReactElement)
-    fireEvent.click(details.getByRole('button', { name: 'settings.data.backup_v2.compatibility.copy' }))
+    fireEvent.click(details.getByRole('button', { name: 'settings.data.backup.compatibility.copy' }))
     await waitFor(() => expect(writeTextMock).toHaveBeenCalledOnce())
     const copied = writeTextMock.mock.calls[0][0] as string
     expect(copied).toContain('missingMigrationCount: 2')
@@ -526,7 +524,7 @@ describe('BackupV2Settings', () => {
     expect(popup.confirm).not.toHaveBeenCalled()
     expect(checkForUpdatesMock).not.toHaveBeenCalled()
     expect(vi.mocked(popup.info).mock.calls[0][0]).toMatchObject({
-      title: 'settings.data.backup_v2.compatibility.fork_title'
+      title: 'settings.data.backup.compatibility.fork_title'
     })
   })
 
@@ -577,7 +575,7 @@ describe('BackupV2Settings', () => {
 
     click('settings.general.restore.button')
 
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('settings.data.backup_v2.error.unexpected'))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('settings.data.backup.error.unexpected'))
     expect(popup.confirm).not.toHaveBeenCalled()
     expect(popup.info).not.toHaveBeenCalled()
   })
@@ -585,62 +583,62 @@ describe('BackupV2Settings', () => {
   it.each([
     [
       { kind: 'source-changed', path: 'Data/Notes' },
-      'settings.data.backup_v2.error.export_source_changed_path',
+      'settings.data.backup.error.export_source_changed_path',
       { path: 'Data/Notes' }
     ],
-    [{ kind: 'source-changed' }, 'settings.data.backup_v2.error.export_source_changed', undefined],
+    [{ kind: 'source-changed' }, 'settings.data.backup.error.export_source_changed', undefined],
     [
       { kind: 'non-regular', path: 'Data/Notes/link' },
-      'settings.data.backup_v2.error.export_source_non_regular_path',
+      'settings.data.backup.error.export_source_non_regular_path',
       { path: 'Data/Notes/link' }
     ],
-    [{ kind: 'non-regular' }, 'settings.data.backup_v2.error.export_source_non_regular', undefined],
+    [{ kind: 'non-regular' }, 'settings.data.backup.error.export_source_non_regular', undefined],
     [
       { kind: 'unportable-path', reason: 'invalid-path', path: 'Data/Notes/CON' },
-      'settings.data.backup_v2.error.export_source_unportable_path',
+      'settings.data.backup.error.export_source_unportable_path',
       { path: 'Data/Notes/CON' }
     ],
     [
       { kind: 'unportable-path', reason: 'invalid-path' },
-      'settings.data.backup_v2.error.export_source_unportable',
+      'settings.data.backup.error.export_source_unportable',
       undefined
     ],
     [
       { kind: 'unportable-path', reason: 'name-collision', path: 'Data/Notes/Readme' },
-      'settings.data.backup_v2.error.export_source_collision_path',
+      'settings.data.backup.error.export_source_collision_path',
       { path: 'Data/Notes/Readme' }
     ],
     [
       { kind: 'unportable-path', reason: 'name-collision' },
-      'settings.data.backup_v2.error.export_source_collision',
+      'settings.data.backup.error.export_source_collision',
       undefined
     ],
     [
       { kind: 'limit-exceeded', limit: 'entry-count' },
-      'settings.data.backup_v2.error.export_source_limit_count',
+      'settings.data.backup.error.export_source_limit_count',
       undefined
     ],
     [
       { kind: 'limit-exceeded', limit: 'resource-entries' },
-      'settings.data.backup_v2.error.export_source_limit_count',
+      'settings.data.backup.error.export_source_limit_count',
       undefined
     ],
     [
       { kind: 'limit-exceeded', limit: 'entry-bytes' },
-      'settings.data.backup_v2.error.export_source_limit_entry',
+      'settings.data.backup.error.export_source_limit_entry',
       undefined
     ],
     [
       { kind: 'limit-exceeded', limit: 'total-bytes' },
-      'settings.data.backup_v2.error.export_source_limit_total',
+      'settings.data.backup.error.export_source_limit_total',
       undefined
     ],
     [
       { kind: 'limit-exceeded', limit: 'manifest-bytes' },
-      'settings.data.backup_v2.error.export_source_limit_manifest',
+      'settings.data.backup.error.export_source_limit_manifest',
       undefined
     ],
-    [{ kind: 'limit-exceeded', limit: 'unknown' }, 'settings.data.backup_v2.error.export_source_limit', undefined]
+    [{ kind: 'limit-exceeded', limit: 'unknown' }, 'settings.data.backup.error.export_source_limit', undefined]
   ])('turns an export-source diagnostic into specific guidance', async (diagnostic, message, interpolation) => {
     requestMock.mockImplementation(async (route: string) => {
       if (route === 'backup.export') {
@@ -672,18 +670,18 @@ describe('BackupV2Settings', () => {
 
     click('settings.general.backup.button')
 
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('settings.data.backup_v2.error.export_source'))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('settings.data.backup.error.export_source'))
     expect(tMock).not.toHaveBeenCalledWith(expect.anything(), { path: '/Users/private/notes' })
   })
 
   it.each([
-    [backupErrorCodes.BUSY, 'settings.data.backup_v2.error.busy'],
-    [backupErrorCodes.ARCHIVE_REJECTED, 'settings.data.backup_v2.error.archive_rejected'],
-    [backupErrorCodes.JOURNAL_UNREADABLE, 'settings.data.backup_v2.error.journal_unreadable'],
-    [backupErrorCodes.ROLLBACK_UNAVAILABLE, 'settings.data.backup_v2.error.rollback_unavailable'],
-    [backupErrorCodes.STORAGE_UNAVAILABLE, 'settings.data.backup_v2.error.storage_unavailable'],
-    [backupErrorCodes.EXPORT_SOURCE, 'settings.data.backup_v2.error.export_source'],
-    [backupErrorCodes.RESTORE_RESOURCES, 'settings.data.backup_v2.error.restore_resources']
+    [backupErrorCodes.BUSY, 'settings.data.backup.error.busy'],
+    [backupErrorCodes.ARCHIVE_REJECTED, 'settings.data.backup.error.archive_rejected'],
+    [backupErrorCodes.JOURNAL_UNREADABLE, 'settings.data.backup.error.journal_unreadable'],
+    [backupErrorCodes.ROLLBACK_UNAVAILABLE, 'settings.data.backup.error.rollback_unavailable'],
+    [backupErrorCodes.STORAGE_UNAVAILABLE, 'settings.data.backup.error.storage_unavailable'],
+    [backupErrorCodes.EXPORT_SOURCE, 'settings.data.backup.error.export_source'],
+    [backupErrorCodes.RESTORE_RESOURCES, 'settings.data.backup.error.restore_resources']
   ])('turns %s into its own sentence', async (code, message) => {
     requestMock.mockImplementation(async (route: string) => {
       if (route === 'backup.prepare_restore') throw new IpcError(code, 'refused')
@@ -705,7 +703,7 @@ describe('BackupV2Settings', () => {
 
     click('settings.general.restore.button')
 
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('settings.data.backup_v2.error.unexpected'))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('settings.data.backup.error.unexpected'))
   })
 
   describe('cancelling work in flight', () => {

@@ -20,4 +20,8 @@ TBD — the feature will be re-launched once mobile-side development is complete
 
 ## Notes for release manager
 
-UI-only removal: the underlying LAN transfer service, IPC channels, and backup-file generation are kept dormant in the codebase for the relaunch. If the feature ships again before v2.0.0, drop this entry.
+UI-only removal: the underlying LAN transfer service and its IPC channels are kept dormant in the codebase for the relaunch. If the feature ships again before v2.0.0, drop this entry.
+
+**The archive generator is gone; the relaunch needs a new one.** It produced the v1 layout — a `data.json` beside an empty `Data/` — which nothing in v2 can restore: admission expects `manifest.json` + `backup.sqlite` + `resources/`. Its renderer-side payload producer was a matching v1 shape (`{ version: 5, localStorage }`), which in v2 holds an emoji-picker history and a favicon cache and none of the user's data. Keeping either would have preserved a pipeline whose output no version of this app can read.
+
+What survives is everything the relaunch actually needs: the transfer service, its binary protocol and handshake, the scan/connect/send channels, and the temp-file cleanup (now `deleteTransferFile` on `LanTransferService`, with its path-traversal tests). What has to be built is the archive to send, and the answer is the v2 one `BackupService.export()` already produces — note that `handlers/fileTransfer.ts` currently accepts `.zip` only.

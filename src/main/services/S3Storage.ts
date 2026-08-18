@@ -6,9 +6,7 @@ import {
   PutObjectCommand,
   S3Client
 } from '@aws-sdk/client-s3'
-import { Upload } from '@aws-sdk/lib-storage'
 import { loggerService } from '@logger'
-import type { S3Config } from '@shared/types/backup'
 import fs from 'fs-extra'
 import * as net from 'net'
 import { Readable } from 'stream'
@@ -24,22 +22,15 @@ const PUT_MAX_ATTEMPTS = 3
 // 需要使用 Virtual Host-Style 的服务商域名后缀白名单
 const VIRTUAL_HOST_SUFFIXES = ['aliyuncs.com', 'myqcloud.com', 'volces.com']
 
-interface S3UploadOptions {
-  signal?: AbortSignal
+/** What this storage client needs; scheduling and rotation belong elsewhere. */
+export interface S3StorageConfig {
+  endpoint: string
+  region: string
+  bucket: string
+  accessKeyId: string
+  secretAccessKey: string
+  root?: string
 }
-
-/**
- * 使用 AWS SDK v3 的简单 S3 封装，兼容之前 RemoteStorage 的最常用接口。
- */
-/**
- * What this class actually needs. `S3Config` also carries `autoSync` /
- * `syncInterval` / `maxBackups`, which are scheduling and rotation policy — no
- * business of a storage client.
- */
-export type S3StorageConfig = Pick<
-  S3Config,
-  'endpoint' | 'region' | 'accessKeyId' | 'secretAccessKey' | 'bucket' | 'root'
->
 
 export default class S3Storage {
   private client: S3Client
@@ -85,8 +76,6 @@ export default class S3Storage {
     this.bucket = bucket
     this.root = root?.replace(/^\/+/g, '').replace(/\/+$/g, '') || ''
 
-    this.putFileContents = this.putFileContents.bind(this)
-    this.getFileStream = this.getFileStream.bind(this)
     this.deleteFile = this.deleteFile.bind(this)
     this.listFiles = this.listFiles.bind(this)
     this.checkConnection = this.checkConnection.bind(this)
@@ -98,57 +87,6 @@ export default class S3Storage {
   private buildKey(key: string): string {
     if (!this.root) return key
     return key.startsWith(`${this.root}/`) ? key : `${this.root}/${key}`
-  }
-
-  async putFileContents(
-    key: string,
-    data: Buffer | string | Readable,
-    contentLength?: number,
-    options: S3UploadOptions = {}
-  ) {
-    options.signal?.throwIfAborted()
-    const abortController = new AbortController()
-    const forwardAbort = () => abortController.abort(options.signal?.reason)
-
-    options.signal?.addEventListener('abort', forwardAbort, { once: true })
-    if (options.signal?.aborted) {
-      forwardAbort()
-    }
-
-    try {
-      const contentType = key.endsWith('.zip') ? 'application/zip' : 'application/octet-stream'
-      const upload = new Upload({
-        client: this.client,
-        abortController,
-        params: {
-          Bucket: this.bucket,
-          Key: this.buildKey(key),
-          Body: data,
-          ContentType: contentType,
-          ContentLength: contentLength
-        }
-      })
-      return await upload.done()
-    } catch (error) {
-      logger.error('[S3Storage] Error putting object:', error as Error)
-      throw error
-    } finally {
-      options.signal?.removeEventListener('abort', forwardAbort)
-      if (data instanceof Readable && !data.destroyed) data.destroy()
-    }
-  }
-
-  async getFileStream(key: string): Promise<Readable> {
-    try {
-      const res = await this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: this.buildKey(key) }))
-      if (!res.Body || !(res.Body instanceof Readable)) {
-        throw new Error('Empty body received from S3')
-      }
-      return res.Body
-    } catch (error) {
-      logger.error('[S3Storage] Error getting object:', error as Error)
-      throw error
-    }
   }
 
   async deleteFile(key: string, signal?: AbortSignal) {

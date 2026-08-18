@@ -1,6 +1,6 @@
-import { BACKUP_ACTIVE_WRITERS_ERROR_CODE } from '@shared/types/backup'
 import { describe, expect, it, vi } from 'vitest'
 
+import { BACKUP_ACTIVE_WRITERS_ERROR_CODE } from '../backup'
 import { getLocalizedBackupErrorMessage } from '../backup'
 
 const mocks = vi.hoisted(() => ({

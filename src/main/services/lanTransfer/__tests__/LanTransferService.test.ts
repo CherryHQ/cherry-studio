@@ -1,3 +1,8 @@
+import { existsSync } from 'node:fs'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+
 import { EventEmitter } from 'events'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
@@ -28,7 +33,10 @@ const { mockLogger, mocks } = vi.hoisted(() => ({
     windowManager: null as {
       broadcastToType: Mock
       getWindowsByType: Mock
-    } | null
+    } | null,
+    // Set per test to a real directory, so the confinement checks run against a
+    // real filesystem rather than a string fixture.
+    lanTransferTemp: ''
   }
 }))
 
@@ -49,6 +57,10 @@ vi.mock('@application', () => ({
         return mocks.windowManager
       }
       throw new Error(`[MockApplication] Unknown service: ${name}`)
+    }),
+    getPath: vi.fn((key: string) => {
+      if (key === 'feature.lan_transfer.temp') return mocks.lanTransferTemp
+      throw new Error(`[MockApplication] Unknown path key: ${key}`)
     })
   }
 }))
@@ -90,7 +102,7 @@ vi.mock('@main/core/lifecycle', () => {
   }
 })
 
-import { LanTransferService } from '../LanTransferService'
+import { deleteTransferFile, LanTransferService } from '../LanTransferService'
 
 function createService(): LanTransferService {
   return new LanTransferService()
@@ -652,5 +664,71 @@ describe('LanTransferService - Transfer', () => {
 
       expect(HANDSHAKE_PROTOCOL_VERSION).toBe('1')
     })
+  })
+})
+
+// =============================================================================
+// deleteTransferFile — path confinement
+// =============================================================================
+
+/**
+ * The path arrives from the renderer, so every case here is an untrusted caller
+ * naming a file it must not be able to delete. A refusal has to leave the target
+ * on disk, which is what these assert — a `false` return alone would still pass
+ * if the file had already been removed.
+ */
+describe('deleteTransferFile', () => {
+  let root: string
+  let tempBase: string
+
+  beforeEach(async () => {
+    root = await mkdtemp(path.join(tmpdir(), 'cs-lan-'))
+    tempBase = path.join(root, 'transfer')
+    await mkdir(tempBase)
+    mocks.lanTransferTemp = tempBase
+  })
+
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true })
+  })
+
+  it('deletes an archive inside the transfer directory', async () => {
+    const target = path.join(tempBase, 'payload.zip')
+    await writeFile(target, 'ARCHIVE')
+
+    expect(await deleteTransferFile(target)).toBe(true)
+    expect(existsSync(target)).toBe(false)
+  })
+
+  it('refuses a traversal that climbs out of the transfer directory', async () => {
+    const outside = path.join(root, 'outside.txt')
+    await writeFile(outside, 'KEEP')
+
+    expect(await deleteTransferFile(path.join(tempBase, '..', 'outside.txt'))).toBe(false)
+    expect(existsSync(outside)).toBe(true)
+  })
+
+  it('refuses an absolute path that was never inside the transfer directory', async () => {
+    const elsewhere = path.join(root, 'elsewhere.txt')
+    await writeFile(elsewhere, 'KEEP')
+
+    expect(await deleteTransferFile(elsewhere)).toBe(false)
+    expect(existsSync(elsewhere)).toBe(true)
+  })
+
+  // Without the trailing separator in the comparison, a sibling directory whose
+  // name merely starts with the temp path passes the `startsWith` test.
+  it('refuses a sibling whose name starts with the transfer directory path', async () => {
+    const evilDir = `${tempBase}-evil`
+    await mkdir(evilDir)
+    const secret = path.join(evilDir, 'secret.txt')
+    await writeFile(secret, 'KEEP')
+
+    expect(await deleteTransferFile(secret)).toBe(false)
+    expect(existsSync(secret)).toBe(true)
+  })
+
+  it('reports nothing deleted for a confined path that does not exist', async () => {
+    expect(await deleteTransferFile(path.join(tempBase, 'gone.zip'))).toBe(false)
   })
 })
