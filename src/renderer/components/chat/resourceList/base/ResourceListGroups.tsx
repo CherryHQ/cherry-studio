@@ -18,6 +18,7 @@ import {
 import {
   RESOURCE_LIST_DEFAULT_ROW_LAYOUT,
   RESOURCE_LIST_DESCENDANT_FOCUS_ROW_CLASS,
+  RESOURCE_LIST_DRAG_OVERLAY_ROW_CLASS,
   RESOURCE_LIST_INTERACTIVE_ROW_CLASS,
   RESOURCE_LIST_LABEL_CLASS,
   RESOURCE_LIST_LEADING_ACTION_SLOT_CLASS,
@@ -114,7 +115,8 @@ export function SectionHeader({ section, className, ref, style, ...props }: Sect
           'flex w-full items-center gap-1.5 px-2.5 text-muted-foreground transition-colors duration-150',
           RESOURCE_LIST_VISUAL_ROW_CLASS,
           RESOURCE_LIST_INTERACTIVE_ROW_CLASS,
-          RESOURCE_LIST_DESCENDANT_FOCUS_ROW_CLASS
+          RESOURCE_LIST_DESCENDANT_FOCUS_ROW_CLASS,
+          RESOURCE_LIST_DRAG_OVERLAY_ROW_CLASS
         )}>
         <button
           type="button"
@@ -247,6 +249,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
         hasLeadingSlot ? 'px-1.5' : 'px-2.5',
         RESOURCE_LIST_VISUAL_ROW_CLASS,
         RESOURCE_LIST_INTERACTIVE_ROW_CLASS,
+        RESOURCE_LIST_DRAG_OVERLAY_ROW_CLASS,
         !showsSelectedSurface && RESOURCE_LIST_DESCENDANT_FOCUS_ROW_CLASS,
         showsSelectedSurface && 'has-[:focus-visible]:bg-resource-list-row-selected',
         isBucketHeader && 'text-muted-foreground',
