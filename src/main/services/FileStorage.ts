@@ -441,7 +441,7 @@ class FileStorage {
       if (detectEncoding) {
         return readTextFileWithAutoEncoding(filePath)
       } else {
-        return fs.readFileSync(filePath, 'utf-8')
+        return await fs.promises.readFile(filePath, 'utf-8')
       }
     } catch (error) {
       logger.error('Failed to read text file:', error as Error)

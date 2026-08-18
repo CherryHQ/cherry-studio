@@ -140,6 +140,29 @@ describe('FileStorage', () => {
       expect(shell.trashItem).not.toHaveBeenCalled()
     })
   })
+
+  // Round-trips through the real text branches of readFileCore; catches a
+  // readFileSync → fs.promises.readFile swap regressing content or return type.
+  describe('readExternalFile', () => {
+    let tmpFile: string
+
+    beforeEach(() => {
+      tmpFile = path.join(os.tmpdir(), `filestorage-read-test-${uniqueId()}.md`)
+      fs.writeFileSync(tmpFile, 'Hello 世界\nsecond line')
+    })
+
+    afterEach(() => {
+      fs.rmSync(tmpFile, { force: true })
+    })
+
+    it('returns utf-8 file content verbatim (plain branch)', async () => {
+      await expect(fileStorage.readExternalFile(event, tmpFile)).resolves.toBe('Hello 世界\nsecond line')
+    })
+
+    it('returns utf-8 file content verbatim (auto-encoding branch)', async () => {
+      await expect(fileStorage.readExternalFile(event, tmpFile, true)).resolves.toBe('Hello 世界\nsecond line')
+    })
+  })
 })
 
 function uniqueId(): string {
