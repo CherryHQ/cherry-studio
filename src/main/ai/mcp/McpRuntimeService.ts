@@ -316,23 +316,10 @@ export class McpRuntimeService extends BaseService {
     }
 
     const serverKey = this.getServerKey(server)
-    const reusable = await this.reuseLiveClient(server, serverKey)
-    if (reusable) {
-      return reusable
-    }
 
-    this.setServerStatus(server.id, 'connecting')
-
-    const initPromise = this.connectClient(server, serverKey).finally(() => {
-      this.pendingClients.delete(serverKey)
-    })
-    this.pendingClients.set(serverKey, initPromise)
-
-    return initPromise
-  }
-
-  /** A client that is still usable: an in-flight connect, or a cached one that answers a ping. */
-  private async reuseLiveClient(server: McpServer, serverKey: string): Promise<Client | undefined> {
+    // Everything from here to `pendingClients.set` must stay synchronous: an await in between
+    // lets two concurrent callers both miss the pending entry, connect twice, and leak the
+    // client whose entry the other's cleanup deletes.
     const pendingClient = this.pendingClients.get(serverKey)
     if (pendingClient) {
       this.setServerStatus(server.id, 'connecting')
@@ -341,10 +328,18 @@ export class McpRuntimeService extends BaseService {
     }
 
     const existingClient = this.clients.get(serverKey)
-    if (!existingClient) {
-      return undefined
-    }
+    const initPromise = (
+      existingClient ? this.reuseLiveClient(server, serverKey, existingClient) : this.connectClient(server, serverKey)
+    ).finally(() => {
+      this.pendingClients.delete(serverKey)
+    })
+    this.pendingClients.set(serverKey, initPromise)
 
+    return initPromise
+  }
+
+  /** Reuses a cached client that still answers a ping; reconnects when it does not. */
+  private async reuseLiveClient(server: McpServer, serverKey: string, existingClient: Client): Promise<Client> {
     try {
       // add short timeout to prevent hanging
       const pingResult = await existingClient.ping({ timeout: PING_TIMEOUT_MS })
@@ -358,10 +353,12 @@ export class McpRuntimeService extends BaseService {
     }
 
     await this.discardStaleClient(serverKey)
-    return undefined
+    return this.connectClient(server, serverKey)
   }
 
   private async connectClient(server: McpServer, serverKey: string): Promise<Client> {
+    this.setServerStatus(server.id, 'connecting')
+
     const sdk = await loadMcpClientSdk()
     // Create new client instance for each connection
     const client = new sdk.Client({ name: 'Cherry Studio', version: app.getVersion() }, { capabilities: {} })

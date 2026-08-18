@@ -1,6 +1,6 @@
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { PRESET_MCP_SERVERS } from '@shared/data/presets/mcpServers'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 
 import type { DbType, ISeeder } from '../../types'
 import { hashObject } from '../hashObject'
@@ -30,6 +30,10 @@ export class BuiltinMcpServerSeeder implements ISeeder {
       db.update(mcpServerTable)
         .set({
           type: preset.type,
+          // Older builtin rows carry no installSource and were recognised by their `inMemory`
+          // type alone; once that changes, Settings would treat them as manual servers and
+          // unlock their name and transport. An explicit source is left as the user set it.
+          installSource: sql`COALESCE(${mcpServerTable.installSource}, 'builtin')`,
           ...(preset.baseUrl !== undefined ? { baseUrl: preset.baseUrl } : {}),
           ...(preset.command !== undefined ? { command: preset.command } : {}),
           ...(preset.args !== undefined ? { args: preset.args } : {}),

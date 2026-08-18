@@ -249,8 +249,10 @@ export function toMcpServerFields(values: McpFormValues): Partial<McpServer> {
   } else {
     fields.command = values.command
     fields.args = values.args ? values.args.split('\n').filter((arg) => arg.trim() !== '') : []
-    fields.env = parseKeyValueString(values.env ?? '')
   }
+  // Env is not stdio-only: hosted built-ins such as QVeris keep their API key here whatever
+  // transport they use, so it must round-trip instead of being dropped on save.
+  fields.env = parseKeyValueString(values.env ?? '')
 
   return fields
 }
@@ -437,8 +439,15 @@ export function McpArgsField({ form }: Pick<FieldsProps, 'form'>) {
   )
 }
 
-/** Transport details: headers for remote servers, registry / args / env for stdio. */
-export function McpTransportFields({ form, serverType, registryState, singleColumn, includeArgs = true }: FieldsProps) {
+/** Transport details: headers for remote servers, registry / args for stdio, env where credentials live. */
+export function McpTransportFields({
+  form,
+  serverType,
+  registryState,
+  isBuiltin,
+  singleColumn,
+  includeArgs = true
+}: FieldsProps) {
   const { t } = useTranslation()
   const { registry, selectedRegistryType, customRegistryUrl, onSelectRegistry, onCustomRegistryChange } = registryState
 
@@ -505,9 +514,9 @@ export function McpTransportFields({ form, serverType, registryState, singleColu
           )}
         />
       )}
-      {(serverType === 'stdio' || serverType === 'inMemory') && (
+      {(serverType === 'stdio' || serverType === 'inMemory') && includeArgs && <McpArgsField form={form} />}
+      {(serverType === 'stdio' || serverType === 'inMemory' || isBuiltin) && (
         <>
-          {includeArgs && <McpArgsField form={form} />}
           <FormField
             control={form.control}
             name="env"

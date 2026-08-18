@@ -39,6 +39,24 @@ describe('BuiltinMcpServerSeeder', () => {
     expect(row.args).toEqual(['-y', '@mcpmarket/mcp-auto-install', 'connect', '--json'])
   })
 
+  it('keeps the builtin identity of a legacy row that predates installSource', async () => {
+    // Settings recognises such a row as builtin only through its `inMemory` type; once the
+    // migration changes that, an absent installSource would unlock its name and transport.
+    await insert({ name: BuiltinMcpServerNames.flomo, type: 'inMemory' })
+
+    new BuiltinMcpServerSeeder().run(dbh.db)
+
+    expect((await rowFor(BuiltinMcpServerNames.flomo)).installSource).toBe('builtin')
+  })
+
+  it('does not relabel a row the user installed from somewhere else', async () => {
+    await insert({ name: BuiltinMcpServerNames.flomo, type: 'inMemory', installSource: 'manual' })
+
+    new BuiltinMcpServerSeeder().run(dbh.db)
+
+    expect((await rowFor(BuiltinMcpServerNames.flomo)).installSource).toBe('manual')
+  })
+
   it('keeps user edits made after the migration', async () => {
     await insert({
       name: BuiltinMcpServerNames.nowledgeMem,

@@ -4,10 +4,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const inMemoryServerMock = vi.hoisted(() => ({ connect: vi.fn().mockResolvedValue(undefined) }))
 const createInMemoryMcpServer = vi.hoisted(() => vi.fn().mockResolvedValue(inMemoryServerMock))
+const getBuiltinHttpHeaders = vi.hoisted(() => vi.fn<() => Record<string, string>>(() => ({})))
 vi.mock('@main/ai/mcp/servers/factory', () => ({
   createInMemoryMcpServer,
-  getBuiltinRegistryEnv: async () => ({}),
-  getBuiltinHttpHeaders: () => ({})
+  getBuiltinRegistryEnv: () => ({}),
+  getBuiltinHttpHeaders
 }))
 
 vi.mock('@application', async () => {
@@ -90,18 +91,37 @@ describe('createTransport', () => {
   })
 
   it('skips the OAuth provider when the server carries its own Authorization header', async () => {
-    const withKey = (await create({
-      type: 'streamableHttp',
-      baseUrl: 'https://mcp.example/mcp',
-      headers: { Authorization: 'Bearer key' }
-    })) as unknown as FakeTransport
-    expect(withKey.options.authProvider).toBeUndefined()
+    for (const name of ['Authorization', 'authorization', 'AUTHORIZATION']) {
+      const withKey = (await create({
+        type: 'streamableHttp',
+        baseUrl: 'https://mcp.example/mcp',
+        headers: { [name]: 'Bearer key' }
+      })) as unknown as FakeTransport
+      expect(withKey.options.authProvider, name).toBeUndefined()
+    }
 
     const withoutKey = (await create({
       type: 'streamableHttp',
       baseUrl: 'https://mcp.example/mcp'
     })) as unknown as FakeTransport
     expect(withoutKey.options.authProvider).toBe(authProvider)
+  })
+
+  it('sends one value per header name, whatever casing each source used', async () => {
+    getBuiltinHttpHeaders.mockReturnValueOnce({ Authorization: 'Bearer builtin' })
+    const transport = (await create({
+      type: 'streamableHttp',
+      baseUrl: 'https://mcp.example/mcp',
+      headers: { authorization: 'Bearer user', 'x-title': 'mine' }
+    })) as unknown as FakeTransport
+
+    const headers: Record<string, string> = transport.options.requestInit.headers
+    const names = Object.keys(headers)
+    expect(names.filter((name) => name.toLowerCase() === 'authorization')).toHaveLength(1)
+    expect(names.filter((name) => name.toLowerCase() === 'x-title')).toHaveLength(1)
+    // Later source wins: builtin credential over the user's, the user's title over the app default.
+    expect(Object.values(headers)).toContain('Bearer builtin')
+    expect(Object.values(headers)).toContain('mine')
   })
 
   it('honours the transport override so a fallback attempt uses the other transport', async () => {

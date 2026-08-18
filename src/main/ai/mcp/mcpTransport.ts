@@ -31,17 +31,35 @@ function fetchViaNet(url: string | URL | Request, init?: RequestInit): Promise<R
   return net.fetch(typeof url === 'string' ? url : url.toString(), init)
 }
 
-function buildHttpOptions(server: McpServer, authProvider: McpOAuthClientProvider) {
-  const headers: Record<string, string> = {
-    ...defaultAppHeaders(),
-    ...server.headers,
-    ...getBuiltinHttpHeaders(server)
+/**
+ * Later sources win, matching header names case-insensitively so a user-entered
+ * `authorization` replaces an earlier `Authorization` instead of being sent beside it.
+ * The name each source spelled is kept — servers do read headers case-sensitively.
+ */
+function mergeHeaders(...sources: Array<Record<string, string> | undefined>): Record<string, string> {
+  const headers: Record<string, string> = {}
+  const nameByLowercase = new Map<string, string>()
+
+  for (const source of sources) {
+    for (const [name, value] of Object.entries(source ?? {})) {
+      const previousName = nameByLowercase.get(name.toLowerCase())
+      if (previousName !== undefined) delete headers[previousName]
+      nameByLowercase.set(name.toLowerCase(), name)
+      headers[name] = value
+    }
   }
+  return headers
+}
+
+function buildHttpOptions(server: McpServer, authProvider: McpOAuthClientProvider) {
+  const headers = mergeHeaders(defaultAppHeaders(), server.headers, getBuiltinHttpHeaders(server))
+  const authenticated = Object.keys(headers).some((name) => name.toLowerCase() === 'authorization')
   return {
     requestInit: { headers },
-    // A server that already authenticates with its own credential must not be sent
-    // through the OAuth provider — the SDK would start a discovery flow it cannot finish.
-    ...(headers.Authorization ? {} : { authProvider })
+    // A server that already authenticates with its own credential must not be sent through
+    // the OAuth provider — a cached OAuth token would be combined with the static one, and
+    // without a token a 401 would start a discovery flow instead of surfacing the failure.
+    ...(authenticated ? {} : { authProvider })
   }
 }
 
@@ -123,7 +141,7 @@ async function createStdio(
     loginShellEnv,
     logger
   })
-  Object.assign(connectEnv, launch.env, await getBuiltinRegistryEnv(server))
+  Object.assign(connectEnv, launch.env, getBuiltinRegistryEnv(server))
 
   logger.debug(`Starting server`, { command: launch.command, args: launch.args })
 

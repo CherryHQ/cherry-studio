@@ -35,6 +35,19 @@ describe('toMcpServerFields', () => {
     expect(toMcpServerFields(stdioFormValues()).env).toEqual({})
   })
 
+  it('keeps the API key of a hosted built-in server that connects over HTTP', () => {
+    // QVeris authenticates with env.QVERIS_API_KEY whatever transport it uses; dropping env
+    // on save would leave a migrated or freshly installed server permanently unconfigurable.
+    const values = stdioFormValues({
+      serverType: 'streamableHttp',
+      baseUrl: 'https://mcp.qveris.ai/mcp',
+      command: '',
+      env: 'QVERIS_API_KEY=secret'
+    })
+
+    expect(toMcpServerFields(values).env).toEqual({ QVERIS_API_KEY: 'secret' })
+  })
+
   it('clears headers when the remote server headers input is empty', () => {
     const values = stdioFormValues({
       serverType: 'streamableHttp',

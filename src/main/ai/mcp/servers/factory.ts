@@ -1,8 +1,5 @@
-import fs from 'node:fs/promises'
-import path from 'node:path'
-
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { getBinaryPath } from '@main/utils/binaryResolver'
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { type BuiltinMcpServerName, BuiltinMcpServerNames } from '@shared/utils/mcp'
@@ -82,11 +79,9 @@ export function getBuiltinHttpHeaders(server: McpServer): Record<string, string>
 
 /**
  * Extra env for servers that resolve packages from a custom registry: `@cherry/mcp-auto-install`
- * reads its registry file from the app's bin directory, which only exists at runtime.
+ * reads its catalog from a file whose location only exists at runtime.
  */
-export async function getBuiltinRegistryEnv(server: McpServer): Promise<Record<string, string>> {
+export function getBuiltinRegistryEnv(server: McpServer): Record<string, string> {
   if (!server.registryUrl || !server.name.includes('mcp-auto-install')) return {}
-  const binPath = await getBinaryPath()
-  await fs.mkdir(binPath, { recursive: true })
-  return { MCP_REGISTRY_PATH: path.join(binPath, '..', 'config', 'mcp-registry.json') }
+  return { MCP_REGISTRY_PATH: application.getPath('feature.mcp.registry_file') }
 }
