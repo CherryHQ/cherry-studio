@@ -7,7 +7,6 @@ import {
   S3Client
 } from '@aws-sdk/client-s3'
 import { loggerService } from '@logger'
-import type { S3Config } from '@shared/types/backup'
 import fs from 'fs-extra'
 import * as net from 'net'
 import { Readable } from 'stream'
@@ -23,18 +22,15 @@ const PUT_MAX_ATTEMPTS = 3
 // 需要使用 Virtual Host-Style 的服务商域名后缀白名单
 const VIRTUAL_HOST_SUFFIXES = ['aliyuncs.com', 'myqcloud.com', 'volces.com']
 
-/**
- * 使用 AWS SDK v3 的简单 S3 封装，兼容之前 RemoteStorage 的最常用接口。
- */
-/**
- * What this class actually needs. `S3Config` also carries `autoSync` /
- * `syncInterval` / `maxBackups`, which are scheduling and rotation policy — no
- * business of a storage client.
- */
-export type S3StorageConfig = Pick<
-  S3Config,
-  'endpoint' | 'region' | 'accessKeyId' | 'secretAccessKey' | 'bucket' | 'root'
->
+/** What this storage client needs; scheduling and rotation belong elsewhere. */
+export interface S3StorageConfig {
+  endpoint: string
+  region: string
+  bucket: string
+  accessKeyId: string
+  secretAccessKey: string
+  root?: string
+}
 
 export default class S3Storage {
   private client: S3Client
