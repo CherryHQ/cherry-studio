@@ -1,5 +1,5 @@
 import type { ActiveExecution } from '@shared/ai/transport'
-import type { CherryUIMessage, CherryUIMessageChunk } from '@shared/data/types/message'
+import type { CherryUIMessage, CherryUIMessageChunk, ModelSnapshot } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -239,12 +239,14 @@ const exec = (
   executionId: UniqueModelId,
   anchorMessageId?: string,
   attemptId = 1,
-  seedFromEmpty?: boolean
+  seedFromEmpty?: boolean,
+  modelSnapshot?: ModelSnapshot
 ): ActiveExecution => ({
   executionId,
   anchorMessageId,
   attemptId,
-  seedFromEmpty
+  seedFromEmpty,
+  modelSnapshot
 })
 const asst = (id: string, parts: CherryUIMessage['parts'] = []): CherryUIMessage =>
   ({ id, role: 'assistant', parts }) as CherryUIMessage
@@ -795,5 +797,80 @@ describe('ExecutionStreamOverlayService', () => {
     const service = new ExecutionStreamOverlayService()
     service.acquire('')
     expect(mocks.subs.get('')!.listenCalls).toBe(0)
+  })
+
+  it('stamps the frozen modelSnapshot (incl. priorityMode) onto overlay snapshots so MessageHeader can render ⚡️', async () => {
+    const service = new ExecutionStreamOverlayService()
+    const consumer = {}
+    const modelSnapshot: ModelSnapshot = {
+      id: 'gpt-5',
+      name: 'GPT-5',
+      provider: 'openai',
+      priorityMode: 'openai'
+    }
+    service.acquire(TOPIC)
+    // Temp chat / quick assistant: no pre-allocated DB row → seedFromEmpty.
+    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a', 1, true, modelSnapshot)], getSeed)
+    const sub = mocks.subs.get(TOPIC)!
+
+    streamText(sub, A, 't1', 'priority answer', 'anchor-a', 1)
+    await nextCommit()
+
+    const liveAssistants = service.getView(TOPIC).liveAssistants
+    expect(liveAssistants).toHaveLength(1)
+    expect(liveAssistants[0].metadata?.modelSnapshot).toEqual(modelSnapshot)
+  })
+
+  it('stamps modelSnapshot on the empty seed used by temp chat (priorityMode visible before first chunk)', async () => {
+    const service = new ExecutionStreamOverlayService()
+    const consumer = {}
+    const modelSnapshot: ModelSnapshot = {
+      id: 'claude-opus-4',
+      name: 'Claude Opus 4',
+      provider: 'anthropic',
+      priorityMode: 'anthropic'
+    }
+    service.acquire(TOPIC)
+    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a', 1, true, modelSnapshot)], getSeed)
+    const sub = mocks.subs.get(TOPIC)!
+
+    // Once the first chunk lands, the seed-derived snapshot must carry priorityMode
+    // even though the row has no pre-allocated DB entry.
+    streamText(sub, A, 't1', 'first delta', 'anchor-a', 1)
+    await nextCommit()
+
+    const streamedAssistants = service.getView(TOPIC).liveAssistants
+    expect(streamedAssistants).toHaveLength(1)
+    expect(streamedAssistants[0].metadata?.modelSnapshot).toEqual(modelSnapshot)
+  })
+
+  it('does not overwrite an author-supplied modelSnapshot already on the seed message', async () => {
+    const service = new ExecutionStreamOverlayService()
+    const consumer = {}
+    const authorSnapshot: ModelSnapshot = {
+      id: 'claude-opus-4',
+      name: 'Claude Opus 4 (assistant default)',
+      provider: 'anthropic'
+    }
+    const executionSnapshot: ModelSnapshot = {
+      id: 'gpt-5',
+      name: 'GPT-5',
+      provider: 'openai',
+      priorityMode: 'openai'
+    }
+    const seededRow = asst('anchor-a', [{ type: 'text', text: 'prior assistant parts' }])
+    seededRow.metadata = { modelSnapshot: authorSnapshot }
+    const seed = () => [seededRow] as CherryUIMessage[]
+
+    service.acquire(TOPIC)
+    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a', 1, false, executionSnapshot)], seed)
+    const sub = mocks.subs.get(TOPIC)!
+
+    streamText(sub, A, 't1', '-continuation', 'anchor-a', 1)
+    await nextCommit()
+
+    const liveAssistants = service.getView(TOPIC).liveAssistants
+    expect(liveAssistants).toHaveLength(1)
+    expect(liveAssistants[0].metadata?.modelSnapshot).toEqual(authorSnapshot)
   })
 })

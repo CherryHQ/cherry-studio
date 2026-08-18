@@ -29,6 +29,7 @@ import { ModelSelector } from '@renderer/components/ModelSelector'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useModelById } from '@renderer/hooks/useModel'
 import { toast } from '@renderer/services/toast'
+import { getModelDisplayName } from '@renderer/utils/model'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { ArrowUpRight, ChevronDown, Database, HelpCircle, Trash2, X } from 'lucide-react'
 import { type ComponentProps, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -705,15 +706,15 @@ export function CompactModelField({
   const { model: resolvedModel } = useModelById(selectorValue)
   const selectedModel = resolvedModel?.id === selectorValue ? resolvedModel : undefined
   const labelFromState = modelLabels[name]
-  const displayLabel =
-    selectedModel?.name ??
+  const fallbackDisplayLabel =
     (labelFromState && labelFromState !== selectorValue ? labelFromState : parsedModelId?.modelId) ??
     emptyLabel ??
     t('library.config.basic.model_pick')
+  const displayLabel = selectedModel ? getModelDisplayName(selectedModel) : fallbackDisplayLabel
   const triggerModel =
     selectedModel ??
     (selectorValue && parsedModelId
-      ? { id: selectorValue, name: displayLabel, providerId: parsedModelId.providerId }
+      ? { id: selectorValue, name: fallbackDisplayLabel, providerId: parsedModelId.providerId }
       : undefined)
 
   return (

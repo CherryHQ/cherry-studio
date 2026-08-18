@@ -9,6 +9,7 @@ export {
   isVideoModels,
   isVisionModels
 } from './capabilities'
+export { getModelDisplayName } from './display'
 export { isEmbeddingModel, isRerankModel } from './embedding'
 export { getModelLogoRef } from './logo'
 export { isGPT5SeriesReasoningModel } from './openai'

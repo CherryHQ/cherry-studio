@@ -1,6 +1,7 @@
 import { cn } from '@cherrystudio/ui/lib/utils'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { useProviderDisplayName } from '@renderer/hooks/useProvider'
+import { getModelDisplayName } from '@renderer/utils/model'
 import { createDurationFormatter } from '@renderer/utils/time'
 import type { AiUsageRecordEntry } from '@shared/data/types/aiUsageRecord'
 import { useMemo, useState } from 'react'
@@ -230,6 +231,7 @@ const MessageTokenDetailsCard = ({
   const { t, i18n } = useTranslation()
   const stats = message.stats
   const model = getMessageListItemModel(message)
+  const modelName = model ? getModelDisplayName(model) : message.modelId
   const providerName = useProviderDisplayName(model?.provider)
   const locale = i18n.resolvedLanguage
   const numberFormatter = useMemo(() => new Intl.NumberFormat(locale), [locale])
@@ -327,8 +329,8 @@ const MessageTokenDetailsCard = ({
           />
         ) : null}
         <div className="min-w-0 flex-1">
-          <div className="truncate font-medium text-foreground text-sm leading-5" title={model?.name}>
-            {model?.name ?? model?.id ?? message.modelId}
+          <div className="truncate font-medium text-foreground text-sm leading-5" title={modelName}>
+            {modelName}
           </div>
           {providerName ? (
             <div className="truncate text-muted-foreground text-xs leading-5" title={providerName}>

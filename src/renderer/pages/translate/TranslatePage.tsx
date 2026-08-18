@@ -26,7 +26,7 @@ import { type FileMetadata, isImageFileMetadata } from '@renderer/types/file'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getFileExtension, isTextFile } from '@renderer/utils/file'
 import { getFilesFromDropEvent, getTextFromDropEvent } from '@renderer/utils/input'
-import { getModelLogoRef } from '@renderer/utils/model'
+import { getModelDisplayName, getModelLogoRef } from '@renderer/utils/model'
 import { cn } from '@renderer/utils/style'
 import {
   createInputScrollHandler,
@@ -958,8 +958,10 @@ const TranslatePage: FC = () => {
                   type="button"
                   variant="ghost"
                   size="icon"
-                  aria-label={selectedModel?.name ?? t('translate.settings.model_placeholder')}
-                  title={selectedModel?.name ?? t('translate.settings.model_placeholder')}
+                  aria-label={
+                    selectedModel ? getModelDisplayName(selectedModel) : t('translate.settings.model_placeholder')
+                  }
+                  title={selectedModel ? getModelDisplayName(selectedModel) : t('translate.settings.model_placeholder')}
                   className="size-8 rounded-full p-0 shadow-none hover:bg-accent">
                   {selectedModel ? (
                     selectedModelIcon ? (

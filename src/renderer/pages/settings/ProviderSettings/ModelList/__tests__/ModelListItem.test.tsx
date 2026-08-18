@@ -122,6 +122,25 @@ describe('ModelListItem', () => {
     expect(navigator.clipboard.writeText).not.toHaveBeenCalled()
   })
 
+  it('marks a priority model without changing the model passed to edit', () => {
+    const onEdit = vi.fn()
+    const model = {
+      id: 'minimax::m2.1',
+      providerId: 'minimax',
+      name: 'MiniMax M2.1',
+      priorityMode: 'minimax',
+      isEnabled: true,
+      capabilities: []
+    } as any
+
+    render(<ModelListItem model={model} onEdit={onEdit} onDelete={vi.fn()} />)
+
+    expect(screen.getByText('MiniMax M2.1 ⚡️')).toBeInTheDocument()
+    fireEvent.click(screen.getByLabelText('common.settings'))
+    expect(onEdit).toHaveBeenCalledWith(expect.objectContaining({ name: 'MiniMax M2.1' }))
+    expect(model.name).toBe('MiniMax M2.1')
+  })
+
   it('deletes the model from the row delete button without opening edit', () => {
     const onDelete = vi.fn().mockResolvedValue(undefined)
     const onEdit = vi.fn()

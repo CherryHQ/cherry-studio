@@ -260,6 +260,32 @@ describe('MessageService', () => {
     }
   })
 
+  it('preserves the frozen model snapshot when finalizing or editing an assistant placeholder', async () => {
+    await seedTopicWithRoot('topic-snapshot')
+    const modelSnapshot = {
+      id: 'model-A',
+      name: 'Model A',
+      provider: 'provider-a',
+      priorityMode: 'minimax' as const
+    }
+    const assistant = messageService.create('topic-snapshot', {
+      parentId: null,
+      role: 'assistant',
+      status: 'pending',
+      data: { parts: [], modelSnapshot }
+    })
+
+    messageService.finalizeAssistantMessage(assistant.id, {
+      data: mainText('done'),
+      status: 'success'
+    })
+
+    expect(messageService.getById(assistant.id).data).toEqual({ ...mainText('done'), modelSnapshot })
+
+    messageService.update(assistant.id, { data: mainText('edited') })
+    expect(messageService.getById(assistant.id).data).toEqual({ ...mainText('edited'), modelSnapshot })
+  })
+
   /**
    * Build a small message tree with a multi-model siblings group.
    *
@@ -354,7 +380,15 @@ describe('MessageService', () => {
       dbh.db
         .update(messageTable)
         .set({
-          data: { parts: [{ type: 'data-error', data: { message: 'failed' } }] },
+          data: {
+            parts: [{ type: 'data-error', data: { message: 'failed' } }],
+            modelSnapshot: {
+              id: 'model-A',
+              name: 'Model A',
+              provider: 'provider-a',
+              priorityMode: 'minimax'
+            }
+          },
           status: 'error',
           stats: {
             totalTokens: 42,
@@ -389,7 +423,15 @@ describe('MessageService', () => {
         siblingsGroupId: before.siblingsGroupId,
         modelId: before.modelId,
         status: 'pending',
-        data: { parts: [] }
+        data: {
+          parts: [],
+          modelSnapshot: {
+            id: 'model-A',
+            name: 'Model A',
+            provider: 'provider-a',
+            priorityMode: 'minimax'
+          }
+        }
       })
       expect(reset.stats).toMatchObject({ totalTokens: 42, requestCount: 1 })
       expect(reset.stats).not.toHaveProperty('runtimeTiming')

@@ -3,6 +3,7 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { aiUsageRecordService, type SourceSnapshot } from '@data/services/AiUsageRecordService'
+import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { serializeError } from '@main/ai/utils/serializeError'
@@ -33,7 +34,12 @@ import {
 import type { AgentEntity, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
-import { createUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import {
+  createUniqueModelId,
+  type ModelPriorityMode,
+  parseUniqueModelId,
+  type UniqueModelId
+} from '@shared/data/types/model'
 import { type AgentTaskEventPartData, getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { readUIMessageStream, type UIMessageChunk } from 'ai'
@@ -2445,7 +2451,17 @@ export class AgentSessionRuntimeService extends BaseService {
     // actually runs — otherwise a mid-queue model switch leaves `messageSnapshot.model` disagreeing with the
     // row's `modelId`, and the header/exports (which prefer the snapshot model) would show the wrong model.
     const frozenSnapshot = pendingTurn.messageSnapshot ?? entry.messageSnapshot
-    const messageSnapshot = reconcileSnapshotModel(frozenSnapshot, entry.modelId, liveAgent.modelName)
+    let messageSnapshot: MessageSnapshot | undefined
+    if (frozenSnapshot) {
+      const { providerId, modelId } = parseUniqueModelId(entry.modelId)
+      const runtimeModel = modelService.getByKey(providerId, modelId)
+      messageSnapshot = reconcileSnapshotModel(
+        frozenSnapshot,
+        entry.modelId,
+        liveAgent.modelName,
+        runtimeModel.priorityMode
+      )
+    }
     let assistantMessage: Awaited<ReturnType<typeof agentSessionMessageService.saveMessage>>
     try {
       assistantMessage = agentSessionMessageService.saveMessage({
@@ -3037,17 +3053,24 @@ function isAbortError(error: unknown): boolean {
  * A queued/steered follow-up freezes its author snapshot at submit time, but the runtime drains it on the
  * LATEST agent model (`entry.modelId`). Reconcile the snapshot's nested model to the model that actually
  * runs so `messageSnapshot.model` never disagrees with the row's `modelId`; the author (id/name/emoji)
- * stays frozen. No-op when the frozen model already is the running model.
+ * stays frozen. No-op when the frozen model identity and priority mode already match the running model.
  */
 function reconcileSnapshotModel(
-  snapshot: MessageSnapshot | undefined,
+  snapshot: MessageSnapshot,
   modelId: UniqueModelId,
-  modelName: string | null | undefined
-): MessageSnapshot | undefined {
-  if (!snapshot) return undefined
-  if (createUniqueModelId(snapshot.model.provider, snapshot.model.id) === modelId) return snapshot
+  modelName: string | null | undefined,
+  priorityMode: ModelPriorityMode | undefined
+): MessageSnapshot {
+  const isSameModel = createUniqueModelId(snapshot.model.provider, snapshot.model.id) === modelId
+  if (isSameModel && snapshot.model.priorityMode === priorityMode) return snapshot
+
   const { providerId, modelId: rawModelId } = parseUniqueModelId(modelId)
-  return { ...snapshot, model: { id: rawModelId, name: modelName ?? rawModelId, provider: providerId } }
+  const nextModel: MessageSnapshot['model'] = isSameModel
+    ? { ...snapshot.model }
+    : { id: rawModelId, name: modelName ?? rawModelId, provider: providerId }
+  if (priorityMode === undefined) delete nextModel.priorityMode
+  else nextModel.priorityMode = priorityMode
+  return { ...snapshot, model: nextModel }
 }
 
 function sourceSnapshotFromMessageSnapshot(snapshot: MessageSnapshot | undefined): SourceSnapshot | null {

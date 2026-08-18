@@ -2,6 +2,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { useModels } from '@renderer/hooks/useModel'
 import { getProviderDisplayName } from '@renderer/hooks/useProvider'
 import { getClaudeContextModelId, hasClaudeDetailedModels } from '@renderer/pages/code/cliConfig'
+import { getModelDisplayName } from '@renderer/utils/model'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import { isUniqueModelId, type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -90,7 +91,7 @@ export function useConfigMetadata(selectedCliTool: CodeCli, providers: Provider[
       if (modelId && isUniqueModelId(modelId)) {
         const model = modelById.get(modelId)
         const { modelId: rawId } = parseUniqueModelId(modelId)
-        modelName = model?.name || rawId
+        modelName = model ? getModelDisplayName(model) : rawId
       }
       return {
         providerName: getProviderDisplayName(provider),

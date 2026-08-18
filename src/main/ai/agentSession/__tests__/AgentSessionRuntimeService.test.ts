@@ -30,6 +30,7 @@ const mocks = vi.hoisted(() => ({
   closeAgentSessionWarm: vi.fn(),
   getSessionById: vi.fn(),
   getAgent: vi.fn(),
+  getModelByKey: vi.fn(),
   ensureTraceId: vi.fn(),
   recordUsage: vi.fn()
 }))
@@ -43,6 +44,10 @@ vi.mock('@data/services/AgentSessionService', () => ({
 
 vi.mock('@data/services/AgentService', () => ({
   agentService: { getAgent: mocks.getAgent, onAgentUpdated: () => () => {} }
+}))
+
+vi.mock('@data/services/ModelService', () => ({
+  modelService: { getByKey: mocks.getModelByKey }
 }))
 
 vi.mock('@data/services/AgentSessionMessageService', () => ({
@@ -255,6 +260,7 @@ describe('AgentSessionRuntimeService', () => {
     // A live agent with a model — the drain re-reads this to bail on a deleted model. Tests exercising
     // the deleted-model path override it with `{ model: null }`.
     mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
+    mocks.getModelByKey.mockReturnValue({ priorityMode: undefined })
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'AiStreamManager') {
         return {
@@ -4728,7 +4734,7 @@ describe('AgentSessionRuntimeService', () => {
       id: 'agent-1',
       name: 'My Agent',
       emoji: '🤖',
-      model: { id: 'claude-sonnet-4-5', name: 'Claude Sonnet', provider: 'claude-code' }
+      model: { id: 'claude-sonnet-4-5', name: 'Claude Sonnet', provider: 'claude-code', priorityMode: 'none' }
     } as any
 
     service.beginTurn(baseTurnInput)
@@ -4746,6 +4752,7 @@ describe('AgentSessionRuntimeService', () => {
       model: switchedModelId,
       modelName: 'Claude Opus'
     })
+    mocks.getModelByKey.mockReturnValue({ priorityMode: 'minimax' })
 
     service.markTurnTerminal('session-1', 'success')
     await new Promise((resolve) => setTimeout(resolve, 0))
@@ -4762,8 +4769,9 @@ describe('AgentSessionRuntimeService', () => {
       id: 'agent-1',
       name: 'My Agent',
       emoji: '🤖',
-      model: { id: 'claude-opus-4-5', name: 'Claude Opus', provider: 'claude-code' }
+      model: { id: 'claude-opus-4-5', name: 'Claude Opus', provider: 'claude-code', priorityMode: 'minimax' }
     })
+    expect(mocks.getModelByKey).toHaveBeenCalledWith('claude-code', 'claude-opus-4-5')
     expect(mocks.startRuntimeTurn).toHaveBeenCalledWith(expect.objectContaining({ modelId: switchedModelId }))
   })
 

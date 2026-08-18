@@ -149,6 +149,7 @@ describe('UPDATE_MODEL_FIELD_MAP completeness', () => {
       'endpointTypes',
       'parameterSupport',
       'supportsStreaming',
+      'priorityMode',
       'contextWindow',
       'maxInputTokens',
       'maxOutputTokens',
@@ -246,6 +247,18 @@ describe('ModelService.update', () => {
       .where(and(eq(userModelTable.providerId, 'openai'), eq(userModelTable.modelId, 'gpt-4o')))
 
     expect(row.parameters).toEqual(params)
+  })
+
+  it('persists priority mode for preset-backed and custom models', async () => {
+    await seedExistingModel()
+    await dbh.db.insert(userModelTable).values(modelRow('openai', 'custom-model'))
+
+    const presetModel = modelService.update('openai', 'gpt-4o', { priorityMode: 'minimax' })
+    const customModel = modelService.update('openai', 'custom-model', { priorityMode: 'minimax' })
+
+    expect(presetModel.priorityMode).toBe('minimax')
+    expect(customModel.priorityMode).toBe('minimax')
+    expect(modelService.update('openai', 'custom-model', { priorityMode: 'none' }).priorityMode).toBe('none')
   })
 
   it('throws NOT_FOUND when model does not exist', async () => {

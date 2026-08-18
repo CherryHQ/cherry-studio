@@ -1482,7 +1482,12 @@ export class MessageService {
       // Build update object
       const updates: Partial<typeof messageTable.$inferInsert> = {}
 
-      if (dto.data !== undefined) updates.data = dto.data
+      if (dto.data !== undefined) {
+        updates.data = {
+          ...dto.data,
+          ...(existingRow.data?.modelSnapshot ? { modelSnapshot: existingRow.data.modelSnapshot } : {})
+        }
+      }
       if (dto.parentId !== undefined) updates.parentId = dto.parentId
       if (dto.siblingsGroupId !== undefined) updates.siblingsGroupId = dto.siblingsGroupId
       let activityTransitionAt: number | null = null
@@ -1500,8 +1505,8 @@ export class MessageService {
       }
 
       const [row] = tx.update(messageTable).set(updates).where(eq(messageTable.id, id)).returning().all()
-      if (dto.data !== undefined) {
-        replaceChatMessageFileRefsTx(tx, id, dto.data)
+      if (updates.data !== undefined) {
+        replaceChatMessageFileRefsTx(tx, id, updates.data)
       }
       if (activityTransitionAt !== null) {
         getDataService('TopicService').advanceLastActivityAtTx(tx, existingRow.topicId, activityTransitionAt)
@@ -1546,15 +1551,19 @@ export class MessageService {
       })
         ? Date.now()
         : null
+      const data: MessageData = {
+        ...input.data,
+        ...(row.data?.modelSnapshot ? { modelSnapshot: row.data.modelSnapshot } : {})
+      }
       tx.update(messageTable)
         .set({
-          data: input.data,
+          data,
           status: input.status,
           stats: stats ?? null
         })
         .where(eq(messageTable.id, id))
         .run()
-      replaceChatMessageFileRefsTx(tx, id, input.data)
+      replaceChatMessageFileRefsTx(tx, id, data)
       if (activityTimestamp !== null) {
         getDataService('TopicService').advanceLastActivityAtTx(tx, row.topicId, activityTimestamp)
         activityTopicId = row.topicId
@@ -1598,7 +1607,8 @@ export class MessageService {
       }
       const data: MessageData = {
         parts: [],
-        ...(row.data?.turnOptions ? { turnOptions: row.data.turnOptions } : {})
+        ...(row.data?.turnOptions ? { turnOptions: row.data.turnOptions } : {}),
+        ...(row.data?.modelSnapshot ? { modelSnapshot: row.data.modelSnapshot } : {})
       }
       const descendantIds = this.getDescendantIdsTx(tx, id)
       for (let offset = 0; offset < descendantIds.length; offset += SQLITE_INARRAY_CHUNK) {

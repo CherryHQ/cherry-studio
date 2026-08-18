@@ -1,6 +1,7 @@
 import { Button } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { useModelById } from '@renderer/hooks/useModel'
+import { getModelDisplayName } from '@renderer/utils/model'
 import { cn } from '@renderer/utils/style'
 import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { ChevronDown } from 'lucide-react'
@@ -37,7 +38,7 @@ export const ModelSelectorTrigger = ({
         {model ? (
           <>
             <ModelAvatar model={model} size={18} />
-            <span className="truncate text-foreground">{model.name || model.id}</span>
+            <span className="truncate text-foreground">{getModelDisplayName(model)}</span>
           </>
         ) : value && isUniqueModelId(value) ? (
           <span className="truncate text-foreground">{parseUniqueModelId(value).modelId}</span>

@@ -61,7 +61,7 @@ import {
   resolveSteerShortcut
 } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
-import { resolveReasoningEffortForModel } from '@renderer/utils/model'
+import { getModelDisplayName, resolveReasoningEffortForModel } from '@renderer/utils/model'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
@@ -550,7 +550,7 @@ function AgentComposerContextUsage({ model, sessionId }: { model?: Model; sessio
           percentage={percentage}
           maxTokens={maxTokens}
           isCompacting={isCompacting}
-          modelName={model?.name}
+          modelName={model ? getModelDisplayName(model) : undefined}
           showCategories={false}
         />
       }>

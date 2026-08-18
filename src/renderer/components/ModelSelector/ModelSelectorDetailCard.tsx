@@ -1,5 +1,6 @@
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@cherrystudio/ui'
 import { getModelDisplayTags, ModelTag } from '@renderer/components/tags/Model'
+import { getModelDisplayName } from '@renderer/utils/model'
 import { deriveThinkingOptions } from '@shared/ai/reasoning'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -134,6 +135,7 @@ function ModelSelectorDetailCardBody({
 }) {
   const { t } = useTranslation()
   const { model, modelIdentifier } = item
+  const modelName = getModelDisplayName(model)
   const tags = useMemo(() => getModelDisplayTags(model, undefined, provider), [model, provider])
   const reasoningEfforts = formatReasoningEfforts(
     deriveThinkingOptions(model)?.filter((option) => option !== 'default'),
@@ -146,8 +148,8 @@ function ModelSelectorDetailCardBody({
   return (
     <div className="max-h-[min(420px,70vh,var(--radix-hover-card-content-available-height,70vh))] overflow-auto p-3">
       <div className="min-w-0 space-y-1">
-        <div className="truncate font-medium text-foreground text-sm" title={model.name}>
-          {model.name}
+        <div className="truncate font-medium text-foreground text-sm" title={modelName}>
+          {modelName}
         </div>
       </div>
 

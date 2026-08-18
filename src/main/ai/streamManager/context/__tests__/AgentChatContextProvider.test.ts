@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   getSession: vi.fn(),
   ensureTraceId: vi.fn(),
   getAgent: vi.fn(),
+  getModelByKey: vi.fn(),
   saveMessage: vi.fn(),
   saveMessages: vi.fn(),
   hasSessionMessages: vi.fn(),
@@ -25,6 +26,10 @@ vi.mock('@data/services/AgentSessionService', () => ({
 
 vi.mock('@data/services/AgentService', () => ({
   agentService: { getAgent: mocks.getAgent }
+}))
+
+vi.mock('@data/services/ModelService', () => ({
+  modelService: { getByKey: mocks.getModelByKey }
 }))
 
 vi.mock('@data/services/AgentSessionMessageService', () => ({
@@ -93,6 +98,7 @@ describe('AgentChatContextProvider', () => {
       model: 'anthropic::claude-sonnet',
       modelName: 'Claude Sonnet'
     })
+    mocks.getModelByKey.mockReturnValue({ priorityMode: undefined })
     mocks.saveMessage.mockImplementation(({ sessionId, message }) => ({
       id: message.id,
       sessionId,
@@ -250,6 +256,32 @@ describe('AgentChatContextProvider', () => {
       })
     ])
     expect(prepared.listeners).toEqual([subscriber])
+  })
+
+  it('freezes the runtime model priority mode into the agent snapshot', async () => {
+    mocks.getModelByKey.mockReturnValue({ priorityMode: 'minimax' })
+
+    await provider.prepareDispatch(makeSubscriber(), openReq())
+
+    expect(mocks.getModelByKey).toHaveBeenCalledWith('anthropic', 'claude-sonnet')
+    expect(mocks.saveMessages.mock.calls[0][0].messages[1].messageSnapshot.model).toEqual({
+      id: 'claude-sonnet',
+      name: 'Claude Sonnet',
+      provider: 'anthropic',
+      priorityMode: 'minimax'
+    })
+    expect(mocks.runtimeBeginTurn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messageSnapshot: expect.objectContaining({
+          model: {
+            id: 'claude-sonnet',
+            name: 'Claude Sonnet',
+            provider: 'anthropic',
+            priorityMode: 'minimax'
+          }
+        })
+      })
+    )
   })
 
   it('rejects a late busy transition when the caller requires an idle session', async () => {

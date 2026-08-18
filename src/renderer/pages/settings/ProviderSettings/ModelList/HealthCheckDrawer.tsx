@@ -18,7 +18,7 @@ import type {
 } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { HealthStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { maskApiKey } from '@renderer/utils/api'
-import { getModelLogoRef } from '@renderer/utils/model'
+import { getModelDisplayName, getModelLogoRef } from '@renderer/utils/model'
 import { cn } from '@renderer/utils/style'
 import { CheckCircle2, Info, Loader2, XCircle } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
@@ -321,7 +321,9 @@ export default function HealthCheckDrawer({
                     )}>
                     <div className="flex w-5 shrink-0 justify-center">{statusCell}</div>
                     <HealthCheckModelAvatar model={model} />
-                    <span className="min-w-0 flex-1 truncate font-mono text-[13px] text-foreground">{model.name}</span>
+                    <span className="min-w-0 flex-1 truncate font-mono text-[13px] text-foreground">
+                      {getModelDisplayName(model)}
+                    </span>
                     <div
                       className={cn(
                         'min-w-0 text-end',

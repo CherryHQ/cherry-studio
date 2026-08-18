@@ -3,7 +3,7 @@ import { useIcon } from '@cherrystudio/ui/icons'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { useTheme } from '@renderer/hooks/useTheme'
 import type { Model } from '@renderer/types/model'
-import { getModelLogoRef } from '@renderer/utils/model'
+import { getModelDisplayName, getModelLogoRef } from '@renderer/utils/model'
 import { firstLetter, removeLeadingEmoji } from '@renderer/utils/naming'
 import dayjs from 'dayjs'
 import { Sparkle } from 'lucide-react'
@@ -53,7 +53,7 @@ const MessageHeader: FC<Props> = memo(
 
     const messageModel = useMemo(() => getMessageListItemModel(message), [message])
     const displayModel = messageModel ?? model
-    const displayModelName = displayModel?.name || displayModel?.id
+    const displayModelName = displayModel ? getModelDisplayName(displayModel) : undefined
     const ModelIcon = useIcon(useMemo(() => getModelLogoRef(displayModel), [displayModel]))
 
     // Producing author (assistant/agent) snapshotted at creation — shown first; the model is secondary.
@@ -64,11 +64,11 @@ const MessageHeader: FC<Props> = memo(
     const authorAvatar = authorSnapshot ? authorSnapshot.emoji : assistantProfile?.avatar
     const getUserName = useCallback(() => {
       if (message.role === 'assistant') {
-        return authorName || displayModel?.name || displayModel?.id || ''
+        return authorName || displayModelName || ''
       }
 
       return userName || t('common.you')
-    }, [authorName, displayModel, message.role, t, userName])
+    }, [authorName, displayModelName, message.role, t, userName])
 
     const isAssistantMessage = message.role === 'assistant'
     const hiddenContentHoverClass = isAssistantMessage

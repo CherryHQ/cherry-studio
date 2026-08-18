@@ -4,7 +4,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { getProviderDisplayName, ModelSelector } from '@renderer/components/ModelSelector'
 import { useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
-import { getModelLogoRef } from '@renderer/utils/model'
+import { getModelDisplayName, getModelLogoRef } from '@renderer/utils/model'
 import { createUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import { first } from 'es-toolkit/compat'
 import { ChevronDown } from 'lucide-react'
@@ -49,7 +49,7 @@ const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, pain
     [providers, painting.providerId]
   )
 
-  const selectedName = selectedModel?.name ?? painting.model
+  const selectedName = selectedModel ? getModelDisplayName(selectedModel) : painting.model
   const selectedProviderName = selectedProvider ? getProviderDisplayName(selectedProvider) : undefined
   const selectedIconRef = useMemo(
     () =>

@@ -15,7 +15,7 @@ import { useIcon } from '@cherrystudio/ui/icons'
 import { showErrorDetailPopup } from '@renderer/components/ErrorDetailModal'
 import type { SerializedError } from '@renderer/types/error'
 import { maskApiKey } from '@renderer/utils/api'
-import { getModelLogoRef } from '@renderer/utils/model'
+import { getModelDisplayName, getModelLogoRef } from '@renderer/utils/model'
 import type { Model } from '@shared/data/types/model'
 import { sortBy } from 'es-toolkit/compat'
 import { AlertTriangle, ChevronRight } from 'lucide-react'
@@ -56,11 +56,13 @@ function ModelOptionIcon({ model, size = 20 }: { model: Model; size?: number }) 
 }
 
 function renderModelOptionContent(model: Model) {
+  const modelName = getModelDisplayName(model)
+
   return (
     <div className="flex min-w-0 flex-1 items-center gap-2">
       <ModelOptionIcon model={model} />
-      <span className="min-w-0 flex-1 truncate" title={model.name}>
-        {model.name}
+      <span className="min-w-0 flex-1 truncate" title={modelName}>
+        {modelName}
       </span>
     </div>
   )

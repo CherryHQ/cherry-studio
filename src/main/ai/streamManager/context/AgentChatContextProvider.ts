@@ -8,6 +8,7 @@ import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { modelService } from '@data/services/ModelService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
@@ -33,6 +34,7 @@ function toReservedAgentUIMessage(row: AgentSessionMessageEntity): CherryUIMessa
       createdAt: row.createdAt,
       modelId: row.modelId ?? undefined,
       messageSnapshot: row.messageSnapshot ?? undefined,
+      modelSnapshot: row.data.modelSnapshot,
       stats: row.stats ?? undefined,
       ...(row.stats?.totalTokens ? { totalTokens: row.stats.totalTokens } : {})
     }
@@ -76,6 +78,13 @@ export class AgentChatContextProvider implements ChatContextProvider {
 
     const uniqueModelId = agent.model
     const { providerId, modelId: rawModelId } = parseUniqueModelId(uniqueModelId)
+    const runtimeModel = modelService.getByKey(providerId, rawModelId)
+    const modelSnapshot = {
+      id: rawModelId,
+      name: agent.modelName ?? rawModelId,
+      provider: providerId,
+      ...(runtimeModel.priorityMode !== undefined ? { priorityMode: runtimeModel.priorityMode } : {})
+    }
     // The agent owns the model it ran — snapshot the agent (with the model nested) so the
     // header shows the agent first, even after the agent is deleted.
     const messageSnapshot = {
@@ -84,7 +93,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       // Normalized effective avatar (mirrors renderer `getAgentAvatar`): blank/whitespace → the default,
       // so we never freeze a truthy-but-broken source. `🤖` is `DEFAULT_AGENT_AVATAR`.
       emoji: agent.configuration?.avatar?.trim() || '🤖',
-      model: { id: rawModelId, name: agent.modelName ?? rawModelId, provider: providerId }
+      model: modelSnapshot
     }
 
     const userMessageId = uuidv7()
@@ -184,7 +193,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
               id: assistantMessageId,
               role: 'assistant',
               status: 'pending',
-              data: { parts: [] },
+              data: { parts: [], modelSnapshot },
               modelId: uniqueModelId,
               messageSnapshot
             }
@@ -246,7 +255,10 @@ export class AgentChatContextProvider implements ChatContextProvider {
             runtime: { kind: 'agent-session', sessionId, turnId: runtime.turnId }
           },
           rootSpan: turnTrace.rootSpan,
-          abortController: runtime.abortController
+          abortController: runtime.abortController,
+          // Freeze priorityMode on the overlay's first frames; the persisted
+          // placeholder already carries `data.modelSnapshot` for reloads.
+          modelSnapshot
         }
       ],
       reservedMessages: savedMessages.map(toReservedAgentUIMessage),

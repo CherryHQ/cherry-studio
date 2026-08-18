@@ -1,7 +1,7 @@
 import { Avatar, AvatarFallback, Button } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
 import { getProviderDisplayName, ModelSelector } from '@renderer/components/ModelSelector'
-import { getModelLogoRef } from '@renderer/utils/model'
+import { getModelDisplayName, getModelLogoRef } from '@renderer/utils/model'
 import { cn } from '@renderer/utils/style'
 import { type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -53,7 +53,7 @@ export const ModelSelectorTriggerButton: FC<ModelSelectorTriggerProps> = ({
             <AvatarFallback>{getModelInitial(model)}</AvatarFallback>
           </Avatar>
         ) : null}
-        <span className="min-w-0 flex-1 truncate">{model?.name ?? placeholder}</span>
+        <span className="min-w-0 flex-1 truncate">{model ? getModelDisplayName(model) : placeholder}</span>
         {providerName && <span className="max-w-[32%] truncate text-muted-foreground text-xs">{providerName}</span>}
       </span>
       <ChevronDown size={14} className="shrink-0 text-muted-foreground" />

@@ -1,3 +1,4 @@
+import type { ModelPriorityMode } from '@shared/data/types/model'
 import * as z from 'zod'
 
 export type ModelType = 'text' | 'vision' | 'embedding' | 'reasoning' | 'function_calling' | 'web_search' | 'rerank'
@@ -46,6 +47,7 @@ export type Model = {
   endpoint_type?: EndpointType
   supported_endpoint_types?: EndpointType[]
   supported_text_delta?: boolean
+  priorityMode?: ModelPriorityMode
 }
 
 export type ApiClient = {

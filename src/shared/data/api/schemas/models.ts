@@ -13,6 +13,7 @@ import {
   MODALITY,
   type Model,
   MODEL_CAPABILITY,
+  ModelPriorityModeSchema,
   objectValues,
   ParameterSupportDbSchema,
   RuntimeModelPricingSchema,
@@ -61,6 +62,8 @@ export const CreateModelSchema = z.strictObject({
   maxOutputTokens: z.number().int().positive().optional(),
   /** Streaming support */
   supportsStreaming: z.boolean().optional(),
+  /** Per-model request priority transport */
+  priorityMode: ModelPriorityModeSchema.optional(),
   /** Parameter support (DB form) */
   parameterSupport: ParameterSupportDbSchema.optional(),
   /** Pricing configuration */

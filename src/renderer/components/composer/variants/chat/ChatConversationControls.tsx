@@ -4,6 +4,7 @@ import EmojiIcon from '@renderer/components/EmojiIcon'
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import { openResourceEditDialog } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
 import { AssistantSelector } from '@renderer/components/resourceCatalog/selectors'
+import { getModelDisplayName } from '@renderer/utils/model'
 import { getLeadingEmoji } from '@renderer/utils/naming'
 import { cn } from '@renderer/utils/style'
 import type { Model } from '@shared/data/types/model'
@@ -89,7 +90,7 @@ export function ChatConversationControls({
     triggerClassName,
     iconOnly && selectedMentionedModels.length > 0 && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS
   )
-  const modelLabel = model ? model.name : selectModelLabel
+  const modelLabel = model ? getModelDisplayName(model) : selectModelLabel
   const [mentionedModelSelectorOpen, setMentionedModelSelectorOpen] = useState(false)
   const handleMentionedModelSelect = useCallback(
     (nextModels: Model[]) => {

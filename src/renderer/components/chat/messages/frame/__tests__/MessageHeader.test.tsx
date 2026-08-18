@@ -39,6 +39,8 @@ vi.mock('@cherrystudio/ui', () => ({
 }))
 
 vi.mock('@renderer/utils/model', () => ({
+  getModelDisplayName: (model: { name: string; priorityMode?: string }) =>
+    `${model.name}${model.priorityMode === 'minimax' ? ' ⚡️' : ''}`,
   getModelLogoRef: () => undefined
 }))
 
@@ -146,6 +148,27 @@ describe('MessageHeader', () => {
     expect(getByText('My Assistant')).toBeTruthy()
     expect(getByText('G').closest('[aria-hidden="true"]')).toBeTruthy()
     expect(getByText('GPT-4')).toBeTruthy()
+  })
+
+  it('marks the frozen priority model without changing its snapshot name', () => {
+    const frozenModel = { id: 'm2.1', name: 'MiniMax M2.1', provider: 'minimax', priorityMode: 'minimax' as const }
+    const { getByText } = render(
+      <MessageHeader
+        showModelIdentity
+        message={createMessage('assistant', {
+          model: frozenModel,
+          messageSnapshot: {
+            id: 'a1',
+            name: 'My Assistant',
+            emoji: '🤖',
+            model: frozenModel
+          }
+        })}
+      />
+    )
+
+    expect(getByText('MiniMax M2.1 ⚡️')).toBeTruthy()
+    expect(frozenModel.name).toBe('MiniMax M2.1')
   })
 
   it('shows the snapshot agent name as primary', () => {

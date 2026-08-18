@@ -3,7 +3,13 @@ import path from 'node:path'
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import { generateText as aiCoreGenerateText } from '@cherrystudio/ai-core'
 import { FS_READ_TOOL_NAME } from '@shared/ai/builtinTools'
-import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY, SERVER_TOOL } from '@shared/data/types/model'
+import {
+  ENDPOINT_TYPE,
+  type EndpointType,
+  MODEL_CAPABILITY,
+  MODEL_PRIORITY_MODE,
+  SERVER_TOOL
+} from '@shared/data/types/model'
 import type { StopCondition, Tool, ToolSet } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -304,6 +310,351 @@ describe('buildAgentParams provider resolution', () => {
     expect(receivedCustomParameterSets).toEqual(expectedCustomParameterSets)
     expect(requestFetches[2]).toBe(requestFetches[0])
     expect(requestFetches[1]).not.toBe(requestFetches[0])
+  })
+
+  it('sends MiniMax priority as snake_case in the final openai-compatible request body', async () => {
+    let receivedBody: Record<string, unknown> | undefined
+    const innerFetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      receivedBody = JSON.parse(init?.body as string)
+      return new Response(
+        JSON.stringify({
+          id: 'chatcmpl-test',
+          object: 'chat.completion',
+          created: 0,
+          model: 'MiniMax-M2.1',
+          choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
+          usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } }
+      )
+    })
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: {
+        providerId: 'openai-compatible',
+        providerSettings: {
+          name: 'minimax',
+          apiKey: 'sk-test',
+          baseURL: 'https://api.test/v1',
+          fetch: innerFetch
+        }
+      },
+      credentialReceipt: { attribution: 'auth', method: 'api-key' }
+    })
+    const provider = makeProvider({
+      id: 'minimax',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'openai-compatible' }
+      }
+    })
+    const model = makeModel({
+      id: 'minimax::MiniMax-M2.1',
+      providerId: 'minimax',
+      apiModelId: 'MiniMax-M2.1',
+      priorityMode: MODEL_PRIORITY_MODE.MINIMAX
+    })
+    const result = await buildAgentParams({ request: {}, signal: undefined, provider, model })
+
+    await aiCoreGenerateText<AppProviderSettingsMap>(result.sdkConfig.providerId, result.sdkConfig.providerSettings, {
+      model: result.sdkConfig.modelId,
+      prompt: 'hello',
+      providerOptions: result.options.providerOptions
+    })
+
+    expect(receivedBody).toMatchObject({ service_tier: 'priority' })
+    expect(receivedBody).not.toHaveProperty('serviceTier')
+  })
+
+  it('keeps Azure priority in the final body for a custom deployment name', async () => {
+    const receivedBodies: Record<string, unknown>[] = []
+    const innerFetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      receivedBodies.push(JSON.parse(init?.body as string))
+      return new Response(
+        JSON.stringify({
+          id: 'chatcmpl-test',
+          object: 'chat.completion',
+          created: 0,
+          model: 'prod-chat',
+          choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
+          usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } }
+      )
+    })
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: {
+        providerId: 'azure',
+        providerSettings: {
+          apiKey: 'test-key',
+          baseURL: 'https://api.test/openai',
+          fetch: innerFetch
+        }
+      },
+      credentialReceipt: { attribution: 'auth', method: 'api-key' }
+    })
+    const provider = makeProvider({
+      id: 'azure-openai',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'azure' }
+      }
+    })
+    const model = makeModel({
+      id: 'azure-openai::prod-chat',
+      providerId: 'azure-openai',
+      apiModelId: 'prod-chat',
+      priorityMode: MODEL_PRIORITY_MODE.AZURE_OPENAI
+    })
+    const result = await buildAgentParams({ request: {}, signal: undefined, provider, model })
+
+    await aiCoreGenerateText<AppProviderSettingsMap>(result.sdkConfig.providerId, result.sdkConfig.providerSettings, {
+      model: result.sdkConfig.modelId,
+      prompt: 'hello',
+      providerOptions: result.options.providerOptions
+    })
+
+    const overriddenResult = await buildAgentParams({
+      request: { callOverrides: { providerOptions: { openai: { serviceTier: 'default' } } } },
+      signal: undefined,
+      provider,
+      model,
+      assistant: makeAssistant({
+        settings: { customParameters: [{ name: 'service_tier', type: 'json', value: '"assistant-tier"' }] }
+      })
+    })
+    await aiCoreGenerateText<AppProviderSettingsMap>(
+      overriddenResult.sdkConfig.providerId,
+      overriddenResult.sdkConfig.providerSettings,
+      {
+        model: overriddenResult.sdkConfig.modelId,
+        prompt: 'hello',
+        providerOptions: overriddenResult.options.providerOptions
+      }
+    )
+
+    expect(receivedBodies[0]).toMatchObject({ service_tier: 'priority' })
+    expect(receivedBodies[1]).toMatchObject({ service_tier: 'default' })
+  })
+
+  it('sends Gemini priority through the native GenerateContent request field', async () => {
+    let receivedBody: Record<string, unknown> | undefined
+    const innerFetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      receivedBody = JSON.parse(init?.body as string)
+      return new Response(
+        JSON.stringify({
+          candidates: [
+            {
+              content: { role: 'model', parts: [{ text: 'ok' }] },
+              finishReason: 'STOP',
+              index: 0
+            }
+          ],
+          usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1, totalTokenCount: 2 }
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } }
+      )
+    })
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: {
+        providerId: 'google',
+        providerSettings: {
+          apiKey: 'test-key',
+          baseURL: 'https://api.test/v1beta',
+          fetch: innerFetch
+        }
+      },
+      credentialReceipt: { attribution: 'auth', method: 'api-key' }
+    })
+    const provider = makeProvider({
+      id: 'gemini',
+      defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'google' }
+      }
+    })
+    const model = makeModel({
+      id: 'gemini::gemini-test',
+      providerId: 'gemini',
+      apiModelId: 'gemini-test',
+      priorityMode: MODEL_PRIORITY_MODE.GEMINI
+    })
+    const result = await buildAgentParams({ request: {}, signal: undefined, provider, model })
+
+    await aiCoreGenerateText<AppProviderSettingsMap>(result.sdkConfig.providerId, result.sdkConfig.providerSettings, {
+      model: result.sdkConfig.modelId,
+      prompt: 'hello',
+      providerOptions: result.options.providerOptions
+    })
+
+    expect(receivedBody).toMatchObject({ serviceTier: 'priority' })
+    expect(receivedBody).not.toHaveProperty('service_tier')
+  })
+
+  it('sends Anthropic fast mode with its required beta header', async () => {
+    let receivedBody: Record<string, unknown> | undefined
+    let receivedHeaders: Headers | undefined
+    const innerFetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      receivedBody = JSON.parse(init?.body as string)
+      receivedHeaders = new Headers(init?.headers)
+      return new Response(
+        JSON.stringify({
+          id: 'msg-test',
+          type: 'message',
+          role: 'assistant',
+          model: 'claude-opus-test',
+          content: [{ type: 'text', text: 'ok' }],
+          stop_reason: 'end_turn',
+          stop_sequence: null,
+          usage: { input_tokens: 1, output_tokens: 1 }
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } }
+      )
+    })
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: {
+        providerId: 'anthropic',
+        providerSettings: {
+          apiKey: 'test-key',
+          baseURL: 'https://api.test/v1',
+          fetch: innerFetch
+        }
+      },
+      credentialReceipt: { attribution: 'auth', method: 'api-key' }
+    })
+    const provider = makeProvider({
+      id: 'anthropic',
+      defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'anthropic' }
+      }
+    })
+    const model = makeModel({
+      id: 'anthropic::claude-opus-test',
+      providerId: 'anthropic',
+      apiModelId: 'claude-opus-test',
+      priorityMode: MODEL_PRIORITY_MODE.ANTHROPIC
+    })
+    const result = await buildAgentParams({ request: {}, signal: undefined, provider, model })
+
+    await aiCoreGenerateText<AppProviderSettingsMap>(result.sdkConfig.providerId, result.sdkConfig.providerSettings, {
+      model: result.sdkConfig.modelId,
+      prompt: 'hello',
+      providerOptions: result.options.providerOptions
+    })
+
+    expect(receivedBody).toMatchObject({ speed: 'fast' })
+    expect(receivedHeaders?.get('anthropic-beta')).toContain('fast-mode-2026-02-01')
+  })
+
+  it('sends Groq performance tier in the final Chat Completions body', async () => {
+    let receivedBody: Record<string, unknown> | undefined
+    const innerFetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      receivedBody = JSON.parse(init?.body as string)
+      return new Response(
+        JSON.stringify({
+          id: 'chatcmpl-test',
+          object: 'chat.completion',
+          created: 0,
+          model: 'groq-test',
+          choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
+          usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } }
+      )
+    })
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: {
+        providerId: 'groq',
+        providerSettings: {
+          apiKey: 'test-key',
+          baseURL: 'https://api.test/openai/v1',
+          fetch: innerFetch
+        }
+      },
+      credentialReceipt: { attribution: 'auth', method: 'api-key' }
+    })
+    const provider = makeProvider({
+      id: 'groq',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'groq' }
+      }
+    })
+    const model = makeModel({
+      id: 'groq::groq-test',
+      providerId: 'groq',
+      apiModelId: 'groq-test',
+      priorityMode: MODEL_PRIORITY_MODE.GROQ
+    })
+    const result = await buildAgentParams({ request: {}, signal: undefined, provider, model })
+
+    await aiCoreGenerateText<AppProviderSettingsMap>(result.sdkConfig.providerId, result.sdkConfig.providerSettings, {
+      model: result.sdkConfig.modelId,
+      prompt: 'hello',
+      providerOptions: result.options.providerOptions
+    })
+
+    expect(receivedBody).toMatchObject({ service_tier: 'performance' })
+  })
+
+  it('adds Vertex Priority PayGo while preserving explicit request-header precedence', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'google-vertex', providerSettings: { location: 'global' } },
+      credentialReceipt: { attribution: 'auth', method: 'iam-gcp' }
+    })
+    const provider = makeProvider({
+      id: 'vertexai',
+      defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'google-vertex' }
+      }
+    })
+    const model = makeModel({
+      id: 'vertexai::gemini-test',
+      providerId: 'vertexai',
+      priorityMode: MODEL_PRIORITY_MODE.GEMINI
+    })
+
+    const priorityResult = await buildAgentParams({ request: {}, signal: undefined, provider, model })
+
+    const priorityHeadersView = new Headers(priorityResult.options.headers as Record<string, string>)
+    expect(priorityHeadersView.get('X-Vertex-AI-LLM-Request-Type')).toBe('shared')
+    expect(priorityHeadersView.get('X-Vertex-AI-LLM-Shared-Request-Type')).toBe('priority')
+
+    const overriddenResultMixedCase = await buildAgentParams({
+      request: {
+        requestOptions: {
+          headers: {
+            'x-vertex-ai-llm-request-type': 'shared-override',
+            'x-vertex-ai-llm-shared-request-type': 'standard'
+          }
+        }
+      },
+      signal: undefined,
+      provider,
+      model
+    })
+    const overriddenHeadersView = new Headers(overriddenResultMixedCase.options.headers as Record<string, string>)
+    expect(overriddenHeadersView.get('X-Vertex-AI-LLM-Request-Type')).toBe('shared-override')
+    expect(overriddenHeadersView.get('X-Vertex-AI-LLM-Shared-Request-Type')).toBe('standard')
+
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'google-vertex', providerSettings: { location: 'us-central1' } },
+      credentialReceipt: { attribution: 'auth', method: 'iam-gcp' }
+    })
+    const regionalHeaders = { 'X-Custom-Header': 'preserve-casing', 'X-Unset-Header': undefined }
+    const regionalResult = await buildAgentParams({
+      request: { requestOptions: { headers: regionalHeaders } },
+      signal: undefined,
+      provider,
+      model
+    })
+    expect(
+      new Headers(regionalResult.options.headers as Record<string, string> | undefined).has(
+        'X-Vertex-AI-LLM-Shared-Request-Type'
+      )
+    ).toBe(false)
+    expect(regionalResult.options.headers).toBe(regionalHeaders)
   })
 })
 

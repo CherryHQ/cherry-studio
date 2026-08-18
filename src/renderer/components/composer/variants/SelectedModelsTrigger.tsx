@@ -3,6 +3,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { getModelDisplayTags, type ModelDisplayTag, ModelTag } from '@renderer/components/tags/Model'
 import { getProviderDisplayName } from '@renderer/hooks/useProvider'
+import { getModelDisplayName } from '@renderer/utils/model'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { ChevronDown, RotateCcw, X } from 'lucide-react'
@@ -78,7 +79,7 @@ export const SelectedModelsTrigger = ({
   const [popoverOpen, setPopoverOpen] = useState(false)
   const closeTimerRef = useRef<number | null>(null)
   const singleModel = models.length === 1 ? models[0] : undefined
-  const singleModelLabel = singleModel ? singleModel.name : fallbackLabel
+  const singleModelLabel = singleModel ? getModelDisplayName(singleModel) : fallbackLabel
   const selectedModelsLabel = t('models.selection.selected_models')
   const hasSelectionPopover = models.length > 1
   const canShowSelectionPopover = hasSelectionPopover && !suppressSelectionPopover
@@ -191,6 +192,7 @@ export const SelectedModelsTrigger = ({
         <Scrollbar className="max-h-64 overflow-x-hidden" data-testid="selected-models-list">
           {models.map((model) => {
             const providerName = modelProviderNames.get(model.id) ?? model.providerId
+            const modelName = getModelDisplayName(model)
             const tags = getModelDisplayTags(model, undefined, providerById.get(model.providerId))
             const hasTags = tags.length > 0
             const hasRightMeta = model.contextWindow != null
@@ -205,7 +207,7 @@ export const SelectedModelsTrigger = ({
                 </div>
                 <div className="min-w-0">
                   <div className="flex h-4 min-w-0 items-center">
-                    <span className="truncate font-medium text-[12px] leading-4">{model.name}</span>
+                    <span className="truncate font-medium text-[12px] leading-4">{modelName}</span>
                   </div>
                   <div
                     className={cn(
@@ -232,7 +234,7 @@ export const SelectedModelsTrigger = ({
                     type="button"
                     variant="ghost"
                     size="icon-sm"
-                    aria-label={t('models.selection.remove_model', { name: model.name })}
+                    aria-label={t('models.selection.remove_model', { name: modelName })}
                     className="size-4 min-h-4 shrink-0 rounded p-0 text-muted-foreground shadow-none transition-colors hover:bg-accent hover:text-foreground focus-visible:opacity-100 [&_svg]:size-3"
                     onClick={handleRemove(model)}>
                     <X />
@@ -253,7 +255,7 @@ export const SelectedModelsTrigger = ({
           <RotateCcw className="size-3.5" />
           <span>{t('models.selection.restore_default')}</span>
           {assistantModel ? (
-            <span className="ml-auto truncate text-muted-foreground">{assistantModel.name}</span>
+            <span className="ml-auto truncate text-muted-foreground">{getModelDisplayName(assistantModel)}</span>
           ) : null}
         </Button>
       </div>
