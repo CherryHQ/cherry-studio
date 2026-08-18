@@ -32,7 +32,7 @@ import { createDeleteSubtreeJobHandler } from './tasks/deleteSubtreeJobHandler'
 import { createIndexDocumentsJobHandler } from './tasks/indexDocumentsJobHandler'
 import { createPrepareRootJobHandler } from './tasks/prepareRootJobHandler'
 import { createReindexSubtreeJobHandler } from './tasks/reindexSubtreeJobHandler'
-import type { KnowledgeBaseDiscoveryOptions, KnowledgeBaseDiscoveryPage } from './types'
+import { type KnowledgeBaseDiscoveryOptions, type KnowledgeBaseDiscoveryPage } from './types'
 
 /**
  * Facade of the knowledge feature: registers the job handlers, runs boot-time
@@ -49,6 +49,11 @@ export class KnowledgeService extends BaseService {
   private readonly baseAdmin = new KnowledgeBaseAdminService(this.knowledgeLockManager, this.ingestionService)
   private readonly queryService = new KnowledgeQueryService()
   private readonly conceptService = new KnowledgeConceptService(this.ingestionService)
+
+  /** Serialize an owner-scoped backup cut with this base's short material commits. */
+  withPortableSnapshotBoundary<T>(baseId: string, work: () => T | Promise<T>): Promise<T> {
+    return this.knowledgeLockManager.runExclusive(baseId, work)
+  }
 
   protected onInit(): void {
     const jobManager = application.get('JobManager')
@@ -118,7 +123,28 @@ export class KnowledgeService extends BaseService {
     await this.ingestionService.reindexItems(baseId, itemIds)
   }
 
-  /** Configure an embedding model on a BM25-only base and backfill embeddings in place (see KnowledgeIngestionService.enableEmbeddingModel). */
+  /** Rebuild only derived index rows from material installed by Backup v2. */
+  async reconcileRestoredBaseFromMaterial(baseId: string, restoreId: string): Promise<'completed' | 'pending'> {
+    return this.ingestionService.reconcileRestoredBaseFromMaterial(baseId, restoreId)
+  }
+
+  /** Stop every active indexing job created by one abandoned restore rebuild. */
+  async cancelRestoredMaterialRebuild(restoreId: string): Promise<void> {
+    await this.ingestionService.cancelRestoredMaterialRebuild(restoreId)
+  }
+
+  /**
+   * Configures an embedding model on a base that has never had one (BM25-only), then
+   * backfills embeddings for its existing items in place — no restore-into-a-new-base
+   * needed, since a BM25-only base has no vectors to invalidate. `knowledgeBaseService.
+   * update` still rejects switching an already-configured model this way; that case
+   * keeps going through `restoreBase` because it does invalidate existing vectors.
+   *
+   * Runs the same admission checks `reindexItems` would run, but before committing the
+   * model — a base whose backfill is doomed (missing source, subtree still running, ...)
+   * must never end up with a model set and no vectors to back it, since there is nothing
+   * to roll back to once it is committed.
+   */
   async enableEmbeddingModel(baseId: string, patch: UpdateKnowledgeBaseDto): Promise<KnowledgeBase> {
     return await this.ingestionService.enableEmbeddingModel(baseId, patch)
   }

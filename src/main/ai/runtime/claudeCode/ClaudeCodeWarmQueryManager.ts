@@ -227,7 +227,6 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
         return undefined
       }
     )
-
     const entry: WarmQueryEntry = { signature, promise, usageCapture: request.usageCapture }
     this.entries.set(request.key, entry)
     this.refreshIdleTimer(request.key, entry)

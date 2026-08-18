@@ -1,5 +1,5 @@
 import { application } from '@application'
-import { hasPendingRestore } from '@data/db/restore/restoreJournal'
+import { hasPendingRestore } from '@data/db/restore/restoreJournalV2'
 import { loggerService } from '@logger'
 import type { CacheCleanupGroupResult, CacheCleanupSizeSnapshot } from '@shared/types/cacheCleanupIpc'
 

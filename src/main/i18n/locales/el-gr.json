@@ -91,6 +91,7 @@
   },
   "dialog": {
     "all_files": "Όλα τα Αρχεία",
+    "cherry_backup_files": "Cherry Studio Backup",
     "data_reset": {
       "cancel": "Άκυρο",
       "confirm": "Επαναφορά και επανεκκίνηση",

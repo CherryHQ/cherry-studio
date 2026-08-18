@@ -52,6 +52,8 @@ describe('dataReset ↔ pathRegistry conformance', () => {
     expect(USER_DATA_WIPE).toContain(firstSegment(registry['app.userdata.data'], userData))
     expect(USER_DATA_WIPE).toContain(path.basename(registry['feature.backup.restore.file']))
     expect(USER_DATA_WIPE).toContain(path.basename(registry['feature.backup.restore.staging']))
+    expect(USER_DATA_WIPE).toContain(path.basename(registry['feature.backup.restore.aside']))
+    expect(USER_DATA_WIPE).toContain(path.basename(registry['feature.backup.attestation.key_file']))
     expect(USER_DATA_WIPE).toContain(firstSegment(registry['feature.agents.claude.root'], userData))
     expect(USER_DATA_WIPE).toContain(path.basename(registry['feature.version_log.file']))
     expect(USER_DATA_WIPE).toContain(path.basename(registry['app.session.cache']))
@@ -60,6 +62,14 @@ describe('dataReset ↔ pathRegistry conformance', () => {
     expect(USER_DATA_WIPE).toContain('Data.restore')
     expect(USER_DATA_WIPE).toContain('IndexedDB.restore')
     expect(USER_DATA_WIPE).toContain('Local Storage.restore')
+  })
+
+  it('wipes the directory a restore parks its database copies in', () => {
+    // `<db>.pre-restore-<id>` and `restore-failed-<id>.sqlite` are named per
+    // restore (restoreJournalV2), so no exact-name entry here can ever list
+    // them. What makes them resettable is where they are: beside the live
+    // database. Move either one out of that directory and this fails.
+    expect(isWiped(firstSegment(path.dirname(registry['app.database.file']), userData))).toBe(true)
   })
 
   it('USER_DATA_KEPT shields the model/toolchain trees the registry places under userData', () => {

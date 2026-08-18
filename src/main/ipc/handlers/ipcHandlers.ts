@@ -22,6 +22,7 @@ import { mcpHandlers } from './mcp'
 import { miniAppHandlers } from './miniApp'
 import { navigationHandlers } from './navigation'
 import { notificationHandlers } from './notification'
+import { nutstoreHandlers } from './nutstore'
 import { oauthHandlers } from './oauth'
 import { openclawHandlers } from './openclaw'
 import { ovmsHandlers } from './ovms'
@@ -53,6 +54,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...apiGatewayHandlers,
   ...appHandlers,
   ...backupHandlers,
+  ...nutstoreHandlers,
   ...binaryHandlers,
   ...channelHandlers,
   ...cherryinHandlers,

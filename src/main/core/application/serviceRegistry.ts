@@ -28,6 +28,7 @@ import { AnalyticsService } from '@main/services/AnalyticsService'
 import { AppMenuService } from '@main/services/AppMenuService'
 import { AppUpdaterService } from '@main/services/AppUpdaterService'
 import { AutoBackupService } from '@main/services/AutoBackupService'
+import { BackupService } from '@main/services/backup'
 import { BinaryManager } from '@main/services/BinaryManager'
 import { CitationPreviewService } from '@main/services/CitationPreviewService'
 import { CodeCliService } from '@main/services/codeCli'
@@ -140,6 +141,7 @@ export const services = {
   ApiGatewayService,
   AppUpdaterService,
   AutoBackupService,
+  BackupService,
   SchedulerService,
   JobManager
 } as const

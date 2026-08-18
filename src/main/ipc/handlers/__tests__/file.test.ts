@@ -106,7 +106,6 @@ const directoryTreeManager = {
 
 const senderWebContents = { id: 7 }
 const windowManager = { getWindow: vi.fn() }
-
 beforeEach(() => {
   vi.clearAllMocks()
   windowManager.getWindow.mockImplementation((id: string) =>

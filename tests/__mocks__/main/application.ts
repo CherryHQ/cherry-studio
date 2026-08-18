@@ -4,6 +4,8 @@ import { MockMainCacheServiceExport } from './CacheService'
 import { MockMainDataApiServiceExport } from './DataApiService'
 import { MockMainDbServiceExport } from './DbService'
 import { MockMainFileManagerExport } from './FileManager'
+import { MockMainKnowledgeServiceExport } from './KnowledgeService'
+import { MockMainKnowledgeVectorStoreServiceExport } from './KnowledgeVectorStoreService'
 import { MockMainPreferenceServiceExport } from './PreferenceService'
 
 /**
@@ -72,12 +74,10 @@ const mockIpcApiService = {
   broadcastToType: vi.fn()
 }
 
-/** Minimal JobManager mock for handler registration and startup enqueues. */
 export const mockJobManager = {
   registerHandler: vi.fn(),
   enqueue: vi.fn(() => ({ id: 'mock-job-id', snapshot: {}, finished: Promise.resolve({}) }))
 }
-
 /** Default service instances from existing mock files */
 export const defaultServiceInstances = {
   PreferenceService: MockMainPreferenceServiceExport.preferenceService,
@@ -85,6 +85,8 @@ export const defaultServiceInstances = {
   DataApiService: MockMainDataApiServiceExport.dataApiService,
   DbService: MockMainDbServiceExport.dbService,
   FileManager: MockMainFileManagerExport.fileManager,
+  KnowledgeService: MockMainKnowledgeServiceExport.knowledgeService,
+  KnowledgeVectorStoreService: MockMainKnowledgeVectorStoreServiceExport.knowledgeVectorStoreService,
   MainWindowService: mockMainWindowService,
   WindowManager: mockWindowManager,
   IpcApiService: mockIpcApiService,

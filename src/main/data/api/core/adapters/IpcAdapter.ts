@@ -62,9 +62,7 @@ export class IpcAdapter implements Disposable {
       }
 
       try {
-        const response = await this.apiServer.handleRequest(request)
-
-        return response
+        return await this.apiServer.handleRequest(request)
       } catch (error) {
         logger.error(`Data request failed: ${request.method} ${request.path}`, error as Error)
 

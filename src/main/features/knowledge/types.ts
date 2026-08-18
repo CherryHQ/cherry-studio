@@ -67,6 +67,7 @@ export type KnowledgeProgressDetail =
       stage: 'failed'
     }
 
+export const KNOWLEDGE_ACTIVE_JOB_STATUSES = ['pending', 'delayed', 'running'] as const
 export const KNOWLEDGE_ACTIVE_JOB_LIMIT = 5000
 
 export function toKnowledgeBaseId(baseId: string): KnowledgeBaseId {
@@ -114,6 +115,14 @@ export function knowledgeIndexIdempotencyKey(
 ): string {
   const runKey = parentJobId ? `:${parentJobId}` : ''
   return `knowledge:${baseId}:${itemId}:index${runKey}`
+}
+
+export function knowledgeRestoreIndexIdempotencyKey(
+  baseId: KnowledgeBaseId,
+  itemId: KnowledgeItemId,
+  restoreId: string
+): string {
+  return `knowledge:${baseId}:${itemId}:restore-index:${restoreId}`
 }
 
 export function knowledgeFileProcessingCheckIdempotencyKey(

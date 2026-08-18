@@ -28,7 +28,6 @@ const WebDavSettings: FC = () => {
   const [webdavMaxBackups, setWebdavMaxBackups] = usePreference('data.backup.webdav.max_backups')
   const [webdavPass, setWebdavPass] = usePreference('data.backup.webdav.pass')
   const [webdavPath, setWebdavPath] = usePreference('data.backup.webdav.path')
-  const [webdavSkipBackupFile, setWebdavSkipBackupFile] = usePreference('data.backup.webdav.skip_backup_file')
   const [webdavSyncInterval, setWebdavSyncInterval] = usePreference('data.backup.webdav.sync_interval')
   const [webdavUser, setWebdavUser] = usePreference('data.backup.webdav.user')
 
@@ -199,14 +198,6 @@ const WebDavSettings: FC = () => {
       </SettingRow>
       <SettingDivider />
       <SettingRow>
-        <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
-        <Switch checked={webdavSkipBackupFile} onCheckedChange={(value) => void setWebdavSkipBackupFile(value)} />
-      </SettingRow>
-      <SettingRow>
-        <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
-      </SettingRow>
-      <SettingDivider />
-      <SettingRow>
         <SettingRowTitle>{t('settings.data.webdav.disableStream.title')}</SettingRowTitle>
         <Switch checked={webdavDisableStream} onCheckedChange={onDisableStreamChange} />
       </SettingRow>
@@ -232,17 +223,7 @@ const WebDavSettings: FC = () => {
           setCustomFileName={setCustomFileName}
         />
 
-        <WebdavBackupManager
-          visible={backupManagerVisible}
-          onClose={closeBackupManager}
-          webdavConfig={{
-            webdavHost,
-            webdavUser,
-            webdavPass,
-            webdavPath,
-            webdavDisableStream
-          }}
-        />
+        <WebdavBackupManager visible={backupManagerVisible} onClose={closeBackupManager} destination="webdav" />
       </>
     </SettingGroup>
   )
