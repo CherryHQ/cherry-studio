@@ -1433,11 +1433,18 @@ describe('Topics', () => {
     expect(setActiveTopic).not.toHaveBeenCalled()
   })
 
-  it('unpins from the trailing row button', async () => {
+  it('moves an unpin directly to its ordinary position without leaving pending focus behind', async () => {
+    let resolveUnpin: () => void = () => {}
+    pinMutationMocks.deletePin.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveUnpin = resolve
+        })
+    )
     const fixture = withPinnedTopics(createDefaultTopicFixture(), ['topic-b'])
-    setTopicInfiniteQueryPages(fixture)
+    setScopedTopicInfiniteQuery(fixture)
     applyTopicStats(fixture, ['topic-b'])
-    const { getByText } = renderTopicList()
+    const { getByText, rerenderTopicList } = renderTopicList()
 
     const betaRow = getByText('Beta pinned').closest('[data-testid="topic-list-row"]')
     const unpinButton = betaRow?.querySelector('[aria-label="Unpin Conversation"]')
@@ -1448,13 +1455,51 @@ describe('Topics', () => {
       betaRow?.querySelector('[data-resource-list-leading-slot="true"] [aria-label="Unpin Conversation"]') ?? null
     ).not.toBeInTheDocument()
 
-    fireEvent.click(unpinButton as Element)
+    const unpinButtonElement = unpinButton as HTMLElement
+    unpinButtonElement.focus()
+    fireEvent.click(unpinButtonElement, { detail: 1 })
 
     await vi.waitFor(() => expect(pinMutationMocks.deletePin).toHaveBeenCalledWith({ params: { id: 'pin-topic-b' } }))
+    expect(screen.queryByRole('button', { name: 'Pinned' })).not.toBeInTheDocument()
+    const pendingPinButton =
+      getByText('Beta pinned')
+        .closest('[data-testid="topic-list-row"]')
+        ?.querySelector('[aria-label="Pin Conversation"]') ?? null
+    expect(pendingPinButton).not.toBeDisabled()
+    expect(pendingPinButton).toHaveAttribute('aria-busy', 'true')
+    expect(unpinButtonElement).not.toHaveFocus()
+
+    await act(async () => {
+      resolveUnpin()
+      await Promise.resolve()
+    })
+    const awaitingSourcePinButton =
+      getByText('Beta pinned')
+        .closest('[data-testid="topic-list-row"]')
+        ?.querySelector('[aria-label="Pin Conversation"]') ?? null
+    expect(awaitingSourcePinButton).not.toBeDisabled()
+    expect(awaitingSourcePinButton).toHaveAttribute('aria-busy', 'true')
+    expect(screen.queryByRole('button', { name: 'Pinned' })).not.toBeInTheDocument()
+
+    const authoritativeFixture = withPinnedTopics(createDefaultTopicFixture(), [])
+    setScopedTopicInfiniteQuery(authoritativeFixture)
+    applyTopicStats(authoritativeFixture)
+    rerenderTopicList()
+    expect(
+      getByText('Beta pinned')
+        .closest('[data-testid="topic-list-row"]')
+        ?.querySelector('[aria-label="Pin Conversation"]') ?? null
+    ).not.toBeDisabled()
   })
 
-  it('keeps a topic stable until the authoritative pin stream catches up', async () => {
-    pinMutationMocks.createPin.mockResolvedValue(createTopicPin())
+  it('optimistically appends a topic in authoritative pin order without scrolling', async () => {
+    let resolvePin: (pin: Pin) => void = () => {}
+    pinMutationMocks.createPin.mockImplementation(
+      () =>
+        new Promise<Pin>((resolve) => {
+          resolvePin = resolve
+        })
+    )
     const fixture = withPinnedTopics(createDefaultTopicFixture(), ['topic-b'])
     setScopedTopicInfiniteQuery(fixture)
     applyTopicStats(fixture, ['topic-b'])
@@ -1472,26 +1517,87 @@ describe('Topics', () => {
     await act(async () => vi.advanceTimersByTimeAsync(50))
 
     expect(scrollTo).not.toHaveBeenCalled()
+    expect(screen.queryByText('Alpha topic')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Pinned' }))
     expect(screen.getByText('Alpha topic')).toBeInTheDocument()
-    expect(
+    const pendingPinButton =
       screen
         .getByText('Alpha topic')
         .closest('[data-testid="topic-list-row"]')
-        ?.querySelector('[aria-label="Pin Conversation"]') ?? null
-    ).toBeInTheDocument()
+        ?.querySelector('[aria-label="Unpin Conversation"]') ?? null
+    expect(pendingPinButton).not.toBeDisabled()
+    expect(pendingPinButton).toHaveAttribute('aria-busy', 'true')
+    expect(
+      screen.getByText('Beta pinned').compareDocumentPosition(screen.getByText('Alpha topic')) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+
+    await act(async () => {
+      resolvePin(createTopicPin())
+      await Promise.resolve()
+    })
 
     const authoritativeFixture = withPinnedTopics([fixture[1], fixture[0], ...fixture.slice(2)], ['topic-b', 'topic-a'])
     setScopedTopicInfiniteQuery(authoritativeFixture)
     applyTopicStats(authoritativeFixture, ['topic-b', 'topic-a'])
     rerenderTopicList()
-    expect(screen.queryByText('Alpha topic')).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Pinned' }))
     expect(screen.getByText('Alpha topic')).toBeInTheDocument()
+    const settledPinButton =
+      screen
+        .getByText('Alpha topic')
+        .closest('[data-testid="topic-list-row"]')
+        ?.querySelector('[aria-label="Unpin Conversation"]') ?? null
+    expect(settledPinButton).not.toBeDisabled()
+    expect(settledPinButton).not.toHaveAttribute('aria-busy')
     expect(
       screen.getByText('Beta pinned').compareDocumentPosition(screen.getByText('Alpha topic')) &
         Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy()
+  })
+
+  it('accepts an unpin while the optimistic pin request is still pending', async () => {
+    let resolvePin: (pin: Pin) => void = () => {}
+    pinMutationMocks.createPin.mockImplementation(
+      () =>
+        new Promise<Pin>((resolve) => {
+          resolvePin = resolve
+        })
+    )
+    const fixture = withPinnedTopics(createDefaultTopicFixture(), ['topic-b'])
+    setScopedTopicInfiniteQuery(fixture)
+    applyTopicStats(fixture, ['topic-b'])
+    const { getByText } = renderTopicList()
+
+    const alphaRow = getByText('Alpha topic').closest('[data-testid="topic-list-row"]')
+    fireEvent.click(alphaRow?.querySelector('[aria-label="Pin Conversation"]') as Element)
+    await vi.waitFor(() => expect(pinMutationMocks.createPin).toHaveBeenCalledTimes(1))
+
+    const pendingUnpinButton = getByText('Alpha topic')
+      .closest('[data-testid="topic-list-row"]')
+      ?.querySelector('[aria-label="Unpin Conversation"]')
+    expect(pendingUnpinButton ?? null).not.toBeDisabled()
+    fireEvent.click(pendingUnpinButton as Element, { detail: 1 })
+
+    const reversedPinButton = getByText('Alpha topic')
+      .closest('[data-testid="topic-list-row"]')
+      ?.querySelector('[aria-label="Pin Conversation"]')
+    expect(reversedPinButton ?? null).not.toBeDisabled()
+    expect(reversedPinButton).toHaveAttribute('aria-busy', 'true')
+    expect(pinMutationMocks.deletePin).not.toHaveBeenCalled()
+
+    await act(async () => {
+      resolvePin(createTopicPin())
+      await Promise.resolve()
+    })
+    await vi.waitFor(() => expect(pinMutationMocks.deletePin).toHaveBeenCalledWith({ params: { id: 'pin-topic-a' } }))
+    await vi.waitFor(() =>
+      expect(
+        getByText('Alpha topic')
+          .closest('[data-testid="topic-list-row"]')
+          ?.querySelector('[aria-label="Pin Conversation"]')
+      ).not.toHaveAttribute('aria-busy')
+    )
   })
 
   it('keeps pin actions in the topic context menu and changes topic position from the menu', async () => {

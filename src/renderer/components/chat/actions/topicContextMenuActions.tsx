@@ -70,6 +70,7 @@ export interface TopicActionContext {
   onOpenInNewTab?: TopicMenuHandler
   onOpenInNewWindow?: TopicMenuHandler
   onPinTopic: TopicMenuHandler
+  pinDisabled?: boolean
   onSaveToKnowledge: TopicMenuHandler
   onSaveToNotes: TopicMenuHandler
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
@@ -280,7 +281,8 @@ topicActionRegistry.registerAction({
   label: ({ t, topic }) => (topic.pinned ? t('chat.topics.unpin') : t('chat.topics.pin')),
   icon: ({ topic }) => (topic.pinned ? <PinOffIcon size={14} /> : <PinIcon size={14} />),
   order: 30,
-  surface: 'menu'
+  surface: 'menu',
+  availability: ({ pinDisabled }) => ({ enabled: !pinDisabled })
 })
 
 topicActionRegistry.registerAction({

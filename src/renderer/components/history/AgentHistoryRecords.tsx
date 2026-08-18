@@ -105,8 +105,13 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
   const { pin: pinSession, unpin: unpinSession, isMutating: isPinMutating } = usePinMutations('session')
   const commitSessionPin = useCallback(
     async (session: AgentSessionListItem) => {
-      if (session.pinId) await unpinSession(session.pinId)
-      else await pinSession(session.id)
+      if (session.pinId) {
+        await unpinSession(session.pinId)
+        return { ...session, pinned: false, pinId: null }
+      }
+
+      const pin = await pinSession(session.id)
+      return { ...session, pinned: true, pinId: pin.id }
     },
     [pinSession, unpinSession]
   )

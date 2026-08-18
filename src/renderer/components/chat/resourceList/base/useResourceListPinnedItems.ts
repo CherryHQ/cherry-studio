@@ -8,11 +8,12 @@ type ResourceListPinnableItem = {
 type UseResourceListPinnedItemsOptions<T extends ResourceListPinnableItem> = {
   disabled?: boolean
   items: readonly T[]
-  onTogglePin: (item: T) => Promise<void>
+  onTogglePin: (item: T) => Promise<T>
   resetKey?: string
 }
 
 type PendingPin<T> = {
+  appendWhenPinned: boolean
   item: T
   pinned: boolean
   inFlight: boolean
@@ -20,8 +21,8 @@ type PendingPin<T> = {
 }
 
 /**
- * Retains a moving row at its stable source position until the authoritative
- * pinned/unpinned streams catch up.
+ * Projects pin state immediately while retaining rows through split-stream gaps.
+ * New pins use PinService's append position; consumers sort unpins by their ordinary rules.
  */
 export function useResourceListPinnedItems<T extends ResourceListPinnableItem>({
   disabled = false,
@@ -68,32 +69,90 @@ export function useResourceListPinnedItems<T extends ResourceListPinnableItem>({
     const sourceItems = [...sourceItemsById.values()]
     if (pendingPins.length === 0) return sourceItems
 
-    const pendingIds = new Set(pendingPins.map((pending) => pending.item.id))
-    const stableItems = sourceItems.filter((item) => !pendingIds.has(item.id))
+    const retainedItems = [...sourceItems]
+    const retainedIds = new Set(retainedItems.map((item) => item.id))
     for (const pending of pendingPins.sort((left, right) => left.sourceIndex - right.sourceIndex)) {
-      stableItems.splice(Math.min(pending.sourceIndex, stableItems.length), 0, pending.item)
+      if (retainedIds.has(pending.item.id)) continue
+      retainedItems.splice(Math.min(pending.sourceIndex, retainedItems.length), 0, pending.item)
+      retainedIds.add(pending.item.id)
     }
-    return stableItems
+
+    const projectedItems = retainedItems.map((item) => {
+      const pinned = pendingPinsById[item.id]?.pinned ?? item.pinned
+      return pinned === item.pinned ? item : { ...item, pinned }
+    })
+    const newlyPinnedIds = new Set(
+      pendingPins.filter((pending) => pending.appendWhenPinned && pending.pinned).map((pending) => pending.item.id)
+    )
+    if (newlyPinnedIds.size === 0) return projectedItems
+
+    const newlyPinnedItems = projectedItems.filter((item) => newlyPinnedIds.has(item.id))
+    const stationaryItems = projectedItems.filter((item) => !newlyPinnedIds.has(item.id))
+    let insertIndex = 0
+    stationaryItems.forEach((item, index) => {
+      if (item.pinned) insertIndex = index + 1
+    })
+
+    return [...stationaryItems.slice(0, insertIndex), ...newlyPinnedItems, ...stationaryItems.slice(insertIndex)]
   }, [pendingPinsById, sourceItemsById])
+
+  const pendingPinnedById = useMemo(
+    () => new Map(Object.entries(pendingPinsById).map(([id, pending]) => [id, pending.pinned])),
+    [pendingPinsById]
+  )
 
   const togglePinned = useCallback(
     async (item: T) => {
-      if (disabled || pendingPinsByIdRef.current[item.id]) return
+      const existingPending = pendingPinsByIdRef.current[item.id]
+      let committedItem: T
 
-      const sourceItem = sourceItemsByIdRef.current.get(item.id) ?? item
-      const sourceIndex = [...sourceItemsByIdRef.current.keys()].indexOf(item.id)
-      updatePendingPins((current) => ({
-        ...current,
-        [item.id]: {
-          item: sourceItem,
-          pinned: !sourceItem.pinned,
-          inFlight: true,
-          sourceIndex: sourceIndex < 0 ? sourceItemsByIdRef.current.size : sourceIndex
-        }
-      }))
+      if (existingPending) {
+        const pinned = !existingPending.pinned
+        updatePendingPins((current) => {
+          const pending = current[item.id]
+          if (!pending) return current
+
+          return {
+            ...current,
+            [item.id]: {
+              ...pending,
+              appendWhenPinned: pending.appendWhenPinned || pinned,
+              inFlight: true,
+              pinned
+            }
+          }
+        })
+        if (existingPending.inFlight) return
+        committedItem = existingPending.item
+      } else {
+        if (disabled) return
+
+        const sourceItem = sourceItemsByIdRef.current.get(item.id) ?? item
+        const sourceIndex = [...sourceItemsByIdRef.current.keys()].indexOf(item.id)
+        updatePendingPins((current) => ({
+          ...current,
+          [item.id]: {
+            appendWhenPinned: sourceItem.pinned !== true,
+            item: sourceItem,
+            pinned: !sourceItem.pinned,
+            inFlight: true,
+            sourceIndex: sourceIndex < 0 ? sourceItemsByIdRef.current.size : sourceIndex
+          }
+        }))
+        committedItem = sourceItem
+      }
 
       try {
-        await onTogglePin(sourceItem)
+        while (true) {
+          const pending = pendingPinsByIdRef.current[item.id]
+          if (!pending || pending.pinned === (committedItem.pinned === true)) break
+
+          committedItem = await onTogglePin(committedItem)
+          updatePendingPins((current) => {
+            const currentPending = current[item.id]
+            return currentPending ? { ...current, [item.id]: { ...currentPending, item: committedItem } } : current
+          })
+        }
       } catch (error) {
         updatePendingPins((current) => {
           const next = { ...current }
@@ -119,5 +178,5 @@ export function useResourceListPinnedItems<T extends ResourceListPinnableItem>({
     [disabled, onTogglePin, updatePendingPins]
   )
 
-  return { items, togglePinned }
+  return { items, pendingPinnedById, togglePinned }
 }

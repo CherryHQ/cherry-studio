@@ -129,4 +129,14 @@ describe('topic context menu actions', () => {
     await expect(executeTopicMenuAction(moveAction!.children[0], context)).resolves.toBe(false)
     expect(onMoveToAssistant).not.toHaveBeenCalled()
   })
+
+  it('disables the pin action while a pin mutation is pending', async () => {
+    const onPinTopic = vi.fn()
+    const context = createTopicActionFixture({ onPinTopic, pinDisabled: true })
+    const pinAction = resolveTopicMenuActions(context).find((action) => action.id === 'topic.pin')
+
+    expect(pinAction?.availability.enabled).toBe(false)
+    await expect(executeTopicMenuAction(pinAction!, context)).resolves.toBe(false)
+    expect(onPinTopic).not.toHaveBeenCalled()
+  })
 })

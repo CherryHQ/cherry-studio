@@ -717,16 +717,22 @@ export function Topics({
     async (topic: TopicResourceItem) => {
       if (topic.pinId) {
         await unpinTopic(topic.pinId)
-      } else {
-        await pinTopic(topic.id)
+        return { ...topic, pinned: false, pinId: null }
       }
+
+      const pin = await pinTopic(topic.id)
+      return { ...topic, pinned: true, pinId: pin.id }
     },
     [pinTopic, unpinTopic]
   )
   const sourceTopics = useMemo(() => {
     return [...ordinaryTopics, ...pinnedTopics]
   }, [ordinaryTopics, pinnedTopics])
-  const { items: projectedTopics, togglePinned: togglePinnedTopicItem } = useResourceListPinnedItems({
+  const {
+    items: projectedTopics,
+    pendingPinnedById,
+    togglePinned: togglePinnedTopicItem
+  } = useResourceListPinnedItems({
     disabled: isPinsMutating,
     items: sourceTopics,
     onTogglePin: commitTopicPin,
@@ -896,15 +902,13 @@ export function Topics({
 
   const handlePinTopic = useCallback(
     async (topic: Topic) => {
-      if (isPinsMutating) return
-
       try {
         await toggleTopicPinned(topic.id)
       } catch (err) {
         logger.error('Failed to toggle topic pin', { topicId: topic.id, err })
       }
     },
-    [isPinsMutating, toggleTopicPinned]
+    [toggleTopicPinned]
   )
 
   const handleMoveTopicToAssistant = useCallback(
@@ -1993,6 +1997,8 @@ export function Topics({
           onOpenInNewTab={tabs && !isWindowFrame ? openTopicInNewTab : undefined}
           onOpenInNewWindow={tabs ? openTopicInNewWindow : undefined}
           onPinTopic={handlePinTopic}
+          pendingPinnedById={pendingPinnedById}
+          pinActionDisabled={isPinsMutating}
           onRequestTopicImageAction={handleTopicImageAction}
           onRetry={handleRetry}
           onSetPanePosition={canSetPanePosition ? setResolvedPanePosition : undefined}
@@ -2087,6 +2093,8 @@ interface TopicListBodyProps {
   onOpenInNewTab?: (topic: Topic) => void
   onOpenInNewWindow?: (topic: Topic) => void
   onPinTopic: (topic: Topic) => Promise<void>
+  pendingPinnedById: ReadonlyMap<string, boolean>
+  pinActionDisabled: boolean
   onRequestTopicImageAction: (type: TopicImageActionType, topic: Topic) => void
   onRetry: () => Promise<unknown>
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
@@ -2123,6 +2131,8 @@ function TopicListBody(props: TopicListBodyProps) {
     onOpenInNewTab,
     onOpenInNewWindow,
     onPinTopic,
+    pendingPinnedById,
+    pinActionDisabled,
     onRequestTopicImageAction,
     onRetry,
     onSetPanePosition,
@@ -2149,6 +2159,8 @@ function TopicListBody(props: TopicListBodyProps) {
       onOpenInNewTab,
       onOpenInNewWindow,
       onPinTopic,
+      pendingPinnedById,
+      pinActionDisabled,
       onRequestTopicImageAction,
       onSetPanePosition,
       onSwitchTopic,
@@ -2171,6 +2183,8 @@ function TopicListBody(props: TopicListBodyProps) {
       onOpenInNewTab,
       onOpenInNewWindow,
       onPinTopic,
+      pendingPinnedById,
+      pinActionDisabled,
       onRequestTopicImageAction,
       onSetPanePosition,
       onSwitchTopic,
@@ -2240,6 +2254,8 @@ const TopicRow = memo(function TopicRow({
   onOpenInNewTab,
   onOpenInNewWindow,
   onPinTopic,
+  pendingPinnedById,
+  pinActionDisabled,
   onRequestTopicImageAction,
   onSetPanePosition,
   onSwitchTopic,
@@ -2280,6 +2296,9 @@ const TopicRow = memo(function TopicRow({
           : null
   const hasTopicStreamIndicator = conversationRowStatus !== null && conversationRowStatus !== 'approval'
   const showPinAction = !rowState.renaming
+  const pendingPinned = pendingPinnedById.get(topic.id)
+  const pinActionPinned = pendingPinned ?? topic.pinned
+  const isPinActionDisabled = pendingPinned === undefined && pinActionDisabled
   const showLeadingSlot = displayMode !== 'time' && !topic.pinned
   const isConfirmingDeletion = deletingTopicId === topic.id
   const canDeleteTopic = !topic.pinned
@@ -2302,6 +2321,7 @@ const TopicRow = memo(function TopicRow({
     onOpenInNewTab,
     onOpenInNewWindow,
     onPinTopic,
+    pinDisabled: isPinActionDisabled,
     onSetPanePosition,
     onStartRename: startMenuRename,
     panePosition,
@@ -2355,15 +2375,18 @@ const TopicRow = memo(function TopicRow({
       )}
       <ResourceList.ItemActions active={isConfirmingDeletion}>
         {showPinAction && (
-          <Tooltip title={topic.pinned ? t('chat.topics.unpin') : t('chat.topics.pin')} delay={500}>
+          <Tooltip title={pinActionPinned ? t('chat.topics.unpin') : t('chat.topics.pin')} delay={500}>
             <ResourceList.ItemAction
-              aria-label={topic.pinned ? t('chat.topics.unpin') : t('chat.topics.pin')}
-              className={cn(topic.pinned && 'text-foreground')}
+              aria-label={pinActionPinned ? t('chat.topics.unpin') : t('chat.topics.pin')}
+              aria-busy={pendingPinned !== undefined || undefined}
+              className={cn(pinActionPinned && 'text-foreground', 'disabled:cursor-wait disabled:opacity-50')}
+              disabled={isPinActionDisabled}
               onClick={(event) => {
                 event.stopPropagation()
+                if (event.detail > 0) event.currentTarget.blur()
                 void onPinTopic(topic)
               }}>
-              <PinIcon size={14} className={cn('size-3.5!', topic.pinned && 'fill-current')} />
+              <PinIcon size={14} className={cn('size-3.5!', pinActionPinned && 'fill-current')} />
             </ResourceList.ItemAction>
           </Tooltip>
         )}

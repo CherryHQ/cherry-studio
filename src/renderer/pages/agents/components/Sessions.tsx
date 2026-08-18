@@ -765,9 +765,11 @@ const Sessions = ({
     async (session: AgentSessionListItem) => {
       if (session.pinId) {
         await unpinSession(session.pinId)
-      } else {
-        await pinSession(session.id)
+        return { ...session, pinned: false, pinId: null }
       }
+
+      const pin = await pinSession(session.id)
+      return { ...session, pinned: true, pinId: pin.id }
     },
     [pinSession, unpinSession]
   )

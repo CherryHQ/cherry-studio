@@ -9,6 +9,7 @@ import { useDataChange, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
 import type { EntityType } from '@shared/data/types/entityType'
+import type { Pin } from '@shared/data/types/pin'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 const logger = loggerService.withContext('usePins')
@@ -41,9 +42,9 @@ interface UsePinMutationsResult {
   /** Most recent pin/unpin write error, if any. */
   error: Error | undefined
   /** Pin the given entity. Rejects on write errors. */
-  pin: (entityId: string) => Promise<unknown>
+  pin: (entityId: string) => Promise<Pin>
   /** Remove a pin by its pin row id. Rejects on write errors. */
-  unpin: (pinId: string) => Promise<unknown>
+  unpin: (pinId: string) => Promise<void>
 }
 
 /**

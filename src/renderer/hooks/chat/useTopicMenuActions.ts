@@ -35,6 +35,7 @@ export interface TopicMenuActionOptions {
   onOpenInNewTab?: TopicMenuHandler
   onOpenInNewWindow?: TopicMenuHandler
   onPinTopic: TopicMenuHandler
+  pinDisabled?: boolean
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
   onStartRename: TopicMenuHandler
   panePosition?: TopicTabPosition
@@ -57,6 +58,7 @@ export function createTopicActionContext({
   onOpenInNewTab,
   onOpenInNewWindow,
   onPinTopic,
+  pinDisabled,
   onSetPanePosition,
   onStartRename,
   panePosition,
@@ -118,6 +120,7 @@ export function createTopicActionContext({
     onOpenInNewTab,
     onOpenInNewWindow,
     onPinTopic,
+    pinDisabled,
     onSetPanePosition,
     onSaveToKnowledge: async (topic) => {
       try {
@@ -209,6 +212,7 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
     onOpenInNewTab,
     onOpenInNewWindow,
     onPinTopic,
+    pinDisabled,
     onSetPanePosition,
     onStartRename,
     panePosition,
@@ -232,6 +236,7 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
         onOpenInNewTab,
         onOpenInNewWindow,
         onPinTopic,
+        pinDisabled,
         onSetPanePosition,
         onStartRename,
         panePosition,
@@ -253,6 +258,7 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
       onOpenInNewTab,
       onOpenInNewWindow,
       onPinTopic,
+      pinDisabled,
       onSetPanePosition,
       onStartRename,
       panePosition,

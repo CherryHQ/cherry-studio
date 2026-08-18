@@ -141,8 +141,13 @@ const AssistantHistoryRecords = ({
   const { pin: pinTopic, unpin: unpinTopic, isMutating: isPinsMutating } = usePinMutations('topic')
   const commitTopicPin = useCallback(
     async (topic: TopicListItem) => {
-      if (topic.pinId) await unpinTopic(topic.pinId)
-      else await pinTopic(topic.id)
+      if (topic.pinId) {
+        await unpinTopic(topic.pinId)
+        return { ...topic, pinned: false, pinId: null }
+      }
+
+      const pin = await pinTopic(topic.id)
+      return { ...topic, pinned: true, pinId: pin.id }
     },
     [pinTopic, unpinTopic]
   )
