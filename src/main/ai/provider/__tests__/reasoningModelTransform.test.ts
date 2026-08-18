@@ -117,8 +117,7 @@ describe('wire-body regression', () => {
 
     await model.doGenerate({
       prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
-      maxOutputTokens: 1000,
-      mode: { type: 'regular' }
+      maxOutputTokens: 1000
     })
 
     const body = JSON.parse(fetchSpy.mock.calls[0][1].body)
@@ -138,8 +137,7 @@ describe('wire-body regression', () => {
 
     await model.doGenerate({
       prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
-      maxOutputTokens: 2000,
-      mode: { type: 'regular' }
+      maxOutputTokens: 2000
     })
 
     const body = JSON.parse(fetchSpy.mock.calls[0][1].body)
@@ -161,8 +159,7 @@ describe('wire-body regression', () => {
 
     await model.doGenerate({
       prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
-      maxOutputTokens: 4096,
-      mode: { type: 'regular' }
+      maxOutputTokens: 4096
     })
 
     const body = JSON.parse(fetchSpy.mock.calls[0][1].body)
