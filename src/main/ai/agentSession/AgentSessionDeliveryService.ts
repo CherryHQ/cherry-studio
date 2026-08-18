@@ -278,10 +278,12 @@ export class AgentSessionDeliveryService extends BaseService {
         manager.pauseRuntimeTurn(buildAgentSessionTopicId(sessionId), 'target-agent-deleted')
       )
     }
+    // Sessions that outlive the agent (archived or permanently deleted) keep
+    // their queue — kick it so pending deliveries re-evaluate against the gone agent.
     await this.finishDeletion(
       result.affectedSessionIds,
       result.deliveryResults,
-      permanent && !deleteSessions ? result.affectedSessionIds : []
+      deleteSessions ? [] : result.affectedSessionIds
     )
     return {
       deleted: result.deleted,

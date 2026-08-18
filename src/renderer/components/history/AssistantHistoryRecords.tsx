@@ -465,7 +465,7 @@ const AssistantHistoryRecords = ({
       loadingDescription: t('history.records.loading.description'),
       pinLabel: t('chat.topics.pin'),
       unpinLabel: t('chat.topics.unpin'),
-      deleteLabel: t('common.delete'),
+      deleteLabel: t('common.archive'),
       renameDialogTitle: t('chat.topics.edit.title')
     }
   }

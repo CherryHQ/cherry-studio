@@ -41,9 +41,7 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
 
     DELETE: async ({ query }) => {
       const parsed = DeleteTopicsQuerySchema.parse(query)
-      return parsed.permanent === true
-        ? topicService.deleteByIds(parsed.ids, { permanent: true })
-        : topicService.deleteByIds(parsed.ids)
+      return topicService.deleteByIds(parsed.ids, { permanent: parsed.permanent })
     }
   },
 
@@ -80,8 +78,7 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
 
     DELETE: async ({ params, query }) => {
       const parsed = DeleteTopicQuerySchema.parse(query ?? {})
-      if (parsed.permanent === true) topicService.delete(params.id, { permanent: true })
-      else topicService.delete(params.id)
+      topicService.delete(params.id, { permanent: parsed.permanent })
       return undefined
     }
   },

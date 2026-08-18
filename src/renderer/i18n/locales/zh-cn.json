@@ -1727,6 +1727,7 @@
     "delete": "删除",
     "delete_confirm": "确定要删除吗？",
     "delete_failed": "删除失败",
+    "delete_permanently": "永久删除",
     "delete_success": "删除成功",
     "description": "描述",
     "detail": "详情",
@@ -2073,7 +2074,6 @@
       "no_match_title": "没有找到匹配的文件",
       "title": "暂无文件"
     },
-    "empty_trash": "清空回收站",
     "error": {
       "delete_failed": "删除文件失败",
       "delete_partial_failed": "部分文件删除失败",
@@ -2091,7 +2091,6 @@
     "name": "文件名",
     "open": "打开",
     "other": "其他",
-    "permanent_delete": "永久删除",
     "permanent_delete_confirm": {
       "description": "将永久删除 {{count}} 个文件，此操作无法撤销。",
       "title": "永久删除文件？"
@@ -2101,7 +2100,6 @@
     },
     "remove_from_library": "从库中移除",
     "rename": "重命名",
-    "restore": "恢复",
     "select_all": "全选当前列表",
     "select_all_short": "全选",
     "select_file": "选择 {{name}}",
@@ -2109,7 +2107,6 @@
     "size": "大小",
     "text": "文本",
     "title": "文件",
-    "trash": "回收站",
     "type": "类型",
     "upload": "上传文件",
     "video": "视频"
@@ -5420,8 +5417,15 @@
           "label": "恢复",
           "success": "已恢复"
         },
-        "retention_hint": "已删除的项目将在 {{days}} 天后被自动彻底删除",
+        "retention": {
+          "days_one": "{{count}} 天",
+          "days_other": "{{count}} 天",
+          "forever": "永久保留",
+          "label": "已删除项目保留"
+        },
         "retention_hint_never": "已删除的项目将一直保留，直到你手动彻底删除",
+        "retention_hint_one": "已删除的项目将在 {{count}} 天后被自动彻底删除",
+        "retention_hint_other": "已删除的项目将在 {{count}} 天后被自动彻底删除",
         "title": "最近删除",
         "unnamed": "未命名"
       },

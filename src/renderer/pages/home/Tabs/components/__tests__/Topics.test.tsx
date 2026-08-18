@@ -399,6 +399,7 @@ vi.mock('react-i18next', () => ({
         if (key === 'chat.topics.export.siyuan') return 'Export to Siyuan'
         if (key === 'common.archive') return 'Archive'
         if (key === 'common.delete') return 'Delete'
+        if (key === 'common.delete_permanently') return 'Delete Permanently'
         if (key === 'common.delete_success') return 'Deleted'
         if (key === 'common.delete_failed') return 'Delete failed'
         if (key === 'common.more') return 'More'
@@ -1535,9 +1536,9 @@ describe('Topics', () => {
       'CopyCopy as ImageCopy as MarkdownCopy as Plain Text',
       '',
       'Archive',
-      'Delete'
+      'Delete Permanently'
     ])
-    expect(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' })).toHaveAttribute(
+    expect(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete Permanently' })).toHaveAttribute(
       'variant',
       'destructive'
     )
@@ -1727,7 +1728,7 @@ describe('Topics', () => {
     fireEvent.contextMenu(getByText('Alpha topic'))
     const alphaMenu = getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
-    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete Permanently' }))
 
     // Deletion is delegated to ConfirmActionPopup, which gates the action behind its own confirm
     // dialog (that "don't run until confirmed" gate is covered by ConfirmActionPopup's unit test).

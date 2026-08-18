@@ -1,7 +1,14 @@
 import { Button, ConfirmDialog, SelectDropdown } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { SettingDivider, SettingGroup, SettingHelpText, SettingTitle } from '@renderer/components/SettingsPrimitives'
+import {
+  SettingDivider,
+  SettingGroup,
+  SettingHelpText,
+  SettingRow,
+  SettingRowTitle,
+  SettingTitle
+} from '@renderer/components/SettingsPrimitives'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
@@ -63,10 +70,24 @@ interface PendingDelete {
   deleteItem: (item: TrashItem) => Promise<void>
 }
 
+/** `0` = keep forever. */
+const RETENTION_DAY_OPTIONS = [7, 30, 90, 0]
+
 const TrashSettings: FC = () => {
   const { t } = useTranslation()
   const invalidate = useInvalidateCache()
-  const [retentionDays] = usePreference('data.trash.retention_days')
+  const [retentionDays, setRetentionDays] = usePreference('data.trash.retention_days')
+  const retentionOptions = useMemo(
+    () =>
+      RETENTION_DAY_OPTIONS.map((days) => ({
+        id: String(days),
+        label:
+          days === 0
+            ? t('settings.data.trash.retention.forever')
+            : t('settings.data.trash.retention.days', { count: days })
+      })),
+    [t]
+  )
 
   const [category, setCategory] = useState<TrashCategory>('topics')
   const categoryOptions = useMemo(
@@ -127,9 +148,25 @@ const TrashSettings: FC = () => {
           </Button>
         </SettingTitle>
         <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.trash.retention.label')}</SettingRowTitle>
+          <SelectDropdown
+            items={retentionOptions}
+            selectedId={String(retentionDays)}
+            onSelect={(id) => setRetentionDays(Number(id))}
+            triggerClassName="w-40"
+            renderSelected={({ label }) => <span className="truncate">{label}</span>}
+            renderItem={({ label }, isSelected) => (
+              <div className="flex w-full items-center gap-2">
+                <span className="flex-1 truncate">{label}</span>
+                {isSelected && <Check size={16} className="shrink-0 text-primary" />}
+              </div>
+            )}
+          />
+        </SettingRow>
         <SettingHelpText>
           {retentionDays > 0
-            ? t('settings.data.trash.retention_hint', { days: retentionDays })
+            ? t('settings.data.trash.retention_hint', { count: retentionDays })
             : t('settings.data.trash.retention_hint_never')}
         </SettingHelpText>
         <div className="mt-3">

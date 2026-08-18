@@ -167,7 +167,6 @@ import {
   batchPermanentDelete as internalBatchPermanentDelete,
   batchRestore as internalBatchRestore,
   batchTrash as internalBatchTrash,
-  emptyTrash as internalEmptyTrash,
   permanentDelete as internalPermanentDelete,
   restore as internalRestore,
   trash as internalTrash
@@ -603,7 +602,6 @@ export interface IFileManager {
   /** Batch internal-only — external ids fail like `restore`. */
   batchRestore(ids: FileEntryId[]): Promise<BatchMutationResult>
   batchPermanentDelete(ids: FileEntryId[]): Promise<BatchMutationResult>
-  emptyTrash(): Promise<BatchMutationResult>
 
   // ─── Stream ───
 
@@ -1214,10 +1212,6 @@ export class FileManager extends BaseService implements IFileManager {
 
   async batchPermanentDelete(ids: FileEntryId[]): Promise<BatchMutationResult> {
     return internalBatchPermanentDelete(this.deps, ids)
-  }
-
-  async emptyTrash(): Promise<BatchMutationResult> {
-    return internalEmptyTrash(this.deps)
   }
 
   async rename(id: FileEntryId, newName: string): Promise<FileEntry> {

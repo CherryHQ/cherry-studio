@@ -207,13 +207,9 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   // ── Agent creation + session warm-connection lifecycle. ──
   'ai.agent.create': createAgent,
   'ai.agent.delete': ({ agentId, deleteSessions, permanent }) =>
-    permanent === undefined
-      ? application.get('AgentSessionDeliveryService').deleteAgent(agentId, deleteSessions)
-      : application.get('AgentSessionDeliveryService').deleteAgent(agentId, deleteSessions, permanent),
+    application.get('AgentSessionDeliveryService').deleteAgent(agentId, deleteSessions, permanent),
   'ai.agent.sessions.delete': ({ agentId, permanent }) =>
-    permanent === undefined
-      ? application.get('AgentSessionDeliveryService').deleteAgentSessions(agentId)
-      : application.get('AgentSessionDeliveryService').deleteAgentSessions(agentId, permanent),
+    application.get('AgentSessionDeliveryService').deleteAgentSessions(agentId, permanent),
   'ai.agent.support_session.create': async () => ({ sessionId: createBuiltinSupportSession().id }),
   // Warm-lease acquire: opens the live connection eagerly (not just a warm-query park) so the
   // session's slash-command catalog is read into the cache before the first message — the
@@ -229,9 +225,7 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     application.get('AgentSessionRuntimeService').releaseWarmLease(sessionId, senderWebContents(senderId))
   },
   'ai.agent.session.delete': ({ sessionIds, permanent }) =>
-    permanent === undefined
-      ? application.get('AgentSessionDeliveryService').deleteSessions(sessionIds)
-      : application.get('AgentSessionDeliveryService').deleteSessions(sessionIds, permanent),
+    application.get('AgentSessionDeliveryService').deleteSessions(sessionIds, permanent),
   'ai.agent.session.reuse_or_create': (input) =>
     application.get('AgentSessionDeliveryService').reuseOrCreateSession(input),
   'ai.agent.workspace.delete': ({ workspaceId }) =>

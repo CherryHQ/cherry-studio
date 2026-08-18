@@ -1200,6 +1200,40 @@ describe('AgentSessionService', () => {
     })
   })
 
+  it('archives by default, keeping messages and the workspace so restore is lossless', async () => {
+    const session = await createSession('Archive me')
+    await insertSessionMessage(session.id, 'msg-archive-1')
+    await insertSessionMessage(session.id, 'msg-archive-2')
+
+    agentSessionService.delete(session.id)
+
+    expect(captureError(() => agentSessionService.getById(session.id))).toMatchObject({ code: ErrorCode.NOT_FOUND })
+    expect(await dbh.db.select().from(agentSessionMessageTable)).toHaveLength(2)
+
+    const restored = agentSessionService.restore(session.id)
+
+    expect(restored).toMatchObject({ id: session.id, workspaceId: session.workspaceId })
+    expect(
+      (await dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.sessionId, session.id)))
+        .map((row) => row.id)
+        .sort()
+    ).toEqual(['msg-archive-1', 'msg-archive-2'])
+  })
+
+  it('detaches a bound task schedule when a session is archived', async () => {
+    const session = await createSession('Scheduled')
+    const task = createTaskSchedule()
+    bindTaskSession(session.id, task.id)
+
+    agentSessionService.delete(session.id)
+
+    const [row] = await dbh.db
+      .select({ taskScheduleId: agentSessionTable.taskScheduleId })
+      .from(agentSessionTable)
+      .where(eq(agentSessionTable.id, session.id))
+    expect(row.taskScheduleId).toBeNull()
+  })
+
   it('deletes the system workspace row when deleting a no-project session', async () => {
     const session = agentSessionService.create({
       agentId: 'agent-session-test',
@@ -1207,7 +1241,7 @@ describe('AgentSessionService', () => {
       workspace: { type: 'system' }
     })
 
-    agentSessionService.delete(session.id)
+    agentSessionService.delete(session.id, { permanent: true })
 
     expect(captureError(() => agentSessionService.getById(session.id))).toMatchObject({ code: ErrorCode.NOT_FOUND })
     expect(await dbh.db.select().from(agentWorkspaceTable)).toHaveLength(0)
@@ -1239,7 +1273,7 @@ describe('AgentSessionService', () => {
       updatedAt: 1
     })
 
-    const result = agentSessionService.deleteByAgentId('agent-session-test')
+    const result = agentSessionService.deleteByAgentId('agent-session-test', { permanent: true })
 
     expect(result).toEqual({ deletedIds: expect.arrayContaining([first.id, second.id]) })
     expect(captureError(() => agentSessionService.getById(first.id))).toMatchObject({ code: ErrorCode.NOT_FOUND })
@@ -1332,7 +1366,7 @@ describe('AgentSessionService', () => {
     })
     const normalSession = await createSession('Normal session')
 
-    const result = agentSessionService.deleteByIds([systemSession.id])
+    const result = agentSessionService.deleteByIds([systemSession.id], { permanent: true })
 
     expect(result).toEqual({ deletedIds: [systemSession.id] })
     expect(captureError(() => agentSessionService.getById(systemSession.id))).toMatchObject({
@@ -1349,7 +1383,7 @@ describe('AgentSessionService', () => {
       workspace: { type: 'system' }
     })
 
-    const result = agentSessionService.deleteByAgentId('agent-session-test')
+    const result = agentSessionService.deleteByAgentId('agent-session-test', { permanent: true })
 
     expect(result).toEqual({ deletedIds: [session.id] })
     expect(captureError(() => agentSessionService.getById(session.id))).toMatchObject({ code: ErrorCode.NOT_FOUND })
@@ -1512,7 +1546,7 @@ describe('AgentSessionService', () => {
       workspace: { type: 'system' }
     })
 
-    agentSessionService.delete(session.id)
+    agentSessionService.delete(session.id, { permanent: true })
 
     const rows = await dbh.db.select().from(agentWorkspaceTable)
     expect(rows).toHaveLength(0)

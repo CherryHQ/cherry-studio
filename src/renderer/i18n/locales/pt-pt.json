@@ -1702,7 +1702,7 @@
     "agent_one": "Agente",
     "agent_other": "Agentes",
     "all": "Todos",
-    "archive": "Archive",
+    "archive": "Arquivar",
     "assistant": "Assistente",
     "assistant_one": "Assistente",
     "assistant_other": "Assistentes",
@@ -1727,6 +1727,7 @@
     "delete": "Eliminar",
     "delete_confirm": "Tem a certeza de que pretende eliminar?",
     "delete_failed": "Falha ao eliminar",
+    "delete_permanently": "Eliminar permanentemente",
     "delete_success": "Eliminado com sucesso",
     "description": "Descrição",
     "detail": "detalhes",
@@ -2073,7 +2074,6 @@
       "no_match_title": "Nenhum ficheiro correspondente encontrado",
       "title": "Nenhum ficheiro ainda"
     },
-    "empty_trash": "Esvaziar lixeira",
     "error": {
       "delete_failed": "Falha ao eliminar ficheiros",
       "delete_partial_failed": "Alguns ficheiros não puderam ser eliminados",
@@ -2091,7 +2091,6 @@
     "name": "Nome do Ficheiro",
     "open": "Abrir",
     "other": "Outro",
-    "permanent_delete": "Eliminar permanentemente",
     "permanent_delete_confirm": {
       "description": "Isso removerá permanentemente {{count}} ficheiro(s). Esta ação não pode ser desfeita.",
       "title": "Eliminar ficheiros permanentemente?"
@@ -2101,7 +2100,6 @@
     },
     "remove_from_library": "Remover da biblioteca",
     "rename": "Renomear",
-    "restore": "Restaurar",
     "select_all": "Selecionar ficheiros visíveis",
     "select_all_short": "Selecionar Tudo",
     "select_file": "Selecionar {{name}}",
@@ -2109,7 +2107,6 @@
     "size": "Tamanho",
     "text": "Texto",
     "title": "Ficheiro",
-    "trash": "Lixo",
     "type": "Tipo",
     "upload": "Carregar ficheiros",
     "video": "Vídeo"
@@ -5379,51 +5376,58 @@
       },
       "title": "Configurações de dados",
       "trash": {
-        "days_remaining_expired": "Expired",
-        "days_remaining_lt_one": "Less than 1 day left",
-        "days_remaining_one": "{{count}} day left",
-        "days_remaining_other": "{{count}} days left",
-        "deleted_at": "Deleted at {{time}}",
+        "days_remaining_expired": "Expirado",
+        "days_remaining_lt_one": "Falta menos de 1 dia",
+        "days_remaining_one": "Falta {{count}} dia",
+        "days_remaining_other": "Faltam {{count}} dias",
+        "deleted_at": "Eliminado em {{time}}",
         "domain": {
-          "agents": "Agents",
-          "assistants": "Assistants",
-          "files": "Files",
-          "paintings": "Paintings",
-          "sessions": "Sessions",
-          "topics": "Topics"
+          "agents": "Agentes",
+          "assistants": "Assistentes",
+          "files": "Ficheiros",
+          "paintings": "Imagens",
+          "sessions": "Sessões",
+          "topics": "Tópicos"
         },
         "empty": {
-          "section": "No deleted items"
+          "section": "Sem itens eliminados"
         },
         "empty_trash": {
-          "button": "Empty Trash",
-          "confirm_content": "All items in every category will be permanently deleted immediately. This cannot be undone.",
-          "confirm_title": "Empty trash?",
-          "error": "Failed to empty trash",
-          "success": "Trash emptied"
+          "button": "Esvaziar reciclagem",
+          "confirm_content": "Todos os itens de todas as categorias serão eliminados permanentemente de imediato. Esta ação não pode ser anulada.",
+          "confirm_title": "Esvaziar a reciclagem?",
+          "error": "Falha ao esvaziar a reciclagem",
+          "success": "Reciclagem esvaziada"
         },
         "error": {
-          "load": "Failed to load"
+          "load": "Falha ao carregar"
         },
-        "load_more": "Load more",
-        "page_next": "Next",
-        "page_prev": "Previous",
+        "load_more": "Carregar mais",
+        "page_next": "Seguinte",
+        "page_prev": "Anterior",
         "permanent_delete": {
-          "confirm_content": "\"{{name}}\" will be permanently deleted. This cannot be undone.",
-          "confirm_title": "Delete permanently?",
-          "error": "Failed to delete",
-          "label": "Delete Permanently",
-          "success": "Permanently deleted"
+          "confirm_content": "«{{name}}» será eliminado permanentemente. Esta ação não pode ser anulada.",
+          "confirm_title": "Eliminar permanentemente?",
+          "error": "Falha ao eliminar",
+          "label": "Eliminar permanentemente",
+          "success": "Eliminado permanentemente"
         },
         "restore": {
-          "error": "Failed to restore",
-          "label": "Restore",
-          "success": "Restored"
+          "error": "Falha ao restaurar",
+          "label": "Restaurar",
+          "success": "Restaurado"
         },
-        "retention_hint": "Items are permanently deleted after {{days}} days",
-        "retention_hint_never": "Deleted items are kept until you delete them permanently",
-        "title": "Recently Deleted",
-        "unnamed": "Untitled"
+        "retention": {
+          "days_one": "{{count}} dia",
+          "days_other": "{{count}} dias",
+          "forever": "Para sempre",
+          "label": "Manter os itens eliminados durante"
+        },
+        "retention_hint_never": "Os itens eliminados são mantidos até os eliminares permanentemente",
+        "retention_hint_one": "Os itens são eliminados permanentemente após {{count}} dia",
+        "retention_hint_other": "Os itens são eliminados permanentemente após {{count}} dias",
+        "title": "Eliminados recentemente",
+        "unnamed": "Sem título"
       },
       "v1_remigration": {
         "acknowledgement": "Compreendo o risco e pretendo continuar.",

@@ -519,7 +519,8 @@ topicActionRegistry.registerAction({
 topicActionRegistry.registerAction({
   id: 'topic.delete',
   commandId: 'topic.delete',
-  label: ({ t }) => t('common.delete'),
+  // Sits next to `topic.archive`, which is the recoverable one — the label has to say so.
+  label: ({ t }) => t('common.delete_permanently'),
   icon: () => <Trash2 size={14} />,
   group: 'danger',
   order: 90,
@@ -531,7 +532,7 @@ topicActionRegistry.registerAction({
   confirm: ({ t }) => ({
     title: t('chat.topics.manage.delete.confirm.title'),
     description: t('chat.topics.manage.delete.confirm.content', { count: 1 }),
-    confirmText: t('common.delete'),
+    confirmText: t('common.delete_permanently'),
     cancelText: t('common.cancel'),
     destructive: true
   })

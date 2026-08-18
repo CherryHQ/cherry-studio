@@ -1727,6 +1727,7 @@
     "delete": "Delete",
     "delete_confirm": "Are you sure you want to delete?",
     "delete_failed": "Failed to delete",
+    "delete_permanently": "Delete Permanently",
     "delete_success": "Deleted successfully",
     "description": "Description",
     "detail": "Detail",
@@ -2073,7 +2074,6 @@
       "no_match_title": "No matching files found",
       "title": "No files yet"
     },
-    "empty_trash": "Empty trash",
     "error": {
       "delete_failed": "Failed to delete files",
       "delete_partial_failed": "Some files could not be deleted",
@@ -2091,7 +2091,6 @@
     "name": "Name",
     "open": "Open",
     "other": "Other",
-    "permanent_delete": "Permanently delete",
     "permanent_delete_confirm": {
       "description": "This will permanently remove {{count}} file(s). This action cannot be undone.",
       "title": "Permanently delete files?"
@@ -2101,7 +2100,6 @@
     },
     "remove_from_library": "Remove from library",
     "rename": "Rename",
-    "restore": "Restore",
     "select_all": "Select visible files",
     "select_all_short": "Select All",
     "select_file": "Select {{name}}",
@@ -2109,7 +2107,6 @@
     "size": "Size",
     "text": "Text",
     "title": "Files",
-    "trash": "Trash",
     "type": "Type",
     "upload": "Upload files",
     "video": "Video"
@@ -5420,8 +5417,15 @@
           "label": "Restore",
           "success": "Restored"
         },
-        "retention_hint": "Items are permanently deleted after {{days}} days",
+        "retention": {
+          "days_one": "{{count}} day",
+          "days_other": "{{count}} days",
+          "forever": "Forever",
+          "label": "Keep deleted items for"
+        },
         "retention_hint_never": "Deleted items are kept until you delete them permanently",
+        "retention_hint_one": "Items are permanently deleted after {{count}} day",
+        "retention_hint_other": "Items are permanently deleted after {{count}} days",
         "title": "Recently Deleted",
         "unnamed": "Untitled"
       },

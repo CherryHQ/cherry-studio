@@ -60,7 +60,7 @@ export const assistantHandlers: HandlersFor<AssistantSchemas> = {
       const parsed = DeleteAssistantQuerySchema.parse(query ?? {})
       return assistantDataService.delete(params.id, {
         deleteTopics: parsed.deleteTopics === true,
-        ...(parsed.permanent === true ? { permanent: true } : {})
+        permanent: parsed.permanent
       })
     }
   },

@@ -1702,7 +1702,7 @@
     "agent_one": "Agent",
     "agent_other": "Agents",
     "all": "Tous",
-    "archive": "Archive",
+    "archive": "Archiver",
     "assistant": "Assistant",
     "assistant_one": "Assistant",
     "assistant_other": "Assistants",
@@ -1727,6 +1727,7 @@
     "delete": "Supprimer",
     "delete_confirm": "Êtes-vous sûr de vouloir supprimer ?",
     "delete_failed": "Échec de la suppression",
+    "delete_permanently": "Supprimer définitivement",
     "delete_success": "Suppression réussie",
     "description": "Description",
     "detail": "détails",
@@ -2073,7 +2074,6 @@
       "no_match_title": "Aucun fichier correspondant trouvé",
       "title": "Aucun fichier pour l'instant"
     },
-    "empty_trash": "Vider la corbeille",
     "error": {
       "delete_failed": "Échec de la suppression des fichiers",
       "delete_partial_failed": "Certains fichiers n'ont pas pu être supprimés",
@@ -2091,7 +2091,6 @@
     "name": "Nom du fichier",
     "open": "Ouvrir",
     "other": "Autre",
-    "permanent_delete": "Supprimer définitivement",
     "permanent_delete_confirm": {
       "description": "Cela supprimera définitivement {{count}} fichier(s). Cette action ne peut pas être annulée.",
       "title": "Supprimer définitivement les fichiers ?"
@@ -2101,7 +2100,6 @@
     },
     "remove_from_library": "Supprimer de la bibliothèque",
     "rename": "Renommer",
-    "restore": "Restaurer",
     "select_all": "Sélectionner les fichiers visibles",
     "select_all_short": "Tout sélectionner",
     "select_file": "Sélectionner {{name}}",
@@ -2109,7 +2107,6 @@
     "size": "Taille",
     "text": "Texte",
     "title": "Fichier",
-    "trash": "Poubelle",
     "type": "Type",
     "upload": "Télécharger des fichiers",
     "video": "Vidéo"
@@ -5379,51 +5376,58 @@
       },
       "title": "Paramètres des données",
       "trash": {
-        "days_remaining_expired": "Expired",
-        "days_remaining_lt_one": "Less than 1 day left",
-        "days_remaining_one": "{{count}} day left",
-        "days_remaining_other": "{{count}} days left",
-        "deleted_at": "Deleted at {{time}}",
+        "days_remaining_expired": "Expiré",
+        "days_remaining_lt_one": "Moins d’1 jour restant",
+        "days_remaining_one": "{{count}} jour restant",
+        "days_remaining_other": "{{count}} jours restants",
+        "deleted_at": "Supprimé le {{time}}",
         "domain": {
           "agents": "Agents",
           "assistants": "Assistants",
-          "files": "Files",
-          "paintings": "Paintings",
+          "files": "Fichiers",
+          "paintings": "Images",
           "sessions": "Sessions",
-          "topics": "Topics"
+          "topics": "Sujets"
         },
         "empty": {
-          "section": "No deleted items"
+          "section": "Aucun élément supprimé"
         },
         "empty_trash": {
-          "button": "Empty Trash",
-          "confirm_content": "All items in every category will be permanently deleted immediately. This cannot be undone.",
-          "confirm_title": "Empty trash?",
-          "error": "Failed to empty trash",
-          "success": "Trash emptied"
+          "button": "Vider la corbeille",
+          "confirm_content": "Tous les éléments de toutes les catégories seront immédiatement supprimés définitivement. Cette action est irréversible.",
+          "confirm_title": "Vider la corbeille ?",
+          "error": "Échec du vidage de la corbeille",
+          "success": "Corbeille vidée"
         },
         "error": {
-          "load": "Failed to load"
+          "load": "Échec du chargement"
         },
-        "load_more": "Load more",
-        "page_next": "Next",
-        "page_prev": "Previous",
+        "load_more": "Charger plus",
+        "page_next": "Suivant",
+        "page_prev": "Précédent",
         "permanent_delete": {
-          "confirm_content": "\"{{name}}\" will be permanently deleted. This cannot be undone.",
-          "confirm_title": "Delete permanently?",
-          "error": "Failed to delete",
-          "label": "Delete Permanently",
-          "success": "Permanently deleted"
+          "confirm_content": "« {{name}} » sera supprimé définitivement. Cette action est irréversible.",
+          "confirm_title": "Supprimer définitivement ?",
+          "error": "Échec de la suppression",
+          "label": "Supprimer définitivement",
+          "success": "Supprimé définitivement"
         },
         "restore": {
-          "error": "Failed to restore",
-          "label": "Restore",
-          "success": "Restored"
+          "error": "Échec de la restauration",
+          "label": "Restaurer",
+          "success": "Restauré"
         },
-        "retention_hint": "Items are permanently deleted after {{days}} days",
-        "retention_hint_never": "Deleted items are kept until you delete them permanently",
-        "title": "Recently Deleted",
-        "unnamed": "Untitled"
+        "retention": {
+          "days_one": "{{count}} jour",
+          "days_other": "{{count}} jours",
+          "forever": "Indéfiniment",
+          "label": "Conserver les éléments supprimés pendant"
+        },
+        "retention_hint_never": "Les éléments supprimés sont conservés jusqu’à leur suppression définitive",
+        "retention_hint_one": "Les éléments sont supprimés définitivement après {{count}} jour",
+        "retention_hint_other": "Les éléments sont supprimés définitivement après {{count}} jours",
+        "title": "Supprimés récemment",
+        "unnamed": "Sans titre"
       },
       "v1_remigration": {
         "acknowledgement": "Je comprends le risque et souhaite continuer.",

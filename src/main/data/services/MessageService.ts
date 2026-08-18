@@ -45,7 +45,7 @@ import {
 import type { UniqueModelId } from '@shared/data/types/model'
 import { hasClearContextPart, isBlankUserTurn, readCherryMeta } from '@shared/data/types/uiParts'
 import { isToolUIPart } from 'ai'
-import { and, eq, inArray, isNotNull, isNull, lt, ne, or, type SQL, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, isNull, ne, or, type SQL, sql } from 'drizzle-orm'
 
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
 import { getDataService, registerDataService } from './dataServiceRegistry'
@@ -347,25 +347,6 @@ export class MessageService {
     }
 
     tx.delete(messageTable).where(inArray(messageTable.topicId, uniqueTopicIds)).run()
-  }
-
-  /** Hard-delete soft-deleted messages older than the retention cutoff. */
-  purgeExpiredTx(tx: DbOrTx, cutoffMs: number, limit: number): string[] {
-    const rows = tx
-      .select({ id: messageTable.id })
-      .from(messageTable)
-      .where(and(isNotNull(messageTable.deletedAt), lt(messageTable.deletedAt, cutoffMs)))
-      .limit(limit)
-      .all()
-    const ids = rows.map((row) => row.id)
-    if (ids.length === 0) return ids
-
-    for (let i = 0; i < ids.length; i += SQLITE_INARRAY_CHUNK) {
-      tx.delete(messageTable)
-        .where(inArray(messageTable.id, ids.slice(i, i + SQLITE_INARRAY_CHUNK)))
-        .run()
-    }
-    return ids
   }
 
   /**

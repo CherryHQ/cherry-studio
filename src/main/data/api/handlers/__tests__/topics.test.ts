@@ -69,7 +69,7 @@ describe('topicHandlers', () => {
         } as never)
       ).resolves.toEqual(result)
 
-      expect(deleteByIdsMock).toHaveBeenCalledWith(['topic-a', 'topic-b'])
+      expect(deleteByIdsMock).toHaveBeenCalledWith(['topic-a', 'topic-b'], { permanent: undefined })
       expect(deleteMock).not.toHaveBeenCalled()
     })
 
@@ -83,7 +83,7 @@ describe('topicHandlers', () => {
         } as never)
       ).resolves.toEqual(result)
 
-      expect(deleteByIdsMock).toHaveBeenCalledWith(['topic-a', 'topic-b'])
+      expect(deleteByIdsMock).toHaveBeenCalledWith(['topic-a', 'topic-b'], { permanent: undefined })
     })
 
     it('rejects empty selected topic ids before calling the service', async () => {
