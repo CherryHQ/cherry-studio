@@ -1,3 +1,6 @@
+// Registers MessageService in the data-service registry (topic purge resolves it).
+import '@data/services/MessageService'
+
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
@@ -16,15 +19,15 @@ import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { fileManagerMock, sweepOrphanAgentDirsMock } = vi.hoisted(() => ({
+const { fileManagerMock, sweepAgentOrphansMock } = vi.hoisted(() => ({
   fileManagerMock: { runSweep: vi.fn(async () => undefined) },
-  sweepOrphanAgentDirsMock: vi.fn(async () => undefined)
+  sweepAgentOrphansMock: vi.fn(async () => undefined)
 }))
 
 // Mock the agent-dir sweep so its post-commit failure path can be exercised
 // without touching the real filesystem; the default resolves (clean run) so
 // existing tests behave identically.
-vi.mock('../agentDirOrphanSweep', () => ({ sweepOrphanAgentDirs: sweepOrphanAgentDirsMock }))
+vi.mock('../agentOrphanSweep', () => ({ sweepAgentOrphans: sweepAgentOrphansMock }))
 
 // The unified application mock does not carry feature services (FileManager is
 // not in defaultServiceInstances) — route it locally, everything else falls
@@ -65,8 +68,8 @@ describe('trashPurgeJobHandler', () => {
   beforeEach(() => {
     fileManagerMock.runSweep.mockClear()
     fileManagerMock.runSweep.mockImplementation(async () => undefined)
-    sweepOrphanAgentDirsMock.mockClear()
-    sweepOrphanAgentDirsMock.mockImplementation(async () => undefined)
+    sweepAgentOrphansMock.mockClear()
+    sweepAgentOrphansMock.mockImplementation(async () => undefined)
     MockMainPreferenceServiceUtils.resetMocks()
   })
 
@@ -103,35 +106,15 @@ describe('trashPurgeJobHandler', () => {
         status: 'success'
       },
       rootRow('topic-active'),
-      // Independently soft-deleted message tree under a live topic: the parent
-      // is past retention, its descendant is trashed but NOT expired — the
-      // descendant must go via the parentId FK cascade, not its own cutoff.
+      // Messages are never archived on their own — a live topic's messages must
+      // survive the purge untouched.
       {
-        id: 'msg-expired',
+        id: 'msg-of-active-topic',
         parentId: 'vroot-topic-active',
         topicId: 'topic-active',
         role: 'user',
         data: { parts: [] },
-        status: 'success',
-        deletedAt: OLD
-      },
-      {
-        id: 'msg-expired-child',
-        parentId: 'msg-expired',
-        topicId: 'topic-active',
-        role: 'assistant',
-        data: { parts: [] },
-        status: 'success',
-        deletedAt: RECENT
-      },
-      {
-        id: 'msg-recent',
-        parentId: 'vroot-topic-active',
-        topicId: 'topic-active',
-        role: 'user',
-        data: { parts: [] },
-        status: 'success',
-        deletedAt: RECENT
+        status: 'success'
       }
     ])
     // Attachment refs cascade with their message rows.
@@ -145,9 +128,9 @@ describe('trashPurgeJobHandler', () => {
         role: 'attachment'
       },
       {
-        id: 'cmfr-expired-msg',
+        id: 'cmfr-active-msg',
         fileEntryId: '019606a0-0000-7000-8000-00000000aa02',
-        sourceId: 'msg-expired',
+        sourceId: 'msg-of-active-topic',
         role: 'attachment'
       }
     ])
@@ -258,7 +241,6 @@ describe('trashPurgeJobHandler', () => {
       skipped: false,
       purged: {
         topic: 1,
-        message: 1,
         session: 1,
         agent: 1,
         assistant: 1,
@@ -275,13 +257,12 @@ describe('trashPurgeJobHandler', () => {
     const messageIds = allIds(dbh.db.select({ id: messageTable.id }).from(messageTable).all())
     expect(messageIds).not.toContain('vroot-topic-expired')
     expect(messageIds).not.toContain('msg-of-expired-topic')
-    // independently expired message gone; its unexpired descendant went with it
-    // via the parentId FK cascade; unexpired sibling retained
-    expect(messageIds).not.toContain('msg-expired')
-    expect(messageIds).not.toContain('msg-expired-child')
-    expect(messageIds).toContain('msg-recent')
-    // chat_message_file_ref rows cascade with their messages
-    expect(dbh.db.select().from(chatMessageFileRefTable).all()).toEqual([])
+    // a live topic's messages are never touched by the purge
+    expect(messageIds).toContain('msg-of-active-topic')
+    // chat_message_file_ref rows cascade with their messages, and only those
+    expect(allIds(dbh.db.select({ id: chatMessageFileRefTable.id }).from(chatMessageFileRefTable).all())).toEqual([
+      'cmfr-active-msg'
+    ])
 
     // sessions: expired gone with its messages cascaded, recent retained
     expect(allIds(dbh.db.select({ id: agentSessionTable.id }).from(agentSessionTable).all())).toEqual([
@@ -311,9 +292,8 @@ describe('trashPurgeJobHandler', () => {
     expect(ctx.reportProgress).toHaveBeenLastCalledWith(100)
   })
 
-  it('purges domains in RFC §6 order: topic → message → session → agent → assistant → painting → file entry', async () => {
+  it('purges domains in RFC §6 order: topic → session → agent → assistant → painting → file entry', async () => {
     const { topicService } = await import('@data/services/TopicService')
-    const { messageService } = await import('@data/services/MessageService')
     const { agentSessionService } = await import('@data/services/AgentSessionService')
     const { agentService } = await import('@data/services/AgentService')
     const { assistantDataService } = await import('@data/services/AssistantService')
@@ -322,7 +302,6 @@ describe('trashPurgeJobHandler', () => {
 
     const spies = [
       vi.spyOn(topicService, 'purgeExpiredTx'),
-      vi.spyOn(messageService, 'purgeExpiredTx'),
       vi.spyOn(agentSessionService, 'purgeExpiredTx'),
       vi.spyOn(agentService, 'purgeExpiredTx'),
       vi.spyOn(assistantDataService, 'purgeExpiredTx'),
@@ -371,7 +350,7 @@ describe('trashPurgeJobHandler', () => {
     // Both post-commit reclamation sweeps blow up; the handler must still
     // resolve with the committed purge counts rather than reject.
     fileManagerMock.runSweep.mockRejectedValueOnce(new Error('disk unlink failed'))
-    sweepOrphanAgentDirsMock.mockRejectedValueOnce(new Error('rmdir failed'))
+    sweepAgentOrphansMock.mockRejectedValueOnce(new Error('rmdir failed'))
 
     const ctx = makeCtx({})
     const result = await trashPurgeJobHandler.execute(ctx)
@@ -381,7 +360,7 @@ describe('trashPurgeJobHandler', () => {
     expect(allIds(dbh.db.select({ id: topicTable.id }).from(topicTable).all())).not.toContain('topic-expired')
     // Both sweeps were attempted, and progress still reached 100%.
     expect(fileManagerMock.runSweep).toHaveBeenCalledTimes(1)
-    expect(sweepOrphanAgentDirsMock).toHaveBeenCalledTimes(1)
+    expect(sweepAgentOrphansMock).toHaveBeenCalledTimes(1)
     expect(ctx.reportProgress).toHaveBeenLastCalledWith(100)
   })
 

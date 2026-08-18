@@ -22,7 +22,6 @@
 | Domain | 表 | `deletedAt` 现状 | 当前删除行为 |
 |---|---|---|---|
 | 话题 | `topic` | 已有,未用 | 硬删 + 级联硬删全部消息 |
-| 消息 | `message` | 已有,未用 | 硬删(带 reparent 逻辑) |
 | Agent | `agent` | 已有,未用 | 硬删,可选级联删 sessions |
 | Agent 会话 | `agent_session` | **需新增** | 硬删,FK 级联删 session messages |
 | 助手 | `assistant` | 已有,**在用** | 软删(纳入统一体系,补恢复/清理) |
@@ -31,7 +30,7 @@
 
 **暂缓**:note(用户决策先不做;文件本体在磁盘、需要 `.trash` 目录移动 + 忽略规则,复杂度最高。设计草稿保留在 §4.5 供后续启动)。
 
-**不纳入**(维持硬删):knowledge(用户已决策排除)、mcpServer、provider、model、prompt、miniApp、group、tag、pin、translate 两表、skill、channel、workspace、job、appState、`agent_session_message` 单条删除(见 §4.3)。
+**不纳入**(维持硬删):`message` 单条删除与清空话题消息(见 §4.1)、knowledge(用户已决策排除)、mcpServer、provider、model、prompt、miniApp、group、tag、pin、translate 两表、skill、channel、workspace、job、appState、`agent_session_message` 单条删除(见 §4.3)。
 
 ## 3. 统一语义模型
 
@@ -61,8 +60,7 @@ active ──删除──▶ archived (deletedAt = now) ──保留期满 / 手
 
 - **归档 topic**:`deleteManyByIdsTx` 改为 `update set deletedAt`,保留现有的 `pinService.purgeForEntitiesTx` / `tagService.purgeForEntitiesTx` 调用;**移除** `messageService.purgeByTopicIdsTx` 调用(messages 留在原地,purge 时才清)。
 - **恢复 topic**:清 `deletedAt`。messages、groupId、assistantId 均未动过,无损。
-- **单条消息删除**:改写 `deletedAt`(所有树查询已过滤,`message_topic_root_uniq` 唯一索引已 scope 到 `deletedAt IS NULL`,`message.ts:66-68`,零额外成本)。但注意:cascade=false 的删除会把子消息 reparent 到祖父节点(`MessageService.ts:1389-1441`),树结构已变,**单条消息不提供恢复 UI** —— 软删仅作为保留期内的数据兜底,回收站粒度是 topic。
-- **清空话题消息**(`MessageService.ts:1490`):同理改批量软删。
+- **单条消息删除 / 清空话题消息**:**维持硬删,不软删**。cascade=false 的删除会把子消息 reparent 到祖父节点(`MessageService.ts:1389-1441`),树结构已变,恢复无意义;既然不提供恢复,软删就只剩下一张永远没人读的墓碑表。回收站粒度是 topic。
 - **purge topic**:DELETE topic 行 + `purgeByTopicIdsTx` 清消息(FK 级联清 `chat_message_file_ref`)→ 附件 `file_entry` 变零引用,由 #16727 的 entry cleanup 回收磁盘(解决 `TopicService.ts:329` 的 TODO,见 §6 依赖说明)。
 
 ### 4.2 agent + agent_session
@@ -70,7 +68,10 @@ active ──删除──▶ archived (deletedAt = now) ──保留期满 / 手
 - **schema**:`agent_session` 换用 `createUpdateDeleteTimestamps`;`agent_session_message` 不加列(purge session 时 FK 级联硬删,`agentSessionMessage.ts:15`)。
 - **归档 agent**:`deleteAgentTx` 改写 `deletedAt`;`deleteSessions` 选项语义变为"连同会话一起归档"(批量写 session.deletedAt)。pin 照旧 purge。
 - **会话读过滤**:`AgentSessionService` 的 list/get 补 `isNull(deletedAt)`(现在没有此过滤)。
-- **磁盘目录**:agent 的身份/记忆目录(`feature.agents.workspaces` → `{userData}/Data/Agents`,`pathRegistry.ts:119`)**归档时不动**。目录清理不挂在删除调用上(DataApi 禁止非数据副作用,见 §5),而是由 purge job 做**孤儿目录扫描**:凡磁盘上存在、但 `agent` 表已无对应行(含已归档行则保留)的目录即删除 —— 与 file 的 orphan sweep 同一哲学,DB 行是唯一真相源。⚠️ 与进行中的 agent root dir 分离工作有耦合 —— 实现前需对齐该工作确定的最终目录布局。
+- **磁盘目录**:归档时一律不动,清理不挂在删除调用上(DataApi 禁止非数据副作用,见 §5),而是由 purge job 做**孤儿扫描** —— 与 file 的 orphan sweep 同一哲学:keep-set 在事务提交后从 DB 现读,删除路径不往外传任何状态;**只回收能认出归属的东西**,认不出的一律不碰(与"删掉所有认不出的"正好相反)。扫描分三段:
+  - ①`feature.agents.data`(`{userData}/Data/Agents`)下 **uuid 命名**的直接子目录对应 `agent.id`,无对应行(含已归档行则保留)即删除。⚠️ 三个 app 自有运行时根(`.claude` / `.pi` / `.dsh`)与 `system` 都是这一层的直接子目录,靠 uuid 命名过滤排除。
+  - ②`feature.agents.system_workspaces`(`Data/Agents/system`)下的 `{date}/{sessionId}` 由 `agent_workspace.path` 认领,session purge 删行后目录随之回收。
+  - ③各运行时自己的 session 持久化,由 `AgentSessionRuntimeDriver.reclaimOrphanSessions` 实现,keep-set 是存活 `agent_session_message.runtimeResumeToken` 的集合(session 行被 purge 后 FK 级联带走 token,归档期内则保留 → restore 无损)。5 分钟 mtime 新鲜度闸门放过在写的会话。各运行时布局不同:pi 是平铺 `{ts}_{token}.jsonl`;dsh 是 `{projectKey(cwd)}/{sessionId}/session.jsonl`,**按 project 目录整体回收**(subagent 会话有自己的目录、id 不被 Cherry 记录,但与父会话共享 cwd,且日志默认 zstd 压缩读不了 header);claude 是 `{projects}/{cwd-slug}/{id}.jsonl` + `{id}/` 子目录,**只扫 Cherry 自己的 `.claude/projects`**,不能用 SDK 的 `deleteSession`(它按调用进程的 `CLAUDE_CONFIG_DIR` 解析,主进程没设 → 落到用户真实 `~/.claude`;而且登录版 provider 本来就故意把会话写进用户目录,那部分不回收)。
 - **归档 session**:写 `deletedAt`;messages 不动。`agent_session_message` 的单条删除维持硬删(高频、低价值、无恢复场景)。
 - **purge**:agent → DELETE 行(存活 session 的 `agentId` FK `SET NULL`,`agentSession.ts:11`),磁盘目录随后由孤儿目录扫描回收;session → DELETE 行(FK 级联清 messages)。
 
@@ -129,7 +130,7 @@ note 是磁盘 markdown 为本体、DB 行仅作索引(`note.ts:6-21`,`deleteByP
 - **基建**:复用 `JobManager`(`job_schedule` + handler 注册,`schemas/job.ts:23-43`)。job type 为 `'trash.purge'`(点分命名空间格式,同 `'agent.task'` 先例;经 `jobRegistry.ts` declaration merging 注册 payload 类型),cron 每日一次(如 03:00),`catchUpPolicy` 设为错过即启动时补跑。
 - **保留期**:新 Preference 键 `data.trash.retention_days`(叶子段 snake_case,同 `data.backup.local.max_backups` 先例),默认 `30`,`0` = 永不自动清理。⚠️ Preference schema 是生成物 —— 改 `v2-refactor-temp/tools/data-classify/data/` 的定义后 `npm run generate`,不得手改 `preferenceSchemas.ts`。
 - **执行**:对每个 domain,`deletedAt < now - retention` 的行分批(如每批 500)在 `withWriteTx` 内硬删(同步事务,遵守 better-sqlite3 约束);**磁盘操作全部在事务提交后执行**,失败仅记日志、下轮重试 —— DB 行已删时磁盘残留是可接受的暂态,由孤儿扫描兜底。
-- **顺序**:先容器后独立行 —— topic(连带 messages)→ 独立软删的 message 行 → session(连带 session messages)→ agent → assistant → painting → file entry → 最后跑磁盘回收:#16727 的 entry cleanup(回收因 purge 变零引用的内部附件/图,须 `confirmed` 以放行大批量 drain)+ agent 孤儿目录扫描(回收无对应 agent 行的目录,§4.2)。集成前 file entry 的磁盘 blob 由现有 FS sweep 处理用户主动删的内部文件。
+- **顺序**:先容器后独立行 —— topic(连带 messages)→ session(连带 session messages)→ agent → assistant → painting → file entry → 最后跑磁盘回收:#16727 的 entry cleanup(回收因 purge 变零引用的内部附件/图,须 `confirmed` 以放行大批量 drain)+ agent 孤儿目录扫描(回收无对应 agent 行的目录,§4.2)。集成前 file entry 的磁盘 blob 由现有 FS sweep 处理用户主动删的内部文件。
 
 ## 7. UI(最小可用)
 
@@ -148,7 +149,7 @@ note 是磁盘 markdown 为本体、DB 行仅作索引(`note.ts:6-21`,`deleteByP
 
 | 阶段 | 内容 | 验证 |
 |---|---|---|
-| P1 数据层 | painting/agent_session 加列;topic/message/agent/session/painting 删除路径改软删;session/painting 读过滤补齐;`permanent=true` 支持 | `setupTestDatabase()` 单测:删→列表不可见→`inTrash` 可见→行仍在;pin 残留回归测试(topic JOIN) |
+| P1 数据层 | painting/agent_session 加列;topic/agent/session/painting 删除路径改软删;session/painting 读过滤补齐;`permanent=true` 支持 | `setupTestDatabase()` 单测:删→列表不可见→`inTrash` 可见→行仍在;pin 残留回归测试(topic JOIN) |
 | P2 恢复 | 各 domain restore 端点 + assistant/file 补齐 | 单测:归档→恢复→列表可见、子数据无损 |
 | P3 清理 | `trash.purge` job + `data.trash.retention_days` preference + 两类孤儿扫描串联 + IpcApi `trash.purge_now` | 单测:过期行被清、未过期保留;refs/磁盘文件随 purge 消失 |
 | P4 UI | 设置页回收站 + i18n | 手动验证 + i18n check |

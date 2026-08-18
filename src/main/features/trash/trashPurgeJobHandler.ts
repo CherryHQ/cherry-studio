@@ -4,13 +4,12 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { assistantDataService } from '@data/services/AssistantService'
 import { fileEntryService } from '@data/services/FileEntryService'
-import { messageService } from '@data/services/MessageService'
 import { paintingService } from '@data/services/PaintingService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import type { JobHandlerFor } from '@main/core/job/types'
 
-import { sweepOrphanAgentDirs } from './agentDirOrphanSweep'
+import { sweepAgentOrphans } from './agentOrphanSweep'
 
 declare module '@main/core/job/jobRegistry' {
   interface JobRegistry {
@@ -28,17 +27,16 @@ const DAY_MS = 86_400_000
 
 /**
  * RFC §6 purge order — containers before independent rows: topic (messages
- * cascade via purge path) → independently soft-deleted messages → session
- * (session messages FK-cascade) → agent → assistant → painting → file entry.
- * Each domain's `purgeExpiredTx` is DB-only; disk reclamation happens in the
- * post-commit sweeps.
+ * cascade via purge path) → session (session messages FK-cascade) → agent →
+ * assistant → painting → file entry. Messages are never archived on their own,
+ * so they have no domain here. Each domain's `purgeExpiredTx` is DB-only; disk
+ * reclamation happens in the post-commit sweeps.
  */
 const PURGE_DOMAINS: ReadonlyArray<{
   name: string
   purgeExpiredTx: (tx: DbOrTx, cutoffMs: number, limit: number) => string[]
 }> = [
   { name: 'topic', purgeExpiredTx: (tx, cutoffMs, limit) => topicService.purgeExpiredTx(tx, cutoffMs, limit) },
-  { name: 'message', purgeExpiredTx: (tx, cutoffMs, limit) => messageService.purgeExpiredTx(tx, cutoffMs, limit) },
   {
     name: 'session',
     purgeExpiredTx: (tx, cutoffMs, limit) => agentSessionService.purgeExpiredTx(tx, cutoffMs, limit)
@@ -102,9 +100,9 @@ export const trashPurgeJobHandler: JobHandlerFor<'trash.purge'> = {
     ctx.reportProgress(Math.round(((PURGE_DOMAINS.length + 1) / totalSteps) * 100))
 
     try {
-      await sweepOrphanAgentDirs()
+      await sweepAgentOrphans()
     } catch (error) {
-      logger.warn('Agent orphan-dir sweep failed — residue retried next purge run', { error })
+      logger.warn('Agent orphan sweep failed — residue retried next purge run', { error })
     }
     ctx.reportProgress(100)
 
