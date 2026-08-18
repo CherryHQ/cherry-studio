@@ -12,6 +12,7 @@ const {
   clearCliConfigMock,
   readCliConfigFilesMock,
   extractConnectionFromCliConfigDraftMock,
+  cliConfigConnectionMatchesProviderMock,
   writeCliConfigDraftMock,
   writeOwnLoginCliConfigDraftMock,
   useCodeCliMock,
@@ -37,6 +38,7 @@ const {
   clearCliConfigMock: vi.fn(),
   readCliConfigFilesMock: vi.fn(),
   extractConnectionFromCliConfigDraftMock: vi.fn(),
+  cliConfigConnectionMatchesProviderMock: vi.fn(),
   writeCliConfigDraftMock: vi.fn(),
   writeOwnLoginCliConfigDraftMock: vi.fn(),
   useCodeCliMock: vi.fn(),
@@ -238,7 +240,7 @@ vi.mock('../cliConfig/parser', () => ({
 }))
 
 vi.mock('../cliConfig/providerMatching', () => ({
-  cliConfigConnectionMatchesProvider: () => true
+  cliConfigConnectionMatchesProvider: (...args: unknown[]) => cliConfigConnectionMatchesProviderMock(...args)
 }))
 
 // `sanitizeCliConfigBlob` now lives in the adapter registry (re-exported via the barrel).
@@ -505,6 +507,7 @@ describe('CodeCliPage', () => {
     clearCliConfigMock.mockResolvedValue(undefined)
     readCliConfigFilesMock.mockResolvedValue([])
     extractConnectionFromCliConfigDraftMock.mockReturnValue(null)
+    cliConfigConnectionMatchesProviderMock.mockReturnValue(true)
     writeCliConfigDraftMock.mockResolvedValue(undefined)
     upsertProviderConfigMock.mockResolvedValue('anthropic')
     deleteProviderConfigMock.mockResolvedValue(undefined)
@@ -740,6 +743,41 @@ describe('CodeCliPage', () => {
       directory: '/tmp/project',
       terminal: undefined
     })
+  })
+
+  it('does not re-read CLI config after fallback gateway connection state updates', async () => {
+    const gatewayProvider = { id: CLI_API_GATEWAY_PROVIDER_ID, name: 'Unified Gateway' } as Provider
+    const defaultModel = {
+      id: 'anthropic::claude-new',
+      providerId: 'anthropic',
+      modelId: 'claude-new',
+      apiModelId: 'claude-new',
+      name: 'Claude New'
+    }
+    let resolveFirstRead!: (files: CliConfigFileDraft[]) => void
+    const pendingRead = new Promise<CliConfigFileDraft[]>(() => {})
+    readCliConfigFilesMock
+      .mockImplementationOnce(
+        () =>
+          new Promise<CliConfigFileDraft[]>((resolve) => {
+            resolveFirstRead = resolve
+          })
+      )
+      .mockReturnValue(pendingRead)
+    extractConnectionFromCliConfigDraftMock.mockReturnValue({ model: 'other-provider:other-model' })
+    cliConfigConnectionMatchesProviderMock.mockReturnValue(false)
+    gatewayState.bundle = { provider: gatewayProvider, apiKey: null, ensureReady: vi.fn() }
+    gatewayState.defaultModelId = defaultModel.id
+    gatewayState.modelsById.set(defaultModel.id, defaultModel)
+    mockCodeCliState({ selectedCliTool: CodeCli.OPEN_CODE })
+
+    render(<CodeCliPage />)
+    expect(readCliConfigFilesMock).toHaveBeenCalledOnce()
+
+    resolveFirstRead(cliConfigFiles)
+    await waitFor(() => expect(extractConnectionFromCliConfigDraftMock).toHaveBeenCalledOnce())
+
+    expect(readCliConfigFilesMock).toHaveBeenCalledOnce()
   })
 
   it('opens unified gateway configuration when no routable default model is available', async () => {

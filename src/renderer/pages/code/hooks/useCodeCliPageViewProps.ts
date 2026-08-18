@@ -133,14 +133,18 @@ export function useCodeCliPageViewProps(
   const selectedProvider = currentProviderId ? supportedProviders.find((p) => p.id === currentProviderId) : undefined
   const defaultGatewayProvider = !currentProviderId && showGatewayCard ? apiGatewayBundle?.provider : undefined
   const savedGatewayConfig = defaultGatewayProvider ? providerConfigs[defaultGatewayProvider.id] : undefined
-  const savedGatewayContext = defaultGatewayProvider
-    ? resolveCliConfigApplyContext(selectedCliTool, defaultGatewayProvider.id, savedGatewayConfig, gatewayModelsById)
-    : null
-  const defaultGatewayConfig = savedGatewayContext
-    ? savedGatewayConfig
-    : defaultGatewayModelId
-      ? { ...savedGatewayConfig, modelId: defaultGatewayModelId }
-      : null
+  const hasSavedGatewayContext = defaultGatewayProvider
+    ? !!resolveCliConfigApplyContext(selectedCliTool, defaultGatewayProvider.id, savedGatewayConfig, gatewayModelsById)
+    : false
+  const defaultGatewayConfig = useMemo(
+    () =>
+      hasSavedGatewayContext
+        ? savedGatewayConfig
+        : defaultGatewayModelId
+          ? { ...savedGatewayConfig, modelId: defaultGatewayModelId }
+          : null,
+    [hasSavedGatewayContext, savedGatewayConfig, defaultGatewayModelId]
+  )
   const enabledProvider = selectedProvider ?? defaultGatewayProvider
   const enabledProviderConfig = currentProviderConfig ?? defaultGatewayConfig
   const [currentCliConfigConnection, setCurrentCliConfigConnection] = useCurrentCliConfigConnection({
