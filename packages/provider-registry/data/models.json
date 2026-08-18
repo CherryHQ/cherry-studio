@@ -8388,14 +8388,12 @@
           "generate": {
             "supports": {
               "aspectRatio": {
-                "default": "auto",
-                "options": ["auto", "ASPECT_1_1", "ASPECT_3_4", "ASPECT_4_3", "ASPECT_9_16", "ASPECT_16_9"],
+                "options": ["ASPECT_1_1", "ASPECT_3_4", "ASPECT_4_3", "ASPECT_9_16", "ASPECT_16_9"],
                 "render": "chips",
                 "type": "enum"
               },
               "imageResolution": {
-                "default": "auto",
-                "options": ["auto", "1K", "2K", "4K"],
+                "options": ["1K", "2K", "4K"],
                 "render": "chips",
                 "type": "enum"
               }
@@ -21213,5 +21211,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "b09a5e8502ec4d73"
+  "version": "4c2caec1b80f1709"
 }

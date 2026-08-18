@@ -547,6 +547,7 @@ export default defineCreator({
               },
               imageResolution: {
                 default: 'auto',
+                // Intentionally omit low-resolution 512 output from this quality-focused product surface.
                 options: ['auto', '1K', '2K', '4K'],
                 render: 'chips',
                 type: 'enum'
@@ -568,14 +569,12 @@ export default defineCreator({
           generate: {
             supports: {
               aspectRatio: {
-                default: 'auto',
-                options: ['auto', 'ASPECT_1_1', 'ASPECT_3_4', 'ASPECT_4_3', 'ASPECT_9_16', 'ASPECT_16_9'],
+                options: ['ASPECT_1_1', 'ASPECT_3_4', 'ASPECT_4_3', 'ASPECT_9_16', 'ASPECT_16_9'],
                 render: 'chips',
                 type: 'enum'
               },
               imageResolution: {
-                default: 'auto',
-                options: ['auto', '1K', '2K', '4K'],
+                options: ['1K', '2K', '4K'],
                 render: 'chips',
                 type: 'enum'
               }

@@ -79,10 +79,6 @@ const GEMINI_IMAGE_ASPECT_RATIO_OPTIONS = [
       'ASPECT_16_9',
       'ASPECT_21_9'
     ]
-  },
-  {
-    modelId: 'gemini-3-1-flash-image-preview',
-    options: ['auto', 'ASPECT_1_1', 'ASPECT_3_4', 'ASPECT_4_3', 'ASPECT_9_16', 'ASPECT_16_9']
   }
 ] as const
 
