@@ -63,6 +63,7 @@ describe('chatDraftCache', () => {
       tokens: [],
       files: [],
       knowledgeBaseIds: [],
+      toolStates: {},
       mentionedModelIds: [],
       modelMultiSelectMode: false
     })
@@ -84,6 +85,7 @@ describe('chatDraftCache', () => {
       tokens: [],
       files: [file],
       knowledgeBaseIds: ['base-1'],
+      toolStates: {},
       mentionedModelIds: ['provider::model-a'],
       modelMultiSelectMode: false
     })
@@ -95,6 +97,7 @@ describe('chatDraftCache', () => {
       tokens: [fileToken, knowledgeToken, quoteToken],
       files: [file],
       knowledgeBaseIds: ['base-1'],
+      toolStates: {},
       mentionedModelIds: ['provider::model-a', 'provider::model-b'],
       modelMultiSelectMode: true
     }
@@ -113,6 +116,7 @@ describe('chatDraftCache', () => {
       tokens: [],
       files: [],
       knowledgeBaseIds: [],
+      toolStates: {},
       mentionedModelIds: [],
       modelMultiSelectMode: false
     }

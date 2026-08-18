@@ -5,7 +5,7 @@ import userEvent from '@testing-library/user-event'
 import { type ButtonHTMLAttributes, type MouseEvent, type ReactNode, useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
-import { ComposerSpeedControl, resolveComposerReasoningEffort } from '../ComposerSpeedControl'
+import { ComposerSpeedControl } from '../ComposerSpeedControl'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
@@ -44,6 +44,18 @@ vi.mock('@cherrystudio/ui', () => ({
   RadioGroupItem: ({ value }: { value: string; size?: string }) => (
     <button type="button" data-reasoning-value={value} />
   ),
+  Select: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  SelectTrigger: ({ children, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { size?: string }) => {
+    delete props.size
+    return (
+      <button {...props} type={props.type ?? 'button'}>
+        {children}
+      </button>
+    )
+  },
+  SelectValue: ({ children }: { children: ReactNode }) => <span>{children}</span>,
+  SelectContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  SelectItem: ({ children }: { children: ReactNode; value: string }) => <div>{children}</div>,
   Slider: ({
     max,
     value,
@@ -100,35 +112,15 @@ function ControlledSpeedControl({ model, initialEffort }: { model: Model; initia
 
   return (
     <ComposerSpeedControl
-      model={model}
+      targets={[{ model, fastMode }]}
       reasoningEffort={reasoningEffort}
-      fastMode={fastMode}
       onReasoningEffortChange={setReasoningEffort}
-      onFastModeChange={setFastMode}
+      onFastModeChange={(_modelId, enabled) => setFastMode(enabled)}
     />
   )
 }
 
 describe('ComposerSpeedControl UI', () => {
-  it('preserves a stored Default for a multi-tier slider model', () => {
-    expect(resolveComposerReasoningEffort(codexModel, 'default')).toBe('default')
-  })
-
-  it('preserves Default for a menu-only reasoning model', () => {
-    expect(
-      resolveComposerReasoningEffort(
-        {
-          ...codexModel,
-          reasoning: {
-            controls: [{ kind: 'toggle' }],
-            selectableEfforts: ['none', 'auto']
-          }
-        },
-        'default'
-      )
-    ).toBe('default')
-  })
-
   it('uses a slider for GPT-5.6, with Off first and Default as a separate choice', () => {
     const { container } = render(<ControlledSpeedControl model={codexModel} initialEffort="high" />)
 
@@ -335,6 +327,38 @@ describe('ComposerSpeedControl UI', () => {
 
     rerender(<ControlledSpeedControl model={{ ...codexModel, supportsFastMode: false }} initialEffort="max" />)
     expect(screen.queryByRole('button', { name: 'agent.speed.fast' })).not.toBeInTheDocument()
+  })
+
+  it('targets Fast changes to one model in a multi-model composer', () => {
+    const onFastModeChange = vi.fn()
+    const secondModel = {
+      ...codexModel,
+      id: 'openai-codex::gpt-5.6-terra',
+      name: 'GPT-5.6 Terra',
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['low'] }],
+        selectableEfforts: ['low']
+      }
+    } satisfies Model
+
+    render(
+      <ComposerSpeedControl
+        targets={[
+          { model: codexModel, fastMode: false },
+          { model: secondModel, fastMode: false }
+        ]}
+        reasoningEffort="high"
+        onReasoningEffortChange={vi.fn()}
+        onFastModeChange={onFastModeChange}
+      />
+    )
+
+    expect(screen.getAllByRole('button', { name: 'agent.speed.effort' })).toHaveLength(1)
+    expect(screen.getAllByText('assistants.settings.reasoning_effort.low').length).toBeGreaterThan(0)
+    fireEvent.click(screen.getByRole('button', { name: 'GPT-5.6 Terra: agent.speed.fast' }))
+
+    expect(onFastModeChange).toHaveBeenCalledOnce()
+    expect(onFastModeChange).toHaveBeenCalledWith(secondModel.id, true)
   })
 
   it('renders Fast without requiring reasoning options', () => {

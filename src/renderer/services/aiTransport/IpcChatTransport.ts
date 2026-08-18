@@ -42,18 +42,16 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
             trigger: 'regenerate-message',
             topicId,
             parentAnchorId: mergedBody.parentAnchorId ?? '',
-            mentionedModelIds: mergedBody.mentionedModels,
-            reasoningEffort: mergedBody.reasoningEffort,
-            ...(mergedBody.fastMode ? { fastMode: true } : {})
+            executionTargets: mergedBody.executionTargets,
+            turnOptions: mergedBody.turnOptions
           }
         : {
             trigger: 'submit-message',
             topicId,
             parentAnchorId: mergedBody.parentAnchorId,
             userMessageParts: mergedBody.userMessageParts ?? lastMessage?.parts ?? [],
-            mentionedModelIds: mergedBody.mentionedModels,
-            reasoningEffort: mergedBody.reasoningEffort,
-            ...(mergedBody.fastMode ? { fastMode: true } : {})
+            executionTargets: mergedBody.executionTargets,
+            turnOptions: mergedBody.turnOptions
           }
 
     streamDispatchService.dispatch(topicId, ipcRequest)

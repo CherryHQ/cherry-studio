@@ -24,6 +24,7 @@ import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
 import { sharedMessageToUIMessage } from '@renderer/utils/message/messageProjection'
 import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
+import type { ModelExecutionTarget } from '@shared/ai/transport'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type {
   AssistantTurnOptions,
@@ -40,41 +41,30 @@ import type { useTopicMessagesCache } from './useTopicMessagesCache'
 
 const logger = loggerService.withContext('useChatWriteActions')
 
-function getDirectAssistantModelIds(messages: CherryUIMessage[], userMessageId: string): UniqueModelId[] {
-  const modelIds = new Set<UniqueModelId>()
+function getMessageExecutionTargets(
+  messages: CherryUIMessage[],
+  target: CherryUIMessage | undefined
+): ModelExecutionTarget[] {
+  if (!target) return []
+
+  if (target.role === 'assistant') {
+    const modelId = resolveUniqueModelId(target.metadata?.modelId, target.metadata?.messageSnapshot?.model)
+    return modelId ? [{ modelId, turnOptions: target.metadata?.turnOptions ?? {} }] : []
+  }
+
+  const targets = new Map<UniqueModelId, ModelExecutionTarget>()
 
   for (const message of messages) {
     if (message.role !== 'assistant') continue
-    if (message.metadata?.parentId !== userMessageId) continue
+    if (message.metadata?.parentId !== target.id) continue
 
-    const snapshot = message.metadata?.messageSnapshot
-    const model = snapshot?.model
-    const modelId = resolveUniqueModelId(message.metadata?.modelId, model)
-    if (modelId) modelIds.add(modelId)
+    const modelId = resolveUniqueModelId(message.metadata?.modelId, message.metadata?.messageSnapshot?.model)
+    if (modelId) {
+      targets.set(modelId, { modelId, turnOptions: message.metadata?.turnOptions ?? {} })
+    }
   }
 
-  return Array.from(modelIds)
-}
-
-function getInheritedTurnOptions(
-  messages: CherryUIMessage[],
-  target: CherryUIMessage | undefined
-): AssistantTurnOptions | undefined {
-  if (!target) return undefined
-  if (target.role === 'assistant') return target.metadata?.turnOptions
-
-  const directAssistants = messages.filter(
-    (message) => message.role === 'assistant' && message.metadata?.parentId === target.id
-  )
-  const source = directAssistants.find((message) => message.metadata?.isActiveBranch) ?? directAssistants.at(-1)
-  return source?.metadata?.turnOptions
-}
-
-function turnOptionsRequestFields(turnOptions: AssistantTurnOptions | undefined): AssistantTurnOptions {
-  return {
-    ...(turnOptions?.reasoningEffort !== undefined && { reasoningEffort: turnOptions.reasoningEffort }),
-    ...(turnOptions?.fastMode !== undefined && { fastMode: turnOptions.fastMode })
-  }
+  return Array.from(targets.values())
 }
 
 interface Params {
@@ -307,20 +297,24 @@ export function useChatWriteActions(params: Params): Result {
       // Anchor semantics depend on the target role:
       //   - assistant: keep parent user intact, spawn sibling — anchor = parentId
       //   - user:      keep the user itself, spawn assistant child — anchor = target.id
-      // `mentionedModels`: plain retry on an assistant uses the target's
-      // own model (otherwise retrying kimi would produce a gemini reply
-      // when assistant default is gemini). User resend picks the default.
       const target = messageId ? uiMessages.find((m) => m.id === messageId) : undefined
       const parentAnchorId = target
         ? target.role === 'user'
           ? target.id
           : (target.metadata?.parentId ?? undefined)
         : undefined
-      const regenModelId =
+      const executionTargets = options?.modelId
+        ? [{ modelId: options.modelId, turnOptions: options.turnOptions ?? target?.metadata?.turnOptions ?? {} }]
+        : getMessageExecutionTargets(uiMessages, target)
+      if (executionTargets.length === 0) {
+        throw new Error('Cannot regenerate without an execution target')
+      }
+
+      const [executionTarget] = executionTargets
+      const targetModelId =
         target?.role === 'assistant'
-          ? (options?.modelId ?? (target.metadata?.modelId as UniqueModelId | undefined))
-          : options?.modelId
-      const turnOptions = options?.turnOptions ?? getInheritedTurnOptions(uiMessages, target)
+          ? resolveUniqueModelId(target.metadata?.modelId, target.metadata?.messageSnapshot?.model)
+          : undefined
       const targetStatus = target?.metadata?.status
       const isFailedAssistant =
         target?.role === 'assistant' &&
@@ -329,8 +323,8 @@ export function useChatWriteActions(params: Params): Result {
       const canRetryInPlace =
         isFailedAssistant &&
         parentAnchorId !== undefined &&
-        regenModelId !== undefined &&
-        (options?.modelId === undefined || options.modelId === target.metadata?.modelId)
+        executionTargets.length === 1 &&
+        executionTarget.modelId === targetModelId
 
       if (canRetryInPlace) {
         const ack = await ipcApi.request('ai.stream.open', {
@@ -338,8 +332,7 @@ export function useChatWriteActions(params: Params): Result {
           topicId: topic.id,
           parentAnchorId,
           retryMessageId: target.id,
-          mentionedModelIds: [regenModelId],
-          ...turnOptionsRequestFields(turnOptions)
+          executionTargets
         })
         if (ack.mode === 'blocked') throw new Error(getStreamBlockedMessage(ack))
         await seedReservedMessages(ack.reservedMessages ?? [], {
@@ -358,8 +351,7 @@ export function useChatWriteActions(params: Params): Result {
           topicId: topic.id,
           parentAnchorId,
           appendToLiveGroupMessageId: target.id,
-          mentionedModelIds: [options.modelId],
-          ...turnOptionsRequestFields(turnOptions)
+          executionTargets
         })
         if (ack.mode === 'blocked') throw new Error(getStreamBlockedMessage(ack))
         await seedReservedMessages(ack.reservedMessages ?? [], {
@@ -382,8 +374,7 @@ export function useChatWriteActions(params: Params): Result {
         body: {
           ...capabilityBody,
           ...(parentAnchorId && { parentAnchorId }),
-          ...(regenModelId && { mentionedModels: [regenModelId] }),
-          ...turnOptionsRequestFields(turnOptions)
+          executionTargets
         }
       })
       await regeneratePromise
@@ -392,10 +383,10 @@ export function useChatWriteActions(params: Params): Result {
   )
 
   const handleForkAndResend = useCallback<ChatWriteActions['forkAndResend']>(
-    async (messageId, editedParts, turnOptions) => {
-      const inheritedModelIds = getDirectAssistantModelIds(uiMessages, messageId)
-      const sourceMessage = uiMessages.find((message) => message.id === messageId)
-      const effectiveTurnOptions = turnOptions ?? getInheritedTurnOptions(uiMessages, sourceMessage)
+    async (messageId, editedParts, executionTargets) => {
+      if (executionTargets.length === 0) {
+        throw new Error('Cannot resend without an execution target')
+      }
       const newMessage = await createSiblingTrigger({
         params: { id: messageId },
         body: { parts: editedParts }
@@ -418,8 +409,6 @@ export function useChatWriteActions(params: Params): Result {
       const refreshed = await refresh()
       setMessages(refreshed)
       logger.info('Forked user message', { sourceId: messageId, newId: newMessage.id })
-      const shouldPreserveInheritedModelIds =
-        inheritedModelIds.length > 1 || (!topic.assistantId && inheritedModelIds.length === 1)
 
       // Bypass `regenerateWithCapabilities` here: its `uiMessages`
       // closure is still the pre-fork snapshot in this microtask (the
@@ -430,8 +419,7 @@ export function useChatWriteActions(params: Params): Result {
         trigger: 'regenerate-message',
         topicId: topic.id,
         parentAnchorId: newMessage.id,
-        ...(shouldPreserveInheritedModelIds && { mentionedModelIds: inheritedModelIds }),
-        ...turnOptionsRequestFields(effectiveTurnOptions)
+        executionTargets
       })
 
       if (ack.mode === 'blocked') {
@@ -443,7 +431,7 @@ export function useChatWriteActions(params: Params): Result {
         preserveActiveNode: ack.preserveActiveNode
       })
     },
-    [createSiblingTrigger, seedReservedMessages, refresh, setMessages, topic.id, topic.assistantId, uiMessages]
+    [createSiblingTrigger, seedReservedMessages, refresh, setMessages, topic.id]
   )
 
   const handleResend = useCallback<ChatWriteActions['resend']>(
@@ -460,14 +448,15 @@ export function useChatWriteActions(params: Params): Result {
         return
       }
 
-      const modelId = target?.role === 'assistant' ? (target.metadata?.modelId as UniqueModelId | undefined) : undefined
-      const turnOptions = getInheritedTurnOptions(uiMessages, target)
+      const executionTargets = getMessageExecutionTargets(uiMessages, target)
+      if (executionTargets.length === 0) {
+        throw new Error('Cannot resend without an execution target')
+      }
       const ack = await ipcApi.request('ai.stream.open', {
         trigger: 'regenerate-message',
         topicId: topic.id,
         parentAnchorId,
-        ...(modelId && { mentionedModelIds: [modelId] }),
-        ...turnOptionsRequestFields(turnOptions)
+        executionTargets
       })
 
       if (ack.mode === 'blocked') {

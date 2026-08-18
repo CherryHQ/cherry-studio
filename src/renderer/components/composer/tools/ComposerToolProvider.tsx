@@ -1,9 +1,12 @@
 import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { ensureComposerFileTokenSourceIds } from '@renderer/utils/message/composerFileTokenSource'
+import type { ComposerToolStateSnapshot } from '@shared/ai/transport'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { Model } from '@shared/data/types/model'
 import React, { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
+import type { ComposerToolStateLifecycle, ComposerToolStateLifecycleApi } from './types'
 
 /**
  * Read-only state interface for Composer tools.
@@ -65,6 +68,9 @@ export interface ComposerToolDispatch {
 
   /** Launcher API (for Composer component) */
   triggers: ComposerToolLaunchersApi
+
+  /** Snapshot lifecycle for stateful composer tools. */
+  stateLifecycle: ComposerToolStateLifecycleApi
 }
 
 const ComposerToolStateContext = createContext<ComposerToolState | undefined>(undefined)
@@ -148,6 +154,29 @@ export const ComposerToolProvider: React.FC<ComposerToolProviderProps> = ({ chil
   const [launcherVersion, setLauncherVersion] = useState(0)
   const launcherVersionRef = useRef(launcherVersion)
   launcherVersionRef.current = launcherVersion
+  const stateLifecycleRegistryRef = useRef(new Map<string, ComposerToolStateLifecycle>())
+
+  const stateLifecycle = useMemo<ComposerToolStateLifecycleApi>(
+    () => ({
+      register: (toolKey, lifecycle) => {
+        stateLifecycleRegistryRef.current.set(toolKey, lifecycle)
+        return () => {
+          if (stateLifecycleRegistryRef.current.get(toolKey) === lifecycle) {
+            stateLifecycleRegistryRef.current.delete(toolKey)
+          }
+        }
+      },
+      capture: () =>
+        Object.fromEntries(
+          Array.from(stateLifecycleRegistryRef.current, ([toolKey, lifecycle]) => [toolKey, lifecycle.capture()])
+        ) as ComposerToolStateSnapshot,
+      restore: (snapshot) => {
+        stateLifecycleRegistryRef.current.forEach((lifecycle, toolKey) => lifecycle.restore(snapshot[toolKey]))
+      },
+      clear: () => stateLifecycleRegistryRef.current.forEach((lifecycle) => lifecycle.clear())
+    }),
+    []
+  )
 
   const getComposerToolLaunchers = useCallback(() => {
     const allEntries: ComposerToolLauncher[] = []
@@ -251,9 +280,10 @@ export const ComposerToolProvider: React.FC<ComposerToolProviderProps> = ({ chil
 
       // API objects
       toolsRegistry: toolsRegistryApi,
-      triggers: stableTriggersApi
+      triggers: stableTriggersApi,
+      stateLifecycle
     }),
-    [setFiles, stableActions, toolsRegistryApi, stableTriggersApi]
+    [setFiles, stableActions, toolsRegistryApi, stableTriggersApi, stateLifecycle]
   )
 
   return (

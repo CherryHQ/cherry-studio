@@ -715,6 +715,7 @@ function setTopicDraft(topicId: string, text: string) {
     tokens: [],
     files: [],
     knowledgeBaseIds: [],
+    toolStates: {},
     mentionedModelIds: [],
     modelMultiSelectMode: false
   })

@@ -7,7 +7,7 @@
 import { loggerService } from '@logger'
 import { topicService } from '@main/data/services/TopicService'
 import type { AiStreamOpenRequest, AiStreamOpenResponse, ApprovalDecision } from '@shared/ai/transport'
-import type { ReasoningEffortOption } from '@shared/types/aiSdk'
+import type { AssistantTurnOptions } from '@shared/data/types/message'
 
 import { isAgentSessionWorkspaceError } from '../../runtime/agentSessionWorkspace'
 import type { AiStreamManager } from '../AiStreamManager'
@@ -40,10 +40,8 @@ export interface MainSteerContinuationRequest {
   topicId: string
   /** The already-persisted steer user message to answer. */
   userMessageId: string
-  /** Selection captured with the original busy submit. */
-  reasoningEffort?: ReasoningEffortOption
-  /** Fast selection captured with the original busy submit. */
-  fastMode: boolean
+  /** Immutable options captured with the original busy submit. */
+  turnOptions: AssistantTurnOptions
 }
 
 export type MainDispatchRequest = (
@@ -120,12 +118,10 @@ export async function dispatchStreamRequest(
   // explicit `pendingSteerUserMessageId`. Enqueue it so the running turn yields (`hasPendingSteer`)
   // and `onExecutionDone` chains a `steer-continuation` to answer it.
   if (prepared.pendingSteerUserMessageId) {
-    manager.enqueuePendingSteer(
-      req.topicId,
-      prepared.pendingSteerUserMessageId,
-      prepared.pendingSteerReasoningEffort,
-      prepared.pendingSteerFastMode === true
-    )
+    if (!prepared.pendingSteerTurnOptions) {
+      throw new Error('Pending steer is missing its turn options snapshot')
+    }
+    manager.enqueuePendingSteer(req.topicId, prepared.pendingSteerUserMessageId, prepared.pendingSteerTurnOptions)
   } else if (
     provider.name === persistentChatContextProvider.name &&
     prepared.models.length === 0 &&

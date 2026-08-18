@@ -34,11 +34,10 @@ import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
 import { isRenderableConversationMessage } from '@renderer/utils/message/messageProjection'
-import type { ActiveExecution, ComposerChatTarget } from '@shared/ai/transport'
+import type { ActiveExecution, ComposerChatTarget, ModelExecutionTarget } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { isBlankUserTurn } from '@shared/data/types/uiParts'
-import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useChatWriteActions } from './hooks/useChatWriteActions'
@@ -51,8 +50,7 @@ export interface ChatTurnInput {
   options?: {
     mentionedModels?: UniqueModelId[]
     userMessageParts?: CherryMessagePart[]
-    reasoningEffort?: ReasoningEffortOption
-    fastMode?: boolean
+    executionTargets?: ModelExecutionTarget[]
     chatTarget?: ComposerChatTarget
   }
 }
@@ -322,9 +320,7 @@ export function useChatRuntimeState({
     buildStreamRequest: ({ text, options }, conversation) => {
       const requestOptions = {
         topicId: conversation.topicId,
-        mentionedModelIds: options?.mentionedModels,
-        reasoningEffort: options?.reasoningEffort,
-        ...(options?.fastMode ? { fastMode: true as const } : {})
+        executionTargets: options?.executionTargets
       }
 
       return {

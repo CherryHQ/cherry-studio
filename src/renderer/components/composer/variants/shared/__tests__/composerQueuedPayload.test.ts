@@ -17,6 +17,7 @@ vi.mock('../../../composerDraft', async (importOriginal) => ({
 
 const file = (id: string): ComposerAttachment => ({ fileTokenSourceId: id, path: `/tmp/${id}` }) as ComposerAttachment
 const fileTokenId = (f: ComposerAttachment) => `file:${f.fileTokenSourceId}`
+const payloadState = { toolStates: {}, executionTargets: [] }
 
 const draft = (text: string, tokenIds: string[] = [], tokenTextOffset = 0): ComposerSerializedDraft => ({
   text,
@@ -31,19 +32,27 @@ const draft = (text: string, tokenIds: string[] = [], tokenTextOffset = 0): Comp
 
 describe('buildComposerQueuedPayload', () => {
   it('returns null for empty text when text is required (chat)', () => {
-    expect(buildComposerQueuedPayload(draft('   '), { files: [], fileTokenId, requireText: true })).toBeNull()
+    expect(
+      buildComposerQueuedPayload(draft('   '), { files: [], fileTokenId, requireText: true, ...payloadState })
+    ).toBeNull()
   })
 
   it('returns null when text is empty and there are no files (agent)', () => {
-    expect(buildComposerQueuedPayload(draft(''), { files: [], fileTokenId })).toBeNull()
+    expect(buildComposerQueuedPayload(draft(''), { files: [], fileTokenId, ...payloadState })).toBeNull()
   })
 
   it('does not treat whitespace on a token-only line as text', () => {
-    expect(buildComposerQueuedPayload(draft('   ', ['knowledge:k1']), { files: [], fileTokenId })).toBeNull()
+    expect(
+      buildComposerQueuedPayload(draft('   ', ['knowledge:k1']), { files: [], fileTokenId, ...payloadState })
+    ).toBeNull()
   })
 
   it('allows a file-only draft when text is not required (agent)', () => {
-    const result = buildComposerQueuedPayload(draft('', ['file:a']), { files: [file('a')], fileTokenId })
+    const result = buildComposerQueuedPayload(draft('', ['file:a']), {
+      files: [file('a')],
+      fileTokenId,
+      ...payloadState
+    })
 
     expect(result).not.toBeNull()
     expect(result?.attachments).toHaveLength(1)
@@ -51,19 +60,27 @@ describe('buildComposerQueuedPayload', () => {
   })
 
   it('normalizes whitespace-only attachment payload text to empty', () => {
-    const result = buildComposerQueuedPayload(draft('   ', ['file:a']), { files: [file('a')], fileTokenId })
+    const result = buildComposerQueuedPayload(draft('   ', ['file:a']), {
+      files: [file('a')],
+      fileTokenId,
+      ...payloadState
+    })
 
     expect(result?.text).toBe('')
   })
 
   it('returns null for a file-only draft whose file token has not reached the editor draft yet', () => {
-    const result = buildComposerQueuedPayload(draft('', []), { files: [file('a')], fileTokenId })
+    const result = buildComposerQueuedPayload(draft('', []), { files: [file('a')], fileTokenId, ...payloadState })
 
     expect(result).toBeNull()
   })
 
   it('returns null for a text draft whose file token has not reached the editor draft yet', () => {
-    const result = buildComposerQueuedPayload(draft('summarize this', []), { files: [file('a')], fileTokenId })
+    const result = buildComposerQueuedPayload(draft('summarize this', []), {
+      files: [file('a')],
+      fileTokenId,
+      ...payloadState
+    })
 
     expect(result).toBeNull()
   })
@@ -75,7 +92,8 @@ describe('buildComposerQueuedPayload', () => {
     const result = buildComposerQueuedPayload(draft('hi', ['file:a']), {
       files: [synced, unsynced],
       fileTokenId,
-      requireText: true
+      requireText: true,
+      ...payloadState
     })
 
     expect(result).toBeNull()
@@ -88,7 +106,8 @@ describe('buildComposerQueuedPayload', () => {
     const result = buildComposerQueuedPayload(draft('hi', ['file:a', 'file:b']), {
       files: [first, second],
       fileTokenId,
-      requireText: true
+      requireText: true,
+      ...payloadState
     })
 
     expect(result?.attachments).toEqual([first, second])
@@ -100,12 +119,13 @@ describe('buildComposerQueuedPayload', () => {
       files: [],
       fileTokenId,
       requireText: true,
-      extra: (tokenIds) => ({ reasoningEffort: tokenIds.has('knowledge:k1') ? 'high' : undefined })
+      ...payloadState,
+      extra: (tokenIds) => ({ mentionedModels: tokenIds.has('knowledge:k1') ? ['provider::model'] : undefined })
     })
 
     expect(result?.text).toBe('  hello  ')
     expect(result?.userMessageParts).toEqual([{ type: 'text', text: '  hello  ' }])
-    expect(result?.reasoningEffort).toBe('high')
+    expect(result?.mentionedModels).toEqual(['provider::model'])
   })
 })
 

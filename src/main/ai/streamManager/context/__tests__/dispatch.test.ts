@@ -1,4 +1,4 @@
-import type { ReasoningEffortOption } from '@shared/types/aiSdk'
+import type { AssistantTurnOptions } from '@shared/data/types/message'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AiStreamManager } from '../../AiStreamManager'
@@ -65,7 +65,7 @@ function makeManager(live: boolean): AiStreamManager {
 function wirePrepare(
   spy: typeof mocks.agentPrepare,
   topicId: string,
-  opts: { inject: boolean; steer?: boolean; reasoningEffort?: ReasoningEffortOption; fastMode?: boolean }
+  opts: { inject: boolean; steer?: boolean; turnOptions?: AssistantTurnOptions }
 ) {
   spy.mockImplementation((_subscriber: StreamListener, _req: MainDispatchRequest, ctx: { hasLiveStream: boolean }) => {
     order.push('prepareDispatch')
@@ -77,8 +77,7 @@ function wirePrepare(
       // Only the persistent steer branch sets this explicit marker; the dispatcher enqueues off it.
       // Agent-session injects deliberately leave it unset (the runtime owns their follow-ups).
       pendingSteerUserMessageId: opts.steer ? 'u1' : undefined,
-      pendingSteerReasoningEffort: opts.reasoningEffort,
-      pendingSteerFastMode: opts.fastMode
+      pendingSteerTurnOptions: opts.turnOptions
     })
   })
 }
@@ -96,7 +95,11 @@ beforeEach(() => {
 
 describe('dispatchStreamRequest — steer', () => {
   it('persists a live chat submit as a steer and enqueues it (no abort, stream stays live)', async () => {
-    wirePrepare(mocks.persistentPrepare, 'topic-1', { inject: true, steer: true, reasoningEffort: 'high' })
+    wirePrepare(mocks.persistentPrepare, 'topic-1', {
+      inject: true,
+      steer: true,
+      turnOptions: { reasoningEffort: 'high' }
+    })
     const manager = makeManager(true)
 
     await dispatchStreamRequest(manager, makeSubscriber(), chatReq('topic-1'))
@@ -105,21 +108,23 @@ describe('dispatchStreamRequest — steer', () => {
     // and the persisted user row is enqueued as a pending steer before send (which just attaches).
     expect(preparedWithCtx).toEqual({ hasLiveStream: true })
     expect(order).toEqual(['prepareDispatch', 'enqueuePendingSteer', 'send'])
-    expect(manager.enqueuePendingSteer).toHaveBeenCalledWith('topic-1', 'u1', 'high', false)
+    expect(manager.enqueuePendingSteer).toHaveBeenCalledWith('topic-1', 'u1', { reasoningEffort: 'high' })
   })
 
   it('carries Fast into a queued steer continuation', async () => {
     wirePrepare(mocks.persistentPrepare, 'topic-fast', {
       inject: true,
       steer: true,
-      reasoningEffort: 'high',
-      fastMode: true
+      turnOptions: { reasoningEffort: 'high', fastMode: true }
     })
     const manager = makeManager(true)
 
     await dispatchStreamRequest(manager, makeSubscriber(), chatReq('topic-fast'))
 
-    expect(manager.enqueuePendingSteer).toHaveBeenCalledWith('topic-fast', 'u1', 'high', true)
+    expect(manager.enqueuePendingSteer).toHaveBeenCalledWith('topic-fast', 'u1', {
+      reasoningEffort: 'high',
+      fastMode: true
+    })
   })
 
   it('does not enqueue a steer for a non-live chat submit (normal turn opens models)', async () => {
@@ -216,7 +221,7 @@ describe('dispatchStreamRequest — steer', () => {
       trigger: 'regenerate-message',
       parentAnchorId: 'user-1',
       appendToLiveGroupMessageId: 'assistant-1',
-      mentionedModelIds: ['p::m2']
+      executionTargets: [{ modelId: 'p::m2', turnOptions: {} }]
     })
 
     expect(mocks.setActiveNode).toHaveBeenCalledWith('topic-append', 'assistant-2')

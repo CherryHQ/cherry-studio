@@ -68,7 +68,7 @@ describe('ai.stream.open IPC schema', () => {
         topicId: 'topic-1',
         parentAnchorId: 'user-1',
         retryMessageId: 'assistant-failed',
-        mentionedModelIds: ['openai::gpt-4o']
+        executionTargets: [{ modelId: 'openai::gpt-4o', turnOptions: {} }]
       })
     ).toMatchObject({ retryMessageId: 'assistant-failed' })
   })
@@ -80,18 +80,21 @@ describe('ai.stream.open IPC schema', () => {
         topicId: 'topic-1',
         parentAnchorId: 'user-1',
         appendToLiveGroupMessageId: 'assistant-source',
-        mentionedModelIds: ['anthropic::claude-sonnet']
+        executionTargets: [{ modelId: 'anthropic::claude-sonnet', turnOptions: {} }]
       })
     ).toMatchObject({ appendToLiveGroupMessageId: 'assistant-source' })
   })
 
-  it('rejects duplicate mentioned model ids before dispatch', () => {
+  it('rejects duplicate execution targets before dispatch', () => {
     expect(
       openStream.safeParse({
         trigger: 'submit-message',
         topicId: 'topic-1',
         userMessageParts: [],
-        mentionedModelIds: ['openai::gpt-4o', 'openai::gpt-4o']
+        executionTargets: [
+          { modelId: 'openai::gpt-4o', turnOptions: {} },
+          { modelId: 'openai::gpt-4o', turnOptions: { reasoningEffort: 'high' } }
+        ]
       }).success
     ).toBe(false)
   })

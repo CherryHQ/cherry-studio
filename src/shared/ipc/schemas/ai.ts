@@ -27,6 +27,11 @@ import * as z from 'zod'
 
 import { defineRoute } from '../define'
 
+const assistantTurnOptionsSchema = z.strictObject({
+  reasoningEffort: ReasoningEffortOptionSchema.optional(),
+  fastMode: z.boolean().optional()
+})
+
 /**
  * AI IPC schemas — `AiService`'s non-streaming model operations (text/embedding/image
  * generation, model probe, model listing) plus the `AiStreamManager` streaming-chat
@@ -141,14 +146,18 @@ const aiStreamRegenerateShape = {
   parentAnchorId: z.string().min(1),
   userMessageParts: z.never().optional(),
   targetMode: z.never().optional(),
-  reasoningEffort: ReasoningEffortOptionSchema.optional(),
-  fastMode: z.boolean().optional()
+  turnOptions: assistantTurnOptionsSchema.optional()
 }
 
-const mentionedModelIdsSchema = z
-  .array(UniqueModelIdSchema)
-  .refine((modelIds) => new Set(modelIds).size === modelIds.length, {
-    message: 'mentionedModelIds must not contain duplicate model ids'
+const executionTargetsSchema = z
+  .array(
+    z.strictObject({
+      modelId: UniqueModelIdSchema,
+      turnOptions: assistantTurnOptionsSchema
+    })
+  )
+  .refine((targets) => new Set(targets.map((target) => target.modelId)).size === targets.length, {
+    message: 'executionTargets must not contain duplicate model ids'
   })
   .optional()
 
@@ -207,7 +216,7 @@ export const aiRequestSchemas = {
     input: z.intersection(
       z.object({
         topicId: z.string().min(1),
-        mentionedModelIds: mentionedModelIdsSchema
+        executionTargets: executionTargetsSchema
       }),
       z.union([
         z.object({
@@ -217,8 +226,7 @@ export const aiRequestSchemas = {
           targetMode: z.enum(['active-path', 'reserved-branch']).optional(),
           retryMessageId: z.never().optional(),
           appendToLiveGroupMessageId: z.never().optional(),
-          reasoningEffort: ReasoningEffortOptionSchema.optional(),
-          fastMode: z.boolean().optional()
+          turnOptions: assistantTurnOptionsSchema.optional()
         }),
         z.object({
           ...aiStreamRegenerateShape,

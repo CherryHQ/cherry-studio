@@ -1911,7 +1911,7 @@ describe('AiStreamManager', () => {
       trigger: 'steer-continuation',
       topicId,
       userMessageId,
-      fastMode: false
+      turnOptions: {}
     })
 
     it('rebroadcasts awaiting-approval anchors when a live stream pauses and resumes for tool approval', () => {
@@ -1999,7 +1999,7 @@ describe('AiStreamManager', () => {
       await mgr.onExecutionDone('a', 'provider-a::model-a')
       dispatchSpy.mockClear()
 
-      mgr.enqueuePendingSteer('a', 'u1')
+      mgr.enqueuePendingSteer('a', 'u1', {})
       expect(mgr.hasPendingSteer('a')).toBe(true)
 
       await flush()
@@ -2014,7 +2014,7 @@ describe('AiStreamManager', () => {
       startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [listener] })
 
       // Steer arrives while the turn is live → queued, not started.
-      mgr.enqueuePendingSteer('a', 'u2')
+      mgr.enqueuePendingSteer('a', 'u2', {})
       expect(dispatchSpy).not.toHaveBeenCalled()
 
       await mgr.onExecutionDone('a', 'provider-a::model-a')
@@ -2038,8 +2038,8 @@ describe('AiStreamManager', () => {
         listeners: [new FakeListener('wc:1')]
       })
       // Both steers queued while the turn is live...
-      mgr.enqueuePendingSteer('a', 'u1')
-      mgr.enqueuePendingSteer('a', 'u2')
+      mgr.enqueuePendingSteer('a', 'u1', {})
+      mgr.enqueuePendingSteer('a', 'u2', {})
       expect(dispatchSpy).not.toHaveBeenCalled()
 
       // ...the turn finishes → only the head chains; the rest waits for the continuation to finish.
@@ -2054,7 +2054,7 @@ describe('AiStreamManager', () => {
       const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
       const listener = new FakeListener('l:a')
       startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [listener] })
-      mgr.enqueuePendingSteer('a', 'u2')
+      mgr.enqueuePendingSteer('a', 'u2', {})
 
       mgr.abort('a', 'user-requested')
       await mgr.onExecutionPaused('a', 'provider-a::model-a')
@@ -2080,7 +2080,7 @@ describe('AiStreamManager', () => {
       mgr.abort('a', 'user-requested')
       await mgr.onExecutionPaused('a', 'provider-a::model-a')
 
-      mgr.enqueuePendingSteer('a', 'u1')
+      mgr.enqueuePendingSteer('a', 'u1', {})
 
       await flush()
       expect(dispatchSpy).not.toHaveBeenCalled()
@@ -2112,7 +2112,7 @@ describe('AiStreamManager', () => {
         listeners: [new FakeListener('l2')]
       })
       mgr.abort('a', 'user-requested')
-      mgr.enqueuePendingSteer('a', 'u1')
+      mgr.enqueuePendingSteer('a', 'u1', {})
 
       await flush()
       expect(dispatchSpy).not.toHaveBeenCalled()
@@ -2127,7 +2127,7 @@ describe('AiStreamManager', () => {
       startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [listener] })
       // Drive the execution into awaiting-approval, then complete it.
       mgr.onChunk('a', 'provider-a::model-a', { type: 'tool-approval-request' } as unknown as UIMessageChunk)
-      mgr.enqueuePendingSteer('a', 'u1')
+      mgr.enqueuePendingSteer('a', 'u1', {})
       await mgr.onExecutionDone('a', 'provider-a::model-a')
 
       await flush()
@@ -2146,9 +2146,9 @@ describe('AiStreamManager', () => {
         request: req('a'),
         listeners: [new FakeListener('wc:1')]
       })
-      mgr.enqueuePendingSteer('a', 's0') // queued while live
+      mgr.enqueuePendingSteer('a', 's0', {}) // queued while live
       await mgr.onExecutionDone('a', 'provider-a::model-a') // clean done + queued steer → chains
-      mgr.enqueuePendingSteer('a', 's1') // lands in the chaining window
+      mgr.enqueuePendingSteer('a', 's1', {}) // lands in the chaining window
 
       await flush()
       expect(dispatchSpy).toHaveBeenCalled() // s0's continuation launched
@@ -2167,7 +2167,7 @@ describe('AiStreamManager', () => {
       })
       mgr.onChunk('a', 'provider-a::model-a', { type: 'tool-approval-request' } as unknown as UIMessageChunk)
       await mgr.onExecutionDone('a', 'provider-a::model-a') // parks → 'awaiting-approval', no steer queued yet
-      mgr.enqueuePendingSteer('a', 's1') // lands after the park
+      mgr.enqueuePendingSteer('a', 's1', {}) // lands after the park
 
       await flush()
       expect(dispatchSpy).not.toHaveBeenCalled() // not launched while parked
@@ -2187,13 +2187,13 @@ describe('AiStreamManager', () => {
 
       // topic 'a': error settles FIRST, the clean done LAST (the order that mis-recorded 'done' pre-fix).
       mgr.send(twoModels('a'))
-      mgr.enqueuePendingSteer('a', 's-a')
+      mgr.enqueuePendingSteer('a', 's-a', {})
       await mgr.onExecutionError('a', 'provider-a::model-a', error('boom'))
       await mgr.onExecutionDone('a', 'provider-b::model-b') // resolves topic to 'error'
 
       // topic 'b': clean done FIRST, error LAST.
       mgr.send(twoModels('b'))
-      mgr.enqueuePendingSteer('b', 's-b')
+      mgr.enqueuePendingSteer('b', 's-b', {})
       await mgr.onExecutionDone('b', 'provider-a::model-a') // topic still live (B streaming)
       await mgr.onExecutionError('b', 'provider-b::model-b', error('boom'))
 
@@ -2207,7 +2207,7 @@ describe('AiStreamManager', () => {
     it('writes a terminal error and notifies carried windows when the continuation fails to launch', async () => {
       const wc = new FakeListener('wc:1')
       startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [wc] })
-      mgr.enqueuePendingSteer('a', 'u1') // queued while live
+      mgr.enqueuePendingSteer('a', 'u1', {}) // queued while live
 
       vi.spyOn(mgr, 'dispatch').mockRejectedValue(new Error('steer row deleted'))
       await mgr.onExecutionDone('a', 'provider-a::model-a') // chains → startNextChatTurn → dispatch throws
@@ -2237,7 +2237,7 @@ describe('AiStreamManager', () => {
         request: req('a'),
         listeners: [wc1, persist, trace, wc2]
       })
-      mgr.enqueuePendingSteer('a', 'u1')
+      mgr.enqueuePendingSteer('a', 'u1', {})
       await mgr.onExecutionDone('a', 'provider-a::model-a')
       await flush()
 
@@ -2258,7 +2258,7 @@ describe('AiStreamManager', () => {
       // Only a persistence listener (e.g. every window closed mid-turn) — nothing to carry.
       const persist = new FakeListener('persistence:sqlite:a:provider-a::model-a')
       startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [persist] })
-      mgr.enqueuePendingSteer('a', 'u1')
+      mgr.enqueuePendingSteer('a', 'u1', {})
       await mgr.onExecutionDone('a', 'provider-a::model-a')
       await flush()
 
@@ -2284,14 +2284,14 @@ describe('AiStreamManager', () => {
       trigger: 'steer-continuation',
       topicId,
       userMessageId,
-      fastMode: false
+      turnOptions: {}
     })
 
     it('tracks the queue and starts a continuation immediately when the topic is idle', async () => {
       const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
 
       expect(mgr.hasPendingSteer('a')).toBe(false)
-      mgr.enqueuePendingSteer('a', 'u1')
+      mgr.enqueuePendingSteer('a', 'u1', {})
       expect(mgr.hasPendingSteer('a')).toBe(true)
 
       await flush()
@@ -2306,7 +2306,7 @@ describe('AiStreamManager', () => {
       startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [listener] })
 
       // Steer arrives while the turn is live → queued, not started.
-      mgr.enqueuePendingSteer('a', 'u2')
+      mgr.enqueuePendingSteer('a', 'u2', {})
       expect(dispatchSpy).not.toHaveBeenCalled()
 
       await mgr.onExecutionDone('a', 'provider-a::model-a')
@@ -2323,8 +2323,8 @@ describe('AiStreamManager', () => {
 
     it('drains multiple steers FIFO — only the head starts until the next turn finishes', async () => {
       const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
-      mgr.enqueuePendingSteer('a', 'u1')
-      mgr.enqueuePendingSteer('a', 'u2')
+      mgr.enqueuePendingSteer('a', 'u1', {})
+      mgr.enqueuePendingSteer('a', 'u2', {})
 
       await flush()
       expect(dispatchSpy).toHaveBeenCalledTimes(1)
@@ -2336,7 +2336,7 @@ describe('AiStreamManager', () => {
       const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
       const listener = new FakeListener('l:a')
       startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [listener] })
-      mgr.enqueuePendingSteer('a', 'u2')
+      mgr.enqueuePendingSteer('a', 'u2', {})
 
       mgr.abort('a', 'user-requested')
       await mgr.onExecutionPaused('a', 'provider-a::model-a')

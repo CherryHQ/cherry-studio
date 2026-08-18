@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { type ReactNode, useEffect } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ComposerToolLauncher } from '../toolLauncher'
@@ -61,7 +61,9 @@ import {
   useComposerToolDispatch,
   useComposerToolLauncherActions,
   useComposerToolLauncherController,
-  useComposerToolState
+  useComposerToolState,
+  useComposerToolStateLifecycle,
+  useComposerToolStateLifecycleController
 } from '../ComposerToolRuntime'
 import { TopicType } from '../tools/types'
 
@@ -163,6 +165,26 @@ const LauncherRegistrationProbe = ({
   return null
 }
 
+const StateLifecycleProbe = ({
+  controllerRef
+}: {
+  controllerRef: { current?: ReturnType<typeof useComposerToolStateLifecycleController> }
+}) => {
+  const [value, setValue] = useState('initial')
+  useComposerToolStateLifecycle('stateful-test-tool', {
+    capture: () => value,
+    restore: (snapshot) => setValue(snapshot as string),
+    clear: () => setValue('cleared')
+  })
+  controllerRef.current = useComposerToolStateLifecycleController()
+
+  return (
+    <button type="button" onClick={() => setValue('captured')}>
+      {value}
+    </button>
+  )
+}
+
 beforeEach(() => {
   mockGetToolsForScope.mockReset()
   mockUseQuickPanel.mockClear()
@@ -187,6 +209,21 @@ const renderRuntime = (tools: any[], node: ReactNode) => {
 }
 
 describe('ComposerToolRuntimeHost', () => {
+  it('captures, clears, and restores opt-in tool state exactly', () => {
+    const controllerRef: { current?: ReturnType<typeof useComposerToolStateLifecycleController> } = {}
+    renderRuntime([], <StateLifecycleProbe controllerRef={controllerRef} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'initial' }))
+    const snapshot = controllerRef.current?.capture()
+    expect(snapshot).toEqual({ 'stateful-test-tool': 'captured' })
+
+    act(() => controllerRef.current?.clear())
+    expect(screen.getByRole('button', { name: 'cleared' })).toBeInTheDocument()
+
+    act(() => controllerRef.current?.restore(snapshot!))
+    expect(screen.getByRole('button', { name: 'captured' })).toBeInTheDocument()
+  })
+
   it('normalizes initial composer files with file token source ids', async () => {
     const onSnapshot = vi.fn()
 

@@ -96,6 +96,7 @@ describe('agentDraftCache', () => {
       tokens: [skillToken, knowledgeToken, fileToken, folderToken, linkToken],
       files: [file],
       knowledgeBaseIds: ['kb-1'],
+      toolStates: {},
       ...scope
     }
     writeAgentDraftCache(getAgentDraftCacheKey('session-1'), draft)
@@ -128,6 +129,7 @@ describe('agentDraftCache', () => {
       tokens: [],
       files: [],
       knowledgeBaseIds: [],
+      toolStates: {},
       workspaceKey: scope.workspaceKey,
       agentId: 'agent-2',
       shouldValidateSkills: false
@@ -173,6 +175,7 @@ describe('agentDraftCache', () => {
       ],
       files: [file],
       knowledgeBaseIds: ['kb-1'],
+      toolStates: {},
       ...scope,
       shouldValidateSkills: true
     })
@@ -188,6 +191,7 @@ describe('agentDraftCache', () => {
       tokens: [skillToken],
       files: [file],
       knowledgeBaseIds: [],
+      toolStates: {},
       ...scope,
       shouldValidateSkills: true
     })

@@ -48,6 +48,7 @@ function openReq(overrides: Partial<AiStreamOpenRequest> = {}): AiStreamOpenRequ
   return {
     topicId: '1',
     trigger: 'submit-message',
+    executionTargets: [{ modelId: 'openai::gpt-4o', turnOptions: {} }],
     userMessageParts: [{ type: 'text', text: 'hi' }],
     ...overrides
   } as AiStreamOpenRequest
@@ -139,7 +140,7 @@ describe('TemporaryChatContextProvider', () => {
     expect(prepared.models[0].request.assistantId).toBeUndefined()
   })
 
-  it('honours a single mentionedModelId — pins that model instead of the default preference', async () => {
+  it('uses the composer execution target and its turn options', async () => {
     getTopicMock.mockReturnValueOnce({ id: '1', assistantId: undefined })
     MockMainPreferenceServiceUtils.setPreferenceValue('chat.default_model_id', null)
     getByKeyMock.mockReset()
@@ -152,15 +153,23 @@ describe('TemporaryChatContextProvider', () => {
 
     const prepared = await provider.prepareDispatch(
       makeSubscriber(),
-      openReq({ mentionedModelIds: ['anthropic::claude-sonnet-4-5'] }),
+      openReq({
+        executionTargets: [
+          {
+            modelId: 'anthropic::claude-sonnet-4-5',
+            turnOptions: { reasoningEffort: 'high', fastMode: true }
+          }
+        ]
+      }),
       { hasLiveStream: false }
     )
 
     expect(getByKeyMock).toHaveBeenCalledWith('anthropic', 'claude-sonnet-4-5')
     expect(prepared.models[0].modelId).toBe('anthropic::claude-sonnet-4-5')
+    expect(prepared.models[0].request).toEqual(expect.objectContaining({ reasoningEffort: 'high', fastMode: true }))
   })
 
-  it('warns and uses only the first when multiple mentionedModelIds are supplied (single-execution constraint)', async () => {
+  it('uses only the first execution target because temporary chat is single-model', async () => {
     getTopicMock.mockReturnValueOnce({ id: '1', assistantId: undefined })
     getByKeyMock.mockReset()
     getByKeyMock.mockImplementation((providerId: string, modelId: string) => ({
@@ -172,7 +181,12 @@ describe('TemporaryChatContextProvider', () => {
 
     const prepared = await provider.prepareDispatch(
       makeSubscriber(),
-      openReq({ mentionedModelIds: ['anthropic::claude-sonnet-4-5', 'openai::gpt-4o'] }),
+      openReq({
+        executionTargets: [
+          { modelId: 'anthropic::claude-sonnet-4-5', turnOptions: {} },
+          { modelId: 'openai::gpt-4o', turnOptions: {} }
+        ]
+      }),
       { hasLiveStream: false }
     )
 

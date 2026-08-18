@@ -7,6 +7,7 @@
  * `useChatWrite()`.
  */
 
+import type { ModelExecutionTarget } from '@shared/ai/transport'
 import type { AssistantTurnOptions, CherryMessagePart } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { createContext, use } from 'react'
@@ -55,7 +56,7 @@ export interface ChatWriteActions {
   forkAndResend: (
     messageId: string,
     editedParts: CherryMessagePart[],
-    turnOptions?: AssistantTurnOptions
+    executionTargets: ModelExecutionTarget[]
   ) => Promise<void>
   /**
    * Pin `messageId` as the topic's active node. The scroll view truncates

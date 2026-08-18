@@ -117,6 +117,21 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     )
   })
 
+  it('rejects a persistent submit without an immutable execution target', async () => {
+    await expect(
+      provider.prepareDispatch(
+        makeSubscriber(),
+        {
+          trigger: 'submit-message',
+          topicId: 'topic-1',
+          parentAnchorId: 'a1',
+          userMessageParts: [{ type: 'text', text: 'do not infer the execution plan' }]
+        },
+        { hasLiveStream: false }
+      )
+    ).rejects.toThrow("Persistent 'submit-message' requires an execution target")
+  })
+
   it('rebuilds a prompt that carries the paused partial when the new turn anchors on the paused row', async () => {
     // Steering: renderer's `activeNodeId` (the streaming/paused assistant row) is sent as
     // `parentAnchorId`, so the new user message is parented on the paused row.
@@ -126,6 +141,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
         trigger: 'submit-message',
         topicId: 'topic-1',
         parentAnchorId: 'a1',
+        executionTargets: [{ modelId: MODEL_ID, turnOptions: {} }],
         userMessageParts: [{ type: 'text', text: 'actually, change direction' }]
       } as AiStreamOpenRequest,
       { hasLiveStream: false }
@@ -141,26 +157,6 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     ])
   })
 
-  it('rejects duplicate mentioned models before reserving any rows', async () => {
-    const childrenBefore = messageService.getChildrenByParentId('a1')
-
-    await expect(
-      provider.prepareDispatch(
-        makeSubscriber(),
-        {
-          trigger: 'submit-message',
-          topicId: 'topic-1',
-          parentAnchorId: 'a1',
-          userMessageParts: [{ type: 'text', text: 'compare twice' }],
-          mentionedModelIds: [MODEL_ID, MODEL_ID]
-        },
-        { hasLiveStream: false }
-      )
-    ).rejects.toThrow('mentionedModelIds must not contain duplicate model ids')
-
-    expect(messageService.getChildrenByParentId('a1')).toEqual(childrenBefore)
-  })
-
   it('fills a reserved branch and creates its assistant placeholder when the topic is idle', async () => {
     const reservedBranch = messageService.reserveBranch('a1', false)
 
@@ -170,6 +166,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
         trigger: 'submit-message',
         topicId: 'topic-1',
         parentAnchorId: reservedBranch.id,
+        executionTargets: [{ modelId: MODEL_ID, turnOptions: {} }],
         userMessageParts: [{ type: 'text', text: 'continue on reserved branch' }],
         targetMode: 'reserved-branch'
       },
@@ -199,6 +196,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
           trigger: 'submit-message',
           topicId: 'topic-1',
           parentAnchorId: reservedBranch.id,
+          executionTargets: [{ modelId: MODEL_ID, turnOptions: {} }],
           userMessageParts: [{ type: 'text', text: 'wait for the current turn' }],
           targetMode: 'reserved-branch'
         },
@@ -221,6 +219,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
           trigger: 'submit-message',
           topicId: 'topic-1',
           parentAnchorId: reservedBranch.id,
+          executionTargets: [{ modelId: MODEL_ID, turnOptions: {} }],
           userMessageParts: [{ type: 'text', text: 'duplicate send' }],
           targetMode: 'reserved-branch'
         },
@@ -286,6 +285,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
         trigger: 'submit-message',
         topicId: 'topic-1',
         parentAnchorId: 'u3',
+        executionTargets: [{ modelId: MODEL_ID, turnOptions: {} }],
         userMessageParts: [{ type: 'text', text: 'new question' }]
       },
       { hasLiveStream: false }
@@ -329,6 +329,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
         trigger: 'submit-message',
         topicId: 'topic-1',
         parentAnchorId: 'u-old-branch',
+        executionTargets: [{ modelId: MODEL_ID, turnOptions: {} }],
         userMessageParts: [{ type: 'text', text: 'continue old branch' }]
       },
       { hasLiveStream: false }
@@ -350,6 +351,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
         trigger: 'submit-message',
         topicId: 'topic-1',
         parentAnchorId: 'a1',
+        executionTargets: [{ modelId: MODEL_ID, turnOptions: {} }],
         userMessageParts: [
           { type: 'text', text: 'search my selected knowledge base' },
           { type: 'data-knowledge-scope', data: { baseIds: knowledgeBaseIds } }
@@ -368,7 +370,8 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
       {
         trigger: 'regenerate-message',
         topicId: 'topic-1',
-        parentAnchorId: userMessageId
+        parentAnchorId: userMessageId,
+        executionTargets: [{ modelId: MODEL_ID, turnOptions: {} }]
       },
       { hasLiveStream: false }
     )
@@ -403,7 +406,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
         trigger: 'steer-continuation',
         topicId: 'topic-1',
         userMessageId: 'u2',
-        fastMode: false
+        turnOptions: {}
       } satisfies MainSteerContinuationRequest,
       { hasLiveStream: false }
     )
@@ -442,6 +445,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
         trigger: 'submit-message',
         topicId: 'topic-1',
         parentAnchorId: 'u1',
+        executionTargets: [{ modelId: MODEL_ID, turnOptions: {} }],
         userMessageParts: [{ type: 'text', text: 'retry from before' }]
       } as AiStreamOpenRequest,
       { hasLiveStream: false }
@@ -483,7 +487,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
         trigger: 'submit-message',
         topicId: 'topic-1',
         parentAnchorId: 'u1',
-        mentionedModelIds: [selectedModelId],
+        executionTargets: [{ modelId: selectedModelId, turnOptions: {} }],
         userMessageParts: [{ type: 'text', text: 'use the selected model' }]
       },
       { hasLiveStream: false }
@@ -518,15 +522,18 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
       isHidden: false,
       orderKey: bModelKey
     })
-    vi.mocked(resolveModels).mockReturnValueOnce([
+    const resolvedModels = [
       { id: MODEL_A, name: 'GPT-4o', providerId: 'openai', apiModelId: 'gpt-4o' },
       { id: MODEL_B, name: 'Claude Sonnet 4.5', providerId: 'anthropic', apiModelId: 'claude-sonnet-4-5' }
-    ] as ReturnType<typeof resolveModels>)
-    vi.mocked(resolvePersistentSiblingsGroupId).mockReturnValueOnce(42)
+    ] as ReturnType<typeof resolveModels>
+    vi.mocked(resolveModels).mockReturnValueOnce(resolvedModels).mockReturnValueOnce(resolvedModels)
+    vi.mocked(resolvePersistentSiblingsGroupId).mockReturnValueOnce(42).mockReturnValueOnce(42)
     // Distinct span per call so index alignment is observable.
     const spanA = { end: vi.fn() }
     const spanB = { end: vi.fn() }
     vi.mocked(startAiChildTurnSpan)
+      .mockReturnValueOnce({ rootSpan: spanA } as unknown as ReturnType<typeof startAiChildTurnSpan>)
+      .mockReturnValueOnce({ rootSpan: spanB } as unknown as ReturnType<typeof startAiChildTurnSpan>)
       .mockReturnValueOnce({ rootSpan: spanA } as unknown as ReturnType<typeof startAiChildTurnSpan>)
       .mockReturnValueOnce({ rootSpan: spanB } as unknown as ReturnType<typeof startAiChildTurnSpan>)
 
@@ -536,7 +543,10 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
         trigger: 'submit-message',
         topicId: 'topic-1',
         parentAnchorId: 'u1',
-        mentionedModelIds: [MODEL_A, MODEL_B],
+        executionTargets: [
+          { modelId: MODEL_A, turnOptions: { reasoningEffort: 'high', fastMode: true } },
+          { modelId: MODEL_B, turnOptions: { reasoningEffort: 'low' } }
+        ],
         userMessageParts: [{ type: 'text', text: 'ask both models' }]
       } as AiStreamOpenRequest,
       { hasLiveStream: false }
@@ -564,6 +574,10 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     expect(phB?.siblingsGroupId).toBe(42)
     expect(prepared.models[0].request.messageId).toBe(phA?.id)
     expect(prepared.models[1].request.messageId).toBe(phB?.id)
+    expect(phA?.data.turnOptions).toEqual({ reasoningEffort: 'high', fastMode: true })
+    expect(phB?.data.turnOptions).toEqual({ reasoningEffort: 'low' })
+    expect(prepared.models[0].request).toEqual(expect.objectContaining({ reasoningEffort: 'high', fastMode: true }))
+    expect(prepared.models[1].request).toEqual(expect.objectContaining({ reasoningEffort: 'low', fastMode: false }))
 
     // One PersistenceListener per placeholder — no missing/extra/duplicate listener for a fan-out.
     const persistenceListeners = prepared.listeners.filter((l) => l instanceof PersistenceListener)
@@ -575,6 +589,29 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
       `persistence:sqlite:topic-1:${MODEL_A}`,
       `persistence:sqlite:topic-1:${MODEL_B}`
     ])
+
+    const regenerated = await provider.prepareDispatch(
+      makeSubscriber(),
+      {
+        trigger: 'regenerate-message',
+        topicId: 'topic-1',
+        parentAnchorId: userMessageId,
+        executionTargets: [
+          { modelId: MODEL_A, turnOptions: { reasoningEffort: 'minimal' } },
+          { modelId: MODEL_B, turnOptions: { reasoningEffort: 'high', fastMode: true } }
+        ]
+      },
+      { hasLiveStream: false }
+    )
+    expect(regenerated.models[0].request).toEqual(
+      expect.objectContaining({ reasoningEffort: 'minimal', fastMode: false })
+    )
+    expect(regenerated.models[1].request).toEqual(expect.objectContaining({ reasoningEffort: 'high', fastMode: true }))
+    expect(
+      regenerated.reservedMessages
+        ?.filter((message) => message.role === 'assistant')
+        .map((message) => message.metadata?.turnOptions)
+    ).toEqual([{ reasoningEffort: 'minimal' }, { reasoningEffort: 'high', fastMode: true }])
 
     // One trace tree per topic: both models' `ai.turn` spans are parented under the
     // same container trace, and that id is the topic's persisted ensureTraceId.
@@ -645,7 +682,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
         topicId: 'topic-1',
         parentAnchorId: 'u1',
         appendToLiveGroupMessageId: 'a2',
-        mentionedModelIds: [appendedModelId]
+        executionTargets: [{ modelId: appendedModelId, turnOptions: {} }]
       },
       { hasLiveStream: true }
     )
@@ -694,7 +731,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
           topicId: 'topic-1',
           parentAnchorId: 'u1',
           appendToLiveGroupMessageId: 'a2',
-          mentionedModelIds: [MODEL_ID]
+          executionTargets: [{ modelId: MODEL_ID, turnOptions: {} }]
         },
         { hasLiveStream: true }
       )
@@ -741,7 +778,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
           topicId: 'topic-1',
           parentAnchorId: 'u1',
           appendToLiveGroupMessageId: 'a1',
-          mentionedModelIds: [createUniqueModelId('anthropic', 'claude-sonnet-4-5')]
+          executionTargets: [{ modelId: createUniqueModelId('anthropic', 'claude-sonnet-4-5'), turnOptions: {} }]
         },
         { hasLiveStream: true }
       )
