@@ -1,3 +1,4 @@
+import { HtmlArtifactPopupHost } from '@renderer/components/chat/HtmlArtifactPopupContext'
 import { useChatLayoutMode } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import { useChatBottomOverlayInset } from '@renderer/components/chat/layout/ChatViewportInsetContext'
 import MultiSelectActionPopup from '@renderer/components/chat/messages/MultiSelectActionPopup'
@@ -673,13 +674,12 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
     scrollElement.addEventListener('scroll', handleAnchorUpdate, { passive: true })
     window.addEventListener('resize', handleAnchorUpdate)
 
+    // The layout owner survives topic switches, so preserve its width-derived gutter.
     return () => {
       resizeObserver.disconnect()
       if (frame !== null) cancelAnimationFrame(frame)
       scrollElement.removeEventListener('scroll', handleAnchorUpdate)
       window.removeEventListener('resize', handleAnchorUpdate)
-      // On unmount the composer must not keep yielding rail space.
-      setRailGutterPx(0)
     }
   }, [data.isInitialLoading, data.listKey, setRailGutterPx, shouldTrackAnchorPosition, topic.id])
 
@@ -721,7 +721,7 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
   const topPadding = MESSAGE_VIRTUAL_LIST_DEFAULT_TOP_PADDING_PX
   const topicImageCaptureWidth = activeTopicImageCaptureAction?.captureWidth
 
-  return (
+  const messageList = (
     <MessagesContainer
       id="messages"
       className={classNames(['messages-container', { 'multi-select-mode': isMultiSelectMode }])}
@@ -889,6 +889,8 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
       />
     </MessagesContainer>
   )
+
+  return <HtmlArtifactPopupHost>{messageList}</HtmlArtifactPopupHost>
 }
 
 export default MessageList

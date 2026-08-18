@@ -1,17 +1,33 @@
+import { aiStreamAdmissionReasons } from '@shared/ai/transport'
 import { aiErrorCodes, aiErrorDetail } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
   formatErrorMessage,
+  formatErrorMessageWithPrefix,
   getErrorDetails,
+  getErrorMessage,
   isAbortError,
   isTimeoutError,
   providerErrorText,
   serializeHealthCheckError
 } from '../error'
 
+vi.mock('i18next', () => ({ t: (key: string) => key }))
+
 describe('error', () => {
+  it('maps stream admission reasons to renderer i18n without the generic error prefix', () => {
+    const error = new IpcError(aiErrorCodes.AI_STREAM_ADMISSION_REJECTED, 'reason-code', {
+      reason: aiStreamAdmissionReasons.MODEL_ALREADY_IN_LIVE_GROUP
+    })
+
+    expect(getErrorMessage(error)).toBe('message.error.stream_admission.model_already_in_live_group')
+    expect(formatErrorMessageWithPrefix(error, 'Unknown error')).toBe(
+      'message.error.stream_admission.model_already_in_live_group'
+    )
+  })
+
   describe('getErrorDetails', () => {
     it('should handle null or non-object values', () => {
       expect(getErrorDetails(null)).toBeNull()

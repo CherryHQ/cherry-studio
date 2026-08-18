@@ -18,11 +18,11 @@ import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 import { OpenAICompatibleRerankingModel } from '@cherrystudio/ai-sdk-provider'
 import { VENDOR_PATTERNS } from '@cherrystudio/provider-registry'
+import { resolveAihubmixChatFamily } from '@shared/data/presets/gatewayChatRouting'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import { getLowerBaseModelName } from '@shared/utils/model'
 
 import { createAihubmixImageModel } from './aihubmixImageModel'
-import { resolveAihubmixChatFamily } from './aihubmixRouting'
 
 export const AIHUBMIX_PROVIDER_NAME = 'aihubmix' as const
 const APP_CODE_HEADER = { 'APP-Code': 'MLTG2087' }

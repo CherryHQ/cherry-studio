@@ -61,7 +61,9 @@ export function useChatWithHistory(
     resumeStream
   } = useChat<CherryUIMessage>({
     chat,
-    experimental_throttle: 0
+    // Unthrottled (0) melts the renderer on long fast streams: every chunk re-notifies React
+    // and re-renders/re-parses the growing message. 100ms keeps streaming visually smooth.
+    experimental_throttle: 100
   })
 
   const stop = useCallback(async () => {

@@ -14,7 +14,6 @@ import {
 } from '@main/ai/inference/localModelCatalog'
 import { regionService } from '@main/services/RegionService'
 import { net } from 'electron'
-import { extract } from 'tar'
 
 const logger = loggerService.withContext('OnnxRuntimeBinaryService')
 
@@ -44,7 +43,7 @@ async function tarballUrlOrder(): Promise<string[]> {
  * Downloads and verifies the onnxruntime-node native binary (napi addon + shared lib)
  * for the current platform/arch on first use of local embedding or local OCR. The
  * package is no longer bundled at build time (see electron-builder.yml/before-pack.js) —
- * `onnxruntime-node`'s `dist/binding.js` is patched (see patches/onnxruntime-node@1.24.3.patch)
+ * `onnxruntime-node`'s `dist/binding.js` is patched (see patches/onnxruntime-node@1.25.1.patch)
  * to require this downloaded copy via `CHERRY_ONNXRUNTIME_BINDING_PATH` instead of its own
  * bundled-relative path.
  *
@@ -194,6 +193,7 @@ class OnnxRuntimeBinaryService {
     leaf: { binding: string; sharedLibs: string[] }
   ): Promise<void> {
     await fs.promises.mkdir(extractDir, { recursive: true })
+    const { extract } = await import('tar')
     const wanted = new Set([leaf.binding, ...leaf.sharedLibs])
     const leafPrefix = `package/bin/napi-v6/${process.platform}/${process.arch}/`
     await extract({

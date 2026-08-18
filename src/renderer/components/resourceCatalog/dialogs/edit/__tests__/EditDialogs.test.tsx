@@ -269,7 +269,9 @@ vi.mock('react-i18next', async (importOriginal) => {
   return {
     ...actual,
     useTranslation: () => ({
-      t: (key: string, fallback?: string) =>
+      // Second arg is a fallback string OR an interpolation options object;
+      // an object resolves to the mapped value / key, never to itself.
+      t: (key: string, fallbackOrOptions?: string | Record<string, unknown>) =>
         ({
           'agent.settings.tooling.preapproved.autoBadge': 'Added by mode',
           'agent.settings.tooling.preapproved.autoDisabledTooltip': 'Added by {{mode}}',
@@ -328,9 +330,18 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.agent.section.tools.tab.mcp': 'MCP',
           'library.config.agent.section.tools.tab.skills': '技能',
           'library.config.agent.section.tools.tab.tools': 'Built-in tools',
+          'agent.tools.builtin.bash.description': 'Run shell commands',
+          'agent.tools.builtin.bash.label': 'Run shell commands',
+          'agent.tools.builtin.read.description': 'Read files',
+          'agent.tools.builtin.read.label': 'Read files',
           'library.config.agent.model_config': 'Model',
           'library.config.basic.field.description.hint': 'Short assistant summary.',
           'library.config.basic.field.description.placeholder': 'Describe this assistant',
+          'library.config.basic.context_management': 'Customize context management',
+          'library.config.basic.context_inherited': 'Following the global settings',
+          'library.config.basic.context_count': 'Recent messages kept',
+          'library.config.basic.context_truncate_threshold': 'Tool-output truncation threshold',
+          'library.config.basic.context_count_unlimited': 'Unlimited',
           'library.config.basic.custom_params': 'Custom parameters',
           'library.config.basic.custom_params_add': 'Add parameter',
           'library.config.basic.custom_params_name': 'Parameter name',
@@ -433,7 +444,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'settings.mcp.runtimeStatus.unavailable': 'Unavailable',
           'settings.title': 'Settings'
         })[key] ??
-        fallback ??
+        (typeof fallbackOrOptions === 'string' ? fallbackOrOptions : undefined) ??
         key
     })
   }
@@ -493,6 +504,13 @@ const AGENT: AgentDetail = {
   modelName: 'Old Model',
   createdAt: '2024-01-01T00:00:00.000Z',
   updatedAt: '2024-01-01T00:00:00.000Z'
+}
+
+const PI_AGENT: AgentDetail = {
+  ...AGENT,
+  id: 'pi-agent-1',
+  type: 'pi',
+  name: 'Pi Agent'
 }
 
 beforeAll(() => {
@@ -1047,6 +1065,54 @@ describe('edit dialogs', () => {
     )
   })
 
+  it('names the context override for what it does and states what is inherited while off', async () => {
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
+
+    selectTab('Model')
+
+    // The switch overrides the globals — it does not turn context management
+    // off, so it must not be named after the feature.
+    const overrideSwitch = await screen.findByRole('switch', { name: 'Customize context management' })
+    expect(overrideSwitch).not.toBeChecked()
+    expect(screen.getByText('Following the global settings')).toBeVisible()
+    // Offload/compression fields belong to the override and stay hidden…
+    expect(screen.queryByLabelText('Tool-output truncation threshold')).not.toBeInTheDocument()
+
+    fireEvent.click(overrideSwitch)
+
+    expect(await screen.findByLabelText('Tool-output truncation threshold')).toBeInTheDocument()
+    expect(screen.queryByText('Following the global settings')).not.toBeInTheDocument()
+  })
+
+  it('keeps the message limit outside the override, since scope is not an overflow policy', async () => {
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
+
+    selectTab('Model')
+
+    // …while the scope control is reachable with the override off.
+    const overrideSwitch = await screen.findByRole('switch', { name: 'Customize context management' })
+    expect(overrideSwitch).not.toBeChecked()
+    expect(screen.getByLabelText('Recent messages kept')).toBeInTheDocument()
+  })
+
+  it('expresses "no message limit" as an empty named field rather than a second switch', async () => {
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
+
+    selectTab('Model')
+
+    const input = await screen.findByLabelText('Recent messages kept')
+    // No stored override → unlimited, shown as an empty field with a placeholder.
+    expect(input).toHaveValue(null)
+    expect(input).toHaveAttribute('placeholder', 'Unlimited')
+    // The limit is one control, not a switch plus a number.
+    expect(screen.queryByRole('switch', { name: 'Recent messages kept' })).not.toBeInTheDocument()
+
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: '5' } })
+    fireEvent.blur(input)
+    expect(input).toHaveValue(5)
+  })
+
   it('repairs invalid legacy max tokens when enabling the limit', async () => {
     render(
       <AssistantEditDialog
@@ -1184,14 +1250,12 @@ describe('edit dialogs', () => {
     fireEvent.click(await screen.findByRole('option', { name: /Plan Only/ }))
 
     selectTab('Advanced')
-    expect(screen.queryByText('Max turns')).not.toBeInTheDocument()
     expectHelpTrigger('Environment variables', 'One KEY=VALUE per line')
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'FOO=bar' } })
 
     await waitFor(() => expect(updateAgentMock).toHaveBeenCalled())
     const body = vi.mocked(updateAgentMock).mock.calls[0][0].body
     expect(body).not.toHaveProperty('allowedTools')
-    expect(body.configuration).toHaveProperty('max_turns', undefined)
     expect(body.configuration).toEqual(
       expect.objectContaining({
         env_vars: { FOO: 'bar' },
@@ -1217,6 +1281,24 @@ describe('edit dialogs', () => {
 
     selectTab('技能')
     expect(screen.getByText('Skill One')).toBeInTheDocument()
+  })
+
+  it('projects pi capabilities without exposing Claude-only fields', async () => {
+    render(<AgentEditDialog open resource={PI_AGENT} onOpenChange={vi.fn()} />)
+
+    expect(screen.queryByText('Plan model')).not.toBeInTheDocument()
+    expect(screen.queryByText('Small model')).not.toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Knowledge' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'MCP' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: '技能' })).toBeInTheDocument()
+
+    selectTab('Built-in tools')
+    expect(screen.getByRole('switch', { name: 'Read files' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('switch', { name: 'Run shell commands' }))
+
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({ body: expect.objectContaining({ disabledTools: ['bash'] }) })
+    )
   })
 
   it('removes deleted knowledge bases from an open agent form', async () => {
@@ -1335,6 +1417,70 @@ describe('edit dialogs', () => {
         body: expect.objectContaining({
           skillUpdates: [{ skillId: 'skill-1', isEnabled: false }]
         })
+      })
+    )
+  })
+
+  it('restores a globally re-enabled persisted skill without overwriting local or hidden selections', async () => {
+    const hiddenSkill = {
+      id: 'skill-hidden',
+      name: 'Hidden Skill',
+      description: 'Hidden while globally disabled',
+      isEnabled: true
+    }
+    const localSkill = {
+      id: 'skill-local',
+      name: 'Local Edit Skill',
+      description: 'Changed in this dialog',
+      isEnabled: false
+    }
+    const reenabledSkill = {
+      id: 'skill-reenabled',
+      name: 'Re-enabled Skill',
+      description: 'Disabled when the dialog opened',
+      isEnabled: true
+    }
+    installedSkillsState.current = {
+      skills: [hiddenSkill, localSkill],
+      loading: false,
+      refreshing: false
+    }
+    const props = { open: true, resource: AGENT, onOpenChange: vi.fn(), initialTab: 'tools.skills' as const }
+    const { rerender } = render(<AgentEditDialog {...props} />)
+
+    await waitFor(() => expect(screen.getByRole('switch', { name: 'Hidden Skill' })).toBeChecked())
+
+    installedSkillsState.current = {
+      ...installedSkillsState.current,
+      skills: [localSkill]
+    }
+    rerender(<AgentEditDialog {...props} />)
+    expect(screen.queryByRole('switch', { name: 'Hidden Skill' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Local Edit Skill' }))
+
+    installedSkillsState.current = {
+      ...installedSkillsState.current,
+      skills: [hiddenSkill, localSkill, reenabledSkill]
+    }
+    rerender(<AgentEditDialog {...props} />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('switch', { name: 'Hidden Skill' })).toBeChecked()
+      expect(screen.getByRole('switch', { name: 'Local Edit Skill' })).toBeChecked()
+      expect(screen.getByRole('switch', { name: 'Re-enabled Skill' })).toBeChecked()
+    })
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenNthCalledWith(1, {
+        body: { skillUpdates: [{ skillId: 'skill-local', isEnabled: true }] }
+      })
+    )
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Re-enabled Skill' }))
+
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenNthCalledWith(2, {
+        body: { skillUpdates: [{ skillId: 'skill-reenabled', isEnabled: false }] }
       })
     )
   })
