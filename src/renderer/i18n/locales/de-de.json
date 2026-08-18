@@ -800,6 +800,7 @@
       "restartSuccess": "API-Server erfolgreich neu gestartet",
       "startError": "API-Server starten fehlgeschlagen:",
       "startSuccess": "API-Server erfolgreich gestartet",
+      "stopDeferred": "Der API-Server wird beendet, sobald die aktuelle Übersetzung abgeschlossen ist",
       "stopError": "API-Server stoppen fehlgeschlagen:",
       "stopSuccess": "API-Server erfolgreich gestoppt"
     },
@@ -1007,6 +1008,19 @@
       "knowledge_base_disabled_by_files": "Entfernen Sie angehängte Dateien, um die Wissensdatenbank zu verwenden.",
       "knowledge_base_unavailable": "Wählen Sie ein werkzeugfähiges Modell",
       "locate_editing_message": "Ursprüngliche Nachricht finden",
+      "mcp_prompts": {
+        "description": "Einen von einem MCP-Server bereitgestellten Prompt einfügen",
+        "empty": "Keine MCP-Prompts verfügbar",
+        "insert_failed": "Prompt konnte nicht eingefügt werden",
+        "title": "MCP-Prompts"
+      },
+      "mcp_resources": {
+        "description": "Eine von einem MCP-Server bereitgestellte Ressource referenzieren",
+        "empty": "Keine MCP-Ressourcen verfügbar",
+        "read_failed": "Ressource konnte nicht gelesen werden",
+        "reader_unavailable": "Das aktuelle Modell kann diese Ressource nach dem Anhängen nicht erneut lesen",
+        "title": "MCP-Ressourcen"
+      },
       "new": {
         "context": "Kontext löschen"
       },
@@ -5559,6 +5573,7 @@
       },
       "title": "Umgebungsabhängigkeiten",
       "tools": {
+        "babeldoc-stream": "Layouterhaltende PDF-Übersetzungs-Engine. Die Layout-Modelldaten werden bei der ersten Übersetzung heruntergeladen.",
         "bun": "JavaScript-Laufzeitumgebung für MCP-Dienste und zugehörige Werkzeugketten.",
         "claude": "Anthropics agentenbasiertes Programmierwerkzeug für das Terminal.",
         "codex": "OpenAIs quelloffener Programmieragent, der Code in Ihrem lokalen Repository lesen, bearbeiten und ausführen kann.",
@@ -7234,10 +7249,10 @@
     "history": {
       "back": "Zurück zur Liste",
       "clear": "Verlauf löschen",
-      "clear_description": "Verlauf löschen entfernt alle Übersetzungshistorien. Fortfahren?",
+      "clear_description": "Beim Leeren des Verlaufs werden alle Übersetzungsverläufe gelöscht und die dabei erzeugten übersetzten Dateien freigegeben. Fortfahren?",
       "copy_target": "Ergebnis kopieren",
       "delete": "Übersetzungshistorie löschen",
-      "delete_description": "Diesen Übersetzungsverlaufseintrag löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
+      "delete_description": "Diesen Eintrag aus dem Übersetzungsverlauf löschen? Bei einer Dateiübersetzung wird auch die übersetzte Datei freigegeben. Diese Aktion kann nicht rückgängig gemacht werden.",
       "empty": "Keine Übersetzungshistorie",
       "error": {
         "add": "Fehler beim Hinzufügen des Übersetzungsverlaufs",
@@ -7245,6 +7260,17 @@
         "delete": "Löschen fehlgeschlagen",
         "load": "Übersetzungsverlauf konnte nicht geladen werden",
         "save": "Speichern der Übersetzungshistorie fehlgeschlagen"
+      },
+      "file": {
+        "action_failed": "Diese Aktion konnte für die Datei nicht ausgeführt werden",
+        "badge": "Dateiübersetzung",
+        "export": "Übersetzte Datei speichern unter …",
+        "open": "Übersetzte Datei öffnen",
+        "preview": "Nebeneinander-Vorschau",
+        "reveal": "Im Ordner anzeigen",
+        "source": "Quelldatei",
+        "target": "Übersetzte Datei",
+        "unavailable": "Die Dateien dieser Übersetzung sind nicht mehr verfügbar"
       },
       "filter": {
         "starred": "Nur mit Stern"
@@ -7274,6 +7300,53 @@
     "language_settings": "Spracheinstellungen",
     "output": {
       "placeholder": "Übersetzen"
+    },
+    "pdf": {
+      "action": {
+        "close": "PDF-Übersetzung schließen",
+        "export": "Übersetztes PDF exportieren",
+        "install_babeldoc": "BabelDOC installieren",
+        "update_babeldoc": "BabelDOC aktualisieren"
+      },
+      "dependency": {
+        "checking": "BabelDOC wird überprüft...",
+        "description": "Installieren Sie das BabelDOC-Plugin, um PDFs unter Beibehaltung ihres ursprünglichen Layouts zu übersetzen.",
+        "installing": "BabelDOC wird installiert...",
+        "outdated_description": "Aktualisieren Sie BabelDOC, um PDFs weiterhin layouterhaltend zu übersetzen.",
+        "outdated_title": "BabelDOC-Update erforderlich",
+        "title": "PDF erkannt"
+      },
+      "error": {
+        "generic": "Bei der Übersetzung ist ein Fehler aufgetreten. Bitte versuchen Sie es erneut.",
+        "ocr_required": "Gescannte PDFs werden noch nicht unterstützt.",
+        "persist_failed": "Das PDF wurde übersetzt, das Ergebnis konnte jedoch nicht gespeichert werden. Bitte versuchen Sie es erneut.",
+        "title": "PDF-Übersetzung fehlgeschlagen"
+      },
+      "export_failed": "Übersetztes PDF konnte nicht exportiert werden",
+      "pane": {
+        "translated": "Übersetztes PDF",
+        "translated_text": "Übersetzung"
+      },
+      "progress": {
+        "analyzing": "Dokumentlayout wird analysiert",
+        "checking_assets": "PDF-Verarbeitungsressourcen werden geprüft",
+        "downloading_assets": "PDF-Verarbeitungsressourcen werden heruntergeladen...",
+        "extracting_terms": "Dokumentterminologie wird extrahiert",
+        "loading_model": "PDF-Verarbeitungsmodell wird geladen",
+        "parsing": "PDF-Dokument wird analysiert",
+        "percent": "{{progress}} %",
+        "preparing": "PDF-Übersetzung wird initialisiert",
+        "preparing_hint": "Die erste Initialisierung dauert etwa 2 Minuten; spätere Durchläufe sind in der Regel schneller",
+        "rendering": "Übersetztes PDF wird gerendert",
+        "translating": "Inhalt wird übersetzt",
+        "typesetting": "Übersetztes PDF wird gesetzt",
+        "value": "{{stage}}, Schritt {{stageProgress}} %, gesamt {{overallProgress}} %"
+      },
+      "ready": {
+        "description": "Wählen Sie eine Zielsprache und starten Sie die Übersetzung.",
+        "title": "Bereit zum Übersetzen"
+      },
+      "success": "Übersetztes PDF wurde erstellt"
     },
     "preferred_target": "Bevorzugtes Ziel",
     "processing": "Wird übersetzt...",

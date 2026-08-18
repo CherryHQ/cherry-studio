@@ -800,6 +800,7 @@
       "restartSuccess": "API 閘道重新啟動成功",
       "startError": "啟動 API 閘道失敗：",
       "startSuccess": "API 閘道啟動成功",
+      "stopDeferred": "目前翻譯完成後，API 閘道將自動停止",
       "stopError": "停止 API 閘道失敗：",
       "stopSuccess": "API 閘道停止成功"
     },
@@ -1007,6 +1008,19 @@
       "knowledge_base_disabled_by_files": "移除附加檔案以使用知識庫",
       "knowledge_base_unavailable": "選擇具備工具能力的模型",
       "locate_editing_message": "找出原始訊息",
+      "mcp_prompts": {
+        "description": "插入 MCP 伺服器提供的提示詞",
+        "empty": "沒有可用的 MCP 提示詞",
+        "insert_failed": "提示詞插入失敗",
+        "title": "MCP 提示詞"
+      },
+      "mcp_resources": {
+        "description": "引用 MCP 伺服器提供的資源",
+        "empty": "沒有可用的 MCP 資源",
+        "read_failed": "資源讀取失敗",
+        "reader_unavailable": "目前模型無法在附加後重新讀取此資源",
+        "title": "MCP 資源"
+      },
       "new": {
         "context": "清除上下文"
       },
@@ -5559,6 +5573,7 @@
       },
       "title": "環境相依套件",
       "tools": {
+        "babeldoc-stream": "保留版式的 PDF 翻譯引擎。首次翻譯時會下載版面模型資源。",
         "bun": "MCP 服務及相關工具鏈使用的 JavaScript 執行環境。",
         "claude": "Anthropic 的終端機 Agent 程式設計工具。",
         "codex": "OpenAI 的開源程式設計 Agent，可讀取、編輯和執行本機儲存庫中的程式碼。",
@@ -7234,10 +7249,10 @@
     "history": {
       "back": "返回清單",
       "clear": "清空歷史",
-      "clear_description": "清空歷史將刪除所有翻譯歷史記錄，是否繼續？",
+      "clear_description": "清空歷史將刪除所有翻譯歷史記錄，並一併回收其中產生的譯文檔案，是否繼續？",
       "copy_target": "複製譯文",
       "delete": "刪除翻譯歷史",
-      "delete_description": "確定要刪除這筆翻譯歷史記錄嗎？此操作無法復原。",
+      "delete_description": "確定要刪除這筆翻譯歷史記錄嗎？若是檔案翻譯，產生的譯文檔案也會一併回收。此操作無法復原。",
       "empty": "翻譯歷史為空",
       "error": {
         "add": "新增翻譯紀錄失敗",
@@ -7245,6 +7260,17 @@
         "delete": "刪除失敗",
         "load": "無法載入翻譯紀錄",
         "save": "儲存翻譯歷史失敗"
+      },
+      "file": {
+        "action_failed": "無法對該檔案執行此操作",
+        "badge": "檔案翻譯",
+        "export": "另存譯文檔案…",
+        "open": "開啟譯文檔案",
+        "preview": "雙欄預覽",
+        "reveal": "在資料夾中顯示",
+        "source": "來源檔案",
+        "target": "譯文檔案",
+        "unavailable": "該翻譯記錄的檔案已無法使用"
       },
       "filter": {
         "starred": "僅顯示收藏"
@@ -7274,6 +7300,53 @@
     "language_settings": "語言設定",
     "output": {
       "placeholder": "翻譯"
+    },
+    "pdf": {
+      "action": {
+        "close": "關閉 PDF 翻譯",
+        "export": "匯出譯文 PDF",
+        "install_babeldoc": "安裝 BabelDOC",
+        "update_babeldoc": "更新 BabelDOC"
+      },
+      "dependency": {
+        "checking": "正在偵測 BabelDOC...",
+        "description": "安裝 BabelDOC 外掛程式即可在翻譯 PDF 時保留原始版式。",
+        "installing": "正在安裝 BabelDOC...",
+        "outdated_description": "更新 BabelDOC 後即可繼續保留原始版式翻譯 PDF。",
+        "outdated_title": "需要更新 BabelDOC",
+        "title": "偵測到 PDF"
+      },
+      "error": {
+        "generic": "翻譯過程中發生錯誤，請重試。",
+        "ocr_required": "暫不支援掃描版 PDF",
+        "persist_failed": "PDF 已翻譯完成，但譯文儲存失敗，請重試。",
+        "title": "PDF 翻譯失敗"
+      },
+      "export_failed": "匯出譯文 PDF 失敗",
+      "pane": {
+        "translated": "譯文 PDF",
+        "translated_text": "譯文"
+      },
+      "progress": {
+        "analyzing": "正在分析文件版面",
+        "checking_assets": "正在檢查 PDF 處理資源",
+        "downloading_assets": "正在下載 PDF 處理資源...",
+        "extracting_terms": "正在擷取文件術語",
+        "loading_model": "正在載入 PDF 處理模型",
+        "parsing": "正在解析 PDF 文件",
+        "percent": "{{progress}}%",
+        "preparing": "正在初始化 PDF 翻譯",
+        "preparing_hint": "首次初始化可能需要約 2 分鐘，後續通常會更快",
+        "rendering": "正在算繪譯文 PDF",
+        "translating": "正在翻譯內容",
+        "typesetting": "正在排版譯文 PDF",
+        "value": "{{stage}}，階段 {{stageProgress}}%，總體 {{overallProgress}}%"
+      },
+      "ready": {
+        "description": "選擇目標語言並開始翻譯。",
+        "title": "等待翻譯"
+      },
+      "success": "譯文 PDF 已產生"
     },
     "preferred_target": "首選目標",
     "processing": "翻譯中...",
