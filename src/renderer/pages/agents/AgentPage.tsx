@@ -26,11 +26,13 @@ import { useCommandHandler } from '@renderer/hooks/command'
 import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs, useCurrentTabId, useIsActiveTab, useTabSelfVisuals } from '@renderer/hooks/tab'
 import { useClassicLayoutRightPaneOpen } from '@renderer/hooks/useClassicLayoutRightPaneOpen'
+import { useComposerFocusRequest } from '@renderer/hooks/useComposerFocusRequest'
 import { useConversationCenterSurface } from '@renderer/hooks/useConversationCenterSurface'
 import { useConversationShellPaneState } from '@renderer/hooks/useConversationShellPaneState'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
 import { toast } from '@renderer/services/toast'
+import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
@@ -123,6 +125,9 @@ const AgentPage = () => {
   const { agents, isLoading: isAgentsLoading } = useAgents()
   const agentIdSet = useMemo(() => new Set(agents.map((agent) => agent.id)), [agents])
   const [activeSessionId, setActiveSessionIdState] = useState<string | null>(() => routeActiveSessionId)
+  const requestComposerFocus = useComposerFocusRequest(
+    activeSessionId ? buildAgentSessionTopicId(activeSessionId) : null
+  )
   const syncedRouteActiveSessionIdRef = useRef(routeActiveSessionId)
   const ownerFallbackRequestIdRef = useRef(0)
   // Page-initiated selection writes the tab URL — the conversation's sole identity channel —
@@ -427,8 +432,9 @@ const AgentPage = () => {
       }
       setActiveSession(session)
       closeSurface()
+      requestComposerFocus(buildAgentSessionTopicId(session.id))
     },
-    [closeSurface, rememberLastUsedSession, setActiveSession]
+    [closeSurface, rememberLastUsedSession, requestComposerFocus, setActiveSession]
   )
 
   const resolveEmptySession = useCallback(

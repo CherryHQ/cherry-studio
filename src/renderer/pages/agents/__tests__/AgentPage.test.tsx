@@ -348,6 +348,7 @@ vi.mock('@renderer/hooks/tab', () => ({
 
 vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: {
+    FOCUS_CHAT_COMPOSER: 'FOCUS_CHAT_COMPOSER',
     GLOBAL_SEARCH_SELECT_AGENT_SESSION: 'GLOBAL_SEARCH_SELECT_AGENT_SESSION',
     GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE: 'GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE',
     SHOW_ASSISTANTS: 'SHOW_ASSISTANTS',
@@ -1930,6 +1931,41 @@ describe('AgentPage', () => {
 
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-empty-latest'))
     expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
+    expect(agentPageMocks.invalidateCache).not.toHaveBeenCalled()
+    await waitFor(() =>
+      expect(EventEmitter.emit).toHaveBeenCalledWith('FOCUS_CHAT_COMPOSER', {
+        topicId: 'agent-session:session-empty-latest'
+      })
+    )
+  })
+
+  it('excludes the just-deleted session from reuse so the post-delete replacement creates a fresh one', async () => {
+    // Regression: after deleting the last session of an agent, the stale candidate list still holds
+    // the deleted empty (untouched) session — reused without a DB re-check. Without the exclusion the
+    // fallback would reactivate the deleted id instead of creating a replacement.
+    agentPageMocks.agents = [{ id: 'agent-a', model: 'model-a', name: 'Agent A' }]
+    agentPageMocks.classicLayoutSessions = [
+      {
+        id: 'session-empty-system-a',
+        agentId: 'agent-a',
+        name: '',
+        isNameManuallyEdited: false,
+        createdAt: '2026-01-03T03:00:00.000Z',
+        updatedAt: '2026-01-03T03:00:00.000Z',
+        workspace: { type: 'system' }
+      }
+    ]
+
+    render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Replace deleted panel session' }))
+
+    await waitFor(() =>
+      expect(agentPageMocks.dataApiPost).toHaveBeenCalledWith('/agent-sessions', {
+        body: { agentId: 'agent-a', name: '', workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM } }
+      })
+    )
+    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-created'))
   })
 
   it('reuses the latest empty system session and deletes duplicate empty system sessions from the composer button', async () => {
@@ -2037,6 +2073,11 @@ describe('AgentPage', () => {
       })
     )
     expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-composer-empty')
+    await waitFor(() =>
+      expect(EventEmitter.emit).toHaveBeenCalledWith('FOCUS_CHAT_COMPOSER', {
+        topicId: 'agent-session:session-composer-empty'
+      })
+    )
   })
 
   it('prevents duplicate empty session creation from rapid classic-layout composer clicks', async () => {
