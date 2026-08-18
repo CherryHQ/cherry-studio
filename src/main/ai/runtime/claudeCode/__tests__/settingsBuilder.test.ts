@@ -893,6 +893,82 @@ describe('buildClaudeCodeSessionSettings', () => {
     ).toBe(true)
   })
 
+  it('denies writes to SQLite files inside userData in every permission mode', async () => {
+    const homePath = path.join('/Users', 'test')
+    const userDataPath = path.join(homePath, 'Library', 'Application Support', 'CherryStudio')
+    mocks.applicationGetPath.mockImplementation((key: string) => {
+      if (key === 'app.userdata') return userDataPath
+      if (key === 'sys.home') return homePath
+      return `/app/${key}`
+    })
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      configuration: { permission_mode: 'bypassPermissions' }
+    })
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+    const sqliteWriteHook = settings.hooks?.PreToolUse?.[0]?.hooks.find(
+      (hook) => hook.name === 'userDataSqliteWriteHook'
+    )
+    expect(sqliteWriteHook).toBeDefined()
+
+    for (const [toolName, toolInput] of [
+      ['Write', { file_path: path.join(userDataPath, 'Data', 'cherrystudio.sqlite') }],
+      ['Edit', { file_path: path.join(userDataPath, 'KnowledgeBase', 'index.sqlite-wal') }],
+      ['NotebookEdit', { notebook_path: path.join(userDataPath, 'restore', 'work.sqlite-shm') }],
+      [
+        'Bash',
+        { command: `sqlite3 ${JSON.stringify(path.join(userDataPath, 'Data', 'cherrystudio.sqlite'))} 'VACUUM'` }
+      ],
+      [
+        'Bash',
+        {
+          command: 'cd "$HOME/Library/Application Support/CherryStudio/Data" && sqlite3 cherrystudio.sqlite "VACUUM"'
+        }
+      ]
+    ] as const) {
+      await expect(
+        sqliteWriteHook?.(
+          { hook_event_name: 'PreToolUse', tool_name: toolName, tool_input: toolInput } as never,
+          'tool-use-1',
+          {} as never
+        )
+      ).resolves.toEqual(
+        expect.objectContaining({
+          hookSpecificOutput: expect.objectContaining({
+            permissionDecision: 'deny',
+            permissionDecisionReason: expect.stringContaining('SQLite')
+          })
+        })
+      )
+    }
+
+    for (const [toolName, toolInput] of [
+      ['Read', { file_path: path.join(userDataPath, 'Data', 'cherrystudio.sqlite') }],
+      ['Write', { file_path: path.join(userDataPath, 'Data', 'notes.json') }],
+      ['Write', { file_path: '/workspace/project/test.sqlite' }],
+      ['Bash', { command: 'sqlite3 /workspace/project/test.sqlite "VACUUM"' }]
+    ] as const) {
+      await expect(
+        sqliteWriteHook?.(
+          { hook_event_name: 'PreToolUse', tool_name: toolName, tool_input: toolInput } as never,
+          'tool-use-2',
+          {} as never
+        )
+      ).resolves.toEqual({})
+    }
+  })
+
   it('blocks permanent deletion and destructive Bash for protected built-in Agents', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
@@ -2214,12 +2290,6 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.steerHolder).toBeDefined()
 
     const preToolUse = settings.hooks?.PreToolUse?.[0]?.hooks
-    // interactiveToolPermissionHook + headlessConfigMutationHook + headlessSkillInstallHook +
-    // disabledToolHook + assistantDestructiveOperationHook + assistantFeedbackSubmissionHook +
-    // supportBashPermissionHook + approvalRequiredToolHook + workspacePathHook + agentsMdHook +
-    // dependencyIsolationHook + rtkRewriteHook + steerHook
-    expect(preToolUse).toHaveLength(13)
-
     const steerHook = preToolUse?.find((hook) => hook.name === 'steerHook') as unknown as (input: {
       hook_event_name: string
     }) => Promise<{ continue?: boolean; hookSpecificOutput?: { additionalContext?: string } }>

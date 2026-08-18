@@ -219,6 +219,13 @@ const WORKSPACE_PATH_FIELDS = {
   Read: 'file_path',
   Write: 'file_path'
 } as const
+const SQLITE_WRITE_PATH_FIELDS = {
+  Edit: 'file_path',
+  NotebookEdit: 'notebook_path',
+  Write: 'file_path'
+} as const
+const SQLITE_FILE_PATTERN = /\.sqlite(?:-(?:journal|shm|wal))?$/i
+const SQLITE_PATH_MENTION_PATTERN = /\.sqlite(?:-(?:journal|shm|wal))?(?=$|[\s,)}\]])/i
 
 const toolApprovalEmitters = new Map<string, ToolApprovalEmitterHolder>()
 
@@ -695,6 +702,71 @@ async function isPathWithinAllowedRoots(cwd: string, agentDataPath: string, requ
   )
 }
 
+function normalizeShellPathText(value: string): string {
+  const normalized = value
+    .replace(/\\([\\\s"'`$])/g, '$1')
+    .replace(/["']/g, '')
+    .replaceAll('\\', '/')
+  return isMac || isWin ? normalized.toLowerCase() : normalized
+}
+
+function commandReferencesUserDataSqlite(
+  command: string,
+  userDataPath: string,
+  databaseFile: string,
+  homePath: string
+): boolean {
+  const normalizedHome = normalizeShellPathText(path.resolve(homePath))
+  const normalizedCommand = normalizeShellPathText(command).replace(/(?:\$\{home\}|\$home|~)(?=\/)/gi, normalizedHome)
+  const normalizedDatabaseFile = normalizeShellPathText(path.resolve(databaseFile))
+  if (normalizedCommand.includes(normalizedDatabaseFile)) return true
+
+  const normalizedUserData = normalizeShellPathText(path.resolve(userDataPath)).replace(/\/+$/, '')
+  let searchFrom = 0
+  while (searchFrom < normalizedCommand.length) {
+    const rootIndex = normalizedCommand.indexOf(normalizedUserData, searchFrom)
+    if (rootIndex === -1) return false
+
+    const suffix = normalizedCommand.slice(rootIndex + normalizedUserData.length)
+    if ((suffix === '' || suffix.startsWith('/')) && SQLITE_PATH_MENTION_PATTERN.test(suffix)) {
+      return true
+    }
+    searchFrom = rootIndex + normalizedUserData.length
+  }
+  return false
+}
+
+async function isUserDataSqlitePath(
+  requestedPath: string,
+  cwd: string,
+  userDataPath: string,
+  databaseFile: string,
+  homePath: string
+): Promise<boolean> {
+  const expandedPath =
+    requestedPath === '~'
+      ? homePath
+      : requestedPath.startsWith('~/') || requestedPath.startsWith('~\\')
+        ? path.join(homePath, requestedPath.slice(2))
+        : requestedPath
+  const absoluteTarget = path.isAbsolute(expandedPath) ? path.resolve(expandedPath) : path.resolve(cwd, expandedPath)
+  const [resolvedTarget, resolvedUserData, resolvedDatabaseFile] = await Promise.all([
+    resolveRealOrNearestExistingPath(absoluteTarget),
+    resolveRealOrNearestExistingPath(path.resolve(userDataPath)),
+    resolveRealOrNearestExistingPath(path.resolve(databaseFile))
+  ])
+  const normalizedTarget = isMac || isWin ? resolvedTarget.toLowerCase() : resolvedTarget
+  const normalizedUserData = isMac || isWin ? resolvedUserData.toLowerCase() : resolvedUserData
+  const normalizedDatabaseFile = isMac || isWin ? resolvedDatabaseFile.toLowerCase() : resolvedDatabaseFile
+
+  return (
+    (normalizedTarget === normalizedDatabaseFile || SQLITE_FILE_PATTERN.test(path.basename(normalizedTarget))) &&
+    (normalizedTarget === normalizedDatabaseFile ||
+      normalizedTarget === normalizedUserData ||
+      isPathInside(normalizedTarget, normalizedUserData))
+  )
+}
+
 export async function getClaudeCodeLoginShellEnvironment(
   currentProxyEnvironment: Environment
 ): Promise<Record<string, string | undefined>> {
@@ -912,6 +984,9 @@ async function buildToolPermissions(
   const cwd = session.workspace?.path
   const conditionContext: ClaudeToolContext | undefined = cwd ? { cwd } : undefined
   const approvalRequiredTools = approvalRequiredRuntimeNames(assistantMcpEnabled)
+  const userDataPath = application.getPath('app.userdata')
+  const databaseFile = application.getPath('app.database.file')
+  const homePath = application.getPath('sys.home')
 
   const toolPolicySnapshot = await ensureToolPolicySnapshot(session.id, agent, {
     // cherry-tools is injected for every session. Auto-allowing these explicit tools (no per-call
@@ -1166,6 +1241,38 @@ async function buildToolPermissions(
     }
   }
 
+  // PreToolUse still runs when permission modes skip canUseTool. Bash is denied whenever it names a
+  // protected SQLite path because arbitrary shell text cannot be classified as read-only safely.
+  const userDataSqliteWriteHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+    if (!input || input.hook_event_name !== 'PreToolUse') return {}
+    const toolName = String((input as Record<string, unknown>).tool_name ?? '')
+    const toolInput = (input as Record<string, unknown>).tool_input as Record<string, unknown> | undefined
+    let isProtectedWrite = false
+
+    if (toolName === 'Bash') {
+      const command = toolInput?.command
+      isProtectedWrite =
+        typeof command === 'string' && commandReferencesUserDataSqlite(command, userDataPath, databaseFile, homePath)
+    } else {
+      const pathField = SQLITE_WRITE_PATH_FIELDS[toolName as keyof typeof SQLITE_WRITE_PATH_FIELDS]
+      const requestedPath = pathField ? toolInput?.[pathField] : undefined
+      isProtectedWrite =
+        typeof requestedPath === 'string' &&
+        (await isUserDataSqlitePath(requestedPath, cwd, userDataPath, databaseFile, homePath))
+    }
+
+    if (!isProtectedWrite) return {}
+    logger.info('Blocked direct Agent write to a userData SQLite file', { sessionId: session.id, toolName })
+    return {
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'deny',
+        permissionDecisionReason:
+          'Direct writes to SQLite files inside Cherry Studio user data are blocked. Use Cherry Studio APIs instead.'
+      }
+    }
+  }
+
   // Protected built-in Agents may edit automatically, but must never turn that convenience into
   // irreversible deletion. Block permanent deletion tools and common destructive Bash operations
   // under every permission mode; confirmed workspace deletion goes through the dedicated
@@ -1385,6 +1492,7 @@ async function buildToolPermissions(
             headlessConfigMutationHook,
             headlessSkillInstallHook,
             disabledToolHook,
+            userDataSqliteWriteHook,
             assistantDestructiveOperationHook,
             assistantFeedbackSubmissionHook,
             supportBashPermissionHook,
