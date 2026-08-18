@@ -90,6 +90,7 @@ patchedDependencies:
   '@ai-sdk/react@3.0.187': patches/@ai-sdk__react@3.0.187.patch
   '@streamdown/code@1.1.1': patches/@streamdown__code@1.1.1.patch
   streamdown@2.5.0: patches/streamdown@2.5.0.patch
+  app-builder-lib@26.15.6: patches/app-builder-lib@26.15.6.patch
 
 allowBuilds:
   '@deepseek-ai/dsh-subprocess-local': true
@@ -106,6 +107,7 @@ allowBuilds:
   esbuild: true
   koffi: true
   msw: true
+  node-mac-permissions: true
   node-pty: true
   onnxruntime-node: true
   protobufjs: true

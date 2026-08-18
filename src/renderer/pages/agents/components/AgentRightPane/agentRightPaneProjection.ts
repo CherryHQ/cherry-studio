@@ -353,24 +353,43 @@ export function buildAgentToolFlowProjection(
   }
 }
 
-/** Applies one task-ledger tool part; returns whether the part was a ledger write. */
+interface TaskPlanProjectionState {
+  tasks: Map<string, AgentStatusTask>
+  /** Undefined until a TaskCreate is observed, preserving TaskList-only history. */
+  currentPlanTaskIds?: Set<string>
+}
+
 function applyTaskToolPart(
-  taskMap: Map<string, AgentStatusTask>,
+  state: TaskPlanProjectionState,
   part: CherryMessagePart,
-  fallbackId: string
+  fallbackId: string,
+  toolName: string | undefined
 ): boolean {
-  const toolName = getToolNameFromPart(part)
+  const taskMap = state.tasks
   const input = getToolPartInput(part)
   const output = getToolPartOutput(part)
 
   if (toolName === AgentToolsType.TaskCreate) {
+    const currentPlanCompleted =
+      taskMap.size > 0 && Array.from(taskMap.values()).every((task) => task.status === 'completed')
+    if (currentPlanCompleted) {
+      taskMap.clear()
+      state.currentPlanTaskIds = new Set()
+    } else if (taskMap.size === 0 && !state.currentPlanTaskIds) {
+      state.currentPlanTaskIds = new Set()
+    }
+
     const inputRecord = isTaskRecord(input) ? input : {}
     const outputRecord = isTaskRecord(output) ? output : {}
     const outputTask = isTaskRecord(outputRecord.task) ? outputRecord.task : undefined
-    const id = (outputTask ? getTaskId(outputTask) : undefined) ?? getNextTaskOrdinalId(taskMap) ?? fallbackId
+    const outputTextId =
+      typeof output === 'string' ? output.match(/^Task #(\S+) created successfully:/)?.[1] : undefined
+    const id =
+      (outputTask ? getTaskId(outputTask) : undefined) ?? outputTextId ?? getNextTaskOrdinalId(taskMap) ?? fallbackId
     const title = (outputTask ? getTaskTitle(outputTask) : undefined) ?? getTaskTitle(inputRecord, id) ?? id
     const activeText = getTaskActiveText(inputRecord)
     taskMap.set(id, { id, title, activeText, status: 'pending' })
+    state.currentPlanTaskIds?.add(id)
     return true
   }
 
@@ -395,6 +414,7 @@ function applyTaskToolPart(
       const id = getTaskId(task)
       const title = getTaskTitle(task, id)
       if (!id || !title) continue
+      if (state.currentPlanTaskIds && !state.currentPlanTaskIds.has(id)) continue
       taskMap.set(id, {
         id,
         title,
@@ -503,7 +523,8 @@ export function buildAgentRightPaneStatus(
   /** Omitted means "trust the events" — production always passes it. */
   liveness?: AgentRunLiveness
 ): AgentRightPaneStatus {
-  const taskMap = new Map<string, AgentStatusTask>()
+  const taskPlanState: TaskPlanProjectionState = { tasks: new Map() }
+  const taskMap = taskPlanState.tasks
   let todoSnapshotTasks: AgentStatusTask[] | undefined
   const runTaskMap = new Map<string, AgentRunTask>()
   const runTaskOriginMessageIds = new Map<string, string>()
@@ -517,14 +538,14 @@ export function buildAgentRightPaneStatus(
       }
 
       if (!isToolUIPart(part)) return
+      const toolName = getToolNameFromPart(part)
       const fallbackId = getToolCallId(part) ?? `${message.id}-${partIndex}`
       // The plan has two writers — the incremental task ledger and full-list todo snapshots —
       // and the most recent writer owns it: a later ledger write invalidates an earlier snapshot.
-      if (applyTaskToolPart(taskMap, part, fallbackId)) todoSnapshotTasks = undefined
+      if (applyTaskToolPart(taskPlanState, part, fallbackId, toolName)) todoSnapshotTasks = undefined
       const todoSnapshot = getTodoSnapshot(part)
       if (todoSnapshot !== undefined) todoSnapshotTasks = todoSnapshot
 
-      const toolName = getToolNameFromPart(part)
       if (isReportArtifactsTool(toolName)) {
         const parsed = reportArtifactsInputSchema.safeParse(getToolPartInput(part))
         if (parsed.success) {
