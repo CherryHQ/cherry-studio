@@ -1495,10 +1495,14 @@ export function Topics({
     },
     [assistantById, assistantIconType, defaultModelId, isAssistantDisplayMode]
   )
-  // See Sessions: assistants are entities; pinned and unlinked groups only gather rows, so
+  // See Sessions: assistants are entities; pinned, ordinary and unlinked groups only gather rows, so
   // they use the recessed bucket voice while staying on the shared row rhythm.
   const getGroupHeaderKind = useCallback((group: { id: string }): ResourceListGroupHeaderKind => {
-    return group.id === TOPIC_UNLINKED_ASSISTANT_GROUP_ID || group.id === TOPIC_PINNED_GROUP_ID ? 'bucket' : 'entity'
+    return group.id === TOPIC_UNLINKED_ASSISTANT_GROUP_ID ||
+      group.id === TOPIC_PINNED_GROUP_ID ||
+      group.id === TOPIC_ORDINARY_GROUP_ID
+      ? 'bucket'
+      : 'entity'
   }, [])
 
   const getGroupHeaderTooltip = useCallback(
@@ -1910,7 +1914,7 @@ export function Topics({
         selectedId={hasActiveCenterSurface ? null : activeTopic?.id}
         groupBy={topicGroupBy}
         sectionBy={topicSectionBy}
-        collapsedState={collapsedTopicState}
+        collapsedState={isAssistantDisplayMode ? collapsedTopicState : undefined}
         revealRequest={preparedRevealRequest}
         defaultGroupVisibleCount={defaultGroupVisibleCount}
         getGroupHeaderAction={getGroupHeaderAction}

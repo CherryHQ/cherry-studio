@@ -2530,7 +2530,7 @@ const Sessions = ({
       selectedId={hasActiveCenterSurface ? null : activeSessionId}
       groupBy={sessionGroupBy}
       sectionBy={sessionSectionBy}
-      collapsedState={collapsedSessionState}
+      collapsedState={displayMode === 'time' ? undefined : collapsedSessionState}
       revealRequest={preparedRevealRequest}
       defaultGroupVisibleCount={defaultGroupVisibleCount}
       getSectionHeaderAction={getSectionHeaderAction}

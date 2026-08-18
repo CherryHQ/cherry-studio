@@ -1030,6 +1030,8 @@ describe('Topics', () => {
     const pinnedGroup = screen.getByRole('button', { name: 'Pinned' })
     const conversationGroup = screen.getByRole('button', { name: 'Conversations' })
     expect(pinnedGroup.compareDocumentPosition(conversationGroup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    // Structural group labels share the muted-foreground design token.
+    expect(conversationGroup.parentElement).toHaveClass('text-muted-foreground')
     expect(screen.queryByText('Today')).not.toBeInTheDocument()
     expect(screen.queryByText('Yesterday')).not.toBeInTheDocument()
     expect(screen.queryByText('This week')).not.toBeInTheDocument()
