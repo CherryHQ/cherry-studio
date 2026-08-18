@@ -2,6 +2,7 @@ import { CHERRYAI_DEFAULT_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/pr
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -61,6 +62,7 @@ const makeModel = (providerId: string, modelId: string, capabilities: string[] =
 
 beforeEach(() => {
   modelRecords.length = 0
+  MockUsePreferenceUtils.resetMocks()
 })
 
 describe('useConfigMetadata.gatewayModelsById', () => {
@@ -76,6 +78,21 @@ describe('useConfigMetadata.gatewayModelsById', () => {
     )
 
     expect([...result.current.gatewayModelsById.keys()]).toEqual([routableModel.id])
+  })
+
+  it('uses the global default model only when the gateway can route it', () => {
+    const routableModel = makeModel('anthropic', 'claude-chat')
+    modelRecords.push(routableModel)
+    MockUsePreferenceUtils.setPreferenceValue('chat.default_model_id', routableModel.id)
+
+    const { result, rerender } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE, [apiKeyProvider]))
+
+    expect(result.current.defaultGatewayModelId).toBe(routableModel.id)
+
+    MockUsePreferenceUtils.setPreferenceValue('chat.default_model_id', 'disabled::chat')
+    rerender()
+
+    expect(result.current.defaultGatewayModelId).toBeUndefined()
   })
 })
 
