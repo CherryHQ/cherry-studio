@@ -64,6 +64,7 @@ import { createComposerUserMessageParts, trimComposerDraftBoundaryBlankLines } f
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
+import { useComposerDraftTranslation } from '../useComposerDraftTranslation'
 import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
 import { useInputHistory } from '../useInputHistory'
 import { ChatConversationControls, type ChatConversationControlsProps } from './chat/ChatConversationControls'
@@ -650,6 +651,23 @@ const ChatComposerInner = ({
     },
     [resetHistoryIndex]
   )
+  const getDraftForTranslation = useCallback(() => actionsRef.current.getDraft(), [actionsRef])
+  const applyTranslatedDraft = useCallback(
+    (translatedDraft: ComposerSerializedDraft) => {
+      actionsRef.current.replaceDraft(translatedDraft)
+      setText(translatedDraft.text)
+      setDraftTokens(translatedDraft.tokens.length ? translatedDraft.tokens : undefined)
+    },
+    [actionsRef]
+  )
+  const focusTranslatedDraft = useCallback(() => actionsRef.current.focus('end'), [actionsRef])
+  const { isTranslating, onKeyDown: handleInputTranslationKeyDown } = useComposerDraftTranslation({
+    getDraft: getDraftForTranslation,
+    onTranslatedDraft: applyTranslatedDraft,
+    focusTranslatedDraft,
+    loggerContext: 'ChatComposer',
+    scopeKey: streamScopeKey
+  })
   const savedDraftBeforeEditingRef = useRef<SavedComposerDraft | null>(null)
   const editSaveInFlightSessionIdRef = useRef<number | null>(null)
   const editingOriginalFilePartsByTokenIdRef = useRef(new Map<string, ComposerFilePart>())
@@ -1777,6 +1795,7 @@ const ChatComposerInner = ({
             isSavingEdit ||
             sendDisabled ||
             searching ||
+            isTranslating ||
             runtimeModelPending ||
             hasPendingReference ||
             !!missingAssistantMessage ||
@@ -1839,11 +1858,13 @@ const ChatComposerInner = ({
           quickPanelEnabled={config.enableQuickPanel ?? true}
           enableDragDrop={config.enableDragDrop ?? true}
           enableSpellCheck={enableSpellCheck}
-          editable={!searching}
+          editable={!searching && !isTranslating}
           fontSize={fontSize}
           narrowMode={forceNarrowLayout || narrowMode}
           railGutterPx={railGutterPx}
           onFocus={() => setSearching(false)}
+          onKeyDown={handleInputTranslationKeyDown}
+          trailingActivityIndicatorLabel={isTranslating ? t('chat.input.translating') : undefined}
           onActionsChange={handleSurfaceActionsChange}
           isInputHistoryActive={isInputHistoryActive}
           onInputHistoryNavigate={handleInputHistoryNavigate}

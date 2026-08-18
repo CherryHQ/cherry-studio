@@ -1,6 +1,6 @@
 import { Button, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import ComposerSurface from '@renderer/components/composer/ComposerSurface'
+import ComposerSurface, { type ComposerSurfaceActions } from '@renderer/components/composer/ComposerSurface'
 import {
   ComposerToolDerivedStateProvider,
   ComposerToolRuntimeHost,
@@ -11,8 +11,9 @@ import {
   useComposerToolLauncherVersion,
   useComposerToolState
 } from '@renderer/components/composer/ComposerToolRuntime'
-import type { ComposerDraftToken } from '@renderer/components/composer/tokens'
+import type { ComposerDraftToken, ComposerSerializedDraft } from '@renderer/components/composer/tokens'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
+import { useComposerDraftTranslation } from '@renderer/components/composer/useComposerDraftTranslation'
 import {
   COMPOSER_SELECTOR_BUTTON_CLASS,
   ComposerToolbarControls
@@ -25,7 +26,7 @@ import type { Model } from '@shared/data/types/model'
 import { imageExts } from '@shared/utils/file'
 import { isEditImageModel } from '@shared/utils/model'
 import { Settings2 } from 'lucide-react'
-import { type FC, useCallback, useMemo } from 'react'
+import { type FC, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { BaseConfigItem } from '../form/baseConfigItem'
@@ -244,6 +245,29 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
   const handleTokensChange = useComposerTokenReconcile({ scope: PAINTING_SCOPE, model })
 
   const handleTextChange = useCallback((value: string) => onPromptChange(value), [onPromptChange])
+  const composerActionsRef = useRef<ComposerSurfaceActions | null>(null)
+  const getDraftForTranslation = useCallback(
+    () => composerActionsRef.current?.getDraft() ?? { text, tokens: [] },
+    [text]
+  )
+  const applyTranslatedDraft = useCallback(
+    (translatedDraft: ComposerSerializedDraft) => {
+      composerActionsRef.current?.replaceDraft(translatedDraft)
+      onPromptChange(translatedDraft.text)
+    },
+    [onPromptChange]
+  )
+  const focusTranslatedDraft = useCallback(() => composerActionsRef.current?.focus('end'), [])
+  const { isTranslating, onKeyDown: handleInputTranslationKeyDown } = useComposerDraftTranslation({
+    getDraft: getDraftForTranslation,
+    onTranslatedDraft: applyTranslatedDraft,
+    focusTranslatedDraft,
+    loggerContext: 'PaintingComposer',
+    scopeKey: painting.id
+  })
+  const handleSurfaceActionsChange = useCallback((actions: ComposerSurfaceActions) => {
+    composerActionsRef.current = actions
+  }, [])
 
   // The request is orchestrated by its owner (usePaintingGenerationSubmit), which
   // holds the re-entrancy guard and runs materialization only after the preconditions
@@ -264,7 +288,12 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
         leadingContent={couldAddImageFile ? <PaintingImageAddButton /> : undefined}
         placeholder={placeholder}
         sendDisabled={
-          generating || submitting || !model || (text.trim().length === 0 && files.length === 0) || missingRequiredImage
+          generating ||
+          submitting ||
+          isTranslating ||
+          !model ||
+          (text.trim().length === 0 && files.length === 0) ||
+          missingRequiredImage
         }
         sendBlockedReason={missingRequiredImage ? t('paintings.edit.image_required') : undefined}
         isLoading={generating}
@@ -278,8 +307,12 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
         quickPanelEnabled={config.enableQuickPanel ?? false}
         enableDragDrop={config.enableDragDrop ?? true}
         enableSpellCheck={enableSpellCheck}
+        editable={!isTranslating}
         fontSize={fontSize}
         narrowMode
+        onKeyDown={handleInputTranslationKeyDown}
+        trailingActivityIndicatorLabel={isTranslating ? t('chat.input.translating') : undefined}
+        onActionsChange={handleSurfaceActionsChange}
         getToolLaunchers={() => getLaunchers()}
         toolLaunchersVersion={toolLaunchersVersion}
         onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}

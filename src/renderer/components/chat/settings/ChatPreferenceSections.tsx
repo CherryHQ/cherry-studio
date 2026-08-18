@@ -2,6 +2,7 @@ import { Flex, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Sl
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
 import { SettingGroup as PageSettingGroup, SettingTitle } from '@renderer/components/SettingsPrimitives'
+import { useLanguages } from '@renderer/hooks/translate'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
@@ -15,7 +16,7 @@ import {
   resolveSteerShortcut
 } from '@renderer/utils/input'
 import { isMac } from '@renderer/utils/platform'
-import type { ComposerShortcut } from '@shared/data/preference/preferenceTypes'
+import type { ComposerShortcut, TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import type { FC, ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -63,6 +64,11 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
   const resolvedSendShortcut = resolveSendShortcut(storedSendShortcut)
   const resolvedNewlineShortcut = resolveNewlineShortcut(newlineShortcut, resolvedSendShortcut)
   const resolvedSteerShortcut = resolveSteerShortcut(steerShortcut, resolvedSendShortcut, resolvedNewlineShortcut)
+  const [autoTranslateWithSpace, setAutoTranslateWithSpace] = usePreference(
+    'chat.input.translate.auto_translate_with_space'
+  )
+  const [showTranslateConfirm, setShowTranslateConfirm] = usePreference('chat.input.translate.show_confirm')
+  const [translateTargetLanguage, setTranslateTargetLanguage] = usePreference('chat.input.translate.target_language')
   const [enableSpellCheck, setEnableSpellCheck] = usePreference('app.spell_check.enabled')
   const [spellCheckLanguages, setSpellCheckLanguages] = usePreference('app.spell_check.languages')
   const [messageFont, setMessageFont] = usePreference('chat.message.font')
@@ -99,6 +105,11 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
 
   const { theme } = useTheme()
   const { loadThemeNames, themeNames } = useCodeStyle()
+  const {
+    languages: translateLanguages,
+    getLabel: getTranslateLanguageLabel,
+    status: translateLanguagesStatus
+  } = useLanguages()
   const [fontSizeValue, setFontSizeValue] = useState(fontSize)
   const { t } = useTranslation()
 
@@ -152,6 +163,15 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
       if (shortcut) void setter(shortcut)
     },
     []
+  )
+
+  const translateLanguageItems = useMemo<SelectOption<TranslateLangCode>[]>(
+    () =>
+      (translateLanguages ?? []).map((language) => ({
+        value: language.langCode,
+        label: getTranslateLanguageLabel(language) ?? `${language.emoji} ${language.value}`
+      })),
+    [getTranslateLanguageLabel, translateLanguages]
   )
 
   const codeStyle = useMemo(() => {
@@ -245,6 +265,34 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
                 ))}
               </SelectContent>
             </Select>
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingSwitch
+              checked={autoTranslateWithSpace}
+              onCheckedChange={setAutoTranslateWithSpace}
+              label={t('settings.input.auto_translate_with_space')}
+            />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingSwitch
+              checked={showTranslateConfirm}
+              onCheckedChange={setShowTranslateConfirm}
+              label={t('settings.input.show_translate_confirm')}
+            />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitleSmall>{t('settings.input.target_language.label')}</SettingRowTitleSmall>
+            <Selector<TranslateLangCode>
+              value={translateTargetLanguage}
+              onChange={(value) => void setTranslateTargetLanguage(value)}
+              options={translateLanguageItems}
+              placeholder={translateLanguagesStatus === 'loading' ? t('common.loading') : t('common.unknown')}
+              disabled={translateLanguagesStatus !== 'ready'}
+              style={{ width: 220 }}
+            />
           </SettingRow>
           <SettingDivider />
           <SettingRow>

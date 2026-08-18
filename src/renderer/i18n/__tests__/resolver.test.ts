@@ -41,6 +41,16 @@ describe('renderer i18n lazy init', () => {
     expect(i18n.t('settings.about.diagnostics.sources.summary', { count: 2, size: '2 KB' })).toBe('2 files, about 2 KB')
   })
 
+  it('resolves the translation confirmation copy in Chinese and English', async () => {
+    await i18n.changeLanguage('zh-CN')
+    expect(i18n.t('translate.confirm.title')).toBe('翻译确认')
+    expect(i18n.t('translate.confirm.content')).toBe('翻译后将覆盖原文，是否继续？')
+
+    await i18n.changeLanguage('en-US')
+    expect(i18n.t('translate.confirm.title')).toBe('Translation Confirmation')
+    expect(i18n.t('translate.confirm.content')).toBe('Translation will replace the original text, continue?')
+  })
+
   it('falls back to en-US for a non-catalog language without throwing', async () => {
     await expect(i18n.changeLanguage('en-GB')).resolves.toBeTypeOf('function')
 

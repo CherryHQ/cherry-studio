@@ -80,6 +80,7 @@ import { excludeComposerDraftTokens } from '../composerDraft'
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
+import { useComposerDraftTranslation } from '../useComposerDraftTranslation'
 import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
 import { useInputHistory } from '../useInputHistory'
 import { isPathWithinAccessiblePath } from './agent/accessiblePath'
@@ -956,6 +957,24 @@ const AgentComposerInner = ({
     (direction: InputHistoryDirection) => navigateHistory(direction, actionsRef.current.getDraft()),
     [actionsRef, navigateHistory]
   )
+  const getDraftForTranslation = useCallback(() => actionsRef.current.getDraft(), [actionsRef])
+  const applyTranslatedDraft = useCallback(
+    (translatedDraft: ComposerSerializedDraft) => {
+      actionsRef.current.replaceDraft(translatedDraft)
+      setText(translatedDraft.text)
+      setDraftTokens(translatedDraft.tokens)
+      draftTokensRef.current = translatedDraft.tokens
+    },
+    [actionsRef, setText]
+  )
+  const focusTranslatedDraft = useCallback(() => actionsRef.current.focus('end'), [actionsRef])
+  const { isTranslating, onKeyDown: handleInputTranslationKeyDown } = useComposerDraftTranslation({
+    getDraft: getDraftForTranslation,
+    onTranslatedDraft: applyTranslatedDraft,
+    focusTranslatedDraft,
+    loggerContext: 'AgentComposer',
+    scopeKey: sessionTopicId
+  })
 
   useEffect(() => {
     draftTokensRef.current = draftTokens
@@ -1717,6 +1736,7 @@ const AgentComposerInner = ({
           steerShortcut={isStreaming ? resolvedSteerShortcut : undefined}
           sendDisabled={
             sendDisabled ||
+            isTranslating ||
             hasPendingReference ||
             modelPending ||
             !!missingModelMessage ||
@@ -1762,9 +1782,12 @@ const AgentComposerInner = ({
           quickPanelEnabled={config.enableQuickPanel ?? true}
           enableDragDrop={config.enableDragDrop ?? true}
           enableSpellCheck={enableSpellCheck}
+          editable={!isTranslating}
           fontSize={fontSize}
           narrowMode={forceNarrowLayout || narrowMode}
           railGutterPx={railGutterPx}
+          onKeyDown={handleInputTranslationKeyDown}
+          trailingActivityIndicatorLabel={isTranslating ? t('chat.input.translating') : undefined}
           onActionsChange={handleSurfaceActionsChange}
           isInputHistoryActive={isInputHistoryActive}
           onInputHistoryNavigate={handleInputHistoryNavigate}

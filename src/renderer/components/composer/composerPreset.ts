@@ -1,6 +1,7 @@
 import { Placeholder } from '@renderer/components/RichEditor/extensions/placeholder'
 import type { EditorOptions } from '@tiptap/core'
 
+import { ComposerActivityIndicator } from './composerActivityIndicator'
 import {
   ComposerDocument,
   ComposerHardBreak,
@@ -35,6 +36,7 @@ export function createComposerEditorPreset({
       showOnlyCurrent: true,
       includeChildren: false
     }),
+    ComposerActivityIndicator,
     ComposerTokenNode.configure({ renderToken }),
     ...(suggestionSources.length > 0 ? [createComposerSuggestionExtension(suggestionSources)] : []),
     ...(enableUndoRedo ? [ComposerUndoRedo] : [])

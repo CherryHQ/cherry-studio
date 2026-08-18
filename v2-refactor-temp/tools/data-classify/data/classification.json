@@ -1517,7 +1517,7 @@
         {
           "originalKey": "autoTranslateWithSpace",
           "type": "boolean",
-          "defaultValue": false,
+          "defaultValue": true,
           "status": "classified",
           "category": "preferences",
           "targetKey": "chat.input.translate.auto_translate_with_space"
@@ -1525,7 +1525,7 @@
         {
           "originalKey": "showTranslateConfirm",
           "type": "boolean",
-          "defaultValue": true,
+          "defaultValue": false,
           "status": "classified",
           "category": "preferences",
           "targetKey": "chat.input.translate.show_confirm"

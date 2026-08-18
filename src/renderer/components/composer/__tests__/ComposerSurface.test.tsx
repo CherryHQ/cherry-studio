@@ -36,6 +36,7 @@ const mocks = vi.hoisted(() => ({
   setMeta: vi.fn(),
   setContent: vi.fn(),
   setHardBreak: vi.fn(),
+  setComposerActivityIndicator: vi.fn(),
   setNodeSelection: vi.fn(),
   setTextSelection: vi.fn(),
   chainRun: vi.fn(),
@@ -179,6 +180,7 @@ vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
         focus: mocks.focus,
         setContent: mocks.setContent,
         setHardBreak: mocks.setHardBreak,
+        setComposerActivityIndicator: mocks.setComposerActivityIndicator,
         setNodeSelection: mocks.setNodeSelection
       },
       chain: () => ({
@@ -463,6 +465,7 @@ describe('ComposerSurface', () => {
     mocks.setMeta.mockReset()
     mocks.setContent.mockReset()
     mocks.setHardBreak.mockReset()
+    mocks.setComposerActivityIndicator.mockReset()
     mocks.setNodeSelection.mockReset()
     mocks.setTextSelection.mockReset()
     mocks.chainRun.mockReset()
@@ -4578,17 +4581,40 @@ describe('ComposerSurface', () => {
 
   it('lets the visible QuickPanel handle Enter before send-message shortcuts', async () => {
     const onSendDraft = vi.fn()
+    const onKeyDown = vi.fn()
     mocks.quickPanelIsVisible = true
     mocks.quickPanelDispatchKeyDown.mockReturnValue(true)
 
-    render(<ComposerSurface {...baseProps} onSendDraft={onSendDraft} />)
+    render(<ComposerSurface {...baseProps} onSendDraft={onSendDraft} onKeyDown={onKeyDown} />)
 
     await waitFor(() => expect(mocks.editorOptions).toBeDefined())
 
     const event = new KeyboardEvent('keydown', { key: 'Enter' })
     expect(mocks.editorOptions.editorProps.handleKeyDown(null, event)).toBe(true)
     expect(mocks.quickPanelDispatchKeyDown).toHaveBeenCalledWith(event)
+    expect(onKeyDown).not.toHaveBeenCalled()
     expect(onSendDraft).not.toHaveBeenCalled()
+  })
+
+  it('forwards unhandled keyboard events through the optional consumer seam', async () => {
+    const onKeyDown = vi.fn(() => true)
+    render(<ComposerSurface {...baseProps} onKeyDown={onKeyDown} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    const event = new KeyboardEvent('keydown', { key: ' ', cancelable: true })
+    expect(mocks.editorOptions.editorProps.handleKeyDown(null, event)).toBe(true)
+    expect(onKeyDown).toHaveBeenCalledWith(event)
+  })
+
+  it('forwards the trailing activity label to the editor extension', async () => {
+    const { rerender } = render(<ComposerSurface {...baseProps} trailingActivityIndicatorLabel="Translating" />)
+
+    await waitFor(() => expect(mocks.setComposerActivityIndicator).toHaveBeenCalledWith('Translating'))
+
+    rerender(<ComposerSurface {...baseProps} trailingActivityIndicatorLabel={undefined} />)
+
+    await waitFor(() => expect(mocks.setComposerActivityIndicator).toHaveBeenLastCalledWith(undefined))
   })
 
   it.each([

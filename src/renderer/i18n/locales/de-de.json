@@ -7141,6 +7141,10 @@
     "close": "Schließen",
     "closed": "Übersetzung deaktiviert",
     "complete": "Übersetzung abgeschlossen",
+    "confirm": {
+      "content": "Übersetzung überschreibt Original. Fortfahren?",
+      "title": "Übersetzung bestätigen"
+    },
     "copied": "Übersetzungsinhalt wurde kopiert",
     "custom": {
       "label": "Benutzerdefinierte Sprache"

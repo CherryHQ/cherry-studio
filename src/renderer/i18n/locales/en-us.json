@@ -7141,6 +7141,10 @@
     "close": "Close",
     "closed": "Translation closed",
     "complete": "Translation completed",
+    "confirm": {
+      "content": "Translation will replace the original text, continue?",
+      "title": "Translation Confirmation"
+    },
     "copied": "Translation content copied",
     "custom": {
       "label": "Custom language"

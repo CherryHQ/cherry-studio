@@ -7141,6 +7141,10 @@
     "close": "Închide",
     "closed": "Traducere închisă",
     "complete": "Traducere finalizată",
+    "confirm": {
+      "content": "Traducerea va înlocui textul original, continui?",
+      "title": "Confirmare traducere"
+    },
     "copied": "Conținutul traducerii copiat",
     "custom": {
       "label": "Limbă personalizată"

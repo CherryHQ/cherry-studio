@@ -11,6 +11,9 @@ const mocks = vi.hoisted(() => ({
     'chat.message.style': 'plain',
     'chat.message.font_size': 14,
     'chat.input.send_message_shortcut': 'Enter',
+    'chat.input.translate.auto_translate_with_space': true,
+    'chat.input.translate.show_confirm': true,
+    'chat.input.translate.target_language': 'en-us',
     'chat.message.font': 'system',
     'chat.message.confirm_delete': true,
     'chat.message.navigation_mode': 'none',
@@ -62,6 +65,39 @@ vi.mock('@renderer/hooks/useCodeStyle', () => ({
   useCodeStyle: () => ({ loadThemeNames: mocks.loadThemeNames, themeNames: ['auto', 'github'] })
 }))
 
+vi.mock('@renderer/hooks/translate', () => ({
+  useLanguages: () => ({
+    languages: [
+      { langCode: 'en-us', value: 'English', emoji: '🇺🇸' },
+      { langCode: 'zh-cn', value: 'Chinese (Simplified)', emoji: '🇨🇳' }
+    ],
+    getLabel: (language: { langCode: string }) => (language.langCode === 'zh-cn' ? '🇨🇳 简体中文' : '🇺🇸 English'),
+    status: 'ready'
+  })
+}))
+
+vi.mock('@renderer/components/Selector', () => ({
+  default: ({
+    disabled,
+    onChange,
+    options,
+    value
+  }: {
+    disabled?: boolean
+    onChange: (value: string) => void
+    options: Array<{ label: string; value: string }>
+    value?: string
+  }) => (
+    <select disabled={disabled} value={value} onChange={(event) => onChange(event.target.value)}>
+      {options.map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+  )
+}))
+
 vi.mock('@cherrystudio/ui/lib/utils', () => ({
   cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
 }))
@@ -107,6 +143,9 @@ describe('ChatPreferenceSections', () => {
     mocks.preferenceValues['chat.message.font_size'] = 14
     mocks.preferenceValues['chat.narrow_mode'] = true
     mocks.loadThemeNames.mockClear()
+    mocks.preferenceValues['chat.input.translate.auto_translate_with_space'] = true
+    mocks.preferenceValues['chat.input.translate.show_confirm'] = true
+    mocks.preferenceValues['chat.input.translate.target_language'] = 'en-us'
     mocks.setPreference.mockClear()
   })
 
@@ -124,14 +163,31 @@ describe('ChatPreferenceSections', () => {
     expect(screen.queryByText('settings.messages.input.enable_quick_triggers')).toBeNull()
   })
 
-  it('does not render input translation controls', () => {
-    mocks.preferenceValues['app.language'] = 'zh-cn'
-
+  it('renders and updates the triple-space translation preferences', () => {
     render(<ChatPreferenceSections />)
 
-    expect(screen.queryByText('settings.input.auto_translate_with_space')).toBeNull()
-    expect(screen.queryByText('settings.input.show_translate_confirm')).toBeNull()
-    expect(screen.queryByText('settings.input.target_language.label')).toBeNull()
+    const autoTranslateSwitch = screen.getByRole('button', { name: 'settings.input.auto_translate_with_space' })
+    expect(autoTranslateSwitch).toHaveAttribute('data-checked', 'true')
+
+    fireEvent.click(autoTranslateSwitch)
+
+    expect(mocks.setPreference).toHaveBeenCalledWith('chat.input.translate.auto_translate_with_space', false)
+
+    const showTranslateConfirmSwitch = screen.getByRole('button', {
+      name: 'settings.input.show_translate_confirm'
+    })
+    expect(showTranslateConfirmSwitch).toHaveAttribute('data-checked', 'true')
+
+    fireEvent.click(showTranslateConfirmSwitch)
+
+    expect(mocks.setPreference).toHaveBeenCalledWith('chat.input.translate.show_confirm', false)
+    expect(screen.getByText('settings.input.target_language.label')).toBeInTheDocument()
+
+    const targetLanguageSelector = screen.getByRole('combobox')
+    expect(targetLanguageSelector).toHaveValue('en-us')
+    fireEvent.change(targetLanguageSelector, { target: { value: 'zh-cn' } })
+
+    expect(mocks.setPreference).toHaveBeenCalledWith('chat.input.translate.target_language', 'zh-cn')
   })
 
   it('renders wide layout mode off by default and enables it by disabling narrow mode', () => {

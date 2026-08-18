@@ -168,6 +168,10 @@ export interface ComposerSurfaceProps {
    * keeping the composer centred and its margins symmetric while the rail shows. */
   railGutterPx?: number
   onFocus?: () => void
+  /** Optional consumer-owned key handler. Runs after QuickPanel handling and before generic composer shortcuts. */
+  onKeyDown?: (event: KeyboardEvent) => boolean
+  /** Accessible label for a transient, non-serialized activity indicator rendered after the draft. */
+  trailingActivityIndicatorLabel?: string
   onActionsChange?: (actions: ComposerSurfaceActions) => void
   isInputHistoryActive?: boolean
   onInputHistoryNavigate?: (direction: InputHistoryDirection) => boolean
@@ -543,6 +547,8 @@ export default function ComposerSurfaceRuntime({
   narrowMode,
   railGutterPx,
   onFocus,
+  onKeyDown,
+  trailingActivityIndicatorLabel,
   onActionsChange,
   isInputHistoryActive = false,
   onInputHistoryNavigate,
@@ -599,6 +605,7 @@ export default function ComposerSurfaceRuntime({
   const steerShortcutRef = useRef(steerShortcut)
   const setFilesRef = useRef(setFiles)
   const onSendDraftRef = useRef(onSendDraft)
+  const onKeyDownRef = useRef(onKeyDown)
   const isInputHistoryActiveRef = useRef(isInputHistoryActive)
   const onInputHistoryNavigateRef = useRef(onInputHistoryNavigate)
   const promptVariableEditRef = useRef<{ tokenId: string; started: boolean } | null>(null)
@@ -622,6 +629,7 @@ export default function ComposerSurfaceRuntime({
     steerShortcutRef.current = steerShortcut
     setFilesRef.current = setFiles
     onSendDraftRef.current = onSendDraft
+    onKeyDownRef.current = onKeyDown
     isInputHistoryActiveRef.current = isInputHistoryActive
     onInputHistoryNavigateRef.current = onInputHistoryNavigate
   }, [
@@ -631,6 +639,7 @@ export default function ComposerSurfaceRuntime({
     isInputHistoryActive,
     newlineShortcut,
     onInputHistoryNavigate,
+    onKeyDown,
     onSendDraft,
     quickPanel,
     sendBlockedReason,
@@ -1485,6 +1494,8 @@ export default function ComposerSurfaceRuntime({
           }
         }
 
+        if (onKeyDownRef.current?.(event)) return true
+
         if (
           (event.key === 'ArrowUp' || event.key === 'ArrowDown') &&
           !event.ctrlKey &&
@@ -1828,6 +1839,11 @@ export default function ComposerSurfaceRuntime({
     }
     editor.commands.focus('end')
   }, [deferredIntent, editor, frameRef, initialTextSelection])
+
+  useEffect(() => {
+    if (!editor || editor.isDestroyed) return
+    editor.commands.setComposerActivityIndicator(trailingActivityIndicatorLabel)
+  }, [editor, trailingActivityIndicatorLabel])
 
   useEffect(() => {
     if (!editor || editor.isDestroyed) return

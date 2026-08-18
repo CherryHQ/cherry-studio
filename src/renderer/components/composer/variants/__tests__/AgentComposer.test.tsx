@@ -67,6 +67,11 @@ const mocks = vi.hoisted(() => ({
   reconcileTokens: vi.fn(),
   insertToken: vi.fn(),
   replaceDraft: vi.fn(),
+  translate: vi.fn(),
+  cancelTranslate: vi.fn(),
+  isTranslating: false,
+  autoTranslateWithSpace: true,
+  translateTargetLanguage: 'en-us',
   toggleExpanded: vi.fn(),
   availableSkills: [] as LocalSkill[],
   availableSkillsLoading: false,
@@ -638,11 +643,21 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
       'chat.message.font_size': 14,
       'chat.narrow_mode': false,
       'chat.input.send_message_shortcut': 'Enter',
+      'chat.input.translate.auto_translate_with_space': mocks.autoTranslateWithSpace,
+      'chat.input.translate.target_language': mocks.translateTargetLanguage,
       'agent.input.toolbar.pinned_tools': mocks.pinnedToolIds,
       'agent.session.display_mode': mocks.sessionLayout === 'classic' ? 'agent' : (mocks.sessionLayout ?? 'workdir')
     }
     return [values[key]]
   }
+}))
+
+vi.mock('@renderer/hooks/translate', () => ({
+  useTranslate: () => ({
+    translate: mocks.translate,
+    isTranslating: mocks.isTranslating,
+    cancel: mocks.cancelTranslate
+  })
 }))
 
 vi.mock('@renderer/hooks/useTimer', () => ({
@@ -862,6 +877,12 @@ describe('AgentComposer', () => {
     })
     mocks.insertToken.mockReset()
     mocks.replaceDraft.mockReset()
+    mocks.translate.mockReset()
+    mocks.translate.mockResolvedValue('Translated agent draft')
+    mocks.cancelTranslate.mockReset()
+    mocks.isTranslating = false
+    mocks.autoTranslateWithSpace = true
+    mocks.translateTargetLanguage = 'en-us'
     mocks.toggleExpanded.mockReset()
     mocks.availableSkills = []
     mocks.availableSkillsLoading = false
@@ -920,6 +941,49 @@ describe('AgentComposer', () => {
     expect(mocks.runtimeHostProps?.session?.agentId).toBe('agent-1')
     expect(mocks.surfaceProps?.narrowMode).toBe(false)
     expect(mocks.surfaceProps?.deferQuickPanel).toBe(true)
+  })
+
+  it('translates the current agent draft after three rapid spaces', async () => {
+    mocks.getDraft.mockReturnValue({ text: 'Agent prompt  ', tokens: [] })
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const onKeyDown = mocks.surfaceProps?.onKeyDown
+    onKeyDown?.(new KeyboardEvent('keydown', { key: ' ' }))
+    onKeyDown?.(new KeyboardEvent('keydown', { key: ' ' }))
+    onKeyDown?.(new KeyboardEvent('keydown', { key: ' ' }))
+
+    await waitFor(() => {
+      expect(mocks.translate).toHaveBeenCalledWith('Agent prompt  ', 'en-us')
+      expect(mocks.replaceDraft).toHaveBeenCalledWith({ text: 'Translated agent draft', tokens: [] })
+      expect(mocks.surfaceProps?.text).toBe('Translated agent draft')
+      expect(mocks.surfaceFocus).toHaveBeenLastCalledWith('end')
+    })
+  })
+
+  it('locks the agent composer while an input translation is running', () => {
+    mocks.isTranslating = true
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    expect(mocks.surfaceProps?.editable).toBe(false)
+    expect(mocks.surfaceProps?.sendDisabled).toBe(true)
+    expect(mocks.surfaceProps?.placeholder).toBe('agent.input.placeholder')
+    expect(mocks.surfaceProps?.trailingActivityIndicatorLabel).toBe('chat.input.translating')
   })
 
   it('limits Session knowledge choices to the Agent static binding', () => {

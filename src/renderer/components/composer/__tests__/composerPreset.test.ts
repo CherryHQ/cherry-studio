@@ -21,6 +21,7 @@ describe('createComposerEditorPreset', () => {
       'text',
       'hardBreak',
       'placeholder',
+      'composerActivityIndicator',
       COMPOSER_TOKEN_NODE_NAME,
       'composerUndoRedo'
     ])
@@ -55,6 +56,33 @@ describe('createComposerEditorPreset', () => {
     }).map((extension) => extension.name)
 
     expect(extensionNames).toContain('composerSuggestion')
+  })
+
+  it('renders a trailing activity indicator without changing the composer document', () => {
+    editor = new Editor({
+      element: document.createElement('div'),
+      extensions: createComposerEditorPreset({ enableUndoRedo: false }),
+      content: {
+        type: 'doc',
+        content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Translate me  ' }] }]
+      }
+    })
+    const documentBeforeIndicator = editor.getJSON()
+
+    editor.commands.setComposerActivityIndicator('Translating')
+
+    const indicator = editor.view.dom.querySelector('[data-composer-activity-indicator]')
+    expect(indicator).toHaveAttribute('role', 'status')
+    expect(indicator).toHaveAttribute('aria-label', 'Translating')
+    expect(indicator).toHaveAttribute('contenteditable', 'false')
+    expect(indicator?.previousSibling?.textContent).toBe('Translate me')
+    expect(indicator?.nextSibling?.textContent).toBe('  ')
+    expect(editor.getJSON()).toEqual(documentBeforeIndicator)
+
+    editor.commands.setComposerActivityIndicator()
+
+    expect(editor.view.dom.querySelector('[data-composer-activity-indicator]')).toBeNull()
+    expect(editor.getJSON()).toEqual(documentBeforeIndicator)
   })
 
   // Which Enter combination inserts a hard break is a user preference resolved in

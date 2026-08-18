@@ -7141,6 +7141,10 @@
     "close": "Đóng",
     "closed": "Dịch đã đóng",
     "complete": "Dịch hoàn thành",
+    "confirm": {
+      "content": "Bản dịch sẽ thay thế văn bản gốc. Tiếp tục?",
+      "title": "Xác nhận dịch thuật"
+    },
     "copied": "Đã sao chép nội dung bản dịch",
     "custom": {
       "label": "Ngôn ngữ tùy chỉnh"

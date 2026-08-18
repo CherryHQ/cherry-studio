@@ -7141,6 +7141,10 @@
     "close": "Fechar",
     "closed": "A tradução foi desativada",
     "complete": "Tradução concluída",
+    "confirm": {
+      "content": "A tradução substituirá o texto original, deseja continuar?",
+      "title": "Confirmação de Tradução"
+    },
     "copied": "Conteúdo de tradução copiado",
     "custom": {
       "label": "idioma personalizado"

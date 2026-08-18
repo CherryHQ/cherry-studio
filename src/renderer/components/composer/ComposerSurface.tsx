@@ -295,6 +295,10 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
           }}
           onKeyDown={(event) => {
             requestRuntime()
+            if (props.onKeyDown?.(event.nativeEvent)) {
+              event.preventDefault()
+              return
+            }
             if (navigateInputHistory(event)) {
               event.preventDefault()
               return
