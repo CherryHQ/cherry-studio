@@ -209,7 +209,8 @@
       "type": "Εικονίδιο Πράκτορα"
     },
     "input": {
-      "placeholder": "Εισάγετε το μήνυμά σας εδώ, στείλτε με {{key}} - @ επιλέξτε διαδρομή, / επιλέξτε εντολή"
+      "placeholder": "Εισάγετε το μήνυμά σας εδώ, στείλτε με {{key}} - @ επιλέξτε διαδρομή, / επιλέξτε εντολή",
+      "placeholder_streaming": "Ο πράκτορας εργάζεται — το {{sendKey}} προγραμματίζει συνέχεια, το {{steerKey}} τον κατευθύνει τώρα."
     },
     "list": {
       "error": {
@@ -662,13 +663,16 @@
           },
           "auto": {
             "description": "Εκτελείται χωρίς συνήθεις ερωτήσεις. Ένας έλεγχος ασφαλείας μπλοκάρει επικίνδυνες ενέργειες.",
+            "description_pi": "Ενεργεί αυτόνομα. Ζητεί επιβεβαίωση όταν εντοπίσει επικίνδυνη ενέργεια.",
             "title": "Έγκριση για μένα",
-            "warning": "Απαιτεί μοντέλο που το υποστηρίζει· άλλα μοντέλα ενδέχεται να το αγνοήσουν ή να συνεχίσουν να ρωτούν."
+            "warning": "Απαιτεί μοντέλο που το υποστηρίζει· άλλα μοντέλα ενδέχεται να το αγνοήσουν ή να συνεχίσουν να ρωτούν.",
+            "warning_pi": "Η αναγνώριση γίνεται με τη μέγιστη δυνατή προσπάθεια· μια ασυνήθιστη εντολή ενδέχεται να περάσει."
           },
           "bypassPermissions": {
             "description": "Παρακάμπτει τους ελέγχους δικαιωμάτων. Μπορεί να διαγράψει αρχεία και να χρησιμοποιήσει το δίκτυο.",
             "title": "Πλήρης πρόσβαση",
-            "warning": "Χρησιμοποιήστε με προσοχή — όλα τα εργαλεία θα εκτελεστούν χωρίς να ζητηθεί έγκριση."
+            "warning": "Χρησιμοποιήστε με προσοχή — όλα τα εργαλεία θα εκτελεστούν χωρίς να ζητηθεί έγκριση.",
+            "warning_pi": "Επικίνδυνο — δεν ζητείται ποτέ επιβεβαίωση, εκτός για απενεργοποιημένα εργαλεία, συμπεριλαμβανομένης της διαγραφής αρχείων και της πρόσβασης στο δίκτυο."
           },
           "confirmChange": {
             "description": "Η αλλαγή λειτουργιών ενημερώνει τα εργαλεία που εγκρίνονται αυτόματα.",
@@ -1088,17 +1092,37 @@
           "description": "Εκτέλεση εντολών shell",
           "label": "Εκτέλεση εντολών shell"
         },
+        "create_goal": {
+          "description": "Δημιουργία στόχου συνεδρίας προς επίτευξη",
+          "label": "Δημιουργία στόχου"
+        },
         "edit": {
           "description": "Επεξεργασία αρχείων",
           "label": "Επεξεργασία αρχείων"
+        },
+        "exit_plan_mode": {
+          "description": "Παρουσίαση του σχεδίου για έλεγχο και έξοδος από τη λειτουργία σχεδιασμού έπειτα από έγκριση",
+          "label": "Έξοδος από τη λειτουργία σχεδιασμού"
         },
         "find": {
           "description": "Εύρεση αρχείων",
           "label": "Εύρεση αρχείων"
         },
+        "get_goal": {
+          "description": "Ανάγνωση του τρέχοντος στόχου συνεδρίας",
+          "label": "Ανάγνωση στόχου"
+        },
         "grep": {
           "description": "Αναζήτηση περιεχομένου αρχείων",
           "label": "Αναζήτηση περιεχομένου αρχείων"
+        },
+        "interrupt_agent": {
+          "description": "Διακοπή του τρέχοντος γύρου ενός υποπράκτορα στο παρασκήνιο",
+          "label": "Διακοπή υποπράκτορα"
+        },
+        "list_agents": {
+          "description": "Εμφάνιση υποπράκτορων στο παρασκήνιο και της κατάστασής τους",
+          "label": "Λίστα υποπράκτορων"
         },
         "ls": {
           "description": "Λίστα περιεχομένου καταλόγου",
@@ -1107,6 +1131,34 @@
         "read": {
           "description": "Ανάγνωση αρχείων",
           "label": "Ανάγνωση αρχείων"
+        },
+        "read_image": {
+          "description": "Διαβάζει ένα αρχείο PNG, JPEG, WebP ή GIF με μοντέλο που υποστηρίζει όραση",
+          "label": "Ανάγνωση εικόνας"
+        },
+        "send_message": {
+          "description": "Αποστολή παρακολουθητικού μηνύματος σε υποπράκτορα στο παρασκήνιο",
+          "label": "Επικοινωνία με υποπράκτορα"
+        },
+        "skill": {
+          "description": "Φόρτωση των πλήρων οδηγιών μιας ενεργοποιημένης δεξιότητας",
+          "label": "Φόρτωση οδηγιών δεξιότητας"
+        },
+        "subagent": {
+          "description": "Ανάθεση εργασίας σε υποπράκτορα στο παρασκήνιο για μελλοντική επικοινωνία",
+          "label": "Ανάθεση σε υποπράκτορα"
+        },
+        "subagent_fork": {
+          "description": "Ανάθεση παρακολουθητικής εργασίας σε υποπράκτορα με βάση αυτή τη συζήτηση",
+          "label": "Διακλάδωση υποπράκτορα"
+        },
+        "todo_write": {
+          "description": "Διαχείριση λίστας εργασιών",
+          "label": "Διαχείριση λίστας εργασιών"
+        },
+        "update_goal": {
+          "description": "Ενημέρωση της κατάστασης ή του περιεχομένου του στόχου συνεδρίας",
+          "label": "Ενημέρωση στόχου"
         },
         "write": {
           "description": "Εγγραφή αρχείων",
@@ -2203,7 +2255,7 @@
     "cli_tool_placeholder": "Επιλέξτε το CLI εργαλείο που θέλετε να χρησιμοποιήσετε",
     "cli_tools": {
       "claude_code": "Claude Code",
-      "deepseek_harness": "[to be translated]:DeepSeek Harness",
+      "deepseek_harness": "DeepSeek Harness",
       "gemini_cli": "Gemini CLI",
       "github_copilot_cli": "GitHub Copilot CLI",
       "kimi_code": "Kimi Code",
@@ -2227,39 +2279,39 @@
     "custom_path_required": "Αυτό το τερματικό απαιτεί τη ρύθμιση προσαρμοσμένης διαδρομής",
     "custom_path_set": "Η προσαρμοσμένη διαδρομή τερματικού ορίστηκε με επιτυχία",
     "deepseek_harness": {
-      "agent_preset": "[to be translated]:Default agent mode",
+      "agent_preset": "Προεπιλεγμένη λειτουργία agent",
       "agent_presets": {
         "code": {
-          "description": "[to be translated]:Combines multi-step tool work through the PTC Code Mode SDK for complex coding tasks.",
-          "label": "[to be translated]:PTC Code"
+          "description": "Συνδυάζει εργασία εργαλείων πολλών βημάτων μέσω του PTC Code Mode SDK για σύνθετες εργασίες προγραμματισμού.",
+          "label": "PTC Code"
         },
         "inherit": {
-          "description": "[to be translated]:Keeps the existing default preset in the shared ~/.dsh settings.",
-          "label": "[to be translated]:Harness default"
+          "description": "Διατηρεί την υπάρχουσα προεπιλογή στις κοινόχρηστες ρυθμίσεις ~/.dsh.",
+          "label": "Προεπιλογή Harness"
         },
         "minimal": {
-          "description": "[to be translated]:Uses only a persistent shell and text editor for the smallest tool surface.",
-          "label": "[to be translated]:Minimal"
+          "description": "Χρησιμοποιεί μόνο ένα μόνιμο shell και έναν επεξεργαστή κειμένου για το μικρότερο δυνατό σύνολο εργαλείων.",
+          "label": "Ελάχιστο"
         },
         "standard": {
-          "description": "[to be translated]:Full coding agent with files, shell, search, skills, planning, and subagents.",
-          "label": "[to be translated]:Standard"
+          "description": "Πλήρης agent προγραμματισμού με αρχεία, shell, αναζήτηση, δεξιότητες, σχεδιασμό και υπο-agent.",
+          "label": "Τυπικό"
         }
       },
-      "danger_warning": "[to be translated]:Full access lets the agent reach files outside the workspace and skips operation approval. Use it only for tasks you trust.",
-      "permission_mode": "[to be translated]:Default permission",
+      "danger_warning": "Η πλήρης πρόσβαση επιτρέπει στον agent να προσπελάζει αρχεία εκτός του χώρου εργασίας και παρακάμπτει την έγκριση ενεργειών. Χρησιμοποιήστε την μόνο για εργασίες που εμπιστεύεστε.",
+      "permission_mode": "Προεπιλεγμένη άδεια",
       "permission_modes": {
         "danger-full-access": {
-          "description": "[to be translated]:Allows unrestricted access without operation approval.",
-          "label": "[to be translated]:Full access"
+          "description": "Επιτρέπει απεριόριστη πρόσβαση χωρίς έγκριση ενεργειών.",
+          "label": "Πλήρης πρόσβαση"
         },
         "read-only": {
-          "description": "[to be translated]:Restricts file writes and asks before risky operations.",
-          "label": "[to be translated]:Read only"
+          "description": "Περιορίζει την εγγραφή αρχείων και ζητά επιβεβαίωση πριν από επικίνδυνες ενέργειες.",
+          "label": "Μόνο για ανάγνωση"
         },
         "workspace-write": {
-          "description": "[to be translated]:Allows writes in the current DSH workspace and asks before risky operations.",
-          "label": "[to be translated]:Workspace write"
+          "description": "Επιτρέπει εγγραφή στον τρέχοντα χώρο εργασίας DSH και ζητά επιβεβαίωση πριν από επικίνδυνες ενέργειες.",
+          "label": "Εγγραφή στον χώρο εργασίας"
         }
       }
     },
@@ -2313,7 +2365,7 @@
     "no_tools": "Δεν υπάρχουν διαθέσιμα εργαλεία",
     "not_installed": "Δεν είναι εγκατεστημένο",
     "open_provider_settings": "Άνοιγμα ρυθμίσεων παρόχου",
-    "open_web_ui": "[to be translated]:Open Web UI",
+    "open_web_ui": "Άνοιγμα Web UI",
     "own_login": {
       "title": "{{toolName}} Επίσημο"
     },
@@ -2323,10 +2375,10 @@
     "search_provider_placeholder": "Αναζήτηση παρόχων…",
     "select_folder": "Επιλογή φακέλου",
     "select_provider_before_launch": "Επιλέξτε έναν πάροχο πριν εκκινήσετε το {{toolName}}",
-    "select_provider_model": "[to be translated]:Please select a provider and model first",
+    "select_provider_model": "Επιλέξτε πρώτα έναν πάροχο και ένα μοντέλο",
     "select_tool_to_start": "Επιλέξτε ένα εργαλείο CLI από τα αριστερά για να ξεκινήσετε τη διαμόρφωση",
     "set_custom_path": "Ρύθμιση προσαρμοσμένης διαδρομής τερματικού",
-    "stop": "[to be translated]:Stop",
+    "stop": "Διακοπή",
     "supported_providers": "υποστηριζόμενοι πάροχοι",
     "terminal": "τερματικό",
     "terminal_hint": "Επιλέξτε σε ποιο τερματικό θα εκτελέσετε τη γραμμή εντολών",
@@ -2642,7 +2694,6 @@
       "503": "Η υπηρεσία δεν είναι διαθέσιμη, παρακαλώ δοκιμάστε ξανά",
       "504": "Υπερχρονισμός φάρων, παρακαλώ δοκιμάστε ξανά"
     },
-    "image_unreadable_for_non_vision_model": "Το επιλεγμένο μοντέλο δεν υποστηρίζει εικόνες και το Cherry Studio δεν μπόρεσε να εξάγει αναγνώσιμο κείμενο από το συνημμένο. Επιλέξτε ένα μοντέλο που υποστηρίζει όραση ή αφαιρέστε την εικόνα και δοκιμάστε ξανά.",
     "lastError": "Τελευταίο σφάλμα",
     "maxEmbeddingsPerCall": "Μέγιστες ενσωματώσεις ανά κλήση",
     "message": "Μήνυμα σφάλματος",
@@ -3193,6 +3244,8 @@
         "delete_confirm_title": "Διαγραφή επιλεγμένων πηγών δεδομένων;",
         "loaded_only_hint": "Ισχύει μόνο για φορτωμένα στοιχεία ({{total}} συνολικά)",
         "reindex": "Επανεισαγωγή ευρετηρίου",
+        "reindex_none_eligible": "Όλες οι επιλεγμένες πηγές δεδομένων επεξεργάζονται ακόμη και δεν μπορούν να επανευρετηριαστούν αυτή τη στιγμή",
+        "reindex_skipped": "Παράβλεψη {{count}} πηγής/ων δεδομένων που επεξεργάζονται ακόμη",
         "selected_count": "{{count}} επιλεγμένα"
       },
       "chunks_count": "{{count}} κομμάτια",
@@ -3526,11 +3579,13 @@
             "label": "Λειτουργία εκτέλεσης",
             "option": {
               "claude_code": "Προηγμένο: Claude Agent",
+              "dsh": "DeepSeek Harness",
               "pi": "Γρήγορο: Pi"
             },
-            "selected": {
-              "claude_code": "Προηγμένο",
-              "pi": "Γρήγορο"
+            "option_description": {
+              "claude_code": "Αυξημένες δυνατότητες — λειτουργία σχεδιασμού και μοντέλα ανά επίπεδο",
+              "dsh": "Ευρεία υποστήριξη παροχέων με εκτέλεση καθοδηγούμενη από στόχους",
+              "pi": "Ταχύτερες αποκρίσεις, μειωμένο φορτίο"
             }
           },
           "small_model": {
@@ -7163,6 +7218,7 @@
         "no": "Χωρίς περιγραφή",
         "nowledge_mem": "Απαιτεί την εφαρμογή Nowledge Mem να εκτελείται τοπικά. Διατηρεί συνομιλίες με AI, εργαλεία, σημειώσεις, πράκτορες και αρχεία σε ιδιωτική μνήμη στον υπολογιστή σας. Κάντε λήψη από https://mem.nowledge.co/",
         "python": "Εκτελέστε κώδικα Python σε ένα ασφαλές περιβάλλον sandbox. Χρησιμοποιήστε το Pyodide για να εκτελέσετε Python, υποστηρίζοντας την πλειονότητα των βιβλιοθηκών της τυπικής βιβλιοθήκης και των πακέτων επιστημονικού υπολογισμού",
+        "qveris": "Συνδεθείτε στο QVeris για να ανακαλύπτετε, να επιθεωρείτε και να καλείτε δυνατότητες πρακτόρων AI. Απαιτεί τη ρύθμιση της μεταβλητής περιβάλλοντος QVERIS_API_KEY.",
         "sequentialthinking": "ένας εξυπηρετητής MCP που υλοποιείται, παρέχοντας εργαλεία για δυναμική και αναστοχαστική επίλυση προβλημάτων μέσω δομημένων διαδικασιών σκέψης"
       },
       "command": "Εντολή",
@@ -7282,6 +7338,10 @@
       "providerPlaceholder": "Όνομα παρόχου",
       "providerUrl": "URL Παρόχου",
       "providers": "Πάροχοι",
+      "qveris": {
+        "get_api_key": "Λήψη κλειδιού API",
+        "missing_api_key": "Το QVeris απαιτεί ένα κλειδί API. <link>Εγγραφείτε ή συνδεθείτε για να αποκτήσετε ένα κλειδί API</link> και, στη συνέχεια, εισαγάγετέ το ως QVERIS_API_KEY."
+      },
       "registry": "Πηγή Διαχείρισης πακέτων",
       "registryDefault": "Προεπιλεγμένη",
       "registryOptions": {
@@ -7412,8 +7472,11 @@
         "confirm_delete_message": "Επιβεβαίωση πριν τη διαγραφή μηνύματος",
         "confirm_regenerate_message": "Επιβεβαίωση πριν από την επαναδημιουργία του μηνύματος",
         "enable_quick_triggers": "Ενεργοποίηση των '/' και '@' για γρήγορη πρόσβαση σε μενού",
+        "newline_shortcuts": "Συντόμευση νέας γραμμής",
         "send_shortcuts": "Συντάγματα αποστολής",
         "show_estimated_tokens": "Εμφάνιση εκτιμώμενου αριθμού token",
+        "steer_shortcuts": "Συντόμευση κατεύθυνσης",
+        "steer_shortcuts_hint": "Ενώ τρέχει ένας Πράκτορας, αυτή αποστέλλει το μήνυμά σας αμέσως στον τρέχοντα γύρο για να τον κατευθύνετε· η συντόμευση αποστολής το τοποθετεί σε ουρά μέχρι να ολοκληρωθεί ο γύρος.",
         "title": "Ρυθμίσεις εισαγωγής"
       },
       "layout": {
@@ -9012,5 +9075,18 @@
     "quit": "Έξοδος",
     "show_window": "Εμφάνιση Παραθύρου",
     "visualization": "προβολή"
+  },
+  "xlsx_preview": {
+    "chart": "Γράφημα",
+    "chart_unsupported": "Αυτός ο τύπος γραφήματος δεν υποστηρίζεται ακόμη",
+    "error": {
+      "description": "Δεν ήταν δυνατή η προεπισκόπηση αυτού του υπολογιστικού φύλλου."
+    },
+    "formula_not_evaluated": "Δεν ήταν δυνατή η αξιολόγηση του τύπου",
+    "sheet_tabs_label": "Φύλλα",
+    "too_large": {
+      "description": "Το μέγεθος αρχείου {{size}} υπερβαίνει το όριο προεπισκόπησης {{limit}}.",
+      "title": "Το αρχείο είναι πολύ μεγάλο για προεπισκόπηση"
+    }
   }
 }

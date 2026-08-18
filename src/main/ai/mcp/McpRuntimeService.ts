@@ -41,6 +41,7 @@ import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
 import type { McpServerLogEntry } from '@shared/types/mcp'
 import type { McpPrompt, McpResource } from '@shared/types/mcp'
 import { BuiltinMcpServerNames, isInMemoryBuiltinMcpServer } from '@shared/utils/mcp'
+import { redactDeep, redactServerKey } from '@shared/utils/redaction'
 import { safeSerialize } from '@shared/utils/serialize'
 import { app, net } from 'electron'
 import { EventEmitter } from 'events'
@@ -224,41 +225,14 @@ function isTransportFallbackError(error: unknown, sdk: McpClientSdk): boolean {
   return false
 }
 
-// Redact potentially sensitive fields in objects (headers, tokens, api keys)
-export function redactSensitive(input: any): any {
-  const SENSITIVE_KEYS = ['authorization', 'Authorization', 'apiKey', 'api_key', 'apikey', 'token', 'access_token']
-  const MAX_STRING = 300
-
-  // Track visited objects so a circular graph (e.g. an Error with an assigned `cause`,
-  // or HTTP request<->response cross-references) can't drive unbounded recursion → stack
-  // overflow inside the logger. This runs on caught Errors and server-controlled payloads.
-  const redact = (val: any, seen: WeakSet<object>): any => {
-    if (val == null) return val
-    if (typeof val === 'string') {
-      return val.length > MAX_STRING ? `${val.slice(0, MAX_STRING)}…<${val.length - MAX_STRING} more>` : val
-    }
-    if (typeof val === 'object') {
-      if (seen.has(val)) return '[Circular]'
-      seen.add(val)
-    }
-    if (Array.isArray(val)) return val.map((v) => redact(v, seen))
-    if (typeof val === 'object') {
-      const out: Record<string, any> = {}
-      for (const [k, v] of Object.entries(val)) {
-        if (SENSITIVE_KEYS.includes(k)) {
-          out[k] = '<redacted>'
-        } else {
-          out[k] = redact(v, seen)
-        }
-      }
-      return out
-    }
-    return val
-  }
-
-  return redact(input, new WeakSet())
+// Cache keys embed the serialized server config — log them with the serverKey portion
+// redacted instead of raw (same class of leak as #18648, at debug level).
+function redactCacheKey(cacheKey: string): string {
+  const separator = cacheKey.indexOf(':')
+  return separator === -1
+    ? redactServerKey(cacheKey)
+    : `${cacheKey.slice(0, separator + 1)}${redactServerKey(cacheKey.slice(separator + 1))}`
 }
-
 // Create a context-aware logger for a server
 function getServerLogger(server: McpServer, extra?: Record<string, any>) {
   const base = {
@@ -289,7 +263,7 @@ function withCache<T extends unknown[], R>(
     const cacheService = application.get('CacheService')
 
     if (cacheService.has(cacheKey)) {
-      logger.debug(`${logPrefix} loaded from cache`, { cacheKey })
+      logger.debug(`${logPrefix} loaded from cache`, { cacheKey: redactCacheKey(cacheKey) })
       const cachedData = cacheService.get<R>(cacheKey)
       if (cachedData) {
         return cachedData
@@ -299,7 +273,11 @@ function withCache<T extends unknown[], R>(
     const start = Date.now()
     const result = await fn(...args)
     cacheService.set(cacheKey, result, ttl)
-    logger.debug(`${logPrefix} cached`, { cacheKey, ttlMs: ttl, durationMs: Date.now() - start })
+    logger.debug(`${logPrefix} cached`, {
+      cacheKey: redactCacheKey(cacheKey),
+      ttlMs: ttl,
+      durationMs: Date.now() - start
+    })
     return result
   }
 }
@@ -391,14 +369,23 @@ export class McpRuntimeService extends BaseService {
   }
 
   public getServerKey(server: McpServer): string {
+    const fingerprint = crypto
+      .createHash('sha256')
+      .update(
+        JSON.stringify({
+          baseUrl: server.baseUrl,
+          command: server.command,
+          args: Array.isArray(server.args) ? server.args : [],
+          registryUrl: server.registryUrl,
+          env: server.env,
+          headers: server.headers
+        })
+      )
+      .digest('hex')
+
     return JSON.stringify({
-      baseUrl: server.baseUrl,
-      command: server.command,
-      args: Array.isArray(server.args) ? server.args : [],
-      registryUrl: server.registryUrl,
-      env: server.env,
-      headers: server.headers,
-      id: server.id
+      id: server.id,
+      fingerprint
     })
   }
 
@@ -506,16 +493,25 @@ export class McpRuntimeService extends BaseService {
         ): Promise<StdioClientTransport | SSEClientTransport | InMemoryTransport | StreamableHTTPClientTransport> => {
           // Create appropriate transport based on configuration
 
-          // Special case for nowledgeMem and flomo - uses HTTP transport instead of in-memory
+          // Special case for hosted built-in MCP servers - uses HTTP transport instead of in-memory.
           if (
             isInMemoryBuiltinMcpServer(server) &&
-            (server.name === BuiltinMcpServerNames.nowledgeMem || server.name === BuiltinMcpServerNames.flomo)
+            (server.name === BuiltinMcpServerNames.nowledgeMem ||
+              server.name === BuiltinMcpServerNames.flomo ||
+              server.name === BuiltinMcpServerNames.qveris)
           ) {
             const httpUrlMap: Record<string, string> = {
               [BuiltinMcpServerNames.nowledgeMem]: 'http://127.0.0.1:14242/mcp',
-              [BuiltinMcpServerNames.flomo]: 'https://flomoapp.com/mcp'
+              [BuiltinMcpServerNames.flomo]: 'https://flomoapp.com/mcp',
+              [BuiltinMcpServerNames.qveris]: 'https://mcp.qveris.ai/mcp'
             }
             const httpUrl = httpUrlMap[server.name]
+            const qverisApiKey = server.env?.QVERIS_API_KEY?.trim()
+
+            if (server.name === BuiltinMcpServerNames.qveris && !qverisApiKey) {
+              throw new Error('QVeris MCP requires the QVERIS_API_KEY environment variable')
+            }
+
             const options: StreamableHTTPClientTransportOptions = {
               fetch: async (url, init) => {
                 return net.fetch(typeof url === 'string' ? url : url.toString(), init)
@@ -523,10 +519,11 @@ export class McpRuntimeService extends BaseService {
               requestInit: {
                 headers: {
                   ...defaultAppHeaders(),
-                  APP: 'Cherry Studio'
+                  APP: 'Cherry Studio',
+                  ...(server.name === BuiltinMcpServerNames.qveris ? { Authorization: `Bearer ${qverisApiKey}` } : {})
                 }
               },
-              authProvider
+              ...(server.name === BuiltinMcpServerNames.qveris ? {} : { authProvider })
             }
             getServerLogger(server).debug(`Using StreamableHTTPClientTransport for ${server.name}`)
             return new sdk.StreamableHTTPClientTransport(new URL(httpUrl), options)
@@ -560,7 +557,7 @@ export class McpRuntimeService extends BaseService {
               }
               // redact headers before logging
               getServerLogger(server).debug(`StreamableHTTPClientTransport options`, {
-                options: redactSensitive(options)
+                options: redactDeep(options)
               })
               return new sdk.StreamableHTTPClientTransport(new URL(server.baseUrl), options)
             } else if (urlBasedType === 'sse') {
@@ -864,7 +861,7 @@ export class McpRuntimeService extends BaseService {
               }
               const fallbackType = candidates[i + 1]
               getServerLogger(server).warn(`Transport '${candidateType}' failed, falling back to '${fallbackType}'`, {
-                error: redactSensitive(error)
+                error: redactDeep(error)
               })
               // Close the whole client (not just the transport) so the SDK resets its internal
               // _transport before we retry. Reusing the client for the fallback mirrors the OAuth
@@ -916,7 +913,7 @@ export class McpRuntimeService extends BaseService {
             timestamp: Date.now(),
             level: 'error',
             message: `Error activating server: ${(error as Error)?.message}`,
-            data: redactSensitive(error),
+            data: redactDeep(error),
             source: 'client'
           })
           throw error
@@ -970,13 +967,17 @@ export class McpRuntimeService extends BaseService {
 
       // Set up cancelled notification handler
       client.setNotificationHandler(sdk.CancelledNotificationSchema, async (notification) => {
-        logger.debug(`Operation cancelled for server: ${server.name}`, notification.params)
+        logger.debug(
+          `Operation cancelled for server: ${server.name}`,
+          redactDeep(notification.params) as Record<string, unknown>
+        )
       })
 
       // Set up logging message notification handler
       client.setNotificationHandler(sdk.LoggingMessageNotificationSchema, async (notification) => {
         const data = notification.params?.data
-        const message = safeSerialize(notification.params.data) ?? 'No data'
+        const redactedData = redactDeep(data)
+        const message = safeSerialize(redactedData) ?? 'No data'
         logger.debug(`Message from server ${server.name}: ${message}`)
         if (data) {
           this.emitServerLog(server, {
@@ -984,7 +985,7 @@ export class McpRuntimeService extends BaseService {
             // FIXME: as McpServerLogEntry['level'] not type safe
             level: (notification.params?.level as McpServerLogEntry['level']) || 'info',
             message,
-            data: redactSensitive(notification.params?.data),
+            data: redactedData,
             source: notification.params?.logger || 'server'
           })
         }
@@ -1012,7 +1013,7 @@ export class McpRuntimeService extends BaseService {
     cacheService.delete(`mcp:list_tool:${serverKey}`)
     cacheService.delete(`mcp:list_prompts:${serverKey}`)
     cacheService.delete(`mcp:list_resources:${serverKey}`)
-    logger.debug(`Cleared all caches for server`, { serverKey })
+    logger.debug(`Cleared all caches for server`, { serverKey: redactServerKey(serverKey) })
   }
 
   private getLatestSourcePolicy(server: McpServer): McpServer {
@@ -1067,13 +1068,13 @@ export class McpRuntimeService extends BaseService {
     if (client) {
       // Remove the client from the cache
       await client.close()
-      logger.debug(`Closed server`, { serverKey })
+      logger.debug(`Closed server`, { serverKey: redactServerKey(serverKey) })
       this.clients.delete(serverKey)
       // Clear all caches for this server
       this.clearServerCache(serverKey)
       this.serverLogs.remove(serverKey)
     } else {
-      logger.warn(`No client found for server`, { serverKey })
+      logger.warn(`No client found for server`, { serverKey: redactServerKey(serverKey) })
     }
   }
 
@@ -1202,7 +1203,7 @@ export class McpRuntimeService extends BaseService {
         timestamp: Date.now(),
         level: 'error',
         message: `Connectivity check failed: ${(error as Error).message}`,
-        data: redactSensitive(error),
+        data: redactDeep(error),
         source: 'connectivity'
       })
       // Close the client if connectivity check fails to ensure a clean state for the next attempt
@@ -1254,7 +1255,7 @@ export class McpRuntimeService extends BaseService {
           throw getAbortReason(effectiveSignal)
         }
         getServerLogger(server, { tool: name, callId: toolCallId }).debug(`Calling tool`, {
-          args: redactSensitive(args)
+          args: redactDeep(args)
         })
         if (typeof args === 'string') {
           if (args.trim() === '') {
@@ -1560,7 +1561,7 @@ export class McpRuntimeService extends BaseService {
 
       // Try to get server information which may include version
       const serverInfo = client.getServerVersion()
-      getServerLogger(server).debug(`Server info`, redactSensitive(serverInfo))
+      getServerLogger(server).debug(`Server info`, redactDeep(serverInfo) as Record<string, unknown>)
 
       if (serverInfo && serverInfo.version) {
         getServerLogger(server).debug(`Server version`, { version: serverInfo.version })
