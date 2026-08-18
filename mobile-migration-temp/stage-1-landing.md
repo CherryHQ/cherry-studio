@@ -226,6 +226,33 @@ mobile-only diff, those jobs run an explicit no-op step; on desktop or shared-pa
 the existing desktop gate. Re-query the active ruleset at execution time and prove the design with a
 mobile-only draft PR before merging Stage 1. Delete the now-inert `apps/mobile/.github/` tree.
 
+### 1b-7. Path-aware review policy (non-blocking governance follow-up)
+
+**Goal:** after landing, a PR whose entire diff is under `apps/mobile/**` needs one valid approval so
+the mobile team can iterate quickly. A PR touching desktop code, root configuration, workflows, or
+shared `packages/**` keeps the existing two-approval policy. Required signatures, status checks,
+linear-history policy, and CODEOWNERS review remain unchanged for both classes.
+
+GitHub's built-in `required_approving_review_count` applies to the `main` ref as a whole; it cannot
+express a path-specific count. The current ruleset requires two approvals, so lowering it directly
+would unintentionally relax every desktop PR. Implement the mobile exception as a separate
+repository-governance change, not as a Stage 1 merge blocker:
+
+1. Add `/apps/mobile/` ownership for the nominated mobile maintainer team in `.github/CODEOWNERS`.
+2. Add a trusted required check (organization-required workflow or GitHub App, not a workflow that
+   the evaluated PR can weaken) that reads the changed-file set and latest non-dismissed reviews:
+   - every changed path matches `apps/mobile/**` → require at least 1 approval;
+   - any other path → require at least 2 approvals.
+3. Trigger/recompute the check on PR open/reopen/synchronize and review submit/dismiss events so a
+   new push or dismissed review cannot retain a stale pass.
+4. Only after the path-aware check is required on `main`, lower the built-in approval count from 2
+   to 1. Never reverse this order.
+5. Prove the policy with three draft PRs: mobile-only + 1 approval passes; desktop/shared + 1 remains
+   blocked; desktop/shared + 2 passes.
+
+This follow-up is outside the two landing PRs below and may land after Stage 1. Until it does,
+mobile-only PRs retain the repository-wide two-approval requirement.
+
 ---
 
 ## 1c. Dual Green Gates (merge blockers)
