@@ -45,6 +45,7 @@ import type { BackupManifestDegradation } from '../manifest'
 import { currentBackupPlatform } from '../platform'
 import { type ManagedRootRebaseTable, prepareManagedRootRebase } from '../portability/managedPathRebase'
 import { materializePortableDatabase, summarizeMaterializationDegradations } from '../portability/materializeDatabase'
+import type { BackupStageReporter } from '../progress'
 import { collectResourceRequirements, resolveResourceRoots } from '../resources/collectRequirements'
 import { measureResourceCoverage, type ResourceCoverage } from '../resources/coverage'
 import { planResourceInstalls } from '../resources/planInstalls'
@@ -63,6 +64,8 @@ export interface PrepareRestoreInputs {
   /** Untrusted `.cherrybackup` chosen by the user. */
   readonly archivePath: string
   readonly signal?: AbortSignal
+  /** Names each stage boundary for the progress event; absent in tests. */
+  readonly reportStage?: BackupStageReporter
 }
 
 export interface RestorePreview {
@@ -149,8 +152,9 @@ function clearWayForPreparation(): void {
 }
 
 export async function prepareRestore(inputs: PrepareRestoreInputs): Promise<RestorePreview> {
-  const { archivePath, signal } = inputs
+  const { archivePath, signal, reportStage } = inputs
   clearWayForPreparation()
+  reportStage?.('admitting')
   const stagingRoot = application.getPath('feature.backup.restore.staging')
 
   const admitted = await admitArchive({
@@ -164,6 +168,7 @@ export async function prepareRestore(inputs: PrepareRestoreInputs): Promise<Rest
   let promoted = false
   let journalWritten = false
   try {
+    reportStage?.('materializing-db')
     const materialized = await materializePortableDatabase({
       dbPath: admitted.db.path,
       mode: {
@@ -176,6 +181,7 @@ export async function prepareRestore(inputs: PrepareRestoreInputs): Promise<Rest
       signal
     })
 
+    reportStage?.('planning')
     const userDataPath = application.getPath('app.userdata')
     const roots = resolveResourceRoots()
     const inventory = collectResourceRequirements({ dbPath: admitted.db.path, roots, userDataPath })
@@ -204,6 +210,7 @@ export async function prepareRestore(inputs: PrepareRestoreInputs): Promise<Rest
     // deterministic slots the journal names. Same volume, so these are renames;
     // the resource tree moves as ONE unit because its internal layout is what
     // each entry's staging path is relative to.
+    reportStage?.('staging')
     const promotePath = path.resolve(userDataPath, stagedDbRelPath(restoreId))
     fs.mkdirSync(path.dirname(promotePath), { recursive: true, mode: 0o700 })
     renameOnlySync(admitted.db.path, promotePath)
