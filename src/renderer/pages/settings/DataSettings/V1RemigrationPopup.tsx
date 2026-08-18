@@ -62,7 +62,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
     try {
       const result = await ipcApi.request('backup.export')
       if (result.status === 'exported') {
-        toast.success(t('settings.data.backup_v2.export.done'))
+        toast.success(t('settings.data.backup.export.done'))
       }
     } catch (error) {
       toast.error(getLocalizedBackupErrorMessage(error instanceof Error ? error : new Error(String(error))))
