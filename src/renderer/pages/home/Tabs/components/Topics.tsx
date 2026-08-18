@@ -897,10 +897,6 @@ export function Topics({
   const handlePinTopic = useCallback(
     async (topic: Topic) => {
       if (isPinsMutating) return
-      const nextPinned = !topic.pinned
-      if (nextPinned) {
-        setTimeout(() => listRef.current?.scrollTo?.({ top: 0, behavior: 'smooth' }), 50)
-      }
 
       try {
         await toggleTopicPinned(topic.id)
@@ -1018,8 +1014,9 @@ export function Topics({
 
   const topicGroupSeeds = useMemo<ResourceListGroupSeed[]>(() => {
     const seeds: ResourceListGroupSeed[] = []
-    const pinnedCount = topicStats?.pinnedCount ?? 0
-    if (pinnedCount > 0 || pinnedTopicsSource.error) {
+    const loadedPinnedCount = topics.filter((topic) => topic.pinned).length
+    const pinnedCount = Math.max(topicStats?.pinnedCount ?? 0, loadedPinnedCount)
+    if (loadedPinnedCount > 0 || pinnedTopicsSource.error) {
       seeds.push({
         id: TOPIC_PINNED_GROUP_ID,
         label: isAssistantDisplayMode ? '' : t('selector.common.pinned_title'),
@@ -1070,6 +1067,7 @@ export function Topics({
     pinnedTopicsSource.error,
     t,
     topicStats,
+    topics,
     ordinaryTopicsSource.error
   ])
   const baseGroupedTopics = useMemo(

@@ -1453,26 +1453,45 @@ describe('Topics', () => {
     await vi.waitFor(() => expect(pinMutationMocks.deletePin).toHaveBeenCalledWith({ params: { id: 'pin-topic-b' } }))
   })
 
-  it('moves a topic into the pinned group immediately after pinning without refreshing topics', async () => {
+  it('keeps a topic stable until the authoritative pin stream catches up', async () => {
     pinMutationMocks.createPin.mockResolvedValue(createTopicPin())
     const fixture = withPinnedTopics(createDefaultTopicFixture(), ['topic-b'])
-    setTopicInfiniteQueryPages(fixture)
+    setScopedTopicInfiniteQuery(fixture)
     applyTopicStats(fixture, ['topic-b'])
 
     const { getByText, rerenderTopicList } = renderTopicList()
+    const listbox = screen.getByRole('listbox', { name: 'Conversation List' })
+    const scrollTo = vi.fn()
+    Object.defineProperty(listbox, 'scrollTo', { configurable: true, value: scrollTo })
     fireEvent.click(screen.getByRole('button', { name: 'Pinned' }))
     expect(screen.queryByText('Alpha topic')).toBeInTheDocument()
 
     const alphaRow = getByText('Alpha topic').closest('[data-testid="topic-list-row"]')
     fireEvent.click(alphaRow?.querySelector('[aria-label="Pin Conversation"]') as Element)
     await vi.waitFor(() => expect(pinMutationMocks.createPin).toHaveBeenCalled())
+    await act(async () => vi.advanceTimersByTimeAsync(50))
 
-    expect(topicDataMocks.refreshTopics).not.toHaveBeenCalled()
+    expect(scrollTo).not.toHaveBeenCalled()
+    expect(screen.getByText('Alpha topic')).toBeInTheDocument()
+    expect(
+      screen
+        .getByText('Alpha topic')
+        .closest('[data-testid="topic-list-row"]')
+        ?.querySelector('[aria-label="Pin Conversation"]') ?? null
+    ).toBeInTheDocument()
+
+    const authoritativeFixture = withPinnedTopics([fixture[1], fixture[0], ...fixture.slice(2)], ['topic-b', 'topic-a'])
+    setScopedTopicInfiniteQuery(authoritativeFixture)
+    applyTopicStats(authoritativeFixture, ['topic-b', 'topic-a'])
+    rerenderTopicList()
     expect(screen.queryByText('Alpha topic')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Pinned' }))
-    rerenderTopicList()
     expect(screen.getByText('Alpha topic')).toBeInTheDocument()
+    expect(
+      screen.getByText('Beta pinned').compareDocumentPosition(screen.getByText('Alpha topic')) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
   })
 
   it('keeps pin actions in the topic context menu and changes topic position from the menu', async () => {

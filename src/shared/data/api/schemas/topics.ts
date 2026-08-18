@@ -85,7 +85,7 @@ export type TopicListItem = Topic & { pinned: boolean; pinId: string | null }
  *
  * Two independent streams that never mix in one response or cursor:
  * - `pinned=true` → pin-owned stream ordered by `pin.orderKey ASC, id ASC`;
- *   PinService inserts new pins first and this variant does not accept `sortBy`.
+ *   PinService appends new pins to this order and this variant does not accept `sortBy`.
  * - `pinned=false` → ordinary keyset stream ordered by the required `sortBy`
  *   with a `(sortValue, id)` cursor, excluding pinned rows.
  *

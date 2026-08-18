@@ -1026,8 +1026,9 @@ const Sessions = ({
 
   const sessionGroupSeeds = useMemo<ResourceListGroupSeed[]>(() => {
     const seeds: ResourceListGroupSeed[] = []
-    const pinnedCount = sessionStats?.pinnedCount ?? 0
-    if (pinnedCount > 0 || pinnedSessionsSource.error) {
+    const loadedPinnedCount = sessionItems.filter((session) => session.pinned).length
+    const pinnedCount = Math.max(sessionStats?.pinnedCount ?? 0, loadedPinnedCount)
+    if (loadedPinnedCount > 0 || pinnedSessionsSource.error) {
       seeds.push({
         id: SESSION_PINNED_GROUP_ID,
         label: displayMode === 'time' ? t('selector.common.pinned_title') : '',
@@ -1084,6 +1085,7 @@ const Sessions = ({
     orderedAgentSessionGroupIds,
     orderedWorkdirSessionGroupIds,
     pinnedSessionsSource.error,
+    sessionItems,
     sessionStats,
     t,
     ordinarySessionsSource.error,
