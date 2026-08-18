@@ -7,7 +7,6 @@
  * switch) no longer tears the stream down, and remounting restores the live
  * overlay synchronously. Reader/seed semantics live in the service.
  */
-import { loggerService } from '@logger'
 import { executionStreamOverlayService } from '@renderer/services/aiTransport'
 import type { ActiveExecution, ActiveNodeDecision } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
@@ -25,8 +24,6 @@ export interface UseExecutionOverlayOptions {
   /** Persistent projections refresh committed rows at TopicQuiesced, then retire final overlays. */
   refreshOnQuiesced?: () => Promise<unknown>
 }
-
-const logger = loggerService.withContext('useExecutionOverlay')
 
 export interface ExecutionOverlayApi {
   /** messageId -> latest streamed parts. messageId = anchorMessageId, or the
@@ -79,21 +76,17 @@ export function useExecutionOverlay(
     const offFinish = executionStreamOverlayService.onFinish(topicId, (executionId, event) =>
       onFinishRef.current?.(executionId, event)
     )
-    const offQuiesced = executionStreamOverlayService.onTopicQuiesced(topicId, ({ throughAttemptId }) => {
-      const refresh = refreshOnQuiescedRef.current
-      if (!refresh) return
-      executionStreamOverlayService.setRefreshError(topicId, null)
-      void refresh()
-        .then(() => executionStreamOverlayService.retireThrough(topicId, throughAttemptId))
-        .catch((error) => {
-          const refreshError = error instanceof Error ? error : new Error(String(error))
-          executionStreamOverlayService.setRefreshError(topicId, refreshError)
-          logger.warn('topic projection refresh failed; retaining final overlay', refreshError)
-        })
-    })
+    // The service owns the quiesce → refresh → retire handoff (and its retry);
+    // this only lends it the consumer's DB refetch while mounted.
+    const offRefresh = refreshOnQuiescedRef.current
+      ? executionStreamOverlayService.registerRefreshPort(
+          topicId,
+          () => refreshOnQuiescedRef.current?.() ?? Promise.resolve()
+        )
+      : undefined
     return () => {
       offFinish()
-      offQuiesced()
+      offRefresh?.()
       executionStreamOverlayService.release(topicId, consumer)
     }
   }, [consumer, topicId])

@@ -343,6 +343,64 @@ describe('ExecutionStreamOverlayService', () => {
     expect(mocks.subs.get(TOPIC)?.hasOpenBranch(A, 'anchor-reserved', 7)).toBe(true)
   })
 
+  it('retries a failed quiesce refresh and completes the durable handoff', async () => {
+    const service = new ExecutionStreamOverlayService()
+    const consumer = {}
+    const refresh = vi.fn().mockRejectedValueOnce(new Error('db refetch failed')).mockResolvedValue(undefined)
+    service.acquire(TOPIC)
+    service.registerRefreshPort(TOPIC, refresh)
+    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a', 1)], getSeed)
+    const sub = mocks.subs.get(TOPIC)!
+    streamText(sub, A, 't', 'durable')
+    await nextCommit()
+    expect(textOf(service.getView(TOPIC).overlay['anchor-a'])).toBe('durable')
+
+    // Fake timers BEFORE the failed refresh schedules its backoff timer.
+    sub.terminal(A, { isAbort: false, isError: false, isTopicDone: true }, 'anchor-a', 1)
+    vi.useFakeTimers()
+    await vi.advanceTimersByTimeAsync(0)
+
+    // First refresh failed: the overlay is retained and the failure surfaces in the view.
+    expect(refresh).toHaveBeenCalledTimes(1)
+    expect(textOf(service.getView(TOPIC).overlay['anchor-a'])).toBe('durable')
+    expect(service.getView(TOPIC).refreshError?.message).toBe('db refetch failed')
+
+    await vi.advanceTimersByTimeAsync(1_000)
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(refresh).toHaveBeenCalledTimes(2)
+    expect(service.getView(TOPIC).overlay['anchor-a']).toBeUndefined()
+    expect(service.getView(TOPIC).refreshError).toBeNull()
+  })
+
+  it('a re-registered refresh port re-kicks a handoff whose refresh failed', async () => {
+    const service = new ExecutionStreamOverlayService()
+    const consumer = {}
+    const failingRefresh = vi.fn().mockRejectedValue(new Error('offline'))
+    service.acquire(TOPIC)
+    const offFailing = service.registerRefreshPort(TOPIC, failingRefresh)
+    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a', 1)], getSeed)
+    const sub = mocks.subs.get(TOPIC)!
+    streamText(sub, A, 't', 'durable')
+    await nextCommit()
+
+    sub.terminal(A, { isAbort: false, isError: false, isTopicDone: true }, 'anchor-a', 1)
+    await drainStreamMicrotasks()
+    expect(failingRefresh).toHaveBeenCalledTimes(1)
+    expect(textOf(service.getView(TOPIC).overlay['anchor-a'])).toBe('durable')
+
+    // Unmount the failing consumer, remount a healthy one: the pending handoff
+    // must converge without waiting for the backoff timer.
+    offFailing()
+    const healthyRefresh = vi.fn().mockResolvedValue(undefined)
+    service.registerRefreshPort(TOPIC, healthyRefresh)
+    await drainStreamMicrotasks()
+
+    expect(healthyRefresh).toHaveBeenCalledTimes(1)
+    expect(service.getView(TOPIC).overlay['anchor-a']).toBeUndefined()
+    expect(service.getView(TOPIC).refreshError).toBeNull()
+  })
+
   it('starts an in-place retry from empty parts even when cached history still has the old failure', async () => {
     const service = new ExecutionStreamOverlayService()
     const consumer = {}

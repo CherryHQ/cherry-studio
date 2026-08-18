@@ -125,6 +125,17 @@ interface Entry {
   optimisticSeeds: Map<AttemptId, () => CherryUIMessage[]>
   activeNodeOverride: ExecutionOverlayActiveNodeOverride | null
   refreshError: Error | null
+  /** DB refetch ports of mounted persistent consumers (latest registration wins). */
+  refreshPorts: Set<() => Promise<unknown>>
+  /** Pending durable handoff: the quiesced watermark still awaiting a successful
+   *  DB refresh before `retireThrough`. Owned here — not by a mounted hook — so a
+   *  failed refresh retries and an unmounted topic converges on the next mount. */
+  handoff: {
+    pendingWatermark: AttemptId
+    attempt: number
+    retryTimer: number | null
+    inFlight: boolean
+  } | null
   /** attemptId -> latest message snapshot. Retained after a reader tears
    *  down (final frame / Phase 2 last-good) until the same execution
    *  restarts, an explicit dispose, or the entry is dropped. */
@@ -154,6 +165,8 @@ interface Entry {
 }
 
 const MAX_ENTRIES = 32
+/** Backoff for durable-handoff refresh retries; the last delay repeats. */
+const HANDOFF_RETRY_DELAYS_MS = [1_000, 2_000, 5_000, 15_000, 30_000]
 /** Commit cadence floor/ceiling. Each commit re-runs O(message size) render work (content
  *  transforms + markdown re-lex), so the interval scales with snapshot size to keep the
  *  per-second work bounded — a fixed cadence still melts the renderer as the message grows. */
@@ -480,10 +493,85 @@ export class ExecutionStreamOverlayService {
     return () => entry.finishListeners.delete(listener)
   }
 
-  onTopicQuiesced(topicId: string, listener: Parameters<TopicStreamSubscription['onTopicQuiesced']>[0]): () => void {
+  /** Register a persistent consumer's DB refetch port. The service owns the
+   *  quiesce → refresh → retire handoff (including retry after a failed
+   *  refresh): the port only supplies the refetch. Registering re-kicks a
+   *  handoff left pending while no port was mounted. */
+  registerRefreshPort(topicId: string, refresh: () => Promise<unknown>): () => void {
     const entry = this.#entries.get(topicId)
     if (!entry) return () => {}
-    return entry.sub.onTopicQuiesced(listener)
+    entry.refreshPorts.add(refresh)
+    if (entry.handoff && !entry.handoff.inFlight) {
+      this.#clearHandoffTimer(entry)
+      this.#runHandoffRefresh(entry)
+    }
+    return () => entry.refreshPorts.delete(refresh)
+  }
+
+  #beginHandoff(entry: Entry, throughAttemptId: number): void {
+    const watermark = toAttemptId(throughAttemptId)
+    if (entry.handoff) {
+      if (watermark > entry.handoff.pendingWatermark) entry.handoff.pendingWatermark = watermark
+      entry.handoff.attempt = 0
+      if (entry.handoff.inFlight) return
+      this.#clearHandoffTimer(entry)
+    } else {
+      entry.handoff = { pendingWatermark: watermark, attempt: 0, retryTimer: null, inFlight: false }
+    }
+    this.#runHandoffRefresh(entry)
+  }
+
+  #runHandoffRefresh(entry: Entry): void {
+    const handoff = entry.handoff
+    if (!handoff || handoff.inFlight || entry.dropped) return
+    const refresh = [...entry.refreshPorts].at(-1)
+    if (!refresh) return
+    this.#clearHandoffTimer(entry)
+    handoff.inFlight = true
+    const watermark = handoff.pendingWatermark
+    this.setRefreshError(entry.topicId, null)
+    void (async () => {
+      try {
+        await refresh()
+      } catch (error) {
+        if (entry.handoff !== handoff) return
+        handoff.inFlight = false
+        const refreshError = error instanceof Error ? error : new Error(String(error))
+        this.setRefreshError(entry.topicId, refreshError)
+        logger.warn('topic projection refresh failed; retaining final overlay until retry', refreshError)
+        this.#scheduleHandoffRetry(entry)
+        return
+      }
+      if (entry.handoff !== handoff) return
+      handoff.inFlight = false
+      this.retireThrough(entry.topicId, watermark)
+      if (handoff.pendingWatermark > watermark) {
+        // A newer quiesce landed mid-refresh; its rows may postdate the refetch.
+        this.#runHandoffRefresh(entry)
+      } else {
+        entry.handoff = null
+        this.setRefreshError(entry.topicId, null)
+      }
+    })()
+  }
+
+  #scheduleHandoffRetry(entry: Entry): void {
+    const handoff = entry.handoff
+    if (!handoff || entry.dropped) return
+    const delay = HANDOFF_RETRY_DELAYS_MS[Math.min(handoff.attempt, HANDOFF_RETRY_DELAYS_MS.length - 1)]
+    handoff.attempt += 1
+    handoff.retryTimer = window.setTimeout(() => {
+      handoff.retryTimer = null
+      this.#runHandoffRefresh(entry)
+    }, delay)
+  }
+
+  #clearHandoffTimer(entry: Entry): void {
+    const handoff = entry.handoff
+    if (handoff?.retryTimer != null) {
+      window.clearTimeout(handoff.retryTimer)
+      handoff.retryTimer = null
+    }
   }
 
   setRefreshError(topicId: string, error: Error | null): void {
@@ -570,6 +658,8 @@ export class ExecutionStreamOverlayService {
   clear(topicId: string): void {
     const entry = this.#entries.get(topicId)
     if (!entry) return
+    this.#clearHandoffTimer(entry)
+    entry.handoff = null
     this.#invalidatePending(entry)
     entry.readerVersions.clear()
     entry.settlements.clear()
@@ -603,6 +693,8 @@ export class ExecutionStreamOverlayService {
       optimisticSeeds: new Map(),
       activeNodeOverride: null,
       refreshError: null,
+      refreshPorts: new Set(),
+      handoff: null,
       snapshots: new Map(),
       settlements: new Map(),
       view: EMPTY_VIEW,
@@ -649,6 +741,9 @@ export class ExecutionStreamOverlayService {
     sub.onTopicStateChange(() => {
       if (this.#entries.get(topicId) === entry) this.#maybeDrop(entry)
     })
+    sub.onTopicQuiesced(({ throughAttemptId }) => {
+      if (this.#entries.get(topicId) === entry) this.#beginHandoff(entry, throughAttemptId)
+    })
     return entry
   }
 
@@ -693,6 +788,8 @@ export class ExecutionStreamOverlayService {
     if (entry.dropped) return
     entry.dropped = true
     if (this.#entries.get(entry.topicId) === entry) this.#entries.delete(entry.topicId)
+    this.#clearHandoffTimer(entry)
+    entry.handoff = null
     this.#cancelFrame(entry)
     entry.sub.dispose()
   }
