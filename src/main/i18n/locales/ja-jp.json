@@ -104,6 +104,18 @@
     "save_as_html": "HTMLとして保存",
     "save_as_pdf": "PDFとして保存",
     "save_file": "ファイルを保存",
+    "screen_capture_permission": {
+      "cancel": "キャンセル",
+      "detail": "システム設定の「プライバシーとセキュリティ」>「画面収録」で「{{appName}}」に画面収録の権限を付与し、アプリを再起動してください。",
+      "message": "スクリーンショットを撮るには画面収録の権限が必要です。",
+      "open_settings": "システム設定を開く",
+      "title": "画面収録の権限"
+    },
+    "screenshot_failed": {
+      "message": "スクリーンショットを撮れませんでした。",
+      "ok": "OK",
+      "title": "スクリーンショットに失敗しました"
+    },
     "select_folder": "フォルダーを選択",
     "word_document": "ワード文書"
   },

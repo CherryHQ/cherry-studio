@@ -234,7 +234,7 @@
         "stop_run_task": "Arrêter la tâche",
         "stop_run_task_failed": "Impossible d'arrêter la tâche",
         "task_count": "{{completed}} / {{total}} terminé",
-        "tasks": "Tâches",
+        "task_progress_compact": "Étape {{current}}/{{total}}",
         "tool_uses_one": "{{count}} appel d'outil",
         "tool_uses_other": "{{count}} appels d'outils"
       },
@@ -4381,6 +4381,49 @@
       "undo": "annuler"
     }
   },
+  "screenshot": {
+    "action": {
+      "cancel": "Annuler",
+      "confirm": "Copier et fermer",
+      "redo": "Rétablir",
+      "save": "Enregistrer l’image",
+      "undo": "Annuler"
+    },
+    "magnifier": {
+      "copied": "Copié !",
+      "hint_color_mode": "Shift : Format de couleur",
+      "hint_copy": "C : Copier la couleur",
+      "hint_move": "↑↓←→ : Déplacer"
+    },
+    "ocr": {
+      "copy": "Copier tout le texte ou le sélectionner à l’écran",
+      "disabled_while_annotating": "La reconnaissance de texte est indisponible pendant l’annotation",
+      "failed": "Échec de la reconnaissance de texte",
+      "recognize": "Reconnaître le texte",
+      "recognizing": "Reconnaissance du texte…",
+      "unavailable": "Le modèle OCR local n’est pas prêt — cliquez pour le télécharger"
+    },
+    "property": {
+      "color": {
+        "black": "Noir",
+        "blue": "Bleu",
+        "gray": "Gris",
+        "green": "Vert",
+        "red": "Rouge",
+        "white": "Blanc",
+        "yellow": "Jaune"
+      },
+      "font_size": "Taille du texte {{value}}",
+      "stroke_width": "Épaisseur du trait {{value}}"
+    },
+    "tool": {
+      "arrow": "Flèche",
+      "brush": "Pinceau",
+      "mosaic": "Mosaïque",
+      "rectangle": "Rectangle",
+      "text": "Texte"
+    }
+  },
   "selection": {
     "action": {
       "builtin": {
@@ -6611,6 +6654,43 @@
         "prompt": "Entrez une invite de tâche."
       }
     },
+    "screenshot": {
+      "enable": {
+        "description": "Capturez l’écran avec un raccourci global, puis sélectionnez une zone, annotez-la et copiez ou enregistrez le résultat.",
+        "title": "Activer la capture d’écran"
+      },
+      "ocr": {
+        "auto": {
+          "description": "Reconnaissez le texte de l’écran capturé afin de pouvoir le sélectionner et le copier.",
+          "title": "Reconnaître automatiquement le texte"
+        },
+        "model": {
+          "downloading": "Téléchargement du modèle de reconnaissance de texte",
+          "link": "Gérer les modèles locaux",
+          "ready": "La reconnaissance de texte est prête",
+          "unavailable": "La reconnaissance de texte nécessite le modèle OCR local."
+        },
+        "title": "Reconnaissance de texte"
+      },
+      "permission": {
+        "denied_hint": "L’autorisation d’enregistrement de l’écran a été refusée. Autorisez Cherry Studio dans Réglages Système > Confidentialité et sécurité > Enregistrement de l’écran et de l’audio système.",
+        "grant": "Accorder l’autorisation",
+        "open_settings": "Ouvrir Réglages Système",
+        "prompt_unavailable_hint": "La boîte de dialogue d’autorisation du système ne s’est pas affichée. Autorisez manuellement Cherry Studio dans Réglages Système > Confidentialité et sécurité > Enregistrement de l’écran et de l’audio système.",
+        "request_hint": "macOS requiert l’autorisation d’enregistrement de l’écran avant de pouvoir le capturer.",
+        "restart": "Redémarrer maintenant",
+        "restart_hint": "L’autorisation d’enregistrement de l’écran a été accordée. Redémarrez l’application pour qu’elle prenne effet.",
+        "title": "Autorisation d’enregistrement de l’écran"
+      },
+      "shortcut": {
+        "description": "La capture d’écran est déclenchée par un raccourci global.",
+        "disabled": "Désactivé",
+        "link": "Définir le raccourci",
+        "title": "Raccourci",
+        "unset": "Non défini"
+      },
+      "title": "Capture d’écran"
+    },
     "shortcuts": {
       "all_disable": "Désactiver tout",
       "all_enable": "Tout activer",
@@ -6642,6 +6722,7 @@
       "reset_to_default": "Réinitialiser aux valeurs par défaut",
       "save_failed": "Échec de l’enregistrement du raccourci",
       "save_failed_with_name": "Échec de l’enregistrement du raccourci : {{name}}",
+      "screenshot_capture": "Prendre une capture d’écran",
       "search_message": "Rechercher un message",
       "search_message_in_chat": "Rechercher un message dans la conversation actuelle",
       "search_placeholder": "Raccourcis de recherche...",
@@ -6662,6 +6743,7 @@
       "batchInstallComplete": "{{count}} compétences installées",
       "batchInstallPartialFailed": "{{success}}/{{total}} compétences installées, {{failed}} échouées",
       "batchInstallQueued": "En attente",
+      "globalToggle": "Activer globalement la compétence {{name}}",
       "install": "Installer",
       "installFailed": "Échec de l'installation de la compétence : {{name}}",
       "installFromDirectory": "Installer depuis le répertoire",
@@ -6670,6 +6752,7 @@
       "installed": "Compétences installées",
       "invalidFormat": "Seuls les fichiers ZIP et les répertoires sont pris en charge",
       "title": "Compétences",
+      "toggleFailed": "Impossible de mettre à jour l’état global de la compétence {{name}}",
       "viewSource": "Afficher la source"
     },
     "system": {

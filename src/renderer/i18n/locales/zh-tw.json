@@ -234,7 +234,7 @@
         "stop_run_task": "停止任務",
         "stop_run_task_failed": "無法停止任務",
         "task_count": "{{completed}} / {{total}} 完成",
-        "tasks": "任務",
+        "task_progress_compact": "步驟 {{current}}/{{total}}",
         "tool_uses_one": "{{count}} 個工具呼叫",
         "tool_uses_other": "{{count}} 個工具呼叫"
       },
@@ -4381,6 +4381,49 @@
       "undo": "復原"
     }
   },
+  "screenshot": {
+    "action": {
+      "cancel": "取消",
+      "confirm": "複製並關閉",
+      "redo": "重做",
+      "save": "儲存圖片",
+      "undo": "復原"
+    },
+    "magnifier": {
+      "copied": "已複製！",
+      "hint_color_mode": "Shift：切換色彩格式",
+      "hint_copy": "C：複製色彩值",
+      "hint_move": "↑↓←→：移動"
+    },
+    "ocr": {
+      "copy": "複製全部文字，或直接在畫面上選取",
+      "disabled_while_annotating": "標註時無法辨識文字",
+      "failed": "文字辨識失敗",
+      "recognize": "辨識文字",
+      "recognizing": "辨識中…",
+      "unavailable": "本機 OCR 模型尚未就緒，點擊以下載"
+    },
+    "property": {
+      "color": {
+        "black": "黑色",
+        "blue": "藍色",
+        "gray": "灰色",
+        "green": "綠色",
+        "red": "紅色",
+        "white": "白色",
+        "yellow": "黃色"
+      },
+      "font_size": "字型大小 {{value}}",
+      "stroke_width": "線條寬度 {{value}}"
+    },
+    "tool": {
+      "arrow": "箭頭",
+      "brush": "畫筆",
+      "mosaic": "馬賽克",
+      "rectangle": "矩形",
+      "text": "文字"
+    }
+  },
   "selection": {
     "action": {
       "builtin": {
@@ -6611,6 +6654,43 @@
         "prompt": "輸入任務提示。"
       }
     },
+    "screenshot": {
+      "enable": {
+        "description": "透過全域快捷鍵擷取螢幕，接著框選區域、加上標註，並複製或儲存結果。",
+        "title": "啟用截圖"
+      },
+      "ocr": {
+        "auto": {
+          "description": "辨識擷取畫面中的文字，讓文字可以被選取和複製。",
+          "title": "自動辨識文字"
+        },
+        "model": {
+          "downloading": "正在下載文字辨識模型",
+          "link": "管理本機模型",
+          "ready": "文字辨識已就緒",
+          "unavailable": "文字辨識需要本機 OCR 模型。"
+        },
+        "title": "文字辨識"
+      },
+      "permission": {
+        "denied_hint": "螢幕錄製權限已遭拒絕。請在「系統設定 > 隱私權與安全性 > 螢幕與系統音訊錄製」中允許 Cherry Studio。",
+        "grant": "授予權限",
+        "open_settings": "開啟系統設定",
+        "prompt_unavailable_hint": "系統權限對話框未出現。請在「系統設定 > 隱私權與安全性 > 螢幕與系統音訊錄製」中手動允許 Cherry Studio。",
+        "request_hint": "macOS 需要先授予螢幕錄製權限才能擷取螢幕。",
+        "restart": "立即重新啟動",
+        "restart_hint": "螢幕錄製權限已授予。請重新啟動應用程式以使其生效。",
+        "title": "螢幕錄製權限"
+      },
+      "shortcut": {
+        "description": "截圖由全域快捷鍵觸發。",
+        "disabled": "已停用",
+        "link": "設定快捷鍵",
+        "title": "快捷鍵",
+        "unset": "未設定"
+      },
+      "title": "截圖"
+    },
     "shortcuts": {
       "all_disable": "全部停用",
       "all_enable": "全部啟用",
@@ -6642,6 +6722,7 @@
       "reset_to_default": "重設為預設",
       "save_failed": "儲存快捷鍵失敗",
       "save_failed_with_name": "儲存快捷鍵失敗：{{name}}",
+      "screenshot_capture": "螢幕截圖",
       "search_message": "搜尋訊息",
       "search_message_in_chat": "在目前對話中搜尋訊息",
       "search_placeholder": "搜尋快捷鍵…",
@@ -6662,6 +6743,7 @@
       "batchInstallComplete": "已安裝 {{count}} 個技能",
       "batchInstallPartialFailed": "已安裝 {{success}}/{{total}} 個技能，{{failed}} 個失敗",
       "batchInstallQueued": "等待安裝",
+      "globalToggle": "全域啟用技能 {{name}}",
       "install": "安裝",
       "installFailed": "技能安裝失敗：{{name}}",
       "installFromDirectory": "從資料夾安裝",
@@ -6670,6 +6752,7 @@
       "installed": "已安裝",
       "invalidFormat": "僅支援 ZIP 檔案和資料夾",
       "title": "技能",
+      "toggleFailed": "更新技能 {{name}} 的全域狀態失敗",
       "viewSource": "檢視原始碼"
     },
     "system": {

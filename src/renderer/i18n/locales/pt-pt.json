@@ -234,7 +234,7 @@
         "stop_run_task": "Parar tarefa",
         "stop_run_task_failed": "Falha ao parar a tarefa",
         "task_count": "{{completed}} / {{total}} concluído",
-        "tasks": "Tarefas",
+        "task_progress_compact": "Passo {{current}}/{{total}}",
         "tool_uses_one": "{{count}} chamada de ferramenta",
         "tool_uses_other": "{{count}} chamadas de ferramenta"
       },
@@ -4381,6 +4381,49 @@
       "undo": "desfazer"
     }
   },
+  "screenshot": {
+    "action": {
+      "cancel": "Cancelar",
+      "confirm": "Copiar e fechar",
+      "redo": "Refazer",
+      "save": "Guardar imagem",
+      "undo": "Anular"
+    },
+    "magnifier": {
+      "copied": "Copiado!",
+      "hint_color_mode": "Shift: Formato da cor",
+      "hint_copy": "C: Copiar cor",
+      "hint_move": "↑↓←→: Mover"
+    },
+    "ocr": {
+      "copy": "Copiar todo o texto ou selecioná-lo no ecrã",
+      "disabled_while_annotating": "O reconhecimento de texto não está disponível durante as anotações",
+      "failed": "Falha no reconhecimento de texto",
+      "recognize": "Reconhecer texto",
+      "recognizing": "A reconhecer texto…",
+      "unavailable": "O modelo OCR local não está pronto — clique para o transferir"
+    },
+    "property": {
+      "color": {
+        "black": "Preto",
+        "blue": "Azul",
+        "gray": "Cinzento",
+        "green": "Verde",
+        "red": "Vermelho",
+        "white": "Branco",
+        "yellow": "Amarelo"
+      },
+      "font_size": "Tamanho do texto {{value}}",
+      "stroke_width": "Espessura do traço {{value}}"
+    },
+    "tool": {
+      "arrow": "Seta",
+      "brush": "Pincel",
+      "mosaic": "Mosaico",
+      "rectangle": "Retângulo",
+      "text": "Texto"
+    }
+  },
   "selection": {
     "action": {
       "builtin": {
@@ -6611,6 +6654,43 @@
         "prompt": "Introduza um prompt de tarefa."
       }
     },
+    "screenshot": {
+      "enable": {
+        "description": "Capture o ecrã com um atalho global, selecione uma área, faça anotações e copie ou guarde o resultado.",
+        "title": "Ativar captura de ecrã"
+      },
+      "ocr": {
+        "auto": {
+          "description": "Reconheça o texto no ecrã capturado para que possa ser selecionado e copiado.",
+          "title": "Reconhecer texto automaticamente"
+        },
+        "model": {
+          "downloading": "A transferir o modelo de reconhecimento de texto",
+          "link": "Gerir modelos locais",
+          "ready": "O reconhecimento de texto está pronto",
+          "unavailable": "O reconhecimento de texto necessita do modelo OCR local."
+        },
+        "title": "Reconhecimento de texto"
+      },
+      "permission": {
+        "denied_hint": "A permissão de gravação do ecrã foi recusada. Permita o Cherry Studio em Definições do Sistema > Privacidade e Segurança > Gravação do Ecrã e Áudio do Sistema.",
+        "grant": "Conceder permissão",
+        "open_settings": "Abrir Definições do Sistema",
+        "prompt_unavailable_hint": "A caixa de diálogo de permissão do sistema não foi apresentada. Permita manualmente o Cherry Studio em Definições do Sistema > Privacidade e Segurança > Gravação do Ecrã e Áudio do Sistema.",
+        "request_hint": "O macOS requer permissão de gravação do ecrã antes de o ecrã poder ser capturado.",
+        "restart": "Reiniciar agora",
+        "restart_hint": "A permissão de gravação do ecrã foi concedida. Reinicie a aplicação para que tenha efeito.",
+        "title": "Permissão de gravação do ecrã"
+      },
+      "shortcut": {
+        "description": "A captura de ecrã é acionada por um atalho global.",
+        "disabled": "Desativado",
+        "link": "Definir atalho",
+        "title": "Atalho",
+        "unset": "Não definido"
+      },
+      "title": "Captura de ecrã"
+    },
     "shortcuts": {
       "all_disable": "Desativar Todos",
       "all_enable": "Ativar Todos",
@@ -6642,6 +6722,7 @@
       "reset_to_default": "Redefinir para padrão",
       "save_failed": "Falha ao guardar atalho",
       "save_failed_with_name": "Falha ao guardar atalho: {{name}}",
+      "screenshot_capture": "Capturar ecrã",
       "search_message": "Pesquisar mensagem",
       "search_message_in_chat": "Pesquisar mensagens nesta conversa",
       "search_placeholder": "Atalhos de pesquisa...",
@@ -6662,6 +6743,7 @@
       "batchInstallComplete": "Instaladas {{count}} competências",
       "batchInstallPartialFailed": "Instaladas {{success}}/{{total}} competências, {{failed}} falharam",
       "batchInstallQueued": "Na fila",
+      "globalToggle": "Ativar globalmente a competência {{name}}",
       "install": "Instalar",
       "installFailed": "Falha ao instalar a competência: {{name}}",
       "installFromDirectory": "Instalar a partir da pasta",
@@ -6670,6 +6752,7 @@
       "installed": "Competências Instaladas",
       "invalidFormat": "Apenas ficheiros ZIP e pastas são suportados",
       "title": "Competências",
+      "toggleFailed": "Não foi possível atualizar o estado global da competência {{name}}",
       "viewSource": "Ver Fonte"
     },
     "system": {

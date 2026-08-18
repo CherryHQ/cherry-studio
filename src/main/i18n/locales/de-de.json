@@ -104,6 +104,18 @@
     "save_as_html": "Als HTML speichern",
     "save_as_pdf": "Als PDF speichern",
     "save_file": "Datei speichern",
+    "screen_capture_permission": {
+      "cancel": "Abbrechen",
+      "detail": "Erteilen Sie „{{appName}}“ unter Systemeinstellungen > Datenschutz & Sicherheit > Bildschirmaufnahme die Berechtigung zur Bildschirmaufnahme und starten Sie die App anschließend neu.",
+      "message": "Zum Erstellen von Screenshots ist die Berechtigung zur Bildschirmaufnahme erforderlich.",
+      "open_settings": "Systemeinstellungen öffnen",
+      "title": "Berechtigung zur Bildschirmaufnahme"
+    },
+    "screenshot_failed": {
+      "message": "Der Screenshot konnte nicht erstellt werden.",
+      "ok": "OK",
+      "title": "Screenshot fehlgeschlagen"
+    },
     "select_folder": "Ordner auswählen",
     "word_document": "Word-Dokument"
   },

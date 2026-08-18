@@ -234,7 +234,7 @@
         "stop_run_task": "タスクを停止",
         "stop_run_task_failed": "タスクの停止に失敗しました",
         "task_count": "{{completed}} / {{total}} 完了",
-        "tasks": "タスク",
+        "task_progress_compact": "ステップ {{current}}/{{total}}",
         "tool_uses_one": "{{count}} ツール呼び出し",
         "tool_uses_other": "{{count}} 回のツール呼び出し"
       },
@@ -4381,6 +4381,49 @@
       "undo": "取り消す"
     }
   },
+  "screenshot": {
+    "action": {
+      "cancel": "キャンセル",
+      "confirm": "コピーして閉じる",
+      "redo": "やり直す",
+      "save": "画像を保存",
+      "undo": "元に戻す"
+    },
+    "magnifier": {
+      "copied": "コピーしました！",
+      "hint_color_mode": "Shift：カラー形式",
+      "hint_copy": "C：色をコピー",
+      "hint_move": "↑↓←→：移動"
+    },
+    "ocr": {
+      "copy": "すべてのテキストをコピーするか、画面上で選択します",
+      "disabled_while_annotating": "注釈中はテキスト認識を利用できません",
+      "failed": "テキスト認識に失敗しました",
+      "recognize": "テキストを認識",
+      "recognizing": "テキストを認識中…",
+      "unavailable": "ローカル OCR モデルの準備ができていません — クリックしてダウンロード"
+    },
+    "property": {
+      "color": {
+        "black": "黒",
+        "blue": "青",
+        "gray": "グレー",
+        "green": "緑",
+        "red": "赤",
+        "white": "白",
+        "yellow": "黄"
+      },
+      "font_size": "テキストサイズ {{value}}",
+      "stroke_width": "線の太さ {{value}}"
+    },
+    "tool": {
+      "arrow": "矢印",
+      "brush": "ブラシ",
+      "mosaic": "モザイク",
+      "rectangle": "長方形",
+      "text": "テキスト"
+    }
+  },
   "selection": {
     "action": {
       "builtin": {
@@ -6611,6 +6654,43 @@
         "prompt": "タスクのプロンプトを入力してください。"
       }
     },
+    "screenshot": {
+      "enable": {
+        "description": "グローバルショートカットで画面をキャプチャし、範囲を選択して注釈を付け、結果をコピーまたは保存します。",
+        "title": "スクリーンショットを有効にする"
+      },
+      "ocr": {
+        "auto": {
+          "description": "キャプチャした画面内のテキストを認識し、選択してコピーできるようにします。",
+          "title": "テキストを自動認識"
+        },
+        "model": {
+          "downloading": "テキスト認識モデルをダウンロード中",
+          "link": "ローカルモデルを管理",
+          "ready": "テキスト認識の準備ができました",
+          "unavailable": "テキスト認識にはローカル OCR モデルが必要です。"
+        },
+        "title": "テキスト認識"
+      },
+      "permission": {
+        "denied_hint": "画面収録の権限が拒否されました。システム設定の「プライバシーとセキュリティ」>「画面収録とシステムオーディオ」で Cherry Studio を許可してください。",
+        "grant": "権限を付与",
+        "open_settings": "システム設定を開く",
+        "prompt_unavailable_hint": "システムの権限ダイアログが表示されませんでした。システム設定の「プライバシーとセキュリティ」>「画面収録とシステムオーディオ」で Cherry Studio を手動で許可してください。",
+        "request_hint": "macOS では画面をキャプチャする前に画面収録の権限が必要です。",
+        "restart": "今すぐ再起動",
+        "restart_hint": "画面収録の権限が付与されました。反映するにはアプリを再起動してください。",
+        "title": "画面収録の権限"
+      },
+      "shortcut": {
+        "description": "スクリーンショットはグローバルショートカットで起動します。",
+        "disabled": "オフ",
+        "link": "ショートカットを設定",
+        "title": "ショートカット",
+        "unset": "未設定"
+      },
+      "title": "スクリーンショット"
+    },
     "shortcuts": {
       "all_disable": "すべて無効にする",
       "all_enable": "すべて有効にする",
@@ -6642,6 +6722,7 @@
       "reset_to_default": "デフォルトにリセット",
       "save_failed": "ショートカットの保存に失敗しました",
       "save_failed_with_name": "ショートカットの保存に失敗しました: {{name}}",
+      "screenshot_capture": "スクリーンショットを撮る",
       "search_message": "メッセージを検索",
       "search_message_in_chat": "現在のチャットでメッセージを検索",
       "search_placeholder": "検索のショートカット...",
@@ -6662,6 +6743,7 @@
       "batchInstallComplete": "{{count}}個のスキルをインストールしました",
       "batchInstallPartialFailed": "{{success}}/{{total}} 個のスキルをインストールしました、{{failed}} 個に失敗",
       "batchInstallQueued": "キューに追加されました",
+      "globalToggle": "スキル {{name}} をグローバルに有効化",
       "install": "インストール",
       "installFailed": "スキルのインストールに失敗しました: {{name}}",
       "installFromDirectory": "フォルダーからインストール",
@@ -6670,6 +6752,7 @@
       "installed": "インストール済みスキル",
       "invalidFormat": "ZIPファイルとフォルダーのみがサポートされています",
       "title": "スキル",
+      "toggleFailed": "スキル {{name}} のグローバル状態を更新できませんでした",
       "viewSource": "ソースを表示"
     },
     "system": {

@@ -104,6 +104,18 @@
     "save_as_html": "Enregistrer au format HTML",
     "save_as_pdf": "Enregistrer au format PDF",
     "save_file": "Enregistrer le fichier",
+    "screen_capture_permission": {
+      "cancel": "Annuler",
+      "detail": "Accordez à « {{appName}} » l’autorisation d’enregistrement de l’écran dans Réglages Système > Confidentialité et sécurité > Enregistrement de l’écran, puis redémarrez l’application.",
+      "message": "L’autorisation d’enregistrement de l’écran est requise pour prendre des captures d’écran.",
+      "open_settings": "Ouvrir Réglages Système",
+      "title": "Autorisation d’enregistrement de l’écran"
+    },
+    "screenshot_failed": {
+      "message": "Impossible de prendre la capture d’écran.",
+      "ok": "OK",
+      "title": "Échec de la capture d’écran"
+    },
     "select_folder": "Sélectionner un dossier",
     "word_document": "Document Word"
   },

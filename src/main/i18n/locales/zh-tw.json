@@ -104,6 +104,18 @@
     "save_as_html": "儲存為 HTML",
     "save_as_pdf": "儲存為 PDF",
     "save_file": "儲存檔案",
+    "screen_capture_permission": {
+      "cancel": "取消",
+      "detail": "請在「系統設定 > 隱私權與安全性 > 螢幕錄製」中為「{{appName}}」開啟螢幕錄製權限，然後重新啟動應用程式。",
+      "message": "截圖需要螢幕錄製權限。",
+      "open_settings": "開啟系統設定",
+      "title": "螢幕錄製權限"
+    },
+    "screenshot_failed": {
+      "message": "無法擷取螢幕截圖。",
+      "ok": "好",
+      "title": "截圖失敗"
+    },
     "select_folder": "選擇資料夾",
     "word_document": "Word 文件"
   },

@@ -234,7 +234,7 @@
         "stop_run_task": "Stop task",
         "stop_run_task_failed": "Failed to stop task",
         "task_count": "{{completed}} / {{total}} complete",
-        "tasks": "Tasks",
+        "task_progress_compact": "Step {{current}}/{{total}}",
         "tool_uses_one": "{{count}} tool call",
         "tool_uses_other": "{{count}} tool calls"
       },
@@ -4381,6 +4381,49 @@
       "undo": "Undo"
     }
   },
+  "screenshot": {
+    "action": {
+      "cancel": "Cancel",
+      "confirm": "Copy and close",
+      "redo": "Redo",
+      "save": "Save image",
+      "undo": "Undo"
+    },
+    "magnifier": {
+      "copied": "Copied!",
+      "hint_color_mode": "Shift: Color format",
+      "hint_copy": "C: Copy color",
+      "hint_move": "↑↓←→: Move"
+    },
+    "ocr": {
+      "copy": "Copy all text, or select it on screen",
+      "disabled_while_annotating": "Text recognition is unavailable while annotating",
+      "failed": "Text recognition failed",
+      "recognize": "Recognize text",
+      "recognizing": "Recognizing text…",
+      "unavailable": "The local OCR model is not ready — click to download it"
+    },
+    "property": {
+      "color": {
+        "black": "Black",
+        "blue": "Blue",
+        "gray": "Gray",
+        "green": "Green",
+        "red": "Red",
+        "white": "White",
+        "yellow": "Yellow"
+      },
+      "font_size": "Text size {{value}}",
+      "stroke_width": "Stroke width {{value}}"
+    },
+    "tool": {
+      "arrow": "Arrow",
+      "brush": "Brush",
+      "mosaic": "Mosaic",
+      "rectangle": "Rectangle",
+      "text": "Text"
+    }
+  },
   "selection": {
     "action": {
       "builtin": {
@@ -6611,6 +6654,43 @@
         "prompt": "Enter a task prompt."
       }
     },
+    "screenshot": {
+      "enable": {
+        "description": "Capture the screen with a global shortcut, then select an area, annotate it, and copy or save the result.",
+        "title": "Enable Screenshot"
+      },
+      "ocr": {
+        "auto": {
+          "description": "Recognize text in the captured screen so that it can be selected and copied.",
+          "title": "Recognize Text Automatically"
+        },
+        "model": {
+          "downloading": "Downloading the text recognition model",
+          "link": "Manage local models",
+          "ready": "Text recognition is ready",
+          "unavailable": "Text recognition needs the local OCR model."
+        },
+        "title": "Text Recognition"
+      },
+      "permission": {
+        "denied_hint": "Screen recording permission was denied. Allow Cherry Studio under Privacy & Security > Screen & System Audio Recording in System Settings.",
+        "grant": "Grant Permission",
+        "open_settings": "Open System Settings",
+        "prompt_unavailable_hint": "The system permission dialog did not appear. Allow Cherry Studio manually under Privacy & Security > Screen & System Audio Recording in System Settings.",
+        "request_hint": "macOS requires screen recording permission before the screen can be captured.",
+        "restart": "Restart Now",
+        "restart_hint": "Screen recording permission was granted. Restart the app for it to take effect.",
+        "title": "Screen Recording Permission"
+      },
+      "shortcut": {
+        "description": "Screenshot is triggered by a global shortcut.",
+        "disabled": "Off",
+        "link": "Set shortcut",
+        "title": "Shortcut",
+        "unset": "Not set"
+      },
+      "title": "Screenshot"
+    },
     "shortcuts": {
       "all_disable": "Disable All",
       "all_enable": "Enable All",
@@ -6642,6 +6722,7 @@
       "reset_to_default": "Reset to Default",
       "save_failed": "Failed to save shortcut",
       "save_failed_with_name": "Failed to save shortcut: {{name}}",
+      "screenshot_capture": "Take Screenshot",
       "search_message": "Search Message",
       "search_message_in_chat": "Search Message in Current Chat",
       "search_placeholder": "Search shortcuts...",
@@ -6662,6 +6743,7 @@
       "batchInstallComplete": "Installed {{count}} skills",
       "batchInstallPartialFailed": "Installed {{success}}/{{total}} skills, {{failed}} failed",
       "batchInstallQueued": "Queued",
+      "globalToggle": "Globally enable skill {{name}}",
       "install": "Install",
       "installFailed": "Failed to install skill: {{name}}",
       "installFromDirectory": "Install from directory",
@@ -6670,6 +6752,7 @@
       "installed": "Installed",
       "invalidFormat": "Only ZIP files and directories are supported",
       "title": "Skills",
+      "toggleFailed": "Failed to update the global state of skill {{name}}",
       "viewSource": "View Source"
     },
     "system": {

@@ -104,6 +104,18 @@
     "save_as_html": "Guardar como HTML",
     "save_as_pdf": "Guardar como PDF",
     "save_file": "Guardar Ficheiro",
+    "screen_capture_permission": {
+      "cancel": "Cancelar",
+      "detail": "Conceda a «{{appName}}» permissão de gravação do ecrã em Definições do Sistema > Privacidade e Segurança > Gravação do Ecrã e, em seguida, reinicie a aplicação.",
+      "message": "É necessária permissão de gravação do ecrã para fazer capturas.",
+      "open_settings": "Abrir Definições do Sistema",
+      "title": "Permissão de gravação do ecrã"
+    },
+    "screenshot_failed": {
+      "message": "Não foi possível fazer a captura de ecrã.",
+      "ok": "OK",
+      "title": "Falha na captura de ecrã"
+    },
     "select_folder": "Selecionar Pasta",
     "word_document": "Documento do Word"
   },

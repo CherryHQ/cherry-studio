@@ -124,6 +124,15 @@ function formatBaseURL(baseURL: string, provider: Provider, endpointType?: Endpo
   return formatApiHost(baseURL, appendApiVersion)
 }
 
+/** Presets whose IMAGE models route to the extension provider's own transport (see the builder). */
+const IMAGE_EXTENSION_PRESETS = [
+  SystemProviderIds.modelscope,
+  SystemProviderIds.ppio,
+  SystemProviderIds.silicon,
+  SystemProviderIds.doubao,
+  SystemProviderIds.dmxapi
+] as const
+
 // ── SDK Config Building ──
 
 type ProviderConfigBuilder = (ctx: BuilderContext) => ProviderConfig | Promise<ProviderConfig>
@@ -192,6 +201,7 @@ export async function resolveProviderAiSdkConfig(
 
   const formattedBaseUrl = formatBaseURL(baseUrl, provider, endpointType)
   const { baseURL, endpoint } = routeToEndpoint(formattedBaseUrl)
+  const imageExtensionPreset = IMAGE_EXTENSION_PRESETS.find((preset) => matchesPreset(provider, preset))
 
   const ctx: BuilderContext = {
     actualProvider: provider,
@@ -234,7 +244,7 @@ export async function resolveProviderAiSdkConfig(
     // DashScope chat is OpenAI-compatible, but Bailian rerank uses a provider-specific URL.
     // Only replace the OpenAI-compatible branch so other DashScope endpoint families stay routed normally.
     {
-      match: (p, id) => p.id === SystemProviderIds.dashscope && id === 'openai-compatible',
+      match: (p, id) => matchesPreset(p, SystemProviderIds.dashscope) && id === 'openai-compatible',
       build: withSelectedApiKey(buildDashScopeConfig)
     },
     // Zhipu chat is OpenAI-compatible, but BigModel's built-in web search rides the
@@ -294,23 +304,21 @@ export async function resolveProviderAiSdkConfig(
     // (createXProvider().imageModel()) — a submit/poll loop for most, Ark's own
     // `/images/generations` protocol for doubao. Override the resolved `openai-compatible` id
     // to the extension id for image models only — chat/embedding fall through to the generic
-    // openai-compatible builder (which keeps `includeUsage`). provider.id is the extension
-    // id here, since the match requires it. Routing here is also what makes the vendor
-    // params land under the `providerOptions` key the image model reads: the delivery
-    // adapter keys the body by this `providerId`, which the generic branch would leave as
-    // `openai-compatible` while the model looked under the provider's own id.
+    // openai-compatible builder (which keeps `includeUsage`). Matched by PRESET, not by a bare
+    // `provider.id` — a user-added instance of the same host carries a UUID id, and keying on
+    // the id left it on the generic image model (multipart `/images/edits`, 404 on Ark #18537).
+    // Routing here is also what makes the vendor params land under the `providerOptions` key
+    // the image model reads: the delivery adapter keys the body by this `providerId`, which the
+    // generic branch would leave as `openai-compatible` while the model looked under its own id.
     {
-      match: (p, id) =>
+      match: (_, id) =>
         id === 'openai-compatible' &&
         isGenerateImageModel(model) &&
-        (p.id === SystemProviderIds.modelscope ||
-          p.id === SystemProviderIds.ppio ||
-          p.id === SystemProviderIds.silicon ||
-          p.id === SystemProviderIds.doubao ||
-          (p.id === SystemProviderIds.dmxapi && dmxapiUsesCustomTransport(model.apiModelId ?? model.id))),
-      // provider.id is guaranteed to be one of these by the match above.
+        imageExtensionPreset !== undefined &&
+        (imageExtensionPreset !== SystemProviderIds.dmxapi || dmxapiUsesCustomTransport(model.apiModelId ?? model.id)),
       build: withSelectedApiKey((ctx) => ({
-        providerId: ctx.actualProvider.id as 'modelscope' | 'ppio' | 'silicon' | 'doubao' | 'dmxapi',
+        // Non-null by the match above.
+        providerId: imageExtensionPreset!,
         endpoint: ctx.endpoint,
         providerSettings: {
           ...ctx.baseConfig,

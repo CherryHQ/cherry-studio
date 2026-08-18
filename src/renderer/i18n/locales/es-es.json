@@ -234,7 +234,7 @@
         "stop_run_task": "Detener tarea",
         "stop_run_task_failed": "Error al detener la tarea",
         "task_count": "{{completed}} / {{total}} completado",
-        "tasks": "Tareas",
+        "task_progress_compact": "Paso {{current}}/{{total}}",
         "tool_uses_one": "{{count}} llamada a herramienta",
         "tool_uses_other": "{{count}} llamadas a herramientas"
       },
@@ -4381,6 +4381,49 @@
       "undo": "Revocar"
     }
   },
+  "screenshot": {
+    "action": {
+      "cancel": "Cancelar",
+      "confirm": "Copiar y cerrar",
+      "redo": "Rehacer",
+      "save": "Guardar imagen",
+      "undo": "Deshacer"
+    },
+    "magnifier": {
+      "copied": "¡Copiado!",
+      "hint_color_mode": "Shift: Formato de color",
+      "hint_copy": "C: Copiar color",
+      "hint_move": "↑↓←→: Mover"
+    },
+    "ocr": {
+      "copy": "Copiar todo el texto o seleccionarlo en pantalla",
+      "disabled_while_annotating": "El reconocimiento de texto no está disponible mientras se realizan anotaciones",
+      "failed": "Error en el reconocimiento de texto",
+      "recognize": "Reconocer texto",
+      "recognizing": "Reconociendo texto…",
+      "unavailable": "El modelo OCR local no está listo — haz clic para descargarlo"
+    },
+    "property": {
+      "color": {
+        "black": "Negro",
+        "blue": "Azul",
+        "gray": "Gris",
+        "green": "Verde",
+        "red": "Rojo",
+        "white": "Blanco",
+        "yellow": "Amarillo"
+      },
+      "font_size": "Tamaño del texto {{value}}",
+      "stroke_width": "Grosor del trazo {{value}}"
+    },
+    "tool": {
+      "arrow": "Flecha",
+      "brush": "Pincel",
+      "mosaic": "Mosaico",
+      "rectangle": "Rectángulo",
+      "text": "Texto"
+    }
+  },
   "selection": {
     "action": {
       "builtin": {
@@ -6611,6 +6654,43 @@
         "prompt": "Introduce un indicador de tarea."
       }
     },
+    "screenshot": {
+      "enable": {
+        "description": "Captura la pantalla con un atajo global; después selecciona un área, añade anotaciones y copia o guarda el resultado.",
+        "title": "Activar capturas de pantalla"
+      },
+      "ocr": {
+        "auto": {
+          "description": "Reconoce el texto de la pantalla capturada para poder seleccionarlo y copiarlo.",
+          "title": "Reconocer texto automáticamente"
+        },
+        "model": {
+          "downloading": "Descargando el modelo de reconocimiento de texto",
+          "link": "Administrar modelos locales",
+          "ready": "El reconocimiento de texto está listo",
+          "unavailable": "El reconocimiento de texto necesita el modelo OCR local."
+        },
+        "title": "Reconocimiento de texto"
+      },
+      "permission": {
+        "denied_hint": "Se denegó el permiso de grabación de pantalla. Permite Cherry Studio en Ajustes del Sistema > Privacidad y seguridad > Grabación de pantalla y audio del sistema.",
+        "grant": "Conceder permiso",
+        "open_settings": "Abrir Ajustes del Sistema",
+        "prompt_unavailable_hint": "No apareció el diálogo de permisos del sistema. Permite Cherry Studio manualmente en Ajustes del Sistema > Privacidad y seguridad > Grabación de pantalla y audio del sistema.",
+        "request_hint": "macOS requiere permiso de grabación de pantalla antes de poder capturarla.",
+        "restart": "Reiniciar ahora",
+        "restart_hint": "Se concedió el permiso de grabación de pantalla. Reinicia la aplicación para que surta efecto.",
+        "title": "Permiso de grabación de pantalla"
+      },
+      "shortcut": {
+        "description": "La captura de pantalla se activa mediante un atajo global.",
+        "disabled": "Desactivado",
+        "link": "Configurar atajo",
+        "title": "Atajo",
+        "unset": "Sin configurar"
+      },
+      "title": "Captura de pantalla"
+    },
     "shortcuts": {
       "all_disable": "Desactivar todo",
       "all_enable": "Habilitar todo",
@@ -6642,6 +6722,7 @@
       "reset_to_default": "Restablecer a predeterminado",
       "save_failed": "Error al guardar el acceso directo",
       "save_failed_with_name": "Error al guardar el acceso directo: {{name}}",
+      "screenshot_capture": "Hacer una captura de pantalla",
       "search_message": "Buscar mensaje",
       "search_message_in_chat": "Buscar mensajes en la conversación actual",
       "search_placeholder": "Buscar accesos directos...",
@@ -6662,6 +6743,7 @@
       "batchInstallComplete": "{{count}} habilidades instaladas",
       "batchInstallPartialFailed": "Instaladas {{success}}/{{total}} habilidades, {{failed}} fallidas",
       "batchInstallQueued": "En cola",
+      "globalToggle": "Activar globalmente la habilidad {{name}}",
       "install": "Instalar",
       "installFailed": "Error al instalar la habilidad: {{name}}",
       "installFromDirectory": "Instalar desde carpeta",
@@ -6670,6 +6752,7 @@
       "installed": "Habilidades Instaladas",
       "invalidFormat": "Solo se admiten archivos ZIP y carpetas",
       "title": "Habilidades",
+      "toggleFailed": "No se pudo actualizar el estado global de la habilidad {{name}}",
       "viewSource": "Ver fuente"
     },
     "system": {

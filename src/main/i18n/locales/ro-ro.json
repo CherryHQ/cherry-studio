@@ -104,6 +104,18 @@
     "save_as_html": "Salvează ca HTML",
     "save_as_pdf": "Salvează ca PDF",
     "save_file": "Salvează fișier",
+    "screen_capture_permission": {
+      "cancel": "Anulează",
+      "detail": "Acordați aplicației „{{appName}}” permisiunea de înregistrare a ecranului în Configurări sistem > Confidențialitate și securitate > Înregistrare ecran, apoi reporniți aplicația.",
+      "message": "Este necesară permisiunea de înregistrare a ecranului pentru a realiza capturi de ecran.",
+      "open_settings": "Deschide Configurări sistem",
+      "title": "Permisiune de înregistrare a ecranului"
+    },
+    "screenshot_failed": {
+      "message": "Captura de ecran nu a putut fi realizată.",
+      "ok": "OK",
+      "title": "Captura de ecran a eșuat"
+    },
     "select_folder": "Selectează directorul",
     "word_document": "Document Word"
   },

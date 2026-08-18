@@ -234,7 +234,7 @@
         "stop_run_task": "Dừng tác vụ",
         "stop_run_task_failed": "Không thể dừng tác vụ",
         "task_count": "{{completed}} / {{total}} hoàn thành",
-        "tasks": "Nhiệm vụ",
+        "task_progress_compact": "Bước {{current}}/{{total}}",
         "tool_uses_one": "{{count}} lệnh gọi công cụ",
         "tool_uses_other": "{{count}} lệnh gọi công cụ"
       },
@@ -4381,6 +4381,49 @@
       "undo": "Hoàn tác"
     }
   },
+  "screenshot": {
+    "action": {
+      "cancel": "Hủy",
+      "confirm": "Sao chép và đóng",
+      "redo": "Làm lại",
+      "save": "Lưu ảnh",
+      "undo": "Hoàn tác"
+    },
+    "magnifier": {
+      "copied": "Đã sao chép!",
+      "hint_color_mode": "Shift: Định dạng màu",
+      "hint_copy": "C: Sao chép màu",
+      "hint_move": "↑↓←→: Di chuyển"
+    },
+    "ocr": {
+      "copy": "Sao chép toàn bộ văn bản hoặc chọn trực tiếp trên màn hình",
+      "disabled_while_annotating": "Không thể nhận dạng văn bản khi đang chú thích",
+      "failed": "Nhận dạng văn bản thất bại",
+      "recognize": "Nhận dạng văn bản",
+      "recognizing": "Đang nhận dạng văn bản…",
+      "unavailable": "Mô hình OCR cục bộ chưa sẵn sàng — nhấp để tải xuống"
+    },
+    "property": {
+      "color": {
+        "black": "Đen",
+        "blue": "Xanh dương",
+        "gray": "Xám",
+        "green": "Xanh lá",
+        "red": "Đỏ",
+        "white": "Trắng",
+        "yellow": "Vàng"
+      },
+      "font_size": "Cỡ chữ {{value}}",
+      "stroke_width": "Độ dày nét {{value}}"
+    },
+    "tool": {
+      "arrow": "Mũi tên",
+      "brush": "Cọ vẽ",
+      "mosaic": "Khảm",
+      "rectangle": "Hình chữ nhật",
+      "text": "Văn bản"
+    }
+  },
   "selection": {
     "action": {
       "builtin": {
@@ -6611,6 +6654,43 @@
         "prompt": "Nhập một lời nhắc nhiệm vụ."
       }
     },
+    "screenshot": {
+      "enable": {
+        "description": "Chụp màn hình bằng phím tắt toàn cục, sau đó chọn một vùng, chú thích và sao chép hoặc lưu kết quả.",
+        "title": "Bật chụp màn hình"
+      },
+      "ocr": {
+        "auto": {
+          "description": "Nhận dạng văn bản trong màn hình đã chụp để có thể chọn và sao chép.",
+          "title": "Tự động nhận dạng văn bản"
+        },
+        "model": {
+          "downloading": "Đang tải mô hình nhận dạng văn bản",
+          "link": "Quản lý mô hình cục bộ",
+          "ready": "Nhận dạng văn bản đã sẵn sàng",
+          "unavailable": "Nhận dạng văn bản cần mô hình OCR cục bộ."
+        },
+        "title": "Nhận dạng văn bản"
+      },
+      "permission": {
+        "denied_hint": "Quyền ghi màn hình đã bị từ chối. Hãy cho phép Cherry Studio trong Cài đặt hệ thống > Quyền riêng tư & Bảo mật > Ghi màn hình và âm thanh hệ thống.",
+        "grant": "Cấp quyền",
+        "open_settings": "Mở Cài đặt hệ thống",
+        "prompt_unavailable_hint": "Hộp thoại cấp quyền của hệ thống không xuất hiện. Hãy cho phép Cherry Studio theo cách thủ công trong Cài đặt hệ thống > Quyền riêng tư & Bảo mật > Ghi màn hình và âm thanh hệ thống.",
+        "request_hint": "macOS yêu cầu quyền ghi màn hình trước khi có thể chụp màn hình.",
+        "restart": "Khởi động lại ngay",
+        "restart_hint": "Quyền ghi màn hình đã được cấp. Hãy khởi động lại ứng dụng để quyền có hiệu lực.",
+        "title": "Quyền ghi màn hình"
+      },
+      "shortcut": {
+        "description": "Ảnh chụp màn hình được kích hoạt bằng phím tắt toàn cục.",
+        "disabled": "Tắt",
+        "link": "Đặt phím tắt",
+        "title": "Phím tắt",
+        "unset": "Chưa đặt"
+      },
+      "title": "Ảnh chụp màn hình"
+    },
     "shortcuts": {
       "all_disable": "Tắt Tất Cả",
       "all_enable": "Kích hoạt Tất cả",
@@ -6642,6 +6722,7 @@
       "reset_to_default": "Đặt lại về mặc định",
       "save_failed": "Không thể lưu phím tắt",
       "save_failed_with_name": "Không thể lưu phím tắt: {{name}}",
+      "screenshot_capture": "Chụp màn hình",
       "search_message": "Tin nhắn tìm kiếm",
       "search_message_in_chat": "Tìm Tin nhắn trong Cuộc trò chuyện Hiện tại",
       "search_placeholder": "Tìm kiếm phím tắt...",
@@ -6662,6 +6743,7 @@
       "batchInstallComplete": "Đã cài đặt {{count}} kỹ năng",
       "batchInstallPartialFailed": "Đã cài đặt {{success}}/{{total}} kỹ năng, {{failed}} thất bại",
       "batchInstallQueued": "Đang chờ xử lý",
+      "globalToggle": "Bật kỹ năng {{name}} trên toàn hệ thống",
       "install": "Cài đặt",
       "installFailed": "Không thể cài đặt kỹ năng: {{name}}",
       "installFromDirectory": "Cài đặt từ thư mục",
@@ -6670,6 +6752,7 @@
       "installed": "Đã cài đặt",
       "invalidFormat": "Chỉ hỗ trợ các tập tin ZIP và thư mục",
       "title": "Kỹ năng",
+      "toggleFailed": "Không thể cập nhật trạng thái toàn cục của kỹ năng {{name}}",
       "viewSource": "Xem mã nguồn"
     },
     "system": {

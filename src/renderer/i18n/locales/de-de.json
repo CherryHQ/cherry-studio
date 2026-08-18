@@ -234,7 +234,7 @@
         "stop_run_task": "Aufgabe beenden",
         "stop_run_task_failed": "Aufgabe konnte nicht gestoppt werden",
         "task_count": "{{completed}} / {{total}} abgeschlossen",
-        "tasks": "Aufgaben",
+        "task_progress_compact": "Schritt {{current}}/{{total}}",
         "tool_uses_one": "{{count}} Tool-Aufruf",
         "tool_uses_other": "{{count}} Tool-Aufrufe"
       },
@@ -4381,6 +4381,49 @@
       "undo": "Rückgängig"
     }
   },
+  "screenshot": {
+    "action": {
+      "cancel": "Abbrechen",
+      "confirm": "Kopieren und schließen",
+      "redo": "Wiederholen",
+      "save": "Bild speichern",
+      "undo": "Rückgängig"
+    },
+    "magnifier": {
+      "copied": "Kopiert!",
+      "hint_color_mode": "Shift: Farbformat",
+      "hint_copy": "C: Farbe kopieren",
+      "hint_move": "↑↓←→: Bewegen"
+    },
+    "ocr": {
+      "copy": "Gesamten Text kopieren oder auf dem Bildschirm auswählen",
+      "disabled_while_annotating": "Texterkennung ist während des Annotierens nicht verfügbar",
+      "failed": "Texterkennung fehlgeschlagen",
+      "recognize": "Text erkennen",
+      "recognizing": "Text wird erkannt…",
+      "unavailable": "Das lokale OCR-Modell ist nicht bereit — zum Herunterladen klicken"
+    },
+    "property": {
+      "color": {
+        "black": "Schwarz",
+        "blue": "Blau",
+        "gray": "Grau",
+        "green": "Grün",
+        "red": "Rot",
+        "white": "Weiß",
+        "yellow": "Gelb"
+      },
+      "font_size": "Textgröße {{value}}",
+      "stroke_width": "Strichbreite {{value}}"
+    },
+    "tool": {
+      "arrow": "Pfeil",
+      "brush": "Pinsel",
+      "mosaic": "Mosaik",
+      "rectangle": "Rechteck",
+      "text": "Text"
+    }
+  },
   "selection": {
     "action": {
       "builtin": {
@@ -6611,6 +6654,43 @@
         "prompt": "Geben Sie eine Aufgabenaufforderung ein."
       }
     },
+    "screenshot": {
+      "enable": {
+        "description": "Bildschirm per globalem Tastenkürzel aufnehmen, dann einen Bereich auswählen, annotieren und das Ergebnis kopieren oder speichern.",
+        "title": "Screenshot aktivieren"
+      },
+      "ocr": {
+        "auto": {
+          "description": "Text im aufgenommenen Bildschirm erkennen, damit er ausgewählt und kopiert werden kann.",
+          "title": "Text automatisch erkennen"
+        },
+        "model": {
+          "downloading": "Texterkennungsmodell wird heruntergeladen",
+          "link": "Lokale Modelle verwalten",
+          "ready": "Texterkennung ist bereit",
+          "unavailable": "Für die Texterkennung wird das lokale OCR-Modell benötigt."
+        },
+        "title": "Texterkennung"
+      },
+      "permission": {
+        "denied_hint": "Die Berechtigung zur Bildschirmaufnahme wurde verweigert. Erlauben Sie Cherry Studio unter Systemeinstellungen > Datenschutz & Sicherheit > Bildschirm- & Systemaudioaufnahme.",
+        "grant": "Berechtigung erteilen",
+        "open_settings": "Systemeinstellungen öffnen",
+        "prompt_unavailable_hint": "Der Systemdialog für die Berechtigung wurde nicht angezeigt. Erlauben Sie Cherry Studio manuell unter Systemeinstellungen > Datenschutz & Sicherheit > Bildschirm- & Systemaudioaufnahme.",
+        "request_hint": "macOS benötigt die Berechtigung zur Bildschirmaufnahme, bevor der Bildschirm aufgenommen werden kann.",
+        "restart": "Jetzt neu starten",
+        "restart_hint": "Die Berechtigung zur Bildschirmaufnahme wurde erteilt. Starten Sie die App neu, damit sie wirksam wird.",
+        "title": "Berechtigung zur Bildschirmaufnahme"
+      },
+      "shortcut": {
+        "description": "Der Screenshot wird durch ein globales Tastenkürzel ausgelöst.",
+        "disabled": "Aus",
+        "link": "Tastenkürzel festlegen",
+        "title": "Tastenkürzel",
+        "unset": "Nicht festgelegt"
+      },
+      "title": "Screenshot"
+    },
     "shortcuts": {
       "all_disable": "Alle deaktivieren",
       "all_enable": "Alle aktivieren",
@@ -6642,6 +6722,7 @@
       "reset_to_default": "Auf Standard zurücksetzen",
       "save_failed": "Verknüpfung konnte nicht gespeichert werden",
       "save_failed_with_name": "Fehler beim Speichern der Verknüpfung: {{name}}",
+      "screenshot_capture": "Screenshot aufnehmen",
       "search_message": "Nachricht suchen",
       "search_message_in_chat": "In aktuellem Chat suchen",
       "search_placeholder": "Suchverknüpfungen...",
@@ -6662,6 +6743,7 @@
       "batchInstallComplete": "{{count}} Fähigkeiten installiert",
       "batchInstallPartialFailed": "{{success}}/{{total}} Fähigkeiten installiert, {{failed}} fehlgeschlagen",
       "batchInstallQueued": "In Warteschlange",
+      "globalToggle": "Fähigkeit {{name}} global aktivieren",
       "install": "Installieren",
       "installFailed": "Fehler beim Installieren der Fähigkeit: {{name}}",
       "installFromDirectory": "Aus Verzeichnis installieren",
@@ -6670,6 +6752,7 @@
       "installed": "Installierte Fähigkeiten",
       "invalidFormat": "Nur ZIP-Dateien und Verzeichnisse werden unterstützt",
       "title": "Fähigkeiten",
+      "toggleFailed": "Der globale Status der Fähigkeit {{name}} konnte nicht aktualisiert werden",
       "viewSource": "Quelltext anzeigen"
     },
     "system": {

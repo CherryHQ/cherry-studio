@@ -234,7 +234,7 @@
         "stop_run_task": "停止任务",
         "stop_run_task_failed": "停止任务失败",
         "task_count": "{{completed}} / {{total}} 已完成",
-        "tasks": "任务",
+        "task_progress_compact": "步骤 {{current}}/{{total}}",
         "tool_uses_one": "{{count}} 次工具调用",
         "tool_uses_other": "{{count}} 次工具调用"
       },
@@ -4381,6 +4381,49 @@
       "undo": "撤销"
     }
   },
+  "screenshot": {
+    "action": {
+      "cancel": "取消",
+      "confirm": "复制并关闭",
+      "redo": "重做",
+      "save": "保存图像",
+      "undo": "撤销"
+    },
+    "magnifier": {
+      "copied": "已复制！",
+      "hint_color_mode": "Shift：切换颜色格式",
+      "hint_copy": "C：复制颜色值",
+      "hint_move": "↑↓←→：移动"
+    },
+    "ocr": {
+      "copy": "复制全部文字，或在画面上直接选取",
+      "disabled_while_annotating": "标注时无法识别文字",
+      "failed": "文字识别失败",
+      "recognize": "识别文字",
+      "recognizing": "识别中…",
+      "unavailable": "本地 OCR 模型未就绪，点击前往下载"
+    },
+    "property": {
+      "color": {
+        "black": "黑色",
+        "blue": "蓝色",
+        "gray": "灰色",
+        "green": "绿色",
+        "red": "红色",
+        "white": "白色",
+        "yellow": "黄色"
+      },
+      "font_size": "字号 {{value}}",
+      "stroke_width": "线宽 {{value}}"
+    },
+    "tool": {
+      "arrow": "箭头",
+      "brush": "画笔",
+      "mosaic": "马赛克",
+      "rectangle": "矩形",
+      "text": "文字"
+    }
+  },
   "selection": {
     "action": {
       "builtin": {
@@ -6611,6 +6654,43 @@
         "prompt": "请输入任务提示词。"
       }
     },
+    "screenshot": {
+      "enable": {
+        "description": "通过全局快捷键捕获屏幕，然后框选区域、标注，并复制或保存结果。",
+        "title": "启用截图"
+      },
+      "ocr": {
+        "auto": {
+          "description": "识别捕获画面中的文字，使其可以被选中和复制。",
+          "title": "自动识别文字"
+        },
+        "model": {
+          "downloading": "正在下载文字识别模型",
+          "link": "管理本地模型",
+          "ready": "文字识别已就绪",
+          "unavailable": "文字识别需要本地 OCR 模型。"
+        },
+        "title": "文字识别"
+      },
+      "permission": {
+        "denied_hint": "屏幕录制权限已被拒绝。请在「系统设置 > 隐私与安全性 > 屏幕与系统音频录制」中允许 Cherry Studio。",
+        "grant": "去授权",
+        "open_settings": "打开系统设置",
+        "prompt_unavailable_hint": "系统授权对话框未出现。请在「系统设置 > 隐私与安全性 > 屏幕与系统音频录制」中手动允许 Cherry Studio。",
+        "request_hint": "macOS 需要先授予屏幕录制权限才能捕获屏幕。",
+        "restart": "立即重启",
+        "restart_hint": "屏幕录制权限已授予，需要重启应用后生效。",
+        "title": "屏幕录制权限"
+      },
+      "shortcut": {
+        "description": "截图由全局快捷键触发。",
+        "disabled": "已停用",
+        "link": "设置快捷键",
+        "title": "快捷键",
+        "unset": "未设置"
+      },
+      "title": "截图"
+    },
     "shortcuts": {
       "all_disable": "全部禁用",
       "all_enable": "全部启用",
@@ -6642,6 +6722,7 @@
       "reset_to_default": "重置为默认",
       "save_failed": "保存快捷键失败",
       "save_failed_with_name": "保存快捷键失败：{{name}}",
+      "screenshot_capture": "屏幕截图",
       "search_message": "搜索消息",
       "search_message_in_chat": "在当前对话中搜索消息",
       "search_placeholder": "搜索快捷键...",
@@ -6662,6 +6743,7 @@
       "batchInstallComplete": "已安装 {{count}} 个技能",
       "batchInstallPartialFailed": "已安装 {{success}}/{{total}} 个技能，{{failed}} 个失败",
       "batchInstallQueued": "等待安装",
+      "globalToggle": "全局启用技能 {{name}}",
       "install": "安装",
       "installFailed": "技能安装失败：{{name}}",
       "installFromDirectory": "从文件夹安装",
@@ -6670,6 +6752,7 @@
       "installed": "已安装",
       "invalidFormat": "仅支持 ZIP 文件和文件夹",
       "title": "技能",
+      "toggleFailed": "更新技能 {{name}} 的全局状态失败",
       "viewSource": "查看源码"
     },
     "system": {

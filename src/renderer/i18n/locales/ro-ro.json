@@ -234,7 +234,7 @@
         "stop_run_task": "Opriți sarcina",
         "stop_run_task_failed": "Nu s-a putut opri sarcina",
         "task_count": "{{completed}} / {{total}} finalizat",
-        "tasks": "Sarcini",
+        "task_progress_compact": "Pasul {{current}}/{{total}}",
         "tool_uses_one": "{{count}} apel de instrument",
         "tool_uses_other": "{{count}} apeluri de instrumente"
       },
@@ -4381,6 +4381,49 @@
       "undo": "Anulează"
     }
   },
+  "screenshot": {
+    "action": {
+      "cancel": "Anulează",
+      "confirm": "Copiază și închide",
+      "redo": "Refă",
+      "save": "Salvează imaginea",
+      "undo": "Anulează acțiunea"
+    },
+    "magnifier": {
+      "copied": "Copiat!",
+      "hint_color_mode": "Shift: Format culoare",
+      "hint_copy": "C: Copiază culoarea",
+      "hint_move": "↑↓←→: Mută"
+    },
+    "ocr": {
+      "copy": "Copiază tot textul sau selectează-l pe ecran",
+      "disabled_while_annotating": "Recunoașterea textului nu este disponibilă în timpul adnotării",
+      "failed": "Recunoașterea textului a eșuat",
+      "recognize": "Recunoaște textul",
+      "recognizing": "Se recunoaște textul…",
+      "unavailable": "Modelul OCR local nu este pregătit — faceți clic pentru a-l descărca"
+    },
+    "property": {
+      "color": {
+        "black": "Negru",
+        "blue": "Albastru",
+        "gray": "Gri",
+        "green": "Verde",
+        "red": "Roșu",
+        "white": "Alb",
+        "yellow": "Galben"
+      },
+      "font_size": "Dimensiune text {{value}}",
+      "stroke_width": "Grosime contur {{value}}"
+    },
+    "tool": {
+      "arrow": "Săgeată",
+      "brush": "Pensulă",
+      "mosaic": "Mozaic",
+      "rectangle": "Dreptunghi",
+      "text": "Text"
+    }
+  },
   "selection": {
     "action": {
       "builtin": {
@@ -6611,6 +6654,43 @@
         "prompt": "Introdu un prompt pentru sarcină."
       }
     },
+    "screenshot": {
+      "enable": {
+        "description": "Capturați ecranul cu o scurtătură globală, apoi selectați o zonă, adnotați-o și copiați sau salvați rezultatul.",
+        "title": "Activează captura de ecran"
+      },
+      "ocr": {
+        "auto": {
+          "description": "Recunoașteți textul din ecranul capturat pentru a putea fi selectat și copiat.",
+          "title": "Recunoaște automat textul"
+        },
+        "model": {
+          "downloading": "Se descarcă modelul de recunoaștere a textului",
+          "link": "Gestionează modelele locale",
+          "ready": "Recunoașterea textului este pregătită",
+          "unavailable": "Recunoașterea textului necesită modelul OCR local."
+        },
+        "title": "Recunoaștere text"
+      },
+      "permission": {
+        "denied_hint": "Permisiunea de înregistrare a ecranului a fost refuzată. Permiteți Cherry Studio în Configurări sistem > Confidențialitate și securitate > Înregistrare ecran și audio sistem.",
+        "grant": "Acordă permisiunea",
+        "open_settings": "Deschide Configurări sistem",
+        "prompt_unavailable_hint": "Dialogul de permisiune al sistemului nu a apărut. Permiteți manual Cherry Studio în Configurări sistem > Confidențialitate și securitate > Înregistrare ecran și audio sistem.",
+        "request_hint": "macOS necesită permisiunea de înregistrare a ecranului înainte ca acesta să poată fi capturat.",
+        "restart": "Repornește acum",
+        "restart_hint": "Permisiunea de înregistrare a ecranului a fost acordată. Reporniți aplicația pentru a intra în vigoare.",
+        "title": "Permisiune de înregistrare a ecranului"
+      },
+      "shortcut": {
+        "description": "Captura de ecran este declanșată de o scurtătură globală.",
+        "disabled": "Dezactivat",
+        "link": "Setează scurtătura",
+        "title": "Scurtătură",
+        "unset": "Nesetat"
+      },
+      "title": "Captură de ecran"
+    },
     "shortcuts": {
       "all_disable": "Dezactivează tot",
       "all_enable": "Activează tot",
@@ -6642,6 +6722,7 @@
       "reset_to_default": "Resetează la implicit",
       "save_failed": "Nu s-a putut salva comanda rapidă",
       "save_failed_with_name": "Nu s-a putut salva comanda rapidă: {{name}}",
+      "screenshot_capture": "Realizează o captură de ecran",
       "search_message": "Caută mesaj",
       "search_message_in_chat": "Caută mesaj în chat-ul curent",
       "search_placeholder": "Căutare comenzi rapide...",
@@ -6662,6 +6743,7 @@
       "batchInstallComplete": "Instalate {{count}} abilități",
       "batchInstallPartialFailed": "S-au instalat {{success}}/{{total}} abilități; {{failed}} au eșuat",
       "batchInstallQueued": "În așteptare",
+      "globalToggle": "Activează global abilitatea {{name}}",
       "install": "Instalare",
       "installFailed": "Nu s-a putut instala abilitatea: {{name}}",
       "installFromDirectory": "Instalează din director",
@@ -6670,6 +6752,7 @@
       "installed": "Abilități Instalate",
       "invalidFormat": "Sunt acceptate doar fișiere ZIP și directoare.",
       "title": "Abilități",
+      "toggleFailed": "Nu s-a putut actualiza starea globală a abilității {{name}}",
       "viewSource": "Vezi sursa"
     },
     "system": {
