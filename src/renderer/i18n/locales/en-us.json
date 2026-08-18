@@ -726,6 +726,22 @@
           "description": "Manage the task list",
           "label": "Manage the task list"
         },
+        "tool_call": {
+          "description": "Call one discovered tool",
+          "label": "Call tool"
+        },
+        "tool_describe": {
+          "description": "Get the full description and TypeScript signature for a tool",
+          "label": "Describe tool"
+        },
+        "tool_exec": {
+          "description": "Execute JavaScript that orchestrates discovered tools",
+          "label": "Execute tool code"
+        },
+        "tool_search": {
+          "description": "Search available tools and read their TypeScript signatures",
+          "label": "Search tools"
+        },
         "update_goal": {
           "description": "Update the session goal status or objective",
           "label": "Update goal"
@@ -784,6 +800,7 @@
       "restartSuccess": "API Gateway restarted successfully",
       "startError": "Failed to start API Gateway: ",
       "startSuccess": "API Gateway started successfully",
+      "stopDeferred": "API Gateway will stop after the current translation finishes",
       "stopError": "Failed to stop API Gateway: ",
       "stopSuccess": "API Gateway stopped successfully"
     },
@@ -991,6 +1008,19 @@
       "knowledge_base_disabled_by_files": "Remove attached files to use Knowledge Base",
       "knowledge_base_unavailable": "Select a tool-capable model",
       "locate_editing_message": "Locate original message",
+      "mcp_prompts": {
+        "description": "Insert a prompt published by an MCP server",
+        "empty": "No MCP prompts available",
+        "insert_failed": "Failed to insert the prompt",
+        "title": "MCP Prompts"
+      },
+      "mcp_resources": {
+        "description": "Reference a resource published by an MCP server",
+        "empty": "No MCP resources available",
+        "read_failed": "Failed to read the resource",
+        "reader_unavailable": "The current model cannot read this resource back after it is attached",
+        "title": "MCP Resources"
+      },
       "new": {
         "context": "Clear Context"
       },
@@ -1870,6 +1900,7 @@
       "503": "Service unavailable. Please try again later",
       "504": "Gateway timeout. Please try again later"
     },
+    "image_unreadable_for_non_vision_model": "The selected model isn't configured for image input, and Cherry Studio couldn't extract readable text from the attachment. Enable Vision for this model in Provider Settings, choose another vision-capable model, or remove the image and try again.",
     "lastError": "Last Error",
     "maxEmbeddingsPerCall": "Max Embeddings Per Call",
     "message": "Error Message",
@@ -5542,6 +5573,7 @@
       },
       "title": "Dependencies",
       "tools": {
+        "babeldoc-stream": "Layout-preserving PDF translation engine. Layout model assets are downloaded on the first translation.",
         "bun": "JavaScript runtime used by MCP services and related toolchains.",
         "claude": "Anthropic's agentic coding tool for the terminal.",
         "codex": "OpenAI's open-source coding agent that can read, edit, and execute code in your local repository.",
@@ -5618,7 +5650,8 @@
         },
         "sections": {
           "display_language": "Display & Language"
-        }
+        },
+        "title": "General"
       },
       "emoji_picker": "Emoji Picker",
       "image_upload": "Image Upload",
@@ -6088,6 +6121,7 @@
         "max_messages": "Recent messages kept",
         "max_messages_description": "Send only the most recent messages; earlier ones are excluded from context. Leave empty for no limit. Assistants can override this",
         "max_messages_unlimited": "Unlimited",
+        "scope_description": "Applies only to assistant conversations in Cherry Studio. Assistants can override these settings individually.",
         "title": "Context Management",
         "truncate_threshold": "Tool-output truncation threshold (chars)",
         "truncate_threshold_description": "Tool outputs beyond this many characters are offloaded to a file and truncated; the model can read them back on demand. Assistants can override this"
@@ -7200,10 +7234,10 @@
     "history": {
       "back": "Back to list",
       "clear": "Clear History",
-      "clear_description": "Clear history will delete all translation history, continue?",
+      "clear_description": "Clear history will delete all translation history and reclaim the translated files it produced, continue?",
       "copy_target": "Copy result",
       "delete": "Delete translation history",
-      "delete_description": "Delete this translation history record? This action cannot be undone.",
+      "delete_description": "Delete this translation history record? For a file translation the translated file is reclaimed too. This action cannot be undone.",
       "empty": "No translation history",
       "error": {
         "add": "Failed to add translation history",
@@ -7211,6 +7245,17 @@
         "delete": "Deletion failed",
         "load": "Failed to load translation history",
         "save": "Failed to save translation history"
+      },
+      "file": {
+        "action_failed": "Could not complete that action on the file",
+        "badge": "File translation",
+        "export": "Save translated file as…",
+        "open": "Open translated file",
+        "preview": "Side-by-side preview",
+        "reveal": "Show in folder",
+        "source": "Source file",
+        "target": "Translated file",
+        "unavailable": "The files of this translation are no longer available"
       },
       "filter": {
         "starred": "Only starred"
@@ -7240,6 +7285,53 @@
     "language_settings": "Language Settings",
     "output": {
       "placeholder": "Translation"
+    },
+    "pdf": {
+      "action": {
+        "close": "Close PDF translation",
+        "export": "Export translated PDF",
+        "install_babeldoc": "Install BabelDOC",
+        "update_babeldoc": "Update BabelDOC"
+      },
+      "dependency": {
+        "checking": "Checking BabelDOC...",
+        "description": "Install the BabelDOC plugin to translate PDFs while preserving their original layout.",
+        "installing": "Installing BabelDOC...",
+        "outdated_description": "Update BabelDOC to continue translating PDFs with layout preservation.",
+        "outdated_title": "BabelDOC update required",
+        "title": "PDF detected"
+      },
+      "error": {
+        "generic": "Something went wrong during translation. Please try again.",
+        "ocr_required": "Scanned PDFs are not supported yet.",
+        "persist_failed": "The PDF was translated, but the result could not be saved. Please try again.",
+        "title": "PDF translation failed"
+      },
+      "export_failed": "Failed to export translated PDF",
+      "pane": {
+        "translated": "Translated PDF",
+        "translated_text": "Translation"
+      },
+      "progress": {
+        "analyzing": "Analyzing document layout",
+        "checking_assets": "Checking PDF processing resources",
+        "downloading_assets": "Downloading PDF processing resources...",
+        "extracting_terms": "Extracting document terminology",
+        "loading_model": "Loading PDF processing model",
+        "parsing": "Parsing PDF document",
+        "percent": "{{progress}}%",
+        "preparing": "Initializing PDF translation",
+        "preparing_hint": "The first initialization may take about 2 minutes; later runs are usually faster",
+        "rendering": "Rendering translated PDF",
+        "translating": "Translating content",
+        "typesetting": "Typesetting translated PDF",
+        "value": "{{stage}}, stage {{stageProgress}}%, overall {{overallProgress}}%"
+      },
+      "ready": {
+        "description": "Select a target language and start translation.",
+        "title": "Ready to translate"
+      },
+      "success": "Translated PDF generated"
     },
     "preferred_target": "Preferred Target",
     "processing": "Translation in progress...",
