@@ -63,6 +63,7 @@ export {
 export { SESSION_DISPLAY_LABEL_KEYS, SessionListOptionsMenu } from './SessionListOptionsMenu'
 export { TopicListOptionsMenu } from './TopicListOptionsMenu'
 export { useDisplayModeRevealRequest } from './useDisplayModeRevealRequest'
+export { usePrepareResourceListRemoteReveal } from './usePrepareResourceListRemoteReveal'
 export { useResourceListPinnedItems } from './useResourceListPinnedItems'
 export type { ResourceListOrderAnchor } from '@renderer/utils/chat/resourceListBase'
 export {

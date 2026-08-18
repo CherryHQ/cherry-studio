@@ -398,7 +398,6 @@ export type ResourceListProviderProps<T extends ResourceListItemBase> = {
     targetIndex: number
   }) => boolean
   defaultGroupVisibleCount?: number
-  groupLoadStep?: number
   groupShowMoreLabel?: string
   groupCollapseLabel?: string
   estimateItemSize?: (index: number) => number
@@ -586,7 +585,6 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
   canDropGroup,
   canDropItem,
   defaultGroupVisibleCount = 5,
-  groupLoadStep = 5,
   groupShowMoreLabel,
   groupCollapseLabel,
   estimateItemSize = estimateDefaultItemSize,
@@ -988,7 +986,6 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       filterOptions,
       estimateItemSize,
       defaultGroupVisibleCount,
-      groupLoadStep,
       groupShowMoreLabel,
       groupCollapseLabel,
       revealRequest,
@@ -1027,7 +1024,6 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       getItemId,
       getItemLabel,
       groupCollapseLabel,
-      groupLoadStep,
       groupShowMoreLabel,
       onGroupHeaderActivate,
       onEmptyGroupHeaderClick,

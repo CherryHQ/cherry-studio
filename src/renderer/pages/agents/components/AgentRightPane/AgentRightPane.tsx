@@ -185,7 +185,7 @@ interface AgentRightPaneFileState {
 }
 
 type AgentFileEditorMode = 'preview' | 'edit'
-export type AgentFileNavigationRequest = (transition: () => void) => void
+export type AgentFileNavigationRequest = (transition: () => void | Promise<void>) => Promise<void>
 
 interface AgentRightPaneActions {
   canOpenAgentToolFlow: boolean
@@ -401,10 +401,12 @@ function AgentRightPaneStateProvider({
   const [fileTreeSearchKeyword, setFileTreeSearchKeyword] = useState('')
   const [showDirtyLeaveConfirmation, setShowDirtyLeaveConfirmation] = useState(false)
   const pendingFileTransitionRef = useRef<(() => void) | null>(null)
+  const fileSessionRef = useRef<FileEditSession | null>(null)
+  const contextTransitionTailRef = useRef<Promise<void>>(Promise.resolve())
+  const previousSessionIdRef = useRef(sessionId)
   const workspaceKey = buildAgentFileWorkspaceKey(workspaceId, workspacePath)
-  // External route/session changes can update props before this subtree gets a
-  // chance to confirm. Keep the file tree and editor on one committed workspace
-  // until the transition is accepted so a new tree can never write an old path.
+  // Keep the file tree and editor on one committed workspace until an external
+  // context transition has discarded the old draft.
   const [fileWorkspace, setFileWorkspace] = useState(() => ({ key: workspaceKey, path: workspacePath }))
   const flowTab = flowTabState.sessionId === sessionId ? flowTabState.tab : null
   const runtime = useMemo<AgentRightPaneRuntime>(() => ({ messages, partsByMessageId }), [messages, partsByMessageId])
@@ -413,6 +415,15 @@ function AgentRightPaneStateProvider({
   const editHandle = useMemo(() => (editPath ? createFilePathHandle(editPath) : undefined), [editPath])
   const fileSession = useFileEditSession(editHandle)
   const discardFileDraft = fileSession.discard
+  useLayoutEffect(() => {
+    fileSessionRef.current = fileSession
+  }, [fileSession])
+  useEffect(
+    () => () => {
+      fileSessionRef.current = null
+    },
+    []
+  )
   const systemWorkspacePath = useMemo(() => {
     if (workspaceType !== AGENT_WORKSPACE_TYPE.SYSTEM || !workspacePath) return undefined
     const result = AbsoluteFilePathSchema.safeParse(workspacePath)
@@ -443,10 +454,22 @@ function AgentRightPaneStateProvider({
     [fileSession.isDirty]
   )
 
+  const requestAgentContextTransition = useCallback((transition: () => void | Promise<void>) => {
+    const run = async () => {
+      pendingFileTransitionRef.current = null
+      setShowDirtyLeaveConfirmation(false)
+      await fileSessionRef.current?.waitForSaveAndDiscard()
+      await transition()
+    }
+    const result = contextTransitionTailRef.current.then(run, run)
+    contextTransitionTailRef.current = result.catch(() => undefined)
+    return result
+  }, [])
+
   useLayoutEffect(() => {
-    onFileNavigationRequestChange?.(requestFileTransition)
+    onFileNavigationRequestChange?.(requestAgentContextTransition)
     return () => onFileNavigationRequestChange?.(null)
-  }, [onFileNavigationRequestChange, requestFileTransition])
+  }, [onFileNavigationRequestChange, requestAgentContextTransition])
 
   const handleDirtyLeaveConfirmationChange = useCallback((open: boolean) => {
     setShowDirtyLeaveConfirmation(open)
@@ -516,14 +539,24 @@ function AgentRightPaneStateProvider({
       setFileTreeExpandedIds(new Set())
       setFileTreeSearchKeyword('')
     }
-    if (!fileSession.isDirty) {
-      pendingFileTransitionRef.current = null
-      setShowDirtyLeaveConfirmation(false)
+    if (!fileSessionRef.current?.isDirty) {
       commitWorkspace()
       return
     }
-    requestFileTransition(commitWorkspace)
-  }, [fileSession.isDirty, fileWorkspace.key, requestFileTransition, workspaceKey, workspacePath])
+    pendingFileTransitionRef.current = null
+    setShowDirtyLeaveConfirmation(false)
+    void requestAgentContextTransition(commitWorkspace)
+  }, [fileWorkspace.key, requestAgentContextTransition, workspaceKey, workspacePath])
+
+  useLayoutEffect(() => {
+    if (previousSessionIdRef.current === sessionId) return
+    previousSessionIdRef.current = sessionId
+    if (fileWorkspace.key !== workspaceKey) return
+    if (!fileSessionRef.current?.isDirty) return
+    pendingFileTransitionRef.current = null
+    setShowDirtyLeaveConfirmation(false)
+    void requestAgentContextTransition(() => undefined)
+  }, [fileWorkspace.key, requestAgentContextTransition, sessionId, workspaceKey])
 
   const closeFilePreview = useCallback(() => requestFileSelection(null), [requestFileSelection])
 
@@ -590,7 +623,7 @@ function AgentRightPaneStateProvider({
   )
 
   return (
-    <AgentFileNavigationContext value={requestFileTransition}>
+    <AgentFileNavigationContext value={requestAgentContextTransition}>
       <AgentRightPaneMetaContext value={meta}>
         <AgentRightPaneFileStateContext value={fileState}>
           <AgentRightPaneRuntimeContext value={runtime}>

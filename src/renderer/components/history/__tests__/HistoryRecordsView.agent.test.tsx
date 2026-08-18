@@ -251,7 +251,6 @@ vi.mock('react-i18next', () => {
         'history.records.searchSession': 'Search tasks...',
         'history.records.shortTitle': 'History',
         'history.records.clearSearch': 'Clear search',
-        'history.records.filter.statusLabel': 'Status',
         'history.records.table.actions': 'Actions',
         'history.records.table.session': 'Task',
         'history.records.table.time': 'Time',

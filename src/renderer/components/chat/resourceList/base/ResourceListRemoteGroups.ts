@@ -10,6 +10,7 @@ export type ResourceListRemoteGroupSnapshot<T extends ResourceListItemBase> = {
   isRefreshing: boolean
   items: readonly T[]
   loadNext: () => void
+  queryKey: string
   retry: () => void
 }
 

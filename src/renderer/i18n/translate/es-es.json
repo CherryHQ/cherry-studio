@@ -457,13 +457,10 @@
         "collapse_all": "Contraer todo",
         "conversation": "Conversaciones",
         "drag_hint": "Arrastra para reordenar. Arrastra las tareas para ajustar los grupos mostrados y ocultos.",
-        "earlier": "Anterior",
         "expand_all": "Expandir todo",
         "no_workdir": "Sin carpeta de trabajo",
         "show_more": "Expandir pantalla",
         "tasks": "Tareas",
-        "this_week": "Esta semana",
-        "today": "Hoy",
         "unknown_agent": "Agente desconocido",
         "unknown_agent_tip": "Este es un grupo de sesión histórico sin agente, no un agente real. Es solo de visualización y no puede continuar ejecutándose."
       },

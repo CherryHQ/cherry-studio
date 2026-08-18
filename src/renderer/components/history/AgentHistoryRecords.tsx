@@ -165,7 +165,7 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
 
   const sessionById = useMemo(() => new Map(sessions.map((session) => [session.id, session])), [sessions])
   const isSessionPinned = useCallback((sessionId: string) => sessionById.get(sessionId)?.pinned === true, [sessionById])
-  const sessionItems = useMemo<SessionListItem[]>(() => [...sessions], [sessions])
+  const sessionItems = sessions
   const loadMoreSessions = useCallback(() => {
     if (isSessionsLoading || isSessionsLoadingMore || sessionError) return
     loadMoreBandSessions()

@@ -457,13 +457,10 @@
         "collapse_all": "Réduire tout",
         "conversation": "Conversations",
         "drag_hint": "Glisser pour réorganiser. Glisser les tâches pour ajuster les groupes affichés et masqués.",
-        "earlier": "Plus tôt",
         "expand_all": "Développer tout",
         "no_workdir": "Aucun répertoire de travail",
         "show_more": "Développer l'affichage",
         "tasks": "Tâches",
-        "this_week": "Cette semaine",
-        "today": "Aujourd'hui",
         "unknown_agent": "Agent inconnu",
         "unknown_agent_tip": "Il s'agit d'un groupe de session historique sans agent, et non d'un agent réel. Il est en lecture seule et ne peut pas continuer à s'exécuter."
       },

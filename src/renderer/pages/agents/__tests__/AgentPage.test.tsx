@@ -69,7 +69,9 @@ const agentPageMocks = vi.hoisted(() => ({
     setActiveSessionId: (id: string | null) => void
   } | null,
   pendingSession: null as any,
-  fileNavigationRequest: vi.fn((transition: () => void) => transition()),
+  fileNavigationRequest: vi.fn(async (transition: () => void | Promise<void>) => {
+    await transition()
+  }),
   setLastUsedAgentId: vi.fn(),
   setLastUsedSessionId: vi.fn(),
   setLastUsedWorkspaceId: vi.fn(),
@@ -426,7 +428,9 @@ vi.mock('../AgentChat', () => ({
     sessionPaneUserOpenIntentSeq?: number
     onPaneCollapse?: () => void
     onPaneAutoCollapseChange?: (collapsed: boolean) => void
-    onFileNavigationRequestChange?: (request: ((transition: () => void) => void) | null) => void
+    onFileNavigationRequestChange?: (
+      request: ((transition: () => void | Promise<void>) => Promise<void>) | null
+    ) => void
     paneManualToggle?: { seq: number; open: boolean }
     composerLaunchOptions?: unknown
   }) => (
@@ -759,7 +763,9 @@ describe('AgentPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     MockCacheUtils.resetMocks()
-    agentPageMocks.fileNavigationRequest.mockImplementation((transition) => transition())
+    agentPageMocks.fileNavigationRequest.mockImplementation(async (transition) => {
+      await transition()
+    })
     agentPageMocks.routeSearch = { sessionId: 'session-initial' }
     agentPageMocks.navigate.mockReset()
     agentPageMocks.navigate.mockResolvedValue(undefined)
@@ -2336,11 +2342,16 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('locate-message-id')).toHaveTextContent('message-open')
   })
 
-  it('waits for file-navigation confirmation before applying a global-search session jump', async () => {
+  it('waits for the registered context transition before applying a global-search session jump', async () => {
     let pendingTransition: (() => void) | undefined
-    agentPageMocks.fileNavigationRequest.mockImplementation((transition) => {
-      pendingTransition = transition
-    })
+    agentPageMocks.fileNavigationRequest.mockImplementation(
+      (transition) =>
+        new Promise<void>((resolve) => {
+          pendingTransition = () => {
+            void Promise.resolve(transition()).then(resolve)
+          }
+        })
+    )
     render(<AgentPage />)
 
     const sessionMessageHandler = vi

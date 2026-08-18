@@ -56,6 +56,8 @@ type AgentResourceListProps = {
   onSelectedAgentClick?: () => void | Promise<void>
   onCreateSession: (agentId: string) => Promise<AgentSessionEntity | null>
   onShowMissingAgentSelection?: () => void | Promise<void>
+  prepareActiveAgentDeletion?: () => () => void
+  requestContextTransition?: (transition: () => void | Promise<void>) => Promise<void>
   /**
    * Called after the currently-active agent is deleted so the classic-layout page can
    * settle (select the latest remaining session / clear). This is the classic
@@ -77,7 +79,9 @@ export function AgentResourceList({
   onSelectedAgentClick,
   onCreateSession,
   onShowMissingAgentSelection,
-  onActiveAgentDeleted
+  onActiveAgentDeleted,
+  prepareActiveAgentDeletion,
+  requestContextTransition
 }: AgentResourceListProps) {
   const { t } = useTranslation()
   // Agent rail icon style is stored under its own key so it no longer mutates the assistant's.
@@ -127,13 +131,17 @@ export function AgentResourceList({
   const handleCreateSession = useCallback(
     async (agentId: string) => {
       try {
-        const session = await onCreateSession(agentId)
-        if (session) onSelectSession(session.id, session)
+        const createAndSelect = async () => {
+          const session = await onCreateSession(agentId)
+          if (session) onSelectSession(session.id, session)
+        }
+        if (requestContextTransition) await requestContextTransition(createAndSelect)
+        else await createAndSelect()
       } catch (error) {
         handleActivationError(error)
       }
     },
-    [handleActivationError, onCreateSession, onSelectSession]
+    [handleActivationError, onCreateSession, onSelectSession, requestContextTransition]
   )
 
   const entities = useMemo<ResourceEntityRailItem[]>(
@@ -165,8 +173,15 @@ export function AgentResourceList({
   )
 
   const handlePickSession = useCallback(
-    (session: SessionListItem) => onSelectSession(session.id, session),
-    [onSelectSession]
+    (session: SessionListItem) => {
+      const transition = () => onSelectSession(session.id, session)
+      if (requestContextTransition) {
+        void requestContextTransition(transition)
+        return
+      }
+      transition()
+    },
+    [onSelectSession, requestContextTransition]
   )
   const loadLatestSessionForAgent = useCallback((agentId: string) => loadLatestSession(agentId), [loadLatestSession])
   const reorderAgentEntity = useCallback(
@@ -243,19 +258,28 @@ export function AgentResourceList({
         })
         if (!confirmed) return
 
-        if (deleteTasksOnly) {
-          const result = await deleteAgentSessions({ params: { agentId } })
-          closeConversationTabs('agents', result.deletedIds)
-        } else {
-          const result = await deleteAgent({ params: { agentId }, query: { deleteSessions: true } })
-          closeConversationTabs('agents', result.deletedSessionIds ?? [])
-        }
-        if (activeAgentId === agentId) {
-          await onActiveAgentDeleted?.(agentId)
-        }
+        const deletesActiveAgent = activeAgentId === agentId
+        const deleteAndSettle = async () => {
+          const rollbackSelection = deletesActiveAgent ? prepareActiveAgentDeletion?.() : undefined
+          try {
+            if (deleteTasksOnly) {
+              const result = await deleteAgentSessions({ params: { agentId } })
+              closeConversationTabs('agents', result.deletedIds)
+            } else {
+              const result = await deleteAgent({ params: { agentId }, query: { deleteSessions: true } })
+              closeConversationTabs('agents', result.deletedSessionIds ?? [])
+            }
+          } catch (error) {
+            rollbackSelection?.()
+            throw error
+          }
+          if (deletesActiveAgent) await onActiveAgentDeleted?.(agentId)
 
-        if (!deleteTasksOnly) await refetchAgents()
-        await reload()
+          if (!deleteTasksOnly) await refetchAgents()
+          await reload()
+        }
+        if (deletesActiveAgent && requestContextTransition) await requestContextTransition(deleteAndSettle)
+        else await deleteAndSettle()
         toast.success(t('common.delete_success'))
       } catch (err) {
         logger.error('Failed to delete agent from classic-layout rail', { agentId, err })
@@ -272,8 +296,10 @@ export function AgentResourceList({
       deleteAgentSessions,
       deletingAgentId,
       onActiveAgentDeleted,
+      prepareActiveAgentDeletion,
       refetchAgents,
       reload,
+      requestContextTransition,
       t
     ]
   )

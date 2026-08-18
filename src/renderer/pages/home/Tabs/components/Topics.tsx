@@ -28,6 +28,7 @@ import {
   type ResourceListSection,
   TopicListOptionsMenu,
   useDisplayModeRevealRequest,
+  usePrepareResourceListRemoteReveal,
   useRegisterResourceListRemoteGroup,
   useResourceListActions,
   useResourceListPinnedItems,
@@ -123,6 +124,7 @@ const ResourceEditDialogHost = lazy(() =>
 const IMAGE_CAPTURE_START_DELAY_MS = 160
 
 const DEFAULT_TOPIC_GROUP_VISIBLE_COUNT = 5
+const EMPTY_COLLAPSED_GROUP_IDS: string[] = []
 const TOPIC_ASSISTANT_GROUP_SECTION_PREFIX = 'topic:section:assistant-group:'
 const TOPIC_ASSISTANT_UNGROUPED_SECTION_ID = `${TOPIC_ASSISTANT_GROUP_SECTION_PREFIX}ungrouped`
 const TOPIC_EXPORT_MENU_PREFERENCE_KEYS = {
@@ -151,6 +153,20 @@ function mapApiTopicListItem(topic: ApiTopicListItem): TopicResourceItem {
   }
 }
 
+function buildTopicRemoteQueryKey({
+  assistantId,
+  pinned,
+  q,
+  sortBy
+}: {
+  assistantId?: string
+  pinned: boolean
+  q: string
+  sortBy?: TopicSortBy
+}) {
+  return JSON.stringify([assistantId ?? null, pinned, q, sortBy ?? null])
+}
+
 function TopicRemoteGroupQuery({
   assistantId,
   groupId,
@@ -173,6 +189,7 @@ function TopicRemoteGroupQuery({
     sortBy
   })
   const items = useMemo(() => source.topics.map(mapApiTopicListItem), [source.topics])
+  const queryKey = buildTopicRemoteQueryKey({ assistantId, pinned: false, q, sortBy })
   const refetch = source.refetch
   const retry = useCallback(() => void refetch(), [refetch])
   const snapshot = useMemo(
@@ -184,9 +201,20 @@ function TopicRemoteGroupQuery({
       isRefreshing: source.isRefreshing,
       items,
       loadNext: source.loadNext,
+      queryKey,
       retry
     }),
-    [groupId, items, retry, source.error, source.hasNext, source.isLoading, source.isRefreshing, source.loadNext]
+    [
+      groupId,
+      items,
+      queryKey,
+      retry,
+      source.error,
+      source.hasNext,
+      source.isLoading,
+      source.isRefreshing,
+      source.loadNext
+    ]
   )
   useRegisterResourceListRemoteGroup(service, snapshot)
   return null
@@ -338,7 +366,6 @@ export function Topics({
     panePosition === undefined ? (onSetPanePosition ?? setStoredPanePosition) : onSetPanePosition
   // Keep the legacy preference token (`tags`) while grouping by canonical Group rows.
   const isGroupGrouping = assistantSortType === 'tags'
-  const [topicExpansionTime, setTopicExpansionTime] = usePersistCache('ui.topic.expansion.time')
   const [topicExpansionAssistant, setTopicExpansionAssistant] = usePersistCache('ui.topic.expansion.assistant')
   const [renamingTopics] = useCache('topic.renaming')
   const [newlyRenamedTopics] = useCache('topic.newly_renamed')
@@ -394,13 +421,16 @@ export function Topics({
   } = ordinaryTopicsSource
   const remoteTopicGroups = useResourceListRemoteGroupService<TopicResourceItem>()
   const remoteTopicGroupSnapshots = useResourceListRemoteGroupSnapshots<TopicResourceItem>(remoteTopicGroups)
-  const remoteOrdinaryTopicGroupSnapshots = useMemo(
-    () => remoteTopicGroupSnapshots.filter((group) => group.groupId !== TOPIC_PINNED_GROUP_ID),
+  const remoteAssistantTopicGroupSnapshots = useMemo(
+    () =>
+      remoteTopicGroupSnapshots.filter(
+        (group) => group.groupId !== TOPIC_PINNED_GROUP_ID && group.groupId !== TOPIC_ORDINARY_GROUP_ID
+      ),
     [remoteTopicGroupSnapshots]
   )
   const remoteTopicRows = useMemo(
-    () => remoteOrdinaryTopicGroupSnapshots.flatMap((group) => group.items),
-    [remoteOrdinaryTopicGroupSnapshots]
+    () => remoteAssistantTopicGroupSnapshots.flatMap((group) => group.items),
+    [remoteAssistantTopicGroupSnapshots]
   )
   const {
     stats: topicStats,
@@ -631,6 +661,11 @@ export function Topics({
       isRefreshing: isPinnedTopicsRefreshing,
       items: pinnedTopics,
       loadNext: loadNextPinnedTopics,
+      queryKey: buildTopicRemoteQueryKey({
+        assistantId: rightPanelOwnerScope,
+        pinned: true,
+        q: debouncedRemoteQuery
+      }),
       retry: () => void refetchPinnedTopics()
     }),
     [
@@ -640,11 +675,44 @@ export function Topics({
       pinnedTopics,
       pinnedTopicsSource.error,
       pinnedTopicsSource.isLoading,
-      refetchPinnedTopics
+      refetchPinnedTopics,
+      rightPanelOwnerScope,
+      debouncedRemoteQuery
     ]
   )
   useRegisterResourceListRemoteGroup(remoteTopicGroups, pinnedTopicRemoteSnapshot)
   const flatOrdinaryTopics = useMemo(() => ordinaryTopicRows.map(mapApiTopicListItem), [ordinaryTopicRows])
+  const ordinaryTopicRemoteSnapshot = useMemo(
+    () => ({
+      error: ordinaryTopicsSource.error,
+      groupId: TOPIC_ORDINARY_GROUP_ID,
+      hasNext: hasMoreOrdinaryTopics,
+      isLoading: ordinaryTopicsSource.isLoading,
+      isRefreshing: isOrdinaryTopicsRefreshing,
+      items: flatOrdinaryTopics,
+      loadNext: loadNextOrdinaryTopics,
+      queryKey: buildTopicRemoteQueryKey({
+        assistantId: rightPanelOwnerScope,
+        pinned: false,
+        q: debouncedRemoteQuery,
+        sortBy: topicSortBy
+      }),
+      retry: () => void refetchOrdinaryTopics()
+    }),
+    [
+      debouncedRemoteQuery,
+      flatOrdinaryTopics,
+      hasMoreOrdinaryTopics,
+      isOrdinaryTopicsRefreshing,
+      loadNextOrdinaryTopics,
+      ordinaryTopicsSource.error,
+      ordinaryTopicsSource.isLoading,
+      refetchOrdinaryTopics,
+      rightPanelOwnerScope,
+      topicSortBy
+    ]
+  )
+  useRegisterResourceListRemoteGroup(remoteTopicGroups, ordinaryTopicRemoteSnapshot)
   const ordinaryTopics = isAssistantDisplayMode ? remoteTopicRows : flatOrdinaryTopics
   const commitTopicPin = useCallback(
     async (topic: TopicResourceItem) => {
@@ -1453,14 +1521,10 @@ export function Topics({
     },
     [assistantById, assistantIconType, defaultModelId, isAssistantDisplayMode]
   )
-  // See Sessions: assistants are entities; pinned, time and unlinked groups only gather rows, so
+  // See Sessions: assistants are entities; pinned and unlinked groups only gather rows, so
   // they use the recessed bucket voice while staying on the shared row rhythm.
   const getGroupHeaderKind = useCallback((group: { id: string }): ResourceListGroupHeaderKind => {
-    return group.id === TOPIC_UNLINKED_ASSISTANT_GROUP_ID ||
-      group.id === TOPIC_PINNED_GROUP_ID ||
-      group.id.startsWith('topic:time:')
-      ? 'bucket'
-      : 'entity'
+    return group.id === TOPIC_UNLINKED_ASSISTANT_GROUP_ID || group.id === TOPIC_PINNED_GROUP_ID ? 'bucket' : 'entity'
   }, [])
 
   const getGroupHeaderTooltip = useCallback(
@@ -1480,15 +1544,25 @@ export function Topics({
   )
 
   const collapsedTopicState = useMemo(() => {
-    if (isRightPanel) return []
-    if (!isAssistantDisplayMode) return topicExpansionTime
+    if (isRightPanel || !isAssistantDisplayMode) return EMPTY_COLLAPSED_GROUP_IDS
     return topicExpansionAssistant ?? topicGroupSeeds.filter((group) => group.label).map((group) => group.id)
-  }, [isAssistantDisplayMode, isRightPanel, topicExpansionAssistant, topicExpansionTime, topicGroupSeeds])
+  }, [isAssistantDisplayMode, isRightPanel, topicExpansionAssistant, topicGroupSeeds])
+  const remoteRevealTargetTopic = useMemo(() => {
+    if (!effectiveRevealRequest) return undefined
+    if (activeTopic?.id === effectiveRevealRequest.itemId) return activeTopic
+    return topics.find((topic) => topic.id === effectiveRevealRequest.itemId)
+  }, [activeTopic, effectiveRevealRequest, topics])
+  const remoteRevealOrdinaryGroupId =
+    isAssistantDisplayMode && remoteRevealTargetTopic
+      ? getTopicAssistantDisplayGroupId(remoteRevealTargetTopic)
+      : TOPIC_ORDINARY_GROUP_ID
+  const remoteRevealOwnerReady =
+    !isRightPanel || rightPanelOwnerScope === (remoteRevealTargetTopic?.assistantId ?? 'unlinked')
   const remoteTopicGroupQueries = useMemo(() => {
     if (!isAssistantDisplayMode) return []
 
     const collapsedIds = new Set(collapsedTopicState)
-    return topicGroupSeeds.flatMap((group) => {
+    const queries = topicGroupSeeds.flatMap((group) => {
       if (
         group.id === TOPIC_PINNED_GROUP_ID ||
         collapsedIds.has(group.id) ||
@@ -1501,7 +1575,88 @@ export function Topics({
         group.id === TOPIC_UNLINKED_ASSISTANT_GROUP_ID ? 'unlinked' : getAssistantIdFromTopicGroupId(group.id)
       return assistantId ? [{ assistantId, groupId: group.id }] : []
     })
-  }, [collapsedTopicState, isAssistantDisplayMode, topicGroupSeeds])
+
+    if (
+      effectiveRevealRequest &&
+      remoteRevealTargetTopic &&
+      remoteRevealOrdinaryGroupId !== TOPIC_ORDINARY_GROUP_ID &&
+      !queries.some((query) => query.groupId === remoteRevealOrdinaryGroupId)
+    ) {
+      queries.push({
+        assistantId: remoteRevealTargetTopic.assistantId ?? 'unlinked',
+        groupId: remoteRevealOrdinaryGroupId
+      })
+    }
+
+    return queries
+  }, [
+    collapsedTopicState,
+    effectiveRevealRequest,
+    isAssistantDisplayMode,
+    remoteRevealOrdinaryGroupId,
+    remoteRevealTargetTopic,
+    topicGroupSeeds
+  ])
+  const remoteRevealCandidateSnapshots = useMemo(() => {
+    if (!effectiveRevealRequest || !remoteRevealTargetTopic) return []
+    const groupIds = new Set([TOPIC_PINNED_GROUP_ID, remoteRevealOrdinaryGroupId])
+    return remoteTopicGroupSnapshots.filter((snapshot) => groupIds.has(snapshot.groupId))
+  }, [effectiveRevealRequest, remoteRevealOrdinaryGroupId, remoteRevealTargetTopic, remoteTopicGroupSnapshots])
+  const remoteRevealQueryReady = useMemo(() => {
+    if (
+      !effectiveRevealRequest ||
+      !remoteRevealTargetTopic ||
+      !remoteRevealOwnerReady ||
+      remoteRevealCandidateSnapshots.length !== 2
+    ) {
+      return false
+    }
+
+    const expectedQuery = effectiveRevealRequest.clearQuery ? '' : debouncedRemoteQuery
+    if (remoteQuery !== expectedQuery || debouncedRemoteQuery !== expectedQuery) return false
+
+    const ordinaryAssistantId = isAssistantDisplayMode
+      ? (remoteRevealTargetTopic.assistantId ?? 'unlinked')
+      : rightPanelOwnerScope
+    const expectedQueryKeyByGroupId = new Map([
+      [
+        TOPIC_PINNED_GROUP_ID,
+        buildTopicRemoteQueryKey({ assistantId: rightPanelOwnerScope, pinned: true, q: expectedQuery })
+      ],
+      [
+        remoteRevealOrdinaryGroupId,
+        buildTopicRemoteQueryKey({
+          assistantId: ordinaryAssistantId,
+          pinned: false,
+          q: expectedQuery,
+          sortBy: topicSortBy
+        })
+      ]
+    ])
+    return remoteRevealCandidateSnapshots.every(
+      (snapshot) => snapshot.queryKey === expectedQueryKeyByGroupId.get(snapshot.groupId)
+    )
+  }, [
+    debouncedRemoteQuery,
+    effectiveRevealRequest,
+    isAssistantDisplayMode,
+    remoteQuery,
+    remoteRevealCandidateSnapshots,
+    remoteRevealOrdinaryGroupId,
+    remoteRevealOwnerReady,
+    remoteRevealTargetTopic,
+    rightPanelOwnerScope,
+    topicSortBy
+  ])
+  const prepareRemoteReveal = useCallback((request: ResourceListRevealRequest) => {
+    if (request.clearQuery) setRemoteQuery('')
+  }, [])
+  const preparedRevealRequest = usePrepareResourceListRemoteReveal({
+    candidateSnapshots: remoteRevealCandidateSnapshots,
+    isQueryReady: remoteRevealQueryReady,
+    onPrepare: prepareRemoteReveal,
+    revealRequest: effectiveRevealRequest
+  })
   const topicAssistantSectionIds = useMemo(
     () =>
       isGroupGrouping
@@ -1515,10 +1670,9 @@ export function Topics({
   const handleTopicCollapsedStateChange = useCallback(
     (nextCollapsedIds: string[]) => {
       if (isRightPanel) return
-      if (isAssistantDisplayMode) setTopicExpansionAssistant(nextCollapsedIds)
-      else setTopicExpansionTime(nextCollapsedIds)
+      setTopicExpansionAssistant(nextCollapsedIds)
     },
-    [isAssistantDisplayMode, isRightPanel, setTopicExpansionAssistant, setTopicExpansionTime]
+    [isRightPanel, setTopicExpansionAssistant]
   )
   const handleTopicDisplayModeChange = useCallback(
     (nextMode: TopicDisplayMode) => {
@@ -1536,7 +1690,7 @@ export function Topics({
     !isRightPanel &&
     topicSortBy === 'orderKey' &&
     (isAssistantDisplayMode
-      ? remoteOrdinaryTopicGroupSnapshots.every((group) => !group.error && !group.isLoading && !group.isRefreshing)
+      ? remoteAssistantTopicGroupSnapshots.every((group) => !group.error && !group.isLoading && !group.isRefreshing)
       : !ordinaryTopicsSource.error && !isOrdinaryTopicsLoading && !isOrdinaryTopicsRefreshing)
   const canDragTopicItem = useCallback(
     ({ item }: { item: Topic; group: ResourceListGroup }) => topicItemDragReady && !item.pinned,
@@ -1783,9 +1937,8 @@ export function Topics({
         groupBy={topicGroupBy}
         sectionBy={topicSectionBy}
         collapsedState={collapsedTopicState}
-        revealRequest={effectiveRevealRequest}
+        revealRequest={preparedRevealRequest}
         defaultGroupVisibleCount={defaultGroupVisibleCount}
-        groupLoadStep={displayMode === 'time' ? Number.POSITIVE_INFINITY : DEFAULT_TOPIC_GROUP_VISIBLE_COUNT}
         getGroupHeaderAction={getGroupHeaderAction}
         getGroupHeaderContextMenu={getGroupHeaderContextMenu}
         getGroupHeaderIcon={getGroupHeaderIcon}

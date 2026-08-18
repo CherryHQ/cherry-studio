@@ -32,7 +32,7 @@ interface PinnedBandPaginationResult<T> {
  * appear below unpinned rows. Both streams still start fetching together —
  * the common no-pin path is not serialized.
  *
- * Callers own outer gating (error/loading guards, runtime-status branches)
+ * Callers own outer gating (error and loading guards)
  * around `loadNext`.
  */
 export function usePinnedBandPagination<T>(

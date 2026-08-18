@@ -457,13 +457,10 @@
         "collapse_all": "Thu gọn tất cả",
         "conversation": "Cuộc trò chuyện",
         "drag_hint": "Kéo để sắp xếp lại. Kéo các nhiệm vụ để điều chỉnh nhóm hiển thị và ẩn.",
-        "earlier": "Trước đó",
         "expand_all": "Mở rộng tất cả",
         "no_workdir": "Không có thư mục làm việc",
         "show_more": "Mở rộng hiển thị",
         "tasks": "Nhiệm vụ",
-        "this_week": "Tuần này",
-        "today": "Hôm nay",
         "unknown_agent": "Agent không xác định",
         "unknown_agent_tip": "Đây là nhóm phiên cũ không có Agent, không phải Agent thực tế. Bạn chỉ có thể xem và không thể tiếp tục chạy nhóm này.",
         "yesterday": "Hôm qua"

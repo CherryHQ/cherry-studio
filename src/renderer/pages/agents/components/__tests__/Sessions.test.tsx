@@ -321,7 +321,7 @@ const cacheMocks = vi.hoisted(() => ({
 }))
 
 const fileNavigationMocks = vi.hoisted(() => ({
-  request: null as null | ((transition: () => void) => void)
+  request: null as null | ((transition: () => void | Promise<void>) => Promise<void>)
 }))
 
 vi.mock('../AgentRightPane', () => ({
@@ -632,13 +632,10 @@ vi.mock('react-i18next', () => ({
         'agent.session.group.collapse_all': 'Collapse all',
         'agent.session.group.conversation': 'Conversations',
         'agent.session.group.drag_hint': 'Drag to reorder. Drag tasks to adjust display and hidden groups.',
-        'agent.session.group.earlier': 'Earlier',
         'agent.session.group.expand_all': 'Expand all',
         'agent.session.group.no_workdir': 'No work directory',
         'agent.session.group.show_more': 'Expand display',
         'agent.session.group.tasks': 'Tasks',
-        'agent.session.group.this_week': 'This week',
-        'agent.session.group.today': 'Today',
         'agent.session.group.unknown_agent': 'Unlinked Agent',
         'agent.session.group.unknown_agent_tip': 'Historical sessions without an agent',
         'agent.session.list.title': 'Tasks',
@@ -1534,7 +1531,7 @@ describe('Sessions', () => {
     expect(screen.queryByText('Beta session')).not.toBeInTheDocument()
   })
 
-  it('uses the provided active session setter', () => {
+  it('routes session changes through the shared context transition', async () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     agentDataMocks.useAgents.mockReturnValue({
       agents: [
@@ -1551,19 +1548,23 @@ describe('Sessions', () => {
       ]
     })
     const setActiveSessionId = vi.fn()
-    const requestFileNavigation = vi.fn()
+    const requestFileNavigation = vi.fn(async (transition: () => void | Promise<void>) => {
+      await transition()
+    })
     fileNavigationMocks.request = requestFileNavigation
 
     render(<SessionsForTest activeSessionId="session-a" setActiveSessionId={setActiveSessionId} />)
     fireEvent.click(screen.getByText('Beta session'))
 
-    expect(setActiveSessionId).toHaveBeenCalledWith('session-b', expect.objectContaining({ id: 'session-b' }))
-    expect(requestFileNavigation).not.toHaveBeenCalled()
+    await vi.waitFor(() =>
+      expect(setActiveSessionId).toHaveBeenCalledWith('session-b', expect.objectContaining({ id: 'session-b' }))
+    )
+    expect(requestFileNavigation).toHaveBeenCalledOnce()
     expect(cacheMocks.setActiveSessionId).not.toHaveBeenCalled()
     expect(cacheMocks.state.activeSessionId).toBe('session-a')
   })
 
-  it('requests confirmation before switching to a session in another file workspace', () => {
+  it('routes an owner-header session switch through the shared context transition', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     setSessionGroupExpansionCache({
       ...createExpandedSessionGroupExpansionFixture(),
@@ -1592,9 +1593,14 @@ describe('Sessions', () => {
     })
     const setActiveSessionId = vi.fn()
     let pendingTransition: (() => void) | undefined
-    fileNavigationMocks.request = vi.fn((transition) => {
-      pendingTransition = transition
-    })
+    fileNavigationMocks.request = vi.fn(
+      (transition) =>
+        new Promise<void>((resolve) => {
+          pendingTransition = () => {
+            void Promise.resolve(transition()).then(resolve)
+          }
+        })
+    )
 
     render(<SessionsForTest activeSessionId="session-a" setActiveSessionId={setActiveSessionId} />)
     fireEvent.click(screen.getByRole('button', { name: 'Beta agent' }))
@@ -1792,9 +1798,14 @@ describe('Sessions', () => {
       ]
     })
     let pendingTransition: (() => void) | undefined
-    fileNavigationMocks.request = vi.fn((transition) => {
-      pendingTransition = transition
-    })
+    fileNavigationMocks.request = vi.fn(
+      (transition) =>
+        new Promise<void>((resolve) => {
+          pendingTransition = () => {
+            void Promise.resolve(transition()).then(resolve)
+          }
+        })
+    )
     render(<SessionsForTest activeSessionId="session-a" onCreateSession={onCreateSession} />)
 
     const agentGroup = screen.getByRole('button', { name: 'Alpha agent' }).closest('div')
@@ -2580,7 +2591,7 @@ describe('Sessions', () => {
     expect(switchOrder).toBeLessThan(deleteOrder)
   })
 
-  it('defers the whole switch+delete transition behind the dirty-file guard instead of deleting while the neighbour switch is pending', async () => {
+  it('defers the whole switch+delete operation behind the shared context transition', async () => {
     // Regression: the neighbour switch used to be submitted through the file-navigation guard alone,
     // so with a dirty editor in another workspace the delete raced the URL while the doomed id was
     // still active, re-triggering the route-recovery stray-session bug. The delete must not start
@@ -2613,9 +2624,14 @@ describe('Sessions', () => {
     })
     const setActiveSessionId = vi.fn()
     let pendingTransition: (() => void) | undefined
-    fileNavigationMocks.request = vi.fn((transition) => {
-      pendingTransition = transition
-    })
+    fileNavigationMocks.request = vi.fn(
+      (transition) =>
+        new Promise<void>((resolve) => {
+          pendingTransition = () => {
+            void Promise.resolve(transition()).then(resolve)
+          }
+        })
+    )
 
     render(<SessionsForTest activeSessionId="session-a" setActiveSessionId={setActiveSessionId} />)
 
@@ -2628,12 +2644,12 @@ describe('Sessions', () => {
       fireEvent.click(deleteButton)
     })
 
-    // The guard is holding the transition: neither the switch nor the delete may have happened.
+    // The context transition is still waiting: neither the switch nor the delete may have happened.
     await vi.waitFor(() => expect(fileNavigationMocks.request).toHaveBeenCalledOnce())
     expect(setActiveSessionId).not.toHaveBeenCalled()
     expect(sessionDataMocks.deleteSession).not.toHaveBeenCalled()
 
-    // User confirms discarding the dirty editor: the switch lands before the delete runs.
+    // Once the transition is released, the switch lands before the delete runs.
     act(() => {
       pendingTransition?.()
     })

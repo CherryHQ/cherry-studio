@@ -2182,6 +2182,7 @@ describe('ResourceList', () => {
       isRefreshing: false,
       items,
       loadNext,
+      queryKey: 'remote-query',
       retry: vi.fn()
     })
 
@@ -2222,6 +2223,7 @@ describe('ResourceList', () => {
       isRefreshing: false,
       items: [],
       loadNext: vi.fn(),
+      queryKey: 'remote-query',
       retry
     })
 

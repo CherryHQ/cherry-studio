@@ -31,7 +31,6 @@ import { useConversationShellPaneState } from '@renderer/hooks/useConversationSh
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
 import { toast } from '@renderer/services/toast'
-import { buildAgentFileWorkspaceKey } from '@renderer/utils/agentSession'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
@@ -102,7 +101,7 @@ const AgentPage = () => {
   // Shared session facts plus exact derived lookups for rails, restore, and placeholder reuse.
   const agentSessionsSource = useAgentSessionsSource({ enabled: isActiveTab && !isMessageOnlyView })
 
-  const { stats: sessionStats, loadSession, loadLatestSession, reuseOrCreateSession } = agentSessionsSource
+  const { stats: sessionStats, loadLatestSession, reuseOrCreateSession } = agentSessionsSource
   const {
     isWindowFrame,
     shellPaneOpen,
@@ -276,13 +275,13 @@ const AgentPage = () => {
   const handleFileNavigationRequestChange = useCallback((request: AgentFileNavigationRequest | null) => {
     fileNavigationRequestRef.current = request
   }, [])
-  const requestFileNavigation = useCallback((transition: () => void) => {
+  const requestFileNavigation = useCallback<AgentFileNavigationRequest>(async (transition) => {
     const request = fileNavigationRequestRef.current
     if (request) {
-      request(transition)
+      await request(transition)
       return
     }
-    transition()
+    await transition()
   }, [])
   const resourceConversationKey = useMemo(() => {
     if (visibleSession?.id) return `session:${visibleSession.id}`
@@ -484,12 +483,14 @@ const AgentPage = () => {
   )
 
   const showMissingAgentSelection = useCallback(() => {
-    closeSurface()
-    setPendingLocateMessageId(undefined)
-    setRightPaneAgentScopeId(undefined)
-    clearActiveSession()
-    setMissingAgentSelection(true)
-  }, [clearActiveSession, closeSurface])
+    void requestFileNavigation(() => {
+      closeSurface()
+      setPendingLocateMessageId(undefined)
+      setRightPaneAgentScopeId(undefined)
+      clearActiveSession()
+      setMissingAgentSelection(true)
+    })
+  }, [clearActiveSession, closeSurface, requestFileNavigation])
 
   const createDefaultEmptySession = useCallback(
     async ({ excludedAgentIds = [] }: { excludedAgentIds?: Iterable<string> } = {}) => {
@@ -545,8 +546,10 @@ const AgentPage = () => {
       // still visible (which reads as a black/white flash + the dialog reopening).
       setAgentCreateOpen(false)
       try {
-        const session = await resolveEmptySession(agentId, { agentId, workspaceMode: 'system' })
-        activateSession(session, agentId)
+        await requestFileNavigation(async () => {
+          const session = await resolveEmptySession(agentId, { agentId, workspaceMode: 'system' })
+          activateSession(session, agentId)
+        })
       } catch (err) {
         logger.error('Failed to create agent session after agent creation', err as Error, { agentId })
         toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
@@ -554,12 +557,12 @@ const AgentPage = () => {
         isCreatingEmptySessionRef.current = false
       }
     },
-    [activateSession, resolveEmptySession, t]
+    [activateSession, requestFileNavigation, resolveEmptySession, t]
   )
 
   const handleHistorySessionSelect = useCallback(
     async (sessionId: string | null, messageId?: string) => {
-      const transition = () => {
+      const transition = async () => {
         closeSurface()
         setShellPaneOpen(true)
         // Locate (history / global search) should reveal the target in the right session pane. In modern layout
@@ -569,7 +572,7 @@ const AgentPage = () => {
         setPendingLocateMessageId(messageId)
 
         if (!sessionId) {
-          void createDefaultEmptySession()
+          await createDefaultEmptySession()
           return
         }
 
@@ -582,32 +585,15 @@ const AgentPage = () => {
           requestId: sessionRevealRequestIdRef.current
         })
       }
-      let targetSession = sessionId === visibleSession?.id ? visibleSession : undefined
-      if (sessionId && !targetSession) {
-        try {
-          targetSession = await loadSession(sessionId)
-        } catch (err) {
-          logger.warn('Failed to inspect target session before file navigation', err as Error, { sessionId })
-        }
-      }
-      const preservesFileWorkspace =
-        sessionId === visibleSession?.id ||
-        (targetSession !== undefined &&
-          visibleSession !== null &&
-          visibleSession !== undefined &&
-          buildAgentFileWorkspaceKey(targetSession.workspaceId, targetSession.workspace?.path) ===
-            buildAgentFileWorkspaceKey(visibleSession.workspaceId, visibleSession.workspace?.path))
-
-      if (preservesFileWorkspace) {
-        transition()
+      if (sessionId === visibleSession?.id) {
+        await transition()
         return
       }
-      requestFileNavigation(transition)
+      await requestFileNavigation(transition)
     },
     [
       closeSurface,
       createDefaultEmptySession,
-      loadSession,
       requestFileNavigation,
       selectSession,
       setShellPaneOpen,
@@ -781,6 +767,8 @@ const AgentPage = () => {
   )
   const handleResourceSessionSelect = useCallback(
     (sessionId: string, session: AgentSessionEntity) => {
+      // Resource-list callers own the leave boundary; keep this raw commit
+      // synchronous so deletion can switch before publishing invalidation.
       setActiveSessionAndClearTransient(sessionId, session)
       sessionRevealRequestIdRef.current += 1
       setSessionRevealRequest({
@@ -792,13 +780,19 @@ const AgentPage = () => {
     },
     [setActiveSessionAndClearTransient]
   )
+  const prepareActiveAgentDeletion = useCallback(() => {
+    const previousSession = activeSessionSelectionRef.current ?? visibleSession ?? null
+    setActiveSessionAndClearTransient(null)
+    return () => {
+      if (previousSession) setActiveSessionAndClearTransient(previousSession.id, previousSession)
+    }
+  }, [setActiveSessionAndClearTransient, visibleSession])
   // Preserve main's global-latest fallback after deleting the active agent,
   // proving it through the exact derived query instead of a fully-loaded list.
   const handleActiveAgentDeleted = useCallback(
     async (deletedAgentId: string) => {
       const requestId = ++ownerFallbackRequestIdRef.current
-      const isCurrent = () =>
-        ownerFallbackRequestIdRef.current === requestId && activeSessionSelectionRef.current?.agentId === deletedAgentId
+      const isCurrent = () => ownerFallbackRequestIdRef.current === requestId
 
       setRightPaneAgentScopeId(undefined)
 
@@ -922,6 +916,8 @@ const AgentPage = () => {
         manageAgentsActive={manageAgentsActive}
         onManageAgents={onManageAgents}
         onActiveAgentDeleted={handleActiveAgentDeleted}
+        prepareActiveAgentDeletion={prepareActiveAgentDeletion}
+        requestContextTransition={requestFileNavigation}
       />
     ) : (
       <AgentSidePanel
