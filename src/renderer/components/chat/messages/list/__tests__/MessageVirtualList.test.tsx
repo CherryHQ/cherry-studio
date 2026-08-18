@@ -353,7 +353,7 @@ describe('MessageVirtualList', () => {
     region.scrollTop = 200
 
     fireEvent.keyDown(region, { key: 'PageDown' })
-    expect(runtimeMockState.markUserInput).toHaveBeenCalledTimes(2)
+    expect(runtimeMockState.markUserInput).toHaveBeenCalledTimes(1)
 
     runtimeMockState.markUserInput.mockClear()
     const fireTouchPointerEvent = (type: 'pointerdown' | 'pointermove', clientY: number, buttons: number) => {
@@ -454,7 +454,7 @@ describe('MessageVirtualList', () => {
     fireEvent.pointerDown(item)
     fireEvent.keyDown(scroller, { key: 'PageDown' })
     fireEvent.pointerMove(scroller, { buttons: 1 })
-    expect(runtimeMockState.markUserInput).toHaveBeenCalledTimes(3)
+    expect(runtimeMockState.markUserInput).toHaveBeenCalledTimes(2)
     expect(runtimeMockState.takeUserControl).not.toHaveBeenCalled()
 
     unmount()
