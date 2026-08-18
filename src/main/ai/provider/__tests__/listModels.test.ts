@@ -498,6 +498,37 @@ describe('listModels — openRouterFetcher image models', () => {
     })
   })
 
+  it('converts the per-token price strings into per-1M rates', async () => {
+    aiSdkGetFromApiMock.mockImplementation(({ url }: { url: string }) => {
+      if (url.endsWith('/embeddings/models') || url.endsWith('/images/models')) {
+        return Promise.resolve({ value: { data: [] } })
+      }
+      return Promise.resolve({
+        value: {
+          data: [
+            {
+              id: 'anthropic/claude-sonnet-4',
+              pricing: { prompt: '0.000003', completion: '0.000015', input_cache_read: '0.0000003' }
+            },
+            { id: 'meta/llama-free', pricing: { prompt: '0', completion: '0' } },
+            { id: 'openai/quote-only', pricing: { prompt: '0.000001' } }
+          ]
+        }
+      })
+    })
+
+    const models = await listModels(makeOpenRouterProvider())
+    const priceOf = (id: string) => models.find((m) => m.apiModelId === id)?.pricing
+
+    expect(priceOf('anthropic/claude-sonnet-4')).toEqual({
+      input: { currency: 'USD', perMillionTokens: 3 },
+      output: { currency: 'USD', perMillionTokens: 15 },
+      cacheRead: { currency: 'USD', perMillionTokens: 0.3 }
+    })
+    expect(priceOf('meta/llama-free')?.output.perMillionTokens).toBe(0)
+    expect(priceOf('openai/quote-only')).toBeUndefined()
+  })
+
   it('keeps the primary and embedding catalogs when the image catalog fails in strict sync mode', async () => {
     const provider = makeOpenRouterProvider()
     aiSdkGetFromApiMock.mockImplementation(({ url }: { url: string }) => {
@@ -704,6 +735,37 @@ describe('listModels — aiHubMixFetcher (configured base URL)', () => {
     const call = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string }
     expect(call.url).toBe('https://custom.example.com/api/v1/models')
     expect(models.map((m) => m.apiModelId)).toEqual(['qwen3.6-plus'])
+  })
+
+  it('carries the listed USD-per-1M rates, including the cache tiers', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          {
+            model_id: 'gpt-4o-mini',
+            model_name: 'GPT-4o mini',
+            pricing: { input: 0.135, output: 0.54, cache_read: 0.0675 }
+          },
+          // A free SKU prices at a real 0 — it must not be mistaken for a missing rate.
+          { model_id: 'gemini-3.6-flash-free', pricing: { input: 0, output: 0 } },
+          // Half a pair is no rate at all.
+          { model_id: 'half-priced', pricing: { input: 1 } },
+          { model_id: 'unpriced' }
+        ]
+      }
+    })
+
+    const models = await listModels(makeProvider({ id: 'aihubmix' }))
+    const priceOf = (id: string) => models.find((m) => m.apiModelId === id)?.pricing
+
+    expect(priceOf('gpt-4o-mini')).toEqual({
+      input: { currency: 'USD', perMillionTokens: 0.135 },
+      output: { currency: 'USD', perMillionTokens: 0.54 },
+      cacheRead: { currency: 'USD', perMillionTokens: 0.0675 }
+    })
+    expect(priceOf('gemini-3.6-flash-free')?.input.perMillionTokens).toBe(0)
+    expect(priceOf('half-priced')).toBeUndefined()
+    expect(priceOf('unpriced')).toBeUndefined()
   })
 })
 

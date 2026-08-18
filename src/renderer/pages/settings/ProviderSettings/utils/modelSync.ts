@@ -62,7 +62,10 @@ export function toCreateModelDto(
     name: model.name,
     group: model.group,
     ...(capabilities ? { capabilities: [...capabilities] } : {}),
-    ...(resolvedEndpointTypes?.length ? { endpointTypes: [...resolvedEndpointTypes] } : {})
+    ...(resolvedEndpointTypes?.length ? { endpointTypes: [...resolvedEndpointTypes] } : {}),
+    // Dropping this would strand the provider-reported rate in the picker: the row persists without it,
+    // and every request against the model then records an unpriced (or vendor-list-priced) usage row.
+    ...(model.pricing ? { pricing: model.pricing } : {})
   }
 }
 
@@ -129,12 +132,18 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
     // /models returned a real display name — one that differs from the raw id — keep it instead of
     // overwriting with the prettified id. Matched rows (presetModelId set) own the curated name.
     const keepFetchedName = !registry.presetModelId && !!base.name && base.name !== base.apiModelId
+    // A gateway that publishes its own rate card is authoritative for what it charges; the registry
+    // only knows the vendor's list price, which resellers diverge from in both directions.
+    const keepFetchedPricing = !!base.pricing
 
     for (const field of REGISTRY_FIELDS) {
       if (field === 'endpointTypes' && base.endpointTypes?.length) {
         continue
       }
       if (field === 'name' && keepFetchedName) {
+        continue
+      }
+      if (field === 'pricing' && keepFetchedPricing) {
         continue
       }
       const value = registry[field]

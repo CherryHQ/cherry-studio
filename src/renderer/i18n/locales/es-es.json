@@ -3493,7 +3493,7 @@
     "pinned": "Fijado",
     "price": {
       "add_tier": "Agregar nivel de precios",
-      "cache_fallback_help": "Deja en blanco los precios de caché para usar el precio de entrada de este nivel; ingresa 0 para gratis.",
+      "cache_fallback_help": "Deja un precio en blanco cuando sea desconocido; los precios de caché en blanco usan el precio de entrada de este nivel; ingresa 0 para gratis.",
       "cache_read": "Precio de lectura de caché",
       "cache_write": "Precio De Escritura En Caché",
       "currency": "Moneda",
@@ -3506,6 +3506,7 @@
       "remove_tier": "Eliminar el nivel de precios {{index}}",
       "tier": "Nivel {{index}}",
       "tier_from": "Desde {{boundary}} tokens de entrada (inclusive)",
+      "unpriced": "Desconocido",
       "use_input_price": "Usar el precio de entrada",
       "validation_min_input_tokens": "Introduzca un número entero positivo.",
       "validation_min_input_tokens_order": "El nivel debe comenzar después del nivel anterior.",

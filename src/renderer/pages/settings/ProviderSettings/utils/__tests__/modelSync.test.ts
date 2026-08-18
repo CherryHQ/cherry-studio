@@ -151,6 +151,62 @@ describe('fetchResolvedProviderModels', () => {
 
     expect(models[0].name).toBe('Provider Display Name')
   })
+
+  it('keeps the gateway rate card over the registry vendor list price', async () => {
+    listModelsMock.mockResolvedValueOnce([
+      {
+        id: 'aihubmix::gpt-4o-mini',
+        providerId: 'aihubmix',
+        apiModelId: 'gpt-4o-mini',
+        name: 'GPT-4o mini',
+        pricing: {
+          input: { currency: 'USD', perMillionTokens: 0.135 },
+          output: { currency: 'USD', perMillionTokens: 0.54 }
+        }
+      }
+    ])
+    dataApiGetMock.mockResolvedValueOnce([
+      {
+        id: 'aihubmix::gpt-4o-mini',
+        providerId: 'aihubmix',
+        apiModelId: 'gpt-4o-mini',
+        presetModelId: 'gpt-4o-mini',
+        name: 'GPT-4o mini',
+        pricing: {
+          input: { currency: 'USD', perMillionTokens: 0.15 },
+          output: { currency: 'USD', perMillionTokens: 0.6 }
+        }
+      }
+    ])
+
+    const [model] = await fetchResolvedProviderModels('aihubmix')
+
+    expect(model.pricing?.input.perMillionTokens).toBe(0.135)
+    // The rest of the registry overlay still applies.
+    expect(model.presetModelId).toBe('gpt-4o-mini')
+  })
+
+  it('falls back to the registry price when the provider reports none', async () => {
+    listModelsMock.mockResolvedValueOnce([
+      { id: 'openai::gpt-4o-mini', providerId: 'openai', apiModelId: 'gpt-4o-mini', name: 'GPT-4o mini' }
+    ])
+    dataApiGetMock.mockResolvedValueOnce([
+      {
+        id: 'openai::gpt-4o-mini',
+        providerId: 'openai',
+        apiModelId: 'gpt-4o-mini',
+        name: 'GPT-4o mini',
+        pricing: {
+          input: { currency: 'USD', perMillionTokens: 0.15 },
+          output: { currency: 'USD', perMillionTokens: 0.6 }
+        }
+      }
+    ])
+
+    const [model] = await fetchResolvedProviderModels('openai')
+
+    expect(model.pricing?.input.perMillionTokens).toBe(0.15)
+  })
 })
 
 describe('fetchProviderCatalogModels', () => {
@@ -236,6 +292,22 @@ describe('toCreateModelDto', () => {
       modelId: 'gpt-4o',
       endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
     })
+  })
+
+  it('carries the resolved price into the create payload', () => {
+    const pricing = {
+      input: { currency: 'USD' as const, perMillionTokens: 0.135 },
+      output: { currency: 'USD' as const, perMillionTokens: 0.54 }
+    }
+    const dto = toCreateModelDto('aihubmix', {
+      id: 'aihubmix::gpt-4o-mini' as UniqueModelId,
+      providerId: 'aihubmix',
+      apiModelId: 'gpt-4o-mini',
+      name: 'GPT-4o mini',
+      pricing
+    } as Model)
+
+    expect(dto.pricing).toEqual(pricing)
   })
 
   it('does not forward capabilities for a preset-backed model', () => {

@@ -3493,7 +3493,7 @@
     "pinned": "Đã ghim",
     "price": {
       "add_tier": "Thêm bậc giá",
-      "cache_fallback_help": "Để trống giá bộ nhớ đệm để dùng giá đầu vào của bậc này; nhập 0 nếu miễn phí.",
+      "cache_fallback_help": "Để trống giá khi chưa biết; giá bộ nhớ đệm để trống sẽ dùng giá đầu vào của bậc này; nhập 0 nếu miễn phí.",
       "cache_read": "Giá Đọc Cache",
       "cache_write": "Giá ghi bộ nhớ đệm",
       "currency": "Tiền tệ",
@@ -3506,6 +3506,7 @@
       "remove_tier": "Xóa bậc giá {{index}}",
       "tier": "Bậc {{index}}",
       "tier_from": "Từ {{boundary}} token đầu vào (bao gồm)",
+      "unpriced": "Không xác định",
       "use_input_price": "Dùng giá đầu vào",
       "validation_min_input_tokens": "Nhập một số nguyên dương.",
       "validation_min_input_tokens_order": "Bậc này phải bắt đầu sau bậc trước.",

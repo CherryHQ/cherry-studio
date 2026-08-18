@@ -3493,7 +3493,7 @@
     "pinned": "Pinned",
     "price": {
       "add_tier": "Add pricing tier",
-      "cache_fallback_help": "Leave cache prices blank to use this tier's input price; enter 0 for free.",
+      "cache_fallback_help": "Leave a price blank when it is unknown; blank cache prices use this tier's input price; enter 0 for free.",
       "cache_read": "Cache Read Price",
       "cache_write": "Cache Write Price",
       "currency": "Currency",
@@ -3506,6 +3506,7 @@
       "remove_tier": "Remove pricing tier {{index}}",
       "tier": "Tier {{index}}",
       "tier_from": "From {{boundary}} input tokens (inclusive)",
+      "unpriced": "Unknown",
       "use_input_price": "Use input price",
       "validation_min_input_tokens": "Enter a positive whole number.",
       "validation_min_input_tokens_order": "The tier must start after the previous tier.",

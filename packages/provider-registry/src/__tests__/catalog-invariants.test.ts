@@ -39,6 +39,7 @@ const overrides = providerModelsRaw.overrides as Array<{
   providerId: string
   modelId: string
   apiModelId?: string
+  modelVariants?: string[]
   name?: string
 }>
 const providers = ProviderListSchema.parse(providersRaw).providers
@@ -99,6 +100,16 @@ describe('catalog invariants (data/*.json)', () => {
   // and coexists with (or shadows) its true base row.
   it('every base id is a canonicalization fixpoint (id === canonOf(id))', () => {
     expect(ids.filter((id) => canonOf(id) !== id)).toEqual([])
+  })
+
+  // A `:batch` twin bills through OpenRouter's async job API, which the app never calls — it must not
+  // reach the catalog as a model or as a provider row (see scripts/canonicalize.ts).
+  it('excludes batch-API twins from both the catalog and provider rows', () => {
+    const isBatch = (id: string) => /[:-]batch$/.test(id)
+    expect([
+      ...ids.filter(isBatch),
+      ...overrides.filter((o) => isBatch(o.apiModelId ?? o.modelId)).map((o) => `${o.providerId}/${o.apiModelId}`)
+    ]).toEqual([])
   })
 
   it('assigns overlapping creator prefixes to the most specific owner', () => {
@@ -168,17 +179,22 @@ describe('catalog invariants (data/*.json)', () => {
     expect(offenders).toEqual([])
   })
 
-  // The loader's canonical override index (`overrideByKey`) resolves a duplicated key to the self
-  // variant (`apiModelId === modelId`) — see registry-loader.ts `buildOverrideIndex`. A duplicated key
-  // with NO self variant makes the winning override file-order-dependent, so forbid it.
-  it('every duplicated providerId::modelId key contains a self variant', () => {
+  // The loader's canonical override index (`overrideByKey`) resolves a duplicated key by rank: the self
+  // variant (`apiModelId === modelId`), else the single untagged row (a paid tier next to its `free`
+  // sibling) — see registry-loader.ts `canonicalRank`. Neither → the winner is file-order-dependent.
+  it('every duplicated providerId::modelId key contains a self variant or one untagged row', () => {
     const byKey = new Map<string, Array<(typeof overrides)[number]>>()
     for (const o of overrides) {
       const key = `${o.providerId}::${o.modelId}`
       byKey.set(key, [...(byKey.get(key) ?? []), o])
     }
     const orderDependent = [...byKey.entries()]
-      .filter(([, rows]) => rows.length > 1 && !rows.some((r) => (r.apiModelId ?? r.modelId) === r.modelId))
+      .filter(
+        ([, rows]) =>
+          rows.length > 1 &&
+          !rows.some((r) => (r.apiModelId ?? r.modelId) === r.modelId) &&
+          rows.filter((r) => !r.modelVariants?.length).length !== 1
+      )
       .map(([key]) => key)
     expect(orderDependent).toEqual([])
   })

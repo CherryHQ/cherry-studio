@@ -380,6 +380,36 @@ describe('ModelService.update', () => {
     expect(row.pricing).toBeNull()
   })
 
+  it('keeps a blanked price as a user delta over registry pricing', async () => {
+    await seedExistingModel()
+    lookupModelMock.mockReturnValue({
+      presetModel: {
+        id: 'gpt-4o',
+        name: 'GPT-4o',
+        pricing: {
+          input: { perMillionTokens: 5 },
+          output: { perMillionTokens: 15 }
+        }
+      },
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+
+    const updated = modelService.update('openai', 'gpt-4o', {
+      pricing: {
+        input: { perMillionTokens: null, currency: 'USD' },
+        output: { perMillionTokens: null, currency: 'USD' }
+      }
+    })
+
+    const [row] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'openai::gpt-4o'))
+    expect(row.pricing).toEqual({
+      input: { perMillionTokens: null, currency: 'USD' },
+      output: { perMillionTokens: null, currency: 'USD' }
+    })
+    expect(updated.pricing?.input.perMillionTokens).toBeNull()
+  })
+
   it('keeps an input-token tier as a sparse pricing delta over a flat registry baseline', async () => {
     await seedExistingModel()
     lookupModelMock.mockReturnValue({

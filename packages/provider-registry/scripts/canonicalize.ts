@@ -20,8 +20,15 @@ import {
 // bedrock cross-vendor `[region.]vendor.` / `vendor-` prefix (shared with the runtime).
 const base = (id: string) => stripBedrockVendorPrefix(stripAggregatorPrefixes(id.toLowerCase().split('/').pop()!))
 
+// OpenRouter's `:batch` twin is the same model submitted through the async Batch API — a separate job
+// endpoint the app never calls, listed at a discount. Dropped rather than folded onto the base: folding
+// would let the discounted twin claim the base row's pricing and `apiModelId`.
+const BATCH_TWIN = /[:-]batch$/
+
 // Minus param-size stripping — the catalog keeps `qwen3-235b` ≠ `qwen3-30b`.
+// Returns `''` for an id that is not a catalog model; every intake point drops those.
 export const canonOf = (id: string): string => {
+  if (BATCH_TWIN.test(id.toLowerCase())) return ''
   let s = base(id) // split('/').pop, lowercase, strip aggregator + bedrock-vendor prefix
   s = stripBedrockRevision(s) // bedrock arn revision: claude-…-v1:0 / …:0 (keeps whisper-v3)
   s = expandKnownPrefixes(s) // mm- → minimax-
