@@ -1121,7 +1121,7 @@ export class AiService extends BaseService {
       const controller = new AbortController()
       const timeoutHandle = setTimeout(() => controller.abort(), timeout)
       try {
-        return await probeOllamaModel(provider, model.apiModelId, controller.signal)
+        return await probeOllamaModel(provider, model.apiModelId, controller.signal, request.apiKeyOverride)
       } finally {
         clearTimeout(timeoutHandle)
       }
