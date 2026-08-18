@@ -101,9 +101,13 @@ vi.mock('@data/services/ProviderRegistryService', () => ({
   }
 }))
 
-vi.mock('../provider/listModels', () => ({
-  listModels: (...args: unknown[]) => mockListModelsFromProvider(...args)
-}))
+vi.mock('../provider/listModels', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../provider/listModels')>()
+  return {
+    ...actual,
+    listModels: (...args: unknown[]) => mockListModelsFromProvider(...args)
+  }
+})
 vi.mock('@main/utils/downloadAsBase64', () => ({
   downloadImageAsBase64: (...args: unknown[]) => mockDownloadImageAsBase64(...args)
 }))
@@ -1578,7 +1582,7 @@ describe('AiService tool approval', () => {
     ).rejects.toThrow('Rerank health check returned empty ranking')
   })
 
-  it('uses lightweight /api/tags probe for Ollama providers', async () => {
+  it('uses lightweight /api/show probe for Ollama providers', async () => {
     const service = createService()
     const generateSpy = vi.spyOn(service, 'generateText')
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 200 }))
@@ -1599,7 +1603,7 @@ describe('AiService tool approval', () => {
       settings: {},
       isEnabled: true,
       endpointConfigs: {
-        'ollama-chat': { baseUrl: 'http://127.0.0.1:11434/api' }
+        'ollama-chat': { baseUrl: 'http://localhost:11434' }
       },
       defaultChatEndpoint: 'ollama-chat'
     })
@@ -1617,8 +1621,12 @@ describe('AiService tool approval', () => {
     const result = await service.checkModel({ uniqueModelId: 'ollama::llama3' })
 
     expect(fetchSpy).toHaveBeenCalledWith(
-      'http://127.0.0.1:11434/api/tags',
-      expect.objectContaining({ signal: expect.any(AbortSignal) })
+      'http://localhost:11434/api/show',
+      expect.objectContaining({
+        method: 'POST',
+        signal: expect.any(AbortSignal),
+        body: JSON.stringify({ model: 'llama3' })
+      })
     )
     expect(generateSpy).not.toHaveBeenCalled()
     expect(result.latency).toBeGreaterThanOrEqual(0)

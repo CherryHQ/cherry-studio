@@ -736,6 +736,31 @@ const openAICompatibleFetcher: ModelFetcher = {
   }
 }
 
+// ── Ollama probe ──
+
+/** Lightweight model-existence check for Ollama — avoids loading the model into memory. */
+export async function probeOllamaModel(
+  provider: Provider,
+  modelApiId: string | undefined,
+  signal?: AbortSignal
+): Promise<{ latency: number }> {
+  const start = performance.now()
+  const baseUrl = withoutTrailingSlash(getBaseUrl(provider))
+    .replace(/\/v1$/, '')
+    .replace(/\/api$/, '')
+  const response = await fetch(`${baseUrl}/api/show`, {
+    method: 'POST',
+    headers: { ...defaultHeaders(provider), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: modelApiId ?? '' }),
+    signal
+  })
+  if (!response.ok) {
+    const body = (await response.json().catch(() => undefined)) as ApiError | undefined
+    throw new Error(body?.error?.message ?? body?.message ?? `Ollama /api/show returned ${response.status}`)
+  }
+  return { latency: performance.now() - start }
+}
+
 // ── Registry (order matters: first match wins) ──
 
 const fetchers: ModelFetcher[] = [

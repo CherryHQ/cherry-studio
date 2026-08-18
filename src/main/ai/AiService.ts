@@ -55,7 +55,7 @@ import { deleteImageInputEntries, imageGenerationJobHandler } from './provider/c
 import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './provider/custom/tasks/jobTypes'
 import { buildVendorProviderOptions } from './provider/custom/wire/buildImageRequest'
 import { DEFAULT_DIFFUSION_REGISTRATION, WIRE_REGISTRY } from './provider/custom/wire/wireProfile'
-import { listModels as listModelsFromProvider } from './provider/listModels'
+import { listModels as listModelsFromProvider, probeOllamaModel } from './provider/listModels'
 import type { AgentLoopHooks, NativeFileSupport, RequestFeature } from './runtime/aiSdk'
 import { Agent, buildAgentParams, buildFallbackModels, createRetryableWrap, readRetryPolicy } from './runtime/aiSdk'
 import { skillService } from './skills/SkillService'
@@ -72,7 +72,6 @@ import type {
 } from './types'
 import { installProviderUserAgentInterceptor } from './utils/customFetch'
 import { type SplitImageParams, splitParamValues } from './utils/imageOptions'
-import { defaultHeaders, getBaseUrl } from './utils/provider'
 import { createAiUsageCaptureContext } from './utils/usageCapture'
 
 const logger = loggerService.withContext('AiService')
@@ -1118,24 +1117,13 @@ export class AiService extends BaseService {
     const start = performance.now()
     const timeout = request.timeout ?? 15000
 
-    // Ollama: lightweight /api/tags probe — avoids loading the model into memory.
     if (isOllamaProvider(provider)) {
-      const baseUrl = getBaseUrl(provider)
-      if (baseUrl) {
-        const controller = new AbortController()
-        const timeoutHandle = setTimeout(() => controller.abort(), timeout)
-        try {
-          const response = await fetch(`${baseUrl}/tags`, {
-            signal: controller.signal,
-            headers: defaultHeaders(provider)
-          })
-          if (!response.ok) {
-            throw new Error(`Ollama server returned ${response.status}`)
-          }
-          return { latency: performance.now() - start }
-        } finally {
-          clearTimeout(timeoutHandle)
-        }
+      const controller = new AbortController()
+      const timeoutHandle = setTimeout(() => controller.abort(), timeout)
+      try {
+        return await probeOllamaModel(provider, model.apiModelId, controller.signal)
+      } finally {
+        clearTimeout(timeoutHandle)
       }
     }
 
