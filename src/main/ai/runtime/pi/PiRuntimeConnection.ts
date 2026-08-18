@@ -22,6 +22,7 @@ import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
+import { customFetch } from '@main/ai/utils/customFetch'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { type Span, SpanKind, SpanStatusCode } from '@opentelemetry/api'
@@ -815,7 +816,8 @@ function withPiRequestEnvironment(
   return (model, context, options) =>
     streamSimple(model, context, {
       ...options,
-      env: { ...options?.env, ...getProxyEnvironment(process.env), ...providerEnvironment }
+      env: { ...options?.env, ...getProxyEnvironment(process.env), ...providerEnvironment },
+      fetch: customFetch
     })
 }
 
