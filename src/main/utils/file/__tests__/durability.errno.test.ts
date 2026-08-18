@@ -14,7 +14,7 @@ vi.mock('node:fs/promises', async (importOriginal) => {
   return { ...actual, open: mockOpen, rename: mockRename }
 })
 
-const { fsyncDirectory, renameOnly } = await import('../durability')
+const { fsyncDirectory, fsyncFile, renameOnly } = await import('../durability')
 const { atomicWriteFile } = await import('../fs')
 
 function errno(code: string): NodeJS.ErrnoException {
@@ -51,6 +51,15 @@ describe('durability errno contracts', () => {
     await expect(renameOnly(source, target)).rejects.toMatchObject({ code: 'EXDEV' })
     await expect(readFile(source, 'utf8')).resolves.toBe('source')
     await expect(readFile(target, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('opens regular files with write access before flushing them', async () => {
+    const target = path.join(root, 'payload')
+    await writeFile(target, 'payload')
+
+    await fsyncFile(target)
+
+    expect(mockOpen).toHaveBeenCalledWith(target, 'r+')
   })
 
   it('propagates real directory fsync failures', async () => {

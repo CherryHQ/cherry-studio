@@ -12,7 +12,9 @@ export function shouldSilenceFsyncDirError(code: string | undefined): boolean {
 
 /** Flush one regular file's bytes and metadata to stable storage. */
 export async function fsyncFile(target: string): Promise<void> {
-  const handle = await open(target, 'r')
+  // Windows FlushFileBuffers requires a handle with write access; a read-only
+  // handle fails with EPERM even for a regular writable file.
+  const handle = await open(target, 'r+')
   try {
     await handle.sync()
   } finally {
@@ -22,7 +24,7 @@ export async function fsyncFile(target: string): Promise<void> {
 
 /** Synchronous counterpart of {@link fsyncFile}. */
 export function fsyncFileSync(target: string): void {
-  const fd = fs.openSync(target, 'r')
+  const fd = fs.openSync(target, 'r+')
   try {
     fs.fsyncSync(fd)
   } finally {
