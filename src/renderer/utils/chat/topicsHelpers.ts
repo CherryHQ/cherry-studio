@@ -1,4 +1,4 @@
-import type { Topic } from '@renderer/types/topic'
+import type { TopicReference } from '@renderer/types/topic'
 import {
   buildResourceListGroupDropAnchor,
   buildResourceListItemDropAnchor,
@@ -48,9 +48,9 @@ export type TopicDisplaySortOptions = {
   sortBy: TopicSortBy
 }
 
-export type TopicListItem = Topic & {
-  name: string
+export type TopicListItem = TopicReference & {
   orderKey?: string
+  pinned?: boolean
 }
 
 export const TOPIC_PINNED_GROUP_ID = 'topic:pinned'
@@ -136,7 +136,7 @@ export function getTopicAssistantDisplayGroupId(topic: { assistantId?: string | 
   return topic.assistantId ? getTopicAssistantGroupId(topic.assistantId) : TOPIC_UNLINKED_ASSISTANT_GROUP_ID
 }
 
-export function createTopicDisplayGroupResolver<T extends Pick<Topic, 'assistantId' | 'pinned'>>({
+export function createTopicDisplayGroupResolver<T extends Pick<TopicListItem, 'assistantId' | 'pinned'>>({
   assistantById,
   labels,
   mode,
@@ -173,7 +173,7 @@ export function createTopicDisplayGroupResolver<T extends Pick<Topic, 'assistant
   })
 }
 
-function getAssistantGroupRank<T extends Pick<Topic, 'assistantId' | 'pinned'>>(
+function getAssistantGroupRank<T extends Pick<TopicListItem, 'assistantId' | 'pinned'>>(
   topic: T,
   assistantRankById?: ReadonlyMap<string, number>
 ) {
@@ -189,9 +189,10 @@ function getAssistantGroupRank<T extends Pick<Topic, 'assistantId' | 'pinned'>>(
   return TOPIC_UNLINKED_ASSISTANT_RANK
 }
 
-export function sortTopicsForDisplayGroups<
-  T extends Pick<Topic, 'assistantId' | 'createdAt' | 'id' | 'orderKey' | 'pinned'> & { lastActivityAt: string }
->(topics: readonly T[], options: TopicDisplaySortOptions): T[] {
+export function sortTopicsForDisplayGroups<T extends TopicListItem & { createdAt: string; lastActivityAt: string }>(
+  topics: readonly T[],
+  options: TopicDisplaySortOptions
+): T[] {
   const isPinned = (topic: T) => topic.pinned === true
   const compareWithinGroup =
     options.sortBy === 'createdAt'

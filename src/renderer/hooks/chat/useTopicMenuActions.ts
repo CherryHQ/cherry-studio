@@ -3,6 +3,7 @@ import {
   executeTopicMenuAction,
   resolveTopicMenuActions,
   type TopicActionContext,
+  type TopicActionItem,
   type TopicExportMenuOptions,
   type TopicMoveAssistantTarget
 } from '@renderer/components/chat/actions/topicContextMenuActions'
@@ -11,14 +12,13 @@ import { ipcApi } from '@renderer/ipc'
 import { copyTopicAsMarkdown, copyTopicAsPlainText } from '@renderer/services/copy'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
-import type { Topic } from '@renderer/types/topic'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import type { TFunction } from 'i18next'
 import { useCallback, useMemo } from 'react'
 
-type TopicMenuHandler = (topic: Topic) => void | Promise<void>
-type TopicMoveToAssistantHandler = (topic: Topic, assistantId: string) => void | Promise<void>
+type TopicMenuHandler = (topic: TopicActionItem) => void | Promise<void>
+type TopicMoveToAssistantHandler = (topic: TopicActionItem, assistantId: string) => void | Promise<void>
 
 export interface TopicMenuActionOptions {
   exportMenuOptions: TopicExportMenuOptions
@@ -40,7 +40,7 @@ export interface TopicMenuActionOptions {
   onStartRename: TopicMenuHandler
   panePosition?: TopicTabPosition
   t: TFunction
-  topic: Topic
+  topic: TopicActionItem
 }
 
 export function createTopicActionContext({

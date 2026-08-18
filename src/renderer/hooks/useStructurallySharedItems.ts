@@ -2,7 +2,7 @@ import { isEqual } from 'es-toolkit/compat'
 import { useMemo, useRef } from 'react'
 
 /** Preserve unchanged item references across paginated query refreshes. */
-export function useStructurallySharedItems<TItem extends { id: string }>(items: TItem[]): TItem[] {
+export function useStructurallySharedItems<TItem extends { id: string }>(items: readonly TItem[]): TItem[] {
   const previousItemsRef = useRef<TItem[]>([])
 
   return useMemo(() => {

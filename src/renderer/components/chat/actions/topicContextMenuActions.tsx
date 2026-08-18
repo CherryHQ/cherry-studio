@@ -1,7 +1,7 @@
 import { createActionRegistry } from '@renderer/components/chat/actions/actionRegistry'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import { OpenInNewWindowIcon } from '@renderer/components/icons/WindowIcons'
-import type { Topic } from '@renderer/types/topic'
+import type { TopicReference } from '@renderer/types/topic'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import type { TFunction } from 'i18next'
 import {
@@ -37,8 +37,10 @@ export type TopicExportMenuOptions = Record<
   boolean
 >
 
-type TopicMenuHandler = (topic: Topic) => void | Promise<void>
-type TopicMoveToAssistantHandler = (topic: Topic, assistantId: string) => void | Promise<void>
+export type TopicActionItem = TopicReference & { pinned?: boolean }
+
+type TopicMenuHandler = (topic: TopicActionItem) => void | Promise<void>
+type TopicMoveToAssistantHandler = (topic: TopicActionItem, assistantId: string) => void | Promise<void>
 
 export interface TopicMoveAssistantTarget {
   id: string
@@ -77,7 +79,7 @@ export interface TopicActionContext {
   onStartRename: TopicMenuHandler
   panePosition?: TopicTabPosition
   t: TFunction
-  topic: Topic
+  topic: TopicActionItem
 }
 
 const topicActionRegistry = createActionRegistry<TopicActionContext>()

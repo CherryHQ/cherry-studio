@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import type {
   TopicActionContext,
+  TopicActionItem,
   TopicExportMenuOptions
 } from '@renderer/components/chat/actions/topicContextMenuActions'
 import { renderAssistantEntityIcon, useResourceListPinnedItems } from '@renderer/components/chat/resourceList/base'
@@ -347,9 +348,10 @@ const AssistantHistoryRecords = ({
   )
 
   const handleDeleteTopicFromMenu = useCallback(
-    async (topic: RendererTopic) => {
+    async (topic: TopicActionItem) => {
       if (topic.pinned) return
 
+      const deletedTopic = rendererTopicById.get(topic.id)
       const wasActive = activeRecordIdRef.current === topic.id
       const nextTopic = wasActive
         ? findAdjacentHistoryRecordAfterBulkDelete(topics, [topic.id], topic.id, (candidate) => candidate.id)
@@ -362,7 +364,9 @@ const AssistantHistoryRecords = ({
         await deleteTopicById(topic.id)
       } catch (err) {
         restoreOptimisticallyHiddenTopics([topic.id])
-        if (wasActive && activeRecordIdRef.current === optimisticActiveId) selectActiveTopic(topic)
+        if (wasActive && deletedTopic && activeRecordIdRef.current === optimisticActiveId) {
+          selectActiveTopic(deletedTopic)
+        }
         logger.error('Failed to delete topic from history records', { topicId: topic.id, err })
         const message = err instanceof Error ? err.message : t('chat.topics.manage.delete.error')
         toast.error(message)
@@ -373,6 +377,7 @@ const AssistantHistoryRecords = ({
       getRendererTopic,
       hideTopicsOptimistically,
       restoreOptimisticallyHiddenTopics,
+      rendererTopicById,
       selectActiveTopic,
       t,
       topics
@@ -469,12 +474,12 @@ const AssistantHistoryRecords = ({
     [batchUpdateTopics, clearOptimisticTopicPatch, patchTopicsOptimistically, t]
   )
 
-  const handleClearMessages = useCallback((topic: RendererTopic) => {
+  const handleClearMessages = useCallback((topic: TopicActionItem) => {
     void EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES, topic)
   }, [])
 
   const handleAutoRename = useCallback(
-    async (topic: RendererTopic) => {
+    async (topic: TopicActionItem) => {
       const messages = await getTopicMessages(topic.id)
       if (messages.length < 2) return
 
@@ -482,7 +487,7 @@ const AssistantHistoryRecords = ({
       try {
         const { text: summaryText, error: summaryError } = await fetchMessagesSummary({ messages })
         if (summaryText) {
-          void updateTopic({ ...topic, name: summaryText, isNameManuallyEdited: false })
+          void patchTopic(topic.id, { name: summaryText, isNameManuallyEdited: false })
         } else if (summaryError) {
           toast.error(`${t('message.error.fetchTopicName')}: ${summaryError}`)
         }
@@ -490,7 +495,7 @@ const AssistantHistoryRecords = ({
         finishTopicRenaming(topic.id)
       }
     },
-    [t, updateTopic]
+    [patchTopic, t]
   )
 
   const handleRenameTopic = useCallback(

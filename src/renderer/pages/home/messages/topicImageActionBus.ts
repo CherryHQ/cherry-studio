@@ -1,5 +1,5 @@
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { Topic } from '@renderer/types/topic'
+import type { TopicReference } from '@renderer/types/topic'
 import {
   createImageActionBus,
   type ImageActionRequest,
@@ -8,7 +8,7 @@ import {
 
 export type TopicImageActionType = ImageActionType
 
-export type TopicImageActionRequest = ImageActionRequest<Topic, 'topic'>
+export type TopicImageActionRequest = ImageActionRequest<TopicReference, 'topic'>
 
 interface RequestTopicImageActionOptions {
   emit?: boolean
@@ -19,7 +19,7 @@ const TOPIC_IMAGE_EVENT_NAMES: Record<TopicImageActionType, string> = {
   export: EVENT_NAMES.EXPORT_TOPIC_IMAGE
 }
 
-const topicImageActionBus = createImageActionBus<Topic, 'topic', RequestTopicImageActionOptions>({
+const topicImageActionBus = createImageActionBus<TopicReference, 'topic', RequestTopicImageActionOptions>({
   targetKey: 'topic',
   getTargetId: (topic) => topic.id,
   onRequest: (type, topic, options) => {
@@ -31,7 +31,7 @@ const topicImageActionBus = createImageActionBus<Topic, 'topic', RequestTopicIma
 
 export function requestTopicImageAction(
   type: TopicImageActionType,
-  topic: Topic,
+  topic: TopicReference,
   options: RequestTopicImageActionOptions = {}
 ): TopicImageActionRequest {
   return topicImageActionBus.requestImageAction(type, topic, options)

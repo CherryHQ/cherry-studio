@@ -34,3 +34,9 @@ export type Topic = {
   prompt?: string
   isNameManuallyEdited?: boolean
 }
+
+export type TopicReference = {
+  assistantId?: string
+  id: string
+  name: string
+}

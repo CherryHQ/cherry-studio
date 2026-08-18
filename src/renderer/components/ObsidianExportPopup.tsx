@@ -2,12 +2,12 @@ import type { ObsidianProcessingMethod } from '@renderer/components/ObsidianExpo
 import { PopupContainer } from '@renderer/components/ObsidianExportDialog'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import type { ExportableMessage } from '@renderer/types/messageExport'
-import type { Topic } from '@renderer/types/topic'
+import type { TopicReference } from '@renderer/types/topic'
 
 interface ObsidianExportOptions {
   title: string
   processingMethod: (typeof ObsidianProcessingMethod)[keyof typeof ObsidianProcessingMethod]
-  topic?: Topic
+  topic?: TopicReference
   message?: ExportableMessage
   messages?: ExportableMessage[]
   rawContent?: string

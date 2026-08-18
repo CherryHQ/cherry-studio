@@ -40,7 +40,7 @@ import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { Assistant } from '@renderer/types/assistant'
-import type { Topic } from '@renderer/types/topic'
+import type { TopicReference } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
 import type { DiagnosisResult } from '@renderer/utils/errorDiagnosis'
 import { createComposerRichClipboardContentFromParts } from '@renderer/utils/message/composerClipboard'
@@ -65,7 +65,7 @@ import {
 const logger = loggerService.withContext('HomeMessageListAdapter')
 
 interface HomeMessageListParams {
-  topic: Topic
+  topic: TopicReference
   assistant?: Assistant
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
@@ -245,7 +245,7 @@ export function useHomeMessageListProviderValue({
   })
 
   const clearTopic = useCallback(
-    async (data: Topic) => {
+    async (data: TopicReference) => {
       if (data && data.id !== topic.id) return
       try {
         await requireChatWrite('clearTopicMessages').clearTopicMessages()
@@ -261,7 +261,7 @@ export function useHomeMessageListProviderValue({
     if (!normalInteractionsEnabled) return
 
     const unsubscribes = [
-      EventEmitter.on(EVENT_NAMES.CLEAR_MESSAGES, async (data: Topic) => {
+      EventEmitter.on(EVENT_NAMES.CLEAR_MESSAGES, async (data: TopicReference) => {
         const confirmed = await popup.confirm({
           title: t('chat.input.clear.title'),
           content: t('chat.input.clear.content'),
@@ -322,7 +322,7 @@ export function useHomeMessageListProviderValue({
   )
 
   const consumeTopicImageAction = useCallback(
-    (runtime: MessageListRuntime, type: TopicImageActionType, data?: Topic) => {
+    (runtime: MessageListRuntime, type: TopicImageActionType, data?: TopicReference) => {
       if (data && data.id !== topic.id) return
 
       const requests = consumePendingTopicImageActions(topic.id, type)
