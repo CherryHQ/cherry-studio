@@ -18,6 +18,7 @@ const { platformState, prefValues, applicationMock, windowManagerMock, loggerMoc
     }
     const windowManagerMock = {
       getWindow: vi.fn(),
+      getWindowId: vi.fn(),
       // Mirrors the real shape: runtime behavior setters live on `wm.behavior`
       // (see BehaviorController in src/main/core/window/behavior.ts).
       behavior: {
@@ -137,6 +138,7 @@ interface MockBrowserWindow extends EventEmitter {
   isMinimized: ReturnType<typeof vi.fn>
   isVisible: ReturnType<typeof vi.fn>
   isFocused: ReturnType<typeof vi.fn>
+  close: ReturnType<typeof vi.fn>
   hide: ReturnType<typeof vi.fn>
   show: ReturnType<typeof vi.fn>
   focus: ReturnType<typeof vi.fn>
@@ -159,6 +161,7 @@ function createMockWindow(): MockBrowserWindow {
   win.isMinimized = vi.fn(() => false)
   win.isVisible = vi.fn(() => true)
   win.isFocused = vi.fn(() => true)
+  win.close = vi.fn()
   win.hide = vi.fn()
   win.show = vi.fn()
   win.focus = vi.fn()
@@ -212,6 +215,7 @@ describe('MainWindowService', () => {
     applicationMock.quit.mockReset()
     applicationMock.forceExit.mockReset()
     windowManagerMock.behavior.setMacShowInDockByType.mockReset()
+    windowManagerMock.getWindowId.mockReset()
     windowManagerMock.open.mockClear()
     windowManagerMock.pushInitDataToType.mockClear()
     loggerMock.error.mockReset()
@@ -463,6 +467,24 @@ describe('MainWindowService', () => {
       win.emit('close', event)
 
       expect(windowManagerMock.behavior.setMacShowInDockByType).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('requestClose', () => {
+    it('starts the native close flow only for the current main window', () => {
+      ;(svc as any).mainWindow = win
+      windowManagerMock.getWindowId.mockReturnValue('main-window')
+
+      expect(svc.requestClose('main-window')).toBe(true)
+      expect(win.close).toHaveBeenCalledOnce()
+    })
+
+    it('leaves non-main close requests to their lifecycle owner', () => {
+      ;(svc as any).mainWindow = win
+      windowManagerMock.getWindowId.mockReturnValue('main-window')
+
+      expect(svc.requestClose('sub-window')).toBe(false)
+      expect(win.close).not.toHaveBeenCalled()
     })
   })
 

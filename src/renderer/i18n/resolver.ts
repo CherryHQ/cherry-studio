@@ -27,16 +27,16 @@ const logger = loggerService.withContext('I18N')
 const localeLoaders = {
   'en-US': () => import('./locales/en-us.json'),
   'zh-CN': () => import('./locales/zh-cn.json'),
-  'zh-TW': () => import('./translate/zh-tw.json'),
-  'de-DE': () => import('./translate/de-de.json'),
-  'el-GR': () => import('./translate/el-gr.json'),
-  'es-ES': () => import('./translate/es-es.json'),
-  'fr-FR': () => import('./translate/fr-fr.json'),
-  'ja-JP': () => import('./translate/ja-jp.json'),
-  'pt-PT': () => import('./translate/pt-pt.json'),
-  'ro-RO': () => import('./translate/ro-ro.json'),
-  'ru-RU': () => import('./translate/ru-ru.json'),
-  'vi-VN': () => import('./translate/vi-vn.json')
+  'zh-TW': () => import('./locales/zh-tw.json'),
+  'de-DE': () => import('./locales/de-de.json'),
+  'el-GR': () => import('./locales/el-gr.json'),
+  'es-ES': () => import('./locales/es-es.json'),
+  'fr-FR': () => import('./locales/fr-fr.json'),
+  'ja-JP': () => import('./locales/ja-jp.json'),
+  'pt-PT': () => import('./locales/pt-pt.json'),
+  'ro-RO': () => import('./locales/ro-ro.json'),
+  'ru-RU': () => import('./locales/ru-ru.json'),
+  'vi-VN': () => import('./locales/vi-vn.json')
 } satisfies Record<LanguageVarious, () => Promise<unknown>>
 
 export const getLanguage = async () => {

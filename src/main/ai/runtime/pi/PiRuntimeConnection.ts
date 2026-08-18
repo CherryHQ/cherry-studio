@@ -28,6 +28,7 @@ import {
 } from '@main/ai/runtime/toolApproval/cherryBuiltinApproval'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
+import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { type Span, SpanKind, SpanStatusCode } from '@opentelemetry/api'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
@@ -807,11 +808,13 @@ interface PiProviderSpanObserver {
 
 function withPiRequestEnvironment(
   streamSimple: NonNullable<ProviderConfig['streamSimple']>,
-  environment: Record<string, string> | undefined
+  providerEnvironment: Record<string, string> | undefined
 ): NonNullable<ProviderConfig['streamSimple']> {
-  if (!environment) return streamSimple
   return (model, context, options) =>
-    streamSimple(model, context, { ...options, env: { ...options?.env, ...environment } })
+    streamSimple(model, context, {
+      ...options,
+      env: { ...options?.env, ...getProxyEnvironment(process.env), ...providerEnvironment }
+    })
 }
 
 function finiteTokenCount(value: number | undefined): number {

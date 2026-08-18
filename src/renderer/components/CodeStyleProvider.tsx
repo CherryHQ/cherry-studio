@@ -3,7 +3,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { CodeStyleContext } from '@renderer/hooks/useCodeStyle'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { shikiStreamService } from '@renderer/services/ShikiStreamService'
-import { getHighlighter, getMarkdownIt, getShiki, loadLanguageIfNeeded, loadThemeIfNeeded } from '@renderer/utils/shiki'
+import { getHighlighter, getMarkdownIt, getShiki, loadLanguageAndThemeIfNeeded } from '@renderer/utils/shiki'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import type React from 'react'
 import { type PropsWithChildren, useCallback, useEffect, useMemo, useState } from 'react'
@@ -150,9 +150,12 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
     async (code: string, language: string) => {
       await loadShikiThemesInfo()
       const highlighter = await getHighlighter()
-      await loadLanguageIfNeeded(highlighter, language)
-      const loadedTheme = await loadThemeIfNeeded(highlighter, activeShikiTheme)
-      return highlighter.codeToHtml(code, { lang: language, theme: loadedTheme })
+      const { loadedLanguage, loadedTheme } = await loadLanguageAndThemeIfNeeded(
+        highlighter,
+        language,
+        activeShikiTheme
+      )
+      return highlighter.codeToHtml(code, { lang: loadedLanguage, theme: loadedTheme })
     },
     [activeShikiTheme, loadShikiThemesInfo]
   )

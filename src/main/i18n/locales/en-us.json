@@ -104,6 +104,18 @@
     "save_as_html": "Save as HTML",
     "save_as_pdf": "Save as PDF",
     "save_file": "Save File",
+    "screen_capture_permission": {
+      "cancel": "Cancel",
+      "detail": "Grant Screen Recording permission to \"{{appName}}\" in System Settings > Privacy & Security > Screen Recording, then restart the app.",
+      "message": "Screen Recording permission is required to take screenshots.",
+      "open_settings": "Open System Settings",
+      "title": "Screen Recording Permission"
+    },
+    "screenshot_failed": {
+      "message": "The screenshot could not be taken.",
+      "ok": "OK",
+      "title": "Screenshot Failed"
+    },
     "select_folder": "Select Folder",
     "word_document": "Word Document"
   },
