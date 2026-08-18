@@ -225,11 +225,16 @@ describe('TranslateHistory', () => {
   })
 
   describe('PDF entries', () => {
-    const openPdfDetail = async () => {
-      translateHistoryMock.useTranslateHistories.mockReturnValue(historyState({ items: [pdfHistory], total: 1 }))
+    const openPdfDetail = async (item: TranslateHistoryItem = pdfHistory) => {
+      translateHistoryMock.useTranslateHistories.mockReturnValue(historyState({ items: [item], total: 1 }))
       renderHistory(onHistoryItemClick)
-      fireEvent.click(screen.getByText('paper.pdf'))
+      fireEvent.click(screen.getByText(item.sourceText))
       await waitFor(() => expect(fileMocks.loadTranslationFiles).toHaveBeenCalledWith('3'))
+      // Assertions below describe the loaded panel — settle the load the click started,
+      // otherwise "no preview button" passes for the trivial reason that nothing rendered yet.
+      await act(async () => {
+        await fileMocks.loadTranslationFiles.mock.results[0]?.value
+      })
     }
 
     it('marks a PDF row in the list', () => {
@@ -333,18 +338,10 @@ describe('TranslateHistory', () => {
     // `kind` says "this row is a pair of files", not "this row is a pair of PDFs".
     // Everything but the side-by-side preview must keep working for other formats.
     it('keeps the file actions but drops the preview for a non-PDF pair', async () => {
-      translateHistoryMock.useTranslateHistories.mockReturnValue(
-        historyState({
-          items: [{ ...pdfHistory, sourceText: 'report.docx', targetText: 'report.zh-CN.docx' }],
-          total: 1
-        })
-      )
-      renderHistory(onHistoryItemClick)
-      fireEvent.click(screen.getByText('report.docx'))
-      await waitFor(() => expect(fileMocks.loadTranslationFiles).toHaveBeenCalledWith('3'))
+      await openPdfDetail({ ...pdfHistory, sourceText: 'report.docx', targetText: 'report.zh-CN.docx' })
 
-      expect(screen.getByRole('button', { name: 'translate.history.file.open' })).toBeInTheDocument()
-      expect(screen.getAllByRole('button', { name: 'translate.history.file.reveal' })).not.toHaveLength(0)
+      expect(screen.getByRole('button', { name: 'translate.history.file.open' })).toBeEnabled()
+      expect(screen.getAllByRole('button', { name: 'translate.history.file.reveal' })).toHaveLength(2)
       expect(screen.queryByRole('button', { name: 'translate.history.file.preview' })).not.toBeInTheDocument()
     })
   })
