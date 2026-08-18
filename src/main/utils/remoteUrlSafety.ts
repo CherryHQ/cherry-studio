@@ -18,9 +18,16 @@ export type ResolveRemoteFetchUrlOptions = {
 }
 
 const BLOCKED_HOSTNAMES = new Set(['localhost', 'localhost.'])
-// `carrierGradeNat` (real ISP/Tailscale peers) and `reserved` (proxy fake-IP handles such as
-// 198.18.0.0/15, TEST-NET, 240.0.0.0/4) are reachable destinations, not intranet services.
-const BLOCKED_IPV4_RANGES = new Set(['broadcast', 'linkLocal', 'loopback', 'multicast', 'private', 'unspecified'])
+const BLOCKED_IPV4_RANGES = new Set([
+  'broadcast',
+  'carrierGradeNat',
+  'linkLocal',
+  'loopback',
+  'multicast',
+  'private',
+  'reserved',
+  'unspecified'
+])
 const BLOCKED_IPV6_RANGES = new Set([
   '6to4',
   'benchmarking',
@@ -42,6 +49,9 @@ const BLOCKED_IPV6_CIDR_RANGES: ReadonlyArray<readonly [ipaddr.IPv6, number]> = 
 ]
 const PUBLIC_IPV6_RANGE: readonly [ipaddr.IPv6, number] = [ipaddr.IPv6.parse('2000::'), 3]
 const NAT64_WELL_KNOWN_PREFIX: readonly [ipaddr.IPv6, number] = [ipaddr.IPv6.parse('64:ff9b::'), 96]
+// Clash/mihomo TUN and Surge Enhanced Mode resolve every domain into this range; the answers are
+// proxy handles routed back out through the tunnel, not intranet hosts.
+const FAKE_IP_IPV4_RANGE: readonly [ipaddr.IPv4, number] = [ipaddr.IPv4.parse('198.18.0.0'), 15]
 
 function normalizeHostname(hostname: string): string {
   if (hostname.startsWith('[') && hostname.endsWith(']')) {
@@ -68,14 +78,20 @@ function isLocalHostname(hostname: string): boolean {
 }
 
 /** Embedded IPv4 of a NAT64 well-known-prefix address, which is how IPv6-only networks reach IPv4. */
-function getNat64EmbeddedIpv4(address: ipaddr.IPv4 | ipaddr.IPv6): ipaddr.IPv4 | undefined {
+function getNat64EmbeddedIpv4(address: ipaddr.IPv6): ipaddr.IPv4 | undefined {
   const [prefixAddress, prefixBits] = NAT64_WELL_KNOWN_PREFIX
 
-  if (address.kind() !== 'ipv6' || !address.match(prefixAddress, prefixBits)) {
+  if (!address.match(prefixAddress, prefixBits)) {
     return undefined
   }
 
   return new ipaddr.IPv4(address.toByteArray().slice(12))
+}
+
+function isBlockedIpv4(address: ipaddr.IPv4): boolean {
+  const [fakeIpAddress, fakeIpBits] = FAKE_IP_IPV4_RANGE
+
+  return !address.match(fakeIpAddress, fakeIpBits) && BLOCKED_IPV4_RANGES.has(address.range())
 }
 
 function isBlockedIpHostname(hostname: string): boolean {
@@ -85,13 +101,13 @@ function isBlockedIpHostname(hostname: string): boolean {
     return false
   }
 
-  if (address.kind() === 'ipv4') {
-    return BLOCKED_IPV4_RANGES.has(address.range())
+  if (address instanceof ipaddr.IPv4) {
+    return isBlockedIpv4(address)
   }
 
   const nat64EmbeddedIpv4 = getNat64EmbeddedIpv4(address)
   if (nat64EmbeddedIpv4) {
-    return BLOCKED_IPV4_RANGES.has(nat64EmbeddedIpv4.range())
+    return isBlockedIpv4(nat64EmbeddedIpv4)
   }
 
   const [publicRangeAddress, publicRangeBits] = PUBLIC_IPV6_RANGE
