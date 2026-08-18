@@ -1,7 +1,12 @@
 import type { ExportableMessage } from '@renderer/types/messageExport'
 import { markdownToPlainText } from '@renderer/utils/markdown'
-import { getComposerTextFromMessage } from '@renderer/utils/message/composerTokens'
+import { readComposerFileTokenSourceIdFromTokenId } from '@renderer/utils/message/composerFileTokenSource'
+import { getComposerTextFromMessage, getComposerTokenClipboardText } from '@renderer/utils/message/composerTokens'
 import { getNamingTextContent, getToolCitationExport } from '@renderer/utils/message/find'
+import type { ComposerMessageToken } from '@shared/data/types/uiParts'
+import { readCherryMeta } from '@shared/data/types/uiParts'
+import type { FileUrlString } from '@shared/types/file'
+import { fileUrlToPath } from '@shared/utils/file'
 
 /**
  * 从消息内容中提取标题，限制长度并处理换行和标点符号。用于导出功能。
@@ -89,11 +94,52 @@ export const processCitations = (content: string, mode: 'remove' | 'normalize' =
   return processedParts.join('').trim()
 }
 
-const formatMessageAsPlainText = (message: ExportableMessage): string => {
+/**
+ * Reads the stored content of every pasted-text file part across the messages,
+ * keyed by `fileTokenSourceId`. Pasted-text tokens are the inline-text chips the
+ * composer mints for long pastes; copying must reproduce the text the user
+ * actually wrote, not the chip's filename. An unreadable file falls back to the
+ * token label (the pre-existing behavior).
+ */
+async function readPastedTextFileContents(messages: readonly ExportableMessage[]): Promise<Map<string, string>> {
+  const contents = new Map<string, string>()
+  for (const message of messages) {
+    for (const part of message.parts ?? []) {
+      if (part.type !== 'file') continue
+      const meta = readCherryMeta(part)
+      if (meta?.composerFileKind !== 'pasted-text' || !meta.fileTokenSourceId) continue
+      if (contents.has(meta.fileTokenSourceId)) continue
+      try {
+        contents.set(meta.fileTokenSourceId, await window.api.fs.readText(fileUrlToPath(part.url as FileUrlString)))
+      } catch {
+        // Leave the token's display label as the copy output for this file.
+      }
+    }
+  }
+  return contents
+}
+
+function createPastedTextTokenTextResolver(
+  contents: ReadonlyMap<string, string>
+): (token: ComposerMessageToken, index: number) => string {
+  return (token) => {
+    if (token.kind === 'file') {
+      const sourceId = readComposerFileTokenSourceIdFromTokenId(token.id)
+      const content = sourceId ? contents.get(sourceId) : undefined
+      if (content !== undefined) return content
+    }
+    return getComposerTokenClipboardText(token)
+  }
+}
+
+const formatMessageAsPlainText = (
+  message: ExportableMessage,
+  getTokenText?: (token: ComposerMessageToken, index: number) => string
+): string => {
   // Assistant/agent rows lead with the frozen producing author (survives rename/delete), like the header.
   const author = 'messageSnapshot' in message ? message.messageSnapshot : undefined
   const roleText = message.role === 'user' ? 'User:' : `${author?.name ?? 'Assistant'}:`
-  const plainTextContent = markdownToPlainText(copyableTextContent(message)).trim()
+  const plainTextContent = markdownToPlainText(copyableTextContent(message, getTokenText)).trim()
   return `${roleText}\n${plainTextContent}`
 }
 
@@ -106,15 +152,21 @@ const formatMessageAsPlainText = (message: ExportableMessage): string => {
  * runs: left in, `remove-markdown` mangles a chain of them down to a bare
  * `cite:<id>` and the internal id ends up on the clipboard.
  */
-const copyableTextContent = (message: ExportableMessage): string => {
-  const content = getComposerTextFromMessage(message, getNamingTextContent(message))
+const copyableTextContent = (
+  message: ExportableMessage,
+  getTokenText?: (token: ComposerMessageToken, index: number) => string
+): string => {
+  const content = getComposerTextFromMessage(message, getNamingTextContent(message), getTokenText)
   return getToolCitationExport(message, content).content
 }
 
-export const messageToPlainText = (message: ExportableMessage): string => {
-  return markdownToPlainText(copyableTextContent(message)).trim()
+export const messageToPlainText = async (message: ExportableMessage): Promise<string> => {
+  const contents = await readPastedTextFileContents([message])
+  return markdownToPlainText(copyableTextContent(message, createPastedTextTokenTextResolver(contents))).trim()
 }
 
-export const messagesToPlainText = (messages: ExportableMessage[]): string => {
-  return messages.map(formatMessageAsPlainText).join('\n\n')
+export const messagesToPlainText = async (messages: ExportableMessage[]): Promise<string> => {
+  const contents = await readPastedTextFileContents(messages)
+  const getTokenText = createPastedTextTokenTextResolver(contents)
+  return messages.map((message) => formatMessageAsPlainText(message, getTokenText)).join('\n\n')
 }
