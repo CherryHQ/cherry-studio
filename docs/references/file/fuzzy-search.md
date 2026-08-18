@@ -1,8 +1,10 @@
 ---
-description: Directory listing and ripgrep-backed fuzzy search in listDirectory and listDirectoryEntries, with ranking rules
+description: Current list and fuzzy-search behavior for the legacy directory-listing IPC methods
 sources:
   - src/main/services/file/tree/search.ts
+  - src/main/services/file/tree/gitignore.ts
   - src/shared/types/file/common.ts
+  - src/main/ipc.ts
 ---
 
 # Fuzzy Search for Directory Listings
@@ -10,8 +12,11 @@ sources:
 Cherry Studio exposes directory listing and fuzzy search through
 `listDirectory()` and `listDirectoryEntries()` in
 `src/main/services/file/tree/search.ts`. Both functions run in the main process;
-renderers receive bounded results instead of building their own filesystem
-indexes.
+renderers receive flat paths or classified entries without building a filesystem index.
+
+These functions are exported by `@main/services/file`, but renderer access is
+still the legacy `window.api.file` surface registered in `src/main/ipc.ts`; they
+are not `fileRequestSchemas` IpcApi routes.
 
 ## Modes
 
@@ -96,7 +101,8 @@ const entries = await window.api.file.listDirectoryEntries(rootPath, {
 
 Use `listDirectoryEntries()` when the caller needs to distinguish files from
 directories without additional IPC calls. Use `listDirectory()` when paths
-alone are sufficient.
+alone are sufficient. `listDirectoryEntries()` stats the returned paths in
+parallel and drops an entry if it disappears between listing and stat.
 
 ## Exclusions and Errors
 

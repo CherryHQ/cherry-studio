@@ -1,20 +1,22 @@
 ---
-description: Entry point for file domain references covering the file module, FileManager internals, directory trees, and cleanup
+description: Entry point for current FileManager, directory-tree, cleanup, watcher, and directory-search references
 sources:
   - src/main/services/file
   - src/main/ipc/handlers/file.ts
+  - src/shared/data/types/file.ts
 ---
 
 # File Reference
 
-This is the entry point for the file domain in Cherry Studio v2 — the main-process file
-module under `src/main/services/file`: FileEntry management, the directory-tree primitive,
-entry cleanup, and directory fuzzy search.
+The file domain covers persistent managed entries, filesystem-backed IPC, live directory trees,
+background cleanup, and the legacy directory-listing/search surface. Start with the module
+architecture for ownership and transport selection; use the narrower documents for implementation
+contracts.
 
 | Document | What it covers |
 |---|---|
-| [File Module Architecture](./architecture.md) | Module boundaries, `FileHandle` / `FileEntry` / `FileInfo` type system, IPC/DataApi contracts, layered architecture |
-| [Directory Tree Architecture](./directory-tree.md) | `DirectoryTreeBuilder` primitive, `DirectoryTreeManager` lifecycle service, `file.tree.*` IPC contract, `useDirectoryTree` hook |
-| [File Entry Cleanup (GC) Design](./file-entry-cleanup.md) | Silent scan-based cleanup reclaiming unreferenced entries via the per-entry `cleanup_policy` column |
-| [FileManager Architecture](./file-manager-architecture.md) | FileManager internals: storage layout, atomic writes, version detection, recycle bin, watcher, DanglingCache |
-| [Fuzzy Search for Directory Listings](./fuzzy-search.md) | `listDirectory` / `listDirectoryEntries` modes, ripgrep-backed fuzzy matching, and ranking rules |
+| [File Module Architecture](./architecture.md) | Ownership, current shared types, DataApi/IpcApi split, legacy preload surface, and business references |
+| [FileManager Architecture](./file-manager-architecture.md) | Storage, entry lifecycle, atomic writes, external liveness, watcher, caches, and orphan sweeps |
+| [Directory Tree Architecture](./directory-tree.md) | Builder/manager ownership, snapshot activation, mutation stream, renderer mirror, and cleanup |
+| [File Entry Cleanup](./file-entry-cleanup.md) | Policy-based scan that reclaims old unreferenced automatic entries |
+| [Fuzzy Search for Directory Listings](./fuzzy-search.md) | Legacy listing modes, ripgrep-backed fuzzy matching, ranking, exclusions, and errors |
