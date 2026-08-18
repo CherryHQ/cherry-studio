@@ -21,6 +21,7 @@ const channelLogEntry = z.object({
 const channelStatusEvent = z.object({
   channelId: z.string(),
   connected: z.boolean(),
+  state: z.enum(['connecting', 'connected', 'reconnecting', 'disconnected']).optional(),
   error: z.string().optional()
 })
 
@@ -36,7 +37,12 @@ export const channelRequestSchemas = {
 type QrStatus = 'pending' | 'confirmed' | 'expired' | 'disconnected' | 'error'
 
 export type ChannelEventSchemas = {
-  'channel.status_changed': { channelId: string; connected: boolean; error?: string }
+  'channel.status_changed': {
+    channelId: string
+    connected: boolean
+    state?: 'connecting' | 'connected' | 'reconnecting' | 'disconnected'
+    error?: string
+  }
   'channel.log': { timestamp: number; level: 'debug' | 'info' | 'warn' | 'error'; message: string; channelId: string }
   'channel.wechat.qr_login': {
     channelId: string

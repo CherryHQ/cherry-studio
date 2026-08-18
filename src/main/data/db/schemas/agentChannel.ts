@@ -37,6 +37,23 @@ export const agentChannelTable = sqliteTable(
   ]
 )
 
+export const agentChannelConversationTable = sqliteTable(
+  'agent_channel_conversation',
+  {
+    channelId: text()
+      .notNull()
+      .references(() => agentChannelTable.id, { onDelete: 'cascade' }),
+    conversationKey: text().notNull(),
+    sessionId: text()
+      .notNull()
+      .references(() => agentSessionTable.id, { onDelete: 'cascade' })
+  },
+  (t) => [
+    primaryKey({ columns: [t.channelId, t.conversationKey] }),
+    index('agent_channel_conversation_session_id_idx').on(t.sessionId)
+  ]
+)
+
 export const agentChannelTaskTable = sqliteTable(
   'agent_channel_task',
   {
@@ -59,5 +76,7 @@ export const agentChannelTaskTable = sqliteTable(
 
 export type AgentChannelRow = typeof agentChannelTable.$inferSelect
 export type InsertAgentChannelRow = typeof agentChannelTable.$inferInsert
+export type AgentChannelConversationRow = typeof agentChannelConversationTable.$inferSelect
+export type InsertAgentChannelConversationRow = typeof agentChannelConversationTable.$inferInsert
 export type AgentChannelTaskRow = typeof agentChannelTaskTable.$inferSelect
 export type InsertAgentChannelTaskRow = typeof agentChannelTaskTable.$inferInsert

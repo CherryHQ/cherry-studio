@@ -34,6 +34,7 @@ import { useChannels } from '@renderer/hooks/agent/useChannels'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
+import type { ChannelEventSchemas } from '@shared/ipc/schemas/channel'
 import { ChevronDown, CircleSlash, FileText, Folder, Pencil, Plus, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -46,8 +47,8 @@ const logger = loggerService.withContext('ChannelDetail')
 
 // --------------- Types ---------------
 
-type LogEntry = { timestamp: number; level: string; message: string; channelId: string }
-type StatusEvent = { channelId: string; connected: boolean; error?: string }
+type LogEntry = ChannelEventSchemas['channel.log']
+type StatusEvent = ChannelEventSchemas['channel.status_changed']
 
 // --------------- Helpers ---------------
 
@@ -341,6 +342,7 @@ const ChannelInstanceRow: FC<{
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
 
   const isConnected = connectionStatus?.connected ?? false
+  const isConnecting = connectionStatus?.state === 'connecting' || connectionStatus?.state === 'reconnecting'
   const hasError = connectionStatus?.error
 
   let statusColor = 'bg-muted-foreground' // inactive or unknown
@@ -351,6 +353,13 @@ const ChannelInstanceRow: FC<{
       statusTag = (
         <Badge className="border-success-border bg-success-subtle px-1.5 py-0 text-[10px] text-success-subtle-foreground leading-3.5">
           {t('agent.channels.connected')}
+        </Badge>
+      )
+    } else if (isConnecting) {
+      statusColor = 'bg-warning'
+      statusTag = (
+        <Badge className="border-warning-border bg-warning-subtle px-1.5 py-0 text-[10px] text-warning-subtle-foreground leading-3.5">
+          {t('agent.channels.connecting')}
         </Badge>
       )
     } else if (hasError) {

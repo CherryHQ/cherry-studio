@@ -187,6 +187,7 @@ export class ChannelManager extends BaseService {
       result.push({
         channelId: adapter.channelId,
         connected: adapter.connected,
+        state: adapter.connectionState,
         ...(cached?.error && !adapter.connected ? { error: cached.error } : {})
       })
     }
@@ -400,7 +401,12 @@ export class ChannelManager extends BaseService {
       const connect = async () => {
         try {
           await adapter.connect()
-          logger.info('Channel adapter connected', { agentId, channelId: row.id, type: row.type })
+          logger.info('Channel adapter connection initialized', {
+            agentId,
+            channelId: row.id,
+            type: row.type,
+            connected: adapter.connected
+          })
         } catch (error) {
           this.adapters.delete(key)
           logger.error('Failed to connect channel adapter', {
@@ -428,6 +434,7 @@ export class ChannelManager extends BaseService {
       const errorStatus: ChannelStatusEvent = {
         channelId: row.id,
         connected: false,
+        state: 'disconnected',
         error: error instanceof Error ? error.message : String(error)
       }
       this.channelStatuses.set(row.id, errorStatus)

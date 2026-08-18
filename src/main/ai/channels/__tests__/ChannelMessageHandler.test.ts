@@ -26,6 +26,11 @@ const { mockPrepareAgentSessionWorkspaceDirectory, MockAgentSessionWorkspaceErro
   }
 })
 
+const persistedSessionMocks = vi.hoisted(() => ({
+  bindings: new Map<string, string>(),
+  sessions: new Map<string, Record<string, unknown>>()
+}))
+
 vi.mock('@main/ai/runtime/agentSessionWorkspace', () => ({
   AgentSessionWorkspaceError: MockAgentSessionWorkspaceError,
   isAgentSessionWorkspaceError: (error: unknown) => error instanceof MockAgentSessionWorkspaceError,
@@ -65,10 +70,18 @@ vi.mock('@data/services/AgentService', () => ({
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
-  agentSessionService: {
-    getById: vi.fn(),
-    create: vi.fn()
-  }
+  agentSessionService: (() => {
+    const create = vi.fn()
+    return {
+      getById: vi.fn((id: string) => persistedSessionMocks.sessions.get(id)),
+      create,
+      createTx: vi.fn((_tx: unknown, id: string, dto: Record<string, unknown>) => {
+        const template = create(dto) ?? { agentId: dto.agentId, workspace: { path: '/tmp/test-workspace' } }
+        persistedSessionMocks.sessions.set(id, { ...template, id })
+      }),
+      notifyReadModelChange: vi.fn()
+    }
+  })()
 }))
 
 vi.mock('@shared/data/types/model', async (importOriginal) => {
@@ -90,7 +103,22 @@ vi.mock('@data/services/AgentChannelService', () => ({
       .fn()
       .mockReturnValue({ id: 'channel-1', sessionId: null, permissionMode: null, workspace: { type: 'system' } }),
     updateChannel: vi.fn().mockResolvedValue(null),
-    findBySessionId: vi.fn().mockResolvedValue(null)
+    findBySessionId: vi.fn().mockResolvedValue(null),
+    getConversationSessionId: vi.fn((channelId: string, conversationKey: string) =>
+      persistedSessionMocks.bindings.get(`${channelId}:${conversationKey}`)
+    ),
+    getConversationSessionIdTx: vi.fn((_tx: unknown, channelId: string, conversationKey: string) =>
+      persistedSessionMocks.bindings.get(`${channelId}:${conversationKey}`)
+    ),
+    hasConversationSessions: vi.fn((channelId: string) =>
+      [...persistedSessionMocks.bindings.keys()].some((key) => key.startsWith(`${channelId}:`))
+    ),
+    hasConversationSessionsTx: vi.fn((_tx: unknown, channelId: string) =>
+      [...persistedSessionMocks.bindings.keys()].some((key) => key.startsWith(`${channelId}:`))
+    ),
+    linkConversationSessionTx: vi.fn((_tx: unknown, channelId: string, conversationKey: string, sessionId: string) => {
+      persistedSessionMocks.bindings.set(`${channelId}:${conversationKey}`, sessionId)
+    })
   }
 }))
 
@@ -161,6 +189,9 @@ describe('ChannelMessageHandler', () => {
     } as any)
     mockPrepareAgentSessionWorkspaceDirectory.mockReset()
     mockPrepareAgentSessionWorkspaceDirectory.mockResolvedValue(undefined)
+    persistedSessionMocks.bindings.clear()
+    persistedSessionMocks.sessions.clear()
+    vi.mocked(agentSessionService.getById).mockImplementation((id) => persistedSessionMocks.sessions.get(id) as any)
     // Clear session tracker to ensure clean state
     channelMessageHandler.clearSessionTracker('agent-1')
   })
@@ -298,7 +329,9 @@ describe('ChannelMessageHandler', () => {
       images: [{ media_type: 'image/png', data: 'AA==' }]
     })
 
-    expect(mockPrepareAgentSessionWorkspaceDirectory).toHaveBeenCalledWith(session)
+    expect(mockPrepareAgentSessionWorkspaceDirectory).toHaveBeenCalledWith(
+      expect.objectContaining({ agentId: 'agent-1', workspace: session.workspace })
+    )
     expect(mockStartAgentSessionRun).not.toHaveBeenCalled()
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'workspace is missing', { replyToMessageId: undefined })
   })
@@ -325,7 +358,9 @@ describe('ChannelMessageHandler', () => {
       text: 'Hi'
     })
 
-    expect(adapter.onStreamComplete).toHaveBeenCalledWith('chat-1', 'Hello world!')
+    expect(adapter.onStreamComplete).toHaveBeenCalledWith('chat-1', 'Hello world!', {
+      replyToMessageId: undefined
+    })
     expect(adapter.sendMessage).not.toHaveBeenCalled()
   })
 
@@ -405,9 +440,10 @@ describe('ChannelMessageHandler', () => {
       command: 'compact'
     })
 
+    const compactSessionId = vi.mocked(agentSessionService.createTx).mock.calls[0][1]
     expect(mockStartAgentSessionRun).toHaveBeenCalledWith(
       expect.objectContaining({
-        sessionId: 'session-1',
+        sessionId: compactSessionId,
         userParts: [{ type: 'text', text: '/compact' }],
         // Channel-triggered runs have no interactive responder — headless keeps AskUserQuestion
         // disallowed so the run can't stall on an approval prompt.
@@ -559,7 +595,50 @@ describe('ChannelMessageHandler', () => {
       text: 'test'
     })
 
-    expect(agentSessionService.getById).toHaveBeenCalledWith('new-session')
+    const createdSessionId = vi.mocked(agentSessionService.createTx).mock.calls[0][1]
+    expect(agentSessionService.getById).toHaveBeenCalledWith(createdSessionId)
+  })
+
+  it('restores private senders to their own persisted sessions after tracker reset', async () => {
+    const adapter = createMockAdapter({ channelType: 'feishu' })
+    vi.mocked(agentSessionService.create).mockReturnValue({
+      agentId: 'agent-1',
+      workspace: { path: '/tmp/test-workspace' }
+    } as any)
+
+    for (const [conversationKey, response] of [
+      ['ou_user_1', 'first'],
+      ['ou_user_2', 'second']
+    ] as const) {
+      simulateStream([{ type: 'text-delta', delta: response }])
+      await handleIncomingAndFlush(adapter, {
+        chatId: 'oc_private',
+        userId: conversationKey,
+        userName: 'User',
+        text: 'hello',
+        conversationKey
+      })
+    }
+
+    channelMessageHandler.clearSessionTracker('agent-1')
+    simulateStream([{ type: 'text-delta', delta: 'again' }])
+    await handleIncomingAndFlush(adapter, {
+      chatId: 'oc_private',
+      userId: 'ou_user_1',
+      userName: 'User',
+      text: 'hello again',
+      conversationKey: 'ou_user_1'
+    })
+
+    const runSessionIds = mockStartAgentSessionRun.mock.calls.map(([input]) => input.sessionId)
+    expect(runSessionIds[0]).not.toBe(runSessionIds[1])
+    expect(runSessionIds[2]).toBe(runSessionIds[0])
+    expect(agentSessionService.createTx).toHaveBeenCalledTimes(2)
+    expect(adapter.sendMessage.mock.calls.map(([, , options]) => options?.conversationKey)).toEqual([
+      'ou_user_1',
+      'ou_user_2',
+      'ou_user_1'
+    ])
   })
 
   it('clearSessionTracker causes fresh session resolution', async () => {
@@ -642,10 +721,11 @@ describe('ChannelMessageHandler', () => {
       userName: 'User',
       command: 'new'
     })
+    const createdSessionId = vi.mocked(agentSessionService.createTx).mock.calls[0][1]
     mockStreamAbort.mockClear()
 
     channelMessageHandler.clearSessionTracker('agent-1')
 
-    expect(mockStreamAbort).toHaveBeenCalledWith(buildAgentSessionTopicId('sess-x'), 'agent-cleared')
+    expect(mockStreamAbort).toHaveBeenCalledWith(buildAgentSessionTopicId(createdSessionId), 'agent-cleared')
   })
 })

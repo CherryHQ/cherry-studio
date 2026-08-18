@@ -63,6 +63,7 @@ export function createFeishuHttpInstance(): Lark.HttpInstance {
     const res = await fetch(fetchUrl.toString(), {
       method: upperMethod,
       headers,
+      ...(typeof opts?.timeout === 'number' && opts.timeout > 0 ? { signal: AbortSignal.timeout(opts.timeout) } : {}),
       ...(upperMethod !== 'GET' && upperMethod !== 'HEAD' && body ? { body } : {})
     })
 

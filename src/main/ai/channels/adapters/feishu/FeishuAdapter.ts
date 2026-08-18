@@ -13,6 +13,10 @@ import { registrationBegin, registrationPoll } from './FeishuAppRegistration'
 import { createFeishuHttpInstance } from './FeishuHttpInstance'
 
 const FEISHU_MAX_LENGTH = 4000
+const WS_CONNECT_TIMEOUT_MS = 30_000
+const WS_HEALTH_CHECK_INTERVAL_MS = 30_000
+const WS_STALE_AFTER_MS = 5 * 60_000
+const WS_RECONNECT_DELAYS_MS = [1_000, 2_000, 5_000, 10_000, 30_000, 60_000] as const
 
 /**
  * Lifecycle reactions on the user's last message. Feishu has no native typing
@@ -37,6 +41,8 @@ type FeishuApiResponse<T = unknown> = {
   data?: T
 }
 
+type FeishuWebSocketLogSignal = 'opened' | 'heartbeat' | 'failure'
+
 // Feishu message event shape (im.message.receive_v1)
 type FeishuMessageEvent = {
   sender: {
@@ -49,8 +55,18 @@ type FeishuMessageEvent = {
     chat_type: 'p2p' | 'group'
     message_type: string
     content: string // JSON-encoded
-    mentions?: Array<{ key: string; id: { open_id?: string }; name: string }>
+    mentions?: Array<{
+      key: string
+      id: { open_id?: string; user_id?: string; union_id?: string }
+      name: string
+    }>
   }
+}
+
+type FeishuBotInfo = {
+  app_name?: string
+  bot_name?: string
+  open_id?: string
 }
 
 function resolveDomain(domain: FeishuDomain): Lark.Domain {
@@ -91,6 +107,44 @@ function ensureFeishuSuccess<T>(response: unknown, action: string): FeishuApiRes
   throw new Error(`${action} failed: ${unwrapped.msg || unwrapped.message || `code=${String(unwrapped.code)}`}`)
 }
 
+function formatSdkLog(values: unknown[]): string {
+  return values
+    .flat(Number.POSITIVE_INFINITY)
+    .map((value) => (value instanceof Error ? value.message : String(value)))
+    .join(' ')
+}
+
+function classifyFeishuWebSocketLog(message: string): FeishuWebSocketLogSignal | null {
+  // node-sdk 1.60.0 lib/index.js WSClient.connect()/reConnect(): 'ws connect success', 'reconnect success'.
+  if (message.includes('ws connect success') || message.includes('reconnect success')) return 'opened'
+  // node-sdk 1.60.0 lib/index.js WSClient.handleControlData(): 'receive pong'.
+  if (message.includes('receive pong')) return 'heartbeat'
+  // node-sdk 1.60.0 lib/index.js WSClient.close(): 'client closed manually'; manual shutdown is healthy.
+  if (message.includes('manually')) return null
+  // node-sdk 1.60.0 lib/index.js connect()/reConnect()/communicate(): the four failure literals below.
+  if (
+    message.includes('client closed') ||
+    message.includes('ws connect failed') ||
+    message.includes('[ws] connect failed') ||
+    message.includes('ws error')
+  ) {
+    return 'failure'
+  }
+  return null
+}
+
+function deliveryConversationKey(chatId: string, opts?: SendMessageOptions): string {
+  return opts?.conversationKey?.trim() || chatId
+}
+
+function getHeaderValue(headers: unknown, name: string): string {
+  if (!headers || typeof headers !== 'object') return ''
+  const value = Object.entries(headers as Record<string, string | string[] | undefined>).find(
+    ([key]) => key.toLowerCase() === name.toLowerCase()
+  )?.[1]
+  return Array.isArray(value) ? (value[0] ?? '') : (value ?? '')
+}
+
 /**
  * Build a Feishu "post" message payload with markdown element.
  * Feishu's post format with md tag renders markdown natively.
@@ -128,7 +182,8 @@ class FeishuStreamingController {
   constructor(
     private readonly client: Lark.Client,
     private readonly chatId: string,
-    private readonly log: Record<string, (msg: string, meta?: Record<string, unknown>) => void>
+    private readonly log: Record<string, (msg: string, meta?: Record<string, unknown>) => void>,
+    private readonly replyToMessageId?: string
   ) {
     this.flush = new FlushController(() => this.performFlush())
   }
@@ -310,17 +365,17 @@ class FeishuStreamingController {
       this.cardId = res.data.card_id
 
       // Send the card message to the chat
-      const sendRes = ensureFeishuSuccess<{ message_id?: string }>(
-        await this.client.im.message.create({
-          params: { receive_id_type: 'chat_id' },
-          data: {
-            receive_id: this.chatId,
-            msg_type: 'interactive',
-            content: JSON.stringify({ type: 'card', data: { card_id: this.cardId } })
-          }
-        }),
-        'Send streaming card message'
-      )
+      const content = JSON.stringify({ type: 'card', data: { card_id: this.cardId } })
+      const response = this.replyToMessageId
+        ? await this.client.im.message.reply({
+            path: { message_id: this.replyToMessageId },
+            data: { msg_type: 'interactive', content }
+          })
+        : await this.client.im.message.create({
+            params: { receive_id_type: 'chat_id' },
+            data: { receive_id: this.chatId, msg_type: 'interactive', content }
+          })
+      const sendRes = ensureFeishuSuccess<{ message_id?: string }>(response, 'Send streaming card message')
 
       this.messageId = sendRes.data?.message_id ?? null
     } catch (error) {
@@ -354,18 +409,30 @@ class FeishuStreamingController {
 class FeishuAdapter extends ChannelAdapter {
   private client: Lark.Client | null = null
   private wsClient: Lark.WSClient | null = null
+  private eventDispatcher: Lark.EventDispatcher | null = null
+  private connectionSignal: AbortSignal | null = null
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  private connectionTimer: ReturnType<typeof setTimeout> | null = null
+  private healthTimer: ReturnType<typeof setInterval> | null = null
+  private wsGeneration = 0
+  private reconnectAttempt = 0
+  private lastTransportActivityAt = 0
+  private wsAttemptActive = false
+  private stopping = true
+  private botOpenId = ''
+  private botName = ''
   private appId: string
   private appSecret: string
   private readonly encryptKey: string
   private readonly verificationToken: string
   private readonly allowedChatIds: string[]
   private readonly domain: FeishuDomain
-  /** Per-chat streaming controller. One stream at a time per chat. */
+  /** One streaming controller per routed conversation. */
   private readonly streamingControllers = new Map<string, FeishuStreamingController>()
-  /** Latest user message id per chat — used as the target for status reactions. */
-  private readonly latestUserMessageByChat = new Map<string, string>()
-  /** Active status reaction per chat, so we can swap or remove it. */
-  private readonly chatReactions = new Map<string, ChatReaction>()
+  /** Latest user message id per routed conversation, used as the status-reaction target. */
+  private readonly latestUserMessageByConversation = new Map<string, string>()
+  /** Active status reaction per routed conversation, so concurrent p2p senders stay isolated. */
+  private readonly conversationReactions = new Map<string, ChatReaction>()
 
   constructor(config: ChannelAdapterConfig<'feishu'>) {
     super(config)
@@ -384,57 +451,181 @@ class FeishuAdapter extends ChannelAdapter {
   }
 
   protected override async performConnect(signal: AbortSignal): Promise<void> {
+    this.markConnecting()
     if (!this.appId || !this.appSecret) {
-      // No credentials — start the QR registration flow in the background.
-      // Return without connecting. The base class background branch will call
-      // markConnected via .then(), but we override that below: checkReady()
-      // returned false, so we explicitly mark as NOT connected. The adapter
-      // will be recreated by syncChannel once credentials arrive.
+      // The adapter is recreated by syncChannel after registration persists credentials.
       this.startRegistrationInBackground(signal)
       return
     }
 
-    await this.connectWebSocket()
-  }
-
-  private async connectWebSocket(): Promise<void> {
+    this.stopping = false
+    this.connectionSignal = signal
     const larkDomain = resolveDomain(this.domain)
+    const httpInstance = createFeishuHttpInstance()
 
     this.client = new Lark.Client({
       appId: this.appId,
       appSecret: this.appSecret,
       appType: Lark.AppType.SelfBuild,
       domain: larkDomain,
-      httpInstance: createFeishuHttpInstance()
+      httpInstance
     })
 
-    const eventDispatcher = new Lark.EventDispatcher({
+    this.eventDispatcher = new Lark.EventDispatcher({
       encryptKey: this.encryptKey || undefined,
       verificationToken: this.verificationToken || undefined
     }).register({
       'im.message.receive_v1': async (data: unknown) => {
-        const event = data as FeishuMessageEvent
-        this.handleMessageEvent(event)
+        this.recordTransportActivity()
+        this.handleMessageEvent(data as FeishuMessageEvent)
       }
     })
 
-    this.wsClient = new Lark.WSClient({
+    await this.hydrateBotIdentity()
+    if (signal.aborted) return
+
+    this.startHealthMonitor()
+    await this.startWebSocketAttempt(signal)
+  }
+
+  private async startWebSocketAttempt(signal: AbortSignal): Promise<void> {
+    if (this.stopping || signal.aborted || !this.eventDispatcher) return
+
+    const generation = ++this.wsGeneration
+    this.wsAttemptActive = true
+    const wsClient = new Lark.WSClient({
       appId: this.appId,
       appSecret: this.appSecret,
-      domain: larkDomain,
-      loggerLevel: Lark.LoggerLevel.error
+      domain: resolveDomain(this.domain),
+      httpInstance: createFeishuHttpInstance(),
+      autoReconnect: false,
+      loggerLevel: Lark.LoggerLevel.trace,
+      logger: this.createWebSocketLogger(generation)
     })
+    this.wsClient = wsClient
+    this.clearConnectionTimer()
+    this.connectionTimer = setTimeout(
+      () => this.handleTransportFailure(generation, 'Feishu WebSocket heartbeat timed out during connection'),
+      WS_CONNECT_TIMEOUT_MS
+    )
 
     try {
-      await this.wsClient.start({ eventDispatcher })
+      await wsClient.start({ eventDispatcher: this.eventDispatcher })
     } catch (error) {
-      // Clean up so performDisconnect doesn't try to use a broken client
-      this.wsClient = null
-      throw new Error(`Feishu WebSocket connection failed: ${error instanceof Error ? error.message : String(error)}`)
+      this.handleTransportFailure(
+        generation,
+        `Feishu WebSocket connection failed: ${error instanceof Error ? error.message : String(error)}`
+      )
+    }
+  }
+
+  private createWebSocketLogger(generation: number) {
+    const handle = (level: 'error' | 'warn' | 'info' | 'debug' | 'trace', values: unknown[]) => {
+      this.handleWebSocketLog(generation, level, formatSdkLog(values))
+    }
+    return {
+      error: (...values: unknown[]) => handle('error', values),
+      warn: (...values: unknown[]) => handle('warn', values),
+      info: (...values: unknown[]) => handle('info', values),
+      debug: (...values: unknown[]) => handle('debug', values),
+      trace: (...values: unknown[]) => handle('trace', values)
+    }
+  }
+
+  private handleWebSocketLog(
+    generation: number,
+    level: 'error' | 'warn' | 'info' | 'debug' | 'trace',
+    message: string
+  ): void {
+    if (generation !== this.wsGeneration || !this.wsAttemptActive || this.stopping) return
+
+    switch (classifyFeishuWebSocketLog(message)) {
+      case 'opened':
+        this.log.info('Feishu WebSocket opened; waiting for heartbeat')
+        return
+      case 'heartbeat':
+        this.recordTransportActivity()
+        return
+      case 'failure':
+        this.handleTransportFailure(generation, `Feishu WebSocket unhealthy: ${message}`)
+        return
     }
 
-    this.markConnected()
-    this.log.info('Feishu bot started (WebSocket)')
+    if (level === 'error') {
+      this.log.debug('Feishu WebSocket SDK error', { error: message })
+    }
+  }
+
+  private recordTransportActivity(): void {
+    if (this.stopping || !this.wsAttemptActive) return
+    this.lastTransportActivityAt = Date.now()
+    this.clearConnectionTimer()
+    this.reconnectAttempt = 0
+    if (!this.connected) {
+      this.markConnected()
+      this.log.info('Feishu bot connection is healthy')
+    }
+  }
+
+  private handleTransportFailure(generation: number, error: string): void {
+    if (generation !== this.wsGeneration || this.stopping || this.connectionSignal?.aborted) return
+    if (this.reconnectTimer) return
+
+    this.clearConnectionTimer()
+    this.markReconnecting(error)
+    this.wsAttemptActive = false
+    this.wsGeneration++
+
+    const failedClient = this.wsClient
+    this.wsClient = null
+    failedClient?.close({ force: true })
+
+    const delay = WS_RECONNECT_DELAYS_MS[Math.min(this.reconnectAttempt, WS_RECONNECT_DELAYS_MS.length - 1)]
+    this.reconnectAttempt++
+    this.log.warn('Feishu WebSocket reconnect scheduled', { delayMs: delay, attempt: this.reconnectAttempt, error })
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null
+      const signal = this.connectionSignal
+      if (!signal || signal.aborted || this.stopping) return
+      void this.startWebSocketAttempt(signal)
+    }, delay)
+  }
+
+  private startHealthMonitor(): void {
+    if (this.healthTimer) return
+    this.healthTimer = setInterval(() => {
+      if (!this.connected || !this.lastTransportActivityAt) return
+      if (Date.now() - this.lastTransportActivityAt > WS_STALE_AFTER_MS) {
+        this.handleTransportFailure(this.wsGeneration, 'Feishu WebSocket heartbeat became stale')
+      }
+    }, WS_HEALTH_CHECK_INTERVAL_MS)
+    this.healthTimer.unref?.()
+  }
+
+  private clearConnectionTimer(): void {
+    if (!this.connectionTimer) return
+    clearTimeout(this.connectionTimer)
+    this.connectionTimer = null
+  }
+
+  private async hydrateBotIdentity(): Promise<void> {
+    if (!this.client) return
+    try {
+      const response = ensureFeishuSuccess<{ bot?: FeishuBotInfo }>(
+        await this.client.request({ method: 'GET', url: '/open-apis/bot/v3/info', timeout: 15_000 }),
+        'Get Feishu bot identity'
+      ) as FeishuApiResponse<{ bot?: FeishuBotInfo }> & { bot?: FeishuBotInfo }
+      const bot = response.bot ?? response.data?.bot
+      this.botOpenId = bot?.open_id?.trim() ?? ''
+      this.botName = (bot?.app_name || bot?.bot_name)?.trim() ?? ''
+      if (!this.botOpenId && !this.botName) {
+        this.log.warn('Feishu bot identity response did not include an ID or name; group messages will be ignored')
+      }
+    } catch (error) {
+      this.log.warn('Failed to hydrate Feishu bot identity; group messages will be ignored', {
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
   }
 
   /**
@@ -482,6 +673,7 @@ class FeishuAdapter extends ChannelAdapter {
         const errorMessage = error instanceof Error ? error.message : String(error)
         const isExpired = /expired|timed out/i.test(errorMessage)
         this.sendQrToRenderer('', isExpired ? 'expired' : 'error')
+        this.markDisconnected(errorMessage)
         this.log.warn(`Registration failed: ${errorMessage}`)
       })
   }
@@ -502,51 +694,70 @@ class FeishuAdapter extends ChannelAdapter {
   }
 
   protected override async performDisconnect(): Promise<void> {
+    this.stopping = true
+    this.wsAttemptActive = false
+    this.connectionSignal = null
+    this.wsGeneration++
+    this.clearConnectionTimer()
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
+    }
+    if (this.healthTimer) {
+      clearInterval(this.healthTimer)
+      this.healthTimer = null
+    }
+
     for (const [, controller] of this.streamingControllers) {
       controller.dispose()
     }
     this.streamingControllers.clear()
-    this.chatReactions.clear()
-    this.latestUserMessageByChat.clear()
+    this.conversationReactions.clear()
+    this.latestUserMessageByConversation.clear()
 
     if (this.wsClient) {
-      this.wsClient.close()
+      this.wsClient.close({ force: true })
       this.wsClient = null
     }
+    this.eventDispatcher = null
     this.client = null
+    this.botOpenId = ''
+    this.botName = ''
+    this.lastTransportActivityAt = 0
+    this.reconnectAttempt = 0
     this.sendQrToRenderer('', 'disconnected')
     this.log.info('Feishu bot stopped')
   }
 
-  async sendMessage(chatId: string, text: string, _opts?: SendMessageOptions): Promise<void> {
-    void _opts
+  async sendMessage(chatId: string, text: string, opts?: SendMessageOptions): Promise<void> {
     // Promote the typing reaction to DONE before delivering the reply,
     // so the user sees the lifecycle transition. No-op for messages that
     // weren't preceded by a typing indicator (e.g. /new acks).
-    await this.transitionChatReaction(chatId, REACTION_DONE, [REACTION_THINKING])
-    await this.sendRawMessage(chatId, text)
+    await this.transitionConversationReaction(deliveryConversationKey(chatId, opts), REACTION_DONE, [REACTION_THINKING])
+    await this.sendRawMessage(chatId, text, opts?.replyToMessageId)
   }
 
   /** Send chunked text via the IM API without touching status reactions. */
-  private async sendRawMessage(chatId: string, text: string): Promise<void> {
+  private async sendRawMessage(chatId: string, text: string, replyToMessageId?: string | number): Promise<void> {
     if (!this.client) {
       throw new Error('Client is not connected')
     }
 
     const chunks = splitMessage(text, FEISHU_MAX_LENGTH)
+    const replyId = replyToMessageId === undefined ? undefined : String(replyToMessageId)
 
     for (let i = 0; i < chunks.length; i++) {
-      ensureFeishuSuccess(
-        await this.client.im.message.create({
-          params: { receive_id_type: 'chat_id' },
-          data: {
-            receive_id: chatId,
-            msg_type: 'post',
-            content: buildPostPayload(chunks[i])
-          }
-        }),
-        'Send Feishu message'
-      )
+      const content = buildPostPayload(chunks[i])
+      const response = replyId
+        ? await this.client.im.message.reply({
+            path: { message_id: replyId },
+            data: { msg_type: 'post', content }
+          })
+        : await this.client.im.message.create({
+            params: { receive_id_type: 'chat_id' },
+            data: { receive_id: chatId, msg_type: 'post', content }
+          })
+      ensureFeishuSuccess(response, 'Send Feishu message')
 
       if (i < chunks.length - 1) {
         await new Promise((resolve) => setTimeout(resolve, 100))
@@ -612,8 +823,8 @@ class FeishuAdapter extends ChannelAdapter {
     this.log.info('Sent file', { chatId, filename: file.filename, size: file.size, mediaType: file.media_type })
   }
 
-  async sendTypingIndicator(chatId: string): Promise<void> {
-    await this.setChatReaction(chatId, REACTION_THINKING)
+  async sendTypingIndicator(chatId: string, opts?: SendMessageOptions): Promise<void> {
+    await this.setConversationReaction(deliveryConversationKey(chatId, opts), REACTION_THINKING)
   }
 
   /**
@@ -621,17 +832,17 @@ class FeishuAdapter extends ChannelAdapter {
    * reaction on the same user message. No-op if there is no recent user
    * message to react to. Idempotent for the same (messageId, emoji) pair.
    */
-  private async setChatReaction(chatId: string, emoji: string): Promise<void> {
+  private async setConversationReaction(conversationKey: string, emoji: string): Promise<void> {
     if (!this.client) return
 
-    const messageId = this.latestUserMessageByChat.get(chatId)
+    const messageId = this.latestUserMessageByConversation.get(conversationKey)
     if (!messageId) return
 
-    const existing = this.chatReactions.get(chatId)
+    const existing = this.conversationReactions.get(conversationKey)
     if (existing?.messageId === messageId && existing.emoji === emoji) return
 
     if (existing) {
-      await this.clearChatReaction(chatId)
+      await this.clearConversationReaction(conversationKey)
     }
 
     try {
@@ -644,11 +855,11 @@ class FeishuAdapter extends ChannelAdapter {
       )
       const reactionId = res.data?.reaction_id
       if (reactionId) {
-        this.chatReactions.set(chatId, { messageId, reactionId, emoji })
+        this.conversationReactions.set(conversationKey, { messageId, reactionId, emoji })
       }
     } catch (error) {
       this.log.debug('Failed to add status reaction', {
-        chatId,
+        conversationKey,
         messageId,
         emoji,
         error: error instanceof Error ? error.message : String(error)
@@ -661,16 +872,16 @@ class FeishuAdapter extends ChannelAdapter {
    * transient reaction (e.g. THINKING). Used at completion/error so that
    * non-streaming sendMessage calls (e.g. /new) don't get a DONE reaction.
    */
-  private async transitionChatReaction(chatId: string, emoji: string, from: string[]): Promise<void> {
-    const existing = this.chatReactions.get(chatId)
+  private async transitionConversationReaction(conversationKey: string, emoji: string, from: string[]): Promise<void> {
+    const existing = this.conversationReactions.get(conversationKey)
     if (!existing || !from.includes(existing.emoji)) return
-    await this.setChatReaction(chatId, emoji)
+    await this.setConversationReaction(conversationKey, emoji)
   }
 
-  private async clearChatReaction(chatId: string): Promise<void> {
-    const reaction = this.chatReactions.get(chatId)
+  private async clearConversationReaction(conversationKey: string): Promise<void> {
+    const reaction = this.conversationReactions.get(conversationKey)
     if (!reaction) return
-    this.chatReactions.delete(chatId)
+    this.conversationReactions.delete(conversationKey)
     if (!this.client) return
 
     try {
@@ -682,38 +893,42 @@ class FeishuAdapter extends ChannelAdapter {
       )
     } catch (error) {
       this.log.debug('Failed to remove status reaction', {
-        chatId,
+        conversationKey,
         error: error instanceof Error ? error.message : String(error)
       })
     }
   }
 
-  override async onTextUpdate(chatId: string, fullText: string): Promise<void> {
+  override async onTextUpdate(chatId: string, fullText: string, opts?: SendMessageOptions): Promise<void> {
     if (!this.client) return
 
-    let controller = this.streamingControllers.get(chatId)
+    const conversationKey = deliveryConversationKey(chatId, opts)
+    let controller = this.streamingControllers.get(conversationKey)
     if (!controller) {
-      controller = new FeishuStreamingController(this.client, chatId, this.log)
-      this.streamingControllers.set(chatId, controller)
+      const replyId = opts?.replyToMessageId === undefined ? undefined : String(opts.replyToMessageId)
+      controller = new FeishuStreamingController(this.client, chatId, this.log, replyId)
+      this.streamingControllers.set(conversationKey, controller)
     }
 
     await controller.onText(fullText)
   }
 
-  override async onStreamComplete(chatId: string, finalText: string): Promise<boolean> {
-    await this.transitionChatReaction(chatId, REACTION_DONE, [REACTION_THINKING])
-    const controller = this.streamingControllers.get(chatId)
+  override async onStreamComplete(chatId: string, finalText: string, opts?: SendMessageOptions): Promise<boolean> {
+    const conversationKey = deliveryConversationKey(chatId, opts)
+    await this.transitionConversationReaction(conversationKey, REACTION_DONE, [REACTION_THINKING])
+    const controller = this.streamingControllers.get(conversationKey)
     if (!controller) return false
 
-    this.streamingControllers.delete(chatId)
+    this.streamingControllers.delete(conversationKey)
     return controller.complete(finalText)
   }
 
-  override async onStreamError(chatId: string, error: string): Promise<void> {
-    await this.transitionChatReaction(chatId, REACTION_ERROR, [REACTION_THINKING, REACTION_DONE])
-    const controller = this.streamingControllers.get(chatId)
+  override async onStreamError(chatId: string, error: string, opts?: SendMessageOptions): Promise<void> {
+    const conversationKey = deliveryConversationKey(chatId, opts)
+    await this.transitionConversationReaction(conversationKey, REACTION_ERROR, [REACTION_THINKING, REACTION_DONE])
+    const controller = this.streamingControllers.get(conversationKey)
     if (controller) {
-      this.streamingControllers.delete(chatId)
+      this.streamingControllers.delete(conversationKey)
       await controller.error(error)
       return
     }
@@ -721,7 +936,7 @@ class FeishuAdapter extends ChannelAdapter {
     // No streaming card was created (LLM errored before producing any text),
     // so the error would otherwise be silent. Send it as a plain message.
     try {
-      await this.sendRawMessage(chatId, `**Error**: ${error}`)
+      await this.sendRawMessage(chatId, `**Error**: ${error}`, opts?.replyToMessageId)
     } catch (sendError) {
       this.log.warn('Failed to deliver stream error to chat', {
         chatId,
@@ -734,26 +949,43 @@ class FeishuAdapter extends ChannelAdapter {
     const chatId = event.message.chat_id?.trim()
     if (!chatId) return
 
+    if (event.sender.sender_type === 'app' || event.sender.sender_type === 'bot') {
+      this.log.debug('Dropping message sent by a bot', { chatId })
+      return
+    }
+
     if (this.allowedChatIds.length > 0 && !this.allowedChatIds.includes(chatId)) {
       this.log.debug('Dropping message from unauthorized chat', { chatId })
       return
     }
 
+    if (event.message.chat_type === 'group' && !this.mentionsBot(event.message.mentions, event.message.content)) {
+      this.log.debug('Dropping group message that does not mention this bot', { chatId })
+      return
+    }
+
+    const userId =
+      event.sender.sender_id.open_id ?? event.sender.sender_id.user_id ?? event.sender.sender_id.union_id ?? ''
+    if (this.botOpenId && userId === this.botOpenId) {
+      this.log.debug('Dropping message sent by this bot', { chatId })
+      return
+    }
+    const conversationKey = event.message.chat_type === 'p2p' ? userId || chatId : chatId
+
     // Remember the latest user message so sendTypingIndicator can react to it.
     if (event.message.message_id) {
-      this.latestUserMessageByChat.set(chatId, event.message.message_id)
+      this.latestUserMessageByConversation.set(conversationKey, event.message.message_id)
     }
 
     const messageType = event.message.message_type
-    const userId = event.sender.sender_id.open_id ?? event.sender.sender_id.user_id ?? ''
 
     if (messageType === 'file') {
-      this.handleFileMessage(event, chatId, userId)
+      this.handleFileMessage(event, chatId, userId, conversationKey)
       return
     }
 
     if (messageType === 'image') {
-      this.handleImageMessage(event, chatId, userId)
+      this.handleImageMessage(event, chatId, userId, conversationKey)
       return
     }
 
@@ -767,8 +999,7 @@ class FeishuAdapter extends ChannelAdapter {
       return
     }
 
-    // Strip @mention tags (e.g., @_user_1 in group chats)
-    text = text.replace(/@_user_\d+/g, '').trim()
+    text = this.stripMentions(text, event.message.mentions).trim()
     if (!text) return
 
     // Check for commands (Feishu doesn't have native bot commands, use text prefix)
@@ -779,8 +1010,10 @@ class FeishuAdapter extends ChannelAdapter {
         chatId,
         userId,
         userName: '',
+        conversationKey,
         command: cmd,
-        args: parts.slice(1).join(' ') || undefined
+        args: parts.slice(1).join(' ') || undefined,
+        messageId: event.message.message_id
       })
       return
     }
@@ -789,11 +1022,38 @@ class FeishuAdapter extends ChannelAdapter {
       chatId,
       userId,
       userName: '',
-      text
+      text,
+      conversationKey,
+      messageId: event.message.message_id
     })
   }
 
-  private handleImageMessage(event: FeishuMessageEvent, chatId: string, userId: string): void {
+  private mentionMatchesBot(mention: NonNullable<FeishuMessageEvent['message']['mentions']>[number]): boolean {
+    const mentionOpenId = mention.id.open_id?.trim() ?? ''
+    if (mentionOpenId && this.botOpenId) return mentionOpenId === this.botOpenId
+    return !!this.botName && mention.name?.trim() === this.botName
+  }
+
+  private mentionsBot(mentions: FeishuMessageEvent['message']['mentions'], rawContent: string): boolean {
+    try {
+      const content = JSON.parse(rawContent) as { text?: unknown }
+      if (typeof content.text === 'string' && content.text.includes('@_all')) return true
+    } catch {
+      // Invalid content is rejected by the message-type parser after the mention gate.
+    }
+    return (mentions ?? []).some((mention) => this.mentionMatchesBot(mention))
+  }
+
+  private stripMentions(text: string, mentions: FeishuMessageEvent['message']['mentions']): string {
+    let result = text.replaceAll('@_all', '')
+    for (const mention of mentions ?? []) {
+      const replacement = this.mentionMatchesBot(mention) ? '' : mention.name ? `@${mention.name}` : ''
+      result = result.replaceAll(mention.key, replacement)
+    }
+    return result
+  }
+
+  private handleImageMessage(event: FeishuMessageEvent, chatId: string, userId: string, conversationKey: string): void {
     let imageKey: string
     try {
       const parsed = JSON.parse(event.message.content) as { image_key?: string }
@@ -810,7 +1070,9 @@ class FeishuAdapter extends ChannelAdapter {
             chatId,
             userId,
             userName: '',
-            text: '[Image — download failed]'
+            text: '[Image — download failed]',
+            conversationKey,
+            messageId: event.message.message_id
           })
           return
         }
@@ -819,6 +1081,8 @@ class FeishuAdapter extends ChannelAdapter {
           userId,
           userName: '',
           text: '',
+          conversationKey,
+          messageId: event.message.message_id,
           images
         })
       })
@@ -831,7 +1095,9 @@ class FeishuAdapter extends ChannelAdapter {
           chatId,
           userId,
           userName: '',
-          text: '[Image — download failed]'
+          text: '[Image — download failed]',
+          conversationKey,
+          messageId: event.message.message_id
         })
       })
   }
@@ -873,17 +1139,16 @@ class FeishuAdapter extends ChannelAdapter {
 
     const buffer = Buffer.concat(chunks)
     if (buffer.length === 0) return []
+    this.ensureBinaryResource(buffer, resp.headers, 'Download Feishu image')
 
-    const rawContentType =
-      (resp.headers as Record<string, string | string[] | undefined> | undefined)?.['content-type'] ?? ''
-    const headerValue = Array.isArray(rawContentType) ? rawContentType[0] : rawContentType
+    const headerValue = getHeaderValue(resp.headers, 'content-type')
     const mediaType = headerValue ? headerValue.split(';')[0].trim() || 'image/png' : 'image/png'
 
     this.log.info('Feishu image downloaded', { imageKey, totalSize: buffer.length, mediaType })
     return [{ data: buffer.toString('base64'), media_type: mediaType }]
   }
 
-  private handleFileMessage(event: FeishuMessageEvent, chatId: string, userId: string): void {
+  private handleFileMessage(event: FeishuMessageEvent, chatId: string, userId: string, conversationKey: string): void {
     let fileKey: string
     let fileName: string
     try {
@@ -902,6 +1167,8 @@ class FeishuAdapter extends ChannelAdapter {
           userId,
           userName: '',
           text: `[File: ${fileName}]`,
+          conversationKey,
+          messageId: event.message.message_id,
           ...(files.length > 0 ? { files } : {})
         })
       })
@@ -915,7 +1182,9 @@ class FeishuAdapter extends ChannelAdapter {
           chatId,
           userId,
           userName: '',
-          text: `[File: ${fileName} — download failed]`
+          text: `[File: ${fileName} — download failed]`,
+          conversationKey,
+          messageId: event.message.message_id
         })
       })
   }
@@ -957,10 +1226,25 @@ class FeishuAdapter extends ChannelAdapter {
 
     this.log.info('Feishu file downloaded', { fileName, totalSize })
     const buffer = Buffer.concat(chunks)
+    if (buffer.length === 0) return []
+    this.ensureBinaryResource(buffer, resp.headers, 'Download Feishu file')
     const ext = fileName.includes('.') ? fileName.split('.').pop()!.toLowerCase() : ''
     const mediaType = FILE_EXTENSION_MIME_MAP[ext] || 'application/octet-stream'
 
     return [{ filename: fileName, data: buffer.toString('base64'), media_type: mediaType, size: buffer.length }]
+  }
+
+  private ensureBinaryResource(buffer: Buffer, headers: unknown, action: string): void {
+    if (!getHeaderValue(headers, 'content-type').toLowerCase().includes('application/json')) return
+
+    let payload: unknown
+    try {
+      payload = JSON.parse(buffer.toString('utf8'))
+    } catch {
+      throw new Error(`${action} returned invalid JSON instead of media bytes`)
+    }
+    ensureFeishuSuccess(payload, action)
+    throw new Error(`${action} returned JSON instead of media bytes`)
   }
 }
 

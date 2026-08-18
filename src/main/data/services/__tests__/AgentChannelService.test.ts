@@ -1,5 +1,7 @@
 import { agentTable } from '@data/db/schemas/agent'
-import { agentChannelService } from '@data/services/AgentChannelService'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { AgentChannelService, agentChannelService } from '@data/services/AgentChannelService'
 import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it } from 'vitest'
 
@@ -244,6 +246,59 @@ describe('AgentChannelService', () => {
     it('returns false when channel does not exist', async () => {
       const result = agentChannelService.deleteChannel('nonexistent')
       expect(result).toBe(false)
+    })
+  })
+
+  describe('conversation sessions', () => {
+    it('persists separate private-sender bindings and resolves every mapped session after restart', async () => {
+      await insertAgent('agent-conversation-test')
+      dbh.db
+        .insert(agentWorkspaceTable)
+        .values({
+          id: 'workspace-conversation-test',
+          name: 'Conversation workspace',
+          path: '/tmp/conversation-workspace',
+          type: 'user',
+          orderKey: 'a0'
+        })
+        .run()
+      dbh.db
+        .insert(agentSessionTable)
+        .values([
+          {
+            id: 'session-user-1',
+            agentId: 'agent-conversation-test',
+            name: 'User 1',
+            workspaceId: 'workspace-conversation-test',
+            orderKey: 'a0'
+          },
+          {
+            id: 'session-user-2',
+            agentId: 'agent-conversation-test',
+            name: 'User 2',
+            workspaceId: 'workspace-conversation-test',
+            orderKey: 'a1'
+          }
+        ])
+        .run()
+      const channel = agentChannelService.createChannel({
+        type: 'feishu',
+        name: 'Feishu',
+        agentId: 'agent-conversation-test',
+        workspace: { type: 'user', workspaceId: 'workspace-conversation-test' },
+        config: {}
+      })
+
+      dbh.db.transaction((tx) => {
+        agentChannelService.linkConversationSessionTx(tx, channel.id, 'ou_user_1', 'session-user-1')
+        agentChannelService.linkConversationSessionTx(tx, channel.id, 'ou_user_2', 'session-user-2')
+      })
+
+      const restartedService = new AgentChannelService()
+      expect(restartedService.getConversationSessionId(channel.id, 'ou_user_1')).toBe('session-user-1')
+      expect(restartedService.getConversationSessionId(channel.id, 'ou_user_2')).toBe('session-user-2')
+      expect(restartedService.findBySessionId('session-user-1')?.id).toBe(channel.id)
+      expect(restartedService.findBySessionId('session-user-2')?.id).toBe(channel.id)
     })
   })
 })

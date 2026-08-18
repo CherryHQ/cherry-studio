@@ -3,13 +3,15 @@ import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase
 import type { AgentChannelEntity, AgentChannelType } from '@shared/data/api/schemas/agentChannels'
 import { EventEmitter } from 'events'
 
-import type { ChannelLogEntry, ChannelLogLevel, ChannelStatusEvent } from './types'
+import type { ChannelConnectionState, ChannelLogEntry, ChannelLogLevel, ChannelStatusEvent } from './types'
 
 export type ChannelMessageEvent = {
   chatId: string
   userId: string
   userName: string
   text: string
+  /** Stable persisted conversation identity. Defaults to chatId when omitted. */
+  conversationKey?: string
   /**
    * Platform message id of the inbound message, carried so the reply can target it (e.g. QQ
    * passive reply, Telegram reply-to). Bound to the specific message being answered rather than
@@ -28,6 +30,8 @@ export type ChannelCommandEvent = {
   userName: string
   command: 'new' | 'compact' | 'help' | 'whoami'
   args?: string
+  /** Stable persisted conversation identity. Defaults to chatId when omitted. */
+  conversationKey?: string
   /** Platform message id of the command message, so the reply can target it. See `ChannelMessageEvent.messageId`. */
   messageId?: string
 }
@@ -36,6 +40,8 @@ export type SendMessageOptions = {
   parseMode?: 'MarkdownV2' | 'HTML'
   /** Inbound message id to reply against. String for QQ (passive `msg_id`); number for Telegram. */
   replyToMessageId?: string | number
+  /** Stable conversation identity for adapter-owned delivery state. Defaults to chatId when omitted. */
+  conversationKey?: string
 }
 
 /** Channel type → its config payload, projected from the `AgentChannelEntity` discriminated union. */
@@ -82,6 +88,7 @@ export abstract class ChannelAdapter extends EventEmitter {
 
   private connectAbort: AbortController | null = null
   private _connected = false
+  private _connectionState: ChannelConnectionState = 'disconnected'
 
   /**
    * Dual-destination logger: writes to the file logger AND emits to the UI log panel.
@@ -113,9 +120,13 @@ export abstract class ChannelAdapter extends EventEmitter {
     )
   }
 
-  /** Whether the adapter has completed performConnect successfully and not since disconnected. */
+  /** Whether the adapter's underlying transport is currently healthy. */
   get connected(): boolean {
     return this._connected
+  }
+
+  get connectionState(): ChannelConnectionState {
+    return this._connectionState
   }
 
   /**
@@ -124,7 +135,22 @@ export abstract class ChannelAdapter extends EventEmitter {
    */
   protected markDisconnected(error?: string): void {
     this._connected = false
-    this.emitStatusChange(false, error)
+    this._connectionState = 'disconnected'
+    this.emitStatusChange(false, 'disconnected', error)
+  }
+
+  /** Mark a connection attempt before the transport is known to be live. */
+  protected markConnecting(): void {
+    this._connected = false
+    this._connectionState = 'connecting'
+    this.emitStatusChange(false, 'connecting')
+  }
+
+  /** Mark a dropped connection that is being retried automatically. */
+  protected markReconnecting(error?: string): void {
+    this._connected = false
+    this._connectionState = 'reconnecting'
+    this.emitStatusChange(false, 'reconnecting', error)
   }
 
   /**
@@ -133,7 +159,8 @@ export abstract class ChannelAdapter extends EventEmitter {
    */
   protected markConnected(): void {
     this._connected = true
-    this.emitStatusChange(true)
+    this._connectionState = 'connected'
+    this.emitStatusChange(true, 'connected')
   }
 
   /** Emit a log event for this channel. */
@@ -141,8 +168,8 @@ export abstract class ChannelAdapter extends EventEmitter {
     this.emit('log', { timestamp: Date.now(), level, message, channelId: this.channelId })
   }
 
-  private emitStatusChange(connected: boolean, error?: string): void {
-    const event: ChannelStatusEvent = { channelId: this.channelId, connected }
+  private emitStatusChange(connected: boolean, state: NonNullable<ChannelStatusEvent['state']>, error?: string): void {
+    const event: ChannelStatusEvent = { channelId: this.channelId, connected, state }
     if (error) event.error = error
     this.emit('statusChange', event)
   }
@@ -179,6 +206,7 @@ export abstract class ChannelAdapter extends EventEmitter {
       this.connectAbort = null
     }
     this._connected = false
+    this._connectionState = 'disconnected'
     await this.performDisconnect()
   }
 
@@ -204,7 +232,7 @@ export abstract class ChannelAdapter extends EventEmitter {
   protected abstract performDisconnect(): Promise<void>
 
   abstract sendMessage(chatId: string, text: string, opts?: SendMessageOptions): Promise<void>
-  abstract sendTypingIndicator(chatId: string): Promise<void>
+  abstract sendTypingIndicator(chatId: string, opts?: SendMessageOptions): Promise<void>
 
   /**
    * Send a file to a chat. Non-abstract so adapters can adopt outbound file
@@ -222,7 +250,7 @@ export abstract class ChannelAdapter extends EventEmitter {
    * @param fullText - The full cumulative response text so far.
    */
   // oxlint-disable-next-line no-unused-vars
-  async onTextUpdate(_chatId: string, _fullText: string): Promise<void> {
+  async onTextUpdate(_chatId: string, _fullText: string, _opts?: SendMessageOptions): Promise<void> {
     // Default no-op — adapters that support streaming should override.
   }
 
@@ -233,7 +261,7 @@ export abstract class ChannelAdapter extends EventEmitter {
    *          false means the caller should fall back to sendMessage().
    */
   // oxlint-disable-next-line no-unused-vars
-  async onStreamComplete(_chatId: string, _finalText: string): Promise<boolean> {
+  async onStreamComplete(_chatId: string, _finalText: string, _opts?: SendMessageOptions): Promise<boolean> {
     return false
   }
 
@@ -242,7 +270,7 @@ export abstract class ChannelAdapter extends EventEmitter {
    * UI to show an error state.
    */
   // oxlint-disable-next-line no-unused-vars
-  async onStreamError(_chatId: string, _error: string): Promise<void> {
+  async onStreamError(_chatId: string, _error: string, _opts?: SendMessageOptions): Promise<void> {
     // Default no-op.
   }
 
