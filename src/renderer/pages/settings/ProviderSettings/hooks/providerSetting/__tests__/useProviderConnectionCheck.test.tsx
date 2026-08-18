@@ -51,9 +51,14 @@ vi.mock('../useProviderEndpoints', () => ({
   useProviderEndpoints: (...args: any[]) => useProviderEndpointsMock(...args)
 }))
 
-vi.mock('@renderer/pages/settings/ProviderSettings/utils/healthCheck', () => ({
-  checkApi: (...args: any[]) => checkApiMock(...args)
-}))
+vi.mock('@renderer/pages/settings/ProviderSettings/utils/healthCheck', async (importOriginal) => {
+  const actual = await importOriginal<object>()
+
+  return {
+    ...actual,
+    checkApi: (...args: any[]) => checkApiMock(...args)
+  }
+})
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -117,6 +122,29 @@ describe('useProviderConnectionCheck', () => {
       'cherryin::claude-4-sonnet',
       'cherryin::rerank-1'
     ])
+  })
+
+  it('excludes generation models from the non-generating connection check', () => {
+    const chatModel = {
+      id: 'cherryin::claude-4-sonnet',
+      name: 'Claude 4 Sonnet',
+      providerId: 'cherryin',
+      capabilities: [],
+      endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+    }
+    const imageModel = {
+      id: 'cherryin::gpt-image-1',
+      name: 'GPT Image 1',
+      providerId: 'cherryin',
+      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
+    }
+    useModelsMock.mockReturnValue({ models: [chatModel, imageModel] })
+
+    const { result } = renderHook(() => useProviderConnectionCheck('cherryin'))
+
+    expect(result.current.checkableModels).toEqual([chatModel])
+    expect(result.current.skippedModels).toEqual([imageModel])
   })
 
   it('opens the connection drawer without API keys for no-key providers', () => {

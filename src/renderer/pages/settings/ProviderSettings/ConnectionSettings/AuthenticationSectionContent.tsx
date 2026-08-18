@@ -40,6 +40,7 @@ export function AuthenticationSectionContent({
       <ProviderConnectionCheckDrawer
         open={connectionCheck.connectionCheckOpen}
         models={connectionCheck.checkableModels}
+        skippedModels={connectionCheck.skippedModels}
         apiKeys={connectionCheck.checkableApiKeys}
         connectionError={connectionCheck.apiKeyConnectivity.error}
         isSubmitting={connectionCheck.apiKeyConnectivity.checking ?? false}

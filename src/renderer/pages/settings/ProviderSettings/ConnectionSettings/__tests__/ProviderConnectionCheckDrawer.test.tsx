@@ -1,3 +1,4 @@
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -10,6 +11,7 @@ vi.mock('@cherrystudio/ui', () => {
   const React = require('react')
 
   return {
+    Alert: ({ description, message }: any) => React.createElement('div', { role: 'status' }, message, description),
     Avatar: ({ children }: any) => React.createElement('span', { 'data-testid': 'avatar' }, children),
     AvatarFallback: ({ children }: any) => React.createElement('span', null, children),
     Button: ({ children, disabled, loading, onClick, startContent, ...props }: any) =>
@@ -109,6 +111,20 @@ describe('ProviderConnectionCheckDrawer', () => {
     render(<ProviderConnectionCheckDrawer {...baseProps} />)
 
     expect(screen.queryByRole('button', { name: /Check all models|检测所有模型/ })).toBeNull()
+  })
+
+  it('explains why image generation models are excluded from the connection check', () => {
+    const imageModel = {
+      id: 'provider-a::gpt-image-1',
+      name: 'GPT Image 1',
+      providerId: 'provider-a',
+      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
+    } as any
+
+    render(<ProviderConnectionCheckDrawer {...baseProps} skippedModels={[imageModel]} />)
+
+    expect(screen.getByRole('status')).toHaveTextContent(/generate an image|生成图片/)
+    expect(screen.getByRole('status')).toHaveTextContent(/consume quota|消耗额度/)
   })
 
   it('renders local model options with icons and starts the check with the selected model', () => {
