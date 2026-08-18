@@ -388,6 +388,15 @@
         "inaccessible": "Calea către spațiul de lucru nu este accesibilă: {{path}}"
       }
     },
+    "session_delivery": {
+      "from": "De la {{agent}} / {{session}}",
+      "status": {
+        "accepted": "Acceptat",
+        "consumed": "Procesat",
+        "delivering": "În curs de livrare",
+        "failed": "Eșuat"
+      }
+    },
     "settings": {
       "permissionMode": {
         "title": "Mod de permisiune"
@@ -3389,6 +3398,21 @@
         "searchResults": "Rezultatele căutării",
         "stderr": "stderr",
         "stdout": "stdout"
+      },
+      "sessionCreate": {
+        "created": "A fost pornită o sesiune nouă",
+        "creating": "Se pornește o sesiune nouă",
+        "firstMessage": "Primul mesaj",
+        "inheritedContext": "Se utilizează acest agent și acest spațiu de lucru",
+        "open": "Deschide sesiunea",
+        "sessionId": "ID sesiune",
+        "untitled": "Sesiune fără titlu"
+      },
+      "sessionSend": {
+        "open": "Deschide sesiunea",
+        "sending": "Se trimite către",
+        "sent": "Trimis către",
+        "to": "Către"
       },
       "status": {
         "done": "Gata",
