@@ -2573,6 +2573,43 @@ describe('AiStreamManager', () => {
       expect(message?.parts).toContainEqual(expect.objectContaining({ toolCallId: 'tc-1', state: 'input-available' }))
     })
 
+    it('records a denied live tool approval as a terminal tool state', async () => {
+      const listener = new FakeListener('wc:1')
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [listener]
+      })
+      const inputChunk = {
+        type: 'tool-input-available',
+        toolCallId: 'tc-1',
+        toolName: 'screenshot',
+        input: { format: 'jpeg' },
+        providerExecuted: true,
+        dynamic: true
+      } as UIMessageChunk
+      mgr.onChunk('a', 'provider-a::model-a', inputChunk)
+      mgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-approval-request',
+        approvalId: 'approval-1',
+        toolCallId: 'tc-1'
+      })
+
+      expect(mgr.resolveToolApproval('a', 'tc-1', false)).toBe(true)
+      expect(listener.chunks.at(-1)).toEqual({ type: 'tool-output-denied', toolCallId: 'tc-1' })
+
+      const stream = new ReadableStream<UIMessageChunk>({
+        start(controller) {
+          for (const event of listener.chunks) controller.enqueue(event)
+          controller.close()
+        }
+      })
+      let message: CherryUIMessage | undefined
+      for await (const snapshot of readUIMessageStream<CherryUIMessage>({ stream })) message = snapshot
+      expect(message?.parts).toContainEqual(expect.objectContaining({ toolCallId: 'tc-1', state: 'output-denied' }))
+    })
+
     it('drains a steer that lands right after a clean `done` settle (inter-turn race)', async () => {
       // The turn completed cleanly before the steer's enqueue landed, so no terminal hook fired to
       // chain it — `enqueuePendingSteer` must drain it itself.
