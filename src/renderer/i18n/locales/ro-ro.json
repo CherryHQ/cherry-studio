@@ -7219,10 +7219,10 @@
     "history": {
       "back": "Înapoi la listă",
       "clear": "Golește istoricul",
-      "clear_description": "Golirea istoricului va șterge tot istoricul traducerilor, continui?",
+      "clear_description": "Golirea istoricului va șterge tot istoricul traducerilor și va recupera fișierele traduse generate. Continui?",
       "copy_target": "Copiază rezultatul",
       "delete": "Șterge istoricul traducerilor",
-      "delete_description": "Ștergi această înregistrare din istoricul traducerilor? Această acțiune nu poate fi anulată.",
+      "delete_description": "Ștergi această înregistrare din istoricul traducerilor? La o traducere de fișier se recuperează și fișierul tradus. Această acțiune nu poate fi anulată.",
       "empty": "Niciun istoric de traducere",
       "error": {
         "add": "Nu s-a reușit adăugarea istoricului de traducere",
@@ -7230,6 +7230,17 @@
         "delete": "Ștergerea a eșuat",
         "load": "Nu s-a putut încărca istoricul traducerilor",
         "save": "Salvarea istoricului traducerilor a eșuat"
+      },
+      "file": {
+        "action_failed": "Acțiunea nu a putut fi finalizată pentru acest fișier",
+        "badge": "Traducere de fișier",
+        "export": "Salvează fișierul tradus ca…",
+        "open": "Deschide fișierul tradus",
+        "preview": "Previzualizare alăturată",
+        "reveal": "Afișează în dosar",
+        "source": "Fișier sursă",
+        "target": "Fișier tradus",
+        "unavailable": "Fișierele acestei traduceri nu mai sunt disponibile"
       },
       "filter": {
         "starred": "Doar cu stea"
@@ -7264,17 +7275,21 @@
       "action": {
         "close": "Închide traducerea PDF",
         "export": "Exportă PDF-ul tradus",
-        "install_babeldoc": "Instalează BabelDOC"
+        "install_babeldoc": "Instalează BabelDOC",
+        "update_babeldoc": "Actualizează BabelDOC"
       },
       "dependency": {
         "checking": "Se verifică BabelDOC...",
         "description": "Instalează pluginul BabelDOC pentru a traduce fișiere PDF păstrând aspectul original.",
         "installing": "Se instalează BabelDOC...",
+        "outdated_description": "Actualizează BabelDOC pentru a traduce în continuare fișiere PDF păstrând aspectul.",
+        "outdated_title": "Este necesară actualizarea BabelDOC",
         "title": "PDF detectat"
       },
       "error": {
         "generic": "A apărut o eroare în timpul traducerii. Încearcă din nou.",
         "ocr_required": "Fișierele PDF scanate nu sunt încă acceptate.",
+        "persist_failed": "PDF-ul a fost tradus, dar rezultatul nu a putut fi salvat. Încearcă din nou.",
         "title": "Traducerea PDF a eșuat"
       },
       "export_failed": "Exportarea PDF-ului tradus a eșuat",
@@ -7284,12 +7299,18 @@
       },
       "progress": {
         "analyzing": "Se analizează aspectul documentului",
+        "checking_assets": "Se verifică resursele de procesare PDF",
         "downloading_assets": "Se descarcă resursele de procesare PDF...",
-        "generating": "Se generează PDF-ul tradus",
+        "extracting_terms": "Se extrage terminologia documentului",
+        "loading_model": "Se încarcă modelul de procesare PDF",
+        "parsing": "Se analizează documentul PDF",
         "percent": "{{progress}}%",
-        "preparing": "Se pregătește documentul",
+        "preparing": "Se inițializează traducerea PDF",
+        "preparing_hint": "Prima inițializare poate dura aproximativ 2 minute; rulările următoare sunt de obicei mai rapide",
+        "rendering": "Se randează PDF-ul tradus",
         "translating": "Se traduce conținutul",
-        "value": "{{stage}}, {{progress}}%"
+        "typesetting": "Se tehnoredactează PDF-ul tradus",
+        "value": "{{stage}}, etapa {{stageProgress}}%, total {{overallProgress}}%"
       },
       "ready": {
         "description": "Selectează o limbă țintă și pornește traducerea.",

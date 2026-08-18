@@ -7219,10 +7219,10 @@
     "history": {
       "back": "リストに戻る",
       "clear": "履歴をクリア",
-      "clear_description": "履歴をクリアすると、すべての翻訳履歴が削除されます。続行しますか？",
+      "clear_description": "履歴を消去すると、すべての翻訳履歴が削除され、生成された翻訳ファイルも回収されます。続行しますか？",
       "copy_target": "結果をコピー",
       "delete": "翻訳履歴を削除する",
-      "delete_description": "この翻訳履歴レコードを削除しますか？この操作は取り消せません。",
+      "delete_description": "この翻訳履歴を削除しますか？ファイル翻訳の場合は、生成された翻訳ファイルも回収されます。この操作は取り消せません。",
       "empty": "翻訳履歴がありません",
       "error": {
         "add": "翻訳履歴の追加に失敗しました",
@@ -7230,6 +7230,17 @@
         "delete": "削除に失敗しました",
         "load": "翻訳履歴の読み込みに失敗しました。",
         "save": "保存翻訳履歴に失敗しました"
+      },
+      "file": {
+        "action_failed": "そのファイルに対する操作を完了できませんでした",
+        "badge": "ファイル翻訳",
+        "export": "翻訳ファイルを名前を付けて保存…",
+        "open": "翻訳ファイルを開く",
+        "preview": "並べて表示",
+        "reveal": "フォルダーに表示",
+        "source": "元のファイル",
+        "target": "翻訳ファイル",
+        "unavailable": "この翻訳のファイルは利用できなくなりました"
       },
       "filter": {
         "starred": "スター付きのみ"
@@ -7264,17 +7275,21 @@
       "action": {
         "close": "PDF 翻訳を閉じる",
         "export": "翻訳済み PDF をエクスポート",
-        "install_babeldoc": "BabelDOC をインストール"
+        "install_babeldoc": "BabelDOC をインストール",
+        "update_babeldoc": "BabelDOC を更新"
       },
       "dependency": {
         "checking": "BabelDOC を確認しています...",
         "description": "BabelDOC プラグインをインストールすると、元のレイアウトを保持したまま PDF を翻訳できます。",
         "installing": "BabelDOC をインストールしています...",
+        "outdated_description": "BabelDOC を更新すると、レイアウトを保持したまま PDF の翻訳を続けられます。",
+        "outdated_title": "BabelDOC の更新が必要です",
         "title": "PDF を検出しました"
       },
       "error": {
         "generic": "翻訳中にエラーが発生しました。もう一度お試しください。",
         "ocr_required": "スキャンされた PDF はまだサポートされていません。",
+        "persist_failed": "PDF は翻訳されましたが、結果を保存できませんでした。もう一度お試しください。",
         "title": "PDF の翻訳に失敗しました"
       },
       "export_failed": "翻訳済み PDF のエクスポートに失敗しました",
@@ -7284,12 +7299,18 @@
       },
       "progress": {
         "analyzing": "文書のレイアウトを解析しています",
+        "checking_assets": "PDF 処理リソースを確認しています",
         "downloading_assets": "PDF 処理リソースをダウンロードしています...",
-        "generating": "翻訳済み PDF を生成しています",
+        "extracting_terms": "文書の用語を抽出しています",
+        "loading_model": "PDF 処理モデルを読み込んでいます",
+        "parsing": "PDF 文書を解析しています",
         "percent": "{{progress}}%",
-        "preparing": "文書を準備しています",
+        "preparing": "PDF 翻訳を初期化しています",
+        "preparing_hint": "初回の初期化には約 2 分かかることがあります。次回以降は通常もっと速くなります",
+        "rendering": "翻訳済み PDF をレンダリングしています",
         "translating": "本文を翻訳しています",
-        "value": "{{stage}}、{{progress}}%"
+        "typesetting": "翻訳済み PDF を組版しています",
+        "value": "{{stage}}、段階 {{stageProgress}}%、全体 {{overallProgress}}%"
       },
       "ready": {
         "description": "対象言語を選択して翻訳を開始してください。",

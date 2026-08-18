@@ -7219,10 +7219,10 @@
     "history": {
       "back": "Quay lại danh sách",
       "clear": "Xóa lịch sử",
-      "clear_description": "Xóa lịch sử sẽ xóa toàn bộ lịch sử dịch, bạn có muốn tiếp tục?",
+      "clear_description": "Xóa lịch sử sẽ xóa toàn bộ lịch sử dịch và thu hồi các tệp bản dịch đã tạo. Tiếp tục?",
       "copy_target": "Sao chép kết quả",
       "delete": "Xóa lịch sử dịch",
-      "delete_description": "Xóa bản ghi lịch sử dịch thuật này? Hành động này không thể hoàn tác.",
+      "delete_description": "Xóa bản ghi lịch sử dịch này? Với bản dịch tệp, tệp bản dịch cũng sẽ được thu hồi. Không thể hoàn tác thao tác này.",
       "empty": "Không có lịch sử dịch",
       "error": {
         "add": "Không thể thêm lịch sử dịch",
@@ -7230,6 +7230,17 @@
         "delete": "Xóa thất bại",
         "load": "Không thể tải lịch sử dịch",
         "save": "Không lưu được lịch sử dịch"
+      },
+      "file": {
+        "action_failed": "Không thể hoàn tất thao tác đó trên tệp",
+        "badge": "Dịch tệp",
+        "export": "Lưu tệp bản dịch thành…",
+        "open": "Mở tệp bản dịch",
+        "preview": "Xem song song",
+        "reveal": "Hiện trong thư mục",
+        "source": "Tệp nguồn",
+        "target": "Tệp bản dịch",
+        "unavailable": "Các tệp của bản dịch này không còn khả dụng"
       },
       "filter": {
         "starred": "Chỉ có dấu sao"
@@ -7264,17 +7275,21 @@
       "action": {
         "close": "Đóng bản dịch PDF",
         "export": "Xuất PDF đã dịch",
-        "install_babeldoc": "Cài đặt BabelDOC"
+        "install_babeldoc": "Cài đặt BabelDOC",
+        "update_babeldoc": "Cập nhật BabelDOC"
       },
       "dependency": {
         "checking": "Đang kiểm tra BabelDOC...",
         "description": "Cài đặt plugin BabelDOC để dịch PDF mà vẫn giữ nguyên bố cục gốc.",
         "installing": "Đang cài đặt BabelDOC...",
+        "outdated_description": "Cập nhật BabelDOC để tiếp tục dịch PDF mà vẫn giữ nguyên bố cục.",
+        "outdated_title": "Cần cập nhật BabelDOC",
         "title": "Đã phát hiện PDF"
       },
       "error": {
         "generic": "Đã xảy ra lỗi trong quá trình dịch. Vui lòng thử lại.",
         "ocr_required": "Chưa hỗ trợ PDF được quét.",
+        "persist_failed": "PDF đã được dịch nhưng không lưu được kết quả. Vui lòng thử lại.",
         "title": "Dịch PDF thất bại"
       },
       "export_failed": "Không xuất được PDF đã dịch",
@@ -7284,12 +7299,18 @@
       },
       "progress": {
         "analyzing": "Đang phân tích bố cục tài liệu",
+        "checking_assets": "Đang kiểm tra tài nguyên xử lý PDF",
         "downloading_assets": "Đang tải tài nguyên xử lý PDF...",
-        "generating": "Đang tạo PDF đã dịch",
+        "extracting_terms": "Đang trích xuất thuật ngữ tài liệu",
+        "loading_model": "Đang tải mô hình xử lý PDF",
+        "parsing": "Đang phân tích tài liệu PDF",
         "percent": "{{progress}}%",
-        "preparing": "Đang chuẩn bị tài liệu",
+        "preparing": "Đang khởi tạo bản dịch PDF",
+        "preparing_hint": "Lần khởi tạo đầu tiên có thể mất khoảng 2 phút; các lần sau thường nhanh hơn",
+        "rendering": "Đang kết xuất PDF bản dịch",
         "translating": "Đang dịch nội dung",
-        "value": "{{stage}}, {{progress}}%"
+        "typesetting": "Đang dàn trang PDF bản dịch",
+        "value": "{{stage}}, giai đoạn {{stageProgress}}%, tổng thể {{overallProgress}}%"
       },
       "ready": {
         "description": "Chọn ngôn ngữ đích và bắt đầu dịch.",

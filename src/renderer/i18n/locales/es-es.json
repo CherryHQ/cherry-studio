@@ -7219,10 +7219,10 @@
     "history": {
       "back": "Volver a la lista",
       "clear": "Borrar historial",
-      "clear_description": "Borrar el historial eliminará todos los registros de traducciones, ¿desea continuar?",
+      "clear_description": "Vaciar el historial eliminará todo el historial de traducciones y recuperará los archivos traducidos generados. ¿Continuar?",
       "copy_target": "Copiar resultado",
       "delete": "Eliminar historial de traducción",
-      "delete_description": "¿Eliminar este registro del historial de traducciones? Esta acción no se puede deshacer.",
+      "delete_description": "¿Eliminar este registro del historial de traducciones? En una traducción de archivo también se recupera el archivo traducido. Esta acción no se puede deshacer.",
       "empty": "Sin historial de traducciones por el momento",
       "error": {
         "add": "Error al añadir el historial de traducción",
@@ -7230,6 +7230,17 @@
         "delete": "Eliminación fallida",
         "load": "No se pudo cargar el historial de traducciones",
         "save": "Error al guardar el historial de traducciones"
+      },
+      "file": {
+        "action_failed": "No se pudo completar esa acción sobre el archivo",
+        "badge": "Traducción de archivo",
+        "export": "Guardar el archivo traducido como…",
+        "open": "Abrir el archivo traducido",
+        "preview": "Vista en paralelo",
+        "reveal": "Mostrar en la carpeta",
+        "source": "Archivo de origen",
+        "target": "Archivo traducido",
+        "unavailable": "Los archivos de esta traducción ya no están disponibles"
       },
       "filter": {
         "starred": "Solo destacado"
@@ -7264,17 +7275,21 @@
       "action": {
         "close": "Cerrar la traducción de PDF",
         "export": "Exportar PDF traducido",
-        "install_babeldoc": "Instalar BabelDOC"
+        "install_babeldoc": "Instalar BabelDOC",
+        "update_babeldoc": "Actualizar BabelDOC"
       },
       "dependency": {
         "checking": "Comprobando BabelDOC...",
         "description": "Instala el complemento BabelDOC para traducir PDF conservando su diseño original.",
         "installing": "Instalando BabelDOC...",
+        "outdated_description": "Actualiza BabelDOC para seguir traduciendo PDF conservando el diseño.",
+        "outdated_title": "Se requiere actualizar BabelDOC",
         "title": "PDF detectado"
       },
       "error": {
         "generic": "Se produjo un error durante la traducción. Inténtalo de nuevo.",
         "ocr_required": "Los PDF escaneados aún no son compatibles.",
+        "persist_failed": "El PDF se tradujo, pero no se pudo guardar el resultado. Inténtalo de nuevo.",
         "title": "Fallo en la traducción del PDF"
       },
       "export_failed": "No se pudo exportar el PDF traducido",
@@ -7284,12 +7299,18 @@
       },
       "progress": {
         "analyzing": "Analizando el diseño del documento",
+        "checking_assets": "Comprobando los recursos de procesamiento de PDF",
         "downloading_assets": "Descargando recursos de procesamiento de PDF...",
-        "generating": "Generando el PDF traducido",
+        "extracting_terms": "Extrayendo la terminología del documento",
+        "loading_model": "Cargando el modelo de procesamiento de PDF",
+        "parsing": "Analizando el documento PDF",
         "percent": "{{progress}}%",
-        "preparing": "Preparando el documento",
+        "preparing": "Inicializando la traducción del PDF",
+        "preparing_hint": "La primera inicialización puede tardar unos 2 minutos; las siguientes suelen ser más rápidas",
+        "rendering": "Renderizando el PDF traducido",
         "translating": "Traduciendo el contenido",
-        "value": "{{stage}}, {{progress}}%"
+        "typesetting": "Maquetando el PDF traducido",
+        "value": "{{stage}}, etapa {{stageProgress}}%, total {{overallProgress}}%"
       },
       "ready": {
         "description": "Selecciona un idioma de destino e inicia la traducción.",
