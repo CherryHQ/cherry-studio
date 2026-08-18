@@ -29,6 +29,24 @@ const RESPONSES_TOOL_NAME_PATTERN = /^[A-Za-z0-9_-]+$/
 const RESPONSES_TOOL_NAME_MAX_LENGTH = 64
 const TOOL_NAME_HASH_LENGTH = 12
 
+interface OpenAiFunctionTool {
+  type: 'function'
+  function: {
+    name: string
+    description?: string
+    parameters?: JsonSchemaLike
+  }
+}
+
+type IncomingTool = NonNullable<MessageCreateParams['tools']>[number] | OpenAiFunctionTool
+
+function isOpenAiFunctionTool(toolDef: unknown): toolDef is OpenAiFunctionTool {
+  if (!toolDef || typeof toolDef !== 'object') return false
+  const candidate = toolDef as { type?: unknown; function?: unknown }
+  if (candidate.type !== 'function' || !candidate.function || typeof candidate.function !== 'object') return false
+  return typeof (candidate.function as { name?: unknown }).name === 'string'
+}
+
 function isResponsesCompatibleToolName(name: string): boolean {
   return name.length <= RESPONSES_TOOL_NAME_MAX_LENGTH && RESPONSES_TOOL_NAME_PATTERN.test(name)
 }
@@ -270,9 +288,15 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
     this.prepareToolNames(tools)
 
     const aiSdkTools: ToolSet = {}
-    for (const anthropicTool of tools) {
-      if (anthropicTool.type === 'bash_20250124') continue
-      const toolDef = anthropicTool as AnthropicTool
+    for (const incomingTool of tools as IncomingTool[]) {
+      if (incomingTool.type === 'bash_20250124') continue
+      const toolDef = isOpenAiFunctionTool(incomingTool)
+        ? {
+            name: incomingTool.function.name,
+            description: incomingTool.function.description,
+            input_schema: incomingTool.function.parameters ?? { type: 'object' }
+          }
+        : (incomingTool as AnthropicTool)
       const rawSchema = toolDef.input_schema
       const schema = jsonSchemaToZod(rawSchema as JsonSchemaLike)
 
@@ -304,9 +328,10 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
 
     const names = [
       ...new Set(
-        (tools ?? []).flatMap((toolDef) =>
-          'name' in toolDef && typeof toolDef.name === 'string' ? [toolDef.name] : []
-        )
+        ((tools ?? []) as IncomingTool[]).flatMap((toolDef) => {
+          if (isOpenAiFunctionTool(toolDef)) return [toolDef.function.name]
+          return 'name' in toolDef && typeof toolDef.name === 'string' ? [toolDef.name] : []
+        })
       )
     ]
 

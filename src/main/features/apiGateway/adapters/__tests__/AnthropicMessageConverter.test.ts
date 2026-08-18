@@ -221,6 +221,44 @@ describe('AnthropicMessageConverter.toAiSdkTools', () => {
     expect(converter.toAiSdkTools(params({}))).toBeUndefined()
   })
 
+  it('accepts OpenAI function tools from local Agent runtimes', () => {
+    const request = params({
+      messages: [{ role: 'user', content: 'hi' }],
+      tools: [
+        {
+          type: 'function',
+          function: {
+            name: 'bash',
+            description: 'run cmd',
+            parameters: {
+              type: 'object',
+              properties: { command: { type: 'string' } },
+              required: ['command']
+            }
+          }
+        }
+      ] as never
+    })
+
+    expect(converter.toUIMessages(request)[0]).toMatchObject({
+      role: 'user',
+      parts: [{ type: 'text', text: 'hi' }]
+    })
+    const tools = converter.toAiSdkTools(request)
+    expect(Object.keys(tools ?? {})).toEqual(['bash'])
+    expect(asSchema(tools!.bash.inputSchema).jsonSchema).toMatchObject({
+      type: 'object',
+      properties: { command: { type: 'string' } },
+      required: ['command']
+    })
+  })
+
+  it('defaults a missing OpenAI function schema to an empty object', () => {
+    const tools = converter.toAiSdkTools(params({ tools: [{ type: 'function', function: { name: 'ping' } }] as never }))
+
+    expect(asSchema(tools!.ping.inputSchema).jsonSchema).toMatchObject({ type: 'object', properties: {} })
+  })
+
   it('normalizes Responses-incompatible names and marks forwarded schemas non-strict', () => {
     const clientToolName = 'mcp__calendar__events.list'
     const request = params({
