@@ -1,5 +1,5 @@
 import { ipcApi, useIpcOn } from '@renderer/ipc'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 /**
  * Unified entry point for any managed window to consume its init data.
@@ -34,12 +34,13 @@ import { useEffect, useState } from 'react'
  */
 export function useWindowInitData<T>(): T | null {
   const [data, setData] = useState<T | null>(null)
+  const hasReceivedReuseRef = useRef(false)
 
   useEffect(() => {
     let cancelled = false
 
     void ipcApi.request('window.get_init_data').then((initial) => {
-      if (!cancelled && initial !== null && initial !== undefined) {
+      if (!cancelled && !hasReceivedReuseRef.current && initial !== null && initial !== undefined) {
         setData(initial as T)
       }
     })
@@ -51,6 +52,7 @@ export function useWindowInitData<T>(): T | null {
 
   useIpcOn('window.reused', (payload) => {
     if (payload !== undefined && payload !== null) {
+      hasReceivedReuseRef.current = true
       setData(payload as T)
     }
   })
