@@ -69,7 +69,12 @@ const mcpSdkMock = vi.hoisted(() => {
       streamableHttpTransports.push({ url, opts })
     }
   }
-  const clients: Array<{ connectCalls: Array<{ kind: string }>; close: ReturnType<typeof vi.fn> }> = []
+  const clients: Array<{
+    connectCalls: Array<{ kind: string }>
+    close: ReturnType<typeof vi.fn>
+    listPrompts: ReturnType<typeof vi.fn>
+    listResources: ReturnType<typeof vi.fn>
+  }> = []
   class Client {
     setNotificationHandler = vi.fn()
     _transport: { kind: string } | undefined = undefined
@@ -77,6 +82,9 @@ const mcpSdkMock = vi.hoisted(() => {
       this._transport = undefined
     })
     ping = vi.fn().mockResolvedValue(true)
+    getServerCapabilities = vi.fn(() => mcpSdkMock.state.capabilities)
+    listPrompts = vi.fn().mockResolvedValue({ prompts: [{ name: 'a-prompt' }] })
+    listResources = vi.fn().mockResolvedValue({ resources: [{ uri: 'file:///a', name: 'a' }] })
     connectCalls: Array<{ kind: string }> = []
     constructor() {
       clients.push(this)
@@ -124,7 +132,11 @@ const mcpSdkMock = vi.hoisted(() => {
     stdioTransports,
     streamableHttpTransports,
     clients,
-    state: { failStreamable: false, failStreamableCode: 503 }
+    state: {
+      failStreamable: false,
+      failStreamableCode: 503,
+      capabilities: undefined as Record<string, unknown> | undefined
+    }
   }
 })
 
@@ -1085,5 +1097,94 @@ describe('McpRuntimeService.removeServer vs concurrent connect', () => {
     service.setServerStatus('server-1', 'error', new Error('late writer'))
 
     expect(MockMainCacheServiceUtils.getSharedCacheValue('mcp.status.server-1')).toBeUndefined()
+  })
+})
+
+describe('McpRuntimeService prompt/resource capability gate', () => {
+  beforeEach(() => {
+    BaseService.resetInstances()
+    MockMainCacheServiceUtils.resetMocks()
+    mcpSdkMock.clients.length = 0
+    mcpSdkMock.state.capabilities = undefined
+    mcpSdkMock.state.failStreamable = false
+  })
+
+  function stdioServer(id: string): McpServer {
+    return { id, name: id, command: 'npx', args: ['-y', 'example-mcp'], isActive: true } as McpServer
+  }
+
+  it('never sends prompts/list or resources/list to a server declaring neither capability', async () => {
+    mcpSdkMock.state.capabilities = { tools: {} }
+    getByIdMock.mockReturnValue(stdioServer('caps-none'))
+    const service = new McpRuntimeService()
+
+    expect(await service.listPrompts('caps-none')).toEqual([])
+    expect(await service.listResources('caps-none')).toEqual([])
+
+    const client = mcpSdkMock.clients.at(-1)
+    expect(client?.listPrompts).not.toHaveBeenCalled()
+    expect(client?.listResources).not.toHaveBeenCalled()
+  })
+
+  it('lists prompts and resources when the server declares both', async () => {
+    mcpSdkMock.state.capabilities = { prompts: {}, resources: {} }
+    getByIdMock.mockReturnValue(stdioServer('caps-both'))
+    const service = new McpRuntimeService()
+
+    expect(await service.listPrompts('caps-both')).toMatchObject([{ name: 'a-prompt', serverId: 'caps-both' }])
+    expect(await service.listResources('caps-both')).toMatchObject([{ uri: 'file:///a', serverId: 'caps-both' }])
+  })
+
+  it('reports connected capabilities synchronously, and nothing for a server that never connected', async () => {
+    mcpSdkMock.state.capabilities = { resources: {} }
+    getByIdMock.mockReturnValue(stdioServer('caps-sync'))
+    const service = new McpRuntimeService()
+
+    expect(service.getConnectedServerCapabilities('caps-sync')).toBeUndefined()
+    await service.withClient('caps-sync', async () => undefined)
+    expect(service.getConnectedServerCapabilities('caps-sync')?.resources).toBeDefined()
+  })
+})
+
+describe('McpRuntimeService list pagination', () => {
+  beforeEach(() => {
+    BaseService.resetInstances()
+    MockMainCacheServiceUtils.resetMocks()
+    mcpSdkMock.clients.length = 0
+    mcpSdkMock.state.capabilities = { prompts: {}, resources: {} }
+    mcpSdkMock.state.failStreamable = false
+  })
+
+  function stdioServer(id: string): McpServer {
+    return { id, name: id, command: 'npx', args: ['-y', 'example-mcp'], isActive: true } as McpServer
+  }
+
+  it('follows the resources cursor so the model sees every page, not just the first', async () => {
+    getByIdMock.mockReturnValue(stdioServer('paged-resources'))
+    const service = new McpRuntimeService()
+    await service.withClient('paged-resources', async () => undefined)
+    const client = mcpSdkMock.clients.at(-1)
+    client?.listResources
+      .mockResolvedValueOnce({ resources: [{ uri: 'file:///1', name: '1' }], nextCursor: 'page-2' })
+      .mockResolvedValueOnce({ resources: [{ uri: 'file:///2', name: '2' }] })
+
+    const resources = await service.listResources('paged-resources')
+
+    expect(resources.map((resource) => resource.uri)).toEqual(['file:///1', 'file:///2'])
+    expect(client?.listResources).toHaveBeenLastCalledWith({ cursor: 'page-2' })
+  })
+
+  it('follows the prompts cursor too', async () => {
+    getByIdMock.mockReturnValue(stdioServer('paged-prompts'))
+    const service = new McpRuntimeService()
+    await service.withClient('paged-prompts', async () => undefined)
+    const client = mcpSdkMock.clients.at(-1)
+    client?.listPrompts
+      .mockResolvedValueOnce({ prompts: [{ name: 'first' }], nextCursor: 'page-2' })
+      .mockResolvedValueOnce({ prompts: [{ name: 'second' }] })
+
+    const prompts = await service.listPrompts('paged-prompts')
+
+    expect(prompts.map((prompt) => prompt.name)).toEqual(['first', 'second'])
   })
 })
