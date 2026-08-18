@@ -362,6 +362,7 @@ export type ResourceListProviderProps<T extends ResourceListItemBase> = {
   }) => boolean
   defaultGroupVisibleCount?: number
   groupLoadStep?: number
+  groupEmptyLabel?: string
   groupShowMoreLabel?: string
   groupCollapseLabel?: string
   estimateItemSize?: (index: number) => number
@@ -385,12 +386,12 @@ type ProviderAction =
   | { type: 'selectItem'; id: string | null }
   | { type: 'startRename'; id: string }
   | { type: 'cancelRename' }
-  | { type: 'showMoreInGroup'; groupId: string }
+  | { type: 'showMoreInGroup'; groupId: string; defaultCount: number; loadStep: number }
   | { type: 'collapseGroupItems'; groupId: string; defaultCount: number }
   | { type: 'expandGroups'; groupIds: readonly string[] }
   | { type: 'collapseGroups'; groupIds: readonly string[]; defaultCount: number }
   | { type: 'resetGroupVisibleCounts'; groupIds: readonly string[]; defaultCount: number }
-  | { type: 'toggleGroup'; groupId: string }
+  | { type: 'toggleGroup'; groupId: string; defaultCount: number }
   | {
       type: 'revealItem'
       clearFilters?: boolean
@@ -432,11 +433,13 @@ function reducer(state: ResourceListProviderState, action: ProviderAction): Reso
     case 'cancelRename':
       return { ...state, renamingId: null }
     case 'showMoreInGroup': {
+      const visibleCount = state.groupVisibleCounts[action.groupId] ?? action.defaultCount
+
       return {
         ...state,
         groupVisibleCounts: {
           ...state.groupVisibleCounts,
-          [action.groupId]: Number.POSITIVE_INFINITY
+          [action.groupId]: visibleCount + action.loadStep
         }
       }
     }
@@ -470,10 +473,20 @@ function reducer(state: ResourceListProviderState, action: ProviderAction): Reso
       return { ...state, groupVisibleCounts }
     }
     case 'toggleGroup': {
-      const collapsedGroups = state.collapsedGroups.includes(action.groupId)
+      const wasCollapsed = state.collapsedGroups.includes(action.groupId)
+      const collapsedGroups = wasCollapsed
         ? state.collapsedGroups.filter((groupId) => groupId !== action.groupId)
         : [...state.collapsedGroups, action.groupId]
-      return { ...state, collapsedGroups }
+      if (wasCollapsed) return { ...state, collapsedGroups }
+
+      return {
+        ...state,
+        collapsedGroups,
+        groupVisibleCounts: {
+          ...state.groupVisibleCounts,
+          [action.groupId]: action.defaultCount
+        }
+      }
     }
     case 'revealItem': {
       const nextGroupVisibleCounts = { ...state.groupVisibleCounts }
@@ -546,6 +559,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
   canDropItem,
   defaultGroupVisibleCount = 5,
   groupLoadStep = 5,
+  groupEmptyLabel,
   groupShowMoreLabel,
   groupCollapseLabel,
   estimateItemSize = estimateDefaultItemSize,
@@ -822,7 +836,13 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
         const handleSelect = onGroupHeaderSelectItem ?? onSelectItem
         handleSelect?.(id)
       },
-      showMoreInGroup: (groupId: string) => dispatch({ type: 'showMoreInGroup', groupId }),
+      showMoreInGroup: (groupId: string) =>
+        dispatch({
+          type: 'showMoreInGroup',
+          groupId,
+          defaultCount: defaultGroupVisibleCount,
+          loadStep: groupLoadStep
+        }),
       collapseGroupItems: (groupId: string) =>
         dispatch({ type: 'collapseGroupItems', groupId, defaultCount: defaultGroupVisibleCount }),
       expandGroups: (groupIds: readonly string[]) => {
@@ -845,19 +865,24 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       },
       toggleGroup: (groupId: string) => {
         if (isControlled) {
-          const nextCollapsedIds = collapsedStateRef.current.includes(groupId)
+          const wasCollapsed = collapsedStateRef.current.includes(groupId)
+          const nextCollapsedIds = wasCollapsed
             ? collapsedStateRef.current.filter((id) => id !== groupId)
             : [...collapsedStateRef.current, groupId]
+          if (!wasCollapsed) {
+            dispatch({ type: 'resetGroupVisibleCounts', groupIds: [groupId], defaultCount: defaultGroupVisibleCount })
+          }
           notifyControlledCollapsedStateChange(nextCollapsedIds)
           return
         }
 
-        dispatch({ type: 'toggleGroup', groupId })
+        dispatch({ type: 'toggleGroup', groupId, defaultCount: defaultGroupVisibleCount })
       },
       reorder: (payload: ResourceListReorderPayload) => onReorder?.(payload)
     }),
     [
       defaultGroupVisibleCount,
+      groupLoadStep,
       isControlled,
       isSelectedControlled,
       notifyControlledCollapsedStateChange,
@@ -911,6 +936,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       estimateItemSize,
       defaultGroupVisibleCount,
       groupLoadStep,
+      groupEmptyLabel,
       groupShowMoreLabel,
       groupCollapseLabel,
       revealRequest,
@@ -948,6 +974,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       getItemId,
       getItemLabel,
       groupCollapseLabel,
+      groupEmptyLabel,
       groupLoadStep,
       groupShowMoreLabel,
       onEmptyGroupHeaderClick,

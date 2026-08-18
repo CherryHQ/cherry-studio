@@ -1264,6 +1264,18 @@ describe('Sessions', () => {
     expect(projectB.compareDocumentPosition(projectA) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
+  it('renders work directories that do not have tasks', () => {
+    dataApiMocks.workspaces = [
+      ...dataApiMocks.workspaces,
+      makeWorkspace('/Users/jd/project-empty', { id: 'ws-empty', name: 'Empty Workspace', orderKey: 'c' })
+    ]
+
+    render(<SessionsForTest />)
+
+    expect(screen.getByRole('button', { name: 'Empty Workspace' })).toBeInTheDocument()
+    expect(screen.getByText('No tasks')).toBeInTheDocument()
+  })
+
   it('renders agent groups in agent display mode', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     setSessionGroupExpansionCache({
@@ -1274,7 +1286,8 @@ describe('Sessions', () => {
     agentDataMocks.useAgents.mockReturnValue({
       agents: [
         { id: 'agent-b', model: 'model-b', name: 'Beta agent', configuration: { avatar: 'B' } },
-        { id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } }
+        { id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } },
+        { id: 'agent-c', model: 'model-c', name: 'Gamma agent', configuration: { avatar: 'C' } }
       ],
       isLoading: false,
       error: undefined
@@ -1290,11 +1303,14 @@ describe('Sessions', () => {
 
     const betaGroup = screen.getByRole('button', { name: 'Beta agent' })
     const alphaGroup = screen.getByRole('button', { name: 'Alpha agent' })
+    const gammaGroup = screen.getByRole('button', { name: 'Gamma agent' })
     expect(betaGroup.compareDocumentPosition(alphaGroup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(groupChevron(betaGroup)).toHaveAttribute('aria-expanded', 'false')
     expect(groupChevron(alphaGroup)).toHaveAttribute('aria-expanded', 'false')
     expect(betaGroup).toHaveTextContent('B')
     expect(alphaGroup).toHaveTextContent('A')
+    expect(groupChevron(gammaGroup)).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('No tasks')).toBeInTheDocument()
     expect(screen.queryByText('Beta session')).not.toBeInTheDocument()
     expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
     expect(screen.getByTestId('dnd-context')).toBeInTheDocument()

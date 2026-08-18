@@ -2952,7 +2952,12 @@ describe('Topics', () => {
         .compareDocumentPosition(screen.getByRole('button', { name: 'Unlinked Assistant' })) &
         Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'Gamma Assistant' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Gamma Assistant' })).toBeInTheDocument()
+    expect(groupChevron(screen.getByRole('button', { name: 'Gamma Assistant' }))).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    )
+    expect(screen.getByText('No conversations')).toBeInTheDocument()
     const assistantSectionButton = screen
       .getAllByRole('button', { name: 'Assistant' })
       .find((button) => button.hasAttribute('aria-expanded'))

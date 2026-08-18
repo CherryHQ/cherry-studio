@@ -25,6 +25,7 @@ import {
   useResourceListView
 } from './ResourceListContext'
 import {
+  GroupEmpty,
   GroupHeader,
   GroupShowMore,
   ResourceListGroupHeaderContextMenuOwner,
@@ -86,6 +87,7 @@ type ResourceListVirtualFooter = {
   group: ResourceListGroup
   groupCollapsed: boolean
   groupId: string
+  kind: 'empty' | 'pagination'
 }
 
 type ResourceListVirtualGroupData = ResourceListGroup & {
@@ -187,7 +189,10 @@ function VirtualItemRow({
   )
 }
 
-function buildVirtualGroups<T extends ResourceListItemBase>(view: ResourceListContextValue<T>['view']) {
+function buildVirtualGroups<T extends ResourceListItemBase>(
+  view: ResourceListContextValue<T>['view'],
+  showEmptyGroups: boolean
+) {
   const groups: ResourceListVirtualGroup<T>[] = []
   let itemIndex = 0
 
@@ -205,8 +210,10 @@ function buildVirtualGroups<T extends ResourceListItemBase>(view: ResourceListCo
       items,
       footer:
         group.hasMore || group.canCollapseToDefault
-          ? { group: group.group, groupCollapsed: group.collapsed, groupId: group.group.id }
-          : undefined
+          ? { group: group.group, groupCollapsed: group.collapsed, groupId: group.group.id, kind: 'pagination' }
+          : showEmptyGroups && group.totalCount === 0 && !group.collapsed
+            ? { group: group.group, groupCollapsed: false, groupId: group.group.id, kind: 'empty' }
+            : undefined
     })
   }
 
@@ -494,7 +501,7 @@ export function VirtualItems<T extends ResourceListItemBase>({
   const { estimateItemSize, getItemId, revealRequest } = meta
   const view = useResourceListView<T>()
   const renderContext = useResourceListRenderContext<T>()
-  const groups = useMemo(() => buildVirtualGroups(view), [view])
+  const groups = useMemo(() => buildVirtualGroups(view, Boolean(meta.groupEmptyLabel)), [meta.groupEmptyLabel, view])
   const virtualRows = useMemo(() => buildGroupedVirtualRows(groups, true, true), [groups])
   const virtualListRef = useRef<DynamicVirtualListRef>(null)
   const listboxRef = useRef<HTMLDivElement>(null)
@@ -520,14 +527,19 @@ export function VirtualItems<T extends ResourceListItemBase>({
     [meta, renderContext, renderItem]
   )
   const renderGroupFooter = useCallback(
-    (footer: ResourceListVirtualFooter) => (
-      <div>
-        <GroupShowMore
-          groupId={footer.groupId}
-          className={!getGroupHeaderIconVisible(meta, footer.group, footer.groupCollapsed) ? 'pl-2.5' : undefined}
-        />
-      </div>
-    ),
+    (footer: ResourceListVirtualFooter) => {
+      const className = !getGroupHeaderIconVisible(meta, footer.group, footer.groupCollapsed) ? 'pl-2.5' : undefined
+
+      return (
+        <div>
+          {footer.kind === 'empty' ? (
+            <GroupEmpty className={className} />
+          ) : (
+            <GroupShowMore groupId={footer.groupId} className={className} />
+          )}
+        </div>
+      )
+    },
     [meta]
   )
   const getVirtualRowKey = useCallback(
@@ -603,7 +615,7 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
   } = meta
   const view = useResourceListView<T>()
   const renderContext = useResourceListRenderContext<T>()
-  const groups = useMemo(() => buildVirtualGroups(view), [view])
+  const groups = useMemo(() => buildVirtualGroups(view, Boolean(meta.groupEmptyLabel)), [meta.groupEmptyLabel, view])
   const virtualRows = useMemo(() => buildGroupedVirtualRows(groups, true, true), [groups])
   const virtualListRef = useRef<DynamicVirtualListRef>(null)
   const listboxRef = useRef<HTMLDivElement>(null)
@@ -754,14 +766,19 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
     [meta, renderContext, renderItem]
   )
   const renderGroupFooter = useCallback(
-    (footer: ResourceListVirtualFooter) => (
-      <div>
-        <GroupShowMore
-          groupId={footer.groupId}
-          className={!getGroupHeaderIconVisible(meta, footer.group, footer.groupCollapsed) ? 'pl-2.5' : undefined}
-        />
-      </div>
-    ),
+    (footer: ResourceListVirtualFooter) => {
+      const className = !getGroupHeaderIconVisible(meta, footer.group, footer.groupCollapsed) ? 'pl-2.5' : undefined
+
+      return (
+        <div>
+          {footer.kind === 'empty' ? (
+            <GroupEmpty className={className} />
+          ) : (
+            <GroupShowMore groupId={footer.groupId} className={className} />
+          )}
+        </div>
+      )
+    },
     [meta]
   )
   const getVirtualRowKey = useCallback(
