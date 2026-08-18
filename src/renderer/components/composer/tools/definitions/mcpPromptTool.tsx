@@ -92,6 +92,9 @@ export function renderMcpPromptSegmentsAsText(segments: readonly McpPromptSegmen
  * Write a rendered prompt into the composer: one chip per argument this insertion declared, and the
  * body as literal text with variable tokenization off — so a `${HOME}` the server itself wrote stays
  * text instead of becoming a field the user can silently overwrite.
+ *
+ * Chips carry `insertSeparator: false`: the surrounding text is the server's, reproduced verbatim,
+ * so an appended space would rewrite `Hello ${name}!` into `Hello ${name} !`.
  */
 export function insertMcpPromptSegments(
   segments: readonly McpPromptSegment[],
@@ -102,7 +105,9 @@ export function insertMcpPromptSegments(
       inputAdapter.insertText(segment.value, { tokenizeVariables: false })
       return
     }
-    inputAdapter.insertToken?.(createPromptVariableToken(segment.name, `\${${segment.name}}`, index))
+    inputAdapter.insertToken?.(createPromptVariableToken(segment.name, `\${${segment.name}}`, index), {
+      insertSeparator: false
+    })
   })
   inputAdapter.focus()
 }

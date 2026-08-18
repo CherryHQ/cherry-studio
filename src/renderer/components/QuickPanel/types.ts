@@ -12,6 +12,15 @@ export interface QuickPanelInsertTextOptions {
   tokenizeVariables?: boolean
 }
 
+export interface QuickPanelInsertTokenOptions {
+  /**
+   * Default true — append a space after the chip, which is what a standalone pick (a skill, a
+   * knowledge base) wants. Pass false when the chip sits inside surrounding text the caller is
+   * reproducing verbatim, so `Hello ${name}!` does not become `Hello ${name} !`.
+   */
+  insertSeparator?: boolean
+}
+
 export interface QuickPanelInputAdapter {
   getText: () => string
   getCursorOffset?: () => number
@@ -22,7 +31,7 @@ export interface QuickPanelInputAdapter {
    * `${HOME}` — so it stays literal.
    */
   insertText: (text: string, options?: QuickPanelInsertTextOptions) => void
-  insertToken?: (token: unknown) => void
+  insertToken?: (token: unknown, options?: QuickPanelInsertTokenOptions) => void
   deleteTriggerRange: (range: { from: number; to: number }) => void
   focus: () => void
   subscribeInput?: (listener: (event?: QuickPanelInputEvent) => void) => () => void

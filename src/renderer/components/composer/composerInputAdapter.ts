@@ -68,8 +68,8 @@ export function createComposerInputAdapter(editor: Editor): QuickPanelInputAdapt
         .insertContent(buildInsertedInlineContent(editor, insertedText, options))
         .run()
     },
-    insertToken: (token) => {
-      insertComposerTokenAtCursor(editor, token as ComposerDraftToken)
+    insertToken: (token, options) => {
+      insertComposerTokenAtCursor(editor, token as ComposerDraftToken, options)
     },
     deleteTriggerRange: (range) => {
       deleteComposerTextRange(editor, range)

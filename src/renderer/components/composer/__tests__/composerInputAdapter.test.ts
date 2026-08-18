@@ -66,4 +66,22 @@ describe('insertMcpPromptSegments through the real adapter', () => {
     expect(draft.text).toContain('echo ${HOME}')
     expect(draft.text).toContain('${{ github.sha }}')
   })
+
+  it('reproduces the server’s text exactly, with no separator inserted around a chip', () => {
+    editor = new Editor({ extensions: createComposerEditorPreset({}), content: '' })
+
+    insertMcpPromptSegments(
+      [
+        { type: 'text', value: 'Hello ' },
+        { type: 'argument', name: 'name' },
+        { type: 'text', value: '! Ping ' },
+        { type: 'argument', name: 'other' },
+        { type: 'text', value: '.' }
+      ],
+      createComposerInputAdapter(editor)
+    )
+
+    // An appended separator would render `Hello ${name} !` and `${name} ${other}` here.
+    expect(serializeComposerDocument(editor).text).toBe('Hello ${name}! Ping ${other}.')
+  })
 })
