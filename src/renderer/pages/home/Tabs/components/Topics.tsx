@@ -635,12 +635,9 @@ export function Topics({
     [globalTopicStats]
   )
   const orderedAssistantTopicGroupIds = useMemo(() => {
-    const groupIds = orderedAssistants
-      .map((assistant) => getTopicAssistantDisplayGroupId({ assistantId: assistant.id }))
-      .filter((groupId) => {
-        const stats = assistantTopicStatsByGroupId.get(groupId)
-        return !!stats && stats.count - stats.pinnedCount > 0
-      })
+    const groupIds = orderedAssistants.map((assistant) =>
+      getTopicAssistantDisplayGroupId({ assistantId: assistant.id })
+    )
     const unlinkedStats = assistantTopicStatsByGroupId.get(TOPIC_UNLINKED_ASSISTANT_GROUP_ID)
     if (unlinkedStats && unlinkedStats.count - unlinkedStats.pinnedCount > 0) {
       groupIds.push(TOPIC_UNLINKED_ASSISTANT_GROUP_ID)
@@ -1042,7 +1039,6 @@ export function Topics({
     for (const groupId of orderedAssistantTopicGroupIds) {
       const stats = assistantTopicStatsByGroupId.get(groupId)
       const count = stats ? stats.count - stats.pinnedCount : 0
-      if (count <= 0) continue
 
       const assistantId = getAssistantIdFromTopicGroupId(groupId)
       const assistant = assistantId ? assistantById.get(assistantId) : undefined
@@ -1187,10 +1183,11 @@ export function Topics({
     pinnedTopicsSource.error ||
     (!isAssistantDisplayMode ? ordinaryTopicsSource.error : undefined) ||
     (isAssistantDisplayMode ? (assistantsError ?? (isGroupGrouping ? assistantGroupsError : undefined)) : undefined)
-  const refreshError = topics.length > 0 ? currentListError : undefined
-  const listError = topics.length > 0 ? undefined : currentListError
+  const hasListContent = topics.length > 0 || topicGroupSeeds.length > 0
+  const refreshError = hasListContent ? currentListError : undefined
+  const listError = hasListContent ? undefined : currentListError
   const listLoading =
-    topics.length === 0 &&
+    !hasListContent &&
     (isTopicStatsLoading ||
       pinnedTopicsSource.isLoading ||
       (!isAssistantDisplayMode && isOrdinaryTopicsLoading) ||

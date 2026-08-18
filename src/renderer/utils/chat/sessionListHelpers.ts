@@ -201,8 +201,7 @@ function createFallbackWorkdirLabelEntries(paths: readonly string[]) {
 export function createSessionWorkdirDisplayMaps(
   sessions: readonly SessionWorkdirSource[],
   workspaces: readonly WorkspaceDisplaySource[] = [],
-  knownWorkdirPaths: readonly string[] = [],
-  knownWorkspaceIds: readonly string[] = []
+  knownWorkdirPaths: readonly string[] = []
 ): SessionWorkdirDisplayMaps {
   const groupIdByPath = new Map<string, string>()
   const groupIdByWorkspaceId = new Map<string, string>()
@@ -210,11 +209,6 @@ export function createSessionWorkdirDisplayMaps(
   const pathByGroupId = new Map<string, string>()
   const rankByGroupId = new Map<string, number>()
   const workspaceIdByGroupId = new Map<string, string>()
-  const referencedWorkspaceIds = new Set(
-    [...sessions.map((session) => session.workspaceId), ...knownWorkspaceIds].filter(
-      (workspaceId): workspaceId is string => typeof workspaceId === 'string' && workspaceId.length > 0
-    )
-  )
   const referencedWorkspacePaths = new Set(
     [
       ...sessions.map(getPrimarySessionWorkdir),
@@ -226,7 +220,6 @@ export function createSessionWorkdirDisplayMaps(
     if (workspace.type === 'system') continue
     const path = normalizeSessionWorkdirPath(workspace.path)
     if (!path || groupIdByWorkspaceId.has(workspace.id)) continue
-    if (!referencedWorkspaceIds.has(workspace.id) && !referencedWorkspacePaths.has(path)) continue
 
     const groupId = getWorkspaceSessionGroupId(workspace.id)
 
@@ -237,17 +230,6 @@ export function createSessionWorkdirDisplayMaps(
     labelByGroupId.set(groupId, workspace.name.trim() || getSessionWorkdirFallbackLabel(path))
     pathByGroupId.set(groupId, path)
     workspaceIdByGroupId.set(groupId, workspace.id)
-    rankByGroupId.set(groupId, rankByGroupId.size)
-  }
-
-  // Stats can identify a workspace before its metadata row is available. Keep
-  // that id as the canonical group key so fetched sessions attach to the same
-  // server-backed group instead of falling back to a path-derived key.
-  for (const workspaceId of knownWorkspaceIds) {
-    if (groupIdByWorkspaceId.has(workspaceId)) continue
-    const groupId = getWorkspaceSessionGroupId(workspaceId)
-    groupIdByWorkspaceId.set(workspaceId, groupId)
-    workspaceIdByGroupId.set(groupId, workspaceId)
     rankByGroupId.set(groupId, rankByGroupId.size)
   }
 

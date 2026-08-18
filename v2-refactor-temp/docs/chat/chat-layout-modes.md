@@ -42,7 +42,8 @@ behavior) power the classic left rail. `AssistantResourceList` and
 menus.
 
 - Home shows assistants; Agent shows agents.
-- Only entities that already own topics/sessions are shown.
+- The complete assistant/agent catalog is shown, including entities that do not
+  own topics/sessions yet.
 - The top action creates or selects an assistant/agent through the shared picker.
 - Management entries live in the display/options menu, not as extra top rail
   entries.
@@ -90,6 +91,11 @@ Classic-layout agent chats keep the workspace control visible in the composer.
 Topic and session lists use independent pinned and unpinned cursor streams. Ordinary rows can use creation order,
 activity order, or manual order; pinned rows keep their independent pin order. Search and owner scoping are applied
 by DataApi so each surface can page without loading the complete collection into the renderer.
+
+In assistant, agent, and work-directory grouping modes, owner metadata supplies
+the complete group list. Topic/session statistics supply counts and synthetic
+unlinked groups; ordinary rows are requested independently when a group is
+expanded.
 
 - Home list surfaces use `useTopics`; exact selection, latest-topic, and reusable
   placeholder lookups come from `useAssistantTopicsSource`.

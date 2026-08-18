@@ -1353,7 +1353,7 @@ describe('Topics', () => {
     await vi.waitFor(() => expect(loadNext).toHaveBeenCalledTimes(1))
   })
 
-  it('shows the empty chat state without a creation action', () => {
+  it('shows every assistant group when there are no conversations', () => {
     mockUseInfiniteQuery.mockReturnValue({
       pages: [{ items: [] }],
       isLoading: false,
@@ -1368,13 +1368,9 @@ describe('Topics', () => {
 
     const { onNewTopic } = renderTopicList()
 
-    const emptyStateText = screen.getByText('No conversations')
-
-    expect(screen.queryByRole('heading', { name: 'No conversations' })).not.toBeInTheDocument()
-    expect(emptyStateText.querySelector('svg')).not.toBeInTheDocument()
-    expect(
-      screen.queryByText('Create a chat and it will stay here so you can continue with its context later.')
-    ).not.toBeInTheDocument()
+    expect(screen.queryByText('No conversations')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Alpha Assistant' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Beta Assistant' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Add Assistant' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
     expect(onNewTopic).not.toHaveBeenCalled()
@@ -2978,7 +2974,7 @@ describe('Topics', () => {
     expect(virtualMocks.scrollToIndex).toHaveBeenCalledWith(expect.any(Number), { align: 'center' })
   })
 
-  it('keeps assistant grouped topics in the generic loading state until the first page arrives', () => {
+  it('keeps every assistant group visible while the first topic page loads', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     // No rows have arrived yet and the pin-owned stream is still loading, so the whole list stays
     // in the generic loading skeleton rather than revealing partial assistant groups.
@@ -2999,7 +2995,7 @@ describe('Topics', () => {
     expect(screen.getByTestId('resource-list-topic')).toBeInTheDocument()
     expect(screen.queryByTestId('resource-list-grouped-loading')).not.toBeInTheDocument()
     expect(screen.getByText('Alpha Assistant')).toBeInTheDocument()
-    expect(screen.queryByText('Beta Assistant')).not.toBeInTheDocument()
+    expect(screen.getByText('Beta Assistant')).toBeInTheDocument()
     expect(screen.queryAllByTestId('topic-list-row')).toHaveLength(0)
     expect(document.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0)
   })
@@ -3140,7 +3136,12 @@ describe('Topics', () => {
     setTopicGroupExpansionCache({
       ...createExpandedTopicGroupExpansionFixture(),
       // Collapse all assistant groups; sections stay expanded.
-      assistant: [TOPIC_UNLINKED_ASSISTANT_GROUP_ID, 'topic:assistant:assistant-1', 'topic:assistant:assistant-2']
+      assistant: [
+        TOPIC_UNLINKED_ASSISTANT_GROUP_ID,
+        'topic:assistant:assistant-1',
+        'topic:assistant:assistant-2',
+        'topic:assistant:assistant-3'
+      ]
     })
     mockUseQuery.mockImplementation((path) => {
       if (path === '/pins') {
@@ -3253,7 +3254,7 @@ describe('Topics', () => {
         .compareDocumentPosition(screen.getByRole('button', { name: 'Unlinked Assistant' })) &
         Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'Gamma Assistant' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Gamma Assistant' })).toBeInTheDocument()
     const assistantSectionButton = screen
       .getAllByRole('button', { name: 'Assistant' })
       .find((button) => button.hasAttribute('aria-expanded'))
@@ -3264,6 +3265,10 @@ describe('Topics', () => {
       'false'
     )
     expect(groupChevron(screen.getByRole('button', { name: 'Beta Assistant' }))).toHaveAttribute(
+      'aria-expanded',
+      'false'
+    )
+    expect(groupChevron(screen.getByRole('button', { name: 'Gamma Assistant' }))).toHaveAttribute(
       'aria-expanded',
       'false'
     )

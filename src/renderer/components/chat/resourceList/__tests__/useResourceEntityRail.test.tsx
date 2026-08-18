@@ -26,10 +26,6 @@ const RESOURCES: TestResource[] = [
   { id: 'topic-a', entityId: 'assistant-a' },
   { id: 'topic-b', entityId: 'assistant-b' }
 ]
-const RESOURCE_COUNTS = new Map([
-  ['assistant-a', 1],
-  ['assistant-b', 1]
-])
 
 function createDeferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void
@@ -72,7 +68,6 @@ function renderRail(overrides: Partial<Parameters<typeof useResourceEntityRail<T
     {
       initialProps: {
         entities: ENTITIES,
-        resourceCountByEntityId: RESOURCE_COUNTS,
         activeEntityId: 'assistant-a',
         isLoading: false,
         isError: false,
@@ -100,18 +95,20 @@ describe('useResourceEntityRail', () => {
   })
 
   it('shows loading only while there are no confirmed entity rows', () => {
-    const { result } = renderRail({ isLoading: true, resourceCountByEntityId: new Map() })
+    const { result } = renderRail({ entities: [], isLoading: true })
 
     expect(result.current.listStatus).toBe('loading')
     expect(result.current.items).toEqual([])
   })
 
-  it('hides a brand-new entity that owns no resources while keeping the others shown', () => {
+  it('shows a brand-new entity that owns no resources', () => {
     const { result } = renderRail({
-      entities: [...ENTITIES, { id: 'assistant-c', name: 'Assistant C', icon: 'C', orderKey: 'c' }]
+      entities: [...ENTITIES, { id: 'assistant-c', name: 'Assistant C', icon: 'C', orderKey: 'c' }],
+      activeEntityId: 'assistant-c'
     })
 
-    expect(result.current.items.map((item) => item.id)).toEqual(['assistant-a', 'assistant-b'])
+    expect(result.current.items.map((item) => item.id)).toEqual(['assistant-a', 'assistant-b', 'assistant-c'])
+    expect(result.current.selectedId).toBe('assistant-c')
   })
 
   it('updates selection while keeping the list mounted during loading', () => {
@@ -122,7 +119,6 @@ describe('useResourceEntityRail', () => {
 
     rerender({
       entities: ENTITIES,
-      resourceCountByEntityId: RESOURCE_COUNTS,
       activeEntityId: 'assistant-b',
       isLoading: true,
       isError: false,
@@ -191,12 +187,7 @@ describe('useResourceEntityRail', () => {
         { id: 'assistant-a', name: 'Assistant A', icon: 'A', orderKey: 'a' },
         { id: 'assistant-b', name: 'Assistant B', icon: 'B', orderKey: 'b', pinned: true },
         { id: 'assistant-c', name: 'Assistant C', icon: 'C', orderKey: 'c' }
-      ],
-      resourceCountByEntityId: new Map([
-        ['assistant-a', 1],
-        ['assistant-b', 1],
-        ['assistant-c', 1]
-      ])
+      ]
     })
 
     expect(result.current.items.map((item) => item.id)).toEqual(['assistant-b', 'assistant-a', 'assistant-c'])
@@ -234,7 +225,6 @@ describe('useResourceEntityRail', () => {
 
     rerender({
       entities: ENTITIES,
-      resourceCountByEntityId: RESOURCE_COUNTS,
       activeEntityId: 'assistant-a',
       isLoading: false,
       isError: false,

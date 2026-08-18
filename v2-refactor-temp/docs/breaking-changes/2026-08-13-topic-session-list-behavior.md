@@ -16,6 +16,8 @@ manual order; both lists default to creation time.
 
 Older unpinned rows load while scrolling without requiring users to expand time groups. Display grouping no longer
 silently changes item order, manual order enables row dragging, and right-side lists follow the same selected sort.
+Assistant, agent, and work-directory grouped views also show the complete owner catalog, including empty groups; each
+expanded group loads its own conversation or task stream.
 
 ## What the user should do
 

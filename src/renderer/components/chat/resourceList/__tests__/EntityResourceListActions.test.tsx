@@ -489,6 +489,31 @@ describe('classic layout entity resource list actions', () => {
     loggerMocks.warn.mockClear()
   })
 
+  it('shows assistants that do not own any topics', () => {
+    assistantDataMocks.topics = []
+
+    render(<TestAssistantResourceList activeAssistantId={null} onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />)
+
+    expect(screen.getByRole('region', { name: 'Assistant 1' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Assistant 2' })).toBeInTheDocument()
+  })
+
+  it('shows agents that do not own any sessions', () => {
+    render(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        agentSessionsSource={createAgentSessionsSource({
+          stats: { total: 0, pinnedCount: 0, byAgent: [], byWorkspace: [] }
+        })}
+        onSelectSession={vi.fn()}
+        onCreateSession={vi.fn()}
+        onShowMissingAgentSelection={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('region', { name: 'Agent 1' })).toBeInTheDocument()
+  })
+
   it('uses delete-assistant actions for the classic layout assistant context and more menus', async () => {
     const onCreateTopic = vi.fn()
     const onActiveAssistantDeleted = vi.fn()

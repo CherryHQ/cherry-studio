@@ -446,7 +446,7 @@ const Sessions = ({
     panePosition === undefined ? (onSetPanePosition ?? setStoredPanePosition) : onSetPanePosition
   const [sessionExpansionAgent, setSessionExpansionAgent] = usePersistCache('ui.agent.session.expansion.agent')
   const [sessionExpansionWorkdir, setSessionExpansionWorkdir] = usePersistCache('ui.agent.session.expansion.workdir')
-  const { loadLatestSession, reuseOrCreateSession, stats: globalSessionStats } = agentSessionsSource
+  const { loadLatestSession, reuseOrCreateSession } = agentSessionsSource
   const { agents, error: agentsError, isLoading: isAgentsLoading, refetch: refetchAgents } = useAgents()
   const listRef = useRef<HTMLDivElement>(null)
   const [optimisticMove, setOptimisticMove] = useState<ResourceListItemReorderPayload | null>(null)
@@ -697,16 +697,9 @@ const Sessions = ({
 
     return [...orderedWorkspaces, ...remainingWorkspaces]
   }, [optimisticWorkspaceOrderIds, workspaceRows])
-  const statsWorkspaceIds = useMemo(
-    () =>
-      (sessionStats?.byWorkspace ?? [])
-        .map((entry) => entry.workspaceId)
-        .filter((workspaceId) => workspaceId !== 'system'),
-    [sessionStats]
-  )
   const workdirDisplay = useMemo(
-    () => createSessionWorkdirDisplayMaps([], workspaceRowsForDisplay, [], statsWorkspaceIds),
-    [statsWorkspaceIds, workspaceRowsForDisplay]
+    () => createSessionWorkdirDisplayMaps([], workspaceRowsForDisplay),
+    [workspaceRowsForDisplay]
   )
   const agentSessionStatsByGroupId = useMemo(() => {
     const result = new Map<string, { count: number; pinnedCount: number }>()
@@ -723,12 +716,7 @@ const Sessions = ({
     return result
   }, [agentById, sessionStats])
   const orderedAgentSessionGroupIds = useMemo(() => {
-    const groupIds = agentsForDisplay
-      .map((agent) => getSessionAgentGroupId(agent.id))
-      .filter((groupId) => {
-        const stats = agentSessionStatsByGroupId.get(groupId)
-        return !!stats && stats.count - stats.pinnedCount > 0
-      })
+    const groupIds = agentsForDisplay.map((agent) => getSessionAgentGroupId(agent.id))
     const unlinkedStats = agentSessionStatsByGroupId.get(SESSION_UNLINKED_AGENT_GROUP_ID)
     if (unlinkedStats && unlinkedStats.count - unlinkedStats.pinnedCount > 0) {
       groupIds.push(SESSION_UNLINKED_AGENT_GROUP_ID)
@@ -749,31 +737,21 @@ const Sessions = ({
     }
     return result
   }, [sessionStats])
-  const globalWorkdirSessionCountByGroupId = useMemo(() => {
-    const result = new Map<string, number>()
-    for (const entry of globalSessionStats?.byWorkspace ?? []) {
-      const groupId =
-        entry.workspaceId === 'system'
-          ? SESSION_SYSTEM_WORKSPACE_GROUP_ID
-          : getWorkspaceSessionGroupId(entry.workspaceId)
-      result.set(groupId, (result.get(groupId) ?? 0) + entry.count)
+  const orderedWorkdirSessionGroupIds = useMemo(() => {
+    const groupIds = new Set(workdirDisplay.labelByGroupId.keys())
+    const systemStats = workdirSessionStatsByGroupId.get(SESSION_SYSTEM_WORKSPACE_GROUP_ID)
+    if (systemStats && systemStats.count - systemStats.pinnedCount > 0) {
+      groupIds.add(SESSION_SYSTEM_WORKSPACE_GROUP_ID)
     }
-    return result
-  }, [globalSessionStats])
-  const orderedWorkdirSessionGroupIds = useMemo(
-    () =>
-      [...workdirSessionStatsByGroupId.entries()]
-        .filter(([, stats]) => stats.count - stats.pinnedCount > 0)
-        .map(([groupId]) => groupId)
-        .sort((a, b) => {
-          const aRank =
-            a === SESSION_SYSTEM_WORKSPACE_GROUP_ID ? Number.MAX_SAFE_INTEGER : workdirDisplay.rankByGroupId.get(a)
-          const bRank =
-            b === SESSION_SYSTEM_WORKSPACE_GROUP_ID ? Number.MAX_SAFE_INTEGER : workdirDisplay.rankByGroupId.get(b)
-          return (aRank ?? Number.MAX_SAFE_INTEGER - 1) - (bRank ?? Number.MAX_SAFE_INTEGER - 1)
-        }),
-    [workdirDisplay.rankByGroupId, workdirSessionStatsByGroupId]
-  )
+
+    return [...groupIds].sort((a, b) => {
+      const aRank =
+        a === SESSION_SYSTEM_WORKSPACE_GROUP_ID ? Number.MAX_SAFE_INTEGER : workdirDisplay.rankByGroupId.get(a)
+      const bRank =
+        b === SESSION_SYSTEM_WORKSPACE_GROUP_ID ? Number.MAX_SAFE_INTEGER : workdirDisplay.rankByGroupId.get(b)
+      return (aRank ?? Number.MAX_SAFE_INTEGER - 1) - (bRank ?? Number.MAX_SAFE_INTEGER - 1)
+    })
+  }, [workdirDisplay.labelByGroupId, workdirDisplay.rankByGroupId, workdirSessionStatsByGroupId])
   const commitSessionPin = useCallback(
     async (session: AgentSessionListItem) => {
       if (session.pinId) {
@@ -1064,7 +1042,6 @@ const Sessions = ({
       for (const groupId of orderedAgentSessionGroupIds) {
         const stats = agentSessionStatsByGroupId.get(groupId)
         const count = stats ? stats.count - stats.pinnedCount : 0
-        if (count <= 0) continue
         const agentId = getAgentIdFromSessionGroupId(groupId)
         seeds.push({
           id: groupId,
@@ -1079,7 +1056,6 @@ const Sessions = ({
     for (const groupId of orderedWorkdirSessionGroupIds) {
       const stats = workdirSessionStatsByGroupId.get(groupId)
       const count = stats ? stats.count - stats.pinnedCount : 0
-      if (count <= 0) continue
       const isSystemGroup = groupId === SESSION_SYSTEM_WORKSPACE_GROUP_ID
       seeds.push({
         id: groupId,
@@ -1827,7 +1803,6 @@ const Sessions = ({
       const sessionIds = sessionItems
         .filter((session) => session.workspaceId === workspaceId)
         .map((session) => session.id)
-      if ((globalWorkdirSessionCountByGroupId.get(group.id) ?? 0) === 0) return
 
       const confirmed = await popup.confirm({
         title: t('agent.session.workdir.delete.title'),
@@ -1891,7 +1866,6 @@ const Sessions = ({
       commitActiveSession,
       deleteWorkspace,
       deletingWorkspaceGroupId,
-      globalWorkdirSessionCountByGroupId,
       loadLatestSession,
       requestFileNavigation,
       sessionItems,
@@ -2500,10 +2474,11 @@ const Sessions = ({
     pinnedSessionsSource.error ??
     (displayMode === 'time' ? ordinarySessionsSource.error : undefined) ??
     (displayMode === 'agent' ? agentsError : displayMode === 'workdir' ? workspacesError : undefined)
-  const refreshError = sessionItems.length > 0 ? currentListError : undefined
-  const listError = sessionItems.length > 0 ? undefined : currentListError
+  const hasListContent = filteredGroupedSessions.length > 0 || sessionGroupSeeds.length > 0
+  const refreshError = hasListContent ? currentListError : undefined
+  const listError = hasListContent ? undefined : currentListError
   const listLoading =
-    sessionItems.length === 0 &&
+    !hasListContent &&
     (isSessionStatsLoading ||
       pinnedSessionsSource.isLoading ||
       (displayMode === 'time' && isOrdinarySessionsLoading) ||

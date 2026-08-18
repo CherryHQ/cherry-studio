@@ -12,10 +12,8 @@ import { useOwnerResourceActivation } from './useOwnerResourceActivation'
 export type ResourceEntityRailReorderAnchor = NonNullable<ReturnType<typeof buildResourceListItemDropAnchor>>
 
 type UseResourceEntityRailParams<TEntity extends ResourceEntityRailItem, TResource> = {
-  /** Every entity (already mapped to a rail item). The hook filters to those with resources and orders them. */
+  /** Every entity (already mapped to a rail item). The hook orders and displays the complete list. */
   entities: readonly TEntity[]
-  /** Factual server counts used to keep only entities that own at least one resource. */
-  resourceCountByEntityId: ReadonlyMap<string, number>
   activeEntityId?: string | null
   isLoading: boolean
   isError: boolean
@@ -39,14 +37,13 @@ type UseResourceEntityRailResult<TEntity> = {
 }
 
 /**
- * Shared behavior for the classic-layout entity rail (assistants / agents): only entities that own
- * resources are shown, ordered by `orderKey` with optimistic drag reordering, clicking enters the
+ * Shared behavior for the classic-layout entity rail (assistants / agents): all entities are shown,
+ * ordered by `orderKey` with optimistic drag reordering, clicking enters the
  * latest resource (or creates a blank resource), and reordering persists the real `orderKey`. Data fetching,
  * pins, deletion, and context menus stay in the per-variant component.
  */
 export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TResource>({
   entities,
-  resourceCountByEntityId,
   activeEntityId,
   isLoading,
   isError,
@@ -72,10 +69,6 @@ export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TR
     cancelOwnerResourceActivation()
   }, [activeEntityId, cancelOwnerResourceActivation])
 
-  const entityIdsWithResources = useMemo(
-    () => new Set([...resourceCountByEntityId].flatMap(([entityId, count]) => (count > 0 ? [entityId] : []))),
-    [resourceCountByEntityId]
-  )
   const orderSignature = useMemo(
     () => entities.map((entity) => `${entity.id}:${entity.orderKey ?? ''}`).join('|'),
     [entities]
@@ -86,8 +79,7 @@ export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TR
   }, [orderSignature])
 
   const items = useMemo<TEntity[]>(() => {
-    const filtered = entities.filter((entity) => entityIdsWithResources.has(entity.id))
-    const ordered = [...filtered].sort((a, b) => compareResourceOrderKey(a.orderKey, b.orderKey))
+    const ordered = [...entities].sort((a, b) => compareResourceOrderKey(a.orderKey, b.orderKey))
     let base = ordered
     if (optimisticOrderIds) {
       const byId = new Map(ordered.map((entity) => [entity.id, entity]))
@@ -103,10 +95,10 @@ export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TR
     const pinned = base.filter((entity) => entity.pinned)
     if (pinned.length === 0) return base
     return [...pinned, ...base.filter((entity) => !entity.pinned)]
-  }, [entities, entityIdsWithResources, optimisticOrderIds])
+  }, [entities, optimisticOrderIds])
 
   const listStatus: ResourceListStatus = isError ? 'error' : isLoading && items.length === 0 ? 'loading' : 'idle'
-  const selectedId = activeEntityId && entityIdsWithResources.has(activeEntityId) ? activeEntityId : null
+  const selectedId = activeEntityId && items.some((item) => item.id === activeEntityId) ? activeEntityId : null
 
   const handleReorder = useCallback(
     async (payload: ResourceListReorderPayload) => {

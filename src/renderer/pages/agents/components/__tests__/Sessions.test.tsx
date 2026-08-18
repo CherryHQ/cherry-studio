@@ -1310,17 +1310,15 @@ describe('Sessions', () => {
     expect(onShowMissingAgentSelection).not.toHaveBeenCalled()
   })
 
-  it('shows the empty task state without a creation action', () => {
+  it('shows every workspace group when there are no tasks', () => {
     const onCreateSession = vi.fn()
     setupSessions({ sessions: [] })
 
     render(<SessionsForTest onCreateSession={onCreateSession} />)
 
-    const emptyStateText = screen.getByText('No tasks')
-
-    expect(screen.queryByRole('heading', { name: 'No tasks' })).not.toBeInTheDocument()
-    expect(emptyStateText.querySelector('svg')).not.toBeInTheDocument()
-    expect(screen.queryByText('Tasks will appear here after you start one.')).not.toBeInTheDocument()
+    expect(screen.queryByText('No tasks')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Project A Workspace' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Project B Workspace' })).toBeInTheDocument()
     expect(getHeaderNewTaskButton()).toBeInTheDocument()
     expect(onCreateSession).not.toHaveBeenCalled()
   })
@@ -3672,6 +3670,27 @@ describe('Sessions', () => {
     )
     expect(dataApiMocks.refetchWorkspaces).not.toHaveBeenCalled()
     expect(sessionDataMocks.reload).not.toHaveBeenCalled()
+  })
+
+  it('deletes a workspace group that does not own any sessions', async () => {
+    setupSessions({ sessions: [] })
+
+    render(<SessionsForTest />)
+
+    const workdirGroup = screen.getByRole('button', { name: 'Project A Workspace' }).closest('div')
+    expect(workdirGroup).not.toBeNull()
+    fireEvent.pointerDown(within(workdirGroup as HTMLElement).getByRole('button', { name: 'More' }))
+    fireEvent.click(
+      within(workdirGroup as HTMLElement).getByRole('menuitem', {
+        name: 'Delete work directory'
+      })
+    )
+
+    await vi.waitFor(() =>
+      expect(dataApiMocks.deleteWorkspace).toHaveBeenCalledWith({
+        params: { workspaceId: 'ws-a' }
+      })
+    )
   })
 
   it('creates sessions from workspace group actions', async () => {

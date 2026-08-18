@@ -90,13 +90,7 @@ export function AgentResourceList({
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
   const [sessionSortBy, setSessionSortBy] = usePreference('agent.session.sort_type')
   const { agents, isLoading: isAgentsLoading, error: agentsError, refetch: refetchAgents } = useAgents()
-  const {
-    stats: sessionStats,
-    isStatsLoading: isSessionStatsLoading,
-    statsError: sessionsError,
-    refetchStats: reload,
-    loadLatestSession
-  } = agentSessionsSource
+  const { loadLatestSession } = agentSessionsSource
   const {
     isLoading: isAgentPinsLoading,
     isRefreshing: isAgentPinsRefreshing,
@@ -114,13 +108,6 @@ export function AgentResourceList({
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
   const agentPinnedIdSet = useMemo(() => new Set(agentPinnedIds), [agentPinnedIds])
   const isAgentPinActionDisabled = isAgentPinsLoading || isAgentPinsRefreshing || isAgentPinsMutating
-  const sessionCountByAgentId = useMemo(
-    () =>
-      new Map(
-        (sessionStats?.byAgent ?? []).flatMap(({ agentId, count }) => (agentId ? [[agentId, count] as const] : []))
-      ),
-    [sessionStats?.byAgent]
-  )
   const handleActivationError = useCallback(
     (error: unknown) => {
       logger.error('Failed to activate agent resource from classic-layout rail', { error })
@@ -199,10 +186,9 @@ export function AgentResourceList({
   )
   const { items, listStatus, selectedId, handleSelect, handleReorder } = useResourceEntityRail({
     entities,
-    resourceCountByEntityId: sessionCountByAgentId,
     activeEntityId: activeAgentId,
-    isLoading: isAgentsLoading || isSessionStatsLoading,
-    isError: !!(agentsError || sessionsError),
+    isLoading: isAgentsLoading,
+    isError: !!agentsError,
     onPickResource: handlePickSession,
     onCreateResource: onCreateSession,
     loadResourceForEntity: loadLatestSessionForAgent,
@@ -274,9 +260,6 @@ export function AgentResourceList({
             throw error
           }
           if (deletesActiveAgent) await onActiveAgentDeleted?.(agentId)
-
-          if (!deleteTasksOnly) await refetchAgents()
-          await reload()
         }
         if (deletesActiveAgent && requestContextTransition) await requestContextTransition(deleteAndSettle)
         else await deleteAndSettle()
@@ -297,8 +280,6 @@ export function AgentResourceList({
       deletingAgentId,
       onActiveAgentDeleted,
       prepareActiveAgentDeletion,
-      refetchAgents,
-      reload,
       requestContextTransition,
       t
     ]
