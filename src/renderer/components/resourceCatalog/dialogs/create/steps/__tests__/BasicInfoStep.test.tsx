@@ -94,39 +94,39 @@ describe('BasicInfoStep', () => {
     )
   })
 
-  it('uses the shared select control for immutable runtime choices without a pi-only hint', async () => {
-    const user = userEvent.setup()
+  it('exposes every supported runtime as a selectable card and marks the choice immutable', () => {
     render(<Harness runtimeSelectable />)
 
     expect(screen.getByText('library.config.agent.field.runtime.immutable_hint')).toBeInTheDocument()
-    const runtimeSelect = screen.getByLabelText('library.config.agent.field.runtime.label')
-    expect(runtimeSelect).toHaveAttribute('role', 'combobox')
-    expect(runtimeSelect).toHaveTextContent('library.config.agent.field.runtime.selected.claude_code')
-    await user.click(runtimeSelect)
-    expect(
-      screen.getByRole('option', { name: 'library.config.agent.field.runtime.option.claude_code' })
-    ).toBeInTheDocument()
-    expect(screen.getByRole('option', { name: 'library.config.agent.field.runtime.option.pi' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: /runtime.option.claude_code/ })).toBeChecked()
+    expect(screen.getByRole('radio', { name: /runtime.option.pi/ })).not.toBeChecked()
+    expect(screen.getByRole('radio', { name: /runtime.option.dsh/ })).not.toBeChecked()
     expect(screen.queryByText('library.config.agent.field.runtime.pi_hint')).not.toBeInTheDocument()
-    expect(screen.getByLabelText('library.config.agent.field.permission_mode.label')).toHaveTextContent(
-      'agent.settings.tooling.permissionMode.default.title'
-    )
   })
 
   it('switches to the selected runtime permission default', async () => {
     const user = userEvent.setup()
     render(<Harness runtimeSelectable />)
 
-    await user.click(screen.getByLabelText('library.config.agent.field.runtime.label'))
-    await user.click(screen.getByRole('option', { name: 'library.config.agent.field.runtime.option.pi' }))
-
-    expect(screen.getByLabelText('library.config.agent.field.runtime.label')).toHaveTextContent(
-      'library.config.agent.field.runtime.selected.pi'
-    )
     expect(screen.getByLabelText('library.config.agent.field.permission_mode.label')).toHaveTextContent(
-      'agent.settings.tooling.permissionMode.acceptEdits.title'
+      'agent.settings.tooling.permissionMode.default.title'
     )
-    expect(screen.getByTestId('permission-mode')).toHaveTextContent('acceptEdits')
+
+    await user.click(screen.getByRole('radio', { name: /runtime.option.pi/ }))
+
+    expect(screen.getByRole('radio', { name: /runtime.option.pi/ })).toBeChecked()
+    expect(screen.getByLabelText('library.config.agent.field.permission_mode.label')).toHaveTextContent(
+      'agent.settings.tooling.permissionMode.auto.title'
+    )
+    expect(screen.getByTestId('permission-mode')).toHaveTextContent('auto')
+
+    await user.click(screen.getByRole('radio', { name: /runtime.option.dsh/ }))
+
+    expect(screen.getByRole('radio', { name: /runtime.option.dsh/ })).toBeChecked()
+    expect(screen.getByLabelText('library.config.agent.field.permission_mode.label')).toHaveTextContent(
+      'agent.settings.tooling.permissionMode.default.title'
+    )
+    expect(screen.getByTestId('permission-mode')).toHaveTextContent('default')
   })
 
   it('clears the missing-model warning when a prefilled model resolves asynchronously', async () => {

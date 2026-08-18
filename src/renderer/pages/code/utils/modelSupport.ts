@@ -26,6 +26,7 @@ export function modelSupportsCliTool(cliTool: CodeCli, model: Model): boolean {
         ...OPENAI_LIKE_ENDPOINTS
       ])
     case CodeCli.OPENCLAW:
+    case CodeCli.DEEPSEEK_HARNESS:
       return hasAnyModelEndpoint(model, [ENDPOINT_TYPE.ANTHROPIC_MESSAGES, ...OPENAI_LIKE_ENDPOINTS])
     case CodeCli.GEMINI_CLI:
       return hasModelEndpoint(model, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)

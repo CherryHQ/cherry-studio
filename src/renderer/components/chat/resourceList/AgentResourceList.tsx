@@ -30,7 +30,6 @@ import {
   SessionListOptionsMenu
 } from './base'
 import { ResourceEntityRail, type ResourceEntityRailItem } from './ResourceEntityRail'
-import { sortResourceItemsByPinnedTime } from './resourceEntitySort'
 import { type ResourceEntityRailReorderAnchor, useResourceEntityRail } from './useResourceEntityRail'
 
 const logger = loggerService.withContext('AgentResourceList')
@@ -55,7 +54,7 @@ type AgentResourceListProps = {
   onManageAgents?: () => void | Promise<void>
   onSelectSession: (sessionId: string, session: AgentSessionEntity) => void
   onSelectedAgentClick?: () => void | Promise<void>
-  onCreateSession: (agentId: string) => void | Promise<unknown>
+  onCreateSession: (agentId: string) => Promise<AgentSessionEntity | null>
   onShowMissingAgentSelection?: () => void | Promise<void>
   /**
    * Called after the currently-active agent is deleted so the classic-layout page can
@@ -95,7 +94,8 @@ export function AgentResourceList({
     isPinsLoading,
     isValidating,
     error: sessionsError,
-    reload
+    reload,
+    loadLatestSession
   } = agentSessionsSource
   const {
     isLoading: isAgentPinsLoading,
@@ -120,6 +120,24 @@ export function AgentResourceList({
     () => sessions.map((session) => ({ ...session, pinned: pinIdBySessionId.has(session.id) })),
     [pinIdBySessionId, sessions]
   )
+  const handleActivationError = useCallback(
+    (error: unknown) => {
+      logger.error('Failed to activate agent resource from classic-layout rail', { error })
+      toast.error(formatErrorMessageWithPrefix(error, t('common.error')))
+    },
+    [t]
+  )
+  const handleCreateSession = useCallback(
+    async (agentId: string) => {
+      try {
+        const session = await onCreateSession(agentId)
+        if (session) onSelectSession(session.id, session)
+      } catch (error) {
+        handleActivationError(error)
+      }
+    },
+    [handleActivationError, onCreateSession, onSelectSession]
+  )
 
   const entities = useMemo<ResourceEntityRailItem[]>(
     () =>
@@ -138,7 +156,7 @@ export function AgentResourceList({
                 type="button"
                 aria-label={t('agent.session.new')}
                 onClick={() => {
-                  void onCreateSession(agent.id)
+                  void handleCreateSession(agent.id)
                 }}>
                 <NewConversationIcon className="block" />
               </ResourceList.GroupHeaderActionButton>
@@ -146,13 +164,9 @@ export function AgentResourceList({
           )
         }
       }),
-    [agentPinnedIdSet, agents, assistantIconType, defaultModelId, onCreateSession, t]
+    [agentPinnedIdSet, agents, assistantIconType, defaultModelId, handleCreateSession, t]
   )
 
-  const sortSessionsForEntity = useCallback(
-    (entitySessions: SessionListItem[]) => sortResourceItemsByPinnedTime(entitySessions, new Date()),
-    []
-  )
   const getSessionAgentId = useCallback((session: SessionListItem) => session.agentId, [])
   const handlePickSession = useCallback(
     (session: SessionListItem) => onSelectSession(session.id, session),
@@ -171,7 +185,6 @@ export function AgentResourceList({
     },
     [t]
   )
-
   const { items, listStatus, selectedId, handleSelect, handleReorder } = useResourceEntityRail({
     entities,
     resources: sessionItems,
@@ -179,9 +192,10 @@ export function AgentResourceList({
     activeEntityId: activeAgentId,
     isLoading: isAgentsLoading || isLoading || isLoadingAll || !isFullyLoaded || isPinsLoading,
     isError: !!(agentsError || sessionsError),
-    sortResourcesForEntity: sortSessionsForEntity,
     onPickResource: handlePickSession,
+    loadResourceForEntity: loadLatestSession,
     onCreateResource: onCreateSession,
+    onActivationError: handleActivationError,
     reorder: reorderAgentEntity,
     refetchEntities: refetchAgents,
     onReorderError: handleReorderError

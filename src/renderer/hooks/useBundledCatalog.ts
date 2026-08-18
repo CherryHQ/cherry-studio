@@ -1,6 +1,6 @@
 import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useBundledCatalog')
@@ -19,6 +19,13 @@ export function useBundledCatalog<TItem>({ catalog, enabled = true, load }: UseB
   const [resourcesPath] = useCache('app.path.resources')
   const [items, setItems] = useState<TItem[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const loadedCatalogRef = useRef<{
+    catalog: string
+    items: TItem[]
+    language: string
+    load: BundledCatalogLoader<TItem>
+    resourcesPath: string
+  } | null>(null)
 
   useEffect(() => {
     if (!enabled) {
@@ -33,12 +40,29 @@ export function useBundledCatalog<TItem>({ catalog, enabled = true, load }: UseB
       return
     }
 
+    // Activity reconnects effects when a tab becomes visible; reuse matching loaded data
+    // so returning to a tab cannot re-read or reorder its catalog.
+    const loadedCatalog = loadedCatalogRef.current
+    if (
+      loadedCatalog?.catalog === catalog &&
+      loadedCatalog.language === language &&
+      loadedCatalog.load === load &&
+      loadedCatalog.resourcesPath === resourcesPath
+    ) {
+      setItems(loadedCatalog.items)
+      setIsLoading(false)
+      return
+    }
+
     let cancelled = false
     setIsLoading(true)
 
     void load(resourcesPath, language)
       .then((loadedItems) => {
-        if (!cancelled) setItems(loadedItems)
+        if (!cancelled) {
+          loadedCatalogRef.current = { catalog, items: loadedItems, language, load, resourcesPath }
+          setItems(loadedItems)
+        }
       })
       .catch((error) => {
         if (cancelled) return

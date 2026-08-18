@@ -84,13 +84,19 @@ const { localEmbeddingDownloadService } = await import('../LocalEmbeddingDownloa
 const MODELS_ROOT = '/mock/feature.embedding.models'
 const MODEL_DIR = `${MODELS_ROOT}/onnx-community/Qwen3-Embedding-0.6B-ONNX`
 const READY_FILE = 'model_quantized.onnx'
+const REQUIRED_FILES = ['config.json', 'tokenizer_config.json', 'tokenizer.json', `onnx/${READY_FILE}`]
 
 function broadcastSpy() {
   return vi.mocked(application.get('IpcApiService').broadcast)
 }
 
+/** transformers.js omits the revision segment for `main` and includes it otherwise. */
+function revisionCacheDir(revision: string): string {
+  return revision === 'main' ? MODEL_DIR : `${MODEL_DIR}/${revision}`
+}
+
 function modelScopeCachePath(file: string): string {
-  return `${MODEL_DIR}/master/${file}`
+  return `${revisionCacheDir('master')}/${file}`
 }
 
 /** The simulated on-disk tree, shared by the existsSync probe and the rm below. */
@@ -103,6 +109,13 @@ function mockCacheFiles(files: string[]): void {
 
 /** Recursive rm that actually prunes the simulated tree, so a test asserting the weights
  * survived a failure cannot pass just because the probe was pinned to a stale file list. */
+/** What a mirror leaves on disk once its download really completes. Downloads write the
+ * cache, so tests that stub one must too — the post-download probe reads exactly this. */
+function materializeMirrorCache(source: { revision: string }): void {
+  const dir = revisionCacheDir(source.revision)
+  mockCacheFiles([...cachedPaths, MODEL_DIR, ...REQUIRED_FILES.map((file) => `${dir}/${file}`)])
+}
+
 function mockRecursiveRm(target: unknown): Promise<void> {
   const root = String(target)
   for (const path of cachedPaths) {
@@ -122,11 +135,10 @@ describe('LocalEmbeddingDownloadService', () => {
     // clearAllMocks keeps implementations — reset the cache probe so one test's
     // on-disk layout cannot leak into the next (mirror order consults the cache).
     mockCacheFiles([])
+    loadEmbedding.mockImplementation(async (source: { revision: string }) => materializeMirrorCache(source))
   })
 
   describe('ready probe', () => {
-    const requiredFiles = ['config.json', 'tokenizer_config.json', 'tokenizer.json', `onnx/${READY_FILE}`]
-
     it('reports ready for the HuggingFace main-revision cache layout', () => {
       mockCacheFiles([
         MODEL_DIR,
@@ -140,7 +152,7 @@ describe('LocalEmbeddingDownloadService', () => {
     })
 
     it('reports ready for the ModelScope master-revision cache layout', () => {
-      mockCacheFiles([MODEL_DIR, ...requiredFiles.map(modelScopeCachePath)])
+      mockCacheFiles([MODEL_DIR, ...REQUIRED_FILES.map(modelScopeCachePath)])
 
       expect(localEmbeddingDownloadService.getStatus()).toBe('ready')
     })
@@ -196,12 +208,13 @@ describe('LocalEmbeddingDownloadService', () => {
   })
 
   it('drives the progress bar off the .onnx weights only, then reports ready', async () => {
-    loadEmbedding.mockImplementation(async (_source, _repo, _dtype, onProgress) => {
+    loadEmbedding.mockImplementation(async (source, _repo, _dtype, onProgress) => {
       // The tiny sidecar files each sweep 0→100 before the weights start — they must
       // not move the bar; only the .onnx weights (≈99% of the download) drive it.
       onProgress?.({ status: 'progress', file: 'tokenizer.json', progress: 100 })
       onProgress?.({ status: 'progress', file: READY_FILE, progress: 0 })
       onProgress?.({ status: 'progress', file: READY_FILE, progress: 42 })
+      materializeMirrorCache(source)
     })
 
     await localEmbeddingDownloadService.download()
@@ -228,12 +241,13 @@ describe('LocalEmbeddingDownloadService', () => {
   })
 
   it('holds the bar at 100 through the dataless done event instead of snapping to 0', async () => {
-    loadEmbedding.mockImplementation(async (_source, _repo, _dtype, onProgress) => {
+    loadEmbedding.mockImplementation(async (source, _repo, _dtype, onProgress) => {
       // transformers.js brackets the byte stream with dataless 'initiate'/'done' events;
       // only the middle 'progress' events carry loaded/total.
       onProgress?.({ status: 'initiate', file: READY_FILE })
       onProgress?.({ status: 'progress', file: READY_FILE, progress: 100, loaded: 614, total: 614 })
       onProgress?.({ status: 'done', file: READY_FILE })
+      materializeMirrorCache(source)
     })
 
     await localEmbeddingDownloadService.download()
@@ -336,6 +350,40 @@ describe('LocalEmbeddingDownloadService', () => {
         'local_model.download_progress',
         expect.objectContaining({ status: 'error', errorCode: 'download_failed' })
       )
+    })
+
+    it('tries the next mirror when one resolves without leaving the cache on disk', async () => {
+      // transformers.js can serve a model whose files never reached disk (a cache write it
+      // only warns about), and that mirror's revision dir is then unusable for inference.
+      loadEmbedding.mockImplementationOnce(async () => undefined)
+
+      await expect(localEmbeddingDownloadService.download()).resolves.toBe('ready')
+
+      expect(loadEmbedding).toHaveBeenCalledTimes(2)
+      expect(attemptedHost(1)).toContain('modelscope.cn')
+      expect(localEmbeddingDownloadService.getStatus()).toBe('ready')
+    })
+
+    it('never reports ready when no mirror leaves a complete cache', async () => {
+      // The infinite re-download: `ready` was declared off "loadEmbedding resolved", so the
+      // card flashed ready, the next on-disk probe said incomplete, and returning to the
+      // page re-fetched the ~600MB weights — for as long as a sidecar file kept missing.
+      loadEmbedding.mockImplementation(async (source: { revision: string }) => {
+        const dir = revisionCacheDir(source.revision)
+        const landed = REQUIRED_FILES.filter((file) => file !== 'tokenizer.json')
+        mockCacheFiles([...cachedPaths, MODEL_DIR, ...landed.map((file) => `${dir}/${file}`)])
+      })
+
+      const error = await localEmbeddingDownloadService.download().catch((caught) => caught)
+
+      expect(error).toBeInstanceOf(AggregateError)
+      expect(error.message).toContain('tokenizer.json')
+      expect(loadEmbedding).toHaveBeenCalledTimes(2)
+      expect(broadcastSpy()).not.toHaveBeenCalledWith(
+        'local_model.download_progress',
+        expect.objectContaining({ status: 'ready' })
+      )
+      expect(localEmbeddingDownloadService.getStatusInfo()).toEqual({ status: 'error', errorCode: 'download_failed' })
     })
 
     it('does not try the next mirror after a user cancel', async () => {
