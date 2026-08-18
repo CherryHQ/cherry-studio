@@ -18,16 +18,9 @@ export type ResolveRemoteFetchUrlOptions = {
 }
 
 const BLOCKED_HOSTNAMES = new Set(['localhost', 'localhost.'])
-const BLOCKED_IPV4_RANGES = new Set([
-  'broadcast',
-  'carrierGradeNat',
-  'linkLocal',
-  'loopback',
-  'multicast',
-  'private',
-  'reserved',
-  'unspecified'
-])
+// `carrierGradeNat` (real ISP/Tailscale peers) and `reserved` (proxy fake-IP handles such as
+// 198.18.0.0/15, TEST-NET, 240.0.0.0/4) are reachable destinations, not intranet services.
+const BLOCKED_IPV4_RANGES = new Set(['broadcast', 'linkLocal', 'loopback', 'multicast', 'private', 'unspecified'])
 const BLOCKED_IPV6_RANGES = new Set([
   '6to4',
   'benchmarking',
@@ -36,7 +29,6 @@ const BLOCKED_IPV6_RANGES = new Set([
   'loopback',
   'multicast',
   'reserved',
-  'rfc6052',
   'rfc6145',
   'teredo',
   'uniqueLocal',
@@ -49,6 +41,7 @@ const BLOCKED_IPV6_CIDR_RANGES: ReadonlyArray<readonly [ipaddr.IPv6, number]> = 
   [ipaddr.IPv6.parse('5f00::'), 16]
 ]
 const PUBLIC_IPV6_RANGE: readonly [ipaddr.IPv6, number] = [ipaddr.IPv6.parse('2000::'), 3]
+const NAT64_WELL_KNOWN_PREFIX: readonly [ipaddr.IPv6, number] = [ipaddr.IPv6.parse('64:ff9b::'), 96]
 
 function normalizeHostname(hostname: string): string {
   if (hostname.startsWith('[') && hostname.endsWith(']')) {
@@ -74,6 +67,17 @@ function isLocalHostname(hostname: string): boolean {
   return BLOCKED_HOSTNAMES.has(normalized) || normalized.endsWith('.localhost') || normalized.endsWith('.localhost.')
 }
 
+/** Embedded IPv4 of a NAT64 well-known-prefix address, which is how IPv6-only networks reach IPv4. */
+function getNat64EmbeddedIpv4(address: ipaddr.IPv4 | ipaddr.IPv6): ipaddr.IPv4 | undefined {
+  const [prefixAddress, prefixBits] = NAT64_WELL_KNOWN_PREFIX
+
+  if (address.kind() !== 'ipv6' || !address.match(prefixAddress, prefixBits)) {
+    return undefined
+  }
+
+  return new ipaddr.IPv4(address.toByteArray().slice(12))
+}
+
 function isBlockedIpHostname(hostname: string): boolean {
   const address = parseIpHostname(hostname)
 
@@ -83,6 +87,11 @@ function isBlockedIpHostname(hostname: string): boolean {
 
   if (address.kind() === 'ipv4') {
     return BLOCKED_IPV4_RANGES.has(address.range())
+  }
+
+  const nat64EmbeddedIpv4 = getNat64EmbeddedIpv4(address)
+  if (nat64EmbeddedIpv4) {
+    return BLOCKED_IPV4_RANGES.has(nat64EmbeddedIpv4.range())
   }
 
   const [publicRangeAddress, publicRangeBits] = PUBLIC_IPV6_RANGE
@@ -247,20 +256,22 @@ async function resolveRemoteFetchAddress(parsedUrl: URL, signal: AbortSignal | u
   }
 
   const addresses = await raceWithAbort(lookup(normalizeHostname(parsedUrl.hostname), { all: true }), signal)
-  const blockedAddress = addresses.find((address) => isBlockedIpHostname(address.address))
 
-  if (blockedAddress) {
-    throw new Error(
-      `Unsafe remote url: DNS resolved to local or private address (${parsedUrl.hostname} -> ${blockedAddress.address})`
-    )
+  // The connection is pinned to the address returned here, so a rejected answer only has to be
+  // skipped rather than fail the whole hostname.
+  const safeAddress = addresses.find((address) => !isBlockedIpHostname(address.address))
+  if (safeAddress) {
+    return toRemoteFetchAddress(safeAddress)
   }
 
-  const firstAddress = addresses[0]
-  if (!firstAddress) {
+  const blockedAddress = addresses[0]
+  if (!blockedAddress) {
     throw new Error(`Unsafe remote url: DNS returned no addresses (${parsedUrl.hostname})`)
   }
 
-  return toRemoteFetchAddress(firstAddress)
+  throw new Error(
+    `Unsafe remote url: DNS resolved to local or private address (${parsedUrl.hostname} -> ${blockedAddress.address})`
+  )
 }
 
 function toRemoteFetchAddress(address: ipaddr.IPv4 | ipaddr.IPv6 | LookupAddress): RemoteFetchAddress {

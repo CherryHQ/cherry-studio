@@ -7,12 +7,18 @@ Main-process direct URL fetches can receive renderer, assistant, or provider-con
 Direct main-process fetches of untrusted HTTP(S) URLs must:
 
 - reject non-HTTP(S) schemes and embedded credentials;
-- reject localhost, private, link-local, multicast, reserved, and unspecified literal IP targets;
+- reject localhost, private, link-local, multicast, broadcast, and unspecified literal IP targets,
+  including the IPv4 address embedded in a NAT64 target;
 - resolve hostname DNS results before opening the request;
-- reject the request if any resolved address is local or private;
+- reject the request if no resolved address is usable;
 - bind the actual connection to a prevalidated address while preserving the original `Host` header and TLS SNI;
 - reject redirects by default;
 - bound the response body before buffering it in the main process.
+
+Reachable-but-unusual destinations are not private addresses and must stay allowed: proxy fake-IP
+ranges (`198.18.0.0/15`, used by Clash/mihomo TUN and Surge Enhanced Mode), carrier-grade NAT
+(`100.64.0.0/10`), and the NAT64 well-known prefix. Blocking them breaks every fetch for proxy and
+IPv6-only users without denying access to any internal service.
 
 ## Why Not `net.fetch`
 
