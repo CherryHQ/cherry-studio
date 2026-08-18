@@ -454,23 +454,26 @@ async function buildToolPermissions(
       return { behavior: 'deny', message: 'Tool request was cancelled' }
     }
 
-    // Busy-session enqueue/steer cannot rebuild a connection's baked policy, so enforce per-turn
-    // no-responder denial at fire time for interactive and approval-required tools. PreToolUse
-    // mirrors both groups for bypassPermissions/acceptEdits, where the SDK skips `canUseTool`.
-    const interactionState = application.get('AgentSessionRuntimeService').getInteractionState(session.id)
-    const requiresInteractiveResponder =
-      claudeToolRequiresUserInteraction(toolName) ||
-      findBuiltinToolPolicy(toolName, assistantMcpEnabled)?.approval === 'required'
-    if (requiresInteractiveResponder && interactionState.userResponse === 'unavailable') {
-      return { behavior: 'deny', message: HEADLESS_INTERACTIVE_TOOL_DENIAL }
-    }
-
     // Resolve the snapshot by id at fire-time — a warm-pooled query's baked `canUseTool` must read
     // the live session snapshot, not a per-build instance the running subprocess never sees.
     const snapshot = sessionState().getToolPolicySnapshot(session.id)
     if (!snapshot) {
       logger.warn('canUseTool fired with no live tool-policy snapshot — denying', { toolName })
       return { behavior: 'deny', message: 'Tool policy not ready' }
+    }
+
+    // Busy-session enqueue/steer cannot rebuild a connection's baked policy, so enforce the per-turn
+    // no-responder denial at fire time too. It mirrors the guard table's headless rules — Full Access
+    // lifts it for `bypassApproval: 'lift'` tools — instead of relying on the SDK skipping
+    // `canUseTool` under bypassPermissions.
+    const interactionState = application.get('AgentSessionRuntimeService').getInteractionState(session.id)
+    const policy = findBuiltinToolPolicy(toolName, assistantMcpEnabled)
+    const approvalHoldsInThisMode =
+      policy?.approval === 'required' &&
+      !(snapshot.getPermissionMode() === 'bypassPermissions' && policy.bypassApproval === 'lift')
+    const requiresInteractiveResponder = claudeToolRequiresUserInteraction(toolName) || approvalHoldsInThisMode
+    if (requiresInteractiveResponder && interactionState.userResponse === 'unavailable') {
+      return { behavior: 'deny', message: HEADLESS_INTERACTIVE_TOOL_DENIAL }
     }
 
     const access = snapshot.resolve(toolName, input)
@@ -486,10 +489,7 @@ async function buildToolPermissions(
     // Resolved per turn, so an interactive turn on a channel-linked session still prompts.
     const isBackgroundAgent =
       (typeof opts.agentID === 'string' && opts.agentID.length > 0) || interactionState.currentTurn === 'headless'
-    const requiresUserResponse =
-      claudeToolRequiresUserInteraction(toolName) ||
-      findBuiltinToolPolicy(toolName, assistantMcpEnabled)?.approval === 'required' ||
-      opts.matchedAskRule !== undefined
+    const requiresUserResponse = requiresInteractiveResponder || opts.matchedAskRule !== undefined
 
     // Background agents do not inherit the parent permission mode. Let ordinary requests proceed
     // without multiplying approval clicks; explicit PreToolUse deny hooks still run before this

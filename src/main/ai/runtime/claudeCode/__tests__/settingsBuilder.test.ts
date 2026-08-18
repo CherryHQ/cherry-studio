@@ -1576,6 +1576,49 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(getInteractionState).toHaveBeenCalledWith('session-1')
   })
 
+  it('lifts the fire-time headless denial under bypassPermissions only for liftable approvals', async () => {
+    const getInteractionState = vi.fn(() => ({ currentTurn: 'headless', userResponse: 'unavailable' }))
+    mocks.applicationGet.mockImplementation((name: string) => {
+      if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
+      if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
+      if (name === 'AgentSessionRuntimeService') return { getInteractionState }
+      throw new Error(`Unexpected application.get(${name})`)
+    })
+    mocks.createToolPolicySnapshot.mockResolvedValue({
+      resolve: vi.fn(),
+      isDisabled: vi.fn(() => false),
+      getPermissionMode: vi.fn(() => 'bypassPermissions'),
+      update: vi.fn(),
+      setPermissionMode: vi.fn()
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+    const decide = (toolName: string) =>
+      settings.canUseTool?.(toolName, {}, { signal: { aborted: false }, toolUseID: 'tool-use-1' } as never)
+
+    const liftable = listBuiltinToolPolicies({
+      approval: 'required',
+      bypassApproval: 'lift',
+      assistantMcpEnabled: false
+    }).map(toMcpRuntimeName)
+    for (const toolName of liftable) {
+      await expect(decide(toolName)).resolves.toEqual({ behavior: 'allow', updatedInput: {} })
+    }
+    // The delegation ceiling and tools whose whole function is a user-authored answer still deny.
+    for (const toolName of [...NON_BYPASSABLE_APPROVAL_REQUIRED_RUNTIME_NAMES, 'AskUserQuestion', 'EnterPlanMode']) {
+      await expect(decide(toolName)).resolves.toEqual({
+        behavior: 'deny',
+        message:
+          'This channel or scheduled turn has no interactive responder, so proceed without asking the user and state your assumptions instead.'
+      })
+    }
+  })
+
   it('denies interactive no-responder tools via PreToolUse so the gate fires under bypassPermissions', async () => {
     // The SDK skips `canUseTool` for auto-approved paths (bypassPermissions / acceptEdits), so the
     // per-turn denial must also run as a PreToolUse hook (which fires in every permission mode) or a
