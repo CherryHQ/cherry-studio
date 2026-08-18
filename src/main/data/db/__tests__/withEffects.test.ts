@@ -27,7 +27,11 @@ const { DbService } = await vi.importActual<{ DbService: typeof DbServiceClass }
 type DbServiceInstance = InstanceType<typeof DbService>
 
 function bareDbService(ready: boolean): DbServiceInstance {
+  const tx = {}
   const service = Object.create(DbService.prototype) as DbServiceInstance
+  Object.defineProperty(service, 'db', {
+    value: { transaction: (fn: (value: object) => unknown) => fn(tx) }
+  })
   Object.defineProperty(service, 'isReady', { value: ready })
   return service
 }
