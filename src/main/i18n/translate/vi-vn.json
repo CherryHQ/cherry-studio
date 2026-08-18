@@ -104,6 +104,18 @@
     "save_as_html": "Lưu dưới dạng HTML",
     "save_as_pdf": "Lưu dưới dạng PDF",
     "save_file": "Lưu tệp",
+    "screen_capture_permission": {
+      "cancel": "[to be translated]:Cancel",
+      "detail": "[to be translated]:Grant Screen Recording permission to \"{{appName}}\" in System Settings > Privacy & Security > Screen Recording, then restart the app.",
+      "message": "[to be translated]:Screen Recording permission is required to take screenshots.",
+      "open_settings": "[to be translated]:Open System Settings",
+      "title": "[to be translated]:Screen Recording Permission"
+    },
+    "screenshot_failed": {
+      "message": "[to be translated]:The screenshot could not be taken.",
+      "ok": "[to be translated]:OK",
+      "title": "[to be translated]:Screenshot Failed"
+    },
     "select_folder": "Chọn thư mục",
     "word_document": "Tài liệu Word"
   },

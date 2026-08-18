@@ -104,6 +104,18 @@
     "save_as_html": "保存为 HTML",
     "save_as_pdf": "保存为 PDF",
     "save_file": "保存文件",
+    "screen_capture_permission": {
+      "cancel": "取消",
+      "detail": "请在「系统设置 > 隐私与安全性 > 屏幕录制」中为「{{appName}}」开启屏幕录制权限，然后重启应用。",
+      "message": "截图需要屏幕录制权限。",
+      "open_settings": "打开系统设置",
+      "title": "屏幕录制权限"
+    },
+    "screenshot_failed": {
+      "message": "截图失败。",
+      "ok": "好",
+      "title": "截图失败"
+    },
     "select_folder": "选择文件夹",
     "word_document": "Word 文档"
   },
