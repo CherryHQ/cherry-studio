@@ -54,7 +54,7 @@ import { TopicRightPane } from './components/TopicRightPane'
 import { parseChatRouteSearch } from './routeSearch'
 import { Topics } from './Tabs/components/Topics'
 import HomeTabs from './Tabs/HomeTabs'
-import type { AddNewTopicPayload, AddNewTopicWithReusePayload } from './types'
+import type { AddNewTopicPayload } from './types'
 
 const logger = loggerService.withContext('HomePage')
 const LAST_USED_ASSISTANT_CACHE_KEY = 'ui.chat.last_used_assistant_id'
@@ -62,13 +62,6 @@ type AssistantConversationResourceKind = 'assistant'
 const ASSISTANT_CONVERSATION_RESOURCE_KINDS = [
   'assistant'
 ] as const satisfies readonly AssistantConversationResourceKind[]
-
-type NewTopicAssistantSelectionSource = 'explicit' | 'last-used' | 'first-assistant' | 'runtime-fallback'
-type ResolvedNewTopicAssistantSelection = { assistantId?: string; source: NewTopicAssistantSelectionSource }
-
-type NewTopicAssistantTargetOptions = {
-  excludedAssistantIds?: readonly string[]
-}
 
 const HomePage: FC = () => {
   const { t } = useTranslation()
@@ -143,29 +136,21 @@ const HomePage: FC = () => {
   const validLastUsedAssistantId =
     lastUsedAssistantId && assistantIdSet.has(lastUsedAssistantId) ? lastUsedAssistantId : undefined
   const isAssistantListResolved = hasAssistantsLoaded && !isAssistantsLoading && !isAssistantsRefreshing
-  const resolveNewTopicAssistantTarget = useCallback(
-    (
-      explicitAssistantId?: string | null,
-      options: NewTopicAssistantTargetOptions = {}
-    ): ResolvedNewTopicAssistantSelection => {
-      const excludedAssistantIds = new Set(options.excludedAssistantIds ?? [])
+  const resolveNewTopicAssistantId = useCallback(
+    (explicitAssistantId?: string | null): string | undefined => {
       const isAvailableAssistantId = (assistantId: string | null | undefined): assistantId is string =>
-        !!assistantId && assistantIdSet.has(assistantId) && !excludedAssistantIds.has(assistantId)
+        !!assistantId && assistantIdSet.has(assistantId)
 
       if (explicitAssistantId === null) {
-        return { source: 'explicit' }
+        return undefined
       }
       if (isAvailableAssistantId(explicitAssistantId)) {
-        return { assistantId: explicitAssistantId, source: 'explicit' }
+        return explicitAssistantId
       }
       if (isAvailableAssistantId(validLastUsedAssistantId)) {
-        return { assistantId: validLastUsedAssistantId, source: 'last-used' }
+        return validLastUsedAssistantId
       }
-      const fallbackAssistantId = assistants.find((assistant) => !excludedAssistantIds.has(assistant.id))?.id
-      if (fallbackAssistantId) {
-        return { assistantId: fallbackAssistantId, source: 'first-assistant' }
-      }
-      return { source: 'runtime-fallback' }
+      return assistants[0]?.id
     },
     [assistantIdSet, assistants, validLastUsedAssistantId]
   )
@@ -397,7 +382,7 @@ const HomePage: FC = () => {
     },
     [assistantIdSet, closeSurface, isAssistantListResolved, setActiveTopic]
   )
-  const clearActiveTopicAfterReplacementFailure = useCallback(() => {
+  const clearActiveTopicAfterRemoval = useCallback(() => {
     activeTopicSelectionRef.current = undefined
     closeSurface()
     setPendingLocateMessageId(undefined)
@@ -472,18 +457,18 @@ const HomePage: FC = () => {
   )
 
   const resolveEmptyTopic = useCallback(
-    async (payload?: AddNewTopicWithReusePayload, options?: NewTopicAssistantTargetOptions): Promise<Topic> => {
-      const selection = resolveNewTopicAssistantTarget(payload?.assistantId, options)
-      const reuseTargetAssistantId = selection.assistantId ?? (payload?.assistantId === null ? null : undefined)
+    async (payload?: AddNewTopicPayload): Promise<Topic> => {
+      const assistantId = resolveNewTopicAssistantId(payload?.assistantId)
+      const reuseTargetAssistantId = assistantId ?? (payload?.assistantId === null ? null : undefined)
       const result =
         reuseTargetAssistantId === undefined
           ? {
               topic: await createTopic({
-                ...(selection.assistantId ? { assistantId: selection.assistantId } : {})
+                ...(assistantId ? { assistantId } : {})
               }),
               created: true
             }
-          : await reuseOrCreateTopic(reuseTargetAssistantId, payload?.excludeReuseTopicId)
+          : await reuseOrCreateTopic(reuseTargetAssistantId)
 
       if (result.created) {
         void refreshTopics().catch((err) => {
@@ -492,15 +477,15 @@ const HomePage: FC = () => {
       }
       return mapApiTopicToRendererTopic(result.topic)
     },
-    [createTopic, refreshTopics, resolveNewTopicAssistantTarget, reuseOrCreateTopic]
+    [createTopic, refreshTopics, resolveNewTopicAssistantId, reuseOrCreateTopic]
   )
 
   const createAndActivateEmptyTopic = useCallback(
-    async (payload?: AddNewTopicWithReusePayload, options?: NewTopicAssistantTargetOptions): Promise<Topic | null> => {
+    async (payload?: AddNewTopicPayload): Promise<Topic | null> => {
       if (isCreatingTopicRef.current) return null
       isCreatingTopicRef.current = true
       try {
-        const topic = await resolveEmptyTopic(payload, options)
+        const topic = await resolveEmptyTopic(payload)
         activateCreatedTopic(topic)
         return topic
       } catch (err) {
@@ -514,52 +499,15 @@ const HomePage: FC = () => {
     [activateCreatedTopic, resolveEmptyTopic, t]
   )
 
-  const createAndActivateFreshTopic = useCallback(
-    async (payload: AddNewTopicPayload) => {
-      if (isCreatingTopicRef.current) return
-      isCreatingTopicRef.current = true
-      try {
-        const selection = resolveNewTopicAssistantTarget(payload.assistantId)
-        const topic = await createTopic({
-          ...(selection.assistantId ? { assistantId: selection.assistantId } : {})
-        })
-        activateCreatedTopic(mapApiTopicToRendererTopic(topic))
-        void refreshTopics().catch((err) => {
-          logger.warn('Failed to refresh topics after fresh topic create', err as Error)
-        })
-      } catch (err) {
-        logger.error('Failed to create fresh topic', err as Error)
-        toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
-      } finally {
-        isCreatingTopicRef.current = false
-      }
-    },
-    [activateCreatedTopic, createTopic, refreshTopics, resolveNewTopicAssistantTarget, t]
-  )
-
-  const handleCreateEmptyTopic = useCallback(
-    async (payload?: AddNewTopicWithReusePayload) => {
-      const created = await createAndActivateEmptyTopic(payload)
-      // Post-delete replacement (delete flow passes `excludeReuseTopicId`): if the replacement create
-      // fails, the active topic still points at the just-deleted topic — re-enter through the bare
-      // route so local state and the URL both stop identifying the deleted conversation.
-      if (!created && payload?.excludeReuseTopicId) {
-        reenterChatRoute()
-      }
-      return created
-    },
-    [createAndActivateEmptyTopic, reenterChatRoute]
-  )
-
   const handleCreateEmptyTopicForAssistant = useCallback(
     (assistantId: string | null) => resolveEmptyTopic({ assistantId }),
     [resolveEmptyTopic]
   )
 
   // No first-entry auto-create here: `DefaultAssistantSeeder` seeds one topic into every fresh
-  // database and each delete path creates its replacement, so a bare entry that resolves to
-  // nothing means the user really has no topic — the page shows its empty state and they pick
-  // "new topic". (AgentPage keeps its create-on-entry because sessions have no seeder.)
+  // database. A bare entry that resolves to nothing means the user has no topic, so the page shows
+  // its empty state until they explicitly create one. (AgentPage keeps its create-on-entry because
+  // sessions have no seeder.)
 
   // After deleting the active assistant, preserve main's global-latest fallback
   // while proving it through the exact derived query instead of a fully-loaded list.
@@ -582,9 +530,7 @@ const HomePage: FC = () => {
           setActiveTopicAndCloseResourceView(mapApiTopicToRendererTopic(nextTopic))
           return
         }
-        const created = await resolveEmptyTopic(undefined, { excludedAssistantIds: [deletedAssistantId] })
-        if (!isCurrent()) return
-        setActiveTopicAndCloseResourceView(created)
+        reenterChatRoute()
       } catch (err) {
         if (!isCurrent()) return
         logger.error('Failed to settle chat after deleting active assistant', err as Error, { deletedAssistantId })
@@ -596,7 +542,6 @@ const HomePage: FC = () => {
       lastUsedAssistantId,
       loadLatestTopic,
       reenterChatRoute,
-      resolveEmptyTopic,
       setActiveTopicAndCloseResourceView,
       setLastUsedAssistantId,
       t
@@ -782,7 +727,6 @@ const HomePage: FC = () => {
         historyRecordsActive={historyRecordsActive}
         onOpenHistoryRecords={isWindowFrame ? undefined : openHistoryRecords}
         onSelectTopic={handleResourceTopicSelect}
-        onCreateTopicAfterClear={(assistantId) => createAndActivateFreshTopic({ assistantId })}
         onSelectedAssistantClick={() => {
           closeSurface()
           if (!topicPaneOpen) setTopicPaneUserOpenIntentSeq((seq) => seq + 1)
@@ -803,9 +747,8 @@ const HomePage: FC = () => {
           setAssistantPickerOpen(true)
         }}
         setActiveTopic={setActiveTopicAndCloseResourceView}
-        onClearActiveTopic={clearActiveTopicAfterReplacementFailure}
-        onCreateTopicAfterClear={createAndActivateFreshTopic}
-        onNewTopic={isMessageOnlyView ? undefined : handleCreateEmptyTopic}
+        onClearActiveTopic={clearActiveTopicAfterRemoval}
+        onNewTopic={isMessageOnlyView ? undefined : createAndActivateEmptyTopic}
         historyRecordsActive={historyRecordsActive}
         onOpenHistoryRecords={isWindowFrame ? undefined : openHistoryRecords}
         revealRequest={topicRevealRequest}
@@ -830,9 +773,8 @@ const HomePage: FC = () => {
               activeTopic={visibleTopic}
               assistantIdFilter={activeResourceAssistantId}
               setActiveTopic={setActiveTopicAndCloseResourceView}
-              onClearActiveTopic={clearActiveTopicAfterReplacementFailure}
-              onCreateTopicAfterClear={createAndActivateFreshTopic}
-              onNewTopic={isMessageOnlyView ? undefined : handleCreateEmptyTopic}
+              onClearActiveTopic={clearActiveTopicAfterRemoval}
+              onNewTopic={isMessageOnlyView ? undefined : createAndActivateEmptyTopic}
               onSetPanePosition={setTopicListPosition}
               panePosition="right"
               revealRequest={topicRevealRequest}
@@ -878,8 +820,8 @@ const HomePage: FC = () => {
             onPaneCollapse={() => setShellPaneOpenManually(false)}
             onPaneAutoCollapseChange={handlePaneAutoCollapseChange}
             paneManualToggle={paneManualToggle}
-            onNewTopic={isMessageOnlyView ? undefined : (payload) => void handleCreateEmptyTopic(payload)}
-            onCreateEmptyTopic={isMessageOnlyView ? undefined : (payload) => void handleCreateEmptyTopic(payload)}
+            onNewTopic={isMessageOnlyView ? undefined : (payload) => void createAndActivateEmptyTopic(payload)}
+            onCreateEmptyTopic={isMessageOnlyView ? undefined : (payload) => void createAndActivateEmptyTopic(payload)}
             showResourceListControls={!isMessageOnlyView}
             sidebarOpen={shellPaneOpen}
             onSidebarToggle={toggleShellPane}

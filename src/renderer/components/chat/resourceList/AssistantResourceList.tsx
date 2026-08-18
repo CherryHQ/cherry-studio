@@ -54,7 +54,6 @@ type AssistantResourceListProps = {
   onOpenHistoryRecords?: () => void
   onManageAssistants?: () => void | Promise<void>
   onSelectTopic: (topic: Topic) => void | boolean
-  onCreateTopicAfterClear?: (assistantId: string) => void | Promise<void>
   onSelectedAssistantClick?: () => void | Promise<void>
   onCreateTopic: (assistantId: string | null) => Promise<Topic | null>
   /**
@@ -75,7 +74,6 @@ export function AssistantResourceList({
   onOpenHistoryRecords,
   onManageAssistants,
   onSelectTopic,
-  onCreateTopicAfterClear,
   onSelectedAssistantClick,
   onCreateTopic,
   onActiveAssistantDeleted
@@ -316,7 +314,6 @@ export function AssistantResourceList({
         if ((topicCountByAssistantIdRef.current.get(assistantId) ?? 0) === 0) return
 
         const result = await deleteTopicsByAssistantId(assistantId)
-        await onCreateTopicAfterClear?.(assistantId)
 
         toast.success(t('assistants.clear.success_title', { count: result.deletedCount }))
       } catch (err) {
@@ -326,14 +323,7 @@ export function AssistantResourceList({
         setClearingTopicsAssistantId(null)
       }
     },
-    [
-      clearingTopicsAssistantId,
-      deleteTopicsByAssistantId,
-      deletingAssistantId,
-      onCreateTopicAfterClear,
-      t,
-      topicCountByAssistantId
-    ]
+    [clearingTopicsAssistantId, deleteTopicsByAssistantId, deletingAssistantId, t, topicCountByAssistantId]
   )
 
   const handleDeleteAssistant = useCallback(

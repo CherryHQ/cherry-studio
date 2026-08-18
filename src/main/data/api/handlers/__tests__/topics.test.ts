@@ -111,20 +111,17 @@ describe('topicHandlers', () => {
   })
 
   describe('/topics/reusable-placeholder', () => {
-    it('forwards the exact nullable owner and exclusion to the atomic service operation', async () => {
+    it('forwards the exact nullable owner to the atomic service operation', async () => {
       const response = { topic: { id: 'topic-created' }, created: true }
       reuseOrCreatePlaceholderMock.mockReturnValueOnce(response)
 
       await expect(
         topicHandlers['/topics/reusable-placeholder'].POST({
-          body: { assistantId: null, excludeTopicId: 'topic-deleted' }
+          body: { assistantId: null }
         } as never)
       ).resolves.toBe(response)
 
-      expect(reuseOrCreatePlaceholderMock).toHaveBeenCalledWith({
-        assistantId: null,
-        excludeTopicId: 'topic-deleted'
-      })
+      expect(reuseOrCreatePlaceholderMock).toHaveBeenCalledWith({ assistantId: null })
     })
   })
 

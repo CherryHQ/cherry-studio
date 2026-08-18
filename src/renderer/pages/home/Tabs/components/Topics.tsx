@@ -107,7 +107,7 @@ import {
   type TopicImageActionType
 } from '../../messages/topicImageActionBus'
 import TopicImageCaptureHost from '../../messages/TopicImageCaptureHost'
-import type { AddNewTopicPayload, AddNewTopicWithReusePayload } from '../../types'
+import type { AddNewTopicPayload } from '../../types'
 import {
   type AssistantGroupActionContext,
   executeAssistantGroupAction,
@@ -197,7 +197,7 @@ function TopicRemoteGroupQuery({
       error: source.error,
       groupId,
       hasNext: source.hasNext,
-      isLoading: source.isLoading,
+      isLoading: source.isLoading || source.isLoadingMore,
       isRefreshing: source.isRefreshing,
       items,
       loadNext: source.loadNext,
@@ -212,6 +212,7 @@ function TopicRemoteGroupQuery({
       source.error,
       source.hasNext,
       source.isLoading,
+      source.isLoadingMore,
       source.isRefreshing,
       source.loadNext
     ]
@@ -230,8 +231,7 @@ interface Props {
   onActiveAssistantDeleted?: (assistantId: string) => void | Promise<void>
   onAddAssistant?: () => void | Promise<void>
   onClearActiveTopic?: () => void
-  onCreateTopicAfterClear?: (payload: AddNewTopicPayload) => void | Promise<void>
-  onNewTopic?: (payload?: AddNewTopicWithReusePayload) => Topic | null | void | Promise<Topic | null | void>
+  onNewTopic?: (payload?: AddNewTopicPayload) => Topic | null | void | Promise<Topic | null | void>
   onOpenHistoryRecords?: () => void
   onManageAssistants?: () => void | Promise<void>
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
@@ -333,7 +333,6 @@ export function Topics({
   onActiveAssistantDeleted,
   onAddAssistant,
   onClearActiveTopic,
-  onCreateTopicAfterClear,
   onNewTopic,
   onOpenHistoryRecords,
   onManageAssistants,
@@ -654,7 +653,7 @@ export function Topics({
       error: pinnedTopicsSource.error,
       groupId: TOPIC_PINNED_GROUP_ID,
       hasNext: hasMorePinnedTopics,
-      isLoading: pinnedTopicsSource.isLoading,
+      isLoading: pinnedTopicsSource.isLoading || pinnedTopicsSource.isLoadingMore,
       isRefreshing: isPinnedTopicsRefreshing,
       items: pinnedTopics,
       loadNext: loadNextPinnedTopics,
@@ -672,6 +671,7 @@ export function Topics({
       pinnedTopics,
       pinnedTopicsSource.error,
       pinnedTopicsSource.isLoading,
+      pinnedTopicsSource.isLoadingMore,
       refetchPinnedTopics,
       rightPanelOwnerScope,
       debouncedRemoteQuery
@@ -684,7 +684,7 @@ export function Topics({
       error: ordinaryTopicsSource.error,
       groupId: TOPIC_ORDINARY_GROUP_ID,
       hasNext: hasMoreOrdinaryTopics,
-      isLoading: ordinaryTopicsSource.isLoading,
+      isLoading: ordinaryTopicsSource.isLoading || ordinaryTopicsSource.isLoadingMore,
       isRefreshing: isOrdinaryTopicsRefreshing,
       items: flatOrdinaryTopics,
       loadNext: loadNextOrdinaryTopics,
@@ -704,6 +704,7 @@ export function Topics({
       loadNextOrdinaryTopics,
       ordinaryTopicsSource.error,
       ordinaryTopicsSource.isLoading,
+      ordinaryTopicsSource.isLoadingMore,
       refetchOrdinaryTopics,
       rightPanelOwnerScope,
       topicSortBy
@@ -1099,35 +1100,10 @@ export function Topics({
     activeTopicIdRef.current = ''
     onClearActiveTopic?.()
   }, [onClearActiveTopic])
-  const resolveTopicOwnerFallback = useCallback(
-    async (deletedTopic: Topic) => {
-      const latest = await loadLatestTopic(deletedTopic.assistantId ?? null)
-      if (latest) return mapApiTopicToRendererTopic(latest)
-
-      if (!deletedTopic.assistantId) {
-        const globalLatest = await loadLatestTopic()
-        if (globalLatest) return mapApiTopicToRendererTopic(globalLatest)
-
-        return (
-          (await onNewTopic?.({
-            excludeReuseTopicId: deletedTopic.id
-          })) ?? null
-        )
-      }
-
-      const replacement = await onNewTopic?.({
-        assistantId: deletedTopic.assistantId,
-        excludeReuseTopicId: deletedTopic.id
-      })
-      return replacement ?? null
-    },
-    [loadLatestTopic, onNewTopic]
-  )
   const { remove: coordinateTopicRemoval } = useResourceRemovalCoordinator<Topic>({
     getActiveId: getActiveTopicId,
     getGroupId: getTopicRemovalOwnerId,
     getItemId: (topic) => topic.id,
-    resolveOwnerFallback: resolveTopicOwnerFallback,
     optimisticallyRemove: optimisticallyRemoveTopic,
     restoreOptimisticRemoval: restoreOptimisticallyRemovedTopic,
     selectItem: handleSwitchTopic,
@@ -1139,7 +1115,6 @@ export function Topics({
         await coordinateTopicRemoval({
           item: topic,
           displayedItems: groupedTopics,
-          groupOrder: topicGroupSeeds.map((group) => group.id),
           commit: () => removeTopic(topic)
         })
       } catch (err) {
@@ -1148,7 +1123,7 @@ export function Topics({
         toast.error(message)
       }
     },
-    [coordinateTopicRemoval, groupedTopics, removeTopic, t, topicGroupSeeds]
+    [coordinateTopicRemoval, groupedTopics, removeTopic, t]
   )
   const handleConfirmDeleteTopic = useCallback(
     async (topic: Topic, event?: MouseEvent) => {
@@ -1318,7 +1293,6 @@ export function Topics({
         if (!confirmed) return
 
         const result = await deleteTopicsByAssistantId(assistantId)
-        await onCreateTopicAfterClear?.({ assistantId })
         toast.success(t('chat.topics.manage.delete.success', { count: result.deletedCount }))
       } catch (err) {
         logger.error('Failed to delete assistant topics', { assistantId, err })
@@ -1328,7 +1302,7 @@ export function Topics({
         setDeletingAssistantGroupId(null)
       }
     },
-    [deleteTopicsByAssistantId, globalTopicCountByAssistantId, onCreateTopicAfterClear, t]
+    [deleteTopicsByAssistantId, globalTopicCountByAssistantId, t]
   )
 
   const handleDeleteAssistant = useCallback(
@@ -2215,6 +2189,7 @@ function TopicListBody(props: TopicListBodyProps) {
     <ResourceList.Body<Topic>
       listRef={listRef}
       draggable={variant === 'draggable'}
+      emptyGroupLabel={t('chat.topics.empty.title')}
       onEndReached={onEndReached}
       errorFallback={
         <ResourceList.ErrorState>

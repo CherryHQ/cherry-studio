@@ -387,6 +387,29 @@ type GroupShowMoreProps = ComponentProps<'div'> & {
   ref?: Ref<HTMLDivElement>
 }
 
+type GroupEmptyProps = ComponentProps<'div'> & {
+  ref?: Ref<HTMLDivElement>
+}
+
+export function GroupEmpty({ children, className, ref, style, ...props }: GroupEmptyProps) {
+  return (
+    <div
+      ref={ref}
+      style={style}
+      data-resource-list-empty-group="true"
+      className={cn(
+        'flex items-center pr-1.5 text-foreground-disabled',
+        RESOURCE_LIST_DEFAULT_ROW_LAYOUT.className,
+        RESOURCE_LIST_TEXT_START_PADDING_CLASS,
+        RESOURCE_LIST_LABEL_CLASS,
+        className
+      )}
+      {...props}>
+      <span className="min-w-0 truncate">{children}</span>
+    </div>
+  )
+}
+
 export function GroupShowMore({ groupId, className, ref, style, ...props }: GroupShowMoreProps) {
   const { t } = useTranslation()
   const actions = useResourceListActions()

@@ -321,7 +321,7 @@ describe('ResourceList', () => {
     expect(ITEMS.map((item) => item.id).join(',')).toBe(originalOrder)
   })
 
-  it('renders seeded empty groups without showing the empty state', () => {
+  it('renders one placeholder row inside an expanded seeded empty group', () => {
     const Provider = ResourceList.Provider<TestItem>
 
     render(
@@ -337,6 +337,7 @@ describe('ResourceList', () => {
         <ResourceList.Frame>
           <Inspector />
           <ResourceList.Body<TestItem>
+            emptyGroupLabel="No chats"
             renderItem={(item) => (
               <ResourceList.Item item={item}>
                 <span>{item.name}</span>
@@ -348,12 +349,16 @@ describe('ResourceList', () => {
     )
 
     expect(screen.getByRole('button', { name: 'Empty Assistant' })).toBeInTheDocument()
+    expect(screen.getByText('No chats')).toBeInTheDocument()
     expect(screen.queryByText('No Resources')).not.toBeInTheDocument()
     expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
       names: [],
       visibleNames: [],
       groups: ['assistant-empty']
     })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Empty Assistant' }))
+    expect(screen.queryByText('No chats')).not.toBeInTheDocument()
   })
 
   it('keeps seeded groups before item-derived groups and toggles empty select-first groups', async () => {
@@ -2208,6 +2213,50 @@ describe('ResourceList', () => {
     expect(screen.getByText('Remote 5')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
     expect(loadNext).toHaveBeenCalledOnce()
+  })
+
+  it('keeps populated remote groups stable during background refreshes', () => {
+    const Provider = ResourceList.Provider<TestItem>
+    const items = [{ id: 'remote-1', name: 'Remote 1', kind: 'topic' as const, updatedAt: 1 }]
+    const remoteGroups = new ResourceListRemoteGroupService<TestItem>()
+    const registration = remoteGroups.register('remote')
+    const snapshot = {
+      groupId: 'remote',
+      hasNext: false,
+      isLoading: false,
+      isRefreshing: true,
+      items,
+      loadNext: vi.fn(),
+      queryKey: 'remote-query',
+      retry: vi.fn()
+    }
+    remoteGroups.update(registration, snapshot)
+
+    render(
+      <Provider
+        items={items}
+        remoteGroups={remoteGroups}
+        groupBy={() => ({ id: 'remote', label: 'Remote group', count: 1 })}
+        groupShowMoreLabel="Show more">
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    expect(screen.getByText('Remote 1')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'common.loading' })).not.toBeInTheDocument()
+
+    act(() => {
+      remoteGroups.update(registration, { ...snapshot, isLoading: true })
+    })
+    expect(screen.getByRole('button', { name: 'common.loading' })).toBeInTheDocument()
   })
 
   it('retries only the failed remote group', () => {

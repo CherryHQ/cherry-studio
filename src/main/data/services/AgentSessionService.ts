@@ -515,7 +515,6 @@ export class AgentSessionService {
               and(
                 eq(sessionsTable.agentId, dto.agentId),
                 workspaceFilter,
-                dto.excludeSessionId ? notInArray(sessionsTable.id, [dto.excludeSessionId]) : undefined,
                 eq(sessionsTable.isNameManuallyEdited, false),
                 sql`trim(${sessionsTable.name}) = ''`,
                 sql`NOT EXISTS (

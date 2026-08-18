@@ -128,8 +128,7 @@ export type LatestTopicQuery = z.infer<typeof LatestTopicQuerySchema>
 
 /** Exact creation target for atomically reusing or creating an empty topic. */
 export const ReuseOrCreateTopicSchema = z.strictObject({
-  assistantId: z.uuidv4().nullable(),
-  excludeTopicId: z.string().min(1).optional()
+  assistantId: z.uuidv4().nullable()
 })
 export type ReuseOrCreateTopicDto = z.infer<typeof ReuseOrCreateTopicSchema>
 

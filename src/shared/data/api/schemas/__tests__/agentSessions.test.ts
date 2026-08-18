@@ -88,13 +88,11 @@ describe('ReuseOrCreateAgentSessionSchema', () => {
     expect(
       ReuseOrCreateAgentSessionSchema.parse({
         agentId: AGENT_ID,
-        workspace: { type: 'user', workspaceId: WORKSPACE_ID },
-        excludeSessionId: 'session-deleted'
+        workspace: { type: 'user', workspaceId: WORKSPACE_ID }
       })
     ).toEqual({
       agentId: AGENT_ID,
-      workspace: { type: 'user', workspaceId: WORKSPACE_ID },
-      excludeSessionId: 'session-deleted'
+      workspace: { type: 'user', workspaceId: WORKSPACE_ID }
     })
   })
 

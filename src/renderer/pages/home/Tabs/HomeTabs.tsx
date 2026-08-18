@@ -5,7 +5,7 @@ import type { Topic } from '@renderer/types/topic'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import type { CSSProperties, FC } from 'react'
 
-import type { AddNewTopicPayload, AddNewTopicWithReusePayload } from '../types'
+import type { AddNewTopicPayload } from '../types'
 import { Topics } from './components/Topics'
 
 interface Props {
@@ -17,8 +17,7 @@ interface Props {
   onActiveAssistantDeleted?: (assistantId: string) => void | Promise<void>
   onAddAssistant?: () => void | Promise<void>
   onClearActiveTopic?: () => void
-  onCreateTopicAfterClear?: (payload: AddNewTopicPayload) => void | Promise<void>
-  onNewTopic?: (payload?: AddNewTopicWithReusePayload) => Topic | null | void | Promise<Topic | null | void>
+  onNewTopic?: (payload?: AddNewTopicPayload) => Topic | null | void | Promise<Topic | null | void>
   onOpenHistoryRecords?: () => void
   onManageAssistants?: () => void | Promise<void>
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
@@ -37,7 +36,6 @@ const HomeTabs: FC<Props> = ({
   onActiveAssistantDeleted,
   onAddAssistant,
   onClearActiveTopic,
-  onCreateTopicAfterClear,
   onNewTopic,
   onOpenHistoryRecords,
   onManageAssistants,
@@ -59,7 +57,6 @@ const HomeTabs: FC<Props> = ({
         onAddAssistant={onAddAssistant}
         setActiveTopic={setActiveTopic}
         onClearActiveTopic={onClearActiveTopic}
-        onCreateTopicAfterClear={onCreateTopicAfterClear}
         onNewTopic={onNewTopic}
         onOpenHistoryRecords={onOpenHistoryRecords}
         onManageAssistants={onManageAssistants}

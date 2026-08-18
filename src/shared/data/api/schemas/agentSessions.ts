@@ -158,8 +158,7 @@ export type LatestAgentSessionQuery = z.infer<typeof LatestAgentSessionQuerySche
 /** Exact creation target for atomically reusing or creating an empty session. */
 export const ReuseOrCreateAgentSessionSchema = z.strictObject({
   agentId: ConcreteAgentIdSchema,
-  workspace: AgentSessionWorkspaceSourceSchema,
-  excludeSessionId: z.string().min(1).optional()
+  workspace: AgentSessionWorkspaceSourceSchema
 })
 export type ReuseOrCreateAgentSessionDto = z.infer<typeof ReuseOrCreateAgentSessionSchema>
 

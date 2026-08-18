@@ -279,16 +279,19 @@ export function useTopics(opts: {
     return built
   }, [opts.assistantId, opts.pinned, q, searchScope, sortBy])
   const pageSize = opts.pageSize ?? DEFAULT_TOPIC_PAGE_SIZE
-  const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery('/topics', {
-    query,
-    limit: pageSize,
-    enabled: opts.enabled,
-    swrOptions: {
-      revalidateAll: false,
-      revalidateFirstPage: true,
-      ...(opts.retainInactive ? { use: [topicGroupRetentionMiddleware] } : {})
+  const { pages, isLoading, isLoadingMore, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery(
+    '/topics',
+    {
+      query,
+      limit: pageSize,
+      enabled: opts.enabled,
+      swrOptions: {
+        revalidateAll: false,
+        revalidateFirstPage: true,
+        ...(opts.retainInactive ? { use: [topicGroupRetentionMiddleware] } : {})
+      }
     }
-  })
+  )
   const flatTopics = useInfiniteFlatItems(pages)
   const topics = useStructurallySharedItems(flatTopics)
 
@@ -300,6 +303,7 @@ export function useTopics(opts: {
     hasNext,
     loadNext,
     isLoading,
+    isLoadingMore,
     isRefreshing,
     error,
     refetch: refresh
@@ -609,9 +613,8 @@ export function useActiveTopic({
   )
 
   // Clear the active topic entirely. Both `activeTopicId` and the in-memory `pendingTopic`
-  // fallback must be reset, otherwise `activeTopic` would keep resolving to the stale pending
-  // object. Used by post-delete replacement paths that must not strand the view on a topic that
-  // was just deleted when creating its replacement fails.
+  // fallback must be reset, otherwise `activeTopic` would keep resolving to the deleted pending
+  // object after its row is removed.
   const clearActiveTopic = useCallback(() => {
     setPendingTopic(undefined)
     if (!passive) setActiveTopicId(null)

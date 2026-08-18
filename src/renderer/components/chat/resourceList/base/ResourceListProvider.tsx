@@ -193,7 +193,7 @@ function buildResourceListGroups<T extends ResourceListItemBase>({
         canCollapseToDefault: false,
         collapsed,
         hasError: !collapsed && Boolean(remoteGroup.error),
-        isLoading: !collapsed && (remoteGroup.isLoading || remoteGroup.isRefreshing)
+        isLoading: !collapsed && remoteGroup.isLoading
       }
     }
     const configuredVisibleCount = groupVisibleCounts[group.id] ?? defaultGroupVisibleCount

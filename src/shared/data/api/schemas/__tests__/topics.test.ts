@@ -106,10 +106,7 @@ describe('ReuseOrCreateTopicSchema', () => {
   it('accepts an exact live owner or the unlinked creation target', () => {
     const assistantId = '11111111-1111-4111-8111-111111111111'
     expect(ReuseOrCreateTopicSchema.parse({ assistantId })).toEqual({ assistantId })
-    expect(ReuseOrCreateTopicSchema.parse({ assistantId: null, excludeTopicId: 'topic-deleted' })).toEqual({
-      assistantId: null,
-      excludeTopicId: 'topic-deleted'
-    })
+    expect(ReuseOrCreateTopicSchema.parse({ assistantId: null })).toEqual({ assistantId: null })
   })
 
   it('rejects aggregate and list-only dimensions', () => {

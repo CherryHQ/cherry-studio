@@ -37,6 +37,7 @@ vi.mock('@renderer/ipc', () => ({
 const buildInfiniteReturn = (overrides: Record<string, unknown> = {}) => ({
   pages: [] as Array<{ items: Array<{ id: string; name: string }>; nextCursor?: string }>,
   isLoading: false,
+  isLoadingMore: false,
   isRefreshing: false,
   error: undefined,
   hasNext: false,
@@ -305,6 +306,7 @@ describe('useSessions', () => {
       buildInfiniteReturn({
         pages: [{ items: [{ id: 's-1', name: 'Session 1' }], nextCursor: 'c1' }],
         hasNext: true,
+        isLoadingMore: true,
         isRefreshing: true
       }) as never
     )

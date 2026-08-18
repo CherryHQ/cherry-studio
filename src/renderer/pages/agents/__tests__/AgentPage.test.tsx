@@ -602,17 +602,6 @@ vi.mock('../AgentSidePanel', () => {
           onClick={() => onCreateSession?.({ agentId: 'agent-a', workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM } })}>
           Create panel session
         </button>
-        <button
-          type="button"
-          onClick={() =>
-            onCreateSession?.({
-              agentId: 'agent-a',
-              workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM },
-              excludeReuseSessionId: 'session-empty-system-a'
-            })
-          }>
-          Replace deleted panel session
-        </button>
         {onManageAgents && (
           <button type="button" onClick={() => void onManageAgents()}>
             agent.manage.title
@@ -818,51 +807,46 @@ describe('AgentPage', () => {
         ? (agentPageMocks.resourceLayoutSessions[0] ?? null)
         : agentPageMocks.loadLatestSessionOverride
     })
-    agentPageMocks.reuseOrCreateSession
-      .mockReset()
-      .mockImplementation(async (agentId: string, workspace, excludeSessionId?: string) => {
-        const reusableSessions = [activeSessionMocks.session, ...agentPageMocks.resourceLayoutSessions]
-          .filter((session): session is NonNullable<typeof session> => !!session)
-          .filter((session) => {
-            if (session.id === excludeSessionId) return false
-            if (
-              session.agentId !== agentId ||
-              session.name.trim() ||
-              session.isNameManuallyEdited ||
-              agentPageMocks.nonEmptySessionIds.has(session.id)
-            ) {
-              return false
-            }
-            if (workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM) {
-              return session.workspace?.type === 'system' || !session.workspaceId
-            }
-            return session.workspaceId === workspace.workspaceId
-          })
-          .sort((left, right) => {
-            const leftMs = Date.parse(left.updatedAt)
-            const rightMs = Date.parse(right.updatedAt)
-            return (
-              (Number.isFinite(rightMs) ? rightMs : Number.NEGATIVE_INFINITY) -
-              (Number.isFinite(leftMs) ? leftMs : Number.NEGATIVE_INFINITY)
-            )
-          })
-        const reusable = reusableSessions[0]
-        if (reusable) {
-          return {
-            session: reusable,
-            created: false,
-            deletedDuplicateSessionIds:
-              workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM
-                ? reusableSessions.slice(1).map((session) => session.id)
-                : []
+    agentPageMocks.reuseOrCreateSession.mockReset().mockImplementation(async (agentId: string, workspace) => {
+      const reusableSessions = [activeSessionMocks.session, ...agentPageMocks.resourceLayoutSessions]
+        .filter((session): session is NonNullable<typeof session> => !!session)
+        .filter((session) => {
+          if (
+            session.agentId !== agentId ||
+            session.name.trim() ||
+            session.isNameManuallyEdited ||
+            agentPageMocks.nonEmptySessionIds.has(session.id)
+          ) {
+            return false
           }
-        }
-
-        const session = await agentPageMocks.dataApiPost('/agent-sessions', {
-          body: { agentId, name: '', workspace }
+          if (workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM) {
+            return session.workspace?.type === 'system' || !session.workspaceId
+          }
+          return session.workspaceId === workspace.workspaceId
         })
-        return { session, created: true, deletedDuplicateSessionIds: [] }
+        .sort((left, right) => {
+          const leftMs = Date.parse(left.updatedAt)
+          const rightMs = Date.parse(right.updatedAt)
+          return (
+            (Number.isFinite(rightMs) ? rightMs : Number.NEGATIVE_INFINITY) -
+            (Number.isFinite(leftMs) ? leftMs : Number.NEGATIVE_INFINITY)
+          )
+        })
+      const reusable = reusableSessions[0]
+      if (reusable) {
+        return {
+          session: reusable,
+          created: false,
+          deletedDuplicateSessionIds:
+            workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM ? reusableSessions.slice(1).map((session) => session.id) : []
+        }
+      }
+
+      const session = await agentPageMocks.dataApiPost('/agent-sessions', {
+        body: { agentId, name: '', workspace }
       })
+      return { session, created: true, deletedDuplicateSessionIds: [] }
+    })
     agentPageMocks.updateSession.mockResolvedValue(agentPageMocks.persistedSession)
     agentPageMocks.setSessionWorkspace.mockResolvedValue(agentPageMocks.persistedSession)
     agentPageMocks.invalidateCache.mockResolvedValue(undefined)
@@ -1603,7 +1587,7 @@ describe('AgentPage', () => {
     })
   })
 
-  it('clears the active session when fallback creation fails after deleting the active agent', async () => {
+  it('clears the active session without creating a fallback after deleting the last active agent session', async () => {
     agentPageMocks.sessionDisplayMode = 'agent'
     agentPageMocks.routeSearch = { sessionId: 'session-a' }
     agentPageMocks.agents = [
@@ -1612,20 +1596,18 @@ describe('AgentPage', () => {
     ]
     activeSessionMocks.session = { ...agentPageMocks.persistedSession, id: 'session-a', agentId: 'agent-a' }
     activeSessionMocks.sessionSource = 'query'
-    // Only agent-a has a session, so deleting it forces creation for a remaining agent.
     agentPageMocks.resourceLayoutSessions = [
       { ...agentPageMocks.persistedSession, id: 'session-a', agentId: 'agent-a', updatedAt: '2026-01-02T00:00:00.000Z' }
     ]
     agentPageMocks.loadLatestSessionOverride = null
-    agentPageMocks.dataApiPost.mockRejectedValue(new Error('create failed'))
 
     render(<AgentPage />)
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-a'))
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete active agent' }))
 
-    await waitFor(() => expect(agentPageMocks.dataApiPost).toHaveBeenCalled())
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBeNull())
+    expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
     expect(agentPageMocks.navigate).toHaveBeenCalledWith({
       to: '/app/agents',
       search: {},
@@ -1945,35 +1927,6 @@ describe('AgentPage', () => {
         topicId: 'agent-session:session-empty-latest'
       })
     )
-  })
-
-  it('excludes the just-deleted session from reuse so the post-delete replacement creates a fresh one', async () => {
-    // Regression: after deleting the last session of an agent, the stale candidate list still holds
-    // the deleted empty (untouched) session — reused without a DB re-check. Without the exclusion the
-    // fallback would reactivate the deleted id instead of creating a replacement.
-    agentPageMocks.agents = [{ id: 'agent-a', model: 'model-a', name: 'Agent A' }]
-    agentPageMocks.classicLayoutSessions = [
-      {
-        id: 'session-empty-system-a',
-        agentId: 'agent-a',
-        name: '',
-        isNameManuallyEdited: false,
-        createdAt: '2026-01-03T03:00:00.000Z',
-        updatedAt: '2026-01-03T03:00:00.000Z',
-        workspace: { type: 'system' }
-      }
-    ]
-
-    render(<AgentPage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'Replace deleted panel session' }))
-
-    await waitFor(() =>
-      expect(agentPageMocks.dataApiPost).toHaveBeenCalledWith('/agent-sessions', {
-        body: { agentId: 'agent-a', name: '', workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM } }
-      })
-    )
-    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-created'))
   })
 
   it('reuses the latest empty system session and deletes duplicate empty system sessions from the composer button', async () => {

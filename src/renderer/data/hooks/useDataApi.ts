@@ -217,6 +217,7 @@ export interface UseMutationResult<TPath extends ApiPath, TMethod extends 'POST'
  *   metadata on response subtypes (e.g. `BranchMessagesResponse.activeNodeId`)
  *   is preserved without casting.
  * @property isLoading - True during initial load
+ * @property isLoadingMore - True only while a requested next page is loading
  * @property isRefreshing - True during background revalidation
  * @property error - Error object if the request failed
  * @property hasNext - True if more pages are available (nextCursor exists)
@@ -234,6 +235,7 @@ export interface UseMutationResult<TPath extends ApiPath, TMethod extends 'POST'
 export interface UseInfiniteQueryResult<TResponse> {
   pages: TResponse[]
   isLoading: boolean
+  isLoadingMore: boolean
   isRefreshing: boolean
   error?: Error
   hasNext: boolean
@@ -871,7 +873,7 @@ export function useInfiniteQuery<TPath extends ApiPath>(
     ...options?.swrOptions
   })
 
-  const { error, isLoading, isValidating, mutate, setSize } = swrResult
+  const { error, isLoading, isValidating, mutate, setSize, size } = swrResult
 
   // Stabilize `pages` reference: when SWR's `data` is unchanged across rerenders
   // the consumer gets `===` equality, which is required for `useInfiniteFlatItems`
@@ -886,6 +888,7 @@ export function useInfiniteQuery<TPath extends ApiPath>(
     const last = pages[pages.length - 1] as CursorPaginationResponse<unknown>
     return !!last.nextCursor
   }, [pages])
+  const isLoadingMore = !isLoading && isValidating && size > pages.length
 
   // Rapid double-clicks are deduped by SWR's `dedupingInterval` — no callback-level guard needed.
   const loadNext = useCallback(() => {
@@ -898,6 +901,7 @@ export function useInfiniteQuery<TPath extends ApiPath>(
   return {
     pages,
     isLoading,
+    isLoadingMore,
     isRefreshing: isValidating,
     error: error as Error | undefined,
     hasNext,

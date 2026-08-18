@@ -225,7 +225,7 @@ function SessionRemoteGroupQuery({
       error: source.error,
       groupId,
       hasNext: source.hasMore,
-      isLoading: source.isLoading,
+      isLoading: source.isLoading || source.isLoadingMore,
       isRefreshing: source.isValidating,
       items: source.sessions,
       loadNext: source.loadMore,
@@ -239,6 +239,7 @@ function SessionRemoteGroupQuery({
       source.error,
       source.hasMore,
       source.isLoading,
+      source.isLoadingMore,
       source.isValidating,
       source.loadMore,
       source.sessions
@@ -446,7 +447,7 @@ const Sessions = ({
     panePosition === undefined ? (onSetPanePosition ?? setStoredPanePosition) : onSetPanePosition
   const [sessionExpansionAgent, setSessionExpansionAgent] = usePersistCache('ui.agent.session.expansion.agent')
   const [sessionExpansionWorkdir, setSessionExpansionWorkdir] = usePersistCache('ui.agent.session.expansion.workdir')
-  const { loadLatestSession, reuseOrCreateSession } = agentSessionsSource
+  const { loadLatestSession } = agentSessionsSource
   const { agents, error: agentsError, isLoading: isAgentsLoading, refetch: refetchAgents } = useAgents()
   const listRef = useRef<HTMLDivElement>(null)
   const [optimisticMove, setOptimisticMove] = useState<ResourceListItemReorderPayload | null>(null)
@@ -555,7 +556,7 @@ const Sessions = ({
       error: pinnedSessionsSource.error,
       groupId: SESSION_PINNED_GROUP_ID,
       hasNext: hasMorePinnedSessions,
-      isLoading: pinnedSessionsSource.isLoading,
+      isLoading: pinnedSessionsSource.isLoading || pinnedSessionsSource.isLoadingMore,
       isRefreshing: isPinnedSessionsValidating,
       items: pinnedSessions,
       loadNext: loadMorePinnedSessions,
@@ -573,6 +574,7 @@ const Sessions = ({
       pinnedSessions,
       pinnedSessionsSource.error,
       pinnedSessionsSource.isLoading,
+      pinnedSessionsSource.isLoadingMore,
       reloadPinnedSessions,
       rightPanelAgentScope,
       debouncedRemoteQuery
@@ -584,7 +586,7 @@ const Sessions = ({
       error: ordinarySessionsSource.error,
       groupId: SESSION_ORDINARY_GROUP_ID,
       hasNext: hasMoreOrdinarySessions,
-      isLoading: ordinarySessionsSource.isLoading,
+      isLoading: ordinarySessionsSource.isLoading || ordinarySessionsSource.isLoadingMore,
       isRefreshing: isOrdinarySessionsValidating,
       items: ordinarySessions,
       loadNext: loadMoreOrdinarySessions,
@@ -604,6 +606,7 @@ const Sessions = ({
       ordinarySessions,
       ordinarySessionsSource.error,
       ordinarySessionsSource.isLoading,
+      ordinarySessionsSource.isLoadingMore,
       reloadOrdinarySessions,
       rightPanelAgentScope,
       sessionSortBy
@@ -1096,10 +1099,7 @@ const Sessions = ({
     return sessionItems.find((session) => session.id === effectiveRevealRequest.itemId)
   }, [activeSession, effectiveRevealRequest, sessionItems])
   const remoteRevealOrdinaryGroup = useMemo(
-    () =>
-      remoteRevealTargetSession
-        ? sessionGroupBy({ ...remoteRevealTargetSession, pinId: null, pinned: false })
-        : undefined,
+    () => (remoteRevealTargetSession ? sessionGroupBy({ ...remoteRevealTargetSession, pinned: false }) : undefined),
     [remoteRevealTargetSession, sessionGroupBy]
   )
   const remoteRevealOrdinaryGroupId = remoteRevealOrdinaryGroup?.id ?? SESSION_ORDINARY_GROUP_ID
@@ -1266,28 +1266,10 @@ const Sessions = ({
     []
   )
   const clearSessionSelection = useCallback(() => commitActiveSession(null), [commitActiveSession])
-  const resolveSessionOwnerFallback = useCallback(
-    async (deletedSession: AgentSessionListItem) => {
-      const latest = await loadLatestSession(deletedSession.agentId ?? null)
-      if (latest) return { ...latest, pinned: false, pinId: null }
-
-      const defaults = buildSessionCreationDefaults(deletedSession)
-      if (!defaults?.agentId || !onCreateSession) return null
-
-      const replacement = await onCreateSession({
-        agentId: defaults.agentId,
-        workspace: defaults.workspace ?? { type: AGENT_WORKSPACE_TYPE.SYSTEM },
-        excludeReuseSessionId: deletedSession.id
-      })
-      return replacement ? { ...replacement, pinned: false, pinId: null } : null
-    },
-    [loadLatestSession, onCreateSession]
-  )
   const { remove: coordinateSessionRemoval } = useResourceRemovalCoordinator<AgentSessionListItem>({
     getActiveId: getActiveSessionId,
     getGroupId: getSessionRemovalOwnerId,
     getItemId: (session) => session.id,
-    resolveOwnerFallback: resolveSessionOwnerFallback,
     optimisticallyRemove: optimisticallyRemoveSession,
     restoreOptimisticRemoval: restoreOptimisticallyRemovedSession,
     selectItem: (session) => commitActiveSession(session.id, session),
@@ -1305,48 +1287,17 @@ const Sessions = ({
         coordinateSessionRemoval({
           item: session,
           displayedItems: filteredGroupedSessions,
-          groupOrder: sessionGroupSeeds.map((group) => group.id),
           commit: () => deleteSession(id)
         })
-      let removed: boolean | undefined
       if (wasActive && requestFileNavigation) {
         await requestFileNavigation(async () => {
-          removed = await removeSession()
+          await removeSession()
         })
       } else {
-        removed = await removeSession()
-      }
-
-      if (removed === false || wasActive || !session.agentId) return
-
-      const latest = await loadLatestSession(session.agentId)
-      if (latest) return
-
-      const defaults = buildSessionCreationDefaults(session)
-      if (!defaults?.workspace) return
-
-      try {
-        const result = await reuseOrCreateSession(session.agentId, defaults.workspace, session.id)
-        closeConversationTabs('agents', result.deletedDuplicateSessionIds)
-      } catch (err) {
-        logger.error('Failed to create session after deleting last session of an agent', {
-          err,
-          sessionId: id
-        })
-        toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
+        await removeSession()
       }
     },
-    [
-      closeConversationTabs,
-      coordinateSessionRemoval,
-      deleteSession,
-      filteredGroupedSessions,
-      loadLatestSession,
-      requestFileNavigation,
-      reuseOrCreateSession,
-      sessionGroupSeeds,
-      t
-    ]
+    [coordinateSessionRemoval, deleteSession, filteredGroupedSessions, requestFileNavigation]
   )
 
   const handleRenameSession = useCallback(
@@ -2792,6 +2743,7 @@ function SessionListBody({
     <ResourceList.Body<SessionListItem>
       listRef={listRef}
       draggable={isDraggable}
+      emptyGroupLabel={t('agent.session.empty.title')}
       onEndReached={onEndReached}
       errorFallback={
         <ResourceList.ErrorState>

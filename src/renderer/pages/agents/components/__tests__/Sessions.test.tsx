@@ -1316,7 +1316,7 @@ describe('Sessions', () => {
 
     render(<SessionsForTest onCreateSession={onCreateSession} />)
 
-    expect(screen.queryByText('No tasks')).not.toBeInTheDocument()
+    expect(screen.getAllByText('No tasks')).toHaveLength(2)
     expect(screen.getByRole('button', { name: 'Project A Workspace' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Project B Workspace' })).toBeInTheDocument()
     expect(getHeaderNewTaskButton()).toBeInTheDocument()
@@ -2711,7 +2711,7 @@ describe('Sessions', () => {
     await vi.waitFor(() => expect(setActiveSessionId).not.toHaveBeenCalledWith('session-a', expect.anything()))
   })
 
-  it('creates an agent-scoped session, not a cross-agent jump, after deleting an agent last session in the modern sidebar', async () => {
+  it('clears selection without creating a session after deleting an agent last session in the modern sidebar', async () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     agentDataMocks.useAgents.mockReturnValue({
       agents: [
@@ -2737,16 +2737,8 @@ describe('Sessions', () => {
       orderKey: 'b',
       lastActivityAt: '2026-01-02T01:00:00.000Z'
     })
-    const loadLatestSession = vi.fn(async (agentId: string | null) => (agentId === 'agent-b' ? sessionB : null))
-    setupSessions({ sessions: [sessionA, sessionB], loadLatestSession })
-    const replacement = createSession({
-      id: 'session-a-replacement',
-      name: '',
-      agentId: 'agent-a',
-      workspaceId: undefined,
-      workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
-    })
-    const onCreateSession = vi.fn().mockResolvedValue(replacement)
+    setupSessions({ sessions: [sessionA, sessionB] })
+    const onCreateSession = vi.fn()
     const setActiveSessionId = vi.fn()
 
     render(
@@ -2767,18 +2759,8 @@ describe('Sessions', () => {
     })
 
     await vi.waitFor(() => expect(sessionDataMocks.deleteSession).toHaveBeenCalledWith('session-a-only'))
-    await vi.waitFor(() =>
-      expect(onCreateSession).toHaveBeenCalledWith({
-        agentId: 'agent-a',
-        workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM },
-        excludeReuseSessionId: 'session-a-only'
-      })
-    )
-    expect(loadLatestSession).toHaveBeenCalledWith('agent-a')
-    expect(setActiveSessionId).toHaveBeenCalledWith(
-      'session-a-replacement',
-      expect.objectContaining({ id: 'session-a-replacement' })
-    )
+    expect(onCreateSession).not.toHaveBeenCalled()
+    expect(setActiveSessionId).toHaveBeenCalledWith(null, null)
     expect(setActiveSessionId).not.toHaveBeenCalledWith('session-b-first', expect.anything())
   })
 
@@ -2807,20 +2789,8 @@ describe('Sessions', () => {
       agentId: null,
       orderKey: 'c'
     })
-    const loadLatestSession = vi.fn(async (agentId: string | null) => {
-      if (agentId === 'agent-a') return sessionA
-      if (agentId === null) return unknownSession
-      return null
-    })
-    setupSessions({ sessions: [sessionA, sessionB, unknownSession], loadLatestSession })
-    const replacement = createSession({
-      id: 'session-b-replacement',
-      name: '',
-      agentId: 'agent-b',
-      workspaceId: undefined,
-      workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
-    })
-    const onCreateSession = vi.fn().mockResolvedValue(replacement)
+    setupSessions({ sessions: [sessionA, sessionB, unknownSession] })
+    const onCreateSession = vi.fn()
     const setActiveSessionId = vi.fn()
 
     render(
@@ -2836,22 +2806,14 @@ describe('Sessions', () => {
     await act(async () => fireEvent.click(deleteButton))
     await act(async () => fireEvent.click(deleteButton))
 
-    await vi.waitFor(() => expect(loadLatestSession).toHaveBeenCalledWith('agent-b'))
-    expect(onCreateSession).toHaveBeenCalledWith({
-      agentId: 'agent-b',
-      workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM },
-      excludeReuseSessionId: sessionB.id
-    })
-    expect(setActiveSessionId).toHaveBeenCalledWith(
-      'session-b-replacement',
-      expect.objectContaining({ id: 'session-b-replacement' })
-    )
+    await vi.waitFor(() => expect(sessionDataMocks.deleteSession).toHaveBeenCalledWith(sessionB.id))
+    expect(onCreateSession).not.toHaveBeenCalled()
+    expect(setActiveSessionId).toHaveBeenCalledWith(null, null)
     expect(setActiveSessionId).not.toHaveBeenCalledWith(sessionA.id, expect.anything())
     expect(setActiveSessionId).not.toHaveBeenCalledWith(unknownSession.id, expect.anything())
-    expect(loadLatestSession).not.toHaveBeenCalledWith(null)
   })
 
-  it('creates an agent-scoped session after deleting the active agent last session in the right panel', async () => {
+  it('does not create a session after deleting the active agent last session in the right panel', async () => {
     agentDataMocks.useAgents.mockReturnValue({
       agents: [
         { id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } },
@@ -2880,14 +2842,7 @@ describe('Sessions', () => {
         })
       ]
     })
-    const replacement = createSession({
-      id: 'session-a-replacement',
-      name: '',
-      agentId: 'agent-a',
-      workspaceId: undefined,
-      workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
-    })
-    const onCreateSession = vi.fn().mockResolvedValue(replacement)
+    const onCreateSession = vi.fn()
     const setActiveSessionId = vi.fn()
 
     render(
@@ -2910,68 +2865,12 @@ describe('Sessions', () => {
     })
 
     await vi.waitFor(() => expect(sessionDataMocks.deleteSession).toHaveBeenCalledWith('session-a-only'))
-    await vi.waitFor(() =>
-      expect(onCreateSession).toHaveBeenCalledWith({
-        agentId: 'agent-a',
-        workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM },
-        excludeReuseSessionId: 'session-a-only'
-      })
-    )
-    expect(setActiveSessionId).toHaveBeenCalledWith(
-      'session-a-replacement',
-      expect.objectContaining({ id: 'session-a-replacement' })
-    )
+    expect(onCreateSession).not.toHaveBeenCalled()
+    expect(setActiveSessionId).toHaveBeenCalledWith(null, null)
     expect(setActiveSessionId).not.toHaveBeenCalledWith('session-b-first', expect.anything())
   })
 
-  it('does not let a delayed scoped-latest fallback overwrite a newer session selection', async () => {
-    let resolveLatestSession!: (session: AgentSessionEntity | null) => void
-    const loadLatestSession = vi.fn(
-      () => new Promise<AgentSessionEntity | null>((resolve) => (resolveLatestSession = resolve))
-    )
-    const deletedSession = createSession({
-      id: 'session-a-only',
-      name: 'A Only session',
-      agentId: 'agent-a',
-      orderKey: 'a'
-    })
-    setupSessions({ sessions: [deletedSession], loadLatestSession })
-    const setActiveSessionId = vi.fn()
-    const view = render(
-      <SessionsForTest
-        activeSession={deletedSession as AgentSessionEntity}
-        activeSessionId="session-a-only"
-        setActiveSessionId={setActiveSessionId}
-      />
-    )
-
-    const sessionRow = screen.getByText('A Only session').closest('[role="option"]')
-    const deleteButton = within(sessionRow as HTMLElement).getByLabelText('Delete')
-    await act(async () => fireEvent.click(deleteButton))
-    await act(async () => fireEvent.click(deleteButton))
-    await vi.waitFor(() => expect(loadLatestSession).toHaveBeenCalledWith('agent-a'))
-    expect(setActiveSessionId).not.toHaveBeenCalled()
-    setActiveSessionId.mockClear()
-
-    const newSelection = createSession({ id: 'session-b-new', agentId: 'agent-b', name: 'New selection' })
-    view.rerender(
-      <SessionsForTest
-        activeSession={newSelection as AgentSessionEntity}
-        activeSessionId="session-b-new"
-        setActiveSessionId={setActiveSessionId}
-      />
-    )
-    await act(async () => {
-      resolveLatestSession(
-        createSession({ id: 'session-a-fallback', agentId: 'agent-a', name: 'A fallback' }) as AgentSessionEntity
-      )
-      await Promise.resolve()
-    })
-
-    expect(setActiveSessionId).not.toHaveBeenCalled()
-  })
-
-  it('silently recreates a session for an agent after deleting its only non-active session', async () => {
+  it("does not recreate a session after deleting an agent's only non-active session", async () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     agentDataMocks.useAgents.mockReturnValue({
       agents: [
@@ -3007,64 +2906,8 @@ describe('Sessions', () => {
     })
 
     await vi.waitFor(() => expect(sessionDataMocks.deleteSession).toHaveBeenCalledWith('session-a-only'))
-    await vi.waitFor(() =>
-      expect(reuseOrCreateSession).toHaveBeenCalledWith(
-        'agent-a',
-        { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: 'ws-a' },
-        'session-a-only'
-      )
-    )
+    expect(reuseOrCreateSession).not.toHaveBeenCalled()
     expect(setActiveSessionId).not.toHaveBeenCalled()
-  })
-
-  it('clears selection when same-owner replacement creation returns null', async () => {
-    agentDataMocks.useAgents.mockReturnValue({
-      agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } }],
-      isLoading: false,
-      error: undefined
-    })
-    setupSessions({
-      sessions: [
-        createSession({
-          id: 'session-a-only',
-          name: 'A Only session',
-          agentId: 'agent-a',
-          orderKey: 'a',
-          updatedAt: '2026-01-03T01:00:00.000Z',
-          workspaceId: undefined,
-          workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
-        })
-      ]
-    })
-    const onCreateSession = vi.fn().mockResolvedValue(null)
-    const setActiveSessionId = vi.fn()
-
-    render(
-      <SessionsForTest
-        agentIdFilter="agent-a"
-        presentation="right-panel"
-        activeSessionId="session-a-only"
-        onCreateSession={onCreateSession}
-        setActiveSessionId={setActiveSessionId}
-      />
-    )
-
-    const sessionRow = screen.getByText('A Only session').closest('[role="option"]')
-    const deleteButton = within(sessionRow as HTMLElement).getByLabelText('Delete')
-    act(() => {
-      fireEvent.click(deleteButton)
-    })
-    act(() => {
-      fireEvent.click(deleteButton)
-    })
-
-    await vi.waitFor(() => expect(setActiveSessionId).toHaveBeenCalledWith(null, null))
-    expect(onCreateSession).toHaveBeenCalledWith({
-      agentId: 'agent-a',
-      workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM },
-      excludeReuseSessionId: 'session-a-only'
-    })
-    expect(toast.error).not.toHaveBeenCalled()
   })
 
   it('subscribes stream status only for visible session rows', () => {

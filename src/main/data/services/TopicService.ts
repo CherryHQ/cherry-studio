@@ -290,7 +290,6 @@ export class TopicService {
           and(
             isNull(topicTable.deletedAt),
             dto.assistantId ? eq(assistantTable.id, dto.assistantId) : isNull(topicTable.assistantId),
-            dto.excludeTopicId ? notInArray(topicTable.id, [dto.excludeTopicId]) : undefined,
             isNull(topicTable.activeNodeId),
             eq(topicTable.isNameManuallyEdited, false),
             sql`trim(${topicTable.name}) = ''`

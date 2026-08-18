@@ -6,7 +6,9 @@ export type ResourceListRemoteGroupSnapshot<T extends ResourceListItemBase> = {
   error?: Error
   groupId: string
   hasNext: boolean
+  /** Foreground initial/page loading that may occupy the group footer. */
   isLoading: boolean
+  /** Background revalidation; must not change the group's rendered height. */
   isRefreshing: boolean
   items: readonly T[]
   loadNext: () => void

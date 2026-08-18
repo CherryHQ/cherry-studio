@@ -632,7 +632,6 @@ vi.mock('@renderer/components/chat/resourceList/AssistantResourceList', () => ({
     onOpenHistoryRecords,
     assistantTopicsSource,
     onCreateTopic,
-    onCreateTopicAfterClear,
     onSelectTopic,
     onSelectedAssistantClick
   }: {
@@ -642,7 +641,6 @@ vi.mock('@renderer/components/chat/resourceList/AssistantResourceList', () => ({
     onAddAssistant?: () => void | Promise<void>
     onActiveAssistantDeleted?: (assistantId: string) => void | Promise<void>
     onCreateTopic?: (assistantId: string | null) => Promise<Topic | null>
-    onCreateTopicAfterClear?: (assistantId: string) => void | Promise<void>
     onSelectTopic?: (topic: Topic) => void | boolean
     onManageAssistants?: () => void | Promise<void>
     onOpenHistoryRecords?: () => void | Promise<void>
@@ -692,9 +690,6 @@ vi.mock('@renderer/components/chat/resourceList/AssistantResourceList', () => ({
         </button>
         <button type="button" onClick={() => void onCreateTopic?.('assistant-2')}>
           Select empty assistant 2
-        </button>
-        <button type="button" onClick={() => void onCreateTopicAfterClear?.(activeAssistantId ?? '')}>
-          Clear selected assistant topics
         </button>
         <button type="button" onClick={() => void onSelectedAssistantClick?.()}>
           Toggle selected assistant pane
@@ -813,32 +808,29 @@ describe('HomePage', () => {
         ? (homeMocks.resourceLayoutTopics[0] ?? null)
         : homeMocks.loadLatestTopicOverride
     })
-    homeMocks.reuseOrCreateTopic
-      .mockReset()
-      .mockImplementation(async (assistantId: string | null, excludeTopicId?: string) => {
-        const candidates = [homeMocks.activeTopicOverride, homeMocks.entryTopic, ...homeMocks.resourceLayoutTopics]
-          .filter((topic): topic is NonNullable<typeof topic> => !!topic)
-          .filter(
-            (topic) =>
-              topic.id !== excludeTopicId &&
-              (assistantId === null ? !topic.assistantId : topic.assistantId === assistantId) &&
-              !topic.activeNodeId &&
-              !topic.name.trim() &&
-              !topic.isNameManuallyEdited
-          )
-        const reusable = [...candidates].sort((left, right) => {
-          const leftMs = Date.parse(left.updatedAt)
-          const rightMs = Date.parse(right.updatedAt)
-          return (
-            (Number.isFinite(rightMs) ? rightMs : Number.NEGATIVE_INFINITY) -
-            (Number.isFinite(leftMs) ? leftMs : Number.NEGATIVE_INFINITY)
-          )
-        })[0]
-        if (reusable) return { topic: reusable, created: false }
+    homeMocks.reuseOrCreateTopic.mockReset().mockImplementation(async (assistantId: string | null) => {
+      const candidates = [homeMocks.activeTopicOverride, homeMocks.entryTopic, ...homeMocks.resourceLayoutTopics]
+        .filter((topic): topic is NonNullable<typeof topic> => !!topic)
+        .filter(
+          (topic) =>
+            (assistantId === null ? !topic.assistantId : topic.assistantId === assistantId) &&
+            !topic.activeNodeId &&
+            !topic.name.trim() &&
+            !topic.isNameManuallyEdited
+        )
+      const reusable = [...candidates].sort((left, right) => {
+        const leftMs = Date.parse(left.updatedAt)
+        const rightMs = Date.parse(right.updatedAt)
+        return (
+          (Number.isFinite(rightMs) ? rightMs : Number.NEGATIVE_INFINITY) -
+          (Number.isFinite(leftMs) ? leftMs : Number.NEGATIVE_INFINITY)
+        )
+      })[0]
+      if (reusable) return { topic: reusable, created: false }
 
-        const topic = await homeMocks.createTopic(assistantId ? { assistantId } : {})
-        return { topic, created: true }
-      })
+      const topic = await homeMocks.createTopic(assistantId ? { assistantId } : {})
+      return { topic, created: true }
+    })
     homeMocks.activeTopicLoading = false
     homeMocks.activeTopicError = undefined
     homeMocks.activeTopicOverride = undefined
@@ -937,19 +929,6 @@ describe('HomePage', () => {
     expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-2')
     expect(screen.getByTestId('assistant-resource-list')).toHaveAttribute('data-active-assistant-id', 'assistant-2')
     expect(screen.getByTestId('topic-resource-panel')).toHaveAttribute('data-assistant-id', 'assistant-2')
-  })
-
-  it('creates a fresh topic after clearing the current assistant conversations', async () => {
-    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
-    homeMocks.createTopic.mockResolvedValue({ ...createdTopic, assistantId: 'assistant-1' })
-
-    render(<HomePage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'Clear selected assistant topics' }))
-
-    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' }))
-    expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-created')
-    expect(screen.getByTestId('topic-resource-panel')).toHaveAttribute('data-assistant-id', 'assistant-1')
   })
 
   it('passes the same assistant topic source to the classic rail and right panel', () => {
@@ -1444,7 +1423,7 @@ describe('HomePage', () => {
     expect(homeMocks.createTopic).not.toHaveBeenCalled()
   })
 
-  it('excludes the deleted active assistant when creating a fallback topic after deletion', async () => {
+  it('clears the active topic without creating a fallback after deleting the last assistant topic', async () => {
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.assistants = [{ id: 'assistant-1' }, { id: 'assistant-2' }]
     homeMocks.persistCacheValues.set('ui.chat.last_used_assistant_id', 'assistant-1')
@@ -1452,40 +1431,15 @@ describe('HomePage', () => {
       { ...historyTopic, id: 'topic-a', assistantId: 'assistant-1', updatedAt: '2026-01-05T00:00:00.000Z' }
     ]
     homeMocks.loadLatestTopicOverride = null
-    homeMocks.createTopic.mockResolvedValue({ ...createdTopic, assistantId: 'assistant-2' })
 
     render(<HomePage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete active assistant' }))
 
-    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2' }))
-    expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-2')
-    expect(homeMocks.cacheSetPersist).toHaveBeenCalledWith('ui.chat.last_used_assistant_id', null)
-  })
-
-  it('clears the active topic when the fallback create fails after deleting the active assistant', async () => {
-    // The deleted assistant's last topic is the active one; if the replacement create rejects, the view
-    // must not be left stranded on a topic belonging to the just-deleted assistant.
-    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
-    homeMocks.resourceLayoutTopics = [
-      { ...historyTopic, id: 'topic-a', assistantId: 'assistant-a', updatedAt: '2026-01-05T00:00:00.000Z' }
-    ]
-    homeMocks.loadLatestTopicOverride = null
-    homeMocks.entryTopic = { ...historyTopic, id: 'topic-a', assistantId: 'assistant-a' }
-    homeMocks.createTopic.mockRejectedValue(new Error('create failed'))
-
-    render(<HomePage />)
-    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-a'))
-
-    fireEvent.click(screen.getByRole('button', { name: 'Delete active assistant' }))
-
-    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalled())
     await waitFor(() => expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument())
-    expect(homeMocks.navigate).toHaveBeenCalledWith({
-      to: '/app/chat',
-      search: {},
-      replace: true
-    })
+    expect(homeMocks.createTopic).not.toHaveBeenCalled()
+    expect(homeMocks.navigate).toHaveBeenCalledWith({ to: '/app/chat', search: {}, replace: true })
+    expect(homeMocks.cacheSetPersist).toHaveBeenCalledWith('ui.chat.last_used_assistant_id', null)
   })
 
   it('isolates latest-topic fallback failure after deleting the active assistant', async () => {
@@ -2120,53 +2074,6 @@ describe('HomePage', () => {
 
     await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-empty-modern'))
     expect(homeMocks.createTopic).not.toHaveBeenCalled()
-  })
-
-  it('excludes the just-deleted topic from reuse so the post-delete replacement creates a fresh one', async () => {
-    // Regression: after deleting the last topic of an assistant, the stale candidate list still holds
-    // the deleted empty topic. Without the exclusion the fallback would reactivate the deleted id
-    // instead of creating a replacement, stranding the view on a non-existent topic.
-    homeMocks.assistants = [{ id: 'assistant-default' }, { id: 'assistant-2' }]
-    homeMocks.resourceLayoutTopics = [
-      {
-        id: 'topic-empty-modern',
-        assistantId: 'assistant-2',
-        name: '',
-        createdAt: '2026-01-04T00:00:00.000Z',
-        lastActivityAt: '2026-01-04T00:00:00.000Z',
-        updatedAt: '2026-01-04T00:00:00.000Z'
-      }
-    ]
-    homeMocks.createTopic.mockResolvedValue({ ...createdTopic, assistantId: 'assistant-2' })
-
-    render(<HomePage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'Replace deleted topic for assistant 2' }))
-
-    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2' }))
-    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-created'))
-    expect(screen.getByTestId('active-topic')).not.toHaveTextContent('topic-empty-modern')
-  })
-
-  it('clears the active topic when the post-delete replacement create fails', async () => {
-    // Delete flow passes `excludeReuseTopicId`; when the replacement create rejects, the active topic
-    // still points at the just-deleted topic, so it must be cleared instead of stranding the view.
-    homeMocks.assistants = [{ id: 'assistant-default' }, { id: 'assistant-2' }]
-    homeMocks.resourceLayoutTopics = []
-    homeMocks.createTopic.mockRejectedValue(new Error('create failed'))
-
-    render(<HomePage />)
-    expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-initial')
-
-    fireEvent.click(screen.getByRole('button', { name: 'Replace deleted topic for assistant 2' }))
-
-    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalled())
-    await waitFor(() => expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument())
-    expect(homeMocks.navigate).toHaveBeenCalledWith({
-      to: '/app/chat',
-      search: {},
-      replace: true
-    })
   })
 
   it('reuses the current modern-layout empty topic even before the topic source refreshes', async () => {

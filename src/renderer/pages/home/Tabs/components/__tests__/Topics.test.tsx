@@ -639,7 +639,6 @@ function renderTopicList({
   onActiveAssistantDeleted,
   onAddAssistant = vi.fn(),
   onClearActiveTopic = vi.fn(),
-  onCreateTopicAfterClear = vi.fn(),
   historyRecordsActive,
   manageAssistantsActive,
   onNewTopic = vi.fn(),
@@ -656,7 +655,6 @@ function renderTopicList({
   onActiveAssistantDeleted?: ComponentProps<typeof Topics>['onActiveAssistantDeleted']
   onAddAssistant?: ComponentProps<typeof Topics>['onAddAssistant']
   onClearActiveTopic?: ComponentProps<typeof Topics>['onClearActiveTopic']
-  onCreateTopicAfterClear?: ComponentProps<typeof Topics>['onCreateTopicAfterClear']
   historyRecordsActive?: ComponentProps<typeof Topics>['historyRecordsActive']
   manageAssistantsActive?: ComponentProps<typeof Topics>['manageAssistantsActive']
   onNewTopic?: OnNewTopicMock
@@ -679,7 +677,6 @@ function renderTopicList({
       onAddAssistant={onAddAssistant}
       setActiveTopic={setActiveTopic}
       onClearActiveTopic={onClearActiveTopic}
-      onCreateTopicAfterClear={onCreateTopicAfterClear}
       onNewTopic={onNewTopic}
       onManageAssistants={onManageAssistants}
       onOpenHistoryRecords={onOpenHistoryRecords}
@@ -694,7 +691,6 @@ function renderTopicList({
     ...view,
     onAddAssistant,
     onClearActiveTopic,
-    onCreateTopicAfterClear,
     onNewTopic,
     onOpenHistoryRecords,
     rerenderTopicList: (nextRevealRequest = revealRequest, nextActiveTopic = activeTopic) =>
@@ -1169,7 +1165,7 @@ describe('Topics', () => {
     expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-empty', name: '' }))
   })
 
-  it('creates a same-assistant replacement when deleting the last remaining topic', async () => {
+  it('clears the selection without creating a topic when deleting the last remaining topic', async () => {
     mockUseInfiniteQuery.mockReturnValue({
       pages: [
         {
@@ -1193,12 +1189,7 @@ describe('Topics', () => {
       mutate: vi.fn()
     })
 
-    const replacement = createRendererTopic({
-      id: 'topic-a-replacement',
-      assistantId: 'assistant-1',
-      name: ''
-    })
-    const onNewTopic = vi.fn().mockResolvedValue(replacement)
+    const onNewTopic = vi.fn()
     const { onClearActiveTopic, setActiveTopic } = renderTopicList({
       onNewTopic,
       activeTopic: createRendererTopic({ id: 'topic-a', assistantId: 'assistant-1', name: 'Alpha topic' })
@@ -1214,14 +1205,12 @@ describe('Topics', () => {
     })
 
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a'))
-    await vi.waitFor(() =>
-      expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1', excludeReuseTopicId: 'topic-a' })
-    )
-    expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-a-replacement' }))
-    expect(onClearActiveTopic).not.toHaveBeenCalled()
+    expect(onClearActiveTopic).toHaveBeenCalledOnce()
+    expect(setActiveTopic).not.toHaveBeenCalled()
+    expect(onNewTopic).not.toHaveBeenCalled()
   })
 
-  it('deleting the last unlinked topic selects the latest remaining topic instead of seeding a new unlinked one', async () => {
+  it('does not switch owners when deleting the last unlinked topic', async () => {
     mockUseInfiniteQuery.mockReturnValue({
       pages: [
         {
@@ -1255,7 +1244,7 @@ describe('Topics', () => {
       mutate: vi.fn()
     })
 
-    const { onNewTopic, setActiveTopic } = renderTopicList({
+    const { onClearActiveTopic, onNewTopic, setActiveTopic } = renderTopicList({
       activeTopic: createRendererTopic({ id: 'topic-unlinked', name: 'Default topic', assistantId: undefined }),
       assistantTopicsSource: {
         ...createAssistantTopicsSource(),
@@ -1284,53 +1273,9 @@ describe('Topics', () => {
     })
 
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-unlinked'))
-    // The unlinked assistant group is a display fallback, not a real assistant: deleting its last
-    // topic must not seed a fresh unlinked topic. Fall back to the latest remaining topic instead.
-    await vi.waitFor(() => expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-a' })))
+    expect(onClearActiveTopic).toHaveBeenCalledOnce()
+    expect(setActiveTopic).not.toHaveBeenCalled()
     expect(onNewTopic).not.toHaveBeenCalled()
-  })
-
-  it('deleting the sole unlinked topic resolves the replacement to a real assistant', async () => {
-    mockUseInfiniteQuery.mockReturnValue({
-      pages: [
-        {
-          items: [
-            createApiTopic({
-              id: 'topic-unlinked',
-              name: 'Default topic',
-              assistantId: undefined,
-              orderKey: 'a'
-            })
-          ]
-        }
-      ],
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined,
-      hasNext: false,
-      loadNext: vi.fn(),
-      refresh: vi.fn(),
-      reset: vi.fn(),
-      mutate: vi.fn()
-    })
-
-    const { onNewTopic } = renderTopicList({
-      activeTopic: createRendererTopic({ id: 'topic-unlinked', name: 'Default topic', assistantId: undefined })
-    })
-
-    const topicRow = getTopicRow('Default topic')
-    const deleteButton = within(topicRow).getByLabelText('Delete')
-    act(() => {
-      fireEvent.click(deleteButton)
-    })
-    act(() => {
-      fireEvent.click(deleteButton)
-    })
-
-    await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-unlinked'))
-    // With no other topic left, the replacement must not be an unlinked topic either — omit the
-    // assistant id so HomePage resolves it to a real assistant (last-used / first-assistant).
-    await vi.waitFor(() => expect(onNewTopic).toHaveBeenCalledWith({ excludeReuseTopicId: 'topic-unlinked' }))
   })
 
   it('requests and auto-paginates full topic pages with the ResourceList bulk page size', async () => {
@@ -1368,7 +1313,7 @@ describe('Topics', () => {
 
     const { onNewTopic } = renderTopicList()
 
-    expect(screen.queryByText('No conversations')).not.toBeInTheDocument()
+    expect(screen.getAllByText('No conversations')).toHaveLength(2)
     expect(screen.getByRole('button', { name: 'Alpha Assistant' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Beta Assistant' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Add Assistant' })).toBeInTheDocument()
@@ -2188,7 +2133,7 @@ describe('Topics', () => {
     expect(toast.error).toHaveBeenCalled()
   })
 
-  it("creates a same-owner topic when deleting the active owner's last topic", async () => {
+  it("does not create a topic when deleting the active owner's last topic", async () => {
     const topics = [
       createApiTopic({
         id: 'topic-a1',
@@ -2224,17 +2169,8 @@ describe('Topics', () => {
       reset: vi.fn(),
       mutate: vi.fn()
     })
-    const assistantTopicsSource = {
-      ...createAssistantTopicsSource(topics),
-      loadLatestTopic: vi.fn(async (assistantId: string | null) => (assistantId === 'assistant-2' ? topics[1] : null))
-    } as AssistantTopicsSource
-
-    const replacement = createRendererTopic({
-      id: 'topic-a-replacement',
-      assistantId: 'assistant-1',
-      name: ''
-    })
-    const onNewTopic = vi.fn().mockResolvedValue(replacement)
+    const assistantTopicsSource = createAssistantTopicsSource(topics)
+    const onNewTopic = vi.fn()
     const { onClearActiveTopic, setActiveTopic } = renderTopicList({
       activeTopic: createRendererTopic({ id: 'topic-a1', assistantId: 'assistant-1', name: 'A1 Only' }),
       assistantTopicsSource,
@@ -2251,11 +2187,10 @@ describe('Topics', () => {
     })
 
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a1'))
-    await vi.waitFor(() => expect(assistantTopicsSource.loadLatestTopic).toHaveBeenCalledWith('assistant-1'))
-    expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1', excludeReuseTopicId: 'topic-a1' })
-    expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-a-replacement' }))
+    expect(onNewTopic).not.toHaveBeenCalled()
+    expect(setActiveTopic).not.toHaveBeenCalled()
     expect(setActiveTopic).not.toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-b1' }))
-    expect(onClearActiveTopic).not.toHaveBeenCalled()
+    expect(onClearActiveTopic).toHaveBeenCalledOnce()
   })
 
   it('does not jump to another or unlinked owner when the current owner becomes empty', async () => {
@@ -2279,23 +2214,9 @@ describe('Topics', () => {
     })
     const topics = [topicA, topicB, unlinkedTopic]
     setTopicInfiniteQueryPages(topics)
-    const loadLatestTopic = vi.fn(async (assistantId: string | null) => {
-      if (assistantId === 'assistant-1') return topicA
-      if (assistantId === null) return unlinkedTopic
-      return null
-    })
-    const assistantTopicsSource = {
-      ...createAssistantTopicsSource(topics),
-      loadLatestTopic
-    } as AssistantTopicsSource
-
-    const replacement = createRendererTopic({
-      id: 'topic-b-replacement',
-      assistantId: 'assistant-2',
-      name: ''
-    })
-    const onNewTopic = vi.fn().mockResolvedValue(replacement)
-    const { setActiveTopic } = renderTopicList({
+    const assistantTopicsSource = createAssistantTopicsSource(topics)
+    const onNewTopic = vi.fn()
+    const { onClearActiveTopic, setActiveTopic } = renderTopicList({
       activeTopic: createRendererTopic({ id: topicB.id, assistantId: topicB.assistantId, name: topicB.name }),
       assistantTopicsSource,
       onNewTopic
@@ -2305,15 +2226,15 @@ describe('Topics', () => {
     await act(async () => fireEvent.click(deleteButton))
     await act(async () => fireEvent.click(deleteButton))
 
-    await vi.waitFor(() => expect(loadLatestTopic).toHaveBeenCalledWith('assistant-2'))
-    expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2', excludeReuseTopicId: topicB.id })
-    expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-b-replacement' }))
+    await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith(topicB.id))
+    expect(onNewTopic).not.toHaveBeenCalled()
+    expect(setActiveTopic).not.toHaveBeenCalled()
     expect(setActiveTopic).not.toHaveBeenCalledWith(expect.objectContaining({ id: topicA.id }))
     expect(setActiveTopic).not.toHaveBeenCalledWith(expect.objectContaining({ id: unlinkedTopic.id }))
-    expect(loadLatestTopic).not.toHaveBeenCalledWith(null)
+    expect(onClearActiveTopic).toHaveBeenCalledOnce()
   })
 
-  it("creates an owner-scoped topic after deleting the active owner's last topic in the right panel", async () => {
+  it("does not create a topic after deleting the active owner's last topic in the right panel", async () => {
     setScopedTopicInfiniteQuery([
       createApiTopic({
         id: 'topic-a1-only',
@@ -2333,12 +2254,7 @@ describe('Topics', () => {
       })
     ])
 
-    const replacement = createRendererTopic({
-      id: 'topic-a1-replacement',
-      assistantId: 'assistant-1',
-      name: ''
-    })
-    const onNewTopic = vi.fn().mockResolvedValue(replacement)
+    const onNewTopic = vi.fn()
     const { onClearActiveTopic, setActiveTopic } = renderTopicList({
       assistantIdFilter: 'assistant-1',
       presentation: 'right-panel',
@@ -2356,55 +2272,9 @@ describe('Topics', () => {
     })
 
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a1-only'))
-    await vi.waitFor(() =>
-      expect(onNewTopic).toHaveBeenCalledWith({
-        assistantId: 'assistant-1',
-        excludeReuseTopicId: 'topic-a1-only'
-      })
-    )
-    expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-a1-replacement' }))
-    expect(onClearActiveTopic).not.toHaveBeenCalled()
-  })
-
-  it('does not let a delayed scoped-latest fallback overwrite a newer topic selection', async () => {
-    const deletedTopic = createApiTopic({
-      id: 'topic-a-only',
-      name: 'A Only',
-      assistantId: 'assistant-1',
-      orderKey: 'a'
-    })
-    setTopicInfiniteQueryPages([deletedTopic])
-    let resolveLatestTopic!: (topic: ApiTopic | null) => void
-    const loadLatestTopic = vi.fn(() => new Promise<ApiTopic | null>((resolve) => (resolveLatestTopic = resolve)))
-    const assistantTopicsSource = {
-      ...createAssistantTopicsSource([deletedTopic]),
-      loadLatestTopic
-    } as AssistantTopicsSource
-    const onClearActiveTopic = vi.fn()
-    const { rerenderTopicList, setActiveTopic } = renderTopicList({
-      activeTopic: createRendererTopic({ id: 'topic-a-only', assistantId: 'assistant-1', name: 'A Only' }),
-      assistantTopicsSource,
-      onClearActiveTopic
-    })
-
-    const deleteButton = within(getTopicRow('A Only')).getByLabelText('Delete')
-    await act(async () => fireEvent.click(deleteButton))
-    await act(async () => fireEvent.click(deleteButton))
-    await vi.waitFor(() => expect(loadLatestTopic).toHaveBeenCalledWith('assistant-1'))
-
-    rerenderTopicList(
-      undefined,
-      createRendererTopic({ id: 'topic-b-new', assistantId: 'assistant-2', name: 'New selection' })
-    )
-    await act(async () => {
-      resolveLatestTopic(
-        createApiTopic({ id: 'topic-a-fallback', assistantId: 'assistant-1', name: 'A fallback', orderKey: 'b' })
-      )
-      await Promise.resolve()
-    })
-
+    expect(onNewTopic).not.toHaveBeenCalled()
     expect(setActiveTopic).not.toHaveBeenCalled()
-    expect(onClearActiveTopic).not.toHaveBeenCalled()
+    expect(onClearActiveTopic).toHaveBeenCalledOnce()
   })
 
   it('renders only the title field in sidebar topic rows', () => {
@@ -3400,7 +3270,7 @@ describe('Topics', () => {
 
   it('moves assistant group actions into the more menu', async () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
-    const { onCreateTopicAfterClear, onNewTopic, setActiveTopic } = renderTopicList()
+    const { onNewTopic, setActiveTopic } = renderTopicList()
     expect(resourceEditDialogMocks.renderHost).not.toHaveBeenCalled()
 
     const assistantGroupButton = screen.getByRole('button', { name: 'Alpha Assistant' })
@@ -3464,7 +3334,6 @@ describe('Topics', () => {
     await vi.waitFor(() => expect(topicDataMocks.deleteTopicsByAssistantId).toHaveBeenCalledWith('assistant-1'))
     expect(topicDataMocks.deleteTopic).not.toHaveBeenCalled()
     await vi.waitFor(() => expect(topicDataMocks.refreshTopics).toHaveBeenCalled())
-    expect(onCreateTopicAfterClear).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
     expect(setActiveTopic).not.toHaveBeenCalled()
     expect(onNewTopic).not.toHaveBeenCalled()
 
@@ -3642,60 +3511,6 @@ describe('Topics', () => {
     fireEvent.contextMenu(assistantHeader as HTMLElement, { clientX: 123, clientY: 456 })
 
     expect(screen.getAllByRole('button', { name: 'Edit Assistant' }).length).toBeGreaterThan(0)
-  })
-
-  it('creates a fresh topic after clearing its assistant group', async () => {
-    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
-    mockUseInfiniteQuery.mockReturnValue({
-      pages: [
-        {
-          items: [
-            createApiTopic({
-              id: 'topic-a',
-              name: 'Alpha topic',
-              assistantId: 'assistant-1',
-              orderKey: 'a'
-            }),
-            createApiTopic({
-              id: 'topic-b',
-              name: 'Beta pinned',
-              assistantId: 'assistant-1',
-              orderKey: 'b'
-            })
-          ]
-        }
-      ],
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined,
-      hasNext: false,
-      loadNext: vi.fn(),
-      refresh: vi.fn(),
-      reset: vi.fn(),
-      mutate: vi.fn()
-    })
-
-    const { onCreateTopicAfterClear } = renderTopicList()
-    topicDataMocks.deleteTopicsByAssistantId.mockResolvedValueOnce({
-      deletedIds: ['topic-a', 'topic-b'],
-      deletedCount: 2
-    })
-
-    const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
-    expect(assistantHeader).toBeInTheDocument()
-
-    const moreButton = within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' })
-    fireEvent.click(moreButton)
-    fireEvent.click(
-      within(assistantHeader as HTMLElement).getByRole('button', { name: 'Delete all assistant conversations' })
-    )
-
-    await vi.waitFor(() => expect(popup.confirm).toHaveBeenCalled())
-    expect(topicDataMocks.deleteTopic).not.toHaveBeenCalled()
-    await vi.waitFor(() => expect(topicDataMocks.deleteTopicsByAssistantId).toHaveBeenCalledWith('assistant-1'))
-    await vi.waitFor(() => expect(topicDataMocks.refreshTopics).toHaveBeenCalled())
-    expect(onCreateTopicAfterClear).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
-    expect(toast.error).not.toHaveBeenCalled()
   })
 
   it('keeps assistant pin reads enabled outside assistant display mode for move targets', () => {

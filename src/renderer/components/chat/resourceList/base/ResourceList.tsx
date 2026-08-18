@@ -633,6 +633,7 @@ function ItemActions({ active, children, className, ref, ...props }: ItemActions
 type BodyProps<T extends ResourceListItemBase> = {
   draggable?: boolean
   emptyFallback?: ReactNode
+  emptyGroupLabel?: ReactNode
   errorFallback?: ReactNode
   listRef?: Ref<HTMLDivElement>
   /** Invoked when the virtual scroller approaches its bottom. */
@@ -646,6 +647,7 @@ type BodyProps<T extends ResourceListItemBase> = {
 function Body<T extends ResourceListItemBase>({
   draggable = false,
   emptyFallback,
+  emptyGroupLabel,
   errorFallback,
   listRef,
   onEndReached,
@@ -676,6 +678,7 @@ function Body<T extends ResourceListItemBase>({
         ref={listRef}
         className={resolvedVirtualClassName}
         ariaLabel={ariaLabel}
+        emptyGroupLabel={emptyGroupLabel}
         onEndReached={onEndReached}
         renderItem={renderItem}
       />
@@ -687,6 +690,7 @@ function Body<T extends ResourceListItemBase>({
       ref={listRef}
       className={resolvedVirtualClassName}
       ariaLabel={ariaLabel}
+      emptyGroupLabel={emptyGroupLabel}
       onEndReached={onEndReached}
       renderItem={renderItem}
     />

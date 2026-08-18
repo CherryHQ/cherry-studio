@@ -23,9 +23,9 @@ export function useAssistantTopicsSource({ enabled }: { enabled?: boolean } = {}
         : await dataApiService.get('/topics/latest', { query: { assistantId: assistantId ?? 'unlinked' } })
     return result.topic
   }, [])
-  const reuseOrCreateTopic = useCallback(async (assistantId: string | null, excludeTopicId?: string) => {
+  const reuseOrCreateTopic = useCallback(async (assistantId: string | null) => {
     return dataApiService.post('/topics/reusable-placeholder', {
-      body: { assistantId, ...(excludeTopicId ? { excludeTopicId } : {}) }
+      body: { assistantId }
     })
   }, [])
 
@@ -49,14 +49,11 @@ export function useAgentSessionsSource({ enabled }: { enabled?: boolean } = {}) 
         : await dataApiService.get('/agent-sessions/latest', { query: { agentId: agentId ?? 'unlinked' } })
     return result.session
   }, [])
-  const reuseOrCreateSession = useCallback(
-    async (agentId: string, workspace: AgentSessionWorkspaceSource, excludeSessionId?: string) => {
-      return dataApiService.post('/agent-sessions/reusable-placeholders', {
-        body: { agentId, workspace, ...(excludeSessionId ? { excludeSessionId } : {}) }
-      })
-    },
-    []
-  )
+  const reuseOrCreateSession = useCallback(async (agentId: string, workspace: AgentSessionWorkspaceSource) => {
+    return dataApiService.post('/agent-sessions/reusable-placeholders', {
+      body: { agentId, workspace }
+    })
+  }, [])
   return {
     stats: statsSource.stats,
     isStatsLoading: statsSource.isLoading,

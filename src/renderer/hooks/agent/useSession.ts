@@ -218,16 +218,19 @@ export const useSessions = (agentId: string | null | undefined, options: UseSess
     return built
   }, [agentId, effectiveSortBy, pinned, q, searchScope, workspaceId])
 
-  const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery('/agent-sessions', {
-    query,
-    limit: pageSize,
-    enabled,
-    swrOptions: {
-      revalidateAll: false,
-      revalidateFirstPage: true,
-      ...(options.retainInactive ? { use: [sessionGroupRetentionMiddleware] } : {})
+  const { pages, isLoading, isLoadingMore, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery(
+    '/agent-sessions',
+    {
+      query,
+      limit: pageSize,
+      enabled,
+      swrOptions: {
+        revalidateAll: false,
+        revalidateFirstPage: true,
+        ...(options.retainInactive ? { use: [sessionGroupRetentionMiddleware] } : {})
+      }
     }
-  })
+  )
   useDataChange('/agent-sessions', () => {
     if (enabled !== false) void refresh()
   })
@@ -235,7 +238,6 @@ export const useSessions = (agentId: string | null | undefined, options: UseSess
   const flatSessions = useInfiniteFlatItems(pages)
   const sessions = useStructurallySharedItems(flatSessions)
   const hasMore = hasNext
-  const isLoadingMore = isRefreshing && !isLoading && pages.length > 0
 
   const reload = useCallback(() => refresh(), [refresh])
 
