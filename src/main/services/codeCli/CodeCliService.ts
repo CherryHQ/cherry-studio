@@ -21,11 +21,11 @@ import {
 import type { OperationResult } from '@shared/types/codeTools'
 import { formatGeminiGatewayModelId } from '@shared/utils/apiGateway'
 import type { CliConfigWriteFile, FileConfiguredCli } from '@shared/utils/cliConfig'
+import { REDACTED, redactRecord } from '@shared/utils/redaction'
 import { execFile, spawn } from 'child_process'
 import { promisify } from 'util'
 
 import { writeCliConfigFiles } from './configWriter'
-import { sanitizeEnvForLogging } from './envRedaction'
 import { isShellSafeModelId, posixQuote } from './shellQuote'
 import {
   MACOS_TERMINALS,
@@ -467,7 +467,7 @@ export class CodeCliService extends BaseService {
       }
 
       logger.info('Setting environment variables:', Object.keys(env))
-      logger.debug('Environment variable values:', sanitizeEnvForLogging(env))
+      logger.debug('Environment variable values:', redactRecord(env))
 
       if (isWindows) {
         // Windows uses set command
@@ -490,7 +490,7 @@ export class CodeCliService extends BaseService {
         const envCommands = validEntries
           .map(([key, value]) => {
             const exportCmd = `export ${key}=${posixQuote(String(value))}`
-            logger.debug(`Setting env var: ${key}=<redacted>`)
+            logger.debug(`Setting env var: ${key}=${REDACTED}`)
             return exportCmd
           })
           .join(' && ')

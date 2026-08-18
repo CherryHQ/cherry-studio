@@ -209,7 +209,8 @@
       "type": "Agent 圖示"
     },
     "input": {
-      "placeholder": "輸入訊息，按 {{key}} 傳送，輸入 / 搜尋路徑或指令，輸入 @ 引用檔案或工作階段"
+      "placeholder": "輸入訊息，按 {{key}} 傳送，輸入 / 搜尋路徑或指令，輸入 @ 引用檔案或工作階段",
+      "placeholder_streaming": "智能體執行中 — {{sendKey}} 排隊發送後續訊息，{{steerKey}} 立即引導"
     },
     "list": {
       "error": {
@@ -662,13 +663,16 @@
           },
           "auto": {
             "description": "無需逐次批准，安全檢查會攔截風險操作。",
+            "description_pi": "自主執行，識別到風險動作時會詢問。",
             "title": "智慧批准",
-            "warning": "需要模型支援；部分模型可能忽略此模式或仍逐次詢問。"
+            "warning": "需要模型支援；部分模型可能忽略此模式或仍逐次詢問。",
+            "warning_pi": "識別機制僅盡力而為，非典型命令仍可能被放行。"
           },
           "bypassPermissions": {
             "description": "略過權限檢查，可刪除檔案、存取網路。",
             "title": "完全存取",
-            "warning": "危險：大多數工具無需核准即可執行；明確的安全阻擋規則仍然生效。"
+            "warning": "危險：大多數工具無需核准即可執行；明確的安全阻擋規則仍然生效。",
+            "warning_pi": "危險 — 除已停用工具外，所有操作均不會詢問，包含檔案刪除與網路存取。"
           },
           "confirmChange": {
             "description": "切換模式會更新自動預先授權的工具。",
@@ -1088,17 +1092,37 @@
           "description": "執行 Shell 命令",
           "label": "執行 Shell 命令"
         },
+        "create_goal": {
+          "description": "建立要達成的工作階段目標",
+          "label": "建立目標"
+        },
         "edit": {
           "description": "編輯檔案",
           "label": "編輯檔案"
+        },
+        "exit_plan_mode": {
+          "description": "提交計畫供檢視，核准後退出計畫模式",
+          "label": "退出計畫模式"
         },
         "find": {
           "description": "尋找檔案",
           "label": "尋找檔案"
         },
+        "get_goal": {
+          "description": "讀取目前的工作階段目標",
+          "label": "讀取目標"
+        },
         "grep": {
           "description": "搜尋檔案內容",
           "label": "搜尋檔案內容"
+        },
+        "interrupt_agent": {
+          "description": "停止背景子智能體的當前回合",
+          "label": "中斷子智能體"
+        },
+        "list_agents": {
+          "description": "列出背景子智能體及其狀態",
+          "label": "列出子智能體"
         },
         "ls": {
           "description": "列出目錄內容",
@@ -1107,6 +1131,34 @@
         "read": {
           "description": "讀取檔案",
           "label": "讀取檔案"
+        },
+        "read_image": {
+          "description": "使用支援視覺的模型讀取 PNG、JPEG、WebP 或 GIF 圖片",
+          "label": "讀取圖片"
+        },
+        "send_message": {
+          "description": "向背景子智能體發送後續訊息",
+          "label": "發送訊息給子智能體"
+        },
+        "skill": {
+          "description": "載入啟用技能的完整指令",
+          "label": "載入技能指令"
+        },
+        "subagent": {
+          "description": "將任務委派給背景子智能體，後續可向其發送訊息",
+          "label": "委派給子智能體"
+        },
+        "subagent_fork": {
+          "description": "將後續任務委派給繼承本對話之子智能體",
+          "label": "分支子智能體"
+        },
+        "todo_write": {
+          "description": "管理任務清單",
+          "label": "管理任務清單"
+        },
+        "update_goal": {
+          "description": "更新工作階段目標的狀態或內容",
+          "label": "更新目標"
         },
         "write": {
           "description": "寫入檔案",
@@ -2203,7 +2255,7 @@
     "cli_tool_placeholder": "選擇要使用的 CLI 工具",
     "cli_tools": {
       "claude_code": "Claude Code",
-      "deepseek_harness": "[to be translated]:DeepSeek Harness",
+      "deepseek_harness": "DeepSeek Harness",
       "gemini_cli": "Gemini CLI",
       "github_copilot_cli": "GitHub Copilot CLI",
       "kimi_code": "Kimi Code",
@@ -2227,39 +2279,39 @@
     "custom_path_required": "此終端機需要設定自訂路徑",
     "custom_path_set": "自訂終端機路徑設定成功",
     "deepseek_harness": {
-      "agent_preset": "[to be translated]:Default agent mode",
+      "agent_preset": "預設智能體模式",
       "agent_presets": {
         "code": {
-          "description": "[to be translated]:Combines multi-step tool work through the PTC Code Mode SDK for complex coding tasks.",
-          "label": "[to be translated]:PTC Code"
+          "description": "透過 PTC Code Mode SDK 組合多步驟工具操作，適用於複雜的程式設計任務。",
+          "label": "PTC 程式碼"
         },
         "inherit": {
-          "description": "[to be translated]:Keeps the existing default preset in the shared ~/.dsh settings.",
-          "label": "[to be translated]:Harness default"
+          "description": "保留共用 ~/.dsh 設定中現有的預設設定。",
+          "label": "Harness 預設"
         },
         "minimal": {
-          "description": "[to be translated]:Uses only a persistent shell and text editor for the smallest tool surface.",
-          "label": "[to be translated]:Minimal"
+          "description": "僅使用持續性 Shell 和文字編輯器，以維持最精簡的工具範圍。",
+          "label": "極簡"
         },
         "standard": {
-          "description": "[to be translated]:Full coding agent with files, shell, search, skills, planning, and subagents.",
-          "label": "[to be translated]:Standard"
+          "description": "完整的程式設計智能體，包含檔案、Shell、搜尋、技能、規劃和子智能體。",
+          "label": "標準"
         }
       },
-      "danger_warning": "[to be translated]:Full access lets the agent reach files outside the workspace and skips operation approval. Use it only for tasks you trust.",
-      "permission_mode": "[to be translated]:Default permission",
+      "danger_warning": "完全存取可讓智能體存取工作區以外的檔案並略過操作核准。僅用於你信任的任務。",
+      "permission_mode": "預設權限",
       "permission_modes": {
         "danger-full-access": {
-          "description": "[to be translated]:Allows unrestricted access without operation approval.",
-          "label": "[to be translated]:Full access"
+          "description": "允許不受限制地存取，且不需核准操作。",
+          "label": "完全存取"
         },
         "read-only": {
-          "description": "[to be translated]:Restricts file writes and asks before risky operations.",
-          "label": "[to be translated]:Read only"
+          "description": "限制寫入檔案，並在執行有風險的操作前要求確認。",
+          "label": "唯讀"
         },
         "workspace-write": {
-          "description": "[to be translated]:Allows writes in the current DSH workspace and asks before risky operations.",
-          "label": "[to be translated]:Workspace write"
+          "description": "允許寫入目前的 DSH 工作區，並在執行有風險的操作前要求確認。",
+          "label": "寫入工作區"
         }
       }
     },
@@ -2313,7 +2365,7 @@
     "no_tools": "目前沒有工具",
     "not_installed": "未安裝",
     "open_provider_settings": "開啟供應商設定",
-    "open_web_ui": "[to be translated]:Open Web UI",
+    "open_web_ui": "開啟 Web UI",
     "own_login": {
       "title": "{{toolName}} 官方"
     },
@@ -2323,10 +2375,10 @@
     "search_provider_placeholder": "搜尋供應商…",
     "select_folder": "選擇資料夾",
     "select_provider_before_launch": "請選擇一個供應商後啟動 {{toolName}}",
-    "select_provider_model": "[to be translated]:Please select a provider and model first",
+    "select_provider_model": "請先選擇供應商和模型",
     "select_tool_to_start": "從左側選擇一個 CLI 工具開始設定",
     "set_custom_path": "設定自訂終端機路徑",
-    "stop": "[to be translated]:Stop",
+    "stop": "停止",
     "supported_providers": "支援的供應商",
     "terminal": "終端機",
     "terminal_hint": "選擇執行命令的終端機應用程式",
@@ -2642,7 +2694,6 @@
       "503": "服務無法使用，請稍後再試",
       "504": "閘道器逾時，請稍後再試"
     },
-    "image_unreadable_for_non_vision_model": "所選模型不支援圖片，且 Cherry Studio 無法從附件中擷取可讀文字。請選擇支援視覺的模型，或移除圖片後再試一次。",
     "lastError": "最後錯誤",
     "maxEmbeddingsPerCall": "每次呼叫的最大嵌入",
     "message": "錯誤訊息",
@@ -3193,6 +3244,8 @@
         "delete_confirm_title": "確認批次刪除",
         "loaded_only_hint": "僅作用於已載入項，共 {{total}} 項",
         "reindex": "重新索引",
+        "reindex_none_eligible": "所有選取的資料來源仍在處理中，尚無法重新建立索引",
+        "reindex_skipped": "已略過 {{count}} 個仍在處理中的資料來源",
         "selected_count": "已選 {{count}} 項"
       },
       "chunks_count": "{{count}} 個片段",
@@ -3526,11 +3579,13 @@
             "label": "執行模式",
             "option": {
               "claude_code": "增強：Claude Agent",
+              "dsh": "DeepSeek Harness",
               "pi": "快速：Pi"
             },
-            "selected": {
-              "claude_code": "增強",
-              "pi": "快速"
+            "option_description": {
+              "claude_code": "能力更強 — 支援計畫模式與分級模型",
+              "dsh": "廣泛支援各家供應商，採目標驅動執行",
+              "pi": "回應更快、開銷更低"
             }
           },
           "small_model": {
@@ -7163,6 +7218,7 @@
         "no": "無描述",
         "nowledge_mem": "需要在本機執行 Nowledge Mem 應用程式。它會將 AI 對話、工具、筆記、Agent 與檔案儲存為電腦上的私人記憶。請從 https://mem.nowledge.co/ 下載。",
         "python": "在安全的沙盒環境中執行 Python 程式碼。使用 Pyodide 執行 Python，支援大多數標準函式庫和科學計算套件",
+        "qveris": "連接 QVeris，讓 AI 智能體探索、檢查及呼叫外部能力。需要設定 QVERIS_API_KEY 環境變數。",
         "sequentialthinking": "一個 MCP 伺服器實作，提供了透過結構化思維過程進行動態和反思性問題解決的工具"
       },
       "command": "指令",
@@ -7282,6 +7338,10 @@
       "providerPlaceholder": "供應商名稱",
       "providerUrl": "供應商網址",
       "providers": "供應商",
+      "qveris": {
+        "get_api_key": "取得 API Key",
+        "missing_api_key": "QVeris 需要 API Key。<link>註冊或登入以取得 API Key</link>，然後將其填入 QVERIS_API_KEY。"
+      },
       "registry": "套件管理源",
       "registryDefault": "預設",
       "registryOptions": {
@@ -7412,8 +7472,11 @@
         "confirm_delete_message": "刪除訊息前確認",
         "confirm_regenerate_message": "重新產生訊息前確認",
         "enable_quick_triggers": "啟用 / 觸發輸入快速面板",
+        "newline_shortcuts": "換行快捷鍵",
         "send_shortcuts": "傳送快捷鍵",
         "show_estimated_tokens": "顯示預估 Token 數",
+        "steer_shortcuts": "引導快捷鍵",
+        "steer_shortcuts_hint": "智能體執行中時，使用此快捷鍵可立即將訊息送入當前回合以進行引導；使用發送快捷鍵則會排隊，待該回合結束後再發出。",
         "title": "輸入設定"
       },
       "layout": {
@@ -9012,5 +9075,18 @@
     "quit": "結束",
     "show_window": "顯示視窗",
     "visualization": "視覺化"
+  },
+  "xlsx_preview": {
+    "chart": "圖表",
+    "chart_unsupported": "暫不支援此圖表類型",
+    "error": {
+      "description": "無法預覽此試算表。"
+    },
+    "formula_not_evaluated": "公式無法求值",
+    "sheet_tabs_label": "工作表",
+    "too_large": {
+      "description": "檔案大小 {{size}} 超過 {{limit}} 的預覽大小限制。",
+      "title": "檔案過大，無法預覽"
+    }
   }
 }
