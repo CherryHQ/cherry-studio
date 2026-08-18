@@ -6,12 +6,11 @@
 |----------|-------------|
 | [Development Setup](./guides/development.md) | Development environment setup |
 | [Linux Packaging](./guides/linux-packaging.md) | Linux package builds and native dependency prebuilds |
-| [Contributing](./guides/contributing.md) | How to contribute code |
+| [Contributing](../CONTRIBUTING.md) | How to contribute code |
 | [Branching Strategy](./guides/branching-strategy.md) | Git branching workflow |
 | [Test Plan](./guides/test-plan.md) | Test plan and release channels |
 | [i18n Guide](./guides/i18n.md) | Internationalization guide |
 | [Logging Guide](./guides/logging.md) | How to use the logger service |
-| [Middleware](./guides/middleware.md) | How to write AI Provider middleware |
 
 ## References
 
@@ -67,8 +66,7 @@
 
 | Document | Description |
 |----------|-------------|
-| [Message System](./references/messaging/message-system.md) | Message lifecycle, state management, operations |
-| [Composer Rich Clipboard](./references/messaging/composer-rich-clipboard.md) | Private composer token clipboard format and copy/paste flow |
+| [Composer Rich Clipboard](./references/chat/composer-rich-clipboard.md) | Private composer token clipboard format and copy/paste flow |
 | [Message Tree](./references/chat/message-tree.md) | Chat message-tree model: adjacency list, per-topic virtual root, sibling groups, invariants, delete semantics, getTree / flow-canvas contract |
 | [Chat UI Design & Conventions](./references/chat/conventions.md) | How the chat UI is divided by responsibility (presentation / view-state / contracts / orchestration) and the conventions modules follow (context, refs, render stability) |
 | [Chat Adapters](./references/chat/adapters.md) | The chat contract layer: projecting topics / sessions / messages into stable UI shapes, the pane / action registries, and render-stability rules |

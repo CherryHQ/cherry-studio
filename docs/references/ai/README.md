@@ -140,8 +140,6 @@ src/main/ai/
 - [Service Lifecycle](../lifecycle/README.md) — `AiService` extends `BaseService`
 - [Data Layer](../data/README.md) — `MessageService`, `ModelService`,
   `ProviderService` (called from main-side AI code)
-- [Messaging](../messaging/message-system.md) — `CherryMessagePart`,
-  `CherryUIMessage`, parts model
 - [Window Manager](../window-manager/README.md) — `WebContentsListener`
   attaches to whatever windows are open
 

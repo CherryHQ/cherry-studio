@@ -74,11 +74,9 @@ The Test Plan aims to provide users with a more stable application experience an
 
 Please review the following critical information before submitting your Pull Request:
 
-### Branch Strategy 🚨
+### Branch Strategy
 
 `main` is the default branch for active development — submit features, refactors, optimizations, and fixes here.
-
-*   **`main` branch**: New feature development, refactoring, optimizations, and fixes go here.
 
 
 ## Contact Us
