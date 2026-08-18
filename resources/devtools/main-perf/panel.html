@@ -1,0 +1,78 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Main Perf</title>
+    <link rel="stylesheet" href="panel.css" />
+  </head>
+  <body>
+    <header class="toolbar">
+      <button id="live" type="button" class="toggle is-on">● Live</button>
+      <button id="clear" type="button">Clear</button>
+      <input id="filter" type="search" placeholder="Filter track or span name" />
+      <label class="threshold">
+        ≥
+        <input id="threshold" type="number" min="0" step="0.5" value="0" />
+        ms
+      </label>
+      <button id="reset-zoom" type="button" hidden>Reset zoom</button>
+      <span class="spacer"></span>
+      <span id="count" class="count">0 spans</span>
+      <span id="status" class="status">Connecting…</span>
+    </header>
+
+    <section class="overview" id="overview">
+      <canvas id="overview-canvas"></canvas>
+      <div class="brush" id="brush" hidden></div>
+      <div class="overview-hint">Drag to zoom a range · double-click to reset</div>
+    </section>
+
+    <div class="grid-head">
+      <div class="col-name">Track / Span</div>
+      <div class="col-num">count</div>
+      <div class="col-num">avg</div>
+      <div class="col-num">max</div>
+      <div class="col-track" id="ruler"></div>
+    </div>
+
+    <main class="rows" id="rows"></main>
+
+    <section class="memory">
+      <div class="memory-legend">
+        <span class="legend-title">Memory — main</span>
+        <span><i class="dot dot-rss"></i><span id="mem-rss">–</span></span>
+        <span><i class="dot dot-heap"></i><span id="mem-heap">–</span></span>
+      </div>
+      <div class="memory-chart" id="memory-chart">
+        <canvas id="memory-canvas"></canvas>
+        <div class="cursor" id="memory-cursor" hidden></div>
+      </div>
+    </section>
+
+    <footer class="bottom">
+      <section class="detail">
+        <div class="section-head">Detail</div>
+        <div id="detail" class="detail-body">Select a track, group, or span.</div>
+      </section>
+      <section class="processes">
+        <div class="section-head">
+          Processes
+          <button id="refresh-processes" type="button" class="link">↻ refresh</button>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>process</th>
+              <th class="right">cpu</th>
+              <th class="right">memory</th>
+            </tr>
+          </thead>
+          <tbody id="processes"></tbody>
+        </table>
+      </section>
+    </footer>
+
+    <script src="fixtures.js"></script>
+    <script src="panel.js"></script>
+  </body>
+</html>

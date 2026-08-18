@@ -8,6 +8,18 @@ import { type ErrorStrategy, isActivatable, isPausable, LifecycleState, type Ser
 
 const logger = loggerService.withContext('Lifecycle')
 
+export type InitPhaseName = 'onInit' | 'onReady'
+
+/**
+ * Init-phase timing hook injected by LifecycleManager: given a phase name, returns its ender.
+ * A callback rather than a direct `@main/core/perf` dependency keeps BaseService free of
+ * infrastructure imports — it is the base class of nearly every service test, and one more
+ * static import breaks a great many partial mocks.
+ */
+export type InitPhaseMeasure = (name: InitPhaseName) => () => void
+
+const noopMeasure: InitPhaseMeasure = () => () => {}
+
 /**
  * Abstract base class for all lifecycle-managed services
  * Provides lifecycle hooks and state management.
@@ -258,15 +270,15 @@ export abstract class BaseService {
    * Internal method to execute initialization
    * Called by LifecycleManager
    */
-  public async _doInit(): Promise<void> {
+  public async _doInit(measure: InitPhaseMeasure = noopMeasure): Promise<void> {
     if (DIAGNOSTICS_ENABLED) {
       const name = getServiceName(this.constructor as ServiceConstructor)
       const t0 = performance.now()
       this._state = LifecycleState.Initializing
-      await this.onInit()
+      await this.runInitPhase('onInit', () => this.onInit(), measure)
       const t1 = performance.now()
       this._state = LifecycleState.Ready
-      await this.onReady()
+      await this.runInitPhase('onReady', () => this.onReady(), measure)
       const t2 = performance.now()
       logger.info(
         `[Diagnostics/_doInit] ${name}  onInit=${(t1 - t0).toFixed(1)}ms  onReady=${(t2 - t1).toFixed(1)}ms  total=${(t2 - t0).toFixed(1)}ms`
@@ -274,9 +286,23 @@ export abstract class BaseService {
       return
     }
     this._state = LifecycleState.Initializing
-    await this.onInit()
+    await this.runInitPhase('onInit', () => this.onInit(), measure)
     this._state = LifecycleState.Ready
-    await this.onReady()
+    await this.runInitPhase('onReady', () => this.onReady(), measure)
+  }
+
+  /** The ender runs in `finally`, so a failed startup still records what it cost. */
+  private async runInitPhase(
+    name: InitPhaseName,
+    run: () => Promise<void> | void,
+    measure: InitPhaseMeasure
+  ): Promise<void> {
+    const end = measure(name)
+    try {
+      await run()
+    } finally {
+      end()
+    }
   }
 
   /**

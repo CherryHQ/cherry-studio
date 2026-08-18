@@ -8,6 +8,7 @@ import {
   formatPhaseProfile,
   type ServiceSpan
 } from '@main/core/diagnostics'
+import { perf, type PerfSpanHandle } from '@main/core/perf'
 
 import { SERVICE_STOP_TIMEOUT_MS } from './constants'
 import { DependencyResolver, type PhaseAdjustment } from './DependencyResolver'
@@ -99,6 +100,10 @@ export class LifecycleManager extends EventEmitter {
   private phaseEpoch = 0
   private serviceSpans: Map<string, ServiceSpan> = new Map()
 
+  /** perf instrumentation: the bootstrap lane root and per-phase spans; service spans hang off their phase. */
+  private bootstrapSpan: PerfSpanHandle | null = null
+  private readonly phaseSpans = new Map<Phase, PerfSpanHandle>()
+
   /** Tracks services that were paused due to cascade from another service */
   private pausedByCascade: Map<string, Set<string>> = new Map()
   /** Tracks services that were stopped due to cascade from another service */
@@ -170,6 +175,9 @@ export class LifecycleManager extends EventEmitter {
 
     const phaseStart = performance.now()
     this.phaseEpoch = phaseStart
+    // The root span opens with the first phase and closes when the last one completes.
+    this.bootstrapSpan ??= perf.start('bootstrap', { track: 'bootstrap' })
+    this.phaseSpans.set(phase, perf.start(`phase:${phase}`, { track: 'bootstrap', parent: this.bootstrapSpan }))
     const lagSampler = DIAGNOSTICS_ENABLED ? new EventLoopLagSampler() : null
     lagSampler?.start(phaseStart)
     const cpuProfiler = DIAGNOSTICS_ENABLED && phase === Phase.WhenReady ? new CpuProfiler() : null
@@ -193,6 +201,12 @@ export class LifecycleManager extends EventEmitter {
     // Track overall initialization order
     for (const layer of layers) {
       this.initializationOrder.push(...layer)
+    }
+
+    this.phaseSpans.get(phase)?.end({ serviceCount })
+    if (phase === Phase.WhenReady) {
+      this.bootstrapSpan?.end()
+      this.bootstrapSpan = null
     }
 
     const phaseDuration = performance.now() - phaseStart
@@ -312,7 +326,18 @@ export class LifecycleManager extends EventEmitter {
 
       // Call initialization with timing
       const start = performance.now()
-      await instance._doInit()
+      const serviceSpan = perf.start(serviceName, {
+        track: 'bootstrap',
+        parent: this.phaseSpans.get(this.servicePhase.get(serviceName) as Phase)
+      })
+      try {
+        await instance._doInit((name) => {
+          const phaseSpan = perf.start(name, { track: 'bootstrap', parent: serviceSpan })
+          return () => phaseSpan.end()
+        })
+      } finally {
+        serviceSpan.end()
+      }
       const duration = performance.now() - start
       this.serviceTiming.set(serviceName, duration)
       if (DIAGNOSTICS_ENABLED) {
