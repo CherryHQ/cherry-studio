@@ -1,5 +1,6 @@
-import { EditableNumber, Switch } from '@cherrystudio/ui'
+import { EditableNumber, InfoTooltip, Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { DefaultModelSelector } from '@renderer/components/DefaultModelSelector'
 import {
   SettingDescription,
   SettingDivider,
@@ -17,9 +18,17 @@ import { isNonChatModel } from '@shared/utils/model'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { DefaultModelSelector } from './DefaultModelSelector'
-
 const chatModelFilter = (model: Model) => !isNonChatModel(model)
+
+const SettingRowTitleWithTooltip = ({ title, description }: { title: string; description: string }) => (
+  <SettingRowTitle className="gap-1">
+    {title}
+    <InfoTooltip
+      content={description}
+      iconProps={{ className: 'cursor-pointer', 'aria-label': `${title}: ${description}` }}
+    />
+  </SettingRowTitle>
+)
 
 /**
  * Global layer of the `chat.context_settings.*` preferences (the assistant
@@ -50,14 +59,15 @@ export const ContextManagementSettings = () => {
   return (
     <SettingGroup theme={theme}>
       <SettingTitle>{t('settings.models.context_management.title')}</SettingTitle>
+      <SettingDescription>{t('settings.models.context_management.scope_description')}</SettingDescription>
       <SettingDivider />
       {/* Outside the master switch: scope is not an overflow policy. */}
       <SettingRow>
         <div className="min-w-0 flex-1">
-          <SettingRowTitle>{t('settings.models.context_management.max_messages')}</SettingRowTitle>
-          <SettingDescription className="mt-1.5 leading-5">
-            {t('settings.models.context_management.max_messages_description')}
-          </SettingDescription>
+          <SettingRowTitleWithTooltip
+            title={t('settings.models.context_management.max_messages')}
+            description={t('settings.models.context_management.max_messages_description')}
+          />
         </div>
         <div className="w-[220px] shrink-0">
           <EditableNumber
@@ -78,10 +88,10 @@ export const ContextManagementSettings = () => {
       <SettingDivider />
       <SettingRow>
         <div className="min-w-0 flex-1">
-          <SettingRowTitle>{t('settings.models.context_management.enabled')}</SettingRowTitle>
-          <SettingDescription className="mt-1.5 leading-5">
-            {t('settings.models.context_management.enabled_description')}
-          </SettingDescription>
+          <SettingRowTitleWithTooltip
+            title={t('settings.models.context_management.enabled')}
+            description={t('settings.models.context_management.enabled_description')}
+          />
         </div>
         <Switch
           checked={enabled}
@@ -96,10 +106,10 @@ export const ContextManagementSettings = () => {
           <SettingDivider />
           <SettingRow>
             <div className="min-w-0 flex-1">
-              <SettingRowTitle>{t('settings.models.context_management.truncate_threshold')}</SettingRowTitle>
-              <SettingDescription className="mt-1.5 leading-5">
-                {t('settings.models.context_management.truncate_threshold_description')}
-              </SettingDescription>
+              <SettingRowTitleWithTooltip
+                title={t('settings.models.context_management.truncate_threshold')}
+                description={t('settings.models.context_management.truncate_threshold_description')}
+              />
             </div>
             <div className="w-[220px] shrink-0">
               <EditableNumber
@@ -125,10 +135,10 @@ export const ContextManagementSettings = () => {
           <SettingDivider />
           <SettingRow>
             <div className="min-w-0 flex-1">
-              <SettingRowTitle>{t('settings.models.context_management.compress_enabled')}</SettingRowTitle>
-              <SettingDescription className="mt-1.5 leading-5">
-                {t('settings.models.context_management.compress_enabled_description')}
-              </SettingDescription>
+              <SettingRowTitleWithTooltip
+                title={t('settings.models.context_management.compress_enabled')}
+                description={t('settings.models.context_management.compress_enabled_description')}
+              />
             </div>
             <Switch
               checked={compressEnabled}

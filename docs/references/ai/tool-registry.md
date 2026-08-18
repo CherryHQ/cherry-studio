@@ -156,6 +156,10 @@ runs model-authored code with full Node privileges, a privilege-escalation
 surface vs the renderer's prior restrictions. It is meant to be re-enabled
 behind an explicit Preference key once there is a concrete need.
 
+This statement is specific to the AI SDK registry. The Pi agent runtime has a
+separate, Pi-native `tool_search` / `tool_describe` / `tool_call` / `tool_exec` interface over its bridged MCP tools;
+see [Pi code mode](./agent-session-runtime.md#pi-code-mode).
+
 ## `applies` and tool-call repair
 
 - `applies(scope: ToolApplyScope)` — per-entry predicate consulted at
