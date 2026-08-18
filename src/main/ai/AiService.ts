@@ -35,6 +35,7 @@ import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { Base64String, CreateInternalEntryIpcParams, UrlString } from '@shared/types/file'
 import { isEmbeddingModel, isFunctionCallingModel, isRerankModel } from '@shared/utils/model'
+import { isOllamaProvider } from '@shared/utils/provider'
 import {
   type EmbeddingModelUsage,
   isToolUIPart,
@@ -71,6 +72,7 @@ import type {
 } from './types'
 import { installProviderUserAgentInterceptor } from './utils/customFetch'
 import { type SplitImageParams, splitParamValues } from './utils/imageOptions'
+import { defaultHeaders, getBaseUrl } from './utils/provider'
 import { createAiUsageCaptureContext } from './utils/usageCapture'
 
 const logger = loggerService.withContext('AiService')
@@ -1112,9 +1114,31 @@ export class AiService extends BaseService {
 
   /** Dispatches rerank first, then prefers text for chat-primary models over embedding. */
   async checkModel(request: AiBaseRequest & { timeout?: number }): Promise<{ latency: number }> {
-    const { model } = this.getProviderAndModel(request)
+    const { provider, model } = this.getProviderAndModel(request)
     const start = performance.now()
     const timeout = request.timeout ?? 15000
+
+    // Ollama: lightweight /api/tags probe — avoids loading the model into memory.
+    if (isOllamaProvider(provider)) {
+      const baseUrl = getBaseUrl(provider)
+      if (baseUrl) {
+        const controller = new AbortController()
+        const timeoutHandle = setTimeout(() => controller.abort(), timeout)
+        try {
+          const response = await fetch(`${baseUrl}/tags`, {
+            signal: controller.signal,
+            headers: defaultHeaders(provider)
+          })
+          if (!response.ok) {
+            throw new Error(`Ollama server returned ${response.status}`)
+          }
+          return { latency: performance.now() - start }
+        } finally {
+          clearTimeout(timeoutHandle)
+        }
+      }
+    }
+
     const primaryEndpoint = model.endpointTypes?.[0]
     const hasChatPrimaryEndpoint = primaryEndpoint != null && endpointImpliedCapability(primaryEndpoint) === undefined
 

@@ -1577,6 +1577,52 @@ describe('AiService tool approval', () => {
       })
     ).rejects.toThrow('Rerank health check returned empty ranking')
   })
+
+  it('uses lightweight /api/tags probe for Ollama providers', async () => {
+    const service = createService()
+    const generateSpy = vi.spyOn(service, 'generateText')
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 200 }))
+
+    mockProviderGetByProviderId.mockReturnValue({
+      id: 'ollama',
+      presetProviderId: 'ollama',
+      name: 'Ollama',
+      apiKeys: [],
+      authType: 'api-key',
+      apiFeatures: {
+        arrayContent: true,
+        streamOptions: true,
+        developerRole: false,
+        serviceTier: false,
+        verbosity: false
+      },
+      settings: {},
+      isEnabled: true,
+      endpointConfigs: {
+        'ollama-chat': { baseUrl: 'http://127.0.0.1:11434/api' }
+      },
+      defaultChatEndpoint: 'ollama-chat'
+    })
+    mockModelGetByKey.mockReturnValue({
+      id: 'ollama::llama3',
+      providerId: 'ollama',
+      apiModelId: 'llama3',
+      name: 'Llama 3',
+      capabilities: [],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    })
+
+    const result = await service.checkModel({ uniqueModelId: 'ollama::llama3' })
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'http://127.0.0.1:11434/api/tags',
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    )
+    expect(generateSpy).not.toHaveBeenCalled()
+    expect(result.latency).toBeGreaterThanOrEqual(0)
+  })
 })
 
 describe('imageInputEntryParams', () => {
