@@ -49,6 +49,8 @@ overrides:
   '@img/sharp-linux-x64': '0.35.3'
   '@img/sharp-win32-x64': '0.35.3'
   '@napi-rs/canvas': '0.1.97'
+  # transformers 4.2.0 pins 1.24.3; keep every inference path on the patched lifecycle-safe build.
+  onnxruntime-node: '1.25.1'
   # system-ocr 1.1.0's macOS 26 structured-document sidecar can recurse
   # indefinitely through Vision list containers. Keep the 1.1.0 wrapper and
   # Windows bindings, but use the legacy Accurate macOS implementation until
@@ -81,7 +83,7 @@ patchedDependencies:
   '@tiptap/extension-drag-handle@3.26.1': patches/@tiptap__extension-drag-handle@3.26.1.patch
   '@tiptap/markdown@3.26.1': patches/@tiptap__markdown@3.26.1.patch
   '@openrouter/ai-sdk-provider@2.10.0': patches/@openrouter__ai-sdk-provider@2.10.0.patch
-  onnxruntime-node@1.24.3: patches/onnxruntime-node@1.24.3.patch
+  onnxruntime-node@1.25.1: patches/onnxruntime-node@1.25.1.patch
   emoji-picker-react@4.19.1: patches/emoji-picker-react@4.19.1.patch
   '@ai-sdk/xai@3.0.111': patches/@ai-sdk__xai@3.0.111.patch
   '@ai-sdk/openai-compatible@2.0.62': patches/@ai-sdk__openai-compatible@2.0.62.patch
@@ -107,6 +109,7 @@ allowBuilds:
   esbuild: true
   koffi: true
   msw: true
+  node-mac-permissions: true
   node-pty: true
   onnxruntime-node: true
   protobufjs: true

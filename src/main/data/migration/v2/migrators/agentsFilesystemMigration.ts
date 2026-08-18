@@ -12,7 +12,7 @@ import {
   resolveRealOrNearestExistingPath
 } from '@main/ai/agents/agentDataDirectory'
 import { isMac, isWin } from '@main/core/platform'
-import { isPathInside } from '@main/utils/file'
+import { isPathInside, isSameOrInside } from '@main/utils/file'
 import PQueue from 'p-queue'
 import { validate as isUuid } from 'uuid'
 
@@ -210,6 +210,16 @@ async function realpathIfExists(targetPath: string): Promise<string | undefined>
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined
     throw error
   }
+}
+
+function isUnknownRealpathError(error: unknown): error is NodeJS.ErrnoException {
+  return (
+    error instanceof Error &&
+    'code' in error &&
+    error.code === 'UNKNOWN' &&
+    'syscall' in error &&
+    error.syscall === 'realpath'
+  )
 }
 
 export interface AgentFileSessionPlan {
@@ -1583,6 +1593,7 @@ async function clearLegacyAgentMigrationTargets(input: {
   await ensureAgentStorageDirectory(input.agentsDataRoot, input.agentsDataRoot)
 
   const sourceOwnershipByPath = new Map<string, CleanupSourceOwner[]>()
+  const targetKeysBySourcePath = new Map<string, Set<string>>()
   const addSourceOwner = (sourcePath: string, sourceAgentId: string, finalAgentId: string) => {
     const key = cleanupPathIndexKey(sourcePath)
     const owners = sourceOwnershipByPath.get(key) ?? []
@@ -1591,15 +1602,23 @@ async function clearLegacyAgentMigrationTargets(input: {
       sourceOwnershipByPath.set(key, owners)
     }
   }
+  const addSourceTarget = (sourcePath: string, targetPath: string) => {
+    const sourceKey = cleanupPathIndexKey(sourcePath)
+    const targetKeys = targetKeysBySourcePath.get(sourceKey) ?? new Set<string>()
+    targetKeys.add(cleanupPathIndexKey(path.resolve(targetPath)))
+    targetKeysBySourcePath.set(sourceKey, targetKeys)
+  }
   for (const session of input.sessions) {
     addSourceOwner(session.sourceWorkspacePath, session.sourceAgentId, session.finalAgentId)
+    addSourceTarget(session.sourceWorkspacePath, agentDataDirectoryPath(input.agentsDataRoot, session.finalAgentId))
+    if (session.isManagedDefault && session.systemWorkspacePath) {
+      addSourceTarget(session.sourceWorkspacePath, session.systemWorkspacePath)
+    }
   }
   for (const agent of input.agents) {
-    addSourceOwner(
-      legacyAgentWorkspacePath(input.agentsDataRoot, agent.sourceAgentId),
-      agent.sourceAgentId,
-      agent.finalAgentId
-    )
+    const sourcePath = legacyAgentWorkspacePath(input.agentsDataRoot, agent.sourceAgentId)
+    addSourceOwner(sourcePath, agent.sourceAgentId, agent.finalAgentId)
+    addSourceTarget(sourcePath, agentDataDirectoryPath(input.agentsDataRoot, agent.finalAgentId))
   }
 
   const targetPaths = new Map<string, { path: string; exists: boolean; preserveExactSource: boolean }>()
@@ -1654,10 +1673,30 @@ async function clearLegacyAgentMigrationTargets(input: {
     targetSourceOverlaps.set(cleanupPathIndexKey(overlap.targetPath), overlap)
   }
 
+  const skippedTargetKeys = new Set<string>()
   const resolvedSources: CleanupPathIndexEntry[] = []
   for (const sourcePath of overlapSourcePaths) {
-    const resolvedSource = await realpathIfExists(sourcePath)
-    if (resolvedSource) resolvedSources.push({ indexedPath: resolvedSource, ownerPath: sourcePath })
+    try {
+      const resolvedSource = await realpathIfExists(sourcePath)
+      if (resolvedSource) resolvedSources.push({ indexedPath: resolvedSource, ownerPath: sourcePath })
+    } catch (error) {
+      if (isSameOrInside(sourcePath, normalizedRoot) || !isUnknownRealpathError(error)) {
+        throw error
+      }
+      const protectedTargetKeys = new Set(
+        targetKeysBySourcePath.get(cleanupPathIndexKey(sourcePath)) ?? new Set<string>()
+      )
+      for (const target of targets) {
+        if (target.exists) protectedTargetKeys.add(cleanupPathIndexKey(target.path))
+      }
+      for (const targetKey of protectedTargetKeys) skippedTargetKeys.add(targetKey)
+      logger.warn('Skipping Agent filesystem targets because an external legacy source cannot be resolved', {
+        sourcePath,
+        code: error.code,
+        syscall: error.syscall,
+        skippedTargets: protectedTargetKeys.size
+      })
+    }
   }
 
   const resolvedTargets: CleanupPathIndexEntry[] = []
@@ -1677,7 +1716,7 @@ async function clearLegacyAgentMigrationTargets(input: {
     logger.warn('Skipping Agent filesystem target because it overlaps a legacy source', overlap)
   }
 
-  const skippedTargetKeys = new Set(targetSourceOverlaps.keys())
+  for (const targetKey of targetSourceOverlaps.keys()) skippedTargetKeys.add(targetKey)
   const cleanupTargets = targets.filter(
     (target) => !target.preserveExactSource && !skippedTargetKeys.has(cleanupPathIndexKey(target.path))
   )
