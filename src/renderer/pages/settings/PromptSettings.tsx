@@ -29,7 +29,8 @@ import {
 import { toast } from '@renderer/services/toast'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import type { Prompt, PromptBindingRelation, PromptVisibility } from '@shared/data/types/prompt'
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
+import type { Prompt, PromptBindingRelation, PromptBindingTarget, PromptVisibility } from '@shared/data/types/prompt'
 import { GripVertical, MoreHorizontal, Plus, Search, Trash2, X } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -38,7 +39,7 @@ import { type PromptTargetOption, PromptTargetPopover } from './PromptTargetPopo
 
 type PromptDialogState = { prompt: Prompt | null } | null
 type PromptFormValue = { title: string; content: string; visibility: PromptVisibility }
-type PendingVisibilityChange = { payload: PromptFormValue; bindingCount: number }
+type PendingVisibilityChange = { payload: PromptFormValue; bindings: PromptBindingTarget[] }
 
 const PROMPT_BINDINGS_SWR_OPTIONS = { keepPreviousData: false } as const
 
@@ -153,19 +154,32 @@ export function PromptSettings() {
         if (promptDialogPrompt) {
           if (promptDialogPrompt.visibility === 'restricted' && payload.visibility === 'global') {
             const refreshedBindings = await refetchActiveBindings()
-            const bindingCount = Array.isArray(refreshedBindings) ? refreshedBindings.length : activeBindings?.length
-            if (bindingCount === undefined) throw new Error('Unable to load prompt bindings')
-            if (bindingCount > 0) {
-              setPendingVisibilityChange({ payload, bindingCount })
+            if (!Array.isArray(refreshedBindings)) throw new Error('Unable to load prompt bindings')
+            if (refreshedBindings.length > 0) {
+              setPendingVisibilityChange({ payload, bindings: refreshedBindings })
               return
             }
+            await updatePrompt({ ...payload, expectedBindings: refreshedBindings })
+          } else {
+            await updatePrompt(payload)
           }
-          await updatePrompt(payload)
         } else {
           await createPrompt(payload)
         }
         setPromptDialog(null)
       } catch (err) {
+        if (
+          err instanceof DataApiError &&
+          err.code === ErrorCode.CONCURRENT_MODIFICATION &&
+          promptDialogPrompt?.visibility === 'restricted' &&
+          payload.visibility === 'global'
+        ) {
+          const refreshedBindings = await refetchActiveBindings()
+          if (Array.isArray(refreshedBindings)) {
+            setPendingVisibilityChange({ payload, bindings: refreshedBindings })
+            return
+          }
+        }
         toast.error(
           formatErrorMessageWithPrefix(
             err,
@@ -177,7 +191,7 @@ export function PromptSettings() {
         setSavingPrompt(false)
       }
     },
-    [activeBindings, createPrompt, promptDialogPrompt, refetchActiveBindings, t, updatePrompt]
+    [createPrompt, promptDialogPrompt, refetchActiveBindings, t, updatePrompt]
   )
 
   const handleConfirmVisibilityChange = useCallback(async () => {
@@ -185,16 +199,25 @@ export function PromptSettings() {
 
     setSavingPrompt(true)
     try {
-      await updatePrompt(pendingVisibilityChange.payload)
+      await updatePrompt({
+        ...pendingVisibilityChange.payload,
+        expectedBindings: pendingVisibilityChange.bindings
+      })
       setPendingVisibilityChange(null)
       setPromptDialog(null)
     } catch (err) {
+      if (err instanceof DataApiError && err.code === ErrorCode.CONCURRENT_MODIFICATION) {
+        const refreshedBindings = await refetchActiveBindings()
+        if (Array.isArray(refreshedBindings)) {
+          setPendingVisibilityChange((current) => (current ? { ...current, bindings: refreshedBindings } : current))
+        }
+      }
       toast.error(formatErrorMessageWithPrefix(err, t('settings.prompts.errors.updateFailed')))
       throw err
     } finally {
       setSavingPrompt(false)
     }
-  }, [pendingVisibilityChange, t, updatePrompt])
+  }, [pendingVisibilityChange, refetchActiveBindings, t, updatePrompt])
 
   const handleConfirmDelete = useCallback(async () => {
     if (!deleteTarget) return
@@ -328,7 +351,7 @@ export function PromptSettings() {
         }}
         title={t('settings.prompts.visibility.makeGlobalConfirmTitle')}
         description={t('settings.prompts.visibility.makeGlobalConfirmDescription', {
-          count: pendingVisibilityChange?.bindingCount ?? 0
+          count: pendingVisibilityChange?.bindings.length ?? 0
         })}
         confirmText={t('common.confirm')}
         cancelText={t('common.cancel')}

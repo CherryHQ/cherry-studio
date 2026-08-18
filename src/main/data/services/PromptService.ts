@@ -25,9 +25,10 @@ import type {
   PromptBindingTarget,
   PromptBindingTargetType
 } from '@shared/data/types/prompt'
+import { PromptContentSchema, PromptTitleSchema } from '@shared/data/types/prompt'
 import { and, asc, eq, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
 
-import { applyMoves, insertWithOrderKey } from './utils/orderKey'
+import { applyMoves, insertManyWithOrderKey, insertWithOrderKey } from './utils/orderKey'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:PromptService')
@@ -57,6 +58,10 @@ function collectAnchorIds(anchors: OrderRequest[]): string[] {
 
 function bindingTargetCondition(target: PromptBindingTarget): SQL {
   return and(eq(promptBindingTable.targetType, target.type), eq(promptBindingTable.targetId, target.id))!
+}
+
+function bindingTargetKey(target: PromptBindingTarget): string {
+  return `${target.type}:${target.id}`
 }
 
 function bindingMembershipEffects(promptIds?: readonly string[], includePromptList = true): DataApiDataChangeEffect[] {
@@ -138,7 +143,11 @@ export class PromptService {
 
   listBindings(promptId: string): PromptBindingTarget[] {
     this.getById(promptId)
-    const rows = this.db
+    return this.listBindingsTx(this.db, promptId)
+  }
+
+  private listBindingsTx(tx: Pick<DbType, 'select'>, promptId: string): PromptBindingTarget[] {
+    const rows = tx
       .select({ type: promptBindingTable.targetType, id: promptBindingTable.targetId })
       .from(promptBindingTable)
       .where(eq(promptBindingTable.promptId, promptId))
@@ -147,6 +156,58 @@ export class PromptService {
     return rows.map((row) =>
       row.type === 'assistant' ? { type: 'assistant', id: row.id } : { type: 'agent', id: row.id }
     )
+  }
+
+  createRestrictedForTargetTx(
+    tx: Pick<DbType, 'insert' | 'select'>,
+    target: PromptBindingTarget,
+    phrases: ReadonlyArray<{ title: string; content: string }>
+  ): string[] {
+    if (phrases.length === 0) return []
+    this.assertBindingTargetExistsTx(tx, target)
+
+    const promptValues = phrases.map((phrase) => ({
+      title: PromptTitleSchema.parse(phrase.title),
+      content: PromptContentSchema.parse(phrase.content),
+      visibility: 'restricted' as const
+    }))
+    const prompts = insertManyWithOrderKey(tx, promptTable, promptValues, { pkColumn: promptTable.id }) as Array<
+      typeof promptTable.$inferSelect
+    >
+    insertManyWithOrderKey(
+      tx,
+      promptBindingTable,
+      prompts.map((prompt) => ({ promptId: prompt.id, targetType: target.type, targetId: target.id })),
+      { pkColumn: promptBindingTable.promptId, scope: bindingTargetCondition(target) }
+    )
+    return prompts.map((prompt) => prompt.id)
+  }
+
+  cloneBindingsForTargetTx(
+    tx: Pick<DbType, 'insert' | 'select'>,
+    source: PromptBindingTarget,
+    target: PromptBindingTarget
+  ): string[] {
+    const bindings = tx
+      .select({ promptId: promptBindingTable.promptId })
+      .from(promptBindingTable)
+      .where(bindingTargetCondition(source))
+      .orderBy(asc(promptBindingTable.orderKey))
+      .all()
+    if (bindings.length === 0) return []
+
+    this.assertBindingTargetExistsTx(tx, target)
+    insertManyWithOrderKey(
+      tx,
+      promptBindingTable,
+      bindings.map((binding) => ({
+        promptId: binding.promptId,
+        targetType: target.type,
+        targetId: target.id
+      })),
+      { pkColumn: promptBindingTable.promptId, scope: bindingTargetCondition(target) }
+    )
+    return bindings.map((binding) => binding.promptId)
   }
 
   getById(id: string): Prompt {
@@ -274,6 +335,24 @@ export class PromptService {
         throw DataApiErrorFactory.notFound('Prompt', id)
       }
 
+      const isMakingGlobal = existing.visibility === 'restricted' && dto.visibility === 'global'
+      if (isMakingGlobal) {
+        const actualBindings = this.listBindingsTx(tx, id)
+        const expectedKeys = dto.expectedBindings?.map(bindingTargetKey).sort()
+        const actualKeys = actualBindings.map(bindingTargetKey).sort()
+        const hasExactSnapshot =
+          expectedKeys !== undefined &&
+          expectedKeys.length === actualKeys.length &&
+          expectedKeys.every((key, index) => key === actualKeys[index])
+
+        if (
+          (actualKeys.length > 0 && expectedKeys === undefined) ||
+          (expectedKeys !== undefined && !hasExactSnapshot)
+        ) {
+          throw DataApiErrorFactory.concurrentModification('Prompt bindings', id)
+        }
+      }
+
       const updates: Partial<typeof promptTable.$inferInsert> = {}
       if (dto.title !== undefined) updates.title = dto.title
       if (dto.content !== undefined) updates.content = dto.content
@@ -281,7 +360,7 @@ export class PromptService {
 
       tx.update(promptTable).set(updates).where(eq(promptTable.id, id)).run()
       let clearedBindings = false
-      if (existing.visibility === 'restricted' && dto.visibility === 'global') {
+      if (isMakingGlobal) {
         clearedBindings = tx.delete(promptBindingTable).where(eq(promptBindingTable.promptId, id)).run().changes > 0
       }
 

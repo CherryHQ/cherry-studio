@@ -200,6 +200,26 @@ describe('Combobox', () => {
     expect(onChange).toHaveBeenCalledWith(['beta'])
   })
 
+  it('exposes controlled multi-selection membership on every option', async () => {
+    render(
+      <Combobox
+        multiple
+        aria-label="Choose targets"
+        options={options}
+        value={['alpha', 'beta']}
+        placeholder="Pick values"
+      />
+    )
+
+    fireEvent.click(screen.getByRole('combobox', { name: 'Choose targets' }))
+
+    const listbox = await screen.findByRole('listbox')
+    expect(listbox).toHaveAttribute('aria-multiselectable', 'true')
+    expect(screen.getByRole('option', { name: 'Alpha' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('option', { name: 'Beta' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('option', { name: 'Gamma' })).toHaveAttribute('aria-checked', 'false')
+  })
+
   it('allows selected multi-value removal labels to be localized', () => {
     render(
       <Combobox

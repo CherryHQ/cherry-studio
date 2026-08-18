@@ -40,8 +40,13 @@ export type CreatePromptDto = z.infer<typeof CreatePromptSchema>
 
 export const UpdatePromptSchema = PromptSchema.pick({ title: true, content: true, visibility: true })
   .partial()
+  .extend({ expectedBindings: z.array(PromptBindingTargetSchema).optional() })
   .refine((dto) => dto.title !== undefined || dto.content !== undefined || dto.visibility !== undefined, {
     message: 'At least one field is required'
+  })
+  .refine((dto) => dto.expectedBindings === undefined || dto.visibility === 'global', {
+    message: 'Expected bindings are only valid when making a prompt global',
+    path: ['expectedBindings']
   })
 export type UpdatePromptDto = z.infer<typeof UpdatePromptSchema>
 

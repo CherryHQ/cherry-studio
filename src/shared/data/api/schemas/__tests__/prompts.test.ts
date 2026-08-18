@@ -117,6 +117,15 @@ describe('prompt DTO schemas', () => {
     expect(UpdatePromptSchema.parse({ visibility: 'restricted' })).toEqual({ visibility: 'restricted' })
   })
 
+  it('accepts an exact binding snapshot only for a global visibility update', () => {
+    const expectedBindings = [{ type: 'assistant' as const, id: TARGET_ID }]
+    expect(UpdatePromptSchema.parse({ visibility: 'global', expectedBindings })).toEqual({
+      visibility: 'global',
+      expectedBindings
+    })
+    expect(() => UpdatePromptSchema.parse({ title: 'renamed', expectedBindings })).toThrow()
+  })
+
   it('rejects update with empty title or content', () => {
     expect(() => UpdatePromptSchema.parse({ title: '' })).toThrow()
     expect(() => UpdatePromptSchema.parse({ content: '' })).toThrow()

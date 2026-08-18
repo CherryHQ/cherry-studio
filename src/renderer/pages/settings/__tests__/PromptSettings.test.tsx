@@ -1,3 +1,4 @@
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
@@ -165,7 +166,7 @@ vi.mock('@cherrystudio/ui', () => ({
     open ? (
       <div role="dialog" aria-label={title}>
         <span>{description}</span>
-        <button type="button" onClick={() => void onConfirm()}>
+        <button type="button" onClick={() => void onConfirm().catch(() => undefined)}>
           {confirmText}
         </button>
         <button type="button" onClick={() => onOpenChange(false)}>
@@ -269,7 +270,11 @@ describe('PromptSettings', () => {
 
   it('requires confirmation before making a linked restricted prompt global', async () => {
     const user = userEvent.setup()
-    mocks.refetchBindings.mockResolvedValue([{ targetId: 'assistant-1' }, { targetId: 'agent-1' }])
+    const bindings = [
+      { type: 'assistant' as const, id: '11111111-1111-4111-8111-111111111111' },
+      { type: 'agent' as const, id: 'agent-1' }
+    ]
+    mocks.refetchBindings.mockResolvedValue(bindings)
     render(<PromptSettings />)
 
     await user.click(screen.getByRole('button', { name: 'common.edit Targeted prompt' }))
@@ -287,7 +292,79 @@ describe('PromptSettings', () => {
       expect(mocks.updatePrompt).toHaveBeenCalledWith({
         title: 'Saved title',
         content: 'Saved content',
-        visibility: 'global'
+        visibility: 'global',
+        expectedBindings: bindings
+      })
+    )
+  })
+
+  it('refreshes a stale binding snapshot and requires confirmation again', async () => {
+    const user = userEvent.setup()
+    const originalBindings = [{ type: 'agent' as const, id: 'agent-old' }]
+    const replacementBindings = [{ type: 'agent' as const, id: 'agent-new' }]
+    mocks.refetchBindings.mockResolvedValueOnce(originalBindings).mockResolvedValueOnce(replacementBindings)
+    mocks.updatePrompt
+      .mockRejectedValueOnce(DataApiErrorFactory.concurrentModification('Prompt bindings', prompts[1].id))
+      .mockResolvedValueOnce(prompts[0])
+    render(<PromptSettings />)
+
+    await user.click(screen.getByRole('button', { name: 'common.edit Targeted prompt' }))
+    await user.click(screen.getByRole('button', { name: 'save global prompt' }))
+    const confirmDialog = await screen.findByRole('dialog', {
+      name: 'settings.prompts.visibility.makeGlobalConfirmTitle'
+    })
+
+    await user.click(within(confirmDialog).getByRole('button', { name: 'common.confirm' }))
+    await waitFor(() => expect(mocks.refetchBindings).toHaveBeenCalledTimes(2))
+    expect(mocks.updatePrompt).toHaveBeenNthCalledWith(1, {
+      title: 'Saved title',
+      content: 'Saved content',
+      visibility: 'global',
+      expectedBindings: originalBindings
+    })
+    expect(screen.getByRole('dialog', { name: 'settings.prompts.visibility.makeGlobalConfirmTitle' })).toBeVisible()
+
+    await user.click(within(confirmDialog).getByRole('button', { name: 'common.confirm' }))
+    await waitFor(() =>
+      expect(mocks.updatePrompt).toHaveBeenNthCalledWith(2, {
+        title: 'Saved title',
+        content: 'Saved content',
+        visibility: 'global',
+        expectedBindings: replacementBindings
+      })
+    )
+  })
+
+  it('opens confirmation when a binding appears after an empty preflight snapshot', async () => {
+    const user = userEvent.setup()
+    const addedBindings = [{ type: 'agent' as const, id: 'agent-new' }]
+    mocks.refetchBindings.mockResolvedValueOnce([]).mockResolvedValueOnce(addedBindings)
+    mocks.updatePrompt
+      .mockRejectedValueOnce(DataApiErrorFactory.concurrentModification('Prompt bindings', prompts[1].id))
+      .mockResolvedValueOnce(prompts[0])
+    render(<PromptSettings />)
+
+    await user.click(screen.getByRole('button', { name: 'common.edit Targeted prompt' }))
+    await user.click(screen.getByRole('button', { name: 'save global prompt' }))
+
+    const confirmDialog = await screen.findByRole('dialog', {
+      name: 'settings.prompts.visibility.makeGlobalConfirmTitle'
+    })
+    expect(mocks.updatePrompt).toHaveBeenNthCalledWith(1, {
+      title: 'Saved title',
+      content: 'Saved content',
+      visibility: 'global',
+      expectedBindings: []
+    })
+    expect(confirmDialog).toHaveTextContent('settings.prompts.visibility.makeGlobalConfirmDescription:1')
+
+    await user.click(within(confirmDialog).getByRole('button', { name: 'common.confirm' }))
+    await waitFor(() =>
+      expect(mocks.updatePrompt).toHaveBeenNthCalledWith(2, {
+        title: 'Saved title',
+        content: 'Saved content',
+        visibility: 'global',
+        expectedBindings: addedBindings
       })
     )
   })

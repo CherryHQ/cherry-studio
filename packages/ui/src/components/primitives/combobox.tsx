@@ -80,7 +80,9 @@ export type ComboboxSearchPlacement = 'content' | 'trigger'
 
 interface ComboboxOptionListProps<TExtra extends object> {
   emptyText: string
+  isSelected: (value: string) => boolean
   manualFilterEnabled: boolean
+  multiple: boolean
   onSelect: (value: string) => void
   options: ComboboxOption<TExtra>[]
   renderOptionContent: (option: ComboboxOption<TExtra>) => React.ReactNode
@@ -89,7 +91,9 @@ interface ComboboxOptionListProps<TExtra extends object> {
 
 function ComboboxOptionList<TExtra extends object>({
   emptyText,
+  isSelected,
   manualFilterEnabled,
+  multiple,
   onSelect,
   options,
   renderOptionContent,
@@ -101,6 +105,7 @@ function ComboboxOptionList<TExtra extends object>({
       value={fallbackToLabel ? option.value || option.label : option.value}
       keywords={[option.label, option.description ?? '']}
       disabled={option.disabled}
+      aria-checked={multiple ? isSelected(option.value) : undefined}
       onSelect={() => onSelect(option.value)}
       className={cn(comboboxItemVariants({ state: option.disabled ? 'disabled' : 'default' }))}>
       {renderOptionContent(option)}
@@ -108,7 +113,7 @@ function ComboboxOptionList<TExtra extends object>({
   )
 
   return (
-    <CommandList>
+    <CommandList aria-multiselectable={multiple || undefined}>
       {manualFilterEnabled ? (
         visibleOptions.length === 0 ? (
           <div className="py-6 text-center text-muted-foreground text-sm">{emptyText}</div>
@@ -605,7 +610,9 @@ export function Combobox<TExtra extends object = Record<never, never>>({
           )}
           <ComboboxOptionList
             emptyText={emptyText}
+            isSelected={isSelected}
             manualFilterEnabled={manualFilterEnabled}
+            multiple={multiple}
             onSelect={handleSelect}
             options={options}
             renderOptionContent={renderOptionContent}

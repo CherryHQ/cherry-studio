@@ -354,8 +354,57 @@ describe('PromptService', () => {
         bindingTarget: { type: 'assistant', id: ASSISTANT_ID }
       })
 
-      expect(promptService.update(prompt.id, { visibility: 'global' })).toMatchObject({ visibility: 'global' })
+      expect(
+        promptService.update(prompt.id, {
+          visibility: 'global',
+          expectedBindings: [{ type: 'assistant', id: ASSISTANT_ID }]
+        })
+      ).toMatchObject({ visibility: 'global' })
       expect(await dbh.db.select().from(promptBindingTable)).toHaveLength(0)
+    })
+
+    it('requires a binding snapshot before clearing existing bindings', async () => {
+      await seedAssistant(ASSISTANT_ID, 'a0')
+      const prompt = promptService.create({
+        title: 'Bound',
+        content: 'Body',
+        visibility: 'restricted',
+        bindingTarget: { type: 'assistant', id: ASSISTANT_ID }
+      })
+
+      let err: unknown
+      try {
+        promptService.update(prompt.id, { visibility: 'global' })
+      } catch (error) {
+        err = error
+      }
+      expect(err).toMatchObject({ code: ErrorCode.CONCURRENT_MODIFICATION })
+      expect(promptService.getById(prompt.id).visibility).toBe('restricted')
+      expect(promptService.listBindings(prompt.id)).toEqual([{ type: 'assistant', id: ASSISTANT_ID }])
+    })
+
+    it('rejects a same-count binding replacement without deleting the new association', async () => {
+      await seedAssistant(ASSISTANT_ID, 'a0')
+      await seedAssistant(OTHER_ASSISTANT_ID, 'a1')
+      const prompt = promptService.create({
+        title: 'Bound',
+        content: 'Body',
+        visibility: 'restricted',
+        bindingTarget: { type: 'assistant', id: ASSISTANT_ID }
+      })
+      const expectedBindings = promptService.listBindings(prompt.id)
+      promptService.unbindFromTarget(prompt.id, { type: 'assistant', id: ASSISTANT_ID })
+      promptService.bindToTarget(prompt.id, { type: 'assistant', id: OTHER_ASSISTANT_ID })
+
+      let err: unknown
+      try {
+        promptService.update(prompt.id, { visibility: 'global', expectedBindings })
+      } catch (error) {
+        err = error
+      }
+      expect(err).toMatchObject({ code: ErrorCode.CONCURRENT_MODIFICATION })
+      expect(promptService.getById(prompt.id).visibility).toBe('restricted')
+      expect(promptService.listBindings(prompt.id)).toEqual([{ type: 'assistant', id: OTHER_ASSISTANT_ID }])
     })
 
     it('should throw NOT_FOUND when the prompt does not exist', async () => {
