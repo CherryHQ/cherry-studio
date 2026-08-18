@@ -922,7 +922,6 @@ export class ClaudeCodeStreamAdapter {
   private readonly localWorkflowRuntimeProgresses = new Map<string, unknown[]>()
   private readonly persistedWorkflowSnapshotTaskIds = new Set<string>()
   private readonly persistedTerminalWorkflowSnapshotTaskIds = new Set<string>()
-  private readonly persistedTerminalNotificationWorkflowSnapshotTaskIds = new Set<string>()
   private readonly workflowSnapshotCache = new Map<string, WorkflowSnapshotCacheEntry>()
   private readonly workflowTranscriptStatsCaches = new Map<string, Map<string, AgentTranscriptStatsCacheEntry>>()
   private readonly pendingTerminalWorkflowEvents = new Map<string, PendingTerminalWorkflowState>()
@@ -2193,7 +2192,6 @@ export class ClaudeCodeStreamAdapter {
     this.localWorkflowRuntimeProgresses.clear()
     this.persistedWorkflowSnapshotTaskIds.clear()
     this.persistedTerminalWorkflowSnapshotTaskIds.clear()
-    this.persistedTerminalNotificationWorkflowSnapshotTaskIds.clear()
     this.workflowSnapshotCache.clear()
     this.workflowTranscriptStatsCaches.clear()
     this.pendingTerminalWorkflowEvents.clear()
@@ -2707,19 +2705,15 @@ export class ClaudeCodeStreamAdapter {
     let persistedEventData = eventData
     if (workflow) {
       const terminalSnapshotPersisted = this.persistedTerminalWorkflowSnapshotTaskIds.has(eventData.taskId)
-      const isTerminalNotification = isTerminal && message.subtype === 'task_notification'
-      const persistedTaskIds = isTerminalNotification
-        ? this.persistedTerminalNotificationWorkflowSnapshotTaskIds
-        : isTerminal
-          ? this.persistedTerminalWorkflowSnapshotTaskIds
-          : this.persistedWorkflowSnapshotTaskIds
+      const persistedTaskIds = isTerminal
+        ? this.persistedTerminalWorkflowSnapshotTaskIds
+        : this.persistedWorkflowSnapshotTaskIds
       if ((!isTerminal && terminalSnapshotPersisted) || persistedTaskIds.has(eventData.taskId)) {
         const withoutWorkflow = { ...eventData }
         delete withoutWorkflow.workflow
         persistedEventData = withoutWorkflow
       } else {
         persistedTaskIds.add(eventData.taskId)
-        if (isTerminal) this.persistedTerminalWorkflowSnapshotTaskIds.add(eventData.taskId)
       }
     }
 
@@ -2747,7 +2741,6 @@ export class ClaudeCodeStreamAdapter {
     this.localWorkflowRuntimeProgresses.delete(taskId)
     this.persistedWorkflowSnapshotTaskIds.delete(taskId)
     this.persistedTerminalWorkflowSnapshotTaskIds.delete(taskId)
-    this.persistedTerminalNotificationWorkflowSnapshotTaskIds.delete(taskId)
     this.workflowSnapshotCache.delete(taskId)
     this.workflowTranscriptStatsCaches.delete(taskId)
     this.pendingTerminalWorkflowEvents.delete(taskId)
@@ -2758,12 +2751,13 @@ export class ClaudeCodeStreamAdapter {
       this.agentFlowStats.delete(toolCallId)
     }
     this.asyncAgentTaskIds.delete(taskId)
+    this.stopBackgroundBashPolling(taskId, false)
     this.backgroundBashOutputs.delete(taskId)
   }
 
   private isBackgroundBashTask(taskId: string): boolean {
     const taskType = this.backgroundTaskTypes.get(taskId) ?? ''
-    return taskType.includes('bash') || taskType.includes('shell')
+    return taskType === 'local_bash'
   }
 
   private publishTerminalBackgroundBashOutput(message: SDKTaskNotificationMessage | SDKTaskUpdatedMessage): void {

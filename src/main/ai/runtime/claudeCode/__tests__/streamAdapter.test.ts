@@ -2925,6 +2925,40 @@ describe('ClaudeCodeStreamAdapter', () => {
       }
     })
 
+    it('clears a background Bash poller when terminal task state is released', () => {
+      vi.useFakeTimers()
+      try {
+        const { adapter } = createAdapter()
+        const poll = vi.fn()
+        const timer = setInterval(poll, 1000)
+        ;(adapter as any).backgroundBashOutputs.set('bash-release', {
+          toolCallId: 'bash-tool-use',
+          outputFile: 'unused',
+          timer
+        })
+
+        ;(adapter as any).releaseTerminalTaskState('bash-release')
+        vi.advanceTimersByTime(2000)
+
+        expect(poll).not.toHaveBeenCalled()
+        expect((adapter as any).backgroundBashOutputs.has('bash-release')).toBe(false)
+        adapter.dispose()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('matches only the known local Bash task type', () => {
+      const { adapter } = createAdapter()
+      const taskTypes = (adapter as any).backgroundTaskTypes as Map<string, string>
+      taskTypes.set('bash-task', 'local_bash')
+      taskTypes.set('extension-task', 'shell_extension')
+
+      expect((adapter as any).isBackgroundBashTask('bash-task')).toBe(true)
+      expect((adapter as any).isBackgroundBashTask('extension-task')).toBe(false)
+      adapter.dispose()
+    })
+
     it('stops background Bash polling and clears task associations at quiescent idle', () => {
       vi.useFakeTimers()
       const fixture = createBackgroundBashFixture()
@@ -4245,7 +4279,7 @@ describe('ClaudeCodeStreamAdapter', () => {
       }
     })
 
-    it('lets the terminal notification replace an earlier terminal workflow snapshot', () => {
+    it('keeps one terminal workflow snapshot in the transcript while publishing later terminal state', () => {
       const fixture = createWorkflowFixture()
       try {
         fixture.writeSnapshot({
@@ -4322,12 +4356,13 @@ describe('ClaudeCodeStreamAdapter', () => {
           part.type === 'data-agent-task-event' && part.data.workflow ? [part] : []
         )
         expect(getLastBackgroundTaskEvent(statusEvents)?.data).toMatchObject({
-          toolUseId: 'workflow-tool-use'
-        })
-        expect(persistedTaskEvents).toHaveLength(2)
-        expect(persistedTaskEvents.at(-1)?.data).toMatchObject({
           toolUseId: 'workflow-tool-use',
           workflow: { totalTokens: 2400, totalToolCalls: 50 }
+        })
+        expect(persistedTaskEvents).toHaveLength(1)
+        expect(persistedTaskEvents.at(-1)?.data).toMatchObject({
+          toolUseId: 'workflow-tool-use',
+          workflow: { totalTokens: 200, totalToolCalls: 4 }
         })
       } finally {
         fixture.cleanup()

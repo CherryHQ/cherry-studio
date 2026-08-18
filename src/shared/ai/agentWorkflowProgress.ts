@@ -102,6 +102,7 @@ export function parseAgentWorkflowSnapshot(
   const hasSnapshotData =
     phases.length > 0 ||
     workflowProgress.length > 0 ||
+    parsed.data.durationMs !== undefined ||
     parsed.data.totalTokens !== undefined ||
     parsed.data.totalCumulativeTokens !== undefined ||
     parsed.data.totalToolCalls !== undefined

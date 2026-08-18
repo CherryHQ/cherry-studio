@@ -85,6 +85,16 @@ describe('parseAgentWorkflowSnapshot', () => {
     ).toEqual({ runId: 'run-1', taskId: 'task-1', totalTokens: 0, phases: [], workflowProgress: [] })
   })
 
+  it('keeps a duration-only workflow snapshot', () => {
+    expect(parseAgentWorkflowSnapshot({ runId: 'run-1', taskId: 'task-1', durationMs: 0 })).toEqual({
+      runId: 'run-1',
+      taskId: 'task-1',
+      durationMs: 0,
+      phases: [],
+      workflowProgress: []
+    })
+  })
+
   it('rejects a snapshot whose embedded identity conflicts with the launch receipt', () => {
     expect(
       parseAgentWorkflowSnapshot(
