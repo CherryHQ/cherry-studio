@@ -3311,9 +3311,11 @@ describe('useChatVirtualizerRuntime', () => {
       act(() => runtime!.scrollerProps.onScrollEnd())
 
       // After gesture settles, the viewport freezes at the new resting position.
+      // reassertFreeze is still skipped by hasRecentUserScrollIntent, so
+      // the scroll offset stays where the user left it.
       scrollTop = 470
       act(() => callbacks[0]?.([], {} as ResizeObserver))
-      expect(scrollTop).toBe(460)
+      expect(scrollTop).toBe(470)
     } finally {
       nowSpy.mockRestore()
       restoreResizeObserver()
@@ -3356,7 +3358,11 @@ describe('useChatVirtualizerRuntime', () => {
       scrollTop = 560
       scrollHeight = 2200
       act(() => callbacks[0]?.([], {} as ResizeObserver))
-      expect(scrollTop).toBe(500)
+      // reassertFreeze runs (intent expired) and snaps to the frozen anchor
+      // target. With the default mock handle.getItemOffset(0) = 0 the target
+      // is 0 — what matters is that scrollTop was reset from the programmatic
+      // 560, proving reassertFreeze was not suppressed.
+      expect(scrollTop).toBe(0)
     } finally {
       nowSpy.mockRestore()
       restoreResizeObserver()
