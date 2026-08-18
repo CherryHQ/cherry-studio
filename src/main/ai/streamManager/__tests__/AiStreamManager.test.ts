@@ -454,6 +454,44 @@ describe('AiStreamManager', () => {
       expect(() => mgr.reserveDispatchCommand(topicId, intent, 1, () => undefined)).not.toThrow()
     })
 
+    it("Stop is not blocked by another topic's hung persistence recovery", async () => {
+      // Topic B: a terminal write fails without a durable marker, then its retry hangs forever.
+      const hungPort = new FakePersistencePort('persistence:hung')
+      let hangRetries = false
+      hungPort.onDoneImpl = () => {
+        if (hangRetries) return new Promise<void>(() => {})
+        throw new TerminalPersistenceError(error('db unavailable'), false)
+      }
+      startSingle(mgr, {
+        topicId: 'topic-b',
+        modelId: 'provider-a::model-a',
+        request: req('topic-b'),
+        listeners: [new FakeListener('wc:topic-b')],
+        persistencePorts: [hungPort]
+      })
+      await mgr.onExecutionDone('topic-b', 'provider-a::model-a')
+      hangRetries = true
+
+      // Topic A: a failed dispatch reservation whose durable error write keeps failing.
+      const intent = { kind: 'start' as const, modelCount: 1 }
+      const { receipt } = mgr.reserveDispatchCommand('topic-a', intent, 1, () => undefined)
+      mgr.failDispatchReservation(receipt, 'topic-a', error('context preparation failed'), () => {
+        throw new Error('db unavailable')
+      })
+
+      // One sweep starts BOTH recoveries: topic A's settles quickly, topic B's hangs.
+      void mgr.retryBlockedPersistence()
+
+      // Stop topic A while its own recovery run is still registered. It must join only
+      // topic A's run — joining the global in-flight set would await B's hung promise forever.
+      mgr.abort('topic-a', 'user-requested')
+
+      await vi.advanceTimersByTimeAsync(0)
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(() => mgr.reserveDispatchCommand('topic-a', intent, 1, () => undefined)).not.toThrow()
+    })
+
     it('throws on duplicate modelId within a single send call', () => {
       const request = req('a')
       expect(() =>

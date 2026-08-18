@@ -383,7 +383,9 @@ export class AiStreamManager extends BaseService {
   /** Durable terminal writes that failed without even an error marker. They stay topic-owned and
    *  retry in-process so a transient database outage cannot leave the aggregate open forever. */
   private readonly blockedPersistenceRecoveries = new Map<string, BlockedPersistenceRecovery>()
-  private readonly activePersistenceRecoveryKeys = new Set<string>()
+  /** Per-key single-flight: Stop joins only its own key's run; the global
+   *  `inFlightPersistenceRecoveries` registry serves drain/shutdown only. */
+  private readonly activePersistenceRecoveryRuns = new Map<string, Promise<void>>()
   private readonly inFlightPersistenceRecoveries = new Map<Promise<void>, string>()
   /** Shutdown wins over pause-release compensation (same posture as JobManager). */
   private isShuttingDown = false
@@ -828,8 +830,7 @@ export class AiStreamManager extends BaseService {
 
     const retries: Promise<void>[] = []
     for (const [key, recovery] of this.blockedPersistenceRecoveries) {
-      if (this.activePersistenceRecoveryKeys.has(key)) continue
-      this.activePersistenceRecoveryKeys.add(key)
+      if (this.activePersistenceRecoveryRuns.has(key)) continue
 
       const retry = (async () => {
         try {
@@ -843,9 +844,12 @@ export class AiStreamManager extends BaseService {
             recoveryError
           })
         } finally {
-          this.activePersistenceRecoveryKeys.delete(key)
+          this.activePersistenceRecoveryRuns.delete(key)
         }
       })()
+      // The async body cannot reach its `finally` before this set: it suspends at
+      // the first `await` no matter how `recovery.retry()` settles.
+      this.activePersistenceRecoveryRuns.set(key, retry)
       this.inFlightPersistenceRecoveries.set(retry, `persistence-recovery:${recovery.topicId}`)
       retries.push(retry)
     }
@@ -873,14 +877,15 @@ export class AiStreamManager extends BaseService {
 
     for (const key of keys) {
       // Serialize with the interval retry: abandoning while a write for the same key is in
-      // flight could publish an error terminal for a write that actually committed.
-      while (this.activePersistenceRecoveryKeys.has(key)) {
-        await Promise.allSettled([...this.inFlightPersistenceRecoveries.keys()])
+      // flight could publish an error terminal for a write that actually committed. Join only
+      // THIS key's run — another topic's hung recovery must not block this Stop.
+      let activeRun: Promise<void> | undefined
+      while ((activeRun = this.activePersistenceRecoveryRuns.get(key))) {
+        await activeRun
       }
       const recovery = this.blockedPersistenceRecoveries.get(key)
       if (!recovery) continue
 
-      this.activePersistenceRecoveryKeys.add(key)
       const run = (async () => {
         try {
           const recovered = await recovery.retry()
@@ -891,9 +896,10 @@ export class AiStreamManager extends BaseService {
         } catch (abandonError) {
           logger.error('Abandoning blocked persistence failed', { topicId, key, abandonError })
         } finally {
-          this.activePersistenceRecoveryKeys.delete(key)
+          this.activePersistenceRecoveryRuns.delete(key)
         }
       })()
+      this.activePersistenceRecoveryRuns.set(key, run)
       this.inFlightPersistenceRecoveries.set(run, `persistence-recovery:${topicId}`)
       await run
       this.inFlightPersistenceRecoveries.delete(run)
