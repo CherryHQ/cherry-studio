@@ -429,6 +429,9 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('backfills conversation activity from message phases without losing populated rows', () => {
+    // Pinned to the 0007 backfill migration: the default tip baseline would drift
+    // forward past it once a later migration exists, and the NOT NULL
+    // last_activity_at recreate would reject the seed rows below.
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0007_flimsy_mentor'))
 
     sqlite

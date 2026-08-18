@@ -134,10 +134,17 @@ class McpManagerServer {
             throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${toolName}`)
         }
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
-        logger.error(`Tool error: ${toolName}`, { agentId: this.agentId, error: message })
+        // Preserve the MCP error code when one is thrown, and never stringify a
+        // non-Error into a useless `[object Object]`.
+        const isMcpError = error instanceof McpError
+        const message = isMcpError ? error.message : error instanceof Error ? error.message : JSON.stringify(error)
+        logger.error(`Tool error: ${toolName}`, {
+          agentId: this.agentId,
+          error: message,
+          ...(isMcpError ? { code: error.code } : {})
+        })
         return {
-          content: [{ type: 'text' as const, text: `Error: ${message}` }],
+          content: [{ type: 'text' as const, text: `${isMcpError ? `[${error.code}] ` : ''}Error: ${message}` }],
           isError: true
         }
       }
