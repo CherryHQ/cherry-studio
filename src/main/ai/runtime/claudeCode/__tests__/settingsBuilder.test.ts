@@ -139,7 +139,10 @@ vi.mock('@main/ai/tools/adapters/claudeCode/agentTools', () => ({
 
 vi.mock('@application', () => ({
   application: {
-    get: mocks.applicationGet,
+    // Session-keyed live state always resolves to the one real service instance (created below),
+    // so the many per-test `applicationGet` overrides don't each have to register it.
+    get: (name: string) =>
+      name === 'ClaudeCodeSessionStateService' ? sessionStateService : mocks.applicationGet(name),
     getPath: mocks.applicationGetPath
   }
 }))
@@ -218,6 +221,10 @@ vi.mock('../AgentsMdLoader', () => ({
 const { buildClaudeCodeSessionSettings, disposeToolPolicySnapshot, registerMcpSessionCatalogSync } = await import(
   '../settingsBuilder'
 )
+const { ClaudeCodeSessionStateService } = await import('../ClaudeCodeSessionStateService')
+// One real instance per test file — the facade resolves it via application.get, and the real Maps
+// preserve the warm-pool resolve-by-id semantics the Bug A/Bug B and dispose tests exercise.
+const sessionStateService = new ClaudeCodeSessionStateService()
 
 function systemPromptText(systemPrompt: unknown): string {
   if (typeof systemPrompt === 'string') return systemPrompt
@@ -231,9 +238,6 @@ function systemPromptText(systemPrompt: unknown): string {
 
 describe('buildClaudeCodeSessionSettings', () => {
   beforeEach(() => {
-    // The per-session snapshot registry is module-level state; reset session-1 (reused across
-    // tests) so each build creates a fresh snapshot instead of refreshing a prior test's instance.
-    disposeToolPolicySnapshot('session-1')
     vi.clearAllMocks()
     mocks.approvalRegister.mockReturnValue(true)
     mocks.resolveRequire.mockImplementation((specifier: string) => {
@@ -291,6 +295,10 @@ describe('buildClaudeCodeSessionSettings', () => {
       }
       throw new Error(`Unexpected application.get(${name})`)
     })
+    // The per-session snapshot registry is service-held state shared across tests; reset session-1
+    // (reused throughout) so each build creates a fresh snapshot instead of refreshing a prior
+    // test's instance. Must run after the application.get implementation above is in place.
+    disposeToolPolicySnapshot('session-1')
     mocks.applicationGetPath.mockImplementation((key: string) => `/app/${key}`)
     mocks.platform.isMac = false
     mocks.getShellEnv.mockResolvedValue({})
