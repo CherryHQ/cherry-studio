@@ -388,6 +388,15 @@
         "inaccessible": "Arbeitsbereichspfad ist nicht zugänglich: {{path}}"
       }
     },
+    "session_delivery": {
+      "from": "Von {{agent}} / {{session}}",
+      "status": {
+        "accepted": "Angenommen",
+        "consumed": "Verarbeitet",
+        "delivering": "Wird zugestellt",
+        "failed": "Fehlgeschlagen"
+      }
+    },
     "settings": {
       "permissionMode": {
         "title": "Berechtigungsmodus"
@@ -3389,6 +3398,21 @@
         "searchResults": "Suchergebnisse",
         "stderr": "stderr",
         "stdout": "stdout"
+      },
+      "sessionCreate": {
+        "created": "Neue Sitzung gestartet",
+        "creating": "Neue Sitzung wird gestartet",
+        "firstMessage": "Erste Nachricht",
+        "inheritedContext": "Dieser Agent und Arbeitsbereich werden verwendet",
+        "open": "Sitzung öffnen",
+        "sessionId": "Sitzungs-ID",
+        "untitled": "Unbenannte Sitzung"
+      },
+      "sessionSend": {
+        "open": "Sitzung öffnen",
+        "sending": "Wird gesendet an",
+        "sent": "Gesendet an",
+        "to": "An"
       },
       "status": {
         "done": "Erledigt",

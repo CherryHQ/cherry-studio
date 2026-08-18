@@ -388,6 +388,15 @@
         "inaccessible": "O caminho do workspace não está acessível: {{path}}"
       }
     },
+    "session_delivery": {
+      "from": "De {{agent}} / {{session}}",
+      "status": {
+        "accepted": "Aceite",
+        "consumed": "Processado",
+        "delivering": "A entregar",
+        "failed": "Falhou"
+      }
+    },
     "settings": {
       "permissionMode": {
         "title": "Modo de Permissão"
@@ -3389,6 +3398,21 @@
         "searchResults": "Resultados da Pesquisa",
         "stderr": "stderr",
         "stdout": "stdout"
+      },
+      "sessionCreate": {
+        "created": "Foi iniciada uma nova sessão",
+        "creating": "A iniciar uma nova sessão",
+        "firstMessage": "Primeira mensagem",
+        "inheritedContext": "A utilizar este agente e espaço de trabalho",
+        "open": "Abrir sessão",
+        "sessionId": "ID da sessão",
+        "untitled": "Sessão sem título"
+      },
+      "sessionSend": {
+        "open": "Abrir sessão",
+        "sending": "A enviar para",
+        "sent": "Enviado para",
+        "to": "Para"
       },
       "status": {
         "done": "Feito",

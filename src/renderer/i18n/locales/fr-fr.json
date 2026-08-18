@@ -388,6 +388,15 @@
         "inaccessible": "Le chemin de l'espace de travail n'est pas accessible : {{path}}"
       }
     },
+    "session_delivery": {
+      "from": "De {{agent}} / {{session}}",
+      "status": {
+        "accepted": "Accepté",
+        "consumed": "Traité",
+        "delivering": "En cours de livraison",
+        "failed": "Échec"
+      }
+    },
     "settings": {
       "permissionMode": {
         "title": "Mode d'autorisation"
@@ -3389,6 +3398,21 @@
         "searchResults": "Résultats de recherche",
         "stderr": "stderr",
         "stdout": "sortie standard"
+      },
+      "sessionCreate": {
+        "created": "Nouvelle session démarrée",
+        "creating": "Démarrage d’une nouvelle session",
+        "firstMessage": "Premier message",
+        "inheritedContext": "Utilisation de cet agent et de cet espace de travail",
+        "open": "Ouvrir la session",
+        "sessionId": "ID de session",
+        "untitled": "Session sans titre"
+      },
+      "sessionSend": {
+        "open": "Ouvrir la session",
+        "sending": "Envoi vers",
+        "sent": "Envoyé à",
+        "to": "À"
       },
       "status": {
         "done": "Fait",

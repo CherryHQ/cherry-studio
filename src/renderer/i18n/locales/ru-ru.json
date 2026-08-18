@@ -388,6 +388,15 @@
         "inaccessible": "Путь к рабочей области недоступен: {{path}}"
       }
     },
+    "session_delivery": {
+      "from": "От {{agent}} / {{session}}",
+      "status": {
+        "accepted": "Принято",
+        "consumed": "Обработано",
+        "delivering": "Доставляется",
+        "failed": "Ошибка"
+      }
+    },
     "settings": {
       "permissionMode": {
         "title": "Режим разрешений"
@@ -3389,6 +3398,21 @@
         "searchResults": "Результаты поиска",
         "stderr": "stderr",
         "stdout": "stdout"
+      },
+      "sessionCreate": {
+        "created": "Запущена новая сессия",
+        "creating": "Запуск новой сессии",
+        "firstMessage": "Первое сообщение",
+        "inheritedContext": "Используются этот агент и рабочая область",
+        "open": "Открыть сессию",
+        "sessionId": "ID сессии",
+        "untitled": "Сессия без названия"
+      },
+      "sessionSend": {
+        "open": "Открыть сессию",
+        "sending": "Отправляется в",
+        "sent": "Отправлено в",
+        "to": "Кому"
       },
       "status": {
         "done": "Готово",

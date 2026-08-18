@@ -120,7 +120,6 @@ vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcMocks.request }, useIpcO
 
 vi.mock('@data/DataApiService', () => ({
   dataApiService: {
-    delete: agentPageMocks.dataApiDelete,
     get: agentPageMocks.dataApiGet,
     post: agentPageMocks.dataApiPost
   }
@@ -823,7 +822,6 @@ describe('AgentPage', () => {
       `/agent-sessions/${previousSession.id}/messages`,
       expect.anything()
     )
-    expect(agentPageMocks.dataApiDelete).not.toHaveBeenCalled()
     expect(agentPageMocks.composerLaunchOptions).toMatchObject({
       initialDraft: {
         text: 'Use the cherry-studio-feedback skill.',

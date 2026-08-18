@@ -388,6 +388,15 @@
         "inaccessible": "Đường dẫn không gian làm việc không thể truy cập: {{path}}"
       }
     },
+    "session_delivery": {
+      "from": "Từ {{agent}} / {{session}}",
+      "status": {
+        "accepted": "Đã tiếp nhận",
+        "consumed": "Đã xử lý",
+        "delivering": "Đang chuyển",
+        "failed": "Thất bại"
+      }
+    },
     "settings": {
       "permissionMode": {
         "title": "Chế độ quyền truy cập"
@@ -3389,6 +3398,21 @@
         "searchResults": "Kết quả tìm kiếm",
         "stderr": "stderr",
         "stdout": "stdout"
+      },
+      "sessionCreate": {
+        "created": "Đã bắt đầu phiên mới",
+        "creating": "Đang bắt đầu phiên mới",
+        "firstMessage": "Tin nhắn đầu tiên",
+        "inheritedContext": "Sử dụng tác nhân và không gian làm việc này",
+        "open": "Mở phiên",
+        "sessionId": "ID phiên",
+        "untitled": "Phiên chưa đặt tên"
+      },
+      "sessionSend": {
+        "open": "Mở phiên",
+        "sending": "Đang gửi đến",
+        "sent": "Đã gửi đến",
+        "to": "Đến"
       },
       "status": {
         "done": "Xong",

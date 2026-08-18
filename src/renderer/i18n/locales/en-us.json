@@ -388,6 +388,15 @@
         "inaccessible": "Workspace path is not accessible: {{path}}"
       }
     },
+    "session_delivery": {
+      "from": "From {{agent}} / {{session}}",
+      "status": {
+        "accepted": "Accepted",
+        "consumed": "Consumed",
+        "delivering": "Delivering",
+        "failed": "Failed"
+      }
+    },
     "settings": {
       "permissionMode": {
         "title": "Permission Mode"
@@ -3389,6 +3398,21 @@
         "searchResults": "Search Results",
         "stderr": "stderr",
         "stdout": "stdout"
+      },
+      "sessionCreate": {
+        "created": "Started a new session",
+        "creating": "Starting a new session",
+        "firstMessage": "First message",
+        "inheritedContext": "Using this agent and workspace",
+        "open": "Open session",
+        "sessionId": "Session ID",
+        "untitled": "Untitled session"
+      },
+      "sessionSend": {
+        "open": "Open session",
+        "sending": "Sending to",
+        "sent": "Sent to",
+        "to": "To"
       },
       "status": {
         "done": "Done",

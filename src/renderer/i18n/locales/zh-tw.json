@@ -388,6 +388,15 @@
         "inaccessible": "工作區路徑無法存取：{{path}}"
       }
     },
+    "session_delivery": {
+      "from": "來自 {{agent}} / {{session}}",
+      "status": {
+        "accepted": "已接受",
+        "consumed": "已處理",
+        "delivering": "投遞中",
+        "failed": "失敗"
+      }
+    },
     "settings": {
       "permissionMode": {
         "title": "權限模式"
@@ -3389,6 +3398,21 @@
         "searchResults": "搜尋結果",
         "stderr": "標準錯誤",
         "stdout": "標準輸出"
+      },
+      "sessionCreate": {
+        "created": "已啟動新工作階段",
+        "creating": "正在啟動新工作階段",
+        "firstMessage": "第一則訊息",
+        "inheritedContext": "沿用目前的智慧體與工作區",
+        "open": "開啟工作階段",
+        "sessionId": "工作階段 ID",
+        "untitled": "未命名工作階段"
+      },
+      "sessionSend": {
+        "open": "開啟工作階段",
+        "sending": "正在傳送至",
+        "sent": "已傳送至",
+        "to": "傳送至"
       },
       "status": {
         "done": "完成",

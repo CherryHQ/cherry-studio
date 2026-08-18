@@ -388,6 +388,15 @@
         "inaccessible": "La ruta del espacio de trabajo no es accesible: {{path}}"
       }
     },
+    "session_delivery": {
+      "from": "De {{agent}} / {{session}}",
+      "status": {
+        "accepted": "Aceptado",
+        "consumed": "Procesado",
+        "delivering": "Entregando",
+        "failed": "Fallido"
+      }
+    },
     "settings": {
       "permissionMode": {
         "title": "Modo de permisos"
@@ -3389,6 +3398,21 @@
         "searchResults": "Resultados de búsqueda",
         "stderr": "stderr",
         "stdout": "stdout"
+      },
+      "sessionCreate": {
+        "created": "Se inició una nueva sesión",
+        "creating": "Iniciando una nueva sesión",
+        "firstMessage": "Primer mensaje",
+        "inheritedContext": "Usando este agente y espacio de trabajo",
+        "open": "Abrir sesión",
+        "sessionId": "ID de sesión",
+        "untitled": "Sesión sin título"
+      },
+      "sessionSend": {
+        "open": "Abrir sesión",
+        "sending": "Enviando a",
+        "sent": "Enviado a",
+        "to": "A"
       },
       "status": {
         "done": "Hecho",

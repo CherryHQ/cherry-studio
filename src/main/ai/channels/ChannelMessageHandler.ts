@@ -24,6 +24,13 @@ import { SLASH_COMMANDS } from './constants'
 
 const logger = loggerService.withContext('ChannelMessageHandler')
 
+class AgentSessionRunNotStartedError extends Error {
+  constructor(readonly reason: 'busy' | 'session-invalid') {
+    super(reason === 'busy' ? t('agent.session.run_status.busy') : t('agent.session.run_status.unavailable'))
+    this.name = 'AgentSessionRunNotStartedError'
+  }
+}
+
 const TYPING_INTERVAL_MS = 4000
 
 /** Max number of entries in the session tracker before evicting oldest entries. */
@@ -78,7 +85,7 @@ export class ChannelMessageHandler {
   private readonly pendingResolutions = new Map<string, Promise<AgentSessionEntity | null>>()
   /** Per-chat debounce buffer — accumulates rapid messages before flushing */
   private readonly pendingBatches = new Map<string, PendingBatch>()
-  /** Per-chat serial queue — ensures only one stream runs at a time per chat */
+  /** Per-sender serial queue; shared-session admission rejects cross-sender overlap visibly. */
   private readonly chatQueues = new Map<string, Promise<void>>()
   /** Active abort controllers per session — allows renderer to abort via IPC */
   private readonly activeAbortControllers = new Map<string, AbortController>()
@@ -473,7 +480,7 @@ export class ChannelMessageHandler {
         )
       } catch (streamError) {
         const streamErrorMessage = streamError instanceof Error ? streamError.message : String(streamError)
-        if (isAgentSessionWorkspaceError(streamError)) {
+        if (isAgentSessionWorkspaceError(streamError) || streamError instanceof AgentSessionRunNotStartedError) {
           // Thrown before streaming starts (validateSession), so no controller exists yet and
           // onStreamError is a no-op on most adapters — send a plain message so the inbound
           // message isn't silently dropped on Telegram/WeChat/QQ/Discord/Slack.
@@ -488,11 +495,16 @@ export class ChannelMessageHandler {
         clearInterval(typingInterval)
       }
     } catch (error) {
-      logger.error('Error handling incoming message', {
+      const context = {
         agentId,
         chatId: message.chatId,
         error: error instanceof Error ? error.message : String(error)
-      })
+      }
+      if (error instanceof AgentSessionRunNotStartedError) {
+        logger.warn('Channel message was not admitted', context)
+      } else {
+        logger.error('Error handling incoming message', context)
+      }
     } finally {
       // Backstop for the admission deferred: every early return / swallowed error above
       // settles it too, so the write-quiesce drain never hangs on a bailed batch. No-op when
@@ -933,12 +945,16 @@ export class ChannelMessageHandler {
     }
 
     try {
-      await startAgentSessionRun({
+      const started = await startAgentSessionRun({
         sessionId: session.id,
         userParts: [{ type: 'text', text: content }],
         listeners: [sentinel, new ChannelAdapterListener(adapter, chatId, false, responseOptions)],
-        headless: true
+        headless: true,
+        requireIdle: { expectedAgentId: session.agentId }
       })
+      // No durable channel queue exists; fail visibly rather than retaining an in-memory waiter.
+      // Add durable admission only if channels require guaranteed busy-session delivery.
+      if (started.mode === 'not-started') throw new AgentSessionRunNotStartedError(started.reason)
     } finally {
       // The write-quiesce admission point: the turn's rows are written and it entered the AI
       // in-flight set (or the run threw) — either way the drain stops waiting on this batch.
