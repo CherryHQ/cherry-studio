@@ -137,6 +137,9 @@ interface AgentChatLayoutProps {
   sidePanel?: ReactNode
   topBar?: ReactNode
   topRightTool?: ReactNode
+  hasOlder?: boolean
+  isLoading?: boolean
+  loadOlder?: () => void
 }
 
 const AgentChat = ({
@@ -476,7 +479,10 @@ const AgentChat = ({
     sessionSnapshot,
     sidePanel,
     topBar,
-    topRightTool: rightPaneTools
+    topRightTool: rightPaneTools,
+    hasOlder: runtime.hasOlder,
+    isLoading: runtime.isLoading,
+    loadOlder: runtime.loadOlder
   }
 
   return (
@@ -639,7 +645,10 @@ function AgentChatLayout({
   sessionSnapshot,
   sidePanel,
   topBar,
-  topRightTool
+  topRightTool,
+  hasOlder,
+  isLoading,
+  loadOlder
 }: AgentChatLayoutProps) {
   return (
     <AgentRightPane.Scope
@@ -662,6 +671,9 @@ function AgentChatLayout({
       agentName={activeAgent?.name}
       agentAvatar={activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration) : undefined}
       present={!centerSurface}
+      hasOlder={hasOlder}
+      isLoading={isLoading}
+      loadOlder={loadOlder}
       revealRequest={resourcePaneRevealRequest}>
       <ConversationShell
         className={className}
