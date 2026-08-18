@@ -10,6 +10,7 @@ import { parse } from 'yaml'
 // assert not supported by biome
 // import pkg from './package.json' assert { type: 'json' }
 import pkg from './package.json'
+import { chunkExportGuardPlugin } from './scripts/checkChunkExports'
 import { uiContractPlugin } from './scripts/uiContract/vitePlugin'
 import { parseReleaseHistory, validateCurrentReleaseHistory } from './src/shared/utils/releaseNotes'
 
@@ -47,7 +48,12 @@ const isProd = process.env.NODE_ENV === 'production'
 // move it to `dependencies`: that would externalize it, and since devDependencies are
 // pruned from production packages, the packaged app would fail at runtime with
 // MODULE_NOT_FOUND (no test catches this). See docs/references/api-gateway/README.md.
-const mainExternalDependencies = Object.keys(pkg.dependencies)
+const mainExternalDependencies = [
+  ...Object.keys(pkg.dependencies),
+  // optionalDependencies too: platform-gated natives (e.g. node-mac-permissions) are real import
+  // targets, not napi sub-packages, so rollup would fail on the .node; production keeps them installed.
+  ...Object.keys(pkg.optionalDependencies ?? {})
+]
 const mainExternalModules = ['bufferutil', 'utf-8-validate', 'electron', ...mainExternalDependencies]
 
 export const isMainExternalModule = (id: string) => {
@@ -56,7 +62,7 @@ export const isMainExternalModule = (id: string) => {
 
 export default defineConfig({
   main: {
-    plugins: [...visualizerPlugin('main')],
+    plugins: [chunkExportGuardPlugin(), ...visualizerPlugin('main')],
     resolve: {
       alias: {
         '@main': resolve('src/main'),
@@ -81,8 +87,14 @@ export default defineConfig({
       rollupOptions: {
         external: isMainExternalModule,
         output: {
-          // conf removes its containing file from require.cache; isolate it so the app entry stays cached.
-          manualChunks: (id) => (id.includes('/node_modules/conf/') ? 'electron-store-conf' : undefined)
+          manualChunks: (id) => {
+            // conf removes its containing file from require.cache; isolate it so the app entry stays cached.
+            if (id.includes('/node_modules/conf/')) return 'electron-store-conf'
+            // rolldown drops this chunk's named exports when it merges with a re-export-only
+            // facade chunk, leaving createOpenAI undefined at runtime. Keep it alone.
+            if (id.includes('/node_modules/@ai-sdk/openai/')) return 'ai-sdk-openai'
+            return undefined
+          }
         },
         onwarn(warning, warn) {
           if (warning.code === 'COMMONJS_VARIABLE_IN_ESM') return
@@ -185,7 +197,8 @@ export default defineConfig({
           selectionAction: resolve(__dirname, 'src/renderer/windows/selection/action/index.html'),
           migrationV2: resolve(__dirname, 'src/renderer/windows/migrationV2/index.html'),
           userDataRelocation: resolve(__dirname, 'src/renderer/windows/userDataRelocation/index.html'),
-          subWindow: resolve(__dirname, 'src/renderer/windows/subWindow/index.html')
+          subWindow: resolve(__dirname, 'src/renderer/windows/subWindow/index.html'),
+          screenshot: resolve(__dirname, 'src/renderer/windows/screenshot/index.html')
         },
         onwarn(warning, warn) {
           if (warning.code === 'COMMONJS_VARIABLE_IN_ESM') return

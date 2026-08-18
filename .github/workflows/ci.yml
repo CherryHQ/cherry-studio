@@ -156,6 +156,19 @@ jobs:
           BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: pnpm changeset status --since="origin/$BASE_REF"
 
+      - name: I18N Translation Check
+        env:
+          TRANSLATION_BASE_LOCALE: ${{ vars.TRANSLATION_BASE_LOCALE || 'en-us' }}
+        run: |
+          pnpm i18n:sync
+          if [ -n "$(git status --porcelain --untracked-files=all -- src/renderer/i18n src/main/i18n)" ]; then
+            echo "::error::Translations are out of sync. Run pnpm i18n:sync, translate every pending value, and commit the result."
+            git --no-pager status --porcelain --untracked-files=all -- src/renderer/i18n src/main/i18n
+            git --no-pager diff -- src/renderer/i18n src/main/i18n
+            exit 1
+          fi
+          pnpm i18n:check
+
       - name: Read-only Checks
         run: |
           # Share one checkout/install while keeping independent checks parallel.
@@ -165,7 +178,7 @@ jobs:
             --prefix-colors "blue,yellow,cyan" \
             "pnpm test:lint" \
             "pnpm typecheck && pnpm i18n:hardcoded:strict" \
-            "pnpm format:check && pnpm build:builtin-knowledge:check && pnpm i18n:check && pnpm skills:check"
+            "pnpm format:check && pnpm build:builtin-knowledge:check && pnpm skills:check"
 
       - name: DB Migrations Check
         run: |

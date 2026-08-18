@@ -8,7 +8,7 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { SettingContainer, SettingDivider, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import { useMcpRuntimeStatus } from '@renderer/hooks/useMcpRuntimeStatus'
-import { useMcpServer } from '@renderer/hooks/useMcpServer'
+import { useMcpServer, useMcpServerMutations } from '@renderer/hooks/useMcpServer'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
 import McpDescription from '@renderer/pages/settings/McpSettings/McpDescription'
@@ -44,6 +44,7 @@ import {
   useMcpRegistryState
 } from './McpServerFields'
 import McpToolsSection from './McpTool'
+import { isQVerisApiKeyMissing, QVerisApiKeyGuide } from './QVerisApiKeyGuide'
 import { useMcpServerTrust } from './useMcpServerTrust'
 import { toUpdateMcpServerDto } from './utils'
 
@@ -66,10 +67,9 @@ const EMPTY_MCP_TOOLS: McpTool[] = []
 interface McpSettingsContentProps {
   server: McpServer
   updateMcpServer: ReturnType<typeof useMcpServer>['updateMcpServer']
-  deleteMcpServer: ReturnType<typeof useMcpServer>['deleteMcpServer']
 }
 
-const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateMcpServer, deleteMcpServer }) => {
+const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateMcpServer }) => {
   const { t } = useTranslation()
   const search = useSearch({ strict: false }) as McpSettingsSearch
   const serverId = server.id
@@ -228,33 +228,38 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
     }
   }
 
-  const onDeleteMcpServer = useCallback(
-    async (serverToDelete: McpServer) => {
-      try {
-        const confirmed = await popup.confirm({
-          title: t('settings.mcp.deleteServer'),
-          content: t('settings.mcp.deleteServerConfirm'),
-          centered: true,
-          okButtonProps: { danger: true }
-        })
-        if (!confirmed) return
+  const { removeMcpServer } = useMcpServerMutations(server.id)
+  const onDeleteMcpServer = useCallback(async () => {
+    try {
+      const confirmed = await popup.confirm({
+        title: t('settings.mcp.deleteServer'),
+        content: t('settings.mcp.deleteServerConfirm'),
+        centered: true,
+        okButtonProps: { danger: true }
+      })
+      if (!confirmed) return
 
-        await ipcApi.request('mcp.server.remove', { serverId: serverToDelete.id })
-        await deleteMcpServer({})
-        toast.success(t('settings.mcp.deleteSuccess'))
-        void navigate({ to: '/settings/mcp' })
-      } catch (error: any) {
-        toast.error(`${t('settings.mcp.deleteError')}: ${error.message}`)
-      }
-    },
-
-    [deleteMcpServer, t, navigate]
-  )
+      await removeMcpServer()
+      toast.success(t('settings.mcp.deleteSuccess'))
+      void navigate({ to: '/settings/mcp' })
+    } catch (error: any) {
+      toast.error(`${t('settings.mcp.deleteError')}: ${error.message}`)
+    }
+  }, [removeMcpServer, t, navigate])
 
   const onToggleActive = async (active: boolean) => {
     if (!server) return
     if (isFormChanged && active) {
       await onSave()
+      return
+    }
+
+    if (active && isQVerisApiKeyMissing(server)) {
+      void popup.error({
+        title: t('settings.mcp.startError'),
+        content: <QVerisApiKeyGuide />,
+        centered: true
+      })
       return
     }
 
@@ -562,7 +567,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
                 <Button
                   size="sm"
                   variant="ghost"
-                  onClick={() => onDeleteMcpServer(server)}
+                  onClick={() => void onDeleteMcpServer()}
                   className="-ml-2 -mt-1 hover:!bg-destructive hover:!text-destructive-foreground rounded-full text-destructive opacity-60 hover:opacity-100 focus-visible:opacity-100 active:opacity-100">
                   <DeleteIcon size={14} className="lucide-custom" />
                   {t('common.delete')}
@@ -588,20 +593,13 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
 const McpSettings: React.FC = () => {
   const params = useParams({ strict: false })
   const serverId = params.serverId
-  const { server, isLoading, updateMcpServer, deleteMcpServer } = useMcpServer(serverId ?? '')
+  const { server, isLoading, updateMcpServer } = useMcpServer(serverId ?? '')
 
   if (!server || isLoading) {
     return null
   }
 
-  return (
-    <McpSettingsContent
-      key={server.id}
-      server={server}
-      updateMcpServer={updateMcpServer}
-      deleteMcpServer={deleteMcpServer}
-    />
-  )
+  return <McpSettingsContent key={server.id} server={server} updateMcpServer={updateMcpServer} />
 }
 
 const Container = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (

@@ -929,6 +929,23 @@ describe('CodeCliService', () => {
       expect(result).toEqual({ success: false, message: 'Provider ID is required for claude-code' })
     })
 
+    it('routes DeepSeek Harness launches through its managed IPC instead of a terminal', async () => {
+      const { codeCliService } = await loadModules()
+
+      const result = await codeCliService.run({
+        mode: 'normal',
+        cliTool: CodeCli.DEEPSEEK_HARNESS,
+        model: 'claude-sonnet',
+        providerId: 'anthropic',
+        directory: '/tmp/project'
+      })
+
+      expect(result).toEqual({
+        success: false,
+        message: 'DeepSeek Harness is managed through deepseek_harness.* IPC, not code_cli.run'
+      })
+    })
+
     it('rejects a normal CLI launch when the model is empty', async () => {
       const { codeCliService } = await loadModules()
 

@@ -603,7 +603,6 @@ export async function buildClaudeCodeSessionSettings(
     agentProgressSummaries: true,
     forwardSubagentText: true,
     permissionMode: agentConfig?.permission_mode,
-    maxTurns: agentConfig?.max_turns,
     allowedTools: finalAllowedTools,
     disallowedTools,
     plugins,
@@ -957,6 +956,7 @@ async function buildToolPermissions(
       (typeof opts.agentID === 'string' && opts.agentID.length > 0) || interactionState.currentTurn === 'headless'
     const requiresUserResponse =
       HEADLESS_INTERACTIVE_TOOLS.includes(toolName as (typeof HEADLESS_INTERACTIVE_TOOLS)[number]) ||
+      approvalRequiredTools.includes(toolName) ||
       opts.matchedAskRule !== undefined
 
     // Background agents do not inherit the parent permission mode. Let ordinary requests proceed

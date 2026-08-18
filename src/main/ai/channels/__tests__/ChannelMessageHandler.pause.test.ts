@@ -105,6 +105,7 @@ function simulateStream(parts: Array<{ type: string; delta?: string }>) {
         }
         await listener.onDone({ status: 'success' })
       }
+      return { mode: 'started' }
     }
   )
 }
@@ -225,7 +226,7 @@ describe('ChannelMessageHandler write quiesce', () => {
     vi.mocked(agentSessionService.create).mockReturnValue(SESSION as any)
     // Admission lands (startAgentSessionRun resolves) but no listener ever fires, so the
     // sentinel's executionDone — and therefore the whole turn — stays pending forever.
-    mockStartAgentSessionRun.mockResolvedValue(undefined)
+    mockStartAgentSessionRun.mockResolvedValue({ mode: 'started' })
 
     const turn = handler.handleIncoming(adapter, msg('Hi'))
     let turnSettled = false
@@ -268,6 +269,7 @@ describe('ChannelMessageHandler write quiesce', () => {
     mockStartAgentSessionRun.mockImplementation(async () => {
       if (aiPaused) throw new Error('AI write-quiesced')
       admitted = true
+      return { mode: 'started' }
     })
 
     const turn = handler.handleIncoming(adapter, msg('Hi'))

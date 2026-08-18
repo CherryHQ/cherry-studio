@@ -12,6 +12,13 @@ import { CLI_INSTALL_TOOL_NAME, CLI_LIST_TOOL_NAME, CLI_SEARCH_TOOL_NAME } from 
 import { MOVE_TO_TRASH_TOOL_NAME } from '@main/ai/tools/moveToTrash'
 import { SAVE_ATTACHMENT_TOOL_NAME } from '@main/ai/tools/saveAttachment'
 import {
+  SESSION_CREATE_TOOL_NAME,
+  SESSION_DELIVERIES_TOOL_NAME,
+  SESSION_LIST_TOOL_NAME,
+  SESSION_SEARCH_TOOL_NAME,
+  SESSION_SEND_TOOL_NAME
+} from '@shared/ai/agentSessionDelivery'
+import {
   CONFIG_TOOL_NAME,
   CRON_TOOL_NAME,
   GENERATE_IMAGE_TOOL_NAME,
@@ -41,11 +48,16 @@ export const toCherryBuiltinRuntimeName = (toolName: string): string => `mcp__${
  *   FileEntry into the user's library, so — unlike the read-only lookups — an autonomous agent
  *   (including headless / channel turns) must not run it unattended;
  * - cli_install persists a definition and mutates Cherry's shared isolated mise environment.
+ * - session_create and session_send can make another Agent Session execute tools; requiring a live
+ *   responder deliberately limits the MVP to one user-approved delegation hop and denies
+ *   unattended recursion.
  */
 export const CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES: readonly string[] = [
   KB_MANAGE_TOOL_NAME,
   GENERATE_IMAGE_TOOL_NAME,
-  CLI_INSTALL_TOOL_NAME
+  CLI_INSTALL_TOOL_NAME,
+  SESSION_CREATE_TOOL_NAME,
+  SESSION_SEND_TOOL_NAME
 ]
 
 /**
@@ -66,6 +78,9 @@ export const CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES: readonly string[] = [
   CRON_TOOL_NAME,
   NOTIFY_TOOL_NAME,
   CONFIG_TOOL_NAME,
+  SESSION_LIST_TOOL_NAME,
+  SESSION_SEARCH_TOOL_NAME,
+  SESSION_DELIVERIES_TOOL_NAME,
   CLI_LIST_TOOL_NAME,
   CLI_SEARCH_TOOL_NAME,
   TO_MARKDOWN_TOOL_NAME
@@ -84,8 +99,8 @@ export const ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES: readonly string[] = [
 
 /**
  * Assistant MCP tools that must retain per-call approval even when the Agent uses acceptEdits or
- * bypassPermissions. `diagnose` reads local device state; the other tools mutate app settings or
- * create persistent business data.
+ * auto. `diagnose` reads local device state; the other tools mutate app settings or create
+ * persistent business data. (pi's `bypassPermissions` is an explicit opt-out and lifts even this.)
  */
 export const ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES: readonly string[] = [
   'mcp__assistant__diagnose',

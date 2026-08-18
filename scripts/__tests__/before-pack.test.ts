@@ -18,6 +18,7 @@ import {
   assertPrebuiltPackages,
   bundleClaudeAgentSdk,
   claudeNativePackageName,
+  keepPackages,
   nativePackageExcludeFilters
 } from '../before-pack'
 
@@ -131,5 +132,18 @@ describe('Claude Agent SDK payload', () => {
     expect(
       readFileSync(path.join(projectRoot, 'node_modules/@anthropic-ai/claude-agent-sdk-darwin-arm64/claude'), 'utf8')
     ).toBe('claude-1.2.3')
+  })
+})
+
+describe('keepPackages', () => {
+  // The name matcher keys off arch and platform tokens, and this package name carries
+  // neither. Left to it, a Mac build would drop the module the permission prompt needs,
+  // and a Windows or Linux build cross-made on a Mac would ship its darwin-only `.node`.
+  it.each(['arm64', 'x64'])('keeps the arch-agnostic macOS permission module on darwin %s', (arch) => {
+    expect(keepPackages('darwin', arch)).toContain('node-mac-permissions')
+  })
+
+  it.each(['win32', 'linux'])('drops it on %s, which is what excludes it from the package', (platform) => {
+    expect(keepPackages(platform, 'x64')).not.toContain('node-mac-permissions')
   })
 })

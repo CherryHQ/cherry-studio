@@ -33,6 +33,20 @@ export const builtinMcpServers: BuiltinMcpServer[] = [
   },
   {
     id: nanoid(),
+    name: BuiltinMcpServerNames.qveris,
+    reference: 'https://qveris.ai/docs/mcp-server',
+    type: 'inMemory',
+    isActive: false,
+    env: {
+      QVERIS_API_KEY: ''
+    },
+    shouldConfig: true,
+    provider: 'QVeris',
+    installSource: 'builtin',
+    isTrusted: true
+  },
+  {
+    id: nanoid(),
     name: BuiltinMcpServerNames.mcpAutoInstall,
     reference: 'https://docs.cherry-ai.com/advanced-basic/mcp/auto-install',
     type: 'stdio',
