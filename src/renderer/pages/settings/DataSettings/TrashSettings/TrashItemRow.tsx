@@ -32,9 +32,11 @@ const TrashItemRow: FC<TrashItemRowProps> = ({ item, retentionDays, isRestoring,
       {daysRemaining !== null && (
         <span className="shrink-0 text-foreground-muted text-xs">
           {'· '}
-          {daysRemaining < 1
-            ? t('settings.data.trash.days_remaining_lt_one')
-            : t('settings.data.trash.days_remaining', { count: daysRemaining })}
+          {daysRemaining === 0
+            ? t('settings.data.trash.days_remaining_expired')
+            : daysRemaining === 'less-than-day'
+              ? t('settings.data.trash.days_remaining_lt_one')
+              : t('settings.data.trash.days_remaining', { count: daysRemaining })}
         </span>
       )}
       <Tooltip title={t('settings.data.trash.restore.label')}>
@@ -54,6 +56,7 @@ const TrashItemRow: FC<TrashItemRowProps> = ({ item, retentionDays, isRestoring,
           size="icon-sm"
           className="text-foreground-muted hover:text-destructive"
           aria-label={t('settings.data.trash.permanent_delete.label')}
+          disabled={isRestoring}
           onClick={() => onDelete(item)}>
           <Trash2 size={16} />
         </Button>

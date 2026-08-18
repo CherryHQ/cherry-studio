@@ -2,6 +2,8 @@
  * Pure helpers for the trash ("Recently Deleted") settings page.
  */
 
+import dayjs from 'dayjs'
+
 export interface TrashItem {
   id: string
   name: string
@@ -24,27 +26,25 @@ export function toEpochMs(v: string | number | undefined): number | undefined {
 
 /**
  * Days remaining before automatic purge.
- * Returns `null` when retention is 0 (keep forever) or `deletedAtMs` is missing;
- * otherwise `Math.ceil` of the remaining days clamped to >= 0.
+ * Returns `null` when no countdown should be shown, `0` when expired,
+ * `'less-than-day'` for a positive remainder below one day, or a positive
+ * integer day count otherwise.
  */
 export function computeDaysRemaining(
   deletedAtMs: number | undefined,
   retentionDays: number,
   now: number = Date.now()
-): number | null {
+): number | 'less-than-day' | null {
   if (retentionDays <= 0 || deletedAtMs === undefined) return null
   const remainingMs = deletedAtMs + retentionDays * MS_PER_DAY - now
-  return Math.max(0, Math.ceil(remainingMs / MS_PER_DAY))
+  if (remainingMs <= 0) return 0
+  if (remainingMs < MS_PER_DAY) return 'less-than-day'
+  return Math.ceil(remainingMs / MS_PER_DAY)
 }
 
 /** Format a deleted-at timestamp as `YYYY-MM-DD HH:mm`; missing/invalid → "—". */
 export function formatDeletedTime(ms: number | undefined): string {
   if (ms === undefined) return '—'
-  const date = new Date(ms)
-  if (Number.isNaN(date.getTime())) return '—'
-
-  const pad = (value: number) => value.toString().padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(
-    date.getMinutes()
-  )}`
+  const date = dayjs(ms)
+  return date.isValid() ? date.format('YYYY-MM-DD HH:mm') : '—'
 }

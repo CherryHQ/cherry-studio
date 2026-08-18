@@ -19,8 +19,12 @@ describe('computeDaysRemaining', () => {
     expect(computeDaysRemaining(now - 31 * DAY, 30, now)).toBe(0)
   })
 
-  it('ceils a partial day to 1', () => {
-    expect(computeDaysRemaining(now - 30 * DAY + DAY / 2, 30, now)).toBe(1)
+  it('distinguishes a positive remainder below one day from an expired item', () => {
+    expect(computeDaysRemaining(now - 30 * DAY + DAY / 2, 30, now)).toBe('less-than-day')
+  })
+
+  it('returns 1 when exactly one day remains', () => {
+    expect(computeDaysRemaining(now - 29 * DAY, 30, now)).toBe(1)
   })
 
   it('returns full retention days for a fresh delete', () => {
@@ -54,5 +58,9 @@ describe('formatDeletedTime', () => {
 
   it('degrades to em dash when missing', () => {
     expect(formatDeletedTime(undefined)).toBe('—')
+  })
+
+  it('degrades to em dash when invalid', () => {
+    expect(formatDeletedTime(Number.NaN)).toBe('—')
   })
 })

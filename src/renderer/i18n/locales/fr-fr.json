@@ -5379,6 +5379,7 @@
       },
       "title": "Paramètres des données",
       "trash": {
+        "days_remaining_expired": "Expired",
         "days_remaining_lt_one": "Less than 1 day left",
         "days_remaining_one": "{{count}} day left",
         "days_remaining_other": "{{count}} days left",

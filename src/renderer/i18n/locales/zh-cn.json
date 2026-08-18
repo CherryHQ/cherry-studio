@@ -5379,6 +5379,7 @@
       },
       "title": "数据",
       "trash": {
+        "days_remaining_expired": "已过期",
         "days_remaining_lt_one": "剩余不足 1 天",
         "days_remaining_one": "剩余 {{count}} 天",
         "days_remaining_other": "剩余 {{count}} 天",
