@@ -59,6 +59,33 @@ const NORMALIZED = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 // shapes a creator never publishes: custom SKUs, double-dash vendor wrappers, routers
 const JUNK = /(?:-vip|-ssvip|-cursor|-all|-nx|-gizmo|-mobile)$|--|^duo-chat-|\bauto\b/
 
+const GEMINI_IMAGE_ASPECT_RATIO_OPTIONS = [
+  {
+    modelId: 'gemini-3-1-flash-image',
+    options: [
+      'auto',
+      'ASPECT_1_1',
+      'ASPECT_1_4',
+      'ASPECT_1_8',
+      'ASPECT_2_3',
+      'ASPECT_3_2',
+      'ASPECT_3_4',
+      'ASPECT_4_1',
+      'ASPECT_4_3',
+      'ASPECT_4_5',
+      'ASPECT_5_4',
+      'ASPECT_8_1',
+      'ASPECT_9_16',
+      'ASPECT_16_9',
+      'ASPECT_21_9'
+    ]
+  },
+  {
+    modelId: 'gemini-3-1-flash-image-preview',
+    options: ['auto', 'ASPECT_1_1', 'ASPECT_3_4', 'ASPECT_4_3', 'ASPECT_9_16', 'ASPECT_16_9']
+  }
+] as const
+
 describe('catalog invariants (data/*.json)', () => {
   const ids = models.map((m) => m.id)
   const baseIds = new Set(ids)
@@ -76,14 +103,16 @@ describe('catalog invariants (data/*.json)', () => {
     })
   })
 
-  it.each(['gemini-3-1-flash-image', 'gemini-3-1-flash-image-preview'])(
-    'keeps smart aspect ratio and explicit resolution controls for %s',
-    (modelId) => {
+  it.each(GEMINI_IMAGE_ASPECT_RATIO_OPTIONS)(
+    'keeps smart aspect ratio and explicit resolution controls for $modelId',
+    ({ modelId, options }) => {
       const supports = models.find((model) => model.id === modelId)?.imageGeneration?.modes?.generate?.supports
 
-      expect(supports?.aspectRatio).toMatchObject({
+      expect(supports?.aspectRatio).toEqual({
         default: 'auto',
-        options: expect.arrayContaining(['auto', 'ASPECT_1_1'])
+        options,
+        render: 'chips',
+        type: 'enum'
       })
       expect(supports?.imageResolution).toEqual({
         default: 'auto',
