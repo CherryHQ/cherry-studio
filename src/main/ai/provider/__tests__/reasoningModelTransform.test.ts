@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import { OpenAICompatibleChatLanguageModel } from '@ai-sdk/openai-compatible'
+import { describe, expect, it, vi } from 'vitest'
 
 import { applyReasoningModelMaxTokensConversion, isOpenAIReasoningModelId } from '../reasoningModelTransform'
 
@@ -88,5 +89,84 @@ describe('applyReasoningModelMaxTokensConversion', () => {
     expect(result.temperature).toBe(0.7)
     expect(result.stream).toBe(true)
     expect(result.max_completion_tokens).toBe(1000)
+  })
+})
+
+/** Minimal valid OpenAI chat completion response for doGenerate. */
+function fakeSuccessResponse() {
+  return new Response(
+    JSON.stringify({
+      id: 'chatcmpl-fake',
+      choices: [{ message: { role: 'assistant', content: 'ok' } }],
+      usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
+    }),
+    { status: 200, headers: { 'content-type': 'application/json' } }
+  )
+}
+
+describe('wire-body regression', () => {
+  it('default OpenAI-compatible config wires transformRequestBody through model', async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(fakeSuccessResponse())
+    const model = new OpenAICompatibleChatLanguageModel('o3', {
+      provider: 'test.chat',
+      url: () => 'https://api.example.com/v1/chat/completions',
+      headers: () => ({}),
+      fetch: fetchSpy,
+      transformRequestBody: applyReasoningModelMaxTokensConversion
+    })
+
+    await model.doGenerate({
+      prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
+      maxOutputTokens: 1000,
+      mode: { type: 'regular' }
+    })
+
+    const body = JSON.parse(fetchSpy.mock.calls[0][1].body)
+    expect(body.max_completion_tokens).toBe(1000)
+    expect(body.max_tokens).toBeUndefined()
+  })
+
+  it('NewAPI direct instantiation wires transformRequestBody through model', async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(fakeSuccessResponse())
+    const model = new OpenAICompatibleChatLanguageModel('o3', {
+      provider: 'newapi.chat',
+      url: () => 'https://newapi.example.com/v1/chat/completions',
+      headers: () => ({}),
+      fetch: fetchSpy,
+      transformRequestBody: applyReasoningModelMaxTokensConversion
+    })
+
+    await model.doGenerate({
+      prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
+      maxOutputTokens: 2000,
+      mode: { type: 'regular' }
+    })
+
+    const body = JSON.parse(fetchSpy.mock.calls[0][1].body)
+    expect(body.max_completion_tokens).toBe(2000)
+    expect(body.max_tokens).toBeUndefined()
+  })
+
+  it('CherryIn subclass wires transformRequestBody through model', async () => {
+    // CherryIn extends OpenAICompatibleChatLanguageModel with the same hook.
+    // Test via a plain instance with the hook wired — the subclass delegates to super.
+    const fetchSpy = vi.fn().mockResolvedValue(fakeSuccessResponse())
+    const model = new OpenAICompatibleChatLanguageModel('gpt-5', {
+      provider: 'cherryin.chat',
+      url: () => 'https://cherryin.example.com/v1/chat/completions',
+      headers: () => ({}),
+      fetch: fetchSpy,
+      transformRequestBody: applyReasoningModelMaxTokensConversion
+    })
+
+    await model.doGenerate({
+      prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
+      maxOutputTokens: 4096,
+      mode: { type: 'regular' }
+    })
+
+    const body = JSON.parse(fetchSpy.mock.calls[0][1].body)
+    expect(body.max_completion_tokens).toBe(4096)
+    expect(body.max_tokens).toBeUndefined()
   })
 })

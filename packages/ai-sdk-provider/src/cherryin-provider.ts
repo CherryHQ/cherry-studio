@@ -143,6 +143,8 @@ const createCustomFetch = (originalFetch?: any) => {
 /**
  * Detect OpenAI reasoning models that require `max_completion_tokens` instead
  * of `max_tokens`. Matches `@ai-sdk/openai`'s internal pattern.
+ * Mirror of src/main/ai/provider/reasoningModelTransform.ts.
+ * Keep both copies in sync when updating reasoning model patterns.
  */
 function isOpenAIReasoningModelId(modelId: string): boolean {
   const id = modelId.toLowerCase()
@@ -155,13 +157,11 @@ function isOpenAIReasoningModelId(modelId: string): boolean {
 }
 
 /** Rewrite `max_tokens` → `max_completion_tokens` for OpenAI reasoning models. */
-function applyReasoningModelMaxTokensConversion(body: unknown): unknown {
-  if (typeof body !== 'object' || body === null) return body
-  const record = body as Record<string, unknown>
-  if (typeof record.model !== 'string') return body
-  if (!isOpenAIReasoningModelId(record.model)) return body
-  if (record.max_tokens == null) return body
-  const { max_tokens, ...rest } = record
+function applyReasoningModelMaxTokensConversion(body: Record<string, any>): Record<string, any> {
+  if (typeof body.model !== 'string') return body
+  if (!isOpenAIReasoningModelId(body.model)) return body
+  if (body.max_tokens == null) return body
+  const { max_tokens, ...rest } = body
   return { ...rest, max_completion_tokens: max_tokens }
 }
 
