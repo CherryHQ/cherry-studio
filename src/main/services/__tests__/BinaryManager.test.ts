@@ -2268,7 +2268,7 @@ describe('BinaryManager', () => {
       ])
       expect(useCalls[0]?.[2].env).not.toHaveProperty('MISE_NPM_SHELL_OUT')
       expect(useCalls[1]?.[2].env).toMatchObject({
-        PATH: '/mock/mise/installs/node/22.23.2/bin:/mock/mise/shims:/usr/bin',
+        PATH: ['/mock/mise/installs/node/22.23.2/bin', '/mock/mise/shims:/usr/bin'].join(path.delimiter),
         MISE_PRERELEASES: '1',
         MISE_NPM_SHELL_OUT: '1',
         MISE_NPM_PACKAGE_MANAGER: 'npm'
@@ -2710,7 +2710,7 @@ describe('BinaryManager', () => {
         call[1].includes('npm:@deepseek-ai/dsh@latest')
       )
       expect(installCall?.[2].env).toMatchObject({
-        PATH: '/mock/mise/installs/node/22.23.2/bin:/mock/mise/shims:/usr/bin',
+        PATH: ['/mock/mise/installs/node/22.23.2/bin', '/mock/mise/shims:/usr/bin'].join(path.delimiter),
         MISE_NPM_PACKAGE_MANAGER: 'npm'
       })
     })
