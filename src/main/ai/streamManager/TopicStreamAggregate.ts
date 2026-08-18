@@ -237,8 +237,8 @@ export class TopicStreamAggregate {
 
   finishContinuation(id: string, phase: Extract<ContinuationPhase, 'consumed' | 'failed' | 'dropped'>): boolean {
     if (!this.transitionContinuation(id, 'dispatching', phase)) return false
-    if (phase === 'failed') this.terminalOverride = 'error'
-    if (phase === 'dropped') this.terminalOverride = 'aborted'
+    if (phase === 'failed') this.recordTerminalOverride('error')
+    if (phase === 'dropped') this.recordTerminalOverride('aborted')
     return true
   }
 
@@ -253,7 +253,7 @@ export class TopicStreamAggregate {
       return false
     }
     continuation.phase = outcome === 'error' ? 'failed' : 'dropped'
-    this.terminalOverride = outcome
+    this.recordTerminalOverride(outcome)
     this.touch()
     return true
   }
@@ -285,6 +285,10 @@ export class TopicStreamAggregate {
     continuation.phase = to
     this.touch()
     return true
+  }
+
+  private recordTerminalOverride(outcome: 'error' | 'aborted'): void {
+    if (this.terminalOverride !== 'error') this.terminalOverride = outcome
   }
 
   private touch(): void {

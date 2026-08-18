@@ -95,4 +95,31 @@ describe('TopicStreamAggregate', () => {
     expect(aggregate.isQuiescent()).toBe(true)
     expect(aggregate.status()).toBe('error')
   })
+
+  it('keeps error precedence across mixed continuation outcomes', () => {
+    const createAggregate = () => {
+      const aggregate = new TopicStreamAggregate('topic-1')
+      const attempt = aggregate.reserveAttempt(toAttemptId(1))
+      aggregate.transitionAttempt(attempt.id, { type: 'launch' })
+      aggregate.transitionAttempt(attempt.id, { type: 'complete' })
+      aggregate.transitionAttempt(attempt.id, { type: 'persisted' })
+      for (const id of ['continuation-1', 'continuation-2']) {
+        aggregate.queueContinuation(id)
+        aggregate.makeContinuationEligible(id)
+        aggregate.startContinuation(id)
+      }
+      return aggregate
+    }
+
+    const failureFirst = createAggregate()
+    failureFirst.finishContinuation('continuation-1', 'failed')
+    failureFirst.terminateContinuation('continuation-2', 'aborted')
+
+    const failureLast = createAggregate()
+    failureLast.terminateContinuation('continuation-1', 'aborted')
+    failureLast.finishContinuation('continuation-2', 'failed')
+
+    expect(failureFirst.status()).toBe('error')
+    expect(failureLast.status()).toBe('error')
+  })
 })
