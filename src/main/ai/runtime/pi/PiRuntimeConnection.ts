@@ -13,7 +13,7 @@ import type {
 } from '@earendil-works/pi-coding-agent'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
-import { TRACER_NAME } from '@main/ai/observability'
+import { endAgentRuntimeSpan, startAgentRuntimeChildSpan } from '@main/ai/observability'
 import { buildAgentMcpServers } from '@main/ai/runtime/agentMcpServers'
 import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
@@ -28,7 +28,8 @@ import {
 } from '@main/ai/runtime/toolApproval/cherryBuiltinApproval'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
-import { ROOT_CONTEXT, type Span, SpanKind, SpanStatusCode, trace, TraceFlags } from '@opentelemetry/api'
+import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
+import { type Span, SpanKind, SpanStatusCode } from '@opentelemetry/api'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import {
@@ -627,7 +628,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private startProviderSpan(model: { provider?: string; id?: string }): PiProviderSpanObserver | undefined {
-    const span = this.startSpan('pi.generate_content', SpanKind.CLIENT, {
+    const span = startAgentRuntimeChildSpan(this.traceContext, 'pi.generate_content', SpanKind.CLIENT, {
       'gen_ai.operation.name': 'chat',
       ...(model.provider ? { 'gen_ai.provider.name': model.provider } : {}),
       ...(model.id ? { 'gen_ai.request.model': model.id } : {})
@@ -656,7 +657,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           logger.warn('Failed to annotate Pi provider span', { error })
         }
         const failed = message.stopReason === 'error' || message.stopReason === 'aborted'
-        finishPiSpan(
+        endAgentRuntimeSpan(
           span,
           failed
             ? { code: SpanStatusCode.ERROR, message: message.errorMessage ?? message.stopReason }
@@ -666,7 +667,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       error: (error) => {
         if (!this.providerSpans.delete(span)) return
         const failure = error instanceof Error ? error : new Error(String(error))
-        finishPiSpan(span, { code: SpanStatusCode.ERROR, message: failure.message }, failure)
+        endAgentRuntimeSpan(span, { code: SpanStatusCode.ERROR, message: failure.message }, failure)
       }
     }
   }
@@ -674,7 +675,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private startToolSpan(event: Extract<AgentSessionEvent, { type: 'tool_execution_start' }>): void {
     const previous = this.toolSpans.get(event.toolCallId)
     if (previous) this.endSpanWithError(previous, 'duplicate pi tool execution start')
-    const span = this.startSpan('pi.execute_tool', SpanKind.INTERNAL, {
+    const span = startAgentRuntimeChildSpan(this.traceContext, 'pi.execute_tool', SpanKind.INTERNAL, {
       'gen_ai.operation.name': 'execute_tool',
       'gen_ai.tool.name': event.toolName,
       'gen_ai.tool.call.id': event.toolCallId
@@ -686,40 +687,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     const span = this.toolSpans.get(event.toolCallId)
     if (!span) return
     this.toolSpans.delete(event.toolCallId)
-    finishPiSpan(
+    endAgentRuntimeSpan(
       span,
       event.isError ? { code: SpanStatusCode.ERROR, message: `${event.toolName} failed` } : { code: SpanStatusCode.OK }
     )
-  }
-
-  private startSpan(name: string, kind: SpanKind, attributes: Record<string, string>): Span | undefined {
-    const context = this.traceContext
-    if (!context) return undefined
-    try {
-      const parent = trace.setSpanContext(ROOT_CONTEXT, {
-        traceId: context.traceId,
-        spanId: context.rootSpanId,
-        traceFlags: TraceFlags.SAMPLED,
-        isRemote: true
-      })
-      return trace.getTracer(TRACER_NAME).startSpan(
-        name,
-        {
-          kind,
-          attributes: {
-            ...attributes,
-            'trace.topicId': context.topicId,
-            ...(context.modelName ? { 'trace.modelName': context.modelName } : {}),
-            'cs.agent_session_id': context.sessionId,
-            'cs.agent_turn_id': context.turnId
-          }
-        },
-        parent
-      )
-    } catch (error) {
-      logger.warn(`Failed to start Pi span ${name}`, { error })
-      return undefined
-    }
   }
 
   private endOpenToolSpans(message: string): void {
@@ -734,7 +705,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private endSpanWithError(span: Span, message: string): void {
-    finishPiSpan(span, { code: SpanStatusCode.ERROR, message })
+    endAgentRuntimeSpan(span, { code: SpanStatusCode.ERROR, message })
   }
 
   private handleCompactionEnd(event: Extract<AgentSessionEvent, { type: 'compaction_end' }>): void {
@@ -835,28 +806,15 @@ interface PiProviderSpanObserver {
   error(error: unknown): void
 }
 
-function finishPiSpan(span: Span, status: { code: SpanStatusCode; message?: string }, error?: Error): void {
-  try {
-    span.setStatus(status)
-    if (error) span.recordException(error)
-  } catch (traceError) {
-    logger.warn('Failed to finalize Pi span metadata', { error: traceError })
-  } finally {
-    try {
-      span.end()
-    } catch (traceError) {
-      logger.warn('Failed to end Pi span', { error: traceError })
-    }
-  }
-}
-
 function withPiRequestEnvironment(
   streamSimple: NonNullable<ProviderConfig['streamSimple']>,
-  environment: Record<string, string> | undefined
+  providerEnvironment: Record<string, string> | undefined
 ): NonNullable<ProviderConfig['streamSimple']> {
-  if (!environment) return streamSimple
   return (model, context, options) =>
-    streamSimple(model, context, { ...options, env: { ...options?.env, ...environment } })
+    streamSimple(model, context, {
+      ...options,
+      env: { ...options?.env, ...getProxyEnvironment(process.env), ...providerEnvironment }
+    })
 }
 
 function finiteTokenCount(value: number | undefined): number {

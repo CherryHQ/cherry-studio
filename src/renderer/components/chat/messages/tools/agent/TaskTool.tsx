@@ -8,7 +8,7 @@ import { truncateOutput } from '../shared/truncateOutput'
 
 type TaskStatus = 'pending' | 'in_progress' | 'completed'
 
-interface TaskListItem {
+export interface TaskListItem {
   id: string
   subject: string
   status: TaskStatus
@@ -69,7 +69,7 @@ function getTaskTargetLabel(taskId: string | undefined, t: ReturnType<typeof use
   return taskId ? t('message.tools.activity.taskId', { id: taskId }) : undefined
 }
 
-function TaskListView({ tasks, t }: { tasks: TaskListItem[]; t: ReturnType<typeof useTranslation>['t'] }) {
+export function TaskListView({ tasks, t }: { tasks: TaskListItem[]; t: ReturnType<typeof useTranslation>['t'] }) {
   return (
     <div className="space-y-1.5">
       {tasks.map((task) => (

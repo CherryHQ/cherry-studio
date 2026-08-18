@@ -18,6 +18,7 @@ import {
   CalendarClock,
   Cloud,
   Command,
+  Crop,
   FileBox,
   FileCode,
   HardDrive,
@@ -210,6 +211,14 @@ const SettingsPage: FC = () => {
                 label={t('selection.name')}
                 active={isActive('/settings/selection-assistant')}
                 onClick={() => go('/settings/selection-assistant')}
+              />
+              <MenuItem
+                className={settingsSubmenuItemClassName}
+                labelClassName={settingsSubmenuItemLabelClassName}
+                icon={<Crop />}
+                label={t('settings.screenshot.title')}
+                active={isActive('/settings/screenshot')}
+                onClick={() => go('/settings/screenshot')}
               />
               <MenuDivider className={settingsSubmenuDividerClassName} />
               <div className={settingsSubmenuSectionTitleClassName}>{t('settings.menuGroups.system')}</div>
