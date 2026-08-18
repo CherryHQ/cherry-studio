@@ -83,17 +83,10 @@ export const useWebSearchProviders = () => {
   const [defaultFetchUrlsProviderId, setDefaultFetchUrlsProviderId] = usePreference(
     'chat.web_search.default_fetch_urls_provider'
   )
-  const zhipuWebSearchApiKeys = trimStringList(providerOverrides.zhipu?.apiKeys ?? [])
-  const shouldInheritZhipuModelApiKeys = zhipuWebSearchApiKeys.length === 0
-  const { data: zhipuModelApiKeys, isLoading: isLoadingZhipuModelApiKeys } = useQuery(
-    '/providers/:providerId/api-keys',
-    {
-      params: { providerId: 'zhipu' },
-      query: { enabled: true },
-      enabled: shouldInheritZhipuModelApiKeys
-    }
-  )
-  const isLoading = shouldInheritZhipuModelApiKeys && isLoadingZhipuModelApiKeys
+  const { data: zhipuModelApiKeys, isLoading } = useQuery('/providers/:providerId/api-keys', {
+    params: { providerId: 'zhipu' },
+    query: { enabled: true }
+  })
   const providers = useMemo<WebSearchProvider[]>(() => {
     if (isLoading) {
       return []
@@ -105,10 +98,7 @@ export const useWebSearchProviders = () => {
 
       return {
         ...preset,
-        apiKeys:
-          preset.id === 'zhipu' && apiKeys.length === 0
-            ? trimStringList(zhipuModelApiKeys?.keys.map(({ key }) => key) ?? [])
-            : apiKeys,
+        apiKeys: preset.id === 'zhipu' ? trimStringList(zhipuModelApiKeys?.keys.map(({ key }) => key) ?? []) : apiKeys,
         capabilities: preset.capabilities.map((capability) => {
           const capabilityOverride = override?.capabilities?.[capability.feature]
 

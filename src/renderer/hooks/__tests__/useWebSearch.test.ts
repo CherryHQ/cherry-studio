@@ -36,9 +36,32 @@ describe('useWebSearch', () => {
     expect(result.current.getProvider('zhipu')?.apiKeys).toEqual(['model-provider-key'])
   })
 
-  it('waits for inherited Zhipu model provider API keys before exposing providers', () => {
+  it('uses enabled Zhipu model provider API keys instead of stale web search keys', () => {
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {
-      zhipu: { apiKeys: [] }
+      zhipu: { apiKeys: ['stale-web-search-key'] }
+    })
+    MockUseDataApiUtils.mockQueryData('/providers/:providerId/api-keys', {
+      keys: [{ id: 'zhipu-key', key: 'current-model-provider-key', isEnabled: true }]
+    })
+
+    const { result } = renderHook(() => useWebSearchProviders())
+
+    expect(result.current.getProvider('zhipu')?.apiKeys).toEqual(['current-model-provider-key'])
+  })
+
+  it('ignores stale Zhipu web search keys when the model provider has no enabled keys', () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {
+      zhipu: { apiKeys: ['stale-web-search-key'] }
+    })
+
+    const { result } = renderHook(() => useWebSearchProviders())
+
+    expect(result.current.getProvider('zhipu')?.apiKeys).toEqual([])
+  })
+
+  it('waits for Zhipu model provider API keys even when stale web search keys exist', () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {
+      zhipu: { apiKeys: ['stale-web-search-key'] }
     })
     MockUseDataApiUtils.mockQueryLoading('/providers/:providerId/api-keys')
 
