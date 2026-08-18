@@ -285,8 +285,6 @@ type AgentSessionRuntimeEntry = {
   workflowSnapshotPersistedTaskIds?: Set<string>
   /** Tasks whose terminal workflow snapshot is already scheduled for transcript persistence. */
   terminalWorkflowSnapshotPersistedTaskIds?: Set<string>
-  /** Tasks whose higher-priority terminal notification workflow snapshot was scheduled. */
-  terminalNotificationWorkflowSnapshotPersistedTaskIds?: Set<string>
   /** Tasks whose status has reached a terminal state and can finalize detached output. */
   terminalTaskIds?: Set<string>
   /** Assistant rows already committed by PersistenceListener and safe to use as accumulator seeds. */
@@ -2251,10 +2249,12 @@ export class AgentSessionRuntimeService extends BaseService {
       entry.pendingTaskEventChunksByTaskId?.delete(taskId)
       entry.workflowSnapshotPersistedTaskIds?.delete(taskId)
       entry.terminalWorkflowSnapshotPersistedTaskIds?.delete(taskId)
-      entry.terminalNotificationWorkflowSnapshotPersistedTaskIds?.delete(taskId)
       entry.terminalTaskIds?.delete(taskId)
       const checkpoint = entry.workflowCheckpoints?.get(taskId)
-      if (checkpoint?.timer) clearTimeout(checkpoint.timer)
+      if (checkpoint?.timer) {
+        this.writeWorkflowCheckpoint(entry, taskId, checkpoint, entry.closing === true)
+        if (checkpoint.timer) clearTimeout(checkpoint.timer)
+      }
       entry.workflowCheckpoints?.delete(taskId)
     }
     entry.persistedFlowMessageIds?.delete(messageId)
@@ -2294,9 +2294,6 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     for (const taskId of entry.terminalWorkflowSnapshotPersistedTaskIds ?? []) {
       if (!retainedTaskIds.has(taskId)) entry.terminalWorkflowSnapshotPersistedTaskIds?.delete(taskId)
-    }
-    for (const taskId of entry.terminalNotificationWorkflowSnapshotPersistedTaskIds ?? []) {
-      if (!retainedTaskIds.has(taskId)) entry.terminalNotificationWorkflowSnapshotPersistedTaskIds?.delete(taskId)
     }
     for (const taskId of entry.terminalTaskIds ?? []) {
       if (!retainedTaskIds.has(taskId)) entry.terminalTaskIds?.delete(taskId)
@@ -2494,19 +2491,15 @@ export class AgentSessionRuntimeService extends BaseService {
     if (incoming.workflow) {
       const isTerminal = isTerminalAgentSessionTaskStatus(incoming.status)
       const terminalPersisted = entry.terminalWorkflowSnapshotPersistedTaskIds?.has(merged.taskId) ?? false
-      const isTerminalNotification = isTerminal && incoming.event === 'notification'
-      const persisted = isTerminalNotification
-        ? (entry.terminalNotificationWorkflowSnapshotPersistedTaskIds ??= new Set<string>())
-        : isTerminal
-          ? (entry.terminalWorkflowSnapshotPersistedTaskIds ??= new Set<string>())
-          : (entry.workflowSnapshotPersistedTaskIds ??= new Set<string>())
+      const persisted = isTerminal
+        ? (entry.terminalWorkflowSnapshotPersistedTaskIds ??= new Set<string>())
+        : (entry.workflowSnapshotPersistedTaskIds ??= new Set<string>())
       if ((!isTerminal && terminalPersisted) || persisted.has(merged.taskId)) {
         const withoutWorkflow = { ...merged }
         delete withoutWorkflow.workflow
         return withoutWorkflow
       }
       persisted.add(merged.taskId)
-      if (isTerminal) (entry.terminalWorkflowSnapshotPersistedTaskIds ??= new Set<string>()).add(merged.taskId)
       return merged
     }
 
@@ -2723,9 +2716,6 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     for (const taskId of entry.terminalWorkflowSnapshotPersistedTaskIds ?? []) {
       if (!retainedTaskIds.has(taskId)) entry.terminalWorkflowSnapshotPersistedTaskIds?.delete(taskId)
-    }
-    for (const taskId of entry.terminalNotificationWorkflowSnapshotPersistedTaskIds ?? []) {
-      if (!retainedTaskIds.has(taskId)) entry.terminalNotificationWorkflowSnapshotPersistedTaskIds?.delete(taskId)
     }
     for (const taskId of entry.terminalTaskIds ?? []) {
       if (!retainedTaskIds.has(taskId)) entry.terminalTaskIds?.delete(taskId)

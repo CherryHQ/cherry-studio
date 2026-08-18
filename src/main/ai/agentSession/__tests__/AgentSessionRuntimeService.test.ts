@@ -2511,12 +2511,6 @@ describe('AgentSessionRuntimeService', () => {
           taskId: 'workflow-1',
           status: 'completed' as const,
           workflow: workflow(400)
-        },
-        {
-          event: 'notification' as const,
-          taskId: 'workflow-1',
-          status: 'completed' as const,
-          workflow: workflow(400)
         }
       ]) {
         ;(service as any).handleRuntimeEvent(entry, { type: 'background-task-event', data })
@@ -2716,6 +2710,50 @@ describe('AgentSessionRuntimeService', () => {
           'assistant-1',
           expect.objectContaining({ workflow: expect.objectContaining({ totalTokens: 20 }) })
         )
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('flushes the latest throttled workflow checkpoint before releasing settled message state', () => {
+      vi.useFakeTimers()
+      try {
+        const service = new AgentSessionRuntimeService()
+        service.beginTurn(baseTurnInput)
+        const entry = getEntry(service)
+        entry.currentTurn.controller = { enqueue: vi.fn() } as never
+        ;(entry.flowMessageIdsByToolCallId ??= new Map()).set('workflow-root', 'assistant-1')
+        const event = (totalTokens: number) => ({
+          event: 'progress' as const,
+          taskId: 'workflow-released-checkpoint',
+          toolUseId: 'workflow-root',
+          status: 'in_progress' as const,
+          title: 'Review',
+          workflow: {
+            runId: 'run-released-checkpoint',
+            taskId: 'workflow-released-checkpoint',
+            totalTokens,
+            totalCumulativeTokens: totalTokens + 10,
+            totalToolCalls: 2,
+            phases: [{ title: 'Inspect' }],
+            workflowProgress: []
+          }
+        })
+
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-task-event', data: event(10) })
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-task-event', data: event(20) })
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenCalledTimes(1)
+
+        ;(service as any).releaseBackgroundFlowMessageState(entry, 'assistant-1')
+        vi.runOnlyPendingTimers()
+
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenCalledTimes(2)
+        expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenLastCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.objectContaining({ workflow: expect.objectContaining({ totalTokens: 20 }) })
+        )
+        expect(entry.workflowCheckpoints?.has('workflow-released-checkpoint')).toBe(false)
       } finally {
         vi.useRealTimers()
       }

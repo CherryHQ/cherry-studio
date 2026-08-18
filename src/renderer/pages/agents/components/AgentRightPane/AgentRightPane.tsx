@@ -1094,12 +1094,10 @@ function WorkflowAgentStatusSquare({
 
 function WorkflowPhaseAccordion({
   phases,
-  durationFormatter,
-  nowMs
+  durationFormatter
 }: {
   phases: WorkflowPhaseView[]
   durationFormatter: DurationFormatter
-  nowMs: number
 }) {
   const { t } = useTranslation()
   const copyAgentName = useCallback(
@@ -1154,36 +1152,40 @@ function WorkflowPhaseAccordion({
                   </tr>
                 </thead>
                 <tbody className="text-foreground">
-                  {phase.agents.map((agent) => {
-                    const durationMs =
-                      getWorkflowAgentVisualState(agent.state) === 'running' && agent.startedAt !== undefined
-                        ? Math.floor(Math.max(agent.durationMs ?? 0, nowMs - agent.startedAt) / 1000) * 1000
-                        : agent.durationMs
-                    return (
-                      <tr key={`${agent.index}-${agent.label}`}>
-                        <td className="min-w-0 px-1 align-top">
-                          <button
-                            type="button"
-                            title={agent.label}
-                            aria-label={t('agent.right_pane.status.copy_agent_name', { name: agent.label })}
-                            className="inline-flex w-full min-w-0 items-center gap-1.5 overflow-hidden rounded-sm text-left hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
-                            onClick={() => copyAgentName(agent.label)}>
-                            <WorkflowAgentStatusSquare agent={agent} withLabel />
-                          </button>
-                        </td>
-                        <td className="px-1 text-right tabular-nums">
-                          {agent.cumulativeTokens === undefined ? '-' : formatCompactNumber(agent.cumulativeTokens)}
-                        </td>
-                        <td className="px-1 text-right tabular-nums">
-                          {agent.tokens === undefined ? '-' : formatCompactNumber(agent.tokens)}
-                        </td>
-                        <td className="px-1 text-right tabular-nums">{agent.toolCalls ?? '-'}</td>
-                        <td className="whitespace-nowrap px-1 text-right tabular-nums">
-                          {durationMs === undefined ? '-' : durationFormatter(durationMs)}
-                        </td>
-                      </tr>
-                    )
-                  })}
+                  {phase.agents.map((agent) => (
+                    <tr key={`${agent.index}-${agent.label}`}>
+                      <td className="min-w-0 px-1 align-top">
+                        <button
+                          type="button"
+                          title={agent.label}
+                          aria-label={t('agent.right_pane.status.copy_agent_name', { name: agent.label })}
+                          className="inline-flex w-full min-w-0 items-center gap-1.5 overflow-hidden rounded-sm text-left hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+                          onClick={() => copyAgentName(agent.label)}>
+                          <WorkflowAgentStatusSquare agent={agent} withLabel />
+                        </button>
+                      </td>
+                      <td className="px-1 text-right tabular-nums">
+                        {agent.cumulativeTokens === undefined ? '-' : formatCompactNumber(agent.cumulativeTokens)}
+                      </td>
+                      <td className="px-1 text-right tabular-nums">
+                        {agent.tokens === undefined ? '-' : formatCompactNumber(agent.tokens)}
+                      </td>
+                      <td className="px-1 text-right tabular-nums">{agent.toolCalls ?? '-'}</td>
+                      <td className="whitespace-nowrap px-1 text-right tabular-nums">
+                        {getWorkflowAgentVisualState(agent.state) === 'running' && agent.startedAt !== undefined ? (
+                          <LiveDuration
+                            startedAtMs={agent.startedAt}
+                            reportedDurationMs={agent.durationMs}
+                            durationFormatter={durationFormatter}
+                          />
+                        ) : agent.durationMs === undefined ? (
+                          '-'
+                        ) : (
+                          durationFormatter(agent.durationMs)
+                        )}
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -1194,15 +1196,29 @@ function WorkflowPhaseAccordion({
   )
 }
 
-function getRunTaskDurationMs(
-  task: AgentRunTask,
-  reportedDurationMs: number | undefined,
-  nowMs: number
-): number | undefined {
+function LiveDuration({
+  startedAtMs,
+  reportedDurationMs,
+  durationFormatter,
+  className
+}: {
+  startedAtMs: number
+  reportedDurationMs?: number
+  durationFormatter: DurationFormatter
+  className?: string
+}) {
+  const [nowMs, setNowMs] = useState(() => Date.now())
+  useEffect(() => {
+    const intervalId = window.setInterval(() => setNowMs(Date.now()), 1000)
+    return () => window.clearInterval(intervalId)
+  }, [])
+
+  const durationMs = Math.floor(Math.max(reportedDurationMs ?? 0, nowMs - startedAtMs) / 1000) * 1000
+  return <span className={className}>{durationFormatter(durationMs)}</span>
+}
+
+function getRunTaskDurationMs(task: AgentRunTask, reportedDurationMs: number | undefined): number | undefined {
   const createdAtMs = task.createdAt ? Date.parse(task.createdAt) : Number.NaN
-  if (task.status === 'in_progress' && nowMs > 0 && Number.isFinite(createdAtMs)) {
-    return Math.floor(Math.max(reportedDurationMs ?? 0, nowMs - createdAtMs) / 1000) * 1000
-  }
   if (reportedDurationMs !== undefined) return reportedDurationMs
 
   const completedAtMs = task.completedAt ? Date.parse(task.completedAt) : Number.NaN
@@ -1212,14 +1228,48 @@ function getRunTaskDurationMs(
   return undefined
 }
 
+function hasRunTaskDuration(task: AgentRunTask, reportedDurationMs: number | undefined): boolean {
+  if (reportedDurationMs !== undefined) return true
+  const createdAtMs = task.createdAt ? Date.parse(task.createdAt) : Number.NaN
+  if (!Number.isFinite(createdAtMs)) return false
+  if (task.status === 'in_progress') return true
+  return Number.isFinite(task.completedAt ? Date.parse(task.completedAt) : Number.NaN)
+}
+
+function RunTaskDuration({
+  task,
+  reportedDurationMs,
+  durationFormatter,
+  className
+}: {
+  task: AgentRunTask
+  reportedDurationMs?: number
+  durationFormatter: DurationFormatter
+  className?: string
+}) {
+  const createdAtMs = task.createdAt ? Date.parse(task.createdAt) : Number.NaN
+  if (task.status === 'in_progress' && Number.isFinite(createdAtMs)) {
+    return (
+      <LiveDuration
+        startedAtMs={createdAtMs}
+        reportedDurationMs={reportedDurationMs}
+        durationFormatter={durationFormatter}
+        className={className}
+      />
+    )
+  }
+
+  const durationMs = getRunTaskDurationMs(task, reportedDurationMs)
+  return durationMs === undefined ? null : <span className={className}>{durationFormatter(durationMs)}</span>
+}
+
 function RunTaskSummary({
   status,
   title,
   kind,
   description,
   executionLabel,
-  durationMs,
-  durationFormatter,
+  duration,
   totalTokens,
   contextTokens,
   toolUses
@@ -1229,8 +1279,7 @@ function RunTaskSummary({
   kind: string
   description?: string
   executionLabel?: string
-  durationMs?: number
-  durationFormatter: DurationFormatter
+  duration?: ReactNode
   totalTokens?: number
   contextTokens?: number
   toolUses?: number
@@ -1258,10 +1307,10 @@ function RunTaskSummary({
             <span>{statusLabel}</span>
           </div>
         </div>
-        {executionLabel || durationMs !== undefined ? (
+        {executionLabel || duration ? (
           <div className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[11px] text-muted-foreground">
             {executionLabel ? <span>{executionLabel}</span> : null}
-            {durationMs !== undefined ? <span className="tabular-nums">{durationFormatter(durationMs)}</span> : null}
+            {duration}
           </div>
         ) : null}
       </div>
@@ -1291,13 +1340,11 @@ function RunTaskSummary({
 function GenericRunTaskCard({
   task,
   sessionId,
-  durationFormatter,
-  nowMs
+  durationFormatter
 }: {
   task: AgentRunTask
   sessionId?: string
   durationFormatter: DurationFormatter
-  nowMs: number
 }) {
   const actions = useAgentRightPaneActions()
   const { t } = useTranslation()
@@ -1309,7 +1356,6 @@ function GenericRunTaskCard({
       : task.activeText && task.activeText !== task.title
         ? task.activeText
         : undefined
-  const durationMs = getRunTaskDurationMs(task, task.usage?.durationMs, nowMs)
   const summary = (
     <RunTaskSummary
       status={task.status}
@@ -1319,8 +1365,14 @@ function GenericRunTaskCard({
       executionLabel={
         task.isBackgrounded ? t('agent.right_pane.status.execution_async') : t('agent.right_pane.status.execution_sync')
       }
-      durationMs={durationMs}
-      durationFormatter={durationFormatter}
+      duration={
+        <RunTaskDuration
+          task={task}
+          reportedDurationMs={task.usage?.durationMs}
+          durationFormatter={durationFormatter}
+          className="tabular-nums"
+        />
+      }
       totalTokens={task.usage?.totalTokens}
       contextTokens={task.usage?.contextTokens}
       toolUses={task.usage?.toolUses}
@@ -1354,13 +1406,11 @@ function GenericRunTaskCard({
 function ShellRunTaskCard({
   task,
   sessionId,
-  durationFormatter,
-  nowMs
+  durationFormatter
 }: {
   task: AgentRunTask
   sessionId?: string
   durationFormatter: DurationFormatter
-  nowMs: number
 }) {
   const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
@@ -1377,7 +1427,6 @@ function ShellRunTaskCard({
   const title = task.description?.trim() || task.title
   const command = `> ${task.command ?? task.title}`
   const terminalContent = output ? `${command}\n\n${output}` : command
-  const durationMs = getRunTaskDurationMs(task, task.usage?.durationMs, nowMs)
 
   return (
     <Accordion
@@ -1404,10 +1453,13 @@ function ShellRunTaskCard({
                 className="min-w-0 flex-1 truncate text-foreground text-xs leading-5">
                 {title}
               </span>
-              {durationMs !== undefined ? (
-                <span className="shrink-0 whitespace-nowrap text-[11px] text-muted-foreground tabular-nums">
-                  {durationFormatter(durationMs)}
-                </span>
+              {hasRunTaskDuration(task, task.usage?.durationMs) ? (
+                <RunTaskDuration
+                  task={task}
+                  reportedDurationMs={task.usage?.durationMs}
+                  durationFormatter={durationFormatter}
+                  className="shrink-0 whitespace-nowrap text-[11px] text-muted-foreground tabular-nums"
+                />
               ) : null}
               <span className="sr-only">
                 {expanded ? t('agent.right_pane.status.hide_output') : t('agent.right_pane.status.show_output')}
@@ -1441,19 +1493,16 @@ function ShellRunTaskCard({
 function WorkflowRunTaskCard({
   task,
   sessionId,
-  durationFormatter,
-  nowMs
+  durationFormatter
 }: {
   task: AgentRunTask
   sessionId?: string
   durationFormatter: DurationFormatter
-  nowMs: number
 }) {
   const { t } = useTranslation()
   const phases = buildWorkflowPhaseViews(task)
   const snapshot = task.workflow
   const reportedDurationMs = snapshot?.durationMs ?? task.usage?.durationMs
-  const durationMs = getRunTaskDurationMs(task, reportedDurationMs, nowMs)
   const totalCumulativeTokens = snapshot?.totalCumulativeTokens
   const totalContextTokens = snapshot?.totalTokens ?? task.usage?.contextTokens
   const totalToolCalls = snapshot?.totalToolCalls ?? task.usage?.toolUses
@@ -1466,8 +1515,16 @@ function WorkflowRunTaskCard({
       title={title}
       kind={`${t('agent.right_pane.status.agent_count', { count: agentCount })}·${t('agent.right_pane.status.workflow')}`}
       description={description}
-      durationMs={durationMs}
-      durationFormatter={durationFormatter}
+      duration={
+        hasRunTaskDuration(task, reportedDurationMs) ? (
+          <RunTaskDuration
+            task={task}
+            reportedDurationMs={reportedDurationMs}
+            durationFormatter={durationFormatter}
+            className="tabular-nums"
+          />
+        ) : undefined
+      }
       totalTokens={totalCumulativeTokens}
       contextTokens={totalContextTokens}
       toolUses={totalToolCalls}
@@ -1494,7 +1551,7 @@ function WorkflowRunTaskCard({
           </div>
           {phases.length > 0 ? (
             <AccordionContent className="px-2.5 pt-0 pb-2">
-              <WorkflowPhaseAccordion phases={phases} durationFormatter={durationFormatter} nowMs={nowMs} />
+              <WorkflowPhaseAccordion phases={phases} durationFormatter={durationFormatter} />
             </AccordionContent>
           ) : null}
         </div>
@@ -1511,29 +1568,20 @@ const AgentRunTaskCard = memo(function AgentRunTaskCard({
   task,
   sessionId,
   durationFormatter,
-  workflowDurationFormatter,
-  nowMs
+  workflowDurationFormatter
 }: {
   task: AgentRunTask
   sessionId?: string
   durationFormatter: DurationFormatter
   workflowDurationFormatter: DurationFormatter
-  nowMs: number
 }) {
   if (isLocalWorkflowRunTask(task)) {
-    return (
-      <WorkflowRunTaskCard
-        task={task}
-        sessionId={sessionId}
-        durationFormatter={workflowDurationFormatter}
-        nowMs={nowMs}
-      />
-    )
+    return <WorkflowRunTaskCard task={task} sessionId={sessionId} durationFormatter={workflowDurationFormatter} />
   }
   if (isShellRunTask(task)) {
-    return <ShellRunTaskCard task={task} sessionId={sessionId} durationFormatter={durationFormatter} nowMs={nowMs} />
+    return <ShellRunTaskCard task={task} sessionId={sessionId} durationFormatter={durationFormatter} />
   }
-  return <GenericRunTaskCard task={task} sessionId={sessionId} durationFormatter={durationFormatter} nowMs={nowMs} />
+  return <GenericRunTaskCard task={task} sessionId={sessionId} durationFormatter={durationFormatter} />
 })
 
 const AgentRunActivitySection = memo(function AgentRunActivitySection({
@@ -1542,8 +1590,7 @@ const AgentRunActivitySection = memo(function AgentRunActivitySection({
   tasks,
   sessionId,
   durationFormatter,
-  workflowDurationFormatter,
-  nowMs
+  workflowDurationFormatter
 }: {
   value: AgentRunActivitySectionValue
   label: string
@@ -1551,7 +1598,6 @@ const AgentRunActivitySection = memo(function AgentRunActivitySection({
   sessionId?: string
   durationFormatter: DurationFormatter
   workflowDurationFormatter: DurationFormatter
-  nowMs: number
 }) {
   return (
     <AccordionItem value={value} role="region" aria-label={label} className="border-0 first:border-t-0 last:border-b-0">
@@ -1567,7 +1613,6 @@ const AgentRunActivitySection = memo(function AgentRunActivitySection({
             sessionId={sessionId}
             durationFormatter={durationFormatter}
             workflowDurationFormatter={workflowDurationFormatter}
-            nowMs={nowMs}
           />
         ))}
       </AccordionContent>
@@ -1582,24 +1627,6 @@ function AgentRunActivitySections({ tasks, sessionId }: { tasks: AgentRunTask[];
   const workflowDurationFormatter = useMemo(() => createWholeSecondDurationFormatter(language), [language])
   const runningTasks = useMemo(() => getRunningRunTasks(tasks), [tasks])
   const completedTasks = useMemo(() => getCompletedRunTasks(tasks), [tasks])
-  const hasLiveRunDuration = runningTasks.some(
-    (task) =>
-      task.createdAt !== undefined ||
-      (isLocalWorkflowRunTask(task) &&
-        task.workflow?.workflowProgress.some(
-          (progress) =>
-            progress.type === 'workflow_agent' &&
-            progress.startedAt !== undefined &&
-            getWorkflowAgentVisualState(progress.state) === 'running'
-        ))
-  )
-  const [nowMs, setNowMs] = useState(() => Date.now())
-  useEffect(() => {
-    if (!hasLiveRunDuration) return
-    setNowMs(Date.now())
-    const intervalId = window.setInterval(() => setNowMs(Date.now()), 1000)
-    return () => window.clearInterval(intervalId)
-  }, [hasLiveRunDuration])
   if (runningTasks.length === 0 && completedTasks.length === 0) return null
 
   return (
@@ -1612,7 +1639,6 @@ function AgentRunActivitySections({ tasks, sessionId }: { tasks: AgentRunTask[];
           sessionId={sessionId}
           durationFormatter={durationFormatter}
           workflowDurationFormatter={workflowDurationFormatter}
-          nowMs={nowMs}
         />
       ) : null}
       {completedTasks.length > 0 ? (
@@ -1623,7 +1649,6 @@ function AgentRunActivitySections({ tasks, sessionId }: { tasks: AgentRunTask[];
           sessionId={sessionId}
           durationFormatter={durationFormatter}
           workflowDurationFormatter={workflowDurationFormatter}
-          nowMs={0}
         />
       ) : null}
     </Accordion>

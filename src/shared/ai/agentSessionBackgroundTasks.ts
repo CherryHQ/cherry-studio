@@ -58,10 +58,12 @@ export function mergeAgentSessionTaskEvent(
   const merged = { ...existing }
   const existingIsTerminal = isTerminalAgentSessionTaskStatus(existing.status)
   const incomingIsTerminal = isTerminalAgentSessionTaskStatus(incoming.status)
+  const isFirstTerminalTransition = incomingIsTerminal && !existingIsTerminal
   if (existingIsTerminal && !incomingIsTerminal) {
     for (const field of LATE_NONTERMINAL_ENRICHMENT_FIELDS) {
       const value = incoming[field]
-      if (existing[field] === undefined && value !== undefined) {
+      const existingValue = existing[field]
+      if ((existingValue === undefined || existingValue === '') && value !== undefined && value !== '') {
         ;(merged as Record<keyof AgentTaskEventPartData, unknown>)[field] = value
       }
     }
@@ -79,16 +81,17 @@ export function mergeAgentSessionTaskEvent(
       const incomingUsage = incoming.usage
       merged.usage = {
         ...existingUsage,
+        // Context size is a point-in-time snapshot; unlike cumulative counters, the latest edge wins.
         ...incomingUsage,
         ...(existingUsage?.totalTokens !== undefined || incomingUsage?.totalTokens !== undefined
           ? { totalTokens: Math.max(existingUsage?.totalTokens ?? 0, incomingUsage?.totalTokens ?? 0) }
           : {}),
-        ...(incomingIsTerminal && incomingUsage?.toolUses !== undefined
+        ...(isFirstTerminalTransition && incomingUsage?.toolUses !== undefined
           ? { toolUses: incomingUsage.toolUses }
           : existingUsage?.toolUses !== undefined || incomingUsage?.toolUses !== undefined
             ? { toolUses: Math.max(existingUsage?.toolUses ?? 0, incomingUsage?.toolUses ?? 0) }
             : {}),
-        ...(incomingIsTerminal && incomingUsage?.durationMs !== undefined
+        ...(isFirstTerminalTransition && incomingUsage?.durationMs !== undefined
           ? { durationMs: incomingUsage.durationMs }
           : existingUsage?.durationMs !== undefined || incomingUsage?.durationMs !== undefined
             ? { durationMs: Math.max(existingUsage?.durationMs ?? 0, incomingUsage?.durationMs ?? 0) }

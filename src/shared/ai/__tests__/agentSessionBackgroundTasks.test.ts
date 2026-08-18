@@ -83,6 +83,30 @@ describe('mergeAgentSessionTaskEvent', () => {
     })
   })
 
+  it('uses late non-terminal edges to fill empty terminal identity fields', () => {
+    expect(
+      mergeAgentSessionTaskEvent(
+        {
+          event: 'updated',
+          taskId: 'workflow-1',
+          status: 'completed',
+          title: ''
+        },
+        {
+          event: 'started',
+          taskId: 'workflow-1',
+          status: 'in_progress',
+          title: 'Review pull request'
+        }
+      )
+    ).toEqual({
+      event: 'updated',
+      taskId: 'workflow-1',
+      status: 'completed',
+      title: 'Review pull request'
+    })
+  })
+
   it('preserves transcript totals while accepting authoritative final context and tool counts', () => {
     const progress = {
       event: 'progress' as const,
@@ -103,6 +127,27 @@ describe('mergeAgentSessionTaskEvent', () => {
       event: 'notification',
       status: 'completed',
       usage: { totalTokens: 5600, contextTokens: 2100, toolUses: 7, durationMs: 15_000 }
+    })
+  })
+
+  it('does not let a duplicate terminal edge regress cumulative usage counters', () => {
+    const completed = {
+      event: 'notification' as const,
+      taskId: 'agent-1',
+      status: 'completed' as const,
+      usage: { totalTokens: 5600, contextTokens: 2100, toolUses: 7, durationMs: 15_000 }
+    }
+
+    expect(
+      mergeAgentSessionTaskEvent(completed, {
+        event: 'notification',
+        taskId: 'agent-1',
+        status: 'completed',
+        usage: { totalTokens: 5400, contextTokens: 2050, toolUses: 6, durationMs: 14_000 }
+      })
+    ).toEqual({
+      ...completed,
+      usage: { totalTokens: 5600, contextTokens: 2050, toolUses: 7, durationMs: 15_000 }
     })
   })
 
