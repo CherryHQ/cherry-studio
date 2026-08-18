@@ -388,6 +388,15 @@
         "inaccessible": "工作区路径不可访问：{{path}}"
       }
     },
+    "session_delivery": {
+      "from": "来自 {{agent}} / {{session}}",
+      "status": {
+        "accepted": "已接受",
+        "consumed": "已消费",
+        "delivering": "投递中",
+        "failed": "失败"
+      }
+    },
     "settings": {
       "permissionMode": {
         "title": "权限模式"
@@ -3390,6 +3399,21 @@
         "stderr": "标准错误",
         "stdout": "标准输出"
       },
+      "sessionCreate": {
+        "created": "已启动新会话",
+        "creating": "正在启动新会话",
+        "firstMessage": "首条消息",
+        "inheritedContext": "沿用当前智能体与工作区",
+        "open": "打开会话",
+        "sessionId": "会话 ID",
+        "untitled": "未命名会话"
+      },
+      "sessionSend": {
+        "open": "打开会话",
+        "sending": "正在发送至",
+        "sent": "已发送至",
+        "to": "发送至"
+      },
       "status": {
         "done": "完成",
         "error": "错误",
@@ -5620,6 +5644,10 @@
         "select": "选择字体",
         "title": "字体设置"
       }
+    },
+    "fetch": {
+      "allow_private_network": "允许访问本地网络地址",
+      "allow_private_network_tip": "允许网页抓取工具访问 localhost 和内网地址。如果不希望模型读取本机或局域网上的服务，请关闭。"
     },
     "font_size": {
       "title": "消息字体大小"

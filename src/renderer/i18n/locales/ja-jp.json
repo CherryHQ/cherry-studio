@@ -388,6 +388,15 @@
         "inaccessible": "ワークスペースパスにアクセスできません: {{path}}"
       }
     },
+    "session_delivery": {
+      "from": "{{agent}} / {{session}} から",
+      "status": {
+        "accepted": "受付済み",
+        "consumed": "処理済み",
+        "delivering": "配信中",
+        "failed": "失敗"
+      }
+    },
     "settings": {
       "permissionMode": {
         "title": "パーミッションモード"
@@ -3390,6 +3399,21 @@
         "stderr": "標準エラー出力",
         "stdout": "標準出力"
       },
+      "sessionCreate": {
+        "created": "新しいセッションを開始しました",
+        "creating": "新しいセッションを開始中",
+        "firstMessage": "最初のメッセージ",
+        "inheritedContext": "このエージェントとワークスペースを使用",
+        "open": "セッションを開く",
+        "sessionId": "セッション ID",
+        "untitled": "無題のセッション"
+      },
+      "sessionSend": {
+        "open": "セッションを開く",
+        "sending": "送信先",
+        "sent": "送信済み",
+        "to": "宛先"
+      },
       "status": {
         "done": "完了",
         "error": "エラー",
@@ -5620,6 +5644,10 @@
         "select": "フォントを選択",
         "title": "フォント設定"
       }
+    },
+    "fetch": {
+      "allow_private_network": "ローカルネットワークアドレスへのアクセスを許可",
+      "allow_private_network_tip": "Web 取得ツールが localhost やプライベートネットワークのアドレスにアクセスできるようにします。自分のマシンや LAN 上のサービスをモデルに読み取らせたくない場合はオフにしてください。"
     },
     "font_size": {
       "title": "メッセージのフォントサイズ"

@@ -51,6 +51,7 @@ function buildGate(
     isDisabled: (toolName: string) => boolean
     autoApprovedTools: ReadonlySet<string>
     approvalRequiredTools: ReadonlySet<string>
+    nonBypassableApprovalTools: ReadonlySet<string>
   }> = {}
 ) {
   const emitted: any[] = []
@@ -65,6 +66,7 @@ function buildGate(
     isDisabled: () => false,
     autoApprovedTools: new Set(),
     approvalRequiredTools: new Set(),
+    nonBypassableApprovalTools: new Set(),
     ...overrides
   }
   const factory = createPiApprovalExtension(context)
@@ -215,6 +217,37 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
     await expect(handler(toolEvent(toolName, {}), extCtx)).resolves.toBeUndefined()
     expect(emitted).toHaveLength(0)
     expect(toolApprovalRegistry.size()).toBe(0)
+  })
+
+  it('still requests live approval for a non-bypassable delegation tool under bypassPermissions', async () => {
+    const toolName = 'mcp__cherry-tools__session_send'
+    const { handler, emitted } = buildGate({
+      getPermissionMode: () => 'bypassPermissions',
+      approvalRequiredTools: new Set([toolName]),
+      nonBypassableApprovalTools: new Set([toolName])
+    })
+
+    const pending = handler(toolEvent(toolName, {}), extCtx)
+    await flush()
+    expect(emitted).toHaveLength(1)
+    toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved: false })
+    await expect(pending).resolves.toMatchObject({ block: true })
+  })
+
+  it('blocks a non-bypassable delegation tool headlessly under bypassPermissions', async () => {
+    const toolName = 'mcp__cherry-tools__session_create'
+    const { handler, emitted } = buildGate({
+      getPermissionMode: () => 'bypassPermissions',
+      getInteractionState: () => ({ userResponse: 'unavailable' }),
+      approvalRequiredTools: new Set([toolName]),
+      nonBypassableApprovalTools: new Set([toolName])
+    })
+
+    await expect(handler(toolEvent(toolName, {}), extCtx)).resolves.toEqual({
+      block: true,
+      reason: 'This tool always requires user approval and cannot run unattended. Retry interactively.'
+    })
+    expect(emitted).toHaveLength(0)
   })
 
   it('fails closed immediately when an approval-required tool has no responder', async () => {
