@@ -380,16 +380,10 @@ class QqAdapter extends ChannelAdapter {
       case 'C2C_MESSAGE_CREATE':
         await this.handleC2CMessage(data as QqMessage)
         break
-      case 'GROUP_AT_MESSAGE_CREATE': {
-        const msg = data as QqMessage
-        // Dedup: if the same @message already arrived via GROUP_MESSAGE_CREATE
-        // (full mode, FULL landed first), skip the duplicate AT event.
-        if (!this.wasSeen(msg.id)) {
-          this.markSeen(msg.id)
-          await this.handleGroupMessage(msg)
-        }
+      case 'GROUP_AT_MESSAGE_CREATE':
+        // Dedup lives inside handleGroupMessage (same layer as handleGroupFullMessage).
+        await this.handleGroupMessage(data as QqMessage)
         break
-      }
       case 'GROUP_MESSAGE_CREATE':
         await this.handleGroupFullMessage(data as QqMessage)
         break
@@ -411,7 +405,12 @@ class QqAdapter extends ChannelAdapter {
   private async handleGroupMessage(msg: QqMessage): Promise<void> {
     const chatId = `group:${msg.group_openid}`
     if (!this.isAllowed(chatId, msg.group_openid)) return
-    await this.processMessage(msg, chatId, msg.author.member_openid ?? msg.author.id, msg.author.username ?? '')
+    // Dedup: GROUP_AT_MESSAGE_CREATE and GROUP_MESSAGE_CREATE may both fire for the same @message.
+    // Must run before any await — processMessage downloads attachments, so an interleaved twin
+    // event would otherwise observe "not seen" while the first copy is still in flight.
+    // AT events are handled in both mention modes; mention_only only gates FULL events.
+    if (!this.markIfNew(msg.id)) return
+    await this.processGroupMessage(msg, chatId)
   }
 
   /** Group full-message handler (GROUP_MESSAGE_CREATE — all group messages when full mode is on). */
@@ -423,10 +422,30 @@ class QqAdapter extends ChannelAdapter {
     if (this.mentionOnly) return
 
     // Dedup: GROUP_AT_MESSAGE_CREATE and GROUP_MESSAGE_CREATE may both fire for the same @message
-    if (this.wasSeen(msg.id)) return
-    this.markSeen(msg.id)
+    if (!this.markIfNew(msg.id)) return
 
-    await this.processMessage(msg, chatId, msg.author.member_openid ?? msg.author.id, msg.author.username ?? '')
+    await this.processGroupMessage(msg, chatId)
+  }
+
+  /** Dedup gate shared by both group-message paths: false if already seen within the TTL window, otherwise marks and returns true. */
+  private markIfNew(msgId: string): boolean {
+    if (this.wasSeen(msgId)) return false
+    this.markSeen(msgId)
+    return true
+  }
+
+  /**
+   * Run the shared group-message pipeline; on failure, roll back the dedup mark so a
+   * twin event (or a platform re-push) can retry the message. The error is rethrown —
+   * the rollback must not swallow it.
+   */
+  private async processGroupMessage(msg: QqMessage, chatId: string): Promise<void> {
+    try {
+      await this.processMessage(msg, chatId, msg.author.member_openid ?? msg.author.id, msg.author.username ?? '')
+    } catch (err) {
+      this.seenMsgIds.delete(msg.id)
+      throw err
+    }
   }
 
   /**
@@ -573,8 +592,10 @@ class QqAdapter extends ChannelAdapter {
   }
 
   private parseContent(content: string): string {
-    // Remove @bot mentions and trim
-    return content.replace(/<@!\d+>/g, '').trim()
+    // Strip inline @mention syntax. The platform already removes the bot prefix; this
+    // cleans mentions of *other* users, whose alphanumeric openids the old digit-only
+    // regex missed. The trailing whitespace is consumed so mentions don't leave gaps.
+    return content.replace(/<@![^>]*>\s*/g, '').trim()
   }
 
   private isAllowed(chatId: string, rawId?: string): boolean {

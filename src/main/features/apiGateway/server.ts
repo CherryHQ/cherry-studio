@@ -11,6 +11,8 @@ const logger = loggerService.withContext('ApiGateway')
 const GLOBAL_REQUEST_TIMEOUT_MS = 5 * 60_000
 const GLOBAL_HEADERS_TIMEOUT_MS = GLOBAL_REQUEST_TIMEOUT_MS + 5_000
 const GLOBAL_KEEPALIVE_TIMEOUT_MS = 60_000
+/** How long a still-running response may delay shutdown before its socket is destroyed. */
+const SHUTDOWN_GRACE_MS = 3_000
 
 /**
  * `@elysia/node` resolves the listen callback's argument to Elysia's Bun-shaped
@@ -25,6 +27,18 @@ type NodeServerInfo = Server & {
     // srvx `NodeServer`: `ready()` resolves once listening (rejects on EADDRINUSE etc.).
     ready?: () => Promise<unknown>
   }
+}
+
+/** Resolves `true` if `promise` settled within `ms`, `false` on timeout — the promise keeps running. */
+function settledWithin(promise: Promise<unknown>, ms: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(false), ms)
+    timer.unref?.()
+    void promise.then(() => {
+      clearTimeout(timer)
+      resolve(true)
+    })
+  })
 }
 
 export class ApiGateway {
@@ -108,9 +122,6 @@ export class ApiGateway {
     if (!this.app && !this.serverInfo) return
 
     try {
-      // Close the underlying Node http server. `serverInfo.stop()` returns
-      // `server.close()` (the authoritative port release) — await it.
-      //
       // Do NOT call `app.stop()` here: with the `@elysia/node` adapter, `listen()`
       // never assigns `app.server`, so Elysia core's web-standard `stop()` throws
       // "Elysia isn't running". An unhandled throw would skip the cleanup below and
@@ -121,13 +132,34 @@ export class ApiGateway {
       // sessions ends those streams, which is what lets the close below settle. `closeAll`
       // also latches the store shut, so an initialize racing this shutdown is refused.
       await this.mcpSessions.closeAll()
-      await this.serverInfo?.stop?.()
+      await this.closeHttpServer()
     } finally {
       this.running = false
       this.serverInfo = null
       this.app = null
       logger.info('API server stopped')
     }
+  }
+
+  /**
+   * Close the underlying Node http server, destroying leftover sockets once the grace period is up.
+   *
+   * `close()` releases the listening handle at once but only settles when the last connection ends.
+   * A proxied SSE response is exactly such a connection and may never end on its own — the socket
+   * timeout is disabled — so awaiting it alone leaves the user's off switch spinning forever.
+   */
+  private async closeHttpServer(): Promise<void> {
+    const http = this.serverInfo?.raw?.node?.server
+    // `stop()` must never reject: `onDeactivate` rethrows, which would strand the service activated.
+    const closed = Promise.resolve(this.serverInfo?.stop?.()).catch((error: unknown) =>
+      logger.warn('API server close failed', error as Error)
+    )
+    if (await settledWithin(closed, SHUTDOWN_GRACE_MS)) return
+
+    logger.warn('API server still has open connections after the grace period; destroying them')
+    http?.closeAllConnections?.()
+    // Stop waiting either way — the port is already released, whatever the remaining sockets do.
+    await settledWithin(closed, SHUTDOWN_GRACE_MS)
   }
 
   isRunning(): boolean {

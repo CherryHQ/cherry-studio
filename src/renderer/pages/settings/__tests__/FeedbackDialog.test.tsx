@@ -6,9 +6,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   ipcRequest: vi.fn(),
-  language: 'en-US',
+  loggerError: vi.fn(),
   openRoute: vi.fn(),
   toastError: vi.fn()
+}))
+
+vi.mock('@logger', () => ({
+  loggerService: { withContext: () => ({ error: mocks.loggerError }) }
 }))
 
 vi.mock('@renderer/ipc', () => ({
@@ -27,71 +31,37 @@ vi.mock('@renderer/services/toast', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) => key,
-    i18n: {
-      language: mocks.language,
-      resolvedLanguage: mocks.language
-    }
+    t: (key: string) => key
   })
 }))
 
-import {
-  FEEDBACK_GITHUB_URL,
-  FEEDBACK_SURVEY_URL,
-  FeedbackDialog,
-  getFeedbackAgentRoute,
-  isChineseFeedbackLanguage
-} from '../FeedbackDialog'
+vi.mock('@renderer/components/feedback/DiagnosticUploadDialog', () => ({
+  default: ({ open }: { open: boolean }) => (open ? <div role="dialog">diagnostic-upload-dialog</div> : null)
+}))
+
+import { FEEDBACK_GITHUB_URL, FeedbackDialog, getFeedbackAgentRoute } from '../FeedbackDialog'
 
 function ControlledFeedbackDialog() {
   const [open, setOpen] = useState(true)
   return <FeedbackDialog open={open} onOpenChange={setOpen} />
 }
 
-describe('feedback region selection', () => {
-  it.each(['zh-CN', 'zh-TW'])('treats %s as Chinese', (language) => {
-    expect(isChineseFeedbackLanguage(language)).toBe(true)
-  })
-
-  it.each(['en-US', 'ja-JP', 'zh-HK', undefined])('treats %s as overseas', (language) => {
-    expect(isChineseFeedbackLanguage(language)).toBe(false)
-  })
-})
-
 describe('FeedbackDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.language = 'en-US'
     mocks.ipcRequest.mockResolvedValue({ sessionId: 'feedback-session' })
   })
 
-  it.each(['zh-CN', 'zh-TW'])('shows the Feishu survey for %s', (language) => {
-    mocks.language = language
-
+  it('shows diagnostics, Cherry Support, and GitHub in the requested order', () => {
     render(<FeedbackDialog open onOpenChange={vi.fn()} />)
 
-    expect(screen.getByRole('button', { name: /settings.about.feedback.survey.title/ })).toBeInTheDocument()
-  })
-
-  it.each(['en-US', 'ja-JP'])('hides the Feishu survey for %s', (language) => {
-    mocks.language = language
-
-    render(<FeedbackDialog open onOpenChange={vi.fn()} />)
-
-    expect(screen.queryByRole('button', { name: /settings.about.feedback.survey.title/ })).not.toBeInTheDocument()
-  })
-
-  it('places the recommended Agent first and GitHub before the Chinese survey', () => {
-    mocks.language = 'zh-CN'
-    render(<FeedbackDialog open onOpenChange={vi.fn()} />)
-
+    const diagnostics = screen.getByRole('button', { name: /settings.about.feedback.diagnostics.title/ })
     const agent = screen.getByRole('button', { name: /settings.about.feedback.agent.title/ })
     const github = screen.getByRole('button', { name: /settings.about.feedback.github.title/ })
-    const survey = screen.getByRole('button', { name: /settings.about.feedback.survey.title/ })
     const recommended = screen.getByText('settings.about.feedback.recommended')
 
+    expect(diagnostics.compareDocumentPosition(agent)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(agent.compareDocumentPosition(github)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(github.compareDocumentPosition(survey)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(recommended).toHaveClass('bg-primary/10', 'text-primary')
   })
 
@@ -107,9 +77,18 @@ describe('FeedbackDialog', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /settings.about.feedback.agent.title/ }))
 
-    expect(mocks.ipcRequest).toHaveBeenCalledWith('ai.agent.feedback_session.create')
+    await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledWith('ai.agent.support_session.create'))
     await waitFor(() => expect(mocks.openRoute).toHaveBeenCalledWith(getFeedbackAgentRoute('feedback-session')))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('opens the one-step diagnostic upload dialog', async () => {
+    render(<ControlledFeedbackDialog />)
+
+    fireEvent.click(screen.getByRole('button', { name: /settings.about.feedback.diagnostics.title/ }))
+
+    await waitFor(() => expect(screen.getByText('diagnostic-upload-dialog')).toBeInTheDocument())
+    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('diagnostics.bundle.upload', expect.anything())
   })
 
   it('reports feedback-session creation failures without opening an empty Agent route', async () => {
@@ -122,20 +101,29 @@ describe('FeedbackDialog', () => {
     expect(mocks.openRoute).not.toHaveBeenCalled()
   })
 
-  it('opens the Feishu survey for Chinese users', () => {
-    mocks.language = 'zh-CN'
-    render(<FeedbackDialog open onOpenChange={vi.fn()} />)
-
-    fireEvent.click(screen.getByRole('button', { name: /settings.about.feedback.survey.title/ }))
-
-    expect(mocks.ipcRequest).toHaveBeenCalledWith('system.shell.open_website', FEEDBACK_SURVEY_URL)
-  })
-
-  it('opens the GitHub issue chooser', () => {
+  it('opens the GitHub issue chooser', async () => {
     render(<FeedbackDialog open onOpenChange={vi.fn()} />)
 
     fireEvent.click(screen.getByRole('button', { name: /settings.about.feedback.github.title/ }))
 
-    expect(mocks.ipcRequest).toHaveBeenCalledWith('system.shell.open_website', FEEDBACK_GITHUB_URL)
+    await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledWith('system.shell.open_website', FEEDBACK_GITHUB_URL))
+  })
+
+  it('closes before reporting GitHub issue chooser failures', async () => {
+    mocks.ipcRequest.mockImplementation((route: string) => {
+      if (route === 'system.shell.open_website') {
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+        return Promise.reject(new Error('open failed'))
+      }
+      return Promise.resolve({ sessionId: 'feedback-session' })
+    })
+    render(<ControlledFeedbackDialog />)
+
+    fireEvent.click(screen.getByRole('button', { name: /settings.about.feedback.github.title/ }))
+
+    await waitFor(() =>
+      expect(mocks.loggerError).toHaveBeenCalledWith('Failed to open GitHub issue chooser', expect.any(Error))
+    )
+    expect(mocks.toastError).toHaveBeenCalledWith('settings.about.feedback.github.error')
   })
 })

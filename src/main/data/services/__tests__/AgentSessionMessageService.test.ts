@@ -40,7 +40,9 @@ describe('AgentSessionMessageService', () => {
       type: 'user',
       orderKey: `workspace-${values.orderKey}`
     })
-    await dbh.db.insert(agentSessionTable).values({ ...values, workspaceId })
+    await dbh.db
+      .insert(agentSessionTable)
+      .values({ createdAt: 0, lastActivityAt: 0, updatedAt: 0, ...values, workspaceId })
   }
 
   async function seedSessions(rows: Array<Omit<AgentSessionInsert, 'workspaceId'> & { workspaceId?: string }>) {
@@ -71,8 +73,9 @@ describe('AgentSessionMessageService', () => {
     expect(agentSessionMessageService.hasSessionMessages('session-2')).toBe(false)
   })
 
-  describe('findPendingAssistantMessages + resolveCrashOrphanedMessages (boot reconcile)', () => {
+  describe('findCrashOrphanedAssistantMessages + resolveCrashOrphanedMessages (boot reconcile)', () => {
     it('finds only pending assistant rows and resolves them to error with the given data', async () => {
+      const now = vi.spyOn(Date, 'now').mockReturnValue(1_000)
       const PENDING = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d010'
       const DONE = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d011'
       const PENDING_USER = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d012'
@@ -89,16 +92,68 @@ describe('AgentSessionMessageService', () => {
         message: { id: PENDING_USER, role: 'user', status: 'pending', data: { parts: [{ type: 'text', text: 'q' }] } }
       })
 
-      expect(agentSessionMessageService.findPendingAssistantMessages()).toEqual([
+      expect(agentSessionMessageService.findCrashOrphanedAssistantMessages()).toEqual([
         { id: PENDING, sessionId: SESSION_ID, data: { parts: [] } }
       ])
 
+      now.mockReturnValue(5_000)
       const finalizedData = { parts: [{ type: 'text' as const, text: 'terminalized' }] }
       agentSessionMessageService.resolveCrashOrphanedMessages([{ id: PENDING, data: finalizedData }], [SESSION_ID])
-      expect(agentSessionMessageService.findPendingAssistantMessages()).toEqual([])
+      expect(agentSessionMessageService.findCrashOrphanedAssistantMessages()).toEqual([])
       const [row] = await dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, PENDING))
+      const [session] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, SESSION_ID))
       expect(row.status).toBe('error')
       expect(row.data).toEqual(finalizedData)
+      expect(session.lastActivityAt).toBe(1_000)
+    })
+
+    it('finds settled assistant rows whose approval registry was lost on restart', () => {
+      const ORPHANED = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d013'
+      const COMPLETE = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d014'
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          id: ORPHANED,
+          role: 'assistant',
+          status: 'success',
+          data: {
+            parts: [
+              {
+                type: 'dynamic-tool',
+                toolCallId: 'tool-call-1',
+                toolName: 'screenshot',
+                state: 'approval-requested',
+                input: {},
+                approval: { id: 'approval-1' }
+              }
+            ]
+          }
+        }
+      })
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          id: COMPLETE,
+          role: 'assistant',
+          status: 'success',
+          data: {
+            parts: [
+              {
+                type: 'dynamic-tool',
+                toolCallId: 'tool-call-2',
+                toolName: 'list_tabs',
+                state: 'output-available',
+                input: {},
+                output: {}
+              }
+            ]
+          }
+        }
+      })
+
+      expect(agentSessionMessageService.findCrashOrphanedAssistantMessages()).toEqual([
+        expect.objectContaining({ id: ORPHANED, sessionId: SESSION_ID })
+      ])
     })
 
     it('discards resume tokens only for the affected sessions', async () => {
@@ -133,6 +188,7 @@ describe('AgentSessionMessageService', () => {
   })
 
   it('atomically settles a persisted background tool approval with the user-updated input', () => {
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1_000)
     agentSessionMessageService.saveMessage({
       sessionId: SESSION_ID,
       message: {
@@ -154,6 +210,7 @@ describe('AgentSessionMessageService', () => {
     })
     const updatedInput = { questions: [], answers: { Choice: 'SQLite' } }
 
+    now.mockReturnValue(2_000)
     expect(
       agentSessionMessageService.applyToolApprovalDecision(SESSION_ID, ASSISTANT_MESSAGE_ID, {
         approvalId: 'approval-1',
@@ -168,6 +225,9 @@ describe('AgentSessionMessageService', () => {
       input: updatedInput,
       approval: { id: 'approval-1', approved: true }
     })
+    const [session] = dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, SESSION_ID)).all()
+    expect(session.lastActivityAt).toBe(2_000)
+    now.mockRestore()
   })
 
   it('keeps attachment refs in sync with agent-session message history', async () => {
@@ -234,6 +294,7 @@ describe('AgentSessionMessageService', () => {
     expect(row.createdAt).toBe(1_700_000_000_000)
     expect(row.updatedAt).toBe(1_700_000_000_000)
     expect(session.updatedAt).toBe(1_700_000_000_000)
+    expect(session.lastActivityAt).toBe(1_700_000_000_000)
     expect(saved.createdAt).toBe('2023-11-14T22:13:20.000Z')
     expect(saved.updatedAt).toBe('2023-11-14T22:13:20.000Z')
   })
@@ -258,7 +319,7 @@ describe('AgentSessionMessageService', () => {
   })
 
   it('keeps createdAt stable when updating an existing message', async () => {
-    vi.spyOn(Date, 'now').mockReturnValueOnce(1_700_000_000_000).mockReturnValueOnce(1_700_000_000_500)
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000)
 
     const created = agentSessionMessageService.saveMessage({
       sessionId: SESSION_ID,
@@ -268,6 +329,7 @@ describe('AgentSessionMessageService', () => {
         data: { parts: [{ type: 'text', text: 'hello' }] }
       }
     })
+    now.mockReturnValue(1_700_000_000_500)
     const updated = agentSessionMessageService.saveMessage({
       sessionId: SESSION_ID,
       message: {
@@ -286,8 +348,87 @@ describe('AgentSessionMessageService', () => {
     expect(row.createdAt).toBe(1_700_000_000_000)
     expect(row.updatedAt).toBe(1_700_000_000_500)
     expect(session.updatedAt).toBe(1_700_000_000_500)
+    expect(session.lastActivityAt).toBe(1_700_000_000_000)
     expect(updated.createdAt).toBe(created.createdAt)
     expect(updated.updatedAt).toBe('2023-11-14T22:13:20.500Z')
+  })
+
+  it('advances each pending assistant response segment but not a terminal rewrite', async () => {
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000)
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'pending', data: { parts: [] } }
+    })
+
+    now.mockReturnValue(1_700_000_000_500)
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: ASSISTANT_MESSAGE_ID,
+        role: 'assistant',
+        status: 'success',
+        data: { parts: [{ type: 'text', text: 'done' }] }
+      }
+    })
+
+    now.mockReturnValue(1_700_000_001_000)
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: ASSISTANT_MESSAGE_ID,
+        role: 'assistant',
+        status: 'success',
+        data: { parts: [{ type: 'text', text: 'projection rewrite' }] }
+      }
+    })
+
+    const [message] = await dbh.db
+      .select()
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.id, ASSISTANT_MESSAGE_ID))
+    const [session] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, SESSION_ID))
+    expect(session.lastActivityAt).toBe(1_700_000_000_500)
+    expect(session.updatedAt).toBe(1_700_000_001_000)
+
+    now.mockReturnValue(1_700_000_001_500)
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'pending', data: message.data }
+    })
+    now.mockReturnValue(1_700_000_002_000)
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'success', data: message.data }
+    })
+
+    const [continuedSession] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, SESSION_ID))
+    expect(continuedSession.lastActivityAt).toBe(1_700_000_002_000)
+  })
+
+  it('keeps session activity after messages are deleted', async () => {
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1_000)
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: USER_MESSAGE_ID, role: 'user', status: 'success', data: { parts: [] } }
+    })
+    now.mockReturnValue(2_000)
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'pending', data: { parts: [] } }
+    })
+    now.mockReturnValue(3_000)
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'success', data: { parts: [] } }
+    })
+
+    agentSessionMessageService.deleteSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)
+    const [session] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, SESSION_ID))
+    expect(session.lastActivityAt).toBe(3_000)
+
+    agentSessionMessageService.deleteSessionMessage(SESSION_ID, USER_MESSAGE_ID)
+    const [emptySession] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, SESSION_ID))
+    expect(emptySession.lastActivityAt).toBe(3_000)
   })
 
   it('publishes the data change derived from an inserted or updated message', () => {
@@ -307,6 +448,7 @@ describe('AgentSessionMessageService', () => {
       {
         endpoint: '/agent-sessions/:sessionId/messages',
         kind: 'membership',
+        routeParams: { sessionId: SESSION_ID },
         entityIds: [USER_MESSAGE_ID]
       }
     ])
@@ -327,6 +469,7 @@ describe('AgentSessionMessageService', () => {
       {
         endpoint: '/agent-sessions/:sessionId/messages',
         kind: 'projection',
+        routeParams: { sessionId: SESSION_ID },
         entityIds: [USER_MESSAGE_ID]
       }
     ])
@@ -412,13 +555,14 @@ describe('AgentSessionMessageService', () => {
       {
         endpoint: '/agent-sessions/:sessionId/messages',
         kind: 'projection',
+        routeParams: { sessionId: SESSION_ID },
         entityIds: [ASSISTANT_MESSAGE_ID]
       }
     ])
   })
 
-  it('uses one timestamp for a batch of newly saved messages', async () => {
-    vi.spyOn(Date, 'now').mockReturnValue(1_700_000_001_000)
+  it('keeps the session timestamp aligned with a newly saved message batch', async () => {
+    vi.spyOn(Date, 'now').mockReturnValueOnce(1_700_000_001_000).mockReturnValue(1_700_000_002_000)
 
     agentSessionMessageService.saveMessages({
       sessionId: SESSION_ID,
@@ -442,7 +586,6 @@ describe('AgentSessionMessageService', () => {
 
     expect(rows).toHaveLength(2)
     expect(rows.map((row) => row.createdAt)).toEqual([1_700_000_001_000, 1_700_000_001_000])
-    expect(rows.map((row) => row.updatedAt)).toEqual([1_700_000_001_000, 1_700_000_001_000])
     expect(session.updatedAt).toBe(1_700_000_001_000)
   })
 

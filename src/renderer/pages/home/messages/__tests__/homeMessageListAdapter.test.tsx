@@ -1,5 +1,6 @@
 import type { MessageListProviderValue, MessageListRuntime } from '@renderer/components/chat/messages/types'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import { mockUseMutation } from '@test-mocks/renderer/useDataApi'
 import { act, render, waitFor } from '@testing-library/react'
 import { type ReactNode, useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -253,6 +254,7 @@ const createTopic = (id: string): Topic =>
     id,
     assistantId: 'assistant-1',
     name: `Topic ${id}`,
+    lastActivityAt: '2026-01-01T00:00:00.000Z',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     messages: []
@@ -663,6 +665,35 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
 
     expect(onStartBranchDraft).toHaveBeenCalledWith('assistant-old')
     expect(chatWriteMock.setActiveNode).not.toHaveBeenCalled()
+  })
+
+  it('copies a message path into a new topic through the topic duplicate endpoint', async () => {
+    const copyBranchToNewTopicTrigger = vi.fn().mockResolvedValue(createTopic('copied-topic'))
+    let value: MessageListProviderValue | undefined
+
+    await mockUseMutation.withImplementation(
+      () => ({
+        trigger: copyBranchToNewTopicTrigger,
+        isLoading: false,
+        error: undefined
+      }),
+      async () => {
+        render(
+          <MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />
+        )
+
+        await waitFor(() => expect(value).toBeDefined())
+        await value?.actions.copyBranchToNewTopic?.('assistant-old')
+      }
+    )
+
+    expect(mockUseMutation).toHaveBeenCalledWith('POST', '/topics/:id/duplicate', {
+      refresh: ['/topics']
+    })
+    expect(copyBranchToNewTopicTrigger).toHaveBeenCalledWith({
+      params: { id: 'topic-a' },
+      body: { nodeId: 'assistant-old' }
+    })
   })
 
   it('keeps a message translation active until its final update is persisted', async () => {

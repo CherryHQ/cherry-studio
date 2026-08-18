@@ -3,6 +3,9 @@
     "builtin": {
       "cherry_assistant": {
         "description": "Cherry Studio 内置使用顾问。诊断问题、引导操作、收录 FAQ、提交 Bug/需求、搜索和创建 Skills"
+      },
+      "cherry_support": {
+        "description": "Cherry Studio 问题反馈 Agent，提供答疑解惑、使用帮助、问题排查和反馈提交"
       }
     },
     "session": {
@@ -103,6 +106,12 @@
     "save_file": "保存文件",
     "select_folder": "选择文件夹",
     "word_document": "Word 文档"
+  },
+  "file_processing": {
+    "errors": {
+      "document_size_limit_exceeded": "当前文档解析服务要求文件小于 {{maxSize}}，请压缩或拆分后重新添加。",
+      "pdf_page_limit_exceeded": "该 PDF 超过当前文档解析服务的 {{maxPages}} 页上限，请手动拆分 PDF 后重新添加。"
+    }
   },
   "openclaw": {
     "errors": {

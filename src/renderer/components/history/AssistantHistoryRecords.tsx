@@ -66,7 +66,7 @@ const AssistantHistoryRecords = ({
   const [groupNow] = useState(() => new Date())
   const conversationNav = useConversationNavigation('assistants')
 
-  const { topics: rawTopics, isLoadingAll: isTopicsLoading } = useAssistantTopicsSource()
+  const { topics: rawTopics, rendererTopics, isLoadingAll: isTopicsLoading } = useAssistantTopicsSource()
   const { assistants } = useAssistants()
   const [assistantIconType] = usePreference('assistant.icon_type')
   const [defaultModelId] = usePreference('chat.default_model_id')
@@ -115,12 +115,11 @@ const AssistantHistoryRecords = ({
     [assistantRankById, groupNow, topics]
   )
 
+  // The shared mapped list carries `pinned: false`, so only pinned rows need a copy.
   const rendererTopicById = useMemo(
     () =>
-      new Map(
-        topics.map((topic) => [topic.id, { ...mapApiTopicToRendererTopic(topic), pinned: isTopicPinned(topic.id) }])
-      ),
-    [isTopicPinned, topics]
+      new Map(rendererTopics.map((topic) => [topic.id, isTopicPinned(topic.id) ? { ...topic, pinned: true } : topic])),
+    [isTopicPinned, rendererTopics]
   )
   const getRendererTopic = useCallback(
     (topic: ApiTopic): RendererTopic =>
@@ -355,7 +354,7 @@ const AssistantHistoryRecords = ({
   const rowDescriptor = useMemo(
     () => ({
       getName: (topic: HistoryTopicItem) => topic.name || t('chat.default.topic.name'),
-      getUpdatedAt: (topic: HistoryTopicItem) => topic.updatedAt,
+      getUpdatedAt: (topic: HistoryTopicItem) => topic.lastActivityAt,
       getSourceLabel: (topic: HistoryTopicItem) =>
         (topic.assistantId ? assistantById.get(topic.assistantId)?.name : undefined) ?? unlinkedAssistantLabel,
       renderAvatar: (topic: HistoryTopicItem) => {

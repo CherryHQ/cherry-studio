@@ -40,9 +40,9 @@ import { readUIMessageStream, type UIMessageChunk } from 'ai'
 import { v7 as uuidv7 } from 'uuid'
 
 import { applyTurnInputAttributes, deriveRootSpanId, startAiChildTurnSpan } from '../observability'
-import { type DispatchDecision, toolApprovalRegistry } from '../runtime/claudeCode'
 import { registerRuntimeDrivers } from '../runtime/registerDrivers'
 import { runtimeDriverRegistry } from '../runtime/registry'
+import { type DispatchDecision, toolApprovalRegistry } from '../runtime/toolApproval/ToolApprovalRegistry'
 import type {
   AgentRuntimeConnection,
   AgentRuntimeEvent,
@@ -341,7 +341,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private reconcileStalePendingMessages(): void {
     try {
-      const stale = agentSessionMessageService.findPendingAssistantMessages()
+      const stale = agentSessionMessageService.findCrashOrphanedAssistantMessages()
       if (stale.length === 0) return
       const sessionIds = [...new Set(stale.map((message) => message.sessionId))]
       logger.info('Reconciling crash-orphaned pending agent-session messages', {
@@ -1209,7 +1209,7 @@ export class AgentSessionRuntimeService extends BaseService {
     if (dispatched.presentation === 'stream') {
       application
         .get('AiStreamManager')
-        .resolveToolApproval(buildAgentSessionTopicId(dispatched.sessionId), dispatched.toolCallId)
+        .resolveToolApproval(buildAgentSessionTopicId(dispatched.sessionId), dispatched.toolCallId, decision.approved)
     }
     return true
   }
@@ -1257,6 +1257,10 @@ export class AgentSessionRuntimeService extends BaseService {
   protected async onStop(): Promise<void> {
     this.isShuttingDown = true
     this.disposeWarmLeases()
+    const streamManager = application.get('AiStreamManager')
+    for (const entry of this.entries.values()) {
+      if (this.liveTurn(entry)) streamManager.abort(entry.topicId, 'agent-session-runtime-stop')
+    }
     try {
       toolApprovalRegistry.clear('agent-session-runtime-stop')
     } catch (error) {
@@ -1484,6 +1488,7 @@ export class AgentSessionRuntimeService extends BaseService {
     if (this.runtimeStatus(entry) === 'active') this.refreshContextUsage(entry, connection)
     this.refreshSupportedCommands(entry, connection)
     const connectionLoop = this.runConnectionLoop(entry, connection).finally(() => {
+      void this.closeRuntimeConnection(connection, entry.sessionId)
       if (this.currentConnection(entry) === connection) {
         this.resetConnectionRuntimeState(entry, connection)
         this.applyRuntimeStateEvent(entry, { type: 'connection-disconnected', connection })
@@ -1681,13 +1686,13 @@ export class AgentSessionRuntimeService extends BaseService {
       })
     }
 
-    const normalizedModel = normalizeClaudeModelAlias(invocation.model)
+    const normalizedModel = normalizeAgentSdkModelAlias(invocation.model)
     const frozenModel = capture.frozenModels.find((candidate) =>
-      candidate.aliases.some((alias) => normalizeClaudeModelAlias(alias) === normalizedModel)
+      candidate.aliases.some((alias) => normalizeAgentSdkModelAlias(alias) === normalizedModel)
     )
     const modelId = frozenModel?.modelId ?? normalizedModel
     aiUsageRecordService.recordInvocation({
-      requestId: `claude-agent:${invocation.requestId}`,
+      requestId: invocation.requestId,
       context: createAiUsageCaptureContext({
         providerId: capture.providerId,
         providerName: capture.providerName,
@@ -3055,7 +3060,7 @@ function sourceSnapshotFromMessageSnapshot(snapshot: MessageSnapshot | undefined
   }
 }
 
-function normalizeClaudeModelAlias(value: string): string {
+function normalizeAgentSdkModelAlias(value: string): string {
   return value.trim().replace(/\[1m\]$/, '')
 }
 

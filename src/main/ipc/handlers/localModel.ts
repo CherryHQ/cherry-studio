@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { isLocalInferenceHardwareAccelerationSupported } from '@main/ai/inference/inferenceAcceleration'
 import {
   localEmbeddingDownloadService,
   localOcrDownloadService,
@@ -37,12 +38,14 @@ async function cleanupSharedRuntimeAfterInterruptedDownload(model: LocalModelKin
 }
 
 /**
- * Thin adapters for the local model routes — each dispatches by `model` to the
- * owning download service (`LocalEmbeddingDownloadService` for transformers.js,
- * `LocalOcrDownloadService` for PaddleOCR), which owns the on-disk lifecycle and
- * the download. `download` resolves only when the download finishes.
+ * Thin adapters for local model routes. Lifecycle routes dispatch by `model` to
+ * its owning download service, while the capability route reports platform
+ * support directly. `download` resolves only when the download finishes.
  */
 export const localModelHandlers: IpcHandlersFor<typeof localModelRequestSchemas> = {
+  'local_model.get_acceleration_capability': async () => ({
+    supported: isLocalInferenceHardwareAccelerationSupported()
+  }),
   'local_model.get_status': async ({ model }) => serviceFor(model).getStatusInfo(),
   'local_model.download': async ({ model }) => {
     try {

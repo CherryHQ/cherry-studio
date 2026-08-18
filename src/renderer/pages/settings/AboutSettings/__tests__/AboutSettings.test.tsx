@@ -30,6 +30,10 @@ vi.mock('@renderer/hooks/useMiniAppPopup', () => ({
   useMiniAppPopup: () => ({ openSmartMiniApp: vi.fn() })
 }))
 
+vi.mock('@renderer/hooks/useOpenReleaseNotes', () => ({
+  useOpenReleaseNotes: () => vi.fn()
+}))
+
 vi.mock('@renderer/hooks/useTheme', () => ({
   useTheme: () => ({ theme: 'light' })
 }))

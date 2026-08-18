@@ -766,6 +766,36 @@ describe('GlobalSearchPanel', () => {
     )
   })
 
+  it('shows conversation activity time instead of a newer metadata update time', async () => {
+    const user = userEvent.setup()
+    const lastActivityAt = new Date(Date.now() - 2 * 60 * 1000).toISOString()
+    mocks.recentItems = []
+    mocks.queryResult = {
+      query: 'topic',
+      groups: [
+        {
+          type: 'topic',
+          items: [
+            {
+              type: 'topic',
+              id: 'topic-1',
+              title: 'Old conversation',
+              lastActivityAt,
+              updatedAt: new Date().toISOString(),
+              target: { topicId: 'topic-1' }
+            }
+          ]
+        }
+      ]
+    }
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+    await user.type(screen.getByLabelText('Search conversations, tasks, assistants, agents, and knowledge...'), 'topic')
+
+    expect(await screen.findByRole('option', { name: /Old conversation/ })).toBeInTheDocument()
+    expect(screen.getByText('2 minutes ago')).toBeInTheDocument()
+  })
+
   it('scrolls the visible virtual list when keyboard selection moves', async () => {
     const user = userEvent.setup()
     mocks.queryResult = {

@@ -14,7 +14,6 @@ import {
 } from '@main/ai/inference/localModelCatalog'
 import { regionService } from '@main/services/RegionService'
 import { net } from 'electron'
-import { extract } from 'tar'
 
 const logger = loggerService.withContext('OnnxRuntimeBinaryService')
 
@@ -194,6 +193,7 @@ class OnnxRuntimeBinaryService {
     leaf: { binding: string; sharedLibs: string[] }
   ): Promise<void> {
     await fs.promises.mkdir(extractDir, { recursive: true })
+    const { extract } = await import('tar')
     const wanted = new Set([leaf.binding, ...leaf.sharedLibs])
     const leafPrefix = `package/bin/napi-v6/${process.platform}/${process.arch}/`
     await extract({

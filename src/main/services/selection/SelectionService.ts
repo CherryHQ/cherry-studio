@@ -597,8 +597,10 @@ export class SelectionService extends BaseService implements Activatable {
       y: posY
     })
 
-    // setAlwaysOnTop(true, 'screen-saver') is re-applied by the macReapplyAlwaysOnTop
-    // quirk after every show()/showInactive() call (see WindowManager.applyQuirks).
+    // setAlwaysOnTop(true, 'screen-saver') is re-applied on every platform by the
+    // reapplyAlwaysOnTop quirk after each show()/showInactive() call (see
+    // WindowManager.applyQuirks) — on Windows that re-assert is what keeps the
+    // toolbar above third-party topmost windows.
 
     if (!isMac) {
       this.toolbarWindow!.show()

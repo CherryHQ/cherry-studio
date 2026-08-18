@@ -56,7 +56,8 @@ vi.mock('@renderer/ipc', () => ({
     request: (route: string, input: unknown) =>
       route === 'ai.tool.respond_approval' ? toolApprovalRespondMock(input) : Promise.resolve(undefined),
     on: () => () => {}
-  }
+  },
+  useIpcOn: vi.fn()
 }))
 
 vi.mock('@renderer/components/chat/shell/ConversationCenterState', () => ({

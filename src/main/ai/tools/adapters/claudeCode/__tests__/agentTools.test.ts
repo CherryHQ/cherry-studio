@@ -16,7 +16,7 @@ import {
   CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES,
   CHERRY_BUILTIN_MCP_SERVER,
   toCherryBuiltinRuntimeName
-} from '@main/ai/tools/adapters/claudeCode/cherryBuiltinApproval'
+} from '@main/ai/runtime/toolApproval/cherryBuiltinApproval'
 import { KB_MANAGE_TOOL_NAME, TO_MARKDOWN_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
