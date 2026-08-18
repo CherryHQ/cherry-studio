@@ -1,6 +1,6 @@
 import { Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 
-import type { OcrModelPaths } from './inferenceProtocol'
+import type { OcrLine, OcrModelPaths, OcrRecognizeSource } from './inferenceProtocol'
 import { InferenceServiceBase } from './InferenceServiceBase'
 
 /** Local OCR inference (PaddleOCR via ppu-paddle-ocr) in its own worker; see
@@ -12,9 +12,18 @@ export class OcrInferenceService extends InferenceServiceBase {
     super('ocr')
   }
 
-  /** OCR an image off the main thread; loads the PaddleOCR model first if not cached. */
-  async recognize(modelPaths: OcrModelPaths, imagePath: string, signal?: AbortSignal): Promise<string> {
-    const result = await this.send({ type: 'ocr.recognize', modelPaths, imagePath }, { signal })
-    return result.text ?? ''
+  /**
+   * OCR an image off the main thread; loads the PaddleOCR model first if not cached.
+   *
+   * @returns the joined text plus the per-run boxes in the image's pixel space
+   *   (empty when the engine reported none, so callers never branch on null).
+   */
+  async recognize(
+    modelPaths: OcrModelPaths,
+    source: OcrRecognizeSource,
+    signal?: AbortSignal
+  ): Promise<{ text: string; lines: OcrLine[][] }> {
+    const result = await this.send({ type: 'ocr.recognize', modelPaths, source }, { signal })
+    return { text: result.text ?? '', lines: result.lines ?? [] }
   }
 }

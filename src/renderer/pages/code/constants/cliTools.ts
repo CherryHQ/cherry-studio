@@ -14,7 +14,7 @@ import { Deepseek, Openclaw } from '@cherrystudio/ui/icons/providers'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
-import { isGeminiProvider, isLoginBasedProvider } from '@shared/utils/provider'
+import { isGeminiProvider, isLoginBasedProvider, isSupportDeveloperRoleProvider } from '@shared/utils/provider'
 
 /** `label` is an i18n key (under `code.cli_tools`), not display text — resolve it with `t()` before rendering. */
 export const CLI_TOOLS = [
@@ -79,7 +79,8 @@ export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Pr
       (p) =>
         !isLoginBasedProvider(p) &&
         (p.authOptional || p.apiKeys.some((key) => key.isEnabled)) &&
-        (hasAnthropic(p) || hasOpenAILike(p))
+        (hasAnthropic(p) || hasOpenAILike(p)) &&
+        (isSupportDeveloperRoleProvider(p) || hasAnthropic(p))
     ),
   [CodeCli.GEMINI_CLI]: (providers) =>
     providers.filter((p) => isGeminiProvider(p) || hasGemini(p) || GEMINI_AGGREGATOR_PROVIDERS.has(p.id)),
