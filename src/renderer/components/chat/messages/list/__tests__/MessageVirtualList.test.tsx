@@ -12,6 +12,7 @@ const runtimeMockState = vi.hoisted(() => ({
   notifyWheelIntent: vi.fn(),
   scrollByWheel: vi.fn(() => true),
   markUserInput: vi.fn(),
+  beginUserScrollGesture: vi.fn(),
   beginScrollbarDrag: vi.fn(),
   endScrollbarDrag: vi.fn(),
   onWheel: vi.fn(),
@@ -92,6 +93,7 @@ vi.mock('../chatVirtualizerRuntime', async () => {
       notifyWheelIntent: runtimeMockState.notifyWheelIntent,
       scrollByWheel: runtimeMockState.scrollByWheel,
       markUserInput: runtimeMockState.markUserInput,
+      beginUserScrollGesture: runtimeMockState.beginUserScrollGesture,
       beginScrollbarDrag: runtimeMockState.beginScrollbarDrag,
       endScrollbarDrag: runtimeMockState.endScrollbarDrag,
       shift: runtimeMockState.shift,
@@ -351,7 +353,7 @@ describe('MessageVirtualList', () => {
     region.scrollTop = 200
 
     fireEvent.keyDown(region, { key: 'PageDown' })
-    expect(runtimeMockState.markUserInput).toHaveBeenCalledTimes(1)
+    expect(runtimeMockState.markUserInput).toHaveBeenCalledTimes(2)
 
     runtimeMockState.markUserInput.mockClear()
     const fireTouchPointerEvent = (type: 'pointerdown' | 'pointermove', clientY: number, buttons: number) => {
@@ -452,7 +454,7 @@ describe('MessageVirtualList', () => {
     fireEvent.pointerDown(item)
     fireEvent.keyDown(scroller, { key: 'PageDown' })
     fireEvent.pointerMove(scroller, { buttons: 1 })
-    expect(runtimeMockState.markUserInput).toHaveBeenCalledTimes(2)
+    expect(runtimeMockState.markUserInput).toHaveBeenCalledTimes(3)
     expect(runtimeMockState.takeUserControl).not.toHaveBeenCalled()
 
     unmount()
