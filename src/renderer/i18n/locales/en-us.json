@@ -227,6 +227,8 @@
       "close": "Close preview",
       "code": "Code",
       "code_unavailable": "Source view not available for binary files",
+      "copy_path": "Copy Path",
+      "copy_relative_path": "Copy Relative Path",
       "default_app": "Default app",
       "edit": {
         "conflict": {

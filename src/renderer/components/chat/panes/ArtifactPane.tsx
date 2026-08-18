@@ -22,7 +22,20 @@ import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { joinPath } from '@renderer/utils/path'
 import { isMac, isWin } from '@renderer/utils/platform'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { AlertCircle, ArrowLeft, Eye, FileText, FolderOpen, RotateCw, Sparkles, SquarePen, X } from 'lucide-react'
+import { canonicalizeFilePath } from '@shared/utils/file'
+import {
+  AlertCircle,
+  ArrowLeft,
+  Copy,
+  CopySlash,
+  Eye,
+  FileText,
+  FolderOpen,
+  RotateCw,
+  Sparkles,
+  SquarePen,
+  X
+} from 'lucide-react'
 import {
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
@@ -97,6 +110,16 @@ function getPreviewFileTitle(filePath: string): string {
 function getFileTreeNodeTargetPath(workspacePath: string | undefined, node: { id: string }): string | null {
   if (!workspacePath) return null
   return node.id === WORKSPACE_ROOT_ID ? workspacePath : joinPath(workspacePath, node.id)
+}
+
+// joinPath yields mixed separators on Windows; canonicalize to the native form,
+// falling back for paths canonicalizeFilePath rejects (e.g. UNC).
+function getCopyableAbsolutePath(targetPath: string): string {
+  try {
+    return canonicalizeFilePath(targetPath)
+  } catch {
+    return targetPath
+  }
 }
 
 function renderFileManagerIcon(): ReactNode {
@@ -346,10 +369,43 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     [t]
   )
 
+  const copyPath = useCallback(
+    async (path: string) => {
+      try {
+        await navigator.clipboard.writeText(path)
+        toast.success(t('message.copy.success'))
+      } catch (error) {
+        logger.error('Failed to copy path', error as Error)
+        toast.error(t('message.copy.failed'))
+      }
+    },
+    [t]
+  )
+
   const getFileTreeMenuItems = useCallback(
     (node: FileTreeNode): readonly CommandContextMenuExtraItem[] => {
       const targetPath = getFileTreeNodeTargetPath(workspacePath, node)
       if (!targetPath) return []
+
+      const copyItems: CommandContextMenuExtraItem[] = [
+        { type: 'separator' },
+        {
+          type: 'item',
+          id: 'copy-path',
+          label: t('agent.preview_pane.copy_path'),
+          icon: <Copy size={16} />,
+          onSelect: () => void copyPath(getCopyableAbsolutePath(targetPath))
+        }
+      ]
+      if (node.id !== WORKSPACE_ROOT_ID) {
+        copyItems.push({
+          type: 'item',
+          id: 'copy-relative-path',
+          label: t('agent.preview_pane.copy_relative_path'),
+          icon: <CopySlash size={16} />,
+          onSelect: () => void copyPath(node.id)
+        })
+      }
 
       if (node.kind === 'file') {
         return [
@@ -373,7 +429,8 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
             label: app.name,
             icon: getEditorIcon(app),
             onSelect: () => window.open(buildEditorUrl(app, targetPath))
-          }))
+          })),
+          ...copyItems
         ]
       }
 
@@ -391,10 +448,11 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
           label: app.name,
           icon: getEditorIcon(app),
           onSelect: () => window.open(buildEditorUrl(app, targetPath))
-        }))
+        })),
+        ...copyItems
       ]
     },
-    [availableEditors, fileManagerName, openPath, showInFolder, t, workspacePath]
+    [availableEditors, copyPath, fileManagerName, openPath, showInFolder, t, workspacePath]
   )
 
   // Memoized so the file-tree element below keeps its identity across the
