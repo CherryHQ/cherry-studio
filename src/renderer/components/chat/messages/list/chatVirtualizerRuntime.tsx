@@ -417,6 +417,10 @@ export function useChatVirtualizerRuntime<T>({
     // native thumb, its live scroll range must be the only range in play.
     setFreezeSpacerHeight(0)
     freezeBaselineScrollHeightRef.current = getNaturalScrollHeight()
+    // Consume the pre-scroll intent: a real onScroll now owns the gesture, so
+    // the ResizeObserver must not keep suppressing reassertFreeze for the
+    // remainder of the input window.
+    lastUserInputAtRef.current = 0
     userScrollGestureRef.current = true
   }, [getNaturalScrollHeight, setFreezeSpacerHeight])
 
