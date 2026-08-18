@@ -30,8 +30,13 @@ rejections are skipped, so `@cherry/fetch`, `web_fetch`, web search extraction, 
 can reach `localhost`, a LAN NAS, or a proxy-only host. Every other rule above still applies: scheme
 and credential validation, connection pinning, redirect limits, and the response size bound.
 
-Turning it off restores the full guard. Callers that use `sanitizeRemoteUrl` directly are not
-affected by the preference — they never accepted private targets except through `configuredApiHost`.
+Turning it off restores the full guard.
+
+`sanitizeRemoteUrl` takes the same flag as its third argument. Pass it wherever the literal guard
+runs as a precheck in front of `fetchRemoteText` — citation preview and the web-search fetch
+fallback do — otherwise the precheck rejects a target the pinned fetch would have accepted, and the
+preference silently does nothing on that path. Callers that guard a `net.fetch` of a
+provider-configured endpoint keep the default and rely on `configuredApiHost` instead.
 
 ## Why Not `net.fetch`
 

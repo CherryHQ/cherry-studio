@@ -182,16 +182,20 @@ function hasMatchingConfiguredOrigin(url: URL, configuredApiHost: string): boole
  * Pass `configuredApiHost` to allow a provider's own loopback/private endpoint
  * when it matches the user-configured host.
  *
+ * Pass `allowPrivateNetwork` from the `app.fetch.allow_private_network`
+ * preference when this precheck guards a `fetchRemoteText()` call, so the
+ * literal guard does not reject what the pinned fetch would accept.
+ *
  * Direct main-process fetches should use `resolveRemoteFetchUrl()` so hostname
  * DNS results are checked before the network request and can be pinned.
  */
-export function sanitizeRemoteUrl(rawUrl: string, configuredApiHost?: string): string {
+export function sanitizeRemoteUrl(rawUrl: string, configuredApiHost?: string, allowPrivateNetwork = false): string {
   const parsedUrl = parseRemoteUrl(rawUrl)
 
   const allowMatchingConfiguredOrigin =
     configuredApiHost !== undefined && hasMatchingConfiguredOrigin(parsedUrl, configuredApiHost)
 
-  if (isBlockedHostname(parsedUrl.hostname) && !allowMatchingConfiguredOrigin) {
+  if (!allowPrivateNetwork && isBlockedHostname(parsedUrl.hostname) && !allowMatchingConfiguredOrigin) {
     throw new Error(`Unsafe remote url: local or private addresses are not allowed (${parsedUrl.hostname})`)
   }
 
