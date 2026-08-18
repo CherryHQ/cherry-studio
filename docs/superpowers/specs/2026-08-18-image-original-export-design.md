@@ -26,4 +26,3 @@ The untouched path removes PNG decoding/re-encoding and one base64 data-URL conv
 ## Verification
 
 Renderer tests must prove that a WebP source is saved with a `.webp` name and byte-for-byte source content, and that a flipped/rotated source is saved as the transformed PNG bytes. Existing clipboard tests must remain unchanged and pass.
-

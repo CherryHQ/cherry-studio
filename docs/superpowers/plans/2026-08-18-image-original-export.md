@@ -102,4 +102,3 @@ git cat-file commit HEAD | rg '^gpgsig '
 ```
 
 预期：提交成功并包含 `gpgsig` 与 `Signed-off-by`。
-
