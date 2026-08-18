@@ -315,12 +315,16 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
       ).resolves.toBeUndefined()
     })
 
-    it('still denies with no responder, bypass included', async () => {
-      for (const mode of ['default', 'bypassPermissions'] as const) {
-        const decision = await evaluate(makeCtx({ toolName: kbManage, permissionMode: mode, interaction: HEADLESS }))
-        expect(decision?.effect).toBe('deny')
-        expect(decision?.reason).toBe(HEADLESS_INTERACTIVE_TOOL_DENIAL)
-      }
+    it('denies with no responder outside Full Access', async () => {
+      const decision = await evaluate(makeCtx({ toolName: kbManage, interaction: HEADLESS }))
+      expect(decision?.effect).toBe('deny')
+      expect(decision?.reason).toBe(HEADLESS_INTERACTIVE_TOOL_DENIAL)
+    })
+
+    it('runs unattended under bypassPermissions', async () => {
+      await expect(
+        evaluate(makeCtx({ toolName: kbManage, permissionMode: 'bypassPermissions', interaction: HEADLESS }))
+      ).resolves.toBeUndefined()
     })
 
     it('gates assistant tools only when the assistant MCP servers are mounted', async () => {

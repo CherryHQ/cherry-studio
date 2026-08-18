@@ -229,7 +229,11 @@ export const CLAUDE_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     effect: 'ask',
     askStrength: 'hard',
     reason: (_hit, ctx) => `The ${ctx.toolName} tool requires per-call user approval.`,
-    headless: { predicate: 'responder-unavailable', reason: HEADLESS_INTERACTIVE_TOOL_DENIAL }
+    headless: {
+      predicate: 'responder-unavailable',
+      reason: HEADLESS_INTERACTIVE_TOOL_DENIAL,
+      skipHeadlessDenyInBypass: true
+    }
   },
   {
     // `cwd` establishes the default SDK working directory but does not itself prevent an absolute
