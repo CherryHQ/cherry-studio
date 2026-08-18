@@ -127,7 +127,7 @@ logger.error("message", error);
 
 - All user-visible strings must use `i18next` — never hardcode UI strings
 - Locale catalogs live in `src/renderer/i18n/locales/` and `src/main/i18n/locales/`; both use `en-us.json` as the source of truth
-- Only when you add or change a key: edit `en-us.json`, run `pnpm i18n:sync` (fills the other locales with `[to be translated]:` placeholders), then replace every placeholder with a real translation — `i18n:check` only verifies key structure/sort, so leftover placeholders pass the gate but must never reach a PR. No separate `pnpm i18n:check` run needed; `pnpm lint` already includes it.
+- Only when you add or change a key: edit `en-us.json`, run `pnpm i18n:sync` (fills the other locales with `[to be translated]:` placeholders), then translate every one. No separate `pnpm i18n:check` run needed — `pnpm lint` includes it, and it rejects leftover placeholders as well as empty values, interpolation/tag mismatches, and unsorted keys.
 
 ### UI Design
 
