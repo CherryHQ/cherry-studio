@@ -76,8 +76,8 @@
 
 | Document | Description |
 |----------|-------------|
-| [Command System](./references/command/README.md) | Command system model and architecture wiring shortcuts, menus, and buttons to one registry of app commands |
-| [Command System — Usage](./references/command/command-usage.md) | How to register command handlers, context keys, and menu contributions, and how to add a new command |
+| [Command System](./references/command/README.md) | Current command-backed action model across shared definitions, renderer and main handlers, keybindings, and menus |
+| [Command System — Usage](./references/command/command-usage.md) | How to consume command UI and hooks, register handlers and context keys, build menus, and add a command |
 
 ### Components
 
