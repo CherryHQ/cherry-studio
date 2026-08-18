@@ -3327,9 +3327,10 @@ describe('useChatVirtualizerRuntime', () => {
     const callbacks: ResizeObserverCallback[] = []
     const restoreResizeObserver = installResizeObserverMock(callbacks)
     const raf = installQueuedAnimationFrame()
-    // Use a fixed time well outside the intent window so all checks are
-    // deterministic regardless of jsdom's time origin.
-    const nowSpy = vi.spyOn(performance, 'now').mockReturnValue(1_000_000)
+    // Advance time past the intent window after markUserInput fires so
+    // hasRecentUserScrollIntent() returns false when the ResizeObserver runs.
+    let now = 1_000
+    const nowSpy = vi.spyOn(performance, 'now').mockImplementation(() => now)
 
     try {
       let runtime: ChatVirtualizerRuntime<string> | undefined
@@ -3349,20 +3350,27 @@ describe('useChatVirtualizerRuntime', () => {
       runtime!.vlistHandleRef.current = createHandle()
       raf.tick(60)
 
+      // Enter reading mode — the viewport freezes at scrollTop 500.
+      act(() => runtime!.takeUserControl('user-scrolled-up'))
+      expect(scrollTop).toBe(500)
+
       // keydown intent fires but no scroll follows.
+      now = 1_010
       act(() => runtime!.markUserInput())
 
-      // The intent window passes (time is already far in the future).
+      // The intent window passes — advance time beyond the 250 ms grace period.
+      now = 1_000_000
       // A content resize now fires — this must be treated as programmatic
       // (reassertFreeze must run), not suppressed.
       scrollTop = 560
       scrollHeight = 2200
       act(() => callbacks[0]?.([], {} as ResizeObserver))
       // reassertFreeze runs (intent expired) and snaps to the frozen anchor
-      // target. With the default mock handle.getItemOffset(0) = 0 the target
-      // is 0 — what matters is that scrollTop was reset from the programmatic
+      // target. The anchor was captured at scrollTop 500 with offsetInItem 500
+      // (getItemOffset(0) = 0 from the default mock handle), so the target is
+      // 500 — what matters is that scrollTop was reset from the programmatic
       // 560, proving reassertFreeze was not suppressed.
-      expect(scrollTop).toBe(0)
+      expect(scrollTop).toBe(500)
     } finally {
       nowSpy.mockRestore()
       restoreResizeObserver()
