@@ -1056,6 +1056,7 @@
         "title": "Nota de Referencia"
       },
       "paste_text_file": "Pegar en la entrada",
+      "paste_text_too_long": "El texto pegado supera los {{max}} caracteres y no puede insertse en el campo de entrada. Se conserva como archivo adjunto.",
       "pasted_text_file_name": "Texto pegado.txt",
       "pause": "Pausar",
       "placeholder": "Escribe un mensaje. Pulsa {{key}} para enviarlo. Escribe / para ver las herramientas y acciones, o @ para hacer referencia a temas.",

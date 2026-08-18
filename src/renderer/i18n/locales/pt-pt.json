@@ -1056,6 +1056,7 @@
         "title": "Nota de Referência"
       },
       "paste_text_file": "Cole na entrada",
+      "paste_text_too_long": "O texto colado excede {{max}} caracteres e não pode ser inserido no campo de entrada. Ele é mantido como anexo de arquivo.",
       "pasted_text_file_name": "Texto colado.txt",
       "pause": "Pausar",
       "placeholder": "Escreva uma mensagem. Prima {{key}} para enviar. Escreva / para ver ferramentas e ações e @ para referenciar tópicos.",

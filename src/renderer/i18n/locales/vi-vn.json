@@ -1056,6 +1056,7 @@
         "title": "Ghi chú tham khảo"
       },
       "paste_text_file": "Dán vào ô nhập",
+      "paste_text_too_long": "Văn bản dán dài hơn {{max}} ký tự nên không thể chèn vào ô nhập. Nó được giữ lại dưới dạng tệp đính kèm.",
       "pasted_text_file_name": "Văn bản đã dán.txt",
       "pause": "Tạm dừng",
       "placeholder": "Nhập tin nhắn của bạn ở đây, nhấn {{key}} để gửi - @ để Chọn Mô hình, / để Bao gồm Công cụ",

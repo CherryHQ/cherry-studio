@@ -1056,6 +1056,7 @@
         "title": "Reference Note"
       },
       "paste_text_file": "Paste into input",
+      "paste_text_too_long": "The pasted text is longer than {{max}} characters and cannot be inserted into the input. It is kept as a file attachment.",
       "pasted_text_file_name": "Pasted text.txt",
       "pause": "Pause",
       "placeholder": "Type a message. Press {{key}} to send. Type / for tools and actions, @ to reference topics.",

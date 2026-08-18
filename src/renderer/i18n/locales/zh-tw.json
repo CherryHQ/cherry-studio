@@ -1056,6 +1056,7 @@
         "title": "引用筆記"
       },
       "paste_text_file": "貼到輸入框",
+      "paste_text_too_long": "貼上的文字超過 {{max}} 字元，無法內嵌到輸入框，已保留為檔案附件。",
       "pasted_text_file_name": "已貼上的文字.txt",
       "pause": "暫停",
       "placeholder": "輸入訊息，按 {{key}} 傳送，輸入 / 選擇工具或操作",

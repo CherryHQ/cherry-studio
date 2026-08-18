@@ -1056,6 +1056,7 @@
         "title": "参考注"
       },
       "paste_text_file": "入力に貼り付け",
+      "paste_text_too_long": "貼り付けたテキストが{{max}}文字を超えているため、入力欄に展開できません。ファイル添付として保持されます。",
       "pasted_text_file_name": "貼り付けたテキスト.txt",
       "pause": "一時停止",
       "placeholder": "ここにメッセージを入力し、{{key}} を押して送信...",
