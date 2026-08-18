@@ -465,7 +465,7 @@ class FeishuAdapter extends ChannelAdapter {
         }
 
         const detected = await fileTypeFromBuffer(buffer)
-        if (resource.type === 'image' || resource.type === 'sticker') {
+        if (resource.type === 'image') {
           images.push({ data: buffer.toString('base64'), media_type: detected?.mime ?? 'image/png' })
           continue
         }

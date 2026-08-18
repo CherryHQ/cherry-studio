@@ -107,7 +107,7 @@ describe('applyMigrations over a populated database', () => {
   }
 
   it('quarantines legacy channel sessions without changing conversation history', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0011_far_mordo'))
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0011_pretty_the_phantom'))
     const now = Date.now()
     sqlite
       .prepare(
@@ -174,9 +174,6 @@ describe('applyMigrations over a populated database', () => {
         is_active: 0
       }
     ])
-    expect(
-      sqlite.prepare("SELECT name FROM pragma_table_info('agent_channel') WHERE name = 'session_id'").all()
-    ).toEqual([])
     expect(sqlite.prepare('SELECT count(*) AS count FROM agent_session_message').get()).toEqual({ count: 2 })
   })
 

@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "bfd88014-2060-4a90-88ef-1939566c2042",
+  "id": "d2854c66-9983-408f-b462-29935ecf7a4d",
   "prevId": "b2b29e5d-4996-4ace-a87b-8ef7d3dff0ef",
   "tables": {
     "agent": {
@@ -280,6 +280,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "session_id": {
+          "name": "session_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "workspace": {
           "name": "workspace",
           "type": "text",
@@ -342,6 +349,11 @@
           "name": "agent_channel_type_idx",
           "columns": ["type"],
           "isUnique": false
+        },
+        "agent_channel_session_id_idx": {
+          "name": "agent_channel_session_id_idx",
+          "columns": ["session_id"],
+          "isUnique": false
         }
       },
       "foreignKeys": {
@@ -350,6 +362,15 @@
           "tableFrom": "agent_channel",
           "tableTo": "agent",
           "columnsFrom": ["agent_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "agent_channel_session_id_agent_session_id_fk": {
+          "name": "agent_channel_session_id_agent_session_id_fk",
+          "tableFrom": "agent_channel",
+          "tableTo": "agent_session",
+          "columnsFrom": ["session_id"],
           "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"

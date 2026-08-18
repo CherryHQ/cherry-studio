@@ -86,6 +86,7 @@ const AgentChannelBaseFields = {
   id: z.string(),
   name: z.string(),
   agentId: z.string().nullable().optional(),
+  sessionId: z.string().nullable().optional(),
   workspace: AgentSessionWorkspaceSourceSchema,
   isActive: z.boolean(),
   activeChatIds: z.array(z.string()).optional(),
