@@ -1008,6 +1008,19 @@
       "knowledge_base_disabled_by_files": "Αφαιρέστε τα συνημμένα αρχεία για να χρησιμοποιήσετε τη Βάση Γνώσεων",
       "knowledge_base_unavailable": "Επιλέξτε ένα μοντέλο με δυνατότητα χρήσης εργαλείων",
       "locate_editing_message": "Εντοπίστε το αρχικό μήνυμα",
+      "mcp_prompts": {
+        "description": "Εισαγωγή ενός prompt από έναν διακομιστή MCP",
+        "empty": "Δεν υπάρχουν διαθέσιμα prompts MCP",
+        "insert_failed": "Αποτυχία εισαγωγής του prompt",
+        "title": "Prompts MCP"
+      },
+      "mcp_resources": {
+        "description": "Αναφορά ενός πόρου από έναν διακομιστή MCP",
+        "empty": "Δεν υπάρχουν διαθέσιμοι πόροι MCP",
+        "read_failed": "Αποτυχία ανάγνωσης του πόρου",
+        "reader_unavailable": "Το τρέχον μοντέλο δεν μπορεί να διαβάσει ξανά αυτόν τον πόρο μετά την επισύναψη",
+        "title": "Πόροι MCP"
+      },
       "new": {
         "context": "Εκκαθάριση περιβάλλοντος"
       },

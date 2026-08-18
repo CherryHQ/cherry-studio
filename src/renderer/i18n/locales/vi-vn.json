@@ -1008,6 +1008,19 @@
       "knowledge_base_disabled_by_files": "Gỡ các tệp đính kèm để sử dụng Cơ sở tri thức",
       "knowledge_base_unavailable": "Chọn một mô hình có khả năng sử dụng công cụ",
       "locate_editing_message": "Định vị thông điệp gốc",
+      "mcp_prompts": {
+        "description": "Chèn prompt do máy chủ MCP cung cấp",
+        "empty": "Không có prompt MCP nào",
+        "insert_failed": "Không thể chèn prompt",
+        "title": "Prompt MCP"
+      },
+      "mcp_resources": {
+        "description": "Tham chiếu tài nguyên do máy chủ MCP cung cấp",
+        "empty": "Không có tài nguyên MCP nào",
+        "read_failed": "Không thể đọc tài nguyên",
+        "reader_unavailable": "Mô hình hiện tại không thể đọc lại tài nguyên này sau khi đính kèm",
+        "title": "Tài nguyên MCP"
+      },
       "new": {
         "context": "Xóa ngữ cảnh"
       },
