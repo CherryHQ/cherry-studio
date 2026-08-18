@@ -124,7 +124,7 @@ describe('copy', () => {
       const plainTextContent = 'This is the plain text content of the message'
 
       const { messageToPlainText } = await import('@renderer/utils/export')
-      vi.mocked(messageToPlainText).mockReturnValue(plainTextContent)
+      vi.mocked(messageToPlainText).mockResolvedValue(plainTextContent)
       mockClipboard.writeText.mockResolvedValue(undefined)
 
       await copyMessageAsPlainText(message)
