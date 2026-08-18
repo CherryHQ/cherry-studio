@@ -57,3 +57,8 @@ pnpm --filter @cherrystudio/provider-registry compat:baseline
 
 Do not bump the version for a schema refactor that still emits vN-compatible data. Do not edit or
 replace an existing baseline.
+
+Structural compatibility is not enough for runtime-interpreted values. When catalog data starts
+using a new adapter family, endpoint type, reasoning wire behavior, or another value older app code
+cannot execute, bump `REGISTRY_MIN_APP_VERSION` to the first compatible application version. The
+publish manifest admits a client only when `minAppVersion <= appVersion <= sourceAppVersion`.

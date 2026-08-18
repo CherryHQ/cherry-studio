@@ -13,9 +13,6 @@
  * (RegistryLoader, buildPersistedEndpointConfigs).
  */
 
-import { rmSync } from 'node:fs'
-
-import { application } from '@application'
 import type {
   ProtoModelConfig,
   ProtoProviderConfig,
@@ -50,7 +47,6 @@ import {
 import { type RegistryFileName, RegistryLoader } from '@cherrystudio/provider-registry/node'
 import type { StoredEndpointConfigOverride } from '@data/db/schemas/userProvider'
 import { loggerService } from '@logger'
-import { atomicWriteFile } from '@main/utils/file'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { ProviderPreset, ProviderPresetField } from '@shared/data/api/schemas/providers'
 import type {
@@ -70,11 +66,10 @@ import type {
   RuntimeApiFeatures
 } from '@shared/data/types/provider'
 import { DEFAULT_API_FEATURES } from '@shared/data/types/provider'
-import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { isEqual } from 'es-toolkit/compat'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
-import { OVERRIDE_MANIFEST, resolveRegistryPaths } from './utils/registryDataPaths'
+import { resolveRegistryPaths } from './utils/registryDataPaths'
 
 const logger = loggerService.withContext('DataApi:ProviderRegistryService')
 
@@ -715,29 +710,6 @@ class ProviderRegistryService {
     } catch {
       return null
     }
-  }
-
-  /**
-   * Apply a remote-updated catalog as one all-or-nothing override set, then
-   * hot-reload the loader. The completion manifest is removed FIRST, so a crash
-   * mid-write leaves NO manifest and reads fall back to the bundled data rather
-   * than a half-written mix ({@link resolveRegistryPaths} is all-or-nothing).
-   * `manifestBody` is written last to mark the set complete and safe to read.
-   */
-  async applyOverride(files: Record<RegistryFileName, string>, manifestBody: string): Promise<void> {
-    const dir = 'feature.provider_registry.override' as const
-
-    // Invalidate the set before touching data files: no manifest ⇒ reads fall
-    // back to bundled until the fresh set is fully committed below.
-    rmSync(application.getPath(dir, OVERRIDE_MANIFEST), { force: true })
-    this.clearCache()
-
-    for (const [name, body] of Object.entries(files)) {
-      await atomicWriteFile(AbsoluteFilePathSchema.parse(application.getPath(dir, name)), body)
-    }
-    // Commit: manifest last marks the override complete.
-    await atomicWriteFile(AbsoluteFilePathSchema.parse(application.getPath(dir, OVERRIDE_MANIFEST)), manifestBody)
-    this.clearCache()
   }
 
   private findRegistryProvider(providerId: string): ProtoProviderConfig | undefined {

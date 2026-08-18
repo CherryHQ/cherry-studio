@@ -223,18 +223,20 @@ Backs the provider / mini-app logo slots. A *single-file slot* is an association
 - **`sourceType → table` resolution belongs to the caller**: callers holding a source type instead of a table (the v1 migrator) resolve it via `singleFileRefTablesBySourceType` in `db/schemas/fileRelations.ts`; this module never sees a source type.
 ### `registryDataPaths.ts` — provider-registry file path resolution
 
-Resolves the three provider-registry JSON files (`models.json`, `providers.json`, `provider-models.json` — the canonical `REGISTRY_FILES` list lives in the `@cherrystudio/provider-registry` package) to their on-disk paths, preferring a remote-updated **override** copy over the bundled file. Consumed by every `RegistryLoader` construction site in the data layer — `ProviderRegistryService`, `PresetProviderSeeder`, and the v2 `ProviderModelMigrator`.
+Resolves provider-registry paths for the v2 runtime. Remote snapshots may override `models.json` and `provider-models.json`; `providers.json` always resolves to the bundle so unsigned branch data cannot change credential-bearing routing. The one-shot v1-to-v2 migrator deliberately bypasses this resolver and stays pinned to bundled data.
 
 **Exports:**
 
-- `OVERRIDE_MANIFEST` — filename of the completion marker (`manifest.json`) written last by `ProviderRegistryService.applyOverride`; its presence signals a complete override set.
-- `resolveRegistryPaths()` — resolves all three into a `RegistryPaths` object for `new RegistryLoader(...)`, **all-or-nothing** (see below).
+- `OVERRIDE_MANIFEST` — completion marker written last by `providerRegistrySnapshot.ts`.
+- `readActiveOverrideManifest()` — returns a complete, compatible snapshot manifest or `null`.
+- `resolveRegistryPaths()` — builds the mixed-trust `RegistryPaths`: bundled providers plus atomic model metadata.
 
 **Design boundaries:**
 
-- **Stateless, read-only**: `existsSync` + `application.getPath` reads only; no writes, no state (writing the override dir is `ProviderRegistryService.applyOverride`'s job).
-- **All-or-nothing**: the whole set resolves to the override copy only when the completion manifest exists, else all three resolve to bundled data. A half-written or partially-updated override (no/removed manifest) is ignored in favour of the consistent bundled set — never a per-file mix.
-- **Version-gated (up/downgrade-safe)**: the override dir persists across app version changes, so the manifest is validated on every read. It is used only when `schemaVersion` equals this build's `REGISTRY_SCHEMA_VERSION` (else a downgrade would hit a schema the loader can't parse) AND `releaseFloor >= app.getVersion()` (else an override persisted by an older app would keep shadowing the newer bundled catalog after an upgrade). On any mismatch it falls back to bundled instead of serving stale/incompatible data.
+- **Stateless, read-only**: this utility only inspects paths and the manifest; snapshot persistence belongs to the updater domain.
+- **Atomic model metadata**: both remote-safe files require a compatible completion manifest. Missing either file falls back to bundled model metadata.
+- **Explicit compatibility range**: `minAppVersion <= appVersion <= sourceAppVersion`, matching schema version, and a valid revision are required on every activation.
+- **Bundled routing**: provider endpoints, model-list URLs, adapter families, and authentication behavior never come from the unsigned branch.
 
 **Example:**
 

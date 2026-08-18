@@ -1,20 +1,23 @@
 import {
   type CatalogManifest,
   CatalogManifestSchema,
+  isCatalogManifestCompatible,
   ModelListSchema,
-  ProviderListSchema,
   ProviderModelListSchema,
-  REGISTRY_FILES,
   REGISTRY_SCHEMA_VERSION,
-  type RegistryFileName
+  REMOTE_REGISTRY_FILES,
+  type RemoteRegistryFileName
 } from '@cherrystudio/provider-registry/node'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { notifyDataApiDataChange } from '@main/data/dataApiDataChange'
 import { providerRegistryService } from '@main/data/services/ProviderRegistryService'
+import { readActiveOverrideManifest } from '@main/data/services/utils/registryDataPaths'
+import { writeProviderRegistrySnapshot } from '@main/services/providerRegistrySnapshot'
 import { regionService } from '@main/services/RegionService'
 import { generateUserAgent } from '@main/utils/systemInfo'
+import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import { app, net } from 'electron'
-import semver from 'semver'
 
 const logger = loggerService.withContext('ProviderRegistryUpdaterService')
 
@@ -29,19 +32,23 @@ const REMOTE_SUBPATH = `v${REGISTRY_SCHEMA_VERSION}`
 const REGISTRY_URL_GITHUB = `https://raw.githubusercontent.com/CherryHQ/cherry-studio/refs/heads/${REMOTE_BRANCH}/${REMOTE_SUBPATH}`
 const REGISTRY_URL_GITCODE = `https://raw.gitcode.com/CherryHQ/cherry-studio/raw/${encodeURIComponent(REMOTE_BRANCH)}/${REMOTE_SUBPATH}`
 
-// Manifest published alongside the catalog. `releaseFloor` is the app release the
-// remote data was generated for; a client refuses data whose floor is older than
-// its own version so a lagging mirror can never downgrade below the bundled data.
 const MANIFEST_FILE = 'manifest.json'
 
 // Validators keyed by file — the SAME schemas RegistryLoader validates with on
 // read, so an accepted download is guaranteed loadable. Typed structurally
-// (only `version` is read here) to sidestep the three schemas' distinct outputs.
-const SCHEMA_BY_FILE: Record<RegistryFileName, { parse: (data: unknown) => { version: string } }> = {
+// (only `version` is read here) to sidestep the schemas' distinct outputs.
+const SCHEMA_BY_FILE: Record<RemoteRegistryFileName, { parse: (data: unknown) => { version: string } }> = {
   'models.json': ModelListSchema,
-  'providers.json': ProviderListSchema,
   'provider-models.json': ProviderModelListSchema
 }
+
+const REGISTRY_DATA_CHANGE_EFFECTS = [
+  { endpoint: '/models', kind: 'projection' },
+  { endpoint: '/models/:uniqueModelId*' },
+  { endpoint: '/providers/:providerId/preset' },
+  { endpoint: '/providers/:providerId/models:resolve', kind: 'membership' },
+  { endpoint: '/providers/:providerId/models/:modelId*/image-generation-support' }
+] satisfies DataApiDataChangeEffect[]
 
 const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000
 // Short delay before the first check, letting boot I/O settle. registerInterval
@@ -49,19 +56,18 @@ const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000
 const INITIAL_CHECK_DELAY_MS = 30_000
 
 interface StagedFile {
-  file: RegistryFileName
+  file: RemoteRegistryFileName
   body: string
   version: string
 }
 
 /**
- * Downloads the regenerated provider/model catalog from the pinned remote branch
- * and shadows the bundled JSON via the `feature.provider_registry.override` dir —
- * so new preset models reach running apps without an app release.
+ * Downloads remote-safe model metadata from the pinned branch. Provider routing
+ * remains bundled because unsigned data must never control credential destinations.
  *
- * Models & provider-model overrides hot-reload immediately (loader cache is
- * cleared). New *providers* are DB-seeded and only appear after the next restart
- * (the seeder re-runs on a version bump, reading the same override).
+ * Existing model projections hot-reload in mounted renderers. Brand-new catalog
+ * models enter SQLite only through the existing explicit provider-model sync;
+ * this background service never writes business rows.
  */
 @Injectable('ProviderRegistryUpdaterService')
 @ServicePhase(Phase.WhenReady)
@@ -79,18 +85,20 @@ export class ProviderRegistryUpdaterService extends BaseService {
     this.registerDisposable(() => clearTimeout(initial))
   }
 
-  /** Run one update cycle: fetch → floor+validate → (if changed) apply + hot-reload. Never throws. */
+  /** Run one update cycle: fetch → compatibility+revision validate → apply → notify. Never throws. */
   public async check(): Promise<void> {
     try {
       const result = await this.fetchAndValidate()
       if (!result) return
-      const { staged, manifestBody } = result
-      if (!this.hasChanges(staged)) {
+      const { staged, manifest, manifestBody } = result
+      const currentManifest = readActiveOverrideManifest()
+      if (!this.hasChanges(staged) && (!currentManifest || currentManifest.revision === manifest.revision)) {
         logger.debug('registry update: catalog already current')
         return
       }
-      const files = Object.fromEntries(staged.map((s) => [s.file, s.body])) as Record<RegistryFileName, string>
-      await providerRegistryService.applyOverride(files, manifestBody)
+      const files = Object.fromEntries(staged.map((s) => [s.file, s.body])) as Record<RemoteRegistryFileName, string>
+      await writeProviderRegistrySnapshot(files, manifestBody)
+      notifyDataApiDataChange(REGISTRY_DATA_CHANGE_EFFECTS)
       logger.info(`registry update: applied ${staged.map((s) => `${s.file}@${s.version}`).join(', ')}`)
     } catch (error) {
       logger.warn('registry update: cycle failed', error as Error)
@@ -98,11 +106,14 @@ export class ProviderRegistryUpdaterService extends BaseService {
   }
 
   /**
-   * Fetch and validate the manifest + all three files. Returns `null` (abort,
-   * keep current data) if the manifest is older than this app, or if ANY file
-   * fails to download or validate — never a partial set.
+   * Fetch and validate the manifest + remote-safe files. Returns `null` when
+   * compatibility, monotonic revision, download, or validation checks fail.
    */
-  private async fetchAndValidate(): Promise<{ staged: StagedFile[]; manifestBody: string } | null> {
+  private async fetchAndValidate(): Promise<{
+    staged: StagedFile[]
+    manifest: CatalogManifest
+    manifestBody: string
+  } | null> {
     const inCn = (await regionService.getCountry()).toLowerCase() === 'cn'
     const baseUrl = inCn ? REGISTRY_URL_GITCODE : REGISTRY_URL_GITHUB
     const headers = {
@@ -121,23 +132,24 @@ export class ProviderRegistryUpdaterService extends BaseService {
       }
     }
 
-    // Manifest first: a mirror lagging behind this app's release is rejected
-    // before downloading the catalog, so stale data can never shadow the newer
-    // bundled data an upgrade shipped with.
     const manifestBody = await fetchText(MANIFEST_FILE)
     if (manifestBody === null) return null
     const manifest = this.parseManifest(manifestBody)
     if (!manifest) return null
-    if (manifest.schemaVersion !== REGISTRY_SCHEMA_VERSION) {
-      logger.warn(
-        `registry update: manifest schema v${manifest.schemaVersion} does not match client schema v${REGISTRY_SCHEMA_VERSION}, skipping`
+    if (!isCatalogManifestCompatible(manifest, app.getVersion())) {
+      logger.warn('registry update: manifest is not compatible with this application version, skipping')
+      return null
+    }
+    const activeManifest = readActiveOverrideManifest()
+    if (activeManifest && manifest.revision <= activeManifest.revision) {
+      logger.debug(
+        `registry update: remote revision ${manifest.revision} is not newer than active revision ${activeManifest.revision}, skipping`
       )
       return null
     }
-    if (!this.passesReleaseFloor(manifest.releaseFloor)) return null
 
     const staged: StagedFile[] = []
-    for (const file of REGISTRY_FILES) {
+    for (const file of REMOTE_REGISTRY_FILES) {
       const body = await fetchText(file)
       if (body === null) return null
       let version: string
@@ -158,7 +170,7 @@ export class ProviderRegistryUpdaterService extends BaseService {
       }
       staged.push({ file, body, version })
     }
-    return { staged, manifestBody }
+    return { staged, manifest, manifestBody }
   }
 
   private parseManifest(manifestBody: string): CatalogManifest | null {
@@ -170,27 +182,12 @@ export class ProviderRegistryUpdaterService extends BaseService {
     }
   }
 
-  /** Reject a remote catalog generated for a release older than this app (anti-downgrade). */
-  private passesReleaseFloor(releaseFloor: string): boolean {
-    const cleanFloor = semver.valid(semver.coerce(releaseFloor))
-    if (!cleanFloor) {
-      logger.warn('registry update: manifest missing a valid releaseFloor, skipping')
-      return false
-    }
-    const appVersion = semver.coerce(app.getVersion())?.version ?? '0.0.0'
-    if (!semver.gte(cleanFloor, appVersion)) {
-      logger.debug(`registry update: remote floor ${cleanFloor} older than app ${appVersion}, skipping`)
-      return false
-    }
-    return true
-  }
-
   /** True if any downloaded file's version differs from what the data layer currently reports. */
   private hasChanges(staged: StagedFile[]): boolean {
     return staged.some(({ file, version }) => version !== providerRegistryService.getCatalogVersion(file))
   }
 
-  private parseVersion(file: RegistryFileName, jsonText: string): string {
+  private parseVersion(file: RemoteRegistryFileName, jsonText: string): string {
     return SCHEMA_BY_FILE[file].parse(JSON.parse(jsonText)).version
   }
 }

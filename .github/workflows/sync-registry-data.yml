@@ -10,9 +10,9 @@ name: Sync provider-registry data
 # committed by the catalog-source-sync CI on every metadata PR) is the source of
 # truth — this job only MIRRORS it into a schema-version dir on the branch.
 #
-# Each v{N}/ dir holds the three catalog files plus a manifest.json (written by
-# this job) carrying `releaseFloor` — the app refuses data whose floor is older
-# than its own version, so a lagging mirror can never downgrade a fresh install.
+# Each v{N}/ dir holds the catalog plus a manifest with an explicit application
+# compatibility range and monotonic workflow revision. Clients only download
+# the model metadata files; provider routing always remains bundled.
 #
 # One-time setup (both required before this is useful):
 #   1. Create the orphan branch, from a clean repo:
@@ -32,6 +32,8 @@ on:
       # A REGISTRY_SCHEMA_VERSION bump changes the publish dir (v{N}); watch its
       # source so a version-only change still creates the new vN/ directory.
       - 'packages/provider-registry/src/registry-loader.ts'
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -71,8 +73,15 @@ jobs:
             echo "Could not resolve REGISTRY_SCHEMA_VERSION from registry-loader.ts" >&2
             exit 1
           fi
+          MIN_APP_VERSION=$(grep -oE "REGISTRY_MIN_APP_VERSION = '[^']+'" \
+            main/packages/provider-registry/src/registry-loader.ts | cut -d"'" -f2 | head -n1)
+          if [ -z "$MIN_APP_VERSION" ]; then
+            echo "Could not resolve REGISTRY_MIN_APP_VERSION from registry-loader.ts" >&2
+            exit 1
+          fi
           echo "dir=v$VER" >> "$GITHUB_OUTPUT"
           echo "version=$VER" >> "$GITHUB_OUTPUT"
+          echo "min_app_version=$MIN_APP_VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Validate catalog against frozen schema
         run: |
@@ -92,27 +101,30 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # releaseFloor = latest published release. Clients refuse data whose
-          # floor is older than their own version, so a lagging mirror can never
-          # downgrade a freshly-upgraded app below its bundled catalog. Using the
-          # latest release (not HEAD) keeps the floor tied to shipped data.
+          # sourceAppVersion = latest published release, proving the snapshot is
+          # not older than that shipped bundle. minAppVersion is an explicit
+          # semantic runtime floor from source; structural Zod compatibility is
+          # insufficient for values interpreted by adapters and request builders.
+          # revision is monotonic per workflow and prevents branch/mirror rollback.
           # schemaVersion lets a client that later DOWNGRADES ignore an override
           # written for a schema it no longer understands (falls back to bundled).
           # files.* = each catalog file's content-hash `version`; a client verifies
           # every downloaded file against it so a mid-fetch branch move (cross-commit
           # mixture) is rejected — the set is bound to this one published snapshot.
-          FLOOR=$(gh api "repos/${{ github.repository }}/releases/latest" --jq '.tag_name' 2>/dev/null | sed 's/^v//' || true)
-          if [ -z "$FLOOR" ] || [ "$FLOOR" = "null" ]; then
-            FLOOR=$(jq -r '.version' main/package.json)
+          SOURCE_APP_VERSION=$(gh api "repos/${{ github.repository }}/releases/latest" --jq '.tag_name' 2>/dev/null | sed 's/^v//' || true)
+          if [ -z "$SOURCE_APP_VERSION" ] || [ "$SOURCE_APP_VERSION" = "null" ]; then
+            SOURCE_APP_VERSION=$(jq -r '.version' main/package.json)
           fi
           DEST="pub/${{ steps.ver.outputs.dir }}"
           jq -n \
-            --arg floor "$FLOOR" \
+            --arg sourceAppVersion "$SOURCE_APP_VERSION" \
+            --arg minAppVersion "${{ steps.ver.outputs.min_app_version }}" \
+            --argjson revision "${{ github.run_number }}" \
             --argjson schema "${{ steps.ver.outputs.version }}" \
             --arg models "$(jq -r '.version' "$DEST/models.json")" \
             --arg providers "$(jq -r '.version' "$DEST/providers.json")" \
             --arg providerModels "$(jq -r '.version' "$DEST/provider-models.json")" \
-            '{releaseFloor: $floor, schemaVersion: $schema, files: {"models.json": $models, "providers.json": $providers, "provider-models.json": $providerModels}}' \
+            '{minAppVersion: $minAppVersion, sourceAppVersion: $sourceAppVersion, revision: $revision, schemaVersion: $schema, files: {"models.json": $models, "providers.json": $providers, "provider-models.json": $providerModels}}' \
             > "$DEST/manifest.json"
 
       - name: Commit and push if changed

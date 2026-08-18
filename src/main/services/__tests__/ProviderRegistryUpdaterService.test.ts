@@ -1,10 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { netFetchMock, applyOverrideMock, getCatalogVersionMock, getCountryMock } = vi.hoisted(() => ({
+const {
+  netFetchMock,
+  getCatalogVersionMock,
+  getCountryMock,
+  notifyDataChangeMock,
+  readActiveManifestMock,
+  writeSnapshotMock
+} = vi.hoisted(() => ({
   netFetchMock: vi.fn(),
-  applyOverrideMock: vi.fn(),
   getCatalogVersionMock: vi.fn(),
-  getCountryMock: vi.fn()
+  getCountryMock: vi.fn(),
+  notifyDataChangeMock: vi.fn(),
+  readActiveManifestMock: vi.fn(),
+  writeSnapshotMock: vi.fn()
 }))
 
 vi.mock('@logger', () => ({
@@ -23,9 +32,16 @@ vi.mock('@main/core/lifecycle', () => ({
 vi.mock('@main/services/RegionService', () => ({ regionService: { getCountry: getCountryMock } }))
 vi.mock('@main/utils/systemInfo', () => ({ generateUserAgent: () => 'test-ua' }))
 vi.mock('@main/data/services/ProviderRegistryService', () => ({
-  providerRegistryService: { applyOverride: applyOverrideMock, getCatalogVersion: getCatalogVersionMock }
+  providerRegistryService: { getCatalogVersion: getCatalogVersionMock }
 }))
-// Keep the real CatalogManifestSchema / REGISTRY_FILES / REGISTRY_SCHEMA_VERSION;
+vi.mock('@main/data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataChangeMock }))
+vi.mock('@main/data/services/utils/registryDataPaths', () => ({
+  readActiveOverrideManifest: readActiveManifestMock
+}))
+vi.mock('@main/services/providerRegistrySnapshot', () => ({
+  writeProviderRegistrySnapshot: writeSnapshotMock
+}))
+// Keep the real manifest contract / remote file list / schema version;
 // stub only the heavy data-list schemas so catalog bodies validate trivially
 // (`.version` read straight off the parsed object).
 vi.mock('@cherrystudio/provider-registry/node', async () => {
@@ -48,11 +64,29 @@ import { ProviderRegistryUpdaterService } from '../ProviderRegistryUpdaterServic
 const response = (body: string, ok = true) => ({ ok, status: ok ? 200 : 404, text: async () => body })
 
 /** Route manifest.json vs data files. `manifest: null` → 404; `dataOk: false` → data 404s. */
-function mockRemote(opts: { floor?: string; manifest?: string | null; dataVersion?: string; dataOk?: boolean } = {}) {
-  const { floor = '2.0.0', manifest, dataVersion = 'v2', dataOk = true } = opts
+function mockRemote(
+  opts: {
+    minAppVersion?: string
+    sourceAppVersion?: string
+    revision?: number
+    manifest?: string | null
+    dataVersion?: string
+    dataOk?: boolean
+  } = {}
+) {
+  const {
+    minAppVersion = '1.0.0',
+    sourceAppVersion = '2.0.0',
+    revision = 2,
+    manifest,
+    dataVersion = 'v2',
+    dataOk = true
+  } = opts
   const files = { 'models.json': dataVersion, 'providers.json': dataVersion, 'provider-models.json': dataVersion }
   const manifestBody =
-    manifest === undefined ? JSON.stringify({ releaseFloor: floor, schemaVersion: 1, files }) : manifest
+    manifest === undefined
+      ? JSON.stringify({ minAppVersion, sourceAppVersion, revision, schemaVersion: 1, files })
+      : manifest
   netFetchMock.mockImplementation(async (url: string) => {
     if (url.endsWith('/manifest.json')) {
       return manifestBody === null ? response('', false) : response(manifestBody)
@@ -66,25 +100,39 @@ describe('ProviderRegistryUpdaterService.check', () => {
 
   beforeEach(() => {
     netFetchMock.mockReset()
-    applyOverrideMock.mockReset()
     getCatalogVersionMock.mockReset()
     getCountryMock.mockReset()
+    notifyDataChangeMock.mockReset()
+    readActiveManifestMock.mockReset()
+    writeSnapshotMock.mockReset()
     getCatalogVersionMock.mockReturnValue('v1') // current on-disk catalog is at v1
     getCountryMock.mockResolvedValue('US')
+    readActiveManifestMock.mockReturnValue(null)
     service = new ProviderRegistryUpdaterService()
   })
 
-  it('applies the override when the remote version is newer and the floor passes', async () => {
-    mockRemote({ floor: '2.0.0', dataVersion: 'v2' })
+  it('applies only remote-safe model metadata and notifies mounted DataApi projections', async () => {
+    mockRemote({ dataVersion: 'v2' })
 
     await service.check()
 
-    expect(applyOverrideMock).toHaveBeenCalledTimes(1)
-    const [appliedFiles, manifestBody] = applyOverrideMock.mock.calls[0]
-    expect(Object.keys(appliedFiles).sort()).toEqual(['models.json', 'provider-models.json', 'providers.json'])
+    expect(writeSnapshotMock).toHaveBeenCalledTimes(1)
+    const [appliedFiles, manifestBody] = writeSnapshotMock.mock.calls[0]
+    expect(Object.keys(appliedFiles).sort()).toEqual(['models.json', 'provider-models.json'])
     const manifest = JSON.parse(manifestBody)
-    expect(manifest.releaseFloor).toBe('2.0.0')
+    expect(manifest.minAppVersion).toBe('1.0.0')
+    expect(manifest.sourceAppVersion).toBe('2.0.0')
+    expect(manifest.revision).toBe(2)
     expect(manifest.files['models.json']).toBe('v2')
+    expect(netFetchMock).not.toHaveBeenCalledWith(expect.stringContaining('/providers.json'), expect.anything())
+    expect(notifyDataChangeMock).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        { endpoint: '/models', kind: 'projection' },
+        { endpoint: '/models/:uniqueModelId*' },
+        { endpoint: '/providers/:providerId/models:resolve', kind: 'membership' },
+        { endpoint: '/providers/:providerId/models/:modelId*/image-generation-support' }
+      ])
+    )
   })
 
   it('is a no-op when the remote version matches the current one', async () => {
@@ -92,7 +140,17 @@ describe('ProviderRegistryUpdaterService.check', () => {
 
     await service.check()
 
-    expect(applyOverrideMock).not.toHaveBeenCalled()
+    expect(writeSnapshotMock).not.toHaveBeenCalled()
+  })
+
+  it('commits a newer manifest revision even when model content is unchanged', async () => {
+    getCatalogVersionMock.mockReturnValue('v2')
+    readActiveManifestMock.mockReturnValue({ revision: 1 })
+    mockRemote({ revision: 2, dataVersion: 'v2' })
+
+    await service.check()
+
+    expect(writeSnapshotMock).toHaveBeenCalledOnce()
   })
 
   it('does not apply when a download fails (non-ok data response)', async () => {
@@ -100,27 +158,43 @@ describe('ProviderRegistryUpdaterService.check', () => {
 
     await service.check()
 
-    expect(applyOverrideMock).not.toHaveBeenCalled()
+    expect(writeSnapshotMock).not.toHaveBeenCalled()
   })
 
   it('does not apply when a payload is invalid (keeps current data)', async () => {
     const files = { 'models.json': 'v2', 'providers.json': 'v2', 'provider-models.json': 'v2' }
     netFetchMock.mockImplementation(async (url: string) =>
       url.endsWith('/manifest.json')
-        ? response(JSON.stringify({ releaseFloor: '2.0.0', schemaVersion: 1, files }))
+        ? response(
+            JSON.stringify({
+              minAppVersion: '1.0.0',
+              sourceAppVersion: '2.0.0',
+              revision: 2,
+              schemaVersion: 1,
+              files
+            })
+          )
         : response('<<not json>>')
     )
 
     await service.check()
 
-    expect(applyOverrideMock).not.toHaveBeenCalled()
+    expect(writeSnapshotMock).not.toHaveBeenCalled()
   })
 
   it('rejects a cross-commit mixture (a file version does not match the manifest digest)', async () => {
     const files = { 'models.json': 'v2', 'providers.json': 'v2', 'provider-models.json': 'v2' }
     netFetchMock.mockImplementation(async (url: string) => {
       if (url.endsWith('/manifest.json'))
-        return response(JSON.stringify({ releaseFloor: '2.0.0', schemaVersion: 1, files }))
+        return response(
+          JSON.stringify({
+            minAppVersion: '1.0.0',
+            sourceAppVersion: '2.0.0',
+            revision: 2,
+            schemaVersion: 1,
+            files
+          })
+        )
       // Branch advanced mid-fetch: models.json now belongs to a newer commit.
       if (url.endsWith('/models.json')) return response(JSON.stringify({ version: 'v3' }))
       return response(JSON.stringify({ version: 'v2' }))
@@ -128,43 +202,72 @@ describe('ProviderRegistryUpdaterService.check', () => {
 
     await service.check()
 
-    expect(applyOverrideMock).not.toHaveBeenCalled()
+    expect(writeSnapshotMock).not.toHaveBeenCalled()
   })
 
-  it('rejects a remote catalog whose release floor is older than the app (anti-downgrade)', async () => {
-    // app is 1.0.0; a floor of 0.9.0 means the remote was generated for an older release.
-    mockRemote({ floor: '0.9.0', dataVersion: 'v2' })
+  it('rejects a snapshot older than the application bundle', async () => {
+    mockRemote({ sourceAppVersion: '0.9.0', dataVersion: 'v2' })
 
     await service.check()
 
-    expect(applyOverrideMock).not.toHaveBeenCalled()
-    // Data files are never fetched once the floor fails (manifest-first).
+    expect(writeSnapshotMock).not.toHaveBeenCalled()
     expect(netFetchMock).toHaveBeenCalledWith(expect.stringContaining('/manifest.json'), expect.anything())
     expect(netFetchMock).not.toHaveBeenCalledWith(expect.stringContaining('/models.json'), expect.anything())
   })
 
-  it('rejects a manifest with no valid releaseFloor', async () => {
+  it('rejects data that requires a newer application', async () => {
+    mockRemote({ minAppVersion: '1.1.0', dataVersion: 'v2' })
+
+    await service.check()
+
+    expect(writeSnapshotMock).not.toHaveBeenCalled()
+    expect(netFetchMock).not.toHaveBeenCalledWith(expect.stringContaining('/models.json'), expect.anything())
+  })
+
+  it('rejects a manifest with no valid compatibility range', async () => {
     const files = { 'models.json': 'v2', 'providers.json': 'v2', 'provider-models.json': 'v2' }
     mockRemote({
-      manifest: JSON.stringify({ releaseFloor: 'not-a-version', schemaVersion: 1, files }),
+      manifest: JSON.stringify({
+        minAppVersion: 'not-a-version',
+        sourceAppVersion: '2.0.0',
+        revision: 2,
+        schemaVersion: 1,
+        files
+      }),
       dataVersion: 'v2'
     })
 
     await service.check()
 
-    expect(applyOverrideMock).not.toHaveBeenCalled()
+    expect(writeSnapshotMock).not.toHaveBeenCalled()
   })
 
   it('rejects a manifest for a different registry schema version', async () => {
     const files = { 'models.json': 'v2', 'providers.json': 'v2', 'provider-models.json': 'v2' }
     mockRemote({
-      manifest: JSON.stringify({ releaseFloor: '2.0.0', schemaVersion: 2, files }),
+      manifest: JSON.stringify({
+        minAppVersion: '1.0.0',
+        sourceAppVersion: '2.0.0',
+        revision: 2,
+        schemaVersion: 2,
+        files
+      }),
       dataVersion: 'v2'
     })
 
     await service.check()
 
-    expect(applyOverrideMock).not.toHaveBeenCalled()
+    expect(writeSnapshotMock).not.toHaveBeenCalled()
+    expect(netFetchMock).not.toHaveBeenCalledWith(expect.stringContaining('/models.json'), expect.anything())
+  })
+
+  it('rejects a snapshot revision that is not newer than the active override', async () => {
+    readActiveManifestMock.mockReturnValue({ revision: 3 })
+    mockRemote({ revision: 3, dataVersion: 'v2' })
+
+    await service.check()
+
+    expect(writeSnapshotMock).not.toHaveBeenCalled()
     expect(netFetchMock).not.toHaveBeenCalledWith(expect.stringContaining('/models.json'), expect.anything())
   })
 

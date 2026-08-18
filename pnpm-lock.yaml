@@ -1013,7 +1013,7 @@ importers:
         version: 0.0.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       ollama-ai-provider-v2:
         specifier: 3.3.1
-        version: 3.3.1(patch_hash=8aceca32b8ea722ca9955177622f35735676b9c573fa7347f7d9b28e6210d3bb)(ai@6.0.185(patch_hash=61fc175c652267f39ec01df738fc61d1639faa19b980441005f7e9cd645d1711)(zod@4.3.4))(zod@4.3.4)
+        version: 3.3.1(patch_hash=d2b640ac5475c802eee5f983bcad08fb4e5cec7615c57aac188850c3f531743b)(ai@6.0.185(patch_hash=61fc175c652267f39ec01df738fc61d1639faa19b980441005f7e9cd645d1711)(zod@4.3.4))(zod@4.3.4)
       open:
         specifier: ^8.4.2
         version: 8.4.2
@@ -1801,6 +1801,9 @@ importers:
       lucide-react:
         specifier: ^0.563.0
         version: 0.563.0(react@19.2.7)
+      semver:
+        specifier: ^7.7.1
+        version: 7.7.1
     devDependencies:
       '@ai-sdk/provider-utils':
         specifier: 4.0.40
@@ -24419,7 +24422,8 @@ snapshots:
 
   boolbase@1.0.0: {}
 
-  boolean@3.2.0: {}
+  boolean@3.2.0:
+    optional: true
 
   bowser@2.13.1: {}
 
@@ -25371,7 +25375,8 @@ snapshots:
 
   detect-node-es@1.1.0: {}
 
-  detect-node@2.1.0: {}
+  detect-node@2.1.0:
+    optional: true
 
   devlop@1.1.0:
     dependencies:
@@ -25743,7 +25748,8 @@ snapshots:
 
   es-toolkit@1.49.0: {}
 
-  es6-error@4.1.1: {}
+  es6-error@4.1.1:
+    optional: true
 
   esbuild-code-inspector-plugin@0.20.17:
     dependencies:
@@ -26657,12 +26663,13 @@ snapshots:
       roarr: 2.15.4
       semver: 7.7.1
       serialize-error: 7.0.1
+    optional: true
 
   global-agent@4.1.3:
     dependencies:
       globalthis: 1.0.4
       matcher: 4.0.0
-      semver: 7.8.5
+      semver: 7.7.1
       serialize-error: 8.1.0
 
   globals@14.0.0: {}
@@ -27398,7 +27405,8 @@ snapshots:
 
   json-stable-stringify-without-jsonify@1.0.1: {}
 
-  json-stringify-safe@5.0.1: {}
+  json-stringify-safe@5.0.1:
+    optional: true
 
   json5@2.2.3: {}
 
@@ -27778,6 +27786,7 @@ snapshots:
   matcher@3.0.0:
     dependencies:
       escape-string-regexp: 4.0.0
+    optional: true
 
   matcher@4.0.0:
     dependencies:
@@ -28762,7 +28771,7 @@ snapshots:
       react: 19.2.3
       react-dom: 19.2.3(react@19.2.3)
 
-  ollama-ai-provider-v2@3.3.1(patch_hash=8aceca32b8ea722ca9955177622f35735676b9c573fa7347f7d9b28e6210d3bb)(ai@6.0.185(patch_hash=61fc175c652267f39ec01df738fc61d1639faa19b980441005f7e9cd645d1711)(zod@4.3.4))(zod@4.3.4):
+  ollama-ai-provider-v2@3.3.1(patch_hash=d2b640ac5475c802eee5f983bcad08fb4e5cec7615c57aac188850c3f531743b)(ai@6.0.185(patch_hash=61fc175c652267f39ec01df738fc61d1639faa19b980441005f7e9cd645d1711)(zod@4.3.4))(zod@4.3.4):
     dependencies:
       '@ai-sdk/provider': 3.0.14
       '@ai-sdk/provider-utils': 4.0.40(zod@4.3.4)
@@ -29936,6 +29945,7 @@ snapshots:
       json-stringify-safe: 5.0.1
       semver-compare: 1.0.0
       sprintf-js: 1.1.3
+    optional: true
 
   robust-predicates@3.0.2: {}
 
@@ -30262,7 +30272,8 @@ snapshots:
       node-addon-api: 8.5.0
       node-gyp-build: 4.8.4
 
-  semver-compare@1.0.0: {}
+  semver-compare@1.0.0:
+    optional: true
 
   semver@5.7.2: {}
 
@@ -30299,6 +30310,7 @@ snapshots:
   serialize-error@7.0.1:
     dependencies:
       type-fest: 0.13.1
+    optional: true
 
   serialize-error@8.1.0:
     dependencies:
@@ -30490,7 +30502,8 @@ snapshots:
 
   sprintf-js@1.0.3: {}
 
-  sprintf-js@1.1.3: {}
+  sprintf-js@1.1.3:
+    optional: true
 
   srvx@0.11.16: {}
 
@@ -30522,7 +30535,7 @@ snapshots:
       esbuild: 0.25.12
       open: 10.2.0
       recast: 0.23.11
-      semver: 7.7.3
+      semver: 7.8.5
       use-sync-external-store: 1.6.0(react@19.2.3)
       ws: 8.21.0
     optionalDependencies:
@@ -31019,7 +31032,7 @@ snapshots:
       hookable: 5.5.3
       rolldown: 1.0.0-beta.45
       rolldown-plugin-dts: 0.17.8(@typescript/native-preview@7.0.0-dev.20260204.1)(rolldown@1.0.0-beta.45)(typescript@5.8.3)
-      semver: 7.7.3
+      semver: 7.8.5
       tinyexec: 1.0.2
       tinyglobby: 0.2.15
       tree-kill: 1.2.2
@@ -31177,7 +31190,8 @@ snapshots:
     dependencies:
       prelude-ls: 1.2.1
 
-  type-fest@0.13.1: {}
+  type-fest@0.13.1:
+    optional: true
 
   type-fest@0.20.2: {}
 

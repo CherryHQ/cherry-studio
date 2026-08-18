@@ -59,3 +59,5 @@ pnpm --filter @cherrystudio/provider-registry compat:baseline
 ```
 
 Run `pnpm --filter @cherrystudio/provider-registry compat:check` to verify the current catalog.
+Runtime-semantic additions that older applications cannot execute must also raise
+`REGISTRY_MIN_APP_VERSION`; Zod compatibility only protects the JSON shape.
