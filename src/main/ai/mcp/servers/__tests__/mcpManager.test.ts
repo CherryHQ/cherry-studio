@@ -60,7 +60,7 @@ describe('McpManagerServer', () => {
   })
 
   describe('install_mcp_server', () => {
-    it('registers a stdio server and binds it to the current agent', async () => {
+    it('registers a stdio server and binds it to the current agent, inactive by default', async () => {
       mockAgent()
       mockCreatedServer()
       const server = createServer('agent-1')
@@ -81,14 +81,42 @@ describe('McpManagerServer', () => {
           command: 'npx',
           args: ['-y', 'some-mcp-server'],
           env: { API_KEY: 'abc' },
-          isActive: true,
-          isTrusted: true,
-          installSource: 'manual'
+          isActive: false,
+          isTrusted: false,
+          installSource: 'ai_assisted'
         })
       )
+      // The activate gate is stripped before the shared strict schema, so it never
+      // leaks into the persisted record.
+      expect(createMock.mock.calls[0][0]).not.toHaveProperty('activate')
       expect(getAgentMock).toHaveBeenCalledWith('agent-1')
       expect(updateAgentMock).toHaveBeenCalledWith('agent-1', { mcps: ['server-1'] })
+      expect(result.content[0].text).toContain('registered for this agent')
+      expect(result.content[0].text).toContain('NOT yet active')
+    })
+
+    it('activates and trusts the server when activate: true is passed', async () => {
+      mockAgent()
+      mockCreatedServer()
+      const server = createServer('agent-1')
+
+      const result = await callTool(server, 'install_mcp_server', {
+        name: 'my-mcp',
+        type: 'stdio',
+        command: 'npx',
+        activate: true
+      })
+
+      expect(result.isError).toBeFalsy()
+      expect(createMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'my-mcp',
+          isActive: true,
+          isTrusted: true
+        })
+      )
       expect(result.content[0].text).toContain('installed and enabled for this agent')
+      expect(result.content[0].text).toContain('active now')
     })
 
     it('appends to the existing mcps set when the agent already has servers', async () => {
@@ -139,6 +167,17 @@ describe('McpManagerServer', () => {
       const result = await callTool(createServer(), 'install_mcp_server', { command: 'npx' })
       expect(result.isError).toBe(true)
       expect(createMock).not.toHaveBeenCalled()
+    })
+
+    it('rejects invalid field types via the shared schema (zod parse failure)', async () => {
+      const result = await callTool(createServer(), 'install_mcp_server', {
+        name: 'my-mcp',
+        command: 'npx',
+        env: { API_KEY: 123 }
+      })
+      expect(result.isError).toBe(true)
+      expect(createMock).not.toHaveBeenCalled()
+      expect(updateAgentMock).not.toHaveBeenCalled()
     })
 
     it('surfaces an install failure as an error result, not a throw', async () => {
