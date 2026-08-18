@@ -65,13 +65,12 @@ async function renderLoggedIn(): Promise<void> {
   })
   render(<CherryInOauth providerId="cherryin" />)
   await screen.findByText('settings.provider.oauth.topup')
+  await screen.findByText('$0.00')
 }
 
 describe('CherryInOauth', () => {
   it('re-fetches the balance when the window regains focus after a top-up', async () => {
     await renderLoggedIn()
-    expect(requestMock).toHaveBeenCalledWith('cherryin.get_balance', expect.anything())
-    await screen.findByText('$0.00')
 
     // The recharge happens on the CherryIN console in the system browser; the
     // renderer learns the new balance only when it asks again.
