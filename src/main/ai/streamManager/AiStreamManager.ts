@@ -1089,6 +1089,8 @@ export class AiStreamManager extends BaseService {
         // and lets a parallel batch surface its next approval before the tools execute.
         const inputChunk = findBufferedToolInput(exec, toolCallId)
         if (inputChunk) this.onChunk(topicId, exec.modelId, inputChunk, exec)
+      } else {
+        this.onChunk(topicId, exec.modelId, { type: 'tool-output-denied', toolCallId }, exec)
       }
       if (pendingApprovals.size === 0) pendingApprovalFlipped = true
     }

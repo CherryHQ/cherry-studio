@@ -726,6 +726,22 @@
           "description": "Aufgabenliste verwalten",
           "label": "Aufgabenliste verwalten"
         },
+        "tool_call": {
+          "description": "Ein gefundenes Tool aufrufen",
+          "label": "Tool aufrufen"
+        },
+        "tool_describe": {
+          "description": "Die vollständige Beschreibung und TypeScript-Signatur eines Tools abrufen",
+          "label": "Tool beschreiben"
+        },
+        "tool_exec": {
+          "description": "JavaScript ausführen, das gefundene Tools orchestriert",
+          "label": "Tool-Code ausführen"
+        },
+        "tool_search": {
+          "description": "Verfügbare Tools suchen und ihre TypeScript-Signaturen lesen",
+          "label": "Tools suchen"
+        },
         "update_goal": {
           "description": "Status oder Inhalt des Sitzungsziels aktualisieren",
           "label": "Ziel aktualisieren"
@@ -5619,7 +5635,8 @@
         },
         "sections": {
           "display_language": "Anzeige & Sprache"
-        }
+        },
+        "title": "Allgemeine Einstellungen"
       },
       "emoji_picker": "Emoji-Auswahl",
       "image_upload": "Bild-Upload",
@@ -6089,6 +6106,7 @@
         "max_messages": "Beibehaltene letzte Nachrichten",
         "max_messages_description": "Nur die neuesten Nachrichten senden; ältere werden vom Kontext ausgeschlossen. Leer lassen für keine Begrenzung. Assistenten können dies überschreiben",
         "max_messages_unlimited": "Unbegrenzt",
+        "scope_description": "Gilt nur für Assistentenkonversationen in Cherry Studio. Assistenten können diese Einstellungen individuell überschreiben.",
         "title": "Kontextverwaltung",
         "truncate_threshold": "Kürzungsschwelle für Werkzeugausgaben (Zeichen)",
         "truncate_threshold_description": "Werkzeugausgaben über dieser Zeichenzahl werden in eine Datei ausgelagert und gekürzt; das Modell kann sie bei Bedarf wieder lesen. Assistenten können dies überschreiben"
