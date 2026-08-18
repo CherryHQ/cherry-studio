@@ -2476,6 +2476,33 @@ describe('MessageService', () => {
   })
 
   describe('reserveBranch', () => {
+    it('creates two empty children when the anchor is a leaf', async () => {
+      const rootId = await seedTopicWithRoot('topic-reserve-leaf')
+      const prompt = messageService.create('topic-reserve-leaf', {
+        parentId: rootId,
+        role: 'user',
+        data: mainText('question'),
+        status: 'success'
+      })
+      const anchor = messageService.create('topic-reserve-leaf', {
+        parentId: prompt.id,
+        role: 'assistant',
+        data: mainText('answer'),
+        status: 'success'
+      })
+
+      const activeReservation = messageService.reserveBranch(anchor.id)
+      const children = messageService.getChildrenByParentId(anchor.id)
+      const [topic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-reserve-leaf'))
+
+      expect(children).toHaveLength(2)
+      expect(children.every((message) => message.role === 'user')).toBe(true)
+      expect(children.every((message) => message.status === 'success')).toBe(true)
+      expect(children.every((message) => (message.data.parts?.length ?? 0) === 0)).toBe(true)
+      expect(children.map((message) => message.id)).toContain(activeReservation.id)
+      expect(topic.activeNodeId).toBe(activeReservation.id)
+    })
+
     it('persists every reservation and only activates when requested', async () => {
       const { anchor, awaitingInput } = await seedAwaitingInputBranch('topic-reserve-branch')
 

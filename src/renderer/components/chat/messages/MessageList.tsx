@@ -1,3 +1,4 @@
+import { HtmlArtifactPopupHost } from '@renderer/components/chat/HtmlArtifactPopupContext'
 import { useChatLayoutMode } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import { useChatBottomOverlayInset } from '@renderer/components/chat/layout/ChatViewportInsetContext'
 import MultiSelectActionPopup from '@renderer/components/chat/messages/MultiSelectActionPopup'
@@ -720,7 +721,7 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
   const topPadding = MESSAGE_VIRTUAL_LIST_DEFAULT_TOP_PADDING_PX
   const topicImageCaptureWidth = activeTopicImageCaptureAction?.captureWidth
 
-  return (
+  const messageList = (
     <MessagesContainer
       id="messages"
       className={classNames(['messages-container', { 'multi-select-mode': isMultiSelectMode }])}
@@ -888,6 +889,8 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
       />
     </MessagesContainer>
   )
+
+  return <HtmlArtifactPopupHost>{messageList}</HtmlArtifactPopupHost>
 }
 
 export default MessageList

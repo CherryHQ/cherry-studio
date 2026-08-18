@@ -10,6 +10,7 @@ import { parse } from 'yaml'
 // assert not supported by biome
 // import pkg from './package.json' assert { type: 'json' }
 import pkg from './package.json'
+import { chunkExportGuardPlugin } from './scripts/checkChunkExports'
 import { uiContractPlugin } from './scripts/uiContract/vitePlugin'
 import { parseReleaseHistory, validateCurrentReleaseHistory } from './src/shared/utils/releaseNotes'
 
@@ -56,7 +57,7 @@ export const isMainExternalModule = (id: string) => {
 
 export default defineConfig({
   main: {
-    plugins: [...visualizerPlugin('main')],
+    plugins: [chunkExportGuardPlugin(), ...visualizerPlugin('main')],
     resolve: {
       alias: {
         '@main': resolve('src/main'),
@@ -81,8 +82,14 @@ export default defineConfig({
       rollupOptions: {
         external: isMainExternalModule,
         output: {
-          // conf removes its containing file from require.cache; isolate it so the app entry stays cached.
-          manualChunks: (id) => (id.includes('/node_modules/conf/') ? 'electron-store-conf' : undefined)
+          manualChunks: (id) => {
+            // conf removes its containing file from require.cache; isolate it so the app entry stays cached.
+            if (id.includes('/node_modules/conf/')) return 'electron-store-conf'
+            // rolldown drops this chunk's named exports when it merges with a re-export-only
+            // facade chunk, leaving createOpenAI undefined at runtime. Keep it alone.
+            if (id.includes('/node_modules/@ai-sdk/openai/')) return 'ai-sdk-openai'
+            return undefined
+          }
         },
         onwarn(warning, warn) {
           if (warning.code === 'COMMONJS_VARIABLE_IN_ESM') return
