@@ -22,7 +22,7 @@ When a route is backed by a SQLite table, the route, table, and type names MUST 
 | DB table | singular snake_case | `agent_session` |
 | REST route (collection) | plural kebab-case | `/agent-sessions` |
 | Schema / entity type | singular PascalCase | `AgentSessionEntity` |
-| Inferred row type | `XxxRow` ([§5.3](../naming-conventions.md#53-drizzle-schema-inferred-row-types)) | `AgentSessionRow` |
+| Inferred row type | `XxxRow` ([§5.3](../architecture/naming-conventions.md#53-drizzle-schema-inferred-row-types)) | `AgentSessionRow` |
 
 A route noun that diverges from its backing table's concept is drift — fix the route, not the table.
 

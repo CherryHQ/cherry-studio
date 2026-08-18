@@ -18,7 +18,11 @@
 
 | Document | Description |
 |----------|-------------|
-| [Architecture Overview](./references/architecture-overview.md) | System-wide architecture, process model, data flow |
+| [Architecture Overview](./references/architecture/README.md) | System-wide architecture, process model, data flow |
+| [Main Process Architecture](./references/architecture/main-process.md) | `src/main/` directory charters and dependency rules |
+| [Renderer Architecture](./references/architecture/renderer.md) | `src/renderer/` two-axis layout and layering rules |
+| [Shared Layer Architecture](./references/architecture/shared-layer.md) | `@shared` cross-process primitives and closed top-level set |
+| [Naming Conventions](./references/architecture/naming-conventions.md) | Files, directories, identifiers, singular/plural rules |
 
 ### AI Core
 
@@ -87,15 +91,15 @@
 | [CodeBlockView](./references/components/code-block-view.md) | Code block view component |
 | [Image Preview](./references/components/image-preview.md) | Image preview components |
 | [Code Execution](./references/components/code-execution.md) | Python code execution via Pyodide |
-| [UI Semantic Contract](./references/ui-semantic-contract.md) | `data-ui` token protocol, stability tiers, and maintained selectors for themes, tests, and AI tooling |
+| [UI Semantic Contract](./references/components/ui-semantic-contract.md) | `data-ui` token protocol, stability tiers, and maintained selectors for themes, tests, and AI tooling |
 
 ### Other
 
 | Document | Description |
 |----------|-------------|
 | [Frontend Testing Guidelines](./references/testing/frontend-testing.md) | Frontend test design and review |
-| [App Upgrade Config](./references/app-upgrade.md) | Application upgrade configuration |
-| [Feishu Notify](./references/feishu-notify.md) | Feishu notification integration |
-| [Fuzzy Search](./references/fuzzy-search.md) | Fuzzy search implementation |
-| [LAN Transfer Protocol](./references/lan-transfer-protocol.md) | LAN file transfer protocol spec |
+| [App Upgrade Config](./contrib/app-upgrade.md) | Application upgrade configuration |
+| [Feishu Notify](./contrib/feishu-notify.md) | Feishu notification integration |
+| [Fuzzy Search](./references/file/fuzzy-search.md) | Fuzzy search implementation |
+| [LAN Transfer Protocol](./references/lan-transfer/README.md) | LAN file transfer protocol spec |
 | [Remote Fetch Safety](./references/security/remote-fetch.md) | Main-process direct URL fetch SSRF guardrails |

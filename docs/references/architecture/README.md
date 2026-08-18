@@ -56,33 +56,33 @@ Cherry Studio uses four data systems, each optimized for different data characte
 
 | System | Storage | Timing | Use Case |
 |--------|---------|--------|----------|
-| [**BootConfig**](./data/boot-config-overview.md) | JSON file | Pre-lifecycle (sync) | Chromium flags, hardware accel |
-| [**Cache**](./data/cache-overview.md) | Memory (per-process) / Shared (Main-relayed) / Persist (renderer localStorage) | Runtime | Temp data, UI state, cross-window coordination |
-| [**Preference**](./data/preference-overview.md) | SQLite | Post-lifecycle | User settings (theme, language) |
-| [**DataApi**](./data/data-api-overview.md) | SQLite (Drizzle) | Post-lifecycle | Business data (topics, messages) |
+| [**BootConfig**](../data/boot-config-overview.md) | JSON file | Pre-lifecycle (sync) | Chromium flags, hardware accel |
+| [**Cache**](../data/cache-overview.md) | Memory (per-process) / Shared (Main-relayed) / Persist (renderer localStorage) | Runtime | Temp data, UI state, cross-window coordination |
+| [**Preference**](../data/preference-overview.md) | SQLite | Post-lifecycle | User settings (theme, language) |
+| [**DataApi**](../data/data-api-overview.md) | SQLite (Drizzle) | Post-lifecycle | Business data (topics, messages) |
 
-See [Data System Reference](./data/README.md) for detailed architecture, decision flowcharts, and usage patterns.
+See [Data System Reference](../data/README.md) for detailed architecture, decision flowcharts, and usage patterns.
 
 ## Service Lifecycle
 
-Main-process services that own long-lived resources or persistent side effects run on an IoC container with a phased bootstrap (Background → BeforeReady → WhenReady), registered one line each in `src/main/core/application/serviceRegistry.ts` and resolved via `application.get('ServiceName')`. See [Lifecycle Reference](./lifecycle/README.md) for the phases, decorators, and migration guide; see [Main Process Architecture](./main-process-architecture.md) for where services sit in the directory layout.
+Main-process services that own long-lived resources or persistent side effects run on an IoC container with a phased bootstrap (Background → BeforeReady → WhenReady), registered one line each in `src/main/core/application/serviceRegistry.ts` and resolved via `application.get('ServiceName')`. See [Lifecycle Reference](../lifecycle/README.md) for the phases, decorators, and migration guide; see [Main Process Architecture](./main-process.md) for where services sit in the directory layout.
 
 ## AI Core Architecture
 
-The AI pipeline selects a provider, runs a middleware chain (context, knowledge, tools), streams via the Vercel AI SDK, and emits typed message blocks (text, code, image, tool-call). See [AI Reference](./ai/README.md) for the full pipeline and data flow.
+The AI pipeline selects a provider, runs a middleware chain (context, knowledge, tools), streams via the Vercel AI SDK, and emits typed message blocks (text, code, image, tool-call). See [AI Reference](../ai/README.md) for the full pipeline and data flow.
 
 ## Monorepo Structure
 
 ```
 cherry-studio
 ├── src/
-│   ├── main/                    # Main process (Node.js) — directory layout in ./main-process-architecture.md
+│   ├── main/                    # Main process (Node.js) — directory layout in ./main-process.md
 │   │
-│   ├── renderer/                # Renderer process (React) — directory layout in ./renderer-architecture.md
+│   ├── renderer/                # Renderer process (React) — directory layout in ./renderer.md
 │   │
 │   ├── preload/                 # Preload scripts (IPC bridge)
 │   │
-│   └── shared/                  # Cross-process primitives: types, schemas/contracts, pure logic — layout in ./shared-layer-architecture.md
+│   └── shared/                  # Cross-process primitives: types, schemas/contracts, pure logic — layout in ./shared-layer.md
 │
 ├── packages/
 │   ├── ui/                      #   @cherrystudio/ui (Shadcn + Tailwind)
@@ -107,16 +107,16 @@ Where to go for detail. The three process docs own per-process directory layout 
 
 | Area | Reference |
 |---|---|
-| Main-process directory charters & dependency rules | [Main Process Architecture](./main-process-architecture.md) |
-| Renderer directory layering & dependency rules | [Renderer Architecture](./renderer-architecture.md) |
-| Cross-process primitives (`@shared`) | [Shared Layer Architecture](./shared-layer-architecture.md) |
+| Main-process directory charters & dependency rules | [Main Process Architecture](./main-process.md) |
+| Renderer directory layering & dependency rules | [Renderer Architecture](./renderer.md) |
+| Cross-process primitives (`@shared`) | [Shared Layer Architecture](./shared-layer.md) |
 | Naming (files, directories, identifiers) | [Naming Conventions](./naming-conventions.md) |
-| Data systems (BootConfig / Cache / Preference / DataApi) | [Data System Reference](./data/README.md) |
-| IPC (IpcApi) | [IPC Reference](./ipc/README.md) |
-| Service lifecycle (IoC, phased bootstrap) | [Lifecycle Reference](./lifecycle/README.md) |
-| Window manager (multi-window, pooling) | [Window Manager Reference](./window-manager/README.md) |
-| Scheduler & jobs | [Job & Scheduler Reference](./job-and-scheduler/README.md) |
-| AI subsystem | [AI Reference](./ai/README.md) |
-| Path registry | [paths/README](../../src/main/core/paths/README.md) |
+| Data systems (BootConfig / Cache / Preference / DataApi) | [Data System Reference](../data/README.md) |
+| IPC (IpcApi) | [IPC Reference](../ipc/README.md) |
+| Service lifecycle (IoC, phased bootstrap) | [Lifecycle Reference](../lifecycle/README.md) |
+| Window manager (multi-window, pooling) | [Window Manager Reference](../window-manager/README.md) |
+| Scheduler & jobs | [Job & Scheduler Reference](../job-and-scheduler/README.md) |
+| AI subsystem | [AI Reference](../ai/README.md) |
+| Path registry | [paths/README](../../../src/main/core/paths/README.md) |
 
-Cherry Studio runs multiple windows (main window, sub-windows, selection toolbar, …), all managed by `WindowManager` and communicating through IPC and shared state (Cache, Preference); see the [Window Manager Reference](./window-manager/README.md).
+Cherry Studio runs multiple windows (main window, sub-windows, selection toolbar, …), all managed by `WindowManager` and communicating through IPC and shared state (Cache, Preference); see the [Window Manager Reference](../window-manager/README.md).

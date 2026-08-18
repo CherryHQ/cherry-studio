@@ -1,8 +1,8 @@
 # Shared Layer Architecture (`src/shared` / `@shared`)
 
-This is the canonical reference for what belongs in `@shared`, how it is organized, and the rules that keep its top level from sprawling. It owns the `@shared`-internal rules; [Architecture Overview](./architecture-overview.md), [Renderer Architecture](./renderer-architecture.md), and [Naming Conventions](./naming-conventions.md) reference it.
+This is the canonical reference for what belongs in `@shared`, how it is organized, and the rules that keep its top level from sprawling. It owns the `@shared`-internal rules; [Architecture Overview](./README.md), [Renderer Architecture](./renderer.md), and [Naming Conventions](./naming-conventions.md) reference it.
 
-`@shared` is the **cross-process primitive layer** — Layer 4 in [Renderer Architecture §2](./renderer-architecture.md). It depends on no app code and is importable by `main`, `renderer`, and `preload`.
+`@shared` is the **cross-process primitive layer** — Layer 4 in [Renderer Architecture §2](./renderer.md). It depends on no app code and is importable by `main`, `renderer`, and `preload`.
 
 ## 1. Two Invariants
 
@@ -109,6 +109,6 @@ The structural decomposition is **done**: `command`, `file`, `shortcuts`, `exter
 
 ## 7. Related
 
-- [Architecture Overview](./architecture-overview.md) — process model and the `@shared` one-line summary.
-- [Renderer Architecture §2–§3](./renderer-architecture.md) — the layer model and how the renderer depends on `@shared`; §6 owns command's **renderer-side** cells (this doc owns its `@shared` cell).
+- [Architecture Overview](./README.md) — process model and the `@shared` one-line summary.
+- [Renderer Architecture §2–§3](./renderer.md) — the layer model and how the renderer depends on `@shared`; §6 owns command's **renderer-side** cells (this doc owns its `@shared` cell).
 - [Naming Conventions §4.8](./naming-conventions.md) — top-level closed by default (this doc is its `@shared` application); §4.9 singular vs plural; §5.2 route-by-shape.

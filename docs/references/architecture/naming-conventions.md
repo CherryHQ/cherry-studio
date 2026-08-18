@@ -239,7 +239,7 @@ is **closed by default**. Adding one is a structural commitment.
 
 If either is in doubt, place the files inside an existing bucket. Subdirectories under existing buckets are unrestricted.
 
-For the per-root applications of this rule, see [Main Process Architecture §4](./main-process-architecture.md) (`/src/main/`), [Renderer Architecture §6](./renderer-architecture.md) (`/src/renderer/`), and [Shared Layer Architecture §2](./shared-layer-architecture.md) (`/src/shared/`).
+For the per-root applications of this rule, see [Main Process Architecture §4](./main-process.md) (`/src/main/`), [Renderer Architecture §6](./renderer.md) (`/src/renderer/`), and [Shared Layer Architecture §2](./shared-layer.md) (`/src/shared/`).
 
 ### 4.9 Singular vs Plural
 
@@ -266,7 +266,7 @@ A **feature module** is a self-contained domain directory under a process root's
 | The domain is… | Home | Layout |
 |---|---|---|
 | Large / complex — spans more than one concern (e.g. a service plus its own adapters, routes, utils) | `features/<domain>/` | self-contained tree; the service class lives inside it (§5.2) |
-| Headless multi-file capability — a service plus its **private, topic-specific** satellites (adapters, stateless helpers, per-instance classes); no UI | `services/<topic>/` | one curated `index.ts` barrel; internals private and exempt from shape routing ([Renderer Architecture §3.1](./renderer-architecture.md)) |
+| Headless multi-file capability — a service plus its **private, topic-specific** satellites (adapters, stateless helpers, per-instance classes); no UI | `services/<topic>/` | one curated `index.ts` barrel; internals private and exempt from shape routing ([Renderer Architecture §3.1](./renderer.md)) |
 | One cohesive service, even if domain-specific | `services/<Domain>Service.ts` | a single file — private helpers stay **inline**; a **generic** helper → `utils/<topic>.ts`; its first **topic-specific** satellite file → grow into `services/<topic>/` (row above) |
 | A small cross-domain / standalone helper | `services/` or `utils/` | a single file |
 
@@ -286,7 +286,7 @@ features/apiGateway/
 └── utils/                 # domain-local utils, not the global src/main/utils/ bucket
 ```
 
-For the main process, [Main Process Architecture](./main-process-architecture.md) covers `features/` vs the type-buckets (`services/` / `utils/`) and the dependency direction; for the renderer, [Renderer Architecture](./renderer-architecture.md) places `features/` within the full layering (windows → pages → features → components → packages/ui), with per-directory responsibilities and dependency rules.
+For the main process, [Main Process Architecture](./main-process.md) covers `features/` vs the type-buckets (`services/` / `utils/`) and the dependency direction; for the renderer, [Renderer Architecture](./renderer.md) places `features/` within the full layering (windows → pages → features → components → packages/ui), with per-directory responsibilities and dependency rules.
 
 ---
 
@@ -337,7 +337,7 @@ A `Service` / `Manager` class lives where its domain ownership lies (e.g. `src/m
 
 **Stateless modules are NOT classes for this rule** — pure function collections, queries, conversions, and SDK wrappers without retained state stay plain modules and do not receive a `Service` / `Manager` suffix.
 
-**If a module looks like it wants to be a `Service` but is not a stateful singleton capability, route it — ownership first, then shape.** A module consumed by exactly **one** owner co-locates with that owner (feature internals, or a private satellite behind a `services/<topic>/` barrel — [Renderer Architecture §3.1](./renderer-architecture.md), [Main Process Architecture](./main-process-architecture.md)) and skips this table. The table routes **shared** modules; stateless shared modules default to `utils/`:
+**If a module looks like it wants to be a `Service` but is not a stateful singleton capability, route it — ownership first, then shape.** A module consumed by exactly **one** owner co-locates with that owner (feature internals, or a private satellite behind a `services/<topic>/` barrel — [Renderer Architecture §3.1](./renderer.md), [Main Process Architecture](./main-process.md)) and skips this table. The table routes **shared** modules; stateless shared modules default to `utils/`:
 
 | Actual shape of the module | Right home | Naming |
 |---|---|---|
@@ -357,7 +357,7 @@ The `Service` suffix names a **role** (a stateful domain capability), not a **me
 | Lifecycle service | `@Injectable('XxxService')` + `extends BaseService`, accessed via `application.get('XxxService')` | The service owns long-lived resources OR registers persistent side effects |
 | Direct-import singleton service | `export const xxxService = new XxxService()` | No long-lived resources, no persistent side effects, but still has class-level state (e.g. cached SDK instances) |
 
-The criteria for choosing between them are defined in [`docs/references/lifecycle/lifecycle-decision-guide.md`](lifecycle/lifecycle-decision-guide.md).
+The criteria for choosing between them are defined in [`docs/references/lifecycle/lifecycle-decision-guide.md`](../lifecycle/lifecycle-decision-guide.md).
 
 ### 5.3 Drizzle Schema Inferred Row Types
 
@@ -407,7 +407,7 @@ Forbidden. `Button.tsx` and `button.tsx` in the same directory will break on cas
 
 ### 6.4 Barrel / Index Files
 
-A **barrel** is an `index.ts` (always lowercase) whose sole job is to re-export a directory's public surface. It is not a convenience: it **declares an encapsulation boundary** — the directory's other files are private, and every outside importer goes through the barrel. This section is the single authority for barrels across all four processes; the per-process docs ([Shared §3.1](./shared-layer-architecture.md), [Main §2.1](./main-process-architecture.md), [Renderer §3.1/§5](./renderer-architecture.md)) *apply* it, they do not restate it.
+A **barrel** is an `index.ts` (always lowercase) whose sole job is to re-export a directory's public surface. It is not a convenience: it **declares an encapsulation boundary** — the directory's other files are private, and every outside importer goes through the barrel. This section is the single authority for barrels across all four processes; the per-process docs ([Shared §3.1](./shared-layer.md), [Main §2.1](./main-process.md), [Renderer §3.1/§5](./renderer.md)) *apply* it, they do not restate it.
 
 **The `index` filename is reserved for barrels, and a barrel is always `index.ts`.** A directory's own implementation — including its main component — lives in a named file (`RichEditor.tsx`, never `RichEditor/index.tsx`); a pure re-export has no JSX, so a barrel is never `.tsx`. An `index.tsx` is therefore always a violation, with no exceptions: a barrel that should be `.ts`, an implementation that should be a named file, or a TanStack index route that should use the flat dot form (`<segment>.index.tsx`, §6.6) — there the `index` token is a path segment, never the filename.
 

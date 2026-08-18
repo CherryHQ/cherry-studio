@@ -102,11 +102,11 @@ Use the `gh-create-issue` skill. Fallback: read `.agents/skills/gh-create-issue/
 
 ### TypeScript
 
-- Cross-process types belong in `src/shared/`; renderer-only shared types in `src/renderer/types/` (see [Shared Layer Architecture](docs/references/shared-layer-architecture.md)).
+- Cross-process types belong in `src/shared/`; renderer-only shared types in `src/renderer/types/` (see [Shared Layer Architecture](docs/references/architecture/shared-layer.md)).
 
 ### Naming Conventions
 
-**MUST READ**: [docs/references/naming-conventions.md](docs/references/naming-conventions.md) — files, directories, identifiers, and singular/plural rules.
+**MUST READ**: [docs/references/architecture/naming-conventions.md](docs/references/architecture/naming-conventions.md) — files, directories, identifiers, and singular/plural rules.
 
 ### Logging
 
@@ -137,13 +137,13 @@ For any UI component or page style work, read [DESIGN.md](./DESIGN.md) first and
 
 ### Code Organization
 
-Where each file and directory belongs — read the doc for the process you're touching before adding code or opening a directory. Each process root's top level is a **closed set**: route new code into an existing category, never a new top-level directory ([Naming Conventions §4.8](docs/references/naming-conventions.md)).
+Where each file and directory belongs — read the doc for the process you're touching before adding code or opening a directory. Each process root's top level is a **closed set**: route new code into an existing category, never a new top-level directory ([Naming Conventions §4.8](docs/references/architecture/naming-conventions.md)).
 
-A directory's `index.ts` is a **barrel** — an enforced encapsulation boundary re-exporting one cohesive public API (internals private, outsiders import through it): re-export only (no logic / `export *`), no nesting, and it exists only if lint can seal off deep imports — else no barrel. `index.tsx` is always banned ([Naming Conventions §6.4](docs/references/naming-conventions.md)).
+A directory's `index.ts` is a **barrel** — an enforced encapsulation boundary re-exporting one cohesive public API (internals private, outsiders import through it): re-export only (no logic / `export *`), no nesting, and it exists only if lint can seal off deep imports — else no barrel. `index.tsx` is always banned ([Naming Conventions §6.4](docs/references/architecture/naming-conventions.md)).
 
-- [Main Process Architecture](docs/references/main-process-architecture.md) — `src/main/` directories (`core`/`ipc`/`data`/`ai`/`features`/`services`/`utils`/`i18n`) and dependency direction.
-- [Renderer Architecture](docs/references/renderer-architecture.md) — `src/renderer/` two-axis (type × domain) layout and downward-only layering.
-- [Shared Layer Architecture](docs/references/shared-layer-architecture.md) — what belongs in `@shared` (cross-process + no mutable runtime state) and its closed top-level set.
+- [Main Process Architecture](docs/references/architecture/main-process.md) — `src/main/` directories (`core`/`ipc`/`data`/`ai`/`features`/`services`/`utils`/`i18n`) and dependency direction.
+- [Renderer Architecture](docs/references/architecture/renderer.md) — `src/renderer/` two-axis (type × domain) layout and downward-only layering.
+- [Shared Layer Architecture](docs/references/architecture/shared-layer.md) — what belongs in `@shared` (cross-process + no mutable runtime state) and its closed top-level set.
 
 ### Data
 

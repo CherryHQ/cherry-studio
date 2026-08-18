@@ -6,7 +6,7 @@ classes, incidental DOM ancestry, and unmarked implementation wrappers are not p
 
 The primary consumer is advanced Custom CSS. Structured theme variables remain the preferred surface for common
 theming; select public variables through the
-[`@cherrystudio/ui` variable catalog](../../packages/ui/docs/variable-catalog.md). `data-ui` is the semantic escape
+[`@cherrystudio/ui` variable catalog](../../../packages/ui/docs/variable-catalog.md). `data-ui` is the semantic escape
 hatch for structural rules that variables cannot express. Tests and automation can reuse the same coordinates instead
 of introducing another selector protocol.
 

@@ -51,7 +51,7 @@ It is orthogonal to the domain axis (§1) — a `page` may be domain-owned (`fea
 **Primitive requirements** (`packages/ui` and `@shared`):
 
 - `packages/ui` (`@cherrystudio/ui`) holds app-agnostic UI primitives (Shadcn + Tailwind). It imports only third-party packages and **never** `@renderer/*`; it carries no business, domain, or data-layer knowledge.
-- `@shared` holds **cross-process** types, contracts, and pure logic, importable by both `main` and `renderer` and depending on no app layer. **Cross-process is the entry gate, not a description**: logic reachable from only one process stays in that process's own layer. For `@shared`'s internal layout, its two invariants (cross-process; no mutable runtime state), and the closed top-level set, see [Shared Layer Architecture](./shared-layer-architecture.md).
+- `@shared` holds **cross-process** types, contracts, and pure logic, importable by both `main` and `renderer` and depending on no app layer. **Cross-process is the entry gate, not a description**: logic reachable from only one process stays in that process's own layer. For `@shared`'s internal layout, its two invariants (cross-process; no mutable runtime state), and the closed top-level set, see [Shared Layer Architecture](./shared-layer.md).
 - Primitives are the leaves: everything may import them; they import no app code.
 
 ## 3. Directory Responsibilities
@@ -110,7 +110,7 @@ A provider's reusable, non-React logic belongs in `@shared` or `services/`, not 
 
 ### 3.1 `services/<topic>/` Topic Directories
 
-A **headless** capability (no UI) that outgrows one file grows **in place** into a `camelCase` topic subdirectory — `services/<topic>/` — holding its public face plus its **private, topic-specific satellites** (stateless helpers, per-instance classes, adapters, topic types). This is the middle step of the growth path `services/<topic>.ts` → `services/<topic>/` → `features/<domain>/` (§4.1), and the **terminal** form for capabilities that never grow UI. Existing residents: `services/aiTransport/`, `services/import/`, `services/notification/`. The main process applies the same rule ([Main Process Architecture](./main-process-architecture.md)).
+A **headless** capability (no UI) that outgrows one file grows **in place** into a `camelCase` topic subdirectory — `services/<topic>/` — holding its public face plus its **private, topic-specific satellites** (stateless helpers, per-instance classes, adapters, topic types). This is the middle step of the growth path `services/<topic>.ts` → `services/<topic>/` → `features/<domain>/` (§4.1), and the **terminal** form for capabilities that never grow UI. Existing residents: `services/aiTransport/`, `services/import/`, `services/notification/`. The main process applies the same rule ([Main Process Architecture](./main-process.md)).
 
 | Rule | Meaning |
 |---|---|
@@ -167,7 +167,7 @@ After promotion: the app layer (`windows`/`routes`/`pages`) imports `@renderer/f
     components/BarRow.tsx     #   private satellite, closed off by the barrel
     index.ts                  #   .ts, not .tsx (re-export has no JSX): export { Bar } from './Bar'
   ```
-- **Shared buckets carry no root barrel.** `types/`, `utils/`, and `services/` are *categories*, not modules: each has **no root `index.ts`** — consumers import the specific file or topic (`@renderer/types/<topic>`, `@renderer/utils/<topic>`, `@renderer/services/<topic>`), never the bucket root. A multi-file topic *subdirectory* exposes exactly one curated `index.ts` (named exports, **no `export *`**) and keeps its other files private; a single-file topic stays a flat `<topic>.ts` and is promoted to a subdirectory only when it actually owns multiple files. This mirrors [Shared Layer Architecture §3.1](./shared-layer-architecture.md) one-for-one — same rule, the bucket merely lives under `@renderer/*` instead of `@shared/*`.
+- **Shared buckets carry no root barrel.** `types/`, `utils/`, and `services/` are *categories*, not modules: each has **no root `index.ts`** — consumers import the specific file or topic (`@renderer/types/<topic>`, `@renderer/utils/<topic>`, `@renderer/services/<topic>`), never the bucket root. A multi-file topic *subdirectory* exposes exactly one curated `index.ts` (named exports, **no `export *`**) and keeps its other files private; a single-file topic stays a flat `<topic>.ts` and is promoted to a subdirectory only when it actually owns multiple files. This mirrors [Shared Layer Architecture §3.1](./shared-layer.md) one-for-one — same rule, the bucket merely lives under `@renderer/*` instead of `@shared/*`.
 - **Mechanical enforcement.** Boundaries are enforced by lint, not by convention alone. The `import/no-restricted-paths` zones are configured: `components`/`hooks`/`utils`/`services` may not import `features`/`pages`; `pages` may not import another `pages`; `packages/ui` may not import `@renderer/*`. The shared-layer edges are enforced at `error`; the sibling-page (`pages → pages`) edges remain at `warn` pending features-ization.
 
 ## 6. Top-Level Governance
@@ -230,4 +230,4 @@ Only **outstanding** deviations are tracked here: once a deviation is resolved i
 ## Related
 
 - [Naming Conventions §4.10](./naming-conventions.md) — feature-module placement and naming.
-- [Architecture Overview](./architecture-overview.md) — monorepo structure and cross-process layering.
+- [Architecture Overview](./README.md) — monorepo structure and cross-process layering.
