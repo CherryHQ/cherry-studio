@@ -27,6 +27,7 @@ import {
   CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES
 } from '@main/ai/runtime/toolApproval/cherryBuiltinApproval'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
+import { customFetch } from '@main/ai/utils/customFetch'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { type Span, SpanKind, SpanStatusCode } from '@opentelemetry/api'
@@ -813,7 +814,8 @@ function withPiRequestEnvironment(
   return (model, context, options) =>
     streamSimple(model, context, {
       ...options,
-      env: { ...options?.env, ...getProxyEnvironment(process.env), ...providerEnvironment }
+      env: { ...options?.env, ...getProxyEnvironment(process.env), ...providerEnvironment },
+      fetch: customFetch
     })
 }
 
