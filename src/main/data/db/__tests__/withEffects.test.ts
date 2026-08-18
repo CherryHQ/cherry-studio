@@ -58,4 +58,19 @@ describe('withEffects', () => {
     ).toThrow(/must be synchronous/i)
     expect(notifyDataApiDataChange).not.toHaveBeenCalled()
   })
+
+  it('does not discard a nested transaction effect when the autocommit scope fails', () => {
+    const service = bareDbService(true)
+    const committed: DataApiDataChangeEffect = { endpoint: '/topics/latest' }
+
+    expect(() =>
+      service.withEffects((effects) => {
+        effects.add({ endpoint: '/topics', kind: 'projection' })
+        service.withWriteTx((tx) => tx.effects.add(committed))
+        throw new Error('effect construction failed')
+      })
+    ).toThrow('effect construction failed')
+
+    expect(notifyDataApiDataChange).toHaveBeenCalledExactlyOnceWith([committed])
+  })
 })

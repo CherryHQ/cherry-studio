@@ -622,8 +622,8 @@ export type ScalarGetPaths = Exclude<GetMethodApiPaths, CollectionGetPaths>
  * receives the same object instances, so the fields are `readonly` — never
  * mutate an effect in a listener.
  */
-type DataApiDataChangeRouteScope<Path extends string> = Path extends `${string}:${string}`
-  ? { readonly routeParams: Readonly<Record<string, string>> }
+type DataApiDataChangeRouteScope<Path extends GetMethodApiPaths> = Path extends `${string}:${string}`
+  ? { readonly routeParams: Readonly<ApiParams<Path, 'GET'>> }
   : { readonly routeParams?: never }
 
 type ScalarDataChangeEffect = {

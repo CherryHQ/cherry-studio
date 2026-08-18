@@ -2,6 +2,8 @@ import { vi } from 'vitest'
 
 import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 
+import { DataApiEffectScope } from '../../../src/main/data/db/DataApiEffectScope'
+
 /**
  * Mock DbService for main process testing
  * Simulates the complete main process DbService functionality
@@ -41,19 +43,6 @@ function makeQueryBuilderMock(): Record<string, ReturnType<typeof vi.fn>> {
   return builder
 }
 
-/** Same batch dedupe as production `DbService.dedupeEffects` (routeParams key-sorted). */
-function dedupeEffects(effects: readonly DataApiDataChangeEffect[]): DataApiDataChangeEffect[] {
-  const unique = new Map<string, DataApiDataChangeEffect>()
-  for (const effect of effects) {
-    const routeParams = effect.routeParams
-      ? Object.fromEntries(Object.entries(effect.routeParams).sort(([left], [right]) => left.localeCompare(right)))
-      : undefined
-    const key = JSON.stringify({ ...effect, routeParams })
-    if (!unique.has(key)) unique.set(key, effect)
-  }
-  return [...unique.values()]
-}
-
 // Default mock database with chainable, synchronous (better-sqlite3-shaped) stubs.
 const defaultMockDb = {
   select: vi.fn(() => makeQueryBuilderMock()),
@@ -71,7 +60,7 @@ export class MockMainDbService {
   private static instance: MockMainDbService
   private db: unknown = defaultMockDb
   private _isReady = true
-  private activeCollected: DataApiDataChangeEffect[] | undefined
+  private readonly transactionEffectScope = new DataApiEffectScope()
   /**
    * Production-shaped publish surface: one deduplicated batch per outermost
    * successful `withWriteTx`/`withEffects`, never called for empty or rolled-back
@@ -90,19 +79,6 @@ export class MockMainDbService {
 
   public getDb = vi.fn(() => this.db)
 
-  private collectAndPublish<T>(run: (collected: DataApiDataChangeEffect[]) => T): T {
-    const collected = this.activeCollected ?? []
-    const isOutermost = this.activeCollected === undefined
-    if (isOutermost) this.activeCollected = collected
-    try {
-      const result = run(collected)
-      if (isOutermost && collected.length > 0) this.publishedEffects(dedupeEffects(collected))
-      return result
-    } finally {
-      if (isOutermost) this.activeCollected = undefined
-    }
-  }
-
   /**
    * Write transaction mock. Mirrors `DbService.withWriteTx`: when a real
    * better-sqlite3 connection is attached (via `setDb`, e.g. `setupTestDatabase()`),
@@ -110,34 +86,37 @@ export class MockMainDbService {
    * throw, etc.); otherwise falls through to the plain (non-transactional) db stub.
    * Tests can replace this mock with `vi.spyOn(...)` to assert call order, etc.
    */
-  public withWriteTx = vi.fn(
-    <T>(fn: (tx: unknown) => T): T =>
-      this.collectAndPublish((collected) => {
-        const db = this.db as { transaction?: (fn: (tx: unknown) => unknown, options?: unknown) => unknown }
-        const run = (tx: unknown) =>
-          fn(
-            Object.assign(tx as object, {
-              effects: { add: (effect: DataApiDataChangeEffect) => collected.push(effect) }
-            })
-          )
-        if (typeof db?.transaction === 'function') {
-          return db.transaction(run, { behavior: 'immediate' }) as T
-        }
-        return run(this.db)
-      })
-  )
+  public withWriteTx = vi.fn(<T>(fn: (tx: unknown) => T): T => {
+    const { result, committedEffects } = this.transactionEffectScope.collect((effects) => {
+      const db = this.db as { transaction?: (fn: (tx: unknown) => unknown, options?: unknown) => unknown }
+      const run = (tx: unknown) =>
+        fn(
+          Object.assign(tx as object, {
+            effects
+          })
+        )
+      if (typeof db?.transaction === 'function') {
+        return db.transaction(run, { behavior: 'immediate' }) as T
+      }
+      return run(this.db)
+    })
+    if (committedEffects?.length) this.publishedEffects(committedEffects)
+    return result
+  })
 
-  public withEffects = vi.fn(
-    <T>(fn: (effects: { add: (effect: DataApiDataChangeEffect) => void }) => T): T =>
-      this.collectAndPublish((collected) => {
-        const result = fn({ add: (effect) => collected.push(effect) })
-        // Mirrors the production guard: effects publish on return, so async callbacks are rejected.
-        if (result instanceof Promise) {
-          throw new Error('withEffects callback must be synchronous — effects publish when it returns')
-        }
-        return result
-      })
-  )
+  public withEffects = vi.fn(<T>(fn: (effects: { add: (effect: DataApiDataChangeEffect) => void }) => T): T => {
+    const scope = new DataApiEffectScope()
+    const { result, committedEffects } = scope.collect((effects) => {
+      const result = fn(effects)
+      // Mirrors the production guard: effects publish on return, so async callbacks are rejected.
+      if (result instanceof Promise) {
+        throw new Error('withEffects callback must be synchronous — effects publish when it returns')
+      }
+      return result
+    })
+    if (committedEffects?.length) this.publishedEffects(committedEffects)
+    return result
+  })
 
   /** Restore-facing APIs (see src/main/data/db/restore/README.md) — no-op spies. */
   public createSnapshot = vi.fn()

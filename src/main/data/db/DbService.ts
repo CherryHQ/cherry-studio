@@ -11,6 +11,7 @@ import path from 'path'
 
 import { notifyDataApiDataChange } from '../dataApiDataChange'
 import { applyMigrations } from './applyMigrations'
+import { DataApiEffectScope } from './DataApiEffectScope'
 import { checkpointTruncateAssert } from './restore/checkpoint'
 import { snapshotTo } from './restore/snapshot'
 import { seeders } from './seeding/seederRegistry'
@@ -42,7 +43,7 @@ export class DbService extends BaseService {
   private sqlite: Database.Database
   private db: DbType
   private pragmasConfigured = false
-  private activeDataChangeEffects: DataApiDataChangeEffect[] | undefined
+  private transactionEffectScope: DataApiEffectScope | undefined
 
   constructor() {
     super()
@@ -204,13 +205,13 @@ export class DbService extends BaseService {
    * synchronous connection, so a transaction runs to completion in a single JS turn
    * and can never interleave with another write — writes serialize by construction,
    * with no process-wide mutex or BUSY retry (those tamed libsql's async
-   * per-transaction connections, upstream issue #288). This is a thin wrapper over
+   * per-transaction connections, upstream issue #288). The SQLite boundary is
    * `db.transaction(fn, { behavior: 'immediate' })`: `BEGIN IMMEDIATE` takes the write
    * lock up front, which matters only if a second connection ever writes concurrently
    * — with today's single connection it behaves identically to a plain
    * `db.transaction(fn)`, so it is the correct write-intent default, not a live
-   * necessity. A direct `db.transaction()` is therefore equivalent for atomicity;
-   * `withWriteTx` is the conventional, greppable write seam.
+   * necessity. `withWriteTx` additionally owns the nested effect scope: it merges
+   * `tx.effects`, drops them on rollback, and publishes once after the outer commit.
    *
    * Returns **synchronously**: better-sqlite3 runs the whole transaction on its
    * single connection with no I/O wait, so the write has already committed by the
@@ -246,26 +247,11 @@ export class DbService extends BaseService {
     if (!this.isReady) {
       throw new Error('Database is not initialized, please call init() first!')
     }
-    const effects = this.activeDataChangeEffects ?? []
-    const isOutermost = this.activeDataChangeEffects === undefined
-    const checkpoint = effects.length
-    if (isOutermost) this.activeDataChangeEffects = effects
-
-    try {
-      const result = this.db.transaction(
-        (tx) => fn(Object.assign(tx, { effects: this.createEffectCollector(effects) })),
-        {
-          behavior: 'immediate'
-        }
-      )
-      if (isOutermost) this.publishEffectsBestEffort(effects)
-      return result
-    } catch (error) {
-      effects.length = checkpoint
-      throw error
-    } finally {
-      if (isOutermost) this.activeDataChangeEffects = undefined
-    }
+    const { result, committedEffects } = this.getTransactionEffectScope().collect((effects) =>
+      this.db.transaction((tx) => fn(Object.assign(tx, { effects })), { behavior: 'immediate' })
+    )
+    if (committedEffects) this.publishEffectsBestEffort(committedEffects)
+    return result
   }
 
   /**
@@ -279,52 +265,29 @@ export class DbService extends BaseService {
     if (!this.isReady) {
       throw new Error('Database is not initialized, please call init() first!')
     }
-    const collected = this.activeDataChangeEffects ?? []
-    const isOutermost = this.activeDataChangeEffects === undefined
-    const checkpoint = collected.length
-    if (isOutermost) this.activeDataChangeEffects = collected
-
-    try {
-      const result = fn(this.createEffectCollector(collected))
+    const scope = new DataApiEffectScope()
+    const { result, committedEffects } = scope.collect((effects) => {
+      const result = fn(effects)
       if (result instanceof Promise) {
         throw new Error('withEffects callback must be synchronous — effects publish when it returns')
       }
-      if (isOutermost) this.publishEffectsBestEffort(collected)
       return result
-    } catch (error) {
-      collected.length = checkpoint
-      throw error
-    } finally {
-      if (isOutermost) this.activeDataChangeEffects = undefined
-    }
+    })
+    if (committedEffects) this.publishEffectsBestEffort(committedEffects)
+    return result
   }
 
-  private createEffectCollector(target: DataApiDataChangeEffect[]): DataApiEffectCollector {
-    return {
-      add: (effect) => {
-        target.push(effect)
-      }
-    }
+  private getTransactionEffectScope(): DataApiEffectScope {
+    return (this.transactionEffectScope ??= new DataApiEffectScope())
   }
 
   private publishEffectsBestEffort(effects: readonly DataApiDataChangeEffect[]): void {
+    if (effects.length === 0) return
     try {
-      notifyDataApiDataChange(this.dedupeEffects(effects))
+      notifyDataApiDataChange([...effects])
     } catch (error) {
       logger.warn('Failed to publish committed data change effects', error as Error)
     }
-  }
-
-  private dedupeEffects(effects: readonly DataApiDataChangeEffect[]): DataApiDataChangeEffect[] {
-    const unique = new Map<string, DataApiDataChangeEffect>()
-    for (const effect of effects) {
-      const routeParams = effect.routeParams
-        ? Object.fromEntries(Object.entries(effect.routeParams).sort(([left], [right]) => left.localeCompare(right)))
-        : undefined
-      const key = JSON.stringify({ ...effect, routeParams })
-      if (!unique.has(key)) unique.set(key, effect)
-    }
-    return [...unique.values()]
   }
 
   /**

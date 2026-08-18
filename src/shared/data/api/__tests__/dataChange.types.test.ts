@@ -132,6 +132,12 @@ describe('DataApiDataChangeEffect invariants', () => {
     // @ts-expect-error template endpoints require their concrete route scope
     const templateWithoutRouteParams: DataApiDataChangeEffect = { endpoint: '/topics/:id' }
 
+    const templateWithWrongRouteParams: DataApiDataChangeEffect = {
+      endpoint: '/topics/:topicId/tree',
+      // @ts-expect-error route parameter keys must match the endpoint schema
+      routeParams: { id: 't1' }
+    }
+
     // @ts-expect-error static endpoints must not invent a route scope
     const staticWithRouteParams: DataApiDataChangeEffect = {
       endpoint: '/topics/latest',
@@ -145,6 +151,7 @@ describe('DataApiDataChangeEffect invariants', () => {
       projectionWithDimension,
       concreteEndpoint,
       templateWithoutRouteParams,
+      templateWithWrongRouteParams,
       staticWithRouteParams
     ]).toExtend<DataApiDataChangeEffect[]>()
   })

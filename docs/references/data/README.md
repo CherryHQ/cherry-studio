@@ -19,7 +19,7 @@ This is the main entry point for Cherry Studio's data management documentation. 
 
 ### Reference Guides (Coding Standards)
 - [API Design Guidelines](./api-design-guidelines.md) - RESTful design rules
-- [Database Patterns](./database-patterns.md) - DB naming, schema patterns, [Write Serialization (`withWriteTx`)](./database-patterns.md#write-serialization-dbservicewithwritetx) — the conventional wrapper for multi-statement / read-then-write atomicity (a direct `db.transaction()` is equivalent; single autocommit writes need neither), running as one synchronous `BEGIN IMMEDIATE` transaction on the one better-sqlite3 connection
+- [Database Patterns](./database-patterns.md) - DB naming, schema patterns, [Write Serialization (`withWriteTx`)](./database-patterns.md#write-serialization-dbservicewithwritetx) — the business-write wrapper for multi-statement / read-then-write atomicity plus post-commit DataApi effect publication; single autocommit writes need no transaction
 - [Database Construction](./database-construction.md) - Boot build order, drizzle migrations, CUSTOM_SQL_STATEMENTS replay, FTS5/`fts_rowid`, additive-vs-rebuild
 - [API Types](./api-types.md) - API type system, schemas, error handling
 - [Cache Schema Guide](./cache-schema-guide.md) - Adding new cache keys (fixed and template)
@@ -276,4 +276,3 @@ See [App State Overview](./app-state-overview.md) for full rules and the key reg
 - `src/renderer/data/CacheService.ts` - Cache service
 - `src/renderer/data/PreferenceService.ts` - Preference service
 - `src/renderer/data/hooks/` - React hooks
-

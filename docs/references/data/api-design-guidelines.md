@@ -466,7 +466,7 @@ DataApiService is the **data** business-logic layer (persisting and querying rec
 
 ### Fenced Exception: Data Change Notification
 
-One strictly fenced exception to the side-effect rule: a data service may declare read-model observation effects for cross-window convergence. Inside `DbService.withWriteTx()`, add `DataApiDataChangeEffect` values through `tx.effects.add(...)`; `DbService` publishes the deduplicated batch only after the outermost transaction commits. Use `DbService.withEffects()` for an atomic autocommit write. The low-level `notifyDataApiDataChange()` publisher is lint-private to `DbService`. Renderers subscribe via `dataApiService.onDataChanged(...)` / `useDataChange(...)`.
+One strictly fenced exception to the side-effect rule: a data service may declare read-model observation effects for cross-window convergence. Inside `DbService.withWriteTx()`, add `DataApiDataChangeEffect` values through `tx.effects.add(...)`; `DbService` publishes the deduplicated batch only after the outermost transaction commits. After a successful single-statement autocommit write, declare its effects through an independent `DbService.withEffects()` scope. The low-level `notifyDataApiDataChange()` publisher is lint-private to `DbService`. Renderers subscribe via `dataApiService.onDataChanged(...)` / `useDataChange(...)`.
 
 Fences (all hard):
 
