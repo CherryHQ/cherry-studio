@@ -168,13 +168,12 @@ export const CLAUDE_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
   },
   {
     // Not an approval: the tool's entire function is a user-authored answer, so bypassPermissions
-    // must not execute it silently. Soft only in the derivation sense — canUseTool exempts the
-    // name from its auto-allow shortcut, so no mode pierces the prompt.
+    // must not execute it silently. canUseTool separately exempts the name from its auto-allow
+    // shortcut, so no mode pierces the prompt.
     id: 'ask-user-question',
     bypassBehavior: 'enforce',
     match: { tool: ASK_USER_QUESTION_TOOL_NAME },
     effect: 'ask',
-    askStrength: 'soft',
     reason: 'AskUserQuestion requires a live user response.'
   },
   {
@@ -184,7 +183,6 @@ export const CLAUDE_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     appliesTo: { role: BUILTIN_AGENT_ROLE.ASSISTANT },
     match: { tool: 'Bash', when: feedbackSubmissionCommand },
     effect: 'ask',
-    askStrength: 'soft',
     reason: 'Submitting Cherry Studio feedback externally requires live per-call user approval.',
     headless: {
       predicate: 'either',
@@ -200,7 +198,6 @@ export const CLAUDE_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     appliesTo: { role: BUILTIN_AGENT_ROLE.SUPPORT },
     match: { tool: 'Bash' },
     effect: 'ask',
-    askStrength: 'soft',
     reason: 'Cherry Support shell commands require live per-call user approval.',
     headless: {
       predicate: 'either',
@@ -215,19 +212,17 @@ export const CLAUDE_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     bypassBehavior: 'enforce',
     match: { when: (ctx) => matchesRequiredApproval(ctx, 'enforce') },
     effect: 'ask',
-    askStrength: 'hard',
     reason: (_hit, ctx) => `The ${ctx.toolName} tool requires live per-call user approval.`,
     headless: { predicate: 'responder-unavailable', reason: HEADLESS_INTERACTIVE_TOOL_DENIAL }
   },
   {
     // The explicit per-call approval list (kb_manage / generate_image / cli_install + mounted
-    // assistant tools). Hard: derived into the snapshot's auto-allow exceptions so acceptEdits /
-    // default safe-tools never auto-pierce it; bypassPermissions is the one opt-out.
+    // assistant tools). The snapshot's auto-allow exceptions come from the same registry entries, so
+    // acceptEdits / default safe-tools never auto-pierce it; bypassPermissions is the one opt-out.
     id: 'approval-required',
     bypassBehavior: 'skipInteractiveEffect',
     match: { when: (ctx) => matchesRequiredApproval(ctx, 'lift') },
     effect: 'ask',
-    askStrength: 'hard',
     reason: (_hit, ctx) => `The ${ctx.toolName} tool requires per-call user approval.`,
     headless: {
       predicate: 'responder-unavailable',
@@ -237,14 +232,13 @@ export const CLAUDE_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
   },
   {
     // `cwd` establishes the default SDK working directory but does not itself prevent an absolute
-    // path from reaching a built-in file tool. Soft ask: forces the call through the permission
+    // path from reaching a built-in file tool. Ask, not deny: forces the call through the permission
     // pipeline (defeating settings-file allow rules) while the mode's own auto-approval semantics
     // still apply — out-of-workspace reads stay silent in default mode by decision.
     id: 'workspace-escape',
     bypassBehavior: 'skipInteractiveEffect',
     match: { when: pathOutsideAllowedRoots },
     effect: 'ask',
-    askStrength: 'soft',
     reason: (hit, ctx) =>
       `${ctx.toolName} requested a path outside the session workspace (${ctx.cwd}) and agent data directory (${ctx.agentDataPath}): ${hit.evidence}`
   }

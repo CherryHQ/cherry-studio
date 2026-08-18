@@ -34,7 +34,6 @@ const askRule = (id: string, overrides: Partial<ToolGuardRule> = {}): ToolGuardR
     bypassBehavior: 'skipInteractiveEffect',
     match: { tool: 'Bash' },
     effect: 'ask',
-    askStrength: 'soft',
     reason: `${id} asks`,
     ...overrides
   }) as ToolGuardRule

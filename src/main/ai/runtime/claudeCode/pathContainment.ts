@@ -13,7 +13,7 @@ import path from 'node:path'
 
 import { isPathInside } from '@main/utils/file'
 
-export async function resolveRealOrNearestExistingPath(targetPath: string): Promise<string> {
+async function resolveRealOrNearestExistingPath(targetPath: string): Promise<string> {
   try {
     return path.normalize(await fs.promises.realpath(targetPath))
   } catch {

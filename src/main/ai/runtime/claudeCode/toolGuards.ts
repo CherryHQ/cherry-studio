@@ -14,7 +14,10 @@
  * descriptor/registry layer, not here.
  */
 
+import { loggerService } from '@logger'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
+
+const logger = loggerService.withContext('ClaudeCodeToolGuards')
 
 export interface ToolGuardInteractionState {
   readonly currentTurn: 'none' | 'interactive' | 'headless'
@@ -78,17 +81,7 @@ interface ToolGuardRuleBase {
 export type ToolGuardRule = ToolGuardRuleBase &
   (
     | { effect: 'deny'; reason: GuardReason }
-    | {
-        effect: 'ask'
-        /**
-         * 'hard': derived into the tool-policy snapshot's auto-allow exceptions, so no permission
-         * mode auto-pierces the prompt. 'soft': the mode's own auto-approval (safe tools,
-         * acceptEdits, bypass) may still resolve the call without a prompt — the ask only forces
-         * the call through the permission pipeline.
-         */
-        askStrength: 'hard' | 'soft'
-        reason: GuardReason
-      }
+    | { effect: 'ask'; reason: GuardReason }
     | { effect?: undefined; headless: HeadlessOverride }
   )
 
@@ -121,7 +114,8 @@ async function matchRule(rule: ToolGuardRule, ctx: ToolGuardContext): Promise<Gu
   if (!rule.match.when) return {}
   try {
     return await rule.match.when(ctx)
-  } catch {
+  } catch (error) {
+    logger.warn('Guard condition threw — treating as no match', { ruleId: rule.id, toolName: ctx.toolName, error })
     return null
   }
 }
