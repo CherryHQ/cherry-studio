@@ -20,3 +20,19 @@ import type { BackupProgressStage } from '@shared/ipc/schemas/backup'
  * below never repeat it.
  */
 export type BackupStageReporter = (stage: BackupProgressStage) => void
+
+/**
+ * A resource unit is being entered, inside a stage that walks a known set.
+ *
+ * Called on ENTRY, not on completion: entry is the one point every unit passes
+ * through exactly once. A unit can leave its loop staged, skipped, degraded, or
+ * over a ceiling — reporting at those exits would mean revisiting every one of
+ * them the day a new outcome appears, and missing one would stall the count.
+ */
+export type BackupResourceReporter = (unit: {
+  kind: string
+  livePath: string
+  /** 1-based position of this unit. */
+  done: number
+  total: number
+}) => void
