@@ -83,6 +83,8 @@ asarUnpack:
   - "node_modules/@aiany/sqlite-vec-*/**" # sqlite-vec extension (.dylib/.so/.dll) is dlopen'd at runtime — must live on disk
   - "node_modules/@node-rs/xxhash-*/**" # native N-API binary must be unpacked for runtime loading
   - "node_modules/@firecrawl/anydoc-*/**" # native N-API binary must be unpacked for runtime loading
+  - "node_modules/node-screenshots-*/**" # native N-API binary must be unpacked for runtime loading
+  - "node_modules/node-mac-permissions/**" # native N-API binary must be unpacked for runtime loading
 extraResources:
   - from: "migrations/sqlite-drizzle"
     to: "migrations/sqlite-drizzle"

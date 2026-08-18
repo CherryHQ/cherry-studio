@@ -48,7 +48,12 @@ const isProd = process.env.NODE_ENV === 'production'
 // move it to `dependencies`: that would externalize it, and since devDependencies are
 // pruned from production packages, the packaged app would fail at runtime with
 // MODULE_NOT_FOUND (no test catches this). See docs/references/api-gateway/README.md.
-const mainExternalDependencies = Object.keys(pkg.dependencies)
+const mainExternalDependencies = [
+  ...Object.keys(pkg.dependencies),
+  // optionalDependencies too: platform-gated natives (e.g. node-mac-permissions) are real import
+  // targets, not napi sub-packages, so rollup would fail on the .node; production keeps them installed.
+  ...Object.keys(pkg.optionalDependencies ?? {})
+]
 const mainExternalModules = ['bufferutil', 'utf-8-validate', 'electron', ...mainExternalDependencies]
 
 export const isMainExternalModule = (id: string) => {
@@ -192,7 +197,8 @@ export default defineConfig({
           selectionAction: resolve(__dirname, 'src/renderer/windows/selection/action/index.html'),
           migrationV2: resolve(__dirname, 'src/renderer/windows/migrationV2/index.html'),
           userDataRelocation: resolve(__dirname, 'src/renderer/windows/userDataRelocation/index.html'),
-          subWindow: resolve(__dirname, 'src/renderer/windows/subWindow/index.html')
+          subWindow: resolve(__dirname, 'src/renderer/windows/subWindow/index.html'),
+          screenshot: resolve(__dirname, 'src/renderer/windows/screenshot/index.html')
         },
         onwarn(warning, warn) {
           if (warning.code === 'COMMONJS_VARIABLE_IN_ESM') return
