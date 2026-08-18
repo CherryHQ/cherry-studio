@@ -360,6 +360,39 @@ function AgentEditDialogContent({
   ])
 
   useEffect(() => {
+    if (!open || skillsLoading || skillsRefreshing || baselineSkillAgentId !== resource.id) return
+
+    // A globally disabled skill is absent from the agent projection. If it is
+    // re-enabled after this dialog initialized, restore the still-persisted
+    // agent preference without overwriting local edits or hidden selections.
+    const baselineSkillIds = formBaselineRef.current.skillIds
+    const baselineSkillIdSet = new Set(baselineSkillIds)
+    const newlyVisibleEnabledIds = skillIdsFromQuery.filter((id) => !baselineSkillIdSet.has(id))
+    if (newlyVisibleEnabledIds.length === 0) return
+
+    replaceFormBaseline({
+      ...formBaselineRef.current,
+      skillIds: [...baselineSkillIds, ...newlyVisibleEnabledIds]
+    })
+    const currentSkillIds = form.getValues('skillIds')
+    const currentSkillIdSet = new Set(currentSkillIds)
+    form.setValue(
+      'skillIds',
+      [...currentSkillIds, ...newlyVisibleEnabledIds.filter((id) => !currentSkillIdSet.has(id))],
+      { shouldDirty: false }
+    )
+  }, [
+    baselineSkillAgentId,
+    form,
+    open,
+    replaceFormBaseline,
+    resource.id,
+    skillIdsFromQuery,
+    skillsLoading,
+    skillsRefreshing
+  ])
+
+  useEffect(() => {
     if (!open || knowledgeBasesLoading) return
 
     // Keep unrelated local edits while removing bindings that disappeared from
@@ -498,7 +531,6 @@ function AgentEditDialogContent({
               skillsLoading={skillsLoading}
               skillsReady={baselineSkillAgentId === resource.id}
               caps={caps}
-              agentType={resource.type}
             />
           </TabsContent>
         ) : null}
@@ -813,8 +845,7 @@ function AgentToolsFields({
   skills,
   skillsLoading,
   skillsReady,
-  caps,
-  agentType
+  caps
 }: {
   agent: AgentDetail
   form: UseFormReturn<AgentEditFormValues>
@@ -824,7 +855,6 @@ function AgentToolsFields({
   skillsLoading: boolean
   skillsReady: boolean
   caps: AgentRuntimeCapabilities
-  agentType: AgentType
 }) {
   const { t } = useTranslation()
   const disabledTools = form.watch('disabledTools')
@@ -844,7 +874,7 @@ function AgentToolsFields({
   const builtinSections = useMemo(() => {
     const tools = caps
       .builtinTools()
-      .filter((tool) => agentType !== 'claude-code' || hasKnowledgeScope || !CLAUDE_KNOWLEDGE_TOOL_NAMES.has(tool.id))
+      .filter((tool) => !caps.knowledgeBases || hasKnowledgeScope || !CLAUDE_KNOWLEDGE_TOOL_NAMES.has(tool.id))
     return CLAUDE_TOOL_CATEGORIES.map((category) => ({
       category,
       label: t(CATEGORY_LABEL_KEYS[category], CATEGORY_LABEL_FALLBACKS[category]),
@@ -857,7 +887,7 @@ function AgentToolsFields({
           icon: <Wrench size={13} strokeWidth={1.5} className="text-muted-foreground" />
         }))
     })).filter((section) => section.items.length > 0)
-  }, [agentType, caps, t, hasKnowledgeScope])
+  }, [caps, t, hasKnowledgeScope])
   const enabledToolIds = useMemo<ReadonlySet<string>>(
     () => new Set(builtinSections.flatMap((s) => s.items.map((i) => i.id)).filter((id) => !disabledSet.has(id))),
     [builtinSections, disabledSet]

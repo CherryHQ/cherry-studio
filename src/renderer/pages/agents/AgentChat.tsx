@@ -45,7 +45,7 @@ import { useTranslation } from 'react-i18next'
 import AgentChatMain from './AgentChatMain'
 import AgentComposerSlot from './AgentComposerSlot'
 import { AgentChatNavbar } from './components/AgentChatNavbar'
-import { type AgentFileNavigationRequest, AgentRightPane } from './components/AgentRightPane'
+import { type AgentFileNavigationRequest, AgentRightPane, AgentTaskProgressCapsule } from './components/AgentRightPane'
 import { ApiGatewayRequiredDialog } from './components/ApiGatewayRequiredDialog'
 import { locateAgentMessageInList } from './messages/agentMessageListAdapter'
 import type { CreateAgentSessionDefaults } from './types'
@@ -560,22 +560,25 @@ const AgentChatSessionCenter = ({
   composerLaunchOptions
 }: AgentChatSessionCenterProps) => {
   const composer = (
-    <AgentComposerSlot
-      agentId={agentId}
-      activeAgent={activeAgent}
-      activeModel={activeModel}
-      workspaceWarning={workspaceWarning}
-      isMultiSelectMode={isMultiSelectMode}
-      session={session}
-      sessionId={runtime.sessionId}
-      sendMessage={runtime.sendMessage}
-      stop={runtime.stop}
-      isStreaming={runtime.isPending}
-      sendDisabled={composerPending}
-      onCreateEmptySession={onCreateEmptySession}
-      composerContext={runtime.composerContext}
-      composerLaunchOptions={composerLaunchOptions}
-    />
+    <div className="flex w-full flex-col">
+      {!isMultiSelectMode && <AgentTaskProgressCapsule />}
+      <AgentComposerSlot
+        agentId={agentId}
+        activeAgent={activeAgent}
+        activeModel={activeModel}
+        workspaceWarning={workspaceWarning}
+        isMultiSelectMode={isMultiSelectMode}
+        session={session}
+        sessionId={runtime.sessionId}
+        sendMessage={runtime.sendMessage}
+        stop={runtime.stop}
+        isStreaming={runtime.isPending}
+        sendDisabled={composerPending}
+        onCreateEmptySession={onCreateEmptySession}
+        composerContext={runtime.composerContext}
+        composerLaunchOptions={composerLaunchOptions}
+      />
+    </div>
   )
   const main = (
     <div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">

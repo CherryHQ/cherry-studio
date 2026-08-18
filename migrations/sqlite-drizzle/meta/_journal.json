@@ -51,11 +51,18 @@
       "when": 1786013632736
     },
     {
+      "breakpoints": true,
       "idx": 7,
-      "version": "6",
-      "when": 1786425204352,
       "tag": "0007_flimsy_mentor",
-      "breakpoints": true
+      "version": "6",
+      "when": 1786425204352
+    },
+    {
+      "breakpoints": true,
+      "idx": 8,
+      "tag": "0008_abnormal_may_parker",
+      "version": "6",
+      "when": 1786608214102
     }
   ],
   "version": "7"
