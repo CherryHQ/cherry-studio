@@ -20,9 +20,22 @@ import type { JobScheduleSnapshot } from '@shared/data/api/schemas/jobs'
  */
 export function intervalFirstDelay(schedule: JobScheduleSnapshot, nowMs: number): number | undefined {
   if (schedule.trigger.kind !== 'interval') return undefined
-  const { ms } = schedule.trigger
-  const elapsed = nowMs - Date.parse(schedule.createdAt)
+  return nextIntervalFire(schedule, schedule.trigger.ms, nowMs) - nowMs
+}
+
+/**
+ * The first grid point strictly after `afterMs` — the single definition of an
+ * interval's calendar, shared by arming (`afterMs = now`) and overdue detection
+ * (`afterMs = lastRun`), so the two cannot drift apart.
+ *
+ * @param schedule - Schedule row snapshot; only `createdAt` is read
+ * @param ms - Interval length, passed in so callers keep the narrowed trigger
+ * @param afterMs - Point to search forward from
+ * @returns Timestamp of the next fire, always `> afterMs`
+ */
+export function nextIntervalFire(schedule: JobScheduleSnapshot, ms: number, afterMs: number): number {
+  const elapsed = afterMs - Date.parse(schedule.createdAt)
   // Double modulo keeps the phase positive when createdAt sits in the future
   // (clock moved backwards between creation and arming).
-  return ms - (((elapsed % ms) + ms) % ms)
+  return afterMs + ms - (((elapsed % ms) + ms) % ms)
 }

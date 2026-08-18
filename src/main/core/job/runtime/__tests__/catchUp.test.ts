@@ -112,7 +112,7 @@ describe('computeCatchUpAction — cron trigger', () => {
 })
 
 describe('computeCatchUpAction — interval trigger', () => {
-  it('uses lastRun + ms as the overdue anchor when lastRun present', () => {
+  it('is overdue once a grid point has passed since the last fire', () => {
     const schedule = makeSchedule({
       trigger: { kind: 'interval', ms: 60_000 },
       catchUpPolicy: { kind: 'after-startup', minutes: 0 },
@@ -147,6 +147,34 @@ describe('computeCatchUpAction — interval trigger', () => {
     const result = computeCatchUpAction(schedule, handlerWithMissed(), NOW)
     expect(result.shouldEnqueue).toBe(false)
     expect(result.missEvent).toBeNull()
+  })
+
+  // A manual fire writes lastRun but must not move the calendar — otherwise an
+  // off-grid fire hides the next missed grid point for a whole extra period.
+  describe('an off-grid fire does not shift the calendar', () => {
+    const HOUR = 3_600_000
+    // Created 00:00, every 6h → grid at 06:00 / 12:00 / 18:00.
+    // Manually fired 08:00. NOW is 13:00, so the 12:00 point was missed.
+    const manuallyFiredOffGrid = makeSchedule({
+      trigger: { kind: 'interval', ms: 6 * HOUR },
+      catchUpPolicy: { kind: 'after-startup', minutes: 0 },
+      createdAt: new Date(NOW - 13 * HOUR).toISOString(),
+      lastRun: new Date(NOW - 5 * HOUR).toISOString()
+    })
+
+    it('reports the missed grid point rather than waiting a period from the manual fire', () => {
+      const result = computeCatchUpAction(manuallyFiredOffGrid, handlerWithMissed(), NOW)
+      // Anchoring on lastRun + ms would put the next due at 14:00 and miss this.
+      expect(result.shouldEnqueue).toBe(true)
+      expect(result.missEvent).not.toBeNull()
+    })
+
+    it('stays not-overdue before that grid point arrives', () => {
+      // 11:00 — the 12:00 point has not come yet.
+      const result = computeCatchUpAction(manuallyFiredOffGrid, handlerWithMissed(), NOW - 2 * HOUR)
+      expect(result.shouldEnqueue).toBe(false)
+      expect(result.missEvent).toBeNull()
+    })
   })
 })
 
