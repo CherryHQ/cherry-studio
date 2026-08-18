@@ -726,6 +726,22 @@
           "description": "Gérer la liste des tâches",
           "label": "Gérer la liste des tâches"
         },
+        "tool_call": {
+          "description": "Appeler un outil découvert",
+          "label": "Appeler un outil"
+        },
+        "tool_describe": {
+          "description": "Obtenir la description complète et la signature TypeScript d’un outil",
+          "label": "Décrire un outil"
+        },
+        "tool_exec": {
+          "description": "Exécuter du JavaScript qui orchestre les outils découverts",
+          "label": "Exécuter le code des outils"
+        },
+        "tool_search": {
+          "description": "Rechercher les outils disponibles et lire leurs signatures TypeScript",
+          "label": "Rechercher des outils"
+        },
         "update_goal": {
           "description": "Mettre à jour l’état ou le contenu de l’objectif de session",
           "label": "Mettre à jour l’objectif"
@@ -784,6 +800,7 @@
       "restartSuccess": "Serveur API redémarré avec succès",
       "startError": "Échec du démarrage du Serveur API : ",
       "startSuccess": "Serveur API démarré avec succès",
+      "stopDeferred": "Le Serveur API s'arrêtera une fois la traduction en cours terminée",
       "stopError": "Échec de l'arrêt du Serveur API : ",
       "stopSuccess": "Serveur API arrêté avec succès"
     },
@@ -991,6 +1008,19 @@
       "knowledge_base_disabled_by_files": "Supprimez les fichiers joints pour utiliser la base de connaissances",
       "knowledge_base_unavailable": "Sélectionnez un modèle compatible avec les outils",
       "locate_editing_message": "Localiser le message original",
+      "mcp_prompts": {
+        "description": "Insérer un prompt publié par un serveur MCP",
+        "empty": "Aucun prompt MCP disponible",
+        "insert_failed": "Impossible d'insérer le prompt",
+        "title": "Prompts MCP"
+      },
+      "mcp_resources": {
+        "description": "Référencer une ressource publiée par un serveur MCP",
+        "empty": "Aucune ressource MCP disponible",
+        "read_failed": "Impossible de lire la ressource",
+        "reader_unavailable": "Le modèle actuel ne peut pas relire cette ressource après son ajout",
+        "title": "Ressources MCP"
+      },
       "new": {
         "context": "Effacer le contexte"
       },
@@ -1870,6 +1900,7 @@
       "503": "Service indisponible, veuillez réessayer plus tard.",
       "504": "Délai d'expiration de la passerelle, veuillez réessayer plus tard."
     },
+    "image_unreadable_for_non_vision_model": "Le modèle sélectionné n’est pas configuré pour accepter les images et Cherry Studio n’a pas pu extraire de texte lisible de la pièce jointe. Activez Image pour ce modèle dans les paramètres du fournisseur, choisissez un autre modèle compatible avec les images ou retirez l’image, puis réessayez.",
     "lastError": "Dernière erreur",
     "maxEmbeddingsPerCall": "Nombre maximal d'embeddings par appel",
     "message": "Erreur message",
@@ -5542,6 +5573,7 @@
       },
       "title": "Dépendances de l'environnement",
       "tools": {
+        "babeldoc-stream": "Moteur de traduction PDF préservant la mise en page. Les ressources du modèle de mise en page sont téléchargées lors de la première traduction.",
         "bun": "Environnement d’exécution JavaScript utilisé par les services MCP et les chaînes d’outils associées.",
         "claude": "Outil de programmation agentique d'Anthropic pour le terminal.",
         "codex": "Agent de programmation open source d'OpenAI capable de lire, modifier et exécuter du code dans votre dépôt local.",
@@ -5622,7 +5654,8 @@
         },
         "sections": {
           "display_language": "Affichage et langue"
-        }
+        },
+        "title": "Paramètres communs"
       },
       "emoji_picker": "Sélectionneur d'émoticônes",
       "image_upload": "Téléchargement d'images",
@@ -6092,6 +6125,7 @@
         "max_messages": "Messages récents conservés",
         "max_messages_description": "N’envoie que les messages les plus récents ; les plus anciens sont exclus du contexte. Laissez vide pour ne pas limiter. Les assistants peuvent le remplacer",
         "max_messages_unlimited": "Illimité",
+        "scope_description": "S’applique uniquement aux conversations avec les assistants dans Cherry Studio. Les assistants peuvent remplacer ces paramètres individuellement.",
         "title": "Gestion du contexte",
         "truncate_threshold": "Seuil de troncature des sorties d’outils (caractères)",
         "truncate_threshold_description": "Les sorties d’outils dépassant ce nombre de caractères sont déchargées dans un fichier et tronquées ; le modèle peut les relire à la demande. Les assistants peuvent le remplacer"
@@ -7204,10 +7238,10 @@
     "history": {
       "back": "Retour à la liste",
       "clear": "Effacer l'historique",
-      "clear_description": "L'effacement de l'historique supprimera toutes les entrées d'historique de traduction, voulez-vous continuer ?",
+      "clear_description": "Vider l'historique supprimera tout l'historique de traduction et récupérera les fichiers traduits qu'il a produits. Continuer ?",
       "copy_target": "Copier le résultat",
       "delete": "Supprimer l'historique des traductions",
-      "delete_description": "Supprimer cet enregistrement de l'historique des traductions ? Cette action ne peut pas être annulée.",
+      "delete_description": "Supprimer cet enregistrement de l'historique de traduction ? Pour une traduction de fichier, le fichier traduit est également récupéré. Cette action est irréversible.",
       "empty": "Aucun historique de traduction pour le moment",
       "error": {
         "add": "Échec de l'ajout de l'historique de traduction",
@@ -7215,6 +7249,17 @@
         "delete": "Échec de la suppression",
         "load": "Échec du chargement de l'historique des traductions",
         "save": "Échec de la sauvegarde de l'historique des traductions"
+      },
+      "file": {
+        "action_failed": "Impossible d'effectuer cette action sur le fichier",
+        "badge": "Traduction de fichier",
+        "export": "Enregistrer le fichier traduit sous…",
+        "open": "Ouvrir le fichier traduit",
+        "preview": "Aperçu côte à côte",
+        "reveal": "Afficher dans le dossier",
+        "source": "Fichier source",
+        "target": "Fichier traduit",
+        "unavailable": "Les fichiers de cette traduction ne sont plus disponibles"
       },
       "filter": {
         "starred": "Seulement étoilé"
@@ -7244,6 +7289,53 @@
     "language_settings": "Paramètres de langue",
     "output": {
       "placeholder": "traduction"
+    },
+    "pdf": {
+      "action": {
+        "close": "Fermer la traduction PDF",
+        "export": "Exporter le PDF traduit",
+        "install_babeldoc": "Installer BabelDOC",
+        "update_babeldoc": "Mettre à jour BabelDOC"
+      },
+      "dependency": {
+        "checking": "Vérification de BabelDOC...",
+        "description": "Installez le plugin BabelDOC pour traduire les PDF en conservant leur mise en page d'origine.",
+        "installing": "Installation de BabelDOC...",
+        "outdated_description": "Mettez à jour BabelDOC pour continuer à traduire les PDF en conservant la mise en page.",
+        "outdated_title": "Mise à jour de BabelDOC requise",
+        "title": "PDF détecté"
+      },
+      "error": {
+        "generic": "Une erreur s'est produite pendant la traduction. Veuillez réessayer.",
+        "ocr_required": "Les PDF numérisés ne sont pas encore pris en charge.",
+        "persist_failed": "Le PDF a été traduit, mais le résultat n'a pas pu être enregistré. Veuillez réessayer.",
+        "title": "Échec de la traduction du PDF"
+      },
+      "export_failed": "Échec de l'exportation du PDF traduit",
+      "pane": {
+        "translated": "PDF traduit",
+        "translated_text": "Traduction"
+      },
+      "progress": {
+        "analyzing": "Analyse de la mise en page du document",
+        "checking_assets": "Vérification des ressources de traitement PDF",
+        "downloading_assets": "Téléchargement des ressources de traitement PDF...",
+        "extracting_terms": "Extraction de la terminologie du document",
+        "loading_model": "Chargement du modèle de traitement PDF",
+        "parsing": "Analyse du document PDF",
+        "percent": "{{progress}} %",
+        "preparing": "Initialisation de la traduction PDF",
+        "preparing_hint": "La première initialisation peut prendre environ 2 minutes ; les exécutions suivantes sont généralement plus rapides",
+        "rendering": "Rendu du PDF traduit",
+        "translating": "Traduction du contenu",
+        "typesetting": "Mise en page du PDF traduit",
+        "value": "{{stage}}, étape {{stageProgress}} %, global {{overallProgress}} %"
+      },
+      "ready": {
+        "description": "Sélectionnez une langue cible et lancez la traduction.",
+        "title": "Prêt à traduire"
+      },
+      "success": "PDF traduit généré"
     },
     "preferred_target": "Cible préférée",
     "processing": "en cours de traduction...",

@@ -141,6 +141,14 @@ const SettingsPage: FC = () => {
               <MenuItem
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}
+                icon={<Settings2 />}
+                label={t('settings.general.common.title')}
+                active={isActive('/settings/general')}
+                onClick={() => go('/settings/general')}
+              />
+              <MenuItem
+                className={settingsSubmenuItemClassName}
+                labelClassName={settingsSubmenuItemLabelClassName}
                 icon={<Palette />}
                 label={t('settings.appearance.title')}
                 active={isActive('/settings/appearance')}
@@ -222,14 +230,6 @@ const SettingsPage: FC = () => {
               />
               <MenuDivider className={settingsSubmenuDividerClassName} />
               <div className={settingsSubmenuSectionTitleClassName}>{t('settings.menuGroups.system')}</div>
-              <MenuItem
-                className={settingsSubmenuItemClassName}
-                labelClassName={settingsSubmenuItemLabelClassName}
-                icon={<Settings2 />}
-                label={t('settings.system.title')}
-                active={isActive('/settings/system')}
-                onClick={() => go('/settings/system')}
-              />
               <MenuItem
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}

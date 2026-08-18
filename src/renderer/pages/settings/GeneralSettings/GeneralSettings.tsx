@@ -20,6 +20,8 @@ import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ContextManagementSettings } from './ContextManagementSettings'
+
 const defaultByPassRules = 'localhost,127.0.0.1,::1'
 
 const TRAY_PREFERENCE_KEYS = {
@@ -29,7 +31,7 @@ const TRAY_PREFERENCE_KEYS = {
   clickTrayToShowQuickAssistant: 'feature.quick_assistant.click_tray_to_show'
 } as const
 
-const SystemSettings: FC = () => {
+const GeneralSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
   const { setTimeoutTimer } = useTimer()
@@ -210,6 +212,8 @@ const SystemSettings: FC = () => {
         </SettingRow>
       </SettingGroup>
 
+      <ContextManagementSettings />
+
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.developer.title')}</SettingTitle>
         <SettingDivider />
@@ -239,4 +243,4 @@ const SystemSettings: FC = () => {
   )
 }
 
-export default SystemSettings
+export default GeneralSettings
