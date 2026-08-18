@@ -425,9 +425,8 @@ async function buildToolPermissions(
   toolPolicySnapshot: ToolPolicySnapshot
 }> {
   const agentConfig = agent.configuration
+  const builtinRole = agentConfig?.builtin_role as string | undefined
   const isProtectedBuiltinAgent = isProtectedBuiltinAgentRole(agentConfig?.builtin_role)
-  const isAssistantBuiltinAgent = agentConfig?.builtin_role === BUILTIN_AGENT_ROLE.ASSISTANT
-  const isSupportBuiltinAgent = agentConfig?.builtin_role === BUILTIN_AGENT_ROLE.SUPPORT
 
   // Raw session context for tool enable-predicates (worktree tools need a .git dir).
   const cwd = session.workspace?.path
@@ -559,10 +558,9 @@ async function buildToolPermissions(
     sessionId: session.id,
     cwd,
     agentDataPath,
-    approvalRequiredTools,
-    isProtectedBuiltinAgent,
-    isAssistantBuiltinAgent,
-    isSupportBuiltinAgent,
+    builtinRole,
+    isProtectedBuiltin: isProtectedBuiltinAgent,
+    assistantMcpEnabled,
     agentsMdLoader
   })
 
