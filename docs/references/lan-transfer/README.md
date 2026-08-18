@@ -7,8 +7,7 @@ sources:
 
 # Cherry Studio LAN Transfer Protocol Specification
 
-> Version: 1.0
-> Last Updated: 2025-12
+> Protocol version: 1
 
 This document defines the LAN file transfer protocol between the Cherry Studio desktop client (Electron) and mobile client (Expo).
 
@@ -201,6 +200,7 @@ To solve TCP packet splitting/merging and eliminate Base64 overhead, `file_chunk
 | `file_start_ack` | Server → Client | JSON+\n | File transfer acknowledgment |
 | `file_chunk` | Client → Server | Binary | File data chunk (no Base64, streaming, no per-chunk ACK) |
 | `file_end` | Client → Server | JSON+\n | File transfer end |
+| `file_cancel` | Client → Server | JSON+\n | Cancel the active transfer |
 | `file_complete` | Server → Client | JSON+\n | Transfer completion result |
 
 ---
@@ -277,6 +277,9 @@ type LanTransferFileCompleteMessage = {
   success: boolean;
   filePath?: string;     // Save path (on success)
   error?: string;        // Error message (on failure)
+  errorCode?: 'CHECKSUM_MISMATCH' | 'INCOMPLETE_TRANSFER' | 'DISK_ERROR' | 'CANCELLED';
+  receivedChunks?: number;
+  receivedBytes?: number;
 }
 ```
 
@@ -311,8 +314,8 @@ const totalChunks = Math.ceil(fileSize / CHUNK_SIZE)
 
 ### 6.2 Strategy
 
-- Send `ping` immediately after successful handshake to verify connection
-- Optional: periodically send heartbeats to keep the connection alive
+- The desktop sends one test `ping` immediately after a successful handshake.
+- The current client does not schedule a periodic heartbeat.
 
 ---
 
@@ -322,9 +325,10 @@ const totalChunks = Math.ceil(fileSize / CHUNK_SIZE)
 
 | Operation | Timeout | Description |
 |-----------|---------|-------------|
-| TCP Connection | 10s | Connection establishment timeout |
-| Handshake | 10s | Waiting for `handshake_ack` |
+| Connect + handshake | 10s | Socket/handshake timeout unless the caller overrides it |
+| File start acknowledgment | 30s | Waiting for `file_start_ack` |
 | Transfer Complete | 60s | Waiting for `file_complete` |
+| Whole transfer | 10 min | Aborts the active transfer |
 
 ### 7.2 Error Scenarios
 
@@ -343,18 +347,17 @@ const totalChunks = Math.ceil(fileSize / CHUNK_SIZE)
 
 ```typescript
 export const LAN_TRANSFER_PROTOCOL_VERSION = '1'
-export const LAN_TRANSFER_SERVICE_TYPE = 'cherrystudio'
-export const LAN_TRANSFER_SERVICE_FULL_NAME = '_cherrystudio._tcp'
 export const LAN_TRANSFER_TCP_PORT = 53317
 export const LAN_TRANSFER_CHUNK_SIZE = 512 * 1024         // 512KB
+export const LAN_TRANSFER_MAX_FILE_SIZE = 500 * 1024 * 1024 // 500MB
 export const LAN_TRANSFER_GLOBAL_TIMEOUT_MS = 10 * 60 * 1000  // 10 minutes
-export const LAN_TRANSFER_HANDSHAKE_TIMEOUT_MS = 10_000
-export const LAN_TRANSFER_CHUNK_TIMEOUT_MS = 30_000
 export const LAN_TRANSFER_COMPLETE_TIMEOUT_MS = 60_000
-
-export const LAN_TRANSFER_ALLOWED_EXTENSIONS = ['.zip']
-export const LAN_TRANSFER_ALLOWED_MIME_TYPES = ['application/zip', 'application/x-zip-compressed']
 ```
+
+The desktop service keeps discovery type `cherrystudio`, the 10-second default
+handshake timeout, and the 30-second `file_start_ack` timeout as local constants.
+`validateFile` currently accepts only `.zip`, emits MIME `application/zip`, and
+rejects files over the shared 500 MB limit.
 
 ---
 
