@@ -73,7 +73,7 @@ export function mcpResourceToComposerToken(resource: McpResource): ComposerDraft
     kind: 'reference',
     label: name,
     description: resource.uri,
-    promptText: `The user attached MCP resource "${name}" (uri: ${resource.uri}) from server "${resource.serverName}" — read it with mcp_resource_read.`,
+    promptText: `The user attached MCP resource "${name}" — read it with mcp_resource_read using serverName "${resource.serverName}" and uri "${resource.uri}".`,
     payload: resource
   }
 }

@@ -12,7 +12,7 @@ import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { DEFAULT_MCP_MODE } from '@shared/data/types/assistant'
 import type { McpResource } from '@shared/types/mcp'
 import { Loader2 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { mcpResourceToComposerToken } from '../../variants/shared/composerTokens'
 
@@ -49,6 +49,17 @@ const McpResourceComposerRuntime = ({ context }: { context: McpResourceToolConte
   const [dataRequested, setDataRequested] = useState(false)
   const [resources, setResources] = useState<McpResource[]>([])
   const [isLoadingResources, setIsLoadingResources] = useState(false)
+  // A pick fires an IPC read; the composer can unmount (or the user can pick again) before it lands,
+  // and neither the insert nor the toast may run against a dead runtime.
+  const isMountedRef = useRef(true)
+  const selectionGenerationRef = useRef(0)
+
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
 
   const { agent } = useAgent(dataRequested && scope === TopicType.Session ? (session?.agentId ?? null) : null)
   const boundServerIds = useMemo<readonly string[] | 'all' | null>(() => {
@@ -124,11 +135,14 @@ const McpResourceComposerRuntime = ({ context }: { context: McpResourceToolConte
         return
       }
 
+      const generation = ++selectionGenerationRef.current
       try {
         const result = await ipcApi.request('mcp.server.get_resource', {
           serverId: resource.serverId,
           uri: resource.uri
         })
+        // The composer this pick targeted may be gone (topic switch, unmount) by now.
+        if (!isMountedRef.current || generation !== selectionGenerationRef.current) return
         const text = resourceContentsToText((result as { contents?: McpResource[] })?.contents ?? [])
         if (!text || text.length > MCP_RESOURCE_INLINE_MAX_CHARS) {
           insertReferenceToken(resource, options)
@@ -136,6 +150,7 @@ const McpResourceComposerRuntime = ({ context }: { context: McpResourceToolConte
         }
         insertText(text, options)
       } catch (error) {
+        if (!isMountedRef.current || generation !== selectionGenerationRef.current) return
         logger.error('Failed to read MCP resource', error as Error, {
           serverId: resource.serverId,
           uri: resource.uri
