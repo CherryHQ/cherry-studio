@@ -592,6 +592,9 @@ describe('runAgentTask', () => {
     const promise = runAgentTask(makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0 } }))
 
     await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+    for (const listener of captured.listeners) {
+      listener.onChunk({ type: 'text-delta', delta: 'Task result' })
+    }
     captured.listeners[0].onDone({ status: 'completed' })
     await promise
 
