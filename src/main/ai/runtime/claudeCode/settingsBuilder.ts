@@ -180,6 +180,7 @@ function resolveRequestedOutputTokens(
 }
 
 const ASK_USER_QUESTION_TOOL_NAME = 'AskUserQuestion'
+const EXIT_PLAN_MODE_TOOL_NAME = 'ExitPlanMode'
 const HEADLESS_INTERACTIVE_TOOLS = [
   ASK_USER_QUESTION_TOOL_NAME,
   'EnterPlanMode',
@@ -228,6 +229,7 @@ function getToolApprovalEmitterHolder(sessionId: string): ToolApprovalEmitterHol
     const nextHolder: ToolApprovalEmitterHolder = {
       dispose: () => {
         nextHolder.emit = undefined
+        nextHolder.emitInput = undefined
         toolApprovalRegistry.abort(sessionId, 'stream-ended')
         // Evict so the module-level Map doesn't grow unbounded across sessions;
         // the holder is rebuilt lazily on the next settings build.
@@ -247,6 +249,16 @@ function getToolApprovalEmitterHolder(sessionId: string): ToolApprovalEmitterHol
 // means no live stream is bound, so the approval is denied.
 function peekToolApprovalEmitter(sessionId: string): ToolApprovalEmitterHolder | undefined {
   return toolApprovalEmitters.get(sessionId)
+}
+
+function surfaceExitPlanModeInput(
+  sessionId: string,
+  toolName: string,
+  input: Record<string, unknown>,
+  toolCallId: string
+): void {
+  if (toolName !== EXIT_PLAN_MODE_TOOL_NAME || typeof input.plan !== 'string' || !input.plan.trim()) return
+  peekToolApprovalEmitter(sessionId)?.emitInput?.({ toolCallId, toolName, input })
 }
 
 // Session-keyed so a warm-pooled query's PreToolUse steer hook and the live connection's
@@ -945,6 +957,10 @@ async function buildToolPermissions(
     // no-responder denial at fire time for interactive and approval-required tools. PreToolUse
     // mirrors both groups for bypassPermissions/acceptEdits, where the SDK skips `canUseTool`.
     const interactionState = application.get('AgentSessionRuntimeService').getInteractionState(session.id)
+    // Claude Code streams ExitPlanMode's model-authored `{}` before normalizing the plan file into
+    // the permission input. Replace that raw input while the tool row is still live so the approval
+    // preview — and a later headless denial — retain the plan the SDK actually reviewed.
+    surfaceExitPlanModeInput(session.id, toolName, input, opts.toolUseID)
     const requiresInteractiveResponder =
       HEADLESS_INTERACTIVE_TOOLS.includes(toolName as (typeof HEADLESS_INTERACTIVE_TOOLS)[number]) ||
       approvalRequiredTools.includes(toolName)
@@ -1077,12 +1093,17 @@ async function buildToolPermissions(
   // Headless turns deny tools that need a responder. Interactive AskUserQuestion calls explicitly ask
   // so bypassPermissions cannot skip `canUseTool` and execute without a user-authored answer.
   // Resolve headless state by session id at fire-time so warm connections are judged per turn.
-  const interactiveToolPermissionHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+  const interactiveToolPermissionHook: HookCallback = async (input, toolUseId): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'PreToolUse') return {}
     const toolName = String((input as Record<string, unknown>).tool_name ?? '')
     if (!HEADLESS_INTERACTIVE_TOOLS.includes(toolName as (typeof HEADLESS_INTERACTIVE_TOOLS)[number])) return {}
 
     if (application.get('AgentSessionRuntimeService').getInteractionState(session.id).userResponse === 'unavailable') {
+      const toolInput = (input as Record<string, unknown>).tool_input
+      if (toolUseId && toolInput && typeof toolInput === 'object' && !Array.isArray(toolInput)) {
+        // A deny hook short-circuits `canUseTool`, so surface the normalized plan here as well.
+        surfaceExitPlanModeInput(session.id, toolName, toolInput as Record<string, unknown>, toolUseId)
+      }
       return {
         hookSpecificOutput: {
           hookEventName: 'PreToolUse',
