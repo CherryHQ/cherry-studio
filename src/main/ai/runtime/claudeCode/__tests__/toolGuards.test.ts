@@ -22,7 +22,7 @@ const denyRule = (id: string, overrides: Partial<ToolGuardRule> = {}): ToolGuard
   ({
     id,
     bypassBehavior: 'enforce',
-    match: { tools: ['Bash'] },
+    match: { tool: 'Bash' },
     effect: 'deny',
     reason: `${id} denied`,
     ...overrides
@@ -32,7 +32,7 @@ const askRule = (id: string, overrides: Partial<ToolGuardRule> = {}): ToolGuardR
   ({
     id,
     bypassBehavior: 'skipInteractiveEffect',
-    match: { tools: ['Bash'] },
+    match: { tool: 'Bash' },
     effect: 'ask',
     askStrength: 'soft',
     reason: `${id} asks`,
@@ -51,7 +51,7 @@ describe('evaluateToolGuards', () => {
   })
 
   it('returns undefined when no rule matches', async () => {
-    const decision = await evaluateToolGuards([denyRule('other', { match: { tools: ['Edit'] } })], makeCtx())
+    const decision = await evaluateToolGuards([denyRule('other', { match: { tool: 'Edit' } })], makeCtx())
     expect(decision).toBeUndefined()
   })
 
@@ -85,7 +85,7 @@ describe('evaluateToolGuards', () => {
     const rule: ToolGuardRule = {
       id: 'headless-only',
       bypassBehavior: 'skipInteractiveEffect',
-      match: { tools: ['Bash'] },
+      match: { tool: 'Bash' },
       headless: { predicate: 'turn-headless', reason: 'headless denied', skipHeadlessDenyInBypass: true }
     }
     const headlessCtx = makeCtx({ interaction: { currentTurn: 'headless', userResponse: 'unavailable' } })
@@ -120,7 +120,7 @@ describe('evaluateToolGuards', () => {
     const rule: ToolGuardRule = {
       id: 'predicate',
       bypassBehavior: 'enforce',
-      match: { tools: ['Bash'] },
+      match: { tool: 'Bash' },
       headless: { predicate, reason: 'headless denied' }
     }
     const decision = await evaluateToolGuards([rule], makeCtx({ interaction }))
@@ -128,7 +128,7 @@ describe('evaluateToolGuards', () => {
   })
 
   it('filters rules by role and protected-builtin scope', async () => {
-    const roleRule = denyRule('assistant-only', { appliesTo: { roles: ['assistant'] } })
+    const roleRule = denyRule('assistant-only', { appliesTo: { role: 'assistant' } })
     const protectedRule = denyRule('protected-only', { appliesTo: { protectedBuiltinOnly: true } })
 
     await expect(evaluateToolGuards([roleRule, protectedRule], makeCtx())).resolves.toBeUndefined()
@@ -183,14 +183,14 @@ describe('validateToolGuardRules', () => {
       denyRule('dup'),
       denyRule('dup'),
       denyRule('matchless', { match: {} }),
-      { id: 'no-op', bypassBehavior: 'enforce', match: { tools: ['Bash'] } } as unknown as ToolGuardRule,
+      { id: 'no-op', bypassBehavior: 'enforce', match: { tool: 'Bash' } } as unknown as ToolGuardRule,
       denyRule('contradictory', {
         headless: { predicate: 'either', reason: 'x', skipHeadlessDenyInBypass: true }
       })
     ])
     expect(problems).toEqual([
       'duplicate rule id: dup',
-      'rule matchless matches nothing (no tools, no condition)',
+      'rule matchless matches nothing (no tool, no condition)',
       'rule no-op has neither an effect nor a headless override',
       'rule contradictory enforces under bypass but skips its headless deny there'
     ])

@@ -33,11 +33,11 @@ import {
 } from '@main/ai/runtime/agentSessionWorkspace'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import {
-  ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES,
-  ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES,
-  CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES,
-  toCherryBuiltinRuntimeName
-} from '@main/ai/runtime/toolApproval/cherryBuiltinApproval'
+  findBuiltinToolPolicy,
+  listBuiltinToolPolicies,
+  toCherryBuiltinRuntimeName,
+  toMcpRuntimeName
+} from '@main/ai/runtime/toolApproval/builtinToolPolicy'
 import { skillService } from '@main/ai/skills/SkillService'
 import { type ClaudeToolContext, resolveDisallowedTools } from '@main/ai/tools/adapters/claudeCode/toolConditions'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
@@ -49,6 +49,7 @@ import {
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
+import { claudeToolRequiresUserInteraction } from '@shared/ai/claudecode/toolRegistry'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { Provider } from '@shared/data/types/provider'
@@ -68,8 +69,7 @@ import {
 import {
   approvalRequiredRuntimeNames,
   ASK_USER_QUESTION_TOOL_NAME,
-  HEADLESS_INTERACTIVE_TOOL_DENIAL,
-  HEADLESS_INTERACTIVE_TOOLS
+  HEADLESS_INTERACTIVE_TOOL_DENIAL
 } from './guardRules'
 import { buildClaudeCodeHooks } from './hooks'
 import { buildMcpServers, buildMcpToolMetadata, warmAgentMcpToolCaches } from './mcpCatalog'
@@ -443,14 +443,7 @@ async function buildToolPermissions(
     // (CHANNEL_SECURITY_PROMPT). The autonomy tools (cron/notify/config) also stay auto-approved —
     // they were blanket-allowed as the standalone `cherry` server before the merge. Keep this an
     // explicit allowlist so a future cherry-tools addition does not become auto-approved by prefix.
-    autoAllowRuntimeNames: [
-      ...CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map(toCherryBuiltinRuntimeName),
-      // Assistant MCP read-only lookups are explicit opt-ins. Sensitive and mutating tools must go
-      // through per-call approval.
-      ...(assistantMcpEnabled
-        ? [...ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES, ...ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES]
-        : [])
-    ],
+    autoAllowRuntimeNames: listBuiltinToolPolicies({ approval: 'auto', assistantMcpEnabled }).map(toMcpRuntimeName),
     // Side-effecting and local-data-reading built-in tools must still prompt for approval.
     autoAllowRuntimeNameExceptions: approvalRequiredTools,
     conditionContext
@@ -466,8 +459,8 @@ async function buildToolPermissions(
     // mirrors both groups for bypassPermissions/acceptEdits, where the SDK skips `canUseTool`.
     const interactionState = application.get('AgentSessionRuntimeService').getInteractionState(session.id)
     const requiresInteractiveResponder =
-      HEADLESS_INTERACTIVE_TOOLS.includes(toolName as (typeof HEADLESS_INTERACTIVE_TOOLS)[number]) ||
-      approvalRequiredTools.includes(toolName)
+      claudeToolRequiresUserInteraction(toolName) ||
+      findBuiltinToolPolicy(toolName, assistantMcpEnabled)?.approval === 'required'
     if (requiresInteractiveResponder && interactionState.userResponse === 'unavailable') {
       return { behavior: 'deny', message: HEADLESS_INTERACTIVE_TOOL_DENIAL }
     }
@@ -493,9 +486,7 @@ async function buildToolPermissions(
     // Resolved per turn, so an interactive turn on a channel-linked session still prompts.
     const isBackgroundAgent =
       (typeof opts.agentID === 'string' && opts.agentID.length > 0) || interactionState.currentTurn === 'headless'
-    const requiresUserResponse =
-      HEADLESS_INTERACTIVE_TOOLS.includes(toolName as (typeof HEADLESS_INTERACTIVE_TOOLS)[number]) ||
-      opts.matchedAskRule !== undefined
+    const requiresUserResponse = claudeToolRequiresUserInteraction(toolName) || opts.matchedAskRule !== undefined
 
     // Background agents do not inherit the parent permission mode. Let ordinary requests proceed
     // without multiplying approval clicks; explicit PreToolUse deny hooks still run before this
@@ -635,15 +626,9 @@ function isToolDisallowed(toolName: string, disallowedTools: readonly string[]):
 }
 
 export function adjustAllowedToolsForMcp(assistantMcpEnabled: boolean, disallowedTools: readonly string[]): string[] {
-  const result = CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map(toCherryBuiltinRuntimeName)
-  result.push('mcp__agent-memory__memory')
-  // search_skills is a read-only marketplace lookup — auto-approve it. install_skill mutates
-  // (clones + installs third-party code), so it deliberately stays on per-call approval.
-  result.push('mcp__skills__search_skills')
-  if (assistantMcpEnabled) {
-    result.push(...ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES, ...ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES)
-  }
-  return result.filter((toolName) => !isToolDisallowed(toolName, disallowedTools))
+  return listBuiltinToolPolicies({ approval: 'auto', assistantMcpEnabled })
+    .map(toMcpRuntimeName)
+    .filter((toolName) => !isToolDisallowed(toolName, disallowedTools))
 }
 
 function getSettingSources(provider: Provider): Array<'user' | 'project' | 'local'> {

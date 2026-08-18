@@ -1,7 +1,7 @@
 /**
  * The Claude Code guard table — every cross-cutting conduct rule the runtime enforces on the
- * PreToolUse plane, in one place. Adding policy means adding a ROW here (or a name to the
- * cherryBuiltinApproval lists it consumes), not a new imperative hook.
+ * PreToolUse plane, in one place. Adding cross-cutting policy means adding a row here; fixed
+ * per-tool approval belongs to the structured builtin-tool policy registry.
  *
  * Severity-sorted: deny rules precede ask rules so the fold in `evaluateToolGuards` surfaces the
  * same reason deterministically that the SDK's parallel severity fold produced by race before.
@@ -11,13 +11,14 @@
  */
 
 import {
-  ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES,
-  ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES,
-  CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES,
-  toCherryBuiltinRuntimeName
-} from '@main/ai/runtime/toolApproval/cherryBuiltinApproval'
+  findBuiltinToolPolicy,
+  listBuiltinToolPolicies,
+  toCherryBuiltinRuntimeName,
+  toMcpRuntimeName
+} from '@main/ai/runtime/toolApproval/builtinToolPolicy'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import { CONFIG_TOOL_NAME } from '@shared/ai/builtinTools'
+import { claudeToolRequiresUserInteraction } from '@shared/ai/claudecode/toolRegistry'
 
 import { detectGlobalInstall } from '../toolApproval/dependencyGuard'
 import {
@@ -30,12 +31,6 @@ import { isPathWithinAllowedRoots } from './pathContainment'
 import type { GuardHit, ToolGuardContext, ToolGuardRule } from './toolGuards'
 
 export const ASK_USER_QUESTION_TOOL_NAME = 'AskUserQuestion'
-export const HEADLESS_INTERACTIVE_TOOLS = [
-  ASK_USER_QUESTION_TOOL_NAME,
-  'EnterPlanMode',
-  'ExitPlanMode',
-  'EnterWorktree'
-] as const
 export const HEADLESS_INTERACTIVE_TOOL_DENIAL =
   'This channel or scheduled turn has no interactive responder, so proceed without asking the user and state your assumptions instead.'
 const HEADLESS_CONFIG_MUTATION_ACTIONS = new Set([
@@ -56,22 +51,12 @@ export const WORKSPACE_PATH_FIELDS = {
   Write: 'file_path'
 } as const
 
-const CHERRY_BUILTIN_APPROVAL_REQUIRED_RUNTIME_NAMES =
-  CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map(toCherryBuiltinRuntimeName)
-
 /**
- * Canonical per-call approval list: the tools whose 'hard' ask the guard table enforces and whose
- * names the tool-policy snapshot receives as auto-allow exceptions. Assistant tools count only
- * when the assistant MCP servers are actually mounted for the session.
+ * Runtime boundary format for the snapshot's auto-allow exceptions. The maintained source is the
+ * structured policy registry; Assistant tools count only while those MCP servers are mounted.
  */
 export function approvalRequiredRuntimeNames(assistantMcpEnabled: boolean): readonly string[] {
-  return assistantMcpEnabled
-    ? [
-        ...CHERRY_BUILTIN_APPROVAL_REQUIRED_RUNTIME_NAMES,
-        ...ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES,
-        ...ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES
-      ]
-    : CHERRY_BUILTIN_APPROVAL_REQUIRED_RUNTIME_NAMES
+  return listBuiltinToolPolicies({ approval: 'required', assistantMcpEnabled }).map(toMcpRuntimeName)
 }
 
 function bashCommand(ctx: ToolGuardContext): string | undefined {
@@ -142,7 +127,7 @@ export const CLAUDE_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     // is a safety block, not an approval — bypassPermissions does not lift it.
     id: 'global-install',
     bypassBehavior: 'enforce',
-    match: { tools: ['Bash'], when: globalInstallCommand },
+    match: { tool: 'Bash', when: globalInstallCommand },
     effect: 'deny',
     reason: (hit) =>
       `Blocked to avoid cross-agent dependency pollution: ${hit.evidence}. Install project dependencies in the current workspace (e.g. \`bun install <pkg>\`, or \`uv run --with <pkg> python\` for Python). For one-off tools use \`bun x <tool>\` / \`uvx <tool>\`; for persistent CLIs use \`cli_search\` then \`cli_install\`.`
@@ -150,7 +135,7 @@ export const CLAUDE_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
   {
     id: 'headless-config-mutation',
     bypassBehavior: 'enforce',
-    match: { tools: [toCherryBuiltinRuntimeName(CONFIG_TOOL_NAME)], when: mutatingConfigAction },
+    match: { tool: toCherryBuiltinRuntimeName(CONFIG_TOOL_NAME), when: mutatingConfigAction },
     headless: {
       predicate: 'turn-headless',
       reason:
@@ -162,7 +147,7 @@ export const CLAUDE_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     // user's explicit opt-in to unattended installation.
     id: 'skill-install',
     bypassBehavior: 'skipInteractiveEffect',
-    match: { tools: ['mcp__skills__install_skill'] },
+    match: { tool: 'mcp__skills__install_skill' },
     headless: {
       predicate: 'turn-headless',
       reason:
@@ -173,7 +158,7 @@ export const CLAUDE_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
   {
     id: 'interactive-headless',
     bypassBehavior: 'enforce',
-    match: { tools: HEADLESS_INTERACTIVE_TOOLS },
+    match: { when: (ctx) => (claudeToolRequiresUserInteraction(ctx.toolName) ? {} : null) },
     headless: { predicate: 'responder-unavailable', reason: HEADLESS_INTERACTIVE_TOOL_DENIAL }
   },
   {
@@ -182,7 +167,7 @@ export const CLAUDE_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     // name from its auto-allow shortcut, so no mode pierces the prompt.
     id: 'ask-user-question',
     bypassBehavior: 'enforce',
-    match: { tools: [ASK_USER_QUESTION_TOOL_NAME] },
+    match: { tool: ASK_USER_QUESTION_TOOL_NAME },
     effect: 'ask',
     askStrength: 'soft',
     reason: 'AskUserQuestion requires a live user response.'
@@ -191,8 +176,8 @@ export const CLAUDE_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     // Feedback skills submit through Bash under the user's identity (Lark form / GitHub issue).
     id: 'assistant-feedback',
     bypassBehavior: 'skipInteractiveEffect',
-    appliesTo: { roles: [BUILTIN_AGENT_ROLE.ASSISTANT] },
-    match: { tools: ['Bash'], when: feedbackSubmissionCommand },
+    appliesTo: { role: BUILTIN_AGENT_ROLE.ASSISTANT },
+    match: { tool: 'Bash', when: feedbackSubmissionCommand },
     effect: 'ask',
     askStrength: 'soft',
     reason: 'Submitting Cherry Studio feedback externally requires live per-call user approval.',
@@ -207,8 +192,8 @@ export const CLAUDE_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     // Bash call asks. Destructive commands fold into builtin-destructive's deny above.
     id: 'support-bash',
     bypassBehavior: 'skipInteractiveEffect',
-    appliesTo: { roles: [BUILTIN_AGENT_ROLE.SUPPORT] },
-    match: { tools: ['Bash'] },
+    appliesTo: { role: BUILTIN_AGENT_ROLE.SUPPORT },
+    match: { tool: 'Bash' },
     effect: 'ask',
     askStrength: 'soft',
     reason: 'Cherry Support shell commands require live per-call user approval.',
@@ -225,7 +210,7 @@ export const CLAUDE_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     id: 'approval-required',
     bypassBehavior: 'skipInteractiveEffect',
     match: {
-      when: (ctx) => (approvalRequiredRuntimeNames(ctx.assistantMcpEnabled).includes(ctx.toolName) ? {} : null)
+      when: (ctx) => (findBuiltinToolPolicy(ctx.toolName, ctx.assistantMcpEnabled)?.approval === 'required' ? {} : null)
     },
     effect: 'ask',
     askStrength: 'hard',
@@ -239,7 +224,7 @@ export const CLAUDE_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     // still apply — out-of-workspace reads stay silent in default mode by decision.
     id: 'workspace-escape',
     bypassBehavior: 'skipInteractiveEffect',
-    match: { tools: Object.keys(WORKSPACE_PATH_FIELDS), when: pathOutsideAllowedRoots },
+    match: { when: pathOutsideAllowedRoots },
     effect: 'ask',
     askStrength: 'soft',
     reason: (hit, ctx) =>

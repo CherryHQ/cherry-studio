@@ -18,14 +18,7 @@ import { buildAgentMcpServers } from '@main/ai/runtime/agentMcpServers'
 import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
-import {
-  ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES,
-  ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES,
-  ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES,
-  ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES,
-  CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES,
-  CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES
-} from '@main/ai/runtime/toolApproval/cherryBuiltinApproval'
+import { listBuiltinToolPolicies } from '@main/ai/runtime/toolApproval/builtinToolPolicy'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
@@ -69,22 +62,16 @@ import { createPiProviderExtension } from './providerExtension'
 const logger = loggerService.withContext('PiRuntimeConnection')
 const PI_BUILTIN_TOOL_NAMES = PI_BUILTIN_TOOLS.map((tool) => tool.name)
 const PI_BUILTIN_TOOL_ALIASES = new Map(PI_BUILTIN_TOOL_NAMES.map((name) => [name.toLowerCase(), name]))
-const toPiMcpRuntimeName = (runtimeName: string): string => {
-  const [, serverName, toolName] = runtimeName.split('__')
-  return buildPiMcpToolName(serverName, toolName)
-}
-const PI_AUTO_APPROVED_MCP_TOOLS = new Set([
-  ...CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map((name) => buildPiMcpToolName('cherry-tools', name)),
-  buildPiMcpToolName('agent-memory', 'memory'),
-  buildPiMcpToolName('skills', 'search_skills'),
-  ...ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES.map(toPiMcpRuntimeName),
-  ...ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES.map(toPiMcpRuntimeName)
-])
-const PI_APPROVAL_REQUIRED_MCP_TOOLS = new Set([
-  ...CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map((name) => buildPiMcpToolName('cherry-tools', name)),
-  ...ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES.map(toPiMcpRuntimeName),
-  ...ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES.map(toPiMcpRuntimeName)
-])
+const PI_AUTO_APPROVED_MCP_TOOLS = new Set(
+  listBuiltinToolPolicies({ approval: 'auto' }).map(({ serverName, toolName }) =>
+    buildPiMcpToolName(serverName, toolName)
+  )
+)
+const PI_APPROVAL_REQUIRED_MCP_TOOLS = new Set(
+  listBuiltinToolPolicies({ approval: 'required' }).map(({ serverName, toolName }) =>
+    buildPiMcpToolName(serverName, toolName)
+  )
+)
 interface PendingSteer {
   input: AgentRuntimeUserInput
 }

@@ -3,11 +3,11 @@ import os from 'node:os'
 import path from 'node:path'
 
 import {
-  ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES,
-  ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES,
-  CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES,
-  toCherryBuiltinRuntimeName
-} from '@main/ai/runtime/toolApproval/cherryBuiltinApproval'
+  listBuiltinToolPolicies,
+  toCherryBuiltinRuntimeName,
+  toMcpRuntimeName
+} from '@main/ai/runtime/toolApproval/builtinToolPolicy'
+import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 import { approvalRequiredRuntimeNames, CLAUDE_TOOL_GUARD_RULES, HEADLESS_INTERACTIVE_TOOL_DENIAL } from '../guardRules'
@@ -15,6 +15,13 @@ import { evaluateToolGuards, type ToolGuardContext, validateToolGuardRules } fro
 
 const INTERACTIVE = { currentTurn: 'interactive', userResponse: 'stream' } as const
 const HEADLESS = { currentTurn: 'headless', userResponse: 'unavailable' } as const
+const NON_ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({
+  approval: 'required',
+  assistantMcpEnabled: false
+}).map(toMcpRuntimeName)
+const ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({ approval: 'required' })
+  .filter((entry) => entry.availability === 'assistant')
+  .map(toMcpRuntimeName)
 
 function makeCtx(overrides: Partial<ToolGuardContext> = {}): ToolGuardContext {
   return {
@@ -39,13 +46,11 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
     expect(validateToolGuardRules(CLAUDE_TOOL_GUARD_RULES)).toEqual([])
   })
 
-  it('derives the per-call approval list from the shared constants, gated on assistant MCP mounting', () => {
-    const cherryNames = CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map(toCherryBuiltinRuntimeName)
-    expect(approvalRequiredRuntimeNames(false)).toEqual(cherryNames)
+  it('derives the per-call approval boundary from policy entries and mounted servers', () => {
+    expect(approvalRequiredRuntimeNames(false)).toEqual(NON_ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES)
     expect(approvalRequiredRuntimeNames(true)).toEqual([
-      ...cherryNames,
-      ...ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES,
-      ...ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES
+      ...NON_ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES,
+      ...ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES
     ])
   })
 
@@ -65,7 +70,7 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
     )
 
     it('wins the fold over an approval-required ask (deny beats ask)', async () => {
-      const toolName = toCherryBuiltinRuntimeName(CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES[0])
+      const toolName = toCherryBuiltinRuntimeName(KB_MANAGE_TOOL_NAME)
       const decision = await evaluate(makeCtx({ toolName, isDisabled: () => true }))
       expect(decision?.ruleId).toBe('disabled-tool')
       expect(decision?.effect).toBe('deny')
@@ -292,7 +297,7 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
   })
 
   describe('approval-required', () => {
-    const kbManage = toCherryBuiltinRuntimeName(CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES[0])
+    const kbManage = toCherryBuiltinRuntimeName(KB_MANAGE_TOOL_NAME)
 
     it.each(['default', 'acceptEdits'] as const)('asks under %s', async (mode) => {
       const decision = await evaluate(makeCtx({ toolName: kbManage, permissionMode: mode }))

@@ -69,9 +69,9 @@ interface ToolGuardRuleBase {
    * sets `skipHeadlessDenyInBypass`.
    */
   bypassBehavior: 'enforce' | 'skipInteractiveEffect'
-  appliesTo?: { roles?: readonly string[]; protectedBuiltinOnly?: boolean }
-  /** `tools` and `when` AND together; at least one must be present. */
-  match: { tools?: readonly string[]; when?: GuardCondition }
+  appliesTo?: { role?: string; protectedBuiltinOnly?: boolean }
+  /** `tool` and `when` AND together; at least one must be present. */
+  match: { tool?: string; when?: GuardCondition }
   headless?: HeadlessOverride
 }
 
@@ -101,7 +101,7 @@ export interface ToolGuardDecision {
 function appliesToAgent(rule: ToolGuardRule, ctx: ToolGuardContext): boolean {
   if (!rule.appliesTo) return true
   if (rule.appliesTo.protectedBuiltinOnly && !ctx.isProtectedBuiltin) return false
-  if (rule.appliesTo.roles && (!ctx.builtinRole || !rule.appliesTo.roles.includes(ctx.builtinRole))) return false
+  if (rule.appliesTo.role && ctx.builtinRole !== rule.appliesTo.role) return false
   return true
 }
 
@@ -117,7 +117,7 @@ function matchesHeadlessPredicate(predicate: HeadlessPredicate, interaction: Too
 }
 
 async function matchRule(rule: ToolGuardRule, ctx: ToolGuardContext): Promise<GuardHit | null> {
-  if (rule.match.tools && !rule.match.tools.includes(ctx.toolName)) return null
+  if (rule.match.tool && rule.match.tool !== ctx.toolName) return null
   if (!rule.match.when) return {}
   try {
     return await rule.match.when(ctx)
@@ -178,8 +178,8 @@ export function validateToolGuardRules(rules: readonly ToolGuardRule[]): string[
   for (const rule of rules) {
     if (seen.has(rule.id)) problems.push(`duplicate rule id: ${rule.id}`)
     seen.add(rule.id)
-    if (!rule.match.tools?.length && !rule.match.when) {
-      problems.push(`rule ${rule.id} matches nothing (no tools, no condition)`)
+    if (!rule.match.tool && !rule.match.when) {
+      problems.push(`rule ${rule.id} matches nothing (no tool, no condition)`)
     }
     if (rule.effect === undefined && !rule.headless) {
       problems.push(`rule ${rule.id} has neither an effect nor a headless override`)

@@ -5,13 +5,21 @@ import path from 'node:path'
 
 import { CHANNEL_SECURITY_PROMPT } from '@main/ai/runtime/agentPrompt'
 import {
-  ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES,
-  ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES,
-  CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES,
-  toCherryBuiltinRuntimeName
-} from '@main/ai/runtime/toolApproval/cherryBuiltinApproval'
+  listBuiltinToolPolicies,
+  toCherryBuiltinRuntimeName,
+  toMcpRuntimeName
+} from '@main/ai/runtime/toolApproval/builtinToolPolicy'
 import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({ approval: 'required' }).map(toMcpRuntimeName)
+const NON_ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({
+  approval: 'required',
+  assistantMcpEnabled: false
+}).map(toMcpRuntimeName)
+const ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({ approval: 'required' })
+  .filter((entry) => entry.availability === 'assistant')
+  .map(toMcpRuntimeName)
 
 const mocks = vi.hoisted(() => ({
   getAgent: vi.fn(),
@@ -1277,11 +1285,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       )
 
     expect(settings.permissionMode).toBe('bypassPermissions')
-    const requiredTools = [
-      ...CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map(toCherryBuiltinRuntimeName),
-      ...ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES,
-      ...ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES
-    ]
+    const requiredTools = APPROVAL_REQUIRED_RUNTIME_NAMES
     // Default mode (live snapshot mode undefined): the explicit per-call approval list always asks.
     for (const toolName of requiredTools) {
       await expect(permissionDecisions(toolName)).resolves.toContain('ask')
@@ -1540,7 +1544,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       'EnterPlanMode',
       'ExitPlanMode',
       'EnterWorktree',
-      ...CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map(toCherryBuiltinRuntimeName)
+      ...NON_ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES
     ]
     for (const toolName of toolsRequiringAResponder) {
       const result = await settings.canUseTool?.(toolName, {}, {
@@ -1589,7 +1593,7 @@ describe('buildClaudeCodeSessionSettings', () => {
         expect.objectContaining({ hookSpecificOutput: expect.objectContaining({ permissionDecision: 'deny' }) })
       )
     }
-    for (const toolName of CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map(toCherryBuiltinRuntimeName)) {
+    for (const toolName of NON_ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES) {
       const results = await Promise.all(
         (settings.hooks?.PreToolUse?.[0]?.hooks ?? []).map((hook) =>
           hook(
@@ -2061,10 +2065,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__create_agent')
     expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__diagnose')
     expect(snapshotOptions.autoAllowRuntimeNameExceptions).toEqual(
-      expect.arrayContaining([
-        ...ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES,
-        ...ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES
-      ])
+      expect.arrayContaining(ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES)
     )
     expect(snapshotOptions.autoAllowRuntimeNamePrefixes ?? []).toEqual([])
     expect(mocks.createAssistantServer).toHaveBeenCalledWith('anthropic::claude-sonnet', undefined)
@@ -2343,10 +2344,10 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     await buildClaudeCodeSessionSettings(session as never, {} as never)
 
-    // settingsBuilder must derive the approval exceptions from the shared constant and pass them to the
-    // snapshot. The agentTools test proves those options gate kb_manage; this proves settingsBuilder
-    // actually supplies them — dropping `.map(toCherryBuiltinRuntimeName)` or the exceptions fails here.
-    const exceptions = CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map(toCherryBuiltinRuntimeName)
+    // settingsBuilder must derive approval exceptions from policy entries and pass them to the
+    // snapshot. The agentTools test proves those options gate kb_manage; this proves the adapter
+    // actually supplies the derived boundary format.
+    const exceptions = NON_ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES
     expect(exceptions).toContain(toCherryBuiltinRuntimeName(KB_MANAGE_TOOL_NAME))
     expect(mocks.createToolPolicySnapshot).toHaveBeenCalledWith(
       expect.anything(),
