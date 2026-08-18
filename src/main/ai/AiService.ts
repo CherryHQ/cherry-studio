@@ -1143,7 +1143,9 @@ export class AiService extends BaseService {
     } else if (isEmbeddingModel(model) && !hasChatPrimaryEndpoint) {
       probe = this.embedMany({ ...probeRequest, values: ['test'] })
     } else {
-      probe = this.generateText({ ...probeRequest, system: 'test', prompt: 'hi' })
+      // Latency is the probe's measured output — thinking tokens would pollute it
+      // for reasoning-capable models whose provider default enables reasoning.
+      probe = this.generateText({ ...probeRequest, system: 'test', prompt: 'hi', reasoningEffort: 'none' })
     }
 
     try {

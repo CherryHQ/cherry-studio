@@ -209,7 +209,8 @@
       "type": "Biểu tượng Agent"
     },
     "input": {
-      "placeholder": "Nhập tin nhắn của bạn ở đây, gửi bằng {{key}} - @ chọn đường dẫn, / chọn lệnh"
+      "placeholder": "Nhập tin nhắn của bạn ở đây, gửi bằng {{key}} - @ chọn đường dẫn, / chọn lệnh",
+      "placeholder_streaming": "Agent đang hoạt động — {{sendKey}} xếp hàng gửi tin tiếp theo, {{steerKey}} hướng dẫn ngay."
     },
     "list": {
       "error": {
@@ -662,13 +663,16 @@
           },
           "auto": {
             "description": "Chạy mà không cần hỏi thường lệ. Kiểm tra an toàn sẽ chặn các hành động rủi ro.",
+            "description_pi": "Hoạt động độc lập. Chỉ hỏi khi nhận diện thao tác rủi ro.",
             "title": "Phê duyệt thay tôi",
-            "warning": "Cần một mô hình hỗ trợ; các mô hình khác có thể bỏ qua hoặc vẫn tiếp tục hỏi."
+            "warning": "Cần một mô hình hỗ trợ; các mô hình khác có thể bỏ qua hoặc vẫn tiếp tục hỏi.",
+            "warning_pi": "Nhận diện chỉ ở mức tối ưu; lệnh lạ vẫn có thể được thực thi."
           },
           "bypassPermissions": {
             "description": "Bỏ qua kiểm tra quyền. Có thể xóa tệp và sử dụng mạng.",
             "title": "Toàn quyền truy cập",
-            "warning": "Sử dụng thận trọng — mọi công cụ sẽ chạy mà không yêu cầu phê duyệt."
+            "warning": "Sử dụng thận trọng — mọi công cụ sẽ chạy mà không yêu cầu phê duyệt.",
+            "warning_pi": "Nguy hiểm — không yêu cầu xác nhận cho bất kỳ thao tác nào, ngoại trừ công cụ bị vô hiệu hóa, bao gồm xóa tệp và truy cập mạng."
           },
           "confirmChange": {
             "description": "Chuyển đổi chế độ sẽ cập nhật các công cụ được phê duyệt tự động.",
@@ -1088,17 +1092,37 @@
           "description": "Chạy lệnh shell",
           "label": "Chạy lệnh shell"
         },
+        "create_goal": {
+          "description": "Tạo mục tiêu cần đạt được trong phiên",
+          "label": "Tạo mục tiêu"
+        },
         "edit": {
           "description": "Sửa tập tin",
           "label": "Sửa tập tin"
+        },
+        "exit_plan_mode": {
+          "description": "Trình bày kế hoạch để xem xét và thoát chế độ lập kế hoạch khi được phê duyệt.",
+          "label": "Thoát chế độ lập kế hoạch"
         },
         "find": {
           "description": "Tìm tập tin",
           "label": "Tìm tập tin"
         },
+        "get_goal": {
+          "description": "Đọc mục tiêu của phiên hiện tại",
+          "label": "Đọc mục tiêu"
+        },
         "grep": {
           "description": "Tìm kiếm nội dung tập tin",
           "label": "Tìm kiếm nội dung tập tin"
+        },
+        "interrupt_agent": {
+          "description": "Dừng lượt hiện tại của Agent phụ chạy nền",
+          "label": "Ngắt Agent phụ"
+        },
+        "list_agents": {
+          "description": "Liệt kê các Agent phụ chạy nền và trạng thái của chúng",
+          "label": "Liệt kê Agent phụ"
         },
         "ls": {
           "description": "Liệt kê nội dung thư mục",
@@ -1107,6 +1131,34 @@
         "read": {
           "description": "Đọc tập tin",
           "label": "Đọc tập tin"
+        },
+        "read_image": {
+          "description": "Đọc tệp PNG, JPEG, WebP hoặc GIF bằng mô hình có khả năng thị giác",
+          "label": "Đọc hình ảnh"
+        },
+        "send_message": {
+          "description": "Gửi tin nhắn tiếp theo đến Agent phụ chạy nền",
+          "label": "Gửi tin cho Agent phụ"
+        },
+        "skill": {
+          "description": "Tải hướng dẫn đầy đủ của một kỹ năng đã bật",
+          "label": "Tải hướng dẫn kỹ năng"
+        },
+        "subagent": {
+          "description": "Giao nhiệm vụ cho Agent phụ chạy nền, có thể tương tác tiếp sau này",
+          "label": "Giao cho Agent phụ"
+        },
+        "subagent_fork": {
+          "description": "Giao nhiệm vụ tiếp theo cho Agent phụ được khởi tạo từ cuộc trò chuyện này",
+          "label": "Tạo nhánh Agent phụ"
+        },
+        "todo_write": {
+          "description": "Quản lý danh sách tác vụ",
+          "label": "Quản lý danh sách tác vụ"
+        },
+        "update_goal": {
+          "description": "Cập nhật trạng thái hoặc nội dung của mục tiêu phiên",
+          "label": "Cập nhật mục tiêu"
         },
         "write": {
           "description": "Ghi tập tin",
@@ -2203,7 +2255,7 @@
     "cli_tool_placeholder": "Chọn công cụ CLI để sử dụng",
     "cli_tools": {
       "claude_code": "Claude Code",
-      "deepseek_harness": "[to be translated]:DeepSeek Harness",
+      "deepseek_harness": "DeepSeek Harness",
       "gemini_cli": "Gemini CLI",
       "github_copilot_cli": "GitHub Copilot CLI",
       "kimi_code": "Mã Kimi",
@@ -2227,39 +2279,39 @@
     "custom_path_required": "Terminal này yêu cầu đường dẫn tùy chỉnh",
     "custom_path_set": "Đường dẫn terminal tùy chỉnh đã được đặt thành công",
     "deepseek_harness": {
-      "agent_preset": "[to be translated]:Default agent mode",
+      "agent_preset": "Chế độ tác nhân mặc định",
       "agent_presets": {
         "code": {
-          "description": "[to be translated]:Combines multi-step tool work through the PTC Code Mode SDK for complex coding tasks.",
-          "label": "[to be translated]:PTC Code"
+          "description": "Kết hợp công việc công cụ nhiều bước thông qua SDK PTC Code Mode cho các tác vụ lập trình phức tạp.",
+          "label": "PTC Code"
         },
         "inherit": {
-          "description": "[to be translated]:Keeps the existing default preset in the shared ~/.dsh settings.",
-          "label": "[to be translated]:Harness default"
+          "description": "Giữ nguyên cấu hình đặt trước mặc định hiện có trong phần cài đặt ~/.dsh dùng chung.",
+          "label": "Mặc định của Harness"
         },
         "minimal": {
-          "description": "[to be translated]:Uses only a persistent shell and text editor for the smallest tool surface.",
-          "label": "[to be translated]:Minimal"
+          "description": "Chỉ sử dụng shell duy trì liên tục và trình soạn thảo văn bản để có phạm vi công cụ nhỏ nhất.",
+          "label": "Tối giản"
         },
         "standard": {
-          "description": "[to be translated]:Full coding agent with files, shell, search, skills, planning, and subagents.",
-          "label": "[to be translated]:Standard"
+          "description": "Tác nhân lập trình đầy đủ với tệp, shell, tìm kiếm, kỹ năng, lập kế hoạch và tác nhân phụ.",
+          "label": "Tiêu chuẩn"
         }
       },
-      "danger_warning": "[to be translated]:Full access lets the agent reach files outside the workspace and skips operation approval. Use it only for tasks you trust.",
-      "permission_mode": "[to be translated]:Default permission",
+      "danger_warning": "Toàn quyền truy cập cho phép tác nhân truy cập các tệp bên ngoài không gian làm việc và bỏ qua bước phê duyệt thao tác. Chỉ sử dụng cho những tác vụ bạn tin tưởng.",
+      "permission_mode": "Quyền mặc định",
       "permission_modes": {
         "danger-full-access": {
-          "description": "[to be translated]:Allows unrestricted access without operation approval.",
-          "label": "[to be translated]:Full access"
+          "description": "Cho phép truy cập không hạn chế mà không cần phê duyệt thao tác.",
+          "label": "Toàn quyền truy cập"
         },
         "read-only": {
-          "description": "[to be translated]:Restricts file writes and asks before risky operations.",
-          "label": "[to be translated]:Read only"
+          "description": "Hạn chế ghi tệp và yêu cầu xác nhận trước các thao tác rủi ro.",
+          "label": "Chỉ đọc"
         },
         "workspace-write": {
-          "description": "[to be translated]:Allows writes in the current DSH workspace and asks before risky operations.",
-          "label": "[to be translated]:Workspace write"
+          "description": "Cho phép ghi trong không gian làm việc DSH hiện tại và yêu cầu xác nhận trước các thao tác rủi ro.",
+          "label": "Ghi trong không gian làm việc"
         }
       }
     },
@@ -2313,7 +2365,7 @@
     "no_tools": "Không có công cụ nào khả dụng",
     "not_installed": "Chưa cài đặt",
     "open_provider_settings": "Mở cài đặt nhà cung cấp",
-    "open_web_ui": "[to be translated]:Open Web UI",
+    "open_web_ui": "Mở giao diện web",
     "own_login": {
       "title": "{{toolName}} Chính thức"
     },
@@ -2323,10 +2375,10 @@
     "search_provider_placeholder": "Tìm kiếm nhà cung cấp…",
     "select_folder": "Chọn thư mục",
     "select_provider_before_launch": "Chọn một nhà cung cấp trước khi khởi chạy {{toolName}}",
-    "select_provider_model": "[to be translated]:Please select a provider and model first",
+    "select_provider_model": "Vui lòng chọn nhà cung cấp và mô hình trước",
     "select_tool_to_start": "Chọn một công cụ CLI từ bên trái để bắt đầu cấu hình",
     "set_custom_path": "Đặt đường dẫn terminal tùy chỉnh",
-    "stop": "[to be translated]:Stop",
+    "stop": "Dừng",
     "supported_providers": "Nhà cung cấp được hỗ trợ",
     "terminal": "Thiết bị đầu cuối",
     "terminal_hint": "Chọn ứng dụng terminal để chạy CLI",
@@ -2642,7 +2694,6 @@
       "503": "Dịch vụ không khả dụng. Vui lòng thử lại sau.",
       "504": "Quá thời gian chờ của cổng. Vui lòng thử lại sau."
     },
-    "image_unreadable_for_non_vision_model": "Mô hình đã chọn không hỗ trợ hình ảnh, và Cherry Studio không thể trích xuất văn bản có thể đọc được từ tệp đính kèm. Hãy chọn mô hình có khả năng xử lý hình ảnh hoặc xóa hình ảnh rồi thử lại.",
     "lastError": "Lỗi Cuối Cùng",
     "maxEmbeddingsPerCall": "Số lượng nhúng tối đa mỗi lần gọi",
     "message": "Thông báo lỗi",
@@ -3193,6 +3244,8 @@
         "delete_confirm_title": "Xóa các Nguồn Dữ liệu Đã Chọn?",
         "loaded_only_hint": "Chỉ áp dụng cho các mục đã tải (tổng cộng {{total}})",
         "reindex": "Lập chỉ mục lại",
+        "reindex_none_eligible": "Tất cả nguồn dữ liệu được chọn vẫn đang xử lý và chưa thể lập chỉ mục lại",
+        "reindex_skipped": "Đã bỏ qua {{count}} nguồn dữ liệu vẫn đang xử lý",
         "selected_count": "{{count}} đã chọn"
       },
       "chunks_count": "{{count}} phần",
@@ -3526,11 +3579,13 @@
             "label": "Chế độ chạy",
             "option": {
               "claude_code": "Nâng cao: Claude Agent",
+              "dsh": "DeepSeek Harness",
               "pi": "Nhanh: Pi"
             },
-            "selected": {
-              "claude_code": "Nâng cao",
-              "pi": "Nhanh"
+            "option_description": {
+              "claude_code": "Hiệu năng cao hơn — hỗ trợ chế độ lập kế hoạch và mô hình phân tầng",
+              "dsh": "Tương thích nhiều nhà cung cấp với thực thi theo mục tiêu",
+              "pi": "Phản hồi nhanh hơn, chi phí vận hành thấp hơn"
             }
           },
           "small_model": {
@@ -7163,6 +7218,7 @@
         "no": "Không có mô tả",
         "nowledge_mem": "Yêu cầu ứng dụng Nowledge Mem chạy cục bộ. Lưu giữ cuộc trò chuyện AI, công cụ, ghi chú, Agent và tệp trong bộ nhớ riêng tư trên máy tính. Tải xuống tại https://mem.nowledge.co/",
         "python": "Thực thi mã Python trong môi trường sandbox an toàn. Chạy Python với Pyodide, hỗ trợ hầu hết các thư viện chuẩn và các gói tính toán khoa học",
+        "qveris": "Kết nối với QVeris để khám phá, kiểm tra và gọi các khả năng của tác nhân AI. Cần cấu hình biến môi trường QVERIS_API_KEY.",
         "sequentialthinking": "Một triển khai máy chủ MCP cung cấp các công cụ để giải quyết vấn đề động và phản chiếu thông qua các quy trình tư duy có cấu trúc"
       },
       "command": "Lệnh",
@@ -7282,6 +7338,10 @@
       "providerPlaceholder": "Tên nhà cung cấp",
       "providerUrl": "URL của nhà cung cấp",
       "providers": "Nhà cung cấp",
+      "qveris": {
+        "get_api_key": "Lấy khóa API",
+        "missing_api_key": "QVeris yêu cầu khóa API. <link>Đăng ký hoặc đăng nhập để nhận khóa API</link>, sau đó nhập khóa đó vào QVERIS_API_KEY."
+      },
       "registry": "Bộ đăng ký gói",
       "registryDefault": "Mặc định",
       "registryOptions": {
@@ -7412,8 +7472,11 @@
         "confirm_delete_message": "Xác nhận trước khi xóa tin nhắn",
         "confirm_regenerate_message": "Xác nhận trước khi tạo lại tin nhắn",
         "enable_quick_triggers": "Kích hoạt các kích hoạt / và @",
+        "newline_shortcuts": "Phím tắt xuống dòng",
         "send_shortcuts": "Gửi phím tắt",
         "show_estimated_tokens": "Hiển thị số token ước tính",
+        "steer_shortcuts": "Phím tắt hướng dẫn",
+        "steer_shortcuts_hint": "Khi Agent đang chạy, phím tắt này gửi tin nhắn ngay vào lượt hiện tại để hướng dẫn; phím tắt gửi sẽ xếp hàng cho đến khi lượt kết thúc.",
         "title": "Cài đặt đầu vào"
       },
       "layout": {
@@ -9012,5 +9075,18 @@
     "quit": "Thôi",
     "show_window": "Hiển thị Cửa sổ",
     "visualization": "Trực quan hóa"
+  },
+  "xlsx_preview": {
+    "chart": "Biểu đồ",
+    "chart_unsupported": "Loại biểu đồ này chưa được hỗ trợ",
+    "error": {
+      "description": "Không thể xem trước bảng tính này."
+    },
+    "formula_not_evaluated": "Không thể tính giá trị công thức",
+    "sheet_tabs_label": "Trang tính",
+    "too_large": {
+      "description": "Kích thước tệp {{size}} vượt quá giới hạn xem trước {{limit}}.",
+      "title": "Tệp quá lớn để xem trước"
+    }
   }
 }

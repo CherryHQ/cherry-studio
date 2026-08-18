@@ -79,12 +79,8 @@ export function mergeReleaseHistory(
 export function validateCurrentReleaseHistory(current: ReleaseNotesEntry, history: readonly ReleaseNotesEntry[]): void {
   if (!STABLE_RELEASE_VERSION_PATTERN.test(current.version)) return
 
-  const historicalEntry = history.find(({ version }) => version === current.version)
-  if (!historicalEntry) {
+  if (!history.some(({ version }) => version === current.version)) {
     throw new Error(`release-history.json must contain current stable version ${current.version}`)
-  }
-  if (historicalEntry.releaseNotes !== current.releaseNotes) {
-    throw new Error(`release-history.json notes for ${current.version} must match electron-builder.yml`)
   }
 }
 

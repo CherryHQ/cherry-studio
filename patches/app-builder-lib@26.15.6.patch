@@ -1,0 +1,15 @@
+diff --git a/out/node-module-collector/pnpmNodeModulesCollector.js b/out/node-module-collector/pnpmNodeModulesCollector.js
+index 8853912e013d3769f3e763d06720a94091a7ffaa..154fbec14a0dbdd81e545ce60ec3403ed9d50330 100644
+--- a/out/node-module-collector/pnpmNodeModulesCollector.js
++++ b/out/node-module-collector/pnpmNodeModulesCollector.js
+@@ -155,6 +155,10 @@ class PnpmNodeModulesCollector extends nodeModulesCollector_1.NodeModulesCollect
+             // The pnpm list output can include the same `name@version` thousands of times across a
+             // deep workspace; without this guard we re-resolve and re-recurse each occurrence.
+             if (this.collectedDeps.has(id)) {
++                // Still walk children: pnpm's global dedup can place a package's only full
++                // expansion under a peer-variation duplicate of an already-seen name@version.
++                // Skipping the subtree here leaves those packages unresolvable (PKG_DUPLICATE_REF_UNRESOLVED).
++                await this.collectDepsRecursively(value);
+                 return;
+             }
+             this.collectedDeps.add(id);
