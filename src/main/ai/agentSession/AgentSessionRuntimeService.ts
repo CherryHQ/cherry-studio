@@ -2696,10 +2696,15 @@ export class AgentSessionRuntimeService extends BaseService {
       return
     }
     // Safety net: suppress autonomous turns that fire within the grace period after a
-    // host turn ended. The adapter-level grace period is the primary guard; this catches
-    // any autonomous content that leaks through (e.g. a race where the adapter's
-    // hostTurnEndedAt was cleared before the event was processed).
-    if (entry.lastHostTurnEndedAt !== undefined && Date.now() - entry.lastHostTurnEndedAt < POST_HOST_TURN_GRACE_MS) {
+    // host turn ended, UNLESS background work is active (a legitimate autonomous wake-up).
+    // The adapter-level grace period is the primary guard; this catches any autonomous
+    // content that leaks through (e.g. a race where the adapter's hostTurnEndedAt was
+    // cleared before the event was processed).
+    if (
+      entry.lastHostTurnEndedAt !== undefined &&
+      Date.now() - entry.lastHostTurnEndedAt < POST_HOST_TURN_GRACE_MS &&
+      !hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)
+    ) {
       this.applyRuntimeStateEvent(entry, { type: 'autonomous-turn-abandoned' })
       return
     }
