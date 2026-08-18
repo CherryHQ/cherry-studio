@@ -13,6 +13,13 @@
       "description": "Prevent system sleep while the app has active work (v2 new feature, no v1 source)"
     },
     {
+      "targetKey": "app.notification.update.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Show a system notification when a background update check finds a new version (v2 new feature, no v1 source)"
+    },
+    {
       "targetKey": "app.onboarding.provider_setup.status",
       "type": "PreferenceTypes.OnboardingProviderSetupStatus",
       "defaultValue": "pending",
@@ -241,13 +248,6 @@
       "defaultValue": null,
       "status": "classified",
       "description": "Explicit compression model (UniqueModelId). null = use the current request model"
-    },
-    {
-      "targetKey": "topic.naming.model_id",
-      "type": "string",
-      "defaultValue": null,
-      "status": "classified",
-      "description": "Topic naming model UniqueModelId (provider::modelId, from complex mapping llm_model_ids_to_unique)"
     },
     {
       "targetKey": "topic.tab.display_mode",
@@ -684,6 +684,20 @@
       "defaultValue": false,
       "status": "classified",
       "description": "Notes line-break rendering mode: a single newline renders as a line break (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "chat.input.steer_shortcut",
+      "type": "PreferenceTypes.ComposerShortcut",
+      "defaultValue": "VALUE: null",
+      "status": "classified",
+      "description": "A second send-style shortcut that, in Agent mode while the session is streaming, sends the draft straight into the running turn instead of queueing it. No stored default: the effective default is platform-dependent (Command+Enter on macOS, Ctrl+Enter elsewhere) and resolved at read time. Send / newline / steer shortcuts are mutually exclusive."
+    },
+    {
+      "targetKey": "chat.input.newline_shortcut",
+      "type": "PreferenceTypes.ComposerShortcut",
+      "defaultValue": "VALUE: null",
+      "status": "classified",
+      "description": "The composer shortcut that inserts a line break. No stored default: resolved at read time to Shift+Enter, or Enter when the send shortcut already takes Shift+Enter. Send / newline / inject shortcuts are mutually exclusive."
     }
   ]
 }

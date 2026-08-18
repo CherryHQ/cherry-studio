@@ -1934,11 +1934,11 @@ describe('AiStreamManager', () => {
       expect(paused?.status).toBe('streaming')
       expect(paused?.awaitingApprovalAnchors).toHaveLength(1)
 
-      expect(mgr.resolveToolApproval('a', 'tc-1')).toBe(true)
+      expect(mgr.resolveToolApproval('a', 'tc-1', true)).toBe(true)
       const approved = sharedCacheStore.get('topic.stream.statuses.a') as any
       expect(approved?.status).toBe('streaming')
       expect(approved?.awaitingApprovalAnchors).toHaveLength(0)
-      expect(mgr.resolveToolApproval('a', 'tc-1')).toBe(false)
+      expect(mgr.resolveToolApproval('a', 'tc-1', true)).toBe(false)
 
       mgr.onChunk('a', 'provider-a::model-a', {
         type: 'tool-output-available',
@@ -1947,6 +1947,43 @@ describe('AiStreamManager', () => {
       const resumed = sharedCacheStore.get('topic.stream.statuses.a') as any
       expect(resumed?.status).toBe('streaming')
       expect(resumed?.awaitingApprovalAnchors).toHaveLength(0)
+    })
+
+    it('advances an approved live tool part so the next parallel approval can surface', async () => {
+      const listener = new FakeListener('wc:1')
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [listener]
+      })
+      const inputChunk = {
+        type: 'tool-input-available',
+        toolCallId: 'tc-1',
+        toolName: 'screenshot',
+        input: { format: 'jpeg' },
+        providerExecuted: true,
+        dynamic: true
+      } as UIMessageChunk
+      mgr.onChunk('a', 'provider-a::model-a', inputChunk)
+      mgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-approval-request',
+        approvalId: 'approval-1',
+        toolCallId: 'tc-1'
+      })
+
+      expect(mgr.resolveToolApproval('a', 'tc-1', true)).toBe(true)
+      expect(listener.chunks.at(-1)).toEqual(inputChunk)
+
+      const stream = new ReadableStream<UIMessageChunk>({
+        start(controller) {
+          for (const event of listener.chunks) controller.enqueue(event)
+          controller.close()
+        }
+      })
+      let message: CherryUIMessage | undefined
+      for await (const snapshot of readUIMessageStream<CherryUIMessage>({ stream })) message = snapshot
+      expect(message?.parts).toContainEqual(expect.objectContaining({ toolCallId: 'tc-1', state: 'input-available' }))
     })
 
     it('drains a steer that lands right after a clean `done` settle (inter-turn race)', async () => {

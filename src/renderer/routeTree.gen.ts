@@ -36,6 +36,7 @@ import { Route as SettingsAppearanceRouteImport } from './routes/settings/appear
 import { Route as SettingsApiGatewayRouteImport } from './routes/settings/api-gateway'
 import { Route as SettingsAboutRouteImport } from './routes/settings/about'
 import { Route as AppTranslateRouteImport } from './routes/app/translate'
+import { Route as AppReleaseNotesRouteImport } from './routes/app/release-notes'
 import { Route as AppNotesRouteImport } from './routes/app/notes'
 import { Route as AppLaunchpadRouteImport } from './routes/app/launchpad'
 import { Route as AppKnowledgeRouteImport } from './routes/app/knowledge'
@@ -195,6 +196,11 @@ const AppTranslateRoute = AppTranslateRouteImport.update({
   path: '/translate',
   getParentRoute: () => AppRoute,
 } as any)
+const AppReleaseNotesRoute = AppReleaseNotesRouteImport.update({
+  id: '/release-notes',
+  path: '/release-notes',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppNotesRoute = AppNotesRouteImport.update({
   id: '/notes',
   path: '/notes',
@@ -320,6 +326,7 @@ export interface FileRoutesByFullPath {
   '/app/knowledge': typeof AppKnowledgeRoute
   '/app/launchpad': typeof AppLaunchpadRoute
   '/app/notes': typeof AppNotesRoute
+  '/app/release-notes': typeof AppReleaseNotesRoute
   '/app/translate': typeof AppTranslateRoute
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-gateway': typeof SettingsApiGatewayRoute
@@ -370,6 +377,7 @@ export interface FileRoutesByTo {
   '/app/knowledge': typeof AppKnowledgeRoute
   '/app/launchpad': typeof AppLaunchpadRoute
   '/app/notes': typeof AppNotesRoute
+  '/app/release-notes': typeof AppReleaseNotesRoute
   '/app/translate': typeof AppTranslateRoute
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-gateway': typeof SettingsApiGatewayRoute
@@ -420,6 +428,7 @@ export interface FileRoutesById {
   '/app/knowledge': typeof AppKnowledgeRoute
   '/app/launchpad': typeof AppLaunchpadRoute
   '/app/notes': typeof AppNotesRoute
+  '/app/release-notes': typeof AppReleaseNotesRoute
   '/app/translate': typeof AppTranslateRoute
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-gateway': typeof SettingsApiGatewayRoute
@@ -473,6 +482,7 @@ export interface FileRouteTypes {
     | '/app/knowledge'
     | '/app/launchpad'
     | '/app/notes'
+    | '/app/release-notes'
     | '/app/translate'
     | '/settings/about'
     | '/settings/api-gateway'
@@ -523,6 +533,7 @@ export interface FileRouteTypes {
     | '/app/knowledge'
     | '/app/launchpad'
     | '/app/notes'
+    | '/app/release-notes'
     | '/app/translate'
     | '/settings/about'
     | '/settings/api-gateway'
@@ -572,6 +583,7 @@ export interface FileRouteTypes {
     | '/app/knowledge'
     | '/app/launchpad'
     | '/app/notes'
+    | '/app/release-notes'
     | '/app/translate'
     | '/settings/about'
     | '/settings/api-gateway'
@@ -809,6 +821,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTranslateRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/release-notes': {
+      id: '/app/release-notes'
+      path: '/release-notes'
+      fullPath: '/app/release-notes'
+      preLoaderRoute: typeof AppReleaseNotesRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/app/notes': {
       id: '/app/notes'
       path: '/notes'
@@ -975,6 +994,7 @@ interface AppRouteChildren {
   AppKnowledgeRoute: typeof AppKnowledgeRoute
   AppLaunchpadRoute: typeof AppLaunchpadRoute
   AppNotesRoute: typeof AppNotesRoute
+  AppReleaseNotesRoute: typeof AppReleaseNotesRoute
   AppTranslateRoute: typeof AppTranslateRoute
   AppMiniAppAppIdRoute: typeof AppMiniAppAppIdRoute
   AppPaintingsSplatRoute: typeof AppPaintingsSplatRoute
@@ -991,6 +1011,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppKnowledgeRoute: AppKnowledgeRoute,
   AppLaunchpadRoute: AppLaunchpadRoute,
   AppNotesRoute: AppNotesRoute,
+  AppReleaseNotesRoute: AppReleaseNotesRoute,
   AppTranslateRoute: AppTranslateRoute,
   AppMiniAppAppIdRoute: AppMiniAppAppIdRoute,
   AppPaintingsSplatRoute: AppPaintingsSplatRoute,

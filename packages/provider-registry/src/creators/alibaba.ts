@@ -1,4 +1,18 @@
+import type { ImageModeDef } from '../schemas/model'
 import { defineCreator } from './types'
+
+/** qwen-image-3.0 / -pro serve text-to-image and editing off one model id, so both modes share a set. */
+const qwenImage3Supports: ImageModeDef['supports'] = {
+  negativePrompt: { multiline: true, type: 'text' },
+  numImages: { default: 1, max: 6, min: 1, type: 'range' },
+  seed: { type: 'text' },
+  size: {
+    default: 'auto',
+    options: ['auto', '1328x1328', '1664x928', '928x1664', '1472x1140', '1140x1472'],
+    render: 'chips',
+    type: 'enum'
+  }
+}
 
 export default defineCreator({
   id: 'alibaba',
@@ -110,6 +124,34 @@ export default defineCreator({
               }
             }
           }
+        }
+      }
+    },
+    {
+      id: 'qwen-image-3-0',
+      name: 'Qwen Image 3.0',
+      family: 'qwen',
+      capabilities: ['image-recognition', 'image-generation'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['image'],
+      imageGeneration: {
+        modes: {
+          edit: { supports: qwenImage3Supports },
+          generate: { supports: qwenImage3Supports }
+        }
+      }
+    },
+    {
+      id: 'qwen-image-3-0-pro',
+      name: 'Qwen Image 3.0 Pro',
+      family: 'qwen',
+      capabilities: ['image-recognition', 'image-generation'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['image'],
+      imageGeneration: {
+        modes: {
+          edit: { supports: qwenImage3Supports },
+          generate: { supports: qwenImage3Supports }
         }
       }
     },

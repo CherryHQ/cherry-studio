@@ -21,12 +21,10 @@ import { SessionResourceList } from '@renderer/components/chat/resourceList/Sess
 import { CommandPopupMenu } from '@renderer/components/command'
 import EditNameDialog from '@renderer/components/EditNameDialog'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
-import ObsidianExportPopup from '@renderer/components/ObsidianExportPopup'
 import {
   ResourceEditDialogHost,
   type ResourceEditDialogTarget
 } from '@renderer/components/resourceCatalog/dialogs/edit'
-import SaveToKnowledgePopup from '@renderer/components/SaveToKnowledgePopup'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useMultiplePreferences, usePreference } from '@renderer/data/hooks/usePreference'
@@ -41,22 +39,7 @@ import { usePins } from '@renderer/hooks/usePins'
 import { finishTopicRenaming, startTopicRenaming } from '@renderer/hooks/useTopic'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { ipcApi } from '@renderer/ipc'
-import {
-  type AgentSessionExportOptions,
-  agentSessionToMarkdown,
-  copyAgentSessionAsMarkdown,
-  copyAgentSessionAsPlainText,
-  exportAgentSessionAsMarkdown,
-  getAgentSessionExportTitle,
-  getAgentSessionMessagesForExport
-} from '@renderer/services/agentSessionExport'
-import {
-  exportContentToNotes,
-  exportMarkdownToJoplin,
-  exportMarkdownToSiyuan,
-  exportMarkdownToYuque,
-  exportMessagesToNotion
-} from '@renderer/services/ExportService'
+import type { AgentSessionExportOptions } from '@renderer/services/agentSessionExport'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { getAgentModelFallbackSnapshot } from '@renderer/utils/agent'
@@ -92,6 +75,7 @@ import {
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
+import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import {
   AGENT_WORKSPACE_TYPE,
@@ -395,7 +379,6 @@ const Sessions = ({
     error,
     refreshError,
     deleteSession,
-    deleteSessions,
     hasMore,
     isLoadingMore,
     isValidating,
@@ -738,6 +721,13 @@ const Sessions = ({
     },
     [displayMode, isRightPanel, setSessionExpansionAgent, setSessionExpansionTime, setSessionExpansionWorkdir]
   )
+
+  // Silent creation for a stranded agent: when the deleted (non-active) session was that agent's
+  // only one, open a fresh empty session for it without activating it or switching the user's view.
+  const { trigger: createSessionSilently } = useMutation('POST', '/agent-sessions', {
+    refresh: ['/agent-sessions']
+  })
+
   const handleDeleteSession = useCallback(
     async (id: string) => {
       // Capture the deleted session before removal so selection can be scoped to its agent even
@@ -746,51 +736,141 @@ const Sessions = ({
         filteredGroupedSessions.find((session) => session.id === id) ??
         sessionItemsRef.current.find((session) => session.id === id)
 
-      const success = await deleteSession(id)
-      if (!success || activeSessionId !== id) return
-
-      // Deleting the active session selects a neighbour within the *same agent* (both layouts), so we
-      // never jump to an unrelated agent's session. When that agent has no other session left, open a
-      // fresh empty one for it instead of stranding the view.
+      // Resolve the neighbour within the *same agent* (both layouts) so deletion never jumps to an
+      // unrelated agent's session.
       const agentScopedSessions = deletedSession
         ? filteredGroupedSessions.filter((session) => session.agentId === deletedSession.agentId)
         : filteredGroupedSessions
       const next = pickNeighbourAfterRemoval(agentScopedSessions, id)
-      if (next) {
-        setActiveSessionId(next.id)
+      const wasActive = activeSessionIdRef.current === id
+      const nextSession = next ? (sessionItemsRef.current.find((candidate) => candidate.id === next.id) ?? null) : null
+
+      // The delete itself plus all post-delete reconciliation. Kept separate from the selection
+      // switch so both can be committed as one transition through the file-navigation guard.
+      const performDelete = async () => {
+        const success = await deleteSession(id)
+        if (!success) {
+          // Delete failed: revert the optimistic switch only while the neighbour is still the active
+          // session (a newer user selection during the failed delete must win over the rollback).
+          if (next && wasActive && activeSessionIdRef.current === next.id) setActiveSessionId(id)
+          return
+        }
+
+        // Deleting a non-active session must not move the active selection (the switch above only
+        // fires when wasActive). But if the removed session was its agent's only one, silently open
+        // a fresh empty session for that agent so it stays in the list instead of vanishing.
+        if (!wasActive) {
+          const deletedAgentHasSessionsLeft = deletedSession
+            ? filteredGroupedSessions.some((session) => session.agentId === deletedSession.agentId && session.id !== id)
+            : true
+          if (!deletedAgentHasSessionsLeft) {
+            const seed = deletedSession
+              ? buildCreateSessionSeed({
+                  agentId: deletedSession.agentId,
+                  workspace: deletedSession.workspace,
+                  workspaceId: deletedSession.workspaceId
+                })
+              : null
+            if (seed?.agentId) {
+              try {
+                await createSessionSilently({
+                  body: {
+                    agentId: seed.agentId,
+                    name: '',
+                    workspace: seed.workspace ?? { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+                  }
+                })
+              } catch (err) {
+                logger.error('Failed to create session after deleting last session of an agent', {
+                  err,
+                  sessionId: id
+                })
+                toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
+              }
+            }
+          }
+          return
+        }
+
+        // The deleted session was the active one. We already switched to the neighbour above; if
+        // there was none, its agent had no other session left — open a fresh empty one for it
+        // instead of stranding the view.
+        if (next) return
+
+        const seed = deletedSession
+          ? buildCreateSessionSeed({
+              agentId: agentIdFilter ?? deletedSession.agentId,
+              workspace: deletedSession.workspace,
+              workspaceId: deletedSession.workspaceId
+            })
+          : agentIdFilter
+            ? { agentId: agentIdFilter, workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM } }
+            : null
+        // Mirror the sibling create paths (createSessionFromSeed / handleRenameSession): if the
+        // session create rejects (e.g. the user-workspace refetch fails) surface a toast and still
+        // clear the active id in `finally`, so we never strand the view on the just-deleted session.
+        let createdSession: AgentSessionEntity | null | void = null
+        try {
+          if (seed?.agentId && onCreateSession) {
+            createdSession = await onCreateSession({
+              agentId: seed.agentId,
+              workspace: seed.workspace ?? { type: AGENT_WORKSPACE_TYPE.SYSTEM },
+              // Never let the fresh replacement reuse the session we just deleted (stale candidate list).
+              excludeReuseSessionId: id
+            })
+          }
+        } catch (err) {
+          logger.error('Failed to create session after deleting last session', { err, sessionId: id })
+          toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
+        } finally {
+          if (!createdSession) setActiveSessionId(null)
+        }
+      }
+
+      // Deleting the active session with a neighbour switches to it BEFORE deleting: the delete
+      // publishes a by-id data change that revalidates the just-deleted session as 404, and if that
+      // id were still the URL-bound active session, AgentPage's route-recovery effect would clear the
+      // route and re-enter bare, creating a stray empty session. Switching first makes the 404 land on
+      // a session that is no longer bound, so recovery stays dormant. The switch and the delete are
+      // committed as ONE transition through the file-navigation guard: when the file editor is dirty
+      // and the neighbour belongs to another workspace, the guard defers the whole transition (not
+      // just the switch) until the user confirms discarding edits — otherwise the delete would still
+      // race the URL while the doomed id is bound. Same-workspace neighbours and file-paneless
+      // layouts bypass the guard and run synchronously.
+      if (next && wasActive) {
+        const transition = () => {
+          setControlledActiveSessionId(next.id, nextSession)
+          void performDelete()
+        }
+        const activeSession = activeSessionIdRef.current
+          ? sessionItemsRef.current.find((session) => session.id === activeSessionIdRef.current)
+          : null
+        const preservesFileWorkspace =
+          activeSession &&
+          nextSession &&
+          buildAgentFileWorkspaceKey(activeSession.workspaceId, activeSession.workspace?.path) ===
+            buildAgentFileWorkspaceKey(nextSession.workspaceId, nextSession.workspace?.path)
+        if (!preservesFileWorkspace && requestFileNavigation) {
+          requestFileNavigation(transition)
+          return
+        }
+        transition()
         return
       }
 
-      const seed = deletedSession
-        ? buildCreateSessionSeed({
-            agentId: agentIdFilter ?? deletedSession.agentId,
-            workspace: deletedSession.workspace,
-            workspaceId: deletedSession.workspaceId
-          })
-        : agentIdFilter
-          ? { agentId: agentIdFilter, workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM } }
-          : null
-      // Mirror the sibling create paths (createSessionFromSeed / handleRenameSession): if the
-      // session create rejects (e.g. the user-workspace refetch fails) surface a toast and still
-      // clear the active id in `finally`, so we never strand the view on the just-deleted session.
-      let createdSession: AgentSessionEntity | null | void = null
-      try {
-        if (seed?.agentId && onCreateSession) {
-          createdSession = await onCreateSession({
-            agentId: seed.agentId,
-            workspace: seed.workspace ?? { type: AGENT_WORKSPACE_TYPE.SYSTEM },
-            // Never let the fresh replacement reuse the session we just deleted (stale candidate list).
-            excludeReuseSessionId: id
-          })
-        }
-      } catch (err) {
-        logger.error('Failed to create session after deleting last session', { err, sessionId: id })
-        toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
-      } finally {
-        if (!createdSession) setActiveSessionId(null)
-      }
+      await performDelete()
     },
-    [activeSessionId, agentIdFilter, deleteSession, filteredGroupedSessions, onCreateSession, setActiveSessionId, t]
+    [
+      agentIdFilter,
+      createSessionSilently,
+      deleteSession,
+      filteredGroupedSessions,
+      onCreateSession,
+      requestFileNavigation,
+      setActiveSessionId,
+      setControlledActiveSessionId,
+      t
+    ]
   )
 
   const handleRenameSession = useCallback(
@@ -831,6 +911,7 @@ const Sessions = ({
 
   const handleAutoRenameSession = useCallback(
     async (session: AgentSessionEntity) => {
+      const { getAgentSessionMessagesForExport } = await import('@renderer/services/agentSessionExport')
       const messages = await getAgentSessionMessagesForExport(session)
       if (messages.length < 2) return
 
@@ -889,6 +970,10 @@ const Sessions = ({
 
   const handleSaveSessionToNotes = useCallback(
     async (session: AgentSessionEntity) => {
+      const [{ agentSessionToMarkdown, getAgentSessionExportTitle }, { exportContentToNotes }] = await Promise.all([
+        import('@renderer/services/agentSessionExport'),
+        import('@renderer/services/ExportService')
+      ])
       const title = getAgentSessionExportTitle(session)
       const markdown = await agentSessionToMarkdown(session, undefined, undefined, getSessionExportOptions(session))
       await exportContentToNotes(title, markdown, notesPath)
@@ -899,6 +984,11 @@ const Sessions = ({
   const handleSaveSessionToKnowledge = useCallback(
     async (session: AgentSessionEntity) => {
       try {
+        const [{ getAgentSessionExportTitle, getAgentSessionMessagesForExport }, { default: SaveToKnowledgePopup }] =
+          await Promise.all([
+            import('@renderer/services/agentSessionExport'),
+            import('@renderer/components/SaveToKnowledgePopup')
+          ])
         const title = getAgentSessionExportTitle(session)
         const messages = await getAgentSessionMessagesForExport(session, getSessionExportOptions(session))
         const result = await SaveToKnowledgePopup.showForMessages(messages, title)
@@ -914,24 +1004,32 @@ const Sessions = ({
   )
 
   const handleCopySessionMarkdown = useCallback(
-    (session: AgentSessionEntity) => copyAgentSessionAsMarkdown(session, getSessionExportOptions(session)),
+    async (session: AgentSessionEntity) => {
+      const { copyAgentSessionAsMarkdown } = await import('@renderer/services/agentSessionExport')
+      return copyAgentSessionAsMarkdown(session, getSessionExportOptions(session))
+    },
     [getSessionExportOptions]
   )
 
   const handleCopySessionPlainText = useCallback(
-    (session: AgentSessionEntity) => copyAgentSessionAsPlainText(session, getSessionExportOptions(session)),
+    async (session: AgentSessionEntity) => {
+      const { copyAgentSessionAsPlainText } = await import('@renderer/services/agentSessionExport')
+      return copyAgentSessionAsPlainText(session, getSessionExportOptions(session))
+    },
     [getSessionExportOptions]
   )
 
   const handleExportSessionMarkdown = useCallback(
-    (session: AgentSessionEntity) => {
+    async (session: AgentSessionEntity) => {
+      const { exportAgentSessionAsMarkdown } = await import('@renderer/services/agentSessionExport')
       return exportAgentSessionAsMarkdown(session, undefined, undefined, getSessionExportOptions(session))
     },
     [getSessionExportOptions]
   )
 
   const handleExportSessionMarkdownReason = useCallback(
-    (session: AgentSessionEntity) => {
+    async (session: AgentSessionEntity) => {
+      const { exportAgentSessionAsMarkdown } = await import('@renderer/services/agentSessionExport')
       return exportAgentSessionAsMarkdown(session, true, undefined, getSessionExportOptions(session))
     },
     [getSessionExportOptions]
@@ -939,6 +1037,9 @@ const Sessions = ({
 
   const handleExportSessionWord = useCallback(
     async (session: AgentSessionEntity) => {
+      const { agentSessionToMarkdown, getAgentSessionExportTitle } = await import(
+        '@renderer/services/agentSessionExport'
+      )
       const title = getAgentSessionExportTitle(session)
       const markdown = await agentSessionToMarkdown(session, undefined, undefined, getSessionExportOptions(session))
       await ipcApi.request('export.word.from_markdown', {
@@ -951,6 +1052,8 @@ const Sessions = ({
 
   const handleExportSessionNotion = useCallback(
     async (session: AgentSessionEntity) => {
+      const [{ getAgentSessionExportTitle, getAgentSessionMessagesForExport }, { exportMessagesToNotion }] =
+        await Promise.all([import('@renderer/services/agentSessionExport'), import('@renderer/services/ExportService')])
       const title = getAgentSessionExportTitle(session)
       const messages = await getAgentSessionMessagesForExport(session, getSessionExportOptions(session))
       await exportMessagesToNotion(title, messages)
@@ -960,6 +1063,10 @@ const Sessions = ({
 
   const handleExportSessionYuque = useCallback(
     async (session: AgentSessionEntity) => {
+      const [{ agentSessionToMarkdown, getAgentSessionExportTitle }, { exportMarkdownToYuque }] = await Promise.all([
+        import('@renderer/services/agentSessionExport'),
+        import('@renderer/services/ExportService')
+      ])
       const title = getAgentSessionExportTitle(session)
       const markdown = await agentSessionToMarkdown(session, undefined, undefined, getSessionExportOptions(session))
       await exportMarkdownToYuque(title, markdown)
@@ -969,6 +1076,11 @@ const Sessions = ({
 
   const handleExportSessionObsidian = useCallback(
     async (session: AgentSessionEntity) => {
+      const [{ getAgentSessionExportTitle, getAgentSessionMessagesForExport }, { default: ObsidianExportPopup }] =
+        await Promise.all([
+          import('@renderer/services/agentSessionExport'),
+          import('@renderer/components/ObsidianExportPopup')
+        ])
       const title = getAgentSessionExportTitle(session)
       const messages = await getAgentSessionMessagesForExport(session, getSessionExportOptions(session))
       await ObsidianExportPopup.show({ title: title.replace(/\\/g, '_'), messages, processingMethod: '3' })
@@ -978,6 +1090,8 @@ const Sessions = ({
 
   const handleExportSessionJoplin = useCallback(
     async (session: AgentSessionEntity) => {
+      const [{ getAgentSessionExportTitle, getAgentSessionMessagesForExport }, { exportMarkdownToJoplin }] =
+        await Promise.all([import('@renderer/services/agentSessionExport'), import('@renderer/services/ExportService')])
       const title = getAgentSessionExportTitle(session)
       const messages = await getAgentSessionMessagesForExport(session, getSessionExportOptions(session))
       await exportMarkdownToJoplin(title, messages)
@@ -987,6 +1101,10 @@ const Sessions = ({
 
   const handleExportSessionSiyuan = useCallback(
     async (session: AgentSessionEntity) => {
+      const [{ agentSessionToMarkdown, getAgentSessionExportTitle }, { exportMarkdownToSiyuan }] = await Promise.all([
+        import('@renderer/services/agentSessionExport'),
+        import('@renderer/services/ExportService')
+      ])
       const title = getAgentSessionExportTitle(session)
       const markdown = await agentSessionToMarkdown(session, undefined, undefined, getSessionExportOptions(session))
       await exportMarkdownToSiyuan(title, markdown)
@@ -1023,6 +1141,9 @@ const Sessions = ({
   })
   const { trigger: deleteAgent } = useMutation('DELETE', '/agents/:agentId', {
     refresh: ['/agents', '/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels']
+  })
+  const { trigger: deleteAgentSessions } = useMutation('DELETE', '/agents/:agentId/sessions', {
+    refresh: ['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels']
   })
   const { trigger: reorderWorkspace } = useMutation('PATCH', '/agent-workspaces/:id/order')
   const { trigger: reorderAgent } = useMutation('PATCH', '/agents/:id/order', { refresh: ['/agents'] })
@@ -1122,10 +1243,7 @@ const Sessions = ({
     async (agentId: string) => {
       if (deletingAgentId) return
 
-      const deleteTasksOnly = agentById.get(agentId)?.configuration?.builtin_role === 'assistant'
-      const sessionIds = deleteTasksOnly
-        ? sessionItemsRef.current.filter((session) => session.agentId === agentId).map((session) => session.id)
-        : []
+      const deleteTasksOnly = isProtectedBuiltinAgentRole(agentById.get(agentId)?.configuration?.builtin_role)
 
       const currentActiveSessionId = activeSessionIdRef.current
       const currentActiveSession = currentActiveSessionId
@@ -1147,7 +1265,8 @@ const Sessions = ({
         if (!confirmed) return
 
         if (deleteTasksOnly) {
-          if (sessionIds.length > 0 && !(await deleteSessions(sessionIds))) return
+          const result = await deleteAgentSessions({ params: { agentId } })
+          closeConversationTabs('agents', result.deletedIds)
         } else {
           const result = await deleteAgent({ params: { agentId }, query: { deleteSessions: true } })
           closeConversationTabs('agents', result.deletedSessionIds ?? [])
@@ -1176,7 +1295,7 @@ const Sessions = ({
       closeConversationTabs,
       agentById,
       deleteAgent,
-      deleteSessions,
+      deleteAgentSessions,
       deletingAgentId,
       onActiveAgentDeleted,
       refetchAgents,
@@ -1541,7 +1660,7 @@ const Sessions = ({
                 agentId={agentGroupId}
                 assistantIconType={assistantIconType}
                 deleteAgentDisabled={deletingAgentId !== null}
-                deleteTasksOnly={agentById.get(agentGroupId)?.configuration?.builtin_role === 'assistant'}
+                deleteTasksOnly={isProtectedBuiltinAgentRole(agentById.get(agentGroupId)?.configuration?.builtin_role)}
                 pinDisabled={isAgentPinActionDisabled}
                 pinned={agentPinnedIdSet.has(agentGroupId)}
                 onDeleteAgent={handleDeleteAgent}
@@ -1715,7 +1834,7 @@ const Sessions = ({
           agentId,
           assistantIconType,
           deleteAgentDisabled: deletingAgentId !== null,
-          deleteTasksOnly: agentById.get(agentId)?.configuration?.builtin_role === 'assistant',
+          deleteTasksOnly: isProtectedBuiltinAgentRole(agentById.get(agentId)?.configuration?.builtin_role),
           onDeleteAgent: handleDeleteAgent,
           onEdit: openAgentEditor,
           onSetAgentIconType: setAssistantIconType,

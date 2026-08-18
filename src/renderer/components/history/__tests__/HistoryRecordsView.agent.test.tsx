@@ -133,17 +133,28 @@ vi.mock('@renderer/hooks/agent/useSession', () => ({
   useUpdateSession: hookMocks.useUpdateSession
 }))
 
-vi.mock('@renderer/hooks/resourceViewSources', () => ({
-  useAgentSessionsSource: () => {
-    const source = hookMocks.useSessions()
-    return {
-      ...source,
-      isLoadingAll: source.isLoadingAll ?? source.isLoading,
-      isFullyLoaded: source.isFullyLoaded ?? !source.isLoading
+vi.mock('@renderer/hooks/resourceViewSources', async () => {
+  // Resolves to the mocked useTopic module, so rendererTopics uses the same mapper as the test.
+  const { mapApiTopicToRendererTopic } = await import('@renderer/hooks/useTopic')
+  return {
+    useAgentSessionsSource: () => {
+      const source = hookMocks.useSessions()
+      return {
+        ...source,
+        isLoadingAll: source.isLoadingAll ?? source.isLoading,
+        isFullyLoaded: source.isFullyLoaded ?? !source.isLoading
+      }
+    },
+    useAssistantTopicsSource: () => {
+      const source = hookMocks.useTopics()
+      return {
+        ...source,
+        rendererTopics: (source.topics ?? []).map(mapApiTopicToRendererTopic),
+        orderSignature: ''
+      }
     }
-  },
-  useAssistantTopicsSource: () => hookMocks.useTopics()
-}))
+  }
+})
 
 vi.mock('@renderer/hooks/useAssistant', () => ({
   useAssistants: hookMocks.useAssistants
@@ -397,8 +408,10 @@ function setupAgentHistory({
   return { onClose, onRecordSelect }
 }
 
+let agentHistoryLoaded = false
+
 describe('HistoryRecordsView agent mode', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     document.body.innerHTML = '<div id="agent-page"></div><div id="home-page"></div>'
     MockCacheUtils.resetMocks()
     confirmActionShow.mockClear()
@@ -439,7 +452,27 @@ describe('HistoryRecordsView agent mode', () => {
     hookMocks.useUpdateSession.mockReset()
     hookMocks.useUpdateSession.mockReturnValue({ updateSession: hookMocks.updateSession })
     hookMocks.virtualListRenderRows.length = 0
-  })
+
+    if (!agentHistoryLoaded) {
+      await import('../AgentHistoryRecords')
+      hookMocks.useAgents.mockReturnValue({ agents: [], error: undefined, isLoading: false })
+      hookMocks.useSessions.mockReturnValue({
+        sessions: [],
+        pinIdBySessionId: new Map(),
+        error: undefined,
+        isLoading: false,
+        deleteSession: hookMocks.deleteSession,
+        deleteSessions: hookMocks.deleteSessions,
+        togglePin: hookMocks.togglePin
+      })
+      const { unmount } = render(<HistoryRecordsView mode="agent" open onClose={vi.fn()} />)
+
+      await screen.findByRole('region', { name: 'History' })
+      unmount()
+      vi.clearAllMocks()
+      agentHistoryLoaded = true
+    }
+  }, 60_000)
 
   it('renders sessions from the existing agent session list data', () => {
     const { onClose, onRecordSelect } = setupAgentHistory({

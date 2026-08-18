@@ -2,7 +2,7 @@ import { agentChannelService as channelService } from '@data/services/AgentChann
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
-import { AgentSessionWorkspaceError } from '@main/ai/runtime/claudeCode/settingsBuilder'
+import { AgentSessionWorkspaceError } from '@main/ai/runtime/agentSessionWorkspace'
 import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { EventEmitter } from 'events'
@@ -12,7 +12,7 @@ import type { ChannelMessageEvent } from '../ChannelAdapter'
 import { channelMessageHandler } from '../ChannelMessageHandler'
 import { sanitizeChannelOutput } from '../security/OutputSanitizer'
 
-const { mockPrepareClaudeCodeWorkspaceDirectory, MockAgentSessionWorkspaceError } = vi.hoisted(() => {
+const { mockPrepareAgentSessionWorkspaceDirectory, MockAgentSessionWorkspaceError } = vi.hoisted(() => {
   class MockAgentSessionWorkspaceError extends Error {
     constructor(message: string) {
       super(message)
@@ -21,15 +21,15 @@ const { mockPrepareClaudeCodeWorkspaceDirectory, MockAgentSessionWorkspaceError 
   }
 
   return {
-    mockPrepareClaudeCodeWorkspaceDirectory: vi.fn(),
+    mockPrepareAgentSessionWorkspaceDirectory: vi.fn(),
     MockAgentSessionWorkspaceError
   }
 })
 
-vi.mock('@main/ai/runtime/claudeCode/settingsBuilder', () => ({
+vi.mock('@main/ai/runtime/agentSessionWorkspace', () => ({
   AgentSessionWorkspaceError: MockAgentSessionWorkspaceError,
   isAgentSessionWorkspaceError: (error: unknown) => error instanceof MockAgentSessionWorkspaceError,
-  prepareClaudeCodeWorkspaceDirectory: mockPrepareClaudeCodeWorkspaceDirectory
+  prepareAgentSessionWorkspaceDirectory: mockPrepareAgentSessionWorkspaceDirectory
 }))
 
 vi.mock('@logger', () => ({
@@ -159,8 +159,8 @@ describe('ChannelMessageHandler', () => {
       configuration: {},
       model: 'openai::gpt-4'
     } as any)
-    mockPrepareClaudeCodeWorkspaceDirectory.mockReset()
-    mockPrepareClaudeCodeWorkspaceDirectory.mockResolvedValue(undefined)
+    mockPrepareAgentSessionWorkspaceDirectory.mockReset()
+    mockPrepareAgentSessionWorkspaceDirectory.mockResolvedValue(undefined)
     // Clear session tracker to ensure clean state
     channelMessageHandler.clearSessionTracker('agent-1')
   })
@@ -286,7 +286,7 @@ describe('ChannelMessageHandler', () => {
       configuration: {}
     }
     vi.mocked(agentSessionService.create).mockReturnValueOnce(session as any)
-    mockPrepareClaudeCodeWorkspaceDirectory.mockRejectedValueOnce(
+    mockPrepareAgentSessionWorkspaceDirectory.mockRejectedValueOnce(
       new AgentSessionWorkspaceError('workspace is missing')
     )
 
@@ -298,7 +298,7 @@ describe('ChannelMessageHandler', () => {
       images: [{ media_type: 'image/png', data: 'AA==' }]
     })
 
-    expect(mockPrepareClaudeCodeWorkspaceDirectory).toHaveBeenCalledWith(session)
+    expect(mockPrepareAgentSessionWorkspaceDirectory).toHaveBeenCalledWith(session)
     expect(mockStartAgentSessionRun).not.toHaveBeenCalled()
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'workspace is missing', { replyToMessageId: undefined })
   })
