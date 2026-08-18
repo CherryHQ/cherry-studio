@@ -15,11 +15,11 @@ The plugin has already been configured in the project — simply install it to g
 
 ### Demo
 
-![demo-1](../assets/images/i18n/demo-1.png)
+![demo-1](../../assets/images/i18n/demo-1.png)
 
-![demo-2](../assets/images/i18n/demo-2.png)
+![demo-2](../../assets/images/i18n/demo-2.png)
 
-![demo-3](../assets/images/i18n/demo-3.png)
+![demo-3](../../assets/images/i18n/demo-3.png)
 
 ## i18n Conventions
 
@@ -246,7 +246,7 @@ The check rejects remaining placeholders, empty translations, missing interpolat
 
 These deterministic checks cannot identify which translation method was used or determine whether a fluent translation preserves the intended meaning. Review semantic quality in the originating pull request.
 
-Terminology lives in [`scripts/i18n-glossary.json`](../../scripts/i18n-glossary.json) and is maintained by hand:
+Terminology lives in [`scripts/i18n-glossary.json`](../../../scripts/i18n-glossary.json) and is maintained by hand:
 
 - `doNotTranslate` — product and protocol names that must survive verbatim. Enforced by `i18n:check`.
 - `terms` — preferred translation per locale, plus a `note` disambiguating the English (for example `Agent` vs `Assistant`). Supplied to the model as guidance; not enforced, because most languages inflect these words.

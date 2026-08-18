@@ -93,7 +93,7 @@ cherry-studio
 │   └── extension-table-plus/    #   TipTap table extension
 │
 ├── docs/                        # Documentation (this directory)
-│   ├── guides/                  #   How-to guides
+│   ├── contrib/                 #   Process & repo engineering
 │   └── references/              #   Technical references
 │
 └── scripts/                     # Build, lint, i18n, and CI scripts

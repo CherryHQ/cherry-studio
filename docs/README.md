@@ -1,16 +1,14 @@
 # Cherry Studio Documentation
 
-## Guides
+## Contrib
 
 | Document | Description |
 |----------|-------------|
-| [Development Setup](./guides/development.md) | Development environment setup |
-| [Linux Packaging](./guides/linux-packaging.md) | Linux package builds and native dependency prebuilds |
 | [Contributing](../CONTRIBUTING.md) | How to contribute code |
-| [Branching Strategy](./guides/branching-strategy.md) | Git branching workflow |
-| [Test Plan](./guides/test-plan.md) | Test plan and release channels |
-| [i18n Guide](./guides/i18n.md) | Internationalization guide |
-| [Logging Guide](./guides/logging.md) | How to use the logger service |
+| [Development Setup](./contrib/development.md) | Development environment setup |
+| [Branching Strategy](./contrib/branching-strategy.md) | Git branching workflow |
+| [Test Plan](./contrib/test-plan.md) | Test plan and release channels |
+| [Linux Packaging](./contrib/linux-packaging.md) | Linux package builds and native dependency prebuilds |
 
 ## References
 
@@ -98,6 +96,9 @@
 | Document | Description |
 |----------|-------------|
 | [Frontend Testing Guidelines](./references/testing/frontend-testing.md) | Frontend test design and review |
+| [i18n Guide](./references/i18n/README.md) | Internationalization guide |
+| [Logging Guide](./references/logging/README.md) | How to use the logger service |
+| [Performance Diagnostics](./references/diagnostics/README.md) | Opt-in `CS_DIAGNOSTICS` instrumentation for the main process |
 | [App Upgrade Config](./contrib/app-upgrade.md) | Application upgrade configuration |
 | [Feishu Notify](./contrib/feishu-notify.md) | Feishu notification integration |
 | [Fuzzy Search](./references/file/fuzzy-search.md) | Fuzzy search implementation |

@@ -455,7 +455,7 @@ export default defineConfig([
         {
           selector: 'CallExpression[callee.object.name="console"]',
           message:
-            '❗CherryStudio uses unified LoggerService: 📖 docs/en/guides/logging.md\n\n'
+            '❗CherryStudio uses unified LoggerService: 📖 docs/references/logging/README.md\n\n'
         }
       ]
     }
