@@ -446,6 +446,17 @@ describe('PiRuntimeConnection', () => {
     })
   })
 
+  it('keeps authenticated proxy requests on the credential-aware Node transport', async () => {
+    await new PiRuntimeConnection(input).start()
+    vi.stubEnv('CHERRY_STUDIO_NODE_PROXY_RULES', 'socks5://user:password@127.0.0.1:1080')
+    vi.stubEnv('SOCKS_PROXY', 'socks5://user:password@127.0.0.1:1080')
+    const providerConfig = mocks.registerProvider.mock.calls[0][1]
+
+    providerConfig.streamSimple({}, [], {})
+
+    expect(mocks.providerStreamSimple.mock.calls[0][2]).not.toHaveProperty('fetch')
+  })
+
   it('uses a generation-scoped api namespace so same-session replacements cannot overwrite each other', async () => {
     const firstConnection = await new PiRuntimeConnection(input).start()
     await new PiRuntimeConnection(input).start()

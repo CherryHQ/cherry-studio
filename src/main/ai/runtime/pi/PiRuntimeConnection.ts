@@ -29,7 +29,7 @@ import {
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { customFetch } from '@main/ai/utils/customFetch'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
-import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
+import { CHERRY_NODE_PROXY_RULES_ENV, getProxyEnvironment, proxyUrlHasCredentials } from '@main/services/proxy/proxyEnv'
 import { type Span, SpanKind, SpanStatusCode } from '@opentelemetry/api'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
@@ -811,12 +811,16 @@ function withPiRequestEnvironment(
   streamSimple: NonNullable<ProviderConfig['streamSimple']>,
   providerEnvironment: Record<string, string> | undefined
 ): NonNullable<ProviderConfig['streamSimple']> {
-  return (model, context, options) =>
-    streamSimple(model, context, {
+  return (model, context, options) => {
+    const proxyEnvironment = getProxyEnvironment(process.env)
+    const usesAuthenticatedNodeProxy = proxyUrlHasCredentials(proxyEnvironment[CHERRY_NODE_PROXY_RULES_ENV])
+
+    return streamSimple(model, context, {
       ...options,
-      env: { ...options?.env, ...getProxyEnvironment(process.env), ...providerEnvironment },
-      fetch: customFetch
+      env: { ...options?.env, ...proxyEnvironment, ...providerEnvironment },
+      ...(!usesAuthenticatedNodeProxy && { fetch: customFetch })
     })
+  }
 }
 
 function finiteTokenCount(value: number | undefined): number {

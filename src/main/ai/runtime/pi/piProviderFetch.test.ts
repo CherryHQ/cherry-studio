@@ -4,10 +4,12 @@ import net from 'node:net'
 import type { Api, Context, Model } from '@earendil-works/pi-ai'
 import { streamSimple as streamOpenAICompletions } from '@earendil-works/pi-ai/api/openai-completions'
 import { streamSimple as streamOpenAIResponses } from '@earendil-works/pi-ai/api/openai-responses'
+import { NodeProxyController } from '@main/services/proxy/NodeProxyController'
 import { fetch as undiciFetch, ProxyAgent } from 'undici'
 import { afterEach, describe, expect, it } from 'vitest'
 
 const servers: Array<http.Server | net.Server> = []
+let nodeProxyController: NodeProxyController | undefined
 
 async function listen(server: http.Server | net.Server): Promise<number> {
   servers.push(server)
@@ -22,6 +24,62 @@ function sendExpectedError(socket: net.Socket): void {
   socket.end(
     `HTTP/1.1 401 Unauthorized\r\nContent-Type: application/json\r\nContent-Length: ${Buffer.byteLength(body)}\r\nConnection: close\r\n\r\n${body}`
   )
+}
+
+function createAuthenticatedHttpProxy(username: string, password: string, onAuthorized: () => void): http.Server {
+  const expectedAuthorization = `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`
+  const proxy = http.createServer()
+  proxy.on('connect', (request, socket) => {
+    if (request.headers['proxy-authorization'] !== expectedAuthorization) {
+      socket.end(
+        'HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: Basic realm="test"\r\nContent-Length: 0\r\nConnection: close\r\n\r\n'
+      )
+      return
+    }
+
+    onAuthorized()
+    socket.write('HTTP/1.1 200 Connection Established\r\n\r\n')
+    socket.once('data', () => sendExpectedError(socket as net.Socket))
+  })
+  return proxy
+}
+
+function createAuthenticatedSocks5Proxy(username: string, password: string, onAuthorized: () => void): net.Server {
+  return net.createServer((socket) => {
+    let stage: 'greeting' | 'authentication' | 'connect' | 'request' = 'greeting'
+
+    socket.on('data', (chunk) => {
+      if (stage === 'greeting') {
+        stage = 'authentication'
+        socket.write(Buffer.from([0x05, 0x02]))
+        return
+      }
+
+      if (stage === 'authentication') {
+        const usernameLength = chunk[1]
+        const receivedUsername = chunk.subarray(2, 2 + usernameLength).toString()
+        const passwordLength = chunk[2 + usernameLength]
+        const receivedPassword = chunk.subarray(3 + usernameLength, 3 + usernameLength + passwordLength).toString()
+        if (receivedUsername !== username || receivedPassword !== password) {
+          socket.end(Buffer.from([0x01, 0x01]))
+          return
+        }
+
+        stage = 'connect'
+        onAuthorized()
+        socket.write(Buffer.from([0x01, 0x00]))
+        return
+      }
+
+      if (stage === 'connect') {
+        stage = 'request'
+        socket.write(Buffer.from([0x05, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0]))
+        return
+      }
+
+      sendExpectedError(socket)
+    })
+  })
 }
 
 function createModel<TApi extends Api>(api: TApi, baseUrl: string): Model<TApi> {
@@ -44,6 +102,10 @@ const context: Context = {
 }
 
 afterEach(async () => {
+  if (nodeProxyController) {
+    await nodeProxyController.configure({})
+    nodeProxyController = undefined
+  }
   await Promise.all(
     servers.splice(0).map(
       (server) =>
@@ -95,5 +157,51 @@ describe('Pi provider request fetch', () => {
     } finally {
       await dispatcher.close()
     }
+  })
+
+  it('preserves HTTP proxy authentication through the production Node transport', async () => {
+    const targetPort = await listen(net.createServer((socket) => socket.destroy()))
+    let authorizedRequests = 0
+    const proxyPort = await listen(
+      createAuthenticatedHttpProxy('proxy-user', 'proxy-pass', () => {
+        authorizedRequests += 1
+      })
+    )
+    nodeProxyController = new NodeProxyController()
+    await nodeProxyController.configure({
+      proxyRules: `http://proxy-user:proxy-pass@127.0.0.1:${proxyPort}`
+    })
+
+    const result = await streamOpenAICompletions(
+      createModel('openai-completions', `http://127.0.0.1:${targetPort}/v1`),
+      context,
+      { apiKey: 'test-key', maxRetries: 0 }
+    ).result()
+
+    expect(result.stopReason).toBe('error')
+    expect(authorizedRequests).toBe(1)
+  })
+
+  it('preserves SOCKS5 username and password through the production Node transport', async () => {
+    const targetPort = await listen(net.createServer((socket) => socket.destroy()))
+    let authorizedRequests = 0
+    const proxyPort = await listen(
+      createAuthenticatedSocks5Proxy('proxy-user', 'proxy-pass', () => {
+        authorizedRequests += 1
+      })
+    )
+    nodeProxyController = new NodeProxyController()
+    await nodeProxyController.configure({
+      proxyRules: `socks5://proxy-user:proxy-pass@127.0.0.1:${proxyPort}`
+    })
+
+    const result = await streamOpenAIResponses(
+      createModel('openai-responses', `http://127.0.0.1:${targetPort}/v1`),
+      context,
+      { apiKey: 'test-key', maxRetries: 0 }
+    ).result()
+
+    expect(result.stopReason).toBe('error')
+    expect(authorizedRequests).toBe(1)
   })
 })
