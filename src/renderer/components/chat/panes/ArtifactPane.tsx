@@ -22,7 +22,6 @@ import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { joinPath } from '@renderer/utils/path'
 import { isMac, isWin } from '@renderer/utils/platform'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { canonicalizeFilePath } from '@shared/utils/file'
 import {
   AlertCircle,
   ArrowLeft,
@@ -47,7 +46,12 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { type ArtifactPaneFileSelection, getArtifactPaneSelectionPath, WORKSPACE_ROOT_ID } from './artifactPanePath'
+import {
+  type ArtifactPaneFileSelection,
+  getArtifactPaneSelectionPath,
+  getCopyableAbsolutePath,
+  WORKSPACE_ROOT_ID
+} from './artifactPanePath'
 import OpenExternalAppButton from './OpenExternalAppButton'
 import {
   type ArtifactFileTreeErrorKind,
@@ -110,16 +114,6 @@ function getPreviewFileTitle(filePath: string): string {
 function getFileTreeNodeTargetPath(workspacePath: string | undefined, node: { id: string }): string | null {
   if (!workspacePath) return null
   return node.id === WORKSPACE_ROOT_ID ? workspacePath : joinPath(workspacePath, node.id)
-}
-
-// joinPath yields mixed separators on Windows; canonicalize to the native form,
-// falling back for paths canonicalizeFilePath rejects (e.g. UNC).
-function getCopyableAbsolutePath(targetPath: string): string {
-  try {
-    return canonicalizeFilePath(targetPath)
-  } catch {
-    return targetPath
-  }
 }
 
 function renderFileManagerIcon(): ReactNode {
@@ -394,7 +388,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
           id: 'copy-path',
           label: t('agent.preview_pane.copy_path'),
           icon: <Copy size={16} />,
-          onSelect: () => void copyPath(getCopyableAbsolutePath(targetPath))
+          onSelect: () => void copyPath(getCopyableAbsolutePath(targetPath, isWin))
         }
       ]
       if (node.id !== WORKSPACE_ROOT_ID) {
