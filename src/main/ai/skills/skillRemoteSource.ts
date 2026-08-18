@@ -2,6 +2,7 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 
 import { loggerService } from '@logger'
+import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { findExecutableInEnv } from '@main/utils/commandResolver'
 import { findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
 import { executeCommand } from '@main/utils/processRunner'
@@ -319,39 +320,33 @@ async function assertUniqueSkillPath(repoDir: string, directoryPath: string): Pr
   }
 }
 
+/**
+ * The single entry point for every git subprocess an install spawns: bounded, non-interactive, and
+ * routed through Cherry's proxy — which lives in the main process env, not in the captured login shell.
+ */
 async function runGit(gitCommand: string, args: string[]): Promise<string> {
   const env = await getShellEnv()
   return executeCommand(gitCommand, args, {
     capture: true,
     timeout: GIT_COMMAND_TIMEOUT_MS,
-    env: { ...env, GIT_TERMINAL_PROMPT: '0', GIT_LFS_SKIP_SMUDGE: '1', GIT_ASKPASS: '', GCM_INTERACTIVE: 'never' }
+    env: {
+      ...env,
+      ...getProxyEnvironment(process.env),
+      GIT_TERMINAL_PROMPT: '0',
+      GIT_LFS_SKIP_SMUDGE: '1',
+      GIT_ASKPASS: '',
+      GCM_INTERACTIVE: 'never'
+    }
   })
 }
 
+/**
+ * One shallow clone of whatever the remote calls its default branch — which is what a bare
+ * `git clone` already checks out, so resolving the branch first only adds a second way to hang.
+ */
 async function cloneRepository(repoUrl: string, destDir: string): Promise<void> {
   const gitCommand = (await findExecutableInEnv('git')) ?? 'git'
-
-  const branch = await resolveDefaultBranch(gitCommand, repoUrl)
-  if (branch) {
-    await executeCommand(gitCommand, ['clone', '--depth', '1', '--branch', branch, '--', repoUrl, destDir])
-    return
-  }
-
-  try {
-    await executeCommand(gitCommand, ['clone', '--depth', '1', '--', repoUrl, destDir])
-  } catch {
-    await executeCommand(gitCommand, ['clone', '--depth', '1', '--branch', 'master', '--', repoUrl, destDir])
-  }
-}
-
-async function resolveDefaultBranch(command: string, repoUrl: string): Promise<string | null> {
-  try {
-    const output = await executeCommand(command, ['ls-remote', '--symref', '--', repoUrl, 'HEAD'], { capture: true })
-    const match = output.match(/ref: refs\/heads\/([^\s]+)/)
-    return match?.[1] ?? null
-  } catch {
-    return null
-  }
+  await runGit(gitCommand, ['clone', '--depth', '1', '--', repoUrl, destDir])
 }
 
 async function reportInstall(owner: string, repo: string, skillName: string): Promise<void> {
