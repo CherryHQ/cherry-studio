@@ -80,7 +80,12 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
     const models = resolveModels(resolveWith, defaultModelId)
     const model = models[0]
     const { modelId: rawModelId, providerId } = parseUniqueModelId(model.id)
-    const modelSnap = { id: model.apiModelId ?? rawModelId, name: model.name, provider: providerId }
+    const modelSnap = {
+      id: model.apiModelId ?? rawModelId,
+      name: model.name,
+      provider: providerId,
+      ...(model.priorityMode !== undefined ? { priorityMode: model.priorityMode } : {})
+    }
     // The assistant owns the model — snapshot it (model nested) onto the assistant reply.
     const assistant = assistantId ? assistantDataService.getById(assistantId) : undefined
     const messageSnapshot = assistant
@@ -115,7 +120,13 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       new PersistenceListener({
         topicId: req.topicId,
         modelId: model.id,
-        backend: new TemporaryChatBackend({ topicId: req.topicId, messageId, modelId: model.id, messageSnapshot }),
+        backend: new TemporaryChatBackend({
+          topicId: req.topicId,
+          messageId,
+          modelId: model.id,
+          modelSnapshot: modelSnap,
+          messageSnapshot
+        }),
         onPersistFailed: (error) =>
           void subscriber.onError({ error, status: 'error', modelId: model.id, isTopicDone: true })
       })
@@ -135,7 +146,7 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
 
     return {
       topicId: req.topicId,
-      models: [{ modelId: model.id, request: streamRequest }],
+      models: [{ modelId: model.id, request: streamRequest, modelSnapshot: modelSnap }],
       listeners
     }
   }

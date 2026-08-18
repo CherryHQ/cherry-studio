@@ -39,6 +39,7 @@ export function toAgentSessionUIMessage(row: AgentSessionMessageEntity): CherryU
   metadata.status = row.status
   if (row.modelId) metadata.modelId = row.modelId
   if (row.messageSnapshot) metadata.messageSnapshot = row.messageSnapshot
+  if (row.data.modelSnapshot) metadata.modelSnapshot = row.data.modelSnapshot
   if (row.stats) metadata.stats = row.stats
 
   return {
@@ -59,7 +60,10 @@ function reservedUIMessageToAgentSessionMessage(
     id: message.id,
     sessionId,
     role: message.role,
-    data: { parts: (message.parts ?? []) as CherryMessagePart[] },
+    data: {
+      parts: (message.parts ?? []) as CherryMessagePart[],
+      ...(metadata.modelSnapshot ? { modelSnapshot: metadata.modelSnapshot } : {})
+    },
     searchableText: '',
     status:
       metadata.status ?? (message.role === 'assistant' && (message.parts?.length ?? 0) === 0 ? 'pending' : 'success'),

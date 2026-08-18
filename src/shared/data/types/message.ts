@@ -15,6 +15,7 @@ import type {
 } from 'ai'
 import * as z from 'zod'
 
+import { ModelPriorityModeSchema } from './model'
 import type { CherryDataPartTypes } from './uiParts'
 
 /**
@@ -142,6 +143,19 @@ export interface AssistantTurnOptions {
 }
 
 /**
+ * Model identity captured at message creation time.
+ * Preserves model identity even if the model is later removed from provider.
+ */
+export const ModelSnapshotSchema = z.strictObject({
+  id: z.string(),
+  name: z.string(),
+  provider: z.string(),
+  group: z.string().optional(),
+  priorityMode: ModelPriorityModeSchema.optional()
+})
+export type ModelSnapshot = z.infer<typeof ModelSnapshotSchema>
+
+/**
  * Message data field structure — the type for the `data` column in the
  * message table. Messages are stored in AI SDK `UIMessage.parts` format.
  *
@@ -153,6 +167,8 @@ export interface MessageData {
   parts?: CherryMessagePart[]
   /** Main-authoritative request controls for resuming this assistant turn. */
   turnOptions?: AssistantTurnOptions
+  /** Producing model frozen independently from the optional assistant/agent author. */
+  modelSnapshot?: ModelSnapshot
 }
 
 // ── Cherry-specific UI message types ────────────────────────────────
@@ -186,6 +202,8 @@ export interface CherryUIMessageMetadata {
   modelId?: string
   /** Snapshot of the producing author (assistant|agent, model nested) captured at creation. */
   messageSnapshot?: MessageSnapshot
+  /** Producing model snapshot for messages without an assistant/agent author. */
+  modelSnapshot?: ModelSnapshot
   /** Persistence status: mirrors the DB row's `status` column. */
   status?: MessageStatus
   /** Main-authoritative request controls frozen with the persisted assistant row. */
@@ -409,24 +427,13 @@ export const MessageDataSchema = z.custom<MessageData>((value) => {
     }
     if (v.turnOptions.fastMode !== undefined && typeof v.turnOptions.fastMode !== 'boolean') return false
   }
+  if (v.modelSnapshot !== undefined && !ModelSnapshotSchema.safeParse(v.modelSnapshot).success) return false
   return true
 })
 
 // ============================================================================
 // Snapshot Types (immutable records captured at message creation time)
 // ============================================================================
-
-/**
- * Model identity captured at message creation time.
- * Preserves model identity even if the model is later removed from provider.
- */
-export const ModelSnapshotSchema = z.strictObject({
-  id: z.string(),
-  name: z.string(),
-  provider: z.string(),
-  group: z.string().optional()
-})
-export type ModelSnapshot = z.infer<typeof ModelSnapshotSchema>
 
 /**
  * Per-message snapshot of the producing author (chat assistant or session agent),

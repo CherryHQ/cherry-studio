@@ -141,6 +141,55 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     ])
   })
 
+  it('freezes an author-less model snapshot through placeholder projection and finalization', async () => {
+    vi.mocked(resolveModels).mockReturnValueOnce([
+      {
+        id: MODEL_ID,
+        name: 'GPT-4o',
+        providerId: 'openai',
+        apiModelId: 'gpt-4o',
+        capabilities: [],
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false,
+        priorityMode: 'minimax'
+      }
+    ])
+
+    const prepared = await provider.prepareDispatch(
+      makeSubscriber(),
+      {
+        trigger: 'submit-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'a1',
+        userMessageParts: [{ type: 'text', text: 'use priority' }]
+      },
+      { hasLiveStream: false }
+    )
+    const placeholder = prepared.reservedMessages?.find((message) => message.role === 'assistant')
+
+    expect(placeholder?.metadata?.messageSnapshot).toBeUndefined()
+    expect(placeholder?.metadata?.modelSnapshot).toEqual({
+      id: 'gpt-4o',
+      name: 'GPT-4o',
+      provider: 'openai',
+      priorityMode: 'minimax'
+    })
+
+    await prepared.listeners[1].onDone({
+      finalMessage: {
+        id: placeholder!.id,
+        role: 'assistant',
+        parts: [{ type: 'text', text: 'priority answer' }]
+      },
+      modelId: MODEL_ID,
+      status: 'success',
+      isTopicDone: true
+    })
+
+    expect(messageService.getById(placeholder!.id).data.modelSnapshot).toEqual(placeholder?.metadata?.modelSnapshot)
+  })
+
   it('rejects duplicate mentioned models before reserving any rows', async () => {
     const childrenBefore = messageService.getChildrenByParentId('a1')
 

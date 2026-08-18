@@ -1,4 +1,4 @@
-import { CURRENCY, type Model } from '@shared/data/types/model'
+import { CURRENCY, type Model, MODEL_PRIORITY_MODE } from '@shared/data/types/model'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -8,7 +8,24 @@ import EditModelDrawer from '../EditModelDrawer'
 const useProviderMock = vi.fn()
 const updateModelMock = vi.fn()
 
-const { ipcRequest } = vi.hoisted(() => ({ ipcRequest: vi.fn() }))
+const { ipcRequest, priorityModeTranslations } = vi.hoisted(() => ({
+  ipcRequest: vi.fn(),
+  priorityModeTranslations: {
+    'common.none': 'None',
+    'settings.models.add.priority_mode.openai': 'OpenAI',
+    'settings.models.add.priority_mode.azure_openai': 'Azure OpenAI',
+    'settings.models.add.priority_mode.anthropic': 'Anthropic',
+    'settings.models.add.priority_mode.gemini': 'Gemini',
+    'settings.models.add.priority_mode.minimax': 'MiniMax',
+    'settings.models.add.priority_mode.groq': 'Groq',
+    'settings.models.add.priority_mode.fireworks': 'Fireworks',
+    'settings.models.add.priority_mode.xai': 'xAI',
+    'settings.models.add.priority_mode.cerebras': 'Cerebras',
+    'settings.models.add.priority_mode.aws_bedrock': 'Amazon Bedrock',
+    'settings.models.add.priority_mode.doubao': 'Doubao',
+    'settings.models.add.priority_mode.openrouter': 'OpenRouter'
+  } as Record<string, string>
+}))
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequest }, useIpcOn: vi.fn() }))
 
 beforeAll(() => {
@@ -34,7 +51,7 @@ vi.mock('react-i18next', async (importOriginal) => {
         if (key === 'models.price.tier_from') {
           return `From ${options?.boundary} input tokens (inclusive)`
         }
-        return key
+        return priorityModeTranslations[key] ?? key
       }
     })
   }
@@ -43,7 +60,7 @@ vi.mock('react-i18next', async (importOriginal) => {
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = await importOriginal<object>()
   const React = await import('react')
-  const SelectContext = React.createContext<{ onValueChange?: (value: string) => void }>({})
+  const SelectContext = React.createContext<{ value?: string; onValueChange?: (value: string) => void }>({})
 
   return {
     ...actual,
@@ -60,15 +77,25 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
     Tooltip: ({ children, content }: any) => <span aria-label={content}>{children}</span>,
     WarnTooltip: () => <span>warn</span>,
     // Radix's select cannot be opened in jsdom, so the option list is flattened
-    // into buttons to make the currency switch clickable.
-    Select: ({ children, onValueChange }: any) => <SelectContext value={{ onValueChange }}>{children}</SelectContext>,
-    SelectTrigger: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-    SelectValue: () => null,
-    SelectContent: ({ children }: any) => <div>{children}</div>,
+    // into buttons to make model settings clickable.
+    Select: ({ children, value, onValueChange }: any) => (
+      <SelectContext value={{ value, onValueChange }}>{children}</SelectContext>
+    ),
+    SelectTrigger: ({ children, ...props }: any) => (
+      <button type="button" role="combobox" {...props}>
+        {children}
+      </button>
+    ),
+    SelectValue: () => React.use(SelectContext).value ?? null,
+    SelectContent: ({ children }: any) => <div role="listbox">{children}</div>,
     SelectItem: ({ children, value }: any) => {
-      const { onValueChange } = React.use(SelectContext)
+      const { value: selectedValue, onValueChange } = React.use(SelectContext)
       return (
-        <button type="button" aria-label={`currency-${value}`} onClick={() => onValueChange?.(value)}>
+        <button
+          type="button"
+          role="option"
+          aria-selected={selectedValue === value}
+          onClick={() => onValueChange?.(value)}>
           {children}
         </button>
       )
@@ -171,11 +198,38 @@ function makeTieredPricingModel(): Model {
 
 const modelWithFullPricing = makePricingModel({ cacheReadPrice: 0.3 })
 
-describe('EditModelDrawer pricing', () => {
+describe('EditModelDrawer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     ipcRequest.mockResolvedValue(undefined)
     useProviderMock.mockReturnValue({ provider: { id: 'openai', name: 'OpenAI' } })
+  })
+
+  it('lists priority modes in provider order and persists Gemini and None selections', async () => {
+    const user = userEvent.setup()
+    render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={modelWithFullPricing} />)
+
+    const priorityModeLabels = Object.values(priorityModeTranslations)
+    const priorityModeOptions = screen
+      .getAllByRole('option')
+      .filter((option) => priorityModeLabels.includes(option.textContent ?? ''))
+
+    expect(priorityModeOptions.map((option) => option.textContent)).toEqual(priorityModeLabels)
+    expect(screen.getByRole('option', { name: 'None' })).toHaveAttribute('aria-selected', 'true')
+
+    await user.click(screen.getByRole('option', { name: 'Gemini' }))
+
+    expect(updateModelMock).toHaveBeenCalledTimes(1)
+    expect(updateModelMock.mock.calls[0][2]).toEqual(
+      expect.objectContaining({ priorityMode: MODEL_PRIORITY_MODE.GEMINI })
+    )
+
+    await user.click(screen.getByRole('option', { name: 'None' }))
+
+    await waitFor(() => expect(updateModelMock).toHaveBeenCalledTimes(2))
+    expect(updateModelMock.mock.calls[1][2]).toEqual(
+      expect.objectContaining({ priorityMode: MODEL_PRIORITY_MODE.NONE })
+    )
   })
 
   it('keeps every pricing tier untouched when an unrelated field is edited', async () => {
@@ -209,7 +263,7 @@ describe('EditModelDrawer pricing', () => {
     await user.clear(modelName)
     await user.type(modelName, 'Claude 4 Sonnet Renamed')
     await user.tab()
-    await user.click(screen.getByLabelText('currency-¥'))
+    await user.click(screen.getByRole('option', { name: '¥' }))
     await user.click(screen.getByRole('switch', { name: 'settings.models.add.supported_text_delta.label' }))
 
     expect(updateModelMock).toHaveBeenCalledTimes(1)
@@ -280,7 +334,7 @@ describe('EditModelDrawer pricing', () => {
     const user = userEvent.setup()
     render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={makeTieredPricingModel()} />)
 
-    await user.click(screen.getByLabelText('currency-¥'))
+    await user.click(screen.getByRole('option', { name: '¥' }))
 
     expect(updateModelMock).toHaveBeenCalledTimes(1)
     expect(updateModelMock.mock.calls[0][2].pricing).toEqual({

@@ -2,7 +2,7 @@ import { Avatar, AvatarFallback, Badge, Button, EmptyState, Spinner, Tooltip } f
 import { useIcon } from '@cherrystudio/ui/icons'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
-import { getModelLogoRef } from '@renderer/utils/model'
+import { getModelDisplayName, getModelLogoRef } from '@renderer/utils/model'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -104,7 +104,7 @@ const ManageModelRow = memo(function ManageModelRow({
               is focusable (opening the tooltip on focus) and described by an off-screen copy of it. */}
           <Tooltip content={apiModelId} placement="top" classNames={{ placeholder: 'min-w-0' }}>
             <p tabIndex={0} aria-describedby={apiModelIdId} className={modelSyncClasses.manageRowTitle}>
-              {model.name || apiModelId}
+              {getModelDisplayName(model) || apiModelId}
             </p>
           </Tooltip>
           <span id={apiModelIdId} className="sr-only">

@@ -45,6 +45,7 @@ import { getComposerShortcutLabel, resolveSendShortcut } from '@renderer/utils/i
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { canEditAssistantMessageParts } from '@renderer/utils/message/partsHelpers'
 import {
+  getModelDisplayName,
   isGPT5SeriesReasoningModel,
   isOpenAIWebSearchModel,
   resolveReasoningEffortForModel
@@ -353,7 +354,7 @@ function ChatComposerContextUsage({ usage }: { usage?: ChatContextUsageSource | 
         <ContextUsageSummary
           title={label}
           emptyLabel={t('common.none')}
-          data={{ usedTokens: usage.contextTokens, maxTokens, percentage, modelName: model.name }}
+          data={{ usedTokens: usage.contextTokens, maxTokens, percentage, modelName: getModelDisplayName(model) }}
         />
       }>
       <ContextUsageMeter label={label} percentage={percentage} />

@@ -31,6 +31,7 @@ import {
   type Message as SharedMessage,
   type MessageRole,
   type MessageSnapshot,
+  type ModelSnapshot,
   toContentRole
 } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
@@ -114,20 +115,21 @@ function resolveAssistantContextOverride(assistantId: string | undefined): Conte
   }
 }
 
+function buildModelSnapshot(model: Model): ModelSnapshot {
+  return {
+    id: model.apiModelId ?? parseUniqueModelId(model.id).modelId,
+    name: model.name,
+    provider: model.providerId,
+    ...(model.priorityMode !== undefined ? { priorityMode: model.priorityMode } : {})
+  }
+}
+
 /** Author snapshot for an assistant reply: the assistant with its model nested inside. */
 function buildAssistantMessageSnapshot(
   model: Model,
   assistant: { id: string; name: string; emoji: string } | undefined
 ): MessageSnapshot | undefined {
-  if (!assistant) return undefined
-  return {
-    ...assistant,
-    model: {
-      id: model.apiModelId ?? parseUniqueModelId(model.id).modelId,
-      name: model.name,
-      provider: model.providerId
-    }
-  }
+  return assistant ? { ...assistant, model: buildModelSnapshot(model) } : undefined
 }
 
 /**
@@ -206,6 +208,7 @@ function toReservedUIMessage(message: SharedMessage): CherryUIMessage {
       siblingsGroupId: message.siblingsGroupId || undefined,
       modelId: message.modelId ?? undefined,
       messageSnapshot: message.messageSnapshot ?? undefined,
+      modelSnapshot: message.data.modelSnapshot,
       status: message.status,
       turnOptions: message.data.turnOptions,
       createdAt: message.createdAt,
@@ -412,7 +415,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         preserveActiveNode: Boolean(liveGroupSourceAnchorMessageId),
         placeholders: turnRootSpans.map(({ model }) => ({
           role: 'assistant',
-          data: { parts: [], turnOptions },
+          data: { parts: [], turnOptions, modelSnapshot: buildModelSnapshot(model) },
           status: 'pending',
           modelId: model.id,
           messageSnapshot: buildAssistantMessageSnapshot(model, assistantIdentity)
@@ -486,7 +489,11 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           turnOptions.fastMode === true,
           retainedContext
         ),
-        rootSpan
+        rootSpan,
+        // Frozen at launch: the overlay stamps this onto every streamed snapshot
+        // so the live ⚡️ renders even before the DB write lands (and after retry
+        // resets parts to empty, where the seed is an empty placeholder).
+        modelSnapshot: buildModelSnapshot(model)
       }))
       // Author the turn span's input attributes here, where the built request payload is available.
       for (const { modelId, request, rootSpan } of models_) {
@@ -614,7 +621,17 @@ export class PersistentChatContextProvider implements ChatContextProvider {
 
       return {
         topicId: req.topicId,
-        models: [{ modelId: model.id, request, seedFromEmpty: true, rootSpan }],
+        models: [
+          {
+            modelId: model.id,
+            request,
+            seedFromEmpty: true,
+            rootSpan,
+            // `seedFromEmpty: true` skips the seeded row, so the snapshot here
+            // is the only path for ⚡️ to reach the overlay's first frames.
+            modelSnapshot: buildModelSnapshot(model)
+          }
+        ],
         listeners,
         reservedMessages: [toReservedUIMessage(resetMessage)],
         siblingsGroupId: target.siblingsGroupId || undefined,
@@ -725,7 +742,10 @@ export class PersistentChatContextProvider implements ChatContextProvider {
               anchor.data.turnOptions?.fastMode === true,
               retainedContext
             ),
-            rootSpan
+            rootSpan,
+            // Continue preserves the original model's identity (no switching
+            // mid-approval) — keep priorityMode frozen on the overlay.
+            modelSnapshot: buildModelSnapshot(model)
           }
         ],
         listeners,
@@ -757,6 +777,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
 
     const steerModelId = (userMessage.modelId ?? resolveAssistantModelId(assistantId).defaultModelId) as UniqueModelId
     const [model] = resolveModels([steerModelId], steerModelId)
+    const modelSnapshot = buildModelSnapshot(model)
     const messageSnapshot = buildAssistantMessageSnapshot(model, resolveAssistantIdentity(assistantId))
     const turnOptions: AssistantTurnOptions = {
       reasoningEffort: req.reasoningEffort,
@@ -773,7 +794,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         placeholders: [
           {
             role: 'assistant',
-            data: { parts: [], turnOptions },
+            data: { parts: [], turnOptions, modelSnapshot },
             status: 'pending',
             modelId: model.id,
             messageSnapshot
@@ -824,7 +845,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
               req.fastMode,
               retainedContext
             ),
-            rootSpan
+            rootSpan,
+            modelSnapshot
           }
         ],
         listeners,

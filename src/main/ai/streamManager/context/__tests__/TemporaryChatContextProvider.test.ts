@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const getTopicMock = vi.fn()
 const hasTopicMock = vi.fn()
 const appendMessageMock = vi.fn()
+const appendAssistantMessageMock = vi.fn()
 const listMessagesMock = vi.fn()
 
 vi.mock('@main/data/services/TemporaryChatService', () => ({
@@ -14,6 +15,7 @@ vi.mock('@main/data/services/TemporaryChatService', () => ({
     getTopic: getTopicMock,
     hasTopic: hasTopicMock,
     appendMessage: appendMessageMock,
+    appendAssistantMessage: appendAssistantMessageMock,
     listMessages: listMessagesMock
   }
 }))
@@ -61,6 +63,7 @@ describe('TemporaryChatContextProvider', () => {
     getTopicMock.mockReset()
     hasTopicMock.mockReset()
     appendMessageMock.mockReset()
+    appendAssistantMessageMock.mockReset()
     listMessagesMock.mockReset()
     getAssistantByIdMock.mockReset()
     getByKeyMock.mockReset()
@@ -218,6 +221,69 @@ describe('TemporaryChatContextProvider', () => {
     // invocation records can link to it before later promotion rebuilds the
     // same message projection.
     expect(request.messageId).toMatch(/^[0-9a-f-]{36}$/)
+  })
+
+  it('freezes the selected model priority mode into the assistant snapshot', async () => {
+    getAssistantByIdMock.mockReturnValue({
+      id: 'asst_1',
+      name: 'Priority Assistant',
+      emoji: '⚡',
+      modelId: 'openai::gpt-4o'
+    })
+    getByKeyMock.mockReturnValue({
+      id: 'openai::gpt-4o',
+      providerId: 'openai',
+      apiModelId: 'gpt-4o',
+      name: 'GPT-4o',
+      priorityMode: 'minimax'
+    })
+    const prepared = await provider.prepareDispatch(makeSubscriber(), openReq(), { hasLiveStream: false })
+
+    await prepared.listeners[1].onDone({
+      finalMessage: { id: 'assistant-message', role: 'assistant', parts: [{ type: 'text', text: 'done' }] },
+      modelId: 'openai::gpt-4o',
+      isTopicDone: true
+    } as never)
+
+    expect(appendAssistantMessageMock.mock.calls[0][1].messageSnapshot).toEqual({
+      id: 'asst_1',
+      name: 'Priority Assistant',
+      emoji: '⚡',
+      model: { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai', priorityMode: 'minimax' }
+    })
+    expect(appendAssistantMessageMock.mock.calls[0][1].data.modelSnapshot).toEqual({
+      id: 'gpt-4o',
+      name: 'GPT-4o',
+      provider: 'openai',
+      priorityMode: 'minimax'
+    })
+  })
+
+  it('freezes the selected model independently when a temporary chat has no assistant', async () => {
+    getTopicMock.mockReturnValue({ id: '1', assistantId: null })
+    getByKeyMock.mockReturnValue({
+      id: 'openai::gpt-4o',
+      providerId: 'openai',
+      apiModelId: 'gpt-4o',
+      name: 'GPT-4o',
+      priorityMode: 'minimax'
+    })
+    const prepared = await provider.prepareDispatch(makeSubscriber(), openReq(), { hasLiveStream: false })
+
+    await prepared.listeners[1].onDone({
+      finalMessage: { id: 'assistant-message', role: 'assistant', parts: [{ type: 'text', text: 'done' }] },
+      modelId: 'openai::gpt-4o',
+      isTopicDone: true
+    } as never)
+
+    const saved = appendAssistantMessageMock.mock.calls[0][1]
+    expect(saved.messageSnapshot).toBeUndefined()
+    expect(saved.data.modelSnapshot).toEqual({
+      id: 'gpt-4o',
+      name: 'GPT-4o',
+      provider: 'openai',
+      priorityMode: 'minimax'
+    })
   })
 
   it('reads the knowledge scope from the submitted user-message parts', async () => {

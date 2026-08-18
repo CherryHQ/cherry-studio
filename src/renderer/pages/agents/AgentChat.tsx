@@ -34,6 +34,7 @@ import type { ConversationCenterSlot, PaneManualToggleSignal } from '@renderer/t
 import type { Citation } from '@renderer/types/message'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { getModelDisplayName } from '@renderer/utils/model'
 import { cn } from '@renderer/utils/style'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
@@ -485,7 +486,9 @@ const AgentChat = ({
       <ConfirmDialog
         open={modelSwitchConfirmOpen}
         onOpenChange={setModelSwitchConfirmOpen}
-        title={t('agent.session.model_switch_confirm.title', { model: modelSwitchTarget?.model.name ?? '' })}
+        title={t('agent.session.model_switch_confirm.title', {
+          model: modelSwitchTarget ? getModelDisplayName(modelSwitchTarget.model) : ''
+        })}
         description={t('agent.session.model_switch_confirm.description')}
         content={
           <div className="flex items-center gap-2">

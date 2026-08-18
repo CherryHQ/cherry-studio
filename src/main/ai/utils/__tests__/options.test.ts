@@ -1,12 +1,15 @@
-import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY, MODEL_PRIORITY_MODE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it } from 'vitest'
 
 import {
   applyFastModeToProviderOptions,
+  applyPriorityModeToProviderOptions,
   buildCapabilityProviderOptions,
   buildResolvedReasoningProviderOptions,
   extractAiSdkStandardParams,
+  getPriorityModeBodyParameters,
+  getPriorityModeHeaders,
   mergeCustomProviderParameters
 } from '../options'
 import type { ResolvedReasoningInvocation } from '../reasoningSerializers'
@@ -32,6 +35,150 @@ describe('applyFastModeToProviderOptions', () => {
     })
     expect(applyFastModeToProviderOptions(provider, { ...model, supportsFastMode: false }, {}, true)).toEqual({})
     expect(applyFastModeToProviderOptions(provider, model, {}, false)).toEqual({})
+  })
+})
+
+describe('applyPriorityModeToProviderOptions', () => {
+  it.each([
+    [MODEL_PRIORITY_MODE.OPENAI, 'openai', ENDPOINT_TYPE.OPENAI_RESPONSES, { serviceTier: 'priority' }],
+    [MODEL_PRIORITY_MODE.AZURE_OPENAI, 'azure', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, { serviceTier: 'priority' }],
+    [MODEL_PRIORITY_MODE.ANTHROPIC, 'anthropic', ENDPOINT_TYPE.ANTHROPIC_MESSAGES, { speed: 'fast' }],
+    [MODEL_PRIORITY_MODE.GEMINI, 'google', ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, { serviceTier: 'priority' }],
+    [MODEL_PRIORITY_MODE.GROQ, 'groq', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, { serviceTier: 'performance' }],
+    [MODEL_PRIORITY_MODE.FIREWORKS, 'openai', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, { serviceTier: 'priority' }],
+    [MODEL_PRIORITY_MODE.AWS_BEDROCK, 'bedrock', ENDPOINT_TYPE.ANTHROPIC_MESSAGES, { serviceTier: 'priority' }],
+    [MODEL_PRIORITY_MODE.DOUBAO, 'openai-chat', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, { serviceTier: 'auto' }]
+  ] as const)(
+    'maps %s onto the native %s provider options',
+    (priorityMode, runtimeProviderId, endpointType, expected) => {
+      const providerOptions = {
+        dynamic: { existingField: true },
+        untouched: { marker: 1 }
+      }
+
+      expect(
+        applyPriorityModeToProviderOptions({ priorityMode }, providerOptions, {
+          runtimeProviderId,
+          providerOptionsKey: 'dynamic',
+          endpointType
+        })
+      ).toEqual({
+        dynamic: { existingField: true, ...expected },
+        untouched: { marker: 1 }
+      })
+    }
+  )
+
+  it('returns the original options unchanged when priority mode is none', () => {
+    const providerOptions = { minimax: { existingField: true } }
+
+    const result = applyPriorityModeToProviderOptions({ priorityMode: MODEL_PRIORITY_MODE.NONE }, providerOptions, {
+      runtimeProviderId: 'openai-compatible',
+      providerOptionsKey: 'minimax',
+      endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    })
+
+    expect(result).toBe(providerOptions)
+    expect(result).toEqual({ minimax: { existingField: true } })
+  })
+
+  it('does not apply an OpenAI-compatible priority mode to an unsupported endpoint', () => {
+    const providerOptions = { minimax: { existingField: true } }
+
+    const result = applyPriorityModeToProviderOptions({ priorityMode: MODEL_PRIORITY_MODE.MINIMAX }, providerOptions, {
+      runtimeProviderId: 'openai-compatible',
+      providerOptionsKey: 'minimax',
+      endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+    })
+
+    expect(result).toBe(providerOptions)
+  })
+
+  it.each([
+    [MODEL_PRIORITY_MODE.OPENAI, 'openai-compatible', ENDPOINT_TYPE.OPENAI_RESPONSES, 'priority'],
+    [MODEL_PRIORITY_MODE.AZURE_OPENAI, 'openai-compatible', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'priority'],
+    [MODEL_PRIORITY_MODE.GEMINI, 'openai-compatible', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'priority'],
+    [MODEL_PRIORITY_MODE.MINIMAX, 'openai-compatible', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'priority'],
+    [MODEL_PRIORITY_MODE.GROQ, 'openai-compatible', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'performance'],
+    [MODEL_PRIORITY_MODE.FIREWORKS, 'anthropic', ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 'priority'],
+    [MODEL_PRIORITY_MODE.XAI, 'xai-responses', ENDPOINT_TYPE.OPENAI_RESPONSES, 'priority'],
+    [MODEL_PRIORITY_MODE.CEREBRAS, 'cerebras', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'priority'],
+    [MODEL_PRIORITY_MODE.DOUBAO, 'openai-compatible', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'auto'],
+    [MODEL_PRIORITY_MODE.OPENROUTER, 'openrouter', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'priority']
+  ] as const)(
+    'injects the %s wire value after schema serialization',
+    (priorityMode, runtimeProviderId, endpointType, serviceTier) => {
+      expect(getPriorityModeBodyParameters({ priorityMode }, runtimeProviderId, endpointType)).toEqual({
+        service_tier: serviceTier
+      })
+    }
+  )
+
+  it('keeps a raw fallback for native OpenAI adapters that can reject unknown model ids', () => {
+    expect(
+      getPriorityModeBodyParameters(
+        { priorityMode: MODEL_PRIORITY_MODE.OPENAI },
+        'openai',
+        ENDPOINT_TYPE.OPENAI_RESPONSES
+      )
+    ).toEqual({ service_tier: 'priority' })
+    expect(
+      getPriorityModeBodyParameters(
+        { priorityMode: MODEL_PRIORITY_MODE.AZURE_OPENAI },
+        'azure',
+        ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+      )
+    ).toEqual({ service_tier: 'priority' })
+  })
+
+  it('does not duplicate tiers that the Groq adapter serializes', () => {
+    expect(
+      getPriorityModeBodyParameters(
+        { priorityMode: MODEL_PRIORITY_MODE.GROQ },
+        'groq',
+        ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+      )
+    ).toEqual({})
+  })
+
+  it('does not enable Fireworks priority on its unsupported Responses endpoint', () => {
+    expect(
+      getPriorityModeBodyParameters(
+        { priorityMode: MODEL_PRIORITY_MODE.FIREWORKS },
+        'openai',
+        ENDPOINT_TYPE.OPENAI_RESPONSES
+      )
+    ).toEqual({})
+  })
+
+  it('adds the Vertex Priority PayGo header only for global Gemini generation', () => {
+    expect(
+      getPriorityModeHeaders(
+        { priorityMode: MODEL_PRIORITY_MODE.GEMINI },
+        'google-vertex',
+        ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+        'global'
+      )
+    ).toEqual({
+      'X-Vertex-AI-LLM-Request-Type': 'shared',
+      'X-Vertex-AI-LLM-Shared-Request-Type': 'priority'
+    })
+    expect(
+      getPriorityModeHeaders(
+        { priorityMode: MODEL_PRIORITY_MODE.GEMINI },
+        'google-vertex-anthropic',
+        ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+        'global'
+      )
+    ).toEqual({})
+    expect(
+      getPriorityModeHeaders(
+        { priorityMode: MODEL_PRIORITY_MODE.GEMINI },
+        'google-vertex',
+        ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+        'us-central1'
+      )
+    ).toEqual({})
   })
 })
 

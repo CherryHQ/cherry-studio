@@ -42,6 +42,8 @@ vi.mock('@cherrystudio/ui', () => {
 })
 
 vi.mock('@renderer/utils/model', () => ({
+  getModelDisplayName: (model: { name: string; priorityMode?: string }) =>
+    `${model.name}${model.priorityMode === 'minimax' ? ' ⚡️' : ''}`,
   getModelLogoRef: (model: any) =>
     model?.icon ? { kind: 'provider', key: model.id, meta: { id: model.id, colorPrimary: '#000' }, model } : undefined
 }))

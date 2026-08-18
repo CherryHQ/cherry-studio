@@ -1,6 +1,6 @@
 import type { UIMessageChunk } from 'ai'
 
-import type { AssistantTurnOptions, CherryMessagePart, CherryUIMessage } from '../../data/types/message'
+import type { AssistantTurnOptions, CherryMessagePart, CherryUIMessage, ModelSnapshot } from '../../data/types/message'
 import type { UniqueModelId } from '../../data/types/model'
 import type { ReasoningEffortOption } from '../../types/aiSdk'
 import type { SerializedError } from '../../types/error'
@@ -77,6 +77,13 @@ export interface ActiveExecution {
   anchorMessageId?: string
   /** This attempt reset its persisted anchor row and must start from empty parts in every window. */
   seedFromEmpty?: boolean
+  /**
+   * Frozen model identity captured when this execution was launched. Carries
+   * the model's display name and `priorityMode` so the overlay (e.g. temp
+   * chat) renders the ⚡️ suffix without re-querying the current model config
+   * mid-stream. Empty for executions launched without a snapshot.
+   */
+  modelSnapshot?: ModelSnapshot
 }
 
 /** Chat-tree target captured when a queued draft is created. */

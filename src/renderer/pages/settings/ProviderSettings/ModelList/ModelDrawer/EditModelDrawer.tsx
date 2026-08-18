@@ -1,16 +1,26 @@
-import { Button, Switch, Tooltip } from '@cherrystudio/ui'
+import {
+  Button,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Switch,
+  Tooltip
+} from '@cherrystudio/ui'
 import CopyIcon from '@renderer/components/icons/CopyIcon'
 import { useModelMutations } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
 import { getDefaultGroupName } from '@renderer/utils/naming'
-import { type EndpointType, type Model } from '@shared/data/types/model'
+import { type EndpointType, type Model, MODEL_PRIORITY_MODE, type ModelPriorityMode } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import { ChevronDown, ChevronUp, CircleHelp } from 'lucide-react'
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ProviderActions from '../../primitives/ProviderActions'
+import ProviderField from '../../primitives/ProviderField'
 import ProviderSection from '../../primitives/ProviderSection'
 import ProviderSettingsDrawer from '../../primitives/ProviderSettingsDrawer'
 import { drawerClasses, fieldClasses } from '../../primitives/ProviderSettingsPrimitives'
@@ -56,6 +66,7 @@ interface BuildPatchOverrides {
   purposeFields?: ModelPurposeFields
   classification?: ModelClassificationState
   supportsStreaming?: boolean
+  priorityMode?: ModelPriorityMode
   pricing?: Model['pricing']
   contextWindow?: string
   maxInputTokens?: string
@@ -86,6 +97,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const [showMoreSettings, setShowMoreSettings] = useState(true)
   const [classification, setClassification] = useState<ModelClassificationState>(() => getInitialModelClassification())
   const [supportsStreaming, setSupportsStreaming] = useState<Model['supportsStreaming']>(true)
+  const [priorityMode, setPriorityMode] = useState<ModelPriorityMode>(MODEL_PRIORITY_MODE.NONE)
   const [contextWindow, setContextWindow] = useState('')
   const [maxInputTokens, setMaxInputTokens] = useState('')
   const [maxOutputTokens, setMaxOutputTokens] = useState('')
@@ -119,6 +131,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     setShowMoreSettings(true)
     setClassification(getInitialModelClassification(model))
     setSupportsStreaming(model.supportsStreaming)
+    setPriorityMode(model.priorityMode ?? MODEL_PRIORITY_MODE.NONE)
     setContextWindow(model.contextWindow != null ? String(model.contextWindow) : '')
     setMaxInputTokens(model.maxInputTokens != null ? String(model.maxInputTokens) : '')
     setMaxOutputTokens(model.maxOutputTokens != null ? String(model.maxOutputTokens) : '')
@@ -134,6 +147,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
         inputModalities: patch.inputModalities,
         outputModalities: patch.outputModalities,
         supportsStreaming: patch.supportsStreaming,
+        priorityMode: patch.priorityMode,
         endpointTypes: patch.endpointTypes,
         contextWindow: patch.contextWindow,
         maxInputTokens: patch.maxInputTokens,
@@ -208,6 +222,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
           ? { outputModalities: resolvedPurposeFields.outputModalities }
           : {}),
         supportsStreaming: overrides?.supportsStreaming ?? supportsStreaming,
+        priorityMode: overrides?.priorityMode ?? priorityMode,
         contextWindow: Number(overrides?.contextWindow ?? contextWindow) || undefined,
         maxInputTokens: Number(overrides?.maxInputTokens ?? maxInputTokens) || undefined,
         maxOutputTokens: Number(overrides?.maxOutputTokens ?? maxOutputTokens) || undefined,
@@ -222,6 +237,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       mode,
       model,
       name,
+      priorityMode,
       purposeFields,
       classification,
       defaultChatEndpoint,
@@ -463,6 +479,67 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                   onMaxOutputTokensChange={setMaxOutputTokens}
                   onMaxOutputTokensBlur={() => autoSave({ maxOutputTokens })}
                 />
+              </div>
+
+              <div className={drawerClasses.sectionCard}>
+                <ProviderField
+                  title={t('settings.models.add.priority_mode.label')}
+                  titleClassName={drawerClasses.fieldTitle}>
+                  <div className={drawerClasses.inlineRow}>
+                    <Select
+                      value={priorityMode}
+                      onValueChange={(value) => {
+                        const nextPriorityMode = value as ModelPriorityMode
+                        setPriorityMode(nextPriorityMode)
+                        autoSave({ priorityMode: nextPriorityMode })
+                      }}>
+                      <SelectTrigger
+                        aria-label={t('settings.models.add.priority_mode.label')}
+                        className={drawerClasses.selectTrigger}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className={drawerClasses.selectContent}>
+                        <SelectItem value={MODEL_PRIORITY_MODE.NONE}>{t('common.none')}</SelectItem>
+                        <SelectItem value={MODEL_PRIORITY_MODE.OPENAI}>
+                          {t('settings.models.add.priority_mode.openai')}
+                        </SelectItem>
+                        <SelectItem value={MODEL_PRIORITY_MODE.AZURE_OPENAI}>
+                          {t('settings.models.add.priority_mode.azure_openai')}
+                        </SelectItem>
+                        <SelectItem value={MODEL_PRIORITY_MODE.ANTHROPIC}>
+                          {t('settings.models.add.priority_mode.anthropic')}
+                        </SelectItem>
+                        <SelectItem value={MODEL_PRIORITY_MODE.GEMINI}>
+                          {t('settings.models.add.priority_mode.gemini')}
+                        </SelectItem>
+                        <SelectItem value={MODEL_PRIORITY_MODE.MINIMAX}>
+                          {t('settings.models.add.priority_mode.minimax')}
+                        </SelectItem>
+                        <SelectItem value={MODEL_PRIORITY_MODE.GROQ}>
+                          {t('settings.models.add.priority_mode.groq')}
+                        </SelectItem>
+                        <SelectItem value={MODEL_PRIORITY_MODE.FIREWORKS}>
+                          {t('settings.models.add.priority_mode.fireworks')}
+                        </SelectItem>
+                        <SelectItem value={MODEL_PRIORITY_MODE.XAI}>
+                          {t('settings.models.add.priority_mode.xai')}
+                        </SelectItem>
+                        <SelectItem value={MODEL_PRIORITY_MODE.CEREBRAS}>
+                          {t('settings.models.add.priority_mode.cerebras')}
+                        </SelectItem>
+                        <SelectItem value={MODEL_PRIORITY_MODE.AWS_BEDROCK}>
+                          {t('settings.models.add.priority_mode.aws_bedrock')}
+                        </SelectItem>
+                        <SelectItem value={MODEL_PRIORITY_MODE.DOUBAO}>
+                          {t('settings.models.add.priority_mode.doubao')}
+                        </SelectItem>
+                        <SelectItem value={MODEL_PRIORITY_MODE.OPENROUTER}>
+                          {t('settings.models.add.priority_mode.openrouter')}
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </ProviderField>
               </div>
 
               <div className={drawerClasses.switchCard}>

@@ -1,7 +1,7 @@
 import type { Span } from '@opentelemetry/api'
 import type { CompactionAnchorData } from '@shared/ai/compaction'
 import type { StreamChunkPayload, TopicStreamStatus } from '@shared/ai/transport'
-import type { CherryUIMessage, MessageRuntimeTiming } from '@shared/data/types/message'
+import type { CherryUIMessage, MessageRuntimeTiming, ModelSnapshot } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
@@ -109,6 +109,10 @@ export interface StreamExecution {
   anchorMessageId?: string
   /** Renderer readers must start from an empty anchor instead of cached persisted parts. */
   seedFromEmpty?: boolean
+  /** Frozen model identity captured at launch. Propagated to renderer readers
+   *  so overlays (e.g. temp chat streaming tail) render the model's name and
+   *  `priorityMode` ⚡️ suffix without re-querying the current model config. */
+  modelSnapshot?: ModelSnapshot
   /** Independent abort — multi-model executions don't share. */
   abortController: AbortController
   status: 'streaming' | 'done' | 'error' | 'aborted'

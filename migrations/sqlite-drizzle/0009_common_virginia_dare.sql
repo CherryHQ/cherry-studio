@@ -1,0 +1,1 @@
+ALTER TABLE `user_model` ADD `priority_mode` text;

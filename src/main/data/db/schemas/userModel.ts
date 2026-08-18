@@ -15,6 +15,7 @@ import type {
   EndpointType,
   Modality,
   ModelCapability,
+  ModelPriorityMode,
   ParameterSupport,
   ReasoningConfig,
   RuntimeModelPricing
@@ -78,6 +79,9 @@ export const userModelTable = sqliteTable(
 
     /** Streaming support (null inherits the preset) */
     supportsStreaming: integer({ mode: 'boolean' }),
+
+    /** User-selected request priority transport */
+    priorityMode: text().$type<ModelPriorityMode>(),
 
     /** Reasoning configuration */
     reasoning: text({ mode: 'json' }).$type<ReasoningConfig>(),

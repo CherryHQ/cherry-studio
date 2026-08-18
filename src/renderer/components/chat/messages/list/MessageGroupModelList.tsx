@@ -1,5 +1,6 @@
 import { RowFlex, Scrollbar, SegmentedControl, Tooltip } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
+import { getModelDisplayName } from '@renderer/utils/model'
 import type { FC } from 'react'
 import { memo, useCallback } from 'react'
 
@@ -18,7 +19,7 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
       const isProcessing = isMessageListItemProcessing(message)
       const isSelected = message.id === selectMessageId
       const model = getMessageListItemModel(message)
-      const modelName = model?.name || model?.id
+      const modelName = model ? getModelDisplayName(model) : undefined
       const avatar = <ModelAvatar className={isProcessing ? 'animation-pulse' : ''} model={model} size={20} />
 
       return (

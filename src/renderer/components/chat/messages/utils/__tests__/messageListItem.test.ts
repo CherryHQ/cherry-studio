@@ -53,6 +53,57 @@ describe('toMessageListItem', () => {
     expect(item.modelId).toBe('openai::gpt-4o')
   })
 
+  it('uses the independent frozen model snapshot for an author-less assistant reply', () => {
+    const message = {
+      id: 'm1',
+      role: 'assistant',
+      parts: [],
+      metadata: {
+        status: 'success',
+        modelId: 'minimax::m2.1',
+        modelSnapshot: {
+          id: 'm2.1',
+          name: 'MiniMax M2.1',
+          provider: 'minimax',
+          priorityMode: 'minimax'
+        }
+      }
+    } as CherryUIMessage
+
+    const item = toMessageListItem(message, { topicId: 'topic-1' })
+
+    expect(item.model).toEqual({
+      id: 'm2.1',
+      name: 'MiniMax M2.1',
+      provider: 'minimax',
+      priorityMode: 'minimax'
+    })
+  })
+
+  it('projects the frozen model priority mode into locked assistant models', () => {
+    const message = {
+      id: 'assistant-1',
+      role: 'assistant',
+      parts: [],
+      metadata: {
+        status: 'success',
+        parentId: 'user-1',
+        modelId: 'minimax::m2.1',
+        messageSnapshot: {
+          id: 'assistant-profile-1',
+          name: 'MiniMax Assistant',
+          model: { id: 'm2.1', name: 'MiniMax M2.1', provider: 'minimax', priorityMode: 'minimax' }
+        }
+      }
+    } as CherryUIMessage
+
+    const item = toMessageListItem(message, { topicId: 'topic-1' })
+    const lockedModel = getDirectAssistantModelsByUserId([item]).get('user-1')?.[0]
+
+    expect(item.model?.priorityMode).toBe('minimax')
+    expect(lockedModel).toMatchObject({ id: 'minimax::m2.1', name: 'MiniMax M2.1', priorityMode: 'minimax' })
+  })
+
   it('leaves the model undefined when the row has neither snapshot nor modelId (no live fallback)', () => {
     const message = { id: 'm2', role: 'assistant', parts: [], metadata: { status: 'success' } } as CherryUIMessage
 
@@ -159,5 +210,24 @@ describe('getDirectAssistantModelsByUserId', () => {
     const next = getDirectAssistantModelsByUserId([{ ...reply, stats: { outputTokens: 1 } }])
 
     expect(shareDirectAssistantModelsByUserId(previous, next)).toBe(previous)
+  })
+
+  it('does not reuse locked models when the frozen priority mode changes', () => {
+    const reply = {
+      id: 'assistant-a',
+      role: 'assistant',
+      topicId: 'topic-1',
+      parentId: 'user-1',
+      createdAt: '2026-01-01T00:00:01.000Z',
+      status: 'success',
+      modelId: 'minimax::m2.1',
+      model: { id: 'm2.1', name: 'MiniMax M2.1', provider: 'minimax', priorityMode: 'none' }
+    } as MessageListItem
+    const previous = getDirectAssistantModelsByUserId([reply])
+    const next = getDirectAssistantModelsByUserId([
+      { ...reply, model: { ...reply.model!, priorityMode: 'minimax' } } as MessageListItem
+    ])
+
+    expect(shareDirectAssistantModelsByUserId(previous, next)).toBe(next)
   })
 })

@@ -1,7 +1,7 @@
 import { Avatar, AvatarFallback, Button, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
 import { toast } from '@renderer/services/toast'
-import { getModelLogoRef } from '@renderer/utils/model'
+import { getModelDisplayName, getModelLogoRef } from '@renderer/utils/model'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { Bolt, Minus } from 'lucide-react'
@@ -71,7 +71,7 @@ const ModelListItem: React.FC<ModelListItemProps> = ({
         <div className={modelListClasses.rowBody}>
           <div className="flex h-7 min-w-0 items-center gap-1.5">
             <span className="inline-flex h-7 min-w-0 shrink select-text items-center overflow-hidden text-ellipsis whitespace-nowrap text-left font-normal text-foreground text-sm leading-none">
-              {model.name}
+              {getModelDisplayName(model)}
             </span>
           </div>
         </div>

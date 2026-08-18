@@ -52,6 +52,7 @@ vi.mock('@cherrystudio/ui/icons', () => ({
 }))
 
 vi.mock('@renderer/utils/model', () => ({
+  getModelDisplayName: (model: Model) => `${model.name}${model.priorityMode === 'minimax' ? ' ⚡️' : ''}`,
   getModelLogoRef: () => undefined
 }))
 
@@ -270,6 +271,26 @@ describe('ModelSelector', () => {
 
     expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'openai::gpt-4' }))
     expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it('marks a priority model without changing the selected model data', async () => {
+    const user = userEvent.setup()
+    const priorityItem = makeModelItem('openai::gpt-4' as UniqueModelId)
+    priorityItem.model.priorityMode = 'minimax'
+    mocks.useModelSelectorData.mockReturnValue(
+      makeData({
+        listItems: [priorityItem],
+        modelItems: [priorityItem],
+        selectableModelsById: new Map([[priorityItem.modelId, priorityItem.model]])
+      })
+    )
+    const onSelect = vi.fn()
+
+    render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={onSelect} />)
+
+    expect(screen.getByText('gpt-4 ⚡️')).toBeInTheDocument()
+    await user.click(screen.getByRole('option'))
+    expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ name: 'gpt-4', priorityMode: 'minimax' }))
   })
 
   it('tears down the lazy shell before resetting an active tag filter on close', async () => {

@@ -8,7 +8,7 @@
  */
 
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
-import type { MessageSnapshot } from '@shared/data/types/message'
+import type { MessageSnapshot, ModelSnapshot } from '@shared/data/types/message'
 
 import type { PersistAssistantInput, PersistenceBackend } from '../PersistenceBackend'
 
@@ -16,6 +16,7 @@ export interface TemporaryChatBackendOptions {
   topicId: string
   messageId: string
   modelId?: string
+  modelSnapshot?: ModelSnapshot
   messageSnapshot?: MessageSnapshot
 }
 
@@ -30,7 +31,10 @@ export class TemporaryChatBackend implements PersistenceBackend {
       this.opts.topicId,
       {
         role: 'assistant',
-        data: { parts: finalMessage?.parts ?? [] },
+        data: {
+          parts: finalMessage?.parts ?? [],
+          ...(this.opts.modelSnapshot ? { modelSnapshot: this.opts.modelSnapshot } : {})
+        },
         status,
         modelId: this.opts.modelId,
         messageSnapshot: this.opts.messageSnapshot

@@ -5,7 +5,7 @@ import type { OpenAIResponsesProviderOptions } from '@ai-sdk/openai'
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { XaiResponsesProviderOptions } from '@ai-sdk/xai'
 import { loggerService } from '@logger'
-import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType, type Model, MODEL_PRIORITY_MODE } from '@shared/data/types/model'
 import {
   type GroqServiceTier,
   GroqServiceTiers,
@@ -55,6 +55,135 @@ export function applyFastModeToProviderOptions(
       serviceTier: 'priority'
     }
   }
+}
+
+export function applyPriorityModeToProviderOptions<T extends ProviderOptions>(
+  model: Pick<Model, 'priorityMode'>,
+  providerOptions: T,
+  context: {
+    runtimeProviderId: AppProviderId
+    providerOptionsKey: string
+    endpointType: EndpointType | undefined
+  }
+): T {
+  const { runtimeProviderId, providerOptionsKey, endpointType } = context
+  let priorityOptions: Record<string, JSONValue> | undefined
+
+  if (
+    model.priorityMode === MODEL_PRIORITY_MODE.ANTHROPIC &&
+    runtimeProviderId === 'anthropic' &&
+    endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+  ) {
+    priorityOptions = { speed: 'fast' }
+  } else if (
+    model.priorityMode === MODEL_PRIORITY_MODE.GEMINI &&
+    runtimeProviderId === 'google' &&
+    endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+  ) {
+    priorityOptions = { serviceTier: 'priority' }
+  } else if (model.priorityMode === MODEL_PRIORITY_MODE.AWS_BEDROCK && runtimeProviderId === 'bedrock') {
+    priorityOptions = { serviceTier: 'priority' }
+  } else {
+    const serviceTier = getPriorityModeServiceTier(model, endpointType)
+    if (
+      serviceTier === 'performance' &&
+      runtimeProviderId === 'groq' &&
+      endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    ) {
+      priorityOptions = { serviceTier }
+    } else if (serviceTier && serviceTier !== 'performance' && isNativeOpenAIProvider(runtimeProviderId)) {
+      priorityOptions = { serviceTier }
+    }
+  }
+
+  if (!priorityOptions) return providerOptions
+
+  return {
+    ...providerOptions,
+    [providerOptionsKey]: {
+      ...providerOptions[providerOptionsKey],
+      ...priorityOptions
+    }
+  }
+}
+
+export function getPriorityModeBodyParameters(
+  model: Pick<Model, 'priorityMode'>,
+  runtimeProviderId: AppProviderId,
+  endpointType: EndpointType | undefined
+): Record<string, unknown> {
+  const serviceTier = getPriorityModeServiceTier(model, endpointType)
+  if (!serviceTier) return {}
+
+  // Groq's native adapter serializes `service_tier: 'performance'` directly
+  // from `providerOptions.groq.serviceTier`; a body wrap would duplicate the
+  // field. Other native adapters either need the snake_case wrap to survive
+  // (Azure drops it from provider options for arbitrary deployment names) or
+  // produce a duplicate value (which is harmless, not contradictory).
+  if (serviceTier === 'performance' && runtimeProviderId === 'groq') return {}
+
+  return { service_tier: serviceTier }
+}
+
+export function getPriorityModeHeaders(
+  model: Pick<Model, 'priorityMode'>,
+  runtimeProviderId: AppProviderId,
+  endpointType: EndpointType | undefined,
+  providerLocation: unknown
+): Record<string, string> {
+  if (
+    model.priorityMode !== MODEL_PRIORITY_MODE.GEMINI ||
+    runtimeProviderId !== 'google-vertex' ||
+    endpointType !== ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT ||
+    providerLocation !== 'global'
+  ) {
+    return {}
+  }
+
+  return {
+    'X-Vertex-AI-LLM-Request-Type': 'shared',
+    'X-Vertex-AI-LLM-Shared-Request-Type': 'priority'
+  }
+}
+
+type PriorityServiceTier = 'auto' | 'performance' | 'priority'
+
+function getPriorityModeServiceTier(
+  model: Pick<Model, 'priorityMode'>,
+  endpointType: EndpointType | undefined
+): PriorityServiceTier | undefined {
+  const isChatCompletions = endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+  const isOpenAIEndpoint = isChatCompletions || endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES
+
+  switch (model.priorityMode) {
+    case MODEL_PRIORITY_MODE.OPENAI:
+    case MODEL_PRIORITY_MODE.AZURE_OPENAI:
+    case MODEL_PRIORITY_MODE.XAI:
+      return isOpenAIEndpoint ? 'priority' : undefined
+    case MODEL_PRIORITY_MODE.GEMINI:
+    case MODEL_PRIORITY_MODE.MINIMAX:
+    case MODEL_PRIORITY_MODE.CEREBRAS:
+      return isChatCompletions ? 'priority' : undefined
+    case MODEL_PRIORITY_MODE.GROQ:
+      return isChatCompletions ? 'performance' : undefined
+    case MODEL_PRIORITY_MODE.FIREWORKS:
+      return isChatCompletions || endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES ? 'priority' : undefined
+    case MODEL_PRIORITY_MODE.OPENROUTER:
+      return isOpenAIEndpoint || endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES ? 'priority' : undefined
+    case MODEL_PRIORITY_MODE.DOUBAO:
+      return isChatCompletions ? 'auto' : undefined
+    default:
+      return undefined
+  }
+}
+
+function isNativeOpenAIProvider(runtimeProviderId: AppProviderId): boolean {
+  return (
+    runtimeProviderId === 'openai' ||
+    runtimeProviderId === 'openai-chat' ||
+    runtimeProviderId === 'azure' ||
+    runtimeProviderId === 'azure-responses'
+  )
 }
 
 type GroqProvider = Provider & { id: 'groq' }

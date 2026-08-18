@@ -417,6 +417,7 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHos
 }))
 
 vi.mock('@renderer/utils/model', () => ({
+  getModelDisplayName: (model: Model) => `${model.name}${model.priorityMode === 'minimax' ? ' ⚡️' : ''}`,
   // Mirrors the real reconcile logic using the mocked predicates below:
   // canModelUseAssistantWebSearch = isWebSearchModel || isOpenRouterBuiltInWebSearchModel || isFunctionCallingModel.
   // The first two predicates are stubbed to false here, so it reduces to the function-call check.

@@ -29,11 +29,10 @@ function statsFromMetadata(metadata: CherryUIMessage['metadata']): MessageStats 
 export function toMessageListItem(message: CherryUIMessage, ctx: MessageListItemContext): MessageListItem {
   const metadata = message.metadata ?? {}
   const messageSnapshot = metadata.messageSnapshot
-  // The snapshot IS the producing author (model nested). Model priority: the frozen author's model →
-  // the row's own frozen `modelId`. Both are captured at send time, so switching the live model or
-  // assistant never moves a past message's header.
+  // Prefer the frozen author's model, then the independent model snapshot used by author-less chats.
+  // Both are captured at send time, so switching the live model never moves a past message's header.
   const author = messageSnapshot
-  let model = author?.model
+  let model = author?.model ?? metadata.modelSnapshot
   if (!model && metadata.modelId && isUniqueModelId(metadata.modelId)) {
     const { providerId, modelId } = parseUniqueModelId(metadata.modelId)
     model = { id: modelId, name: modelId, provider: providerId }
@@ -66,7 +65,8 @@ export function getMessageListItemModel(message: MessageListItem): Model | undef
       id: message.model.id,
       name: message.model.name,
       provider: message.model.provider,
-      group: message.model.group ?? ''
+      group: message.model.group ?? '',
+      priorityMode: message.model.priorityMode
     }
   }
 
@@ -109,6 +109,7 @@ export function getDirectAssistantModelsByUserId(messages: MessageListItem[]): M
       apiModelId: model.id,
       name: model.name,
       group: model.group || undefined,
+      priorityMode: model.priorityMode,
       capabilities: [],
       supportsStreaming: true,
       isEnabled: true,
@@ -127,6 +128,7 @@ function directAssistantModelEqual(previous: SharedModel, next: SharedModel): bo
     previous.apiModelId === next.apiModelId &&
     previous.name === next.name &&
     previous.group === next.group &&
+    previous.priorityMode === next.priorityMode &&
     previous.supportsStreaming === next.supportsStreaming &&
     previous.isEnabled === next.isEnabled &&
     previous.isHidden === next.isHidden

@@ -6,7 +6,7 @@ import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/compon
 import { useCommandHandler } from '@renderer/hooks/command'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
-import { getModelLogoRef } from '@renderer/utils/model'
+import { getModelDisplayName, getModelLogoRef } from '@renderer/utils/model'
 import { isDev } from '@renderer/utils/platform'
 import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
 import type { SettingsPath } from '@shared/data/types/settingsPath'
@@ -178,6 +178,7 @@ function ModelRow({
   const icon = useIcon(getModelLogoRef(item.model, item.provider.id))
   const rowTags = useMemo(() => getModelDisplayTags(item.model, undefined, item.provider), [item.model, item.provider])
   const providerName = getProviderDisplayName(item.provider)
+  const modelName = getModelDisplayName(item.model)
 
   const leading = icon ? (
     <icon.Avatar size={24} className="border border-border" />
@@ -239,8 +240,8 @@ function ModelRow({
         onSelect={() => onSelect(item)}
         rootProps={{ className: 'pr-0.5' }}
         optionProps={{ 'data-testid': `model-selector-item-${item.modelId}` }}>
-        <span className="min-w-0 max-w-full shrink-0 truncate" title={item.model.name}>
-          {item.model.name}
+        <span className="min-w-0 max-w-full shrink-0 truncate" title={modelName}>
+          {modelName}
         </span>
         {item.isPinned && (
           <span className="min-w-0 flex-[1_999_0%] truncate text-muted-foreground text-xs" title={providerName}>

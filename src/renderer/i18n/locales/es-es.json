@@ -6032,6 +6032,21 @@
         "model_type": {
           "label": "Tipo de Modelo"
         },
+        "priority_mode": {
+          "anthropic": "Anthropic",
+          "aws_bedrock": "Amazon Bedrock",
+          "azure_openai": "Azure OpenAI",
+          "cerebras": "Cerebras",
+          "doubao": "Doubao",
+          "fireworks": "Fireworks",
+          "gemini": "Gemini",
+          "groq": "Groq",
+          "label": "Modo de prioridad",
+          "minimax": "MiniMax",
+          "openai": "OpenAI",
+          "openrouter": "OpenRouter",
+          "xai": "xAI"
+        },
         "purpose": {
           "chat": {
             "description": "Use la API de texto del proveedor",

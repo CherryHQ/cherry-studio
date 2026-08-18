@@ -13,6 +13,7 @@ import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { ipcChatTransport } from '@renderer/services/aiTransport'
 import { toast } from '@renderer/services/toast'
 import { getTextFromParts } from '@renderer/utils/message/partsHelpers'
+import { getModelDisplayName } from '@renderer/utils/model'
 import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
@@ -405,7 +406,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
       return t('quickAssistant.input.placeholder.title')
     }
     return t('quickAssistant.input.placeholder.empty', {
-      model: quickAssistantId ? (currentAssistant?.name ?? '') : (currentModel?.name ?? '')
+      model: quickAssistantId ? (currentAssistant?.name ?? '') : currentModel ? getModelDisplayName(currentModel) : ''
     })
   }, [clipboardText, route, t, quickAssistantId, currentAssistant, currentModel])
 

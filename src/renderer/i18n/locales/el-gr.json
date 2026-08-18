@@ -6032,6 +6032,21 @@
         "model_type": {
           "label": "Τύπος Μοντέλου"
         },
+        "priority_mode": {
+          "anthropic": "Anthropic",
+          "aws_bedrock": "Amazon Bedrock",
+          "azure_openai": "Azure OpenAI",
+          "cerebras": "Cerebras",
+          "doubao": "Doubao",
+          "fireworks": "Fireworks",
+          "gemini": "Gemini",
+          "groq": "Groq",
+          "label": "Λειτουργία προτεραιότητας",
+          "minimax": "MiniMax",
+          "openai": "OpenAI",
+          "openrouter": "OpenRouter",
+          "xai": "xAI"
+        },
         "purpose": {
           "chat": {
             "description": "Χρησιμοποιήστε το API κειμένου του παρόχου",

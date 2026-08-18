@@ -42,7 +42,7 @@
  */
 import { loggerService } from '@logger'
 import type { ActiveExecution } from '@shared/ai/transport'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { isToolUIPart, readUIMessageStream } from 'ai'
 
@@ -121,6 +121,11 @@ interface Entry {
    *  component instance and was unobservable while unmounted. Executions
    *  still streaming keep their snapshots — that continuity is the point. */
   needsRemountReconcile: boolean
+  /** Frozen per-execution model snapshot (incl. priorityMode) carried by the
+   *  ActiveExecution. Applied to overlay snapshots as `metadata.modelSnapshot`
+   *  so MessageHeader renders ⚡️ for streaming rows that have no pre-allocated
+   *  DB row (temp chat / quick assistant / agent session). Keyed by executionId. */
+  modelSnapshots: Map<string, ModelSnapshot>
 }
 
 const MAX_ENTRIES = 32
@@ -152,22 +157,39 @@ function executionKey(executionId: UniqueModelId, anchorMessageId?: string, atte
   return JSON.stringify([executionId, anchorMessageId ?? null, attemptId ?? null])
 }
 
+/** Stamp the frozen model snapshot (incl. priorityMode) onto an overlay
+ *  snapshot's metadata. Returns the original reference when no snapshot is
+ *  known or the metadata already carries one — never overlay-replace an
+ *  author-supplied snapshot. Streaming snapshots are constructed fresh each
+ *  readUIMessageStream iteration, so cloning is unnecessary. */
+function withModelSnapshot<T extends CherryUIMessage | undefined>(
+  snapshot: T,
+  modelSnapshot: ModelSnapshot | undefined
+): T {
+  if (!snapshot || !modelSnapshot) return snapshot
+  if (snapshot.metadata?.modelSnapshot) return snapshot
+  return { ...snapshot, metadata: { ...snapshot.metadata, modelSnapshot } } as T
+}
+
 function pickSeed(
   uiMessages: CherryUIMessage[],
   anchorMessageId?: string,
-  seedFromEmpty = false
+  seedFromEmpty = false,
+  modelSnapshot?: ModelSnapshot
 ): CherryUIMessage | undefined {
   if (!anchorMessageId) return undefined
-  if (seedFromEmpty) return { id: anchorMessageId, role: 'assistant', parts: [] } as CherryUIMessage
+  if (seedFromEmpty) {
+    return withModelSnapshot({ id: anchorMessageId, role: 'assistant', parts: [] } as CherryUIMessage, modelSnapshot)
+  }
   const found = uiMessages.find((m) => m.id === anchorMessageId)
   if (!found) {
-    return { id: anchorMessageId, role: 'assistant', parts: [] } as CherryUIMessage
+    return withModelSnapshot({ id: anchorMessageId, role: 'assistant', parts: [] } as CherryUIMessage, modelSnapshot)
   }
   // readUIMessageStream mutates `message.parts` in place. `found` is the live, render-stable
   // SWR-derived row whose `parts` array aliases the SWR cache, so seeding the reader with it
   // would corrupt cached history and race the DB-authoritative refresh(). Clone the parts so
   // the reader only ever writes to a throwaway. (DB parts are JSON-serializable.)
-  return { ...found, parts: structuredClone(found.parts ?? []) }
+  return withModelSnapshot({ ...found, parts: structuredClone(found.parts ?? []) }, modelSnapshot)
 }
 
 function canReuseSettledPart(previous: CherryMessagePart, next: CherryMessagePart): boolean {
@@ -302,6 +324,17 @@ export class ExecutionStreamOverlayService {
         } else if (seedFromEmpty && !existing.seedFromEmpty) {
           union.set(key, { ...existing, seedFromEmpty: true })
         }
+      }
+    }
+
+    // Refresh the per-execution model snapshot table. Frozen at launch by
+    // ChatContextProvider, so the latest contribution wins; drop entries for
+    // executions that left the union so a stale snapshot can't survive a
+    // model switch into an execution-id we no longer own.
+    entry.modelSnapshots.clear()
+    for (const contribution of entry.desired.values()) {
+      for (const exec of contribution.executions) {
+        if (exec.modelSnapshot) entry.modelSnapshots.set(exec.executionId as string, exec.modelSnapshot)
       }
     }
 
@@ -454,7 +487,8 @@ export class ExecutionStreamOverlayService {
       listeners: new Set(),
       finishListeners: new Set(),
       lastActiveAt: Date.now(),
-      needsRemountReconcile: false
+      needsRemountReconcile: false,
+      modelSnapshots: new Map()
     }
     this.#entries.set(topicId, entry)
     // Re-check droppability when terminals close branches: an entry retained
@@ -571,7 +605,12 @@ export class ExecutionStreamOverlayService {
       if (t.anchorMessageId !== undefined && t.anchorMessageId !== anchorMessageId) return
       terminal = t
     })
-    const seed = pickSeed(getSeedMessages(), anchorMessageId, seedFromEmpty)
+    const seed = pickSeed(
+      getSeedMessages(),
+      anchorMessageId,
+      seedFromEmpty,
+      entry.modelSnapshots.get(executionId as string)
+    )
     const topicId = entry.topicId
 
     const handle: ReaderHandle = {
@@ -606,9 +645,10 @@ export class ExecutionStreamOverlayService {
             last?.parts as CherryMessagePart[] | undefined,
             snapshot.parts as CherryMessagePart[]
           )
-          const nextSnapshot = sharedParts === snapshot.parts ? snapshot : { ...snapshot, parts: sharedParts }
-          last = nextSnapshot
-          this.#queueSnapshot(entry, executionId, nextSnapshot, readerEpoch, readerVersion)
+          const rebuiltSnapshot = sharedParts === snapshot.parts ? snapshot : { ...snapshot, parts: sharedParts }
+          const stamped = withModelSnapshot(rebuiltSnapshot, entry.modelSnapshots.get(executionId as string))
+          last = stamped
+          this.#queueSnapshot(entry, executionId, stamped, readerEpoch, readerVersion)
         }
       } catch (err) {
         // A crashed reader must not be reported as a clean success: transport

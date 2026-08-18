@@ -58,9 +58,12 @@ import {
 } from '../../../utils/modelParameters'
 import {
   applyFastModeToProviderOptions,
+  applyPriorityModeToProviderOptions,
   buildCapabilityProviderOptions,
   buildResolvedReasoningProviderOptions,
   extractAiSdkStandardParams,
+  getPriorityModeBodyParameters,
+  getPriorityModeHeaders,
   mergeCustomProviderParameters
 } from '../../../utils/options'
 import { getCustomParameters } from '../../../utils/reasoning'
@@ -566,6 +569,12 @@ function buildAgentOptions(
     }
   }
 
+  providerOptions = applyPriorityModeToProviderOptions(model, providerOptions, {
+    runtimeProviderId: sdkConfig.providerId,
+    providerOptionsKey: sdkConfig.providerOptionsKey,
+    endpointType
+  })
+
   // Highest-precedence per-request overrides (assistant-less callers, e.g. the API gateway).
   const callOverrides = request.callOverrides
   const overridden = applyCallOverrides({ standardParams, providerOptions }, callOverrides, model)
@@ -576,6 +585,16 @@ function buildAgentOptions(
     overridden.providerOptions,
     request.fastMode === true
   )
+  const priorityBodyParams = resolvePriorityBodyParams(
+    getPriorityModeBodyParameters(model, sdkConfig.providerId, endpointType),
+    callOverrides?.providerOptions?.[sdkConfig.providerOptionsKey]
+  )
+  if (Object.keys(priorityBodyParams).length > 0) {
+    sdkConfig.providerSettings.fetch = createCustomParamsFetch(
+      sdkConfig.providerSettings.fetch ?? globalThis.fetch,
+      priorityBodyParams
+    )
+  }
   const effectiveBudgetTokens = resolveEffectiveThinkingBudget(
     effectiveProviderOptions,
     sdkConfig.providerOptionsKey,
@@ -591,7 +610,14 @@ function buildAgentOptions(
     delete standardParams.maxOutputTokens
   }
 
-  const { headers, maxRetries } = request.requestOptions ?? {}
+  const { headers: requestHeaders, maxRetries } = request.requestOptions ?? {}
+  const priorityHeaders = getPriorityModeHeaders(
+    model,
+    sdkConfig.providerId,
+    endpointType,
+    (sdkConfig.providerSettings as { location?: unknown }).location
+  )
+  const headers = mergeRequestHeaders(priorityHeaders, requestHeaders)
   const toolCallLimit = resolveToolCallLimit(assistant)
   const baseStopWhen = createToolCallLimitStopCondition(toolCallLimit)
   const stopWhen = composeStopWhen(baseStopWhen, featureStopConditions)
@@ -613,6 +639,47 @@ function buildAgentOptions(
       getUsagePlugins: getRepairUsagePlugins
     })
   }
+}
+
+/**
+ * Resolve the final snake_case `service_tier` body injection. callOverrides
+ * always wins, regardless of whether model.priorityMode is set, so the
+ * highest-precedence request-level override is honored even on transports
+ * (e.g. `openai-compatible`) that ignore camelCase `serviceTier` in
+ * providerOptions. When neither override nor priority mode produces a value,
+ * returns `{}` so no wrap is added.
+ */
+function resolvePriorityBodyParams(
+  priorityBodyParams: Record<string, unknown>,
+  overrideOptions: Record<string, JSONValue | undefined> | undefined
+): Record<string, unknown> {
+  if (overrideOptions && Object.hasOwn(overrideOptions, 'serviceTier')) {
+    const value = overrideOptions.serviceTier
+    return typeof value === 'string' ? { service_tier: value } : {}
+  }
+  if (overrideOptions && Object.hasOwn(overrideOptions, 'service_tier')) {
+    const value = overrideOptions.service_tier
+    return typeof value === 'string' ? { service_tier: value } : {}
+  }
+  return priorityBodyParams
+}
+
+function mergeRequestHeaders(
+  defaultHeaders: Record<string, string>,
+  requestHeaders: Record<string, string | undefined> | undefined
+): Record<string, string | undefined> | undefined {
+  if (Object.keys(defaultHeaders).length === 0) return requestHeaders
+  if (!requestHeaders) return defaultHeaders
+
+  const headers = new Headers(defaultHeaders)
+  for (const [name, value] of Object.entries(requestHeaders)) {
+    if (value === undefined) {
+      headers.delete(name)
+    } else {
+      headers.set(name, value)
+    }
+  }
+  return Object.fromEntries(headers.entries())
 }
 
 function resolveEffectiveThinkingBudget(

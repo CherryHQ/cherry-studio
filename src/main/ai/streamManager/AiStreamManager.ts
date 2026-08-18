@@ -21,7 +21,7 @@ import type {
 import { aiStreamAdmissionReasons } from '@shared/ai/transport'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import type { MessageRuntimeSpan, MessageRuntimeTiming } from '@shared/data/types/message'
+import type { MessageRuntimeSpan, MessageRuntimeTiming, ModelSnapshot } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { SerializedError } from '@shared/types/error'
@@ -93,6 +93,8 @@ export interface SendModelSpec {
   request: ManagedAiStreamRequest
   runtimeTimingSeed?: MessageRuntimeTiming
   seedFromEmpty?: boolean
+  /** Frozen model identity for the overlay (display name + priorityMode ⚡️). */
+  modelSnapshot?: ModelSnapshot
   rootSpan?: Span
   abortController?: AbortController
 }
@@ -199,7 +201,8 @@ function toActiveExecution(exec: StreamExecution): ActiveExecution {
     executionId: exec.modelId,
     attemptId: exec.attemptId,
     anchorMessageId: exec.anchorMessageId,
-    ...(exec.seedFromEmpty ? { seedFromEmpty: true } : {})
+    ...(exec.seedFromEmpty ? { seedFromEmpty: true } : {}),
+    ...(exec.modelSnapshot ? { modelSnapshot: exec.modelSnapshot } : {})
   }
 }
 
@@ -722,7 +725,8 @@ export class AiStreamManager extends BaseService {
         model.runtimeTimingSeed,
         model.seedFromEmpty,
         model.rootSpan,
-        model.abortController
+        model.abortController,
+        model.modelSnapshot
       )
       // Replacing an existing key preserves its insertion position; appending a new key places the
       // new model last. Both cases keep the visual multi-model order stable.
@@ -782,7 +786,15 @@ export class AiStreamManager extends BaseService {
     const isMultiModel = input.models.length > 1
     const executions = new Map<UniqueModelId, StreamExecution>()
 
-    for (const { modelId, request, runtimeTimingSeed, seedFromEmpty, rootSpan, abortController } of input.models) {
+    for (const {
+      modelId,
+      request,
+      runtimeTimingSeed,
+      seedFromEmpty,
+      rootSpan,
+      abortController,
+      modelSnapshot
+    } of input.models) {
       const exec = this.createAndLaunchExecution(
         input.topicId,
         modelId,
@@ -791,7 +803,8 @@ export class AiStreamManager extends BaseService {
         runtimeTimingSeed,
         seedFromEmpty,
         rootSpan,
-        abortController
+        abortController,
+        modelSnapshot
       )
       executions.set(modelId, exec)
     }
@@ -1712,7 +1725,8 @@ export class AiStreamManager extends BaseService {
     runtimeTimingSeed?: MessageRuntimeTiming,
     seedFromEmpty?: boolean,
     rootSpan?: Span,
-    abortController?: AbortController
+    abortController?: AbortController,
+    modelSnapshot?: ModelSnapshot
   ): StreamExecution {
     // `loopPromise` is overwritten right after launch; initialise to a resolved sentinel
     // so the `exec` object reference is stable inside the arrow function below.
@@ -1721,6 +1735,7 @@ export class AiStreamManager extends BaseService {
       attemptId: ++this.nextExecutionAttemptSequence,
       anchorMessageId: request.messageId,
       seedFromEmpty,
+      ...(modelSnapshot ? { modelSnapshot } : {}),
       abortController: abortController ?? new AbortController(),
       status: 'streaming',
       buffer: [],

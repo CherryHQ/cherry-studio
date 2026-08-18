@@ -5,6 +5,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 // to the barrel once main converges with feat.
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import { useModels } from '@renderer/hooks/useModel'
+import { getModelDisplayName } from '@renderer/utils/model'
 import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
 import { ChevronDown } from 'lucide-react'
 import { useMemo } from 'react'
@@ -46,7 +47,7 @@ export const KnowledgeModelSelect = ({
     [models, selectorValue]
   )
   const hasValue = Boolean(value)
-  const triggerLabel = selectedModel?.name ?? (value || placeholder)
+  const triggerLabel = selectedModel ? getModelDisplayName(selectedModel) : value || placeholder
 
   return (
     <ModelSelector

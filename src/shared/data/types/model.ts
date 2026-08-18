@@ -39,6 +39,25 @@ import {
 } from '@cherrystudio/provider-registry'
 import * as z from 'zod'
 
+export const MODEL_PRIORITY_MODE = {
+  NONE: 'none',
+  OPENAI: 'openai',
+  AZURE_OPENAI: 'azure-openai',
+  ANTHROPIC: 'anthropic',
+  GEMINI: 'gemini',
+  MINIMAX: 'minimax',
+  GROQ: 'groq',
+  FIREWORKS: 'fireworks',
+  XAI: 'xai',
+  CEREBRAS: 'cerebras',
+  AWS_BEDROCK: 'aws-bedrock',
+  DOUBAO: 'doubao',
+  OPENROUTER: 'openrouter'
+} as const
+
+export const ModelPriorityModeSchema = z.enum(objectValues(MODEL_PRIORITY_MODE))
+export type ModelPriorityMode = z.infer<typeof ModelPriorityModeSchema>
+
 // Re-export const objects for consumers
 export {
   CANONICAL_PARAM_KEY,
@@ -386,6 +405,8 @@ export const ModelSchema = z.object({
   endpointTypes: z.array(z.enum(objectValues(ENDPOINT_TYPE))).optional(),
   /** Whether streaming is supported */
   supportsStreaming: z.boolean(),
+  /** Per-model request priority transport */
+  priorityMode: ModelPriorityModeSchema.optional(),
   /** Reasoning configuration */
   reasoning: RuntimeReasoningSchema.optional(),
   /** Whether this exact provider-model pair supports the provider's Fast transport. */

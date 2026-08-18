@@ -765,7 +765,8 @@ export function useHomeMessageListProviderValue({
             id: createUniqueModelId(messageModel.provider, messageModel.id),
             providerId: messageModel.provider,
             name: messageModel.name,
-            group: messageModel.group
+            group: messageModel.group,
+            priorityMode: messageModel.priorityMode
           } as SharedModel)
         : undefined
 
