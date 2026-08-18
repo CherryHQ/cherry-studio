@@ -102,7 +102,7 @@ vi.mock('@data/services/ProviderRegistryService', () => ({
 }))
 
 vi.mock('../provider/listModels', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../provider/listModels')>()
+  const actual = await importOriginal<typeof ListModelsModule>()
   return {
     ...actual,
     listModels: (...args: unknown[]) => mockListModelsFromProvider(...args)
