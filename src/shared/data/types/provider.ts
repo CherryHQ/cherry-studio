@@ -243,7 +243,9 @@ export const EndpointConfigSchema = z.object({
   /** URLs for fetching available models via this endpoint type */
   modelsApiUrls: ModelsApiUrlsSchema.optional(),
   /** AI SDK adapter family that handles this endpoint. Carried over from the catalog */
-  adapterFamily: z.string().optional()
+  adapterFamily: z.string().optional(),
+  /** The API serves no version segment, so `baseUrl` is used without appending `/v1` */
+  ignoreApiVersion: z.boolean().optional()
 })
 
 export type EndpointConfig = z.infer<typeof EndpointConfigSchema>
@@ -257,7 +259,9 @@ export type EndpointConfig = z.infer<typeof EndpointConfigSchema>
  */
 export const EndpointConfigOverrideSchema = z.object({
   /** User-owned base URL override for this endpoint type's API */
-  baseUrl: z.string().optional()
+  baseUrl: z.string().optional(),
+  /** User-owned: the API serves no version segment, so `/v1` is never appended */
+  ignoreApiVersion: z.boolean().optional()
 })
 
 export type EndpointConfigOverride = z.infer<typeof EndpointConfigOverrideSchema>

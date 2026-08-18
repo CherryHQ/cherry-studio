@@ -20,7 +20,8 @@ import {
   PopoverContent,
   PopoverTrigger,
   Scrollbar,
-  Separator
+  Separator,
+  Switch
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
@@ -156,6 +157,7 @@ export default function ProviderEditorDrawer({
   const [secondaryUrls, setSecondaryUrls] = useState<Record<string, string>>({})
   const [moreEndpointsOpen, setMoreEndpointsOpen] = useState(false)
   const [endpointUrls, setEndpointUrls] = useState<CustomProviderEndpointUrls>({})
+  const [ignoreApiVersion, setIgnoreApiVersion] = useState(false)
   const [preferredChatEndpoint, setPreferredChatEndpoint] = useState<CustomProviderTextEndpoint>(
     ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
   )
@@ -260,6 +262,7 @@ export default function ProviderEditorDrawer({
     setSecondaryUrls({})
     setMoreEndpointsOpen(false)
     setEndpointUrls({})
+    setIgnoreApiVersion(false)
     const initialDefaultEndpoint =
       duplicateSource?.defaultChatEndpoint && isCustomProviderTextEndpoint(duplicateSource.defaultChatEndpoint)
         ? duplicateSource.defaultChatEndpoint
@@ -381,7 +384,8 @@ export default function ProviderEditorDrawer({
     if (mode.kind === 'create-custom') {
       const creationPayload = buildCustomProviderCreationPayload({
         endpointUrls,
-        preferredChatEndpoint
+        preferredChatEndpoint,
+        ignoreApiVersion
       })
       return {
         mode: 'create',
@@ -415,6 +419,9 @@ export default function ProviderEditorDrawer({
           }
         }
         mergeSecondaryEndpoints(endpointConfigs, secondaryUrls, defaultChatEndpoint)
+        if (ignoreApiVersion) {
+          for (const config of Object.values(endpointConfigs)) config.ignoreApiVersion = true
+        }
         if (!isEmpty(endpointConfigs)) {
           submit.endpointConfigs = endpointConfigs
         }
@@ -580,9 +587,11 @@ export default function ProviderEditorDrawer({
             moreOpen={moreEndpointsOpen}
             additionalConfiguredCount={customAdditionalConfiguredCount}
             additionalContent={presetPicker}
+            ignoreApiVersion={ignoreApiVersion}
             firstTextEndpointRef={firstTextEndpointRef}
             onMoreOpenChange={setMoreEndpointsOpen}
             onEndpointUrlChange={handleEndpointUrlChange}
+            onIgnoreApiVersionChange={setIgnoreApiVersion}
             onPreferredChatEndpointChange={setPreferredChatEndpoint}
           />
         </>
@@ -604,7 +613,9 @@ export default function ProviderEditorDrawer({
                   primaryEndpoints={duplicatePrimaryEndpoints}
                   additionalEndpoints={duplicateAdditionalEndpoints}
                   showPreferredEndpointAsDefault
+                  ignoreApiVersion={ignoreApiVersion}
                   onMoreOpenChange={setMoreEndpointsOpen}
+                  onIgnoreApiVersionChange={setIgnoreApiVersion}
                   onEndpointUrlChange={(endpointType, value) => {
                     if (endpointType === urlForm.primary) {
                       setBaseUrl(value)
@@ -703,9 +714,11 @@ interface CustomProviderEndpointFieldsProps {
   primaryEndpoints?: readonly CustomProviderEndpoint[]
   additionalEndpoints?: readonly CustomProviderEndpoint[]
   showPreferredEndpointAsDefault?: boolean
+  ignoreApiVersion: boolean
   firstTextEndpointRef?: Ref<HTMLInputElement>
   onMoreOpenChange: (open: boolean) => void
   onEndpointUrlChange: (endpointType: CustomProviderEndpoint, value: string) => void
+  onIgnoreApiVersionChange: (next: boolean) => void
   onPreferredChatEndpointChange?: (endpointType: CustomProviderTextEndpoint) => void
 }
 
@@ -719,19 +732,22 @@ function CustomProviderEndpointFields({
   primaryEndpoints = COMMON_CUSTOM_PROVIDER_ENDPOINTS,
   additionalEndpoints = ADDITIONAL_CUSTOM_PROVIDER_ENDPOINTS,
   showPreferredEndpointAsDefault = false,
+  ignoreApiVersion,
   firstTextEndpointRef,
   onMoreOpenChange,
   onEndpointUrlChange,
+  onIgnoreApiVersionChange,
   onPreferredChatEndpointChange
 }: CustomProviderEndpointFieldsProps) {
   const { t } = useTranslation()
+  const ignoreApiVersionId = useId()
   const textEndpointRequired = invalidUrl?.field === 'textEndpointRequired'
 
   const renderEndpointField = (endpointType: CustomProviderEndpoint, labelAccessory?: ReactNode) => {
     const endpointValue = endpointUrls[endpointType] ?? ''
     const invalidEndpoint = invalidUrl?.field === 'endpointUrl' && invalidUrl.endpointType === endpointType
     const missingTextEndpoint = textEndpointRequired && endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
-    const requestPreview = buildCustomProviderEndpointPreview(endpointValue, endpointType)
+    const requestPreview = buildCustomProviderEndpointPreview(endpointValue, endpointType, ignoreApiVersion)
     const emptyValueHelp = CUSTOM_PROVIDER_TEXT_ENDPOINTS.some((type) => type === endpointType)
       ? t('settings.provider.create_custom.endpoint_fields.url_help')
       : t(
@@ -794,6 +810,13 @@ function CustomProviderEndpointFields({
       </h3>
 
       <div className="flex flex-col gap-5">{primaryEndpoints.map(renderEndpointControl)}</div>
+
+      <div className="flex items-center justify-between gap-3">
+        <label htmlFor={ignoreApiVersionId} className="min-w-0 cursor-pointer text-[13px] text-foreground">
+          {t('settings.provider.ignore_api_version')}
+        </label>
+        <Switch id={ignoreApiVersionId} checked={ignoreApiVersion} onCheckedChange={onIgnoreApiVersionChange} />
+      </div>
 
       <Accordion
         type="single"

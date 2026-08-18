@@ -6474,6 +6474,7 @@
         "sign_in_success": "Đã đăng nhập vào Grok CLI",
         "signing_in": "Đang chờ trình duyệt…"
       },
+      "ignore_api_version": "URL cơ sở không có phân đoạn phiên bản (không bao giờ thêm /v1)",
       "image_endpoints": {
         "image_edit_base_url": {
           "help": "Được sử dụng cho /images/edits; để trống để sử dụng URL cơ sở điểm cuối chat mặc định",

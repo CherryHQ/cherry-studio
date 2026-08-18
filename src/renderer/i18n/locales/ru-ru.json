@@ -6474,6 +6474,7 @@
         "sign_in_success": "Вход выполнен в Grok CLI",
         "signing_in": "Ожидание браузера…"
       },
+      "ignore_api_version": "В базовом URL нет сегмента версии (никогда не добавлять /v1)",
       "image_endpoints": {
         "image_edit_base_url": {
           "help": "Используется для /images/edits; оставьте пустым для использования базового URL конечной точки чата по умолчанию",

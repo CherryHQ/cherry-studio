@@ -6474,6 +6474,7 @@
         "sign_in_success": "Συνδεδεμένος στο Grok CLI",
         "signing_in": "Αναμονή για πρόγραμμα περιήγησης…"
       },
+      "ignore_api_version": "Το βασικό URL δεν έχει τμήμα έκδοσης (να μην προστίθεται ποτέ /v1)",
       "image_endpoints": {
         "image_edit_base_url": {
           "help": "Χρησιμοποιείται για το /images/edits· αφήστε το κενό για χρήση του Base URL του προεπιλεγμένου endpoint συνομιλίας",

@@ -169,4 +169,33 @@ describe('ProviderService.update — endpoint config overrides', () => {
     const runtime = providerService.getByProviderId('cherryin-express-2')
     expect(runtime.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_RESPONSES]?.adapterFamily).toBe('cherryin')
   })
+
+  // The no-version policy is user-owned: dropping it anywhere in the round trip makes the
+  // settings switch inert and silently reinstates the `/v1` the API does not serve.
+  it('round-trips the no-version policy through persist and read', () => {
+    providerService.create({
+      providerId: 'version-less-relay',
+      name: 'Version-less Relay',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example.com', ignoreApiVersion: true }
+      }
+    })
+
+    expect(
+      providerService.getByProviderId('version-less-relay').endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+        ?.ignoreApiVersion
+    ).toBe(true)
+
+    providerService.update('version-less-relay', {
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example.com' }
+      }
+    })
+
+    expect(
+      providerService.getByProviderId('version-less-relay').endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+        ?.ignoreApiVersion
+    ).toBeUndefined()
+  })
 })

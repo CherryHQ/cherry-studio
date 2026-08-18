@@ -1,4 +1,4 @@
-import { formatApiHost, validateApiHost } from '@renderer/utils/api'
+import { formatApiHost, routeToEndpoint, validateApiHost } from '@renderer/utils/api'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { EndpointConfig } from '@shared/data/types/provider'
 import { trim } from 'es-toolkit/compat'
@@ -27,6 +27,8 @@ export type CustomProviderEndpointUrls = Partial<Record<CustomProviderEndpoint, 
 export interface CustomProviderCreationInput {
   endpointUrls: CustomProviderEndpointUrls
   preferredChatEndpoint?: CustomProviderTextEndpoint
+  /** The APIs serve no version segment, so `/v1` is never appended to any of these URLs. */
+  ignoreApiVersion?: boolean
 }
 
 export interface CustomProviderCreationPayload {
@@ -66,7 +68,7 @@ export function buildCustomProviderCreationPayload(input: CustomProviderCreation
   for (const endpointType of CUSTOM_PROVIDER_ENDPOINTS) {
     const baseUrl = trim(input.endpointUrls[endpointType])
     if (baseUrl) {
-      endpointConfigs[endpointType] = { baseUrl }
+      endpointConfigs[endpointType] = input.ignoreApiVersion ? { baseUrl, ignoreApiVersion: true } : { baseUrl }
     }
   }
 
@@ -76,14 +78,23 @@ export function buildCustomProviderCreationPayload(input: CustomProviderCreation
   }
 }
 
-export function buildCustomProviderEndpointPreview(baseUrl: string, endpointType: CustomProviderEndpoint): string {
+export function buildCustomProviderEndpointPreview(
+  baseUrl: string,
+  endpointType: CustomProviderEndpoint,
+  ignoreApiVersion = false
+): string {
   const value = trim(baseUrl)
   if (!value || !validateApiHost(value)) {
     return ''
   }
 
-  const formattedHost =
-    endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT ? formatApiHost(value, true, 'v1beta') : formatApiHost(value)
+  // A host that already carries the request path is sent verbatim, so preview its base as-is.
+  const routed = routeToEndpoint(value)
+  const formattedHost = routed.endpoint
+    ? routed.baseURL
+    : endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+      ? formatApiHost(routed.baseURL, !ignoreApiVersion, 'v1beta')
+      : formatApiHost(routed.baseURL, !ignoreApiVersion)
   return `${formattedHost}${ENDPOINT_PATHS[endpointType]}`
 }
 

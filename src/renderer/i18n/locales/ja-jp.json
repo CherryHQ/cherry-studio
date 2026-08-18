@@ -6474,6 +6474,7 @@
         "sign_in_success": "Grok CLIにサインインしました",
         "signing_in": "ブラウザを待機中…"
       },
+      "ignore_api_version": "ベース URL にバージョンセグメントがない（/v1 を追加しない）",
       "image_endpoints": {
         "image_edit_base_url": {
           "help": "/images/editsに使用します。デフォルトのチャットエンドポイントのBase URLを使用する場合は空白にしてください",

@@ -31,11 +31,14 @@ export default function ApiHost({ providerId, onRequestModelPullGuide }: ApiHost
   // Factory-default host for the primary endpoint (registry-sourced); '' for custom providers.
   const defaultApiHost = preset?.endpointConfigs?.[topology.primaryEndpoint]?.baseUrl ?? ''
   const isAnthropicPrimaryEndpoint = primaryEndpoint === ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+  // Provider-level policy stored per endpoint; the primary endpoint carries the current value.
+  const ignoreApiVersion = provider?.endpointConfigs?.[topology.primaryEndpoint]?.ignoreApiVersion === true
   const hostPreview = useProviderHostPreview({
     provider,
     apiHost,
     anthropicApiHost,
-    defaultApiHost
+    defaultApiHost,
+    ignoreApiVersion
   })
   const endpointActions = useProviderEndpointActions({
     provider,
@@ -95,12 +98,15 @@ export default function ApiHost({ providerId, onRequestModelPullGuide }: ApiHost
           <ApiHostField
             providerIdForSettings={provider.id}
             apiHost={apiHost}
+            hostPreview={hostPreview.hostPreview}
+            ignoreApiVersion={ignoreApiVersion}
             isCherryIN={meta.isCherryIN}
             isChineseUser={meta.isChineseUser}
             isVertexAI={provider.id === 'vertexai'}
             isApiHostResettable={hostPreview.isApiHostResettable}
             onApiHostChange={handleApiHostChange}
             onApiHostCommit={() => void handleApiHostCommit()}
+            onIgnoreApiVersionChange={(next) => void endpointActions.commitIgnoreApiVersion(next)}
             onResetApiHost={endpointActions.resetApiHost}
             onOpenRequestConfig={() => setCustomHeaderOpen(true)}
           />

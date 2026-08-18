@@ -6474,6 +6474,7 @@
         "sign_in_success": "Bei Grok CLI angemeldet",
         "signing_in": "Warten auf den Browser…"
       },
+      "ignore_api_version": "Basis-URL enthält kein Versionssegment (niemals /v1 anhängen)",
       "image_endpoints": {
         "image_edit_base_url": {
           "help": "Wird für /images/edits verwendet; leer lassen, um die Standard-Chat-Endpunkt-Basis-URL zu verwenden",

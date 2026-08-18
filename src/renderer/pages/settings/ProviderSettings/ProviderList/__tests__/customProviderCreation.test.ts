@@ -95,6 +95,35 @@ describe('custom provider creation', () => {
     ).toBe('https://api.example.com/custom/v2/chat/completions')
   })
 
+  // #18608: a host already carrying the request path previews as itself, not doubled.
+  it.each(['https://api.example.com/chat/completions', 'https://api.example.com/custom/v1/chat/completions'])(
+    'previews %s unchanged',
+    (baseUrl) => {
+      expect(buildCustomProviderEndpointPreview(baseUrl, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)).toBe(baseUrl)
+    }
+  )
+
+  it('drops the appended version from the preview when the API serves none', () => {
+    expect(
+      buildCustomProviderEndpointPreview('https://api.example.com', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, true)
+    ).toBe('https://api.example.com/chat/completions')
+  })
+
+  it('stamps the no-version policy onto every configured endpoint', () => {
+    const payload = buildCustomProviderCreationPayload({
+      endpointUrls: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: 'https://api.example.com',
+        [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: 'https://images.example.com'
+      },
+      ignoreApiVersion: true
+    })
+
+    expect(payload.endpointConfigs).toEqual({
+      [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.example.com', ignoreApiVersion: true },
+      [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: { baseUrl: 'https://images.example.com', ignoreApiVersion: true }
+    })
+  })
+
   it('requires at least one text endpoint even when an image endpoint is configured', () => {
     expect(
       findInvalidCustomProviderCreationUrl({

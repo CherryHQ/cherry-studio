@@ -1,7 +1,7 @@
 import { providerService } from '@data/services/ProviderService'
 import { defaultAppHeaders } from '@main/utils/http'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
+import type { EndpointConfig, Provider } from '@shared/data/types/provider'
 
 const ENDPOINT_FALLBACK_ORDER: readonly EndpointType[] = [
   ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
@@ -12,34 +12,47 @@ const ENDPOINT_FALLBACK_ORDER: readonly EndpointType[] = [
 ]
 
 /**
- * Resolve base URL from provider endpoint configs.
+ * Resolve the endpoint config supplying the base URL.
  *
  * When `preferredEndpoint` is set (e.g. from `model.endpointTypes[0]` for relay providers),
  * its config wins over `defaultChatEndpoint` so per-model routing matches the actual request path.
  */
-export function getBaseUrl(provider: Provider, preferredEndpoint?: EndpointType | null): string {
+function resolveEndpointConfig(
+  provider: Provider,
+  preferredEndpoint?: EndpointType | null
+): EndpointConfig | undefined {
   const configs = provider.endpointConfigs
-  if (!configs) return ''
+  if (!configs) return undefined
 
   if (preferredEndpoint && configs[preferredEndpoint]?.baseUrl) {
-    return configs[preferredEndpoint].baseUrl
+    return configs[preferredEndpoint]
   }
 
   const ep = provider.defaultChatEndpoint
   if (ep && configs[ep]?.baseUrl) {
-    return configs[ep].baseUrl
+    return configs[ep]
   }
 
   for (const candidate of ENDPOINT_FALLBACK_ORDER) {
-    if (configs[candidate]?.baseUrl) return configs[candidate].baseUrl
+    if (configs[candidate]?.baseUrl) return configs[candidate]
   }
 
   // Last-resort: any remaining config with a baseUrl (audio / embeddings /
   // rerank / image / video endpoints).
   for (const config of Object.values(configs)) {
-    if (config?.baseUrl) return config.baseUrl
+    if (config?.baseUrl) return config
   }
-  return ''
+  return undefined
+}
+
+/** Resolve base URL from provider endpoint configs. */
+export function getBaseUrl(provider: Provider, preferredEndpoint?: EndpointType | null): string {
+  return resolveEndpointConfig(provider, preferredEndpoint)?.baseUrl ?? ''
+}
+
+/** Whether the config supplying the base URL declares the API to serve no version segment. */
+export function ignoresApiVersion(provider: Provider, preferredEndpoint?: EndpointType | null): boolean {
+  return resolveEndpointConfig(provider, preferredEndpoint)?.ignoreApiVersion === true
 }
 
 export function getExtraHeaders(provider: Provider): Record<string, string> {
@@ -63,29 +76,4 @@ export function defaultHeaders(provider: Provider): Record<string, string> {
     ...(apiKey ? { Authorization: `Bearer ${apiKey}`, 'X-Api-Key': apiKey } : {}),
     ...getExtraHeaders(provider)
   }
-}
-
-export function routeToEndpoint(apiHost: string): { baseURL: string; endpoint: string } {
-  const trimmedHost = (apiHost || '').trim()
-  if (!trimmedHost.endsWith('#')) {
-    return { baseURL: trimmedHost.replace(/\/+$/, ''), endpoint: '' }
-  }
-  const host = trimmedHost.slice(0, -1)
-  const SUPPORTED_ENDPOINTS = [
-    'chat/completions',
-    'responses',
-    'messages',
-    'generateContent',
-    'streamGenerateContent',
-    'images/generations',
-    'images/edits',
-    'predict'
-  ]
-  const endpointMatch = SUPPORTED_ENDPOINTS.find((ep) => host.endsWith(ep))
-  if (!endpointMatch) {
-    return { baseURL: host.replace(/\/+$/, ''), endpoint: '' }
-  }
-  const baseSegment = host.slice(0, host.length - endpointMatch.length)
-  const baseURL = baseSegment.replace(/\/+$/, '').replace(/:$/, '')
-  return { baseURL, endpoint: endpointMatch }
 }

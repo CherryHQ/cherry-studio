@@ -6474,6 +6474,7 @@
         "sign_in_success": "已登入 Grok CLI",
         "signing_in": "等待瀏覽器…"
       },
+      "ignore_api_version": "位址不含版本號（不自動附加 /v1）",
       "image_endpoints": {
         "image_edit_base_url": {
           "help": "用於 /images/edits；留空則使用預設聊天端點 Base URL",

@@ -8,6 +8,7 @@ import {
   isBareVertexApiHost,
   isWithTrailingSharp,
   joinApiKeyString,
+  routeToEndpoint,
   splitApiKeyString,
   withoutTrailingApiVersion,
   withoutTrailingSharp
@@ -383,6 +384,67 @@ describe('api', () => {
       ''
     ])('treats %s as a user override', (host) => {
       expect(isBareVertexApiHost(host)).toBe(false)
+    })
+  })
+
+  describe('routeToEndpoint', () => {
+    // #18608: the SDK re-appends the request path, so a host already carrying it must be
+    // split — otherwise `/chat/completions` reaches the API as `…/v1/chat/completions`.
+    it.each([
+      ['https://api.example.com/chat/completions', 'https://api.example.com'],
+      ['https://api.example.com/custom/v1/chat/completions', 'https://api.example.com/custom/v1'],
+      ['https://api.example.com/v1/responses', 'https://api.example.com/v1'],
+      ['https://api.example.com/v1/messages/', 'https://api.example.com/v1'],
+      ['  https://api.example.com/v1/images/generations  ', 'https://api.example.com/v1']
+    ])('splits the request path off %s without a trailing #', (host, baseURL) => {
+      expect(routeToEndpoint(host).baseURL).toBe(baseURL)
+      expect(routeToEndpoint(host).endpoint).not.toBe('')
+    })
+
+    it('leaves a base URL untouched', () => {
+      expect(routeToEndpoint('https://api.example.com/v1')).toEqual({
+        baseURL: 'https://api.example.com/v1',
+        endpoint: ''
+      })
+    })
+
+    // A path only counts on a segment boundary; `/mymessages` is someone's base URL.
+    it.each(['https://api.example.com/mymessages', 'https://api.example.com/xresponses'])(
+      'does not split %s mid-segment',
+      (host) => {
+        expect(routeToEndpoint(host)).toEqual({ baseURL: host, endpoint: '' })
+      }
+    )
+
+    // Model-templated paths carry a per-model id, so splitting one off a host the SDK
+    // re-templates is meaningless unless the user opted in explicitly with `#`.
+    it('requires an explicit # for model-templated paths', () => {
+      expect(routeToEndpoint('https://api.example.com/v1beta/models/gemini:generateContent')).toEqual({
+        baseURL: 'https://api.example.com/v1beta/models/gemini:generateContent',
+        endpoint: ''
+      })
+      expect(routeToEndpoint('https://api.example.com/v1beta/models/imagen-4.0:predict#')).toEqual({
+        baseURL: 'https://api.example.com/v1beta/models/imagen-4.0',
+        endpoint: 'predict'
+      })
+    })
+
+    it('keeps the legacy # form working', () => {
+      expect(routeToEndpoint('https://api.example.com/v1/chat/completions#')).toEqual({
+        baseURL: 'https://api.example.com/v1',
+        endpoint: 'chat/completions'
+      })
+      expect(routeToEndpoint('https://api.example.com/v1/custom#')).toEqual({
+        baseURL: 'https://api.example.com/v1/custom',
+        endpoint: ''
+      })
+    })
+
+    it('prefers the longer path when two candidates share a suffix', () => {
+      expect(routeToEndpoint('https://api.example.com/v1/streamGenerateContent#')).toEqual({
+        baseURL: 'https://api.example.com/v1',
+        endpoint: 'streamGenerateContent'
+      })
     })
   })
 })

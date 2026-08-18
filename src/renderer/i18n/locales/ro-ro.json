@@ -6474,6 +6474,7 @@
         "sign_in_success": "Conectat la Grok CLI",
         "signing_in": "Așteptând browserul…"
       },
+      "ignore_api_version": "URL-ul de bază nu are segment de versiune (nu adăuga niciodată /v1)",
       "image_endpoints": {
         "image_edit_base_url": {
           "help": "Utilizat pentru /images/edits; lăsați gol pentru a utiliza URL-ul de bază implicit al endpoint-ului de chat",

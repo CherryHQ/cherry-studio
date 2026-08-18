@@ -6474,6 +6474,7 @@
         "sign_in_success": "Conectado a Grok CLI",
         "signing_in": "Esperando al navegador…"
       },
+      "ignore_api_version": "La URL base no tiene segmento de versión (nunca añadir /v1)",
       "image_endpoints": {
         "image_edit_base_url": {
           "help": "Se utiliza para /images/edits; déjelo en blanco para usar la URL base del endpoint de chat predeterminado",

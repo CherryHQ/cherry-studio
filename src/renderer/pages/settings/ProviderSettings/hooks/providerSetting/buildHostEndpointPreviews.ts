@@ -1,5 +1,5 @@
 import { formatApiHost } from '@renderer/utils/api'
-import { formatOllamaApiHost, formatVertexApiHost, isWithTrailingSharp } from '@renderer/utils/api'
+import { formatOllamaApiHost, formatVertexApiHost, isWithTrailingSharp, routeToEndpoint } from '@renderer/utils/api'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { AuthConfig, Provider } from '@shared/data/types/provider'
 import {
@@ -18,12 +18,21 @@ export function buildHostEndpointPreviews(params: {
   apiHost: string
   anthropicApiHost: string
   providerAnthropicHost: string
+  /** The API serves no version segment, so `/v1` is never appended. */
+  ignoreApiVersion?: boolean
 }) {
-  const { provider, authConfig, primaryEndpoint, apiHost, anthropicApiHost, providerAnthropicHost } = params
-  const appendVersion = !isWithTrailingSharp(apiHost)
+  const { provider, authConfig, primaryEndpoint, apiHost, anthropicApiHost, providerAnthropicHost, ignoreApiVersion } =
+    params
+  const appendVersion = !isWithTrailingSharp(apiHost) && !ignoreApiVersion
+  // A host that already carries the request path is sent verbatim, so preview its base as-is.
+  const routedHost = routeToEndpoint(
+    primaryEndpoint === ENDPOINT_TYPE.ANTHROPIC_MESSAGES ? anthropicApiHost || apiHost : apiHost
+  )
   let formattedHost: string
 
-  if (primaryEndpoint === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) {
+  if (routedHost.endpoint) {
+    formattedHost = routedHost.baseURL
+  } else if (primaryEndpoint === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) {
     formattedHost = formatApiHost(anthropicApiHost || apiHost, appendVersion)
   } else if (
     provider.id === 'copilot' ||
@@ -70,7 +79,11 @@ export function buildHostEndpointPreviews(params: {
     return formattedHost
   })()
 
-  const anthropicHostPreview = `${formatApiHost(anthropicApiHost || providerAnthropicHost)}/messages`
+  const routedAnthropic = routeToEndpoint(anthropicApiHost || providerAnthropicHost)
+  const anthropicHost = routedAnthropic.endpoint
+    ? routedAnthropic.baseURL
+    : formatApiHost(routedAnthropic.baseURL, !ignoreApiVersion)
+  const anthropicHostPreview = `${anthropicHost}/messages`
 
   return {
     hostPreview,
