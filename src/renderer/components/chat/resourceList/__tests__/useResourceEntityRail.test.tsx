@@ -94,6 +94,13 @@ describe('useResourceEntityRail', () => {
     expect(result.current.items.map((item) => item.id)).toEqual(['assistant-a', 'assistant-b'])
   })
 
+  it('keeps partially structured rail items behind loading until their metadata is ready', () => {
+    const { result } = renderRail({ isStructureLoading: true })
+
+    expect(result.current.listStatus).toBe('loading')
+    expect(result.current.items.map((item) => item.id)).toEqual(['assistant-a', 'assistant-b'])
+  })
+
   it('shows loading only while there are no confirmed entity rows', () => {
     const { result } = renderRail({ entities: [], isLoading: true })
 

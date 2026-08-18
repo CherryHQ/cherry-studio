@@ -16,6 +16,8 @@ type UseResourceEntityRailParams<TEntity extends ResourceEntityRailItem, TResour
   entities: readonly TEntity[]
   activeEntityId?: string | null
   isLoading: boolean
+  /** Initial metadata required to build the rail's stable sections and ordering. */
+  isStructureLoading?: boolean
   isError: boolean
   onPickResource: (resource: TResource) => void
   /** Load the entity's most-recently-active resource before navigating. */
@@ -46,6 +48,7 @@ export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TR
   entities,
   activeEntityId,
   isLoading,
+  isStructureLoading = false,
   isError,
   onPickResource,
   loadResourceForEntity,
@@ -97,7 +100,11 @@ export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TR
     return [...pinned, ...base.filter((entity) => !entity.pinned)]
   }, [entities, optimisticOrderIds])
 
-  const listStatus: ResourceListStatus = isError ? 'error' : isLoading && items.length === 0 ? 'loading' : 'idle'
+  const listStatus: ResourceListStatus = isError
+    ? 'error'
+    : isStructureLoading || (isLoading && items.length === 0)
+      ? 'loading'
+      : 'idle'
   const selectedId = activeEntityId && items.some((item) => item.id === activeEntityId) ? activeEntityId : null
 
   const handleReorder = useCallback(

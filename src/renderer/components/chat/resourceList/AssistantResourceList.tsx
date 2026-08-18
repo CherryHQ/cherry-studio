@@ -93,7 +93,7 @@ export function AssistantResourceList({
     error: assistantsError,
     refetch: refreshAssistants
   } = useAssistantsApi()
-  const { stats: topicStats, loadLatestTopic } = assistantTopicsSource
+  const { stats: topicStats, isStatsLoading: isTopicStatsLoading, loadLatestTopic } = assistantTopicsSource
   const {
     groups: assistantGroups,
     isLoading: isAssistantGroupsLoading,
@@ -261,7 +261,8 @@ export function AssistantResourceList({
   const { items, listStatus, selectedId, handleSelect, handleReorder } = useResourceEntityRail({
     entities,
     activeEntityId: activeAssistantEntityId,
-    isLoading: isAssistantsLoading || (isGroupGrouping && isAssistantGroupsLoading),
+    isLoading: isAssistantsLoading,
+    isStructureLoading: isTopicStatsLoading || isAssistantPinsLoading || (isGroupGrouping && isAssistantGroupsLoading),
     isError: !!(assistantsError || (isGroupGrouping && assistantGroupsError)),
     onPickResource: onSelectTopic,
     loadResourceForEntity: loadLatestTopicForEntity,

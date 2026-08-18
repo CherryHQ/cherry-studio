@@ -1162,11 +1162,11 @@ export function Topics({
   const refreshError = hasListContent ? currentListError : undefined
   const listError = hasListContent ? undefined : currentListError
   const listLoading =
-    !hasListContent &&
-    (isTopicStatsLoading ||
-      pinnedTopicsSource.isLoading ||
-      (!isAssistantDisplayMode && isOrdinaryTopicsLoading) ||
-      (isAssistantDisplayMode && (isAssistantsLoading || (isGroupGrouping && isAssistantGroupsLoading))))
+    isTopicStatsLoading ||
+    pinnedTopicsSource.isLoading ||
+    (!isAssistantDisplayMode && isOrdinaryTopicsLoading) ||
+    (isAssistantDisplayMode &&
+      (isAssistantsLoading || isAssistantPinsLoading || (isGroupGrouping && isAssistantGroupsLoading)))
   const listStatus = listError
     ? 'error'
     : listLoading

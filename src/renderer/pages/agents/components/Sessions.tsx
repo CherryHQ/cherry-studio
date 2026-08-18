@@ -2429,18 +2429,21 @@ const Sessions = ({
   const refreshError = hasListContent ? currentListError : undefined
   const listError = hasListContent ? undefined : currentListError
   const listLoading =
-    !hasListContent &&
-    (isSessionStatsLoading ||
-      pinnedSessionsSource.isLoading ||
-      (displayMode === 'time' && isOrdinarySessionsLoading) ||
-      (displayMode === 'agent' ? isAgentsLoading : displayMode === 'workdir' ? isWorkdirMetadataLoading : false))
+    isSessionStatsLoading ||
+    pinnedSessionsSource.isLoading ||
+    (displayMode === 'time' && isOrdinarySessionsLoading) ||
+    (displayMode === 'agent'
+      ? isAgentsLoading || isAgentPinsLoading
+      : displayMode === 'workdir'
+        ? isWorkdirMetadataLoading
+        : false)
   const listValidating =
     pinnedSessionsSource.isValidating ||
     (displayMode === 'time' && isOrdinarySessionsValidating) ||
     (displayMode === 'workdir' && isWorkdirMetadataRefreshing)
   const listStatus = listError
     ? 'error'
-    : listLoading && filteredGroupedSessions.length === 0
+    : listLoading
       ? 'loading'
       : sessionGroupSeeds.length === 0 && (sessionStats?.total ?? sessionItems.length) === 0
         ? 'empty'

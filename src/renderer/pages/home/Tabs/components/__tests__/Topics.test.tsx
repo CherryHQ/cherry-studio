@@ -2846,18 +2846,20 @@ describe('Topics', () => {
 
   it('keeps every assistant group visible while the first topic page loads', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
-    // No rows have arrived yet and the pin-owned stream is still loading, so the whole list stays
-    // in the generic loading skeleton rather than revealing partial assistant groups.
-    mockUseInfiniteQuery.mockReturnValue({
-      pages: [{ items: [] }],
-      isLoading: true,
-      isRefreshing: false,
-      error: undefined,
-      hasNext: true,
-      loadNext: vi.fn(),
-      refresh: vi.fn(),
-      reset: vi.fn(),
-      mutate: vi.fn()
+    mockUseInfiniteQuery.mockImplementation((_path, options) => {
+      const query = (options as { query?: { assistantId?: string; pinned?: boolean } } | undefined)?.query
+      const isOwnerPageLoading = query?.pinned === false && query.assistantId !== undefined
+      return {
+        pages: [{ items: [] }],
+        isLoading: isOwnerPageLoading,
+        isRefreshing: false,
+        error: undefined,
+        hasNext: isOwnerPageLoading,
+        loadNext: vi.fn(),
+        refresh: vi.fn(),
+        reset: vi.fn(),
+        mutate: vi.fn()
+      }
     })
 
     renderTopicList()
@@ -2868,6 +2870,32 @@ describe('Topics', () => {
     expect(screen.getByText('Beta Assistant')).toBeInTheDocument()
     expect(screen.queryAllByTestId('topic-list-row')).toHaveLength(0)
     expect(document.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0)
+  })
+
+  it('keeps assistant groups behind the loading skeleton until the pinned band is resolved', () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    mockUseInfiniteQuery.mockImplementation((_path, options) => {
+      const query = (options as { query?: { assistantId?: string; pinned?: boolean } } | undefined)?.query
+      const isPinnedBandLoading = query?.pinned === true && query.assistantId === undefined
+      return {
+        pages: [{ items: [] }],
+        isLoading: isPinnedBandLoading,
+        isRefreshing: false,
+        error: undefined,
+        hasNext: false,
+        loadNext: vi.fn(),
+        refresh: vi.fn(),
+        reset: vi.fn(),
+        mutate: vi.fn()
+      }
+    })
+
+    renderTopicList()
+
+    expect(screen.queryByText('Alpha Assistant')).not.toBeInTheDocument()
+    expect(screen.queryByText('Beta Assistant')).not.toBeInTheDocument()
+    expect(document.querySelectorAll('[data-resource-list-loading-group]')).toHaveLength(2)
+    expect(document.querySelectorAll('[data-resource-list-loading-item]')).toHaveLength(5)
   })
 
   it('queries only expanded assistant groups with an independent cursor scope', () => {

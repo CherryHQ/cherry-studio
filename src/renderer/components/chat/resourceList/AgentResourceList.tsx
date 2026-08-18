@@ -188,6 +188,7 @@ export function AgentResourceList({
     entities,
     activeEntityId: activeAgentId,
     isLoading: isAgentsLoading,
+    isStructureLoading: isAgentPinsLoading,
     isError: !!agentsError,
     onPickResource: handlePickSession,
     onCreateResource: onCreateSession,
