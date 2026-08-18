@@ -10,15 +10,10 @@ import { loggerService } from '@logger'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import { toast } from '@renderer/services/toast'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
-import {
-  blobToDataUrl,
-  convertImageToPng,
-  copyImageToClipboard,
-  getImageBlobFromSource,
-  transformImageToPng
-} from '@renderer/utils/image'
+import { copyImageToClipboard, getImageBlobFromSource, transformImageToPng } from '@renderer/utils/image'
 import { cn } from '@renderer/utils/style'
 import { CopyIcon, SaveIcon } from 'lucide-react'
+import mime from 'mime-types'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -38,25 +33,62 @@ export interface ImageViewerProps extends Omit<React.ImgHTMLAttributes<HTMLImage
   src: string
 }
 
+const IMAGE_EXTENSION_PATTERN = /\.(avif|bmp|gif|heic|jpe|jpeg|jpg|png|svg|webp)$/i
+
 const getPreviewIndex = (items: ImagePreviewItem[], src: string, fallbackIndex = 0) => {
   const matchedIndex = items.findIndex((item) => item.src === src)
   return matchedIndex >= 0 ? matchedIndex : fallbackIndex
 }
 
-const getImageSaveName = (item: ImagePreviewItem) => {
-  let name = item.alt?.trim()
-
-  if (!name && /^(?:file|https?):/.test(item.src)) {
+const getSourceBasename = (src: string) => {
+  if (/^(?:file|https?):/.test(src)) {
     try {
-      const pathname = decodeURIComponent(new URL(item.src).pathname)
-      name = pathname.slice(pathname.lastIndexOf('/') + 1)
+      const pathname = decodeURIComponent(new URL(src).pathname)
+      return pathname.slice(pathname.lastIndexOf('/') + 1)
     } catch {
-      // Fall back to the generic image name below.
+      return undefined
     }
   }
 
-  const nameWithoutImageExtension = name?.replace(/\.(?:avif|bmp|gif|heic|jpe?g|png|svg|webp)$/i, '')
+  return undefined
+}
+
+const normalizeImageExtension = (extension: string) => {
+  const normalized = extension.toLowerCase()
+  return normalized === 'jpeg' || normalized === 'jpe' ? 'jpg' : normalized
+}
+
+const getImageSaveName = (item: ImagePreviewItem) => {
+  const name = item.alt?.trim() || getSourceBasename(item.src)
+  const nameWithoutImageExtension = name?.replace(IMAGE_EXTENSION_PATTERN, '')
+
   return removeSpecialCharactersForFileName(nameWithoutImageExtension || '') || 'image'
+}
+
+const getFallbackImageExtension = (item: ImagePreviewItem) => {
+  const candidates = [item.alt?.trim(), getSourceBasename(item.src)]
+  for (const candidate of candidates) {
+    const extension = candidate?.match(IMAGE_EXTENSION_PATTERN)?.[1]
+    if (extension) {
+      return normalizeImageExtension(extension)
+    }
+  }
+
+  return undefined
+}
+
+const getImageSaveExtension = (item: ImagePreviewItem, blob: Blob) => {
+  const mimeType = blob.type.split(';', 1)[0].trim().toLowerCase()
+  if (mimeType.startsWith('image/')) {
+    const extension = mime.extension(mimeType)
+    return extension ? normalizeImageExtension(extension) : 'bin'
+  }
+
+  if (mimeType && mimeType !== 'application/octet-stream') {
+    return 'bin'
+  }
+
+  return getFallbackImageExtension(item) ?? 'bin'
 }
 
 const ImageViewer: React.FC<ImageViewerProps> = ({
@@ -142,11 +174,11 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
       try {
         const blob = await getImageBlobFromSource(item.src)
         const { flipX, flipY, rotation } = context.transform
-        const pngBlob =
-          rotation % 360 !== 0 || flipX || flipY
-            ? await transformImageToPng(blob, { flipX, flipY, rotation })
-            : await convertImageToPng(blob)
-        const saved = await window.api.file.saveImage(getImageSaveName(item), await blobToDataUrl(pngBlob))
+        const hasPixelTransform = rotation % 360 !== 0 || flipX || flipY
+        const outputBlob = hasPixelTransform ? await transformImageToPng(blob, { flipX, flipY, rotation }) : blob
+        const extension = hasPixelTransform ? 'png' : getImageSaveExtension(item, blob)
+        const bytes = new Uint8Array(await outputBlob.arrayBuffer())
+        const saved = await window.api.file.save(`${getImageSaveName(item)}.${extension}`, bytes)
         if (saved) {
           toast.success(t('common.saved'))
         }

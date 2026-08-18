@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import { toast } from '@renderer/services/toast'
 import type * as ImageUtils from '@renderer/utils/image'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ImageViewer from '../ImageViewer'
 
@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
     write: vi.fn(),
     writeText: vi.fn()
   },
+  save: vi.fn(),
   saveImage: vi.fn()
 }))
 
@@ -37,6 +38,30 @@ class MockClipboardItem {
   }
 }
 
+const blobArrayBufferDescriptor = Object.getOwnPropertyDescriptor(Blob.prototype, 'arrayBuffer')
+
+beforeAll(() => {
+  if (!blobArrayBufferDescriptor) {
+    Object.defineProperty(Blob.prototype, 'arrayBuffer', {
+      configurable: true,
+      value(this: Blob) {
+        return new Promise<ArrayBuffer>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = () => resolve(reader.result as ArrayBuffer)
+          reader.onerror = () => reject(reader.error)
+          reader.readAsArrayBuffer(this)
+        })
+      }
+    })
+  }
+})
+
+afterAll(() => {
+  if (!blobArrayBufferDescriptor) {
+    Reflect.deleteProperty(Blob.prototype, 'arrayBuffer')
+  }
+})
+
 describe('ImageViewer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -45,11 +70,12 @@ describe('ImageViewer', () => {
       blob: async () => new Blob(['remote'], { type: 'image/webp' })
     })
     mocks.fsRead.mockResolvedValue(new Uint8Array([1, 2, 3]))
+    mocks.save.mockResolvedValue('/tmp/image')
     mocks.saveImage.mockResolvedValue(true)
     mocks.transformImageToPng.mockResolvedValue(new Blob(['transformed'], { type: 'image/png' }))
 
     Object.assign(window, {
-      api: { file: { saveImage: mocks.saveImage }, fs: { read: mocks.fsRead } }
+      api: { file: { save: mocks.save, saveImage: mocks.saveImage }, fs: { read: mocks.fsRead } }
     })
     Object.assign(navigator, { clipboard: mocks.clipboard })
     vi.stubGlobal('ClipboardItem', MockClipboardItem)
@@ -98,16 +124,31 @@ describe('ImageViewer', () => {
     expect(toast.success).toHaveBeenCalledWith('message.copy.success')
   })
 
-  it('saves image data from the context menu with the existing file save flow', async () => {
-    render(<ImageViewer src="data:image/png;base64,aGVsbG8=" alt="Example image" />)
+  it('saves untouched image data with its original bytes and format', async () => {
+    render(<ImageViewer src="data:image/webp;base64,aGVsbG8=" alt="Example image" />)
 
     fireEvent.contextMenu(screen.getByRole('img', { name: 'Example image' }))
     fireEvent.click(screen.getByRole('button', { name: 'preview.save_as' }))
 
     await waitFor(() => {
-      expect(mocks.saveImage).toHaveBeenCalledWith('Example image', 'data:image/png;base64,aGVsbG8=')
+      expect(mocks.save).toHaveBeenCalledWith('Example image.webp', new Uint8Array([104, 101, 108, 108, 111]))
     })
+    expect(mocks.saveImage).not.toHaveBeenCalled()
     expect(toast.success).toHaveBeenCalledWith('common.saved')
+  })
+
+  it('uses the original filename suffix when the source MIME is generic', async () => {
+    mocks.fetch.mockResolvedValueOnce({
+      blob: async () => new Blob(['hello'], { type: 'application/octet-stream' })
+    })
+    render(<ImageViewer src="https://example.com/source.png" alt="Example image.JPEG" />)
+
+    fireEvent.contextMenu(screen.getByRole('img', { name: 'Example image.JPEG' }))
+    fireEvent.click(screen.getByRole('button', { name: 'preview.save_as' }))
+
+    await waitFor(() => {
+      expect(mocks.save).toHaveBeenCalledWith('Example image.jpg', new Uint8Array([104, 101, 108, 108, 111]))
+    })
   })
 
   it('bakes the external content transform when saving from the context menu', async () => {
@@ -129,8 +170,12 @@ describe('ImageViewer', () => {
         flipY: false,
         rotation: -90
       })
-      expect(mocks.saveImage).toHaveBeenCalledWith('Example image', 'data:image/png;base64,dHJhbnNmb3JtZWQ=')
+      expect(mocks.save).toHaveBeenCalledWith(
+        'Example image.png',
+        new Uint8Array([116, 114, 97, 110, 115, 102, 111, 114, 109, 101, 100])
+      )
     })
+    expect(mocks.saveImage).not.toHaveBeenCalled()
   })
 
   it('does not expose a download action in the preview toolbar or context menu', () => {
