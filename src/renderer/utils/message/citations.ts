@@ -97,8 +97,9 @@ function sourceIdToNumber(sourceId: unknown): number | undefined {
 /**
  * The builtin lookup tool a part's completed output belongs to, across all
  * three wire shapes (static AI-SDK part, tool_invoke wrapper, cherry-tools
- * MCP dynamic-tool). Third-party MCP tools that happen to share a name are
- * deliberately excluded.
+ * MCP dynamic-tool). Third-party MCP tools whose output was normalized to
+ * `webSearchOutputSchema` format at the adapter level are also recognized
+ * as web_search sources.
  */
 function resolveCitableToolName(part: CherryMessagePart): string | null {
   if (!isToolUIPart(part as UIMessagePart<UIDataTypes, UITools>)) return null
@@ -126,6 +127,16 @@ function resolveCitableToolName(part: CherryMessagePart): string | null {
   if (parsed && parsed.serverPart === CHERRY_TOOLS_MCP_SERVER && CITABLE_TOOL_NAMES.has(parsed.toolPart)) {
     return parsed.toolPart
   }
+
+  // Third-party MCP tools whose output was normalized to webSearchOutputSchema
+  // format at the adapter level (e.g., Exa MCP via Pi adapter).
+  if (parsed && part.type === 'dynamic-tool') {
+    const output = unwrapCitableOutput((toolPart as { output?: unknown }).output)
+    if (webSearchOutputSchema.safeParse(normalizeToolOutputResponse(output)).success) {
+      return WEB_SEARCH_TOOL_NAME
+    }
+  }
+
   return null
 }
 

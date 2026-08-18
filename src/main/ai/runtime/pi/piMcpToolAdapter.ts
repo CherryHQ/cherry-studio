@@ -5,6 +5,7 @@ import { mcpServerService } from '@data/services/McpServerService'
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
 import { loggerService } from '@logger'
 import type { AgentMcpServer } from '@main/ai/runtime/agentMcpServers'
+import { newCitePrefix } from '@main/ai/utils/citationIds'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import type { CallToolResult, ContentBlock, Tool } from '@modelcontextprotocol/sdk/types.js'
@@ -104,9 +105,14 @@ function toPiToolDefinition(serverName: string, tool: Tool, client: Client): PiM
         { signal }
       )) as CallToolResult
       if (result.isError) throw new Error(joinErrorText(result.content))
+      const structured = result.structuredContent ?? tryParseStructuredFromText(result.content)
+      const normalized = normalizeSearchOutput(structured)
       return {
         content: result.content.map(toPiContent),
-        details: result.structuredContent
+        // Prefer normalized output (with injected citation IDs) over raw structuredContent.
+        // The MCP SDK requires structuredContent to be a record, but our normalized
+        // output is an array — store it directly in details, bypassing structuredContent.
+        details: normalized ?? result.structuredContent ?? null
       }
     }
   }
@@ -138,4 +144,62 @@ function joinErrorText(content: CallToolResult['content']): string {
     .filter(Boolean)
     .join('\n')
   return text || 'MCP tool returned an error'
+}
+
+// ── Search-output normalization ──────────────────────────────────────
+
+const URL_FIELD_NAMES = ['url', 'href', 'link', 'uri', 'source', 'webpage_url']
+const TITLE_FIELD_NAMES = ['title', 'name', 'heading']
+const CONTENT_FIELD_NAMES = ['content', 'description', 'snippet', 'text', 'summary']
+
+function isHttpUrl(value: unknown): boolean {
+  return typeof value === 'string' && /^https?:\/\//i.test(value)
+}
+
+function findField(obj: Record<string, unknown>, candidates: readonly string[]): string | undefined {
+  for (const name of candidates) {
+    if (name in obj && typeof obj[name] === 'string') return obj[name]
+  }
+  return undefined
+}
+
+/**
+ * Detect search-like MCP output (an array of objects with URL fields) and
+ * normalize it into `webSearchOutputSchema` format with injected citation IDs,
+ * so the renderer's citation resolver can resolve `[cite:id]` markers.
+ */
+function normalizeSearchOutput(data: unknown): Array<Record<string, unknown>> | null {
+  if (!Array.isArray(data) || data.length === 0) return null
+  const items = data.filter(
+    (item): item is Record<string, unknown> => typeof item === 'object' && item !== null && !Array.isArray(item)
+  )
+  if (items.length === 0) return null
+  // Require at least one item to have a URL-like field value.
+  const hasUrls = items.some((item) => URL_FIELD_NAMES.some((field) => isHttpUrl(item[field])))
+  if (!hasUrls) return null
+
+  const prefix = newCitePrefix()
+  return items.map((item, index) => {
+    const url = findField(item, URL_FIELD_NAMES) ?? ''
+    const title = findField(item, TITLE_FIELD_NAMES) ?? ''
+    const content = findField(item, CONTENT_FIELD_NAMES) ?? ''
+    return { id: `${prefix}-${index + 1}`, title, url, content }
+  })
+}
+
+/**
+ * Try to parse structured search results from MCP text content blocks.
+ * Returns the first JSON-parsed array of objects, or null.
+ */
+function tryParseStructuredFromText(content: CallToolResult['content']): unknown {
+  for (const part of content) {
+    if (part.type !== 'text') continue
+    try {
+      const parsed = JSON.parse(part.text)
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed
+    } catch {
+      // Not JSON — skip
+    }
+  }
+  return null
 }

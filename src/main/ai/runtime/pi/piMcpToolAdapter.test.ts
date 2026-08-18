@@ -203,4 +203,64 @@ describe('buildMcpToolDefinitions', () => {
     expect(firstClosed).toHaveBeenCalledOnce()
     expect(secondClosed).toHaveBeenCalledOnce()
   })
+
+  it('normalizes search-like output with URL fields into webSearchOutputSchema format', async () => {
+    // Realistic scenario: MCP server returns search results as JSON in text content
+    // (structuredContent must be a record per MCP SDK, so arrays come via text)
+    const searchResults = [
+      { title: 'First', url: 'https://a.com/x', content: 'alpha' },
+      { title: 'Second', url: 'https://b.com/y', content: 'beta' }
+    ]
+    const server = createServer([tool('search')], async () => ({
+      content: [{ type: 'text', text: JSON.stringify(searchResults) }]
+    }))
+    const bridge = await buildMcpToolDefinitions({ server: { name: 'server', instance: server } })
+
+    const output = await bridge.tools[0].execute('call-1', { value: 'x' }, undefined, undefined, {} as never)
+    const details = (output as { details: unknown }).details
+
+    expect(Array.isArray(details)).toBe(true)
+    expect(details).toHaveLength(2)
+    expect(details).toEqual([
+      expect.objectContaining({ id: expect.any(String), title: 'First', url: 'https://a.com/x', content: 'alpha' }),
+      expect.objectContaining({ id: expect.any(String), title: 'Second', url: 'https://b.com/y', content: 'beta' })
+    ])
+    // IDs should follow the prefix-N format
+    const items = details as Array<{ id: string }>
+    expect(items[0].id).toMatch(/^[0-9a-f]{8}-1$/)
+    expect(items[1].id).toMatch(/^[0-9a-f]{8}-2$/)
+    await bridge.close()
+  })
+
+  it('parses search results from JSON text content when structuredContent is absent', async () => {
+    const searchResults = [{ title: 'Doc', url: 'https://docs.example.com', text: 'hello' }]
+    const server = createServer([tool('search')], async () => ({
+      content: [{ type: 'text', text: JSON.stringify(searchResults) }]
+    }))
+    const bridge = await buildMcpToolDefinitions({ server: { name: 'server', instance: server } })
+
+    const output = await bridge.tools[0].execute('call-1', { value: 'x' }, undefined, undefined, {} as never)
+    const details = (output as { details: unknown }).details
+
+    expect(Array.isArray(details)).toBe(true)
+    expect(details).toEqual([
+      expect.objectContaining({ title: 'Doc', url: 'https://docs.example.com', content: 'hello' })
+    ])
+    await bridge.close()
+  })
+
+  it('does not normalize non-search output (no URL fields)', async () => {
+    const server = createServer([tool('run')], async () => ({
+      content: [{ type: 'text', text: 'result' }],
+      structuredContent: { result: 42 }
+    }))
+    const bridge = await buildMcpToolDefinitions({ server: { name: 'server', instance: server } })
+
+    const output = await bridge.tools[0].execute('call-1', { value: 'x' }, undefined, undefined, {} as never)
+    expect(output).toEqual({
+      content: [{ type: 'text', text: 'result' }],
+      details: { result: 42 }
+    })
+    await bridge.close()
+  })
 })
