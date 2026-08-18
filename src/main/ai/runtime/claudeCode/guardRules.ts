@@ -30,6 +30,9 @@ import {
 import { isPathWithinAllowedRoots } from './pathContainment'
 import type { GuardHit, ToolGuardContext, ToolGuardRule } from './toolGuards'
 
+/** Every built-in role is protected — see `isProtectedBuiltinAgentRole`. */
+const PROTECTED_BUILTIN_ROLES: readonly string[] = Object.values(BUILTIN_AGENT_ROLE)
+
 export const ASK_USER_QUESTION_TOOL_NAME = 'AskUserQuestion'
 export const HEADLESS_INTERACTIVE_TOOL_DENIAL =
   'This channel or scheduled turn has no interactive responder, so proceed without asking the user and state your assumptions instead.'
@@ -120,7 +123,7 @@ export const CLAUDE_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     // irreversible deletion; confirmed workspace deletion goes through the move-to-trash tool.
     id: 'builtin-destructive',
     bypassBehavior: 'enforce',
-    appliesTo: { protectedBuiltinOnly: true },
+    appliesTo: { roles: PROTECTED_BUILTIN_ROLES },
     match: { when: destructiveBuiltinOperation },
     effect: 'deny',
     reason: (hit) =>
@@ -180,7 +183,7 @@ export const CLAUDE_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     // Feedback skills submit through Bash under the user's identity (Lark form / GitHub issue).
     id: 'assistant-feedback',
     bypassBehavior: 'skipInteractiveEffect',
-    appliesTo: { role: BUILTIN_AGENT_ROLE.ASSISTANT },
+    appliesTo: { roles: [BUILTIN_AGENT_ROLE.ASSISTANT] },
     match: { tool: 'Bash', when: feedbackSubmissionCommand },
     effect: 'ask',
     reason: 'Submitting Cherry Studio feedback externally requires live per-call user approval.',
@@ -195,7 +198,7 @@ export const CLAUDE_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     // Bash call asks. Destructive commands fold into builtin-destructive's deny above.
     id: 'support-bash',
     bypassBehavior: 'skipInteractiveEffect',
-    appliesTo: { role: BUILTIN_AGENT_ROLE.SUPPORT },
+    appliesTo: { roles: [BUILTIN_AGENT_ROLE.SUPPORT] },
     match: { tool: 'Bash' },
     effect: 'ask',
     reason: 'Cherry Support shell commands require live per-call user approval.',

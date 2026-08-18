@@ -8,7 +8,6 @@ function makeCtx(overrides: Partial<ToolGuardContext> = {}): ToolGuardContext {
     input: undefined,
     permissionMode: undefined,
     builtinRole: undefined,
-    isProtectedBuiltin: false,
     assistantMcpEnabled: false,
     cwd: '/ws',
     agentDataPath: '/data',
@@ -126,16 +125,18 @@ describe('evaluateToolGuards', () => {
     expect(decision?.effect).toBe(denied ? 'deny' : undefined)
   })
 
-  it('filters rules by role and protected-builtin scope', async () => {
-    const roleRule = denyRule('assistant-only', { appliesTo: { role: 'assistant' } })
-    const protectedRule = denyRule('protected-only', { appliesTo: { protectedBuiltinOnly: true } })
+  it('filters rules by the roles they are scoped to', async () => {
+    const roleRule = denyRule('assistant-only', { appliesTo: { roles: ['assistant'] } })
+    const multiRoleRule = denyRule('builtin-only', { appliesTo: { roles: ['assistant', 'support'] } })
 
-    await expect(evaluateToolGuards([roleRule, protectedRule], makeCtx())).resolves.toBeUndefined()
+    // A plain agent (no built-in role) matches neither.
+    await expect(evaluateToolGuards([roleRule, multiRoleRule], makeCtx())).resolves.toBeUndefined()
+    await expect(evaluateToolGuards([roleRule], makeCtx({ builtinRole: 'support' }))).resolves.toBeUndefined()
     await expect(evaluateToolGuards([roleRule], makeCtx({ builtinRole: 'assistant' }))).resolves.toMatchObject({
       ruleId: 'assistant-only'
     })
-    await expect(evaluateToolGuards([protectedRule], makeCtx({ isProtectedBuiltin: true }))).resolves.toMatchObject({
-      ruleId: 'protected-only'
+    await expect(evaluateToolGuards([multiRoleRule], makeCtx({ builtinRole: 'support' }))).resolves.toMatchObject({
+      ruleId: 'builtin-only'
     })
   })
 

@@ -30,7 +30,6 @@ export interface ToolGuardContext {
   readonly input: Readonly<Record<string, unknown>> | undefined
   readonly permissionMode: AgentPermissionMode | undefined
   readonly builtinRole: string | undefined
-  readonly isProtectedBuiltin: boolean
   /** Whether the assistant support MCP servers are mounted for this session (not role-derivable). */
   readonly assistantMcpEnabled: boolean
   readonly cwd: string
@@ -72,7 +71,8 @@ interface ToolGuardRuleBase {
    * sets `skipHeadlessDenyInBypass`.
    */
   bypassBehavior: 'enforce' | 'skipInteractiveEffect'
-  appliesTo?: { role?: string; protectedBuiltinOnly?: boolean }
+  /** Scope to specific built-in roles; omit for a rule that applies to every agent. */
+  appliesTo?: { roles: readonly string[] }
   /** `tool` and `when` AND together; at least one must be present. */
   match: { tool?: string; when?: GuardCondition }
   headless?: HeadlessOverride
@@ -93,9 +93,7 @@ export interface ToolGuardDecision {
 
 function appliesToAgent(rule: ToolGuardRule, ctx: ToolGuardContext): boolean {
   if (!rule.appliesTo) return true
-  if (rule.appliesTo.protectedBuiltinOnly && !ctx.isProtectedBuiltin) return false
-  if (rule.appliesTo.role && ctx.builtinRole !== rule.appliesTo.role) return false
-  return true
+  return ctx.builtinRole !== undefined && rule.appliesTo.roles.includes(ctx.builtinRole)
 }
 
 function matchesHeadlessPredicate(predicate: HeadlessPredicate, interaction: ToolGuardInteractionState): boolean {

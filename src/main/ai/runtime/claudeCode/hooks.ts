@@ -42,7 +42,6 @@ export interface ClaudeCodeHookContext {
   agentDataPath: string
   /** Static per-session agent facts consumed by the guard table's `appliesTo` scoping. */
   builtinRole: string | undefined
-  isProtectedBuiltin: boolean
   /** Whether the assistant support MCP servers are mounted for this session. */
   assistantMcpEnabled: boolean
   agentsMdLoader: AgentsMdLoader
@@ -67,7 +66,6 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
       input: toolInput,
       permissionMode: snapshot?.getPermissionMode(),
       builtinRole: ctx.builtinRole,
-      isProtectedBuiltin: ctx.isProtectedBuiltin,
       assistantMcpEnabled: ctx.assistantMcpEnabled,
       cwd,
       agentDataPath,

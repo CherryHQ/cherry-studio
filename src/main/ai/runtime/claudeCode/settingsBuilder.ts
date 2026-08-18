@@ -42,7 +42,7 @@ import { skillService } from '@main/ai/skills/SkillService'
 import { type ClaudeToolContext, resolveDisallowedTools } from '@main/ai/tools/adapters/claudeCode/toolConditions'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
-import { BUILTIN_AGENT_ROLE, isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
+import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import {
   KB_READ_TOOL_NAME,
   KB_SEARCH_TOOL_NAME,
@@ -426,7 +426,6 @@ async function buildToolPermissions(
 }> {
   const agentConfig = agent.configuration
   const builtinRole = agentConfig?.builtin_role as string | undefined
-  const isProtectedBuiltinAgent = isProtectedBuiltinAgentRole(agentConfig?.builtin_role)
 
   // Raw session context for tool enable-predicates (worktree tools need a .git dir).
   const cwd = session.workspace?.path
@@ -553,7 +552,6 @@ async function buildToolPermissions(
     cwd,
     agentDataPath,
     builtinRole,
-    isProtectedBuiltin: isProtectedBuiltinAgent,
     assistantMcpEnabled,
     agentsMdLoader
   })

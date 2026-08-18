@@ -30,7 +30,6 @@ function makeCtx(overrides: Partial<ToolGuardContext> = {}): ToolGuardContext {
     input: undefined,
     permissionMode: 'default',
     builtinRole: undefined,
-    isProtectedBuiltin: false,
     assistantMcpEnabled: false,
     cwd: '/ws',
     agentDataPath: '/data',
@@ -83,7 +82,6 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
       for (const mode of ['default', 'bypassPermissions'] as const) {
         const decision = await evaluate(
           makeCtx({
-            isProtectedBuiltin: true,
             builtinRole: 'assistant',
             permissionMode: mode,
             input: { command: 'rm -rf /tmp/data' }
@@ -95,7 +93,7 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
     })
 
     it('denies permanent-deletion MCP tools for protected built-in agents', async () => {
-      const decision = await evaluate(makeCtx({ isProtectedBuiltin: true, toolName: 'mcp__files__delete_file' }))
+      const decision = await evaluate(makeCtx({ builtinRole: 'support', toolName: 'mcp__files__delete_file' }))
       expect(decision?.ruleId).toBe('builtin-destructive')
     })
 
@@ -106,7 +104,6 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
     it('supplies the destructive reason when Support Bash overlaps (deny beats the support ask)', async () => {
       const decision = await evaluate(
         makeCtx({
-          isProtectedBuiltin: true,
           builtinRole: 'support',
           input: { command: 'rm -rf build' }
         })
@@ -134,7 +131,6 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
       const decision = await evaluate(
         makeCtx({
           builtinRole: 'assistant',
-          isProtectedBuiltin: true,
           input: { command: 'gh issue create --title x && npm install -g left-pad' }
         })
       )
@@ -233,7 +229,7 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
     const feedback = { command: 'gh issue create --title "bug"' }
 
     it('asks for live approval on interactive turns', async () => {
-      const decision = await evaluate(makeCtx({ builtinRole: 'assistant', isProtectedBuiltin: true, input: feedback }))
+      const decision = await evaluate(makeCtx({ builtinRole: 'assistant', input: feedback }))
       expect(decision?.ruleId).toBe('assistant-feedback')
       expect(decision?.effect).toBe('ask')
     })
@@ -243,7 +239,6 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
         evaluate(
           makeCtx({
             builtinRole: 'assistant',
-            isProtectedBuiltin: true,
             permissionMode: 'bypassPermissions',
             input: feedback
           })
@@ -255,7 +250,6 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
       const decision = await evaluate(
         makeCtx({
           builtinRole: 'assistant',
-          isProtectedBuiltin: true,
           permissionMode: 'bypassPermissions',
           input: feedback,
           interaction: HEADLESS
@@ -271,7 +265,7 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
   })
 
   describe('support-bash', () => {
-    const supportCtx = { builtinRole: 'support', isProtectedBuiltin: true } as const
+    const supportCtx = { builtinRole: 'support' } as const
 
     it('asks for every non-destructive Bash call on interactive turns', async () => {
       const decision = await evaluate(makeCtx({ ...supportCtx, input: { command: 'ls -la' } }))
