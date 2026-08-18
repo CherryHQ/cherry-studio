@@ -7681,6 +7681,7 @@
         "max_messages": "Recent messages kept",
         "max_messages_description": "Send only the most recent messages; earlier ones are excluded from context. Leave empty for no limit. Assistants can override this",
         "max_messages_unlimited": "Unlimited",
+        "scope_description": "Applies only to assistant conversations in Cherry Studio. Assistants can override these settings individually.",
         "title": "Context Management",
         "truncate_threshold": "Tool-output truncation threshold (chars)",
         "truncate_threshold_description": "Tool outputs beyond this many characters are offloaded to a file and truncated; the model can read them back on demand. Assistants can override this"
