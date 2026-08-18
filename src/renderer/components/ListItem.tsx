@@ -25,12 +25,12 @@ const ListItem = ({ active, icon, title, subtitle, titleStyle, onClick, rightCon
       <div className="flex items-center gap-[2px] overflow-hidden text-[13px]">
         {icon && <span className="mr-2 flex items-center justify-center">{icon}</span>}
         <div className="flex flex-1 flex-col overflow-hidden">
-          <Tooltip content={title} classNames={{ placeholder: 'block min-w-0' }}>
+          <Tooltip content={title} fullWidthTrigger>
             <span className="block min-w-0 truncate" style={titleStyle}>
               {title}
             </span>
           </Tooltip>
-          {subtitle && <div className="mt-[2px] line-clamp-1 text-[10px] text-foreground-muted">{subtitle}</div>}
+          {subtitle && <div className="mt-[2px] line-clamp-1 text-[10px] text-foreground-tertiary">{subtitle}</div>}
         </div>
         {rightContent && <div className="ml-auto">{rightContent}</div>}
       </div>

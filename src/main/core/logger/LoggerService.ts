@@ -375,7 +375,12 @@ export class LoggerService {
   }
 
   /**
-   * Register IPC handler for renderer process logging
+   * Register IPC handler for renderer process logging.
+   *
+   * Deliberately NOT routed through `handleGuarded` (unlike other legacy IPC):
+   * this runs at module-eval time via the constructor, and importing the
+   * `validateSender` chain would pull `@application` into core/logger's init
+   * order. The channel only forwards log lines — no privileged action.
    */
   private registerIpcHandler(): void {
     ipcMain.handle(

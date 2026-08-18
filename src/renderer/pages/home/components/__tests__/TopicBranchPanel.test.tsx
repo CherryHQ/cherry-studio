@@ -1,4 +1,5 @@
 import { dataApiService } from '@data/DataApiService'
+import { toast } from '@renderer/services/toast'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -6,14 +7,19 @@ import TopicBranchPanel from '../TopicBranchPanel'
 
 const mocks = vi.hoisted(() => ({
   copyBranchToNewTopic: vi.fn().mockResolvedValue({ id: 'copied-topic' }),
+  deleteAwaitingInputMessage: vi.fn().mockResolvedValue({ deletedIds: ['branch-empty-user'] }),
+  reserveBranch: vi.fn().mockResolvedValue({ id: 'reserved-user' }),
   refetchTree: vi.fn(),
   setActiveNode: vi.fn().mockResolvedValue(undefined),
-  startBranchDraft: vi.fn().mockResolvedValue(undefined),
+  topicPending: false,
+  eventEmit: vi.fn(),
+  useDataChange: vi.fn(),
   useQuery: vi.fn(),
   useMutation: vi.fn()
 }))
 
 vi.mock('@data/hooks/useDataApi', () => ({
+  useDataChange: mocks.useDataChange,
   useMutation: mocks.useMutation,
   useQuery: mocks.useQuery
 }))
@@ -24,8 +30,24 @@ vi.mock('@data/DataApiService', () => ({
   }
 }))
 
+vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
+  useTopicStreamStatus: () => ({ isPending: mocks.topicPending })
+}))
+
+vi.mock('@renderer/services/EventService', () => ({
+  EVENT_NAMES: { FOCUS_CHAT_COMPOSER: 'FOCUS_CHAT_COMPOSER' },
+  EventEmitter: { emit: mocks.eventEmit }
+}))
+
 vi.mock('@renderer/components/command', async () => {
   const React = await import('react')
+  type MockExtraItem = {
+    id?: string
+    label?: string
+    enabled?: boolean
+    description?: React.ReactNode
+    onSelect?: () => void
+  }
 
   return {
     CommandContextMenu: ({
@@ -34,10 +56,10 @@ vi.mock('@renderer/components/command', async () => {
       onOpenChange
     }: {
       children: React.ReactNode
-      getExtraItems?: (event: React.MouseEvent) => Array<{ id: string; label?: string; onSelect?: () => void }>
+      getExtraItems?: (event: React.MouseEvent) => MockExtraItem[]
       onOpenChange?: (open: boolean) => void
     }) => {
-      const [items, setItems] = React.useState<Array<{ id: string; label?: string; onSelect?: () => void }>>([])
+      const [items, setItems] = React.useState<MockExtraItem[]>([])
       return (
         <div
           data-testid="topic-branch-context-menu-host"
@@ -52,6 +74,8 @@ vi.mock('@renderer/components/command', async () => {
               <button
                 key={item.id}
                 type="button"
+                disabled={item.enabled === false}
+                data-description={typeof item.description === 'string' ? item.description : undefined}
                 onClick={() => {
                   item.onSelect?.()
                   onOpenChange?.(false)
@@ -71,19 +95,6 @@ vi.mock('@renderer/components/chat/flow', () => ({
     const parentById = new Map(
       tree.nodes.map((node: { id: string; parentId: string | null }) => [node.id, node.parentId])
     )
-    const nodeById = new Map<string, { id: string; role?: string }>(
-      tree.nodes.map((node: { id: string; role?: string }) => [node.id, node] as const)
-    )
-    const childrenById = new Map<string, string[]>()
-    for (const node of tree.nodes as Array<{ id: string; parentId: string | null }>) {
-      if (!node.parentId) continue
-      childrenById.set(node.parentId, [...(childrenById.get(node.parentId) ?? []), node.id])
-    }
-    const hasAssistantDescendant = (messageId: string): boolean =>
-      (childrenById.get(messageId) ?? []).some((childId) => {
-        const child = nodeById.get(childId)
-        return child?.role === 'assistant' || hasAssistantDescendant(childId)
-      })
     const activePath = new Set<string>()
     let currentId = tree.activeNodeId
     while (currentId && parentById.has(currentId)) {
@@ -94,14 +105,14 @@ vi.mock('@renderer/components/chat/flow', () => ({
     return {
       activeNodeId: tree.activeNodeId,
       edges: [],
-      nodes: tree.nodes.map((node: { id: string; preview?: string; role?: string }) => ({
+      nodes: tree.nodes.map((node: { id: string; preview?: string; role?: string; isAwaitingInput?: boolean }) => ({
         id: node.id,
         data: {
           messageId: node.id,
           preview: node.preview,
           role: node.role,
-          isOnActivePath: activePath.has(node.id),
-          hasAssistantDescendant: hasAssistantDescendant(node.id)
+          isAwaitingInput: node.isAwaitingInput,
+          isOnActivePath: activePath.has(node.id)
         },
         position: { x: 0, y: 0 }
       })),
@@ -135,7 +146,7 @@ vi.mock('@renderer/components/chat/flow', () => ({
     onNodeContextMenu,
     onNodeSelect
   }: {
-    graph: { nodes: { data: { messageId: string; preview?: string } }[] }
+    graph: { nodes: { data: { messageId: string; preview?: string; isAwaitingInput?: boolean } }[] }
     onNodeContextMenu?: (messageId: string) => void
     onNodeSelect: (messageId: string) => void
   }) => (
@@ -145,6 +156,7 @@ vi.mock('@renderer/components/chat/flow', () => ({
           key={node.data.messageId}
           type="button"
           data-message-id={node.data.messageId}
+          data-awaiting-input={String(Boolean(node.data.isAwaitingInput))}
           data-testid={`topic-message-flow-node-${node.data.messageId}`}
           onContextMenu={() => onNodeContextMenu?.(node.data.messageId)}
           onClick={() => onNodeSelect(node.data.messageId)}>
@@ -164,10 +176,7 @@ vi.mock('react-i18next', () => ({
 describe('TopicBranchPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    ;(window as unknown as { toast: { error: ReturnType<typeof vi.fn>; success: ReturnType<typeof vi.fn> } }).toast = {
-      error: vi.fn(),
-      success: vi.fn()
-    }
+    mocks.topicPending = false
     mocks.useQuery.mockReturnValue({
       data: {
         activeNodeId: 'active-1',
@@ -195,6 +204,12 @@ describe('TopicBranchPanel', () => {
     mocks.useMutation.mockImplementation((_method: string, path: string) => {
       if (path === '/topics/:id/duplicate') {
         return { trigger: mocks.copyBranchToNewTopic }
+      }
+      if (path === '/messages/:id') {
+        return { trigger: mocks.deleteAwaitingInputMessage }
+      }
+      if (path === '/messages/:id/branches') {
+        return { trigger: mocks.reserveBranch }
       }
       return { trigger: mocks.setActiveNode }
     })
@@ -224,7 +239,19 @@ describe('TopicBranchPanel', () => {
     })
   })
 
-  it('sets the active branch to the latest leaf passing through the selected node', async () => {
+  it('refetches an open tree after a cross-window tree change', () => {
+    render(<TopicBranchPanel open={true} topicId="topic-1" />)
+
+    expect(mocks.useDataChange).toHaveBeenCalledWith('/topics/:topicId/tree', expect.any(Function), {
+      routeParams: { topicId: 'topic-1' }
+    })
+    const listener = mocks.useDataChange.mock.calls.at(-1)?.[1] as (() => void) | undefined
+    listener?.()
+
+    expect(mocks.refetchTree).toHaveBeenCalledOnce()
+  })
+
+  it('sets the active branch without a redundant tree refetch', async () => {
     render(<TopicBranchPanel open={true} topicId="topic-1" />)
 
     fireEvent.click(screen.getByTestId('topic-message-flow-node-message-1'))
@@ -238,7 +265,10 @@ describe('TopicBranchPanel', () => {
       body: { nodeId: 'leaf-1' },
       params: { id: 'topic-1' }
     })
-    expect(mocks.refetchTree).toHaveBeenCalled()
+    expect(mocks.useMutation).toHaveBeenCalledWith('PUT', '/topics/:id/active-node', {
+      refresh: ['/topics/topic-1/messages', '/topics/topic-1/tree']
+    })
+    expect(mocks.refetchTree).not.toHaveBeenCalled()
   })
 
   it('locates the current active node without writing branch state', async () => {
@@ -356,7 +386,8 @@ describe('TopicBranchPanel', () => {
     expect(screen.getByText('Hello')).toBeInTheDocument()
   })
 
-  it('starts a local branch draft from the right-clicked node without refreshing the tree', async () => {
+  it('reserves a branch from the right-clicked node without activating it during a stream', async () => {
+    mocks.topicPending = true
     mocks.useQuery.mockReturnValue({
       data: {
         activeNodeId: 'assistant-latest',
@@ -409,93 +440,25 @@ describe('TopicBranchPanel', () => {
       refetch: mocks.refetchTree
     })
 
-    render(<TopicBranchPanel open={true} topicId="topic-1" onStartBranchDraft={mocks.startBranchDraft} />)
+    render(<TopicBranchPanel open={true} topicId="topic-1" />)
 
     fireEvent.contextMenu(screen.getByTestId('topic-message-flow-node-message-1'))
     fireEvent.click(await screen.findByRole('button', { name: 'chat.message.new.branch.label' }))
 
     await waitFor(() => {
-      expect(mocks.startBranchDraft).toHaveBeenCalledWith('message-1')
+      expect(mocks.reserveBranch).toHaveBeenCalledWith({
+        params: { id: 'message-1' },
+        body: { activate: false }
+      })
     })
     expect(dataApiService.get).not.toHaveBeenCalled()
     expect(mocks.setActiveNode).not.toHaveBeenCalled()
     expect(mocks.refetchTree).not.toHaveBeenCalled()
-    expect(window.toast.success).toHaveBeenCalledWith('chat.message.new.branch.created')
+    expect(mocks.eventEmit).not.toHaveBeenCalled()
+    expect(toast.success).toHaveBeenCalledWith('chat.message.new.branch.created')
   })
 
-  it('cancels a branch draft and locates the anchor when the anchor is clicked', async () => {
-    const onCancelBranchDraft = vi.fn()
-    const onLocateMessage = vi.fn()
-    mocks.useQuery.mockReturnValue({
-      data: {
-        activeNodeId: 'assistant-old',
-        nodes: [
-          {
-            id: 'user-1',
-            parentId: null,
-            role: 'user',
-            preview: 'Question',
-            modelId: null,
-            status: 'success',
-            createdAt: '2026-05-22T00:00:00.000Z',
-            hasChildren: true
-          },
-          {
-            id: 'assistant-old',
-            parentId: 'user-1',
-            role: 'assistant',
-            preview: 'Old answer',
-            modelId: null,
-            status: 'success',
-            createdAt: '2026-05-22T00:00:01.000Z',
-            hasChildren: true
-          }
-        ],
-        siblingsGroups: []
-      },
-      error: undefined,
-      isLoading: false,
-      refetch: mocks.refetchTree
-    })
-
-    render(
-      <TopicBranchPanel
-        open={true}
-        topicId="topic-1"
-        liveState={{
-          topicId: 'topic-1',
-          activeNodeId: 'branch-draft:assistant-old',
-          nodes: [
-            {
-              id: 'branch-draft:assistant-old',
-              parentId: 'assistant-old',
-              role: 'user',
-              preview: 'chat.message.flow.status.awaiting_input',
-              modelId: null,
-              status: 'paused',
-              createdAt: '2026-05-22T00:00:02.000Z',
-              isInputDraft: true
-            }
-          ]
-        }}
-        onCancelBranchDraft={onCancelBranchDraft}
-        onLocateMessage={onLocateMessage}
-      />
-    )
-
-    fireEvent.click(screen.getByTestId('topic-message-flow-node-assistant-old'))
-
-    await Promise.resolve()
-
-    expect(onCancelBranchDraft).toHaveBeenCalledWith('assistant-old')
-    expect(onLocateMessage).toHaveBeenCalledWith('assistant-old')
-    expect(dataApiService.get).not.toHaveBeenCalled()
-    expect(mocks.setActiveNode).not.toHaveBeenCalled()
-    expect(mocks.refetchTree).not.toHaveBeenCalled()
-  })
-
-  it('cancels a branch draft before switching to another real branch', async () => {
-    const onCancelBranchDraft = vi.fn()
+  it('renders and reactivates a persisted awaiting-input message as a real canvas node', async () => {
     mocks.useQuery.mockReturnValue({
       data: {
         activeNodeId: 'assistant-old',
@@ -521,13 +484,14 @@ describe('TopicBranchPanel', () => {
             hasChildren: true
           },
           {
-            id: 'assistant-other',
-            parentId: 'user-1',
-            role: 'assistant',
-            preview: 'Other answer',
+            id: 'awaiting-input-user',
+            parentId: 'assistant-old',
+            role: 'user',
+            isAwaitingInput: true,
+            preview: '',
             modelId: null,
             status: 'success',
-            createdAt: '2026-05-22T00:00:03.000Z',
+            createdAt: '2026-05-22T00:00:02.000Z',
             hasChildren: false
           }
         ],
@@ -537,47 +501,77 @@ describe('TopicBranchPanel', () => {
       isLoading: false,
       refetch: mocks.refetchTree
     })
-    vi.mocked(dataApiService.get).mockResolvedValueOnce([{ id: 'user-1' }, { id: 'assistant-other' }])
+    vi.mocked(dataApiService.get).mockResolvedValueOnce([
+      { id: 'user-1' },
+      { id: 'assistant-old' },
+      { id: 'awaiting-input-user' }
+    ])
 
-    render(
-      <TopicBranchPanel
-        open={true}
-        topicId="topic-1"
-        liveState={{
-          topicId: 'topic-1',
-          activeNodeId: 'branch-draft:assistant-old',
-          nodes: [
-            {
-              id: 'branch-draft:assistant-old',
-              parentId: 'assistant-old',
-              role: 'user',
-              preview: 'chat.message.flow.status.awaiting_input',
-              modelId: null,
-              status: 'paused',
-              createdAt: '2026-05-22T00:00:02.000Z',
-              isInputDraft: true
-            }
-          ]
-        }}
-        onCancelBranchDraft={onCancelBranchDraft}
-      />
-    )
+    render(<TopicBranchPanel open={true} topicId="topic-1" />)
 
-    fireEvent.click(screen.getByTestId('topic-message-flow-node-assistant-other'))
+    const awaitingInputNode = screen.getByTestId('topic-message-flow-node-awaiting-input-user')
+    expect(awaitingInputNode).toHaveAttribute('data-awaiting-input', 'true')
+
+    fireEvent.click(awaitingInputNode)
 
     await waitFor(() => {
       expect(mocks.setActiveNode).toHaveBeenCalledWith({
-        body: { nodeId: 'assistant-other' },
+        body: { nodeId: 'awaiting-input-user' },
         params: { id: 'topic-1' }
       })
     })
-    expect(onCancelBranchDraft).toHaveBeenNthCalledWith(1)
-    expect(onCancelBranchDraft).toHaveBeenNthCalledWith(2, 'assistant-other')
-    expect(onCancelBranchDraft).toHaveBeenNthCalledWith(3)
-    expect(mocks.refetchTree).toHaveBeenCalled()
+    expect(mocks.refetchTree).not.toHaveBeenCalled()
   })
 
-  it('hides the branch action for the latest assistant node but keeps copy-as-topic available', async () => {
+  it('deletes a persisted empty message from its context menu', async () => {
+    mocks.useQuery.mockReturnValue({
+      data: {
+        activeNodeId: 'branch-empty-user',
+        nodes: [
+          {
+            id: 'assistant-1',
+            parentId: 'user-1',
+            role: 'assistant',
+            preview: 'Answer',
+            modelId: null,
+            status: 'success',
+            createdAt: '2026-05-22T00:00:01.000Z',
+            hasChildren: true
+          },
+          {
+            id: 'branch-empty-user',
+            parentId: 'assistant-1',
+            role: 'user',
+            isAwaitingInput: true,
+            preview: '',
+            modelId: null,
+            status: 'success',
+            createdAt: '2026-05-22T00:00:02.000Z',
+            hasChildren: false
+          }
+        ],
+        siblingsGroups: []
+      },
+      error: undefined,
+      isLoading: false,
+      refetch: mocks.refetchTree
+    })
+
+    render(<TopicBranchPanel open={true} topicId="topic-1" />)
+
+    fireEvent.contextMenu(screen.getByTestId('topic-message-flow-node-branch-empty-user'))
+    fireEvent.click(await screen.findByRole('button', { name: 'common.delete' }))
+
+    await waitFor(() => {
+      expect(mocks.deleteAwaitingInputMessage).toHaveBeenCalledWith({
+        params: { id: 'branch-empty-user' },
+        query: { awaitingInputOnly: true }
+      })
+    })
+    expect(toast.success).toHaveBeenCalledWith('common.delete_success')
+  })
+
+  it('starts a branch from an assistant node without an assistant follow-up', async () => {
     mocks.useQuery.mockReturnValue({
       data: {
         activeNodeId: 'user-2',
@@ -606,7 +600,7 @@ describe('TopicBranchPanel', () => {
             id: 'user-2',
             parentId: 'assistant-1',
             role: 'user',
-            preview: 'Draft next question',
+            preview: 'Next question',
             modelId: null,
             status: 'success',
             createdAt: '2026-05-22T00:00:02.000Z',
@@ -624,7 +618,62 @@ describe('TopicBranchPanel', () => {
 
     fireEvent.contextMenu(screen.getByTestId('topic-message-flow-node-assistant-1'))
 
-    expect(screen.queryByRole('button', { name: 'chat.message.new.branch.label' })).not.toBeInTheDocument()
+    const branchButton = await screen.findByRole('button', { name: 'chat.message.new.branch.label' })
+    fireEvent.click(branchButton)
+    await waitFor(() => {
+      expect(mocks.reserveBranch).toHaveBeenCalledWith({
+        params: { id: 'assistant-1' },
+        body: { activate: true }
+      })
+    })
+    expect(await screen.findByRole('button', { name: 'chat.message.flow.copy_topic.label' })).toBeInTheDocument()
+  })
+
+  it('starts a branch from the active assistant node', async () => {
+    mocks.useQuery.mockReturnValue({
+      data: {
+        activeNodeId: 'assistant-1',
+        nodes: [
+          {
+            id: 'user-1',
+            parentId: null,
+            role: 'user',
+            preview: 'Question',
+            modelId: null,
+            status: 'success',
+            createdAt: '2026-05-22T00:00:00.000Z',
+            hasChildren: true
+          },
+          {
+            id: 'assistant-1',
+            parentId: 'user-1',
+            role: 'assistant',
+            preview: 'Latest answer',
+            modelId: null,
+            status: 'success',
+            createdAt: '2026-05-22T00:00:01.000Z',
+            hasChildren: false
+          }
+        ],
+        siblingsGroups: []
+      },
+      error: undefined,
+      isLoading: false,
+      refetch: mocks.refetchTree
+    })
+
+    render(<TopicBranchPanel open={true} topicId="topic-1" />)
+
+    fireEvent.contextMenu(screen.getByTestId('topic-message-flow-node-assistant-1'))
+
+    const branchButton = await screen.findByRole('button', { name: 'chat.message.new.branch.label' })
+    fireEvent.click(branchButton)
+    await waitFor(() => {
+      expect(mocks.reserveBranch).toHaveBeenCalledWith({
+        params: { id: 'assistant-1' },
+        body: { activate: true }
+      })
+    })
     expect(await screen.findByRole('button', { name: 'chat.message.flow.copy_topic.label' })).toBeInTheDocument()
   })
 
@@ -634,6 +683,7 @@ describe('TopicBranchPanel', () => {
     fireEvent.contextMenu(screen.getByTestId('topic-message-flow-node-message-1'))
 
     expect(screen.queryByRole('button', { name: 'chat.message.new.branch.label' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'common.delete' })).not.toBeInTheDocument()
     expect(await screen.findByRole('button', { name: 'chat.message.flow.copy_topic.label' })).toBeInTheDocument()
   })
 
@@ -680,6 +730,6 @@ describe('TopicBranchPanel', () => {
         params: { id: 'topic-1' }
       })
     })
-    expect(window.toast.success).toHaveBeenCalledWith('chat.message.flow.copy_topic.created')
+    expect(toast.success).toHaveBeenCalledWith('chat.message.flow.copy_topic.created')
   })
 })

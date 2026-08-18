@@ -3,34 +3,26 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   listAgentsMock,
-  createAgentMock,
   getAgentMock,
   updateAgentMock,
-  deleteAgentMock,
-  restoreAgentMock,
   reorderMock,
   reorderBatchMock,
+  listAllTasksMock,
+  getTaskByIdMock,
   listTasksMock,
-  createTaskMock,
   getTaskMock,
-  updateTaskMock,
-  deleteTaskMock,
   listSkillsMock,
   getSkillByIdMock
 } = vi.hoisted(() => ({
   listAgentsMock: vi.fn(),
-  createAgentMock: vi.fn(),
   getAgentMock: vi.fn(),
   updateAgentMock: vi.fn(),
-  deleteAgentMock: vi.fn(),
-  restoreAgentMock: vi.fn(),
   reorderMock: vi.fn(),
   reorderBatchMock: vi.fn(),
+  listAllTasksMock: vi.fn(),
+  getTaskByIdMock: vi.fn(),
   listTasksMock: vi.fn(),
-  createTaskMock: vi.fn(),
   getTaskMock: vi.fn(),
-  updateTaskMock: vi.fn(),
-  deleteTaskMock: vi.fn(),
   listSkillsMock: vi.fn(),
   getSkillByIdMock: vi.fn()
 }))
@@ -38,11 +30,8 @@ const {
 vi.mock('@data/services/AgentService', () => ({
   agentService: {
     listAgents: listAgentsMock,
-    createAgent: createAgentMock,
     getAgent: getAgentMock,
     updateAgent: updateAgentMock,
-    deleteAgent: deleteAgentMock,
-    restoreAgent: restoreAgentMock,
     reorder: reorderMock,
     reorderBatch: reorderBatchMock
   }
@@ -50,11 +39,10 @@ vi.mock('@data/services/AgentService', () => ({
 
 vi.mock('@data/services/AgentTaskService', () => ({
   agentTaskService: {
+    listAllTasks: listAllTasksMock,
+    getTaskById: getTaskByIdMock,
     listTasks: listTasksMock,
-    createTask: createTaskMock,
-    getTask: getTaskMock,
-    updateTask: updateTaskMock,
-    deleteTask: deleteTaskMock
+    getTask: getTaskMock
   }
 }))
 
@@ -125,23 +113,6 @@ describe('agentHandlers', () => {
       })
     })
 
-    it('GET forwards inTrash to the service', async () => {
-      listAgentsMock.mockReturnValueOnce({ agents: [], total: 0 })
-
-      await agentHandlers['/agents'].GET({
-        query: {
-          inTrash: true
-        }
-      } as never)
-
-      expect(listAgentsMock).toHaveBeenCalledWith({
-        limit: 100,
-        offset: 0,
-        search: undefined,
-        inTrash: true
-      })
-    })
-
     it('GET rejects tagIds before calling the service', async () => {
       await expect(
         agentHandlers['/agents'].GET({
@@ -169,31 +140,8 @@ describe('agentHandlers', () => {
       expect(listAgentsMock).not.toHaveBeenCalled()
     })
 
-    it('delegates POST to agentService.createAgent', async () => {
-      createAgentMock.mockReturnValueOnce(mockAgent)
-
-      const result = await agentHandlers['/agents'].POST({
-        body: { type: 'claude-code', name: 'Test', model: 'anthropic::claude-3-5-sonnet' }
-      } as never)
-
-      expect(createAgentMock).toHaveBeenCalledOnce()
-      expect(result).toMatchObject({ id: AGENT_ID })
-    })
-
-    it('rejects POST when required fields are missing', async () => {
-      await expect(agentHandlers['/agents'].POST({ body: { name: 'Test' } } as never)).rejects.toMatchObject({
-        code: ErrorCode.VALIDATION_ERROR
-      })
-
-      expect(createAgentMock).not.toHaveBeenCalled()
-    })
-
-    it('rejects POST when model is missing', async () => {
-      await expect(
-        agentHandlers['/agents'].POST({ body: { type: 'claude-code', name: 'Test' } } as never)
-      ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
-
-      expect(createAgentMock).not.toHaveBeenCalled()
+    it('keeps filesystem-backed creation off DataApi', () => {
+      expect(agentHandlers['/agents']).not.toHaveProperty('POST')
     })
   })
 
@@ -235,63 +183,6 @@ describe('agentHandlers', () => {
       await expect(
         agentHandlers['/agents/:agentId'].PATCH({ params: { agentId: AGENT_ID }, body: {} } as never)
       ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
-    })
-
-    it('delegates DELETE', async () => {
-      deleteAgentMock.mockReturnValueOnce(true)
-
-      await expect(
-        agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } } as never)
-      ).resolves.toBeUndefined()
-
-      expect(deleteAgentMock).toHaveBeenCalledWith(AGENT_ID, { deleteSessions: false, permanent: false })
-    })
-
-    it('delegates DELETE with session cleanup when requested', async () => {
-      deleteAgentMock.mockResolvedValueOnce(true)
-
-      await expect(
-        agentHandlers['/agents/:agentId'].DELETE({
-          params: { agentId: AGENT_ID },
-          query: { deleteSessions: true }
-        } as never)
-      ).resolves.toBeUndefined()
-
-      expect(deleteAgentMock).toHaveBeenCalledWith(AGENT_ID, { deleteSessions: true, permanent: false })
-    })
-
-    it('forwards permanent to the service on DELETE', async () => {
-      deleteAgentMock.mockReturnValueOnce(true)
-
-      await expect(
-        agentHandlers['/agents/:agentId'].DELETE({
-          params: { agentId: AGENT_ID },
-          query: { permanent: true }
-        } as never)
-      ).resolves.toBeUndefined()
-
-      expect(deleteAgentMock).toHaveBeenCalledWith(AGENT_ID, { deleteSessions: false, permanent: true })
-    })
-
-    it('throws notFound when agent does not exist on DELETE', async () => {
-      deleteAgentMock.mockReturnValueOnce(false)
-
-      await expect(
-        agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } } as never)
-      ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
-    })
-  })
-
-  describe('/agents/:agentId/restore', () => {
-    it('delegates POST to agentService.restoreAgent', async () => {
-      restoreAgentMock.mockReturnValueOnce(mockAgent)
-
-      const result = await agentHandlers['/agents/:agentId/restore'].POST({
-        params: { agentId: AGENT_ID }
-      } as never)
-
-      expect(restoreAgentMock).toHaveBeenCalledWith(AGENT_ID)
-      expect(result).toMatchObject({ id: AGENT_ID })
     })
   })
 
@@ -352,6 +243,38 @@ describe('agentHandlers', () => {
     })
   })
 
+  // ── /agent-tasks ──────────────────────────────────────────────────────────
+
+  describe('/agent-tasks', () => {
+    it('delegates GET to taskService.listAllTasks with pagination', async () => {
+      listAllTasksMock.mockReturnValueOnce({ tasks: [mockTask], total: 11 })
+
+      const result = await agentHandlers['/agent-tasks'].GET({ query: { page: 2, limit: 10 } } as never)
+
+      expect(listAllTasksMock).toHaveBeenCalledWith({ limit: 10, offset: 10 })
+      expect(result).toMatchObject({ items: [mockTask], total: 11, page: 2 })
+    })
+  })
+
+  describe('/agent-tasks/:taskId', () => {
+    it('returns a task without requiring its owning Agent id', async () => {
+      getTaskByIdMock.mockReturnValueOnce(mockTask)
+
+      const result = await agentHandlers['/agent-tasks/:taskId'].GET({ params: { taskId: TASK_ID } } as never)
+
+      expect(getTaskByIdMock).toHaveBeenCalledWith(TASK_ID)
+      expect(result).toBe(mockTask)
+    })
+
+    it('throws not found when the task does not exist', async () => {
+      getTaskByIdMock.mockReturnValueOnce(null)
+
+      await expect(
+        agentHandlers['/agent-tasks/:taskId'].GET({ params: { taskId: TASK_ID } } as never)
+      ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+    })
+  })
+
   // ── /agents/:agentId/tasks ────────────────────────────────────────────────
 
   describe('/agents/:agentId/tasks', () => {
@@ -365,37 +288,6 @@ describe('agentHandlers', () => {
 
       expect(listTasksMock).toHaveBeenCalledWith(AGENT_ID, { limit: 50, offset: 0 })
       expect(result).toMatchObject({ items: [mockTask], total: 1, page: 1 })
-    })
-
-    it('delegates POST to agentTaskService.createTask', async () => {
-      createTaskMock.mockResolvedValueOnce(mockTask)
-
-      const result = await agentHandlers['/agents/:agentId/tasks'].POST({
-        params: { agentId: AGENT_ID },
-        body: {
-          name: 'Daily',
-          prompt: 'Hello',
-          trigger: { kind: 'cron', expr: '0 9 * * *' },
-          workspace: { type: 'system' }
-        }
-      } as never)
-
-      expect(createTaskMock).toHaveBeenCalledWith(
-        AGENT_ID,
-        expect.objectContaining({ name: 'Daily', prompt: 'Hello', workspace: { type: 'system' } })
-      )
-      expect(result).toMatchObject({ id: TASK_ID })
-    })
-
-    it('rejects POST when required task fields are missing', async () => {
-      await expect(
-        agentHandlers['/agents/:agentId/tasks'].POST({
-          params: { agentId: AGENT_ID },
-          body: { name: 'Daily' }
-        } as never)
-      ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
-
-      expect(createTaskMock).not.toHaveBeenCalled()
     })
 
     it('rejects invalid pagination query', async () => {
@@ -418,51 +310,6 @@ describe('agentHandlers', () => {
 
       await expect(
         agentHandlers['/agents/:agentId/tasks/:taskId'].GET({
-          params: { agentId: AGENT_ID, taskId: TASK_ID }
-        } as never)
-      ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
-    })
-
-    it('delegates PATCH to agentTaskService.updateTask and returns updated task', async () => {
-      updateTaskMock.mockResolvedValueOnce({ ...mockTask, name: 'Updated' })
-
-      const result = await agentHandlers['/agents/:agentId/tasks/:taskId'].PATCH({
-        params: { agentId: AGENT_ID, taskId: TASK_ID },
-        body: { name: 'Updated' }
-      } as never)
-
-      expect(updateTaskMock).toHaveBeenCalledWith(AGENT_ID, TASK_ID, expect.objectContaining({ name: 'Updated' }))
-      expect(result).toMatchObject({ name: 'Updated' })
-    })
-
-    it('throws notFound when task does not exist on PATCH', async () => {
-      updateTaskMock.mockResolvedValueOnce(null)
-
-      await expect(
-        agentHandlers['/agents/:agentId/tasks/:taskId'].PATCH({
-          params: { agentId: AGENT_ID, taskId: TASK_ID },
-          body: {}
-        } as never)
-      ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
-    })
-
-    it('delegates DELETE to agentTaskService.deleteTask', async () => {
-      deleteTaskMock.mockResolvedValueOnce(true)
-
-      await expect(
-        agentHandlers['/agents/:agentId/tasks/:taskId'].DELETE({
-          params: { agentId: AGENT_ID, taskId: TASK_ID }
-        } as never)
-      ).resolves.toBeUndefined()
-
-      expect(deleteTaskMock).toHaveBeenCalledWith(AGENT_ID, TASK_ID)
-    })
-
-    it('throws notFound when task does not exist on DELETE', async () => {
-      deleteTaskMock.mockResolvedValueOnce(false)
-
-      await expect(
-        agentHandlers['/agents/:agentId/tasks/:taskId'].DELETE({
           params: { agentId: AGENT_ID, taskId: TASK_ID }
         } as never)
       ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })

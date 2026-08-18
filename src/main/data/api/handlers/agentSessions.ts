@@ -7,27 +7,18 @@
  * session relation.
  */
 
-import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { toDataApiError } from '@shared/data/api/errors'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
-  AgentSessionMessagesListQuerySchema,
   type AgentSessionSchemas,
   CreateAgentSessionSchema,
-  DeleteAgentSessionQuerySchema,
-  DeleteAgentSessionsQuerySchema,
+  LatestAgentSessionQuerySchema,
   ListAgentSessionsQuerySchema,
-  RestoreAgentSessionsQuerySchema,
   SetAgentSessionWorkspaceSchema,
   UpdateAgentSessionSchema
 } from '@shared/data/api/schemas/agentSessions'
 import type { HandlersFor } from '@shared/data/api/types'
-import * as z from 'zod'
-
-const AgentSessionsParamsSchema = z.strictObject({
-  agentId: z.string().min(1)
-})
 
 export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
   '/agent-sessions': {
@@ -41,20 +32,14 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
       const parsed = CreateAgentSessionSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
       return agentSessionService.create(parsed.data)
-    },
-
-    DELETE: async ({ query }) => {
-      const parsed = DeleteAgentSessionsQuerySchema.safeParse(query)
-      if (!parsed.success) throw toDataApiError(parsed.error)
-      return agentSessionService.deleteByIds(parsed.data.ids, { permanent: parsed.data.permanent === true })
     }
   },
 
-  '/agent-sessions/restore': {
-    POST: async ({ query }) => {
-      const parsed = RestoreAgentSessionsQuerySchema.safeParse(query)
+  '/agent-sessions/latest': {
+    GET: async ({ query }) => {
+      const parsed = LatestAgentSessionQuerySchema.safeParse(query ?? {})
       if (!parsed.success) throw toDataApiError(parsed.error)
-      return agentSessionService.restoreByIds(parsed.data.ids)
+      return { session: agentSessionService.getLatestActive(parsed.data) }
     }
   },
 
@@ -67,20 +52,11 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
       const parsed = UpdateAgentSessionSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
       return agentSessionService.update(params.sessionId, parsed.data)
-    },
-
-    DELETE: async ({ params, query }) => {
-      const parsed = DeleteAgentSessionQuerySchema.safeParse(query ?? {})
-      if (!parsed.success) throw toDataApiError(parsed.error)
-      agentSessionService.delete(params.sessionId, { permanent: parsed.data.permanent === true })
-      return undefined
     }
   },
 
   '/agent-sessions/:sessionId/restore': {
-    POST: async ({ params }) => {
-      return agentSessionService.restore(params.sessionId)
-    }
+    POST: async ({ params }) => agentSessionService.restore(params.sessionId)
   },
 
   '/agent-sessions/:sessionId/workspace': {
@@ -88,29 +64,6 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
       const parsed = SetAgentSessionWorkspaceSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
       return agentSessionService.setWorkspace(params.sessionId, parsed.data)
-    }
-  },
-
-  '/agent-sessions/:sessionId/messages': {
-    GET: async ({ params, query }) => {
-      const parsed = AgentSessionMessagesListQuerySchema.safeParse(query ?? {})
-      if (!parsed.success) throw toDataApiError(parsed.error)
-      return agentSessionMessageService.listSessionMessages(params.sessionId, parsed.data)
-    }
-  },
-
-  '/agent-sessions/:sessionId/messages/:messageId': {
-    DELETE: async ({ params }) => {
-      agentSessionMessageService.deleteSessionMessage(params.sessionId, params.messageId)
-      return undefined
-    }
-  },
-
-  '/agents/:agentId/sessions': {
-    DELETE: async ({ params }) => {
-      const parsed = AgentSessionsParamsSchema.safeParse(params)
-      if (!parsed.success) throw toDataApiError(parsed.error)
-      return agentSessionService.deleteByAgentId(parsed.data.agentId)
     }
   },
 

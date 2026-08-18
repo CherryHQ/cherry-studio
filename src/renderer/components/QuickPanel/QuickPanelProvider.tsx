@@ -14,6 +14,11 @@ import type {
 } from './types'
 const QuickPanelContext = createContext<QuickPanelContextType | null>(null)
 
+type RegisteredKeyDownHandler = {
+  generation: number
+  handler: QuickPanelKeyDownHandler
+}
+
 export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
   const [isVisible, setIsVisible] = useState(false)
   const [symbol, setSymbol] = useState<string>('')
@@ -28,6 +33,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
   const [triggerInfo, setTriggerInfo] = useState<QuickPanelTriggerInfo | undefined>()
   const [queryAnchor, setQueryAnchor] = useState<number | undefined>()
   const [trackInputQuery, setTrackInputQuery] = useState<boolean>(false)
+  const [initialSearchText, setInitialSearchText] = useState<string | undefined>()
   const [parentPanel, setParentPanel] = useState<QuickPanelOpenOptions | undefined>()
   const [filterFn, setFilterFn] = useState<QuickPanelFilterFn | undefined>()
   const [sortFn, setSortFn] = useState<QuickPanelSortFn | undefined>()
@@ -38,7 +44,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
   const [fillToAvailableHeight, setFillToAvailableHeight] = useState(false)
 
   const clearTimer = useRef<number | null>(null)
-  const keyDownHandlerRef = useRef<QuickPanelKeyDownHandler | undefined>(undefined)
+  const keyDownHandlerRef = useRef<RegisteredKeyDownHandler | undefined>(undefined)
   const isMountedRef = useRef(true)
   const isVisibleRef = useRef(isVisible)
   const contextRef = useRef<QuickPanelContextType | null>(null)
@@ -113,6 +119,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       setTriggerInfo(options.triggerInfo)
       setQueryAnchor(options.queryAnchor ?? options.triggerInfo?.position)
       setTrackInputQuery(options.trackInputQuery ?? false)
+      setInitialSearchText(options.initialSearchText)
       setParentPanel(options.parentPanel)
 
       setOnClose(() => options.onClose)
@@ -132,6 +139,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
     (action?: QuickPanelCloseAction, searchText?: string) => {
       if (!isMountedRef.current) return
 
+      panelGenerationRef.current += 1
       // Keep imperative key dispatch in sync with close before React commits.
       isVisibleRef.current = false
       setIsVisible(false)
@@ -153,6 +161,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
         setTriggerInfo(undefined)
         setQueryAnchor(undefined)
         setTrackInputQuery(false)
+        setInitialSearchText(undefined)
         setParentPanel(undefined)
         setManageListExternally(false)
         setReadOnly(false)
@@ -174,10 +183,11 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
   }, [])
 
   const registerKeyDownHandler = useCallback((handler: QuickPanelKeyDownHandler | undefined) => {
-    keyDownHandlerRef.current = handler
+    const registeredHandler = handler ? { generation: panelGenerationRef.current, handler } : undefined
+    keyDownHandlerRef.current = registeredHandler
 
     return () => {
-      if (keyDownHandlerRef.current === handler) {
+      if (keyDownHandlerRef.current === registeredHandler) {
         keyDownHandlerRef.current = undefined
       }
     }
@@ -185,7 +195,9 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
 
   const dispatchKeyDown = useCallback((event: QuickPanelKeyDownEvent) => {
     if (!isVisibleRef.current) return false
-    return keyDownHandlerRef.current?.(event) ?? false
+    const registeredHandler = keyDownHandlerRef.current
+    if (!registeredHandler || registeredHandler.generation !== panelGenerationRef.current) return false
+    return registeredHandler.handler(event)
   }, [])
 
   const getPanelGeneration = useCallback(() => panelGenerationRef.current, [])
@@ -210,6 +222,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       triggerInfo,
       queryAnchor,
       trackInputQuery,
+      initialSearchText,
       parentPanel,
       lastCloseAction,
       filterFn,
@@ -243,6 +256,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       triggerInfo,
       queryAnchor,
       trackInputQuery,
+      initialSearchText,
       parentPanel,
       lastCloseAction,
       filterFn,

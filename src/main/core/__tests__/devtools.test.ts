@@ -54,16 +54,18 @@ describe('installDevtoolsExtensions', () => {
     vi.clearAllMocks()
     platformMock.isDev = true
     installExtensionMock.mockResolvedValue('React Developer Tools')
-    loadExtensionMock.mockResolvedValue({ name: 'DataApi DevTools' })
+    loadExtensionMock.mockResolvedValue({ id: 'data-api-extension-id', name: 'DataApi DevTools' })
   })
 
-  it('installs React and DataApi devtools in development', async () => {
+  it('installs React and the bundled data-api devtool in development', async () => {
     await installDevtoolsExtensions()
 
     expect(installExtensionMock).toHaveBeenCalledWith('react-devtools')
     expect(loadExtensionMock).toHaveBeenCalledWith('/mock/app.root.resources/devtools/data-api')
     expect(loggerMock.info).toHaveBeenCalledWith('Added Extension: React Developer Tools')
     expect(loggerMock.info).toHaveBeenCalledWith('Added Extension: DataApi DevTools')
+    // main-network is no longer installed by core — its service installs its own panel.
+    expect(loadExtensionMock).not.toHaveBeenCalledWith('/mock/app.root.resources/devtools/main-network')
   })
 
   it('logs install failures without throwing', async () => {

@@ -1,7 +1,8 @@
-import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel/symbols'
+import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { render, waitFor } from '@testing-library/react'
+import type * as LucideReact from 'lucide-react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { KnowledgeBaseToolRuntime } from '../KnowledgeBaseButton'
@@ -9,6 +10,7 @@ import { KnowledgeBaseToolRuntime } from '../KnowledgeBaseButton'
 const mocks = vi.hoisted(() => ({
   knowledgeBases: [] as KnowledgeBase[],
   language: 'en',
+  knowledgeQueryOptions: vi.fn(),
   translationSuffix: '',
   quickPanel: {
     isVisible: false,
@@ -22,10 +24,14 @@ vi.mock('@renderer/components/QuickPanel', () => ({
 }))
 
 vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
-  useKnowledgeBases: () => ({ bases: mocks.knowledgeBases })
+  useKnowledgeBases: (options?: { enabled?: boolean }) => {
+    mocks.knowledgeQueryOptions(options)
+    return { bases: mocks.knowledgeBases, isLoading: false }
+  }
 }))
 
-vi.mock('lucide-react', () => ({
+vi.mock('lucide-react', async (importOriginal) => ({
+  ...(await importOriginal<typeof LucideReact>()),
   FileSearch: () => <span data-testid="file-search-icon" />
 }))
 
@@ -70,6 +76,7 @@ describe('KnowledgeBaseToolRuntime', () => {
     mocks.quickPanel.isVisible = false
     mocks.quickPanel.symbol = ''
     mocks.quickPanel.updateList.mockReset()
+    mocks.knowledgeQueryOptions.mockReset()
     mocks.language = 'en'
     mocks.translationSuffix = ''
     mocks.knowledgeBases = [
@@ -172,6 +179,7 @@ describe('KnowledgeBaseToolRuntime', () => {
     render(<KnowledgeBaseToolRuntime launcher={launcher} configuredKnowledgeBaseIds={[]} onSelect={onSelect} />)
 
     await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
+    expect(mocks.knowledgeQueryOptions).toHaveBeenLastCalledWith({ enabled: false })
 
     const [knowledgeLauncher] = vi.mocked(launcher.registerLaunchers).mock.calls[0][0]
     expect(knowledgeLauncher).toMatchObject({
@@ -185,6 +193,8 @@ describe('KnowledgeBaseToolRuntime', () => {
       source: 'root-panel',
       triggerInfo: { type: 'button' }
     } as never)
+
+    await waitFor(() => expect(mocks.knowledgeQueryOptions).toHaveBeenLastCalledWith({ enabled: true }))
 
     expect(quickPanel.open).toHaveBeenCalledWith(
       expect.objectContaining({

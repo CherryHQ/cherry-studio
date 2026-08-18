@@ -13,7 +13,8 @@ import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CreateMcpServerDto, ListMcpServersQuery, UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import { and, asc, eq, type SQL, sql } from 'drizzle-orm'
+import { BuiltinMcpServerNames } from '@shared/utils/mcp'
+import { and, asc, eq, inArray, type SQL, sql } from 'drizzle-orm'
 
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
@@ -83,6 +84,7 @@ export class McpServerService {
    */
   create(dto: CreateMcpServerDto): McpServer {
     this.validateName(dto.name)
+    this.validateQVerisConfiguration({ name: dto.name, env: dto.env, isActive: dto.isActive ?? false })
 
     const { sortOrder, isActive, ...rest } = dto
 
@@ -101,25 +103,73 @@ export class McpServerService {
     return rowToMcpServer(row)
   }
 
+  createMany(dtos: CreateMcpServerDto[]): McpServer[] {
+    const created = application.get('DbService').withWriteTx((tx) => {
+      const names = new Set<string>()
+      for (const dto of dtos) {
+        this.validateName(dto.name)
+        this.validateQVerisConfiguration({ name: dto.name, env: dto.env, isActive: dto.isActive ?? false })
+        if (names.has(dto.name)) {
+          throw DataApiErrorFactory.conflict(`MCP server '${dto.name}' already exists`, 'McpServer')
+        }
+        names.add(dto.name)
+      }
+
+      const existing = tx
+        .select({ name: mcpServerTable.name })
+        .from(mcpServerTable)
+        .where(inArray(mcpServerTable.name, [...names]))
+        .get()
+      if (existing) {
+        throw DataApiErrorFactory.conflict(`MCP server '${existing.name}' already exists`, 'McpServer')
+      }
+
+      return dtos.map(({ sortOrder, isActive, ...rest }) => {
+        const [row] = tx
+          .insert(mcpServerTable)
+          .values({
+            ...rest,
+            sortOrder: sortOrder ?? 0,
+            isActive: isActive ?? false
+          })
+          .returning()
+          .all()
+        return row
+      })
+    })
+
+    logger.info('Created MCP servers', { count: created.length })
+    return created.map(rowToMcpServer)
+  }
+
   /**
    * Update an existing MCP server
    */
   update(id: string, dto: UpdateMcpServerDto): McpServer {
-    this.getById(id)
+    const result = application.get('DbService').withWriteTx((tx) => {
+      const [existingRow] = tx.select().from(mcpServerTable).where(eq(mcpServerTable.id, id)).limit(1).all()
+      if (!existingRow) {
+        throw DataApiErrorFactory.notFound('McpServer', id)
+      }
 
-    if (dto.name !== undefined) {
-      this.validateName(dto.name)
-    }
+      const existing = rowToMcpServer(existingRow)
+      const name = dto.name ?? existing.name
+      const env = dto.env ?? existing.env
+      const isActive = dto.isActive ?? existing.isActive
 
-    const updates = Object.fromEntries(Object.entries(dto).filter(([, v]) => v !== undefined)) as Partial<
-      typeof mcpServerTable.$inferInsert
-    >
+      this.validateName(name)
+      this.validateQVerisConfiguration({ name, env, isActive })
 
-    const [row] = this.db.update(mcpServerTable).set(updates).where(eq(mcpServerTable.id, id)).returning().all()
+      const updates = Object.fromEntries(Object.entries(dto).filter(([, v]) => v !== undefined)) as Partial<
+        typeof mcpServerTable.$inferInsert
+      >
+      const [row] = tx.update(mcpServerTable).set(updates).where(eq(mcpServerTable.id, id)).returning().all()
+      return rowToMcpServer(row)
+    })
 
     logger.info('Updated MCP server', { id, changes: Object.keys(dto) })
 
-    return rowToMcpServer(row)
+    return result
   }
 
   /**
@@ -154,7 +204,7 @@ export class McpServerService {
     // reject delete() — the server row is already gone. Log the un-refreshed
     // agents so warm sessions can be reconciled, then swallow.
     try {
-      agentService.emitAgentUpdatedForIds(affectedAgentIds)
+      agentService.emitAgentUpdatedForIds(affectedAgentIds, 'mcps')
     } catch (error) {
       logger.error('MCP server deleted but agent refresh failed; affected agents may retain stale tool policy', {
         mcpServerId: id,
@@ -182,6 +232,12 @@ export class McpServerService {
   private validateName(name: string): void {
     if (!name?.trim()) {
       throw DataApiErrorFactory.validation({ name: ['Name is required'] })
+    }
+  }
+
+  private validateQVerisConfiguration(server: Pick<McpServer, 'name' | 'env' | 'isActive'>): void {
+    if (server.name === BuiltinMcpServerNames.qveris && server.isActive && !server.env?.QVERIS_API_KEY?.trim()) {
+      throw DataApiErrorFactory.validation({ env: ['QVERIS_API_KEY is required when QVeris is enabled'] })
     }
   }
 }

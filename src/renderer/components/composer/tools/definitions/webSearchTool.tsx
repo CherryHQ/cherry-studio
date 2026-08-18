@@ -1,6 +1,7 @@
-import { defineTool, registerTool, TopicType } from '@renderer/components/composer/tools/types'
+import { defineTool } from '@renderer/components/composer/tools/types'
 
 import { WebSearchToolRuntime } from '../components/WebSearchButton'
+import { WEB_SEARCH_TOOLBAR_MANIFEST } from '../toolbarManifests'
 
 /**
  * Web Search Tool
@@ -12,15 +13,13 @@ import { WebSearchToolRuntime } from '../components/WebSearchButton'
  */
 const webSearchTool = defineTool({
   key: 'web_search',
-  label: (t) => t('chat.input.web_search.label'),
+  label: WEB_SEARCH_TOOLBAR_MANIFEST.label,
 
-  visibleInScopes: [TopicType.Chat],
+  visibleInScopes: WEB_SEARCH_TOOLBAR_MANIFEST.visibleInScopes,
 
   composer: {
     runtime: ({ context }) => <WebSearchToolRuntime assistantId={context.assistant!.id} launcher={context.launcher} />
   }
 })
-
-registerTool(webSearchTool)
 
 export default webSearchTool

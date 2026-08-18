@@ -1,14 +1,15 @@
 // Load the sibling so it self-registers in the data-service registry (prod loads it via its DataApi handler).
 import '@data/services/ProviderRegistryService'
 
+import { application } from '@application'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { providerService } from '@data/services/ProviderService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { ErrorCode } from '@shared/data/api/errors'
 import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { setupTestDatabase } from '@test-helpers/db'
-import { asc, eq } from 'drizzle-orm'
-import { describe, expect, it } from 'vitest'
+import { asc, eq, sql } from 'drizzle-orm'
+import { describe, expect, it, type Mock } from 'vitest'
 
 describe('ProviderService reorder', () => {
   const dbh = setupTestDatabase()
@@ -59,6 +60,69 @@ describe('ProviderService reorder', () => {
     providerService.move('gemini', { position: 'first' })
 
     expect(await readOrder()).toEqual(['gemini', 'openai', 'anthropic'])
+  })
+
+  it('moves a provider to the first position when update enables it', async () => {
+    await seedProviders()
+
+    const updated = providerService.update('gemini', { isEnabled: true, name: 'Gemini OAuth' })
+
+    expect(updated.isEnabled).toBe(true)
+    expect(updated.name).toBe('Gemini OAuth')
+    expect(await readOrder()).toEqual(['gemini', 'openai', 'anthropic'])
+
+    const [row] = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'gemini'))
+    expect(row.isEnabled).toBe(true)
+    expect(row.name).toBe('Gemini OAuth')
+  })
+
+  it('rolls back the order move when the enable update fails', async () => {
+    await seedProviders()
+
+    const withWriteTx = application.get('DbService').withWriteTx as Mock
+    withWriteTx.mockImplementationOnce((fn: (tx: unknown) => unknown) => dbh.db.transaction(fn as never))
+    dbh.db.run(
+      sql.raw(`
+      CREATE TRIGGER fail_provider_enable_update
+      BEFORE UPDATE OF is_enabled ON user_provider
+      WHEN NEW.provider_id = 'gemini'
+      BEGIN
+        SELECT RAISE(ABORT, 'forced provider enable update failure');
+      END;
+    `)
+    )
+
+    try {
+      expect(() => providerService.update('gemini', { isEnabled: true })).toThrow(
+        'forced provider enable update failure'
+      )
+    } finally {
+      dbh.db.run(sql.raw('DROP TRIGGER IF EXISTS fail_provider_enable_update'))
+    }
+
+    const [row] = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'gemini'))
+    expect(row.isEnabled).toBe(false)
+    expect(await readOrder()).toEqual(['openai', 'anthropic', 'gemini'])
+  })
+
+  it('preserves user order when update receives a redundant enabled state', async () => {
+    await seedProviders()
+    await dbh.db.update(userProviderTable).set({ isEnabled: true }).where(eq(userProviderTable.providerId, 'gemini'))
+
+    const updated = providerService.update('gemini', { isEnabled: true })
+
+    expect(updated.isEnabled).toBe(true)
+    expect(await readOrder()).toEqual(['openai', 'anthropic', 'gemini'])
+  })
+
+  it('preserves user order when update disables a provider', async () => {
+    await seedProviders()
+    await dbh.db.update(userProviderTable).set({ isEnabled: true }).where(eq(userProviderTable.providerId, 'gemini'))
+
+    const updated = providerService.update('gemini', { isEnabled: false })
+
+    expect(updated.isEnabled).toBe(false)
+    expect(await readOrder()).toEqual(['openai', 'anthropic', 'gemini'])
   })
 
   it('moves a provider after an anchor', async () => {

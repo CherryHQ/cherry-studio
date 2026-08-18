@@ -1,25 +1,33 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { listMock, createMock, getByIdMock, updateMock, deleteMock, restoreMock, reorderMock, reorderBatchMock } =
-  vi.hoisted(() => ({
-    listMock: vi.fn(),
-    createMock: vi.fn(),
-    getByIdMock: vi.fn(),
-    updateMock: vi.fn(),
-    deleteMock: vi.fn(),
-    restoreMock: vi.fn(),
-    reorderMock: vi.fn(),
-    reorderBatchMock: vi.fn()
-  }))
+const {
+  listMock,
+  createMock,
+  createFromImportMock,
+  getByIdMock,
+  updateMock,
+  deleteMock,
+  reorderMock,
+  reorderBatchMock
+} = vi.hoisted(() => ({
+  listMock: vi.fn(),
+  createMock: vi.fn(),
+  createFromImportMock: vi.fn(),
+  getByIdMock: vi.fn(),
+  updateMock: vi.fn(),
+  deleteMock: vi.fn(),
+  reorderMock: vi.fn(),
+  reorderBatchMock: vi.fn()
+}))
 
 vi.mock('@data/services/AssistantService', () => ({
   assistantDataService: {
     list: listMock,
     create: createMock,
+    createFromImport: createFromImportMock,
     getById: getByIdMock,
     update: updateMock,
     delete: deleteMock,
-    restore: restoreMock,
     reorder: reorderMock,
     reorderBatch: reorderBatchMock
   }
@@ -29,7 +37,7 @@ import { assistantHandlers } from '../assistants'
 
 const ASSISTANT_ID = '11111111-1111-4111-8111-111111111111'
 const OTHER_ASSISTANT_ID = '33333333-3333-4333-8333-333333333333'
-const TAG_ID = '22222222-2222-4222-8222-222222222222'
+const GROUP_ID = '22222222-2222-4222-8222-222222222222'
 
 describe('assistantHandlers', () => {
   beforeEach(() => {
@@ -42,6 +50,7 @@ describe('assistantHandlers', () => {
 
       await assistantHandlers['/assistants'].GET({
         query: {
+          groupId: GROUP_ID,
           updatedAtFrom: '2026-05-01T00:00:00.000Z',
           sortBy: 'updatedAt',
           sortOrder: 'desc'
@@ -49,36 +58,13 @@ describe('assistantHandlers', () => {
       } as never)
 
       expect(listMock).toHaveBeenCalledWith({
+        groupId: GROUP_ID,
         updatedAtFrom: '2026-05-01T00:00:00.000Z',
         sortBy: 'updatedAt',
         sortOrder: 'desc',
         page: 1,
         limit: 100
       })
-    })
-
-    it('should forward inTrash list queries', async () => {
-      listMock.mockResolvedValueOnce({ items: [], total: 0, page: 1 })
-
-      await assistantHandlers['/assistants'].GET({
-        query: { inTrash: true }
-      } as never)
-
-      expect(listMock).toHaveBeenCalledWith({
-        inTrash: true,
-        page: 1,
-        limit: 100
-      })
-    })
-
-    it('should reject non-boolean inTrash before calling the service', async () => {
-      await expect(
-        assistantHandlers['/assistants'].GET({
-          query: { inTrash: 'yes' }
-        } as never)
-      ).rejects.toHaveProperty('name', 'ZodError')
-
-      expect(listMock).not.toHaveBeenCalled()
     })
 
     it('should reject legacy numeric updatedAtFrom and orderBy list params', async () => {
@@ -135,30 +121,53 @@ describe('assistantHandlers', () => {
 
       expect(createMock).not.toHaveBeenCalled()
     })
+  })
 
-    it('should reject deletedAt writes on create (restore goes through the restore endpoint)', async () => {
+  describe('/assistants:import', () => {
+    it('forwards a normalized legacy import payload, including long group names', async () => {
+      const longGroupName = `  ${'x'.repeat(65)}  `
+      createFromImportMock.mockResolvedValueOnce({ id: ASSISTANT_ID, name: 'Imported Assistant' })
+
       await expect(
-        assistantHandlers['/assistants'].POST({
-          body: { name: 'New Assistant', deletedAt: '2026-06-01T00:00:00.000Z' }
+        assistantHandlers['/assistants:import'].POST({
+          body: {
+            name: 'Imported Assistant',
+            prompt: 'legacy prompt',
+            groupName: longGroupName
+          }
+        } as never)
+      ).resolves.toMatchObject({ id: ASSISTANT_ID })
+
+      expect(createFromImportMock).toHaveBeenCalledWith({
+        name: 'Imported Assistant',
+        prompt: 'legacy prompt',
+        groupName: 'x'.repeat(65)
+      })
+    })
+
+    it('rejects fields outside the legacy import contract', async () => {
+      await expect(
+        assistantHandlers['/assistants:import'].POST({
+          body: { name: 'Imported Assistant', prompt: 'legacy prompt', groupId: GROUP_ID }
         } as never)
       ).rejects.toHaveProperty('name', 'ZodError')
 
-      expect(createMock).not.toHaveBeenCalled()
+      expect(createFromImportMock).not.toHaveBeenCalled()
     })
   })
 
   describe('/assistants/:id', () => {
-    it('should forward tag-only PATCH bodies without defaulted column fields', async () => {
+    it('should forward group-only PATCH bodies without defaulted column fields', async () => {
       updateMock.mockResolvedValueOnce({ id: ASSISTANT_ID, name: 'Existing Assistant' })
 
       await expect(
         assistantHandlers['/assistants/:id'].PATCH({
           params: { id: ASSISTANT_ID },
-          body: { tagIds: [TAG_ID] }
+          body: { groupId: GROUP_ID }
         } as never)
       ).resolves.toMatchObject({ id: ASSISTANT_ID })
 
-      expect(updateMock).toHaveBeenCalledWith(ASSISTANT_ID, { tagIds: [TAG_ID] })
+      expect(updateMock).toHaveBeenCalledWith(ASSISTANT_ID, { groupId: GROUP_ID })
     })
 
     it('should forward relation-only PATCH bodies without defaulted column fields', async () => {
@@ -203,11 +212,22 @@ describe('assistantHandlers', () => {
       expect(updateMock).toHaveBeenCalledWith(ASSISTANT_ID, { settings: { maxTokens: 8192 } })
     })
 
-    it('should reject invalid tag ids before calling the service', async () => {
+    it('should reject an invalid group id before calling the service', async () => {
       await expect(
         assistantHandlers['/assistants/:id'].PATCH({
           params: { id: ASSISTANT_ID },
-          body: { tagIds: ['not-a-uuid'] }
+          body: { groupId: 'not-a-uuid' }
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(updateMock).not.toHaveBeenCalled()
+    })
+
+    it('should reject the removed tagIds field before calling the service', async () => {
+      await expect(
+        assistantHandlers['/assistants/:id'].PATCH({
+          params: { id: ASSISTANT_ID },
+          body: { tagIds: [GROUP_ID] }
         } as never)
       ).rejects.toHaveProperty('name', 'ZodError')
 
@@ -225,74 +245,27 @@ describe('assistantHandlers', () => {
       expect(updateMock).not.toHaveBeenCalled()
     })
 
-    it('should reject deletedAt writes on update (restore goes through the restore endpoint)', async () => {
-      await expect(
-        assistantHandlers['/assistants/:id'].PATCH({
-          params: { id: ASSISTANT_ID },
-          body: { deletedAt: null }
-        } as never)
-      ).rejects.toHaveProperty('name', 'ZodError')
-
-      expect(updateMock).not.toHaveBeenCalled()
-    })
-
     it('should forward DELETE with historical topic preservation by default', async () => {
-      deleteMock.mockResolvedValueOnce(undefined)
+      deleteMock.mockReturnValueOnce({ deleted: true })
 
       await expect(
         assistantHandlers['/assistants/:id'].DELETE({ params: { id: ASSISTANT_ID } } as never)
-      ).resolves.toBeUndefined()
+      ).resolves.toEqual({ deleted: true, deletedTopicIds: undefined })
 
-      expect(deleteMock).toHaveBeenCalledWith(ASSISTANT_ID, { deleteTopics: false, permanent: false })
+      expect(deleteMock).toHaveBeenCalledWith(ASSISTANT_ID, { deleteTopics: false })
     })
 
     it('should forward DELETE with topic cleanup when requested', async () => {
-      deleteMock.mockResolvedValueOnce(undefined)
+      deleteMock.mockReturnValueOnce({ deleted: true, deletedTopicIds: ['topic-1'] })
 
       await expect(
         assistantHandlers['/assistants/:id'].DELETE({
           params: { id: ASSISTANT_ID },
           query: { deleteTopics: true }
         } as never)
-      ).resolves.toBeUndefined()
+      ).resolves.toEqual({ deleted: true, deletedTopicIds: ['topic-1'] })
 
-      expect(deleteMock).toHaveBeenCalledWith(ASSISTANT_ID, { deleteTopics: true, permanent: false })
-    })
-
-    it('should forward DELETE with permanent=true when requested', async () => {
-      deleteMock.mockResolvedValueOnce(undefined)
-
-      await expect(
-        assistantHandlers['/assistants/:id'].DELETE({
-          params: { id: ASSISTANT_ID },
-          query: { permanent: true }
-        } as never)
-      ).resolves.toBeUndefined()
-
-      expect(deleteMock).toHaveBeenCalledWith(ASSISTANT_ID, { deleteTopics: false, permanent: true })
-    })
-
-    it('should reject non-boolean permanent before calling the service', async () => {
-      await expect(
-        assistantHandlers['/assistants/:id'].DELETE({
-          params: { id: ASSISTANT_ID },
-          query: { permanent: 'true' }
-        } as never)
-      ).rejects.toHaveProperty('name', 'ZodError')
-
-      expect(deleteMock).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('/assistants/:id/restore', () => {
-    it('should forward restore to the service and return the restored entity', async () => {
-      restoreMock.mockReturnValueOnce({ id: ASSISTANT_ID, name: 'Restored Assistant' })
-
-      await expect(
-        assistantHandlers['/assistants/:id/restore'].POST({ params: { id: ASSISTANT_ID } } as never)
-      ).resolves.toMatchObject({ id: ASSISTANT_ID, name: 'Restored Assistant' })
-
-      expect(restoreMock).toHaveBeenCalledWith(ASSISTANT_ID)
+      expect(deleteMock).toHaveBeenCalledWith(ASSISTANT_ID, { deleteTopics: true })
     })
   })
 

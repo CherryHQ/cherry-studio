@@ -10,16 +10,12 @@
  * Both modes live in the shared `knowledgeLookup` core so the Claude Code MCP bridge runs identical
  * logic; this file is just the AI-SDK `tool()` wrapper.
  *
- * Scope: when `assistant.knowledgeBaseIds` is non-empty, only those bases are reachable; when empty,
- * all user bases are.
+ * Scope: when the effective scope (the assistant's static binding narrowed by the composer's per-turn
+ * selection, or that selection alone when there is no binding — see `resolveKnowledgeBaseScope`) is
+ * non-empty, only those bases are reachable. The tool is not exposed when that scope is empty.
  */
 
-import {
-  KB_LIST_TOOL_NAME,
-  kbListOutputSchema,
-  kbListStrictInputSchema,
-  kbTreeOutputSchema
-} from '@shared/ai/builtinTools'
+import { KB_LIST_TOOL_NAME, kbListInputSchema, kbListOutputSchema, kbTreeOutputSchema } from '@shared/ai/builtinTools'
 import { tool } from 'ai'
 import * as z from 'zod'
 
@@ -40,12 +36,11 @@ const knowledgeListResultSchema = z.union([kbListOutputSchema, kbTreeOutputSchem
 
 const kbListTool = tool({
   description: KNOWLEDGE_LIST_DESCRIPTION,
-  inputSchema: kbListStrictInputSchema,
+  inputSchema: kbListInputSchema,
   outputSchema: knowledgeListResultSchema,
-  strict: true,
   execute: async (input, options) => {
     const { request } = getToolCallContext(options)
-    return listOrOutlineKnowledge(input, request.assistant?.knowledgeBaseIds ?? [])
+    return listOrOutlineKnowledge(input, request.knowledgeBaseIds ?? [])
   },
   toModelOutput: ({ input, output }) => knowledgeListModelOutput(output, input)
 })
@@ -58,9 +53,9 @@ export function createKbListToolEntry(): ToolEntry {
     defer: 'never',
     tool: kbListTool,
     // Discovery entry point, always inlined (defer: 'never') — but gated identically to kb_search /
-    // kb_read / kb_manage: a base must exist AND be bound to this assistant. Listing every base while
-    // none are bound (no kb_read / kb_search to act on them) is a discovery dead-end and widens the
-    // per-assistant scope, so kb_list shares the siblings' gate.
-    applies: (scope) => scope.hasAnyKnowledgeBase === true && (scope.assistant?.knowledgeBaseIds?.length ?? 0) > 0
+    // kb_read / kb_manage: a base must exist AND be in scope (bound to this assistant, or selected
+    // this turn). Listing every base while none are in scope (no kb_read / kb_search to act on them)
+    // is a discovery dead-end and widens the scope, so kb_list shares the siblings' gate.
+    applies: (scope) => scope.hasAnyKnowledgeBase === true && (scope.knowledgeBaseIds?.length ?? 0) > 0
   }
 }

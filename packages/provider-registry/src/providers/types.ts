@@ -8,7 +8,7 @@
  * as `"{name} - AI model provider"`). The GENERATION-only fields below (`modelsDevProvider` / `fetchModels`
  * / `overrides`) drive `provider-models.json` and are NOT emitted to `providers.json`.
  */
-import type { ApiFeatures, ProviderConfig } from '../schemas/provider'
+import type { ApiFeatures, ProviderConfig, ProviderReasoningFormat, ServerToolConfig } from '../schemas/provider'
 import type { ProviderModelOverride } from '../schemas/provider-models'
 
 /**
@@ -18,18 +18,44 @@ import type { ProviderModelOverride } from '../schemas/provider-models'
  */
 type ProviderConnection = Omit<
   ProviderConfig,
-  'description' | 'endpointConfigs' | 'defaultChatEndpoint' | 'apiFeatures' | 'modelListSource'
+  | 'description'
+  | 'endpointConfigs'
+  | 'defaultChatEndpoint'
+  | 'apiFeatures'
+  | 'modelListSource'
+  | 'authOptional'
+  | 'serverTools'
 > & {
   endpointConfigs: Partial<ProviderConfig['endpointConfigs']>
   defaultChatEndpoint?: ProviderConfig['defaultChatEndpoint']
   /** Defaults to `api`; only registry-backed providers need to declare it. */
   modelListSource?: ProviderConfig['modelListSource']
+  /** Defaults to `false`; only credential-free local providers declare it. */
+  authOptional?: ProviderConfig['authOptional']
+  /** Defaults to `[]`; only providers that natively serve built-in tools declare it. */
+  serverTools?: ProviderServerToolConfig[]
   /** Only the non-default flags are declared; the schema fills the rest at load time. */
   apiFeatures?: Partial<ApiFeatures>
 }
 
+/**
+ * Provider-authored server-tool declaration. Model selectors are generation-only:
+ * they compile to exact provider/model/tool rows and are omitted from providers.json.
+ */
+export type ProviderServerToolConfig = ServerToolConfig & {
+  /** Canonical model-id prefixes served by this provider. */
+  modelIdPrefixes?: string[]
+  /** Exact canonical model ids served by this provider. */
+  modelIds?: string[]
+  /** Exact image-generation models explicitly allowed despite the default image exclusion. */
+  imageModelIds?: string[]
+}
+
 /** A provider as emitted to `providers.json`: the connection config plus its templated `description`. */
-export type ProviderEntry = ProviderConnection & { description: string }
+export type ProviderEntry = Omit<ProviderConnection, 'serverTools'> & {
+  description: string
+  serverTools?: ProviderConfig['serverTools']
+}
 
 /** A provider's website links (official / docs / apiKey / models). */
 type ProviderWebsite = ProviderConfig['metadata']['website']
@@ -39,7 +65,7 @@ export interface Provider extends ProviderConnection {
   modelsDevProvider?: string
   /** …or fetch the served list from the provider's own `/models` API (see `../creators/_api.ts`). */
   fetchModels?: () => Promise<{ id: string }[]>
-  /** Manual overrides — for what the runtime can't derive (bedrock arns, `disabled`, `imageGeneration`). */
+  /** Manual overrides — for exact model ids, pricing, transports, reasoning contracts, and status. */
   overrides?: Partial<ProviderModelOverride>[]
 }
 
@@ -64,10 +90,21 @@ export function openaiCompatible(
     website: ProviderWebsite
     apiFeatures?: Partial<ApiFeatures>
     presetProviderId?: string
+    /**
+     * The chat endpoint's base protocol plus any endpoint-wide wire override.
+     * Exact provider-model exceptions belong in endpoint-keyed `reasoningContracts`.
+     */
+    reasoningFormat?: ProviderReasoningFormat
+    authOptional?: ProviderConfig['authOptional']
+    serverTools?: ProviderServerToolConfig[]
   } & GenFields
 ): Provider {
   const endpointConfigs: ProviderConnection['endpointConfigs'] = {
-    'openai-chat-completions': { adapterFamily: 'openai-compatible', baseUrl: p.baseUrl }
+    'openai-chat-completions': {
+      adapterFamily: 'openai-compatible',
+      baseUrl: p.baseUrl,
+      ...(p.reasoningFormat ? { reasoningFormat: p.reasoningFormat } : {})
+    }
   }
   if (p.anthropic) endpointConfigs['anthropic-messages'] = { adapterFamily: 'anthropic', baseUrl: p.anthropic }
   return defineProvider({
@@ -77,6 +114,8 @@ export function openaiCompatible(
     endpointConfigs,
     metadata: { website: p.website },
     ...(p.apiFeatures ? { apiFeatures: p.apiFeatures } : {}),
+    ...(p.authOptional ? { authOptional: p.authOptional } : {}),
+    ...(p.serverTools ? { serverTools: p.serverTools } : {}),
     ...(p.presetProviderId ? { presetProviderId: p.presetProviderId } : {}),
     ...(p.modelsDevProvider ? { modelsDevProvider: p.modelsDevProvider } : {}),
     ...(p.fetchModels ? { fetchModels: p.fetchModels } : {}),

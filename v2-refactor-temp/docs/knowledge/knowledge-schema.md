@@ -25,8 +25,6 @@ This document records the current V2 knowledge target schema, migration constrai
   - `chunkOverlap`
   - `threshold`
   - `documentCount`
-  - `searchMode`
-  - `hybridAlpha`
   - `createdAt`
   - `updatedAt`
 

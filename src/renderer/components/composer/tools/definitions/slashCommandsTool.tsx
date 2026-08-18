@@ -1,15 +1,16 @@
+import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
-import { defineTool, registerTool, TopicType } from '@renderer/components/composer/tools/types'
+import { defineTool, TopicType } from '@renderer/components/composer/tools/types'
 import { type QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
-import { getBuiltinSlashCommands } from '@shared/ai/agentSlashCommands'
 import { Terminal } from 'lucide-react'
+
+import { getBuiltinSlashCommands } from './agentSlashCommands'
 
 const SLASH_COMMAND_DESCRIPTION_KEYS: Record<string, string> = {
   '/clear': 'chat.input.slash_commands.commands.clear',
   '/compact': 'chat.input.slash_commands.commands.compact',
   '/context': 'chat.input.slash_commands.commands.context',
-  '/cost': 'chat.input.slash_commands.commands.cost',
-  '/todos': 'chat.input.slash_commands.commands.todos'
+  '/usage': 'chat.input.slash_commands.commands.usage'
 }
 
 /**
@@ -58,7 +59,12 @@ const slashCommandsTool = defineTool({
     menuItems: {
       createItems: (context) => {
         const { session, actions, t } = context
-        const slashCommands = getBuiltinSlashCommands(session?.agentType)
+        const slashCommandsLabel = t('chat.input.slash_commands.title')
+        // Prefer the live SDK catalog for this session (custom commands included); fall back to the
+        // static builtin list before the runtime has reported one (e.g. first paint, no run yet).
+        const slashCommands = session?.slashCommands?.length
+          ? session.slashCommands
+          : getBuiltinSlashCommands(session?.agentType)
 
         if (slashCommands.length === 0) {
           return []
@@ -73,11 +79,15 @@ const slashCommandsTool = defineTool({
             id: `slash-command:${cmd.command}`,
             kind: 'command' as const,
             sources: ['root-panel'] as const,
-            // Render below caller additional items (e.g. agent skills) in the root panel.
+            // Render below regular root-panel launchers such as Skills.
             rootPanelPlacement: 'trailing' as const,
             order: 20 + (index + 1) / 100,
             label: cmd.command,
             description: descriptionKey ? t(descriptionKey, cmd.description || '') : cmd.description || '',
+            searchAliases: [
+              slashCommandsLabel,
+              ...(descriptionKey ? getQuickPanelSearchAliases(t, descriptionKey) : [])
+            ],
             icon: <Terminal size={16} />,
             action: ({ inputAdapter }) => {
               insertSlashCommand(cmd.command, actions.onTextChange, inputAdapter)
@@ -92,6 +102,5 @@ const slashCommandsTool = defineTool({
 })
 
 // Register the tool
-registerTool(slashCommandsTool)
 
 export default slashCommandsTool

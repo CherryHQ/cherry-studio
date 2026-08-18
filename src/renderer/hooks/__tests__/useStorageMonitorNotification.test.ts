@@ -1,3 +1,4 @@
+import { toast } from '@renderer/services/toast'
 import type { StorageHealth } from '@shared/types/storageMonitor'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -39,16 +40,6 @@ const flush = () => new Promise((resolve) => setTimeout(resolve, 0))
 
 beforeEach(() => {
   vi.clearAllMocks()
-  window.toast = {
-    closeAll: vi.fn(),
-    closeToast: vi.fn(),
-    error: vi.fn(),
-    getToastQueue: vi.fn(() => ({ toasts: [] })),
-    info: vi.fn(),
-    loading: vi.fn(),
-    success: vi.fn(),
-    warning: vi.fn()
-  } as unknown as typeof window.toast
   setupWindowApi(health('ok'))
 })
 
@@ -63,8 +54,8 @@ describe('useStorageMonitorNotification', () => {
     renderHook(() => useStorageMonitorNotification())
     healthCallback!(health('low', 0.5 * 1024 ** 3))
 
-    expect(window.toast.warning).toHaveBeenCalledTimes(1)
-    expect(window.toast.warning).toHaveBeenCalledWith(
+    expect(toast.warning).toHaveBeenCalledTimes(1)
+    expect(toast.warning).toHaveBeenCalledWith(
       expect.objectContaining({
         description: 'settings.data.limit.appDataDiskQuotaDescription',
         timeout: 0,
@@ -78,7 +69,7 @@ describe('useStorageMonitorNotification', () => {
     healthCallback!(health('low'))
     healthCallback!(health('low'))
 
-    expect(window.toast.warning).toHaveBeenCalledTimes(1)
+    expect(toast.warning).toHaveBeenCalledTimes(1)
   })
 
   it('dismisses the warning when health recovers to ok', () => {
@@ -86,14 +77,14 @@ describe('useStorageMonitorNotification', () => {
     healthCallback!(health('low'))
     healthCallback!(health('ok'))
 
-    expect(window.toast.closeToast).toHaveBeenCalledTimes(1)
+    expect(toast.closeToast).toHaveBeenCalledTimes(1)
   })
 
   it('does not dismiss when no warning is currently shown', () => {
     renderHook(() => useStorageMonitorNotification())
     healthCallback!(health('ok'))
 
-    expect(window.toast.closeToast).not.toHaveBeenCalled()
+    expect(toast.closeToast).not.toHaveBeenCalled()
   })
 
   it('warns when the initial pulled health is already low', async () => {
@@ -101,7 +92,7 @@ describe('useStorageMonitorNotification', () => {
     renderHook(() => useStorageMonitorNotification())
     await flush()
 
-    expect(window.toast.warning).toHaveBeenCalledTimes(1)
+    expect(toast.warning).toHaveBeenCalledTimes(1)
   })
 
   it('ignores the initial pull that resolves after unmount', async () => {
@@ -110,7 +101,7 @@ describe('useStorageMonitorNotification', () => {
     unmount() // tear down before the async getHealth() pull resolves
     await flush()
 
-    expect(window.toast.warning).not.toHaveBeenCalled()
+    expect(toast.warning).not.toHaveBeenCalled()
   })
 
   it('unsubscribes on unmount', () => {

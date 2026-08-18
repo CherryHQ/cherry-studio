@@ -11,7 +11,7 @@ import * as z from 'zod'
 // Prompt Schemas
 // ============================================================================
 
-/** Prompt IDs are UUIDs from `uuidPrimaryKey()`; migrated legacy quick_phrase IDs are preserved. */
+/** Prompt IDs are UUIDs from `uuidPrimaryKey()`; migration preserves valid, non-conflicting legacy IDs. */
 export const PromptIdSchema = z.uuid()
 export const PROMPT_TITLE_MAX = 256
 export const PROMPT_CONTENT_MAX = 100_000

@@ -4,20 +4,23 @@ import {
   type ResourceCreateWizardValues
 } from '@renderer/components/resourceCatalog/dialogs/create'
 import type { SelectorShellMountStrategy, SelectorShellProps } from '@renderer/components/SelectorShell'
-import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
-import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
+import { useQuery } from '@renderer/data/hooks/useDataApi'
+import { useAgentMutations } from '@renderer/hooks/resourceCatalog'
 import { usePins } from '@renderer/hooks/usePins'
-import type { AgentDetail } from '@renderer/types/resourceCatalog'
-import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
+import { toast } from '@renderer/services/toast'
+import type { AgentDetail, ResourceEditDialogTarget } from '@renderer/types/resourceCatalog'
+import { getAgentAvatarFromConfiguration, getAgentDescriptionForDisplay } from '@renderer/utils/agent'
+import { buildCreateAgentCommand } from '@renderer/utils/resourceCatalog'
+import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
 import { lazy, type ReactElement, Suspense, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ResourceSelectorShell, type ResourceSelectorShellItem } from './ResourceSelectorShell'
 
 const logger = loggerService.withContext('AgentSelector')
-const AgentEditDialog = lazy(() =>
+const ResourceEditDialogHost = lazy(() =>
   import('@renderer/components/resourceCatalog/dialogs/edit').then((module) => ({
-    default: module.AgentEditDialog
+    default: module.ResourceEditDialogHost
   }))
 )
 
@@ -25,8 +28,10 @@ export type AgentSelectorItem = ResourceSelectorShellItem
 
 type SharedProps = {
   trigger: ReactElement
+  additionalItems?: readonly AgentSelectorItem[]
   open?: boolean
   onOpenChange?: (open: boolean) => void
+  onDialogCloseAutoFocus?: () => void
   autoSelectOnCreate?: boolean
   side?: SelectorShellProps['side']
   align?: SelectorShellProps['align']
@@ -49,13 +54,22 @@ export type AgentSelectorSingleItemProps = SharedProps & {
 export type AgentSelectorProps = AgentSelectorSingleIdProps | AgentSelectorSingleItemProps
 
 export function AgentSelector(props: AgentSelectorProps) {
-  const { trigger, open, onOpenChange, autoSelectOnCreate, side, align, sideOffset, mountStrategy } = props
+  const {
+    trigger,
+    additionalItems,
+    open,
+    onOpenChange,
+    onDialogCloseAutoFocus,
+    autoSelectOnCreate,
+    side,
+    align,
+    sideOffset,
+    mountStrategy
+  } = props
   const { t } = useTranslation()
-  const modelFilter = useAgentModelFilter('claude-code')
   const [internalOpen, setInternalOpen] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
-  const [editDialogOpen, setEditDialogOpen] = useState(false)
-  const [editingAgent, setEditingAgent] = useState<AgentDetail | null>(null)
+  const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
   const selectorOpen = open ?? internalOpen
   const handleSelectorOpenChange = useCallback(
     (nextOpen: boolean) => {
@@ -67,10 +81,10 @@ export function AgentSelector(props: AgentSelectorProps) {
     [onOpenChange, open]
   )
 
-  const { data, isLoading, refetch } = useQuery('/agents', { query: { limit: 500 } })
-  const { trigger: createAgent, isLoading: isCreatingAgent } = useMutation('POST', '/agents', {
-    refresh: ['/agents']
-  })
+  // Keep in lockstep with TasksSettings' agents query — they share one SWR
+  // cache entry only while path + query serialize identically.
+  const { data, isLoading, refetch } = useQuery('/agents', { query: { limit: AGENTS_MAX_LIMIT } })
+  const { createAgent, isCreatingAgent } = useAgentMutations()
   const {
     isLoading: isPinnedLoading,
     isRefreshing: isPinsRefreshing,
@@ -82,14 +96,16 @@ export function AgentSelector(props: AgentSelectorProps) {
   const isPinActionDisabled = isPinnedLoading || isPinsRefreshing || isPinsMutating
 
   const items: AgentSelectorItem[] = useMemo(
-    () =>
-      (data?.items ?? []).map((agent) => ({
+    () => [
+      ...(data?.items ?? []).map((agent) => ({
         id: agent.id,
         name: agent.name,
-        description: agent.description,
+        description: getAgentDescriptionForDisplay(agent, t),
         emoji: getAgentAvatarFromConfiguration(agent.configuration)
       })),
-    [data]
+      ...(additionalItems ?? [])
+    ],
+    [additionalItems, data, t]
   )
 
   const handleTogglePin = useCallback(
@@ -99,7 +115,7 @@ export function AgentSelector(props: AgentSelectorProps) {
         await togglePin(id)
       } catch (error) {
         logger.error('Failed to toggle agent pin', error as Error, { id })
-        window.toast?.error(t('common.error'))
+        toast.error(t('common.error'))
       }
     },
     [isPinActionDisabled, togglePin, t]
@@ -107,61 +123,56 @@ export function AgentSelector(props: AgentSelectorProps) {
 
   const handleEditItem = useCallback(
     (item: AgentSelectorItem) => {
-      const agent = data?.items.find((candidate) => candidate.id === item.id)
-      if (!agent) return
-
-      setEditingAgent(agent)
-      setEditDialogOpen(true)
+      if (!data?.items.some((candidate) => candidate.id === item.id)) return
+      setEditDialogTarget({ kind: 'agent', id: item.id })
     },
     [data?.items]
   )
 
-  const handleEditDialogOpenChange = useCallback((nextOpen: boolean) => {
-    setEditDialogOpen(nextOpen)
-    if (!nextOpen) {
-      setEditingAgent(null)
-    }
-  }, [])
+  const handleEditDialogOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      if (!nextOpen) {
+        setEditDialogTarget(null)
+        onDialogCloseAutoFocus?.()
+      }
+    },
+    [onDialogCloseAutoFocus]
+  )
+
+  const handleCreateDialogOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      setCreateDialogOpen(nextOpen)
+      if (!nextOpen) {
+        onDialogCloseAutoFocus?.()
+      }
+    },
+    [onDialogCloseAutoFocus]
+  )
 
   const handleSubmitCreate = useCallback(
     async (values: ResourceCreateWizardValues) => {
       let created: AgentDetail
       try {
-        created = await createAgent({
-          body: {
-            type: 'claude-code',
-            name: values.name,
-            model: values.modelId,
-            planModel: values.modelId,
-            smallModel: values.modelId,
-            description: values.description,
-            instructions: values.prompt,
-            skillIds: values.skillIds,
-            configuration: {
-              avatar: values.avatar,
-              permission_mode: 'bypassPermissions',
-              soul_enabled: true
-            }
-          }
-        })
+        created = await createAgent(buildCreateAgentCommand(values))
       } catch (error) {
         logger.error('Failed to create agent from selector', error as Error)
         throw error
       }
 
       setCreateDialogOpen(false)
+      onDialogCloseAutoFocus?.()
       try {
         await refetch()
       } catch (error) {
         logger.warn('Failed to refresh agents after selector create', { error })
-        window.toast?.error(t('selector.create_dialog.refresh_failed'))
+        toast.error(t('selector.create_dialog.refresh_failed'))
       }
       if (autoSelectOnCreate) {
         if (props.selectionType === 'item') {
           props.onChange({
             id: created.id,
             name: created.name,
-            description: created.description,
+            description: getAgentDescriptionForDisplay(created, t),
             emoji: getAgentAvatarFromConfiguration(created.configuration)
           })
         } else {
@@ -172,43 +183,24 @@ export function AgentSelector(props: AgentSelectorProps) {
       }
       handleSelectorOpenChange(true)
     },
-    [autoSelectOnCreate, createAgent, handleSelectorOpenChange, props, refetch, t]
+    [autoSelectOnCreate, createAgent, handleSelectorOpenChange, onDialogCloseAutoFocus, props, refetch, t]
   )
-
-  const handleEditSaved = useCallback(async () => {
-    setEditDialogOpen(false)
-    setEditingAgent(null)
-    try {
-      await refetch()
-    } catch (error) {
-      logger.warn('Failed to refresh agents after selector edit', { error })
-      window.toast?.error(t('selector.edit_dialog.refresh_failed'))
-    }
-  }, [refetch, t])
 
   const createDialog = (
     <ResourceCreateWizard
       kind="agent"
       open={createDialogOpen}
       isSubmitting={isCreatingAgent}
-      onOpenChange={setCreateDialogOpen}
+      onOpenChange={handleCreateDialogOpenChange}
       onSubmit={handleSubmitCreate}
-      modelFilter={modelFilter}
     />
   )
 
-  const editDialog =
-    editDialogOpen || editingAgent ? (
-      <Suspense fallback={null}>
-        <AgentEditDialog
-          open={editDialogOpen}
-          resource={editingAgent}
-          onOpenChange={handleEditDialogOpenChange}
-          onSaved={handleEditSaved}
-          modelFilter={modelFilter}
-        />
-      </Suspense>
-    ) : null
+  const editDialog = editDialogTarget ? (
+    <Suspense fallback={null}>
+      <ResourceEditDialogHost target={editDialogTarget} onOpenChange={handleEditDialogOpenChange} />
+    </Suspense>
+  ) : null
 
   const shared = {
     trigger,

@@ -6,10 +6,12 @@
  */
 
 import { AnthropicSseFormatter } from '../formatters/AnthropicSseFormatter'
+import { GeminiSseFormatter } from '../formatters/GeminiSseFormatter'
 import { OpenAiResponsesSseFormatter } from '../formatters/OpenAiResponsesSseFormatter'
 import { OpenAiSseFormatter } from '../formatters/OpenAiSseFormatter'
 import type { ISseFormatter, IStreamAdapter, OutputFormat, StreamAdapterOptions } from '../interfaces'
 import { AiSdkToAnthropicSse } from '../stream/AiSdkToAnthropicSse'
+import { AiSdkToGeminiSse } from '../stream/AiSdkToGeminiSse'
 import { AiSdkToOpenAiResponsesSse } from '../stream/AiSdkToOpenAiResponsesSse'
 import { AiSdkToOpenAiSse } from '../stream/AiSdkToOpenAiSse'
 
@@ -59,6 +61,13 @@ export class StreamAdapterFactory {
       {
         adapterClass: AiSdkToOpenAiResponsesSse,
         formatterClass: OpenAiResponsesSseFormatter
+      }
+    ],
+    [
+      'gemini',
+      {
+        adapterClass: AiSdkToGeminiSse,
+        formatterClass: GeminiSseFormatter
       }
     ]
   ])

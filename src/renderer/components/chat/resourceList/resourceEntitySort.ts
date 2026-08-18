@@ -1,4 +1,9 @@
-import { getResourceTimeBucket, type ResourceListTimeBucket } from './base'
+import {
+  compareResourceRecency,
+  getResourceTimeBucket,
+  type ResourceListTimeBucket,
+  sortRankedResourceItems
+} from './base'
 
 const RESOURCE_TIME_BUCKET_RANK: Record<ResourceListTimeBucket, number> = {
   today: 1,
@@ -7,29 +12,14 @@ const RESOURCE_TIME_BUCKET_RANK: Record<ResourceListTimeBucket, number> = {
   earlier: 4
 }
 
-export function sortResourceItemsByPinnedTime<T extends { pinned?: boolean; updatedAt: string }>(
+export function sortResourceItemsByPinnedTime<T extends { lastActivityAt: string; pinned?: boolean }>(
   items: readonly T[],
   now?: Parameters<typeof getResourceTimeBucket>[1]
 ): T[] {
-  return items
-    .map((item, index) => ({
-      item,
-      index,
-      rank: item.pinned === true ? 0 : RESOURCE_TIME_BUCKET_RANK[getResourceTimeBucket(item.updatedAt, now)],
-      updatedAtMs: Date.parse(item.updatedAt)
-    }))
-    .sort((a, b) => {
-      const rankDelta = a.rank - b.rank
-      if (rankDelta !== 0) return rankDelta
-
-      if (a.item.pinned === true || b.item.pinned === true) return a.index - b.index
-
-      if (Number.isFinite(a.updatedAtMs) && Number.isFinite(b.updatedAtMs)) {
-        const updatedAtDelta = b.updatedAtMs - a.updatedAtMs
-        if (updatedAtDelta !== 0) return updatedAtDelta
-      }
-
-      return a.index - b.index
-    })
-    .map(({ item }) => item)
+  return sortRankedResourceItems(items, {
+    getRank: (item) =>
+      item.pinned === true ? 0 : RESOURCE_TIME_BUCKET_RANK[getResourceTimeBucket(item.lastActivityAt, now)],
+    isPinned: (item) => item.pinned === true,
+    compareWithinGroup: compareResourceRecency((item) => item.lastActivityAt)
+  })
 }

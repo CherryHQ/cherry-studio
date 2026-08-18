@@ -16,7 +16,7 @@ import {
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { Plus } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export interface CatalogItem {
@@ -30,6 +30,7 @@ export interface CatalogItem {
   statusBadgeClassName?: string
   disableToggle?: boolean
   disabledReason?: ReactNode
+  action?: ReactNode
 }
 
 function CatalogBadges({ item }: { item: CatalogItem }) {
@@ -37,14 +38,14 @@ function CatalogBadges({ item }: { item: CatalogItem }) {
   return (
     <span className="flex shrink-0 items-center gap-1">
       {item.inactiveBadge ? (
-        <Badge className="h-4 rounded-3xs border-0 bg-warning/10 px-1 py-0 font-normal text-warning text-xs">
+        <Badge className="h-4 border-warning-border bg-warning-subtle px-1.5 py-0 font-normal text-warning-subtle-foreground text-xs">
           {item.inactiveBadge}
         </Badge>
       ) : null}
       {item.statusBadge ? (
         <Badge
           className={cn(
-            'h-4 rounded-3xs border-0 px-1 py-0 font-normal text-xs',
+            'h-4 border-0 px-1.5 py-0 font-normal text-xs',
             item.statusBadgeClassName ?? 'bg-muted text-muted-foreground'
           )}>
           {item.statusBadge}
@@ -62,20 +63,40 @@ export const CatalogToggleGrid: FC<{
   disabled?: boolean
   emptyLabel: ReactNode
   portalContainer?: HTMLElement | null
+  trailingItem?: ReactNode
   /** Toggle control style. `switch` (default) suits the edit dialog; `checkbox` suits the multi-select create wizard. */
   variant?: 'switch' | 'checkbox'
-}> = ({ items, enabledIds, onToggle, loading, disabled, emptyLabel, portalContainer, variant = 'switch' }) => {
+  /** `list` presents switch items as one compact, divided surface. */
+  layout?: 'grid' | 'list'
+}> = ({
+  items,
+  enabledIds,
+  onToggle,
+  loading,
+  disabled,
+  emptyLabel,
+  portalContainer,
+  trailingItem,
+  variant = 'switch',
+  layout = 'grid'
+}) => {
   const { t } = useTranslation()
 
   if (loading) {
     return <CatalogEmptyPlaceholder>{t('common.loading')}</CatalogEmptyPlaceholder>
   }
-  if (items.length === 0) {
+  if (items.length === 0 && !trailingItem) {
     return <CatalogEmptyPlaceholder>{emptyLabel}</CatalogEmptyPlaceholder>
   }
 
   return (
-    <div className={cn('grid grid-cols-1 sm:grid-cols-2', variant === 'checkbox' ? 'gap-3' : 'gap-x-8 gap-y-3')}>
+    <div
+      className={cn(
+        layout === 'list'
+          ? 'divide-y divide-border-subtle overflow-hidden rounded-lg border border-border-subtle'
+          : 'grid grid-cols-1 sm:grid-cols-2',
+        layout === 'grid' && (variant === 'checkbox' ? 'gap-3' : 'gap-x-8 gap-y-3')
+      )}>
       {items.map((item) => {
         const checked = enabledIds.has(item.id)
         const toggleDisabled = Boolean(disabled || item.disableToggle || (item.pickable === false && !checked))
@@ -84,14 +105,19 @@ export const CatalogToggleGrid: FC<{
 
         const info = (
           <div className="min-w-0">
-            <div className={cn('flex min-w-0 items-center gap-1.5 text-sm', toggleDisabled && 'text-muted-foreground')}>
+            <div
+              className={cn(
+                'flex min-w-0 items-center gap-1.5',
+                variant === 'checkbox' ? 'text-sm' : 'text-[13px]',
+                toggleDisabled && 'text-muted-foreground'
+              )}>
               <span className="truncate" title={item.name}>
                 {item.name}
               </span>
               <CatalogBadges item={item} />
             </div>
             {item.description ? (
-              <div className="mt-0.5 truncate text-muted-foreground/80 text-xs" title={item.description}>
+              <div className="mt-0.5 truncate text-muted-foreground text-xs" title={item.description}>
                 {item.description}
               </div>
             ) : null}
@@ -100,35 +126,47 @@ export const CatalogToggleGrid: FC<{
 
         if (variant === 'checkbox') {
           return (
-            <label
+            <div
               key={item.id}
               className={cn(
                 'flex min-w-0 items-center gap-3 rounded-xl border px-4 py-3 transition-colors',
-                checked ? 'border-primary/40 bg-accent/30' : 'border-border/50 hover:bg-accent/20',
-                toggleDisabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+                checked ? 'border-primary/40 bg-accent/30' : 'border-border-subtle hover:bg-accent/20',
+                toggleDisabled && 'opacity-50'
               )}>
-              <Checkbox
-                size="sm"
-                checked={checked}
-                disabled={toggleDisabled}
-                onCheckedChange={(nextChecked) => onToggle(item.id, nextChecked === true)}
-                aria-label={item.name}
-                className="shrink-0"
-              />
-              {info}
-            </label>
+              <label
+                className={cn(
+                  'flex min-w-0 flex-1 items-center gap-3',
+                  toggleDisabled ? 'cursor-not-allowed' : 'cursor-pointer'
+                )}>
+                <Checkbox
+                  size="sm"
+                  checked={checked}
+                  disabled={toggleDisabled}
+                  onCheckedChange={(nextChecked) => onToggle(item.id, nextChecked === true)}
+                  aria-label={item.name}
+                  className="shrink-0"
+                />
+                {info}
+              </label>
+              {item.action}
+            </div>
           )
         }
 
         return (
-          <div key={item.id} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-1">
+          <div
+            key={item.id}
+            className={cn(
+              'grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3',
+              layout === 'list' ? 'px-3 py-2' : 'rounded-lg border border-border-subtle px-2.5 py-1.5'
+            )}>
             {info}
             <Tooltip
               content={disabledReason}
               isDisabled={!disabledReason}
               portalContainer={portalContainer ?? undefined}>
               <Switch
-                size="sm"
+                size={layout === 'list' ? 'xs' : 'sm'}
                 checked={checked}
                 disabled={toggleDisabled}
                 onCheckedChange={(nextChecked) => onToggle(item.id, nextChecked)}
@@ -138,6 +176,7 @@ export const CatalogToggleGrid: FC<{
           </div>
         )
       })}
+      {trailingItem}
     </div>
   )
 }
@@ -151,6 +190,7 @@ export const AddCatalogPopover: FC<{
   emptyLabel: string
   disabled?: boolean
   align?: 'start' | 'end'
+  footer?: ReactNode
   triggerClassName?: string
   triggerPosition?: 'start' | 'end'
   portalContainer?: HTMLElement | null
@@ -163,12 +203,19 @@ export const AddCatalogPopover: FC<{
   emptyLabel,
   disabled,
   align = 'end',
+  footer,
   triggerClassName,
   triggerPosition = 'end',
   portalContainer
 }) => {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
+
+  useEffect(() => {
+    if (!disabled) return
+    setOpen(false)
+    setSearch('')
+  }, [disabled])
 
   const options = useMemo(() => {
     return items
@@ -194,6 +241,7 @@ export const AddCatalogPopover: FC<{
   }, [options, search])
 
   const handleOpenChange = (nextOpen: boolean) => {
+    if (disabled && nextOpen) return
     setOpen(nextOpen)
     if (!nextOpen) setSearch('')
   }
@@ -208,7 +256,7 @@ export const AddCatalogPopover: FC<{
           disabled={disabled}
           className={cn(
             triggerPosition === 'end' && 'ml-auto',
-            'h-7 min-h-0 w-fit justify-start gap-1 rounded-md px-2 py-1 font-normal text-muted-foreground text-xs shadow-none hover:bg-accent/50 hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring/40 disabled:opacity-30',
+            'h-7 min-h-0 w-fit justify-start gap-1 rounded-md px-2 py-1 font-normal text-muted-foreground text-xs shadow-none hover:bg-accent/50 hover:text-foreground focus-visible:bg-accent/50 focus-visible:text-foreground disabled:opacity-30',
             triggerClassName
           )}>
           <Plus size={12} className="shrink-0" />
@@ -219,12 +267,17 @@ export const AddCatalogPopover: FC<{
         align={align}
         portalContainer={portalContainer ?? undefined}
         className="w-72 max-w-[calc(100vw-2rem)] rounded-md p-0">
-        <Command shouldFilter={false}>
+        {/* Pill search row: style CommandInput's own wrapper via its data-slot so the
+            shared CommandInput stays untouched. */}
+        <Command
+          shouldFilter={false}
+          className="[&_[data-slot=command-input-wrapper]]:mx-2 [&_[data-slot=command-input-wrapper]]:mt-2 [&_[data-slot=command-input-wrapper]]:mb-1 [&_[data-slot=command-input-wrapper]]:h-7 [&_[data-slot=command-input-wrapper]]:rounded-full [&_[data-slot=command-input-wrapper]]:border-[0.5px] [&_[data-slot=command-input-wrapper]]:border-border-subtle [&_[data-slot=command-input-wrapper]]:px-2.5">
           <CommandInput
             value={search}
             onValueChange={setSearch}
+            disabled={disabled}
             placeholder={searchPlaceholder}
-            className="h-8 text-xs"
+            className="h-7 text-xs placeholder:text-muted-foreground"
           />
           <CommandList>
             {filteredOptions.length === 0 ? (
@@ -235,16 +288,16 @@ export const AddCatalogPopover: FC<{
                   <CommandItem
                     key={option.value}
                     value={option.value}
-                    disabled={option.disabled}
+                    disabled={disabled || option.disabled}
                     className="rounded-md"
                     onSelect={() => {
-                      if (option.item.pickable === false) return
+                      if (disabled || option.item.pickable === false) return
                       onAdd(option.value)
                       handleOpenChange(false)
                     }}>
                     {option.item.icon ? <span className="shrink-0">{option.item.icon}</span> : null}
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-foreground/90">{option.item.name}</div>
+                      <div className="truncate text-foreground">{option.item.name}</div>
                       {option.item.description ? (
                         <div className="truncate text-muted-foreground text-xs">{option.item.description}</div>
                       ) : null}
@@ -256,11 +309,12 @@ export const AddCatalogPopover: FC<{
             )}
           </CommandList>
         </Command>
+        {footer ? <div className="overflow-hidden rounded-b-md border-border border-t bg-popover">{footer}</div> : null}
       </PopoverContent>
     </Popover>
   )
 }
 
 export function CatalogEmptyPlaceholder({ children }: { children: ReactNode }) {
-  return <div className="py-14 text-center text-muted-foreground/80 text-xs">{children}</div>
+  return <div className="py-14 text-center text-foreground-tertiary text-xs">{children}</div>
 }

@@ -1,10 +1,6 @@
 import { useChat } from '@ai-sdk/react'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import MessageContent from '@renderer/components/chat/messages/frame/MessageContent'
-import { useMessageListRenderConfig } from '@renderer/components/chat/messages/hooks/useMessageListRenderConfig'
-import { useMessagePlatformActions } from '@renderer/components/chat/messages/hooks/useMessagePlatformActions'
-import { MessageContentProvider } from '@renderer/components/chat/messages/MessageContentProvider'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import CopyButton from '@renderer/components/CopyButton'
 import { useAssistant } from '@renderer/hooks/useAssistant'
@@ -18,10 +14,18 @@ import type { SelectionActionItem } from '@shared/data/preference/preferenceType
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { ChevronDown, Loader2 } from 'lucide-react'
 import type { FC } from 'react'
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { getSelectionActionErrorMessage } from '../errorMessage'
 import WindowFooter from './WindowFooter'
+
+// Lazy boundary (S6b): keeps the heavy message-content chain out of the action
+// window's first paint. Preloaded on mount so the chunk downloads in parallel
+// with the model's network latency (React.lazy alone would wait for the first
+// rendered result); the module cache dedupes the two import() calls.
+const importActionResultContent = () => import('./ActionResultContent')
+const ActionResultContent = React.lazy(importActionResultContent)
 
 const logger = loggerService.withContext('ActionGeneral')
 
@@ -36,8 +40,6 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
   const { t } = useTranslation()
   const [language] = usePreference('app.language')
   const [showOriginal, setShowOriginal] = useState(false)
-  const { renderConfig } = useMessageListRenderConfig()
-  const platformActions = useMessagePlatformActions()
 
   const { assistant: chosenAssistant } = useAssistant(action.assistantId ?? '')
   const chosenAssistantId = chosenAssistant?.id
@@ -79,6 +81,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
 
   const [isPreparing, setIsPreparing] = useState(false)
   const [completionError, setCompletionError] = useState<string | null>(null)
+  const [requestStartedAt, setRequestStartedAt] = useState('')
 
   const { sendMessage, stop: stopChat } = useChat<CherryUIMessage>({
     // Once the temporary topic id arrives, the chat reinitializes with it.
@@ -88,7 +91,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
     experimental_throttle: 50,
     onError: (err) => {
       setIsPreparing(false)
-      setCompletionError(err.message)
+      setCompletionError(getSelectionActionErrorMessage(err, t))
     }
   })
 
@@ -123,12 +126,13 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
         ...latestAssistantUIMsg,
         metadata: {
           ...latestAssistantUIMsg.metadata,
+          createdAt: latestAssistantUIMsg.metadata?.createdAt ?? requestStartedAt,
           status: isPending ? 'pending' : 'success'
         }
       },
       { assistantId: chosenAssistantId, topicId: temporaryTopicId ?? '' }
     )
-  }, [chosenAssistantId, latestAssistantUIMsg, isPending, temporaryTopicId])
+  }, [chosenAssistantId, latestAssistantUIMsg, isPending, requestStartedAt, temporaryTopicId])
 
   const content = useMemo(
     () => (latestAssistantUIMsg ? getTextFromParts(latestAssistantUIMsg.parts as CherryMessagePart[]) : ''),
@@ -142,11 +146,20 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
     if (!ready || !temporaryTopicId || waitingForConfiguredAssistant) return
     logger.debug('Before process message', { assistantId: chosenAssistantId })
     setCompletionError(null)
+    setRequestStartedAt(new Date().toISOString())
     setIsPreparing(true)
     // topicId comes from useChat id; Main resolves assistant/model from topic.assistantId.
     // No body fields are read by IpcChatTransport for this codepath.
     void sendMessage({ text: promptContent })
   }, [chosenAssistantId, promptContent, ready, sendMessage, temporaryTopicId, waitingForConfiguredAssistant])
+
+  useEffect(() => {
+    // Kick the result-renderer chunk off immediately — rendering waits for the
+    // first streamed message, but the download must overlap the model latency.
+    importActionResultContent().catch((error) => {
+      logger.warn('Failed to preload ActionResultContent chunk:', error as Error)
+    })
+  }, [])
 
   useEffect(() => {
     fetchResult()
@@ -167,7 +180,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
           <button
             type="button"
             onClick={() => setShowOriginal(!showOriginal)}
-            className="flex cursor-pointer items-center justify-between text-foreground-secondary text-xs transition-colors hover:text-primary">
+            className="flex cursor-pointer items-center justify-between text-muted-foreground text-xs transition-colors hover:text-foreground">
             <span>
               {showOriginal ? t('selection.action.window.original_hide') : t('selection.action.window.original_show')}
             </span>
@@ -175,13 +188,14 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
           </button>
         </div>
         {showOriginal && (
-          <div className="mt-2 mb-3 w-full whitespace-pre-wrap break-words rounded bg-muted p-2 text-foreground-secondary text-xs">
+          <div className="mt-2 mb-3 w-full whitespace-pre-wrap break-words rounded bg-muted p-2 text-muted-foreground text-xs">
             {action.selectedText}
             <div className="flex justify-end">
               <CopyButton
                 textToCopy={action.selectedText!}
                 tooltip={t('selection.action.window.original_copy')}
                 size={12}
+                successFeedback="icon"
               />
             </div>
           </div>
@@ -189,17 +203,17 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
         <div className="mt-1 w-full">
           {isPreparing && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
           {!isPreparing && latestAssistantMessage && (
-            <MessageContentProvider
-              messages={[latestAssistantMessage]}
-              partsByMessageId={partsMap}
-              renderConfig={renderConfig}
-              actions={platformActions}>
-              <MessageContent key={latestAssistantMessage.id} message={latestAssistantMessage} />
-            </MessageContentProvider>
+            <Suspense fallback={<Loader2 className="size-4 animate-spin text-muted-foreground" />}>
+              <ActionResultContent
+                key={latestAssistantMessage.id}
+                message={latestAssistantMessage}
+                partsByMessageId={partsMap}
+              />
+            </Suspense>
           )}
         </div>
         {error && (
-          <div className="mb-3 break-all rounded border border-error-border bg-error-bg px-3 py-2 text-[13px] text-error-text">
+          <div className="mt-3 mb-3 break-all rounded border border-error-border bg-error-subtle px-3 py-2 text-[13px] text-error-subtle-foreground">
             {error}
           </div>
         )}

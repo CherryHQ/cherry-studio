@@ -1,4 +1,5 @@
-import { getToolsForScope, TopicType } from '@renderer/components/composer/tools/types'
+import { getToolsForScope } from '@renderer/components/composer/tools/builtinTools'
+import { TopicType } from '@renderer/components/composer/tools/types'
 import { describe, expect, it, vi } from 'vitest'
 
 const { mockIsGenerateImageModel, mockIsReasoningModel, mockIsSupportedToolUse } = vi.hoisted(() => ({
@@ -18,10 +19,6 @@ vi.mock('@renderer/utils/assistant', () => ({
 
 vi.mock('@renderer/components/composer/tools/components/KnowledgeBaseButton', () => ({
   KnowledgeBaseToolRuntime: () => null
-}))
-
-vi.mock('@renderer/components/composer/tools/components/ThinkingButton', () => ({
-  ThinkingToolRuntime: () => null
 }))
 
 vi.mock('@renderer/components/composer/tools/components/QuickPhrasesButton', () => ({
@@ -45,14 +42,10 @@ vi.mock('@renderer/hooks/useMcpServer', () => ({
 }))
 
 describe('composer tool visibility', () => {
-  it('keeps assistant core capabilities discoverable when the current model cannot enable them', async () => {
+  it('keeps assistant core capabilities discoverable when the current model cannot enable them', () => {
     mockIsGenerateImageModel.mockReturnValue(false)
     mockIsReasoningModel.mockReturnValue(false)
     mockIsSupportedToolUse.mockReturnValue(false)
-
-    await import('../definitions/generateImageTool')
-    await import('../definitions/knowledgeBaseTool')
-    await import('../definitions/thinkingTool')
 
     const tools = getToolsForScope(TopicType.Chat, {
       assistant: {
@@ -68,14 +61,10 @@ describe('composer tool visibility', () => {
       } as any
     })
 
-    expect(tools.map((tool) => tool.key)).toEqual(
-      expect.arrayContaining(['generate_image', 'knowledge_base', 'thinking'])
-    )
+    expect(tools.map((tool) => tool.key)).toEqual(expect.arrayContaining(['generate_image', 'knowledge_base']))
   })
 
-  it('shows MCP status in chat and agent session scopes only', async () => {
-    await import('../definitions/mcpStatusTool')
-
+  it('shows MCP status in chat and agent session scopes only', () => {
     const model = {
       id: 'text-only',
       providerId: 'provider-1',
@@ -85,5 +74,14 @@ describe('composer tool visibility', () => {
     expect(getToolsForScope(TopicType.Chat, { model }).map((tool) => tool.key)).toContain('mcp_status')
     expect(getToolsForScope(TopicType.Session, { model }).map((tool) => tool.key)).toContain('mcp_status')
     expect(getToolsForScope('quick-assistant', { model }).map((tool) => tool.key)).not.toContain('mcp_status')
+  })
+
+  it('makes knowledge selection discoverable in Agent Session scope', () => {
+    const tools = getToolsForScope(TopicType.Session, {
+      model: { id: 'agent-model', providerId: 'provider-1', name: 'Agent model' } as any,
+      session: { agentId: 'agent-1', knowledgeBaseIds: [] }
+    })
+
+    expect(tools.map((tool) => tool.key)).toContain('knowledge_base')
   })
 })

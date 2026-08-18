@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 
 import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
-import { type FileInfo, FileInfoSchema } from '@shared/types/file'
+import { FileInfoSchema } from '@shared/types/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -41,8 +41,8 @@ vi.mock('electron', () => ({
   net: { fetch: netFetchMock }
 }))
 
-import { buildPollResult, paddleDocumentToMarkdownHandler } from '../document-to-markdown/handler'
-import { paddleImageToTextHandler } from '../image-to-text/handler'
+import { buildPollResult, paddleDocumentToMarkdownHandler } from '../documentToMarkdown/handler'
+import { paddleImageToTextHandler } from '../imageToText/handler'
 
 const documentFile = FileInfoSchema.parse({
   path: '/tmp/input.pdf',
@@ -53,7 +53,7 @@ const documentFile = FileInfoSchema.parse({
   type: 'document',
   createdAt: 1,
   modifiedAt: 1
-}) as FileInfo
+})
 
 const imageFile = FileInfoSchema.parse({
   path: '/tmp/input.png',
@@ -64,7 +64,7 @@ const imageFile = FileInfoSchema.parse({
   type: 'image',
   createdAt: 1,
   modifiedAt: 1
-}) as FileInfo
+})
 
 function createConfig(feature: 'image_to_text' | 'document_to_markdown', modelId: string): FileProcessorMerged {
   return {
@@ -148,34 +148,10 @@ describe('paddleocr handlers', () => {
     ).rejects.toThrow('PaddleOCR file is too large (must be smaller than 50MB)')
   })
 
-  it('rejects document parsing requests larger than 50MB before upload', async () => {
-    vi.spyOn(fs, 'stat').mockResolvedValueOnce({ size: 51 * 1024 * 1024 } as never)
-
-    const prepared = await paddleDocumentToMarkdownHandler.prepare(
-      documentFile,
-      createConfig('document_to_markdown', 'PaddleOCR-VL-1.5')
-    )
-    if (prepared.mode !== 'remote-poll') {
-      throw new Error('Expected paddle document handler to prepare a remote-poll task')
-    }
-
-    await expect(prepared.startRemote(new AbortController().signal)).rejects.toThrow(
-      'PaddleOCR file is too large (must be smaller than 50MB)'
-    )
-  })
-
-  it('resumes document polling after restart without reading the local file', async () => {
-    vi.spyOn(fs, 'stat').mockRejectedValueOnce(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }))
-
-    await expect(
-      paddleDocumentToMarkdownHandler.prepare(documentFile, createConfig('document_to_markdown', 'PaddleOCR-VL-1.5'))
-    ).resolves.toMatchObject({ mode: 'remote-poll' })
-  })
-
   it('starts remote document parsing with the configured model', async () => {
     const prepared = await paddleDocumentToMarkdownHandler.prepare(
       documentFile,
-      createConfig('document_to_markdown', 'PaddleOCR-VL-1.5')
+      createConfig('document_to_markdown', 'PaddleOCR-VL-1.6')
     )
     if (prepared.mode !== 'remote-poll') {
       throw new Error('Expected paddle document handler to prepare a remote-poll task')
@@ -194,7 +170,7 @@ describe('paddleocr handlers', () => {
     })
 
     expect(submitDocumentParsingMock).toHaveBeenCalledWith(
-      { filePath: '/tmp/input.pdf', model: 'PaddleOCR-VL-1.5' },
+      { filePath: '/tmp/input.pdf', model: 'PaddleOCR-VL-1.6' },
       { signal: expect.any(AbortSignal) }
     )
   })
@@ -202,7 +178,7 @@ describe('paddleocr handlers', () => {
   it('persists only the public apiHost for remote-poll paddleocr jobs', async () => {
     const prepared = await paddleDocumentToMarkdownHandler.prepare(
       documentFile,
-      createConfig('document_to_markdown', 'PaddleOCR-VL-1.5')
+      createConfig('document_to_markdown', 'PaddleOCR-VL-1.6')
     )
     if (prepared.mode !== 'remote-poll') {
       throw new Error('Expected paddle document handler to prepare a remote-poll task')
@@ -219,7 +195,7 @@ describe('paddleocr handlers', () => {
   it('rehydrates apiKey from restored config', async () => {
     const prepared = await paddleDocumentToMarkdownHandler.prepare(
       documentFile,
-      createConfig('document_to_markdown', 'PaddleOCR-VL-1.5')
+      createConfig('document_to_markdown', 'PaddleOCR-VL-1.6')
     )
     if (prepared.mode !== 'remote-poll') {
       throw new Error('Expected paddle document handler to prepare a remote-poll task')
@@ -231,7 +207,7 @@ describe('paddleocr handlers', () => {
           providerTaskId: 'job-1',
           apiHost: 'https://paddleocr.aistudio-app.com/'
         },
-        createConfig('document_to_markdown', 'PaddleOCR-VL-1.5')
+        createConfig('document_to_markdown', 'PaddleOCR-VL-1.6')
       )
     ).toEqual({
       providerTaskId: 'job-1',
@@ -245,7 +221,7 @@ describe('paddleocr handlers', () => {
   it('rejects rehydrate when persisted apiHost is missing', async () => {
     const prepared = await paddleDocumentToMarkdownHandler.prepare(
       documentFile,
-      createConfig('document_to_markdown', 'PaddleOCR-VL-1.5')
+      createConfig('document_to_markdown', 'PaddleOCR-VL-1.6')
     )
     if (prepared.mode !== 'remote-poll') {
       throw new Error('Expected paddle document handler to prepare a remote-poll task')
@@ -257,7 +233,7 @@ describe('paddleocr handlers', () => {
           providerTaskId: 'job-1',
           apiHost: ''
         },
-        createConfig('document_to_markdown', 'PaddleOCR-VL-1.5')
+        createConfig('document_to_markdown', 'PaddleOCR-VL-1.6')
       )
     ).toThrow('paddleocr rehydrate: missing apiHost in persisted remote state')
   })

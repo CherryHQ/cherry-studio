@@ -1,6 +1,7 @@
 ---
 name: find-skills
 description: Helps users discover and install agent skills when they ask questions like "how do I do X", "find a skill for X", "is there a skill that can...", or express interest in extending capabilities. This skill should be used when the user is looking for functionality that might exist as an installable skill.
+version: 1.0.0
 ---
 
 # Find Skills
@@ -18,42 +19,19 @@ Use this skill when the user:
 - Wants to search for tools, templates, or workflows
 - Mentions they wish they had help with a specific domain (design, testing, deployment, etc.)
 
-## What is the Skills CLI?
+## The skill tools
 
-The Skills CLI (`npx skills`) is the package manager for the open agent skills ecosystem. Skills are modular packages that extend agent capabilities with specialized knowledge, workflows, and tools.
+Cherry gives you two built-in tools for skills — use them, and do NOT shell out to
+`npx skills`, `git`, or any package manager:
 
-**Key commands:**
-
-- `npx skills find [query]` - Search for skills interactively or by keyword
-- `npx skills add <package>` - Install a skill from GitHub or other sources
-- `npx skills check` - Check for skill updates
-- `npx skills update` - Update all installed skills
+- **`search_skills(query)`** — search the marketplace by keyword. Returns matches, each with an
+  opaque `install_source` value.
+- **`install_skill(install_source)`** — install ONE skill into Cherry's managed
+  library and enable it for this agent. Cherry clones the repo, installs just that one skill,
+  and registers it in a single deterministic step. Permission handling follows the active Claude
+  permission mode (Step 6).
 
 **Browse skills at:** https://skills.sh/
-
-## Runtime Detection
-
-Before running any `npx skills` command, check if `npx` is available:
-
-```bash
-which npx
-```
-
-If `npx` is **not found**, fall back to the bundled bun shipped with Cherry Studio.
-Cherry Studio sets the `CHERRY_STUDIO_BUN_PATH` environment variable pointing to its
-bundled bun binary. Use it as follows:
-
-```bash
-if [ -n "$CHERRY_STUDIO_BUN_PATH" ] && [ -x "$CHERRY_STUDIO_BUN_PATH" ]; then
-  "$CHERRY_STUDIO_BUN_PATH" x skills <subcommand> [args]
-else
-  echo "Error: Neither npx nor bundled bun found. Install Node.js or run Cherry Studio's bun installer."
-fi
-```
-
-For example, `npx skills find react` becomes `"$CHERRY_STUDIO_BUN_PATH" x skills find react`.
-
-Always try `npx` first. Only use the bun fallback when npx is unavailable.
 
 ## How to Help Users Find Skills
 
@@ -65,74 +43,82 @@ When a user asks for help with something, identify:
 2. The specific task (e.g., writing tests, creating animations, reviewing PRs)
 3. Whether this is a common enough task that a skill likely exists
 
-### Step 2: Search for Skills
+### Step 2: Check the Leaderboard First
 
-Run the find command with a relevant query:
+Before running a CLI search, check the [skills.sh leaderboard](https://skills.sh/) to see if a well-known skill already exists for the domain. The leaderboard ranks skills by total installs, surfacing the most popular and battle-tested options.
 
-```bash
-npx skills find [query]
-```
+For example, top skills for web development include:
+- `vercel-labs/agent-skills` — React, Next.js, web design (100K+ installs each)
+- `anthropics/skills` — Frontend design, document processing (100K+ installs)
 
-For example:
+### Step 3: Search for Skills
 
-- User asks "how do I make my React app faster?" → `npx skills find react performance`
-- User asks "can you help me with PR reviews?" → `npx skills find pr review`
-- User asks "I need to create a changelog" → `npx skills find changelog`
+If the leaderboard doesn't cover the user's need, call the `search_skills` tool:
 
-The command will return results like:
+- User asks "how do I make my React app faster?" → `search_skills("react performance")`
+- User asks "can you help me with PR reviews?" → `search_skills("pr review")`
+- User asks "I need to create a changelog" → `search_skills("changelog")`
 
-```
-Install with npx skills add <owner/repo@skill>
+Each result includes an opaque `install_source`, source registry, review URL,
+install count, and available star count. Pass the exact `install_source` value
+to `install_skill`.
 
-vercel-labs/agent-skills@vercel-react-best-practices
-└ https://skills.sh/vercel-labs/agent-skills/vercel-react-best-practices
-```
+### Step 4: Verify Quality Before Recommending
 
-### Step 3: Present Options to the User
+**Do not recommend a skill based solely on search results.** Always verify:
+
+1. **Install count** — Prefer skills with 1K+ installs. Be cautious with anything under 100.
+2. **Source reputation** — Official sources (`vercel-labs`, `anthropics`, `microsoft`) are more trustworthy than unknown authors.
+3. **GitHub stars** — Check the source repository. A skill from a repo with <100 stars should be treated with skepticism.
+
+### Step 5: Present Options to the User
 
 When you find relevant skills, present them to the user with:
 
 1. The skill name and what it does
-2. The source repository link so the user can review the code
-3. The install command they can run
+2. The install count and source
+3. That you can install it for them into Cherry
+4. A link to learn more at skills.sh
 
 Example response:
 
 ```
-I found a skill that might help! The "vercel-react-best-practices" skill provides
+I found a skill that might help! The "react-best-practices" skill provides
 React and Next.js performance optimization guidelines from Vercel Engineering.
+(185K installs)
 
-Source: https://skills.sh/vercel-labs/agent-skills/vercel-react-best-practices
+I can install it into Cherry's skill library for you — want me to go ahead?
 
-To install it (after you've reviewed the source):
-npx skills add vercel-labs/agent-skills@vercel-react-best-practices
+Learn more: https://skills.sh/vercel-labs/agent-skills/react-best-practices
 ```
 
-### Step 4: Install (Requires User Confirmation)
+### Step 6: Install (Uses the Active Permission Mode)
 
 **⚠️ Security:** Skills are third-party code that runs with full agent
-permissions. A malicious skill could read, modify, or delete files in your
-project.
+permissions. A malicious skill could read, modify, or delete files on your
+system.
 
-Before installing any skill you **MUST**:
+Before installing any skill:
 
 1. **Show a security warning** — tell the user that the skill is third-party
-   code and will have access to their project files.
-2. **Provide the source link** so the user can review the skill's SKILL.md and
-   any scripts it contains.
-3. **Ask the user for explicit confirmation** — do NOT run `npx skills add`
-   until the user says "yes" or equivalent. Never install silently.
+   code and will run with full agent permissions.
+2. **Provide a review link** — the skills.sh page (or source repository) so
+   the user can review the skill's SKILL.md and any scripts it contains.
+3. **Require install intent** — call `install_skill` only when the user asked to install the skill
+   or accepted a presented option. A search-only request must not mutate the skill library.
 
-Only after the user confirms, run:
+Once the user has expressed install intent, call `install_skill` with the exact `install_source`
+from the search result. Do not add another model-level confirmation step: Claude's active permission
+mode is the authority. Default and accept-edits modes may prompt through the SDK; bypass-permissions
+mode runs directly.
 
-```bash
-npx skills add <owner/repo@skill> -y
-```
+- `install_skill("claude-plugins:vercel-labs/agent-skills/skills/react-best-practices")`
 
-The `-y` flag is required for non-interactive execution, but the user
-confirmation step above ensures the user has reviewed and approved the install.
-
-Skills are installed to the current project's `.claude/skills/` directory.
+Do **not** run `npx skills add`, `git clone`, or any shell command to install — that would
+install the whole repo (dozens of skills), scatter symlinks across other tools, and land
+outside Cherry's library. `install_skill` installs **only that one skill** into Cherry's
+managed library in one deterministic step. The Claude Agent SDK applies the configured permission
+mode before it runs. Once done it is registered and listed in the app — nothing is left elsewhere.
 
 ## Common Skill Categories
 
@@ -160,7 +146,7 @@ If no relevant skills exist:
 
 1. Acknowledge that no existing skill was found
 2. Offer to help with the task directly using your general capabilities
-3. Suggest the user could create their own skill with `npx skills init`
+3. Offer to author a custom skill for the task (the skill-creator skill handles this)
 
 Example:
 
@@ -168,6 +154,6 @@ Example:
 I searched for skills related to "xyz" but didn't find any matches.
 I can still help you with this task directly! Would you like me to proceed?
 
-If this is something you do often, you could create your own skill:
-npx skills init my-xyz-skill
+If this is something you do often, I can author a custom skill for you — just ask
+me to "create a skill for <task>" and I'll write one into Cherry's skills directory.
 ```

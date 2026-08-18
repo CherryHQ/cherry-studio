@@ -1,15 +1,15 @@
-import { OpenCode as OpenCodeGeneral } from '../../general/open-code'
 import type { CompoundIcon, CompoundIconProps } from '../../types'
 import { OpenCodeGoAvatar } from './avatar'
-import { meta } from './meta'
+import { OpenCodeGoLight } from './light'
 
-const OpenCodeGo = ({ className, ...props }: CompoundIconProps) => {
-  return <OpenCodeGeneral {...props} className={className} />
+const OpenCodeGo = ({ variant, className, ...props }: CompoundIconProps) => {
+  if (variant === 'light') return <OpenCodeGoLight {...props} className={className} />
+  return <OpenCodeGoLight {...props} className={className} />
 }
 
 export const OpenCodeGoIcon: CompoundIcon = /*#__PURE__*/ Object.assign(OpenCodeGo, {
   Avatar: OpenCodeGoAvatar,
-  colorPrimary: meta.colorPrimary
+  colorPrimary: '#131010'
 })
 
 export default OpenCodeGoIcon

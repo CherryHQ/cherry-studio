@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ImagePreviewService } from '@renderer/services/ImagePreviewService'
+import { toast } from '@renderer/services/toast'
 import { download as downloadFile } from '@renderer/utils/download'
 import { svgToPngBlob, svgToSvgBlob } from '@renderer/utils/image'
 import type { RefObject } from 'react'
@@ -189,13 +190,15 @@ export const useImageTools = (
       if ((e.ctrlKey || e.metaKey) && e.target) {
         // 确认事件发生在容器内部
         if (container.contains(e.target as Node)) {
+          e.preventDefault()
+          e.stopPropagation()
           const delta = e.deltaY < 0 ? 0.1 : -0.1
           zoom(delta)
         }
       }
     }
 
-    container.addEventListener('wheel', handleWheel, { passive: true })
+    container.addEventListener('wheel', handleWheel, { passive: false })
     return () => container.removeEventListener('wheel', handleWheel)
   }, [containerRef, zoom, enableWheelZoom])
 
@@ -207,14 +210,16 @@ export const useImageTools = (
   const copy = useCallback(async () => {
     try {
       const imgElement = getCleanImgElement()
-      if (!imgElement) return
+      if (!imgElement) return false
 
       const blob = await svgToPngBlob(imgElement)
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
-      window.toast.success(t('message.copy.success'))
+      toast.success(t('message.copy.success'))
+      return true
     } catch (error) {
       logger.error('Copy failed:', error as Error)
-      window.toast.error(t('message.copy.failed'))
+      toast.error(t('message.copy.failed'))
+      return false
     }
   }, [getCleanImgElement, t])
 
@@ -234,17 +239,17 @@ export const useImageTools = (
         if (format === 'svg') {
           const blob = svgToSvgBlob(imgElement)
           const url = URL.createObjectURL(blob)
-          downloadFile(url, `${prefix}-${timestamp}.svg`)
+          await downloadFile(url, `${prefix}-${timestamp}.svg`)
           URL.revokeObjectURL(url)
         } else {
           const blob = await svgToPngBlob(imgElement)
           const pngUrl = URL.createObjectURL(blob)
-          downloadFile(pngUrl, `${prefix}-${timestamp}.png`)
+          await downloadFile(pngUrl, `${prefix}-${timestamp}.png`)
           URL.revokeObjectURL(pngUrl)
         }
       } catch (error) {
         logger.error('Download failed:', error as Error)
-        window.toast.error(t('message.download.failed'))
+        toast.error(t('message.download.failed'))
       }
     },
     [getCleanImgElement, prefix, t]
@@ -263,7 +268,7 @@ export const useImageTools = (
       await ImagePreviewService.show(imgElement, { format: 'svg' })
     } catch (error) {
       logger.error('Dialog preview failed:', error as Error)
-      window.toast.error(t('message.dialog.failed'))
+      toast.error(t('message.dialog.failed'))
     }
   }, [getCleanImgElement, t])
 

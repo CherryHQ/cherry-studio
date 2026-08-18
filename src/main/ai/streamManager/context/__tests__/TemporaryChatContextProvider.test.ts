@@ -141,6 +141,7 @@ describe('TemporaryChatContextProvider', () => {
 
   it('honours a single mentionedModelId — pins that model instead of the default preference', async () => {
     getTopicMock.mockReturnValueOnce({ id: '1', assistantId: undefined })
+    MockMainPreferenceServiceUtils.setPreferenceValue('chat.default_model_id', null)
     getByKeyMock.mockReset()
     getByKeyMock.mockImplementation((providerId: string, modelId: string) => ({
       id: `${providerId}::${modelId}`,
@@ -187,7 +188,6 @@ describe('TemporaryChatContextProvider', () => {
     const prepared = await provider.prepareDispatch(subscriber, openReq(), { hasLiveStream: false })
 
     expect(prepared.topicId).toBe('1')
-    expect(prepared.isMultiModel).toBe(false)
 
     // user message was appended (service allocates the id)
     expect(appendMessageMock).toHaveBeenCalledTimes(1)
@@ -214,7 +214,24 @@ describe('TemporaryChatContextProvider', () => {
     expect(request.messages).toBeDefined()
     expect(request.messages!).toHaveLength(1)
     expect(request.messages![0].role).toBe('user')
-    // No pre-allocated messageId: AI SDK generates it for the streaming UIMessage
-    expect(request.messageId).toBeUndefined()
+    // The stream and temporary backend share one stable message id so
+    // invocation records can link to it before later promotion rebuilds the
+    // same message projection.
+    expect(request.messageId).toMatch(/^[0-9a-f-]{36}$/)
+  })
+
+  it('reads the knowledge scope from the submitted user-message parts', async () => {
+    const prepared = await provider.prepareDispatch(
+      makeSubscriber(),
+      openReq({
+        userMessageParts: [
+          { type: 'text', text: 'search this' },
+          { type: 'data-knowledge-scope', data: { baseIds: ['kb-1', 'kb-1', 'kb-2'] } }
+        ]
+      }),
+      { hasLiveStream: false }
+    )
+
+    expect(prepared.models[0].request.knowledgeBaseIds).toEqual(['kb-1', 'kb-2'])
   })
 })

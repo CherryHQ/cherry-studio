@@ -45,13 +45,15 @@ function reservedUIMessageToBranchMessage(topicId: string, message: CherryUIMess
       topicId,
       parentId: metadata.parentId ?? null,
       role: message.role,
-      data: { parts: (message.parts ?? []) as CherryMessagePart[] },
+      data: {
+        parts: (message.parts ?? []) as CherryMessagePart[]
+      },
       searchableText: '',
       status:
         metadata.status ?? (message.role === 'assistant' && (message.parts?.length ?? 0) === 0 ? 'pending' : 'success'),
       siblingsGroupId: metadata.siblingsGroupId ?? 0,
       modelId: metadata.modelId ?? null,
-      modelSnapshot: metadata.modelSnapshot ?? null,
+      messageSnapshot: metadata.messageSnapshot ?? null,
       stats: metadata.stats ?? null,
       createdAt,
       updatedAt: createdAt
@@ -64,9 +66,14 @@ export interface UseTopicMessagesCacheParams {
   mutate: SWRInfiniteKeyedMutator<BranchMessagesResponse[]>
 }
 
-export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCacheParams) {
+export function getTopicBranchCachePaths(topicId: string) {
   const messagesCachePath = `/topics/${topicId}/messages` as const
   const treeCachePath = `/topics/${topicId}/tree` as const
+  return [messagesCachePath, treeCachePath]
+}
+
+export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCacheParams) {
+  const [messagesCachePath, treeCachePath] = getTopicBranchCachePaths(topicId)
   const branchCachePaths = [messagesCachePath, treeCachePath]
 
   /**
@@ -116,7 +123,7 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
   }, [mutate])
 
   const seedReservedMessages = useCallback(
-    async (messages: CherryUIMessage[]) => {
+    async (messages: CherryUIMessage[], options: { preserveActiveNode?: boolean } = {}) => {
       const reservedItems = messages.map((message) => reservedUIMessageToBranchMessage(topicId, message))
       if (reservedItems.length === 0) return
 
@@ -125,23 +132,46 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
           const currentPages = pages?.length
             ? pages
             : [{ items: [], nextCursor: undefined, activeNodeId: null, assistantId: null, rootId: null }]
-          const existingIds = new Set(
-            currentPages.flatMap((page) =>
-              page.items.flatMap((item) => [
-                item.message.id,
-                ...(item.siblingsGroup?.map((sibling) => sibling.id) ?? [])
-              ])
-            )
-          )
-          const newItems = reservedItems.filter((item) => !existingIds.has(item.message.id))
-          if (newItems.length === 0) return pages
+          const reservedById = new Map(reservedItems.map((item) => [item.message.id, item.message]))
+          const consumedIds = new Set<string>()
+          let replaced = false
+          const nextPages = currentPages.map((page) => ({
+            ...page,
+            items: page.items.map((item) => {
+              const replacement = reservedById.get(item.message.id)
+              let siblingsChanged = false
+              const siblingsGroup = item.siblingsGroup?.map((sibling) => {
+                const siblingReplacement = reservedById.get(sibling.id)
+                if (!siblingReplacement) return sibling
+                consumedIds.add(sibling.id)
+                replaced = true
+                siblingsChanged = true
+                return siblingReplacement
+              })
+              if (replacement) {
+                consumedIds.add(item.message.id)
+                replaced = true
+              }
+              if (!replacement && !siblingsChanged) return item
+              return {
+                ...item,
+                message: replacement ?? item.message,
+                ...(siblingsGroup ? { siblingsGroup } : {})
+              }
+            })
+          }))
+          const newItems = reservedItems.filter((item) => !consumedIds.has(item.message.id))
+          if (!replaced && newItems.length === 0) return pages
 
-          const nextPages = currentPages.slice()
           const firstPage = nextPages[0]
           nextPages[0] = {
             ...firstPage,
             items: [...firstPage.items, ...newItems],
-            activeNodeId: newItems.at(-1)?.message.id ?? firstPage.activeNodeId
+            // In-place retry and live-group append reservations must never move the active branch.
+            activeNodeId:
+              newItems.length > 0 && !options.preserveActiveNode
+                ? (newItems.at(-1)?.message.id ?? firstPage.activeNodeId)
+                : firstPage.activeNodeId
           }
           return nextPages
         },
@@ -164,10 +194,16 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
   const { trigger: deleteMessageTrigger } = useMutation('DELETE', '/messages/:id', {
     refresh: branchCachePaths
   })
+  const { trigger: deleteMessageGroupTrigger } = useMutation('DELETE', '/messages/:id/reply-group', {
+    refresh: branchCachePaths
+  })
   const { trigger: patchMessageTrigger } = useMutation('PATCH', '/messages/:id', {
     refresh: branchCachePaths
   })
   const { trigger: createSiblingTrigger } = useMutation('POST', '/messages/:id/siblings', {
+    refresh: branchCachePaths
+  })
+  const { trigger: createMessageTrigger } = useMutation('POST', '/topics/:topicId/messages', {
     refresh: branchCachePaths
   })
   const { trigger: setActiveNodeTrigger } = useMutation('PUT', '/topics/:id/active-node', {
@@ -185,8 +221,10 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
     rollbackBranch,
     clearBranchCache,
     deleteMessageTrigger,
+    deleteMessageGroupTrigger,
     patchMessageTrigger,
     createSiblingTrigger,
+    createMessageTrigger,
     setActiveNodeTrigger,
     clearTopicMessagesTrigger
   }

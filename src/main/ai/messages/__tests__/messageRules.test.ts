@@ -1,5 +1,6 @@
-import type { ModelMessage, UIMessage } from 'ai'
+import { type ModelMessage, tool, type UIMessage } from 'ai'
 import { describe, expect, it } from 'vitest'
+import * as z from 'zod'
 
 import { coalesceConsecutiveSameRole, ensureNonEmptyAssistantContent, toModelMessages } from '../messageRules'
 
@@ -8,6 +9,17 @@ const ui = (role: UIMessage['role'], parts: UIMessage['parts'], id = 'm'): UIMes
 // toModelMessages runs the exact Agent.stream order; these guard each step so deleting
 // one (coalesce, ignoreIncompleteToolCalls, the empty-content placeholder) fails a test.
 describe('toModelMessages', () => {
+  it('keeps knowledge scope out of provider messages', async () => {
+    const model = await toModelMessages([
+      ui('user', [
+        { type: 'text', text: 'search this' },
+        { type: 'data-knowledge-scope', data: { baseIds: ['kb-1'] } }
+      ])
+    ])
+
+    expect(model).toEqual([{ role: 'user', content: [{ type: 'text', text: 'search this' }] }])
+  })
+
   it('rescues a data-error-only assistant turn (#16195)', async () => {
     const model = await toModelMessages([
       ui('user', [{ type: 'text', text: 'Q' }], 'u1'),
@@ -55,14 +67,129 @@ describe('toModelMessages', () => {
     ])
   })
 
-  it('strips media the model cannot accept', async () => {
+  it('strips gated media the model cannot accept', async () => {
     const model = await toModelMessages(
-      [ui('user', [{ type: 'file', mediaType: 'image/png', url: 'data:application/octet-stream;base64,AA' }])],
-      { image: false, video: true, audio: true }
+      [ui('user', [{ type: 'file', mediaType: 'video/mp4', url: 'data:application/octet-stream;base64,AA' }])],
+      { image: true, video: false, audio: true }
     )
     expect(model).toEqual([
-      { role: 'user', content: [{ type: 'text', text: expect.stringContaining('image attachment omitted') }] }
+      { role: 'user', content: [{ type: 'text', text: expect.stringContaining('video attachment omitted') }] }
     ])
+  })
+
+  it('uses the tool model-output formatter when replaying completed tool results', async () => {
+    const imageData = 'A'.repeat(1024)
+    const rawOutput = {
+      content: [{ type: 'image', data: imageData, mimeType: 'image/png' }]
+    }
+    const messages = [
+      ui('assistant', [
+        {
+          type: 'tool-screenshot',
+          toolCallId: 'call-1',
+          state: 'output-available',
+          input: {},
+          output: rawOutput
+        }
+      ]),
+      ui('user', [{ type: 'text', text: 'continue' }], 'u1')
+    ]
+    const originalMessages = structuredClone(messages)
+    const tools = {
+      screenshot: tool({
+        inputSchema: z.object({}),
+        toModelOutput: () => ({ type: 'text', value: '[Image: image/png, delivered to user]' })
+      })
+    }
+
+    const model = await toModelMessages(messages, undefined, tools)
+
+    expect(model[1]).toEqual({
+      role: 'tool',
+      content: [
+        {
+          type: 'tool-result',
+          toolCallId: 'call-1',
+          toolName: 'screenshot',
+          output: { type: 'text', value: '[Image: image/png, delivered to user]' }
+        }
+      ]
+    })
+    expect(JSON.stringify(model)).not.toContain(imageData)
+    expect(messages).toEqual(originalMessages)
+  })
+
+  it('replays a completed legacy MCP tool name unchanged', async () => {
+    const legacyToolName = 'mcp__mysql__executeSql'
+    const model = await toModelMessages([
+      ui('assistant', [
+        {
+          type: 'dynamic-tool',
+          toolName: legacyToolName,
+          toolCallId: 'legacy-call',
+          state: 'output-available',
+          input: { sql: 'select 1' },
+          output: { ok: true }
+        }
+      ])
+    ])
+
+    expect(model[0]).toMatchObject({
+      role: 'assistant',
+      content: [expect.objectContaining({ type: 'tool-call', toolName: legacyToolName })]
+    })
+    expect(model[1]).toMatchObject({
+      role: 'tool',
+      content: [expect.objectContaining({ type: 'tool-result', toolName: legacyToolName })]
+    })
+  })
+
+  const legacyTool = (toolName: string, toolCallId: string): UIMessage['parts'][number] => ({
+    type: 'dynamic-tool',
+    toolName,
+    toolCallId,
+    state: 'output-available',
+    input: {},
+    output: { ok: true }
+  })
+
+  const namesOf = (message: ModelMessage) => (message.content as { toolName: string }[]).map((p) => p.toolName)
+
+  it('rewrites a v1 "server: tool" name to a wire-legal one on both call and result (#18199)', async () => {
+    const model = await toModelMessages([ui('assistant', [legacyTool('jina: jina_reader', 'call_00_1')])])
+
+    const wireName = namesOf(model[0])[0]
+    expect(wireName).toMatch(/^jina__jina_reader_[0-9a-f]{8}$/)
+    expect(model[1]).toMatchObject({
+      role: 'tool',
+      content: [expect.objectContaining({ type: 'tool-result', toolName: wireName })]
+    })
+  })
+
+  it('keeps distinct v1 names distinct past the 64-char / leading-letter provider limits', async () => {
+    const server = `1${'长'.repeat(80)}`
+    const model = await toModelMessages([
+      ui('assistant', [legacyTool(`${server}: search`, 'call_00_2'), legacyTool(`${server}: fetch`, 'call_00_3')])
+    ])
+
+    const [search, fetch] = namesOf(model[0])
+    expect(search).toMatch(/^[A-Za-z_][A-Za-z0-9_-]{0,63}$/)
+    expect(fetch).toMatch(/^[A-Za-z_][A-Za-z0-9_-]{0,63}$/)
+    expect(search).not.toBe(fetch)
+  })
+
+  // The API Gateway shares this path and keys its ToolSet by the client's own function name.
+  it('leaves a declared tool name untouched even when it holds provider-specific characters', async () => {
+    const declared = 'maps.lookup'
+    const model = await toModelMessages([ui('assistant', [legacyTool(declared, 'call_00_4')])], undefined, {
+      [declared]: tool({ inputSchema: z.object({}), toModelOutput: () => ({ type: 'text', value: 'formatted' }) })
+    })
+
+    expect(namesOf(model[0])).toEqual([declared])
+    expect(model[1]).toMatchObject({
+      role: 'tool',
+      content: [expect.objectContaining({ toolName: declared, output: { type: 'text', value: 'formatted' } })]
+    })
   })
 })
 

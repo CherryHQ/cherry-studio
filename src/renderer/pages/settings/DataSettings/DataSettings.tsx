@@ -1,5 +1,6 @@
 import { MenuDivider, MenuItem, MenuList, PageHeader, RowFlex } from '@cherrystudio/ui'
 import { NutstoreIcon } from '@renderer/components/icons/NutstoreIcons'
+import { JoplinIcon, SiyuanIcon } from '@renderer/components/icons/SvgIcon'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
@@ -12,19 +13,24 @@ import {
   settingsSubmenuScrollClassName,
   settingsSubmenuSectionTitleClassName
 } from '@renderer/pages/settings/settingsStyles'
-import { CloudUpload, FileText, FolderCog, FolderInput, FolderOpen, Server, Trash2 } from 'lucide-react'
+import { BookOpen, CloudUpload, FileText, FolderCog, FolderInput, Import, Server, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import BasicDataSettings from './BasicDataSettings'
 import ExportMenuOptions from './ExportMenuSettings'
+import JoplinSettings from './JoplinSettings'
 import LocalBackupSettings from './LocalBackupSettings'
 import MarkdownExportSettings from './MarkdownExportSettings'
+import NotionSettings from './NotionSettings'
 import NutstoreSettings from './NutstoreSettings'
+import ObsidianSettings from './ObsidianSettings'
 import S3Settings from './S3Settings'
-import TrashSettings from './TrashSettings'
+import SiyuanSettings from './SiyuanSettings'
+import TrashSettings from './TrashSettings/TrashSettings'
 import WebDavSettings from './WebDavSettings'
+import YuqueSettings from './YuqueSettings'
 
 const DataSettings: FC = () => {
   const { t } = useTranslation()
@@ -43,7 +49,7 @@ const DataSettings: FC = () => {
     {
       key: 'import_settings',
       title: t('settings.data.import_settings.title'),
-      icon: <FolderOpen size={16} />
+      icon: <Import size={16} />
     },
     { key: 'divider_3', isDivider: true, text: t('settings.data.divider.export_settings') },
     {
@@ -55,7 +61,13 @@ const DataSettings: FC = () => {
       key: 'markdown_export',
       title: t('settings.data.markdown_export.title'),
       icon: <FileText size={16} />
-    }
+    },
+    { key: 'divider_note_export', isDivider: true, text: t('settings.data.divider.note_export') },
+    { key: 'notion', title: t('settings.data.notion.title'), icon: <i className="iconfont icon-notion" /> },
+    { key: 'yuque', title: t('settings.data.yuque.title'), icon: <BookOpen size={16} /> },
+    { key: 'joplin', title: t('settings.data.joplin.title'), icon: <JoplinIcon /> },
+    { key: 'obsidian', title: t('settings.data.obsidian.title'), icon: <i className="iconfont icon-obsidian" /> },
+    { key: 'siyuan', title: t('settings.data.siyuan.title'), icon: <SiyuanIcon /> }
   ]
 
   return (
@@ -96,6 +108,11 @@ const DataSettings: FC = () => {
         {menu === 'export_menu' && <ExportMenuOptions />}
         {menu === 'markdown_export' && <MarkdownExportSettings />}
         {menu === 'local_backup' && <LocalBackupSettings />}
+        {menu === 'notion' && <NotionSettings />}
+        {menu === 'yuque' && <YuqueSettings />}
+        {menu === 'joplin' && <JoplinSettings />}
+        {menu === 'obsidian' && <ObsidianSettings />}
+        {menu === 'siyuan' && <SiyuanSettings />}
       </SettingsContentColumn>
     </RowFlex>
   )

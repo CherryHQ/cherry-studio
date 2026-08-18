@@ -16,8 +16,11 @@ import {
   DeleteTopicQuerySchema,
   DeleteTopicsQuerySchema,
   DuplicateTopicSchema,
+  LatestTopicQuerySchema,
   ListTopicsQuerySchema,
+  MoveTopicSchema,
   RestoreTopicsQuerySchema,
+  ReuseOrCreateTopicSchema,
   SetActiveNodeSchema,
   type TopicSchemas,
   UpdateTopicSchema
@@ -38,7 +41,9 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
 
     DELETE: async ({ query }) => {
       const parsed = DeleteTopicsQuerySchema.parse(query)
-      return topicService.deleteByIds(parsed.ids, { permanent: parsed.permanent === true })
+      return parsed.permanent === true
+        ? topicService.deleteByIds(parsed.ids, { permanent: true })
+        : topicService.deleteByIds(parsed.ids)
     }
   },
 
@@ -46,6 +51,20 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
     POST: async ({ query }) => {
       const parsed = RestoreTopicsQuerySchema.parse(query)
       return topicService.restoreByIds(parsed.ids)
+    }
+  },
+
+  '/topics/latest': {
+    GET: async ({ query }) => {
+      const parsed = LatestTopicQuerySchema.parse(query ?? {})
+      return { topic: topicService.getLatestActive(parsed) }
+    }
+  },
+
+  '/topics/reusable-placeholder': {
+    POST: async ({ body }) => {
+      const parsed = ReuseOrCreateTopicSchema.parse(body)
+      return topicService.reuseOrCreatePlaceholder(parsed)
     }
   },
 
@@ -61,14 +80,20 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
 
     DELETE: async ({ params, query }) => {
       const parsed = DeleteTopicQuerySchema.parse(query ?? {})
-      topicService.delete(params.id, { permanent: parsed.permanent === true })
+      if (parsed.permanent === true) topicService.delete(params.id, { permanent: true })
+      else topicService.delete(params.id)
       return undefined
     }
   },
 
   '/topics/:id/restore': {
-    POST: async ({ params }) => {
-      return topicService.restore(params.id)
+    POST: async ({ params }) => topicService.restore(params.id)
+  },
+
+  '/topics/:id/move': {
+    POST: async ({ params, body }) => {
+      const parsed = MoveTopicSchema.parse(body)
+      return topicService.move(params.id, parsed)
     }
   },
 

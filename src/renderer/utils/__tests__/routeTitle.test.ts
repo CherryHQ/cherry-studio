@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Mock i18n before importing the module
-vi.mock('@renderer/i18n', () => ({
+vi.mock('@renderer/i18n/resolver', () => ({
   default: {
     t: vi.fn((key: string) => {
       const translations: Record<string, string> = {
@@ -16,7 +16,7 @@ vi.mock('@renderer/i18n', () => ({
         'title.files': '文件',
         'title.code': 'Code',
         'title.notes': '笔记',
-        'title.openclaw': 'OpenClaw',
+        'settings.about.releases.title': '更新日志',
         'title.settings': '设置'
       }
       return translations[key] || key
@@ -49,7 +49,7 @@ describe('routeTitle', () => {
         ['/app/files', '文件'],
         ['/app/code', 'Code'],
         ['/app/notes', '笔记'],
-        ['/app/openclaw', 'OpenClaw'],
+        ['/app/release-notes', '更新日志'],
         ['/settings', '设置']
       ])('should return correct title for %s', (url, expectedTitle) => {
         expect(getDefaultRouteTitle(url)).toBe(expectedTitle)
@@ -84,6 +84,7 @@ describe('routeTitle', () => {
     describe('unknown routes', () => {
       it('should return last segment for unknown routes', () => {
         expect(getDefaultRouteTitle('/unknown')).toBe('unknown')
+        expect(getDefaultRouteTitle('/app/openclaw')).toBe('openclaw')
         expect(getDefaultRouteTitle('/foo/bar/baz')).toBe('baz')
       })
 
@@ -117,7 +118,7 @@ describe('routeTitle', () => {
       it.each([
         ['/app/chat', 'agent.session.group.conversation'],
         ['/app/agents', 'title.work'],
-        ['/app/openclaw', 'title.openclaw'],
+        ['/app/release-notes', 'settings.about.releases.title'],
         ['/settings', 'title.settings']
       ])('should return i18n key for %s', (url, expectedKey) => {
         expect(getRouteTitleKey(url)).toBe(expectedKey)
@@ -135,6 +136,7 @@ describe('routeTitle', () => {
     describe('unknown routes', () => {
       it('should return undefined for unknown routes', () => {
         expect(getRouteTitleKey('/unknown')).toBeUndefined()
+        expect(getRouteTitleKey('/app/openclaw')).toBeUndefined()
         expect(getRouteTitleKey('/foo/bar')).toBeUndefined()
       })
     })
@@ -144,6 +146,7 @@ describe('routeTitle', () => {
     it('returns true only for bare top-level route tabs', () => {
       expect(isTopLevelRoute('/app/chat')).toBe(true)
       expect(isTopLevelRoute('/app/agents')).toBe(true)
+      expect(isTopLevelRoute('/app/release-notes')).toBe(true)
       expect(isTopLevelRoute('/app/chat?topicId=123&view=message')).toBe(false)
       expect(isTopLevelRoute('/app/agents#session')).toBe(false)
       expect(isTopLevelRoute('/app/chat/topic-123')).toBe(false)
@@ -171,6 +174,7 @@ describe('routeTitle', () => {
       ['/app/chat', true],
       ['/settings', true],
       ['/app/paintings', true],
+      ['/app/release-notes', true],
       // Paintings sub-routes inherit the section title (splat route, no per-entity title).
       ['/app/paintings/zhipu', true],
       // Any /settings sub-route re-localizes.

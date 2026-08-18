@@ -7,7 +7,8 @@ export default defineProvider({
   endpointConfigs: {
     'openai-chat-completions': {
       adapterFamily: 'groq',
-      baseUrl: 'https://api.groq.com/openai'
+      baseUrl: 'https://api.groq.com/openai',
+      reasoningFormat: { type: 'none' }
     }
   },
   apiFeatures: {

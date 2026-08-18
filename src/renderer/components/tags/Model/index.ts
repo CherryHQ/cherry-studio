@@ -1,11 +1,6 @@
-import { EmbeddingTag } from './EmbeddingTag'
-import { FreeTag } from './FreeTag'
-import { ReasoningTag } from './ReasoningTag'
-import { RerankerTag } from './RerankerTag'
-import { ToolsCallingTag } from './ToolsCallingTag'
-import { VisionTag } from './VisionTag'
-import { WebSearchTag } from './WebSearchTag'
-
+export { AudioTag } from './AudioTag'
+export { EmbeddingTag } from './EmbeddingTag'
+export { FreeTag } from './FreeTag'
 export { ModelTag, type ModelTagProps } from './ModelTag'
 export {
   getModelDisplayTags,
@@ -18,4 +13,9 @@ export {
   modelMatchesDisplayTag,
   type ModelTagVisibilityOptions
 } from './ModelTag'
-export { EmbeddingTag, FreeTag, ReasoningTag, RerankerTag, ToolsCallingTag, VisionTag, WebSearchTag }
+export { ReasoningTag } from './ReasoningTag'
+export { RerankerTag } from './RerankerTag'
+export { ToolsCallingTag } from './ToolsCallingTag'
+export { VideoTag } from './VideoTag'
+export { VisionTag } from './VisionTag'
+export { WebSearchTag } from './WebSearchTag'

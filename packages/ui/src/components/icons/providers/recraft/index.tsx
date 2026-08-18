@@ -17,7 +17,7 @@ const Recraft = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const RecraftIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Recraft, {
   Avatar: RecraftAvatar,
-  colorPrimary: '#010101'
+  colorPrimary: '#000000'
 })
 
 export default RecraftIcon

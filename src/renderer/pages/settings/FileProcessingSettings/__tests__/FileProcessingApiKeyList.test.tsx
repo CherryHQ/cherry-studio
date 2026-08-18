@@ -1,3 +1,4 @@
+import { toast } from '@renderer/services/toast'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
@@ -15,13 +16,6 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('@renderer/components/Scrollbar', () => ({
   default: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>
-}))
-
-vi.mock('@renderer/components/TopView/TopView', () => ({
-  TopView: {
-    show: vi.fn(),
-    hide: vi.fn()
-  }
 }))
 
 vi.mock('@renderer/components/icons/EditIcon', () => ({
@@ -69,20 +63,6 @@ describe('FileProcessingApiKeyList', () => {
     loggerErrorSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
     setApiKeysMock.mockReset()
     setApiKeysMock.mockResolvedValue(undefined)
-    Object.defineProperty(window, 'modal', {
-      configurable: true,
-      value: {
-        confirm: vi.fn().mockResolvedValue(true)
-      }
-    })
-    Object.defineProperty(window, 'toast', {
-      configurable: true,
-      value: {
-        error: vi.fn(),
-        success: vi.fn(),
-        warning: vi.fn()
-      }
-    })
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: {
@@ -121,7 +101,7 @@ describe('FileProcessingApiKeyList', () => {
 
     expect(setApiKeysMock).not.toHaveBeenCalled()
     await waitFor(() => {
-      expect(window.toast.warning).toHaveBeenCalledWith('settings.provider.api.key.error.duplicate')
+      expect(toast.warning).toHaveBeenCalledWith('settings.provider.api.key.error.duplicate')
     })
   })
 
@@ -151,7 +131,7 @@ describe('FileProcessingApiKeyList', () => {
     fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('settings.tool.file_processing.errors.save_failed')
+      expect(toast.error).toHaveBeenCalledWith('settings.tool.file_processing.errors.save_failed')
     })
     expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to save file processing API key', error)
     expect(screen.getByPlaceholderText('settings.provider.api.key.new_key.placeholder')).toHaveValue('key-1')
@@ -165,7 +145,7 @@ describe('FileProcessingApiKeyList', () => {
     fireEvent.click(screen.getByRole('button', { name: 'common.delete' }))
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('settings.tool.file_processing.errors.save_failed')
+      expect(toast.error).toHaveBeenCalledWith('settings.tool.file_processing.errors.save_failed')
     })
     expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to remove file processing API key', error)
     expect(screen.getByText('key-1')).toBeInTheDocument()

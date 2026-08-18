@@ -7,6 +7,7 @@ import {
 } from '@cherrystudio/ui/components/primitives/input-group'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { Search, X } from 'lucide-react'
+import type * as React from 'react'
 
 type SearchInputClearProps =
   | {
@@ -24,18 +25,22 @@ type SearchInputClearProps =
       clearLabel?: never
     }
 
-export type SearchInputProps = Omit<InputProps, 'type'> & SearchInputClearProps
+export type SearchInputProps = Omit<InputProps, 'type' | 'size'> &
+  SearchInputClearProps & {
+    /** Field height, forwarded to the underlying `InputGroup` (`default` = h-9, `sm` = h-7). */
+    size?: React.ComponentProps<typeof InputGroup>['size']
+  }
 
 /**
  * Search field built on `InputGroup`: a leading search icon, a text input, and
  * an optional trailing clear button. Controlled via `value` / `onChange`.
  */
-function SearchInput({ className, value, disabled, onClear, clearLabel, ...props }: SearchInputProps) {
+function SearchInput({ className, value, disabled, onClear, clearLabel, size, ...props }: SearchInputProps) {
   const hasValue = value !== undefined && value !== null && String(value).length > 0
   const showClear = onClear !== undefined && clearLabel !== undefined && hasValue
 
   return (
-    <InputGroup data-disabled={disabled ? 'true' : undefined}>
+    <InputGroup size={size} data-disabled={disabled ? 'true' : undefined}>
       <InputGroupAddon>
         <Search />
       </InputGroupAddon>

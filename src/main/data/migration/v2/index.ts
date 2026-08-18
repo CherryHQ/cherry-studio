@@ -5,11 +5,16 @@
 // Core
 export { createMigrationContext, type MigrationContext } from './core/MigrationContext'
 export { MigrationEngine, migrationEngine } from './core/MigrationEngine'
-export { type MigrationPaths, type MigrationPathsResult, resolveMigrationPaths } from './core/MigrationPaths'
+export { isSchemaOutOfSyncError } from './core/migrationErrors'
 export {
-  checkUpgradePathCompatibility,
+  type MigrationPaths,
+  type MigrationPathsResult,
+  pinUserDataPath,
+  resolveMigrationPaths
+} from './core/MigrationPaths'
+export {
+  evaluateCandidateVersion,
   getBlockMessage,
-  readPreviousVersion,
   V1_REQUIRED_VERSION,
   V2_GATEWAY_VERSION
 } from './core/versionPolicy'
@@ -33,18 +38,13 @@ export {
 } from '@shared/data/migration/v2/types'
 
 // Migrators
-export { BaseMigrator } from './migrators/BaseMigrator'
 export { getAllMigrators } from './migrators/migratorRegistry'
-
-// Utils
-export { DexieFileReader } from './utils/DexieFileReader'
-export { JsonStreamReader } from './utils/JsonStreamReader'
-export { ReduxStateReader } from './utils/ReduxStateReader'
 
 // Window management
 export {
   registerMigrationIpcHandlers,
   resetMigrationData,
+  setDataLocationNotice,
   setVersionIncompatible,
   unregisterMigrationIpcHandlers
 } from './window/MigrationIpcHandler'

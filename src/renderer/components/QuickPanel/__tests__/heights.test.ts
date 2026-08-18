@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { getQuickPanelHeights, QUICK_PANEL_ITEM_HEIGHT } from '../heights'
+import { getQuickPanelBodyVerticalSpace, getQuickPanelHeights, QUICK_PANEL_ITEM_HEIGHT } from '../heights'
 
 const ITEM = QUICK_PANEL_ITEM_HEIGHT
 const DEFAULT_CHROME = 98
@@ -17,6 +17,17 @@ const base = {
 }
 
 describe('getQuickPanelHeights', () => {
+  it('sums the rendered body padding and border widths', () => {
+    const style = {
+      paddingTop: '5px',
+      paddingBottom: '5px',
+      borderTopWidth: '0.5px',
+      borderBottomWidth: '0.5px'
+    } as CSSStyleDeclaration
+
+    expect(getQuickPanelBodyVerticalSpace(style)).toBe(11)
+  })
+
   describe('default (docked / non-fill): fixed height, ignores availableHeight', () => {
     it('uses the fixed ideal height when availableHeight is null', () => {
       const { panelMaxHeight, listHeight } = getQuickPanelHeights(base)
@@ -38,6 +49,13 @@ describe('getQuickPanelHeights', () => {
       expect(getQuickPanelHeights({ ...base, readOnly: true }).panelMaxHeight).toBe(
         base.pageSize * ITEM + READONLY_CHROME
       )
+    })
+
+    it('reserves a page slot for a bottom-fixed row', () => {
+      const { panelMaxHeight, listHeight } = getQuickPanelHeights({ ...base, fixedItemCount: 1 })
+
+      expect(panelMaxHeight).toBe(base.pageSize * ITEM + DEFAULT_CHROME)
+      expect(listHeight).toBe((base.pageSize - 1) * ITEM)
     })
   })
 
@@ -94,6 +112,20 @@ describe('getQuickPanelHeights', () => {
       expect(listHeight).toBe(3 * ITEM)
     })
 
+    it('keeps a bottom-fixed row outside the shrunken virtual list', () => {
+      const available = DEFAULT_CHROME + 3 * ITEM
+      const { panelMaxHeight, listHeight } = getQuickPanelHeights({
+        ...base,
+        fill: true,
+        fixedItemCount: 1,
+        itemCount: 50,
+        availableHeight: available
+      })
+
+      expect(panelMaxHeight).toBe(available)
+      expect(listHeight).toBe(2 * ITEM)
+    })
+
     it('never shrinks the panel below one row of chrome when the available space is tiny', () => {
       expect(getQuickPanelHeights({ ...base, fill: true, itemCount: 1, availableHeight: 10 }).panelMaxHeight).toBe(
         DEFAULT_CHROME + ITEM
@@ -108,6 +140,19 @@ describe('getQuickPanelHeights', () => {
         availableHeight: 400
       })
       expect(panelMaxHeight).toBe(DEFAULT_CHROME)
+      expect(listHeight).toBe(0)
+    })
+
+    it('keeps the bottom-fixed row visible when collapsed', () => {
+      const { panelMaxHeight, listHeight } = getQuickPanelHeights({
+        ...base,
+        fill: true,
+        collapsed: true,
+        fixedItemCount: 1,
+        availableHeight: 400
+      })
+
+      expect(panelMaxHeight).toBe(DEFAULT_CHROME + ITEM)
       expect(listHeight).toBe(0)
     })
   })

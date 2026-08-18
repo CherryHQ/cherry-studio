@@ -3,37 +3,30 @@
 
 import { loggerService } from '@logger'
 import { t } from '@main/i18n'
-import {
-  AlignmentType,
-  BorderStyle,
-  Document,
-  ExternalHyperlink,
-  HeadingLevel,
-  Packer,
-  Paragraph,
-  ShadingType,
-  Table,
-  TableCell,
-  TableRow,
-  TextRun,
-  VerticalAlign,
-  WidthType
-} from 'docx'
+import type * as Docx from 'docx'
+import type { ExternalHyperlink, Table, TableCell, TableRow, TextRun } from 'docx'
 import { dialog } from 'electron'
-import MarkdownIt from 'markdown-it'
-
-import { fileStorage } from './FileStorage'
+import fs from 'fs'
+import type MarkdownIt from 'markdown-it'
 
 const logger = loggerService.withContext('ExportService')
 export class ExportService {
-  private md: MarkdownIt
-
-  constructor() {
-    this.md = new MarkdownIt()
-  }
-
-  private convertMarkdownToDocxElements(markdown: string) {
-    const tokens = this.md.parse(markdown, {})
+  private convertMarkdownToDocxElements(markdown: string, md: MarkdownIt, docx: typeof Docx) {
+    const {
+      AlignmentType,
+      BorderStyle,
+      ExternalHyperlink,
+      HeadingLevel,
+      Paragraph,
+      ShadingType,
+      Table,
+      TableCell,
+      TableRow,
+      TextRun,
+      VerticalAlign,
+      WidthType
+    } = docx
+    const tokens = md.parse(markdown, {})
     const elements: any[] = []
     let listLevel = 0
     let currentTable: Table | null = null
@@ -364,11 +357,12 @@ export class ExportService {
     return elements
   }
 
-  public exportToWord = async (_: Electron.IpcMainInvokeEvent, markdown: string, fileName: string): Promise<void> => {
+  public exportToWord = async (markdown: string, fileName: string): Promise<void> => {
     try {
-      const elements = this.convertMarkdownToDocxElements(markdown)
+      const [{ default: MarkdownIt }, docx] = await Promise.all([import('markdown-it'), import('docx')])
+      const elements = this.convertMarkdownToDocxElements(markdown, new MarkdownIt(), docx)
 
-      const doc = new Document({
+      const doc = new docx.Document({
         styles: {
           paragraphStyles: [
             {
@@ -389,7 +383,7 @@ export class ExportService {
         ]
       })
 
-      const buffer = await Packer.toBuffer(doc)
+      const buffer = await docx.Packer.toBuffer(doc)
 
       const filePath = dialog.showSaveDialogSync({
         title: t('dialog.save_file'),
@@ -398,7 +392,7 @@ export class ExportService {
       })
 
       if (filePath) {
-        await fileStorage.writeFile(_, filePath, buffer)
+        await fs.promises.writeFile(filePath, buffer)
         logger.debug('Document exported successfully')
       }
     } catch (error) {

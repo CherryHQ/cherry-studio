@@ -7,6 +7,7 @@ import {
   usePaginatedQuery
 } from '@renderer/data/hooks/useDataApi'
 import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
 import type { FC } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -38,10 +39,10 @@ function useTrashActionRunner() {
           }
     try {
       await run()
-      window.toast.success(messages.success)
+      toast.success(messages.success)
     } catch (error) {
       logger.error(`trash ${action} failed`, error as Error)
-      window.toast.error(messages.error)
+      toast.error(messages.error)
     }
   }
 }
@@ -96,6 +97,7 @@ export const TopicTrashSection: FC<TrashDomainSectionProps> = ({ retentionDays, 
 
 export const AgentTrashSection: FC<TrashDomainSectionProps> = ({ retentionDays, onRequestDelete }) => {
   const runAction = useTrashActionRunner()
+  const invalidate = useInvalidateCache()
   const [pendingRestoreId, setPendingRestoreId] = useState<string | null>(null)
 
   const {
@@ -117,7 +119,6 @@ export const AgentTrashSection: FC<TrashDomainSectionProps> = ({ retentionDays, 
   const totalPages = Math.ceil(total / 50)
 
   const restoreMutation = useMutation('POST', '/agents/:agentId/restore', { refresh: ['/agents', '/agents/*'] })
-  const deleteMutation = useMutation('DELETE', '/agents/:agentId', { refresh: ['/agents', '/agents/*'] })
 
   const handleRestore = async (item: TrashItem) => {
     setPendingRestoreId(item.id)
@@ -130,9 +131,14 @@ export const AgentTrashSection: FC<TrashDomainSectionProps> = ({ retentionDays, 
 
   const handleDelete = (item: TrashItem) =>
     onRequestDelete(item, (target) =>
-      runAction('permanent_delete', () =>
-        deleteMutation.trigger({ params: { agentId: target.id }, query: { permanent: true } })
-      )
+      runAction('permanent_delete', async () => {
+        await ipcApi.request('ai.agent.delete', {
+          agentId: target.id,
+          deleteSessions: false,
+          permanent: true
+        })
+        await invalidate(['/agents', '/agents/*'])
+      })
     )
 
   return (
@@ -161,6 +167,7 @@ export const AgentTrashSection: FC<TrashDomainSectionProps> = ({ retentionDays, 
 
 export const SessionTrashSection: FC<TrashDomainSectionProps> = ({ retentionDays, onRequestDelete }) => {
   const runAction = useTrashActionRunner()
+  const invalidate = useInvalidateCache()
   const [pendingRestoreId, setPendingRestoreId] = useState<string | null>(null)
 
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery('/agent-sessions', {
@@ -176,9 +183,6 @@ export const SessionTrashSection: FC<TrashDomainSectionProps> = ({ retentionDays
   const restoreMutation = useMutation('POST', '/agent-sessions/:sessionId/restore', {
     refresh: ['/agent-sessions', '/agent-sessions/*', '/agents/*']
   })
-  const deleteMutation = useMutation('DELETE', '/agent-sessions/:sessionId', {
-    refresh: ['/agent-sessions', '/agent-sessions/*', '/agents/*']
-  })
 
   const handleRestore = async (item: TrashItem) => {
     setPendingRestoreId(item.id)
@@ -191,9 +195,10 @@ export const SessionTrashSection: FC<TrashDomainSectionProps> = ({ retentionDays
 
   const handleDelete = (item: TrashItem) =>
     onRequestDelete(item, (target) =>
-      runAction('permanent_delete', () =>
-        deleteMutation.trigger({ params: { sessionId: target.id }, query: { permanent: true } })
-      )
+      runAction('permanent_delete', async () => {
+        await ipcApi.request('ai.agent.session.delete', { sessionIds: [target.id], permanent: true })
+        await invalidate(['/agent-sessions', '/agent-sessions/*', '/agents/*'])
+      })
     )
 
   return (

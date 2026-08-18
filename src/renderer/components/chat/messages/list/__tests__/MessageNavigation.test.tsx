@@ -27,13 +27,16 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-const createMessage = (id: string, role: MessageListItem['role']): MessageListItem => ({
+const createMessage = (id: string, role: MessageListItem['role'], parentId?: string | null): MessageListItem => ({
   id,
   role,
+  parentId,
   topicId: 'topic-1',
   createdAt: '2026-01-01T00:00:00.000Z',
   status: 'success'
 })
+
+const createScrollContainerRef = () => ({ current: null as HTMLDivElement | null })
 
 const setRect = (element: Element, rect: Partial<DOMRect>) => {
   element.getBoundingClientRect = vi.fn(() => ({
@@ -51,6 +54,7 @@ const setRect = (element: Element, rect: Partial<DOMRect>) => {
 }
 
 const renderNavigation = (messages: MessageListItem[], visibleMessageIds: string[] = []) => {
+  const scrollContainerRef = createScrollContainerRef()
   const scrollToMessageId = vi.fn()
   const scrollToTop = vi.fn()
   const scrollToBottom = vi.fn()
@@ -58,14 +62,15 @@ const renderNavigation = (messages: MessageListItem[], visibleMessageIds: string
   const { container } = render(
     <>
       <div id="messages">
-        <div data-message-virtual-list-scroller>
+        <div ref={scrollContainerRef} data-message-virtual-list-scroller>
           {messages.map((message) => (
             <div key={message.id} id={`message-${message.id}`} />
           ))}
         </div>
       </div>
       <MessageNavigation
-        containerId="messages"
+        scrollContainerRef={scrollContainerRef}
+        getMessageElement={(messageId) => document.getElementById(`message-${messageId}`)}
         messages={messages}
         scrollToMessageId={scrollToMessageId}
         scrollToTop={scrollToTop}
@@ -91,7 +96,51 @@ const renderNavigation = (messages: MessageListItem[], visibleMessageIds: string
 }
 
 describe('MessageNavigation', () => {
-  it('scrolls to message ids from the full message list, not only rendered DOM nodes', () => {
+  it('uses the owning message list when another mounted list has the same container id', () => {
+    const scrollContainerRef = createScrollContainerRef()
+    const { container } = render(
+      <>
+        <div id="messages" data-testid="background-message-list">
+          <div data-message-virtual-list-scroller />
+        </div>
+        <div id="messages" data-testid="active-message-list">
+          <div ref={scrollContainerRef} data-testid="active-message-scroller" data-message-virtual-list-scroller />
+        </div>
+        <MessageNavigation
+          scrollContainerRef={scrollContainerRef}
+          getMessageElement={() => null}
+          messages={[createMessage('user-1', 'user')]}
+          scrollToMessageId={vi.fn()}
+          scrollToTop={vi.fn()}
+          scrollToBottom={vi.fn()}
+        />
+      </>
+    )
+
+    setRect(screen.getByTestId('background-message-list'), {
+      bottom: 0,
+      height: 0,
+      right: 0,
+      top: 0
+    })
+    setRect(screen.getByTestId('active-message-scroller'), {
+      bottom: 600,
+      height: 600,
+      left: 100,
+      right: 700,
+      top: 0,
+      width: 600
+    })
+
+    fireEvent.mouseMove(screen.getByTestId('active-message-list'), { clientX: 670, clientY: 300 })
+
+    const navigation = screen.getByRole('button', { name: 'chat.navigation.top' }).parentElement?.parentElement ?? null
+    expect(container).toContainElement(navigation)
+    expect(navigation).toHaveStyle({ opacity: '1' })
+  })
+
+  it('navigates previous to older and next to newer messages from the full message list', () => {
+    const scrollContainerRef = createScrollContainerRef()
     const scrollToMessageId = vi.fn()
     const messages = [
       createMessage('user-1', 'user'),
@@ -104,12 +153,13 @@ describe('MessageNavigation', () => {
     const { container } = render(
       <>
         <div id="messages">
-          <div data-message-virtual-list-scroller>
+          <div ref={scrollContainerRef} data-message-virtual-list-scroller>
             <div id="message-user-2" />
           </div>
         </div>
         <MessageNavigation
-          containerId="messages"
+          scrollContainerRef={scrollContainerRef}
+          getMessageElement={(messageId) => document.getElementById(`message-${messageId}`)}
           messages={messages}
           scrollToMessageId={scrollToMessageId}
           scrollToTop={vi.fn()}
@@ -131,20 +181,27 @@ describe('MessageNavigation', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'chat.navigation.prev' }))
 
+    expect(scrollToMessageId).toHaveBeenCalledWith('user-1')
+
+    scrollToMessageId.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: 'chat.navigation.next' }))
+
     expect(scrollToMessageId).toHaveBeenCalledWith('user-3')
   })
 
   it('delegates the top and bottom buttons to the runtime scroll callbacks', () => {
+    const scrollContainerRef = createScrollContainerRef()
     const scrollToTop = vi.fn()
     const scrollToBottom = vi.fn()
 
     render(
       <>
         <div id="messages">
-          <div data-message-virtual-list-scroller />
+          <div ref={scrollContainerRef} data-message-virtual-list-scroller />
         </div>
         <MessageNavigation
-          containerId="messages"
+          scrollContainerRef={scrollContainerRef}
+          getMessageElement={() => null}
           messages={[createMessage('user-1', 'user')]}
           scrollToMessageId={vi.fn()}
           scrollToTop={scrollToTop}
@@ -160,6 +217,70 @@ describe('MessageNavigation', () => {
     expect(scrollToBottom).toHaveBeenCalledTimes(1)
   })
 
+  it('moves one message at a time from the first visible user message', () => {
+    const messages = [
+      createMessage('user-1', 'user'),
+      createMessage('user-2', 'user'),
+      createMessage('user-3', 'user'),
+      createMessage('user-4', 'user')
+    ]
+    const { scrollToMessageId } = renderNavigation(messages, ['user-2', 'user-3'])
+
+    fireEvent.click(screen.getByRole('button', { name: 'chat.navigation.prev' }))
+    expect(scrollToMessageId).toHaveBeenCalledWith('user-1')
+
+    scrollToMessageId.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: 'chat.navigation.next' }))
+    expect(scrollToMessageId).toHaveBeenCalledWith('user-3')
+  })
+
+  it('uses the owning user when the second assistant reply is visible', () => {
+    const messages = [
+      createMessage('user-1', 'user'),
+      createMessage('assistant-1a', 'assistant', 'user-1'),
+      createMessage('assistant-1b', 'assistant', 'user-1'),
+      createMessage('user-2', 'user'),
+      createMessage('assistant-2', 'assistant', 'user-2'),
+      createMessage('user-3', 'user')
+    ]
+    const { scrollToMessageId } = renderNavigation(messages, ['assistant-1b'])
+
+    fireEvent.click(screen.getByRole('button', { name: 'chat.navigation.next' }))
+
+    expect(scrollToMessageId).toHaveBeenCalledWith('user-2')
+  })
+
+  it('uses the preceding user when a linear assistant message has no parent id', () => {
+    const messages = [
+      createMessage('user-1', 'user'),
+      createMessage('assistant-1a', 'assistant'),
+      createMessage('assistant-1b', 'assistant'),
+      createMessage('user-2', 'user'),
+      createMessage('assistant-2', 'assistant'),
+      createMessage('user-3', 'user')
+    ]
+    const { scrollToMessageId } = renderNavigation(messages, ['assistant-1b'])
+
+    fireEvent.click(screen.getByRole('button', { name: 'chat.navigation.next' }))
+
+    expect(scrollToMessageId).toHaveBeenCalledWith('user-2')
+  })
+
+  it('does not infer an owning user when an assistant parent id is invalid', () => {
+    const messages = [
+      createMessage('user-1', 'user'),
+      createMessage('user-2', 'user'),
+      createMessage('assistant-invalid', 'assistant', 'missing-user'),
+      createMessage('user-3', 'user')
+    ]
+    const { scrollToBottom, scrollToMessageId } = renderNavigation(messages, ['assistant-invalid'])
+
+    fireEvent.click(screen.getByRole('button', { name: 'chat.navigation.next' }))
+
+    expect(scrollToBottom).toHaveBeenCalledTimes(1)
+    expect(scrollToMessageId).not.toHaveBeenCalled()
+  })
+
   it.each([
     {
       name: 'when there are no messages',
@@ -170,9 +291,9 @@ describe('MessageNavigation', () => {
       messages: [createMessage('user-1', 'user'), createMessage('user-2', 'user')]
     },
     {
-      name: 'when the first user message is already visible',
+      name: 'when the last user message is already visible',
       messages: [createMessage('user-1', 'user'), createMessage('user-2', 'user')],
-      visibleMessageIds: ['user-1']
+      visibleMessageIds: ['user-2']
     }
   ])('delegates next-message fallback to runtime scrollToBottom $name', ({ messages, visibleMessageIds }) => {
     const { scrollToBottom, scrollToMessageId, scrollToTop } = renderNavigation(messages, visibleMessageIds)
@@ -194,9 +315,9 @@ describe('MessageNavigation', () => {
       messages: [createMessage('user-1', 'user'), createMessage('user-2', 'user')]
     },
     {
-      name: 'when the last user message is already visible',
+      name: 'when the first user message is already visible',
       messages: [createMessage('user-1', 'user'), createMessage('user-2', 'user')],
-      visibleMessageIds: ['user-2']
+      visibleMessageIds: ['user-1']
     }
   ])('delegates prev-message fallback to runtime scrollToTop $name', ({ messages, visibleMessageIds }) => {
     const { scrollToBottom, scrollToMessageId, scrollToTop } = renderNavigation(messages, visibleMessageIds)

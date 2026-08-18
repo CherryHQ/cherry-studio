@@ -13,6 +13,7 @@ import type { MessageListItem } from '../types'
 interface MessageOutlineProps {
   message: MessageListItem
   multiModelMessageStyle: MultiModelMessageStyle
+  onNavigateToElement(element: HTMLElement): void
 }
 
 interface HeadingItem {
@@ -21,7 +22,7 @@ interface HeadingItem {
   text: string
 }
 
-const MessageOutline: FC<MessageOutlineProps> = ({ message, multiModelMessageStyle }) => {
+const MessageOutline: FC<MessageOutlineProps> = ({ message, multiModelMessageStyle, onNavigateToElement }) => {
   const messageParts = useMessageParts(message.id)
 
   const headings: HeadingItem[] = useMemo(() => {
@@ -80,8 +81,14 @@ const MessageOutline: FC<MessageOutlineProps> = ({ message, multiModelMessageSty
     if (messageContentContainer) {
       const headingElement = messageContentContainer.querySelector<HTMLElement>(`#${id}`)
       if (headingElement) {
-        const scrollBlock = ['horizontal', 'grid'].includes(multiModelMessageStyle) ? 'nearest' : 'start'
-        scrollIntoView(headingElement, { behavior: 'smooth', block: scrollBlock, container: 'nearest' })
+        if (multiModelMessageStyle === 'horizontal') {
+          // The heading lives inside the message's own scroll container
+          // (`.message-content-container` is the nearest scrollable ancestor in
+          // this layout); the outer list scroller cannot reveal it.
+          scrollIntoView(headingElement, { behavior: 'smooth', block: 'nearest', container: 'nearest' })
+        } else {
+          onNavigateToElement(headingElement)
+        }
       }
     }
   }
@@ -91,20 +98,20 @@ const MessageOutline: FC<MessageOutlineProps> = ({ message, multiModelMessageSty
 
   return (
     <div className="pointer-events-none absolute inset-y-0 right-0 left-2 z-999 flex items-center">
-      <Scrollbar className="group pointer-events-auto inline-flex max-h-[70vh] max-w-1/2 flex-col gap-1 overflow-x-hidden overflow-y-hidden rounded-[10px] border border-transparent px-0 pt-2.5 pr-0 pb-2.5 pl-2.5 hover:overflow-y-auto hover:border-border/40 hover:bg-popover hover:px-2.5 hover:shadow-[0_0_10px_0_rgba(128,128,128,0.2)]">
+      <Scrollbar className="group pointer-events-auto inline-flex max-h-[70vh] max-w-1/2 flex-col gap-1 overflow-x-hidden overflow-y-hidden rounded-[10px] border border-transparent px-0 pt-2.5 pr-0 pb-2.5 pl-2.5 hover:overflow-y-auto hover:border-border-subtle hover:bg-popover hover:px-2.5 hover:shadow-[0_0_10px_0_rgba(128,128,128,0.2)]">
         {headings.map((heading, index) => (
           <div
             key={index}
-            className="flex h-6 shrink-0 cursor-pointer items-center gap-2 [&:hover_.outline-dot]:bg-foreground-muted [&:hover_.outline-text]:text-foreground-secondary"
+            className="flex h-6 shrink-0 cursor-pointer items-center gap-2 [&:hover_.outline-dot]:bg-secondary [&:hover_.outline-text]:text-muted-foreground"
             onClick={() => scrollToHeading(heading.id)}>
             <div
-              className="mr-1 h-1 shrink-0 rounded-[2px] bg-border outline-dot transition-colors duration-200 ease-out"
+              className="mr-1 h-1 shrink-0 rounded-[2px] bg-muted outline-dot transition-colors duration-200 ease-out"
               style={{
                 width: `${16 - heading.level * 2}px`
               }}
             />
             <div
-              className="hidden truncate whitespace-nowrap px-2 py-0.5 text-foreground-muted opacity-0 outline-text transition-opacity duration-200 ease-out group-hover:block group-hover:opacity-100"
+              className="hidden truncate whitespace-nowrap px-2 py-0.5 text-foreground-tertiary opacity-0 outline-text transition-opacity duration-200 ease-out group-hover:block group-hover:opacity-100"
               style={{
                 fontSize: `${16 - heading.level}px`,
                 paddingLeft: `${(heading.level - miniLevel) * 8}px`

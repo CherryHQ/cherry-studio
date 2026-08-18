@@ -5,10 +5,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ChatPreferenceSections from '../ChatPreferenceSections'
 
 const mocks = vi.hoisted(() => ({
+  loadThemeNames: vi.fn(async () => ['auto', 'github']),
   setPreference: vi.fn(),
   preferenceValues: {
-    'topic.layout': 'modern',
-    'agent.layout': 'classic',
     'chat.message.style': 'plain',
     'chat.message.font_size': 14,
     'chat.input.send_message_shortcut': 'Enter',
@@ -60,7 +59,7 @@ vi.mock('@renderer/hooks/useTheme', () => ({
 }))
 
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
-  useCodeStyle: () => ({ themeNames: ['auto', 'github'] })
+  useCodeStyle: () => ({ loadThemeNames: mocks.loadThemeNames, themeNames: ['auto', 'github'] })
 }))
 
 vi.mock('@cherrystudio/ui/lib/utils', () => ({
@@ -68,7 +67,11 @@ vi.mock('@cherrystudio/ui/lib/utils', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  CustomTag: ({ children }: PropsWithChildren) => <span>{children}</span>,
   Divider: ({ className }: { className?: string }) => <hr className={className} />,
+  Flex: ({ children, className }: PropsWithChildren<{ className?: string }>) => (
+    <div className={className}>{children}</div>
+  ),
   Select: ({ children }: PropsWithChildren) => <div>{children}</div>,
   SelectContent: ({ children }: PropsWithChildren) => <div>{children}</div>,
   SelectItem: ({ children, value }: PropsWithChildren<{ value: string }>) => <div data-value={value}>{children}</div>,
@@ -103,6 +106,7 @@ describe('ChatPreferenceSections', () => {
   beforeEach(() => {
     mocks.preferenceValues['chat.message.font_size'] = 14
     mocks.preferenceValues['chat.narrow_mode'] = true
+    mocks.loadThemeNames.mockClear()
     mocks.setPreference.mockClear()
   })
 

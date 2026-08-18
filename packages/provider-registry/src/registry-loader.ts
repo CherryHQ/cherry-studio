@@ -14,7 +14,7 @@ import type { ProviderConfig } from './schemas/provider'
 import { ProviderListSchema } from './schemas/provider'
 import type { ProviderModelOverride } from './schemas/provider-models'
 import { ProviderModelListSchema } from './schemas/provider-models'
-import { normalizeModelId } from './utils/normalize'
+import { colonVariantTagToHyphen, extractParameterSize, normalizeModelId } from './utils/normalize'
 
 function readAndParse<T>(jsonPath: string, schema: { parse: (data: unknown) => T }): T {
   try {
@@ -65,10 +65,13 @@ export class RegistryLoader {
 
   private modelById: Map<string, ModelConfig> | null = null
   private modelByNormId: Map<string, ModelConfig> | null = null
+  private modelBySizedNorm: Map<string, ModelConfig> | null = null
   private overrideByKey: Map<string, ProviderModelOverride> | null = null
   private overrideByNormKey: Map<string, ProviderModelOverride> | null = null
+  private overrideBySizedNormKey: Map<string, ProviderModelOverride> | null = null
   private overrideByApiKey: Map<string, ProviderModelOverride> | null = null
   private overrideByNormApiKey: Map<string, ProviderModelOverride> | null = null
+  private overrideBySizedNormApiKey: Map<string, ProviderModelOverride> | null = null
   private overridesByProvider: Map<string, ProviderModelOverride[]> | null = null
 
   private idleTimer: ReturnType<typeof setTimeout> | null = null
@@ -140,11 +143,18 @@ export class RegistryLoader {
   private buildModelIndex(): void {
     this.modelById = new Map()
     this.modelByNormId = new Map()
+    this.modelBySizedNorm = new Map()
     for (const m of this.models!) {
       this.modelById.set(m.id, m)
       const nid = normalizeModelId(m.id)
       if (!this.modelByNormId.has(nid)) {
         this.modelByNormId.set(nid, m)
+      }
+      // Size-preserving key: `gpt-oss-20b` and `gpt-oss-120b` stay distinct here (they collapse to the
+      // same `gpt-oss` key above), so a registry-tagged `:20b`/`:120b` pull resolves to its own row.
+      const sid = normalizeModelId(m.id, { keepParameterSize: true })
+      if (!this.modelBySizedNorm.has(sid)) {
+        this.modelBySizedNorm.set(sid, m)
       }
     }
   }
@@ -152,8 +162,10 @@ export class RegistryLoader {
   private buildOverrideIndex(): void {
     this.overrideByKey = new Map()
     this.overrideByNormKey = new Map()
+    this.overrideBySizedNormKey = new Map()
     this.overrideByApiKey = new Map()
     this.overrideByNormApiKey = new Map()
+    this.overrideBySizedNormApiKey = new Map()
     this.overridesByProvider = new Map()
     for (const pm of this.providerModels!) {
       const key = `${pm.providerId}::${pm.modelId}`
@@ -168,12 +180,25 @@ export class RegistryLoader {
       if (!this.overrideByNormKey.has(normKey)) {
         this.overrideByNormKey.set(normKey, pm)
       }
+      // Size-preserving normalized key (mirror of `modelBySizedNorm`). Size siblings collapse to one
+      // size-agnostic key (`gpt-oss-20b`/`gpt-oss-120b` both → `gpt-oss`), so a fetch id that misses the
+      // exact keys — a gateway re-namespacing a model (`nvidia/gpt-oss-20b`) — must resolve to its OWN
+      // size's row, never the first sibling to claim the family key. Same self-variant rule as the exact
+      // key so a dated row never claims the sized slot either.
+      const sizedNormKey = `${pm.providerId}::${normalizeModelId(pm.modelId, { keepParameterSize: true })}`
+      if (!this.overrideBySizedNormKey.has(sizedNormKey) || pm.apiModelId === pm.modelId) {
+        this.overrideBySizedNormKey.set(sizedNormKey, pm)
+      }
       if (pm.apiModelId) {
         const apiKey = `${pm.providerId}::${pm.apiModelId}`
         this.overrideByApiKey.set(apiKey, pm)
         const normApiKey = `${pm.providerId}::${normalizeModelId(pm.apiModelId)}`
         if (!this.overrideByNormApiKey.has(normApiKey)) {
           this.overrideByNormApiKey.set(normApiKey, pm)
+        }
+        const sizedNormApiKey = `${pm.providerId}::${normalizeModelId(pm.apiModelId, { keepParameterSize: true })}`
+        if (!this.overrideBySizedNormApiKey.has(sizedNormApiKey)) {
+          this.overrideBySizedNormApiKey.set(sizedNormApiKey, pm)
         }
       }
       let arr = this.overridesByProvider.get(pm.providerId)
@@ -187,7 +212,22 @@ export class RegistryLoader {
 
   findModel(modelId: string): ModelConfig | null {
     this.loadModels()
-    return this.modelById!.get(modelId) ?? this.modelByNormId!.get(normalizeModelId(modelId)) ?? null
+    const exact = this.modelById!.get(modelId)
+    if (exact) return exact
+    // A registry-tag id (`gpt-oss:20b`) carries its size/quant AFTER a colon. Match it size-first so
+    // `:20b` lands on `gpt-oss-20b`, never collapsing onto the `gpt-oss-120b` sibling that shares the
+    // size-agnostic key. If no exact-size catalog row exists (`qwen2.5:7b` → the catalog only has
+    // `qwen2-5-*-instruct`), return null rather than a size-agnostic guess — a wrong sibling's pricing,
+    // limits, and presetModelId are worse than no metadata.
+    if (colonVariantTagToHyphen(modelId) !== modelId) {
+      return this.modelBySizedNorm!.get(normalizeModelId(modelId, { keepParameterSize: true })) ?? null
+    }
+    // Prefer the size-preserving key before the family key so distinct catalog sizes keep their metadata.
+    const sizedModelId = normalizeModelId(modelId, { keepParameterSize: true })
+    const sizedHit = this.modelBySizedNorm!.get(sizedModelId)
+    if (sizedHit) return sizedHit
+    if (extractParameterSize(sizedModelId)) return null
+    return this.modelByNormId!.get(normalizeModelId(modelId)) ?? null
   }
 
   findProvider(providerId: string): ProviderConfig | null {
@@ -198,19 +238,22 @@ export class RegistryLoader {
   findOverride(providerId: string, modelId: string): ProviderModelOverride | null {
     this.loadProviderModels()
     const key = `${providerId}::${modelId}`
-    const normKey = `${providerId}::${normalizeModelId(modelId)}`
     // BOTH exact lookups (canonical modelId, then provider apiModelId) must precede BOTH normalized
     // fallbacks. `normalizeModelId` strips size/date suffixes, so several distinct rows collapse to one
     // normalized key (`google.gemma-3-27b-it` and `gemma-3-12b-it` both → `gemma-3-it`). If the normalized
     // canonical fallback ran before the exact apiModelId map, an exact SDK id like `google.gemma-3-27b-it`
     // would resolve through whichever same-family row was indexed first instead of its own row.
-    return (
-      this.overrideByKey!.get(key) ??
-      this.overrideByApiKey!.get(key) ??
-      this.overrideByNormKey!.get(normKey) ??
-      this.overrideByNormApiKey!.get(normKey) ??
-      null
-    )
+    const exact = this.overrideByKey!.get(key) ?? this.overrideByApiKey!.get(key)
+    if (exact) return exact
+
+    const sizedModelId = normalizeModelId(modelId, { keepParameterSize: true })
+    const sizedNormKey = `${providerId}::${sizedModelId}`
+    const sizedHit = this.overrideBySizedNormKey!.get(sizedNormKey) ?? this.overrideBySizedNormApiKey!.get(sizedNormKey)
+    if (sizedHit) return sizedHit
+    if (extractParameterSize(sizedModelId)) return null
+
+    const normKey = `${providerId}::${normalizeModelId(modelId)}`
+    return this.overrideByNormKey!.get(normKey) ?? this.overrideByNormApiKey!.get(normKey) ?? null
   }
 
   /** O(1) get all overrides for a provider. */
@@ -229,10 +272,13 @@ export class RegistryLoader {
     this.providerModelsVersion = null
     this.modelById = null
     this.modelByNormId = null
+    this.modelBySizedNorm = null
     this.overrideByKey = null
     this.overrideByNormKey = null
+    this.overrideBySizedNormKey = null
     this.overrideByApiKey = null
     this.overrideByNormApiKey = null
+    this.overrideBySizedNormApiKey = null
     this.overridesByProvider = null
     if (this.idleTimer) {
       clearTimeout(this.idleTimer)

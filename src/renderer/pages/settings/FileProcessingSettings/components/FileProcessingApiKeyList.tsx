@@ -2,7 +2,8 @@ import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input } from 
 import { loggerService } from '@logger'
 import EditIcon from '@renderer/components/icons/EditIcon'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { TopView } from '@renderer/components/TopView/TopView'
+import { createPopup, popup, type PopupInjectedProps } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import { Check, Copy, Minus, Plus, X } from 'lucide-react'
@@ -72,14 +73,14 @@ const FileProcessingApiKeyItem: FC<FileProcessingApiKeyItemProps> = ({ item, onU
     try {
       const result = await onUpdate(editValue)
       if (!result.isValid) {
-        window.toast.warning(result.error)
+        toast.warning(result.error)
         return
       }
 
       setIsEditing(false)
     } catch (error) {
       logger.error('Failed to save file processing API key', error as Error)
-      window.toast.error(t('settings.tool.file_processing.errors.save_failed'))
+      toast.error(t('settings.tool.file_processing.errors.save_failed'))
     }
   }
 
@@ -96,15 +97,15 @@ const FileProcessingApiKeyItem: FC<FileProcessingApiKeyItemProps> = ({ item, onU
   const handleCopy = () => {
     navigator.clipboard
       .writeText(item.key)
-      .then(() => window.toast.success(t('common.copied')))
+      .then(() => toast.success(t('common.copied')))
       .catch((error) => {
         logger.error('Failed to copy file processing API key', error as Error)
-        window.toast.error(t('common.copy_failed'))
+        toast.error(t('common.copy_failed'))
       })
   }
 
   const handleRemove = async () => {
-    const confirmed = await window.modal.confirm({
+    const confirmed = await popup.confirm({
       title: t('common.delete_confirm'),
       centered: true,
       okText: t('common.confirm'),
@@ -116,13 +117,13 @@ const FileProcessingApiKeyItem: FC<FileProcessingApiKeyItemProps> = ({ item, onU
         await onRemove()
       } catch (error) {
         logger.error('Failed to remove file processing API key', error as Error)
-        window.toast.error(t('settings.tool.file_processing.errors.save_failed'))
+        toast.error(t('settings.tool.file_processing.errors.save_failed'))
       }
     }
   }
 
   return (
-    <div className="flex min-h-10 items-center justify-between gap-2 border-border/40 border-b px-3 py-2 last:border-b-0">
+    <div className="flex min-h-10 items-center justify-between gap-2 border-border-subtle border-b px-3 py-2 last:border-b-0">
       {isEditing ? (
         <>
           <Input
@@ -136,7 +137,7 @@ const FileProcessingApiKeyItem: FC<FileProcessingApiKeyItemProps> = ({ item, onU
               }
             }}
             placeholder={t('settings.provider.api.key.new_key.placeholder')}
-            className="h-8 min-w-0 flex-1 rounded-lg border-border/30 bg-foreground/3 text-sm leading-tight placeholder:text-foreground/25 md:text-sm"
+            className="h-8 min-w-0 flex-1 rounded-lg border-border-subtle bg-foreground/3 text-sm leading-tight placeholder:text-muted-foreground md:text-sm"
             spellCheck={false}
           />
           <div className="flex shrink-0 items-center gap-0.5">
@@ -164,7 +165,7 @@ const FileProcessingApiKeyItem: FC<FileProcessingApiKeyItemProps> = ({ item, onU
             type="button"
             variant="ghost"
             size="sm"
-            className="h-auto min-w-0 flex-1 justify-start rounded-none px-0 py-0 text-left text-foreground/70 text-sm leading-tight shadow-none hover:bg-transparent hover:text-foreground/80"
+            className="h-auto min-w-0 flex-1 justify-start rounded-none px-0 py-0 text-left text-muted-foreground text-sm leading-tight shadow-none hover:bg-transparent hover:text-foreground"
             onClick={handleCopy}>
             <span className="min-w-0 truncate">{maskFileProcessingApiKey(item.key)}</span>
           </Button>
@@ -206,7 +207,7 @@ export const FileProcessingApiKeyList: FC<FileProcessingApiKeyListProps> = ({ pr
 
   return (
     <div className="py-3">
-      <div className="overflow-hidden rounded-xl border border-border/60 bg-foreground/2">
+      <div className="overflow-hidden rounded-xl border border-border-subtle bg-foreground/2">
         {displayItems.length === 0 ? (
           <div className="px-3 py-2 text-muted-foreground text-xs leading-tight">{t('error.no_api_key')}</div>
         ) : (
@@ -248,27 +249,13 @@ interface ShowParams extends FileProcessingApiKeyListProps {
   title?: string
 }
 
-interface PopupProps extends ShowParams {
-  resolve: (value: unknown) => void
-}
+type PopupProps = ShowParams & PopupInjectedProps<null>
 
-const PopupContainer: FC<PopupProps> = ({ processorId, apiKeys, onSetApiKeys, title, resolve }) => {
-  const [open, setOpen] = useState(true)
+const PopupContainer: FC<PopupProps> = ({ processorId, apiKeys, onSetApiKeys, title, open, resolve }) => {
   const { t } = useTranslation()
-  const resolvedRef = useRef(false)
-
-  const closePopup = () => {
-    if (resolvedRef.current) {
-      return
-    }
-
-    resolvedRef.current = true
-    setOpen(false)
-    resolve(null)
-  }
 
   return (
-    <Dialog open={open} onOpenChange={(nextOpen) => (nextOpen ? setOpen(true) : closePopup())}>
+    <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && resolve(null)}>
       <DialogContent closeOnOverlayClick={false} className="sm:max-w-150">
         <DialogHeader>
           <DialogTitle className="text-sm">{title || t('settings.provider.api.key.list.title')}</DialogTitle>
@@ -279,21 +266,4 @@ const PopupContainer: FC<PopupProps> = ({ processorId, apiKeys, onSetApiKeys, ti
   )
 }
 
-const TopViewKey = 'FileProcessingApiKeyListPopup'
-
-export class FileProcessingApiKeyListPopup {
-  static show(props: ShowParams) {
-    return new Promise<unknown>((resolve) => {
-      TopView.show(
-        <PopupContainer
-          {...props}
-          resolve={(value) => {
-            resolve(value)
-            TopView.hide(TopViewKey)
-          }}
-        />,
-        TopViewKey
-      )
-    })
-  }
-}
+export const FileProcessingApiKeyListPopup = createPopup<ShowParams, null>(PopupContainer, { dismissResult: null })

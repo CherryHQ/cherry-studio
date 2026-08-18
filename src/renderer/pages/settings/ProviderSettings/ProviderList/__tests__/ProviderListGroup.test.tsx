@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const reorderableItemsCalls: Provider[][] = []
+const providerAvatarCalls: any[] = []
 
 vi.mock('@cherrystudio/ui', () => ({
   ReorderableList: ({ items }: { items: Provider[] }) => {
@@ -13,7 +14,10 @@ vi.mock('@cherrystudio/ui', () => ({
 
 vi.mock('@renderer/i18n/label', () => ({ getProviderLabelKey: (id: string) => id }))
 vi.mock('@renderer/pages/settings/ProviderSettings/components/ProviderAvatar', () => ({
-  ProviderAvatar: () => null
+  ProviderAvatar: (props: any) => {
+    providerAvatarCalls.push(props)
+    return null
+  }
 }))
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (k: string) => k }),
@@ -26,7 +30,7 @@ vi.mock('@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPr
 
 import ProviderListGroup from '../ProviderListGroup'
 
-function provider(id: string, presetProviderId: string): Provider {
+function provider(id: string, presetProviderId: string, isEnabled = true): Provider {
   return {
     id,
     name: id,
@@ -35,7 +39,7 @@ function provider(id: string, presetProviderId: string): Provider {
     authType: 'api-key',
     apiFeatures: {},
     settings: {},
-    isEnabled: true
+    isEnabled
   } as unknown as Provider
 }
 
@@ -44,6 +48,7 @@ describe('ProviderListGroup', () => {
 
   beforeEach(() => {
     reorderableItemsCalls.length = 0
+    providerAvatarCalls.length = 0
   })
 
   afterEach(() => {
@@ -86,6 +91,88 @@ describe('ProviderListGroup', () => {
 
     expect(screen.queryByTestId('provider-list-group-inner-list')).not.toBeInTheDocument()
     expect(screen.getByTestId('provider-list-group-zhipu')).toBeInTheDocument()
+  })
+
+  it('renders a drag handle in the group header', () => {
+    render(
+      <ProviderListGroup
+        presetProviderId="zhipu"
+        members={providers}
+        items={providers}
+        expanded={false}
+        containsSelected={false}
+        onToggle={() => {}}
+        onDragStateChange={() => {}}
+        onReorder={() => {}}
+        renderItem={() => null}
+      />
+    )
+
+    expect(screen.getByTestId('provider-list-group-drag-handle-zhipu')).toBeInTheDocument()
+  })
+
+  it('uses provider-list icon display rules in the group header', () => {
+    render(
+      <ProviderListGroup
+        presetProviderId="anthropic"
+        members={providers}
+        items={providers}
+        expanded={false}
+        containsSelected={false}
+        onToggle={() => {}}
+        onDragStateChange={() => {}}
+        onReorder={() => {}}
+        renderItem={() => null}
+      />
+    )
+
+    expect(providerAvatarCalls).toContainEqual(
+      expect.objectContaining({
+        provider: { id: 'anthropic', name: 'anthropic' },
+        displayContext: 'provider-list'
+      })
+    )
+  })
+
+  it('renders only the chevron in the group trailing area', () => {
+    const disabledProviders = [provider('zhipu-a', 'zhipu', false), provider('zhipu-b', 'zhipu', false)]
+
+    render(
+      <ProviderListGroup
+        presetProviderId="zhipu"
+        members={disabledProviders}
+        items={disabledProviders}
+        expanded={false}
+        containsSelected={false}
+        onToggle={() => {}}
+        onDragStateChange={() => {}}
+        onReorder={() => {}}
+        renderItem={() => null}
+      />
+    )
+
+    expect(screen.queryByTestId('provider-list-group-count-zhipu')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('provider-list-group-enabled-dot-zhipu')).not.toBeInTheDocument()
+    expect(screen.getByTestId('provider-list-group-chevron-zhipu')).toBeInTheDocument()
+  })
+
+  it('shows an enabled-state dot for groups with enabled providers', () => {
+    render(
+      <ProviderListGroup
+        presetProviderId="zhipu"
+        members={providers}
+        items={providers}
+        expanded={false}
+        containsSelected={false}
+        onToggle={() => {}}
+        onDragStateChange={() => {}}
+        onReorder={() => {}}
+        renderItem={() => null}
+      />
+    )
+
+    expect(screen.getByTestId('provider-list-group-enabled-dot-zhipu')).toBeInTheDocument()
+    expect(screen.getByTestId('provider-list-group-chevron-zhipu')).toBeInTheDocument()
   })
 
   it('stops pointer/key events in the expanded body from reaching the outer drag surface', () => {

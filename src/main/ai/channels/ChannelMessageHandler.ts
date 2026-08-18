@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
+import { application } from '@application'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
@@ -9,18 +10,27 @@ import { loggerService } from '@logger'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import {
   isAgentSessionWorkspaceError,
-  prepareClaudeCodeWorkspaceDirectory
-} from '@main/ai/runtime/claudeCode/settingsBuilder'
+  prepareAgentSessionWorkspaceDirectory
+} from '@main/ai/runtime/agentSessionWorkspace'
 import { ChannelAdapterListener, startAgentSessionRun, type StreamListener } from '@main/ai/streamManager'
-import { application } from '@main/core/application'
+import type { Disposable } from '@main/core/lifecycle'
+import { t } from '@main/i18n'
 import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase64'
+import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
 import type { ChannelAdapter, ChannelCommandEvent, ChannelMessageEvent, SendMessageOptions } from './ChannelAdapter'
 import { SLASH_COMMANDS } from './constants'
-import { wrapExternalContent } from './security'
+import { wrapExternalContent } from './security/ExternalContentGuard'
 
 const logger = loggerService.withContext('ChannelMessageHandler')
+
+class AgentSessionRunNotStartedError extends Error {
+  constructor(readonly reason: 'busy' | 'session-invalid') {
+    super(reason === 'busy' ? t('agent.session.run_status.busy') : t('agent.session.run_status.unavailable'))
+    this.name = 'AgentSessionRunNotStartedError'
+  }
+}
 
 const TYPING_INTERVAL_MS = 4000
 
@@ -53,13 +63,130 @@ export class ChannelMessageHandler {
   private readonly pendingResolutions = new Map<string, Promise<AgentSessionEntity | null>>()
   /** Per-chat debounce buffer — accumulates rapid messages before flushing */
   private readonly pendingBatches = new Map<string, PendingBatch>()
-  /** Per-chat serial queue — ensures only one stream runs at a time per chat */
+  /** Per-sender serial queue; shared-session admission rejects cross-sender overlap visibly. */
   private readonly chatQueues = new Map<string, Promise<void>>()
   /** Active abort controllers per session — allows renderer to abort via IPC */
   private readonly activeAbortControllers = new Map<string, AbortController>()
+  /** Write-quiesce holds (backup restore). Quiesced ⇔ non-empty. See `pause()`. */
+  private readonly pauseHolds = new Set<symbol>()
+  /** Flushed batches whose agent-turn admission hasn't landed yet — `drainInFlight`'s wait-set.
+   *  Resolved (idempotently) once `startAgentSessionRun` returned/threw, or on any
+   *  `processIncoming` early return; NOT held open for the full turn (post-admission stream
+   *  writes are AiStreamManager's drain). Entries self-remove on resolve. */
+  private readonly pendingAdmissions = new Map<string, Promise<void>>()
+  private admissionSeq = 0
+
+  // ── Write quiesce (backup restore) ───────────────────────────────
+  // Contract shared with JobManager / AiStreamManager / AgentSessionRuntimeService
+  // (issues #16849/#16850). Every adapter acks at the transport layer on receipt,
+  // so a buffered batch is the only copy of its messages — pause() therefore
+  // FLUSHES the buffers immediately (never cancels), and messages arriving while
+  // quiesced are dropped with a warning (they'd die with the relaunch anyway).
+
+  /** True while any write-quiesce hold is live. */
+  get isWriteQuiesced(): boolean {
+    return this.pauseHolds.size > 0
+  }
+
+  /**
+   * Stop channel intake and immediately flush the buffered debounce batches (not waiting out
+   * the 8 s timer) so their agent-turn admissions land before the orchestrator pauses the AI
+   * writers. No resume() — dispose your own hold. There is no release compensation: intake
+   * dropped while quiesced is not replayable.
+   *
+   * ORCHESTRATION CONTRACT: flush only SCHEDULES each batch's admission (`processIncoming` runs on
+   * the per-chat queue microtask); `pause()` returning does NOT mean the batches admitted. The
+   * orchestrator MUST `await drainInFlight()` to completion BEFORE it pauses the AI writers —
+   * otherwise a still-in-flight batch can reach `startAgentSessionRun` after the AI gate closes
+   * and lose an already ACKed message.
+   */
+  pause(reason?: string): Disposable {
+    const token = Symbol(reason ?? 'channel-intake-pause')
+    const firstHold = this.pauseHolds.size === 0
+    this.pauseHolds.add(token)
+    logger.info('Channel intake paused', { reason: reason ?? null, holds: this.pauseHolds.size })
+    if (firstHold) this.flushAllPendingBatches()
+    return {
+      dispose: () => {
+        if (!this.pauseHolds.delete(token)) return
+        logger.info('Channel intake pause hold released', { reason: reason ?? null, holds: this.pauseHolds.size })
+      }
+    }
+  }
+
+  /**
+   * Await the flushed batches' turn admissions, bounded by timeoutMs. Never rejects. A single
+   * snapshot suffices (unlike the AI writers' fixed-point drains): intake is gated and pause()
+   * already flushed every buffer synchronously, so the admission set can only shrink.
+   *
+   * PRECONDITION: hold a live pause() hold — without one the verdict is a point-in-time
+   * snapshot (warned, not thrown).
+   */
+  async drainInFlight(opts: { timeoutMs: number }): Promise<{ stragglerIds: string[] }> {
+    if (!this.isWriteQuiesced) {
+      logger.warn('drainInFlight called without an active pause hold — the verdict is a point-in-time snapshot')
+    }
+    const snapshot = [...this.pendingAdmissions.entries()]
+    if (snapshot.length === 0) return { stragglerIds: [] }
+
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined
+    const timeout = new Promise<'timeout'>((resolve) => {
+      timeoutHandle = setTimeout(() => resolve('timeout'), opts.timeoutMs)
+    })
+    try {
+      const winner = await Promise.race([
+        Promise.allSettled(snapshot.map(([, admission]) => admission)).then(() => 'done' as const),
+        timeout
+      ])
+      if (winner === 'done') return { stragglerIds: [] }
+      const stragglerIds = snapshot.filter(([id]) => this.pendingAdmissions.has(id)).map(([id]) => id)
+      logger.warn('drainInFlight timed out with unadmitted flushed batches', {
+        timeoutMs: opts.timeoutMs,
+        stragglerIds
+      })
+      return { stragglerIds }
+    } finally {
+      if (timeoutHandle) clearTimeout(timeoutHandle)
+    }
+  }
+
+  /** Advisory pre-flight enumeration for the restore orchestrator. Read-only, in-memory. */
+  listActiveWork(): Array<{ id: string; summary: string }> {
+    const work: Array<{ id: string; summary: string }> = []
+    for (const [batchKey, batch] of this.pendingBatches) {
+      work.push({ id: batchKey, summary: `buffered=${batch.messages.length}` })
+    }
+    for (const admissionId of this.pendingAdmissions.keys()) {
+      work.push({ id: admissionId, summary: 'flushed batch awaiting turn admission' })
+    }
+    return work
+  }
+
+  /** First-hold bookkeeping: fire every buffered batch now instead of at its debounce timer. */
+  private flushAllPendingBatches(): void {
+    const keys = [...this.pendingBatches.keys()]
+    if (keys.length === 0) return
+    logger.info('Flushing buffered channel batches for write quiesce', { count: keys.length })
+    for (const batchKey of keys) {
+      const batch = this.pendingBatches.get(batchKey)
+      if (!batch) continue
+      clearTimeout(batch.timer)
+      this.flushBatch(batchKey)
+    }
+  }
 
   handleIncoming(adapter: ChannelAdapter, message: ChannelMessageEvent): Promise<void> {
-    const batchKey = `${adapter.agentId}:${adapter.channelId}:${message.chatId}`
+    // Write-quiesce intake gate. Resolve (don't reject) — a rejection would trigger the
+    // adapters' misleading "an error occurred" reply for a deliberate drop.
+    if (this.isWriteQuiesced) {
+      logger.warn('Channel message dropped: intake is write-quiesced (backup restore in progress)', {
+        agentId: adapter.agentId,
+        channelId: adapter.channelId,
+        chatId: message.chatId
+      })
+      return Promise.resolve()
+    }
+    const batchKey = `${adapter.agentId}:${adapter.channelId}:${message.chatId}:${message.userId}`
 
     return new Promise<void>((resolve, reject) => {
       const existing = this.pendingBatches.get(batchKey)
@@ -102,10 +229,20 @@ export class ChannelMessageHandler {
       })
     }
 
+    // Admission deferred for the write-quiesce drain: resolved once this batch's agent turn
+    // was admitted (or processIncoming bailed early). `resolve()` is natively idempotent.
+    const admissionId = `${batchKey}#${++this.admissionSeq}`
+    let admit!: () => void
+    const admission = new Promise<void>((resolve) => {
+      admit = resolve
+    })
+    this.pendingAdmissions.set(admissionId, admission)
+    void admission.then(() => this.pendingAdmissions.delete(admissionId))
+
     // Serialize with any in-flight stream to avoid interleaving
     const prev = this.chatQueues.get(batchKey) ?? Promise.resolve()
     const current = prev
-      .then(() => this.processIncoming(batch.adapter, merged))
+      .then(() => this.processIncoming(batch.adapter, merged, admit))
       .then(
         () => resolvers.forEach((r) => r.resolve()),
         (err) => resolvers.forEach((r) => r.reject(err))
@@ -169,7 +306,11 @@ export class ChannelMessageHandler {
     }
   }
 
-  private async processIncoming(adapter: ChannelAdapter, message: ChannelMessageEvent): Promise<void> {
+  private async processIncoming(
+    adapter: ChannelAdapter,
+    message: ChannelMessageEvent,
+    onAdmitted?: () => void
+  ): Promise<void> {
     const { agentId } = adapter
 
     try {
@@ -210,7 +351,7 @@ export class ChannelMessageHandler {
       const hasAttachments = !!(message.images?.length || message.files?.length)
       if (hasAttachments) {
         try {
-          await prepareClaudeCodeWorkspaceDirectory(session)
+          await prepareAgentSessionWorkspaceDirectory(session)
         } catch (error) {
           if (isAgentSessionWorkspaceError(error)) {
             await adapter
@@ -295,11 +436,12 @@ export class ChannelMessageHandler {
           abortController,
           adapter,
           message.chatId,
-          message.messageId
+          message.messageId,
+          onAdmitted
         )
       } catch (streamError) {
         const streamErrorMessage = streamError instanceof Error ? streamError.message : String(streamError)
-        if (isAgentSessionWorkspaceError(streamError)) {
+        if (isAgentSessionWorkspaceError(streamError) || streamError instanceof AgentSessionRunNotStartedError) {
           // Thrown before streaming starts (validateSession), so no controller exists yet and
           // onStreamError is a no-op on most adapters — send a plain message so the inbound
           // message isn't silently dropped on Telegram/WeChat/QQ/Discord/Slack.
@@ -316,15 +458,36 @@ export class ChannelMessageHandler {
         clearInterval(typingInterval)
       }
     } catch (error) {
-      logger.error('Error handling incoming message', {
+      const context = {
         agentId,
         chatId: message.chatId,
         error: error instanceof Error ? error.message : String(error)
-      })
+      }
+      if (error instanceof AgentSessionRunNotStartedError) {
+        logger.warn('Channel message was not admitted', context)
+      } else {
+        logger.error('Error handling incoming message', context)
+      }
+    } finally {
+      // Backstop for the admission deferred: every early return / swallowed error above
+      // settles it too, so the write-quiesce drain never hangs on a bailed batch. No-op when
+      // `collectStreamResponse` already fired it at the real admission point.
+      onAdmitted?.()
     }
   }
 
   async handleCommand(adapter: ChannelAdapter, command: ChannelCommandEvent): Promise<void> {
+    // Write-quiesce intake gate — commands write too (`/new` creates session+channel rows,
+    // `/compact` runs a full turn). Resolve, don't reject (see `handleIncoming`).
+    if (this.isWriteQuiesced) {
+      logger.warn('Channel command dropped: intake is write-quiesced (backup restore in progress)', {
+        agentId: adapter.agentId,
+        channelId: adapter.channelId,
+        chatId: command.chatId,
+        command: command.command
+      })
+      return
+    }
     const { agentId } = adapter
     const replyOpts: SendMessageOptions = { replyToMessageId: command.messageId }
     try {
@@ -374,14 +537,15 @@ export class ChannelMessageHandler {
         }
         case 'help': {
           const agent = agentService.getAgent(agentId)
-          const name = agent?.name ?? 'CherryClaw'
+          const name = agent?.name ?? 'Cherry Studio'
           const description = agent?.description ?? ''
+          const commands = await this.helpCommandsForChat(agentId, adapter.channelId, command.chatId)
           const helpText = [
             `*${name}*`,
             description ? `_${description}_` : '',
             '',
             'Available commands:',
-            ...SLASH_COMMANDS.map((cmd) => `/${cmd.name} - ${cmd.description}`)
+            ...commands.map((cmd) => `/${cmd.name} - ${cmd.description}`)
           ]
             .filter(Boolean)
             .join('\n')
@@ -394,7 +558,7 @@ export class ChannelMessageHandler {
             [
               `Current chat ID: \`${command.chatId}\``,
               '',
-              'Add this value to `allow_ids` in settings to receive notifications.'
+              'Add this value to `allowed_chat_ids` (or `allowed_channel_ids` for Discord) in settings to receive notifications.'
             ].join('\n'),
             replyOpts
           )
@@ -479,6 +643,61 @@ export class ChannelMessageHandler {
    */
   private abortSessionStream(sessionId: string, reason: string): void {
     application.get('AiStreamManager').abort(buildAgentSessionTopicId(sessionId), reason)
+  }
+
+  /**
+   * The command list shown by `/help`: the channel control commands merged with the bound session's
+   * live SDK catalog (custom commands included). Control commands win on name collision and come
+   * first; session-only commands follow. Read-only — never creates a session, so `/help` on a fresh
+   * chat just lists the control commands.
+   */
+  private async helpCommandsForChat(
+    agentId: string,
+    channelId: string,
+    chatId: string
+  ): Promise<Array<{ name: string; description: string }>> {
+    const merged: Array<{ name: string; description: string }> = SLASH_COMMANDS.map((cmd) => ({
+      name: cmd.name,
+      description: cmd.description
+    }))
+    const sessionId = this.peekSessionId(agentId, channelId, chatId)
+    if (!sessionId) return merged
+
+    const sessionCommands =
+      application.get('CacheService').getShared(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY(sessionId)) ?? []
+    const controlNames = new Set(merged.map((cmd) => cmd.name))
+    for (const cmd of sessionCommands) {
+      if (controlNames.has(cmd.name)) continue
+      merged.push({ name: cmd.name, description: cmd.description })
+    }
+    return merged
+  }
+
+  /** Read-only lookup of the session currently bound to a chat — tracker first, then the persisted
+   *  channel row. Mirrors {@link doResolveSession}'s ownership guard (`session.agentId === agentId`)
+   *  so a stale/reassigned channel link can't surface another agent's commands; returns null when no
+   *  session is bound to this agent yet (unlike {@link resolveSession}, never creates one). */
+  private peekSessionId(agentId: string, channelId: string, chatId: string): string | null {
+    const lookup = (sessionId: string) => {
+      try {
+        return agentSessionService.getById(sessionId)
+      } catch {
+        return null
+      }
+    }
+
+    const trackedId = this.sessionTracker.get(`${agentId}:${channelId}:${chatId}`)
+    if (trackedId) {
+      const session = lookup(trackedId)
+      if (session?.agentId === agentId) return session.id
+    }
+
+    const channelRow = channelService.getChannel(channelId)
+    if (channelRow?.sessionId) {
+      const session = lookup(channelRow.sessionId)
+      if (session?.agentId === agentId) return session.id
+    }
+    return null
   }
 
   private async resolveSession(
@@ -582,7 +801,8 @@ export class ChannelMessageHandler {
     abortController: AbortController,
     adapter: ChannelAdapter,
     chatId: string,
-    replyToMessageId?: string
+    replyToMessageId?: string,
+    onAdmitted?: () => void
   ): Promise<string> {
     if (!session.agentId) {
       throw new Error(`Cannot stream on orphan session ${session.id} — its agent was deleted`)
@@ -613,11 +833,22 @@ export class ChannelMessageHandler {
       isAlive: () => !abortController.signal.aborted
     }
 
-    await startAgentSessionRun({
-      sessionId: session.id,
-      userParts: [{ type: 'text', text: content }],
-      listeners: [sentinel, new ChannelAdapterListener(adapter, chatId, false, replyToMessageId)]
-    })
+    try {
+      const started = await startAgentSessionRun({
+        sessionId: session.id,
+        userParts: [{ type: 'text', text: content }],
+        listeners: [sentinel, new ChannelAdapterListener(adapter, chatId, false, replyToMessageId)],
+        headless: true,
+        requireIdle: { expectedAgentId: session.agentId }
+      })
+      // No durable channel queue exists; fail visibly rather than retaining an in-memory waiter.
+      // Add durable admission only if channels require guaranteed busy-session delivery.
+      if (started.mode === 'not-started') throw new AgentSessionRunNotStartedError(started.reason)
+    } finally {
+      // The write-quiesce admission point: the turn's rows are written and it entered the AI
+      // in-flight set (or the run threw) — either way the drain stops waiting on this batch.
+      onAdmitted?.()
+    }
 
     return executionDone
   }

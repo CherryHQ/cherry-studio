@@ -1,4 +1,4 @@
-import i18n from '@renderer/i18n'
+import i18n from '@renderer/i18n/resolver'
 import type { Provider, SystemProvider } from '@renderer/types/provider'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 

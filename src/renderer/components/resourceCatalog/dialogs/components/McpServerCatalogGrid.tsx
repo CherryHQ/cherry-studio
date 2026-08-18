@@ -1,8 +1,7 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
-import { loggerService } from '@logger'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { useMcpRuntimeStatusMap } from '@renderer/hooks/useMcpRuntimeStatus'
-import { openSettingsWindow } from '@renderer/services/SettingsWindowService'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { TFunction } from 'i18next'
@@ -12,7 +11,6 @@ import { useTranslation } from 'react-i18next'
 
 import { type CatalogItem, CatalogToggleGrid } from './CatalogPicker'
 
-const logger = loggerService.withContext('McpServerCatalogGrid')
 const MCP_SERVERS_SETTINGS_PATH = '/settings/mcp/servers'
 
 function getStatusBadge(t: TFunction, state: McpRuntimeStatus['state']) {
@@ -31,11 +29,11 @@ function getStatusBadge(t: TFunction, state: McpRuntimeStatus['state']) {
 function getStatusBadgeClassName(state: McpRuntimeStatus['state']) {
   switch (state) {
     case 'connected':
-      return 'bg-success/10 text-success'
+      return 'border-success-border bg-success-subtle text-success-subtle-foreground'
     case 'connecting':
-      return 'bg-warning/10 text-warning'
+      return 'border-warning-border bg-warning-subtle text-warning-subtle-foreground'
     case 'error':
-      return 'bg-destructive/10 text-destructive'
+      return 'border-error-border bg-error-subtle text-error-subtle-foreground'
     default:
       return undefined
   }
@@ -48,12 +46,14 @@ function getServerState(server: McpServer, status: McpRuntimeStatus | undefined)
 export function McpServerCatalogGrid({
   enabledIds,
   emptyLabel,
+  onOpenSettings,
   onToggle,
   portalContainer,
   title
 }: {
   enabledIds: ReadonlySet<string>
   emptyLabel: string
+  onOpenSettings?: () => void
   onToggle: (id: string, enabled: boolean) => void
   portalContainer: HTMLElement | null
   title?: string
@@ -81,16 +81,15 @@ export function McpServerCatalogGrid({
   )
 
   const handleOpenMcpSettings = () => {
-    void openSettingsWindow(MCP_SERVERS_SETTINGS_PATH).catch((error) => {
-      logger.error('Failed to open MCP server settings', error as Error)
-    })
+    openSettingsTab(MCP_SERVERS_SETTINGS_PATH)
+    onOpenSettings?.()
   }
 
   return (
     <div>
       {title ? (
         <div className="flex items-center gap-1.5">
-          <div className="font-medium text-foreground text-sm leading-none">{title}</div>
+          <div className="font-medium text-[13px] text-foreground leading-none">{title}</div>
           <Tooltip content={settingsLabel} portalContainer={portalContainer ?? undefined}>
             <Button
               type="button"
@@ -99,7 +98,7 @@ export function McpServerCatalogGrid({
               aria-label={settingsLabel}
               title={settingsLabel}
               onClick={handleOpenMcpSettings}
-              className="flex size-6 min-h-0 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground/80 shadow-none hover:bg-accent/50 hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring/40">
+              className="flex size-6 min-h-0 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground shadow-none hover:bg-accent/50 hover:text-foreground focus-visible:bg-accent/50 focus-visible:text-foreground">
               <Settings size={12} strokeWidth={1.7} />
             </Button>
           </Tooltip>
@@ -113,6 +112,7 @@ export function McpServerCatalogGrid({
           onToggle={onToggle}
           emptyLabel={emptyLabel}
           portalContainer={portalContainer}
+          layout="list"
         />
       </div>
     </div>

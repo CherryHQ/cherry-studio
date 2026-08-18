@@ -8,6 +8,7 @@
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
 
 import { AnthropicMessageConverter, type ReasoningCache } from '../converters/AnthropicMessageConverter'
+import { type GeminiGenerateContentRequest, GeminiMessageConverter } from '../converters/GeminiMessageConverter'
 import { type ExtendedChatCompletionCreateParams, OpenAiMessageConverter } from '../converters/OpenAiMessageConverter'
 import {
   OpenAiResponsesMessageConverter,
@@ -22,6 +23,7 @@ export type InputParamsMap = {
   openai: ExtendedChatCompletionCreateParams
   anthropic: MessageCreateParams
   'openai-responses': ResponsesCreateParams
+  gemini: GeminiGenerateContentRequest
 }
 
 /**
@@ -65,6 +67,9 @@ export class MessageConverterFactory {
     }
     if (format === 'openai-responses') {
       return new OpenAiResponsesMessageConverter() as IMessageConverter<InputParamsMap[T]>
+    }
+    if (format === 'gemini') {
+      return new GeminiMessageConverter() as IMessageConverter<InputParamsMap[T]>
     }
     return new AnthropicMessageConverter({
       googleReasoningCache: options.googleReasoningCache,

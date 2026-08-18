@@ -15,30 +15,23 @@ export async function checkModelWithMultipleKeys(
 ): Promise<ApiKeyWithStatus[]> {
   if (apiKeys.length === 0) return []
 
-  // `checkApi` has no per-key override — it always resolves the provider's rotated DB
-  // credential, so probing each configured key would just rerun the identical check N
-  // times (and the "partial" multi-key status is unreachable). Probe once and report the
-  // same outcome for each key. See breaking-changes:
-  // 2026-06-04-health-check-uses-rotated-credential.md.
-  signal?.throwIfAborted()
-  try {
-    const { latency } = await checkApi(model.id, { timeout, signal })
-    return apiKeys.map(
-      (key) => ({ kind: 'ok', key, status: HealthStatus.SUCCESS, checking: false, latency }) satisfies ApiKeyWithStatus
-    )
-  } catch (error) {
-    const serialized = serializeHealthCheckError(error)
-    return apiKeys.map(
-      (key) =>
-        ({
+  return Promise.all(
+    apiKeys.map(async (key) => {
+      signal?.throwIfAborted()
+      try {
+        const { latency } = await checkApi(model.id, { apiKey: key, timeout, signal })
+        return { kind: 'ok', key, status: HealthStatus.SUCCESS, checking: false, latency } satisfies ApiKeyWithStatus
+      } catch (error) {
+        return {
           kind: 'failed',
           key,
           status: HealthStatus.FAILED,
           checking: false,
-          error: serialized
-        }) satisfies ApiKeyWithStatus
-    )
-  }
+          error: serializeHealthCheckError(error)
+        } satisfies ApiKeyWithStatus
+      }
+    })
+  )
 }
 
 export async function checkModelsHealth(

@@ -1,5 +1,5 @@
-import i18n from '@renderer/i18n'
 import { getProviderLabelKey } from '@renderer/i18n/label'
+import i18n from '@renderer/i18n/resolver'
 import { isSystemProvider, type Provider } from '@renderer/types/provider'
 
 /**

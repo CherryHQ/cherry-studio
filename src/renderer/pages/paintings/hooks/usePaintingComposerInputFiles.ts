@@ -1,25 +1,51 @@
 import { loggerService } from '@logger'
+import { toast } from '@renderer/services/toast'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { createComposerFileTokenSourceId } from '@renderer/utils/message/composerFileTokenSource'
-import type { FileEntry } from '@shared/data/types/file'
-import type { FilePath } from '@shared/types/file'
+import type { FileEntry, FileEntryId } from '@shared/data/types/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { getFileTypeByExt } from '@shared/utils/file'
-import { type Dispatch, type SetStateAction, useEffect, useRef } from 'react'
+import { type Dispatch, type SetStateAction, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('usePaintingComposerInputFiles')
+
+/**
+ * Whether the current model accepts image inputs. `'unknown'` while the model is
+ * still resolving from the async catalog — treated as "don't touch the draft" so a
+ * load blip never clears valid chips (see the CLEAR effect).
+ */
+export type InputCapability = 'unknown' | 'accept' | 'reject'
 
 interface Params {
   paintingId: string
   inputFiles: FileEntry[]
   files: ComposerAttachment[]
   setFiles: Dispatch<SetStateAction<ComposerAttachment[]>>
-  onInputFilesChange: (files: FileEntry[]) => void
+  /** Resolved-model image-input capability; drives the model-switch draft clear. */
+  inputCapability: InputCapability
+  /** Provider of the current painting; a change means switchModel reset the context. */
+  providerId: string | undefined
 }
 
 const withDot = (ext: string | null | undefined): string => {
   if (!ext) return ''
   return ext.startsWith('.') ? ext : `.${ext}`
+}
+
+/**
+ * Existence probe for a cached entry id. `getPhysicalPath` resolves through
+ * `fileEntryService.getById`, so a reclaimed row rejects — the same signal the
+ * SEED path already relies on. Reused deliberately rather than adding an IPC
+ * route for a question an existing one already answers.
+ */
+async function entryStillExists(id: FileEntryId): Promise<boolean> {
+  try {
+    await window.api.file.getPhysicalPath({ id })
+    return true
+  } catch {
+    return false
+  }
 }
 
 /**
@@ -29,45 +55,77 @@ const withDot = (ext: string | null | undefined): string => {
  *
  * - SEED: when the painting changes, project its `inputFiles` onto composer
  *   attachments so existing input images render as file chips, and prime the
- *   source-id→entry cache so the writeback recognises them as unchanged.
- * - WRITEBACK: when composer attachments change (added via picker/paste/drop,
- *   removed via file-token deletion), promote each attachment to a `FileEntry`
- *   (`createInternalEntry source:'path'`, cached by token source id so the same
- *   attachment never re-imports its bytes) and report the new list — but only
- *   after the seed has run, so the pre-seed empty list never wipes a painting
- *   that has input files.
+ *   source-id→entry cache so a re-opened input maps back to its existing entry.
+ * - MATERIALIZE: `materializeInputs()` is called at generate time (mirroring chat's
+ *   send-time `buildFileParts`), NOT eagerly during the draft. It promotes each
+ *   composer attachment to a `FileEntry` (`createInternalEntry source:'path'`,
+ *   cached by token source id so a seeded/promoted attachment never re-imports its
+ *   bytes) and returns the resolved list plus a `complete` flag. Nothing is written
+ *   to the DB during the draft window, so the cleanup reaper has no unreferenced
+ *   input row to reclaim. Contract: an incomplete set (`complete: false`, some
+ *   attachment failed to promote) must never reach generation — the caller aborts.
+ * - CLEAR: a same-painting model switch does NOT remount the composer (the provider
+ *   is keyed on painting id only), so SEED never re-runs to reconcile `switchModel`
+ *   dropping `inputFiles`. This effect is that reconciliation: switching to a model
+ *   that can't accept images (`accept`→`reject`) or to a different provider clears
+ *   the draft, mirroring `switchModel`'s `inputFiles: []`. It does NOT rely on the
+ *   stale `painting.inputFiles === files` assumption the removed writeback used to
+ *   uphold.
+ *
+ * SEED and CLEAR are separate effects racing over the same draft, so both go through
+ * `draftEpochRef`: CLEAR bumps it, SEED refuses to commit results from a superseded
+ * epoch. See the ref's own comment for the failure it prevents.
+ *
+ * Note the draft is *only* the next request's inputs. `painting.inputFiles` is the
+ * archive of the run that produced `painting.files`; SEED projects it into the tray
+ * as a starting point, and nothing writes back to it outside `generate`.
  */
-export function usePaintingComposerInputFiles({ paintingId, inputFiles, files, setFiles, onInputFilesChange }: Params) {
+export function usePaintingComposerInputFiles({
+  paintingId,
+  inputFiles,
+  files,
+  setFiles,
+  inputCapability,
+  providerId
+}: Params) {
   const { t } = useTranslation()
   const entryCacheRef = useRef(new Map<string, FileEntry>())
   // Input files that failed to resolve to a physical path during SEED: they get no
-  // composer chip, but must survive the writeback so a transient read error never
-  // rewrites the persisted painting (see WRITEBACK).
+  // composer chip, but must survive materialization so a transient read error never
+  // shrinks the input list handed to generation (see materializeInputs).
   const unseededEntriesRef = useRef<FileEntry[]>([])
   const seededPaintingIdRef = useRef<string | null>(null)
-  const seedCompleteRef = useRef(false)
-  const writebackEpochRef = useRef(0)
-  const onInputFilesChangeRef = useRef(onInputFilesChange)
-  onInputFilesChangeRef.current = onInputFilesChange
+  // Draft generation counter. Every event that discards the current draft bumps it,
+  // so an in-flight SEED can tell its results are stale before writing them back.
+  // An effect-local `cancelled` flag is not enough: it is only flipped by SEED's own
+  // cleanup (painting change / unmount), while CLEAR lives in a *separate* effect —
+  // so a SEED still awaiting `getPhysicalPath` when the user switched models would
+  // resolve afterwards and restore the very chips CLEAR just dropped, handing images
+  // to a model or provider that should never have seen them.
+  const draftEpochRef = useRef(0)
   const inputFilesRef = useRef(inputFiles)
   inputFilesRef.current = inputFiles
+  const filesRef = useRef(files)
+  filesRef.current = files
+  // CLEAR bookkeeping: last *resolved* capability (ignores 'unknown' load blips) and
+  // the last provider, to detect the model-switch transitions that drop the draft.
+  const lastCapabilityRef = useRef<'accept' | 'reject' | null>(null)
+  const lastProviderIdRef = useRef<string | undefined>(providerId)
 
   // SEED — once per painting.
   useEffect(() => {
     if (seededPaintingIdRef.current === paintingId) return
     seededPaintingIdRef.current = paintingId
-    seedCompleteRef.current = false
     unseededEntriesRef.current = []
 
     const entries = inputFilesRef.current
     if (entries.length === 0) {
       entryCacheRef.current = new Map()
       setFiles([])
-      seedCompleteRef.current = true
       return
     }
 
-    let cancelled = false
+    const epoch = draftEpochRef.current
     void (async () => {
       const cache = new Map<string, FileEntry>()
       const attachments: ComposerAttachment[] = []
@@ -91,70 +149,102 @@ export function usePaintingComposerInputFiles({ paintingId, inputFiles, files, s
           unseeded.push(entry)
         }
       }
-      if (cancelled) return
+      if (draftEpochRef.current !== epoch) return
       entryCacheRef.current = cache
       unseededEntriesRef.current = unseeded
       setFiles(attachments)
-      seedCompleteRef.current = true
     })()
 
     return () => {
-      cancelled = true
+      draftEpochRef.current++
     }
   }, [paintingId, setFiles])
 
-  // WRITEBACK — on attachment change, after the seed has run.
+  // CLEAR — reconcile a same-painting model switch (which does NOT remount, so SEED
+  // never re-runs). See the hook docs. A different painting id remounts this hook
+  // fresh, so the refs re-initialize and neither branch fires spuriously on mount.
   useEffect(() => {
-    if (seededPaintingIdRef.current !== paintingId || !seedCompleteRef.current) return
-    const epoch = ++writebackEpochRef.current
-    let cancelled = false
+    const providerChanged = lastProviderIdRef.current !== providerId
+    lastProviderIdRef.current = providerId
 
-    void (async () => {
-      const cache = entryCacheRef.current
-      const entries: FileEntry[] = []
-      const failedSourceIds: string[] = []
-      for (const file of files) {
-        const cached = cache.get(file.fileTokenSourceId)
-        if (cached) {
-          entries.push(cached)
-          continue
-        }
-        try {
-          const entry = await window.api.file.createInternalEntry({ source: 'path', path: file.path as FilePath })
-          cache.set(file.fileTokenSourceId, entry)
-          entries.push(entry)
-        } catch (error) {
-          logger.error('failed to create input file entry from composer attachment', error as Error)
-          failedSourceIds.push(file.fileTokenSourceId)
-        }
+    const droppedImageSupport = lastCapabilityRef.current === 'accept' && inputCapability === 'reject'
+    // 'unknown' (catalog still loading) carries the last resolved capability forward,
+    // so a load blip between two edit models never looks like a support drop.
+    if (inputCapability !== 'unknown') lastCapabilityRef.current = inputCapability
+
+    if (!providerChanged && !droppedImageSupport) return
+
+    // Bump first: a SEED still awaiting `getPhysicalPath` must lose the right to
+    // write back, or it would undo this clear the moment it resolves.
+    draftEpochRef.current++
+    entryCacheRef.current = new Map()
+    unseededEntriesRef.current = []
+    setFiles([])
+  }, [inputCapability, providerId, setFiles])
+
+  // MATERIALIZE — at generate time. Promote the current composer attachments to
+  // FileEntry[]; a cache hit (seeded, or promoted earlier this session) is reused,
+  // a miss is imported via `createInternalEntry`.
+  const materializeInputs = useCallback(async (): Promise<{ entries: FileEntry[]; complete: boolean }> => {
+    const cache = entryCacheRef.current
+    const entries: FileEntry[] = []
+    const failedSourceIds: string[] = []
+    for (const file of filesRef.current) {
+      const cached = cache.get(file.fileTokenSourceId)
+      // A cached id is not proof the row still exists. Materialized entries are
+      // `delete_when_unreferenced`, and any send that ends before `generate`
+      // persists the painting refs leaves them zero-referenced — an aborted
+      // incomplete set is exactly that. The cleanup pass then reclaims them
+      // correctly, and the cache would go on handing out a dead id, which
+      // `PaintingService` silently drops from the refs: the chip stays visible
+      // while its image vanishes from the generation. Probe before trusting it,
+      // and fall through to a fresh import when it is gone.
+      if (cached && (await entryStillExists(cached.id))) {
+        entries.push(cached)
+        continue
       }
-      if (cancelled || epoch !== writebackEpochRef.current) return
-
-      // A visible chip must imply a file that will reach generation. A promote failure
-      // (swept temp file, disk/IPC error on a path the renderer doesn't own) breaks
-      // that, so drop the chip and tell the user instead of silently generating
-      // without the image — the chip is the only feedback channel.
-      if (failedSourceIds.length > 0) {
-        const failed = new Set(failedSourceIds)
-        setFiles((prev) => prev.filter((file) => !failed.has(file.fileTokenSourceId)))
-        window.toast?.error(t('paintings.image_file_retry'))
+      if (cached) {
+        cache.delete(file.fileTokenSourceId)
+        logger.info('input entry was reclaimed since it was cached; re-importing', {
+          entryId: cached.id
+        })
       }
-
-      // Carry through entries that failed to seed so a transient read error can't
-      // shrink the persisted list. When the whole painting failed to resolve, this
-      // reproduces the original list and the unchanged guard suppresses the wipe.
-      // Failed entries land at the tail, so a *partial* failure persists a one-time
-      // reorder on open; widen to original-order merge only if that bites.
-      const preserved = unseededEntriesRef.current
-      const nextEntries = preserved.length ? [...entries, ...preserved] : entries
-      const nextIds = nextEntries.map((entry) => entry.id)
-      const currentIds = inputFilesRef.current.map((entry) => entry.id)
-      const unchanged = nextIds.length === currentIds.length && nextIds.every((id, index) => id === currentIds[index])
-      if (!unchanged) onInputFilesChangeRef.current(nextEntries)
-    })()
-
-    return () => {
-      cancelled = true
+      try {
+        const entry = await window.api.file.createInternalEntry({
+          source: 'path',
+          path: AbsoluteFilePathSchema.parse(file.path),
+          cleanupPolicy: 'delete_when_unreferenced'
+        })
+        cache.set(file.fileTokenSourceId, entry)
+        entries.push(entry)
+      } catch (error) {
+        logger.error('failed to create input file entry from composer attachment', error as Error)
+        failedSourceIds.push(file.fileTokenSourceId)
+      }
     }
-  }, [files, paintingId])
+
+    // A visible chip must imply a file that reaches generation. A promote failure
+    // (swept temp file, disk/IPC error on a path the renderer doesn't own) breaks
+    // that, so drop the chip, tell the user, and report the set as incomplete — the
+    // caller must abort the send rather than generate without the image (mirrors
+    // chat aborting when buildFileParts rejects). The chip is the only feedback
+    // channel; the toast tells the user to re-add it.
+    if (failedSourceIds.length > 0) {
+      const failed = new Set(failedSourceIds)
+      setFiles((prev) => prev.filter((file) => !failed.has(file.fileTokenSourceId)))
+      toast.error(t('paintings.image_file_retry'))
+    }
+
+    // Carry through inputs that failed to seed (transient read error) so they are
+    // not silently dropped from the generation; they land at the tail. A seed
+    // failure is not a promote failure — those entries already exist and stay
+    // complete.
+    const preserved = unseededEntriesRef.current
+    return {
+      entries: preserved.length ? [...entries, ...preserved] : entries,
+      complete: failedSourceIds.length === 0
+    }
+  }, [setFiles, t])
+
+  return { materializeInputs }
 }

@@ -22,6 +22,7 @@ export const emptyActions: ProviderActionHandlers = {
   addNewTopic: () => undefined,
   focus: () => undefined,
   onTextChange: () => undefined,
+  replaceDraft: () => undefined,
   toggleExpanded: () => undefined,
   removeToken: () => undefined,
   insertToken: () => undefined,

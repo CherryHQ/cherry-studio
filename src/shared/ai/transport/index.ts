@@ -1,25 +1,28 @@
-import type { CherryMessagePart } from '@shared/data/types/message'
-import type { UniqueModelId } from '@shared/data/types/model'
-
-export interface AiChatRequestBody {
-  /** Topic ID for message routing and persistence. */
-  topicId: string
-  /** Explicit parent node — message id at the current branch tip, or null for first message. */
-  parentAnchorId?: string
-  /** Models selected by the composer model selector (multi-model fan-out). */
-  mentionedModels?: UniqueModelId[]
-  /** User message parts to persist/display for submit-message turns. */
-  userMessageParts?: CherryMessagePart[]
-  /** Uploaded file metadata. */
-  files?: Array<{ id: string; name: string; type: string; size: number; url: string }>
-}
-
 export { applyApprovalDecisions } from './applyApprovalDecisions'
+export {
+  type DeferredToolOutput,
+  type DeferredToolResultRef,
+  isDeferredToolOutput
+} from './deferredToolResult'
+export {
+  blobRefsOf,
+  envelopeDisplayExcerpt,
+  isPersistedToolOutput,
+  PERSIST_HEAD_CHARS,
+  PERSIST_TAIL_CHARS,
+  type PersistedToolOutput,
+  type PersistedToolOutputBlobRef,
+  type PersistedToolOutputEntitiesRef,
+  type PersistedToolOutputRef,
+  type PersistedToolOutputSingleRef
+} from './persistedToolOutput'
 export type {
   ActiveExecution,
   AiAgentSessionWarmCloseRequest,
   AiAgentSessionWarmRequest,
+  AiChatRequestBody,
   AiStreamAbortRequest,
+  AiStreamAdmissionReason,
   AiStreamAttachRequest,
   AiStreamAttachResponse,
   AiStreamDetachRequest,
@@ -27,7 +30,10 @@ export type {
   AiStreamOpenResponse,
   AiToolApprovalRespondRequest,
   AiToolApprovalRespondResponse,
+  AiToolResultRequest,
+  AiToolResultResponse,
   ApprovalDecision,
+  ComposerChatTarget,
   ComposerQueuedMessagePayload,
   StreamChunkPayload,
   StreamDonePayload,
@@ -35,5 +41,6 @@ export type {
   TopicStatusSnapshotEntry,
   TopicStreamStatus
 } from './stream'
+export { aiStreamAdmissionReasons, isAiStreamAdmissionReason } from './stream'
 export type { TurnStateFlags } from './turnState'
 export { classifyTurn, TURN_STATE } from './turnState'

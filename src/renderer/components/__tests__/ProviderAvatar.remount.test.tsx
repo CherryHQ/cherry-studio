@@ -19,9 +19,14 @@ vi.mock('@cherrystudio/ui', async () => {
 })
 
 // Resolve only `openai` to a recognizable stand-in icon; everything else is unknown.
-vi.mock('@cherrystudio/ui/icons', () => ({
-  resolveProviderIcon: (id: string) => (id === 'openai' ? () => <span data-testid="brand-icon" /> : undefined)
-}))
+vi.mock('@cherrystudio/ui/icons', () => {
+  const BrandIcon = () => <span data-testid="brand-icon" />
+  return {
+    resolveProviderIconRef: (id: string) =>
+      id === 'openai' ? { kind: 'provider', key: id, meta: { id, colorPrimary: '#000' } } : undefined,
+    useIcon: (ref: unknown) => (ref ? BrandIcon : undefined)
+  }
+})
 
 import { ProviderAvatarPrimitive } from '../ProviderAvatar'
 

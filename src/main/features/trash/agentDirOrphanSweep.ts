@@ -10,7 +10,7 @@ const logger = loggerService.withContext('AgentDirOrphanSweep')
 
 /**
  * Orphan-directory sweep for the managed agent workspace root
- * (`feature.agents.workspaces` → `{userData}/Data/Agents`). DB rows are the
+ * (`feature.agents.data` → `{userData}/Data/Agents`). DB rows are the
  * single source of truth (RFC archive §4.2): a direct child directory survives
  * iff it is claimed by the keep-set, everything else is deleted.
  *
@@ -26,7 +26,7 @@ const logger = loggerService.withContext('AgentDirOrphanSweep')
  * logged and left for the next run.
  */
 export async function sweepOrphanAgentDirs(): Promise<{ removed: string[] }> {
-  const root = application.getPath('feature.agents.workspaces')
+  const root = application.getPath('feature.agents.data')
   const db = application.get('DbService').getDb()
 
   const keep = new Set<string>()

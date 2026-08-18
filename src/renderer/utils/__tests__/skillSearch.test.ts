@@ -4,8 +4,10 @@ import {
   ClawhubSkillDetailSchema,
   SkillsShSearchResponseSchema
 } from '@shared/types/skill'
-import { describe, expect, it } from 'vitest'
+import { normalizeClaudePlugins, normalizeClawhub, normalizeSkillsSh } from '@shared/utils/skillMarketplace'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { searchSkills, SKILL_SEARCH_FAILED_ERROR } from '../skillSearch'
 import claudePluginsFixture from './fixtures/claude-plugins-search.json'
 import clawhubDetailFixture from './fixtures/clawhub-detail.json'
 import clawhubSearchFixture from './fixtures/clawhub-search.json'
@@ -23,11 +25,6 @@ describe('Skill search API schemas', () => {
       if (result.success) {
         expect(result.data.skills).toHaveLength(4)
       }
-    })
-
-    it('should snapshot the parsed fixture', () => {
-      const result = ClaudePluginsSearchResponseSchema.parse(claudePluginsFixture)
-      expect(result).toMatchSnapshot()
     })
 
     it('should handle missing optional fields', () => {
@@ -65,11 +62,6 @@ describe('Skill search API schemas', () => {
       }
     })
 
-    it('should snapshot the parsed fixture', () => {
-      const result = SkillsShSearchResponseSchema.parse(skillsShFixture)
-      expect(result).toMatchSnapshot()
-    })
-
     it('should reject missing required fields', () => {
       const invalid = {
         query: 'test',
@@ -90,11 +82,6 @@ describe('Skill search API schemas', () => {
       }
     })
 
-    it('should snapshot the parsed fixture', () => {
-      const result = ClawhubSearchResponseSchema.parse(clawhubSearchFixture)
-      expect(result).toMatchSnapshot()
-    })
-
     it('should handle null version', () => {
       const result = ClawhubSearchResponseSchema.parse(clawhubSearchFixture)
       const nullVersion = result.results.find((r) => r.version === null)
@@ -111,11 +98,6 @@ describe('Skill search API schemas', () => {
         expect(result.data.skill.slug).toBe('code-reviewer-pro')
         expect(result.data.owner?.handle).toBe('devmaster')
       }
-    })
-
-    it('should snapshot the parsed fixture', () => {
-      const result = ClawhubSkillDetailSchema.parse(clawhubDetailFixture)
-      expect(result).toMatchSnapshot()
     })
 
     it('should handle null owner and moderation', () => {
@@ -139,61 +121,31 @@ describe('Skill search API schemas', () => {
 })
 
 // =============================================================================
-// Normalizer tests (inline reimplementations to test without fetch mocking)
+// Normalizer tests
 // =============================================================================
-
-/**
- * Reimplementation of normalizeClaudePlugins matching the production code
- * in SkillSearchService.ts. Uses directoryPath for installSource.
- */
-function normalizeClaudePlugins(parsed: ReturnType<typeof ClaudePluginsSearchResponseSchema.parse>) {
-  return parsed.skills.map((s) => {
-    const repoOwner = s.metadata?.repoOwner ?? ''
-    const repoName = s.metadata?.repoName ?? ''
-    const directoryPath = s.metadata?.directoryPath ?? ''
-    return {
-      slug: s.id,
-      name: s.name,
-      description: s.description ?? null,
-      author: s.author ?? s.namespace ?? null,
-      stars: s.stars ?? 0,
-      downloads: s.installs ?? 0,
-      sourceRegistry: 'claude-plugins.dev' as const,
-      sourceUrl: s.sourceUrl ?? (repoOwner && repoName ? `https://github.com/${repoOwner}/${repoName}` : null),
-      installSource: `claude-plugins:${repoOwner}/${repoName}/${directoryPath}`
-    }
-  })
-}
 
 describe('Skill search normalizers', () => {
   describe('normalizeClaudePlugins', () => {
     it('should normalize fixture to unified results', () => {
-      const parsed = ClaudePluginsSearchResponseSchema.parse(claudePluginsFixture)
-      const results = normalizeClaudePlugins(parsed)
+      const results = normalizeClaudePlugins(claudePluginsFixture)
 
-      expect(results).toHaveLength(4)
-      expect(results).toMatchSnapshot()
+      // cp-002 (null metadata) and cp-003 (no directoryPath/sourceUrl path)
+      // are filtered out because their install source is ambiguous.
+      expect(results).toHaveLength(2)
 
       // Verify specific normalization rules
-      expect(results[0].author).toBe('anthropic')
-      expect(results[0].stars).toBe(42)
-      expect(results[0].installSource).toBe('claude-plugins:anthropic/skills/code-review')
-      expect(results[0].sourceUrl).toBe('https://github.com/anthropic/skills/tree/main/code-review')
-
-      // Null author falls back to namespace
-      expect(results[1].author).toBe('community')
-      expect(results[1].description).toBeNull()
-
-      // Missing metadata fields produce empty strings
-      expect(results[2].installSource).toBe('claude-plugins:devtools-org/claude-skills/')
+      const codeReview = results.find((r) => r.name === 'code-review')!
+      expect(codeReview.author).toBe('anthropic')
+      expect(codeReview.stars).toBe(42)
+      expect(codeReview.installSource).toBe('claude-plugins:anthropic/skills/code-review')
+      expect(codeReview.sourceUrl).toBe('https://github.com/anthropic/skills/tree/main/code-review')
     })
 
     it('should use directoryPath (not name) for installSource to handle name mismatches', () => {
       // This is the key bug fix test: skill name "vercel-react-best-practices"
       // differs from the actual repo directory path "skills/react-best-practices".
       // Using name would cause resolve API failure; using directoryPath works.
-      const parsed = ClaudePluginsSearchResponseSchema.parse(claudePluginsFixture)
-      const results = normalizeClaudePlugins(parsed)
+      const results = normalizeClaudePlugins(claudePluginsFixture)
 
       const vercelSkill = results.find((r) => r.name === 'vercel-react-best-practices')!
       expect(vercelSkill).toBeDefined()
@@ -208,46 +160,74 @@ describe('Skill search normalizers', () => {
       )
     })
 
-    it('should handle null metadata gracefully', () => {
-      const parsed = ClaudePluginsSearchResponseSchema.parse(claudePluginsFixture)
-      const results = normalizeClaudePlugins(parsed)
+    it('should drop entries without a resolvable directory path', () => {
+      // cp-002 has null metadata, so repoOwner/repoName are empty and the repo
+      // cannot be cloned — surfacing it would show a non-installable result whose
+      // install click always fails. It must be filtered out at the normalize stage.
+      // cp-003 has repoOwner/repoName but lacks directoryPath/sourceUrl path, so
+      // installing it would scan the whole repo and could install a different skill.
+      const results = normalizeClaudePlugins(claudePluginsFixture)
 
-      const noMetadata = results.find((r) => r.name === 'test-generator')!
-      expect(noMetadata.installSource).toBe('claude-plugins://')
-      expect(noMetadata.sourceUrl).toBeNull()
+      expect(results.find((r) => r.name === 'test-generator')).toBeUndefined()
+      expect(results.find((r) => r.name === 'docs-writer')).toBeUndefined()
+      expect(results.every((r) => r.installSource !== 'claude-plugins://')).toBe(true)
+      expect(results.every((r) => !r.installSource.endsWith('/'))).toBe(true)
+    })
+
+    it('should parse directoryPath from matching GitHub tree sourceUrl', () => {
+      const results = normalizeClaudePlugins({
+        skills: [
+          {
+            id: 'cp-url',
+            name: 'docs-writer',
+            namespace: 'devtools',
+            sourceUrl: 'https://github.com/devtools-org/claude-skills/tree/main/skills/docs-writer',
+            metadata: {
+              repoOwner: 'devtools-org',
+              repoName: 'claude-skills'
+            }
+          }
+        ]
+      })
+
+      expect(results).toHaveLength(1)
+      expect(results[0].installSource).toBe('claude-plugins:devtools-org/claude-skills/skills/docs-writer')
     })
 
     it('should prefer API sourceUrl over reconstructed URL', () => {
-      const parsed = ClaudePluginsSearchResponseSchema.parse(claudePluginsFixture)
-      const results = normalizeClaudePlugins(parsed)
+      const results = normalizeClaudePlugins(claudePluginsFixture)
 
       // cp-001 has sourceUrl in the API response
-      expect(results[0].sourceUrl).toBe('https://github.com/anthropic/skills/tree/main/code-review')
+      const codeReview = results.find((r) => r.name === 'code-review')!
+      expect(codeReview.sourceUrl).toBe('https://github.com/anthropic/skills/tree/main/code-review')
 
-      // cp-003 has no sourceUrl but has metadata — should reconstruct
-      expect(results[2].sourceUrl).toBe('https://github.com/devtools-org/claude-skills')
+      const reconstructed = normalizeClaudePlugins({
+        skills: [
+          {
+            id: 'cp-reconstructed',
+            name: 'docs-writer',
+            namespace: 'devtools',
+            metadata: {
+              repoOwner: 'devtools-org',
+              repoName: 'claude-skills',
+              directoryPath: 'docs-writer'
+            }
+          }
+        ]
+      })
+      expect(reconstructed[0].sourceUrl).toBe('https://github.com/devtools-org/claude-skills/tree/main/docs-writer')
     })
   })
 
   describe('normalizeSkillsSh', () => {
     it('should normalize fixture to unified results', () => {
-      const parsed = SkillsShSearchResponseSchema.parse(skillsShFixture)
-      const results = parsed.skills.map((s) => ({
-        slug: s.id,
-        name: s.name,
-        description: null,
-        author: s.source.split('/')[0] ?? null,
-        stars: 0,
-        downloads: s.installs,
-        sourceRegistry: 'skills.sh' as const,
-        installSource: `skills.sh:${s.id}`
-      }))
+      const results = normalizeSkillsSh(skillsShFixture)
 
       expect(results).toHaveLength(3)
-      expect(results).toMatchSnapshot()
 
       expect(results[0].author).toBe('vercel-labs')
       expect(results[0].description).toBeNull()
+      expect(results[0].sourceUrl).toBe('https://skills.sh/vercel-labs/skills/find-skills')
       expect(results[1].downloads).toBe(263730)
       expect(results[2].installSource).toBe('skills.sh:vercel-labs/agent-skills/vercel-composition-patterns')
     })
@@ -255,51 +235,130 @@ describe('Skill search normalizers', () => {
 
   describe('normalizeClawhub', () => {
     it('should normalize fixture to unified results', () => {
-      const parsed = ClawhubSearchResponseSchema.parse(clawhubSearchFixture)
-      const results = parsed.results.map((s) => ({
-        slug: s.slug,
-        name: s.displayName,
-        description: s.summary ?? null,
-        author: null,
-        stars: 0,
-        downloads: 0,
-        sourceRegistry: 'clawhub.ai' as const,
-        installSource: `clawhub:${s.slug}`
-      }))
+      const results = normalizeClawhub(clawhubSearchFixture)
 
       expect(results).toHaveLength(2)
-      expect(results).toMatchSnapshot()
 
       expect(results[0].name).toBe('Code Reviewer Pro')
-      expect(results[0].installSource).toBe('clawhub:code-reviewer-pro')
-      expect(results[1].author).toBeNull()
+      expect(results[0].installSource).toBe('clawhub:devmaster/code-reviewer-pro')
+      expect(results[0].author).toBe('devmaster')
+      expect(results[0].sourceUrl).toBe('https://clawhub.ai/devmaster/skills/code-reviewer-pro')
+    })
+
+    it('drops results without an owner because clawhub slugs are not globally unique', () => {
+      const results = normalizeClawhub({
+        results: [
+          {
+            score: 1,
+            slug: 'shared-slug',
+            displayName: 'Shared Slug',
+            summary: 'Ambiguous publisher',
+            version: null,
+            updatedAt: 1
+          }
+        ]
+      })
+
+      expect(results).toEqual([])
     })
   })
 })
 
 // =============================================================================
-// Deduplication logic
+// Search aggregation
 // =============================================================================
 
-describe('Skill search deduplication', () => {
-  it('should deduplicate results by name (case-insensitive)', () => {
-    const allResults = [
-      { name: 'Code-Review', slug: 'a', sourceRegistry: 'claude-plugins.dev' as const },
-      { name: 'code-review', slug: 'b', sourceRegistry: 'skills.sh' as const },
-      { name: 'Code-review', slug: 'c', sourceRegistry: 'clawhub.ai' as const },
-      { name: 'Unique-Skill', slug: 'd', sourceRegistry: 'skills.sh' as const }
-    ]
+describe('searchSkills', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
 
-    const seen = new Set<string>()
-    const deduped = allResults.filter((r) => {
-      const key = r.name.toLowerCase()
-      if (seen.has(key)) return false
-      seen.add(key)
-      return true
+  it('should return partial results when some registries fail', async () => {
+    const fetchMock = vi.fn(async (url: string | URL) => {
+      if (url.toString().startsWith('https://skills.sh/')) {
+        return {
+          ok: true,
+          json: async () => skillsShFixture
+        } as Response
+      }
+
+      throw new Error('network down')
     })
+    vi.stubGlobal('fetch', fetchMock)
 
-    expect(deduped).toHaveLength(2)
-    expect(deduped[0].slug).toBe('a')
-    expect(deduped[1].slug).toBe('d')
+    const results = await searchSkills('vercel')
+
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(results).toHaveLength(3)
+    expect(results.every((result) => result.sourceRegistry === 'skills.sh')).toBe(true)
+  })
+
+  it('deduplicates case-insensitive names returned by different registries', async () => {
+    const fetchMock = vi.fn(async (url: string | URL) => {
+      const requestUrl = url.toString()
+      let body: unknown
+
+      if (requestUrl.startsWith('https://skills.sh/')) {
+        body = {
+          query: 'review',
+          skills: [
+            {
+              id: 'owner/repo/code-review',
+              skillId: 'code-review',
+              name: 'Code-Review',
+              installs: 10,
+              source: 'owner/repo'
+            }
+          ],
+          count: 1
+        }
+      } else if (requestUrl.startsWith('https://claude-plugins.dev/')) {
+        body = {
+          skills: [
+            {
+              id: 'plugin-code-review',
+              name: 'code-review',
+              namespace: 'owner',
+              metadata: { repoOwner: 'owner', repoName: 'repo', directoryPath: 'code-review' }
+            }
+          ]
+        }
+      } else {
+        body = { results: [] }
+      }
+
+      return { ok: true, json: async () => body } as Response
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const results = await searchSkills('review')
+
+    expect(results).toHaveLength(1)
+    expect(results[0]).toMatchObject({ name: 'Code-Review', sourceRegistry: 'skills.sh' })
+  })
+
+  it('should reject when all registries fail', async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new Error('network down'))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(searchSkills('vercel')).rejects.toThrow(SKILL_SEARCH_FAILED_ERROR)
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+  })
+
+  it('should reject when one registry returns malformed data and all others fail', async () => {
+    const fetchMock = vi.fn(async (url: string | URL) => {
+      if (url.toString().startsWith('https://skills.sh/')) {
+        return {
+          ok: true,
+          json: async () => ({ skills: [{ id: 'missing-required-fields' }] })
+        } as Response
+      }
+
+      throw new Error('network down')
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(searchSkills('vercel')).rejects.toThrow(SKILL_SEARCH_FAILED_ERROR)
+    expect(fetchMock).toHaveBeenCalledTimes(3)
   })
 })

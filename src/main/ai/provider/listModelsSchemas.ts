@@ -13,6 +13,7 @@ export const OpenAIModelsResponseSchema = z.object({
   data: z.array(
     z.looseObject({
       id: z.string(),
+      name: z.string().optional(),
       object: z.string().optional().default('model'),
       created: z.number().optional(),
       owned_by: z.string().optional()
@@ -55,6 +56,7 @@ export const OllamaTagsResponseSchema = z.object({
       modified_at: z.string().optional(),
       size: z.number().optional(),
       digest: z.string().optional(),
+      capabilities: z.array(z.string()).optional(),
       details: z
         .looseObject({
           parent_model: z.string().optional(),
@@ -200,6 +202,19 @@ export const VercelGatewayModelsResponseSchema = z.object({
         .optional()
     })
   )
+})
+
+// === Anthropic (/v1/models) ===
+
+export const AnthropicModelsResponseSchema = z.object({
+  data: z.array(
+    z.looseObject({
+      id: z.string(),
+      display_name: z.string().optional(),
+      created_at: z.string().optional()
+    })
+  ),
+  has_more: z.boolean().optional()
 })
 
 // === AIHubMix ===

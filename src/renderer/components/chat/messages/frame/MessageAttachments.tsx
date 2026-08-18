@@ -1,4 +1,5 @@
 import { Button } from '@cherrystudio/ui'
+import { popup } from '@renderer/services/popup'
 import type { FileMetadata } from '@renderer/types/file'
 import { formatFileSize } from '@renderer/utils/file'
 import { Paperclip } from 'lucide-react'
@@ -29,7 +30,7 @@ const MessageAttachments: FC<Props> = ({ file }) => {
   const handleOpen = () => {
     if (!openFile) return
     void Promise.resolve(openFile(file)).catch(() => {
-      window.modal.error({ content: t('files.preview.error'), centered: true })
+      void popup.error({ content: t('files.preview.error'), centered: true })
     })
   }
 
@@ -40,7 +41,7 @@ const MessageAttachments: FC<Props> = ({ file }) => {
   return (
     <div className="message-attachments mt-0.5 mb-2">
       <div className="flex max-w-130 items-center gap-3 rounded-lg border border-border bg-muted px-3 py-2">
-        <div className="shrink-0 text-foreground-secondary">
+        <div className="shrink-0 text-muted-foreground">
           <Paperclip size={16} />
         </div>
         <button
@@ -50,7 +51,7 @@ const MessageAttachments: FC<Props> = ({ file }) => {
           title={fileName}
           aria-label={fileName}>
           <div className="truncate text-foreground text-sm">{fileName}</div>
-          <div className="text-foreground-secondary text-xs">
+          <div className="text-muted-foreground text-xs">
             {formatFileSize(file.size)} · {fileSuffix}
           </div>
         </button>

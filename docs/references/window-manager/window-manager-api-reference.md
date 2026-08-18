@@ -9,7 +9,7 @@ Two layers: **Consumer** methods are the universal API and should be used by all
 | Method | Layer | Signature | Description |
 |--------|-------|-----------|-------------|
 | `open` | **Consumer** | `(type: WindowType, args?: OpenWindowArgs) => string` | Lifecycle-aware open: singleton reuse, pool recycle, or fresh create per registry `lifecycle`. Returns window ID. |
-| `close` | **Consumer** | `(windowId: string) => boolean` | Lifecycle-aware release: destroys `default` and singleton-without-config windows; hides pooled / singleton-with-retention windows into the warmup state machine (GC destroys per config). |
+| `close` | **Consumer** | `(windowId: string) => boolean` | Lifecycle-aware release: destroys `default` and singleton-without-config windows; hides pooled / singleton-with-retention windows into the warmup state machine (GC destroys per config). Destruction runs through `window.destroy()`, so the native `close` event does **not** fire — see the [`close`-event carve-out](./window-manager-usage.md#window-api-layers-consumer-vs-internal). |
 | `create` | Internal | `(type: WindowType, args?: OpenWindowArgs) => string` | Force fresh creation; throws if a singleton of this type already exists. Use only as a defensive assertion — consumer code should use `open()` + `onWindowCreatedByType` instead. |
 | `destroy` | Internal | `(windowId: string) => boolean` | Force destroy via `window.destroy()`, which skips the `close` event — and therefore skips the pool's `close` interception, bypassing pool recycling. Non-pooled windows: identical to `close()`. Pooled windows: use `suspendPool(type)` for pool-wide shutdown instead of destroying individual pooled windows. |
 
@@ -53,6 +53,7 @@ Naming convention: methods with `Info` in the name return serializable `WindowIn
 |--------|-----------|-------------|
 | `getWindow` | `(windowId: string) => BrowserWindow \| undefined` | Get BrowserWindow instance by ID. |
 | `getWindowInfo` | `(windowId: string) => WindowInfo \| undefined` | Get serializable window metadata. |
+| `getWindowType` | `(windowId: string) => WindowType \| undefined` | Get a window's registered type by ID (O(1); undefined if unknown/closed). |
 | `getWindowsByType` | `(type: WindowType) => BrowserWindow[]` | Get all live window instances of a specific type (skips destroyed). |
 | `getWindowInfosByType` | `(type: WindowType) => WindowInfo[]` | Get serializable metadata for all windows of a specific type. |
 | `getWindowId` | `(window: BrowserWindow) => string \| undefined` | Resolve window ID from BrowserWindow. |

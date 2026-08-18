@@ -11,6 +11,7 @@ import {
   type ResourceListFilterOption,
   type ResourceListGroup,
   type ResourceListGroupHeaderClickBehavior,
+  type ResourceListGroupHeaderKind,
   type ResourceListGroupSeed,
   type ResourceListItemAccessors,
   ResourceListItemAccessorsContext,
@@ -31,7 +32,7 @@ import {
   type ResourceListViewGroup,
   type ResourceListViewSection
 } from './ResourceListContext'
-import { RESOURCE_LIST_DEFAULT_ROW_SIZE } from './resourceListLayout'
+import { RESOURCE_LIST_DEFAULT_ROW_LAYOUT } from './resourceListLayout'
 import { ResourceListUiService } from './ResourceListUiService'
 
 const EMPTY_SORT_OPTIONS: ResourceListSortOption<ResourceListItemBase>[] = []
@@ -39,7 +40,7 @@ const EMPTY_FILTER_OPTIONS: ResourceListFilterOption<ResourceListItemBase>[] = [
 const EMPTY_GROUP_SEEDS: readonly ResourceListGroupSeed[] = []
 const getDefaultItemId = (item: ResourceListItemBase) => item.id
 const getDefaultItemLabel = (item: ResourceListItemBase) => item.name
-const estimateDefaultItemSize = () => RESOURCE_LIST_DEFAULT_ROW_SIZE
+const estimateDefaultItemSize = () => RESOURCE_LIST_DEFAULT_ROW_LAYOUT.size
 const UNGROUPED_RESOURCE_GROUP: ResourceListGroup = { id: 'ungrouped', label: '' }
 const UNSECTIONED_RESOURCE_SECTION: ResourceListSection = { id: 'resource-list:section:unsectioned', label: '' }
 
@@ -323,9 +324,10 @@ export type ResourceListProviderProps<T extends ResourceListItemBase> = {
   getGroupHeaderContextMenu?: ResourceListMeta<T>['getGroupHeaderContextMenu']
   getGroupHeaderLeadingAction?: ResourceListMeta<T>['getGroupHeaderLeadingAction']
   getGroupHeaderIcon?: ResourceListMeta<T>['getGroupHeaderIcon']
-  getGroupHeaderClassName?: ResourceListMeta<T>['getGroupHeaderClassName']
+  isGroupHeaderIconVisible?: ResourceListMeta<T>['isGroupHeaderIconVisible']
   getGroupHeaderTooltip?: ResourceListMeta<T>['getGroupHeaderTooltip']
   groupHeaderClickBehavior?: ResourceListGroupHeaderClickBehaviorResolver
+  getGroupHeaderKind?: (group: ResourceListGroup) => ResourceListGroupHeaderKind
   collapsedState?: readonly string[]
   revealRequest?: ResourceListRevealRequest
   dragCapabilities?: ResourceListDragCapabilities
@@ -529,9 +531,10 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
   getGroupHeaderContextMenu,
   getGroupHeaderLeadingAction,
   getGroupHeaderIcon,
-  getGroupHeaderClassName,
+  isGroupHeaderIconVisible,
   getGroupHeaderTooltip,
   groupHeaderClickBehavior = 'toggle',
+  getGroupHeaderKind,
   collapsedState,
   revealRequest,
   dragCapabilities,
@@ -895,9 +898,10 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       getGroupHeaderContextMenu,
       getGroupHeaderLeadingAction,
       getGroupHeaderIcon,
-      getGroupHeaderClassName,
+      isGroupHeaderIconVisible,
       getGroupHeaderTooltip,
       getGroupHeaderClickBehavior,
+      getGroupHeaderKind,
       onEmptyGroupHeaderClick,
       sortOptions,
       filterOptions,
@@ -930,12 +934,13 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       filterOptions,
       getSectionHeaderAction,
       getGroupHeaderAction,
-      getGroupHeaderClassName,
       getGroupHeaderClickBehavior,
+      getGroupHeaderKind,
       getGroupHeaderContextMenu,
       getGroupHeaderIcon,
       getGroupHeaderLeadingAction,
       getGroupHeaderTooltip,
+      isGroupHeaderIconVisible,
       getItemId,
       getItemLabel,
       groupCollapseLabel,

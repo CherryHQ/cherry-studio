@@ -7,11 +7,13 @@ import type { BrowserWindow, BrowserWindowConstructorOptions, VisibleOnAllWorksp
  */
 export enum WindowType {
   Main = 'main',
-  Settings = 'settings',
+  Print = 'print',
   QuickAssistant = 'quickAssistant',
   SubWindow = 'subWindow',
   SelectionToolbar = 'selectionToolbar',
-  SelectionAction = 'selectionAction'
+  SelectionAction = 'selectionAction',
+  McpBrowser = 'mcpBrowser',
+  Screenshot = 'screenshot'
 }
 
 /** Valid WindowType values for runtime validation */
@@ -201,7 +203,7 @@ export interface WindowBehavior {
    * of truth for `level` / `relativeLevel`. Consumed at three points:
    *   1. Initial application after window create (when `windowOptions.alwaysOnTop` is true).
    *   2. `wm.behavior.setAlwaysOnTop(id, enabled)` runtime calls.
-   *   3. `quirks.macReapplyAlwaysOnTop` re-application after show/showInactive.
+   *   3. `quirks.reapplyAlwaysOnTop` re-application after show/showInactive.
    */
   alwaysOnTop?: {
     level?: AlwaysOnTopLevel
@@ -260,27 +262,42 @@ export interface WindowQuirks {
   macClearHoverOnHide?: boolean
 
   /**
-   * [macOS] Re-apply `setAlwaysOnTop(true, level, relativeLevel)` after every
-   * `show()`/`showInactive()` call, because macOS silently demotes the level
-   * across show cycles. Pure boolean switch — the actual level/relativeLevel
-   * are read from `behavior.alwaysOnTop` (single source of truth).
-   * No-op when `behavior.alwaysOnTop.level` is unset.
+   * Re-apply `setAlwaysOnTop(true, level, relativeLevel)` after every
+   * `show()`/`showInactive()` call. Pure boolean switch — the actual
+   * level/relativeLevel are read from `behavior.alwaysOnTop` (single source of
+   * truth). No-op when `behavior.alwaysOnTop.level` is unset.
+   *
+   * - [macOS] the level silently demotes across show cycles.
+   * - [Windows] z-order among topmost windows is decided by whoever called
+   *   `SetWindowPos(HWND_TOPMOST)` last, so a window that never re-asserts ends
+   *   up behind third-party floating windows created after it.
    */
-  macReapplyAlwaysOnTop?: boolean
+  reapplyAlwaysOnTop?: boolean
 }
 
 /** Common fields shared by all window type metadata variants */
 interface WindowTypeMetadataBase {
   /** Window type identifier */
   type: WindowType
-  /** Path to the HTML file for this window (relative to renderer root) */
+  /**
+   * Path to the HTML file for this window, relative to the renderer root.
+   *
+   * Empty string (`''`) = **consumer-loaded** window: WindowManager creates and
+   * fully wires the window (preload, behavior, quirks, bounds, init data,
+   * lifecycle) but skips content loading. The domain service loads it after
+   * `open()` via `getWindow(id)` → `webContents.loadURL` / `loadFile` (typically a
+   * generated `data:` URL), and owns show (for `showMode: 'manual'`) and `close()`
+   * for one-shot surfaces. Shares `preload`'s `''`-means-"none" sentinel. See the
+   * WindowManager usage guide → "Consumer-loaded windows".
+   */
   htmlPath: string
   /**
    * Preload script filename (basename with extension) in `src/preload/`.
    * - Omitted → defaults to `'preload.js'`
    * - Empty string → no preload (for windows with `nodeIntegration: true`)
    * - Otherwise → WM prefixes `'../preload/'` and loads that file
-   * Mirrors `htmlPath`'s three-state encoding (omitted / non-empty / empty).
+   * Shares `htmlPath`'s `''`-means-"skip/none" sentinel; `preload` adds a third
+   * state (omitted → default) that `htmlPath` (a required field) does not have.
    */
   preload?: string
   /**

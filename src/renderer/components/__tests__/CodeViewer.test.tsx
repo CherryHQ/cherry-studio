@@ -8,6 +8,7 @@ import CodeViewer from '../CodeViewer'
 
 const mocks = vi.hoisted(() => ({
   highlightLines: vi.fn(),
+  resetHighlight: vi.fn(),
   measureElement: vi.fn(),
   useVirtualizer: vi.fn((options: { count: number }) => ({
     getTotalSize: () => options.count * 20,
@@ -32,7 +33,8 @@ vi.mock('@renderer/hooks/useCodeHighlight', () => ({
         htmlStyle: {}
       }
     ]),
-    highlightLines: mocks.highlightLines
+    highlightLines: mocks.highlightLines,
+    resetHighlight: mocks.resetHighlight
   })
 }))
 
@@ -107,5 +109,54 @@ describe('CodeViewer', () => {
     )
 
     expect(scroller.scrollTop).toBe(100)
+  })
+
+  it('does not request syntax highlighting when highlighting is disabled', () => {
+    render(<CodeViewer value="line 1\nline 2" language="typescript" options={{ highlight: false }} />)
+
+    expect(mocks.highlightLines).not.toHaveBeenCalled()
+    expect(mocks.resetHighlight).not.toHaveBeenCalled()
+  })
+
+  it('clears highlighting resources when highlighting is disabled after being enabled', () => {
+    const { rerender } = render(<CodeViewer value="line 1" language="typescript" options={{ highlight: true }} />)
+
+    rerender(<CodeViewer value="line 1\nline 2" language="typescript" options={{ highlight: false }} />)
+
+    expect(mocks.resetHighlight).toHaveBeenCalled()
+  })
+
+  it('renders code at full opacity while highlighting is disabled, not dimmed', () => {
+    const { container } = render(
+      <CodeViewer value="const a = 1" language="typescript" options={{ highlight: false }} />
+    )
+
+    const tokenSpans = container.querySelectorAll('.line-content > span')
+    expect(tokenSpans.length).toBeGreaterThan(0)
+    tokenSpans.forEach((span) => {
+      expect((span as HTMLElement).style.opacity).not.toBe('0.35')
+    })
+    // The un-highlighted fallback renders the raw text at full opacity
+    expect(Array.from(tokenSpans).some((span) => (span as HTMLElement).style.opacity === '1')).toBe(true)
+  })
+
+  it('lets the line-content flex item shrink so long unbreakable lines wrap instead of overflowing', () => {
+    // The wrapped line-content must be able to shrink below its min-content width
+    // (base64, URLs, minified JSON), otherwise long lines overflow the container
+    // and get clipped by the line's paint containment with no way to scroll to them.
+    const { container } = render(
+      <CodeViewer
+        value="long=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        language="text"
+        wrapped
+      />
+    )
+
+    const lineContent = container.querySelector('.line-content')
+    expect(lineContent).toHaveClass('min-w-0')
+    // The descendants-facing wrap classes must carry `!important` so they win
+    // over `.markdown pre span { white-space: pre }` inside chat code blocks.
+    expect(lineContent).toHaveClass('[&_*]:whitespace-pre-wrap!')
+    expect(lineContent).toHaveClass('[&_*]:break-words!')
   })
 })

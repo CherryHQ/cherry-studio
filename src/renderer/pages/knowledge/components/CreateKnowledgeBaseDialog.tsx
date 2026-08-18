@@ -11,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@cherrystudio/ui'
+import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY } from '@renderer/pages/knowledge/utils/group'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { Group } from '@shared/data/types/group'
@@ -19,12 +20,14 @@ import type { FormEvent, ReactNode } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useEmbeddingDimensions } from '../hooks/useEmbeddingDimensions'
 import {
   KnowledgeDialogBody,
   KnowledgeDialogField,
   KnowledgeDialogFooter,
   KnowledgeDialogHeader
 } from './KnowledgeDialogLayout'
+import { KnowledgeEmbeddingModelSelect } from './KnowledgeEmbeddingModelSelect'
 
 interface CreateKnowledgeBaseDialogProps {
   open: boolean
@@ -36,17 +39,20 @@ interface CreateKnowledgeBaseDialogProps {
   onCreated: (base: KnowledgeBase) => void
 }
 
-// The embedding model is no longer chosen here — a base is created BM25-only and
-// gets its model later from the RAG settings — so creation only needs name + group.
-type CreateKnowledgeBaseInput = Pick<CreateKnowledgeBaseDto, 'name' | 'groupId'>
-type CreateKnowledgeBaseFormValues = CreateKnowledgeBaseInput
+// The embedding model is optional: omitting it creates a BM25-only base that can be
+// upgraded later in RAG settings. Picking one here also submits its probed dimensions.
+type CreateKnowledgeBaseInput = Pick<CreateKnowledgeBaseDto, 'name' | 'groupId' | 'embeddingModelId' | 'dimensions'>
+type CreateKnowledgeBaseFormValues = Pick<CreateKnowledgeBaseDto, 'name' | 'groupId'> & {
+  embeddingModelId: string | null
+}
 
 // Radix Select forbids an empty option value, so represent the default (ungrouped) group with a sentinel.
 const DEFAULT_GROUP_OPTION_VALUE = '__default__'
 
 const createInitialInput = (groupId?: string): CreateKnowledgeBaseFormValues => ({
   name: '',
-  groupId
+  groupId,
+  embeddingModelId: null
 })
 
 const CreateKnowledgeBaseDialogHeader = ({ title }: { title: string }) => {
@@ -107,6 +113,8 @@ const CreateKnowledgeBaseDialogRoot = ({
   )
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const { fetchDimensions, isFetchingDimensions } = useEmbeddingDimensions()
+  const handleSettingsNavigate = useCloseBeforeAction(onOpenChange)
 
   useEffect(() => {
     if (!open) {
@@ -126,6 +134,11 @@ const CreateKnowledgeBaseDialogRoot = ({
     })
   }, [groupIds])
 
+  const handleEmbeddingModelChange = (embeddingModelId: string | null) => {
+    setValues((currentValues) => ({ ...currentValues, embeddingModelId }))
+    setSubmitError(null)
+  }
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setHasAttemptedSubmit(true)
@@ -141,6 +154,19 @@ const CreateKnowledgeBaseDialogRoot = ({
 
     if (values.groupId && groupIds.has(values.groupId)) {
       createInput.groupId = values.groupId
+    }
+
+    // The schema requires the embedding model and its dimensions together, so probe
+    // the picked model before creating. Without a model the base stays BM25-only.
+    if (values.embeddingModelId) {
+      try {
+        createInput.dimensions = await fetchDimensions(values.embeddingModelId)
+      } catch (error) {
+        setSubmitError(formatErrorMessageWithPrefix(error, t('message.error.get_embedding_dimensions')))
+        return
+      }
+
+      createInput.embeddingModelId = values.embeddingModelId
     }
 
     let createdBase: KnowledgeBase
@@ -177,6 +203,18 @@ const CreateKnowledgeBaseDialogRoot = ({
               ) : null}
             </KnowledgeDialogField>
 
+            <KnowledgeDialogField>
+              <Label>{t('knowledge.embedding_model')}</Label>
+              <KnowledgeEmbeddingModelSelect
+                aria-label={t('knowledge.embedding_model')}
+                value={values.embeddingModelId}
+                placeholder={t('knowledge.rag.rerank_disabled')}
+                noneOptionLabel={t('knowledge.rag.rerank_disabled')}
+                onSettingsNavigate={handleSettingsNavigate}
+                onChange={handleEmbeddingModelChange}
+              />
+            </KnowledgeDialogField>
+
             {groups.length > 0 ? (
               <KnowledgeDialogField>
                 <Label>{t('knowledge.add.group')}</Label>
@@ -207,7 +245,7 @@ const CreateKnowledgeBaseDialogRoot = ({
           </KnowledgeDialogBody>
 
           <CreateKnowledgeBaseDialog.Actions
-            isCreating={isCreating}
+            isCreating={isCreating || isFetchingDimensions}
             onCancel={() => onOpenChange(false)}
             cancelLabel={t('common.cancel')}
             submitLabel={t('knowledge.add.submit')}

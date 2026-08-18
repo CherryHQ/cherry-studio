@@ -1,13 +1,12 @@
 import { loggerService } from '@logger'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { type OpenTabOptions, TabsContext, type TabsContextValue } from '@renderer/hooks/tab'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { TabLruManager } from '@renderer/services/TabLruManager'
 import { getDefaultRouteTitle, isPageTitledRoute, isTopLevelRoute } from '@renderer/utils/routeTitle'
-import { resolveSidebarAppTabEntryUrl } from '@renderer/utils/sidebar'
 import type { Tab, TabSavedState } from '@shared/data/cache/cacheValueTypes'
-import { IpcChannel } from '@shared/IpcChannel'
 import type { ReactNode } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { v4 as uuid } from 'uuid'
 
@@ -22,15 +21,74 @@ const DEFAULT_TAB: Tab = {
   isDormant: false
 }
 
-const LEGACY_LIBRARY_ROUTE_PATH = '/app/library'
-
-function isLegacyLibraryTab(tab: Tab): boolean {
-  if (tab.type !== 'route') return false
-  try {
-    return new URL(tab.url, 'https://www.cherry-ai.com').pathname === LEGACY_LIBRARY_ROUTE_PATH
-  } catch {
-    return false
+function createLaunchpadFallbackTab(): Tab {
+  return {
+    id: uuid(),
+    type: 'route',
+    url: '/app/launchpad',
+    title: getDefaultRouteTitle('/app/launchpad'),
+    lastAccessTime: Date.now(),
+    isDormant: false
   }
+}
+
+function hibernateTab(tab: Tab, hibernatedIds: ReadonlySet<string>): Tab {
+  if (tab.isDormant || !hibernatedIds.has(tab.id)) return tab
+
+  const savedState: TabSavedState = { scrollPosition: 0 }
+  return { ...tab, isDormant: true, savedState }
+}
+
+// Route no longer served — its orphaned pinned tabs are dropped on restore.
+const LEGACY_LIBRARY_ROUTE_PATH = '/app/library'
+// OpenClaw was folded into the Code page (its sidebar entry + `/app/openclaw` route were removed),
+// so an already-persisted OpenClaw pin is redirected here rather than restoring to a dead route.
+const LEGACY_OPENCLAW_ROUTE_PATH = '/app/openclaw'
+const CODE_ROUTE_PATH = '/app/code'
+
+function routePathOfTab(tab: Tab): string | null {
+  if (tab.type !== 'route') return null
+  try {
+    return new URL(tab.url, 'https://www.cherry-ai.com').pathname
+  } catch {
+    return null
+  }
+}
+
+function isTransientMiniAppTab(tab: Tab): boolean {
+  return tab.metadata?.transientMiniApp === true
+}
+
+/**
+ * Reconcile persisted pinned tabs against routes that have since been removed or relocated: drop
+ * `/app/library` pins outright, and redirect `/app/openclaw` pins to `/app/code` (deduping so the
+ * redirect never produces a second Code pin). `changed` is true when anything was dropped or
+ * rewritten, signalling the caller to write the reconciled list back to the persistent cache.
+ */
+export function migratePinnedTabs(pinnedTabs: Tab[]): { tabs: Tab[]; changed: boolean } {
+  let hasCodePin = pinnedTabs.some((tab) => routePathOfTab(tab) === CODE_ROUTE_PATH)
+  const tabs: Tab[] = []
+  let changed = false
+  for (const tab of pinnedTabs) {
+    if (isTransientMiniAppTab(tab)) {
+      changed = true
+      continue
+    }
+    const path = routePathOfTab(tab)
+    if (path === LEGACY_LIBRARY_ROUTE_PATH) {
+      changed = true
+      continue
+    }
+    if (path === LEGACY_OPENCLAW_ROUTE_PATH) {
+      changed = true
+      if (hasCodePin) continue // a Code pin already exists — drop rather than duplicate it
+      hasCodePin = true
+      tabs.push({ ...tab, url: CODE_ROUTE_PATH, title: getDefaultRouteTitle(CODE_ROUTE_PATH) })
+      continue
+    }
+    tabs.push(tab)
+  }
+  return { tabs, changed }
 }
 
 function withLocalizedRouteTitle(tab: Tab): Tab {
@@ -59,6 +117,71 @@ function withLocalizedRouteTitle(tab: Tab): Tab {
 
 function isSettingsRouteTab(tab: Tab): boolean {
   return tab.type === 'route' && tab.url.startsWith('/settings')
+}
+
+type InitialSession = { normalTabs: Tab[]; pinnedTabs: Tab[]; activeTabId: string }
+
+function restoreTabs(tabs: Tab[], activeTabId: string): Tab[] {
+  return tabs.map((tab) => ({ ...tab, isDormant: tab.id !== activeTabId }))
+}
+
+/**
+ * Compute the initial normal-tab list and active tab id at mount.
+ *
+ * Detached sub-windows (`!includePinnedTabs`) keep the old ephemeral behavior. The main window
+ * restores its persisted session: every restored tab is forced dormant except the active one, so
+ * `AppShell` mounts exactly one `TabRouter` at startup regardless of how many tabs were open
+ * (dormant tabs wake lazily on click).
+ */
+function computeInitialSession(params: {
+  includePinnedTabs: boolean
+  initialDefaultTab: Tab | null
+  pinnedTabs: Tab[]
+  persistedNormalTabs: Tab[]
+  persistedActiveTabId: string
+}): InitialSession {
+  const { includePinnedTabs, initialDefaultTab, pinnedTabs, persistedNormalTabs, persistedActiveTabId } = params
+  const restorableNormalTabs = persistedNormalTabs.filter((tab) => !isTransientMiniAppTab(tab))
+
+  const freshSession: InitialSession = {
+    normalTabs: initialDefaultTab ? [initialDefaultTab] : [],
+    pinnedTabs: [],
+    activeTabId: initialDefaultTab?.id ?? ''
+  }
+
+  // Detached windows never persist/restore a session.
+  if (!includePinnedTabs) return freshSession
+
+  const pinnedHasActive = !!persistedActiveTabId && pinnedTabs.some((t) => t.id === persistedActiveTabId)
+
+  // Empty persisted session (incl. first-ever launch) → fresh default. If the last active tab was a
+  // pinned one (no unpinned tabs were open), honor that selection — the default tab stays as a
+  // dormant fallback so the user lands back on the pinned tab they left.
+  if (restorableNormalTabs.length === 0) {
+    const activeTabId = pinnedHasActive ? persistedActiveTabId : (initialDefaultTab?.id ?? pinnedTabs[0]?.id ?? '')
+    return {
+      normalTabs: restoreTabs(freshSession.normalTabs, activeTabId),
+      pinnedTabs: restoreTabs(pinnedTabs, activeTabId),
+      activeTabId
+    }
+  }
+
+  // Resolve the active tab id FIRST, then derive dormancy from it. Keying dormancy off the resolved
+  // id (not the raw persisted one) guarantees the active tab is always awake — otherwise an empty or
+  // stale persisted id leaves every tab dormant, AppShell mounts zero TabRouters, and the content
+  // area is blank until the user clicks a tab.
+  const activeInSession =
+    pinnedHasActive || (!!persistedActiveTabId && restorableNormalTabs.some((t) => t.id === persistedActiveTabId))
+  const activeTabId = activeInSession
+    ? persistedActiveTabId
+    : (restorableNormalTabs[0]?.id ?? pinnedTabs[0]?.id ?? initialDefaultTab?.id ?? '')
+
+  // Only the active tab stays awake; everything else restores dormant.
+  return {
+    normalTabs: restoreTabs(restorableNormalTabs, activeTabId),
+    pinnedTabs: restoreTabs(pinnedTabs, activeTabId),
+    activeTabId
+  }
 }
 
 type TabsProviderProps = {
@@ -90,25 +213,72 @@ export function TabsProvider({
     [includePinnedTabs]
   )
   const restoredPinnedTabs = useMemo(() => pinnedTabs || [], [pinnedTabs])
-  const availablePinnedTabs = useMemo(
-    () => restoredPinnedTabs.filter((tab) => !isLegacyLibraryTab(tab)),
-    [restoredPinnedTabs]
-  )
+  const migratedPinnedTabs = useMemo(() => migratePinnedTabs(restoredPinnedTabs), [restoredPinnedTabs])
+  const availablePinnedTabs = migratedPinnedTabs.tabs
+
+  // Normal tabs + active tab id - persisted so the session is restored on restart (main window
+  // only). These remain the in-memory source of truth; the persist keys are read once for the
+  // initial value and written back via effects below — none of the existing setters change.
+  const [persistedNormalTabs, setPersistedNormalTabs] = usePersistCache('ui.tab.normal_tabs')
+  const [persistedActiveTabId, setPersistedActiveTabId] = usePersistCache('ui.tab.active_tab_id')
+
+  // Compute the restored session once at mount. This relies on the persist cache being hydrated
+  // SYNCHRONOUSLY in the CacheService constructor (loadPersistCache reads localStorage on
+  // construction), so these reads already hold last session's values on the first render. If persist
+  // ever switches to async hydration, the first render would see empty defaults AND the write-back
+  // effects below would immediately persist that empty session over the real one — restore would
+  // have to be reworked (e.g. re-seed when the hydrated value arrives) before that change lands.
+  const initialSessionRef = useRef<InitialSession | null>(null)
+  if (!initialSessionRef.current) {
+    initialSessionRef.current = computeInitialSession({
+      includePinnedTabs,
+      initialDefaultTab,
+      // Check the active-pinned tab against the migrated set that actually renders, not the raw
+      // persisted pins — a pin dropped/redirected by migratePinnedTabs must not resolve as active.
+      pinnedTabs: availablePinnedTabs,
+      persistedNormalTabs: persistedNormalTabs ?? [],
+      persistedActiveTabId: persistedActiveTabId ?? ''
+    })
+  }
+
+  // Normal tabs - in-memory storage, seeded from the restored session
+  const [normalTabs, setNormalTabs] = useState<Tab[]>(() => initialSessionRef.current!.normalTabs)
+
+  // Active tab ID - in-memory storage, seeded from the restored session
+  const [activeTabId, setActiveTabIdState] = useState<string>(() => initialSessionRef.current!.activeTabId)
+
+  // Render the normalized pinned set on the first pass, then commit it to the persistent cache.
+  // This avoids mounting background pinned routers before the effect runs while keeping the cache
+  // as the source of truth for all subsequent pinned-tab updates.
+  const hasRestoredPinnedTabsRef = useRef(!includePinnedTabs)
+  const pinnedTabsForRender = hasRestoredPinnedTabsRef.current
+    ? availablePinnedTabs
+    : initialSessionRef.current.pinnedTabs
+  useEffect(() => {
+    if (!includePinnedTabs || hasRestoredPinnedTabsRef.current) return
+
+    hasRestoredPinnedTabsRef.current = true
+    setPinnedTabs(initialSessionRef.current!.pinnedTabs)
+    if (migratedPinnedTabs.changed) {
+      logger.info('Reconciled pinned tabs against removed/relocated routes', {
+        before: restoredPinnedTabs.length,
+        after: initialSessionRef.current!.pinnedTabs.length
+      })
+    }
+  }, [includePinnedTabs, migratedPinnedTabs.changed, restoredPinnedTabs.length, setPinnedTabs])
+
+  // Write the session back on every change (main window only). Depends on the in-memory state,
+  // not the persisted value, so there is no feedback loop; the cache's isEqual + 200ms debounce
+  // coalesces redundant writes.
+  useEffect(() => {
+    if (!includePinnedTabs) return
+    setPersistedNormalTabs(normalTabs.filter((tab) => !isTransientMiniAppTab(tab)))
+  }, [includePinnedTabs, normalTabs, setPersistedNormalTabs])
 
   useEffect(() => {
-    if (!includePinnedTabs || restoredPinnedTabs.length === availablePinnedTabs.length) return
-
-    setPinnedTabs(availablePinnedTabs)
-    logger.info('Dropped legacy library pinned tabs', {
-      count: restoredPinnedTabs.length - availablePinnedTabs.length
-    })
-  }, [availablePinnedTabs, includePinnedTabs, restoredPinnedTabs, setPinnedTabs])
-
-  // Normal tabs - in-memory storage (cleared on restart)
-  const [normalTabs, setNormalTabs] = useState<Tab[]>(() => (initialDefaultTab ? [initialDefaultTab] : []))
-
-  // Active tab ID - in-memory storage
-  const [activeTabId, setActiveTabIdState] = useState<string>(() => initialDefaultTab?.id ?? '')
+    if (!includePinnedTabs) return
+    setPersistedActiveTabId(activeTabId)
+  }, [includePinnedTabs, activeTabId, setPersistedActiveTabId])
 
   // LRU manager (singleton)
   const lruManagerRef = useRef<TabLruManager | null>(null)
@@ -116,28 +286,49 @@ export function TabsProvider({
     lruManagerRef.current = new TabLruManager()
   }
 
-  // LRU auto-hibernation: check normalTabs and hibernate excess tabs
-  const performLRUCheck = useCallback((newActiveTabId: string) => {
-    if (!lruManagerRef.current) return
-    setNormalTabs((prev) => {
-      const toHibernate = lruManagerRef.current!.checkAndGetDormantCandidates(prev, newActiveTabId)
-      if (toHibernate.length === 0) return prev
-      return prev.map((t) => {
-        if (toHibernate.includes(t.id)) {
-          logger.info('Tab auto-hibernated (LRU)', { tabId: t.id, route: t.url })
-          const savedState: TabSavedState = { scrollPosition: 0 }
-          return { ...t, isDormant: true, savedState }
-        }
-        return t
-      })
-    })
-  }, [])
-
   // Merge tabs: pinned + normal (route titles follow current i18n language)
   const tabs = useMemo(() => {
-    const currentPinnedTabs = includePinnedTabs ? availablePinnedTabs : []
+    const currentPinnedTabs = includePinnedTabs ? pinnedTabsForRender : []
     return [...currentPinnedTabs.map(withLocalizedRouteTitle), ...normalTabs.map(withLocalizedRouteTitle)]
-  }, [availablePinnedTabs, includePinnedTabs, normalTabs, i18n.language])
+  }, [includePinnedTabs, pinnedTabsForRender, normalTabs, i18n.language])
+
+  // Local actions can span the normal and persisted pinned stores before React commits.
+  // Keep a projected merged state for those batches, then reset it to committed state.
+  const projectedTabsRef = useRef(tabs)
+  useLayoutEffect(() => {
+    projectedTabsRef.current = tabs
+  }, [tabs])
+
+  const prepareTabsForCommit = useCallback((nextTabs: Tab[], nextActiveTabId: string) => {
+    const hibernatedIds = new Set(lruManagerRef.current!.checkAndGetDormantCandidates(nextTabs, nextActiveTabId))
+    if (hibernatedIds.size === 0) {
+      projectedTabsRef.current = nextTabs
+      return hibernatedIds
+    }
+
+    for (const tab of nextTabs) {
+      if (hibernatedIds.has(tab.id)) {
+        logger.info('Tab auto-hibernated (LRU)', { tabId: tab.id, route: tab.url })
+      }
+    }
+    projectedTabsRef.current = nextTabs.map((tab) => hibernateTab(tab, hibernatedIds))
+    return hibernatedIds
+  }, [])
+
+  // Run LRU over the merged stores so the hard fuse can see pinned tabs. This effect is
+  // the fallback for external persisted-cache updates; local actions update both stores together.
+  useEffect(() => {
+    const hibernatedIdSet = prepareTabsForCommit(tabs, activeTabId)
+    if (hibernatedIdSet.size === 0) return
+
+    const hibernatingTabs = tabs.filter((tab) => hibernatedIdSet.has(tab.id))
+    if (hibernatingTabs.some((tab) => !storesPinned(tab))) {
+      setNormalTabs((prev) => prev.map((tab) => hibernateTab(tab, hibernatedIdSet)))
+    }
+    if (hibernatingTabs.some(storesPinned)) {
+      setPinnedTabs((prev) => prev.map((tab) => hibernateTab(tab, hibernatedIdSet)))
+    }
+  }, [tabs, activeTabId, prepareTabsForCommit, storesPinned, setPinnedTabs])
 
   const updateTab = useCallback(
     (id: string, updates: Partial<Tab>) => {
@@ -155,36 +346,39 @@ export function TabsProvider({
 
   const setActiveTab = useCallback(
     (id: string) => {
-      if (id === activeTabId) return
-
-      const targetTab = tabs.find((t) => t.id === id)
+      const targetTab = projectedTabsRef.current.find((t) => t.id === id)
       if (!targetTab) return
+      if (id === activeTabId && !targetTab.isDormant) return
 
       // If a dormant tab was awakened, log it
       if (targetTab.isDormant) {
         logger.info('Tab awakened', { tabId: id, route: targetTab.url })
       }
 
-      // Update lastAccessTime and wake state
-      if (storesPinned(targetTab)) {
-        setPinnedTabs((prev) =>
-          prev.map((t) => (t.id === id ? { ...t, lastAccessTime: Date.now(), isDormant: false } : t))
-        )
-      } else {
-        setNormalTabs((prev) =>
-          prev.map((t) => (t.id === id ? { ...t, lastAccessTime: Date.now(), isDormant: false } : t))
-        )
+      const lastAccessTime = Date.now()
+      const nextTabs = projectedTabsRef.current.map((tab) =>
+        tab.id === id ? { ...tab, lastAccessTime, isDormant: false } : tab
+      )
+      const hibernatedIds = prepareTabsForCommit(nextTabs, id)
+      const hibernatingTabs = nextTabs.filter((tab) => hibernatedIds.has(tab.id))
+      const update = (tab: Tab) =>
+        hibernateTab(tab.id === id ? { ...tab, lastAccessTime, isDormant: false } : tab, hibernatedIds)
+
+      if (storesPinned(targetTab) || hibernatingTabs.some(storesPinned)) {
+        setPinnedTabs((prev) => prev.map(update))
+      }
+      if (!storesPinned(targetTab) || hibernatingTabs.some((tab) => !storesPinned(tab))) {
+        setNormalTabs((prev) => prev.map(update))
       }
 
       setActiveTabIdState(id)
-      performLRUCheck(id)
     },
-    [activeTabId, tabs, setPinnedTabs, performLRUCheck, storesPinned]
+    [activeTabId, prepareTabsForCommit, setPinnedTabs, storesPinned]
   )
 
   const addTab = useCallback(
     (tab: Tab) => {
-      const exists = tabs.find((t) => t.id === tab.id)
+      const exists = projectedTabsRef.current.find((t) => t.id === tab.id)
       if (exists) {
         setActiveTab(tab.id)
         return
@@ -196,42 +390,92 @@ export function TabsProvider({
         isDormant: false
       }
 
-      if (storesPinned(tab)) {
-        setPinnedTabs((prev) => [...prev, newTab])
-      } else {
-        setNormalTabs((prev) => [...prev, newTab])
-        performLRUCheck(tab.id)
+      const nextTabs = [...projectedTabsRef.current, newTab]
+      const hibernatedIds = prepareTabsForCommit(nextTabs, newTab.id)
+      const hibernatingTabs = nextTabs.filter((candidate) => hibernatedIds.has(candidate.id))
+      const newTabIsPinned = storesPinned(newTab)
+
+      if (newTabIsPinned || hibernatingTabs.some(storesPinned)) {
+        setPinnedTabs((prev) => {
+          const next = newTabIsPinned ? [...prev, newTab] : [...prev]
+          return next.map((candidate) => hibernateTab(candidate, hibernatedIds))
+        })
+      }
+      if (!newTabIsPinned || hibernatingTabs.some((candidate) => !storesPinned(candidate))) {
+        setNormalTabs((prev) => {
+          const next = newTabIsPinned ? prev : [...prev, newTab]
+          return next.map((candidate) => hibernateTab(candidate, hibernatedIds))
+        })
       }
 
       setActiveTabIdState(tab.id)
     },
-    [tabs, setActiveTab, setPinnedTabs, performLRUCheck, storesPinned]
+    [prepareTabsForCommit, setActiveTab, setPinnedTabs, storesPinned]
   )
 
-  const closeTab = useCallback(
-    (id: string) => {
-      const tab = tabs.find((t) => t.id === id)
-      if (!tab) return
+  const closeTabs = useCallback(
+    (ids: readonly string[], activateId?: string) => {
+      const closingIdSet = new Set(ids)
+      if (closingIdSet.size === 0) return
 
-      // Calculate new activeTabId
+      const closingTabs = tabs.filter((tab) => closingIdSet.has(tab.id))
+      if (closingTabs.length === 0) return
+
+      const remainingTabs = tabs.filter((tab) => !closingIdSet.has(tab.id))
+      const fallbackTab = remainingTabs.length === 0 ? createLaunchpadFallbackTab() : null
+
       let newActiveId = activeTabId
-      if (activeTabId === id) {
-        const index = tabs.findIndex((t) => t.id === id)
-        const remainingTabs = tabs.filter((t) => t.id !== id)
-        const nextTab = remainingTabs[index - 1] || remainingTabs[index] || remainingTabs[0]
-        newActiveId = nextTab ? nextTab.id : ''
+      if (fallbackTab) {
+        newActiveId = fallbackTab.id
+      } else if (closingIdSet.has(activeTabId)) {
+        // Prefer the caller-designated survivor (e.g. the tab whose menu ran
+        // "close others"); otherwise hand the slot to the right neighbor and
+        // fall back to the left one at the end of the strip.
+        const preferredTab = activateId ? remainingTabs.find((tab) => tab.id === activateId) : undefined
+        if (preferredTab) {
+          newActiveId = preferredTab.id
+        } else {
+          const activeIndex = tabs.findIndex((tab) => tab.id === activeTabId)
+          const leftTab = [...tabs.slice(0, activeIndex)].reverse().find((tab) => !closingIdSet.has(tab.id))
+          const rightTab = tabs.slice(activeIndex + 1).find((tab) => !closingIdSet.has(tab.id))
+          newActiveId = (rightTab ?? leftTab)?.id ?? ''
+        }
       }
 
-      if (storesPinned(tab)) {
-        setPinnedTabs((prev) => prev.filter((t) => t.id !== id))
-      } else {
-        setNormalTabs((prev) => prev.filter((t) => t.id !== id))
+      const pinnedIds = new Set(closingTabs.filter(storesPinned).map((tab) => tab.id))
+      const normalIds = new Set(closingTabs.filter((tab) => !storesPinned(tab)).map((tab) => tab.id))
+
+      // Activating a tab must also wake it — a dormant tab is not rendered, so
+      // only switching activeTabId would leave the content area blank.
+      const reselectedTab =
+        newActiveId !== activeTabId ? remainingTabs.find((tab) => tab.id === newActiveId) : undefined
+      const wakeInPinned = !!reselectedTab?.isDormant && storesPinned(reselectedTab)
+      const wakeInNormal = !!reselectedTab?.isDormant && !storesPinned(reselectedTab)
+      const wake = (tab: Tab) =>
+        tab.id === newActiveId ? { ...tab, isDormant: false, lastAccessTime: Date.now() } : tab
+
+      if (pinnedIds.size > 0 || wakeInPinned) {
+        setPinnedTabs((prev) => {
+          // The persist-cache updater receives a readonly view and must return
+          // a fresh mutable array, so the no-filter branch copies.
+          const next = pinnedIds.size > 0 ? prev.filter((tab) => !pinnedIds.has(tab.id)) : [...prev]
+          return wakeInPinned ? next.map(wake) : next
+        })
+      }
+      if (normalIds.size > 0 || fallbackTab || wakeInNormal) {
+        setNormalTabs((prev) => {
+          let next = normalIds.size > 0 ? prev.filter((tab) => !normalIds.has(tab.id)) : prev
+          if (wakeInNormal) next = next.map(wake)
+          return fallbackTab ? [fallbackTab] : next
+        })
       }
 
       setActiveTabIdState(newActiveId)
     },
     [tabs, activeTabId, setPinnedTabs, storesPinned]
   )
+
+  const closeTab = useCallback((id: string) => closeTabs([id]), [closeTabs])
 
   /**
    * Open a Tab - reuses existing tab or creates new one
@@ -267,7 +511,8 @@ export function TabsProvider({
   )
 
   /**
-   * Pin a tab (exempt from LRU hibernation)
+   * Pin a tab in the tab bar. Pinned pages survive the soft budget but remain
+   * subject to the hard memory fuse.
    */
   const pinTab = useCallback(
     (id: string) => {
@@ -336,10 +581,7 @@ export function TabsProvider({
       if (!tab) return
 
       // Send IPC message to create new window
-      window.electron.ipcRenderer.send(IpcChannel.Tab_Detach, {
-        ...tab,
-        url: resolveSidebarAppTabEntryUrl(tab)
-      })
+      void ipcApi.request('tab.detach', tab)
 
       // Remove tab from current window — closeTab handles both pinned and normal tabs
       closeTab(tabId)
@@ -360,38 +602,22 @@ export function TabsProvider({
         return
       }
 
-      // Restore tab with updated timestamp
+      // Restore tab with updated timestamp. addTab applies the shared awake budget
+      // before the attached route can be committed.
       const restoredTab: Tab = {
         ...tabData,
         lastAccessTime: Date.now(),
         isDormant: false
       }
 
-      // Add to appropriate storage
-      if (storesPinned(restoredTab)) {
-        setPinnedTabs((prev) => [...prev, restoredTab])
-      } else {
-        setNormalTabs((prev) => [...prev, restoredTab])
-      }
-
-      setActiveTabIdState(restoredTab.id)
+      addTab(restoredTab)
       logger.info('Tab attached from detached window', { tabId: tabData.id, url: tabData.url })
     },
-    [tabs, setActiveTab, setPinnedTabs, storesPinned]
+    [addTab, tabs, setActiveTab]
   )
 
   // Listen for tab attach requests (from Main Process)
-  useEffect(() => {
-    if (!window.electron?.ipcRenderer) return
-
-    const handleAttachRequest = (_event: any, tabData: Tab) => {
-      attachTab(tabData)
-    }
-
-    const removeAttachRequest = window.electron.ipcRenderer.on(IpcChannel.Tab_Attach, handleAttachRequest)
-
-    return removeAttachRequest
-  }, [attachTab])
+  useIpcOn('tab.attached', (tabData) => attachTab(tabData))
 
   /**
    * Get the currently active tab
@@ -408,6 +634,7 @@ export function TabsProvider({
     // Basic operations
     addTab,
     closeTab,
+    closeTabs,
     setActiveTab,
     updateTab,
 

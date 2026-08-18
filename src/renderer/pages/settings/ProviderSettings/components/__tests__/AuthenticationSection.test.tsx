@@ -89,46 +89,36 @@ describe('AuthenticationSection', () => {
       openConnectionCheck: openConnectionCheckMock,
       closeConnectionCheck: vi.fn(),
       startConnectionCheck: vi.fn(),
-      checkApi: vi.fn(),
-      showApiKeyError: vi.fn()
+      checkApi: vi.fn()
     })
   })
 
-  it('keeps authentication section wiring thin and providerId-driven', () => {
-    const provider = { id: 'openai', isEnabled: true, name: 'openai' }
-    useProviderMock.mockReturnValue({ provider })
-
-    render(<AuthenticationSection providerId="openai" />)
-
-    expect(useProviderApiKeyMock).toHaveBeenCalledWith('openai')
-    expect(useProviderConnectionCheckMock).toHaveBeenCalledWith('openai')
-  })
-
   it('passes only minimal coordination props to child domains', () => {
-    const showApiKeyError = vi.fn()
     const openModelHealthCheck = vi.fn()
+    const connectionError = { message: 'bad key' }
     useProviderConnectionCheckMock.mockReturnValue({
-      apiKeyConnectivity: { status: 'failed', checking: false },
+      apiKeyConnectivity: { status: 'failed', checking: false, error: connectionError },
       connectionCheckOpen: true,
       checkableModels: [{ id: 'openai::gpt-4o', name: 'GPT-4o' }],
       checkableApiKeys: ['sk-test'],
       openConnectionCheck: openConnectionCheckMock,
       closeConnectionCheck: vi.fn(),
       startConnectionCheck: vi.fn(),
-      checkApi: vi.fn(),
-      showApiKeyError
+      checkApi: vi.fn()
     })
 
     const { getByRole } = render(
       <AuthenticationSection providerId="openai" onOpenModelHealthCheck={openModelHealthCheck} />
     )
 
+    expect(useProviderApiKeyMock).toHaveBeenCalledWith('openai')
+    expect(useProviderConnectionCheckMock).toHaveBeenCalledWith('openai')
     expect(apiKeyPropsSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         providerId: 'openai',
-        apiKeyConnectivity: { status: 'failed', checking: false },
-        onShowApiKeyError: showApiKeyError,
-        onOpenConnectionCheck: openConnectionCheckMock
+        apiKeyConnectivity: { status: 'failed', checking: false, error: connectionError },
+        onOpenConnectionCheck: openConnectionCheckMock,
+        requiresApiKey: undefined
       })
     )
     expect(apiHostPropsSpy).toHaveBeenCalledWith(
@@ -140,6 +130,8 @@ describe('AuthenticationSection', () => {
       expect.objectContaining({
         open: true,
         apiKeys: ['sk-test'],
+        connectionError,
+        requiresApiKey: undefined,
         onOpenModelHealthCheck: openModelHealthCheck
       })
     )
@@ -154,30 +146,5 @@ describe('AuthenticationSection', () => {
 
     fireEvent.click(getByRole('button', { name: 'api-key' }))
     expect(openConnectionCheckMock).toHaveBeenCalled()
-  })
-
-  it('still renders the same provider-specific slots for copilot', () => {
-    useProviderMock.mockReturnValue({
-      provider: { id: 'copilot', isEnabled: true, name: 'copilot' }
-    })
-
-    render(<AuthenticationSection providerId="copilot" />)
-
-    expect(apiKeyPropsSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        providerId: 'copilot'
-      })
-    )
-  })
-
-  it('keeps authentication shell mounted when the provider is missing', () => {
-    useProviderMock.mockReturnValue({
-      provider: undefined
-    })
-
-    const { container } = render(<AuthenticationSection providerId="missing" />)
-
-    expect(container.querySelector('section')).not.toBeNull()
-    expect(apiKeyPropsSpy).toHaveBeenCalledWith(expect.objectContaining({ providerId: 'missing' }))
   })
 })

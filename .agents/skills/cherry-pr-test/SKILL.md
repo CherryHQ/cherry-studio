@@ -1,269 +1,161 @@
 ---
 name: cherry-pr-test
-description: Test Cherry Studio PRs by checking out the branch, launching the Electron app in debug mode, and running interactive UI tests via CDP.
+description: Test Cherry Studio PRs by resolving and checking out a PR, statically inspecting its changes, running interactive UI tests against a safely tracked Electron instance through CDP, producing a structured report, cleaning up only the owned test instance, and restoring the original branch.
 ---
 
 # Cherry Studio PR Test
 
-Automated PR testing workflow for Cherry Studio. Checks out a PR, launches
-the Electron app with Chrome DevTools Protocol, connects agent-browser, and
-runs interactive UI + code review tests.
+Use this workflow for a bounded PR test. Use `cherry-electron-dev` for ongoing
+implementation or debugging in the current checkout.
 
-## Prerequisites
+## Prerequisites and safety
 
-- `gh` CLI installed and authenticated
-- `agent-browser` installed (for CDP-based UI testing)
-- `pnpm` installed with project dependencies (`pnpm install`)
+- Require authenticated `gh`, `pnpm`, and installed project dependencies.
+- Use Playwright/CDP or optional `agent-browser` for UI control.
+- Before touching Electron, read
+  [Electron Instance Management](../cherry-electron-dev/references/electron-instance.md)
+  and select its `ephemeral` policy.
+- Treat that reference as the only authority for discovery, target selection,
+  launch, replacement, shutdown, tracking, and troubleshooting.
+- Never discard local changes. Stop and ask if checkout would overwrite them.
+- Show the report before posting it anywhere.
 
-## Constraints
-
-- Always kill existing Cherry Studio processes before launching a new instance.
-- Never leave debug processes running after testing completes.
-- Always switch back to the default branch after testing.
-- Always show the test report to the user before posting it.
-
-## Arguments
-
-`$ARGUMENTS` may contain:
-- A PR number (e.g., `13955`)
-- A PR URL (e.g., `https://github.com/CherryHQ/cherry-studio/pull/13955`)
-- Keywords like "latest", "recent" to pick a recent PR
-- Empty — list recent PRs and let the user choose
+`$ARGUMENTS` may contain a PR number, PR URL, `latest`/`recent`, or nothing.
 
 ## Workflow
 
-### Phase 1: Select & Checkout PR
+### 1. Resolve and inspect the PR
 
-1. If no PR number given, list recent open PRs:
-   ```bash
-   gh pr list --repo CherryHQ/cherry-studio --state open --limit 10 \
-     --json number,title,author,createdAt,headRefName,changedFiles \
-     --template '{{range .}}#{{.number}} | {{.title}} | by {{.author.login}} | files: {{.changedFiles}}
-   {{end}}'
-   ```
-2. Ask the user to pick one (or auto-pick if "latest"/"recent").
-3. View PR details to understand what changed:
-   ```bash
-   gh pr view <NUMBER> --json title,body,headRefName,files
-   ```
-4. Checkout the PR branch:
-   ```bash
-   gh pr checkout <NUMBER>
-   ```
-5. Read the key changed files to understand the scope of changes.
+If no PR is specified, list recent PRs and ask the user to choose unless they
+requested the latest:
 
-### Phase 2+3: Static Analysis & Launch App (parallel)
+```bash
+gh pr list --repo CherryHQ/cherry-studio --state open --limit 10 \
+  --json number,title,author,createdAt,headRefName,changedFiles
+```
 
-Static analysis and app launch are independent — run them in parallel to save time.
+Record the current branch for restoration, inspect the PR, then check it out:
 
-#### Static Analysis (can run while app is starting)
+```bash
+git status --short
+git branch --show-current
+gh pr view <NUMBER> --json title,body,author,headRefName,files
+gh pr checkout <NUMBER>
+```
 
-1. **TypeScript typecheck** (catch type errors early):
-   ```bash
-   pnpm typecheck 2>&1 | grep -E "error TS|exited with code"
-   ```
-2. **Review blocked files**: Check if the PR modifies files with
-   `@deprecated` / `V2 DATA&UI REFACTORING` headers. These files are blocked
-   for feature changes until v2.0.0.
-3. **Scan for common issues**:
-   - Hardcoded strings (should use i18n)
-   - `console.log` usage (should use `loggerService`)
-   - Missing type annotations on new public interfaces
+Read the changed files and nearby instructions. Record the exact checked-out
+HEAD.
 
-Record all findings for the final report.
+### 2. Analyze and start the app
 
-#### Launch App
+Run static analysis while the app starts when both can proceed independently.
 
-1. **Kill any existing Cherry Studio processes** (graceful SIGTERM first):
-   ```bash
-   pkill -f "cherry-studio.*Electron" 2>/dev/null
-   pkill -f "electron-vite" 2>/dev/null
-   lsof -ti :9222 | xargs kill 2>/dev/null
-   lsof -ti :5173 | xargs kill 2>/dev/null
-   sleep 3
-   # Escalate to SIGKILL only if processes remain
-   lsof -ti :9222 | xargs kill -9 2>/dev/null
-   lsof -ti :5173 | xargs kill -9 2>/dev/null
-   ```
+For static analysis:
 
-2. **Start in debug mode** (includes `--remote-debugging-port=9222`):
-   ```bash
-   nohup pnpm debug > /tmp/cherry-debug.log 2>&1 &
-   ```
+```bash
+pnpm typecheck
+```
 
-3. **Wait for startup** (typically 20-30s):
-   ```bash
-   for i in $(seq 1 30); do
-     lsof -i :9222 2>/dev/null | grep LISTEN && break
-     sleep 2
-   done
-   ```
+Also check:
 
-### Phase 4: Connect agent-browser
+- blocked or deprecated v1/v2-refactor files
+- hardcoded user-visible strings instead of i18n
+- `console.log` instead of `loggerService`
+- missing types on new public interfaces
 
-1. **Connect**:
-   ```bash
-   agent-browser connect 9222
-   ```
-   If `connect` fails, fall back to websocket URL from logs:
-   ```bash
-   WS_URL=$(grep "DevTools listening" /tmp/cherry-debug.log | sed 's/.*ws:/ws:/')
-   agent-browser --cdp "$WS_URL" navigate http://localhost:5173
-   ```
+For Electron:
 
-2. **Verify connection and identify the main page**:
-   ```bash
-   agent-browser tab
-   ```
-   You should see the main Cherry Studio page at `http://localhost:5173/`.
-   If multiple tabs are listed, use `agent-browser tab <N>` to select the main one.
+1. Use the shared reference to verify existing instances.
+2. Reuse only an instance from this workspace whose recorded launch HEAD equals
+   the checked-out PR HEAD.
+3. When reusing one, mark it borrowed and preserve its existing policy and
+   ownership. Never reclassify a persistent instance as ephemeral.
+4. Otherwise gracefully replace only the verified same-workspace instance.
+5. Launch an `ephemeral`, agent-owned instance with an isolated
+   `CS_DEV_USER_DATA_SUFFIX`, such as `PR-<NUMBER>`.
+6. Keep its managed terminal/session, PIDs, ports, log, exact target, and
+   `pr-test:<NUMBER>` launch purpose in
+   `instance.json`.
 
-3. **Handle first-launch scenarios**:
-   - **V2 Data Migration Wizard**: On the v2 branch (or fresh dev data), the app
-     may show a migration wizard (`/migrationV2.html`) before the main UI.
-     Click through: 介绍(下一步) → 备份(我已备份，开始迁移) → 迁移(确定) → 完成(重启应用).
-     After "重启应用", kill and relaunch the app (the restart button doesn't work in dev mode).
-   - **Splash screen**: Wait up to 30s for the splash to dismiss.
+Do not use broad process or port cleanup.
 
-4. **Create screenshot directory** for this PR:
-   ```bash
-   mkdir -p /tmp/pr-<NUMBER>
-   ```
-   Use this directory for all screenshots: `/tmp/pr-<NUMBER>/<descriptive-name>.png`
+### 3. Run interactive tests
 
-### Phase 5: Interactive UI Testing
+Bind the controller to the exact target returned by the shared reference.
+Never navigate to a guessed root URL or select a target by index.
 
-Based on the PR's changed files, navigate to the relevant pages and test.
-Use your judgement to decide what to test — the PR description and changed files
-should guide your testing strategy.
+Build test cases from the PR description and changed files:
 
-#### General Approach
+1. Capture the initial state.
+2. Inspect interactive elements with the available CDP controller.
+3. Exercise the changed behavior.
+4. Capture the result and verify relevant persisted state.
+5. Repeat edge cases justified by the change.
 
-1. Take a screenshot of the current state
-2. Use `agent-browser snapshot -i` to discover interactive elements
-3. Interact with elements (click, fill, drag, etc.)
-4. Screenshot and verify the result
-5. Verify state changes if relevant (via `agent-browser eval`)
+Consider UI rendering, interactions, persistence, light/dark themes, relevant
+window sizes, i18n, empty states, and rapid interaction only when in scope.
 
-#### Key Testing Points
+Store screenshots and the report under `/tmp/pr-<NUMBER>/`:
 
-- **UI renders correctly**: New components appear in the right place
-- **Interactions work**: Toggles, inputs, buttons all function
-- **State persistence**: Changes survive across page navigations
-- **Theme compatibility**: Test in both light and dark modes
-- **Layout modes**: If sidebar/layout is involved, test at different sizes
-- **i18n**: Switch language and verify new strings appear correctly
-- **Edge cases**: Boundary conditions, rapid toggling, empty states
+```bash
+mkdir -p /tmp/pr-<NUMBER>
+```
 
-### Phase 6: Cleanup
+If an isolated profile shows the migration wizard or splash, follow the shared
+troubleshooting guidance and startup logs. Do not reset or force-close data.
 
-After testing:
+### 4. Clean up and restore
 
-1. **Kill all Cherry Studio processes** (graceful SIGTERM first):
-   ```bash
-   pkill -f "cherry-studio.*Electron" 2>/dev/null
-   pkill -f "electron-vite" 2>/dev/null
-   lsof -ti :9222 | xargs kill 2>/dev/null
-   lsof -ti :5173 | xargs kill 2>/dev/null
-   sleep 3
-   lsof -ti :9222 | xargs kill -9 2>/dev/null
-   lsof -ti :5173 | xargs kill -9 2>/dev/null
-   ```
+Use the shared `ephemeral` finish procedure. Stop only an instance launched by
+this PR-test workflow whose verified record remains `ephemeral`, agent-owned,
+and scoped to `pr-test:<NUMBER>`. Leave every borrowed instance running. Do not
+stop unrelated workspaces or packaged apps.
 
-2. **Switch back to the default branch**:
-   ```bash
-   default_branch=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')
-   git checkout "${default_branch:-main}"
-   ```
+Restore the branch recorded before checkout. If it no longer exists, resolve
+the repository default branch and report the fallback before switching:
 
-### Phase 7: Test Report
+```bash
+git checkout <ORIGINAL_BRANCH>
+```
 
-Generate a structured report with screenshots. Save the report as
-`/tmp/pr-<NUMBER>/report.md` alongside the screenshots.
+### 5. Report
+
+Save `/tmp/pr-<NUMBER>/report.md` and show it to the user. Match the report
+language to the user's language; the template uses English labels:
 
 ```markdown
-# PR #<NUMBER> 测试报告
+# PR #<NUMBER> Test Report
 
-**PR 标题**: <title>
-**作者**: @<author>
-**分支**: <branch>
-**修改文件数**: <count>
+**Title**: <title>
+**Author**: @<author>
+**Branch**: <branch>
+**Changed files**: <count>
 
-## 静态分析
+## Static Analysis
 
-| 检查项 | 结果 | 说明 |
-|--------|------|------|
-| TypeScript 类型检查 | ✅/❌ | ... |
-| 受阻文件检查 | ✅/⚠️ | ... |
-| console.log 使用 | ✅/❌ | ... |
+| Check | Result | Notes |
+| --- | --- | --- |
+| TypeScript typecheck | ✅/❌ | ... |
+| Blocked-file check | ✅/⚠️ | ... |
+| Logging, i18n, and types | ✅/❌ | ... |
 
-## UI 测试
+## UI Tests
 
-### <Test Case Name>
-<description of what was tested and the result>
+### <Test Case>
+
+<scenario, evidence, and result>
+
 ![screenshot](<filename>.png)
 
-## 发现的问题
-(if any)
+## Findings
 
-## 结论
-- 问题总数：N
-- 建议：APPROVE / REQUEST_CHANGES / COMMENT
+<findings or none>
+
+## Conclusion
+
+- Total findings: N
+- Recommendation: APPROVE / REQUEST_CHANGES / COMMENT
 ```
 
-If the user requests, copy the report directory to a more accessible location
-(e.g., Desktop) for sharing.
-
-## Troubleshooting
-
-### Port 9222 not listening after startup
-
-The `pnpm debug` script passes `--remote-debugging-port=9222` to Electron.
-If not working:
-- Check logs: `tail -50 /tmp/cherry-debug.log`
-- Kill by port: `lsof -ti :9222 | xargs kill -9`
-- Verify electron-vite is running: `ps aux | grep electron-vite`
-
-### agent-browser connect fails
-
-Use direct websocket URL:
-```bash
-WS_URL=$(grep "DevTools listening" /tmp/cherry-debug.log | grep 9222 | sed 's/.*\(ws:\/\/[^ ]*\)/\1/')
-agent-browser --cdp "$WS_URL" tab
-```
-
-### agent-browser target jumps to wrong page
-
-Electron apps have multiple CDP targets (main window + webviews for mini-apps).
-If `agent-browser` connects to a webview instead of the main page:
-```bash
-# List all targets
-agent-browser tab
-# Switch to the main page (usually tab 0, URL contains localhost:5173)
-agent-browser tab 0
-```
-After opening/closing mini-apps, always verify you're on the right target
-with `agent-browser tab`.
-
-### V2 Data Migration Wizard
-
-On the v2 branch, the app may show a data migration wizard on first launch.
-This is **not a bug** — it's expected when dev data hasn't been migrated yet.
-Click through the wizard steps, then restart the app manually (kill + relaunch).
-The wizard only appears once; subsequent launches go straight to the main UI.
-
-### App stuck on splash screen
-
-Wait longer (up to 30s on first launch). The app needs to:
-- Build and serve renderer via Vite dev server (port 5173)
-- Run database migrations
-- Initialize services (MCP, etc.)
-
-### Empty CDP target list
-
-After connecting, if `agent-browser tab` shows only `about:blank`:
-```bash
-agent-browser navigate http://localhost:5173
-sleep 10
-agent-browser tab
-```
+Do not post the report or submit a GitHub review unless the user explicitly
+asks.

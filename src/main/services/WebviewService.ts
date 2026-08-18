@@ -2,7 +2,6 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getAppLanguage, t } from '@main/i18n'
-import { IpcChannel } from '@shared/IpcChannel'
 import { app, dialog, session, shell, webContents } from 'electron'
 import { promises as fs } from 'fs'
 
@@ -48,7 +47,13 @@ export function setOpenLinkExternal(webviewId: number, isExternal: boolean) {
       }
       return { action: 'deny' }
     } else {
-      return { action: 'allow' }
+      // In-app popups must stay on web origins; isSafeExternalUrl is not reused here
+      // because its allowlist (mailto:, editor deep-links) targets shell.openExternal.
+      if (url.startsWith('http:') || url.startsWith('https:')) {
+        return { action: 'allow' }
+      }
+      logger.warn(`Blocked in-app popup for untrusted URL scheme: ${url}`)
+      return { action: 'deny' }
     }
   })
 }
@@ -104,14 +109,17 @@ const attachKeyboardHandler = (contents: Electron.WebContents) => {
     // Send the hotkey event to the renderer
     // The renderer will decide whether to preventDefault for Escape and Enter
     // based on whether the search bar is visible
-    host.send(IpcChannel.Webview_SearchHotkey, {
-      webviewId: contents.id,
-      key,
-      control: Boolean(input.control),
-      meta: Boolean(input.meta),
-      shift: Boolean(input.shift),
-      alt: Boolean(input.alt)
-    })
+    const windowId = application.get('WindowManager').getWindowIdByWebContents(host)
+    if (windowId) {
+      application.get('IpcApiService').send(windowId, 'webview.search_hotkey_pressed', {
+        webviewId: contents.id,
+        key,
+        control: Boolean(input.control),
+        meta: Boolean(input.meta),
+        shift: Boolean(input.shift),
+        alt: Boolean(input.alt)
+      })
+    }
   }
 
   contents.on('before-input-event', handleBeforeInput)
@@ -126,37 +134,6 @@ export class WebviewService extends BaseService {
   protected async onInit() {
     this.initSessionUserAgent()
     this.initWebviewHotkeys()
-    this.registerIpcHandlers()
-  }
-
-  private registerIpcHandlers() {
-    this.ipcHandle(IpcChannel.Webview_SetOpenLinkExternal, (_, webviewId: number, isExternal: boolean) => {
-      const webview = webContents.fromId(webviewId)
-      if (!webview) return
-
-      webview.setWindowOpenHandler(({ url }) => {
-        if (isExternal) {
-          void shell.openExternal(url)
-          return { action: 'deny' as const }
-        } else {
-          return { action: 'allow' as const }
-        }
-      })
-    })
-
-    this.ipcHandle(IpcChannel.Webview_SetSpellCheckEnabled, (_, webviewId: number, isEnable: boolean) => {
-      const webview = webContents.fromId(webviewId)
-      if (!webview) return
-      webview.session.setSpellCheckerEnabled(isEnable)
-    })
-
-    this.ipcHandle(IpcChannel.Webview_PrintToPDF, async (_, webviewId: number) => {
-      return await this.printWebviewToPDF(webviewId)
-    })
-
-    this.ipcHandle(IpcChannel.Webview_SaveAsHTML, async (_, webviewId: number) => {
-      return await this.saveWebviewAsHTML(webviewId)
-    })
   }
 
   /**
@@ -200,7 +177,7 @@ export class WebviewService extends BaseService {
   /**
    * Print webview content to PDF.
    */
-  private async printWebviewToPDF(webviewId: number): Promise<string | null> {
+  async printWebviewToPDF(webviewId: number): Promise<string | null> {
     const webview = webContents.fromId(webviewId)
     if (!webview) {
       throw new Error('Webview not found')
@@ -238,7 +215,7 @@ export class WebviewService extends BaseService {
   /**
    * Save webview content as HTML.
    */
-  private async saveWebviewAsHTML(webviewId: number): Promise<string | null> {
+  async saveWebviewAsHTML(webviewId: number): Promise<string | null> {
     const webview = webContents.fromId(webviewId)
     if (!webview) {
       throw new Error('Webview not found')

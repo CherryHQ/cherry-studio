@@ -17,7 +17,7 @@ describe('sweepOrphanAgentDirs', () => {
   beforeEach(() => {
     root = mkdtempSync(path.join(tmpdir(), 'cs-agent-sweep-'))
     ;(application.getPath as Mock).mockImplementation((key: string) =>
-      key === 'feature.agents.workspaces' ? root : `/mock/${key}`
+      key === 'feature.agents.data' ? root : `/mock/${key}`
     )
   })
 

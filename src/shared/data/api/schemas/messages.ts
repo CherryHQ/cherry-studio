@@ -10,9 +10,8 @@ import type { BranchMessagesResponse, Message, MessageData, TreeResponse } from 
 import {
   ContentMessageRoleSchema,
   MessageDataSchema,
-  MessageStatsSchema,
-  MessageStatusSchema,
-  ModelSnapshotSchema
+  MessageSnapshotSchema,
+  MessageStatusSchema
 } from '@shared/data/types/message'
 import * as z from 'zod'
 
@@ -52,13 +51,18 @@ export const CreateMessageSchema = z.strictObject({
   /** Model identifier */
   modelId: z.string().optional(),
   /** Model snapshot captured at message creation time */
-  modelSnapshot: ModelSnapshotSchema.optional(),
-  /** Statistics */
-  stats: MessageStatsSchema.optional(),
+  messageSnapshot: MessageSnapshotSchema.optional(),
   /** Set this message as the active node in the topic (default: true) */
   setAsActive: z.boolean().optional()
 })
 export type CreateMessageDto = z.infer<typeof CreateMessageSchema>
+
+/** DTO for reserving a new empty branch below an assistant message. */
+export const ReserveBranchSchema = z.strictObject({
+  /** Whether the new reserved branch becomes the topic's selected node. */
+  activate: z.boolean().optional()
+})
+export type ReserveBranchDto = z.infer<typeof ReserveBranchSchema>
 
 /**
  * DTO for updating an existing message
@@ -71,9 +75,7 @@ export const UpdateMessageSchema = z.strictObject({
   /** Change siblings group */
   siblingsGroupId: z.number().optional(),
   /** Update status */
-  status: MessageStatusSchema.optional(),
-  /** Update statistics */
-  stats: MessageStatsSchema.nullable().optional()
+  status: MessageStatusSchema.optional()
 })
 export type UpdateMessageDto = z.infer<typeof UpdateMessageSchema>
 
@@ -148,7 +150,9 @@ export type BranchMessagesQueryParams = z.infer<typeof BranchMessagesQuerySchema
  */
 export const DeleteMessageQuerySchema = z.strictObject({
   cascade: z.boolean().optional(),
-  activeNodeStrategy: ActiveNodeStrategySchema.optional()
+  activeNodeStrategy: ActiveNodeStrategySchema.optional(),
+  /** Reject deletion unless the target is an awaiting-input user leaf. */
+  awaitingInputOnly: z.boolean().optional()
 })
 export type DeleteMessageQuery = z.infer<typeof DeleteMessageQuerySchema>
 
@@ -171,9 +175,25 @@ export type PathThroughQueryParams = z.infer<typeof PathThroughQuerySchema>
  * Organized by domain responsibility:
  * - /topics/:id/tree - Tree visualization
  * - /topics/:id/messages - Branch messages for conversation
+ * - /messages/:id/reply-group - Assistant reply group operations
  * - /messages/:id - Individual message operations
  */
 export type MessageSchemas = {
+  /**
+   * Delete the complete assistant reply group containing one representative.
+   *
+   * The replies are spliced out atomically: each reply's direct children are
+   * reparented to the shared user-message parent before the replies are deleted.
+   *
+   * @example DELETE /messages/reply_1/reply-group
+   */
+  '/messages/:id/reply-group': {
+    DELETE: {
+      params: { id: string }
+      response: DeleteMessageResponse
+    }
+  }
+
   /**
    * Tree query endpoint for visualization
    * @example GET /topics/abc123/tree?depth=1
@@ -242,7 +262,7 @@ export type MessageSchemas = {
       params: { id: string }
       response: Message
     }
-    /** Update a message (content, move to new parent, etc.) */
+    /** Update a message (content, move to new parent, etc.). */
     PATCH: {
       params: { id: string }
       body: UpdateMessageDto
@@ -254,6 +274,7 @@ export type MessageSchemas = {
      * - cascade=false: reparents children to grandparent
      * - activeNodeStrategy='parent' (default): sets activeNodeId to parent if affected
      * - activeNodeStrategy='clear': sets activeNodeId to null if affected
+     * - awaitingInputOnly=true: rejects unless the target is an awaiting-input user leaf
      */
     DELETE: {
       params: { id: string }
@@ -279,6 +300,18 @@ export type MessageSchemas = {
     POST: {
       params: { id: string }
       body: MessageData
+      response: Message
+    }
+  }
+
+  /**
+   * Branch collection below an assistant message. Every POST creates a distinct,
+   * persisted empty user leaf; multiple reservations below one anchor are valid.
+   */
+  '/messages/:id/branches': {
+    POST: {
+      params: { id: string }
+      body: ReserveBranchDto
       response: Message
     }
   }

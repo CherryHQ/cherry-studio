@@ -3,6 +3,7 @@
 import { randomBytes } from 'node:crypto'
 
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { chatMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { messageTable } from '@data/db/schemas/message'
@@ -17,8 +18,12 @@ import type {
   CreateTopicDto,
   DeleteTopicsResult,
   DuplicateTopicDto,
+  LatestTopicQuery,
   ListTopicsQuery,
+  MoveTopicDto,
   RestoreTopicsResult,
+  ReusableTopicPlaceholderResponse,
+  ReuseOrCreateTopicDto,
   UpdateTopicDto
 } from '@shared/data/api/schemas/topics'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
@@ -31,6 +36,12 @@ import { getDataService, registerDataService } from './dataServiceRegistry'
 import { pinService } from './PinService'
 import { tagService } from './TagService'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
+import {
+  decodePinnedListCursor,
+  encodeEntityCursor,
+  encodeEntitySectionStart,
+  encodePinCursor
+} from './utils/pinnedListCursor'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:TopicService')
@@ -47,18 +58,14 @@ function rowToTopic(row: TopicRow): Topic {
   // DB NULL ↔ domain `undefined` boundary — all of Topic's nullable columns are
   // `.optional()` (no `T | null`), so the `{...nullsToUndefined(row)}` skeleton
   // from data-api-in-main.md applies cleanly.
-  const { deletedAt, ...clean } = nullsToUndefined(row)
+  const clean = nullsToUndefined(row)
   return {
     ...clean,
+    lastActivityAt: timestampToISO(row.lastActivityAt),
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt),
-    // Read-only trash marker: present iff the row is archived (mirrors FileEntry).
-    ...(deletedAt != null ? { deletedAt: timestampToISO(deletedAt) } : {})
+    deletedAt: row.deletedAt != null ? timestampToISO(row.deletedAt) : undefined
   }
-}
-
-function topicScopePredicate(groupId: string | null): SQL {
-  return groupId === null ? isNull(topicTable.groupId) : eq(topicTable.groupId, groupId)
 }
 
 function copyChatMessageFileRefsBySourceIdMapTx(tx: DbOrTx, sourceIdMap: ReadonlyMap<string, string>): void {
@@ -95,56 +102,6 @@ function copyChatMessageFileRefsBySourceIdMapTx(tx: DbOrTx, sourceIdMap: Readonl
   }
 }
 
-// Wire format: `pin:<orderKey>` / `topic:<updatedAt>:<id>` / `topic:` (pin exhausted).
-type Cursor =
-  | { section: 'pin'; orderKey: string }
-  | { section: 'topic'; updatedAt: number; id: string }
-  | { section: 'topic'; updatedAt: null; id: null }
-
-const FIRST_PAGE_CURSOR: Cursor = { section: 'pin', orderKey: '' }
-
-// Stale/legacy cursors fall back to first page (warn) instead of throwing —
-// cursors are opaque server-issued tokens, a 422 here would lock out renderers.
-function decodeCursor(raw: string): Cursor {
-  const firstColon = raw.indexOf(':')
-  if (firstColon < 0) return warnAndFallback(raw, 'no section separator')
-  const section = raw.slice(0, firstColon)
-  const rest = raw.slice(firstColon + 1)
-
-  if (section === 'pin') {
-    return { section: 'pin', orderKey: rest }
-  }
-  if (section === 'topic') {
-    if (rest === '') return { section: 'topic', updatedAt: null, id: null }
-    const sep = rest.indexOf(':')
-    if (sep < 0) return warnAndFallback(raw, 'malformed topic cursor (missing id separator)')
-    const updatedAt = Number(rest.slice(0, sep))
-    const id = rest.slice(sep + 1)
-    if (!Number.isFinite(updatedAt) || !id) {
-      return warnAndFallback(raw, 'malformed topic cursor (bad updatedAt or empty id)')
-    }
-    return { section: 'topic', updatedAt, id }
-  }
-  return warnAndFallback(raw, `unknown cursor section "${section}"`)
-}
-
-function warnAndFallback(raw: string, reason: string): Cursor {
-  logger.warn('decodeCursor: cursor unparseable, falling back to first page', { cursor: raw, reason })
-  return FIRST_PAGE_CURSOR
-}
-
-function encodePinCursor(orderKey: string): string {
-  return `pin:${orderKey}`
-}
-
-function encodeTopicCursor(updatedAt: number, id: string): string {
-  return `topic:${updatedAt}:${id}`
-}
-
-function encodeTopicSectionStart(): string {
-  return 'topic:'
-}
-
 function buildSearchPredicate(q: string | undefined): SQL | undefined {
   const trimmed = q?.trim()
   if (!trimmed) return undefined
@@ -153,7 +110,28 @@ function buildSearchPredicate(q: string | undefined): SQL | undefined {
   return sql`${topicTable.name} LIKE ${pattern} ESCAPE '\\'`
 }
 
+function assertActiveAssistantTx(tx: Pick<DbOrTx, 'select'>, assistantId: string): void {
+  const [assistant] = tx
+    .select({ id: assistantTable.id })
+    .from(assistantTable)
+    .where(and(eq(assistantTable.id, assistantId), isNull(assistantTable.deletedAt)))
+    .limit(1)
+    .all()
+  if (!assistant) throw DataApiErrorFactory.notFound('Assistant', assistantId)
+}
+
 export class TopicService {
+  notifyReadModelChange(topicIds: readonly string[], kind: 'membership' | 'projection'): void {
+    if (topicIds.length === 0) return
+    const entityIds = [...new Set(topicIds)]
+    notifyDataApiDataChange([
+      { endpoint: '/topics', kind, entityIds },
+      { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds },
+      { endpoint: '/topics/:id', entityIds },
+      { endpoint: '/topics/latest' }
+    ])
+  }
+
   getById(id: string): Topic {
     const db = application.get('DbService').getDb()
 
@@ -169,6 +147,89 @@ export class TopicService {
     }
 
     return rowToTopic(row)
+  }
+
+  /**
+   * The single most-recently-active non-deleted topic across all assistants, or
+   * `null` when the library is empty.
+   *
+   * First-entry restore resumes the last-touched conversation. It cannot read the
+   * regular first page of `listByCursor` for this: that page is pinned-first then
+   * unpinned-by-`orderKey` (manual/creation order), so the globally latest-active
+   * topic is not guaranteed to be on it. This `lastActivityAt DESC LIMIT 1` proves global
+   * latest independent of how the rail happens to page.
+   */
+  getLatestActive(query: LatestTopicQuery = {}): Topic | null {
+    const db = application.get('DbService').getDb()
+    const ownerFilter =
+      query.assistantId === 'unlinked'
+        ? isNull(assistantTable.id)
+        : query.assistantId
+          ? eq(assistantTable.id, query.assistantId)
+          : undefined
+
+    const [row] = db
+      .select({ topic: topicTable })
+      .from(topicTable)
+      .leftJoin(assistantTable, and(eq(topicTable.assistantId, assistantTable.id), isNull(assistantTable.deletedAt)))
+      .where(and(isNull(topicTable.deletedAt), ownerFilter))
+      .orderBy(desc(topicTable.lastActivityAt), asc(topicTable.id))
+      .limit(1)
+      .all()
+
+    return row ? rowToTopic(row.topic) : null
+  }
+
+  /** Reuse or create one exact empty placeholder under a serialized write transaction. */
+  reuseOrCreatePlaceholder(dto: ReuseOrCreateTopicDto): ReusableTopicPlaceholderResponse {
+    const result = application.get('DbService').withWriteTx((tx) => {
+      if (dto.assistantId) assertActiveAssistantTx(tx, dto.assistantId)
+
+      const [reusable] = tx
+        .select({ topic: topicTable })
+        .from(topicTable)
+        .leftJoin(assistantTable, and(eq(topicTable.assistantId, assistantTable.id), isNull(assistantTable.deletedAt)))
+        .where(
+          and(
+            isNull(topicTable.deletedAt),
+            dto.assistantId ? eq(assistantTable.id, dto.assistantId) : isNull(topicTable.assistantId),
+            dto.excludeTopicId ? notInArray(topicTable.id, [dto.excludeTopicId]) : undefined,
+            isNull(topicTable.activeNodeId),
+            eq(topicTable.isNameManuallyEdited, false),
+            sql`trim(${topicTable.name}) = ''`
+          )
+        )
+        .orderBy(desc(topicTable.updatedAt), asc(topicTable.id))
+        .limit(1)
+        .all()
+
+      if (reusable) return { row: reusable.topic, created: false }
+      return {
+        row: this.createTx(tx, { assistantId: dto.assistantId ?? undefined }),
+        created: true
+      }
+    })
+
+    if (result.created) {
+      this.notifyReadModelChange([result.row.id], 'membership')
+      logger.info('Created empty topic', { id: result.row.id })
+    }
+
+    return { topic: rowToTopic(result.row), created: result.created }
+  }
+
+  /** Monotonically advance a topic's activity time within the caller's write transaction. */
+  advanceLastActivityAtTx(tx: DbOrTx, topicId: string, timestamp: number): void {
+    const updated = tx
+      .update(topicTable)
+      .set({
+        lastActivityAt: sql`max(${topicTable.lastActivityAt}, ${timestamp})`,
+        updatedAt: sql`max(${topicTable.updatedAt}, ${timestamp})`
+      })
+      .where(and(eq(topicTable.id, topicId), isNull(topicTable.deletedAt)))
+      .returning({ id: topicTable.id })
+      .all()
+    if (updated.length !== 1) throw DataApiErrorFactory.notFound('Topic', topicId)
   }
 
   ensureTraceId(topicId: string): string {
@@ -194,33 +255,35 @@ export class TopicService {
   }
 
   create(dto: CreateTopicDto): Topic {
-    const dbService = application.get('DbService')
-    const messageService = getDataService('MessageService')
-    const groupId = dto.groupId ?? null
-
-    const row = dbService.withWriteTx((tx) => {
-      const topicRow = insertWithOrderKey(
-        tx,
-        topicTable,
-        {
-          name: dto.name,
-          assistantId: dto.assistantId,
-          groupId,
-          activeNodeId: null
-        },
-        {
-          pkColumn: topicTable.id,
-          position: 'first',
-          scope: topicScopePredicate(groupId)
-        }
-      ) as TopicRow
-      messageService.createRootMessageTx(tx, topicRow.id)
-      return topicRow
-    })
+    const row = application.get('DbService').withWriteTx((tx) => this.createTx(tx, dto))
+    this.notifyReadModelChange([row.id], 'membership')
 
     logger.info('Created empty topic', { id: row.id })
 
     return rowToTopic(row)
+  }
+
+  private createTx(tx: DbOrTx, dto: CreateTopicDto): TopicRow {
+    const createdAt = Date.now()
+    const topicRow = insertWithOrderKey(
+      tx,
+      topicTable,
+      {
+        name: dto.name,
+        assistantId: dto.assistantId,
+        activeNodeId: null,
+        lastActivityAt: createdAt,
+        createdAt,
+        updatedAt: createdAt
+      },
+      {
+        pkColumn: topicTable.id,
+        position: 'first',
+        scope: isNull(topicTable.deletedAt)
+      }
+    ) as TopicRow
+    getDataService('MessageService').createRootMessageTx(tx, topicRow.id)
+    return topicRow
   }
 
   duplicate(sourceTopicId: string, dto: DuplicateTopicDto): Topic {
@@ -245,14 +308,13 @@ export class TopicService {
           name: dto.name ?? sourceTopic.name,
           isNameManuallyEdited: dto.name !== undefined ? true : sourceTopic.isNameManuallyEdited,
           assistantId: sourceTopic.assistantId,
-          groupId: sourceTopic.groupId,
           activeNodeId: null
         },
         {
           pkColumn: topicTable.id,
           // Keep duplicated conversations aligned with newly created agent sessions: newest active work appears first.
           position: 'first',
-          scope: topicScopePredicate(sourceTopic.groupId ?? null)
+          scope: isNull(topicTable.deletedAt)
         }
       ) as TopicRow
 
@@ -277,6 +339,7 @@ export class TopicService {
 
       return rowToTopic(updatedTopicRow)
     })
+    this.notifyReadModelChange([copiedTopic.id], 'membership')
 
     logger.info('Duplicated topic path into new topic', {
       sourceTopicId,
@@ -310,59 +373,103 @@ export class TopicService {
         // Keep flag-only patches for repair/migration paths that need to adjust metadata.
         updates.isNameManuallyEdited = dto.isNameManuallyEdited
       }
-      if (dto.assistantId !== undefined) updates.assistantId = dto.assistantId
-      if (dto.groupId !== undefined) updates.groupId = dto.groupId
+      if (dto.assistantId !== undefined) {
+        if (dto.assistantId !== null) {
+          assertActiveAssistantTx(tx, dto.assistantId)
+        }
+        updates.assistantId = dto.assistantId
+      }
 
       const [row] = tx.update(topicTable).set(updates).where(eq(topicTable.id, id)).returning().all()
       if (!row) throw DataApiErrorFactory.notFound('Topic', id)
 
       return rowToTopic(row)
     })
+    this.notifyReadModelChange([id], 'projection')
 
     logger.info('Updated topic', { id, changes: Object.keys(dto) })
 
     return topic
   }
 
-  /**
-   * Archive by default (soft delete: `deletedAt = now`, messages untouched);
-   * `permanent: true` hard-deletes via the purge path (messages + tag/pin purge).
-   * Any soft-delete path MUST also call
-   * `pinService.purgeForEntitiesTx(tx, 'topic', [id])` — a surviving pin row
-   * makes `listByCursor`'s JOIN silently hide the topic from both sections.
-   * Disk attachments of purged messages are reclaimed by the file orphan sweep.
-   */
+  /** Atomically update a topic's assistant and global order. */
+  move(id: string, dto: MoveTopicDto): Topic {
+    const topic = application.get('DbService').withWriteTx((tx) => {
+      const [target] = tx
+        .select({ id: topicTable.id })
+        .from(topicTable)
+        .where(and(eq(topicTable.id, id), isNull(topicTable.deletedAt)))
+        .limit(1)
+        .all()
+      if (!target) throw DataApiErrorFactory.notFound('Topic', id)
+
+      assertActiveAssistantTx(tx, dto.assistantId)
+
+      if ('before' in dto.order || 'after' in dto.order) {
+        const anchorId = 'before' in dto.order ? dto.order.before : dto.order.after
+        if (anchorId === id) {
+          const message = 'move: anchor topic must differ from the moved topic'
+          throw DataApiErrorFactory.validation({ order: [message] }, message)
+        }
+
+        const [anchor] = tx
+          .select({ assistantId: topicTable.assistantId })
+          .from(topicTable)
+          .where(and(eq(topicTable.id, anchorId), isNull(topicTable.deletedAt)))
+          .limit(1)
+          .all()
+        if (!anchor) throw DataApiErrorFactory.notFound('Topic', anchorId)
+        if (anchor.assistantId !== dto.assistantId) {
+          const message = 'move: anchor topic must belong to the target assistant'
+          throw DataApiErrorFactory.validation({ order: [message] }, message)
+        }
+      }
+
+      tx.update(topicTable).set({ assistantId: dto.assistantId }).where(eq(topicTable.id, id)).run()
+      applyMoves(tx, topicTable, [{ id, anchor: dto.order }], {
+        pkColumn: topicTable.id,
+        scope: isNull(topicTable.deletedAt)
+      })
+
+      const [row] = tx.select().from(topicTable).where(eq(topicTable.id, id)).limit(1).all()
+      if (!row) throw DataApiErrorFactory.notFound('Topic', id)
+      return rowToTopic(row)
+    })
+    this.notifyReadModelChange([id], 'projection')
+    return topic
+  }
+
+  /** Archive by default; permanently remove the topic and messages on request. */
   delete(id: string, options: { permanent?: boolean } = {}): void {
     const dbService = application.get('DbService')
-    if (options.permanent === true) {
-      dbService.withWriteTx((tx) => this.purgeManyByIdsTx(tx, [id], { requireAll: true }))
-      logger.info('Permanently deleted topic', { id })
-      return
-    }
-    dbService.withWriteTx((tx) => this.archiveManyByIdsTx(tx, [id], { requireAll: true }))
-    logger.info('Archived topic', { id })
+    const deletedIds = dbService.withWriteTx((tx) =>
+      options.permanent === true
+        ? this.purgeManyByIdsTx(tx, [id], { requireAll: true })
+        : this.archiveManyByIdsTx(tx, [id], { requireAll: true })
+    )
+    this.notifyReadModelChange(deletedIds, 'membership')
+    pinService.notifyPurged()
+
+    logger.info(options.permanent === true ? 'Permanently deleted topic' : 'Archived topic', { id })
   }
 
   deleteByIds(ids: string[], options: { permanent?: boolean } = {}): DeleteTopicsResult {
-    const permanent = options.permanent === true
     const dbService = application.get('DbService')
     const deletedIds = dbService.withWriteTx((tx) =>
-      permanent
+      options.permanent === true
         ? this.purgeManyByIdsTx(tx, ids, { requireAll: true })
         : this.archiveManyByIdsTx(tx, ids, { requireAll: true })
     )
+    this.notifyReadModelChange(deletedIds, 'membership')
+    if (deletedIds.length > 0) pinService.notifyPurged()
 
-    logger.info(permanent ? 'Permanently deleted topics' : 'Archived topics', { count: deletedIds.length })
+    logger.info(options.permanent === true ? 'Permanently deleted topics' : 'Archived topics', {
+      count: deletedIds.length
+    })
 
     return { deletedIds, deletedCount: deletedIds.length }
   }
 
-  /**
-   * Soft delete: sets `deletedAt` on the topic rows only. Messages stay in
-   * place (hidden via the archived container) so restore is lossless; pins and
-   * tags are purged immediately and NOT restored (RFC §3.4 — a surviving pin
-   * row would hide the topic from `listByCursor`'s JOIN).
-   */
   private archiveManyByIdsTx(tx: DbOrTx, ids: string[], options: { requireAll?: boolean } = {}): string[] {
     const uniqueIds = Array.from(new Set(ids))
     if (uniqueIds.length === 0) return []
@@ -394,11 +501,6 @@ export class TopicService {
     return archivedIds
   }
 
-  /**
-   * Hard delete: purges messages, tags, and pins, then deletes the topic rows.
-   * The row select intentionally does NOT filter `deletedAt` so already-archived
-   * topics can be permanently deleted from the trash.
-   */
   private purgeManyByIdsTx(tx: DbOrTx, ids: string[], options: { requireAll?: boolean } = {}): string[] {
     const uniqueIds = Array.from(new Set(ids))
     if (uniqueIds.length === 0) return []
@@ -422,38 +524,33 @@ export class TopicService {
     return deletedIds
   }
 
-  /** Restore an archived topic. Pins/tags purged at archive time are NOT restored. */
   restore(id: string): Topic {
-    const topic = application.get('DbService').withWriteTx((tx) => {
-      const [row] = tx
-        .update(topicTable)
-        .set({ deletedAt: null })
-        .where(and(eq(topicTable.id, id), isNotNull(topicTable.deletedAt)))
-        .returning()
-        .all()
-      if (!row) throw DataApiErrorFactory.notFound('Topic', id)
-      return rowToTopic(row)
-    })
+    const [row] = application
+      .get('DbService')
+      .getDb()
+      .update(topicTable)
+      .set({ deletedAt: null })
+      .where(and(eq(topicTable.id, id), isNotNull(topicTable.deletedAt)))
+      .returning()
+      .all()
+    if (!row) throw DataApiErrorFactory.notFound('Topic', id)
 
+    this.notifyReadModelChange([id], 'membership')
     logger.info('Restored topic', { id })
-
-    return topic
+    return rowToTopic(row)
   }
 
-  /**
-   * Bulk restore. Idempotent: missing or already-active ids are simply omitted
-   * from `restoredIds` (no requireAll semantics, mirroring bulk session deletes).
-   */
   restoreByIds(ids: string[]): RestoreTopicsResult {
     const uniqueIds = Array.from(new Set(ids))
     const restoredIds = application.get('DbService').withWriteTx((tx) => {
       const restored: string[] = []
       for (let i = 0; i < uniqueIds.length; i += SQLITE_INARRAY_CHUNK) {
-        const chunk = uniqueIds.slice(i, i + SQLITE_INARRAY_CHUNK)
         const rows = tx
           .update(topicTable)
           .set({ deletedAt: null })
-          .where(and(inArray(topicTable.id, chunk), isNotNull(topicTable.deletedAt)))
+          .where(
+            and(inArray(topicTable.id, uniqueIds.slice(i, i + SQLITE_INARRAY_CHUNK)), isNotNull(topicTable.deletedAt))
+          )
           .returning({ id: topicTable.id })
           .all()
         restored.push(...rows.map((row) => row.id))
@@ -461,15 +558,11 @@ export class TopicService {
       return restored
     })
 
+    this.notifyReadModelChange(restoredIds, 'membership')
     logger.info('Restored topics', { count: restoredIds.length })
-
     return { restoredIds }
   }
 
-  /**
-   * Hard-delete archived topics whose `deletedAt` is older than `cutoffMs`,
-   * up to `limit` rows. Consumed by the trash purge job. Returns purged ids.
-   */
   purgeExpiredTx(tx: DbOrTx, cutoffMs: number, limit: number): string[] {
     const rows = tx
       .select({ id: topicTable.id })
@@ -477,7 +570,6 @@ export class TopicService {
       .where(and(isNotNull(topicTable.deletedAt), lt(topicTable.deletedAt, cutoffMs)))
       .limit(limit)
       .all()
-    if (rows.length === 0) return []
     return this.purgeManyByIdsTx(
       tx,
       rows.map((row) => row.id)
@@ -486,6 +578,17 @@ export class TopicService {
 
   setActiveNode(topicId: string, nodeId: string): { activeNodeId: string } {
     application.get('DbService').withWriteTx((tx) => this.setActiveNodeTx(tx, topicId, nodeId))
+    notifyDataApiDataChange([
+      {
+        endpoint: '/topics/:topicId/messages',
+        kind: 'membership',
+        routeParams: { topicId },
+        entityIds: [nodeId]
+      },
+      { endpoint: '/topics/:topicId/tree', routeParams: { topicId }, entityIds: [nodeId] },
+      { endpoint: '/topics', kind: 'projection', entityIds: [topicId] },
+      { endpoint: '/topics/:id', routeParams: { id: topicId }, entityIds: [topicId] }
+    ])
     logger.info('Set active node', { topicId, activeNodeId: nodeId })
     return { activeNodeId: nodeId }
   }
@@ -545,27 +648,29 @@ export class TopicService {
   }
 
   /**
-   * Two-section page: pinned topics (via `pin` JOIN, ordered by pin.orderKey)
-   * then unpinned (ordered by `updatedAt DESC, id ASC`). A partial pin page
-   * spills into the unpinned section to fill `limit`. `topic.orderKey` is
-   * maintained but unused at read time — it's there for a future drag-mode
-   * toggle.
-   *
-   * `inTrash: true` lists archived topics instead: the pin section is skipped
-   * entirely (archiving purges pins) and the topic-section query flips to
-   * `isNotNull(deletedAt)` with the same `(updatedAt DESC, id ASC)` cursor.
+   * Two-section page: pinned topics (via `pin` JOIN, ordered by `pin.orderKey`)
+   * then unpinned (ordered by `topic.orderKey ASC, id ASC` — manual/creation
+   * drag order). A partial pin page spills into the unpinned section to fill
+   * `limit`. This mirrors `AgentSessionService.listByCursor` so both rails share
+   * one pagination contract (pinned-first, then manual order); recency ordering
+   * for the time-grouped view is applied by the renderer over the loaded list.
    */
   listByCursor(query: ListTopicsQuery = {}): CursorPaginationResponse<Topic> {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
-    const cursor: Cursor = query.cursor ? decodeCursor(query.cursor) : { section: 'pin', orderKey: '' }
+    const cursor = decodePinnedListCursor(query.cursor, 'topic')
     const search = buildSearchPredicate(query.q)
     const inTrash = query.inTrash === true
 
     const items: Array<{ topic: Topic; pinOrderKey?: string }> = []
 
     if (!inTrash && cursor.section === 'pin') {
-      const pinAfter = cursor.orderKey ? gt(pinTable.orderKey, cursor.orderKey) : undefined
+      const pinAfter = cursor.orderKey
+        ? or(
+            gt(pinTable.orderKey, cursor.orderKey),
+            and(eq(pinTable.orderKey, cursor.orderKey), gt(topicTable.id, cursor.id))
+          )
+        : undefined
       const pinRows = db
         .select({ topic: topicTable, pinOrderKey: pinTable.orderKey })
         .from(topicTable)
@@ -576,10 +681,10 @@ export class TopicService {
         .all()
 
       // Stale pin cursor (anchor row deleted between requests) → 0 rows for a
-      // non-empty `cursor.orderKey`. Hand back a topic-section-start cursor so
+      // non-empty `cursor.orderKey`. Hand back an entity-section-start cursor so
       // the next call advances cleanly instead of restarting topics from the top.
       if (pinRows.length === 0 && cursor.orderKey !== '') {
-        return { items: [], nextCursor: encodeTopicSectionStart() }
+        return { items: [], nextCursor: encodeEntitySectionStart() }
       }
 
       const hasMoreInPin = pinRows.length > limit
@@ -591,34 +696,36 @@ export class TopicService {
         const last = items[items.length - 1]
         return {
           items: items.map((i) => i.topic),
-          nextCursor: encodePinCursor(last.pinOrderKey ?? '')
+          nextCursor: encodePinCursor(last.pinOrderKey ?? '', last.topic.id)
         }
       }
 
       if (items.length >= limit) {
         return {
           items: items.map((i) => i.topic),
-          nextCursor: encodeTopicSectionStart()
+          nextCursor: encodeEntitySectionStart()
         }
       }
     }
 
-    // Tuple cursor `(updatedAt, id)` over `ORDER BY updatedAt DESC, id ASC`:
-    // the id tiebreaker prevents dedup/skip across pages when two rows share
-    // an updatedAt.
+    // Tuple cursor `(orderKey, id)` over `ORDER BY orderKey ASC, id ASC`: the id
+    // tiebreaker prevents dedup/skip across pages when two rows share an orderKey.
     const remaining = limit - items.length
     const pinnedSubquery = db.select({ id: pinTable.entityId }).from(pinTable).where(eq(pinTable.entityType, 'topic'))
 
     let topicAfter: SQL | undefined
-    if (cursor.section === 'topic' && cursor.updatedAt !== null) {
-      topicAfter = or(
-        lt(topicTable.updatedAt, cursor.updatedAt),
-        and(eq(topicTable.updatedAt, cursor.updatedAt), gt(topicTable.id, cursor.id))
-      )
+    if (cursor.section === 'entity' && cursor.orderKey !== null) {
+      topicAfter = inTrash
+        ? or(
+            lt(topicTable.updatedAt, Number(cursor.orderKey)),
+            and(eq(topicTable.updatedAt, Number(cursor.orderKey)), gt(topicTable.id, cursor.id))
+          )
+        : or(
+            gt(topicTable.orderKey, cursor.orderKey),
+            and(eq(topicTable.orderKey, cursor.orderKey), gt(topicTable.id, cursor.id))
+          )
     }
 
-    // In trash mode the notInArray(pinned) filter is harmless — archived topics
-    // have no pin rows — so the query shape stays identical to the active list.
     const topicRows = db
       .select()
       .from(topicTable)
@@ -630,7 +737,9 @@ export class TopicService {
           search
         )
       )
-      .orderBy(desc(topicTable.updatedAt), asc(topicTable.id))
+      .orderBy(
+        ...(inTrash ? [desc(topicTable.updatedAt), asc(topicTable.id)] : [asc(topicTable.orderKey), asc(topicTable.id)])
+      )
       .limit(remaining + 1)
       .all()
 
@@ -642,7 +751,7 @@ export class TopicService {
     let nextCursor: string | undefined
     if (hasMoreInTopic) {
       const last = topicRows[remaining - 1]
-      nextCursor = encodeTopicCursor(last.updatedAt, last.id)
+      nextCursor = encodeEntityCursor(inTrash ? String(last.updatedAt) : last.orderKey, last.id)
     }
 
     return { items: items.map((i) => i.topic), nextCursor }
@@ -664,12 +773,12 @@ export class TopicService {
         name: topicTable.name,
         assistantId: topicTable.assistantId,
         assistantName: assistantTable.name,
-        updatedAt: topicTable.updatedAt
+        lastActivityAt: topicTable.lastActivityAt
       })
       .from(topicTable)
       .leftJoin(assistantTable, and(eq(topicTable.assistantId, assistantTable.id), isNull(assistantTable.deletedAt)))
       .where(and(...filters))
-      .orderBy(desc(topicTable.updatedAt), asc(topicTable.id))
+      .orderBy(desc(topicTable.lastActivityAt), asc(topicTable.id))
       .limit(limit)
       .all()
 
@@ -678,7 +787,7 @@ export class TopicService {
       id: row.id,
       title: row.name,
       subtitle: row.assistantName ?? undefined,
-      updatedAt: timestampToISO(row.updatedAt),
+      lastActivityAt: timestampToISO(row.lastActivityAt),
       target: { topicId: row.id, assistantId: row.assistantId ?? undefined }
     }))
   }
@@ -686,51 +795,21 @@ export class TopicService {
   reorder(id: string, anchor: OrderRequest): void {
     const db = application.get('DbService').getDb()
     db.transaction((tx) => {
-      const [target] = tx
-        .select({ groupId: topicTable.groupId })
-        .from(topicTable)
-        .where(and(eq(topicTable.id, id), isNull(topicTable.deletedAt)))
-        .limit(1)
-        .all()
-      if (!target) throw DataApiErrorFactory.notFound('Topic', id)
-
       applyMoves(tx, topicTable, [{ id, anchor }], {
         pkColumn: topicTable.id,
-        scope: topicScopePredicate(target.groupId)
+        scope: isNull(topicTable.deletedAt)
       })
     })
   }
 
-  /** Cross-scope (mixed `groupId`) batches are rejected with VALIDATION_ERROR. */
   reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): void {
     if (moves.length === 0) return
 
     const db = application.get('DbService').getDb()
     db.transaction((tx) => {
-      const ids = moves.map((m) => m.id)
-      const targets = tx
-        .select({ id: topicTable.id, groupId: topicTable.groupId })
-        .from(topicTable)
-        .where(and(inArray(topicTable.id, ids), isNull(topicTable.deletedAt)))
-        .all()
-
-      if (targets.length !== ids.length) {
-        const found = new Set(targets.map((t) => t.id))
-        const missing = ids.find((id) => !found.has(id)) ?? ids[0]
-        throw DataApiErrorFactory.notFound('Topic', missing)
-      }
-
-      const scopeValues = new Set(targets.map((t) => t.groupId))
-      if (scopeValues.size > 1) {
-        const scopeList = [...scopeValues].map((s) => (s === null ? '<null>' : s)).join(', ')
-        const message = `reorderBatch: batch spans multiple groupId scopes (${scopeList})`
-        throw DataApiErrorFactory.validation({ _root: [message] }, message)
-      }
-
-      const [scopeValue] = [...scopeValues]
       applyMoves(tx, topicTable, moves, {
         pkColumn: topicTable.id,
-        scope: topicScopePredicate(scopeValue ?? null)
+        scope: isNull(topicTable.deletedAt)
       })
     })
   }
@@ -738,22 +817,17 @@ export class TopicService {
   deleteByAssistantId(assistantId: string): DeleteTopicsResult {
     const dbService = application.get('DbService')
     const deletedIds = dbService.withWriteTx((tx) => this.deleteByAssistantIdTx(tx, assistantId))
+    this.notifyReadModelChange(deletedIds, 'membership')
+    if (deletedIds.length > 0) pinService.notifyPurged()
 
-    logger.info('Archived assistant topics', { assistantId, count: deletedIds.length })
+    logger.info('Deleted assistant topics', { assistantId, count: deletedIds.length })
 
     return { deletedIds, deletedCount: deletedIds.length }
   }
 
-  /** Archives (soft-deletes) the assistant's live topics — RFC §4.3: assistant-scoped topic deletes archive. */
   deleteByAssistantIdTx(tx: DbOrTx, assistantId: string, options: { validateAssistant?: boolean } = {}): string[] {
     if (options.validateAssistant ?? true) {
-      const [assistant] = tx
-        .select({ id: assistantTable.id })
-        .from(assistantTable)
-        .where(and(eq(assistantTable.id, assistantId), isNull(assistantTable.deletedAt)))
-        .limit(1)
-        .all()
-      if (!assistant) throw DataApiErrorFactory.notFound('Assistant', assistantId)
+      assertActiveAssistantTx(tx, assistantId)
     }
 
     const rows = tx

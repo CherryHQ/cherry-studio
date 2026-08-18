@@ -1,8 +1,9 @@
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import { FILE_TYPE, type FileMetadata } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { act, render, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AttachmentToolRuntime } from '../AttachmentButton'
 
@@ -10,14 +11,15 @@ vi.mock('@renderer/utils/file', () => ({
   filterSupportedFiles: vi.fn(async (files) => files)
 }))
 
-const t = (key: string) => {
-  const translations: Record<string, string> = {
+const t = (key: string, options?: { lng?: string; defaultValue?: string }) => {
+  const englishTranslations: Record<string, string> = {
     'chat.input.upload.attachment': 'Upload attachment',
     'chat.input.upload.document_only': 'Documents only',
     'chat.input.upload.image_not_supported': 'This model does not support image uploads. Documents only.'
   }
 
-  return translations[key] ?? key
+  if (options?.lng === 'en-US') return englishTranslations[key] ?? options.defaultValue ?? key
+  return key
 }
 
 vi.mock('react-i18next', () => ({
@@ -31,7 +33,8 @@ vi.mock('react-i18next', () => ({
 const createLauncherApi = (): ToolLauncherApi => ({
   registerLaunchers: vi.fn(() => vi.fn())
 })
-
+import { installSyncRafMock } from '../../../../../../../tests/__mocks__/requestAnimationFrame'
+let restoreRequestAnimationFrame: (() => void) | undefined
 const selectedFile: FileMetadata = {
   id: 'selected',
   path: '/tmp/report.txt',
@@ -54,6 +57,12 @@ describe('AttachmentToolRuntime', () => {
         select: vi.fn(async () => [selectedFile])
       }
     } as typeof window.api
+    restoreRequestAnimationFrame = installSyncRafMock()
+  })
+
+  afterEach(() => {
+    restoreRequestAnimationFrame?.()
+    restoreRequestAnimationFrame = undefined
   })
 
   it('keeps document-only support as a suffix and tooltip instead of a long label', async () => {
@@ -76,9 +85,10 @@ describe('AttachmentToolRuntime', () => {
     expect(attachmentLauncher).toMatchObject({
       id: 'attachment',
       sources: ['popover'],
-      label: 'Upload attachment',
-      suffix: 'Documents only',
-      tooltip: 'This model does not support image uploads. Documents only.'
+      label: 'chat.input.upload.attachment',
+      searchAliases: expect.arrayContaining(['Upload attachment']),
+      suffix: 'chat.input.upload.document_only',
+      tooltip: 'chat.input.upload.image_not_supported'
     })
   })
 
@@ -108,7 +118,7 @@ describe('AttachmentToolRuntime', () => {
         files={[
           {
             fileTokenSourceId: 'existing',
-            path: '/tmp/existing.txt',
+            path: '/tmp/existing.txt' as AbsoluteFilePath,
             name: 'existing.txt',
             origin_name: 'existing.txt',
             ext: '.txt',
@@ -163,5 +173,34 @@ describe('AttachmentToolRuntime', () => {
       expect.objectContaining({ fileTokenSourceId: 'existing', path: '/tmp/existing.txt' }),
       expect.objectContaining({ path: selectedFile.path, name: selectedFile.name })
     ])
+  })
+
+  it('restores composer focus after the file picker closes', async () => {
+    const launcher = createLauncherApi()
+    const inputAdapter = {
+      getText: vi.fn(() => ''),
+      insertText: vi.fn(),
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn()
+    }
+
+    render(
+      <AttachmentToolRuntime
+        launcher={launcher}
+        couldAddImageFile
+        extensions={['.txt']}
+        files={[]}
+        setFiles={vi.fn()}
+      />
+    )
+
+    await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
+
+    const [attachmentLauncher] = vi.mocked(launcher.registerLaunchers).mock.calls[0][0]
+    await act(async () => {
+      attachmentLauncher.action?.({ inputAdapter, source: 'popover', quickPanel: {} as never })
+    })
+
+    expect(inputAdapter.focus).toHaveBeenCalledTimes(1)
   })
 })

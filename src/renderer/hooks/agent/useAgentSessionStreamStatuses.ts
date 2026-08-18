@@ -1,7 +1,7 @@
-import { cacheService } from '@renderer/data/CacheService'
+import { useSharedCacheSelector } from '@renderer/data/hooks/useCache'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { classifyTurn, type TopicStatusSnapshotEntry } from '@shared/ai/transport'
-import { useCallback, useMemo, useRef, useSyncExternalStore } from 'react'
+import { useCallback, useMemo } from 'react'
 
 export type AgentSessionStreamState = {
   isPending: boolean
@@ -12,11 +12,6 @@ const getAgentSessionStreamStatusCacheKey = (sessionId: string) =>
   `topic.stream.statuses.${buildAgentSessionTopicId(sessionId)}` as const
 const SESSION_ID_SEPARATOR = '\u0000'
 const EMPTY_AGENT_SESSION_STREAM_STATUSES = new Map<string, AgentSessionStreamState>()
-
-type AgentSessionStreamStatusesSnapshot = {
-  signature: string
-  value: ReadonlyMap<string, AgentSessionStreamState>
-}
 
 function toAgentSessionStreamState(
   entry: TopicStatusSnapshotEntry | null | undefined
@@ -29,28 +24,22 @@ function toAgentSessionStreamState(
   }
 }
 
-function buildAgentSessionStreamStatusesSnapshot(sessionIds: readonly string[]): AgentSessionStreamStatusesSnapshot {
-  const entries: Array<[string, AgentSessionStreamState]> = []
-
-  for (const sessionId of sessionIds) {
-    const entry = cacheService.getShared(getAgentSessionStreamStatusCacheKey(sessionId))
-    const status = toAgentSessionStreamState(entry)
-    if (status) entries.push([sessionId, status])
+/**
+ * Selection comparator: the Map and its entry objects are rebuilt on every
+ * selector run, so identity comparison never holds — compare by the fields
+ * consumers derive from (session id, status, isPending).
+ */
+function areAgentSessionStreamStatusesEqual(
+  a: ReadonlyMap<string, AgentSessionStreamState>,
+  b: ReadonlyMap<string, AgentSessionStreamState>
+): boolean {
+  if (a === b) return true
+  if (a.size !== b.size) return false
+  for (const [sessionId, state] of a) {
+    const other = b.get(sessionId)
+    if (!other || other.status !== state.status || other.isPending !== state.isPending) return false
   }
-
-  if (entries.length === 0) {
-    return {
-      signature: '',
-      value: EMPTY_AGENT_SESSION_STREAM_STATUSES
-    }
-  }
-
-  return {
-    signature: entries
-      .map(([sessionId, status]) => `${sessionId}:${status.status}:${status.isPending ? '1' : '0'}`)
-      .join(SESSION_ID_SEPARATOR),
-    value: new Map(entries)
-  }
+  return true
 }
 
 export function useAgentSessionStreamStatuses(
@@ -61,29 +50,24 @@ export function useAgentSessionStreamStatuses(
     () => (sessionIdsKey ? sessionIdsKey.split(SESSION_ID_SEPARATOR) : []),
     [sessionIdsKey]
   )
-  const cacheKeys = useMemo(() => uniqueSessionIds.map(getAgentSessionStreamStatusCacheKey), [uniqueSessionIds])
-  const snapshotRef = useRef<AgentSessionStreamStatusesSnapshot>({
-    signature: '',
-    value: EMPTY_AGENT_SESSION_STREAM_STATUSES
-  })
+  const selector = useCallback(
+    (values: readonly (TopicStatusSnapshotEntry | null | undefined)[]) => {
+      const entries: Array<[string, AgentSessionStreamState]> = []
+      uniqueSessionIds.forEach((sessionId, index) => {
+        const state = toAgentSessionStreamState(values[index])
+        if (state) entries.push([sessionId, state])
+      })
 
-  const getSnapshot = useCallback(() => {
-    const nextSnapshot = buildAgentSessionStreamStatusesSnapshot(uniqueSessionIds)
-    if (snapshotRef.current.signature === nextSnapshot.signature) {
-      return snapshotRef.current.value
-    }
-
-    snapshotRef.current = nextSnapshot
-    return nextSnapshot.value
-  }, [uniqueSessionIds])
-
-  const subscribe = useCallback(
-    (onStoreChange: () => void) => {
-      const disposers = cacheKeys.map((key) => cacheService.subscribe(key, onStoreChange))
-      return () => disposers.forEach((dispose) => dispose())
+      if (entries.length === 0) return EMPTY_AGENT_SESSION_STREAM_STATUSES
+      return new Map(entries) as ReadonlyMap<string, AgentSessionStreamState>
     },
-    [cacheKeys]
+    [uniqueSessionIds]
   )
 
-  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+  // Keys and the zip source both derive from `uniqueSessionIds` (zip-source coherence).
+  return useSharedCacheSelector(
+    uniqueSessionIds.map(getAgentSessionStreamStatusCacheKey),
+    selector,
+    areAgentSessionStreamStatusesEqual
+  )
 }

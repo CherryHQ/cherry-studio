@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { shell } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BaseService } from '../../lifecycle/BaseService'
@@ -249,6 +250,15 @@ vi.mock('../windowRegistry', () => {
       htmlPath: 'windows/default/index.html',
       windowOptions: {}
     },
+    // Consumer-loaded: empty htmlPath → WM skips loadWindowContent; the domain
+    // service loads content itself after open() (see "content loading" tests).
+    consumerLoaded: {
+      type: 'consumerLoaded',
+      lifecycle: 'default',
+      showMode: 'manual',
+      htmlPath: '',
+      windowOptions: {}
+    },
     singleton: {
       type: 'singleton',
       lifecycle: 'singleton',
@@ -400,6 +410,83 @@ describe('WindowManager', () => {
       wm.close(id)
 
       expect(win.destroy).toHaveBeenCalled()
+    })
+  })
+
+  // ─── Content loading (htmlPath contract) ───────────────
+
+  describe('content loading (htmlPath)', () => {
+    it('loads the registry htmlPath on create (production path → loadFile)', () => {
+      const id = wm.open('default' as never)
+      const win = wm.getWindow(id) as unknown as MockBrowserWindow
+
+      expect(win.loadFile).toHaveBeenCalledTimes(1)
+    })
+
+    it('skips content loading when htmlPath is empty (consumer-loaded window)', () => {
+      const id = wm.open('consumerLoaded' as never)
+      const win = wm.getWindow(id) as unknown as MockBrowserWindow
+
+      // Empty htmlPath = domain service owns loading; WM must not loadFile/loadURL.
+      expect(win).toBeDefined()
+      expect(win.loadFile).not.toHaveBeenCalled()
+      expect(win.loadURL).not.toHaveBeenCalled()
+    })
+  })
+
+  // ─── will-navigate guard (S13) ──────────────────────────
+
+  describe('will-navigate guard', () => {
+    beforeEach(() => {
+      vi.mocked(shell.openExternal).mockClear()
+    })
+
+    /** The guard WindowManager registers via webContents.on('will-navigate', …). */
+    function getWillNavigateHandler(
+      win: MockBrowserWindow
+    ): (event: { preventDefault: () => void }, url: string) => void {
+      const call = win.webContents.on.mock.calls.find(([event]) => event === 'will-navigate')
+      if (!call) throw new Error('will-navigate handler was not registered')
+      return call[1] as never
+    }
+
+    it('blocks navigation to non-http(s) URLs instead of letting it pass', () => {
+      const id = wm.open('default' as never)
+      const win = wm.getWindow(id) as unknown as MockBrowserWindow
+      const handler = getWillNavigateHandler(win)
+
+      for (const url of ['file:///etc/passwd', 'cherry://settings', 'about:blank']) {
+        const preventDefault = vi.fn()
+        handler({ preventDefault }, url)
+        expect(preventDefault, `expected navigation to ${url} to be blocked`).toHaveBeenCalledTimes(1)
+      }
+      expect(shell.openExternal).not.toHaveBeenCalled()
+    })
+
+    it('allows same-origin http(s) navigation unchanged', () => {
+      const id = wm.open('default' as never)
+      const win = wm.getWindow(id) as unknown as MockBrowserWindow
+      win.webContents.getURL.mockReturnValue('https://app.local/index.html')
+      const handler = getWillNavigateHandler(win)
+
+      const preventDefault = vi.fn()
+      handler({ preventDefault }, 'https://app.local/other.html')
+
+      expect(preventDefault).not.toHaveBeenCalled()
+      expect(shell.openExternal).not.toHaveBeenCalled()
+    })
+
+    it('still blocks cross-origin http(s) and routes it to the system browser', () => {
+      const id = wm.open('default' as never)
+      const win = wm.getWindow(id) as unknown as MockBrowserWindow
+      win.webContents.getURL.mockReturnValue('https://app.local/index.html')
+      const handler = getWillNavigateHandler(win)
+
+      const preventDefault = vi.fn()
+      handler({ preventDefault }, 'https://evil.example.com')
+
+      expect(preventDefault).toHaveBeenCalledTimes(1)
+      expect(shell.openExternal).toHaveBeenCalledWith('https://evil.example.com')
     })
   })
 
@@ -1403,6 +1490,12 @@ describe('WindowManager', () => {
       expect(info?.createdAt).toBeGreaterThan(0)
     })
 
+    it('getWindowType() returns the window type by id, undefined for an unknown id', () => {
+      const id = wm.open('singleton' as never)
+      expect(wm.getWindowType(id)).toBe('singleton')
+      expect(wm.getWindowType('no-such-window')).toBeUndefined()
+    })
+
     it('getWindowInfosByType() returns serializable info filtered by type', () => {
       wm.open('default' as never)
       wm.open('default' as never)
@@ -1442,6 +1535,13 @@ describe('WindowManager', () => {
 
     it('returns null for missing init data', () => {
       const id = wm.open('default' as never)
+      expect(wm.getInitData(id)).toBeNull()
+    })
+
+    it('clears init data', () => {
+      const id = wm.open('default' as never)
+      wm.setInitData(id, { key: 'value' })
+      wm.clearInitData(id)
       expect(wm.getInitData(id)).toBeNull()
     })
 
@@ -1568,6 +1668,17 @@ describe('WindowManager', () => {
       wm.broadcast('test-channel')
 
       expect(createdWindows[0].webContents.send).not.toHaveBeenCalled()
+    })
+
+    it('isolates a failing send so remaining windows still receive', () => {
+      wm.open('default' as never)
+      wm.open('singleton' as never)
+      createdWindows[0].webContents.send.mockImplementationOnce(() => {
+        throw new Error('renderer gone')
+      })
+
+      expect(() => wm.broadcast('test-channel', 'data')).not.toThrow()
+      expect(createdWindows[1].webContents.send).toHaveBeenCalledWith('test-channel', 'data')
     })
   })
 

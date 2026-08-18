@@ -28,12 +28,12 @@ const MessageTranslate: FC<Props> = ({ block }) => {
       <div className="relative mb-2.5">
         <Divider />
         <div className="-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2 bg-background px-2">
-          <Languages size={14} className="text-foreground-secondary" />
+          <Languages size={14} className="text-muted-foreground" />
         </div>
       </div>
       {isAwaitingFirstChunk && (
         <div className="-mt-1.25 mb-1.25 flex h-8 flex-row items-center">
-          <BeatLoader color="var(--color-foreground)" size={8} speedMultiplier={0.8} />
+          <BeatLoader color="var(--foreground)" size={8} speedMultiplier={0.8} />
         </div>
       )}
       <ChatMarkdown block={block} />

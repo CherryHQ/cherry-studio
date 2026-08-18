@@ -1,3 +1,6 @@
+import { DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
+import { IpcError } from '@shared/ipc/errors/IpcError'
+import { knowledgeErrorCodes } from '@shared/ipc/errors/knowledge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { appGetMock } = vi.hoisted(() => ({ appGetMock: vi.fn() }))
@@ -12,7 +15,9 @@ const knowledgeService = {
   addItems: vi.fn(),
   deleteItems: vi.fn(),
   reindexItems: vi.fn(),
+  enableEmbeddingModel: vi.fn(),
   search: vi.fn(),
+  getFilePath: vi.fn(),
   listItemChunks: vi.fn()
 }
 
@@ -93,6 +98,17 @@ describe('knowledgeHandlers', () => {
     expect(knowledgeService.reindexItems).toHaveBeenCalledWith('base-1', ['i1'])
   })
 
+  it('enable_embedding_model forwards baseId and patch and returns the updated base', async () => {
+    const patch = { embeddingModelId: 'provider::embed', dimensions: 768 }
+    const updated = { id: 'base-1', embeddingModelId: 'provider::embed' }
+    knowledgeService.enableEmbeddingModel.mockResolvedValue(updated)
+
+    const result = await knowledgeHandlers['knowledge.enable_embedding_model']({ baseId: 'base-1', patch }, ctx)
+
+    expect(knowledgeService.enableEmbeddingModel).toHaveBeenCalledWith('base-1', patch)
+    expect(result).toBe(updated)
+  })
+
   it('search forwards baseId and query and returns the matches', async () => {
     const matches = [{ chunkId: 'c1' }]
     knowledgeService.search.mockResolvedValue(matches)
@@ -101,6 +117,64 @@ describe('knowledgeHandlers', () => {
 
     expect(knowledgeService.search).toHaveBeenCalledWith('base-1', 'hello')
     expect(result).toBe(matches)
+  })
+
+  it('get_file_path forwards itemId and returns the managed file path', async () => {
+    knowledgeService.getFilePath.mockReturnValue('/knowledge/base-1/raw/report.pdf')
+
+    const result = await knowledgeHandlers['knowledge.get_file_path']({ itemId: 'i1' }, ctx)
+
+    expect(knowledgeService.getFilePath).toHaveBeenCalledWith('i1')
+    expect(result).toBe('/knowledge/base-1/raw/report.pdf')
+  })
+
+  it('get_file_path maps data-layer failures to a stable domain error without leaking the item id', async () => {
+    knowledgeService.getFilePath.mockImplementationOnce(() => {
+      throw DataApiErrorFactory.notFound('KnowledgeItem', 'private-item-id')
+    })
+
+    const error = await knowledgeHandlers['knowledge.get_file_path']({ itemId: 'private-item-id' }, ctx).catch(
+      (cause) => cause
+    )
+
+    expect(error).toBeInstanceOf(IpcError)
+    expect(error).toMatchObject({
+      code: knowledgeErrorCodes.SOURCE_PATH_UNAVAILABLE,
+      data: { cause: ErrorCode.NOT_FOUND },
+      message: 'Knowledge source path is unavailable'
+    })
+    expect(error.message).not.toContain('private-item-id')
+  })
+
+  it('get_file_path maps unavailable snapshot state to the same stable domain error', async () => {
+    knowledgeService.getFilePath.mockImplementationOnce(() => {
+      throw DataApiErrorFactory.invalidOperation(
+        'getFilePath',
+        "Knowledge URL item 'private-item-id' has no captured snapshot to preview"
+      )
+    })
+
+    const error = await knowledgeHandlers['knowledge.get_file_path']({ itemId: 'private-item-id' }, ctx).catch(
+      (cause) => cause
+    )
+
+    expect(error).toMatchObject({
+      code: knowledgeErrorCodes.SOURCE_PATH_UNAVAILABLE,
+      data: { cause: ErrorCode.INVALID_OPERATION },
+      message: 'Knowledge source path is unavailable'
+    })
+    expect(error.message).not.toContain('private-item-id')
+  })
+
+  it('get_file_path does not relabel unexpected data-layer failures as an unavailable source', async () => {
+    const databaseError = DataApiErrorFactory.database(new Error('disk I/O failed'), 'get knowledge item')
+    knowledgeService.getFilePath.mockImplementationOnce(() => {
+      throw databaseError
+    })
+
+    const error = await knowledgeHandlers['knowledge.get_file_path']({ itemId: 'i1' }, ctx).catch((cause) => cause)
+
+    expect(error).toBe(databaseError)
   })
 
   it('list_item_chunks forwards baseId and itemId and returns the chunks', async () => {

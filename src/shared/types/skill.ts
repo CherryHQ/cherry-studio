@@ -10,7 +10,7 @@ import * as z from 'zod'
 // Search source registries
 // ============================================================================
 
-export const SkillSearchSourceSchema = z.enum(['claude-plugins.dev', 'skills.sh', 'clawhub.ai'])
+export const SkillSearchSourceSchema = z.enum(['claude-plugins.dev', 'skills.sh', 'clawhub.ai', 'github'])
 export type SkillSearchSource = z.infer<typeof SkillSearchSourceSchema>
 
 // ============================================================================
@@ -77,7 +77,8 @@ export const ClawhubSearchItemSchema = z.object({
   displayName: z.string(),
   summary: z.string(),
   version: z.string().nullable(),
-  updatedAt: z.number()
+  updatedAt: z.number(),
+  ownerHandle: z.string().optional()
 })
 export type ClawhubSearchItem = z.infer<typeof ClawhubSearchItemSchema>
 
@@ -146,8 +147,10 @@ export const InstalledSkillSchema = z.object({
   sourceUrl: z.string().nullable(),
   namespace: z.string().nullable(),
   author: z.string().nullable(),
+  version: z.string().nullable(),
   sourceTags: z.array(z.string()).default([]),
   contentHash: z.string(),
+  isGlobalEnabled: z.boolean(),
   isEnabled: z.boolean(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
@@ -176,6 +179,10 @@ export interface SkillInstallFromDirectoryOptions {
   directoryPath: string
 }
 
+export interface SkillImportSystemOptions {
+  directoryPath: string
+}
+
 export type SkillResult<T> = { success: true; data: T } | { success: false; error: unknown }
 
 // ============================================================================
@@ -197,4 +204,24 @@ export interface LocalSkill {
   name: string
   description?: string
   filename: string
+}
+
+export interface SystemSkillPlacement {
+  sourceId: string
+  sourceName: string
+  directoryPath: string
+}
+
+export type SystemSkillStatus = 'available' | 'registered' | 'conflict'
+
+/** A skill found in a known system-level CLI skill directory. */
+export interface SystemSkillCandidate {
+  id: string
+  name: string
+  description?: string
+  filename: string
+  directoryPath: string
+  placements: SystemSkillPlacement[]
+  status: SystemSkillStatus
+  registeredSkillId?: string
 }

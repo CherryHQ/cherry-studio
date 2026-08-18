@@ -28,13 +28,14 @@ const mockMemoryCache = new Map<string, any>()
 const mockSharedCache = new Map<SharedCacheKey, any>()
 const mockPersistCache = new Map<RendererPersistCacheKey, any>()
 
-// Initialize caches with defaults
+// Initialize caches with defaults.
+// The shared map is deliberately NOT pre-populated: production resolves schema
+// defaults in the writable hook's fallback path, never by materializing them
+// into the physical store — pre-seeding would make the read-only
+// mockUseSharedCacheValue return defaults on a physical miss where production
+// returns undefined (hiding missing-key / hydration regressions).
 Object.entries(DefaultUseCache).forEach(([key, value]) => {
   mockMemoryCache.set(key, value)
-})
-
-Object.entries(DefaultSharedCache).forEach(([key, value]) => {
-  mockSharedCache.set(key as SharedCacheKey, value)
 })
 
 Object.entries(DefaultRendererPersistCache).forEach(([key, value]) => {
@@ -208,6 +209,38 @@ export const mockUseSharedCache = vi.fn(
 )
 
 /**
+ * Mock useSharedCacheValue hook (read-only shared cache observer)
+ *
+ * Mirrors production semantics: returns the stored value or undefined on a
+ * physical miss — it never materializes a default into the cache (consumers
+ * apply their own `?? fallback`). Template-key instances therefore return
+ * undefined until a test seeds them via MockUseCacheUtils.setSharedCacheValue.
+ */
+export const mockUseSharedCacheValue = vi.fn(
+  <K extends SharedCacheKey>(key: K): InferSharedCacheValue<K> | undefined => {
+    return mockSharedCache.get(key)
+  }
+)
+
+/**
+ * Mock useSharedCacheSelector hook (multi-key read-only selector)
+ *
+ * Mirrors production semantics statically: projects the current mock shared
+ * cache values for `keys` (undefined on physical miss, no default) into a
+ * tuple and returns `selector(values)`. Like the other hook mocks it is not
+ * reactive — it re-evaluates per render, not on store change.
+ */
+export const mockUseSharedCacheSelector = vi.fn(
+  <Selection>(
+    keys: readonly SharedCacheKey[],
+    selector: (values: readonly any[]) => Selection,
+    _isEqual?: (a: Selection, b: Selection) => boolean
+  ): Selection => {
+    return selector(keys.map((key) => mockSharedCache.get(key)))
+  }
+)
+
+/**
  * Mock usePersistCache hook (persistent cache)
  */
 export const mockUsePersistCache = vi.fn(
@@ -245,6 +278,8 @@ export const mockUsePersistCache = vi.fn(
 export const MockUseCache = {
   useCache: mockUseCache,
   useSharedCache: mockUseSharedCache,
+  useSharedCacheValue: mockUseSharedCacheValue,
+  useSharedCacheSelector: mockUseSharedCacheSelector,
   usePersistCache: mockUsePersistCache
 }
 
@@ -258,19 +293,18 @@ export const MockUseCacheUtils = {
   resetMocks: () => {
     mockUseCache.mockClear()
     mockUseSharedCache.mockClear()
+    mockUseSharedCacheValue.mockClear()
+    mockUseSharedCacheSelector.mockClear()
     mockUsePersistCache.mockClear()
 
-    // Reset caches to defaults
+    // Reset caches to defaults (shared stays physically empty — see the
+    // initialization note at the top of this file)
     mockMemoryCache.clear()
     mockSharedCache.clear()
     mockPersistCache.clear()
 
     Object.entries(DefaultUseCache).forEach(([key, value]) => {
       mockMemoryCache.set(key, value)
-    })
-
-    Object.entries(DefaultSharedCache).forEach(([key, value]) => {
-      mockSharedCache.set(key as SharedCacheKey, value)
     })
 
     Object.entries(DefaultRendererPersistCache).forEach(([key, value]) => {

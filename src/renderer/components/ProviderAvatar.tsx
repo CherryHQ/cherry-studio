@@ -1,6 +1,6 @@
 import type { CompoundIcon } from '@cherrystudio/ui'
 import { Avatar, AvatarFallback, AvatarImage } from '@cherrystudio/ui'
-import { resolveProviderIcon } from '@cherrystudio/ui/icons'
+import { resolveProviderIconRef, useIcon } from '@cherrystudio/ui/icons'
 import { getFirstCharacter } from '@renderer/utils/naming'
 import { generateColorFromChar, getForegroundColor } from '@renderer/utils/style'
 import React from 'react'
@@ -15,6 +15,7 @@ interface ProviderAvatarPrimitiveProps {
   size?: number
   className?: string
   style?: React.CSSProperties
+  iconStyle?: React.CSSProperties
 }
 
 export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = ({
@@ -23,7 +24,8 @@ export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = (
   logoSrc,
   size,
   className,
-  style
+  style,
+  iconStyle
 }) => {
   const backgroundColor = generateColorFromChar(providerName)
   const color = providerName ? getForegroundColor(backgroundColor) : 'white'
@@ -34,11 +36,13 @@ export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = (
   // A logo stored as `icon:<providerId>` references a built-in brand icon from the
   // registry (chosen via the avatar picker). Resolve it back to the CompoundIcon so a
   // custom provider can wear a brand logo, instead of rendering the raw string as an
-  // (invalid) image URL.
-  const builtinIcon =
+  // (invalid) image URL. The ref resolves synchronously; the component itself loads
+  // async — the initials fallback below covers the brief loading window.
+  const builtinIconRef =
     typeof resolvedLogo === 'string' && resolvedLogo.startsWith('icon:')
-      ? resolveProviderIcon(resolvedLogo.slice('icon:'.length))
+      ? resolveProviderIconRef(resolvedLogo.slice('icon:'.length))
       : undefined
+  const builtinIcon = useIcon(builtinIconRef)
   const effectiveLogo = builtinIcon ?? resolvedLogo
 
   // CompoundIcon handles light/dark variants internally; size the icon to the avatar container.
@@ -49,7 +53,7 @@ export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = (
     return (
       <Avatar className={className} style={{ width: resolvedSize, height: resolvedSize, ...style }}>
         <AvatarFallback className="bg-background text-foreground">
-          <Icon style={{ width: '70%', height: '70%' }} />
+          <Icon style={{ width: '100%', height: '100%', ...iconStyle }} />
         </AvatarFallback>
       </Avatar>
     )

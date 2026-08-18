@@ -30,6 +30,16 @@ describe('conversationTitle', () => {
     expect(truncateFirstUserMessageTitleSource('a'.repeat(51))).toBe('a'.repeat(50))
   })
 
+  it('does not leave a lone surrogate when the 50-char cut lands inside an emoji', () => {
+    // 49 CJK chars fill indices 0-48; the emoji's high/low surrogate halves sit at
+    // 49 and 50, so a plain slice(0, 50) keeps the high half without its low partner.
+    const source = truncateFirstUserMessageTitleSource('字'.repeat(49) + '😀' + '文'.repeat(20))
+    const loneSurrogate = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/
+
+    expect(loneSurrogate.test(source)).toBe(false)
+    expect(source).toBe('字'.repeat(49))
+  })
+
   it('returns an empty title for whitespace-only input', () => {
     expect(buildFirstUserMessageTitle(' \n\t ')).toBe('')
   })

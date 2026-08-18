@@ -1,3 +1,5 @@
+import '@data/services/AgentSessionMessageService'
+
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
@@ -5,13 +7,23 @@ import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { pinTable } from '@data/db/schemas/pin'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { agentTaskService } from '@data/services/AgentTaskService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
+import { jobScheduleService } from '@data/services/JobScheduleService'
+import { pinService } from '@data/services/PinService'
 import { ErrorCode } from '@shared/data/api/errors'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import path from 'path'
-import { afterEach, beforeEach, describe, expect, it, type Mock } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+
+const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
+vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
+
+function buildSystemWorkspacePath(systemWorkspacesRoot: string, sessionId: string, createdAt: number): string {
+  return path.join(systemWorkspacesRoot, new Date(createdAt).toISOString().slice(0, 10), sessionId)
+}
 
 // The data-service layer is synchronous under better-sqlite3: failing calls
 // throw inline instead of rejecting a promise. Capture the thrown error so we
@@ -31,6 +43,7 @@ describe('AgentSessionService', () => {
 
   beforeEach(async () => {
     ;(application.get('DbService').withWriteTx as Mock).mockImplementation((fn) => dbh.db.transaction(fn as never))
+    notifyDataApiDataChangeMock.mockClear()
     await dbh.db.insert(agentTable).values({
       id: 'agent-session-test',
       type: 'claude-code',
@@ -73,7 +86,26 @@ describe('AgentSessionService', () => {
     })
   }
 
-  it('searches sessions as lean navigation items with agent names resolved inline', async () => {
+  function createTaskSchedule(agentId = 'agent-session-test') {
+    return jobScheduleService.create({
+      type: 'agent.task',
+      name: `task-${crypto.randomUUID()}`,
+      trigger: { kind: 'interval', ms: 60_000 },
+      jobInputTemplate: { agentId, prompt: 'test', timeoutMinutes: 0, workspace: { type: 'system' } },
+      catchUpPolicy: { kind: 'skip-missed' },
+      metadata: { reuse: { enabled: true, revision: 0 } }
+    })
+  }
+
+  function bindTaskSession(sessionId: string, taskScheduleId: string, agentId = 'agent-session-test'): void {
+    dbh.db.transaction((tx) => {
+      expect(agentSessionService.bindTaskScheduleTx(tx, { sessionId, taskScheduleId, expectedAgentId: agentId })).toBe(
+        true
+      )
+    })
+  }
+
+  it('orders matching sessions and exposes timestamps by conversation activity', async () => {
     const workspace = await createWorkspace('search')
     await dbh.db.insert(agentSessionTable).values([
       {
@@ -82,7 +114,8 @@ describe('AgentSessionService', () => {
         name: 'Needle Old Session',
         workspaceId: workspace.id,
         orderKey: 'a0',
-        updatedAt: 100
+        lastActivityAt: 100,
+        updatedAt: 300
       },
       {
         id: 'session-search-new',
@@ -90,7 +123,8 @@ describe('AgentSessionService', () => {
         name: 'Needle New Session',
         workspaceId: workspace.id,
         orderKey: 'a1',
-        updatedAt: 200
+        lastActivityAt: 200,
+        updatedAt: 100
       },
       {
         id: 'session-search-miss',
@@ -98,6 +132,7 @@ describe('AgentSessionService', () => {
         name: 'Other Session',
         workspaceId: workspace.id,
         orderKey: 'a2',
+        lastActivityAt: 300,
         updatedAt: 300
       }
     ])
@@ -110,7 +145,7 @@ describe('AgentSessionService', () => {
         id: 'session-search-new',
         title: 'Needle New Session',
         subtitle: 'Session Test Agent',
-        updatedAt: '1970-01-01T00:00:00.200Z',
+        lastActivityAt: '1970-01-01T00:00:00.200Z',
         target: { sessionId: 'session-search-new', agentId: 'agent-session-test' }
       },
       {
@@ -118,15 +153,494 @@ describe('AgentSessionService', () => {
         id: 'session-search-old',
         title: 'Needle Old Session',
         subtitle: 'Session Test Agent',
-        updatedAt: '1970-01-01T00:00:00.100Z',
+        lastActivityAt: '1970-01-01T00:00:00.100Z',
         target: { sessionId: 'session-search-old', agentId: 'agent-session-test' }
       }
     ])
     expect(result[0]).not.toHaveProperty('workspace')
   })
 
+  it('applies the Agent metadata filter before the search limit', async () => {
+    const workspace = await createWorkspace('search-agent-filter')
+    await dbh.db.insert(agentTable).values({
+      id: 'agent-search-target',
+      type: 'claude-code',
+      name: 'Search Target',
+      instructions: '',
+      model: null,
+      orderKey: 'b0'
+    })
+    await dbh.db.insert(agentSessionTable).values([
+      {
+        id: 'session-search-other-agent',
+        agentId: 'agent-session-test',
+        name: 'Needle Other Agent',
+        workspaceId: workspace.id,
+        orderKey: 'b0',
+        updatedAt: 300
+      },
+      {
+        id: 'session-search-target-agent',
+        agentId: 'agent-search-target',
+        name: 'Needle Target Agent',
+        workspaceId: workspace.id,
+        orderKey: 'b1',
+        updatedAt: 100
+      }
+    ])
+
+    const result = agentSessionService.search({ q: 'Needle', agentId: 'agent-search-target', limit: 1 })
+
+    expect(result.map((item) => item.id)).toEqual(['session-search-target-agent'])
+  })
+
+  it('returns explicit Session name and description evidence', async () => {
+    const workspace = await createWorkspace('search-evidence')
+    await dbh.db.insert(agentSessionTable).values([
+      {
+        id: 'session-name-evidence',
+        agentId: 'agent-session-test',
+        name: '中文问候 Session',
+        workspaceId: workspace.id,
+        orderKey: 'c0',
+        lastActivityAt: 200,
+        updatedAt: 200
+      },
+      {
+        id: 'session-description-evidence',
+        agentId: 'agent-session-test',
+        name: 'Other Session',
+        description: '记录中文问候的测试过程',
+        workspaceId: workspace.id,
+        orderKey: 'c1',
+        lastActivityAt: 100,
+        updatedAt: 100
+      }
+    ])
+
+    const result = agentSessionService.searchWithMetadataEvidence({ q: '问候', limit: 5 })
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        item: expect.objectContaining({ id: 'session-name-evidence' }),
+        matches: [{ field: 'name', snippet: '中文问候 Session' }]
+      }),
+      expect.objectContaining({
+        item: expect.objectContaining({ id: 'session-description-evidence' }),
+        matches: [{ field: 'description', snippet: '记录中文问候的测试过程' }]
+      })
+    ])
+  })
+
+  it('keeps orphaned Sessions globally searchable but excludes them from addressable search', async () => {
+    const workspace = await createWorkspace('search-orphan')
+    await dbh.db.insert(agentSessionTable).values({
+      id: 'orphan-search-result',
+      name: 'Preserved orphan evidence',
+      workspaceId: workspace.id,
+      orderKey: 'orphan-search'
+    })
+
+    expect(agentSessionService.search({ q: 'orphan evidence', limit: 5 })).toEqual([
+      expect.objectContaining({
+        id: 'orphan-search-result',
+        subtitle: undefined,
+        target: { sessionId: 'orphan-search-result', agentId: null }
+      })
+    ])
+    expect(
+      agentSessionService.searchWithMetadataEvidence({ q: 'orphan evidence', limit: 5, addressableOnly: true })
+    ).toEqual([])
+  })
+
+  it('pages only Sessions whose active Agent can receive a delivery', async () => {
+    const workspace = await createWorkspace('addressable')
+    await dbh.db.insert(agentTable).values({
+      id: 'agent-deleted',
+      type: 'claude-code',
+      name: 'Deleted Agent',
+      instructions: '',
+      orderKey: 'deleted',
+      deletedAt: Date.now()
+    })
+    await dbh.db.insert(agentSessionTable).values([
+      {
+        id: 'addressable-a',
+        agentId: 'agent-session-test',
+        name: 'Addressable A',
+        workspaceId: workspace.id,
+        orderKey: 'a'
+      },
+      {
+        id: 'addressable-b',
+        agentId: 'agent-session-test',
+        name: 'Addressable B',
+        workspaceId: workspace.id,
+        orderKey: 'b'
+      },
+      { id: 'orphan', name: 'Orphan', workspaceId: workspace.id, orderKey: 'c' },
+      {
+        id: 'soft-deleted-agent',
+        agentId: 'agent-deleted',
+        name: 'Deleted target',
+        workspaceId: workspace.id,
+        orderKey: 'd'
+      }
+    ])
+
+    const first = agentSessionService.listAddressableByCursor({ limit: 1 })
+    const second = agentSessionService.listAddressableByCursor({ limit: 1, cursor: first.nextCursor })
+
+    expect([...first.items, ...second.items].map((item) => item.sessionId)).toEqual(['addressable-a', 'addressable-b'])
+    expect(second.nextCursor).toBeUndefined()
+  })
+
+  describe('getLatestActive', () => {
+    it('returns the globally most-recently-active session, independent of orderKey and updatedAt', async () => {
+      const workspace = await createWorkspace('latest')
+      // `active-latest` has the largest orderKey (oldest-created → last under `orderKey ASC` paging) yet
+      // the highest lastActivityAt despite an older updatedAt, proving activity drives this query.
+      await dbh.db.insert(agentSessionTable).values([
+        {
+          id: 'created-newest',
+          agentId: 'agent-session-test',
+          name: 'A',
+          workspaceId: workspace.id,
+          orderKey: 'a0',
+          lastActivityAt: 100,
+          updatedAt: 300
+        },
+        {
+          id: 'mid',
+          agentId: 'agent-session-test',
+          name: 'B',
+          workspaceId: workspace.id,
+          orderKey: 'a1',
+          lastActivityAt: 200,
+          updatedAt: 200
+        },
+        {
+          id: 'active-latest',
+          agentId: 'agent-session-test',
+          name: 'C',
+          workspaceId: workspace.id,
+          orderKey: 'a2',
+          lastActivityAt: 300,
+          updatedAt: 100
+        }
+      ])
+
+      const latest = agentSessionService.getLatestActive()
+      expect(latest?.id).toBe('active-latest')
+      // Fully hydrated (workspace joined), matching getById.
+      expect(latest?.workspace.id).toBe(workspace.id)
+    })
+
+    it('returns latest activity within a live or unlinked agent scope', async () => {
+      const workspace = await createWorkspace('latest-owner-scope')
+      await dbh.db.insert(agentTable).values([
+        {
+          id: 'agent-other-scope',
+          type: 'claude-code',
+          name: 'Other Agent',
+          instructions: 'Other instructions',
+          model: null,
+          orderKey: 'a1'
+        },
+        {
+          id: 'agent-deleted-scope',
+          type: 'claude-code',
+          name: 'Deleted Agent',
+          instructions: 'Deleted instructions',
+          model: null,
+          orderKey: 'a2',
+          deletedAt: 100
+        }
+      ])
+      await dbh.db.insert(agentSessionTable).values([
+        {
+          id: 'session-scoped',
+          agentId: 'agent-session-test',
+          name: 'Scoped',
+          workspaceId: workspace.id,
+          orderKey: 'a0',
+          lastActivityAt: 100
+        },
+        {
+          id: 'session-other',
+          agentId: 'agent-other-scope',
+          name: 'Other',
+          workspaceId: workspace.id,
+          orderKey: 'a1',
+          lastActivityAt: 500
+        },
+        {
+          id: 'session-unassigned',
+          agentId: null,
+          name: 'Unassigned',
+          workspaceId: workspace.id,
+          orderKey: 'a2',
+          lastActivityAt: 200
+        },
+        {
+          id: 'session-deleted-owner',
+          agentId: 'agent-deleted-scope',
+          name: 'Deleted owner',
+          workspaceId: workspace.id,
+          orderKey: 'a3',
+          lastActivityAt: 300
+        }
+      ])
+
+      expect(agentSessionService.getLatestActive({ agentId: 'agent-session-test' })?.id).toBe('session-scoped')
+      expect(agentSessionService.getLatestActive({ agentId: 'unlinked' })?.id).toBe('session-deleted-owner')
+    })
+
+    it('does not treat task relation changes as session activity', async () => {
+      const workspace = await createWorkspace('relation-recency')
+      const task = createTaskSchedule()
+      await dbh.db.insert(agentSessionTable).values([
+        {
+          id: 'bound-older',
+          agentId: 'agent-session-test',
+          name: 'Bound older',
+          workspaceId: workspace.id,
+          orderKey: 'a0',
+          lastActivityAt: 100,
+          updatedAt: 100
+        },
+        {
+          id: 'actually-latest',
+          agentId: 'agent-session-test',
+          name: 'Actually latest',
+          workspaceId: workspace.id,
+          orderKey: 'a1',
+          lastActivityAt: 200,
+          updatedAt: 200
+        }
+      ])
+
+      bindTaskSession('bound-older', task.id)
+
+      expect(agentSessionService.getById('bound-older').updatedAt).toBe('1970-01-01T00:00:00.100Z')
+      expect(agentSessionService.getLatestActive()?.id).toBe('actually-latest')
+
+      dbh.db.transaction((tx) => agentSessionService.clearTaskScheduleTx(tx, task.id))
+
+      expect(agentSessionService.getById('bound-older').updatedAt).toBe('1970-01-01T00:00:00.100Z')
+      expect(agentSessionService.getLatestActive()?.id).toBe('actually-latest')
+    })
+
+    it('returns null when there are no sessions', () => {
+      expect(agentSessionService.getLatestActive()).toBeNull()
+    })
+  })
+
+  describe('reuseOrCreatePlaceholderForDelivery', () => {
+    it('filters by exact workspace and message emptiness, ordered by updatedAt', async () => {
+      const userWorkspace = await createWorkspace('reusable-user')
+      await dbh.db.insert(agentWorkspaceTable).values({
+        id: 'reusable-system-workspace',
+        name: 'System',
+        path: workspacePath('reusable-system'),
+        type: 'system',
+        orderKey: 'a1'
+      })
+      await dbh.db.insert(agentWorkspaceTable).values({
+        id: 'reusable-system-workspace-old',
+        name: 'System old',
+        path: workspacePath('reusable-system-old'),
+        type: 'system',
+        orderKey: 'a2'
+      })
+      await dbh.db.insert(agentSessionTable).values([
+        {
+          id: 'user-created-later',
+          agentId: 'agent-session-test',
+          name: '',
+          workspaceId: userWorkspace.id,
+          orderKey: 'a0',
+          createdAt: 300,
+          updatedAt: 200
+        },
+        {
+          id: 'user-updated-later',
+          agentId: 'agent-session-test',
+          name: '  ',
+          workspaceId: userWorkspace.id,
+          orderKey: 'a1',
+          createdAt: 100,
+          updatedAt: 400
+        },
+        {
+          id: 'user-with-message',
+          agentId: 'agent-session-test',
+          name: '',
+          workspaceId: userWorkspace.id,
+          orderKey: 'a2',
+          updatedAt: 900
+        },
+        {
+          id: 'system-empty',
+          agentId: 'agent-session-test',
+          name: '',
+          workspaceId: 'reusable-system-workspace',
+          orderKey: 'a3',
+          updatedAt: 800
+        },
+        {
+          id: 'system-empty-old',
+          agentId: 'agent-session-test',
+          name: '',
+          workspaceId: 'reusable-system-workspace-old',
+          orderKey: 'a4',
+          updatedAt: 600
+        },
+        {
+          id: 'manually-named',
+          agentId: 'agent-session-test',
+          name: '',
+          isNameManuallyEdited: true,
+          workspaceId: userWorkspace.id,
+          orderKey: 'a5',
+          updatedAt: 700
+        }
+      ])
+      await insertSessionMessage('user-with-message', 'message-prevents-reuse')
+
+      expect(
+        agentSessionService.reuseOrCreatePlaceholderForDelivery({
+          agentId: 'agent-session-test',
+          workspace: { type: 'user', workspaceId: userWorkspace.id }
+        })
+      ).toMatchObject({ session: { id: 'user-updated-later' }, created: false, deletedDuplicateSessionIds: [] })
+      expect(
+        agentSessionService.reuseOrCreatePlaceholderForDelivery({
+          agentId: 'agent-session-test',
+          workspace: { type: 'system' }
+        })
+      ).toMatchObject({
+        session: { id: 'system-empty' },
+        created: false,
+        deletedDuplicateSessionIds: ['system-empty-old']
+      })
+      expect(() => agentSessionService.getById('system-empty-old')).toThrow()
+    })
+
+    it('creates at most one reusable placeholder for repeated exact targets', async () => {
+      const userWorkspace = await createWorkspace('create-reusable-user')
+
+      const first = agentSessionService.reuseOrCreatePlaceholderForDelivery({
+        agentId: 'agent-session-test',
+        workspace: { type: 'user', workspaceId: userWorkspace.id }
+      })
+      const second = agentSessionService.reuseOrCreatePlaceholderForDelivery({
+        agentId: 'agent-session-test',
+        workspace: { type: 'user', workspaceId: userWorkspace.id }
+      })
+
+      expect(first.created).toBe(true)
+      expect(second).toMatchObject({
+        session: { id: first.session.id },
+        created: false,
+        deletedDuplicateSessionIds: []
+      })
+    })
+
+    it('publishes pin membership after deleting a pinned system placeholder duplicate', async () => {
+      const retained = agentSessionService.create({
+        agentId: 'agent-session-test',
+        name: '',
+        workspace: { type: 'system' }
+      })
+      const duplicate = agentSessionService.create({
+        agentId: 'agent-session-test',
+        name: '',
+        workspace: { type: 'system' }
+      })
+      await dbh.db.update(agentSessionTable).set({ updatedAt: 200 }).where(eq(agentSessionTable.id, retained.id))
+      await dbh.db.update(agentSessionTable).set({ updatedAt: 100 }).where(eq(agentSessionTable.id, duplicate.id))
+      pinService.pin({ entityType: 'session', entityId: duplicate.id })
+      notifyDataApiDataChangeMock.mockClear()
+
+      const result = agentSessionService.reuseOrCreatePlaceholderForDelivery({
+        agentId: 'agent-session-test',
+        workspace: { type: 'system' }
+      })
+
+      expect(result).toMatchObject({
+        session: { id: retained.id },
+        created: false,
+        deletedDuplicateSessionIds: [duplicate.id]
+      })
+      expect(await dbh.db.select().from(pinTable).where(eq(pinTable.entityId, duplicate.id))).toHaveLength(0)
+      expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(1, [
+        { endpoint: '/agent-sessions', kind: 'membership', entityIds: [duplicate.id] },
+        { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: [duplicate.id] },
+        { endpoint: '/agent-sessions/:sessionId', entityIds: [duplicate.id] },
+        { endpoint: '/agent-sessions/latest' }
+      ])
+      expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(2, [{ endpoint: '/pins', kind: 'membership' }])
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  describe('touchUpdatedAtTx', () => {
+    it('bumps only the target session updatedAt', async () => {
+      const workspace = await createWorkspace('touch')
+      await dbh.db.insert(agentSessionTable).values([
+        {
+          id: 'touched',
+          agentId: 'agent-session-test',
+          name: 'A',
+          workspaceId: workspace.id,
+          orderKey: 'a0',
+          updatedAt: 100
+        },
+        {
+          id: 'untouched',
+          agentId: 'agent-session-test',
+          name: 'B',
+          workspaceId: workspace.id,
+          orderKey: 'a1',
+          updatedAt: 100
+        }
+      ])
+
+      dbh.db.transaction((tx) => agentSessionService.touchUpdatedAtTx(tx, 'touched', 999))
+
+      const rows = await dbh.db.select().from(agentSessionTable)
+      const byId = new Map(rows.map((row) => [row.id, row.updatedAt]))
+      expect(byId.get('touched')).toBe(999)
+      expect(byId.get('untouched')).toBe(100)
+    })
+  })
+
+  it('keeps audit and activity timestamps unchanged for an older activity signal', async () => {
+    const workspace = await createWorkspace('stale-activity')
+    await dbh.db.insert(agentSessionTable).values({
+      id: 'session-stale-activity',
+      agentId: 'agent-session-test',
+      name: 'Stale activity',
+      workspaceId: workspace.id,
+      orderKey: 'a0',
+      lastActivityAt: 500,
+      createdAt: 100,
+      updatedAt: 700
+    })
+
+    dbh.db.transaction((tx) => agentSessionService.advanceLastActivityAtTx(tx, 'session-stale-activity', 400))
+
+    const [row] = await dbh.db
+      .select()
+      .from(agentSessionTable)
+      .where(eq(agentSessionTable.id, 'session-stale-activity'))
+    expect(row).toMatchObject({ lastActivityAt: 500, updatedAt: 700 })
+  })
+
   it('binds a session to an explicit workspace', async () => {
     const workspace = await createWorkspace('explicit')
+    notifyDataApiDataChangeMock.mockClear()
 
     const session = agentSessionService.create({
       agentId: 'agent-session-test',
@@ -134,6 +648,12 @@ describe('AgentSessionService', () => {
       workspace: { type: 'user', workspaceId: workspace.id }
     })
 
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+      { endpoint: '/agent-sessions', kind: 'membership', entityIds: [session.id] },
+      { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: [session.id] },
+      { endpoint: '/agent-sessions/:sessionId', entityIds: [session.id] },
+      { endpoint: '/agent-sessions/latest' }
+    ])
     expect(session.workspaceId).toBe(workspace.id)
     expect(session.workspace.path).toBe(workspace.path)
     expect(session.isNameManuallyEdited).toBe(false)
@@ -141,7 +661,10 @@ describe('AgentSessionService', () => {
 
   it('rejects a user workspace source that points at a system workspace row', async () => {
     const systemWorkspace = dbh.db.transaction((tx) =>
-      agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: 'system-owned-session' })
+      agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, {
+        sessionId: 'system-owned-session',
+        createdAt: Date.parse('2026-07-27T10:00:00Z')
+      })
     )
 
     expect(
@@ -198,7 +721,13 @@ describe('AgentSessionService', () => {
 
     expect(session.workspaceId).toBeTruthy()
     expect(session.workspace.type).toBe('system')
-    expect(session.workspace.path).toBe(path.join(application.getPath('feature.agents.workspaces'), session.id))
+    expect(session.workspace.path).toBe(
+      buildSystemWorkspacePath(
+        application.getPath('feature.agents.system_workspaces'),
+        session.id,
+        Date.parse(session.createdAt)
+      )
+    )
     const rows = await dbh.db.select().from(agentWorkspaceTable)
     expect(rows).toHaveLength(1)
     expect(rows[0].id).toBe(session.workspaceId)
@@ -223,12 +752,19 @@ describe('AgentSessionService', () => {
 
   it('updates a session and returns the updated entity', async () => {
     const session = await createSession('Before update')
+    notifyDataApiDataChangeMock.mockClear()
 
     const updated = agentSessionService.update(session.id, {
       name: 'After update',
       description: 'Updated description',
       isNameManuallyEdited: true
     })
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+      { endpoint: '/agent-sessions', kind: 'projection', entityIds: [session.id] },
+      { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: [session.id] },
+      { endpoint: '/agent-sessions/:sessionId', entityIds: [session.id] },
+      { endpoint: '/agent-sessions/latest' }
+    ])
 
     expect(updated).toMatchObject({
       id: session.id,
@@ -312,7 +848,13 @@ describe('AgentSessionService', () => {
 
     expect(updated.workspaceId).not.toBe(userWorkspace.id)
     expect(updated.workspace.type).toBe('system')
-    expect(updated.workspace.path).toBe(path.join(application.getPath('feature.agents.workspaces'), session.id))
+    expect(updated.workspace.path).toBe(
+      buildSystemWorkspacePath(
+        application.getPath('feature.agents.system_workspaces'),
+        session.id,
+        Date.parse(session.createdAt)
+      )
+    )
     const [systemWorkspaceRow] = await dbh.db
       .select()
       .from(agentWorkspaceTable)
@@ -325,6 +867,69 @@ describe('AgentSessionService', () => {
       id: userWorkspace.id,
       type: 'user'
     })
+  })
+
+  it('keeps the system workspace path stable across a cross-day system to user to system switch', async () => {
+    const firstDay = Date.parse('2026-07-27T10:00:00Z')
+    const secondDay = Date.parse('2026-07-28T10:00:00Z')
+    const now = vi.spyOn(Date, 'now').mockReturnValue(firstDay)
+
+    try {
+      const userWorkspace = await createWorkspace('cross-day-system-roundtrip')
+      const session = agentSessionService.create({
+        agentId: 'agent-session-test',
+        name: 'Cross-day system roundtrip',
+        workspace: { type: 'system' }
+      })
+      const originalSystemPath = session.workspace.path
+
+      agentSessionService.setWorkspace(session.id, {
+        type: 'user',
+        workspaceId: userWorkspace.id
+      })
+      now.mockReturnValue(secondDay)
+      const restored = agentSessionService.setWorkspace(session.id, { type: 'system' })
+
+      expect(restored.workspace.path).toBe(originalSystemPath)
+      expect(restored.workspace.path).toBe(
+        buildSystemWorkspacePath(application.getPath('feature.agents.system_workspaces'), session.id, firstDay)
+      )
+    } finally {
+      now.mockRestore()
+    }
+  })
+
+  it('keeps the system workspace path stable across a timezone change', async () => {
+    const createdAt = Date.parse('2026-07-27T00:30:00Z')
+    const now = vi.spyOn(Date, 'now').mockReturnValue(createdAt)
+    const originalTimezone = process.env.TZ
+
+    try {
+      process.env.TZ = 'UTC'
+      const userWorkspace = await createWorkspace('cross-timezone-system-roundtrip')
+      const session = agentSessionService.create({
+        agentId: 'agent-session-test',
+        name: 'Cross-timezone system roundtrip',
+        workspace: { type: 'system' }
+      })
+      const originalSystemPath = session.workspace.path
+
+      agentSessionService.setWorkspace(session.id, {
+        type: 'user',
+        workspaceId: userWorkspace.id
+      })
+      process.env.TZ = 'America/Los_Angeles'
+      const restored = agentSessionService.setWorkspace(session.id, { type: 'system' })
+
+      expect(restored.workspace.path).toBe(originalSystemPath)
+      expect(restored.workspace.path).toBe(
+        path.join(application.getPath('feature.agents.system_workspaces'), '2026-07-27', session.id)
+      )
+    } finally {
+      now.mockRestore()
+      if (originalTimezone === undefined) delete process.env.TZ
+      else process.env.TZ = originalTimezone
+    }
   })
 
   it('is a no-op when re-setting an empty system session to a system workspace', async () => {
@@ -419,218 +1024,162 @@ describe('AgentSessionService', () => {
     expect(systemWorkspaceRows).toHaveLength(0)
   })
 
-  it('archives a session by default: hidden from reads, row kept', async () => {
+  it('deletes a session', async () => {
     const session = await createSession('Delete me')
+    notifyDataApiDataChangeMock.mockClear()
 
     agentSessionService.delete(session.id)
 
     expect(captureError(() => agentSessionService.getById(session.id))).toMatchObject({
       code: ErrorCode.NOT_FOUND
     })
-    const [row] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, session.id))
-    expect(row).toBeDefined()
-    expect(row.deletedAt).not.toBeNull()
-  })
-
-  it('lists archived sessions via inTrash with a read-only deletedAt marker', async () => {
-    const archivedSession = await createSession('Archived')
-    const activeSession = await createSession('Active')
-
-    agentSessionService.delete(archivedSession.id)
-
-    const trash = agentSessionService.listByCursor({ inTrash: true })
-    expect(trash.items.map((item) => item.id)).toEqual([archivedSession.id])
-    expect(trash.items[0].deletedAt).toEqual(expect.any(String))
-
-    const active = agentSessionService.listByCursor()
-    expect(active.items.map((item) => item.id)).toEqual([activeSession.id])
-    expect(active.items[0].deletedAt).toBeUndefined()
-  })
-
-  it('hides archived sessions from search and exists', async () => {
-    const session = await createSession('Needle archived session')
-
-    expect(agentSessionService.exists(session.id)).toBe(true)
-    expect(agentSessionService.search({ q: 'Needle', limit: 5 }).map((item) => item.id)).toEqual([session.id])
-
-    agentSessionService.delete(session.id)
-
-    expect(agentSessionService.exists(session.id)).toBe(false)
-    expect(agentSessionService.search({ q: 'Needle', limit: 5 })).toEqual([])
-  })
-
-  it('purges session pin rows on archive while unrelated pins survive', async () => {
-    const archivedSession = await createSession('Pinned archived')
-    const keptSession = await createSession('Pinned kept')
-    await dbh.db.insert(pinTable).values([
-      { id: 'pin-archived', entityType: 'session', entityId: archivedSession.id, orderKey: 'a0' },
-      { id: 'pin-kept', entityType: 'session', entityId: keptSession.id, orderKey: 'a1' }
+    expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(1, [
+      { endpoint: '/agent-sessions', kind: 'membership', entityIds: [session.id] },
+      { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: [session.id] },
+      { endpoint: '/agent-sessions/:sessionId', entityIds: [session.id] },
+      { endpoint: '/agent-sessions/latest' }
     ])
-
-    dbh.db.transaction((tx) => agentSessionService.archiveByIdsTx(tx, [archivedSession.id]))
-
-    const pinRows = await dbh.db.select().from(pinTable)
-    expect(pinRows.map((row) => row.id)).toEqual(['pin-kept'])
+    expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(2, [{ endpoint: '/pins', kind: 'membership' }])
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(2)
   })
 
-  it('keeps session messages and the system workspace row on archive', async () => {
-    const session = agentSessionService.create({
-      agentId: 'agent-session-test',
-      name: 'Archive keeps children',
-      workspace: { type: 'system' }
+  it('clears a paused task projection immediately when its bound session is deleted', async () => {
+    const task = createTaskSchedule()
+    jobScheduleService.setEnabled(task.id, false)
+    const session = await createSession('Bound paused task')
+    bindTaskSession(session.id, task.id)
+
+    expect(agentTaskService.getTaskById(task.id)).toMatchObject({
+      reuseSessionId: session.id,
+      status: 'paused',
+      nextRun: null
     })
-    await insertSessionMessage(session.id, 'message-survives-archive')
 
     agentSessionService.delete(session.id)
 
-    const messageRows = await dbh.db
-      .select()
-      .from(agentSessionMessageTable)
-      .where(eq(agentSessionMessageTable.sessionId, session.id))
-    expect(messageRows).toHaveLength(1)
-    expect(await dbh.db.select().from(agentWorkspaceTable)).toHaveLength(1)
-  })
-
-  it('restores an archived session with children intact', async () => {
-    const session = agentSessionService.create({
-      agentId: 'agent-session-test',
-      name: 'Restore me',
-      workspace: { type: 'system' }
+    expect(agentTaskService.getTaskById(task.id)).toMatchObject({
+      reuseSessionId: null,
+      status: 'paused',
+      nextRun: null
     })
-    await insertSessionMessage(session.id, 'message-survives-restore')
-    agentSessionService.delete(session.id)
-
-    const restored = agentSessionService.restore(session.id)
-
-    expect(restored.id).toBe(session.id)
-    expect(restored.deletedAt).toBeUndefined()
-    expect(agentSessionService.getById(session.id)).toMatchObject({ id: session.id })
-    expect(agentSessionService.listByCursor().items.map((item) => item.id)).toContain(session.id)
-    const messageRows = await dbh.db
-      .select()
-      .from(agentSessionMessageTable)
-      .where(eq(agentSessionMessageTable.sessionId, session.id))
-    expect(messageRows).toHaveLength(1)
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+      { endpoint: '/agent-tasks', kind: 'projection', entityIds: [task.id] },
+      { endpoint: '/agents/:agentId/tasks', kind: 'projection', entityIds: [task.id] },
+      { endpoint: '/agent-tasks/:taskId', entityIds: [task.id] },
+      { endpoint: '/agents/:agentId/tasks/:taskId', entityIds: [task.id] }
+    ])
   })
 
-  it('throws not found when restoring an active or missing session', async () => {
-    const session = await createSession('Still active')
-
-    expect(captureError(() => agentSessionService.restore(session.id))).toMatchObject({ code: ErrorCode.NOT_FOUND })
-    expect(captureError(() => agentSessionService.restore('missing-session'))).toMatchObject({
-      code: ErrorCode.NOT_FOUND
-    })
-  })
-
-  it('bulk-restores only archived sessions, ignoring active and missing ids', async () => {
-    const first = await createSession('Bulk restore first')
-    const second = await createSession('Bulk restore second')
-    const active = await createSession('Bulk restore active')
-    agentSessionService.deleteByIds([first.id, second.id])
-
-    const result = agentSessionService.restoreByIds([first.id, second.id, active.id, 'missing-session'])
-
-    expect(result.restoredIds.sort()).toEqual([first.id, second.id].sort())
-    expect(agentSessionService.getById(first.id)).toMatchObject({ id: first.id })
-    expect(agentSessionService.getById(second.id)).toMatchObject({ id: second.id })
-  })
-
-  it('permanently deletes a session with its messages and system workspace row', async () => {
-    const session = agentSessionService.create({
-      agentId: 'agent-session-test',
-      name: 'Permanent delete',
-      workspace: { type: 'system' }
-    })
-    await insertSessionMessage(session.id, 'message-purged-with-session')
-
-    agentSessionService.delete(session.id, { permanent: true })
-
-    expect(await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, session.id))).toHaveLength(0)
-    expect(
-      await dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.sessionId, session.id))
-    ).toHaveLength(0)
-    expect(await dbh.db.select().from(agentWorkspaceTable)).toHaveLength(0)
-  })
-
-  it('permanently deletes an already-archived session', async () => {
-    const session = await createSession('Archived then purged')
-    agentSessionService.delete(session.id)
-
-    agentSessionService.delete(session.id, { permanent: true })
-
-    expect(await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, session.id))).toHaveLength(0)
-  })
-
-  it('rejects creating a session under an archived agent', async () => {
-    await dbh.db.insert(agentTable).values({
-      id: 'archived-agent-no-create',
-      type: 'claude-code',
-      name: 'Archived Agent',
-      instructions: 'Test instructions',
-      model: null,
-      orderKey: 'z1',
-      deletedAt: 1
-    })
-    const workspace = await createWorkspace('archived-agent-create')
+  it('binds only an existing session owned by the expected agent and keeps the internal column private', async () => {
+    const task = createTaskSchedule()
+    const session = await createSession('Validated task binding')
 
     expect(
-      captureError(() =>
-        agentSessionService.create({
-          agentId: 'archived-agent-no-create',
-          name: 'Should fail',
-          workspace: { type: 'user', workspaceId: workspace.id }
+      dbh.db.transaction((tx) =>
+        agentSessionService.bindTaskScheduleTx(tx, {
+          sessionId: session.id,
+          taskScheduleId: task.id,
+          expectedAgentId: 'other-agent'
         })
       )
+    ).toBe(false)
+    expect(
+      captureError(() =>
+        dbh.db.transaction((tx) =>
+          agentSessionService.bindTaskScheduleTx(tx, {
+            sessionId: 'missing-session',
+            taskScheduleId: task.id,
+            expectedAgentId: 'agent-session-test'
+          })
+        )
+      )
     ).toMatchObject({ code: ErrorCode.NOT_FOUND })
+
+    bindTaskSession(session.id, task.id)
+    expect(
+      dbh.db.transaction((tx) =>
+        agentSessionService.bindTaskScheduleTx(tx, {
+          sessionId: session.id,
+          taskScheduleId: task.id,
+          expectedAgentId: 'agent-session-test'
+        })
+      )
+    ).toBe(false)
+    expect(agentSessionService.getById(session.id)).not.toHaveProperty('taskScheduleId')
   })
 
-  describe('purgeExpiredTx', () => {
-    it('hard-deletes only expired archived sessions, cascading messages and system workspace rows', async () => {
-      const expiredSystem = agentSessionService.create({
-        agentId: 'agent-session-test',
-        name: 'Expired system',
-        workspace: { type: 'system' }
+  it('clears the task relation atomically when a session is reassigned', async () => {
+    await dbh.db.insert(agentTable).values({
+      id: 'agent-session-reassigned',
+      type: 'claude-code',
+      name: 'Reassigned Agent',
+      instructions: '',
+      orderKey: 'z0'
+    })
+    const task = createTaskSchedule()
+    const session = await createSession('Bound reassigned task')
+    bindTaskSession(session.id, task.id)
+    notifyDataApiDataChangeMock.mockClear()
+
+    agentSessionService.update(session.id, { agentId: 'agent-session-reassigned' })
+
+    expect(agentTaskService.getTaskById(task.id)?.reuseSessionId).toBeNull()
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+      { endpoint: '/agent-sessions', kind: 'projection', entityIds: [session.id] },
+      { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: [session.id] },
+      { endpoint: '/agent-sessions/:sessionId', entityIds: [session.id] },
+      { endpoint: '/agent-sessions/latest' }
+    ])
+  })
+
+  it('keeps a binding and emits nothing when an outer transaction rolls back session deletion', async () => {
+    const task = createTaskSchedule()
+    const session = await createSession('Rollback bound task')
+    bindTaskSession(session.id, task.id)
+    notifyDataApiDataChangeMock.mockClear()
+
+    expect(() =>
+      dbh.db.transaction((tx) => {
+        agentSessionService.deleteTx(tx, session.id)
+        throw new Error('rollback')
       })
-      await insertSessionMessage(expiredSystem.id, 'message-purged-by-job')
-      const expiredUser = await createSession('Expired user')
-      const recent = await createSession('Recent trash')
-      const active = await createSession('Active')
-      await dbh.db.update(agentSessionTable).set({ deletedAt: 1000 }).where(eq(agentSessionTable.id, expiredSystem.id))
-      await dbh.db.update(agentSessionTable).set({ deletedAt: 2000 }).where(eq(agentSessionTable.id, expiredUser.id))
-      await dbh.db.update(agentSessionTable).set({ deletedAt: 9000 }).where(eq(agentSessionTable.id, recent.id))
+    ).toThrow('rollback')
 
-      const purged = dbh.db.transaction((tx) => agentSessionService.purgeExpiredTx(tx, 5000, 10))
+    expect(agentTaskService.getTaskById(task.id)?.reuseSessionId).toBe(session.id)
+    expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+  })
 
-      expect(purged.sort()).toEqual([expiredSystem.id, expiredUser.id].sort())
-      const remainingIds = (await dbh.db.select({ id: agentSessionTable.id }).from(agentSessionTable)).map(
-        (row) => row.id
-      )
-      expect(remainingIds.sort()).toEqual([active.id, recent.id].sort())
-      expect(
-        await dbh.db
-          .select()
-          .from(agentSessionMessageTable)
-          .where(eq(agentSessionMessageTable.sessionId, expiredSystem.id))
-      ).toHaveLength(0)
-      // The expired system session's backing workspace row is gone; the user
-      // workspaces backing the surviving sessions remain.
-      const workspaceRows = await dbh.db.select().from(agentWorkspaceTable)
-      expect(workspaceRows.every((row) => row.type === 'user')).toBe(true)
-    })
+  it('clears bindings for bulk, workspace, and agent session deletion paths', async () => {
+    const bulkTask = createTaskSchedule()
+    const bulkSession = await createSession('Bulk bound task')
+    bindTaskSession(bulkSession.id, bulkTask.id)
+    agentSessionService.deleteByIds([bulkSession.id])
 
-    it('respects the batch limit', async () => {
-      const first = await createSession('Limit first')
-      const second = await createSession('Limit second')
-      const third = await createSession('Limit third')
-      for (const session of [first, second, third]) {
-        await dbh.db.update(agentSessionTable).set({ deletedAt: 1000 }).where(eq(agentSessionTable.id, session.id))
-      }
+    const workspace = await createWorkspace('workspace-bound-task')
+    const workspaceTask = createTaskSchedule()
+    const workspaceSession = await createSession('Workspace bound task', workspace.id)
+    bindTaskSession(workspaceSession.id, workspaceTask.id)
+    agentSessionService.deleteWorkspaceCascade(workspace.id)
 
-      const purged = dbh.db.transaction((tx) => agentSessionService.purgeExpiredTx(tx, 5000, 2))
+    const agentTask = createTaskSchedule()
+    const agentSession = await createSession('Agent bound task')
+    bindTaskSession(agentSession.id, agentTask.id)
+    agentSessionService.deleteByAgentId('agent-session-test')
 
-      expect(purged).toHaveLength(2)
-      expect(await dbh.db.select().from(agentSessionTable)).toHaveLength(1)
-    })
+    expect(agentTaskService.getTaskById(bulkTask.id)?.reuseSessionId).toBeNull()
+    expect(agentTaskService.getTaskById(workspaceTask.id)?.reuseSessionId).toBeNull()
+    expect(agentTaskService.getTaskById(agentTask.id)?.reuseSessionId).toBeNull()
+  })
+
+  it('sets the internal relation null when its task schedule is deleted', async () => {
+    const task = createTaskSchedule()
+    const session = await createSession('Task deletion FK')
+    bindTaskSession(session.id, task.id)
+
+    jobScheduleService.delete(task.id)
+
+    expect(agentSessionService.getByTaskScheduleId(task.id)).toBeNull()
+    expect(agentSessionService.getById(session.id)).toMatchObject({ id: session.id })
   })
 
   it('leaves a user workspace and sibling sessions intact when deleting one session', async () => {
@@ -651,14 +1200,14 @@ describe('AgentSessionService', () => {
     })
   })
 
-  it('deletes the system workspace row when permanently deleting a no-project session', async () => {
+  it('deletes the system workspace row when deleting a no-project session', async () => {
     const session = agentSessionService.create({
       agentId: 'agent-session-test',
       name: 'Delete system workspace',
       workspace: { type: 'system' }
     })
 
-    agentSessionService.delete(session.id, { permanent: true })
+    agentSessionService.delete(session.id)
 
     expect(captureError(() => agentSessionService.getById(session.id))).toMatchObject({ code: ErrorCode.NOT_FOUND })
     expect(await dbh.db.select().from(agentWorkspaceTable)).toHaveLength(0)
@@ -775,7 +1324,7 @@ describe('AgentSessionService', () => {
     expect(captureError(() => agentSessionService.getById(second.id))).toMatchObject({ code: ErrorCode.NOT_FOUND })
   })
 
-  it('permanently deletes selected system workspace sessions and their workspace rows by ids', async () => {
+  it('deletes selected system workspace sessions and their workspace rows by ids', async () => {
     const systemSession = agentSessionService.create({
       agentId: 'agent-session-test',
       name: 'Bulk system workspace',
@@ -783,7 +1332,7 @@ describe('AgentSessionService', () => {
     })
     const normalSession = await createSession('Normal session')
 
-    const result = agentSessionService.deleteByIds([systemSession.id], { permanent: true })
+    const result = agentSessionService.deleteByIds([systemSession.id])
 
     expect(result).toEqual({ deletedIds: [systemSession.id] })
     expect(captureError(() => agentSessionService.getById(systemSession.id))).toMatchObject({
@@ -793,7 +1342,7 @@ describe('AgentSessionService', () => {
     expect(await dbh.db.select().from(agentWorkspaceTable)).toHaveLength(1)
   })
 
-  it('keeps system workspace rows when archiving agent sessions', async () => {
+  it('deletes system workspace rows when deleting agent sessions', async () => {
     const session = agentSessionService.create({
       agentId: 'agent-session-test',
       name: 'Agent system workspace',
@@ -804,10 +1353,7 @@ describe('AgentSessionService', () => {
 
     expect(result).toEqual({ deletedIds: [session.id] })
     expect(captureError(() => agentSessionService.getById(session.id))).toMatchObject({ code: ErrorCode.NOT_FOUND })
-    // Archive keeps the backing system workspace row so restore is lossless.
-    expect(await dbh.db.select().from(agentWorkspaceTable)).toHaveLength(1)
-    const [row] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, session.id))
-    expect(row.deletedAt).not.toBeNull()
+    expect(await dbh.db.select().from(agentWorkspaceTable)).toHaveLength(0)
   })
 
   it('reorders sessions with single and batch moves', async () => {
@@ -841,6 +1387,94 @@ describe('AgentSessionService', () => {
     expect(page2.nextCursor).toBeUndefined()
   })
 
+  it('returns pinned sessions first ordered by pin.orderKey, then unpinned by orderKey', async () => {
+    // Pinned sessions float to the top ordered by pin.orderKey (user drag),
+    // independent of their own orderKey; unpinned follow session.orderKey ASC.
+    // s1/s2 are created first (largest orderKey → last under orderKey ASC) yet
+    // pinning floats them ahead of the unpinned s3/s4, proving pin precedence.
+    const s1 = await createSession('S1')
+    const s2 = await createSession('S2')
+    const s3 = await createSession('S3')
+    const s4 = await createSession('S4')
+    await dbh.db.insert(pinTable).values([
+      { id: 'pin-a', entityType: 'session', entityId: s1.id, orderKey: 'a0', createdAt: 1, updatedAt: 1 },
+      { id: 'pin-b', entityType: 'session', entityId: s2.id, orderKey: 'a1', createdAt: 1, updatedAt: 1 }
+    ])
+
+    const result = agentSessionService.listByCursor()
+    // pinned by pin.orderKey → [s1, s2]; unpinned by orderKey ASC → [s4, s3].
+    expect(result.items.map((item) => item.id)).toEqual([s1.id, s2.id, s4.id, s3.id])
+    expect(result.nextCursor).toBeUndefined()
+  })
+
+  it('paginates the session pin section then unpinned section via cursor', async () => {
+    const s1 = await createSession('S1')
+    const s2 = await createSession('S2')
+    const s3 = await createSession('S3')
+    await dbh.db.insert(pinTable).values([
+      { id: 'pin-a', entityType: 'session', entityId: s1.id, orderKey: 'a0', createdAt: 1, updatedAt: 1 },
+      { id: 'pin-b', entityType: 'session', entityId: s2.id, orderKey: 'a1', createdAt: 1, updatedAt: 1 }
+    ])
+
+    // limit=1: page1 = first pinned, page2 = second pinned (spills to entity start),
+    // page3 = the single unpinned session.
+    const page1 = agentSessionService.listByCursor({ limit: 1 })
+    expect(page1.items.map((item) => item.id)).toEqual([s1.id])
+    expect(page1.nextCursor).toBeDefined()
+
+    const page2 = agentSessionService.listByCursor({ limit: 1, cursor: page1.nextCursor })
+    expect(page2.items.map((item) => item.id)).toEqual([s2.id])
+    expect(page2.nextCursor).toBeDefined()
+
+    const page3 = agentSessionService.listByCursor({ limit: 1, cursor: page2.nextCursor })
+    expect(page3.items.map((item) => item.id)).toEqual([s3.id])
+    expect(page3.nextCursor).toBeUndefined()
+  })
+
+  it('does not skip pinned sessions with the same orderKey across pages', async () => {
+    const workspace = await createWorkspace('duplicate-pin-order-key')
+    await dbh.db.insert(agentSessionTable).values([
+      {
+        id: 'session-pinned-1',
+        agentId: 'agent-session-test',
+        name: 'Pinned 1',
+        workspaceId: workspace.id,
+        orderKey: 'a0'
+      },
+      {
+        id: 'session-pinned-2',
+        agentId: 'agent-session-test',
+        name: 'Pinned 2',
+        workspaceId: workspace.id,
+        orderKey: 'a1'
+      }
+    ])
+    await dbh.db.insert(pinTable).values([
+      {
+        id: 'pin-a',
+        entityType: 'session',
+        entityId: 'session-pinned-1',
+        orderKey: 'a0',
+        createdAt: 1,
+        updatedAt: 1
+      },
+      {
+        id: 'pin-b',
+        entityType: 'session',
+        entityId: 'session-pinned-2',
+        orderKey: 'a0',
+        createdAt: 1,
+        updatedAt: 1
+      }
+    ])
+
+    const page1 = agentSessionService.listByCursor({ limit: 1 })
+    const page2 = agentSessionService.listByCursor({ limit: 1, cursor: page1.nextCursor })
+
+    expect(page1.items.map((session) => session.id)).toEqual(['session-pinned-1'])
+    expect(page2.items.map((session) => session.id)).toEqual(['session-pinned-2'])
+  })
+
   it('deletes sessions when the workspace row is deleted', async () => {
     const workspace = await createWorkspace('transient')
     const session = await createSession('Workspace delete', workspace.id)
@@ -871,14 +1505,14 @@ describe('AgentSessionService', () => {
     })
   })
 
-  it('deletes a backing system workspace row when permanently deleting its session', async () => {
+  it('deletes a backing system workspace row when deleting its session', async () => {
     const session = agentSessionService.create({
       agentId: 'agent-session-test',
       name: 'System delete',
       workspace: { type: 'system' }
     })
 
-    agentSessionService.delete(session.id, { permanent: true })
+    agentSessionService.delete(session.id)
 
     const rows = await dbh.db.select().from(agentWorkspaceTable)
     expect(rows).toHaveLength(0)

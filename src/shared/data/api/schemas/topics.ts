@@ -7,9 +7,10 @@
 
 import * as z from 'zod'
 
+import { AssistantIdSchema } from '../../types/assistant'
 import { type Topic, TopicNameSchema, TopicSchema } from '../../types/topic'
 import type { CursorPaginationResponse } from '../types'
-import type { OrderEndpoints } from './_endpointHelpers'
+import { type OrderEndpoints, OrderRequestSchema } from './_endpointHelpers'
 
 // ============================================================================
 // DTOs
@@ -20,8 +21,7 @@ import type { OrderEndpoints } from './_endpointHelpers'
  */
 export const CreateTopicSchema = TopicSchema.pick({
   name: true,
-  assistantId: true,
-  groupId: true
+  assistantId: true
 }).partial()
 export type CreateTopicDto = z.infer<typeof CreateTopicSchema>
 
@@ -34,14 +34,20 @@ export type CreateTopicDto = z.infer<typeof CreateTopicSchema>
  */
 export const UpdateTopicSchema = TopicSchema.pick({
   name: true,
-  isNameManuallyEdited: true,
-  groupId: true
+  isNameManuallyEdited: true
 })
   .partial()
   .extend({
     assistantId: z.string().nullable().optional()
   })
 export type UpdateTopicDto = z.infer<typeof UpdateTopicSchema>
+
+/** Atomically update a topic's assistant and global order. */
+export const MoveTopicSchema = z.strictObject({
+  assistantId: AssistantIdSchema,
+  order: OrderRequestSchema
+})
+export type MoveTopicDto = z.infer<typeof MoveTopicSchema>
 
 /**
  * Query parameters for `GET /topics` (cursor pagination + search).
@@ -53,10 +59,23 @@ export const ListTopicsQuerySchema = z.strictObject({
   limit: z.coerce.number().int().positive().max(200).optional(),
   /** Substring filter on topic name (case-insensitive LIKE). */
   q: z.string().optional(),
-  /** When true, list trashed (archived) topics only; omitted/false lists active topics. */
+  /** `true` lists only archived topics; omitted/false lists active topics. */
   inTrash: z.boolean().optional()
 })
 export type ListTopicsQuery = z.infer<typeof ListTopicsQuerySchema>
+
+/** Optional owner scope for `GET /topics/latest`; omitted means global latest. */
+export const LatestTopicQuerySchema = z.strictObject({
+  assistantId: z.string().min(1).optional()
+})
+export type LatestTopicQuery = z.infer<typeof LatestTopicQuerySchema>
+
+/** Exact creation target for atomically reusing or creating an empty topic. */
+export const ReuseOrCreateTopicSchema = z.strictObject({
+  assistantId: z.string().min(1).nullable(),
+  excludeTopicId: z.string().min(1).optional()
+})
+export type ReuseOrCreateTopicDto = z.infer<typeof ReuseOrCreateTopicSchema>
 
 /**
  * DTO for setting active node. Pins the exact `nodeId` — the conversation
@@ -109,7 +128,17 @@ export interface DeleteTopicsResult {
   deletedCount: number
 }
 
-/** CSV `ids` query value — `"a,b"` → `['a', 'b']` (trimmed, empties dropped, non-empty). */
+/** Response for `GET /topics/latest` — the most-recently-active topic in the requested scope, or `null`. */
+export interface LatestTopicResponse {
+  topic: Topic | null
+}
+
+/** The reusable empty topic selected or created for the exact target. */
+export interface ReusableTopicPlaceholderResponse {
+  topic: Topic
+  created: boolean
+}
+
 const TopicIdsQueryValueSchema = z
   .string()
   .transform((value) =>
@@ -122,13 +151,13 @@ const TopicIdsQueryValueSchema = z
 
 export const DeleteTopicsQuerySchema = z.strictObject({
   ids: TopicIdsQueryValueSchema,
-  /** When true, hard-delete (DB purge) instead of archiving to the trash. */
+  /** `true` permanently deletes instead of archiving to the trash. */
   permanent: z.boolean().optional()
 })
 export type DeleteTopicsQuery = z.input<typeof DeleteTopicsQuerySchema>
 
 export const DeleteTopicQuerySchema = z.strictObject({
-  /** When true, hard-delete (DB purge) instead of archiving to the trash. */
+  /** `true` permanently deletes instead of archiving to the trash. */
   permanent: z.boolean().optional()
 })
 export type DeleteTopicQuery = z.input<typeof DeleteTopicQuerySchema>
@@ -138,10 +167,6 @@ export const RestoreTopicsQuerySchema = z.strictObject({
 })
 export type RestoreTopicsQuery = z.input<typeof RestoreTopicsQuerySchema>
 
-/**
- * Bulk-restore response — the uniform shape across all trash-capable domains.
- * Missing/active ids are simply omitted (idempotent); callers derive counts.
- */
 export interface RestoreTopicsResult {
   restoredIds: string[]
 }
@@ -154,8 +179,8 @@ export interface RestoreTopicsResult {
  * Topic API Schema definitions.
  *
  * Reorder endpoints (`/topics/:id/order`, `/topics/order:batch`) are injected
- * via `& OrderEndpoints<'/topics'>`. The reorder is scoped by `groupId`
- * server-side; callers do not include the scope in the request body.
+ * via `& OrderEndpoints<'/topics'>`. Topic order is global across assistants;
+ * callers only provide the relative anchor.
  */
 export type TopicSchemas = {
   /**
@@ -171,9 +196,9 @@ export type TopicSchemas = {
      *
      * The list is a server-composed view: pinned topics first (joining the
      * `pin` table on `entityType = 'topic'` ordered by `pin.orderKey`), then
-     * unpinned topics ordered by `updatedAt DESC, id ASC` (recency + id
-     * tiebreak). The cursor encodes the section + last boundary so paging
-     * across the boundary is seamless.
+     * unpinned topics ordered by `topic.orderKey ASC, id ASC` (manual/creation
+     * order + id tiebreak). The cursor encodes the section + last boundary so
+     * paging across the boundary is seamless.
      */
     GET: {
       query?: ListTopicsQuery
@@ -185,12 +210,12 @@ export type TopicSchemas = {
       response: Topic
     }
     /**
-     * Delete an explicit set of topics — archives to the trash by default,
-     * hard-deletes with `permanent=true`.
+     * Delete an explicit set of topics. Archives by default; permanently
+     * deletes when `permanent=true`.
      *
      * Used by multi-select table flows where the selection can span assistants.
      * This operation is all-or-nothing: if any supplied ID does not resolve to
-     * a deletable topic, the request fails and no selected topics are deleted.
+     * a non-deleted topic, the request fails and no selected topics are deleted.
      */
     DELETE: {
       query: DeleteTopicsQuery
@@ -198,15 +223,40 @@ export type TopicSchemas = {
     }
   }
 
-  /**
-   * Bulk restore archived topics from the trash.
-   * @example POST /topics/restore?ids=topic_1,topic_2
-   */
+  /** Bulk restore archived topics. Missing or active IDs are omitted. */
   '/topics/restore': {
-    /** Restore archived topics; missing/active ids are omitted from `restoredIds`. */
     POST: {
       query: RestoreTopicsQuery
       response: RestoreTopicsResult
+    }
+  }
+
+  /**
+   * Most-recently-active topic, globally or within one owner scope.
+   *
+   * First-entry restore reads this to resume the last-touched conversation.
+   * Declared before `/topics/:id` and matched exactly by the server router, so
+   * `latest` is never mistaken for a topic id. Proves global latest via
+   * `lastActivityAt DESC LIMIT 1`, unlike the pinned-first `/topics` first page.
+   * `assistantId=unlinked` covers topics without a live assistant.
+   *
+   * @example GET /topics/latest
+   */
+  '/topics/latest': {
+    GET: {
+      query?: LatestTopicQuery
+      response: LatestTopicResponse
+    }
+  }
+
+  /**
+   * Atomically reuse the latest structurally empty, untitled placeholder for
+   * one exact creation target, or create it when none exists.
+   */
+  '/topics/reusable-placeholder': {
+    POST: {
+      body: ReuseOrCreateTopicDto
+      response: ReusableTopicPlaceholderResponse
     }
   }
 
@@ -228,11 +278,7 @@ export type TopicSchemas = {
       body: UpdateTopicDto
       response: Topic
     }
-    /**
-     * Delete a topic — archives it to the trash by default (messages stay in
-     * place, hidden via the archived container); `permanent=true` hard-deletes
-     * the topic and all its messages.
-     */
+    /** Archive a topic by default; permanently delete it when requested. */
     DELETE: {
       params: { id: string }
       query?: DeleteTopicQuery
@@ -240,14 +286,19 @@ export type TopicSchemas = {
     }
   }
 
-  /**
-   * Restore an archived topic from the trash.
-   * Pins and tags purged at archive time are NOT restored.
-   * @example POST /topics/abc123/restore
-   */
+  /** Restore one archived topic. Pins and tags are not restored. */
   '/topics/:id/restore': {
     POST: {
       params: { id: string }
+      response: Topic
+    }
+  }
+
+  /** Atomically move a topic to another assistant and order position. */
+  '/topics/:id/move': {
+    POST: {
+      params: { id: string }
+      body: MoveTopicDto
       response: Topic
     }
   }
@@ -283,7 +334,7 @@ export type TopicSchemas = {
   }
 
   /**
-   * Delete (archive to the trash) all topics currently linked to an assistant.
+   * Delete all topics currently linked to an assistant.
    *
    * This is an explicit scoped collection delete. It does not change
    * the default `DELETE /assistants/:id` behavior, which only deletes the

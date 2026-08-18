@@ -1,27 +1,30 @@
 import { Button, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import MessageContent from '@renderer/components/chat/messages/frame/MessageContent'
-import { useMessageListRenderConfig } from '@renderer/components/chat/messages/hooks/useMessageListRenderConfig'
-import { useMessagePlatformActions } from '@renderer/components/chat/messages/hooks/useMessagePlatformActions'
-import { MessageContentProvider } from '@renderer/components/chat/messages/MessageContentProvider'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import CopyButton from '@renderer/components/CopyButton'
 import LanguageSelect from '@renderer/components/LanguageSelect'
-import { useDetectLang, useLanguages, useTranslate } from '@renderer/hooks/translate'
+import { detectLanguageOrUnknown, useDetectLang, useLanguages, useTranslate } from '@renderer/hooks/translate'
 import { cn } from '@renderer/utils/style'
-import { UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
+import { pickBidirectionalTarget, UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
 import type { SelectionActionItem, TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { BUILTIN_LANGUAGE } from '@shared/data/presets/translateLanguages'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { TranslateLanguage } from '@shared/data/types/translate'
-import { defaultLanguage } from '@shared/utils/languages'
 import { ArrowRight, ChevronDown, CircleHelp, Globe2, Loader2, Settings2 } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { getSelectionActionErrorMessage } from '../errorMessage'
 import WindowFooter from './WindowFooter'
+
+// Lazy boundary (S6b): keeps the heavy message-content chain out of the action
+// window's first paint. Preloaded on mount so the chunk downloads in parallel
+// with the translate request (React.lazy alone would wait for the response);
+// the module cache dedupes the two import() calls.
+const importActionResultContent = () => import('./ActionResultContent')
+const ActionResultContent = React.lazy(importActionResultContent)
 
 interface Props {
   action: SelectionActionItem
@@ -31,11 +34,8 @@ interface Props {
 const logger = loggerService.withContext('ActionTranslate')
 const TRANSLATION_MESSAGE_ID = 'selection-translation-result'
 const TRANSLATION_TOPIC_ID = 'selection-translation'
-
 const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const { t } = useTranslation()
-  const { renderConfig } = useMessageListRenderConfig()
-  const platformActions = useMessagePlatformActions()
   const selectedText = action.selectedText
 
   const [language] = usePreference('app.language')
@@ -44,10 +44,14 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const { languages, getLanguage } = useLanguages()
   const isLanguagesLoaded = languages !== undefined
   const detectLanguage = useDetectLang()
+  // The stored default is zh-cn, so preserve the matching UI-locale fallback for zh-TW.
+  const effectivePreferredLangCode =
+    language === 'zh-TW' && preferredLangCode === BUILTIN_LANGUAGE.zhCN.langCode
+      ? BUILTIN_LANGUAGE.zhTW.langCode
+      : preferredLangCode
 
   const [targetLanguage, setTargetLanguage] = useState<TranslateLanguage>(() => {
-    const candidate = language || navigator.language || defaultLanguage
-    const lang = getLanguage(candidate)
+    const lang = getLanguage(effectivePreferredLangCode)
     if (lang) {
       return lang
     }
@@ -61,7 +65,6 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const [detectedLanguage, setDetectedLanguage] = useState<TranslateLanguage | null>(null)
   const [actualTargetLanguage, setActualTargetLanguage] = useState<TranslateLanguage>(targetLanguage)
 
-  const [detectError, setDetectError] = useState<string | null>(null)
   const [showOriginal, setShowOriginal] = useState(false)
   const [initialized, setInitialized] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -78,7 +81,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
       return
     }
 
-    const targetLang = getLanguage(preferredLangCode)
+    const targetLang = getLanguage(effectivePreferredLangCode)
     if (targetLang) {
       setTargetLanguage(targetLang)
       targetLangRef.current = targetLang
@@ -88,7 +91,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     if (alterLang) {
       setAlterLanguage(alterLang)
     }
-  }, [getLanguage, isLanguagesLoaded, preferredLangCode, alterLangCode])
+  }, [getLanguage, isLanguagesLoaded, effectivePreferredLangCode, alterLangCode])
 
   // Initialize values only once
   const initialize = useCallback(async () => {
@@ -124,6 +127,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     void initialize()
   }, [initialize])
 
+  const [isDetecting, setIsDetecting] = useState(false)
   const [isPreparing, setIsPreparing] = useState(false)
   const [completionError, setCompletionError] = useState<string | null>(null)
 
@@ -166,44 +170,38 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     )
   }, [isTranslating, translationParts])
 
-  const isStreaming = isTranslating || isPreparing
+  const isStreaming = isTranslating || isDetecting || isPreparing
   const error = completionError
 
   const clear = useCallback(() => {
     cancelTranslate()
     setContent('')
     setCompletionError(null)
+    setIsDetecting(false)
     setIsPreparing(false)
   }, [cancelTranslate])
 
   const fetchResult = useCallback(async () => {
     if (!selectedText || !initialized) return
     clear()
-    setDetectError(null)
 
-    let sourceLanguageCode: TranslateLangCode
-
-    try {
-      sourceLanguageCode = await detectLanguage(selectedText)
-    } catch (err) {
-      setDetectError(err instanceof Error ? err.message : 'An error occurred')
-      logger.error('Error detecting language:', err as Error)
-      return
-    }
+    setIsDetecting(true)
+    const sourceLanguageCode = await detectLanguageOrUnknown(selectedText, detectLanguage, (error) => {
+      logger.error('Error detecting language:', error as Error)
+    }).finally(() => {
+      setIsDetecting(false)
+    })
 
     const detectedLang = getLanguage(sourceLanguageCode) ?? null
     setDetectedLanguage(detectedLang)
 
-    let translateLang: TranslateLanguage
-
     if (sourceLanguageCode === UNKNOWN_LANG_CODE) {
       logger.debug('Unknown source language. Just use target language.')
-      translateLang = targetLanguage
     } else {
       logger.debug('Detected Language: ', { sourceLanguage: sourceLanguageCode })
-      translateLang = sourceLanguageCode === targetLanguage.langCode ? alterLanguage : targetLanguage
     }
 
+    const translateLang = pickBidirectionalTarget(sourceLanguageCode, targetLanguage, alterLanguage)
     setActualTargetLanguage(translateLang)
 
     setCompletionError(null)
@@ -213,12 +211,19 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
       await runTranslate(selectedText, translateLang)
     } catch (err) {
       setContent('')
-      const message = err instanceof Error ? err.message : String(err)
-      setCompletionError(t(message, message))
+      setCompletionError(getSelectionActionErrorMessage(err, t))
     } finally {
       setIsPreparing(false)
     }
   }, [selectedText, initialized, clear, detectLanguage, getLanguage, alterLanguage, targetLanguage, runTranslate, t])
+
+  useEffect(() => {
+    // Kick the result-renderer chunk off immediately — rendering waits for the
+    // response content, but the download must overlap the request latency.
+    importActionResultContent().catch((error) => {
+      logger.warn('Failed to preload ActionResultContent chunk:', error as Error)
+    })
+  }, [])
 
   useEffect(() => {
     void fetchResult()
@@ -264,10 +269,10 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     () => (
       <div className="flex flex-col gap-2">
         <div className="flex min-w-[180px] cursor-default flex-col gap-1.5 py-1">
-          <span className="text-foreground-secondary text-xs">{t('translate.preferred_target')}</span>
+          <span className="text-muted-foreground text-xs">{t('translate.preferred_target')}</span>
           <LanguageSelect
             value={targetLanguage.langCode}
-            className="w-full"
+            className="w-full [&>div]:w-full"
             listHeight={160}
             size="small"
             onChange={(value) => {
@@ -279,10 +284,10 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
           />
         </div>
         <div className="flex min-w-[180px] cursor-default flex-col gap-1.5 py-1">
-          <span className="text-foreground-secondary text-xs">{t('translate.alter_language')}</span>
+          <span className="text-muted-foreground text-xs">{t('translate.alter_language')}</span>
           <LanguageSelect
             value={alterLanguage.langCode}
-            className="w-full"
+            className="w-full [&>div]:w-full"
             listHeight={160}
             size="small"
             onChange={(value) => {
@@ -300,6 +305,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
 
   const handlePause = () => {
     cancelTranslate()
+    setIsDetecting(false)
     setIsPreparing(false)
   }
 
@@ -307,21 +313,25 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     void fetchResult()
   }
 
+  const detectedLanguageLabel = detectedLanguage?.value || t('translate.detected.language')
+
   return (
     <>
       <div className="flex w-full flex-1 flex-col items-center">
-        <div className="flex w-full flex-row items-center justify-between">
+        <div className="flex w-full flex-wrap items-center gap-x-1.5 gap-y-1">
           <div className="flex min-w-0 shrink items-center gap-1.5">
             {/* Detected language display (read-only) */}
-            <div className="flex shrink-0 items-center whitespace-nowrap rounded bg-muted px-2 py-1 text-foreground-secondary text-xs">
-              {isPreparing ? (
-                <span>{t('translate.detecting')}</span>
+            <div className="flex min-w-0 items-center whitespace-nowrap rounded bg-muted px-2 py-1 text-muted-foreground text-xs">
+              {isDetecting ? (
+                <span className="min-w-0 truncate">{t('translate.detecting')}</span>
               ) : (
                 <>
-                  <span className="mr-1">
+                  <span className="mr-1 shrink-0">
                     {detectedLanguage?.emoji || <Globe2 className="inline size-3.5 align-[-2px]" />}
                   </span>
-                  <span>{detectedLanguage?.value || t('translate.detected_source')}</span>
+                  <span className="min-w-0 truncate" title={detectedLanguageLabel}>
+                    {detectedLanguageLabel}
+                  </span>
                 </>
               )}
             </div>
@@ -338,7 +348,9 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
               onChange={handleDirectTargetChange}
               disabled={isStreaming}
             />
+          </div>
 
+          <div className="ml-auto flex shrink-0 items-center gap-1.5">
             <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
               <Tooltip content={t('translate.language_settings')} placement="bottom">
                 <PopoverTrigger asChild>
@@ -351,7 +363,14 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
                   </Button>
                 </PopoverTrigger>
               </Tooltip>
-              <PopoverContent align="end" className="w-[220px] p-2">
+              <PopoverContent
+                align="end"
+                className="w-[220px] p-2"
+                onOpenAutoFocus={(event) => {
+                  event.preventDefault()
+                  const content = event.currentTarget as HTMLElement
+                  content.focus()
+                }}>
                 {settingsContent}
               </PopoverContent>
             </Popover>
@@ -359,45 +378,46 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
             <Tooltip content={t('selection.action.translate.smart_translate_tips')} placement="bottom">
               <CircleHelp className="size-3.5 shrink-0 cursor-pointer text-muted-foreground" />
             </Tooltip>
-          </div>
 
-          <button
-            type="button"
-            onClick={() => setShowOriginal(!showOriginal)}
-            className="flex cursor-pointer items-center justify-between whitespace-nowrap py-1 text-foreground-secondary text-xs transition-colors hover:text-primary">
-            <span>
-              {showOriginal ? t('selection.action.window.original_hide') : t('selection.action.window.original_show')}
-            </span>
-            <ChevronDown size={14} className={cn('transition-transform', showOriginal && 'rotate-180')} />
-          </button>
+            <button
+              type="button"
+              onClick={() => setShowOriginal(!showOriginal)}
+              className="flex cursor-pointer items-center justify-between whitespace-nowrap py-1 text-muted-foreground text-xs transition-colors hover:text-foreground">
+              <span>
+                {showOriginal ? t('selection.action.window.original_hide') : t('selection.action.window.original_show')}
+              </span>
+              <ChevronDown size={14} className={cn('transition-transform', showOriginal && 'rotate-180')} />
+            </button>
+          </div>
         </div>
         {showOriginal && (
-          <div className="mt-2 w-full whitespace-pre-wrap break-words rounded bg-muted p-2 text-foreground-secondary text-xs">
+          <div className="mt-2 w-full whitespace-pre-wrap break-words rounded bg-muted p-2 text-muted-foreground text-xs">
             {action.selectedText}{' '}
             <div className="flex justify-end">
               <CopyButton
                 textToCopy={action.selectedText!}
                 tooltip={t('selection.action.window.original_copy')}
                 size={12}
+                successFeedback="icon"
               />
             </div>
           </div>
         )}
         <div className="mt-4 w-full whitespace-pre-wrap break-words">
-          {isPreparing && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
+          {(isDetecting || isPreparing) && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
           {content && (
-            <MessageContentProvider
-              messages={[latestAssistantMessage]}
-              partsByMessageId={partsMap}
-              renderConfig={renderConfig}
-              actions={platformActions}>
-              <MessageContent key={latestAssistantMessage.id} message={latestAssistantMessage} />
-            </MessageContentProvider>
+            <Suspense fallback={<Loader2 className="size-4 animate-spin text-muted-foreground" />}>
+              <ActionResultContent
+                key={latestAssistantMessage.id}
+                message={latestAssistantMessage}
+                partsByMessageId={partsMap}
+              />
+            </Suspense>
           )}
         </div>
-        {(detectError || error) && (
-          <div className="mb-3 break-all rounded border border-error-border bg-error-bg px-3 py-2 text-[13px] text-error-text">
-            {detectError || error}
+        {error && (
+          <div className="mb-3 break-all rounded border border-error-border bg-error-subtle px-3 py-2 text-[13px] text-error-subtle-foreground">
+            {error}
           </div>
         )}
       </div>
