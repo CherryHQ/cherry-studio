@@ -1,200 +1,138 @@
 {
-  "generated_at": "2026-08-17T18:00:00Z",
-  "date": "2026-08-17",
-  "v2_status": {
-    "latest_release": "v2.0.6 (released 2026-08-17 - PR #18704 merged)",
-    "next_release": "v2.0.7 (not yet announced)",
-    "branch_model": "main-based; v2 branch has no open PRs - retired as separate branch",
-    "open_prs_to_main": "est. 440+",
-    "open_prs_to_v2": 0,
-    "total_open_prs": "est. 445+",
-    "last_v2_branch_merge": "2026-05-28",
-    "release_gap": "v2.0.5 to v2.0.6 in 1 day - fastest release cadence yet"
+  "generated_at": "2026-08-18T18:00:00Z",
+  "current_version": "v2.0.7",
+  "v2_branch_status": "inactive — all development now targets main; v2 branch last touched 2026-07-03",
+  "v2_launch_completed": true,
+  "active_development_branch": "main",
+  "recent_focus_areas": {
+    "agent_runtime": {
+      "description": "Pi agent, DSH agent, CodeMate engine fixes and capability expansion",
+      "recent_prs": [
+        { "number": 18864, "title": "fix(claude-code-runtime): block user data SQLite writes", "label": "p1" },
+        { "number": 18836, "title": "fix(agent-migration): fall back when hard links are unavailable", "label": "p1" },
+        { "number": 18831, "title": "fix(dsh-runtime): ship loadable node-pty on Linux", "label": "p1" },
+        { "number": 18853, "title": "fix(agents): disable ToolSearch for incompatible models" },
+        { "number": 18847, "title": "fix(agent-runtime): default missing model context window to 256K" },
+        { "number": 18816, "title": "fix(agent-sessions): keep empty agent groups visible" },
+        { "number": 18813, "title": "fix(agent): preselect compatible default model for every runtime" },
+        { "number": 18829, "title": "fix(pi-agent): resolve citations for third-party MCP tool outputs" },
+        { "number": 18781, "title": "fix(pi-runtime): route provider requests through Cherry fetch" }
+      ]
+    },
+    "model_compatibility": {
+      "description": "OpenAI-compatible gateway fixes, provider protocol alignment",
+      "recent_prs": [
+        { "number": 18854, "title": "fix(api-gateway): map chat reasoning_effort to Responses" },
+        { "number": 18768, "title": "fix(api-gateway): convert max_tokens to max_completion_tokens for OpenAI reasoning models" },
+        { "number": 18780, "title": "fix(api-gateway): normalize OpenAI function tools" },
+        { "number": 18772, "title": "fix(provider-registry): send enable_thinking for Qwen on openai-compatible providers" },
+        { "number": 18782, "title": "fix(provider-endpoint): respect version-less and complete endpoint URLs" }
+      ]
+    },
+    "security": {
+      "description": "IPC security, WebDAV TLS, HTML preview sandboxing",
+      "recent_prs": [
+        { "number": 18851, "title": "fix(ipc-security): trust renderer path aliases" },
+        { "number": 18862, "title": "fix(mcp-oauth): write token storage file owner-only" },
+        { "number": 18764, "title": "fix(security): consent-gate HTML preview iframes" },
+        { "number": 18793, "title": "fix(security): verify WebDAV TLS by default" }
+      ]
+    },
+    "ui_ux": {
+      "description": "Composer fixes, DSH citation rendering, topic rename, scroll stability",
+      "recent_prs": [
+        { "number": 18855, "title": "fix(composer): stop pasted-text data loss on copy and over-limit insert" },
+        { "number": 18762, "title": "fix(citations): parse DSH web search results" },
+        { "number": 18760, "title": "fix(topics): prevent old title flash after rename" },
+        { "number": 18769, "title": "fix(chat): prevent arrow-key scroll jitter in message list" },
+        { "number": 18749, "title": "feat(agent-status): enhance agent status sidebar for workflow, subagent and background command" }
+      ]
+    },
+    "knowledge_base_rag": {
+      "description": "Content-addressed embedding, hybrid search, incremental import",
+      "open_issues": [
+        { "number": 16172, "title": "[Feature]: Improve knowledge base retrieval recall (hybrid search / reranking)", "labels": ["feature", "rag", "prd", "internal-team"] },
+        { "number": 16173, "title": "[Feature]: Knowledge base — add option to hide inline reference markers", "labels": ["feature", "rag", "ui-ux", "prd", "internal-team"] },
+        { "number": 15417, "title": "Content-addressed embedding reuse for knowledge bases", "labels": ["rag"] },
+        { "number": 18267, "title": "[Feature]: Knowledge base does not update when source files change", "labels": ["rag"] },
+        { "number": 18796, "title": "[Feature]: KB does not support incremental imports into existing subfolders", "labels": ["rag"] }
+      ]
+    },
+    "mcp": {
+      "description": "MCP protocol, permission UX, Windows environment inheritance",
+      "open_issues": [
+        { "number": 18807, "title": "[Feature]: Update MCP to version 2.0", "labels": ["feature", "mcp"] },
+        { "number": 18823, "title": "[Feature]: Unify tool-result binary media projection across Chat and API Gateway", "labels": ["mcp"] },
+        { "number": 18528, "title": "[Bug]: MCP subprocess on Windows does not inherit latest PATH", "labels": ["mcp"] },
+        { "number": 13209, "title": "[Feature]: Properly handle MCP image content instead of embedding raw base64", "labels": ["p2", "feature", "mcp", "ui-ux"], "comments": 13 }
+      ]
+    }
   },
-  "open_blocked_v2": [
+  "planned_major_features": [
     {
-      "number": 5442,
-      "title": "[Feature]: LLMOps observability framework (e.g. Langfuse) support",
-      "label": "Blocked: v2",
-      "comments": 7,
-      "note": "v2 shipped but issue still open - needs re-evaluation"
+      "number": 6403,
+      "title": "Multi-Window",
+      "labels": ["planned", "Dev Team", "ui-ux"],
+      "status": "planned",
+      "created_at": "2025-05-24T05:16:38Z",
+      "comments": 4
     },
     {
-      "number": 12786,
-      "title": "Add context progress indicator showing token usage in chat",
-      "label": "v2",
-      "comments": 2,
-      "note": "Partially addressed in v2.0, open for completion"
+      "number": 6405,
+      "title": "Assistant and Topic Interaction Refactoring",
+      "labels": ["planned", "Dev Team", "assistant", "ui-ux"],
+      "status": "planned",
+      "created_at": "2025-05-24T05:27:11Z",
+      "comments": 6
+    },
+    {
+      "number": 16124,
+      "title": "[Feature]: Built-In Browser Pane (Open & Browse Web Pages In-App, Shared with the Agent)",
+      "labels": ["feature", "ui-ux", "agent", "prd", "internal-team"],
+      "status": "prd/internal",
+      "created_at": "2026-06-17T09:58:55Z"
     },
     {
       "number": 13417,
       "title": "[Feature]: Message Queue for Agent & Chat",
-      "labels": ["feature", "Assistant", "UI/UX", "Blocked: v2"],
-      "comments": 1
+      "labels": ["feature", "assistant", "ui-ux", "blocked-v2"],
+      "status": "blocked — was waiting for v2, now unblocked",
+      "created_at": "2026-03-12T09:05:52Z"
     },
     {
-      "number": 9011,
-      "title": "Show reasoning token count",
-      "labels": ["feature", "v2", "Blocked: v2"],
-      "comments": 4,
-      "note": "Created 2025-08-09, still blocked on v2 - v2 shipped, needs re-classification"
+      "number": 16848,
+      "title": "[Feature]: Knowledge index.sqlite WAL-consistent copy for backup v2 export",
+      "labels": ["Dev Team", "data"],
+      "status": "in-progress",
+      "comments": 4
     }
   ],
-  "recent_main_highlights_today_aug17": [
-    "fix(security): gate legacy IPC senders, zip-slip containment, unsafe-extension open guard (#18751) - addresses 8-day-old #18273",
-    "fix(security): consent-gate HTML preview iframes, fail closed sandbox defaults (#18764, draft)",
-    "fix(citations): parse DSH web search results (#18762) - addresses #18754 DSH cite markers",
-    "fix(topics): prevent old title flash after rename (#18760) - addresses #18734 same-day",
-    "fix(migration): clear stale Agent attachment refs on retry (#18757)",
-    "fix(composer): focus input after creating a new topic (#18739) - addresses #18712/#18722 same-day",
-    "fix(api-gateway): skip think:true for Ollama when SDK default triggers auto reasoning (#18744)",
-    "fix(ai-transport): cap attach-replay chunks to prevent renderer freeze on long agent streams (#18743)",
-    "feat(agent-status): enhance agent status sidebar for workflow, subagent, background command (#18749)",
-    "feat(web-search): add OpenAI Codex subscription web search (#18747, draft)",
-    "feat(screenshot): add interactive screen capture with annotation and OCR (#18725)",
-    "perf(paintings): cache unchanged history hydration (#18720) - closes #18622, addresses #17316"
-  ],
-  "active_tracks_today": [
-    {
-      "track": "Security Hardening",
-      "priority": "CRITICAL",
-      "notes": "Major progress today. PR #18751 addresses 8-day-old zip-slip (#18273) plus IPC sender gating and unsafe-extension open guard. PR #18764 (draft) adds HTML preview iframe sandboxing. Both need review and merge.",
-      "open_items": [
-        "#18273 - zip-slip: PR #18751 open, pending merge",
-        "HTML preview sandbox - PR #18764 draft, pending review"
-      ]
-    },
-    {
-      "track": "v2.0.6 Release + Post-Release",
-      "priority": "HIGH",
-      "notes": "v2.0.6 released today. Post-release issues already arriving: Homebrew formula missing (#18759), LaTeX regression status unknown, Agent max_tokens compat regression (#18765).",
-      "post_release_issues": [
-        "#18759 - Homebrew v2.0.6 formula missing - packaging action needed",
-        "#18765 - Agent max_tokens to max_completion_tokens for OpenAI-compatible gateways",
-        "#18665/#18698 - LaTeX copy regression: verify if v2.0.6 fixed or escalate to v2.0.7"
-      ]
-    },
-    {
-      "track": "DSH Runtime (New Cluster)",
-      "priority": "HIGH",
-      "notes": "3 DSH bugs opened in 1 hour by same user. PR #18762 targets citation markers. #18755 and #18756 need separate investigation.",
-      "key_issues": [
-        "#18754 - DSH cite:id markers not rendered - PR #18762 in progress",
-        "#18755 - DSH starts new answer without user input (phantom processing)",
-        "#18756 - Code Mate DSH rejects CherryIN enterprise reasoning models (Unified Gateway error)"
-      ]
-    },
-    {
-      "track": "Data & Migration",
-      "priority": "HIGH",
-      "key_open": [
-        "#18273 - SECURITY: zip-slip backup restore - PR #18751 IN PROGRESS (merge priority)",
-        "#18614 - Data migration: rename knowledge base material names",
-        "#18612 - RFC: versioned data migration (DB + disk simultaneously)",
-        "#18373 - Data directory relocation leaves stale absolute paths",
-        "#18272 - Knowledge material filenames not sanitized"
-      ]
-    },
-    {
-      "track": "Agent & Assistant",
-      "priority": "HIGH",
-      "new_issues_today_aug17": 3,
-      "key_new": [
-        "#18741 - DeepSeek V4 session corruption: No tool output after long conversation (HTTP 400, unrecoverable)",
-        "#18765 - Agent sends max_tokens to OpenAI gateways - 400 (should be max_completion_tokens)",
-        "#18763 - Pi Agent ignores custom proxy when TUN disabled"
-      ],
-      "key_open": [
-        "#18683 - TypeError in knowledgeListModelOutput (kb_list tool crash)",
-        "#18643 - Agent runtime + Ollama: all tool calls return 500",
-        "#18607 - Scheduled tasks skip missed runs after v2 upgrade",
-        "#18336 - Agent Feishu channel WebSocket inbound messages never arrive (P1)"
-      ]
-    },
-    {
-      "track": "UI/UX Regressions",
-      "priority": "HIGH",
-      "new_issues_today_aug17": 3,
-      "key_new": [
-        "#18734 - Topic rename double-click broken; old title overlaps - PR #18760 already open",
-        "#18732 - Local Qwen cannot disable thinking mode",
-        "#18719 - Feature request: unify Chat and Agent into single session list"
-      ],
-      "resolved_today": [
-        "#18712 - Input focus missing after new chat - CLOSED (PR #18739 merged)"
-      ],
-      "top_existing_regressions": [
-        "#18665/#18698 - Math/LaTeX copy broken in v2.0.5 (verify v2.0.6)",
-        "#18243 - AI messages cannot be edited (3 comments, no resolution)",
-        "#18099 - Save-only edit option removed from v2",
-        "#18196 - Regenerate Conversation button removed",
-        "#18327 - Token/s and TTFT display missing since v2.0"
-      ]
-    },
-    {
-      "track": "Connectivity & Provider",
-      "priority": "HIGH",
-      "new_issues_today_aug17": 2,
-      "key_new": [
-        "#18765 - max_tokens vs max_completion_tokens: OpenAI gateway compat regression",
-        "#18763 - Pi Agent ignores custom proxy (TUN disabled)"
-      ],
-      "key_open": [
-        "#18590 - Restore LAN Transfer for PC to Mobile sync",
-        "#18608 - Custom Provider incorrectly appends /v1/chat/completions",
-        "#18571 - Custom headers in v2.0.5 don't take effect",
-        "#18408 - Custom API address ignored, requests routed to Anthropic"
-      ]
-    },
-    {
-      "track": "MCP",
-      "priority": "MEDIUM-HIGH",
-      "key_new": [
-        "#18761 - File system MCP stops writing without error (needs-repro)"
-      ],
-      "key_open": [
-        "#18528 - MCP subprocess on Windows doesn't inherit latest PATH (-32000 Connection closed)",
-        "#18437 - Deferred MCP tools reminder list causes context overflow",
-        "#18344 - Built-in @cherry/fetch denies private-network-resolving domains",
-        "#18131 - MCP server connected but no tools mounted (9 comments, 10 days)"
-      ]
-    },
-    {
-      "track": "Performance",
-      "priority": "MEDIUM",
-      "resolved_today": [
-        "#18622 - Deduplicate CodeViewer selection listeners - CLOSED (PR #18720 merged)"
-      ],
-      "key_open": [
-        "#18356 - UI scrolling/pagination lag after 20k tokens",
-        "#18621 - Split tab actions from tab state invalidation",
-        "#18620 - Parallelize and deduplicate Shiki asset loading",
-        "#18619 - Stabilize useMultiplePreferences subscriptions",
-        "#17316 - Painting history rehydrates every unchanged record"
-      ]
-    }
-  ],
-  "top_open_feature_requests": [
-    {"number": 14899, "title": "Unified Notification Center (P1 + Planned)", "age_days": 102},
-    {"number": 18725, "title": "Interactive screen capture with annotation and OCR - PR #18725 open", "age_days": 0},
-    {"number": 18747, "title": "OpenAI Codex subscription web search - PR #18747 draft", "age_days": 0},
-    {"number": 18590, "title": "Restore LAN Transfer for PC to Mobile sync", "age_days": 3},
-    {"number": 18710, "title": "Support for OpenRouter Presets", "age_days": 1},
-    {"number": 18442, "title": "Knowledge base: add jpg, bmp, Office format support"},
-    {"number": 18268, "title": "Agent session start/end hooks for cross-session continuity"},
-    {"number": 18267, "title": "Knowledge base refresh when source files change"},
-    {"number": 18409, "title": "Allow customizing tools exempt from per-call approval in bypassPermissions mode"},
-    {"number": 18432, "title": "Upgrade DashScope provider experience to QwenCloud"}
-  ],
-  "security_watch": {
-    "open_in_progress": [
-      "#18273 - zip-slip in backup restore (8 days, CRITICAL) - PR #18751 NOW OPEN, merge urgently"
-    ],
-    "open_draft": [
-      "HTML preview iframe sandbox - PR #18764 (draft) opened today"
-    ],
-    "closed_last_7d": [
-      "#18648 - MCP env secrets logged in plaintext (closed 2026-08-15)"
+  "blocked_v2_issues": {
+    "count": 3,
+    "note": "Issues labeled 'blocked-v2' were waiting for v2 launch. Now unblocked but not yet started.",
+    "issues": [
+      { "number": 9011, "title": "[功能]: 显示推理 tokens 数量", "labels": ["feature", "v2", "blocked-v2"] },
+      { "number": 5442, "title": "LLMOps/Langfuse support", "labels": ["feature", "models", "blocked-v2"] },
+      { "number": 13417, "title": "Message Queue for Agent & Chat", "labels": ["feature", "assistant", "ui-ux", "blocked-v2"] }
     ]
-  }
+  },
+  "v2_historical_prs": {
+    "total_merged_to_v2_branch": "~35 (before main takeover)",
+    "key_areas_shipped": [
+      "SQLite/Drizzle data layer (knowledge, agents, sessions)",
+      "AI streaming pipeline v2 (blocks-to-parts migration)",
+      "Knowledge base v2 (backend + UI)",
+      "Web search v2 (provider split, Fetch/Jina)",
+      "File processing v2 (file-entry model)",
+      "V2 migration window UI (shadcn)",
+      "V2 data migration toolchain"
+    ]
+  },
+  "next_likely_release_themes": [
+    "Agent runtime stability (migration, model selection, hard-link fallback)",
+    "Security hardening (IPC, OAuth, WebDAV TLS, iframe sandboxing)",
+    "OpenAI/Claude gateway protocol alignment (max_completion_tokens, reasoning_effort)",
+    "DSH citation rendering and agent status sidebar",
+    "Composer and paste UX fixes"
+  ]
 }

@@ -1,87 +1,123 @@
 {
-  "generated_at": "2026-08-17T18:00:00Z",
-  "date": "2026-08-17",
-  "note": "Discussion data sourced from issues tagged discussion+help wanted; GitHub Discussions GraphQL requires separate auth",
-  "discussion_labeled_open_issues": {
-    "total_with_discussion_label": 42,
-    "note": "#18706 closed today (-1), #18740 opened today (+1), net 42",
-    "sample_recent": [
-      {"number": 18740, "title": "[Discussion]: Tool-approval card should render above input box instead of replacing composer", "created": "2026-08-17", "comments": 1},
-      {"number": 18589, "title": "[Discussion]: Too much reverse optimization (UI/UX regression)", "created": "2026-08-14", "comments": 1},
-      {"number": 18474, "title": "Code blocks are no longer rendered during streaming", "created": "2026-08-12", "comments": 1},
-      {"number": 18363, "title": "AiStreamManager state-machine identity and ownership structure", "created": "2026-08-11", "comments": 1},
-      {"number": 18362, "title": "Custom OpenAI Compatible Provider Fails to Send Authorization Header", "created": "2026-08-11", "comments": 1},
-      {"number": 18327, "title": "Token/s generation speed and TTFT display missing since v2.0", "created": "2026-08-10"},
-      {"number": 18299, "title": "Why can't v2.x modify an answer while v1.9.x can?", "created": "2026-08-10", "comments": 1},
-      {"number": 18241, "title": "How to collapse thinking content without aggregating tool calls", "created": "2026-08-09"}
+  "generated_at": "2026-08-18T18:00:00Z",
+  "data_source": "GitHub issues with 'discussion' and 'help wanted' labels (GraphQL Discussions API not available in this environment)",
+  "note": "True GitHub Discussions require GraphQL API access. This file uses 'discussion'-labeled issues as a proxy for community sentiment.",
+  "discussion_labeled_issues": {
+    "total_estimated": 31,
+    "sample": [
+      {
+        "number": 18857,
+        "title": "[Discussion]: The new version 2.0.7 is completely unusable, all configurations are showing errors, it's so hard to use, can I downgrade the version?",
+        "created_at": "2026-08-18T16:26:05Z",
+        "comments": 2,
+        "labels": ["help wanted", "discussion"],
+        "sentiment": "negative",
+        "topic": "v2.0.7 regression / downgrade request"
+      },
+      {
+        "number": 18792,
+        "title": "[Discussion]: When conversation auto-renaming is not enabled, the conversation title is always 'New Conversation', which is inconvenient for searching",
+        "created_at": "2026-08-18T05:12:49Z",
+        "labels": ["help wanted", "discussion"],
+        "sentiment": "neutral",
+        "topic": "UX: conversation naming"
+      },
+      {
+        "number": 18788,
+        "title": "[Discussion]: Request for disclosure on how Cherry Studio handles its built-in Cherry model provider",
+        "created_at": "2026-08-18T04:24:05Z",
+        "comments": 6,
+        "labels": ["help wanted", "discussion", "models"],
+        "sentiment": "concerned",
+        "topic": "transparency / built-in provider"
+      },
+      {
+        "number": 18740,
+        "title": "[Discussion]: Tool-approval card should render above the input box instead of replacing the composer — feasibility and design trade-offs",
+        "created_at": "2026-08-17T08:25:49Z",
+        "comments": 1,
+        "labels": ["help wanted", "discussion", "ui-ux"],
+        "sentiment": "constructive",
+        "topic": "UX design: tool approval placement"
+      },
+      {
+        "number": 18589,
+        "title": "[Discussion]: Too much reverse optimization",
+        "created_at": "2026-08-14T06:57:58Z",
+        "comments": 7,
+        "labels": ["help wanted", "discussion", "ui-ux"],
+        "sentiment": "negative",
+        "topic": "v2 UX regression vs v1"
+      },
+      {
+        "number": 18474,
+        "title": "[Discussion]: Code blocks are no longer rendered during streaming",
+        "created_at": "2026-08-12T17:59:19Z",
+        "comments": 1,
+        "labels": ["help wanted", "discussion", "ui-ux"],
+        "sentiment": "negative",
+        "topic": "streaming markdown rendering regression"
+      },
+      {
+        "number": 18363,
+        "title": "[Discussion]: AiStreamManager 状态机的身份与 ownership 结构问题（stale terminal callback 一族的共同根因）",
+        "created_at": "2026-08-11T07:41:58Z",
+        "comments": 1,
+        "labels": ["help wanted", "discussion"],
+        "sentiment": "technical",
+        "topic": "architecture: AI stream manager ownership"
+      },
+      {
+        "number": 18362,
+        "title": "[Discussion]: Custom OpenAI Compatible Provider Fails to Send Authorization Header",
+        "created_at": "2026-08-11T07:32:08Z",
+        "comments": 1,
+        "labels": ["help wanted", "discussion", "connectivity", "models"],
+        "sentiment": "negative",
+        "topic": "connectivity: custom provider auth header"
+      },
+      {
+        "number": 16901,
+        "title": "[Discussion]: How to set the reasoning intensity in 5.6?",
+        "created_at": "2026-07-11T00:17:49Z",
+        "comments": 4,
+        "labels": ["help wanted", "discussion"],
+        "sentiment": "neutral",
+        "topic": "model configuration: reasoning effort"
+      }
     ]
   },
-  "closed_discussions_today": [
-    {
-      "number": 18706,
-      "title": "[Discussion]: Why can't I edit the AI-generated content anymore?",
-      "closed": "2026-08-17",
-      "note": "Top discussion from yesterday now closed. Core issue persists in #18243 (3 comments), #18099, #18484."
-    }
-  ],
   "hot_topics": [
-    "DSH runtime bugs cluster (#18754, #18755, #18756 - NEW TODAY) - cite markers, spurious responses, gateway rejections",
-    "AI message editing still open (#18243, #18099, #18484) despite #18706 closure - needs roadmap answer",
-    "LaTeX/math formula copy broken in v2.0.5 (#18698+#18665) - verify v2.0.6 fixes",
-    "Agent mode session corruption with DeepSeek V4 after long conversation (#18741 NEW TODAY, 3 comments)",
-    "v1 to v2 migration failures - daily arrivals continue (#18644, #18283)",
-    "Agent mode stability: process leaks, Feishu channel, Ollama 500s, max_tokens regression (#18765 NEW TODAY)",
-    "MCP connectivity and tool visibility (#18131, #18528, #18437, #18761 NEW TODAY)",
-    "Homebrew v2.0.6 packaging gap (#18759 NEW TODAY) - users cannot install via brew"
-  ],
-  "v2_pain_points": [
-    "Cannot edit AI messages (#18243 3 comments, #18099, #18484) - top complaint; #18706 closed as duplicate but root not fixed",
-    "LaTeX formula superscripts garbled in v2.0.5 (#18698+#18665) - 2 reports, check v2.0.6",
-    "DSH runtime: citation markers not rendered, spurious answers, model gateway rejections (#18754, #18755, #18756 - NEW CLUSTER)",
-    "Minimize to tray / quit leaves orphan processes (#17629 7 comments, #18445)",
-    "Agent + Ollama tool calls all fail with 500 (#18643)",
-    "Agent sends max_tokens to OpenAI-compatible gateways causing 400 (#18765 NEW)",
-    "Scheduled tasks skip missed runs post-v2 upgrade (#18607)",
-    "Missing v1 features: save-only edit, web search subscriptions, phone export, 0-context, TTFT display",
-    "Topic rename double-click broken: old title ghost (#18734 NEW) - PR #18760 in progress",
-    "Homebrew v2.0.6 formula missing - packaging gap on day of release (#18759)"
-  ],
-  "new_discussion_today_aug17": [
     {
-      "number": 18740,
-      "title": "[Discussion]: Tool-approval card should render above input box instead of replacing composer",
-      "type": "design_discussion",
-      "description": "UX design debate: tool approval interrupts the composer instead of overlaying above it. Comments already open."
+      "topic": "v2 regression vs v1 UX",
+      "issue_count_estimated": 8,
+      "sentiment": "negative",
+      "sample_issues": [18857, 18589, 18474, 18099]
     },
     {
-      "number": 18741,
-      "title": "[Bug]: DeepSeek V4 'No tool output found' after long conversation - permanently broken (HTTP 400)",
-      "type": "p1_bug",
-      "description": "Session corruption pattern: 3 comments within hours of opening. Session permanently unrecoverable."
+      "topic": "Model compatibility (GPT-5.x, DeepSeek, Qwen, Ollama)",
+      "issue_count_estimated": 12,
+      "sentiment": "mixed",
+      "sample_issues": [18765, 18824, 18732, 18150]
     },
     {
-      "number": 18765,
-      "title": "[Bug]: Agent sends max_tokens to OpenAI-compatible gateways - GPT-5.x rejects with 400",
-      "type": "api_compat_regression",
-      "description": "Anthropic-style max_tokens parameter causing 400 on OpenAI-compatible gateways; should be max_completion_tokens."
+      "topic": "Custom provider / connectivity issues",
+      "issue_count_estimated": 10,
+      "sentiment": "negative",
+      "sample_issues": [18571, 18608, 18362, 18408]
+    },
+    {
+      "topic": "Agent data integrity / memory loss",
+      "issue_count_estimated": 5,
+      "sentiment": "critical",
+      "sample_issues": [18800, 18346, 18607]
+    },
+    {
+      "topic": "MCP tool / permission UX",
+      "issue_count_estimated": 6,
+      "sentiment": "mixed",
+      "sample_issues": [18573, 18131, 18437]
     }
   ],
-  "sentiment": {
-    "overall": "Mixed - security progress positive, but new DSH cluster and DeepSeek session corruption are emerging concerns",
-    "detail": "v2.0.6 released today with high PR velocity (17 PRs opened). Security situation improving: PR #18751 addresses the 8-day-old zip-slip vulnerability. Offset by 3 new DSH runtime bugs and a concerning session corruption report (#18741). AI message editing frustration continues despite #18706 closure.",
-    "positive_signals": [
-      "v2.0.6 released today - high delivery cadence",
-      "17 PRs opened today including 2 security fixes (#18751, #18764)",
-      "Topic rename ghost fixed same day by PR #18760",
-      "Message focus after new chat fixed same day by PR #18739",
-      "zip-slip vulnerability finally has active fix PR after 8 days"
-    ],
-    "negative_signals": [
-      "New DSH bug cluster: 3 reports in 1 hour (#18754, #18755, #18756)",
-      "DeepSeek V4 session corruption (#18741) - 3 comments in hours, session unrecoverable",
-      "AI message editing (#18243) still without roadmap commitment",
-      "Homebrew v2.0.6 packaging missing on day of release (#18759)",
-      "Agent max_tokens API compat regression (#18765) - affects GPT-5.x users"
-    ]
-  }
+  "community_sentiment_summary": "Predominantly negative around v2 UX regressions and compatibility breaks. Strong positive interest in agent features, KB improvements, and model coverage expansion. Users comparing v2 unfavorably to v1.9.x in several threads."
 }

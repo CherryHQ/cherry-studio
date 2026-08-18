@@ -1,100 +1,93 @@
 {
-  "generated_at": "2026-08-17T18:00:00Z",
-  "date": "2026-08-17",
-  "total_open": 881,
-  "delta_from_yesterday": 0,
-  "health_distribution": {
+  "generated_at": "2026-08-18T18:00:00Z",
+  "as_of_date": "2026-08-18",
+  "methodology": "Issues sorted by updated_at DESC. Health buckets by last-updated timestamp relative to today (2026-08-18). Counts are estimated from a 200-issue sample of the 874-total open issue corpus.",
+  "total_open_issues": 874,
+  "health_buckets": {
     "active": {
-      "count": 194,
-      "pct": 22.0,
-      "definition": "updated in last 7 days (>=2026-08-10)"
+      "definition": "Updated within last 7 days (>= 2026-08-11)",
+      "estimated_count": 220,
+      "estimated_pct": "25%",
+      "notes": "High — reflects v2.0.7 release activity"
     },
     "aging": {
-      "count": 258,
-      "pct": 29.3,
-      "definition": "updated 7-30 days ago (2026-07-18..2026-08-09)"
+      "definition": "Updated 7–30 days ago (2026-07-19 to 2026-08-10)",
+      "estimated_count": 230,
+      "estimated_pct": "26%",
+      "notes": "Steady backlog; many have 'inactive' auto-label from bot"
     },
     "stale": {
-      "count": 199,
-      "pct": 22.6,
-      "definition": "updated 30-90 days ago (2026-05-18..2026-07-17)"
+      "definition": "Updated 30–90 days ago (2026-05-20 to 2026-07-18)",
+      "estimated_count": 274,
+      "estimated_pct": "31%",
+      "notes": "Large stale tail; many feature requests and low-priority bugs"
     },
     "zombie": {
-      "count": 230,
-      "pct": 26.1,
-      "definition": "not updated in 90+ days (<=2026-05-17)"
+      "definition": "Not updated in 90+ days (before 2026-05-20)",
+      "estimated_count": 150,
+      "estimated_pct": "17%",
+      "notes": "Includes pre-v2 issues from 2025 that may be obsolete post-migration"
     }
   },
-  "label_health": {
-    "unlabeled_open": 113,
-    "unlabeled_pct": 12.8,
-    "note": "Slight increase from 109 yesterday (+4 net unlabeled) - 7 new unlabeled opened, 2 unlabeled closed, 1 labeled",
-    "inactive_labeled": 119,
-    "p1_labeled": 3,
-    "top_backlog_labels": {
-      "UI/UX": "est. 315+",
-      "Models": "est. 178+",
-      "Performance": "est. 60+",
-      "MCP": "est. 44+",
-      "Connectivity": "est. 40+",
-      "RAG": "est. 30+",
-      "Assistant": "est. 24+",
-      "Data": "est. 20+"
-    }
-  },
-  "security_items": [
+  "zombie_examples": [
     {
-      "number": 18273,
-      "title": "Backup restore: zip-slip path traversal vulnerability",
-      "severity": "SECURITY",
-      "age_days": 8,
-      "status": "ACTIVE PR - PR #18751 (zip-slip containment) now open, fix in progress",
-      "fix_pr": 18751
+      "number": 5442,
+      "title": "[功能]: 能否增加对 LLMOps 观察、监控框架（如 Langfuse）的支持",
+      "created_at": "2025-04-28T11:56:46Z",
+      "labels": ["feature", "models", "blocked-v2"]
     },
     {
-      "number": null,
-      "title": "HTML preview iframe consent-gating (new today)",
-      "severity": "SECURITY",
-      "age_days": 0,
-      "status": "PR #18764 (draft) opened today - proactive hardening"
+      "number": 5825,
+      "title": "[错误]: 使用第三方claude api，输出有问题",
+      "created_at": "2025-05-10T09:13:49Z",
+      "labels": ["bug", "models"]
+    },
+    {
+      "number": 6403,
+      "title": "Multi-Window",
+      "created_at": "2025-05-24T05:16:38Z",
+      "labels": ["planned", "Dev Team", "ui-ux"]
+    },
+    {
+      "number": 6405,
+      "title": "Assistant and Topic Interaction Refactoring",
+      "created_at": "2025-05-24T05:27:11Z",
+      "labels": ["planned", "Dev Team", "assistant", "ui-ux"]
+    },
+    {
+      "number": 9011,
+      "title": "[功能]: 显示推理 tokens 数量",
+      "created_at": "2025-08-09T08:38:29Z",
+      "labels": ["feature", "v2", "blocked-v2"]
     }
   ],
-  "high_comment_active_issues": [
-    {"number": 18131, "title": "MCP server connected but no tools mounted", "comments": 9, "age_days": 10, "labels": ["needs-more-info", "MCP"]},
-    {"number": 18600, "title": "[Bug]: WTF? [blocked]", "comments": 8, "age_days": 3, "labels": ["UI/UX"]},
-    {"number": 17629, "title": "Processes remain running after closing window (tray disabled)", "comments": 7, "age_days": 18},
-    {"number": 18741, "title": "DeepSeek V4 no tool output - session permanently broken (HTTP 400)", "comments": 3, "age_days": 0}
+  "high_comment_issues": [
+    { "number": 18131, "title": "MCP server shows connected, but Agent session still prompts no tools mounted", "comments": 9 },
+    { "number": 18600, "title": "[Bug]: WTF? [blocked]", "comments": 8 },
+    { "number": 14080, "title": "[Bug]: cannot scroll to search result", "comments": 8 },
+    { "number": 18788, "title": "[Discussion]: Cherry Studio built-in Cherry model provider transparency", "comments": 6 },
+    { "number": 6403, "title": "Multi-Window", "comments": 4 },
+    { "number": 16901, "title": "[Discussion]: How to set reasoning intensity", "comments": 4 },
+    { "number": 18741, "title": "[Bug]: DeepSeek V4 'No tool output found' HTTP 400", "comments": 3 },
+    { "number": 18824, "title": "[Bug]: Unable to use model built-in web search after v2 upgrade", "comments": 3 }
   ],
-  "regression_watch_v2": [
-    {"number": 18734, "title": "Double-clicking title cannot rename; old title overlaps (v2.0.5)", "opened": "2026-08-17", "note": "NEW TODAY - fix PR #18760 already open"},
-    {"number": 18765, "title": "Agent sends max_tokens instead of max_completion_tokens to OpenAI-compatible gateways", "opened": "2026-08-17", "note": "NEW TODAY - API compatibility regression"},
-    {"number": 18698, "title": "LaTeX formula copying issue (v2.0.5)", "opened": "2026-08-16", "note": "Unconfirmed if v2.0.6 fixes this"},
-    {"number": 18665, "title": "Math formula superscripts garbled in v2.0.5 (v1.9.3 fine)", "opened": "2026-08-15", "note": "Unconfirmed if v2.0.6 fixes this"},
-    {"number": 18607, "title": "Scheduled tasks skip missed runs after v2 upgrade", "opened": "2026-08-14"},
-    {"number": 18099, "title": "\"Save only\" option removed in v2.x (was in v1.9.13)", "opened": "2026-08-07"},
-    {"number": 18196, "title": "Regenerate Conversation button removed in v2", "opened": "2026-08-08"}
-  ],
-  "new_cluster_aug17": {
-    "name": "DSH Runtime Bugs",
-    "issues": [
-      {"number": 18754, "title": "DSH agent shows raw [cite:id] markers instead of clickable sources", "fix_pr": 18762},
-      {"number": 18755, "title": "DSH shows 'Processed' then starts new answer without user input"},
-      {"number": 18756, "title": "Code Mate DSH rejects CherryIN enterprise reasoning models - Unified Gateway error"}
-    ],
-    "note": "3 DSH-related bugs opened in 1 hour on Aug 17 by same user (lianshuang-photo). PR #18762 already targets #18754. Likely common root cause in DSH runtime dispatch."
+  "label_health": {
+    "inactive_labeled": {
+      "estimated_count": 166,
+      "pct_of_open": "19%",
+      "note": "Auto-labeled by bot after 30 days without activity; candidates for triaging or closing"
+    },
+    "needs_repro": {
+      "note": "Applied to issues lacking enough info to reproduce — need follow-up from reporters"
+    },
+    "needs_more_info": {
+      "note": "Applied when reporter needs to supply more context before fix can proceed"
+    }
   },
-  "triage_recommendations": [
-    "SECURITY: PR #18751 (zip-slip) now open - review and merge ASAP; #18273 is 8 days old",
-    "REGRESSION: LaTeX/math copy cluster (#18665 + #18698) - verify if v2.0.6 release (today) includes a fix, else hotfix needed",
-    "NEW P1: #18741 DeepSeek V4 session permanently broken after long conversation - same-day, 3 comments, escalate",
-    "API COMPAT REGRESSION: #18765 Agent sends max_tokens to OpenAI gateways causing GPT-5.x 400 - check if v2.0.6 addresses",
-    "DSH CLUSTER: #18754+#18755+#18756 opened same hour - co-triage for common root cause, PR #18762 targets #18754",
-    "HOMEBREW GAP: #18759 Homebrew formula missing for v2.0.6 - packaging team action required",
-    "AI EDITING: #18706 discussion closed, but #18243+#18099+#18484 still open - needs roadmap answer",
-    "113 (~12.8%) open issues unlabeled - slight degradation, continue batch triage",
-    "230 zombie issues (>90 days) - bot auto-closed 11 today, continue bot triage passes"
-  ],
-  "closed_last_30d": 581,
-  "close_rate_per_day_30d": 19.4,
-  "close_velocity_note": "Strong velocity maintained (581/30d, +20 today). v2.0.6 released - expect close spike in next 24-48h as release fixes land."
+  "recommendations": [
+    "Triage ~150 zombie issues (pre-2026-05-20) — many may be resolved by v2 migration or obsolete",
+    "Close or re-label the 'inactive' cohort (~166 issues) — remove label or close with explanation",
+    "Add labels to ~118 unlabeled open issues to improve discoverability",
+    "Prioritize P1 bugs: #18857 (v2.0.7 unusable), #18800 (DB corruption), #18842 (agent truncation)"
+  ]
 }
