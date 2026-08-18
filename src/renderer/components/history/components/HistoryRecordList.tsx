@@ -141,11 +141,14 @@ export function HistoryRecordList<T>({
           onOpen={() => onOpen(item)}
           onSelectedChange={(checked) => onToggleSelection(id, checked)}
           onTogglePin={async () => {
+            const wasSelected = isSelected(id)
             // Pinning a selected row makes it unselectable, so drop it from the selection after success
             // (a no-op when unpinning, since pinned rows are never selected).
             const result = await onTogglePin(item)
             if (result !== false) {
               onToggleSelection(id, false)
+            } else if (wasSelected) {
+              onToggleSelection(id, true)
             }
           }}
         />

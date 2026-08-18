@@ -686,7 +686,13 @@ vi.mock('@renderer/components/chat/resourceList/AssistantResourceList', () => ({
           }>
           Select assistant 2 latest topic
         </button>
-        <button type="button" onClick={() => void onCreateTopic?.('assistant-2')}>
+        <button
+          type="button"
+          onClick={() =>
+            void onCreateTopic?.('assistant-2').then((topic) => {
+              if (topic) onSelectTopic?.(topic)
+            })
+          }>
           Select empty assistant 2
         </button>
         <button type="button" onClick={() => void onSelectedAssistantClick?.()}>
@@ -1285,6 +1291,7 @@ describe('HomePage', () => {
   })
 
   it('passes the current assistant topic count to the classic-layout top button', () => {
+    homeMocks.isActiveTab = true
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.resourceLayoutTopics = [
       { ...historyTopic, id: 'topic-a' },
@@ -1315,6 +1322,7 @@ describe('HomePage', () => {
 
   it('selects the latest remaining topic after deleting the active assistant (classic layout, never draft)', async () => {
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
+    homeMocks.assistants = [{ id: 'assistant-a' }, { id: 'assistant-b' }]
     homeMocks.resourceLayoutTopics = [
       {
         ...historyTopic,
@@ -1817,17 +1825,17 @@ describe('HomePage', () => {
     expect(screen.getByTestId('pane-open')).toHaveTextContent('true')
   })
 
-  it('creates a default empty topic when history clears the active topic', async () => {
-    homeMocks.createTopic.mockResolvedValue({ ...createdTopic, assistantId: 'assistant-default' })
+  it('creates an empty topic for the current assistant when history clears the active topic', async () => {
+    homeMocks.createTopic.mockResolvedValue({ ...createdTopic, assistantId: 'assistant-1' })
 
     render(<HomePage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
     fireEvent.click(screen.getByRole('button', { name: 'Clear history selection' }))
 
-    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-default' }))
+    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' }))
     expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-created')
-    expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-default')
+    expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-1')
   })
 
   it('toggles the left sidebar off with the left sidebar shortcut', () => {

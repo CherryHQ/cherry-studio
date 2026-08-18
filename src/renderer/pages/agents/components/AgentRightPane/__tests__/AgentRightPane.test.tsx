@@ -1579,6 +1579,7 @@ describe('AgentRightPane', () => {
     expect(fileSessionDiscardMock).not.toHaveBeenCalled()
     expect(transition).not.toHaveBeenCalled()
 
+    await waitFor(() => expect(settleSave).toBeDefined())
     settleSave?.()
     await act(async () => {
       await navigation

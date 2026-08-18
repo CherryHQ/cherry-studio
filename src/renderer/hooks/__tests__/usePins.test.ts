@@ -312,4 +312,41 @@ describe('usePinMutations', () => {
     expect(postTrigger).toHaveBeenCalledWith({ body: { entityType: 'topic', entityId: 'topic-1' } })
     expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'pin-1' } })
   })
+
+  it('serializes writes that share the template mutation hook across entity ids', async () => {
+    let resolveFirstPin: ((pin: Pin) => void) | undefined
+    const firstPinResult = new Promise<Pin>((resolve) => {
+      resolveFirstPin = resolve
+    })
+    const postTrigger = vi
+      .fn()
+      .mockImplementationOnce(() => firstPinResult)
+      .mockResolvedValueOnce(MODEL_PIN_B)
+    wireMutations({ postTrigger })
+    const { result } = renderHook(() => usePinMutations('model'))
+
+    let firstPin: Promise<Pin> | undefined
+    let secondPin: Promise<Pin> | undefined
+    act(() => {
+      firstPin = result.current.pin(MODEL_PIN_A.entityId)
+      secondPin = result.current.pin(MODEL_PIN_B.entityId)
+    })
+    await act(async () => Promise.resolve())
+
+    expect(postTrigger).toHaveBeenCalledTimes(1)
+    expect(postTrigger).toHaveBeenLastCalledWith({
+      body: { entityType: 'model', entityId: MODEL_PIN_A.entityId }
+    })
+
+    await act(async () => {
+      resolveFirstPin?.(MODEL_PIN_A)
+      await firstPin
+    })
+
+    expect(postTrigger).toHaveBeenCalledTimes(2)
+    expect(postTrigger).toHaveBeenLastCalledWith({
+      body: { entityType: 'model', entityId: MODEL_PIN_B.entityId }
+    })
+    await act(async () => secondPin)
+  })
 })

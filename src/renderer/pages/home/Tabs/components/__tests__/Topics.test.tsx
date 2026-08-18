@@ -2157,6 +2157,42 @@ describe('Topics', () => {
     expect(setActiveTopic).not.toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-a2-first' }))
   })
 
+  it('selects the visible cross-assistant neighbour after deleting in the flat activity stream', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
+    setTopicInfiniteQueryPages([
+      createApiTopic({
+        id: 'topic-newer',
+        name: 'Newer topic',
+        assistantId: 'assistant-1',
+        createdAt: '2026-01-03T01:00:00.000Z'
+      }),
+      createApiTopic({
+        id: 'topic-active',
+        name: 'Active topic',
+        assistantId: 'assistant-1',
+        createdAt: '2026-01-02T01:00:00.000Z'
+      }),
+      createApiTopic({
+        id: 'topic-neighbour',
+        name: 'Neighbour topic',
+        assistantId: 'assistant-2',
+        createdAt: '2026-01-01T01:00:00.000Z'
+      })
+    ])
+    const { setActiveTopic } = renderTopicList({
+      activeTopic: createRendererTopic({ id: 'topic-active', assistantId: 'assistant-1', name: 'Active topic' })
+    })
+
+    const deleteButton = within(getTopicRow('Active topic')).getByLabelText('Delete')
+    await act(async () => fireEvent.click(deleteButton))
+    await act(async () => fireEvent.click(deleteButton))
+
+    await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-active'))
+    await vi.waitFor(() =>
+      expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-neighbour' }))
+    )
+  })
+
   it('keeps the optimistic loaded neighbour selected when the list rerenders before deletion resolves', async () => {
     const topics = [
       createApiTopic({

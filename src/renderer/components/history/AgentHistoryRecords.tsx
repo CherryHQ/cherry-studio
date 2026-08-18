@@ -508,6 +508,7 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
     if (!hasMoreSessions || isSessionsLoading || isSessionsLoadingMore || sessionError) return
     loadMoreSessions()
   }, [hasMoreSessions, isSessionsLoading, isSessionsLoadingMore, loadMoreSessions, sessionError])
+  const canLoadMoreSessions = hasMoreSessions && !isSessionsLoading && !isSessionsLoadingMore && !sessionError
   const handleRetry = useCallback(() => {
     void reloadBandSessions()
   }, [reloadBandSessions])
@@ -520,7 +521,7 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
       isLoading={isSessionsLoading}
       isLoadingMore={isSessionsLoadingMore}
       toolbarLeading={toolbarLeading}
-      onEndReached={handleEndReached}
+      onEndReached={canLoadMoreSessions ? handleEndReached : undefined}
       onRetry={handleRetry}
     />
   )

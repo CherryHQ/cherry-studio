@@ -122,7 +122,8 @@ describe('PinService', () => {
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
         { endpoint: '/pins', kind: 'membership', entityIds: [result.id] },
         { endpoint: '/pins/:id', entityIds: [result.id] },
-        { endpoint: '/agent-sessions', kind: 'membership', dimension: 'pinned', entityIds: [ENTITY_ID_1] }
+        { endpoint: '/agent-sessions', kind: 'membership', dimension: 'pinned', entityIds: [ENTITY_ID_1] },
+        { endpoint: '/agent-sessions/stats' }
       ])
     })
   })

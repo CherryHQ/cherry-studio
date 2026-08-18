@@ -829,7 +829,7 @@ describe('HistoryRecordsView assistant mode', () => {
     expect(within(firstHomePage).queryByTestId('history-records-view')).not.toBeInTheDocument()
   })
 
-  it('matches external assistant source and filters selected rows by source', () => {
+  it('matches external assistant source and filters selected rows by source', async () => {
     const topics = [
       createTopic({ id: 'topic-beta', assistantId: 'assistant-beta', name: 'Beta topic', orderKey: 'a' }),
       createTopic({
@@ -889,7 +889,7 @@ describe('HistoryRecordsView assistant mode', () => {
     expect(screen.queryByText('Alpha A')).not.toBeInTheDocument()
     expect(screen.queryByText('Alpha B')).not.toBeInTheDocument()
     expect(screen.queryByText('Beta topic')).not.toBeInTheDocument()
-    expect(screen.getByText('No conversations')).toBeInTheDocument()
+    expect(await screen.findByText('No conversations')).toBeInTheDocument()
   })
 
   it('groups empty and missing assistant topics under one unlinked source', () => {

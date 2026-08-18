@@ -97,6 +97,7 @@ const AssistantHistoryRecords = ({
     error: topicsError,
     isLoading: isTopicsLoading,
     isLoadingMore: isBandLoadingMore,
+    hasNext: hasMoreTopics,
     loadNext: loadNextTopics,
     reload: reloadTopics
   } = usePinnedBandPagination(
@@ -105,7 +106,7 @@ const AssistantHistoryRecords = ({
       error: pinnedTopicsSource.error,
       hasNext: pinnedTopicsSource.hasNext,
       isLoading: pinnedTopicsSource.isLoading,
-      isLoadingMore: pinnedTopicsSource.isRefreshing,
+      isLoadingMore: pinnedTopicsSource.isLoadingMore,
       loadNext: pinnedTopicsSource.loadNext,
       reload: pinnedTopicsSource.refetch
     },
@@ -114,7 +115,7 @@ const AssistantHistoryRecords = ({
       error: unpinnedTopicsSource.error,
       hasNext: unpinnedTopicsSource.hasNext,
       isLoading: unpinnedTopicsSource.isLoading,
-      isLoadingMore: unpinnedTopicsSource.isRefreshing,
+      isLoadingMore: unpinnedTopicsSource.isLoadingMore,
       loadNext: unpinnedTopicsSource.loadNext,
       reload: unpinnedTopicsSource.refetch
     },
@@ -681,9 +682,10 @@ const AssistantHistoryRecords = ({
   })
 
   const handleEndReached = useCallback(() => {
-    if (isTopicsLoading || isTopicsLoadingMore || topicsError) return
+    if (!hasMoreTopics || isTopicsLoading || isTopicsLoadingMore || topicsError) return
     loadNextTopics()
-  }, [isTopicsLoading, isTopicsLoadingMore, loadNextTopics, topicsError])
+  }, [hasMoreTopics, isTopicsLoading, isTopicsLoadingMore, loadNextTopics, topicsError])
+  const canLoadMoreTopics = hasMoreTopics && !isTopicsLoading && !isTopicsLoadingMore && !topicsError
   const handleRetry = useCallback(() => {
     void reloadTopics()
   }, [reloadTopics])
@@ -696,7 +698,7 @@ const AssistantHistoryRecords = ({
       isLoading={isTopicsLoading}
       isLoadingMore={isTopicsLoadingMore}
       toolbarLeading={toolbarLeading}
-      onEndReached={handleEndReached}
+      onEndReached={canLoadMoreTopics ? handleEndReached : undefined}
       onRetry={handleRetry}
     />
   )

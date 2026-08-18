@@ -59,7 +59,6 @@ import { useImageCaptureTargets } from '@renderer/hooks/useImageCaptureTargets'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { usePinMutations, usePins } from '@renderer/hooks/usePins'
 import { useResourceRemovalCoordinator } from '@renderer/hooks/useResourceRemovalCoordinator'
-import { useStructurallySharedItems } from '@renderer/hooks/useStructurallySharedItems'
 import {
   finishTopicRenaming,
   getTopicMessages,
@@ -179,7 +178,7 @@ function TopicRemoteGroupQuery({
     retainInactive: true,
     sortBy
   })
-  const items = useStructurallySharedItems(source.topics)
+  const items = source.topics
   const queryKey = buildTopicRemoteQueryKey({ assistantId, pinned: false, q, sortBy })
   const refetch = source.refetch
   const retry = useCallback(() => void refetch(), [refetch])
@@ -637,7 +636,6 @@ export function Topics({
     activeTopic && activeTopic.pinned !== true && !pinnedTopicRows.some((topic) => topic.id === activeTopic.id)
       ? getTopicAssistantDisplayGroupId(activeTopic)
       : undefined
-  const pinnedTopics = useStructurallySharedItems(pinnedTopicRows)
   const pinnedTopicRemoteSnapshot = useMemo(
     () => ({
       error: pinnedTopicsSource.error,
@@ -645,7 +643,7 @@ export function Topics({
       hasNext: hasMorePinnedTopics,
       isLoading: pinnedTopicsSource.isLoading || pinnedTopicsSource.isLoadingMore,
       isRefreshing: isPinnedTopicsRefreshing,
-      items: pinnedTopics,
+      items: pinnedTopicRows,
       loadNext: loadNextPinnedTopics,
       queryKey: buildTopicRemoteQueryKey({
         assistantId: rightPanelOwnerScope,
@@ -659,7 +657,7 @@ export function Topics({
       hasMorePinnedTopics,
       isPinnedTopicsRefreshing,
       loadNextPinnedTopics,
-      pinnedTopics,
+      pinnedTopicRows,
       pinnedTopicsSource.error,
       pinnedTopicsSource.isLoading,
       pinnedTopicsSource.isLoadingMore,
@@ -670,7 +668,6 @@ export function Topics({
     ]
   )
   useRegisterResourceListRemoteGroup(remoteTopicGroups, pinnedTopicRemoteSnapshot)
-  const flatOrdinaryTopics = useStructurallySharedItems(ordinaryTopicRows)
   const ordinaryTopicRemoteSnapshot = useMemo(
     () => ({
       error: ordinaryTopicsSource.error,
@@ -678,7 +675,7 @@ export function Topics({
       hasNext: hasMoreOrdinaryTopics,
       isLoading: ordinaryTopicsSource.isLoading || ordinaryTopicsSource.isLoadingMore,
       isRefreshing: isOrdinaryTopicsRefreshing,
-      items: flatOrdinaryTopics,
+      items: ordinaryTopicRows,
       loadNext: loadNextOrdinaryTopics,
       queryKey: buildTopicRemoteQueryKey({
         assistantId: rightPanelOwnerScope,
@@ -691,7 +688,7 @@ export function Topics({
     }),
     [
       debouncedRemoteQuery,
-      flatOrdinaryTopics,
+      ordinaryTopicRows,
       hasMoreOrdinaryTopics,
       isOrdinaryTopicsRefreshing,
       loadNextOrdinaryTopics,
@@ -705,7 +702,7 @@ export function Topics({
     ]
   )
   useRegisterResourceListRemoteGroup(remoteTopicGroups, ordinaryTopicRemoteSnapshot)
-  const ordinaryTopics = isAssistantDisplayMode ? remoteTopicRows : flatOrdinaryTopics
+  const ordinaryTopics = isAssistantDisplayMode ? remoteTopicRows : ordinaryTopicRows
   const commitTopicPin = useCallback(
     async (topic: TopicListItem) => {
       if (topic.pinId) {
@@ -719,8 +716,8 @@ export function Topics({
     [pinTopic, unpinTopic]
   )
   const sourceTopics = useMemo(() => {
-    return [...ordinaryTopics, ...pinnedTopics]
-  }, [ordinaryTopics, pinnedTopics])
+    return [...ordinaryTopics, ...pinnedTopicRows]
+  }, [ordinaryTopics, pinnedTopicRows])
   const {
     items: projectedTopics,
     pendingPinnedById,
@@ -1091,14 +1088,17 @@ export function Topics({
   )
 
   const getActiveTopicId = useCallback(() => activeTopicIdRef.current, [])
-  const getTopicRemovalOwnerId = useCallback((topic: TopicListItem) => topic.assistantId ?? 'topic-owner:unlinked', [])
+  const getTopicRemovalGroupId = useCallback(
+    (topic: TopicListItem) => topicGroupBy(topic)?.id ?? 'topic-removal-group:unknown',
+    [topicGroupBy]
+  )
   const clearTopicSelection = useCallback(() => {
     activeTopicIdRef.current = ''
     onClearActiveTopic?.()
   }, [onClearActiveTopic])
   const { remove: coordinateTopicRemoval } = useResourceRemovalCoordinator<TopicListItem>({
     getActiveId: getActiveTopicId,
-    getGroupId: getTopicRemovalOwnerId,
+    getGroupId: getTopicRemovalGroupId,
     getItemId: (topic) => topic.id,
     optimisticallyRemove: optimisticallyRemoveTopic,
     restoreOptimisticRemoval: restoreOptimisticallyRemovedTopic,
@@ -1208,6 +1208,9 @@ export function Topics({
     ordinaryTopicsSource.error,
     pinnedTopicsSource.error
   ])
+  const canLoadMoreTopics =
+    (!pinnedTopicsSource.error && hasMorePinnedTopics && !isPinnedTopicsRefreshing) ||
+    (!ordinaryTopicsSource.error && hasMoreOrdinaryTopics && !isOrdinaryTopicsRefreshing)
   const hasActiveCenterSurface = manageAssistantsActive || historyRecordsActive
   const getTopicGroupHeaderClickBehavior = useCallback(
     (group: ResourceListGroup) =>
@@ -1992,7 +1995,7 @@ export function Topics({
           onConfirmDelete={handleConfirmDeleteTopic}
           onDeleteClick={handleDeleteTopicClick}
           onDeleteFromMenu={handleDeleteTopicFromMenu}
-          onEndReached={isAssistantDisplayMode ? undefined : handleTopicEndReached}
+          onEndReached={!isAssistantDisplayMode && canLoadMoreTopics ? handleTopicEndReached : undefined}
           onMoveToAssistant={handleMoveTopicToAssistant}
           onOpenInNewTab={tabs && !isWindowFrame ? openTopicInNewTab : undefined}
           onOpenInNewWindow={tabs ? openTopicInNewWindow : undefined}
@@ -2105,7 +2108,7 @@ interface TopicListBodyProps {
 
 type TopicRowSharedProps = Omit<
   TopicListBodyProps,
-  'activeTopic' | 'isRefreshing' | 'listRef' | 'onEndReached' | 'onRetry' | 'variant'
+  'activeTopic' | 'isRefreshing' | 'listRef' | 'onEndReached' | 'onRetry' | 'pendingPinnedById' | 'variant'
 >
 
 function TopicListBody(props: TopicListBodyProps) {
@@ -2159,7 +2162,6 @@ function TopicListBody(props: TopicListBodyProps) {
       onOpenInNewTab,
       onOpenInNewWindow,
       onPinTopic,
-      pendingPinnedById,
       pinActionDisabled,
       onRequestTopicImageAction,
       onSetPanePosition,
@@ -2183,7 +2185,6 @@ function TopicListBody(props: TopicListBodyProps) {
       onOpenInNewTab,
       onOpenInNewWindow,
       onPinTopic,
-      pendingPinnedById,
       pinActionDisabled,
       onRequestTopicImageAction,
       onSetPanePosition,
@@ -2195,9 +2196,15 @@ function TopicListBody(props: TopicListBodyProps) {
   const activeTopicId = activeTopic?.id
   const renderItem = useCallback(
     (topic: TopicListItem) => (
-      <TopicRow key={topic.id} topic={topic} isActive={topic.id === activeTopicId} {...rowProps} />
+      <TopicRow
+        key={topic.id}
+        topic={topic}
+        isActive={topic.id === activeTopicId}
+        pendingPinned={pendingPinnedById.get(topic.id)}
+        {...rowProps}
+      />
     ),
-    [activeTopicId, rowProps]
+    [activeTopicId, pendingPinnedById, rowProps]
   )
 
   return (
@@ -2233,6 +2240,7 @@ function TopicListBody(props: TopicListBodyProps) {
 
 interface TopicRowWithStatusProps extends TopicRowSharedProps {
   isActive: boolean
+  pendingPinned?: boolean
   topic: TopicListItem
 }
 
@@ -2256,7 +2264,7 @@ const TopicRow = memo(function TopicRow({
   onOpenInNewTab,
   onOpenInNewWindow,
   onPinTopic,
-  pendingPinnedById,
+  pendingPinned,
   pinActionDisabled,
   onRequestTopicImageAction,
   onSetPanePosition,
@@ -2298,7 +2306,6 @@ const TopicRow = memo(function TopicRow({
           : null
   const hasTopicStreamIndicator = conversationRowStatus !== null && conversationRowStatus !== 'approval'
   const showPinAction = !rowState.renaming
-  const pendingPinned = pendingPinnedById.get(topic.id)
   const pinActionPinned = pendingPinned ?? topic.pinned
   const isPinActionDisabled = pendingPinned === undefined && pinActionDisabled
   const showLeadingSlot = displayMode !== 'time' && !topic.pinned

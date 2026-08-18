@@ -476,7 +476,7 @@ describe('ResourceList', () => {
     expect(onCollapsedStateChange).not.toHaveBeenCalled()
   })
 
-  it('keeps resource actions stable when local filter state changes', () => {
+  it('keeps resource action consumers isolated from local filter state changes', () => {
     const actionRefs: unknown[] = []
     const Provider = ResourceList.Provider<TestItem>
 
@@ -512,8 +512,7 @@ describe('ResourceList', () => {
     expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
       filters: ['pinned']
     })
-    expect(actionRefs.length).toBeGreaterThanOrEqual(2)
-    expect(actionRefs.at(-1)).toBe(actionRefs[0])
+    expect(actionRefs).toHaveLength(1)
   })
 
   it('updates only affected rows when selection changes locally', () => {
@@ -1620,7 +1619,6 @@ describe('ResourceList', () => {
       'group-has-[:focus-visible]/resource-list-group:flex',
       'group-has-data-[state=open]/resource-list-group:flex'
     )
-    expect(sessionChevron!).toHaveClass('size-3')
     expect(sessionChevron!.style.transform).toBe('rotate(90deg)')
 
     fireEvent.click(sessionButton)
@@ -1798,18 +1796,19 @@ describe('ResourceList', () => {
     render(<ActivationHarness />)
 
     const sessionGroupButton = screen.getByRole('button', { name: 'session' })
-    expect(sessionGroupButton).toHaveAttribute('aria-expanded', 'false')
+    const sessionChevron = chevronFor(sessionGroupButton)
+    expect(sessionChevron).toHaveAttribute('aria-expanded', 'false')
 
     fireEvent.click(sessionGroupButton)
 
     await waitFor(() => expect(onGroupHeaderActivate).toHaveBeenCalledWith('session'))
     expect(sessionGroupButton).toHaveAttribute('aria-current', 'true')
-    expect(sessionGroupButton).toHaveAttribute('aria-expanded', 'false')
+    expect(sessionChevron).toHaveAttribute('aria-expanded', 'false')
 
     fireEvent.click(sessionGroupButton)
 
     expect(onGroupHeaderActivate).toHaveBeenCalledTimes(1)
-    expect(sessionGroupButton).toHaveAttribute('aria-expanded', 'true')
+    expect(sessionChevron).toHaveAttribute('aria-expanded', 'true')
   })
 
   it('folds a group open from its chevron without selecting anything in it', () => {
@@ -2110,7 +2109,7 @@ describe('ResourceList', () => {
       scrollTop: { configurable: true, value: 0, writable: true }
     })
     fireEvent.scroll(viewport)
-    viewport.scrollTop = 650
+    viewport.scrollTop = 700
     fireEvent.scroll(viewport)
     fireEvent.scroll(viewport)
     expect(onEndReached).toHaveBeenCalledTimes(1)

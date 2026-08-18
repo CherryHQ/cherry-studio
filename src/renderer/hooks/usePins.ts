@@ -10,7 +10,7 @@ import { loggerService } from '@logger'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
 import type { EntityType } from '@shared/data/types/entityType'
 import type { Pin } from '@shared/data/types/pin'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('usePins')
 
@@ -59,11 +59,34 @@ export function usePinMutations(entityType: EntityType): UsePinMutationsResult {
     isLoading: isUnpinning,
     error: unpinError
   } = useMutation('DELETE', '/pins/:id', { refresh })
+  const mutationQueueRef = useRef<Promise<void>>(Promise.resolve())
+  const [queuedMutationCount, setQueuedMutationCount] = useState(0)
 
-  const pin = useCallback((entityId: string) => createPin({ body: { entityType, entityId } }), [createPin, entityType])
-  const unpin = useCallback((pinId: string) => deletePin({ params: { id: pinId } }), [deletePin])
+  const enqueueMutation = useCallback(<T>(operation: () => Promise<T>): Promise<T> => {
+    setQueuedMutationCount((count) => count + 1)
+    const result = mutationQueueRef.current.then(operation)
+    mutationQueueRef.current = result.then(
+      () => undefined,
+      () => undefined
+    )
+    return result.finally(() => setQueuedMutationCount((count) => count - 1))
+  }, [])
 
-  return { pin, unpin, isMutating: isPinning || isUnpinning, error: pinError ?? unpinError }
+  const pin = useCallback(
+    (entityId: string) => enqueueMutation(() => createPin({ body: { entityType, entityId } })),
+    [createPin, enqueueMutation, entityType]
+  )
+  const unpin = useCallback(
+    (pinId: string) => enqueueMutation(() => deletePin({ params: { id: pinId } })),
+    [deletePin, enqueueMutation]
+  )
+
+  return {
+    pin,
+    unpin,
+    isMutating: queuedMutationCount > 0 || isPinning || isUnpinning,
+    error: pinError ?? unpinError
+  }
 }
 
 export interface UsePinsResult {

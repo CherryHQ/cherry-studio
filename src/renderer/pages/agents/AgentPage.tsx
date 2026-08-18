@@ -213,8 +213,7 @@ const AgentPage = () => {
     activeSessionId,
     setActiveSessionId
   })
-  const reenterAgentRoute = useCallback(() => {
-    initialEmptySessionEvaluatedRef.current = false
+  const clearAgentRoute = useCallback(() => {
     // The bound session is gone. Drop the remembered id too: `ui.agent.last_used_session_id`
     // is never cleared on delete, so without this the bare re-entry re-reads the stale id in
     // `resolveAgentEntrySessionId`, 404s, and the NOT_FOUND recovery fires again — a navigate
@@ -223,6 +222,10 @@ const AgentPage = () => {
     clearActiveSession()
     void navigate({ to: '/app/agents', search: {}, replace: true })
   }, [clearActiveSession, navigate, setLastUsedSessionId])
+  const reenterAgentRoute = useCallback(() => {
+    initialEmptySessionEvaluatedRef.current = false
+    clearAgentRoute()
+  }, [clearAgentRoute])
   // The URL-bound session no longer exists: its by-id query settled with NOT_FOUND (deleted while
   // this tab was dormant, or a rotted deep link). Recovery is a plain replace-navigation back
   // through the entry interceptor, which resolves the next target — no in-page state surgery.
@@ -761,9 +764,10 @@ const AgentPage = () => {
         selectSession(sessionId, session)
         return
       }
-      reenterAgentRoute()
+      initialEmptySessionEvaluatedRef.current = true
+      clearAgentRoute()
     },
-    [agentIdSet, closeSurface, isAgentsLoading, reenterAgentRoute, selectSession]
+    [agentIdSet, clearAgentRoute, closeSurface, isAgentsLoading, selectSession]
   )
   const handleResourceSessionSelect = useCallback(
     (sessionId: string, session: AgentSessionEntity) => {
@@ -804,15 +808,17 @@ const AgentPage = () => {
           return
         }
 
-        reenterAgentRoute()
+        initialEmptySessionEvaluatedRef.current = true
+        clearAgentRoute()
       } catch (err) {
         if (!isCurrent()) return
         logger.error('Failed to settle agent page after deleting active agent', err as Error, { deletedAgentId })
         toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
-        reenterAgentRoute()
+        initialEmptySessionEvaluatedRef.current = true
+        clearAgentRoute()
       }
     },
-    [loadLatestSession, reenterAgentRoute, setActiveSessionAndClearTransient, t]
+    [clearAgentRoute, loadLatestSession, setActiveSessionAndClearTransient, t]
   )
   const replaceSessionWorkspace = useCallback(
     async (workspaceId: string | null) => {

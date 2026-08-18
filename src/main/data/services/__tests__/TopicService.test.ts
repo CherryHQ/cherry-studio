@@ -448,7 +448,7 @@ describe('TopicService', () => {
         id: '55555555-5555-4555-8555-555555555555',
         entityType: 'topic',
         entityId: 't4',
-        orderKey: 'Zz',
+        orderKey: 'z0',
         createdAt: 1,
         updatedAt: 1
       })

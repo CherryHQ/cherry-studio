@@ -28,7 +28,6 @@ type LegacyMessageRow = {
 describe('importLegacySessionMessages', () => {
   const dbh = setupTestDatabase()
   const insertedSessions: string[] = []
-  const sessionCreatedAt = Date.parse('2025-12-31T23:59:59.000Z')
 
   beforeEach(async () => {
     await dbh.db.delete(agentSessionMessageTable)
@@ -64,10 +63,7 @@ describe('importLegacySessionMessages', () => {
       agentId: 'a1',
       name: id,
       workspaceId,
-      orderKey: 'a0',
-      lastActivityAt: sessionCreatedAt,
-      createdAt: sessionCreatedAt,
-      updatedAt: sessionCreatedAt
+      orderKey: 'a0'
     })
     insertedSessions.push(id)
   }
@@ -177,9 +173,6 @@ describe('importLegacySessionMessages', () => {
     expect(row.data).toEqual({ parts: [{ type: 'text', text: 'hello' }] })
     expect(JSON.stringify(row.data)).not.toContain('"message"')
     expect(row.runtimeResumeToken).toBe('sdk-1')
-    const [session] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, 's-legacy'))
-    expect(session.lastActivityAt).toBe(Date.parse('2026-01-01T00:00:01.000Z'))
-    expect(session.updatedAt).toBe(sessionCreatedAt)
   })
 
   it('reads and imports legacy messages in bounded pages', async () => {

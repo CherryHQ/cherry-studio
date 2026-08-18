@@ -187,7 +187,7 @@ describe('Topics helpers', () => {
         mode: 'assistant',
         sortBy: 'orderKey'
       }).map((topic) => topic.id)
-    ).toEqual(['pinned-1', 'assistant-a-1', 'assistant-b-1', 'assistant-b-2', 'unknown-1', 'default-1'])
+    ).toEqual(['pinned-1', 'assistant-a-1', 'assistant-b-1', 'assistant-b-2', 'default-1', 'unknown-1'])
   })
 
   it('sorts assistant group topics by raw persisted orderKey ascending when available', () => {

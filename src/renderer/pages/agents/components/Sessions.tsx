@@ -1262,14 +1262,14 @@ const Sessions = ({
     [displayMode, getSessionCreationDefaultsForGroup, workdirDisplay.workspaceIdByGroupId]
   )
   const getActiveSessionId = useCallback(() => activeSessionIdRef.current, [])
-  const getSessionRemovalOwnerId = useCallback(
-    (session: AgentSessionListItem) => session.agentId ?? 'session-owner:unlinked',
-    []
+  const getSessionRemovalGroupId = useCallback(
+    (session: AgentSessionListItem) => sessionGroupBy(session)?.id ?? 'session-removal-group:unknown',
+    [sessionGroupBy]
   )
   const clearSessionSelection = useCallback(() => commitActiveSession(null), [commitActiveSession])
   const { remove: coordinateSessionRemoval } = useResourceRemovalCoordinator<AgentSessionListItem>({
     getActiveId: getActiveSessionId,
-    getGroupId: getSessionRemovalOwnerId,
+    getGroupId: getSessionRemovalGroupId,
     getItemId: (session) => session.id,
     optimisticallyRemove: optimisticallyRemoveSession,
     restoreOptimisticRemoval: restoreOptimisticallyRemovedSession,
@@ -2446,6 +2446,9 @@ const Sessions = ({
     ordinarySessionsSource.error,
     pinnedSessionsSource.error
   ])
+  const canLoadMoreSessions =
+    (!pinnedSessionsSource.error && hasMorePinnedSessions && !isPinnedSessionsValidating) ||
+    (!ordinarySessionsSource.error && hasMoreOrdinarySessions && !isOrdinarySessionsValidating)
   const hasActiveCenterSurface = manageAgentsActive || historyRecordsActive
   const activeSessionAgentId =
     activeSession?.agentId ?? sessionItems.find((session) => session.id === activeSessionId)?.agentId
@@ -2589,7 +2592,7 @@ const Sessions = ({
         isValidating={listValidating}
         listRef={listRef}
         onDeleteSession={handleDeleteSession}
-        onEndReached={displayMode === 'time' ? handleSessionEndReached : undefined}
+        onEndReached={displayMode === 'time' && canLoadMoreSessions ? handleSessionEndReached : undefined}
         onOpenInNewTab={isWindowFrame ? undefined : openSessionInNewTab}
         onOpenInNewWindow={openSessionInNewWindow}
         onOpenRenameDialog={handleOpenRenameSessionDialog}

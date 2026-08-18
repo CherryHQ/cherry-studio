@@ -391,6 +391,7 @@ export function buildSessionAgentGroupDropAnchor(
 }
 
 export function canDropSessionItemInDisplayGroup({
+  mode,
   sourceGroupId,
   targetGroupId
 }: {
@@ -398,7 +399,7 @@ export function canDropSessionItemInDisplayGroup({
   sourceGroupId: string
   targetGroupId: string
 }) {
-  return sourceGroupId === targetGroupId && targetGroupId !== SESSION_PINNED_GROUP_ID
+  return mode !== 'time' && sourceGroupId === targetGroupId && targetGroupId !== SESSION_PINNED_GROUP_ID
 }
 
 export function applyOptimisticSessionDisplayMove<T extends SessionListItem>(

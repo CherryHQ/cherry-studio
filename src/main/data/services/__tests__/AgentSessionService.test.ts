@@ -297,7 +297,7 @@ describe('AgentSessionService', () => {
         id: '88888888-8888-4888-8888-888888888888',
         entityType: 'session',
         entityId: 's4',
-        orderKey: 'Zz'
+        orderKey: 'z0'
       })
 
       const page1 = agentSessionService.listByCursor({ pinned: true, limit: 1 })

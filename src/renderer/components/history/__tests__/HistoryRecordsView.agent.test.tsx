@@ -117,6 +117,10 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
 
 vi.mock('@renderer/hooks/agent/useSession', () => ({
   useAgentSessionStats: hookMocks.useAgentSessionStats,
+  useSessionMutations: () => ({
+    deleteSession: hookMocks.deleteSession,
+    deleteSessions: hookMocks.deleteSessions
+  }),
   useSessions: hookMocks.useSessions,
   useUpdateSession: hookMocks.useUpdateSession
 }))

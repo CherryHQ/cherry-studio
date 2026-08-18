@@ -621,18 +621,20 @@ vi.mock('@renderer/components/chat/resourceList/AgentResourceList', () => ({
     onManageAgents,
     onOpenHistoryRecords,
     onSelectSession,
-    onSelectedAgentClick
+    onSelectedAgentClick,
+    prepareActiveAgentDeletion
   }: {
     activeAgentId?: string | null
     historyRecordsActive?: boolean
     agentSessionsSource?: unknown
     onAddAgent?: () => void | Promise<void>
     onActiveAgentDeleted?: (agentId: string) => void | Promise<void>
-    onCreateSession?: (agentId: string) => void | Promise<unknown>
+    onCreateSession?: (agentId: string) => Promise<Record<string, unknown> | null>
     onManageAgents?: () => void | Promise<void>
     onOpenHistoryRecords?: () => void | Promise<void>
     onSelectSession?: (sessionId: string, session: Record<string, unknown>) => void
     onSelectedAgentClick?: () => void | Promise<void>
+    prepareActiveAgentDeletion?: () => () => void
   }) => {
     agentPageMocks.agentResourceListSessionsSource = agentSessionsSource
 
@@ -647,7 +649,12 @@ vi.mock('@renderer/components/chat/resourceList/AgentResourceList', () => ({
         <button type="button" onClick={() => void onOpenHistoryRecords?.()}>
           Open history records
         </button>
-        <button type="button" onClick={() => void onActiveAgentDeleted?.(activeAgentId ?? '')}>
+        <button
+          type="button"
+          onClick={() => {
+            prepareActiveAgentDeletion?.()
+            void onActiveAgentDeleted?.(activeAgentId ?? '')
+          }}>
           Delete active agent
         </button>
         <button
@@ -662,7 +669,13 @@ vi.mock('@renderer/components/chat/resourceList/AgentResourceList', () => ({
           }>
           Select agent B latest session
         </button>
-        <button type="button" onClick={() => void onCreateSession?.('agent-b')}>
+        <button
+          type="button"
+          onClick={() =>
+            void onCreateSession?.('agent-b').then((session) => {
+              if (session?.id) onSelectSession?.(String(session.id), session)
+            })
+          }>
           Select empty agent B
         </button>
         <button type="button" onClick={() => void onSelectedAgentClick?.()}>
@@ -1474,6 +1487,7 @@ describe('AgentPage', () => {
   })
 
   it('passes the current agent task count to the classic-layout top button', () => {
+    agentPageMocks.isActiveTab = true
     agentPageMocks.sessionDisplayMode = 'agent'
     activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
     activeSessionMocks.sessionSource = 'query'
@@ -2160,11 +2174,10 @@ describe('AgentPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Create empty session from composer' }))
 
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-blank-touched-11'))
-    expect(agentPageMocks.reuseOrCreateSession).toHaveBeenCalledWith(
-      'agent-a',
-      { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: 'workspace-a' },
-      undefined
-    )
+    expect(agentPageMocks.reuseOrCreateSession).toHaveBeenCalledWith('agent-a', {
+      type: AGENT_WORKSPACE_TYPE.USER,
+      workspaceId: 'workspace-a'
+    })
     expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
     const messageProbeCalls = agentPageMocks.dataApiGet.mock.calls.filter(
       ([path]) => typeof path === 'string' && path.startsWith('/agent-sessions/') && path.endsWith('/messages')

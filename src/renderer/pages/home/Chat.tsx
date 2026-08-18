@@ -79,7 +79,7 @@ const Chat: FC<Props> = (props) => {
   const activeTopic = props.activeTopic
   const centerSurface = props.centerSurface
   const showConversation = Boolean(activeTopic && !centerSurface)
-  const showConversationChrome = !centerSurface
+  const showConversationChrome = !centerSurface && !props.centerFallback
   const activeTopicId = activeTopic?.id
   const assistantContext = useAssistant(activeTopic?.assistantId, {
     loadDefaultModel: Boolean(activeTopic)

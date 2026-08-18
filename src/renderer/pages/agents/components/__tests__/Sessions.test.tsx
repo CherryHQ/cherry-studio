@@ -421,6 +421,10 @@ vi.mock('@renderer/hooks/agent/useSession', () => ({
     error: undefined,
     refetch: vi.fn().mockResolvedValue(undefined)
   }),
+  useSessionMutations: () => ({
+    deleteSession: sessionDataMocks.deleteSession,
+    reorderSession: sessionDataMocks.reorderSession
+  }),
   useSessions: sessionDataMocks.useSessions,
   useUpdateSession: sessionDataMocks.useUpdateSession
 }))
@@ -2538,6 +2542,50 @@ describe('Sessions', () => {
       )
     )
     expect(setActiveSessionId).not.toHaveBeenCalledWith('session-a2-first', expect.anything())
+  })
+
+  it('selects the visible cross-agent neighbour after deleting in the flat activity stream', async () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'time')
+    preferenceMocks.values.set('agent.session.sort_type', 'createdAt')
+    setupSessions({
+      sessions: [
+        createSession({
+          id: 'session-newer',
+          name: 'Newer session',
+          agentId: 'agent-a',
+          createdAt: '2026-01-03T01:00:00.000Z'
+        }),
+        createSession({
+          id: 'session-active',
+          name: 'Active session',
+          agentId: 'agent-a',
+          createdAt: '2026-01-02T01:00:00.000Z'
+        }),
+        createSession({
+          id: 'session-neighbour',
+          name: 'Neighbour session',
+          agentId: 'agent-b',
+          createdAt: '2026-01-01T01:00:00.000Z'
+        })
+      ]
+    })
+    const setActiveSessionId = vi.fn()
+
+    render(<SessionsForTest activeSessionId="session-active" setActiveSessionId={setActiveSessionId} />)
+
+    const deleteButton = within(
+      screen.getByText('Active session').closest('[role="option"]') as HTMLElement
+    ).getByLabelText('Delete')
+    await act(async () => fireEvent.click(deleteButton))
+    await act(async () => fireEvent.click(deleteButton))
+
+    await vi.waitFor(() => expect(sessionDataMocks.deleteSession).toHaveBeenCalledWith('session-active'))
+    await vi.waitFor(() =>
+      expect(setActiveSessionId).toHaveBeenCalledWith(
+        'session-neighbour',
+        expect.objectContaining({ id: 'session-neighbour' })
+      )
+    )
   })
 
   it('switches to the neighbour before deleting the active session so the by-id 404 never binds the route', async () => {
