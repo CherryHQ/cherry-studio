@@ -928,7 +928,8 @@
     },
     "content": "Sichern Sie alle Daten, einschließlich Chat-Verlauf, Einstellungen, Wissensdatenbank und alle anderen Daten. Bitte beachten Sie, dass der Backup-Vorgang einige Zeit in Anspruch nehmen kann. Vielen Dank für Ihre Geduld",
     "error": {
-      "active_data_writers": "Eine Konversation oder ein Agent läuft noch. Warten Sie, bis sie/er fertig ist, und versuchen Sie es dann erneut."
+      "active_data_writers": "Eine Konversation oder ein Agent läuft noch. Warten Sie, bis sie/er fertig ist, und versuchen Sie es dann erneut.",
+      "webdav_tls_certificate": "Das TLS-Zertifikat des WebDAV-Servers konnte nicht überprüft werden. Wenn der Server ein selbstsigniertes Zertifikat verwendet, aktivieren Sie „Selbstsignierte Zertifikate erlauben“ unter Einstellungen → Daten → WebDAV (dies verringert die Übertragungssicherheit)."
     },
     "progress": {
       "completed": "Backup abgeschlossen",
@@ -5421,6 +5422,10 @@
         "title": "v1-Datenmigration erneut ausführen"
       },
       "webdav": {
+        "allowSelfSignedTls": {
+          "help": "Standardmäßig aus: Das TLS-Zertifikat des WebDAV-Servers wird überprüft. Nur für Server mit selbstsignierten Zertifikaten aktivieren — ein Angreifer (Man-in-the-Middle) könnte sonst Ihr WebDAV-Passwort und die vollständigen Backup-Daten abfangen.",
+          "title": "Selbstsignierte Zertifikate erlauben"
+        },
         "autoSync": {
           "label": "Automatisches Backup",
           "off": "Schließen"

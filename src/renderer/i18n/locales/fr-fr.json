@@ -928,7 +928,8 @@
     },
     "content": "Sauvegarder toutes les données, y compris l'historique des conversations, les paramètres et la base de connaissances. Veuillez noter que le processus de sauvegarde peut prendre un certain temps, merci de votre patience.",
     "error": {
-      "active_data_writers": "Une conversation ou un agent est toujours en cours d'exécution. Attendez qu'il se termine, puis réessayez."
+      "active_data_writers": "Une conversation ou un agent est toujours en cours d'exécution. Attendez qu'il se termine, puis réessayez.",
+      "webdav_tls_certificate": "Impossible de vérifier le certificat TLS du serveur WebDAV. Si le serveur utilise un certificat auto-signé, activez « Autoriser les certificats auto-signés » dans Paramètres → Données → WebDAV (cela réduit la sécurité du transport)."
     },
     "progress": {
       "completed": "Sauvegarde terminée",
@@ -5421,6 +5422,10 @@
         "title": "Relancer la migration des données v1"
       },
       "webdav": {
+        "allowSelfSignedTls": {
+          "help": "Désactivé par défaut : le certificat TLS du serveur WebDAV est vérifié. À activer uniquement pour les serveurs dotés de certificats auto-signés — un intermédiaire (man-in-the-middle) pourrait alors intercepter votre mot de passe WebDAV et l'intégralité des données de sauvegarde.",
+          "title": "Autoriser les certificats auto-signés"
+        },
         "autoSync": {
           "label": "Synchronisation automatique",
           "off": "Désactiver"

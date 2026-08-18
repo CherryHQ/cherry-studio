@@ -8,14 +8,42 @@ type BackupErrorFallbackKey =
   | 'settings.data.local.backup.manager.restore.error'
   | 'settings.data.webdav.backup.manager.restore.error'
 
+// Node TLS failures surface over IPC as plain Error messages (error.code is
+// lost crossing the boundary), so match on message text instead of codes.
+const TLS_CERTIFICATE_FAILURE_PATTERNS = [
+  'unable to verify the first certificate',
+  'unable to get local issuer certificate',
+  'unable to get issuer certificate',
+  'self-signed certificate',
+  'self signed certificate',
+  'depth_zero_self_signed_cert',
+  'self_signed_cert_in_chain',
+  'certificate has expired',
+  'certificate is not yet valid',
+  "certificate's altnames",
+  'cert_altname_invalid',
+  'deepest certificate expiration check failed'
+]
+
+function isTlsCertificateFailure(error: unknown): boolean {
+  if (!(error instanceof Error) || !error.message) return false
+  const message = error.message.toLowerCase()
+  return TLS_CERTIFICATE_FAILURE_PATTERNS.some((pattern) => message.includes(pattern))
+}
+
 export function getLocalizedBackupErrorMessage(
   error: unknown,
-  fallbackKey: BackupErrorFallbackKey = 'message.backup.failed'
+  fallbackKey: BackupErrorFallbackKey = 'message.backup.failed',
+  options?: { tlsCertificateHint?: boolean }
 ): string {
-  const messageKey =
-    error instanceof Error && error.message.includes(BACKUP_ACTIVE_WRITERS_ERROR_CODE)
-      ? 'backup.error.active_data_writers'
-      : fallbackKey
+  let messageKey: Parameters<typeof i18n.t>[0] = fallbackKey
+  if (error instanceof Error && error.message.includes(BACKUP_ACTIVE_WRITERS_ERROR_CODE)) {
+    messageKey = 'backup.error.active_data_writers'
+  } else if (options?.tlsCertificateHint === true && isTlsCertificateFailure(error)) {
+    // Scoped to WebDAV callers: the guidance points at the WebDAV self-signed
+    // switch, which does not exist for S3/local/nutstore transports.
+    messageKey = 'backup.error.webdav_tls_certificate'
+  }
 
   return i18n.t(messageKey)
 }

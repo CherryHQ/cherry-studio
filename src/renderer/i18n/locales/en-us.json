@@ -928,7 +928,8 @@
     },
     "content": "Backup all data, including chat history, settings, and knowledge base. Please note that the backup process may take some time, thank you for your patience.",
     "error": {
-      "active_data_writers": "A conversation or agent is still running. Wait for it to finish, then try again."
+      "active_data_writers": "A conversation or agent is still running. Wait for it to finish, then try again.",
+      "webdav_tls_certificate": "Could not verify the WebDAV server's TLS certificate. If the server uses a self-signed certificate, enable 'Allow Self-Signed Certificates' in Settings → Data → WebDAV (this lowers transport security)."
     },
     "progress": {
       "completed": "Backup completed",
@@ -5421,6 +5422,10 @@
         "title": "Rerun v1 Data Migration"
       },
       "webdav": {
+        "allowSelfSignedTls": {
+          "help": "Off by default: the WebDAV server's TLS certificate is verified. Enable only for servers with self-signed certificates — a man-in-the-middle could then intercept your WebDAV password and full backup data.",
+          "title": "Allow Self-Signed Certificates"
+        },
         "autoSync": {
           "label": "Auto Backup",
           "off": "Off"

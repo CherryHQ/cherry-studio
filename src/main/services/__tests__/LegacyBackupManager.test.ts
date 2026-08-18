@@ -303,7 +303,8 @@ vi.mock('@application', () => ({
 }))
 
 vi.mock('../WebDav', () => ({
-  default: vi.fn()
+  // Return a distinct object per construction so instance identity is observable.
+  default: vi.fn(() => ({}))
 }))
 
 vi.mock('../S3Storage', () => ({
@@ -324,6 +325,7 @@ import * as fs from 'fs-extra'
 import * as path from 'path'
 
 import BackupManager, { BackupOperationBusyError } from '../LegacyBackupManager'
+import WebDav from '../WebDav'
 
 // Helper to construct platform-independent paths for assertions
 // The implementation uses path.normalize() which converts to platform separators
@@ -1907,5 +1909,50 @@ describe('BackupManager.deleteLanTransferBackup - Security Tests', () => {
       // path.normalize handles double slashes
       expect(result).toBe(true)
     })
+  })
+})
+
+describe('WebDAV client cache (S6 allowSelfSignedTls switch)', () => {
+  beforeEach(() => {
+    vi.mocked(WebDav).mockClear()
+  })
+
+  it('reuses the client while connection fields (incl. TLS flag) are unchanged', () => {
+    const manager = new BackupManager()
+    const config = { webdavHost: 'https://example.com', webdavUser: 'u', webdavPass: 'p', webdavPath: '/' }
+
+    const first = (manager as any).getWebDavInstance(config)
+    const second = (manager as any).getWebDavInstance({ ...config })
+
+    expect(second).toBe(first)
+    expect(WebDav).toHaveBeenCalledTimes(1)
+  })
+
+  it('recreates the client when allowSelfSignedTls changes', () => {
+    const manager = new BackupManager()
+    const config = { webdavHost: 'https://example.com' }
+
+    const before = (manager as any).getWebDavInstance(config)
+    const optedIn = (manager as any).getWebDavInstance({ ...config, allowSelfSignedTls: true })
+    const reverted = (manager as any).getWebDavInstance(config)
+
+    expect(optedIn).not.toBe(before)
+    expect(reverted).not.toBe(optedIn)
+    expect(WebDav).toHaveBeenCalledTimes(3)
+    expect(WebDav).toHaveBeenNthCalledWith(2, { webdavHost: 'https://example.com', allowSelfSignedTls: true })
+    expect(WebDav).toHaveBeenNthCalledWith(3, { webdavHost: 'https://example.com' })
+  })
+
+  it('treats undefined and false as the same TLS setting (no needless recreation)', () => {
+    const manager = new BackupManager()
+
+    const first = (manager as any).getWebDavInstance({ webdavHost: 'https://example.com' })
+    const explicitFalse = (manager as any).getWebDavInstance({
+      webdavHost: 'https://example.com',
+      allowSelfSignedTls: false
+    })
+
+    expect(explicitFalse).toBe(first)
+    expect(WebDav).toHaveBeenCalledTimes(1)
   })
 })

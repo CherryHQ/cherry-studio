@@ -43,6 +43,7 @@ interface WebdavBackupManagerProps {
     webdavPass?: string
     webdavPath?: string
     webdavDisableStream?: boolean
+    allowSelfSignedTls?: boolean
   }
   restoreMethod?: (fileName: string) => Promise<void>
   customLabels?: {
@@ -69,7 +70,7 @@ export function WebdavBackupManager({
   const [restoring, setRestoring] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
 
-  const { webdavHost, webdavUser, webdavPass, webdavPath } = webdavConfig
+  const { webdavHost, webdavUser, webdavPass, webdavPath, allowSelfSignedTls } = webdavConfig
 
   const fetchBackupFiles = useCallback(async () => {
     if (!webdavHost) {
@@ -83,7 +84,8 @@ export function WebdavBackupManager({
         webdavHost,
         webdavUser,
         webdavPass,
-        webdavPath
+        webdavPath,
+        allowSelfSignedTls
       } as WebdavConfig)
       setBackupFiles(files)
     } catch {
@@ -91,7 +93,7 @@ export function WebdavBackupManager({
     } finally {
       setLoading(false)
     }
-  }, [webdavHost, webdavUser, webdavPass, webdavPath, t])
+  }, [webdavHost, webdavUser, webdavPass, webdavPath, allowSelfSignedTls, t])
 
   useEffect(() => {
     if (visible) {
@@ -157,7 +159,8 @@ export function WebdavBackupManager({
           webdavHost,
           webdavUser,
           webdavPass,
-          webdavPath
+          webdavPath,
+          allowSelfSignedTls
         } as WebdavConfig)
       }
       toast.success(t('settings.data.webdav.backup.manager.delete.success.multiple', { count: selectedRowKeys.length }))
@@ -192,7 +195,8 @@ export function WebdavBackupManager({
         webdavHost,
         webdavUser,
         webdavPass,
-        webdavPath
+        webdavPath,
+        allowSelfSignedTls
       } as WebdavConfig)
       toast.success(t('settings.data.webdav.backup.manager.delete.success.single'))
       await fetchBackupFiles()
@@ -225,7 +229,11 @@ export function WebdavBackupManager({
       toast.success(t('settings.data.webdav.backup.manager.restore.success'))
       onClose() // 关闭模态框
     } catch (error) {
-      toast.error(getLocalizedBackupErrorMessage(error, 'settings.data.webdav.backup.manager.restore.error'))
+      toast.error(
+        getLocalizedBackupErrorMessage(error, 'settings.data.webdav.backup.manager.restore.error', {
+          tlsCertificateHint: true
+        })
+      )
     } finally {
       setRestoring(false)
     }

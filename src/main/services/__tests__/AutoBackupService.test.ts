@@ -398,4 +398,14 @@ describe('AutoBackupService', () => {
       { status: 'running' }
     ])
   })
+
+  it('forwards data.backup.webdav.allow_self_signed_tls into the backup config', async () => {
+    preferences['data.backup.webdav.allow_self_signed_tls'] = true
+    await recreateService()
+    await vi.advanceTimersByTimeAsync(61_000)
+
+    expect(legacyBackupManager.backupToWebdav).toHaveBeenCalled()
+    const config = vi.mocked(legacyBackupManager.backupToWebdav).mock.calls[0][1]
+    expect(config.allowSelfSignedTls).toBe(true)
+  })
 })

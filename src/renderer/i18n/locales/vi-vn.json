@@ -928,7 +928,8 @@
     },
     "content": "Sao lưu tất cả dữ liệu, bao gồm lịch sử trò chuyện, cài đặt và cơ sở tri thức. Xin lưu ý rằng quá trình sao lưu có thể mất một thời gian, cảm ơn bạn đã kiên nhẫn.",
     "error": {
-      "active_data_writers": "Một cuộc trò chuyện hoặc Agent vẫn đang chạy. Hãy đợi hoàn tất rồi thử lại."
+      "active_data_writers": "Một cuộc trò chuyện hoặc Agent vẫn đang chạy. Hãy đợi hoàn tất rồi thử lại.",
+      "webdav_tls_certificate": "Không thể xác minh chứng chỉ TLS của máy chủ WebDAV. Nếu máy chủ dùng chứng chỉ tự ký, hãy bật «Cho phép chứng chỉ tự ký» trong Cài đặt → Dữ liệu → WebDAV (điều này làm giảm bảo mật truyền tải)."
     },
     "progress": {
       "completed": "Sao lưu đã hoàn tất",
@@ -5421,6 +5422,10 @@
         "title": "Chạy lại quá trình di chuyển dữ liệu v1"
       },
       "webdav": {
+        "allowSelfSignedTls": {
+          "help": "Mặc định tắt: chứng chỉ TLS của máy chủ WebDAV được xác minh. Chỉ bật cho các máy chủ dùng chứng chỉ tự ký — kẻ tấn công trung gian (man-in-the-middle) có thể chặn mật khẩu WebDAV và toàn bộ dữ liệu sao lưu của bạn.",
+          "title": "Cho phép chứng chỉ tự ký"
+        },
         "autoSync": {
           "label": "Sao lưu tự động",
           "off": "Apagado"

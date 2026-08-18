@@ -148,6 +148,7 @@ class BackupManager {
     webdavUser?: string
     webdavPass?: string
     webdavPath?: string
+    allowSelfSignedTls?: boolean
   } | null = null
 
   private get backupDir(): string {
@@ -1617,7 +1618,8 @@ class BackupManager {
       cachedConfig.webdavHost === config.webdavHost &&
       cachedConfig.webdavUser === config.webdavUser &&
       cachedConfig.webdavPass === config.webdavPass &&
-      cachedConfig.webdavPath === config.webdavPath
+      cachedConfig.webdavPath === config.webdavPath &&
+      (cachedConfig.allowSelfSignedTls ?? false) === (config.allowSelfSignedTls ?? false)
     )
   }
 
@@ -1639,7 +1641,8 @@ class BackupManager {
         webdavHost: config.webdavHost,
         webdavUser: config.webdavUser,
         webdavPass: config.webdavPass,
-        webdavPath: config.webdavPath
+        webdavPath: config.webdavPath,
+        allowSelfSignedTls: config.allowSelfSignedTls
       }
       logger.debug('[BackupManager] Created new WebDav instance')
     } else {
