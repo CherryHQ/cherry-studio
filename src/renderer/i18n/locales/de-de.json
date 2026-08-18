@@ -726,6 +726,22 @@
           "description": "Aufgabenliste verwalten",
           "label": "Aufgabenliste verwalten"
         },
+        "tool_call": {
+          "description": "Ein gefundenes Tool aufrufen",
+          "label": "Tool aufrufen"
+        },
+        "tool_describe": {
+          "description": "Die vollständige Beschreibung und TypeScript-Signatur eines Tools abrufen",
+          "label": "Tool beschreiben"
+        },
+        "tool_exec": {
+          "description": "JavaScript ausführen, das gefundene Tools orchestriert",
+          "label": "Tool-Code ausführen"
+        },
+        "tool_search": {
+          "description": "Verfügbare Tools suchen und ihre TypeScript-Signaturen lesen",
+          "label": "Tools suchen"
+        },
         "update_goal": {
           "description": "Status oder Inhalt des Sitzungsziels aktualisieren",
           "label": "Ziel aktualisieren"

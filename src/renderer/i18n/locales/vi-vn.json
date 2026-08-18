@@ -726,6 +726,22 @@
           "description": "Quản lý danh sách tác vụ",
           "label": "Quản lý danh sách tác vụ"
         },
+        "tool_call": {
+          "description": "Gọi một công cụ đã tìm thấy",
+          "label": "Gọi công cụ"
+        },
+        "tool_describe": {
+          "description": "Lấy mô tả đầy đủ và chữ ký TypeScript của một công cụ",
+          "label": "Mô tả công cụ"
+        },
+        "tool_exec": {
+          "description": "Thực thi JavaScript để điều phối các công cụ đã tìm thấy",
+          "label": "Thực thi mã công cụ"
+        },
+        "tool_search": {
+          "description": "Tìm kiếm các công cụ khả dụng và đọc chữ ký TypeScript của chúng",
+          "label": "Tìm kiếm công cụ"
+        },
         "update_goal": {
           "description": "Cập nhật trạng thái hoặc nội dung của mục tiêu phiên",
           "label": "Cập nhật mục tiêu"

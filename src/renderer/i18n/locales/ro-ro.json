@@ -726,6 +726,22 @@
           "description": "Gestionează lista de sarcini",
           "label": "Gestionează lista de sarcini"
         },
+        "tool_call": {
+          "description": "Apelați un instrument descoperit",
+          "label": "Apelați instrumentul"
+        },
+        "tool_describe": {
+          "description": "Obțineți descrierea completă și semnătura TypeScript a unui instrument",
+          "label": "Descrieți instrumentul"
+        },
+        "tool_exec": {
+          "description": "Executați JavaScript care orchestrează instrumentele descoperite",
+          "label": "Executați codul instrumentelor"
+        },
+        "tool_search": {
+          "description": "Căutați instrumentele disponibile și citiți semnăturile lor TypeScript",
+          "label": "Căutați instrumente"
+        },
         "update_goal": {
           "description": "Actualizează starea sau conținutul obiectivului sesiunii",
           "label": "Actualizează obiectivul"

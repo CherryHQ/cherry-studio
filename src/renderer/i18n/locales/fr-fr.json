@@ -726,6 +726,22 @@
           "description": "Gérer la liste des tâches",
           "label": "Gérer la liste des tâches"
         },
+        "tool_call": {
+          "description": "Appeler un outil découvert",
+          "label": "Appeler un outil"
+        },
+        "tool_describe": {
+          "description": "Obtenir la description complète et la signature TypeScript d’un outil",
+          "label": "Décrire un outil"
+        },
+        "tool_exec": {
+          "description": "Exécuter du JavaScript qui orchestre les outils découverts",
+          "label": "Exécuter le code des outils"
+        },
+        "tool_search": {
+          "description": "Rechercher les outils disponibles et lire leurs signatures TypeScript",
+          "label": "Rechercher des outils"
+        },
         "update_goal": {
           "description": "Mettre à jour l’état ou le contenu de l’objectif de session",
           "label": "Mettre à jour l’objectif"

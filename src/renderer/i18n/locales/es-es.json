@@ -726,6 +726,22 @@
           "description": "Gestionar la lista de tareas",
           "label": "Gestionar la lista de tareas"
         },
+        "tool_call": {
+          "description": "Llamar a una herramienta detectada",
+          "label": "Llamar a una herramienta"
+        },
+        "tool_describe": {
+          "description": "Obtener la descripción completa y la firma de TypeScript de una herramienta",
+          "label": "Describir una herramienta"
+        },
+        "tool_exec": {
+          "description": "Ejecutar JavaScript para coordinar las herramientas detectadas",
+          "label": "Ejecutar código de herramientas"
+        },
+        "tool_search": {
+          "description": "Buscar herramientas disponibles y leer sus firmas de TypeScript",
+          "label": "Buscar herramientas"
+        },
         "update_goal": {
           "description": "Actualizar el estado o el contenido del objetivo de la sesión",
           "label": "Actualizar objetivo"
