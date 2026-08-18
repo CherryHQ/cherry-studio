@@ -510,6 +510,37 @@ profile, so materializing one in memory to hand to a client is how a large
 backup becomes an out-of-memory crash on the machine that could least afford to
 lose it.
 
+### 7.2 Scheduled backups
+
+`backup.auto-sync` is a JobManager type with one schedule per destination, named
+after it. `autoSync.ts` owns the handler and the reconciler; `BackupService`
+registers the handler in `onInit`, because JobManager's startup recovery cancels
+non-terminal jobs whose type has no handler and it wakes on its own timer.
+
+**Preference is the source of truth; the schedule row is its projection.** The
+reconciler runs on any change to `data.backup.*.{auto_sync,sync_interval}` and
+at `onReady`, and it is written to be safe at any time — which is what makes a
+restore recoverable, since a restore forces every schedule row to
+`enabled: false` (§7.1's table policy) and only a later reconcile turns back on
+the ones the user still wants.
+
+Three rules the reconciler exists to keep:
+
+- **Patch only what differs.** `updateJobSchedule` re-arms on field *presence*,
+  not on a changed value, so an unchanged trigger in the patch restarts the
+  interval — and a reconcile on every unrelated settings edit would push the
+  next backup further away forever.
+- **A zero interval is "off", not "immediately".** That is how the settings UI
+  spells disabled.
+- **`after-startup`, not `skip-missed`.** A daily backup would otherwise never
+  run for anyone who does not leave the app open across the interval boundary.
+
+The handler is `abandon`: a backup missed because the app was closed is not
+worth replaying at the next launch, since the schedule is about to produce a
+fresher one. All destinations share one queue, because an export holds the
+service exclusively — concurrent destinations would fail each other with
+`BackupBusyError` instead of waiting.
+
 ## 8. Restore transaction
 
 Restore is split across runtime preparation and preboot promotion.

@@ -1,22 +1,6 @@
-import { AUTO_BACKUP_TYPES, type AutoBackupEvent } from '@shared/types/backup'
 import * as z from 'zod'
 
 import { defineRoute } from '../define'
-
-const autoBackupTypeSchema = z.enum(AUTO_BACKUP_TYPES)
-const eventFields = { id: z.number().int().positive(), type: autoBackupTypeSchema }
-const autoBackupEventSchema = z.discriminatedUnion('status', [
-  z.object({ ...eventFields, status: z.literal('running') }),
-  z.object({ ...eventFields, status: z.literal('stopped') }),
-  z.object({ ...eventFields, status: z.literal('succeeded'), timestamp: z.number() }),
-  z.object({
-    ...eventFields,
-    status: z.literal('warning'),
-    timestamp: z.number(),
-    reason: z.literal('cleanup_failed')
-  }),
-  z.object({ ...eventFields, status: z.literal('failed'), timestamp: z.number(), errorMessage: z.string() })
-])
 
 /**
  * Backup v2 IPC schemas — the renderer's whole view of export and restore
@@ -275,18 +259,6 @@ const AcknowledgeResultSchema = z.strictObject({
 
 // ── Request: renderer→main calls (zod values, always parsed) ──
 export const backupRequestSchemas = {
-  'backup.get_auto_sync_state': defineRoute({
-    input: z.void(),
-    output: z.object({ events: z.array(autoBackupEventSchema), pendingNotifications: z.array(autoBackupEventSchema) })
-  }),
-  'backup.acknowledge_auto_sync_notification': defineRoute({
-    input: z.object({ type: autoBackupTypeSchema, id: z.number().int().positive() }),
-    output: z.void()
-  }),
-  'backup.manual_completion.record': defineRoute({
-    input: z.object({ type: autoBackupTypeSchema }),
-    output: z.void()
-  }),
   'backup.get_status': defineRoute({ input: z.void(), output: BackupStatusSchema }),
   'backup.export': defineRoute({ input: z.void(), output: ExportOutcomeSchema }),
   'backup.prepare_restore': defineRoute({ input: z.void(), output: PrepareOutcomeSchema }),
@@ -354,6 +326,25 @@ export const backupRequestSchemas = {
   'backup.check_destination': defineRoute({
     input: DestinationSchema,
     output: z.strictObject({ reachable: z.boolean() })
+  }),
+  /**
+   * Scheduled-backup status per destination, read from the durable schedule
+   * rows — so it survives a reload, which the session-local status it replaces
+   * did not.
+   */
+  'backup.get_auto_sync_status': defineRoute({
+    input: z.void(),
+    output: z.array(
+      z.strictObject({
+        destination: z.enum(BACKUP_DESTINATION_IDS),
+        enabled: z.boolean(),
+        /** Epoch millis; null when this destination has never run one. */
+        lastRun: z.number().int().nonnegative().nullable(),
+        nextRun: z.number().int().nonnegative().nullable(),
+        /** A stable code, never the underlying message — that one is written for a main log. */
+        lastError: z.string().optional()
+      })
+    )
   })
 }
 
@@ -391,7 +382,6 @@ export type BackupProgressStage =
 
 // ── Event: main→renderer pushes (pure types, never parsed) ──
 export type BackupEventSchemas = {
-  'backup.auto_sync_state_changed': AutoBackupEvent
   /**
    * Emitted as a long-running operation crosses a stage boundary. Advisory
    * only: the request's own resolution — not this event — is what tells the
