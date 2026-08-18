@@ -726,6 +726,22 @@
           "description": "管理任務清單",
           "label": "管理任務清單"
         },
+        "tool_call": {
+          "description": "呼叫一個已探索到的工具",
+          "label": "呼叫工具"
+        },
+        "tool_describe": {
+          "description": "取得工具的完整描述與 TypeScript 簽章",
+          "label": "描述工具"
+        },
+        "tool_exec": {
+          "description": "執行用於編排已探索工具的 JavaScript",
+          "label": "執行工具程式碼"
+        },
+        "tool_search": {
+          "description": "搜尋可用工具並讀取其 TypeScript 簽章",
+          "label": "搜尋工具"
+        },
         "update_goal": {
           "description": "更新工作階段目標的狀態或內容",
           "label": "更新目標"

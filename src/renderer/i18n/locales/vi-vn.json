@@ -726,6 +726,22 @@
           "description": "Quản lý danh sách tác vụ",
           "label": "Quản lý danh sách tác vụ"
         },
+        "tool_call": {
+          "description": "Gọi một công cụ đã phát hiện",
+          "label": "Gọi công cụ"
+        },
+        "tool_describe": {
+          "description": "Lấy mô tả đầy đủ và chữ ký TypeScript của một công cụ",
+          "label": "Mô tả công cụ"
+        },
+        "tool_exec": {
+          "description": "Chạy JavaScript điều phối các công cụ đã phát hiện",
+          "label": "Chạy mã công cụ"
+        },
+        "tool_search": {
+          "description": "Tìm các công cụ khả dụng và đọc chữ ký TypeScript của chúng",
+          "label": "Tìm công cụ"
+        },
         "update_goal": {
           "description": "Cập nhật trạng thái hoặc nội dung của mục tiêu phiên",
           "label": "Cập nhật mục tiêu"
@@ -784,6 +800,7 @@
       "restartSuccess": "Máy chủ API đã khởi động lại thành công",
       "startError": "Không thể khởi động Máy chủ API:",
       "startSuccess": "Máy chủ API đã khởi động thành công",
+      "stopDeferred": "Máy chủ API sẽ dừng sau khi bản dịch hiện tại hoàn tất",
       "stopError": "Không thể dừng Máy chủ API:",
       "stopSuccess": "Máy chủ API đã dừng thành công"
     },
@@ -5543,6 +5560,7 @@
       },
       "title": "Phần phụ thuộc",
       "tools": {
+        "babeldoc-stream": "Công cụ dịch PDF giữ nguyên bố cục. Tài nguyên mô hình bố cục được tải xuống trong lần dịch đầu tiên.",
         "bun": "Runtime JavaScript được các dịch vụ MCP và chuỗi công cụ liên quan sử dụng.",
         "claude": "Công cụ lập trình Agent trên terminal của Anthropic.",
         "codex": "Agent lập trình mã nguồn mở của OpenAI, có thể đọc, chỉnh sửa và thực thi mã trong kho lưu trữ cục bộ.",
@@ -7241,6 +7259,43 @@
     "language_settings": "Cài đặt ngôn ngữ",
     "output": {
       "placeholder": "Bản dịch"
+    },
+    "pdf": {
+      "action": {
+        "close": "Đóng bản dịch PDF",
+        "export": "Xuất PDF đã dịch",
+        "install_babeldoc": "Cài đặt BabelDOC"
+      },
+      "dependency": {
+        "checking": "Đang kiểm tra BabelDOC...",
+        "description": "Cài đặt plugin BabelDOC để dịch PDF mà vẫn giữ nguyên bố cục gốc.",
+        "installing": "Đang cài đặt BabelDOC...",
+        "title": "Đã phát hiện PDF"
+      },
+      "error": {
+        "generic": "Đã xảy ra lỗi trong quá trình dịch. Vui lòng thử lại.",
+        "ocr_required": "Chưa hỗ trợ PDF được quét.",
+        "title": "Dịch PDF thất bại"
+      },
+      "export_failed": "Không xuất được PDF đã dịch",
+      "pane": {
+        "translated": "PDF đã dịch",
+        "translated_text": "Bản dịch"
+      },
+      "progress": {
+        "analyzing": "Đang phân tích bố cục tài liệu",
+        "downloading_assets": "Đang tải tài nguyên xử lý PDF...",
+        "generating": "Đang tạo PDF đã dịch",
+        "percent": "{{progress}}%",
+        "preparing": "Đang chuẩn bị tài liệu",
+        "translating": "Đang dịch nội dung",
+        "value": "{{stage}}, {{progress}}%"
+      },
+      "ready": {
+        "description": "Chọn ngôn ngữ đích và bắt đầu dịch.",
+        "title": "Sẵn sàng dịch"
+      },
+      "success": "Đã tạo PDF đã dịch"
     },
     "preferred_target": "Ngôn ngữ đích ưu tiên",
     "processing": "Đang dịch...",

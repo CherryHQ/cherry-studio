@@ -726,6 +726,22 @@
           "description": "Gérer la liste des tâches",
           "label": "Gérer la liste des tâches"
         },
+        "tool_call": {
+          "description": "Appeler un outil découvert",
+          "label": "Appeler l'outil"
+        },
+        "tool_describe": {
+          "description": "Obtenir la description complète et la signature TypeScript d'un outil",
+          "label": "Décrire l'outil"
+        },
+        "tool_exec": {
+          "description": "Exécuter du JavaScript qui orchestre les outils découverts",
+          "label": "Exécuter le code de l'outil"
+        },
+        "tool_search": {
+          "description": "Rechercher les outils disponibles et lire leurs signatures TypeScript",
+          "label": "Rechercher des outils"
+        },
         "update_goal": {
           "description": "Mettre à jour l’état ou le contenu de l’objectif de session",
           "label": "Mettre à jour l’objectif"
@@ -784,6 +800,7 @@
       "restartSuccess": "Serveur API redémarré avec succès",
       "startError": "Échec du démarrage du Serveur API : ",
       "startSuccess": "Serveur API démarré avec succès",
+      "stopDeferred": "Le Serveur API s'arrêtera une fois la traduction en cours terminée",
       "stopError": "Échec de l'arrêt du Serveur API : ",
       "stopSuccess": "Serveur API arrêté avec succès"
     },
@@ -5543,6 +5560,7 @@
       },
       "title": "Dépendances de l'environnement",
       "tools": {
+        "babeldoc-stream": "Moteur de traduction PDF préservant la mise en page. Les ressources du modèle de mise en page sont téléchargées lors de la première traduction.",
         "bun": "Environnement d’exécution JavaScript utilisé par les services MCP et les chaînes d’outils associées.",
         "claude": "Outil de programmation agentique d'Anthropic pour le terminal.",
         "codex": "Agent de programmation open source d'OpenAI capable de lire, modifier et exécuter du code dans votre dépôt local.",
@@ -7241,6 +7259,43 @@
     "language_settings": "Paramètres de langue",
     "output": {
       "placeholder": "traduction"
+    },
+    "pdf": {
+      "action": {
+        "close": "Fermer la traduction PDF",
+        "export": "Exporter le PDF traduit",
+        "install_babeldoc": "Installer BabelDOC"
+      },
+      "dependency": {
+        "checking": "Vérification de BabelDOC...",
+        "description": "Installez le plugin BabelDOC pour traduire les PDF en conservant leur mise en page d'origine.",
+        "installing": "Installation de BabelDOC...",
+        "title": "PDF détecté"
+      },
+      "error": {
+        "generic": "Une erreur s'est produite pendant la traduction. Veuillez réessayer.",
+        "ocr_required": "Les PDF numérisés ne sont pas encore pris en charge.",
+        "title": "Échec de la traduction du PDF"
+      },
+      "export_failed": "Échec de l'exportation du PDF traduit",
+      "pane": {
+        "translated": "PDF traduit",
+        "translated_text": "Traduction"
+      },
+      "progress": {
+        "analyzing": "Analyse de la mise en page du document",
+        "downloading_assets": "Téléchargement des ressources de traitement PDF...",
+        "generating": "Génération du PDF traduit",
+        "percent": "{{progress}} %",
+        "preparing": "Préparation du document",
+        "translating": "Traduction du contenu",
+        "value": "{{stage}}, {{progress}} %"
+      },
+      "ready": {
+        "description": "Sélectionnez une langue cible et lancez la traduction.",
+        "title": "Prêt à traduire"
+      },
+      "success": "PDF traduit généré"
     },
     "preferred_target": "Cible préférée",
     "processing": "en cours de traduction...",

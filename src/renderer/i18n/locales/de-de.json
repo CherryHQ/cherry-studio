@@ -726,6 +726,22 @@
           "description": "Aufgabenliste verwalten",
           "label": "Aufgabenliste verwalten"
         },
+        "tool_call": {
+          "description": "Ein gefundenes Werkzeug aufrufen",
+          "label": "Werkzeug aufrufen"
+        },
+        "tool_describe": {
+          "description": "Die vollständige Beschreibung und TypeScript-Signatur eines Werkzeugs abrufen",
+          "label": "Werkzeug beschreiben"
+        },
+        "tool_exec": {
+          "description": "JavaScript ausführen, das gefundene Werkzeuge orchestriert",
+          "label": "Werkzeugcode ausführen"
+        },
+        "tool_search": {
+          "description": "Verfügbare Werkzeuge durchsuchen und ihre TypeScript-Signaturen lesen",
+          "label": "Werkzeuge suchen"
+        },
         "update_goal": {
           "description": "Status oder Inhalt des Sitzungsziels aktualisieren",
           "label": "Ziel aktualisieren"
@@ -784,6 +800,7 @@
       "restartSuccess": "API-Server erfolgreich neu gestartet",
       "startError": "API-Server starten fehlgeschlagen:",
       "startSuccess": "API-Server erfolgreich gestartet",
+      "stopDeferred": "Der API-Server wird beendet, sobald die aktuelle Übersetzung abgeschlossen ist",
       "stopError": "API-Server stoppen fehlgeschlagen:",
       "stopSuccess": "API-Server erfolgreich gestoppt"
     },
@@ -5543,6 +5560,7 @@
       },
       "title": "Umgebungsabhängigkeiten",
       "tools": {
+        "babeldoc-stream": "Layouterhaltende PDF-Übersetzungs-Engine. Die Layout-Modelldaten werden bei der ersten Übersetzung heruntergeladen.",
         "bun": "JavaScript-Laufzeitumgebung für MCP-Dienste und zugehörige Werkzeugketten.",
         "claude": "Anthropics agentenbasiertes Programmierwerkzeug für das Terminal.",
         "codex": "OpenAIs quelloffener Programmieragent, der Code in Ihrem lokalen Repository lesen, bearbeiten und ausführen kann.",
@@ -7241,6 +7259,43 @@
     "language_settings": "Spracheinstellungen",
     "output": {
       "placeholder": "Übersetzen"
+    },
+    "pdf": {
+      "action": {
+        "close": "PDF-Übersetzung schließen",
+        "export": "Übersetztes PDF exportieren",
+        "install_babeldoc": "BabelDOC installieren"
+      },
+      "dependency": {
+        "checking": "BabelDOC wird überprüft...",
+        "description": "Installieren Sie das BabelDOC-Plugin, um PDFs unter Beibehaltung ihres ursprünglichen Layouts zu übersetzen.",
+        "installing": "BabelDOC wird installiert...",
+        "title": "PDF erkannt"
+      },
+      "error": {
+        "generic": "Bei der Übersetzung ist ein Fehler aufgetreten. Bitte versuchen Sie es erneut.",
+        "ocr_required": "Gescannte PDFs werden noch nicht unterstützt.",
+        "title": "PDF-Übersetzung fehlgeschlagen"
+      },
+      "export_failed": "Übersetztes PDF konnte nicht exportiert werden",
+      "pane": {
+        "translated": "Übersetztes PDF",
+        "translated_text": "Übersetzung"
+      },
+      "progress": {
+        "analyzing": "Dokumentlayout wird analysiert",
+        "downloading_assets": "PDF-Verarbeitungsressourcen werden heruntergeladen...",
+        "generating": "Übersetztes PDF wird erstellt",
+        "percent": "{{progress}} %",
+        "preparing": "Dokument wird vorbereitet",
+        "translating": "Inhalt wird übersetzt",
+        "value": "{{stage}}, {{progress}} %"
+      },
+      "ready": {
+        "description": "Wählen Sie eine Zielsprache und starten Sie die Übersetzung.",
+        "title": "Bereit zum Übersetzen"
+      },
+      "success": "Übersetztes PDF wurde erstellt"
     },
     "preferred_target": "Bevorzugtes Ziel",
     "processing": "Wird übersetzt...",

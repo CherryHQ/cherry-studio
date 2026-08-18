@@ -726,6 +726,22 @@
           "description": "Gestionează lista de sarcini",
           "label": "Gestionează lista de sarcini"
         },
+        "tool_call": {
+          "description": "Apelează un instrument descoperit",
+          "label": "Apelează instrumentul"
+        },
+        "tool_describe": {
+          "description": "Obține descrierea completă și semnătura TypeScript a unui instrument",
+          "label": "Descrie instrumentul"
+        },
+        "tool_exec": {
+          "description": "Execută cod JavaScript care orchestrează instrumentele descoperite",
+          "label": "Execută codul instrumentului"
+        },
+        "tool_search": {
+          "description": "Caută instrumentele disponibile și citește semnăturile lor TypeScript",
+          "label": "Caută instrumente"
+        },
         "update_goal": {
           "description": "Actualizează starea sau conținutul obiectivului sesiunii",
           "label": "Actualizează obiectivul"
@@ -784,6 +800,7 @@
       "restartSuccess": "Serverul API a repornit cu succes",
       "startError": "Nu s-a putut porni serverul API: ",
       "startSuccess": "Serverul API a pornit cu succes",
+      "stopDeferred": "Serverul API se va opri după finalizarea traducerii curente",
       "stopError": "Nu s-a putut opri serverul API: ",
       "stopSuccess": "Serverul API s-a oprit cu succes"
     },
@@ -5543,6 +5560,7 @@
       },
       "title": "Dependențe de mediu",
       "tools": {
+        "babeldoc-stream": "Motor de traducere PDF care păstrează aspectul. Resursele modelului de aspect sunt descărcate la prima traducere.",
         "bun": "Mediu de execuție JavaScript utilizat de serviciile MCP și lanțurile de instrumente asociate.",
         "claude": "Instrumentul Anthropic de programare asistată de agenți pentru terminal.",
         "codex": "Agentul de programare open-source al OpenAI, care poate citi, edita și executa cod în depozitul tău local.",
@@ -7241,6 +7259,43 @@
     "language_settings": "Setări limbă",
     "output": {
       "placeholder": "Traducere"
+    },
+    "pdf": {
+      "action": {
+        "close": "Închide traducerea PDF",
+        "export": "Exportă PDF-ul tradus",
+        "install_babeldoc": "Instalează BabelDOC"
+      },
+      "dependency": {
+        "checking": "Se verifică BabelDOC...",
+        "description": "Instalează pluginul BabelDOC pentru a traduce fișiere PDF păstrând aspectul original.",
+        "installing": "Se instalează BabelDOC...",
+        "title": "PDF detectat"
+      },
+      "error": {
+        "generic": "A apărut o eroare în timpul traducerii. Încearcă din nou.",
+        "ocr_required": "Fișierele PDF scanate nu sunt încă acceptate.",
+        "title": "Traducerea PDF a eșuat"
+      },
+      "export_failed": "Exportarea PDF-ului tradus a eșuat",
+      "pane": {
+        "translated": "PDF tradus",
+        "translated_text": "Traducere"
+      },
+      "progress": {
+        "analyzing": "Se analizează aspectul documentului",
+        "downloading_assets": "Se descarcă resursele de procesare PDF...",
+        "generating": "Se generează PDF-ul tradus",
+        "percent": "{{progress}}%",
+        "preparing": "Se pregătește documentul",
+        "translating": "Se traduce conținutul",
+        "value": "{{stage}}, {{progress}}%"
+      },
+      "ready": {
+        "description": "Selectează o limbă țintă și pornește traducerea.",
+        "title": "Gata de traducere"
+      },
+      "success": "PDF-ul tradus a fost generat"
     },
     "preferred_target": "Țintă Preferată",
     "processing": "Traducere în curs...",

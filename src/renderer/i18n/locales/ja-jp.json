@@ -726,6 +726,22 @@
           "description": "タスクリストを管理",
           "label": "タスクリストを管理"
         },
+        "tool_call": {
+          "description": "検出されたツールを 1 つ呼び出します",
+          "label": "ツールを呼び出す"
+        },
+        "tool_describe": {
+          "description": "ツールの完全な説明と TypeScript シグネチャを取得します",
+          "label": "ツールを説明する"
+        },
+        "tool_exec": {
+          "description": "検出されたツールを組み合わせる JavaScript を実行します",
+          "label": "ツールコードを実行する"
+        },
+        "tool_search": {
+          "description": "利用可能なツールを検索し、その TypeScript シグネチャを読み取ります",
+          "label": "ツールを検索する"
+        },
         "update_goal": {
           "description": "セッション目標の状態または内容を更新",
           "label": "目標を更新"
@@ -784,6 +800,7 @@
       "restartSuccess": "API サーバーが正常に再起動されました",
       "startError": "API サーバーの開始に失敗しました：",
       "startSuccess": "API サーバーが正常に開始されました",
+      "stopDeferred": "現在の翻訳が完了してから API サーバーを停止します",
       "stopError": "API サーバーの停止に失敗しました：",
       "stopSuccess": "API サーバーが正常に停止されました"
     },
@@ -5543,6 +5560,7 @@
       },
       "title": "環境依存",
       "tools": {
+        "babeldoc-stream": "レイアウトを保持したまま PDF を翻訳するエンジンです。レイアウトモデルのデータは初回翻訳時にダウンロードされます。",
         "bun": "MCP サービスと関連ツールチェーンで使用する JavaScript ランタイムです。",
         "claude": "Anthropic が提供するターミナル向けのエージェント型コーディングツールです。",
         "codex": "ローカルリポジトリのコードを読み取り、編集、実行できる OpenAI のオープンソースコーディングエージェントです。",
@@ -7241,6 +7259,43 @@
     "language_settings": "言語設定",
     "output": {
       "placeholder": "翻訳"
+    },
+    "pdf": {
+      "action": {
+        "close": "PDF 翻訳を閉じる",
+        "export": "翻訳済み PDF をエクスポート",
+        "install_babeldoc": "BabelDOC をインストール"
+      },
+      "dependency": {
+        "checking": "BabelDOC を確認しています...",
+        "description": "BabelDOC プラグインをインストールすると、元のレイアウトを保持したまま PDF を翻訳できます。",
+        "installing": "BabelDOC をインストールしています...",
+        "title": "PDF を検出しました"
+      },
+      "error": {
+        "generic": "翻訳中にエラーが発生しました。もう一度お試しください。",
+        "ocr_required": "スキャンされた PDF はまだサポートされていません。",
+        "title": "PDF の翻訳に失敗しました"
+      },
+      "export_failed": "翻訳済み PDF のエクスポートに失敗しました",
+      "pane": {
+        "translated": "翻訳済み PDF",
+        "translated_text": "翻訳"
+      },
+      "progress": {
+        "analyzing": "文書のレイアウトを解析しています",
+        "downloading_assets": "PDF 処理リソースをダウンロードしています...",
+        "generating": "翻訳済み PDF を生成しています",
+        "percent": "{{progress}}%",
+        "preparing": "文書を準備しています",
+        "translating": "本文を翻訳しています",
+        "value": "{{stage}}、{{progress}}%"
+      },
+      "ready": {
+        "description": "対象言語を選択して翻訳を開始してください。",
+        "title": "翻訳の準備ができました"
+      },
+      "success": "翻訳済み PDF を生成しました"
     },
     "preferred_target": "優先ターゲット",
     "processing": "翻訳中...",

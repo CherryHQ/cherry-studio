@@ -726,6 +726,22 @@
           "description": "Gerir a lista de tarefas",
           "label": "Gerir a lista de tarefas"
         },
+        "tool_call": {
+          "description": "Chamar uma ferramenta descoberta",
+          "label": "Chamar ferramenta"
+        },
+        "tool_describe": {
+          "description": "Obter a descrição completa e a assinatura TypeScript de uma ferramenta",
+          "label": "Descrever ferramenta"
+        },
+        "tool_exec": {
+          "description": "Executar JavaScript que orquestra as ferramentas descobertas",
+          "label": "Executar código da ferramenta"
+        },
+        "tool_search": {
+          "description": "Procurar ferramentas disponíveis e ler as suas assinaturas TypeScript",
+          "label": "Procurar ferramentas"
+        },
         "update_goal": {
           "description": "Atualizar o estado ou o conteúdo do objetivo da sessão",
           "label": "Atualizar objetivo"
@@ -784,6 +800,7 @@
       "restartSuccess": "Servidor API reiniciado com sucesso",
       "startError": "Falha ao iniciar o Servidor API: ",
       "startSuccess": "Servidor API iniciado com sucesso",
+      "stopDeferred": "O Servidor de API será parado assim que a tradução atual terminar",
       "stopError": "Falha ao parar o Servidor API: ",
       "stopSuccess": "Servidor API parado com sucesso"
     },
@@ -5543,6 +5560,7 @@
       },
       "title": "Dependências do Ambiente",
       "tools": {
+        "babeldoc-stream": "Motor de tradução de PDF que preserva o esquema. Os recursos do modelo de esquema são transferidos na primeira tradução.",
         "bun": "Runtime de JavaScript utilizado por serviços MCP e cadeias de ferramentas relacionadas.",
         "claude": "Ferramenta de programação com agente da Anthropic para o terminal.",
         "codex": "Agente de programação de código aberto da OpenAI que pode ler, editar e executar código no seu repositório local.",
@@ -7241,6 +7259,43 @@
     "language_settings": "Configurações de Idioma",
     "output": {
       "placeholder": "Tradução"
+    },
+    "pdf": {
+      "action": {
+        "close": "Fechar a tradução de PDF",
+        "export": "Exportar PDF traduzido",
+        "install_babeldoc": "Instalar o BabelDOC"
+      },
+      "dependency": {
+        "checking": "A verificar o BabelDOC...",
+        "description": "Instale o plugin BabelDOC para traduzir PDF preservando o esquema original.",
+        "installing": "A instalar o BabelDOC...",
+        "title": "PDF detetado"
+      },
+      "error": {
+        "generic": "Ocorreu um erro durante a tradução. Tente novamente.",
+        "ocr_required": "Os PDF digitalizados ainda não são suportados.",
+        "title": "A tradução do PDF falhou"
+      },
+      "export_failed": "Não foi possível exportar o PDF traduzido",
+      "pane": {
+        "translated": "PDF traduzido",
+        "translated_text": "Tradução"
+      },
+      "progress": {
+        "analyzing": "A analisar o esquema do documento",
+        "downloading_assets": "A transferir recursos de processamento de PDF...",
+        "generating": "A gerar o PDF traduzido",
+        "percent": "{{progress}}%",
+        "preparing": "A preparar o documento",
+        "translating": "A traduzir o conteúdo",
+        "value": "{{stage}}, {{progress}}%"
+      },
+      "ready": {
+        "description": "Selecione um idioma de destino e inicie a tradução.",
+        "title": "Pronto para traduzir"
+      },
+      "success": "PDF traduzido gerado"
     },
     "preferred_target": "Alvo Preferencial",
     "processing": "A traduzir...",
