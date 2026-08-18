@@ -206,6 +206,7 @@ function buildResourceListSections<T extends ResourceListItemBase>({
 
   const collapsedIdSet = new Set(collapsedIds)
   const sections = new Map<string, { section: ResourceListSection; items: T[]; groupSeeds: ResourceListGroup[] }>()
+  const seededSectionOrder = new Map<string, number>()
 
   for (const item of items) {
     const section = sectionBy(item) ?? UNSECTIONED_RESOURCE_SECTION
@@ -221,6 +222,9 @@ function buildResourceListSections<T extends ResourceListItemBase>({
   for (const groupSeed of groupSeeds) {
     const section = groupSeed.section ?? UNSECTIONED_RESOURCE_SECTION
     const group = getResourceListGroupFromSeed(groupSeed)
+    if (!seededSectionOrder.has(section.id)) {
+      seededSectionOrder.set(section.id, seededSectionOrder.size)
+    }
     const existing = sections.get(section.id)
     if (existing) {
       existing.groupSeeds.push(group)
@@ -229,7 +233,14 @@ function buildResourceListSections<T extends ResourceListItemBase>({
     }
   }
 
-  const sectionEntries = [...sections.values()]
+  const sectionEntries = [...sections.values()].sort((left, right) => {
+    const leftOrder = seededSectionOrder.get(left.section.id)
+    const rightOrder = seededSectionOrder.get(right.section.id)
+    if (leftOrder === undefined && rightOrder === undefined) return 0
+    if (leftOrder === undefined) return -1
+    if (rightOrder === undefined) return 1
+    return leftOrder - rightOrder
+  })
   const showSectionHeaders = sectionEntries.length > 1
 
   return sectionEntries.map(({ section, items, groupSeeds }) => {
