@@ -3,6 +3,7 @@ import * as Lark from '@larksuiteoapi/node-sdk'
 import { WindowType } from '@main/core/window/types'
 import { type FileAttachment, type ImageAttachment, MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
 import type { FeishuDomain } from '@shared/data/types/channel'
+import { clampSurrogateBoundary } from '@shared/utils/text'
 import { fileTypeFromBuffer } from 'file-type'
 
 import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
@@ -31,6 +32,46 @@ function resolveDomain(domain: FeishuDomain): Lark.Domain {
 function replyOptions(opts?: SendMessageOptions) {
   const replyTo = typeof opts?.replyToMessageId === 'string' ? opts.replyToMessageId : undefined
   return replyTo ? { replyTo, ...(opts?.replyInThread && { replyInThread: true }) } : undefined
+}
+
+function splitThreadMarkdown(text: string): string[] {
+  if (text.length <= FEISHU_MAX_LENGTH) return [text]
+
+  // Leave room to close and reopen a code fence so the SDK never splits a chunk itself.
+  const contentLimit = FEISHU_MAX_LENGTH - 8
+  const rawChunks: string[] = []
+  let remaining = text
+  while (remaining.length > contentLimit) {
+    let splitIndex = remaining.lastIndexOf('\n\n', contentLimit - 2)
+    if (splitIndex >= 0) splitIndex += 2
+    if (splitIndex <= 0) {
+      splitIndex = remaining.lastIndexOf('\n', contentLimit - 1)
+      if (splitIndex >= 0) splitIndex += 1
+    }
+    if (splitIndex <= 0) {
+      splitIndex = remaining.lastIndexOf(' ', contentLimit - 1)
+      if (splitIndex >= 0) splitIndex += 1
+    }
+    if (splitIndex <= 0) splitIndex = clampSurrogateBoundary(remaining, contentLimit)
+    rawChunks.push(remaining.slice(0, splitIndex))
+    remaining = remaining.slice(splitIndex)
+  }
+  rawChunks.push(remaining)
+
+  let fenceLanguage: string | null = null
+  return rawChunks.map((chunk) => {
+    const incomingFenceLanguage = fenceLanguage
+    for (const line of chunk.split('\n')) {
+      const match = /^```(\w*)\r?$/.exec(line)
+      if (match) fenceLanguage = fenceLanguage === null ? match[1] : null
+    }
+
+    const suffix = fenceLanguage === null ? '' : chunk.endsWith('\n') ? '```' : '\n```'
+    const preferredPrefix = incomingFenceLanguage === null ? '' : `\`\`\`${incomingFenceLanguage}\n`
+    const prefix =
+      preferredPrefix.length <= FEISHU_MAX_LENGTH - chunk.length - suffix.length ? preferredPrefix : '```\n'
+    return `${prefix}${chunk}${suffix}`
+  })
 }
 
 class FeishuStreamSession {
@@ -273,7 +314,11 @@ class FeishuAdapter extends ChannelAdapter {
       await this.transitionChatReaction(chatId, REACTION_DONE, [REACTION_THINKING], opts)
       this.chatReactions.delete(this.responseKey(chatId, opts))
     }
-    await this.getChannel().send(chatId, { markdown: text }, replyOptions(opts))
+    const options = replyOptions(opts)
+    const messages = opts?.replyInThread && options ? splitThreadMarkdown(text) : [text]
+    for (const message of messages) {
+      await this.getChannel().send(chatId, { markdown: message }, options)
+    }
   }
 
   override async sendFile(chatId: string, file: FileAttachment): Promise<void> {

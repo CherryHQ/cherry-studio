@@ -571,17 +571,38 @@ describe('FeishuAdapter', () => {
   it('keeps every long thread reply chunk in the originating thread', async () => {
     const adapter = createAdapter()
     await adapter.connect()
+    const text = 'A'.repeat(4001)
 
-    await adapter.sendMessage('oc_123', 'A'.repeat(4001), { replyToMessageId: 'msg-in-1', replyInThread: true })
+    await adapter.sendMessage('oc_123', text, { replyToMessageId: 'msg-in-1', replyInThread: true })
 
-    expect(mockSend).toHaveBeenCalledWith(
-      'oc_123',
-      { markdown: 'A'.repeat(4001) },
-      {
-        replyTo: 'msg-in-1',
-        replyInThread: true
-      }
-    )
+    expect(mockSend.mock.calls.map(([, input]) => input.markdown).join('')).toBe(text)
+    expect(mockSend).toHaveBeenCalledTimes(2)
+    for (const [chatId, input, options] of mockSend.mock.calls) {
+      expect(chatId).toBe('oc_123')
+      expect(input.markdown.length).toBeLessThanOrEqual(4000)
+      expect(options).toEqual({ replyTo: 'msg-in-1', replyInThread: true })
+    }
+  })
+
+  it('balances code fences across long thread reply chunks', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+    const text = [
+      '```typescript',
+      ...Array.from({ length: 300 }, (_, index) => `const value${index} = ${index}`),
+      '```'
+    ].join('\n')
+
+    await adapter.sendMessage('oc_123', text, { replyToMessageId: 'msg-in-1', replyInThread: true })
+
+    const chunks = mockSend.mock.calls.map(([, input]) => input.markdown as string)
+    expect(chunks.length).toBeGreaterThan(1)
+    for (const chunk of chunks) {
+      expect(chunk.length).toBeLessThanOrEqual(4000)
+      expect(chunk.match(/^```/gm)).toHaveLength(2)
+    }
+    expect(chunks.join('\n').match(/^const value\d+ = \d+$/gm)).toHaveLength(300)
+    expect(chunks.slice(1).every((chunk) => chunk.startsWith('```typescript\n'))).toBe(true)
   })
 
   it('keeps notification chat ids from configuration', () => {
