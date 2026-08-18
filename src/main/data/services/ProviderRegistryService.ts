@@ -948,7 +948,9 @@ class ProviderRegistryService {
     let contract: ProviderModelReasoningContract | undefined
     let matchedOverride: ProtoProviderModelOverride | null = null
     let hasContract = false
+    let hasRegisteredProvider = false
     for (const providerId of providerIds) {
+      if (this.findRegistryProvider(providerId)) hasRegisteredProvider = true
       for (const modelId of modelIds) {
         const candidate = this.getLoader().findOverride(providerId, modelId)
         if (!candidate) continue
@@ -983,7 +985,9 @@ class ProviderRegistryService {
 
     // Qwen models on unregistered openai-compatible providers (e.g. vLLM)
     // need `enable_thinking` on the wire, not `reasoningEffort` which they ignore.
-    if (!hasContract && !matchedOverride && isQwenModel(model) && !resolved.wire?.disabled) {
+    // Skip when a registered provider handles this model — its endpoint format wire
+    // or reasoning contract takes precedence over this fallback.
+    if (!hasContract && !hasRegisteredProvider && isQwenModel(model) && !resolved.wire?.disabled) {
       if (effectiveEndpoint === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS) {
         resolved.wire = QWEN_OPENAI_COMPATIBLE_WIRE
       }

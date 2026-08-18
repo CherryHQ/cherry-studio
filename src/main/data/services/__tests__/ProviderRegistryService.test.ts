@@ -932,4 +932,77 @@ describe('ProviderRegistryService', () => {
       expect(result.reasoningProfile.format).toBe('openai-chat')
     })
   })
+
+  describe('resolveReasoningProfile', () => {
+    const PROVIDER_WIRE = {
+      auto: { operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'enabled' } }] },
+      effort: { operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'enabled' } }] },
+      off: { operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'disabled' } }] }
+    }
+
+    function setupQwenOnProvider(opts: { providerInRegistry: boolean; hasFormatWire: boolean }) {
+      const providers: unknown[] = opts.providerInRegistry
+        ? [
+            {
+              id: 'doubao',
+              name: 'Doubao',
+              defaultChatEndpoint: 'openai-chat-completions',
+              endpointConfigs: {
+                'openai-chat-completions': {
+                  reasoningFormat: opts.hasFormatWire
+                    ? { type: 'openai-chat', wire: PROVIDER_WIRE }
+                    : { type: 'openai-chat' }
+                }
+              },
+              metadata: {}
+            }
+          ]
+        : []
+
+      mockReadModels.mockReturnValue({
+        version: '1.0',
+        models: [{ id: 'qwen3-14b', name: 'Qwen3 14B', capabilities: ['function-call'] }]
+      } as ReturnType<typeof readModelRegistry>)
+      mockReadProviderModels.mockReturnValue({
+        version: '1.0',
+        overrides: [{ providerId: 'doubao', modelId: 'qwen3-14b' }]
+      } as ReturnType<typeof readProviderModelRegistry>)
+      mockReadProviders.mockReturnValue({
+        version: '1.0',
+        providers
+      } as ReturnType<typeof readProviderRegistry>)
+    }
+
+    it('preserves a registered provider endpoint wire for an override-free Qwen model', () => {
+      setupQwenOnProvider({ providerInRegistry: true, hasFormatWire: true })
+
+      const [model] = providerRegistryService.resolveModels('doubao', ['qwen3-14b'])
+      const profile = providerRegistryService.resolveReasoningProfile(
+        { id: 'doubao', defaultChatEndpoint: 'openai-chat-completions' },
+        model,
+        'openai-chat-completions'
+      )
+
+      // Provider's thinking.type wire must survive — NOT replaced by enable_thinking fallback
+      expect(profile.wire).toEqual(PROVIDER_WIRE)
+    })
+
+    it('applies enable_thinking fallback for a Qwen model on an unregistered provider', () => {
+      setupQwenOnProvider({ providerInRegistry: false, hasFormatWire: false })
+
+      const [model] = providerRegistryService.resolveModels('doubao', ['qwen3-14b'])
+      const profile = providerRegistryService.resolveReasoningProfile(
+        { id: 'doubao', defaultChatEndpoint: 'openai-chat-completions' },
+        model,
+        'openai-chat-completions'
+      )
+
+      // Unregistered provider → fallback must fire
+      expect(profile.wire).toEqual({
+        off: { operations: [{ target: 'enable_thinking', value: { source: 'literal', value: false } }] },
+        auto: { operations: [{ target: 'enable_thinking', value: { source: 'literal', value: true } }] },
+        effort: { operations: [{ target: 'enable_thinking', value: { source: 'literal', value: true } }] }
+      })
+    })
+  })
 })
