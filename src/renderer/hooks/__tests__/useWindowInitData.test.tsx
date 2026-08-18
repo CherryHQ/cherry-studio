@@ -2,23 +2,19 @@
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const mocks = {
   request: vi.fn(),
+  on: vi.fn<(event: string, handler: (payload: unknown) => void) => () => void>(),
   listeners: new Map<string, (payload: unknown) => void>()
-}))
-
-vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: mocks.request },
-  useIpcOn: (event: string, handler: (payload: unknown) => void) => {
-    mocks.listeners.set(event, handler)
-  }
-}))
+}
 
 import { useWindowInitData } from '../useWindowInitData'
 
 interface InitData {
   value: string
 }
+
+const success = <T,>(data: T) => ({ ok: true as const, data })
 
 function deferred<T>() {
   let resolve!: (value: T) => void
@@ -30,12 +26,22 @@ function deferred<T>() {
 
 beforeEach(() => {
   mocks.request.mockReset()
+  mocks.on.mockReset()
   mocks.listeners.clear()
+  mocks.on.mockImplementation((event, handler) => {
+    mocks.listeners.set(event, handler)
+    return () => {
+      mocks.listeners.delete(event)
+    }
+  })
+  ;(window as unknown as { api: unknown }).api = {
+    ipcApi: { request: mocks.request, on: mocks.on }
+  }
 })
 
 describe('useWindowInitData', () => {
   it('returns init data from the cold-start pull', async () => {
-    mocks.request.mockResolvedValue({ value: 'cold-start' })
+    mocks.request.mockResolvedValue(success({ value: 'cold-start' }))
 
     const { result } = renderHook(() => useWindowInitData<InitData>())
 
@@ -44,7 +50,7 @@ describe('useWindowInitData', () => {
   })
 
   it('keeps a newer reuse payload when the mount-time pull resolves later', async () => {
-    const pull = deferred<InitData>()
+    const pull = deferred<ReturnType<typeof success<InitData>>>()
     mocks.request.mockReturnValue(pull.promise)
     const { result } = renderHook(() => useWindowInitData<InitData>())
 
@@ -54,10 +60,21 @@ describe('useWindowInitData', () => {
     expect(result.current).toEqual({ value: 'reused' })
 
     await act(async () => {
-      pull.resolve({ value: 'stale-pull' })
+      pull.resolve(success({ value: 'stale-pull' }))
       await pull.promise
     })
 
     expect(result.current).toEqual({ value: 'reused' })
+  })
+
+  it('unsubscribes from reuse events on unmount', () => {
+    mocks.request.mockReturnValue(new Promise(() => {}))
+
+    const { unmount } = renderHook(() => useWindowInitData<InitData>())
+    expect(mocks.listeners.has('window.reused')).toBe(true)
+
+    unmount()
+
+    expect(mocks.listeners.has('window.reused')).toBe(false)
   })
 })
