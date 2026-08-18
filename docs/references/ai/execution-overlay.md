@@ -158,33 +158,39 @@ The overlay is a **temporary stash of in-flight streamed content**;
 SQLite is authoritative. Losing the stash costs at most one DB
 refresh on the next mount, which bounds how much machinery it earns.
 
-1. **`activeExecutions` change** — diff against the current reader
-   map: cancel + unregister executions no longer in the active list;
-   for newly-active executions, register a branch, clear any retained
-   prior snapshot, kick a new reader.
+1. **`activeExecutions` change** — converge the mounted consumers' desired
+   executions with the current reader map; newly-active attempts get a fresh
+   seeded reader, while finalizing attempts stay attached until their terminal
+   fence arrives.
 2. **Terminal** — the branch is closed by `TopicStreamSubscription`;
    the reader's `for await` exits. The `onFinish(executionId, event)`
    callback fires with the final snapshot + `{ isAbort, isError }`.
-3. **Unmount / tab switch** — the view is released (refcount), but
-   running readers keep assembling in the service.
+3. **Topic quiescence** — the service records Main's attempt watermark,
+   calls the latest mounted DB refresh port, and only after that refresh
+   succeeds calls `retireThrough(watermark)`.
+4. **Unmount / tab switch** — the view and its refresh port are released,
+   but running readers keep assembling in the service. A pending handoff is
+   re-kicked when a refresh port mounts again.
 
 Destruction policy:
 
 | Situation | What happens |
 |---|---|
 | Stream running | Entry retained regardless of mounts |
-| Stream ends, view mounted | Terminal status edge → `refresh()` DB → `reset()` drops the settled snapshots |
+| Topic quiesces, view mounted | Service-owned handoff runs `refresh()`; success retires every record through the durable attempt watermark |
+| DB refresh fails | Final overlay remains visible and the service retries with backoff; a later mounted refresh port can re-kick the handoff |
 | Stream ends, no view | That execution's overlay is dropped immediately (the persisted DB row owns it); the entry drops once its last reader ends and Main confirms the topic is done. `isTopicDone=false` keeps only the topic attachment across the continuation gap; queued continuation chunks then pin it until they are read or their round terminates |
 | Leak backstop | `MAX_ENTRIES` LRU eviction of refCount-0 entries (readers cancelled first) |
 
 Four guards keep the lifecycle race-free without any turn-identity
 machinery:
 
-- **`reset()` / `disposeOverlay()` never touch an execution whose
-  reader is live.** A delayed DB handoff for a finished turn must not
-  freeze a newer turn already streaming on the same topic; the
-  "reader still running" check is the whole identity test. The
-  destructive full drop is a separate `clear()` (quick-assistant).
+- **The durable watermark, not reader liveness, scopes terminal retirement.**
+  `retireThrough()` deliberately cancels and unregisters every covered reader
+  and removes the same covered attempts from snapshots, settlements, optimistic
+  projections, seeds, and reader-version indices. A newer attempt has a larger
+  id and survives an older handoff. The destructive full drop remains a separate
+  `clear()` operation (quick-assistant).
 - **A failed `ai.stream.attach` error-terminates its branches** so
   readers finish instead of hanging forever; the next mount re-attaches
   through a fresh subscription.
@@ -199,24 +205,28 @@ machinery:
 
 ### Overlay teardown is monotonic
 
-`disposeOverlay(messageId)` drops exactly one snapshot entry. The chat
-shell wires this so the overlay is released **only after** the DB
-refresh promise resolves (see `.finally(() => disposeOverlay(...))` in
-`V2ChatContent`). That ordering eliminates the visible flash between
-"streaming overlay" and "persisted parts": the SWR cache holds the
-authoritative row before the overlay disappears.
+The overlay service owns the quiesce → DB refresh → retirement transaction.
+The chat hook only registers a refresh port; it does not sequence disposal.
+Each handoff captures Main's monotonic attempt watermark. After a successful
+refresh, `retireThrough(watermark)` removes all covered overlay state in one
+pass and leaves newer attempts untouched. If a newer watermark arrives while
+the refresh is in flight, the service immediately runs another handoff.
+
+A failed refresh never drops the final overlay. The service exposes the error,
+retains the handoff, and retries with backoff. This ordering eliminates the
+visible gap between streamed content and persisted parts: SWR has the
+authoritative row before covered overlay records disappear.
 
 The renderer never writes streamed parts to SWR — writing them would
 race the DB-authoritative refresh and cause flicker.
 
 ### Why retained snapshots after terminal
 
-The service keeps the final snapshot in `snapshots` until one of:
+The service keeps a final snapshot until one of:
 
-- the same execution restarts (next turn clears it),
-- the caller calls `disposeOverlay(messageId)` (post-persist handoff),
-- the caller calls `reset()` (whole-turn post-persist handoff) or
-  `clear()` (destructive, quick-assistant),
+- a successful service-owned handoff retires its attempt watermark,
+- an explicit `disposeOverlay(messageId)` / `reset()` retires it, or
+- `clear()` performs the destructive quick-assistant reset,
 - the entry is dropped (last reader ended at refCount 0, or eviction).
 
 That retention lets consumers read the final frame for the brief window
@@ -229,7 +239,7 @@ src/renderer/services/aiTransport/StreamAttachmentService.ts       ← per-windo
 src/renderer/services/aiTransport/TopicStreamSubscription.ts       ← attachment lease + branch demux (one per retained topic)
 src/renderer/services/aiTransport/ExecutionStreamOverlayService.ts ← window-level readers/snapshots/rAF, keyed by topicId
 src/renderer/hooks/useExecutionOverlay.ts                          ← React binding (refcounted view lease)
-src/renderer/pages/home/useChatRuntimeState.ts                     ← consumer + dispose-after-refresh
+src/renderer/pages/home/useChatRuntimeState.ts                     ← persistent consumer + DB refresh port
 ```
 
 ## Invariants reviewers should check
@@ -246,9 +256,9 @@ src/renderer/pages/home/useChatRuntimeState.ts                     ← consumer 
 3. **Seed from current DB.** `pickSeed` reads `uiMessagesRef.current`
    at reader-start time. Stashing the seed on first mount and reusing
    it across turns would defeat the continue-conversation case.
-4. **Overlay disposed after DB refresh.** Any
-   `disposeOverlay(messageId)` call that runs **before** the DB
-   revalidation promise resolves is a flicker bug.
+4. **Handoff is refresh-before-retire.** Quiescence must enter the service-owned
+   handoff; only a successful refresh may call `retireThrough(watermark)`, while
+   refresh failure retains the final overlay for retry.
 5. **`TopicStreamSubscription` never aborts.** It only detaches.
    Anything in this layer that calls `Ai_Stream_Abort` is in the
    wrong place — abort belongs to `useChatWithHistory.stop`.

@@ -116,8 +116,9 @@ src/main/ai/
 7. On terminal (done / error / aborted / paused-for-approval), listeners get
    a typed terminal callback. `PersistenceListener` writes the final
    message via the appropriate `PersistenceBackend`.
-8. Renderer reads the persisted row through `useQuery('/topics/:id/messages')`
-   and disposes its overlay.
+8. Renderer reads the persisted row through `useQuery('/topics/:id/messages')`;
+   on topic quiescence the overlay service refreshes that DB projection and then
+   retires overlay attempts through Main's durable watermark.
 
 ## Key invariants
 
