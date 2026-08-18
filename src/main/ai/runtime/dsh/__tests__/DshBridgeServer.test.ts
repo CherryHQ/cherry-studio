@@ -232,6 +232,7 @@ describe('DshBridgeServer', () => {
         editTools: ['edit', 'write'],
         autoApprovedTools: [],
         approvalRequiredTools: [],
+        nonBypassableApprovalTools: [],
         planSafeTools: []
       },
       tools: []

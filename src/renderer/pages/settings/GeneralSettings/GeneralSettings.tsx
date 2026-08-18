@@ -20,6 +20,8 @@ import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ContextManagementSettings } from './ContextManagementSettings'
+
 const defaultByPassRules = 'localhost,127.0.0.1,::1'
 
 const TRAY_PREFERENCE_KEYS = {
@@ -29,7 +31,7 @@ const TRAY_PREFERENCE_KEYS = {
   clickTrayToShowQuickAssistant: 'feature.quick_assistant.click_tray_to_show'
 } as const
 
-const SystemSettings: FC = () => {
+const GeneralSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
   const { setTimeoutTimer } = useTimer()
@@ -41,6 +43,7 @@ const SystemSettings: FC = () => {
   const [trayPreferences, setTrayPreferences] = useMultiplePreferences(TRAY_PREFERENCE_KEYS)
   const { enabled: tray, onClose: trayOnClose, onLaunch: launchToTray } = trayPreferences
   const [preventSleepWhenBusy, setPreventSleepWhenBusy] = usePreference('app.power.prevent_sleep_when_busy')
+  const [allowPrivateNetworkFetch, setAllowPrivateNetworkFetch] = usePreference('app.fetch.allow_private_network')
   const [storeProxyMode, setProxyMode] = usePreference('app.proxy.mode')
   const [storeProxyBypassRules, _setProxyBypassRules] = usePreference('app.proxy.bypass_rules')
   const [storeProxyUrl, _setProxyUrl] = usePreference('app.proxy.url')
@@ -189,10 +192,27 @@ const SystemSettings: FC = () => {
         )}
         <SettingDivider />
         <SettingRow>
+          <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span>{t('settings.fetch.allow_private_network')}</span>
+            <InfoTooltip
+              content={t('settings.fetch.allow_private_network_tip')}
+              placement="right"
+              iconProps={{ className: 'cursor-pointer' }}
+            />
+          </SettingRowTitle>
+          <Switch
+            checked={allowPrivateNetworkFetch}
+            onCheckedChange={(checked) => void setAllowPrivateNetworkFetch(checked)}
+          />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
           <SettingRowTitle>{t('settings.hardware_acceleration.title')}</SettingRowTitle>
           <Switch checked={disableHardwareAcceleration} onCheckedChange={handleHardwareAccelerationChange} />
         </SettingRow>
       </SettingGroup>
+
+      <ContextManagementSettings />
 
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.developer.title')}</SettingTitle>
@@ -223,4 +243,4 @@ const SystemSettings: FC = () => {
   )
 }
 
-export default SystemSettings
+export default GeneralSettings

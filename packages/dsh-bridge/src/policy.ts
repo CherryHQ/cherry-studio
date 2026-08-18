@@ -17,7 +17,7 @@ export type ToolDecision = { kind: 'allow' } | { kind: 'deny'; reason: string } 
  * Pipeline: disabled → deny; plan mode → closed allow-list (dsh plan mode enforces
  * nothing itself, so this branch IS the read-only guarantee); approval-required →
  * ask, except under bypassPermissions — the user's explicit opt-out of per-call
- * approval lifts even this list (matching the claude and pi runtimes); first-party
+ * approval lifts ordinary entries, while non-bypassable delegation still asks; first-party
  * auto-approved → allow; bypass → allow; contained read/edit fast-paths;
  * everything else asks.
  */
@@ -40,7 +40,10 @@ export async function decideToolCall(policy: BridgePolicy, toolName: string, arg
       reason: `Plan mode is read-only: "${toolName}" is unavailable until the plan is approved.`
     }
   }
-  if (policy.permissionMode !== 'bypassPermissions' && policy.approvalRequiredTools.includes(toolName)) {
+  if (
+    policy.approvalRequiredTools.includes(toolName) &&
+    (policy.permissionMode !== 'bypassPermissions' || policy.nonBypassableApprovalTools.includes(toolName))
+  ) {
     return { kind: 'ask' }
   }
   if (policy.autoApprovedTools.includes(toolName)) return { kind: 'allow' }

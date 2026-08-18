@@ -860,6 +860,7 @@ Current examples:
 - `chat_message_file_ref` is owned by chat/topic/message flows (`TopicService` copies rows when duplicating message paths; migrators backfill rows directly).
 - `painting_file_ref` is owned by `PaintingService` (`create`/`update` write rows directly; source deletion relies on FK cascade).
 - `job_file_ref` is owned by `JobService.addFileRefsTx` (tx-scoped, so `AiService.generateImageViaJob` composes it into the same transaction as `JobManager.enqueueTx`; the async image job's `delete_when_unreferenced` inputs then stay referenced for its lifetime, and terminal-row pruning cascades them away — see [file-entry-cleanup.md §5.1](./file-entry-cleanup.md#51-candidate-query)).
+- `translate_history_file_ref` is owned by `TranslateHistoryService.createFileTx` (exactly one generated target and, best effort, one external source; deleting the history row cascades both refs and releases the managed target to cleanup).
 
 `FileRefService` does **not** create/copy/replace persistent refs. It is the cross-source read facade used by DataApi and sweep (`findByEntryId`, `findBySource`, `countByEntryIds`).
 
@@ -1063,7 +1064,8 @@ src/main/data/                        -- data layer
   db/schemas/
     file.ts                           -- file_entry
     fileRelations.ts                  -- chat_message_file_ref / painting_file_ref / job_file_ref
-                                      -- provider_logo_file_ref / mini_app_logo_file_ref
+                                      -- translate_history_file_ref / provider_logo_file_ref
+                                      -- mini_app_logo_file_ref
 
 src/main/ipc/handlers/
   file.ts                            -- File IPC adapter: schema-validated routes,

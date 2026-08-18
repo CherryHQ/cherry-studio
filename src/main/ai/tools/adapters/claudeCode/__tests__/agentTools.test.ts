@@ -13,6 +13,7 @@ import {
   toCherryBuiltinRuntimeName,
   toMcpRuntimeName
 } from '@main/ai/runtime/toolApproval/builtinToolPolicy'
+import { SESSION_CREATE_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 import { KB_MANAGE_TOOL_NAME, TO_MARKDOWN_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -251,6 +252,10 @@ describe('createClaudeAgentToolPolicySnapshot — production approval-gate wirin
   it('keeps mutating and read-only Cherry tools classified on their own entries', () => {
     expect(findBuiltinToolPolicy(toCherryBuiltinRuntimeName(KB_MANAGE_TOOL_NAME), false)?.approval).toBe('required')
     expect(findBuiltinToolPolicy(toCherryBuiltinRuntimeName(CLI_INSTALL_TOOL_NAME), false)?.approval).toBe('required')
+    expect(findBuiltinToolPolicy(toCherryBuiltinRuntimeName(SESSION_CREATE_TOOL_NAME), false)).toMatchObject({
+      approval: 'required',
+      bypassApproval: 'enforce'
+    })
     for (const name of [CLI_LIST_TOOL_NAME, CLI_SEARCH_TOOL_NAME, TO_MARKDOWN_TOOL_NAME]) {
       expect(findBuiltinToolPolicy(toCherryBuiltinRuntimeName(name), false)?.approval).toBe('auto')
     }

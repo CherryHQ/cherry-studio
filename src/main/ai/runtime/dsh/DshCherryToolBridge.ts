@@ -56,6 +56,12 @@ export const DSH_APPROVAL_REQUIRED_BRIDGED_TOOLS: ReadonlySet<string> = new Set(
   )
 )
 
+export const DSH_NON_BYPASSABLE_APPROVAL_BRIDGED_TOOLS: ReadonlySet<string> = new Set(
+  listBuiltinToolPolicies({ approval: 'required', bypassApproval: 'enforce' }).map(({ serverName, toolName }) =>
+    buildDshCherryToolName(serverName, toolName)
+  )
+)
+
 /** Warm user-configured catalogs before the connection snapshot captures their tool schemas. */
 export async function warmDshMcpToolCatalogs(mcpIds: readonly string[]): Promise<void> {
   const catalog = application.get('McpCatalogService')

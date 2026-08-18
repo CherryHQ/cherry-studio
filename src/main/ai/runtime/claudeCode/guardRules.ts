@@ -102,6 +102,11 @@ const pathOutsideAllowedRoots = async (ctx: ToolGuardContext): Promise<GuardHit 
   return { evidence: requestedPath }
 }
 
+const matchesRequiredApproval = (ctx: ToolGuardContext, bypassApproval: 'lift' | 'enforce'): GuardHit | null => {
+  const policy = findBuiltinToolPolicy(ctx.toolName, ctx.assistantMcpEnabled)
+  return policy?.approval === 'required' && policy.bypassApproval === bypassApproval ? {} : null
+}
+
 export const CLAUDE_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
   {
     id: 'disabled-tool',
@@ -204,14 +209,23 @@ export const CLAUDE_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     }
   },
   {
+    // Cross-Session delegation keeps its one-hop live-approval ceiling in every mode. This is the
+    // policy entry's explicit exception to ordinary Full Access approval lifting.
+    id: 'non-bypassable-approval',
+    bypassBehavior: 'enforce',
+    match: { when: (ctx) => matchesRequiredApproval(ctx, 'enforce') },
+    effect: 'ask',
+    askStrength: 'hard',
+    reason: (_hit, ctx) => `The ${ctx.toolName} tool requires live per-call user approval.`,
+    headless: { predicate: 'responder-unavailable', reason: HEADLESS_INTERACTIVE_TOOL_DENIAL }
+  },
+  {
     // The explicit per-call approval list (kb_manage / generate_image / cli_install + mounted
     // assistant tools). Hard: derived into the snapshot's auto-allow exceptions so acceptEdits /
     // default safe-tools never auto-pierce it; bypassPermissions is the one opt-out.
     id: 'approval-required',
     bypassBehavior: 'skipInteractiveEffect',
-    match: {
-      when: (ctx) => (findBuiltinToolPolicy(ctx.toolName, ctx.assistantMcpEnabled)?.approval === 'required' ? {} : null)
-    },
+    match: { when: (ctx) => matchesRequiredApproval(ctx, 'lift') },
     effect: 'ask',
     askStrength: 'hard',
     reason: (_hit, ctx) => `The ${ctx.toolName} tool requires per-call user approval.`,

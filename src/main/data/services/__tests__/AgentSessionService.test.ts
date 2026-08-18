@@ -1,3 +1,5 @@
+import '@data/services/AgentSessionMessageService'
+
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
@@ -158,6 +160,141 @@ describe('AgentSessionService', () => {
     expect(result[0]).not.toHaveProperty('workspace')
   })
 
+  it('applies the Agent metadata filter before the search limit', async () => {
+    const workspace = await createWorkspace('search-agent-filter')
+    await dbh.db.insert(agentTable).values({
+      id: 'agent-search-target',
+      type: 'claude-code',
+      name: 'Search Target',
+      instructions: '',
+      model: null,
+      orderKey: 'b0'
+    })
+    await dbh.db.insert(agentSessionTable).values([
+      {
+        id: 'session-search-other-agent',
+        agentId: 'agent-session-test',
+        name: 'Needle Other Agent',
+        workspaceId: workspace.id,
+        orderKey: 'b0',
+        updatedAt: 300
+      },
+      {
+        id: 'session-search-target-agent',
+        agentId: 'agent-search-target',
+        name: 'Needle Target Agent',
+        workspaceId: workspace.id,
+        orderKey: 'b1',
+        updatedAt: 100
+      }
+    ])
+
+    const result = agentSessionService.search({ q: 'Needle', agentId: 'agent-search-target', limit: 1 })
+
+    expect(result.map((item) => item.id)).toEqual(['session-search-target-agent'])
+  })
+
+  it('returns explicit Session name and description evidence', async () => {
+    const workspace = await createWorkspace('search-evidence')
+    await dbh.db.insert(agentSessionTable).values([
+      {
+        id: 'session-name-evidence',
+        agentId: 'agent-session-test',
+        name: '中文问候 Session',
+        workspaceId: workspace.id,
+        orderKey: 'c0',
+        lastActivityAt: 200,
+        updatedAt: 200
+      },
+      {
+        id: 'session-description-evidence',
+        agentId: 'agent-session-test',
+        name: 'Other Session',
+        description: '记录中文问候的测试过程',
+        workspaceId: workspace.id,
+        orderKey: 'c1',
+        lastActivityAt: 100,
+        updatedAt: 100
+      }
+    ])
+
+    const result = agentSessionService.searchWithMetadataEvidence({ q: '问候', limit: 5 })
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        item: expect.objectContaining({ id: 'session-name-evidence' }),
+        matches: [{ field: 'name', snippet: '中文问候 Session' }]
+      }),
+      expect.objectContaining({
+        item: expect.objectContaining({ id: 'session-description-evidence' }),
+        matches: [{ field: 'description', snippet: '记录中文问候的测试过程' }]
+      })
+    ])
+  })
+
+  it('keeps orphaned Sessions globally searchable but excludes them from addressable search', async () => {
+    const workspace = await createWorkspace('search-orphan')
+    await dbh.db.insert(agentSessionTable).values({
+      id: 'orphan-search-result',
+      name: 'Preserved orphan evidence',
+      workspaceId: workspace.id,
+      orderKey: 'orphan-search'
+    })
+
+    expect(agentSessionService.search({ q: 'orphan evidence', limit: 5 })).toEqual([
+      expect.objectContaining({
+        id: 'orphan-search-result',
+        subtitle: undefined,
+        target: { sessionId: 'orphan-search-result', agentId: null }
+      })
+    ])
+    expect(
+      agentSessionService.searchWithMetadataEvidence({ q: 'orphan evidence', limit: 5, addressableOnly: true })
+    ).toEqual([])
+  })
+
+  it('pages only Sessions whose active Agent can receive a delivery', async () => {
+    const workspace = await createWorkspace('addressable')
+    await dbh.db.insert(agentTable).values({
+      id: 'agent-deleted',
+      type: 'claude-code',
+      name: 'Deleted Agent',
+      instructions: '',
+      orderKey: 'deleted',
+      deletedAt: Date.now()
+    })
+    await dbh.db.insert(agentSessionTable).values([
+      {
+        id: 'addressable-a',
+        agentId: 'agent-session-test',
+        name: 'Addressable A',
+        workspaceId: workspace.id,
+        orderKey: 'a'
+      },
+      {
+        id: 'addressable-b',
+        agentId: 'agent-session-test',
+        name: 'Addressable B',
+        workspaceId: workspace.id,
+        orderKey: 'b'
+      },
+      { id: 'orphan', name: 'Orphan', workspaceId: workspace.id, orderKey: 'c' },
+      {
+        id: 'soft-deleted-agent',
+        agentId: 'agent-deleted',
+        name: 'Deleted target',
+        workspaceId: workspace.id,
+        orderKey: 'd'
+      }
+    ])
+
+    const first = agentSessionService.listAddressableByCursor({ limit: 1 })
+    const second = agentSessionService.listAddressableByCursor({ limit: 1, cursor: first.nextCursor })
+
+    expect([...first.items, ...second.items].map((item) => item.sessionId)).toEqual(['addressable-a', 'addressable-b'])
+    expect(second.nextCursor).toBeUndefined()
+  })
+
   describe('getLatestActive', () => {
     it('returns the globally most-recently-active session, independent of orderKey and updatedAt', async () => {
       const workspace = await createWorkspace('latest')
@@ -299,7 +436,7 @@ describe('AgentSessionService', () => {
     })
   })
 
-  describe('reuseOrCreatePlaceholder', () => {
+  describe('reuseOrCreatePlaceholderForDelivery', () => {
     it('filters by exact workspace and message emptiness, ordered by updatedAt', async () => {
       const userWorkspace = await createWorkspace('reusable-user')
       await dbh.db.insert(agentWorkspaceTable).values({
@@ -372,13 +509,13 @@ describe('AgentSessionService', () => {
       await insertSessionMessage('user-with-message', 'message-prevents-reuse')
 
       expect(
-        agentSessionService.reuseOrCreatePlaceholder({
+        agentSessionService.reuseOrCreatePlaceholderForDelivery({
           agentId: 'agent-session-test',
           workspace: { type: 'user', workspaceId: userWorkspace.id }
         })
       ).toMatchObject({ session: { id: 'user-updated-later' }, created: false, deletedDuplicateSessionIds: [] })
       expect(
-        agentSessionService.reuseOrCreatePlaceholder({
+        agentSessionService.reuseOrCreatePlaceholderForDelivery({
           agentId: 'agent-session-test',
           workspace: { type: 'system' }
         })
@@ -393,11 +530,11 @@ describe('AgentSessionService', () => {
     it('creates at most one reusable placeholder for repeated exact targets', async () => {
       const userWorkspace = await createWorkspace('create-reusable-user')
 
-      const first = agentSessionService.reuseOrCreatePlaceholder({
+      const first = agentSessionService.reuseOrCreatePlaceholderForDelivery({
         agentId: 'agent-session-test',
         workspace: { type: 'user', workspaceId: userWorkspace.id }
       })
-      const second = agentSessionService.reuseOrCreatePlaceholder({
+      const second = agentSessionService.reuseOrCreatePlaceholderForDelivery({
         agentId: 'agent-session-test',
         workspace: { type: 'user', workspaceId: userWorkspace.id }
       })
@@ -426,7 +563,7 @@ describe('AgentSessionService', () => {
       pinService.pin({ entityType: 'session', entityId: duplicate.id })
       notifyDataApiDataChangeMock.mockClear()
 
-      const result = agentSessionService.reuseOrCreatePlaceholder({
+      const result = agentSessionService.reuseOrCreatePlaceholderForDelivery({
         agentId: 'agent-session-test',
         workspace: { type: 'system' }
       })

@@ -102,7 +102,7 @@ export const permissionModeCards: PermissionModeCard[] = [
  * `auto` means something different on pi, so its copy has to differ too: it is Cherry's own
  * deterministic gate rather than Claude's model-side classifier (no "depends on the model" caveat).
  * `bypassPermissions` now reads the same on every runtime — approvals are lifted, explicit safety
- * blocks (disabled tools, global installs) still apply.
+ * blocks (disabled tools, global installs, and cross-Session delegation ceilings) still apply.
  */
 const PI_CARD_OVERRIDES: Partial<Record<AgentPermissionMode, Partial<PermissionModeCard>>> = {
   auto: {

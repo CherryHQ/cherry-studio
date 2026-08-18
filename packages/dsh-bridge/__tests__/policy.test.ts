@@ -26,6 +26,7 @@ const policy = (overrides: Partial<BridgePolicy> = {}): BridgePolicy => ({
   editTools: ['edit', 'write'],
   autoApprovedTools: [],
   approvalRequiredTools: [],
+  nonBypassableApprovalTools: [],
   planSafeTools: [],
   ...overrides
 })
@@ -137,6 +138,18 @@ describe('decideToolCall', () => {
       'allow'
     ],
     [
+      'bypassPermissions',
+      'non-bypassable delegation still asks',
+      policy({
+        permissionMode: 'bypassPermissions',
+        approvalRequiredTools: ['mcp__cherry-tools__session_send'],
+        nonBypassableApprovalTools: ['mcp__cherry-tools__session_send']
+      }),
+      'mcp__cherry-tools__session_send',
+      {},
+      'ask'
+    ],
+    [
       'default',
       'approval-required beats auto-approval outside bypass',
       policy({
@@ -235,6 +248,17 @@ describe('decideDelegatedToolCall', () => {
       'mcp__cherry-tools__kb_manage',
       {},
       'allow'
+    ],
+    [
+      'non-bypassable delegation denies in the delegated child under bypass',
+      policy({
+        permissionMode: 'bypassPermissions',
+        approvalRequiredTools: ['mcp__cherry-tools__session_send'],
+        nonBypassableApprovalTools: ['mcp__cherry-tools__session_send']
+      }),
+      'mcp__cherry-tools__session_send',
+      {},
+      'deny'
     ],
     [
       'acceptEdits contained edit still allows',

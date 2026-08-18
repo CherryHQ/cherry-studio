@@ -1,8 +1,8 @@
 ---
-title: Full Access now lifts every per-call approval on Advanced (Claude) and Terminal (dsh) agents
+title: Full Access now lifts ordinary per-call approvals across Agent runtimes
 category: changed
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: "#18865"
 date: 2026-08-18
 ---
 
@@ -13,12 +13,16 @@ approval cards. Tools that used to keep prompting even there — knowledge-base 
 generation, CLI installs, and the assistant settings/file tools — run directly. Fast (Pi) agents already
 behaved this way.
 
+The explicit exception is cross-Session delegation: `session_create` and `session_send` still require live
+approval in every mode, preserving the one-hop coordination ceiling.
+
 What still stops a Full Access agent, on every runtime:
 
 - disabled tools (always denied);
 - shell commands that install into the shared global environment (`npm install -g`, `pip install --user`, …),
   denied outright without a prompt;
 - destructive operations blocked for the built-in Cherry Assistant / Support agents;
+- cross-Session creation and delivery, which always require a live approval;
 - unattended turns (channel or scheduled): tools that need a live responder are denied, not silently run —
   Full Access does not conjure an approver.
 

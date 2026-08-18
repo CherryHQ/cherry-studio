@@ -51,6 +51,7 @@ import {
   buildDshCherryToolName,
   DSH_APPROVAL_REQUIRED_BRIDGED_TOOLS,
   DSH_AUTO_APPROVED_BRIDGED_TOOLS,
+  DSH_NON_BYPASSABLE_APPROVAL_BRIDGED_TOOLS,
   type DshCherryToolBridge,
   warmDshMcpToolCatalogs
 } from './DshCherryToolBridge'
@@ -644,6 +645,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       editTools: DSH_EDIT_TOOLS,
       autoApprovedTools: [...DSH_AUTO_APPROVED_BUILTIN_TOOLS, ...DSH_AUTO_APPROVED_BRIDGED_TOOLS],
       approvalRequiredTools: [...DSH_APPROVAL_REQUIRED_BRIDGED_TOOLS],
+      nonBypassableApprovalTools: [...DSH_NON_BYPASSABLE_APPROVAL_BRIDGED_TOOLS],
       // Closed plan-mode allow-list: plan-safe builtins plus Cherry's auto-approved
       // bridged tools; the subagent tools stay out (delegation bypasses read-only).
       planSafeTools: [...DSH_PLAN_SAFE_BUILTIN_TOOLS, ...DSH_AUTO_APPROVED_BRIDGED_TOOLS]

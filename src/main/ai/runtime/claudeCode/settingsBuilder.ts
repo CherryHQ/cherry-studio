@@ -486,7 +486,10 @@ async function buildToolPermissions(
     // Resolved per turn, so an interactive turn on a channel-linked session still prompts.
     const isBackgroundAgent =
       (typeof opts.agentID === 'string' && opts.agentID.length > 0) || interactionState.currentTurn === 'headless'
-    const requiresUserResponse = claudeToolRequiresUserInteraction(toolName) || opts.matchedAskRule !== undefined
+    const requiresUserResponse =
+      claudeToolRequiresUserInteraction(toolName) ||
+      findBuiltinToolPolicy(toolName, assistantMcpEnabled)?.approval === 'required' ||
+      opts.matchedAskRule !== undefined
 
     // Background agents do not inherit the parent permission mode. Let ordinary requests proceed
     // without multiplying approval clicks; explicit PreToolUse deny hooks still run before this

@@ -7,6 +7,7 @@ import {
   toCherryBuiltinRuntimeName,
   toMcpRuntimeName
 } from '@main/ai/runtime/toolApproval/builtinToolPolicy'
+import { SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
@@ -328,6 +329,22 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
       await expect(evaluate(makeCtx({ toolName: assistantTool, assistantMcpEnabled: true }))).resolves.toMatchObject({
         ruleId: 'approval-required'
       })
+    })
+  })
+
+  describe('non-bypassable-approval', () => {
+    const sessionSend = toCherryBuiltinRuntimeName(SESSION_SEND_TOOL_NAME)
+
+    it('requires live approval under bypassPermissions', async () => {
+      await expect(
+        evaluate(makeCtx({ toolName: sessionSend, permissionMode: 'bypassPermissions' }))
+      ).resolves.toMatchObject({ effect: 'ask', ruleId: 'non-bypassable-approval' })
+    })
+
+    it('denies an unattended delegation under bypassPermissions', async () => {
+      await expect(
+        evaluate(makeCtx({ toolName: sessionSend, permissionMode: 'bypassPermissions', interaction: HEADLESS }))
+      ).resolves.toMatchObject({ effect: 'deny', ruleId: 'non-bypassable-approval' })
     })
   })
 

@@ -112,9 +112,10 @@ WHERE cleanup_policy = 'delete_when_unreferenced'
   AND NOT EXISTS (SELECT 1 FROM chat_message_file_ref          r WHERE r.file_entry_id = file_entry.id)
   AND NOT EXISTS (SELECT 1 FROM agent_session_message_file_ref r WHERE r.file_entry_id = file_entry.id)
   AND NOT EXISTS (SELECT 1 FROM painting_file_ref              r WHERE r.file_entry_id = file_entry.id)
-  AND NOT EXISTS (SELECT 1 FROM job_file_ref             r WHERE r.file_entry_id = file_entry.id)
-  AND NOT EXISTS (SELECT 1 FROM provider_logo_file_ref   r WHERE r.file_entry_id = file_entry.id)
-  AND NOT EXISTS (SELECT 1 FROM mini_app_logo_file_ref   r WHERE r.file_entry_id = file_entry.id)
+  AND NOT EXISTS (SELECT 1 FROM job_file_ref                   r WHERE r.file_entry_id = file_entry.id)
+  AND NOT EXISTS (SELECT 1 FROM translate_history_file_ref     r WHERE r.file_entry_id = file_entry.id)
+  AND NOT EXISTS (SELECT 1 FROM provider_logo_file_ref         r WHERE r.file_entry_id = file_entry.id)
+  AND NOT EXISTS (SELECT 1 FROM mini_app_logo_file_ref         r WHERE r.file_entry_id = file_entry.id)
 ORDER BY created_at
 LIMIT :batch   -- default 100 per pass
 ```
@@ -123,9 +124,11 @@ The `job_file_ref` clause is what keeps async image-generation job inputs alive:
 
 The window this protects is **within one process run**, not across a restart: image-generation jobs are `recovery: 'abandon'` (see `imageGenerationJobHandler`), so a non-terminal job is cancelled at startup rather than resumed. The ref still matters — a long poll easily outlives the 1h grace window and can overlap several interval passes — but nothing depends on it surviving to a later session.
 
+The `translate_history_file_ref` clause keeps a generated translation alive while its history row exists. Deleting one history row or clearing all history cascades the ref and makes the internal `delete_when_unreferenced` result reclaimable; the optional source ref points to an external entry, so cleanup removes only Cherry's entry row and never the user's original file.
+
 - `deleted_at` is **not** filtered: a trashed zero-ref auto entry is reclaimed too (the user already discarded it, and trash auto-expiry is deferred).
-- All **six** tables registered in `persistentFileRefTablesBySourceType` must appear — the two logo slots included, since §4.1 claims logo entries are protected by exactly these refs. Auditing coverage against a shortened example is how a reader concludes, wrongly, that logo entries are unprotected.
-- Each ref table carries a `file_entry_id` index that backs its `NOT EXISTS` probe: the collection tables through their unique `(file_entry_id, source_id, role)`, the two logo slots (which have no `role` column) through their own `*_entry_id_idx`. At desktop scale the query is single-digit ms. A partial index on `cleanup_policy = 'delete_when_unreferenced'` is the first cheap lever if it ever measures slow (§11).
+- All **seven** tables registered in `persistentFileRefTablesBySourceType` must appear — the two logo slots included, since §4.1 claims logo entries are protected by exactly these refs. Auditing coverage against a shortened example is how a reader concludes, wrongly, that logo entries are unprotected.
+- Each ref table carries a `file_entry_id` index that backs its `NOT EXISTS` probe: chat, agent-session, painting, and job refs through their unique `(file_entry_id, source_id, role)` indexes; translate history through `thfr_entry_id_idx` (its slot constraint is unique on `(source_id, role)`); and the two roleless logo slots through their own `*_entry_id_idx`. At desktop scale the query is single-digit ms. A partial index on `cleanup_policy = 'delete_when_unreferenced'` is the first cheap lever if it ever measures slow (§11).
 - The `NOT EXISTS` clauses MUST be generated from the `persistentFileRefTablesBySourceType` registry (`schemas/fileRelations.ts`), never hand-enumerated. A ref table missing from the anti-join makes its entire source's files look unreferenced — a catastrophe the fraction threshold (§5.3) cannot reliably catch (a source holding <50% of entries slips under it). Registry-driven generation plus a test asserting coverage of every registered table makes the omission structurally impossible.
 
 ### 5.2 Grace window

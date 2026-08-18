@@ -15,6 +15,13 @@ import { CLI_INSTALL_TOOL_NAME, CLI_LIST_TOOL_NAME, CLI_SEARCH_TOOL_NAME } from 
 import { MOVE_TO_TRASH_TOOL_NAME } from '@main/ai/tools/moveToTrash'
 import { SAVE_ATTACHMENT_TOOL_NAME } from '@main/ai/tools/saveAttachment'
 import {
+  SESSION_CREATE_TOOL_NAME,
+  SESSION_DELIVERIES_TOOL_NAME,
+  SESSION_LIST_TOOL_NAME,
+  SESSION_SEARCH_TOOL_NAME,
+  SESSION_SEND_TOOL_NAME
+} from '@shared/ai/agentSessionDelivery'
+import {
   CONFIG_TOOL_NAME,
   CRON_TOOL_NAME,
   GENERATE_IMAGE_TOOL_NAME,
@@ -32,6 +39,7 @@ import {
 
 export type BuiltinToolApproval = 'auto' | 'required' | 'runtime'
 export type BuiltinToolAvailability = 'always' | 'assistant'
+export type BuiltinToolBypassApproval = 'lift' | 'enforce'
 
 export interface BuiltinToolPolicyEntry {
   readonly serverName: string
@@ -41,6 +49,8 @@ export interface BuiltinToolPolicyEntry {
    * `runtime`: the runtime's ordinary permission-mode semantics decide.
    */
   readonly approval: BuiltinToolApproval
+  /** Whether Full Access lifts a `required` approval. */
+  readonly bypassApproval: BuiltinToolBypassApproval
   /** Assistant-only MCP servers are mounted only for the protected Assistant/Support roles. */
   readonly availability: BuiltinToolAvailability
 }
@@ -49,9 +59,10 @@ function tool(
   serverName: string,
   toolName: string,
   approval: BuiltinToolApproval,
-  availability: BuiltinToolAvailability = 'always'
+  availability: BuiltinToolAvailability = 'always',
+  bypassApproval: BuiltinToolBypassApproval = 'lift'
 ): BuiltinToolPolicyEntry {
-  return { serverName, toolName, approval, availability }
+  return { serverName, toolName, approval, availability, bypassApproval }
 }
 
 /**
@@ -69,6 +80,11 @@ const BUILTIN_TOOL_POLICIES = {
   cherryCron: tool('cherry-tools', CRON_TOOL_NAME, 'auto'),
   cherryNotify: tool('cherry-tools', NOTIFY_TOOL_NAME, 'auto'),
   cherryConfig: tool('cherry-tools', CONFIG_TOOL_NAME, 'auto'),
+  cherrySessionList: tool('cherry-tools', SESSION_LIST_TOOL_NAME, 'auto'),
+  cherrySessionSearch: tool('cherry-tools', SESSION_SEARCH_TOOL_NAME, 'auto'),
+  cherrySessionDeliveries: tool('cherry-tools', SESSION_DELIVERIES_TOOL_NAME, 'auto'),
+  cherrySessionCreate: tool('cherry-tools', SESSION_CREATE_TOOL_NAME, 'required', 'always', 'enforce'),
+  cherrySessionSend: tool('cherry-tools', SESSION_SEND_TOOL_NAME, 'required', 'always', 'enforce'),
   cherryCliList: tool('cherry-tools', CLI_LIST_TOOL_NAME, 'auto'),
   cherryCliSearch: tool('cherry-tools', CLI_SEARCH_TOOL_NAME, 'auto'),
   cherryCliInstall: tool('cherry-tools', CLI_INSTALL_TOOL_NAME, 'required'),
@@ -96,6 +112,7 @@ const BUILTIN_TOOL_POLICY_BY_RUNTIME_NAME = new Map(
 
 export interface BuiltinToolPolicyQuery {
   readonly approval?: BuiltinToolApproval
+  readonly bypassApproval?: BuiltinToolBypassApproval
   /** Omit to inspect the complete registry; false filters out Assistant-only entries. */
   readonly assistantMcpEnabled?: boolean
 }
@@ -105,6 +122,7 @@ export function listBuiltinToolPolicies(query: BuiltinToolPolicyQuery = {}): Bui
   return BUILTIN_TOOL_POLICY_ENTRIES.filter(
     (entry) =>
       (query.approval === undefined || entry.approval === query.approval) &&
+      (query.bypassApproval === undefined || entry.bypassApproval === query.bypassApproval) &&
       (query.assistantMcpEnabled !== false || entry.availability !== 'assistant')
   )
 }

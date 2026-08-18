@@ -388,6 +388,15 @@
         "inaccessible": "O caminho do workspace não está acessível: {{path}}"
       }
     },
+    "session_delivery": {
+      "from": "De {{agent}} / {{session}}",
+      "status": {
+        "accepted": "Aceite",
+        "consumed": "Processado",
+        "delivering": "A entregar",
+        "failed": "Falhou"
+      }
+    },
     "settings": {
       "permissionMode": {
         "title": "Modo de Permissão"
@@ -725,6 +734,22 @@
           "description": "Gerir a lista de tarefas",
           "label": "Gerir a lista de tarefas"
         },
+        "tool_call": {
+          "description": "Chamar uma ferramenta descoberta",
+          "label": "Chamar ferramenta"
+        },
+        "tool_describe": {
+          "description": "Obter a descrição completa e a assinatura TypeScript de uma ferramenta",
+          "label": "Descrever ferramenta"
+        },
+        "tool_exec": {
+          "description": "Executar JavaScript que orquestra as ferramentas descobertas",
+          "label": "Executar código de ferramentas"
+        },
+        "tool_search": {
+          "description": "Pesquisar ferramentas disponíveis e ler as respetivas assinaturas TypeScript",
+          "label": "Pesquisar ferramentas"
+        },
         "update_goal": {
           "description": "Atualizar o estado ou o conteúdo do objetivo da sessão",
           "label": "Atualizar objetivo"
@@ -783,6 +808,7 @@
       "restartSuccess": "Servidor API reiniciado com sucesso",
       "startError": "Falha ao iniciar o Servidor API: ",
       "startSuccess": "Servidor API iniciado com sucesso",
+      "stopDeferred": "O Servidor de API será parado assim que a tradução atual terminar",
       "stopError": "Falha ao parar o Servidor API: ",
       "stopSuccess": "Servidor API parado com sucesso"
     },
@@ -990,6 +1016,19 @@
       "knowledge_base_disabled_by_files": "Remova os ficheiros anexados para usar a Base de Conhecimento",
       "knowledge_base_unavailable": "Selecione um modelo com capacidade de ferramentas",
       "locate_editing_message": "Localizar mensagem original",
+      "mcp_prompts": {
+        "description": "Inserir um prompt publicado por um servidor MCP",
+        "empty": "Nenhum prompt MCP disponível",
+        "insert_failed": "Falha ao inserir o prompt",
+        "title": "Prompts MCP"
+      },
+      "mcp_resources": {
+        "description": "Referenciar um recurso publicado por um servidor MCP",
+        "empty": "Nenhum recurso MCP disponível",
+        "read_failed": "Falha ao ler o recurso",
+        "reader_unavailable": "O modelo atual não consegue voltar a ler este recurso depois de o anexar",
+        "title": "Recursos MCP"
+      },
       "new": {
         "context": "Limpar contexto"
       },
@@ -1869,6 +1908,7 @@
       "503": "Serviço indisponível, por favor tente novamente mais tarde",
       "504": "Tempo de espera do gateway excedido, por favor tente novamente mais tarde"
     },
+    "image_unreadable_for_non_vision_model": "O modelo selecionado não está configurado para receber imagens e o Cherry Studio não conseguiu extrair texto legível do anexo. Ative imagem para este modelo nas definições do fornecedor, escolha outro modelo com capacidade visual ou remova a imagem e tente novamente.",
     "lastError": "Último erro",
     "maxEmbeddingsPerCall": "Máximo de embeddings por chamada",
     "message": "Mensagem de erro",
@@ -3357,6 +3397,21 @@
         "searchResults": "Resultados da Pesquisa",
         "stderr": "stderr",
         "stdout": "stdout"
+      },
+      "sessionCreate": {
+        "created": "Foi iniciada uma nova sessão",
+        "creating": "A iniciar uma nova sessão",
+        "firstMessage": "Primeira mensagem",
+        "inheritedContext": "A utilizar este agente e espaço de trabalho",
+        "open": "Abrir sessão",
+        "sessionId": "ID da sessão",
+        "untitled": "Sessão sem título"
+      },
+      "sessionSend": {
+        "open": "Abrir sessão",
+        "sending": "A enviar para",
+        "sent": "Enviado para",
+        "to": "Para"
       },
       "status": {
         "done": "Feito",
@@ -5541,6 +5596,7 @@
       },
       "title": "Dependências do Ambiente",
       "tools": {
+        "babeldoc-stream": "Motor de tradução de PDF que preserva o esquema. Os recursos do modelo de esquema são transferidos na primeira tradução.",
         "bun": "Runtime de JavaScript utilizado por serviços MCP e cadeias de ferramentas relacionadas.",
         "claude": "Ferramenta de programação com agente da Anthropic para o terminal.",
         "codex": "Agente de programação de código aberto da OpenAI que pode ler, editar e executar código no seu repositório local.",
@@ -5588,6 +5644,10 @@
         "title": "Configuração de fonte"
       }
     },
+    "fetch": {
+      "allow_private_network": "Permitir o acesso a endereços da rede local",
+      "allow_private_network_tip": "Permite que as ferramentas de obtenção da web acedam a localhost e a endereços de rede privada. Desative se não quiser que os modelos leiam serviços no seu computador ou na sua LAN."
+    },
     "font_size": {
       "title": "Tamanho da fonte da mensagem"
     },
@@ -5617,7 +5677,8 @@
         },
         "sections": {
           "display_language": "Exibição e Idioma"
-        }
+        },
+        "title": "Configurações Comuns"
       },
       "emoji_picker": "Seletor de emojis",
       "image_upload": "Carregar imagem",
@@ -6087,6 +6148,7 @@
         "max_messages": "Mensagens recentes mantidas",
         "max_messages_description": "Envia apenas as mensagens mais recentes; as anteriores são excluídas do contexto. Deixe vazio para não limitar. Os assistentes podem substituir esta definição",
         "max_messages_unlimited": "Sem limite",
+        "scope_description": "Aplica-se apenas às conversas com assistentes no Cherry Studio. Cada assistente pode substituir estas definições individualmente.",
         "title": "Gestão de contexto",
         "truncate_threshold": "Limite de truncagem da saída de ferramentas (caracteres)",
         "truncate_threshold_description": "Saídas de ferramentas acima deste número de caracteres são descarregadas para um ficheiro e truncadas; o modelo pode voltar a lê-las quando precisar. Os assistentes podem substituir esta definição"
@@ -7199,10 +7261,10 @@
     "history": {
       "back": "Voltar à lista",
       "clear": "Limpar Histórico",
-      "clear_description": "Limpar histórico irá eliminar todos os registos de tradução. Deseja continuar?",
+      "clear_description": "Limpar o histórico irá eliminar todo o histórico de traduções e recuperar os ficheiros traduzidos que produziu. Continuar?",
       "copy_target": "Copiar resultado",
       "delete": "Apagar histórico de traduções",
-      "delete_description": "Eliminar este registo do histórico de tradução? Esta ação não pode ser desfeita.",
+      "delete_description": "Eliminar este registo do histórico de traduções? Numa tradução de ficheiro, o ficheiro traduzido também é recuperado. Esta ação não pode ser anulada.",
       "empty": "Nenhum histórico de tradução disponível",
       "error": {
         "add": "Falha ao adicionar histórico de tradução",
@@ -7210,6 +7272,17 @@
         "delete": "Falha ao eliminar",
         "load": "Falha ao carregar o histórico de tradução",
         "save": "Falha ao guardar o histórico de traduções"
+      },
+      "file": {
+        "action_failed": "Não foi possível concluir essa ação no ficheiro",
+        "badge": "Tradução de ficheiro",
+        "export": "Guardar o ficheiro traduzido como…",
+        "open": "Abrir o ficheiro traduzido",
+        "preview": "Pré-visualização lado a lado",
+        "reveal": "Mostrar na pasta",
+        "source": "Ficheiro de origem",
+        "target": "Ficheiro traduzido",
+        "unavailable": "Os ficheiros desta tradução já não estão disponíveis"
       },
       "filter": {
         "starred": "Apenas marcado com estrela"
@@ -7239,6 +7312,53 @@
     "language_settings": "Configurações de Idioma",
     "output": {
       "placeholder": "Tradução"
+    },
+    "pdf": {
+      "action": {
+        "close": "Fechar a tradução de PDF",
+        "export": "Exportar PDF traduzido",
+        "install_babeldoc": "Instalar o BabelDOC",
+        "update_babeldoc": "Atualizar o BabelDOC"
+      },
+      "dependency": {
+        "checking": "A verificar o BabelDOC...",
+        "description": "Instale o plugin BabelDOC para traduzir PDF preservando o esquema original.",
+        "installing": "A instalar o BabelDOC...",
+        "outdated_description": "Atualize o BabelDOC para continuar a traduzir PDF preservando o esquema.",
+        "outdated_title": "É necessário atualizar o BabelDOC",
+        "title": "PDF detetado"
+      },
+      "error": {
+        "generic": "Ocorreu um erro durante a tradução. Tente novamente.",
+        "ocr_required": "Os PDF digitalizados ainda não são suportados.",
+        "persist_failed": "O PDF foi traduzido, mas não foi possível guardar o resultado. Tente novamente.",
+        "title": "A tradução do PDF falhou"
+      },
+      "export_failed": "Não foi possível exportar o PDF traduzido",
+      "pane": {
+        "translated": "PDF traduzido",
+        "translated_text": "Tradução"
+      },
+      "progress": {
+        "analyzing": "A analisar o esquema do documento",
+        "checking_assets": "A verificar os recursos de processamento de PDF",
+        "downloading_assets": "A transferir recursos de processamento de PDF...",
+        "extracting_terms": "A extrair a terminologia do documento",
+        "loading_model": "A carregar o modelo de processamento de PDF",
+        "parsing": "A analisar o documento PDF",
+        "percent": "{{progress}}%",
+        "preparing": "A inicializar a tradução do PDF",
+        "preparing_hint": "A primeira inicialização pode demorar cerca de 2 minutos; as execuções seguintes são normalmente mais rápidas",
+        "rendering": "A renderizar o PDF traduzido",
+        "translating": "A traduzir o conteúdo",
+        "typesetting": "A compor o PDF traduzido",
+        "value": "{{stage}}, etapa {{stageProgress}}%, total {{overallProgress}}%"
+      },
+      "ready": {
+        "description": "Selecione um idioma de destino e inicie a tradução.",
+        "title": "Pronto para traduzir"
+      },
+      "success": "PDF traduzido gerado"
     },
     "preferred_target": "Alvo Preferencial",
     "processing": "A traduzir...",

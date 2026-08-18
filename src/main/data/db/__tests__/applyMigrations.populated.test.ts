@@ -173,6 +173,8 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('backfills durable refs for existing agent-session attachments', () => {
+    // The backfill shipped in 0006. Pin its baseline explicitly so a later schema migration does
+    // not move the seed after the backfill and silently stop testing the populated upgrade path.
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0006_mean_morg'))
     const now = Date.now()
     const fileEntryId = '77777777-7777-7777-8777-777777777777'
