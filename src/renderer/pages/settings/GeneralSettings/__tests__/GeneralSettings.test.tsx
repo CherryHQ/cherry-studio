@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import type { HTMLAttributes, InputHTMLAttributes, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import SystemSettings from '../SystemSettings'
+import GeneralSettings from '../GeneralSettings'
 
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: vi.fn() },
@@ -20,6 +20,14 @@ vi.mock('@renderer/hooks/useTimer', () => ({
 
 vi.mock('@renderer/components/Selector', () => ({
   default: () => null
+}))
+
+vi.mock('../ContextManagementSettings', () => ({
+  ContextManagementSettings: () => (
+    <section>
+      <h2>settings.models.context_management.title</h2>
+    </section>
+  )
 }))
 
 vi.mock('@renderer/components/SettingsPrimitives', () => ({
@@ -50,7 +58,7 @@ vi.mock('@cherrystudio/ui', () => ({
   )
 }))
 
-describe('SystemSettings tray preferences', () => {
+describe('GeneralSettings', () => {
   beforeEach(() => {
     MockUsePreferenceUtils.resetMocks()
     MockUsePreferenceUtils.setMultiplePreferenceValues({
@@ -61,8 +69,19 @@ describe('SystemSettings tray preferences', () => {
     })
   })
 
+  it('places context management directly after proxy settings', () => {
+    render(<GeneralSettings />)
+
+    expect(screen.getAllByRole('heading').map((heading) => heading.textContent)).toEqual([
+      'settings.launch.title',
+      'settings.proxy.mode.title',
+      'settings.models.context_management.title',
+      'settings.developer.title'
+    ])
+  })
+
   it('turns off every tray-dependent preference when the tray is disabled', async () => {
-    render(<SystemSettings />)
+    render(<GeneralSettings />)
 
     const trayRow = screen.getByText('settings.tray.show').closest<HTMLElement>('[data-testid="setting-row"]')
     expect(trayRow).not.toBeNull()

@@ -9,7 +9,7 @@ import { createHash } from 'node:crypto'
 
 import { convertToModelMessages, type ModelMessage, type ToolSet, type UIMessage } from 'ai'
 
-import { ALL_MEDIA, gateToolResultMedia, type MediaCapabilities, stripUnsupportedMedia } from './messageCapabilities'
+import { ALL_MEDIA, type MediaCapabilities, routeToolResultMedia, stripUnsupportedMedia } from './messageCapabilities'
 import { renderPersistedToolOutputs } from './persistedOutputRendering'
 
 /** A string/array `content` → a flat parts array (`[]` for an empty string). */
@@ -128,6 +128,6 @@ export async function toModelMessages(
   const rendered = sanitizeDynamicToolNames(renderPersistedToolOutputs(messages), tools)
   const shaped = stripUnsupportedMedia(rendered, caps ?? ALL_MEDIA)
   const model = await convertToModelMessages(shaped, { ignoreIncompleteToolCalls: true, tools })
-  const gated = gateToolResultMedia(model, toolResultCaps ?? caps ?? ALL_MEDIA)
+  const gated = routeToolResultMedia(model, caps ?? ALL_MEDIA, toolResultCaps ?? caps ?? ALL_MEDIA)
   return ensureNonEmptyAssistantContent(coalesceConsecutiveSameRole(gated))
 }

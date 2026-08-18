@@ -188,6 +188,20 @@ export const parseTranslateLangCode = (value: string): TranslateLangCode => Tran
 export const isTranslateLangCode = (value: unknown): value is TranslateLangCode =>
   TranslateLangCodeSchema.safeParse(value).success
 export type TranslateSourceLanguage = TranslateLangCode | 'auto'
+/**
+ * Fold a UI-side language code down to what persistence accepts.
+ *
+ * `'unknown'` and `'auto'` are UI sentinels with no `translate_language` row, so
+ * they collapse to `null` — the FK's "language not recorded" state — instead of
+ * breaking the FK or the read-side {@link PersistedLangCodeSchema} parse. Shared
+ * by the renderer's history mutations and main's `PdfTranslationService`.
+ */
+export const toPersistedLangCodeOrNull = (
+  langCode: TranslateSourceLanguage | null | undefined
+): PersistedLangCode | null => {
+  if (langCode === null || langCode === undefined || langCode === 'unknown' || langCode === 'auto') return null
+  return parsePersistedLangCode(langCode)
+}
 export type TranslateBidirectionalPair = [TranslateLangCode, TranslateLangCode]
 export const parseTranslateBidirectionalPair = (value: readonly [string, string]): TranslateBidirectionalPair => [
   parseTranslateLangCode(value[0]),

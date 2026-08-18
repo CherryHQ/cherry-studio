@@ -726,6 +726,22 @@
           "description": "タスクリストを管理",
           "label": "タスクリストを管理"
         },
+        "tool_call": {
+          "description": "検出されたツールを1つ呼び出す",
+          "label": "ツールを呼び出す"
+        },
+        "tool_describe": {
+          "description": "ツールの完全な説明とTypeScriptシグネチャを取得",
+          "label": "ツールを説明"
+        },
+        "tool_exec": {
+          "description": "検出されたツールを連携させるJavaScriptを実行",
+          "label": "ツールコードを実行"
+        },
+        "tool_search": {
+          "description": "利用可能なツールを検索し、そのTypeScriptシグネチャを確認",
+          "label": "ツールを検索"
+        },
         "update_goal": {
           "description": "セッション目標の状態または内容を更新",
           "label": "目標を更新"
@@ -784,6 +800,7 @@
       "restartSuccess": "API サーバーが正常に再起動されました",
       "startError": "API サーバーの開始に失敗しました：",
       "startSuccess": "API サーバーが正常に開始されました",
+      "stopDeferred": "現在の翻訳が完了してから API サーバーを停止します",
       "stopError": "API サーバーの停止に失敗しました：",
       "stopSuccess": "API サーバーが正常に停止されました"
     },
@@ -991,6 +1008,19 @@
       "knowledge_base_disabled_by_files": "ナレッジベースを使用するには、添付ファイルを削除してください。",
       "knowledge_base_unavailable": "ツール対応モデルを選択してください",
       "locate_editing_message": "元のメッセージを見つける",
+      "mcp_prompts": {
+        "description": "MCP サーバーが公開するプロンプトを挿入",
+        "empty": "利用可能な MCP プロンプトがありません",
+        "insert_failed": "プロンプトの挿入に失敗しました",
+        "title": "MCP プロンプト"
+      },
+      "mcp_resources": {
+        "description": "MCP サーバーが公開するリソースを参照",
+        "empty": "利用可能な MCP リソースがありません",
+        "read_failed": "リソースの読み込みに失敗しました",
+        "reader_unavailable": "現在のモデルでは、添付後にこのリソースを読み取れません",
+        "title": "MCP リソース"
+      },
       "new": {
         "context": "コンテキストをクリア"
       },
@@ -1870,6 +1900,7 @@
       "503": "サービスが利用できません。後でもう一度試してください",
       "504": "ゲートウェイタイムアウトが発生しました。後でもう一度試してください"
     },
+    "image_unreadable_for_non_vision_model": "選択したモデルは画像入力を受け付けるように設定されておらず、Cherry Studio は添付ファイルから読み取り可能なテキストを抽出できませんでした。プロバイダー設定でこのモデルの「画像」を有効にするか、別の画像対応モデルを選択するか、画像を削除してもう一度お試しください。",
     "lastError": "最後のエラー",
     "maxEmbeddingsPerCall": "1回の呼び出しでの最大埋め込み数",
     "message": "エラーメッセージ",
@@ -5542,6 +5573,7 @@
       },
       "title": "環境依存",
       "tools": {
+        "babeldoc-stream": "レイアウトを保持したまま PDF を翻訳するエンジンです。レイアウトモデルのデータは初回翻訳時にダウンロードされます。",
         "bun": "MCP サービスと関連ツールチェーンで使用する JavaScript ランタイムです。",
         "claude": "Anthropic が提供するターミナル向けのエージェント型コーディングツールです。",
         "codex": "ローカルリポジトリのコードを読み取り、編集、実行できる OpenAI のオープンソースコーディングエージェントです。",
@@ -5618,7 +5650,8 @@
         },
         "sections": {
           "display_language": "表示と言語"
-        }
+        },
+        "title": "共通設定"
       },
       "emoji_picker": "絵文字ピッカー",
       "image_upload": "画像アップロード",
@@ -6088,6 +6121,7 @@
         "max_messages": "保持する直近メッセージ数",
         "max_messages_description": "直近のメッセージのみを送信し、それより前はコンテキストから除外します。空欄で無制限。アシスタントごとに上書きできます",
         "max_messages_unlimited": "無制限",
+        "scope_description": "Cherry Studio 内のアシスタントとの会話にのみ適用されます。アシスタントごとに個別に上書きできます。",
         "title": "コンテキスト管理",
         "truncate_threshold": "ツール出力の切り詰めしきい値（文字）",
         "truncate_threshold_description": "この文字数を超えるツール出力はファイルへ退避して切り詰めます。モデルは必要に応じて読み戻せます。アシスタントごとに上書きできます"
@@ -7200,10 +7234,10 @@
     "history": {
       "back": "リストに戻る",
       "clear": "履歴をクリア",
-      "clear_description": "履歴をクリアすると、すべての翻訳履歴が削除されます。続行しますか？",
+      "clear_description": "履歴を消去すると、すべての翻訳履歴が削除され、生成された翻訳ファイルも回収されます。続行しますか？",
       "copy_target": "結果をコピー",
       "delete": "翻訳履歴を削除する",
-      "delete_description": "この翻訳履歴レコードを削除しますか？この操作は取り消せません。",
+      "delete_description": "この翻訳履歴を削除しますか？ファイル翻訳の場合は、生成された翻訳ファイルも回収されます。この操作は取り消せません。",
       "empty": "翻訳履歴がありません",
       "error": {
         "add": "翻訳履歴の追加に失敗しました",
@@ -7211,6 +7245,17 @@
         "delete": "削除に失敗しました",
         "load": "翻訳履歴の読み込みに失敗しました。",
         "save": "保存翻訳履歴に失敗しました"
+      },
+      "file": {
+        "action_failed": "そのファイルに対する操作を完了できませんでした",
+        "badge": "ファイル翻訳",
+        "export": "翻訳ファイルを名前を付けて保存…",
+        "open": "翻訳ファイルを開く",
+        "preview": "並べて表示",
+        "reveal": "フォルダーに表示",
+        "source": "元のファイル",
+        "target": "翻訳ファイル",
+        "unavailable": "この翻訳のファイルは利用できなくなりました"
       },
       "filter": {
         "starred": "スター付きのみ"
@@ -7240,6 +7285,53 @@
     "language_settings": "言語設定",
     "output": {
       "placeholder": "翻訳"
+    },
+    "pdf": {
+      "action": {
+        "close": "PDF 翻訳を閉じる",
+        "export": "翻訳済み PDF をエクスポート",
+        "install_babeldoc": "BabelDOC をインストール",
+        "update_babeldoc": "BabelDOC を更新"
+      },
+      "dependency": {
+        "checking": "BabelDOC を確認しています...",
+        "description": "BabelDOC プラグインをインストールすると、元のレイアウトを保持したまま PDF を翻訳できます。",
+        "installing": "BabelDOC をインストールしています...",
+        "outdated_description": "BabelDOC を更新すると、レイアウトを保持したまま PDF の翻訳を続けられます。",
+        "outdated_title": "BabelDOC の更新が必要です",
+        "title": "PDF を検出しました"
+      },
+      "error": {
+        "generic": "翻訳中にエラーが発生しました。もう一度お試しください。",
+        "ocr_required": "スキャンされた PDF はまだサポートされていません。",
+        "persist_failed": "PDF は翻訳されましたが、結果を保存できませんでした。もう一度お試しください。",
+        "title": "PDF の翻訳に失敗しました"
+      },
+      "export_failed": "翻訳済み PDF のエクスポートに失敗しました",
+      "pane": {
+        "translated": "翻訳済み PDF",
+        "translated_text": "翻訳"
+      },
+      "progress": {
+        "analyzing": "文書のレイアウトを解析しています",
+        "checking_assets": "PDF 処理リソースを確認しています",
+        "downloading_assets": "PDF 処理リソースをダウンロードしています...",
+        "extracting_terms": "文書の用語を抽出しています",
+        "loading_model": "PDF 処理モデルを読み込んでいます",
+        "parsing": "PDF 文書を解析しています",
+        "percent": "{{progress}}%",
+        "preparing": "PDF 翻訳を初期化しています",
+        "preparing_hint": "初回の初期化には約 2 分かかることがあります。次回以降は通常もっと速くなります",
+        "rendering": "翻訳済み PDF をレンダリングしています",
+        "translating": "本文を翻訳しています",
+        "typesetting": "翻訳済み PDF を組版しています",
+        "value": "{{stage}}、段階 {{stageProgress}}%、全体 {{overallProgress}}%"
+      },
+      "ready": {
+        "description": "対象言語を選択して翻訳を開始してください。",
+        "title": "翻訳の準備ができました"
+      },
+      "success": "翻訳済み PDF を生成しました"
     },
     "preferred_target": "優先ターゲット",
     "processing": "翻訳中...",

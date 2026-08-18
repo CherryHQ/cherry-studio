@@ -13,7 +13,7 @@ import {
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { clearCliConfig } from '../cliConfig'
+import { clearCliConfig, resolveCliConfigApplyContext } from '../cliConfig'
 import type { CodeCliPageViewProps } from '../components/CodeCliPageView'
 import { CLI_TOOLS, PROVIDERLESS_CLI_TOOLS } from '../constants/cliTools'
 import { OWN_LOGIN_PROVIDER } from '../constants/ownLoginProvider'
@@ -76,6 +76,7 @@ export function useCodeCliPageViewProps(
     resolveProviderMeta,
     resolveProviderMetaForTool,
     gatewayModelsById,
+    defaultGatewayModelId,
     isGatewayModelsLoading
   } = useConfigMetadata(selectedCliTool, providers, isProvidersLoading)
 
@@ -129,11 +130,27 @@ export function useCodeCliPageViewProps(
     prependedProviders
   })
 
-  const enabledProvider = currentProviderId ? supportedProviders.find((p) => p.id === currentProviderId) : undefined
+  const selectedProvider = currentProviderId ? supportedProviders.find((p) => p.id === currentProviderId) : undefined
+  const defaultGatewayProvider = !currentProviderId && showGatewayCard ? apiGatewayBundle?.provider : undefined
+  const savedGatewayConfig = defaultGatewayProvider ? providerConfigs[defaultGatewayProvider.id] : undefined
+  const hasSavedGatewayContext = defaultGatewayProvider
+    ? !!resolveCliConfigApplyContext(selectedCliTool, defaultGatewayProvider.id, savedGatewayConfig, gatewayModelsById)
+    : false
+  const defaultGatewayConfig = useMemo(
+    () =>
+      hasSavedGatewayContext
+        ? savedGatewayConfig
+        : defaultGatewayModelId
+          ? { ...savedGatewayConfig, modelId: defaultGatewayModelId }
+          : null,
+    [hasSavedGatewayContext, savedGatewayConfig, defaultGatewayModelId]
+  )
+  const enabledProvider = selectedProvider ?? defaultGatewayProvider
+  const enabledProviderConfig = currentProviderConfig ?? defaultGatewayConfig
   const [currentCliConfigConnection, setCurrentCliConfigConnection] = useCurrentCliConfigConnection({
     enabledProvider,
     selectedCliTool,
-    currentProviderConfig,
+    currentProviderConfig: enabledProviderConfig,
     apiGatewayProvider: apiGatewayBundle
   })
 
@@ -146,7 +163,7 @@ export function useCodeCliPageViewProps(
   const isDeepSeekHarnessTool = selectedCliTool === CodeCli.DEEPSEEK_HARNESS
   const canLaunch =
     (isProviderlessTool || isOwnLoginSelected || !!enabledProvider) &&
-    (!isDeepSeekHarnessTool || !!currentProviderConfig?.modelId)
+    (!isDeepSeekHarnessTool || !!enabledProviderConfig?.modelId)
   const isOpenClawTool = selectedCliTool === CodeCli.OPENCLAW
   const activeMeta = activeTool ? toMeta(activeTool) : null
   const toolName = activeMeta?.label ?? ''
@@ -178,7 +195,11 @@ export function useCodeCliPageViewProps(
   // real provider exists to select — otherwise own-login is the sole option and no nag is warranted.
   const hasRealSupportedProvider = supportedProviders.some((p) => p.id !== CLI_OWN_LOGIN_PROVIDER_ID)
   const showProviderSelectionHint =
-    versionStatus.installed && !isProviderlessTool && hasRealSupportedProvider && !currentProviderId
+    versionStatus.installed &&
+    !isProviderlessTool &&
+    hasRealSupportedProvider &&
+    !currentProviderId &&
+    !defaultGatewayProvider
 
   const configPanel = useConfigPanelController({
     selectedCliTool,
@@ -200,7 +221,7 @@ export function useCodeCliPageViewProps(
     directory,
     enabledProvider,
     isOwnLoginSelected,
-    currentProviderConfig,
+    currentProviderConfig: enabledProviderConfig,
     selectedTerminal,
     apiGatewayProvider: apiGatewayBundle,
     gatewayModelsById,
@@ -212,14 +233,14 @@ export function useCodeCliPageViewProps(
   const openClawGateway = useOpenClawGatewayController({
     selectedCliTool,
     enabledProvider,
-    currentProviderConfig,
+    currentProviderConfig: enabledProviderConfig,
     upsertProviderConfig,
     setCurrentProvider
   })
   const deepSeekHarness = useDeepSeekHarnessController({
     selectedCliTool,
     enabledProvider,
-    currentProviderConfig,
+    currentProviderConfig: enabledProviderConfig,
     upsertProviderConfig,
     setCurrentProvider
   })
@@ -304,11 +325,13 @@ export function useCodeCliPageViewProps(
               ? () => removeDialog.requestRemove(selectedCliTool)
               : undefined,
           onLaunch: () =>
-            isOpenClawTool
-              ? void openClawGateway.onLaunch()
-              : isDeepSeekHarnessTool
-                ? void deepSeekHarness.onLaunch()
-                : launchDialog.openLaunchDialog(),
+            defaultGatewayProvider && !defaultGatewayConfig
+              ? configPanel.onToggleCurrent(defaultGatewayProvider)
+              : isOpenClawTool
+                ? void openClawGateway.onLaunch()
+                : isDeepSeekHarnessTool
+                  ? void deepSeekHarness.onLaunch()
+                  : launchDialog.openLaunchDialog(),
           onStop: () => (isDeepSeekHarnessTool ? void deepSeekHarness.onStop() : void openClawGateway.onStop()),
           onOpenDashboard: () =>
             isDeepSeekHarnessTool ? void deepSeekHarness.onOpenWebUi() : void openClawGateway.onOpenDashboard(),

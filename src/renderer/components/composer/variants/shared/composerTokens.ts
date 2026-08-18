@@ -4,6 +4,7 @@ import {
   getComposerFileTokenSourceId
 } from '@renderer/utils/message/composerFileTokenSource'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
+import type { McpResource } from '@shared/types/mcp'
 
 import type { ComposerDraftToken, ComposerSerializedToken } from '../../tokens'
 
@@ -54,6 +55,38 @@ export function knowledgeBaseToComposerToken(base: KnowledgeBase): ComposerDraft
     label: base.name,
     promptText: `The user attached knowledge base "${base.name}" (id: ${base.id}) — use that id with the kb_* tools.`,
     payload: base
+  }
+}
+
+/** Keyed by server *id*, not name: server names carry no unique constraint, so two servers can
+ *  publish the same uri under the same name and their chips would otherwise collide. */
+export const composerMcpResourceTokenId = (resource: Pick<McpResource, 'serverId' | 'uri'>) =>
+  `mcp-resource:${resource.serverId}:${resource.uri}`
+
+/**
+ * A picked MCP resource the composer did not inline — binary content, or text past
+ * `MCP_RESOURCE_INLINE_MAX_CHARS`. Same contract as the knowledge token above: the
+ * `(serverId, uri)` pair is load-bearing (it is exactly what `mcp_resource_read` takes), and the
+ * sentence names the tool because nothing else tells the model the attachment exists.
+ */
+export function mcpResourceToComposerToken(
+  resource: McpResource,
+  options: { reader: 'mcp_resource_read' | 'runtime' } = { reader: 'mcp_resource_read' }
+): ComposerDraftToken {
+  const name = resource.name || resource.uri
+  // Agent sessions reach resources through their own MCP bridge, so naming the chat builtin there
+  // would point the model at a tool its runtime does not have.
+  const instruction =
+    options.reader === 'mcp_resource_read'
+      ? `read it with mcp_resource_read using serverId "${resource.serverId}" and uri "${resource.uri}"`
+      : `read it from MCP server "${resource.serverName}" at uri "${resource.uri}"`
+  return {
+    id: composerMcpResourceTokenId(resource),
+    kind: 'reference',
+    label: name,
+    description: resource.uri,
+    promptText: `The user attached MCP resource "${name}" from server "${resource.serverName}" — ${instruction}.`,
+    payload: resource
   }
 }
 
