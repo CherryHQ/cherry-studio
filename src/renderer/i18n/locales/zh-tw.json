@@ -3035,6 +3035,7 @@
   "provider.mistral": "Mistral",
   "provider.modelscope": "ModelScope",
   "provider.moonshot": "Moonshot",
+  "provider.moonshot-global": "月之暗面海外版",
   "provider.new-api": "New API",
   "provider.nvidia": "Nvidia",
   "provider.o3": "O3",

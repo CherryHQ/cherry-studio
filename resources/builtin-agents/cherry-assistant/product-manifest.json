@@ -466,7 +466,7 @@
   ],
   "providers": {
     "version": "e47c80cffa19d83b",
-    "count": 62,
+    "count": 63,
     "entries": [
       {
         "id": "cherryin",
@@ -603,6 +603,10 @@
       {
         "id": "moonshot",
         "name": "Moonshot AI"
+      },
+      {
+        "id": "moonshot-global",
+        "name": "moonshot-global"
       },
       {
         "id": "baichuan",
