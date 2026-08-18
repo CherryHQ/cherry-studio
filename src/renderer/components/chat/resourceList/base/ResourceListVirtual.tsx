@@ -155,7 +155,7 @@ function useAutoHideScrollbar(delay = SCROLLBAR_AUTO_HIDE_DELAY) {
     function scheduleNextStage(timeout: number) {
       timeoutRef.current = setTimeout(() => {
         timeoutRef.current = null
-        const remainingDelay = fadeStartAtRef.current - Date.now()
+        const remainingDelay = fadeStartAtRef.current - performance.now()
         if (remainingDelay > 0) {
           scheduleNextStage(remainingDelay)
           return
@@ -173,7 +173,7 @@ function useAutoHideScrollbar(delay = SCROLLBAR_AUTO_HIDE_DELAY) {
   )
 
   const handleScroll = useCallback(() => {
-    fadeStartAtRef.current = Date.now() + delay
+    fadeStartAtRef.current = performance.now() + delay
     updateStage('active')
     // Keep one deadline-driven timer alive so a scroll burst only updates the deadline.
     if (timeoutRef.current === null) scheduleNextStage(delay)
