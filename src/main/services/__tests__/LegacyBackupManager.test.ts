@@ -395,6 +395,7 @@ describe('BackupManager direct v2 data compatibility', () => {
     vi.mocked(fs.remove).mockResolvedValue(undefined as never)
     vi.mocked(fs.rename).mockResolvedValue(undefined as never)
     vi.mocked(fs.ensureDir).mockResolvedValue(undefined as never)
+    vi.mocked(fs.chmod).mockResolvedValue(undefined as never)
     vi.mocked(fs.copy).mockResolvedValue(undefined as never)
     vi.mocked(fs.writeJson).mockResolvedValue(undefined as never)
     vi.mocked(fs.readdir).mockResolvedValue([] as never)

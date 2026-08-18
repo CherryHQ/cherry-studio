@@ -922,4 +922,33 @@ describe('createAtomicWriteStream', () => {
     const entries = await readdir(tmp)
     expect(entries.filter((e) => e.includes('.tmp-'))).toEqual([])
   })
+
+  it('applies options.mode from tmp creation (stream path)', async () => {
+    if (process.platform === 'win32') return
+    const target = path.join(tmp, 'secret.zip') as AbsoluteFilePath
+    const stream = createAtomicWriteStream(target, { mode: 0o600 })
+    stream.write('backup-bytes')
+    await new Promise<void>((resolve, reject) => {
+      stream.on('finish', resolve)
+      stream.on('error', reject)
+      stream.end()
+    })
+    expect(await readFile(target, 'utf-8')).toBe('backup-bytes')
+    expect((await fsStatPromise(target)).mode & 0o777).toBe(0o600)
+  })
+
+  it('keeps the default (umask) mode on the stream path when options.mode is omitted', async () => {
+    if (process.platform === 'win32') return
+    const target = path.join(tmp, 'plain.zip') as AbsoluteFilePath
+    const reference = path.join(tmp, 'reference.txt')
+    const stream = createAtomicWriteStream(target)
+    stream.write('hello')
+    await new Promise<void>((resolve, reject) => {
+      stream.on('finish', resolve)
+      stream.on('error', reject)
+      stream.end()
+    })
+    await writeFile(reference, 'hello')
+    expect((await fsStatPromise(target)).mode & 0o777).toBe((await fsStatPromise(reference)).mode & 0o777)
+  })
 })

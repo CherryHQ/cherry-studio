@@ -61,6 +61,10 @@ const BACKUP_OPERATION_DIR_PATTERN =
   /^(?:create|lan-create|extract|webdav-download|s3-download)-[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i
 const BACKUP_TEMP_ARCHIVE_PATTERN = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}-.+\.zip$/i
 const WINDOWS_UV_EBUSY_ERRNO = -4082
+// Backup archives hold every stored credential; the shared-OS-temp staging tree
+// must not be readable by other local users (S8 hardening).
+const BACKUP_ARCHIVE_FILE_MODE = 0o600
+const BACKUP_TEMP_DIR_MODE = 0o700
 
 const isSkippableLevelDbLockError = (sourcePath: string, error: unknown): error is NodeJS.ErrnoException => {
   const parentDirectory = path.basename(path.dirname(sourcePath)).toLowerCase()
@@ -157,6 +161,14 @@ class BackupManager {
 
   async cleanupStaleTempArtifacts(): Promise<void> {
     const cutoff = Date.now() - STALE_TEMP_ARTIFACT_AGE_MS
+
+    // Best-effort boot hardening: fix a pre-existing 0755 root even when no
+    // operation runs. ENOENT (first boot) is expected; other failures surface.
+    await fs.chmod(this.backupDir, BACKUP_TEMP_DIR_MODE).catch((error) => {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        logger.warn('[cleanupStaleTempArtifacts] Failed to restrict backup temp dir permissions', { error })
+      }
+    })
 
     try {
       const entries = await fs.readdir(this.backupDir, { withFileTypes: true })
@@ -436,7 +448,9 @@ class BackupManager {
       onProgress({ stage: 'compressing', progress: 80, total: 100 })
       signal?.throwIfAborted()
 
-      const atomicOutput = createAtomicWriteStream(AbsoluteFilePathSchema.parse(backupedFilePath))
+      const atomicOutput = createAtomicWriteStream(AbsoluteFilePathSchema.parse(backupedFilePath), {
+        mode: BACKUP_ARCHIVE_FILE_MODE
+      })
       output = atomicOutput
       const archive = new ZipArchive({
         zlib: { level: 1 },
@@ -1428,9 +1442,20 @@ class BackupManager {
   // These are helper methods for file operations like size calculation,
   // directory copying with progress, and permission management.
 
+  /** Staging dirs hold full-backup content; keep them owner-only on multi-user hosts (S8). */
+  private async ensurePrivateDir(dir: string): Promise<void> {
+    await fs.ensureDir(dir)
+    await fs.chmod(dir, BACKUP_TEMP_DIR_MODE).catch((error) => {
+      logger.warn('[BackupManager] Failed to restrict backup staging dir permissions', { dir, error })
+    })
+  }
+
   private async createOperationDir(prefix: string): Promise<string> {
+    // Every sensitive flow (create/extract/webdav-download/...) passes through here, so the
+    // staging root is hardened at the same choke point; chmod also fixes pre-existing 0755 dirs.
+    await this.ensurePrivateDir(this.backupDir)
     const operationDir = path.join(this.backupDir, `${prefix}-${randomUUID()}`)
-    await fs.ensureDir(operationDir)
+    await this.ensurePrivateDir(operationDir)
     return operationDir
   }
 
