@@ -160,7 +160,7 @@ New or renamed `packages/*` directory names must be `kebab-case`. For a package 
 
 ```
 packages/ai-sdk-provider/      ✅
-packages/mcp-trace/            ✅
+packages/provider-registry/    ✅
 packages/extension-table-plus/ ✅
 packages/somePkg/              ❌ (camelCase not allowed)
 packages/SomePkg/              ❌ (PascalCase not allowed)
