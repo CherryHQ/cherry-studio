@@ -362,25 +362,28 @@ function createCitationLookup(citations: MessageCitations): {
 }
 
 /**
- * Rewrite the comma-list form models keep producing — `[cite:a, b, c]` — into the chained
- * `[cite:a][cite:b][cite:c]` the prompt asks for, so every consumer sees one marker shape.
+ * Rewrite whatever a model puts inside a `[cite:…]` bracket into the chained `[cite:a][cite:b]`
+ * the prompt asks for. Models keep inventing near-misses — padding, comma lists, a repeated
+ * `cite:` per id — so read the bracket as a bag of ids rather than matching one spelling at a
+ * time: every id-shaped token in it is an id, and a bracket holding none is left alone.
  */
-function expandMarkerLists(content: string): string {
+function canonicalizeMarkers(content: string): string {
   return mapMarkdownOutsideCode(content, (text) =>
-    text.replace(/\[cite:([\w-]+(?:[ \t]*,[ \t]*[\w-]+)+)\]/g, (_match, ids: string) =>
-      ids
-        .split(',')
-        .map((id) => `[cite:${id.trim()}]`)
-        .join('')
-    )
+    text.replace(/\[cite:[^\]\n]*\]/g, (marker) => {
+      const ids = marker
+        .slice('[cite:'.length, -1)
+        .match(/[\w-]+/g)
+        ?.filter((id) => id !== 'cite')
+      return ids?.length ? ids.map((id) => `[cite:${id}]`).join('') : marker
+    })
   )
 }
 
 function normalizeMarkerContent(content: string, markerNumberMap: Map<number, Citation>): string {
-  const expanded = expandMarkerLists(content)
+  const canonical = canonicalizeMarkers(content)
   return markerNumberMap.size > 0
-    ? normalizeCitationMarks(expanded, markerNumberMap, WEB_SEARCH_SOURCE.AISDK)
-    : expanded
+    ? normalizeCitationMarks(canonical, markerNumberMap, WEB_SEARCH_SOURCE.AISDK)
+    : canonical
 }
 
 function collapseMarkerRuns(text: string, byMarker: ReadonlyMap<string, Citation>): string {
@@ -403,7 +406,7 @@ export function resolveCitationMarkerParts(
   citations: MessageCitations
 ): ResolvedCitationMarkers[] {
   if (citations.byId.size === 0) {
-    return contents.map((content) => ({ content: expandMarkerLists(content), byMarker: new Map(), cited: [] }))
+    return contents.map((content) => ({ content: canonicalizeMarkers(content), byMarker: new Map(), cited: [] }))
   }
 
   const { lookup, markerNumberMap } = createCitationLookup(citations)
@@ -493,7 +496,7 @@ export function toExportableCitations(
  * without inventing a second, conflicting sequence.
  */
 export function stripCitationMarkers(content: string): string {
-  return mapMarkdownOutsideCode(expandMarkerLists(content), (text) => text.replace(CITATION_MARKER_PATTERN, ''))
+  return mapMarkdownOutsideCode(canonicalizeMarkers(content), (text) => text.replace(CITATION_MARKER_PATTERN, ''))
 }
 
 /**
