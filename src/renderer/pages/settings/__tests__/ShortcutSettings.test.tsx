@@ -284,6 +284,25 @@ describe('ShortcutSettings shortcut recorder', () => {
     })
   })
 
+  it('clears the search when switching shortcut categories', async () => {
+    const user = userEvent.setup()
+    shortcutsMock.shortcuts = [
+      makeShortcut({ label: 'Search everywhere' }),
+      { ...makeShortcut({ command: 'tab.next', label: 'Next chat' }), group: 'chat' }
+    ]
+
+    renderShortcutSettings()
+
+    await user.click(screen.getByRole('button', { name: 'common.search' }))
+    const search = screen.getByRole('searchbox', { name: 'common.search' })
+    await user.type(search, 'Search')
+    await user.click(screen.getByRole('button', { name: /settings.shortcuts.categories.all/ }))
+    await user.click(await screen.findByRole('menuitemradio', { name: /settings.shortcuts.categories.chat/ }))
+
+    expect(search).toHaveValue('')
+    expect(screen.getByText('Next chat')).toBeInTheDocument()
+  })
+
   // Pages that own a feature but not its shortcut link here with `?command=<id>`. Landing on
   // an unmarked list leaves the user to find the row themselves, which is the whole problem.
   it('marks the row named by the command search param', () => {

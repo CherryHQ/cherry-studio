@@ -595,7 +595,10 @@ const ShortcutSettings: FC = () => {
                   <DropdownMenuContent align="end" className="min-w-44">
                     <DropdownMenuRadioGroup
                       value={activeGroup}
-                      onValueChange={(value) => setActiveGroup(value as ShortcutSettingsFilterGroup)}>
+                      onValueChange={(value) => {
+                        setActiveGroup(value as ShortcutSettingsFilterGroup)
+                        setSearchQuery('')
+                      }}>
                       {groupOptions.map((option) => (
                         <DropdownMenuRadioItem key={option.value} value={option.value} className="gap-2">
                           <span>{option.label}</span>
