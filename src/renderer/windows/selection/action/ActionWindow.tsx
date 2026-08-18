@@ -1,6 +1,7 @@
 import { Button, Slider, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import SelectionActionIcon from '@renderer/components/selection/SelectionActionIcon'
+import { type DetectLanguageController, useDetectLang } from '@renderer/hooks/translate'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 import { ipcApi } from '@renderer/ipc'
 import { isMac } from '@renderer/utils/platform'
@@ -26,9 +27,10 @@ import ActionTranslate from './components/ActionTranslate'
  * `useEffect([action])` inside the content component.
  */
 const ActionWindow: FC = () => {
+  const detection = useDetectLang()
   const action = useWindowInitData<SelectionActionItem>()
   if (!action) return null
-  return <SelectionActionContent action={action} />
+  return <SelectionActionContent action={action} detection={detection} />
 }
 
 /**
@@ -39,7 +41,12 @@ const ActionWindow: FC = () => {
  * slider, scroll) so old state doesn't bleed into the new session, even when
  * the next action happens to be the same type as the previous one.
  */
-const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action }) => {
+interface SelectionActionContentProps {
+  action: SelectionActionItem
+  detection: DetectLanguageController
+}
+
+const SelectionActionContent: FC<SelectionActionContentProps> = ({ action, detection }) => {
   const { t } = useTranslation()
 
   const [isAutoClose] = usePreference('feature.selection.auto_close')
@@ -277,7 +284,14 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
         <div
           ref={contentElementRef}
           className="flex max-w-[1280px] flex-1 select-text flex-col overflow-auto p-4 text-sm [-webkit-app-region:no-drag]">
-          {action.id == 'translate' && <ActionTranslate action={action} scrollToBottom={handleScrollToBottom} />}
+          {action.id == 'translate' && (
+            <ActionTranslate
+              action={action}
+              sessionId={sessionId}
+              detection={detection}
+              scrollToBottom={handleScrollToBottom}
+            />
+          )}
           {action.id != 'translate' && (
             <ActionGeneral key={sessionId} action={action} scrollToBottom={handleScrollToBottom} />
           )}

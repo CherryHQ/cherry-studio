@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ActionWindow from '../ActionWindow'
 
-const { actionState, generalMounts, ipcRequest, opacityPreference, platform } = vi.hoisted(() => ({
+const { actionState, detection, generalMounts, ipcRequest, opacityPreference, platform } = vi.hoisted(() => ({
   actionState: {
     value: {
       id: 'test-action',
@@ -15,6 +15,10 @@ const { actionState, generalMounts, ipcRequest, opacityPreference, platform } = 
       icon: 'test-icon',
       isBuiltIn: false
     } as SelectionActionItem
+  },
+  detection: {
+    detectLanguage: vi.fn().mockResolvedValue('en-us'),
+    isPending: false
   },
   generalMounts: { count: 0 },
   ipcRequest: vi.fn(),
@@ -49,6 +53,10 @@ vi.mock('@data/hooks/usePreference', () => ({
 
 vi.mock('@renderer/hooks/useWindowInitData', () => ({
   useWindowInitData: () => actionState.value
+}))
+
+vi.mock('@renderer/hooks/translate', () => ({
+  useDetectLang: () => detection
 }))
 
 vi.mock('@renderer/ipc', () => ({

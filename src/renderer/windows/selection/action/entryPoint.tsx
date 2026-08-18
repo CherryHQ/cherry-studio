@@ -14,7 +14,12 @@ await prepareWindow({
     'ui.theme_user.color_primary',
     'feature.selection.auto_close',
     'feature.selection.auto_pin',
-    'feature.selection.action_window_opacity'
+    'feature.selection.action_window_opacity',
+    'chat.default_model_id',
+    'feature.quick_assistant.model_id',
+    'feature.translate.auto_detection_method',
+    'feature.translate.action.preferred_lang',
+    'feature.translate.action.alter_lang'
   ]
 })
 

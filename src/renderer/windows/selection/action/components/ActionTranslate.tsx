@@ -4,7 +4,12 @@ import { loggerService } from '@logger'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import CopyButton from '@renderer/components/CopyButton'
 import LanguageSelect from '@renderer/components/LanguageSelect'
-import { detectLanguageOrUnknown, useDetectLang, useLanguages, useTranslate } from '@renderer/hooks/translate'
+import {
+  type DetectLanguageController,
+  detectLanguageOrUnknown,
+  useLanguages,
+  useTranslate
+} from '@renderer/hooks/translate'
 import { cn } from '@renderer/utils/style'
 import { pickBidirectionalTarget, UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
 import type { SelectionActionItem, TranslateLangCode } from '@shared/data/preference/preferenceTypes'
@@ -13,7 +18,7 @@ import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/mess
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import { ArrowRight, ChevronDown, CircleHelp, Globe2, Loader2, Settings2 } from 'lucide-react'
 import type { FC } from 'react'
-import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { Suspense, useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { getSelectionActionErrorMessage } from '../errorMessage'
@@ -28,22 +33,25 @@ const ActionResultContent = React.lazy(importActionResultContent)
 
 interface Props {
   action: SelectionActionItem
+  sessionId: number
+  detection: DetectLanguageController
   scrollToBottom: () => void
 }
 
 const logger = loggerService.withContext('ActionTranslate')
 const TRANSLATION_MESSAGE_ID = 'selection-translation-result'
 const TRANSLATION_TOPIC_ID = 'selection-translation'
-const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
+const ActionTranslate: FC<Props> = ({ action, sessionId, detection, scrollToBottom }) => {
   const { t } = useTranslation()
   const selectedText = action.selectedText
 
   const [language] = usePreference('app.language')
   const [preferredLangCode, setPreferredLangCode] = usePreference('feature.translate.action.preferred_lang')
   const [alterLangCode, setAlterLangCode] = usePreference('feature.translate.action.alter_lang')
-  const { languages, getLanguage } = useLanguages()
-  const isLanguagesLoaded = languages !== undefined
-  const { detectLanguage } = useDetectLang()
+  const { getLanguage, status: languagesStatus } = useLanguages()
+  const areLanguagesReady = languagesStatus === 'ready'
+  const areLanguagesSettled = languagesStatus !== 'loading'
+  const { detectLanguage, isPending } = detection
   // The stored default is zh-cn, so preserve the matching UI-locale fallback for zh-TW.
   const effectivePreferredLangCode =
     language === 'zh-TW' && preferredLangCode === BUILTIN_LANGUAGE.zhCN.langCode
@@ -51,11 +59,13 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
       : preferredLangCode
 
   const [targetLanguage, setTargetLanguage] = useState<TranslateLanguage>(() => {
-    const lang = getLanguage(effectivePreferredLangCode)
-    if (lang) {
-      return lang
+    if (areLanguagesReady) {
+      const lang = getLanguage(effectivePreferredLangCode)
+      if (lang) {
+        return lang
+      }
+      logger.warn('[initialize targetLanguage] Unknown language; fallback to zh-CN')
     }
-    logger.warn('[initialize targetLanguage] Unknown language; fallback to zh-CN')
     return BUILTIN_LANGUAGE.zhCN as unknown as TranslateLanguage
   })
 
@@ -73,11 +83,10 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   // Use useRef for values that shouldn't trigger re-renders
   const targetLangRef = useRef(targetLanguage)
 
-  // It's called only in initialization.
-  // It will change target/alter language, so fetchResult will be triggered. Be careful!
+  // Initialization may change request-keyed languages; the request effect runs after they settle.
   const updateLanguagePair = useCallback(() => {
-    if (!isLanguagesLoaded) {
-      logger.silly('[updateLanguagePair] Languages are not loaded. Skip.')
+    if (!areLanguagesReady) {
+      logger.silly('[updateLanguagePair] Languages are not ready. Skip.')
       return
     }
 
@@ -91,7 +100,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     if (alterLang) {
       setAlterLanguage(alterLang)
     }
-  }, [getLanguage, isLanguagesLoaded, effectivePreferredLangCode, alterLangCode])
+  }, [getLanguage, areLanguagesReady, effectivePreferredLangCode, alterLangCode])
 
   // Initialize values only once
   const initialize = useCallback(async () => {
@@ -100,9 +109,8 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
       return
     }
 
-    // Only try to initialize when languages loaded, so updateLanguagePair would not fail.
-    if (!isLanguagesLoaded) {
-      logger.silly('[initialize] Languages not loaded. Skip initialization.')
+    if (!areLanguagesSettled) {
+      logger.silly('[initialize] Languages are not settled. Skip initialization.')
       return
     }
 
@@ -117,12 +125,9 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     logger.silly('[initialize] UpdateLanguagePair completed.')
 
     setInitialized(true)
-  }, [initialized, isLanguagesLoaded, selectedText, updateLanguagePair])
+  }, [initialized, areLanguagesSettled, selectedText, updateLanguagePair])
 
-  // Try to initialize when:
-  // 1. action.selectedText change (generally will not)
-  // 2. isLanguagesLoaded change (only initialize when languages loaded)
-  // 3. updateLanguagePair change (depend on translateLanguages and isLanguagesLoaded)
+  // Settle initialization after language loading succeeds or fails; failures keep the built-in fallbacks.
   useEffect(() => {
     void initialize()
   }, [initialize])
@@ -130,6 +135,8 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const [isDetecting, setIsDetecting] = useState(false)
   const [isPreparing, setIsPreparing] = useState(false)
   const [completionError, setCompletionError] = useState<string | null>(null)
+  const [regenerationId, setRegenerationId] = useState(0)
+  const requestTokenRef = useRef(0)
 
   const {
     translate: runTranslate,
@@ -143,6 +150,51 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
       setIsPreparing(false)
       setContent(text)
       scrollToBottom?.()
+    }
+  })
+
+  const resetRequest = useEffectEvent(() => {
+    cancelTranslate()
+    setContent('')
+    setCompletionError(null)
+    setDetectedLanguage(null)
+    setIsDetecting(false)
+    setIsPreparing(false)
+  })
+
+  const runRequest = useEffectEvent(async (requestToken: number) => {
+    setIsDetecting(true)
+    const sourceLanguageCode = await detectLanguageOrUnknown(selectedText!, detectLanguage, (error) => {
+      logger.error('Error detecting language:', error as Error)
+    })
+
+    if (requestToken !== requestTokenRef.current) return
+
+    setIsDetecting(false)
+    const detectedLang = getLanguage(sourceLanguageCode) ?? null
+    setDetectedLanguage(detectedLang)
+
+    if (sourceLanguageCode === UNKNOWN_LANG_CODE) {
+      logger.debug('Unknown source language. Just use target language.')
+    } else {
+      logger.debug('Detected Language: ', { sourceLanguage: sourceLanguageCode })
+    }
+
+    const translateLang = pickBidirectionalTarget(sourceLanguageCode, targetLanguage, alterLanguage)
+    setActualTargetLanguage(translateLang)
+    setCompletionError(null)
+    setIsPreparing(true)
+
+    try {
+      await runTranslate(selectedText!, translateLang)
+    } catch (err) {
+      if (requestToken !== requestTokenRef.current) return
+      setContent('')
+      setCompletionError(getSelectionActionErrorMessage(err, t))
+    } finally {
+      if (requestToken === requestTokenRef.current) {
+        setIsPreparing(false)
+      }
     }
   })
 
@@ -170,52 +222,9 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     )
   }, [isTranslating, translationParts])
 
+  const isWaitingForResources = Boolean(selectedText) && (!initialized || isPending)
   const isStreaming = isTranslating || isDetecting || isPreparing
   const error = completionError
-
-  const clear = useCallback(() => {
-    cancelTranslate()
-    setContent('')
-    setCompletionError(null)
-    setIsDetecting(false)
-    setIsPreparing(false)
-  }, [cancelTranslate])
-
-  const fetchResult = useCallback(async () => {
-    if (!selectedText || !initialized) return
-    clear()
-
-    setIsDetecting(true)
-    const sourceLanguageCode = await detectLanguageOrUnknown(selectedText, detectLanguage, (error) => {
-      logger.error('Error detecting language:', error as Error)
-    }).finally(() => {
-      setIsDetecting(false)
-    })
-
-    const detectedLang = getLanguage(sourceLanguageCode) ?? null
-    setDetectedLanguage(detectedLang)
-
-    if (sourceLanguageCode === UNKNOWN_LANG_CODE) {
-      logger.debug('Unknown source language. Just use target language.')
-    } else {
-      logger.debug('Detected Language: ', { sourceLanguage: sourceLanguageCode })
-    }
-
-    const translateLang = pickBidirectionalTarget(sourceLanguageCode, targetLanguage, alterLanguage)
-    setActualTargetLanguage(translateLang)
-
-    setCompletionError(null)
-    setIsPreparing(true)
-
-    try {
-      await runTranslate(selectedText, translateLang)
-    } catch (err) {
-      setContent('')
-      setCompletionError(getSelectionActionErrorMessage(err, t))
-    } finally {
-      setIsPreparing(false)
-    }
-  }, [selectedText, initialized, clear, detectLanguage, getLanguage, alterLanguage, targetLanguage, runTranslate, t])
 
   useEffect(() => {
     // Kick the result-renderer chunk off immediately — rendering waits for the
@@ -226,8 +235,21 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   }, [])
 
   useEffect(() => {
-    void fetchResult()
-  }, [fetchResult])
+    const requestToken = ++requestTokenRef.current
+    resetRequest()
+
+    if (selectedText && initialized && !isPending) {
+      void runRequest(requestToken)
+    }
+
+    return () => {
+      requestTokenRef.current += 1
+      cancelTranslate()
+    }
+    // `resetRequest` and `runRequest` are Effect Events that read the latest request functions.
+    // Only semantic request inputs should start or replace a translation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId, selectedText, initialized, isPending, targetLanguage.langCode, alterLanguage.langCode, regenerationId])
 
   const handleChangeLanguage = useCallback(
     (newTargetLanguage: TranslateLanguage, newAlterLanguage: TranslateLanguage) => {
@@ -304,13 +326,14 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   )
 
   const handlePause = () => {
+    requestTokenRef.current += 1
     cancelTranslate()
     setIsDetecting(false)
     setIsPreparing(false)
   }
 
   const handleRegenerate = () => {
-    void fetchResult()
+    setRegenerationId((id) => id + 1)
   }
 
   const detectedLanguageLabel = detectedLanguage?.value || t('translate.detected.language')
@@ -404,7 +427,9 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
           </div>
         )}
         <div className="mt-4 w-full whitespace-pre-wrap break-words">
-          {(isDetecting || isPreparing) && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
+          {(isWaitingForResources || isDetecting || isPreparing) && (
+            <Loader2 className="size-4 animate-spin text-muted-foreground" />
+          )}
           {content && (
             <Suspense fallback={<Loader2 className="size-4 animate-spin text-muted-foreground" />}>
               <ActionResultContent

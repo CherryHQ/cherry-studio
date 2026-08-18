@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom/vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import type { DetectLanguageController } from '@renderer/hooks/translate'
 import type { SelectionActionItem, TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import { mockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
@@ -62,7 +63,6 @@ vi.mock('@renderer/hooks/translate', () => ({
       return 'unknown'
     }
   },
-  useDetectLang: () => state.detectLanguage,
   useTranslate: () => ({
     translate: state.translate,
     isTranslating: false,
@@ -71,7 +71,8 @@ vi.mock('@renderer/hooks/translate', () => ({
   useLanguages: () => ({
     languages: state.languages as TranslateLanguage[],
     getLanguage: state.getLanguage,
-    getLabel: state.getLabel
+    getLabel: state.getLabel,
+    status: 'ready'
   })
 }))
 
@@ -120,6 +121,30 @@ function createAction(overrides: Partial<SelectionActionItem> = {}): SelectionAc
   }
 }
 
+function readyDetection(): DetectLanguageController {
+  return { detectLanguage: state.detectLanguage, isPending: false }
+}
+
+function renderTranslation(props: Partial<React.ComponentProps<typeof ActionTranslate>> = {}) {
+  return render(
+    <ActionTranslate
+      action={createAction()}
+      sessionId={0}
+      detection={readyDetection()}
+      scrollToBottom={state.scrollToBottom}
+      {...props}
+    />
+  )
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise
+  })
+  return { promise, resolve }
+}
+
 beforeAll(() => {
   Element.prototype.scrollIntoView = vi.fn()
 })
@@ -154,7 +179,7 @@ describe('ActionTranslate', () => {
     // the chunk import must still fire so its download overlaps request latency.
     state.detectLanguage.mockReturnValue(new Promise<never>(() => {}))
 
-    render(<ActionTranslate action={createAction()} scrollToBottom={state.scrollToBottom} />)
+    renderTranslation()
 
     await waitFor(() => expect(resultContentChunk.evaluated).toHaveBeenCalled())
     expect(state.translate).not.toHaveBeenCalled()
@@ -164,7 +189,7 @@ describe('ActionTranslate', () => {
     MockUsePreferenceUtils.setPreferenceValue('app.language', 'zh-TW')
     state.detectLanguage.mockResolvedValue('en-us')
 
-    render(<ActionTranslate action={createAction()} scrollToBottom={state.scrollToBottom} />)
+    renderTranslation()
 
     await waitFor(() =>
       expect(state.translate).toHaveBeenCalledWith('There is no default export.', state.traditionalChinese)
@@ -178,7 +203,7 @@ describe('ActionTranslate', () => {
     })
     state.detectLanguage.mockResolvedValue('en-us')
 
-    render(<ActionTranslate action={createAction()} scrollToBottom={state.scrollToBottom} />)
+    renderTranslation()
 
     await waitFor(() => expect(state.translate).toHaveBeenCalledWith('There is no default export.', state.japanese))
   })
@@ -186,16 +211,119 @@ describe('ActionTranslate', () => {
   it('continues translating to the target language when source detection throws', async () => {
     state.detectLanguage.mockRejectedValue(new Error('detect exploded'))
 
-    render(<ActionTranslate action={createAction()} scrollToBottom={state.scrollToBottom} />)
+    renderTranslation()
 
     await waitFor(() => expect(state.translate).toHaveBeenCalledWith('There is no default export.', state.chinese))
+    expect(state.translate).toHaveBeenCalledTimes(1)
     expect(screen.queryByText('detect exploded')).not.toBeInTheDocument()
+  })
+
+  it('waits for detection readiness before running one translation request', async () => {
+    const action = createAction()
+    const detection = { detectLanguage: state.detectLanguage, isPending: true }
+    state.detectLanguage.mockResolvedValue('en-us')
+
+    const { rerender } = renderTranslation({ action, detection })
+
+    expect(state.detectLanguage).not.toHaveBeenCalled()
+    expect(state.translate).not.toHaveBeenCalled()
+
+    rerender(
+      <ActionTranslate
+        action={action}
+        sessionId={0}
+        detection={{ ...detection, isPending: false }}
+        scrollToBottom={state.scrollToBottom}
+      />
+    )
+
+    await waitFor(() => expect(state.detectLanguage).toHaveBeenCalledTimes(1))
+    expect(state.detectLanguage).toHaveBeenCalledWith(action.selectedText)
+    await waitFor(() => expect(state.translate).toHaveBeenCalledTimes(1))
+    expect(state.translate).toHaveBeenCalledWith(action.selectedText, state.chinese)
+  })
+
+  it('does not restart a completed request when the detection callback identity changes', async () => {
+    const action = createAction()
+    const detectLanguage = vi.fn<() => Promise<TranslateLangCode>>().mockResolvedValue('en-us')
+    const replacement = vi.fn<() => Promise<TranslateLangCode>>().mockResolvedValue('en-us')
+    const { rerender } = renderTranslation({
+      action,
+      detection: { detectLanguage, isPending: false }
+    })
+
+    await waitFor(() => expect(state.translate).toHaveBeenCalledTimes(1))
+    expect(detectLanguage).toHaveBeenCalledTimes(1)
+
+    rerender(
+      <ActionTranslate
+        action={action}
+        sessionId={0}
+        detection={{ detectLanguage: replacement, isPending: false }}
+        scrollToBottom={state.scrollToBottom}
+      />
+    )
+    await act(async () => {})
+
+    expect(replacement).not.toHaveBeenCalled()
+    expect(state.translate).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not translate a stale selection when its detection resolves after a new session starts', async () => {
+    const firstDetection = deferred<TranslateLangCode>()
+    const secondDetection = deferred<TranslateLangCode>()
+    const detectLanguage = vi
+      .fn<(text: string) => Promise<TranslateLangCode>>()
+      .mockReturnValueOnce(firstDetection.promise)
+      .mockReturnValueOnce(secondDetection.promise)
+    const detection = { detectLanguage, isPending: false }
+    const firstAction = createAction({ selectedText: 'first text' })
+    const secondAction = createAction({ selectedText: 'second text' })
+    const { rerender } = renderTranslation({ action: firstAction, sessionId: 0, detection })
+
+    await waitFor(() => expect(detectLanguage).toHaveBeenCalledWith('first text'))
+    rerender(
+      <ActionTranslate
+        action={secondAction}
+        sessionId={1}
+        detection={detection}
+        scrollToBottom={state.scrollToBottom}
+      />
+    )
+    await waitFor(() => expect(detectLanguage).toHaveBeenCalledWith('second text'))
+
+    await act(async () => {
+      firstDetection.resolve('en-us')
+      await firstDetection.promise
+    })
+    expect(state.translate).not.toHaveBeenCalledWith('first text', state.chinese)
+
+    await act(async () => {
+      secondDetection.resolve('en-us')
+      await secondDetection.promise
+    })
+    await waitFor(() => expect(state.translate).toHaveBeenCalledWith('second text', state.chinese))
+  })
+
+  it('starts a new request when the session changes even if the selected text is unchanged', async () => {
+    const action = createAction()
+    const detection = readyDetection()
+    state.detectLanguage.mockResolvedValue('en-us')
+    const { rerender } = renderTranslation({ action, sessionId: 0, detection })
+
+    await waitFor(() => expect(state.translate).toHaveBeenCalledTimes(1))
+    rerender(
+      <ActionTranslate action={action} sessionId={1} detection={detection} scrollToBottom={state.scrollToBottom} />
+    )
+
+    await waitFor(() => expect(state.detectLanguage).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(state.translate).toHaveBeenCalledTimes(2))
   })
 
   it('shows automatic detection when no concrete source language is available', async () => {
     state.detectLanguage.mockResolvedValueOnce('unknown')
 
-    render(<ActionTranslate action={createAction()} scrollToBottom={state.scrollToBottom} />)
+    renderTranslation()
 
     await waitFor(() => expect(state.translate).toHaveBeenCalledWith('There is no default export.', state.chinese))
     expect(screen.getByText('translate.detected.language')).toBeInTheDocument()
@@ -211,7 +339,7 @@ describe('ActionTranslate', () => {
       })
     )
 
-    render(<ActionTranslate action={createAction()} scrollToBottom={state.scrollToBottom} />)
+    renderTranslation()
 
     await waitFor(() => expect(state.translate).toHaveBeenCalledWith('There is no default export.', state.chinese))
     expect(screen.queryByText('translate.detecting')).not.toBeInTheDocument()
@@ -226,7 +354,7 @@ describe('ActionTranslate', () => {
     state.detectLanguage.mockResolvedValue('unknown')
     state.translate.mockRejectedValue(new Error("Model with id 'provider/model' not found"))
 
-    render(<ActionTranslate action={createAction()} scrollToBottom={state.scrollToBottom} />)
+    renderTranslation()
 
     expect(await screen.findByText('error.diagnosis.model')).toBeInTheDocument()
     expect(screen.queryByText("Model with id 'provider/model' not found")).not.toBeInTheDocument()
@@ -235,7 +363,7 @@ describe('ActionTranslate', () => {
   it('groups auxiliary controls so they wrap together behind the language direction group', async () => {
     state.detectLanguage.mockResolvedValue('en-us')
 
-    render(<ActionTranslate action={createAction()} scrollToBottom={state.scrollToBottom} />)
+    renderTranslation()
 
     await waitFor(() => expect(state.translate).toHaveBeenCalledWith('There is no default export.', state.chinese))
 
@@ -268,7 +396,7 @@ describe('ActionTranslate', () => {
   it('toggles the original text after the auxiliary controls are regrouped', async () => {
     state.detectLanguage.mockResolvedValue('en-us')
 
-    render(<ActionTranslate action={createAction()} scrollToBottom={state.scrollToBottom} />)
+    renderTranslation()
 
     await waitFor(() => expect(state.translate).toHaveBeenCalledWith('There is no default export.', state.chinese))
 
@@ -290,7 +418,7 @@ describe('ActionTranslate', () => {
   it('opens language settings without focusing and opening the first language selector', async () => {
     state.detectLanguage.mockResolvedValue('en-us')
 
-    render(<ActionTranslate action={createAction()} scrollToBottom={state.scrollToBottom} />)
+    renderTranslation()
 
     await waitFor(() => expect(state.translate).toHaveBeenCalledWith('There is no default export.', state.chinese))
 
