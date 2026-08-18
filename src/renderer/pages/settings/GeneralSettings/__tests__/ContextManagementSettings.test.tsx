@@ -45,6 +45,9 @@ vi.mock('@cherrystudio/ui', () => ({
       checked={!!checked}
       onChange={(event) => onCheckedChange(event.currentTarget.checked)}
     />
+  ),
+  InfoTooltip: ({ content, iconProps }: { content: string; iconProps: { 'aria-label': string } }) => (
+    <span aria-label={iconProps['aria-label']} data-tooltip-content={content} />
   )
 }))
 
@@ -52,7 +55,7 @@ vi.mock('@renderer/hooks/useModel', () => ({ useModelById: () => ({ model: undef
 vi.mock('@renderer/hooks/useProvider', () => ({ useProviders: () => ({ providers: [] }) }))
 vi.mock('@renderer/hooks/useTheme', () => ({ useTheme: () => ({ theme: 'light' }) }))
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
-vi.mock('../DefaultModelSelector', () => ({
+vi.mock('@renderer/components/DefaultModelSelector', () => ({
   DefaultModelSelector: () => <div data-testid="compress-model-selector" />
 }))
 
@@ -73,6 +76,7 @@ describe('ContextManagementSettings', () => {
   it('collapses the offload settings when context management is off, keeping the scope control', () => {
     prefs.state['chat.context_settings.enabled'] = false
     render(<ContextManagementSettings />)
+    expect(screen.getByText('settings.models.context_management.scope_description')).toBeInTheDocument()
     expect(screen.getAllByRole('switch')).toHaveLength(1)
     expect(screen.queryByLabelText('settings.models.context_management.truncate_threshold')).not.toBeInTheDocument()
     expect(screen.queryByTestId('compress-model-selector')).not.toBeInTheDocument()
@@ -92,6 +96,25 @@ describe('ContextManagementSettings', () => {
     fireEvent.change(input, { target: { value: '' } })
     fireEvent.blur(input)
     expect(prefs.setters['chat.context_settings.max_messages']).toHaveBeenCalledWith(null)
+  })
+
+  it('shows item descriptions in tooltips instead of inline', () => {
+    render(<ContextManagementSettings />)
+
+    const items = [
+      ['max_messages', 'max_messages_description'],
+      ['enabled', 'enabled_description'],
+      ['truncate_threshold', 'truncate_threshold_description'],
+      ['compress_enabled', 'compress_enabled_description']
+    ]
+
+    for (const [title, description] of items) {
+      const titleKey = `settings.models.context_management.${title}`
+      const descriptionKey = `settings.models.context_management.${description}`
+      const trigger = screen.getByLabelText(`${titleKey}: ${descriptionKey}`)
+      expect(trigger).toHaveAttribute('data-tooltip-content', descriptionKey)
+      expect(screen.queryByText(descriptionKey)).not.toBeInTheDocument()
+    }
   })
 
   it('writes the master switch preference', () => {

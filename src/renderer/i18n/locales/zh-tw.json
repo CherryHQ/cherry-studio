@@ -727,15 +727,15 @@
           "label": "管理任務清單"
         },
         "tool_call": {
-          "description": "呼叫一個已探索到的工具",
+          "description": "呼叫一個已發現的工具",
           "label": "呼叫工具"
         },
         "tool_describe": {
-          "description": "取得工具的完整描述與 TypeScript 簽章",
-          "label": "描述工具"
+          "description": "取得工具的完整說明和 TypeScript 簽章",
+          "label": "說明工具"
         },
         "tool_exec": {
-          "description": "執行用於編排已探索工具的 JavaScript",
+          "description": "執行 JavaScript 以協調已發現的工具",
           "label": "執行工具程式碼"
         },
         "tool_search": {
@@ -5637,7 +5637,8 @@
         },
         "sections": {
           "display_language": "顯示與語言"
-        }
+        },
+        "title": "通用"
       },
       "emoji_picker": "表情選擇器",
       "image_upload": "圖片上傳",
@@ -6107,6 +6108,7 @@
         "max_messages": "保留最近訊息數",
         "max_messages_description": "僅傳送最近若干則訊息，更早的訊息不進入上下文；留空表示不限制。助理可單獨覆寫",
         "max_messages_unlimited": "不限制",
+        "scope_description": "僅適用於 Cherry Studio 內的助理對話；助理可在自身設定中單獨覆寫。",
         "title": "上下文管理",
         "truncate_threshold": "工具輸出截斷閾值（字元）",
         "truncate_threshold_description": "超過該字元數的工具輸出會被轉存為檔案並截斷，模型可按需讀回。助理可單獨覆寫"
