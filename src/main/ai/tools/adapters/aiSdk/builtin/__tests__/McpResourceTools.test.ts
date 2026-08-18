@@ -115,6 +115,7 @@ describe('mcp_resource_list', () => {
     expect(listResources).toHaveBeenCalledExactlyOnceWith('s1')
     expect(result.resources).toEqual([
       {
+        serverId: 's1',
         serverName: 's1-name',
         uri: 'file:///a.md',
         name: 'file:///a.md',
@@ -169,14 +170,14 @@ describe('mcp_resource_read', () => {
     getConnectedServerCapabilities.mockReturnValue({ resources: {} })
   })
 
-  it('reads through the named server, not whichever one happens to publish the uri', async () => {
-    // Both servers publish the same uri: the serverName argument is what disambiguates them.
+  it('reads through the identified server, not whichever one happens to publish the uri', async () => {
+    // Both servers publish the same uri: the serverId argument is what disambiguates them.
     listResources.mockImplementation(async (serverId) => [makeResource(serverId, 'file:///shared.md')])
     getResource.mockResolvedValue({ contents: [{ uri: 'file:///shared.md', text: 'hello', mimeType: 'text/plain' }] })
 
     const result = await callExecute(
       readEntry,
-      { serverName: 's2-name', uri: 'file:///shared.md' },
+      { serverId: 's2', uri: 'file:///shared.md' },
       { assistant: makeAssistant() }
     )
 
@@ -185,7 +186,28 @@ describe('mcp_resource_read', () => {
       uri: 'file:///shared.md',
       signal: undefined
     })
-    expect(result).toMatchObject({ uri: 'file:///shared.md', serverName: 's2-name', text: 'hello', totalChars: 5 })
+    expect(result).toMatchObject({ uri: 'file:///shared.md', serverId: 's2', text: 'hello', totalChars: 5 })
+  })
+
+  it('disambiguates two active servers sharing one name (mcp_server.name has no unique constraint)', async () => {
+    listServers.mockReturnValue({
+      items: [makeServer('s1', { name: 'duplicate' }), makeServer('s2', { name: 'duplicate' })]
+    })
+    listResources.mockImplementation(async (serverId) => [makeResource(serverId, 'file:///shared.md')])
+    getResource.mockResolvedValue({ contents: [{ uri: 'file:///shared.md', text: 'from s2' }] })
+
+    const result = (await callExecute(
+      readEntry,
+      { serverId: 's2', uri: 'file:///shared.md' },
+      { assistant: makeAssistant() }
+    )) as { text: string }
+
+    expect(getResource).toHaveBeenCalledExactlyOnceWith({
+      serverId: 's2',
+      uri: 'file:///shared.md',
+      signal: undefined
+    })
+    expect(result.text).toBe('from s2')
   })
 
   it('refuses a uri the named server does not publish, even when it is the only server in scope', async () => {
@@ -194,7 +216,7 @@ describe('mcp_resource_read', () => {
 
     const result = (await callExecute(
       readEntry,
-      { serverName: 's1-name', uri: 'file:///elsewhere.md' },
+      { serverId: 's1', uri: 'file:///elsewhere.md' },
       { assistant: makeAssistant() }
     )) as { error: string }
 
@@ -207,11 +229,11 @@ describe('mcp_resource_read', () => {
 
     const result = (await callExecute(
       readEntry,
-      { serverName: 's2-name', uri: 'file:///b.md' },
+      { serverId: 's2', uri: 'file:///b.md' },
       { assistant: makeAssistant(), mcpResourceServerIds: new Set(['s1']) }
     )) as { error: string }
 
-    expect(result.error).toContain('s2-name')
+    expect(result.error).toContain('s2')
     expect(getResource).not.toHaveBeenCalled()
   })
 
@@ -221,7 +243,7 @@ describe('mcp_resource_read', () => {
 
     const first = (await callExecute(
       readEntry,
-      { serverName: 's1-name', uri: 'x://big' },
+      { serverId: 's1', uri: 'x://big' },
       { assistant: makeAssistant(), toolOutputCharCap: 4 }
     )) as { text: string; totalChars: number; nextOffset?: number }
 
@@ -229,7 +251,7 @@ describe('mcp_resource_read', () => {
 
     const last = (await callExecute(
       readEntry,
-      { serverName: 's1-name', uri: 'x://big', offset: 8 },
+      { serverId: 's1', uri: 'x://big', offset: 8 },
       { assistant: makeAssistant(), toolOutputCharCap: 4 }
     )) as { text: string; nextOffset?: number }
 
@@ -242,7 +264,7 @@ describe('mcp_resource_read', () => {
     listResources.mockImplementation(async (serverId) => (serverId === 's1' ? [makeResource('s1', 'x://a')] : []))
     getResource.mockResolvedValue({ contents: [{ uri: 'x://a', text: 'hi' }] })
 
-    await callExecute(readEntry, { serverName: 's1-name', uri: 'x://a' }, { assistant: makeAssistant(), abortSignal })
+    await callExecute(readEntry, { serverId: 's1', uri: 'x://a' }, { assistant: makeAssistant(), abortSignal })
 
     expect(getResource).toHaveBeenCalledExactlyOnceWith({ serverId: 's1', uri: 'x://a', signal: abortSignal })
   })
@@ -253,7 +275,7 @@ describe('mcp_resource_read', () => {
 
     const result = (await callExecute(
       readEntry,
-      { serverName: 's1-name', uri: 'x://bin' },
+      { serverId: 's1', uri: 'x://bin' },
       { assistant: makeAssistant() }
     )) as { text: string }
 

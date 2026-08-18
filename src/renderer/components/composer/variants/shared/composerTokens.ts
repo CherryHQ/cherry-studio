@@ -58,13 +58,16 @@ export function knowledgeBaseToComposerToken(base: KnowledgeBase): ComposerDraft
   }
 }
 
-export const composerMcpResourceTokenId = (resource: Pick<McpResource, 'uri'>) => `mcp-resource:${resource.uri}`
+/** Keyed by server *id*, not name: server names carry no unique constraint, so two servers can
+ *  publish the same uri under the same name and their chips would otherwise collide. */
+export const composerMcpResourceTokenId = (resource: Pick<McpResource, 'serverId' | 'uri'>) =>
+  `mcp-resource:${resource.serverId}:${resource.uri}`
 
 /**
  * A picked MCP resource the composer did not inline — binary content, or text past
- * `MCP_RESOURCE_INLINE_MAX_CHARS`. Same contract as the knowledge token above: the uri is
- * load-bearing (it is exactly what `mcp_resource_read` takes), and the sentence names the tool
- * because nothing else tells the model the attachment exists.
+ * `MCP_RESOURCE_INLINE_MAX_CHARS`. Same contract as the knowledge token above: the
+ * `(serverId, uri)` pair is load-bearing (it is exactly what `mcp_resource_read` takes), and the
+ * sentence names the tool because nothing else tells the model the attachment exists.
  */
 export function mcpResourceToComposerToken(resource: McpResource): ComposerDraftToken {
   const name = resource.name || resource.uri
@@ -73,7 +76,7 @@ export function mcpResourceToComposerToken(resource: McpResource): ComposerDraft
     kind: 'reference',
     label: name,
     description: resource.uri,
-    promptText: `The user attached MCP resource "${name}" — read it with mcp_resource_read using serverName "${resource.serverName}" and uri "${resource.uri}".`,
+    promptText: `The user attached MCP resource "${name}" from server "${resource.serverName}" — read it with mcp_resource_read using serverId "${resource.serverId}" and uri "${resource.uri}".`,
     payload: resource
   }
 }

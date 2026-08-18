@@ -1,7 +1,7 @@
 /**
  * MCP resource read tool — deep-read companion to `mcp_resource_list`.
  *
- * The model passes a `(serverName, uri)` pair from `mcp_resource_list` (or from a resource the user
+ * The model passes a `(serverId, uri)` pair from `mcp_resource_list` (or from a resource the user
  * attached in the composer, whose chip carries both). The server is resolved from the request's
  * frozen scope, and the uri must appear in that server's published list — neither is taken on the
  * model's word.
@@ -25,7 +25,7 @@ import { readScopedMcpResource } from '../mcp/scopedResources'
 import type { ToolEntry } from '../types'
 
 export const MCP_RESOURCE_READ_DESCRIPTION =
-  'Read the content of an MCP resource. Pass the serverName and uri exactly as returned by ' +
+  'Read the content of an MCP resource. Pass the serverId and uri exactly as returned by ' +
   'mcp_resource_list, or as carried by a resource the user attached. Long resources come back one ' +
   'page at a time — continue with the returned nextOffset.'
 
@@ -45,10 +45,10 @@ const mcpResourceReadTool = tool({
       return true
     }
   },
-  execute: async ({ serverName, uri, offset }, options) => {
+  execute: async ({ serverId, uri, offset }, options) => {
     const { request } = getToolCallContext(options)
     return readScopedMcpResource(resolveMcpResourceServers(request.assistant, request.mcpResourceServerIds), {
-      serverName,
+      serverId,
       uri,
       offset,
       charCap: request.toolOutputCharCap ?? MCP_RESOURCE_READ_CHAR_CAP,
@@ -61,7 +61,7 @@ export function createMcpResourceReadToolEntry(): ToolEntry {
   return {
     name: MCP_RESOURCE_READ_TOOL_NAME,
     namespace: 'mcp_resource',
-    description: 'Read one MCP resource by server name and uri',
+    description: 'Read one MCP resource by server id and uri',
     // Read-style tool: persisting its output would route the model straight back through it to read
     // the persisted file, same reasoning as fs_read / kb_read. It caps its own pages instead.
     truncatable: false,

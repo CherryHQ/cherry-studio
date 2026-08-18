@@ -6,10 +6,11 @@
  * with the request's frozen server ids), so neither this file nor the tools decide which servers a
  * request may touch.
  *
- * A resource is addressed by `(serverName, uri)` and must appear in that server's published list:
- * a uri alone is ambiguous across servers, and a uri the server never published is not something
- * the model may ask for (uri templates are not supported — they would need `resources/templates/list`
- * and an explicit match rule).
+ * A resource is addressed by `(serverId, uri)` and must appear in that server's published list. The
+ * id, not the name: `mcp_server` indexes name without a unique constraint, so two active servers can
+ * share one and a name-keyed lookup would silently read whichever came first. A uri the server never
+ * published is not something the model may ask for either (uri templates are unsupported — they
+ * would need `resources/templates/list` and an explicit match rule).
  */
 
 import { application } from '@application'
@@ -21,7 +22,7 @@ import type { McpResource } from '@shared/types/mcp'
 const logger = loggerService.withContext('scopedMcpResources')
 
 export interface ReadScopedMcpResourceOptions {
-  serverName: string
+  serverId: string
   uri: string
   offset?: number
   /** Max characters this page may return; the caller passes the request's tool-output cap. */
@@ -31,6 +32,7 @@ export interface ReadScopedMcpResourceOptions {
 
 function toResourceEntry(resource: McpResource): McpResourceEntry {
   return {
+    serverId: resource.serverId,
     serverName: resource.serverName,
     uri: resource.uri,
     name: resource.name || resource.uri,
@@ -67,11 +69,11 @@ function contentsToText(contents: readonly McpResource[]): string {
 
 export async function readScopedMcpResource(
   servers: readonly McpServer[],
-  { serverName, uri, offset = 0, charCap, signal }: ReadScopedMcpResourceOptions
+  { serverId, uri, offset = 0, charCap, signal }: ReadScopedMcpResourceOptions
 ): Promise<McpResourceReadResult> {
-  const server = servers.find((candidate) => candidate.name === serverName)
+  const server = servers.find((candidate) => candidate.id === serverId)
   if (!server) {
-    return { error: `No MCP server named "${serverName}" is available in this conversation.` }
+    return { error: `MCP server ${serverId} is not available in this conversation.` }
   }
 
   // The server's own published list is the allow-list: it is what `mcp_resource_list` showed, so
@@ -95,6 +97,7 @@ export async function readScopedMcpResource(
     const end = start + text.length
     return {
       uri,
+      serverId: server.id,
       serverName: server.name,
       mimeType: contents[0]?.mimeType,
       text,

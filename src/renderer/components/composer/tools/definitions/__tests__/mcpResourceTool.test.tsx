@@ -35,11 +35,19 @@ describe('mcpResourceToComposerToken', () => {
     expect(token.label).toBe('Report')
     expect(token.promptText).toContain('file:///report.pdf')
     expect(token.promptText).toContain('mcp_resource_read')
-    expect(token.id).toBe('mcp-resource:file:///report.pdf')
+    expect(token.promptText).toContain('s1')
+    expect(token.id).toBe('mcp-resource:s1:file:///report.pdf')
   })
 
   it('falls back to the uri when the server publishes no name', () => {
     const token = mcpResourceToComposerToken({ serverId: 's1', serverName: 'Files', uri: 'x://a', name: '' })
     expect(token.label).toBe('x://a')
+  })
+
+  it('keys the chip by server id, so same-uri resources on two servers do not collide', () => {
+    const onA = mcpResourceToComposerToken({ serverId: 's1', serverName: 'dup', uri: 'x://a', name: 'A' })
+    const onB = mcpResourceToComposerToken({ serverId: 's2', serverName: 'dup', uri: 'x://a', name: 'A' })
+
+    expect(onA.id).not.toBe(onB.id)
   })
 })

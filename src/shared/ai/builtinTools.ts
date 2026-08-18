@@ -593,8 +593,9 @@ export type ReadFileResult = z.infer<typeof readFileResultSchema>
 // ── mcp_resource_list / mcp_resource_read ────────────────────────
 // The MCP *resources* half of the protocol (tools are exposed per server by `syncMcpToolsToRegistry`
 // instead). Which servers are reachable is request scope, frozen when the request is built, so
-// `mcp_resource_list` takes no input. A resource is addressed by the `(serverName, uri)` pair the
-// list returns — a uri alone is not unique across servers.
+// `mcp_resource_list` takes no input. A resource is addressed by the `(serverId, uri)` pair the list
+// returns: a uri alone is not unique across servers, and neither is a server *name* — `mcp_server`
+// indexes name without a unique constraint, so two active servers may share one.
 
 export const MCP_RESOURCE_LIST_TOOL_NAME = 'mcp_resource_list'
 export const MCP_RESOURCE_READ_TOOL_NAME = 'mcp_resource_read'
@@ -606,6 +607,8 @@ export const MCP_RESOURCE_READ_CHAR_CAP = CONTEXT_PERSIST_THRESHOLD_CHARS
 export const mcpResourceListInputSchema = z.object({})
 
 export const mcpResourceEntrySchema = z.object({
+  /** Stable identity to pass back to `mcp_resource_read`; `serverName` is display only. */
+  serverId: z.string(),
   serverName: z.string(),
   uri: z.string(),
   name: z.string(),
@@ -618,10 +621,13 @@ export const mcpResourceListOutputSchema = z.object({
 })
 
 export const mcpResourceReadInputSchema = z.object({
-  serverName: z
+  serverId: z
     .string()
     .min(1)
-    .describe('Name of the MCP server publishing the resource, exactly as returned by mcp_resource_list.'),
+    .describe(
+      'Id of the MCP server publishing the resource, exactly as returned by mcp_resource_list. Server ' +
+        'names are not unique, so the id is what identifies the server.'
+    ),
   uri: z
     .string()
     .min(1)
@@ -636,6 +642,7 @@ export const mcpResourceReadInputSchema = z.object({
 
 export const mcpResourceReadOutputSchema = z.object({
   uri: z.string(),
+  serverId: z.string(),
   serverName: z.string(),
   mimeType: z.string().optional(),
   text: z.string(),
