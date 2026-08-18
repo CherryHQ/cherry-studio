@@ -1,3 +1,10 @@
+---
+description: LAN transfer protocol spec for desktop-mobile sync covering mDNS discovery, TCP handshake, and file transfer
+sources:
+  - src/main/services/lanTransfer
+  - src/shared/types/lanTransfer.ts
+---
+
 # Cherry Studio LAN Transfer Protocol Specification
 
 > Version: 1.0

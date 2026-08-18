@@ -1,3 +1,10 @@
+---
+description: Unified aiSdk ToolEntry registry — built-in web/kb tools, MCP sync, meta-tools, and deferred exposition
+sources:
+  - src/main/ai/tools/adapters/aiSdk
+  - src/main/ai/tools/adapters/claudeCode/agentTools.ts
+---
+
 # Tool Registry
 
 ## Model

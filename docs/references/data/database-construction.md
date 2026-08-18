@@ -1,3 +1,12 @@
+---
+description: How the SQLite DB is built at boot - drizzle migrations, CUSTOM_SQL_STATEMENTS replay, FTS5 fts_rowid, rebuilds
+sources:
+  - src/main/data/db/DbService.ts
+  - src/main/data/db/applyMigrations.ts
+  - src/main/data/db/customSqls.ts
+  - migrations/sqlite-drizzle
+---
+
 # Database Construction (Build, Migrations, Custom SQL, FTS5)
 
 How the SQLite database is **built at boot and evolved over time**. Scope: drizzle migrations, the `CUSTOM_SQL_STATEMENTS` replay, FTS5 / `fts_rowid`, and the additive-vs-rebuild rule.

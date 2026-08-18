@@ -1,3 +1,9 @@
+---
+description: Lifecycle internals — bootstrap phases, hooks, service states, events, and parallel initialization ordering
+sources:
+  - src/main/core/lifecycle
+---
+
 # Lifecycle Overview
 
 IoC container + service lifecycle management with phased bootstrap and parallel initialization.

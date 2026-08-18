@@ -1,3 +1,10 @@
+---
+description: Renderer stream overlay — TopicStreamSubscription demux by execution and anchor feeding readUIMessageStream snapshots
+sources:
+  - src/renderer/services/aiTransport/TopicStreamSubscription.ts
+  - src/renderer/hooks/useExecutionOverlay.ts
+---
+
 # Execution Overlay
 
 The renderer-side counterpart of Main's `pipeStreamLoop`. Both sides

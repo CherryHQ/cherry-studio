@@ -1,3 +1,7 @@
+---
+description: Developer environment setup covering IDE configuration, Windows symlink support, and project install steps
+---
+
 # 🖥️ Develop
 
 ## IDE Setup

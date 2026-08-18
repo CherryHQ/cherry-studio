@@ -1,3 +1,10 @@
+---
+description: WindowManager architecture — core type relationships, the three lifecycle modes, and the event timing contract
+sources:
+  - src/main/core/window/WindowManager.ts
+  - src/main/core/window/types.ts
+---
+
 # WindowManager Overview
 
 Architecture, lifecycle modes, and event timing contract for WindowManager.

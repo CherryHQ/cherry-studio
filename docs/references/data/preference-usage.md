@@ -1,3 +1,11 @@
+---
+description: usePreference/usePreferences hooks and PreferenceService APIs with optimistic and pessimistic update patterns
+sources:
+  - src/renderer/data/hooks/usePreference.ts
+  - src/renderer/data/PreferenceService.ts
+  - src/main/data/PreferenceService.ts
+---
+
 # Preference Usage Guide
 
 This guide covers how to use the Preference system in React components and services.

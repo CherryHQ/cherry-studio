@@ -1,3 +1,10 @@
+---
+description: Authoritative naming rules for files, directories, and identifiers, including singular/plural and barrel policies
+sources:
+  - src
+  - packages/ui
+---
+
 # Naming Conventions
 
 > Version: 1.1

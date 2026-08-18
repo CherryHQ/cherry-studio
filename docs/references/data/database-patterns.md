@@ -1,3 +1,11 @@
+---
+description: Database schema authoring patterns - file organization, naming, column helpers, write serialization (withWriteTx)
+sources:
+  - src/main/data/db/schemas
+  - src/main/data/db/schemas/_columnHelpers.ts
+  - src/main/data/db/DbService.ts
+---
+
 # Database Schema Guidelines
 
 ## Schema File Organization

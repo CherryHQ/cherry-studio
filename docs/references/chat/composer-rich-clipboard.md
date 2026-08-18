@@ -1,3 +1,11 @@
+---
+description: Private clipboard format that preserves composer tokens across copy/paste between message surfaces and the composer
+sources:
+  - src/renderer/components/composer
+  - src/renderer/utils/message/composerClipboard.ts
+  - src/renderer/components/chat/messages
+---
+
 # Composer Rich Clipboard
 
 This document describes the private clipboard format used to preserve composer

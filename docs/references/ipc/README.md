@@ -1,3 +1,10 @@
+---
+description: Entry point for IpcApi docs — subsystem boundary, naming quick reference, migration status, and doc navigation
+sources:
+  - src/main/ipc
+  - src/shared/ipc
+---
+
 # IpcApi Reference
 
 Entry point for **IpcApi** — Cherry Studio's unified, type-safe channel for RPC-over-IPC: command/capability calls from the renderer into the main process, plus typed main→renderer events.

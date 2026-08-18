@@ -1,3 +1,10 @@
+---
+description: Migrating direct BrowserWindow creation to WindowManager — WindowType enum, registry entry, and open/close call sites
+sources:
+  - src/main/core/window/windowRegistry.ts
+  - src/main/core/window/types.ts
+---
+
 # Window Migration Guide
 
 How to migrate an existing window from direct `BrowserWindow` creation to WindowManager.

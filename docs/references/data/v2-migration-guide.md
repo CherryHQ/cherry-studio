@@ -1,3 +1,10 @@
+---
+description: One-shot v1-to-v2 migration engine - upgrade gate, migrator contracts, data source readers, status tracking
+sources:
+  - src/main/data/migration/v2
+  - src/shared/data/migration/v2
+---
+
 # Migration V2 (Main Process)
 
 Architecture for the new one-shot migration from the legacy Dexie + Redux Persist stores into the SQLite schema. This module owns orchestration, data access helpers, migrator plugins, and IPC entry points used by the renderer migration window.

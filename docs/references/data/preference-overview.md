@@ -1,3 +1,11 @@
+---
+description: Preference system for user settings - cross-window sync, optimistic/pessimistic updates, SQLite-backed storage
+sources:
+  - src/main/data/PreferenceService.ts
+  - src/renderer/data/PreferenceService.ts
+  - src/shared/data/preference
+---
+
 # Preference System Overview
 
 The Preference system provides centralized management for user configuration and application settings with cross-window synchronization.

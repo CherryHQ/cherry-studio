@@ -1,3 +1,10 @@
+---
+description: How to add preference keys - naming conventions, flat-over-nested design, and schema/default registration
+sources:
+  - src/shared/data/preference/preferenceSchemas.ts
+  - src/shared/data/preference
+---
+
 # Preference Schema Guide
 
 This guide explains how to add new preference keys to Cherry Studio.

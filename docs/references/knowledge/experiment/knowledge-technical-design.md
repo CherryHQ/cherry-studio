@@ -1,3 +1,11 @@
+---
+description: 'Technical design for the folder-backed knowledge base: raw/ storage, per-base index.sqlite schema, OKF snapshots'
+sources:
+  - src/main/features/knowledge
+  - src/main/features/knowledge/pipeline/vectorstore/indexStore
+  - src/main/data/db/schemas/knowledge.ts
+---
+
 # Cherry Studio Knowledge Base — Technical Design
 
 ## 1. Scope

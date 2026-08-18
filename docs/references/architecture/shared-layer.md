@@ -1,3 +1,9 @@
+---
+description: Defines what belongs in the @shared cross-process primitive layer, its closed top-level set, and import rules
+sources:
+  - src/shared
+---
+
 # Shared Layer Architecture (`src/shared` / `@shared`)
 
 This is the canonical reference for what belongs in `@shared`, how it is organized, and the rules that keep its top level from sprawling. It owns the `@shared`-internal rules; [Architecture Overview](./README.md), [Renderer Architecture](./renderer.md), and [Naming Conventions](./naming-conventions.md) reference it.

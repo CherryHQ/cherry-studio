@@ -1,3 +1,11 @@
+---
+description: Operational checklist for adding an agent runtime via a capability descriptor and a main-process driver package
+sources:
+  - src/shared/ai/agentRuntimeCapabilities.ts
+  - src/main/ai/runtime/types.ts
+  - src/main/ai/runtime/registerDrivers.ts
+---
+
 # Adding an Agent Runtime
 
 How to add a third agent runtime alongside `claude-code` and `pi`. For the

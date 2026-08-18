@@ -1,3 +1,10 @@
+---
+description: 'Product spec for the knowledge base as a managed material library: principles, material rules, settled decisions'
+sources:
+  - src/main/features/knowledge
+  - src/main/data/db/schemas/knowledge.ts
+---
+
 # Cherry Studio Knowledge Base — Product Spec
 
 ## 1. Positioning

@@ -1,3 +1,11 @@
+---
+description: 'DirectoryTreeBuilder primitive: in-memory tree with chokidar watcher, refcounted manager, IPC contract, renderer hook'
+sources:
+  - src/main/services/file/tree
+  - src/main/services/file/watcher.ts
+  - src/renderer/hooks/useDirectoryTree.ts
+---
+
 # Directory Tree Architecture
 
 > **SoT scope** — **this document** owns: the `DirectoryTreeBuilder` primitive, the `DirectoryTreeManager` lifecycle service that owns its IPC surface, the renderer-side `useDirectoryTree` hook, the `TreeNode` shape shipped to both processes, and the `.gitignore`-driven scan/watch coordination. The boundary between this primitive and FileManager is stated in [`architecture.md §1.2`](./architecture.md#12-filemanagers-position-within-the-module) — in case of conflict, that document decides positioning, this document decides implementation.

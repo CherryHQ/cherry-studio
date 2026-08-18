@@ -1,3 +1,10 @@
+---
+description: Why IpcApi is an independent RPC channel beside REST DataApi — layering, trust boundary, IpcContext, error model
+sources:
+  - src/main/ipc
+  - src/shared/ipc
+---
+
 # IpcApi Overview
 
 ## Paradigm Split — Why IpcApi Is Independent of DataApi

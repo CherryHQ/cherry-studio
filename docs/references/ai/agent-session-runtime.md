@@ -1,3 +1,12 @@
+---
+description: Host/driver split for agent sessions — turn lifecycle, follow-up queue, resume tokens, and shared prompt materializer
+sources:
+  - src/main/ai/agentSession/AgentSessionRuntimeService.ts
+  - src/main/ai/runtime/types.ts
+  - src/main/ai/runtime/claudeCode
+  - src/main/ai/runtime/agentPrompt.ts
+---
+
 # Agent Session Runtime
 
 ## Purpose

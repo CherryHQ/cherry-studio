@@ -1,3 +1,11 @@
+---
+description: Guard and recovery semantics for the addItems, deleteItems, and reindexItems knowledge item operations
+sources:
+  - src/main/features/knowledge/ingestion
+  - src/main/features/knowledge/tasks
+  - src/main/data/services/KnowledgeItemService.ts
+---
+
 # Knowledge Operation Guards
 
 This document records the guard and recovery semantics for the three caller-facing knowledge item operations:

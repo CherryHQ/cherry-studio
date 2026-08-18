@@ -1,3 +1,10 @@
+---
+description: The Agent class wrapping single-pass AI SDK streaming with composeHooks-merged hook contributions and error semantics
+sources:
+  - src/main/ai/runtime/aiSdk/Agent.ts
+  - src/main/ai/runtime/aiSdk/params/composeHooks.ts
+---
+
 # Agent Loop
 
 ## What it is

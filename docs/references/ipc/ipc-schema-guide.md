@@ -1,3 +1,10 @@
+---
+description: Authoring IpcApi schemas — per-domain files, route and event naming rules, derived types, ESLint key enforcement
+sources:
+  - src/shared/ipc/schemas
+  - src/shared/ipc/define.ts
+---
+
 # IpcApi Schema Guide
 
 ## File Organization

@@ -1,3 +1,10 @@
+---
+description: Canonical reference for the src/renderer type-by-domain layout and its strictly downward dependency layering
+sources:
+  - src/renderer
+  - packages/ui
+---
+
 # Renderer Architecture
 
 This is the canonical reference for how `src/renderer/` is organized: directory responsibilities, dependency direction, and the rules that keep them enforceable.

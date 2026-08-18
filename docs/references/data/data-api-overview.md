@@ -1,3 +1,11 @@
+---
+description: DataApi architecture for SQLite-backed business data - typed IPC pipeline from renderer client to main handlers
+sources:
+  - src/main/data/api
+  - src/renderer/data/DataApiService.ts
+  - src/shared/data/api
+---
+
 # DataApi System Overview
 
 The DataApi system provides type-safe IPC communication for business data operations between the Renderer and Main processes.

@@ -1,3 +1,10 @@
+---
+description: Directory listing and ripgrep-backed fuzzy search in listDirectory and listDirectoryEntries, with ranking rules
+sources:
+  - src/main/services/file/tree/search.ts
+  - src/shared/types/file/common.ts
+---
+
 # Fuzzy Search for Directory Listings
 
 Cherry Studio exposes directory listing and fuzzy search through

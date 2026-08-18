@@ -1,3 +1,11 @@
+---
+description: Implementing DataApi handlers and services in main - HandlersFor typing, cross-service table access, adapters
+sources:
+  - src/main/data/api/handlers
+  - src/main/data/services
+  - src/main/data/api/core/adapters
+---
+
 # DataApi in Main Process
 
 This guide covers how to implement API handlers and services in the Main process.

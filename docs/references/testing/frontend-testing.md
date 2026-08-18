@@ -1,3 +1,12 @@
+---
+description: Normative test rules for renderer, packages/ui, and E2E code covering layer choice, mocking, and review gates
+sources:
+  - src/renderer
+  - packages/ui
+  - tests/e2e
+  - tests/__mocks__
+---
+
 # Frontend Testing Guidelines
 
 This is the normative testing guide for `src/renderer/`, `packages/ui/`, and `tests/e2e/`.

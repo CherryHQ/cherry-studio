@@ -1,3 +1,12 @@
+---
+description: Data-driven image-generation params — registry supports to form fields, canonical bag to vendor wire via WireProfile
+sources:
+  - packages/provider-registry/src/schemas/imageParamCatalog.ts
+  - src/renderer/pages/paintings
+  - src/main/ai/provider/custom/wire/wireProfile.ts
+  - src/main/ai/provider/custom/tasks/imageGenerationJobHandler.ts
+---
+
 # Image-Generation Parameterized Architecture
 
 How the paintings page renders a per-model parameter form, collects the user's

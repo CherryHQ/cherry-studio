@@ -1,3 +1,10 @@
+---
+description: Code examples for lifecycle decorators, IPC and timer helpers, error handling, conditional activation, pause/resume
+sources:
+  - src/main/core/lifecycle
+  - src/main/core/application
+---
+
 # Lifecycle Usage Guide
 
 Practical guide for using the lifecycle system. For architecture details, see [Lifecycle Overview](./lifecycle-overview.md). For deciding whether to use lifecycle at all, see [Decision Guide](./lifecycle-decision-guide.md).

@@ -1,3 +1,11 @@
+---
+description: 'Current v2 knowledge backend: service split, IPC surface, item statuses, delete/reindex/restore flows, search'
+sources:
+  - src/main/features/knowledge
+  - src/shared/ipc/schemas/knowledge.ts
+  - src/main/ipc/handlers/knowledge.ts
+---
+
 # Knowledge Service
 
 This document records the current v2 knowledge backend shape in the main process.

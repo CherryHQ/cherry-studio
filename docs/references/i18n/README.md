@@ -1,3 +1,12 @@
+---
+description: i18n workflow covering locale catalogs, the en-us source of truth, automation scripts, and translation practices
+sources:
+  - src/renderer/i18n
+  - src/main/i18n/locales
+  - scripts/i18n-sync.ts
+  - scripts/i18n-glossary.json
+---
+
 # Internationalization (i18n) Guide
 
 ## Enhance Development Experience with the i18n Ally Plugin

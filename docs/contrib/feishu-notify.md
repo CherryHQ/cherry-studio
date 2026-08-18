@@ -1,3 +1,10 @@
+---
+description: CLI script that sends Feishu webhook card notifications from GitHub Actions workflows, with command reference
+sources:
+  - scripts/feishu-notify.ts
+  - .github/workflows/github-issue-tracker.yml
+---
+
 # Feishu Notification Script
 
 `scripts/feishu-notify.ts` is a CLI tool for sending notifications to Feishu (Lark) Webhook. This script is primarily used in GitHub Actions workflows to enable automatic notifications.

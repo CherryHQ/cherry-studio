@@ -1,3 +1,12 @@
+---
+description: Cross-process architecture entry point covering the Electron process model, data flow, data systems, and monorepo map
+sources:
+  - src/main
+  - src/renderer
+  - src/preload
+  - src/shared
+---
+
 # Architecture Overview
 
 This is the cross-process entry point to Cherry Studio's architecture: the Electron process model, data flow, the data systems, the monorepo structure, and a map to the detailed per-process and per-subsystem references. Per-process directory layout and dependency rules live in their own documents — this page does not duplicate them.

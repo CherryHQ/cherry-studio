@@ -1,3 +1,11 @@
+---
+description: 'Design contract for the planned chat adapters layer: pure UI projections, pane/action registries, render stability'
+sources:
+  - src/renderer/components/chat
+  - src/renderer/components/chat/actions
+  - src/renderer/components/chat/resourceList
+---
+
 # Chat Adapters
 
 > **Status: target architecture (design).** This describes the chat layer's intended

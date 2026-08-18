@@ -1,3 +1,11 @@
+---
+description: RESTful path, status code, Zod DTO, and scope/side-effect boundary rules for designing DataApi endpoints
+sources:
+  - src/shared/data/api/schemas
+  - src/main/data/api/handlers
+  - src/main/data/db/sqliteErrors.ts
+---
+
 # API Design Guidelines
 
 Guidelines for designing RESTful APIs in the Cherry Studio Data API system.

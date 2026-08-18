@@ -1,3 +1,11 @@
+---
+description: Decision tree for choosing JobManager, SchedulerService, BaseService.registerInterval, or a raw timer
+sources:
+  - src/main/core/scheduler/SchedulerService.ts
+  - src/main/core/job/JobManager.ts
+  - src/main/core/lifecycle/BaseService.ts
+---
+
 # Scheduler Usage — Decision Tree
 
 The project has three mechanisms for "fire a callback periodically / later". Picking the wrong one creates the problem the v2 unification was designed to fix: scattered ad-hoc timers with no observability and no central control.

@@ -1,3 +1,11 @@
+---
+description: Local HTTP server exposing AI chat over OpenAI and Anthropic wire protocols, with adapters, auth, and lifecycle
+sources:
+  - src/main/features/apiGateway
+  - src/renderer/hooks/useApiGateway.ts
+  - src/renderer/pages/settings/ToolSettings/ApiGatewaySettings
+---
+
 # API Gateway Reference
 
 The **API Gateway** exposes Cherry Studio's AI capabilities over a local HTTP

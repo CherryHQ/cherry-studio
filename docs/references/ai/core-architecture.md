@@ -1,3 +1,11 @@
+---
+description: End-to-end chat turn flow from renderer IPC transport through AiStreamManager and Agent loop to persistence
+sources:
+  - src/main/ai/streamManager
+  - src/main/ai/AiService.ts
+  - src/renderer/services/aiTransport
+---
+
 # Core Architecture
 
 End-to-end view of how a Cherry chat turn moves from user input to LLM

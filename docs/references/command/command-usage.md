@@ -1,3 +1,11 @@
+---
+description: How to register command handlers, context keys, and menu contributions, and how to add a new command
+sources:
+  - src/shared/utils/command
+  - src/renderer/hooks/command
+  - src/renderer/components/command
+---
+
 # Command System — Usage
 
 How renderer and main code uses the command system. For the model and

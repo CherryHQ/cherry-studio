@@ -1,3 +1,10 @@
+---
+description: How to log through the unified LoggerService in main and renderer, with levels, contexts, and env filtering
+sources:
+  - src/main/core/logger/LoggerService.ts
+  - src/renderer/services/LoggerService.ts
+---
+
 # How to use the LoggerService
 
 This is a developer document on how to use the logger.

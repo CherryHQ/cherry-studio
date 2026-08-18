@@ -1,3 +1,11 @@
+---
+description: Seeding architecture - SeedRunner journal in app_state, execution policies, version strategies, adding seeders
+sources:
+  - src/main/data/db/seeding/SeedRunner.ts
+  - src/main/data/db/seeding/seederRegistry.ts
+  - src/main/data/db/types.d.ts
+---
+
 # Database Seeding Guide
 
 ## Overview

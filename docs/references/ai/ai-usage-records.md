@@ -1,3 +1,12 @@
+---
+description: Immutable ai_usage_record analytics — capture ownership, frozen attribution snapshots, and MessageStats projection
+sources:
+  - src/main/data/db/schemas/aiUsageRecord.ts
+  - src/main/data/services/AiUsageRecordService.ts
+  - src/main/ai/utils/usageCapture.ts
+  - src/main/ai/hooks/billingHook.ts
+---
+
 # AI Usage Records
 
 `ai_usage_record` is the immutable, best-effort fact source for observable AI

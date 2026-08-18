@@ -1,3 +1,9 @@
+---
+description: OTel tracing for AI calls — Cherry-owned root spans, AI SDK and Claude Code adapters, local span projection and sinks
+sources:
+  - src/main/ai/observability
+---
+
 # Observability
 
 The `src/main/ai/observability/` subsystem: OTel tracing, the local span

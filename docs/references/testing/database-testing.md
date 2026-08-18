@@ -1,3 +1,11 @@
+---
+description: How to test SQLite-backed main-process code with the setupTestDatabase harness and production migrations
+sources:
+  - tests/helpers/db
+  - tests/__mocks__
+  - src/main/data/db
+---
+
 # Database Testing Guide
 
 This guide covers how to write tests that exercise the SQLite data layer in the

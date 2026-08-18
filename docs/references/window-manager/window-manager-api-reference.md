@@ -1,3 +1,10 @@
+---
+description: Full WindowManager method tables — open/close/create/destroy, window ops, queries, broadcast, pools, behavior setters
+sources:
+  - src/main/core/window/WindowManager.ts
+  - src/main/core/window/behavior.ts
+---
+
 # WindowManager API Reference
 
 Full method reference for `WindowManager`. For conceptual guidance and when-to-use each group, see [Usage Guide](./window-manager-usage.md).

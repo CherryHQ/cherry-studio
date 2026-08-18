@@ -1,3 +1,11 @@
+---
+description: In-browser Python execution for code blocks via Pyodide in a Web Worker, from run button to structured output
+sources:
+  - src/renderer/components/CodeBlockView
+  - src/renderer/services/PyodideService.ts
+  - src/renderer/workers/pyodide.worker.ts
+---
+
 # Code Execution
 
 This document describes the Python code execution feature for code blocks. The implementation uses [Pyodide][pyodide-link] to run Python code directly in the browser environment, placed inside a Web Worker to avoid blocking the main UI thread.

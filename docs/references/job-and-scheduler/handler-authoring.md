@@ -1,3 +1,10 @@
+---
+description: Writing a JobHandler — onInit registration timing, minimal echo example, and JobRegistry type binding
+sources:
+  - src/main/core/job/JobManager.ts
+  - src/main/core/job/jobRegistry.ts
+---
+
 # Handler Authoring
 
 Further worked examples (retry / singleton recovery, failure-rate breaker, business-level mutex) are added as real consumers migrate — speculative examples bit-rot before anyone uses them.

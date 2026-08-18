@@ -1,3 +1,9 @@
+---
+description: Shared preview components for Mermaid, PlantUML, SVG, and Graphviz diagrams with toolbar and debounced rendering
+sources:
+  - src/renderer/components/Preview
+---
+
 # Image Preview Components
 
 ## Overview

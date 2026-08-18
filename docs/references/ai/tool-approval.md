@@ -1,3 +1,11 @@
+---
+description: Main-as-writer tool approval — approval-requested parts, Ai_ToolApproval_Respond paths, and persistent MCP decisions
+sources:
+  - src/main/ai/AiService.ts
+  - src/renderer/hooks/useToolApprovalBridge.ts
+  - src/renderer/components/chat/messages/tools/hooks/useToolApproval.ts
+---
+
 # Tool Approval
 
 ## Model

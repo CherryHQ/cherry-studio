@@ -1,3 +1,11 @@
+---
+description: Cache usage examples - useCache/useSharedCache/usePersistCache hooks and direct CacheService APIs per tier
+sources:
+  - src/renderer/data/hooks/useCache.ts
+  - src/renderer/data/CacheService.ts
+  - src/main/data/CacheService.ts
+---
+
 # Cache Usage Guide
 
 Concept and invariants: [cache-overview.md](./cache-overview.md). Adding keys: [cache-schema-guide.md](./cache-schema-guide.md).

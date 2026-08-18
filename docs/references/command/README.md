@@ -1,3 +1,12 @@
+---
+description: Command system model and architecture wiring shortcuts, menus, and buttons to one registry of app commands
+sources:
+  - src/shared/utils/command
+  - src/main/services/CommandService.ts
+  - src/renderer/components/command
+  - src/renderer/hooks/command
+---
+
 # Command System
 
 The command system is the single source of truth for **what the app can do** and

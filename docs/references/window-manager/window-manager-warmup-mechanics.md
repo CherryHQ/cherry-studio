@@ -1,3 +1,10 @@
+---
+description: Warmup state machine for pooled and singleton windows — idle queue, GC ticks, standby vs recycle axes, reuse IPC
+sources:
+  - src/main/core/window/WindowManager.ts
+  - src/main/core/window/windowRegistry.ts
+---
+
 # Warmup Mechanics
 
 Shared warmup state machine for singleton and pooled lifecycles: idle queue, GC ticks, warmup strategies, and the `WindowManager_Reused` IPC contract.

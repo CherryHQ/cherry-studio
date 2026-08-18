@@ -1,3 +1,11 @@
+---
+description: Job and scheduler architecture — two-service split, DB-driven dispatch, six-state machine, and startup recovery
+sources:
+  - src/main/core/job
+  - src/main/core/scheduler
+  - src/main/data/db/schemas/job.ts
+---
+
 # Job & Scheduler — Architecture Overview
 
 Two independent main-process lifecycle services:

@@ -1,3 +1,11 @@
+---
+description: AiStreamManager active-stream registry — listener fan-out, reconnect replay, abort, steering, and persistence triggers
+sources:
+  - src/main/ai/streamManager/AiStreamManager.ts
+  - src/main/ai/streamManager/pipeStreamLoop.ts
+  - src/main/ai/streamManager/context
+---
+
 # AiStreamManager
 
 ## What it is

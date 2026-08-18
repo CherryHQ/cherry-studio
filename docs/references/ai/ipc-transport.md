@@ -1,3 +1,11 @@
+---
+description: IpcChatTransport bridging useChat to Main over Ai_Stream_* IPC, with dispatch ack coordination and detach vs abort
+sources:
+  - src/renderer/services/aiTransport/IpcChatTransport.ts
+  - src/renderer/services/aiTransport/StreamDispatchService.ts
+  - src/renderer/services/aiTransport/TopicStreamSubscription.ts
+---
+
 # IPC Transport
 
 ## What it is

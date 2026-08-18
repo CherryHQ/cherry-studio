@@ -1,3 +1,12 @@
+---
+description: Precedence and lifecycle of agent prompt sources — System Prompt, workspace system.md, SOUL.md persona, and variables
+sources:
+  - src/main/ai/runtime/claudeCode/settingsBuilder.ts
+  - src/main/ai/agents/prompt.ts
+  - src/main/ai/agents/bootstrap.ts
+  - src/main/ai/agentSession/AgentSessionRuntimeService.ts
+---
+
 # Agent Prompt Layers
 
 Agent conversations combine several independently stored prompt sources. They are not synchronized because each source has a different scope and lifecycle.

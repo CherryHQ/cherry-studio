@@ -1,3 +1,10 @@
+---
+description: SSRF-safe rules for main-process fetches of untrusted URLs, with DNS pinning and private-address rejection
+sources:
+  - src/main/utils/remoteFetch.ts
+  - src/main/utils/remoteUrlSafety.ts
+---
+
 # Remote Fetch Safety
 
 Main-process direct URL fetches can receive renderer, assistant, or provider-controlled input. A literal URL check is not enough for these paths: an attacker-controlled hostname can resolve to a public address during preflight and then rebind to a private address when the network stack opens the connection.

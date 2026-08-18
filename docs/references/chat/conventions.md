@@ -1,3 +1,11 @@
+---
+description: Responsibility split and coding conventions for the renderer chat UI under src/renderer/components/chat
+sources:
+  - src/renderer/components/chat
+  - src/renderer/components/chat/layout
+  - src/renderer/components/chat/primitives
+---
+
 # Chat UI Design & Conventions
 
 > **Status: target architecture (design).** This describes the chat layer's intended

@@ -1,3 +1,10 @@
+---
+description: Layered preset pattern - merging predefined configs with user overrides via Preference storage or registry services
+sources:
+  - src/shared/data/presets
+  - src/main/data/services
+---
+
 # Layered Preset Configuration Pattern
 
 The Layered Preset Configuration pattern is the recommended approach for handling scenarios where you have predefined configurations that users can partially customize.

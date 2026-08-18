@@ -1,3 +1,9 @@
+---
+description: Linux packaging flow using pinned better-sqlite3 prebuilds, with build commands and prebuild update steps
+sources:
+  - scripts/linux-native
+---
+
 # Linux Packaging
 
 Linux packages use x64 and ARM64 `better-sqlite3` prebuilds from the pinned

@@ -1,3 +1,11 @@
+---
+description: 'Knowledge workflow architecture: scheduling model, durable JobManager jobs, per-base mutation lock, crash semantics'
+sources:
+  - src/main/features/knowledge/ingestion
+  - src/main/features/knowledge/tasks
+  - src/main/features/knowledge/KnowledgeService.ts
+---
+
 # Knowledge Workflow Architecture
 
 This document records the intended v2 Knowledge workflow architecture. It is the canonical reference for the runtime workflow; temporary RFC copies under `v2-refactor-temp/` may be removed before release.

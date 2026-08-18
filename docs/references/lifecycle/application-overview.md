@@ -1,3 +1,10 @@
+---
+description: How the Application orchestrator registers services, runs the three-phase bootstrap, and controls runtime shutdown
+sources:
+  - src/main/core/application
+  - src/main/core/lifecycle
+---
+
 # Application Overview
 
 Application is the top-level orchestrator that ties together the lifecycle system and the Electron app. It is the single entry point for bootstrapping, shutting down, and controlling services at runtime.

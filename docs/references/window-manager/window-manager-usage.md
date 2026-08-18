@@ -1,3 +1,10 @@
+---
+description: Consumer guide for WindowManager — registering window types, opening windows, event hooks, and useWindowInitData
+sources:
+  - src/main/core/window
+  - src/renderer/hooks/useWindowInitData.ts
+---
+
 # WindowManager Usage Guide
 
 Practical guide for using WindowManager from consumer code. For architectural context, see [Overview](./window-manager-overview.md). For full method reference, see [API Reference](./window-manager-api-reference.md).

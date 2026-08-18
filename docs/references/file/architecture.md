@@ -1,3 +1,11 @@
+---
+description: 'File module boundaries: FileHandle/FileEntry/FileInfo type system, IPC/DataApi contracts, layered architecture'
+sources:
+  - src/main/services/file
+  - src/main/ipc/handlers/file.ts
+  - src/shared/types/file/common.ts
+---
+
 # File Module Architecture
 
 > **SoT scope** — **this document** owns: module boundaries, type system (`FileHandle` / `FileEntry` / `FileInfo`), IPC / DataApi contracts, layered architecture (no-FS-side-effect vs FS-side-effect paths), business-service integration, and service lifecycle assignment. FileManager **internal implementation** (storage layout, version detection, atomic writes, recycle bin, reference cleanup, watcher internals, orphan sweep, DanglingCache state machine) lives in [`file-manager-architecture.md`](./file-manager-architecture.md). In case of conflict, the layer ownership above decides: positioning / contract → this document, implementation → the other.

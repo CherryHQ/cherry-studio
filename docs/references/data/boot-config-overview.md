@@ -1,3 +1,10 @@
+---
+description: Synchronous file-based BootConfig system for process-level settings loaded before the app lifecycle starts
+sources:
+  - src/main/data/bootConfig
+  - src/shared/data/bootConfig
+---
+
 # Boot Config System Overview
 
 The Boot Config system provides synchronous, file-based configuration for settings that must be available **before** the application lifecycle takes over — before the database, before PreferenceService, before any lifecycle phase runs.

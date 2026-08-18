@@ -1,3 +1,10 @@
+---
+description: The data-ui semantic selector contract for themes, tests, and automation, and its build-time generation pipeline
+sources:
+  - scripts/uiContract
+  - packages/ui/docs/variable-catalog.md
+---
+
 # UI Semantic Contract
 
 Cherry Studio exposes meaningful app-owned DOM boundaries through one machine-readable `data-ui` attribute. It is the

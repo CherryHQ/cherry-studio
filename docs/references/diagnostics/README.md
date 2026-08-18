@@ -1,3 +1,9 @@
+---
+description: Opt-in main-process performance instrumentation gated by CS_DIAGNOSTICS, with signals and CPU profile capture
+sources:
+  - src/main/core/diagnostics.ts
+---
+
 # Performance Diagnostics
 
 Opt-in performance instrumentation for the main process, gated by the `CS_DIAGNOSTICS` env var. Default off → zero overhead in a normal run.

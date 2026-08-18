@@ -1,3 +1,7 @@
+---
+description: Branch model for contributions, pull request guidelines, and version tag management targeting main
+---
+
 # 🌿 Branching Strategy
 
 Cherry Studio implements a structured branching strategy to maintain code quality and streamline the development process.

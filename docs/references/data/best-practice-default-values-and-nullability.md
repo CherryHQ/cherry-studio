@@ -1,3 +1,11 @@
+---
+description: Rules for column nullability and single-source default placement across DB, Drizzle, Zod, and service layers
+sources:
+  - src/main/data/db/schemas
+  - src/shared/data/api/schemas
+  - src/main/data/services
+---
+
 # Default Values & Nullability
 
 Standards for placing default values across the data stack and judging column nullability.

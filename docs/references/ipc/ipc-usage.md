@@ -1,3 +1,11 @@
+---
+description: Adding an IpcApi request route or main-to-renderer event — schema, handler, broadcast and send, useIpcOn subscribe
+sources:
+  - src/shared/ipc/schemas
+  - src/main/ipc/handlers
+  - src/renderer/ipc/useIpcOn.ts
+---
+
 # IpcApi Usage
 
 Two recurring tasks: adding a request route (R→M call) and adding an event (M→R push). A new request changes **2 places** (schema + handler); a new event changes **1 contract** plus its emit and subscribe sites. Preload and the channel enum never change.

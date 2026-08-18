@@ -1,3 +1,9 @@
+---
+description: Canonical reference for src/main top-level directories, the closed category set, and inter-directory dependency rules
+sources:
+  - src/main
+---
+
 # Main Process Architecture (`src/main`)
 
 This is the canonical reference for how `src/main/` is organized: what each top-level directory is for, the rules that keep them from sprawling, and how they depend on each other. It is the main-process peer of [Renderer Architecture](./renderer.md) and [Shared Layer Architecture](./shared-layer.md); the cross-process picture (process model, monorepo tree) lives in [Architecture Overview](./README.md).

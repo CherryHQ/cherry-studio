@@ -1,3 +1,9 @@
+---
+description: Per-handler checklist for migrating existing background services to JobManager — recovery, queues, tests, data moves
+sources:
+  - src/main/core/job
+---
+
 # Migration Checklist
 
 Use this checklist when migrating an existing service (KnowledgeRuntime / FileProcessing / agent task / heartbeat) to the unified JobManager. Each migration is a separate project — this doc is the per-handler discipline applied within each.

@@ -1,3 +1,10 @@
+---
+description: Per-attachment routing to native file parts or capped extracted text, with read_file paging for truncated overflow
+sources:
+  - src/main/ai/messages/attachmentRouting.ts
+  - src/main/ai/messages/fileProcessor.ts
+---
+
 # Chat Attachments
 
 How a user's attached files reach the model on a chat turn.

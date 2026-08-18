@@ -1,3 +1,10 @@
+---
+description: Decision framework for whether a main-process service belongs in the lifecycle system or stays a plain singleton
+sources:
+  - src/main/core/lifecycle
+  - src/main/core/application/serviceRegistry.ts
+---
+
 # Lifecycle Decision Guide
 
 **Lifecycle manages resources, not logic.** Being named "Service" does not mean it belongs here. The question is: does it **own resources or side effects that outlive a single method call and need cleanup on shutdown**?

@@ -1,3 +1,11 @@
+---
+description: app_state SQLite table for durable internal continuity markers - ownership rules, key naming, and key registry
+sources:
+  - src/main/data/db/schemas/appState.ts
+  - src/main/data/db/seeding/SeedRunner.ts
+  - src/main/data/migration/v2/core/MigrationEngine.ts
+---
+
 # App State System Overview
 
 `app_state` is a SQLite-backed key-value table holding durable **internal continuity markers** — the app's own record of one-time work it has performed (data migration, seeding, one-off setup).

@@ -1,3 +1,12 @@
+---
+description: Fractional-indexing ordering spec for sortable resources - orderKey column, order endpoints, and useReorder hook
+sources:
+  - src/main/data/services/utils/orderKey.ts
+  - src/shared/data/api/schemas/_endpointHelpers.ts
+  - src/main/data/db/schemas/_columnHelpers.ts
+  - src/renderer/data/hooks/useReorder.ts
+---
+
 # Ordering Guide
 
 Canonical spec for any sortable resource in the DataApi system. Uses a single fractional-indexing design ([fractional-indexing](https://www.npmjs.com/package/fractional-indexing), Rocicorp, ~2 KB gzip) — `PATCH /{resource}/:id/order` with an anchor body. Scales from tens to thousands of rows without background rebalancing; applies uniformly whether the view is paginated or not. Replaces the two incompatible predecessors (`PATCH /mini-apps` absolute `sortOrder` integers and `PATCH /mcp-servers` full `orderedIds` list).

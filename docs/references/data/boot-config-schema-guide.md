@@ -1,3 +1,11 @@
+---
+description: How to add boot config keys to the auto-generated schema, plus the V1-to-V2 boot config migration pipeline
+sources:
+  - src/shared/data/bootConfig/bootConfigSchemas.ts
+  - src/shared/data/bootConfig/bootConfigTypes.ts
+  - src/main/data/bootConfig
+---
+
 # Boot Config Schema Guide
 
 This guide explains how to add new boot config keys and covers the V1-to-V2 data migration pipeline.

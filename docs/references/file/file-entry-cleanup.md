@@ -1,3 +1,10 @@
+---
+description: Silent scan-based cleanup that reclaims unreferenced file entries according to the per-entry cleanup_policy column
+sources:
+  - src/main/services/file
+  - src/main/data/db/schemas/file.ts
+---
+
 # File Entry Cleanup (GC) Design
 
 > Status: implemented (PR #16727) — the `cleanup_policy` column, the scan-based cleanup pass, and the contract updates below shipped together; this document is the design record and behavioral reference for that implementation.

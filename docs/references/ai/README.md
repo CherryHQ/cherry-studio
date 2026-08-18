@@ -1,3 +1,10 @@
+---
+description: Entry point mapping the v2 AI pipeline docs, src/main/ai code layout, chat-turn flow, and key invariants
+sources:
+  - src/main/ai
+  - src/renderer/services/aiTransport
+---
+
 # AI Reference
 
 This is the entry point for the AI pipeline in Cherry Studio v2 — the

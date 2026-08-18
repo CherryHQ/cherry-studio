@@ -1,3 +1,10 @@
+---
+description: Per-domain migration of legacy ipcMain and preload channels into IpcApi schemas, handlers, and renderer call sites
+sources:
+  - src/shared/ipc/schemas
+  - src/main/ipc/handlers
+---
+
 # IpcApi Migration Guide
 
 Stage 0 (the framework) ships alongside legacy IPC. Migration is later work — multiple independent PRs, one domain at a time, until everything is collected and the old machinery is retired.

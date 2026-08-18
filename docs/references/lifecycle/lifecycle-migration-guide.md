@@ -1,3 +1,10 @@
+---
+description: Converting legacy singleton, raw-new, and free-function services to lifecycle decorators and registry entries
+sources:
+  - src/main/core/lifecycle
+  - src/main/core/application/serviceRegistry.ts
+---
+
 # Lifecycle Migration Guide
 
 This guide walks you through converting existing **infrastructure services** to the lifecycle system. Services that manage resources, require ordered initialization, or need cleanup belong here. Stateless business-logic services (repositories, data-access layers) should remain as simple singletons — see [Decision Guide](./lifecycle-decision-guide.md).

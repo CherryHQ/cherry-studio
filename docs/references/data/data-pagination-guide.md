@@ -1,3 +1,11 @@
+---
+description: Canonical pagination spec - offset vs cursor (keyset) modes, wire contract, server codec, and renderer hooks
+sources:
+  - src/shared/data/api/types.ts
+  - src/main/data/services/utils/keysetCursor.ts
+  - src/renderer/data/hooks/useDataApi.ts
+---
+
 # Pagination Guide
 
 Canonical spec for paginating any list endpoint in the DataApi system. It is the

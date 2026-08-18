@@ -1,3 +1,10 @@
+---
+description: Entry point for the job and scheduler docs — doc map and quick navigation for JobManager and SchedulerService
+sources:
+  - src/main/core/job
+  - src/main/core/scheduler
+---
+
 # Job & Scheduler
 
 Cherry Studio unified background job + time-scheduling system.

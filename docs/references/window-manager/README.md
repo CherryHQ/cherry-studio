@@ -1,3 +1,9 @@
+---
+description: Entry point for WindowManager docs — configuration layers, bounds persistence, runtime setters, and doc navigation
+sources:
+  - src/main/core/window
+---
+
 # WindowManager Reference
 
 This is the main entry point for Cherry Studio's WindowManager documentation. WindowManager is a lifecycle-managed service that creates, tracks, and reuses Electron `BrowserWindow` instances with three lifecycle modes (default / singleton / pooled), IPC broadcast, domain-service event hooks, and elastic pool reuse.
