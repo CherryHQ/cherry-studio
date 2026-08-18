@@ -202,4 +202,28 @@ describe('DexieExporter', () => {
       'Failed to export Dexie table "message_blocks" at primary key "block-1"'
     )
   })
+
+  it('skips an irrecoverable IndexedDB record and exports the remaining records', async () => {
+    const rows = [{ id: 'block-1' }, { id: 'block-2' }, { id: 'block-3' }]
+    const table = createTableMock(rows)
+    table.get.mockRejectedValueOnce(
+      new DOMException(
+        'Data lost due to missing file. Affected record should be considered irrecoverable',
+        'NotReadableError'
+      )
+    )
+    dexieMock.table.mockReturnValue(table)
+
+    await new DexieExporter('/export').exportAll()
+
+    expect(JSON.parse(exportedText())).toEqual(rows.slice(1))
+  })
+
+  it('does not skip other IndexedDB read failures', async () => {
+    const table = createTableMock([{ id: 'block-1' }])
+    table.get.mockRejectedValueOnce(new DOMException('Temporary read failure', 'UnknownError'))
+    dexieMock.table.mockReturnValue(table)
+
+    await expect(new DexieExporter('/export').exportAll()).rejects.toThrow('Temporary read failure')
+  })
 })
