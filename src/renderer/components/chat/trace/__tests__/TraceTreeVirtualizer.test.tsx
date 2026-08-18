@@ -71,6 +71,9 @@ describe('TraceTree with TanStack Virtual', () => {
       expect(screen.getAllByRole('treeitem').length).toBeLessThan(30)
     } finally {
       view?.unmount()
+      // virtual-core's isScrollingResetDelay (150ms) debounce may still be pending;
+      // let it fire before the jsdom environment is torn down.
+      await new Promise((resolve) => setTimeout(resolve, 200))
       if (originalOffsetHeight) Object.defineProperty(HTMLElement.prototype, 'offsetHeight', originalOffsetHeight)
       else Reflect.deleteProperty(HTMLElement.prototype, 'offsetHeight')
       if (originalOffsetWidth) Object.defineProperty(HTMLElement.prototype, 'offsetWidth', originalOffsetWidth)
