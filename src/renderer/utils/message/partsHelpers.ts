@@ -63,7 +63,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 /**
  * Provider state the model must receive back verbatim, such as a Gemini thought signature.
  * It is bound to the exact text it was issued for, so it cannot follow an edited draft.
- * A one-level key scan is enough: every provider that ships such state keeps it flat.
+ * The one-level scan is verified against Gemini's flat `google.thoughtSignature`; a provider
+ * that nests such state deeper would fail open, so deepen the scan when one appears.
  */
 function hasEchoBackProviderState(value: unknown): boolean {
   return isRecord(value) && Object.keys(value).some((key) => /signature/i.test(key))

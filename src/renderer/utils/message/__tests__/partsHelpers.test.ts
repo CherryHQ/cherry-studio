@@ -68,6 +68,15 @@ describe('canEditAssistantMessageParts', () => {
           futureProvider: { opaqueState: 'state-1' }
         }
       })
+    },
+    {
+      messageParts: parts({
+        type: 'text',
+        text: 'answer with an out-of-spec provider entry',
+        providerMetadata: {
+          openai: 'msg_1'
+        }
+      })
     }
   ])('allows one unambiguous editable run', ({ messageParts }) => {
     expect(canEditAssistantMessageParts(messageParts)).toBe(true)
@@ -119,6 +128,16 @@ describe('canEditAssistantMessageParts', () => {
         type: 'text',
         text: 'signed answer',
         providerMetadata: {
+          google: { thoughtSignature: 'signature-1' }
+        }
+      })
+    },
+    {
+      messageParts: parts({
+        type: 'text',
+        text: 'signed answer alongside roundtrippable Cherry metadata',
+        providerMetadata: {
+          cherry: { references: [] },
           google: { thoughtSignature: 'signature-1' }
         }
       })
