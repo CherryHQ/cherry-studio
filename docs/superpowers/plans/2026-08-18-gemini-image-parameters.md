@@ -15,6 +15,7 @@
 - 修改：`packages/provider-registry/src/__tests__/catalog-invariants.test.ts` — 固定 Nano Banana 2 的用户可见参数契约。
 - 修改：`packages/provider-registry/src/creators/google.ts` — 声明稳定版与预览版 Nano Banana 2 的图像生成能力。
 - 修改：`packages/provider-registry/data/models.json` — 由 generator 生成的发布目录。
+- 修改：`src/main/ai/provider/custom/wire/__tests__/buildImageRequest.test.ts` — 固定 Google/Vertex 自动分辨率省略与显式档位投递契约。
 
 ### 任务 1：用目录契约复现缺失参数
 
@@ -86,6 +87,8 @@ pnpm --filter @cherrystudio/provider-registry generate
 预期：`packages/provider-registry/data/models.json` 中稳定版与预览版均包含新的 `imageGeneration` 契约；不应出现无关 provider/model 变化。
 
 - [ ] **步骤 4：运行定向测试**
+
+在 wire 测试中断言 Google 与 Vertex 收到 `imageResolution: 'auto'` 时均不生成 provider options，并保留显式 `2K` 映射到 `imageConfig.imageSize` 的断言。`buildImageRequest` 已全局过滤 `auto`，无需修改 wire production code。
 
 运行：
 

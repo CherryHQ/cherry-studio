@@ -9,9 +9,10 @@ Cherry Studio exposes the stable Nano Banana 2 model (`gemini-3.1-flash-image`) 
 - Add a complete image-generation capability declaration for stable Nano Banana 2.
 - Make `auto` the default aspect-ratio choice for stable and preview Nano Banana 2.
 - Make `auto` the default resolution choice while retaining explicit 1K, 2K, and 4K choices.
+- Add a focused Google/Vertex wire regression for automatic resolution omission.
 - Regenerate the provider-registry catalog.
 
-This change is limited to Google-owned native Gemini image models. It does not change generic OpenAI-compatible providers, OpenRouter's separate resolution contract, prompt parsing, or the existing wire transport.
+This change is limited to Google-owned native Gemini image models and their wire contract test. It does not change generic OpenAI-compatible providers, OpenRouter's separate resolution contract, prompt parsing, or wire production code.
 
 ## Design
 
@@ -21,8 +22,9 @@ The current form and request pipeline already implement the desired semantics:
 
 - `auto` is localized and stored as a normal registry option.
 - `normalizeAspectRatio('auto')` returns no value, so Google chooses the aspect ratio.
+- `buildImageRequest` globally filters `auto` before Google/Vertex profile rules, so automatic `imageResolution` leaves `imageConfig.imageSize` unset.
 - The Google/Vertex wire profile maps explicit aspect ratios to `imageConfig.aspectRatio`.
-- The same profile maps explicit 1K, 2K, and 4K values to `imageConfig.imageSize`.
+- The same profile still maps explicit 1K, 2K, and 4K values to `imageConfig.imageSize`.
 
 No new renderer state, provider option namespace, or request adapter is required.
 
@@ -34,4 +36,4 @@ Preview `gemini-3.1-flash-image-preview` keeps its existing explicit ratio set a
 
 ## Verification
 
-A catalog contract test must fail on current main because stable Nano Banana 2 lacks `imageGeneration` and preview lacks automatic defaults. After generation, the test must verify both variants' automatic defaults and explicit 1K/2K/4K choices. Existing Google wire tests remain the transport-level proof that explicit values reach the SDK namespace and automatic values are omitted.
+A catalog contract test must fail on current main because stable Nano Banana 2 lacks `imageGeneration` and preview lacks automatic defaults. After generation, the test must verify both variants' automatic defaults and explicit 1K/2K/4K choices. A focused Google/Vertex wire test proves automatic resolution produces no provider options, while the existing explicit-tier assertion proves `2K` reaches `imageConfig.imageSize`.
