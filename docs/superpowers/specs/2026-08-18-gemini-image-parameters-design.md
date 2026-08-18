@@ -35,4 +35,3 @@ Preview `gemini-3.1-flash-image-preview` keeps its existing explicit ratio set a
 ## Verification
 
 A catalog contract test must fail on current main because stable Nano Banana 2 lacks `imageGeneration` and preview lacks automatic defaults. After generation, the test must verify both variants' automatic defaults and explicit 1K/2K/4K choices. Existing Google wire tests remain the transport-level proof that explicit values reach the SDK namespace and automatic values are omitted.
-
