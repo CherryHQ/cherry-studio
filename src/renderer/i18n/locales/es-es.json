@@ -388,6 +388,15 @@
         "inaccessible": "La ruta del espacio de trabajo no es accesible: {{path}}"
       }
     },
+    "session_delivery": {
+      "from": "De {{agent}} / {{session}}",
+      "status": {
+        "accepted": "Aceptado",
+        "consumed": "Procesado",
+        "delivering": "Entregando",
+        "failed": "Fallido"
+      }
+    },
     "settings": {
       "permissionMode": {
         "title": "Modo de permisos"
@@ -800,6 +809,7 @@
       "restartSuccess": "Servidor API reiniciado exitosamente",
       "startError": "Error al iniciar el Servidor API: ",
       "startSuccess": "Servidor API iniciado exitosamente",
+      "stopDeferred": "El Servidor API se detendrá cuando termine la traducción actual",
       "stopError": "Error al detener el Servidor API: ",
       "stopSuccess": "Servidor API detenido exitosamente"
     },
@@ -1007,6 +1017,19 @@
       "knowledge_base_disabled_by_files": "Elimina los archivos adjuntos para utilizar la Base de Conocimiento",
       "knowledge_base_unavailable": "Selecciona un modelo capaz de usar herramientas",
       "locate_editing_message": "Localizar mensaje original",
+      "mcp_prompts": {
+        "description": "Inserta un prompt publicado por un servidor MCP",
+        "empty": "No hay prompts MCP disponibles",
+        "insert_failed": "Error al insertar el prompt",
+        "title": "Prompts MCP"
+      },
+      "mcp_resources": {
+        "description": "Referencia un recurso publicado por un servidor MCP",
+        "empty": "No hay recursos MCP disponibles",
+        "read_failed": "Error al leer el recurso",
+        "reader_unavailable": "El modelo actual no puede volver a leer este recurso después de adjuntarlo",
+        "title": "Recursos MCP"
+      },
       "new": {
         "context": "Borrar contexto"
       },
@@ -3376,6 +3399,21 @@
         "stderr": "stderr",
         "stdout": "stdout"
       },
+      "sessionCreate": {
+        "created": "Se inició una nueva sesión",
+        "creating": "Iniciando una nueva sesión",
+        "firstMessage": "Primer mensaje",
+        "inheritedContext": "Usando este agente y espacio de trabajo",
+        "open": "Abrir sesión",
+        "sessionId": "ID de sesión",
+        "untitled": "Sesión sin título"
+      },
+      "sessionSend": {
+        "open": "Abrir sesión",
+        "sending": "Enviando a",
+        "sent": "Enviado a",
+        "to": "A"
+      },
       "status": {
         "done": "Hecho",
         "error": "Error",
@@ -5559,6 +5597,7 @@
       },
       "title": "Dependencias del entorno",
       "tools": {
+        "babeldoc-stream": "Motor de traducción de PDF que conserva el diseño. Los recursos del modelo de diseño se descargan en la primera traducción.",
         "bun": "Entorno de ejecución de JavaScript que utilizan los servicios MCP y las cadenas de herramientas relacionadas.",
         "claude": "Herramienta de programación con agentes de Anthropic para el terminal.",
         "codex": "Agente de programación de código abierto de OpenAI que puede leer, editar y ejecutar código en tu repositorio local.",
@@ -5605,6 +5644,10 @@
         "select": "Seleccionar fuente",
         "title": "Configuración de fuente"
       }
+    },
+    "fetch": {
+      "allow_private_network": "Permitir el acceso a direcciones de red local",
+      "allow_private_network_tip": "Permite que las herramientas de obtención web accedan a localhost y a direcciones de red privada. Desactívalo si no quieres que los modelos lean servicios de tu equipo o de tu LAN."
     },
     "font_size": {
       "title": "Tamaño de fuente de mensajes"
@@ -7219,10 +7262,10 @@
     "history": {
       "back": "Volver a la lista",
       "clear": "Borrar historial",
-      "clear_description": "Borrar el historial eliminará todos los registros de traducciones, ¿desea continuar?",
+      "clear_description": "Vaciar el historial eliminará todo el historial de traducciones y recuperará los archivos traducidos generados. ¿Continuar?",
       "copy_target": "Copiar resultado",
       "delete": "Eliminar historial de traducción",
-      "delete_description": "¿Eliminar este registro del historial de traducciones? Esta acción no se puede deshacer.",
+      "delete_description": "¿Eliminar este registro del historial de traducciones? En una traducción de archivo también se recupera el archivo traducido. Esta acción no se puede deshacer.",
       "empty": "Sin historial de traducciones por el momento",
       "error": {
         "add": "Error al añadir el historial de traducción",
@@ -7230,6 +7273,17 @@
         "delete": "Eliminación fallida",
         "load": "No se pudo cargar el historial de traducciones",
         "save": "Error al guardar el historial de traducciones"
+      },
+      "file": {
+        "action_failed": "No se pudo completar esa acción sobre el archivo",
+        "badge": "Traducción de archivo",
+        "export": "Guardar el archivo traducido como…",
+        "open": "Abrir el archivo traducido",
+        "preview": "Vista en paralelo",
+        "reveal": "Mostrar en la carpeta",
+        "source": "Archivo de origen",
+        "target": "Archivo traducido",
+        "unavailable": "Los archivos de esta traducción ya no están disponibles"
       },
       "filter": {
         "starred": "Solo destacado"
@@ -7259,6 +7313,53 @@
     "language_settings": "Configuración de idioma",
     "output": {
       "placeholder": "Traducción"
+    },
+    "pdf": {
+      "action": {
+        "close": "Cerrar la traducción de PDF",
+        "export": "Exportar PDF traducido",
+        "install_babeldoc": "Instalar BabelDOC",
+        "update_babeldoc": "Actualizar BabelDOC"
+      },
+      "dependency": {
+        "checking": "Comprobando BabelDOC...",
+        "description": "Instala el complemento BabelDOC para traducir PDF conservando su diseño original.",
+        "installing": "Instalando BabelDOC...",
+        "outdated_description": "Actualiza BabelDOC para seguir traduciendo PDF conservando el diseño.",
+        "outdated_title": "Se requiere actualizar BabelDOC",
+        "title": "PDF detectado"
+      },
+      "error": {
+        "generic": "Se produjo un error durante la traducción. Inténtalo de nuevo.",
+        "ocr_required": "Los PDF escaneados aún no son compatibles.",
+        "persist_failed": "El PDF se tradujo, pero no se pudo guardar el resultado. Inténtalo de nuevo.",
+        "title": "Fallo en la traducción del PDF"
+      },
+      "export_failed": "No se pudo exportar el PDF traducido",
+      "pane": {
+        "translated": "PDF traducido",
+        "translated_text": "Traducción"
+      },
+      "progress": {
+        "analyzing": "Analizando el diseño del documento",
+        "checking_assets": "Comprobando los recursos de procesamiento de PDF",
+        "downloading_assets": "Descargando recursos de procesamiento de PDF...",
+        "extracting_terms": "Extrayendo la terminología del documento",
+        "loading_model": "Cargando el modelo de procesamiento de PDF",
+        "parsing": "Analizando el documento PDF",
+        "percent": "{{progress}}%",
+        "preparing": "Inicializando la traducción del PDF",
+        "preparing_hint": "La primera inicialización puede tardar unos 2 minutos; las siguientes suelen ser más rápidas",
+        "rendering": "Renderizando el PDF traducido",
+        "translating": "Traduciendo el contenido",
+        "typesetting": "Maquetando el PDF traducido",
+        "value": "{{stage}}, etapa {{stageProgress}}%, total {{overallProgress}}%"
+      },
+      "ready": {
+        "description": "Selecciona un idioma de destino e inicia la traducción.",
+        "title": "Listo para traducir"
+      },
+      "success": "PDF traducido generado"
     },
     "preferred_target": "Objetivo Preferido",
     "processing": "Traduciendo...",
