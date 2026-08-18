@@ -56,7 +56,11 @@ Determine the diff to review based on `$ARGUMENTS` and working tree state:
 - **File/directory paths**: verify all paths exist on disk, then read file
   contents.
 
-If diff is empty → show usage examples and exit:
+The resolved review scope, not a diff, decides whether there is work: for a
+path target it is the set of files resolved from the given paths; for every
+other target it is the diff. A clean tree does not make a path target empty.
+
+If the resolved review scope is empty → show usage examples and exit:
 `/gh-pr-review` (uncommitted changes or current branch),
 `/gh-pr-review a1b2c3d`, `/gh-pr-review a1b2c3d..e4f5g6h`,
 `/gh-pr-review src/foo.ts`, `/gh-pr-review 123`,

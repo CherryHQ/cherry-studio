@@ -4,6 +4,12 @@ PR review uses **Worktree mode** — fetch the PR branch locally so review can
 read related code across modules, at the exact version of the PR branch. This
 is critical for review accuracy.
 
+Follow `SKILL.md` § Interaction and interruption contract. This flow introduces
+no additional prompt category beyond its declared safety blockers: a
+dirty/mismatched review worktree, a missing canonical remote, cleanup of a
+worktree with unexplained changes, and a pending review draft holding comments
+this run did not confirm.
+
 ## Input from SKILL.md
 
 - `AUTHORIZED_SUBMIT`: `true` only when the invocation explicitly requested
@@ -296,16 +302,29 @@ Use the `gh-pr-review` extension for structured pending reviews with inline
 comments. Do not use `gh pr comment` or raw `gh api` for review submission.
 
 1. Obtain `REVIEW_ID`, reusing the current reviewer's existing draft rather
-   than creating a second one. If `CURRENT_REVIEWER_PENDING_REVIEWS` (Step 2)
-   holds a `PENDING` review for the viewer, use its GraphQL node id as
-   `REVIEW_ID` and add this run's findings to that draft; its already-drafted
-   comments stay untouched and are submitted together in step 4. De-duplicate
-   new findings against `CURRENT_REVIEWER_PENDING_COMMENTS` so a drafted point
-   is not repeated. Only when the viewer has no pending draft, start one:
-   ```bash
-   gh pr-review review start --repo {OWNER_REPO} --pr {number}
-   ```
-   Save the returned `id` as `REVIEW_ID`.
+   than creating a second one, and never publishing content this run did not
+   confirm. Check `CURRENT_REVIEWER_PENDING_REVIEWS` (Step 2):
+
+   - **No pending draft** → start one and use its `id`:
+     ```bash
+     gh pr-review review start --repo {OWNER_REPO} --pr {number}
+     ```
+   - **Pending draft with no comments** → reuse its GraphQL node id as
+     `REVIEW_ID`.
+   - **Pending draft holding comments this run did not produce** → submitting
+     it would publish unverified content, which `AUTHORIZED_SUBMIT` does not
+     cover. Treat it as a **safety blocker** under `SKILL.md` § Interaction and
+     interruption contract: leave the draft exactly as it is, write nothing
+     into it, and report the findings to the user instead. In an interactive
+     session ask the single question of whether to submit the combined draft
+     (naming how many pre-existing comments it carries) or leave everything
+     pending; in an automated session submit nothing and report that
+     publishing the pre-existing draft needs separate authorization. Never
+     delete or edit its comments.
+
+   When a draft is reused with authorization, de-duplicate this run's findings
+   against `CURRENT_REVIEWER_PENDING_COMMENTS` so a drafted point is not
+   repeated.
 
 2. Add inline comments for each selected issue:
    ```bash

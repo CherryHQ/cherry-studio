@@ -40,8 +40,9 @@ these categories:
 - **Safety or environment blocker** — continuing would require destructive
   action, new authority, or missing external configuration. Declared examples
   are a dirty/mismatched review worktree, a missing canonical remote, cleanup
-  of unexplained changes, and removal of a failed fix patch. In an interactive
-  session, preserve state and ask only for the decision needed to proceed.
+  of unexplained changes, removal of a failed fix patch, and a pending review
+  draft holding comments this run did not confirm. In an interactive session,
+  preserve state and ask only for the decision needed to proceed.
 - **Explicit maintenance mode** — `diag` and separately requested checklist
   maintenance are interactive selection flows outside normal review. They may
   ask for the declared edit selection or persistent checkout/branch target.
