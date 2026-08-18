@@ -35,7 +35,7 @@ plus the renderer-side transport that connects to them.
 | Document | What it covers |
 |---|---|
 | [IPC Transport](./ipc-transport.md) | `useChat` + `IpcChatTransport`: `sendMessages` / `reconnectToStream`, dispatch coordinator, topic-status mirror |
-| [Execution Overlay](./execution-overlay.md) | `TopicStreamSubscription` + `useExecutionOverlay`: ref-counted attach, execution + anchor demux, one-shot `readUIMessageStream` per turn (the renderer half of the same merge function Main uses) |
+| [Execution Overlay](./execution-overlay.md) | `StreamAttachmentService` + `TopicStreamSubscription` + `useExecutionOverlay`: window-level attachment leases, execution + anchor demux, one-shot `readUIMessageStream` per turn |
 | [Tool Approval](./tool-approval.md) | Approval registry, Main-as-writer model, persistent decisions, `useToolApproval` hook |
 
 ## Where the code lives

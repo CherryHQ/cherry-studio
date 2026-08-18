@@ -45,11 +45,12 @@ Renderer: TopicStreamSubscription          ┌──── readUIMessageStream �
 `src/renderer/services/aiTransport/TopicStreamSubscription.ts`. A renderer
 class that owns:
 
-- **One IPC attach per topic.** `attach` is ref-counted — every
-  execution that calls `register(executionId, anchorMessageId)`
-  increments the count;
-  the last `unregister` triggers `detach` (deferred one microtask so a
-  transient `activeExecutions` flicker doesn't detach-then-reattach).
+- **One subscription attachment lease per topic.** The first live branch
+  attaches, and the subscription releases its lease after the last branch
+  closes (deferred one microtask so a transient `activeExecutions` flicker
+  does not detach-then-reattach). `StreamAttachmentService` coordinates this
+  lease with `IpcChatTransport`; only the last window-local owner sends the
+  actual `detach`.
 - **Execution + anchor demux.** Each `register(executionId,
   anchorMessageId)` returns a `ReadableStream<UIMessageChunk>` for that
   model writing to that assistant row. Multi-model parallel responses
@@ -78,18 +79,17 @@ class that owns:
 
 | Layer | Owner | Action |
 |---|---|---|
-| Renderer-local subscription | `TopicStreamSubscription.unregister` / `dispose` | Closes the branch reader, drops listener ref count; Main keeps generating |
+| Renderer-local subscription | `TopicStreamSubscription.unregister` / `dispose` | Closes the branch reader and releases its topic lease when idle; Main keeps generating |
 | Generation abort | Main (via `useChatWithHistory.stop` → Chat → `Ai_Stream_Abort`) | Stops the LLM |
 
-`TopicStreamSubscription` NEVER aborts the LLM. Closing all branches
-is the renderer equivalent of `streamDetach` — Main keeps streaming,
-other windows keep observing.
+`TopicStreamSubscription` NEVER aborts the LLM. Closing all branches releases
+its attachment lease; `StreamAttachmentService` detaches only if no transport
+or overlay owner remains. Main keeps streaming and other windows keep observing.
 
 ### Defensive routing
 
-A chunk without `executionId` is unexpected — Main always tags chat
-chunks. As a defensive fallback, if exactly one branch is registered
-the chunk routes there; otherwise it's dropped with a warning.
+A chunk without `executionId` or `attemptId` is unexpected — Main always tags
+chat chunks. It is dropped with a warning rather than guessed onto a branch.
 
 ## useExecutionOverlay
 
@@ -191,11 +191,11 @@ machinery:
 - **`isTopicDone=false` retains the topic attachment across continuation
   gaps.** An execution terminal is not permission to detach when Main has
   explicitly kept the topic alive and has not scheduled the next branch yet.
-- **A finished execution key is tombstoned** (`settledKeys`), so a
+- **A finished attempt is fenced** by `TopicStreamProjection`, so a
   remount whose Activity-preserved consumer state still lists it cannot
-  restart it into a zombie reader. The tombstone yields only to fresh
-  transport evidence — an open branch already queueing a new turn's
-  chunks — which the restarted reader then replays losslessly.
+  restart it into a zombie reader. Exact settlements are compacted once the
+  monotonic topic watermark covers them; the watermark remains the fence
+  without retaining per-attempt tombstones indefinitely.
 
 ### Overlay teardown is monotonic
 
@@ -225,7 +225,8 @@ between stream-end and DB-refresh-complete without going through SWR.
 ## Code map
 
 ```
-src/renderer/services/aiTransport/TopicStreamSubscription.ts       ← IPC attach + branch demux (one per retained topic)
+src/renderer/services/aiTransport/StreamAttachmentService.ts       ← per-window/topic lease owner; sole detach caller
+src/renderer/services/aiTransport/TopicStreamSubscription.ts       ← attachment lease + branch demux (one per retained topic)
 src/renderer/services/aiTransport/ExecutionStreamOverlayService.ts ← window-level readers/snapshots/rAF, keyed by topicId
 src/renderer/hooks/useExecutionOverlay.ts                          ← React binding (refcounted view lease)
 src/renderer/pages/home/useChatRuntimeState.ts                     ← consumer + dispose-after-refresh
@@ -251,9 +252,10 @@ src/renderer/pages/home/useChatRuntimeState.ts                     ← consumer 
 5. **`TopicStreamSubscription` never aborts.** It only detaches.
    Anything in this layer that calls `Ai_Stream_Abort` is in the
    wrong place — abort belongs to `useChatWithHistory.stop`.
-6. **Ref-counted attach.** A new attach must NOT fire when another
-   execution is already registered for the same topic. A new detach
-   must NOT fire while any execution still has a branch.
+6. **Window-level attachment ownership.** Releasing an
+   `IpcChatTransport` stream must NOT detach while a
+   `TopicStreamSubscription` still owns the topic, and vice versa. Only
+   `StreamAttachmentService` may send `Ai_Stream_Detach` for the final lease.
 
 ## Where to read more
 

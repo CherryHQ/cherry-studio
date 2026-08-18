@@ -12,6 +12,7 @@ import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 
+import { streamAttachmentService } from './StreamAttachmentService'
 import { TopicStreamProjection } from './TopicAttemptProjection'
 
 const logger = loggerService.withContext('TopicStreamSubscription')
@@ -90,6 +91,7 @@ export class TopicStreamSubscription {
   #ipcUnsubs: Array<() => void> = []
   #attached = false
   #attachInFlight: Promise<void> | null = null
+  #releaseAttachment: (() => void) | null = null
   #disposed = false
   #topicOpen = false
   #lastQuiesced: TopicQuiescedProjectionEvent | undefined
@@ -228,8 +230,8 @@ export class TopicStreamSubscription {
     this.#topicQuiescedListeners.clear()
     this.#pendingProtocolEvents.length = 0
     this.#pendingLegacyEvents.length = 0
-    if (this.#attached) void ipcApi.request('ai.stream.detach', { topicId: this.#topicId }).catch(() => {})
-    this.#attached = false
+    if (this.#attached) this.#detach()
+    else if (!this.#attachInFlight) this.#releaseAttachmentOwner()
     this.#attachInFlight = null
     for (const unsub of this.#ipcUnsubs) unsub()
     this.#ipcUnsubs = []
@@ -728,11 +730,15 @@ export class TopicStreamSubscription {
     // instant its listener registers are not missed.
     this.#setupIpcListeners()
     const branchesAtAttach = [...this.#branches.values()]
+    this.#releaseAttachment ??= streamAttachmentService.acquire(this.#topicId)
     this.#attachInFlight = (async () => {
       let shouldReattach = false
       try {
         const res = await ipcApi.request('ai.stream.attach', { topicId: this.#topicId })
-        if (this.#disposed) return
+        if (this.#disposed) {
+          this.#releaseAttachmentOwner()
+          return
+        }
         this.#attached = true
         switch (res.status) {
           case 'attached':
@@ -776,6 +782,7 @@ export class TopicStreamSubscription {
         }
       } finally {
         this.#attachInFlight = null
+        if (!shouldReattach && !this.#attached) this.#releaseAttachmentOwner()
         if (shouldReattach && !this.#disposed) void this.#ensureAttached()
       }
     })()
@@ -784,8 +791,13 @@ export class TopicStreamSubscription {
 
   #detach(): void {
     if (!this.#attached) return
-    void ipcApi.request('ai.stream.detach', { topicId: this.#topicId }).catch(() => {})
     this.#attached = false
     this.#attachInFlight = null
+    this.#releaseAttachmentOwner()
+  }
+
+  #releaseAttachmentOwner(): void {
+    this.#releaseAttachment?.()
+    this.#releaseAttachment = null
   }
 }

@@ -5,6 +5,7 @@ import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ChatRequestOptions, ChatTransport, UIMessageChunk } from 'ai'
 
+import { streamAttachmentService } from './StreamAttachmentService'
 import { streamDispatchService } from './StreamDispatchService'
 
 const logger = loggerService.withContext('IpcChatTransport')
@@ -67,20 +68,30 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
     const topicId = options.chatId
     logger.info('reconnectToStream called', { topicId })
 
-    const result = await ipcApi.request('ai.stream.attach', { topicId })
+    const releaseAttachment = streamAttachmentService.acquire(topicId)
+    const result = await ipcApi.request('ai.stream.attach', { topicId }).catch((error) => {
+      releaseAttachment()
+      throw error
+    })
     logger.info('reconnectToStream result', { topicId, status: result.status })
 
-    if (result.status === 'not-found') return null
+    if (result.status === 'not-found') {
+      releaseAttachment()
+      return null
+    }
     if (result.status === 'done' || result.status === 'paused') {
+      releaseAttachment()
       return new ReadableStream<UIMessageChunk>({ start: (c) => c.close() })
     }
     if (result.status === 'error') {
+      releaseAttachment()
       return new ReadableStream<UIMessageChunk>({
         start: (c) => c.error(new Error(result.error?.message ?? 'Stream error'))
       })
     }
     if (result.snapshot && !result.snapshot.topicOpen) {
       const terminalError = result.snapshot.attempts.find((attempt) => attempt.outcome === 'error')?.error
+      releaseAttachment()
       return new ReadableStream<UIMessageChunk>({
         start: (controller) => {
           if (terminalError) controller.error(new Error(terminalError.message ?? 'Stream error'))
@@ -90,14 +101,15 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
     }
 
     logger.info('Reconnected to stream', { topicId, bufferedChunks: result.bufferedChunks.length })
-    return this.buildListenerStream(topicId, result.bufferedChunks)
+    return this.buildListenerStream(topicId, result.bufferedChunks, undefined, undefined, releaseAttachment)
   }
 
   private buildListenerStream(
     topicId: string,
     initialChunks?: StreamChunkPayload[],
     abortSignal?: AbortSignal,
-    executionId?: UniqueModelId
+    executionId?: UniqueModelId,
+    releaseAttachment = streamAttachmentService.acquire(topicId)
   ): ReadableStream<UIMessageChunk> {
     const unsubscribers: Array<() => void> = []
     let isCleaned = false
@@ -107,6 +119,7 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
       if (isCleaned) return
       isCleaned = true
       for (const unsub of unsubscribers) unsub()
+      releaseAttachment()
     }
 
     return new ReadableStream<UIMessageChunk>({
@@ -225,11 +238,6 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
       cancel() {
         if (!isStreamClosed) {
           isStreamClosed = true
-          // Unmount / disposal: only detach this subscriber. Main keeps
-          // generating and persists the result; abort is a separate IPC.
-          ipcApi
-            .request('ai.stream.detach', { topicId })
-            .catch((e) => logger.warn('streamDetach failed', { topicId, e }))
           cleanup()
         }
       }

@@ -408,7 +408,7 @@ export class ExecutionStreamOverlayService {
         if (liveAttemptIds.has(attemptId)) continue
         entry.pendingSnapshots.delete(attemptId)
         entry.settlements.delete(attemptId)
-        entry.readerVersions.set(attemptId, (entry.readerVersions.get(attemptId) ?? 0) + 1)
+        entry.readerVersions.delete(attemptId)
         if (next === entry.snapshots) next = new Map(entry.snapshots)
         next.delete(attemptId)
       }
@@ -424,6 +424,7 @@ export class ExecutionStreamOverlayService {
       handle.cancel()
       handle.unregister()
       entry.readers.delete(key)
+      entry.readerVersions.delete(key)
     }
 
     for (const [attemptId, item] of union) {
@@ -594,7 +595,7 @@ export class ExecutionStreamOverlayService {
     if (attemptId === undefined || entry.readers.has(attemptId)) return
     entry.pendingSnapshots.delete(attemptId)
     entry.settlements.delete(attemptId)
-    entry.readerVersions.set(attemptId, (entry.readerVersions.get(attemptId) ?? 0) + 1)
+    entry.readerVersions.delete(attemptId)
     if (entry.pendingSnapshots.size === 0) this.#cancelFrame(entry)
     if (snapshotEntry) {
       const next = new Map(entry.snapshots)
@@ -624,7 +625,16 @@ export class ExecutionStreamOverlayService {
 
   #retire(entry: Entry, coversAttempt: (id: AttemptId) => boolean, coversMessage: (id: AttemptId) => boolean): void {
     let next = entry.snapshots
-    for (const attemptId of new Set([...entry.snapshots.keys(), ...entry.pendingSnapshots.keys()])) {
+    const attemptIds = new Set([
+      ...entry.snapshots.keys(),
+      ...entry.pendingSnapshots.keys(),
+      ...entry.settlements.keys(),
+      ...entry.optimisticExecutions.keys(),
+      ...entry.optimisticSeeds.keys(),
+      ...entry.readerVersions.keys(),
+      ...entry.readers.keys()
+    ])
+    for (const attemptId of attemptIds) {
       if (!coversAttempt(attemptId)) continue
       const handle = entry.readers.get(attemptId)
       if (handle) {
@@ -636,7 +646,7 @@ export class ExecutionStreamOverlayService {
       entry.settlements.delete(attemptId)
       entry.optimisticExecutions.delete(attemptId)
       entry.optimisticSeeds.delete(attemptId)
-      entry.readerVersions.set(attemptId, (entry.readerVersions.get(attemptId) ?? 0) + 1)
+      entry.readerVersions.delete(attemptId)
       if (next.has(attemptId)) {
         if (next === entry.snapshots) next = new Map(entry.snapshots)
         next.delete(attemptId)
@@ -729,7 +739,9 @@ export class ExecutionStreamOverlayService {
         }
         entry.pendingSnapshots.delete(attemptId)
         entry.settlements.delete(attemptId)
-        entry.readerVersions.set(attemptId, (entry.readerVersions.get(attemptId) ?? 0) + 1)
+        entry.optimisticExecutions.delete(attemptId)
+        entry.optimisticSeeds.delete(attemptId)
+        entry.readerVersions.delete(attemptId)
         if (entry.snapshots.has(attemptId)) {
           const next = new Map(entry.snapshots)
           next.delete(attemptId)
@@ -878,7 +890,7 @@ export class ExecutionStreamOverlayService {
             // execution's overlay is not worth carrying.
             entry.pendingSnapshots.delete(attemptId)
             entry.settlements.delete(attemptId)
-            entry.readerVersions.set(attemptId, (entry.readerVersions.get(attemptId) ?? 0) + 1)
+            entry.readerVersions.delete(attemptId)
             if (entry.snapshots.has(attemptId)) {
               const next = new Map(entry.snapshots)
               next.delete(attemptId)
@@ -909,6 +921,7 @@ export class ExecutionStreamOverlayService {
               }
             }
           }
+          if (entry.readerVersions.get(attemptId) === readerVersion) entry.readerVersions.delete(attemptId)
         }
         entry.liveReaderCount -= 1
         this.#maybeDrop(entry)

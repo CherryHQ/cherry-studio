@@ -19,14 +19,18 @@ useChat({ id: topicId, transport: new IpcChatTransport(defaultBody) })
    ├─ sendMessages         → window.api.ai.streamOpen   (Ai_Stream_Open)
    ├─ reconnectToStream    → window.api.ai.streamAttach (Ai_Stream_Attach)
    │  returned-stream / signal callbacks
-   ├─ stream cancel()      → window.api.ai.streamDetach (Ai_Stream_Detach)
+   ├─ stream cancel()      → release topic attachment lease
+   │                          (last window-local owner → Ai_Stream_Detach)
    └─ request abort signal → window.api.ai.streamAbort  (Ai_Stream_Abort)
 ```
 
-**Detach ≠ abort.** `cancel()` (e.g. unmount/disposal) calls `streamDetach`:
-it drops *this* subscriber while Main keeps generating and persists the
-result. Stopping generation is a separate path — the request's `abortSignal`
-firing calls `streamAbort`. Conflating the two would resurrect the v1
+**Detach ≠ abort.** `cancel()` (e.g. unmount/disposal) releases the transport's
+lease in `StreamAttachmentService`. The service sends `streamDetach` only when
+the last owner for that topic in the window releases; a concurrent
+`TopicStreamSubscription` therefore cannot be detached by transport cleanup.
+Detach drops *this window's* subscriber while Main keeps generating and
+persists the result. Stopping generation is a separate path — the request's
+`abortSignal` firing calls `streamAbort`. Conflating the two would resurrect the v1
 "unmount → cancel → upstream abort → lost reply" bug class.
 
 Per-topic chunks arrive via `onStreamChunk` listeners filtered by
@@ -66,9 +70,11 @@ running stream.
 The chunk stream from Main is keyed by immutable `attemptId`; `executionId`
 and `anchorMessageId` form the logical slot whose newest attempt is rendered.
 `TopicStreamSubscription`
-(`src/renderer/services/aiTransport/TopicStreamSubscription.ts`) owns the
-topic-level `streamAttach` / `streamDetach` with ref-counted lifecycle
-and demuxes chunks into per-execution branch `ReadableStream`s, so
+(`src/renderer/services/aiTransport/TopicStreamSubscription.ts`) owns branch
+demux and holds a topic attachment lease while its subscription is active.
+`StreamAttachmentService` coordinates that lease with `IpcChatTransport` and
+is the only renderer code that sends `streamDetach`. The subscription demuxes
+chunks into per-execution branch `ReadableStream`s, so
 multi-model parallel responses render as separate AI SDK messages on
 the same topic. `useExecutionOverlay` consumes each branch through
 `readUIMessageStream` — the same accumulator Main runs in

@@ -38,10 +38,7 @@ export class TopicStreamProjection {
     const descriptor = descriptorFor(this.topicId, execution)
     const existing = this.attempts.get(descriptor.attemptId)
     if (existing) return { accepted: existing.phase === 'active', replacedUnsettled: false }
-    if (this.isSettled(descriptor.attemptId)) {
-      this.attempts.set(descriptor.attemptId, { descriptor, phase: 'settled' })
-      return { accepted: false, replacedUnsettled: false }
-    }
+    if (this.isSettled(descriptor.attemptId)) return { accepted: false, replacedUnsettled: false }
 
     const key = slotKey(descriptor)
     const currentId = this.#activeBySlot.get(key)
@@ -73,6 +70,12 @@ export class TopicStreamProjection {
       attemptId,
       anchorMessageId: execution.anchorMessageId ?? null
     }
+    if (this.#watermark !== undefined && attemptId <= this.#watermark) {
+      this.attempts.delete(attemptId)
+      const key = slotKey(descriptor)
+      if (this.#activeBySlot.get(key) === attemptId) this.#activeBySlot.delete(key)
+      return
+    }
     const attempt = this.attempts.get(attemptId) ?? { descriptor, phase: 'active' as const }
     attempt.phase = 'settled'
     this.attempts.set(attemptId, attempt)
@@ -86,9 +89,9 @@ export class TopicStreamProjection {
     this.#watermark = watermark
     for (const [attemptId, attempt] of this.attempts) {
       if (attemptId > watermark) continue
-      attempt.phase = 'settled'
       const key = slotKey(attempt.descriptor)
       if (this.#activeBySlot.get(key) === attemptId) this.#activeBySlot.delete(key)
+      this.attempts.delete(attemptId)
     }
   }
 

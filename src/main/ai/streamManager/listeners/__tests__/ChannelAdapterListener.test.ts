@@ -1,6 +1,6 @@
 import type { ChannelAdapter } from '@main/ai/channels/ChannelAdapter'
 import type { UIMessageChunk } from 'ai'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { StreamDoneResult, StreamPausedResult } from '../../types'
 import { ChannelAdapterListener } from '../ChannelAdapterListener'
@@ -29,6 +29,14 @@ function delta(text: string): UIMessageChunk {
 describe('ChannelAdapterListener', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  afterEach(() => vi.useRealTimers())
+
+  it('declares terminal channel sends as delivery-plane work', () => {
+    const listener = new ChannelAdapterListener(makeAdapter(), 'chat-1')
+
+    expect(listener.terminalDispatch).toBe('delivery')
   })
 
   it('accumulates text-delta via .delta and redacts secrets before live onTextUpdate', () => {
@@ -121,5 +129,18 @@ describe('ChannelAdapterListener', () => {
 
     expect(adapter.onStreamComplete).not.toHaveBeenCalled()
     expect(adapter.sendMessage).not.toHaveBeenCalled()
+  })
+
+  it('bounds a hung terminal delivery and retries it once', async () => {
+    vi.useFakeTimers()
+    const adapter = makeAdapter({ onStreamComplete: vi.fn(() => new Promise<boolean>(() => {})) })
+    const listener = new ChannelAdapterListener(adapter, 'chat-1')
+    listener.onChunk(delta('final answer'))
+
+    const delivery = listener.onDone({ status: 'success' } as StreamDoneResult)
+    await vi.advanceTimersByTimeAsync(31_000)
+    await delivery
+
+    expect(adapter.onStreamComplete).toHaveBeenCalledTimes(2)
   })
 })

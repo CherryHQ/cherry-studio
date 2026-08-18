@@ -343,6 +343,22 @@ describe('ExecutionStreamOverlayService', () => {
     expect(mocks.subs.get(TOPIC)?.hasOpenBranch(A, 'anchor-reserved', 7)).toBe(true)
   })
 
+  it('retires optimistic attempts that never produced a snapshot', () => {
+    const service = new ExecutionStreamOverlayService()
+    const reserved = asst('anchor-reserved')
+    const execution = exec(A, 'anchor-reserved', 7, true)
+    service.acquire(TOPIC)
+    service.seedReservations(TOPIC, [reserved], [execution], { move: 'advance' }, 'anchor-old', () => [reserved])
+
+    service.retireThrough(TOPIC, 7)
+
+    expect(service.getView(TOPIC)).toMatchObject({
+      optimisticMessages: [],
+      projectedExecutions: [],
+      activeNodeOverride: null
+    })
+  })
+
   it('retries a failed quiesce refresh and completes the durable handoff', async () => {
     const service = new ExecutionStreamOverlayService()
     const consumer = {}

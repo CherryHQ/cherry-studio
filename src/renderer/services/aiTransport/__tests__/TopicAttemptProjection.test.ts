@@ -39,6 +39,21 @@ describe('TopicStreamProjection', () => {
     expect(projection.isSettled(4)).toBe(true)
   })
 
+  it('compacts attempt records covered by the monotonic watermark', () => {
+    const projection = new TopicStreamProjection('topic-1')
+    for (let attemptId = 1; attemptId <= 100; attemptId++) {
+      projection.register(execution(attemptId))
+    }
+
+    projection.advanceWatermark(100)
+    projection.settle(execution(100))
+    projection.register(execution(50))
+
+    expect(projection.attempts.size).toBe(0)
+    expect(projection.isSettled(50)).toBe(true)
+    expect(projection.isSettled(100)).toBe(true)
+  })
+
   it('applies the same newest-attempt-wins rule to delayed active snapshots', () => {
     expect(projectActiveExecutions([execution(8)], [execution(7), execution(9)])).toEqual([execution(9)])
   })

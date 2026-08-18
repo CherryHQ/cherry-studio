@@ -9,6 +9,7 @@ import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { streamAttachmentService } from '../StreamAttachmentService'
 import { TopicStreamSubscription } from '../TopicStreamSubscription'
 
 // Production calls ipcApi.request('ai.stream_*') / ipcApi.on('ai.stream_*'). `ipcMock` is
@@ -348,6 +349,21 @@ describe('TopicStreamSubscription', () => {
     await tick()
     expect(mock.mockApi.streamDetach).toHaveBeenCalledTimes(1)
     expect(mock.mockApi.streamDetach).toHaveBeenCalledWith({ topicId: TOPIC })
+    sub.dispose()
+  })
+
+  it('keeps Main attached while another renderer owner still uses the topic', async () => {
+    const releaseTransport = streamAttachmentService.acquire(TOPIC)
+    const sub = new TopicStreamSubscription(TOPIC)
+    sub.register(A, undefined, 1)
+    await tick()
+
+    sub.unregister(A, undefined, 1)
+    await tick()
+    expect(mock.mockApi.streamDetach).not.toHaveBeenCalled()
+
+    releaseTransport()
+    expect(mock.mockApi.streamDetach).toHaveBeenCalledOnce()
     sub.dispose()
   })
 
