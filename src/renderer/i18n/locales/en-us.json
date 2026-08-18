@@ -5560,7 +5560,7 @@
       },
       "title": "Dependencies",
       "tools": {
-        "babeldoc": "Layout-preserving PDF translation engine. Layout model assets are downloaded on the first translation.",
+        "babeldoc-stream": "Layout-preserving PDF translation engine. Layout model assets are downloaded on the first translation.",
         "bun": "JavaScript runtime used by MCP services and related toolchains.",
         "claude": "Anthropic's agentic coding tool for the terminal.",
         "codex": "OpenAI's open-source coding agent that can read, edit, and execute code in your local repository.",

@@ -5544,7 +5544,7 @@
       },
       "title": "環境相依套件",
       "tools": {
-        "babeldoc": "保留版式的 PDF 翻譯引擎。首次翻譯時會下載版面模型資源。",
+        "babeldoc-stream": "保留版式的 PDF 翻譯引擎。首次翻譯時會下載版面模型資源。",
         "bun": "MCP 服務及相關工具鏈使用的 JavaScript 執行環境。",
         "claude": "Anthropic 的終端機 Agent 程式設計工具。",
         "codex": "OpenAI 的開源程式設計 Agent，可讀取、編輯和執行本機儲存庫中的程式碼。",
