@@ -592,12 +592,15 @@ export type ReadFileResult = z.infer<typeof readFileResultSchema>
 
 // ── mcp_resource_list / mcp_resource_read ────────────────────────
 // The MCP *resources* half of the protocol (tools are exposed per server by `syncMcpToolsToRegistry`
-// instead). Both tools are scoped to the servers this request's assistant binds, so neither takes a
-// server argument: `mcp_resource_list` returns every reachable resource, `mcp_resource_read` resolves
-// the owning server from the uri.
+// instead). Which servers are reachable is request scope, frozen when the request is built, so
+// `mcp_resource_list` takes no input. A resource is addressed by the `(serverName, uri)` pair the
+// list returns — a uri alone is not unique across servers.
 
 export const MCP_RESOURCE_LIST_TOOL_NAME = 'mcp_resource_list'
 export const MCP_RESOURCE_READ_TOOL_NAME = 'mcp_resource_read'
+
+/** Default max characters per `mcp_resource_read` page when the request carries no tool-output cap. */
+export const MCP_RESOURCE_READ_CHAR_CAP = CONTEXT_PERSIST_THRESHOLD_CHARS
 
 /** No inputs: the reachable server set is request scope, not a model decision. */
 export const mcpResourceListInputSchema = z.object({})
@@ -615,17 +618,31 @@ export const mcpResourceListOutputSchema = z.object({
 })
 
 export const mcpResourceReadInputSchema = z.object({
+  serverName: z
+    .string()
+    .min(1)
+    .describe('Name of the MCP server publishing the resource, exactly as returned by mcp_resource_list.'),
   uri: z
     .string()
     .min(1)
-    .describe('Resource uri exactly as returned by mcp_resource_list, for example "file:///notes.md".')
+    .describe('Resource uri exactly as returned by mcp_resource_list, for example "file:///notes.md".'),
+  offset: z
+    .number()
+    .int()
+    .nonnegative()
+    .optional()
+    .describe('0-based character offset to start from. Page through long resources with the returned nextOffset.')
 })
 
 export const mcpResourceReadOutputSchema = z.object({
   uri: z.string(),
   serverName: z.string(),
   mimeType: z.string().optional(),
-  text: z.string()
+  text: z.string(),
+  /** Total characters available in the resource (for paging). */
+  totalChars: z.number().int().nonnegative(),
+  /** Next `offset` to pass to continue reading; omitted when the end was reached. */
+  nextOffset: z.number().int().nonnegative().optional()
 })
 
 /** Unknown uri / unreachable server — distinguishable from a successful read. */

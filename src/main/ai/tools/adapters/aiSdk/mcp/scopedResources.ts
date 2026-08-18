@@ -2,17 +2,32 @@
  * Reads over the MCP resources reachable in a request scope — the shared core behind
  * `mcp_resource_list` / `mcp_resource_read`.
  *
- * Both entry points take the already-scoped server list (`resolveMcpResourceServers`), so neither
- * this file nor the tools decide which servers a request may touch.
+ * Both entry points take the already-scoped server list (`resolveMcpResourceServers` intersected
+ * with the request's frozen server ids), so neither this file nor the tools decide which servers a
+ * request may touch.
+ *
+ * A resource is addressed by `(serverName, uri)` and must appear in that server's published list:
+ * a uri alone is ambiguous across servers, and a uri the server never published is not something
+ * the model may ask for (uri templates are not supported — they would need `resources/templates/list`
+ * and an explicit match rule).
  */
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import type { McpResourceEntry } from '@shared/ai/builtinTools'
+import type { McpResourceEntry, McpResourceReadResult } from '@shared/ai/builtinTools'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpResource } from '@shared/types/mcp'
 
 const logger = loggerService.withContext('scopedMcpResources')
+
+export interface ReadScopedMcpResourceOptions {
+  serverName: string
+  uri: string
+  offset?: number
+  /** Max characters this page may return; the caller passes the request's tool-output cap. */
+  charCap: number
+  signal?: AbortSignal
+}
 
 function toResourceEntry(resource: McpResource): McpResourceEntry {
   return {
@@ -39,26 +54,6 @@ export async function listScopedMcpResources(servers: readonly McpServer[]): Pro
   })
 }
 
-/**
- * The server publishing `uri`, or `undefined` when no in-scope server claims it.
- *
- * ponytail: first match wins on a uri published by two servers — a per-server argument is the
- * upgrade path if that collision ever shows up in practice. Resources the server never listed
- * (uri templates) resolve only when the scope holds exactly one server.
- */
-async function resolveOwningServer(servers: readonly McpServer[], uri: string): Promise<McpServer | undefined> {
-  const catalog = application.get('McpCatalogService')
-  for (const server of servers) {
-    try {
-      const resources = await catalog.listResources(server.id)
-      if (resources.some((resource) => resource.uri === uri)) return server
-    } catch (error) {
-      logger.warn('Failed to list resources while resolving a uri', { serverId: server.id, error })
-    }
-  }
-  return servers.length === 1 ? servers[0] : undefined
-}
-
 /** Flatten protocol contents the way the model reads them: text verbatim, binary as a placeholder. */
 function contentsToText(contents: readonly McpResource[]): string {
   return contents
@@ -72,20 +67,39 @@ function contentsToText(contents: readonly McpResource[]): string {
 
 export async function readScopedMcpResource(
   servers: readonly McpServer[],
-  uri: string
-): Promise<{ uri: string; serverName: string; mimeType?: string; text: string } | { error: string }> {
-  const server = await resolveOwningServer(servers, uri)
+  { serverName, uri, offset = 0, charCap, signal }: ReadScopedMcpResourceOptions
+): Promise<McpResourceReadResult> {
+  const server = servers.find((candidate) => candidate.name === serverName)
   if (!server) {
-    return { error: `No MCP server in this conversation publishes ${uri}. Call mcp_resource_list first.` }
+    return { error: `No MCP server named "${serverName}" is available in this conversation.` }
+  }
+
+  // The server's own published list is the allow-list: it is what `mcp_resource_list` showed, so
+  // anything outside it is a uri the model constructed rather than one the user made reachable.
+  let published: readonly McpResource[]
+  try {
+    published = await application.get('McpCatalogService').listResources(server.id)
+  } catch (error) {
+    logger.warn('Failed to list resources while validating a read', { serverId: server.id, error })
+    return { error: `Could not reach ${server.name} to verify ${uri}.` }
+  }
+  if (!published.some((resource) => resource.uri === uri)) {
+    return { error: `${server.name} does not publish ${uri}. Call mcp_resource_list first.` }
   }
 
   try {
-    const { contents } = await application.get('McpRuntimeService').getResource({ serverId: server.id, uri })
+    const { contents } = await application.get('McpRuntimeService').getResource({ serverId: server.id, uri, signal })
+    const full = contentsToText(contents)
+    const start = Math.min(offset, full.length)
+    const text = full.slice(start, start + charCap)
+    const end = start + text.length
     return {
       uri,
       serverName: server.name,
       mimeType: contents[0]?.mimeType,
-      text: contentsToText(contents)
+      text,
+      totalChars: full.length,
+      ...(end < full.length && { nextOffset: end })
     }
   } catch (error) {
     logger.warn('Failed to read an MCP resource', { serverId: server.id, uri, error })

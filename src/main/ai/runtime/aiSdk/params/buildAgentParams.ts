@@ -247,6 +247,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     // per-turn appends never contaminate the RetainedContext shared across the
     // models of a multi-model send.
     persistedOutputPaths: new Set(retained.persistedOutputPaths),
+    // Frozen with the tool set: `mcp_resource_*` may only ever narrow this at execution time.
+    mcpResourceServerIds,
     toolOutputCharCap: contextSettings.truncateThreshold
   }
 

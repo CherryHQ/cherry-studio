@@ -2,7 +2,8 @@
  * MCP resource browse tool — discovery half of the `mcp_resource_*` pair.
  *
  * Lists every resource reachable this request: the assistant's in-scope MCP servers that declared
- * the `resources` capability (see `resolveMcpResourceServers`). The model picks a `uri` from here
+ * the `resources` capability, intersected with the server ids frozen when the request was built
+ * (see `RequestContext.mcpResourceServerIds`). The model picks a `(serverName, uri)` pair from here
  * and passes it to `mcp_resource_read`.
  *
  * Servers are request scope, not a model argument, so the tool takes no input.
@@ -25,17 +26,16 @@ const logger = loggerService.withContext('McpResourceListTool')
 
 export const MCP_RESOURCE_LIST_DESCRIPTION =
   'List the resources exposed by the MCP servers available in this conversation (documents, files, ' +
-  'database rows, anything the server publishes). Use it to discover a resource uri, then read the ' +
-  'content with mcp_resource_read.'
+  'database rows, anything the server publishes). Use it to discover a resource, then read the ' +
+  'content with mcp_resource_read using the serverName and uri returned here.'
 
 const mcpResourceListTool = tool({
   description: MCP_RESOURCE_LIST_DESCRIPTION,
   inputSchema: mcpResourceListInputSchema,
   outputSchema: mcpResourceListOutputSchema,
-  strict: true,
   execute: async (_input, options) => {
     const { request } = getToolCallContext(options)
-    const servers = resolveMcpResourceServers(request.assistant)
+    const servers = resolveMcpResourceServers(request.assistant, request.mcpResourceServerIds)
     const resources = await listScopedMcpResources(servers)
     logger.debug('Listed MCP resources', { servers: servers.length, resources: resources.length })
     return { resources }
