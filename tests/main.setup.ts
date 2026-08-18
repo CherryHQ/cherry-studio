@@ -108,7 +108,8 @@ vi.mock('electron', () => {
       }
     },
     webContents: {
-      getAllWebContents: vi.fn(() => [])
+      getAllWebContents: vi.fn(() => []),
+      fromId: vi.fn(() => undefined)
     },
     systemPreferences: {
       getMediaAccessStatus: vi.fn(),
