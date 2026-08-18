@@ -615,6 +615,35 @@ describe('ChatMigrator.prepareTopicData', () => {
   })
 })
 
+describe('ChatMigrator empty topic name', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('leaves an unnamed v1 topic unnamed so the UI localizes it at render time', async () => {
+    // The migrator used to stamp a hardcoded English 'Unnamed Topic' here, which a
+    // Chinese user saw verbatim in an otherwise Chinese topic list. A natively-created
+    // v2 topic carries an empty name and the UI renders t('chat.conversation.new') for
+    // it, so writing any literal both freezes one language and disagrees with what
+    // every other unnamed topic shows.
+    const b1 = block('b1', 'u1')
+    const unnamed: OldTopic = { ...topic('t-unnamed', [msg('u1', 'user', ['b1'])]), name: '' }
+
+    const result = await prepareTopic(unnamed, [b1])
+
+    expect(result?.topic.name).toBe('')
+  })
+
+  it('keeps a real v1 topic name as-is', async () => {
+    const b1 = block('b1', 'u1')
+    const named: OldTopic = { ...topic('t-named', [msg('u1', 'user', ['b1'])]), name: '季度总结' }
+
+    const result = await prepareTopic(named, [b1])
+
+    expect(result?.topic.name).toBe('季度总结')
+  })
+})
+
 describe('ChatMigrator.prepare with state.defaultAssistant.topics', () => {
   beforeEach(() => {
     vi.clearAllMocks()

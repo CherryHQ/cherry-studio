@@ -316,7 +316,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       // blur handler and its internal `isPinnedQuickAssistant` flag.
       // `new BrowserWindow({ alwaysOnTop: true })` cannot accept a level — the
       // floating level is applied by applyWindowBehavior on create, and kept
-      // across show cycles by the macReapplyAlwaysOnTop quirk below.
+      // across show cycles by the reapplyAlwaysOnTop quirk below.
       alwaysOnTop: { level: 'floating' },
       // Quick window is visible across all workspaces and over fullscreen apps.
       // `skipTransformProcessType: true` prevents TransformProcessType(UIElement)
@@ -328,9 +328,10 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       macShowInDock: false
     },
     quirks: {
-      // Re-apply the floating level after every show/showInactive — macOS silently
-      // demotes it across cycles. The actual level is read from `behavior.alwaysOnTop`.
-      macReapplyAlwaysOnTop: true
+      // Re-assert topmost after every show/showInactive — macOS silently demotes the
+      // level across cycles, Windows lets later topmost windows stack above.
+      // The actual level is read from `behavior.alwaysOnTop`.
+      reapplyAlwaysOnTop: true
     }
   },
 
@@ -431,7 +432,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     quirks: {
       macRestoreFocusOnHide: true,
       macClearHoverOnHide: true,
-      macReapplyAlwaysOnTop: true
+      reapplyAlwaysOnTop: true
     }
   },
 

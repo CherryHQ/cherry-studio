@@ -1,17 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { acknowledgeMainWindowNavigationMock, openRouteInMainWindowMock, protocolServiceMock, loggerMock } = vi.hoisted(
-  () => ({
-    acknowledgeMainWindowNavigationMock: vi.fn(),
-    openRouteInMainWindowMock: vi.fn(),
-    protocolServiceMock: {
-      onMainRendererReady: vi.fn()
-    },
-    loggerMock: {
-      warn: vi.fn()
-    }
-  })
-)
+const {
+  acknowledgeMainWindowNavigationMock,
+  openRouteInMainWindowMock,
+  markMainRendererReadyForTabAttachMock,
+  protocolServiceMock,
+  loggerMock
+} = vi.hoisted(() => ({
+  acknowledgeMainWindowNavigationMock: vi.fn(),
+  openRouteInMainWindowMock: vi.fn(),
+  markMainRendererReadyForTabAttachMock: vi.fn(),
+  protocolServiceMock: {
+    onMainRendererReady: vi.fn()
+  },
+  loggerMock: {
+    warn: vi.fn()
+  }
+}))
 
 vi.mock('@application', () => ({
   application: {
@@ -25,7 +30,8 @@ vi.mock('@application', () => ({
 vi.mock('@main/services/mainWindowNavigation', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   acknowledgeMainWindowNavigation: acknowledgeMainWindowNavigationMock,
-  openRouteInMainWindow: openRouteInMainWindowMock
+  openRouteInMainWindow: openRouteInMainWindowMock,
+  markMainRendererReadyForTabAttach: markMainRendererReadyForTabAttachMock
 }))
 
 vi.mock('@logger', () => ({
@@ -62,16 +68,18 @@ describe('navigationHandlers', () => {
     expect(loggerMock.warn).toHaveBeenCalled()
   })
 
-  it('notifies the protocol service when the main renderer is ready', async () => {
+  it('notifies protocol dispatch and tab-attach delivery when the main renderer is ready', async () => {
     await navigationHandlers['navigation.protocol_dispatch_ready'](undefined, ctx)
 
     expect(protocolServiceMock.onMainRendererReady).toHaveBeenCalledWith('w1')
+    expect(markMainRendererReadyForTabAttachMock).toHaveBeenCalledWith('w1')
   })
 
   it('ignores renderer readiness from an untracked caller', async () => {
     await navigationHandlers['navigation.protocol_dispatch_ready'](undefined, { senderId: null })
 
     expect(protocolServiceMock.onMainRendererReady).not.toHaveBeenCalled()
+    expect(markMainRendererReadyForTabAttachMock).not.toHaveBeenCalled()
   })
 
   it('acknowledges navigation init data for the caller window', async () => {

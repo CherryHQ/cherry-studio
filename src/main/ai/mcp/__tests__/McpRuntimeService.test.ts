@@ -1,5 +1,8 @@
+import crypto from 'node:crypto'
+
 import { BaseService } from '@main/core/lifecycle'
 import type { McpServer } from '@shared/data/types/mcpServer'
+import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -59,8 +62,7 @@ const mcpSdkMock = vi.hoisted(() => {
     kind = 'streamableHttp' as const
     close = vi.fn().mockResolvedValue(undefined)
     constructor(url: unknown, opts?: unknown) {
-      void url
-      void opts
+      streamableHttpTransports.push({ url, opts })
     }
   }
   const clients: Array<{ connectCalls: Array<{ kind: string }>; close: ReturnType<typeof vi.fn> }> = []
@@ -100,6 +102,7 @@ const mcpSdkMock = vi.hoisted(() => {
     }
   }
   const stdioTransports: Array<{ env?: Record<string, string> }> = []
+  const streamableHttpTransports: Array<{ url: unknown; opts?: any }> = []
   class StdioClientTransport {
     kind = 'stdio' as const
     stderr = null
@@ -115,6 +118,7 @@ const mcpSdkMock = vi.hoisted(() => {
     StreamableHTTPError,
     StdioClientTransport,
     stdioTransports,
+    streamableHttpTransports,
     clients,
     state: { failStreamable: false, failStreamableCode: 503 }
   }
@@ -135,20 +139,29 @@ vi.mock('@modelcontextprotocol/sdk/client/stdio.js', () => ({
   StdioClientTransport: mcpSdkMock.StdioClientTransport
 }))
 
-const { McpRuntimeService, redactSensitive, McpCallToolPayloadSchema, McpGetResourcePayloadSchema } = await import(
+const { McpRuntimeService, McpCallToolPayloadSchema, McpGetResourcePayloadSchema } = await import(
   '../McpRuntimeService'
 )
 
-/** Build the JSON server key the service uses internally (only `id` is read by close logic). */
+/** Build the JSON server key shape the service uses internally (only `id` is read by close logic). */
 function serverKeyFor(id: string): string {
+  const fingerprint = crypto
+    .createHash('sha256')
+    .update(
+      JSON.stringify({
+        baseUrl: undefined,
+        command: undefined,
+        args: [],
+        registryUrl: undefined,
+        env: undefined,
+        headers: undefined
+      })
+    )
+    .digest('hex')
+
   return JSON.stringify({
-    baseUrl: undefined,
-    command: undefined,
-    args: [],
-    registryUrl: undefined,
-    env: undefined,
-    headers: undefined,
-    id
+    id,
+    fingerprint
   })
 }
 
@@ -209,6 +222,76 @@ describe('McpRuntimeService stdio environment', () => {
     expect(transportEnv?.PATH).toBe('/shell/bin')
     expect(transportEnv?.Path).toBe('server-metadata')
     platformSpy.mockRestore()
+  })
+})
+
+describe('McpRuntimeService QVeris hosted transport', () => {
+  beforeEach(() => {
+    BaseService.resetInstances()
+    MockMainCacheServiceUtils.resetMocks()
+    getByIdMock.mockReset()
+    mcpSdkMock.streamableHttpTransports.length = 0
+  })
+
+  it('connects to the hosted endpoint with the configured API key', async () => {
+    const service = new McpRuntimeService()
+    const server = {
+      id: 'qveris-server',
+      name: BuiltinMcpServerNames.qveris,
+      type: 'inMemory',
+      env: { QVERIS_API_KEY: 'qveris-test-key' },
+      isActive: true
+    } as McpServer
+    getByIdMock.mockReturnValue(server)
+
+    await service.withClient(server.id, async () => undefined)
+
+    const transport = mcpSdkMock.streamableHttpTransports.at(-1)
+    expect(String(transport?.url)).toBe('https://mcp.qveris.ai/mcp')
+    expect(transport?.opts).toEqual(
+      expect.objectContaining({
+        requestInit: expect.objectContaining({
+          headers: expect.objectContaining({ Authorization: 'Bearer qveris-test-key' })
+        })
+      })
+    )
+    expect(transport?.opts).not.toHaveProperty('authProvider')
+  })
+
+  it('rejects activation without an API key', async () => {
+    const service = new McpRuntimeService()
+    const server = {
+      id: 'qveris-server',
+      name: BuiltinMcpServerNames.qveris,
+      type: 'inMemory',
+      env: { QVERIS_API_KEY: '' },
+      isActive: true
+    } as McpServer
+    getByIdMock.mockReturnValue(server)
+
+    await expect(service.withClient(server.id, async () => undefined)).rejects.toThrow(
+      'QVeris MCP requires the QVERIS_API_KEY environment variable'
+    )
+  })
+
+  it('uses a distinct secret-free key when the API key changes', () => {
+    const service = new McpRuntimeService()
+    const first = service.getServerKey({
+      id: 'qveris-server',
+      name: BuiltinMcpServerNames.qveris,
+      env: { QVERIS_API_KEY: 'first-key' },
+      isActive: true
+    } as McpServer)
+    const second = service.getServerKey({
+      id: 'qveris-server',
+      name: BuiltinMcpServerNames.qveris,
+      env: { QVERIS_API_KEY: 'second-key' },
+      isActive: true
+    } as McpServer)
+
+    expect(first).not.toContain('first-key')
+    expect(second).not.toContain('second-key')
+    expect(first).not.toBe(second)
   })
 })
 
@@ -693,20 +776,51 @@ describe('McpRuntimeService.getServerLogs (mcp-env)', () => {
   })
 })
 
-describe('redactSensitive (mcp-services-3)', () => {
-  it('redacts sensitive keys', () => {
-    const out = redactSensitive({ authorization: 'Bearer x', apiKey: 'k', keep: 'ok' })
-    expect(out.authorization).toBe('<redacted>')
-    expect(out.apiKey).toBe('<redacted>')
-    expect(out.keep).toBe('ok')
+describe('McpRuntimeService logging notification redaction', () => {
+  beforeEach(() => {
+    BaseService.resetInstances()
+    MockMainCacheServiceUtils.resetMocks()
+    getByIdMock.mockReset()
   })
 
-  it('does not stack-overflow on a circular enumerable graph', () => {
-    const a: Record<string, unknown> = { name: 'a' }
-    const b: Record<string, unknown> = { name: 'b', a }
-    a.b = b // a -> b -> a cycle
-    expect(() => redactSensitive(a)).not.toThrow()
-    expect(redactSensitive(a)).toMatchObject({ name: 'a', b: { name: 'b', a: '[Circular]' } })
+  // Regression: `message` was serialized from the RAW notification data while `data` was
+  // redacted, so the secret still reached the debug log, the serverLogs buffer, and the
+  // mcp.server.log broadcast the renderer displays.
+  it('redacts secrets in both message and data of the emitted log entry', async () => {
+    const service = new McpRuntimeService()
+    const server = { id: 'server-1', name: 'srv' } as unknown as McpServer
+    getByIdMock.mockReturnValue(server)
+
+    const loggingSchema = { sentinel: 'logging' }
+    const sdkStub = {
+      ToolListChangedNotificationSchema: {},
+      ResourceListChangedNotificationSchema: {},
+      PromptListChangedNotificationSchema: {},
+      ResourceUpdatedNotificationSchema: {},
+      CancelledNotificationSchema: {},
+      LoggingMessageNotificationSchema: loggingSchema
+    }
+    const client = { setNotificationHandler: vi.fn() }
+    ;(service as any).setupNotificationHandlers(client, server, sdkStub)
+
+    const handler = client.setNotificationHandler.mock.calls.find(([schema]) => schema === loggingSchema)?.[1]
+    expect(handler).toBeDefined()
+    await handler({
+      method: 'notifications/message',
+      params: {
+        level: 'info',
+        logger: 'server',
+        data: { GITHUB_PERSONAL_ACCESS_TOKEN: 'github_pat_secret', note: 'visible' }
+      }
+    })
+
+    const logs = await service.getServerLogs('server-1')
+    expect(logs).toHaveLength(1)
+    const [entry] = logs
+    expect(entry.message).not.toContain('github_pat_secret')
+    expect(entry.message).toContain('<redacted>')
+    expect(entry.message).toContain('visible')
+    expect(entry.data).toMatchObject({ GITHUB_PERSONAL_ACCESS_TOKEN: '<redacted>', note: 'visible' })
   })
 })
 

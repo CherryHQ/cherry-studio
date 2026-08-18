@@ -680,4 +680,23 @@ describe('ConfigEditPanel', () => {
     fireEvent.click(screen.getByText('common.advanced_settings'))
     await waitFor(() => expect(screen.getByTestId('cli-config-editor')).toHaveTextContent(updatedFile.content))
   })
+
+  it('shows DeepSeek Harness parameters in the provider configuration dialog', async () => {
+    renderPanel(vi.fn(), {
+      cliTool: CodeCli.DEEPSEEK_HARNESS,
+      isCurrentProvider: false,
+      files: [],
+      providerConfig: {
+        modelId: 'anthropic::claude-old' as UniqueModelId,
+        config: { agentPreset: 'minimal', permissionMode: 'workspace-write' }
+      }
+    })
+
+    await waitFor(() => expect(readCliConfigFilesMock).toHaveBeenCalled())
+    expect(screen.getByText('code.tool_parameters')).toBeInTheDocument()
+    expect(screen.getByText('code.deepseek_harness.agent_preset')).toBeInTheDocument()
+    expect(screen.getByText('code.deepseek_harness.permission_mode')).toBeInTheDocument()
+    expect(screen.queryByText('code.deepseek_harness.settings_title')).not.toBeInTheDocument()
+    expect(screen.queryByText('common.advanced_settings')).not.toBeInTheDocument()
+  })
 })
