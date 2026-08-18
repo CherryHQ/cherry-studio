@@ -18,6 +18,7 @@ import { defaultAppHeaders } from '@main/utils/http'
 import type { EndpointType, Model } from '@shared/data/types/model'
 import {
   createUniqueModelId,
+  CURRENCY,
   ENDPOINT_TYPE,
   endpointImpliedCapability,
   MODEL_CAPABILITY
@@ -53,6 +54,7 @@ import {
   NewApiModelsResponseSchema,
   OllamaTagsResponseSchema,
   OpenAIModelsResponseSchema,
+  OpenRouterModelsResponseSchema,
   OVMSConfigResponseSchema,
   TogetherModelsResponseSchema,
   VercelGatewayModelsResponseSchema,
@@ -150,6 +152,35 @@ function toModel(apiModelId: string, provider: Provider, extra?: Partial<Model>)
     isEnabled: true,
     isHidden: false,
     ...extra
+  }
+}
+
+/**
+ * A gateway's own price list is authoritative for its rates — the registry only carries the vendor's
+ * list price, which resellers routinely diverge from. Rates are USD per 1M tokens; a listing that omits
+ * either side of the pair carries no usable price at all, so the whole block is dropped rather than
+ * half-filled (`0` would read as free).
+ */
+/** OpenRouter quotes decimal strings per SINGLE token; everything downstream is per 1M. */
+function perMillion(perToken: string | undefined): number | undefined {
+  if (perToken === undefined) return undefined
+  const parsed = Number(perToken)
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed * 1_000_000 : undefined
+}
+
+function usdPricing(price: {
+  input?: number
+  output?: number
+  cacheRead?: number
+  cacheWrite?: number
+}): Model['pricing'] | undefined {
+  if (price.input === undefined || price.output === undefined) return undefined
+  const usd = (perMillionTokens: number) => ({ currency: CURRENCY.USD, perMillionTokens })
+  return {
+    input: usd(price.input),
+    output: usd(price.output),
+    ...(price.cacheRead !== undefined ? { cacheRead: usd(price.cacheRead) } : {}),
+    ...(price.cacheWrite !== undefined ? { cacheWrite: usd(price.cacheWrite) } : {})
   }
 }
 
@@ -502,7 +533,7 @@ const openRouterFetcher: ModelFetcher = {
       getFromApi({
         url: modelsApiUrls?.default ?? 'https://openrouter.ai/api/v1/models',
         headers,
-        responseSchema: OpenAIModelsResponseSchema,
+        responseSchema: OpenRouterModelsResponseSchema,
         abortSignal: signal
       }),
       getFromApi({
@@ -529,12 +560,26 @@ const openRouterFetcher: ModelFetcher = {
       )
     ])
     const imageModelsById = new Map(imageModelsResponse.data.map((model) => [model.id, model]))
+    // Only the chat listing quotes rates; the embedding/image listings share the plain OpenAI shape.
+    const pricingById = new Map(
+      modelsResponse.data.map((model) => [
+        model.id,
+        usdPricing({
+          input: perMillion(model.pricing?.prompt),
+          output: perMillion(model.pricing?.completion),
+          cacheRead: perMillion(model.pricing?.input_cache_read),
+          cacheWrite: perMillion(model.pricing?.input_cache_write)
+        })
+      ])
+    )
     const all = [...modelsResponse.data, ...embedModelsResponse.data, ...imageModelsResponse.data]
     return dedup(all, (m) => m.id).map((m) => {
       const imageModel = imageModelsById.get(m.id)
+      const pricing = pricingById.get(m.id)
       return toModel(m.id, provider, {
         name: imageModel?.name ?? m.name,
         ownedBy: m.owned_by,
+        ...(pricing ? { pricing } : {}),
         ...(imageModel
           ? {
               capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
@@ -614,12 +659,19 @@ const aiHubMixFetcher: ModelFetcher = {
       responseSchema: AIHubMixModelsResponseSchema,
       abortSignal: signal
     })
-    return dedup(response.data, (m) => m.model_id).map((m) =>
-      toModel(m.model_id, provider, {
-        name: m.model_name || m.model_id,
-        description: m.desc
+    return dedup(response.data, (m) => m.model_id).map((m) => {
+      const pricing = usdPricing({
+        input: m.pricing?.input,
+        output: m.pricing?.output,
+        cacheRead: m.pricing?.cache_read,
+        cacheWrite: m.pricing?.cache_write
       })
-    )
+      return toModel(m.model_id, provider, {
+        name: m.model_name || m.model_id,
+        description: m.desc,
+        ...(pricing ? { pricing } : {})
+      })
+    })
   }
 }
 

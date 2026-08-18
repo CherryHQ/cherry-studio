@@ -22,6 +22,30 @@ export const OpenAIModelsResponseSchema = z.object({
   object: z.string().optional()
 })
 
+// === OpenRouter (OpenAI-compatible + a per-token price string) ===
+
+export const OpenRouterModelsResponseSchema = z.object({
+  data: z.array(
+    z.looseObject({
+      id: z.string(),
+      name: z.string().optional(),
+      object: z.string().optional().default('model'),
+      created: z.number().optional(),
+      owned_by: z.string().optional(),
+      /** Decimal strings, USD per SINGLE token — `"0.0000025"` is $2.50 / 1M. */
+      pricing: z
+        .looseObject({
+          prompt: z.string().optional(),
+          completion: z.string().optional(),
+          input_cache_read: z.string().optional(),
+          input_cache_write: z.string().optional()
+        })
+        .optional()
+    })
+  ),
+  object: z.string().optional()
+})
+
 // === GitHub Copilot (/models) ===
 export const CopilotModelsResponseSchema = z.object({
   data: z.array(
