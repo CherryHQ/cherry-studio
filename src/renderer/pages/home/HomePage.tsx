@@ -35,7 +35,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
-import { getTopicAssistantDisplayGroupId } from '@renderer/utils/chat/topicsHelpers'
+import { getTopicAssistantDisplayGroupId, TOPIC_UNLINKED_ASSISTANT_GROUP_ID } from '@renderer/utils/chat/topicsHelpers'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
@@ -732,21 +732,25 @@ const HomePage: FC = () => {
     async (position: ChatPanePosition) => {
       await setTopicDisplayMode('assistant')
       if (position === 'left') {
-        const activeAssistantGroupId = visibleTopic ? getTopicAssistantDisplayGroupId(visibleTopic) : undefined
-        const collapsedAssistantGroupIds = Array.from(
-          new Set(
-            (topicStats?.byAssistant ?? [])
-              .map(({ assistantId }) => getTopicAssistantDisplayGroupId({ assistantId }))
-              .filter((groupId) => groupId !== activeAssistantGroupId)
-          )
-        )
+        const activeAssistantGroupId = visibleTopic
+          ? getTopicAssistantDisplayGroupId({
+              assistantId:
+                visibleTopic.assistantId && assistantIdSet.has(visibleTopic.assistantId)
+                  ? visibleTopic.assistantId
+                  : null
+            })
+          : undefined
+        const collapsedAssistantGroupIds = [
+          ...assistants.map((assistant) => getTopicAssistantDisplayGroupId({ assistantId: assistant.id })),
+          TOPIC_UNLINKED_ASSISTANT_GROUP_ID
+        ].filter((groupId) => groupId !== activeAssistantGroupId)
         cacheService.setPersist('ui.topic.expansion.assistant', collapsedAssistantGroupIds)
       }
       await setPanePosition(position)
       setTopicPaneOpen(position === 'right', { force: true })
       setShellPaneOpen(true)
     },
-    [setPanePosition, setShellPaneOpen, setTopicDisplayMode, setTopicPaneOpen, topicStats?.byAssistant, visibleTopic]
+    [assistantIdSet, assistants, setPanePosition, setShellPaneOpen, setTopicDisplayMode, setTopicPaneOpen, visibleTopic]
   )
   // Message-only (detached) view has no rail: resolve its single target topic and show its own
   // loading / not-found status. The normal view falls through to the loading shell below (which keeps

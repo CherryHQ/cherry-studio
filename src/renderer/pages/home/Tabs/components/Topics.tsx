@@ -2025,7 +2025,6 @@ export function Topics({
           onSetPanePosition={canSetPanePosition ? setResolvedPanePosition : undefined}
           onSwitchTopic={handleSwitchTopic}
           panePosition={canSetPanePosition ? resolvedPanePosition : undefined}
-          topicsLength={topicStats?.total ?? topics.length}
           variant={!isRightPanel && (isAssistantDisplayMode || topicSortBy === 'orderKey') ? 'draggable' : 'plain'}
         />
       </TopicResourceList>
@@ -2120,7 +2119,6 @@ interface TopicListBodyProps {
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
   onSwitchTopic: (topic: Topic) => void
   panePosition?: TopicTabPosition
-  topicsLength: number
   variant: TopicListBodyVariant
 }
 
@@ -2157,7 +2155,6 @@ function TopicListBody(props: TopicListBodyProps) {
     onSetPanePosition,
     onSwitchTopic,
     panePosition,
-    topicsLength,
     variant
   } = props
 
@@ -2182,8 +2179,7 @@ function TopicListBody(props: TopicListBodyProps) {
       onRequestTopicImageAction,
       onSetPanePosition,
       onSwitchTopic,
-      panePosition,
-      topicsLength
+      panePosition
     }),
     [
       assistantMoveTargets,
@@ -2205,8 +2201,7 @@ function TopicListBody(props: TopicListBodyProps) {
       onRequestTopicImageAction,
       onSetPanePosition,
       onSwitchTopic,
-      panePosition,
-      topicsLength
+      panePosition
     ]
   )
 
@@ -2275,8 +2270,7 @@ const TopicRow = memo(function TopicRow({
   onSetPanePosition,
   onSwitchTopic,
   panePosition,
-  topic,
-  topicsLength
+  topic
 }: TopicRowProps) {
   const { t } = useTranslation()
   const rightPanelState = useOptionalRightPanelState()
@@ -2338,8 +2332,7 @@ const TopicRow = memo(function TopicRow({
     onStartRename: startMenuRename,
     panePosition,
     t,
-    topic,
-    topicsLength
+    topic
   })
 
   const row = (

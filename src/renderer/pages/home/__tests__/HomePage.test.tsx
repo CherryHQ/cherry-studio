@@ -6,6 +6,7 @@ import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { useState } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
@@ -1072,9 +1073,11 @@ describe('HomePage', () => {
     expect(homeMocks.cacheSetPersist).toHaveBeenCalledWith('ui.chat.right_pane_open_override', true)
   })
 
-  it('expands only the active topic assistant when changing topic position to the left sidebar', async () => {
+  it('expands only the active topic assistant and collapses empty assistants when moving left', async () => {
+    const user = userEvent.setup()
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'time')
     homeMocks.preferenceValues.set('topic.tab.position', 'right')
+    homeMocks.assistants = [{ id: 'assistant-1' }, { id: 'assistant-2' }, { id: 'assistant-empty' }]
     homeMocks.resourceLayoutTopics = [
       { ...historyTopic, id: 'topic-a', assistantId: 'assistant-1' },
       { ...historyTopic, id: 'topic-b', assistantId: 'assistant-2' },
@@ -1084,12 +1087,12 @@ describe('HomePage', () => {
 
     render(<HomePage />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Move topics left' }))
+    await user.click(screen.getByRole('button', { name: 'Move topics left' }))
 
     await waitFor(() => expect(homeMocks.preferenceValues.get('topic.tab.position')).toBe('left'))
     expect(cacheService.getPersist('ui.topic.expansion.assistant')).toEqual([
       'topic:assistant:assistant-2',
-      'topic:assistant:assistant-3',
+      'topic:assistant:assistant-empty',
       'topic:assistant:unknown'
     ])
   })

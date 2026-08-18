@@ -8,6 +8,7 @@ import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -1243,9 +1244,15 @@ describe('AgentPage', () => {
     expect(agentPageMocks.setResourcePaneOpen).toHaveBeenCalledWith(true)
   })
 
-  it('expands only the active session agent when changing session position to the left sidebar', async () => {
+  it('expands only the active session agent and collapses empty agents when moving left', async () => {
+    const user = userEvent.setup()
     agentPageMocks.sessionDisplayMode = 'agent'
     agentPageMocks.sessionPanePosition = 'right'
+    agentPageMocks.agents = [
+      { id: 'agent-a', model: 'model-a', name: 'Agent A' },
+      { id: 'agent-b', model: 'model-b', name: 'Agent B' },
+      { id: 'agent-empty', model: 'model-empty', name: 'Empty Agent' }
+    ]
     activeSessionMocks.session = { ...agentPageMocks.persistedSession, id: 'session-a', agentId: 'agent-a' }
     activeSessionMocks.sessionSource = 'query'
     agentPageMocks.resourceLayoutSessions = [
@@ -1256,12 +1263,13 @@ describe('AgentPage', () => {
 
     render(<AgentPage />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Move sessions left' }))
+    await user.click(screen.getByRole('button', { name: 'Move sessions left' }))
 
     await waitFor(() => expect(agentPageMocks.sessionPanePosition).toBe('left'))
     expect(cacheService.getPersist('ui.agent.session.expansion.agent')).toEqual([
       'session:agent:agent-b',
-      'session:agent:agent-c'
+      'session:agent:agent-empty',
+      'session:agent:unknown'
     ])
   })
 

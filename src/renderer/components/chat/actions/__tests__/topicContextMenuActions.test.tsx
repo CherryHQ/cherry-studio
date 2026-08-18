@@ -57,7 +57,6 @@ function createTopicActionFixture(overrides: Partial<TopicActionContext> = {}): 
     onStartRename: vi.fn(),
     t,
     topic,
-    topicsLength: 2,
     ...overrides
   }
 }

@@ -11,8 +11,8 @@ import { useTopicStats } from './useTopic'
  */
 
 /**
- * Factual counts drive group visibility. Imperative lookups use scoped latest
- * for owner navigation and domain reads for placeholder reuse.
+ * Factual counts support badges and pseudo-source visibility. Imperative lookups
+ * use scoped latest for owner navigation and domain reads for placeholder reuse.
  */
 export function useAssistantTopicsSource({ enabled }: { enabled?: boolean } = {}) {
   const statsSource = useTopicStats({ enabled })

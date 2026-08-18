@@ -33,6 +33,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
 import { toast } from '@renderer/services/toast'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { getSessionAgentGroupId, SESSION_UNLINKED_AGENT_GROUP_ID } from '@renderer/utils/chat/sessionListHelpers'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
@@ -876,29 +877,22 @@ const AgentPage = () => {
     async (position: TopicTabPosition) => {
       await setSessionDisplayMode('agent')
       if (position === 'left') {
-        const activeAgentId = visibleSession?.agentId
-        const collapsedAgentGroupIds = Array.from(
-          new Set(
-            (sessionStats?.byAgent ?? [])
-              .map(({ agentId }) => agentId)
-              .filter((agentId): agentId is string => !!agentId && agentId !== activeAgentId)
-              .map((agentId) => `session:agent:${agentId}`)
-          )
-        )
+        const activeAgentGroupId = visibleSession
+          ? visibleSession.agentId && agentIdSet.has(visibleSession.agentId)
+            ? getSessionAgentGroupId(visibleSession.agentId)
+            : SESSION_UNLINKED_AGENT_GROUP_ID
+          : undefined
+        const collapsedAgentGroupIds = [
+          ...agents.map((agent) => getSessionAgentGroupId(agent.id)),
+          SESSION_UNLINKED_AGENT_GROUP_ID
+        ].filter((groupId) => groupId !== activeAgentGroupId)
         cacheService.setPersist('ui.agent.session.expansion.agent', collapsedAgentGroupIds)
       }
       await setPanePosition(position)
       setSessionPaneOpen(position === 'right', { force: true })
       setShellPaneOpen(true)
     },
-    [
-      setPanePosition,
-      setShellPaneOpen,
-      setSessionDisplayMode,
-      setSessionPaneOpen,
-      sessionStats?.byAgent,
-      visibleSession?.agentId
-    ]
+    [agentIdSet, agents, setPanePosition, setShellPaneOpen, setSessionDisplayMode, setSessionPaneOpen, visibleSession]
   )
   const pane =
     isAgentResourceLayout && sessionListPosition === 'right' ? (
