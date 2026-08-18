@@ -2,13 +2,36 @@ import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import react from '@vitejs/plugin-react-swc'
 import { CodeInspectorPlugin } from 'code-inspector-plugin'
 import { defineConfig } from 'electron-vite'
+import { readFileSync } from 'fs'
 import { resolve } from 'path'
 import { visualizer } from 'rollup-plugin-visualizer'
+import { parse } from 'yaml'
 
 // assert not supported by biome
 // import pkg from './package.json' assert { type: 'json' }
 import pkg from './package.json'
+import { chunkExportGuardPlugin } from './scripts/checkChunkExports'
 import { uiContractPlugin } from './scripts/uiContract/vitePlugin'
+import { parseReleaseHistory, validateCurrentReleaseHistory } from './src/shared/utils/releaseNotes'
+
+type ElectronBuilderConfig = {
+  releaseInfo?: {
+    releaseNotes?: unknown
+  }
+}
+
+const electronBuilderConfig = parse(
+  readFileSync(resolve(__dirname, 'electron-builder.yml'), 'utf8')
+) as ElectronBuilderConfig
+const bundledReleaseNotes = electronBuilderConfig.releaseInfo?.releaseNotes
+const bundledReleaseHistory = parseReleaseHistory(
+  readFileSync(resolve(__dirname, 'resources/cherry-studio/release-history.json'), 'utf8')
+)
+
+if (typeof bundledReleaseNotes !== 'string' || !bundledReleaseNotes.trim()) {
+  throw new Error('electron-builder.yml must define non-empty releaseInfo.releaseNotes')
+}
+validateCurrentReleaseHistory({ releaseNotes: bundledReleaseNotes, version: pkg.version }, bundledReleaseHistory)
 
 const visualizerPlugin = (type: 'renderer' | 'main') => {
   return process.env[`VISUALIZER_${type.toUpperCase()}`] ? [visualizer({ open: true })] : []
@@ -34,7 +57,7 @@ export const isMainExternalModule = (id: string) => {
 
 export default defineConfig({
   main: {
-    plugins: [...visualizerPlugin('main')],
+    plugins: [chunkExportGuardPlugin(), ...visualizerPlugin('main')],
     resolve: {
       alias: {
         '@main': resolve('src/main'),
@@ -59,8 +82,14 @@ export default defineConfig({
       rollupOptions: {
         external: isMainExternalModule,
         output: {
-          // conf removes its containing file from require.cache; isolate it so the app entry stays cached.
-          manualChunks: (id) => (id.includes('/node_modules/conf/') ? 'electron-store-conf' : undefined)
+          manualChunks: (id) => {
+            // conf removes its containing file from require.cache; isolate it so the app entry stays cached.
+            if (id.includes('/node_modules/conf/')) return 'electron-store-conf'
+            // rolldown drops this chunk's named exports when it merges with a re-export-only
+            // facade chunk, leaving createOpenAI undefined at runtime. Keep it alone.
+            if (id.includes('/node_modules/@ai-sdk/openai/')) return 'ai-sdk-openai'
+            return undefined
+          }
         },
         onwarn(warning, warn) {
           if (warning.code === 'COMMONJS_VARIABLE_IN_ESM') return
@@ -104,6 +133,11 @@ export default defineConfig({
     }
   },
   renderer: {
+    define: {
+      __APP_RELEASE_HISTORY__: JSON.stringify(bundledReleaseHistory),
+      __APP_RELEASE_NOTES__: JSON.stringify(bundledReleaseNotes),
+      __APP_RELEASE_VERSION__: JSON.stringify(pkg.version)
+    },
     plugins: [
       uiContractPlugin(),
       tanstackRouter({

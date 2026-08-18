@@ -3,6 +3,7 @@ import { loggerService } from '@logger'
 import {
   acknowledgeMainWindowNavigation,
   isAllowedRoute,
+  markMainRendererReadyForTabAttach,
   openRouteInMainWindow
 } from '@main/services/mainWindowNavigation'
 import type { navigationRequestSchemas } from '@shared/ipc/schemas/navigation'
@@ -18,8 +19,14 @@ export const navigationHandlers: IpcHandlersFor<typeof navigationRequestSchemas>
     }
     openRouteInMainWindow(path)
   },
+  // The main renderer's mount effects have flushed: every useIpcOn listener is
+  // registered. Fan out to both consumers (protocol URL dispatch + tab-attach
+  // queue flush) — see the handler docs in mainWindowNavigation.ts.
   'navigation.protocol_dispatch_ready': async (_input, { senderId }) => {
-    if (senderId) application.get('ProtocolService').onMainRendererReady(senderId)
+    if (senderId) {
+      application.get('ProtocolService').onMainRendererReady(senderId)
+      markMainRendererReadyForTabAttach(senderId)
+    }
   },
   'navigation.ack_open_route': async ({ requestId }, { senderId }) => {
     if (senderId) acknowledgeMainWindowNavigation(senderId, requestId)

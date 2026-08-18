@@ -209,7 +209,8 @@
       "type": "Agent-Symbol"
     },
     "input": {
-      "placeholder": "Geben Sie eine Nachricht ein. Senden Sie sie mit {{key}}. Geben Sie / ein, um Pfade oder Befehle zu suchen, oder @ für Dateien und Sitzungen."
+      "placeholder": "Geben Sie eine Nachricht ein. Senden Sie sie mit {{key}}. Geben Sie / ein, um Pfade oder Befehle zu suchen, oder @ für Dateien und Sitzungen.",
+      "placeholder_streaming": "Agent arbeitet — {{sendKey}} stellt eine Nachricht in die Warteschlange, {{steerKey}} lenkt sofort ein."
     },
     "list": {
       "error": {
@@ -554,11 +555,6 @@
           "helper": "Benutzerdefinierte Umgebungsvariablen eingeben (eine pro Zeile, Format: SCHLÜSSEL=wert)",
           "label": "Umgebungsvariablen"
         },
-        "maxTurns": {
-          "description": "Legen Sie die Anzahl der Anfrage-/Antwort-Runden fest, die der Agent automatisch ausführt.",
-          "helper": "Höhere Werte ermöglichen längere autonome Ausführung; niedrigere Werte bieten bessere Kontrolle.",
-          "label": "Maximale Anzahl der Sitzungsrunden"
-        },
         "permissionMode": {
           "description": "Steuert, wie der Agent mit Autorisierungsanfragen umgeht.",
           "label": "Berechtigungsmodus",
@@ -667,13 +663,16 @@
           },
           "auto": {
             "description": "Läuft ohne routinemäßige Rückfragen. Eine Sicherheitsprüfung blockiert riskante Aktionen.",
+            "description_pi": "Arbeitet autonom. Fragt nach, wenn es eine riskante Aktion erkennt.",
             "title": "Für mich genehmigen",
-            "warning": "Erfordert ein Modell, das dies unterstützt; andere ignorieren den Modus möglicherweise oder fragen weiterhin nach."
+            "warning": "Erfordert ein Modell, das dies unterstützt; andere ignorieren den Modus möglicherweise oder fragen weiterhin nach.",
+            "warning_pi": "Erkennung erfolgt nach bestem Vermögen; unübliche Befehle können trotzdem durchrutschen."
           },
           "bypassPermissions": {
             "description": "Überspringt Berechtigungsprüfungen. Kann Dateien löschen und das Netzwerk nutzen.",
             "title": "Vollzugriff",
-            "warning": "Gefahr: Alle Tools werden ohne Genehmigung ausgeführt."
+            "warning": "Gefahr: Alle Tools werden ohne Genehmigung ausgeführt.",
+            "warning_pi": "Gefährlich — es wird nie nachgefragt, außer bei deaktivierten Tools, einschließlich Dateilöschen und Netzwerkzugriff."
           },
           "confirmChange": {
             "description": "Das Wechseln des Modus aktualisiert die automatisch vorab autorisierten Tools.",
@@ -1088,6 +1087,82 @@
         "Write": {
           "description": "Erstellt oder überschreibt Dateien",
           "label": "Schreiben"
+        },
+        "bash": {
+          "description": "Shell-Befehle ausführen",
+          "label": "Shell-Befehle ausführen"
+        },
+        "create_goal": {
+          "description": "Ein Sitzungsziel erstellen, auf das hingearbeitet werden soll",
+          "label": "Ziel erstellen"
+        },
+        "edit": {
+          "description": "Dateien bearbeiten",
+          "label": "Dateien bearbeiten"
+        },
+        "exit_plan_mode": {
+          "description": "Plan zur Prüfung vorlegen und Planmodus bei Genehmigung verlassen",
+          "label": "Planmodus verlassen"
+        },
+        "find": {
+          "description": "Dateien suchen",
+          "label": "Dateien suchen"
+        },
+        "get_goal": {
+          "description": "Das aktuelle Sitzungsziel lesen",
+          "label": "Ziel lesen"
+        },
+        "grep": {
+          "description": "Dateiinhalt durchsuchen",
+          "label": "Dateiinhalt durchsuchen"
+        },
+        "interrupt_agent": {
+          "description": "Aktuellen Zug eines Hintergrund-Subagenten stoppen",
+          "label": "Subagenten unterbrechen"
+        },
+        "list_agents": {
+          "description": "Hintergrund-Subagenten und deren Status auflisten",
+          "label": "Subagenten auflisten"
+        },
+        "ls": {
+          "description": "Verzeichnisinhalt auflisten",
+          "label": "Verzeichnisinhalt auflisten"
+        },
+        "read": {
+          "description": "Dateien lesen",
+          "label": "Dateien lesen"
+        },
+        "read_image": {
+          "description": "Liest eine PNG-, JPEG-, WebP- oder GIF-Datei mit einem visionsfähigen Modell",
+          "label": "Bild lesen"
+        },
+        "send_message": {
+          "description": "Folgennachricht an einen Hintergrund-Subagenten senden",
+          "label": "Nachricht an Subagenten"
+        },
+        "skill": {
+          "description": "Die vollständigen Anweisungen eines aktivierten Skills laden",
+          "label": "Skill-Anweisungen laden"
+        },
+        "subagent": {
+          "description": "Aufgabe an einen Hintergrund-Subagenten delegieren, dem später Nachrichten gesendet werden können",
+          "label": "An Subagenten delegieren"
+        },
+        "subagent_fork": {
+          "description": "Folgeaufgabe an einen Subagenten delegieren, der auf diesem Gespräch basiert",
+          "label": "Subagenten verzweigen"
+        },
+        "todo_write": {
+          "description": "Aufgabenliste verwalten",
+          "label": "Aufgabenliste verwalten"
+        },
+        "update_goal": {
+          "description": "Status oder Inhalt des Sitzungsziels aktualisieren",
+          "label": "Ziel aktualisieren"
+        },
+        "write": {
+          "description": "Dateien schreiben",
+          "label": "Dateien schreiben"
         }
       }
     },
@@ -1155,9 +1230,9 @@
       "stopSuccess": "API-Server erfolgreich gestoppt"
     },
     "required": {
-      "confirm": "[to be translated]:Enable",
-      "description": "[to be translated]:This agent's model must be bridged through Cherry Studio's local API Gateway. Enabling it also starts the gateway automatically on future launches; you can turn it off again in Settings.",
-      "title": "[to be translated]:Enable the API Gateway?"
+      "confirm": "Aktivieren",
+      "description": "Das Modell dieses Agenten muss über das lokale API-Gateway von Cherry Studio gebrückt werden. Das Aktivieren startet das Gateway auch automatisch bei zukünftigen Starts; Sie können es in den Einstellungen wieder deaktivieren.",
+      "title": "API-Gateway aktivieren?"
     },
     "status": {
       "running": "Läuft",
@@ -2180,6 +2255,7 @@
     "cli_tool_placeholder": "CLI-Tool auswählen",
     "cli_tools": {
       "claude_code": "Claude Code",
+      "deepseek_harness": "DeepSeek Harness",
       "gemini_cli": "Gemini CLI",
       "github_copilot_cli": "GitHub Copilot CLI",
       "kimi_code": "Kimi Code",
@@ -2202,6 +2278,43 @@
     "custom_path_error": "Benutzerdefinierten Terminalpfad festlegen fehlgeschlagen",
     "custom_path_required": "Dieses Terminal erfordert einen benutzerdefinierten Pfad",
     "custom_path_set": "Benutzerdefinierter Terminalpfad erfolgreich festgelegt",
+    "deepseek_harness": {
+      "agent_preset": "Standard-Agentenmodus",
+      "agent_presets": {
+        "code": {
+          "description": "Verknüpft mehrstufige Werkzeugabläufe über das PTC Code Mode SDK für komplexe Programmieraufgaben.",
+          "label": "PTC Code"
+        },
+        "inherit": {
+          "description": "Behält die vorhandene Standardvorgabe in den gemeinsamen ~/.dsh-Einstellungen bei.",
+          "label": "Harness-Standard"
+        },
+        "minimal": {
+          "description": "Nutzt nur eine dauerhafte Shell und einen Texteditor für eine möglichst kleine Werkzeugauswahl.",
+          "label": "Minimal"
+        },
+        "standard": {
+          "description": "Vollständiger Programmieragent mit Dateien, Shell, Suche, Skills, Planung und Subagenten.",
+          "label": "Standard"
+        }
+      },
+      "danger_warning": "Der Vollzugriff ermöglicht dem Agenten den Zugriff auf Dateien außerhalb des Arbeitsbereichs und überspringt die Bestätigung von Vorgängen. Verwenden Sie ihn nur für vertrauenswürdige Aufgaben.",
+      "permission_mode": "Standardberechtigung",
+      "permission_modes": {
+        "danger-full-access": {
+          "description": "Erlaubt uneingeschränkten Zugriff ohne Bestätigung von Vorgängen.",
+          "label": "Vollzugriff"
+        },
+        "read-only": {
+          "description": "Beschränkt Schreibzugriffe auf Dateien und fragt vor riskanten Vorgängen nach.",
+          "label": "Nur lesen"
+        },
+        "workspace-write": {
+          "description": "Erlaubt Schreibzugriffe im aktuellen DSH-Arbeitsbereich und fragt vor riskanten Vorgängen nach.",
+          "label": "Arbeitsbereich schreiben"
+        }
+      }
+    },
     "description": "Starten Sie schnell mehrere Code-CLI-Tools, um die Entwicklungseffizienz zu steigern",
     "disable": "Deaktivieren",
     "edit_config": "Konfiguration bearbeiten",
@@ -2252,6 +2365,7 @@
     "no_tools": "Keine Tools verfügbar",
     "not_installed": "Nicht installiert",
     "open_provider_settings": "Anbieter-Einstellungen öffnen",
+    "open_web_ui": "Web-UI öffnen",
     "own_login": {
       "title": "{{toolName}} Offiziell"
     },
@@ -2261,8 +2375,10 @@
     "search_provider_placeholder": "Suchanbieter…",
     "select_folder": "Ordner auswählen",
     "select_provider_before_launch": "Wählen Sie einen Anbieter aus, bevor Sie {{toolName}} starten",
+    "select_provider_model": "Bitte wählen Sie zuerst einen Anbieter und ein Modell aus",
     "select_tool_to_start": "Wählen Sie links ein CLI-Tool aus, um mit der Konfiguration zu beginnen",
     "set_custom_path": "Benutzerdefinierten Terminalpfad festlegen",
+    "stop": "Stoppen",
     "supported_providers": "Unterstützte Anbieter",
     "terminal": "Terminal",
     "terminal_hint": "Wählen Sie, in welchem Terminal die CLI ausgeführt werden soll",
@@ -2502,7 +2618,7 @@
     "openai-response": "OpenAI-Response"
   },
   "error": {
-    "api_gateway_required": "[to be translated]:This model must be bridged through Cherry Studio's local API Gateway, which is currently disabled. Enable it to run this agent.",
+    "api_gateway_required": "Dieses Modell muss über das lokale API-Gateway von Cherry Studio gebrückt werden, das derzeit deaktiviert ist. Aktivieren Sie es, um diesen Agenten auszuführen.",
     "availableProviders": "Verfügbare Anbieter",
     "availableTools": "Verfügbare Tools",
     "backup": {
@@ -2578,7 +2694,6 @@
       "503": "Dienst nicht verfügbar. Bitte versuchen Sie es später erneut",
       "504": "Gateway-Timeout. Bitte versuchen Sie es später erneut"
     },
-    "image_unreadable_for_non_vision_model": "Das ausgewählte Modell unterstützt keine Bilder, und Cherry Studio konnte keinen lesbaren Text aus dem Anhang extrahieren. Wählen Sie ein bildfähiges Modell oder entfernen Sie das Bild und versuchen Sie es erneut.",
     "lastError": "Letzter Fehler",
     "maxEmbeddingsPerCall": "Maximale Embeddings pro Aufruf",
     "message": "Fehlermeldung",
@@ -2890,6 +3005,13 @@
     },
     "title": "GPUStack"
   },
+  "help": {
+    "feedback": "Feedback",
+    "guide": "Benutzerhandbuch",
+    "star": "GitHub-Star",
+    "title": "Hilfe",
+    "whats_new": "Neuigkeiten"
+  },
   "history": {
     "continue_chat": "Chat fortsetzen",
     "error": {
@@ -3122,6 +3244,8 @@
         "delete_confirm_title": "Ausgewählte Datenquellen löschen?",
         "loaded_only_hint": "Gilt nur für geladene Elemente (insgesamt {{total}})",
         "reindex": "Neuindizierung",
+        "reindex_none_eligible": "Alle ausgewählten Datenquellen werden noch verarbeitet und können nicht neu indiziert werden",
+        "reindex_skipped": "{{count}} noch verarbeitete Datenquelle(n) übersprungen",
         "selected_count": "{{count}} ausgewählt"
       },
       "chunks_count": "{{count}} Chunks",
@@ -3349,6 +3473,7 @@
   },
   "launchpad": {
     "apps": "Apps",
+    "deepseek_harness_shortcut": "DSH",
     "manage_sidebar": "Seitenleiste verwalten",
     "minapps": "Minapps",
     "miniApps": "Mini-Apps",
@@ -3421,10 +3546,6 @@
           "heartbeat_interval": {
             "label": "Heartbeat-Intervall (Minuten)"
           },
-          "max_turns": {
-            "help": "0 bedeutet, den Standardwert zu verwenden",
-            "label": "Maximale Gesprächsdurchläufe"
-          },
           "mcps": {
             "add": "MCP-Server hinzufügen",
             "empty": "Keine gebunden",
@@ -3458,11 +3579,13 @@
             "label": "Laufzeitmodus",
             "option": {
               "claude_code": "Erweitert: Claude Agent",
+              "dsh": "DeepSeek Harness",
               "pi": "Schnell: Pi"
             },
-            "selected": {
-              "claude_code": "Erweitert",
-              "pi": "Schnell"
+            "option_description": {
+              "claude_code": "Leistungsstärker — Planmodus und Modelle je Stufe",
+              "dsh": "Breite Anbieterunterstützung mit zielorientierter Ausführung",
+              "pi": "Schnellere Antworten, geringerer Overhead"
             }
           },
           "small_model": {
@@ -3872,10 +3995,17 @@
     "skill_marketplace": {
       "empty_description": "Suchen Sie in Online-Registern nach installierbaren Skills.",
       "empty_title": "Nach Fähigkeiten suchen",
+      "github_empty_description": "Fügen Sie einen Link zu einer SKILL.md-Datei einer Fähigkeit ein, z. B. github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
+      "github_empty_title": "Von GitHub installieren",
+      "github_url_invalid": "Fügen Sie einen GitHub-Link ein, der mit SKILL.md endet",
+      "github_url_label": "GitHub-SKILL.md-URL",
+      "github_url_placeholder": "GitHub-Link, endend mit /SKILL.md",
       "no_results_description": "Versuchen Sie ein anderes Stichwort oder importieren Sie eine lokale ZIP-Datei oder ein Verzeichnis.",
       "no_results_title": "Keine Fähigkeiten gefunden",
       "search_failed_description": "Suche fehlgeschlagen. Bitte versuchen Sie es später erneut.",
+      "search_label": "Fähigkeiten suchen",
       "search_placeholder": "Suchkompetenzen...",
+      "source_label": "Fähigkeitsquelle",
       "title": "Online-Skill-Suche"
     },
     "sort": {
@@ -3902,13 +4032,6 @@
       "placeholder": "Neuer Tag-Name..."
     },
     "tag_sync_failed": "Synchronisierung der Tags fehlgeschlagen",
-    "time_ago": {
-      "days": "vor {{count}} Tag(en)",
-      "hours": "{{count}} Stunde(n) her",
-      "just_now": "Gerade eben",
-      "minutes": "vor {{count}} Minute(n)",
-      "months": "vor {{count}} Monat/Monaten"
-    },
     "title": "Bibliothek",
     "toolbar": {
       "add_group_placeholder": "Gruppenname...",
@@ -5958,7 +6081,7 @@
           "title": "Diagnosepaket"
         },
         "errors": {
-          "busy": "Ein anderes Diagnosepaket wird bereits exportiert",
+          "busy": "Ein anderer Diagnosevorgang wird bereits ausgeführt",
           "copy_failed": "Die Support-E-Mail-Adresse konnte nicht kopiert werden",
           "destination_conflict": "Der ausgewählte Speicherort steht in Konflikt mit den Diagnosedaten. Wählen Sie einen anderen Ordner.",
           "email_client_failed": "Es konnte kein E-Mail-Programm geöffnet werden. Sie können stattdessen die Support-E-Mail-Adresse kopieren.",
@@ -6007,6 +6130,48 @@
           "title": "Diagnosepaket exportiert"
         },
         "unknown": "Unbekannt",
+        "upload": {
+          "actions": {
+            "consent_upload": "Zustimmen und hochladen",
+            "open_form": "Formular öffnen",
+            "uploading": "Wird hochgeladen..."
+          },
+          "dialog": {
+            "description": "Erstellen Sie ein Diagnosepaket und senden Sie es anonym an das Cherry-Studio-Team.",
+            "title": "Diagnosepaket hochladen"
+          },
+          "errors": {
+            "open_form_failed": "Das Feedback-Formular konnte nicht geöffnet werden",
+            "upload_failed": "Das Diagnosepaket konnte nicht erstellt oder gespeichert werden"
+          },
+          "manual": {
+            "description": "Die ZIP-Datei wurde im Downloads-Ordner gespeichert und das anonyme Formular geöffnet. Wählen Sie dort die gespeicherte Datei aus, um die Übermittlung abzuschließen.",
+            "title": "Manuelles Hochladen erforderlich"
+          },
+          "privacy": {
+            "description": "Das Paket enthält immer App- und Geräteinformationen. Ausgewählte Protokolle und detaillierte Aufzeichnungen können Ihre Eingaben, Dateispeicherorte, Anfrage- und Antwortinhalte sowie Informationen zu Dienstverbindungen enthalten. Es wird anonym an ein privates Feishu-Formular gesendet und ist auf {{size}} begrenzt. Mit einem Klick auf „Zustimmen und hochladen“ stimmen Sie der Erstellung und Übermittlung dieses Pakets zu.",
+            "title": "Datenschutzhinweis"
+          },
+          "reasons": {
+            "attachment_upload_failed": "Der Anhang konnte nicht automatisch hochgeladen werden.",
+            "form_changed": "Die Struktur des Feedback-Formulars hat sich geändert und konnte nicht sicher überprüft werden.",
+            "form_unavailable": "Das Feedback-Formular ist derzeit nicht verfügbar.",
+            "network_failed": "Die Netzwerkanfrage konnte nicht abgeschlossen werden.",
+            "submission_rejected": "Das Feedback-Formular hat die Übermittlung abgelehnt."
+          },
+          "success": {
+            "description": "Dateigröße {{size}} · {{included}} Dateien erfasst · {{omitted}} Dateien nicht erfasst",
+            "title": "Diagnosepaket hochgeladen"
+          },
+          "unknown": {
+            "description": "Die ZIP-Datei wurde im Downloads-Ordner gespeichert, aber die Serverantwort wurde unterbrochen. Die Übermittlung war möglicherweise bereits erfolgreich. Prüfen Sie dies, bevor Sie das Formular öffnen, um eine doppelte Übermittlung zu vermeiden.",
+            "title": "Übermittlung möglicherweise erfolgreich"
+          },
+          "unknown_without_copy": {
+            "description": "Die Serverantwort wurde unterbrochen und die Diagnose-ZIP-Datei konnte nicht lokal gespeichert werden. Starten Sie den Upload nicht erneut, da dasselbe Feedback sonst doppelt gesendet werden könnte.",
+            "title": "Übermittlung möglicherweise erfolgreich, aber keine lokale Kopie gespeichert"
+          }
+        },
         "warning": "Einige Diagnoseinformationen waren nicht verfügbar. Das exportierte Paket ist möglicherweise unvollständig."
       },
       "downloading": "Update wird heruntergeladen...",
@@ -6015,24 +6180,25 @@
       },
       "feedback": {
         "agent": {
-          "description": "Chatte mit Cherry Support, um Hilfe zu erhalten oder Feedback zu teilen.",
-          "title": "Verwenden Sie Agent"
+          "description": "Chatten Sie mit dem integrierten Cherry-Support-Agenten, um Hilfe zu Cherry Studio zu erhalten oder Feedback zu geben.",
+          "title": "Cherry Support fragen"
         },
-        "agent_error": "Cherry Support für Feedback kann nicht geöffnet werden. Bitte versuchen Sie es erneut.",
+        "agent_error": "Cherry Support konnte nicht geöffnet werden. Bitte versuchen Sie es erneut.",
         "button": "Feedback",
+        "diagnostics": {
+          "description": "Prüfen Sie die aktuellen Diagnoseinformationen und laden Sie sie anschließend in einem Schritt anonym hoch.",
+          "title": "Diagnosepaket hochladen"
+        },
         "dialog": {
           "description": "Wählen Sie, wie Sie Feedback geben möchten, und helfen Sie uns, Cherry Studio zu verbessern.",
           "title": "Wählen Sie einen Feedback-Kanal"
         },
         "github": {
           "description": "Erstellen Sie einen Fehlerbericht oder eine Funktionsanfrage auf GitHub.",
+          "error": "GitHub Issues konnten nicht geöffnet werden. Bitte versuchen Sie es erneut.",
           "title": "GitHub Issue"
         },
         "recommended": "Empfohlen",
-        "survey": {
-          "description": "Geben Sie Feedback über unsere Feishu-Umfrage.",
-          "title": "Feedback-Umfrage"
-        },
         "title": "Feedback"
       },
       "label": "Über uns",
@@ -7052,6 +7218,7 @@
         "no": "Keine Beschreibung",
         "nowledge_mem": "Erfordert lokal laufende Nowledge Mem App. Speichert KI-Chats, Tools, Notizen, Agenten und Dateien in einem privaten Speicher auf Ihrem Computer. Download unter https://mem.nowledge.co/",
         "python": "Python-Code in einem sicheren Sandbox-Umgebung ausführen. Verwendung von Pyodide für Python, Unterstützung für die meisten Standardbibliotheken und wissenschaftliche Pakete",
+        "qveris": "Verbinden Sie QVeris, um Fähigkeiten von KI-Agenten zu entdecken, zu prüfen und aufzurufen. Erfordert die Konfiguration der Umgebungsvariable QVERIS_API_KEY.",
         "sequentialthinking": "MCP-Server-Implementierung mit strukturiertem Denkprozess, der dynamische und reflektierende Problemlösungen ermöglicht"
       },
       "command": "Befehl",
@@ -7171,6 +7338,10 @@
       "providerPlaceholder": "Anbietername",
       "providerUrl": "Anbieter-Website",
       "providers": "Anbieter",
+      "qveris": {
+        "get_api_key": "API-Schlüssel erhalten",
+        "missing_api_key": "QVeris benötigt einen API-Schlüssel. <link>Registrieren Sie sich oder melden Sie sich an, um einen API-Schlüssel zu erhalten</link>, und geben Sie ihn anschließend als QVERIS_API_KEY ein."
+      },
       "registry": "Paketverwaltungsquelle",
       "registryDefault": "Standard",
       "registryOptions": {
@@ -7301,8 +7472,11 @@
         "confirm_delete_message": "Vor Löschen von Nachrichten bestätigen",
         "confirm_regenerate_message": "Nachrichten vor Neugenerierung bestätigen",
         "enable_quick_triggers": "Aktivieren / und @ für Schnellmenü-Trigger",
+        "newline_shortcuts": "Zeilenumbruch-Verknüpfung",
         "send_shortcuts": "Senden-Shortcut",
         "show_estimated_tokens": "Geschätzte Token-Anzahl anzeigen",
+        "steer_shortcuts": "Lenkungs-Verknüpfung",
+        "steer_shortcuts_hint": "Während ein Agent läuft, sendet diese Verknüpfung Ihre Nachricht sofort in den aktuellen Zug, um ihn zu steuern; die Sende-Verknüpfung stellt sie in die Warteschlange, bis der Zug endet.",
         "title": "Eingabeeinstellungen"
       },
       "layout": {
@@ -7665,7 +7839,8 @@
       "assistant": "Assistenten-Nachrichten",
       "backup": "Sicherung",
       "knowledge_embed": "Wissensdatenbank",
-      "title": "Benachrichtigungen"
+      "title": "Benachrichtigungen",
+      "update": "App-Update"
     },
     "openai": {
       "service_tier": {
@@ -8900,5 +9075,18 @@
     "quit": "Beenden",
     "show_window": "Fenster anzeigen",
     "visualization": "Visualisierung"
+  },
+  "xlsx_preview": {
+    "chart": "Diagramm",
+    "chart_unsupported": "Dieser Diagrammtyp wird noch nicht unterstützt",
+    "error": {
+      "description": "Für diese Tabelle konnte keine Vorschau angezeigt werden."
+    },
+    "formula_not_evaluated": "Die Formel konnte nicht ausgewertet werden",
+    "sheet_tabs_label": "Tabellenblätter",
+    "too_large": {
+      "description": "Die Dateigröße {{size}} überschreitet das Vorschaulimit von {{limit}}.",
+      "title": "Datei zu groß für die Vorschau"
+    }
   }
 }

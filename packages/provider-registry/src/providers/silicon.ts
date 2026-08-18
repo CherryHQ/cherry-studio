@@ -53,7 +53,7 @@ export default openaiCompatible({
   reasoningFormat: { type: 'openai-chat' },
   anthropic: 'https://api.siliconflow.cn',
   website: {
-    apiKey: 'https://cloud.siliconflow.cn/',
+    apiKey: 'https://cloud.siliconflow.cn/i/d1nTBKXU',
     docs: 'https://docs.siliconflow.cn/',
     models: 'https://cloud.siliconflow.cn/models',
     official: 'https://www.siliconflow.cn'

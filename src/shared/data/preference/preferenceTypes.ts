@@ -83,7 +83,12 @@ export type LanguageVarious =
 
 export type WindowStyle = 'transparent' | 'opaque'
 
-export type SendMessageShortcut = 'Enter' | 'Shift+Enter' | 'Ctrl+Enter' | 'Command+Enter' | 'Alt+Enter'
+/**
+ * A composer key binding (send / line break / steer). Stored as a token array so the
+ * platform-aware `CommandOrControl` token and the shared formatting helpers apply.
+ * Values written before 2.0 are one of five fixed strings; readers normalize them.
+ */
+export type ComposerShortcut = ShortcutBinding
 
 export type AssistantTabSortType = 'tags' | 'list'
 
@@ -276,6 +281,7 @@ export const CODE_CLI_IDS = Object.values(CodeCli) as unknown as readonly [
   'openai-codex',
   'opencode',
   'openclaw',
+  'deepseek-harness',
   'gemini-cli',
   'qwen-code',
   'kimi-code',
