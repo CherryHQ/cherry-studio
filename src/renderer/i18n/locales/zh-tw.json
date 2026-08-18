@@ -5589,6 +5589,10 @@
         "title": "字型設定"
       }
     },
+    "fetch": {
+      "allow_private_network": "允許存取本機網路位址",
+      "allow_private_network_tip": "允許網頁擷取工具存取 localhost 與內網位址。若不希望模型讀取本機或區域網路上的服務，請關閉。"
+    },
     "font_size": {
       "title": "訊息字型大小"
     },

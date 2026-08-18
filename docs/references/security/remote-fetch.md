@@ -22,6 +22,17 @@ proxy and IPv6-only users. Both exceptions are scoped to those exact prefixes �
 `reserved`, and carrier-grade NAT (`100.64.0.0/10`, where Tailscale puts tailnet devices), stay
 blocked.
 
+## The `app.fetch.allow_private_network` Preference
+
+`fetchRemoteText` reads this preference and passes it to `resolveRemoteFetchUrl` as
+`allowPrivateNetwork`. When on — the default — both the literal and the DNS private-address
+rejections are skipped, so `@cherry/fetch`, `web_fetch`, web search extraction, and citation previews
+can reach `localhost`, a LAN NAS, or a proxy-only host. Every other rule above still applies: scheme
+and credential validation, connection pinning, redirect limits, and the response size bound.
+
+Turning it off restores the full guard. Callers that use `sanitizeRemoteUrl` directly are not
+affected by the preference — they never accepted private targets except through `configuredApiHost`.
+
 ## Why Not `net.fetch`
 
 Electron `net.fetch` uses Chromium's network stack and follows the app/session proxy configuration, but it does not expose a per-request DNS `lookup` hook. A preflight DNS check followed by `net.fetch(originalUrl)` is therefore still vulnerable to a DNS time-of-check/time-of-use gap.

@@ -15,6 +15,8 @@ export type ResolvedRemoteFetchUrl = {
 
 export type ResolveRemoteFetchUrlOptions = {
   readonly signal?: AbortSignal
+  /** Skip local/private address rejection, from the `app.fetch.allow_private_network` preference. */
+  readonly allowPrivateNetwork?: boolean
 }
 
 const BLOCKED_HOSTNAMES = new Set(['localhost', 'localhost.'])
@@ -247,24 +249,32 @@ function raceWithAbort<T>(operation: Promise<T>, signal: AbortSignal | undefined
 /**
  * SSRF guard for direct main-process fetches. Combines literal URL validation
  * with DNS-level rejection for hostnames that resolve to private/local addresses.
+ * `allowPrivateNetwork` drops both rejections; scheme, credential, and connection
+ * pinning rules always apply.
  */
 export async function resolveRemoteFetchUrl(
   rawUrl: string,
   options: ResolveRemoteFetchUrlOptions = {}
 ): Promise<ResolvedRemoteFetchUrl> {
-  const safeUrl = sanitizeRemoteUrl(rawUrl)
-  const parsedUrl = parseRemoteUrl(safeUrl)
-  const address = await resolveRemoteFetchAddress(parsedUrl, options.signal)
+  const parsedUrl = parseRemoteUrl(rawUrl)
+  const allowPrivateNetwork = options.allowPrivateNetwork === true
+
+  if (!allowPrivateNetwork && isBlockedHostname(parsedUrl.hostname)) {
+    throw new Error(`Unsafe remote url: local or private addresses are not allowed (${parsedUrl.hostname})`)
+  }
+
+  const safeUrl = parsedUrl.toString()
+  const address = await resolveRemoteFetchAddress(parsedUrl, options.signal, allowPrivateNetwork)
 
   return { url: safeUrl, address }
 }
 
-async function resolveRemoteFetchAddress(parsedUrl: URL, signal: AbortSignal | undefined): Promise<RemoteFetchAddress> {
+async function resolveRemoteFetchAddress(
+  parsedUrl: URL,
+  signal: AbortSignal | undefined,
+  allowPrivateNetwork: boolean
+): Promise<RemoteFetchAddress> {
   throwIfAborted(signal)
-
-  if (isBlockedHostname(parsedUrl.hostname)) {
-    throw new Error(`Unsafe remote url: local or private addresses are not allowed (${parsedUrl.hostname})`)
-  }
 
   const literalAddress = parseIpHostname(parsedUrl.hostname)
   if (literalAddress) {
@@ -275,7 +285,7 @@ async function resolveRemoteFetchAddress(parsedUrl: URL, signal: AbortSignal | u
 
   // The connection is pinned to the address returned here, so a rejected answer only has to be
   // skipped rather than fail the whole hostname.
-  const safeAddress = addresses.find((address) => !isBlockedIpHostname(address.address))
+  const safeAddress = addresses.find((address) => allowPrivateNetwork || !isBlockedIpHostname(address.address))
   if (safeAddress) {
     return toRemoteFetchAddress(safeAddress)
   }
