@@ -134,10 +134,11 @@ export interface ChatVirtualizerRuntime<T> {
    */
   markUserInput(): void
   /**
-   * Begin a user scroll gesture — set the gesture flag so the viewport freeze
-   * does not fight the in-flight native scroll (keyboard, pointer, wheel).
+   * True while a recent keyboard/pointer/wheel intent is still inside the
+   * `USER_SCROLL_INPUT_WINDOW_MS` grace period. Used by the ResizeObserver
+   * to skip its snap-back before a real `onScroll` can claim the gesture.
    */
-  beginUserScrollGesture(): void
+  hasRecentUserScrollIntent(): boolean
   /** Keep native scrollbar ownership latched until the pointer is actually released. */
   beginScrollbarDrag(): void
   /** Finish a native scrollbar drag and anchor the viewport at its final position. */
@@ -206,6 +207,10 @@ export function useChatVirtualizerRuntime<T>({
     lastUserInputAtRef.current = performance.now()
     lastUserInputDirectionRef.current = 'none'
   }, [])
+  const hasRecentUserScrollIntent = useCallback(
+    () => performance.now() - lastUserInputAtRef.current < USER_SCROLL_INPUT_WINDOW_MS,
+    []
+  )
   const itemsRef = useRef(items)
   itemsRef.current = items
   const getItemKeyRef = useRef(getItemKey)
@@ -536,7 +541,13 @@ export function useChatVirtualizerRuntime<T>({
         // against whatever just resized (streaming growth, block toggles,
         // composer/viewport changes, async renders).
         maintainFreezeScrollRange()
-        reassertFreeze()
+        // A fresh keyboard/pointer intent means a native scroll is in flight
+        // but the gesture latch is not set yet (onScroll hasn't fired).
+        // Suppress the snap-back so the native scroll can land; onScroll will
+        // call beginUserScrollGesture() once it observes the real offset.
+        if (!hasRecentUserScrollIntent()) {
+          reassertFreeze()
+        }
       }
       updateScrollToBottomButtonVisibility()
     })
@@ -547,7 +558,14 @@ export function useChatVirtualizerRuntime<T>({
     // room below the messages.
     if (scroller) observer.observe(scroller)
     return () => observer.disconnect()
-  }, [autoStick, maintainFreezeScrollRange, reassertFreeze, updateScrollToBottomButtonVisibility, viewportFollow])
+  }, [
+    autoStick,
+    hasRecentUserScrollIntent,
+    maintainFreezeScrollRange,
+    reassertFreeze,
+    updateScrollToBottomButtonVisibility,
+    viewportFollow
+  ])
 
   // Initial scroll on mount is owned by `useScrollPositionMemory` above: it
   // restores the saved anchor for this topic, or scrolls to the newest message
@@ -942,7 +960,7 @@ export function useChatVirtualizerRuntime<T>({
     notifyWheelIntent,
     scrollByWheel,
     markUserInput,
-    beginUserScrollGesture,
+    hasRecentUserScrollIntent,
     beginScrollbarDrag,
     endScrollbarDrag
   }
