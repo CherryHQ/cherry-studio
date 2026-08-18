@@ -40,7 +40,6 @@ import { type AppProviderId, appProviderIds, type AppProviderSettingsMap } from 
 import { customFetch } from '../utils/customFetch'
 import { getBaseUrl, getExtraHeaders, routeToEndpoint } from '../utils/provider'
 import { normalizeArkResponsesResponse, stripArkUnsupportedIncludes } from './ark'
-import { applyReasoningModelMaxTokensConversion } from './reasoningModelTransform'
 import { generateSignature } from './cherryai'
 import { buildCodexRequestHeaders, coerceCodexRequestBody } from './codex'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
@@ -49,6 +48,7 @@ import { appendDashScopeWebExtractor } from './custom/dashscope/dashscopeWebExtr
 import { dmxapiUsesCustomTransport } from './custom/dmxapi/dmxapiImageRouting'
 import { resolveAiSdkProviderId, type ResolvedEndpoint, resolveEffectiveEndpoint } from './endpoint'
 import { buildGrokCliRequestHeaders, rewriteGrokCliResponsesBody } from './grokCli'
+import { applyReasoningModelMaxTokensConversion } from './reasoningModelTransform'
 import { isVertexMaasModelId, normalizeVertexCredentials } from './vertex'
 import { transformZhipuRequestBody } from './zhipuWebSearch'
 
@@ -249,7 +249,7 @@ export async function resolveProviderAiSdkConfig(
         const config = buildOpenAICompatibleConfig(ctx)
         // Compose: reasoning-model max_tokens conversion runs first, then Zhipu web search injection.
         const baseTransform = config.providerSettings.transformRequestBody
-        config.providerSettings.transformRequestBody = (body: unknown) =>
+        config.providerSettings.transformRequestBody = (body: Record<string, any>) =>
           transformZhipuRequestBody(baseTransform ? baseTransform(body) : body)
         return config
       })

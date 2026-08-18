@@ -72,9 +72,8 @@ describe('applyReasoningModelMaxTokensConversion', () => {
   })
 
   it('passes through non-object input', () => {
-    expect(applyReasoningModelMaxTokensConversion(null)).toBe(null)
-    expect(applyReasoningModelMaxTokensConversion('string')).toBe('string')
-    expect(applyReasoningModelMaxTokensConversion(42)).toBe(42)
+    expect(applyReasoningModelMaxTokensConversion(null as any)).toBe(null)
+    expect(applyReasoningModelMaxTokensConversion(undefined as any)).toBe(undefined)
   })
 
   it('passes through when model field is missing', () => {
