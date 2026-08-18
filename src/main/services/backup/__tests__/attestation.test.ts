@@ -55,18 +55,24 @@ describe('backup attestation', () => {
     expect(verifyManifestAttestation(MANIFEST, entry.bytes)).toBe(true)
   })
 
-  it('creates the secret once, owner-only, and reuses it across exports', () => {
+  it('creates the secret once and reuses it across exports', () => {
     const first = buildManifestAttestation(MANIFEST)
     const secret = readFileSync(keyPath())
     const second = buildManifestAttestation(Buffer.from('other bytes'))
 
     expect(secret.byteLength).toBe(32)
-    // 0600: the secret is what distinguishes this install's archives from anyone else's.
-    expect(statSync(keyPath()).mode & 0o777).toBe(0o600)
     expect(readFileSync(keyPath()).equals(secret)).toBe(true)
     // Both archives are attested by the same install, so both verify here.
     expect(verifyManifestAttestation(MANIFEST, first!.bytes)).toBe(true)
     expect(verifyManifestAttestation(Buffer.from('other bytes'), second!.bytes)).toBe(true)
+  })
+
+  // NTFS has no POSIX mode bits, so there is no owner-only to assert there.
+  it.skipIf(process.platform === 'win32')('writes the secret owner-only', () => {
+    buildManifestAttestation(MANIFEST)
+
+    // 0600: the secret is what distinguishes this install's archives from anyone else's.
+    expect(statSync(keyPath()).mode & 0o777).toBe(0o600)
   })
 
   it('rejects a manifest changed by a single byte', () => {
