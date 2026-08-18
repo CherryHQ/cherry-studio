@@ -1,17 +1,23 @@
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+
 import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
 import { mcpResourceReadInputSchema } from '@shared/ai/builtinTools'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpResource } from '@shared/types/mcp'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as z from 'zod'
 
 const listResources = vi.fn<(serverId: string) => Promise<McpResource[]>>()
 const getResource = vi.fn()
 const getConnectedServerCapabilities = vi.fn<(serverId: string) => Record<string, unknown> | undefined>()
+const getPath = vi.hoisted(() => vi.fn<(key: string, filename?: string) => string>())
 
 vi.mock('@application', () => ({
   application: {
+    getPath,
     get: (name: string) => {
       if (name === 'McpCatalogService') return { listResources }
       if (name === 'McpRuntimeService') return { getResource, getConnectedServerCapabilities }
@@ -34,6 +40,21 @@ import { createMcpResourceReadToolEntry, MCP_RESOURCE_READ_DESCRIPTION } from '.
 
 const listEntry = createMcpResourceListToolEntry()
 const readEntry = createMcpResourceReadToolEntry()
+let resourceOutputDir: string
+
+beforeAll(async () => {
+  resourceOutputDir = await mkdtemp(path.join(tmpdir(), 'cherry-mcp-resource-'))
+})
+
+afterAll(async () => {
+  await rm(resourceOutputDir, { recursive: true, force: true })
+})
+
+beforeEach(() => {
+  getPath.mockImplementation((_key, filename) =>
+    filename ? path.join(resourceOutputDir, filename) : resourceOutputDir
+  )
+})
 
 function makeAssistant(overrides: Partial<Assistant> = {}): Assistant {
   return { id: 'assistant-1', mcpServerIds: [], settings: { mcpMode: 'auto' }, ...overrides } as Assistant
@@ -286,17 +307,30 @@ describe('mcp_resource_read', () => {
     expect(getResource).toHaveBeenCalledExactlyOnceWith({ serverId: 's1', uri: 'x://a', signal: abortSignal })
   })
 
-  it('renders binary contents as a placeholder rather than dropping them', async () => {
+  it('decodes binary contents to disk without returning their base64 payload', async () => {
+    const bytes = Buffer.from([0, 1, 2, 255])
+    const encoded = bytes.toString('base64')
     listResources.mockImplementation(async (serverId) => (serverId === 's1' ? [makeResource('s1', 'x://bin')] : []))
-    getResource.mockResolvedValue({ contents: [{ uri: 'x://bin', blob: 'AAAA', mimeType: 'image/png' }] })
+    getResource.mockResolvedValue({ contents: [{ uri: 'x://bin', blob: encoded, mimeType: 'image/png' }] })
 
     const result = (await callExecute(
       readEntry,
       { serverId: 's1', uri: 'x://bin' },
       { assistant: makeAssistant() }
-    )) as { text: string }
+    )) as { text: string; blobs: Array<{ blobSavedTo: string; text: string }> }
 
-    expect(result.text).toContain('Binary resource: image/png')
+    expect(result.text).toBe('')
+    expect(result.blobs).toEqual([
+      {
+        uri: 'x://bin',
+        mimeType: 'image/png',
+        blobSavedTo: expect.stringMatching(/\.png$/),
+        text: expect.stringContaining('Binary content (image/png, 4 bytes) saved to')
+      }
+    ])
+    expect(JSON.stringify(result)).not.toContain(encoded)
+    expect(await readFile(result.blobs[0].blobSavedTo)).toEqual(bytes)
+    expect(getPath).toHaveBeenCalledWith('feature.mcp.resource_results.temp', expect.stringMatching(/\.png$/))
   })
 
   it('prompts for approval when the addressed server is wildcard-gated, and not otherwise', async () => {

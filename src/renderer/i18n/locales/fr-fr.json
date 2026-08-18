@@ -998,11 +998,10 @@
         "title": "Prompts MCP"
       },
       "mcp_resources": {
-        "binary_unsupported": "Les ressources binaires ne sont pas encore prises en charge ({{mimeType}})",
         "description": "Référencer une ressource publiée par un serveur MCP",
         "empty": "Aucune ressource MCP disponible",
         "read_failed": "Impossible de lire la ressource",
-        "reader_unavailable": "Ressource trop volumineuse : le modèle actuel ne peut pas la relire",
+        "reader_unavailable": "Le modèle actuel ne peut pas relire cette ressource après son ajout",
         "title": "Ressources MCP"
       },
       "new": {

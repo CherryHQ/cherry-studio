@@ -13,10 +13,14 @@
  * would need `resources/templates/list` and an explicit match rule).
  */
 
+import { randomUUID } from 'node:crypto'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
-import type { McpResourceEntry, McpResourceReadResult } from '@shared/ai/builtinTools'
+import { atomicWriteFile, mimeToExt } from '@main/utils/file'
+import type { McpResourceEntry, McpResourceReadResult, McpResourceSavedBlob } from '@shared/ai/builtinTools'
 import type { McpServer } from '@shared/data/types/mcpServer'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import type { McpResource } from '@shared/types/mcp'
 
 const logger = loggerService.withContext('scopedMcpResources')
@@ -56,15 +60,20 @@ export async function listScopedMcpResources(servers: readonly McpServer[]): Pro
   })
 }
 
-/** Flatten protocol contents the way the model reads them: text verbatim, binary as a placeholder. */
-function contentsToText(contents: readonly McpResource[]): string {
-  return contents
-    .map((content) =>
-      content.text !== undefined
-        ? content.text
-        : `[Binary resource: ${content.mimeType || 'application/octet-stream'}, uri=${content.uri}]`
-    )
-    .join('\n')
+async function persistResourceBlob(content: McpResource & { blob: string }): Promise<McpResourceSavedBlob> {
+  const data = Buffer.from(content.blob, 'base64')
+  const mimeType = content.mimeType || 'application/octet-stream'
+  const extension = mimeToExt(mimeType.split(';')[0].trim()) ?? 'bin'
+  const blobSavedTo = AbsoluteFilePathSchema.parse(
+    application.getPath('feature.mcp.resource_results.temp', `${randomUUID()}.${extension}`)
+  )
+  await atomicWriteFile(blobSavedTo, data, { mode: 0o600 })
+  return {
+    uri: content.uri,
+    mimeType: content.mimeType,
+    blobSavedTo,
+    text: `Binary content (${mimeType}, ${data.byteLength} bytes) saved to ${blobSavedTo}.`
+  }
 }
 
 export async function readScopedMcpResource(
@@ -91,7 +100,15 @@ export async function readScopedMcpResource(
 
   try {
     const { contents } = await application.get('McpRuntimeService').getResource({ serverId: server.id, uri, signal })
-    const full = contentsToText(contents)
+    const full = contents
+      .map((content: McpResource) => content.text ?? '')
+      .filter(Boolean)
+      .join('\n')
+    const blobs = await Promise.all(
+      contents
+        .filter((content: McpResource): content is McpResource & { blob: string } => typeof content.blob === 'string')
+        .map(persistResourceBlob)
+    )
     const start = Math.min(offset, full.length)
     const text = full.slice(start, start + charCap)
     const end = start + text.length
@@ -102,10 +119,11 @@ export async function readScopedMcpResource(
       mimeType: contents[0]?.mimeType,
       text,
       totalChars: full.length,
-      ...(end < full.length && { nextOffset: end })
+      ...(end < full.length && { nextOffset: end }),
+      ...(blobs.length > 0 && { blobs })
     }
   } catch (error) {
-    logger.warn('Failed to read an MCP resource', { serverId: server.id, uri, error })
+    logger.warn('Failed to read or persist an MCP resource', { serverId: server.id, uri, error })
     return { error: `Failed to read ${uri} from ${server.name}: ${(error as Error).message}` }
   }
 }

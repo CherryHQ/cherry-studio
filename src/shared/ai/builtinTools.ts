@@ -640,6 +640,15 @@ export const mcpResourceReadInputSchema = z.object({
     .describe('0-based character offset to start from. Page through long resources with the returned nextOffset.')
 })
 
+export const mcpResourceSavedBlobSchema = z.object({
+  uri: z.string(),
+  mimeType: z.string().optional(),
+  /** Absolute path containing the decoded bytes; the base64 payload never enters model context. */
+  blobSavedTo: z.string(),
+  /** Short model-facing explanation of what was saved and where. */
+  text: z.string()
+})
+
 export const mcpResourceReadOutputSchema = z.object({
   uri: z.string(),
   serverId: z.string(),
@@ -649,7 +658,9 @@ export const mcpResourceReadOutputSchema = z.object({
   /** Total characters available in the resource (for paging). */
   totalChars: z.number().int().nonnegative(),
   /** Next `offset` to pass to continue reading; omitted when the end was reached. */
-  nextOffset: z.number().int().nonnegative().optional()
+  nextOffset: z.number().int().nonnegative().optional(),
+  /** Binary content decoded to temporary files instead of returning base64 in the tool result. */
+  blobs: z.array(mcpResourceSavedBlobSchema).optional()
 })
 
 /** Unknown uri / unreachable server — distinguishable from a successful read. */
@@ -658,6 +669,7 @@ export const mcpResourceErrorSchema = z.object({ error: z.string() })
 export const mcpResourceReadResultSchema = z.union([mcpResourceReadOutputSchema, mcpResourceErrorSchema])
 
 export type McpResourceEntry = z.infer<typeof mcpResourceEntrySchema>
+export type McpResourceSavedBlob = z.infer<typeof mcpResourceSavedBlobSchema>
 export type McpResourceListOutput = z.infer<typeof mcpResourceListOutputSchema>
 export type McpResourceReadOutput = z.infer<typeof mcpResourceReadOutputSchema>
 export type McpResourceReadResult = z.infer<typeof mcpResourceReadResultSchema>

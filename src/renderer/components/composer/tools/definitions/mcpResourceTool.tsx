@@ -37,7 +37,7 @@ export function isTextLikeMcpResource(mimeType?: string): boolean {
   return TEXT_LIKE_MIME_PATTERN.test(mimeType)
 }
 
-const McpResourceComposerRuntime = ({ context }: { context: McpResourceToolContext }) => {
+export const McpResourceComposerRuntime = ({ context }: { context: McpResourceToolContext }) => {
   const { actions, assistant, launcher, model, scope, session, t } = context
   const { isVisible, symbol, updateList } = useQuickPanel()
   const [dataRequested, setDataRequested] = useState(false)
@@ -136,6 +136,16 @@ const McpResourceComposerRuntime = ({ context }: { context: McpResourceToolConte
     async (resource: McpResource, options?: QuickPanelCallBackOptions) => {
       const generation = ++selectionGenerationRef.current
       try {
+        // A declared binary type cannot be inlined. Insert the deferred read immediately instead of
+        // downloading the blob once for classification and again when the runtime reads it.
+        if (!isTextLikeMcpResource(resource.mimeType)) {
+          if (!resourceReader) {
+            toast.error(t('chat.input.mcp_resources.reader_unavailable'))
+            return
+          }
+          insertReferenceToken(resource, options)
+          return
+        }
         // Capped main-side: only the inline budget crosses IPC, plus the metadata needed to decide
         // between inlining and attaching a reference.
         const preview = await ipcApi.request('mcp.server.read_resource_preview', {
@@ -193,20 +203,15 @@ const McpResourceComposerRuntime = ({ context }: { context: McpResourceToolConte
     }
 
     return resources.map((resource) => {
-      // Binary content has no composer form: it can be neither inlined nor read back as text by the
-      // resource tools, so offering it would only produce a reference that cannot be followed.
       const isBinary = !isTextLikeMcpResource(resource.mimeType)
       return {
         id: `mcp-resource:${resource.serverId}:${resource.uri}`,
         label: resource.name || resource.uri,
-        description: isBinary
-          ? t('chat.input.mcp_resources.binary_unsupported', { mimeType: resource.mimeType ?? '' })
-          : resource.description || resource.uri,
+        description: resource.description || (isBinary ? resource.mimeType : undefined) || resource.uri,
         filterText: [resource.name, resource.uri, resource.description, resource.serverName].filter(Boolean).join(' '),
         icon: <McpLogo aria-hidden />,
         suffix: resource.serverName,
-        disabled: isBinary,
-        action: isBinary ? undefined : (options: QuickPanelCallBackOptions) => void handleSelect(resource, options)
+        action: (options: QuickPanelCallBackOptions) => void handleSelect(resource, options)
       }
     })
   }, [dataRequested, handleSelect, isLoadingResources, resources, t])

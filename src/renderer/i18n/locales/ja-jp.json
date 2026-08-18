@@ -998,11 +998,10 @@
         "title": "MCP プロンプト"
       },
       "mcp_resources": {
-        "binary_unsupported": "バイナリリソースはまだ対応していません（{{mimeType}}）",
         "description": "MCP サーバーが公開するリソースを参照",
         "empty": "利用可能な MCP リソースがありません",
         "read_failed": "リソースの読み込みに失敗しました",
-        "reader_unavailable": "リソースが大きすぎます。現在のモデルでは読み取れません",
+        "reader_unavailable": "現在のモデルでは、添付後にこのリソースを読み取れません",
         "title": "MCP リソース"
       },
       "new": {

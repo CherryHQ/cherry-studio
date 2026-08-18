@@ -998,11 +998,10 @@
         "title": "MCP 提示詞"
       },
       "mcp_resources": {
-        "binary_unsupported": "尚不支援二進位資源（{{mimeType}}）",
         "description": "引用 MCP 伺服器提供的資源",
         "empty": "沒有可用的 MCP 資源",
         "read_failed": "資源讀取失敗",
-        "reader_unavailable": "該資源過大，目前模型無法回讀",
+        "reader_unavailable": "目前模型無法在附加後重新讀取此資源",
         "title": "MCP 資源"
       },
       "new": {

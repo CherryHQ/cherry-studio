@@ -998,11 +998,10 @@
         "title": "MCP Prompts"
       },
       "mcp_resources": {
-        "binary_unsupported": "Binary resources are not supported yet ({{mimeType}})",
         "description": "Reference a resource published by an MCP server",
         "empty": "No MCP resources available",
         "read_failed": "Failed to read the resource",
-        "reader_unavailable": "This resource is too large to attach — the current model cannot read it back",
+        "reader_unavailable": "The current model cannot read this resource back after it is attached",
         "title": "MCP Resources"
       },
       "new": {

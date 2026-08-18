@@ -998,11 +998,10 @@
         "title": "Prompt MCP"
       },
       "mcp_resources": {
-        "binary_unsupported": "Chưa hỗ trợ tài nguyên nhị phân ({{mimeType}})",
         "description": "Tham chiếu tài nguyên do máy chủ MCP cung cấp",
         "empty": "Không có tài nguyên MCP nào",
         "read_failed": "Không thể đọc tài nguyên",
-        "reader_unavailable": "Tài nguyên quá lớn — mô hình hiện tại không thể đọc lại",
+        "reader_unavailable": "Mô hình hiện tại không thể đọc lại tài nguyên này sau khi đính kèm",
         "title": "Tài nguyên MCP"
       },
       "new": {

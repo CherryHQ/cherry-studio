@@ -27,7 +27,8 @@ import type { ToolEntry } from '../types'
 export const MCP_RESOURCE_READ_DESCRIPTION =
   'Read the content of an MCP resource. Pass the serverId and uri exactly as returned by ' +
   'mcp_resource_list, or as carried by a resource the user attached. Long resources come back one ' +
-  'page at a time — continue with the returned nextOffset.'
+  'page at a time — continue with the returned nextOffset. Binary blobs are decoded to temporary ' +
+  'files and returned as blobSavedTo paths, never as base64.'
 
 const mcpResourceReadTool = tool({
   description: MCP_RESOURCE_READ_DESCRIPTION,
