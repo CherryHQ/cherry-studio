@@ -80,6 +80,8 @@
     "zoomOut": "缩小"
   },
   "common": {
+    "channel_command_processing_error": "⚠️ 处理命令时发生错误，请稍后重试。",
+    "channel_message_processing_error": "⚠️ 处理消息时发生错误，请稍后重试。",
     "copy": "复制",
     "cut": "剪切",
     "inspect": "检查",

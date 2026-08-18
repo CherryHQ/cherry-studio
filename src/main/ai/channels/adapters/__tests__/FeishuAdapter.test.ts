@@ -2,10 +2,11 @@ import type { NormalizedMessage } from '@larksuiteoapi/node-sdk'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const registrationMocks = vi.hoisted(() => ({ begin: vi.fn(), poll: vi.fn() }))
+const loggerMocks = vi.hoisted(() => ({ info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn(), silly: vi.fn() }))
 
 vi.mock('@logger', () => ({
   loggerService: {
-    withContext: () => ({ info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn(), silly: vi.fn() })
+    withContext: () => loggerMocks
   }
 }))
 
@@ -358,6 +359,45 @@ describe('FeishuAdapter', () => {
     expect(mockSetContent).toHaveBeenLastCalledWith('partial response\n\n---\n**Error**: generation failed')
   })
 
+  it('settles the stream when its best-effort error update fails', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+    await adapter.onTextUpdate('oc_123', 'partial response')
+    mockSetContent.mockRejectedValueOnce(new Error('card update failed'))
+
+    await expect(adapter.onStreamError('oc_123', 'generation failed')).resolves.toBeUndefined()
+  })
+
+  it('ignores late card updates after disconnecting an active stream', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+    await adapter.onTextUpdate('oc_123', 'partial response')
+    const stream = (
+      adapter as unknown as { streams: Map<string, { update: (text: string) => Promise<void> }> }
+    ).streams.get('oc_123')
+    expect(stream).toBeDefined()
+
+    await adapter.disconnect()
+    mockSetContent.mockClear()
+    await stream!.update('late update')
+
+    expect(mockSetContent).not.toHaveBeenCalled()
+  })
+
+  it('logs callback failures instead of leaving a rejected SDK handler promise', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+    vi.spyOn(adapter, 'downloadResources').mockRejectedValueOnce(new Error('download failed'))
+
+    expect(channelHandlers.message(incomingMessage())).toBeUndefined()
+    await vi.waitFor(() => {
+      expect(loggerMocks.error).toHaveBeenCalledWith(
+        'Failed to handle Feishu message',
+        expect.objectContaining({ chatId: 'oc_123', messageId: 'msg-in-1', error: 'download failed' })
+      )
+    })
+  })
+
   it('emits normalized text, sender identity, and reply message id', async () => {
     const adapter = createAdapter()
     const onMessage = vi.fn()
@@ -428,7 +468,7 @@ describe('FeishuAdapter', () => {
         }
       })
 
-    await channelHandlers.message(
+    channelHandlers.message(
       incomingMessage({
         content: '<image>\n<file name="report.pdf">',
         resources: [
@@ -437,6 +477,7 @@ describe('FeishuAdapter', () => {
         ]
       })
     )
+    await vi.waitFor(() => expect(mockMessageResourceGet).toHaveBeenCalledTimes(2))
 
     expect(mockMessageResourceGet).toHaveBeenNthCalledWith(1, {
       path: { message_id: 'msg-in-1', file_key: 'img-1' },

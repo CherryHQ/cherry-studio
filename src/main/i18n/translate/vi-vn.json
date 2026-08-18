@@ -80,6 +80,8 @@
     "zoomOut": "Thu nhỏ"
   },
   "common": {
+    "channel_command_processing_error": "[to be translated]:⚠️ An error occurred while processing the command. Please try again later.",
+    "channel_message_processing_error": "[to be translated]:⚠️ An error occurred while processing your message. Please try again later.",
     "copy": "Sao chép",
     "cut": "Cắt",
     "inspect": "Kiểm tra",

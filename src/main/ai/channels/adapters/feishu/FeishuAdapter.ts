@@ -30,6 +30,7 @@ function resolveDomain(domain: FeishuDomain): Lark.Domain {
 
 class FeishuStreamSession {
   private currentText = ''
+  private disposed = false
   private resolveController!: (controller: Lark.MarkdownStreamController) => void
   private resolveCompletion!: () => void
   private readonly controllerReady: Promise<Lark.MarkdownStreamController>
@@ -57,12 +58,14 @@ class FeishuStreamSession {
   }
 
   async update(text: string): Promise<void> {
+    if (this.disposed) return
     const controller = await Promise.race([
       this.controllerReady,
       this.stream.then(() => {
         throw new Error('Feishu stream completed before its controller became ready')
       })
     ])
+    if (this.disposed) return
     this.currentText = text
     await controller.setContent(text)
   }
@@ -80,13 +83,16 @@ class FeishuStreamSession {
     const displayText = this.currentText ? `${this.currentText}\n\n---\n**Error**: ${message}` : `**Error**: ${message}`
     try {
       await this.update(displayText)
+    } catch {
+      // The original agent error is already being reported; this best-effort card update must not replace it.
     } finally {
       this.resolveCompletion()
     }
-    await this.stream
+    await this.stream.catch(() => undefined)
   }
 
   dispose(): void {
+    this.disposed = true
     this.resolveCompletion()
   }
 }
@@ -160,7 +166,15 @@ class FeishuAdapter extends ChannelAdapter {
     this.channel = channel
 
     channel.on({
-      message: (message) => this.handleMessage(message),
+      message: (message) => {
+        void this.handleMessage(message).catch((error) => {
+          this.log.error('Failed to handle Feishu message', {
+            chatId: message.chatId,
+            messageId: message.messageId,
+            error: error instanceof Error ? error.message : String(error)
+          })
+        })
+      },
       reconnecting: () => {
         this.markDisconnected('Feishu WebSocket reconnecting')
         this.log.warn('Feishu WebSocket reconnecting')

@@ -133,13 +133,7 @@ function expectClaudeCodePreset(prompt: Awaited<ReturnType<typeof buildSystemPro
 
 describe('buildSystemPrompt — current workspace', () => {
   it('loads prompt identity and memory from agent data while leaving cwd context to the preset', async () => {
-    const result = await buildSystemPrompt(
-      makeSession(),
-      makeAgent(),
-      '/workspace/project-a',
-      false,
-      '/data/Agents/agent-1'
-    )
+    const result = await buildSystemPrompt(makeSession(), makeAgent(), '/workspace/project-a', '/data/Agents/agent-1')
 
     expect(mockBuildPrompt).toHaveBeenCalledWith(
       '/workspace/project-a',
@@ -165,7 +159,6 @@ describe('buildSystemPrompt — current workspace', () => {
       makeSession(),
       makeAgent(),
       '/workspace/project-a',
-      false,
       '/data/Agents/agent-1',
       [],
       [],
@@ -431,8 +424,8 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
     })
 
     const session = makeSession('/workspace/assistant', 'system')
-    await buildSystemPrompt(session, agent, '/workspace/assistant', false, '/data/Agents/agent-1')
-    await buildSystemPrompt(session, agent, '/workspace/assistant', false, '/data/Agents/agent-1')
+    await buildSystemPrompt(session, agent, '/workspace/assistant', '/data/Agents/agent-1')
+    await buildSystemPrompt(session, agent, '/workspace/assistant', '/data/Agents/agent-1')
 
     expect(mockProvisionBuiltinAgent).toHaveBeenCalledTimes(2)
     expect(mockProvisionBuiltinAgent).toHaveBeenNthCalledWith(1, '/data/Agents/agent-1', 'assistant')
@@ -449,7 +442,6 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
       makeSession('/workspace/project', 'user'),
       agent,
       '/workspace/project',
-      false,
       '/data/Agents/agent-1'
     )
 
@@ -463,7 +455,7 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
       configuration: { builtin_role: 'assistant' } as never
     })
 
-    const result = await buildSystemPrompt(makeSession(), agent, '/workspace/assistant', false, '/data/Agents/agent-1')
+    const result = await buildSystemPrompt(makeSession(), agent, '/workspace/assistant', '/data/Agents/agent-1')
 
     expect(promptText(result)).toContain('SOUL_PROMPT')
     expect(mockBuildPrompt).toHaveBeenCalledWith(

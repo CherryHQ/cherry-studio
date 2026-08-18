@@ -14,6 +14,7 @@ import {
 } from '@main/ai/runtime/agentSessionWorkspace'
 import { ChannelAdapterListener, startAgentSessionRun, type StreamListener } from '@main/ai/streamManager'
 import type { Disposable } from '@main/core/lifecycle'
+import { t } from '@main/i18n'
 import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase64'
 import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -296,7 +297,7 @@ export class ChannelMessageHandler {
         const chatId = message?.chatId
         if (adapter && message && chatId) {
           adapter
-            .sendMessage(chatId, '⚠️ An error occurred while processing your message. Please try again later.', {
+            .sendMessage(chatId, t('common.channel_message_processing_error'), {
               ...responseOptionsFor(message)
             })
             .catch((sendErr) => {
@@ -653,7 +654,7 @@ export class ChannelMessageHandler {
         error: error instanceof Error ? error.message : String(error)
       })
       adapter
-        .sendMessage(command.chatId, '⚠️ An error occurred while processing the command. Please try again later.', {
+        .sendMessage(command.chatId, t('common.channel_command_processing_error'), {
           ...responseOptionsFor(command)
         })
         .catch((sendErr) => {

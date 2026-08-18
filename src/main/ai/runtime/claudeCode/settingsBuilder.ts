@@ -500,7 +500,6 @@ export async function buildClaudeCodeSessionSettings(
     session,
     agent,
     cwd,
-    linkedChannelSnapshot !== null,
     agentDataPath,
     knowledgeBaseScope,
     disallowedTools,
@@ -1406,7 +1405,6 @@ export async function buildSystemPrompt(
   _session: AgentSessionEntity,
   agent: AgentEntity,
   cwd: string,
-  _channelLinked?: boolean,
   agentDataPath = cwd,
   /** Resolved knowledge scope for this connection; defaults to the agent's static binding alone. */
   knowledgeBaseIds: readonly string[] = agent.knowledgeBaseIds ?? [],
