@@ -66,10 +66,8 @@
 
 | Document | Description |
 |----------|-------------|
-| [Chat Reference](./references/chat/README.md) | Entry point for chat domain references covering renderer chat UI structure, rich clipboard, and the message tree |
-| [Chat Adapters](./references/chat/adapters.md) | Design contract for the planned chat adapters layer: pure UI projections, pane/action registries, render stability |
+| [Chat Reference](./references/chat/README.md) | Current chat-domain map covering shared renderer modules, page-owned adapters, rich clipboard, and the message tree |
 | [Composer Rich Clipboard](./references/chat/composer-rich-clipboard.md) | Private clipboard format that preserves composer tokens across copy/paste between message surfaces and the composer |
-| [Chat UI Design & Conventions](./references/chat/conventions.md) | Responsibility split and coding conventions for the renderer chat UI under src/renderer/components/chat |
 | [Message Tree](./references/chat/message-tree.md) | Message-tree model for topic chat: adjacency list, virtual root, sibling groups, invariants, delete semantics |
 
 ### Command
