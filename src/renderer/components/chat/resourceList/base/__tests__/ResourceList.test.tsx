@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { type ReactNode, useMemo, useState, useSyncExternalStore } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -2167,6 +2168,13 @@ describe('ResourceList', () => {
     expect(screen.getByText('Item 5')).toBeInTheDocument()
     expect(screen.queryByText('Item 6')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Show more' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Group' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Group' }))
+
+    expect(screen.getByText('Item 5')).toBeInTheDocument()
+    expect(screen.queryByText('Item 6')).not.toBeInTheDocument()
   })
 
   it('loads the next remote page without applying the local group window', () => {
@@ -2188,6 +2196,7 @@ describe('ResourceList', () => {
       items,
       loadNext,
       queryKey: 'remote-query',
+      reset: vi.fn(),
       retry: vi.fn()
     })
 
@@ -2215,6 +2224,73 @@ describe('ResourceList', () => {
     expect(loadNext).toHaveBeenCalledOnce()
   })
 
+  it('returns a remote group to its first page after folding and reopening it', async () => {
+    const user = userEvent.setup()
+    const Provider = ResourceList.Provider<TestItem>
+    const loadedItems = Array.from({ length: 10 }, (_, index) => ({
+      id: `remote-${index + 1}`,
+      name: `Remote ${index + 1}`,
+      kind: 'topic' as const,
+      updatedAt: index
+    }))
+    const remoteGroups = new ResourceListRemoteGroupService<TestItem>()
+    const registration = remoteGroups.register('remote')
+    const snapshot = {
+      groupId: 'remote',
+      hasNext: true,
+      isLoading: false,
+      isRefreshing: false,
+      items: loadedItems,
+      loadNext: vi.fn(),
+      queryKey: 'remote-query',
+      reset: vi.fn(),
+      retry: vi.fn()
+    }
+    snapshot.reset.mockImplementation(() => {
+      remoteGroups.update(registration, { ...snapshot, items: loadedItems.slice(0, 5) })
+    })
+    remoteGroups.update(registration, snapshot)
+
+    function RemoteGroupHarness() {
+      const [collapsedState, setCollapsedState] = useState<string[]>([])
+      const snapshots = useSyncExternalStore(remoteGroups.subscribe, remoteGroups.getSnapshot, remoteGroups.getSnapshot)
+      const items = snapshots.flatMap((group) => group.items)
+
+      return (
+        <Provider
+          items={items}
+          remoteGroups={remoteGroups}
+          collapsedState={collapsedState}
+          defaultGroupVisibleCount={5}
+          groupBy={() => ({ id: 'remote', label: 'Remote group', count: 12 })}
+          groupShowMoreLabel="Show more"
+          onCollapsedStateChange={setCollapsedState}>
+          <ResourceList.Frame>
+            <ResourceList.VirtualItems<TestItem>
+              renderItem={(item) => (
+                <ResourceList.Item item={item}>
+                  <span>{item.name}</span>
+                </ResourceList.Item>
+              )}
+            />
+          </ResourceList.Frame>
+        </Provider>
+      )
+    }
+
+    render(<RemoteGroupHarness />)
+
+    expect(screen.getByText('Remote 10')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Remote group' }))
+    expect(screen.queryByText('Remote 1')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Remote group' }))
+    expect(screen.getByText('Remote 5')).toBeInTheDocument()
+    expect(screen.queryByText('Remote 6')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Show more' })).toBeInTheDocument()
+  })
+
   it('keeps populated remote groups stable during background refreshes', () => {
     const Provider = ResourceList.Provider<TestItem>
     const items = [{ id: 'remote-1', name: 'Remote 1', kind: 'topic' as const, updatedAt: 1 }]
@@ -2228,6 +2304,7 @@ describe('ResourceList', () => {
       items,
       loadNext: vi.fn(),
       queryKey: 'remote-query',
+      reset: vi.fn(),
       retry: vi.fn()
     }
     remoteGroups.update(registration, snapshot)
@@ -2273,6 +2350,7 @@ describe('ResourceList', () => {
       items: [],
       loadNext: vi.fn(),
       queryKey: 'remote-query',
+      reset: vi.fn(),
       retry
     })
 

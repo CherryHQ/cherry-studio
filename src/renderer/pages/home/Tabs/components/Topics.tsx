@@ -202,6 +202,7 @@ function TopicRemoteGroupQuery({
       items,
       loadNext: source.loadNext,
       queryKey,
+      reset: source.reset,
       retry
     }),
     [
@@ -214,7 +215,8 @@ function TopicRemoteGroupQuery({
       source.isLoading,
       source.isLoadingMore,
       source.isRefreshing,
-      source.loadNext
+      source.loadNext,
+      source.reset
     ]
   )
   useRegisterResourceListRemoteGroup(service, snapshot)
@@ -662,6 +664,7 @@ export function Topics({
         pinned: true,
         q: debouncedRemoteQuery
       }),
+      reset: pinnedTopicsSource.reset,
       retry: () => void refetchPinnedTopics()
     }),
     [
@@ -672,6 +675,7 @@ export function Topics({
       pinnedTopicsSource.error,
       pinnedTopicsSource.isLoading,
       pinnedTopicsSource.isLoadingMore,
+      pinnedTopicsSource.reset,
       refetchPinnedTopics,
       rightPanelOwnerScope,
       debouncedRemoteQuery
@@ -694,6 +698,7 @@ export function Topics({
         q: debouncedRemoteQuery,
         sortBy: topicSortBy
       }),
+      reset: ordinaryTopicsSource.reset,
       retry: () => void refetchOrdinaryTopics()
     }),
     [
@@ -705,6 +710,7 @@ export function Topics({
       ordinaryTopicsSource.error,
       ordinaryTopicsSource.isLoading,
       ordinaryTopicsSource.isLoadingMore,
+      ordinaryTopicsSource.reset,
       refetchOrdinaryTopics,
       rightPanelOwnerScope,
       topicSortBy

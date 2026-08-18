@@ -218,7 +218,7 @@ export const useSessions = (agentId: string | null | undefined, options: UseSess
     return built
   }, [agentId, effectiveSortBy, pinned, q, searchScope, workspaceId])
 
-  const { pages, isLoading, isLoadingMore, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery(
+  const { pages, isLoading, isLoadingMore, isRefreshing, error, hasNext, loadNext, refresh, reset } = useInfiniteQuery(
     '/agent-sessions',
     {
       query,
@@ -255,7 +255,8 @@ export const useSessions = (agentId: string | null | undefined, options: UseSess
     isLoadingMore,
     isValidating: isRefreshing,
     reload,
-    loadMore
+    loadMore,
+    reset
   }
 }
 

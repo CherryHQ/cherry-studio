@@ -279,7 +279,7 @@ export function useTopics(opts: {
     return built
   }, [opts.assistantId, opts.pinned, q, searchScope, sortBy])
   const pageSize = opts.pageSize ?? DEFAULT_TOPIC_PAGE_SIZE
-  const { pages, isLoading, isLoadingMore, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery(
+  const { pages, isLoading, isLoadingMore, isRefreshing, error, hasNext, loadNext, refresh, reset } = useInfiniteQuery(
     '/topics',
     {
       query,
@@ -306,7 +306,8 @@ export function useTopics(opts: {
     isLoadingMore,
     isRefreshing,
     error,
-    refetch: refresh
+    refetch: refresh,
+    reset
   }
 }
 

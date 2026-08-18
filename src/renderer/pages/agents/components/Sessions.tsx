@@ -230,6 +230,7 @@ function SessionRemoteGroupQuery({
       items: source.sessions,
       loadNext: source.loadMore,
       queryKey,
+      reset: source.reset,
       retry
     }),
     [
@@ -242,6 +243,7 @@ function SessionRemoteGroupQuery({
       source.isLoadingMore,
       source.isValidating,
       source.loadMore,
+      source.reset,
       source.sessions
     ]
   )
@@ -565,6 +567,7 @@ const Sessions = ({
         pinned: true,
         q: debouncedRemoteQuery
       }),
+      reset: pinnedSessionsSource.reset,
       retry: () => void reloadPinnedSessions()
     }),
     [
@@ -575,6 +578,7 @@ const Sessions = ({
       pinnedSessionsSource.error,
       pinnedSessionsSource.isLoading,
       pinnedSessionsSource.isLoadingMore,
+      pinnedSessionsSource.reset,
       reloadPinnedSessions,
       rightPanelAgentScope,
       debouncedRemoteQuery
@@ -596,6 +600,7 @@ const Sessions = ({
         q: debouncedRemoteQuery,
         sortBy: sessionSortBy
       }),
+      reset: ordinarySessionsSource.reset,
       retry: () => void reloadOrdinarySessions()
     }),
     [
@@ -607,6 +612,7 @@ const Sessions = ({
       ordinarySessionsSource.error,
       ordinarySessionsSource.isLoading,
       ordinarySessionsSource.isLoadingMore,
+      ordinarySessionsSource.reset,
       reloadOrdinarySessions,
       rightPanelAgentScope,
       sessionSortBy

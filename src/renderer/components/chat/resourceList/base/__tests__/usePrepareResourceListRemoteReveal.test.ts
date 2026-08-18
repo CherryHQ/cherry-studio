@@ -18,6 +18,7 @@ function createSnapshot(
     items: [{ id: 'first', name: 'First' }],
     loadNext: vi.fn(),
     queryKey: 'ordinary:empty-query',
+    reset: vi.fn(),
     retry: vi.fn(),
     ...overrides
   }

@@ -425,9 +425,14 @@ type ProviderAction =
   | { type: 'showMoreInGroup'; groupId: string }
   | { type: 'collapseGroupItems'; groupId: string; defaultCount: number }
   | { type: 'expandGroups'; groupIds: readonly string[] }
-  | { type: 'collapseGroups'; groupIds: readonly string[]; defaultCount: number }
+  | {
+      type: 'collapseGroups'
+      groupIds: readonly string[]
+      resetGroupIds: readonly string[]
+      defaultCount: number
+    }
   | { type: 'resetGroupVisibleCounts'; groupIds: readonly string[]; defaultCount: number }
-  | { type: 'toggleGroup'; groupId: string }
+  | { type: 'toggleGroup'; groupId: string; resetGroupIds: readonly string[]; defaultCount: number }
   | {
       type: 'revealItem'
       clearFilters?: boolean
@@ -495,6 +500,8 @@ function reducer(state: ResourceListProviderState, action: ProviderAction): Reso
       const groupVisibleCounts = { ...state.groupVisibleCounts }
       for (const groupId of action.groupIds) {
         collapsedGroups.add(groupId)
+      }
+      for (const groupId of action.resetGroupIds) {
         groupVisibleCounts[groupId] = action.defaultCount
       }
       return { ...state, collapsedGroups: [...collapsedGroups], groupVisibleCounts }
@@ -507,10 +514,22 @@ function reducer(state: ResourceListProviderState, action: ProviderAction): Reso
       return { ...state, groupVisibleCounts }
     }
     case 'toggleGroup': {
-      const collapsedGroups = state.collapsedGroups.includes(action.groupId)
-        ? state.collapsedGroups.filter((groupId) => groupId !== action.groupId)
-        : [...state.collapsedGroups, action.groupId]
-      return { ...state, collapsedGroups }
+      if (state.collapsedGroups.includes(action.groupId)) {
+        return {
+          ...state,
+          collapsedGroups: state.collapsedGroups.filter((groupId) => groupId !== action.groupId)
+        }
+      }
+
+      const groupVisibleCounts = { ...state.groupVisibleCounts }
+      for (const groupId of action.resetGroupIds) {
+        groupVisibleCounts[groupId] = action.defaultCount
+      }
+      return {
+        ...state,
+        collapsedGroups: [...state.collapsedGroups, action.groupId],
+        groupVisibleCounts
+      }
     }
     case 'revealItem': {
       const nextGroupVisibleCounts = { ...state.groupVisibleCounts }
@@ -626,6 +645,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
   const isSelectedControlled = selectedIdProp !== undefined
   const handledRevealRequestRef = useRef<string | null>(null)
   const collapsedStateRef = useRef<readonly string[]>([])
+  const sectionGroupIdsRef = useRef<ReadonlyMap<string, readonly string[]>>(new Map())
   const uiStoreRef = useRef<ResourceListUiService | null>(null)
   if (!uiStoreRef.current) {
     uiStoreRef.current = new ResourceListUiService({
@@ -829,6 +849,12 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
     collapsedStateRef.current = effectiveCollapsedIds
   }, [effectiveCollapsedIds])
 
+  useLayoutEffect(() => {
+    sectionGroupIdsRef.current = new Map(
+      viewSections.map((section) => [section.section.id, section.groups.map((group) => group.group.id)])
+    )
+  }, [viewSections])
+
   const notifyControlledCollapsedStateChange = useCallback(
     (nextCollapsedIds: readonly string[]) => {
       const next = [...new Set(nextCollapsedIds)]
@@ -837,6 +863,19 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
     },
     [onCollapsedStateChange]
   )
+
+  const resolvePaginationGroupIds = useCallback((collapsedIds: readonly string[]) => {
+    const groupIds = new Set<string>()
+    for (const collapsedId of collapsedIds) {
+      const sectionGroupIds = sectionGroupIdsRef.current.get(collapsedId)
+      if (sectionGroupIds) {
+        for (const groupId of sectionGroupIds) groupIds.add(groupId)
+      } else {
+        groupIds.add(collapsedId)
+      }
+    }
+    return [...groupIds]
+  }, [])
 
   const selectGroupHeaderItem = useCallback(
     (id: string) => {
@@ -907,24 +946,40 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
         dispatch({ type: 'expandGroups', groupIds })
       },
       collapseGroups: (groupIds: readonly string[]) => {
+        const resetGroupIds = resolvePaginationGroupIds(groupIds)
+        for (const groupId of resetGroupIds) remoteGroups?.reset(groupId)
+
         if (isControlled) {
-          dispatch({ type: 'resetGroupVisibleCounts', groupIds, defaultCount: defaultGroupVisibleCount })
+          dispatch({ type: 'resetGroupVisibleCounts', groupIds: resetGroupIds, defaultCount: defaultGroupVisibleCount })
           notifyControlledCollapsedStateChange([...collapsedStateRef.current, ...groupIds])
           return
         }
 
-        dispatch({ type: 'collapseGroups', groupIds, defaultCount: defaultGroupVisibleCount })
+        dispatch({ type: 'collapseGroups', groupIds, resetGroupIds, defaultCount: defaultGroupVisibleCount })
       },
       toggleGroup: (groupId: string) => {
+        const isCollapsing = !collapsedStateRef.current.includes(groupId)
+        const resetGroupIds = isCollapsing ? resolvePaginationGroupIds([groupId]) : []
+        if (isCollapsing) {
+          for (const resetGroupId of resetGroupIds) remoteGroups?.reset(resetGroupId)
+        }
+
         if (isControlled) {
           const nextCollapsedIds = collapsedStateRef.current.includes(groupId)
             ? collapsedStateRef.current.filter((id) => id !== groupId)
             : [...collapsedStateRef.current, groupId]
+          if (isCollapsing) {
+            dispatch({
+              type: 'resetGroupVisibleCounts',
+              groupIds: resetGroupIds,
+              defaultCount: defaultGroupVisibleCount
+            })
+          }
           notifyControlledCollapsedStateChange(nextCollapsedIds)
           return
         }
 
-        dispatch({ type: 'toggleGroup', groupId })
+        dispatch({ type: 'toggleGroup', groupId, resetGroupIds, defaultCount: defaultGroupVisibleCount })
       },
       reorder: (payload: ResourceListReorderPayload) => onReorder?.(payload)
     }),
@@ -939,6 +994,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       onSelectItem,
       remoteGroups,
       remoteSearch,
+      resolvePaginationGroupIds,
       selectGroupHeaderItem,
       uiStore
     ]

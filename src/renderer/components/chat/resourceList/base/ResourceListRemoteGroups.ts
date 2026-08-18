@@ -13,6 +13,7 @@ export type ResourceListRemoteGroupSnapshot<T extends ResourceListItemBase> = {
   items: readonly T[]
   loadNext: () => void
   queryKey: string
+  reset: () => void
   retry: () => void
 }
 
@@ -62,6 +63,13 @@ export class ResourceListRemoteGroupService<T extends ResourceListItemBase> {
     const group = this.records.get(groupId)?.snapshot
     if (!group) return false
     if (!group.error && !group.isLoading && !group.isRefreshing && group.hasNext) group.loadNext()
+    return true
+  }
+
+  reset(groupId: string) {
+    const group = this.records.get(groupId)?.snapshot
+    if (!group) return false
+    group.reset()
     return true
   }
 

@@ -878,6 +878,7 @@ function setupSessions(overrides: Record<string, unknown> = {}) {
     isLoadingMore: false,
     isValidating: false,
     reload: sessionDataMocks.reload,
+    reset: vi.fn(),
     reorderSession: sessionDataMocks.reorderSession,
     ...listOverrides
   }
