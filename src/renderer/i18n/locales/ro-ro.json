@@ -1008,6 +1008,19 @@
       "knowledge_base_disabled_by_files": "Elimină fișierele atașate pentru a folosi Baza de cunoștințe",
       "knowledge_base_unavailable": "Selectează un model compatibil cu instrumente",
       "locate_editing_message": "Localizați mesajul original",
+      "mcp_prompts": {
+        "description": "Inserați un prompt publicat de un server MCP",
+        "empty": "Niciun prompt MCP disponibil",
+        "insert_failed": "Nu s-a putut insera promptul",
+        "title": "Prompturi MCP"
+      },
+      "mcp_resources": {
+        "description": "Referențiați o resursă publicată de un server MCP",
+        "empty": "Nicio resursă MCP disponibilă",
+        "read_failed": "Nu s-a putut citi resursa",
+        "reader_unavailable": "Modelul curent nu poate reciti această resursă după atașare",
+        "title": "Resurse MCP"
+      },
       "new": {
         "context": "Șterge contextul"
       },

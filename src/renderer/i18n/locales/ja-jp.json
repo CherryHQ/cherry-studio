@@ -1008,6 +1008,19 @@
       "knowledge_base_disabled_by_files": "ナレッジベースを使用するには、添付ファイルを削除してください。",
       "knowledge_base_unavailable": "ツール対応モデルを選択してください",
       "locate_editing_message": "元のメッセージを見つける",
+      "mcp_prompts": {
+        "description": "MCP サーバーが公開するプロンプトを挿入",
+        "empty": "利用可能な MCP プロンプトがありません",
+        "insert_failed": "プロンプトの挿入に失敗しました",
+        "title": "MCP プロンプト"
+      },
+      "mcp_resources": {
+        "description": "MCP サーバーが公開するリソースを参照",
+        "empty": "利用可能な MCP リソースがありません",
+        "read_failed": "リソースの読み込みに失敗しました",
+        "reader_unavailable": "現在のモデルでは、添付後にこのリソースを読み取れません",
+        "title": "MCP リソース"
+      },
       "new": {
         "context": "コンテキストをクリア"
       },

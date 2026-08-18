@@ -1008,6 +1008,19 @@
       "knowledge_base_disabled_by_files": "Elimina los archivos adjuntos para utilizar la Base de Conocimiento",
       "knowledge_base_unavailable": "Selecciona un modelo capaz de usar herramientas",
       "locate_editing_message": "Localizar mensaje original",
+      "mcp_prompts": {
+        "description": "Inserta un prompt publicado por un servidor MCP",
+        "empty": "No hay prompts MCP disponibles",
+        "insert_failed": "Error al insertar el prompt",
+        "title": "Prompts MCP"
+      },
+      "mcp_resources": {
+        "description": "Referencia un recurso publicado por un servidor MCP",
+        "empty": "No hay recursos MCP disponibles",
+        "read_failed": "Error al leer el recurso",
+        "reader_unavailable": "El modelo actual no puede volver a leer este recurso después de adjuntarlo",
+        "title": "Recursos MCP"
+      },
       "new": {
         "context": "Borrar contexto"
       },
