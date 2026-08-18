@@ -1,4 +1,3 @@
-import type { MockMainPreferenceServiceUtils as PreferenceUtils } from '@test-mocks/main/PreferenceService'
 import type { MockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -6,9 +5,18 @@ import type { CitationPreviewService as CitationPreviewServiceType } from '../Ci
 
 const fetchRemoteTextMock = vi.hoisted(() => vi.fn())
 const extractPreviewTextMock = vi.hoisted(() => vi.fn())
+// vi.resetModules() below re-instantiates the shared preference mock, so hold the
+// value here where the re-run factory can still reach it.
+const preferences = vi.hoisted(() => ({ allowPrivateNetwork: true }))
 let mockMainLoggerService: MockMainLoggerService
-let preferenceUtils: typeof PreferenceUtils
 let service: CitationPreviewServiceType
+
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    PreferenceService: { get: () => preferences.allowPrivateNetwork }
+  })
+})
 
 vi.mock('@main/services/readableContent', () => ({
   readableContentService: { extractPreviewText: extractPreviewTextMock }
@@ -41,9 +49,7 @@ describe('CitationPreviewService', () => {
     fetchRemoteTextMock.mockReset()
     extractPreviewTextMock.mockReset()
     extractPreviewTextMock.mockImplementation(async (source: string) => source)
-    // Re-import after resetModules, or the service reads a different mock instance.
-    preferenceUtils = (await import('@test-mocks/main/PreferenceService')).MockMainPreferenceServiceUtils
-    preferenceUtils.resetMocks()
+    preferences.allowPrivateNetwork = true
     const { loggerService } = await import('@logger')
     mockMainLoggerService = loggerService as unknown as MockMainLoggerService
     mockMainLoggerService.error.mockClear()
@@ -121,7 +127,7 @@ describe('CitationPreviewService', () => {
   })
 
   it('rejects private and invalid URLs before calling the remote fetch helper', async () => {
-    preferenceUtils.setPreferenceValue('app.fetch.allow_private_network', false)
+    preferences.allowPrivateNetwork = false
 
     await expect(service.fetchPreview('http://127.0.0.1/private', requestContext('request-1'))).resolves.toBe('')
     await expect(service.fetchPreview('not a URL', requestContext('request-2'))).resolves.toBe('')
@@ -130,7 +136,7 @@ describe('CitationPreviewService', () => {
   })
 
   it('previews a literal private URL when app.fetch.allow_private_network is on', async () => {
-    preferenceUtils.setPreferenceValue('app.fetch.allow_private_network', true)
+    preferences.allowPrivateNetwork = true
     fetchRemoteTextMock.mockResolvedValue('<title>NAS</title>')
     extractPreviewTextMock.mockResolvedValue('NAS')
 
@@ -140,7 +146,7 @@ describe('CitationPreviewService', () => {
   })
 
   it('still rejects non-http schemes when app.fetch.allow_private_network is on', async () => {
-    preferenceUtils.setPreferenceValue('app.fetch.allow_private_network', true)
+    preferences.allowPrivateNetwork = true
 
     await expect(service.fetchPreview('file:///etc/passwd', requestContext('request-1'))).resolves.toBe('')
 
