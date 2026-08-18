@@ -414,8 +414,7 @@
           "bypassPermissions": {
             "description": "Ignore les contrôles d'autorisation. Peut supprimer des fichiers et utiliser le réseau.",
             "title": "Accès complet",
-            "warning": "Utiliser avec prudence — tous les outils s'exécuteront sans demander d'approbation.",
-            "warning_pi": "Dangereux — aucune confirmation n'est demandée, sauf pour les outils désactivés, y compris la suppression de fichiers et l'accès réseau."
+            "warning": "Utiliser avec prudence — tous les outils s'exécuteront sans demander d'approbation."
           },
           "default": {
             "description": "Demande avant de modifier des fichiers ou d'exécuter des commandes.",

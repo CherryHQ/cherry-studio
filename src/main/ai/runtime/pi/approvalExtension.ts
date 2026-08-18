@@ -8,7 +8,7 @@
  *
  * Pipeline per `tool_call`:
  *   1. disabledTools  → block (all modes, including bypassPermissions)
- *   2. global-install → block bash that installs into shared/global locations (except bypass)
+ *   2. global-install → block bash that installs into shared/global locations (all modes)
  *   3. rtk rewrite    → mutate `event.input.command` in place (bash only, all modes)
  *   4. bypass         → allow unconditionally; the mode promises no further gate
  *   5. approval       → per permission mode: auto-allow, fail closed without a
@@ -97,13 +97,14 @@ export function createPiApprovalExtension(ctx: PiApprovalContext): ExtensionFact
       const mode = ctx.getPermissionMode() ?? 'default'
       const bypass = mode === 'bypassPermissions'
 
-      // (2)/(3) bash-specific guards: block global installs, then rtk-rewrite in place. The rewrite
-      // makes commands runnable and applies in every mode; the install block is a permission guard,
-      // so an explicit bypass skips it.
+      // (2)/(3) bash-specific guards: block global installs, then rtk-rewrite in place. Both apply
+      // in every mode, bypass included — the install block protects the shared cross-agent
+      // environment (~/.bun, ~/.local/share/uv, …), not just this session, so it is a safety block
+      // rather than an approval the user can opt out of.
       if (toolName === 'bash') {
         const command = typeof input.command === 'string' ? input.command : ''
         if (command.trim()) {
-          const reason = bypass ? null : detectGlobalInstall(command)
+          const reason = detectGlobalInstall(command)
           if (reason) {
             logger.info('Blocked global install to prevent dependency pollution', { sessionId: ctx.sessionId, reason })
             return {
@@ -121,7 +122,7 @@ export function createPiApprovalExtension(ctx: PiApprovalContext): ExtensionFact
 
       // (4) bypassPermissions means bypass: the user asked for an agent that never stops, so nothing
       // below applies — not the always-prompt tools, not the path containment checks. Only the
-      // disabledTools block in (1) still holds.
+      // safety blocks above — disabledTools (1) and the global-install guard (2) — still hold.
       if (bypass) return
 
       // (5) approval by permission mode. Cherry-owned soul/autonomy tools are auto-approved in every

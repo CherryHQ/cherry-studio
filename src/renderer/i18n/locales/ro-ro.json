@@ -414,8 +414,7 @@
           "bypassPermissions": {
             "description": "Omite verificările de permisiuni. Poate șterge fișiere și utiliza rețeaua.",
             "title": "Acces complet",
-            "warning": "Folosește cu precauție — toate instrumentele vor rula fără a cere aprobare.",
-            "warning_pi": "Periculos — nu se cere confirmare pentru nicio acțiune, cu excepția instrumentelor dezactivate, inclusiv ștergerea fișierelor și accesul la rețea."
+            "warning": "Folosește cu precauție — toate instrumentele vor rula fără a cere aprobare."
           },
           "default": {
             "description": "Întreabă înainte de a edita fișiere sau de a rula comenzi.",

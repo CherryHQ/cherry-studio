@@ -143,7 +143,7 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
     expect(emitted).toHaveLength(0)
   })
 
-  it('still blocks a disabled tool under bypassPermissions — the one gate bypass does not lift', async () => {
+  it('still blocks a disabled tool under bypassPermissions', async () => {
     const disabled = buildGate({
       getPermissionMode: () => 'bypassPermissions',
       isDisabled: (toolName) => toolName === 'bash'
@@ -155,9 +155,12 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
     expect(disabled.emitted).toHaveLength(0)
   })
 
-  it('lets a global install through under bypassPermissions', async () => {
+  it('still blocks a global install under bypassPermissions — it protects the shared cross-agent environment', async () => {
     const { handler, emitted } = buildGate({ getPermissionMode: () => 'bypassPermissions' })
-    await expect(handler(toolEvent('bash', { command: 'npm install -g cowsay' }), extCtx)).resolves.toBeUndefined()
+    await expect(handler(toolEvent('bash', { command: 'npm install -g cowsay' }), extCtx)).resolves.toMatchObject({
+      block: true,
+      reason: expect.stringContaining('dependency pollution')
+    })
     expect(emitted).toHaveLength(0)
   })
 
