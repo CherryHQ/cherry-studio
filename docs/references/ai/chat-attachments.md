@@ -3,6 +3,7 @@ description: Per-attachment routing to native file parts or capped extracted tex
 sources:
   - src/main/ai/messages/attachmentRouting.ts
   - src/main/ai/messages/fileProcessor.ts
+  - src/main/ai/tools/adapters/aiSdk/builtin/ReadFileTool.ts
 ---
 
 # Chat Attachments
@@ -77,7 +78,8 @@ Default cap ≈ 8k chars/file (tunable).
 
 ## `read_file` — text-only overflow tool
 
-`src/main/ai/tools/fileLookup.ts` + `tools/adapters/aiSdk/builtin/ReadFileTool.ts`.
+`src/main/ai/tools/adapters/aiSdk/builtin/ReadFileTool.ts`, using the
+per-request attachment allow-list from the tool-call context.
 
 - Input `{ filename, offset?, limit? }`. The `filename` is the model-facing
   **handle** (unique, normalized — see `collectFileAttachments`), resolved to an

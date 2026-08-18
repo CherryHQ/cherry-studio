@@ -19,7 +19,8 @@ with a stable id for the first emitted message.
 
 The stream is **single-pass**: `Agent.stream` runs the AI SDK stream exactly
 once and pipes it through. There is no mid-stream message injection — steering
-a chat turn is handled upstream by abort-and-restart (see
+a chat turn is handled upstream by queueing a steer, yielding at a step
+boundary, and chaining a continuation (see
 [Stream Manager](./stream-manager.md#steering)).
 
 `Agent` does not know about topics, IPC, persistence, or multi-model
@@ -45,8 +46,7 @@ const dispose = agent.on('onStepFinish', step => { … })
 ```
 
 `stream()` and `generate()` share the underlying agent — only the AI SDK
-call differs. Future `runToCompletion()` / `toTool()` are placeholders;
-they don't ship in this PR.
+call differs. `runToCompletion()` / `toTool()` are not part of the current API.
 
 ## Hooks model
 
@@ -98,12 +98,13 @@ removed and hook signatures stay stable.
 There is no in-loop steering. `Agent.stream` makes a single AI SDK pass and
 never folds a mid-flight follow-up into the running turn — doing so mutated
 in-flight history and had no clean turn boundary. A new chat submission to a
-live topic is handled one level up by the stream manager: the dispatcher
-aborts the running turn, waits for it to persist as `paused`, and starts a
-fresh one — see [Stream Manager → Steering](./stream-manager.md#steering).
+live topic is handled one level up by the stream manager: it persists and
+queues the steer, the current step loop yields cleanly, and a continuation
+answers the queued row — see [Stream Manager → Steering](./stream-manager.md#steering).
 
-Agent-session runtimes are different: they queue their own follow-ups on the
-session's `pendingTurns` and interrupt between turns rather than restarting —
+Agent-session runtimes are different: a driver with `redirect` can inject the
+follow-up at a runtime-native safe point; otherwise the host queues it on
+`pendingTurns` for the next turn —
 see [Agent Session Runtime](./agent-session-runtime.md#live-follow-up).
 
 ## Error and abort
