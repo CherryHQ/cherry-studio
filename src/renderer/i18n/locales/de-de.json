@@ -388,6 +388,15 @@
         "inaccessible": "Arbeitsbereichspfad ist nicht zugänglich: {{path}}"
       }
     },
+    "session_delivery": {
+      "from": "Von {{agent}} / {{session}}",
+      "status": {
+        "accepted": "Angenommen",
+        "consumed": "Verarbeitet",
+        "delivering": "Wird zugestellt",
+        "failed": "Fehlgeschlagen"
+      }
+    },
     "settings": {
       "permissionMode": {
         "title": "Berechtigungsmodus"
@@ -1008,6 +1017,19 @@
       "knowledge_base_disabled_by_files": "Entfernen Sie angehängte Dateien, um die Wissensdatenbank zu verwenden.",
       "knowledge_base_unavailable": "Wählen Sie ein werkzeugfähiges Modell",
       "locate_editing_message": "Ursprüngliche Nachricht finden",
+      "mcp_prompts": {
+        "description": "Einen von einem MCP-Server bereitgestellten Prompt einfügen",
+        "empty": "Keine MCP-Prompts verfügbar",
+        "insert_failed": "Prompt konnte nicht eingefügt werden",
+        "title": "MCP-Prompts"
+      },
+      "mcp_resources": {
+        "description": "Eine von einem MCP-Server bereitgestellte Ressource referenzieren",
+        "empty": "Keine MCP-Ressourcen verfügbar",
+        "read_failed": "Ressource konnte nicht gelesen werden",
+        "reader_unavailable": "Das aktuelle Modell kann diese Ressource nach dem Anhängen nicht erneut lesen",
+        "title": "MCP-Ressourcen"
+      },
       "new": {
         "context": "Kontext löschen"
       },
@@ -3377,6 +3399,21 @@
         "stderr": "stderr",
         "stdout": "stdout"
       },
+      "sessionCreate": {
+        "created": "Neue Sitzung gestartet",
+        "creating": "Neue Sitzung wird gestartet",
+        "firstMessage": "Erste Nachricht",
+        "inheritedContext": "Dieser Agent und Arbeitsbereich werden verwendet",
+        "open": "Sitzung öffnen",
+        "sessionId": "Sitzungs-ID",
+        "untitled": "Unbenannte Sitzung"
+      },
+      "sessionSend": {
+        "open": "Sitzung öffnen",
+        "sending": "Wird gesendet an",
+        "sent": "Gesendet an",
+        "to": "An"
+      },
       "status": {
         "done": "Erledigt",
         "error": "Fehler",
@@ -5607,6 +5644,10 @@
         "select": "Schriftart auswählen",
         "title": "Schriftart-Einstellungen"
       }
+    },
+    "fetch": {
+      "allow_private_network": "Zugriff auf lokale Netzwerkadressen erlauben",
+      "allow_private_network_tip": "Erlaubt Web-Abruf-Tools den Zugriff auf localhost und private Netzwerkadressen. Deaktivieren Sie dies, wenn Modelle keine Dienste auf Ihrem Rechner oder im LAN lesen sollen."
     },
     "font_size": {
       "title": "Nachrichtenschriftgröße"

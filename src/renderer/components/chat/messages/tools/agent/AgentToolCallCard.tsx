@@ -1,3 +1,5 @@
+import { SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
+
 import { useOptionalMessageListActions } from '../../MessageListProvider'
 import {
   AgentToolsType,
@@ -9,6 +11,8 @@ import { type ToolStatus, ToolStatusIndicator } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { extractToolErrorText } from '../toolError'
 import { AgentToolDisclosure, AgentToolDisclosureLabel } from './AgentToolDisclosure'
+import { SessionCreateTool } from './SessionCreateTool'
+import { SessionSendTool } from './SessionSendTool'
 import { ToMarkdownTool } from './ToMarkdownTool'
 import { isValidAgentToolsType, renderTool } from './toolRendererRegistry'
 import { UnknownToolRenderer } from './UnknownToolRenderer'
@@ -47,6 +51,7 @@ export function AgentToolCallCard({
   isStreaming = false,
   status,
   hasError = false,
+  isCherrySessionTool = false,
   openFlowOnClick = false,
   showInlineDetails = true
 }: {
@@ -57,15 +62,23 @@ export function AgentToolCallCard({
   isStreaming?: boolean
   status?: ToolStatus
   hasError?: boolean
+  isCherrySessionTool?: boolean
   openFlowOnClick?: boolean
   showInlineDetails?: boolean
 }) {
   const actions = useOptionalMessageListActions()
-  const renderedItem = isValidAgentToolsType(toolName)
-    ? renderTool(toolName, input ?? {}, output, hasError)
-    : toolName === TO_MARKDOWN_RUNTIME_TOOL_NAME
-      ? ToMarkdownTool({ input, output })
-      : UnknownToolRenderer({ toolName: toolName ?? 'Tool', input, output })
+  const renderedItem =
+    isCherrySessionTool &&
+    (toolName === SESSION_CREATE_TOOL_NAME || toolName === `mcp__cherry-tools__${SESSION_CREATE_TOOL_NAME}`)
+      ? SessionCreateTool({ input, output, hasError, isStreaming, status })
+      : isCherrySessionTool &&
+          (toolName === SESSION_SEND_TOOL_NAME || toolName === `mcp__cherry-tools__${SESSION_SEND_TOOL_NAME}`)
+        ? SessionSendTool({ input, output, hasError, isStreaming, status })
+        : isValidAgentToolsType(toolName)
+          ? renderTool(toolName, input ?? {}, output, hasError)
+          : toolName === TO_MARKDOWN_RUNTIME_TOOL_NAME
+            ? ToMarkdownTool({ input, output })
+            : UnknownToolRenderer({ toolName: toolName ?? 'Tool', input, output })
   const openToolFlow =
     openFlowOnClick && actions?.openAgentToolFlow && toolCallId
       ? () =>

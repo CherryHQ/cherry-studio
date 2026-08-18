@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "34164890-c9c7-439a-aa17-befa486d3613",
+  "id": "b2b29e5d-4996-4ace-a87b-8ef7d3dff0ef",
   "prevId": "562deb0e-f421-4303-9a75-c154d4ff272b",
   "tables": {
     "agent": {
@@ -694,6 +694,41 @@
           "notNull": false,
           "autoincrement": false
         },
+        "delivery": {
+          "name": "delivery",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "delivery_status": {
+          "name": "delivery_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "delivery_turn_ref": {
+          "name": "delivery_turn_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "delivery_in_reply_to": {
+          "name": "delivery_in_reply_to",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "delivery_sender_session_id": {
+          "name": "delivery_sender_session_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "fts_rowid": {
           "name": "fts_rowid",
           "type": "integer",
@@ -726,6 +761,26 @@
           "name": "agent_session_message_status_idx",
           "columns": ["status"],
           "isUnique": false
+        },
+        "agent_session_message_delivery_status_idx": {
+          "name": "agent_session_message_delivery_status_idx",
+          "columns": ["delivery_status"],
+          "isUnique": false
+        },
+        "agent_session_message_delivery_turn_ref_idx": {
+          "name": "agent_session_message_delivery_turn_ref_idx",
+          "columns": ["delivery_turn_ref"],
+          "isUnique": false
+        },
+        "agent_session_message_delivery_sender_idx": {
+          "name": "agent_session_message_delivery_sender_idx",
+          "columns": ["delivery_sender_session_id", "created_at", "id"],
+          "isUnique": false
+        },
+        "agent_session_message_delivery_reply_uniq": {
+          "name": "agent_session_message_delivery_reply_uniq",
+          "columns": ["delivery_in_reply_to"],
+          "isUnique": true
         },
         "agent_session_message_fts_rowid_uniq": {
           "name": "agent_session_message_fts_rowid_uniq",
@@ -763,6 +818,14 @@
         "agent_session_message_status_check": {
           "name": "agent_session_message_status_check",
           "value": "\"agent_session_message\".\"status\" IN ('pending', 'success', 'error', 'paused')"
+        },
+        "agent_session_message_delivery_status_check": {
+          "name": "agent_session_message_delivery_status_check",
+          "value": "\"agent_session_message\".\"delivery_status\" IS NULL OR \"agent_session_message\".\"delivery_status\" IN ('accepted', 'delivering', 'consumed', 'failed')"
+        },
+        "agent_session_message_delivery_turn_ref_check": {
+          "name": "agent_session_message_delivery_turn_ref_check",
+          "value": "(\"agent_session_message\".\"delivery_status\" = 'delivering' AND \"agent_session_message\".\"delivery_turn_ref\" IS NOT NULL) OR (\"agent_session_message\".\"delivery_status\" != 'delivering' AND \"agent_session_message\".\"delivery_turn_ref\" IS NULL) OR (\"agent_session_message\".\"delivery_status\" IS NULL AND \"agent_session_message\".\"delivery_turn_ref\" IS NULL)"
         }
       }
     },
@@ -3976,89 +4039,6 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "prompt_binding": {
-      "name": "prompt_binding",
-      "columns": {
-        "prompt_id": {
-          "name": "prompt_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "target_type": {
-          "name": "target_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "target_id": {
-          "name": "target_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "order_key": {
-          "name": "order_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "prompt_binding_target_idx": {
-          "name": "prompt_binding_target_idx",
-          "columns": ["target_type", "target_id", "prompt_id"],
-          "isUnique": false
-        },
-        "prompt_binding_target_order_key_idx": {
-          "name": "prompt_binding_target_order_key_idx",
-          "columns": ["target_type", "target_id", "order_key"],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "prompt_binding_prompt_id_prompt_id_fk": {
-          "name": "prompt_binding_prompt_id_prompt_id_fk",
-          "tableFrom": "prompt_binding",
-          "tableTo": "prompt",
-          "columnsFrom": ["prompt_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "prompt_binding_prompt_id_target_type_target_id_pk": {
-          "columns": ["prompt_id", "target_type", "target_id"],
-          "name": "prompt_binding_prompt_id_target_type_target_id_pk"
-        }
-      },
-      "uniqueConstraints": {},
-      "checkConstraints": {
-        "prompt_binding_target_type_check": {
-          "name": "prompt_binding_target_type_check",
-          "value": "\"prompt_binding\".\"target_type\" IN ('assistant', 'agent')"
-        }
-      }
-    },
     "prompt": {
       "name": "prompt",
       "columns": {
@@ -4078,13 +4058,6 @@
         },
         "content": {
           "name": "content",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "visibility": {
-          "name": "visibility",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -4122,12 +4095,7 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {
-        "prompt_visibility_check": {
-          "name": "prompt_visibility_check",
-          "value": "\"prompt\".\"visibility\" IN ('global', 'restricted')"
-        }
-      }
+      "checkConstraints": {}
     },
     "entity_tag": {
       "name": "entity_tag",

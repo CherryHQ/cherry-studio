@@ -388,6 +388,15 @@
         "inaccessible": "La ruta del espacio de trabajo no es accesible: {{path}}"
       }
     },
+    "session_delivery": {
+      "from": "De {{agent}} / {{session}}",
+      "status": {
+        "accepted": "Aceptado",
+        "consumed": "Procesado",
+        "delivering": "Entregando",
+        "failed": "Fallido"
+      }
+    },
     "settings": {
       "permissionMode": {
         "title": "Modo de permisos"
@@ -1008,6 +1017,19 @@
       "knowledge_base_disabled_by_files": "Elimina los archivos adjuntos para utilizar la Base de Conocimiento",
       "knowledge_base_unavailable": "Selecciona un modelo capaz de usar herramientas",
       "locate_editing_message": "Localizar mensaje original",
+      "mcp_prompts": {
+        "description": "Inserta un prompt publicado por un servidor MCP",
+        "empty": "No hay prompts MCP disponibles",
+        "insert_failed": "Error al insertar el prompt",
+        "title": "Prompts MCP"
+      },
+      "mcp_resources": {
+        "description": "Referencia un recurso publicado por un servidor MCP",
+        "empty": "No hay recursos MCP disponibles",
+        "read_failed": "Error al leer el recurso",
+        "reader_unavailable": "El modelo actual no puede volver a leer este recurso después de adjuntarlo",
+        "title": "Recursos MCP"
+      },
       "new": {
         "context": "Borrar contexto"
       },
@@ -3377,6 +3399,21 @@
         "stderr": "stderr",
         "stdout": "stdout"
       },
+      "sessionCreate": {
+        "created": "Se inició una nueva sesión",
+        "creating": "Iniciando una nueva sesión",
+        "firstMessage": "Primer mensaje",
+        "inheritedContext": "Usando este agente y espacio de trabajo",
+        "open": "Abrir sesión",
+        "sessionId": "ID de sesión",
+        "untitled": "Sesión sin título"
+      },
+      "sessionSend": {
+        "open": "Abrir sesión",
+        "sending": "Enviando a",
+        "sent": "Enviado a",
+        "to": "A"
+      },
       "status": {
         "done": "Hecho",
         "error": "Error",
@@ -5607,6 +5644,10 @@
         "select": "Seleccionar fuente",
         "title": "Configuración de fuente"
       }
+    },
+    "fetch": {
+      "allow_private_network": "Permitir el acceso a direcciones de red local",
+      "allow_private_network_tip": "Permite que las herramientas de obtención web accedan a localhost y a direcciones de red privada. Desactívalo si no quieres que los modelos lean servicios de tu equipo o de tu LAN."
     },
     "font_size": {
       "title": "Tamaño de fuente de mensajes"

@@ -23,7 +23,7 @@ import {
   MODEL_CAPABILITY
 } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { formatApiHost, withoutTrailingApiVersion, withoutTrailingSlash } from '@shared/utils/api'
+import { formatApiHost, formatOllamaApiHost, withoutTrailingApiVersion, withoutTrailingSlash } from '@shared/utils/api'
 import { deriveModelGroupName } from '@shared/utils/model'
 import {
   isAIGatewayProvider,
@@ -35,7 +35,7 @@ import {
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import * as z from 'zod'
 
-import { defaultHeaders, getBaseUrl } from '../utils/provider'
+import { defaultHeaders, getBaseUrl, getExtraHeaders } from '../utils/provider'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import {
   createVertexModelListRequest,
@@ -734,6 +734,40 @@ const openAICompatibleFetcher: ModelFetcher = {
       })
     )
   }
+}
+
+// ── Ollama probe ──
+
+/** Lightweight model-existence check for Ollama — avoids loading the model into memory. */
+export async function probeOllamaModel(
+  provider: Provider,
+  modelApiId: string | undefined,
+  signal?: AbortSignal,
+  apiKeyOverride?: string
+): Promise<{ latency: number }> {
+  const start = performance.now()
+  const baseUrl = formatOllamaApiHost(getBaseUrl(provider))
+  const resolved = providerService.resolveApiKey(provider.id, apiKeyOverride)
+  const headers: Record<string, string> = {
+    ...defaultAppHeaders(),
+    ...getExtraHeaders(provider),
+    'Content-Type': 'application/json'
+  }
+  if (resolved.value) {
+    headers.Authorization = `Bearer ${resolved.value}`
+    headers['X-Api-Key'] = resolved.value
+  }
+  const response = await fetch(`${baseUrl}/show`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ model: modelApiId ?? '' }),
+    signal
+  })
+  if (!response.ok) {
+    const body = (await response.json().catch(() => undefined)) as { error?: string; message?: string } | undefined
+    throw new Error(body?.error ?? body?.message ?? `Ollama /api/show returned ${response.status}`)
+  }
+  return { latency: performance.now() - start }
 }
 
 // ── Registry (order matters: first match wins) ──

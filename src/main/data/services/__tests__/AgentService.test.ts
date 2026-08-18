@@ -1,3 +1,5 @@
+import '@data/services/AgentSessionMessageService'
+
 import { randomUUID } from 'node:crypto'
 
 import { application } from '@application'

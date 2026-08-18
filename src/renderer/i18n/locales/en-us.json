@@ -388,6 +388,15 @@
         "inaccessible": "Workspace path is not accessible: {{path}}"
       }
     },
+    "session_delivery": {
+      "from": "From {{agent}} / {{session}}",
+      "status": {
+        "accepted": "Accepted",
+        "consumed": "Consumed",
+        "delivering": "Delivering",
+        "failed": "Failed"
+      }
+    },
     "settings": {
       "permissionMode": {
         "title": "Permission Mode"
@@ -1008,6 +1017,19 @@
       "knowledge_base_disabled_by_files": "Remove attached files to use Knowledge Base",
       "knowledge_base_unavailable": "Select a tool-capable model",
       "locate_editing_message": "Locate original message",
+      "mcp_prompts": {
+        "description": "Insert a prompt published by an MCP server",
+        "empty": "No MCP prompts available",
+        "insert_failed": "Failed to insert the prompt",
+        "title": "MCP Prompts"
+      },
+      "mcp_resources": {
+        "description": "Reference a resource published by an MCP server",
+        "empty": "No MCP resources available",
+        "read_failed": "Failed to read the resource",
+        "reader_unavailable": "The current model cannot read this resource back after it is attached",
+        "title": "MCP Resources"
+      },
       "new": {
         "context": "Clear Context"
       },
@@ -3377,6 +3399,21 @@
         "stderr": "stderr",
         "stdout": "stdout"
       },
+      "sessionCreate": {
+        "created": "Started a new session",
+        "creating": "Starting a new session",
+        "firstMessage": "First message",
+        "inheritedContext": "Using this agent and workspace",
+        "open": "Open session",
+        "sessionId": "Session ID",
+        "untitled": "Untitled session"
+      },
+      "sessionSend": {
+        "open": "Open session",
+        "sending": "Sending to",
+        "sent": "Sent to",
+        "to": "To"
+      },
       "status": {
         "done": "Done",
         "error": "Error",
@@ -5607,6 +5644,10 @@
         "select": "Select Font",
         "title": "Font Settings"
       }
+    },
+    "fetch": {
+      "allow_private_network": "Allow fetching local network addresses",
+      "allow_private_network_tip": "Lets web fetch tools reach localhost and private network addresses. Turn this off if you do not want models to read services on your own machine or LAN."
     },
     "font_size": {
       "title": "Message font size"

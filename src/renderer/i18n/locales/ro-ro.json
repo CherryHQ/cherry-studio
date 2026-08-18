@@ -388,6 +388,15 @@
         "inaccessible": "Calea către spațiul de lucru nu este accesibilă: {{path}}"
       }
     },
+    "session_delivery": {
+      "from": "De la {{agent}} / {{session}}",
+      "status": {
+        "accepted": "Acceptat",
+        "consumed": "Procesat",
+        "delivering": "În curs de livrare",
+        "failed": "Eșuat"
+      }
+    },
     "settings": {
       "permissionMode": {
         "title": "Mod de permisiune"
@@ -1008,6 +1017,19 @@
       "knowledge_base_disabled_by_files": "Elimină fișierele atașate pentru a folosi Baza de cunoștințe",
       "knowledge_base_unavailable": "Selectează un model compatibil cu instrumente",
       "locate_editing_message": "Localizați mesajul original",
+      "mcp_prompts": {
+        "description": "Inserați un prompt publicat de un server MCP",
+        "empty": "Niciun prompt MCP disponibil",
+        "insert_failed": "Nu s-a putut insera promptul",
+        "title": "Prompturi MCP"
+      },
+      "mcp_resources": {
+        "description": "Referențiați o resursă publicată de un server MCP",
+        "empty": "Nicio resursă MCP disponibilă",
+        "read_failed": "Nu s-a putut citi resursa",
+        "reader_unavailable": "Modelul curent nu poate reciti această resursă după atașare",
+        "title": "Resurse MCP"
+      },
       "new": {
         "context": "Șterge contextul"
       },
@@ -3377,6 +3399,21 @@
         "stderr": "stderr",
         "stdout": "stdout"
       },
+      "sessionCreate": {
+        "created": "A fost pornită o sesiune nouă",
+        "creating": "Se pornește o sesiune nouă",
+        "firstMessage": "Primul mesaj",
+        "inheritedContext": "Se utilizează acest agent și acest spațiu de lucru",
+        "open": "Deschide sesiunea",
+        "sessionId": "ID sesiune",
+        "untitled": "Sesiune fără titlu"
+      },
+      "sessionSend": {
+        "open": "Deschide sesiunea",
+        "sending": "Se trimite către",
+        "sent": "Trimis către",
+        "to": "Către"
+      },
       "status": {
         "done": "Gata",
         "error": "Eroare",
@@ -5607,6 +5644,10 @@
         "select": "Selectează font",
         "title": "Setări font"
       }
+    },
+    "fetch": {
+      "allow_private_network": "Permite accesul la adrese din rețeaua locală",
+      "allow_private_network_tip": "Permite instrumentelor de preluare web să acceseze localhost și adrese din rețeaua privată. Dezactivați dacă nu doriți ca modelele să citească servicii de pe calculatorul dvs. sau din LAN."
     },
     "font_size": {
       "title": "Dimensiune font mesaj"
