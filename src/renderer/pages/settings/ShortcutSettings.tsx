@@ -571,7 +571,7 @@ const ShortcutSettings: FC = () => {
     <div className="flex flex-1" data-theme-mode={theme}>
       <div className="flex h-[calc(100vh-var(--navbar-height)-6px)] w-full flex-1 overflow-hidden">
         <Scrollbar className={settingsContentScrollClassName}>
-          <SettingsContentBody>
+          <SettingsContentBody className="pt-4">
             <div className={cn(settingsContentHeaderClassName, 'flex items-center justify-between gap-3')}>
               <h1 className={cn(settingsContentHeaderTitleClassName, 'shrink-0')}>{t('settings.shortcuts.title')}</h1>
               <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
