@@ -20,7 +20,7 @@
 
 | Document | Description |
 |----------|-------------|
-| [AI Reference](./references/ai/README.md) | Entry point mapping the v2 AI pipeline docs, src/main/ai code layout, chat-turn flow, and key invariants |
+| [AI Reference](./references/ai/README.md) | Entry point mapping the AI pipeline docs, src/main/ai code layout, chat-turn flow, runtimes, and key invariants |
 | [Adapter Family](./references/ai/adapter-family.md) | How each endpoint config's adapterFamily field selects the @ai-sdk package, and the two write paths that set it |
 | [Adding an Agent Runtime](./references/ai/adding-a-runtime.md) | Operational checklist for adding an agent runtime via a capability descriptor and a main-process driver package |
 | [Agent Loop](./references/ai/agent-loop.md) | The Agent class wrapping single-pass AI SDK streaming with composeHooks-merged hook contributions and error semantics |
@@ -31,20 +31,20 @@
 | [Core Architecture](./references/ai/core-architecture.md) | End-to-end chat turn flow from renderer IPC transport through AiStreamManager and Agent loop to persistence |
 | [Execution Overlay](./references/ai/execution-overlay.md) | Renderer stream overlay — TopicStreamSubscription demux by execution and anchor feeding readUIMessageStream snapshots |
 | [Image-Generation Parameterized Architecture](./references/ai/image-generation-parameters.md) | Data-driven image-generation params — registry supports to form fields, canonical bag to vendor wire via WireProfile |
-| [IPC Transport](./references/ai/ipc-transport.md) | IpcChatTransport bridging useChat to Main over Ai_Stream_* IPC, with dispatch ack coordination and detach vs abort |
+| [IPC Transport](./references/ai/ipc-transport.md) | IpcChatTransport bridging useChat to Main over ai.stream.* IpcApi routes, with dispatch ack coordination and detach vs abort |
 | [Model Retry & Fallback](./references/ai/model-retry.md) | User-configurable same-model retry plus fallback models via ai-retry wrapModel, driven by chat.retry.* preferences |
-| [Observability](./references/ai/observability.md) | OTel tracing for AI calls — Cherry-owned root spans, AI SDK and Claude Code adapters, local span projection and sinks |
+| [Observability](./references/ai/observability.md) | OTel tracing for AI calls and agent runtimes — Cherry roots, SDK adapters, runtime spans, local projection, and sinks |
 | [Params Pipeline](./references/ai/params-pipeline.md) | buildAgentParams and the RequestFeature model composing plugins, tools, hooks, and provider quirks per request |
 | [Provider Resolution](./references/ai/provider-resolution.md) | Endpoint resolution chain from provider.endpointConfigs and adapterFamily to the AI SDK provider id and variants |
 | [AiStreamManager](./references/ai/stream-manager.md) | AiStreamManager active-stream registry — listener fan-out, reconnect replay, abort, steering, and persistence triggers |
-| [Tool Approval](./references/ai/tool-approval.md) | Main-as-writer tool approval — approval-requested parts, Ai_ToolApproval_Respond paths, and persistent MCP decisions |
+| [Tool Approval](./references/ai/tool-approval.md) | Main-as-writer tool approval through ai.tool.respond_approval, approval-requested parts, and persistent MCP decisions |
 | [Tool Registry](./references/ai/tool-registry.md) | Unified aiSdk ToolEntry registry — built-in web/kb tools, MCP sync, meta-tools, and deferred exposition |
 
 ### API Gateway
 
 | Document | Description |
 |----------|-------------|
-| [API Gateway Reference](./references/api-gateway/README.md) | Local HTTP server exposing AI chat over OpenAI and Anthropic wire protocols, with adapters, auth, and lifecycle |
+| [API Gateway Reference](./references/api-gateway/README.md) | Local HTTP gateway for OpenAI, Anthropic, Gemini, Cherry REST, and MCP-compatible clients |
 
 ### Architecture
 
@@ -83,8 +83,8 @@
 |----------|-------------|
 | [Components Reference](./references/components/README.md) | Entry point for component references covering code block rendering, code execution, image previews, and data-ui |
 | [Code Block Rendering](./references/components/code-block-view.md) | How CodeBlock classifies Markdown code and CodeBlockView renders the fenced-code workbench across streaming states |
-| [Code Execution](./references/components/code-execution.md) | In-browser Python execution for code blocks via Pyodide in a Web Worker, from run button to structured output |
-| [Image Preview Components](./references/components/image-preview.md) | Shared preview components for Mermaid, PlantUML, SVG, and Graphviz diagrams with toolbar and debounced rendering |
+| [Code Execution](./references/components/code-execution.md) | Current Python code-block execution path through CodeBlockView, PyodideService, and the Pyodide Web Worker |
+| [Image Preview Components](./references/components/image-preview.md) | Current Mermaid, PlantUML, SVG, and Graphviz preview pipeline with sanitized Shadow DOM rendering and shared controls |
 | [UI Semantic Contract](./references/components/ui-semantic-contract.md) | The data-ui semantic selector contract for themes, tests, and automation, and its build-time generation pipeline |
 
 ### Data
@@ -94,9 +94,9 @@
 | [Data System Reference](./references/data/README.md) | Entry point for Cherry Studio data systems - decision guide across BootConfig, Cache, Preference, DataApi, app_state |
 | [API Design Guidelines](./references/data/api-design-guidelines.md) | RESTful path, status code, Zod DTO, and scope/side-effect boundary rules for designing DataApi endpoints |
 | [Data API Type System](./references/data/api-types.md) | DataApi type system reference - request/response types, path resolution, pagination types, and error handling |
-| [App State System Overview](./references/data/app-state-overview.md) | app_state SQLite table for durable internal continuity markers - ownership rules, key naming, and key registry |
+| [App State System Overview](./references/data/app-state-overview.md) | app_state SQLite table for durable owner-private completion and reconciliation markers |
 | [Default Values & Nullability](./references/data/best-practice-default-values-and-nullability.md) | Rules for column nullability and single-source default placement across DB, Drizzle, Zod, and service layers |
-| [Layered Preset Configuration Pattern](./references/data/best-practice-layered-preset-pattern.md) | Layered preset pattern - merging predefined configs with user overrides via Preference storage or registry services |
+| [Layered Preset Configuration Pattern](./references/data/best-practice-layered-preset-pattern.md) | Current preset layering patterns for Preference-backed catalogs and SQLite-backed entities |
 | [Boot Config System Overview](./references/data/boot-config-overview.md) | Synchronous file-based BootConfig system for process-level settings loaded before the app lifecycle starts |
 | [Boot Config Schema Guide](./references/data/boot-config-schema-guide.md) | How to add boot config keys to the auto-generated schema, plus the V1-to-V2 boot config migration pipeline |
 | [Cache System Overview](./references/data/cache-overview.md) | Three-tier cache architecture (memory, shared, persist) - key types, design invariants, process responsibilities |
@@ -110,9 +110,9 @@
 | [Database Construction (Build, Migrations, Custom SQL, FTS5)](./references/data/database-construction.md) | How the SQLite DB is built at boot - drizzle migrations, CUSTOM_SQL_STATEMENTS replay, FTS5 fts_rowid, rebuilds |
 | [Database Schema Guidelines](./references/data/database-patterns.md) | Database schema authoring patterns - file organization, naming, column helpers, write serialization (withWriteTx) |
 | [Database Seeding Guide](./references/data/database-seeding-guide.md) | Seeding architecture - SeedRunner journal in app_state, execution policies, version strategies, adding seeders |
-| [Preference System Overview](./references/data/preference-overview.md) | Preference system for user settings - cross-window sync, optimistic/pessimistic updates, SQLite-backed storage |
-| [Preference Schema Guide](./references/data/preference-schema-guide.md) | How to add preference keys - naming conventions, flat-over-nested design, and schema/default registration |
-| [Preference Usage Guide](./references/data/preference-usage.md) | usePreference/usePreferences hooks and PreferenceService APIs with optimistic and pessimistic update patterns |
+| [Preference System Overview](./references/data/preference-overview.md) | Preference architecture - generated key schema, SQLite ownership, BootConfig routing, renderer cache, and cross-window sync |
+| [Preference Schema Guide](./references/data/preference-schema-guide.md) | How to add Preference keys through the data-classify generator without editing generated schemas |
+| [Preference Usage Guide](./references/data/preference-usage.md) | Current usePreference, useMultiplePreferences, and direct PreferenceService APIs |
 | [Migration V2 (Main Process)](./references/data/v2-migration-guide.md) | One-shot v1-to-v2 migration engine - upgrade gate, migrator contracts, data source readers, status tracking |
 
 ### Diagnostics
@@ -125,12 +125,12 @@
 
 | Document | Description |
 |----------|-------------|
-| [File Reference](./references/file/README.md) | Entry point for file domain references covering the file module, FileManager internals, directory trees, and cleanup |
-| [File Module Architecture](./references/file/architecture.md) | File module boundaries: FileHandle/FileEntry/FileInfo type system, IPC/DataApi contracts, layered architecture |
-| [Directory Tree Architecture](./references/file/directory-tree.md) | DirectoryTreeBuilder primitive: in-memory tree with chokidar watcher, refcounted manager, IPC contract, renderer hook |
-| [File Entry Cleanup (GC) Design](./references/file/file-entry-cleanup.md) | Silent scan-based cleanup that reclaims unreferenced file entries according to the per-entry cleanup_policy column |
-| [FileManager Architecture](./references/file/file-manager-architecture.md) | FileManager internals: storage layout, atomic writes, version detection, recycle bin, watcher, DanglingCache |
-| [Fuzzy Search for Directory Listings](./references/file/fuzzy-search.md) | Directory listing and ripgrep-backed fuzzy search in listDirectory and listDirectoryEntries, with ranking rules |
+| [File Reference](./references/file/README.md) | Entry point for current FileManager, directory-tree, cleanup, watcher, and directory-search references |
+| [File Module Architecture](./references/file/architecture.md) | Current file-domain boundaries, shared types, renderer transports, and business-reference ownership |
+| [Directory Tree Architecture](./references/file/directory-tree.md) | Live directory-tree snapshots, watcher mutations, IpcApi ownership, and renderer mirror lifecycle |
+| [File Entry Cleanup](./references/file/file-entry-cleanup.md) | Scan-based cleanup of unreferenced file entries using the per-entry cleanup policy |
+| [FileManager Architecture](./references/file/file-manager-architecture.md) | Current FileManager storage, lifecycle, atomic-write, watcher, dangling-cache, and orphan-cleanup behavior |
+| [Fuzzy Search for Directory Listings](./references/file/fuzzy-search.md) | Current list and fuzzy-search behavior for the legacy directory-listing IPC methods |
 
 ### i18n
 
@@ -163,12 +163,11 @@
 
 | Document | Description |
 |----------|-------------|
-| [Knowledge Reference](./references/knowledge/README.md) | Entry point for knowledge domain references covering the v2 backend, workflow, operation guards, and experiment specs |
-| [Knowledge Service](./references/knowledge/knowledge-service.md) | Current v2 knowledge backend: service split, IPC surface, item statuses, delete/reindex/restore flows, search |
-| [Knowledge Operation Guards](./references/knowledge/operation-guards.md) | Guard and recovery semantics for the addItems, deleteItems, and reindexItems knowledge item operations |
+| [Knowledge Reference](./references/knowledge/README.md) | Entry point for the current Knowledge backend, ingestion workflow, retrieval, and operation guards |
+| [Knowledge Service](./references/knowledge/knowledge-service.md) | Current Knowledge backend - persistence, IPC, ingestion, retrieval, Concept IDs, and agent tools |
+| [Knowledge Operation Guards](./references/knowledge/operation-guards.md) | Guard and recovery semantics for Knowledge add, delete, reindex, and embedding-enable operations |
 | [Knowledge Workflow Architecture](./references/knowledge/workflow-architecture.md) | Knowledge workflow architecture: scheduling model, durable JobManager jobs, per-base mutation lock, crash semantics |
-| [Cherry Studio Knowledge Base — Product Spec](./references/knowledge/experiment/knowledge-product-spec.md) | Product spec for the knowledge base as a managed material library: principles, material rules, settled decisions |
-| [Cherry Studio Knowledge Base — Technical Design](./references/knowledge/experiment/knowledge-technical-design.md) | Technical design for the folder-backed knowledge base: raw/ storage, per-base index.sqlite schema, OKF snapshots |
+| [Knowledge Storage and Retrieval Implementation](./references/knowledge/experiment/knowledge-technical-design.md) | Current Knowledge storage and retrieval implementation - raw files, per-base index schema, invariants, and migration validation |
 
 ### LAN Transfer
 
