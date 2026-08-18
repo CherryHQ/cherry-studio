@@ -2746,6 +2746,69 @@ describe('AiStreamManager', () => {
       expect(mgr.hasPendingSteer('a')).toBe(true) // still queued, waiting for the approval to resolve
     })
 
+    it('settles a steer continuation reserved before Stop as paused instead of stranding it', async () => {
+      const topicId = 'steer-stop-topic'
+      const persistencePort = new FakePersistencePort('persistence:steer-stop')
+      const listener = new FakeListener('wc:steer-late')
+      let sendPrepared: (() => ReturnType<ManagerInstance['send']>) | undefined
+      let releasePrepare!: () => void
+      const prepareGate = new Promise<void>((resolve) => {
+        releasePrepare = resolve
+      })
+      vi.spyOn(mgr, 'dispatch').mockImplementation(async (_subscriber, dispatchReq) => {
+        // Stand-in for prepareSteerContinuation: reserve the attempt (placeholder row), then park
+        // in the compaction await where Stop lands; the test fires send() from inside that window.
+        const reservation = mgr.reserveDispatchCommand(
+          dispatchReq.topicId,
+          { kind: 'steer-continuation' },
+          1,
+          () => undefined
+        )
+        sendPrepared = () =>
+          mgr.send({
+            topicId: dispatchReq.topicId,
+            models: [
+              {
+                modelId: 'provider-a::model-a',
+                request: { ...req(topicId), messageId: 'assistant-steer' }
+              }
+            ],
+            listeners: [listener],
+            persistencePorts: [persistencePort],
+            receipt: reservation.receipt
+          })
+        await prepareGate
+        return { mode: 'started' } as any
+      })
+
+      startSingle(mgr, {
+        topicId,
+        modelId: 'provider-a::model-a',
+        request: { ...req(topicId), messageId: 'assistant-1' },
+        listeners: [new FakeListener('wc:steer')]
+      })
+      mgr.enqueuePendingSteer(topicId, 'steer-user-1')
+      await mgr.onExecutionDone(topicId, 'provider-a::model-a') // clean done + queued steer → chains
+      await flush()
+      expect(sendPrepared).toBeDefined()
+
+      mgr.abort(topicId, 'user-requested') // Stop lands while the continuation is still dispatching
+      const result = sendPrepared!()
+      releasePrepare()
+
+      expect(result.mode).toBe('started')
+      expect(mockStreamText).toHaveBeenCalledOnce() // only the original turn — no launch after Stop
+
+      await vi.advanceTimersByTimeAsync(0)
+      expect(persistencePort.pausedResults).toEqual([
+        expect.objectContaining({ anchorMessageId: 'assistant-steer', isTopicDone: false, status: 'paused' })
+      ])
+      expect(listener.pausedResults).toEqual([
+        expect.objectContaining({ anchorMessageId: 'assistant-steer', isTopicDone: true, status: 'paused' })
+      ])
+      expect(mgr.inspect(topicId)?.status).toBe('aborted')
+    })
+
     it('reuses the parked aggregate and its reserved attempt for an approval continuation', async () => {
       const topicId = 'approval-continuation-topic'
       startSingle(mgr, {
@@ -2781,6 +2844,59 @@ describe('AiStreamManager', () => {
 
       expect(continued.activeExecutions[0].attemptId).toBe(reservation.receipt.reservedAttemptIds?.[0])
       expect(mgr.inspect(topicId)?.status).toBe('pending')
+    })
+
+    it('settles an approval continuation reserved before Stop as paused instead of launching', async () => {
+      const topicId = 'approval-stop-topic'
+      const persistencePort = new FakePersistencePort('persistence:approval-stop')
+      startSingle(mgr, {
+        topicId,
+        modelId: 'provider-a::model-a',
+        request: { ...req(topicId), messageId: 'assistant-1' },
+        listeners: [new FakeListener('wc:approval')],
+        persistencePorts: [persistencePort]
+      })
+      mgr.onChunk(topicId, 'provider-a::model-a', {
+        type: 'tool-approval-request',
+        toolCallId: 'tool-1',
+        approvalId: 'approval-1'
+      } as UIMessageChunk)
+      await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+      const reservation = mgr.reserveDispatchCommand(
+        topicId,
+        { kind: 'continue-conversation', anchorMessageId: 'assistant-1' },
+        1,
+        () => undefined
+      )
+
+      // Stop lands in the prepare await (history/compaction) window, while the approval-parked
+      // stream is still installed.
+      mgr.abort(topicId, 'user-requested')
+      const listener = new FakeListener('wc:approval-late')
+      const continued = mgr.send({
+        topicId,
+        models: [
+          {
+            modelId: 'provider-a::model-a',
+            request: { ...req(topicId), messageId: 'assistant-1' }
+          }
+        ],
+        listeners: [listener],
+        persistencePorts: [persistencePort],
+        receipt: reservation.receipt
+      })
+
+      expect(continued.mode).toBe('started')
+      expect(mockStreamText).toHaveBeenCalledOnce() // only the original turn — no launch after Stop
+
+      await vi.advanceTimersByTimeAsync(0)
+      expect(persistencePort.pausedResults).toEqual([
+        expect.objectContaining({ anchorMessageId: 'assistant-1', isTopicDone: false, status: 'paused' })
+      ])
+      expect(listener.pausedResults).toEqual([
+        expect.objectContaining({ anchorMessageId: 'assistant-1', isTopicDone: true, status: 'paused' })
+      ])
+      expect(mgr.inspect(topicId)?.status).toBe('aborted')
     })
 
     it('rejects an ordinary start before it writes rows while approval is parked', async () => {

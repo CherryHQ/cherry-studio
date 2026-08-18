@@ -1106,7 +1106,7 @@ export class AiStreamManager extends BaseService {
       throw new AiStreamAdmissionError(aiStreamAdmissionReasons.TOPIC_BUSY)
     }
     const reservedAttemptIds = input.receipt?.reservedAttemptIds
-    const reservedAggregate = !existing ? this.topicAggregates.get(input.topicId) : undefined
+    const reservedAggregate = existing?.aggregate ?? this.topicAggregates.get(input.topicId)
     const reservedAbortReason =
       reservedAggregate && reservedAttemptIds
         ? reservedAggregate.consumeReservedAttemptAbort(reservedAttemptIds)
@@ -1646,11 +1646,12 @@ export class AiStreamManager extends BaseService {
       ? application.get('AgentSessionRuntimeService').abortPendingTurn(extractAgentSessionId(topicId), reason)
       : undefined
     const stream = this.activeStreams.get(topicId)
-    if (!stream) {
-      const aggregate = this.topicAggregates.get(topicId)
-      if (aggregate?.fenceReservedAttempts(reason)) {
-        logger.info('Fenced reserved stream attempts before launch', { topicId, reason })
-      }
+    // Reservations live on the topicAggregates entry (=== stream.aggregate while a stream exists);
+    // fence regardless of stream presence so a dispatch parked in its prepare await — approval
+    // continuation or steer preparation — can't launch after Stop.
+    const fenceAggregate = stream?.aggregate ?? this.topicAggregates.get(topicId)
+    if (fenceAggregate?.fenceReservedAttempts(reason)) {
+      logger.info('Fenced reserved stream attempts before launch', { topicId, reason })
     }
     const runtimeTerminalLeaseId =
       stream && runtimeAbort?.terminalReady
@@ -2539,20 +2540,41 @@ export class AiStreamManager extends BaseService {
       executions.set(model.modelId, exec)
     }
 
-    const stream: ActiveStream = {
-      topicId: input.topicId,
-      aggregate,
-      executions,
-      persistencePorts: new Map((input.persistencePorts ?? []).map((port) => [port.id, port])),
-      cleanupPorts: new Map((input.cleanupPorts ?? []).map((port) => [port.id, port])),
-      listeners: new Map(input.listeners.map((listener) => [listener.id, listener])),
-      status: 'pending',
-      isMultiModel: executions.size > 1,
-      lifecycle: input.lifecycle ?? this.chatLifecycle
+    const existing = this.activeStreams.get(input.topicId)
+    if (existing) {
+      // The reservation was fenced while a prior stream (approval-parked or steer-chaining) was
+      // still installed — merge into it so its listeners and any settling siblings survive.
+      if (existing.cleanupTimer) clearTimeout(existing.cleanupTimer)
+      existing.cleanupTimer = undefined
+      existing.expiresAt = undefined
+      for (const listener of input.listeners) existing.listeners.set(listener.id, listener)
+      for (const port of input.persistencePorts ?? []) existing.persistencePorts.set(port.id, port)
+      for (const port of input.cleanupPorts ?? []) existing.cleanupPorts.set(port.id, port)
+      for (const [modelId, exec] of executions) {
+        const previous = existing.executions.get(modelId)
+        if (previous && isAttemptSettled(previous.attempt.state)) aggregate.forgetAttempt(previous.attemptId)
+        existing.executions.set(modelId, exec)
+      }
+      existing.isMultiModel = existing.executions.size > 1
+      aggregate.activate()
+      existing.status = this.computeTopicStatus(existing)
+      existing.lifecycle.onActiveExecutionsChanged(existing)
+    } else {
+      const stream: ActiveStream = {
+        topicId: input.topicId,
+        aggregate,
+        executions,
+        persistencePorts: new Map((input.persistencePorts ?? []).map((port) => [port.id, port])),
+        cleanupPorts: new Map((input.cleanupPorts ?? []).map((port) => [port.id, port])),
+        listeners: new Map(input.listeners.map((listener) => [listener.id, listener])),
+        status: 'pending',
+        isMultiModel: executions.size > 1,
+        lifecycle: input.lifecycle ?? this.chatLifecycle
+      }
+      aggregate.activate()
+      this.activeStreams.set(input.topicId, stream)
+      stream.lifecycle.onCreated(stream)
     }
-    aggregate.activate()
-    this.activeStreams.set(input.topicId, stream)
-    stream.lifecycle.onCreated(stream)
 
     for (const exec of executions.values()) {
       exec.loopPromise = Promise.resolve().then(() =>
