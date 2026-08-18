@@ -991,6 +991,18 @@
       "knowledge_base_disabled_by_files": "移除附加檔案以使用知識庫",
       "knowledge_base_unavailable": "選擇具備工具能力的模型",
       "locate_editing_message": "找出原始訊息",
+      "mcp_prompts": {
+        "description": "插入 MCP 伺服器提供的提示詞",
+        "empty": "沒有可用的 MCP 提示詞",
+        "insert_failed": "提示詞插入失敗",
+        "title": "MCP 提示詞"
+      },
+      "mcp_resources": {
+        "description": "引用 MCP 伺服器提供的資源",
+        "empty": "沒有可用的 MCP 資源",
+        "read_failed": "資源讀取失敗",
+        "title": "MCP 資源"
+      },
       "new": {
         "context": "清除上下文"
       },

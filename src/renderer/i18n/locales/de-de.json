@@ -991,6 +991,18 @@
       "knowledge_base_disabled_by_files": "Entfernen Sie angehängte Dateien, um die Wissensdatenbank zu verwenden.",
       "knowledge_base_unavailable": "Wählen Sie ein werkzeugfähiges Modell",
       "locate_editing_message": "Ursprüngliche Nachricht finden",
+      "mcp_prompts": {
+        "description": "Einen von einem MCP-Server bereitgestellten Prompt einfügen",
+        "empty": "Keine MCP-Prompts verfügbar",
+        "insert_failed": "Prompt konnte nicht eingefügt werden",
+        "title": "MCP-Prompts"
+      },
+      "mcp_resources": {
+        "description": "Eine von einem MCP-Server bereitgestellte Ressource referenzieren",
+        "empty": "Keine MCP-Ressourcen verfügbar",
+        "read_failed": "Ressource konnte nicht gelesen werden",
+        "title": "MCP-Ressourcen"
+      },
       "new": {
         "context": "Kontext löschen"
       },

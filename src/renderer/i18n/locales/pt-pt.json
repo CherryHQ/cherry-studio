@@ -991,6 +991,18 @@
       "knowledge_base_disabled_by_files": "Remova os ficheiros anexados para usar a Base de Conhecimento",
       "knowledge_base_unavailable": "Selecione um modelo com capacidade de ferramentas",
       "locate_editing_message": "Localizar mensagem original",
+      "mcp_prompts": {
+        "description": "Inserir um prompt publicado por um servidor MCP",
+        "empty": "Nenhum prompt MCP disponível",
+        "insert_failed": "Falha ao inserir o prompt",
+        "title": "Prompts MCP"
+      },
+      "mcp_resources": {
+        "description": "Referenciar um recurso publicado por um servidor MCP",
+        "empty": "Nenhum recurso MCP disponível",
+        "read_failed": "Falha ao ler o recurso",
+        "title": "Recursos MCP"
+      },
       "new": {
         "context": "Limpar contexto"
       },
