@@ -1870,6 +1870,7 @@
       "503": "Serviço indisponível, por favor tente novamente mais tarde",
       "504": "Tempo de espera do gateway excedido, por favor tente novamente mais tarde"
     },
+    "image_unreadable_for_non_vision_model": "O modelo selecionado não está configurado para receber imagens e o Cherry Studio não conseguiu extrair texto legível do anexo. Ative imagem para este modelo nas definições do fornecedor, escolha outro modelo com capacidade visual ou remova a imagem e tente novamente.",
     "lastError": "Último erro",
     "maxEmbeddingsPerCall": "Máximo de embeddings por chamada",
     "message": "Mensagem de erro",

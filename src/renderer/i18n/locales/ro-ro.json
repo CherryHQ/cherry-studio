@@ -1870,6 +1870,7 @@
       "503": "Serviciu indisponibil. Te rugăm să încerci din nou mai târziu",
       "504": "Expirare gateway. Te rugăm să încerci din nou mai târziu"
     },
+    "image_unreadable_for_non_vision_model": "Modelul selectat nu este configurat pentru intrare de imagini, iar Cherry Studio nu a putut extrage text lizibil din atașament. Activați opțiunea Vizual pentru acest model în setările furnizorului, alegeți un alt model cu suport vizual sau eliminați imaginea și încercați din nou.",
     "lastError": "Ultima eroare",
     "maxEmbeddingsPerCall": "Max Embeddings per apel",
     "message": "Mesaj de eroare",

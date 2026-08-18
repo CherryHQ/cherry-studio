@@ -1870,6 +1870,7 @@
       "503": "服務無法使用，請稍後再試",
       "504": "閘道器逾時，請稍後再試"
     },
+    "image_unreadable_for_non_vision_model": "目前模型未設定圖片輸入能力，且 Cherry Studio 無法從附件中辨識出可讀文字。請前往供應商設定，在該模型的輸入模態中啟用「視覺」，或選擇其他視覺模型、移除圖片後再試一次。",
     "lastError": "最後錯誤",
     "maxEmbeddingsPerCall": "每次呼叫的最大嵌入",
     "message": "錯誤訊息",

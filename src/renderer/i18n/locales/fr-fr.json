@@ -1870,6 +1870,7 @@
       "503": "Service indisponible, veuillez réessayer plus tard.",
       "504": "Délai d'expiration de la passerelle, veuillez réessayer plus tard."
     },
+    "image_unreadable_for_non_vision_model": "Le modèle sélectionné n’est pas configuré pour accepter les images et Cherry Studio n’a pas pu extraire de texte lisible de la pièce jointe. Activez Image pour ce modèle dans les paramètres du fournisseur, choisissez un autre modèle compatible avec les images ou retirez l’image, puis réessayez.",
     "lastError": "Dernière erreur",
     "maxEmbeddingsPerCall": "Nombre maximal d'embeddings par appel",
     "message": "Erreur message",

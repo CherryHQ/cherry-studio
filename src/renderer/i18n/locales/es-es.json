@@ -1870,6 +1870,7 @@
       "503": "Servicio no disponible, inténtelo de nuevo más tarde",
       "504": "Tiempo de espera de la puerta de enlace, inténtelo de nuevo más tarde"
     },
+    "image_unreadable_for_non_vision_model": "El modelo seleccionado no está configurado para aceptar imágenes y Cherry Studio no pudo extraer texto legible del archivo adjunto. Active Imagen para este modelo en la configuración del proveedor, elija otro modelo con capacidad visual o quite la imagen e inténtelo de nuevo.",
     "lastError": "Último error",
     "maxEmbeddingsPerCall": "máximo de embeddings por llamada",
     "message": "Mensaje de error",

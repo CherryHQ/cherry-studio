@@ -1870,6 +1870,7 @@
       "503": "Dịch vụ không khả dụng. Vui lòng thử lại sau.",
       "504": "Quá thời gian chờ của cổng. Vui lòng thử lại sau."
     },
+    "image_unreadable_for_non_vision_model": "Mô hình đã chọn chưa được cấu hình để nhận hình ảnh và Cherry Studio không thể trích xuất văn bản có thể đọc được từ tệp đính kèm. Hãy bật Tầm nhìn cho mô hình này trong phần cài đặt nhà cung cấp, chọn một mô hình hỗ trợ hình ảnh khác hoặc xóa hình ảnh rồi thử lại.",
     "lastError": "Lỗi Cuối Cùng",
     "maxEmbeddingsPerCall": "Số lượng nhúng tối đa mỗi lần gọi",
     "message": "Thông báo lỗi",

@@ -1870,6 +1870,7 @@
       "503": "Service unavailable. Please try again later",
       "504": "Gateway timeout. Please try again later"
     },
+    "image_unreadable_for_non_vision_model": "The selected model isn't configured for image input, and Cherry Studio couldn't extract readable text from the attachment. Enable Vision for this model in Provider Settings, choose another vision-capable model, or remove the image and try again.",
     "lastError": "Last Error",
     "maxEmbeddingsPerCall": "Max Embeddings Per Call",
     "message": "Error Message",
