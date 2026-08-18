@@ -728,15 +728,15 @@
         },
         "tool_call": {
           "description": "Appeler un outil découvert",
-          "label": "Appeler l'outil"
+          "label": "Appeler un outil"
         },
         "tool_describe": {
-          "description": "Obtenir la description complète et la signature TypeScript d'un outil",
-          "label": "Décrire l'outil"
+          "description": "Obtenir la description complète et la signature TypeScript d’un outil",
+          "label": "Décrire un outil"
         },
         "tool_exec": {
           "description": "Exécuter du JavaScript qui orchestre les outils découverts",
-          "label": "Exécuter le code de l'outil"
+          "label": "Exécuter le code des outils"
         },
         "tool_search": {
           "description": "Rechercher les outils disponibles et lire leurs signatures TypeScript",
@@ -5637,7 +5637,8 @@
         },
         "sections": {
           "display_language": "Affichage et langue"
-        }
+        },
+        "title": "Paramètres communs"
       },
       "emoji_picker": "Sélectionneur d'émoticônes",
       "image_upload": "Téléchargement d'images",
@@ -6107,6 +6108,7 @@
         "max_messages": "Messages récents conservés",
         "max_messages_description": "N’envoie que les messages les plus récents ; les plus anciens sont exclus du contexte. Laissez vide pour ne pas limiter. Les assistants peuvent le remplacer",
         "max_messages_unlimited": "Illimité",
+        "scope_description": "S’applique uniquement aux conversations avec les assistants dans Cherry Studio. Les assistants peuvent remplacer ces paramètres individuellement.",
         "title": "Gestion du contexte",
         "truncate_threshold": "Seuil de troncature des sorties d’outils (caractères)",
         "truncate_threshold_description": "Les sorties d’outils dépassant ce nombre de caractères sont déchargées dans un fichier et tronquées ; le modèle peut les relire à la demande. Les assistants peuvent le remplacer"

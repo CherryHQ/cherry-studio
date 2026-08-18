@@ -736,11 +736,11 @@
         },
         "tool_exec": {
           "description": "Executar JavaScript que orquestra as ferramentas descobertas",
-          "label": "Executar código da ferramenta"
+          "label": "Executar código de ferramentas"
         },
         "tool_search": {
-          "description": "Procurar ferramentas disponíveis e ler as suas assinaturas TypeScript",
-          "label": "Procurar ferramentas"
+          "description": "Pesquisar ferramentas disponíveis e ler as respetivas assinaturas TypeScript",
+          "label": "Pesquisar ferramentas"
         },
         "update_goal": {
           "description": "Atualizar o estado ou o conteúdo do objetivo da sessão",
@@ -5637,7 +5637,8 @@
         },
         "sections": {
           "display_language": "Exibição e Idioma"
-        }
+        },
+        "title": "Configurações Comuns"
       },
       "emoji_picker": "Seletor de emojis",
       "image_upload": "Carregar imagem",
@@ -6107,6 +6108,7 @@
         "max_messages": "Mensagens recentes mantidas",
         "max_messages_description": "Envia apenas as mensagens mais recentes; as anteriores são excluídas do contexto. Deixe vazio para não limitar. Os assistentes podem substituir esta definição",
         "max_messages_unlimited": "Sem limite",
+        "scope_description": "Aplica-se apenas às conversas com assistentes no Cherry Studio. Cada assistente pode substituir estas definições individualmente.",
         "title": "Gestão de contexto",
         "truncate_threshold": "Limite de truncagem da saída de ferramentas (caracteres)",
         "truncate_threshold_description": "Saídas de ferramentas acima deste número de caracteres são descarregadas para um ficheiro e truncadas; o modelo pode voltar a lê-las quando precisar. Os assistentes podem substituir esta definição"
