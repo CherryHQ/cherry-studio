@@ -23,8 +23,13 @@ What still stops a Full Access agent, on every runtime:
   denied outright without a prompt;
 - destructive operations blocked for the built-in Cherry Assistant / Support agents;
 - cross-Session creation and delivery, which always require a live approval;
-- unattended turns (channel or scheduled): tools that need a live responder are denied, not silently run —
-  Full Access does not conjure an approver.
+- unattended turns (channel or scheduled): tools whose purpose is to obtain a user-authored answer —
+  `AskUserQuestion`, plan mode entry/exit — are denied, as are agent configuration changes and the built-in
+  Assistant / Support external-submission commands. Full Access does not conjure an approver for those.
+
+Unattended turns do now run the approval-only tools: on a channel or scheduled turn a Full Access agent
+performs knowledge-base edits, image generation, CLI installs, skill installs and the assistant tools without
+a prompt. That is the mode's purpose — pick a different mode for an agent that should not act unsupervised.
 
 `AskUserQuestion` still reaches the user in Full Access: it is the tool's function to ask, not a permission
 prompt.
@@ -36,7 +41,8 @@ dead-ended ("needs interactive approval") under Full Access now runs.
 
 Anyone who picked Full Access for genuinely unattended work stops being interrupted by the last few approval
 cards. Conversely, an agent on Full Access can now bill (image generation), modify knowledge bases, and
-install CLIs without asking — that is what the mode's warning has always said.
+install CLIs without asking — including on channel and scheduled turns nobody is watching. That is what the
+mode's warning has always said.
 
 ## What the user should do
 
