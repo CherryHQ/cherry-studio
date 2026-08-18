@@ -424,7 +424,6 @@ function Item<T extends ResourceListItemBase>({
       data-active-descendant={rowState.active && !rowState.selected ? true : undefined}
       data-selected={rowState.selected || undefined}
       data-reveal-focus={rowState.revealFocused || undefined}
-      data-dragging={rowState.dragging || undefined}
       tabIndex={tabIndex ?? -1}
       className={cn(
         'group relative flex w-full cursor-pointer items-center gap-1.5 px-2.5 text-foreground outline-none transition-all duration-150 has-[[data-resource-list-leading-slot=true]]:px-1.5',

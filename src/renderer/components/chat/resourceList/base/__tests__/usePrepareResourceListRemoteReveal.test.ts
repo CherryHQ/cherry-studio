@@ -143,7 +143,7 @@ describe('usePrepareResourceListRemoteReveal', () => {
     expect(result.current).toBeUndefined()
   })
 
-  it('cancels an older reveal generation when a newer request arrives', () => {
+  it('cancels an older reveal request when a newer request arrives', () => {
     const firstRequest: ResourceListRevealRequest = { itemId: 'first-target', requestId: 1 }
     const secondRequest: ResourceListRevealRequest = { itemId: 'second-target', requestId: 2 }
     const onPrepare = vi.fn()

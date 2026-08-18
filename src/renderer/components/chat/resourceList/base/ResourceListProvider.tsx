@@ -444,8 +444,6 @@ type ProviderAction =
       visibleCount?: number
     }
   | { type: 'clearRevealFocus'; itemId: string; requestId: number }
-  | { type: 'startDrag'; id: string }
-  | { type: 'endDrag' }
 
 function reducer(state: ResourceListProviderState, action: ProviderAction): ResourceListProviderState {
   switch (action.type) {
@@ -563,10 +561,6 @@ function reducer(state: ResourceListProviderState, action: ProviderAction): Reso
 
       return { ...state, revealFocus: null }
     }
-    case 'startDrag':
-      return { ...state, draggingId: action.id }
-    case 'endDrag':
-      return { ...state, draggingId: null }
   }
 }
 
@@ -626,8 +620,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
     revealFocus: null,
     renamingId: null,
     collapsedGroups: [],
-    groupVisibleCounts: {},
-    draggingId: null
+    groupVisibleCounts: {}
   })
 
   const filterById = useMemo(() => new Map(filterOptions.map((option) => [option.id, option])), [filterOptions])
@@ -651,7 +644,6 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
   if (!uiStoreRef.current) {
     uiStoreRef.current = new ResourceListUiService({
       activeId: state.activeId,
-      draggingId: state.draggingId,
       renamingId: state.renamingId,
       revealFocus: state.revealFocus,
       selectedId: effectiveSelectedId
@@ -837,10 +829,6 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
   useLayoutEffect(() => {
     uiStore.setRevealFocus(state.revealFocus)
   }, [state.revealFocus, uiStore])
-
-  useLayoutEffect(() => {
-    uiStore.setDraggingId(state.draggingId)
-  }, [state.draggingId, uiStore])
 
   useLayoutEffect(() => {
     uiStore.setViewGroups(stateGroups, getItemId)

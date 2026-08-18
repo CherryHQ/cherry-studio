@@ -39,7 +39,6 @@ export function useAssistantTopicsSource({ enabled }: { enabled?: boolean } = {}
 /** Session counterpart to {@link useAssistantTopicsSource}. */
 export function useAgentSessionsSource({ enabled }: { enabled?: boolean } = {}) {
   const statsSource = useAgentSessionStats({ enabled })
-  const loadSession = useCallback((sessionId: string) => dataApiService.get(`/agent-sessions/${sessionId}`), [])
   const loadLatestSession = useCallback(async (agentId?: string) => {
     const result =
       agentId === undefined
@@ -54,7 +53,6 @@ export function useAgentSessionsSource({ enabled }: { enabled?: boolean } = {}) 
   }, [])
   return {
     stats: statsSource.stats,
-    loadSession,
     loadLatestSession,
     reuseOrCreateSession
   }

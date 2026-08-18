@@ -93,7 +93,6 @@ export type ResourceListState = {
   renamingId: string | null
   collapsedGroups: string[]
   groupVisibleCounts: Record<string, number>
-  draggingId: string | null
   status: ResourceListStatus
 }
 

@@ -10,9 +10,8 @@ type UsePrepareResourceListRemoteRevealOptions<T extends ResourceListItemBase> =
   revealRequest?: ResourceListRevealRequest
 }
 
-type RevealGeneration = {
+type ActiveReveal = {
   attemptedSnapshots: Map<string, string>
-  generation: number
   requestKey: string
   stopped: boolean
 }
@@ -30,8 +29,7 @@ export function usePrepareResourceListRemoteReveal<T extends ResourceListItemBas
   revealRequest
 }: UsePrepareResourceListRemoteRevealOptions<T>): ResourceListRevealRequest | undefined {
   const requestKey = revealRequest ? `${revealRequest.requestId}:${revealRequest.itemId}` : null
-  const generationRef = useRef(0)
-  const activeGenerationRef = useRef<RevealGeneration | null>(null)
+  const activeRevealRef = useRef<ActiveReveal | null>(null)
   const onPrepareRef = useRef(onPrepare)
   const revealRequestRef = useRef(revealRequest)
   const [preparedReveal, setPreparedReveal] = useState<PreparedReveal>()
@@ -40,15 +38,13 @@ export function usePrepareResourceListRemoteReveal<T extends ResourceListItemBas
 
   useEffect(() => {
     const request = revealRequestRef.current
-    const generation = ++generationRef.current
     if (!request || !requestKey) {
-      activeGenerationRef.current = null
+      activeRevealRef.current = null
       return
     }
 
-    activeGenerationRef.current = {
+    activeRevealRef.current = {
       attemptedSnapshots: new Map(),
-      generation,
       requestKey,
       stopped: false
     }
@@ -57,13 +53,13 @@ export function usePrepareResourceListRemoteReveal<T extends ResourceListItemBas
 
   useEffect(() => {
     const request = revealRequestRef.current
-    const activeGeneration = activeGenerationRef.current
+    const activeReveal = activeRevealRef.current
     if (
       !request ||
       !requestKey ||
-      !activeGeneration ||
-      activeGeneration.requestKey !== requestKey ||
-      activeGeneration.stopped ||
+      !activeReveal ||
+      activeReveal.requestKey !== requestKey ||
+      activeReveal.stopped ||
       !isQueryReady ||
       candidateSnapshots.length === 0
     ) {
@@ -74,14 +70,14 @@ export function usePrepareResourceListRemoteReveal<T extends ResourceListItemBas
       (snapshot) => !snapshot.error && !snapshot.isLoading && !snapshot.isRefreshing
     )
     if (settledSnapshots.some((snapshot) => snapshot.items.some((item) => item.id === request.itemId))) {
-      activeGeneration.stopped = true
+      activeReveal.stopped = true
       setPreparedReveal({ request, requestKey })
       return
     }
 
     const availableSnapshots = candidateSnapshots.filter((snapshot) => !snapshot.error)
     if (availableSnapshots.length === 0) {
-      activeGeneration.stopped = true
+      activeReveal.stopped = true
       return
     }
 
@@ -92,7 +88,7 @@ export function usePrepareResourceListRemoteReveal<T extends ResourceListItemBas
       loadableSnapshots.length === 0 &&
       availableSnapshots.every((snapshot) => !snapshot.isLoading && !snapshot.isRefreshing)
     ) {
-      activeGeneration.stopped = true
+      activeReveal.stopped = true
       return
     }
 
@@ -100,20 +96,16 @@ export function usePrepareResourceListRemoteReveal<T extends ResourceListItemBas
     for (const snapshot of loadableSnapshots) {
       const snapshotKey = JSON.stringify([snapshot.groupId, snapshot.queryKey])
       const progressKey = snapshot.items.map((item) => item.id).join('\u001f')
-      if (activeGeneration.attemptedSnapshots.get(snapshotKey) === progressKey) continue
+      if (activeReveal.attemptedSnapshots.get(snapshotKey) === progressKey) continue
 
-      activeGeneration.attemptedSnapshots.set(snapshotKey, progressKey)
+      activeReveal.attemptedSnapshots.set(snapshotKey, progressKey)
       requestedNextPage = true
       snapshot.loadNext()
     }
 
     // A backend cursor that reports another page without adding any rows must not spin forever.
-    if (
-      !requestedNextPage &&
-      availableSnapshots.every((snapshot) => !snapshot.isLoading && !snapshot.isRefreshing) &&
-      activeGeneration.generation === generationRef.current
-    ) {
-      activeGeneration.stopped = true
+    if (!requestedNextPage && availableSnapshots.every((snapshot) => !snapshot.isLoading && !snapshot.isRefreshing)) {
+      activeReveal.stopped = true
     }
   }, [candidateSnapshots, isQueryReady, requestKey])
 

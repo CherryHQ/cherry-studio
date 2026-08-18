@@ -341,10 +341,6 @@ const dataApiMocks = vi.hoisted(() => ({
   deleteAgent: vi.fn().mockResolvedValue(undefined),
   deleteAgentSessions: vi.fn().mockResolvedValue({ deletedIds: [] as string[] }),
   deleteWorkspace: vi.fn().mockResolvedValue({ deletedIds: [] as string[] }),
-  findOrCreateWorkspace: vi.fn(async ({ body }: { body: { path: string } }) => {
-    const workspace = dataApiMocks.workspaces.find((candidate) => candidate.path === body.path)
-    return workspace ?? { id: 'ws-test', name: 'Test Workspace', path: body.path }
-  }),
   refetchWorkspaces: vi.fn().mockResolvedValue(undefined),
   refetchAgents: vi.fn().mockResolvedValue(undefined),
   reorderAgent: vi.fn().mockResolvedValue(undefined),
@@ -576,7 +572,7 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
                     ? dataApiMocks.deleteAgent
                     : method === 'DELETE' && path === '/agents/:agentId/sessions'
                       ? dataApiMocks.deleteAgentSessions
-                      : dataApiMocks.findOrCreateWorkspace,
+                      : vi.fn(),
       isLoading: false,
       error: undefined
     }
@@ -912,7 +908,6 @@ function setupSessions(overrides: Record<string, unknown> = {}) {
   }
   sessionDataMocks.source = {
     stats: sessionDataMocks.stats,
-    loadSession: vi.fn().mockResolvedValue(null),
     loadLatestSession,
     reuseOrCreateSession
   }
@@ -3572,7 +3567,6 @@ describe('Sessions', () => {
         workspace: { type: 'user', workspaceId: 'ws-a' }
       })
     )
-    expect(dataApiMocks.findOrCreateWorkspace).not.toHaveBeenCalled()
   })
 
   it('opens agent group edit and toggles agent pin from the more menu', async () => {

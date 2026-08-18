@@ -32,17 +32,8 @@ describe('buildSessionCreationDefaults', () => {
     })
   })
 
-  it('falls back to the embedded workspace path when the workspace id is missing', () => {
-    expect(
-      buildSessionCreationDefaults(session({ workspaceId: undefined, workspace: workspace('/Users/jd/project-b') }))
-    ).toEqual({
-      agentId: 'agent-1',
-      workspacePath: '/Users/jd/project-b'
-    })
-  })
-
   it('returns null when the source session has no agent', () => {
-    expect(buildSessionCreationDefaults(session({ agentId: undefined }))).toBeNull()
+    expect(buildSessionCreationDefaults(session({ agentId: null }))).toBeNull()
   })
 
   it('preserves no-project mode instead of reusing a system workspace id', () => {

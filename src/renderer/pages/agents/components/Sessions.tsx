@@ -183,8 +183,7 @@ function buildSessionRemoteQueryKey({
 
 type SessionCreationDefaults = {
   agentId: string
-  workspace?: AgentSessionWorkspaceSource
-  workspacePath?: string
+  workspace: AgentSessionWorkspaceSource
 }
 
 type SessionRemoteGroupQueryDescriptor = {
@@ -359,24 +358,16 @@ function WorkdirGroupMoreMenu({
 export function buildSessionCreationDefaults(
   session: Pick<AgentSessionEntity, 'agentId' | 'workspaceId' | 'workspace'> | null | undefined
 ): SessionCreationDefaults | null {
-  if (!session?.agentId) return null
+  if (!session || session.agentId === null) return null
 
-  if (session.workspace?.type === 'system') {
+  if (session.workspace.type === 'system') {
     return { agentId: session.agentId, workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM } }
   }
 
-  if (session.workspaceId) {
-    return {
-      agentId: session.agentId,
-      workspace: { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: session.workspaceId }
-    }
+  return {
+    agentId: session.agentId,
+    workspace: { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: session.workspaceId }
   }
-
-  if (session.workspace?.path) {
-    return { agentId: session.agentId, workspacePath: session.workspace.path }
-  }
-
-  return { agentId: session.agentId, workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM } }
 }
 
 export function findLatestSessionCreationDefaults(
@@ -1577,9 +1568,6 @@ const Sessions = ({
     [handleSessionImageAction]
   )
 
-  const { trigger: findOrCreateWorkspace } = useMutation('POST', '/agent-workspaces', {
-    refresh: ['/agent-workspaces']
-  })
   const { trigger: updateWorkspace, isLoading: isUpdatingWorkspace } = useMutation(
     'PATCH',
     '/agent-workspaces/:workspaceId',
@@ -1598,9 +1586,9 @@ const Sessions = ({
   const { trigger: reorderAgent } = useMutation('PATCH', '/agents/:id/order', { refresh: ['/agents'] })
 
   const createSessionFromDefaults = useCallback(
-    async (defaults: SessionCreationDefaults | null | undefined) => {
+    async (defaults: SessionCreationDefaults | null) => {
       if (creatingSession) return null
-      if (!defaults?.agentId) {
+      if (!defaults) {
         const defaultAgent = agentsForDisplay[0]
         if (defaultAgent) {
           const createdSession = await onCreateSession?.({
@@ -1620,18 +1608,9 @@ const Sessions = ({
 
       setCreatingSession(true)
       try {
-        const workspace =
-          defaults.workspace ??
-          (defaults.workspacePath
-            ? ({
-                type: AGENT_WORKSPACE_TYPE.USER,
-                workspaceId: (await findOrCreateWorkspace({ body: { path: defaults.workspacePath } })).id
-              } satisfies AgentSessionWorkspaceSource)
-            : ({ type: AGENT_WORKSPACE_TYPE.SYSTEM } satisfies AgentSessionWorkspaceSource))
-
         const createdSession = await onCreateSession?.({
           agentId: defaults.agentId,
-          workspace
+          workspace: defaults.workspace
         })
 
         if (!createdSession) setActiveSessionId(null)
@@ -1644,20 +1623,11 @@ const Sessions = ({
         setCreatingSession(false)
       }
     },
-    [
-      agentById,
-      agentsForDisplay,
-      creatingSession,
-      findOrCreateWorkspace,
-      onShowMissingAgentSelection,
-      onCreateSession,
-      setActiveSessionId,
-      t
-    ]
+    [agentById, agentsForDisplay, creatingSession, onShowMissingAgentSelection, onCreateSession, setActiveSessionId, t]
   )
 
   const requestCreateSessionFromDefaults = useCallback(
-    (defaults: SessionCreationDefaults | null | undefined) => {
+    (defaults: SessionCreationDefaults | null) => {
       const transition = async () => {
         await createSessionFromDefaults(defaults)
       }

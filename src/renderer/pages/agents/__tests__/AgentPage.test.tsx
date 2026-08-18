@@ -145,7 +145,6 @@ vi.mock('@renderer/hooks/resourceViewSources', () => ({
     }))
     const source = {
       stats: { total: sessions.length, pinnedCount: 0, byAgent, byWorkspace: [] },
-      loadSession: vi.fn(async (sessionId: string) => sessions.find((session) => session.id === sessionId)),
       loadLatestSession: agentPageMocks.loadLatestSession,
       reuseOrCreateSession: agentPageMocks.reuseOrCreateSession
     }

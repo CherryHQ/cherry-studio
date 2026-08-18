@@ -4,7 +4,6 @@ export type ResourceListRevealFocus = { itemId: string; requestId: number } | nu
 
 export type ResourceListRowStateSnapshot = {
   active: boolean
-  dragging: boolean
   renaming: boolean
   revealFocused: boolean
   selected: boolean
@@ -24,7 +23,6 @@ export type ResourceListGroupStateSnapshot = {
 
 type ResourceListUiStoreState = {
   activeId: string | null
-  draggingId: string | null
   renamingId: string | null
   revealFocus: ResourceListRevealFocus
   selectedId: string | null
@@ -39,7 +37,6 @@ type ResourceListGroupRecord = Omit<ResourceListGroupStateSnapshot, 'selected' |
 
 const EMPTY_ROW_STATE: ResourceListRowStateSnapshot = Object.freeze({
   active: false,
-  dragging: false,
   renaming: false,
   revealFocused: false,
   selected: false
@@ -59,7 +56,6 @@ const EMPTY_GROUP_STATE: ResourceListGroupStateSnapshot = Object.freeze({
 function sameRowState(a: ResourceListRowStateSnapshot, b: ResourceListRowStateSnapshot) {
   return (
     a.active === b.active &&
-    a.dragging === b.dragging &&
     a.renaming === b.renaming &&
     a.revealFocused === b.revealFocused &&
     a.selected === b.selected
@@ -99,7 +95,6 @@ export class ResourceListUiService {
   constructor(initialState: Partial<ResourceListUiStoreState> = {}) {
     this.state = {
       activeId: initialState.activeId ?? null,
-      draggingId: initialState.draggingId ?? null,
       renamingId: initialState.renamingId ?? null,
       revealFocus: initialState.revealFocus ?? null,
       selectedId: initialState.selectedId ?? null
@@ -110,7 +105,6 @@ export class ResourceListUiService {
   getRowSnapshot = (itemId: string): ResourceListRowStateSnapshot => {
     const next: ResourceListRowStateSnapshot = {
       active: this.state.activeId === itemId,
-      dragging: this.state.draggingId === itemId,
       renaming: this.state.renamingId === itemId,
       revealFocused: this.state.revealFocus?.itemId === itemId,
       selected: this.state.selectedId === itemId
@@ -198,13 +192,6 @@ export class ResourceListUiService {
         this.groupCache.delete(groupId)
       }
     }
-  }
-
-  setDraggingId = (draggingId: string | null) => {
-    if (this.state.draggingId === draggingId) return
-    const previousId = this.state.draggingId
-    this.state = { ...this.state, draggingId }
-    this.notifyRows(previousId, draggingId)
   }
 
   setRenamingId = (renamingId: string | null) => {

@@ -372,7 +372,6 @@ function createAgentSessionsSource(overrides: Partial<AgentSessionsSource> = {})
       byAgent: [{ agentId: 'agent-1', count: 1, pinnedCount: 0 }],
       byWorkspace: []
     },
-    loadSession: vi.fn().mockResolvedValue(null),
     loadLatestSession: vi.fn().mockResolvedValue(null),
     reuseOrCreateSession: vi.fn(),
     ...overrides

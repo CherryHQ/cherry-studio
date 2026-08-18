@@ -353,22 +353,22 @@ export function useTopicMutations() {
   const writeCache = useWriteCache()
   const closeConversationTabs = useCloseConversationTabs()
 
-  const { trigger: createTrigger, isLoading: isCreating } = useMutation('POST', '/topics', {
+  const { trigger: createTrigger } = useMutation('POST', '/topics', {
     refresh: TOPIC_LIST_REFRESH
   })
-  const { trigger: updateTrigger, isLoading: isUpdating } = useMutation('PATCH', '/topics/:id', {
+  const { trigger: updateTrigger } = useMutation('PATCH', '/topics/:id', {
     refresh: ({ args }) => {
       const body = args!.body!
       const refreshStats = 'name' in body || 'assistantId' in body
       return ['/topics', ...(refreshStats ? (['/topics/stats'] as const) : []), `/topics/${args!.params.id}`]
     }
   })
-  const { trigger: deleteTrigger, isLoading: isDeleting } = useMutation('DELETE', '/topics/:id', {
+  const { trigger: deleteTrigger } = useMutation('DELETE', '/topics/:id', {
     // After delete, only invalidate the list — refreshing `/topics/:id` would
     // trigger a fetch that 404s and caches an error in SWR.
     refresh: TOPIC_LIST_REFRESH
   })
-  const { trigger: deleteManyTrigger, isLoading: isDeletingMany } = useMutation('DELETE', '/topics', {
+  const { trigger: deleteManyTrigger } = useMutation('DELETE', '/topics', {
     refresh: [...TOPIC_LIST_REFRESH, '/pins']
   })
   const { trigger: deleteByAssistantTrigger } = useMutation('DELETE', '/assistants/:assistantId/topics', {
@@ -515,10 +515,7 @@ export function useTopicMutations() {
     duplicateTopicBranch,
     moveTopic,
     batchUpdateTopics,
-    refreshTopics,
-    isCreating,
-    isUpdating,
-    isDeleting: isDeleting || isDeletingMany
+    refreshTopics
   }
 }
 
