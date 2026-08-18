@@ -3198,7 +3198,7 @@ describe('Topics', () => {
     )
   })
 
-  it('keeps pinned assistants ahead of group order when assistant topics move back to the left panel', () => {
+  it('keeps canonical group order ahead of pinned assistant order in the left topic list', () => {
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'assistant.tab.sort_type': 'tags',
       'topic.tab.display_mode': 'assistant',
@@ -3237,7 +3237,7 @@ describe('Topics', () => {
     expect(homeSection).toBeInTheDocument()
     expect(alphaAssistant).toBeInTheDocument()
     expect(betaAssistant).toBeInTheDocument()
-    expect(homeSection!.compareDocumentPosition(workSection!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(workSection!.compareDocumentPosition(homeSection!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(workSection!.compareDocumentPosition(alphaAssistant) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(homeSection!.compareDocumentPosition(betaAssistant) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
@@ -3549,6 +3549,9 @@ describe('Topics', () => {
 
     renderTopicList()
 
+    const workSection = screen.getByRole('button', { name: 'Work' })
+    const homeSection = screen.getByRole('button', { name: 'Home' })
+    expect(workSection.compareDocumentPosition(homeSection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(groupChevron(screen.getByRole('button', { name: 'Alpha Assistant' }))).toHaveAttribute(
       'aria-expanded',
       'false'
@@ -3564,6 +3567,11 @@ describe('Topics', () => {
     // Expanding Alpha clears only that assistant from the collapse list.
     expect(getTopicGroupExpansionCache().assistant).not.toContain('topic:assistant:assistant-1')
     expect(getTopicGroupExpansionCache().assistant).not.toContain('topic:assistant:assistant-2')
+    expect(
+      screen
+        .getByRole('button', { name: 'Work' })
+        .compareDocumentPosition(screen.getByRole('button', { name: 'Home' })) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
   })
 
   it('persists assistant group reorder and applies the assistant order optimistically', async () => {

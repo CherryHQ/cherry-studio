@@ -592,11 +592,6 @@ export function Topics({
     return orderedAssistants
       .map((assistant, index) => ({ assistant, index }))
       .sort((a, b) => {
-        const aPinned = assistantPinnedIdSet.has(a.assistant.id)
-        const bPinned = assistantPinnedIdSet.has(b.assistant.id)
-        if (aPinned !== bPinned) return aPinned ? -1 : 1
-        if (aPinned) return a.index - b.index
-
         const aGroupRank = a.assistant.groupId ? groupRankById.get(a.assistant.groupId) : undefined
         const bGroupRank = b.assistant.groupId ? groupRankById.get(b.assistant.groupId) : undefined
         const aRank = aGroupRank === undefined ? 0 : aGroupRank + 1
@@ -604,7 +599,7 @@ export function Topics({
         return aRank - bRank || a.index - b.index
       })
       .map(({ assistant }) => assistant)
-  }, [assistantPinnedIdSet, groupRankById, isGroupGrouping, orderedAssistants])
+  }, [groupRankById, isGroupGrouping, orderedAssistants])
   const assistantRankById = useMemo(
     () => new Map(assistantsForDisplayOrder.map((assistant, index) => [assistant.id, index])),
     [assistantsForDisplayOrder]
@@ -636,7 +631,7 @@ export function Topics({
     [globalTopicStats]
   )
   const orderedAssistantTopicGroupIds = useMemo(() => {
-    const groupIds = orderedAssistants.map((assistant) =>
+    const groupIds = assistantsForDisplayOrder.map((assistant) =>
       getTopicAssistantDisplayGroupId({ assistantId: assistant.id })
     )
     const unlinkedStats = assistantTopicStatsByGroupId.get(TOPIC_UNLINKED_ASSISTANT_GROUP_ID)
@@ -644,7 +639,7 @@ export function Topics({
       groupIds.push(TOPIC_UNLINKED_ASSISTANT_GROUP_ID)
     }
     return groupIds
-  }, [assistantTopicStatsByGroupId, orderedAssistants])
+  }, [assistantTopicStatsByGroupId, assistantsForDisplayOrder])
   const activeOrdinaryAssistantGroupId =
     activeTopic && activeTopic.pinned !== true && !pinnedTopicRows.some((topic) => topic.id === activeTopic.id)
       ? getTopicAssistantDisplayGroupId(activeTopic)

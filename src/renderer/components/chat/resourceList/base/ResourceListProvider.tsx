@@ -231,17 +231,7 @@ function buildResourceListSections<T extends ResourceListItemBase>({
   const collapsedIdSet = new Set(collapsedIds)
   const sections = new Map<string, { section: ResourceListSection; items: T[]; groupSeeds: ResourceListGroup[] }>()
 
-  for (const item of items) {
-    const section = sectionBy(item) ?? UNSECTIONED_RESOURCE_SECTION
-
-    const existing = sections.get(section.id)
-    if (existing) {
-      existing.items.push(item)
-    } else {
-      sections.set(section.id, { section, items: [item], groupSeeds: [] })
-    }
-  }
-
+  // Seeds define hierarchy order; remote item presence changes as groups collapse.
   for (const groupSeed of groupSeeds) {
     const section = groupSeed.section ?? UNSECTIONED_RESOURCE_SECTION
     const group = getResourceListGroupFromSeed(groupSeed)
@@ -250,6 +240,17 @@ function buildResourceListSections<T extends ResourceListItemBase>({
       existing.groupSeeds.push(group)
     } else {
       sections.set(section.id, { section, items: [], groupSeeds: [group] })
+    }
+  }
+
+  for (const item of items) {
+    const section = sectionBy(item) ?? UNSECTIONED_RESOURCE_SECTION
+
+    const existing = sections.get(section.id)
+    if (existing) {
+      existing.items.push(item)
+    } else {
+      sections.set(section.id, { section, items: [item], groupSeeds: [] })
     }
   }
 
