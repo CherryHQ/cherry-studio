@@ -56,7 +56,7 @@ export interface BridgePolicy {
   editTools: string[]
   /** First-party bridged tools that may run without a per-call approval. */
   autoApprovedTools: string[]
-  /** Sensitive bridged tools that still require approval in bypass mode. */
+  /** Sensitive bridged tools needing per-call approval; bypassPermissions is the explicit opt-out. */
   approvalRequiredTools: string[]
   /**
    * The only tools executable while plan mode is active, beyond contained reads.
