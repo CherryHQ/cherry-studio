@@ -39,24 +39,6 @@ jobs:
       - name: Install Dependencies
         run: pnpm install
 
-      # Ship the release with up-to-date translations instead of waiting for the daily auto-i18n PR.
-      - name: 🏃‍♀️ Translate
-        env:
-          TRANSLATION_API_KEY: ${{ secrets.TRANSLATE_API_KEY }}
-          TRANSLATION_MODEL: ${{ vars.TRANSLATION_MODEL || 'deepseek/deepseek-v4-flash' }}
-          TRANSLATION_BASE_URL: ${{ vars.TRANSLATION_BASE_URL || 'https://api.ppinfra.com/openai/v1' }}
-          TRANSLATION_BASE_LOCALE: ${{ vars.TRANSLATION_BASE_LOCALE || 'en-us' }}
-        # auto-translate-i18n.ts exits non-zero when any string kept its placeholder.
-        run: pnpm i18n:sync && pnpm i18n:translate && pnpm format
-
-      # Commit on main so the release branch Claude cuts below carries the translations.
-      - name: 📝 Commit translations
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add src/renderer/i18n src/main/i18n
-          git diff --cached --quiet || git commit -m "🤖 Daily Auto I18N Sync (pre-release)"
-
       - name: Prepare Release via Claude
         uses: anthropics/claude-code-action@v1.0.66
         with:
