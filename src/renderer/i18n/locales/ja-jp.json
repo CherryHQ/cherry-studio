@@ -5618,7 +5618,8 @@
         },
         "sections": {
           "display_language": "表示と言語"
-        }
+        },
+        "title": "共通設定"
       },
       "emoji_picker": "絵文字ピッカー",
       "image_upload": "画像アップロード",

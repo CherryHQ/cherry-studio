@@ -1,3 +1,4 @@
+import zhCN from '@renderer/i18n/locales/zh-cn.json'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -48,7 +49,7 @@ vi.mock('react-i18next', () => ({
         'settings.channels.title': '频道',
         'settings.dependencies.title': '环境依赖',
         'settings.dependencies.localModels.title': '本地模型',
-        'settings.general.common.title': '通用',
+        'settings.general.common.title': zhCN.settings.general.common.title,
         'settings.menuGroups.automation': '效率',
         'settings.menuGroups.capabilities': '工具',
         'settings.menuGroups.personal': '偏好',
