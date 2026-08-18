@@ -998,9 +998,11 @@
         "title": "Prompturi MCP"
       },
       "mcp_resources": {
+        "binary_unsupported": "Resursele binare nu sunt încă acceptate ({{mimeType}})",
         "description": "Referențiați o resursă publicată de un server MCP",
         "empty": "Nicio resursă MCP disponibilă",
         "read_failed": "Nu s-a putut citi resursa",
+        "reader_unavailable": "Resursa este prea mare — modelul curent nu o poate citi",
         "title": "Resurse MCP"
       },
       "new": {

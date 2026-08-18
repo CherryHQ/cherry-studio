@@ -14,10 +14,10 @@ import { defineRoute } from '../define'
  * plus three push events. Handlers span three services (McpRuntimeService /
  * McpCatalogService / McpPackageService); see handlers/mcp.ts.
  *
- * `server.list_prompts` / `server.list_resources` / `server.get_prompt` / `server.get_resource` keep
- * `z.any()` outputs: they hand back raw MCP protocol shapes (`GetPromptResult`,
- * `GetResourceResponse`) whose types live in the SDK / src/main, and the renderer consumes them
- * untyped — same contract the legacy preload had. Upload inputs carry the file as an ArrayBuffer
+ * `server.list_prompts` / `server.list_resources` / `server.get_prompt` keep `z.any()` outputs: they
+ * hand back raw MCP protocol shapes (`GetPromptResult`) whose types live in the SDK / src/main, and
+ * the renderer consumes them untyped — same contract the legacy preload had.
+ * `server.read_resource_preview` is typed, since its shape exists for the composer alone. Upload inputs carry the file as an ArrayBuffer
  * (structured-clone safe); the renderer does `file.arrayBuffer()` at the call site now.
  */
 const serverId = z.object({ serverId: z.string() })
@@ -41,9 +41,20 @@ export const mcpRequestSchemas = {
     }),
     output: z.any()
   }),
-  'mcp.server.get_resource': defineRoute({
-    input: z.object({ serverId: z.string().min(1), uri: z.string().min(1) }),
-    output: z.any()
+  // Bounded read for the composer: capped main-side so an oversized resource never crosses IPC in
+  // full just to be discarded (`readMcpResourcePreview`).
+  'mcp.server.read_resource_preview': defineRoute({
+    input: z.object({
+      serverId: z.string().min(1),
+      uri: z.string().min(1),
+      maxChars: z.number().int().positive()
+    }),
+    output: z.object({
+      text: z.string(),
+      totalChars: z.number().int().nonnegative(),
+      mimeType: z.string().optional(),
+      isBinary: z.boolean()
+    })
   }),
   'mcp.server.check_connectivity': defineRoute({ input: serverIdNonEmpty, output: z.boolean() }),
   'mcp.server.get_version': defineRoute({ input: serverIdNonEmpty, output: z.string().nullable() }),

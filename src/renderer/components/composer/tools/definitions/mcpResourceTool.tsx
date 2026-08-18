@@ -8,6 +8,7 @@ import { useAgent } from '@renderer/hooks/agent/useAgent'
 import { useScopedMcpServers } from '@renderer/hooks/useMcpServer'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { isSupportedToolUse } from '@renderer/utils/assistant'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { DEFAULT_MCP_MODE } from '@shared/data/types/assistant'
 import type { McpResource } from '@shared/types/mcp'
@@ -36,15 +37,8 @@ export function isTextLikeMcpResource(mimeType?: string): boolean {
   return TEXT_LIKE_MIME_PATTERN.test(mimeType)
 }
 
-function resourceContentsToText(contents: readonly McpResource[]): string {
-  return contents
-    .map((content) => content.text ?? '')
-    .filter(Boolean)
-    .join('\n')
-}
-
 const McpResourceComposerRuntime = ({ context }: { context: McpResourceToolContext }) => {
-  const { actions, assistant, launcher, scope, session, t } = context
+  const { actions, assistant, launcher, model, scope, session, t } = context
   const { isVisible, symbol, updateList } = useQuickPanel()
   const [dataRequested, setDataRequested] = useState(false)
   const [resources, setResources] = useState<McpResource[]>([])
@@ -60,6 +54,17 @@ const McpResourceComposerRuntime = ({ context }: { context: McpResourceToolConte
       isMountedRef.current = false
     }
   }, [])
+
+  /**
+   * Which reader a deferred (reference) pick can rely on. Agent sessions read resources through the
+   * MCP bridge their runtime already speaks; chat reads them with the `mcp_resource_read` builtin,
+   * which only exists for a model that can call function tools. Neither is available otherwise, and
+   * a reference promising a reader that is not there is worse than refusing the pick.
+   */
+  const resourceReader = useMemo<'runtime' | 'mcp_resource_read' | null>(() => {
+    if (scope === TopicType.Session) return 'runtime'
+    return isSupportedToolUse(model) ? 'mcp_resource_read' : null
+  }, [model, scope])
 
   const { agent } = useAgent(dataRequested && scope === TopicType.Session ? (session?.agentId ?? null) : null)
   const boundServerIds = useMemo<readonly string[] | 'all' | null>(() => {
@@ -102,7 +107,7 @@ const McpResourceComposerRuntime = ({ context }: { context: McpResourceToolConte
   const insertReferenceToken = useCallback(
     (resource: McpResource, options?: QuickPanelCallBackOptions) => {
       const inputAdapter = options?.inputAdapter
-      const token = mcpResourceToComposerToken(resource)
+      const token = mcpResourceToComposerToken(resource, { reader: resourceReader ?? 'runtime' })
       if (inputAdapter?.insertToken) {
         inputAdapter.insertToken(token)
         inputAdapter.focus()
@@ -111,7 +116,7 @@ const McpResourceComposerRuntime = ({ context }: { context: McpResourceToolConte
       // Composers without a token-capable adapter (plain textarea) still get the sentence.
       actions.onTextChange?.((prev) => `${prev}${token.promptText ?? ''}`)
     },
-    [actions]
+    [actions, resourceReader]
   )
 
   const insertText = useCallback(
@@ -129,26 +134,29 @@ const McpResourceComposerRuntime = ({ context }: { context: McpResourceToolConte
 
   const handleSelect = useCallback(
     async (resource: McpResource, options?: QuickPanelCallBackOptions) => {
-      // Binary resources have no composer text form, so they skip the read entirely.
-      if (!isTextLikeMcpResource(resource.mimeType)) {
-        insertReferenceToken(resource, options)
-        return
-      }
-
       const generation = ++selectionGenerationRef.current
       try {
-        const result = await ipcApi.request('mcp.server.get_resource', {
+        // Capped main-side: only the inline budget crosses IPC, plus the metadata needed to decide
+        // between inlining and attaching a reference.
+        const preview = await ipcApi.request('mcp.server.read_resource_preview', {
           serverId: resource.serverId,
-          uri: resource.uri
+          uri: resource.uri,
+          maxChars: MCP_RESOURCE_INLINE_MAX_CHARS
         })
         // The composer this pick targeted may be gone (topic switch, unmount) by now.
         if (!isMountedRef.current || generation !== selectionGenerationRef.current) return
-        const text = resourceContentsToText((result as { contents?: McpResource[] })?.contents ?? [])
-        if (!text || text.length > MCP_RESOURCE_INLINE_MAX_CHARS) {
-          insertReferenceToken(resource, options)
+
+        if (preview.text && preview.totalChars <= MCP_RESOURCE_INLINE_MAX_CHARS) {
+          insertText(preview.text, options)
           return
         }
-        insertText(text, options)
+        // Everything else has to be read later, by a tool — which only exists when the runtime
+        // exposes one. Saying so beats attaching a reference nothing in this scope can follow.
+        if (!resourceReader) {
+          toast.error(t('chat.input.mcp_resources.reader_unavailable'))
+          return
+        }
+        insertReferenceToken(resource, options)
       } catch (error) {
         if (!isMountedRef.current || generation !== selectionGenerationRef.current) return
         logger.error('Failed to read MCP resource', error as Error, {
@@ -158,7 +166,7 @@ const McpResourceComposerRuntime = ({ context }: { context: McpResourceToolConte
         toast.error(formatErrorMessageWithPrefix(error, t('chat.input.mcp_resources.read_failed')))
       }
     },
-    [insertReferenceToken, insertText, t]
+    [insertReferenceToken, insertText, resourceReader, t]
   )
 
   const items = useMemo<QuickPanelListItem[]>(() => {
@@ -184,15 +192,23 @@ const McpResourceComposerRuntime = ({ context }: { context: McpResourceToolConte
       ]
     }
 
-    return resources.map((resource) => ({
-      id: `mcp-resource:${resource.serverId}:${resource.uri}`,
-      label: resource.name || resource.uri,
-      description: resource.description || resource.uri,
-      filterText: [resource.name, resource.uri, resource.description, resource.serverName].filter(Boolean).join(' '),
-      icon: <McpLogo aria-hidden />,
-      suffix: resource.serverName,
-      action: (options: QuickPanelCallBackOptions) => void handleSelect(resource, options)
-    }))
+    return resources.map((resource) => {
+      // Binary content has no composer form: it can be neither inlined nor read back as text by the
+      // resource tools, so offering it would only produce a reference that cannot be followed.
+      const isBinary = !isTextLikeMcpResource(resource.mimeType)
+      return {
+        id: `mcp-resource:${resource.serverId}:${resource.uri}`,
+        label: resource.name || resource.uri,
+        description: isBinary
+          ? t('chat.input.mcp_resources.binary_unsupported', { mimeType: resource.mimeType ?? '' })
+          : resource.description || resource.uri,
+        filterText: [resource.name, resource.uri, resource.description, resource.serverName].filter(Boolean).join(' '),
+        icon: <McpLogo aria-hidden />,
+        suffix: resource.serverName,
+        disabled: isBinary,
+        action: isBinary ? undefined : (options: QuickPanelCallBackOptions) => void handleSelect(resource, options)
+      }
+    })
   }, [dataRequested, handleSelect, isLoadingResources, resources, t])
 
   const resourceLauncher = useMemo<ComposerToolLauncher>(
