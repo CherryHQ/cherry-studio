@@ -371,7 +371,7 @@ export default function ModelCheckDialog() {
                         ? t('settings.provider.no_models_for_check')
                         : t('settings.models.empty')
                     }
-                    popoverClassName="w-(--radix-popover-trigger-width) [&_[data-slot=command-list]]:max-h-[280px]"
+                    popoverClassName="w-(--radix-popover-trigger-width)! [&_[data-slot=command-list]]:max-h-[280px]"
                     renderOption={(option) => renderModelOptionContent(option.model, option.description)}
                     renderValue={(value, options) => {
                       const selectedValue = Array.isArray(value) ? value[0] : value
