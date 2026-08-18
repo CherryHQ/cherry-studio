@@ -1253,7 +1253,14 @@ async function publishStagedWorkspaceEntry(stagingPath: string, destinationPath:
   if (stagingStat.isFile()) {
     // A hard-link publish is atomic and fails if the target appears concurrently.
     // The staging entry is on the same managed volume and is unlinked in `finally`.
-    await link(stagingPath, destinationPath)
+    try {
+      await link(stagingPath, destinationPath)
+    } catch (error) {
+      if (!(error instanceof Error && 'code' in error && error.code === 'EISDIR')) throw error
+      // Some Windows volumes report unsupported hard links as EISDIR.
+      // COPYFILE_EXCL preserves the no-overwrite publication contract.
+      await copyFile(stagingPath, destinationPath, constants.COPYFILE_EXCL)
+    }
     return
   }
   if (stagingStat.isDirectory()) {
