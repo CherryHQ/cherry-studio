@@ -2899,6 +2899,100 @@ describe('AiStreamManager', () => {
       expect(mgr.inspect(topicId)?.status).toBe('aborted')
     })
 
+    it('consumes the Stop fence ahead of the blocked-persistence guard', async () => {
+      const topicId = 'blocked-sibling-stop-topic'
+      const persistence = new FakePersistencePort('persistence:blocked-sibling')
+      mockGetMessageById.mockImplementation((id) => ({
+        id,
+        role: 'assistant',
+        topicId,
+        parentId: 'user-1',
+        siblingsGroupId: 7
+      }))
+      let siblingWrites = 0
+      let releaseRecovery!: () => void
+      const recoveryGate = new Promise<void>((resolve) => {
+        releaseRecovery = resolve
+      })
+      persistence.onDoneImpl = async (result) => {
+        if (result.anchorMessageId !== 'assistant-b') return
+        siblingWrites += 1
+        // First write blocks the sibling; Stop's immediate retry parks on the gate so the
+        // recovery is still held when send() arrives, then fails and gets abandoned.
+        if (siblingWrites > 1) await recoveryGate
+        throw new TerminalPersistenceError(error('db unavailable'), false)
+      }
+
+      await mgr._doInit()
+      mgr.send({
+        topicId,
+        models: [
+          { modelId: 'provider-a::model-a', request: { ...req(topicId), messageId: 'assistant-a' } },
+          { modelId: 'provider-b::model-b', request: { ...req(topicId), messageId: 'assistant-b' } }
+        ],
+        listeners: [new FakeListener('wc:blocked-sibling')],
+        persistencePorts: [persistence],
+        siblingsGroupId: 7
+      })
+      await mgr.onExecutionError(topicId, 'provider-a::model-a', error('model unavailable'))
+
+      // In-place retry of model-a reserves A2 while model-b is still live, then parks in its
+      // prepare await (history/compaction).
+      const reservation = mgr.reserveDispatchCommand(
+        topicId,
+        {
+          kind: 'replace-live',
+          change: {
+            mode: 'replace',
+            modelId: 'provider-a::model-a',
+            anchorMessageId: 'assistant-a',
+            parentAnchorId: 'user-1',
+            siblingsGroupId: 7
+          }
+        },
+        1,
+        () => undefined
+      )
+
+      // The sibling's terminal write fails while the retry dispatch is still parked.
+      await mgr.onExecutionDone(topicId, 'provider-b::model-b')
+
+      // Stop fences A2 and starts the sibling's held recovery; send() lands before it resolves.
+      mgr.abort(topicId, 'user-requested')
+      const listener = new FakeListener('wc:blocked-sibling-late')
+      const continued = mgr.send({
+        topicId,
+        models: [
+          {
+            modelId: 'provider-a::model-a',
+            request: { ...req(topicId), messageId: 'assistant-a' }
+          }
+        ],
+        listeners: [listener],
+        persistencePorts: [persistence],
+        siblingsGroupId: 7,
+        liveExecutionChange: { mode: 'replace', parentAnchorId: 'user-1', siblingsGroupId: 7 },
+        receipt: reservation.receipt
+      })
+
+      expect(continued.mode).toBe('started')
+      expect(mockStreamText).toHaveBeenCalledTimes(2) // only the original two launches — none after Stop
+
+      await vi.advanceTimersByTimeAsync(0)
+      expect(persistence.pausedResults).toEqual([
+        expect.objectContaining({ anchorMessageId: 'assistant-a', isTopicDone: false, status: 'paused' })
+      ])
+
+      // The sibling's recovery resolves: the retry still fails, Stop's abandon settles it, and the
+      // topic quiesces instead of stranding the reserved attempt.
+      releaseRecovery()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(mgr.inspect(topicId)?.status).toBe('error')
+      expect(() =>
+        mgr.reserveDispatchCommand(topicId, { kind: 'start', modelCount: 1 }, 1, () => undefined)
+      ).not.toThrow()
+    })
+
     it('rejects an ordinary start before it writes rows while approval is parked', async () => {
       const topicId = 'approval-start-topic'
       startSingle(mgr, {

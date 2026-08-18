@@ -1102,9 +1102,8 @@ export class AiStreamManager extends BaseService {
     }
 
     const existing = this.activeStreams.get(input.topicId)
-    if (existing?.aggregate.hasPersistenceBlockedAttempts() && input.models.length > 0) {
-      throw new AiStreamAdmissionError(aiStreamAdmissionReasons.TOPIC_BUSY)
-    }
+    // Consume a Stop fence before the blocked-persistence guard: a reservation fenced while its
+    // dispatch was parked in the prepare await must settle paused, not strand behind TOPIC_BUSY.
     const reservedAttemptIds = input.receipt?.reservedAttemptIds
     const reservedAggregate = existing?.aggregate ?? this.topicAggregates.get(input.topicId)
     const reservedAbortReason =
@@ -1113,6 +1112,9 @@ export class AiStreamManager extends BaseService {
         : undefined
     if (reservedAbortReason !== undefined && reservedAggregate) {
       return this.settleAbortedReservation(input, reservedAggregate, reservedAbortReason)
+    }
+    if (existing?.aggregate.hasPersistenceBlockedAttempts() && input.models.length > 0) {
+      throw new AiStreamAdmissionError(aiStreamAdmissionReasons.TOPIC_BUSY)
     }
     const liveExecutionChange = input.liveExecutionChange
     const committedLiveExecutionChange =
