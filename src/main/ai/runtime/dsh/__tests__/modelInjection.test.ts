@@ -44,7 +44,11 @@ import {
 } from '../modelInjection'
 
 const GATEWAY_KEY = 'sk-cherry-gateway-secret'
-const GATEWAY = { baseUrl: 'http://127.0.0.1:23333', apiKey: GATEWAY_KEY }
+const GATEWAY_USAGE_HEADERS = {
+  'x-cherry-agent-session-id': 'session-1',
+  'x-cherry-internal-usage-token': 'usage-token'
+}
+const GATEWAY = { baseUrl: 'http://127.0.0.1:23333', apiKey: GATEWAY_KEY, usageHeaders: GATEWAY_USAGE_HEADERS }
 
 /** A Vertex-family Google provider: no native dsh wire family, but gateway-routable. */
 const vertexProvider = {
@@ -98,6 +102,7 @@ describe('buildDshGatewayInjection', () => {
     expect(injection.modelId).toBe('vertexai:gemini-2.5-pro')
     expect(injection.modelConfig.id).toBe('vertexai:gemini-2.5-pro')
     expect(injection.apiKey).toBe(GATEWAY_KEY)
+    expect(injection.headers).toEqual(GATEWAY_USAGE_HEADERS)
     expect(injection.usageCapture).toEqual({ owner: 'provider-calls' })
   })
 
@@ -107,6 +112,7 @@ describe('buildDshGatewayInjection', () => {
       providerName: injection.providerName,
       api: injection.api,
       baseUrl: injection.baseUrl,
+      ...(injection.headers ? { headers: injection.headers } : {}),
       modelConfig: injection.modelConfig,
       workspacePath: '/tmp/ws',
       dshRoot: '/tmp/root',
@@ -123,7 +129,8 @@ describe('buildDshGatewayInjection', () => {
     expect(route).toMatchObject({
       apiKeyEnv: 'CHERRY_DSH_API_KEY',
       api: 'openai-completions',
-      baseURL: 'http://127.0.0.1:23333/v1'
+      baseURL: 'http://127.0.0.1:23333/v1',
+      headers: GATEWAY_USAGE_HEADERS
     })
     expect(route).not.toHaveProperty('apiKey')
     expect(route.models[0].id).toBe('vertexai:gemini-2.5-pro')
@@ -161,6 +168,7 @@ describe('resolveDshProviderInjectionFromSnapshot', () => {
     expect(mocks.resolveApiGatewayRuntime).toHaveBeenCalledWith('session-1')
     expect(mocks.resolveApiKey).not.toHaveBeenCalled()
     expect(injection.apiKey).toBe(GATEWAY_KEY)
+    expect(injection.headers).toEqual(GATEWAY_USAGE_HEADERS)
     expect(injection.usageCapture).toEqual({ owner: 'provider-calls' })
   })
 

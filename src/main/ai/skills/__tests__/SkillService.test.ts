@@ -49,6 +49,7 @@ describe('SkillService', () => {
   }
 
   afterEach(async () => {
+    vi.unstubAllEnvs()
     await Promise.all(tempDirs.splice(0).map((dir) => fs.promises.rm(dir, { recursive: true, force: true })))
   })
 
@@ -711,6 +712,69 @@ describe('SkillService', () => {
         )
       }
       expect(createTempDirSpy).not.toHaveBeenCalled()
+    })
+
+    /**
+     * Drives the clone-based install (claude-plugins / skills.sh) through a fake `executeCommand`
+     * whose `clone` materializes the selected skill directory on disk.
+     */
+    async function setupClonedInstall() {
+      const skillService = new SkillService()
+      const workDir = await createTempDir('clone-install-')
+      vi.spyOn(skillService as never, 'createTempDir').mockResolvedValue(workDir as never)
+      vi.spyOn(skillService as never, 'reportInstall').mockResolvedValue(undefined as never)
+      const gitCalls: Array<{ args: string[]; options?: { env?: Record<string, string>; timeout?: number } }> = []
+
+      executeCommandMock.mockImplementation(async (_command: string, args: string[], options?: object) => {
+        gitCalls.push({ args, options })
+        if (args.includes('clone')) {
+          await fs.promises.mkdir(path.join(workDir, 'skills', 'demo'), { recursive: true })
+          await fs.promises.writeFile(path.join(workDir, 'skills', 'demo', 'SKILL.md'), '# skill')
+        }
+        return ''
+      })
+
+      vi.spyOn(skillService as never, 'installSkillDir').mockResolvedValue({} as never)
+      vi.mocked(findSkillMdPath).mockImplementation(async (dir: string) => path.join(dir, 'SKILL.md'))
+      return { skillService, gitCalls }
+    }
+
+    const installFromClone = (skillService: SkillService) =>
+      skillService.install({ installSource: 'claude-plugins:owner/repo/skills/demo' })
+
+    it('bounds a clone and blocks its credential prompts, the way the fetch path already is', async () => {
+      const { skillService, gitCalls } = await setupClonedInstall()
+
+      await installFromClone(skillService)
+
+      expect(gitCalls).not.toHaveLength(0)
+      for (const { options } of gitCalls) {
+        expect(options?.timeout).toBeGreaterThan(0)
+        expect(options?.env).toMatchObject({ GIT_TERMINAL_PROMPT: '0', GIT_ASKPASS: '' })
+      }
+    })
+
+    it('hands git the proxy Cherry is configured with, which the captured login shell env never carries', async () => {
+      vi.stubEnv('HTTPS_PROXY', 'http://127.0.0.1:7890')
+      const { skillService, gitCalls } = await setupClonedInstall()
+
+      await installFromClone(skillService)
+
+      expect(gitCalls).not.toHaveLength(0)
+      for (const { options } of gitCalls) {
+        expect(options?.env).toMatchObject({ HTTPS_PROXY: 'http://127.0.0.1:7890' })
+      }
+    })
+
+    it('surfaces a failed clone instead of spending another timeout on the same unreachable remote', async () => {
+      const { skillService, gitCalls } = await setupClonedInstall()
+      executeCommandMock.mockImplementation(async (_command: string, args: string[], options?: object) => {
+        gitCalls.push({ args, options })
+        throw new Error('Command timed out after 120000ms')
+      })
+
+      await expect(installFromClone(skillService)).rejects.toThrow('Command timed out')
+      expect(gitCalls).toHaveLength(1)
     })
 
     it('delegates to installFromSkillsSh for skills.sh source', async () => {

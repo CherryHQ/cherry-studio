@@ -21,6 +21,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { FallbackProps } from 'react-error-boundary'
 import { useTranslation } from 'react-i18next'
 
+import { isQVerisApiKeyMissing, QVerisApiKeyGuide } from './QVerisApiKeyGuide'
 import { useMcpServerTrust } from './useMcpServerTrust'
 
 const logger = loggerService.withContext('McpServerCard')
@@ -63,6 +64,15 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
 
   const handleToggleActive = useCallback(
     async (active: boolean) => {
+      if (active && isQVerisApiKeyMissing(server)) {
+        void popup.error({
+          title: t('settings.mcp.startError'),
+          content: <QVerisApiKeyGuide />,
+          centered: true
+        })
+        return
+      }
+
       let serverForUpdate = server
       if (active) {
         const trustedServer = await ensureServerTrusted(server)
