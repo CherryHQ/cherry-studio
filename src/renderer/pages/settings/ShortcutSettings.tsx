@@ -29,6 +29,7 @@ import {
 } from '@renderer/pages/settings/settingsStyles'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { scrollIntoView } from '@renderer/utils/dom'
 import { isMac, platform } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
@@ -44,6 +45,7 @@ import {
   type ShortcutBinding,
   type ShortcutToken
 } from '@shared/utils/shortcut'
+import { useSearch } from '@tanstack/react-router'
 import { isEmpty } from 'es-toolkit/compat'
 import { Check, ChevronDown, Filter, Keyboard, MessageSquareText, Search, Sparkles, Tags, Undo2 } from 'lucide-react'
 import type { FC, KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react'
@@ -69,7 +71,7 @@ const keyCodeToAccelerator: Record<string, ShortcutToken> = {
 }
 
 const passthrough =
-  /^(Page(Up|Down)|Insert|Home|End|Arrow(Up|Down|Left|Right)|F([1-9]|1\d|2[0-4])|Slash|Semicolon|Bracket(Left|Right)|Backslash|Quote|Comma|Minus|Equal)$/
+  /^(Page(Up|Down)|Insert|Home|End|CapsLock|Arrow(Up|Down|Left|Right)|F([1-9]|1\d|2[0-4])|Slash|Semicolon|Bracket(Left|Right)|Backslash|Quote|Comma|Minus|Equal)$/
 
 const usableEndKeys = (code: string): ShortcutToken | null => {
   if (/^Key[A-Z]$/.test(code) || /^(Digit|Numpad)\d$/.test(code)) return normalizeShortcutToken(code) ?? null
@@ -155,6 +157,19 @@ const ShortcutSettings: FC = () => {
   const [searchQuery, setSearchQuery] = useState('')
   const [activeGroup, setActiveGroup] = useState<ShortcutSettingsFilterGroup>('all')
   const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
+
+  // `?command=<id>` arrives from pages that own a feature but not its shortcut, so landing
+  // here mid-list would leave the user hunting. Highlight fades; the scroll stays put.
+  const { command: focusedCommand } = useSearch({ strict: false }) as { command?: CommandId }
+  const focusedRowRef = useRef<HTMLDivElement | null>(null)
+  const [focusFaded, setFocusFaded] = useState(false)
+
+  useEffect(() => {
+    if (!focusedCommand || !focusedRowRef.current) return
+    scrollIntoView(focusedRowRef.current)
+    setFocusFaded(false)
+    setTimeoutTimer('focus-fade', () => setFocusFaded(true), 2000)
+  }, [focusedCommand, setTimeoutTimer])
 
   const groupMeta = useMemo(
     () => [
@@ -572,10 +587,15 @@ const ShortcutSettings: FC = () => {
     return (
       <div
         key={record.key}
+        ref={record.command === focusedCommand ? focusedRowRef : undefined}
+        data-focused={record.command === focusedCommand || undefined}
         className={cn(
           'grid grid-cols-[minmax(0,1fr)_14rem_2.5rem] items-center gap-3 py-2.5',
           !record.preference.enabled && 'opacity-60',
-          !isLast && 'border-border-subtle border-b'
+          !isLast && 'border-border-subtle border-b',
+          record.command === focusedCommand &&
+            !focusFaded &&
+            '-mx-2 rounded-md bg-primary/10 px-2 ring-1 ring-primary/40'
         )}>
         <div className="min-w-0 pr-2">
           <div className="truncate text-[14px] text-foreground">{record.label}</div>

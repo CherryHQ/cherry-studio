@@ -175,7 +175,7 @@ describe('applyMigrations over a populated database', () => {
   }
 
   it('quarantines legacy channel sessions without changing conversation history', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0008_nice_scalphunter'))
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0009_dapper_magik'))
     const now = Date.now()
     sqlite
       .prepare(
@@ -249,7 +249,7 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('upgrades databases that applied the earlier branch-local channel migration', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0008_nice_scalphunter'))
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0009_dapper_magik'))
     const now = Date.now()
     sqlite
       .prepare(
@@ -423,6 +423,40 @@ describe('applyMigrations over a populated database', () => {
     expect(refs).toHaveLength(1)
     expect(refs[0]).toMatchObject({ file_entry_id: fileEntryId, source_id: messageId, role: 'attachment' })
     expect(refs[0].id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+    expect(sqlite.pragma('foreign_key_check')).toEqual([])
+  })
+
+  it('enables existing skills globally without changing per-agent preferences', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0008_abnormal_may_parker'))
+    const now = Date.now()
+    sqlite
+      .prepare(
+        `INSERT INTO agent (id, type, name, instructions, order_key, created_at, updated_at)
+         VALUES ('agent-skill-migrate', 'claude-code', 'Agent', '', 'a0', ?, ?)`
+      )
+      .run(now, now)
+    sqlite
+      .prepare(
+        `INSERT INTO agent_global_skill
+          (id, name, folder_name, source, tags, content_hash, is_enabled, created_at, updated_at)
+         VALUES ('skill-migrate', 'Skill', 'skill', 'local', '[]', 'hash', 0, ?, ?)`
+      )
+      .run(now, now)
+    sqlite
+      .prepare(
+        `INSERT INTO agent_skill (agent_id, skill_id, is_enabled, created_at, updated_at)
+         VALUES ('agent-skill-migrate', 'skill-migrate', 1, ?, ?)`
+      )
+      .run(now, now)
+
+    applyMigrations(db, resolveMigrationsPath())
+
+    expect(sqlite.prepare(`SELECT is_enabled FROM agent_global_skill WHERE id = 'skill-migrate'`).get()).toEqual({
+      is_enabled: 1
+    })
+    expect(sqlite.prepare(`SELECT is_enabled FROM agent_skill WHERE skill_id = 'skill-migrate'`).get()).toEqual({
+      is_enabled: 1
+    })
     expect(sqlite.pragma('foreign_key_check')).toEqual([])
   })
 

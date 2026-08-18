@@ -116,7 +116,7 @@ export const Default: Story = {
         value={args.value}
         language={args.language}
         languageConfig={exampleLanguageConfig}
-        theme={resolveCmTheme((args as any).theme || 'light')}
+        theme={resolveCmTheme(args.theme || 'light')}
         fontSize={args.fontSize as number}
         editable={args.editable as boolean}
         readOnly={args.readOnly as boolean}
@@ -146,7 +146,7 @@ export const JSONLint: Story = {
       <CodeEditor
         value={args.value}
         language="json"
-        theme={resolveCmTheme((args as any).theme || 'light')}
+        theme={resolveCmTheme(args.theme || 'light')}
         options={{ lint: true }}
         wrapped
         onChange={action('change')}
@@ -170,7 +170,7 @@ export const SaveShortcut: Story = {
         value={args.value}
         language={args.language}
         languageConfig={exampleLanguageConfig}
-        theme={resolveCmTheme((args as any).theme || 'light')}
+        theme={resolveCmTheme(args.theme || 'light')}
         options={{ keymap: true }}
         onSave={action('save')}
         onChange={action('change')}
@@ -201,7 +201,7 @@ console.log(fibonacci(10));`,
         value={args.value}
         language={args.language}
         // 注意：这里没有传入 languageConfig，使用默认配置
-        theme={resolveCmTheme((args as any).theme || 'light')}
+        theme={resolveCmTheme(args.theme || 'light')}
         onChange={action('change')}
         wrapped
       />

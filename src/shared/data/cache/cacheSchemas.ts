@@ -410,6 +410,12 @@ export type RendererPersistCacheSchema = {
   'agent.open_external_app.last_used_target': CacheValueTypes.AgentOpenExternalAppTarget
   // Recently picked emojis (MRU order, capped to 32) shown at the top of the shared emoji picker
   'ui.emoji.recently_used': string[]
+  // Screenshot overlay tool preferences — persisted because muscle memory should survive restarts,
+  // and main's relay of renderer persist writes also keeps a session's per-display overlays in step.
+  'ui.screenshot.color_mode': 'hex' | 'rgb'
+  'ui.screenshot.annotation_color': string
+  'ui.screenshot.annotation_stroke_width': number
+  'ui.screenshot.annotation_font_size': number
 }
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
@@ -449,7 +455,13 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'settings.usage.currency': null,
   'feature.mcp.provider_available_servers': {},
   'agent.open_external_app.last_used_target': null,
-  'ui.emoji.recently_used': []
+  'ui.emoji.recently_used': [],
+  'ui.screenshot.color_mode': 'hex',
+  // Each must be a member of the matching preset list in renderer/windows/screenshot/constants.ts,
+  // or the overlay opens with no swatch, width or size marked as current.
+  'ui.screenshot.annotation_color': '#F54A45',
+  'ui.screenshot.annotation_stroke_width': 4,
+  'ui.screenshot.annotation_font_size': 20
 }
 
 /**

@@ -62,10 +62,7 @@ export async function resolveCompressionModel(modelIdRaw: string): Promise<Compr
     const config = await providerToAiSdkConfig(provider, model)
     // ai-core's createExecutor type accepts only the registered union of
     // provider ids; the union match was already validated by `providerToAiSdkConfig`.
-    const executor = await createExecutor(
-      config.providerId as Parameters<typeof createExecutor>[0],
-      config.providerSettings as Parameters<typeof createExecutor>[1]
-    )
+    const executor = await createExecutor(config.providerId, config.providerSettings)
     // languageModel() prepends the providerId (`${providerId}:${modelId}`), so it needs the
     // BARE modelId — fall back to the parsed `modelId`, not the composite `model.id`
     // (`||` also covers an empty apiModelId).

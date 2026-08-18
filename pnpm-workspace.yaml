@@ -108,6 +108,7 @@ allowBuilds:
   esbuild: true
   koffi: true
   msw: true
+  node-mac-permissions: true
   node-pty: true
   onnxruntime-node: true
   protobufjs: true

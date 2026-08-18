@@ -209,7 +209,8 @@
       "type": "Pictogramă Agent"
     },
     "input": {
-      "placeholder": "Introdu mesajul aici, trimite cu {{key}} - @ selectează calea, / selectează comanda"
+      "placeholder": "Introdu mesajul aici, trimite cu {{key}} - @ selectează calea, / selectează comanda",
+      "placeholder_streaming": "Agentul lucrează — {{sendKey}} adaugă la coadă un mesaj, {{steerKey}} ghidează acum."
     },
     "list": {
       "error": {
@@ -662,13 +663,16 @@
           },
           "auto": {
             "description": "Rulează fără solicitări de rutină. O verificare de siguranță blochează acțiunile riscante.",
+            "description_pi": "Funcționează autonom. Întreabă doar când identifică o acțiune riscantă.",
             "title": "Aprobă în locul meu",
-            "warning": "Necesită un model compatibil; altele îl pot ignora sau pot continua să întrebe."
+            "warning": "Necesită un model compatibil; altele îl pot ignora sau pot continua să întrebe.",
+            "warning_pi": "Identificarea este realizată pe cât posibil; o comandă neobișnuită poate totuși să treacă neobservată."
           },
           "bypassPermissions": {
             "description": "Omite verificările de permisiuni. Poate șterge fișiere și utiliza rețeaua.",
             "title": "Acces complet",
-            "warning": "Folosește cu precauție — toate instrumentele vor rula fără a cere aprobare."
+            "warning": "Folosește cu precauție — toate instrumentele vor rula fără a cere aprobare.",
+            "warning_pi": "Periculos — nu se cere confirmare pentru nicio acțiune, cu excepția instrumentelor dezactivate, inclusiv ștergerea fișierelor și accesul la rețea."
           },
           "confirmChange": {
             "description": "Schimbarea modurilor actualizează instrumentele aprobate automat.",
@@ -1089,24 +1093,36 @@
           "label": "Rulează comenzi shell"
         },
         "create_goal": {
-          "description": "[to be translated]:Create a session goal to work toward",
-          "label": "[to be translated]:Create goal"
+          "description": "Creează un obiectiv de sesiune de urmărit",
+          "label": "Creează obiectiv"
         },
         "edit": {
           "description": "Editează fișiere",
           "label": "Editează fișiere"
+        },
+        "exit_plan_mode": {
+          "description": "Prezintă planul pentru revizuire și iese din modul de plan la aprobare",
+          "label": "Ieși din modul de plan"
         },
         "find": {
           "description": "Găsește fișiere",
           "label": "Găsește fișiere"
         },
         "get_goal": {
-          "description": "[to be translated]:Read the current session goal",
-          "label": "[to be translated]:Read goal"
+          "description": "Citește obiectivul sesiunii curente",
+          "label": "Citește obiectivul"
         },
         "grep": {
           "description": "Caută în conținutul fișierelor",
           "label": "Caută în conținutul fișierelor"
+        },
+        "interrupt_agent": {
+          "description": "Oprește runda curentă a unui subagent din fundal",
+          "label": "Întrerupe subagentul"
+        },
+        "list_agents": {
+          "description": "Listează subagenții din fundal și starea lor",
+          "label": "Listează subagenți"
         },
         "ls": {
           "description": "Listează conținutul directorului",
@@ -1120,17 +1136,29 @@
           "description": "Citește un fișier PNG, JPEG, WebP sau GIF cu un model capabil de analiză vizuală",
           "label": "Citește imaginea"
         },
+        "send_message": {
+          "description": "Trimite un mesaj de continuare către un subagent din fundal",
+          "label": "Trimite mesaj subagentului"
+        },
         "skill": {
-          "description": "[to be translated]:Load the full instructions of an enabled skill",
-          "label": "[to be translated]:Load skill instructions"
+          "description": "Încarcă instrucțiunile complete ale unei abilități activate",
+          "label": "Încarcă instrucțiunile abilității"
+        },
+        "subagent": {
+          "description": "Delegează o sarcină unui subagent din fundal care poate fi contactat ulterior",
+          "label": "Delegează subagentului"
+        },
+        "subagent_fork": {
+          "description": "Delegează o sarcină suplimentară unui subagent preîncărcat cu această conversație",
+          "label": "Ramifică subagentul"
         },
         "todo_write": {
-          "description": "[to be translated]:Manage the task list",
-          "label": "[to be translated]:Manage the task list"
+          "description": "Gestionează lista de sarcini",
+          "label": "Gestionează lista de sarcini"
         },
         "update_goal": {
-          "description": "[to be translated]:Update the session goal status or objective",
-          "label": "[to be translated]:Update goal"
+          "description": "Actualizează starea sau conținutul obiectivului sesiunii",
+          "label": "Actualizează obiectivul"
         },
         "write": {
           "description": "Scrie fișiere",
@@ -2227,7 +2255,7 @@
     "cli_tool_placeholder": "Selectează instrumentul CLI de utilizat",
     "cli_tools": {
       "claude_code": "Claude Code",
-      "deepseek_harness": "[to be translated]:DeepSeek Harness",
+      "deepseek_harness": "DeepSeek Harness",
       "gemini_cli": "CLI Gemini",
       "github_copilot_cli": "CLI GitHub Copilot",
       "kimi_code": "Kimi Code",
@@ -2251,39 +2279,39 @@
     "custom_path_required": "Calea personalizată este necesară pentru acest terminal",
     "custom_path_set": "Calea personalizată a terminalului a fost setată cu succes",
     "deepseek_harness": {
-      "agent_preset": "[to be translated]:Default agent mode",
+      "agent_preset": "Mod implicit pentru agent",
       "agent_presets": {
         "code": {
-          "description": "[to be translated]:Combines multi-step tool work through the PTC Code Mode SDK for complex coding tasks.",
-          "label": "[to be translated]:PTC Code"
+          "description": "Combină lucrul cu instrumente în mai mulți pași prin SDK-ul PTC Code Mode pentru sarcini complexe de programare.",
+          "label": "PTC Code"
         },
         "inherit": {
-          "description": "[to be translated]:Keeps the existing default preset in the shared ~/.dsh settings.",
-          "label": "[to be translated]:Harness default"
+          "description": "Păstrează presetarea implicită existentă în setările comune ~/.dsh.",
+          "label": "Setarea implicită Harness"
         },
         "minimal": {
-          "description": "[to be translated]:Uses only a persistent shell and text editor for the smallest tool surface.",
-          "label": "[to be translated]:Minimal"
+          "description": "Folosește doar un shell persistent și un editor de text pentru cel mai restrâns set de instrumente.",
+          "label": "Minimal"
         },
         "standard": {
-          "description": "[to be translated]:Full coding agent with files, shell, search, skills, planning, and subagents.",
-          "label": "[to be translated]:Standard"
+          "description": "Agent de programare complet, cu fișiere, shell, căutare, abilități, planificare și subagenți.",
+          "label": "Standard"
         }
       },
-      "danger_warning": "[to be translated]:Full access lets the agent reach files outside the workspace and skips operation approval. Use it only for tasks you trust.",
-      "permission_mode": "[to be translated]:Default permission",
+      "danger_warning": "Accesul complet permite agentului să acceseze fișiere din afara spațiului de lucru și omite aprobarea operațiunilor. Folosește-l numai pentru sarcini de încredere.",
+      "permission_mode": "Permisiune implicită",
       "permission_modes": {
         "danger-full-access": {
-          "description": "[to be translated]:Allows unrestricted access without operation approval.",
-          "label": "[to be translated]:Full access"
+          "description": "Permite acces nerestricționat fără aprobarea operațiunilor.",
+          "label": "Acces complet"
         },
         "read-only": {
-          "description": "[to be translated]:Restricts file writes and asks before risky operations.",
-          "label": "[to be translated]:Read only"
+          "description": "Restricționează scrierea fișierelor și solicită confirmare înaintea operațiunilor riscante.",
+          "label": "Doar citire"
         },
         "workspace-write": {
-          "description": "[to be translated]:Allows writes in the current DSH workspace and asks before risky operations.",
-          "label": "[to be translated]:Workspace write"
+          "description": "Permite scrierea în spațiul de lucru DSH curent și solicită confirmare înaintea operațiunilor riscante.",
+          "label": "Scriere în spațiul de lucru"
         }
       }
     },
@@ -2337,7 +2365,7 @@
     "no_tools": "Nu există instrumente disponibile",
     "not_installed": "Neinstalat",
     "open_provider_settings": "Deschide setările furnizorului",
-    "open_web_ui": "[to be translated]:Open Web UI",
+    "open_web_ui": "Deschide interfața web",
     "own_login": {
       "title": "{{toolName}} Oficial"
     },
@@ -2347,10 +2375,10 @@
     "search_provider_placeholder": "Furnizori de căutare…",
     "select_folder": "Selectează directorul",
     "select_provider_before_launch": "Selectează un furnizor înainte de a porni {{toolName}}",
-    "select_provider_model": "[to be translated]:Please select a provider and model first",
+    "select_provider_model": "Selectează mai întâi un furnizor și un model",
     "select_tool_to_start": "Selectează un instrument CLI din stânga pentru a începe configurarea",
     "set_custom_path": "Setează calea personalizată a terminalului",
-    "stop": "[to be translated]:Stop",
+    "stop": "Oprește",
     "supported_providers": "Furnizori acceptați",
     "terminal": "Terminal",
     "terminal_hint": "Alege în ce aplicație terminal să rulezi CLI-ul",
@@ -2666,7 +2694,6 @@
       "503": "Serviciu indisponibil. Te rugăm să încerci din nou mai târziu",
       "504": "Expirare gateway. Te rugăm să încerci din nou mai târziu"
     },
-    "image_unreadable_for_non_vision_model": "Modelul selectat nu suportă imagini, iar Cherry Studio nu a putut extrage text lizibil din atașament. Alegeți un model care suportă imagini sau eliminați imaginea și încercați din nou.",
     "lastError": "Ultima eroare",
     "maxEmbeddingsPerCall": "Max Embeddings per apel",
     "message": "Mesaj de eroare",
@@ -3217,6 +3244,8 @@
         "delete_confirm_title": "Șterge sursele de date selectate?",
         "loaded_only_hint": "Se aplică doar elementelor încărcate ({{total}} în total)",
         "reindex": "Reindexare",
+        "reindex_none_eligible": "Toate sursele de date selectate sunt în procesare și nu pot fi reindexate în acest moment.",
+        "reindex_skipped": "S-au omis {{count}} sursă(s) de date încă în procesare",
         "selected_count": "{{count}} selectate"
       },
       "chunks_count": "{{count}} fragmente",
@@ -3550,8 +3579,13 @@
             "label": "Mod de rulare",
             "option": {
               "claude_code": "Avansat: Claude Agent",
-              "dsh": "[to be translated]:DeepSeek Harness",
+              "dsh": "DeepSeek Harness",
               "pi": "Rapid: Pi"
+            },
+            "option_description": {
+              "claude_code": "Mai capabil — modul de plan și modele pe niveluri",
+              "dsh": "Suport larg pentru furnizori, cu execuție orientată pe obiective",
+              "pi": "Răspunsuri mai rapide, overhead redus"
             }
           },
           "small_model": {
@@ -7438,8 +7472,11 @@
         "confirm_delete_message": "Confirmă înainte de ștergerea mesajelor",
         "confirm_regenerate_message": "Confirmă înainte de regenerarea mesajelor",
         "enable_quick_triggers": "Activează declanșatoarele / și @",
+        "newline_shortcuts": "Scurtătură pentru linie nouă",
         "send_shortcuts": "Comenzi rapide trimitere",
         "show_estimated_tokens": "Afișează numărul estimat de tokeni",
+        "steer_shortcuts": "Scurtătură pentru ghidare",
+        "steer_shortcuts_hint": "În timp ce un Agent rulează, aceasta trimite mesajul în runda curentă imediat pentru a-l ghida; scurtătura de trimitere îl adaugă la coadă până la sfârșitul runde.",
         "title": "Setări intrare"
       },
       "layout": {
@@ -9040,16 +9077,16 @@
     "visualization": "Vizualizare"
   },
   "xlsx_preview": {
-    "chart": "[to be translated]:Chart",
-    "chart_unsupported": "[to be translated]:This chart type isn't supported yet",
+    "chart": "Diagramă",
+    "chart_unsupported": "Acest tip de diagramă nu este încă acceptat",
     "error": {
-      "description": "[to be translated]:This spreadsheet couldn't be previewed."
+      "description": "Această foaie de calcul nu a putut fi previzualizată."
     },
-    "formula_not_evaluated": "[to be translated]:Formula couldn't be evaluated",
-    "sheet_tabs_label": "[to be translated]:Sheets",
+    "formula_not_evaluated": "Formula nu a putut fi evaluată",
+    "sheet_tabs_label": "Foi",
     "too_large": {
-      "description": "[to be translated]:File size {{size}} exceeds the {{limit}} preview limit.",
-      "title": "[to be translated]:File too large to preview"
+      "description": "Dimensiunea fișierului {{size}} depășește limita de previzualizare de {{limit}}.",
+      "title": "Fișier prea mare pentru previzualizare"
     }
   }
 }
