@@ -72,17 +72,21 @@ const LocalBackupSettings: React.FC = () => {
     }
 
     const resolvedDir = await window.api.resolvePath(dir)
+    // Fetched on mount, but the user can blur this field before that lands —
+    // and a validator that throws here leaves the directory neither saved nor
+    // reverted, with nothing shown.
+    const info = appInfo ?? (await ipcApi.request('app.get_info'))
 
     // check new local backup dir is not in app data path
     // if is in app data path, show error
-    if (await window.api.isPathInside(resolvedDir, appInfo!.appDataPath)) {
+    if (await window.api.isPathInside(resolvedDir, info.appDataPath)) {
       toast.error(t('settings.data.local.directory.select_error_app_data_path'))
       return false
     }
 
     // check new local backup dir is not in app install path
     // if is in app install path, show error
-    if (await window.api.isPathInside(resolvedDir, appInfo!.installPath)) {
+    if (await window.api.isPathInside(resolvedDir, info.installPath)) {
       toast.error(t('settings.data.local.directory.select_error_in_app_install_path'))
       return false
     }
