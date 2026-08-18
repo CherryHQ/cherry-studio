@@ -207,6 +207,54 @@ export function formatApiHost(host?: string, supportApiVersion: boolean = true, 
   }
 }
 
+/** Request paths that are fixed, so a host ending in one is already a complete endpoint URL. */
+const FIXED_ENDPOINT_PATHS = [
+  'chat/completions',
+  'responses',
+  'messages',
+  'images/generations',
+  'images/edits'
+] as const
+
+/** Request paths templated per model (`/models/{id}:generateContent`); only a trailing `#` opts out. */
+const TEMPLATED_ENDPOINT_PATHS = ['generateContent', 'streamGenerateContent', 'predict'] as const
+
+/** A path counts only on a segment boundary, so `/mymessages` is not a `messages` endpoint. */
+function endsWithEndpointPath(host: string, path: string): boolean {
+  if (!host.endsWith(path)) return false
+  const boundary = host[host.length - path.length - 1]
+  return boundary === '/' || boundary === ':'
+}
+
+/**
+ * Splits a host into the base URL an SDK appends its request path to, plus the request path the
+ * host already carried. A host that already ends in a request path is a complete endpoint URL:
+ * callers must use `baseURL` verbatim, without appending an API version, or the SDK re-appending
+ * the path duplicates it (`/chat/completions/v1/chat/completions`).
+ *
+ * @example
+ * routeToEndpoint('https://api.example.com/custom/v1/chat/completions')
+ * // { baseURL: 'https://api.example.com/custom/v1', endpoint: 'chat/completions' }
+ *
+ * @example
+ * routeToEndpoint('https://api.example.com/v1')
+ * // { baseURL: 'https://api.example.com/v1', endpoint: '' }
+ */
+export function routeToEndpoint(apiHost: string): { baseURL: string; endpoint: string } {
+  const trimmedHost = trim(apiHost)
+  const explicit = isWithTrailingSharp(trimmedHost)
+  const host = withoutTrailingSlash(explicit ? withoutTrailingSharp(trimmedHost) : trimmedHost)
+  const candidates = explicit ? [...FIXED_ENDPOINT_PATHS, ...TEMPLATED_ENDPOINT_PATHS] : FIXED_ENDPOINT_PATHS
+
+  const endpoint = candidates.find((path) => endsWithEndpointPath(host, path))
+  if (!endpoint) {
+    return { baseURL: host, endpoint: '' }
+  }
+
+  const baseSegment = host.slice(0, host.length - endpoint.length - 1)
+  return { baseURL: withoutTrailingSlash(baseSegment), endpoint }
+}
+
 /**
  * Whether a host is an official Vertex endpoint carrying no user override.
  * The Vertex SDK owns the `/projects/{project}/locations/{location}` segment,

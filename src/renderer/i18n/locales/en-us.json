@@ -8110,6 +8110,7 @@
         "sign_in_success": "Signed in to Grok CLI",
         "signing_in": "Waiting for browser…"
       },
+      "ignore_api_version": "Base URL has no version segment (never append /v1)",
       "image_endpoints": {
         "image_edit_base_url": {
           "help": "Used for /images/edits; leave blank to use the default chat endpoint Base URL",

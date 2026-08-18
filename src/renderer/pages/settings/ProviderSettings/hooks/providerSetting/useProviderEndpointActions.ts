@@ -256,6 +256,32 @@ export function useProviderEndpointActions({
     }
   }, [apiVersion, patchProvider, provider, t])
 
+  /** Provider-level switch: every configured endpoint shares one API-version policy. */
+  const commitIgnoreApiVersion = useCallback(
+    async (next: boolean): Promise<boolean> => {
+      if (!provider) {
+        return false
+      }
+
+      const nextEndpointConfigs = Object.fromEntries(
+        Object.entries(provider.endpointConfigs ?? {}).map(([endpointType, config]) => [
+          endpointType,
+          { ...config, ignoreApiVersion: next || undefined }
+        ])
+      )
+
+      try {
+        await patchProvider({ endpointConfigs: nextEndpointConfigs })
+        return true
+      } catch (error) {
+        logger.error('Failed to commit ignore API version', { providerId: provider.id, error })
+        toast.error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
+        return false
+      }
+    },
+    [patchProvider, provider, t]
+  )
+
   const resetApiHost = useCallback(async (): Promise<boolean> => {
     if (!provider) {
       return false
@@ -285,6 +311,7 @@ export function useProviderEndpointActions({
     commitApiHost,
     commitAnthropicApiHost,
     commitApiVersion,
+    commitIgnoreApiVersion,
     resetApiHost
   }
 }

@@ -1,6 +1,7 @@
-import { Button, InputGroup, InputGroupAddon, InputGroupInput, Tooltip } from '@cherrystudio/ui'
+import { Button, InputGroup, InputGroupAddon, InputGroupInput, Switch, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 import { Copy, RotateCcw, Settings } from 'lucide-react'
+import { useId } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ProviderField from '../primitives/ProviderField'
@@ -60,12 +61,15 @@ export function AzureApiVersionField({
 interface ApiHostFieldProps {
   providerIdForSettings: string
   apiHost: string
+  hostPreview: string
+  ignoreApiVersion: boolean
   isCherryIN: boolean
   isChineseUser: boolean
   isVertexAI: boolean
   isApiHostResettable: boolean
   onApiHostChange: (value: string) => void
   onApiHostCommit: () => void
+  onIgnoreApiVersionChange: (next: boolean) => void
   onResetApiHost: () => void
   onOpenRequestConfig: () => void
 }
@@ -73,24 +77,41 @@ interface ApiHostFieldProps {
 export function ApiHostField({
   providerIdForSettings,
   apiHost,
+  hostPreview,
+  ignoreApiVersion,
   isCherryIN,
   isChineseUser,
   isVertexAI,
   isApiHostResettable,
   onApiHostChange,
   onApiHostCommit,
+  onIgnoreApiVersionChange,
   onResetApiHost,
   onOpenRequestConfig
 }: ApiHostFieldProps) {
   const { t } = useTranslation()
+  const ignoreApiVersionId = useId()
   const trimmedApiHost = apiHost.trim()
-  const help = isVertexAI ? (
+  const help = (
     <div className="space-y-1 pt-1">
-      <div className="text-[12px] text-muted-foreground leading-[1.35]">
-        {t('settings.provider.vertex_ai.api_host_help')}
+      {isVertexAI ? (
+        <div className="text-[12px] text-muted-foreground leading-[1.35]">
+          {t('settings.provider.vertex_ai.api_host_help')}
+        </div>
+      ) : null}
+      {hostPreview ? (
+        <div className="break-all text-[12px] text-muted-foreground leading-[1.35]">
+          {t('settings.provider.api_host_preview', { url: hostPreview })}
+        </div>
+      ) : null}
+      <div className="flex items-center justify-between gap-3 pt-1">
+        <label htmlFor={ignoreApiVersionId} className="min-w-0 cursor-pointer text-[12px] text-muted-foreground">
+          {t('settings.provider.ignore_api_version')}
+        </label>
+        <Switch id={ignoreApiVersionId} checked={ignoreApiVersion} onCheckedChange={onIgnoreApiVersionChange} />
       </div>
     </div>
-  ) : undefined
+  )
 
   return (
     <ProviderField

@@ -1460,4 +1460,45 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect((config.providerSettings as Record<string, unknown>).baseURL).toBe(expected)
     })
   })
+
+  // #18608: the SDK appends the request path to whatever baseURL it gets, so anything the host
+  // already carries must be split off — otherwise the user's URL comes back doubled.
+  describe('Custom provider hosts carrying a complete endpoint URL', () => {
+    const resolveBaseURL = async (baseUrl: string, ignoreApiVersion?: boolean) => {
+      const provider = makeProvider({
+        id: 'custom-relay',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl, ...(ignoreApiVersion ? { ignoreApiVersion } : {}) }
+        }
+      })
+      const model = makeModel({
+        id: 'custom-relay::m',
+        apiModelId: 'm',
+        providerId: 'custom-relay',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      return (config.providerSettings as Record<string, unknown>).baseURL
+    }
+
+    it.each([
+      // The reported host: version-less API, so `/v1` used to land mid-path.
+      ['https://api.example.com/chat/completions', 'https://api.example.com'],
+      ['https://api.example.com/custom/v1/chat/completions', 'https://api.example.com/custom/v1'],
+      // The legacy `#` form was inert in v2 — formatBaseURL stripped the marker before routing.
+      ['https://api.example.com/custom/v1/chat/completions#', 'https://api.example.com/custom/v1']
+    ])('sends %s verbatim by resolving baseURL to %s', async (baseUrl, expected) => {
+      expect(await resolveBaseURL(baseUrl)).toBe(expected)
+    })
+
+    it('still appends the API version to a bare host', async () => {
+      expect(await resolveBaseURL('https://api.example.com')).toBe('https://api.example.com/v1')
+    })
+
+    it('skips the API version when the endpoint declares the API serves none', async () => {
+      expect(await resolveBaseURL('https://api.example.com', true)).toBe('https://api.example.com')
+    })
+  })
 })

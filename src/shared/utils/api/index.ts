@@ -8,6 +8,7 @@ export {
   isWithTrailingSharp,
   joinApiKeyString,
   maskApiKey,
+  routeToEndpoint,
   splitApiKeyString,
   withoutTrailingApiVersion,
   withoutTrailingSharp,

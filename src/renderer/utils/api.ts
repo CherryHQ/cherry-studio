@@ -9,6 +9,7 @@ export {
   isWithTrailingSharp,
   joinApiKeyString,
   maskApiKey,
+  routeToEndpoint,
   splitApiKeyString,
   withoutTrailingSharp,
   withoutTrailingSlash
@@ -38,56 +39,6 @@ export function formatVertexApiHost(input: { apiHost?: string; project: string; 
     return `${formatApiHost(host)}/projects/${project}/locations/${location}`
   }
   return formatApiHost(trimmedHost)
-}
-
-// 目前对话界面只支持这些端点
-export const SUPPORTED_IMAGE_ENDPOINT_LIST = ['images/generations', 'images/edits', 'predict'] as const
-export const SUPPORTED_ENDPOINT_LIST = [
-  'chat/completions',
-  'responses',
-  'messages',
-  'generateContent',
-  'streamGenerateContent',
-  ...SUPPORTED_IMAGE_ENDPOINT_LIST
-] as const
-
-/**
- * Converts an API host URL into separate base URL and endpoint components.
- *
- * @param apiHost - The API host string to parse. Expected to be a trimmed URL that may end with '#' followed by an endpoint identifier.
- * @returns An object containing:
- *   - `baseURL`: The base URL without the endpoint suffix
- *   - `endpoint`: The matched endpoint identifier, or empty string if no match found
- *
- * @description
- * This function extracts endpoint information from a composite API host string.
- * If the host ends with '#', it attempts to match the preceding part against the supported endpoint list.
- * The '#' delimiter is removed before processing.
- *
- * @example
- * routeToEndpoint('https://api.example.com/openai/chat/completions#')
- * // Returns: { baseURL: 'https://api.example.com/v1', endpoint: 'chat/completions' }
- *
- * @example
- * routeToEndpoint('https://api.example.com/v1')
- * // Returns: { baseURL: 'https://api.example.com/v1', endpoint: '' }
- */
-export function routeToEndpoint(apiHost: string): { baseURL: string; endpoint: string } {
-  const trimmedHost = trim(apiHost)
-  // 前面已经确保apiHost合法
-  if (!trimmedHost.endsWith('#')) {
-    return { baseURL: trimmedHost, endpoint: '' }
-  }
-  // 去掉结尾的 #
-  const host = trimmedHost.slice(0, -1)
-  const endpointMatch = SUPPORTED_ENDPOINT_LIST.find((endpoint) => host.endsWith(endpoint))
-  if (!endpointMatch) {
-    const baseURL = withoutTrailingSlash(host)
-    return { baseURL, endpoint: '' }
-  }
-  const baseSegment = host.slice(0, host.length - endpointMatch.length)
-  const baseURL = withoutTrailingSlash(baseSegment).replace(/:$/, '') // 去掉结尾可能存在的冒号(gemini的特殊情况)
-  return { baseURL, endpoint: endpointMatch }
 }
 
 /**

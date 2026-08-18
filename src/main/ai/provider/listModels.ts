@@ -23,7 +23,7 @@ import {
   MODEL_CAPABILITY
 } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { formatApiHost, withoutTrailingApiVersion, withoutTrailingSlash } from '@shared/utils/api'
+import { formatApiHost, routeToEndpoint, withoutTrailingApiVersion, withoutTrailingSlash } from '@shared/utils/api'
 import { deriveModelGroupName } from '@shared/utils/model'
 import {
   isAIGatewayProvider,
@@ -35,7 +35,7 @@ import {
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import * as z from 'zod'
 
-import { defaultHeaders, getBaseUrl } from '../utils/provider'
+import { defaultHeaders, getBaseUrl, ignoresApiVersion } from '../utils/provider'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import {
   createVertexModelListRequest,
@@ -720,7 +720,10 @@ const openAIFetcher: ModelFetcher = {
 const openAICompatibleFetcher: ModelFetcher = {
   match: () => true,
   fetch: async (provider, signal) => {
-    const baseUrl = formatApiHost(getBaseUrl(provider))
+    // A host carrying a complete request path (`…/chat/completions`) lists models next to it,
+    // not under a version segment the user never configured.
+    const routed = routeToEndpoint(getBaseUrl(provider))
+    const baseUrl = routed.endpoint ? routed.baseURL : formatApiHost(routed.baseURL, !ignoresApiVersion(provider))
     const response = await getFromApi({
       url: `${baseUrl}/models`,
       headers: defaultHeaders(provider),

@@ -22,6 +22,7 @@ import {
   formatOllamaApiHost,
   isBareVertexApiHost,
   isWithTrailingSharp,
+  routeToEndpoint,
   withoutTrailingApiVersion
 } from '@shared/utils/api'
 import { isGenerateImageModel } from '@shared/utils/model'
@@ -38,7 +39,7 @@ import { isEmpty } from 'es-toolkit/compat'
 import type { ProviderConfig } from '../types'
 import { type AppProviderId, appProviderIds, type AppProviderSettingsMap } from '../types'
 import { customFetch } from '../utils/customFetch'
-import { getBaseUrl, getExtraHeaders, routeToEndpoint } from '../utils/provider'
+import { getBaseUrl, getExtraHeaders, ignoresApiVersion } from '../utils/provider'
 import { normalizeArkResponsesResponse, stripArkUnsupportedIncludes } from './ark'
 import { generateSignature } from './cherryai'
 import { buildCodexRequestHeaders, coerceCodexRequestBody } from './codex'
@@ -86,7 +87,7 @@ export interface ResolvedProviderAiSdkConfig {
 function formatBaseURL(baseURL: string, provider: Provider, endpointType?: EndpointType): string {
   if (!baseURL) return ''
 
-  const appendApiVersion = !isWithTrailingSharp(baseURL)
+  const appendApiVersion = !isWithTrailingSharp(baseURL) && !ignoresApiVersion(provider, endpointType)
 
   // Preserve the v1 Vertex contract before generic endpoint formatting:
   // official bare hosts are SDK-derived, while every explicit override keeps
@@ -122,6 +123,23 @@ function formatBaseURL(baseURL: string, provider: Provider, endpointType?: Endpo
   }
 
   return formatApiHost(baseURL, appendApiVersion)
+}
+
+/**
+ * Resolve the base URL the SDK appends its request path to.
+ *
+ * A host that already ends in a request path is a complete endpoint URL: its base is used
+ * verbatim, since appending an API version there would move the path the SDK re-appends
+ * (`/chat/completions` → `/chat/completions/v1/chat/completions`, #18608).
+ */
+function resolveRequestBaseURL(
+  baseUrl: string,
+  provider: Provider,
+  endpointType?: EndpointType
+): { baseURL: string; endpoint: string } {
+  const routed = routeToEndpoint(baseUrl)
+  if (routed.endpoint) return routed
+  return { baseURL: formatBaseURL(baseUrl, provider, endpointType), endpoint: '' }
 }
 
 // ── SDK Config Building ──
@@ -190,8 +208,7 @@ export async function resolveProviderAiSdkConfig(
 
   const aiSdkProviderId = appProviderIds[resolveAiSdkProviderId(provider, endpointType)]
 
-  const formattedBaseUrl = formatBaseURL(baseUrl, provider, endpointType)
-  const { baseURL, endpoint } = routeToEndpoint(formattedBaseUrl)
+  const { baseURL, endpoint } = resolveRequestBaseURL(baseUrl, provider, endpointType)
 
   const ctx: BuilderContext = {
     actualProvider: provider,
@@ -792,8 +809,8 @@ function buildGenericProviderConfig(ctx: BuilderContext): ProviderConfig {
 function buildEndpointBaseURLs(provider: Provider): Partial<Record<EndpointType, string>> {
   const entries = Object.entries(provider.endpointConfigs ?? {}).flatMap(([endpointType, config]) => {
     if (!config?.baseUrl) return []
-    const formatted = formatBaseURL(config.baseUrl, provider, endpointType as EndpointType)
-    return [[endpointType, routeToEndpoint(formatted).baseURL] as const]
+    const { baseURL } = resolveRequestBaseURL(config.baseUrl, provider, endpointType as EndpointType)
+    return [[endpointType, baseURL] as const]
   })
   return Object.fromEntries(entries)
 }

@@ -8110,6 +8110,7 @@
         "sign_in_success": "已登录 Grok CLI",
         "signing_in": "等待浏览器…"
       },
+      "ignore_api_version": "地址不含版本号（不自动追加 /v1）",
       "image_endpoints": {
         "image_edit_base_url": {
           "help": "用于 /images/edits；留空时使用默认对话端点的 Base URL",

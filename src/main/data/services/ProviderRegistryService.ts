@@ -819,6 +819,7 @@ class ProviderRegistryService {
         }
         const baseUrl = rowConfig?.baseUrl ?? presetConfig?.baseUrl
         if (baseUrl !== undefined) config.baseUrl = baseUrl
+        if (rowConfig?.ignoreApiVersion) config.ignoreApiVersion = true
         if (presetConfig?.modelsApiUrls !== undefined) config.modelsApiUrls = presetConfig.modelsApiUrls
         merged[ep] = config
       }

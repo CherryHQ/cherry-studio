@@ -89,6 +89,14 @@ vi.mock('@cherrystudio/ui', async () => {
         {...props}
       />
     ),
+    Switch: ({ checked, onCheckedChange, ...props }: any) => (
+      <input
+        type="checkbox"
+        checked={checked ?? false}
+        onChange={(e) => onCheckedChange?.(e.target.checked)}
+        {...props}
+      />
+    ),
     Field: ({ children, ...props }: any) => <div {...props}>{children}</div>,
     FieldLabel: ({ children, required, ...props }: any) => (
       <label {...props}>

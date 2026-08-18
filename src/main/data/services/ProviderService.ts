@@ -188,6 +188,7 @@ function projectEndpointConfigOverrides(
     const presetConfig = presetConfigs?.[ep]
     const override: StoredEndpointConfigOverride = {}
     if (config.baseUrl !== undefined && config.baseUrl !== presetConfig?.baseUrl) override.baseUrl = config.baseUrl
+    if (config.ignoreApiVersion) override.ignoreApiVersion = true
     if (presetProviderId === null && storedConfigs?.[ep]?.adapterFamily !== undefined) {
       override.adapterFamily = storedConfigs[ep].adapterFamily
     }
