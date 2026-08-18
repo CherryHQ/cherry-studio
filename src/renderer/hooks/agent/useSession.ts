@@ -46,18 +46,14 @@ export type AgentSessionSource = 'query' | 'pending' | 'none'
 type UseSessionsOptions = {
   pageSize?: number
   enabled?: boolean
-  /** Ordinary-stream sort profile; defaults to recent activity and is ignored for pinned rows. */
-  sortBy?: AgentSessionSortBy
   /** Literal substring search term (server-side, escaped LIKE). */
   q?: string
   /** 'name' (default) or 'name-or-owner' (session name OR live owning agent name). */
   searchScope?: AgentSessionSearchScope
-  /** true selects pinned rows; false selects ordinary rows. */
-  pinned: boolean
   /** Concrete user workspace id, or the aggregate system/no-workdir scope. */
   workspaceId?: AgentSessionWorkspaceScope
   retainInactive?: boolean
-}
+} & ({ pinned: true; sortBy?: never } | { pinned: false; sortBy: AgentSessionSortBy })
 
 const sessionGroupRetentionMiddleware = createInfiniteQueryRetentionMiddleware({
   idleTtlMs: 10 * 60_000,
@@ -194,29 +190,20 @@ export const useActiveSession = ({ activeSessionId, setActiveSessionId, initialS
 export const useSessions = (agentId: string | null | undefined, options: UseSessionsOptions) => {
   const pageSize = options.pageSize ?? DEFAULT_SESSION_PAGE_SIZE
   const enabled = options.enabled
-  const sortBy = options.sortBy
   const q = options.q?.trim() || undefined
   const searchScope = options.searchScope
-  const pinned = options.pinned
   const workspaceId = options.workspaceId
-  const effectiveSortBy = pinned ? undefined : sortBy
 
   const query = useMemo(() => {
-    const built: {
-      agentId?: string
-      sortBy?: AgentSessionSortBy
-      q?: string
-      searchScope?: AgentSessionSearchScope
-      pinned: boolean
-      workspaceId?: AgentSessionWorkspaceScope
-    } = { pinned }
-    if (agentId) built.agentId = agentId
-    if (effectiveSortBy) built.sortBy = effectiveSortBy
-    if (q) built.q = q
-    if (q && searchScope) built.searchScope = searchScope
-    if (workspaceId !== undefined) built.workspaceId = workspaceId
-    return built
-  }, [agentId, effectiveSortBy, pinned, q, searchScope, workspaceId])
+    const filters = {
+      ...(agentId ? { agentId } : {}),
+      ...(q ? { q } : {}),
+      ...(q && searchScope ? { searchScope } : {}),
+      ...(workspaceId !== undefined ? { workspaceId } : {})
+    }
+    if (options.pinned) return { ...filters, pinned: true as const }
+    return { ...filters, pinned: false as const, sortBy: options.sortBy }
+  }, [agentId, options.pinned, options.sortBy, q, searchScope, workspaceId])
 
   const { pages, isLoading, isLoadingMore, isRefreshing, error, hasNext, loadNext, refresh, reset } = useInfiniteQuery(
     '/agent-sessions',
@@ -330,7 +317,15 @@ export const useUpdateSession = () => {
     // The non-null assertion mirrors useTopic.ts and crashes loud
     // if the contract is ever broken instead of silently producing
     // '/agent-sessions/undefined' (which would miss every cache entry).
-    refresh: ({ args }) => [...SESSION_LIST_REFRESH, `/agent-sessions/${args!.params.sessionId}` as ConcreteApiPaths]
+    refresh: ({ args }) => {
+      const body = args!.body!
+      const refreshStats = 'name' in body || 'agentId' in body
+      return [
+        '/agent-sessions',
+        ...(refreshStats ? (['/agent-sessions/stats'] as const) : []),
+        `/agent-sessions/${args!.params.sessionId}` as ConcreteApiPaths
+      ]
+    }
   })
   const { trigger: setWorkspaceTrigger } = useMutation('PUT', '/agent-sessions/:sessionId/workspace', {
     // Switching workspace creates/deletes a backing system workspace row, so

@@ -11,19 +11,19 @@ import { useTopicStats } from './useTopic'
  */
 
 /**
- * Factual counts support badges and pseudo-source visibility. Imperative lookups
+ * Factual counts support badges and synthetic record-group visibility. Imperative lookups
  * use scoped latest for owner navigation and domain reads for placeholder reuse.
  */
 export function useAssistantTopicsSource({ enabled }: { enabled?: boolean } = {}) {
   const statsSource = useTopicStats({ enabled })
-  const loadLatestTopic = useCallback(async (assistantId?: string | null) => {
+  const loadLatestTopic = useCallback(async (assistantId?: string) => {
     const result =
       assistantId === undefined
         ? await dataApiService.get('/topics/latest')
-        : await dataApiService.get('/topics/latest', { query: { assistantId: assistantId ?? 'unlinked' } })
+        : await dataApiService.get('/topics/latest', { query: { assistantId } })
     return result.topic
   }, [])
-  const reuseOrCreateTopic = useCallback(async (assistantId: string | null) => {
+  const reuseOrCreateTopic = useCallback(async (assistantId: string) => {
     return dataApiService.post('/topics/reusable-placeholder', {
       body: { assistantId }
     })
@@ -31,8 +31,6 @@ export function useAssistantTopicsSource({ enabled }: { enabled?: boolean } = {}
 
   return {
     stats: statsSource.stats,
-    isStatsLoading: statsSource.isLoading,
-    statsError: statsSource.error,
     loadLatestTopic,
     reuseOrCreateTopic
   }
@@ -42,11 +40,11 @@ export function useAssistantTopicsSource({ enabled }: { enabled?: boolean } = {}
 export function useAgentSessionsSource({ enabled }: { enabled?: boolean } = {}) {
   const statsSource = useAgentSessionStats({ enabled })
   const loadSession = useCallback((sessionId: string) => dataApiService.get(`/agent-sessions/${sessionId}`), [])
-  const loadLatestSession = useCallback(async (agentId?: string | null) => {
+  const loadLatestSession = useCallback(async (agentId?: string) => {
     const result =
       agentId === undefined
         ? await dataApiService.get('/agent-sessions/latest')
-        : await dataApiService.get('/agent-sessions/latest', { query: { agentId: agentId ?? 'unlinked' } })
+        : await dataApiService.get('/agent-sessions/latest', { query: { agentId } })
     return result.session
   }, [])
   const reuseOrCreateSession = useCallback(async (agentId: string, workspace: AgentSessionWorkspaceSource) => {
@@ -56,9 +54,6 @@ export function useAgentSessionsSource({ enabled }: { enabled?: boolean } = {}) 
   }, [])
   return {
     stats: statsSource.stats,
-    isStatsLoading: statsSource.isLoading,
-    statsError: statsSource.error,
-    refetchStats: statsSource.refetch,
     loadSession,
     loadLatestSession,
     reuseOrCreateSession

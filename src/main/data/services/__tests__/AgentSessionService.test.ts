@@ -215,9 +215,9 @@ describe('AgentSessionService', () => {
       return workspace
     }
 
-    it('defaults to ordinary activity order with the workspace relation intact', async () => {
+    it('returns ordinary activity order with the workspace relation intact', async () => {
       await seedFlat()
-      const result = agentSessionService.listByCursor({ pinned: false })
+      const result = agentSessionService.listByCursor({ pinned: false, sortBy: 'lastActivityAt' })
       expect(result.items.map((s) => s.id)).toEqual(['s4', 's3', 's1'])
       expect(result.items[0].workspace).toBeDefined()
       expect(result.items.find((session) => session.id === 's1')).toMatchObject({
@@ -602,7 +602,7 @@ describe('AgentSessionService', () => {
       expect(latest?.workspace.id).toBe(workspace.id)
     })
 
-    it('returns latest activity within a live or unlinked agent scope', async () => {
+    it('returns latest activity within a live agent scope', async () => {
       const workspace = await createWorkspace('latest-owner-scope')
       await dbh.db.insert(agentTable).values([
         {
@@ -659,7 +659,6 @@ describe('AgentSessionService', () => {
       ])
 
       expect(agentSessionService.getLatestActive({ agentId: 'agent-session-test' })?.id).toBe('session-scoped')
-      expect(agentSessionService.getLatestActive({ agentId: 'unlinked' })?.id).toBe('session-deleted-owner')
     })
 
     it('does not treat task relation changes as session activity', async () => {
@@ -893,7 +892,7 @@ describe('AgentSessionService', () => {
         { endpoint: '/agent-sessions', kind: 'membership', entityIds: [duplicate.id] },
         { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: [duplicate.id] },
         { endpoint: '/agent-sessions/:sessionId', entityIds: [duplicate.id] },
-        { endpoint: '/agent-sessions/latest' }
+        { endpoint: '/agent-sessions/stats' }
       ])
       expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(2, [{ endpoint: '/pins', kind: 'membership' }])
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(2)
@@ -967,7 +966,6 @@ describe('AgentSessionService', () => {
       { endpoint: '/agent-sessions', kind: 'membership', entityIds: [session.id] },
       { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: [session.id] },
       { endpoint: '/agent-sessions/:sessionId', entityIds: [session.id] },
-      { endpoint: '/agent-sessions/latest' },
       { endpoint: '/agent-sessions/stats' }
     ])
     expect(session.workspaceId).toBe(workspace.id)
@@ -1080,7 +1078,6 @@ describe('AgentSessionService', () => {
       { endpoint: '/agent-sessions', kind: 'membership', dimension: 'q', entityIds: [session.id] },
       { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: [session.id] },
       { endpoint: '/agent-sessions/:sessionId', entityIds: [session.id] },
-      { endpoint: '/agent-sessions/latest' },
       { endpoint: '/agent-sessions/stats' }
     ])
 
@@ -1090,6 +1087,39 @@ describe('AgentSessionService', () => {
       description: 'Updated description',
       isNameManuallyEdited: true
     })
+  })
+
+  it('does not invalidate search membership or stats for description-only updates', async () => {
+    const session = await createSession('Description only')
+    notifyDataApiDataChangeMock.mockClear()
+
+    agentSessionService.update(session.id, { description: 'Updated description' })
+
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+      { endpoint: '/agent-sessions', kind: 'projection', entityIds: [session.id] },
+      { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: [session.id] },
+      { endpoint: '/agent-sessions/:sessionId', entityIds: [session.id] }
+    ])
+  })
+
+  it('keeps activity-only and owner-name projections out of aggregate stats', () => {
+    agentSessionService.notifyReadModelChange(['session-activity'], 'projection')
+    agentSessionService.notifyOwnerProjectionChange()
+
+    expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(1, [
+      { endpoint: '/agent-sessions', kind: 'projection', entityIds: ['session-activity'] },
+      {
+        endpoint: '/agent-sessions',
+        kind: 'order',
+        dimension: 'lastActivityAt',
+        entityIds: ['session-activity']
+      },
+      { endpoint: '/agent-sessions/:sessionId', entityIds: ['session-activity'] }
+    ])
+    expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(2, [
+      { endpoint: '/agent-sessions', kind: 'projection' },
+      { endpoint: '/agent-sessions', kind: 'membership', dimension: 'q' }
+    ])
   })
 
   it('treats name-only updates as manual session renames', async () => {
@@ -1125,6 +1155,7 @@ describe('AgentSessionService', () => {
     const firstWorkspace = await createWorkspace('before-switch')
     const secondWorkspace = await createWorkspace('after-switch')
     const session = await createSession('Workspace switch', firstWorkspace.id)
+    notifyDataApiDataChangeMock.mockClear()
 
     const updated = agentSessionService.setWorkspace(session.id, {
       type: 'user',
@@ -1133,6 +1164,13 @@ describe('AgentSessionService', () => {
 
     expect(updated.workspaceId).toBe(secondWorkspace.id)
     expect(updated.workspace.path).toBe(secondWorkspace.path)
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+      { endpoint: '/agent-sessions', kind: 'projection', entityIds: [session.id] },
+      { endpoint: '/agent-sessions', kind: 'membership', dimension: 'workspaceId', entityIds: [session.id] },
+      { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: [session.id] },
+      { endpoint: '/agent-sessions/:sessionId', entityIds: [session.id] },
+      { endpoint: '/agent-sessions/stats' }
+    ])
   })
 
   it('deletes the previous system workspace row when switching to a user workspace', async () => {
@@ -1355,12 +1393,10 @@ describe('AgentSessionService', () => {
       { endpoint: '/agent-sessions', kind: 'membership', entityIds: [session.id] },
       { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: [session.id] },
       { endpoint: '/agent-sessions/:sessionId', entityIds: [session.id] },
-      { endpoint: '/agent-sessions/latest' },
       { endpoint: '/agent-sessions/stats' },
       { endpoint: '/pins', kind: 'membership' }
     ])
-    expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(2, [{ endpoint: '/pins', kind: 'membership' }])
-    expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(2)
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(1)
   })
 
   it('clears a paused task projection immediately when its bound session is deleted', async () => {
@@ -1450,7 +1486,6 @@ describe('AgentSessionService', () => {
       { endpoint: '/agent-sessions', kind: 'membership', dimension: 'q', entityIds: [session.id] },
       { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: [session.id] },
       { endpoint: '/agent-sessions/:sessionId', entityIds: [session.id] },
-      { endpoint: '/agent-sessions/latest' },
       { endpoint: '/agent-sessions/stats' }
     ])
   })
@@ -1683,6 +1718,7 @@ describe('AgentSessionService', () => {
     const first = await createSession('First')
     const second = await createSession('Second')
     const third = await createSession('Third')
+    notifyDataApiDataChangeMock.mockClear()
 
     agentSessionService.reorder(first.id, { position: 'first' })
     let list = agentSessionService.listByCursor({ pinned: false, sortBy: 'orderKey' })
@@ -1694,6 +1730,9 @@ describe('AgentSessionService', () => {
     ])
     list = agentSessionService.listByCursor({ pinned: false, sortBy: 'orderKey' })
     expect(list.items.map((item) => item.id)).toEqual([second.id, first.id, third.id])
+    const effects = notifyDataApiDataChangeMock.mock.calls.flatMap(([batch]) => batch)
+    expect(effects).not.toContainEqual({ endpoint: '/agent-sessions/stats' })
+    expect(effects).not.toContainEqual({ endpoint: '/agent-sessions/latest' })
   })
 
   it('does not skip pinned sessions with the same orderKey across pages', async () => {

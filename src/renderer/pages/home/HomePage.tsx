@@ -137,13 +137,10 @@ const HomePage: FC = () => {
     lastUsedAssistantId && assistantIdSet.has(lastUsedAssistantId) ? lastUsedAssistantId : undefined
   const isAssistantListResolved = hasAssistantsLoaded && !isAssistantsLoading && !isAssistantsRefreshing
   const resolveNewTopicAssistantId = useCallback(
-    (explicitAssistantId?: string | null): string | undefined => {
+    (explicitAssistantId?: string): string | undefined => {
       const isAvailableAssistantId = (assistantId: string | null | undefined): assistantId is string =>
         !!assistantId && assistantIdSet.has(assistantId)
 
-      if (explicitAssistantId === null) {
-        return undefined
-      }
       if (isAvailableAssistantId(explicitAssistantId)) {
         return explicitAssistantId
       }
@@ -459,16 +456,13 @@ const HomePage: FC = () => {
   const resolveEmptyTopic = useCallback(
     async (payload?: AddNewTopicPayload): Promise<Topic> => {
       const assistantId = resolveNewTopicAssistantId(payload?.assistantId)
-      const reuseTargetAssistantId = assistantId ?? (payload?.assistantId === null ? null : undefined)
       const result =
-        reuseTargetAssistantId === undefined
+        assistantId === undefined
           ? {
-              topic: await createTopic({
-                ...(assistantId ? { assistantId } : {})
-              }),
+              topic: await createTopic({}),
               created: true
             }
-          : await reuseOrCreateTopic(reuseTargetAssistantId)
+          : await reuseOrCreateTopic(assistantId)
 
       if (result.created) {
         void refreshTopics().catch((err) => {
@@ -500,7 +494,7 @@ const HomePage: FC = () => {
   )
 
   const handleCreateEmptyTopicForAssistant = useCallback(
-    (assistantId: string | null) => resolveEmptyTopic({ assistantId }),
+    (assistantId: string) => resolveEmptyTopic({ assistantId }),
     [resolveEmptyTopic]
   )
 

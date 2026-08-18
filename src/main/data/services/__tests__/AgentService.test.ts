@@ -1124,7 +1124,6 @@ describe('AgentService', () => {
           entityIds: ['session-delete-with-agent']
         },
         { endpoint: '/agent-sessions/:sessionId', entityIds: ['session-delete-with-agent'] },
-        { endpoint: '/agent-sessions/latest' },
         { endpoint: '/agent-sessions/stats' },
         { endpoint: '/pins', kind: 'membership' }
       ])
@@ -1173,7 +1172,6 @@ describe('AgentService', () => {
         },
         { endpoint: '/agent-sessions', kind: 'membership', dimension: 'q', entityIds: ['session-default-detach'] },
         { endpoint: '/agent-sessions/:sessionId', entityIds: ['session-default-detach'] },
-        { endpoint: '/agent-sessions/latest' },
         { endpoint: '/agent-sessions/stats' },
         { endpoint: '/pins', kind: 'membership' }
       ])

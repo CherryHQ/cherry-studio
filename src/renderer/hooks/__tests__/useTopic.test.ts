@@ -6,6 +6,7 @@ import {
   mockUseDataChange,
   mockUseInfiniteQuery,
   mockUseInvalidateCache,
+  mockUseMutation,
   mockUseQuery,
   mockUseWriteCache
 } from '@test-mocks/renderer/useDataApi'
@@ -143,7 +144,7 @@ describe('useTopics', () => {
   })
 
   it('converges the topic list for every notification regardless of entity hints', () => {
-    renderHook(() => useTopics({ pinned: false }))
+    renderHook(() => useTopics({ pinned: false, sortBy: 'lastActivityAt' }))
     const refresh = mockUseInfiniteQuery.mock.results.at(-1)?.value.refresh
     const listener = mockUseDataChange.mock.calls.at(-1)?.[1]
 
@@ -191,6 +192,27 @@ describe('useTopicMutations', () => {
 
     expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'topic-a' } })
     expect(mockCloseConversationTabs).toHaveBeenCalledWith('assistants', ['topic-a'])
+  })
+
+  it('refreshes stats only when a topic patch changes its name or owner', () => {
+    renderHook(() => useTopicMutations())
+
+    const updateMutationCall = mockUseMutation.mock.calls.find(
+      ([method, path]) => method === 'PATCH' && path === '/topics/:id'
+    )
+    const refresh = updateMutationCall?.[2]?.refresh as (context: {
+      args: { params: { id: string }; body: Record<string, unknown> }
+    }) => unknown[]
+
+    expect(refresh({ args: { params: { id: 'topic-a' }, body: { name: 'Renamed topic' } } })).toEqual([
+      '/topics',
+      '/topics/stats',
+      '/topics/topic-a'
+    ])
+    expect(refresh({ args: { params: { id: 'topic-a' }, body: { isNameManuallyEdited: true } } })).toEqual([
+      '/topics',
+      '/topics/topic-a'
+    ])
   })
 
   it('deletes selected topics through comma-separated query ids', async () => {
@@ -292,7 +314,7 @@ describe('useTopicMutations', () => {
     expect(patch).toHaveBeenCalledTimes(1)
     expect(patch).toHaveBeenCalledWith('/topics/topic-a/order', { body: { before: 'topic-b' } })
     expect(writeCacheSpy).not.toHaveBeenCalled()
-    expect(invalidateSpy).toHaveBeenCalledWith(['/topics', '/topics/stats'])
+    expect(invalidateSpy).toHaveBeenCalledWith(['/topics'])
   })
 
   it('reconciles caches and rethrows when the atomic move fails', async () => {

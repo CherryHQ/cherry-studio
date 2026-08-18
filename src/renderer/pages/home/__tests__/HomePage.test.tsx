@@ -274,8 +274,6 @@ vi.mock('@renderer/hooks/resourceViewSources', async () => {
           })
         )
         return {
-          isStatsLoading: false,
-          statsError: undefined,
           stats: { total: topics.length, pinnedCount: 0, byAssistant },
           loadLatestTopic: homeMocks.loadLatestTopic,
           reuseOrCreateTopic: homeMocks.reuseOrCreateTopic
@@ -391,8 +389,8 @@ vi.mock('../Chat', () => ({
     onSidebarToggle?: () => void
     locateMessageId?: string
     resourcePaneCount?: { label: string; count: number }
-    onCreateEmptyTopic?: (payload?: { assistantId?: string | null }) => void | Promise<void>
-    onNewTopic?: (payload?: { assistantId?: string | null }) => void | Promise<void>
+    onCreateEmptyTopic?: (payload?: { assistantId?: string }) => void | Promise<void>
+    onNewTopic?: (payload?: { assistantId?: string }) => void | Promise<void>
     onLocateMessageHandled?: () => void
     onPaneCollapse?: () => void
     onPaneAutoCollapseChange?: (collapsed: boolean) => void
@@ -640,7 +638,7 @@ vi.mock('@renderer/components/chat/resourceList/AssistantResourceList', () => ({
     assistantTopicsSource?: unknown
     onAddAssistant?: () => void | Promise<void>
     onActiveAssistantDeleted?: (assistantId: string) => void | Promise<void>
-    onCreateTopic?: (assistantId: string | null) => Promise<Topic | null>
+    onCreateTopic?: (assistantId: string) => Promise<Topic | null>
     onSelectTopic?: (topic: Topic) => void | boolean
     onManageAssistants?: () => void | Promise<void>
     onOpenHistoryRecords?: () => void | Promise<void>
@@ -666,7 +664,7 @@ vi.mock('@renderer/components/chat/resourceList/AssistantResourceList', () => ({
           type="button"
           onClick={() =>
             // Mirror the real list's contract: it activates the topic the page resolves.
-            void onCreateTopic?.(null).then((topic) => {
+            void onCreateTopic?.(activeAssistantId ?? 'assistant-default').then((topic) => {
               if (topic) onSelectTopic?.(topic)
             })
           }>
@@ -794,26 +792,26 @@ describe('HomePage', () => {
     homeMocks.isActiveTab = false
     homeMocks.createTopic.mockResolvedValue(createdTopic)
     homeMocks.refreshTopics.mockResolvedValue(undefined)
-    homeMocks.loadLatestTopic.mockReset().mockImplementation(async (assistantId?: string | null) => {
+    homeMocks.loadLatestTopic.mockReset().mockImplementation(async (assistantId?: string) => {
       if (assistantId !== undefined) {
         if (
           homeMocks.loadLatestTopicOverride !== undefined &&
-          (homeMocks.loadLatestTopicOverride?.assistantId ?? null) === assistantId
+          homeMocks.loadLatestTopicOverride?.assistantId === assistantId
         ) {
           return homeMocks.loadLatestTopicOverride
         }
-        return homeMocks.resourceLayoutTopics.find((topic) => (topic.assistantId ?? null) === assistantId) ?? null
+        return homeMocks.resourceLayoutTopics.find((topic) => topic.assistantId === assistantId) ?? null
       }
       return homeMocks.loadLatestTopicOverride === undefined
         ? (homeMocks.resourceLayoutTopics[0] ?? null)
         : homeMocks.loadLatestTopicOverride
     })
-    homeMocks.reuseOrCreateTopic.mockReset().mockImplementation(async (assistantId: string | null) => {
+    homeMocks.reuseOrCreateTopic.mockReset().mockImplementation(async (assistantId: string) => {
       const candidates = [homeMocks.activeTopicOverride, homeMocks.entryTopic, ...homeMocks.resourceLayoutTopics]
         .filter((topic): topic is NonNullable<typeof topic> => !!topic)
         .filter(
           (topic) =>
-            (assistantId === null ? !topic.assistantId : topic.assistantId === assistantId) &&
+            topic.assistantId === assistantId &&
             !topic.activeNodeId &&
             !topic.name.trim() &&
             !topic.isNameManuallyEdited
@@ -828,7 +826,7 @@ describe('HomePage', () => {
       })[0]
       if (reusable) return { topic: reusable, created: false }
 
-      const topic = await homeMocks.createTopic(assistantId ? { assistantId } : {})
+      const topic = await homeMocks.createTopic({ assistantId })
       return { topic, created: true }
     })
     homeMocks.activeTopicLoading = false
@@ -1253,17 +1251,17 @@ describe('HomePage', () => {
     expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-2')
   })
 
-  it('preserves the default assistant target when creating from the classic rail', async () => {
+  it('creates for the real default assistant from the classic rail', async () => {
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.assistants = [{ id: 'assistant-default' }, { id: 'assistant-2' }]
     homeMocks.persistCacheValues.set('ui.chat.last_used_assistant_id', 'assistant-2')
-    homeMocks.createTopic.mockResolvedValue({ ...createdTopic, assistantId: undefined })
+    homeMocks.createTopic.mockResolvedValue({ ...createdTopic, assistantId: 'assistant-default' })
 
     render(<HomePage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Create default assistant topic' }))
 
-    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({}))
+    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-default' }))
   })
 
   it('respects a manually closed classic-layout topic right pane on re-entry', () => {
@@ -1387,9 +1385,7 @@ describe('HomePage', () => {
     })
   })
 
-  it('reuses the default/unassigned empty topic instead of stacking a new blank', async () => {
-    // Regression: the default group resolves to no target assistant, so its empty placeholder was never
-    // matched and repeated "new topic" for it stacked duplicate blanks.
+  it('reuses the selected assistant empty topic instead of stacking a new blank', async () => {
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.resourceLayoutTopics = [
       // Latest overall (has a conversation) → resolved by the entry interceptor, never reusable.
@@ -1401,11 +1397,11 @@ describe('HomePage', () => {
         lastActivityAt: '2026-01-08T00:00:00.000Z',
         updatedAt: '2026-01-08T00:00:00.000Z'
       },
-      // Empty placeholder with no assistant (the default/unassigned group).
+      // Empty placeholder owned by the selected real assistant.
       {
         ...historyTopic,
         id: 'topic-default-empty',
-        assistantId: undefined,
+        assistantId: 'assistant-1',
         name: '',
         activeNodeId: undefined,
         lastActivityAt: '2026-01-06T00:00:00.000Z',

@@ -150,6 +150,7 @@ export class AgentSessionService {
       ownerChanged?: boolean
       pinsChanged?: boolean
       searchChanged?: boolean
+      statsChanged?: boolean
       workspaceChanged?: boolean
     } = {}
   ): void {
@@ -174,8 +175,7 @@ export class AgentSessionService {
         ? [{ endpoint: '/agent-sessions' as const, kind: 'order' as const, dimension: 'orderKey', entityIds }]
         : []),
       { endpoint: '/agent-sessions/:sessionId', entityIds },
-      { endpoint: '/agent-sessions/latest' },
-      { endpoint: '/agent-sessions/stats' },
+      ...(kind === 'membership' || options.statsChanged ? [{ endpoint: '/agent-sessions/stats' as const }] : []),
       ...(options.pinsChanged ? [{ endpoint: '/pins' as const, kind: 'membership' as const }] : [])
     ])
   }
@@ -184,8 +184,7 @@ export class AgentSessionService {
   notifyOwnerProjectionChange(): void {
     notifyDataApiDataChange([
       { endpoint: '/agent-sessions', kind: 'projection' },
-      { endpoint: '/agent-sessions', kind: 'membership', dimension: 'q' },
-      { endpoint: '/agent-sessions/stats' }
+      { endpoint: '/agent-sessions', kind: 'membership', dimension: 'q' }
     ])
   }
 
@@ -201,7 +200,6 @@ export class AgentSessionService {
       { endpoint: '/agent-sessions', kind: 'membership', dimension: 'agentId', entityIds },
       { endpoint: '/agent-sessions', kind: 'membership', dimension: 'q', entityIds },
       { endpoint: '/agent-sessions/:sessionId', entityIds },
-      { endpoint: '/agent-sessions/latest' },
       { endpoint: '/agent-sessions/stats' },
       ...(options.pinsChanged ? [{ endpoint: '/pins' as const, kind: 'membership' as const }] : [])
     ])
@@ -609,14 +607,14 @@ export class AgentSessionService {
    *   (`createdAt`/`lastActivityAt` → `DESC, id ASC`; `orderKey` → `ASC, id ASC`).
    *   Pinned rows are excluded from this stream.
    *
-   * Omitting `sortBy` defaults to `lastActivityAt` — there is no legacy composite
-   * pinned-then-ordinary view. Every paged caller selects one stream.
+   * Every ordinary-stream caller selects its sort profile explicitly; there is
+   * no legacy composite pinned-then-ordinary view.
    */
   listByCursor(query: ListAgentSessionsQuery): CursorPaginationResponse<AgentSessionListItem> {
     if (query.pinned === true) {
       return this.listPinnedByCursor(query)
     }
-    return this.listOrdinaryByCursor(query, query.sortBy ?? 'lastActivityAt')
+    return this.listOrdinaryByCursor(query, query.sortBy)
   }
 
   /** Pinned-only page in persisted pin order. */
@@ -688,12 +686,10 @@ export class AgentSessionService {
     const rows = db
       .select({
         session: sessionsTable,
-        workspace: agentWorkspaceTable,
-        pinId: pinTable.id
+        workspace: agentWorkspaceTable
       })
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
-      .leftJoin(pinTable, and(eq(pinTable.entityType, 'session'), eq(pinTable.entityId, sessionsTable.id)))
       .leftJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
       .where(and(...filters))
       .orderBy(...ordering.orderBy)
@@ -712,7 +708,7 @@ export class AgentSessionService {
     const nextCursor = hasMore && last ? encodeCursor(getSortValue(last), last.session.id) : undefined
 
     return {
-      items: pageRows.map((row) => toAgentSessionListItem(rowToSession(row), row.pinId)),
+      items: pageRows.map((row) => toAgentSessionListItem(rowToSession(row), null)),
       nextCursor
     }
   }
@@ -806,7 +802,8 @@ export class AgentSessionService {
     publishTaskReadModelChanges(result.clearedTaskScheduleIds)
     this.notifyReadModelChange([id], 'projection', {
       ownerChanged: dto.agentId !== undefined,
-      searchChanged: dto.name !== undefined || dto.description !== undefined || dto.agentId !== undefined
+      searchChanged: dto.name !== undefined || dto.agentId !== undefined,
+      statsChanged: dto.name !== undefined || dto.agentId !== undefined
     })
     return this.getById(id)
   }
@@ -844,7 +841,7 @@ export class AgentSessionService {
       () => application.get('DbService').withWriteTx((tx) => this.setWorkspaceTx(tx, id, source)),
       defaultHandlersFor('Session', id)
     )
-    this.notifyReadModelChange([id], 'projection', { workspaceChanged: true })
+    this.notifyReadModelChange([id], 'projection', { statsChanged: true, workspaceChanged: true })
     return this.getById(id)
   }
 

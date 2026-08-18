@@ -175,6 +175,7 @@ export class TopicService {
       ownerChanged?: boolean
       pinsChanged?: boolean
       searchChanged?: boolean
+      statsChanged?: boolean
     } = {}
   ): void {
     if (topicIds.length === 0) {
@@ -195,8 +196,7 @@ export class TopicService {
         ? [{ endpoint: '/topics' as const, kind: 'order' as const, dimension: 'orderKey', entityIds }]
         : []),
       { endpoint: '/topics/:id', entityIds },
-      { endpoint: '/topics/latest' },
-      { endpoint: '/topics/stats' },
+      ...(kind === 'membership' || options.statsChanged ? [{ endpoint: '/topics/stats' as const }] : []),
       ...(options.pinsChanged ? [{ endpoint: '/pins' as const, kind: 'membership' as const }] : [])
     ])
   }
@@ -205,8 +205,7 @@ export class TopicService {
   notifyOwnerProjectionChange(): void {
     notifyDataApiDataChange([
       { endpoint: '/topics', kind: 'projection' },
-      { endpoint: '/topics', kind: 'membership', dimension: 'q' },
-      { endpoint: '/topics/stats' }
+      { endpoint: '/topics', kind: 'membership', dimension: 'q' }
     ])
   }
 
@@ -221,7 +220,6 @@ export class TopicService {
       { endpoint: '/topics', kind: 'projection', entityIds },
       { endpoint: '/topics', kind: 'membership', dimension: 'assistantId', entityIds },
       { endpoint: '/topics', kind: 'membership', dimension: 'q', entityIds },
-      { endpoint: '/topics/latest' },
       { endpoint: '/topics/stats' },
       ...(options.pinsChanged ? [{ endpoint: '/pins' as const, kind: 'membership' as const }] : [])
     ])
@@ -280,16 +278,15 @@ export class TopicService {
   /** Reuse or create one exact empty placeholder under a serialized write transaction. */
   reuseOrCreatePlaceholder(dto: ReuseOrCreateTopicDto): ReusableTopicPlaceholderResponse {
     const result = application.get('DbService').withWriteTx((tx) => {
-      if (dto.assistantId) assertActiveAssistantTx(tx, dto.assistantId)
+      assertActiveAssistantTx(tx, dto.assistantId)
 
       const [reusable] = tx
         .select({ topic: topicTable })
         .from(topicTable)
-        .leftJoin(assistantTable, and(eq(topicTable.assistantId, assistantTable.id), isNull(assistantTable.deletedAt)))
         .where(
           and(
             isNull(topicTable.deletedAt),
-            dto.assistantId ? eq(assistantTable.id, dto.assistantId) : isNull(topicTable.assistantId),
+            eq(topicTable.assistantId, dto.assistantId),
             isNull(topicTable.activeNodeId),
             eq(topicTable.isNameManuallyEdited, false),
             sql`trim(${topicTable.name}) = ''`
@@ -301,7 +298,7 @@ export class TopicService {
 
       if (reusable) return { row: reusable.topic, created: false }
       return {
-        row: this.createTx(tx, { assistantId: dto.assistantId ?? undefined }),
+        row: this.createTx(tx, { assistantId: dto.assistantId }),
         created: true
       }
     })
@@ -482,7 +479,8 @@ export class TopicService {
     })
     this.notifyReadModelChange([id], 'projection', {
       ownerChanged: dto.assistantId !== undefined,
-      searchChanged: dto.name !== undefined || dto.assistantId !== undefined
+      searchChanged: dto.name !== undefined || dto.assistantId !== undefined,
+      statsChanged: dto.name !== undefined || dto.assistantId !== undefined
     })
 
     logger.info('Updated topic', { id, changes: Object.keys(dto) })
@@ -541,7 +539,8 @@ export class TopicService {
     this.notifyReadModelChange([id], 'projection', {
       orderKeyChanged: true,
       ownerChanged: true,
-      searchChanged: true
+      searchChanged: true,
+      statsChanged: true
     })
   }
 
@@ -675,14 +674,13 @@ export class TopicService {
    *   (`createdAt`/`lastActivityAt` → `DESC, id ASC`; `orderKey` → `ASC, id ASC`).
    *   Pinned rows are excluded from this stream.
    *
-   * Omitting `sortBy` defaults to `lastActivityAt` — there is no legacy composite
-   * pinned-then-ordinary view. Every paged caller selects one stream.
+   * Every ordinary paged caller supplies its sort profile explicitly.
    */
   listByCursor(query: ListTopicsQuery): CursorPaginationResponse<TopicListItem> {
     if (query.pinned === true) {
       return this.listPinnedByCursor(query)
     }
-    return this.listOrdinaryByCursor(query, query.sortBy ?? 'lastActivityAt')
+    return this.listOrdinaryByCursor(query, query.sortBy)
   }
 
   /** Pinned-only page in persisted pin order. */
@@ -742,9 +740,8 @@ export class TopicService {
     if (cursor) filters.push(ordering.where(cursor))
 
     const rows = db
-      .select({ topic: topicTable, pinId: pinTable.id })
+      .select({ topic: topicTable })
       .from(topicTable)
-      .leftJoin(pinTable, and(eq(pinTable.entityType, 'topic'), eq(pinTable.entityId, topicTable.id)))
       .leftJoin(assistantTable, and(eq(topicTable.assistantId, assistantTable.id), isNull(assistantTable.deletedAt)))
       .where(and(...filters))
       .orderBy(...ordering.orderBy)
@@ -763,7 +760,7 @@ export class TopicService {
     const nextCursor = hasMore && last ? encodeCursor(getSortValue(last), last.topic.id) : undefined
 
     return {
-      items: pageRows.map((row) => toTopicListItem(rowToTopic(row.topic), row.pinId)),
+      items: pageRows.map((row) => toTopicListItem(rowToTopic(row.topic), null)),
       nextCursor
     }
   }

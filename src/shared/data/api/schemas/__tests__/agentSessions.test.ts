@@ -17,19 +17,32 @@ const WORKSPACE_ID = 'workspace-1'
 const AGENT_SESSION_DELETE_MAX_IDS = 200
 
 describe('ListAgentSessionsQuerySchema', () => {
-  it('accepts agentId/cursor/limit without sortBy when the ordinary stream is explicit', () => {
-    expect(ListAgentSessionsQuerySchema.parse({ agentId: AGENT_ID, limit: 10, pinned: false })).toEqual({
+  it('requires sortBy when the ordinary stream is explicit', () => {
+    expect(
+      ListAgentSessionsQuerySchema.parse({
+        agentId: AGENT_ID,
+        limit: 10,
+        pinned: false,
+        sortBy: 'lastActivityAt'
+      })
+    ).toEqual({
       agentId: AGENT_ID,
       limit: 10,
-      pinned: false
+      pinned: false,
+      sortBy: 'lastActivityAt'
     })
+    expect(() => ListAgentSessionsQuerySchema.parse({ agentId: AGENT_ID, limit: 10, pinned: false })).toThrow()
     expect(() => ListAgentSessionsQuerySchema.parse({ agentId: AGENT_ID, limit: 10 })).toThrow()
   })
 
   it('accepts deterministic UUID v5 owner ids produced by legacy migration', () => {
-    expect(ListAgentSessionsQuerySchema.parse({ agentId: MIGRATED_AGENT_ID, pinned: false })).toMatchObject({
-      agentId: MIGRATED_AGENT_ID
-    })
+    expect(
+      ListAgentSessionsQuerySchema.parse({
+        agentId: MIGRATED_AGENT_ID,
+        pinned: false,
+        sortBy: 'lastActivityAt'
+      })
+    ).toMatchObject({ agentId: MIGRATED_AGENT_ID })
     expect(LatestAgentSessionQuerySchema.parse({ agentId: MIGRATED_AGENT_ID })).toEqual({
       agentId: MIGRATED_AGENT_ID
     })
@@ -47,8 +60,8 @@ describe('ListAgentSessionsQuerySchema', () => {
     { agentId: 'unlinked' },
     { workspaceId: WORKSPACE_ID },
     { workspaceId: 'system' }
-  ])('accepts record filter %j without sortBy', (filter) => {
-    expect(ListAgentSessionsQuerySchema.parse({ pinned: false, ...filter })).toMatchObject(filter)
+  ])('accepts record filter %j with an explicit ordinary sort', (filter) => {
+    expect(() => ListAgentSessionsQuerySchema.parse({ pinned: false, ...filter })).toThrow()
     expect(ListAgentSessionsQuerySchema.parse({ pinned: false, sortBy: 'lastActivityAt', ...filter })).toMatchObject(
       filter
     )
@@ -107,10 +120,10 @@ describe('ReuseOrCreateAgentSessionSchema', () => {
 })
 
 describe('LatestAgentSessionQuerySchema', () => {
-  it('accepts global, concrete live-agent, and unknown-owner scopes', () => {
+  it('accepts global and concrete live-agent scopes', () => {
     expect(LatestAgentSessionQuerySchema.parse({})).toEqual({})
     expect(LatestAgentSessionQuerySchema.parse({ agentId: AGENT_ID })).toEqual({ agentId: AGENT_ID })
-    expect(LatestAgentSessionQuerySchema.parse({ agentId: 'unlinked' })).toEqual({ agentId: 'unlinked' })
+    expect(() => LatestAgentSessionQuerySchema.parse({ agentId: 'unlinked' })).toThrow()
   })
 
   it('rejects pin and list-order dimensions', () => {

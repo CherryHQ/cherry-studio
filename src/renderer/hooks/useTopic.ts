@@ -243,7 +243,7 @@ function convertSharedMessage(shared: SharedMessage, assistantId: string): Messa
  *
  * Backed by `useInfiniteQuery` cursor pagination over two independent streams.
  * `pinned=true` selects the persisted pin-order stream. `pinned=false`
- * selects the ordinary stream — `'lastActivityAt'` (default) for recent
+ * selects the ordinary stream — `'lastActivityAt'` for recent
  * activity, `'createdAt'` for creation order, or `'orderKey'` for manual order —
  * and excludes pinned rows. The `assistantId` owner scope
  * (`uuid | 'unlinked'`) also applies. Consumers page explicitly with
@@ -251,33 +251,27 @@ function convertSharedMessage(shared: SharedMessage, assistantId: string): Messa
  *
  * `q` triggers server-side LIKE search on `topic.name`.
  */
-export function useTopics(opts: {
+type UseTopicsOptions = {
   q?: string
   searchScope?: TopicSearchScope
-  sortBy?: TopicSortBy
   assistantId?: string
-  pinned: boolean
   pageSize?: number
   enabled?: boolean
   retainInactive?: boolean
-}) {
+} & ({ pinned: true; sortBy?: never } | { pinned: false; sortBy: TopicSortBy })
+
+export function useTopics(opts: UseTopicsOptions) {
   const q = opts.q?.trim()
   const searchScope = opts.searchScope
-  const sortBy = opts.pinned ? undefined : opts.sortBy
   const query = useMemo(() => {
-    const built: {
-      q?: string
-      searchScope?: TopicSearchScope
-      sortBy?: TopicSortBy
-      assistantId?: string
-      pinned: boolean
-    } = { pinned: opts.pinned }
-    if (q) built.q = q
-    if (q && searchScope) built.searchScope = searchScope
-    if (sortBy) built.sortBy = sortBy
-    if (opts.assistantId) built.assistantId = opts.assistantId
-    return built
-  }, [opts.assistantId, opts.pinned, q, searchScope, sortBy])
+    const filters = {
+      ...(q ? { q } : {}),
+      ...(q && searchScope ? { searchScope } : {}),
+      ...(opts.assistantId ? { assistantId: opts.assistantId } : {})
+    }
+    if (opts.pinned) return { ...filters, pinned: true as const }
+    return { ...filters, pinned: false as const, sortBy: opts.sortBy }
+  }, [opts.assistantId, opts.pinned, opts.sortBy, q, searchScope])
   const pageSize = opts.pageSize ?? DEFAULT_TOPIC_PAGE_SIZE
   const { pages, isLoading, isLoadingMore, isRefreshing, error, hasNext, loadNext, refresh, reset } = useInfiniteQuery(
     '/topics',
@@ -363,7 +357,11 @@ export function useTopicMutations() {
     refresh: TOPIC_LIST_REFRESH
   })
   const { trigger: updateTrigger, isLoading: isUpdating } = useMutation('PATCH', '/topics/:id', {
-    refresh: ({ args }) => [...TOPIC_LIST_REFRESH, `/topics/${args!.params.id}`]
+    refresh: ({ args }) => {
+      const body = args!.body!
+      const refreshStats = 'name' in body || 'assistantId' in body
+      return ['/topics', ...(refreshStats ? (['/topics/stats'] as const) : []), `/topics/${args!.params.id}`]
+    }
   })
   const { trigger: deleteTrigger, isLoading: isDeleting } = useMutation('DELETE', '/topics/:id', {
     // After delete, only invalidate the list — refreshing `/topics/:id` would
@@ -445,8 +443,9 @@ export function useTopicMutations() {
    *
    * After the atomic write commits, the cached topic is updated in place so an
    * open composer immediately re-resolves its model/capabilities. One combined
-   * revalidation then reconciles all paginated topic streams, stats, and the
-   * by-id row without maintaining a second active-topic state in the page.
+   * revalidation then reconciles all paginated topic streams and, for an owner
+   * change, stats and the by-id row without maintaining a second active-topic
+   * state in the page.
    *
    * `assistantId: null` remains supported for non-drag callers through the
    * ordinary PATCH contract. Failures are rethrown so the page can roll back
@@ -458,7 +457,9 @@ export function useTopicMutations() {
       { assistantId, anchor }: { assistantId?: string | null; anchor: OrderRequest }
     ): Promise<void> => {
       const assistantChanged = assistantId !== undefined
-      const refreshKeys = assistantChanged ? [...TOPIC_LIST_REFRESH, `/topics/${topicId}`] : TOPIC_LIST_REFRESH
+      const refreshKeys = assistantChanged
+        ? [...TOPIC_LIST_REFRESH, `/topics/${topicId}`]
+        : (['/topics'] as ConcreteApiPaths[])
 
       try {
         if (assistantChanged) {
@@ -498,10 +499,11 @@ export function useTopicMutations() {
       const results = await Promise.allSettled(
         topics.map(({ id, dto }) => dataApiService.patch(`/topics/${id}`, { body: dto }))
       )
-      await refreshTopics()
+      const refreshStats = topics.some(({ dto }) => 'name' in dto || 'assistantId' in dto)
+      await invalidate(refreshStats ? TOPIC_LIST_REFRESH : ['/topics'])
       return results
     },
-    [refreshTopics]
+    [invalidate]
   )
 
   return {

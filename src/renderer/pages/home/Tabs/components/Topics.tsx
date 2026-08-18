@@ -1144,7 +1144,7 @@ export function Topics({
     [handleDeleteTopicFromMenu]
   )
   const headerCreateTopicPayload = useMemo(
-    () => (isRightPanel ? { assistantId: assistantIdFilter ?? null } : undefined),
+    () => (isRightPanel && assistantIdFilter ? { assistantId: assistantIdFilter } : undefined),
     [assistantIdFilter, isRightPanel]
   )
   const headerCreateLabel = isAssistantDisplayMode ? t('chat.add.assistant.title') : t('chat.conversation.new')

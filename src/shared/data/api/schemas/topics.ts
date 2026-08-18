@@ -58,7 +58,6 @@ export type MoveTopicDto = z.infer<typeof MoveTopicSchema>
  * sentinel cannot collide with a real id.
  */
 export const TopicOwnerScopeSchema = z.union([z.uuidv4(), z.literal('unlinked')])
-export type TopicOwnerScope = z.infer<typeof TopicOwnerScopeSchema>
 
 /**
  * Sort profiles for `GET /topics`. Direction is derived
@@ -87,11 +86,10 @@ export type TopicListItem = Topic & { pinned: boolean; pinId: string | null }
  * Two independent streams that never mix in one response or cursor:
  * - `pinned=true` → pin-owned stream ordered by `pin.orderKey ASC, id ASC`;
  *   PinService inserts new pins first and this variant does not accept `sortBy`.
- * - `pinned=false` → ordinary keyset stream ordered by `sortBy` (defaulting to
- *   `lastActivityAt`) with a `(sortValue, id)` cursor, excluding pinned rows.
+ * - `pinned=false` → ordinary keyset stream ordered by the required `sortBy`
+ *   with a `(sortValue, id)` cursor, excluding pinned rows.
  *
- * The record filters below apply on either path. Omitting `sortBy` means
- * `lastActivityAt`, never a legacy composite pinned-then-ordinary view.
+ * The record filters below apply on either path.
  */
 const ListTopicsCommonQuerySchema = z.strictObject({
   /** Opaque cursor from previous page's `nextCursor`. Valid only with the same filter+sort query. */
@@ -114,21 +112,21 @@ export const ListTopicsQuerySchema = z.discriminatedUnion('pinned', [
   ListTopicsCommonQuerySchema.extend({
     /** Ordinary stream excluding pinned rows. */
     pinned: z.literal(false),
-    /** Sort profile for the ordinary stream; defaults to `lastActivityAt`. */
-    sortBy: TopicSortBySchema.optional()
+    /** Sort profile for the ordinary stream. */
+    sortBy: TopicSortBySchema
   })
 ])
 export type ListTopicsQuery = z.infer<typeof ListTopicsQuerySchema>
 
 /** Optional owner scope for `GET /topics/latest`; omitted means global latest. */
 export const LatestTopicQuerySchema = z.strictObject({
-  assistantId: TopicOwnerScopeSchema.optional()
+  assistantId: z.uuidv4().optional()
 })
 export type LatestTopicQuery = z.infer<typeof LatestTopicQuerySchema>
 
 /** Exact creation target for atomically reusing or creating an empty topic. */
 export const ReuseOrCreateTopicSchema = z.strictObject({
-  assistantId: z.uuidv4().nullable()
+  assistantId: z.uuidv4()
 })
 export type ReuseOrCreateTopicDto = z.infer<typeof ReuseOrCreateTopicSchema>
 
@@ -143,7 +141,7 @@ export const TopicStatsQuerySchema = z.strictObject({
 })
 export type TopicStatsQuery = z.infer<typeof TopicStatsQuerySchema>
 
-export interface CountWithPins {
+interface CountWithPins {
   count: number
   pinnedCount: number
 }
@@ -252,8 +250,8 @@ export type DeleteTopicsQuery = z.input<typeof DeleteTopicsQuerySchema>
 export type TopicSchemas = {
   /**
    * Topics collection endpoint
-   * @example GET /topics?pinned=false&limit=50
-   * @example GET /topics?pinned=false&cursor=...&q=search
+   * @example GET /topics?pinned=false&sortBy=createdAt&limit=50
+   * @example GET /topics?pinned=false&sortBy=lastActivityAt&cursor=...&q=search
    * @example POST /topics { "name": "New Topic", "assistantId": "asst_123" }
    * @example DELETE /topics?ids=topic_1,topic_2
    */
@@ -263,8 +261,8 @@ export type TopicSchemas = {
      *
      * Two independent streams (see `ListTopicsQuerySchema`): `pinned=true`
      * pages the pin-owned band by `pin.orderKey ASC, id ASC`; `pinned=false`
-     * pages the ordinary band by `sortBy` (default `lastActivityAt`) with a
-     * `(sortValue, id)` keyset cursor. A response/cursor never mixes the two.
+     * pages the ordinary band by its required `sortBy` with a `(sortValue, id)`
+     * keyset cursor. A response/cursor never mixes the two.
      */
     GET: {
       query: ListTopicsQuery
@@ -294,7 +292,7 @@ export type TopicSchemas = {
    * First-entry restore reads this to resume the most-recently-active conversation.
    * Declared before `/topics/:id` and matched exactly by the server router, so
    * `latest` is never mistaken for a topic id. Omitting `assistantId` proves
-   * global latest; a concrete id or `unlinked` restricts the lookup.
+   * global latest; a concrete id restricts the lookup.
    *
    * @example GET /topics/latest
    */

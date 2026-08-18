@@ -5,7 +5,7 @@ import type { AgentSessionsSource, AssistantTopicsSource } from '@renderer/hooks
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -16,7 +16,6 @@ import { AssistantResourceList } from '../AssistantResourceList'
 const assistantDataMocks = vi.hoisted(() => ({
   deleteTopicsByAssistantId: vi.fn(),
   deleteAssistant: vi.fn(),
-  refreshTopics: vi.fn(),
   refetchAssistants: vi.fn(),
   topics: [
     { id: 'topic-1', assistantId: 'assistant-1', name: 'Topic 1' },
@@ -373,9 +372,6 @@ function createAgentSessionsSource(overrides: Partial<AgentSessionsSource> = {})
       byAgent: [{ agentId: 'agent-1', count: 1, pinnedCount: 0 }],
       byWorkspace: []
     },
-    isStatsLoading: false,
-    statsError: undefined,
-    refetchStats: vi.fn().mockResolvedValue(undefined),
     loadSession: vi.fn().mockResolvedValue(null),
     loadLatestSession: vi.fn().mockResolvedValue(null),
     reuseOrCreateSession: vi.fn(),
@@ -395,8 +391,6 @@ function createAssistantTopicsSource(): AssistantTopicsSource {
       pinnedCount: 0,
       byAssistant: Array.from(byAssistantCounts, ([assistantId, count]) => ({ assistantId, count, pinnedCount: 0 }))
     },
-    isStatsLoading: false,
-    statsError: undefined,
     loadLatestTopic: vi.fn().mockResolvedValue(null),
     reuseOrCreateTopic: vi.fn()
   }
@@ -404,18 +398,21 @@ function createAssistantTopicsSource(): AssistantTopicsSource {
 
 function TestAssistantResourceList({
   assistantTopicsSource = createAssistantTopicsSource(),
+  onAddAssistant = vi.fn(),
   ...props
-}: Omit<ComponentProps<typeof AssistantResourceList>, 'assistantTopicsSource'> & {
+}: Omit<ComponentProps<typeof AssistantResourceList>, 'assistantTopicsSource' | 'onAddAssistant'> & {
   assistantTopicsSource?: AssistantTopicsSource
+  onAddAssistant?: ComponentProps<typeof AssistantResourceList>['onAddAssistant']
 }) {
-  return <AssistantResourceList assistantTopicsSource={assistantTopicsSource} {...props} />
+  return (
+    <AssistantResourceList assistantTopicsSource={assistantTopicsSource} onAddAssistant={onAddAssistant} {...props} />
+  )
 }
 
 vi.mock('@renderer/hooks/useTopic', () => ({
   mapApiTopicToRendererTopic: (topic: unknown) => topic,
   useTopicMutations: () => ({
-    deleteTopicsByAssistantId: assistantDataMocks.deleteTopicsByAssistantId,
-    refreshTopics: assistantDataMocks.refreshTopics
+    deleteTopicsByAssistantId: assistantDataMocks.deleteTopicsByAssistantId
   })
 }))
 
@@ -471,8 +468,6 @@ describe('classic layout entity resource list actions', () => {
     assistantDataMocks.deleteTopicsByAssistantId.mockClear()
     assistantDataMocks.deleteAssistant.mockResolvedValue({ deleted: true, deletedTopicIds: [] })
     assistantDataMocks.deleteAssistant.mockClear()
-    assistantDataMocks.refreshTopics.mockResolvedValue(undefined)
-    assistantDataMocks.refreshTopics.mockClear()
     assistantDataMocks.refetchAssistants.mockResolvedValue(undefined)
     assistantDataMocks.refetchAssistants.mockClear()
     agentDataMocks.deleteAgent.mockResolvedValue({ deleted: true, deletedSessionIds: [] })
@@ -589,89 +584,23 @@ describe('classic layout entity resource list actions', () => {
       )
     )
     await waitFor(() => expect(assistantDataMocks.deleteTopicsByAssistantId).toHaveBeenCalledWith('assistant-1'))
-    await waitFor(() => expect(assistantDataMocks.refreshTopics).toHaveBeenCalledTimes(1))
     expect(onCreateTopic).not.toHaveBeenCalled()
     expect(onSelectTopic).not.toHaveBeenCalled()
     expect(toast.success).toHaveBeenCalledWith('assistants.clear.success_title:1')
   })
 
-  it('does not clear assistant topics when the list empties while the confirm dialog is open', async () => {
-    assistantDataMocks.topics = [
-      { id: 'topic-1', assistantId: 'assistant-1', name: 'Topic 1' },
-      { id: 'topic-2', assistantId: 'assistant-2', name: 'Topic 2' }
-    ]
-    let resolveConfirm!: (value: boolean) => void
-    const confirmPromise = new Promise<boolean>((resolve) => {
-      resolveConfirm = resolve
-    })
-    vi.mocked(popup.confirm).mockReturnValue(confirmPromise)
-    const props = {
-      activeAssistantId: 'assistant-1',
-      onSelectTopic: vi.fn(),
-      onCreateTopic: vi.fn()
-    }
-    const { rerender } = render(<TestAssistantResourceList {...props} />)
-
-    fireEvent.click(
-      within(screen.getByTestId('assistant-1-context-menu')).getByRole('button', {
-        name: 'assistants.clear.menu_title'
-      })
-    )
-    await waitFor(() => expect(popup.confirm).toHaveBeenCalledTimes(1))
-
-    // While the confirm dialog is open the topic list drains (e.g. cleared elsewhere).
-    // Re-render so the rail sees the latest topics before the user confirms.
-    assistantDataMocks.topics = [{ id: 'topic-2', assistantId: 'assistant-2', name: 'Topic 2' }]
-    rerender(<TestAssistantResourceList {...props} />)
-
-    await act(async () => {
-      resolveConfirm(true)
-      await confirmPromise
-    })
-
-    expect(assistantDataMocks.deleteTopicsByAssistantId).not.toHaveBeenCalled()
-    expect(assistantDataMocks.refreshTopics).not.toHaveBeenCalled()
-    expect(toast.success).not.toHaveBeenCalled()
-  })
-
-  it('keeps assistant-less topics under a non-actionable unlinked assistant entry in the classic rail', () => {
+  it('keeps assistant-less and dangling topics out of the real assistant rail', () => {
     assistantDataMocks.topics = [
       { id: 'topic-default', name: 'Default topic' },
-      { id: 'topic-1', assistantId: 'assistant-1', name: 'Topic 1' }
-    ]
-    const onCreateTopic = vi.fn()
-
-    render(<TestAssistantResourceList activeAssistantId={null} onSelectTopic={vi.fn()} onCreateTopic={onCreateTopic} />)
-
-    const unlinkedAssistantRegion = screen.getByRole('region', { name: 'chat.topics.group.unknown_assistant' })
-    const assistantRegion = screen.getByRole('region', { name: 'Assistant 1' })
-
-    expect(unlinkedAssistantRegion).toBeInTheDocument()
-    expect(unlinkedAssistantRegion).toHaveAttribute('title', 'chat.topics.group.unknown_assistant_tip')
-    expect(assistantRegion).toBeInTheDocument()
-    expect(
-      assistantRegion.compareDocumentPosition(unlinkedAssistantRegion) & Node.DOCUMENT_POSITION_FOLLOWING
-    ).toBeTruthy()
-    expect(screen.getByTestId('assistant-entity:unlinked-context-menu')).toBeEmptyDOMElement()
-
-    expect(within(unlinkedAssistantRegion).queryByRole('button', { name: 'chat.conversation.new' })).toBeNull()
-  })
-
-  it('groups dangling assistant topics under the unlinked assistant entry in the classic rail', () => {
-    assistantDataMocks.topics = [
-      { id: 'topic-unlinked', assistantId: 'missing-assistant', name: 'Unlinked topic' },
+      { id: 'topic-dangling', assistantId: 'missing-assistant', name: 'Dangling topic' },
       { id: 'topic-1', assistantId: 'assistant-1', name: 'Topic 1' }
     ]
 
-    render(
-      <TestAssistantResourceList
-        activeAssistantId="missing-assistant"
-        onSelectTopic={vi.fn()}
-        onCreateTopic={vi.fn()}
-      />
-    )
+    render(<TestAssistantResourceList activeAssistantId={null} onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />)
 
-    expect(screen.getByRole('region', { name: 'chat.topics.group.unknown_assistant' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Assistant 1' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Assistant 2' })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'chat.topics.group.unknown_assistant' })).not.toBeInTheDocument()
   })
 
   it('switches from assistant reorder to group reorder while grouping by tag', () => {

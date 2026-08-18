@@ -621,8 +621,6 @@ function createAssistantTopicsSource(topics?: readonly ApiTopic[]): AssistantTop
   }))
 
   return {
-    isStatsLoading: false,
-    statsError: undefined,
     loadLatestTopic: vi.fn().mockResolvedValue(null),
     reuseOrCreateTopic: vi.fn().mockResolvedValue({
       topic: createApiTopic({ id: 'topic-created', name: '' }),
@@ -1248,18 +1246,7 @@ describe('Topics', () => {
       activeTopic: createRendererTopic({ id: 'topic-unlinked', name: 'Default topic', assistantId: undefined }),
       assistantTopicsSource: {
         ...createAssistantTopicsSource(),
-        loadLatestTopic: vi.fn(async (assistantId?: string | null) =>
-          assistantId === null
-            ? createApiTopic({
-                id: 'topic-a',
-                name: 'Alpha topic',
-                assistantId: 'assistant-1',
-                orderKey: 'a',
-                createdAt: '2026-01-03T01:00:00.000Z',
-                updatedAt: '2026-01-03T01:00:00.000Z'
-              })
-            : null
-        )
+        loadLatestTopic: vi.fn().mockResolvedValue(null)
       }
     })
 

@@ -912,9 +912,6 @@ function setupSessions(overrides: Record<string, unknown> = {}) {
   }
   sessionDataMocks.source = {
     stats: sessionDataMocks.stats,
-    isStatsLoading: false,
-    statsError: undefined,
-    refetchStats: vi.fn().mockResolvedValue(undefined),
     loadSession: vi.fn().mockResolvedValue(null),
     loadLatestSession,
     reuseOrCreateSession

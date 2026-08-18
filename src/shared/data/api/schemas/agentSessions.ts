@@ -112,11 +112,10 @@ export type AgentSessionSearchScope = z.infer<typeof AgentSessionSearchScopeSche
  * Two independent streams that never mix in one response or cursor:
  * - `pinned=true` → pin-owned stream ordered by `pin.orderKey ASC, id ASC`;
  *   PinService inserts new pins first and this variant does not accept `sortBy`.
- * - `pinned=false` → ordinary keyset stream ordered by `sortBy` (defaulting to
- *   `lastActivityAt`) with a `(sortValue, id)` cursor, excluding pinned rows.
+ * - `pinned=false` → ordinary keyset stream ordered by the required `sortBy`
+ *   with a `(sortValue, id)` cursor, excluding pinned rows.
  *
- * The record filters below apply on either path. Omitting `sortBy` means
- * `lastActivityAt`, never a legacy composite view. Workspace grouping uses the
+ * The record filters below apply on either path. Workspace grouping uses the
  * stable workspace id; path remains presentation metadata.
  */
 const ListAgentSessionsCommonQuerySchema = z.strictObject({
@@ -142,16 +141,16 @@ export const ListAgentSessionsQuerySchema = z.discriminatedUnion('pinned', [
   ListAgentSessionsCommonQuerySchema.extend({
     /** Ordinary stream excluding pinned rows. */
     pinned: z.literal(false),
-    /** Sort profile for the ordinary stream; defaults to `lastActivityAt`. */
-    sortBy: AgentSessionSortBySchema.optional()
+    /** Sort profile for the ordinary stream. */
+    sortBy: AgentSessionSortBySchema
   })
 ])
 export type ListAgentSessionsQueryParams = z.input<typeof ListAgentSessionsQuerySchema>
 export type ListAgentSessionsQuery = z.output<typeof ListAgentSessionsQuerySchema>
 
-/** Optional live or unlinked owner scope for `GET /agent-sessions/latest`; omitted means global latest. */
+/** Optional concrete owner scope for `GET /agent-sessions/latest`; omitted means global latest. */
 export const LatestAgentSessionQuerySchema = z.strictObject({
-  agentId: AgentSessionOwnerScopeSchema.optional()
+  agentId: ConcreteAgentIdSchema.optional()
 })
 export type LatestAgentSessionQuery = z.infer<typeof LatestAgentSessionQuerySchema>
 
@@ -250,13 +249,13 @@ export type AgentSessionSchemas = {
   }
 
   /**
-   * Most-recently-active session, globally or within one live/unlinked agent scope.
+   * Most-recently-active session, globally or within one concrete live-agent scope.
    *
    * First-entry restore reads this to resume the most-recently-active session. Declared
    * before `/agent-sessions/:sessionId` and matched exactly by the server router,
    * so `latest` is never mistaken for a session id. Proves global latest via
    * `lastActivityAt DESC LIMIT 1`; passing `agentId` restricts the lookup to that
-   * live agent or the unlinked pseudo-owner scope.
+   * live agent.
    */
   '/agent-sessions/latest': {
     GET: {

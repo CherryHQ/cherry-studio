@@ -271,7 +271,7 @@ describe('useSessions', () => {
   it('disables the session query when the source is disabled', () => {
     mockUseInfiniteQuery.mockReturnValue(buildInfiniteReturn() as never)
 
-    renderHook(() => useSessions(undefined, { enabled: false, pinned: false }))
+    renderHook(() => useSessions(undefined, { enabled: false, pinned: false, sortBy: 'lastActivityAt' }))
 
     expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
       '/agent-sessions',
@@ -291,7 +291,7 @@ describe('useSessions', () => {
       }) as never
     )
 
-    const { result } = renderHook(() => useSessions('agent-1', { pinned: false }))
+    const { result } = renderHook(() => useSessions('agent-1', { pinned: false, sortBy: 'lastActivityAt' }))
     await act(async () => {})
     expect(result.current.hasMore).toBe(true)
 
@@ -311,7 +311,7 @@ describe('useSessions', () => {
       }) as never
     )
 
-    const { result } = renderHook(() => useSessions('agent-1', { pinned: false }))
+    const { result } = renderHook(() => useSessions('agent-1', { pinned: false, sortBy: 'lastActivityAt' }))
 
     expect(result.current.isLoadingMore).toBe(true)
   })
@@ -326,7 +326,7 @@ describe('useSessions', () => {
       }) as never
     )
 
-    const { result } = renderHook(() => useSessions('agent-1', { pinned: false }))
+    const { result } = renderHook(() => useSessions('agent-1', { pinned: false, sortBy: 'lastActivityAt' }))
     await act(async () => {})
 
     act(() => {
@@ -440,7 +440,7 @@ describe('useUpdateSession', () => {
     expect(toast.success).toHaveBeenCalledWith('common.update_success')
   })
 
-  it('keeps the session PATCH refresh scoped to session caches and stats', () => {
+  it('refreshes stats only when a session patch changes its name or owner', () => {
     renderHook(() => useUpdateSession())
 
     const updateMutationCall = mockUseMutation.mock.calls.find(
@@ -457,6 +457,12 @@ describe('useUpdateSession', () => {
         result: createSession()
       })
     ).toEqual(['/agent-sessions', '/agent-sessions/stats', '/agent-sessions/session-1'])
+    expect(
+      refresh({
+        args: { params: { sessionId: 'session-1' }, body: { description: 'Updated description' } },
+        result: createSession()
+      })
+    ).toEqual(['/agent-sessions', '/agent-sessions/session-1'])
   })
 
   it('refreshes workspaces through the dedicated workspace mutation', async () => {

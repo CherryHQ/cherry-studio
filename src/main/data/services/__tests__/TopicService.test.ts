@@ -135,8 +135,43 @@ describe('TopicService', () => {
       { endpoint: '/topics', kind: 'membership', dimension: 'q', entityIds: ['topic-name-only'] },
       { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds: ['topic-name-only'] },
       { endpoint: '/topics/:id', entityIds: ['topic-name-only'] },
-      { endpoint: '/topics/latest' },
       { endpoint: '/topics/stats' }
+    ])
+  })
+
+  it('does not invalidate stats or latest for projection-only and reorder notifications', () => {
+    notifyDataApiDataChangeMock.mockClear()
+
+    topicService.notifyReadModelChange(['topic-projection'], 'projection')
+    topicService.notifyReadModelChange(['topic-reorder'], 'projection', { orderKeyChanged: true })
+
+    for (const [effects] of notifyDataApiDataChangeMock.mock.calls) {
+      expect(effects).not.toContainEqual({ endpoint: '/topics/stats' })
+      expect(effects).not.toContainEqual({ endpoint: '/topics/latest' })
+    }
+  })
+
+  it('keeps owner removal stats current without invalidating latest', () => {
+    notifyDataApiDataChangeMock.mockClear()
+
+    topicService.notifyOwnerRemovalChange(['topic-owner-removed'])
+
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+      { endpoint: '/topics', kind: 'projection', entityIds: ['topic-owner-removed'] },
+      { endpoint: '/topics', kind: 'membership', dimension: 'assistantId', entityIds: ['topic-owner-removed'] },
+      { endpoint: '/topics', kind: 'membership', dimension: 'q', entityIds: ['topic-owner-removed'] },
+      { endpoint: '/topics/stats' }
+    ])
+  })
+
+  it('does not invalidate stats when only an owner name projection changes', () => {
+    notifyDataApiDataChangeMock.mockClear()
+
+    topicService.notifyOwnerProjectionChange()
+
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+      { endpoint: '/topics', kind: 'projection' },
+      { endpoint: '/topics', kind: 'membership', dimension: 'q' }
     ])
   })
 
@@ -161,6 +196,22 @@ describe('TopicService', () => {
       name: 'After serialized update',
       isNameManuallyEdited: false
     })
+  })
+
+  it('does not refresh stats for a flag-only topic update', async () => {
+    await dbh.db.insert(topicTable).values({
+      id: 'topic-flag-only',
+      name: 'Flag only',
+      isNameManuallyEdited: false,
+      orderKey: 'a0'
+    })
+    notifyDataApiDataChangeMock.mockClear()
+
+    topicService.update('topic-flag-only', { isNameManuallyEdited: true })
+
+    const [effects] = notifyDataApiDataChangeMock.mock.calls[0]
+    expect(effects).not.toContainEqual({ endpoint: '/topics/stats' })
+    expect(effects).not.toContainEqual({ endpoint: '/topics/latest' })
   })
 
   it('preserves explicit automatic topic renames', async () => {
@@ -207,9 +258,11 @@ describe('TopicService', () => {
       orderKey: 'a0'
     })
 
+    notifyDataApiDataChangeMock.mockClear()
     const moved = topicService.update('topic-assistant-update', { assistantId: 'assistant-active' })
 
     expect(moved.assistantId).toBe('assistant-active')
+    expect(notifyDataApiDataChangeMock.mock.calls[0][0]).toContainEqual({ endpoint: '/topics/stats' })
 
     let err: unknown
     try {
@@ -225,7 +278,7 @@ describe('TopicService', () => {
   })
 
   describe('listByCursor (ordinary stream)', () => {
-    it('defaults an omitted sortBy to lastActivityAt DESC, id ASC and excludes pinned rows', async () => {
+    it('orders explicitly by lastActivityAt DESC, id ASC and excludes pinned rows', async () => {
       const service = new TopicService()
       // The ordinary stream never mixes a pinned row into its keyset chain.
       await dbh.db.insert(topicTable).values([
@@ -242,12 +295,8 @@ describe('TopicService', () => {
         updatedAt: 1
       })
 
-      const result = service.listByCursor({ pinned: false })
+      const result = service.listByCursor({ pinned: false, sortBy: 'lastActivityAt' })
       expect(result.items.map((t) => t.id)).toEqual(['mid', 'newest'])
-      // Identical to an explicit activity request — omission preserves the recent-activity list.
-      expect(result.items.map((t) => t.id)).toEqual(
-        service.listByCursor({ pinned: false, sortBy: 'lastActivityAt' }).items.map((t) => t.id)
-      )
     })
 
     it('excludes soft-deleted topics and spans assistants', async () => {
@@ -278,7 +327,7 @@ describe('TopicService', () => {
         { id: 't3', name: 'Other', assistantId: 'asst-2', orderKey: 'a2', createdAt: 3, updatedAt: 300 }
       ])
 
-      const result = service.listByCursor({ pinned: false })
+      const result = service.listByCursor({ pinned: false, sortBy: 'lastActivityAt' })
       expect(result.items.map((t) => t.id).sort()).toEqual(['t1', 't3'])
       expect(result.nextCursor).toBeUndefined()
     })
@@ -295,7 +344,7 @@ describe('TopicService', () => {
         { id: 'a_b', name: 'a_b', orderKey: 'a3', createdAt: 1, updatedAt: 6 },
         { id: 'a-b', name: 'a-b', orderKey: 'a4', createdAt: 1, updatedAt: 5 } // would match 'a_b' if _ were a wildcard
       ])
-      const result = service.listByCursor({ pinned: false, q })
+      const result = service.listByCursor({ pinned: false, sortBy: 'lastActivityAt', q })
       expect(result.items.map((t) => t.id).sort()).toEqual([...expected].sort())
     })
 
@@ -313,7 +362,7 @@ describe('TopicService', () => {
         updatedAt: 1
       })
 
-      const result = service.listByCursor({ pinned: false })
+      const result = service.listByCursor({ pinned: false, sortBy: 'lastActivityAt' })
       expect(result.items.map((t) => t.id)).toEqual(['t1'])
       expect(result.items[0]).toMatchObject({ pinned: false, pinId: null })
     })
@@ -326,7 +375,7 @@ describe('TopicService', () => {
         { id: 't1', name: 'T1', orderKey: 'a0', createdAt: 1, updatedAt: 100 },
         { id: 't2', name: 'T2', orderKey: 'a1', createdAt: 2, updatedAt: 200 }
       ])
-      const result = service.listByCursor({ pinned: false, cursor: 'gibberish' })
+      const result = service.listByCursor({ pinned: false, sortBy: 'lastActivityAt', cursor: 'gibberish' })
       expect(result.items.map((t) => t.id).sort()).toEqual(['t1', 't2'])
     })
   })
@@ -676,7 +725,6 @@ describe('TopicService', () => {
         { endpoint: '/topics', kind: 'membership', entityIds: ['topic-1'] },
         { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds: ['topic-1'] },
         { endpoint: '/topics/:id', entityIds: ['topic-1'] },
-        { endpoint: '/topics/latest' },
         { endpoint: '/topics/stats' },
         { endpoint: '/pins', kind: 'membership' }
       ])
@@ -1329,7 +1377,6 @@ describe('TopicService', () => {
         { endpoint: '/topics', kind: 'membership', entityIds: [result.id] },
         { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds: [result.id] },
         { endpoint: '/topics/:id', entityIds: [result.id] },
-        { endpoint: '/topics/latest' },
         { endpoint: '/topics/stats' }
       ])
       expect(result.activeNodeId).toBeUndefined()
@@ -1483,7 +1530,6 @@ describe('TopicService', () => {
         { endpoint: '/topics', kind: 'membership', entityIds: [result.id] },
         { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds: [result.id] },
         { endpoint: '/topics/:id', entityIds: [result.id] },
-        { endpoint: '/topics/latest' },
         { endpoint: '/topics/stats' }
       ])
       expect(result.id).not.toBe('src-t')
@@ -2139,7 +2185,7 @@ describe('TopicService', () => {
       expect(service.getLatestActive()?.id).toBe('latest')
     })
 
-    it('returns latest activity within a live or unlinked assistant scope', async () => {
+    it('returns latest activity within a live assistant scope and excludes a deleted owner', async () => {
       const service = new TopicService()
       await dbh.db.insert(assistantTable).values([
         {
@@ -2196,14 +2242,14 @@ describe('TopicService', () => {
       ])
 
       expect(service.getLatestActive({ assistantId: 'assistant-scoped' })?.id).toBe('topic-scoped')
-      expect(service.getLatestActive({ assistantId: 'unlinked' })?.id).toBe('topic-deleted-owner')
+      expect(service.getLatestActive({ assistantId: 'assistant-deleted-scope' })).toBeNull()
     })
 
     it('returns null when there are no topics', () => {
       expect(new TopicService().getLatestActive()).toBeNull()
     })
 
-    it('restricts latest lookup to a concrete or unlinked owner scope', async () => {
+    it('restricts latest lookup to a concrete owner scope', async () => {
       const service = new TopicService()
       await dbh.db.insert(assistantTable).values({
         id: 'asst-latest',
@@ -2239,7 +2285,6 @@ describe('TopicService', () => {
       ])
 
       expect(service.getLatestActive({ assistantId: 'asst-latest' })?.id).toBe('owned-latest')
-      expect(service.getLatestActive({ assistantId: 'unlinked' })?.id).toBe('unlinked-latest')
     })
   })
 
@@ -2362,16 +2407,11 @@ describe('TopicService', () => {
           isNameManuallyEdited: true,
           orderKey: 'a3',
           updatedAt: 800
-        },
-        { id: 'unassigned', name: '', orderKey: 'a4', updatedAt: 700 }
+        }
       ])
 
       expect(service.reuseOrCreatePlaceholder({ assistantId: 'assistant-reusable' })).toMatchObject({
         topic: { id: 'updated-later' },
-        created: false
-      })
-      expect(service.reuseOrCreatePlaceholder({ assistantId: null })).toMatchObject({
-        topic: { id: 'unassigned' },
         created: false
       })
     })

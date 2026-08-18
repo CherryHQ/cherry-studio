@@ -67,14 +67,16 @@ describe('agentSessionHandlers', () => {
         query: {
           agentId: AGENT_ID,
           limit: '10',
-          pinned: false
+          pinned: false,
+          sortBy: 'lastActivityAt'
         }
       } as never)
 
       expect(listByCursorMock).toHaveBeenCalledWith({
         agentId: AGENT_ID,
         limit: 10,
-        pinned: false
+        pinned: false,
+        sortBy: 'lastActivityAt'
       })
       expect(result).toBe(response)
     })
@@ -93,6 +95,14 @@ describe('agentSessionHandlers', () => {
       getLatestActiveMock.mockReturnValueOnce(null)
 
       await expect(agentSessionHandlers['/agent-sessions/latest'].GET({} as never)).resolves.toEqual({ session: null })
+    })
+
+    it('rejects the aggregate unlinked owner scope', async () => {
+      await expect(
+        agentSessionHandlers['/agent-sessions/latest'].GET({ query: { agentId: 'unlinked' } } as never)
+      ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
+
+      expect(getLatestActiveMock).not.toHaveBeenCalled()
     })
   })
 

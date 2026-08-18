@@ -57,17 +57,18 @@ describe('MoveTopicSchema', () => {
 })
 
 describe('ListTopicsQuerySchema', () => {
-  it('accepts cursor/limit/q without sortBy when the ordinary stream is explicit', () => {
-    expect(ListTopicsQuerySchema.parse({ q: 'x', limit: 10, pinned: false })).toEqual({
+  it('requires the ordinary stream and its sort profile explicitly', () => {
+    expect(ListTopicsQuerySchema.parse({ q: 'x', limit: 10, pinned: false, sortBy: 'lastActivityAt' })).toEqual({
       q: 'x',
       limit: 10,
-      pinned: false
+      pinned: false,
+      sortBy: 'lastActivityAt'
     })
     expect(() => ListTopicsQuerySchema.parse({ q: 'x', limit: 10 })).toThrow()
+    expect(() => ListTopicsQuerySchema.parse({ q: 'x', limit: 10, pinned: false })).toThrow()
   })
 
-  it.each([{ assistantId: 'unlinked' }])('accepts record filter %j without sortBy', (filter) => {
-    expect(ListTopicsQuerySchema.parse({ pinned: false, ...filter })).toMatchObject(filter)
+  it.each([{ assistantId: 'unlinked' }])('accepts record filter %j with an explicit sort profile', (filter) => {
     expect(ListTopicsQuerySchema.parse({ pinned: false, sortBy: 'lastActivityAt', ...filter })).toMatchObject(filter)
   })
 
@@ -83,13 +84,22 @@ describe('ListTopicsQuerySchema', () => {
   })
 
   it('accepts searchScope name/name-or-owner and rejects an unknown scope', () => {
-    expect(ListTopicsQuerySchema.parse({ pinned: false, q: 'x', searchScope: 'name' })).toMatchObject({
+    expect(
+      ListTopicsQuerySchema.parse({ pinned: false, sortBy: 'createdAt', q: 'x', searchScope: 'name' })
+    ).toMatchObject({
       searchScope: 'name'
     })
-    expect(ListTopicsQuerySchema.parse({ pinned: false, q: 'x', searchScope: 'name-or-owner' })).toMatchObject({
-      searchScope: 'name-or-owner'
-    })
-    expect(() => ListTopicsQuerySchema.parse({ pinned: false, q: 'x', searchScope: 'full' })).toThrow()
+    expect(
+      ListTopicsQuerySchema.parse({
+        pinned: false,
+        sortBy: 'createdAt',
+        q: 'x',
+        searchScope: 'name-or-owner'
+      })
+    ).toMatchObject({ searchScope: 'name-or-owner' })
+    expect(() =>
+      ListTopicsQuerySchema.parse({ pinned: false, sortBy: 'createdAt', q: 'x', searchScope: 'full' })
+    ).toThrow()
   })
 
   it('accepts the pin-owned stream without sortBy and rejects every sort dimension', () => {
@@ -103,27 +113,28 @@ describe('ListTopicsQuerySchema', () => {
 })
 
 describe('ReuseOrCreateTopicSchema', () => {
-  it('accepts an exact live owner or the unlinked creation target', () => {
+  it('accepts an exact live owner', () => {
     const assistantId = '11111111-1111-4111-8111-111111111111'
     expect(ReuseOrCreateTopicSchema.parse({ assistantId })).toEqual({ assistantId })
-    expect(ReuseOrCreateTopicSchema.parse({ assistantId: null })).toEqual({ assistantId: null })
   })
 
-  it('rejects aggregate and list-only dimensions', () => {
+  it('rejects unlinked targets and list-only dimensions', () => {
     expect(() => ReuseOrCreateTopicSchema.parse({ assistantId: 'unlinked' })).toThrow()
+    expect(() => ReuseOrCreateTopicSchema.parse({ assistantId: null })).toThrow()
     expect(() => ReuseOrCreateTopicSchema.parse({ assistantId: null, pinned: false })).toThrow(/unrecognized/i)
   })
 })
 
 describe('LatestTopicQuerySchema', () => {
-  it('accepts global, concrete-owner, and unlinked scopes', () => {
+  it('accepts global and concrete-owner scopes', () => {
     const assistantId = '11111111-1111-4111-8111-111111111111'
     expect(LatestTopicQuerySchema.parse({})).toEqual({})
     expect(LatestTopicQuerySchema.parse({ assistantId })).toEqual({ assistantId })
-    expect(LatestTopicQuerySchema.parse({ assistantId: 'unlinked' })).toEqual({ assistantId: 'unlinked' })
   })
 
-  it('rejects pin and list-order dimensions', () => {
+  it('rejects unlinked, pin, and list-order dimensions', () => {
+    expect(() => LatestTopicQuerySchema.parse({ assistantId: 'unlinked' })).toThrow()
+    expect(() => LatestTopicQuerySchema.parse({ assistantId: null })).toThrow()
     expect(() => LatestTopicQuerySchema.parse({ pinned: true })).toThrow(/unrecognized/i)
     expect(() => LatestTopicQuerySchema.parse({ sortBy: 'createdAt' })).toThrow(/unrecognized/i)
   })
