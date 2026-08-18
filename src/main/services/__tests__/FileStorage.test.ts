@@ -163,6 +163,29 @@ describe('FileStorage', () => {
       await expect(fileStorage.readExternalFile(event, tmpFile, true)).resolves.toBe('Hello 世界\nsecond line')
     })
   })
+
+  // Catches an inverted canceled/filePath check (cancel writing a file, confirm
+  // returning false) and a lost 'base64' encoding (literal base64 text on disk).
+  describe('saveImage', () => {
+    it('returns false and writes nothing when the save dialog is canceled', async () => {
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: true, filePath: undefined } as never)
+
+      await expect(fileStorage.saveImage(event, 'pic', 'data:image/png;base64,AAAA')).resolves.toBe(false)
+    })
+
+    it('decodes the base64 payload to disk and returns true on confirm', async () => {
+      const tmpFile = path.join(os.tmpdir(), `filestorage-image-test-${uniqueId()}.png`)
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: tmpFile } as never)
+      const payload = Buffer.from('fake-png-bytes').toString('base64')
+
+      try {
+        await expect(fileStorage.saveImage(event, 'pic', `data:image/png;base64,${payload}`)).resolves.toBe(true)
+        expect(fs.readFileSync(tmpFile).equals(Buffer.from('fake-png-bytes'))).toBe(true)
+      } finally {
+        fs.rmSync(tmpFile, { force: true })
+      }
+    })
+  })
 })
 
 function uniqueId(): string {
