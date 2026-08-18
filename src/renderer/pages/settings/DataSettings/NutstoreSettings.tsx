@@ -15,13 +15,7 @@ import { useNutstoreSso } from '@renderer/hooks/useNutstoreSso'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { ipcApi } from '@renderer/ipc'
-import {
-  backupToNutstore,
-  checkConnection,
-  getNutstoreSyncState,
-  startNutstoreAutoSync,
-  stopNutstoreAutoSync
-} from '@renderer/services/NutstoreService'
+import { backupToNutstore, checkConnection } from '@renderer/services/NutstoreService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import dayjs from 'dayjs'

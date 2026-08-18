@@ -12,7 +12,6 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const electronMocks = vi.hoisted(() => ({

@@ -6,7 +6,6 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  backupShow: vi.fn(),
   request: vi.fn()
 }))
 
@@ -15,10 +14,6 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => await importOriginal())
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: mocks.request }
-}))
-
-vi.mock('../BackupPopup', () => ({
-  default: { show: mocks.backupShow }
 }))
 
 vi.mock('react-i18next', () => ({
@@ -32,8 +27,11 @@ import V1RemigrationPopup from '../V1RemigrationPopup'
 
 beforeEach(() => {
   vi.clearAllMocks()
-  mocks.backupShow.mockResolvedValue(undefined)
-  mocks.request.mockResolvedValue(undefined)
+  mocks.request.mockImplementation(async (route: string) =>
+    route === 'backup.export'
+      ? { status: 'exported', archivePath: '/backup.cherrybackup', resourceCount: 1, degradations: [] }
+      : undefined
+  )
 })
 
 afterEach(() => {
@@ -47,7 +45,7 @@ afterEach(() => {
 })
 
 describe('V1RemigrationPopup', () => {
-  it('gates the three-step wizard, offers a forced full backup, and requests remigration only at the end', async () => {
+  it('gates the three-step wizard, offers a full v2 backup, and requests remigration only at the end', async () => {
     const user = userEvent.setup()
     render(<PopupHost />)
     act(() => {
@@ -72,8 +70,7 @@ describe('V1RemigrationPopup', () => {
     const backupNext = screen.getByRole('button', { name: 'settings.data.v1_remigration.next' })
     expect(backupNext).toBeDisabled()
     await user.click(screen.getByRole('button', { name: 'settings.data.v1_remigration.backup_button' }))
-    expect(mocks.backupShow).toHaveBeenCalledExactlyOnceWith({ forceFullBackup: true })
-    expect(mocks.request).not.toHaveBeenCalled()
+    expect(mocks.request).toHaveBeenCalledExactlyOnceWith('backup.export')
     expect(backupNext).toBeDisabled()
 
     await user.click(screen.getByLabelText('settings.data.v1_remigration.backup_acknowledgement'))
@@ -89,7 +86,7 @@ describe('V1RemigrationPopup', () => {
     expect(confirm).toBeDisabled()
     expect(confirm).toHaveTextContent('settings.data.v1_remigration.confirm_countdown:1')
     confirm.click()
-    expect(mocks.request).not.toHaveBeenCalled()
+    expect(mocks.request).toHaveBeenCalledTimes(1)
     await act(() => vi.advanceTimersByTime(1000))
     expect(confirm).toBeEnabled()
     expect(confirm).toHaveTextContent('settings.data.v1_remigration.confirm')
@@ -97,7 +94,7 @@ describe('V1RemigrationPopup', () => {
       confirm.click()
       await Promise.resolve()
     })
-    expect(mocks.request).toHaveBeenCalledExactlyOnceWith('app.migration_v2.rerun')
+    expect(mocks.request).toHaveBeenNthCalledWith(2, 'app.migration_v2.rerun')
     expect(confirm).toBeDisabled()
   })
 
@@ -118,7 +115,6 @@ describe('V1RemigrationPopup', () => {
     vi.useFakeTimers()
     act(() => backupNext.click())
 
-    expect(mocks.backupShow).not.toHaveBeenCalled()
     await act(() => vi.advanceTimersByTime(5000))
     const confirm = screen.getByRole('button', { name: 'settings.data.v1_remigration.confirm' })
     await act(async () => {

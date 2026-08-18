@@ -62,12 +62,6 @@ interface ProgressData {
   total: number
 }
 
-interface BackupFileInfo {
-  fileName: string
-  modifiedTime: string
-  size: number
-}
-
 class BackupManager {
   private readonly operationMutex = new Mutex()
 
@@ -124,7 +118,9 @@ class BackupManager {
     destinationPath: string = this.backupDir,
     skipBackupFile: boolean = false
   ): Promise<string> {
-    return this.runBackupWorkflow(() => this.backupLegacyUnlocked(fileName, data, destinationPath, skipBackupFile))
+    return this.operationMutex.runExclusive(() =>
+      this.backupLegacyUnlocked(fileName, data, destinationPath, skipBackupFile)
+    )
   }
 
   private async backupLegacyUnlocked(

@@ -1645,7 +1645,7 @@ export class McpRuntimeService extends BaseService {
    * only invalidation this service has (`resources/list_changed`, `resources/updated`, restart,
    * `clearServerCache`) clears list keys. A content cache here would keep serving stale bytes — and
    * stale permissions — for its whole TTL after the server said the resource changed.
-  */
+   */
   @TraceMethod({ spanName: 'getResource', tag: 'mcp' })
   public async getResource({
     serverId,

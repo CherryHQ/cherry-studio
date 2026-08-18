@@ -7,14 +7,15 @@ import { application } from '@application'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { BaseService } from '@main/core/lifecycle'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
+import type { PosixRelativeFilePath } from '@shared/utils/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { hashEmbeddingText } from '../pipeline/vectorstore/indexStore/hashing'
+import { KnowledgeVectorStoreService } from '../pipeline/vectorstore/KnowledgeVectorStoreService'
 import { capturePortableKnowledgeIndex } from '../portableIndexSnapshot'
-import { hashEmbeddingText } from '../vectorstore/indexStore/hashing'
-import { KnowledgeVectorStoreService } from '../vectorstore/KnowledgeVectorStoreService'
 
 const BASE_ID = '11111111-1111-4111-8111-111111111111'
 const ITEM_ID = '22222222-2222-7222-8222-222222222222'
@@ -61,7 +62,7 @@ describe('portable Knowledge index snapshot', () => {
         id: ITEM_ID,
         baseId: BASE_ID,
         type: 'file',
-        data: { source: '/source/doc.md', relativePath: 'doc.md' },
+        data: { source: '/source/doc.md', relativePath: 'doc.md' as PosixRelativeFilePath },
         status: 'completed'
       })
       .run()
@@ -93,8 +94,8 @@ describe('portable Knowledge index snapshot', () => {
   }
 
   async function indexMaterial(materialId: string, relativePath: string, usesEmbeddings = false): Promise<void> {
-    const store = await service.getIndexStore(base())
-    await store.rebuildMaterial(materialId, {
+    const store = service.getIndexStore(base())
+    store.rebuildMaterial(materialId, {
       material: { relativePath },
       content: { text: DOCUMENT_TEXT },
       units: [{ unitType: 'chunk', unitIndex: 0, charStart: 0, charEnd: DOCUMENT_TEXT.length }],

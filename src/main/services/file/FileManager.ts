@@ -125,6 +125,7 @@ import type { Readable, Writable } from 'node:stream'
 import { finished } from 'node:stream/promises'
 import { pathToFileURL } from 'node:url'
 
+import { application } from '@application'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
 import { loggerService } from '@logger'

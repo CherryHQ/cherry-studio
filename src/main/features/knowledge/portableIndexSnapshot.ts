@@ -4,11 +4,11 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import Database from 'better-sqlite3'
 
-import { collectKnowledgeIndexRequirements, type KnowledgeIndexRequirement } from './portableProfilePolicy'
 import type {
   KnowledgeIndexSnapshotFailure,
   KnowledgeIndexSnapshotResult
-} from './vectorstore/KnowledgeVectorStoreService'
+} from './pipeline/vectorstore/KnowledgeVectorStoreService'
+import { collectKnowledgeIndexRequirements, type KnowledgeIndexRequirement } from './portableProfilePolicy'
 
 const logger = loggerService.withContext('Knowledge:PortableIndexSnapshot')
 

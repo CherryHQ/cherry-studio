@@ -91,6 +91,7 @@
   },
   "dialog": {
     "all_files": "Toate fișierele",
+    "cherry_backup_files": "Cherry Studio Backup",
     "data_reset": {
       "cancel": "Anulează",
       "confirm": "Resetează și repornește",

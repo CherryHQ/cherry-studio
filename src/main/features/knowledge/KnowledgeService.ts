@@ -32,10 +32,7 @@ import { createDeleteSubtreeJobHandler } from './tasks/deleteSubtreeJobHandler'
 import { createIndexDocumentsJobHandler } from './tasks/indexDocumentsJobHandler'
 import { createPrepareRootJobHandler } from './tasks/prepareRootJobHandler'
 import { createReindexSubtreeJobHandler } from './tasks/reindexSubtreeJobHandler'
-import {
-  type KnowledgeBaseDiscoveryOptions,
-  type KnowledgeBaseDiscoveryPage
-} from './types'
+import { type KnowledgeBaseDiscoveryOptions, type KnowledgeBaseDiscoveryPage } from './types'
 
 /**
  * Facade of the knowledge feature: registers the job handlers, runs boot-time

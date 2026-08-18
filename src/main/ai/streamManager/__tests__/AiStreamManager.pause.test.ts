@@ -272,7 +272,7 @@ describe('AiStreamManager pause / drainInFlight (write quiesce)', () => {
         siblingsGroupId: undefined,
         lifecycle: {}
       })
-      const send = vi.spyOn(mgr, 'send').mockReturnValue({ mode: 'injected', executionIds: [] })
+      const send = vi.spyOn(mgr, 'send').mockReturnValue({ mode: 'injected', activeExecutions: [] })
       const hold = mgr.pause('test: agent-session gate')
 
       const dispatch = trackSettled(

@@ -611,7 +611,7 @@ describe('index-documents job handler', () => {
       scheduleId: null,
       parentId: null,
       status: 'failed',
-      input: { baseId: 'kb-1', itemId: 'note-1', parentJobId: null, restoreId: 'restore-1' },
+      input: { baseId: 'kb-1', itemId: 'note-1', restoreId: 'restore-1' },
       error: { code: 'FAILED', message: 'embedding unavailable', retryable: true },
       attempt: 3,
       metadata: {}

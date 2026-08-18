@@ -2768,8 +2768,8 @@ describe('ClaudeCodeRuntimeDriver', () => {
       done: false
     })
 
-    freshQueue.push({ type: 'system', subtype: 'init', session_id: 'fresh-duplicate-recovery' })
-    freshQueue.push({ type: 'result', subtype: 'success', session_id: 'fresh-duplicate-recovery', usage: {} })
+    freshQueue.push({ type: 'system', subtype: 'init', session_id: FRESH_SDK_SESSION_ID })
+    freshQueue.push({ type: 'result', subtype: 'success', session_id: FRESH_SDK_SESSION_ID, usage: {} })
 
     const seen: any[] = []
     while (true) {
@@ -2778,7 +2778,10 @@ describe('ClaudeCodeRuntimeDriver', () => {
       if (next.value?.type === 'turn-complete' || next.done) break
     }
     expect(seen.map((event) => event?.type)).not.toContain('error')
-    expect(seen).toContainEqual(expect.objectContaining({ type: 'resume-token', token: 'fresh-duplicate-recovery' }))
+    expect(seen).toContainEqual({
+      type: 'resume-token',
+      token: encodePortableAgentResumePoint({ sessionId: FRESH_SDK_SESSION_ID })
+    })
     expect(seen).toContainEqual(
       expect.objectContaining({ type: 'chunk', chunk: expect.objectContaining({ type: 'data-conversation-reset' }) })
     )
@@ -2839,7 +2842,6 @@ describe('ClaudeCodeRuntimeDriver', () => {
       errors: ['tool_use ids must be unique']
     })
 
-    await expect(events.next()).resolves.toMatchObject({ value: { type: 'resume-token', token: 'new-session' } })
     await expect(events.next()).resolves.toMatchObject({
       value: { type: 'chunk', chunk: { type: 'message-metadata' } }
     })
@@ -2959,7 +2961,6 @@ describe('ClaudeCodeRuntimeDriver', () => {
       seen.push(next.value)
     }
 
-    expect(seen).toContainEqual({ type: 'resume-token', token: 'resume-api-error' })
     expect(seen).toContainEqual(
       expect.objectContaining({ type: 'chunk', chunk: expect.objectContaining({ type: 'message-metadata' }) })
     )
@@ -3003,7 +3004,6 @@ describe('ClaudeCodeRuntimeDriver', () => {
       seen.push(next.value)
     }
 
-    expect(seen).toContainEqual({ type: 'resume-token', token: 'resume-background-api-error' })
     expect(seen).toContainEqual(
       expect.objectContaining({
         type: 'error',
@@ -3083,14 +3083,9 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
     const events = connection.events[Symbol.asyncIterator]()
 
-    // No `send()` -> no turn open. The resume token still advances (it is session state), but no
-    // turn-complete is emitted. The warning itself now belongs to the adapter, which owns the
-    // turn flag, so it is asserted in streamAdapter.test.ts rather than here.
+    // No `send()` -> no turn open. The internal resume token advances, but no
+    // portable resume point is published without a committed turn boundary.
     queryQueue.push({ type: 'result', subtype: 'success', session_id: 'resume-stray', usage: {} })
-
-    await expect(events.next()).resolves.toMatchObject({
-      value: { type: 'resume-token', token: 'resume-stray' }
-    })
 
     // The stream closes with no turn-complete emitted for the stray result.
     queryQueue.close()

@@ -32,7 +32,7 @@ vi.mock('@data/bootConfig', () => ({
   bootConfigService: { get: bootConfigGet }
 }))
 
-vi.mock('@data/db/restore/restoreJournal', () => ({
+vi.mock('@data/db/restore/restoreJournalV2', () => ({
   hasPendingRestore: hasPendingRestoreMock
 }))
 

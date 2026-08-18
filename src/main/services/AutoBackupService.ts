@@ -1,24 +1,17 @@
-import path from 'node:path'
-
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
-import { hasWritePermission, isPathInside, untildify } from '@main/utils/legacyFile'
 import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 import {
   AUTO_BACKUP_TYPES,
   type AutoBackupEvent,
   type AutoBackupEventInput,
   type AutoBackupSnapshot,
-  type AutoBackupType,
-  type S3Config,
-  type WebDavConfig
+  type AutoBackupType
 } from '@shared/types/backup'
-import { NUTSTORE_HOST } from '@shared/utils/nutstore'
 
-import { BackupOperationBusyError, legacyBackupManager } from './LegacyBackupManager'
-import { decryptToken } from './nutstore/NutstoreService'
+import { BackupBusyError } from './backup'
 
 const logger = loggerService.withContext('AutoBackupService')
 
@@ -263,7 +256,7 @@ export class AutoBackupService extends BaseService {
         return
       }
 
-      if (error instanceof BackupOperationBusyError) {
+      if (error instanceof BackupBusyError) {
         logger.debug('Another backup operation is running; automatic backup postponed', { type })
         this.recordLastAttemptTime(type, Date.now())
         this.markStopped(type)
@@ -291,82 +284,15 @@ export class AutoBackupService extends BaseService {
   }
 
   private async runBackup(type: AutoBackupType, signal: AbortSignal): Promise<Error | null> {
-    const preferenceService = application.get('PreferenceService')
-
-    if (type === 'webdav') {
-      const config: WebDavConfig = {
-        webdavHost: preferenceService.get('data.backup.webdav.host'),
-        webdavUser: preferenceService.get('data.backup.webdav.user'),
-        webdavPass: preferenceService.get('data.backup.webdav.pass'),
-        webdavPath: preferenceService.get('data.backup.webdav.path'),
-        maxBackups: preferenceService.get('data.backup.webdav.max_backups'),
-        skipBackupFile: preferenceService.get('data.backup.webdav.skip_backup_file'),
-        disableStream: preferenceService.get('data.backup.webdav.disable_stream')
-      }
-      const { result: success, cleanupError } = await legacyBackupManager.backupToWebdav(null, config, signal)
-      if (success === false) throw new Error('WebDAV automatic backup failed')
-      return cleanupError
-    }
-
-    if (type === 's3') {
-      const config: S3Config = {
-        endpoint: preferenceService.get('data.backup.s3.endpoint'),
-        region: preferenceService.get('data.backup.s3.region'),
-        bucket: preferenceService.get('data.backup.s3.bucket'),
-        accessKeyId: preferenceService.get('data.backup.s3.access_key_id'),
-        secretAccessKey: preferenceService.get('data.backup.s3.secret_access_key'),
-        root: preferenceService.get('data.backup.s3.root'),
-        skipBackupFile: preferenceService.get('data.backup.s3.skip_backup_file'),
-        autoSync: preferenceService.get('data.backup.s3.auto_sync'),
-        syncInterval: preferenceService.get('data.backup.s3.sync_interval'),
-        maxBackups: preferenceService.get('data.backup.s3.max_backups')
-      }
-      const { cleanupError } = await legacyBackupManager.backupToS3(null, config, signal)
-      return cleanupError
-    }
-
-    if (type === 'local') {
-      const directory = path.resolve(untildify(preferenceService.get('data.backup.local.dir')))
-      await this.validateLocalBackupDirectory(directory)
-      const { cleanupError } = await legacyBackupManager.backupToLocalDir(
-        null,
-        undefined,
-        {
-          localBackupDir: directory,
-          maxBackups: preferenceService.get('data.backup.local.max_backups'),
-          skipBackupFile: preferenceService.get('data.backup.local.skip_backup_file')
-        },
-        signal
-      )
-      return cleanupError
-    }
-
-    const credentials = await decryptToken(preferenceService.get('data.backup.nutstore.token'))
-    if (!credentials) throw new Error('Nutstore credentials are unavailable')
-
-    const config: WebDavConfig = {
-      webdavHost: NUTSTORE_HOST,
-      webdavUser: credentials.username,
-      webdavPass: credentials.access_token,
-      webdavPath: preferenceService.get('data.backup.nutstore.path'),
-      maxBackups: preferenceService.get('data.backup.nutstore.max_backups'),
-      skipBackupFile: preferenceService.get('data.backup.nutstore.skip_backup_file')
-    }
-    const { result: success, cleanupError } = await legacyBackupManager.backupToWebdav(null, config, signal)
-    if (success === false) throw new Error('Nutstore automatic backup failed')
-    return cleanupError
-  }
-
-  private async validateLocalBackupDirectory(directory: string): Promise<void> {
-    if (
-      isPathInside(directory, application.getPath('app.userdata')) ||
-      isPathInside(directory, application.getPath('app.install'))
-    ) {
-      throw new Error('Local automatic backup directory cannot be inside application data or installation directory.')
-    }
-
-    if (!(await hasWritePermission(directory))) {
-      throw new Error('Local automatic backup directory does not exist or is not writable.')
+    signal.throwIfAborted()
+    const backupService = application.get('BackupService')
+    const cancel = () => backupService.cancelOperation()
+    signal.addEventListener('abort', cancel, { once: true })
+    try {
+      await backupService.exportToDestination(type)
+      return null
+    } finally {
+      signal.removeEventListener('abort', cancel)
     }
   }
 

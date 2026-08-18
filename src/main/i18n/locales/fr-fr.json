@@ -91,6 +91,7 @@
   },
   "dialog": {
     "all_files": "Tous les fichiers",
+    "cherry_backup_files": "Cherry Studio Backup",
     "data_reset": {
       "cancel": "Annuler",
       "confirm": "Réinitialiser et redémarrer",

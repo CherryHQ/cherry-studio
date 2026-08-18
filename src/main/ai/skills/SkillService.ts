@@ -1703,8 +1703,7 @@ export class SkillService {
         author: metadata.author ?? null,
         version: metadata.version ?? null,
         tags,
-        contentHash: sourceHash,
-        isEnabled: false
+        contentHash: sourceHash
       })
     }
 

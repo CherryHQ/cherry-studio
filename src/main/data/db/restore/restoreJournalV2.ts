@@ -459,6 +459,16 @@ export function readRestoreJournalV2(): ReadJournalV2FileResult {
   return result.kind === 'ok' ? { kind: 'ok', journal: result.journal } : corrupt('invalid-shape', result.error)
 }
 
+/** Whether cleanup must stand aside for a restore that can still mutate live state. */
+export function hasPendingRestore(): boolean {
+  const result = readRestoreJournalV2()
+  if (result.kind === 'corrupt') return true
+  return (
+    result.kind === 'ok' &&
+    ['prepared', 'armed', 'promoting', 'reverting', 'rollback-armed'].includes(result.journal.state)
+  )
+}
+
 /** Keep the detail where it is useful — the main log — and pass on only the reason. */
 function corrupt(reason: JournalReadFailure, detail: string): ReadJournalV2FileResult {
   logger.error('Restore journal could not be read', { reason, detail })

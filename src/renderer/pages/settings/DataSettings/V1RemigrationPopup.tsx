@@ -2,11 +2,10 @@ import { Button, Checkbox, Dialog, DialogContent, DialogFooter, DialogHeader, Di
 import { ipcApi } from '@renderer/ipc'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { getLocalizedBackupErrorMessage } from '@renderer/utils/backup'
 import { SaveIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import BackupPopup from './BackupPopup'
 
 type Props = PopupInjectedProps<void>
 type WizardStep = 0 | 1 | 2
@@ -61,7 +60,12 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
 
     setBackupPopupOpen(true)
     try {
-      await BackupPopup.show({ forceFullBackup: true })
+      const result = await ipcApi.request('backup.export')
+      if (result.status === 'exported') {
+        toast.success(t('settings.data.backup_v2.export.done'))
+      }
+    } catch (error) {
+      toast.error(getLocalizedBackupErrorMessage(error instanceof Error ? error : new Error(String(error))))
     } finally {
       setBackupPopupOpen(false)
     }

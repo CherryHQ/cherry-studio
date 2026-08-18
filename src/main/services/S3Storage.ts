@@ -3,6 +3,7 @@ import {
   GetObjectCommand,
   HeadBucketCommand,
   ListObjectsV2Command,
+  PutObjectCommand,
   S3Client
 } from '@aws-sdk/client-s3'
 import { Upload } from '@aws-sdk/lib-storage'
@@ -19,18 +20,6 @@ const S3_SOCKET_IDLE_TIMEOUT_MS = 5 * 60_000
 /** S3 caps a single PutObject at 5 GiB; multipart is a separate feature. */
 const SINGLE_PUT_MAX_BYTES = 5 * 1024 * 1024 * 1024
 const PUT_MAX_ATTEMPTS = 3
-
-/**
- * 将可读流转换为 Buffer
- */
-function streamToBuffer(stream: Readable): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = []
-    stream.on('data', (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)))
-    stream.on('error', reject)
-    stream.on('end', () => resolve(Buffer.concat(chunks)))
-  })
-}
 
 // 需要使用 Virtual Host-Style 的服务商域名后缀白名单
 const VIRTUAL_HOST_SUFFIXES = ['aliyuncs.com', 'myqcloud.com', 'volces.com']
