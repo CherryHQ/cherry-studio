@@ -160,11 +160,14 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const canOffloadToolOutputs =
     contextSettings.enabled && request.contextOwner !== 'caller' && hasAnchorRow(request.messageId) && hasReadBackStep
   const knowledgeBaseIds = resolveKnowledgeBaseScope(assistant?.knowledgeBaseIds, request.knowledgeBaseIds)
-  const toolSignals = canModelConsumeTools(model) ? await resolveRequestToolSignals(request) : undefined
+  const toolSignals = canModelConsumeTools(model) ? await resolveRequestToolSignals(request, assistant) : undefined
   const webToolRoutes = await resolveRequestWebToolRoutes(model, provider, assistant, {
     endpointType: resolvedEndpoint.endpointType,
     hasFunctionToolSignals: toolSignals
       ? toolSignals.mcpToolIds.size > 0 ||
+        // Same `applies` gate the mcp_resource_* tools use, so a resource-only assistant is not
+        // mistaken for a request that loads no function tool.
+        toolSignals.mcpResourceServerIds.size > 0 ||
         // Mirrors the KB tools' own `applies`: owning a base is not enough, this request must also
         // scope one. ORing the two made every user with any KB look like a function-tool conflict,
         // which withheld the server web-search route on Gemini 2.5 for requests that load no tool.
@@ -352,15 +355,31 @@ function canModelConsumeTools(model: Model): boolean {
   return isFunctionCallingModel(model)
 }
 
-/** Pre-tool-resolution signals — feed the web-tool routing and are reused by `resolveTools`. */
+/**
+ * Pre-tool-resolution signals — feed the web-tool routing and are reused by `resolveTools`.
+ *
+ * `mcpResourceServerIds` is resolved (and frozen) here rather than inside `resolveTools` because web
+ * routing runs first and has to know that this request will carry function tools: a resource-only
+ * assistant that reported "no function tools" would be routed to a provider's server web route, and
+ * `finalizeWebToolRoutes` can only withdraw that route afterwards, not fall back to the client one.
+ */
 async function resolveRequestToolSignals(
-  request: BuildAgentParamsInput['request']
-): Promise<{ mcpToolIds: ReadonlySet<string>; hasAnyKnowledgeBase: boolean }> {
+  request: BuildAgentParamsInput['request'],
+  assistant: Assistant | undefined
+): Promise<{
+  mcpToolIds: ReadonlySet<string>
+  mcpResourceServerIds: ReadonlySet<string>
+  hasAnyKnowledgeBase: boolean
+}> {
   let mcpIdList = request.mcpToolIds
   if (!mcpIdList && request.assistantId) {
     mcpIdList = await resolveAssistantMcpToolIds(request.assistantId)
   }
-  return { mcpToolIds: new Set(mcpIdList ?? []), hasAnyKnowledgeBase: resolveHasAnyKnowledgeBase() }
+  return {
+    mcpToolIds: new Set(mcpIdList ?? []),
+    mcpResourceServerIds: new Set(resolveMcpResourceServers(assistant).map((server) => server.id)),
+    hasAnyKnowledgeBase: resolveHasAnyKnowledgeBase()
+  }
 }
 
 /**
@@ -385,7 +404,8 @@ export async function resolveTools(
   mcpToolIds: ReadonlySet<string>
   mcpResourceServerIds: ReadonlySet<string>
 }> {
-  const { mcpToolIds, hasAnyKnowledgeBase } = signals ?? (await resolveRequestToolSignals(request))
+  const { mcpToolIds, mcpResourceServerIds, hasAnyKnowledgeBase } =
+    signals ?? (await resolveRequestToolSignals(request, assistant))
   if (mcpToolIds.size) {
     // Reconcile selected tool ids against every active server's cache-only catalog,
     // resolving ownership by exact id without MCP network round trips.
@@ -393,7 +413,6 @@ export async function resolveTools(
   }
 
   const paintingModel = resolveConfiguredPaintingModel()
-  const mcpResourceServerIds = new Set(resolveMcpResourceServers(assistant).map((server) => server.id))
   const selected = registry.selectActive({
     assistant,
     paintingModel: paintingModel ?? undefined,

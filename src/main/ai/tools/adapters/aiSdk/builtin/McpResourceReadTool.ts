@@ -33,14 +33,17 @@ const mcpResourceReadTool = tool({
   description: MCP_RESOURCE_READ_DESCRIPTION,
   inputSchema: mcpResourceReadInputSchema,
   outputSchema: mcpResourceReadResultSchema,
-  needsApproval: async (_input, options) => {
+  needsApproval: async (input, options) => {
     // Wildcard-gated servers prompt for every tool call; reading their resources must not be the one
-    // silent path. Fail closed: without request context there is no policy to read, so prompt.
+    // silent path. The policy is read off the server this call addresses — one gated server must not
+    // make reads from every other server prompt. Fail closed: no context, or a server the scope
+    // cannot resolve, means prompt (the execute below rejects it anyway).
     try {
       const { request } = getToolCallContext(options)
-      return resolveMcpResourceServers(request.assistant, request.mcpResourceServerIds).some(
-        isMcpResourceReadForcePrompt
+      const server = resolveMcpResourceServers(request.assistant, request.mcpResourceServerIds).find(
+        (candidate) => candidate.id === (input as { serverId?: string }).serverId
       )
+      return server ? isMcpResourceReadForcePrompt(server) : true
     } catch {
       return true
     }

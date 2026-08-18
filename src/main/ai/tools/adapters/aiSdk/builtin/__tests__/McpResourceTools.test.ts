@@ -1,8 +1,10 @@
 import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
+import { mcpResourceReadInputSchema } from '@shared/ai/builtinTools'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpResource } from '@shared/types/mcp'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import * as z from 'zod'
 
 const listResources = vi.fn<(serverId: string) => Promise<McpResource[]>>()
 const getResource = vi.fn()
@@ -27,8 +29,8 @@ vi.mock('@data/services/AssistantService', () => ({
   assistantDataService: { getById: () => null }
 }))
 
-import { createMcpResourceListToolEntry } from '../McpResourceListTool'
-import { createMcpResourceReadToolEntry } from '../McpResourceReadTool'
+import { createMcpResourceListToolEntry, MCP_RESOURCE_LIST_DESCRIPTION } from '../McpResourceListTool'
+import { createMcpResourceReadToolEntry, MCP_RESOURCE_READ_DESCRIPTION } from '../McpResourceReadTool'
 
 const listEntry = createMcpResourceListToolEntry()
 const readEntry = createMcpResourceReadToolEntry()
@@ -80,6 +82,21 @@ describe('mcp_resource_* entries', () => {
     // approval-gated entry must stay inline or its approval card never fires.
     expect(readEntry.truncatable).toBe(false)
     expect(readEntry.defer).toBe('never')
+  })
+
+  it('describes the arguments the schemas actually take, so the model addresses servers by id', () => {
+    // A description naming `serverName` while the schema takes `serverId` reads as an instruction to
+    // put a name in the id slot — which then fails the frozen-scope lookup.
+    const inputKeys = Object.keys(z.toJSONSchema(mcpResourceReadInputSchema).properties ?? {})
+    expect(inputKeys).toContain('serverId')
+    expect(inputKeys).not.toContain('serverName')
+
+    for (const description of [MCP_RESOURCE_LIST_DESCRIPTION, MCP_RESOURCE_READ_DESCRIPTION]) {
+      expect(description).toContain('serverId')
+    }
+    // `serverName` may only appear where it is called out as display-only.
+    expect(MCP_RESOURCE_READ_DESCRIPTION).not.toContain('serverName')
+    expect(MCP_RESOURCE_LIST_DESCRIPTION).toContain('serverName is for display only')
   })
 
   it('never asks a provider for constrained decoding (shared strict-schema compile budget)', () => {
@@ -282,11 +299,26 @@ describe('mcp_resource_read', () => {
     expect(result.text).toContain('Binary resource: image/png')
   })
 
-  it('prompts for approval when the server is wildcard-gated, and not otherwise', async () => {
+  it('prompts for approval when the addressed server is wildcard-gated, and not otherwise', async () => {
     listServers.mockReturnValue({ items: [makeServer('s1')] })
-    expect(await callNeedsApproval({}, { assistant: makeAssistant() })).toBe(false)
+    expect(await callNeedsApproval({ serverId: 's1' }, { assistant: makeAssistant() })).toBe(false)
 
     listServers.mockReturnValue({ items: [makeServer('s1', { disabledAutoApproveTools: ['mcp__s1Name__*'] })] })
-    expect(await callNeedsApproval({}, { assistant: makeAssistant() })).toBe(true)
+    expect(await callNeedsApproval({ serverId: 's1' }, { assistant: makeAssistant() })).toBe(true)
+  })
+
+  it('does not let one gated server force approval for reads from another', async () => {
+    listServers.mockReturnValue({
+      items: [makeServer('s1', { disabledAutoApproveTools: ['mcp__s1Name__*'] }), makeServer('s2')]
+    })
+
+    expect(await callNeedsApproval({ serverId: 's2' }, { assistant: makeAssistant() })).toBe(false)
+    expect(await callNeedsApproval({ serverId: 's1' }, { assistant: makeAssistant() })).toBe(true)
+  })
+
+  it('fails closed when the addressed server cannot be resolved', async () => {
+    listServers.mockReturnValue({ items: [makeServer('s1')] })
+
+    expect(await callNeedsApproval({ serverId: 'unknown' }, { assistant: makeAssistant() })).toBe(true)
   })
 })
