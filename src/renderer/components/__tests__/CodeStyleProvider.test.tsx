@@ -1,7 +1,7 @@
 import type * as codeEditorUtils from '@cherrystudio/ui/components/composites/code-editor/utils'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
-import { getShiki } from '@renderer/utils/shiki'
+import { getHighlighter, getShiki, loadLanguageAndThemeIfNeeded } from '@renderer/utils/shiki'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -45,12 +45,11 @@ vi.mock('@renderer/utils/shiki', () => ({
   })),
   getHighlighter: vi.fn(),
   getMarkdownIt: vi.fn(),
-  loadLanguageIfNeeded: vi.fn(),
-  loadThemeIfNeeded: vi.fn()
+  loadLanguageAndThemeIfNeeded: vi.fn()
 }))
 
 const Probe = () => {
-  const { loadThemeNames, themeNames, activeCmTheme, activeShikiTheme } = useCodeStyle()
+  const { highlightCode, loadThemeNames, themeNames, activeCmTheme, activeShikiTheme } = useCodeStyle()
   return (
     <>
       <span data-testid="has-dracula">{String(themeNames.includes('dracula'))}</span>
@@ -59,6 +58,9 @@ const Probe = () => {
       <span data-testid="shiki-theme">{activeShikiTheme}</span>
       <button type="button" onClick={() => void loadThemeNames()}>
         Load themes
+      </button>
+      <button type="button" onClick={() => void highlightCode('value', 'missing-language')}>
+        Highlight code
       </button>
     </>
   )
@@ -153,5 +155,21 @@ describe('CodeStyleProvider', () => {
 
     expect(screen.getByTestId('shiki-theme').textContent).toBe('one-light')
     await waitFor(() => expect(screen.getByTestId('shiki-theme').textContent).toBe('nord'))
+  })
+
+  it('passes loader-resolved language and theme fallbacks to shiki', async () => {
+    const highlighter = { codeToHtml: vi.fn(() => '<pre>value</pre>') }
+    vi.mocked(getHighlighter).mockResolvedValue(highlighter as never)
+    vi.mocked(loadLanguageAndThemeIfNeeded).mockResolvedValue({
+      loadedLanguage: 'text',
+      loadedTheme: 'one-light'
+    })
+
+    renderProvider()
+    fireEvent.click(screen.getByRole('button', { name: 'Highlight code' }))
+
+    await waitFor(() =>
+      expect(highlighter.codeToHtml).toHaveBeenCalledWith('value', { lang: 'text', theme: 'one-light' })
+    )
   })
 })
