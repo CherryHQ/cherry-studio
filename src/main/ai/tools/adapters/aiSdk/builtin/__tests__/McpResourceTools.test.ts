@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
-import { mcpResourceReadInputSchema } from '@shared/ai/builtinTools'
+import { mcpResourceReadInputSchema, type McpResourceReadOutput } from '@shared/ai/builtinTools'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpResource } from '@shared/types/mcp'
@@ -36,7 +36,11 @@ vi.mock('@data/services/AssistantService', () => ({
 }))
 
 import { createMcpResourceListToolEntry, MCP_RESOURCE_LIST_DESCRIPTION } from '../McpResourceListTool'
-import { createMcpResourceReadToolEntry, MCP_RESOURCE_READ_DESCRIPTION } from '../McpResourceReadTool'
+import {
+  createMcpResourceReadToolEntry,
+  MCP_RESOURCE_READ_DESCRIPTION,
+  mcpResourceReadModelOutput
+} from '../McpResourceReadTool'
 
 const listEntry = createMcpResourceListToolEntry()
 const readEntry = createMcpResourceReadToolEntry()
@@ -317,7 +321,7 @@ describe('mcp_resource_read', () => {
       readEntry,
       { serverId: 's1', uri: 'x://bin' },
       { assistant: makeAssistant() }
-    )) as { text: string; blobs: Array<{ blobSavedTo: string; text: string }> }
+    )) as McpResourceReadOutput
 
     expect(result.text).toBe('')
     expect(result.blobs).toEqual([
@@ -329,8 +333,17 @@ describe('mcp_resource_read', () => {
       }
     ])
     expect(JSON.stringify(result)).not.toContain(encoded)
-    expect(await readFile(result.blobs[0].blobSavedTo)).toEqual(bytes)
+    expect(await readFile(result.blobs![0].blobSavedTo)).toEqual(bytes)
     expect(getPath).toHaveBeenCalledWith('feature.mcp.resource_results.temp', expect.stringMatching(/\.png$/))
+
+    const modelOutput = await mcpResourceReadModelOutput(result)
+    expect(modelOutput).toEqual({
+      type: 'content',
+      value: [
+        { type: 'text', text: JSON.stringify(result) },
+        { type: 'image-data', data: encoded, mediaType: 'image/png' }
+      ]
+    })
   })
 
   it('prompts for approval when the addressed server is wildcard-gated, and not otherwise', async () => {

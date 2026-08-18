@@ -11,12 +11,18 @@
  * land whole in the model's context with no layer left to trim it.
  */
 
+import { type ToolResultOutput } from '@ai-sdk/provider-utils'
+import { application } from '@application'
+import { isPathInside, openReadableFileSnapshot, realpath } from '@main/utils/file'
 import {
   MCP_RESOURCE_READ_CHAR_CAP,
   MCP_RESOURCE_READ_TOOL_NAME,
   mcpResourceReadInputSchema,
-  mcpResourceReadResultSchema
+  type McpResourceReadResult,
+  mcpResourceReadResultSchema,
+  type McpResourceSavedBlob
 } from '@shared/ai/builtinTools'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { tool } from 'ai'
 
 import { getToolCallContext } from '../context'
@@ -29,6 +35,47 @@ export const MCP_RESOURCE_READ_DESCRIPTION =
   'mcp_resource_list, or as carried by a resource the user attached. Long resources come back one ' +
   'page at a time — continue with the returned nextOffset. Binary blobs are decoded to temporary ' +
   'files and returned as blobSavedTo paths, never as base64.'
+
+async function readSavedImage(blob: McpResourceSavedBlob): Promise<string | null> {
+  if (!blob.mimeType?.startsWith('image/')) return null
+
+  const root = AbsoluteFilePathSchema.parse(application.getPath('feature.mcp.resource_results.temp'))
+  const candidate = AbsoluteFilePathSchema.parse(blob.blobSavedTo)
+  const [realRoot, realCandidate] = await Promise.all([realpath(root), realpath(candidate)])
+  if (!isPathInside(realCandidate, realRoot)) return null
+
+  const snapshot = await openReadableFileSnapshot(realCandidate)
+  try {
+    const chunks: Buffer[] = []
+    for await (const chunk of snapshot.createReadStream()) chunks.push(Buffer.from(chunk))
+    return Buffer.concat(chunks).toString('base64')
+  } finally {
+    await snapshot.close()
+  }
+}
+
+/** Keep the stored/UI result path-only while giving vision models the decoded image for this model step. */
+export async function mcpResourceReadModelOutput(output: McpResourceReadResult): Promise<ToolResultOutput> {
+  if ('error' in output) return { type: 'text', value: output.error }
+
+  const images = await Promise.all(
+    (output.blobs ?? []).map(async (blob) => {
+      try {
+        const data = await readSavedImage(blob)
+        return data === null ? null : { type: 'image-data' as const, data, mediaType: blob.mimeType! }
+      } catch {
+        return null
+      }
+    })
+  )
+  const projectedImages = images.filter((image): image is NonNullable<typeof image> => image !== null)
+  if (projectedImages.length === 0) return { type: 'json', value: output }
+
+  return {
+    type: 'content',
+    value: [{ type: 'text', text: JSON.stringify(output) }, ...projectedImages]
+  }
+}
 
 const mcpResourceReadTool = tool({
   description: MCP_RESOURCE_READ_DESCRIPTION,
@@ -49,6 +96,7 @@ const mcpResourceReadTool = tool({
       return true
     }
   },
+  toModelOutput: ({ output }) => mcpResourceReadModelOutput(output),
   execute: async ({ serverId, uri, offset }, options) => {
     const { request } = getToolCallContext(options)
     return readScopedMcpResource(resolveMcpResourceServers(request.assistant, request.mcpResourceServerIds), {
