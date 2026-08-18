@@ -67,11 +67,24 @@ import type {
   RuntimeApiFeatures
 } from '@shared/data/types/provider'
 import { DEFAULT_API_FEATURES } from '@shared/data/types/provider'
+import { isQwenModel } from '@shared/utils/model'
 import { isEqual } from 'es-toolkit/compat'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
 
 const logger = loggerService.withContext('DataApi:ProviderRegistryService')
+
+/**
+ * Qwen models on unregistered openai-compatible providers (e.g. vLLM) need
+ * `enable_thinking` on the wire, not `reasoningEffort` which they ignore.
+ * Covers off/auto/effort — budget is omitted because these providers don't
+ * support per-request thinking-token caps.
+ */
+const QWEN_OPENAI_COMPATIBLE_WIRE: ReasoningWireProfile = {
+  off: { operations: [{ target: 'enable_thinking', value: { source: 'literal', value: false } }] },
+  auto: { operations: [{ target: 'enable_thinking', value: { source: 'literal', value: true } }] },
+  effort: { operations: [{ target: 'enable_thinking', value: { source: 'literal', value: true } }] }
+}
 
 export interface ProviderDisplayMetadata {
   description?: string
@@ -962,6 +975,17 @@ class ProviderRegistryService {
       contract,
       wireDialect
     })
+
+    // Qwen models on unregistered openai-compatible providers (e.g. vLLM)
+    // need `enable_thinking` on the wire, not `reasoningEffort` which they ignore.
+    if (!contract && !matchedOverride && isQwenModel(model) && !resolved.wire?.disabled) {
+      const endpoint =
+        effectiveEndpoint ?? resolveReasoningEndpointType(model.endpointTypes, provider.defaultChatEndpoint)
+      if (endpoint === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS) {
+        resolved.wire = QWEN_OPENAI_COMPATIBLE_WIRE
+      }
+    }
+
     return { ...resolved, support }
   }
 
