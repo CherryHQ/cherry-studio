@@ -1,3 +1,4 @@
+import { createMcpToolBinding } from '@main/ai/runtime/mcpToolBinding'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { ProgressNotificationSchema, ToolListChangedNotificationSchema } from '@modelcontextprotocol/sdk/types.js'
@@ -48,6 +49,11 @@ function searchTool() {
     id: 'search-id',
     serverId: 'server-1',
     serverName: 'Docs MCP',
+    runtimeName: createMcpToolBinding({
+      serverId: 'server-1',
+      serverWireName: 'docs_123456789abc',
+      originalToolName: 'search'
+    }).runtimeName,
     type: 'mcp'
   }
 }
@@ -115,6 +121,23 @@ describe('createMcpBridgeServer', () => {
       { progress: 1, total: 2 },
       { progress: 2, total: 2 }
     ])
+  })
+
+  it('uses canonical runtime tool wire names in runtime mode and calls the raw tool name', async () => {
+    mocks.listTools.mockReturnValue([searchTool()])
+    mocks.callTool.mockResolvedValue({ content: [{ type: 'text', text: 'done' }] })
+    const server = { id: 'server-1', name: 'Docs MCP', serverWireName: 'docs_123456789abc' }
+    const binding = createMcpToolBinding({
+      serverId: server.id,
+      serverWireName: server.serverWireName,
+      originalToolName: 'search'
+    })
+    const client = await connectClient(createMcpBridgeServer('server-1', server as never, { namingMode: 'runtime' }))
+
+    const listed = await client.listTools()
+    expect(listed.tools.map((tool) => tool.name)).toEqual([binding.toolWireName])
+    await client.callTool({ name: binding.toolWireName, arguments: {} })
+    expect(mocks.callTool).toHaveBeenCalledWith(expect.objectContaining({ name: 'search' }))
   })
 
   it('omits the progress listener when the client sent no progressToken', async () => {

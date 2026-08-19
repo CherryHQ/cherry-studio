@@ -2,6 +2,7 @@ import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { isMcpCancellation } from '@main/ai/mcp/mcpAbort'
+import { createMcpToolBinding, McpToolBindingStore } from '@main/ai/runtime/mcpToolBinding'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import {
   CallToolRequestSchema,
@@ -24,6 +25,8 @@ import type { McpPrompt, McpResource, McpTool } from '@shared/types/mcp'
 const logger = loggerService.withContext('McpBridge')
 
 export interface McpBridgeOptions {
+  /** Provider-facing naming mode. API Gateway must remain raw; Claude requests runtime names. */
+  namingMode?: 'raw' | 'runtime'
   /**
    * Declare `tools.listChanged` and relay cache updates as `tools/list_changed`.
    *
@@ -35,9 +38,11 @@ export interface McpBridgeOptions {
   listChanged?: boolean
 }
 
-function toSdkTool(tool: McpTool): SdkTool {
-  const sdkTool = { ...tool } as SdkTool & Record<'id' | 'serverId' | 'serverName' | 'type', unknown>
+function toSdkTool(tool: McpTool, name = tool.name): SdkTool {
+  const sdkTool = { ...tool, name } as SdkTool &
+    Record<'id' | 'runtimeName' | 'serverId' | 'serverName' | 'type', unknown>
   Reflect.deleteProperty(sdkTool, 'id')
+  Reflect.deleteProperty(sdkTool, 'runtimeName')
   Reflect.deleteProperty(sdkTool, 'serverId')
   Reflect.deleteProperty(sdkTool, 'serverName')
   Reflect.deleteProperty(sdkTool, 'type')
@@ -95,7 +100,7 @@ function toSdkResourceContents(content: McpResource): ReadResourceResult['conten
 export function createMcpBridgeServer(
   mcpId: string,
   serverSnapshot?: McpServerEntity,
-  { listChanged = true }: McpBridgeOptions = {}
+  { listChanged = true, namingMode = 'raw' }: McpBridgeOptions = {}
 ): McpServer {
   const serverConfig = serverSnapshot ?? mcpServerService.findByIdOrName(mcpId)
   if (!serverConfig) {
@@ -117,6 +122,24 @@ export function createMcpBridgeServer(
   // known at construction time. The high-level McpServer.tool() API requires
   // Zod schemas to be declared upfront, which is not feasible for a proxy.
   const rawServer = sdkServer.server
+  const bindingStore = new McpToolBindingStore()
+  let refreshToken = 0
+  const readRuntimeTools = (): McpTool[] => {
+    if (namingMode !== 'runtime') {
+      throw new Error('MCP runtime tool list requested from a raw bridge')
+    }
+    const tools = application.get('McpCatalogService').listTools(serverConfig.id, { includeDisabled: false })
+    const bindings = tools.map((tool) =>
+      createMcpToolBinding({
+        serverId: serverConfig.id,
+        serverWireName: serverConfig.serverWireName,
+        originalToolName: tool.name
+      })
+    )
+    bindingStore.replaceSnapshotIfCurrent(++refreshToken, bindings)
+    return tools
+  }
+  if (namingMode === 'runtime') readRuntimeTools()
 
   // Relay cache updates for this server as `tools/list_changed` (see consistency model
   // above). Subscribe on `oninitialized` rather than at construction: a bridge that is
@@ -133,6 +156,7 @@ export function createMcpBridgeServer(
     if (!listChanged) return
     toolsCacheSubscription ??= application.get('McpCatalogService').onToolsCacheUpdated(({ serverId }) => {
       if (serverId !== serverConfig.id) return
+      if (namingMode === 'runtime') readRuntimeTools()
       rawServer.sendToolListChanged().catch((error) => {
         // "Not connected" is the expected race between an emitter dispatch and transport
         // teardown — the session is going away, nothing to heal. Anything else means a live
@@ -151,14 +175,23 @@ export function createMcpBridgeServer(
     previousOnClose?.()
     toolsCacheSubscription?.dispose()
     toolsCacheSubscription = undefined
+    bindingStore.dispose()
   }
 
   rawServer.setRequestHandler(ListToolsRequestSchema, async () => {
     try {
       logger.debug('MCP bridge: listing tools', { mcpId })
-      const tools = application.get('McpCatalogService').listTools(serverConfig.id, { includeDisabled: false })
+      const tools =
+        namingMode === 'runtime'
+          ? readRuntimeTools()
+          : application.get('McpCatalogService').listTools(serverConfig.id, { includeDisabled: false })
       return {
-        tools: tools.map(toSdkTool)
+        tools: tools.map((tool) => {
+          if (namingMode === 'raw') return toSdkTool(tool)
+          const binding = bindingStore.getSnapshot().lookupRuntimeName(tool.runtimeName)
+          if (!binding) throw new Error(`Unknown MCP runtime binding: ${tool.runtimeName}`)
+          return toSdkTool(tool, binding.toolWireName)
+        })
       }
     } catch (error) {
       logger.error('MCP bridge: failed to list tools', { mcpId, error })
@@ -181,10 +214,18 @@ export function createMcpBridgeServer(
           }
 
     try {
-      logger.debug('MCP bridge: calling tool', { mcpId, tool: request.params.name })
+      const binding =
+        namingMode === 'runtime'
+          ? bindingStore.getSnapshot().lookupServerTool(serverConfig.serverWireName, request.params.name)
+          : undefined
+      if (namingMode === 'runtime' && !binding) {
+        throw new Error(`Unknown MCP runtime tool: ${request.params.name}`)
+      }
+      const originalToolName = binding?.originalToolName ?? request.params.name
+      logger.debug('MCP bridge: calling tool', { mcpId, tool: originalToolName })
       const result = await application.get('McpRuntimeService').callTool({
         serverId: serverConfig.id,
-        name: request.params.name,
+        name: originalToolName,
         args: request.params.arguments,
         onProgress,
         signal: extra.signal

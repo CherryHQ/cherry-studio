@@ -47,6 +47,7 @@ import {
   prepareAgentSessionWorkspaceDirectory
 } from '@main/ai/runtime/agentSessionWorkspace'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
+import { createMcpToolBinding } from '@main/ai/runtime/mcpToolBinding'
 import {
   ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES,
   ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES,
@@ -1458,10 +1459,14 @@ export function buildMcpServers(
     mcpServerSnapshots,
     linkedChannelSnapshot,
     agentDataPath,
-    selectedKnowledgeBaseIds
+    selectedKnowledgeBaseIds,
+    'runtime'
   )
   return Object.fromEntries(
-    Object.entries(servers).map(([id, server]) => [id, { type: 'sdk', ...server } satisfies McpServerConfig])
+    Object.entries(servers).map(([id, server]) => [
+      server.serverWireName ?? id,
+      { type: 'sdk', ...server } satisfies McpServerConfig
+    ])
   )
 }
 
@@ -1488,6 +1493,15 @@ function addMcpToolMetadataAliases(
   }
 
   addMcpToolMetadataAlias(metadataByName, tool.id, metadata)
+  addMcpToolMetadataAlias(metadataByName, tool.runtimeName, metadata)
+  if (server.serverWireName) {
+    const binding = createMcpToolBinding({
+      serverId: server.id,
+      serverWireName: server.serverWireName,
+      originalToolName: tool.name
+    })
+    addMcpToolMetadataAlias(metadataByName, `mcp__${server.serverWireName}__${binding.toolWireName}`, metadata)
+  }
   addMcpToolMetadataAlias(metadataByName, `mcp__${server.id}__${tool.name}`, metadata)
   addMcpToolMetadataAlias(metadataByName, `mcp__${server.id}__${toCamelCase(tool.name)}`, metadata)
   addMcpToolMetadataAlias(metadataByName, `mcp__${server.name}__${tool.name}`, metadata)

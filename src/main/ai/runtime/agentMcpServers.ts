@@ -1,7 +1,7 @@
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
-import { createMcpBridgeServer } from '@main/ai/mcp/createMcpBridgeServer'
+import { createMcpBridgeServer, type McpBridgeOptions } from '@main/ai/mcp/createMcpBridgeServer'
 import AgentMemoryServer from '@main/ai/mcp/servers/agentMemory'
 import AssistantServer, { SUPPORT_ASSISTANT_TOOL_NAMES } from '@main/ai/mcp/servers/assistant'
 import { AssistantFileToolsServer } from '@main/ai/mcp/servers/AssistantFileToolsServer'
@@ -37,7 +37,8 @@ export function buildAgentMcpServers(
   mcpServerSnapshots?: McpServerSnapshotMap,
   linkedChannelSnapshot?: LinkedChannelSnapshot,
   agentDataPath = session.workspace.path,
-  selectedKnowledgeBaseIds: readonly string[] = []
+  selectedKnowledgeBaseIds: readonly string[] = [],
+  bridgeNamingMode: McpBridgeOptions['namingMode'] = 'raw'
 ): Record<string, AgentMcpServer> {
   const servers: Record<string, AgentMcpServer> = {}
 
@@ -51,7 +52,7 @@ export function buildAgentMcpServers(
         name: serverSnapshot?.name ?? mcpId,
         serverId: serverSnapshot?.id,
         serverWireName: serverSnapshot?.serverWireName,
-        instance: createMcpBridgeServer(mcpId, serverSnapshot)
+        instance: createMcpBridgeServer(mcpId, serverSnapshot, { namingMode: bridgeNamingMode })
       }
     } catch (error) {
       logger.error(`Failed to create MCP bridge for ${mcpId}`, { error })

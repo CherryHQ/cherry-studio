@@ -426,7 +426,7 @@ async function handleOneShot(server: McpServer, request: Request, body?: unknown
   })
   // No stream to push on, so the bridge must not advertise `tools.listChanged`; see
   // `McpBridgeOptions`. Clients re-list instead of waiting for a notification.
-  const bridge = createMcpBridgeServer(server.id, server, { listChanged: false })
+  const bridge = createMcpBridgeServer(server.id, server, { listChanged: false, namingMode: 'raw' })
   await bridge.connect(transport)
 
   try {

@@ -77,7 +77,7 @@ export class McpSessionStore {
     this.pendingAdmissions++
 
     let registered = false
-    const bridge = createMcpBridgeServer(server.id, server)
+    const bridge = createMcpBridgeServer(server.id, server, { namingMode: 'raw' })
     const transport = new WebStandardStreamableHTTPServerTransport({
       sessionIdGenerator: () => randomUUID(),
       // Responses stream as SSE rather than plain JSON: the SDK only writes

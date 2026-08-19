@@ -636,7 +636,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       agent as never
     )
 
-    expect(mocks.createMcpBridgeServer).toHaveBeenCalledWith('mcp-1', materializedServer)
+    expect(mocks.createMcpBridgeServer).toHaveBeenCalledWith('mcp-1', materializedServer, { namingMode: 'runtime' })
   })
 
   it('loads the user setting source so managed skills under CLAUDE_CONFIG_DIR can be discovered', async () => {
