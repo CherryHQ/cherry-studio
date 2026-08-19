@@ -41,6 +41,23 @@ describe('checkFile', () => {
     ])
   })
 
+  it('rejects a source that escapes the repo even when the target exists', () => {
+    const root = makeRepo({
+      'outside-the-repo.ts': 'export {}',
+      'repo/docs/references/x/doc.md': doc('description: Escapes upward\nsources:\n  - ../outside-the-repo.ts')
+    })
+    expect(
+      checkFile(path.join(root, 'repo'), path.join(root, 'repo/docs/references/x/doc.md'), { requireSources: true })
+    ).toEqual([expect.stringContaining('not repo-relative')])
+  })
+
+  it('rejects an absolute source path', () => {
+    const root = makeRepo({ 'docs/references/x/doc.md': doc('description: Absolute\nsources:\n  - /etc/hosts') })
+    expect(checkFile(root, path.join(root, 'docs/references/x/doc.md'), { requireSources: true })).toEqual([
+      expect.stringContaining('not repo-relative')
+    ])
+  })
+
   it('rejects missing description and missing sources under the reference rule', () => {
     const root = makeRepo({ 'docs/references/x/doc.md': '# Doc without frontmatter\n' })
     const failures = checkFile(root, path.join(root, 'docs/references/x/doc.md'), { requireSources: true })
