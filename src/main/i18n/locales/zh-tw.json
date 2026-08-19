@@ -84,6 +84,7 @@
     "zoomOut": "縮小"
   },
   "common": {
+    "channel_available_commands": "可用指令：",
     "channel_command_processing_error": "⚠️ 處理指令時發生錯誤。請稍後再試。",
     "channel_message_processing_error": "⚠️ 處理您的訊息時發生錯誤。請稍後再試。",
     "channel_new_session_created": "已建立新工作階段。",

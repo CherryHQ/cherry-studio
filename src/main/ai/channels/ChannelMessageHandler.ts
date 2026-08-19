@@ -650,7 +650,7 @@ export class ChannelMessageHandler {
             `*${name}*`,
             description ? `_${description}_` : '',
             '',
-            'Available commands:',
+            t('common.channel_available_commands'),
             ...commands.map((cmd) => `/${cmd.name} - ${cmd.description}`)
           ]
             .filter(Boolean)

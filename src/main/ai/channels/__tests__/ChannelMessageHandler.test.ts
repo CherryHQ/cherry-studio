@@ -564,6 +564,7 @@ describe('ChannelMessageHandler', () => {
     const helpText = adapter.sendMessage.mock.calls[0][1] as string
     expect(helpText).toContain('*TestAgent*')
     expect(helpText).toContain('_A test agent_')
+    expect(helpText).toContain('Available commands:')
     expect(helpText).toContain('/new')
     expect(helpText).toContain('/compact')
     expect(helpText).toContain('/help')

@@ -84,6 +84,7 @@
     "zoomOut": "Reduzir Zoom"
   },
   "common": {
+    "channel_available_commands": "Comandos disponíveis:",
     "channel_command_processing_error": "⚠️ Ocorreu um erro ao processar o comando. Tente novamente mais tarde.",
     "channel_message_processing_error": "⚠️ Ocorreu um erro ao processar a sua mensagem. Tente novamente mais tarde.",
     "channel_new_session_created": "Nova sessão criada.",
