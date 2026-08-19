@@ -52,11 +52,15 @@ export interface TopicStreamState {
   readonly continuationLeases: ReadonlyMap<ContinuationLeaseId, TopicContinuationLease>
 }
 
+export type TopicDispatchReservation =
+  | { readonly kind: 'fresh' }
+  | { readonly kind: 'live-change' }
+  | { readonly kind: 'approval-resume' }
+  | { readonly kind: 'continuation'; readonly leaseId: ContinuationLeaseId }
+
 export type TopicStreamCommand =
   /** Reserves every attempt of one dispatch at a single revision, or none of them (T2). */
-  | { type: 'reserve-dispatch'; attemptIds: readonly AttemptId[] }
-  /** Runtime continuation admission consumes its exact lease in the same revision as reservation. */
-  | { type: 'reserve-continuation-dispatch'; attemptIds: readonly AttemptId[]; leaseId: ContinuationLeaseId }
+  | { type: 'reserve-dispatch'; attemptIds: readonly AttemptId[]; reservation: TopicDispatchReservation }
   | { type: 'reserve-attempt'; attemptId: AttemptId }
   | { type: 'forget-attempt'; attemptId: AttemptId }
   | { type: 'attempt-event'; attemptId: AttemptId; event: AttemptEvent }
@@ -100,6 +104,8 @@ export type TopicCommandRejection =
   | 'unknown-attempt'
   | 'duplicate-attempt'
   | 'invalid-attempt-state'
+  | 'busy'
+  | 'invalid-approval'
   | 'invalid-continuation'
   | 'evicted'
 
@@ -125,6 +131,20 @@ export function createTopicStreamState(topicId: string, cycleId: number): TopicS
 /** True when the attempt just reached a terminal whose published outcome is an error. */
 const landsOnError = (state: AttemptState): boolean =>
   (state.phase === 'finalizing' || state.phase === 'settled') && state.outcome.kind === 'error'
+
+const isTerminalPhase = (state: AttemptState): boolean => state.phase === 'settled' || state.phase === 'abandoned'
+
+const stateHasUnsettledAttempts = (state: TopicStreamState): boolean =>
+  [...state.attempts.values()].some((attempt) => !isTerminalPhase(attempt.state))
+
+const stateHasRunningAttempts = (state: TopicStreamState): boolean =>
+  [...state.attempts.values()].some((attempt) => attempt.state.phase === 'running')
+
+const stateHasOpenLease = (state: TopicStreamState): boolean =>
+  [...state.continuationLeases.values()].some((lease) => lease.state === 'open')
+
+const stateHasPendingApprovals = (state: TopicStreamState): boolean =>
+  [...state.attempts.values()].some((attempt) => attempt.pendingApprovalToolCallIds.size > 0)
 
 const unchanged = (state: TopicStreamState, rejection?: TopicCommandRejection): TopicReducerResult => ({
   state,
@@ -156,14 +176,33 @@ export function reduceTopicStream(state: TopicStreamState, command: TopicStreamC
   if (state.lifecycle === 'evicted' && command.type !== 'activate') return unchanged(state, 'evicted')
 
   switch (command.type) {
-    case 'reserve-dispatch':
-    case 'reserve-continuation-dispatch': {
+    case 'reserve-dispatch': {
       if (command.attemptIds.length === 0) return unchanged(state)
       if (command.attemptIds.some((id) => state.attempts.has(id))) return unchanged(state, 'duplicate-attempt')
       const continuation =
-        command.type === 'reserve-continuation-dispatch' ? state.continuationLeases.get(command.leaseId) : undefined
-      if (command.type === 'reserve-continuation-dispatch' && continuation?.state !== 'open') {
+        command.reservation.kind === 'continuation'
+          ? state.continuationLeases.get(command.reservation.leaseId)
+          : undefined
+      if (
+        command.reservation.kind === 'fresh' &&
+        (stateHasUnsettledAttempts(state) || stateHasOpenLease(state) || stateHasPendingApprovals(state))
+      ) {
+        return unchanged(state, 'busy')
+      }
+      if (command.reservation.kind === 'live-change' && !stateHasRunningAttempts(state)) {
+        return unchanged(state, 'busy')
+      }
+      if (
+        command.reservation.kind === 'approval-resume' &&
+        (stateHasUnsettledAttempts(state) || stateHasOpenLease(state) || !stateHasPendingApprovals(state))
+      ) {
+        return unchanged(state, 'invalid-approval')
+      }
+      if (command.reservation.kind === 'continuation' && continuation?.state !== 'open') {
         return unchanged(state, 'invalid-continuation')
+      }
+      if (command.reservation.kind === 'continuation' && stateHasUnsettledAttempts(state)) {
+        return unchanged(state, 'busy')
       }
       const attempts = new Map(state.attempts)
       for (const id of command.attemptIds) {
@@ -174,7 +213,7 @@ export function reduceTopicStream(state: TopicStreamState, command: TopicStreamC
         type: 'attempt-reserved',
         attemptId
       }))
-      if (command.type === 'reserve-continuation-dispatch' && continuation?.state === 'open') {
+      if (command.reservation.kind === 'continuation' && continuation?.state === 'open') {
         const consumed: TopicContinuationLease = {
           ...continuation,
           state: 'consumed',
@@ -351,19 +390,14 @@ export function reduceTopicStream(state: TopicStreamState, command: TopicStreamC
 
 // ── Pure selectors ────────────────────────────────────────────────────
 
-const isTerminalPhase = (state: AttemptState): boolean => state.phase === 'settled' || state.phase === 'abandoned'
+export const hasOpenLease = (state: TopicStreamState): boolean => stateHasOpenLease(state)
 
-export const hasOpenLease = (state: TopicStreamState): boolean =>
-  [...state.continuationLeases.values()].some((lease) => lease.state === 'open')
-
-export const hasUnsettledAttempts = (state: TopicStreamState): boolean =>
-  [...state.attempts.values()].some((attempt) => !isTerminalPhase(attempt.state))
+export const hasUnsettledAttempts = (state: TopicStreamState): boolean => stateHasUnsettledAttempts(state)
 
 export const hasPersistenceBlockedAttempts = (state: TopicStreamState): boolean =>
   [...state.attempts.values()].some((attempt) => attempt.state.phase === 'persistence-blocked')
 
-export const hasPendingApprovals = (state: TopicStreamState): boolean =>
-  [...state.attempts.values()].some((attempt) => attempt.pendingApprovalToolCallIds.size > 0)
+export const hasPendingApprovals = (state: TopicStreamState): boolean => stateHasPendingApprovals(state)
 
 /** T6: quiescence is derived, never toggled by a side flag. */
 export const areAttemptsDurablySettled = (state: TopicStreamState): boolean => {

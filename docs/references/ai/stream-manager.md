@@ -942,6 +942,13 @@ interface PreparedDispatch {
 type MainDispatchRequest = AiStreamOpenRequest | MainContinueConversationRequest | MainSteerContinuationRequest
 ```
 
+Attempt reservation is a Topic reducer command, discriminated by admission semantics rather than
+provider-resource liveness: `fresh` requires no unsettled attempt, open lease, or pending approval;
+`live-change` requires an existing running attempt; `approval-resume` requires a durable settled
+attempt with an approval; and `continuation` atomically consumes its exact open lease while reserving
+the successor. In particular, a provider that has stopped producing while terminal persistence is
+still `finalizing` does not make the topic eligible for a fresh start.
+
 ### Built-in providers
 
 | Provider | `canHandle` | Data layer | User message | Assistant message |

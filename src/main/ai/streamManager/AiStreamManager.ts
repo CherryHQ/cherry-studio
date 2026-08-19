@@ -82,7 +82,12 @@ import { pipeStreamLoop } from './pipeStreamLoop'
 import { projectStreamChunkPayloadForRenderer } from './rendererPayload'
 import { TerminalPersistenceCoordinator, type TerminalRecoveryRecord } from './TerminalPersistenceCoordinator'
 import { TopicStreamAggregate } from './TopicStreamAggregate'
-import { type ContinuationLeaseId, type ContinuationReleaseReason, toContinuationLeaseId } from './topicStreamState'
+import {
+  type ContinuationLeaseId,
+  type ContinuationReleaseReason,
+  toContinuationLeaseId,
+  type TopicDispatchReservation
+} from './topicStreamState'
 import type {
   ActiveStream,
   AiStreamManagerConfig,
@@ -837,29 +842,52 @@ export class AiStreamManager extends BaseService {
     const existing = this.activeStreams.get(topicId)
     if (existing?.aggregate.isQuiescent()) this.evictStream(topicId)
     const aggregate = this.getOrCreateTopicAggregate(topicId)
-    const admission = this.decideDispatchCommand(topicId, intent)
-    const continuationLeaseId =
-      intent.kind === 'runtime-turn' && intent.admission.kind === 'continuation' ? intent.admission.leaseId : undefined
+    const decision = this.decideDispatchCommand(topicId, intent)
+    let reservation: TopicDispatchReservation
+    switch (intent.kind) {
+      case 'append-live':
+      case 'replace-live':
+        reservation =
+          decision.admission.mode === 'append-live' || decision.admission.mode === 'replace-live'
+            ? { kind: 'live-change' }
+            : { kind: 'fresh' }
+        break
+      case 'continue-conversation':
+        reservation = { kind: 'approval-resume' }
+        break
+      case 'steer-continuation': {
+        const leaseId = this.dispatchingLeaseId(topicId)
+        if (!leaseId) throw new Error(`Missing continuation lease for topic ${topicId}`)
+        reservation = { kind: 'continuation', leaseId }
+        break
+      }
+      case 'runtime-turn':
+        reservation = intent.admission
+        break
+      default:
+        reservation = { kind: 'fresh' }
+        break
+    }
+    const continuationLeaseId = reservation.kind === 'continuation' ? reservation.leaseId : undefined
     const reservedAttemptIds = Array.from({ length: modelCount }, () =>
       toAttemptId(++this.nextExecutionAttemptSequence)
     )
     // One prepared commit for the whole dispatch: all attempts reserve at one revision or none do.
-    const preparedTopic = aggregate.prepare(
-      continuationLeaseId
-        ? { type: 'reserve-continuation-dispatch', attemptIds: reservedAttemptIds, leaseId: continuationLeaseId }
-        : { type: 'reserve-dispatch', attemptIds: reservedAttemptIds }
-    )
+    const preparedTopic = aggregate.prepare({ type: 'reserve-dispatch', attemptIds: reservedAttemptIds, reservation })
     if (preparedTopic.rejection) {
+      if (preparedTopic.rejection === 'busy') {
+        throw new AiStreamAdmissionError(aiStreamAdmissionReasons.TOPIC_BUSY)
+      }
       throw new Error(`Dispatch reservation rejected for topic ${topicId}: ${preparedTopic.rejection}`)
     }
-    const receipt: DispatchCommandReceipt = { ...admission, reservedAttemptIds }
+    const receipt: DispatchCommandReceipt = { ...decision, reservedAttemptIds }
     let committed: DispatchCommitResult
     try {
       committed = commitPreparedDispatch({
         topic: aggregate,
         preparedTopic,
         rows,
-        activeNodeDecision: admission.activeNodeDecision,
+        activeNodeDecision: decision.activeNodeDecision,
         attemptIds: reservedAttemptIds
       })
     } catch (error) {
@@ -2475,10 +2503,6 @@ export class AiStreamManager extends BaseService {
     }
     try {
       await this.dispatch(carried[0] ?? nullStreamListener, req)
-      const admitted = this.aggregateFor(topicId)?.attemptWatermark()
-      if (previous && admitted !== undefined) {
-        this.consumeLease(topicId, continuationId, toAttemptId(admitted), previous.aggregate)
-      }
     } catch (error) {
       // The continuation never opened (steer row deleted, no default model configured, SQLITE_BUSY …).
       // `onExecutionDone`'s chaining path already skipped the terminal lifecycle and we evicted the
@@ -3276,20 +3300,6 @@ export class AiStreamManager extends BaseService {
       return undefined
     }
     return id
-  }
-
-  /** `aggregate` is explicit: a continuation can settle against the cycle it was opened on even
-   *  after `dispatch` evicted that stream and installed a newer aggregate. */
-  private consumeLease(
-    topicId: string,
-    leaseId: ContinuationLeaseId,
-    attemptId: AttemptId,
-    aggregate = this.aggregateFor(topicId)
-  ): boolean {
-    const consumed = aggregate?.consumeContinuationLease(leaseId, attemptId) === true
-    if (this.dispatchingLeases.get(topicId) === leaseId) this.dispatchingLeases.delete(topicId)
-    if (this.agentContinuationLeaseIds.get(topicId) === leaseId) this.agentContinuationLeaseIds.delete(topicId)
-    return consumed
   }
 
   /**

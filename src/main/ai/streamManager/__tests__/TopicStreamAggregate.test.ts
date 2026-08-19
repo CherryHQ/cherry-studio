@@ -117,14 +117,32 @@ describe('TopicStreamAggregate', () => {
     const attemptId = toAttemptId(2)
 
     const prepared = aggregate.prepare({
-      type: 'reserve-continuation-dispatch',
+      type: 'reserve-dispatch',
       attemptIds: [attemptId],
-      leaseId: lease
+      reservation: { kind: 'continuation', leaseId: lease }
     })
     aggregate.commit(prepared)
 
     expect(aggregate.attemptState(attemptId)).toEqual({ phase: 'reserved' })
     expect(aggregate.continuationLease(lease)).toMatchObject({ state: 'consumed', attemptId })
+  })
+
+  it('structurally rejects a fresh reservation while an attempt is finalizing', () => {
+    const aggregate = new TopicStreamAggregate('topic-1')
+    const current = aggregate.reserveAttempt(toAttemptId(1))
+    aggregate.transitionAttempt(current.id, { type: 'launch' })
+    aggregate.transitionAttempt(current.id, { type: 'complete' })
+
+    const nextAttemptId = toAttemptId(2)
+    const prepared = aggregate.prepare({
+      type: 'reserve-dispatch',
+      attemptIds: [nextAttemptId],
+      reservation: { kind: 'fresh' }
+    })
+
+    expect(prepared.rejection).toBe('busy')
+    expect(prepared.changed).toBe(false)
+    expect(aggregate.attemptState(nextAttemptId)).toBeUndefined()
   })
 
   it('pushes ring eviction pause on the approval edges, never on inner changes (T8)', () => {
