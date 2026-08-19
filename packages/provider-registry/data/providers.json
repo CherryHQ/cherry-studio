@@ -1662,6 +1662,30 @@
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
+      "description": "iFlytek Astron Coding Plan - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://maas-coding-api.cn-huabei-1.xf-yun.com/anthropic"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://maas-coding-api.cn-huabei-1.xf-yun.com/v2"
+        }
+      },
+      "id": "xfyun-coding",
+      "metadata": {
+        "website": {
+          "apiKey": "https://training.xfyun.cn/astronCodingPlan",
+          "docs": "https://www.xfyun.cn/doc/spark/CodingPlan.html",
+          "models": "https://www.xfyun.cn/doc/spark/CodingPlan.html",
+          "official": "https://training.xfyun.cn"
+        }
+      },
+      "name": "iFlytek Astron Coding Plan"
+    },
+    {
+      "defaultChatEndpoint": "openai-chat-completions",
       "description": "TokenHub - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
@@ -2093,5 +2117,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "75b0255f8b51a8cd"
+  "version": "0602eef4ea7a583a"
 }

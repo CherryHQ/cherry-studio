@@ -78,6 +78,7 @@ const providerKeyMap = {
   vertexai: 'provider.vertexai',
   voyageai: 'provider.voyageai',
   xfyun: 'provider.xfyun',
+  'xfyun-coding': 'provider.xfyun-coding',
   xirang: 'provider.xirang',
   yi: 'provider.yi',
   zhinao: 'provider.zhinao',

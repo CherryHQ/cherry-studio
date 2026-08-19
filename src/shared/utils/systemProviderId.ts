@@ -63,6 +63,7 @@ export const SystemProviderIdSchema = z.enum([
   'vertexai',
   'voyageai',
   'xfyun',
+  'xfyun-coding',
   'xirang',
   'zai',
   'zhipu'
@@ -132,6 +133,7 @@ export const SystemProviderIds = {
   vertexai: 'vertexai',
   voyageai: 'voyageai',
   xfyun: 'xfyun',
+  'xfyun-coding': 'xfyun-coding',
   xirang: 'xirang',
   zai: 'zai',
   zhipu: 'zhipu'
