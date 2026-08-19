@@ -53,23 +53,21 @@ describe('sidebarVariants icons', () => {
     expect(screen.getByTestId('icon')).toHaveTextContent('🍒')
   })
 
-  it('sizes a pinned entity icon like the built-in app rows next to it', () => {
+  it.each([
+    ['lg', '24'],
+    ['md', '18']
+  ] as const)('sizes a pinned entity icon like a mini app logo (%s)', (iconSize, expected) => {
     const ctx = createContext({
       installedAssistants: new Map([['assistant-1', createAssistant()]])
     })
 
-    const appEntry = resolveSidebarEntry({ type: 'app', id: 'assistants' }, ctx)
-    const entityEntry = resolveSidebarEntry(assistantFavorite, ctx)
+    const entry = resolveSidebarEntry(assistantFavorite, ctx)
+    const { container } = render(<div>{entry?.renderIcon(18, iconSize)}</div>)
 
-    const { container: appBox } = render(<div>{appEntry?.renderIcon(18, 'lg')}</div>)
-    const { container: entityBox } = render(<div>{entityEntry?.renderIcon(18, 'lg')}</div>)
-
-    // Entity rows sit inline with the app rows, so drawing them at the mini app
-    // scale (24) instead of the row size makes the whole rail look uneven.
-    const appIcon = appBox.querySelector('svg')
-    const entityIcon = entityBox.querySelector('svg, div[style]')
-    expect(appIcon?.getAttribute('width')).toBe('18')
-    expect(entityIcon?.getAttribute('width') ?? (entityIcon as HTMLElement)?.style.width).toMatch(/^18(px)?$/)
+    // Filled discs read a size smaller than line glyphs at the same box, so entity
+    // rows follow the mini app scale rather than the lucide `size` the apps use.
+    const icon = container.querySelector('svg, div[style]')
+    expect(icon?.getAttribute('width') ?? (icon as HTMLElement)?.style.width).toMatch(new RegExp(`^${expected}(px)?$`))
   })
 
   it('renders the model avatar when the icon type preference is model', () => {

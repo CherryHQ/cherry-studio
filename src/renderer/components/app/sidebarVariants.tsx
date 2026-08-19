@@ -20,6 +20,10 @@ function sidebarIconType(iconType: AssistantIconType): AssistantIconType {
   return iconType === 'none' ? 'emoji' : iconType
 }
 
+// Entity icons are filled discs like mini app logos, not line glyphs, so they follow
+// the mini app scale — the lucide `size` renders them visibly smaller than their row.
+const ENTITY_ICON_PIXEL_SIZE = { md: 18, lg: 24 } as const
+
 /**
  * Runtime context a variant needs to resolve a favorite into a rendered row:
  * i18n, route inputs, installed mini app data, and the open/remove callbacks the
@@ -129,7 +133,13 @@ const agentVariant: SidebarVariantDescriptor<Extract<SidebarFavoriteItem, { type
       label: agent.name,
       // Same renderer the agent rail uses, so a pinned row matches the list it came from.
       // 'none' would leave the row with no glyph at all, so the sidebar keeps the emoji there.
-      renderIcon: (size) => renderAgentEntityIcon(sidebarIconType(ctx.agentIconType), agent, ctx.defaultModelId, size),
+      renderIcon: (_size, iconSize) =>
+        renderAgentEntityIcon(
+          sidebarIconType(ctx.agentIconType),
+          agent,
+          ctx.defaultModelId,
+          ENTITY_ICON_PIXEL_SIZE[iconSize]
+        ),
       // Active-state highlight stays on the built-in agents app entry; this row
       // only navigates the conversation the interceptor resolves.
       isActive: () => false,
@@ -157,8 +167,13 @@ const assistantVariant: SidebarVariantDescriptor<Extract<SidebarFavoriteItem, { 
       label: assistant.name,
       // Same renderer the assistant rail uses, so a pinned row matches the list it came from.
       // 'none' would leave the row with no glyph at all, so the sidebar keeps the emoji there.
-      renderIcon: (size) =>
-        renderAssistantEntityIcon(sidebarIconType(ctx.assistantIconType), assistant, ctx.defaultModelId, size),
+      renderIcon: (_size, iconSize) =>
+        renderAssistantEntityIcon(
+          sidebarIconType(ctx.assistantIconType),
+          assistant,
+          ctx.defaultModelId,
+          ENTITY_ICON_PIXEL_SIZE[iconSize]
+        ),
       // Active-state highlight stays on the built-in assistants app entry.
       isActive: () => false,
       onOpen: () => ctx.openAssistant(assistant.id),
