@@ -4,10 +4,12 @@ import {
   type OpenTabOptions,
   TabsContext,
   type TabsContextValue,
-  useConversationNavigationOwner
+  useConversationNavigationOwner,
+  useTabSessionSweep
 } from '@renderer/hooks/tab'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { TabLruManager } from '@renderer/services/TabLruManager'
+import { withoutTabSession } from '@renderer/services/TabSessionRegistry'
 import { getDefaultRouteTitle, isPageTitledRoute, isTopLevelRoute } from '@renderer/utils/routeTitle'
 import type { Tab, TabSavedState } from '@shared/data/cache/cacheValueTypes'
 import type { ReactNode } from 'react'
@@ -51,10 +53,12 @@ const LEGACY_LIBRARY_ROUTE_PATH = '/app/library'
 const LEGACY_OPENCLAW_ROUTE_PATH = '/app/openclaw'
 const CODE_ROUTE_PATH = '/app/code'
 
+const TAB_URL_BASE = 'https://www.cherry-ai.com'
+
 function routePathOfTab(tab: Tab): string | null {
   if (tab.type !== 'route') return null
   try {
-    return new URL(tab.url, 'https://www.cherry-ai.com').pathname
+    return new URL(tab.url, TAB_URL_BASE).pathname
   } catch {
     return null
   }
@@ -126,8 +130,17 @@ function isSettingsRouteTab(tab: Tab): boolean {
 
 type InitialSession = { normalTabs: Tab[]; pinnedTabs: Tab[]; activeTabId: string }
 
+/**
+ * A tab session lives in renderer memory, which the restart just discarded, so a restored url
+ * would name a session that no longer exists. Drop the id and let the route mint a fresh one —
+ * the tab comes back as a clean page instead of one claiming state it cannot produce.
+ */
 function restoreTabs(tabs: Tab[], activeTabId: string): Tab[] {
-  return tabs.map((tab) => ({ ...tab, isDormant: tab.id !== activeTabId }))
+  return tabs.map((tab) => ({
+    ...tab,
+    url: tab.type === 'route' ? withoutTabSession(tab.url) : tab.url,
+    isDormant: tab.id !== activeTabId
+  }))
 }
 
 /**
@@ -625,6 +638,7 @@ export function TabsProvider({
   useIpcOn('tab.attached', (tabData) => attachTab(tabData))
 
   useConversationNavigationOwner({ tabs, openTab, setActiveTab })
+  useTabSessionSweep(tabs)
 
   /**
    * Get the currently active tab

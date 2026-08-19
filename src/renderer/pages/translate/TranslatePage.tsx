@@ -1,5 +1,6 @@
 import { Avatar, AvatarFallback, Button } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
+import { cacheService } from '@data/CacheService'
 import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -9,7 +10,13 @@ import { loggerService } from '@logger'
 // once main converges with feat. The `Selector` dir is byte-identical to feat.
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import { Navbar } from '@renderer/components/Navbar'
-import { detectLanguageOrUnknown, useDetectLang, useTranslate, useTranslateHistory } from '@renderer/hooks/translate'
+import {
+  detectLanguageOrUnknown,
+  useDetectLang,
+  useTranslate,
+  useTranslateHistory,
+  useTranslateSession
+} from '@renderer/hooks/translate'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useDrag } from '@renderer/hooks/useDrag'
 import { useFiles } from '@renderer/hooks/useFiles'
@@ -20,6 +27,7 @@ import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
+import { parseTranslateRouteSearch } from '@renderer/pages/translate/routeSearch'
 import { exportContentToNotes } from '@renderer/services/ExportService'
 import { toast } from '@renderer/services/toast'
 import { type FileMetadata, isImageFileMetadata } from '@renderer/types/file'
@@ -49,6 +57,7 @@ import { MB } from '@shared/utils/constants'
 import { createFilePathHandle } from '@shared/utils/file'
 import { documentExts, imageExts, textExts } from '@shared/utils/file'
 import { isGatewayRoutableModel, isNonChatModel } from '@shared/utils/model'
+import { useSearch } from '@tanstack/react-router'
 import { isEmpty } from 'es-toolkit/compat'
 import { CirclePause, History, Languages, LoaderCircle, SlidersHorizontal } from 'lucide-react'
 import type { ClipboardEvent, DragEvent, FC } from 'react'
@@ -223,11 +232,45 @@ const TranslatePage: FC = () => {
   const [isBidirectional] = usePreference('feature.translate.page.bidirectional_enabled')
   const [enableMarkdown] = usePreference('feature.translate.page.enable_markdown')
 
-  const [translateInput, setTranslateInput] = useCache('translate.input')
-  const [translateOutput, setTranslateOutput] = useCache('translate.output')
-  const [isDetecting, setIsDetecting] = useCache('translate.detecting')
+  // Every translate tab shares this route url, so the session id in `?tabSession=` is the only
+  // thing telling two of them apart — it keys this page's whole draft (#18879). The route mints
+  // it before the page mounts, so it is always present here.
+  const { tabSession } = parseTranslateRouteSearch(useSearch({ strict: false }) as Record<string, unknown>)
+  const session = useTranslateSession(tabSession ?? '')
 
-  const { reset: smoothReset, update: smoothUpdate } = useSmoothStream({ onUpdate: setTranslateOutput })
+  const [translateInput, setTranslateInput] = useCache(`translate.input.${session.id}`)
+  const [translateOutput, setTranslateOutput] = useCache(`translate.output.${session.id}`)
+  const [, setStreamText] = useCache(`translate.stream_text.${session.id}`)
+  const [isDetecting, setIsDetecting] = useCache(`translate.detecting.${session.id}`)
+
+  // Resume the playout where the last mount left it instead of retyping the whole text: the run
+  // keeps writing `streamText` while this page is unmounted, and the effect below catches up.
+  const initialOutputRef = useRef(translateOutput)
+  const { reset: smoothReset, update: smoothUpdate } = useSmoothStream({
+    onUpdate: setTranslateOutput,
+    initialText: initialOutputRef.current
+  })
+
+  // Catch the playout up once, on mount: a run that continued while this page was unmounted kept
+  // advancing `streamText`. Every later chunk arrives through `handleStreamText` instead, so
+  // re-running this on change would only replay text the page has already moved past.
+  const caughtUpRef = useRef(false)
+  useEffect(() => {
+    if (caughtUpRef.current) return
+    caughtUpRef.current = true
+    const pending = cacheService.get(`translate.stream_text.${session.id}`)
+    if (pending) smoothUpdate(pending, false)
+  }, [session.id, smoothUpdate])
+
+  const handleStreamText = useCallback(
+    (text: string, isComplete: boolean) => {
+      // Recorded first so the run keeps a durable trace even with nothing mounted, then played
+      // out directly — going only through the cache would add a render hop to every chunk.
+      setStreamText(text)
+      smoothUpdate(text, isComplete)
+    },
+    [setStreamText, smoothUpdate]
+  )
 
   const {
     translate: runTranslate,
@@ -235,7 +278,8 @@ const TranslatePage: FC = () => {
     cancel
   } = useTranslate({
     loggerContext: 'TranslatePage',
-    onResponse: smoothUpdate
+    onResponse: handleStreamText,
+    session
   })
 
   const [renderedMarkdown, setRenderedMarkdown] = useState<string>('')
@@ -373,6 +417,7 @@ const TranslatePage: FC = () => {
     ): Promise<void> => {
       if (isTranslating) return
 
+      setStreamText('')
       smoothReset('')
       const translated = await runTranslate(rawText, actualTargetLanguage)
       if (!translated) {
@@ -402,7 +447,7 @@ const TranslatePage: FC = () => {
         targetLanguage: actualTargetLanguage
       })
     },
-    [addHistory, autoCopy, copy, isTranslating, runTranslate, setTimeoutTimer, smoothReset, t]
+    [addHistory, autoCopy, copy, isTranslating, runTranslate, setStreamText, setTimeoutTimer, smoothReset, t]
   )
 
   const translateTextContent = useCallback(
