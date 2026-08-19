@@ -8,7 +8,10 @@ const { clearCacheMock, rmSyncMock, atomicWriteFileMock } = vi.hoisted(() => ({
 
 vi.mock('node:fs', async () => {
   const actual = await vi.importActual<Record<string, unknown>>('node:fs')
-  return { ...actual, rmSync: rmSyncMock }
+  return {
+    ...actual,
+    rmSync: rmSyncMock
+  }
 })
 vi.mock('@main/utils/file', () => ({ atomicWriteFile: atomicWriteFileMock }))
 vi.mock('@application', async () => {
