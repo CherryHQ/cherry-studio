@@ -1,0 +1,186 @@
+{
+  "agent": {
+    "builtin": {
+      "cherry_assistant": {
+        "description": "Consultor integrado do Cherry Studio. Diagnostica problemas, orienta operações, recolhe perguntas frequentes, submete erros e pedidos de funcionalidades e pesquisa ou cria Skills"
+      },
+      "cherry_support": {
+        "description": "Agente de suporte oficial do Cherry Studio para configuração, diagnóstico, perguntas frequentes e feedback"
+      }
+    },
+    "session": {
+      "new": "Nova tarefa",
+      "run_status": {
+        "busy": "A sessão do Agent está ocupada. Tente novamente dentro de instantes.",
+        "unavailable": "A sessão do Agent já não está disponível."
+      },
+      "workspace_status": {
+        "inaccessible": "O caminho do espaço de trabalho não está acessível: {{path}}",
+        "missing": "O caminho do espaço de trabalho não existe: {{path}}",
+        "not_directory": "O caminho do espaço de trabalho não é uma pasta: {{path}}"
+      }
+    }
+  },
+  "apiGateway": {
+    "docs": {
+      "description": "API HTTP do Cherry Studio compatível com OpenAI, Anthropic e Gemini, além dos endpoints próprios do Cherry (modelos, bases de conhecimento)",
+      "language_switcher_label": "Idioma da documentação",
+      "operations": {
+        "chat_completions": "Cria uma conclusão de conversa. Os corpos do pedido e da resposta seguem o formato OpenAI Chat Completions; com `stream: true` a saída é incremental.",
+        "count_tokens": "Estima quantos tokens de entrada são consumidos por um conjunto de mensagens no formato Anthropic.",
+        "generate_content": "Gera conteúdo através do método `generateContent` do Gemini. Os corpos do pedido e da resposta seguem o formato da API Gemini; `streamGenerateContent` é servido no mesmo caminho.",
+        "get_knowledge_base": "Obtém uma base de conhecimento pelo respetivo ID.",
+        "get_mcp_server": "Obter os detalhes de um servidor MCP e a respetiva lista de ferramentas.",
+        "health": "Estado do serviço, hora atual e versão. Não requer autenticação.",
+        "info": "Nome e versão da API e os seus principais endpoints. Não requer autenticação.",
+        "list_knowledge_bases": "Lista as bases de conhecimento disponíveis nesta instância do Cherry Studio.",
+        "list_mcp_servers": "Listar os servidores MCP ativados no Cherry Studio, cada um com o URL de ligação.",
+        "list_models": "Lista os modelos disponíveis neste gateway, no formato de modelos da OpenAI.",
+        "mcp_proxy": "Endpoint do Model Context Protocol para um servidor MCP (Streamable HTTP). Aponte qualquer cliente MCP para este URL para usar o servidor através do Cherry Studio.",
+        "messages": "Cria uma mensagem. Os corpos do pedido e da resposta seguem o formato Anthropic Messages; com `stream: true` a saída é incremental.",
+        "responses": "Cria uma resposta. Os corpos do pedido e da resposta seguem o formato OpenAI Responses.",
+        "search_knowledge_bases": "Pesquisa numa ou mais bases de conhecimento e devolve os excertos de documentos correspondentes."
+      },
+      "tags": {
+        "anthropic": "Endpoints compatíveis com Anthropic. Aponte o URL base de um SDK da Anthropic para este gateway para os utilizar.",
+        "cherry": "Endpoints próprios do Cherry Studio: bases de conhecimento, informações do serviço e verificação de estado.",
+        "gemini": "Endpoints compatíveis com Gemini, servidos em `/v1beta` tal como na API original.",
+        "openai": "Endpoints compatíveis com OpenAI. Aponte o URL base de um SDK da OpenAI para este gateway para os utilizar."
+      }
+    }
+  },
+  "appMenu": {
+    "about": "Sobre",
+    "close": "Fechar Janela",
+    "copy": "Copiar",
+    "cut": "Cortar",
+    "delete": "Eliminar",
+    "documentation": "Documentação",
+    "edit": "Editar",
+    "feedback": "Comentários",
+    "file": "Ficheiro",
+    "forceReload": "Forçar Recarregamento",
+    "front": "Trazer Tudo para a Frente",
+    "help": "Ajuda",
+    "hide": "Esconder",
+    "hideOthers": "Ocultar Outros",
+    "minimize": "Minimizar",
+    "paste": "Colar",
+    "quit": "Sair",
+    "redo": "Refazer",
+    "releases": "Lançamentos",
+    "reload": "Recarregar",
+    "resetZoom": "Tamanho Real",
+    "selectAll": "Selecionar tudo",
+    "services": "Serviços",
+    "toggleDevTools": "Alternar ferramentas de programador",
+    "toggleFullscreen": "Alternar ecrã inteiro",
+    "undo": "Desfazer",
+    "unhide": "Mostrar Todos",
+    "view": "Visualizar",
+    "website": "Site",
+    "window": "Janela",
+    "zoom": "Zoom",
+    "zoomIn": "Ampliar",
+    "zoomOut": "Reduzir Zoom"
+  },
+  "chat": {
+    "conversation": {
+      "new": "Nova conversa"
+    }
+  },
+  "common": {
+    "channel_available_commands": "Comandos disponíveis:",
+    "channel_command_processing_error": "⚠️ Ocorreu um erro ao processar o comando. Tente novamente mais tarde.",
+    "channel_message_processing_error": "⚠️ Ocorreu um erro ao processar a sua mensagem. Tente novamente mais tarde.",
+    "channel_new_session_created": "Nova sessão criada.",
+    "channel_no_active_session": "Não existe sessão ativa.",
+    "channel_session_compacted": "Sessão compactada.",
+    "channel_session_resolution_error": "⚠️ Não foi possível resolver uma sessão para este agente. Tente novamente mais tarde.",
+    "copy": "Copiar",
+    "cut": "Cortar",
+    "inspect": "Verificar",
+    "paste": "Colar"
+  },
+  "dialog": {
+    "all_files": "Todos os Ficheiros",
+    "data_reset": {
+      "cancel": "Cancelar",
+      "confirm": "Repor e reiniciar",
+      "message": "Esta ação irá apagar conversas, assistentes, bases de conhecimento, ficheiros e definições e, em seguida, reiniciar a aplicação. Esta ação não pode ser anulada. Pretende continuar?",
+      "title": "Repor os dados da aplicação"
+    },
+    "diagnostic_bundle": {
+      "title": "Guardar pacote de diagnóstico",
+      "zip_filter": "Ficheiro ZIP"
+    },
+    "html_files": "Ficheiros HTML",
+    "open_file": "Abrir Ficheiro",
+    "pdf_files": "Ficheiros PDF",
+    "png_image": "Imagem PNG",
+    "save_as_html": "Guardar como HTML",
+    "save_as_pdf": "Guardar como PDF",
+    "save_file": "Guardar Ficheiro",
+    "screen_capture_permission": {
+      "cancel": "Cancelar",
+      "detail": "Conceda a «{{appName}}» permissão de gravação do ecrã em Definições do Sistema > Privacidade e Segurança > Gravação do Ecrã e, em seguida, reinicie a aplicação.",
+      "message": "É necessária permissão de gravação do ecrã para fazer capturas.",
+      "open_settings": "Abrir Definições do Sistema",
+      "title": "Permissão de gravação do ecrã"
+    },
+    "screenshot_failed": {
+      "message": "Não foi possível fazer a captura de ecrã.",
+      "ok": "OK",
+      "title": "Falha na captura de ecrã"
+    },
+    "select_folder": "Selecionar Pasta",
+    "word_document": "Documento do Word"
+  },
+  "file_processing": {
+    "errors": {
+      "document_size_limit_exceeded": "O serviço atual de análise de documentos requer ficheiros menores que {{maxSize}}. Comprima ou divida este ficheiro e adicione-o novamente.",
+      "pdf_page_limit_exceeded": "Este PDF excede o limite de {{maxPages}} páginas do serviço atual de análise de documentos. Divida o PDF manualmente e adicione-o novamente."
+    }
+  },
+  "notification": {
+    "action_required": {
+      "agent": "O agente precisa da sua intervenção",
+      "assistant": "O assistente precisa da sua intervenção"
+    },
+    "completion": {
+      "agent": "Tarefa do agente concluída",
+      "assistant": "Resposta do assistente concluída"
+    }
+  },
+  "openclaw": {
+    "errors": {
+      "binary_incompatible": "O binário do OpenClaw utilizado pelo Cherry Studio é incompatível com a configuração gerada. Atualize o OpenClaw.{{details}}",
+      "external_config_invalid": "O OpenClaw rejeitou uma configuração fora da secção de fornecedores gerida pelo Cherry Studio. Corrija essa configuração ou atualize o OpenClaw.{{details}}",
+      "more_issues": "e mais {{count}} problema(s)",
+      "preflight_failed": "O Cherry Studio não conseguiu validar a configuração do OpenClaw."
+    }
+  },
+  "paintings": {
+    "generate_failed": "Falha ao gerar imagem",
+    "image_mix_failed": "Falha ao misturar imagens"
+  },
+  "selection": {
+    "name": "Assistente de Seleção de Palavras"
+  },
+  "settings": {
+    "mcp": {
+      "oauth": {
+        "callback": {
+          "message": "Pode fechar esta página e regressar ao Cherry Studio",
+          "title": "Autenticação Bem-Sucedida"
+        }
+      }
+    },
+    "title": "Configurações"
+  },
+  "tray": {
+    "quit": "Sair",
+    "show_quick_assistant": "Assistente rápido",
+    "show_window": "Mostrar janela"
+  }
+}

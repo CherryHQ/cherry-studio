@@ -341,6 +341,38 @@ describe('AgentToolRenderer', () => {
   })
 
   describe('completed tool rendering', () => {
+    it('does not duplicate an ExitPlanMode plan repeated in the tool result', () => {
+      const plan = '# Release plan\n\n1. Run the focused tests'
+      const toolResponse = createToolResponse({
+        tool: { id: 'ExitPlanMode', name: 'ExitPlanMode', description: 'Exit plan mode', type: 'provider' },
+        status: 'done',
+        arguments: { plan },
+        response: { plan, isAgent: false }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      fireEvent.click(screen.getByRole('button'))
+
+      expect(screen.getAllByText('Release plan')).toHaveLength(1)
+      expect(screen.getAllByText('Run the focused tests')).toHaveLength(1)
+    })
+
+    it('does not duplicate an ExitPlanMode plan that differs only by surrounding whitespace', () => {
+      const plan = '# Release plan\n\n1. Run the focused tests'
+      const toolResponse = createToolResponse({
+        tool: { id: 'ExitPlanMode', name: 'ExitPlanMode', description: 'Exit plan mode', type: 'provider' },
+        status: 'done',
+        arguments: { plan: `${plan}   ` },
+        response: { plan: `  ${plan}\n`, isAgent: false }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      fireEvent.click(screen.getByRole('button'))
+
+      expect(screen.getAllByText('Release plan')).toHaveLength(1)
+      expect(screen.getAllByText('Run the focused tests')).toHaveLength(1)
+    })
+
     it('should render newly supported structured agent tools', () => {
       const toolResponse = createToolResponse({
         tool: { id: 'TaskCreate', name: 'TaskCreate', description: 'Create task', type: 'provider' },

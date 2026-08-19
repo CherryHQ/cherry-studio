@@ -4,7 +4,7 @@
  * errored terminals are no-ops (discard-on-cancel).
  *
  * `dispatchToListeners` awaits serially, so the DB write completes
- * before `Ai_StreamDone` — the renderer can refresh on the standard
+ * before `ai.stream.done` — the renderer can refresh on the standard
  * done IPC.
  */
 

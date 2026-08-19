@@ -2,6 +2,7 @@ import { basename } from 'node:path'
 
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
@@ -3561,7 +3562,8 @@ describe('AgentComposer', () => {
   it('restores a cached knowledge chip and its prompt text', async () => {
     mocks.knowledgeBases = [knowledgeBaseOne]
     const cachedToken = knowledgeBaseToken(knowledgeBaseOne)
-    const promptText = 'The user attached knowledge base "Knowledge One" (id: kb-1) — use that id with the kb_* tools.'
+    const promptText =
+      'The user attached knowledge base "Knowledge One" (id: kb-1). Include "kb-1" in kb_search baseIds before answering questions that may depend on this knowledge base, and cite relevant kb_search or kb_read results. Use kb_list only to browse its structure; kb_list output is not retrieved evidence.'
     vi.mocked(cacheService.get).mockReturnValue({
       text: promptText,
       tokens: [
@@ -3737,7 +3739,8 @@ describe('AgentComposer', () => {
       />
     )
 
-    const promptText = 'The user attached knowledge base "Knowledge One" (id: kb-1) — use that id with the kb_* tools.'
+    const promptText =
+      'The user attached knowledge base "Knowledge One" (id: kb-1). Include "kb-1" in kb_search baseIds before answering questions that may depend on this knowledge base, and cite relevant kb_search or kb_read results. Use kb_list only to browse its structure; kb_list output is not retrieved evidence.'
     const cachedToken = { ...knowledgeBaseToken(knowledgeBaseOne), promptText }
     mocks.selectedKnowledgeBases = [knowledgeBaseOne]
     act(() => {
@@ -4920,6 +4923,29 @@ describe('AgentComposer', () => {
     fireEvent.click(screen.getByText('close edit dialog'))
 
     expect(mocks.inputAdapterFocus).toHaveBeenCalledTimes(1)
+  })
+
+  it('focuses only the current session composer from the focus event', async () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+    mocks.surfaceFocus.mockClear()
+
+    await act(async () => {
+      await EventEmitter.emit(EVENT_NAMES.FOCUS_CHAT_COMPOSER, { topicId: 'agent-session:other-session' })
+    })
+    expect(mocks.surfaceFocus).not.toHaveBeenCalled()
+
+    await act(async () => {
+      await EventEmitter.emit(EVENT_NAMES.FOCUS_CHAT_COMPOSER, { topicId: 'agent-session:session-1' })
+    })
+    expect(mocks.surfaceFocus).toHaveBeenCalledTimes(1)
   })
 
   it('keeps the active session agent control visible in classic layout', () => {

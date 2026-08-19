@@ -3,24 +3,18 @@ import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 import { defaultLanguage } from '@shared/utils/languages'
 import { app } from 'electron'
 
-// Main process owns an independent, statically-imported locale catalog (this
-// directory), mirroring the renderer's locales/ (human) + translate/ (machine)
-// split. It carries only the keys main actually renders — app menu, tray,
-// dialogs, context menu, the OAuth callback page and a few shared strings — so
-// importing all 12 languages up front costs ~48 KB.
+import deDE from './locales/de-de.json'
+import elGR from './locales/el-gr.json'
 import EnUs from './locales/en-us.json'
+import esES from './locales/es-es.json'
+import frFR from './locales/fr-fr.json'
+import JaJP from './locales/ja-jp.json'
+import ptPT from './locales/pt-pt.json'
+import roRO from './locales/ro-ro.json'
+import RuRu from './locales/ru-ru.json'
+import viVN from './locales/vi-vn.json'
 import ZhCn from './locales/zh-cn.json'
-// Machine translation
-import deDE from './translate/de-de.json'
-import elGR from './translate/el-gr.json'
-import esES from './translate/es-es.json'
-import frFR from './translate/fr-fr.json'
-import JaJP from './translate/ja-jp.json'
-import ptPT from './translate/pt-pt.json'
-import roRO from './translate/ro-ro.json'
-import RuRu from './translate/ru-ru.json'
-import viVN from './translate/vi-vn.json'
-import ZhTw from './translate/zh-tw.json'
+import ZhTw from './locales/zh-tw.json'
 
 const locales = Object.fromEntries(
   [

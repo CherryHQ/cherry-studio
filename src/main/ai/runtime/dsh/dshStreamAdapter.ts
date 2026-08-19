@@ -26,6 +26,7 @@ import type {} from '@deepseek-ai/dsh-plan-mode'
 import type { SessionEvent, SessionEventMap, TurnEndReason } from '@deepseek-ai/dsh-session'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
+import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { CherryUIMessageChunk } from '@shared/data/types/message'
 
 import type { AgentRuntimeEvent } from '../types'
@@ -68,10 +69,15 @@ export interface DshStreamSink {
 }
 
 function toolProviderMetadata(toolName: string, extra: Record<string, unknown> = {}) {
+  // Bridged MCP tools keep their `mcp__server__tool` wire name; report the MCP identity behind it
+  // so the renderer routes them to the same cards it gives Claude Code's MCP results.
+  const mcp = parseFunctionCallToolName(toolName)
   return {
     cherry: {
       transport: DSH_TRANSPORT,
-      tool: { type: 'builtin', name: toolName }
+      tool: mcp
+        ? { type: 'mcp', name: mcp.toolPart, serverId: mcp.serverPart, serverName: mcp.serverPart }
+        : { type: 'builtin', name: toolName }
     },
     dsh: { toolName, ...extra }
   }
@@ -357,7 +363,7 @@ export class DshStreamAdapter {
     this.sink.enqueue({
       type: 'tool-output-available',
       toolCallId,
-      output,
+      output: normalizeToolOutput(output),
       dynamic: true,
       providerExecuted: true,
       providerMetadata: toolProviderMetadata(toolName)
@@ -528,6 +534,23 @@ function parseToolArguments(raw: string): Record<string, unknown> {
     return isRecord(parsed) ? parsed : {}
   } catch {
     return {}
+  }
+}
+
+/**
+ * dsh wraps every tool result in MCP content blocks, so an all-text result hides its payload
+ * inside a JSON string. Unwrap it the way the Claude Code adapter does, so downstream consumers
+ * (tool cards, citation resolution, persisted projection) see one shape across runtimes.
+ */
+function normalizeToolOutput(output: ContentBlock[]): unknown {
+  const texts = output.filter((entry): entry is Extract<ContentBlock, { type: 'text' }> => entry.type === 'text')
+  if (texts.length === 0 || texts.length !== output.length) return output
+
+  const text = texts.map((entry) => entry.text).join('\n')
+  try {
+    return JSON.parse(text)
+  } catch {
+    return text
   }
 }
 

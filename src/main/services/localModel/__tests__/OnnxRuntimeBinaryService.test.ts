@@ -31,7 +31,7 @@ vi.mock('@application', async () => {
 })
 
 vi.mock('@main/ai/inference/localModelCatalog', () => ({
-  ONNXRUNTIME_NODE_VERSION: '1.24.3',
+  ONNXRUNTIME_NODE_VERSION: '1.25.1',
   ONNXRUNTIME_TARBALL_SHA256: FAKE_TARBALL_SHA256,
   ONNXRUNTIME_LEAVES: {
     [FAKE_PLATFORM]: {
