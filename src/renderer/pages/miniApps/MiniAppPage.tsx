@@ -170,7 +170,8 @@ const MiniAppPage: FC = () => {
       <MiniAppPane
         app={app}
         splitMode="open"
-        onSplit={openSplit}
+        splitActive={splitOpen}
+        onSplit={splitOpen ? closeSplit : openSplit}
         hostShortcutEnabled={!splitOpen || activePane === 'primary'}
         onActivate={activatePrimaryPane}
         className={splitOpen ? 'w-1/2' : 'w-full'}

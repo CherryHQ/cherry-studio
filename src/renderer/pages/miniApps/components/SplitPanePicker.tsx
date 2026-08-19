@@ -1,24 +1,17 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { usePreference } from '@data/hooks/usePreference'
-import { APP_ICON_BACKGROUNDS, SIDEBAR_ICON_COMPONENTS } from '@renderer/components/app/sidebarIcons'
 import MiniApp from '@renderer/components/MiniApp/MiniApp'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { useLaunchpadAppOrder } from '@renderer/hooks/useLaunchpadAppOrder'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
-import { getSidebarIconLabelKey } from '@renderer/i18n/label'
-import { getSidebarMenuPath } from '@renderer/utils/sidebar'
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 import { X } from 'lucide-react'
 import type { FC } from 'react'
-import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 // Column count follows the pane width: a detached mini app window can be
 // resized down to ~400px, leaving each half far narrower than a fixed grid.
 const GRID_CLASS = 'grid grid-cols-[repeat(auto-fill,minmax(92px,1fr))] justify-items-center gap-2 px-2'
-const SECTION_TITLE_CLASS = 'm-0 px-4 py-0 font-semibold text-[14px] text-foreground opacity-80'
 
 interface Props {
   /**
@@ -31,37 +24,17 @@ interface Props {
 }
 
 /**
- * Launchpad-shaped chooser for the split pane. Picking a mini app loads it into
- * the pool beside the active one; built-in apps are rendered but disabled — they
- * are routed pages and would need a second router to live in a pane.
+ * Chooser for the split pane: the mini apps that can sit beside the active one.
+ * Built-in apps are deliberately absent — they are routed pages and would need
+ * a second router instance to live in a pane.
  */
 const SplitPanePicker: FC<Props> = ({ occupiedAppId, onClose, className }) => {
   const { t } = useTranslation()
-  const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
   // Every available mini app, not just the launchpad's pinned ones: presets
   // seed as `enabled`, so a pinned-only list is empty until the user pins
   // something, and the app to compare against is often not pinned anyway.
   const { miniApps } = useMiniApps()
   const { openMiniAppInSplit } = useMiniAppPopup()
-  const { orderedAppIds } = useLaunchpadAppOrder()
-
-  const appTiles = useMemo(
-    () =>
-      orderedAppIds.flatMap((favorite) => {
-        const Icon = SIDEBAR_ICON_COMPONENTS[favorite]
-        if (!Icon || !getSidebarMenuPath(favorite, defaultPaintingProvider)) return []
-
-        return [
-          {
-            id: favorite,
-            icon: <Icon size={32} />,
-            text: t(getSidebarIconLabelKey(favorite)),
-            bgColor: APP_ICON_BACKGROUNDS[favorite]
-          }
-        ]
-      }),
-    [defaultPaintingProvider, orderedAppIds, t]
-  )
 
   const renderMiniApp = (app: MiniAppType) => {
     const isOccupied = app.appId === occupiedAppId
@@ -99,36 +72,11 @@ const SplitPanePicker: FC<Props> = ({ occupiedAppId, onClose, className }) => {
         </Tooltip>
       </div>
       <Scrollbar className="min-h-0 flex-1">
-        <div className="mx-auto flex w-full max-w-140 flex-col gap-5 py-8">
-          <section className="flex flex-col gap-2">
-            <h2 className={SECTION_TITLE_CLASS}>
-              {t('launchpad.apps')}
-              <span className="ml-2 font-normal text-[12px] text-muted-foreground">
-                {t('miniApp.split.apps_unsupported')}
-              </span>
-            </h2>
-            <div className={cn(GRID_CLASS, 'pointer-events-none opacity-40')}>
-              {appTiles.map((item) => (
-                <div key={item.id} className="mx-auto flex w-[92px] flex-col items-center gap-1 px-1 py-2 text-center">
-                  <span
-                    className="flex size-14 items-center justify-center rounded-2xl text-white shadow-sm [&_svg]:size-7 [&_svg]:text-white"
-                    style={{ background: item.bgColor }}>
-                    {item.icon}
-                  </span>
-                  <span className="w-full overflow-hidden text-ellipsis whitespace-nowrap text-[12px] text-foreground">
-                    {item.text}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          {miniApps.length > 0 && (
-            <section className="flex flex-col gap-2">
-              <h2 className={SECTION_TITLE_CLASS}>{t('launchpad.miniApps')}</h2>
-              <div className={GRID_CLASS}>{miniApps.map(renderMiniApp)}</div>
-            </section>
-          )}
+        <div className="mx-auto flex w-full max-w-140 flex-col gap-3 py-8">
+          <h2 className="m-0 px-4 py-0 font-semibold text-[14px] text-foreground opacity-80">
+            {t('miniApp.split.choose')}
+          </h2>
+          <div className={GRID_CLASS}>{miniApps.map(renderMiniApp)}</div>
         </div>
       </Scrollbar>
     </div>

@@ -35,17 +35,6 @@ vi.mock('@renderer/components/Scrollbar', () => ({
   default: ({ children }: { children: ReactNode }) => <div>{children}</div>
 }))
 
-vi.mock('@renderer/components/app/sidebarIcons', () => ({
-  SIDEBAR_ICON_COMPONENTS: { assistants: () => <span data-testid="icon-assistants" /> },
-  APP_ICON_BACKGROUNDS: { assistants: 'linear-gradient(#000, #111)' }
-}))
-
-vi.mock('@renderer/utils/sidebar', () => ({ getSidebarMenuPath: () => '/app/chat' }))
-vi.mock('@renderer/i18n/label', () => ({ getSidebarIconLabelKey: (id: string) => id }))
-vi.mock('@data/hooks/usePreference', () => ({ usePreference: () => ['default-provider'] }))
-vi.mock('@renderer/hooks/useLaunchpadAppOrder', () => ({
-  useLaunchpadAppOrder: () => ({ orderedAppIds: ['assistants'] })
-}))
 // `pinned` stays empty on purpose: presets seed as `enabled`, so a picker that
 // read the launchpad's pinned list would be blank for a fresh install.
 vi.mock('@renderer/hooks/useMiniApps', () => ({
@@ -132,14 +121,5 @@ describe('SplitPanePicker', () => {
     // pooled webviews through it. Without an explicit opt-in here the whole
     // picker inherits that and nothing in it can be clicked.
     expect(container.firstElementChild?.className).toContain('pointer-events-auto')
-  })
-
-  it('renders built-in apps as non-interactive until they are supported', () => {
-    const { container } = render(<SplitPanePicker occupiedAppId="deepseek" onClose={mocks.onClose} />)
-
-    // Built-in apps are routed pages — they need a second router to live in a
-    // pane, so they are shown but must not be clickable.
-    const appsGrid = container.querySelector('[data-testid="icon-assistants"]')?.closest('.grid') as HTMLElement
-    expect(appsGrid.className).toContain('pointer-events-none')
   })
 })

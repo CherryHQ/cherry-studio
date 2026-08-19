@@ -34,16 +34,29 @@ interface Props {
   onReload: () => void
   onOpenDevTools: () => void
   splitMode: SplitMode
+  /** Whether the view is currently split, so the control reads as engaged. */
+  splitActive?: boolean
   onSplit: () => void
 }
 
-const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOpenDevTools, splitMode, onSplit }) => {
+const MinimalToolbar: FC<Props> = ({
+  app,
+  webviewRef,
+  currentUrl,
+  onReload,
+  onOpenDevTools,
+  splitMode,
+  splitActive = false,
+  onSplit
+}) => {
   const { t } = useTranslation()
   const { pinned, updateAppStatus, allApps } = useMiniApps()
   const [openLinkExternal, setOpenLinkExternal] = usePreference('feature.mini_app.open_link_external')
   const [canGoBack, setCanGoBack] = useState(false)
   const [canGoForward, setCanGoForward] = useState(false)
-  const splitLabelKey = splitMode === 'open' ? 'miniApp.split.open' : 'miniApp.split.close'
+  // While split, the primary pane's control closes the split rather than being
+  // a dead "open it again" button.
+  const splitLabelKey = splitMode === 'close' || splitActive ? 'miniApp.split.close' : 'miniApp.split.open'
   const canPinned = allApps.some((item) => item.appId === app.appId)
   const isPinned = pinned.some((item) => item.appId === app.appId)
   const canOpenExternalLink = app.url.startsWith('http://') || app.url.startsWith('https://')
@@ -284,8 +297,9 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
               variant="ghost"
               size="icon-sm"
               onClick={onSplit}
-              className={toolbarButtonClassName()}
-              aria-label={t(splitLabelKey)}>
+              className={toolbarButtonClassName({ active: splitActive })}
+              aria-label={t(splitLabelKey)}
+              aria-pressed={splitMode === 'open' ? splitActive : undefined}>
               {splitMode === 'open' ? <Columns2 size={14} /> : <X size={14} />}
             </Button>
           </Tooltip>

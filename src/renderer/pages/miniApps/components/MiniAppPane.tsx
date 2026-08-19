@@ -16,6 +16,8 @@ interface Props {
   app: MiniApp
   /** Whether this pane's toolbar offers to open the split or to close it. */
   splitMode: SplitMode
+  /** Whether the view is currently split, so the control reads as engaged. */
+  splitActive?: boolean
   onSplit: () => void
   /** Whether this pane answers the host window's Find shortcut. */
   hostShortcutEnabled?: boolean
@@ -29,7 +31,15 @@ interface Props {
  * `<webview>` that {@link MiniAppTabsPool} renders underneath. The pane itself
  * is transparent so the pooled webview shows through.
  */
-const MiniAppPane: FC<Props> = ({ app, splitMode, onSplit, hostShortcutEnabled, onActivate, className }) => {
+const MiniAppPane: FC<Props> = ({
+  app,
+  splitMode,
+  splitActive,
+  onSplit,
+  hostShortcutEnabled,
+  onActivate,
+  className
+}) => {
   const webviewRef = useRef<WebviewTag | null>(null)
   // Read through a ref so attaching the webview listener does not depend on a
   // callback identity that changes every render.
@@ -128,6 +138,7 @@ const MiniAppPane: FC<Props> = ({ app, splitMode, onSplit, hostShortcutEnabled, 
           onReload={handleReload}
           onOpenDevTools={handleOpenDevTools}
           splitMode={splitMode}
+          splitActive={splitActive}
           onSplit={onSplit}
         />
       </div>

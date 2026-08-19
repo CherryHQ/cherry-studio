@@ -3493,7 +3493,7 @@
     },
     "split": {
       "already_open": "已在另一侧显示",
-      "apps_unsupported": "暂不支持",
+      "choose": "选择要并排显示的小程序",
       "close": "关闭分屏",
       "open": "分屏"
     },

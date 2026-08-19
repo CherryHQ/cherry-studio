@@ -3493,7 +3493,7 @@
     },
     "split": {
       "already_open": "Already shown in the other pane",
-      "apps_unsupported": "not supported yet",
+      "choose": "Choose a mini app to show alongside",
       "close": "Close split view",
       "open": "Split view"
     },

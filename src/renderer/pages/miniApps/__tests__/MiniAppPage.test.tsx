@@ -56,11 +56,36 @@ vi.mock('@renderer/components/icons/SvgIcon', () => ({
 }))
 
 vi.mock('@renderer/pages/miniApps/components/MinimalToolbar', () => ({
-  default: ({ onReload }: { onReload: () => void }) => (
-    <button data-testid="minimal-toolbar" onClick={onReload} type="button">
-      Reload
-    </button>
+  default: ({
+    onReload,
+    onSplit,
+    splitMode,
+    splitActive
+  }: {
+    onReload: () => void
+    onSplit: () => void
+    splitMode: string
+    splitActive?: boolean
+  }) => (
+    <>
+      <button data-testid="minimal-toolbar" onClick={onReload} type="button">
+        Reload
+      </button>
+      <button
+        data-testid={`split-control-${splitMode}`}
+        data-split-active={String(Boolean(splitActive))}
+        onClick={onSplit}
+        type="button">
+        split
+      </button>
+    </>
   )
+}))
+
+// Stubbed out: this suite covers the page's own split wiring, not the picker's
+// contents, which have their own tests.
+vi.mock('@renderer/pages/miniApps/components/SplitPanePicker', () => ({
+  default: () => <div data-testid="split-picker" />
 }))
 
 vi.mock('@renderer/pages/miniApps/components/WebviewSearch', () => ({
@@ -409,6 +434,22 @@ describe('MiniAppPage', () => {
     const owners = searches.filter((el) => el.dataset.hostShortcut === 'true')
     expect(owners).toHaveLength(1)
     expect(owners[0].dataset.appId).toBe('deepseek')
+  })
+
+  it('turns the primary split control into a way back out once split', async () => {
+    mocks.splitOpen = true
+    mocks.splitMiniAppId = ''
+
+    render(<MiniAppPage />)
+
+    // Left as a plain "open the split" action it does nothing on a second
+    // press — the split is already open — so the button looks broken.
+    const control = (await screen.findAllByTestId('split-control-open'))[0]
+    expect(control.dataset.splitActive).toBe('true')
+
+    fireEvent.click(control)
+    expect(mocks.closeSplit).toHaveBeenCalled()
+    expect(mocks.openSplit).not.toHaveBeenCalled()
   })
 
   it('keeps the single pane owning the host Find shortcut when not split', async () => {
