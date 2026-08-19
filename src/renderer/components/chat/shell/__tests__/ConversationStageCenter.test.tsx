@@ -4,9 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ConversationStageCenter from '../ConversationStageCenter'
 
-const optionalPresentationState = vi.hoisted(() => ({
-  value: undefined as { presentationMaximized: boolean } | undefined
-}))
+const rightPanelPresentationMock = vi.hoisted(() => ({ maximized: false }))
 
 interface MockStageProps {
   placement: string
@@ -30,43 +28,27 @@ vi.mock('@renderer/components/composer/ConversationComposerStage', () => ({
 }))
 
 vi.mock('../../panes/Shell', () => ({
-  useOptionalRightPanelState: () => optionalPresentationState.value
+  useRightPanelPresentationMaximized: () => rightPanelPresentationMock.maximized
 }))
 
 describe('ConversationStageCenter', () => {
   beforeEach(() => {
-    optionalPresentationState.value = undefined
+    rightPanelPresentationMock.maximized = false
   })
 
-  it('provides the shared full-height center frame around the composer stage', () => {
-    const { container } = render(
-      <ConversationStageCenter placement="home" main={<div>messages</div>} composer={<div>composer</div>} />
-    )
+  it('forwards stage content and maximized presentation state', () => {
+    rightPanelPresentationMock.maximized = true
 
-    expect(container.firstElementChild).toHaveClass('h-full', 'min-h-0', 'flex-1')
+    render(<ConversationStageCenter placement="home" main={<div>messages</div>} composer={<div>composer</div>} />)
+
     expect(screen.getByTestId('conversation-stage')).toHaveAttribute('data-placement', 'home')
-  })
-
-  it('elevates the composer when the right panel is maximized', () => {
-    optionalPresentationState.value = { presentationMaximized: true }
-
-    render(<ConversationStageCenter placement="docked" main={<div />} composer={<div />} />)
-
-    expect(screen.getByTestId('conversation-stage')).toHaveAttribute('data-composer-elevated', 'true')
-  })
-
-  it('hides the main message area when the right panel is maximized', () => {
-    optionalPresentationState.value = { presentationMaximized: true }
-
-    render(<ConversationStageCenter placement="docked" main={<div>messages</div>} composer={<div />} />)
-
-    expect(screen.getByTestId('conversation-stage')).toHaveAttribute('data-main-visible', 'false')
     expect(screen.getByTestId('stage-main')).toHaveTextContent('messages')
+    expect(screen.getByTestId('stage-composer')).toHaveTextContent('composer')
+    expect(screen.getByTestId('conversation-stage')).toHaveAttribute('data-composer-elevated', 'true')
+    expect(screen.getByTestId('conversation-stage')).toHaveAttribute('data-main-visible', 'false')
   })
 
   it('uses effective presentation state while maximized intent is temporarily hidden', () => {
-    optionalPresentationState.value = { presentationMaximized: false }
-
     render(<ConversationStageCenter placement="docked" main={<div>messages</div>} composer={<div />} />)
 
     expect(screen.getByTestId('conversation-stage')).toHaveAttribute('data-composer-elevated', 'false')

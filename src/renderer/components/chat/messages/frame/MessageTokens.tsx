@@ -1,12 +1,11 @@
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@cherrystudio/ui'
 import { useInfiniteFlatItems, useInfiniteQuery } from '@renderer/data/hooks/useDataApi'
-import { isAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { MessageStats } from '@shared/data/types/message'
 import type { FC } from 'react'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useMessageListActions } from '../MessageListProvider'
+import { useMessageListActions, useMessageListMeta } from '../MessageListProvider'
 import type { MessageListItem } from '../types'
 import { getMessageModelTokensPerSecond } from './messagePerformance'
 import MessageTokenDetailsCard from './MessageTokenDetailsCard'
@@ -23,7 +22,7 @@ function UserMessageTokens({ label, onLocate }: { label: string; onLocate: () =>
   return (
     <button
       type="button"
-      className="message-tokens cursor-pointer select-text text-right text-foreground-secondary text-xs tabular-nums leading-5 transition-colors duration-150 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+      className="message-tokens cursor-pointer select-text text-right text-muted-foreground text-xs tabular-nums leading-5 transition-colors duration-150 hover:text-foreground focus-visible:text-foreground focus-visible:underline focus-visible:outline-none"
       onClick={onLocate}>
       {label}
     </button>
@@ -42,7 +41,7 @@ function AssistantMessageTokens({
   const [showAllDetails, setShowAllDetails] = useState(false)
   const [isDetailsOpen, setIsDetailsOpen] = useState(false)
   const contentId = useId()
-  const messageKind = isAgentSessionTopicId(message.topicId) ? 'agent-session' : 'chat'
+  const messageKind = useMessageListMeta().aiUsageMessageKind ?? 'chat'
   const { pages, isRefreshing, hasNext, loadNext } = useInfiniteQuery('/ai-usage-records', {
     enabled: isDetailsOpen && message.stats?.runtimeTiming !== undefined,
     query: {
@@ -73,7 +72,7 @@ function AssistantMessageTokens({
         <button
           type="button"
           aria-describedby={showAllDetails ? contentId : undefined}
-          className="message-tokens cursor-pointer select-text text-right text-foreground-secondary text-xs tabular-nums leading-5 transition-colors duration-150 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          className="message-tokens cursor-pointer select-text text-right text-muted-foreground text-xs tabular-nums leading-5 transition-colors duration-150 hover:text-foreground focus-visible:text-foreground focus-visible:underline focus-visible:outline-none"
           onFocus={() => setShowAllDetails(true)}
           onBlur={() => setShowAllDetails(false)}
           onClick={onLocate}>

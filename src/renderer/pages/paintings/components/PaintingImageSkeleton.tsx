@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { usePaintingSizeInfo } from '../hooks/usePaintingSizeInfo'
 import type { PaintingData } from '../model/types/paintingData'
-import PaintingSkeletonGrid from './PaintingSkeletonGrid'
+import PaintingSkeletonSurface from './PaintingSkeletonSurface'
 
 /**
  * Skeleton's max extent along its constrained axis. Matches the real image's
@@ -15,19 +15,19 @@ import PaintingSkeletonGrid from './PaintingSkeletonGrid'
 const SKELETON_MAX_SIZE = '100%'
 
 /**
- * Placeholder shown in the artboard while an image generates: a
- * contribution-grid animation (`PaintingSkeletonGrid`) inside a box sized to
- * the selected aspect ratio — measuring the container, minus `topBar`'s own
- * measured height, to constrain whichever axis is the tighter fit, mirroring
- * how the real `<img>` sizes itself (`SKELETON_MAX_SIZE`) so the reveal
- * doesn't jump; fills the area when no ratio is known. Once the generated
- * image has been decoded (`naturalWidth`/`naturalHeight` known — see
- * `computeImageNaturalSize`), the box re-locks to `min(natural size, contain
- * fit)` in real pixels instead of the declared-ratio estimate, exactly
- * matching how the real `<img>` (`max-h-full max-w-full`, no upscale) will
- * render — the ResizeObserver in `PaintingSkeletonGrid` picks up the new box
- * size and remounts the grid via `gridKey`, so Act 2's colour wave starts on
- * the final geometry instead of resizing mid-sweep. Falls back to the
+ * Placeholder shown in the artboard while an image generates: a dense grid of
+ * softly blinking rounded squares inside a box sized to the selected aspect
+ * ratio — measuring the container,
+ * minus `topBar`'s own measured height, to constrain whichever axis is the
+ * tighter fit, mirroring how the real `<img>` sizes itself
+ * (`SKELETON_MAX_SIZE`) so the reveal doesn't jump; fills the area when no
+ * ratio is known. Once the generated image has been decoded
+ * (`naturalWidth`/`naturalHeight` known — see `computeImageNaturalSize`), the
+ * box re-locks to `min(natural size, contain fit)` in real pixels instead of
+ * the declared-ratio estimate, exactly matching how the real `<img>`
+ * (`max-h-full max-w-full`, no upscale) will render. Once the image is ready,
+ * the squares take on sampled image colours, close their gaps, and fade away
+ * while the full image fades in on that final geometry. Falls back to the
  * declared-ratio box until the natural size is known. The composer's stop
  * button owns cancellation, so this carries no text or controls.
  */
@@ -143,8 +143,10 @@ const PaintingImageSkeleton: FC<{
             {topBar}
           </div>
         )}
-        <div className={cn('overflow-hidden rounded-md bg-muted', !hasKnownSize && 'min-h-0 flex-1')} style={boxStyle}>
-          <PaintingSkeletonGrid imageUrl={imageUrl} onRevealReady={onRevealReady} />
+        <div
+          className={cn('overflow-hidden rounded-md bg-background', !hasKnownSize && 'min-h-0 flex-1')}
+          style={boxStyle}>
+          <PaintingSkeletonSurface imageUrl={imageUrl} onRevealReady={onRevealReady} />
         </div>
       </div>
     </div>

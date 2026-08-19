@@ -1,6 +1,7 @@
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { DefaultRendererPersistCache } from '@shared/data/cache/cacheSchemas'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { HTMLAttributes, PropsWithChildren, ReactNode, Ref } from 'react'
 import { useEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -151,12 +152,14 @@ describe('ChatAppShell', () => {
     const navbarWrapper = screen.getByTestId('navbar').parentElement
 
     expect(chatMain).toContainElement(screen.getByTestId('navbar'))
-    expect(navbarWrapper).toHaveClass('relative', 'shrink-0', 'bg-background')
+    expect(navbarWrapper).toHaveClass('relative', 'shrink-0')
+    expect(navbarWrapper).not.toHaveClass('bg-background')
     expect(navbarWrapper).not.toHaveClass('absolute')
     expect(navbarWrapper).not.toHaveAttribute('data-chat-navbar-floating')
     expect(chatMain).not.toContainElement(screen.getByTestId('settings-panel'))
     expect(chatMain).toContainElement(screen.getByTestId('main'))
     expect(chatMain).toHaveClass('relative')
+    expect(chatMain?.getAttribute('data-ui')?.split(/\s+/)).toContain('part:conversation-main')
 
     const sidePanelHost = container.querySelector('[data-chat-side-panel-host]')
     expect(sidePanelHost).not.toBeNull()
@@ -250,6 +253,51 @@ describe('ChatAppShell', () => {
     expect(screen.queryByText('topic 1 content')).not.toBeInTheDocument()
     expect(screen.getByText('topic 2 content')).toBeInTheDocument()
     expect(paneMounts).toEqual(['mounted'])
+  })
+
+  it('keeps pane state while it is collapsed and reopened', async () => {
+    const user = userEvent.setup()
+
+    function Pane() {
+      const [query, setQuery] = useState('')
+
+      return <input aria-label="Pane query" value={query} onChange={(event) => setQuery(event.target.value)} />
+    }
+
+    const { container, rerender } = render(<ChatAppShell pane={<Pane />} paneOpen centerContent={<div />} />)
+
+    await user.type(screen.getByRole('textbox', { name: 'Pane query' }), 'persisted')
+
+    rerender(<ChatAppShell pane={<Pane />} paneOpen={false} centerContent={<div />} />)
+
+    const navigationPane = container.querySelector('[data-ui~="part:conversation-navigation"]')
+    expect(navigationPane).toHaveAttribute('aria-hidden', 'true')
+    expect(navigationPane).toHaveAttribute('inert')
+    expect(screen.getByLabelText('Pane query')).toHaveValue('persisted')
+
+    rerender(<ChatAppShell pane={<Pane />} paneOpen centerContent={<div />} />)
+
+    expect(screen.getByRole('textbox', { name: 'Pane query' })).toHaveValue('persisted')
+  })
+
+  it('defers mounting a pane that has never been opened', () => {
+    const { rerender } = render(<ChatAppShell pane={<aside>topics</aside>} paneOpen={false} centerContent={<div />} />)
+
+    expect(screen.queryByText('topics')).not.toBeInTheDocument()
+
+    rerender(<ChatAppShell pane={<aside>topics</aside>} paneOpen centerContent={<div />} />)
+
+    expect(screen.getByText('topics')).toBeInTheDocument()
+  })
+
+  it('mounts the pane only in the selected position', () => {
+    const { rerender } = render(
+      <ChatAppShell pane={<aside>topics</aside>} paneOpen panePosition="left" centerContent={<div />} />
+    )
+
+    rerender(<ChatAppShell pane={<aside>topics</aside>} paneOpen panePosition="right" centerContent={<div />} />)
+
+    expect(screen.getAllByText('topics')).toHaveLength(1)
   })
 
   it('drives the left resource pane width from persist cache', () => {

@@ -1,4 +1,4 @@
-import { act, renderHook } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useAgentMutations, useAgentMutationsById } from '../agentAdapter'
@@ -97,5 +97,34 @@ describe('useAgentMutations', () => {
     })
 
     expect(result.current.isCreatingAgent).toBe(false)
+  })
+
+  it('releases the creating state and skips invalidation when IPC creation fails', async () => {
+    const dto = {
+      name: 'Agent',
+      model: 'anthropic::claude-3' as const,
+      type: 'claude-code' as const
+    }
+    let rejectCreate!: (error: Error) => void
+    const pendingCreate = new Promise<never>((_, reject) => {
+      rejectCreate = reject
+    })
+    ipcRequestMock.mockReturnValueOnce(pendingCreate)
+
+    const { result } = renderHook(() => useAgentMutations())
+    let createPromise!: Promise<unknown>
+
+    act(() => {
+      createPromise = result.current.createAgent(dto)
+    })
+    await waitFor(() => expect(result.current.isCreatingAgent).toBe(true))
+
+    await act(async () => {
+      rejectCreate(new Error('create failed'))
+      await expect(createPromise).rejects.toThrow('create failed')
+    })
+
+    expect(result.current.isCreatingAgent).toBe(false)
+    expect(invalidateMock).not.toHaveBeenCalled()
   })
 })

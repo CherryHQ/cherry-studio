@@ -5,8 +5,6 @@
  * LAN transfer, and a handful of micro-domains.
  */
 export enum IpcChannel {
-  App_GetCacheSize = 'app:get-cache-size',
-  App_ClearCache = 'app:clear-cache',
   App_SetLaunchOnBoot = 'app:set-launch-on-boot',
   App_SetSpellCheckLanguages = 'app:set-spell-check-languages',
   App_Select = 'app:select',
@@ -68,13 +66,9 @@ export enum IpcChannel {
   File_Mkdir = 'file:mkdir',
   File_Write = 'file:write',
   File_SaveImage = 'file:saveImage',
-  File_SavePastedImage = 'file:savePastedImage',
   File_BinaryImage = 'file:binaryImage',
   Fs_Read = 'fs:read',
   Fs_ReadText = 'fs:readText',
-  File_IsTextFile = 'file:isTextFile',
-  File_IsDirectory = 'file:isDirectory',
-  File_GetMetadata = 'file:getMetadata',
   File_ListDirectory = 'file:listDirectory',
   File_ListDirectoryEntries = 'file:listDirectoryEntries',
   File_CheckFileName = 'file:checkFileName',
@@ -87,12 +81,6 @@ export enum IpcChannel {
   File_GetPhysicalPath = 'file:getPhysicalPath',
   File_PermanentDelete = 'file:permanentDelete',
   File_RunSweep = 'file:runSweep',
-  // DirectoryTreeBuilder primitive — top-level file-module surface, parallel
-  // to the FileEntry channels above. See docs/references/file/directory-tree.md.
-  File_TreeCreate = 'file:tree:create',
-  File_TreeDispose = 'file:tree:dispose',
-  File_TreeRename = 'file:tree:rename',
-  File_TreeMutation = 'file:tree:mutation',
 
   // backup
   Backup_Backup = 'backup:backup',

@@ -7,7 +7,6 @@
 import { access, constants } from 'node:fs/promises'
 import path from 'node:path'
 
-import { application } from '@application'
 import { isMac, isWin } from '@main/core/platform'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
@@ -20,6 +19,11 @@ export function resolvePath(_base: string, _relative: string): string {
   return notImplemented('resolvePath')
 }
 
+function normalizePathForComparison(value: string): string {
+  const resolved = path.resolve(value)
+  return isMac || isWin ? resolved.toLowerCase() : resolved
+}
+
 /**
  * True iff `child` is a strict descendant of `parent`.
  *
@@ -28,11 +32,9 @@ export function resolvePath(_base: string, _relative: string): string {
  *
  * Case-sensitivity tracks the host filesystem semantics: case-sensitive on
  * linux (and most server-class FS), case-insensitive on darwin (APFS
- * default) and win32 (NTFS default). Without this, `isUnderInternalStorage`
- * would let `/users/me/data/files` slip past a check against
- * `/Users/me/Data/Files` on a default macOS install — a latent bypass for
- * any future Phase 2 caller that uses `isUnderInternalStorage` as a
- * permission gate.
+ * default) and win32 (NTFS default). Without this, a lexical containment
+ * check could treat `/users/me/data/files` as outside
+ * `/Users/me/Data/Files` on a default macOS install.
  *
  * Limitation: detection is platform-based, not per-mount. Edge cases like
  * a case-sensitive APFS volume mounted on macOS or a SMB share with
@@ -41,26 +43,19 @@ export function resolvePath(_base: string, _relative: string): string {
  * the file existing — deferred until a consumer actually needs it.
  */
 export function isPathInside(child: string, parent: string): boolean {
-  const childResolved = path.resolve(child)
-  const parentResolved = path.resolve(parent)
-  const caseInsensitive = isMac || isWin
-  const a = caseInsensitive ? childResolved.toLowerCase() : childResolved
-  const b = caseInsensitive ? parentResolved.toLowerCase() : parentResolved
+  const a = normalizePathForComparison(child)
+  const b = normalizePathForComparison(parent)
   if (a === b) return false
   const rel = path.relative(b, a)
   return rel.length > 0 && !rel.startsWith('..') && !path.isAbsolute(rel)
 }
 
-/**
- * Guard: returns true iff `target` lives under `application.getPath('feature.files.data')`.
- *
- * Use to defensively reject raw paths that point at internal UUID storage —
- * callers should reach internal entries via `FileEntryHandle`, not paths.
- */
-export function isUnderInternalStorage(target: string): boolean {
-  const internalRoot = application.getPath('feature.files.data')
-  if (!internalRoot) return false
-  return isPathInside(target, internalRoot)
+/** True iff `candidate` equals `container` or is a descendant of it. */
+export function isSameOrInside(candidate: string, container: string): boolean {
+  return (
+    normalizePathForComparison(candidate) === normalizePathForComparison(container) ||
+    isPathInside(candidate, container)
+  )
 }
 
 /** Check if a path is writable for the current process. */

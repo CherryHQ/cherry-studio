@@ -117,8 +117,12 @@ Stable product variables are allowed in new code when no official Shadcn role ex
 | Variable | Intended property and role |
 | --- | --- |
 | `--background-subtle` | Very quiet product-wide surface background |
+| `--foreground-tertiary` | Low-emphasis metadata, empty-state copy, and quiet icon `color` |
+| `--foreground-disabled` | Disabled or unavailable foreground `color` |
 | `--border-subtle` | Very quiet `border-color` |
 | `--border-strong` | Higher-emphasis structural `border-color` |
+| `--border-selected` | Selected-state `border-color`; focus remains `--ring` |
+| `--link` | Clickable text `color`; independent default blue, separate from `--primary` |
 
 ### Feedback families
 
@@ -142,6 +146,7 @@ Use `--destructive` for a dangerous action. Use the `--error*` family for error 
 | References | `--reference`, `--reference-foreground`, `--reference-subtle` | Reference surface, content, and quiet surface variant |
 | Search highlights | `--highlight`, `--highlight-foreground`, `--highlight-accent` | Match surface, content, and active-match surface |
 | User message | `--chat-user` | User-message surface |
+| Resource-list rows | `--resource-list-row-hover`, `--resource-list-row-active`, `--resource-list-row-active-foreground`, `--resource-list-row-selected`, `--resource-list-row-selected-foreground` | Cross-surface resource navigation row states; hover preserves the row's existing foreground hierarchy, while active and selected use explicit surface pairs |
 
 Product colors are not automatically Tailwind colors. Only names in `CHERRY_PRODUCT_COLOR_TOKENS` generate
 utilities; custom-CSS domains such as rich text use the matching unprefixed variable directly.
@@ -175,7 +180,7 @@ Preferred custom CSS usage:
 
 ```css
 .rich-text a {
-  color: var(--primary);
+  color: var(--link);
 }
 
 .reference {

@@ -126,6 +126,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
                   <ModalSectionTitleLabel>{t('selection.settings.user_modal.name.label')}</ModalSectionTitleLabel>
                 </ModalSectionTitle>
                 <Input
+                  autoFocus
                   placeholder={t('selection.settings.user_modal.name.hint')}
                   value={formData.name || ''}
                   onChange={(e) => handleInputChange('name', e.target.value)}
@@ -145,7 +146,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
                     href="https://lucide.dev/icons/"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-primary text-xs">
+                    className="inline-flex items-center gap-1 text-link text-xs">
                     {t('selection.settings.user_modal.icon.view_all')}
                     <ExternalLink size={12} />
                   </a>
@@ -251,7 +252,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
                 <QuestionIcon size={14} />
               </Tooltip>
               <Spacer />
-              <div className="flex select-text items-center gap-1 text-foreground-secondary text-xs">
+              <div className="flex select-text items-center gap-1 text-muted-foreground text-xs">
                 {t('selection.settings.user_modal.prompt.placeholder_text')} {'{{text}}'}
                 <CopyButton
                   tooltip={t('selection.settings.user_modal.prompt.copy_placeholder')}
@@ -292,7 +293,7 @@ const ModalSectionTitleLabel = ({ className, ...props }: React.ComponentPropsWit
 )
 
 const QuestionIcon = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof CircleHelp>) => (
-  <CircleHelp className={cn('cursor-pointer text-foreground-muted', className)} {...props} />
+  <CircleHelp className={cn('cursor-pointer text-muted-foreground', className)} {...props} />
 )
 
 const ErrorText = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
@@ -332,7 +333,7 @@ const CurrentTag = ({
   <span
     className={cn(
       'shrink-0 rounded px-1 py-0.5 text-xs',
-      isCurrent ? 'text-primary' : 'text-foreground-muted',
+      isCurrent ? 'text-primary' : 'text-foreground-tertiary',
       className
     )}
     {...props}
@@ -342,7 +343,7 @@ const CurrentTag = ({
 const DiceButton = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
     className={cn(
-      'ml-1 flex cursor-pointer items-center justify-center transition-all active:rotate-720 [&_.btn-icon]:text-foreground-secondary hover:[&_.btn-icon]:text-primary',
+      'ml-1 flex cursor-pointer items-center justify-center transition-all active:rotate-720 [&_.btn-icon]:text-muted-foreground hover:[&_.btn-icon]:text-foreground',
       className
     )}
     {...props}

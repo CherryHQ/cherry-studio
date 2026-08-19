@@ -23,8 +23,7 @@ export interface SelectDropdownProps<T extends { id: string }> {
   overscan?: number
   /**
    * Extra classes appended to the trigger button.
-   * The trigger is borderless by default; open-state shows a subtle muted
-   * background. Use `data-[state=open]:*` selectors to tweak per-instance.
+   * Use `data-[state=open]:*` selectors to override the open-state border.
    */
   triggerClassName?: string
 }
@@ -197,7 +196,7 @@ export function SelectDropdown<T extends { id: string }>({
         <div
           className={cn(
             'flex items-center gap-1 rounded-md pr-1 transition-colors',
-            isSelected && 'bg-primary/10 text-foreground'
+            isSelected && 'bg-primary/10 text-primary'
           )}>
           <button
             type="button"
@@ -235,7 +234,7 @@ export function SelectDropdown<T extends { id: string }>({
         }}
         className={cn(
           'w-full rounded-md px-2.5 py-1.5 text-left text-sm transition-colors',
-          isSelected ? 'bg-primary/10 text-foreground' : 'text-foreground hover:bg-muted'
+          isSelected ? 'bg-primary/10 text-primary' : 'text-foreground hover:bg-muted'
         )}>
         {renderItem(item, isSelected)}
       </button>
@@ -252,8 +251,8 @@ export function SelectDropdown<T extends { id: string }>({
           aria-expanded={open}
           aria-haspopup="listbox"
           className={cn(
-            'flex h-8 w-full items-center justify-between rounded-lg bg-muted/50 px-3 text-sm transition-colors hover:bg-muted',
-            open && 'bg-muted',
+            'flex h-9 w-full items-center justify-between rounded-md border bg-transparent px-3 text-sm transition-colors hover:bg-muted/30',
+            open ? 'border-primary/40 ring-1 ring-primary/15' : 'border-border-subtle',
             triggerClassName
           )}>
           <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
@@ -266,7 +265,7 @@ export function SelectDropdown<T extends { id: string }>({
           </div>
           <ChevronDown
             size={12}
-            className={cn('ml-2 shrink-0 text-muted-foreground/40 transition-transform', open && 'rotate-180')}
+            className={cn('ml-2 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')}
           />
         </button>
       </PopoverTrigger>
@@ -276,7 +275,7 @@ export function SelectDropdown<T extends { id: string }>({
         aria-labelledby={triggerId}
         align="start"
         sideOffset={4}
-        className="w-[var(--radix-popover-trigger-width)] rounded-lg border border-border-muted bg-popover p-1 shadow-lg">
+        className="w-(--radix-popover-trigger-width) rounded-md border border-border-subtle bg-popover p-1 shadow-lg">
         {items.length === 0 && emptyText ? (
           <div className="px-2.5 py-3 text-muted-foreground/45 text-sm">{emptyText}</div>
         ) : virtualize ? (

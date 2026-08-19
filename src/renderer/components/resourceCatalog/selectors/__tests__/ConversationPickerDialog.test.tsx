@@ -1,5 +1,6 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
@@ -115,22 +116,33 @@ describe('ConversationPickerDialog', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
-  it('filters by name and search text', () => {
+  it('keeps search focus through reverse navigation and filters from immediate typing', async () => {
+    const user = userEvent.setup()
+
     render(<ConversationPickerDialog open onOpenChange={vi.fn()} items={ITEMS} labels={LABELS} onSelect={vi.fn()} />)
 
-    fireEvent.change(screen.getByPlaceholderText('Search resources'), { target: { value: 'roadmap' } })
+    const searchInput = screen.getByPlaceholderText('Search resources')
+    await waitFor(() => expect(searchInput).toHaveFocus())
 
+    await user.tab({ shift: true })
+    expect(screen.getByRole('button', { name: 'Close' })).toHaveFocus()
+    await user.tab()
+    expect(searchInput).toHaveFocus()
+
+    await user.keyboard('roadmap')
+
+    expect(searchInput).toHaveValue('roadmap')
     expect(screen.getByText('Product Manager')).toBeInTheDocument()
     expect(screen.queryByText('Alpha Assistant')).not.toBeInTheDocument()
     expect(screen.queryByText('Build Agent')).not.toBeInTheDocument()
 
-    fireEvent.change(screen.getByPlaceholderText('Search resources'), { target: { value: 'alpha' } })
+    fireEvent.change(searchInput, { target: { value: 'alpha' } })
 
     expect(screen.getByText('Alpha Assistant')).toBeInTheDocument()
     expect(screen.queryByText('Product Manager')).not.toBeInTheDocument()
   })
 
-  it('pins the create action at the top, triggers it, and hides it while searching', () => {
+  it('pins the create action at the top and keeps it while searching', () => {
     const onCreateNew = vi.fn()
 
     render(
@@ -139,7 +151,13 @@ describe('ConversationPickerDialog', () => {
         onOpenChange={vi.fn()}
         items={ITEMS}
         labels={LABELS}
-        createAction={{ label: 'New Assistant', icon: <span data-testid="create-icon">+</span>, onSelect: onCreateNew }}
+        createAction={{
+          row: (query) =>
+            query
+              ? { icon: <span data-testid="create-icon">💬</span>, title: query, tag: 'New' }
+              : { icon: <span data-testid="create-icon">+</span>, title: 'New Assistant' },
+          onSelect: onCreateNew
+        }}
         onSelect={vi.fn()}
       />
     )
@@ -150,12 +168,180 @@ describe('ConversationPickerDialog', () => {
     expect(createRow.compareDocumentPosition(firstItem) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 
     fireEvent.click(createRow)
-    expect(onCreateNew).toHaveBeenCalledTimes(1)
+    expect(onCreateNew).toHaveBeenCalledWith('')
 
-    // Hidden while searching so the query's first match keeps the keyboard default.
+    // Still there while searching — now it previews the row it would create: the query as the title
+    // plus a tag, rather than a sentence repeating what the search box already shows.
     fireEvent.change(screen.getByPlaceholderText('Search resources'), { target: { value: 'roadmap' } })
-    expect(screen.queryByText('New Assistant')).not.toBeInTheDocument()
+    const namedRow = screen.getByText('roadmap').closest('[cmdk-item]')
+    expect(namedRow).toBeInTheDocument()
+    expect(namedRow).toHaveTextContent('New')
     expect(screen.getByText('Product Manager')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('roadmap'))
+    expect(onCreateNew).toHaveBeenLastCalledWith('roadmap')
+  })
+
+  it('offers the create action instead of the empty state when a query matches nothing', () => {
+    const onCreateNew = vi.fn()
+
+    const { rerender } = render(
+      <ConversationPickerDialog
+        open
+        onOpenChange={vi.fn()}
+        items={ITEMS}
+        labels={LABELS}
+        createAction={{ row: (query) => ({ title: `New "${query}"` }), onSelect: onCreateNew }}
+        onSelect={vi.fn()}
+      />
+    )
+
+    fireEvent.change(screen.getByPlaceholderText('Search resources'), { target: { value: 'brand new name' } })
+
+    expect(screen.getByText('New "brand new name"')).toBeInTheDocument()
+    expect(screen.queryByText('No resources')).not.toBeInTheDocument()
+
+    // Without a create action there is nothing to offer, so the empty state stays.
+    rerender(<ConversationPickerDialog open onOpenChange={vi.fn()} items={ITEMS} labels={LABELS} onSelect={vi.fn()} />)
+    expect(screen.getByText('No resources')).toBeInTheDocument()
+  })
+
+  it('drops the create row once the query names an item that already exists', () => {
+    render(
+      <ConversationPickerDialog
+        open
+        onOpenChange={vi.fn()}
+        items={ITEMS}
+        labels={LABELS}
+        createAction={{ row: (query) => ({ title: `New "${query}"` }), onSelect: vi.fn() }}
+        onSelect={vi.fn()}
+      />
+    )
+
+    const searchInput = screen.getByPlaceholderText('Search resources')
+
+    // A partial name still offers to create — "Alpha" is not an assistant the user has.
+    fireEvent.change(searchInput, { target: { value: 'Alpha' } })
+    expect(screen.getByText('New "Alpha"')).toBeInTheDocument()
+
+    // Typing the full name would put an identical-looking row directly above the real one.
+    fireEvent.change(searchInput, { target: { value: '  alpha assistant  ' } })
+    expect(screen.queryByText(/^New "/)).not.toBeInTheDocument()
+    expect(screen.getByText('Alpha Assistant')).toBeInTheDocument()
+  })
+
+  it('withholds the Enter fallback while the item list is still loading', async () => {
+    const user = userEvent.setup()
+    const onCreateNew = vi.fn()
+    const onSelect = vi.fn()
+
+    const { rerender } = render(
+      <ConversationPickerDialog
+        open
+        onOpenChange={vi.fn()}
+        items={[]}
+        labels={LABELS}
+        isLoading
+        createAction={{ row: (query) => ({ title: `New "${query}"` }), onSelect: onCreateNew }}
+        onSelect={vi.fn()}
+      />
+    )
+
+    const searchInput = screen.getByPlaceholderText('Search resources')
+    await waitFor(() => expect(searchInput).toHaveFocus())
+
+    // An empty result set mid-load means "matches unknown", not "nothing matched".
+    await user.keyboard('roadmap')
+    await user.keyboard('{Enter}')
+    expect(onCreateNew).not.toHaveBeenCalled()
+
+    // Once the items land, the usual rules resume — here the query matches, so Enter picks that match.
+    rerender(
+      <ConversationPickerDialog
+        open
+        onOpenChange={vi.fn()}
+        items={ITEMS}
+        labels={LABELS}
+        createAction={{ row: (query) => ({ title: `New "${query}"` }), onSelect: onCreateNew }}
+        onSelect={onSelect}
+      />
+    )
+    await waitFor(() =>
+      expect(screen.getByText('Product Manager').closest('[cmdk-item]')).toHaveAttribute('aria-selected', 'true')
+    )
+
+    await user.keyboard('{Enter}')
+    expect(onSelect).toHaveBeenCalledWith(ITEMS[1])
+    expect(onCreateNew).not.toHaveBeenCalled()
+  })
+
+  it('keeps Enter on the first match while searching and falls back to create when nothing matches', async () => {
+    const user = userEvent.setup()
+    const onCreateNew = vi.fn()
+    const onSelect = vi.fn()
+
+    render(
+      <ConversationPickerDialog
+        open
+        onOpenChange={vi.fn()}
+        items={ITEMS}
+        labels={LABELS}
+        createAction={{ row: (query) => ({ title: `New "${query}"` }), onSelect: onCreateNew }}
+        onSelect={onSelect}
+      />
+    )
+
+    const searchInput = screen.getByPlaceholderText('Search resources')
+    await waitFor(() => expect(searchInput).toHaveFocus())
+
+    // The create row is pinned above the results, but the query's first match keeps the highlight.
+    await user.keyboard('roadmap')
+    await waitFor(() =>
+      expect(screen.getByText('Product Manager').closest('[cmdk-item]')).toHaveAttribute('aria-selected', 'true')
+    )
+
+    await user.keyboard('{Enter}')
+    expect(onSelect).toHaveBeenCalledWith(ITEMS[1])
+    expect(onCreateNew).not.toHaveBeenCalled()
+
+    // Nothing left to match → the create row inherits the highlight and Enter creates.
+    fireEvent.change(searchInput, { target: { value: 'brand new name' } })
+    await waitFor(() =>
+      expect(screen.getByText('New "brand new name"').closest('[cmdk-item]')).toHaveAttribute('aria-selected', 'true')
+    )
+
+    await user.keyboard('{Enter}')
+    expect(onCreateNew).toHaveBeenCalledWith('brand new name')
+    expect(onSelect).toHaveBeenCalledTimes(1)
+  })
+
+  it('lets the arrow keys reach the create row while a query still matches', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <ConversationPickerDialog
+        open
+        onOpenChange={vi.fn()}
+        items={ITEMS}
+        labels={LABELS}
+        createAction={{ row: (query) => ({ title: `New "${query}"` }), onSelect: vi.fn() }}
+        onSelect={vi.fn()}
+      />
+    )
+
+    const searchInput = screen.getByPlaceholderText('Search resources')
+    await waitFor(() => expect(searchInput).toHaveFocus())
+    await user.keyboard('roadmap')
+    await waitFor(() =>
+      expect(screen.getByText('Product Manager').closest('[cmdk-item]')).toHaveAttribute('aria-selected', 'true')
+    )
+
+    // The highlight is only steered away from the create row when cmdk lands there by position —
+    // the user walking onto it must stick.
+    await user.keyboard('{ArrowUp}')
+    await waitFor(() =>
+      expect(screen.getByText('New "roadmap"').closest('[cmdk-item]')).toHaveAttribute('aria-selected', 'true')
+    )
   })
 
   it('renders a toolbar slot above the list', () => {

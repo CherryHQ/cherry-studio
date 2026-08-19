@@ -12,7 +12,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { createRichEditorExtensions } from './createExtensions'
 import { blobToArrayBuffer, compressImage, shouldCompressImage } from './helpers/imageUtils'
-import { pickInlinePasteContent } from './helpers/markdownPaste'
+import { pickInlinePasteContent, stripImageNodes, stripImageNodesFromSlice } from './helpers/markdownPaste'
 
 const logger = loggerService.withContext('useRichEditor')
 
@@ -33,10 +33,18 @@ export interface UseRichEditorOptions {
   placeholder?: string
   /** Whether the editor is editable */
   editable?: boolean
+  /** Whether to focus the end of the document when the editor mounts or becomes editable */
+  autoFocus?: boolean
   /** Whether to enable table of contents functionality */
   enableTableOfContents?: boolean
   /** Whether to enable spell check */
   enableSpellCheck?: boolean
+  /** Accessible name for the editing surface, for editors with no visible label */
+  ariaLabel?: string
+  /** Whether users can insert images */
+  enableImageInsertion?: boolean
+  /** Slash-menu commands hidden for this editor instance */
+  disabledCommands?: readonly string[]
   /** Show table action menu (row/column) with concrete actions and position */
   onShowTableActionMenu?: (payload: {
     type: 'row' | 'column'
@@ -88,7 +96,11 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     onPaste,
     placeholder = '',
     editable = true,
+    autoFocus = true,
     enableSpellCheck = false,
+    ariaLabel,
+    enableImageInsertion = true,
+    disabledCommands,
     onShowTableActionMenu,
     scrollParent
   } = options
@@ -254,10 +266,12 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         },
         onColumnActionClick: ({ colIndex, position }) => {
           showTableActionMenu('column', colIndex, position)
-        }
+        },
+        enableImageInsertion,
+        disabledCommands
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [placeholder, activeShikiTheme, handleLinkHover, handleLinkHoverEnd]
+    [placeholder, activeShikiTheme, handleLinkHover, handleLinkHoverEnd, enableImageInsertion, disabledCommands]
   )
 
   const editor = useEditor({
@@ -267,7 +281,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     contentType: 'markdown',
     editable: editable,
     editorProps: {
-      handlePaste: (view, event) => {
+      handlePaste: (view, event, slice) => {
         // First check if we're inside a code block - if so, insert plain text
         const { selection } = view.state
         const { $from } = selection
@@ -283,8 +297,12 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         // Handle image paste
         const items = Array.from(event.clipboardData?.items || [])
         const imageItem = items.find((item) => item.type.startsWith('image/'))
+        const clipboardText = event.clipboardData?.getData('text/plain') ?? ''
+        const clipboardHtml = !enableImageInsertion ? (event.clipboardData?.getData('text/html') ?? '') : ''
+        const htmlDoc = clipboardHtml ? new DOMParser().parseFromString(clipboardHtml, 'text/html') : null
+        const htmlHasImage = htmlDoc?.querySelector('img') != null
 
-        if (imageItem) {
+        if (imageItem && enableImageInsertion) {
           const file = imageItem.getAsFile()
           if (file) {
             // Handle image paste by saving to local storage
@@ -293,13 +311,43 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
           }
         }
 
+        // An image with nothing else to keep: swallow it rather than fall through. ProseMirror runs
+        // `transformPasted` *before* handing us `slice`, so images are already stripped out of it;
+        // when that leaves it empty, falling through has the default handling replace the selection
+        // with nothing — deleting whatever the user had selected in exchange for nothing.
+        //
+        // The stripped slice is the only honest measure of "nothing to keep". Copying a region
+        // containing an image commonly yields an `image/*` item *and* rich HTML whose text must
+        // survive; conversely a clipboard's HTML text can sit entirely in tags ProseMirror ignores
+        // (`<style>`, `<script>`), which must not count as something to keep.
+        if (!enableImageInsertion && (imageItem || htmlHasImage) && !clipboardText && slice.content.size === 0) {
+          return true
+        }
+
         // Default behavior for non-code blocks: insert clipboard text via the native markdown AST
-        const text = event.clipboardData?.getData('text/plain') ?? ''
+        const text = clipboardText
         if (text) {
+          if (!enableImageInsertion) {
+            const parsed = editor.markdown?.parse(text)
+            if (parsed) {
+              const sanitized = stripImageNodes(parsed)
+              if (sanitized.removedImages) {
+                const inline = pickInlinePasteContent(sanitized.doc)
+                if (inline) {
+                  editor.commands.insertContent(inline)
+                } else if (sanitized.doc.content?.length) {
+                  editor.commands.insertContent(sanitized.doc.content)
+                }
+                onPaste?.(text)
+                return true
+              }
+            }
+          }
+
           const { $from } = selection
           const atStartOfLine = $from.parentOffset === 0
           const inEmptyParagraph = $from.parent.type.name === 'paragraph' && $from.parent.textContent === ''
-          const hasMultipleLines = text.includes('\n')
+          const hasMultipleLines = /[\r\n]/.test(text)
 
           if (!atStartOfLine && !inEmptyParagraph && !hasMultipleLines) {
             // Inline paste inside a non-empty block: parse the markdown so markers like **bold** /
@@ -321,13 +369,17 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         }
         return false
       },
+      transformPasted: (slice) => (enableImageInsertion ? slice : stripImageNodesFromSlice(slice)),
       attributes: {
         // Allow text selection even when not editable
         style: editable
           ? ''
           : 'user-select: text; -webkit-user-select: text; -moz-user-select: text; -ms-user-select: text;',
         // Set spellcheck attribute on the contenteditable element
-        spellcheck: enableSpellCheck ? 'true' : 'false'
+        spellcheck: enableSpellCheck ? 'true' : 'false',
+        // `placeholder` only reaches a ProseMirror decoration, so it gives the contenteditable no
+        // accessible name; callers without a visible label supply one here.
+        ...(ariaLabel ? { 'aria-label': ariaLabel } : {})
       }
     },
     onUpdate: ({ editor, transaction }) => {
@@ -355,6 +407,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     },
     onCreate: ({ editor: currentEditor }) => {
       migrateMathStrings(currentEditor)
+      if (!autoFocus) return
       try {
         currentEditor.commands.focus('end')
       } catch (error) {
@@ -398,16 +451,32 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         const arrayBuffer = await blobToArrayBuffer(processedFile)
         const buffer = new Uint8Array(arrayBuffer)
 
-        // Save image to local storage
-        const fileMetadata = await window.api.file.savePastedImage(buffer, extension)
+        const entry = await window.api.file.createInternalEntry({
+          source: 'bytes',
+          data: buffer,
+          name: 'Pasted Image',
+          ext: extension.replace(/^\./, ''),
+          // `manual`, unlike the chat/painting paste paths that use
+          // `delete_when_unreferenced`. The reference here is a `file://` URL
+          // written into the note's markdown — user-owned text in a user-chosen
+          // folder (`feature.notes.path`), which Cherry is not the only writer of.
+          // A ref row could therefore never be released soundly: removing the
+          // image from the note never reaches us, and copying the markdown into
+          // a second note creates a reference we never saw. So the entry is
+          // pinned instead, and reclaiming note images stays a question for a
+          // content scan over the notes tree, not a ref table.
+          cleanupPolicy: 'manual'
+        })
+        const physicalPath = await window.api.file.getPhysicalPath({ id: entry.id })
 
         // Insert image into editor using local file path
         if (editor && !editor.isDestroyed) {
-          const imageUrl = `file://${fileMetadata.path}`
-          editor.chain().focus().setImage({ src: imageUrl, alt: fileMetadata.origin_name }).run()
+          const imageUrl = `file://${physicalPath}`
+          const alt = `${entry.name}${entry.ext ? `.${entry.ext}` : ''}`
+          editor.chain().focus().setImage({ src: imageUrl, alt }).run()
         }
 
-        logger.info('Image pasted and saved:', fileMetadata)
+        logger.info('Image pasted and saved:', { id: entry.id })
       } catch (error) {
         logger.error('Failed to handle image paste:', error as Error)
       }
@@ -418,7 +487,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
   useEffect(() => {
     if (editor && !editor.isDestroyed) {
       editor.setEditable(editable)
-      if (editable) {
+      if (editable && autoFocus) {
         try {
           setTimeout(() => {
             if (editor && !editor.isDestroyed) {
@@ -433,7 +502,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         }
       }
     }
-  }, [editor, editable])
+  }, [editor, editable, autoFocus])
 
   // Link editor callbacks (after editor is defined)
   const handleLinkSave = useCallback(

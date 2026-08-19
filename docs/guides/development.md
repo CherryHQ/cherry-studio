@@ -115,3 +115,6 @@ $ pnpm build:mac
 # For Linux
 $ pnpm build:linux
 ```
+
+For architecture-specific commands and the pinned `better-sqlite3` prebuild workflow, see
+[Linux Packaging](./linux-packaging.md).

@@ -1,6 +1,12 @@
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
-import type { CommandScope, ContextReader, RegisteredKeybindingRule, SupportedPlatform } from '@shared/types/command'
+import type {
+  CommandScope,
+  ContextReader,
+  PlatformDefaultBinding,
+  RegisteredKeybindingRule,
+  SupportedPlatform
+} from '@shared/types/command'
 import { normalizeShortcutBinding, type ShortcutBinding } from '@shared/utils/shortcut'
 
 import { canContextExprsOverlap, evaluateContextExpr } from './contextExpr'
@@ -117,44 +123,97 @@ export const getCommandAccelerator = (binding: ShortcutBinding): string | undefi
   return binding.join('+')
 }
 
-const getDefaultShortcutPreferenceForRule = (rule: RegisteredKeybindingRule): ResolvedCommandShortcutPreference => {
+const isPlatformBindingMap = (
+  defaultBinding: PlatformDefaultBinding
+): defaultBinding is { default: ShortcutBinding } & Partial<Record<SupportedPlatform, ShortcutBinding>> =>
+  !Array.isArray(defaultBinding)
+
+const getRuleBaseBinding = (defaultBinding: PlatformDefaultBinding): ShortcutBinding =>
+  isPlatformBindingMap(defaultBinding) ? defaultBinding.default : defaultBinding
+
+const getRulePlatformBinding = (
+  defaultBinding: PlatformDefaultBinding,
+  platform?: SupportedPlatform
+): ShortcutBinding | undefined => {
+  if (!platform || !isPlatformBindingMap(defaultBinding)) {
+    return undefined
+  }
+
+  const binding = defaultBinding[platform]
+  return binding ? normalizeShortcutBinding(binding) : undefined
+}
+
+/** The platform-agnostic default: schema value first, rule base binding otherwise. */
+const getSharedDefaultBinding = (rule: RegisteredKeybindingRule): ShortcutBinding => {
   const fallback = DefaultPreferences.default[rule.preferenceKey]
+  return fallback?.binding?.length
+    ? normalizeShortcutBinding(fallback.binding)
+    : getRuleBaseBinding(rule.defaultBinding)
+}
+
+const getDefaultShortcutPreferenceForRule = (
+  rule: RegisteredKeybindingRule,
+  platform?: SupportedPlatform
+): ResolvedCommandShortcutPreference => {
+  const fallback = DefaultPreferences.default[rule.preferenceKey]
+  const platformBinding = getRulePlatformBinding(rule.defaultBinding, platform)
 
   return {
-    binding: fallback?.binding?.length ? normalizeShortcutBinding(fallback.binding) : rule.defaultBinding,
+    binding: platformBinding ?? getSharedDefaultBinding(rule),
     enabled: typeof fallback?.enabled === 'boolean' ? fallback.enabled : true
   }
 }
 
+/**
+ * Stored binding to honour, or undefined to fall back to the default. `usePreference`
+ * hydrates unset keys with the platform-agnostic schema default, so a stored binding
+ * equal to it is not a user choice and must still yield to the platform override.
+ */
+const resolvePreferredBinding = (
+  rule: RegisteredKeybindingRule,
+  preference: PreferenceShortcutType | null | undefined,
+  platform?: SupportedPlatform
+): ShortcutBinding | undefined => {
+  if (preference == null) {
+    return undefined
+  }
+  if (!preference.binding?.length) {
+    return []
+  }
+
+  const binding = normalizeShortcutBinding(preference.binding)
+  const platformBinding = getRulePlatformBinding(rule.defaultBinding, platform)
+  if (platformBinding && shortcutBindingMatches(binding, getSharedDefaultBinding(rule))) {
+    return platformBinding
+  }
+  return binding
+}
+
 export const getCommandDefaultShortcutPreference = (
-  command: CommandId
+  command: CommandId,
+  platform?: SupportedPlatform
 ): ResolvedCommandShortcutPreference | undefined => {
   const rule = findKeybindingRule(command)
   if (!rule) {
     return undefined
   }
-  return getDefaultShortcutPreferenceForRule(rule)
+  return getDefaultShortcutPreferenceForRule(rule, platform)
 }
 
 export const resolveCommandShortcutPreference = (
   command: CommandId,
-  preference?: PreferenceShortcutType | null
+  preference?: PreferenceShortcutType | null,
+  platform?: SupportedPlatform
 ): ResolvedCommandShortcutPreference | undefined => {
   const rule = findKeybindingRule(command)
   if (!rule) {
     return undefined
   }
 
-  const fallback = getDefaultShortcutPreferenceForRule(rule)
-  const binding: ShortcutBinding =
-    preference != null
-      ? preference.binding?.length
-        ? normalizeShortcutBinding(preference.binding)
-        : []
-      : fallback.binding
+  const fallback = getDefaultShortcutPreferenceForRule(rule, platform)
 
   return {
-    binding,
+    binding: resolvePreferredBinding(rule, preference, platform) ?? fallback.binding,
     enabled: typeof preference?.enabled === 'boolean' ? preference.enabled : fallback.enabled
   }
 }
@@ -170,7 +229,7 @@ export const resolveCommandKeybinding = ({
     return undefined
   }
 
-  const shortcutPreference = resolveCommandShortcutPreference(command, preference)
+  const shortcutPreference = resolveCommandShortcutPreference(command, preference, platform)
   if (!shortcutPreference) {
     return undefined
   }
@@ -268,7 +327,11 @@ export const findKeybindingConflicts = ({
       continue
     }
 
-    const conflictingPreference = resolveCommandShortcutPreference(rule.command, preferenceLookup[rule.command])
+    const conflictingPreference = resolveCommandShortcutPreference(
+      rule.command,
+      preferenceLookup[rule.command],
+      platform
+    )
     if (!conflictingPreference?.enabled || !conflictingPreference.binding.length) {
       continue
     }

@@ -1,12 +1,11 @@
-import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
 import Spinner from '@renderer/components/Spinner'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
-import { generateImageOutputSchema } from '@shared/ai/builtinTools'
 import { toSafeFileUrl } from '@shared/utils/file'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ImageBlock from '../../blocks/ImageBlock'
+import { parseGeneratedImageOutput } from './generateImageTool'
 
 /**
  * Resolve `generate_image` output FileEntry ids to renderable `file://` URLs.
@@ -23,12 +22,18 @@ import ImageBlock from '../../blocks/ImageBlock'
 function useGeneratedImageUrls(ids: string[]): { urls: string[]; failed: boolean } {
   const key = ids.join(',')
   const [state, setState] = useState<{ urls: string[]; failed: boolean }>({ urls: [], failed: false })
+  // Key of the last completed resolution: an <Activity> re-show re-runs the
+  // effect with an unchanged key, and re-resolving would blank the tiles and
+  // re-pay one getPhysicalPath IPC per image.
+  const resolvedKeyRef = useRef<string | null>(null)
   useEffect(() => {
     const list = key ? key.split(',') : []
     if (list.length === 0) {
+      resolvedKeyRef.current = null
       setState((current) => (current.urls.length === 0 && !current.failed ? current : { urls: [], failed: false }))
       return
     }
+    if (resolvedKeyRef.current === key) return
     let cancelled = false
     // Back to "resolving" for this id set (drops any stale failed flag from a previous set).
     setState({ urls: [], failed: false })
@@ -46,6 +51,7 @@ function useGeneratedImageUrls(ids: string[]): { urls: string[]; failed: boolean
     ).then((resolved) => {
       if (cancelled) return
       const urls = resolved.filter((url): url is NonNullable<typeof url> => url !== null)
+      resolvedKeyRef.current = key
       setState({ urls, failed: urls.length === 0 })
     })
     return () => {
@@ -56,7 +62,7 @@ function useGeneratedImageUrls(ids: string[]): { urls: string[]; failed: boolean
 }
 
 const NoteText = ({ children }: { children: React.ReactNode }) => (
-  <span className="flex min-w-0 items-center py-0.5 text-[13px] text-foreground-secondary leading-5">{children}</span>
+  <span className="flex min-w-0 items-center py-0.5 text-[13px] text-muted-foreground leading-5">{children}</span>
 )
 
 export const MessageGenerateImageToolTitle = ({
@@ -65,18 +71,7 @@ export const MessageGenerateImageToolTitle = ({
   toolResponse: McpToolResponse | NormalToolResponse
 }) => {
   const { t } = useTranslation()
-  const { inlineUrls, items } = useMemo(() => {
-    const outputParse = generateImageOutputSchema.safeParse(toolResponse.response)
-    const mcpOutputParse = CallToolResultSchema.safeParse(toolResponse.response)
-    return {
-      items: outputParse.success ? outputParse.data : [],
-      inlineUrls: mcpOutputParse.success
-        ? mcpOutputParse.data.content.flatMap((item) =>
-            item.type === 'image' && item.data ? [`data:${item.mimeType ?? 'image/png'};base64,${item.data}`] : []
-          )
-        : []
-    }
-  }, [toolResponse.response])
+  const { inlineUrls, items } = useMemo(() => parseGeneratedImageOutput(toolResponse.response), [toolResponse.response])
   const { urls: resolvedUrls, failed: resolveFailed } = useGeneratedImageUrls(items.map((item) => item.id))
   const urls = inlineUrls.length > 0 ? inlineUrls : resolvedUrls
 
@@ -101,11 +96,13 @@ export const MessageGenerateImageToolTitle = ({
       <NoteText>{t('chat.input.tools.generate_image.title')}</NoteText>
       {isSingle ? (
         <ImageBlock images={urls} isPending={urls.length === 0} isSingle />
+      ) : urls.length > 0 ? (
+        <ImageBlock images={urls} isSingle={false} />
       ) : (
         <div className="flex flex-wrap gap-2.5">
-          {urls.length === 0
-            ? items.map((item) => <ImageBlock key={item.id} images={[]} isPending isSingle={false} />)
-            : urls.map((src, index) => <ImageBlock key={index} images={[src]} isSingle={false} />)}
+          {items.map((item) => (
+            <ImageBlock key={item.id} images={[]} isPending isSingle={false} />
+          ))}
         </div>
       )}
     </div>

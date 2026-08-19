@@ -6,9 +6,9 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockLoggerWarn, mockUseQuery, mockIpcRequest, mockToastSuccess } = vi.hoisted(() => ({
+const { mockLoggerWarn, mockUseKnowledgeBases, mockIpcRequest, mockToastSuccess } = vi.hoisted(() => ({
   mockLoggerWarn: vi.fn(),
-  mockUseQuery: vi.fn(),
+  mockUseKnowledgeBases: vi.fn(),
   mockIpcRequest: vi.fn(),
   mockToastSuccess: vi.fn()
 }))
@@ -63,8 +63,8 @@ vi.mock('@renderer/services/toast', () => ({
   }
 }))
 
-vi.mock('@renderer/data/hooks/useDataApi', () => ({
-  useQuery: mockUseQuery
+vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
+  useKnowledgeBases: mockUseKnowledgeBases
 }))
 
 vi.mock('@renderer/ipc', () => ({
@@ -83,7 +83,7 @@ describe('EditDialogShared', () => {
   const writeText = vi.fn()
 
   beforeEach(() => {
-    mockUseQuery.mockReturnValue({ data: { items: [] }, isLoading: false })
+    mockUseKnowledgeBases.mockReturnValue({ bases: [], isLoading: false })
     mockIpcRequest.mockReset()
     mockToastSuccess.mockReset()
     writeText.mockResolvedValue(undefined)
@@ -127,6 +127,8 @@ describe('EditDialogShared', () => {
           avatar: '💬',
           name: '',
           description: '',
+          agentType: 'claude-code',
+          permissionMode: 'default',
           modelId: null,
           prompt: '',
           knowledgeBaseIds: [],
@@ -163,6 +165,8 @@ describe('EditDialogShared', () => {
           avatar: '💬',
           name: '',
           description: '',
+          agentType: 'claude-code',
+          permissionMode: 'default',
           modelId: null,
           prompt: '',
           knowledgeBaseIds: [],
@@ -179,15 +183,12 @@ describe('EditDialogShared', () => {
 
     render(<Harness />)
 
-    expect(mockUseQuery).toHaveBeenCalledWith('/knowledge-bases', {
-      query: { limit: 100 },
-      swrOptions: { revalidateOnFocus: true }
-    })
+    expect(mockUseKnowledgeBases).toHaveBeenCalledWith({ revalidateOnFocus: true })
   })
 
   it('closes and disables the knowledge picker when submission starts', async () => {
-    mockUseQuery.mockReturnValue({
-      data: { items: [{ id: 'knowledge-1', name: 'Knowledge one', itemCount: 1 }] },
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [{ id: 'knowledge-1', name: 'Knowledge one', itemCount: 1 }],
       isLoading: false
     })
 
@@ -198,6 +199,8 @@ describe('EditDialogShared', () => {
           avatar: '💬',
           name: '',
           description: '',
+          agentType: 'claude-code',
+          permissionMode: 'default',
           modelId: null,
           prompt: '',
           knowledgeBaseIds: [],

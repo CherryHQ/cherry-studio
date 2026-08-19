@@ -1,4 +1,6 @@
+import { type LocalModelKind } from '@shared/data/presets/localModel'
 import { FILE_TYPE, FileTypeSchema } from '@shared/types/file'
+import { GB, MB } from '@shared/utils/constants'
 import * as z from 'zod'
 
 import {
@@ -44,7 +46,9 @@ export const DocumentToMarkdownCapabilitySchema = z
     inputs: z.array(FileTypeSchema.extract([FILE_TYPE.DOCUMENT])).min(1),
     output: z.literal('markdown'),
     apiHost: z.string().optional(),
-    modelId: z.string().min(1).optional()
+    modelId: z.string().min(1).optional(),
+    maxInputBytes: z.int().positive().optional(),
+    maxInputPages: z.int().positive().optional()
   })
   .strict()
 export type DocumentToMarkdownCapability = z.infer<typeof DocumentToMarkdownCapabilitySchema>
@@ -201,13 +205,19 @@ export const FILE_PROCESSOR_PRESET_MAP = {
         inputs: ['document'],
         output: 'markdown',
         apiHost: 'https://paddleocr.aistudio-app.com/',
-        modelId: 'PaddleOCR-VL-1.5'
+        modelId: 'PaddleOCR-VL-1.6',
+        maxInputBytes: 50 * MB,
+        maxInputPages: 100
       }
     ]
   },
   'local-paddleocr': {
     type: 'builtin',
     capabilities: [{ feature: 'image_to_text', inputs: ['image'], output: 'text' }]
+  },
+  'local-document': {
+    type: 'builtin',
+    capabilities: [{ feature: 'document_to_markdown', inputs: ['document'], output: 'markdown' }]
   },
   ovocr: {
     type: 'builtin',
@@ -222,7 +232,9 @@ export const FILE_PROCESSOR_PRESET_MAP = {
         inputs: ['document'],
         output: 'markdown',
         apiHost: 'https://mineru.net',
-        modelId: 'pipeline'
+        modelId: 'pipeline',
+        maxInputBytes: 200 * MB,
+        maxInputPages: 600
       }
     ]
   },
@@ -234,7 +246,9 @@ export const FILE_PROCESSOR_PRESET_MAP = {
         inputs: ['document'],
         output: 'markdown',
         apiHost: 'https://v2.doc2x.noedgeai.com',
-        modelId: 'v3-2026'
+        modelId: 'v3-2026',
+        maxInputBytes: GB,
+        maxInputPages: 1000
       }
     ]
   },
@@ -246,7 +260,8 @@ export const FILE_PROCESSOR_PRESET_MAP = {
         inputs: ['document'],
         output: 'markdown',
         apiHost: 'https://api.mistral.ai',
-        modelId: 'mistral-ocr-latest'
+        modelId: 'mistral-ocr-latest',
+        maxInputPages: 1000
       },
       {
         feature: 'image_to_text',
@@ -264,7 +279,8 @@ export const FILE_PROCESSOR_PRESET_MAP = {
         feature: 'document_to_markdown',
         inputs: ['document'],
         output: 'markdown',
-        apiHost: 'http://127.0.0.1:8000'
+        apiHost: 'http://127.0.0.1:8000',
+        maxInputBytes: 200 * MB
       }
     ]
   }
@@ -274,3 +290,17 @@ export const PRESETS_FILE_PROCESSORS: readonly FileProcessorPreset[] = FILE_PROC
   id,
   ...FILE_PROCESSOR_PRESET_MAP[id]
 }))
+
+/**
+ * Processors that additionally need a downloadable local model before they can
+ * run. Absent from this map means "nothing to download" — not "unavailable".
+ *
+ * A missing model is a state the user can fix in one click, unlike a platform
+ * that can never run the processor, so both processes read this map to tell the
+ * two apart: main refuses the job with a message that says which one it is, and
+ * the renderer keeps the processor selectable and offers the download.
+ */
+export const FILE_PROCESSOR_LOCAL_MODEL: Partial<Record<FileProcessorId, LocalModelKind>> = {
+  'local-paddleocr': 'ocr',
+  'local-document': 'ocr'
+}

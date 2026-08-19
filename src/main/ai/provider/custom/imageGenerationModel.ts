@@ -19,7 +19,7 @@ export interface ImageTransportDescriptor {
 export interface ImageGenerationTransport {
   submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }>
   /**
-   * `modelDescriptor` is carried so a restart-resumed poll on a fresh transport
+   * `modelDescriptor` is carried so a poll on a fresh transport
    * instance can rebuild per-task state (e.g. DashScope's response family).
    */
   poll?(

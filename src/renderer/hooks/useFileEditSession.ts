@@ -2,10 +2,10 @@ import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import type { FileTextLineEnding, UnsupportedFileTextReason } from '@renderer/utils/fileTextSnapshot'
 import { decodeFileText, encodeFileText, UnsupportedFileTextError } from '@renderer/utils/fileTextSnapshot'
+import type { FileHandle } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
-import type { AbsoluteFilePath, FileVersion } from '@shared/types/file'
-import { createFilePathHandle } from '@shared/utils/file'
+import type { FileVersion } from '@shared/types/file'
 import { debounce } from 'es-toolkit/compat'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import useSWR, { useSWRConfig } from 'swr'
@@ -22,7 +22,8 @@ export const FILE_EDIT_MAX_SIZE_BYTES = 2 * 1024 * 1024
 
 export type { UnsupportedFileTextReason } from '@renderer/utils/fileTextSnapshot'
 
-const keyOf = (path: AbsoluteFilePath) => `file-edit-session/${path}`
+const keyOf = (handle: FileHandle) =>
+  handle.kind === 'entry' ? `file-edit-session/entry/${handle.entryId}` : `file-edit-session/path/${handle.path}`
 
 /** A disk snapshot decoded for editing — the SWR-cached value for a path. */
 interface FileEditSnapshot {
@@ -42,7 +43,8 @@ interface FileEditSnapshot {
  * `draft !== snapshot.content` ⇔ dirty.
  */
 interface FileEditModel {
-  readonly path: AbsoluteFilePath
+  readonly handle: FileHandle
+  readonly key: string
   snapshot: FileEditSnapshot
   draft: string
   conflict: boolean
@@ -67,6 +69,8 @@ export interface FileEditSession {
   conflict: boolean
   /** Last autosave I/O failure while still dirty (disk full, permissions…); cleared once a write lands. */
   saveError?: Error
+  /** Bytes were saved, but Main left derived metadata null for background recovery. */
+  metadataRecoveryPending: boolean
   unsupportedReason?: UnsupportedFileTextReason
   error?: Error
   setDraft: (next: string) => void
@@ -89,10 +93,10 @@ export interface FileEditSession {
   notifyExternalChange: (eventMtimeMs?: number) => void
 }
 
-async function readFile(path: AbsoluteFilePath): Promise<FileEditSnapshot> {
+async function readFile(handle: FileHandle): Promise<FileEditSnapshot> {
   const { content, version } = await ipcApi.request('file.read', {
-    handle: createFilePathHandle(path),
-    options: { encoding: 'binary' }
+    handle,
+    options: { mode: 'full', encoding: 'binary' }
   })
   if (content.byteLength > FILE_EDIT_MAX_SIZE_BYTES) throw new UnsupportedFileTextError('size')
   const decoded = decodeFileText(content)
@@ -124,9 +128,10 @@ const isAmbiguousMtime = (mtime: number) => mtime % 1000 === 0
  * The hook holds one path's state, so call it at a level stable across the
  * consuming view's remounts.
  */
-export function useFileEditSession(path: AbsoluteFilePath | undefined): FileEditSession {
+export function useFileEditSession(handle: FileHandle | undefined): FileEditSession {
   const { mutate } = useSWRConfig()
-  const { data, error, isLoading } = useSWR<FileEditSnapshot, Error>(path ? keyOf(path) : null, () => readFile(path!), {
+  const handleKey = handle ? keyOf(handle) : null
+  const { data, error, isLoading } = useSWR<FileEditSnapshot, Error>(handleKey, () => readFile(handle!), {
     revalidateOnFocus: false,
     revalidateOnReconnect: false,
     errorRetryCount: 0
@@ -168,7 +173,7 @@ export function useFileEditSession(path: AbsoluteFilePath | undefined): FileEdit
         try {
           const encoded = encodeFileText(writeDraft, baseline.lineEnding, baseline.hasBom)
           const version = await ipcApi.request('file.write_if_unchanged', {
-            path: model.path,
+            handle: model.handle,
             data: encoded,
             expectedVersion: baseline.version
           })
@@ -176,8 +181,30 @@ export function useFileEditSession(path: AbsoluteFilePath | undefined): FileEdit
           model.lastWriteError = null
           syncFromModel(model)
           // Keep the SWR cache in step so a later reopen sees the saved bytes.
-          void mutate(keyOf(model.path), model.snapshot, { revalidate: false })
+          void mutate(model.key, model.snapshot, { revalidate: false })
         } catch (writeError) {
+          if (writeError instanceof IpcError && writeError.code === fileErrorCodes.COMMITTED_METADATA_PENDING) {
+            logger.warn('Autosave bytes committed; metadata recovery is pending', {
+              handle: model.handle,
+              data: writeError.data
+            })
+            try {
+              const disk = await readFile(model.handle)
+              model.snapshot = disk
+              model.lastWriteError = writeError
+              syncFromModel(model)
+              void mutate(model.key, disk, { revalidate: false })
+              // The bytes did land. Stop this write loop so the same payload
+              // is never retried merely because metadata finalization failed.
+              // A later user edit may start a new save against the refreshed
+              // on-disk version.
+              break
+            } catch (refreshError) {
+              model.lastWriteError = refreshError as Error
+              syncFromModel(model)
+              break
+            }
+          }
           if (!(writeError instanceof IpcError) || writeError.code !== fileErrorCodes.STALE_VERSION) {
             // I/O error (disk full, permissions…): surface it and pause
             // autosave. The consumer decides whether to retry or discard.
@@ -189,19 +216,19 @@ export function useFileEditSession(path: AbsoluteFilePath | undefined): FileEdit
           // Stale write — verify against disk before declaring a conflict
           // (VS Code's validateWriteFile content-equality escape).
           try {
-            const disk = await readFile(model.path)
+            const disk = await readFile(model.handle)
             if (disk.content === writeDraft) {
               // Disk already holds exactly what we tried to write.
               model.snapshot = disk
               syncFromModel(model)
-              void mutate(keyOf(model.path), disk, { revalidate: false })
+              void mutate(model.key, disk, { revalidate: false })
               continue
             }
             if (disk.content === baseline.content && ++rebases <= MAX_STALE_REBASES) {
               // Metadata-only touch (mtime advanced, content identical) —
               // rebase onto the new version and retry the write.
               model.snapshot = disk
-              void mutate(keyOf(model.path), disk, { revalidate: false })
+              void mutate(model.key, disk, { revalidate: false })
               continue
             }
             model.conflict = true
@@ -240,9 +267,9 @@ export function useFileEditSession(path: AbsoluteFilePath | undefined): FileEdit
   // Adopt SWR data: first load creates the model; a later revalidation only
   // applies when idle, deduped by content/version and guarded by mtime monotonicity.
   useEffect(() => {
-    if (!data || !path) return
+    if (!data || !handle || !handleKey) return
     const model = modelRef.current
-    if (model?.path === path) {
+    if (model?.key === handleKey) {
       if (
         data.content === model.snapshot.content &&
         data.lineEnding === model.snapshot.lineEnding &&
@@ -260,7 +287,8 @@ export function useFileEditSession(path: AbsoluteFilePath | undefined): FileEdit
       return
     }
     const next: FileEditModel = {
-      path,
+      handle,
+      key: handleKey,
       snapshot: data,
       draft: data.content,
       conflict: false,
@@ -270,7 +298,7 @@ export function useFileEditSession(path: AbsoluteFilePath | undefined): FileEdit
     }
     modelRef.current = next
     syncFromModel(next)
-  }, [data, path, syncFromModel])
+  }, [data, handle, handleKey, syncFromModel])
 
   // Path switch / unmount: hand the leaving model its final write (serialized
   // on its own chain, against its own rebased baseline — safe even if a write
@@ -291,7 +319,7 @@ export function useFileEditSession(path: AbsoluteFilePath | undefined): FileEdit
       setIsSaving(false)
       setReady(false)
     }
-  }, [path, debouncedWrite, requestWrite])
+  }, [handleKey, debouncedWrite, requestWrite])
 
   const setDraft = useCallback(
     (next: string) => {
@@ -299,6 +327,16 @@ export function useFileEditSession(path: AbsoluteFilePath | undefined): FileEdit
       if (!model) return
       model.draft = next
       setDraftState(next)
+      if (
+        model.lastWriteError instanceof IpcError &&
+        model.lastWriteError.code === fileErrorCodes.COMMITTED_METADATA_PENDING
+      ) {
+        // The prior payload already landed; this is a distinct user edit,
+        // not an automatic replay of the uncertain operation. A new managed
+        // commit can also complete the still-null metadata with its own bytes.
+        model.lastWriteError = null
+        setSaveErrorState(undefined)
+      }
       // A persistent I/O failure must not turn every keystroke into another
       // doomed write. Keep accepting edits in memory and wait for an explicit
       // retry (`flush`) or discard from the consumer.
@@ -324,14 +362,14 @@ export function useFileEditSession(path: AbsoluteFilePath | undefined): FileEdit
     if (!model) return
     debouncedWrite.cancel()
     await model.chain
-    const disk = await readFile(model.path)
+    const disk = await readFile(model.handle)
     if (modelRef.current !== model) return
     model.snapshot = disk
     model.draft = disk.content
     model.conflict = false
     model.lastWriteError = null
     syncFromModel(model)
-    void mutate(keyOf(model.path), disk, { revalidate: false })
+    void mutate(model.key, disk, { revalidate: false })
   }, [debouncedWrite, mutate, syncFromModel])
 
   const flush = useCallback(async () => {
@@ -364,7 +402,7 @@ export function useFileEditSession(path: AbsoluteFilePath | undefined): FileEdit
       }
       void (async () => {
         try {
-          const disk = await readFile(model.path)
+          const disk = await readFile(model.handle)
           if (modelRef.current !== model) return
           if (model.draft !== model.snapshot.content) return // became dirty meanwhile
           if (disk.version.mtime < model.snapshot.version.mtime) return // stale read (monotonic guard)
@@ -376,7 +414,7 @@ export function useFileEditSession(path: AbsoluteFilePath | undefined): FileEdit
           model.snapshot = disk
           model.draft = disk.content
           syncFromModel(model)
-          void mutate(keyOf(model.path), disk, { revalidate: false })
+          void mutate(model.key, disk, { revalidate: false })
         } catch (reloadError) {
           logger.error('External-change reload failed', reloadError as Error)
         }
@@ -388,7 +426,7 @@ export function useFileEditSession(path: AbsoluteFilePath | undefined): FileEdit
   return useMemo(() => {
     let status: FileEditSession['status']
     let unsupportedReason: UnsupportedFileTextReason | undefined
-    if (!path) {
+    if (!handle) {
       status = 'idle'
     } else if (error instanceof UnsupportedFileTextError) {
       status = 'unsupported'
@@ -410,6 +448,8 @@ export function useFileEditSession(path: AbsoluteFilePath | undefined): FileEdit
       isSaving,
       conflict,
       saveError,
+      metadataRecoveryPending:
+        saveError instanceof IpcError && saveError.code === fileErrorCodes.COMMITTED_METADATA_PENDING,
       unsupportedReason,
       error: error && !(error instanceof UnsupportedFileTextError) ? error : undefined,
       setDraft,
@@ -419,7 +459,7 @@ export function useFileEditSession(path: AbsoluteFilePath | undefined): FileEdit
       notifyExternalChange
     }
   }, [
-    path,
+    handle,
     error,
     ready,
     isLoading,

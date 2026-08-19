@@ -5,6 +5,7 @@
 | Document | Description |
 |----------|-------------|
 | [Development Setup](./guides/development.md) | Development environment setup |
+| [Linux Packaging](./guides/linux-packaging.md) | Linux package builds and native dependency prebuilds |
 | [Contributing](./guides/contributing.md) | How to contribute code |
 | [Branching Strategy](./guides/branching-strategy.md) | Git branching workflow |
 | [Test Plan](./guides/test-plan.md) | Test plan and release channels |
@@ -94,6 +95,7 @@
 
 | Document | Description |
 |----------|-------------|
+| [Frontend Testing Guidelines](./references/testing/frontend-testing.md) | Frontend test design and review |
 | [App Upgrade Config](./references/app-upgrade.md) | Application upgrade configuration |
 | [Feishu Notify](./references/feishu-notify.md) | Feishu notification integration |
 | [Fuzzy Search](./references/fuzzy-search.md) | Fuzzy search implementation |

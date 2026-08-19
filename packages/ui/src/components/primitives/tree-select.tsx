@@ -11,15 +11,15 @@ import { Popover, PopoverContent, PopoverTrigger } from './popover'
 
 const treeSelectTriggerVariants = cva(
   cn(
-    'inline-flex items-center justify-between rounded-lg border-1 text-sm transition-colors outline-none font-normal',
-    'bg-transparent',
+    'inline-flex items-center justify-between rounded-md border-1 text-sm transition-colors outline-none font-normal',
+    'bg-input',
     'text-foreground'
   ),
   {
     variants: {
       state: {
-        default: 'border-input aria-expanded:border-ring aria-expanded:ring-[1px] aria-expanded:ring-ring/35',
-        error: 'border border-destructive aria-expanded:ring-[1px] aria-expanded:ring-destructive/20',
+        default: 'border-border focus-visible:border-primary',
+        error: 'border border-destructive',
         disabled: 'opacity-50 cursor-not-allowed pointer-events-none'
       },
       size: {

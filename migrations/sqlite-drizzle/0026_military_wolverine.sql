@@ -1,1 +1,0 @@
-ALTER TABLE `agent_global_skill` ADD `version` text;

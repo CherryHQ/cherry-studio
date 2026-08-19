@@ -415,7 +415,7 @@ export const ColorPickerOutput = ({ className, ...props }: ColorPickerOutputProp
 
   return (
     <Select onValueChange={setMode} value={mode}>
-      <SelectTrigger className={cn('h-8 w-20 shrink-0 text-xs', className)} {...props}>
+      <SelectTrigger size="sm" className={cn('w-20 shrink-0', className)} {...props}>
         <SelectValue placeholder="Mode" />
       </SelectTrigger>
       <SelectContent>
@@ -439,7 +439,8 @@ const PercentageInput = ({ className, ...props }: PercentageInputProps) => {
         type="text"
         aria-label="Alpha percentage"
         {...props}
-        className={cn('h-8 w-[3.25rem] rounded-l-none bg-secondary px-2 text-xs shadow-none', className)}
+        className={cn('w-[3.25rem] rounded-l-none bg-secondary shadow-none', className)}
+        size="sm"
       />
       <span className="-translate-y-1/2 absolute top-1/2 right-2 text-muted-foreground text-xs">%</span>
     </div>
@@ -462,8 +463,9 @@ export const ColorPickerFormat = ({ className, ...props }: ColorPickerFormatProp
       <div className={cn('-space-x-px relative flex w-full items-center rounded-md shadow-sm', className)} {...props}>
         <Input
           aria-label="Hex color value"
-          className="h-8 rounded-r-none bg-secondary px-2 text-xs shadow-none"
+          className="rounded-r-none bg-secondary shadow-none"
           readOnly
+          size="sm"
           type="text"
           value={hex}
         />
@@ -486,9 +488,10 @@ export const ColorPickerFormat = ({ className, ...props }: ColorPickerFormatProp
         {rgb.map((value, index) => (
           <Input
             aria-label={RGB_CHANNEL_LABELS[index]}
-            className={cn('h-8 rounded-r-none bg-secondary px-2 text-xs shadow-none', index && 'rounded-l-none')}
+            className={cn('rounded-r-none bg-secondary shadow-none', index && 'rounded-l-none')}
             key={index}
             readOnly
+            size="sm"
             type="text"
             value={value}
           />
@@ -509,8 +512,9 @@ export const ColorPickerFormat = ({ className, ...props }: ColorPickerFormatProp
       <div className={cn('w-full rounded-md shadow-sm', className)} {...props}>
         <Input
           aria-label="CSS color value"
-          className="h-8 w-full bg-secondary px-2 text-xs shadow-none"
+          className="w-full bg-secondary shadow-none"
           readOnly
+          size="sm"
           type="text"
           value={`rgba(${rgb.join(', ')}, ${alpha}%)`}
         />
@@ -530,9 +534,10 @@ export const ColorPickerFormat = ({ className, ...props }: ColorPickerFormatProp
         {hsl.map((value, index) => (
           <Input
             aria-label={HSL_CHANNEL_LABELS[index]}
-            className={cn('h-8 rounded-r-none bg-secondary px-2 text-xs shadow-none', index && 'rounded-l-none')}
+            className={cn('rounded-r-none bg-secondary shadow-none', index && 'rounded-l-none')}
             key={index}
             readOnly
+            size="sm"
             type="text"
             value={value}
           />

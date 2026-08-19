@@ -69,6 +69,8 @@ vi.mock('@renderer/hooks/useGroups', () => ({
 }))
 
 const createValues = {
+  agentType: 'claude-code' as const,
+  permissionMode: 'auto' as const,
   avatar: 'A',
   description: 'A focused helper',
   knowledgeBaseIds: ['kb-1'],
@@ -150,7 +152,7 @@ describe('useResourceCatalogController', () => {
     expect(controllerMocks.createAgent).toHaveBeenCalledWith({
       configuration: {
         avatar: createValues.avatar,
-        permission_mode: 'bypassPermissions'
+        permission_mode: 'auto'
       },
       description: createValues.description,
       instructions: createValues.prompt,
@@ -176,6 +178,20 @@ describe('useResourceCatalogController', () => {
 
     expect(toast.error).toHaveBeenCalledWith('duplicate failed')
     expect(controllerMocks.refetch).not.toHaveBeenCalled()
+  })
+
+  it('stores only the resource key when opening the edit dialog', () => {
+    controllerMocks.resourceLibraryState.resources = [assistantResource]
+    const { result } = renderHook(() => useResourceCatalogController('assistant'))
+
+    act(() => {
+      result.current.gridProps.onEdit(assistantResource)
+    })
+
+    expect(result.current.dialogs.editDialogTarget).toEqual({
+      kind: 'assistant',
+      id: 'assistant-to-duplicate'
+    })
   })
 
   it('reports assistant export failures without throwing', async () => {

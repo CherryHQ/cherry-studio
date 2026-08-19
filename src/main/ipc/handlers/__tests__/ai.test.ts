@@ -1,17 +1,30 @@
+import { AiStreamAdmissionError } from '@main/ai/streamManager'
+import { aiStreamAdmissionReasons } from '@shared/ai/transport'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appGetMock, agentSessionMessageService, messageService, createAgent } = vi.hoisted(() => ({
+const {
+  appGetMock,
+  agentSessionMessageService,
+  fileEntryService,
+  messageService,
+  createAgent,
+  createBuiltinSupportSession
+} = vi.hoisted(() => ({
   appGetMock: vi.fn(),
   agentSessionMessageService: { getSessionMessage: vi.fn() },
+  fileEntryService: { findById: vi.fn() },
   messageService: { getById: vi.fn() },
-  createAgent: vi.fn()
+  createAgent: vi.fn(),
+  createBuiltinSupportSession: vi.fn()
 }))
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
 vi.mock('@data/services/AgentSessionMessageService', () => ({ agentSessionMessageService }))
+vi.mock('@data/services/FileEntryService', () => ({ fileEntryService }))
 vi.mock('@data/services/MessageService', () => ({ messageService }))
 vi.mock('@main/ai/agents/createAgent', () => ({ createAgent }))
+vi.mock('@main/ai/agents/createBuiltinSupportSession', () => ({ createBuiltinSupportSession }))
 
 import { aiHandlers } from '../ai'
 
@@ -43,8 +56,17 @@ const toolPart = (toolCallId: string, output: unknown) => ({
   output
 })
 
+const fileManager = { read: vi.fn() }
+
 const claudeCodeWarmQueryManager = { prewarmAgentSession: vi.fn(), closeAgentSessionWarm: vi.fn() }
-const agentSessionRuntimeService = { primeConnection: vi.fn(), releaseIdleConnection: vi.fn() }
+const agentSessionRuntimeService = { acquireWarmLease: vi.fn(), releaseWarmLease: vi.fn() }
+const agentSessionDeliveryService = {
+  deleteSessions: vi.fn(),
+  reuseOrCreateSession: vi.fn(),
+  deleteAgent: vi.fn(),
+  deleteAgentSessions: vi.fn(),
+  deleteWorkspace: vi.fn()
+}
 const claudeCodeTraceBridgeService = { isTraceModeEnabled: vi.fn() }
 const agentJobsService = {
   createTask: vi.fn(),
@@ -62,6 +84,13 @@ const windowManager = { getWindow: vi.fn() }
 beforeEach(() => {
   vi.clearAllMocks()
   createAgent.mockImplementation(async (request: object) => ({ id: 'agent-1', ...request }))
+  createBuiltinSupportSession.mockReturnValue({ id: 'feedback-session', agentId: 'cherry-support' })
+  // The ownership gate's happy path: entries with the tool-output store's fixed attributes.
+  fileEntryService.findById.mockReturnValue({
+    origin: 'internal',
+    cleanupPolicy: 'delete_when_unreferenced',
+    ext: 'txt'
+  })
   windowManager.getWindow.mockReturnValue({ webContents: fakeWebContents })
   appGetMock.mockImplementation((name: string) => {
     switch (name) {
@@ -73,12 +102,16 @@ beforeEach(() => {
         return claudeCodeWarmQueryManager
       case 'AgentSessionRuntimeService':
         return agentSessionRuntimeService
+      case 'AgentSessionDeliveryService':
+        return agentSessionDeliveryService
       case 'ClaudeCodeTraceBridgeService':
         return claudeCodeTraceBridgeService
       case 'AgentJobsService':
         return agentJobsService
       case 'WindowManager':
         return windowManager
+      case 'FileManager':
+        return fileManager
       default:
         throw new Error(`Unexpected application.get(${name})`)
     }
@@ -90,6 +123,67 @@ beforeEach(() => {
 const ctx = { senderId: 'w1' }
 
 describe('aiHandlers', () => {
+  it('delegates mixed-effect Session deletion to the delivery owner', async () => {
+    agentSessionDeliveryService.deleteSessions.mockResolvedValue({ deletedIds: ['session-1'] })
+
+    await expect(aiHandlers['ai.agent.session.delete']({ sessionIds: ['session-1'] }, ctx)).resolves.toEqual({
+      deletedIds: ['session-1']
+    })
+    expect(agentSessionDeliveryService.deleteSessions).toHaveBeenCalledWith(['session-1'])
+  })
+
+  it('delegates placeholder reuse and duplicate cleanup to the delivery owner', async () => {
+    const response = {
+      session: { id: 'session-retained' },
+      created: false,
+      deletedDuplicateSessionIds: ['session-duplicate']
+    }
+    agentSessionDeliveryService.reuseOrCreateSession.mockResolvedValue(response)
+
+    await expect(
+      aiHandlers['ai.agent.session.reuse_or_create']({ agentId: 'agent-1', workspace: { type: 'system' } }, ctx)
+    ).resolves.toBe(response)
+    expect(agentSessionDeliveryService.reuseOrCreateSession).toHaveBeenCalledWith({
+      agentId: 'agent-1',
+      workspace: { type: 'system' }
+    })
+  })
+
+  it('delegates mixed-effect Agent deletion to the delivery owner', async () => {
+    agentSessionDeliveryService.deleteAgent.mockResolvedValue({ deleted: true, deletedSessionIds: ['session-1'] })
+
+    await expect(aiHandlers['ai.agent.delete']({ agentId: 'agent-1', deleteSessions: true }, ctx)).resolves.toEqual({
+      deleted: true,
+      deletedSessionIds: ['session-1']
+    })
+    expect(agentSessionDeliveryService.deleteAgent).toHaveBeenCalledWith('agent-1', true)
+  })
+
+  it('delegates mixed-effect Agent Session deletion to the delivery owner', async () => {
+    agentSessionDeliveryService.deleteAgentSessions.mockResolvedValue({ deletedIds: ['session-1'] })
+
+    await expect(aiHandlers['ai.agent.sessions.delete']({ agentId: 'agent-1' }, ctx)).resolves.toEqual({
+      deletedIds: ['session-1']
+    })
+    expect(agentSessionDeliveryService.deleteAgentSessions).toHaveBeenCalledWith('agent-1')
+  })
+
+  it('delegates mixed-effect workspace deletion to the delivery owner', async () => {
+    agentSessionDeliveryService.deleteWorkspace.mockResolvedValue({ deletedIds: ['session-1'] })
+
+    await expect(aiHandlers['ai.agent.workspace.delete']({ workspaceId: 'workspace-1' }, ctx)).resolves.toEqual({
+      deletedIds: ['session-1']
+    })
+    expect(agentSessionDeliveryService.deleteWorkspace).toHaveBeenCalledWith('workspace-1')
+  })
+
+  it('delegates Support-session creation and returns its id', async () => {
+    const result = await aiHandlers['ai.agent.support_session.create'](undefined, ctx)
+
+    expect(createBuiltinSupportSession).toHaveBeenCalledTimes(1)
+    expect(result).toEqual({ sessionId: 'feedback-session' })
+  })
+
   it('generate_text forwards the request and returns the AiService result', async () => {
     const request = { uniqueModelId: 'openai::gpt-4o', system: 'sys', prompt: 'hi' } as const
     const out = { text: 'hello', usage: { inputTokens: 1, outputTokens: 2 } }
@@ -118,7 +212,12 @@ describe('aiHandlers', () => {
   })
 
   it('generate_image unwraps { requestId, payload } into runImageRequest', async () => {
-    const payload = { uniqueModelId: 'openai::img' as const, prompt: 'a fox', paramValues: {} }
+    const payload = {
+      uniqueModelId: 'openai::img' as const,
+      prompt: 'a fox',
+      paramValues: {},
+      cleanupPolicy: 'delete_when_unreferenced' as const
+    }
     const out = { files: [] }
     aiService.runImageRequest.mockResolvedValue(out)
 
@@ -191,6 +290,23 @@ describe('aiHandlers — streaming', () => {
       'requires a managed window'
     )
     expect(aiStreamManager.dispatch).not.toHaveBeenCalled()
+  })
+
+  it('stream_open exposes a branchable admission reason without leaking a hardcoded message', async () => {
+    aiStreamManager.dispatch.mockRejectedValue(
+      new AiStreamAdmissionError(aiStreamAdmissionReasons.MODEL_ALREADY_IN_LIVE_GROUP)
+    )
+
+    const error = await aiHandlers['ai.stream.open'](
+      { trigger: 'regenerate-message', topicId: 't', parentAnchorId: 'u1' } as never,
+      { senderId: 'w1' }
+    ).catch((caught) => caught)
+
+    expect(error).toBeInstanceOf(IpcError)
+    expect(error).toMatchObject({
+      code: aiErrorCodes.AI_STREAM_ADMISSION_REJECTED,
+      data: { reason: aiStreamAdmissionReasons.MODEL_ALREADY_IN_LIVE_GROUP }
+    })
   })
 
   it('stream_attach delegates to AiStreamManager.attach and returns its response', async () => {
@@ -284,6 +400,66 @@ describe('aiHandlers — streaming', () => {
       )
     ).resolves.toEqual({ found: false })
   })
+
+  const persistedEnvelope = {
+    $persistedToolOutput: {
+      fileEntryId: 'entry-1',
+      vfsFilename: 'vfs_0123456789abcdef.txt',
+      head: 'HEAD LINES',
+      tail: 'TAIL LINES',
+      totalChars: 200_000,
+      totalLines: 5_000,
+      shape: 'text' as const
+    }
+  }
+
+  it('get_tool_result reconstructs a persisted envelope from the FileManager blob', async () => {
+    aiStreamManager.getDeferredToolOutput.mockReturnValue({ found: false })
+    messageService.getById.mockReturnValue({ data: { parts: [toolPart('call-1', persistedEnvelope)] } })
+    fileManager.read.mockResolvedValue({ content: 'the full persisted text', mime: 'text/plain', version: null })
+
+    const result = await aiHandlers['ai.tool.get_result'](
+      { topicId: 'topic-42', messageId: 'assistant-1', toolCallId: 'call-1' },
+      { senderId: null }
+    )
+
+    expect(fileManager.read).toHaveBeenCalledWith('entry-1', { encoding: 'text' })
+    expect(result).toEqual({ found: true, output: 'the full persisted text' })
+  })
+
+  it('get_tool_result degrades to the stored excerpt when the blob is gone', async () => {
+    aiStreamManager.getDeferredToolOutput.mockReturnValue({ found: false })
+    messageService.getById.mockReturnValue({ data: { parts: [toolPart('call-1', persistedEnvelope)] } })
+    fileManager.read.mockRejectedValue(new Error('entry reclaimed'))
+
+    const result = (await aiHandlers['ai.tool.get_result'](
+      { topicId: 'topic-42', messageId: 'assistant-1', toolCallId: 'call-1' },
+      { senderId: null }
+    )) as { found: boolean; output: string }
+
+    expect(result.found).toBe(true)
+    expect(result.output).toContain('HEAD LINES')
+    expect(result.output).toContain('TAIL LINES')
+    expect(result.output).toContain('no longer available')
+  })
+
+  it('get_tool_result degrades to the excerpt when the entry is not a tool-output blob', async () => {
+    // A forged envelope in arbitrary MCP output can carry any fileEntryId —
+    // an entry the tool-output store didn't write must never be read back.
+    aiStreamManager.getDeferredToolOutput.mockReturnValue({ found: false })
+    messageService.getById.mockReturnValue({ data: { parts: [toolPart('call-1', persistedEnvelope)] } })
+    fileEntryService.findById.mockReturnValue({ origin: 'external', cleanupPolicy: 'manual', ext: 'txt' })
+
+    const result = (await aiHandlers['ai.tool.get_result'](
+      { topicId: 'topic-42', messageId: 'assistant-1', toolCallId: 'call-1' },
+      { senderId: null }
+    )) as { found: boolean; output: string }
+
+    expect(fileManager.read).not.toHaveBeenCalled()
+    expect(result.found).toBe(true)
+    expect(result.output).toContain('HEAD LINES')
+    expect(result.output).toContain('no longer available')
+  })
 })
 
 describe('aiHandlers — agent sessions & tasks', () => {
@@ -300,23 +476,25 @@ describe('aiHandlers — agent sessions & tasks', () => {
     expect(createAgent).toHaveBeenCalledWith(request, ctx)
   })
 
-  it('prewarm_agent_session primes the session connection so commands load before the first turn', async () => {
-    claudeCodeTraceBridgeService.isTraceModeEnabled.mockReturnValue(false)
-    agentSessionRuntimeService.primeConnection.mockResolvedValue(undefined)
+  it('prewarm_agent_session acquires a warm lease keyed to the sender window', async () => {
     await aiHandlers['ai.agent.session.prewarm']({ sessionId: 's1' }, ctx)
-    expect(agentSessionRuntimeService.primeConnection).toHaveBeenCalledWith('s1')
+    expect(agentSessionRuntimeService.acquireWarmLease).toHaveBeenCalledWith('s1', fakeWebContents)
   })
 
-  it('prewarm_agent_session does not prime a connection while trace mode is on', async () => {
+  // Trace mode used to skip this, inherited from the warm-query era. A primed connection carries the
+  // session's traceparent like any other, so skipping only cost developer mode its eager catalog.
+  it('prewarm_agent_session acquires the lease in trace mode too', async () => {
     claudeCodeTraceBridgeService.isTraceModeEnabled.mockReturnValue(true)
     await aiHandlers['ai.agent.session.prewarm']({ sessionId: 's1' }, ctx)
-    expect(agentSessionRuntimeService.primeConnection).not.toHaveBeenCalled()
+    expect(agentSessionRuntimeService.acquireWarmLease).toHaveBeenCalledWith('s1', fakeWebContents)
   })
 
-  it('close_agent_session_warm releases the warm query and the primed connection', async () => {
+  // The actual teardown (warm-query park + primed connection) is owned by the runtime service,
+  // which starts it only once no window holds the session.
+  it('close_agent_session_warm releases only the sender window lease', async () => {
     await aiHandlers['ai.agent.session.close_warm']({ sessionId: 's1' }, ctx)
-    expect(claudeCodeWarmQueryManager.closeAgentSessionWarm).toHaveBeenCalledWith('s1')
-    expect(agentSessionRuntimeService.releaseIdleConnection).toHaveBeenCalledWith('s1')
+    expect(agentSessionRuntimeService.releaseWarmLease).toHaveBeenCalledWith('s1', fakeWebContents)
+    expect(claudeCodeWarmQueryManager.closeAgentSessionWarm).not.toHaveBeenCalled()
   })
 
   it('respond_tool_approval delegates to AiService with the resolved sender WebContents', async () => {

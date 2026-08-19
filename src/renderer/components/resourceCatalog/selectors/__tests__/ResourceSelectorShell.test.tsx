@@ -1,5 +1,5 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
@@ -293,7 +293,6 @@ describe('ResourceSelectorShell', () => {
 
       await waitFor(() => expect(scrollIntoView).toHaveBeenCalledWith({ block: 'start' }))
       expect(scrollIntoView.mock.instances[0]).toBe(getRow('Gamma').closest('[data-option-row]'))
-      expect(screen.getByRole('listbox')).toHaveClass('scroll-pt-1.5')
     })
 
     it('keeps keyboard navigation scrolling to the nearest visible row', async () => {
@@ -587,61 +586,6 @@ describe('ResourceSelectorShell', () => {
       expect(onChange).not.toHaveBeenCalled()
     })
 
-    it('uses neutral color from the model selector row action when pinned', () => {
-      render(
-        <ResourceSelectorShell
-          trigger={<button type="button">Open</button>}
-          items={ITEMS}
-          pinnedIds={['1']}
-          onTogglePin={vi.fn()}
-          labels={LABELS}
-          value={null}
-          onChange={vi.fn()}
-        />
-      )
-      openPopover()
-
-      expect(screen.getByRole('button', { name: 'Unpin' })).toHaveAttribute('data-slot', 'button')
-      expect(screen.getByRole('button', { name: 'Unpin' })).toHaveClass('text-foreground!')
-      expect(screen.getByRole('button', { name: 'Unpin' })).not.toHaveClass('text-primary!')
-    })
-
-    it('uses neutral color on the unpin action when the pinned resource row is selected', () => {
-      render(
-        <ResourceSelectorShell
-          trigger={<button type="button">Open</button>}
-          items={ITEMS}
-          pinnedIds={['1']}
-          onTogglePin={vi.fn()}
-          labels={LABELS}
-          value="1"
-          onChange={vi.fn()}
-        />
-      )
-      openPopover()
-
-      expect(screen.getByRole('button', { name: 'Unpin' })).toHaveClass('text-foreground!')
-      expect(screen.getByRole('button', { name: 'Unpin' })).not.toHaveClass('text-primary!')
-    })
-
-    it('uses neutral color on the pin action when the resource row is selected', () => {
-      render(
-        <ResourceSelectorShell
-          trigger={<button type="button">Open</button>}
-          items={ITEMS}
-          pinnedIds={[]}
-          onTogglePin={vi.fn()}
-          labels={LABELS}
-          value="1"
-          onChange={vi.fn()}
-        />
-      )
-      openPopover()
-
-      expect(screen.getAllByRole('button', { name: 'Pin' })[0]).toHaveClass('text-foreground!')
-      expect(screen.getAllByRole('button', { name: 'Pin' })[0]).not.toHaveClass('text-primary!')
-    })
-
     it('pin action is available on unpinned rows and does not select the row', () => {
       const onTogglePin = vi.fn()
       const onChange = vi.fn()
@@ -664,41 +608,6 @@ describe('ResourceSelectorShell', () => {
   })
 
   describe('edit button', () => {
-    it('places edit and pin together in the row action area', () => {
-      const groupedItems: Item[] = [{ ...ITEMS[0], groupId: 'group-cherry', groupName: 'Cherry' }, ...ITEMS.slice(1)]
-
-      render(
-        <ResourceSelectorShell
-          trigger={<button type="button">Open</button>}
-          items={groupedItems}
-          pinnedIds={[]}
-          onTogglePin={vi.fn()}
-          onEditItem={vi.fn()}
-          onCreateNew={vi.fn()}
-          labels={LABELS}
-          value={null}
-          onChange={vi.fn()}
-        />
-      )
-      openPopover()
-
-      const alphaOption = getRow('Alpha')
-      const row = alphaOption.closest('[data-model-selector-row]') as HTMLElement
-      const nameArea = row.querySelector('[data-resource-selector-name="1"]') as HTMLElement
-      const groupArea = row.querySelector('[data-resource-selector-group="1"]')
-      const editButton = within(row).getByRole('button', { name: 'Edit' })
-
-      expect(row).toHaveClass('pr-0.5')
-      expect(nameArea).toHaveTextContent('Alpha')
-      expect(within(nameArea).queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument()
-      expect(editButton).toHaveClass('size-4', 'hover:bg-transparent')
-      expect(within(alphaOption).queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument()
-      expect(within(alphaOption).queryByRole('button', { name: 'Pin' })).not.toBeInTheDocument()
-      expect(within(row).getByRole('button', { name: 'Pin' })).toHaveClass('size-4', 'hover:bg-transparent')
-      expect(groupArea).toHaveClass('max-w-[48%]')
-      expect(screen.getAllByRole('button', { name: 'Edit' })).toHaveLength(ITEMS.length)
-    })
-
     it('closes and recreates the popover before running the edit action on requestAnimationFrame', async () => {
       const animationFrameCallbacks: FrameRequestCallback[] = []
       let popoverAtCallback: HTMLElement | null = null
@@ -741,26 +650,6 @@ describe('ResourceSelectorShell', () => {
       expect(onChange).not.toHaveBeenCalled()
       expect(popoverAtCallback).toBeNull()
       requestAnimationFrameSpy.mockRestore()
-    })
-
-    it('uses the model selector row styling', () => {
-      render(
-        <ResourceSelectorShell
-          trigger={<button type="button">Open</button>}
-          items={ITEMS}
-          pinnedIds={[]}
-          onTogglePin={vi.fn()}
-          labels={LABELS}
-          value="1"
-          onChange={vi.fn()}
-        />
-      )
-      openPopover()
-
-      const alphaOption = getRow('Alpha')
-      const row = alphaOption.closest('[data-model-selector-row]')
-      expect(row).toHaveClass('group', 'relative', 'h-8', 'rounded-[10px]', 'px-2', 'py-1', 'bg-accent/70')
-      expect(row).not.toHaveClass('bg-primary/10')
     })
 
     it('does not select the active row when pressing Enter on a row action', async () => {
@@ -811,24 +700,6 @@ describe('ResourceSelectorShell', () => {
 
       await waitFor(() => expect(onCreateNew).toHaveBeenCalledTimes(1))
       expect(popoverAtCallback).toBeNull()
-    })
-
-    it('renders the create action without a trailing icon', () => {
-      render(
-        <ResourceSelectorShell
-          trigger={<button type="button">Open</button>}
-          items={ITEMS}
-          pinnedIds={[]}
-          onTogglePin={vi.fn()}
-          onCreateNew={vi.fn()}
-          labels={LABELS}
-          value={null}
-          onChange={vi.fn()}
-        />
-      )
-      openPopover()
-
-      expect(screen.getByRole('button', { name: 'Create new' }).querySelector('.lucide-chevron-right')).toBeNull()
     })
   })
 

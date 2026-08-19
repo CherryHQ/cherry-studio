@@ -17,7 +17,7 @@ const meta: Meta<typeof Badge> = {
   argTypes: {
     variant: {
       control: { type: 'select' },
-      options: ['default', 'secondary', 'destructive', 'outline', 'highlight'],
+      options: ['default', 'secondary', 'destructive', 'outline'],
       description: 'The visual style variant of the badge'
     },
     asChild: {
@@ -63,15 +63,6 @@ export const Outline: Story = {
   }
 }
 
-// Highlight — feature-pill for tagging "New" / "PRO" / "Beta" next to titles.
-// Uses the existing success palette so the variant does not require additional tokens.
-export const Highlight: Story = {
-  args: {
-    variant: 'highlight',
-    children: 'NEW'
-  }
-}
-
 // All Variants
 export const AllVariants: Story = {
   render: () => (
@@ -80,7 +71,6 @@ export const AllVariants: Story = {
       <Badge variant="secondary">Secondary</Badge>
       <Badge variant="destructive">Destructive</Badge>
       <Badge variant="outline">Outline</Badge>
-      <Badge variant="highlight">NEW</Badge>
     </div>
   )
 }

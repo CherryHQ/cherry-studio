@@ -1,16 +1,34 @@
 import { cacheService } from '@data/CacheService'
-import type { KnowledgeBase } from '@shared/data/types/knowledge'
+import { isComposerInputTokenKind } from '@renderer/utils/composerTokenPolicy'
+import type { CacheAgentComposerDraft } from '@shared/data/cache/cacheValueTypes'
 import type { LocalSkill } from '@shared/types/skill'
 
-import type { ComposerSerializedToken } from '../../tokens'
+import type { ComposerSerializedDraft, ComposerSerializedToken } from '../../tokens'
 
 const DRAFT_CACHE_TTL = 24 * 60 * 60 * 1000
 
-export const getAgentDraftCacheKey = (agentId: string) => `agent-session-draft-${agentId}`
+export type AgentComposerDraftCacheKey = `agent.composer_draft.session_${string}`
 
-export interface AgentComposerDraftCache {
-  text: string
-  tokens: ComposerSerializedToken[]
+export const getAgentDraftCacheKey = (sessionId: string) => `agent.composer_draft.session_${sessionId}` as const
+
+export type AgentComposerDraftCache = CacheAgentComposerDraft
+
+export interface RestoredAgentComposerDraftCache extends AgentComposerDraftCache {
+  shouldValidateSkills: boolean
+}
+
+interface AgentDraftCacheScope {
+  workspaceKey: string
+  agentId: string
+}
+
+const EMPTY_DRAFT_CACHE: AgentComposerDraftCache = {
+  text: '',
+  tokens: [],
+  files: [],
+  knowledgeBaseIds: [],
+  workspaceKey: '',
+  agentId: ''
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -44,60 +62,73 @@ export function getCachedSkillTokens(tokens: readonly ComposerSerializedToken[])
   return tokens.filter((token) => token.kind === 'skill')
 }
 
-function isKnowledgeBase(value: unknown): value is KnowledgeBase {
-  return isRecord(value) && typeof value.id === 'string' && typeof value.name === 'string'
+export function getAgentDraftTokens(tokens: readonly ComposerSerializedToken[]) {
+  return tokens.filter((token) => isComposerInputTokenKind(token.kind))
 }
 
-/**
- * Rebuilds the knowledge selection a cached draft's chips stand for, mirroring
- * `getSkillFromCachedToken`. Read synchronously at mount rather than mapped through the
- * knowledge-base query, so the pick exists before the surface's managed-token sync would strip a
- * restored chip as unselected.
- *
- * A token whose sentence is no longer at its recorded offset is stale and must not seed anything: a
- * managed-token strip suppresses `onTokensChange` but still fires `onTextChange`, so the draft can be
- * persisted with the sentence already gone while the token list still names the chip. Re-seeding from
- * that would resurrect a pick the user watched disappear, and `createComposerDocumentContent` refuses
- * to rebuild the chip at the stale offset anyway, so the sentence would land wherever the caret is.
- */
-export function getCachedKnowledgeBases(draft: AgentComposerDraftCache): KnowledgeBase[] {
-  return draft.tokens.flatMap((token) =>
-    token.kind === 'knowledge' &&
-    isKnowledgeBase(token.payload) &&
-    (!token.promptText || draft.text.startsWith(token.promptText, token.textOffset))
-      ? [token.payload]
-      : []
-  )
-}
-
-/**
- * The token kinds that ride the cached draft. Both fold a `promptText` into the draft text, so
- * persisting the text while dropping the token would strand that sentence as chip-less prose —
- * for a knowledge pick, prose telling the model a base is attached that nothing scopes.
- */
-export function getCacheableDraftTokens(tokens: readonly ComposerSerializedToken[]) {
-  return tokens.filter((token) => token.kind === 'skill' || token.kind === 'knowledge')
-}
-
-export function readAgentDraftCache(cacheKey: string): AgentComposerDraftCache {
-  const cached = cacheService.getCasual<string | AgentComposerDraftCache>(cacheKey)
-  if (typeof cached === 'string') return { text: cached, tokens: [] }
-  if (!isRecord(cached) || typeof cached.text !== 'string' || !Array.isArray(cached.tokens)) {
-    return { text: '', tokens: [] }
+export function getCacheableAgentDraft(draft: ComposerSerializedDraft): ComposerSerializedDraft {
+  return {
+    text: draft.text,
+    tokens: getAgentDraftTokens(draft.tokens)
   }
+}
+
+export function readAgentDraftCache(
+  cacheKey: AgentComposerDraftCacheKey,
+  scope: AgentDraftCacheScope
+): RestoredAgentComposerDraftCache {
+  const cached = cacheService.get(cacheKey)
+  if (!isRecord(cached)) {
+    return {
+      ...EMPTY_DRAFT_CACHE,
+      workspaceKey: scope.workspaceKey,
+      agentId: scope.agentId,
+      shouldValidateSkills: false
+    }
+  }
+
+  const cachedAgentId = typeof cached.agentId === 'string' ? cached.agentId : ''
+  if (cachedAgentId && cachedAgentId !== scope.agentId) {
+    return {
+      ...EMPTY_DRAFT_CACHE,
+      workspaceKey: scope.workspaceKey,
+      agentId: scope.agentId,
+      shouldValidateSkills: false
+    }
+  }
+
+  const draft = getCacheableAgentDraft({
+    text: typeof cached.text === 'string' ? cached.text : '',
+    tokens: Array.isArray(cached.tokens) ? cached.tokens : []
+  })
+  const cachedWorkspaceKey = typeof cached.workspaceKey === 'string' ? cached.workspaceKey : ''
+  const workspaceMatches = cachedWorkspaceKey === '' || cachedWorkspaceKey === scope.workspaceKey
+  const shouldValidateSkills =
+    (cached.shouldValidateSkills === true || !workspaceMatches) && getCachedSkillTokens(draft.tokens).length > 0
 
   return {
-    text: cached.text,
-    tokens: getCacheableDraftTokens(cached.tokens)
+    ...draft,
+    files: Array.isArray(cached.files) ? cached.files : [],
+    knowledgeBaseIds: Array.isArray(cached.knowledgeBaseIds)
+      ? cached.knowledgeBaseIds.filter((id): id is string => typeof id === 'string')
+      : [],
+    workspaceKey: scope.workspaceKey,
+    agentId: scope.agentId,
+    shouldValidateSkills
   }
 }
 
-export function writeAgentDraftCache(cacheKey: string, text: string, tokens: readonly ComposerSerializedToken[]) {
-  cacheService.setCasual<AgentComposerDraftCache>(
+export function writeAgentDraftCache(cacheKey: AgentComposerDraftCacheKey, draft: AgentComposerDraftCache) {
+  const cacheableDraft = getCacheableAgentDraft({ text: draft.text, tokens: [...draft.tokens] })
+  cacheService.set(
     cacheKey,
     {
-      text,
-      tokens: getCacheableDraftTokens(tokens)
+      ...cacheableDraft,
+      files: [...draft.files],
+      knowledgeBaseIds: [...draft.knowledgeBaseIds],
+      workspaceKey: draft.workspaceKey,
+      agentId: draft.agentId,
+      ...(draft.shouldValidateSkills && { shouldValidateSkills: true })
     },
     DRAFT_CACHE_TTL
   )

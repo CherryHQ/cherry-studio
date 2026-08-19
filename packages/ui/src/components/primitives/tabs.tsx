@@ -105,26 +105,26 @@ function TabsList({ className, ...props }: React.ComponentProps<typeof TabsPrimi
 
 const tabsTriggerVariants = cva(
   [
-    'inline-flex items-center justify-center whitespace-nowrap font-normal',
+    'inline-flex items-center justify-center whitespace-nowrap text-sm font-medium',
     'disabled:pointer-events-none disabled:opacity-50',
-    'transition-all',
+    'transition-all outline-none',
     '[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*="size-"])]:size-4'
   ],
   {
     variants: {
       variant: {
         default: [
-          'h-[calc(100%-1px)] flex-1 gap-1 px-2 py-0.5 rounded-md',
+          'h-[calc(100%-1px)] flex-1 gap-1.5 px-2 py-1 rounded-md',
           'text-foreground border border-transparent',
           'dark:text-muted-foreground',
-          'focus-visible:ring-[1px] focus-visible:outline-1 focus-visible:border-ring focus-visible:ring-ring/35 focus-visible:outline-ring',
+          'focus-visible:border-primary focus-visible:bg-accent',
           'data-[state=active]:bg-background data-[state=active]:shadow-sm',
           'dark:data-[state=active]:text-foreground dark:data-[state=active]:border-input dark:data-[state=active]:bg-input/30'
         ],
         line: [
           'relative gap-2 px-2 py-2',
           'font-normal text-muted-foreground hover:text-foreground',
-          'focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+          'focus-visible:text-foreground focus-visible:underline focus-visible:underline-offset-4',
           'data-[state=active]:text-primary',
           'after:absolute after:rounded-full after:bg-transparent',
           'data-[state=active]:after:bg-primary'
@@ -132,7 +132,7 @@ const tabsTriggerVariants = cva(
         underline: [
           'relative gap-1.5 px-2.5 py-2',
           'font-normal text-muted-foreground hover:text-foreground',
-          'focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+          'focus-visible:text-foreground focus-visible:underline focus-visible:underline-offset-4',
           'data-[state=active]:text-foreground',
           'after:absolute after:rounded-none after:bg-transparent',
           'data-[state=active]:after:bg-primary'
@@ -140,7 +140,7 @@ const tabsTriggerVariants = cva(
         workflow: [
           'relative gap-1.5 px-1 py-1.5 text-sm font-normal',
           'text-muted-foreground hover:text-foreground',
-          'rounded-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+          'rounded-sm focus-visible:text-foreground focus-visible:underline focus-visible:underline-offset-4',
           'data-[state=active]:text-foreground data-[state=active]:font-semibold',
           'data-[state=active]:underline data-[state=active]:underline-offset-4 data-[state=active]:decoration-1',
           "[&:not(:first-child)]:before:content-['›']",

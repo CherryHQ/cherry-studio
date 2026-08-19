@@ -3,26 +3,31 @@ import { FilePreview } from '@renderer/components/FilePreview'
 import { useDeleteKnowledgeItem, useKnowledgeItems, useReindexKnowledgeItem } from '@renderer/hooks/useKnowledgeItems'
 import type { KnowledgeItemOf } from '@shared/data/types/knowledge'
 import { ArrowLeft } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import DetailHeader from '../components/DetailHeader'
 import { useKnowledgePage } from '../KnowledgePageProvider'
 import DataSourcePanel from '../panels/dataSource/DataSourcePanel'
 import KnowledgeItemChunkDetailPanel from '../panels/dataSource/KnowledgeItemChunkDetailPanel'
-import RagConfigPanel from '../panels/ragConfig/RagConfigPanel'
-import RecallTestPanel from '../panels/recallTest/RecallTestPanel'
+import KnowledgeItemNoteContentPanel from '../panels/dataSource/KnowledgeItemNoteContentPanel'
+
+const RagConfigPanel = lazy(() => import('../panels/ragConfig/RagConfigPanel'))
+const RecallTestPanel = lazy(() => import('../panels/recallTest/RecallTestPanel'))
+
 const KnowledgePageDetailSection = () => {
   const { t } = useTranslation()
   const {
     selectedBase,
     selectedBaseId,
     selectedItemId,
+    selectedItemView,
     filePreview,
     baseNavigationVersion,
     isRagConfigDrawerOpen,
     isRecallTestDrawerOpen,
     openItemChunks,
+    openItemContent,
     closeItemChunks,
     openFilePreview,
     closeFilePreview,
@@ -67,7 +72,7 @@ const KnowledgePageDetailSection = () => {
   }
 
   return (
-    <main className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+    <main data-ui="knowledge.content" className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       {!selectedItemId && !filePreview ? (
         <DetailHeader
           base={selectedBase}
@@ -79,7 +84,11 @@ const KnowledgePageDetailSection = () => {
 
       <div className="min-h-0 flex-1 overflow-hidden">
         {selectedItemId ? (
-          <KnowledgeItemChunkDetailPanel baseId={selectedBaseId} itemId={selectedItemId} onBack={closeItemChunks} />
+          selectedItemView === 'content' ? (
+            <KnowledgeItemNoteContentPanel itemId={selectedItemId} onBack={closeItemChunks} />
+          ) : (
+            <KnowledgeItemChunkDetailPanel baseId={selectedBaseId} itemId={selectedItemId} onBack={closeItemChunks} />
+          )
         ) : filePreview ? (
           <section
             aria-label={filePreview.fileName}
@@ -93,7 +102,7 @@ const KnowledgePageDetailSection = () => {
                     variant="ghost"
                     size="icon-sm"
                     aria-label={t('common.back')}
-                    className="size-6 min-h-6 min-w-6 rounded p-0 text-foreground-muted shadow-none hover:bg-accent hover:text-foreground"
+                    className="size-6 min-h-6 min-w-6 rounded p-0 text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"
                     onClick={closeFilePreview}>
                     <ArrowLeft className="size-3.5" />
                   </Button>
@@ -104,6 +113,7 @@ const KnowledgePageDetailSection = () => {
           </section>
         ) : (
           <DataSourcePanel
+            embeddingModelId={selectedBase.embeddingModelId}
             items={selectedBaseItems}
             total={selectedBaseItemsTotal}
             isLoading={isItemsLoading}
@@ -114,6 +124,7 @@ const KnowledgePageDetailSection = () => {
             onAdd={openAddSourceDialog}
             onPreviewFile={openFilePreview}
             onItemClick={openItemChunks}
+            onViewNoteContent={openItemContent}
             onDrillIntoDirectory={drillIntoDirectory}
             currentDirectory={currentDirectory}
             onNavigateUp={navigateUp}
@@ -131,11 +142,15 @@ const KnowledgePageDetailSection = () => {
         title={t('knowledge.tabs.rag_config')}
         closeLabel={t('common.close')}
         bodyClassName="px-0 py-0">
-        <RagConfigPanel
-          base={selectedBase}
-          itemCount={isItemsLoading ? undefined : selectedBaseItemsTotal}
-          onRestoreBase={openRestoreBaseDialog}
-        />
+        {isRagConfigDrawerOpen ? (
+          <Suspense fallback={null}>
+            <RagConfigPanel
+              base={selectedBase}
+              itemCount={isItemsLoading ? undefined : selectedBaseItemsTotal}
+              onRestoreBase={openRestoreBaseDialog}
+            />
+          </Suspense>
+        ) : null}
       </PageSidePanel>
 
       <PageSidePanel
@@ -144,7 +159,11 @@ const KnowledgePageDetailSection = () => {
         title={t('knowledge.tabs.recall_test')}
         closeLabel={t('common.close')}
         bodyClassName="px-0 py-0">
-        <RecallTestPanel baseId={selectedBaseId} />
+        {isRecallTestDrawerOpen ? (
+          <Suspense fallback={null}>
+            <RecallTestPanel baseId={selectedBaseId} />
+          </Suspense>
+        ) : null}
       </PageSidePanel>
     </main>
   )

@@ -14,6 +14,7 @@ import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/mess
 import { memo, useEffect, useMemo } from 'react'
 
 import { useAgentMessageListProviderValue } from '../messages/agentMessageListAdapter'
+import AgentSessionBackgroundTasks from '../messages/AgentSessionBackgroundTasks'
 
 const logger = loggerService.withContext('AgentSessionMessages')
 
@@ -24,8 +25,6 @@ type Props = {
   activeAgent?: GetAgentResponse
   partsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers?: MessageStreamingLayers
-  localSendGeneration?: number
-  onBindRuntime?: MessageListActions['bindRuntime']
   optimisticAskUserQuestionInputsByToolCallId?: Record<string, unknown>
   isLoading: boolean
   /** Whether more older messages remain on the server (cursor pagination). */
@@ -46,8 +45,6 @@ const AgentSessionMessages = ({
   activeAgent,
   partsByMessageId,
   streamingLayers,
-  localSendGeneration,
-  onBindRuntime,
   optimisticAskUserQuestionInputsByToolCallId = {},
   isLoading,
   hasOlder = false,
@@ -65,6 +62,7 @@ const AgentSessionMessages = ({
   const sessionAssistantId = session?.agentId ?? agentId
   const sessionName = session?.name ?? sessionId
   const sessionCreatedAt = session?.createdAt ?? session?.updatedAt ?? FALLBACK_TIMESTAMP
+  const sessionLastActivityAt = session?.lastActivityAt ?? sessionCreatedAt
   const sessionUpdatedAt = session?.updatedAt ?? session?.createdAt ?? FALLBACK_TIMESTAMP
   const assistantProfile = useMemo(
     () =>
@@ -76,6 +74,25 @@ const AgentSessionMessages = ({
         : undefined,
     [activeAgent]
   )
+  const backgroundTaskAnchorMessageId = useMemo(() => {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const message = messages[index]
+      if (message?.role !== 'assistant') continue
+      const parts = partsByMessageId[message.id] ?? ((message.parts ?? []) as CherryMessagePart[])
+      if (parts.length > 0) return message.id
+    }
+    return undefined
+  }, [messages, partsByMessageId])
+  const messageTail = useMemo(
+    () =>
+      backgroundTaskAnchorMessageId
+        ? {
+            messageId: backgroundTaskAnchorMessageId,
+            content: <AgentSessionBackgroundTasks sessionId={sessionId} />
+          }
+        : undefined,
+    [backgroundTaskAnchorMessageId, sessionId]
+  )
 
   const derivedTopic = useMemo<Topic>(
     () => ({
@@ -83,11 +100,12 @@ const AgentSessionMessages = ({
       type: TopicType.Session as TopicTypeEnum,
       assistantId: sessionAssistantId,
       name: sessionName,
+      lastActivityAt: sessionLastActivityAt,
       createdAt: sessionCreatedAt,
       updatedAt: sessionUpdatedAt,
       messages: []
     }),
-    [sessionTopicId, sessionAssistantId, sessionName, sessionCreatedAt, sessionUpdatedAt]
+    [sessionTopicId, sessionAssistantId, sessionName, sessionLastActivityAt, sessionCreatedAt, sessionUpdatedAt]
   )
 
   const messageList = useAgentMessageListProviderValue({
@@ -95,8 +113,6 @@ const AgentSessionMessages = ({
     messages,
     partsByMessageId,
     streamingLayers,
-    localSendGeneration,
-    onBindRuntime,
     assistantProfile,
     assistantId: agentId,
     isLoading,
@@ -108,16 +124,20 @@ const AgentSessionMessages = ({
     deleteMessage,
     respondToolApproval,
     messageNavigation,
-    workspacePath: session?.workspace?.path
+    workspacePath: session?.workspace?.path,
+    messageTail
   })
 
+  // Main owns the warm lease per (session × window) and debounces the real teardown, so the
+  // <Activity> hide/show of a tab switch costs two cheap IPC messages, not a connection cycle —
+  // and a lease held by another window keeps the shared connection alive.
   useEffect(() => {
     void ipcApi.request('ai.agent.session.prewarm', { sessionId }).catch((error) => {
-      logger.warn('Failed to prewarm agent session', error as Error)
+      logger.warn('Failed to acquire agent session warm lease', error as Error)
     })
     return () => {
       void ipcApi.request('ai.agent.session.close_warm', { sessionId }).catch((error) => {
-        logger.warn('Failed to close agent session warm query', error as Error)
+        logger.warn('Failed to release agent session warm lease', error as Error)
       })
     }
   }, [sessionId])
@@ -125,7 +145,7 @@ const AgentSessionMessages = ({
   return (
     <AskUserQuestionOptimisticInputProvider value={optimisticAskUserQuestionInputsByToolCallId}>
       <MessageListProvider value={messageList}>
-        <MessageList />
+        <MessageList enableSearch />
       </MessageListProvider>
     </AskUserQuestionOptimisticInputProvider>
   )

@@ -92,6 +92,42 @@ describe('initCrashTelemetry', () => {
     expect(typeof webContentsCall?.[1]).toBe('function')
   })
 
+  it('removes response headers that Electron net.fetch cannot convert to ByteString', async () => {
+    stubConstants({ isDev: false })
+    stubElectron()
+
+    const { initCrashTelemetry } = await loadModule()
+    initCrashTelemetry()
+
+    const webContentsCall = appOnMock.mock.calls.find(([event]) => event === 'web-contents-created')
+    const onHeadersReceived = vi.fn()
+    const webContents = {
+      mainFrame: { collectJavaScriptCallStack: vi.fn() },
+      on: vi.fn(),
+      session: { webRequest: { onHeadersReceived } }
+    }
+    webContentsCall?.[1]({}, webContents)
+
+    const listener = onHeadersReceived.mock.calls[0]?.[0]
+    const callback = vi.fn()
+    listener(
+      {
+        responseHeaders: {
+          'Content-Type': ['application/json'],
+          'X-Proxy-Message': ['机器已连接']
+        }
+      },
+      callback
+    )
+
+    expect(callback).toHaveBeenCalledWith({
+      responseHeaders: {
+        'Content-Type': ['application/json'],
+        'Document-Policy': ['include-js-call-stacks-in-crash-reports']
+      }
+    })
+  })
+
   describe('production-only process error handlers', () => {
     it('installs both process.on handlers when isDev is false', async () => {
       stubConstants({ isDev: false })
@@ -101,7 +137,8 @@ describe('initCrashTelemetry', () => {
       initCrashTelemetry()
 
       const events = processOnMock.mock.calls.map(([event]) => event)
-      expect(events).toContain('uncaughtException')
+      expect(events).toContain('uncaughtExceptionMonitor')
+      expect(events).not.toContain('uncaughtException')
       expect(events).toContain('unhandledRejection')
     })
 
@@ -113,7 +150,7 @@ describe('initCrashTelemetry', () => {
       initCrashTelemetry()
 
       const events = processOnMock.mock.calls.map(([event]) => event)
-      expect(events).not.toContain('uncaughtException')
+      expect(events).not.toContain('uncaughtExceptionMonitor')
       expect(events).not.toContain('unhandledRejection')
     })
   })

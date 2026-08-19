@@ -2,4 +2,5 @@
 // this barrel; the directory's other files are internal. See
 // docs/references/renderer-architecture.md §5.
 export { type ExecutionFinishEvent, executionStreamOverlayService } from './ExecutionStreamOverlayService'
+export { getStreamBlockedMessage } from './getStreamBlockedMessage'
 export { ipcChatTransport } from './IpcChatTransport'

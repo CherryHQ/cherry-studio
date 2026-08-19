@@ -144,8 +144,11 @@ export {
   type ImagePreviewTransform,
   type ImagePreviewTransformControls,
   type ImagePreviewTransformOptions,
+  type ImagePreviewTransformUpdate,
   ImagePreviewTrigger,
   type ImagePreviewTriggerProps,
+  ImagePreviewViewport,
+  type ImagePreviewViewportProps,
   useImagePreviewTransform
 } from './composites/image-preview'
 // MenuList

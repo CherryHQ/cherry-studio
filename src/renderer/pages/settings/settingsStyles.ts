@@ -9,7 +9,7 @@ export const settingsSubmenuItemClassName =
 export const settingsSubmenuItemLabelClassName = 'group-data-[active=true]:font-medium'
 
 export const settingsSubmenuSectionTitleClassName =
-  'px-2.5 pt-2 pb-0.5 font-normal text-foreground-muted text-xs first:pt-0'
+  'px-2.5 pt-2 pb-0.5 font-normal text-foreground-tertiary text-xs first:pt-0'
 
 export const settingsSubmenuDividerClassName = 'my-0 bg-transparent'
 
@@ -21,4 +21,4 @@ export const settingsContentHeaderClassName = 'mb-5'
 
 export const settingsContentHeaderTitleClassName = 'font-semibold text-foreground text-[15px]'
 
-export const settingsContentHeaderDescriptionClassName = 'mt-1 text-foreground-muted text-sm'
+export const settingsContentHeaderDescriptionClassName = 'mt-1 text-muted-foreground text-sm'

@@ -20,6 +20,7 @@ import ModelSettings from '@renderer/pages/settings/ModelSettings/ModelSettings'
 import { ProviderSettingsPage, useProviderModelSync } from '@renderer/pages/settings/ProviderSettings'
 import { oauthWithCherryIn } from '@renderer/services/oauth'
 import { toast } from '@renderer/services/toast'
+import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import type { OnboardingProviderSetupStatus } from '@shared/data/preference/preferenceTypes'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
@@ -59,7 +60,7 @@ function OnboardingProviderSettings() {
 export default function OnboardingPage() {
   const { t } = useTranslation()
   const [language, setLanguage] = usePreference('app.language')
-  const [, updateOnboardingPreferences] = useMultiplePreferences(
+  const [{ policyVersion }, updateOnboardingPreferences] = useMultiplePreferences(
     ONBOARDING_PREFERENCE_KEYS,
     PESSIMISTIC_PREFERENCE_OPTIONS
   )
@@ -110,12 +111,25 @@ export default function OnboardingPage() {
           await dataApiService.patch(`/assistants/${assistant.id}`, { body: { modelId: model.id } })
         }
       })
-    const agentUpdate = dataApiService.get('/agents', { query: { limit: 2 } }).then(async ({ items, total }) => {
-      const agent = total === 1 ? items[0] : undefined
-      if (agent?.model === CHERRYAI_DEFAULT_UNIQUE_MODEL_ID) {
-        await dataApiService.patch(`/agents/${agent.id}`, { body: { model: model.id } })
-      }
-    })
+    const agentUpdate = (async () => {
+      const limit = 500
+      let page = 1
+      let total = 0
+
+      do {
+        const response = await dataApiService.get('/agents', { query: { limit, page } })
+        const officialAgents = response.items.filter(
+          (agent) =>
+            isProtectedBuiltinAgentRole(agent.configuration?.builtin_role) &&
+            (agent.model === null || agent.model === CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
+        )
+        await Promise.all(
+          officialAgents.map((agent) => dataApiService.patch(`/agents/${agent.id}`, { body: { model: model.id } }))
+        )
+        total = response.total
+        page += 1
+      } while ((page - 1) * limit < total)
+    })()
 
     await Promise.all([assistantUpdate, agentUpdate])
   }, [])
@@ -130,6 +144,10 @@ export default function OnboardingPage() {
   const persistPrivacyChoice = useCallback(async (): Promise<boolean> => {
     setIsUpdatingPrivacy(true)
     try {
+      if (privacyAccepted && policyVersion === LATEST_PRIVACY_POLICY_VERSION) {
+        return true
+      }
+
       await updateOnboardingPreferences(
         privacyAccepted
           ? { policyVersion: LATEST_PRIVACY_POLICY_VERSION }
@@ -142,7 +160,7 @@ export default function OnboardingPage() {
     } finally {
       setIsUpdatingPrivacy(false)
     }
-  }, [privacyAccepted, t, updateOnboardingPreferences])
+  }, [policyVersion, privacyAccepted, t, updateOnboardingPreferences])
 
   const updatePrivacyAcceptance = useCallback(
     async (accepted: boolean): Promise<boolean> => {
@@ -182,6 +200,9 @@ export default function OnboardingPage() {
         if (!(await persistPrivacyChoice())) {
           return
         }
+        if (status === 'completed' && defaultModel) {
+          await updateSeededResourceModels(defaultModel)
+        }
         await updateOnboardingPreferences({ providerSetupStatus: status })
       } catch {
         toast.error(t('onboarding.toast.complete_failed'))
@@ -189,7 +210,7 @@ export default function OnboardingPage() {
         setIsCompleting(false)
       }
     },
-    [persistPrivacyChoice, t, updateOnboardingPreferences]
+    [defaultModel, persistPrivacyChoice, t, updateOnboardingPreferences, updateSeededResourceModels]
   )
 
   const runAfterPrivacyChoice = useCallback(
@@ -276,7 +297,7 @@ export default function OnboardingPage() {
               <SelectTrigger
                 aria-label={t('common.language')}
                 size="sm"
-                className="nodrag h-7 w-auto gap-1.5 border-0 bg-transparent px-2 text-foreground-secondary text-xs shadow-none hover:bg-accent/50 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 aria-expanded:border-transparent aria-expanded:ring-0 dark:bg-transparent [&_svg]:size-3.5 [&_svg]:opacity-60">
+                className="nodrag h-7 w-auto gap-1.5 border-0 bg-transparent px-2 text-muted-foreground text-xs shadow-none hover:bg-accent/50 hover:text-foreground focus-visible:bg-accent/50 focus-visible:text-foreground aria-expanded:border-transparent aria-expanded:ring-0 dark:bg-transparent [&_svg]:size-3.5 [&_svg]:opacity-60">
                 <Languages className="size-3.5" />
                 <SelectValue>{displayLanguageLabel}</SelectValue>
               </SelectTrigger>
@@ -294,7 +315,7 @@ export default function OnboardingPage() {
             type="button"
             variant="ghost"
             size="sm"
-            className="nodrag text-foreground-secondary hover:text-foreground"
+            className="nodrag text-muted-foreground hover:text-foreground"
             onClick={() => void complete('skipped')}
             disabled={isCompleting || isUpdatingPrivacy}>
             {t('onboarding.skip')}
@@ -312,7 +333,7 @@ export default function OnboardingPage() {
                   <img src={AppLogo} alt="Cherry Studio" className="size-16 rounded-xl" />
                   <div className="mt-5 flex flex-col gap-2 text-center">
                     <h1 className="m-0 font-semibold text-2xl text-foreground">{t('onboarding.welcome.title')}</h1>
-                    <p className="m-0 text-foreground-secondary text-sm">{t('onboarding.welcome.subtitle')}</p>
+                    <p className="m-0 text-muted-foreground text-sm">{t('onboarding.welcome.subtitle')}</p>
                   </div>
                   <div className="mt-8 flex w-full flex-col gap-3">
                     <Button
@@ -336,7 +357,7 @@ export default function OnboardingPage() {
                       {t('onboarding.welcome.other_provider')}
                     </Button>
                   </div>
-                  <p className="mt-4 mb-0 text-center text-foreground-muted text-xs">
+                  <p className="mt-4 mb-0 text-center text-muted-foreground text-xs">
                     {t('onboarding.welcome.setup_hint')}
                   </p>
                 </div>
@@ -408,7 +429,7 @@ export default function OnboardingPage() {
                           <Check size={16} />
                           {t('onboarding.select_model.start')}
                         </Button>
-                        <p className="m-0 text-center text-foreground-muted text-xs">
+                        <p className="m-0 text-center text-muted-foreground text-xs">
                           {t('onboarding.select_model.change_later')}
                         </p>
                       </div>
@@ -421,7 +442,7 @@ export default function OnboardingPage() {
 
           {step === 'welcome' && (
             <div className="nodrag flex shrink-0 justify-center px-6 py-3">
-              <div className="flex max-w-full items-center gap-2 text-center text-foreground-muted text-xs leading-relaxed">
+              <div className="flex max-w-full items-center gap-2 text-center text-muted-foreground text-xs leading-relaxed">
                 <Checkbox
                   id="onboarding-privacy-policy"
                   size="sm"
@@ -434,7 +455,7 @@ export default function OnboardingPage() {
                   <span>{t('onboarding.privacy.notice')}</span>
                   <button
                     type="button"
-                    className="ml-1 cursor-pointer border-0 bg-transparent p-0 text-primary text-xs hover:underline"
+                    className="ml-1 cursor-pointer border-0 bg-transparent p-0 text-link text-xs hover:underline"
                     onClick={() => setShowPrivacyPolicy(true)}>
                     {t('onboarding.privacy.policy')}
                   </button>

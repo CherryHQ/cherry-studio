@@ -6,7 +6,9 @@
  * a response payload and an entity). DTOs are derived via .pick().
  */
 
+import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import { UniqueModelIdSchema } from '@shared/data/types/model'
+import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 import * as z from 'zod'
 
 import type { OffsetPaginationResponse } from '../types'
@@ -35,8 +37,11 @@ export const AgentSkillUpdateListSchema = z.array(AgentSkillUpdateSchema).transf
 })
 export type AgentSkillUpdateDto = z.infer<typeof AgentSkillUpdateSchema>
 
-export const AgentPermissionModeSchema = z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan'])
+export const AgentPermissionModeSchema = z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'auto'])
 export type AgentPermissionMode = z.infer<typeof AgentPermissionModeSchema>
+export const AGENT_TYPES = ['claude-code', 'pi', 'dsh'] as const
+export const AgentTypeSchema = z.enum(AGENT_TYPES)
+export type AgentType = z.infer<typeof AgentTypeSchema>
 export const AgentSchedulerTypeSchema = z.enum(['cron', 'interval', 'one-time'])
 
 export const AgentConfigurationSchema = z
@@ -44,7 +49,7 @@ export const AgentConfigurationSchema = z
     avatar: z.string().optional(),
     slash_commands: z.array(z.string()).optional(),
     permission_mode: AgentPermissionModeSchema.optional(),
-    max_turns: z.number().optional(),
+    reasoning_effort: ReasoningEffortOptionSchema.optional(),
     env_vars: z.record(z.string(), z.string()).optional(),
     bootstrap_completed: z.boolean().optional(),
     scheduler_enabled: z.boolean().optional(),
@@ -54,7 +59,8 @@ export const AgentConfigurationSchema = z
     scheduler_one_time_delay: z.number().optional(),
     scheduler_last_run: z.string().optional(),
     heartbeat_enabled: z.boolean().optional(),
-    heartbeat_interval: z.number().optional()
+    heartbeat_interval: z.number().optional(),
+    builtin_role: z.enum([BUILTIN_AGENT_ROLE.ASSISTANT, BUILTIN_AGENT_ROLE.SUPPORT]).optional()
   })
   // .loose() (passthrough) is intentional: the configuration object is stored as a JSON blob
   // and may contain keys written by older or newer versions of the app. Unknown fields must
@@ -67,7 +73,7 @@ export type AgentConfiguration = z.infer<typeof AgentConfigurationSchema>
  *
  * `safeParse` failure on `.loose()` schemas means a *known* key has the wrong
  * type — not unknown extras. Returning the raw blob as-is would launder a
- * type mismatch (e.g. `max_turns: "5"`) into the response, defeating downstream
+ * type mismatch (e.g. `heartbeat_interval: "5"`) into the response, defeating downstream
  * `?? DEFAULT` fallbacks. Instead, drop only the offending top-level keys so
  * those branches can fire normally; well-typed fields and unknown extras are
  * preserved.
@@ -134,7 +140,7 @@ export const AGENT_MUTABLE_FIELDS = {
 
 export const AgentEntitySchema = AgentBaseSchema.extend({
   id: z.string(),
-  type: z.enum(['claude-code']),
+  type: AgentTypeSchema,
   createdAt: z.string(),
   updatedAt: z.string(),
   /** Persistent ordering key. Read-only; modified only through order endpoints. */
@@ -158,6 +164,14 @@ export const ScheduledTaskEntitySchema = z.strictObject({
   trigger: TriggerSchema,
   timeoutMinutes: z.number(),
   workspace: AgentSessionWorkspaceSourceSchema,
+  /**
+   * When true, every fire continues the same agent session instead of creating
+   * a fresh one. Off by default — a sticky session accumulates context without
+   * bound, which is why the scheduler creates a new session per fire otherwise.
+   */
+  reuseSession: z.boolean(),
+  /** The sticky session bound by the last fire; null until the first fire (or while `reuseSession` is off). */
+  reuseSessionId: z.string().nullable(),
   channelIds: z.array(z.string()).optional(),
   nextRun: z.string().nullable().optional(),
   lastRun: z.string().nullable().optional(),
@@ -187,7 +201,17 @@ export type TaskRunLogEntity = z.infer<typeof TaskRunLogEntitySchema>
 // Agent update DTOs (derived via .pick() from AgentEntitySchema — Rule C)
 // ============================================================================
 
+/**
+ * DTO for updating an existing agent. All fields are optional.
+ *
+ * `configuration` is itself a partial: callers send only the first-level keys
+ * they intend to change, and AgentService shallow-merges them onto the latest
+ * persisted configuration inside the write transaction. Nested values such as
+ * `env_vars` still replace as a whole. An explicitly present `undefined` value
+ * removes that configuration key; omission preserves it.
+ */
 export const UpdateAgentSchema = AgentEntitySchema.pick(AGENT_MUTABLE_FIELDS).partial().extend({
+  configuration: AgentConfigurationSchema.partial().optional(),
   /**
    * Per-skill enablement changes for this agent. Omitted means "leave skills
    * unchanged"; an empty array is a no-op. The server applies each update
@@ -231,20 +255,6 @@ export const ListAgentsQuerySchema = z.strictObject({
 export type ListAgentsQueryParams = z.input<typeof ListAgentsQuerySchema>
 export type ListAgentsQuery = z.output<typeof ListAgentsQuerySchema>
 
-export const DeleteAgentQuerySchema = z.strictObject({
-  /**
-   * Delete the agent's sessions in the same main-process transaction.
-   * Omitted/false preserves the historical "delete agent only" behavior.
-   */
-  deleteSessions: z.boolean().optional()
-})
-export type DeleteAgentQueryParams = z.input<typeof DeleteAgentQuerySchema>
-
-export interface DeleteAgentResult {
-  deleted: boolean
-  deletedSessionIds?: string[]
-}
-
 // ============================================================================
 // API Schema definitions
 // ============================================================================
@@ -258,7 +268,7 @@ export type AgentSchemas = {
     }
   }
 
-  /** Get, update, or delete a specific agent */
+  /** Get or update a specific agent. Deletion is a mixed DB/runtime command on IpcApi. */
   '/agents/:agentId': {
     GET: {
       params: { agentId: string }
@@ -268,11 +278,6 @@ export type AgentSchemas = {
       params: { agentId: string }
       body: UpdateAgentDto
       response: AgentEntity
-    }
-    DELETE: {
-      params: { agentId: string }
-      query?: DeleteAgentQueryParams
-      response: DeleteAgentResult
     }
   }
 
