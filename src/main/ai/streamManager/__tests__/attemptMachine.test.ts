@@ -1,7 +1,15 @@
 import type { SerializedError } from '@shared/types/error'
 import { describe, expect, it } from 'vitest'
 
-import { type AttemptEvent, type AttemptState, executionStatus, reduceTopicStatus, transition } from '../attemptMachine'
+import {
+  type AttemptEvent,
+  type AttemptState,
+  executionStatus,
+  isAttemptSettled,
+  publishedOutcome,
+  reduceTopicStatus,
+  transition
+} from '../attemptMachine'
 
 const error: SerializedError = { name: 'Error', message: 'boom', stack: null }
 const events: AttemptEvent[] = [
@@ -97,17 +105,25 @@ describe('attemptMachine', () => {
     expect(result).toEqual({ ok: true, state: { phase: 'settled', firstChunkAt: 1, outcome: { kind: 'done' } } })
   })
 
-  it('abandon settles a blocked attempt as error(persistError) and is legal nowhere else', () => {
+  it('abandon publishes error(persistError), retains the original outcome, and is legal nowhere else', () => {
     const blocked: AttemptState = {
       phase: 'persistence-blocked',
       firstChunkAt: 1,
       outcome: { kind: 'done' },
       persistError: error
     }
-    expect(transition(blocked, { type: 'abandon' })).toEqual({
-      ok: true,
-      state: { phase: 'settled', firstChunkAt: 1, outcome: { kind: 'error', error } }
+    const result = transition(blocked, { type: 'abandon' })
+    if (!result.ok) throw new Error('abandon must be legal on a blocked attempt')
+
+    // Boot reconcile writes error for the row Stop left pending, so publication must match it.
+    expect(publishedOutcome(result.state as Exclude<AttemptState, { phase: 'reserved' | 'running' }>)).toEqual({
+      kind: 'error',
+      error
     })
+    // ...while the runtime outcome survives, so a later successful replay is not demoted (P1).
+    expect(result.state).toMatchObject({ outcome: { kind: 'done' } })
+    // Abandoned is a durability terminal: it must let its topic quiesce.
+    expect(isAttemptSettled(result.state)).toBe(true)
 
     const nonBlocked: AttemptState[] = [
       { phase: 'reserved' },

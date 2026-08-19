@@ -103,6 +103,7 @@ class FakePersistencePort implements StreamPersistencePort {
 
 // ── Mocks ───────────────────────────────────────────────────────────
 
+const extractAgentSessionId = (topicId: string) => topicId.replace(/^agent-session:/, '')
 const mockAbortPendingTurn = vi.fn<
   (
     sessionId: string,
@@ -114,13 +115,17 @@ const mockAbortPendingTurn = vi.fn<
   }
 >(() => ({ handled: false }))
 const mockGetMessageById = vi.hoisted(() => vi.fn())
+const mockCreateUserMessageWithPlaceholders = vi.hoisted(() =>
+  vi.fn(() => ({ userMessage: { id: 'user-001' }, placeholders: [{ id: 'assistant-001' }] }))
+)
 
 vi.mock('@main/data/services/MessageService', () => ({
   messageService: {
     create: vi.fn().mockResolvedValue({ id: 'msg-001' }),
     getById: mockGetMessageById,
     findPendingAssistantMessageIds: vi.fn(() => []),
-    markMessagesError: vi.fn()
+    markMessagesError: vi.fn(),
+    createUserMessageWithPlaceholders: mockCreateUserMessageWithPlaceholders
   }
 }))
 
@@ -178,7 +183,7 @@ const fakeCacheService = {
   })
 }
 const mockSaveSpans = vi.fn<(topicId: string) => Promise<void>>(async () => undefined)
-const mockWillContinueTopic = vi.fn<(topicId: string, outcome?: 'done' | 'error') => boolean>(() => false)
+let agentContinuationPromise: { open: boolean; voidOnAttemptError: boolean } | undefined
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -191,7 +196,7 @@ vi.mock('@application', async () => {
     AiService: { streamText: mockStreamText },
     CacheService: fakeCacheService,
     TraceStorageService: { saveSpans: mockSaveSpans },
-    AgentSessionRuntimeService: { willContinueTopic: mockWillContinueTopic, abortPendingTurn: mockAbortPendingTurn }
+    AgentSessionRuntimeService: { abortPendingTurn: mockAbortPendingTurn }
   } as Parameters<typeof mockApplicationFactory>[0])
 })
 
@@ -277,6 +282,12 @@ function startSingle(
     cleanupPorts: opts.cleanupPorts,
     siblingsGroupId: opts.siblingsGroupId
   })
+  // Stands in for the agent runtime, which pushes its continuation promise onto the topic as its
+  // own state changes. `voidOnAttemptError: false` = independently queued work, which survives an
+  // error terminal; tests needing the conditional (steer/compaction) kind push it themselves.
+  if (agentContinuationPromise && opts.topicId.startsWith('agent-session:')) {
+    manager.setAgentContinuationLease(opts.topicId, agentContinuationPromise)
+  }
   const snapshot = manager.inspect(opts.topicId)
   if (!snapshot) throw new Error(`inspect() returned undefined for topicId=${opts.topicId}`)
   return snapshot
@@ -290,12 +301,23 @@ describe('AiStreamManager', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     mgr = createManager()
+    // Stand in for AgentSessionRuntimeService, which subscribes to `onTopicStop` and answers by
+    // registering a terminal hold. The manager no longer calls the runtime directly.
+    mgr.onTopicStop(({ topicId, reason }) => {
+      const result = mockAbortPendingTurn(extractAgentSessionId(topicId), reason)
+      if (result?.terminalReady) {
+        mgr.registerRuntimeTerminalHold(topicId, {
+          terminalReady: result.terminalReady,
+          terminalOutcome: result.terminalOutcome ?? { outcome: 'aborted' }
+        })
+      }
+    })
     vi.clearAllMocks()
     mockStreamText.mockImplementation(async (request: AiStreamRequest) =>
       pendingStream((request.requestOptions as { signal?: AbortSignal } | undefined)?.signal)
     )
     mockSaveSpans.mockResolvedValue(undefined)
-    mockWillContinueTopic.mockReturnValue(false)
+    agentContinuationPromise = undefined
     mockAbortPendingTurn.mockReturnValue({ handled: false })
     mockGetMessageById.mockReset()
     sharedCacheStore.clear()
@@ -389,7 +411,7 @@ describe('AiStreamManager', () => {
       const previous = mgr.attach(sender, { topicId })
       if (previous.status !== 'attached' || !previous.snapshot) throw new Error('missing previous cycle snapshot')
 
-      const reservation = mgr.reserveDispatchCommand(topicId, { kind: 'start', modelCount: 1 }, 1, () => undefined)
+      const reservation = mgr.reserveDispatchCommand(topicId, { kind: 'start', modelCount: 1 }, 1, { kind: 'none' })
       const started = mgr.send({
         topicId,
         models: [{ modelId: 'provider-a::model-a', request: req(topicId) }],
@@ -407,7 +429,7 @@ describe('AiStreamManager', () => {
       const topicId = 'reserved-stop-topic'
       const listener = new FakeListener('wc:reserved-stop')
       const persistencePort = new FakePersistencePort('persistence:reserved-stop')
-      const reservation = mgr.reserveDispatchCommand(topicId, { kind: 'start', modelCount: 1 }, 1, () => undefined)
+      const reservation = mgr.reserveDispatchCommand(topicId, { kind: 'start', modelCount: 1 }, 1, { kind: 'none' })
 
       mgr.abort(topicId, 'user-requested')
       const result = mgr.send({
@@ -439,21 +461,21 @@ describe('AiStreamManager', () => {
     it('releases a failed dispatch reservation after its durable error write recovers', async () => {
       const topicId = 'reservation-recovery-topic'
       const intent = { kind: 'start' as const, modelCount: 1 }
-      const { receipt } = mgr.reserveDispatchCommand(topicId, intent, 1, () => undefined)
+      const { receipt } = mgr.reserveDispatchCommand(topicId, intent, 1, { kind: 'none' })
       let storageAvailable = false
 
       mgr.failDispatchReservation(receipt, topicId, error('context preparation failed'), () => {
         if (!storageAvailable) throw new Error('db unavailable')
       })
 
-      expect(() => mgr.reserveDispatchCommand(topicId, intent, 1, () => undefined)).toThrow(
+      expect(() => mgr.reserveDispatchCommand(topicId, intent, 1, { kind: 'none' })).toThrow(
         aiStreamAdmissionReasons.TOPIC_BUSY
       )
 
       storageAvailable = true
       await mgr.retryBlockedPersistence()
 
-      expect(() => mgr.reserveDispatchCommand(topicId, intent, 1, () => undefined)).not.toThrow()
+      expect(() => mgr.reserveDispatchCommand(topicId, intent, 1, { kind: 'none' })).not.toThrow()
     })
 
     it("Stop is not blocked by another topic's hung persistence recovery", async () => {
@@ -476,7 +498,7 @@ describe('AiStreamManager', () => {
 
       // Topic A: a failed dispatch reservation whose durable error write keeps failing.
       const intent = { kind: 'start' as const, modelCount: 1 }
-      const { receipt } = mgr.reserveDispatchCommand('topic-a', intent, 1, () => undefined)
+      const { receipt } = mgr.reserveDispatchCommand('topic-a', intent, 1, { kind: 'none' })
       mgr.failDispatchReservation(receipt, 'topic-a', error('context preparation failed'), () => {
         throw new Error('db unavailable')
       })
@@ -491,7 +513,7 @@ describe('AiStreamManager', () => {
       await vi.advanceTimersByTimeAsync(0)
       await vi.advanceTimersByTimeAsync(0)
 
-      expect(() => mgr.reserveDispatchCommand('topic-a', intent, 1, () => undefined)).not.toThrow()
+      expect(() => mgr.reserveDispatchCommand('topic-a', intent, 1, { kind: 'none' })).not.toThrow()
     })
 
     it('throws on duplicate modelId within a single send call', () => {
@@ -709,7 +731,7 @@ describe('AiStreamManager', () => {
     it('attaches a follow-up subscriber to a grace-period stream so the next turn carries it', async () => {
       // Drive an agent-session turn to terminal-but-kept-alive: the inter-turn
       // drain/grace window where the runtime will open the next turn.
-      mockWillContinueTopic.mockReturnValue(true)
+      agentContinuationPromise = { open: true, voidOnAttemptError: false }
       const topicId = 'agent-session:s1'
       startSingle(mgr, {
         topicId,
@@ -1354,7 +1376,7 @@ describe('AiStreamManager', () => {
           siblingsGroupId: 7
         }
       }
-      const { receipt } = mgr.reserveDispatchCommand(topicId, intent, 1, () => undefined)
+      const { receipt } = mgr.reserveDispatchCommand(topicId, intent, 1, { kind: 'none' })
       expect(receipt).toMatchObject({
         admission: { mode: 'append-live', groupAnchorMessageId: 'assistant-a' },
         activeNodeDecision: { move: 'keep' }
@@ -1699,7 +1721,7 @@ describe('AiStreamManager', () => {
           attempts: [expect.objectContaining({ phase: 'persistence-blocked', outcome: 'success' })]
         }
       })
-      expect(() => mgr.reserveDispatchCommand('a', { kind: 'start', modelCount: 1 }, 1, () => undefined)).toThrow(
+      expect(() => mgr.reserveDispatchCommand('a', { kind: 'start', modelCount: 1 }, 1, { kind: 'none' })).toThrow(
         aiStreamAdmissionReasons.TOPIC_BUSY
       )
       expect(() =>
@@ -1827,7 +1849,7 @@ describe('AiStreamManager', () => {
       persistence.onDoneImpl = () => {
         if (remainingFailures-- > 0) throw new TerminalPersistenceError(error('db unavailable'), false)
       }
-      mockWillContinueTopic.mockReturnValue(true)
+      agentContinuationPromise = { open: true, voidOnAttemptError: false }
 
       await mgr._doInit()
       startSingle(mgr, {
@@ -1842,9 +1864,39 @@ describe('AiStreamManager', () => {
       expect(renderer.doneResults).toEqual([])
       await vi.advanceTimersByTimeAsync(5_000)
 
-      expect(mockWillContinueTopic).toHaveBeenCalledWith(topicId)
       expect(renderer.doneResults).toEqual([expect.objectContaining({ isTopicDone: false })])
       expect(mgr.inspect(topicId)?.status).toBe('streaming')
+    })
+
+    // P3. The record used to close over `stream` and `exec`, so a storage outage kept the whole
+    // ActiveStream — every sibling execution, chunk ring and accumulator — reachable for as long
+    // as the write stayed blocked. Identity only; the live objects are resolved per retry.
+    it('parks a blocked terminal write as identity data, retaining no stream or execution', async () => {
+      const persistence = new FakePersistencePort('persistence:a')
+      persistence.onDoneImpl = () => {
+        throw new TerminalPersistenceError(error('db unavailable'), false)
+      }
+      await mgr._doInit()
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('wc:a')],
+        persistencePorts: [persistence]
+      })
+      await mgr.onExecutionDone('a', 'provider-a::model-a')
+
+      const parked = [
+        ...(mgr as never as { blockedPersistenceRecoveries: Map<string, object> }).blockedPersistenceRecoveries.values()
+      ]
+      expect(parked).toHaveLength(1)
+      const record = parked[0] as Record<string, unknown>
+      expect(Object.values(record).some((value) => typeof value === 'function')).toBe(false)
+      expect(record).toMatchObject({ kind: 'stream-attempt', topicId: 'a' })
+      // Nothing that can reach a listener, buffer, accumulator or abort controller.
+      expect(
+        Object.values(record).some((value) => typeof value === 'object' && value !== null && !Array.isArray(value))
+      ).toBe(false)
     })
 
     it('Stop while persistence stays blocked abandons the write and frees the topic', async () => {
@@ -1864,7 +1916,7 @@ describe('AiStreamManager', () => {
         persistencePorts: [persistence]
       })
       await mgr.onExecutionDone('a', 'provider-a::model-a')
-      expect(() => mgr.reserveDispatchCommand('a', { kind: 'start', modelCount: 1 }, 1, () => undefined)).toThrow(
+      expect(() => mgr.reserveDispatchCommand('a', { kind: 'start', modelCount: 1 }, 1, { kind: 'none' })).toThrow(
         aiStreamAdmissionReasons.TOPIC_BUSY
       )
 
@@ -1887,7 +1939,7 @@ describe('AiStreamManager', () => {
           attempts: [expect.objectContaining({ phase: 'settled', outcome: 'error' })]
         }
       })
-      expect(() => mgr.reserveDispatchCommand('a', { kind: 'start', modelCount: 1 }, 2, () => undefined)).not.toThrow()
+      expect(() => mgr.reserveDispatchCommand('a', { kind: 'start', modelCount: 1 }, 2, { kind: 'none' })).not.toThrow()
 
       // The recovery entry is gone — the interval never resurrects the abandoned write.
       await vi.advanceTimersByTimeAsync(15_000)
@@ -1949,7 +2001,7 @@ describe('AiStreamManager', () => {
     })
 
     it('keeps an agent-session stream alive when the runtime will continue', async () => {
-      mockWillContinueTopic.mockReturnValue(true)
+      agentContinuationPromise = { open: true, voidOnAttemptError: false }
       const topicId = 'agent-session:session-1'
       const listener = new FakeListener(`l:${topicId}`)
       startSingle(mgr, {
@@ -1967,7 +2019,7 @@ describe('AiStreamManager', () => {
     })
 
     it('suspends an unadmitted runtime turn without terminalizing its internal listeners', async () => {
-      mockWillContinueTopic.mockReturnValue(true)
+      agentContinuationPromise = { open: true, voidOnAttemptError: false }
       const topicId = 'agent-session:session-1'
       const feed = controlledStream()
       mockStreamText.mockResolvedValueOnce(feed.stream)
@@ -2839,12 +2891,9 @@ describe('AiStreamManager', () => {
       vi.spyOn(mgr, 'dispatch').mockImplementation(async (_subscriber, dispatchReq) => {
         // Stand-in for prepareSteerContinuation: reserve the attempt (placeholder row), then park
         // in the compaction await where Stop lands; the test fires send() from inside that window.
-        const reservation = mgr.reserveDispatchCommand(
-          dispatchReq.topicId,
-          { kind: 'steer-continuation' },
-          1,
-          () => undefined
-        )
+        const reservation = mgr.reserveDispatchCommand(dispatchReq.topicId, { kind: 'steer-continuation' }, 1, {
+          kind: 'none'
+        })
         sendPrepared = () =>
           mgr.send({
             topicId: dispatchReq.topicId,
@@ -2909,7 +2958,7 @@ describe('AiStreamManager', () => {
         topicId,
         { kind: 'continue-conversation', anchorMessageId: 'assistant-1' },
         1,
-        () => undefined
+        { kind: 'none' }
       )
       const continued = mgr.send({
         topicId,
@@ -2947,7 +2996,7 @@ describe('AiStreamManager', () => {
         topicId,
         { kind: 'continue-conversation', anchorMessageId: 'assistant-1' },
         1,
-        () => undefined
+        { kind: 'none' }
       )
 
       // Stop lands in the prepare await (history/compaction) window, while the approval-parked
@@ -3032,7 +3081,7 @@ describe('AiStreamManager', () => {
           }
         },
         1,
-        () => undefined
+        { kind: 'none' }
       )
 
       // The sibling's terminal write fails while the retry dispatch is still parked.
@@ -3070,7 +3119,7 @@ describe('AiStreamManager', () => {
       await vi.advanceTimersByTimeAsync(0)
       expect(mgr.inspect(topicId)?.status).toBe('error')
       expect(() =>
-        mgr.reserveDispatchCommand(topicId, { kind: 'start', modelCount: 1 }, 1, () => undefined)
+        mgr.reserveDispatchCommand(topicId, { kind: 'start', modelCount: 1 }, 1, { kind: 'none' })
       ).not.toThrow()
     })
 
@@ -3088,13 +3137,20 @@ describe('AiStreamManager', () => {
         approvalId: 'approval-1'
       } as UIMessageChunk)
       await mgr.onExecutionDone(topicId, 'provider-a::model-a')
-      const writeRows = vi.fn()
+      mockCreateUserMessageWithPlaceholders.mockClear()
 
-      expect(() => mgr.reserveDispatchCommand(topicId, { kind: 'start', modelCount: 1 }, 1, writeRows)).toThrow(
-        aiStreamAdmissionReasons.TOPIC_BUSY
-      )
+      expect(() =>
+        mgr.reserveDispatchCommand(topicId, { kind: 'start', modelCount: 1 }, 1, {
+          kind: 'user-with-placeholders',
+          input: {
+            topicId,
+            userMessage: { mode: 'create', dto: { role: 'user', data: { parts: [] } } },
+            placeholders: []
+          }
+        })
+      ).toThrow(aiStreamAdmissionReasons.TOPIC_BUSY)
 
-      expect(writeRows).not.toHaveBeenCalled()
+      expect(mockCreateUserMessageWithPlaceholders).not.toHaveBeenCalled()
       expect(mockStreamText).toHaveBeenCalledOnce()
       expect(mgr.inspect(topicId)?.status).toBe('awaiting-approval')
     })
@@ -3344,10 +3400,10 @@ describe('AiStreamManager', () => {
 
     // Agent sessions drive their own continuation (terminal listener → markTurnTerminal → startNextTurn),
     // so AiStreamManager doesn't dispatch here — it only KEEPS the stream alive (isTopicDone=false, no
-    // terminal lifecycle) when `willContinueTopic` is true, so the runtime's next turn can carry the
+    // terminal lifecycle) while the runtime's continuation lease is open, so its next turn can carry the
     // renderer listeners. Without this the stream is evicted and the follow-up reaches no renderer.
     it('keeps an agent-session stream alive when the runtime will continue (no terminal lifecycle)', async () => {
-      mockWillContinueTopic.mockReturnValue(true)
+      agentContinuationPromise = { open: true, voidOnAttemptError: false }
       const topicId = 'agent-session:s1'
       const listener = new FakeListener(`l:${topicId}`)
       startSingle(mgr, { topicId, modelId: 'provider-a::model-a', request: req(topicId), listeners: [listener] })
@@ -3362,7 +3418,7 @@ describe('AiStreamManager', () => {
     })
 
     it('Stop delegates to the agent runtime while the topic is parked on a continuation', async () => {
-      mockWillContinueTopic.mockReturnValue(true)
+      agentContinuationPromise = { open: true, voidOnAttemptError: false }
       const topicId = 'agent-session:session-1'
       const listener = new FakeListener(`l:${topicId}`)
       startSingle(mgr, {
@@ -3393,7 +3449,7 @@ describe('AiStreamManager', () => {
     })
 
     it('preserves a runtime-owned error when Stop releases its terminal barrier', async () => {
-      mockWillContinueTopic.mockReturnValue(true)
+      agentContinuationPromise = { open: true, voidOnAttemptError: false }
       const topicId = 'agent-session:session-1-error-recovery'
       const listener = new FakeListener(`l:${topicId}`)
       startSingle(mgr, {
@@ -3424,7 +3480,7 @@ describe('AiStreamManager', () => {
     })
 
     it('does not apply a delayed continuation failure to a newer topic cycle', async () => {
-      mockWillContinueTopic.mockReturnValue(true)
+      agentContinuationPromise = { open: true, voidOnAttemptError: false }
       const topicId = 'agent-session:session-1-stale-recovery'
       startSingle(mgr, {
         topicId,
@@ -3450,13 +3506,15 @@ describe('AiStreamManager', () => {
       expect(mgr.inspect(topicId)?.status).toBe('error')
 
       const nextListener = new FakeListener(`l:new:${topicId}`)
-      const reservation = mgr.reserveDispatchCommand(topicId, { kind: 'start', modelCount: 1 }, 1, () => undefined)
+      const reservation = mgr.reserveDispatchCommand(topicId, { kind: 'start', modelCount: 1 }, 1, { kind: 'none' })
       mgr.send({
         topicId,
         models: [{ modelId: 'provider-a::model-a', request: req(topicId) }],
         listeners: [nextListener],
         receipt: reservation.receipt
       })
+      // Stop voided the previous cycle's promise; the runtime re-promises for the new one.
+      mgr.setAgentContinuationLease(topicId, { open: true, voidOnAttemptError: false })
       await mgr.onExecutionDone(topicId, 'provider-a::model-a')
       expect(mgr.inspect(topicId)?.status).toBe('streaming')
 
@@ -3469,7 +3527,7 @@ describe('AiStreamManager', () => {
     })
 
     it('tears down an agent-session stream when the runtime will not continue', async () => {
-      mockWillContinueTopic.mockReturnValue(false)
+      agentContinuationPromise = undefined
       const topicId = 'agent-session:s2'
       const listener = new FakeListener(`l:${topicId}`)
       startSingle(mgr, { topicId, modelId: 'provider-a::model-a', request: req(topicId), listeners: [listener] })
@@ -3481,16 +3539,30 @@ describe('AiStreamManager', () => {
     })
 
     it('keeps an agent-session error open when the runtime has independent queued work', async () => {
-      mockWillContinueTopic.mockReturnValue(true)
+      agentContinuationPromise = { open: true, voidOnAttemptError: false }
       const topicId = 'agent-session:s2-error'
       const listener = new FakeListener(`l:${topicId}`)
       startSingle(mgr, { topicId, modelId: 'provider-a::model-a', request: req(topicId), listeners: [listener] })
 
       await mgr.onExecutionError(topicId, 'provider-a::model-a', error('model failed'))
 
-      expect(mockWillContinueTopic).toHaveBeenCalledWith(topicId, 'error')
       expect(listener.errorResults).toEqual([expect.objectContaining({ isTopicDone: false })])
       expect(mgr.inspect(topicId)?.status).toBe('streaming')
+    })
+
+    // The other half of what `willContinueTopic(topicId, 'error')` used to encode: work that only
+    // exists if this attempt succeeds — a steer transition or compaction resume — must NOT hold the
+    // topic open once the attempt errors, or Stop can never settle it.
+    it('closes an agent-session error whose only promised work depended on this attempt succeeding', async () => {
+      agentContinuationPromise = { open: true, voidOnAttemptError: true }
+      const topicId = 'agent-session:s2-error-conditional'
+      const listener = new FakeListener(`l:${topicId}`)
+      startSingle(mgr, { topicId, modelId: 'provider-a::model-a', request: req(topicId), listeners: [listener] })
+
+      await mgr.onExecutionError(topicId, 'provider-a::model-a', error('model failed'))
+
+      expect(listener.errorResults).toEqual([expect.objectContaining({ isTopicDone: true })])
+      expect(mgr.hasLiveStream(topicId)).toBe(false)
     })
 
     // The runtime's queued continuation could not launch (e.g. its drain re-check found the agent model
@@ -3498,7 +3570,7 @@ describe('AiStreamManager', () => {
     // leave the continuation-gated stream in `activeStreams` with its status cache un-settled and still attachable —
     // `failTopicContinuation` must error the subscribers, settle the status cache, and evict it.
     it('failTopicContinuation settles and evicts an agent-session stream whose continuation failed', async () => {
-      mockWillContinueTopic.mockReturnValue(true)
+      agentContinuationPromise = { open: true, voidOnAttemptError: false }
       const topicId = 'agent-session:s3'
       const listener = new FakeListener(`l:${topicId}`)
       startSingle(mgr, { topicId, modelId: 'provider-a::model-a', request: req(topicId), listeners: [listener] })
@@ -3526,7 +3598,7 @@ describe('AiStreamManager', () => {
     // notifications must still run through the awaited funnel so an asynchronously rejecting
     // listener is isolated instead of surfacing as an unhandled rejection in Main.
     it('isolates an asynchronously rejecting listener on the continuation-failure bypass path', async () => {
-      mockWillContinueTopic.mockReturnValue(true)
+      agentContinuationPromise = { open: true, voidOnAttemptError: false }
       const topicId = 'agent-session:s4-rejecting-listener'
       const rejecting: StreamListener = {
         id: `l:rejecting:${topicId}`,

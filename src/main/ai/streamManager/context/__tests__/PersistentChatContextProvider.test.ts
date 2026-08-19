@@ -13,6 +13,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { startAiChildTurnSpan } from '../../../observability'
 import { AiStreamAdmissionError, type DispatchCommandReceipt, type StreamIntent } from '../../admission'
+import { type PreparedDispatchRows, writePreparedRows } from '../../dispatchCommit'
 import { PersistenceListener } from '../../listeners/PersistenceListener'
 import type { StreamListener } from '../../types'
 import type { MainSteerContinuationRequest } from '../dispatch'
@@ -43,12 +44,12 @@ aiStreamManager.commitDispatchCommand.mockImplementation(
     commit(aiStreamManager.issueDispatchCommandReceipt(topicId, intent))
 )
 aiStreamManager.reserveDispatchCommand.mockImplementation(
-  (topicId: string, intent: StreamIntent, modelCount: number, commit: (receipt: DispatchCommandReceipt) => unknown) => {
+  (topicId: string, intent: StreamIntent, modelCount: number, rows: PreparedDispatchRows) => {
     const receipt: DispatchCommandReceipt = {
       ...aiStreamManager.issueDispatchCommandReceipt(topicId, intent),
       reservedAttemptIds: Array.from({ length: modelCount }, (_, index) => index + 1) as never
     }
-    return { receipt, value: commit(receipt) }
+    return { receipt, rows: writePreparedRows(rows, receipt.activeNodeDecision) }
   }
 )
 

@@ -66,6 +66,7 @@ import {
   dropEmptyContentParts,
   finalizeInterruptedParts,
   PersistenceListener,
+  type SendResult,
   type StreamCleanupPort,
   type StreamListener,
   type StreamPausedResult,
@@ -75,6 +76,7 @@ import {
 } from '../streamManager'
 import type { InProcessUsageContext } from '../types'
 import {
+  agentSessionContinuationPromise,
   type AgentSessionRuntimeConnectionTarget,
   type AgentSessionRuntimeLaunchTarget,
   type AgentSessionRuntimeState,
@@ -98,7 +100,7 @@ import {
   willAgentSessionRuntimeContinue
 } from './agentSessionRuntimeState'
 import { AgentSessionMessageBackend } from './persistence/AgentSessionMessageBackend'
-import { buildAgentSessionTopicId, extractAgentSessionId, isAgentSessionTopic } from './topic'
+import { buildAgentSessionTopicId, extractAgentSessionId } from './topic'
 
 const logger = loggerService.withContext('AgentSessionRuntimeService')
 const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
@@ -177,6 +179,25 @@ export interface AgentSessionInteractionState {
   userResponse: 'unavailable' | 'stream' | 'message'
 }
 
+/**
+ * Which owner must drive a turn's pending assistant row to a durable terminal. Exactly one holds
+ * it at a time; `stream-owned` carries the attempt identity that took it.
+ */
+export type TurnPersistenceState =
+  | { readonly kind: 'runtime-owned' }
+  /** Promised to the stream manager, but no attempt has been admitted yet. */
+  | { readonly kind: 'handoff-pending' }
+  | { readonly kind: 'stream-owned'; readonly topicId: string; readonly attemptId: number }
+
+/**
+ * Record the attempt a handoff actually landed on. A rejected or model-less admission leaves the
+ * row runtime-owned rather than silently claiming the stream took it.
+ */
+function toStreamOwned(topicId: string, result: SendResult): TurnPersistenceState {
+  const attemptId = result.activeExecutions?.[0]?.attemptId
+  return attemptId === undefined ? { kind: 'runtime-owned' } : { kind: 'stream-owned', topicId, attemptId }
+}
+
 export interface AbortAgentSessionTurnResult {
   handled: boolean
   /** Stop may publish the topic barrier after this attempt persisted or was explicitly abandoned. */
@@ -198,8 +219,12 @@ type AgentSessionTurn = {
   reasoningEffort: ReasoningEffortOption
   knowledgeBaseIds: readonly string[]
   fastMode: boolean
-  /** The component currently responsible for driving this pending row to a durable terminal. */
-  persistenceOwner: 'stream-manager' | 'runtime'
+  /**
+   * Who is responsible for driving this pending row to a durable terminal, as a state rather than
+   * a mutable label. `stream-owned` names the exact attempt, so "which recovery registry may hold
+   * this row" is answerable from the value instead of reconstructed after the fact (A1/P2).
+   */
+  persistence: TurnPersistenceState
   abortController: AbortController
   controller?: ReadableStreamDefaultController<UIMessageChunk>
   activeToolIds: Set<string>
@@ -335,7 +360,9 @@ class AgentSessionRuntimeTerminalListener implements StreamListener {
 // The dependency is runtime, not lexical: this service's connections spawn CLI children through
 // ClaudeCodeProcessManager. Declaring it keeps that owner stopping LAST, so its sweep runs after
 // these entries are closed — do not drop it as unused. Covered by a stop-order test.
-@DependsOn(['ClaudeCodeProcessManager'])
+// Accepted handoff and terminal settlement need StreamManager alive; the process manager
+// outlives the runtime. See the lifecycle DAG in the runtime-rework plan, Step 5.
+@DependsOn(['ClaudeCodeProcessManager', 'AiStreamManager'])
 export class AgentSessionRuntimeService extends BaseService {
   private readonly _onTurnTerminal = new Emitter<AgentSessionTurnTerminalEvent>()
   readonly onTurnTerminal: Event<AgentSessionTurnTerminalEvent> = this._onTurnTerminal.event
@@ -386,6 +413,20 @@ export class AgentSessionRuntimeService extends BaseService {
     // CLI session state is untrusted, so their next connection starts fresh instead of resuming it.
     this.reconcileStalePendingMessages()
     this.registerInterval(() => this.retryBlockedRuntimeTerminalPersistence(), RUNTIME_TERMINAL_RETRY_INTERVAL_MS)
+
+    // Stop arrives as a published signal, not a call from the stream manager. Handled
+    // synchronously so the hold is registered before `abort()` classifies the topic.
+    this.registerDisposable(
+      application.get('AiStreamManager').onTopicStop(({ topicId, reason }) => {
+        const result = this.abortPendingTurn(extractAgentSessionId(topicId), reason)
+        if (result.terminalReady) {
+          application.get('AiStreamManager').registerRuntimeTerminalHold(topicId, {
+            terminalReady: result.terminalReady,
+            terminalOutcome: result.terminalOutcome ?? { outcome: 'aborted' }
+          })
+        }
+      })
+    )
 
     this.registerDisposable(
       agentService.onAgentUpdated(({ agentId, updates, agent }) => {
@@ -445,7 +486,13 @@ export class AgentSessionRuntimeService extends BaseService {
   private applyRuntimeStateEvent(entry: AgentSessionRuntimeEntry, event: RuntimeStateEvent): void {
     if (!this.isCurrentEntry(entry)) return
     const transition = transitionAgentSessionRuntime(entry.runtimeState, event)
+    const previous = agentSessionContinuationPromise(entry.runtimeState)
     entry.runtimeState = transition.state
+    const next = agentSessionContinuationPromise(entry.runtimeState)
+    // Push the continuation promise the moment it changes, so the topic never has to ask.
+    if (next.open !== previous.open || next.voidOnAttemptError !== previous.voidOnAttemptError) {
+      application.get('AiStreamManager').setAgentContinuationLease(entry.topicId, next)
+    }
     for (const effect of transition.effects) this.applyRuntimeStateEffect(entry, effect)
   }
 
@@ -504,7 +551,7 @@ export class AgentSessionRuntimeService extends BaseService {
       reasoningEffort: input.reasoningEffort ?? 'default',
       knowledgeBaseIds: getKnowledgeBaseIdsFromParts(userMessage.data.parts ?? []) ?? [],
       fastMode: input.fastMode === true,
-      persistenceOwner: 'stream-manager',
+      persistence: { kind: 'handoff-pending' },
       abortController: new AbortController(),
       activeToolIds: new Set(),
       headless: input.headless === true
@@ -1104,30 +1151,6 @@ export class AgentSessionRuntimeService extends BaseService {
     return false
   }
 
-  /**
-   * Whether the agent runtime will open another turn for this topic once the current one ends.
-   * Error terminals retain only independent queued/deferred work; a failed steer transition itself
-   * cannot continue. The stream manager uses this lease to keep renderer listeners across the gap.
-   */
-  willContinueTopic(topicId: string, outcome: 'done' | 'error' = 'done'): boolean {
-    if (!isAgentSessionTopic(topicId)) return false
-    const entry = this.entries.get(extractAgentSessionId(topicId))
-    if (!entry) return false
-    // A steer transition means A1a just closed and the continuation (A2) is coming — keep the
-    // stream alive so A2 carries the renderer listeners.
-    // `compacting`: a compaction is mid-flight between turns; keep the stream alive so its
-    // compaction-anchor / completion chunks (and the resumed turn) still reach the renderer.
-    if (outcome === 'error') {
-      const execution = entry.runtimeState.execution
-      const hasDeferredTurn = execution.kind === 'autonomous-turn' && execution.deferredTurn !== undefined
-      const launchCanRecover =
-        entry.runtimeState.launch.kind !== 'idle' &&
-        (entry.runtimeState.launch.target === 'queued-turn' || entry.runtimeState.launch.target === 'deferred-turn')
-      return entry.runtimeState.queue.length > 0 || hasDeferredTurn || launchCanRecover
-    }
-    return willAgentSessionRuntimeContinue(entry.runtimeState)
-  }
-
   inspect(sessionId: string): AgentSessionRuntimeSnapshot | undefined {
     const entry = this.entries.get(sessionId)
     if (!entry) return undefined
@@ -1454,15 +1477,15 @@ export class AgentSessionRuntimeService extends BaseService {
   private runtimeOwnedTurns(entry: AgentSessionRuntimeEntry): AgentSessionTurn[] {
     const execution = entry.runtimeState.execution
     if (execution.kind === 'turn') {
-      return execution.turn.persistenceOwner === 'runtime' ? [execution.turn] : []
+      return execution.turn.persistence.kind === 'runtime-owned' ? [execution.turn] : []
     }
     if (execution.kind === 'steer-transition') {
-      return execution.continuationTurn?.persistenceOwner === 'runtime' ? [execution.continuationTurn] : []
+      return execution.continuationTurn?.persistence.kind === 'runtime-owned' ? [execution.continuationTurn] : []
     }
     if (execution.kind !== 'autonomous-turn') return []
 
     return [execution.turn, execution.deferredTurn].filter(
-      (turn): turn is AgentSessionTurn => turn?.persistenceOwner === 'runtime'
+      (turn): turn is AgentSessionTurn => turn?.persistence.kind === 'runtime-owned'
     )
   }
 
@@ -1480,6 +1503,16 @@ export class AgentSessionRuntimeService extends BaseService {
     chunks: UIMessageChunk[],
     error?: SerializedError
   ): { firstAttempt: Promise<boolean>; durable: Promise<void> } {
+    // P2: one pending row, one recovery owner. A stream-owned row already has a recovery record
+    // under the stream manager's attempt key; a second one here would race it to the same write.
+    if (turn.persistence.kind === 'stream-owned') {
+      logger.error('Refusing a runtime recovery for a stream-owned row', {
+        sessionId: entry.sessionId,
+        assistantMessageId: turn.assistantMessageId,
+        attemptId: turn.persistence.attemptId
+      })
+      return { firstAttempt: Promise.resolve(false), durable: Promise.resolve() }
+    }
     const key = `${entry.sessionId}:${turn.assistantMessageId}`
     let markDurable!: () => void
     const durable = new Promise<void>((resolve) => {
@@ -2804,7 +2837,7 @@ export class AgentSessionRuntimeService extends BaseService {
     // turn here would stamp an assistant row with the stale deleted model and then fail to connect. If the
     // model is gone, surface the failure to the renderer, drop the queue (its rows stay resendable) and
     // settle instead of starting a doomed turn. Terminalize the parked topic stream directly:
-    // the prior turn kept this topic's stream alive for the continuation (`willContinueTopic`), skipping its
+    // the prior turn kept this topic's stream alive on its continuation lease, skipping its
     // terminal lifecycle — a bare error broadcast would leave that stream in `activeStreams` with its status
     // cache stuck `streaming` and still re-attachable, so it must be terminalized/evicted here.
     const liveAgent = agentService.getAgent(entry.agentId)
@@ -2867,7 +2900,7 @@ export class AgentSessionRuntimeService extends BaseService {
       reasoningEffort,
       knowledgeBaseIds,
       fastMode,
-      persistenceOwner: 'runtime',
+      persistence: { kind: 'runtime-owned' },
       abortController: new AbortController(),
       activeToolIds: new Set(),
       headless
@@ -2883,7 +2916,7 @@ export class AgentSessionRuntimeService extends BaseService {
         messages
       })
     }
-    application.get('AiStreamManager').startRuntimeTurn({
+    const handoff = application.get('AiStreamManager').startRuntimeTurn({
       topicId: entry.topicId,
       modelId: entry.modelId,
       rootSpan,
@@ -2901,7 +2934,7 @@ export class AgentSessionRuntimeService extends BaseService {
       persistencePorts: [this.createPersistenceListener(entry, nextMessage)],
       cleanupPorts: [new TraceFlushListener(entry.topicId)]
     })
-    nextTurn.persistenceOwner = 'stream-manager'
+    nextTurn.persistence = toStreamOwned(entry.topicId, handoff)
   }
 
   /**
@@ -2918,7 +2951,7 @@ export class AgentSessionRuntimeService extends BaseService {
     ) {
       return
     }
-    turn.persistenceOwner = 'runtime'
+    turn.persistence = { kind: 'runtime-owned' }
     const suspended = application.get('AiStreamManager').suspendUnadmittedRuntimeTurn(entry.topicId)
     try {
       turn.controller?.close()
@@ -2960,7 +2993,7 @@ export class AgentSessionRuntimeService extends BaseService {
         messages
       })
     }
-    application.get('AiStreamManager').startRuntimeTurn({
+    const handoff = application.get('AiStreamManager').startRuntimeTurn({
       topicId: entry.topicId,
       modelId: turn.modelId,
       rootSpan,
@@ -2977,7 +3010,7 @@ export class AgentSessionRuntimeService extends BaseService {
       persistencePorts: [this.createPersistenceListener(entry, turn.userMessage)],
       cleanupPorts: [new TraceFlushListener(entry.topicId)]
     })
-    turn.persistenceOwner = 'stream-manager'
+    turn.persistence = toStreamOwned(entry.topicId, handoff)
   }
 
   /**
@@ -3030,7 +3063,7 @@ export class AgentSessionRuntimeService extends BaseService {
       reasoningEffort: 'default',
       knowledgeBaseIds,
       fastMode,
-      persistenceOwner: 'runtime',
+      persistence: { kind: 'runtime-owned' },
       // Pre-admitted: the connected runtime started this generation, so `admitTurn` must not send.
       abortController: new AbortController(),
       activeToolIds: new Set(),
@@ -3056,7 +3089,7 @@ export class AgentSessionRuntimeService extends BaseService {
         messages
       })
     }
-    application.get('AiStreamManager').startRuntimeTurn({
+    const handoff = application.get('AiStreamManager').startRuntimeTurn({
       topicId: entry.topicId,
       modelId,
       rootSpan,
@@ -3073,7 +3106,7 @@ export class AgentSessionRuntimeService extends BaseService {
       persistencePorts: [this.createPersistenceListener(entry, syntheticMessage)],
       cleanupPorts: [new TraceFlushListener(entry.topicId)]
     })
-    receiveOnlyTurn.persistenceOwner = 'stream-manager'
+    receiveOnlyTurn.persistence = toStreamOwned(entry.topicId, handoff)
   }
 
   /**
@@ -3140,7 +3173,7 @@ export class AgentSessionRuntimeService extends BaseService {
       reasoningEffort,
       knowledgeBaseIds,
       fastMode,
-      persistenceOwner: 'runtime',
+      persistence: { kind: 'runtime-owned' },
       // Pre-admitted: the steer was already delivered via the hook, so `admitTurn` must NOT re-send it.
       abortController: new AbortController(),
       activeToolIds: new Set(),
@@ -3167,7 +3200,7 @@ export class AgentSessionRuntimeService extends BaseService {
         messages
       })
     }
-    application.get('AiStreamManager').startRuntimeTurn({
+    const handoff = application.get('AiStreamManager').startRuntimeTurn({
       topicId: entry.topicId,
       modelId,
       rootSpan,
@@ -3185,7 +3218,7 @@ export class AgentSessionRuntimeService extends BaseService {
       persistencePorts: [this.createPersistenceListener(entry, steerMessage)],
       cleanupPorts: [new TraceFlushListener(entry.topicId)]
     })
-    continuationTurn.persistenceOwner = 'stream-manager'
+    continuationTurn.persistence = toStreamOwned(entry.topicId, handoff)
   }
 
   getInteractionState(sessionId: string): AgentSessionInteractionState {

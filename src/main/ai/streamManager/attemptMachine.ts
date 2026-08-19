@@ -20,6 +20,14 @@ export type AttemptState =
       persistError: SerializedError
     }
   | { phase: 'settled'; firstChunkAt: number | null; outcome: AttemptOutcome }
+  /** Stop gave up on a blocked write. Retains the ORIGINAL outcome (P1); `persistError` is what
+   *  gets published, so renderer and boot-reconcile converge on the same terminal. */
+  | {
+      phase: 'abandoned'
+      firstChunkAt: number | null
+      outcome: AttemptOutcome
+      persistError: SerializedError
+    }
 
 export type AttemptEvent =
   | { type: 'launch' }
@@ -164,14 +172,13 @@ export function transition(state: AttemptState, event: AttemptEvent): Transition
                 }
           }
         case 'abandon':
-          // The published error matches what boot reconcile will durably write for the
-          // still-pending row, so renderer and DB converge on the same terminal.
           return {
             ok: true,
             state: {
-              phase: 'settled',
+              phase: 'abandoned',
               firstChunkAt: state.firstChunkAt,
-              outcome: { kind: 'error', error: state.persistError }
+              outcome: state.outcome,
+              persistError: state.persistError
             }
           }
         case 'approval-changed':
@@ -186,14 +193,25 @@ export function transition(state: AttemptState, event: AttemptEvent): Transition
       }
       return illegal()
     case 'settled':
+    case 'abandoned':
       return stale()
   }
 }
 
+/**
+ * What consumers publish for an attempt. An abandoned attempt publishes its persistence error
+ * rather than its retained runtime outcome, because boot reconcile will durably write that error
+ * for the row Stop left `pending`.
+ */
+export function publishedOutcome(state: Exclude<AttemptState, { phase: 'reserved' | 'running' }>): AttemptOutcome {
+  return state.phase === 'abandoned' ? { kind: 'error', error: state.persistError } : state.outcome
+}
+
 export function executionStatus(state: AttemptState): ExecutionStatus {
   if (state.phase === 'reserved' || state.phase === 'running') return 'streaming'
-  if (state.outcome.kind === 'done') return 'done'
-  if (state.outcome.kind === 'error') return 'error'
+  const outcome = publishedOutcome(state)
+  if (outcome.kind === 'done') return 'done'
+  if (outcome.kind === 'error') return 'error'
   return 'aborted'
 }
 
@@ -201,12 +219,15 @@ export function isAttemptRunning(state: AttemptState): boolean {
   return state.phase === 'running'
 }
 
-export function isAttemptSettled(state: AttemptState): boolean {
-  return state.phase === 'settled'
+/** Both durability terminals. An abandoned attempt holds no in-flight work, so it lets a topic quiesce. */
+export function isAttemptSettled(
+  state: AttemptState
+): state is Extract<AttemptState, { phase: 'settled' | 'abandoned' }> {
+  return state.phase === 'settled' || state.phase === 'abandoned'
 }
 
 export function reduceTopicStatus(attempts: ReadonlyArray<AttemptStatusInput>): TopicStreamStatus {
-  const unsettled = attempts.filter(({ state }) => state.phase !== 'settled')
+  const unsettled = attempts.filter(({ state }) => !isAttemptSettled(state))
   if (unsettled.length > 0) {
     const hasFirstChunk = attempts.some(({ state }) => state.phase !== 'reserved' && state.firstChunkAt !== null)
     return hasFirstChunk ? 'streaming' : 'pending'
@@ -214,9 +235,7 @@ export function reduceTopicStatus(attempts: ReadonlyArray<AttemptStatusInput>): 
 
   if (attempts.some(({ pendingApprovals }) => pendingApprovals.size > 0)) return 'awaiting-approval'
   const outcomes = attempts.flatMap(({ state }) =>
-    state.phase === 'finalizing' || state.phase === 'persistence-blocked' || state.phase === 'settled'
-      ? [state.outcome]
-      : []
+    state.phase === 'reserved' || state.phase === 'running' ? [] : [publishedOutcome(state)]
   )
   if (outcomes.length === 0) return 'error'
   if (outcomes.some((outcome) => outcome.kind === 'error')) return 'error'

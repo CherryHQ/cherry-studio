@@ -783,6 +783,26 @@ export function isAgentSessionRuntimeBusy<TTurn, TPendingTurn, TReservation>(
   )
 }
 
+/**
+ * What the runtime currently promises the topic, as a continuation lease.
+ *
+ * Independently queued/deferred work survives an error terminal; a steer transition, compaction
+ * resume, or non-recoverable launch does not, so those open a lease the topic voids by itself when
+ * an attempt errors. This is the whole of what the topic ever needs to know about the queue.
+ */
+export function agentSessionContinuationPromise<TTurn, TPendingTurn, TReservation>(
+  state: AgentSessionRuntimeState<TTurn, TPendingTurn, TReservation>
+): { open: boolean; voidOnAttemptError: boolean } {
+  const hasDeferredTurn = state.execution.kind === 'autonomous-turn' && state.execution.deferredTurn !== undefined
+  const launchCanRecover =
+    state.launch.kind !== 'idle' && (state.launch.target === 'queued-turn' || state.launch.target === 'deferred-turn')
+  if (state.queue.length > 0 || hasDeferredTurn || launchCanRecover) {
+    return { open: true, voidOnAttemptError: false }
+  }
+  if (willAgentSessionRuntimeContinue(state)) return { open: true, voidOnAttemptError: true }
+  return { open: false, voidOnAttemptError: false }
+}
+
 export function willAgentSessionRuntimeContinue<TTurn, TPendingTurn, TReservation>(
   state: AgentSessionRuntimeState<TTurn, TPendingTurn, TReservation>
 ): boolean {

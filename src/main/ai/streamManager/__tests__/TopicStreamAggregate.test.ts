@@ -2,6 +2,9 @@ import { toAttemptId } from '@shared/ai/attempt'
 import { describe, expect, it } from 'vitest'
 
 import { TopicStreamAggregate } from '../TopicStreamAggregate'
+import { toContinuationLeaseId } from '../topicStreamState'
+
+const lease = toContinuationLeaseId('continuation-1')
 
 describe('TopicStreamAggregate', () => {
   it('does not quiesce while any admitted attempt is still finalizing', () => {
@@ -64,7 +67,7 @@ describe('TopicStreamAggregate', () => {
     const aggregate = new TopicStreamAggregate('topic-1')
     const attempt = aggregate.reserveAttempt(toAttemptId(1))
     aggregate.transitionAttempt(attempt.id, { type: 'launch' })
-    aggregate.queueContinuation('continuation-1')
+    aggregate.openContinuationLease(lease, 'chat-steer')
     aggregate.transitionAttempt(attempt.id, { type: 'complete' })
     aggregate.transitionAttempt(attempt.id, { type: 'persisted' })
 
@@ -72,9 +75,7 @@ describe('TopicStreamAggregate', () => {
     expect(aggregate.isQuiescent()).toBe(false)
     expect(aggregate.status()).toBe('streaming')
 
-    expect(aggregate.makeContinuationEligible('continuation-1')).toBe(true)
-    expect(aggregate.startContinuation('continuation-1')).toBe(true)
-    expect(aggregate.finishContinuation('continuation-1', 'consumed')).toBe(true)
+    expect(aggregate.consumeContinuationLease(lease, attempt.id)).toBe(true)
 
     expect(aggregate.isQuiescent()).toBe(true)
     expect(aggregate.status()).toBe('done')
@@ -86,40 +87,46 @@ describe('TopicStreamAggregate', () => {
     aggregate.transitionAttempt(attempt.id, { type: 'launch' })
     aggregate.transitionAttempt(attempt.id, { type: 'complete' })
     aggregate.transitionAttempt(attempt.id, { type: 'persisted' })
-    aggregate.queueContinuation('continuation-1')
-    aggregate.makeContinuationEligible('continuation-1')
-    aggregate.startContinuation('continuation-1')
+    aggregate.openContinuationLease(lease, 'agent-runtime')
 
-    aggregate.finishContinuation('continuation-1', 'failed')
+    aggregate.releaseContinuationLease(lease, 'source-error')
 
     expect(aggregate.isQuiescent()).toBe(true)
     expect(aggregate.status()).toBe('error')
   })
 
-  it('keeps error precedence across mixed continuation outcomes', () => {
-    const createAggregate = () => {
-      const aggregate = new TopicStreamAggregate('topic-1')
-      const attempt = aggregate.reserveAttempt(toAttemptId(1))
-      aggregate.transitionAttempt(attempt.id, { type: 'launch' })
-      aggregate.transitionAttempt(attempt.id, { type: 'complete' })
-      aggregate.transitionAttempt(attempt.id, { type: 'persisted' })
-      for (const id of ['continuation-1', 'continuation-2']) {
-        aggregate.queueContinuation(id)
-        aggregate.makeContinuationEligible(id)
-        aggregate.startContinuation(id)
-      }
-      return aggregate
-    }
+  it('settles a lease exactly once: the first terminal transition wins (L2)', () => {
+    const aggregate = new TopicStreamAggregate('topic-1')
+    const attempt = aggregate.reserveAttempt(toAttemptId(1))
+    aggregate.transitionAttempt(attempt.id, { type: 'launch' })
+    aggregate.transitionAttempt(attempt.id, { type: 'complete' })
+    aggregate.transitionAttempt(attempt.id, { type: 'persisted' })
+    aggregate.openContinuationLease(lease, 'chat-steer')
 
-    const failureFirst = createAggregate()
-    failureFirst.finishContinuation('continuation-1', 'failed')
-    failureFirst.terminateContinuation('continuation-2', 'aborted')
+    expect(aggregate.consumeContinuationLease(lease, attempt.id)).toBe(true)
+    expect(aggregate.releaseContinuationLease(lease, 'stop')).toBe(false)
+    expect(aggregate.continuationLease(lease)?.state).toBe('consumed')
+    // A settled lease cannot reopen the topic.
+    expect(aggregate.isQuiescent()).toBe(true)
+    expect(aggregate.status()).toBe('done')
+  })
 
-    const failureLast = createAggregate()
-    failureLast.terminateContinuation('continuation-1', 'aborted')
-    failureLast.finishContinuation('continuation-2', 'failed')
+  it('pushes ring eviction pause on the approval edges, never on inner changes (T8)', () => {
+    const aggregate = new TopicStreamAggregate('topic-1')
+    const pushed: Array<{ attemptId: number; paused: boolean }> = []
+    aggregate.setFlagEffectSink((effect) => pushed.push({ attemptId: effect.attemptId, paused: effect.paused }))
+    const attempt = aggregate.reserveAttempt(toAttemptId(1))
+    aggregate.transitionAttempt(attempt.id, { type: 'launch' })
 
-    expect(failureFirst.status()).toBe('error')
-    expect(failureLast.status()).toBe('error')
+    aggregate.setApprovalPending(attempt.id, 'tool-1', true)
+    aggregate.setApprovalPending(attempt.id, 'tool-2', true)
+    aggregate.setApprovalPending(attempt.id, 'tool-1', false)
+    aggregate.setApprovalPending(attempt.id, 'tool-2', false)
+
+    // Only the empty↔non-empty edges flip the ring; a parallel approval must not resume eviction.
+    expect(pushed).toEqual([
+      { attemptId: attempt.id, paused: true },
+      { attemptId: attempt.id, paused: false }
+    ])
   })
 })

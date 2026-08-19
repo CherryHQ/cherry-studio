@@ -338,10 +338,11 @@ export class AgentChatContextProvider implements ChatContextProvider {
 
     const committed = application
       .get('AiStreamManager')
-      .reserveDispatchCommand(validated.topicId, { kind: 'start', modelCount: 1 }, 1, () =>
-        application.get('DbService').withWriteTx((tx) => this.persistDispatchTx(tx, validated, ctx?.expectedAgentId))
-      )
-    return this.activateDispatch(committed.value, subscriber, committed.receipt)
+      .reserveDispatchCommand(validated.topicId, { kind: 'start', modelCount: 1 }, 1, {
+        kind: 'tx-write',
+        write: (tx) => this.persistDispatchTx(tx, validated, ctx?.expectedAgentId)
+      })
+    return this.activateDispatch(committed.rows.value as PersistedAgentDispatch, subscriber, committed.receipt)
   }
 }
 

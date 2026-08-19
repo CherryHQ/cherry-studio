@@ -36,11 +36,16 @@ export type StreamIntent =
   | { kind: 'runtime-turn' }
   | { kind: 'prompt' }
 
+/** Whether the topic stays on its current branch while this dispatch reserves rows. */
+export interface ActiveNodeDecision {
+  readonly move: 'advance' | 'keep'
+}
+
 /** Result of a synchronously committed topic command. */
 export interface DispatchCommandReceipt {
   readonly intent: StreamIntent
   readonly admission: LiveExecutionChangeAdmission
-  readonly activeNodeDecision: { readonly move: 'advance' | 'keep' }
+  readonly activeNodeDecision: ActiveNodeDecision
   /** Attempts installed by a committed reservation, in model order. */
   readonly reservedAttemptIds?: readonly AttemptId[]
 }

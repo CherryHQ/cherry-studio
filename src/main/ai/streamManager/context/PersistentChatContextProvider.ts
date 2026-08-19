@@ -411,12 +411,12 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     try {
       const contextSettingsOverride = resolveAssistantContextOverride(assistantId)
       const manager = application.get('AiStreamManager')
-      const committed = manager.reserveDispatchCommand(req.topicId, dispatchIntent, models.length, (receipt) =>
-        messageService.createUserMessageWithPlaceholders({
+      const committed = manager.reserveDispatchCommand(req.topicId, dispatchIntent, models.length, {
+        kind: 'user-with-placeholders',
+        input: {
           topicId: req.topicId,
           userMessage: userMessageInput,
           siblingsGroupId,
-          activeNodeDecision: receipt.activeNodeDecision,
           placeholders: turnRootSpans.map(({ model }) => ({
             role: 'assistant',
             data: { parts: [], turnOptions },
@@ -424,9 +424,13 @@ export class PersistentChatContextProvider implements ChatContextProvider {
             modelId: model.id,
             messageSnapshot: buildAssistantMessageSnapshot(model, assistantIdentity)
           }))
-        })
-      )
-      reservation = { receipt: committed.receipt, ...committed.value }
+        }
+      })
+      reservation = {
+        receipt: committed.receipt,
+        userMessage: committed.rows.userMessage,
+        placeholders: committed.rows.placeholders
+      }
       const { receipt, userMessage, placeholders } = reservation
 
       const shouldAutoNameInitialTurn = !isRegenerate && !req.parentAnchorId
@@ -601,10 +605,11 @@ export class PersistentChatContextProvider implements ChatContextProvider {
 
     try {
       await manager.awaitDispatchCommandReceipt(req.topicId, retryIntent)
-      const committed = manager.reserveDispatchCommand(req.topicId, retryIntent, 1, () =>
-        messageService.resetAssistantForRetry(target.id)
-      )
-      reservation = { receipt: committed.receipt, resetMessage: committed.value }
+      const committed = manager.reserveDispatchCommand(req.topicId, retryIntent, 1, {
+        kind: 'reset-for-retry',
+        messageId: target.id
+      })
+      reservation = { receipt: committed.receipt, resetMessage: committed.rows.resetMessage }
 
       const { messages: history, retainedContext } = await this.resolveCompactedHistory(
         parent.id,
@@ -727,12 +732,11 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     let receipt: DispatchCommandReceipt | undefined
     try {
       const contextSettingsOverride = resolveAssistantContextOverride(assistantId)
-      receipt = manager.reserveDispatchCommand(req.topicId, continueIntent, 1, () =>
-        messageService.update(req.parentAnchorId, {
-          data: { ...anchor.data, parts: updatedParts },
-          status: 'pending'
-        })
-      ).receipt
+      receipt = manager.reserveDispatchCommand(req.topicId, continueIntent, 1, {
+        kind: 'update-anchor',
+        messageId: req.parentAnchorId,
+        data: { ...anchor.data, parts: updatedParts }
+      }).receipt
       const { messages: storedHistory, retainedContext } = await this.resolveCompactedHistory(
         anchor.id,
         req.topicId,
@@ -830,11 +834,11 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     let reservation: { receipt: DispatchCommandReceipt; placeholder: SharedMessage } | undefined
     try {
       const contextSettingsOverride = resolveAssistantContextOverride(assistantId)
-      const committed = manager.reserveDispatchCommand(req.topicId, { kind: 'steer-continuation' }, 1, (receipt) =>
-        messageService.createUserMessageWithPlaceholders({
+      const committed = manager.reserveDispatchCommand(req.topicId, { kind: 'steer-continuation' }, 1, {
+        kind: 'user-with-placeholders',
+        input: {
           topicId: req.topicId,
           userMessage: { mode: 'existing', id: req.userMessageId },
-          activeNodeDecision: receipt.activeNodeDecision,
           placeholders: [
             {
               role: 'assistant',
@@ -844,9 +848,9 @@ export class PersistentChatContextProvider implements ChatContextProvider {
               messageSnapshot
             }
           ]
-        })
-      )
-      reservation = { receipt: committed.receipt, placeholder: committed.value.placeholders[0] }
+        }
+      })
+      reservation = { receipt: committed.receipt, placeholder: committed.rows.placeholders[0] }
       const { messages: compactedHistory, retainedContext } = await this.resolveCompactedHistory(
         req.userMessageId,
         req.topicId,

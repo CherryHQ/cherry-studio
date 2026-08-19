@@ -17,7 +17,10 @@ const mocks = vi.hoisted(() => ({
   resolveCrashOrphanedMessages: vi.fn(),
   maybeRenameAgentSession: vi.fn(),
   applicationGet: vi.fn(),
-  startRuntimeTurn: vi.fn(),
+  startRuntimeTurn: vi.fn<(input: any) => any>(() => ({ mode: 'started', activeExecutions: [{ attemptId: 1 }] })),
+  setAgentContinuationLease: vi.fn(),
+  onTopicStop: vi.fn(() => ({ dispose: () => {} })),
+  registerRuntimeTerminalHold: vi.fn(),
   suspendUnadmittedRuntimeTurn: vi.fn().mockResolvedValue(undefined),
   pauseRuntimeTurn: vi.fn(),
   failTopicContinuation: vi.fn(),
@@ -56,6 +59,7 @@ vi.mock('@application', () => ({
 const { AgentSessionRuntimeService } = await import('../AgentSessionRuntimeService')
 
 type Service = InstanceType<typeof AgentSessionRuntimeService>
+
 type LaunchTarget = 'queued-turn' | 'steer-continuation' | 'receive-only' | 'deferred-turn'
 
 type ServiceInternals = {
@@ -154,6 +158,9 @@ describe('AgentSessionRuntimeService pause / drainInFlight', () => {
       if (name === 'AiStreamManager') {
         return {
           startRuntimeTurn: mocks.startRuntimeTurn,
+          setAgentContinuationLease: mocks.setAgentContinuationLease,
+          onTopicStop: mocks.onTopicStop,
+          registerRuntimeTerminalHold: mocks.registerRuntimeTerminalHold,
           suspendUnadmittedRuntimeTurn: mocks.suspendUnadmittedRuntimeTurn,
           pauseRuntimeTurn: mocks.pauseRuntimeTurn,
           reconcileCrashRecovery: (_count: number, persist: () => void) => persist(),

@@ -4,294 +4,274 @@ import type { TopicStreamStatus } from '@shared/ai/transport'
 import {
   type AttemptEvent,
   type AttemptState,
-  reduceTopicStatus,
   type StreamLifecycleState,
   transition,
   type TransitionResult
 } from './attemptMachine'
+import {
+  areAttemptsDurablySettled,
+  attemptWatermark,
+  type ContinuationLeaseId,
+  type ContinuationReleaseReason,
+  createTopicStreamState,
+  hasOpenLease,
+  hasPendingApprovals,
+  hasPersistenceBlockedAttempts,
+  hasUnsettledAttempts,
+  isQuiescent,
+  reduceTopicStream,
+  runtimeOutcome,
+  type TopicAttemptState,
+  type TopicCommandRejection,
+  type TopicContinuationLease,
+  topicStatus,
+  type TopicStreamCommand,
+  type TopicStreamEvent,
+  type TopicStreamFlagEffect,
+  type TopicStreamState
+} from './topicStreamState'
 
-export interface TopicAttempt {
-  readonly id: AttemptId
-  state: AttemptState
-  readonly pendingApprovalToolCallIds: Set<string>
+declare const preparedTopicCommitBrand: unique symbol
+
+/** Opaque outside this module. Must be committed before the current synchronous section returns. */
+export interface PreparedTopicCommit {
+  readonly [preparedTopicCommitBrand]: true
+  readonly topicId: string
+  readonly cycleId: number
+  readonly expectedRevision: number
+  readonly nextState: TopicStreamState
+  readonly events: readonly TopicStreamEvent[]
+  readonly effects: readonly TopicStreamFlagEffect[]
+  readonly changed: boolean
+  readonly rejection?: TopicCommandRejection
 }
 
-export type ContinuationPhase = 'queued' | 'eligible' | 'dispatching' | 'consumed' | 'failed' | 'dropped'
+export interface TopicCommitReceipt {
+  readonly topicId: string
+  readonly cycleId: number
+  readonly previousRevision: number
+  readonly revision: number
+  readonly events: readonly TopicStreamEvent[]
+}
 
-interface TopicContinuation {
-  readonly id: string
-  phase: ContinuationPhase
+/** Applies a resource-flag effect. MUST be synchronous — see T8 in the runtime-rework plan. */
+export type TopicFlagEffectSink = (effect: TopicStreamFlagEffect) => void
+
+export class StaleTopicCommitError extends Error {
+  constructor(topicId: string, expected: number, actual: number) {
+    super(`Prepared commit for topic ${topicId} expected revision ${expected} but found ${actual}`)
+    this.name = 'StaleTopicCommitError'
+  }
 }
 
 /**
- * Synchronous state owner for one topic stream cycle. Runtime resources stay in
- * AiStreamManager; every attempt, approval, and lifecycle mutation goes through here.
+ * Synchronous state owner for one topic stream cycle. Runtime resources stay in AiStreamManager;
+ * every attempt, approval, lease, and lifecycle change goes through `reduceTopicStream`.
  */
 export class TopicStreamAggregate {
   readonly topicId: string
   readonly cycleId: number
-  private readonly attempts = new Map<AttemptId, TopicAttempt>()
-  private readonly continuations = new Map<string, TopicContinuation>()
-  private readonly reservedAttemptAbortReasons = new Map<AttemptId, string>()
-  private lifecycle: StreamLifecycleState = 'active'
-  private terminalOverride?: 'error' | 'aborted'
-  private commandDepth = 0
-  private revision = 0
+  private current: TopicStreamState
+  private effectSink?: TopicFlagEffectSink
 
   constructor(topicId: string, cycleId = 1) {
     this.topicId = topicId
     this.cycleId = cycleId
+    this.current = createTopicStreamState(topicId, cycleId)
+  }
+
+  /** Installed once by the owning manager. Flag effects are applied before `commit` returns. */
+  setFlagEffectSink(sink: TopicFlagEffectSink): void {
+    this.effectSink = sink
+  }
+
+  snapshot(): TopicStreamState {
+    return this.current
   }
 
   get controlRevision(): number {
-    return this.revision
+    return this.current.revision
   }
 
   get lifecycleState(): StreamLifecycleState {
-    return this.lifecycle
+    return this.current.lifecycle
   }
+
+  // ── Prepare / validate / commit ─────────────────────────────────────
+
+  /** Pure. Returns a prepared commit pinned to the revision observed here (T3). */
+  prepare(command: TopicStreamCommand): PreparedTopicCommit {
+    const result = reduceTopicStream(this.current, command)
+    return {
+      topicId: this.topicId,
+      cycleId: this.cycleId,
+      expectedRevision: this.current.revision,
+      nextState: result.state,
+      events: result.events,
+      effects: result.effects,
+      changed: result.changed,
+      rejection: result.rejection
+    } as PreparedTopicCommit
+  }
+
+  /** Package-private: throws if the prepared commit no longer matches this aggregate. */
+  validate(prepared: PreparedTopicCommit): void {
+    if (prepared.topicId !== this.topicId || prepared.cycleId !== this.cycleId) {
+      throw new StaleTopicCommitError(prepared.topicId, prepared.expectedRevision, this.current.revision)
+    }
+    if (prepared.expectedRevision !== this.current.revision) {
+      throw new StaleTopicCommitError(this.topicId, prepared.expectedRevision, this.current.revision)
+    }
+  }
+
+  /** Package-private: single-use revision CAS followed by synchronous flag-effect application. */
+  commit(prepared: PreparedTopicCommit): TopicCommitReceipt {
+    this.validate(prepared)
+    const previousRevision = this.current.revision
+    this.current = prepared.nextState
+    // T8: flag effects land in the same synchronous turn as the commit that produced them.
+    for (const effect of prepared.effects) this.effectSink?.(effect)
+    return {
+      topicId: this.topicId,
+      cycleId: this.cycleId,
+      previousRevision,
+      revision: this.current.revision,
+      events: prepared.events
+    }
+  }
+
+  /** Prepare and commit one command with no observation gap. */
+  private apply(command: TopicStreamCommand): TopicCommitReceipt {
+    return this.commit(this.prepare(command))
+  }
+
+  // ── Attempts ────────────────────────────────────────────────────────
 
   issueControlRevision(): number {
-    this.touch()
-    return this.revision
+    this.apply({ type: 'touch' })
+    return this.current.revision
   }
 
-  reserveAttempt(id: AttemptId): TopicAttempt {
-    if (this.attempts.has(id)) throw new Error(`Attempt ${id} is already reserved for topic ${this.topicId}`)
-    const attempt: TopicAttempt = { id, state: { phase: 'reserved' }, pendingApprovalToolCallIds: new Set() }
-    this.attempts.set(id, attempt)
-    this.terminalOverride = undefined
-    this.touch()
+  reserveAttempt(id: AttemptId): TopicAttemptState {
+    const prepared = this.prepare({ type: 'reserve-attempt', attemptId: id })
+    if (prepared.rejection === 'duplicate-attempt') {
+      throw new Error(`Attempt ${id} is already reserved for topic ${this.topicId}`)
+    }
+    this.commit(prepared)
+    const attempt = this.current.attempts.get(id)
+    if (!attempt) throw new Error(`Attempt ${id} vanished during reservation for topic ${this.topicId}`)
     return attempt
   }
 
   transitionAttempt(id: AttemptId, event: AttemptEvent): TransitionResult {
-    const attempt = this.attempts.get(id)
-    if (!attempt) return { ok: false, kind: 'stale' }
-    const result = transition(attempt.state, event)
-    if (result.ok) {
-      if (attempt.state !== result.state) {
-        attempt.state = result.state
-        this.touch()
-      }
-    }
-    return result
+    const prepared = this.prepare({ type: 'attempt-event', attemptId: id, event })
+    if (prepared.rejection === 'unknown-attempt') return { ok: false, kind: 'stale' }
+    if (prepared.rejection === 'invalid-attempt-state') return transition(this.current.attempts.get(id)!.state, event)
+    this.commit(prepared)
+    return { ok: true, state: this.current.attempts.get(id)!.state }
   }
 
   attemptState(id: AttemptId): AttemptState | undefined {
-    return this.attempts.get(id)?.state
+    return this.current.attempts.get(id)?.state
   }
 
-  attempt(id: AttemptId): TopicAttempt | undefined {
-    return this.attempts.get(id)
-  }
-
-  hasUnsettledAttempts(): boolean {
-    return [...this.attempts.values()].some((attempt) => attempt.state.phase !== 'settled')
-  }
-
-  hasPersistenceBlockedAttempts(): boolean {
-    return [...this.attempts.values()].some((attempt) => attempt.state.phase === 'persistence-blocked')
-  }
-
-  hasPendingApprovals(): boolean {
-    return [...this.attempts.values()].some((attempt) => attempt.pendingApprovalToolCallIds.size > 0)
-  }
-
-  fenceReservedAttempts(reason: string): boolean {
-    let fenced = false
-    for (const attempt of this.attempts.values()) {
-      if (attempt.state.phase !== 'reserved') continue
-      if (!this.reservedAttemptAbortReasons.has(attempt.id)) {
-        this.reservedAttemptAbortReasons.set(attempt.id, reason)
-        fenced = true
-      }
-    }
-    if (fenced) this.touch()
-    return fenced
-  }
-
-  consumeReservedAttemptAbort(ids: readonly AttemptId[]): string | undefined {
-    const reason = ids.map((id) => this.reservedAttemptAbortReasons.get(id)).find((value) => value !== undefined)
-    if (reason === undefined) return undefined
-    for (const id of ids) this.reservedAttemptAbortReasons.delete(id)
-    this.touch()
-    return reason
+  attempt(id: AttemptId): TopicAttemptState | undefined {
+    return this.current.attempts.get(id)
   }
 
   forgetAttempt(id: AttemptId): void {
-    this.reservedAttemptAbortReasons.delete(id)
-    if (this.attempts.delete(id)) this.touch()
+    this.apply({ type: 'forget-attempt', attemptId: id })
   }
 
-  setApprovalPending(id: AttemptId, toolCallId: string, pending: boolean): boolean {
-    const attempt = this.attempts.get(id)
-    if (!attempt) return false
-    const hadPending = attempt.pendingApprovalToolCallIds.size > 0
-    const size = attempt.pendingApprovalToolCallIds.size
-    if (pending) attempt.pendingApprovalToolCallIds.add(toolCallId)
-    else attempt.pendingApprovalToolCallIds.delete(toolCallId)
-    if (attempt.pendingApprovalToolCallIds.size !== size) this.touch()
-    return hadPending !== attempt.pendingApprovalToolCallIds.size > 0
+  hasUnsettledAttempts(): boolean {
+    return hasUnsettledAttempts(this.current)
   }
 
-  clearApprovals(id: AttemptId): boolean {
-    const attempt = this.attempts.get(id)
-    if (!attempt?.pendingApprovalToolCallIds.size) return false
-    attempt.pendingApprovalToolCallIds.clear()
-    this.touch()
-    return true
+  hasPersistenceBlockedAttempts(): boolean {
+    return hasPersistenceBlockedAttempts(this.current)
   }
 
-  activate(): void {
-    if (this.lifecycle === 'active') return
-    this.lifecycle = 'active'
-    this.touch()
-  }
-
-  beginGrace(): void {
-    if (this.lifecycle === 'grace') return
-    this.lifecycle = 'grace'
-    this.touch()
-  }
-
-  evict(): void {
-    this.lifecycle = 'evicted'
-    this.attempts.clear()
-    this.continuations.clear()
-    this.reservedAttemptAbortReasons.clear()
-    this.touch()
-  }
-
-  status(): TopicStreamStatus {
-    const status = reduceTopicStatus(
-      [...this.attempts.values()].map((attempt) => ({
-        state: attempt.state,
-        pendingApprovals: attempt.pendingApprovalToolCallIds
-      }))
-    )
-    if (status === 'pending' || status === 'streaming' || status === 'awaiting-approval') return status
-    if (this.hasBlockingContinuation()) return 'streaming'
-    return this.terminalOverride ?? status
-  }
-
-  isQuiescent(): boolean {
-    return this.commandDepth === 0 && this.areAttemptsDurablySettled() && !this.hasBlockingContinuation()
-  }
-
-  runCommand<T>(command: () => T): T {
-    this.commandDepth += 1
-    try {
-      return command()
-    } finally {
-      this.commandDepth -= 1
-    }
+  hasPendingApprovals(): boolean {
+    return hasPendingApprovals(this.current)
   }
 
   areAttemptsDurablySettled(): boolean {
-    if (this.attempts.size === 0) return false
-    return [...this.attempts.values()].every(
-      (attempt) => attempt.state.phase === 'settled' && attempt.pendingApprovalToolCallIds.size === 0
-    )
-  }
-
-  runtimeOutcome(): Exclude<TopicStreamStatus, 'pending' | 'streaming'> | undefined {
-    const attempts = [...this.attempts.values()]
-    if (
-      attempts.length === 0 ||
-      attempts.some((attempt) => attempt.state.phase === 'reserved' || attempt.state.phase === 'running')
-    ) {
-      return undefined
-    }
-    if (attempts.some((attempt) => attempt.pendingApprovalToolCallIds.size > 0)) return 'awaiting-approval'
-    if (this.terminalOverride) return this.terminalOverride
-
-    const outcomes = attempts.map((attempt) => {
-      if (
-        attempt.state.phase === 'finalizing' ||
-        attempt.state.phase === 'persistence-blocked' ||
-        attempt.state.phase === 'settled'
-      ) {
-        return attempt.state.outcome
-      }
-      throw new Error(`Attempt ${attempt.id} has no runtime outcome`)
-    })
-    if (outcomes.some((outcome) => outcome.kind === 'error')) return 'error'
-    if (outcomes.every((outcome) => outcome.kind === 'aborted')) return 'aborted'
-    return 'done'
-  }
-
-  queueContinuation(id: string): void {
-    if (this.continuations.has(id)) return
-    this.continuations.set(id, { id, phase: 'queued' })
-    this.touch()
-  }
-
-  makeContinuationEligible(id: string): boolean {
-    return this.transitionContinuation(id, 'queued', 'eligible')
-  }
-
-  startContinuation(id: string): boolean {
-    return this.transitionContinuation(id, 'eligible', 'dispatching')
-  }
-
-  finishContinuation(id: string, phase: Extract<ContinuationPhase, 'consumed' | 'failed' | 'dropped'>): boolean {
-    if (!this.transitionContinuation(id, 'dispatching', phase)) return false
-    if (phase === 'failed') this.recordTerminalOverride('error')
-    if (phase === 'dropped') this.recordTerminalOverride('aborted')
-    return true
-  }
-
-  terminateContinuation(id: string, outcome: 'error' | 'aborted'): boolean {
-    const continuation = this.continuations.get(id)
-    if (
-      !continuation ||
-      continuation.phase === 'consumed' ||
-      continuation.phase === 'failed' ||
-      continuation.phase === 'dropped'
-    ) {
-      return false
-    }
-    continuation.phase = outcome === 'error' ? 'failed' : 'dropped'
-    this.recordTerminalOverride(outcome)
-    this.touch()
-    return true
-  }
-
-  hasBlockingContinuation(): boolean {
-    return [...this.continuations.values()].some(
-      (continuation) =>
-        continuation.phase === 'queued' || continuation.phase === 'eligible' || continuation.phase === 'dispatching'
-    )
-  }
-
-  dispatchingContinuationId(): string | undefined {
-    return [...this.continuations.values()].find((continuation) => continuation.phase === 'dispatching')?.id
-  }
-
-  continuationPhase(id: string): ContinuationPhase | undefined {
-    return this.continuations.get(id)?.phase
+    return areAttemptsDurablySettled(this.current)
   }
 
   attemptWatermark(): number {
-    let watermark = 0
-    for (const attempt of this.attempts.values()) watermark = Math.max(watermark, attempt.id)
-    return watermark
+    return attemptWatermark(this.current)
   }
 
-  private transitionContinuation(id: string, from: ContinuationPhase, to: ContinuationPhase): boolean {
-    const continuation = this.continuations.get(id)
-    if (!continuation || continuation.phase !== from) return false
-    continuation.phase = to
-    this.touch()
-    return true
+  // ── Approvals ───────────────────────────────────────────────────────
+
+  setApprovalPending(id: AttemptId, toolCallId: string, pending: boolean): boolean {
+    const receipt = this.apply({ type: 'approval-changed', attemptId: id, toolCallId, pending })
+    return receipt.events.some((event) => event.type === 'approval-changed')
   }
 
-  private recordTerminalOverride(outcome: 'error' | 'aborted'): void {
-    if (this.terminalOverride !== 'error') this.terminalOverride = outcome
+  clearApprovals(id: AttemptId): boolean {
+    const receipt = this.apply({ type: 'approvals-cleared', attemptId: id })
+    return receipt.events.some((event) => event.type === 'approval-changed')
   }
 
-  private touch(): void {
-    this.revision += 1
+  // ── Lifecycle ───────────────────────────────────────────────────────
+
+  activate(): void {
+    this.apply({ type: 'activate' })
+  }
+
+  beginGrace(): void {
+    this.apply({ type: 'begin-grace' })
+  }
+
+  evict(): void {
+    this.apply({ type: 'evict' })
+  }
+
+  status(): TopicStreamStatus {
+    return topicStatus(this.current)
+  }
+
+  isQuiescent(): boolean {
+    return isQuiescent(this.current)
+  }
+
+  runtimeOutcome(): Exclude<TopicStreamStatus, 'pending' | 'streaming'> | undefined {
+    return runtimeOutcome(this.current)
+  }
+
+  // ── Continuation leases ─────────────────────────────────────────────
+
+  openContinuationLease(
+    id: ContinuationLeaseId,
+    diagnosticOwner: 'agent-runtime' | 'chat-steer',
+    voidOnAttemptError = false
+  ): boolean {
+    return (
+      this.apply({ type: 'continuation-opened', leaseId: id, diagnosticOwner, voidOnAttemptError }).events.length > 0
+    )
+  }
+
+  consumeContinuationLease(id: ContinuationLeaseId, attemptId: AttemptId): boolean {
+    return this.apply({ type: 'continuation-consumed', leaseId: id, attemptId }).events.length > 0
+  }
+
+  releaseContinuationLease(id: ContinuationLeaseId, reason: ContinuationReleaseReason): boolean {
+    return this.apply({ type: 'continuation-released', leaseId: id, reason }).events.length > 0
+  }
+
+  continuationLease(id: ContinuationLeaseId): TopicContinuationLease | undefined {
+    return this.current.continuationLeases.get(id)
+  }
+
+  hasOpenContinuationLease(): boolean {
+    return hasOpenLease(this.current)
+  }
+
+  openContinuationLeaseIds(): ContinuationLeaseId[] {
+    return [...this.current.continuationLeases.values()]
+      .filter((lease) => lease.state === 'open')
+      .map((lease) => lease.id)
   }
 }

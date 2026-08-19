@@ -2,6 +2,7 @@ import type { AttemptId } from '@shared/ai/attempt'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { DispatchCommandReceipt, StreamIntent } from '../../admission'
+import { type PreparedDispatchRows, writePreparedRows } from '../../dispatchCommit'
 import type { StreamListener } from '../../types'
 import type { MainDispatchRequest } from '../dispatch'
 
@@ -161,13 +162,13 @@ describe('AgentChatContextProvider', () => {
             _topicId: string,
             intent: StreamIntent,
             modelCount: number,
-            commit: (receipt: DispatchCommandReceipt) => unknown
+            rows: PreparedDispatchRows
           ) => {
             const receipt: DispatchCommandReceipt = {
               ...mocks.issueDispatchCommandReceipt(_topicId, intent),
               reservedAttemptIds: Array.from({ length: modelCount }, (_, index) => (index + 1) as AttemptId)
             }
-            return { receipt, value: commit(receipt) }
+            return { receipt, rows: writePreparedRows(rows, receipt.activeNodeDecision) }
           }
         }
       }

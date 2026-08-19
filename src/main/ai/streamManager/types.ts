@@ -9,7 +9,8 @@ import type { UIMessageChunk } from 'ai'
 
 import type { StreamLifecycle } from './lifecycle/StreamLifecycle'
 import type { MessageRuntimeTimingCollector } from './MessageRuntimeTimingCollector'
-import type { TopicAttempt, TopicStreamAggregate } from './TopicStreamAggregate'
+import type { TopicStreamAggregate } from './TopicStreamAggregate'
+import type { TopicAttemptState } from './topicStreamState'
 
 // ── Re-export shared types for consumers ────────────────────────────
 
@@ -147,11 +148,13 @@ export interface StreamExecution {
   /** Independent abort — multi-model executions don't share. */
   abortController: AbortController
   /** State record owned by the topic aggregate. */
-  attempt: TopicAttempt
+  attempt: TopicAttemptState
   /** Per-execution history ring; delta entries are capped by `maxDeltaBytes`. Ordinary overflow drops oldest and bumps `droppedChunks`; eviction pauses while an approval is pending. */
   buffer: StreamChunkPayload[]
   nextChunkSeq: number
   droppedChunks: number
+  /** Pushed by the topic reducer's `set-ring-eviction` effect. Never read the reducer back. */
+  evictionPaused: boolean
   /** Latest accumulated snapshot from `readUIMessageStream`. Undefined until the first snapshot lands. */
   finalMessage?: CherryUIMessage
   /**

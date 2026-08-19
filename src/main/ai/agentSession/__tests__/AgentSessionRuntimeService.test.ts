@@ -22,7 +22,11 @@ const mocks = vi.hoisted(() => ({
   failSessionDelivery: vi.fn(),
   maybeRenameAgentSession: vi.fn(),
   applicationGet: vi.fn(),
-  startRuntimeTurn: vi.fn(),
+  // Returns the admitted attempt, which the runtime records as the row's stream-owned identity.
+  startRuntimeTurn: vi.fn<(input: any) => any>(() => ({ mode: 'started', activeExecutions: [{ attemptId: 1 }] })),
+  setAgentContinuationLease: vi.fn(),
+  onTopicStop: vi.fn(() => ({ dispose: () => {} })),
+  registerRuntimeTerminalHold: vi.fn(),
   abortStream: vi.fn(),
   suspendUnadmittedRuntimeTurn: vi.fn().mockResolvedValue(undefined),
   pauseRuntimeTurn: vi.fn(),
@@ -272,6 +276,9 @@ describe('AgentSessionRuntimeService', () => {
       if (name === 'AiStreamManager') {
         return {
           startRuntimeTurn: mocks.startRuntimeTurn,
+          setAgentContinuationLease: mocks.setAgentContinuationLease,
+          onTopicStop: mocks.onTopicStop,
+          registerRuntimeTerminalHold: mocks.registerRuntimeTerminalHold,
           abort: mocks.abortStream,
           suspendUnadmittedRuntimeTurn: mocks.suspendUnadmittedRuntimeTurn,
           pauseRuntimeTurn: mocks.pauseRuntimeTurn,

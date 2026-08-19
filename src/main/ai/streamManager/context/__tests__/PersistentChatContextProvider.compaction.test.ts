@@ -14,6 +14,7 @@ import { estimateTokenCount } from 'tokenx'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { DispatchCommandReceipt, StreamIntent } from '../../admission'
+import { type PreparedDispatchRows, writePreparedRows } from '../../dispatchCommit'
 
 // vi.hoisted() ensures these vi.fn() instances are available when vi.mock factories run
 // (vi.mock calls are hoisted to the top of the file by Vitest's transform).
@@ -114,7 +115,7 @@ vi.mock('@application', async () => {
           _topicId: string,
           intent: StreamIntent,
           modelCount: number,
-          commit: (receipt: DispatchCommandReceipt) => unknown
+          rows: PreparedDispatchRows
         ) => {
           const receipt: DispatchCommandReceipt = {
             intent,
@@ -122,7 +123,7 @@ vi.mock('@application', async () => {
             activeNodeDecision: { move: 'advance' as const },
             reservedAttemptIds: Array.from({ length: modelCount }, (_, index) => (index + 1) as AttemptId)
           }
-          return { receipt, value: commit(receipt) }
+          return { receipt, rows: writePreparedRows(rows, receipt.activeNodeDecision) }
         },
         failDispatchReservation: (_ticket: unknown, _topicId: string, _error: unknown, persist: () => void) => persist()
       }

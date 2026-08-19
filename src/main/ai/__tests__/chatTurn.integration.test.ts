@@ -121,7 +121,7 @@ describe('chat turn integration trajectory', () => {
       if (name === 'AiService') return aiService
       if (name === 'CacheService') return fakeCacheService
       if (name === 'PreferenceService') return { get: () => false }
-      if (name === 'AgentSessionRuntimeService') return { willContinueTopic: () => false }
+      if (name === 'AgentSessionRuntimeService') return {}
       if (name === 'TraceStorageService') return { saveSpans: async () => undefined }
       if (name === 'AnalyticsService') return { trackTokenUsage: vi.fn() }
       throw new Error(`Unexpected application service: ${name}`)
