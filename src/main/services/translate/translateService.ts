@@ -77,7 +77,7 @@ export interface TranslateOpenRequest {
 }
 
 export interface TranslateOpenResult {
-  /** Streaming id; renderer filters `Ai_Stream*` events by this. */
+  /** Streaming id; renderer filters `ai.stream.*` events by this. */
   streamId: string
 }
 
@@ -92,7 +92,8 @@ export class TranslateService {
    * IPC entry-point (called from `AiService.onInit`). Resolves the model +
    * prompt, then dispatches the stream through `AiStreamManager.streamPrompt`.
    * Returns the `streamId` synchronously so the renderer can subscribe to
-   * `Ai_StreamChunk/Done/Error` before chunks start flowing.
+   * `ai.stream.chunk` / `ai.stream.done` / `ai.stream.error` before chunks
+   * start flowing.
    */
   open(sender: Electron.WebContents, req: TranslateOpenRequest): TranslateOpenResult {
     if (!req.streamId.startsWith(TRANSLATE_STREAM_PREFIX)) {

@@ -38,7 +38,7 @@ Rules:
 
 - The `references/` top level is a **closed set** of domain directories — no loose files (gate-enforced, mirroring the closed-set rule the code tree already has in naming-conventions §4.8).
 - Every domain directory has a `README.md` that owns the domain: full detail about its own subject, children summarized with links. One fact, one home.
-- Files inside a domain directory do not repeat the domain prefix (`window-manager-usage.md` → `usage.md`); existing prefixed files are renamed during their domain's Phase 0b move, when inbound links are being rewritten anyway.
+- Files inside a domain directory do not repeat the domain prefix (`window-manager-usage.md` → `usage.md`); existing prefixed files are renamed during their domain's Phase 0b move, when inbound links are being rewritten anyway. **Superseded for Phase 0b:** the [implemented audit outcomes](../../implemented/process/2026-08-19-phase-0b-doc-audit-outcomes.md) preserve existing basenames unless a move or ambiguity requires a rename.
 - Division of labor with code-adjacent READMEs (`src/main/core/paths/README.md`, `tests/__mocks__/README.md`, …): cross-cutting or multi-module material lives in `docs/`; module-private facts live next to the module.
 - `docs/README.md` becomes a generated thin index; the hand-maintained table is retired.
 
@@ -57,7 +57,7 @@ Disposition of current files (decided here; executed in Phase 0b):
 | `guides/{logging,i18n}.md` | Move → their subject domains under `references/`. |
 | `guides/diagnostics.md` | Placement (contrib vs reference) decided during its Phase 0b audit. |
 | `docs/sponsor.md` | **Stays at the `docs/` root** — a user-facing page linked from the root README, not a developer doc; outside the reference tree, the gates, and bilingual pairing. |
-| `references/chat/{adapters,conventions}.md` | **Keep in place** — explicitly marked target-architecture design docs; their home is re-decided when the adapters code lands. Out of Phase 0b scope. |
+| `references/chat/{adapters,conventions}.md` | **Keep in place** — explicitly marked target-architecture design docs; their home is re-decided when the adapters code lands. Out of Phase 0b scope. **Superseded by the [implemented audit outcomes](../../implemented/process/2026-08-19-phase-0b-doc-audit-outcomes.md).** |
 | `references/file/architecture.md` + `file-manager-architecture.md` | **Keep both** — deliberately layered with mutual SoT-scope declarations, not rot. |
 
 ### P2 — Frontmatter

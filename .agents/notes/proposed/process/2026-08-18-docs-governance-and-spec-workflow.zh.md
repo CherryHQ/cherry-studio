@@ -38,7 +38,7 @@ docs/
 
 - `references/` 顶层是**封闭集**,只允许域目录——不许散文件(门禁校验,与代码树在 naming-conventions §4.8 中已有的封闭集规则呼应)。
 - 每个域目录必须有 `README.md` 作为域之家:本域主题写全细节,子级只概括并链接。一个事实,一个家。
-- 域目录内的文件名不重复域前缀(`window-manager-usage.md` → `usage.md`);存量带前缀的文件在其所属域的 Phase 0b 搬家窗口一并改名,反正入链当时就要重写。
+- 域目录内的文件名不重复域前缀(`window-manager-usage.md` → `usage.md`);存量带前缀的文件在其所属域的 Phase 0b 搬家窗口一并改名,反正入链当时就要重写。**Phase 0b 的此项决策已被取代:**[已落地的审计结果](../../implemented/process/2026-08-19-phase-0b-doc-audit-outcomes.zh.md)规定,除非搬家或歧义要求改名,否则保留现有 basename。
 - 与代码旁 README(`src/main/core/paths/README.md`、`tests/__mocks__/README.md`……)的分工:跨切面或多模块的内容归 `docs/`;模块私有事实住在模块旁边。
 - `docs/README.md` 改为生成式薄索引,退役手工维护的表格。
 
@@ -57,7 +57,7 @@ docs/
 | `guides/{logging,i18n}.md` | 移动 → `references/` 下各自的主题域。 |
 | `guides/diagnostics.md` | 归属(contrib 还是 reference)在其 Phase 0b 审计时决定。 |
 | `docs/sponsor.md` | **留在 `docs/` 根目录**——根 README 链接的面向用户页面,不是开发者文档;不进参考树、不进门禁、不进双语配对。 |
-| `references/chat/{adapters,conventions}.md` | **保持原位**——明确标注为 target-architecture 设计文档;adapters 代码落地时重新决定其归宿。不在 Phase 0b 范围内。 |
+| `references/chat/{adapters,conventions}.md` | **保持原位**——明确标注为 target-architecture 设计文档;adapters 代码落地时重新决定其归宿。不在 Phase 0b 范围内。**已被[已落地的审计结果](../../implemented/process/2026-08-19-phase-0b-doc-audit-outcomes.zh.md)取代。** |
 | `references/file/architecture.md` + `file-manager-architecture.md` | **两篇都保留**——刻意分层且互相声明 SoT 边界,不是腐烂。 |
 
 ### P2 — Frontmatter

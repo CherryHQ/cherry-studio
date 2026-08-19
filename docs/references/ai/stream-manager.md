@@ -112,7 +112,7 @@ volume × audience width**.
 | `PersistenceListener` | terminal | built by the provider and added in `send()` |
 | `TraceFlushListener` | terminal | built by chat / agent-session turn owners and added in `send()` |
 | `ChannelAdapterListener` / `SseListener` | chunk + terminal | caller injects into `send()`'s `listeners` |
-| UI indirect consumers (sidebar indicators, …) | topic status | `useSharedCache('topic.stream.statuses.${topicId}')` |
+| UI indirect consumers (sidebar indicators, …) | topic status | `useSharedCacheValue('topic.stream.statuses.${topicId}')` |
 
 ### Two channels: targeted listener dispatch vs SharedCache mirror
 
@@ -120,7 +120,7 @@ volume × audience width**.
 |---|---|---|
 | Transport | `ai.stream.chunk` / `ai.stream.done` / `ai.stream.error` | `cacheService.setShared('topic.stream.statuses.${topicId}', …)` → built-in `Cache_Sync` broadcast |
 | Main-side registry | `ActiveStream.listeners: Map<listenerId, StreamListener>` | none — uses the generic `CacheService` infra |
-| Subscriber API | `attach` to register, explicit `detach` | `useSharedCache('topic.stream.statuses.${topicId}')` by topicId |
+| Subscriber API | `attach` to register, explicit `detach` | `useSharedCacheValue('topic.stream.statuses.${topicId}')` by topicId |
 | Per-event size | tens of bytes to KBs (10s/s) | tens of bytes (≤ 5 transitions per stream) |
 | Audience | narrow (one window per listener typically) | wide (every sidebar / indicator across all windows) |
 | Cost of irrelevant pushes | high (bandwidth + deserialization) | negligible |
@@ -747,7 +747,7 @@ duplicated; the rest are stream-manager-specific.
 **Topic status needs no `attach`.** Observers that only care "is this topic
 live?" (sidebar loading indicators, topic-list status dots) don't register a
 `WebContentsListener`. Every status transition writes the SharedCache key
-`topic.stream.statuses.${topicId}`; observers read it via `useSharedCache`
+`topic.stream.statuses.${topicId}`; observers read it via `useSharedCacheValue`
 directly. `ai.stream.attach` is only needed when a window wants live chunks.
 
 ### Channel / Agent listener composition
@@ -777,7 +777,7 @@ listener composition:
 
 > Topic status snapshots need no dedicated IPC: a new window pulls every
 > `topic.stream.statuses.${topicId}` entry via `Cache_GetAllShared` on
-> mount, and `useSharedCache` subscribes by topicId.
+> mount, and `useSharedCacheValue` subscribes by topicId.
 
 ### Push channels (Main → Renderer)
 

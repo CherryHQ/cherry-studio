@@ -267,7 +267,7 @@ before convergence; restart rebinds only when no lease is active.
 
 `publishRunningState()` writes `feature.api_gateway.running` (boolean) into the
 **Shared Cache** via `CacheService.setShared(...)`. **Main is authoritative**;
-the renderer reads it reactively with `useSharedCache('feature.api_gateway.running')`.
+the renderer reads it reactively with `useSharedCacheValue('feature.api_gateway.running')`.
 There is deliberately **no status/config pull IPC** — pulling running state or
 config over IPC would be an anti-pattern, since running lives in the shared
 cache and config lives in the Preference subsystem.
