@@ -1,3 +1,11 @@
+---
+description: DataApi architecture for SQLite-backed business data - typed IPC pipeline from renderer client to main handlers
+sources:
+  - src/main/data/api
+  - src/renderer/data/DataApiService.ts
+  - src/shared/data/api
+---
+
 # DataApi System Overview
 
 The DataApi system provides type-safe IPC communication for business data operations between the Renderer and Main processes.
@@ -125,9 +133,9 @@ DataApi must not be used as a general-purpose RPC layer. It is the **data** busi
 
 ### Repository Pattern (Strongly Discouraged)
 
-> **⚠️ Do NOT create Repository files by default.** Services handle both business logic and data access directly via Drizzle ORM. This is an intentional design decision.
->
-> Only create a separate Repository when you are **1000% certain** it is absolutely necessary — e.g., extremely complex multi-table queries with joins/CTEs that would make the Service unreadable, AND the query logic is reused across multiple services.
+> Do not create Repository files by default. Services own business rules and
+> Drizzle access together. Introduce a repository only for a complex, reusable
+> query boundary that would otherwise obscure more than one owning service.
 >
 > If in doubt, keep it in the Service. The overhead of an extra architectural layer is not justified for this project's scale (Electron desktop app + SQLite).
 

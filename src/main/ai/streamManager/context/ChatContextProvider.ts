@@ -1,6 +1,6 @@
 /**
  * ChatContextProvider — produces a ready-to-dispatch bundle for one
- * `Ai_Stream_Open` request. `dispatchStreamRequest` picks the first
+ * `ai.stream.open` request. `dispatchStreamRequest` picks the first
  * provider whose `canHandle(topicId)` matches, asks it to prepare, and
  * calls `manager.send(...)` itself. See `docs/references/ai/stream-manager.md`.
  */

@@ -186,7 +186,8 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: 'kimi-k2[.-][5-9]\\d*', budget: { min: 0, max: 30720 }, template: true },
   { pattern: '^kimi-k2-thinking(?:-turbo)?$|^kimi-k(?:2[.-][5-9]\\d*|[3-9]\\d*(?:[.-]\\d+)?)(?:-[\\w-]+)?$' },
   // nvidia
-  { pattern: '(?:llama-3-1-)?nemotron-(?:nano|super|ultra|3-(?:nano|super|ultra))' },
+  { pattern: '(?:llama-3-1-)?nemotron-(?:\\d+(?:-\\d+)*-)?(?:nano|super|ultra|lightning)' },
+  { pattern: '^muse-glimmer' },
   // openai
   { pattern: '^(?:o\\d|gpt).*deep[-_]?research', effort: ['medium'] },
   { pattern: '^gpt-5[.-]1-codex-max', effort: ['medium', 'high', 'xhigh'] },
@@ -219,7 +220,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: 'hunyuan-a13b' },
   { pattern: '^hy3' },
   // upstage
-  { pattern: '^solar-pro-?[23]' },
+  { pattern: '^solar-pro-?[2-9]' },
   // vercel
   { pattern: '^muse-spark' },
   { pattern: '^interfaze' },

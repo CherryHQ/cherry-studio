@@ -3001,7 +3001,7 @@
       "empty_title": "Rechercher des compétences",
       "github_empty_description": "Collez un lien vers le fichier SKILL.md d'une compétence, par exemple github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
       "github_empty_title": "Installer depuis GitHub",
-      "github_url_invalid": "Collez un lien GitHub qui se termine par SKILL.md",
+      "github_url_invalid": "Collez un lien GitHub pris en charge qui pointe directement vers un fichier SKILL.md",
       "github_url_label": "URL SKILL.md GitHub",
       "github_url_placeholder": "Lien GitHub se terminant par /SKILL.md",
       "no_results_description": "Essayez un autre mot-clé ou importez un fichier ZIP local ou un répertoire.",

@@ -1,6 +1,13 @@
+---
+description: One-shot v1-to-v2 migration engine - upgrade gate, migrator contracts, data source readers, status tracking
+sources:
+  - src/main/data/migration/v2
+  - src/shared/data/migration/v2
+---
+
 # Migration V2 (Main Process)
 
-Architecture for the new one-shot migration from the legacy Dexie + Redux Persist stores into the SQLite schema. This module owns orchestration, data access helpers, migrator plugins, and IPC entry points used by the renderer migration window.
+Architecture for the one-shot migration from the legacy Dexie + Redux Persist stores into the SQLite schema. This module owns orchestration, data access helpers, migrator plugins, and IPC entry points used by the renderer migration window.
 
 ## Version Upgrade Requirements
 
@@ -53,7 +60,7 @@ target until their migration compatibility is explicitly verified.
 ### Relationship with the auto-updater
 
 The auto-updater (`AppUpdaterService`) sends the installed version and
-other client metadata to the [managed release service](../app-upgrade.md),
+other client metadata to the [managed release service](../../contrib/app-upgrade.md),
 which selects the OTA target and enforces upgrade gateways. The migration
 gate is a **separate safety net** for users who manually download and
 install a version. Both systems enforce compatible upgrade paths but
@@ -90,12 +97,21 @@ src/main/data/migration/v2/
   - `execute(ctx)`: perform inserts/updates; manage your own transactions; report progress via `reportProgress`; self-check FK integrity of owned tables via `assertOwnedForeignKeys` (see Conventions → Foreign keys)
   - `validate(ctx)`: verify counts and integrity; return `ValidateResult` with stats (`sourceCount`, `targetCount`, `skippedCount`) and any `errors`
 - Registration: list migrators (in order) in `migrators/migratorRegistry.ts` so the engine can sort and run them.
-- Current migrators (see `migrators/README-<name>.md` for detailed documentation):
-  - `PreferencesMigrator` (implemented): maps ElectronStore + Redux settings to the `preference` table using `mappings/PreferencesMappings.ts`.
-  - `ChatMigrator` (implemented): migrates topics and messages from Dexie to SQLite. See [`README-ChatMigrator.md`](../../../src/main/data/migration/v2/migrators/README-ChatMigrator.md).
-  - `AiUsageRecordMigrator` (implemented): projects usage-bearing migrated chat and agent-session messages into the best-effort AI usage read model. See [`README-AiUsageRecordMigrator.md`](../../../src/main/data/migration/v2/migrators/README-AiUsageRecordMigrator.md).
-  - `BootConfigMigrator` (implemented, file-target): migrates early-boot settings into the file-based `bootConfigService` (`~/.cherrystudio/boot-config.json`) rather than a SQLite table. Reads from Redux (`disableHardwareAcceleration`) and from the v1 home config file (`~/.cherrystudio/config/config.json`'s `appDataPath` → `app.user_data_path`) via a `'configfile'` source kind. See [`README-BootConfigMigrator.md`](../../../src/main/data/migration/v2/migrators/README-BootConfigMigrator.md).
-  - `AssistantMigrator`, `KnowledgeMigrator` (placeholders): scaffolding and TODO notes for future tables.
+- The engine sorts the registry by each migrator's `order`. The implemented
+  execution order is:
+  `BootConfigMigrator`, `PreferencesMigrator`, `NoteMigrator`,
+  `MiniAppMigrator`, `McpServerMigrator`, `ProviderModelMigrator`,
+  `KnowledgeMigrator`, `AssistantMigrator`, `AgentsMigrator`,
+  `FileMigrator`, `KnowledgeVectorMigrator`, `ChatMigrator`,
+  `AiUsageRecordMigrator`, `PaintingMigrator`, `TranslateMigrator`, and
+  `PromptMigrator`.
+- Domain-specific `migrators/README-<name>.md` files document the migrations
+  that need additional source, transformation, or recovery detail. The registry
+  is the authority for the execution set; each registered migrator's `order` is
+  the authority for sequence.
+- `BootConfigMigrator` is the file-target exception: it writes early-boot
+  settings to `bootConfigService`, while the remaining migrators populate
+  SQLite or per-base Knowledge index artifacts.
 - Conventions:
   - All logging goes through `loggerService` with a migrator-specific context.
   - Use `MigrationContext.sources` instead of accessing raw files/stores directly.
@@ -130,13 +146,11 @@ src/main/data/migration/v2/
 - [ ] Register the migrator in `migrators/migratorRegistry.ts` with the correct `order`.
 - [ ] Add any new target tables to `MigrationEngine.verifyAndClearNewTables` once those tables exist.
 - [ ] Self-check FK integrity at the end of `execute()` via `this.assertOwnedForeignKeys(ctx.db, [...ownedTables])`, excluding cross-domain-deferred refs and shared polymorphic tables (see Conventions → Foreign keys). Do NOT toggle `PRAGMA foreign_keys` yourself — the engine keeps it OFF for the whole migration.
-- [ ] Include detailed comments for maintainability (file-level, function-level, logic blocks).
-- [ ] **Create/update `migrators/README-<MigratorName>.md`** with detailed documentation including:
-  - Data sources and target tables
-  - Key transformations
-  - Field mappings (source → target)
-  - Dropped fields and rationale
-  - Code quality notes
+- [ ] Document non-obvious invariants and transformation rationale without
+  narrating the implementation.
+- [ ] Create or update `migrators/README-<MigratorName>.md` when the migrator has
+  source-format, recovery, or transformation rules that callers cannot infer
+  from the common contract.
 
 ## Order-Key Stamping in Migrators
 
@@ -158,7 +172,7 @@ const rows = legacyServers.map((src, i) => transformMcpServer(src, i).row)
 // After — transforms are pure; keys are assigned after the flatten
 const rows = legacyServers.map((src) => transformMcpServerV2(src).row)
 const stamped = assignOrderKeysInSequence(rows)
-await tx.insert(mcpServerTable).values(stamped)
+tx.insert(mcpServerTable).values(stamped).run()
 
 // Partitioned example — each providerId becomes its own independent key space
 const stamped = assignOrderKeysByScope(userModels, (m) => m.providerId)
