@@ -3,7 +3,7 @@ import 'reflect-metadata'
 import { SpanStatusCode, trace } from '@opentelemetry/api'
 import { context as traceContext } from '@opentelemetry/api'
 
-import { defaultConfig } from '../types/config'
+import { defaultConfig } from '../traceConfig'
 
 export interface SpanDecoratorOptions {
   spanName?: string
@@ -49,63 +49,6 @@ export function TraceMethod(traced: SpanDecoratorOptions) {
       })
     }
     return descriptor
-  }
-}
-
-export function TraceProperty(traced: SpanDecoratorOptions) {
-  return (target: any, propertyKey: string, descriptor?: PropertyDescriptor) => {
-    // 处理箭头函数类属性
-    const traceName = traced.traceName || defaultConfig.defaultTracerName || 'default'
-    const tracer = trace.getTracer(traceName)
-    const name = traced.spanName || propertyKey
-
-    if (!descriptor) {
-      const originalValue = target[propertyKey]
-
-      Object.defineProperty(target, propertyKey, {
-        value: async function (...args: any[]) {
-          const span = tracer.startSpan(name)
-          try {
-            span.setAttribute('inputs', convertToString(args))
-            span.setAttribute('tags', traced.tag || '')
-            const result = await originalValue.apply(this, args)
-            span.setAttribute('outputs', convertToString(result))
-            return result
-          } catch (error) {
-            const err = error instanceof Error ? error : new Error(String(error))
-            span.recordException(err)
-            span.setStatus({ code: SpanStatusCode.ERROR, message: err.message })
-            throw error
-          } finally {
-            span.end()
-          }
-        },
-        configurable: true,
-        writable: true
-      })
-      return
-    }
-
-    // 标准方法装饰器逻辑
-    const originalMethod = descriptor.value
-
-    descriptor.value = async function (...args: any[]) {
-      const span = tracer.startSpan(name)
-      try {
-        span.setAttribute('inputs', convertToString(args))
-        span.setAttribute('tags', traced.tag || '')
-        const result = await originalMethod.apply(this, args)
-        span.setAttribute('outputs', convertToString(result))
-        return result
-      } catch (error) {
-        const err = error instanceof Error ? error : new Error(String(error))
-        span.recordException(err)
-        span.setStatus({ code: SpanStatusCode.ERROR, message: err.message })
-        throw error
-      } finally {
-        span.end()
-      }
-    }
   }
 }
 
