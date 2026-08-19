@@ -1949,6 +1949,8 @@
   "library.skill_detail.file_preview": "檔案預覽",
   "library.skill_detail.installed": "已安裝",
   "library.skill_detail.no_description": "目前沒有描述",
+  "library.skill_detail.open_folder": "開啟資料夾",
+  "library.skill_detail.open_folder_failed": "無法開啟資料夾",
   "library.skill_detail.updated_at": "最近更新",
   "library.skill_marketplace.empty_description": "搜尋線上技能來源，尋找可安裝的技能。",
   "library.skill_marketplace.empty_title": "搜尋技能",

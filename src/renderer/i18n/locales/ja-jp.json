@@ -1949,6 +1949,8 @@
   "library.skill_detail.file_preview": "ファイルプレビュー",
   "library.skill_detail.installed": "インストール済み",
   "library.skill_detail.no_description": "説明なし",
+  "library.skill_detail.open_folder": "フォルダーを開く",
+  "library.skill_detail.open_folder_failed": "フォルダーを開けませんでした",
   "library.skill_detail.updated_at": "最近更新",
   "library.skill_marketplace.empty_description": "オンラインのレジストリを検索して、インストール可能なスキルを見つけてください。",
   "library.skill_marketplace.empty_title": "スキルを検索",

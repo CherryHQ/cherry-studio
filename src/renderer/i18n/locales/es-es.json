@@ -1949,6 +1949,8 @@
   "library.skill_detail.file_preview": "Vista previa del archivo",
   "library.skill_detail.installed": "Instalado",
   "library.skill_detail.no_description": "Sin descripción",
+  "library.skill_detail.open_folder": "Abrir carpeta",
+  "library.skill_detail.open_folder_failed": "No se pudo abrir la carpeta",
   "library.skill_detail.updated_at": "Actualizado recientemente",
   "library.skill_marketplace.empty_description": "Busca en los registros en línea para encontrar habilidades instalables.",
   "library.skill_marketplace.empty_title": "Buscar habilidades",

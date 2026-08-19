@@ -1949,6 +1949,8 @@
   "library.skill_detail.file_preview": "Προεπισκόπηση αρχείου",
   "library.skill_detail.installed": "Εγκατεστημένο",
   "library.skill_detail.no_description": "Χωρίς περιγραφή",
+  "library.skill_detail.open_folder": "Άνοιγμα φακέλου",
+  "library.skill_detail.open_folder_failed": "Δεν ήταν δυνατό το άνοιγμα του φακέλου",
   "library.skill_detail.updated_at": "Πρόσφατα ενημερώθηκε",
   "library.skill_marketplace.empty_description": "Αναζητήστε σε διαδικτυακά μητρώα για να βρείτε εγκαταστάσιμες δεξιότητες.",
   "library.skill_marketplace.empty_title": "Αναζήτηση δεξιοτήτων",

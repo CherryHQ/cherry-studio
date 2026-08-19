@@ -1949,6 +1949,8 @@
   "library.skill_detail.file_preview": "文件预览",
   "library.skill_detail.installed": "已安装",
   "library.skill_detail.no_description": "暂无描述",
+  "library.skill_detail.open_folder": "打开文件夹",
+  "library.skill_detail.open_folder_failed": "无法打开文件夹",
   "library.skill_detail.updated_at": "最近更新",
   "library.skill_marketplace.empty_description": "搜索在线技能源，查找可安装的技能。",
   "library.skill_marketplace.empty_title": "搜索技能",

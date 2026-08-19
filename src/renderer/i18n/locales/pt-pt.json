@@ -1949,6 +1949,8 @@
   "library.skill_detail.file_preview": "Pré-visualização de ficheiro",
   "library.skill_detail.installed": "Instalado",
   "library.skill_detail.no_description": "Sem descrição",
+  "library.skill_detail.open_folder": "Abrir pasta",
+  "library.skill_detail.open_folder_failed": "Não foi possível abrir a pasta",
   "library.skill_detail.updated_at": "Atualizado recentemente",
   "library.skill_marketplace.empty_description": "Pesquise em registos online para encontrar competências instaláveis.",
   "library.skill_marketplace.empty_title": "Pesquisar competências",

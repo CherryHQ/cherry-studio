@@ -1949,6 +1949,8 @@
   "library.skill_detail.file_preview": "File preview",
   "library.skill_detail.installed": "Installed",
   "library.skill_detail.no_description": "No description",
+  "library.skill_detail.open_folder": "Open folder",
+  "library.skill_detail.open_folder_failed": "Could not open folder",
   "library.skill_detail.updated_at": "Recently updated",
   "library.skill_marketplace.empty_description": "Search online registries to find installable skills.",
   "library.skill_marketplace.empty_title": "Search for skills",

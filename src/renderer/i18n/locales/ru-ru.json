@@ -1949,6 +1949,8 @@
   "library.skill_detail.file_preview": "Предварительный просмотр файла",
   "library.skill_detail.installed": "Установлено",
   "library.skill_detail.no_description": "Нет описания",
+  "library.skill_detail.open_folder": "Открыть папку",
+  "library.skill_detail.open_folder_failed": "Не удалось открыть папку",
   "library.skill_detail.updated_at": "Недавно обновлено",
   "library.skill_marketplace.empty_description": "Поищите в онлайн-реестрах навыки, которые можно установить.",
   "library.skill_marketplace.empty_title": "Поиск навыков",

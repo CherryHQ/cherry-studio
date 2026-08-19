@@ -1949,6 +1949,8 @@
   "library.skill_detail.file_preview": "Xem trước tệp",
   "library.skill_detail.installed": "Đã cài đặt",
   "library.skill_detail.no_description": "Không có mô tả",
+  "library.skill_detail.open_folder": "Mở thư mục",
+  "library.skill_detail.open_folder_failed": "Không thể mở thư mục",
   "library.skill_detail.updated_at": "Đã cập nhật gần đây",
   "library.skill_marketplace.empty_description": "Tìm kiếm trong các sổ đăng ký trực tuyến để tìm các kỹ năng có thể cài đặt.",
   "library.skill_marketplace.empty_title": "Tìm kiếm kỹ năng",

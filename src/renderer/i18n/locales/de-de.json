@@ -1949,6 +1949,8 @@
   "library.skill_detail.file_preview": "Dateivorschau",
   "library.skill_detail.installed": "Installiert",
   "library.skill_detail.no_description": "Keine Beschreibung",
+  "library.skill_detail.open_folder": "Ordner öffnen",
+  "library.skill_detail.open_folder_failed": "Ordner konnte nicht geöffnet werden",
   "library.skill_detail.updated_at": "Kürzlich aktualisiert",
   "library.skill_marketplace.empty_description": "Suchen Sie in Online-Registern nach installierbaren Skills.",
   "library.skill_marketplace.empty_title": "Nach Fähigkeiten suchen",

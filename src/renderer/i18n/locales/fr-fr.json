@@ -1949,6 +1949,8 @@
   "library.skill_detail.file_preview": "Aperçu du fichier",
   "library.skill_detail.installed": "Installé",
   "library.skill_detail.no_description": "Aucune description",
+  "library.skill_detail.open_folder": "Ouvrir le dossier",
+  "library.skill_detail.open_folder_failed": "Impossible d’ouvrir le dossier",
   "library.skill_detail.updated_at": "Récemment mis à jour",
   "library.skill_marketplace.empty_description": "Recherchez dans les registres en ligne pour trouver des compétences installables.",
   "library.skill_marketplace.empty_title": "Rechercher des compétences",

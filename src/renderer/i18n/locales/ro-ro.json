@@ -1949,6 +1949,8 @@
   "library.skill_detail.file_preview": "Previzualizare fișier",
   "library.skill_detail.installed": "Instalat",
   "library.skill_detail.no_description": "Fără descriere",
+  "library.skill_detail.open_folder": "Deschide directorul",
+  "library.skill_detail.open_folder_failed": "Directorul nu a putut fi deschis",
   "library.skill_detail.updated_at": "Actualizat recent",
   "library.skill_marketplace.empty_description": "Caută în registrele online abilități care pot fi instalate.",
   "library.skill_marketplace.empty_title": "Caută abilități",
