@@ -495,6 +495,55 @@ describe('AppShell', () => {
     expect(MockUseCacheUtils.getCacheValue('mini_app.split_id')).toBe('right-app')
   })
 
+  it('clears the split state when the last mini-app tab detaches', () => {
+    MockUseCacheUtils.setCacheValue('mini_app.split_open', true)
+    MockUseCacheUtils.setCacheValue('mini_app.split_id', 'right-app')
+    mocks.tabs = [
+      ...mocks.tabs,
+      { id: 'mini-left', isDormant: false, title: 'Left', type: 'route', url: '/app/mini-app/left-app' }
+    ]
+
+    render(<AppShell />)
+    const detachTab = mocks.tabBarProps?.detachTab as ((id: string) => void) | undefined
+    detachTab?.('mini-left')
+
+    // Split state does not follow the tab to the new window, so leaving it set
+    // here reopens the next mini app straight into a split nobody asked for.
+    expect(MockUseCacheUtils.getCacheValue('mini_app.split_open')).toBe(false)
+    expect(MockUseCacheUtils.getCacheValue('mini_app.split_id')).toBe('')
+    expect(mocks.detachTab).toHaveBeenCalledWith('mini-left')
+  })
+
+  it('keeps the split state when detaching leaves another mini-app tab behind', () => {
+    MockUseCacheUtils.setCacheValue('mini_app.split_open', true)
+    MockUseCacheUtils.setCacheValue('mini_app.split_id', 'right-app')
+    mocks.tabs = [
+      ...mocks.tabs,
+      { id: 'mini-left', isDormant: false, title: 'Left', type: 'route', url: '/app/mini-app/left-app' },
+      { id: 'mini-other', isDormant: false, title: 'Other', type: 'route', url: '/app/mini-app/other-app' }
+    ]
+
+    render(<AppShell />)
+    const detachTab = mocks.tabBarProps?.detachTab as ((id: string) => void) | undefined
+    detachTab?.('mini-left')
+
+    // The mini-app tab still in this window keeps rendering the split.
+    expect(MockUseCacheUtils.getCacheValue('mini_app.split_open')).toBe(true)
+    expect(MockUseCacheUtils.getCacheValue('mini_app.split_id')).toBe('right-app')
+  })
+
+  it('leaves non mini-app tab detaches untouched', () => {
+    MockUseCacheUtils.setCacheValue('mini_app.split_open', true)
+    MockUseCacheUtils.setCacheValue('mini_app.split_id', 'right-app')
+
+    render(<AppShell />)
+    const detachTab = mocks.tabBarProps?.detachTab as ((id: string) => void) | undefined
+    detachTab?.('home')
+
+    expect(MockUseCacheUtils.getCacheValue('mini_app.split_open')).toBe(true)
+    expect(MockUseCacheUtils.getCacheValue('mini_app.split_id')).toBe('right-app')
+  })
+
   it('cycles tabs via command handlers', () => {
     mocks.tabs = [
       ...mocks.tabs,

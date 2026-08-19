@@ -59,6 +59,22 @@ export const AppShell = () => {
   const [splitOpen, setSplitOpen] = useCache('mini_app.split_open')
   const [, setSplitMiniAppId] = useCache('mini_app.split_id')
 
+  // Split state is window-wide, so the last mini-app tab leaving this window must
+  // take it along: otherwise the next mini app opens straight into the stale
+  // split, whose app also stays pinned in the keep-alive pool.
+  const clearSplitWithLastMiniAppTab = useCallback(
+    (id: string, url: string | undefined) => {
+      if (!splitOpen || !miniAppIdFromTabUrl(url)) return
+      const hasOtherMiniAppTab = tabs.some(
+        (candidate) => candidate.id !== id && miniAppIdFromTabUrl(candidate.url) !== null
+      )
+      if (hasOtherMiniAppTab) return
+      setSplitOpen(false)
+      setSplitMiniAppId('')
+    },
+    [setSplitMiniAppId, setSplitOpen, splitOpen, tabs]
+  )
+
   const handleCloseTab = useCallback(
     (id: string) => {
       const tab = tabs.find((candidate) => candidate.id === id)
@@ -66,32 +82,22 @@ export const AppShell = () => {
         closeTabs([id], previousWorkspaceTabIdRef.current)
         return
       }
-      // Split state is window-wide, so the last mini-app tab must take it along:
-      // otherwise the next mini app opens straight into the stale split, whose
-      // app also stays pinned in the keep-alive pool.
-      if (splitOpen && miniAppIdFromTabUrl(tab?.url)) {
-        const hasOtherMiniAppTab = tabs.some(
-          (candidate) => candidate.id !== id && miniAppIdFromTabUrl(candidate.url) !== null
-        )
-        if (!hasOtherMiniAppTab) {
-          setSplitOpen(false)
-          setSplitMiniAppId('')
-        }
-      }
+      clearSplitWithLastMiniAppTab(id, tab?.url)
       closeTab(id)
     },
-    [closeTab, closeTabs, setSplitMiniAppId, setSplitOpen, splitOpen, tabs]
+    [clearSplitWithLastMiniAppTab, closeTab, closeTabs, tabs]
   )
 
   const handleDetachTab = useCallback(
     (id: string) => {
       const tab = tabs.find((candidate) => candidate.id === id)
+      clearSplitWithLastMiniAppTab(id, tab?.url)
       detachTab(id)
       if (isSettingsPath(tab?.url) && previousWorkspaceTabIdRef.current) {
         setActiveTab(previousWorkspaceTabIdRef.current)
       }
     },
-    [detachTab, setActiveTab, tabs]
+    [clearSplitWithLastMiniAppTab, detachTab, setActiveTab, tabs]
   )
 
   const handleOpenGlobalSearch = useCallback(() => {
