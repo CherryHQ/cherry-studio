@@ -3492,10 +3492,10 @@
       }
     },
     "split": {
-      "already_open": "Already shown in the other pane",
-      "choose": "Choose a mini app to show alongside",
-      "close": "Close split view",
-      "open": "Split view"
+      "already_open": "すでにもう一方に表示されています",
+      "choose": "並べて表示するミニアプリを選択",
+      "close": "分割表示を終了",
+      "open": "分割表示"
     },
     "title": "ミニアプリ",
     "unpin_failed": "ミニアプリのピン留め解除に失敗しました",

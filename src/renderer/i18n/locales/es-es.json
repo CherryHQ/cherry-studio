@@ -3492,10 +3492,10 @@
       }
     },
     "split": {
-      "already_open": "Already shown in the other pane",
-      "choose": "Choose a mini app to show alongside",
-      "close": "Close split view",
-      "open": "Split view"
+      "already_open": "Ya se muestra en el otro panel",
+      "choose": "Elige una miniaplicación para mostrar al lado",
+      "close": "Cerrar vista dividida",
+      "open": "Vista dividida"
     },
     "title": "Mini programa",
     "unpin_failed": "Error al desanclar la miniaplicación",

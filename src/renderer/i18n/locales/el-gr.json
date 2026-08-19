@@ -3492,10 +3492,10 @@
       }
     },
     "split": {
-      "already_open": "Already shown in the other pane",
-      "choose": "Choose a mini app to show alongside",
-      "close": "Close split view",
-      "open": "Split view"
+      "already_open": "Εμφανίζεται ήδη στο άλλο τμήμα",
+      "choose": "Επιλέξτε μικροεφαρμογή για προβολή δίπλα",
+      "close": "Κλείσιμο διαχωρισμένης προβολής",
+      "open": "Διαχωρισμός προβολής"
     },
     "title": "Μικρόπρογραμμα",
     "unpin_failed": "Αποτυχία αποκαρφιτσώματος mini-app",

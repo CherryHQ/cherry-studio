@@ -3492,10 +3492,10 @@
       }
     },
     "split": {
-      "already_open": "Already shown in the other pane",
-      "choose": "Choose a mini app to show alongside",
-      "close": "Close split view",
-      "open": "Split view"
+      "already_open": "已顯示在另一側",
+      "choose": "選擇要並排顯示的小程式",
+      "close": "關閉分割檢視",
+      "open": "分割檢視"
     },
     "title": "小程式",
     "unpin_failed": "取消固定小程式失敗",

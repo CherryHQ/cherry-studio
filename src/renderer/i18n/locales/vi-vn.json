@@ -3492,10 +3492,10 @@
       }
     },
     "split": {
-      "already_open": "Already shown in the other pane",
-      "choose": "Choose a mini app to show alongside",
-      "close": "Close split view",
-      "open": "Split view"
+      "already_open": "Đã hiển thị ở khung bên kia",
+      "choose": "Chọn mini-app để hiển thị song song",
+      "close": "Đóng chế độ chia đôi",
+      "open": "Chia đôi màn hình"
     },
     "title": "Mini-app",
     "unpin_failed": "Không thể gỡ ghim ứng dụng mini",

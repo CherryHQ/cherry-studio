@@ -3492,10 +3492,10 @@
       }
     },
     "split": {
-      "already_open": "Already shown in the other pane",
-      "choose": "Choose a mini app to show alongside",
-      "close": "Close split view",
-      "open": "Split view"
+      "already_open": "Wird bereits im anderen Bereich angezeigt",
+      "choose": "Mini-App für die geteilte Ansicht wählen",
+      "close": "Geteilte Ansicht schließen",
+      "open": "Geteilte Ansicht"
     },
     "title": "Mini-Apps",
     "unpin_failed": "Fehler beim Lösen der Mini-App",
