@@ -116,6 +116,36 @@ describe('cherry bridge plugin', () => {
     expect(dispose).toHaveBeenCalledOnce()
   })
 
+  it('routes a delegated subagent tool call through the root session', async () => {
+    const host = await startHost()
+    const register = vi.fn().mockReturnValue(() => {})
+    const rootAgent = { id: 'session-1', session: { header: { cwd: '/new-workspace' } } }
+    const get = vi.fn((id: string) => (id === 'session-1' ? rootAgent : undefined))
+    const ctx = makeContext({
+      agents: { resume: vi.fn(), create: vi.fn().mockResolvedValue(rootAgent), get },
+      tools: { register, guard: vi.fn() }
+    })
+    process.env[BRIDGE_SOCKET_ENV] = host.socketPath
+    process.env[BRIDGE_TOKEN_ENV] = 'one-time-token'
+
+    apply(ctx)
+    await expect.poll(() => host.requests[0]?.method).toBe('ready')
+
+    await host.request('session/open', {
+      ...openParams,
+      resume: false,
+      tools: [{ name: 'echo', description: 'echoes its input', inputSchema: { type: 'object' } }]
+    })
+    expect(register).toHaveBeenCalledOnce()
+
+    const definition = register.mock.calls[0][0]
+    const child = { id: 'child-1', session: { header: { parentSession: 'session-1' } } }
+    await definition.execute({ value: 1 }, { agent: child })
+
+    const toolCall = host.requests.find((entry) => entry.method === 'tool/call')
+    expect(toolCall?.params).toMatchObject({ sessionId: 'session-1', name: 'echo', args: { value: 1 } })
+  })
+
   it('rejects an unknown method instead of answering it', async () => {
     const host = await startHost()
     process.env[BRIDGE_SOCKET_ENV] = host.socketPath

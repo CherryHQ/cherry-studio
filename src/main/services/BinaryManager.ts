@@ -10,7 +10,12 @@ import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
 import { regionService } from '@main/services/RegionService'
-import { getBinaryIsolatedHomeEnv, getBinaryShimsDir, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
+import {
+  dedupePathSegments,
+  getBinaryIsolatedHomeEnv,
+  getBinaryShimsDir,
+  mergeBinaryExecutionEnv
+} from '@main/utils/binaryEnv'
 import { getBinaryName } from '@main/utils/binaryResolver'
 import { findCommandInShellEnv, findExecutable, findMiseExecutable } from '@main/utils/commandResolver'
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
@@ -87,6 +92,9 @@ const REGISTRY_CACHE_TTL_MS = 10 * 60 * 1000
 const LATEST_VERSIONS_CONCURRENCY = 4
 const MISE_PRERELEASE_TOOLS = new Set(
   CODE_CLI_TOOL_PRESETS.filter((preset) => preset.misePrerelease).map((preset) => preset.miseTool)
+)
+const MISE_NPM_SHELL_OUT_TOOLS = new Set(
+  CODE_CLI_TOOL_PRESETS.filter((preset) => preset.miseNpmShellOut).map((preset) => preset.miseTool)
 )
 
 // Main-owned session state. Renderer windows receive operations only through
@@ -880,7 +888,7 @@ export class BinaryManager extends BaseService {
 
   private async runMise(
     args: string[],
-    opts?: { timeoutMs?: number; includePrerelease?: boolean }
+    opts?: { timeoutMs?: number; includePrerelease?: boolean; shellOutNpm?: boolean; prependPath?: string }
   ): Promise<{ stdout: string; stderr: string }> {
     if (!this.miseBin) {
       // Without mise there is nothing to run. The non-null assertion previously
@@ -891,9 +899,27 @@ export class BinaryManager extends BaseService {
       throw new Error('mise binary not available')
     }
     const isolatedEnv = await this.getIsolatedEnv()
-    const env = opts?.includePrerelease
-      ? { ...isolatedEnv, MISE_PRERELEASES: '1', MISE_NPM_SHELL_OUT: '1' }
-      : isolatedEnv
+    let env = isolatedEnv
+    if (opts?.includePrerelease || opts?.shellOutNpm || opts?.prependPath) {
+      env = { ...isolatedEnv }
+      if (opts.includePrerelease) env['MISE_PRERELEASES'] = '1'
+      if (opts.shellOutNpm) {
+        env['MISE_NPM_SHELL_OUT'] = '1'
+        env['MISE_NPM_PACKAGE_MANAGER'] = 'npm'
+      }
+      if (opts.prependPath) {
+        const pathSeparator = isWin ? ';' : path.delimiter
+        const pathKeys = Object.keys(env).filter((key) => key.toLowerCase() === 'path')
+        const pathKey = pathKeys[0] || (isWin ? 'Path' : 'PATH')
+        const pathValue = dedupePathSegments([
+          opts.prependPath,
+          ...pathKeys.flatMap((key) => (env[key] || '').split(pathSeparator))
+        ]).join(pathSeparator)
+        for (const key of pathKeys) delete env[key]
+        env[pathKey] = pathValue
+        if (!isWin) env.PATH = pathValue
+      }
+    }
     const timeoutMs = opts?.timeoutMs ?? MISE_COMMAND_TIMEOUT_MS
     const startedAt = Date.now()
     // cwd is always a throwaway tmp dir so mise never picks up a project-local
@@ -942,6 +968,68 @@ export class BinaryManager extends BaseService {
     return (await this.resolveManagedBinaryPath(toolName)) !== null
   }
 
+  private async resolveMiseBinaryForTool(
+    binaryName: string,
+    toolSpec: string
+  ): Promise<{ path: string; canonicalPath: string } | null> {
+    try {
+      const { stdout } = await this.runMise(['which', binaryName, '--tool', toolSpec])
+      const resolved = stdout.trim().split(/\r?\n/)[0]
+      if (!resolved || !path.isAbsolute(resolved)) return null
+      const canonicalPath = await fsp.realpath(resolved)
+      await fsp.access(canonicalPath, isWin ? fs.constants.F_OK : fs.constants.X_OK)
+      return { path: resolved, canonicalPath }
+    } catch {
+      return null
+    }
+  }
+
+  private async resolveExactRuntime(runtime: string): Promise<string> {
+    const separator = runtime.lastIndexOf('@')
+    const runtimeTool = runtime.slice(0, separator)
+    const requestedVersion = runtime.slice(separator + 1)
+    const exactVersion = semverValid(requestedVersion)
+    if (exactVersion) return `${runtimeTool}@${exactVersion}`
+
+    const { stdout } = await this.runMise(['latest', '--minimum-release-age', '0s', runtime])
+    const resolvedVersion = semverValid(stdout.trim().split(/\r?\n/)[0])
+    if (!resolvedVersion) throw new Error(`mise did not resolve an exact runtime version for ${runtime}`)
+    return `${runtimeTool}@${resolvedVersion}`
+  }
+
+  private async resolveHealthyNpmRuntimeBin(runtime: string): Promise<string | null> {
+    const [runtimeNode, runtimeNpm, activeNode] = await Promise.all([
+      this.resolveMiseBinaryForTool('node', runtime),
+      this.resolveMiseBinaryForTool('npm', runtime),
+      this.resolveManagedBinaryPath('node')
+    ])
+    if (!runtimeNode || !runtimeNpm || !activeNode) return null
+
+    const canonicalRuntimeNode = isWin ? runtimeNode.canonicalPath.toLowerCase() : runtimeNode.canonicalPath
+    const canonicalActiveNode = isWin ? activeNode.toLowerCase() : activeNode
+    if (canonicalRuntimeNode !== canonicalActiveNode) return null
+
+    const nodeBin = isWin ? path.dirname(runtimeNode.path).toLowerCase() : path.dirname(runtimeNode.path)
+    const npmBin = isWin ? path.dirname(runtimeNpm.path).toLowerCase() : path.dirname(runtimeNpm.path)
+    return nodeBin === npmBin ? path.dirname(runtimeNpm.path) : null
+  }
+
+  private async prepareNpmRuntime(runtime: string): Promise<string> {
+    const exactRuntime = await this.resolveExactRuntime(runtime)
+    // A fuzzy use can trust a stale alias whose node target is missing. Activate
+    // an exact version, verify both launchers, then force-reinstall if needed.
+    await this.runMise(['use', '-g', '--pin', exactRuntime], { timeoutMs: MISE_INSTALL_TIMEOUT_MS })
+
+    let runtimeBin = await this.resolveHealthyNpmRuntimeBin(exactRuntime)
+    if (!runtimeBin) {
+      await this.runMise(['install', '--force', exactRuntime], { timeoutMs: MISE_INSTALL_TIMEOUT_MS })
+      await this.runMise(['use', '-g', '--pin', exactRuntime], { timeoutMs: MISE_INSTALL_TIMEOUT_MS })
+      runtimeBin = await this.resolveHealthyNpmRuntimeBin(exactRuntime)
+    }
+    if (!runtimeBin) throw new Error(`mise runtime is not runnable after reinstall: ${exactRuntime}`)
+    return runtimeBin
+  }
+
   private async installWithMise(
     definition: CustomToolDefinition,
     targetVersion: string | undefined,
@@ -967,11 +1055,16 @@ export class BinaryManager extends BaseService {
     }
     const toolSpec = `${definition.tool}@${requested}`
     const includePrerelease = MISE_PRERELEASE_TOOLS.has(definition.tool)
+    const shellOutNpm = MISE_NPM_SHELL_OUT_TOOLS.has(definition.tool)
     const releaseAgeArgs = includePrerelease ? ['--minimum-release-age', '0s'] : []
 
-    await this.runMise(['use', '-g', ...releaseAgeArgs, ...(runtime ? [runtime] : []), toolSpec], {
+    const runtimeBin = shellOutNpm && runtime ? await this.prepareNpmRuntime(runtime) : undefined
+
+    await this.runMise(['use', '-g', ...releaseAgeArgs, ...(!shellOutNpm && runtime ? [runtime] : []), toolSpec], {
       timeoutMs: MISE_INSTALL_TIMEOUT_MS,
-      includePrerelease
+      includePrerelease,
+      shellOutNpm,
+      prependPath: runtimeBin
     })
     await this.runMise(['reshim'])
     return this.getInstalledVersion(definition.tool, requested)

@@ -6,11 +6,13 @@ import { getBuiltInMcpServerDescriptionLabelKey } from '@renderer/i18n/label'
 import { builtinMcpServers } from '@renderer/pages/settings/McpSettings/builtinMcpServers'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
+import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 import { Check, ExternalLink, Plus } from 'lucide-react'
 import type { FC } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { QVERIS_API_KEY_REGISTRATION_URL } from './QVerisApiKeyGuide'
 import { toCreateMcpServerDto } from './utils'
 
 const BuiltinMcpServerList: FC = () => {
@@ -105,6 +107,15 @@ const BuiltinMcpServerList: FC = () => {
                           href={server.reference}
                           className="wrap-break-word mt-2 inline-block text-link hover:underline">
                           {server.reference}
+                        </a>
+                      )}
+                      {server.name === BuiltinMcpServerNames.qveris && (
+                        <a
+                          href={QVERIS_API_KEY_REGISTRATION_URL}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="wrap-break-word mt-2 block text-link hover:underline">
+                          {t('settings.mcp.qveris.get_api_key')}
                         </a>
                       )}
                     </div>

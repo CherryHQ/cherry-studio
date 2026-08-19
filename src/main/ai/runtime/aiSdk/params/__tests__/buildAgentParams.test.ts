@@ -1,5 +1,7 @@
 import path from 'node:path'
 
+import { createOpenAI } from '@ai-sdk/openai'
+import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import { generateText as aiCoreGenerateText } from '@cherrystudio/ai-core'
 import { FS_READ_TOOL_NAME } from '@shared/ai/builtinTools'
@@ -47,9 +49,16 @@ vi.mock('@application', () => ({
     get: (name: string) => {
       if (name === 'KnowledgeService') return { hasAnyBase: () => true }
       if (name === 'PreferenceService') return { get: preferenceGetMock }
+      // No connected MCP server in these tests, so nothing declares the resources capability.
+      if (name === 'McpRuntimeService') return { getConnectedServerCapabilities: () => undefined }
       throw new Error(`unexpected service: ${name}`)
     }
   }
+}))
+
+// No MCP servers configured in these tests — keeps the MCP tool/resource resolution off the DB.
+vi.mock('@main/data/services/McpServerService', () => ({
+  mcpServerService: { list: () => ({ items: [] }) }
 }))
 
 const { applyCallOverrides, buildAgentParams, composeStopWhen, resolveToolCallLimit, resolveTools } = await import(
@@ -729,6 +738,59 @@ describe('buildAgentParams web-tool routing', () => {
 })
 
 describe('buildAgentParams assistant-less reasoning', () => {
+  it('disables Bailian qwen3.7-max reasoning in the serialized Responses request', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: {
+        providerId: 'openai',
+        providerSettings: {}
+      },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'dashscope',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'openai-compatible' },
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'openai' }
+      }
+    })
+    const model = makeModel({
+      id: 'dashscope::qwen3-7-max',
+      providerId: 'dashscope',
+      apiModelId: 'qwen3.7-max',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'toggle' }],
+        selectableEfforts: ['none', 'auto']
+      }
+    })
+
+    const result = await buildAgentParams({
+      request: { reasoningEffort: 'none' },
+      signal: undefined,
+      provider,
+      model
+    })
+    const prompt: LanguageModelV3CallOptions['prompt'] = [
+      { role: 'user', content: [{ type: 'text', text: 'Translate this.' }] }
+    ]
+    let requestBody: Record<string, unknown> | undefined
+    const sdkModel = createOpenAI({
+      apiKey: 'sk-test',
+      baseURL: 'https://example.com/v1',
+      fetch: async (_input, init) => {
+        requestBody = JSON.parse(String(init?.body))
+        throw new Error('request captured')
+      }
+    }).responses('qwen3.7-max')
+
+    await expect(sdkModel.doGenerate({ prompt, providerOptions: result.options.providerOptions })).rejects.toThrow(
+      'request captured'
+    )
+    expect(requestBody).toMatchObject({ reasoning: { effort: 'none' } })
+  })
+
   const makeOffCapableSetup = () => {
     resolveProviderAiSdkConfigMock.mockResolvedValue({
       config: {

@@ -7,7 +7,16 @@ import { loggerService } from '@logger'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
-import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import {
+  BaseService,
+  DependsOn,
+  type Disposable,
+  Emitter,
+  type Event,
+  Injectable,
+  Phase,
+  ServicePhase
+} from '@main/core/lifecycle'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { type Span, SpanStatusCode } from '@opentelemetry/api'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY, type AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
@@ -107,6 +116,12 @@ function knowledgeScopeEquals(left: readonly string[], right: readonly string[])
 
 export type AgentSessionRuntimeStatus = 'active' | 'idle'
 export type AgentSessionRuntimeTerminalStatus = AgentSessionTerminalStatus
+export type AgentSessionTurnTerminalEvent = {
+  sessionId: string
+  assistantMessageId: string
+  status: AgentSessionRuntimeTerminalStatus
+  boundary: 'turn' | 'row-roll'
+}
 
 export interface BeginAgentSessionTurnInput {
   sessionId: string
@@ -292,12 +307,18 @@ class AgentSessionRuntimeTerminalListener implements StreamListener {
 // these entries are closed — do not drop it as unused. Covered by a stop-order test.
 @DependsOn(['ClaudeCodeProcessManager'])
 export class AgentSessionRuntimeService extends BaseService {
+  private readonly _onTurnTerminal = new Emitter<AgentSessionTurnTerminalEvent>()
+  readonly onTurnTerminal: Event<AgentSessionTurnTerminalEvent> = this._onTurnTerminal.event
+  private readonly _onRuntimeIdle = new Emitter<{ sessionId: string }>()
+  readonly onRuntimeIdle: Event<{ sessionId: string }> = this._onRuntimeIdle.event
   private readonly entries = new Map<string, AgentSessionRuntimeEntry>()
   /** Write-quiesce holds (backup restore). Quiesced ⇔ non-empty. Distinct from the BaseService
    *  lifecycle pause — this never touches service state. See `pause()`. */
   private readonly pauseHolds = new Set<symbol>()
   /** In-flight launches registered synchronously by the state-machine schedule effect. */
   private readonly inFlightTurnStarts = new Map<string, Promise<void>>()
+  /** Detached-flow finalizers can outlive their runtime entry but still write message parts. */
+  private readonly inFlightBackgroundFlowFlushes = new Map<Promise<void>, string>()
   /** Async connection resources live outside the pure state; attempt ids reject stale completions. */
   private readonly connectionAttempts = new Map<string, { id: string; promise: Promise<boolean> }>()
   /** Promise resources for a rebuild-blocked connection; the state only owns the blocked phase. */
@@ -807,6 +828,8 @@ export class AgentSessionRuntimeService extends BaseService {
       entry.runtimeState.execution.stream === 'open' &&
       turn &&
       this.isTurnLive(entry, turn) &&
+      turn.headless !== true &&
+      !headless &&
       canRedirectOnCurrentConfig &&
       this.currentConnection(entry)?.redirect?.({
         message,
@@ -841,8 +864,17 @@ export class AgentSessionRuntimeService extends BaseService {
 
   markTurnTerminal(sessionId: string, status: AgentSessionRuntimeTerminalStatus, expectedTurnId?: string): void {
     const entry = this.entries.get(sessionId)
-    if (!entry) return
+    if (!entry) {
+      // closeSession may remove the runtime before AiStreamManager publishes the terminal callback.
+      // That callback is the reliable post-stream wake for durable work blocked by the old turn.
+      this._onRuntimeIdle.fire({ sessionId })
+      return
+    }
     const completedTurn = this.currentTurn(entry)
+    const isRowRoll =
+      entry.runtimeState.execution.kind === 'steer-transition' &&
+      entry.runtimeState.execution.sourceTurn === completedTurn &&
+      status === 'success'
     if (expectedTurnId) {
       const execution = entry.runtimeState.execution
       const executionOwnsTurn =
@@ -855,6 +887,12 @@ export class AgentSessionRuntimeService extends BaseService {
     if (completedTurn) this.markFlowMessagePersisted(entry, completedTurn.assistantMessageId)
     if (completedTurn) {
       this.applyRuntimeStateEvent(entry, { type: 'turn-terminal', turn: completedTurn, status })
+      this._onTurnTerminal.fire({
+        sessionId: entry.sessionId,
+        assistantMessageId: completedTurn.assistantMessageId,
+        status,
+        boundary: isRowRoll ? 'row-roll' : 'turn'
+      })
     }
 
     // Connection stays warm across turns (no per-turn close) — only `closeSession`/idle TTL tears it
@@ -867,6 +905,7 @@ export class AgentSessionRuntimeService extends BaseService {
       this.requestRuntimeLaunch(entry, 'queued-turn')
     } else {
       this.refreshIdleTimer(entry)
+      if (!this.isSessionBusy(entry.sessionId)) this._onRuntimeIdle.fire({ sessionId: entry.sessionId })
     }
   }
 
@@ -881,7 +920,10 @@ export class AgentSessionRuntimeService extends BaseService {
       logger.warn('Agent runtime entry close failed', { sessionId, error })
       closing = this.closeRuntimeConnection(fallbackConnection, sessionId)
     }
-    if (this.entries.get(sessionId) === entry) this.entries.delete(sessionId)
+    if (this.entries.get(sessionId) === entry) {
+      this.entries.delete(sessionId)
+      this._onRuntimeIdle.fire({ sessionId })
+    }
     return closing
   }
 
@@ -1019,6 +1061,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
   /** Whether any agent session can still mutate its DB row or external runtime files. */
   hasBusySessions(): boolean {
+    if (this.inFlightBackgroundFlowFlushes.size > 0) return true
     for (const sessionId of this.entries.keys()) {
       if (this.isSessionBusy(sessionId)) return true
     }
@@ -1100,9 +1143,10 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   /**
-   * Await in-flight turn-start launches (placeholder write + `startRuntimeTurn` handoff),
-   * bounded by timeoutMs. Never rejects; stragglers are NOT aborted. The resulting stream
-   * writes are AiStreamManager's drain — this only covers the window this service writes in.
+   * Await in-flight turn-start launches (placeholder write + `startRuntimeTurn` handoff) and
+   * detached-flow finalizers, bounded by timeoutMs. Never rejects; stragglers are NOT aborted.
+   * The resulting stream writes are AiStreamManager's drain — this only covers the windows this
+   * service writes in.
    * The set can grow one step while draining (a settling turn schedules the next start
    * before the pause gate suppresses it), so the drain is a fixed point over promise
    * identities rather than one snapshot.
@@ -1124,6 +1168,13 @@ export class AgentSessionRuntimeService extends BaseService {
         pending.set(launch, sessionId)
         const remove = () => pending.delete(launch)
         launch.then(remove, remove)
+      }
+      for (const [flush, sessionId] of this.inFlightBackgroundFlowFlushes) {
+        if (seen.has(flush)) continue
+        seen.add(flush)
+        pending.set(flush, sessionId)
+        const remove = () => pending.delete(flush)
+        flush.then(remove, remove)
       }
     }
 
@@ -1277,6 +1328,8 @@ export class AgentSessionRuntimeService extends BaseService {
     } catch (error) {
       logger.warn('Failed to clear agent runtime approvals during destroy', { error })
     }
+    this._onTurnTerminal.dispose()
+    this._onRuntimeIdle.dispose()
   }
 
   private isCurrentEntry(entry: AgentSessionRuntimeEntry): boolean {
@@ -2079,6 +2132,8 @@ export class AgentSessionRuntimeService extends BaseService {
         if (entry.backgroundFlowFlush === flush) entry.backgroundFlowFlush = undefined
       })
     entry.backgroundFlowFlush = flush
+    this.inFlightBackgroundFlowFlushes.set(flush, entry.sessionId)
+    void flush.finally(() => this.inFlightBackgroundFlowFlushes.delete(flush))
     return flush
   }
 
@@ -2466,6 +2521,8 @@ export class AgentSessionRuntimeService extends BaseService {
       rootSpan?.setStatus({ code: SpanStatusCode.ERROR, message: 'Placeholder save failed' })
       rootSpan?.end()
       application.get('AiStreamManager').terminateHeldTopicStream(entry.topicId, entry.modelId, serializeError(error))
+      // A placeholder write can fail transiently during write quiesce. The durable request remains
+      // accepted and recovery will retry it; do not convert a scheduling failure into terminal loss.
       this.markTurnTerminal(entry.sessionId, 'error')
       return
     }
@@ -2489,7 +2546,6 @@ export class AgentSessionRuntimeService extends BaseService {
       headless
     }
     this.applyRuntimeStateEvent(entry, { type: 'begin-turn', turn: nextTurn })
-
     const messages = createRuntimeSeedMessages(nextMessage, assistantMessageId)
     // Author the turn span's input/identity here (the runtime owns its continuation turns).
     if (rootSpan) {
@@ -2966,7 +3022,7 @@ export class AgentSessionRuntimeService extends BaseService {
           BACKGROUND_FLOW_HANDOFF_TTL_MS
         )
     }
-    void this.finishBackgroundFlows(entry)
+    const backgroundFlowFlush = this.finishBackgroundFlows(entry)
     const currentTurn = this.currentTurn(entry)
     if (currentTurn) this.closeTurn(currentTurn)
     const deferredTurn =
@@ -2987,7 +3043,9 @@ export class AgentSessionRuntimeService extends BaseService {
     this.connectionAttempts.delete(entry.sessionId)
     this.inFlightTurnStarts.delete(entry.sessionId)
 
-    return this.closeRuntimeConnection(connection, entry.sessionId)
+    return Promise.all([backgroundFlowFlush, this.closeRuntimeConnection(connection, entry.sessionId)]).then(
+      () => undefined
+    )
   }
 
   private closeFailedPolicyUpdateConnection(entry: AgentSessionRuntimeEntry, connection: AgentRuntimeConnection): void {

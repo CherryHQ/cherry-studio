@@ -7,12 +7,14 @@ import { application } from '@application'
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
+import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { findExecutableInEnv } from '@main/utils/commandResolver'
 import { deleteDirectoryRecursive } from '@main/utils/fileOperations'
 import { directoryExists } from '@main/utils/legacyFile'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
 import { executeCommand } from '@main/utils/processRunner'
 import { getShellEnv } from '@main/utils/shellEnv'
+import { assertZipEntriesWithin } from '@main/utils/zipSafety'
 import type { InstalledSkill, ListSkillsQuery } from '@shared/data/api/schemas/skills'
 import type {
   SkillFileNode,
@@ -82,9 +84,9 @@ export class SkillService {
   /**
    * List installed skills.
    *
-   * When `agentId` is provided, each skill's `isEnabled` field reflects the
-   * per-agent enablement state from `agent_skill`. Without `agentId`,
-   * the field is forced to `false`.
+   * Without `agentId`, the global catalog includes disabled skills and forces
+   * `isEnabled` to false. With `agentId`, globally disabled skills are omitted
+   * and `isEnabled` reflects the per-agent state of the remaining skills.
    */
   async getById(id: string): Promise<InstalledSkill | null> {
     return agentGlobalSkillService.getById(id)
@@ -629,12 +631,23 @@ export class SkillService {
     await walk(skillDir)
   }
 
+  /**
+   * The single entry point for every git subprocess an install spawns: bounded, non-interactive, and
+   * routed through Cherry's proxy — which lives in the main process env, not in the captured login shell.
+   */
   private async runGit(gitCommand: string, args: string[]): Promise<string> {
     const env = await getShellEnv()
     return executeCommand(gitCommand, args, {
       capture: true,
       timeout: GIT_COMMAND_TIMEOUT_MS,
-      env: { ...env, GIT_TERMINAL_PROMPT: '0', GIT_LFS_SKIP_SMUDGE: '1', GIT_ASKPASS: '', GCM_INTERACTIVE: 'never' }
+      env: {
+        ...env,
+        ...getProxyEnvironment(process.env),
+        GIT_TERMINAL_PROMPT: '0',
+        GIT_LFS_SKIP_SMUDGE: '1',
+        GIT_ASKPASS: '',
+        GCM_INTERACTIVE: 'never'
+      }
     })
   }
 
@@ -854,8 +867,7 @@ export class SkillService {
           author: metadata.author ?? null,
           version: metadata.version ?? null,
           tags,
-          contentHash,
-          isEnabled: false
+          contentHash
         })
         inserted = agentGlobalSkillService.getById(insertedRow.id) ?? undefined
       })
@@ -888,30 +900,13 @@ export class SkillService {
   // Git operations
   // ===========================================================================
 
+  /**
+   * One shallow clone of whatever the remote calls its default branch — which is what a bare
+   * `git clone` already checks out, so resolving the branch first only adds a second way to hang.
+   */
   private async cloneRepository(repoUrl: string, destDir: string): Promise<void> {
     const gitCommand = (await findExecutableInEnv('git')) ?? 'git'
-
-    const branch = await this.resolveDefaultBranch(gitCommand, repoUrl)
-    if (branch) {
-      await executeCommand(gitCommand, ['clone', '--depth', '1', '--branch', branch, '--', repoUrl, destDir])
-      return
-    }
-
-    try {
-      await executeCommand(gitCommand, ['clone', '--depth', '1', '--', repoUrl, destDir])
-    } catch {
-      await executeCommand(gitCommand, ['clone', '--depth', '1', '--branch', 'master', '--', repoUrl, destDir])
-    }
-  }
-
-  private async resolveDefaultBranch(command: string, repoUrl: string): Promise<string | null> {
-    try {
-      const output = await executeCommand(command, ['ls-remote', '--symref', '--', repoUrl, 'HEAD'], { capture: true })
-      const match = output.match(/ref: refs\/heads\/([^\s]+)/)
-      return match?.[1] ?? null
-    } catch {
-      return null
-    }
+    await this.runGit(gitCommand, ['clone', '--depth', '1', '--', repoUrl, destDir])
   }
 
   // ===========================================================================
@@ -933,6 +928,7 @@ export class SkillService {
 
     try {
       const entries = await zip.entries()
+      assertZipEntriesWithin(Object.keys(entries), destDir)
       let totalSize = 0
       let fileCount = 0
 
@@ -1389,8 +1385,7 @@ export class SkillService {
           author: metadata.author ?? null,
           version: metadata.version ?? null,
           tags,
-          contentHash,
-          isEnabled: false
+          contentHash
         })
         logger.info('Adopted library skill into catalog', { folderName })
       }
@@ -1700,8 +1695,7 @@ export class SkillService {
           author: metadata.author ?? null,
           version: metadata.version ?? null,
           tags,
-          contentHash: sourceHash,
-          isEnabled: false
+          contentHash: sourceHash
         })
       }
 
