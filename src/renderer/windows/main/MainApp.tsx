@@ -3,6 +3,7 @@ import { loggerService } from '@logger'
 import AppLogo from '@renderer/assets/images/logo.png'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
+import { ConversationNotificationRuntime } from '@renderer/components/ConversationNotificationRuntime'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { AppShell } from '@renderer/components/layout/AppShell'
 import { TabsProvider } from '@renderer/components/layout/TabsProvider'
@@ -82,6 +83,7 @@ export function MainWindowContent(): React.ReactElement {
         <AppShell />
       )}
       <MainWindowRuntime />
+      <ConversationNotificationRuntime />
       <PopupHost />
       <ToastHost />
       {providerSetupStatus === 'pending' ? null : <PrivacyPolicyUpdateGate />}
