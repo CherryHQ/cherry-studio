@@ -52,7 +52,7 @@ describe('classifyError', () => {
       })
     )
     expect(result.category).toBe('region')
-    expect(result.navTarget).toBe('/settings/system')
+    expect(result.navTarget).toBe('/settings/general')
   })
 
   it('classifies a service unavailable in the user region as region', () => {
@@ -164,7 +164,7 @@ describe('classifyError', () => {
   it('classifies econnrefused as network', () => {
     const result = classifyError(makeError({ message: 'connect ECONNREFUSED 127.0.0.1:443' }))
     expect(result.category).toBe('network')
-    expect(result.navTarget).toBe('/settings/system')
+    expect(result.navTarget).toBe('/settings/general')
   })
 
   it('classifies timeout as network', () => {

@@ -71,6 +71,8 @@ export interface DispatchContext {
 
 export interface ChatContextProvider {
   readonly name: string
+  /** Admission-time ownership; temporary providers must opt out. */
+  readonly isPersistentConversation: boolean
 
   /** Synchronous, side-effect free — runs on every request. */
   canHandle(topicId: string): boolean

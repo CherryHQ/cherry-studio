@@ -2,6 +2,7 @@ import type {
   AssistantMessage,
   CallId,
   ContentBlock,
+  ImageBlock,
   MessageId,
   StreamChunk,
   ToolResultMessage
@@ -176,7 +177,66 @@ describe('DshStreamAdapter', () => {
       input: { command: 'ls' },
       providerMetadata: { cherry: { transport: DSH_TRANSPORT } }
     })
-    expect(chunks[2]).toMatchObject({ toolCallId: 'c1', output: [{ type: 'text', text: 'file.txt' }] })
+    expect(chunks[2]).toMatchObject({ toolCallId: 'c1', output: 'file.txt' })
+  })
+
+  it('unwraps an all-text tool result into its structured payload', () => {
+    const { adapter, chunks } = makeAdapter()
+    const results = [{ id: 'dsh-1', url: 'https://a.com/x', title: 'A', content: 'a' }]
+    adapter.handleEvent(
+      envelope('tool/call', { turn: 1, step: 1, callId: callId('c1'), name: 'web_search', arguments: '{}' })
+    )
+    adapter.handleEvent(
+      envelope('tool/result', {
+        turn: 1,
+        step: 1,
+        message: toolResultMessage('c1', [{ type: 'text', text: JSON.stringify(results) }])
+      })
+    )
+
+    expect(chunks.at(-1)).toMatchObject({ type: 'tool-output-available', output: results })
+  })
+
+  it('reports the MCP identity behind a bridged tool wire name', () => {
+    const { adapter, chunks } = makeAdapter()
+    adapter.handleEvent(
+      envelope('tool/call', {
+        turn: 1,
+        step: 1,
+        callId: callId('c1'),
+        name: 'mcp__cherry-tools__web_search',
+        arguments: '{}'
+      })
+    )
+
+    expect(chunks[0]).toMatchObject({
+      providerMetadata: {
+        cherry: { tool: { type: 'mcp', name: 'web_search', serverId: 'cherry-tools', serverName: 'cherry-tools' } }
+      }
+    })
+  })
+
+  it('keeps a mixed-content tool result as MCP content blocks', () => {
+    const { adapter, chunks } = makeAdapter()
+    const content: ContentBlock[] = [
+      { type: 'text', text: '{"ok":true}' },
+      {
+        type: 'image',
+        attachment: {
+          attachmentId: 'att-1' as ImageBlock['attachment']['attachmentId'],
+          mediaType: 'image/png',
+          bytes: 4,
+          width: 1,
+          height: 1
+        }
+      }
+    ]
+    adapter.handleEvent(
+      envelope('tool/call', { turn: 1, step: 1, callId: callId('c1'), name: 'screenshot', arguments: '{}' })
+    )
+    adapter.handleEvent(envelope('tool/result', { turn: 1, step: 1, message: toolResultMessage('c1', content) }))
+
+    expect(chunks.at(-1)).toMatchObject({ type: 'tool-output-available', output: content })
   })
 
   it('degrades malformed tool arguments JSON to an empty input', () => {

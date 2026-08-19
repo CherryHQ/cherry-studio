@@ -8,13 +8,20 @@ import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
+import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { loggerService } from '@logger'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
+import { SKILL_LIST_MEMBERSHIP_DIMENSIONS } from '@shared/data/api/schemas/skills'
+import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import { setupTestDatabase } from '@test-helpers/db'
 import AdmZip from 'adm-zip'
 import { eq } from 'drizzle-orm'
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const notifyDataApiDataChangeMock = vi.hoisted(() => vi.fn())
+
+vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
 
 vi.mock('@main/utils/markdownParser', () => ({
   parseSkillMetadata: vi.fn(),
@@ -147,6 +154,39 @@ describe('SkillService', () => {
       const two = result.find((s) => s.id === SKILL_ID_2)
       expect(one?.isEnabled).toBe(true)
       expect(two?.isEnabled).toBe(false)
+    })
+
+    it('keeps the global state separate and lets it override an agent enablement without erasing it', async () => {
+      const skillService = new SkillService()
+      await seedAgent()
+      await seedSkills()
+      await dbh.db.insert(agentSkillTable).values({
+        agentId: AGENT_ID,
+        skillId: SKILL_ID_1,
+        isEnabled: true
+      })
+      const disabledSkill = agentGlobalSkillService.updateGlobalEnabled(SKILL_ID_1, false)
+
+      const globallyListed = await skillService.list()
+      const agentListed = await skillService.list({ agentId: AGENT_ID })
+      const storedPreference = dbh.db
+        .select()
+        .from(agentSkillTable)
+        .where(eq(agentSkillTable.skillId, SKILL_ID_1))
+        .get()
+
+      expect(disabledSkill?.isGlobalEnabled).toBe(false)
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/skills', kind: 'projection', entityIds: [SKILL_ID_1] },
+        { endpoint: '/skills', kind: 'membership', dimension: 'agentId', entityIds: [SKILL_ID_1] },
+        { endpoint: '/skills/:skillId', entityIds: [SKILL_ID_1] }
+      ])
+      const emittedEffects = notifyDataApiDataChangeMock.mock.calls[0]?.[0] as DataApiDataChangeEffect[]
+      const membershipEffect = emittedEffects.find((effect) => effect.kind === 'membership')
+      expect(Object.values(SKILL_LIST_MEMBERSHIP_DIMENSIONS)).toContain(membershipEffect?.dimension)
+      expect(globallyListed.find((skill) => skill.id === SKILL_ID_1)?.isGlobalEnabled).toBe(false)
+      expect(agentListed.find((skill) => skill.id === SKILL_ID_1)).toBeUndefined()
+      expect(storedPreference?.isEnabled).toBe(true)
     })
 
     it('defaults isEnabled to false for non-builtin skills and true for builtin skills when agentId has no skill rows', async () => {
@@ -371,12 +411,19 @@ describe('SkillService', () => {
         size: 0,
         contentHash: 'system-hash'
       })
+      vi.mocked(findAllSkillDirectories).mockImplementation(async (directoryPath) =>
+        directoryPath === path.join(home, '.codex', 'skills')
+          ? [{ folderPath: sourceSkillDir, sourcePath: 'large-skill' }]
+          : []
+      )
       vi.mocked(findSkillMdPath).mockImplementation(async (directoryPath) => path.join(directoryPath, 'SKILL.md'))
     })
 
     afterEach(() => {
       restoreGetPath()
       vi.mocked(parseSkillMetadata).mockReset()
+      vi.mocked(findAllSkillDirectories).mockReset()
+      vi.mocked(findAllSkillDirectories).mockResolvedValue([])
       vi.mocked(findSkillMdPath).mockReset()
     })
 
@@ -395,6 +442,47 @@ describe('SkillService', () => {
       expect(parseSkillMetadata).toHaveBeenCalledWith(
         await fs.promises.realpath(sourceSkillDir),
         'large-skill',
+        'skills',
+        { calculateSize: false }
+      )
+    })
+
+    it('discovers skills recursively under known system roots', async () => {
+      const agentsSkillsRoot = path.join(home, '.agents', 'skills')
+      const nestedSkillDir = path.join(agentsSkillsRoot, 'github', 'github-pr-workflow')
+      await fs.promises.mkdir(nestedSkillDir, { recursive: true })
+      await fs.promises.writeFile(path.join(nestedSkillDir, 'SKILL.md'), '# GitHub PR workflow')
+      vi.mocked(findAllSkillDirectories).mockImplementation(async (directoryPath) =>
+        directoryPath === agentsSkillsRoot
+          ? [{ folderPath: nestedSkillDir, sourcePath: path.join('github', 'github-pr-workflow') }]
+          : []
+      )
+      vi.mocked(parseSkillMetadata).mockResolvedValue({
+        sourcePath: path.join('github', 'github-pr-workflow'),
+        filename: 'github-pr-workflow',
+        name: 'GitHub PR Workflow',
+        description: 'Nested system skill',
+        category: 'skills',
+        type: 'skill',
+        version: '1.0.0',
+        size: 0,
+        contentHash: 'nested-system-hash'
+      })
+
+      const result = await skillService.discoverSystem()
+
+      expect(result).toEqual([
+        expect.objectContaining({
+          name: 'GitHub PR Workflow',
+          filename: 'github-pr-workflow',
+          directoryPath: await fs.promises.realpath(nestedSkillDir),
+          status: 'available',
+          placements: [expect.objectContaining({ sourceId: 'agents', sourceName: 'Agent Skills' })]
+        })
+      ])
+      expect(parseSkillMetadata).toHaveBeenCalledWith(
+        await fs.promises.realpath(nestedSkillDir),
+        path.join('github', 'github-pr-workflow'),
         'skills',
         { calculateSize: false }
       )
@@ -1416,7 +1504,7 @@ describe('SkillService', () => {
       expect(rows[0]?.source).toBe('local')
       expect(rows[0]?.name).toBe('New Skill')
       expect(rows[0]?.version).toBe('3.0.0')
-      expect(rows[0]?.isEnabled).toBe(false)
+      expect(rows[0]?.isEnabled).toBe(true)
       await expect(fs.promises.access(path.join(authored, 'SKILL.md'))).resolves.toBeUndefined()
       expect((await fs.promises.lstat(path.join(mirrorRoot, 'new-skill'))).isSymbolicLink()).toBe(true)
     })
@@ -1748,6 +1836,44 @@ describe('SkillService', () => {
       expect(
         await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.skillId, SKILL_ID_BUILTIN))
       ).toHaveLength(1)
+    })
+  })
+
+  describe('extractZip (zip-slip guard)', () => {
+    const callExtractZip = (service: SkillService, zipPath: string, destDir: string) =>
+      (service as unknown as { extractZip: (z: string, d: string) => Promise<void> }).extractZip(zipPath, destDir)
+
+    it('rejects entries that escape the destination dir before extracting', async () => {
+      const skillService = new SkillService()
+      const zipDir = await createTempDir('skill-zipslip-')
+      const destDir = await createTempDir('skill-dest-')
+      const zip = new AdmZip()
+      zip.addFile('SKILL.md', Buffer.from('---\nname: x\n---\n'))
+      zip.addFile('../../../evil-slip-marker.sh', Buffer.from('pwn'))
+      const zipPath = path.join(zipDir, 'skill.zip')
+      zip.writeZip(zipPath)
+
+      // node-stream-zip rejects malicious names itself ('Malicious entry') and the
+      // explicit guard is defense-in-depth — either layer rejecting satisfies the contract.
+      await expect(callExtractZip(skillService, zipPath, destDir)).rejects.toThrow(/zip-slip|Malicious entry/)
+
+      // Nothing was written — not the safe entry, and no marker escaped beside destDir.
+      expect(fs.existsSync(path.join(destDir, 'SKILL.md'))).toBe(false)
+      expect(fs.existsSync(path.join(destDir, '..', 'evil-slip-marker.sh'))).toBe(false)
+    })
+
+    it('extracts a well-formed skill zip', async () => {
+      const skillService = new SkillService()
+      const zipDir = await createTempDir('skill-zip-ok-')
+      const destDir = await createTempDir('skill-dest-')
+      const zip = new AdmZip()
+      zip.addFile('SKILL.md', Buffer.from('---\nname: x\n---\n'))
+      zip.addFile('nested/helper.md', Buffer.from('# helper'))
+      const zipPath = path.join(zipDir, 'skill.zip')
+      zip.writeZip(zipPath)
+
+      await callExtractZip(skillService, zipPath, destDir)
+      await expect(fs.promises.readFile(path.join(destDir, 'SKILL.md'), 'utf-8')).resolves.toContain('name: x')
     })
   })
 })

@@ -1,10 +1,13 @@
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import { SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 import {
   KB_LIST_TOOL_NAME,
   KB_MANAGE_TOOL_NAME,
   KB_READ_TOOL_NAME,
   KB_SEARCH_TOOL_NAME,
+  MCP_RESOURCE_LIST_TOOL_NAME,
+  MCP_RESOURCE_READ_TOOL_NAME,
   PROVIDER_WEB_SEARCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
@@ -27,6 +30,10 @@ const CHERRY_AGENT_TOOL_NAMES = new Set([
   KB_LIST_TOOL_NAME,
   KB_READ_TOOL_NAME,
   KB_MANAGE_TOOL_NAME,
+  SESSION_CREATE_TOOL_NAME,
+  SESSION_SEND_TOOL_NAME,
+  MCP_RESOURCE_LIST_TOOL_NAME,
+  MCP_RESOURCE_READ_TOOL_NAME,
   'memory'
 ])
 const CHERRY_RUNTIME_BUILTIN_TOOL_NAMES = new Set(

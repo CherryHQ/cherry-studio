@@ -109,10 +109,6 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-vi.mock('../ContextManagementSettings', () => ({
-  ContextManagementSettings: () => null
-}))
-
 vi.mock('../TopicNamingSettings', () => ({
   TopicNamingSettings: () => null
 }))
