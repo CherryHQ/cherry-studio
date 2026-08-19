@@ -3,6 +3,7 @@ import { DataApiService } from '@data/DataApiService'
 import { DbService } from '@data/db/DbService'
 import { PreferenceService } from '@data/PreferenceService'
 import { AgentJobsService } from '@main/ai/agents/AgentJobsService'
+import { AgentSessionDeliveryService } from '@main/ai/agentSession/AgentSessionDeliveryService'
 import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
 import { AiService } from '@main/ai/AiService'
 import { ChannelManager } from '@main/ai/channels'
@@ -36,13 +37,16 @@ import { DirectoryTreeManager, FileManager } from '@main/services/file'
 import { LanTransferService } from '@main/services/lanTransfer'
 import { MainNetworkDevtoolsService } from '@main/services/mainNetworkDevtools'
 import { MainWindowService } from '@main/services/MainWindowService'
+import { MediaProtocolService } from '@main/services/mediaProtocol'
 import { OAuthRuntimeService } from '@main/services/oauth/runtime/OAuthRuntimeService'
 import { OpenClawService } from '@main/services/OpenClawService'
 import { OvmsManager } from '@main/services/OvmsManager'
+import { PdfTranslationService } from '@main/services/PdfTranslationService'
 import { ProtocolService } from '@main/services/protocol/ProtocolService'
 import { ProxyService } from '@main/services/proxy/ProxyService'
 import { PythonService } from '@main/services/PythonService'
 import { QuickAssistantService } from '@main/services/QuickAssistantService'
+import { ScreenshotOverlayService } from '@main/services/screenshot'
 import { SelectionService } from '@main/services/selection/SelectionService'
 import { ShortcutService } from '@main/services/ShortcutService'
 import { StorageMonitorService } from '@main/services/StorageMonitorService'
@@ -104,6 +108,8 @@ export const services = {
   ClaudeCodeTraceBridgeService,
   OvmsManager,
   ProtocolService,
+  MediaProtocolService,
+  ScreenshotOverlayService,
   ProxyService,
   StorageMonitorService,
   PythonService,
@@ -118,8 +124,10 @@ export const services = {
   McpCatalogService,
   BinaryManager,
   OpenClawService,
+  PdfTranslationService,
   ClaudeCodeProcessManager,
   AgentSessionRuntimeService,
+  AgentSessionDeliveryService,
   AgentJobsService,
   ChannelManager,
   AiService,

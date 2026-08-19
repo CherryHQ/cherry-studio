@@ -50,6 +50,11 @@ const READ_ONLY_TOOLS = new Set<string>(
 const EDIT_TOOLS = new Set<string>(
   PI_BUILTIN_TOOLS.filter((tool) => tool.permissionClass === 'edit').map((tool) => tool.name)
 )
+/** Code Mode discovery and dispatch authorize their target separately, so their own calls never
+ * participate in file-path containment or add a redundant prompt. */
+const META_TOOLS = new Set<string>(
+  PI_BUILTIN_TOOLS.filter((tool) => tool.permissionClass === 'meta').map((tool) => tool.name)
+)
 
 /** Unicode spaces pi's `normalizePath` folds to a plain space before resolving (reproduced here so
  *  containment matches pi's own `resolveToCwd`). */
@@ -79,72 +84,96 @@ export interface PiApprovalContext {
   autoApprovedTools: ReadonlySet<string>
   /** Runtime-neutral Cherry/Assistant tools that always require a live per-call decision. */
   approvalRequiredTools: ReadonlySet<string>
+  /** Delegation tools whose live-approval ceiling remains in Full Access. */
+  nonBypassableApprovalTools: ReadonlySet<string>
 }
 
 export function createPiApprovalExtension(ctx: PiApprovalContext): ExtensionFactory {
   return (pi: ExtensionAPI) => {
     pi.on('tool_call', async (event: ToolCallEvent, extCtx: ExtensionContext) => {
-      const { toolName, toolCallId } = event
-      // pi's `event.input` is a per-tool union; the generic gate treats it as a
-      // mutable record (mutations propagate to execution — pi mutates in place).
-      const input = event.input as Record<string, unknown>
+      return createPiToolAuthorizer(ctx)({
+        toolName: event.toolName,
+        toolCallId: event.toolCallId,
+        input: event.input as Record<string, unknown>,
+        signal: extCtx.signal
+      })
+    })
+  }
+}
 
-      // (1) disabledTools — block regardless of permission mode.
-      if (ctx.isDisabled(toolName)) {
-        return { block: true, reason: `Tool "${toolName}" is disabled for this agent.` }
-      }
+export interface PiToolAuthorizationRequest {
+  toolName: string
+  toolCallId: string
+  input: Record<string, unknown>
+  signal?: AbortSignal
+  /** Pauses outer execution accounting while the user decides this nested call. */
+  onApprovalPending?: () => () => void
+}
 
-      const mode = ctx.getPermissionMode() ?? 'default'
-      const bypass = mode === 'bypassPermissions'
+export type PiToolAuthorizer = (
+  request: PiToolAuthorizationRequest
+) => Promise<{ block: true; reason: string } | undefined>
 
-      // (2)/(3) bash-specific guards: block global installs, then rtk-rewrite in place. The rewrite
-      // makes commands runnable and applies in every mode; the install block is a permission guard,
-      // so an explicit bypass skips it.
-      if (toolName === 'bash') {
-        const command = typeof input.command === 'string' ? input.command : ''
-        if (command.trim()) {
-          const reason = bypass ? null : detectGlobalInstall(command)
-          if (reason) {
-            logger.info('Blocked global install to prevent dependency pollution', { sessionId: ctx.sessionId, reason })
-            return {
-              block: true,
-              reason: `Blocked to avoid cross-agent dependency pollution: ${reason}. Install into the current project instead (e.g. \`bun install <pkg>\`, or \`uv run --with <pkg> python\`); for one-off tools use \`bun x <tool>\` / \`uvx <tool>\`.`
-            }
-          }
-          const rewritten = await rtkRewrite(command)
-          if (rewritten) {
-            logger.info('rtk rewrote bash command', { original: command, rewritten })
-            input.command = rewritten
+/** Reusable policy boundary for native Pi calls and nested code-mode calls. */
+export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer {
+  return async ({ toolName, toolCallId, input, signal, onApprovalPending }) => {
+    // (1) disabledTools — block regardless of permission mode.
+    if (ctx.isDisabled(toolName)) {
+      return { block: true, reason: `Tool "${toolName}" is disabled for this agent.` }
+    }
+
+    const mode = ctx.getPermissionMode() ?? 'default'
+    const approvalRequired = ctx.approvalRequiredTools.has(toolName)
+    const bypass = mode === 'bypassPermissions' && !ctx.nonBypassableApprovalTools.has(toolName)
+
+    // (2)/(3) bash-specific guards: block global installs, then rtk-rewrite in place. The rewrite
+    // makes commands runnable and applies in every mode; the install block is a permission guard,
+    // so an explicit bypass skips it.
+    if (toolName === 'bash') {
+      const command = typeof input.command === 'string' ? input.command : ''
+      if (command.trim()) {
+        const reason = bypass ? null : detectGlobalInstall(command)
+        if (reason) {
+          logger.info('Blocked global install to prevent dependency pollution', { sessionId: ctx.sessionId, reason })
+          return {
+            block: true,
+            reason: `Blocked to avoid cross-agent dependency pollution: ${reason}. Install into the current project instead (e.g. \`bun install <pkg>\`, or \`uv run --with <pkg> python\`); for one-off tools use \`bun x <tool>\` / \`uvx <tool>\`.`
           }
         }
-      }
-
-      // (4) bypassPermissions means bypass: the user asked for an agent that never stops, so nothing
-      // below applies — not the always-prompt tools, not the path containment checks. Only the
-      // disabledTools block in (1) still holds.
-      if (bypass) return
-
-      // (5) approval by permission mode. Cherry-owned soul/autonomy tools are auto-approved in every
-      // mode first (unattended heartbeat turns must not block on a renderer prompt). The disabledTools
-      // block in (1) already ran, so a disabled soul tool stays hard-blocked — disabled beats auto-allow.
-      const approvalRequired = ctx.approvalRequiredTools.has(toolName)
-      if (ctx.autoApprovedTools.has(toolName) && !approvalRequired) return
-      if (!(await requiresApproval(mode, toolName, input, ctx.workspacePath, ctx.agentDataPath, approvalRequired)))
-        return
-
-      const interactionState = ctx.getInteractionState()
-      if (interactionState.userResponse === 'unavailable') {
-        return {
-          block: true,
-          reason: approvalRequired
-            ? 'This tool always requires user approval and cannot run unattended. Retry interactively.'
-            : 'This unattended turn cannot request tool approval. Use bypassPermissions or retry interactively.'
+        const rewritten = await rtkRewrite(command)
+        if (rewritten) {
+          logger.info('rtk rewrote bash command', { original: command, rewritten })
+          input.command = rewritten
         }
       }
+    }
 
-      const approvalId = randomUUID()
-      const presentation = interactionState.userResponse === 'stream' ? 'stream' : 'message'
-      const decision = await new Promise<DispatchDecision>((resolve) => {
+    // (4) Full Access bypasses ordinary approval policy. Cross-Session delegation is the explicit
+    // exception: its one-hop live-approval ceiling must hold in every permission mode.
+    if (bypass) return
+
+    // (5) approval by permission mode. Cherry-owned soul/autonomy tools are auto-approved in every
+    // mode first (unattended heartbeat turns must not block on a renderer prompt). The disabledTools
+    // block in (1) already ran, so a disabled soul tool stays hard-blocked — disabled beats auto-allow.
+    if (ctx.autoApprovedTools.has(toolName) && !approvalRequired) return
+    if (!(await requiresApproval(mode, toolName, input, ctx.workspacePath, ctx.agentDataPath, approvalRequired))) return
+
+    const interactionState = ctx.getInteractionState()
+    if (interactionState.userResponse === 'unavailable') {
+      return {
+        block: true,
+        reason: approvalRequired
+          ? 'This tool always requires user approval and cannot run unattended. Retry interactively.'
+          : 'This unattended turn cannot request tool approval. Use bypassPermissions or retry interactively.'
+      }
+    }
+
+    const approvalId = randomUUID()
+    const presentation = interactionState.userResponse === 'stream' ? 'stream' : 'message'
+    const resumeExecutionTimeout = onApprovalPending?.()
+    let decision: DispatchDecision
+    try {
+      decision = await new Promise<DispatchDecision>((resolve) => {
         const pending = toolApprovalRegistry.register({
           approvalId,
           sessionId: ctx.sessionId,
@@ -152,7 +181,7 @@ export function createPiApprovalExtension(ctx: PiApprovalContext): ExtensionFact
           toolName,
           originalInput: { ...input },
           presentation,
-          signal: extCtx.signal,
+          signal,
           resolve
         })
         // Only surface the approval card when the request is actually pending; a
@@ -171,13 +200,15 @@ export function createPiApprovalExtension(ctx: PiApprovalContext): ExtensionFact
           }
         })
       })
+    } finally {
+      resumeExecutionTimeout?.()
+    }
 
-      if (!decision.approved) {
-        return { block: true, reason: decision.reason ?? 'User denied permission for this tool.' }
-      }
-      if (decision.updatedInput) applyInputEdit(input, decision.updatedInput)
-      return
-    })
+    if (!decision.approved) {
+      return { block: true, reason: decision.reason ?? 'User denied permission for this tool.' }
+    }
+    if (decision.updatedInput) applyInputEdit(input, decision.updatedInput)
+    return
   }
 }
 
@@ -191,6 +222,7 @@ async function requiresApproval(
   alwaysPrompt: boolean
 ): Promise<boolean> {
   if (alwaysPrompt) return true
+  if (META_TOOLS.has(toolName)) return false
   // `auto` runs unattended and only stops for the two things a wrong call cannot undo: a file tool
   // reaching outside the allowed roots, and a shell command that looks destructive. Everything else
   // — including every MCP tool — goes through.
@@ -238,7 +270,7 @@ async function isToolPathInsideAllowedRoots(
   allowMissingTarget: boolean
 ): Promise<boolean> {
   const raw = input.path
-  // grep/find/ls default a missing/empty path to "." → the workspace root, which is inside.
+  // read defaults a missing/empty path to "." → the workspace root, which is inside.
   if (raw !== undefined && raw !== null && typeof raw !== 'string') return false
 
   const resolved = resolveToolPath(raw || '.', workspacePath)

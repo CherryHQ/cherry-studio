@@ -35,6 +35,7 @@ import { useTranslation } from 'react-i18next'
 
 import { useActiveComposerOverride } from './ComposerContext'
 import { COMPOSER_INPUT_MAX_LENGTH, createComposerDraftContent, serializeComposerDocument } from './composerDraft'
+import { createComposerInputAdapter, insertComposerTokenAtCursor } from './composerInputAdapter'
 import {
   getComposerClipboardPasteOverride,
   getComposerPlainTextPasteOverride,
@@ -67,9 +68,7 @@ import {
   type ComposerUnifiedPanelSelectHandler,
   createComposerSuggestionQuickPanelItem,
   createUnifiedQuickPanelOpenOptions,
-  getComposerCursorTextOffset,
   getComposerInputLeafText,
-  getComposerInputText,
   getComposerPositionAtTextOffset,
   getComposerSuggestionTriggerContext,
   hasComposerQuickPanelTriggerBoundary,
@@ -211,6 +210,8 @@ export interface ComposerDeferredIntent {
   transfer?: { kind: 'paste' | 'drop'; data: DataTransfer }
   openPanel?: { launcherId?: string; searchText?: string }
   insertToken?: { token: ComposerDraftToken; selection: { start: number; end: number } }
+  /** The fallback textarea was focused — an eagerly mounted runtime must not steal focus otherwise. */
+  hadFocus?: boolean
 }
 
 function getQuickPanelItemText(value: React.ReactNode | string | undefined) {
@@ -275,57 +276,6 @@ function hasComposerTokenBeforeSelection(editor: Editor) {
   if (!selection.empty) return false
 
   return selection.$from.nodeBefore?.type.name === COMPOSER_TOKEN_NODE_NAME
-}
-
-function insertComposerTokenAtCursor(
-  editor: Editor,
-  token: ComposerDraftToken,
-  options: { insertSeparator?: boolean } = {}
-) {
-  const chain = editor.chain().focus().insertComposerToken(token)
-  if (options.insertSeparator === false) {
-    chain.run()
-    return
-  }
-
-  chain.insertContent(' ').run()
-}
-
-function deleteComposerTextRange(editor: Editor, range: { from: number; to: number }) {
-  const fromOffset = Math.max(0, Math.min(range.from, range.to))
-  const toOffset = Math.max(fromOffset, range.to)
-  if (fromOffset === toOffset) return
-
-  const from = getComposerPositionAtTextOffset(editor, fromOffset)
-  const to = getComposerPositionAtTextOffset(editor, toOffset)
-  if (to <= from) return
-
-  editor.chain().focus().deleteRange({ from, to }).run()
-}
-
-function createComposerInputAdapter(editor: Editor): QuickPanelInputAdapter {
-  return {
-    getText: () => getComposerInputText(editor),
-    getCursorOffset: () => getComposerCursorTextOffset(editor),
-    insertText: (insertedText) => {
-      editor
-        .chain()
-        .focus()
-        .insertContent(
-          createPromptVariableInlineContent(insertedText, { startIndex: getNextPromptVariableIndex(editor) })
-        )
-        .run()
-    },
-    insertToken: (token) => {
-      insertComposerTokenAtCursor(editor, token as ComposerDraftToken)
-    },
-    deleteTriggerRange: (range) => {
-      deleteComposerTextRange(editor, range)
-    },
-    focus: () => {
-      editor.commands.focus()
-    }
-  }
 }
 
 function getComposerUnifiedPanelSearchText(
@@ -1810,6 +1760,9 @@ export default function ComposerSurfaceRuntime({
     const active = document.activeElement
     if (!document.hasFocus()) return
     if (active && active !== document.body && !frameRef.current?.contains(active)) return
+    // An eagerly mounted runtime (restored draft after a topic/agent switch) must not steal the
+    // focus the fallback never held — hand off only after real fallback interaction.
+    if (deferredIntent && !deferredIntent.hadFocus) return
 
     if (initialTextSelection) {
       editor
@@ -1823,7 +1776,7 @@ export default function ComposerSurfaceRuntime({
       return
     }
     editor.commands.focus('end')
-  }, [editor, frameRef, initialTextSelection])
+  }, [deferredIntent, editor, frameRef, initialTextSelection])
 
   useEffect(() => {
     if (!editor || editor.isDestroyed) return
@@ -1868,26 +1821,7 @@ export default function ComposerSurfaceRuntime({
     if (!editor) return undefined
 
     return {
-      getText: () => getComposerInputText(editor),
-      getCursorOffset: () => getComposerCursorTextOffset(editor),
-      insertText: (insertedText) => {
-        editor
-          .chain()
-          .focus()
-          .insertContent(
-            createPromptVariableInlineContent(insertedText, { startIndex: getNextPromptVariableIndex(editor) })
-          )
-          .run()
-      },
-      insertToken: (token) => {
-        insertComposerTokenAtCursor(editor, token as ComposerDraftToken)
-      },
-      deleteTriggerRange: (range) => {
-        deleteComposerTextRange(editor, range)
-      },
-      focus: () => {
-        editor.commands.focus()
-      },
+      ...createComposerInputAdapter(editor),
       subscribeInput: (listener) => {
         inputListenersRef.current.add(listener)
         return () => {

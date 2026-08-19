@@ -24,10 +24,10 @@ Each subdirectory is one renderer window: an HTML entry, a thin bootstrap, and a
 
 Window-level side effects (subscriptions, DOM sync that must live for the window's lifetime) go in a small runtime-leaf component the L2 `XxxApp` mounts **inside the providers but outside every `TabRouter`/`<Activity>`** — a hidden `<Activity>` subtree destroys effects, so anything mounted under a tab would lose its subscription when that tab is backgrounded.
 
-- **Every regular window** mounts `LanguageDirectionProvider` above its theme/content providers. It owns runtime language synchronization, keeps `<html lang dir>` current, and supplies Radix's global reading direction. `prepareWindow` applies the same attributes before the first render.
-- **Full-chrome windows (main + subWindow)** call `useWindowRuntime()` — the shared window runtime (dayjs, custom CSS, root background, app-path snapshot, fullscreen, topic/agent auto-rename). Its membership rule is strict: a concern belongs there **only** if both windows need it identically. It takes no config and holds no main-only behavior, so it can't hide a per-window difference — the line between it and the retired `useAppInit` grab-bag.
+- **Every regular window except `screenshot`** mounts `LanguageDirectionProvider` above its theme/content providers. It owns runtime language synchronization, keeps `<html lang dir>` current, and supplies Radix's global reading direction. `prepareWindow` applies the same attributes before the first render.
+- **Full-chrome windows (main + subWindow)** call `useWindowRuntime()` — the shared window runtime (locale, dayjs, custom CSS, root background, app-path snapshot, fullscreen, topic/agent auto-rename). Its membership rule is strict: a concern belongs there **only** if both windows need it identically. It takes no config and holds no main-only behavior, so it can't hide a per-window difference — the line between it and the retired `useAppInit` grab-bag.
 - **Main-only** concerns stay in `MainWindowRuntime`, explicitly outside `useWindowRuntime`: the boot spinner + `init` timer teardown (paired with markup only `main/index.html` creates), `useAppUpdateHandler`, `useStorageMonitorNotification`, `useTopicNamingErrorNotification` (main-window-targeted toasts that must not duplicate across windows).
-- **Light windows** (`quickAssistant` / `selection-action` / `selection-toolbar`) don't use `useWindowRuntime` (they render no localized dates, no chrome). Their provider root owns language direction, while their runtime leaf mounts the same verbatim custom CSS used by the full windows.
+- **Light windows** (`quickAssistant` / `selection-action` / `selection-toolbar` / `screenshot`) don't use `useWindowRuntime` (they render no localized dates, no chrome). The quick-assistant and selection roots use `LanguageDirectionProvider`, and their runtime leaves mount the same verbatim custom CSS used by the full windows. `screenshot` mounts `useLanguageSync` directly and deliberately omits custom CSS: it is a pixel-aligned full-screen canvas, so a user rule that shifts layout would misalign the selection against the region actually captured.
 
 Do **not** fold main-only behavior into `useWindowRuntime` (a per-window difference would need a config flag — the smell), and do not push non-first-frame work into `prepareWindow`.
 
@@ -52,6 +52,7 @@ Each window declares its logger source **declaratively** in its `index.html`, no
 | `userDataRelocation` | `RelocationApp` | in-component progress/recovery UI |
 | `selection/action` | `SelectionActionApp` | `ActionWindow` |
 | `selection/toolbar` | `SelectionToolbarApp` | `SelectionToolbar` (reused in settings pages) |
+| `screenshot` | `ScreenshotApp` | `CaptureOverlay` (one pooled window per display) |
 
 ## See also
 

@@ -202,7 +202,6 @@ describe('ChannelDetail', () => {
         type: 'telegram',
         name: 'Telegram channel',
         agentId: 'agent-1',
-        sessionId: null,
         workspace: { type: 'system' },
         config: { bot_token: 'token', allowed_chat_ids: [] },
         isActive: true,

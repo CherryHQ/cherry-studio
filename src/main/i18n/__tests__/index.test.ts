@@ -51,6 +51,12 @@ describe('main i18n', () => {
       expect(t('dialog.save_file')).toBe('حفظ الملف')
     })
 
+    it('localizes Agent Session admission errors', () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'zh-CN')
+      expect(t('agent.session.run_status.busy')).toBe('Agent 会话正忙，请稍后重试。')
+      expect(t('agent.session.run_status.unavailable')).toBe('Agent 会话已不可用。')
+    })
+
     it('interpolates {{var}} placeholders', () => {
       MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'en-US')
       expect(t('agent.session.workspace_status.inaccessible', { path: '/tmp/x' })).toBe(
@@ -96,6 +102,7 @@ describe('main i18n', () => {
     it('lists every language main carries a catalog for', () => {
       expect(SUPPORTED_LANGUAGES).toEqual(
         expect.arrayContaining([
+          'ar-YE',
           'en-US',
           'zh-CN',
           'zh-TW',
@@ -110,7 +117,7 @@ describe('main i18n', () => {
           'vi-VN'
         ])
       )
-      expect(SUPPORTED_LANGUAGES).toHaveLength(12)
+      expect(SUPPORTED_LANGUAGES).toHaveLength(13)
     })
   })
 })

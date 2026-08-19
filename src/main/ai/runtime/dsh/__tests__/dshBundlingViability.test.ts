@@ -1,8 +1,8 @@
 import { existsSync, readFileSync } from 'node:fs'
-import { createRequire } from 'node:module'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
+import { resolveDshRuntimeEntry } from '@cherrystudio/dsh-bridge'
 import { describe, expect, it } from 'vitest'
 
 import { loadDshSdk, loadDshSdkProtocol } from '../dshSdk'
@@ -30,7 +30,6 @@ describe('dsh SDK bundling viability', () => {
   })
 
   it('resolves the runtime bin and every composed plugin to on-disk entries', () => {
-    const require_ = createRequire(import.meta.url)
     const specifiers = [
       '@deepseek-ai/dsh-sdk-jsonrpc-demo/bin',
       '@deepseek-ai/dsh-sdk-jsonrpc-server',
@@ -62,15 +61,14 @@ describe('dsh SDK bundling viability', () => {
       '@cherrystudio/dsh-bridge/plugin'
     ]
     for (const specifier of specifiers) {
-      const resolved = require_.resolve(specifier)
+      const resolved = resolveDshRuntimeEntry(specifier)
       expect(path.isAbsolute(resolved), `not absolute: ${resolved}`).toBe(true)
       expect(existsSync(resolved), `missing on disk: ${resolved}`).toBe(true)
     }
   })
 
   it('imports the built bridge plugin with production-declared runtime dependencies', async () => {
-    const require_ = createRequire(import.meta.url)
-    const pluginPath = require_.resolve('@cherrystudio/dsh-bridge/plugin')
+    const pluginPath = resolveDshRuntimeEntry('@cherrystudio/dsh-bridge/plugin')
     const manifest = JSON.parse(readFileSync(path.join(path.dirname(pluginPath), '..', 'package.json'), 'utf8')) as {
       dependencies?: Record<string, string>
     }
@@ -82,7 +80,7 @@ describe('dsh SDK bundling viability', () => {
 
   it('loads the unified sharp stack through attachment-local and decodes a real PNG', async () => {
     const [{ detectImage }, { default: sharp }] = await Promise.all([
-      import('@deepseek-ai/dsh-attachment-local'),
+      import(pathToFileURL(resolveDshRuntimeEntry('@deepseek-ai/dsh-attachment-local')).href),
       import('sharp')
     ])
     const png = await sharp({

@@ -11,6 +11,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   saveMessage: vi.fn(),
+  replaceMessageParts: vi.fn(),
   getLastRuntimeResumeToken: vi.fn(),
   findCrashOrphanedAssistantMessages: vi.fn(),
   resolveCrashOrphanedMessages: vi.fn(),
@@ -38,6 +39,7 @@ vi.mock('@data/services/AgentService', () => ({
 vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: {
     saveMessage: mocks.saveMessage,
+    replaceMessageParts: mocks.replaceMessageParts,
     getLastRuntimeResumeToken: mocks.getLastRuntimeResumeToken,
     findCrashOrphanedAssistantMessages: mocks.findCrashOrphanedAssistantMessages,
     resolveCrashOrphanedMessages: mocks.resolveCrashOrphanedMessages
@@ -276,6 +278,40 @@ describe('AgentSessionRuntimeService pause / drainInFlight', () => {
     gate.resolve()
     await flushLaunch()
     expect(internals(service).inFlightTurnStarts.size).toBe(0)
+    hold.dispose()
+  })
+
+  it('drains a detached-flow finalizer after its runtime entry closes', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const entry = entryOf(service)
+    const gate = createDeferred<void>()
+    entry.backgroundFlowAccumulators = new Map([
+      [
+        'assistant-1',
+        {
+          messageId: 'assistant-1',
+          controller: { close: vi.fn() },
+          done: gate.promise,
+          closed: false,
+          latest: { parts: [{ type: 'text', text: 'Late flow' }] }
+        }
+      ]
+    ])
+    const hold = service.pause('restore')
+    const closing = service.closeSession('session-1')
+
+    let drained = false
+    const drain = service.drainInFlight({ timeoutMs: 5_000 }).then((result) => {
+      drained = true
+      return result
+    })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(drained).toBe(false)
+
+    gate.resolve()
+    await closing
+    await expect(drain).resolves.toEqual({ stragglerIds: [] })
     hold.dispose()
   })
 

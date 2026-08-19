@@ -1,0 +1,170 @@
+{
+  "agent": {
+    "builtin": {
+      "cherry_assistant": {
+        "description": "مستشار Cherry Studio المدمج. تشخيص المشكلات، وتوجيه العمليات، وجمع الأسئلة الشائعة، وإرسال طلبات الأخطاء/الميزات، والبحث/إنشاء المهارات"
+      },
+      "cherry_support": {
+        "description": "وكيل الدعم الرسمي Cherry Studio للحصول على إرشادات الإعداد واستكشاف الأخطاء وإصلاحها والأسئلة الشائعة والتعليقات"
+      }
+    },
+    "session": {
+      "run_status": {
+        "busy": "جلسة الوكيل مشغولة. يرجى المحاولة مرة أخرى قريبا.",
+        "unavailable": "جلسة الوكيل لم تعد متاحة."
+      },
+      "workspace_status": {
+        "inaccessible": "مسار مساحة العمل غير قابل للوصول: {{path}}",
+        "missing": "مسار مساحة العمل غير موجود: {{path}}",
+        "not_directory": "مسار مساحة العمل ليس مجلدًا: {{path}}"
+      }
+    }
+  },
+  "apiGateway": {
+    "docs": {
+      "description": "OpenAI-، واجهة برمجة تطبيقات HTTP المتوافقة مع Anthropic وGemini لـ Cherry Studio، بالإضافة إلى نقاط النهاية الخاصة بـ Cherry (النماذج وقواعد المعرفة)",
+      "language_switcher_label": "لغة التوثيق",
+      "operations": {
+        "chat_completions": "إنشاء استكمال الدردشة. تتبع هيئات الطلب والاستجابة تنسيق OpenAI لإكمال الدردشة؛ اضبط `stream: true` للإخراج المتزايد.",
+        "count_tokens": "قم بتقدير عدد رموز الإدخال التي تستخدمها مجموعة من الرسائل ذات التنسيق الإنساني.",
+        "generate_content": "قم بإنشاء محتوى من خلال طريقة `generateContent` الخاصة بـ Gemini. تتبع هيئات الطلب والاستجابة تنسيق Gemini API؛ يتم تقديم `streamGenerateContent` على نفس المسار.",
+        "get_knowledge_base": "جلب قاعدة معرفية واحدة عن طريق المعرف.",
+        "get_mcp_server": "احصل على تفاصيل خادم MCP وقائمة الأدوات الخاصة به.",
+        "health": "صحة الخدمة والوقت الحالي والإصدار. لا المصادقة المطلوبة.",
+        "info": "اسم واجهة برمجة التطبيقات (API) وإصدارها ونقاط النهاية الرئيسية. لا المصادقة المطلوبة.",
+        "list_knowledge_bases": "قم بإدراج قواعد المعرفة المتاحة في مثيل Cherry Studio هذا.",
+        "list_mcp_servers": "قم بإدراج خوادم MCP الممكّنة في Cherry Studio، ولكل منها عنوان URL للاتصال بها.",
+        "list_models": "قم بإدراج النماذج المتاحة من خلال هذه البوابة، بتنسيق نماذج OpenAI.",
+        "mcp_proxy": "نقطة نهاية بروتوكول السياق النموذجي لخادم MCP (HTTP قابل للتدفق). قم بتوجيه أي عميل MCP إلى عنوان URL هذا لاستخدام الخادم من خلال Cherry Studio.",
+        "messages": "أنشئ رسالة. تتبع هيئات الطلب والاستجابة تنسيق الرسائل الإنسانية؛ اضبط `stream: true` للإخراج المتزايد.",
+        "responses": "إنشاء رد. تتبع هيئات الطلب والاستجابة تنسيق الردود OpenAI.",
+        "search_knowledge_bases": "ابحث في واحدة أو أكثر من قواعد المعرفة وقم بإرجاع أجزاء المستند المطابقة."
+      },
+      "tags": {
+        "anthropic": "نقاط النهاية المتوافقة مع البشر. قم بتوجيه Anthropic SDK إلى عنوان URL الأساسي لهذه البوابة لاستخدامها.",
+        "cherry": "نقاط النهاية الخاصة بـ Cherry Studio: قواعد المعرفة ومعلومات الخدمة والفحص الصحي.",
+        "gemini": "نقاط النهاية المتوافقة مع Gemini، والتي يتم تقديمها تحت `/v1beta` مثل واجهة برمجة التطبيقات الأولية.",
+        "openai": "نقاط النهاية المتوافقة مع OpenAI. قم بتوجيه OpenAI SDK إلى عنوان URL الأساسي لهذه البوابة لاستخدامها."
+      }
+    }
+  },
+  "appMenu": {
+    "about": "حول",
+    "close": "إغلاق النافذة",
+    "copy": "نسخ",
+    "cut": "قص",
+    "delete": "حذف",
+    "documentation": "التوثيق",
+    "edit": "تعديل",
+    "feedback": "الملاحظات",
+    "file": "ملف",
+    "forceReload": "فرض إعادة التحميل",
+    "front": "جلب الكل للمقدمة",
+    "help": "مساعدة",
+    "hide": "إخفاء",
+    "hideOthers": "إخفاء الآخرين",
+    "minimize": "تصغير",
+    "paste": "لصق",
+    "quit": "إنهاء",
+    "redo": "إعادة",
+    "releases": "الإصدارات",
+    "reload": "إعادة تحميل",
+    "resetZoom": "الحجم الفعلي",
+    "selectAll": "تحديد الكل",
+    "services": "الخدمات",
+    "toggleDevTools": "تبديل أدوات المطور",
+    "toggleFullscreen": "تبديل ملء الشاشة",
+    "undo": "تراجع",
+    "unhide": "إظهار الكل",
+    "view": "عرض",
+    "website": "الموقع الإلكتروني",
+    "window": "نافذة",
+    "zoom": "تكبير/تصغير",
+    "zoomIn": "تكبير",
+    "zoomOut": "تصغير"
+  },
+  "common": {
+    "channel_available_commands": "الأوامر المتاحة:",
+    "channel_command_processing_error": "⚠️ حدث خطأ أثناء معالجة الأمر. يرجى المحاولة مرة أخرى في وقت لاحق.",
+    "channel_message_processing_error": "⚠️ حدث خطأ أثناء معالجة رسالتك. يرجى المحاولة مرة أخرى في وقت لاحق.",
+    "channel_new_session_created": "تم إنشاء جلسة جديدة.",
+    "channel_no_active_session": "لا توجد جلسة نشطة.",
+    "channel_session_compacted": "الجلسة مضغوطة.",
+    "channel_session_resolution_error": "⚠️ فشل في حل جلسة لهذا الوكيل. يرجى المحاولة مرة أخرى في وقت لاحق.",
+    "copy": "نسخ",
+    "cut": "قص",
+    "inspect": "افحص",
+    "paste": "الصق"
+  },
+  "dialog": {
+    "all_files": "كل الملفات",
+    "data_reset": {
+      "cancel": "إلغاء",
+      "confirm": "إعادة تعيين وإعادة التشغيل",
+      "message": "سيؤدي هذا إلى مسح الدردشات والمساعدين وقواعد المعرفة والملفات والإعدادات، ثم إعادة تشغيل التطبيق. لا يمكن التراجع عن هذا الإجراء. يكمل؟",
+      "title": "إعادة ضبط بيانات التطبيق"
+    },
+    "diagnostic_bundle": {
+      "title": "حفظ حزمة التشخيص",
+      "zip_filter": "أرشيف مضغوط"
+    },
+    "html_files": "ملفات HTML",
+    "open_file": "افتح ملفاً",
+    "pdf_files": "ملفات PDF",
+    "png_image": "صورة PNG",
+    "save_as_html": "حفظ كـ HTML",
+    "save_as_pdf": "حفظ كـ PDF",
+    "save_file": "حفظ الملف",
+    "screen_capture_permission": {
+      "cancel": "إلغاء",
+      "detail": "امنح إذن تسجيل الشاشة لـ \"{{appName}}\" في إعدادات النظام > الخصوصية والأمان > تسجيل الشاشة، ثم أعد تشغيل التطبيق.",
+      "message": "مطلوب إذن تسجيل الشاشة لالتقاط لقطات الشاشة.",
+      "open_settings": "افتح إعدادات النظام",
+      "title": "إذن تسجيل الشاشة"
+    },
+    "screenshot_failed": {
+      "message": "لا يمكن التقاط لقطة الشاشة.",
+      "ok": "حسنًا",
+      "title": "فشلت لقطة الشاشة"
+    },
+    "select_folder": "اختر مجلداً",
+    "word_document": "مستند Word"
+  },
+  "file_processing": {
+    "errors": {
+      "document_size_limit_exceeded": "تتطلب خدمة تحليل المستندات الحالية ملفات أصغر من {{maxSize}}. قم بضغط هذا الملف أو تقسيمه، ثم قم بإضافته مرة أخرى.",
+      "pdf_page_limit_exceeded": "يتجاوز ملف PDF هذا الحد الأقصى لعدد الصفحات {{maxPages}} لخدمة تحليل المستندات الحالية. قم بتقسيم ملف PDF يدويًا، ثم قم بإضافته مرة أخرى."
+    }
+  },
+  "openclaw": {
+    "errors": {
+      "binary_incompatible": "ثنائي OpenClaw الذي يستخدمه Cherry Studio غير متوافق مع التكوين الذي تم إنشاؤه. ترقية OpenClaw.{{details}}",
+      "external_config_invalid": "رفض OpenClaw التكوين خارج قسم الموفر المُدار في Cherry Studio. أصلح هذا التكوين أو قم بترقية OpenClaw.{{details}}",
+      "more_issues": "و{{count}} المزيد من القضايا",
+      "preflight_failed": "تعذر على Cherry Studio التحقق من صحة تكوين OpenClaw."
+    }
+  },
+  "paintings": {
+    "generate_failed": "فشل توليد الصورة",
+    "image_mix_failed": "فشل دمج الصور"
+  },
+  "selection": {
+    "name": "مساعد التحديد"
+  },
+  "settings": {
+    "mcp": {
+      "oauth": {
+        "callback": {
+          "message": "يمكنك إغلاق هذه الصفحة والعودة إلى Cherry Studio",
+          "title": "نجحت المصادقة"
+        }
+      }
+    },
+    "title": "الإعدادات"
+  },
+  "tray": {
+    "quit": "إنهاء",
+    "show_quick_assistant": "المساعد السريع",
+    "show_window": "إظهار النافذة"
+  }
+}

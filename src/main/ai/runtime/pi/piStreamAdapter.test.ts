@@ -182,6 +182,28 @@ describe('PiStreamAdapter', () => {
     expect(tool).toMatchObject({ toolName: 'read', state: 'output-available', output: 'contents' })
   })
 
+  it('projects code-mode details as the renderer-facing output', async () => {
+    const details = { result: { total: 1 }, logs: ['searched'] }
+    const message = await accumulate(
+      collect([
+        { type: 'tool_execution_start', toolCallId: 'code-1', toolName: 'tool_exec', args: { code: 'return 1' } },
+        {
+          type: 'tool_execution_end',
+          toolCallId: 'code-1',
+          toolName: 'tool_exec',
+          result: { content: [{ type: 'text', text: '{"total":1}' }], details },
+          isError: false
+        }
+      ] as AgentSessionEvent[])
+    )
+
+    expect(message.parts.find((part) => part.type === 'dynamic-tool')).toMatchObject({
+      toolName: 'tool_exec',
+      state: 'output-available',
+      output: details
+    })
+  })
+
   it('preserves a report_artifacts declaration for runtime-neutral renderer projection', async () => {
     const toolName = 'mcp__cherry-tools__report_artifacts'
     const input = {

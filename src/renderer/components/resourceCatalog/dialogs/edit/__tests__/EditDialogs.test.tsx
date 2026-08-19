@@ -1421,6 +1421,70 @@ describe('edit dialogs', () => {
     )
   })
 
+  it('restores a globally re-enabled persisted skill without overwriting local or hidden selections', async () => {
+    const hiddenSkill = {
+      id: 'skill-hidden',
+      name: 'Hidden Skill',
+      description: 'Hidden while globally disabled',
+      isEnabled: true
+    }
+    const localSkill = {
+      id: 'skill-local',
+      name: 'Local Edit Skill',
+      description: 'Changed in this dialog',
+      isEnabled: false
+    }
+    const reenabledSkill = {
+      id: 'skill-reenabled',
+      name: 'Re-enabled Skill',
+      description: 'Disabled when the dialog opened',
+      isEnabled: true
+    }
+    installedSkillsState.current = {
+      skills: [hiddenSkill, localSkill],
+      loading: false,
+      refreshing: false
+    }
+    const props = { open: true, resource: AGENT, onOpenChange: vi.fn(), initialTab: 'tools.skills' as const }
+    const { rerender } = render(<AgentEditDialog {...props} />)
+
+    await waitFor(() => expect(screen.getByRole('switch', { name: 'Hidden Skill' })).toBeChecked())
+
+    installedSkillsState.current = {
+      ...installedSkillsState.current,
+      skills: [localSkill]
+    }
+    rerender(<AgentEditDialog {...props} />)
+    expect(screen.queryByRole('switch', { name: 'Hidden Skill' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Local Edit Skill' }))
+
+    installedSkillsState.current = {
+      ...installedSkillsState.current,
+      skills: [hiddenSkill, localSkill, reenabledSkill]
+    }
+    rerender(<AgentEditDialog {...props} />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('switch', { name: 'Hidden Skill' })).toBeChecked()
+      expect(screen.getByRole('switch', { name: 'Local Edit Skill' })).toBeChecked()
+      expect(screen.getByRole('switch', { name: 'Re-enabled Skill' })).toBeChecked()
+    })
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenNthCalledWith(1, {
+        body: { skillUpdates: [{ skillId: 'skill-local', isEnabled: true }] }
+      })
+    )
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Re-enabled Skill' }))
+
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenNthCalledWith(2, {
+        body: { skillUpdates: [{ skillId: 'skill-reenabled', isEnabled: false }] }
+      })
+    )
+  })
+
   it('opens the assistant edit dialog directly on the requested initial tab', () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} initialTab="tools.mcp" />)
 
