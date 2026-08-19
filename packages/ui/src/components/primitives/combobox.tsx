@@ -173,6 +173,7 @@ export interface ComboboxProps<TExtra extends object = Record<never, never>>
 
   // Other
   name?: string
+  'aria-labelledby'?: React.AriaAttributes['aria-labelledby']
 }
 
 // ==================== Component ====================
@@ -205,7 +206,8 @@ export function Combobox<TExtra extends object = Record<never, never>>({
   width,
   size,
   'aria-label': ariaLabel,
-  name
+  name,
+  'aria-labelledby': ariaLabelledBy
 }: ComboboxProps<TExtra>) {
   // ==================== State ====================
   const [internalOpen, setInternalOpen] = React.useState(false)
@@ -214,6 +216,8 @@ export function Combobox<TExtra extends object = Record<never, never>>({
   const [contentSearch, setContentSearch] = React.useState('')
   const [activeValue, setActiveValue] = React.useState('')
   const triggerInputRef = React.useRef<HTMLInputElement>(null)
+  const defaultValueLabelId = React.useId()
+  const defaultTriggerLabelledBy = ariaLabelledBy ? `${ariaLabelledBy} ${defaultValueLabelId}` : undefined
 
   const open = controlledOpen ?? internalOpen
   const setOpen = React.useCallback(
@@ -472,6 +476,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
               placeholder={triggerInputPlaceholder}
               disabled={disabled}
               aria-label={ariaLabel}
+              aria-labelledby={ariaLabelledBy}
               aria-expanded={open}
               aria-invalid={error}
               role="combobox"
@@ -513,6 +518,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
           role="combobox"
           tabIndex={disabled ? -1 : 0}
           aria-label={ariaLabel}
+          aria-labelledby={ariaLabelledBy}
           aria-expanded={open}
           aria-invalid={error}
           aria-disabled={disabled}
@@ -578,9 +584,12 @@ export function Combobox<TExtra extends object = Record<never, never>>({
             style={{ width: triggerWidth, ...triggerStyle }}
             className={cn(comboboxTriggerVariants({ state, size }), className)}
             aria-label={ariaLabel}
+            aria-labelledby={defaultTriggerLabelledBy}
             aria-expanded={open}
             aria-invalid={error}>
-            {renderTriggerContent()}
+            <span id={defaultValueLabelId} className="contents">
+              {renderTriggerContent()}
+            </span>
             <ChevronDown className="size-4 opacity-50 shrink-0" />
           </Button>
         </PopoverTrigger>

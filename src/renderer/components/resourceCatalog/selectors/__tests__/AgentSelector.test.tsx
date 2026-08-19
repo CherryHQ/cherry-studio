@@ -110,6 +110,7 @@ vi.mock('@renderer/hooks/useCodeStyle', () => ({
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
+  useProviderById: () => ({ provider: undefined }),
   useProviderDisplayName: () => (providerId: string) => providerId,
   useProviders: useProvidersMock
 }))
