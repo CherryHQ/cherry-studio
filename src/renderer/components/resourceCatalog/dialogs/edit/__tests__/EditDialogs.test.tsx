@@ -515,6 +515,7 @@ vi.mock('react-i18next', async (importOriginal) => {
   }
 })
 
+import { PromptBindingTab } from '../../components/PromptBindingTab'
 import { AgentEditDialog } from '../AgentEditDialog'
 import { AssistantEditDialog } from '../AssistantEditDialog'
 
@@ -773,6 +774,15 @@ function mockDeferredAnimationFrames() {
   }
 }
 
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((promiseResolve) => {
+    resolve = promiseResolve
+  })
+
+  return { promise, resolve }
+}
+
 describe('edit dialogs', () => {
   it('binds a prompt to the assistant being edited', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
@@ -819,6 +829,36 @@ describe('edit dialogs', () => {
     expect(bindPromptMock).not.toHaveBeenCalled()
   })
 
+  it('keeps a new target binding locked when the previous target request settles', async () => {
+    const previousBinding = createDeferred<void>()
+    const currentBinding = createDeferred<void>()
+    bindPromptMock.mockReturnValueOnce(previousBinding.promise).mockReturnValueOnce(currentBinding.promise)
+    const { rerender } = render(<PromptBindingTab enabled target={{ type: 'assistant', id: 'assistant-old' }} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Bind prompt' }))
+    fireEvent.click(await screen.findByText('Reusable prompt'))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Bind prompt' })).toBeDisabled())
+
+    rerender(<PromptBindingTab enabled target={{ type: 'assistant', id: 'assistant-new' }} />)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Bind prompt' })).toBeEnabled())
+    fireEvent.click(screen.getByRole('button', { name: 'Bind prompt' }))
+    fireEvent.click(await screen.findByText('Reusable prompt'))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Bind prompt' })).toBeDisabled())
+
+    await act(async () => {
+      previousBinding.resolve(undefined)
+      await previousBinding.promise
+      await Promise.resolve()
+    })
+
+    expect(screen.getByRole('button', { name: 'Bind prompt' })).toBeDisabled()
+
+    await act(async () => {
+      currentBinding.resolve(undefined)
+      await currentBinding.promise
+    })
+  })
+
   it('creates a selected prompt and binds it to the assistant being edited', async () => {
     const user = userEvent.setup()
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
@@ -863,6 +903,30 @@ describe('edit dialogs', () => {
         }
       })
     )
+  })
+
+  it('disables prompt visibility while a create request is pending', async () => {
+    const user = userEvent.setup()
+    const pendingCreate = createDeferred<void>()
+    createPromptMock.mockReturnValueOnce(pendingCreate.promise)
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
+
+    selectTab('Prompts')
+    await user.click(screen.getByRole('button', { name: 'Add prompt' }))
+    const createDialog = screen.getByRole('dialog', { name: 'Add prompt' })
+    await user.type(within(createDialog).getByLabelText('Title'), 'Pending prompt')
+    await user.type(within(createDialog).getByLabelText('Prompt editor'), 'Pending prompt content')
+    await user.click(within(createDialog).getByRole('button', { name: 'Confirm' }))
+
+    await waitFor(() => {
+      expect(within(createDialog).getByRole('radio', { name: 'All contexts' })).toBeDisabled()
+      expect(within(createDialog).getByRole('radio', { name: 'Selected contexts' })).toBeDisabled()
+    })
+
+    await act(async () => {
+      pendingCreate.resolve(undefined)
+      await pendingCreate.promise
+    })
   })
 
   it('submits assistant name, description, and model changes as a PATCH', async () => {

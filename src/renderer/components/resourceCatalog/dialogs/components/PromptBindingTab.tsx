@@ -24,6 +24,7 @@ export function PromptBindingTab({ enabled, target, portalContainer }: PromptBin
   const [isCreatePromptOpen, setIsCreatePromptOpen] = useState(false)
   const [isBinding, setIsBinding] = useState(false)
   const isBindingRef = useRef(false)
+  const bindingOperationGenerationRef = useRef(0)
   const bindingTarget = useMemo<PromptBindingTarget>(
     () => (target.type === 'assistant' ? { type: 'assistant', id: target.id } : { type: 'agent', id: target.id }),
     [target.id, target.type]
@@ -60,6 +61,7 @@ export function PromptBindingTab({ enabled, target, portalContainer }: PromptBin
   })
 
   useEffect(() => {
+    bindingOperationGenerationRef.current += 1
     isBindingRef.current = false
     setIsBinding(false)
     setIsCreatePromptOpen(false)
@@ -82,6 +84,7 @@ export function PromptBindingTab({ enabled, target, portalContainer }: PromptBin
     async (promptId: string, shouldBind: boolean) => {
       if (isBindingRef.current) return
 
+      const operationGeneration = bindingOperationGenerationRef.current
       isBindingRef.current = true
       setIsBinding(true)
       try {
@@ -98,8 +101,10 @@ export function PromptBindingTab({ enabled, target, portalContainer }: PromptBin
           )
         )
       } finally {
-        isBindingRef.current = false
-        setIsBinding(false)
+        if (bindingOperationGenerationRef.current === operationGeneration) {
+          isBindingRef.current = false
+          setIsBinding(false)
+        }
       }
     },
     [bindPrompt, t, unbindPrompt]

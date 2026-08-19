@@ -199,6 +199,7 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({
             </legend>
             <RadioGroup
               value={formData.visibility}
+              disabled={isSaving}
               onValueChange={(visibility) =>
                 setFormData((current) => ({ ...current, visibility: visibility as PromptVisibility }))
               }

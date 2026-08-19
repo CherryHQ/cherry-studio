@@ -346,7 +346,9 @@ Pure-function helpers `assignOrderKeysInSequence` / `assignOrderKeysByScope` sta
 - **DB column**: `order_key` (SQL) / `orderKey` (TS), always `TEXT NOT NULL`. No nullable variants.
 - **Type names**: every order-related export prefixed with `Order` (`OrderRequest`, `OrderRequestSchema`, `OrderBatchRequest`, `OrderBatchRequestSchema`, `OrderEndpoints`). No `Sort*` / `Position*` / `Rank*` aliases — the `Order` prefix is what keeps `_endpointHelpers.ts` classifiable as it grows.
 
-**Disallowed**: `POST /{res}:reorder`, `POST /{res}/reorder`, `PUT /{res}/order` (rejected full-list design), collection-level `PATCH /{res}` for reordering, nested ordering URLs like `/parents/:parentId/items/:id/order`.
+Parameterized segments are allowed when they define the scope of the resource's canonical collection route. For example, the canonical collection `/prompt-bindings/:targetType/:targetId` produces `/prompt-bindings/:targetType/:targetId/:id/order`.
+
+**Disallowed**: `POST /{res}:reorder`, `POST /{res}/reorder`, `PUT /{res}/order` (rejected full-list design), collection-level `PATCH /{res}` for reordering, or an ad hoc nested ordering URL like `/parents/:parentId/items/:id/order` when the resource already has a canonical collection route.
 
 ---
 

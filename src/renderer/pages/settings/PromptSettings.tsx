@@ -261,6 +261,7 @@ export function PromptSettings() {
         <Input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
+          aria-label={t('settings.prompts.searchPlaceholder')}
           placeholder={t('settings.prompts.searchPlaceholder')}
           className="h-8 rounded-md border-input bg-background pr-8 pl-8 text-sm placeholder:text-muted-foreground"
         />
