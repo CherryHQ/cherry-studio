@@ -9,6 +9,11 @@
       }
     },
     "session": {
+      "new": "Sarcină nouă",
+      "run_status": {
+        "busy": "Sesiunea Agent este ocupată. Încercați din nou în curând.",
+        "unavailable": "Sesiunea Agent nu mai este disponibilă."
+      },
       "workspace_status": {
         "inaccessible": "Calea către spațiul de lucru nu este accesibilă: {{path}}",
         "missing": "Calea către spațiul de lucru nu există: {{path}}",
@@ -79,7 +84,19 @@
     "zoomIn": "Mărește",
     "zoomOut": "Micșorează"
   },
+  "chat": {
+    "conversation": {
+      "new": "Conversație nouă"
+    }
+  },
   "common": {
+    "channel_available_commands": "Comenzi disponibile:",
+    "channel_command_processing_error": "⚠️ A apărut o eroare la procesarea comenzii. Încercați din nou mai târziu.",
+    "channel_message_processing_error": "⚠️ A apărut o eroare la procesarea mesajului dvs. Încercați din nou mai târziu.",
+    "channel_new_session_created": "Sesiune nouă creată.",
+    "channel_no_active_session": "Nu există nicio sesiune activă.",
+    "channel_session_compacted": "Sesiune compactată.",
+    "channel_session_resolution_error": "⚠️ Nu s-a putut rezolva o sesiune pentru acest agent. Încercați din nou mai târziu.",
     "copy": "Copiază",
     "cut": "Decupează",
     "inspect": "Inspectează",
@@ -123,6 +140,16 @@
     "errors": {
       "document_size_limit_exceeded": "Serviciul curent de analiză a documentelor necesită fișiere mai mici de {{maxSize}}. Comprimă sau împarte acest fișier, apoi adaugă-l din nou.",
       "pdf_page_limit_exceeded": "Acest PDF depășește limita de {{maxPages}} pagini pentru serviciul curent de analiză a documentelor. Împarte manual PDF-ul, apoi adaugă-l din nou."
+    }
+  },
+  "notification": {
+    "action_required": {
+      "agent": "Agentul are nevoie de intervenția ta",
+      "assistant": "Asistentul are nevoie de intervenția ta"
+    },
+    "completion": {
+      "agent": "Sarcina agentului a fost finalizată",
+      "assistant": "Răspunsul asistentului a fost finalizat"
     }
   },
   "openclaw": {

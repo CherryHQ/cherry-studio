@@ -47,7 +47,13 @@ export function setOpenLinkExternal(webviewId: number, isExternal: boolean) {
       }
       return { action: 'deny' }
     } else {
-      return { action: 'allow' }
+      // In-app popups must stay on web origins; isSafeExternalUrl is not reused here
+      // because its allowlist (mailto:, editor deep-links) targets shell.openExternal.
+      if (url.startsWith('http:') || url.startsWith('https:')) {
+        return { action: 'allow' }
+      }
+      logger.warn(`Blocked in-app popup for untrusted URL scheme: ${url}`)
+      return { action: 'deny' }
     }
   })
 }

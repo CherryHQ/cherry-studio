@@ -199,6 +199,8 @@ WindowManager exposes four lifecycle methods, arranged in two layers:
 
 **Why `destroy()` is not a consumer API.** On non-pooled windows (default and singleton) `close()` falls through to the same `destroyWindow()` call — there is no behavioral difference. On pooled windows, `destroy()` bypasses the pool, which is almost never what a consumer actually wants; the correct API for "stop the whole pool" is `suspendPool(type)`, which destroys idle windows and prevents further recycling without touching in-use windows.
 
+**Carve-out: windows whose close policy lives in a `close` listener.** Because both paths end in `window.destroy()`, `wm.close()` never fires the native `close` event. A window that decides its own close behavior there — hide-to-tray, quit the app, prompt on unsaved changes — is silently bypassed by `wm.close()`. Such a window must be closed by the service that owns it, calling `win.close()` on the `BrowserWindow` it already holds and exposing that as a method (e.g. `MainWindowService.requestClose(windowId)`, which the `window.close` IPC route consults before falling back to `wm.close()`). Tracking is unaffected: WM's `'closed'` listener still fires `onWindowDestroyed` and still cleans up, and the singleton bounds-persistence listener runs on `close`.
+
 ### Consumer-loaded windows (`htmlPath: ''`)
 
 A registry entry with `htmlPath: ''` is **consumer-loaded**: WM wires the window (preload, behavior, bounds, lifecycle) but loads no content — the domain service loads it after `open()`. For hidden, one-shot surfaces rendering *generated* content (print / PDF, offscreen render).
