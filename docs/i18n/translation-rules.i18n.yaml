@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write docs/i18n/translation-rules.md
+translation-rules.md: 5beb8b690a110450e5ad78d9e57f4ab5c258f6b4
+translation-rules.zh.md: b9282c09b172beeb14f178606536481da231317f

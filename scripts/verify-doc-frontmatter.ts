@@ -8,6 +8,7 @@ const ROOT = path.resolve(__dirname, '..')
 export type FrontmatterRule = { requireSources: boolean }
 
 export const listMarkdownFiles = (dir: string): string[] => {
+  if (!fs.existsSync(dir)) return []
   const files: string[] = []
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name)
@@ -56,6 +57,9 @@ export const checkDocsFrontmatter = (repoRoot: string): string[] => {
     failures.push(...checkFile(repoRoot, file, { requireSources: true }))
   }
   for (const file of listMarkdownFiles(path.join(repoRoot, 'docs/contrib'))) {
+    failures.push(...checkFile(repoRoot, file, { requireSources: false }))
+  }
+  for (const file of listMarkdownFiles(path.join(repoRoot, 'docs/i18n'))) {
     failures.push(...checkFile(repoRoot, file, { requireSources: false }))
   }
   return failures

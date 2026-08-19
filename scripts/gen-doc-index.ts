@@ -1,4 +1,4 @@
-/** Generates docs/README.md from doc frontmatter so the index cannot drift from the tree. `--check` verifies instead of writing. */
+/** Generates human and machine documentation indexes from frontmatter. */
 import * as fs from 'fs'
 import matter from 'gray-matter'
 import * as path from 'path'
@@ -40,6 +40,9 @@ const tableRows = (docsDir: string, files: string[]): string[] =>
     return `| [${docTitle(file)}](${link}) | ${docDescription(file)} |`
   })
 
+const englishDocs = (dir: string): string[] =>
+  listMarkdownFiles(dir).filter((file) => !file.endsWith('.zh.md') && path.basename(file) !== 'AGENTS.md')
+
 /** README first, then alphabetical; nested files after top-level ones. */
 const domainOrder = (domainDir: string, files: string[]): string[] => {
   const depth = (file: string) => file.split(path.sep).length
@@ -62,7 +65,13 @@ export const generateIndex = (repoRoot: string): string => {
     '| Document | Description |',
     '|----------|-------------|',
     '| [Contributing](../CONTRIBUTING.md) | How to contribute code |',
-    ...tableRows(docsDir, listMarkdownFiles(path.join(docsDir, 'contrib'))),
+    ...tableRows(docsDir, englishDocs(path.join(docsDir, 'contrib'))),
+    '',
+    '## Documentation Governance',
+    '',
+    '| Document | Description |',
+    '|----------|-------------|',
+    ...tableRows(docsDir, englishDocs(path.join(docsDir, 'i18n'))),
     '',
     '## References'
   ]
@@ -77,28 +86,68 @@ export const generateIndex = (repoRoot: string): string => {
   for (const domain of domains) {
     const domainDir = path.join(referencesDir, domain)
     lines.push('', `### ${titleForDomain(domain)}`, '', '| Document | Description |', '|----------|-------------|')
-    lines.push(...tableRows(docsDir, domainOrder(domainDir, listMarkdownFiles(domainDir))))
+    lines.push(...tableRows(docsDir, domainOrder(domainDir, englishDocs(domainDir))))
   }
 
   return lines.join('\n') + '\n'
 }
 
+export const generateSourcesIndex = (repoRoot: string): string => {
+  const docsDir = path.join(repoRoot, 'docs')
+  const files = [
+    ...englishDocs(path.join(docsDir, 'contrib')),
+    ...englishDocs(path.join(docsDir, 'i18n')),
+    ...englishDocs(path.join(docsDir, 'references'))
+  ]
+  const documents = files
+    .map((file) => {
+      const { data } = matter(fs.readFileSync(file, 'utf8'))
+      return {
+        path: path.relative(repoRoot, file).split(path.sep).join('/'),
+        sources: Array.isArray(data.sources)
+          ? data.sources.filter((source): source is string => typeof source === 'string')
+          : []
+      }
+    })
+    .filter((document) => document.sources.length > 0)
+    .map((document) => ({ ...document, sources: [...document.sources].sort() }))
+    .sort((left, right) => left.path.localeCompare(right.path))
+  return [
+    '{',
+    '  "version": 1,',
+    '  "documents": [',
+    ...documents.flatMap((document, index) => [
+      '    {',
+      `      "path": ${JSON.stringify(document.path)},`,
+      `      "sources": ${JSON.stringify(document.sources)}`,
+      `    }${index === documents.length - 1 ? '' : ','}`
+    ]),
+    '  ]',
+    '}',
+    ''
+  ].join('\n')
+}
+
 const main = () => {
   const indexPath = path.join(ROOT, 'docs/README.md')
-  const generated = generateIndex(ROOT)
+  const sourcesPath = path.join(ROOT, 'docs/sources-index.json')
+  const generatedIndex = generateIndex(ROOT)
+  const generatedSources = generateSourcesIndex(ROOT)
 
   if (process.argv.includes('--check')) {
     const current = fs.existsSync(indexPath) ? fs.readFileSync(indexPath, 'utf8') : ''
-    if (current !== generated) {
-      console.error('docs/README.md is stale — run `pnpm docs:index` and commit the result.')
+    const currentSources = fs.existsSync(sourcesPath) ? fs.readFileSync(sourcesPath, 'utf8') : ''
+    if (current !== generatedIndex || currentSources !== generatedSources) {
+      console.error('Documentation indexes are stale — run `pnpm docs:index` and commit the results.')
       process.exit(1)
     }
     console.log('Docs index OK.')
     return
   }
 
-  fs.writeFileSync(indexPath, generated)
-  console.log('Wrote docs/README.md.')
+  fs.writeFileSync(indexPath, generatedIndex)
+  fs.writeFileSync(sourcesPath, generatedSources)
+  console.log('Wrote docs/README.md and docs/sources-index.json.')
 }
 
 if (require.main === module) main()
