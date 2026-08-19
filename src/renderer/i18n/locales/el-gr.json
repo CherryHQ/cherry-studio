@@ -3001,7 +3001,7 @@
       "empty_title": "Αναζήτηση δεξιοτήτων",
       "github_empty_description": "Επικολλήστε έναν σύνδεσμο προς ένα αρχείο SKILL.md μιας ικανότητας, π.χ. github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
       "github_empty_title": "Εγκατάσταση από GitHub",
-      "github_url_invalid": "Επικολλήστε έναν σύνδεσμο GitHub που τελειώνει με SKILL.md",
+      "github_url_invalid": "Επικολλήστε έναν υποστηριζόμενο σύνδεσμο GitHub που οδηγεί απευθείας σε αρχείο SKILL.md",
       "github_url_label": "URL SKILL.md GitHub",
       "github_url_placeholder": "Σύνδεσμος GitHub που λήγει σε /SKILL.md",
       "no_results_description": "Δοκιμάστε μια άλλη λέξη-κλειδί ή εισαγάγετε ένα τοπικό αρχείο ZIP ή φάκελο.",

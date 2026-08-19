@@ -3001,7 +3001,7 @@
       "empty_title": "Поиск навыков",
       "github_empty_description": "Вставьте ссылку на файл SKILL.md навыка, например github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
       "github_empty_title": "Установить из GitHub",
-      "github_url_invalid": "Вставьте ссылку GitHub, оканчивающуюся на SKILL.md",
+      "github_url_invalid": "Вставьте поддерживаемую ссылку GitHub, ведущую непосредственно к файлу SKILL.md",
       "github_url_label": "Ссылка GitHub на SKILL.md",
       "github_url_placeholder": "Ссылка GitHub, оканчивающаяся на /SKILL.md",
       "no_results_description": "Попробуйте другое ключевое слово или импортируйте локальный ZIP-архив или папку.",

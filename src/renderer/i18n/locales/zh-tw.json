@@ -3001,7 +3001,7 @@
       "empty_title": "搜尋技能",
       "github_empty_description": "請貼上技能的 SKILL.md 檔案連結，例如 github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
       "github_empty_title": "從 GitHub 安裝",
-      "github_url_invalid": "請貼上以 SKILL.md 結尾的 GitHub 連結",
+      "github_url_invalid": "請貼上直接指向 SKILL.md 檔案的受支援 GitHub 連結",
       "github_url_label": "GitHub SKILL.md 連結",
       "github_url_placeholder": "GitHub 連結，以 /SKILL.md 結尾",
       "no_results_description": "請嘗試其他關鍵字，或從本機匯入 ZIP 檔或資料夾。",
