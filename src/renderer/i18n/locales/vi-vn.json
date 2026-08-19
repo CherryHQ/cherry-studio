@@ -3747,7 +3747,7 @@
   },
   "notification": {
     "assistant": "Phản hồi của Trợ lý",
-    "tip": "Nếu phản hồi thành công, chỉ những tin nhắn vượt quá 30 giây mới kích hoạt lời nhắc"
+    "tip": "Chỉ kiểm soát thông báo hệ thống khi ứng dụng chạy nền. Thông báo trong ứng dụng luôn được bật."
   },
   "ocr": {
     "processing": "Đang xử lý OCR..."
@@ -6243,7 +6243,7 @@
       "label": "Thêm Cài đặt"
     },
     "notification": {
-      "assistant": "Tin nhắn Trợ lý",
+      "assistant": "Thông báo hoàn tất cuộc trò chuyện",
       "backup": "Tin nhắn sao lưu",
       "knowledge_embed": "Thông báo từ KnowledgeBase",
       "title": "Thông báo",

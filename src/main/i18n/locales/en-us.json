@@ -9,6 +9,7 @@
       }
     },
     "session": {
+      "new": "New task",
       "run_status": {
         "busy": "The Agent Session is busy. Please try again shortly.",
         "unavailable": "The Agent Session is no longer available."
@@ -83,6 +84,11 @@
     "zoomIn": "Zoom In",
     "zoomOut": "Zoom Out"
   },
+  "chat": {
+    "conversation": {
+      "new": "New Chat"
+    }
+  },
   "common": {
     "channel_available_commands": "Available commands:",
     "channel_command_processing_error": "⚠️ An error occurred while processing the command. Please try again later.",
@@ -134,6 +140,16 @@
     "errors": {
       "document_size_limit_exceeded": "The current document parsing service requires files smaller than {{maxSize}}. Compress or split this file, then add it again.",
       "pdf_page_limit_exceeded": "This PDF exceeds the {{maxPages}}-page limit for the current document parsing service. Split the PDF manually, then add it again."
+    }
+  },
+  "notification": {
+    "action_required": {
+      "agent": "Agent needs your input",
+      "assistant": "Assistant needs your input"
+    },
+    "completion": {
+      "agent": "Agent task complete",
+      "assistant": "Assistant response complete"
     }
   },
   "openclaw": {

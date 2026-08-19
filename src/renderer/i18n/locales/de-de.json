@@ -3747,7 +3747,7 @@
   },
   "notification": {
     "assistant": "Assistenten-Antwort",
-    "tip": "Bei erfolgreicher Antwort wird nur für Nachrichten über 30 Sekunden eine Benachrichtigung angezeigt"
+    "tip": "Steuert nur Systembenachrichtigungen im Hintergrund. In-App-Benachrichtigungen sind immer aktiviert."
   },
   "ocr": {
     "processing": "OCR wird verarbeitet..."
@@ -6243,7 +6243,7 @@
       "label": "Weitere Einstellungen"
     },
     "notification": {
-      "assistant": "Assistenten-Nachrichten",
+      "assistant": "Benachrichtigungen bei Gesprächsabschluss",
       "backup": "Sicherung",
       "knowledge_embed": "Wissensdatenbank",
       "title": "Benachrichtigungen",

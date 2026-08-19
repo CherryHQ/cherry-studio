@@ -3747,7 +3747,7 @@
   },
   "notification": {
     "assistant": "Réponse de l'assistant",
-    "tip": "Si la réponse est réussie, un rappel est envoyé uniquement pour les messages dépassant 30 secondes"
+    "tip": "Contrôle uniquement les notifications système en arrière-plan. Les notifications dans l’application restent toujours activées."
   },
   "ocr": {
     "processing": "Traitement OCR en cours..."
@@ -6243,7 +6243,7 @@
       "label": "Paramètres supplémentaires"
     },
     "notification": {
-      "assistant": "Message de l'assistant",
+      "assistant": "Notifications de fin de conversation",
       "backup": "Sauvegarder",
       "knowledge_embed": "Base de connaissances",
       "title": "Notifications",

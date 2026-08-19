@@ -1,5 +1,6 @@
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
+import { ConversationNotificationRuntime } from '@renderer/components/ConversationNotificationRuntime'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { LanguageDirectionProvider } from '@renderer/components/LanguageDirectionProvider'
 import { TabsProvider } from '@renderer/components/layout/TabsProvider'
@@ -33,6 +34,7 @@ function SubWindowApp(): React.ReactElement {
                 <TabsProvider initialDefaultTab={null} includePinnedTabs={false}>
                   <SubWindowAppShell />
                   <SubWindowRuntime />
+                  <ConversationNotificationRuntime />
                   <PopupHost />
                   <ToastHost />
                 </TabsProvider>
