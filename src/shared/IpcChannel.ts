@@ -24,6 +24,7 @@ export enum IpcChannel {
   // Python: main→renderer(pyodide)→main reverse RPC
   Python_ExecutionRequest = 'python:execution-request',
   Python_ExecutionResponse = 'python:execution-response',
+  Python_ExecutionCancel = 'python:execution-cancel',
 
   //copilot
   Copilot_GetAuthMessage = 'copilot:get-auth-message',

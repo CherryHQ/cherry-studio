@@ -77,6 +77,35 @@ describe('PyodideService', () => {
     await expect(second).resolves.toEqual({ text: 'two' })
   })
 
+  it('should skip a cancelled queued run without sending it to the worker', async () => {
+    const controller = new AbortController()
+    const first = pyodideService.runScript('print("busy")')
+    const queued = pyodideService.runScript('print("queued")', {}, 60000, controller.signal)
+
+    await vi.waitFor(() => expect(latestWorker()?.posted).toHaveLength(1))
+    controller.abort()
+
+    const worker = latestWorker()
+    worker.emit({ id: worker.posted[0].id, output: outputWithText('busy') })
+    await expect(first).resolves.toEqual({ text: 'busy' })
+    await expect(queued).resolves.toEqual({ text: 'Python execution cancelled' })
+
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(worker.posted).toHaveLength(1)
+  })
+
+  it('should terminate the worker when the running script is cancelled', async () => {
+    const controller = new AbortController()
+    const running = pyodideService.runScript('while True: pass', {}, 60000, controller.signal)
+
+    await vi.waitFor(() => expect(workerMocks.instances[0]?.posted).toHaveLength(1))
+    const stuckWorker: FakeWorkerInstance = workerMocks.instances[0]
+    controller.abort()
+
+    await expect(running).resolves.toEqual({ text: 'Internal error: Python execution cancelled' })
+    expect(stuckWorker.terminated).toBe(true)
+  })
+
   it('should terminate the worker on timeout and rebuild it for queued runs', async () => {
     const stuck = pyodideService.runScript('while True: pass', {}, 30)
     const queued = pyodideService.runScript('print("after")')

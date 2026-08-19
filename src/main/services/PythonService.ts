@@ -74,6 +74,8 @@ export class PythonService extends BaseService {
 
       const timeoutId = setTimeout(() => {
         this.pendingRequests.delete(requestId)
+        // 计时覆盖 IPC + 渲染侧排队 + 执行全程，超时必须通知渲染侧取消，否则排队中的请求仍会执行
+        application.get('WindowManager').broadcastToType(WindowType.Main, IpcChannel.Python_ExecutionCancel, requestId)
         reject(new Error('Python execution timed out'))
       }, timeout + 5000)
 
