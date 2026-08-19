@@ -14,6 +14,7 @@ import { directoryExists } from '@main/utils/legacyFile'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
 import { executeCommand } from '@main/utils/processRunner'
 import { getShellEnv } from '@main/utils/shellEnv'
+import { assertZipEntriesWithin } from '@main/utils/zipSafety'
 import type { InstalledSkill, ListSkillsQuery } from '@shared/data/api/schemas/skills'
 import type {
   SkillFileNode,
@@ -326,30 +327,11 @@ export class SkillService {
     for (const source of sources) {
       if (path.resolve(source.directoryPath) === mirrorRoot) continue
 
-      let entries: fs.Dirent[]
-      try {
-        entries = await fs.promises.readdir(source.directoryPath, { withFileTypes: true })
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-          logger.warn('Failed to enumerate system skill source', {
-            sourceId: source.id,
-            directoryPath: source.directoryPath,
-            error: error instanceof Error ? error.message : String(error)
-          })
-        }
-        continue
-      }
-
-      for (const entry of entries) {
-        if (!entry.isDirectory() && !entry.isSymbolicLink()) continue
-
-        const entryPath = path.join(source.directoryPath, entry.name)
+      const skillDirectories = await findAllSkillDirectories(source.directoryPath, source.directoryPath)
+      for (const skillDirectory of skillDirectories) {
+        const entryPath = skillDirectory.folderPath
         try {
-          const [stats, canonicalPath] = await Promise.all([
-            fs.promises.stat(entryPath),
-            fs.promises.realpath(entryPath)
-          ])
-          if (!stats.isDirectory()) continue
+          const canonicalPath = await fs.promises.realpath(entryPath)
           if (canonicalPath === managedRoot || canonicalPath.startsWith(managedRoot + path.sep)) continue
 
           const placement: SystemSkillPlacement = {
@@ -363,7 +345,9 @@ export class SkillService {
             continue
           }
 
-          const metadata = await parseSkillMetadata(canonicalPath, entry.name, 'skills', { calculateSize: false })
+          const metadata = await parseSkillMetadata(canonicalPath, skillDirectory.sourcePath, 'skills', {
+            calculateSize: false
+          })
           const folderName = this.sanitizeFolderName(metadata.filename)
           const registered = installedByPath.get(canonicalPath)
           const folderConflict = installedByFolder.get(this.normalizeFolderKey(folderName))
@@ -927,6 +911,7 @@ export class SkillService {
 
     try {
       const entries = await zip.entries()
+      assertZipEntriesWithin(Object.keys(entries), destDir)
       let totalSize = 0
       let fileCount = 0
 
