@@ -7,6 +7,16 @@ becomes IPC + a Main-owned active-stream registry. This directory
 breaks the change into clusters reviewable in parallel — one cluster
 per agent.
 
+> **Note on scope.** Everything in *this* directory documents the v2
+> refactor that has **already happened** — it's a reviewer guide for the
+> port, not a forward plan. Active forward-looking design lives in its own
+> folder:
+>
+> - [**`unified-runtime/`**](./unified-runtime/) — active plan to collapse the
+>   two AI runtimes (chat `aiSdk` driver + agent `claudeCode` driver) into one
+>   model-agnostic runtime. The `(C, G)` model, decision log, per-phase schemes,
+>   and the v6→v7 upgrade analysis. **Not yet implemented.**
+
 ## How to read this
 
 Each cluster doc:
