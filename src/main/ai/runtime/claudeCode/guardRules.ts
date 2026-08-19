@@ -8,7 +8,8 @@
  * same reason deterministically that the SDK's parallel severity fold produced by race before.
  * `bypassBehavior` is the single authority on what bypassPermissions lifts: it skips the
  * interactive effect of 'skipInteractiveEffect' rules and nothing else — headless denials hold in
- * every mode (skill-install's explicit opt-out excepted).
+ * every mode (skill-install's explicit opt-out excepted). A rule whose only decision is a headless
+ * denial declares no `bypassBehavior`; there is no effect for bypass to skip.
  */
 
 import { BUILTIN_AGENT_TOOL_GUARD_RULES } from '@main/ai/agents/builtin/builtinAgentGuardRules'
@@ -107,7 +108,6 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
   },
   {
     id: 'headless-config-mutation',
-    bypassBehavior: 'enforce',
     match: { tool: toCherryBuiltinRuntimeName(CONFIG_TOOL_NAME), when: mutatingConfigAction },
     headless: {
       predicate: 'turn-headless',
@@ -119,7 +119,6 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     // Installing third-party skill code needs a responder — except under bypassPermissions, the
     // user's explicit opt-in to unattended installation.
     id: 'skill-install',
-    bypassBehavior: 'skipInteractiveEffect',
     match: { tool: 'mcp__skills__install_skill' },
     headless: {
       predicate: 'turn-headless',
@@ -130,7 +129,6 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
   },
   {
     id: 'interactive-headless',
-    bypassBehavior: 'enforce',
     match: { when: (ctx) => (claudeToolRequiresUserInteraction(ctx.toolName) ? {} : null) },
     headless: { predicate: 'responder-unavailable', reason: HEADLESS_INTERACTIVE_TOOL_DENIAL }
   },

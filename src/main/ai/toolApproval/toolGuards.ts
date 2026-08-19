@@ -64,13 +64,6 @@ export interface HeadlessOverride {
 
 interface ToolGuardRuleBase {
   id: string
-  /**
-   * 'enforce': the rule applies in every permission mode, bypassPermissions included.
-   * 'skipInteractiveEffect': bypassPermissions skips the rule's interactive `effect` (the user's
-   * explicit opt-out of per-call approval); a `headless` override still applies unless the rule
-   * sets `skipHeadlessDenyInBypass`.
-   */
-  bypassBehavior: 'enforce' | 'skipInteractiveEffect'
   /** Scope to specific built-in roles; omit for a rule that applies to every agent. */
   appliesTo?: { roles: readonly string[] }
   /** `tool` and `when` AND together; at least one must be present. */
@@ -78,11 +71,21 @@ interface ToolGuardRuleBase {
   headless?: HeadlessOverride
 }
 
+/**
+ * 'enforce': the effect applies in every permission mode, bypassPermissions included.
+ * 'skipInteractiveEffect': bypassPermissions skips it (the user's explicit opt-out of per-call
+ * approval); a `headless` override still applies unless the rule sets `skipHeadlessDenyInBypass`.
+ *
+ * Only declared by rules that have an `effect` — there is nothing for bypass to skip on a rule
+ * whose only decision is a headless denial, which `skipHeadlessDenyInBypass` governs instead.
+ */
+type BypassBehavior = 'enforce' | 'skipInteractiveEffect'
+
 export type ToolGuardRule = ToolGuardRuleBase &
   (
-    | { effect: 'deny'; reason: GuardReason }
-    | { effect: 'ask'; reason: GuardReason }
-    | { effect?: undefined; headless: HeadlessOverride }
+    | { effect: 'deny'; reason: GuardReason; bypassBehavior: BypassBehavior }
+    | { effect: 'ask'; reason: GuardReason; bypassBehavior: BypassBehavior }
+    | { effect?: undefined; bypassBehavior?: undefined; headless: HeadlessOverride }
   )
 
 export interface ToolGuardDecision {
@@ -113,7 +116,7 @@ async function matchRule(rule: ToolGuardRule, ctx: ToolGuardContext): Promise<Gu
   try {
     return await rule.match.when(ctx)
   } catch (error) {
-    logger.warn('Guard condition threw — treating as no match', { ruleId: rule.id, toolName: ctx.toolName, error })
+    logger.error('Guard condition threw — treating as no match', { ruleId: rule.id, toolName: ctx.toolName, error })
     return null
   }
 }
@@ -176,8 +179,8 @@ export function validateToolGuardRules(rules: readonly ToolGuardRule[]): string[
     if (rule.effect === undefined && !rule.headless) {
       problems.push(`rule ${rule.id} has neither an effect nor a headless override`)
     }
-    if (rule.headless?.skipHeadlessDenyInBypass && rule.bypassBehavior === 'enforce') {
-      problems.push(`rule ${rule.id} enforces under bypass but skips its headless deny there`)
+    if (rule.effect !== undefined && rule.headless?.skipHeadlessDenyInBypass && rule.bypassBehavior === 'enforce') {
+      problems.push(`rule ${rule.id} enforces its effect under bypass but skips its headless deny there`)
     }
   }
   return problems

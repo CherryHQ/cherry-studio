@@ -49,7 +49,7 @@ vi.mock('@data/services/ProviderService', () => ({
 }))
 
 import { resolveAgentCapabilities } from '@main/ai/agents/builtin/builtinAgentCapabilities'
-import type { AssistantToolName } from '@shared/ai/assistantTools'
+import type { AssistantToolName } from '@main/ai/toolApproval/assistantToolNames'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 
 import AssistantServer, { isAllowedAssistantNavigationPath, isBlockedSourceFile } from '../assistant'

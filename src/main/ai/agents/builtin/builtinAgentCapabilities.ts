@@ -11,8 +11,8 @@
  * a data file. `agent.json` stays the Agent's content (identity, instructions, skills).
  */
 
+import { type AssistantToolName } from '@main/ai/toolApproval/assistantToolNames'
 import { CHERRY_MCP_SERVER } from '@main/ai/toolApproval/builtinToolPolicy'
-import { type AssistantToolName } from '@shared/ai/assistantTools'
 import { BUILTIN_AGENT_ROLE, type BuiltinAgentRole } from '@shared/ai/builtinAgent'
 import { AGENT_TYPES, type AgentEntity, type AgentType } from '@shared/data/api/schemas/agents'
 

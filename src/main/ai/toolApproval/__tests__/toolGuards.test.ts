@@ -82,7 +82,6 @@ describe('evaluateToolGuards', () => {
   it('lifts a headless deny under bypass only with skipHeadlessDenyInBypass', async () => {
     const rule: ToolGuardRule = {
       id: 'headless-only',
-      bypassBehavior: 'skipInteractiveEffect',
       match: { tool: 'Bash' },
       headless: { predicate: 'turn-headless', reason: 'headless denied', skipHeadlessDenyInBypass: true }
     }
@@ -117,7 +116,6 @@ describe('evaluateToolGuards', () => {
   ] as const)('headless predicate %s with %o → deny=%s', async (predicate, interaction, denied) => {
     const rule: ToolGuardRule = {
       id: 'predicate',
-      bypassBehavior: 'enforce',
       match: { tool: 'Bash' },
       headless: { predicate, reason: 'headless denied' }
     }
@@ -192,7 +190,7 @@ describe('validateToolGuardRules', () => {
       'duplicate rule id: dup',
       'rule matchless matches nothing (no tool, no condition)',
       'rule no-op has neither an effect nor a headless override',
-      'rule contradictory enforces under bypass but skips its headless deny there'
+      'rule contradictory enforces its effect under bypass but skips its headless deny there'
     ])
   })
 })
