@@ -226,6 +226,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
                 compact={compact}
                 onSelect={onSelectSuggestionsModel}
                 placeholder={t('settings.models.conversation_suggestions.default_model')}
+                noneOptionLabel={t('settings.models.conversation_suggestions.default_model')}
               />
             )}
             <Switch

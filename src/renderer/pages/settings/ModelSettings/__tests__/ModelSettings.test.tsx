@@ -61,15 +61,26 @@ vi.mock('@renderer/components/ModelSelector', () => ({
   ModelSelector: ({
     onSelect,
     trigger,
-    filter
+    filter,
+    noneOptionLabel
   }: {
     onSelect: (model: Model | undefined) => void
     trigger: ReactNode
     filter?: (model: Model) => boolean
+    noneOptionLabel?: string
   }) => {
     harness.selectorCallbacks.push(onSelect)
     harness.selectorFilters.push(filter)
-    return trigger
+    return (
+      <>
+        {trigger}
+        {noneOptionLabel ? (
+          <button type="button" onClick={() => onSelect(undefined)}>
+            {noneOptionLabel}
+          </button>
+        ) : null}
+      </>
+    )
   }
 }))
 
@@ -278,5 +289,17 @@ describe('ModelSettings', () => {
 
     expect(harness.preferenceSetters['chat.suggestions.enabled']).toHaveBeenCalledWith(false)
     expect(harness.preferenceSetters['chat.suggestions.model_id']).toHaveBeenCalledWith(selectedModel.id)
+  })
+
+  it('lets users reset a dedicated suggestions model to follow the default', () => {
+    const selectedModel = createModel('openai', 'gpt-4o-mini')
+    harness.suggestionsModel = selectedModel
+    harness.preferenceValues['chat.suggestions.model_id'] = selectedModel.id
+
+    render(<ModelSettings showPaintingModel={false} showSettingsButton={false} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.models.conversation_suggestions.default_model' }))
+
+    expect(harness.preferenceSetters['chat.suggestions.model_id']).toHaveBeenCalledWith(null)
   })
 })
