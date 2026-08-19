@@ -82,10 +82,8 @@ export class ChannelManager extends BaseService implements ChannelTerminalDelive
   private readonly blockedDeliveryChannelIds = new Set<string>()
   private acceptingTerminalDeliveries = false
 
-  protected async onReady(): Promise<void> {
-    await this.start()
-  }
-
+  // ChannelIngressService starts adapters after producers are ready; this owner
+  // keeps lifecycle stop so terminal delivery remains alive until producers stop.
   protected async onStop(): Promise<void> {
     await this.stop()
   }

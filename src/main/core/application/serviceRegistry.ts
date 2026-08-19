@@ -6,7 +6,7 @@ import { AgentJobsService } from '@main/ai/agents/AgentJobsService'
 import { AgentSessionDeliveryService } from '@main/ai/agentSession/AgentSessionDeliveryService'
 import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
 import { AiService } from '@main/ai/AiService'
-import { ChannelManager } from '@main/ai/channels'
+import { ChannelIngressService, ChannelManager } from '@main/ai/channels'
 import { EmbeddingInferenceService } from '@main/ai/inference/EmbeddingInferenceService'
 import { OcrInferenceService } from '@main/ai/inference/OcrInferenceService'
 import { McpCatalogService } from '@main/ai/mcp/McpCatalogService'
@@ -131,6 +131,7 @@ export const services = {
   AgentJobsService,
   ChannelManager,
   AiService,
+  ChannelIngressService,
   ClaudeCodeWarmQueryManager,
   AiStreamManager,
   EmbeddingInferenceService,

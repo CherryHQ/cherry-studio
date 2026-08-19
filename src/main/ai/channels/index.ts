@@ -5,6 +5,7 @@ export type {
   SendMessageOptions
 } from './ChannelAdapter'
 export { ChannelAdapter } from './ChannelAdapter'
+export { ChannelIngressService } from './ChannelIngressService'
 export type { ChannelTerminalDelivery, ChannelTerminalDeliveryOwner } from './ChannelManager'
 export { ChannelManager, registerAdapterFactory } from './ChannelManager'
 export { ChannelMessageHandler, channelMessageHandler } from './ChannelMessageHandler'

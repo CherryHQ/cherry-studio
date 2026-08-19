@@ -263,6 +263,10 @@ stream results and scheduled-task notifications. It serializes work by
 accepted work before disconnecting the adapter. A send is attempted once; an
 uncancellable timeout is never retried, so a late first success cannot become a
 duplicate and a hung send remains the queue head instead of being overtaken.
+`ChannelIngressService` opens adapters only after the AI producers are ready. On
+shutdown it first pauses channel intake and drains buffered admissions; the
+stream and job producers then stop before `ChannelManager` drains terminal
+deliveries and disconnects adapters.
 
 Persistence failures use stricter semantics: when
 both the terminal write and its fallback error marker fail, the attempt enters

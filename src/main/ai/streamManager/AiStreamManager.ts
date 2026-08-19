@@ -5,7 +5,7 @@ import { loggerService } from '@logger'
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
-import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { shouldDeferToolOutput } from '@main/utils/messageOutputProjection'
@@ -348,6 +348,7 @@ const nullStreamListener: StreamListener = {
  */
 @Injectable('AiStreamManager')
 @ServicePhase(Phase.WhenReady)
+@DependsOn(['ChannelManager'])
 export class AiStreamManager extends BaseService {
   private readonly activeStreams = new Map<string, ActiveStream>()
   /** Aggregate ownership starts at reservation, before an ActiveStream has runtime resources. */
