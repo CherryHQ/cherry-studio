@@ -94,7 +94,7 @@ describe('AssistantDataService', () => {
   }
 
   async function seedMcpServer(id = 'srv-1', name = 'MCP') {
-    await dbh.db.insert(mcpServerTable).values({ id, name })
+    await dbh.db.insert(mcpServerTable).values({ id, name, serverWireName: `test_${id}` })
   }
 
   async function seedKnowledgeBase(id = 'kb-1') {

@@ -16,8 +16,10 @@ export type McpServerLogEntry = {
  * process `McpCatalogService` is the sole producer.
  */
 export interface McpTool {
-  /** AI SDK wire ID; readable slugs use display names, while the identity digest uses `serverId` + original `name`. */
+  /** Durable 64-character identity key derived from `serverId` + original `name`. */
   id: string
+  /** Canonical provider-visible runtime name. */
+  runtimeName: string
   /** Original protocol-level tool name. */
   name: string
   description?: string

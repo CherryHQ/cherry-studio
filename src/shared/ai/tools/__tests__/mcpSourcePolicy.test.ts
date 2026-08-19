@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { McpServer } from '../../../data/types/mcpServer'
 import {
+  buildMcpRuntimeWildcard,
   isMcpToolDisabledBySource,
   isMcpToolForcePromptBySource,
   matchesMcpSourceToolRule,
@@ -11,6 +12,7 @@ import {
 const server = {
   id: 'docs-id',
   name: 'docs',
+  serverWireName: 'docs_123456789abc',
   isActive: true,
   disabledTools: [],
   disabledAutoApproveTools: []
@@ -18,15 +20,18 @@ const server = {
 
 const tool = {
   id: 'mcp__docs__searchDocs_0123456789abcdefabcd',
+  runtimeName: 'mcp__docs_123456789abc__searchDocs__0123456789ab',
   name: 'search_docs'
 }
 
 describe('mcpSourcePolicy', () => {
-  it('matches raw name, current id, legacy id, and server wildcard', () => {
+  it('matches raw name, identity, runtime name, legacy id, and both server wildcards', () => {
     expect(matchesMcpSourceToolRule('search_docs', server, tool)).toBe(true)
     expect(matchesMcpSourceToolRule(tool.id, server, tool)).toBe(true)
+    expect(matchesMcpSourceToolRule(tool.runtimeName, server, tool)).toBe(true)
     expect(matchesMcpSourceToolRule('mcp__docs__searchDocs', server, tool)).toBe(true)
     expect(matchesMcpSourceToolRule('mcp__docs__*', server, tool)).toBe(true)
+    expect(matchesMcpSourceToolRule(buildMcpRuntimeWildcard(server.serverWireName), server, tool)).toBe(true)
     expect(matchesMcpSourceToolRule('mcp__other__searchDocs', server, tool)).toBe(false)
   })
 

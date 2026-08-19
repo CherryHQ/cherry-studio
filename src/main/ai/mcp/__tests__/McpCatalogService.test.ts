@@ -1,3 +1,4 @@
+import { buildMcpToolRuntimeName } from '@main/ai/mcp/mcpToolId'
 import { BaseService } from '@main/core/lifecycle'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -64,6 +65,7 @@ function server(overrides: Record<string, unknown> = {}) {
   return {
     id: 'server-1',
     name: 'docs',
+    serverWireName: 'docs_server_1',
     isActive: true,
     disabledTools: [],
     disabledAutoApproveTools: [],
@@ -109,7 +111,15 @@ describe('McpCatalogService', () => {
     expect(cacheService.setShared).toHaveBeenCalledWith(
       'mcp.tools.server-1',
       expect.arrayContaining([
-        expect.objectContaining({ name: 'search' }),
+        expect.objectContaining({
+          name: 'search',
+          id: expect.stringMatching(/^[0-9a-f]{64}$/),
+          runtimeName: buildMcpToolRuntimeName({
+            serverId: 'server-1',
+            serverWireName: 'docs_server_1',
+            toolName: 'search'
+          })
+        }),
         expect.objectContaining({ name: 'blocked' })
       ])
     )
@@ -142,6 +152,29 @@ describe('McpCatalogService', () => {
 
     const tools = service.listTools('ocr-server', { includeDisabled: true })
     expect(tools[0].id).not.toBe(tools[1].id)
+  })
+
+  it('rehydrates legacy cached descriptors with the current identity and runtime name', () => {
+    getById.mockReturnValue(server())
+    cacheStore.set('mcp.tools.server-1', [
+      {
+        id: 'mcp__docs__search',
+        name: 'search',
+        serverId: 'server-1',
+        serverName: 'docs',
+        type: 'mcp',
+        inputSchema: { type: 'object', properties: {}, required: [] }
+      }
+    ])
+
+    const service = new McpCatalogService()
+    const [tool] = service.listTools('server-1', { includeDisabled: true })
+
+    expect(tool.id).toMatch(/^[0-9a-f]{64}$/)
+    expect(tool.runtimeName).toBe(
+      buildMcpToolRuntimeName({ serverId: 'server-1', serverWireName: 'docs_server_1', toolName: 'search' })
+    )
+    expect(tool.serverName).toBe('docs')
   })
 
   it('starts a prompts/resources-only server instead of failing on tools/list', async () => {
@@ -208,12 +241,13 @@ describe('McpCatalogService', () => {
 
   it('listTools returns disabled tools from cache when includeDisabled is true', async () => {
     cacheStore.set('mcp.tools.server-1', [{ name: 'search' }, { name: 'blocked' }])
+    getById.mockReturnValue(server())
 
     const service = new McpCatalogService()
     const tools = service.listTools('server-1', { includeDisabled: true })
 
     expect(tools.map((tool) => tool.name)).toEqual(['search', 'blocked'])
-    expect(getById).not.toHaveBeenCalled()
+    expect(getById).toHaveBeenCalledWith('server-1')
     expect(runtimeService.withClient).not.toHaveBeenCalled()
   })
 

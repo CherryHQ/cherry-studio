@@ -3,6 +3,7 @@ import { buildFunctionCallToolName, toCamelCase } from './mcpToolName'
 
 export type McpPolicyTool = {
   id?: string
+  runtimeName?: string
   name: string
 }
 
@@ -19,12 +20,18 @@ export function buildMcpWireWildcard(serverName: string): string {
   return `mcp__${toCamelCase(serverName)}__*`
 }
 
+export function buildMcpRuntimeWildcard(serverWireName: string): string {
+  return `mcp__${serverWireName}__*`
+}
+
 export function matchesMcpSourceToolRule(value: string, server: McpServer, tool: McpPolicyTool): boolean {
   return (
     value === tool.name ||
     value === tool.id ||
+    value === tool.runtimeName ||
     value === buildMcpWireToolId(server.name, tool.name) ||
-    value === buildMcpWireWildcard(server.name)
+    value === buildMcpWireWildcard(server.name) ||
+    (server.serverWireName !== undefined && value === buildMcpRuntimeWildcard(server.serverWireName))
   )
 }
 

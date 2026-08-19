@@ -38,6 +38,7 @@ const { syncMcpToolsToRegistry } = await import('../mcpTools')
 function mcpTool(serverId: string, name: string, description = '') {
   return {
     id: `mcp__${serverId}__${name}`,
+    runtimeName: `mcp__${serverId}__${name}`,
     serverId,
     serverName: serverId,
     name,
@@ -130,11 +131,13 @@ describe('mcpTools execute wrapper', () => {
     const reimbursement = {
       ...mcpTool('server-a', 'executeSql'),
       id: 'mcp__mysql__executeSql_a',
+      runtimeName: 'mcp__mysql__executeSql_a',
       serverName: 'mysql_报销'
     }
     const elevator = {
       ...mcpTool('server-b', 'executeSql'),
       id: 'mcp__mysql__executeSql_b',
+      runtimeName: 'mcp__mysql__executeSql_b',
       serverName: 'mysql_电梯'
     }
     list.mockReturnValue({
