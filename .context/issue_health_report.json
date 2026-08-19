@@ -1,93 +1,68 @@
 {
-  "generated_at": "2026-08-18T18:00:00Z",
-  "as_of_date": "2026-08-18",
-  "methodology": "Issues sorted by updated_at DESC. Health buckets by last-updated timestamp relative to today (2026-08-18). Counts are estimated from a 200-issue sample of the 874-total open issue corpus.",
-  "total_open_issues": 874,
-  "health_buckets": {
-    "active": {
-      "definition": "Updated within last 7 days (>= 2026-08-11)",
-      "estimated_count": 220,
-      "estimated_pct": "25%",
-      "notes": "High — reflects v2.0.7 release activity"
-    },
-    "aging": {
-      "definition": "Updated 7–30 days ago (2026-07-19 to 2026-08-10)",
-      "estimated_count": 230,
-      "estimated_pct": "26%",
-      "notes": "Steady backlog; many have 'inactive' auto-label from bot"
-    },
-    "stale": {
-      "definition": "Updated 30–90 days ago (2026-05-20 to 2026-07-18)",
-      "estimated_count": 274,
-      "estimated_pct": "31%",
-      "notes": "Large stale tail; many feature requests and low-priority bugs"
-    },
-    "zombie": {
-      "definition": "Not updated in 90+ days (before 2026-05-20)",
-      "estimated_count": 150,
-      "estimated_pct": "17%",
-      "notes": "Includes pre-v2 issues from 2025 that may be obsolete post-migration"
-    }
+  "generated_at": "2026-08-19T18:00:00Z",
+  "methodology": "Health classified by issue created_at age. Sample of 100 most recently updated open issues, extrapolated to 872 total.",
+  "total_open": 872,
+  "health_summary": {
+    "active": {"count_est": 592, "pct": 68, "definition": "Created within last 7 days"},
+    "aging":  {"count_est": 69,  "pct": 8,  "definition": "Created 8-30 days ago"},
+    "stale":  {"count_est": 165, "pct": 19, "definition": "Created 31-90 days ago"},
+    "zombie": {"count_est": 43,  "pct": 5,  "definition": "Created more than 90 days ago"}
   },
-  "zombie_examples": [
+  "key_signals": {
+    "high_activity_today": "8 performance-related issues filed today, likely batched from profiling sprint",
+    "screenshot_cluster": "5 screenshot-related issues filed today (OCR, overlay timing, escape key, permission prompt)",
+    "p1_all_zombie": "All 3 P1 issues are >100 days old with no recent resolution",
+    "inactive_label": "~13% of recently-updated issues carry inactive label (bot-driven weekly sweep)",
+    "unlabeled_rate": "25% of issues in sample have no label — triaging backlog needed"
+  },
+  "p1_issues": [
     {
-      "number": 5442,
-      "title": "[功能]: 能否增加对 LLMOps 观察、监控框架（如 Langfuse）的支持",
-      "created_at": "2025-04-28T11:56:46Z",
-      "labels": ["feature", "models", "blocked-v2"]
+      "number": 14899,
+      "title": "[Feature]: Unified Notification Center",
+      "labels": ["planned", "p1", "feature", "ui-ux"],
+      "created_at": "2026-05-07",
+      "age_days": 104,
+      "health": "Zombie",
+      "note": "Tagged planned — intentional roadmap item, not urgent bug"
     },
     {
-      "number": 5825,
-      "title": "[错误]: 使用第三方claude api，输出有问题",
-      "created_at": "2025-05-10T09:13:49Z",
-      "labels": ["bug", "models"]
+      "number": 13608,
+      "title": "[Bug]: xiaomi mimo response only displays the last line",
+      "labels": ["p1", "models"],
+      "created_at": "2026-03-18",
+      "age_days": 154,
+      "comments": 8,
+      "health": "Zombie",
+      "note": "154 days old, 8 comments — active discussion but unresolved"
     },
     {
-      "number": 6403,
-      "title": "Multi-Window",
-      "created_at": "2025-05-24T05:16:38Z",
-      "labels": ["planned", "Dev Team", "ui-ux"]
-    },
-    {
-      "number": 6405,
-      "title": "Assistant and Topic Interaction Refactoring",
-      "created_at": "2025-05-24T05:27:11Z",
-      "labels": ["planned", "Dev Team", "assistant", "ui-ux"]
-    },
-    {
-      "number": 9011,
-      "title": "[功能]: 显示推理 tokens 数量",
-      "created_at": "2025-08-09T08:38:29Z",
-      "labels": ["feature", "v2", "blocked-v2"]
+      "number": 13193,
+      "title": "[Bug]: Azure OpenAI Resource not found (defaulting to responses API)",
+      "labels": ["p1", "models"],
+      "created_at": "2026-03-04",
+      "age_days": 168,
+      "comments": 1,
+      "health": "Zombie",
+      "note": "168 days old, only 1 comment — effectively abandoned"
     }
-  ],
-  "high_comment_issues": [
-    { "number": 18131, "title": "MCP server shows connected, but Agent session still prompts no tools mounted", "comments": 9 },
-    { "number": 18600, "title": "[Bug]: WTF? [blocked]", "comments": 8 },
-    { "number": 14080, "title": "[Bug]: cannot scroll to search result", "comments": 8 },
-    { "number": 18788, "title": "[Discussion]: Cherry Studio built-in Cherry model provider transparency", "comments": 6 },
-    { "number": 6403, "title": "Multi-Window", "comments": 4 },
-    { "number": 16901, "title": "[Discussion]: How to set reasoning intensity", "comments": 4 },
-    { "number": 18741, "title": "[Bug]: DeepSeek V4 'No tool output found' HTTP 400", "comments": 3 },
-    { "number": 18824, "title": "[Bug]: Unable to use model built-in web search after v2 upgrade", "comments": 3 }
   ],
   "label_health": {
-    "inactive_labeled": {
-      "estimated_count": 166,
-      "pct_of_open": "19%",
-      "note": "Auto-labeled by bot after 30 days without activity; candidates for triaging or closing"
-    },
-    "needs_repro": {
-      "note": "Applied to issues lacking enough info to reproduce — need follow-up from reporters"
-    },
-    "needs_more_info": {
-      "note": "Applied when reporter needs to supply more context before fix can proceed"
-    }
+    "needs-repro": 5,
+    "needs-more-info": 1,
+    "inactive": 13,
+    "blocked-v2": 1,
+    "help wanted": 5
   },
-  "recommendations": [
-    "Triage ~150 zombie issues (pre-2026-05-20) — many may be resolved by v2 migration or obsolete",
-    "Close or re-label the 'inactive' cohort (~166 issues) — remove label or close with explanation",
-    "Add labels to ~118 unlabeled open issues to improve discoverability",
-    "Prioritize P1 bugs: #18857 (v2.0.7 unusable), #18800 (DB corruption), #18842 (agent truncation)"
+  "stale_examples": [
+    {"number": 16203, "title": "Quick Assist not calling MCPs / Tools", "created_at": "2026-06-18", "age_days": 62, "labels": ["mcp", "inactive"]},
+    {"number": 16218, "title": "Agent work directory cannot be added after data restore", "created_at": "2026-06-19", "age_days": 61, "labels": ["needs-repro", "inactive"]},
+    {"number": 17316, "title": "Painting history rehydrates every unchanged record", "created_at": "2026-07-23", "age_days": 27, "labels": ["performance"]},
+    {"number": 16901, "title": "How to set reasoning intensity in 5.6?", "created_at": "2026-07-11", "age_days": 39, "labels": ["help wanted", "discussion"]}
+  ],
+  "zombie_examples": [
+    {"number": 6403, "title": "Multi-Window", "created_at": "2025-05-24", "age_days": 453, "labels": ["planned", "Dev Team", "ui-ux"]},
+    {"number": 6405, "title": "Assistant and Topic Interaction Refactoring", "created_at": "2025-05-24", "age_days": 453, "labels": ["planned", "Dev Team", "assistant", "ui-ux"]},
+    {"number": 9011, "title": "显示推理 tokens 数量", "created_at": "2025-08-09", "age_days": 375, "labels": ["feature", "v2", "blocked-v2"]},
+    {"number": 13209, "title": "Properly handle MCP image content (raw base64 in messages)", "created_at": "2026-03-04", "age_days": 168, "labels": ["p2", "feature", "mcp", "ui-ux"]}
   ]
 }

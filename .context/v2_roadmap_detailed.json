@@ -1,138 +1,40 @@
 {
-  "generated_at": "2026-08-18T18:00:00Z",
-  "current_version": "v2.0.7",
-  "v2_branch_status": "inactive — all development now targets main; v2 branch last touched 2026-07-03",
-  "v2_launch_completed": true,
-  "active_development_branch": "main",
-  "recent_focus_areas": {
-    "agent_runtime": {
-      "description": "Pi agent, DSH agent, CodeMate engine fixes and capability expansion",
-      "recent_prs": [
-        { "number": 18864, "title": "fix(claude-code-runtime): block user data SQLite writes", "label": "p1" },
-        { "number": 18836, "title": "fix(agent-migration): fall back when hard links are unavailable", "label": "p1" },
-        { "number": 18831, "title": "fix(dsh-runtime): ship loadable node-pty on Linux", "label": "p1" },
-        { "number": 18853, "title": "fix(agents): disable ToolSearch for incompatible models" },
-        { "number": 18847, "title": "fix(agent-runtime): default missing model context window to 256K" },
-        { "number": 18816, "title": "fix(agent-sessions): keep empty agent groups visible" },
-        { "number": 18813, "title": "fix(agent): preselect compatible default model for every runtime" },
-        { "number": 18829, "title": "fix(pi-agent): resolve citations for third-party MCP tool outputs" },
-        { "number": 18781, "title": "fix(pi-runtime): route provider requests through Cherry fetch" }
-      ]
-    },
-    "model_compatibility": {
-      "description": "OpenAI-compatible gateway fixes, provider protocol alignment",
-      "recent_prs": [
-        { "number": 18854, "title": "fix(api-gateway): map chat reasoning_effort to Responses" },
-        { "number": 18768, "title": "fix(api-gateway): convert max_tokens to max_completion_tokens for OpenAI reasoning models" },
-        { "number": 18780, "title": "fix(api-gateway): normalize OpenAI function tools" },
-        { "number": 18772, "title": "fix(provider-registry): send enable_thinking for Qwen on openai-compatible providers" },
-        { "number": 18782, "title": "fix(provider-endpoint): respect version-less and complete endpoint URLs" }
-      ]
-    },
-    "security": {
-      "description": "IPC security, WebDAV TLS, HTML preview sandboxing",
-      "recent_prs": [
-        { "number": 18851, "title": "fix(ipc-security): trust renderer path aliases" },
-        { "number": 18862, "title": "fix(mcp-oauth): write token storage file owner-only" },
-        { "number": 18764, "title": "fix(security): consent-gate HTML preview iframes" },
-        { "number": 18793, "title": "fix(security): verify WebDAV TLS by default" }
-      ]
-    },
-    "ui_ux": {
-      "description": "Composer fixes, DSH citation rendering, topic rename, scroll stability",
-      "recent_prs": [
-        { "number": 18855, "title": "fix(composer): stop pasted-text data loss on copy and over-limit insert" },
-        { "number": 18762, "title": "fix(citations): parse DSH web search results" },
-        { "number": 18760, "title": "fix(topics): prevent old title flash after rename" },
-        { "number": 18769, "title": "fix(chat): prevent arrow-key scroll jitter in message list" },
-        { "number": 18749, "title": "feat(agent-status): enhance agent status sidebar for workflow, subagent and background command" }
-      ]
-    },
-    "knowledge_base_rag": {
-      "description": "Content-addressed embedding, hybrid search, incremental import",
-      "open_issues": [
-        { "number": 16172, "title": "[Feature]: Improve knowledge base retrieval recall (hybrid search / reranking)", "labels": ["feature", "rag", "prd", "internal-team"] },
-        { "number": 16173, "title": "[Feature]: Knowledge base — add option to hide inline reference markers", "labels": ["feature", "rag", "ui-ux", "prd", "internal-team"] },
-        { "number": 15417, "title": "Content-addressed embedding reuse for knowledge bases", "labels": ["rag"] },
-        { "number": 18267, "title": "[Feature]: Knowledge base does not update when source files change", "labels": ["rag"] },
-        { "number": 18796, "title": "[Feature]: KB does not support incremental imports into existing subfolders", "labels": ["rag"] }
-      ]
-    },
-    "mcp": {
-      "description": "MCP protocol, permission UX, Windows environment inheritance",
-      "open_issues": [
-        { "number": 18807, "title": "[Feature]: Update MCP to version 2.0", "labels": ["feature", "mcp"] },
-        { "number": 18823, "title": "[Feature]: Unify tool-result binary media projection across Chat and API Gateway", "labels": ["mcp"] },
-        { "number": 18528, "title": "[Bug]: MCP subprocess on Windows does not inherit latest PATH", "labels": ["mcp"] },
-        { "number": 13209, "title": "[Feature]: Properly handle MCP image content instead of embedding raw base64", "labels": ["p2", "feature", "mcp", "ui-ux"], "comments": 13 }
-      ]
-    }
-  },
-  "planned_major_features": [
+  "generated_at": "2026-08-19T18:00:00Z",
+  "v2_branch_open_prs": 0,
+  "v2_branch_note": "No open PRs targeting v2 branch as of 2026-08-19. All active development on main.",
+  "v2_related_open_issues": [
     {
-      "number": 6403,
-      "title": "Multi-Window",
-      "labels": ["planned", "Dev Team", "ui-ux"],
-      "status": "planned",
-      "created_at": "2025-05-24T05:16:38Z",
-      "comments": 4
-    },
-    {
-      "number": 6405,
-      "title": "Assistant and Topic Interaction Refactoring",
-      "labels": ["planned", "Dev Team", "assistant", "ui-ux"],
-      "status": "planned",
-      "created_at": "2025-05-24T05:27:11Z",
-      "comments": 6
-    },
-    {
-      "number": 16124,
-      "title": "[Feature]: Built-In Browser Pane (Open & Browse Web Pages In-App, Shared with the Agent)",
-      "labels": ["feature", "ui-ux", "agent", "prd", "internal-team"],
-      "status": "prd/internal",
-      "created_at": "2026-06-17T09:58:55Z"
-    },
-    {
-      "number": 13417,
-      "title": "[Feature]: Message Queue for Agent & Chat",
-      "labels": ["feature", "assistant", "ui-ux", "blocked-v2"],
-      "status": "blocked — was waiting for v2, now unblocked",
-      "created_at": "2026-03-12T09:05:52Z"
-    },
-    {
-      "number": 16848,
-      "title": "[Feature]: Knowledge index.sqlite WAL-consistent copy for backup v2 export",
-      "labels": ["Dev Team", "data"],
-      "status": "in-progress",
-      "comments": 4
+      "number": 9011,
+      "title": "显示推理 tokens 数量 (Show reasoning token count)",
+      "labels": ["feature", "v2", "blocked-v2"],
+      "created_at": "2025-08-09",
+      "age_days": 375,
+      "comments": 4,
+      "status": "Blocked — waiting on v2 APIs"
     }
   ],
-  "blocked_v2_issues": {
-    "count": 3,
-    "note": "Issues labeled 'blocked-v2' were waiting for v2 launch. Now unblocked but not yet started.",
-    "issues": [
-      { "number": 9011, "title": "[功能]: 显示推理 tokens 数量", "labels": ["feature", "v2", "blocked-v2"] },
-      { "number": 5442, "title": "LLMOps/Langfuse support", "labels": ["feature", "models", "blocked-v2"] },
-      { "number": 13417, "title": "Message Queue for Agent & Chat", "labels": ["feature", "assistant", "ui-ux", "blocked-v2"] }
-    ]
+  "recently_shipped_signals": {
+    "version": "v2.0.7",
+    "note": "Issue #18857 references v2.0.7 as causing config errors — recent release",
+    "known_user_friction": "Migration from v1.9.x to v2.0.x breaking configs, request for downgrade path"
   },
-  "v2_historical_prs": {
-    "total_merged_to_v2_branch": "~35 (before main takeover)",
-    "key_areas_shipped": [
-      "SQLite/Drizzle data layer (knowledge, agents, sessions)",
-      "AI streaming pipeline v2 (blocks-to-parts migration)",
-      "Knowledge base v2 (backend + UI)",
-      "Web search v2 (provider split, Fetch/Jina)",
-      "File processing v2 (file-entry model)",
-      "V2 migration window UI (shadcn)",
-      "V2 data migration toolchain"
-    ]
+  "active_pr_sprint_today": {
+    "theme": "Performance fixes",
+    "prs_opened_today": [
+      {"number": 18943, "title": "perf(message-selection): coalesce drag selection updates", "author": "DeJeune"},
+      {"number": 18942, "title": "perf(markdown-editor): defer preview rendering", "author": "DeJeune"},
+      {"number": 18941, "title": "fix(horizontal-scroll): avoid duplicate resize listeners", "author": "DeJeune"},
+      {"number": 18940, "title": "fix(translate): give translate tabs their own session identity and task owner", "author": "EurFelux"},
+      {"number": 18934, "title": "fix(screenshot): show the IME candidate window while annotating text", "author": "EurFelux"}
+    ],
+    "note": "Coordinated performance sprint by DeJeune + EurFelux targeting rendering, scroll, translate, and screenshot subsystems"
   },
-  "next_likely_release_themes": [
-    "Agent runtime stability (migration, model selection, hard-link fallback)",
-    "Security hardening (IPC, OAuth, WebDAV TLS, iframe sandboxing)",
-    "OpenAI/Claude gateway protocol alignment (max_completion_tokens, reasoning_effort)",
-    "DSH citation rendering and agent status sidebar",
-    "Composer and paste UX fixes"
+  "roadmap_planned_items": [
+    {"number": 6403, "title": "Multi-Window", "labels": ["planned", "Dev Team", "ui-ux"], "age_days": 453},
+    {"number": 6405, "title": "Assistant and Topic Interaction Refactoring", "labels": ["planned", "Dev Team"], "age_days": 453},
+    {"number": 16172, "title": "Improve knowledge base retrieval (hybrid search / reranking)", "labels": ["feature", "rag", "prd", "internal-team"], "age_days": 62},
+    {"number": 16173, "title": "Knowledge base — hide inline reference/citation markers", "labels": ["feature", "rag", "ui-ux", "prd", "internal-team"], "age_days": 62},
+    {"number": 16124, "title": "Built-In Browser Pane (Open & Browse Web Pages In-App)", "labels": ["feature", "ui-ux", "agent", "prd", "internal-team"], "age_days": 63},
+    {"number": 14899, "title": "Unified Notification Center", "labels": ["planned", "p1", "feature", "ui-ux"], "age_days": 104}
   ]
 }

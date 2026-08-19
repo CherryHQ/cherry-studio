@@ -1,123 +1,57 @@
 {
-  "generated_at": "2026-08-18T18:00:00Z",
-  "data_source": "GitHub issues with 'discussion' and 'help wanted' labels (GraphQL Discussions API not available in this environment)",
-  "note": "True GitHub Discussions require GraphQL API access. This file uses 'discussion'-labeled issues as a proxy for community sentiment.",
-  "discussion_labeled_issues": {
-    "total_estimated": 31,
-    "sample": [
-      {
-        "number": 18857,
-        "title": "[Discussion]: The new version 2.0.7 is completely unusable, all configurations are showing errors, it's so hard to use, can I downgrade the version?",
-        "created_at": "2026-08-18T16:26:05Z",
-        "comments": 2,
-        "labels": ["help wanted", "discussion"],
-        "sentiment": "negative",
-        "topic": "v2.0.7 regression / downgrade request"
-      },
-      {
-        "number": 18792,
-        "title": "[Discussion]: When conversation auto-renaming is not enabled, the conversation title is always 'New Conversation', which is inconvenient for searching",
-        "created_at": "2026-08-18T05:12:49Z",
-        "labels": ["help wanted", "discussion"],
-        "sentiment": "neutral",
-        "topic": "UX: conversation naming"
-      },
-      {
-        "number": 18788,
-        "title": "[Discussion]: Request for disclosure on how Cherry Studio handles its built-in Cherry model provider",
-        "created_at": "2026-08-18T04:24:05Z",
-        "comments": 6,
-        "labels": ["help wanted", "discussion", "models"],
-        "sentiment": "concerned",
-        "topic": "transparency / built-in provider"
-      },
-      {
-        "number": 18740,
-        "title": "[Discussion]: Tool-approval card should render above the input box instead of replacing the composer — feasibility and design trade-offs",
-        "created_at": "2026-08-17T08:25:49Z",
-        "comments": 1,
-        "labels": ["help wanted", "discussion", "ui-ux"],
-        "sentiment": "constructive",
-        "topic": "UX design: tool approval placement"
-      },
-      {
-        "number": 18589,
-        "title": "[Discussion]: Too much reverse optimization",
-        "created_at": "2026-08-14T06:57:58Z",
-        "comments": 7,
-        "labels": ["help wanted", "discussion", "ui-ux"],
-        "sentiment": "negative",
-        "topic": "v2 UX regression vs v1"
-      },
-      {
-        "number": 18474,
-        "title": "[Discussion]: Code blocks are no longer rendered during streaming",
-        "created_at": "2026-08-12T17:59:19Z",
-        "comments": 1,
-        "labels": ["help wanted", "discussion", "ui-ux"],
-        "sentiment": "negative",
-        "topic": "streaming markdown rendering regression"
-      },
-      {
-        "number": 18363,
-        "title": "[Discussion]: AiStreamManager 状态机的身份与 ownership 结构问题（stale terminal callback 一族的共同根因）",
-        "created_at": "2026-08-11T07:41:58Z",
-        "comments": 1,
-        "labels": ["help wanted", "discussion"],
-        "sentiment": "technical",
-        "topic": "architecture: AI stream manager ownership"
-      },
-      {
-        "number": 18362,
-        "title": "[Discussion]: Custom OpenAI Compatible Provider Fails to Send Authorization Header",
-        "created_at": "2026-08-11T07:32:08Z",
-        "comments": 1,
-        "labels": ["help wanted", "discussion", "connectivity", "models"],
-        "sentiment": "negative",
-        "topic": "connectivity: custom provider auth header"
-      },
-      {
-        "number": 16901,
-        "title": "[Discussion]: How to set the reasoning intensity in 5.6?",
-        "created_at": "2026-07-11T00:17:49Z",
-        "comments": 4,
-        "labels": ["help wanted", "discussion"],
-        "sentiment": "neutral",
-        "topic": "model configuration: reasoning effort"
-      }
-    ]
-  },
-  "hot_topics": [
+  "generated_at": "2026-08-19T18:00:00Z",
+  "note": "Discussions fetched from open issues with discussion label; GitHub Discussions GraphQL API not available in this session.",
+  "discussion_issues_in_sample": [
     {
-      "topic": "v2 regression vs v1 UX",
-      "issue_count_estimated": 8,
-      "sentiment": "negative",
-      "sample_issues": [18857, 18589, 18474, 18099]
+      "number": 18857,
+      "title": "[Discussion]: v2.0.7 completely unusable — all configs showing errors, request to downgrade",
+      "labels": ["help wanted", "discussion"],
+      "created_at": "2026-08-18",
+      "comments": 0,
+      "sentiment": "negative — user friction with v2 migration"
     },
     {
-      "topic": "Model compatibility (GPT-5.x, DeepSeek, Qwen, Ollama)",
-      "issue_count_estimated": 12,
-      "sentiment": "mixed",
-      "sample_issues": [18765, 18824, 18732, 18150]
+      "number": 18792,
+      "title": "[Discussion]: Conversation title always New Conversation when auto-rename disabled",
+      "labels": ["help wanted", "discussion"],
+      "created_at": "2026-08-18",
+      "comments": 0,
+      "sentiment": "UX request"
     },
     {
-      "topic": "Custom provider / connectivity issues",
-      "issue_count_estimated": 10,
-      "sentiment": "negative",
-      "sample_issues": [18571, 18608, 18362, 18408]
+      "number": 18788,
+      "title": "[Discussion]: Request for disclosure on Cherry Studio built-in Cherry model provider",
+      "labels": ["help wanted", "discussion", "models"],
+      "created_at": "2026-08-18",
+      "comments": 6,
+      "sentiment": "transparency concern — active community discussion"
     },
     {
-      "topic": "Agent data integrity / memory loss",
-      "issue_count_estimated": 5,
-      "sentiment": "critical",
-      "sample_issues": [18800, 18346, 18607]
+      "number": 18740,
+      "title": "[Discussion]: Tool-approval card should render above input box instead of replacing composer",
+      "labels": ["help wanted", "discussion", "ui-ux"],
+      "created_at": "2026-08-17",
+      "comments": 1,
+      "sentiment": "UX design discussion"
     },
     {
-      "topic": "MCP tool / permission UX",
-      "issue_count_estimated": 6,
-      "sentiment": "mixed",
-      "sample_issues": [18573, 18131, 18437]
+      "number": 16901,
+      "title": "[Discussion]: How to set reasoning intensity in 5.6?",
+      "labels": ["help wanted", "discussion"],
+      "created_at": "2026-07-11",
+      "comments": 4,
+      "sentiment": "user confusion — documentation gap"
     }
   ],
-  "community_sentiment_summary": "Predominantly negative around v2 UX regressions and compatibility breaks. Strong positive interest in agent features, KB improvements, and model coverage expansion. Users comparing v2 unfavorably to v1.9.x in several threads."
+  "themes": [
+    "v2 migration friction (configs broken, downgrade requests)",
+    "Cherry model provider transparency",
+    "UX design for agent tool approval flow",
+    "Documentation gaps (reasoning intensity, model settings)"
+  ],
+  "action_items": [
+    "Address #18857 — v2.0.7 regression report; consider pinning or documenting known issues",
+    "Respond to #18788 — community expects transparency around built-in Cherry provider",
+    "Close #16901 with docs link or add FAQ entry on reasoning intensity"
+  ]
 }
