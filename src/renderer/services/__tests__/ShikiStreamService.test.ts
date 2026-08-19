@@ -24,7 +24,9 @@ vi.mock('../../workers/shikiStream.worker?worker', () => ({
       const result =
         message.type === 'highlight'
           ? { lines: [[{ content: message.chunk ?? '', color: '#000000', offset: 0 }]], recall: 0 }
-          : { success: true }
+          : message.type === 'highlight-html'
+            ? `<pre class="shiki">${message.chunk ?? ''}</pre>`
+            : { success: true }
 
       queueMicrotask(() => {
         this.onmessage?.({
@@ -197,6 +199,58 @@ describe('ShikiStreamService', () => {
       // 最后清理
       shikiStreamService.cleanupTokenizers(callerId)
       expect(getTokenizerCache().has(cacheKey)).toBe(false)
+    })
+  })
+
+  describe('one-shot codeToHtml (highlightCodeToHtml)', () => {
+    it('returns worker-produced HTML and never touches the main-thread highlighter', async () => {
+      const html = await shikiStreamService.highlightCodeToHtml('const x = 1;', language, theme)
+
+      // Shape contract holds for both the mock and the real worker output.
+      expect(html).toMatch(/^<pre class="shiki/)
+      expect(shikiStreamService.hasWorkerHighlighter()).toBe(true)
+      expect(shikiStreamService.hasMainHighlighter()).toBe(false)
+    })
+
+    it('accepts an empty string through the worker path (guard is typeof, not falsy)', async () => {
+      const html = await shikiStreamService.highlightCodeToHtml('', language, theme)
+
+      expect(html).toMatch(/^<pre class="shiki/)
+      expect(shikiStreamService.hasMainHighlighter()).toBe(false)
+    })
+
+    it('falls back to real main-thread shiki HTML when the worker is unavailable', async () => {
+      const originalWorker = globalThis.Worker
+      try {
+        // @ts-ignore: 强制删除 Worker 构造函数
+        globalThis.Worker = undefined
+
+        const html = await shikiStreamService.highlightCodeToHtml('const y = 2;', language, theme)
+
+        // Real shiki output: one span per token, so assert on token fragments.
+        expect(html).toMatch(/^<pre class="shiki/)
+        expect(html).toContain('>const</span>')
+        expect(html).toContain('</code></pre>')
+        expect(shikiStreamService.hasMainHighlighter()).toBe(true)
+      } finally {
+        // @ts-ignore: 恢复 Worker 构造函数
+        globalThis.Worker = originalWorker
+      }
+    })
+
+    it('resolves an unknown language to a fallback instead of throwing (main thread)', async () => {
+      const originalWorker = globalThis.Worker
+      // @ts-ignore: 强制删除 Worker 构造函数
+      globalThis.Worker = undefined
+      try {
+        const html = await shikiStreamService.highlightCodeToHtml('plain words', 'not-a-real-language', theme)
+
+        expect(html).toMatch(/^<pre class="shiki/)
+        expect(html).toContain('plain')
+      } finally {
+        // @ts-ignore: 恢复 Worker 构造函数
+        globalThis.Worker = originalWorker
+      }
     })
   })
 
