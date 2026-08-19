@@ -125,10 +125,10 @@ export type GithubRef = {
   namespace: 'heads' | 'tags'
 }
 
+export type GithubSkillTarget = { kind: 'root' } | { kind: 'directory'; path: string }
+
 export type GithubRefResolution =
-  | { kind: 'resolved'; ref: GithubRef; directoryPath: string }
-  /** Every segment is the ref, so the URL names a SKILL.md at the repo root — no directory to install. */
-  | { kind: 'repo-root'; ref: GithubRef }
+  | { kind: 'resolved'; ref: GithubRef; target: GithubSkillTarget }
   /** A branch and a tag share the name, so the URL does not say which revision was meant. */
   | { kind: 'ambiguous'; name: string }
   | { kind: 'no-match' }
@@ -158,9 +158,11 @@ export function resolveRefFromSegments(
     if (matches.length > 1) return { kind: 'ambiguous', name }
 
     const ref = matches[0]
-    return length === refAndDirectory.length
-      ? { kind: 'repo-root', ref }
-      : { kind: 'resolved', ref, directoryPath: refAndDirectory.slice(length).join('/') }
+    const target: GithubSkillTarget =
+      length === refAndDirectory.length
+        ? { kind: 'root' }
+        : { kind: 'directory', path: refAndDirectory.slice(length).join('/') }
+    return { kind: 'resolved', ref, target }
   }
   return { kind: 'no-match' }
 }

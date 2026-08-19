@@ -27,6 +27,7 @@ import type {
   SystemSkillPlacement
 } from '@shared/types/skill'
 import { ClawhubSkillDetailSchema } from '@shared/types/skill'
+import type { GithubSkillTarget } from '@shared/utils/skillMarketplace'
 import { encodeGithubPath, parseGithubSkillUrl, resolveRefFromSegments } from '@shared/utils/skillMarketplace'
 import { Mutex } from 'async-mutex'
 import { net } from 'electron'
@@ -505,20 +506,26 @@ export class SkillService {
       throw new Error(`Invalid GitHub skill URL: ${identifier}`)
     }
 
-    const { owner, repo, refAndDirectory } = location
+    const { owner, repo, refNamespace, refAndPath, descriptorFileName } = location
     const repoUrl = `https://github.com/${owner}/${repo}`
-    const { ref, oid, directoryPath } = await this.resolveGithubCommit(repoUrl, refAndDirectory)
-    logger.info('Installing from GitHub', { owner, repo, ref, oid, directoryPath })
+    const { ref, oid, target } = await this.resolveGithubCommit(repoUrl, refAndPath, refNamespace)
+    logger.info('Installing from GitHub', { owner, repo, ref, oid, target })
 
     // Keep the ref, not the commit, as the stored origin: a later install of the same skill has to
     // match this URL to be treated as an update rather than a foreign folder collision.
-    const sourceUrl = `${repoUrl}/tree/${encodeGithubPath(`${ref}/${directoryPath}`)}`
+    const sourcePath = target.kind === 'root' ? ref : `${ref}/${target.path}`
+    const sourceUrl = `${repoUrl}/tree/${encodeGithubPath(sourcePath)}`
     const tempDir = await this.createTempDir('github')
 
     try {
-      await this.fetchCommit(repoUrl, oid, directoryPath, tempDir)
-      await this.assertUniqueSkillPath(tempDir, directoryPath)
-      const skillDir = await this.resolveSkillDirectory(tempDir, null, directoryPath)
+      const { contentDir, skillDir } = await this.materializeGithubTarget(
+        repoUrl,
+        oid,
+        target,
+        descriptorFileName,
+        tempDir
+      )
+      await this.validateRepositorySkillDirectory(contentDir, skillDir, path.join(skillDir, descriptorFileName))
       await this.assertSkillDirectoryWithinLimits(skillDir)
       return await this.installSkillDir(skillDir, 'marketplace', sourceUrl)
     } finally {
@@ -533,8 +540,9 @@ export class SkillService {
    */
   private async resolveGithubCommit(
     repoUrl: string,
-    refAndDirectory: string[]
-  ): Promise<{ ref: string; oid: string; directoryPath: string }> {
+    refAndPath: string[],
+    refNamespace: 'heads' | 'tags' | null
+  ): Promise<{ ref: string; oid: string; target: GithubSkillTarget }> {
     const gitCommand = (await findExecutableInEnv('git')) ?? 'git'
     const output = await this.runGit(gitCommand, ['ls-remote', '--heads', '--tags', '--', repoUrl])
     const refs = output.split('\n').flatMap((line) => {
@@ -545,45 +553,140 @@ export class SkillService {
       return [{ oid, namespace: match[1] as 'heads' | 'tags', name: match[2] }]
     })
 
-    const resolution = resolveRefFromSegments(refs, refAndDirectory)
+    const matchingRefs = refNamespace ? refs.filter((ref) => ref.namespace === refNamespace) : refs
+    const resolution = resolveRefFromSegments(matchingRefs, refAndPath)
     switch (resolution.kind) {
       case 'resolved':
-        return { ref: resolution.ref.name, oid: resolution.ref.oid, directoryPath: resolution.directoryPath }
-      case 'repo-root':
-        throw new Error(
-          `"${resolution.ref.name}" is a ${resolution.ref.namespace === 'tags' ? 'tag' : 'branch'} in ${repoUrl}, ` +
-            'so this URL points at a SKILL.md in the repository root — install a skill directory instead.'
-        )
+        return { ref: resolution.ref.name, oid: resolution.ref.oid, target: resolution.target }
       case 'ambiguous':
         throw new Error(`${repoUrl} has both a branch and a tag named "${resolution.name}"; the URL cannot say which.`)
       case 'no-match': {
-        const [head, ...rest] = refAndDirectory
+        const [head, ...rest] = refAndPath
         // A permalink names its commit outright, so no ref has to match for it to be exact.
-        if (rest.length > 0 && /^[0-9a-f]{40}$/i.test(head)) {
-          return { ref: head, oid: head.toLowerCase(), directoryPath: rest.join('/') }
+        if (/^[0-9a-f]{40}$/i.test(head)) {
+          const target: GithubSkillTarget =
+            rest.length === 0 ? { kind: 'root' } : { kind: 'directory', path: rest.join('/') }
+          return { ref: head, oid: head.toLowerCase(), target }
         }
-        throw new Error(`No branch or tag in ${repoUrl} matches "${refAndDirectory.join('/')}"`)
+        throw new Error(`No branch or tag in ${repoUrl} matches "${refAndPath.join('/')}"`)
       }
     }
   }
 
   /**
-   * Materialize one commit, and from it only the selected directory. Fetching the OID rather than a
-   * ref name is what makes the install deterministic; the blob filter and sparse pattern keep an
-   * unrelated multi-gigabyte repository from being written to disk on the way to one skill, and the
-   * hardened env keeps it from hanging on a credential prompt or smudging LFS payloads.
+   * Fetch one commit into a bare repository and check out only installable content into a separate
+   * work tree. Keeping the two roots separate prevents a repository-root skill from copying `.git`.
    */
-  private async fetchCommit(repoUrl: string, oid: string, directoryPath: string, destDir: string): Promise<void> {
+  private async materializeGithubTarget(
+    repoUrl: string,
+    oid: string,
+    target: GithubSkillTarget,
+    descriptorFileName: 'SKILL.md' | 'skill.md',
+    tempDir: string
+  ): Promise<{ contentDir: string; skillDir: string }> {
     const gitCommand = (await findExecutableInEnv('git')) ?? 'git'
-    const git = (args: string[]) => this.runGit(gitCommand, ['-C', destDir, ...args])
+    const gitDir = path.join(tempDir, 'repo.git')
+    const contentDir = path.join(tempDir, 'content')
+    const git = (args: string[]) => this.runGit(gitCommand, [`--git-dir=${gitDir}`, ...args])
 
-    await fs.promises.mkdir(destDir, { recursive: true })
-    await git(['init', '--quiet'])
+    await fs.promises.mkdir(contentDir, { recursive: true })
+    await this.runGit(gitCommand, ['init', '--bare', '--quiet', gitDir])
     await git(['fetch', '--quiet', '--depth', '1', '--filter=blob:none', '--no-tags', '--', repoUrl, oid])
-    // Leading `/` anchors the pattern at the repo root and keeps a directory named like an option
-    // from being read as one.
-    await git(['sparse-checkout', 'set', '--no-cone', `/${directoryPath}/`])
-    await git(['checkout', '--quiet', 'FETCH_HEAD'])
+    const pathspec = target.kind === 'root' ? '.' : `:(top,literal)${target.path}`
+    const paths = await git(['ls-tree', '-r', '-z', '--name-only', '--full-tree', 'FETCH_HEAD'])
+    const sizedTree = await git([
+      'ls-tree',
+      '-lr',
+      '-z',
+      '--full-tree',
+      'FETCH_HEAD',
+      ...(target.kind === 'root' ? [] : ['--', pathspec])
+    ])
+    this.assertGithubTargetTree(paths, sizedTree, target, descriptorFileName)
+
+    await this.runGit(gitCommand, [
+      `--git-dir=${gitDir}`,
+      `--work-tree=${contentDir}`,
+      'checkout',
+      '--quiet',
+      'FETCH_HEAD',
+      '--',
+      pathspec
+    ])
+
+    return {
+      contentDir,
+      skillDir: target.kind === 'root' ? contentDir : path.join(contentDir, target.path)
+    }
+  }
+
+  /** Validate the selected Git tree before checkout writes any untrusted content. */
+  private assertGithubTargetTree(
+    paths: string,
+    sizedTree: string,
+    target: GithubSkillTarget,
+    descriptorFileName: 'SKILL.md' | 'skill.md'
+  ): void {
+    const foldKey = (value: string) => value.normalize('NFC').toLowerCase()
+    const targetParts = target.kind === 'root' ? [] : target.path.split('/')
+    const foldedTarget = targetParts.map(foldKey)
+    const selectedPaths: string[] = []
+    const matchingRoots = new Set<string>()
+
+    for (const entryPath of paths.split('\0').filter(Boolean)) {
+      const entryParts = entryPath.split('/')
+      if (target.kind === 'directory') {
+        const rootParts = entryParts.slice(0, targetParts.length)
+        if (!rootParts.every((part, index) => foldKey(part) === foldedTarget[index])) continue
+        matchingRoots.add(rootParts.join('/'))
+        if (rootParts.join('/') !== target.path) continue
+      }
+
+      const relativePath = target.kind === 'root' ? entryPath : entryParts.slice(targetParts.length).join('/')
+      selectedPaths.push(relativePath)
+    }
+
+    if (matchingRoots.size > 1) {
+      throw new Error(
+        `The commit contains directories that collide with "${target.kind === 'directory' ? target.path : '.'}" ` +
+          `once case and Unicode are normalized (${[...matchingRoots].join(', ')}).`
+      )
+    }
+
+    const seenPaths = new Map<string, string>()
+    for (const entryPath of selectedPaths) {
+      const key = foldKey(entryPath)
+      const previous = seenPaths.get(key)
+      if (previous && previous !== entryPath) {
+        throw new Error(
+          `The commit contains paths that collide once case and Unicode are normalized (${previous}, ${entryPath}).`
+        )
+      }
+      seenPaths.set(key, entryPath)
+    }
+
+    const sizedEntries = sizedTree.split('\0').flatMap((record) => {
+      if (!record) return []
+      const tab = record.indexOf('\t')
+      if (tab === -1) return []
+      const [, type, , rawSize] = record.slice(0, tab).trim().split(/\s+/)
+      if (type !== 'blob' || !/^\d+$/.test(rawSize)) return []
+      const entryPath = record.slice(tab + 1)
+      const relativePath = target.kind === 'root' ? entryPath : entryPath.split('/').slice(targetParts.length).join('/')
+      return [{ path: relativePath, size: Number(rawSize) }]
+    })
+
+    if (!sizedEntries.some((entry) => entry.path === descriptorFileName)) {
+      const location = target.kind === 'root' ? descriptorFileName : `${target.path}/${descriptorFileName}`
+      throw new Error(`No ${descriptorFileName} found at the selected GitHub location: ${location}`)
+    }
+    if (sizedEntries.length > MAX_FILES_COUNT) {
+      throw new Error(`Skill directory has too many files: exceeds ${MAX_FILES_COUNT}`)
+    }
+    const totalSize = sizedEntries.reduce((sum, entry) => sum + entry.size, 0)
+    if (totalSize > MAX_EXTRACTED_SIZE) {
+      throw new Error(`Skill directory too large: exceeds ${MAX_EXTRACTED_SIZE} bytes`)
+    }
   }
 
   /** Apply the same ceilings an untrusted ZIP gets — a repository is no more trusted than an archive. */
@@ -632,32 +735,6 @@ export class SkillService {
         GCM_INTERACTIVE: 'never'
       }
     })
-  }
-
-  /**
-   * Refuse a tree whose paths collide once the filesystem folds case or normalizes Unicode. Such a
-   * checkout merges two directories into one, so the containment checks would inspect bytes that are
-   * not the ones the URL selected.
-   */
-  private async assertUniqueSkillPath(repoDir: string, directoryPath: string): Promise<void> {
-    const gitCommand = (await findExecutableInEnv('git')) ?? 'git'
-    const output = await this.runGit(gitCommand, ['-C', repoDir, 'ls-tree', '-r', '--name-only', 'FETCH_HEAD'])
-    const foldKey = (value: string) => value.normalize('NFC').toLowerCase()
-    const wanted = foldKey(`${directoryPath}/`)
-
-    const collisions = new Set<string>()
-    for (const entry of output.split('\n')) {
-      const line = entry.trim()
-      if (!line || !foldKey(line).startsWith(wanted)) continue
-      collisions.add(line.slice(0, line.indexOf('/', directoryPath.length)))
-    }
-
-    if (collisions.size > 1) {
-      throw new Error(
-        `The commit contains directories that collide with "${directoryPath}" once case and Unicode are ` +
-          `normalized (${[...collisions].join(', ')}); refusing to install an ambiguous checkout.`
-      )
-    }
   }
 
   private async installFromSkillsSh(identifier: string): Promise<InstalledSkill> {

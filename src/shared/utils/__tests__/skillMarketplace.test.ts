@@ -119,15 +119,20 @@ describe('resolveRefFromSegments', () => {
         [head('feature'), head('feature/foo', 'b'.repeat(40))],
         ['feature', 'foo', 'skills', 'demo']
       )
-    ).toEqual({ kind: 'resolved', ref: head('feature/foo', 'b'.repeat(40)), directoryPath: 'skills/demo' })
+    ).toEqual({
+      kind: 'resolved',
+      ref: head('feature/foo', 'b'.repeat(40)),
+      target: { kind: 'directory', path: 'skills/demo' }
+    })
   })
 
-  it('reports a repo-root descriptor instead of falling back to a shorter ref', () => {
+  it('resolves a repo-root descriptor instead of falling back to a shorter ref', () => {
     // `feature/foo` consumes every segment, so the URL names SKILL.md at that branch's root. Falling
     // through to `feature` would install `foo/SKILL.md` from an unrelated revision.
     expect(resolveRefFromSegments([head('feature'), head('feature/foo')], ['feature', 'foo'])).toEqual({
-      kind: 'repo-root',
-      ref: head('feature/foo')
+      kind: 'resolved',
+      ref: head('feature/foo'),
+      target: { kind: 'root' }
     })
   })
 
@@ -142,7 +147,11 @@ describe('resolveRefFromSegments', () => {
 
   it('carries the observed commit so the install cannot follow a moved branch', () => {
     const resolution = resolveRefFromSegments([head('main', 'f'.repeat(40))], ['main', 'skills', 'demo'])
-    expect(resolution).toMatchObject({ kind: 'resolved', ref: { oid: 'f'.repeat(40) } })
+    expect(resolution).toMatchObject({
+      kind: 'resolved',
+      ref: { oid: 'f'.repeat(40) },
+      target: { kind: 'directory', path: 'skills/demo' }
+    })
   })
 
   it('reports no match rather than guessing a boundary', () => {

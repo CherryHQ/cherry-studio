@@ -631,12 +631,15 @@ describe('SkillService', () => {
      */
     async function setupGithubInstall(options: {
       refs?: Array<{ name: string; oid: string; namespace?: 'heads' | 'tags' }>
-      tree?: string[]
+      tree?: Array<string | { path: string; size: number }>
     }) {
       const skillService = new SkillService()
       const workDir = await createTempDir('github-install-')
       vi.spyOn(skillService as never, 'createTempDir').mockResolvedValue(workDir as never)
-      const tree = options.tree ?? ['skills/demo/SKILL.md']
+      vi.spyOn(skillService as never, 'safeRemoveDirectory').mockResolvedValue(undefined as never)
+      const tree = (options.tree ?? ['skills/demo/SKILL.md']).map((entry) =>
+        typeof entry === 'string' ? { path: entry, size: 8 } : entry
+      )
       const gitCalls: string[][] = []
 
       executeCommandMock.mockImplementation(async (_command: string, args: string[]) => {
@@ -646,11 +649,20 @@ describe('SkillService', () => {
             .map((ref) => `${ref.oid}\trefs/${ref.namespace ?? 'heads'}/${ref.name}`)
             .join('\n')
         }
-        if (args.includes('ls-tree')) return tree.join('\n')
+        if (args.includes('ls-tree')) {
+          if (args.includes('--name-only')) return tree.map((entry) => `${entry.path}\0`).join('')
+          return tree.map((entry) => `100644 blob ${'d'.repeat(40)} ${entry.size}\t${entry.path}\0`).join('')
+        }
         if (args.includes('checkout')) {
-          for (const entry of tree) {
-            await fs.promises.mkdir(path.join(workDir, path.dirname(entry)), { recursive: true })
-            await fs.promises.writeFile(path.join(workDir, entry), '# skill')
+          const separator = args.lastIndexOf('--')
+          const pathspec = args[separator + 1]
+          const selectedPath = pathspec === '.' ? null : pathspec.replace(/^:\(top,literal\)/, '')
+          for (const entry of tree.filter(
+            (entry) => !selectedPath || entry.path === selectedPath || entry.path.startsWith(`${selectedPath}/`)
+          )) {
+            const contentPath = path.join(workDir, 'content', entry.path)
+            await fs.promises.mkdir(path.dirname(contentPath), { recursive: true })
+            await fs.promises.writeFile(contentPath, '# skill')
           }
         }
         return ''
@@ -700,18 +712,106 @@ describe('SkillService', () => {
       expect(gitFetchArgs(gitCalls)).toEqual(expect.arrayContaining([wanted]))
     })
 
-    it('refuses a URL that names a repo-root SKILL.md instead of falling back to a shorter ref', async () => {
+    it('installs a repository-root SKILL.md without exposing Git metadata as skill content', async () => {
+      const oid = 'a'.repeat(40)
+      const { skillService, installSpy } = await setupGithubInstall({
+        refs: [{ name: 'main', oid }],
+        tree: ['SKILL.md', 'scripts/run.ts']
+      })
+
+      await skillService.install({
+        installSource: 'github:https://github.com/owner/repo/blob/main/SKILL.md'
+      })
+
+      const installedDirectory = installSpy.mock.calls[0][0] as string
+      await expect(fs.promises.access(path.join(installedDirectory, 'SKILL.md'))).resolves.toBeUndefined()
+      await expect(fs.promises.access(path.join(installedDirectory, '.git'))).rejects.toMatchObject({ code: 'ENOENT' })
+    })
+
+    it('uses the longest slash-bearing ref for a repository-root SKILL.md', async () => {
       const { skillService, gitCalls } = await setupGithubInstall({
         refs: [
           { name: 'feature', oid: 'a'.repeat(40) },
           { name: 'feature/foo', oid: 'b'.repeat(40) }
+        ],
+        tree: ['SKILL.md']
+      })
+
+      await skillService.install({ installSource: 'github:https://github.com/owner/repo/blob/feature/foo/SKILL.md' })
+
+      expect(gitFetchArgs(gitCalls)).toEqual(expect.arrayContaining(['b'.repeat(40)]))
+    })
+
+    it('installs a repository-root Skill from a full commit permalink', async () => {
+      const oid = 'c'.repeat(40)
+      const { skillService, installSpy, gitCalls } = await setupGithubInstall({ tree: ['SKILL.md'] })
+
+      await skillService.install({ installSource: `github:https://github.com/owner/repo/blob/${oid}/SKILL.md` })
+
+      expect(gitFetchArgs(gitCalls)).toEqual(expect.arrayContaining([oid]))
+      expect(installSpy).toHaveBeenCalledWith(
+        expect.stringContaining(`${path.sep}content`),
+        'marketplace',
+        `https://github.com/owner/repo/tree/${oid}`
+      )
+    })
+
+    it('uses an explicit tag namespace when a branch has the same name', async () => {
+      const tagOid = 'b'.repeat(40)
+      const { skillService, gitCalls } = await setupGithubInstall({
+        refs: [
+          { name: 'v1', oid: 'a'.repeat(40) },
+          { name: 'v1', oid: tagOid, namespace: 'tags' }
         ]
       })
 
+      await skillService.install({
+        installSource: 'github:https://github.com/owner/repo/raw/refs/tags/v1/skills/demo/SKILL.md'
+      })
+
+      expect(gitFetchArgs(gitCalls)).toEqual(expect.arrayContaining([tagOid]))
+    })
+
+    it('installs the exact lowercase descriptor selected by the URL', async () => {
+      const { skillService, installSpy } = await setupGithubInstall({
+        refs: [{ name: 'main', oid: 'a'.repeat(40) }],
+        tree: ['skills/demo/skill.md']
+      })
+
+      await skillService.install({
+        installSource: 'github:https://raw.githubusercontent.com/owner/repo/main/skills/demo/skill.md'
+      })
+
+      const installedDirectory = installSpy.mock.calls[0][0] as string
+      await expect(fs.promises.access(path.join(installedDirectory, 'skill.md'))).resolves.toBeUndefined()
+    })
+
+    it('rejects a missing exact descriptor before checkout', async () => {
+      const { skillService, gitCalls } = await setupGithubInstall({
+        refs: [{ name: 'main', oid: 'a'.repeat(40) }],
+        tree: ['skills/demo/skill.md']
+      })
+
       await expect(
-        skillService.install({ installSource: 'github:https://github.com/owner/repo/blob/feature/foo/SKILL.md' })
-      ).rejects.toThrow('repository root')
-      expect(gitFetchArgs(gitCalls)).toBeUndefined()
+        skillService.install({
+          installSource: 'github:https://github.com/owner/repo/blob/main/skills/demo/SKILL.md'
+        })
+      ).rejects.toThrow('No SKILL.md found')
+      expect(gitCalls.some((args) => args.includes('checkout'))).toBe(false)
+    })
+
+    it('rejects an oversized selected target before checkout', async () => {
+      const { skillService, gitCalls } = await setupGithubInstall({
+        refs: [{ name: 'main', oid: 'a'.repeat(40) }],
+        tree: ['skills/demo/SKILL.md', { path: 'skills/demo/model.bin', size: 100 * 1024 * 1024 }]
+      })
+
+      await expect(
+        skillService.install({
+          installSource: 'github:https://github.com/owner/repo/blob/main/skills/demo/SKILL.md'
+        })
+      ).rejects.toThrow('too large')
+      expect(gitCalls.some((args) => args.includes('checkout'))).toBe(false)
     })
 
     it('refuses a ref name carried by both a branch and a tag', async () => {
@@ -768,8 +868,8 @@ describe('SkillService', () => {
       })
 
       expect(gitFetchArgs(gitCalls)).toEqual(expect.arrayContaining(['--filter=blob:none']))
-      expect(gitCalls.find((args) => args.includes('sparse-checkout'))).toEqual(
-        expect.arrayContaining(['/skills/demo/'])
+      expect(gitCalls.find((args) => args.includes('checkout'))).toEqual(
+        expect.arrayContaining(['--', ':(top,literal)skills/demo'])
       )
     })
 
