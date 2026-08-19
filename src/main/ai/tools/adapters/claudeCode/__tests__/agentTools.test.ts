@@ -14,7 +14,6 @@ import {
   ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES,
   CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES,
   CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES,
-  CHERRY_BUILTIN_MCP_SERVER,
   toCherryBuiltinRuntimeName
 } from '@main/ai/runtime/toolApproval/cherryBuiltinApproval'
 import { SESSION_CREATE_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
@@ -86,11 +85,11 @@ describe('createClaudeAgentToolPolicySnapshot — live disabledTools', () => {
 
   it('honors disabledTools for notify and config autonomy tools', async () => {
     const snapshot = await createClaudeAgentToolPolicySnapshot(
-      makeAgent(['mcp__cherry-tools__notify', 'mcp__cherry-tools__config'])
+      makeAgent(['mcp__cherry_tools__notify__2484dc7ba152', 'mcp__cherry_tools__config__7ebbe6253854'])
     )
-    expect(snapshot.isDisabled('mcp__cherry-tools__notify')).toBe(true)
-    expect(snapshot.isDisabled('mcp__cherry-tools__config')).toBe(true)
-    expect(snapshot.isDisabled('mcp__cherry-tools__cron')).toBe(false)
+    expect(snapshot.isDisabled('mcp__cherry_tools__notify__2484dc7ba152')).toBe(true)
+    expect(snapshot.isDisabled('mcp__cherry_tools__config__7ebbe6253854')).toBe(true)
+    expect(snapshot.isDisabled('mcp__cherry_tools__cron__ceb5bf2c5e21')).toBe(false)
   })
 
   it('keeps prior MCP descriptors when a later server listing fails', async () => {
@@ -199,33 +198,33 @@ describe('createClaudeAgentToolPolicySnapshot — auto-allow prefix + approval e
 
   it('auto-approves an injected tool matching an auto-allow prefix', async () => {
     const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent(), {
-      autoAllowRuntimeNamePrefixes: ['mcp__cherry-tools__']
+      autoAllowRuntimeNamePrefixes: ['mcp__cherry_tools__']
     })
-    expect(snapshot.resolve('mcp__cherry-tools__kb_search')).toMatchObject({ approval: 'auto' })
+    expect(snapshot.resolve('mcp__cherry_tools__kbSearch__7fb1469c1b2d')).toMatchObject({ approval: 'auto' })
   })
 
   it('requires approval for an excepted tool even though it matches the auto-allow prefix', async () => {
     const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent(), {
-      autoAllowRuntimeNamePrefixes: ['mcp__cherry-tools__'],
-      autoAllowRuntimeNameExceptions: ['mcp__cherry-tools__kb_manage']
+      autoAllowRuntimeNamePrefixes: ['mcp__cherry_tools__'],
+      autoAllowRuntimeNameExceptions: ['mcp__cherry_tools__kbManage__d21480aca963']
     })
     // kb_manage mutates the knowledge base — it must prompt, not auto-approve, despite the prefix.
-    expect(snapshot.resolve('mcp__cherry-tools__kb_manage')).toMatchObject({ approval: 'prompt' })
+    expect(snapshot.resolve('mcp__cherry_tools__kbManage__d21480aca963')).toMatchObject({ approval: 'prompt' })
     // A sibling read tool under the same prefix is still auto-approved.
-    expect(snapshot.resolve('mcp__cherry-tools__kb_read')).toMatchObject({ approval: 'auto' })
+    expect(snapshot.resolve('mcp__cherry_tools__kbRead__01a3c9c066e6')).toMatchObject({ approval: 'auto' })
   })
 
   it('auto-approves the merged autonomy tools while kb_manage still prompts', async () => {
     // The former standalone `cherry` server's cron/notify/config now live under cherry-tools and
     // must stay auto-approved; the mutating kb_manage carve-out must survive the merge.
     const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent(), {
-      autoAllowRuntimeNamePrefixes: ['mcp__cherry-tools__'],
-      autoAllowRuntimeNameExceptions: ['mcp__cherry-tools__kb_manage']
+      autoAllowRuntimeNamePrefixes: ['mcp__cherry_tools__'],
+      autoAllowRuntimeNameExceptions: ['mcp__cherry_tools__kbManage__d21480aca963']
     })
-    expect(snapshot.resolve('mcp__cherry-tools__cron')).toMatchObject({ approval: 'auto' })
-    expect(snapshot.resolve('mcp__cherry-tools__notify')).toMatchObject({ approval: 'auto' })
-    expect(snapshot.resolve('mcp__cherry-tools__config')).toMatchObject({ approval: 'auto' })
-    expect(snapshot.resolve('mcp__cherry-tools__kb_manage')).toMatchObject({ approval: 'prompt' })
+    expect(snapshot.resolve('mcp__cherry_tools__cron__ceb5bf2c5e21')).toMatchObject({ approval: 'auto' })
+    expect(snapshot.resolve('mcp__cherry_tools__notify__2484dc7ba152')).toMatchObject({ approval: 'auto' })
+    expect(snapshot.resolve('mcp__cherry_tools__config__7ebbe6253854')).toMatchObject({ approval: 'auto' })
+    expect(snapshot.resolve('mcp__cherry_tools__kbManage__d21480aca963')).toMatchObject({ approval: 'prompt' })
   })
 })
 
@@ -243,7 +242,6 @@ describe('createClaudeAgentToolPolicySnapshot — production approval-gate wirin
   // the cherry-tools auto-allow prefix plus the approval exceptions derived from the shared constant.
   // The literal-string tests above stay green even if these constants are emptied or .map() drifts;
   // these fail the moment the real gate stops carving the mutating tools out.
-  const PREFIX = `mcp__${CHERRY_BUILTIN_MCP_SERVER}__`
   const productionOptions = {
     autoAllowRuntimeNames: CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map(toCherryBuiltinRuntimeName),
     autoAllowRuntimeNamePrefixes: [],
@@ -265,23 +263,26 @@ describe('createClaudeAgentToolPolicySnapshot — production approval-gate wirin
     const autoApproved = new Set<string>(CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES)
     expect(CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.some((name) => autoApproved.has(name))).toBe(false)
     // The derived prefix matches the fully-qualified runtime name, pinning the two helpers in sync.
-    expect(toCherryBuiltinRuntimeName(KB_MANAGE_TOOL_NAME)).toBe(`${PREFIX}${KB_MANAGE_TOOL_NAME}`)
+    expect(toCherryBuiltinRuntimeName(KB_MANAGE_TOOL_NAME)).toBe('mcp__cherry_tools__kbManage__d21480aca963')
   })
 
   it('keeps Assistant read-only and sensitive tools in disjoint policy sets', () => {
-    expect(ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES).toEqual(['mcp__assistant__navigate', 'mcp__assistant__product_info'])
+    expect(ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES).toEqual([
+      'mcp__assistant__navigate__78c92f559d6a',
+      'mcp__assistant__productInfo__c0cfa9e1920f'
+    ])
     expect(ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES).toEqual([
-      'mcp__assistant__diagnose',
-      'mcp__assistant__apply_setting',
-      'mcp__assistant__create_agent'
+      'mcp__assistant__diagnose__7461c4bedfe3',
+      'mcp__assistant__applySetting__b76773b19eee',
+      'mcp__assistant__createAgent__2a307a1740c0'
     ])
     const autoApproved = new Set(ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES)
     expect(ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES.some((name) => autoApproved.has(name))).toBe(false)
 
-    expect(ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES).toEqual(['mcp__assistant-files__read_file'])
+    expect(ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES).toEqual(['mcp__assistant_files__readFile__5d2275a68b0b'])
     expect(ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES).toEqual([
-      'mcp__assistant-files__move_to_trash',
-      'mcp__assistant-files__save_attachment'
+      'mcp__assistant_files__moveToTrash__b1ffadb33d56',
+      'mcp__assistant_files__saveAttachment__310619340d60'
     ])
     const autoApprovedFiles = new Set(ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES)
     expect(ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES.some((name) => autoApprovedFiles.has(name))).toBe(false)

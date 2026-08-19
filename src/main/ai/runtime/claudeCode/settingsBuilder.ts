@@ -34,6 +34,7 @@ import {
   getBuiltinAgentPluginDirectory,
   loadBuiltinAgentDefinition
 } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
+import { getBuiltinRuntimeName } from '@main/ai/mcp/mcpBuiltinToolManifest'
 import {
   buildAgentMcpServers,
   type LinkedChannelSnapshot,
@@ -79,6 +80,7 @@ import {
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
+import { MCP_BUILTIN_SERVER_IDS } from '@shared/ai/tools/mcpToolIdentity'
 import { toCamelCase } from '@shared/ai/tools/mcpToolName'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -548,7 +550,9 @@ export async function buildClaudeCodeSessionSettings(
 
   // 8. Auto-approve allowlist for injected built-in MCP servers
   const finalAllowedTools = adjustAllowedToolsForMcp(assistantMcpEnabled, disallowedTools).filter(
-    (toolName) => builtinRole !== BUILTIN_AGENT_ROLE.SUPPORT || toolName !== 'mcp__skills__search_skills'
+    (toolName) =>
+      builtinRole !== BUILTIN_AGENT_ROLE.SUPPORT ||
+      toolName !== getBuiltinRuntimeName(MCP_BUILTIN_SERVER_IDS.skills, 'search_skills')
   )
 
   // 9. Skills — pass the SDK skill-name whitelist (managed skills enabled for this
@@ -1127,7 +1131,7 @@ async function buildToolPermissions(
   const headlessSkillInstallHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'PreToolUse') return {}
     const toolName = String((input as Record<string, unknown>).tool_name ?? '')
-    if (toolName !== 'mcp__skills__install_skill') return {}
+    if (toolName !== getBuiltinRuntimeName(MCP_BUILTIN_SERVER_IDS.skills, 'install_skill')) return {}
     if (getToolPolicySnapshot(session.id)?.getPermissionMode() === 'bypassPermissions') return {}
     if (application.get('AgentSessionRuntimeService').getInteractionState(session.id).currentTurn !== 'headless')
       return {}
@@ -1188,7 +1192,7 @@ async function buildToolPermissions(
         permissionDecision: 'deny',
         permissionDecisionReason:
           `This built-in Agent blocked ${reason}. It must never permanently delete data or bypass this safeguard. ` +
-          'For a confirmed file or directory inside the session workspace, use mcp__assistant-files__move_to_trash; protected paths cannot be deleted.'
+          `For a confirmed file or directory inside the session workspace, use ${getBuiltinRuntimeName(MCP_BUILTIN_SERVER_IDS.assistantFiles, 'move_to_trash')}; protected paths cannot be deleted.`
       }
     }
   }
@@ -1462,12 +1466,23 @@ export function buildMcpServers(
     selectedKnowledgeBaseIds,
     'runtime'
   )
-  return Object.fromEntries(
+  const result = Object.fromEntries(
     Object.entries(servers).map(([id, server]) => [
       server.serverWireName ?? id,
       { type: 'sdk', ...server } satisfies McpServerConfig
     ])
   )
+  // Logical aliases are non-enumerable compatibility lookups for Cherry internals and tests.
+  // Claude's SDK only sees enumerable server keys, so aliases never create duplicate MCP servers.
+  for (const [id, server] of Object.entries(servers)) {
+    const wireName = server.serverWireName
+    if (!wireName) continue
+    for (const alias of new Set([id, server.name])) {
+      if (alias === wireName) continue
+      Object.defineProperty(result, alias, { value: result[wireName], enumerable: false })
+    }
+  }
+  return result
 }
 
 function addMcpToolMetadataAlias(
@@ -1586,20 +1601,17 @@ async function buildMcpToolMetadata(agent: AgentEntity): Promise<Record<string, 
 function isToolDisallowed(toolName: string, disallowedTools: readonly string[]): boolean {
   if (disallowedTools.includes(toolName)) return true
   if (!toolName.startsWith('mcp__')) return false
-
-  const serverSeparator = toolName.indexOf('__', 'mcp__'.length)
-  if (serverSeparator === -1) return false
-
-  const serverRule = toolName.slice(0, serverSeparator)
-  return disallowedTools.some((rule) => rule === 'mcp__*' || rule === serverRule || rule === `${serverRule}__*`)
+  return disallowedTools.some(
+    (rule) => rule === 'mcp__*' || (rule.endsWith('__*') && toolName.startsWith(rule.slice(0, -1)))
+  )
 }
 
 export function adjustAllowedToolsForMcp(assistantMcpEnabled: boolean, disallowedTools: readonly string[]): string[] {
   const result = CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map(toCherryBuiltinRuntimeName)
-  result.push('mcp__agent-memory__memory')
+  result.push(getBuiltinRuntimeName(MCP_BUILTIN_SERVER_IDS.agentMemory, 'memory'))
   // search_skills is a read-only marketplace lookup — auto-approve it. install_skill mutates
   // (clones + installs third-party code), so it deliberately stays on per-call approval.
-  result.push('mcp__skills__search_skills')
+  result.push(getBuiltinRuntimeName(MCP_BUILTIN_SERVER_IDS.skills, 'search_skills'))
   if (assistantMcpEnabled) {
     result.push(...ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES, ...ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES)
   }

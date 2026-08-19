@@ -35,6 +35,10 @@ vi.mock('@application', () => ({
 
 const { createMcpBridgeServer } = await import('../createMcpBridgeServer')
 
+function createRawMcpBridge(mcpId: string, snapshot?: any, options: any = {}) {
+  return createMcpBridgeServer(mcpId, snapshot, { ...options, namingMode: 'raw' })
+}
+
 type RequestHandler = (request: unknown, extra: unknown) => Promise<unknown>
 
 /** Latest listener passed to the mocked `onToolsCacheUpdated` — the test's stand-in for
@@ -106,7 +110,7 @@ describe('createMcpBridgeServer', () => {
       return { content: [{ type: 'text', text: 'done' }] }
     })
 
-    const client = await connectClient(createMcpBridgeServer('server-1'))
+    const client = await connectClient(createRawMcpBridge('server-1'))
     const seen: { progress: number; total?: number }[] = []
     client.setNotificationHandler(ProgressNotificationSchema, async (notification) => {
       seen.push({ progress: notification.params.progress, total: notification.params.total })
@@ -162,7 +166,7 @@ describe('createMcpBridgeServer', () => {
     mocks.listTools.mockReturnValue([searchTool()])
     mocks.callTool.mockResolvedValue({ content: [{ type: 'text', text: 'done' }] })
 
-    const client = await connectClient(createMcpBridgeServer('server-1'))
+    const client = await connectClient(createRawMcpBridge('server-1'))
     await client.callTool({ name: 'search', arguments: {} })
 
     // No token means no address to send notifications to, so the runtime must not be
@@ -173,14 +177,14 @@ describe('createMcpBridgeServer', () => {
   it('uses a request-captured server snapshot without re-reading the edited database row', () => {
     const capturedServer = { id: 'server-1', name: 'Captured MCP' }
 
-    createMcpBridgeServer('server-1', capturedServer as never)
+    createRawMcpBridge('server-1', capturedServer as never)
 
     expect(mocks.findByIdOrName).not.toHaveBeenCalled()
   })
 
   it('forwards the request cancellation signal to McpRuntimeService.callTool', async () => {
     mocks.callTool.mockResolvedValue({ content: [] })
-    const sdkServer = createMcpBridgeServer('server-1')
+    const sdkServer = createRawMcpBridge('server-1')
     const handlers = (sdkServer.server as unknown as { _requestHandlers: Map<string, RequestHandler> })._requestHandlers
     const handler = handlers.get('tools/call')
 
@@ -201,7 +205,7 @@ describe('createMcpBridgeServer', () => {
   })
 
   it('proxies prompts/get through McpRuntimeService when prompts are advertised', async () => {
-    const sdkServer = createMcpBridgeServer('server-1')
+    const sdkServer = createRawMcpBridge('server-1')
     const handlers = (sdkServer.server as unknown as { _requestHandlers: Map<string, RequestHandler> })._requestHandlers
     const handler = handlers.get('prompts/get')
 
@@ -226,7 +230,7 @@ describe('createMcpBridgeServer', () => {
   it('lists tools from the cache-only listTools without blocking, stripping bridge-internal fields', async () => {
     mocks.listTools.mockReturnValue([searchTool()])
 
-    const sdkServer = createMcpBridgeServer('server-1')
+    const sdkServer = createRawMcpBridge('server-1')
     const handlers = (sdkServer.server as unknown as { _requestHandlers: Map<string, RequestHandler> })._requestHandlers
     const handler = handlers.get('tools/list')
 
@@ -243,7 +247,7 @@ describe('createMcpBridgeServer', () => {
   })
 
   it('declares tools.listChanged so the SDK client attaches its re-list handler', async () => {
-    const sdkServer = createMcpBridgeServer('server-1')
+    const sdkServer = createRawMcpBridge('server-1')
     const client = await connectClient(sdkServer)
 
     expect(client.getServerCapabilities()?.tools).toEqual({ listChanged: true })
@@ -252,7 +256,7 @@ describe('createMcpBridgeServer', () => {
   })
 
   it('does not subscribe to cache updates until the session actually initializes', () => {
-    createMcpBridgeServer('server-1')
+    createRawMcpBridge('server-1')
     // A bridge whose query never starts must not leak an emitter subscription.
     expect(mocks.onToolsCacheUpdated).not.toHaveBeenCalled()
   })
@@ -263,7 +267,7 @@ describe('createMcpBridgeServer', () => {
     // the tools. The other half — the Agent SDK CLI auto-re-listing when it receives the
     // notification — is SDK behavior (verified against 0.3.185) that this test does NOT
     // cover; it stands in with a manual re-list.
-    const sdkServer = createMcpBridgeServer('server-1')
+    const sdkServer = createRawMcpBridge('server-1')
     const client = await connectClient(sdkServer)
 
     const notified = new Promise<void>((resolve) => {
@@ -289,7 +293,7 @@ describe('createMcpBridgeServer', () => {
     // The subscription lifecycle is self-managed via oninitialized/onclose, so a
     // connect → close → reconnect sequence on one instance must not end up with zero
     // or two live subscriptions. Locks the ??=-plus-reset pairing.
-    const sdkServer = createMcpBridgeServer('server-1')
+    const sdkServer = createRawMcpBridge('server-1')
 
     const firstClient = await connectClient(sdkServer)
     expect(mocks.onToolsCacheUpdated).toHaveBeenCalledTimes(1)
@@ -313,7 +317,7 @@ describe('createMcpBridgeServer', () => {
   })
 
   it('ignores cache updates for other servers', async () => {
-    const sdkServer = createMcpBridgeServer('server-1')
+    const sdkServer = createRawMcpBridge('server-1')
     const client = await connectClient(sdkServer)
 
     const notificationHandler = vi.fn(async () => {})
@@ -328,7 +332,7 @@ describe('createMcpBridgeServer', () => {
   })
 
   it('disposes the cache subscription when the transport closes, and swallows late fires', async () => {
-    const sdkServer = createMcpBridgeServer('server-1')
+    const sdkServer = createRawMcpBridge('server-1')
     const client = await connectClient(sdkServer)
     expect(mocks.onToolsCacheUpdated).toHaveBeenCalledTimes(1)
 
@@ -344,7 +348,7 @@ describe('createMcpBridgeServer', () => {
   })
 
   it('responds to resource template discovery when resources are advertised', async () => {
-    const sdkServer = createMcpBridgeServer('server-1')
+    const sdkServer = createRawMcpBridge('server-1')
     const handlers = (sdkServer.server as unknown as { _requestHandlers: Map<string, RequestHandler> })._requestHandlers
     const handler = handlers.get('resources/templates/list')
 

@@ -13,6 +13,15 @@ export const MCP_BUILTIN_SERVER_IDS = {
   skills: 'builtin:skills'
 } as const
 
+/** Fixed provider-safe wire names for in-process servers. These are not display names. */
+export const MCP_BUILTIN_SERVER_WIRE_NAMES = {
+  agentMemory: 'agent_memory',
+  assistant: 'assistant',
+  assistantFiles: 'assistant_files',
+  cherryTools: 'cherry_tools',
+  skills: 'skills'
+} as const
+
 export type McpToolBinding = Readonly<{
   identityKey: string
   runtimeName: string

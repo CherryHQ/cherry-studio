@@ -3,11 +3,14 @@ import { lstat, open, readdir, realpath } from 'node:fs/promises'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
+import { getBuiltinRuntimeName } from '@main/ai/mcp/mcpBuiltinToolManifest'
+import { MCP_BUILTIN_SERVER_IDS } from '@shared/ai/tools/mcpToolIdentity'
 import type { AgentConfiguration } from '@shared/data/types/agent'
 
 import { buildBootstrapInstructions, SOUL_CONTENT_THRESHOLD } from './bootstrap'
 
 const logger = loggerService.withContext('PromptBuilder')
+const AGENT_MEMORY_RUNTIME_NAME = getBuiltinRuntimeName(MCP_BUILTIN_SERVER_IDS.agentMemory, 'memory')
 
 /**
  * Resolve a filename within a directory using case-insensitive matching.
@@ -90,15 +93,15 @@ Persistent files in the agent data directory \`${agentDataPath}/\` carry your id
 |---|---|---|
 | \`${agentDataPath}/SOUL.md\` | HOW you present yourself — name, personality, tone, and communication style; also the role definition when no Agent System Prompt is configured | Read + Edit tools |
 | \`${agentDataPath}/USER.md\` | WHO the user is — name, preferences, timezone, personal context | Read + Edit tools |
-| \`${agentDataPath}/memory/FACT.md\` | WHAT you know — active projects, technical decisions, durable knowledge (6+ months) | Read inline + \`mcp__agent-memory__memory\` update action |
-| \`${agentDataPath}/memory/JOURNAL.jsonl\` | WHEN things happened — one-time events, session notes (append-only log) | \`mcp__agent-memory__memory\` tool only (actions: append, search) |
+| \`${agentDataPath}/memory/FACT.md\` | WHAT you know — active projects, technical decisions, durable knowledge (6+ months) | Read inline + \`${AGENT_MEMORY_RUNTIME_NAME}\` update action |
+| \`${agentDataPath}/memory/JOURNAL.jsonl\` | WHEN things happened — one-time events, session notes (append-only log) | \`${AGENT_MEMORY_RUNTIME_NAME}\` tool only (actions: append, search) |
 
 Rules:
 - Your current working directory is the session workspace, not the agent data directory. For SOUL.md and USER.md, use the exact absolute paths shown above.
 - Each file has an exclusive scope — never duplicate information across files.
 - \`SOUL.md\` and \`USER.md\` are loaded below. Read and edit them directly when updates are needed.
-- \`memory/FACT.md\` is loaded below for inline reading. Update it only through \`mcp__agent-memory__memory\` (action: update).
-- \`memory/JOURNAL.jsonl\` is NOT loaded into context. Use \`mcp__agent-memory__memory\` to append entries or search past events. Never read or write the file directly.
+- \`memory/FACT.md\` is loaded below for inline reading. Update it only through \`${AGENT_MEMORY_RUNTIME_NAME}\` (action: update).
+- \`memory/JOURNAL.jsonl\` is NOT loaded into context. Use \`${AGENT_MEMORY_RUNTIME_NAME}\` to append entries or search past events. Never read or write the file directly.
 - Filenames are case-insensitive.
 ${sections}`
 }
@@ -157,7 +160,7 @@ export class PromptBuilder {
    * Build a "## Agent Knowledge" section that loads just the agent's
    * `memory/FACT.md` content. This is the recall side of
    * the cross-session learning loop — agents write durable knowledge to
-   * FACT.md via \`mcp__agent-memory__memory\` action="update", and this method
+   * FACT.md via the agent-memory runtime tool action="update", and this method
    * loads it back into the system prompt at the start of the next session so
    * the agent remembers what it learned (e.g. parameter shapes that previously
    * failed, project conventions, user corrections).
@@ -178,7 +181,7 @@ export class PromptBuilder {
 
     return `## Agent Knowledge
 
-These are durable facts and lessons accumulated across this agent's past sessions. Trust them as ground truth unless you have direct evidence they're wrong — in which case update \`memory/FACT.md\` via \`mcp__agent-memory__memory\` action="update" so the next session also benefits.
+These are durable facts and lessons accumulated across this agent's past sessions. Trust them as ground truth unless you have direct evidence they're wrong — in which case update \`memory/FACT.md\` via \`${AGENT_MEMORY_RUNTIME_NAME}\` action="update" so the next session also benefits.
 
 <facts>
 ${content}

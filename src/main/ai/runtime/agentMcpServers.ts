@@ -10,6 +10,7 @@ import SkillsServer from '@main/ai/mcp/servers/skills'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
+import { MCP_BUILTIN_SERVER_IDS, MCP_BUILTIN_SERVER_WIRE_NAMES } from '@shared/ai/tools/mcpToolIdentity'
 import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -41,6 +42,16 @@ export function buildAgentMcpServers(
   bridgeNamingMode: McpBridgeOptions['namingMode'] = 'raw'
 ): Record<string, AgentMcpServer> {
   const servers: Record<string, AgentMcpServer> = {}
+  const builtin = (serverId: string, serverWireName: string, name: string, instance: McpServer): AgentMcpServer => {
+    const bridge =
+      bridgeNamingMode === 'runtime'
+        ? createMcpBridgeServer(name, undefined, {
+            namingMode: 'runtime',
+            sourceServer: { server: instance, serverId, serverName: name, serverWireName }
+          })
+        : undefined
+    return { name, serverId, serverWireName, instance: bridge ?? instance }
+  }
 
   for (const mcpId of agent.mcps ?? []) {
     try {
@@ -62,9 +73,11 @@ export function buildAgentMcpServers(
   const sourceChannelId =
     linkedChannelSnapshot === undefined ? resolveSourceChannel(agent.id, session.id) : linkedChannelSnapshot?.id
   const workspaceSource = toWorkspaceSource(session)
-  servers['cherry-tools'] = {
-    name: 'cherry-tools',
-    instance: new CherryBuiltinToolsServer({
+  servers[MCP_BUILTIN_SERVER_IDS.cherryTools] = builtin(
+    MCP_BUILTIN_SERVER_IDS.cherryTools,
+    MCP_BUILTIN_SERVER_WIRE_NAMES.cherryTools,
+    'cherry-tools',
+    new CherryBuiltinToolsServer({
       agentId: agent.id,
       agentDataPath,
       sessionId: session.id,
@@ -78,29 +91,40 @@ export function buildAgentMcpServers(
         return liveAgent ? resolveKnowledgeBaseScope(liveAgent.knowledgeBaseIds, selectedKnowledgeBaseIds) : []
       }
     }).mcpServer
-  }
-  servers['agent-memory'] = {
-    name: 'agent-memory',
-    instance: new AgentMemoryServer(agent.id, agentDataPath).mcpServer
-  }
+  )
+  servers[MCP_BUILTIN_SERVER_IDS.agentMemory] = builtin(
+    MCP_BUILTIN_SERVER_IDS.agentMemory,
+    MCP_BUILTIN_SERVER_WIRE_NAMES.agentMemory,
+    'agent-memory',
+    new AgentMemoryServer(agent.id, agentDataPath).mcpServer
+  )
   if (agent.configuration?.builtin_role !== BUILTIN_AGENT_ROLE.SUPPORT) {
-    servers.skills = { name: 'skills', instance: new SkillsServer(agent.id).mcpServer }
+    servers[MCP_BUILTIN_SERVER_IDS.skills] = builtin(
+      MCP_BUILTIN_SERVER_IDS.skills,
+      MCP_BUILTIN_SERVER_WIRE_NAMES.skills,
+      'skills',
+      new SkillsServer(agent.id).mcpServer
+    )
   }
 
   if (assistantMcpEnabled) {
     const assistantToolNames =
       agent.configuration?.builtin_role === BUILTIN_AGENT_ROLE.SUPPORT ? SUPPORT_ASSISTANT_TOOL_NAMES : undefined
-    servers.assistant = {
-      name: 'assistant',
-      instance: new AssistantServer(agent.model ?? undefined, assistantToolNames).mcpServer
-    }
-    servers['assistant-files'] = {
-      name: 'assistant-files',
-      instance: new AssistantFileToolsServer({
+    servers[MCP_BUILTIN_SERVER_IDS.assistant] = builtin(
+      MCP_BUILTIN_SERVER_IDS.assistant,
+      MCP_BUILTIN_SERVER_WIRE_NAMES.assistant,
+      'assistant',
+      new AssistantServer(agent.model ?? undefined, assistantToolNames).mcpServer
+    )
+    servers[MCP_BUILTIN_SERVER_IDS.assistantFiles] = builtin(
+      MCP_BUILTIN_SERVER_IDS.assistantFiles,
+      MCP_BUILTIN_SERVER_WIRE_NAMES.assistantFiles,
+      'assistant-files',
+      new AssistantFileToolsServer({
         sessionId: session.id,
         workspacePath: session.workspace.path
       }).mcpServer
-    }
+    )
   }
 
   return servers

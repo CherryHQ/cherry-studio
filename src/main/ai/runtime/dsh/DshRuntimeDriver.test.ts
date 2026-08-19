@@ -63,14 +63,22 @@ describe('DshRuntimeDriver.listAvailableTools', () => {
   it('auto-approves safe Cherry tools but keeps sensitive Cherry tools prompt-gated', async () => {
     mocks.findByIdOrName.mockReturnValue({ id: 'cherry-id', name: 'cherry-tools' } as McpServer)
     mocks.listTools.mockReturnValue([
-      { name: 'web_search', runtimeName: 'mcp__cherry-tools__web_search', description: 'Search the web' } as McpTool,
-      { name: 'kb_manage', runtimeName: 'mcp__cherry-tools__kb_manage', description: 'Manage knowledge' } as McpTool
+      {
+        name: 'web_search',
+        runtimeName: 'mcp__cherry_tools__webSearch__a26653c54bd6',
+        description: 'Search the web'
+      } as McpTool,
+      {
+        name: 'kb_manage',
+        runtimeName: 'mcp__cherry_tools__kbManage__d21480aca963',
+        description: 'Manage knowledge'
+      } as McpTool
     ])
 
     const tools = await new DshRuntimeDriver().listAvailableTools(['cherry-id'])
 
-    expect(tools.find((tool) => tool.id === 'mcp__cherry-tools__web_search')?.approval).toBe('auto')
-    expect(tools.find((tool) => tool.id === 'mcp__cherry-tools__kb_manage')?.approval).toBe('prompt')
+    expect(tools.find((tool) => tool.id === 'mcp__cherry_tools__webSearch__a26653c54bd6')?.approval).toBe('auto')
+    expect(tools.find((tool) => tool.id === 'mcp__cherry_tools__kbManage__d21480aca963')?.approval).toBe('prompt')
   })
 
   it('skips MCP server ids that no longer resolve', async () => {

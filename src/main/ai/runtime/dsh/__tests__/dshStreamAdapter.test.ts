@@ -204,7 +204,7 @@ describe('DshStreamAdapter', () => {
         turn: 1,
         step: 1,
         callId: callId('c1'),
-        name: 'mcp__cherry-tools__web_search',
+        name: 'mcp__cherry_tools__webSearch__a26653c54bd6',
         arguments: '{}'
       })
     )

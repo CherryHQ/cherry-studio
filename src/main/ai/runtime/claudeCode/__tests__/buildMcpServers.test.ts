@@ -1,6 +1,6 @@
 /**
  * Regression for agents-jobs-3: the agent prompt/bootstrap drive memory via
- * `mcp__agent-memory__memory`, so every agent must actually get the `agent-memory`
+ * `mcp__agent_memory__memory__b472a1250bce`, so every agent must actually get the `agent-memory`
  * server injected into the runtime MCP list AND allow its tools — not just reference the name.
  */
 
@@ -160,62 +160,62 @@ function makeSession(path: string, type: 'user' | 'system' = 'user'): AgentSessi
 }
 
 describe('adjustAllowedToolsForMcp', () => {
-  it('lists auto-approved cherry-tools + agent-memory for every agent, excluding the mutating kb_manage', () => {
+  it('lists auto-approved cherry-tools + agent-memory for every agent, excluding the mutating kbManage__d21480aca963', () => {
     const allowed = adjustAllowedToolsForMcp(false, [])
     expect(allowed).toEqual(
       expect.arrayContaining([
-        'mcp__cherry-tools__kb_search',
-        'mcp__cherry-tools__kb_list',
-        'mcp__cherry-tools__cron',
-        'mcp__cherry-tools__notify',
-        'mcp__cherry-tools__config',
-        'mcp__agent-memory__memory'
+        'mcp__cherry_tools__kbSearch__7fb1469c1b2d',
+        'mcp__cherry_tools__kbList__1ca9920aae6d',
+        'mcp__cherry_tools__cron__ceb5bf2c5e21',
+        'mcp__cherry_tools__notify__2484dc7ba152',
+        'mcp__cherry_tools__config__7ebbe6253854',
+        'mcp__agent_memory__memory__b472a1250bce'
       ])
     )
-    // The mutating kb_manage tool must NOT be pre-approved by the SDK allowlist — it requires
+    // The mutating kbManage__d21480aca963 tool must NOT be pre-approved by the SDK allowlist — it requires
     // per-call approval via canUseTool. A bare wildcard would silently re-include it.
-    expect(allowed).not.toContain('mcp__cherry-tools__kb_manage')
+    expect(allowed).not.toContain('mcp__cherry_tools__kbManage__d21480aca963')
     expect(allowed).not.toContain('mcp__cherry-tools__*')
     // read-only skill search is auto-approved; the mutating install_skill stays on per-call approval.
-    expect(allowed).toContain('mcp__skills__search_skills')
-    expect(allowed).not.toContain('mcp__skills__install_skill')
+    expect(allowed).toContain('mcp__skills__searchSkills__73d6e4100870')
+    expect(allowed).not.toContain('mcp__skills__installSkill__75e07e762fcb')
   })
 
   it('auto-approves only read-only Assistant tools', () => {
     const allowed = adjustAllowedToolsForMcp(true, [])
     expect(allowed).toEqual(
       expect.arrayContaining([
-        'mcp__cherry-tools__kb_search',
-        'mcp__cherry-tools__kb_list',
-        'mcp__assistant__navigate',
-        'mcp__assistant__product_info'
+        'mcp__cherry_tools__kbSearch__7fb1469c1b2d',
+        'mcp__cherry_tools__kbList__1ca9920aae6d',
+        'mcp__assistant__navigate__78c92f559d6a',
+        'mcp__assistant__productInfo__c0cfa9e1920f'
       ])
     )
-    expect(allowed).not.toContain('mcp__cherry-tools__kb_manage')
+    expect(allowed).not.toContain('mcp__cherry_tools__kbManage__d21480aca963')
     expect(allowed).not.toContain('mcp__cherry-tools__*')
-    expect(allowed).not.toContain('mcp__assistant__apply_setting')
-    expect(allowed).not.toContain('mcp__assistant__create_agent')
+    expect(allowed).not.toContain('mcp__assistant__applySetting__b76773b19eee')
+    expect(allowed).not.toContain('mcp__assistant__createAgent__2a307a1740c0')
     // diagnose reads local logs/source/config — it must go through per-call approval, so neither
     // the tool itself nor an assistant namespace wildcard may appear in the SDK pre-approval list.
-    expect(allowed).not.toContain('mcp__assistant__diagnose')
+    expect(allowed).not.toContain('mcp__assistant__diagnose__7461c4bedfe3')
     expect(allowed).not.toContain('mcp__assistant__*')
-    expect(allowed).toContain('mcp__assistant-files__read_file')
-    expect(allowed).not.toContain('mcp__assistant-files__save_attachment')
+    expect(allowed).toContain('mcp__assistant_files__readFile__5d2275a68b0b')
+    expect(allowed).not.toContain('mcp__assistant_files__saveAttachment__310619340d60')
     expect(allowed).not.toContain('mcp__assistant-files__*')
   })
 
   it('removes an exact disabled tool without affecting sibling auto-approvals', () => {
-    const allowed = adjustAllowedToolsForMcp(false, ['mcp__cherry-tools__web_fetch'])
+    const allowed = adjustAllowedToolsForMcp(false, ['mcp__cherry_tools__webFetch__0d46b7903981'])
 
-    expect(allowed).not.toContain('mcp__cherry-tools__web_fetch')
-    expect(allowed).toContain('mcp__cherry-tools__web_search')
+    expect(allowed).not.toContain('mcp__cherry_tools__webFetch__0d46b7903981')
+    expect(allowed).toContain('mcp__cherry_tools__webSearch__a26653c54bd6')
   })
 
   it.each(['mcp__cherry-tools', 'mcp__cherry-tools__*'])('removes server-wide disabled tools for %s', (rule) => {
     const allowed = adjustAllowedToolsForMcp(false, [rule])
 
     expect(allowed.some((toolName) => toolName.startsWith('mcp__cherry-tools__'))).toBe(false)
-    expect(allowed).toContain('mcp__agent-memory__memory')
+    expect(allowed).toContain('mcp__agent_memory__memory__b472a1250bce')
   })
 
   it('removes every MCP auto-approval for the global disabled rule', () => {
@@ -223,9 +223,9 @@ describe('adjustAllowedToolsForMcp', () => {
   })
 
   it('does not let the memory auto-approval override an exact disabled tool', () => {
-    const allowed = adjustAllowedToolsForMcp(false, ['mcp__agent-memory__memory'])
+    const allowed = adjustAllowedToolsForMcp(false, ['mcp__agent_memory__memory__b472a1250bce'])
 
-    expect(allowed).not.toContain('mcp__agent-memory__memory')
+    expect(allowed).not.toContain('mcp__agent_memory__memory__b472a1250bce')
   })
 })
 
@@ -237,7 +237,7 @@ describe('buildMcpServers', () => {
 
   it('injects the agent-memory and skills servers for every agent (REGRESSION agents-jobs-3)', async () => {
     const result = buildMcpServers(session, agent, false, undefined, undefined, '/data/Agents/agent-1')
-    expect(Object.keys(result ?? {})).toEqual(expect.arrayContaining(['cherry-tools', 'agent-memory', 'skills']))
+    expect(Object.keys(result ?? {})).toEqual(expect.arrayContaining(['cherry_tools', 'agent_memory', 'skills']))
     expect(mockMemoryConstructor).toHaveBeenCalledWith('agent-1', '/data/Agents/agent-1')
   })
 
@@ -268,16 +268,23 @@ describe('buildMcpServers', () => {
   it('hides the kb_* tools from cherry-tools when the agent has no bound knowledge base', async () => {
     mockGetAgent.mockReturnValue(agent)
     const names = await cherryToolNames(buildMcpServers(session, agent, false))
-    expect(names).toContain('web_search')
-    expect(names).not.toContain('kb_search')
-    expect(names).not.toContain('kb_manage')
+    expect(names).toContain('webSearch__a26653c54bd6')
+    expect(names).not.toContain('kbSearch__7fb1469c1b2d')
+    expect(names).not.toContain('kbManage__d21480aca963')
   })
 
   it('exposes the kb_* tools from cherry-tools when the agent is bound to a knowledge base', async () => {
     const boundAgent = { id: 'agent-1', mcps: [], knowledgeBaseIds: ['kb_a'] } as unknown as AgentEntity
     mockGetAgent.mockReturnValue(boundAgent)
     const names = await cherryToolNames(buildMcpServers(session, boundAgent, false))
-    expect(names).toEqual(expect.arrayContaining(['kb_search', 'kb_read', 'kb_list', 'kb_manage']))
+    expect(names).toEqual(
+      expect.arrayContaining([
+        'kbSearch__7fb1469c1b2d',
+        'kbRead__01a3c9c066e6',
+        'kbList__1ca9920aae6d',
+        'kbManage__d21480aca963'
+      ])
+    )
   })
 
   it('exposes the kb_* tools from a frozen composer selection when the Agent has no binding', async () => {
@@ -286,7 +293,14 @@ describe('buildMcpServers', () => {
       buildMcpServers(session, agent, false, undefined, undefined, undefined, ['kb-selected'])
     )
 
-    expect(names).toEqual(expect.arrayContaining(['kb_search', 'kb_read', 'kb_list', 'kb_manage']))
+    expect(names).toEqual(
+      expect.arrayContaining([
+        'kbSearch__7fb1469c1b2d',
+        'kbRead__01a3c9c066e6',
+        'kbList__1ca9920aae6d',
+        'kbManage__d21480aca963'
+      ])
+    )
   })
 
   it('exposes every cherry-tool to the built-in Assistant without a knowledge binding', async () => {
@@ -301,7 +315,15 @@ describe('buildMcpServers', () => {
     const names = await cherryToolNames(buildMcpServers(session, assistant, true))
 
     expect(names).toEqual(
-      expect.arrayContaining(['kb_search', 'kb_read', 'kb_list', 'kb_manage', 'cli_list', 'cli_search', 'cli_install'])
+      expect.arrayContaining([
+        'kbSearch__7fb1469c1b2d',
+        'kbRead__01a3c9c066e6',
+        'kbList__1ca9920aae6d',
+        'kbManage__d21480aca963',
+        'cliList__0792256a36b7',
+        'cliSearch__eddbd7725570',
+        'cliInstall__0a5f833ae0d9'
+      ])
     )
   })
 
@@ -315,13 +337,13 @@ describe('buildMcpServers', () => {
     mockGetAgent.mockReturnValue(assistant)
     const servers = buildMcpServers(session, assistant, true)
 
-    expect(await cherryToolNames(servers)).toContain('kb_search')
+    expect(await cherryToolNames(servers)).toContain('kbSearch__7fb1469c1b2d')
 
     mockGetAgent.mockReturnValue(undefined)
-    expect(await cherryToolNames(servers)).not.toContain('kb_search')
+    expect(await cherryToolNames(servers)).not.toContain('kbSearch__7fb1469c1b2d')
   })
 
-  /** Run kb_list through the server and report the id set the scope closure handed to the core. */
+  /** Run kbList__1ca9920aae6d through the server and report the id set the scope closure handed to the core. */
   async function scopePassedToKnowledgeCore(result: ReturnType<typeof buildMcpServers>): Promise<readonly string[]> {
     if (!result) throw new Error('buildMcpServers returned no servers')
     mockListOrOutlineKnowledge.mockReset().mockResolvedValue({ bases: [] })
@@ -334,7 +356,7 @@ describe('buildMcpServers', () => {
     ).instance
     const callHandler = instance.server._requestHandlers.get('tools/call')
     if (!callHandler) throw new Error('tools/call handler not registered')
-    await callHandler({ method: 'tools/call', params: { name: 'kb_list', arguments: {} } }, {})
+    await callHandler({ method: 'tools/call', params: { name: 'kbList__1ca9920aae6d', arguments: {} } }, {})
     expect(mockListOrOutlineKnowledge).toHaveBeenCalledTimes(1)
     return mockListOrOutlineKnowledge.mock.calls[0][1]
   }
@@ -369,8 +391,8 @@ describe('buildMcpServers', () => {
     mockGetAgent.mockReturnValueOnce(agent).mockReturnValueOnce(undefined)
     const servers = buildMcpServers(session, agent, false, undefined, undefined, undefined, ['kb-selected'])
 
-    expect(await cherryToolNames(servers)).toContain('kb_search')
-    expect(await cherryToolNames(servers)).not.toContain('kb_search')
+    expect(await cherryToolNames(servers)).toContain('kbSearch__7fb1469c1b2d')
+    expect(await cherryToolNames(servers)).not.toContain('kbSearch__7fb1469c1b2d')
   })
 
   it('re-reads knowledge bindings for an already-created cherry-tools server', async () => {
@@ -378,8 +400,8 @@ describe('buildMcpServers', () => {
     mockGetAgent.mockReturnValueOnce(boundAgent).mockReturnValueOnce({ ...boundAgent, knowledgeBaseIds: [] })
     const servers = buildMcpServers(session, boundAgent, false)
 
-    expect(await cherryToolNames(servers)).toContain('kb_read')
-    expect(await cherryToolNames(servers)).not.toContain('kb_read')
+    expect(await cherryToolNames(servers)).toContain('kbRead__01a3c9c066e6')
+    expect(await cherryToolNames(servers)).not.toContain('kbRead__01a3c9c066e6')
   })
 
   it('injects assistant file tools only for Cherry Assistant sessions', () => {

@@ -3,6 +3,12 @@
  * a configured System Prompt only personalize its presentation; legacy Agents
  * without one keep the role-discovery flow that stores the role in SOUL.md.
  */
+import { getBuiltinRuntimeName } from '@main/ai/mcp/mcpBuiltinToolManifest'
+import { MCP_BUILTIN_SERVER_IDS } from '@shared/ai/tools/mcpToolIdentity'
+
+const CHERRY_CONFIG = getBuiltinRuntimeName(MCP_BUILTIN_SERVER_IDS.cherryTools, 'config')
+const AGENT_MEMORY = getBuiltinRuntimeName(MCP_BUILTIN_SERVER_IDS.agentMemory, 'memory')
+
 export function buildBootstrapInstructions(hasAgentInstructions: boolean): string {
   const configuredRoleContext = hasAgentInstructions
     ? `
@@ -44,11 +50,11 @@ Your goal in this conversation is to:
    - Their timezone and working hours
    - Communication preferences (language, verbosity, formality)
 4. **Commit the ${identity}** — When you have enough information:
-   - Rename yourself using \`mcp__cherry-tools__config\` (action: "rename", name: the chosen name)
+   - Rename yourself using \`${CHERRY_CONFIG}\` (action: "rename", name: the chosen name)
    - ${soulUpdate} Use Write if the file is missing; use Edit if it already exists.
    - Update \`USER.md\` with everything you learned about the user. Use Write if the file is missing; use Edit if it already exists.
-   - Log the bootstrap completion using \`mcp__agent-memory__memory\` (append action, tags: ["bootstrap"])
-   - Mark bootstrap as complete using \`mcp__cherry-tools__config\` (action: "complete_bootstrap")
+   - Log the bootstrap completion using \`${AGENT_MEMORY}\` (append action, tags: ["bootstrap"])
+   - Mark bootstrap as complete using \`${CHERRY_CONFIG}\` (action: "complete_bootstrap")
 
 Guidelines:
 - Keep the conversation natural and warm — this is a first impression

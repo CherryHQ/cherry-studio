@@ -97,7 +97,7 @@ describe('resolveMessageCitations', () => {
   })
 
   it('resolves agent dynamic-tool parts with MCP-wrapped output', () => {
-    const mc = resolveMessageCitations([dynamicMcpPart('mcp__cherry-tools__kb_search', kbResults('qqq'))])
+    const mc = resolveMessageCitations([dynamicMcpPart('mcp__cherry_tools__kbSearch__7fb1469c1b2d', kbResults('qqq'))])
     expect(mc.byId.get('qqq-1')).toMatchObject({ type: 'knowledge', content: 'kb chunk' })
   })
 
@@ -170,7 +170,7 @@ describe('resolveMessageCitations', () => {
   it('skips error outputs and string MCP notes', () => {
     const mc = resolveMessageCitations([
       webToolPart({ error: 'provider down', retryable: true }),
-      dynamicMcpPart('mcp__cherry-tools__web_search', 'No matches; refine the query.')
+      dynamicMcpPart('mcp__cherry_tools__webSearch__a26653c54bd6', 'No matches; refine the query.')
     ])
     expect(mc.all).toHaveLength(0)
   })
@@ -207,7 +207,9 @@ describe('resolveMessageCitations', () => {
   })
 
   it('resolves an MCP-wrapped kb_read slice from the agent path', () => {
-    const mc = resolveMessageCitations([dynamicMcpPart('mcp__cherry-tools__kb_read', kbReadOutput('rrr-1'))])
+    const mc = resolveMessageCitations([
+      dynamicMcpPart('mcp__cherry_tools__kbRead__01a3c9c066e6', kbReadOutput('rrr-1'))
+    ])
     expect(mc.byId.get('rrr-1')).toMatchObject({ title: 'Two.md', content: 'read slice', type: 'knowledge' })
   })
 

@@ -2,7 +2,10 @@ import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { isMcpCancellation } from '@main/ai/mcp/mcpAbort'
+import { buildMcpToolIdentityKey, buildMcpToolRuntimeName } from '@main/ai/mcp/mcpToolId'
 import { createMcpToolBinding, McpToolBindingStore } from '@main/ai/runtime/mcpToolBinding'
+import { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import {
   CallToolRequestSchema,
@@ -26,7 +29,7 @@ const logger = loggerService.withContext('McpBridge')
 
 export interface McpBridgeOptions {
   /** Provider-facing naming mode. API Gateway must remain raw; Claude requests runtime names. */
-  namingMode?: 'raw' | 'runtime'
+  namingMode: 'raw' | 'runtime'
   /**
    * Declare `tools.listChanged` and relay cache updates as `tools/list_changed`.
    *
@@ -36,6 +39,12 @@ export interface McpBridgeOptions {
    * never receives.
    */
   listChanged?: boolean
+  sourceServer?: {
+    server: McpServer
+    serverId: string
+    serverName: string
+    serverWireName: string
+  }
 }
 
 function toSdkTool(tool: McpTool, name = tool.name): SdkTool {
@@ -99,10 +108,18 @@ function toSdkResourceContents(content: McpResource): ReadResourceResult['conten
  */
 export function createMcpBridgeServer(
   mcpId: string,
-  serverSnapshot?: McpServerEntity,
-  { listChanged = true, namingMode = 'raw' }: McpBridgeOptions = {}
+  serverSnapshot: McpServerEntity | undefined,
+  { listChanged = true, namingMode, sourceServer }: McpBridgeOptions
 ): McpServer {
-  const serverConfig = serverSnapshot ?? mcpServerService.findByIdOrName(mcpId)
+  const serverConfig =
+    serverSnapshot ??
+    (sourceServer
+      ? ({
+          id: sourceServer.serverId,
+          name: sourceServer.serverName,
+          serverWireName: sourceServer.serverWireName
+        } as McpServerEntity)
+      : mcpServerService.findByIdOrName(mcpId))
   if (!serverConfig) {
     throw new Error(`MCP server not found: ${mcpId}`)
   }
@@ -122,24 +139,49 @@ export function createMcpBridgeServer(
   // known at construction time. The high-level McpServer.tool() API requires
   // Zod schemas to be declared upfront, which is not feasible for a proxy.
   const rawServer = sdkServer.server
+  const serverWireName = serverConfig.serverWireName ?? mcpId.replace(/[^a-zA-Z0-9_]/g, '_')
   const bindingStore = new McpToolBindingStore()
   let refreshToken = 0
-  const readRuntimeTools = (): McpTool[] => {
+  let sourceClientPromise: Promise<Client> | undefined
+  const getSourceClient = async (): Promise<Client> => {
+    if (!sourceServer) throw new Error('MCP source server is not configured')
+    sourceClientPromise ??= (async () => {
+      const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+      const client = new Client({ name: 'cherry-mcp-bridge', version: '1.0.0' })
+      await sourceServer.server.connect(serverTransport)
+      await client.connect(clientTransport)
+      return client
+    })()
+    return sourceClientPromise
+  }
+  const readRuntimeTools = async (): Promise<McpTool[]> => {
     if (namingMode !== 'runtime') {
       throw new Error('MCP runtime tool list requested from a raw bridge')
     }
-    const tools = application.get('McpCatalogService').listTools(serverConfig.id, { includeDisabled: false })
+    const tools = sourceServer
+      ? (await (await getSourceClient()).listTools()).tools.map(
+          (tool): McpTool => ({
+            ...tool,
+            id: buildMcpToolIdentityKey({ serverId: serverConfig.id, toolName: tool.name }),
+            runtimeName: buildMcpToolRuntimeName({ serverId: serverConfig.id, serverWireName, toolName: tool.name }),
+            type: 'mcp',
+            serverId: serverConfig.id,
+            serverName: serverConfig.name,
+            inputSchema: tool.inputSchema as McpTool['inputSchema']
+          })
+        )
+      : application.get('McpCatalogService').listTools(serverConfig.id, { includeDisabled: false })
     const bindings = tools.map((tool) =>
       createMcpToolBinding({
         serverId: serverConfig.id,
-        serverWireName: serverConfig.serverWireName,
+        serverWireName,
         originalToolName: tool.name
       })
     )
     bindingStore.replaceSnapshotIfCurrent(++refreshToken, bindings)
     return tools
   }
-  if (namingMode === 'runtime') readRuntimeTools()
+  if (namingMode === 'runtime' && !sourceServer) void readRuntimeTools()
 
   // Relay cache updates for this server as `tools/list_changed` (see consistency model
   // above). Subscribe on `oninitialized` rather than at construction: a bridge that is
@@ -156,7 +198,7 @@ export function createMcpBridgeServer(
     if (!listChanged) return
     toolsCacheSubscription ??= application.get('McpCatalogService').onToolsCacheUpdated(({ serverId }) => {
       if (serverId !== serverConfig.id) return
-      if (namingMode === 'runtime') readRuntimeTools()
+      if (namingMode === 'runtime' && !sourceServer) void readRuntimeTools()
       rawServer.sendToolListChanged().catch((error) => {
         // "Not connected" is the expected race between an emitter dispatch and transport
         // teardown — the session is going away, nothing to heal. Anything else means a live
@@ -176,6 +218,7 @@ export function createMcpBridgeServer(
     toolsCacheSubscription?.dispose()
     toolsCacheSubscription = undefined
     bindingStore.dispose()
+    void sourceClientPromise?.then((client) => client.close())
   }
 
   rawServer.setRequestHandler(ListToolsRequestSchema, async () => {
@@ -183,7 +226,7 @@ export function createMcpBridgeServer(
       logger.debug('MCP bridge: listing tools', { mcpId })
       const tools =
         namingMode === 'runtime'
-          ? readRuntimeTools()
+          ? await readRuntimeTools()
           : application.get('McpCatalogService').listTools(serverConfig.id, { includeDisabled: false })
       return {
         tools: tools.map((tool) => {
@@ -214,25 +257,30 @@ export function createMcpBridgeServer(
           }
 
     try {
+      if (sourceServer && namingMode === 'runtime' && bindingStore.getSnapshot().version === 0) {
+        await readRuntimeTools()
+      }
       const binding =
         namingMode === 'runtime'
-          ? bindingStore.getSnapshot().lookupServerTool(serverConfig.serverWireName, request.params.name)
+          ? bindingStore.getSnapshot().lookupServerTool(serverWireName, request.params.name)
           : undefined
       if (namingMode === 'runtime' && !binding) {
         throw new Error(`Unknown MCP runtime tool: ${request.params.name}`)
       }
       const originalToolName = binding?.originalToolName ?? request.params.name
       logger.debug('MCP bridge: calling tool', { mcpId, tool: originalToolName })
-      const result = await application.get('McpRuntimeService').callTool({
-        serverId: serverConfig.id,
-        name: originalToolName,
-        args: request.params.arguments,
-        onProgress,
-        signal: extra.signal
-      })
+      const result = sourceServer
+        ? await (await getSourceClient()).callTool({ name: originalToolName, arguments: request.params.arguments })
+        : await application.get('McpRuntimeService').callTool({
+            serverId: serverConfig.id,
+            name: originalToolName,
+            args: request.params.arguments,
+            onProgress,
+            signal: extra.signal
+          })
       return result as CallToolResult
     } catch (error) {
-      if (isMcpCancellation(error, extra.signal)) {
+      if (extra.signal && isMcpCancellation(error, extra.signal)) {
         // Expected cancellation from the SDK side — the runtime already logged it at debug.
         logger.debug('MCP bridge: tool call aborted', { mcpId, tool: request.params.name })
       } else {
