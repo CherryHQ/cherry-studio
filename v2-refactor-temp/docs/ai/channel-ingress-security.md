@@ -29,6 +29,12 @@ workspace); **outbound is secret-redacted**; **sender identity is unvalidated** 
 
 ## Gaps to close (the actual D1 work)
 
+### G0 — Inbound content has no provenance boundary
+Inbound text is deliberately passed to the agent unchanged. It carries no sender prefix, boundary
+marker, injection warning, normalisation, or detection logging. This is an explicit owner decision:
+prompt wrappers were removed so the agent receives the literal user message. Treat all channel
+content as untrusted when configuring the agent's tools and permissions.
+
 ### G1 — Authorization is chat-level, not sender-level
 Adapters gate on the *chat/channel* allow-list. So **any member of an allow-listed group chat can
 trigger agent runs.** Proposed direction: an optional per-channel **sender allow-list** (user ids)

@@ -2175,7 +2175,6 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(listed.tools.map((tool: { name: string }) => tool.name)).not.toEqual(
       expect.arrayContaining(['kb_search', 'kb_read', 'kb_list', 'kb_manage'])
     )
-    expect(systemPromptText(settings.systemPrompt)).not.toContain('External Channel Security Policy')
   })
 
   it('does not inject a Cherry Assistant-only contract on every submitted prompt', async () => {

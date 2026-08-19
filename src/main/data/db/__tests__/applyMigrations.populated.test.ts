@@ -154,7 +154,7 @@ describe('applyMigrations over a populated database', () => {
     expect(
       sqlite
         .prepare(
-          `SELECT session_id, channel_id, conversation_id, conversation_kind, is_active
+          `SELECT session_id, channel_id, conversation_id, is_active
            FROM agent_channel_session ORDER BY session_id`
         )
         .all()
@@ -163,14 +163,12 @@ describe('applyMigrations over a populated database', () => {
         session_id: 'session-shared',
         channel_id: 'channel-recent',
         conversation_id: null,
-        conversation_kind: null,
         is_active: 0
       },
       {
         session_id: 'session-unique',
         channel_id: 'channel-unique',
         conversation_id: null,
-        conversation_kind: null,
         is_active: 0
       }
     ])

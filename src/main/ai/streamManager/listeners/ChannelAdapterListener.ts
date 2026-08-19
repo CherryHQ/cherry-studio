@@ -31,21 +31,15 @@ export class ChannelAdapterListener implements StreamListener {
 
   /** Deliver a final message using the inbound message's response context. */
   private deliver(text: string): Promise<void> {
-    return this.responseOptions
-      ? this.adapter.sendMessage(this.platformChatId, text, this.responseOptions)
-      : this.adapter.sendMessage(this.platformChatId, text)
+    return this.adapter.sendMessage(this.platformChatId, text, this.responseOptions)
   }
 
   private updateStream(text: string): Promise<void> {
-    return this.responseOptions
-      ? this.adapter.onTextUpdate(this.platformChatId, text, this.responseOptions)
-      : this.adapter.onTextUpdate(this.platformChatId, text)
+    return this.adapter.onTextUpdate(this.platformChatId, text, this.responseOptions)
   }
 
   private completeStream(text: string): Promise<boolean> {
-    return this.responseOptions
-      ? this.adapter.onStreamComplete(this.platformChatId, text, this.responseOptions)
-      : this.adapter.onStreamComplete(this.platformChatId, text)
+    return this.adapter.onStreamComplete(this.platformChatId, text, this.responseOptions)
   }
 
   // oxlint-disable-next-line no-unused-vars

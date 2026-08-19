@@ -222,7 +222,7 @@ describe('ChannelMessageHandler', () => {
     // Delivery is owned by ChannelAdapterListener (the handler no longer post-sends);
     // it accumulates all text-delta chunks via `.delta`, trims, and sends once.
     expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
-    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'Hello world!\n\nDone.')
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'Hello world!\n\nDone.', undefined)
   })
 
   it('settles a busy channel message and leaves the chat queue usable', async () => {
@@ -259,7 +259,7 @@ describe('ChannelMessageHandler', () => {
       userName: 'User',
       text: 'second'
     })
-    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'second completed')
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'second completed', undefined)
   })
 
   // channels-core-3: the streaming delivery path (real ChannelAdapterListener) must route
@@ -293,7 +293,7 @@ describe('ChannelMessageHandler', () => {
 
     expect(sanitizeChannelOutput).toHaveBeenCalled()
     // The redacted text — not the raw secret — is what reaches the adapter.
-    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'the key is <redacted>')
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'the key is <redacted>', undefined)
 
     // Restore the identity default so later tests are unaffected.
     vi.mocked(sanitizeChannelOutput).mockImplementation((text: string) => ({ text, redacted: false }))
@@ -387,7 +387,7 @@ describe('ChannelMessageHandler', () => {
       text: 'Hi'
     })
 
-    expect(adapter.onStreamComplete).toHaveBeenCalledWith('chat-1', 'Hello world!')
+    expect(adapter.onStreamComplete).toHaveBeenCalledWith('chat-1', 'Hello world!', undefined)
     expect(adapter.sendMessage).not.toHaveBeenCalled()
   })
 
@@ -418,7 +418,7 @@ describe('ChannelMessageHandler', () => {
     // and has been removed; ChannelAdapterListener delivers the full text once and
     // each adapter splits per its own platform limit.
     expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
-    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', longText)
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', longText, undefined)
   })
 
   it('handleCommand /new creates a new session in the channel-bound workspace', async () => {
@@ -491,7 +491,7 @@ describe('ChannelMessageHandler', () => {
     // ChannelAdapterListener delivers the compact output once; the handler no longer
     // also sends it (would have been a double-send once the `.delta` read was fixed).
     expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
-    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'Compacted.')
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'Compacted.', undefined)
   })
 
   it('serializes commands after earlier messages in the same conversation', async () => {

@@ -1564,7 +1564,6 @@ describe('PiRuntimeConnection', () => {
         AGENT_DATA_PATH,
         undefined
       )
-      expect(appendedSystemPrompt()).not.toContain('External Channel Security Policy')
     })
 
     it('bakes a disabled autonomy tool into excludeTools and the live gate still blocks it', async () => {
