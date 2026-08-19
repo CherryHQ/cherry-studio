@@ -6303,9 +6303,9 @@
       "variablePlaceholder": "${variable}",
       "visibility": {
         "global": {
-          "badge": "Καθολική"
+          "badge": "Καθολική",
+          "label": "Καθολική χρήση"
         },
-        "label": "Διαθεσιμότητα",
         "makeGlobalConfirmDescription": "Η καθολική χρήση αυτής της προτροπής τη διατηρεί διαθέσιμη παντού, αλλά αφαιρεί οριστικά τις {{count}} συνδέσεις περιβάλλοντος και τη σειρά τους. Συνέχεια;",
         "makeGlobalConfirmTitle": "Να γίνει η προτροπή καθολική;",
         "restricted": {

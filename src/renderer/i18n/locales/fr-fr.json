@@ -6303,9 +6303,9 @@
       "variablePlaceholder": "${variable}",
       "visibility": {
         "global": {
-          "badge": "Global"
+          "badge": "Global",
+          "label": "Utiliser globalement"
         },
-        "label": "Disponibilité",
         "makeGlobalConfirmDescription": "Rendre ce prompt global le maintient disponible partout, mais supprime définitivement ses {{count}} associations de contexte et leur ordre. Continuer ?",
         "makeGlobalConfirmTitle": "Rendre le prompt global ?",
         "restricted": {

@@ -366,7 +366,7 @@ describe('PromptEditDialog', () => {
       />
     )
 
-    await user.click(screen.getByRole('switch', { name: 'settings.prompts.visibility.global.badge' }))
+    await user.click(screen.getByRole('switch', { name: 'settings.prompts.visibility.global.label' }))
     await user.click(screen.getByRole('button', { name: 'common.confirm' }))
 
     await waitFor(() =>

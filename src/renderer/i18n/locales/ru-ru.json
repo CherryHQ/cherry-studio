@@ -6303,9 +6303,9 @@
       "variablePlaceholder": "${variable}",
       "visibility": {
         "global": {
-          "badge": "Глобальный"
+          "badge": "Глобальный",
+          "label": "Использовать глобально"
         },
-        "label": "Доступность",
         "makeGlobalConfirmDescription": "Глобальный промпт останется доступным везде, но его {{count}} связей с контекстами и их порядок будут удалены без возможности восстановления. Продолжить?",
         "makeGlobalConfirmTitle": "Сделать промпт глобальным?",
         "restricted": {

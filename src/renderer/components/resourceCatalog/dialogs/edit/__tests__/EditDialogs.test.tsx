@@ -504,8 +504,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'settings.prompts.titleLabel': 'Title',
           'settings.prompts.titlePlaceholder': 'Enter a title',
           'settings.prompts.variablePlaceholder': '${variable}',
-          'settings.prompts.visibility.global.badge': 'Global',
-          'settings.prompts.visibility.label': 'Availability',
+          'settings.prompts.visibility.global.label': 'Use globally',
           'settings.title': 'Settings'
         })[key] ??
         (typeof fallbackOrOptions === 'string' ? fallbackOrOptions : undefined) ??
@@ -890,7 +889,7 @@ describe('edit dialogs', () => {
     const createDialog = screen.getByRole('dialog', { name: 'Add prompt' })
     await user.type(within(createDialog).getByLabelText('Title'), 'Global prompt')
     await user.type(within(createDialog).getByLabelText('Prompt editor'), 'Global prompt content')
-    await user.click(within(createDialog).getByRole('switch', { name: 'Global' }))
+    await user.click(within(createDialog).getByRole('switch', { name: 'Use globally' }))
     await user.click(within(createDialog).getByRole('button', { name: 'Confirm' }))
 
     await waitFor(() =>
@@ -918,7 +917,7 @@ describe('edit dialogs', () => {
     await user.click(within(createDialog).getByRole('button', { name: 'Confirm' }))
 
     await waitFor(() => {
-      expect(within(createDialog).getByRole('switch', { name: 'Global' })).toBeDisabled()
+      expect(within(createDialog).getByRole('switch', { name: 'Use globally' })).toBeDisabled()
     })
 
     await act(async () => {

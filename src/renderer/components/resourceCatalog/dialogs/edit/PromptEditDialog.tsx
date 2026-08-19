@@ -193,25 +193,20 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({
             resetPreviewKey={resetPreviewKey}
           />
 
-          <fieldset className="flex flex-col gap-2">
-            <legend className="mb-1 font-medium text-foreground text-sm">
-              {t('settings.prompts.visibility.label')}
-            </legend>
-            <div className="flex items-center justify-between gap-3">
-              <label htmlFor={visibilitySwitchId} className="font-medium text-muted-foreground text-sm">
-                {t('settings.prompts.visibility.global.badge')}
-              </label>
-              <Switch
-                id={visibilitySwitchId}
-                size="sm"
-                checked={formData.visibility === 'global'}
-                disabled={isSaving}
-                onCheckedChange={(checked) =>
-                  setFormData((current) => ({ ...current, visibility: checked ? 'global' : 'restricted' }))
-                }
-              />
-            </div>
-          </fieldset>
+          <div className="flex items-center gap-2">
+            <label htmlFor={visibilitySwitchId} className="font-medium text-muted-foreground text-sm">
+              {t('settings.prompts.visibility.global.label')}
+            </label>
+            <Switch
+              id={visibilitySwitchId}
+              size="sm"
+              checked={formData.visibility === 'global'}
+              disabled={isSaving}
+              onCheckedChange={(checked) =>
+                setFormData((current) => ({ ...current, visibility: checked ? 'global' : 'restricted' }))
+              }
+            />
+          </div>
         </div>
 
         <DialogFooter>

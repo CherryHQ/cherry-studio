@@ -6303,9 +6303,9 @@
       "variablePlaceholder": "${variable}",
       "visibility": {
         "global": {
-          "badge": "Toàn cục"
+          "badge": "Toàn cục",
+          "label": "Sử dụng toàn cục"
         },
-        "label": "Phạm vi sử dụng",
         "makeGlobalConfirmDescription": "Đặt lời nhắc này thành toàn cục sẽ giữ nó khả dụng ở mọi nơi, nhưng xóa vĩnh viễn {{count}} liên kết ngữ cảnh cùng thứ tự của chúng. Tiếp tục?",
         "makeGlobalConfirmTitle": "Đặt lời nhắc thành toàn cục?",
         "restricted": {

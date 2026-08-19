@@ -6303,9 +6303,9 @@
       "variablePlaceholder": "${variable}",
       "visibility": {
         "global": {
-          "badge": "グローバル"
+          "badge": "グローバル",
+          "label": "グローバルに使用"
         },
-        "label": "利用範囲",
         "makeGlobalConfirmDescription": "このプロンプトをグローバルにすると、すべての場所で利用できますが、{{count}} 件のコンテキスト関連付けとその順序は完全に削除されます。続行しますか？",
         "makeGlobalConfirmTitle": "プロンプトをグローバルにしますか？",
         "restricted": {

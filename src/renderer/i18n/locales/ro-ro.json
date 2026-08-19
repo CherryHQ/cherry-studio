@@ -6303,9 +6303,9 @@
       "variablePlaceholder": "${variable}",
       "visibility": {
         "global": {
-          "badge": "Global"
+          "badge": "Global",
+          "label": "Utilizează global"
         },
-        "label": "Disponibilitate",
         "makeGlobalConfirmDescription": "Transformarea acestui prompt în unul global îl păstrează disponibil peste tot, dar elimină definitiv cele {{count}} asocieri de context și ordinea lor. Continui?",
         "makeGlobalConfirmTitle": "Transformi promptul în unul global?",
         "restricted": {

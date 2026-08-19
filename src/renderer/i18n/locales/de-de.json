@@ -6303,9 +6303,9 @@
       "variablePlaceholder": "${variable}",
       "visibility": {
         "global": {
-          "badge": "Global"
+          "badge": "Global",
+          "label": "Global verwenden"
         },
-        "label": "Verfügbarkeit",
         "makeGlobalConfirmDescription": "Wenn dieser Prompt global wird, bleibt er überall verfügbar, aber seine {{count}} Kontextverknüpfungen samt Reihenfolge werden dauerhaft entfernt. Fortfahren?",
         "makeGlobalConfirmTitle": "Prompt global machen?",
         "restricted": {
