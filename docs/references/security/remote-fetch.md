@@ -1,3 +1,10 @@
+---
+description: SSRF-safe rules for main-process fetches of untrusted URLs, with DNS pinning and private-address rejection
+sources:
+  - src/main/utils/remoteFetch.ts
+  - src/main/utils/remoteUrlSafety.ts
+---
+
 # Remote Fetch Safety
 
 Main-process direct URL fetches can receive renderer, assistant, or provider-controlled input. A literal URL check is not enough for these paths: an attacker-controlled hostname can resolve to a public address during preflight and then rebind to a private address when the network stack opens the connection.
@@ -46,6 +53,11 @@ For direct untrusted fetches, Cherry Studio uses a Node HTTP(S) request path tha
 
 Callers migrating from `net.fetch` must treat this as a user-visible compatibility change: `fetchRemoteText` does not inherit Chromium session proxy settings. Do not add a caller-specific `net.fetch` fallback, because that would reopen the DNS time-of-check/time-of-use gap. Citation previews intentionally degrade to empty preview content on proxy-only networks while keeping the citation title and link usable.
 
+## Which helper to use
+
+- `fetchRemoteText(url, options)` is the full direct-fetch boundary: URL validation, DNS resolution, address pinning, timeout, redirect policy, and response-size limit.
+- `sanitizeRemoteUrl(url, configuredApiHost?)` is only a literal URL guard. It is useful when no network request is opened at that point or when validating a user-configured provider origin, including an explicitly matching loopback/private provider endpoint. It does not close DNS rebinding by itself and must not be followed by an unpinned direct fetch of attacker-controlled input.
+
 ## Redirects
 
-Redirects are rejected by default. Callers may opt into a strict hop limit; every followed hop repeats URL validation, DNS resolution, private-address rejection, and pinned connection setup before opening the next request.
+Redirects are rejected by default. Callers may opt into a strict hop limit; every followed hop repeats URL validation, DNS resolution, private-address rejection, and pinned connection setup before opening the next request. Cross-origin redirects drop `Authorization`, `Cookie`, and `Proxy-Authorization` headers before the next hop.

@@ -1482,7 +1482,9 @@ export class MessageService {
       // Build update object
       const updates: Partial<typeof messageTable.$inferInsert> = {}
 
-      if (dto.data !== undefined) updates.data = dto.data
+      // PATCH callers send partial data (usually just parts); shallow-merge so
+      // omitted keys like main-authoritative turnOptions survive the update.
+      if (dto.data !== undefined) updates.data = { ...existing.data, ...dto.data }
       if (dto.parentId !== undefined) updates.parentId = dto.parentId
       if (dto.siblingsGroupId !== undefined) updates.siblingsGroupId = dto.siblingsGroupId
       let activityTransitionAt: number | null = null
@@ -1500,8 +1502,8 @@ export class MessageService {
       }
 
       const [row] = tx.update(messageTable).set(updates).where(eq(messageTable.id, id)).returning().all()
-      if (dto.data !== undefined) {
-        replaceChatMessageFileRefsTx(tx, id, dto.data)
+      if (updates.data !== undefined) {
+        replaceChatMessageFileRefsTx(tx, id, updates.data)
       }
       if (activityTransitionAt !== null) {
         getDataService('TopicService').advanceLastActivityAtTx(tx, existingRow.topicId, activityTransitionAt)

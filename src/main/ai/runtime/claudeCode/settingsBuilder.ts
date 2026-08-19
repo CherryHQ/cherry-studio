@@ -71,7 +71,7 @@ import {
   ASK_USER_QUESTION_TOOL_NAME,
   HEADLESS_INTERACTIVE_TOOL_DENIAL
 } from './guardRules'
-import { buildClaudeCodeHooks } from './hooks'
+import { buildClaudeCodeHooks, surfaceExitPlanModeInput } from './hooks'
 import { buildMcpServers, buildMcpToolMetadata, warmAgentMcpToolCaches } from './mcpCatalog'
 import { decisionToPermissionResult } from './ToolApprovalRegistry'
 import type { ClaudeCodeSettings, McpToolDisplayMetadata } from './types'
@@ -442,6 +442,10 @@ async function buildToolPermissions(
     if (opts.signal.aborted) {
       return { behavior: 'deny', message: 'Tool request was cancelled' }
     }
+
+    // ExitPlanMode's normalized plan arrives here after the raw streamed `{}` input. Surface it
+    // while the tool row is live, before approval or a headless denial settles the call.
+    surfaceExitPlanModeInput(session.id, toolName, input, opts.toolUseID)
 
     // Resolve the snapshot by id at fire-time — a warm-pooled query's baked `canUseTool` must read
     // the live session snapshot, not a per-build instance the running subprocess never sees.

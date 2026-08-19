@@ -50,6 +50,7 @@ export class ClaudeCodeSessionStateService extends BaseService {
       const nextHolder: ToolApprovalEmitterHolder = {
         dispose: () => {
           nextHolder.emit = undefined
+          nextHolder.emitInput = undefined
           toolApprovalRegistry.abort(sessionId, 'stream-ended')
           // Evict so the map doesn't grow unbounded across sessions;
           // the holder is rebuilt lazily on the next settings build.

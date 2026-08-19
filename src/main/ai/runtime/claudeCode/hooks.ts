@@ -24,8 +24,21 @@ import { CLAUDE_TOOL_GUARD_RULES } from './guardRules'
 import type { ClaudeCodeSettings } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeHooks')
+const EXIT_PLAN_MODE_TOOL_NAME = 'ExitPlanMode'
 
 const sessionState = () => application.get('ClaudeCodeSessionStateService')
+
+export function surfaceExitPlanModeInput(
+  sessionId: string,
+  toolName: string,
+  input: Record<string, unknown> | undefined,
+  toolCallId: string | undefined
+): void {
+  if (toolName !== EXIT_PLAN_MODE_TOOL_NAME || !toolCallId || typeof input?.plan !== 'string' || !input.plan.trim()) {
+    return
+  }
+  sessionState().peekToolApprovalEmitter(sessionId)?.emitInput?.({ toolCallId, toolName, input })
+}
 
 function extractSteerText(input: AgentRuntimeUserInput): string {
   return (
@@ -53,11 +66,12 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
   // The single policy hook: evaluates the guard table with a fire-time context snapshot. Runs as a
   // PreToolUse hook (not in canUseTool) because hooks fire under every permission mode, while the
   // SDK skips canUseTool on auto-approved paths.
-  const toolGuardHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+  const toolGuardHook: HookCallback = async (input, toolUseId): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'PreToolUse') return {}
     const toolName = String((input as Record<string, unknown>).tool_name ?? '')
     if (!toolName) return {}
     const toolInput = (input as Record<string, unknown>).tool_input as Record<string, unknown> | undefined
+    surfaceExitPlanModeInput(sessionId, toolName, toolInput, toolUseId)
     // Live state by id at fire-time: mode and disabled-set follow mid-session agent updates on warm
     // connections; a missing snapshot means no disabled set yet (canUseTool separately fails closed).
     const snapshot = sessionState().getToolPolicySnapshot(sessionId)
