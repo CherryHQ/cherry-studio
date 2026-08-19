@@ -314,7 +314,7 @@ vi.mock('@data/hooks/usePreference', () => ({
 }))
 
 vi.mock('@renderer/hooks/tab', () => ({
-  useTabs: () => ({
+  useTabsActions: () => ({
     activeTab: mocks.activeTab,
     openTab: mocks.openTab,
     setActiveTab: mocks.setActiveTab,

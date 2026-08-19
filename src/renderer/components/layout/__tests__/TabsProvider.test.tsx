@@ -162,7 +162,7 @@ function SessionInspector() {
 }
 
 function BatchCloseControls() {
-  const { activeTabId, addTab, closeTabs, setActiveTab, tabs, updateTab } = useTabsContext()
+  const { activeTabId, addTab, closeTabs, openTab, setActiveTab, tabs, updateTab } = useTabsContext()
 
   return (
     <>
@@ -205,6 +205,14 @@ function BatchCloseControls() {
       </button>
       <button type="button" onClick={() => closeTabs(['d'])}>
         Close D
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          closeTabs(['c'])
+          openTab('/app/chat?topicId=c', { id: 'c-reopened' })
+        }}>
+        Close and reopen C
       </button>
       <button type="button" onClick={() => closeTabs(['home', 'b', 'c', 'd'], 'files')}>
         Close all normals to Files
@@ -567,6 +575,22 @@ describe('TabsProvider', () => {
 
     await waitFor(() => expect(screen.getByTestId('tab-ids')).toHaveTextContent('files,home,b,c'))
     expect(screen.getByTestId('active-tab-id')).toHaveTextContent('c')
+  })
+
+  it('does not reactivate a closed tab when another action runs in the same event', async () => {
+    render(
+      <TabsProvider initialDefaultTab={HOME_TAB}>
+        <BatchCloseControls />
+      </TabsProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Seed tabs' }))
+    await waitFor(() => expect(screen.getByTestId('tab-ids')).toHaveTextContent('files,home,b,c,d'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close and reopen C' }))
+
+    await waitFor(() => expect(screen.getByTestId('tab-ids')).toHaveTextContent('files,home,b,d,c-reopened'))
+    expect(screen.getByTestId('active-tab-id')).toHaveTextContent('c-reopened')
   })
 
   it('wakes a dormant pinned survivor through the pinned store', async () => {

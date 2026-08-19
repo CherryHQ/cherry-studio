@@ -142,6 +142,7 @@ const resourceEditDialogMocks = vi.hoisted(() => ({ renderHost: vi.fn() }))
 
 vi.mock('@renderer/hooks/tab', () => ({
   useCloseConversationTabs: () => tabsContextMocks.closeConversationTabs,
+  useOptionalTabsActions: () => tabsContextMocks,
   useOptionalTabsContext: () => tabsContextMocks
 }))
 
