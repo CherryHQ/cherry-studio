@@ -20,11 +20,11 @@ export const SERVER_TOOL_FUNCTION_MIXING_MODEL_IDS: readonly string[] = [
   'gemini-3-5-flash-lite',
   'gemini-3-5-live-translate-preview',
   'gemini-3-6-flash',
+  'gemini-3-7-flash',
   'gemini-3-flash',
   'gemini-3-flash-preview',
   'gemini-3-pro-image',
   'gemini-3-pro-image-preview',
-  'gemini-3-pro-preview',
   'gemini-flash-latest',
   'gemini-pro-latest'
 ]
@@ -33,9 +33,11 @@ export const SERVER_TOOL_FUNCTION_MIXING_MODEL_IDS: readonly string[] = [
 export const WEB_SEARCH_UNSUPPORTED_EFFORTS: Readonly<Record<string, readonly string[]>> = {
   'gpt-5': ['minimal'],
   'gpt-5-codex': ['minimal'],
+  'gpt-5-fast': ['minimal'],
   'gpt-5-image': ['minimal'],
   'gpt-5-image-mini': ['minimal'],
   'gpt-5-mini': ['minimal'],
+  'gpt-5-mini-fast': ['minimal'],
   'gpt-5-nano': ['minimal'],
   'gpt-5-pro': ['minimal']
 }

@@ -154,6 +154,16 @@ describe('catalog invariants (data/*.json)', () => {
     expect(ids.filter((id) => canonOf(id) !== id)).toEqual([])
   })
 
+  // A `:batch` twin bills through OpenRouter's async job API, which the app never calls — it must not
+  // reach the catalog as a model or as a provider row (see scripts/canonicalize.ts).
+  it('excludes batch-API twins from both the catalog and provider rows', () => {
+    const isBatch = (id: string) => /[:-]batch$/.test(id)
+    expect([
+      ...ids.filter(isBatch),
+      ...overrides.filter((o) => isBatch(o.apiModelId ?? o.modelId)).map((o) => `${o.providerId}/${o.apiModelId}`)
+    ]).toEqual([])
+  })
+
   it('assigns overlapping creator prefixes to the most specific owner', () => {
     const wrongOwner = models
       .map((model) => {
