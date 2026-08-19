@@ -162,6 +162,7 @@ describe('AgentChatContextProvider', () => {
     )
     expect(mocks.saveMessagesTx).toHaveBeenCalledOnce()
     expect(mocks.saveMessage).not.toHaveBeenCalled()
+    expect(provider.isPersistentConversation).toBe(true)
     const savedMessages = mocks.saveMessagesTx.mock.calls[0][1].messages
     expect(savedMessages[1]).toMatchObject({
       role: 'assistant',

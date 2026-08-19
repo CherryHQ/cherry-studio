@@ -26,7 +26,7 @@ import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types
 import type { Provider } from '@shared/data/types/provider'
 import { isFunctionCallingModel } from '@shared/utils/model'
 import { finalizeWebToolRoutes, resolveWebToolRoutes, type WebToolRoutes } from '@shared/utils/provider'
-import { type JSONValue, stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
+import { stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
 
 import { resolveRequestContextSettings } from '../../../contextBuild/resolveRequestContextSettings'
 import type { FileAttachmentRef } from '../../../messages/attachmentTypes'
@@ -62,7 +62,6 @@ import {
 import {
   applyFastModeToProviderOptions,
   buildCapabilityProviderOptions,
-  buildResolvedReasoningProviderOptions,
   extractAiSdkStandardParams,
   mergeCustomProviderParameters
 } from '../../../utils/options'
@@ -550,35 +549,25 @@ function buildAgentOptions(
     reasoning
   } = scope
 
-  let providerOptions =
-    assistant && capabilities
-      ? buildCapabilityProviderOptions(
-          model,
-          provider,
-          {
-            enableReasoning: capabilities.enableReasoning,
-            enableGenerateImage: capabilities.enableGenerateImage,
-            enableWebSearch: scope.webToolRoutes?.webSearch === 'server'
-          },
-          {
-            aiSdkProviderId,
-            runtimeProviderId: sdkConfig.providerId,
-            providerOptionsKey: sdkConfig.providerOptionsKey,
-            endpointType,
-            reasoning
-          }
-        )
-      : // Assistant-less callers (translate, prompt streams) opt into reasoning by setting
-        // `request.reasoningEffort` explicitly; without it the invocation stays un-emitted so
-        // gateway/topic-naming requests are unchanged.
-        request.reasoningEffort !== undefined
-        ? (buildResolvedReasoningProviderOptions({
-            aiSdkProviderId: sdkConfig.providerId,
-            providerOptionsKey: sdkConfig.providerOptionsKey,
-            endpointType,
-            reasoning
-          }) as Record<string, Record<string, JSONValue>>)
-        : {}
+  // One path for both callers, so protocol/model defaults (store, safetySettings, num_ctx…)
+  // can't diverge. Assistant-less callers (translate, prompt streams) carry no capabilities;
+  // they opt into reasoning by setting `request.reasoningEffort` explicitly.
+  let providerOptions = buildCapabilityProviderOptions(
+    model,
+    provider,
+    {
+      enableReasoning: capabilities ? capabilities.enableReasoning : request.reasoningEffort !== undefined,
+      enableGenerateImage: capabilities?.enableGenerateImage ?? false,
+      enableWebSearch: capabilities ? scope.webToolRoutes?.webSearch === 'server' : false
+    },
+    {
+      aiSdkProviderId,
+      runtimeProviderId: sdkConfig.providerId,
+      providerOptionsKey: sdkConfig.providerOptionsKey,
+      endpointType,
+      reasoning
+    }
+  )
   let standardParams: Partial<Record<string, unknown>> = {}
   if (assistant) {
     const temperature = getTemperature(assistant, model, reasoning)
@@ -616,6 +605,9 @@ function buildAgentOptions(
     overridden.providerOptions,
     request.fastMode === true
   )
+  // A namespace that ended up empty carries nothing; emitting it would ship a bare
+  // `providerOptions` for callers that opted into nothing.
+  const hasProviderOptions = Object.values(effectiveProviderOptions).some((ns) => Object.keys(ns ?? {}).length > 0)
   const effectiveBudgetTokens = resolveEffectiveThinkingBudget(
     effectiveProviderOptions,
     sdkConfig.providerOptionsKey,
@@ -642,7 +634,7 @@ function buildAgentOptions(
     ...(stopWhen && { stopWhen }),
     ...(headers && { headers }),
     ...(callOverrides?.toolChoice && { toolChoice: callOverrides.toolChoice }),
-    ...(Object.keys(effectiveProviderOptions).length > 0 && { providerOptions: effectiveProviderOptions }),
+    ...(hasProviderOptions && { providerOptions: effectiveProviderOptions }),
     ...(telemetry && { telemetry }),
     ...standardParams,
     context: requestContext,

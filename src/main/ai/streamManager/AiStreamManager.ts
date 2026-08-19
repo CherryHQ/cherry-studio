@@ -5,7 +5,15 @@ import { loggerService } from '@logger'
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
-import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import {
+  BaseService,
+  type Disposable,
+  Emitter,
+  type Event,
+  Injectable,
+  Phase,
+  ServicePhase
+} from '@main/core/lifecycle'
 import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { shouldDeferToolOutput } from '@main/utils/messageOutputProjection'
@@ -29,7 +37,13 @@ import type { UIMessageChunk } from 'ai'
 
 import { extractAgentSessionId, isAgentSessionTopic } from '../agentSession/topic'
 import { applyTurnOutputAttributes } from '../observability'
-import type { AiStreamRequest, CallOverrides, ContextOwner, InProcessUsageContext } from '../types'
+import type {
+  AiStreamRequest,
+  ApprovalRequestedEvent,
+  CallOverrides,
+  ContextOwner,
+  InProcessUsageContext
+} from '../types'
 import { AiStreamAdmissionError, type LiveExecutionChangeAdmission, type LiveExecutionChangeIntent } from './admission'
 import { buildCompactReplay, mergeDeltaPayload, splitDeltaPayload } from './buildCompactReplay'
 import { dispatchStreamRequest, type MainDispatchRequest } from './context/dispatch'
@@ -45,6 +59,7 @@ import type {
   ActiveStream,
   AiStreamManagerConfig,
   CherryUIMessage,
+  ConversationCompletedEvent,
   StreamChunkPayload,
   StreamDoneResult,
   StreamErrorResult,
@@ -112,6 +127,8 @@ export interface SendInput {
   liveExecutionChange?: LiveExecutionChange
   /** Defaults to chat lifecycle. `streamPrompt` passes `promptStreamLifecycle`. */
   lifecycle?: StreamLifecycle
+  /** Admission-time snapshot; temporary/internal streams omit it. */
+  isPersistentConversation?: boolean
 }
 
 export interface SendResult {
@@ -297,6 +314,10 @@ const nullStreamListener: StreamListener = {
 @Injectable('AiStreamManager')
 @ServicePhase(Phase.WhenReady)
 export class AiStreamManager extends BaseService {
+  private readonly _onApprovalRequested = new Emitter<ApprovalRequestedEvent>()
+  public readonly onApprovalRequested: Event<ApprovalRequestedEvent> = this._onApprovalRequested.event
+  private readonly _onConversationCompleted = new Emitter<ConversationCompletedEvent>()
+  public readonly onConversationCompleted: Event<ConversationCompletedEvent> = this._onConversationCompleted.event
   private readonly activeStreams = new Map<string, ActiveStream>()
   /** Serialises `prepareDispatch → send` per topic so concurrent `Ai_Stream_Open` can't race
    *  the `hasLiveStream` snapshot and orphan a PENDING placeholder row. */
@@ -349,7 +370,9 @@ export class AiStreamManager extends BaseService {
   constructor(config: Partial<AiStreamManagerConfig> = {}) {
     super()
     this.config = { ...DEFAULT_CONFIG, ...config }
-    this.chatLifecycle = createChatStreamLifecycle(this.config.gracePeriodMs)
+    this.chatLifecycle = createChatStreamLifecycle(this.config.gracePeriodMs, (event) =>
+      this._onConversationCompleted.fire(event)
+    )
   }
 
   protected async onInit(): Promise<void> {
@@ -596,6 +619,11 @@ export class AiStreamManager extends BaseService {
     await Promise.allSettled(loopPromises)
   }
 
+  protected onDestroy(): void {
+    this._onApprovalRequested.dispose()
+    this._onConversationCompleted.dispose()
+  }
+
   // ── Public: unified send ──────────────────────────────────────────
 
   admitLiveExecutionChange(topicId: string, intent: LiveExecutionChangeIntent): LiveExecutionChangeAdmission {
@@ -801,15 +829,16 @@ export class AiStreamManager extends BaseService {
 
     const stream: ActiveStream = {
       topicId: input.topicId,
-      // Surfaced into the topic status snapshot for per-window turn de-dup. Not yet read by any
-      // consumer on any branch — the renderer reader lands in the renderer split (keep it).
+      // Surfaced into the topic status snapshot and the main-only completion event as this turn's
+      // stable identity.
       turnId: `${Date.now()}:${++this.nextStreamTurnSequence}`,
       executions,
       listeners: new Map(input.listeners.map((l) => [l.id, l])),
       // `pending` → `streaming` on first chunk.
       status: 'pending',
       isMultiModel,
-      lifecycle: input.lifecycle ?? this.chatLifecycle
+      lifecycle: input.lifecycle ?? this.chatLifecycle,
+      isPersistentConversation: input.isPersistentConversation === true
     }
     this.activeStreams.set(input.topicId, stream)
     // Chat broadcasts to SharedCache so `useChatWithHistory.resumeActiveStream` can attach; prompt is silent.
@@ -895,7 +924,8 @@ export class AiStreamManager extends BaseService {
           abortController: input.abortController
         }
       ],
-      listeners: [...carriedListeners, ...input.listeners]
+      listeners: [...carriedListeners, ...input.listeners],
+      isPersistentConversation: true
     })
   }
 
@@ -1167,8 +1197,18 @@ export class AiStreamManager extends BaseService {
     // clears another tool's still-pending approval; `resolveTerminalStatus` reads the set's size.
     const hadPendingApprovals = (exec.pendingApprovalToolCallIds?.size ?? 0) > 0
     if (chunk.type === 'tool-approval-request') {
-      ;(exec.pendingApprovalToolCallIds ??= new Set()).add(chunk.toolCallId)
+      const pendingApprovals = (exec.pendingApprovalToolCallIds ??= new Set())
+      pendingApprovals.add(chunk.toolCallId)
       exec.runtimeTiming.startApproval(chunk.approvalId, chunk.toolCallId, toolNameFromApprovalChunk(chunk))
+      const publishedApprovals = (exec.publishedApprovalIds ??= new Set())
+      if (!publishedApprovals.has(chunk.approvalId) && stream.isPersistentConversation) {
+        publishedApprovals.add(chunk.approvalId)
+        this._onApprovalRequested.fire({
+          topicId,
+          approvalId: chunk.approvalId,
+          requestedAt: Date.now()
+        })
+      }
     } else if (
       chunk.type === 'tool-output-available' ||
       chunk.type === 'tool-output-error' ||
