@@ -1684,6 +1684,9 @@
     },
     "expand": "Expand",
     "more": "More",
+    "preview": {
+      "invalid_json": "Invalid JSON configuration"
+    },
     "run": "Run",
     "split": {
       "label": "Split View",

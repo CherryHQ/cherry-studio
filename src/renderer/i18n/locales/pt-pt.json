@@ -1684,6 +1684,9 @@
     },
     "expand": "Expandir",
     "more": "Mais",
+    "preview": {
+      "invalid_json": "Configuração JSON inválida"
+    },
     "run": "Executar código",
     "split": {
       "label": "Dividir visualização",

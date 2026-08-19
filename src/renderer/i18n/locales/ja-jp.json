@@ -1684,6 +1684,9 @@
     },
     "expand": "展開する",
     "more": "もっと",
+    "preview": {
+      "invalid_json": "JSON 設定の形式が無効です"
+    },
     "run": "コードを実行",
     "split": {
       "label": "分割視圖",

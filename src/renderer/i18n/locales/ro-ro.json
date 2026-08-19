@@ -1684,6 +1684,9 @@
     },
     "expand": "Extinde",
     "more": "Mai mult",
+    "preview": {
+      "invalid_json": "Configurație JSON invalidă"
+    },
     "run": "Rulează",
     "split": {
       "label": "Vizualizare divizată",

@@ -1684,6 +1684,9 @@
     },
     "expand": "展开",
     "more": "更多",
+    "preview": {
+      "invalid_json": "配置 JSON 格式错误"
+    },
     "run": "运行代码",
     "split": {
       "label": "分割视图",

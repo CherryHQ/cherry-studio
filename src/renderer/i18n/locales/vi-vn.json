@@ -1684,6 +1684,9 @@
     },
     "expand": "Mở rộng",
     "more": "Thêm",
+    "preview": {
+      "invalid_json": "Cấu hình JSON không hợp lệ"
+    },
     "run": "Chạy",
     "split": {
       "label": "Chia đôi màn hình",
