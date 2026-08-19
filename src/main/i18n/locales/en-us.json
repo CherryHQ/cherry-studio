@@ -3,9 +3,16 @@
     "builtin": {
       "cherry_assistant": {
         "description": "Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills"
+      },
+      "cherry_support": {
+        "description": "Official Cherry Studio support Agent for setup guidance, troubleshooting, FAQs, and feedback"
       }
     },
     "session": {
+      "run_status": {
+        "busy": "The Agent Session is busy. Please try again shortly.",
+        "unavailable": "The Agent Session is no longer available."
+      },
       "workspace_status": {
         "inaccessible": "Workspace path is not accessible: {{path}}",
         "missing": "Workspace path does not exist: {{path}}",
@@ -101,8 +108,26 @@
     "save_as_html": "Save as HTML",
     "save_as_pdf": "Save as PDF",
     "save_file": "Save File",
+    "screen_capture_permission": {
+      "cancel": "Cancel",
+      "detail": "Grant Screen Recording permission to \"{{appName}}\" in System Settings > Privacy & Security > Screen Recording, then restart the app.",
+      "message": "Screen Recording permission is required to take screenshots.",
+      "open_settings": "Open System Settings",
+      "title": "Screen Recording Permission"
+    },
+    "screenshot_failed": {
+      "message": "The screenshot could not be taken.",
+      "ok": "OK",
+      "title": "Screenshot Failed"
+    },
     "select_folder": "Select Folder",
     "word_document": "Word Document"
+  },
+  "file_processing": {
+    "errors": {
+      "document_size_limit_exceeded": "The current document parsing service requires files smaller than {{maxSize}}. Compress or split this file, then add it again.",
+      "pdf_page_limit_exceeded": "This PDF exceeds the {{maxPages}}-page limit for the current document parsing service. Split the PDF manually, then add it again."
+    }
   },
   "openclaw": {
     "errors": {

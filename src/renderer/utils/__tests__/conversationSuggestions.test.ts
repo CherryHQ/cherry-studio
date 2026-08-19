@@ -47,6 +47,7 @@ describe('conversation suggestion generation', () => {
     await expect(generateConversationSuggestions(context)).resolves.toEqual(['检查改动', '制定计划', '补充验证'])
     expect(ipcApi.request).toHaveBeenCalledWith('ai.text.generate', {
       uniqueModelId: model.id,
+      reasoningEffort: 'none',
       system: expect.stringContaining('For agent mode'),
       prompt: JSON.stringify(context)
     })

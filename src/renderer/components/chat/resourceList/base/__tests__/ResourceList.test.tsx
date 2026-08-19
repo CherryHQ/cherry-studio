@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { type ReactNode, useMemo, useState } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -127,7 +128,6 @@ import { SessionResourceList } from '../../SessionResourceList'
 import { TopicResourceList } from '../../TopicResourceList'
 import {
   ResourceList,
-  type ResourceListPresentation,
   useResourceList,
   useResourceListActions,
   useResourceListGroupState,
@@ -314,8 +314,9 @@ describe('ResourceList', () => {
     expect(ITEMS.map((item) => item.id).join(',')).toBe(originalOrder)
   })
 
-  it('renders seeded empty groups without showing the empty state', () => {
+  it('renders an empty-group label only while a seeded empty group is expanded', async () => {
     const Provider = ResourceList.Provider<TestItem>
+    const user = userEvent.setup()
 
     render(
       <Provider
@@ -326,6 +327,7 @@ describe('ResourceList', () => {
             label: 'Empty Assistant'
           }
         ]}
+        groupEmptyLabel="No conversations"
         groupBy={(item) => ({ id: item.kind, label: item.kind })}>
         <ResourceList.Frame>
           <Inspector />
@@ -341,12 +343,17 @@ describe('ResourceList', () => {
     )
 
     expect(screen.getByRole('button', { name: 'Empty Assistant' })).toBeInTheDocument()
+    expect(screen.getByText('No conversations')).toBeInTheDocument()
     expect(screen.queryByText('No Resources')).not.toBeInTheDocument()
     expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
       names: [],
       visibleNames: [],
       groups: ['assistant-empty']
     })
+
+    await user.click(screen.getByRole('button', { name: 'Empty Assistant' }))
+
+    expect(screen.queryByText('No conversations')).not.toBeInTheDocument()
   })
 
   it('keeps seeded groups before item-derived groups and toggles empty select-first groups', () => {
@@ -863,7 +870,6 @@ describe('ResourceList', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Rename Alpha' }))
     const input = screen.getByLabelText('Rename Alpha')
     expect(input.closest('[role="option"]')).toHaveAttribute('aria-selected', 'false')
-    expect(input).toHaveClass('text-inherit')
     fireEvent.change(input, { target: { value: 'Renamed Alpha' } })
     fireEvent.keyDown(input, { key: 'Enter' })
 
@@ -871,6 +877,55 @@ describe('ResourceList', () => {
     expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
       renamingId: null
     })
+  })
+
+  it('keeps inline rename open while an IME is composing so the pinyin buffer is never committed', () => {
+    const onRenameItem = vi.fn()
+    const Provider = ResourceList.Provider<TestItem>
+
+    function Row({ item }: { item: TestItem }) {
+      const { actions } = useResourceList<TestItem>()
+      return (
+        <ResourceList.Item item={item}>
+          <ResourceList.RenameField item={item} aria-label={`Rename ${item.name}`} />
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation()
+              actions.startRename(item.id)
+            }}>
+            Rename {item.name}
+          </button>
+        </ResourceList.Item>
+      )
+    }
+
+    render(
+      <Provider items={ITEMS} onRenameItem={onRenameItem}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem> renderItem={(item) => <Row item={item} />} />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rename Alpha' }))
+    const input = screen.getByLabelText('Rename Alpha')
+
+    // Confirming a CJK candidate types Enter while the input still holds the raw pinyin.
+    fireEvent.change(input, { target: { value: "dui'bi" } })
+    expect(fireEvent.keyDown(input, { key: 'Enter', isComposing: true })).toBe(true)
+    expect(onRenameItem).not.toHaveBeenCalled()
+    // Legacy fallback: browsers that don't expose isComposing report keyCode 229.
+    expect(fireEvent.keyDown(input, { key: 'Enter', keyCode: 229 })).toBe(true)
+    expect(onRenameItem).not.toHaveBeenCalled()
+    // Escape only dismisses the candidate window mid-composition; the rename stays open.
+    fireEvent.keyDown(input, { key: 'Escape', isComposing: true })
+    expect(screen.getByLabelText('Rename Alpha')).toBeInTheDocument()
+
+    // Composition ends, the composed text lands in the input, and Enter commits it.
+    fireEvent.change(input, { target: { value: '对比' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(onRenameItem).toHaveBeenCalledWith('alpha', '对比')
   })
 
   it('uses product row semantics without flattening foreground hierarchy', () => {
@@ -925,50 +980,6 @@ describe('ResourceList', () => {
     expect(
       screen.getByRole('button', { name: 'Item action' }).closest('[data-resource-list-item-actions]')
     ).toHaveClass('grid-cols-[0fr]', 'group-hover:grid-cols-[1fr]', 'focus-within:grid-cols-[1fr]')
-  })
-
-  it('owns left- and right-panel presentation styling without sidebar semantics', () => {
-    const Provider = ResourceList.Provider<TestItem>
-    const renderPresentation = (presentation: ResourceListPresentation) => (
-      <Provider items={[ITEMS[0]]}>
-        <ResourceList.Frame data-testid="resource-frame" presentation={presentation}>
-          <ResourceList.Header data-testid="resource-header">
-            <ResourceList.Search placeholder="Search resources" />
-          </ResourceList.Header>
-          <ResourceList.Body<TestItem>
-            renderItem={(item) => (
-              <ResourceList.Item item={item}>
-                <ResourceList.ItemTitle>{item.name}</ResourceList.ItemTitle>
-              </ResourceList.Item>
-            )}
-          />
-        </ResourceList.Frame>
-      </Provider>
-    )
-
-    const view = render(renderPresentation('left-panel'))
-    const frame = screen.getByTestId('resource-frame')
-    const header = screen.getByTestId('resource-header')
-    const search = screen.getByPlaceholderText('Search resources')
-    const listbox = screen.getByRole('listbox')
-
-    expect(frame).toHaveAttribute('data-resource-list-presentation', 'left-panel')
-    expect(frame).toHaveClass('bg-background', 'border-r-[0.5px]')
-    expect(header).toHaveClass('gap-1')
-    expect(header).not.toHaveClass('pb-1')
-    expect(search).toHaveClass('h-7', 'rounded-full', 'border-border-subtle', 'bg-background-subtle', 'pl-6')
-    expect(search).not.toHaveClass('border-sidebar-border', 'bg-sidebar', 'text-sidebar-foreground')
-    expect(listbox).toHaveClass('pt-0', 'pb-3')
-
-    view.rerender(renderPresentation('right-panel'))
-
-    expect(frame).toHaveAttribute('data-resource-list-presentation', 'right-panel')
-    expect(frame).toHaveClass('h-full', 'bg-background')
-    expect(frame).not.toHaveClass('border-r-[0.5px]')
-    expect(header).toHaveClass('gap-1', 'pb-1')
-    expect(search).toHaveClass('h-8', 'rounded-lg', 'border-border-subtle', 'bg-background-subtle', 'pl-7')
-    expect(search.parentElement?.parentElement).toHaveClass('pt-1')
-    expect(listbox).toHaveClass('pt-0', 'pb-8')
   })
 
   it('cancels inline rename with Escape without committing the draft name', () => {
@@ -1466,8 +1477,6 @@ describe('ResourceList', () => {
 
     expect(screen.getByText('Pinned')).toBeInTheDocument()
     expect(screen.getByText('Regular')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Pinned' })).toHaveClass('text-inherit')
-    expect(screen.getByRole('button', { name: 'Pinned' })).not.toHaveClass('text-muted-foreground')
     expect(screen.queryByText('2')).not.toBeInTheDocument()
     expect(screen.queryByText('1')).not.toBeInTheDocument()
     expect(virtualMocks.useVirtualizer).toHaveBeenLastCalledWith(
@@ -1724,13 +1733,8 @@ describe('ResourceList', () => {
     const sessionGroupButton = screen.getByRole('button', { name: 'session' })
     const sessionChevron = chevronFor(sessionGroupButton)
     const sessionGroupHeader = sessionGroupButton.closest('[data-selected]')
-    // One type voice for the whole list; a bucket header is set apart by colour, not size or weight.
-    expect(screen.getByText('session')).toHaveClass('font-normal', 'text-[13px]')
-    // The strip filling the rest of the row runs the same click as the label, so it has to look
-    // clickable too — a `cursor-default` there reads as dead space in the middle of a live row.
     const sessionRowFiller = sessionChevron.nextElementSibling
     expect(sessionRowFiller).toHaveAttribute('aria-hidden', 'true')
-    expect(sessionRowFiller).toHaveClass('cursor-pointer')
     expect(sessionChevron).toHaveAttribute('aria-expanded', 'true')
     expect(sessionGroupHeader).toBeNull()
 
@@ -1742,7 +1746,6 @@ describe('ResourceList', () => {
     // The row itself is on screen and announces the selection — the header must not announce a second one.
     expect(sessionGroupButton).not.toHaveAttribute('aria-current')
     expect(sessionGroupButton.closest('[data-selected]')).toHaveAttribute('data-selected', 'true')
-    expect(sessionGroupButton.closest('[data-selected]')?.firstElementChild?.className).toContain('h-8')
     expect(screen.getByRole('button', { name: 'topic' })).not.toHaveAttribute('aria-current')
     expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
       collapsedGroups: [],
@@ -1961,29 +1964,6 @@ describe('ResourceList', () => {
     expect(firstHeader.closest('.text-muted-foreground')).toBeNull()
   })
 
-  it('renders headers of manageable groups at the same type as list content', () => {
-    const Provider = ResourceList.Provider<TestItem>
-
-    render(
-      <Provider
-        items={ITEMS}
-        groupBy={(item) => ({ id: item.kind, label: item.kind })}
-        getGroupHeaderAction={() => <ResourceList.GroupHeaderActionButton aria-label="Group more" />}>
-        <ResourceList.Frame>
-          <ResourceList.VirtualItems<TestItem>
-            renderItem={(item) => (
-              <ResourceList.Item item={item}>
-                <span>{item.name}</span>
-              </ResourceList.Item>
-            )}
-          />
-        </ResourceList.Frame>
-      </Provider>
-    )
-
-    expect(screen.getByText('session')).toHaveClass('font-normal', 'text-[13px]')
-  })
-
   it('routes group header context menu items to the right group', async () => {
     const onAction = vi.fn()
     const Provider = ResourceList.Provider<TestItem>
@@ -2015,7 +1995,7 @@ describe('ResourceList', () => {
     await waitFor(() => expect(onAction).toHaveBeenCalledWith('topic'))
   })
 
-  it('auto-hides the shared list viewport scrollbar after scrolling stops', () => {
+  it('restarts the shared list viewport scrollbar fade after continued scrolling', () => {
     vi.useFakeTimers()
     const Provider = ResourceList.Provider<TestItem>
 
@@ -2035,24 +2015,71 @@ describe('ResourceList', () => {
 
     const viewport = screen.getByRole('listbox')
     expect(viewport).toHaveAttribute('data-scrolling', 'false')
+    // scrollbarColor is part of the shared viewport's documented fade behavior.
+    expect(viewport).toHaveStyle({ scrollbarColor: 'transparent transparent' })
 
     fireEvent.scroll(viewport)
     expect(viewport).toHaveAttribute('data-scrolling', 'true')
+    expect(viewport).toHaveStyle({ scrollbarColor: 'var(--scrollbar-thumb) transparent' })
+
+    act(() => {
+      vi.advanceTimersByTime(1000)
+    })
+    fireEvent.scroll(viewport)
+
+    act(() => {
+      vi.advanceTimersByTime(1199)
+    })
+    expect(viewport).toHaveAttribute('data-scrolling', 'true')
+    expect(viewport).toHaveStyle({ scrollbarColor: 'var(--scrollbar-thumb) transparent' })
+
+    act(() => {
+      vi.advanceTimersByTime(1)
+    })
+    expect(viewport).toHaveAttribute('data-scrolling', 'true')
+    expect(viewport).toHaveStyle({
+      scrollbarColor: 'color-mix(in srgb, var(--scrollbar-thumb) 70%, transparent) transparent'
+    })
+
+    act(() => {
+      vi.advanceTimersByTime(420)
+    })
+    expect(viewport).toHaveAttribute('data-scrolling', 'false')
+    expect(viewport).toHaveStyle({ scrollbarColor: 'transparent transparent' })
+  })
+
+  it('keeps the shared list viewport fade deadline when the system clock moves backward', () => {
+    vi.useFakeTimers()
+    const Provider = ResourceList.Provider<TestItem>
+
+    render(
+      <Provider items={ITEMS}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    const viewport = screen.getByRole('listbox')
+    fireEvent.scroll(viewport)
+    vi.setSystemTime(Date.now() - 60_000)
 
     act(() => {
       vi.advanceTimersByTime(1200)
     })
 
-    expect(viewport).toHaveAttribute('data-scrolling', 'true')
-
-    act(() => {
-      vi.advanceTimersByTime(420)
+    expect(viewport).toHaveStyle({
+      scrollbarColor: 'color-mix(in srgb, var(--scrollbar-thumb) 70%, transparent) transparent'
     })
-
-    expect(viewport).toHaveAttribute('data-scrolling', 'false')
   })
 
-  it('limits each group to the default visible count and expands the group independently', () => {
+  it('loads each group in configured increments and collapses it to the default count', () => {
     const Provider = ResourceList.Provider<TestItem>
     const items = Array.from({ length: 12 }, (_, index) => ({
       id: `item-${index + 1}`,
@@ -2086,6 +2113,13 @@ describe('ResourceList', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
 
+    expect(screen.getByText('Item 10')).toBeInTheDocument()
+    expect(screen.queryByText('Item 11')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Show more' })).toBeInTheDocument()
+    expect(virtualMocks.useVirtualizer).toHaveBeenLastCalledWith(expect.objectContaining({ count: 12 }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
+
     expect(screen.getByText('Item 12')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Collapse' })).toBeInTheDocument()
     expect(virtualMocks.useVirtualizer).toHaveBeenLastCalledWith(expect.objectContaining({ count: 14 }))
@@ -2093,6 +2127,52 @@ describe('ResourceList', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Collapse' }))
 
     expect(screen.getByText('Item 5')).toBeInTheDocument()
+    expect(screen.queryByText('Item 6')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Show more' })).toBeInTheDocument()
+  })
+
+  it('restores the default visible count after a controlled group is collapsed and reopened', async () => {
+    const Provider = ResourceList.Provider<TestItem>
+    const user = userEvent.setup()
+    const items = Array.from({ length: 6 }, (_, index) => ({
+      id: `item-${index + 1}`,
+      name: `Item ${index + 1}`,
+      kind: 'session' as const,
+      updatedAt: index
+    }))
+
+    function ControlledGroupHarness() {
+      const [collapsedState, setCollapsedState] = useState<string[]>([])
+
+      return (
+        <Provider
+          items={items}
+          collapsedState={collapsedState}
+          defaultGroupVisibleCount={5}
+          groupBy={() => ({ id: 'group', label: 'Group' })}
+          groupShowMoreLabel="Show more"
+          onCollapsedStateChange={setCollapsedState}>
+          <ResourceList.Frame>
+            <ResourceList.VirtualItems<TestItem>
+              renderItem={(item) => (
+                <ResourceList.Item item={item}>
+                  <span>{item.name}</span>
+                </ResourceList.Item>
+              )}
+            />
+          </ResourceList.Frame>
+        </Provider>
+      )
+    }
+
+    render(<ControlledGroupHarness />)
+
+    await user.click(screen.getByRole('button', { name: 'Show more' }))
+    expect(screen.getByText('Item 6')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Group' }))
+    await user.click(screen.getByRole('button', { name: 'Group' }))
+
     expect(screen.queryByText('Item 6')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Show more' })).toBeInTheDocument()
   })
@@ -2299,7 +2379,6 @@ describe('ResourceList', () => {
     const sectionButton = screen.getByRole('button', { name: 'Assistants' })
     const sectionHeader = sectionButton.closest('div')
     expect(sectionHeader).not.toBeNull()
-    expect(sectionButton.parentElement).toHaveClass('has-[:focus-visible]:bg-resource-list-row-hover')
 
     fireEvent.click(within(sectionHeader as HTMLElement).getByRole('button', { name: 'Collapse display' }))
 
@@ -2538,13 +2617,7 @@ describe('ResourceList', () => {
 
     expect(screen.getByRole('button', { name: 'Pinned' })).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByRole('button', { name: 'Assistants' })).toHaveAttribute('aria-expanded', 'false')
-    expect(
-      screen.getByRole('button', { name: 'Pinned' }).closest('[class*="group/resource-list-section"]')
-    ).not.toHaveClass('pl-4')
     expect(screen.getByText('Alpha')).toBeInTheDocument()
-    expect(
-      screen.getByText('Alpha').closest('[data-resource-list-item-row="true"]')?.firstElementChild
-    ).not.toHaveClass('pl-4')
     expect(screen.queryByText('Beta')).not.toBeInTheDocument()
     expect(screen.queryByText('gamma')).not.toBeInTheDocument()
     expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
@@ -2556,12 +2629,6 @@ describe('ResourceList', () => {
 
     expect(screen.getByRole('button', { name: 'Assistants' })).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByRole('button', { name: 'topic' })).toHaveAttribute('aria-expanded', 'true')
-    expect(
-      screen.getByRole('button', { name: 'topic' }).closest('[class*="group/resource-list-group"]')
-    ).not.toHaveClass('pl-4')
-    expect(
-      screen.getByText('Gamma').closest('[data-resource-list-item-row="true"]')?.firstElementChild
-    ).not.toHaveClass('pl-4')
     expect(screen.getByText('Gamma').closest('[role="option"]')).toHaveAttribute('data-reveal-focus', 'true')
     const revealedInspector = JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')
     expect(revealedInspector).toMatchObject({

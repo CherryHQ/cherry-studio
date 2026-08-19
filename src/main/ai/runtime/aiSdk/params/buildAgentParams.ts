@@ -3,9 +3,11 @@ import { application } from '@application'
 import type { AiPlugin } from '@cherrystudio/ai-core'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
+import { resolveRequestedMaxOutputTokens } from '@main/ai/contextBuild/resolveOutputReservation'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { getProviderForCapability, isPermanentWebSearchConfigError } from '@main/services/webSearch'
 import {
+  FS_READ_TOOL_NAME,
   KB_READ_TOOL_NAME,
   KB_SEARCH_TOOL_NAME,
   WEB_FETCH_TOOL_NAME,
@@ -42,7 +44,10 @@ import {
 import type { RequestContext } from '../../../tools/adapters/aiSdk/context'
 import { applyDeferExposition } from '../../../tools/adapters/aiSdk/exposition/applyDeferExposition'
 import { syncMcpToolsToRegistry } from '../../../tools/adapters/aiSdk/mcp/mcpTools'
-import { resolveAssistantMcpToolIds } from '../../../tools/adapters/aiSdk/mcp/resolveAssistantMcpTools'
+import {
+  resolveAssistantMcpToolIds,
+  resolveMcpResourceServers
+} from '../../../tools/adapters/aiSdk/mcp/resolveAssistantMcpTools'
 import { registry, ToolRegistry } from '../../../tools/adapters/aiSdk/registry'
 import { createAiRepair } from '../../../tools/adapters/aiSdk/repair'
 import type { ToolEntry } from '../../../tools/adapters/aiSdk/types'
@@ -71,6 +76,7 @@ import { resolveCapabilities } from './capabilities'
 import { collectFromFeatures } from './collectFromFeatures'
 import { createCustomParamsFetch, selectCustomBodyParameters } from './customParamsFetch'
 import type { RequestFeature } from './feature'
+import { hasAnchorRow } from './features/contextBuild'
 import { INTERNAL_FEATURES } from './features/internalFeatures'
 import { type NativeFileSupport, resolveNativeFileSupport } from './nativeFileSupport'
 import type { RequestScope, SdkConfig } from './scope'
@@ -139,12 +145,29 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const retained = request.retainedContext ?? collectRetainedContext(request.messages ?? [])
   const fileAttachments = retained.fileAttachments
   const hasFileAttachments = fileAttachments.length > 0
+  // Resolved before tool selection (fs_read's applies gate) and the tool
+  // context (fs_read's per-call cap follows the effective persist threshold).
+  const { contextSettings, compressionModel } = await resolveRequestContextSettings(
+    model,
+    assistant?.settings.contextSettings
+  )
+  const hasPersistedOutputs = retained.persistedOutputPaths.size > 0
+  // A marker minted on the last permitted tool step can never be read back —
+  // the producing tool consumes that step and the loop ends.
+  const hasReadBackStep = resolveToolCallLimit(assistant) > 1
+  // Every condition a <persisted-output> marker needs to appear this request;
+  // `resolveTruncateStorage` reuses the result rather than re-querying the row.
+  const canOffloadToolOutputs =
+    contextSettings.enabled && request.contextOwner !== 'caller' && hasAnchorRow(request.messageId) && hasReadBackStep
   const knowledgeBaseIds = resolveKnowledgeBaseScope(assistant?.knowledgeBaseIds, request.knowledgeBaseIds)
-  const toolSignals = canModelConsumeTools(model) ? await resolveRequestToolSignals(request) : undefined
+  const toolSignals = canModelConsumeTools(model) ? await resolveRequestToolSignals(request, assistant) : undefined
   const webToolRoutes = await resolveRequestWebToolRoutes(model, provider, assistant, {
     endpointType: resolvedEndpoint.endpointType,
     hasFunctionToolSignals: toolSignals
       ? toolSignals.mcpToolIds.size > 0 ||
+        // Same `applies` gate the mcp_resource_* tools use, so a resource-only assistant is not
+        // mistaken for a request that loads no function tool.
+        toolSignals.mcpResourceServerIds.size > 0 ||
         // Mirrors the KB tools' own `applies`: owning a base is not enough, this request must also
         // scope one. ORing the two made every user with any KB look like a function-tool conflict,
         // which withheld the server web-search route on Gemini 2.5 for requests that load no tool.
@@ -155,9 +178,25 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
       : false,
     reasoningEffort: request.reasoningEffort ?? assistant?.settings.reasoning_effort
   })
-  const { tools, deferredEntries, hasCitableTools, mcpToolIds } = toolSignals
-    ? await resolveTools(request, assistant, model, hasFileAttachments, knowledgeBaseIds, webToolRoutes, toolSignals)
-    : { tools: undefined, deferredEntries: [] as ToolEntry[], hasCitableTools: false, mcpToolIds: new Set<string>() }
+  const { tools, deferredEntries, hasCitableTools, mcpToolIds, mcpResourceServerIds } = toolSignals
+    ? await resolveTools(
+        request,
+        assistant,
+        model,
+        hasFileAttachments,
+        knowledgeBaseIds,
+        webToolRoutes,
+        toolSignals,
+        hasPersistedOutputs,
+        canOffloadToolOutputs
+      )
+    : {
+        tools: undefined,
+        deferredEntries: [] as ToolEntry[],
+        hasCitableTools: false,
+        mcpToolIds: new Set<string>(),
+        mcpResourceServerIds: new Set<string>()
+      }
   const hasFunctionTools = tools !== undefined && Object.keys(tools).length > 0
   const finalWebToolRoutes = finalizeWebToolRoutes(webToolRoutes, model, provider, hasFunctionTools)
   const capabilities = assistant
@@ -199,13 +238,6 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     runtimeProviderId
   })
 
-  // Resolved before the tool context so fs_read's per-call cap can follow the
-  // effective persist threshold instead of the compile-time default.
-  const { contextSettings, compressionModel } = await resolveRequestContextSettings(
-    model,
-    assistant?.settings.contextSettings
-  )
-
   const requestContext: RequestContext = {
     requestId: request.messageId ?? crypto.randomUUID(),
     topicId: request.chatId,
@@ -218,6 +250,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     // per-turn appends never contaminate the RetainedContext shared across the
     // models of a multi-model send.
     persistedOutputPaths: new Set(retained.persistedOutputPaths),
+    // Frozen with the tool set: `mcp_resource_*` may only ever narrow this at execution time.
+    mcpResourceServerIds,
     toolOutputCharCap: contextSettings.truncateThreshold
   }
 
@@ -236,11 +270,14 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     reasoning,
     requestContext,
     mcpToolIds,
+    mcpResourceServerIds,
     contextSettings,
     compressionModel,
     compactionSink,
     webToolRoutes: finalWebToolRoutes,
     hasFileAttachments,
+    hasPersistedOutputs,
+    canOffloadToolOutputs,
     knowledgeBaseIds
   }
 
@@ -267,22 +304,6 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     nativeFileSupport,
     fileAttachments
   }
-}
-
-export function resolveRequestedMaxOutputTokens(
-  requestMaxOutputTokens: number | undefined,
-  customMaxOutputTokens: unknown,
-  assistant: Assistant | undefined,
-  model: Model,
-  endpointType: EndpointType | undefined
-): number | undefined {
-  if (requestMaxOutputTokens !== undefined) return requestMaxOutputTokens
-  if (typeof customMaxOutputTokens === 'number') return customMaxOutputTokens
-
-  const enableMaxTokens = assistant?.settings.enableMaxTokens ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxTokens
-  if (enableMaxTokens) return assistant?.settings.maxTokens ?? DEFAULT_ASSISTANT_SETTINGS.maxTokens
-
-  return endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES ? model.maxOutputTokens : undefined
 }
 
 async function resolveSdkConfig(
@@ -334,15 +355,31 @@ function canModelConsumeTools(model: Model): boolean {
   return isFunctionCallingModel(model)
 }
 
-/** Pre-tool-resolution signals — feed the web-tool routing and are reused by `resolveTools`. */
+/**
+ * Pre-tool-resolution signals — feed the web-tool routing and are reused by `resolveTools`.
+ *
+ * `mcpResourceServerIds` is resolved (and frozen) here rather than inside `resolveTools` because web
+ * routing runs first and has to know that this request will carry function tools: a resource-only
+ * assistant that reported "no function tools" would be routed to a provider's server web route, and
+ * `finalizeWebToolRoutes` can only withdraw that route afterwards, not fall back to the client one.
+ */
 async function resolveRequestToolSignals(
-  request: BuildAgentParamsInput['request']
-): Promise<{ mcpToolIds: ReadonlySet<string>; hasAnyKnowledgeBase: boolean }> {
+  request: BuildAgentParamsInput['request'],
+  assistant: Assistant | undefined
+): Promise<{
+  mcpToolIds: ReadonlySet<string>
+  mcpResourceServerIds: ReadonlySet<string>
+  hasAnyKnowledgeBase: boolean
+}> {
   let mcpIdList = request.mcpToolIds
   if (!mcpIdList && request.assistantId) {
     mcpIdList = await resolveAssistantMcpToolIds(request.assistantId)
   }
-  return { mcpToolIds: new Set(mcpIdList ?? []), hasAnyKnowledgeBase: resolveHasAnyKnowledgeBase() }
+  return {
+    mcpToolIds: new Set(mcpIdList ?? []),
+    mcpResourceServerIds: new Set(resolveMcpResourceServers(assistant).map((server) => server.id)),
+    hasAnyKnowledgeBase: resolveHasAnyKnowledgeBase()
+  }
 }
 
 /**
@@ -357,14 +394,18 @@ export async function resolveTools(
   hasFileAttachments: boolean,
   knowledgeBaseIds: readonly string[],
   webToolRoutes: WebToolRoutes = NO_WEB_TOOL_ROUTES,
-  signals?: Awaited<ReturnType<typeof resolveRequestToolSignals>>
+  signals?: Awaited<ReturnType<typeof resolveRequestToolSignals>>,
+  hasPersistedOutputs: boolean = false,
+  canOffloadToolOutputs: boolean = false
 ): Promise<{
   tools: ToolSet | undefined
   deferredEntries: ToolEntry[]
   hasCitableTools: boolean
   mcpToolIds: ReadonlySet<string>
+  mcpResourceServerIds: ReadonlySet<string>
 }> {
-  const { mcpToolIds, hasAnyKnowledgeBase } = signals ?? (await resolveRequestToolSignals(request))
+  const { mcpToolIds, mcpResourceServerIds, hasAnyKnowledgeBase } =
+    signals ?? (await resolveRequestToolSignals(request, assistant))
   if (mcpToolIds.size) {
     // Reconcile selected tool ids against every active server's cache-only catalog,
     // resolving ownership by exact id without MCP network round trips.
@@ -372,25 +413,36 @@ export async function resolveTools(
   }
 
   const paintingModel = resolveConfiguredPaintingModel()
-  const activeEntries = registry.selectActive({
+  const selected = registry.selectActive({
     assistant,
     paintingModel: paintingModel ?? undefined,
     mcpToolIds,
+    mcpResourceServerIds,
     hasFileAttachments,
+    hasPersistedOutputs,
+    canOffloadToolOutputs,
     hasAnyKnowledgeBase,
     knowledgeBaseIds,
     webToolRoutes
   })
+  // Client tools (no `execute`) from assistant-less callers; merged below so
+  // they share the registry/defer-exposition path.
+  const clientTools = request.callOverrides?.tools
+  const clientToolNames = new Set(Object.keys(clientTools ?? {}))
+  // A lone fs_read has nothing to read back: no other tool can produce an
+  // offloadable output mid-loop (#18084).
+  const activeEntries =
+    !hasPersistedOutputs &&
+    clientToolNames.size === 0 &&
+    selected.length === 1 &&
+    selected[0].name === FS_READ_TOOL_NAME
+      ? []
+      : selected
   let tools: ToolSet | undefined
   if (activeEntries.length > 0) {
     tools = {}
     for (const entry of activeEntries) tools[entry.name] = entry.tool
   }
-  // First-class client tools (no `execute`) supplied per request by assistant-less
-  // callers (the API gateway). Merged here so they share the registry/defer-exposition
-  // path instead of being mutated onto raw SDK params.
-  const clientTools = request.callOverrides?.tools
-  const clientToolNames = new Set(Object.keys(clientTools ?? {}))
   if (clientTools && Object.keys(clientTools).length > 0) {
     tools = {
       ...tools,
@@ -404,7 +456,13 @@ export async function resolveTools(
   const hasCitableTools = activeEntries.some(
     (entry) => CITABLE_BUILTIN_TOOL_NAMES.has(entry.name) && !clientToolNames.has(entry.name)
   )
-  return { tools: exposed.tools, deferredEntries: exposed.deferredEntries, hasCitableTools, mcpToolIds }
+  return {
+    tools: exposed.tools,
+    deferredEntries: exposed.deferredEntries,
+    hasCitableTools,
+    mcpToolIds,
+    mcpResourceServerIds
+  }
 }
 
 async function resolveRequestWebToolRoutes(

@@ -16,7 +16,9 @@ export async function transcodeToEntityWebp(bytes: Uint8Array): Promise<Buffer> 
   // Delayed loading: a static import would map sharp's multi-MB libvips native library at boot.
   const sharp = (await import('sharp')).default
   // Only the first frame of an animated GIF is used — fine for a 128² entity image.
-  return sharp(bytes, { limitInputPixels: MAX_ENTITY_INPUT_PIXELS })
+  // `failOn: 'none'` keeps slightly-malformed user images (truncated chunk, bad CRC) decodable;
+  // sharp's default rejects them on a libvips warning, which varies by platform.
+  return sharp(bytes, { limitInputPixels: MAX_ENTITY_INPUT_PIXELS, failOn: 'none' })
     .resize(ENTITY_IMAGE_DIMENSION, ENTITY_IMAGE_DIMENSION, { fit: 'cover' })
     .webp()
     .toBuffer()
@@ -33,4 +35,21 @@ export async function transcodeToPng(bytes: Uint8Array): Promise<Uint8Array> {
 
   const sharp = (await import('sharp')).default
   return sharp(bytes).png().toBuffer()
+}
+
+/**
+ * Crop a region out of PNG bytes, in the source image's own pixel space.
+ * Used to hand the OCR engine just the selected region instead of a full display.
+ * Rejects a region reaching past the image rather than silently shrinking it, so a
+ * caller's coordinate bug surfaces instead of producing a quietly wrong crop.
+ */
+export async function cropPng(
+  bytes: Uint8Array,
+  region: { x: number; y: number; width: number; height: number }
+): Promise<Uint8Array> {
+  const sharp = (await import('sharp')).default
+  return sharp(bytes)
+    .extract({ left: region.x, top: region.y, width: region.width, height: region.height })
+    .png()
+    .toBuffer()
 }

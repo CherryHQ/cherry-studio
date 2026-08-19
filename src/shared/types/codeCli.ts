@@ -3,12 +3,51 @@ export enum CodeCli {
   OPENAI_CODEX = 'openai-codex',
   OPEN_CODE = 'opencode',
   OPENCLAW = 'openclaw',
+  DEEPSEEK_HARNESS = 'deepseek-harness',
   GEMINI_CLI = 'gemini-cli',
   QWEN_CODE = 'qwen-code',
   KIMI_CODE = 'kimi-code',
   QODER_CLI = 'qoder-cli',
   GITHUB_COPILOT_CLI = 'github-copilot-cli',
   PI = 'pi'
+}
+
+export const DEEPSEEK_HARNESS_AGENT_PRESETS = ['inherit', 'standard', 'code', 'minimal'] as const
+export type DeepSeekHarnessAgentPreset = (typeof DEEPSEEK_HARNESS_AGENT_PRESETS)[number]
+
+export const DEEPSEEK_HARNESS_PERMISSION_MODES = ['read-only', 'workspace-write', 'danger-full-access'] as const
+export type DeepSeekHarnessPermissionMode = (typeof DEEPSEEK_HARNESS_PERMISSION_MODES)[number]
+
+export interface DeepSeekHarnessSettings {
+  /** Keep the existing DSH setting, or select one of the shipped coding presets. */
+  agentPreset: DeepSeekHarnessAgentPreset
+  /** Default permission applied to sessions created by the managed process. */
+  permissionMode: DeepSeekHarnessPermissionMode
+}
+
+export const DEFAULT_DEEPSEEK_HARNESS_SETTINGS: Readonly<DeepSeekHarnessSettings> = Object.freeze({
+  agentPreset: 'inherit',
+  permissionMode: 'workspace-write'
+})
+
+export function isDeepSeekHarnessAgentPreset(value: unknown): value is DeepSeekHarnessAgentPreset {
+  return DEEPSEEK_HARNESS_AGENT_PRESETS.includes(value as DeepSeekHarnessAgentPreset)
+}
+
+export function isDeepSeekHarnessPermissionMode(value: unknown): value is DeepSeekHarnessPermissionMode {
+  return DEEPSEEK_HARNESS_PERMISSION_MODES.includes(value as DeepSeekHarnessPermissionMode)
+}
+
+export function normalizeDeepSeekHarnessSettings(value: unknown): DeepSeekHarnessSettings {
+  const settings = value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {}
+  return {
+    agentPreset: isDeepSeekHarnessAgentPreset(settings.agentPreset)
+      ? settings.agentPreset
+      : DEFAULT_DEEPSEEK_HARNESS_SETTINGS.agentPreset,
+    permissionMode: isDeepSeekHarnessPermissionMode(settings.permissionMode)
+      ? settings.permissionMode
+      : DEFAULT_DEEPSEEK_HARNESS_SETTINGS.permissionMode
+  }
 }
 
 /**
@@ -62,7 +101,7 @@ export function isApiGatewayProviderId(id: string): boolean {
  * CLI tools that can be backed by the Cherry API gateway. The gateway exposes
  * Anthropic (`/v1/messages`), OpenAI (`/v1/chat/completions`, `/v1/responses`),
  * and Gemini (`/v1beta/models/*`) dialects, so Gemini CLI routes through the
- * gateway too. OpenClaw is excluded (it has its own gateway sync path).
+ * gateway too. OpenClaw is excluded because it has its own gateway sync path.
  */
 export const GATEWAY_CAPABLE_CLI_TOOLS: ReadonlySet<CodeCli> = new Set([
   CodeCli.CLAUDE_CODE,
@@ -71,7 +110,8 @@ export const GATEWAY_CAPABLE_CLI_TOOLS: ReadonlySet<CodeCli> = new Set([
   CodeCli.OPEN_CODE,
   CodeCli.QWEN_CODE,
   CodeCli.KIMI_CODE,
-  CodeCli.PI
+  CodeCli.PI,
+  CodeCli.DEEPSEEK_HARNESS
 ])
 
 export enum TerminalApp {

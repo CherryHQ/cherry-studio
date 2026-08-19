@@ -1,7 +1,6 @@
 import { cacheService } from '@data/CacheService'
 import type { MessageListActions } from '@renderer/components/chat/messages/types'
-import { showErrorDetailPopup } from '@renderer/components/ErrorDetailModal'
-import { classifyErrorByAI } from '@renderer/utils/errorDiagnosis'
+import type { ErrorDetailContentProps } from '@renderer/components/ErrorDetailModal'
 import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useMemo } from 'react'
 
@@ -11,7 +10,7 @@ const aiClassifyCacheKey = (message: string, language: string) => `error.classif
 type MessageErrorActions = Pick<MessageListActions, 'diagnoseMessageError' | 'openErrorDetail' | 'navigateErrorTarget'>
 
 interface MessageErrorActionOptions {
-  persistDiagnosis?: NonNullable<Parameters<typeof showErrorDetailPopup>[0]['onDiagnosisComplete']>
+  persistDiagnosis?: NonNullable<ErrorDetailContentProps['onDiagnosisComplete']>
 }
 
 export function useMessageErrorActions(options: MessageErrorActionOptions = {}): MessageErrorActions {
@@ -27,10 +26,12 @@ export function useMessageErrorActions(options: MessageErrorActionOptions = {}):
       const cached = cacheService.getCasual<Promise<string>>(cacheKey)
       if (cached) return cached
 
-      const promise = classifyErrorByAI(error, language).catch((classificationError) => {
-        cacheService.deleteCasual(cacheKey)
-        throw classificationError
-      })
+      const promise = import('@renderer/utils/errorDiagnosis')
+        .then(({ classifyErrorByAI }) => classifyErrorByAI(error, language))
+        .catch((classificationError) => {
+          cacheService.deleteCasual(cacheKey)
+          throw classificationError
+        })
       cacheService.setCasual<Promise<string>>(cacheKey, promise, AI_CLASSIFY_TTL_MS)
       return promise
     },
@@ -38,7 +39,8 @@ export function useMessageErrorActions(options: MessageErrorActionOptions = {}):
   )
 
   const openErrorDetail = useCallback<NonNullable<MessageListActions['openErrorDetail']>>(
-    (input) => {
+    async (input) => {
+      const { showErrorDetailPopup } = await import('@renderer/components/ErrorDetailModal')
       showErrorDetailPopup({
         error: input.error,
         blockId: input.partId,

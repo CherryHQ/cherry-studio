@@ -62,6 +62,7 @@ function createSession(overrides: Partial<AgentSessionEntity & { pinned: boolean
     workspaceId: 'ws-/Users/jd/project-a',
     workspace: makeWorkspace('/Users/jd/project-a'),
     orderKey: 'a',
+    lastActivityAt: '2026-01-01T00:00:00.000Z',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     pinned: false,
@@ -141,11 +142,11 @@ describe('SessionList helpers', () => {
       id: 'session:pinned',
       label: 'Pinned'
     })
-    expect(groupSession(createSession({ id: 'today', updatedAt: localIso(2026, 5, 15, 9) }))).toEqual({
+    expect(groupSession(createSession({ id: 'today', lastActivityAt: localIso(2026, 5, 15, 9) }))).toEqual({
       id: 'session:time:today',
       label: 'Today'
     })
-    expect(groupSession(createSession({ id: 'earlier', updatedAt: localIso(2026, 5, 8, 9) }))).toEqual({
+    expect(groupSession(createSession({ id: 'earlier', lastActivityAt: localIso(2026, 5, 8, 9) }))).toEqual({
       id: 'session:time:earlier',
       label: 'Earlier'
     })
@@ -159,14 +160,14 @@ describe('SessionList helpers', () => {
       now
     })
     const earlierOnly = [
-      createSession({ id: 'earlier-a', updatedAt: localIso(2026, 5, 8, 9) }),
-      createSession({ id: 'earlier-b', updatedAt: localIso(2026, 5, 7, 9) })
+      createSession({ id: 'earlier-a', lastActivityAt: localIso(2026, 5, 8, 9) }),
+      createSession({ id: 'earlier-b', lastActivityAt: localIso(2026, 5, 7, 9) })
     ]
 
     const soleBucket = withSoleGroupLabelHidden(groupSession, earlierOnly)
     expect(soleBucket(earlierOnly[0])).toEqual({ id: 'session:time:earlier', label: '' })
 
-    const mixed = [...earlierOnly, createSession({ id: 'today', updatedAt: localIso(2026, 5, 15, 9) })]
+    const mixed = [...earlierOnly, createSession({ id: 'today', lastActivityAt: localIso(2026, 5, 15, 9) })]
     const twoBuckets = withSoleGroupLabelHidden(groupSession, mixed)
     expect(twoBuckets(earlierOnly[0])).toEqual({ id: 'session:time:earlier', label: 'Earlier' })
   })
@@ -178,8 +179,8 @@ describe('SessionList helpers', () => {
       mode: 'time',
       now
     })
-    const pinned = createSession({ id: 'pinned', pinned: true, updatedAt: localIso(2026, 5, 8, 9) })
-    const earlier = createSession({ id: 'earlier', updatedAt: localIso(2026, 5, 7, 9) })
+    const pinned = createSession({ id: 'pinned', pinned: true, lastActivityAt: localIso(2026, 5, 8, 9) })
+    const earlier = createSession({ id: 'earlier', lastActivityAt: localIso(2026, 5, 7, 9) })
 
     // "Earlier" now marks where the pinned block ends, so it keeps its label.
     const withPinned = withSoleGroupLabelHidden(groupSession, [pinned, earlier], {
@@ -295,7 +296,7 @@ describe('SessionList helpers', () => {
     )
   })
 
-  it('uses workspace rows for workdir labels and ranks independent of session order', () => {
+  it('uses all workspace rows for workdir labels and ranks independent of session order', () => {
     const sessions = [
       createSession({
         id: 'session-a',
@@ -316,6 +317,7 @@ describe('SessionList helpers', () => {
 
     expect(createSessionWorkdirLabelMap(sessions, workspaces)).toEqual(
       new Map([
+        ['session:workspace:ws-empty', 'Empty Workspace'],
         ['session:workspace:ws-b', 'DB Beta'],
         ['session:workspace:ws-a', 'DB Alpha']
       ])
@@ -382,9 +384,9 @@ describe('SessionList helpers', () => {
 
   it('sorts display groups by mode-specific ranks', () => {
     const sessions = [
-      createSession({ id: 'older', orderKey: 'b', updatedAt: localIso(2026, 5, 14, 9) }),
-      createSession({ id: 'pinned', pinned: true, orderKey: 'z', updatedAt: localIso(2026, 5, 10, 9) }),
-      createSession({ id: 'newer', orderKey: 'a', updatedAt: localIso(2026, 5, 15, 9) })
+      createSession({ id: 'older', orderKey: 'b', lastActivityAt: localIso(2026, 5, 14, 9) }),
+      createSession({ id: 'pinned', pinned: true, orderKey: 'z', lastActivityAt: localIso(2026, 5, 10, 9) }),
+      createSession({ id: 'newer', orderKey: 'a', lastActivityAt: localIso(2026, 5, 15, 9) })
     ]
 
     expect(

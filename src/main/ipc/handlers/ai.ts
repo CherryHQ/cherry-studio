@@ -4,10 +4,10 @@ import { fileEntryService } from '@data/services/FileEntryService'
 import { messageService } from '@data/services/MessageService'
 import { loggerService } from '@logger'
 import { createAgent } from '@main/ai/agents/createAgent'
-import { createBuiltinAssistantFeedbackSession } from '@main/ai/agents/createBuiltinAssistantFeedbackSession'
+import { createBuiltinSupportSession } from '@main/ai/agents/createBuiltinSupportSession'
 import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import { inflateEntities, isToolOutputBlobEntry, reconstructOutput } from '@main/ai/contextBuild/toolOutputStore'
-import { WebContentsListener } from '@main/ai/streamManager'
+import { AiStreamAdmissionError, WebContentsListener } from '@main/ai/streamManager'
 import { serializeError } from '@main/ai/utils/serializeError'
 import type {
   AiStreamOpenRequest,
@@ -49,6 +49,17 @@ async function exposeAiError<T>(route: string, op: () => Promise<T>): Promise<T>
       logger.error(`${route} failed`, serializeError(e))
     }
     throw new IpcError(aiErrorCodes.AI_REQUEST_FAILED, e instanceof Error ? e.message : String(e), serializeError(e))
+  }
+}
+
+async function exposeAiStreamAdmission<T>(op: () => Promise<T>): Promise<T> {
+  try {
+    return await op()
+  } catch (error) {
+    if (error instanceof AiStreamAdmissionError) {
+      throw new IpcError(aiErrorCodes.AI_STREAM_ADMISSION_REJECTED, error.reason, { reason: error.reason })
+    }
+    throw error
   }
 }
 
@@ -164,7 +175,9 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     const wc = senderWebContents(senderId)
     if (!wc) throw new Error('ai.stream.open requires a managed window')
     const subscriber = new WebContentsListener(wc, request.topicId)
-    return application.get('AiStreamManager').dispatch(subscriber, request as AiStreamOpenRequest)
+    return exposeAiStreamAdmission(() =>
+      application.get('AiStreamManager').dispatch(subscriber, request as AiStreamOpenRequest)
+    )
   },
   'ai.stream.attach': async (request, { senderId }) => {
     const wc = senderWebContents(senderId)
@@ -193,7 +206,11 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
 
   // ── Agent creation + session warm-connection lifecycle. ──
   'ai.agent.create': createAgent,
-  'ai.agent.feedback_session.create': async () => ({ sessionId: createBuiltinAssistantFeedbackSession().id }),
+  'ai.agent.delete': ({ agentId, deleteSessions }) =>
+    application.get('AgentSessionDeliveryService').deleteAgent(agentId, deleteSessions),
+  'ai.agent.sessions.delete': ({ agentId }) =>
+    application.get('AgentSessionDeliveryService').deleteAgentSessions(agentId),
+  'ai.agent.support_session.create': async () => ({ sessionId: createBuiltinSupportSession().id }),
   // Warm-lease acquire: opens the live connection eagerly (not just a warm-query park) so the
   // session's slash-command catalog is read into the cache before the first message — the
   // warm-query handle can't expose it. Trace mode is no exception: the primed connection resolves
@@ -207,6 +224,12 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.agent.session.close_warm': async ({ sessionId }, { senderId }) => {
     application.get('AgentSessionRuntimeService').releaseWarmLease(sessionId, senderWebContents(senderId))
   },
+  'ai.agent.session.delete': ({ sessionIds }) =>
+    application.get('AgentSessionDeliveryService').deleteSessions(sessionIds),
+  'ai.agent.session.reuse_or_create': (input) =>
+    application.get('AgentSessionDeliveryService').reuseOrCreateSession(input),
+  'ai.agent.workspace.delete': ({ workspaceId }) =>
+    application.get('AgentSessionDeliveryService').deleteWorkspace(workspaceId),
 
   // ── Agent session runtime queries & commands. ──
   'ai.agent.session.refresh_context_usage': async ({ sessionId }) => {

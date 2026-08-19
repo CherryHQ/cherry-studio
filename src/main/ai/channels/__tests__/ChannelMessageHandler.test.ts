@@ -2,7 +2,7 @@ import { agentChannelService as channelService } from '@data/services/AgentChann
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
-import { AgentSessionWorkspaceError } from '@main/ai/runtime/claudeCode/settingsBuilder'
+import { AgentSessionWorkspaceError } from '@main/ai/runtime/agentSessionWorkspace'
 import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { EventEmitter } from 'events'
@@ -12,7 +12,7 @@ import type { ChannelMessageEvent } from '../ChannelAdapter'
 import { channelMessageHandler } from '../ChannelMessageHandler'
 import { sanitizeChannelOutput } from '../security/OutputSanitizer'
 
-const { mockPrepareClaudeCodeWorkspaceDirectory, MockAgentSessionWorkspaceError } = vi.hoisted(() => {
+const { mockPrepareAgentSessionWorkspaceDirectory, MockAgentSessionWorkspaceError } = vi.hoisted(() => {
   class MockAgentSessionWorkspaceError extends Error {
     constructor(message: string) {
       super(message)
@@ -21,15 +21,15 @@ const { mockPrepareClaudeCodeWorkspaceDirectory, MockAgentSessionWorkspaceError 
   }
 
   return {
-    mockPrepareClaudeCodeWorkspaceDirectory: vi.fn(),
+    mockPrepareAgentSessionWorkspaceDirectory: vi.fn(),
     MockAgentSessionWorkspaceError
   }
 })
 
-vi.mock('@main/ai/runtime/claudeCode/settingsBuilder', () => ({
+vi.mock('@main/ai/runtime/agentSessionWorkspace', () => ({
   AgentSessionWorkspaceError: MockAgentSessionWorkspaceError,
   isAgentSessionWorkspaceError: (error: unknown) => error instanceof MockAgentSessionWorkspaceError,
-  prepareClaudeCodeWorkspaceDirectory: mockPrepareClaudeCodeWorkspaceDirectory
+  prepareAgentSessionWorkspaceDirectory: mockPrepareAgentSessionWorkspaceDirectory
 }))
 
 vi.mock('@logger', () => ({
@@ -119,6 +119,7 @@ function simulateStream(parts: Array<{ type: string; delta?: string }>) {
         }
         await listener.onDone({ status: 'success' })
       }
+      return { mode: 'started' }
     }
   )
 }
@@ -159,8 +160,8 @@ describe('ChannelMessageHandler', () => {
       configuration: {},
       model: 'openai::gpt-4'
     } as any)
-    mockPrepareClaudeCodeWorkspaceDirectory.mockReset()
-    mockPrepareClaudeCodeWorkspaceDirectory.mockResolvedValue(undefined)
+    mockPrepareAgentSessionWorkspaceDirectory.mockReset()
+    mockPrepareAgentSessionWorkspaceDirectory.mockResolvedValue(undefined)
     // Clear session tracker to ensure clean state
     channelMessageHandler.clearSessionTracker('agent-1')
   })
@@ -200,6 +201,43 @@ describe('ChannelMessageHandler', () => {
     // it accumulates all text-delta chunks via `.delta`, trims, and sends once.
     expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'Hello world!\n\nDone.')
+  })
+
+  it('settles a busy channel message and leaves the chat queue usable', async () => {
+    const adapter = createMockAdapter()
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      agentType: 'claude-code',
+      model: 'openai::gpt-4',
+      workspace: { path: '/tmp/test-workspace' },
+      configuration: {}
+    }
+    vi.mocked(agentSessionService.create).mockReturnValue(session as any)
+    mockStartAgentSessionRun.mockResolvedValueOnce({ mode: 'not-started', reason: 'busy' })
+
+    await handleIncomingAndFlush(adapter, {
+      chatId: 'chat-1',
+      userId: 'user-1',
+      userName: 'User',
+      text: 'first'
+    })
+
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'The Agent Session is busy. Please try again shortly.', {
+      replyToMessageId: undefined
+    })
+    const typingCallsAfterBusy = adapter.sendTypingIndicator.mock.calls.length
+    await vi.advanceTimersByTimeAsync(8_000)
+    expect(adapter.sendTypingIndicator).toHaveBeenCalledTimes(typingCallsAfterBusy)
+
+    simulateStream([{ type: 'text-delta', delta: 'second completed' }])
+    await handleIncomingAndFlush(adapter, {
+      chatId: 'chat-1',
+      userId: 'user-1',
+      userName: 'User',
+      text: 'second'
+    })
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'second completed')
   })
 
   // channels-core-3: the streaming delivery path (real ChannelAdapterListener) must route
@@ -286,7 +324,7 @@ describe('ChannelMessageHandler', () => {
       configuration: {}
     }
     vi.mocked(agentSessionService.create).mockReturnValueOnce(session as any)
-    mockPrepareClaudeCodeWorkspaceDirectory.mockRejectedValueOnce(
+    mockPrepareAgentSessionWorkspaceDirectory.mockRejectedValueOnce(
       new AgentSessionWorkspaceError('workspace is missing')
     )
 
@@ -298,7 +336,7 @@ describe('ChannelMessageHandler', () => {
       images: [{ media_type: 'image/png', data: 'AA==' }]
     })
 
-    expect(mockPrepareClaudeCodeWorkspaceDirectory).toHaveBeenCalledWith(session)
+    expect(mockPrepareAgentSessionWorkspaceDirectory).toHaveBeenCalledWith(session)
     expect(mockStartAgentSessionRun).not.toHaveBeenCalled()
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'workspace is missing', { replyToMessageId: undefined })
   })
@@ -412,6 +450,7 @@ describe('ChannelMessageHandler', () => {
         // Channel-triggered runs have no interactive responder — headless keeps AskUserQuestion
         // disallowed so the run can't stall on an approval prompt.
         headless: true,
+        requireIdle: { expectedAgentId: 'agent-1' },
         listeners: expect.arrayContaining([
           expect.objectContaining({ id: expect.stringContaining('channel-completion:') })
         ])
