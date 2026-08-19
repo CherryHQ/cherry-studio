@@ -569,8 +569,7 @@ function buildAgentOptions(
           }
         )
       : // Assistant-less callers (translate, prompt streams) opt into reasoning by setting
-        // `request.reasoningEffort` explicitly; without it the invocation stays un-emitted so
-        // gateway/topic-naming requests are unchanged.
+        // `request.reasoningEffort` explicitly; without it only protocol defaults below are emitted.
         request.reasoningEffort !== undefined
         ? (buildResolvedReasoningProviderOptions({
             aiSdkProviderId: sdkConfig.providerId,
@@ -579,6 +578,10 @@ function buildAgentOptions(
             reasoning
           }) as Record<string, Record<string, JSONValue>>)
         : {}
+
+  if (!assistant && endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES && sdkConfig.providerOptionsKey === 'openai') {
+    providerOptions.openai = { ...providerOptions.openai, store: false }
+  }
   let standardParams: Partial<Record<string, unknown>> = {}
   if (assistant) {
     const temperature = getTemperature(assistant, model, reasoning)

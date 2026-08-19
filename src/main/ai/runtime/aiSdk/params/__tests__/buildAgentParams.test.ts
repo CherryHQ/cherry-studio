@@ -788,7 +788,50 @@ describe('buildAgentParams assistant-less reasoning', () => {
     await expect(sdkModel.doGenerate({ prompt, providerOptions: result.options.providerOptions })).rejects.toThrow(
       'request captured'
     )
-    expect(requestBody).toMatchObject({ reasoning: { effort: 'none' } })
+    expect(requestBody).toMatchObject({ store: false, reasoning: { effort: 'none' } })
+  })
+
+  it('serializes gateway reasoning overrides with Responses storage disabled', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'newapi', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'new-api',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'newapi' } }
+    })
+    const model = makeModel({
+      id: 'new-api::gpt-5.6-sol',
+      providerId: 'new-api',
+      apiModelId: 'gpt-5.6-sol',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES],
+      capabilities: [MODEL_CAPABILITY.REASONING]
+    })
+
+    const result = await buildAgentParams({
+      request: { callOverrides: { providerOptions: { openai: { reasoningEffort: 'none', forceReasoning: true } } } },
+      signal: undefined,
+      provider,
+      model
+    })
+    let requestBody: Record<string, unknown> | undefined
+    const sdkModel = createOpenAI({
+      apiKey: 'sk-test',
+      baseURL: 'https://example.com/v1',
+      fetch: async (_input, init) => {
+        requestBody = JSON.parse(String(init?.body))
+        throw new Error('request captured')
+      }
+    }).responses('gpt-5.6-sol')
+
+    await expect(
+      sdkModel.doGenerate({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Run the task.' }] }],
+        providerOptions: result.options.providerOptions
+      })
+    ).rejects.toThrow('request captured')
+    expect(requestBody).toMatchObject({ store: false, reasoning: { effort: 'none' } })
   })
 
   const makeOffCapableSetup = () => {
