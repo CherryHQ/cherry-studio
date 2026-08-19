@@ -4,7 +4,7 @@
  *
  * Bulk component lookup — ordinary icon rendering uses loaders.ts instead
  *
- * Generated at: 2026-08-10T12:29:08.885Z
+ * Generated at: 2026-08-19T06:32:11.639Z
  * Total icons: 158
  */
 import { type CompoundIcon } from '../types'
@@ -158,6 +158,7 @@ import { VolcengineIcon } from './volcengine'
 import { VoyageIcon } from './voyage'
 import { WenxinIcon } from './wenxin'
 import { WorkersAiIcon } from './workers-ai'
+import { XfyunIcon } from './xfyun'
 import { XiaoyiIcon } from './xiaoyi'
 import { XinghuoIcon } from './xinghuo'
 import { XirangIcon } from './xirang'
@@ -318,6 +319,7 @@ export const PROVIDER_ICON_CATALOG = {
   voyage: VoyageIcon,
   wenxin: WenxinIcon,
   'workers-ai': WorkersAiIcon,
+  xfyun: XfyunIcon,
   xiaoyi: XiaoyiIcon,
   xinghuo: XinghuoIcon,
   xirang: XirangIcon,
