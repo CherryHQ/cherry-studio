@@ -9,9 +9,10 @@
       }
     },
     "session": {
+      "new": "Neue Aufgabe",
       "run_status": {
-        "busy": "The Agent Session is busy. Please try again shortly.",
-        "unavailable": "The Agent Session is no longer available."
+        "busy": "Die Agent-Sitzung ist beschäftigt. Bitte versuchen Sie es in Kürze erneut.",
+        "unavailable": "Die Agent-Sitzung ist nicht mehr verfügbar."
       },
       "workspace_status": {
         "inaccessible": "Arbeitsbereichspfad ist nicht zugänglich: {{path}}",
@@ -83,6 +84,11 @@
     "zoomIn": "Heranzoomen",
     "zoomOut": "Herauszoomen"
   },
+  "chat": {
+    "conversation": {
+      "new": "Neuer Chat"
+    }
+  },
   "common": {
     "channel_available_commands": "Verfügbare Befehle:",
     "channel_command_processing_error": "⚠️ Beim Verarbeiten des Befehls ist ein Fehler aufgetreten. Bitte versuchen Sie es später erneut.",
@@ -134,6 +140,16 @@
     "errors": {
       "document_size_limit_exceeded": "Der aktuelle Dienst zur Dokumentverarbeitung erfordert Dateien kleiner als {{maxSize}}. Komprimieren oder teilen Sie diese Datei und fügen Sie sie dann erneut hinzu.",
       "pdf_page_limit_exceeded": "Diese PDF überschreitet die Begrenzung von {{maxPages}} Seiten für den aktuellen Dienst zur Dokumentverarbeitung. Teilen Sie die PDF manuell und fügen Sie sie dann erneut hinzu."
+    }
+  },
+  "notification": {
+    "action_required": {
+      "agent": "Agent benötigt Ihre Eingabe",
+      "assistant": "Assistent benötigt Ihre Eingabe"
+    },
+    "completion": {
+      "agent": "Agent-Aufgabe abgeschlossen",
+      "assistant": "Assistentenantwort abgeschlossen"
     }
   },
   "openclaw": {

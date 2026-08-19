@@ -9,9 +9,10 @@
       }
     },
     "session": {
+      "new": "Νέα εργασία",
       "run_status": {
-        "busy": "The Agent Session is busy. Please try again shortly.",
-        "unavailable": "The Agent Session is no longer available."
+        "busy": "Η συνεδρία Agent είναι απασχολημένη. Δοκιμάστε ξανά σε λίγο.",
+        "unavailable": "Η συνεδρία Agent δεν είναι πλέον διαθέσιμη."
       },
       "workspace_status": {
         "inaccessible": "Η διαδρομή του χώρου εργασίας δεν είναι προσβάσιμη: {{path}}",
@@ -83,6 +84,11 @@
     "zoomIn": "Μεγέθυνση",
     "zoomOut": "Σμίκρυνση"
   },
+  "chat": {
+    "conversation": {
+      "new": "Νέα συνομιλία"
+    }
+  },
   "common": {
     "channel_available_commands": "Διαθέσιμες εντολές:",
     "channel_command_processing_error": "⚠️ Παρουσιάστηκε σφάλμα κατά την επεξεργασία της εντολής. Δοκιμάστε ξανά αργότερα.",
@@ -134,6 +140,16 @@
     "errors": {
       "document_size_limit_exceeded": "Η τρέχουσα υπηρεσία ανάλυσης εγγράφων απαιτεί αρχεία μικρότερα από {{maxSize}}. Συμπιέστε ή χωρίστε αυτό το αρχείο και έπειτα προσθέστε το ξανά.",
       "pdf_page_limit_exceeded": "Αυτό το PDF υπερβαίνει το όριο των {{maxPages}} σελίδων για την τρέχουσα υπηρεσία ανάλυσης εγγράφων. Χωρίστε το PDF χειροκίνητα και έπειτα προσθέστε το ξανά."
+    }
+  },
+  "notification": {
+    "action_required": {
+      "agent": "Ο Agent χρειάζεται τη συμβολή σας",
+      "assistant": "Ο βοηθός χρειάζεται τη συμβολή σας"
+    },
+    "completion": {
+      "agent": "Η εργασία του Agent ολοκληρώθηκε",
+      "assistant": "Η απάντηση του βοηθού ολοκληρώθηκε"
     }
   },
   "openclaw": {
