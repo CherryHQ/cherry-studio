@@ -23,6 +23,9 @@ export type LinkedChannelSnapshot = Pick<AgentChannelEntity, 'id'> | null
 
 export interface AgentMcpServer {
   name: string
+  /** Present for external servers; built-in logical identities are finalized by the manifest phase. */
+  serverId?: string
+  serverWireName?: string
   instance: McpServer
 }
 
@@ -44,7 +47,12 @@ export function buildAgentMcpServers(
       if (mcpServerSnapshots && !serverSnapshot) {
         throw new Error(`MCP server not found in request snapshot: ${mcpId}`)
       }
-      servers[mcpId] = { name: mcpId, instance: createMcpBridgeServer(mcpId, serverSnapshot) }
+      servers[mcpId] = {
+        name: serverSnapshot?.name ?? mcpId,
+        serverId: serverSnapshot?.id,
+        serverWireName: serverSnapshot?.serverWireName,
+        instance: createMcpBridgeServer(mcpId, serverSnapshot)
+      }
     } catch (error) {
       logger.error(`Failed to create MCP bridge for ${mcpId}`, { error })
     }

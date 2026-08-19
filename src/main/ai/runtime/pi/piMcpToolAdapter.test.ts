@@ -8,6 +8,8 @@ import {
 import type { McpServer as McpServerEntity } from '@shared/data/types/mcpServer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { createMcpToolBinding } from '../mcpToolBinding'
+
 const mocks = vi.hoisted(() => ({
   findByIdOrName: vi.fn(),
   refreshTools: vi.fn()
@@ -109,12 +111,21 @@ describe('buildMcpToolDefinitions', () => {
     const builtin = createServer([tool('kb_search')], async () => ({ content: [{ type: 'text', text: 'builtin' }] }))
 
     const bridge = await buildMcpToolDefinitions({
-      github: { name: 'github', instance: external },
+      github: {
+        name: 'github',
+        serverId: 'github-id',
+        serverWireName: 'github_123456789abc',
+        instance: external
+      },
       'cherry-tools': { name: 'cherry-tools', instance: builtin }
     })
 
     expect(bridge.tools.map((definition) => definition.name)).toEqual([
-      'mcp__github__search_issues',
+      createMcpToolBinding({
+        serverId: 'github-id',
+        serverWireName: 'github_123456789abc',
+        originalToolName: 'search_issues'
+      }).runtimeName,
       'mcp__cherry-tools__kb_search'
     ])
     await bridge.close()

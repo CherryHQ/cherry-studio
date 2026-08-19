@@ -18,6 +18,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
 import { toCamelCase } from '@shared/ai/tools/mcpToolName'
 
+import { createMcpToolBinding } from '../mcpToolBinding'
 import { dshToolResultErrorText, projectDshToolResult } from './dshToolResultProjection'
 
 const logger = loggerService.withContext('DshCherryToolBridge')
@@ -103,7 +104,7 @@ export async function buildDshCherryToolBridge(
       const result = await client.listTools()
       const serverNames = new Set<string>()
       const serverTools = result.tools.map((tool) => ({
-        descriptor: toBridgeDescriptor(server.name, tool),
+        descriptor: toBridgeDescriptor(server, tool),
         rawName: tool.name
       }))
       for (const { descriptor } of serverTools) {
@@ -150,9 +151,16 @@ export async function buildDshCherryToolBridge(
   }
 }
 
-function toBridgeDescriptor(serverName: string, tool: Tool): BridgeToolDescriptor {
+function toBridgeDescriptor(server: AgentMcpServer, tool: Tool): BridgeToolDescriptor {
   return {
-    name: buildDshCherryToolName(serverName, tool.name),
+    name:
+      server.serverId && server.serverWireName
+        ? createMcpToolBinding({
+            serverId: server.serverId,
+            serverWireName: server.serverWireName,
+            originalToolName: tool.name
+          }).runtimeName
+        : buildDshCherryToolName(server.name, tool.name),
     description: tool.description ?? '',
     inputSchema: tool.inputSchema as Record<string, unknown>
   }

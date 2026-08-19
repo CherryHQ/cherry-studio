@@ -10,6 +10,8 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import type { CallToolResult, ContentBlock, Tool } from '@modelcontextprotocol/sdk/types.js'
 import { toCamelCase } from '@shared/ai/tools/mcpToolName'
 
+import { createMcpToolBinding } from '../mcpToolBinding'
+
 const logger = loggerService.withContext('PiMcpToolAdapter')
 type PiToolContent = { type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string }
 
@@ -61,7 +63,7 @@ export async function buildMcpToolDefinitions(servers: Record<string, AgentMcpSe
       await server.instance.connect(serverTransport)
       await client.connect(clientTransport)
       const result = await client.listTools()
-      const serverTools = result.tools.map((tool) => toPiToolDefinition(server.name, tool, client))
+      const serverTools = result.tools.map((tool) => toPiToolDefinition(server, tool, client))
       const existingNames = new Set(tools.map((tool) => tool.name))
       const serverNames = new Set<string>()
       for (const tool of serverTools) {
@@ -90,9 +92,16 @@ export async function buildMcpToolDefinitions(servers: Record<string, AgentMcpSe
   }
 }
 
-function toPiToolDefinition(serverName: string, tool: Tool, client: Client): PiMcpToolDefinition {
+function toPiToolDefinition(server: AgentMcpServer, tool: Tool, client: Client): PiMcpToolDefinition {
   return {
-    name: buildPiMcpToolName(serverName, tool.name),
+    name:
+      server.serverId && server.serverWireName
+        ? createMcpToolBinding({
+            serverId: server.serverId,
+            serverWireName: server.serverWireName,
+            originalToolName: tool.name
+          }).runtimeName
+        : buildPiMcpToolName(server.name, tool.name),
     label: tool.name,
     description: tool.description ?? '',
     parameters: tool.inputSchema as ToolDefinition['parameters'],

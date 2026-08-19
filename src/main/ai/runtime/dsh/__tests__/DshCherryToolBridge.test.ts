@@ -15,6 +15,8 @@ import {
 import sharp from 'sharp'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { createMcpToolBinding } from '../../mcpToolBinding'
+
 const mocks = vi.hoisted(() => ({
   findByIdOrName: vi.fn(),
   refreshTools: vi.fn()
@@ -123,6 +125,22 @@ describe('DshCherryToolBridge', () => {
         inputSchema: { type: 'object', properties: { value: { type: 'string' } } }
       }
     ])
+    await bridge.close()
+  })
+
+  it('uses the canonical runtime name for an external server and still calls the raw tool', async () => {
+    const call = vi.fn(async () => ({ content: [{ type: 'text', text: 'ok' }] }))
+    const server = createServer([tool('search_issues')], call)
+    const metadata = { serverId: 'github-id', serverWireName: 'github_123456789abc' }
+    const runtimeName = createMcpToolBinding({ ...metadata, originalToolName: 'search_issues' }).runtimeName
+    const bridge = await buildDshCherryToolBridge(
+      { github: { name: 'github', ...metadata, instance: server } },
+      bridgeOptions()
+    )
+
+    expect(bridge.tools[0].name).toBe(runtimeName)
+    await bridge.callTool(runtimeName, { query: 'issues' })
+    expect(call).toHaveBeenCalledWith('search_issues', { query: 'issues' }, expect.any(AbortSignal))
     await bridge.close()
   })
 

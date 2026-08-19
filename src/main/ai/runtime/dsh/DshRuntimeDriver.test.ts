@@ -43,7 +43,9 @@ describe('DshRuntimeDriver.listAvailableTools', () => {
 
   it('uses the host-bridge public name and prompts for third-party MCP tools', async () => {
     mocks.findByIdOrName.mockReturnValue({ id: 'srv-1', name: 'github' } as McpServer)
-    mocks.listTools.mockReturnValue([{ name: 'search_issues', description: 'Search issues' } as McpTool])
+    mocks.listTools.mockReturnValue([
+      { name: 'search_issues', runtimeName: 'mcp__github__search_issues', description: 'Search issues' } as McpTool
+    ])
 
     const tools = await new DshRuntimeDriver().listAvailableTools(['srv-1'])
 
@@ -61,8 +63,8 @@ describe('DshRuntimeDriver.listAvailableTools', () => {
   it('auto-approves safe Cherry tools but keeps sensitive Cherry tools prompt-gated', async () => {
     mocks.findByIdOrName.mockReturnValue({ id: 'cherry-id', name: 'cherry-tools' } as McpServer)
     mocks.listTools.mockReturnValue([
-      { name: 'web_search', description: 'Search the web' } as McpTool,
-      { name: 'kb_manage', description: 'Manage knowledge' } as McpTool
+      { name: 'web_search', runtimeName: 'mcp__cherry-tools__web_search', description: 'Search the web' } as McpTool,
+      { name: 'kb_manage', runtimeName: 'mcp__cherry-tools__kb_manage', description: 'Manage knowledge' } as McpTool
     ])
 
     const tools = await new DshRuntimeDriver().listAvailableTools(['cherry-id'])
