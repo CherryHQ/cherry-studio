@@ -19,6 +19,7 @@ import { lazy, Suspense, useEffect } from 'react'
 import { useAppUpdateHandler } from './hooks/useAppUpdateHandler'
 import { useAutoBackupEvents } from './hooks/useAutoBackupEvents'
 import { useTopicNamingErrorNotification } from './hooks/useTopicNamingErrorNotification'
+import { useV1TopicOrderRepair } from './hooks/useV1TopicOrderRepair'
 import { PrivacyPolicyUpdateGate } from './privacy/PrivacyPolicyUpdateGate'
 
 const logger = loggerService.withContext('MainApp')
@@ -38,9 +39,11 @@ function BootFallback(): React.ReactElement {
 // TabRouter/<Activity>, so these window-scoped subscriptions and DOM sync are never
 // torn down when a background tab hides.
 //
-// useAppUpdateHandler / useAutoBackupEvents / useStorageMonitorNotification / useTopicNamingErrorNotification are
-// intentionally main-only (update events only reach the main window; the storage warning and
-// topic-naming-failed toast must not duplicate across windows) and intentionally React hooks:
+// useAppUpdateHandler / useAutoBackupEvents / useStorageMonitorNotification /
+// useTopicNamingErrorNotification / useV1TopicOrderRepair are
+// intentionally main-only (update events only reach the main window; the storage warning,
+// topic-naming-failed toast, and one-shot V1 topic-order repair must not duplicate across
+// windows) and intentionally React hooks:
 // they depend on React-visible
 // cache/toast state and manage their own effect cleanup, and the renderer has no
 // service lifecycle container, so a service would only add manual start/stop.
@@ -66,6 +69,7 @@ function MainWindowRuntime(): null {
   useAutoBackupEvents()
   useStorageMonitorNotification()
   useTopicNamingErrorNotification()
+  useV1TopicOrderRepair()
 
   return null
 }

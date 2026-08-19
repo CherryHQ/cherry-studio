@@ -33,6 +33,7 @@ vi.mock('@renderer/components/ConversationNotificationRuntime', () => ({
 vi.mock('../hooks/useAutoBackupEvents', () => ({ useAutoBackupEvents: () => {} }))
 vi.mock('../hooks/useTopicNamingErrorNotification', () => ({ useTopicNamingErrorNotification: () => {} }))
 vi.mock('../hooks/useAppUpdateHandler', () => ({ useAppUpdateHandler: () => {} }))
+vi.mock('../hooks/useV1TopicOrderRepair', () => ({ useV1TopicOrderRepair: () => {} }))
 vi.mock('@renderer/components/PopupHost', () => ({ PopupHost: () => null }))
 vi.mock('@renderer/components/ToastHost', () => ({ default: () => null }))
 vi.mock('@renderer/components/ThemeProvider', () => ({

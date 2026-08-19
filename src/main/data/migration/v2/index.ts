@@ -39,6 +39,7 @@ export {
 
 // Migrators
 export { getAllMigrators } from './migrators/migratorRegistry'
+export { repairMigratedV1TopicOrder } from './repairV1TopicOrder'
 
 // Window management
 export {

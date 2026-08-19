@@ -76,7 +76,13 @@ import { eq, inArray, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import type { MigrationContext } from '../core/MigrationContext'
+import { writeV1TopicOrderRepairMarker } from '../repairV1TopicOrder'
 import { assignOrderKeysInSequence } from '../utils/orderKey'
+import {
+  collectV1TopicOrderIds,
+  compareTopicLeftoversByUpdatedAtThenId,
+  orderItemsByV1TopicSequence
+} from '../utils/v1TopicOrder'
 import { BaseMigrator } from './BaseMigrator'
 import { markEntriesAutoCleanup } from './FileMigrator'
 import {
@@ -203,6 +209,8 @@ export class ChatMigrator extends BaseMigrator {
   private topicMetaLookup: Map<string, OldTopicMeta> = new Map()
   // Topic → AssistantId mapping from Redux (Dexie topics don't store assistantId)
   private topicAssistantLookup: Map<string, string> = new Map()
+  // First-write-wins flatten of assistants[] then defaultAssistant.topics[].
+  private reduxTopicOrderIds: string[] = []
   private skippedTopics = 0
   private skippedMessages = 0
   private orphanedAssistantTopics = 0
@@ -237,6 +245,7 @@ export class ChatMigrator extends BaseMigrator {
     this.assistantLookup = new Map()
     this.topicMetaLookup = new Map()
     this.topicAssistantLookup = new Map()
+    this.reduxTopicOrderIds = []
     this.skippedTopics = 0
     this.skippedMessages = 0
     this.orphanedAssistantTopics = 0
@@ -360,6 +369,7 @@ export class ChatMigrator extends BaseMigrator {
       // can also carry topics — must be visited too, otherwise its topics show
       // up post-migration unnamed and with no timestamp source.
       const assistantState = ctx.sources.reduxState.getCategory<AssistantState>('assistants')
+      this.reduxTopicOrderIds = collectV1TopicOrderIds(assistantState ?? {})
       const allAssistants: OldAssistant[] = []
       if (assistantState?.assistants) allAssistants.push(...assistantState.assistants)
       if (assistantState?.defaultAssistant) allAssistants.push(assistantState.defaultAssistant)
@@ -462,6 +472,7 @@ export class ChatMigrator extends BaseMigrator {
   async execute(ctx: MigrationContext): Promise<ExecuteResult> {
     if (this.topicCount === 0) {
       logger.info('No topics to migrate')
+      writeV1TopicOrderRepairMarker(ctx.db, 'migration')
       return { success: true, processedCount: 0 }
     }
 
@@ -1210,8 +1221,8 @@ export class ChatMigrator extends BaseMigrator {
   }
 
   /**
-   * Post-stream insert pass: stamp orderKey, insert topics+messages with
-   * FK toggling, emit pin rows for legacy `pinned: true` topics.
+   * Post-stream insert pass: stamp orderKey from the V1 Redux topic
+   * flatten, insert topics+messages, emit pin rows for legacy `pinned: true`.
    */
   private insertStagedTopics(ctx: MigrationContext): {
     topicsInserted: number
@@ -1220,12 +1231,15 @@ export class ChatMigrator extends BaseMigrator {
   } {
     const db = ctx.db
 
-    // Sort by updatedAt DESC so the stamped orderKey matches the default
-    // unpinned list sort — otherwise drag-mode would see arbitrary order.
-    const sortedTopics = [...this.stagedTopics]
-      .sort((a, b) => b.topic.updatedAt - a.topic.updatedAt)
-      .map((d) => d.topic)
-    const stampedTopics = assignOrderKeysInSequence(sortedTopics)
+    // Stamp from V1 Redux `assistants[].topics[]` (then defaultAssistant),
+    // first-write-wins. Dexie-only leftovers append after that flatten.
+    const orderedPrepared = orderItemsByV1TopicSequence(
+      this.stagedTopics,
+      (data) => data.topic.id,
+      this.reduxTopicOrderIds,
+      (a, b) => compareTopicLeftoversByUpdatedAtThenId(a.topic, b.topic)
+    )
+    const stampedTopics = assignOrderKeysInSequence(orderedPrepared.map((data) => data.topic))
     const orderKeyById = new Map(stampedTopics.map((t) => [t.id, t.orderKey]))
     for (const data of this.stagedTopics) {
       const orderKey = orderKeyById.get(data.topic.id)
@@ -1318,13 +1332,12 @@ export class ChatMigrator extends BaseMigrator {
     }
 
     // ON CONFLICT DO NOTHING so a retry doesn't trip the (entity_type, entity_id) UNIQUE.
-    const pinned = this.stagedTopics.filter((d) => d.pinned)
+    const pinned = orderedPrepared.filter((d) => d.pinned)
     let pinsInserted = 0
     if (pinned.length > 0) {
-      const sorted = [...pinned].sort((a, b) => b.topic.updatedAt - a.topic.updatedAt)
       const now = Date.now()
       const pinRows = assignOrderKeysInSequence(
-        sorted.map((d) => ({
+        pinned.map((d) => ({
           id: uuidv4(),
           entityType: 'topic',
           entityId: d.topic.id,
@@ -1356,6 +1369,7 @@ export class ChatMigrator extends BaseMigrator {
     // assistant (migrated at order 2), message.topicId / parentId / modelId, and
     // chat_message_file_ref.sourceId/fileEntryId all resolve by now.
     this.assertOwnedForeignKeys(db, [topicTable, messageTable, pinTable, chatMessageFileRefTable])
+    writeV1TopicOrderRepairMarker(db, 'migration')
 
     return { topicsInserted, messagesInserted, pinsInserted }
   }
