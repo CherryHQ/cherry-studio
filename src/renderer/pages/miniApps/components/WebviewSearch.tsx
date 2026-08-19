@@ -25,6 +25,8 @@ interface WebviewSearchProps {
 
 const logger = loggerService.withContext('WebviewSearch')
 
+const OVERLAY_SELECTOR = '[data-webview-search-overlay]'
+
 const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, appId, hostShortcutEnabled = true }) => {
   const { t } = useTranslation()
   const [isVisible, setIsVisible] = useState(false)
@@ -32,6 +34,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
   const [matchCount, setMatchCount] = useState(0)
   const [activeIndex, setActiveIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
+  const overlayRef = useRef<HTMLDivElement>(null)
   const focusFrameRef = useRef<number | null>(null)
   const lastAppIdRef = useRef<string>(appId)
   const attachedWebviewRef = useRef<WebviewTag | null>(null)
@@ -244,9 +247,15 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
         return
       }
 
-      // Escape/Enter stay live regardless: this pane's overlay can have been
-      // opened from inside its webview, and it still has to be operable.
       if (!isVisible) return
+
+      // A lone overlay is unambiguously the target and always answers; with
+      // rivals, focus decides, and pane ownership only when none holds it.
+      const active = document.activeElement
+      const ownsFocus = overlayRef.current?.contains(active) ?? false
+      const overlayFocused = active instanceof Element && active.closest(OVERLAY_SELECTOR) !== null
+      const hasRival = document.querySelectorAll(OVERLAY_SELECTOR).length > 1
+      if (hasRival && (overlayFocused ? !ownsFocus : !hostShortcutEnabled)) return
 
       if (event.key === 'Escape') {
         event.preventDefault()
@@ -307,7 +316,10 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
   const disableNavigation = !query || matchCount === 0
 
   return (
-    <div className="pointer-events-auto absolute top-3 right-3 z-50 flex items-center gap-2 rounded-xl border border-border bg-card px-2 py-1 shadow-lg">
+    <div
+      ref={overlayRef}
+      data-webview-search-overlay=""
+      className="pointer-events-auto absolute top-3 right-3 z-50 flex items-center gap-2 rounded-xl border border-border bg-card px-2 py-1 shadow-lg">
       <Input
         ref={inputRef}
         autoFocus
