@@ -1,7 +1,40 @@
-import { OpenAICompatibleChatLanguageModel } from '@ai-sdk/openai-compatible'
-import { describe, expect, it, vi } from 'vitest'
+import { createExecutor } from '@cherrystudio/ai-core'
+import { createCherryIn } from '@cherrystudio/ai-sdk-provider'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { makeModel } from '../../__tests__/fixtures/model'
+import { makeProvider } from '../../__tests__/fixtures/provider'
+import { createNewApi } from '../custom/newapiProvider'
 import { applyReasoningModelMaxTokensConversion, isOpenAIReasoningModelId } from '../reasoningModelTransform'
+
+const { resolveApiKeyMock, getAuthConfigMock, getByProviderIdMock } = vi.hoisted(() => ({
+  resolveApiKeyMock: vi.fn(),
+  getAuthConfigMock: vi.fn(),
+  getByProviderIdMock: vi.fn()
+}))
+
+vi.mock('@main/data/services/ProviderService', () => ({
+  providerService: {
+    resolveApiKey: resolveApiKeyMock,
+    getAuthConfig: getAuthConfigMock,
+    getByProviderId: getByProviderIdMock
+  }
+}))
+
+// Import the SUT after the mock is declared.
+const { providerToAiSdkConfig } = await import('../config')
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  resolveApiKeyMock.mockImplementation((_providerId: string, override?: string) => ({
+    value: override ?? 'sk-test-key',
+    apiKeySelection: override
+      ? { attribution: 'unknown' }
+      : { attribution: 'explicit', id: 'test-key', masked: 'sk-t****-key' }
+  }))
+  getAuthConfigMock.mockReturnValue(null)
+})
 
 describe('isOpenAIReasoningModelId', () => {
   it('identifies o1 models', () => {
@@ -72,11 +105,6 @@ describe('applyReasoningModelMaxTokensConversion', () => {
     expect(result).toEqual(body)
   })
 
-  it('passes through non-object input', () => {
-    expect(applyReasoningModelMaxTokensConversion(null as any)).toBe(null)
-    expect(applyReasoningModelMaxTokensConversion(undefined as any)).toBe(undefined)
-  })
-
   it('passes through when model field is missing', () => {
     const body = { max_tokens: 1000 }
     const result = applyReasoningModelMaxTokensConversion(body)
@@ -104,18 +132,31 @@ function fakeSuccessResponse() {
   )
 }
 
-describe('wire-body regression', () => {
-  it('default OpenAI-compatible config wires transformRequestBody through model', async () => {
-    const fetchSpy = vi.fn().mockResolvedValue(fakeSuccessResponse())
-    const model = new OpenAICompatibleChatLanguageModel('o3', {
-      provider: 'test.chat',
-      url: () => 'https://api.example.com/v1/chat/completions',
-      headers: () => ({}),
-      fetch: fetchSpy,
-      transformRequestBody: applyReasoningModelMaxTokensConversion
+describe('wire-body regression through real construction paths', () => {
+  it('default OpenAI-compatible path (providerToAiSdkConfig → createExecutor) rewrites max_tokens on the wire', async () => {
+    const provider = makeProvider({
+      id: 'some-relay',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example.com/v1' }
+      }
+    })
+    const model = makeModel({
+      apiModelId: 'o3',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
     })
 
-    await model.doGenerate({
+    const config = await providerToAiSdkConfig(provider, model)
+    expect(config.providerId).toBe('openai-compatible')
+
+    const fetchSpy = vi.fn().mockResolvedValue(fakeSuccessResponse())
+    const executor = await createExecutor(
+      config.providerId as Parameters<typeof createExecutor>[0],
+      { ...config.providerSettings, fetch: fetchSpy } as Parameters<typeof createExecutor>[1]
+    )
+    const languageModel = await executor.languageModel('o3')
+
+    await languageModel.doGenerate({
       prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
       maxOutputTokens: 1000
     })
@@ -125,16 +166,16 @@ describe('wire-body regression', () => {
     expect(body.max_tokens).toBeUndefined()
   })
 
-  it('NewAPI direct instantiation wires transformRequestBody through model', async () => {
+  it('NewAPI createNewApi path rewrites max_tokens on the wire', async () => {
     const fetchSpy = vi.fn().mockResolvedValue(fakeSuccessResponse())
-    const model = new OpenAICompatibleChatLanguageModel('o3', {
-      provider: 'newapi.chat',
-      url: () => 'https://newapi.example.com/v1/chat/completions',
-      headers: () => ({}),
+    const provider = createNewApi({
+      baseURL: 'https://newapi.example.com/v1',
+      apiKey: 'sk-test',
       fetch: fetchSpy,
-      transformRequestBody: applyReasoningModelMaxTokensConversion
+      endpointType: 'openai'
     })
 
+    const model = provider.languageModel('o3')
     await model.doGenerate({
       prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
       maxOutputTokens: 2000
@@ -145,18 +186,16 @@ describe('wire-body regression', () => {
     expect(body.max_tokens).toBeUndefined()
   })
 
-  it('CherryIn subclass wires transformRequestBody through model', async () => {
-    // CherryIn extends OpenAICompatibleChatLanguageModel with the same hook.
-    // Test via a plain instance with the hook wired — the subclass delegates to super.
+  it('CherryIn createCherryIn path rewrites max_tokens on the wire', async () => {
     const fetchSpy = vi.fn().mockResolvedValue(fakeSuccessResponse())
-    const model = new OpenAICompatibleChatLanguageModel('gpt-5', {
-      provider: 'cherryin.chat',
-      url: () => 'https://cherryin.example.com/v1/chat/completions',
-      headers: () => ({}),
+    const provider = createCherryIn({
+      baseURL: 'https://open.cherryin.net/v1',
+      apiKey: 'sk-test',
       fetch: fetchSpy,
-      transformRequestBody: applyReasoningModelMaxTokensConversion
+      endpointType: 'openai'
     })
 
+    const model = provider.chat('gpt-5')
     await model.doGenerate({
       prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
       maxOutputTokens: 4096

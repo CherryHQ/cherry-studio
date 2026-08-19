@@ -26,7 +26,6 @@ export function isOpenAIReasoningModelId(modelId: string): boolean {
  * `max_tokens` → `max_completion_tokens` for OpenAI reasoning models.
  */
 export function applyReasoningModelMaxTokensConversion(args: Record<string, any>): Record<string, any> {
-  if (typeof args !== 'object' || args === null) return args
   if (typeof args.model !== 'string') return args
   if (!isOpenAIReasoningModelId(args.model)) return args
   if (args.max_tokens == null) return args
