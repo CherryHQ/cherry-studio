@@ -741,7 +741,7 @@ describe('ScreenshotOverlayService', () => {
       expect(fakeWindow('overlay-1920-0').showInactive).toHaveBeenCalled()
     })
 
-    it('reveals an overlay on its renderer handshake and focuses only the cursor display', async () => {
+    it('reveals an overlay on its renderer handshake and keys only the cursor display', async () => {
       electron.displays = [makeDisplay(1, 0, 0), makeDisplay(2, 1920, 0)]
       electron.cursorDisplay = electron.displays[1]
       capture.captureAllMonitors.mockReturnValue(
@@ -757,9 +757,25 @@ describe('ScreenshotOverlayService', () => {
 
       expect(fakeWindow('overlay-0-0').setOpacity).toHaveBeenLastCalledWith(1)
       expect(fakeWindow('overlay-1920-0').setOpacity).toHaveBeenLastCalledWith(1)
-      // Every overlay calling focus() makes the winner depend on event-loop order.
-      expect(fakeWindow('overlay-0-0').focus).not.toHaveBeenCalled()
-      expect(fakeWindow('overlay-1920-0').focus).toHaveBeenCalled()
+      // show(), not focus(): focus() on a background app's non-activating panel is
+      // handed back by AppKit within the same second, and Esc then reaches nothing.
+      expect(fakeWindow('overlay-1920-0').show).toHaveBeenCalled()
+      expect(fakeWindow('overlay-1920-0').focus).not.toHaveBeenCalled()
+      // Every overlay taking the keyboard makes the winner depend on event-loop order.
+      expect(fakeWindow('overlay-0-0').show).not.toHaveBeenCalled()
+    })
+
+    it('takes the keyboard with focus() off macOS, where no panel window type exists', async () => {
+      platform.isMac = false
+      platform.isWin = true
+      singleDisplaySetup()
+      await service.startCapture()
+
+      service.markOverlayReady('overlay-0-0', initDataOf('overlay-0-0').mediaId)
+
+      // show() would activate the app on Windows; only macOS needs it to hold key state.
+      expect(fakeWindow('overlay-0-0').focus).toHaveBeenCalled()
+      expect(fakeWindow('overlay-0-0').show).not.toHaveBeenCalled()
     })
 
     it('ignores a ready report naming a previous session capture', async () => {
@@ -1195,7 +1211,7 @@ describe('ScreenshotOverlayService', () => {
 
       // Hovering must only redirect the keyboard: routing it through
       // markOverlayActive would wipe the selection the user is still building.
-      expect(fakeWindow('overlay-1920-0').focus).toHaveBeenCalled()
+      expect(fakeWindow('overlay-1920-0').show).toHaveBeenCalled()
       expect(container.ipcApiService.send).not.toHaveBeenCalled()
       expect(service.isActiveOverlay('overlay-0-0')).toBe(true)
     })
@@ -1206,7 +1222,7 @@ describe('ScreenshotOverlayService', () => {
 
       service.focusOverlay('some-other-window')
 
-      expect(fakeWindow('overlay-0-0').focus).not.toHaveBeenCalled()
+      expect(fakeWindow('overlay-0-0').show).not.toHaveBeenCalled()
     })
   })
 
