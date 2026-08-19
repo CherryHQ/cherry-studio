@@ -91,6 +91,11 @@ const openAIModel = model('openai', 'gpt-5', ENDPOINT_TYPE.OPENAI_RESPONSES, {
   thinkingTokenLimits: { min: 1000, max: 11_000 }
 })
 
+const registryReasoningSupportWithBudget: ProtoReasoningSupport = {
+  controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'xhigh'] }],
+  thinkingTokenLimits: { min: 1000, max: 11_000 }
+}
+
 const geminiModel = model('google', 'gemini-2.5-flash', ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, {
   selectableEfforts: ['none', 'low', 'medium', 'high', 'auto'],
   controls: [{ kind: 'budget', min: 0, max: 24_576 }, { kind: 'toggle' }],
@@ -221,6 +226,23 @@ describe('cross-dialect descriptor translation', () => {
     })
   })
 
+  it('uses registry token limits when translating an Anthropic budget without runtime reasoning', () => {
+    const target = provider('openai', ENDPOINT_TYPE.OPENAI_RESPONSES)
+    const modelWithoutRuntimeReasoning = { ...openAIModel, capabilities: [], reasoning: undefined } as Model
+    mocks.resolveReasoningProfile.mockReturnValueOnce({
+      format: 'openai-responses',
+      support: registryReasoningSupportWithBudget,
+      wire: REASONING_FORMAT_PROFILES['openai-responses'].wire
+    })
+
+    expect(
+      mapAnthropicThinkingToProviderOptions(target, modelWithoutRuntimeReasoning, {
+        type: 'enabled',
+        budget_tokens: 1500
+      })
+    ).toEqual({ openai: { reasoningEffort: 'low', forceReasoning: true } })
+  })
+
   it('falls back to high when Anthropic budget translation has no descriptor limits', () => {
     const target = provider('openai', ENDPOINT_TYPE.OPENAI_RESPONSES)
     const modelWithoutLimits = {
@@ -250,6 +272,20 @@ describe('cross-dialect descriptor translation', () => {
     })
     expect(mapGeminiThinkingToProviderOptions(target, openAIModel, { thinkingBudget: 6000 })).toEqual({
       openai: { reasoningEffort: 'medium', forceReasoning: true }
+    })
+  })
+
+  it('uses registry token limits when translating a Gemini budget without runtime reasoning', () => {
+    const target = provider('openai', ENDPOINT_TYPE.OPENAI_RESPONSES)
+    const modelWithoutRuntimeReasoning = { ...openAIModel, capabilities: [], reasoning: undefined } as Model
+    mocks.resolveReasoningProfile.mockReturnValueOnce({
+      format: 'openai-responses',
+      support: registryReasoningSupportWithBudget,
+      wire: REASONING_FORMAT_PROFILES['openai-responses'].wire
+    })
+
+    expect(mapGeminiThinkingToProviderOptions(target, modelWithoutRuntimeReasoning, { thinkingBudget: 1500 })).toEqual({
+      openai: { reasoningEffort: 'low', forceReasoning: true }
     })
   })
 
