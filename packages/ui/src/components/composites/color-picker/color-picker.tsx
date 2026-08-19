@@ -50,7 +50,7 @@ export const useColorPicker = () => {
   const context = use(ColorPickerContext)
 
   if (!context) {
-    throw new Error('useColorPicker must be used within a ColorPickerProvider')
+    throw new Error('useColorPicker must be used within a ColorPicker')
   }
 
   return context
@@ -59,6 +59,10 @@ export const useColorPicker = () => {
 export type ColorPickerProps = Omit<HTMLAttributes<HTMLDivElement>, 'onChange'> & {
   value?: Parameters<typeof Color>[0]
   defaultValue?: Parameters<typeof Color>[0]
+  /**
+   * Emits `[r, g, b, alpha]` when the user changes the color.
+   * RGB channels are integers 0–255; alpha is 0–1 (not 0–100).
+   */
   onChange?: (value: [number, number, number, number]) => void
 }
 
@@ -262,9 +266,12 @@ export const ColorPickerSelection = memo(
     }, [isDragging, handlePointerMove])
 
     return (
+      // Spread first so internal pointer handling and the HSV background keep
+      // precedence over caller props.
       <div
+        {...props}
         className={cn(
-          'relative size-full cursor-crosshair touch-none rounded outline-none focus-visible:ring-[1px] focus-visible:ring-ring/35',
+          'relative size-full cursor-crosshair touch-none rounded outline-none focus-visible:ring-[1px] focus-visible:ring-inset focus-visible:ring-ring/35',
           className
         )}
         tabIndex={0}
@@ -277,14 +284,15 @@ export const ColorPickerSelection = memo(
         onKeyDown={handleKeyDown}
         onPointerDown={(e) => {
           e.preventDefault()
+          e.currentTarget.focus({ preventScroll: true })
           setIsDragging(true)
           commitFromEvent(e.nativeEvent)
         }}
         ref={containerRef}
         style={{
+          ...props.style,
           background: backgroundGradient
-        }}
-        {...props}>
+        }}>
         <div
           className="-translate-x-1/2 -translate-y-1/2 pointer-events-none absolute h-4 w-4 rounded-full border-2 border-white"
           style={{
@@ -322,7 +330,7 @@ export const ColorPickerHue = ({ className, 'aria-label': ariaLabel, ...props }:
       </SliderPrimitive.Track>
       <SliderPrimitive.Thumb
         aria-label={ariaLabel ?? 'Hue'}
-        className="block h-4 w-4 rounded-full border border-primary/50 bg-background shadow transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+        className="block h-4 w-4 rounded-full border border-primary/50 bg-background shadow transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
       />
     </SliderPrimitive.Root>
   )
@@ -362,7 +370,7 @@ export const ColorPickerAlpha = ({ className, 'aria-label': ariaLabel, ...props 
       </SliderPrimitive.Track>
       <SliderPrimitive.Thumb
         aria-label={ariaLabel ?? 'Alpha'}
-        className="block h-4 w-4 rounded-full border border-primary/50 bg-background shadow transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+        className="block h-4 w-4 rounded-full border border-primary/50 bg-background shadow transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
       />
     </SliderPrimitive.Root>
   )

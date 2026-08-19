@@ -15,11 +15,6 @@ const codeEditorGutterTheme = EditorView.theme({
   },
   '.cm-activeLineGutter': {
     backgroundColor: 'transparent'
-  },
-  '.cm-activeLine': {
-    borderRadius: 'var(--radius-md)',
-    padding: '0 4px',
-    margin: '0 -4px'
   }
 })
 

@@ -154,12 +154,27 @@ const tabsTriggerVariants = cva(
         vertical: 'rounded-full'
       },
       size: {
-        sm: 'gap-1 px-2 py-0.5 text-xs',
-        default: 'gap-1.5 px-2 py-1 text-sm',
-        lg: 'gap-2 px-3 py-1.5 text-sm'
+        sm: '',
+        default: '',
+        lg: ''
       }
     },
     compoundVariants: [
+      {
+        variant: 'default',
+        size: 'sm',
+        class: 'gap-1 px-2 py-0.5 text-xs'
+      },
+      {
+        variant: 'default',
+        size: 'default',
+        class: 'gap-1.5 px-2 py-1 text-sm'
+      },
+      {
+        variant: 'default',
+        size: 'lg',
+        class: 'gap-2 px-3 py-1.5 text-sm'
+      },
       {
         variant: 'line',
         orientation: 'horizontal',

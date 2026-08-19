@@ -432,7 +432,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
               onClick={handleTriggerInputClick}
               onChange={handleTriggerInputChange}
               onKeyDown={handleTriggerInputKeyDown}
-              data-size={inputSize}
+              size={inputSize}
               style={triggerStyle}
               className={cn(
                 'w-full rounded-md border-1 bg-muted/20 pr-8 shadow-none transition-colors',

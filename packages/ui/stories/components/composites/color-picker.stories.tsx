@@ -18,7 +18,7 @@ const meta: Meta<typeof ColorPicker> = {
     docs: {
       description: {
         component:
-          'A composable color picker built on top of the `color` library. Compose the saturation/lightness selection, hue slider, alpha slider, EyeDropper (Chromium-only), format selector, and the read-only format readout — bring only the parts you need. `ColorPicker` is uncontrolled by default; pass `value` to drive it from the outside, and `onChange` reports an `[r, g, b, alpha]` tuple.'
+          'A composable color picker built on top of the `color` library. Compose the saturation/brightness selection, hue slider, alpha slider, EyeDropper (Chromium-only), format selector, and the read-only format readout — bring only the parts you need. `ColorPicker` is uncontrolled by default; pass `value` to drive it from the outside, and `onChange` reports an `[r, g, b, alpha]` tuple with RGB 0–255 and alpha 0–1.'
       }
     }
   },
@@ -50,7 +50,7 @@ export const Default: Story = {
   )
 }
 
-// Selection + Hue only — the slim variant ThemeColorPicker uses inside its popover.
+// Slim selection+hue composition (not yet used by ThemeColorPicker).
 export const SelectionAndHue: Story = {
   render: () => (
     <div className="w-64">
