@@ -81,15 +81,8 @@
     {
       "idx": 11,
       "version": "6",
-      "when": 1787063250340,
-      "tag": "0011_pretty_the_phantom",
-      "breakpoints": true
-    },
-    {
-      "idx": 12,
-      "version": "6",
-      "when": 1787104185122,
-      "tag": "0012_milky_alex_power",
+      "when": 1787109711737,
+      "tag": "0011_rare_vertigo",
       "breakpoints": true
     }
   ],

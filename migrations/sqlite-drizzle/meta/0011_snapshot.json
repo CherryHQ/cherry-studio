@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "d2854c66-9983-408f-b462-29935ecf7a4d",
+  "id": "f88ffda1-c02a-42a5-a3f7-15eb419fb3c3",
   "prevId": "b2b29e5d-4996-4ace-a87b-8ef7d3dff0ef",
   "tables": {
     "agent": {
@@ -183,13 +183,6 @@
           "notNull": false,
           "autoincrement": false
         },
-        "conversation_kind": {
-          "name": "conversation_kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "is_active": {
           "name": "is_active",
           "type": "integer",
@@ -239,13 +232,9 @@
           "name": "agent_channel_session_conversation_id_nonempty_check",
           "value": "\"agent_channel_session\".\"conversation_id\" IS NULL OR length(trim(\"agent_channel_session\".\"conversation_id\")) > 0"
         },
-        "agent_channel_session_conversation_kind_check": {
-          "name": "agent_channel_session_conversation_kind_check",
-          "value": "\"agent_channel_session\".\"conversation_kind\" IS NULL OR \"agent_channel_session\".\"conversation_kind\" IN ('direct', 'group', 'channel', 'thread')"
-        },
         "agent_channel_session_active_conversation_check": {
           "name": "agent_channel_session_active_conversation_check",
-          "value": "\"agent_channel_session\".\"is_active\" = 0 OR (\"agent_channel_session\".\"conversation_id\" IS NOT NULL AND \"agent_channel_session\".\"conversation_kind\" IS NOT NULL)"
+          "value": "\"agent_channel_session\".\"is_active\" = 0 OR \"agent_channel_session\".\"conversation_id\" IS NOT NULL"
         }
       }
     },
