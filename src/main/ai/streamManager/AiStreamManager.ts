@@ -319,6 +319,9 @@ export class AiStreamManager extends BaseService {
   /** Gate-admitted dispatches still inside `prepareDispatch → send`. Registered before the
    *  first async admission gap can yield to pause/drain, then removed after stream handoff. */
   private readonly inFlightDispatches = new Map<Promise<AiStreamOpenResponse>, string>()
+  /** Terminal persistence listeners currently writing by topic. Unlike `hasLiveStream`, this remains
+   *  true after terminal status is published and clears before runtime/renderer terminal listeners run. */
+  private readonly terminalPersistenceCounts = new Map<string, number>()
   /** Steer continuations suppressed by the write-quiesce gate; the last hold's disposal re-kicks
    *  them (mirrors JobManager's suppressed-fires sets). */
   private readonly suppressedChatContinuationTopicIds = new Set<string>()
@@ -922,6 +925,11 @@ export class AiStreamManager extends BaseService {
   hasLiveStream(topicId: string): boolean {
     const stream = this.activeStreams.get(topicId)
     return Boolean(stream && isLiveStatus(stream.status))
+  }
+
+  /** True while a terminal listener is writing durable state for this topic. */
+  hasTerminalPersistenceInFlight(topicId: string): boolean {
+    return (this.terminalPersistenceCounts.get(topicId) ?? 0) > 0
   }
 
   /**
@@ -1918,6 +1926,13 @@ export class AiStreamManager extends BaseService {
         continue
       }
       if (suppressNotification && listener.terminalPhase === undefined) continue
+      const tracksPersistence = listener.terminalPhase === 'persistence'
+      if (tracksPersistence) {
+        this.terminalPersistenceCounts.set(
+          stream.topicId,
+          (this.terminalPersistenceCounts.get(stream.topicId) ?? 0) + 1
+        )
+      }
       try {
         await invoke(listener)
       } catch (err) {
@@ -1926,6 +1941,12 @@ export class AiStreamManager extends BaseService {
           continue
         }
         logger.warn('Listener threw', { topicId: stream.topicId, listenerId: id, event, err })
+      } finally {
+        if (tracksPersistence) {
+          const remaining = (this.terminalPersistenceCounts.get(stream.topicId) ?? 1) - 1
+          if (remaining === 0) this.terminalPersistenceCounts.delete(stream.topicId)
+          else this.terminalPersistenceCounts.set(stream.topicId, remaining)
+        }
       }
     }
     for (const id of dead) stream.listeners.delete(id)

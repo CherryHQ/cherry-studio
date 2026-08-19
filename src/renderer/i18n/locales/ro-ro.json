@@ -388,6 +388,15 @@
         "inaccessible": "Calea către spațiul de lucru nu este accesibilă: {{path}}"
       }
     },
+    "session_delivery": {
+      "from": "De la {{agent}} / {{session}}",
+      "status": {
+        "accepted": "Acceptat",
+        "consumed": "Procesat",
+        "delivering": "În curs de livrare",
+        "failed": "Eșuat"
+      }
+    },
     "settings": {
       "permissionMode": {
         "title": "Mod de permisiune"
@@ -3390,6 +3399,21 @@
         "stderr": "stderr",
         "stdout": "stdout"
       },
+      "sessionCreate": {
+        "created": "A fost pornită o sesiune nouă",
+        "creating": "Se pornește o sesiune nouă",
+        "firstMessage": "Primul mesaj",
+        "inheritedContext": "Se utilizează acest agent și acest spațiu de lucru",
+        "open": "Deschide sesiunea",
+        "sessionId": "ID sesiune",
+        "untitled": "Sesiune fără titlu"
+      },
+      "sessionSend": {
+        "open": "Deschide sesiunea",
+        "sending": "Se trimite către",
+        "sent": "Trimis către",
+        "to": "Către"
+      },
       "status": {
         "done": "Gata",
         "error": "Eroare",
@@ -5621,6 +5645,10 @@
         "title": "Setări font"
       }
     },
+    "fetch": {
+      "allow_private_network": "Permite accesul la adrese din rețeaua locală",
+      "allow_private_network_tip": "Permite instrumentelor de preluare web să acceseze localhost și adrese din rețeaua privată. Dezactivați dacă nu doriți ca modelele să citească servicii de pe calculatorul dvs. sau din LAN."
+    },
     "font_size": {
       "title": "Dimensiune font mesaj"
     },
@@ -6075,40 +6103,48 @@
       "bulk_enable": "Activează tot",
       "check": {
         "all": "Toate",
-        "button_caption": "Verificare sănătate",
-        "disabled": "Dezactivat",
+        "all_models": "Toate modelele",
+        "all_models_disclaimer": "Verificarea tuturor modelelor trimite numeroase solicitări reale către modelele și cheile API selectate, ceea ce poate genera costuri ridicate într-un timp scurt. Confirmați că acceptați riscul privind costurile înainte de a începe. Modelele de generare a imaginilor, videoclipurilor și conținutului audio, de transcriere a vorbirii și de sinteză vocală sunt omise.",
+        "button_caption": "Verificare model",
+        "checking": "Se verifică…",
+        "concurrent_hint": "Modelele sunt verificate simultan; cheile API ale fiecărui model sunt verificate întotdeauna simultan.",
         "disclaimer": "Verificarea sănătății necesită trimiterea de cereri, te rugăm să o folosești cu precauție. Modelele care taxează pe cerere pot genera costuri suplimentare, te rugăm să îți asumi responsabilitatea.",
         "enable_concurrent": "Concurent",
-        "enabled": "Activat",
         "failed": "Eșuat",
         "failed_to_start": "Nu s-a reușit pornirea verificării stării de sănătate",
         "generation_output_audio": "audio",
         "generation_output_image": "o imagine",
         "generation_output_video": "un videoclip",
+        "key_scope": "Chei",
+        "keys_failed_count": "{{failed}}/{{total}} chei au eșuat",
+        "latency": "{{latency}} ms",
+        "model": "Model",
         "model_button_caption": "Verifică toate modelele",
-        "model_status_failed": "{{count}} modele complet inaccesibile",
-        "model_status_partial": "{{count}} modele au avut chei inaccesibile",
-        "model_status_passed": "{{count}} modele au trecut verificările de sănătate",
+        "model_scope": "Modele de verificat",
+        "model_status_failed_one": "{{count}} modele complet inaccesibile",
+        "model_status_failed_other": "{{count}} modele complet inaccesibile",
+        "model_status_partial_one": "{{count}} modele au avut chei inaccesibile",
+        "model_status_partial_other": "{{count}} modele au avut chei inaccesibile",
+        "model_status_passed_one": "{{count}} modele au trecut verificările de sănătate",
+        "model_status_passed_other": "{{count}} modele au trecut verificările de sănătate",
+        "model_status_skipped_one": "{{count}} modele omise",
+        "model_status_skipped_other": "{{count}} modele omise",
         "model_status_summary": "{{provider}}: {{summary}}",
         "no_results": "Niciun rezultat",
-        "outcome_fail_short": "{{count}} eșuate",
-        "outcome_skipped_short": "{{count}} omise",
-        "outcome_success_short": "{{count}} reușite",
-        "outcome_total": "{{count}} în total",
         "passed": "Reușit",
-        "pipeline_heading": "Progresul detectării",
-        "progress_count": "{{done}} / {{total}}",
-        "retry": "Verifică din nou",
-        "select_api_key": "Selectează cheia API de utilizat:",
+        "provider_auth": "Autentificarea furnizorului",
+        "select_api_key": "Selectează cheia API de utilizat",
         "single": "Singur",
+        "single_model": "Un singur model",
         "skip_reason_generation_cost": "Verificarea stării de sănătate a acestui model ar genera {{output}} și ar consuma din cotă, așa că este omisă în mod implicit.",
         "skip_reason_unsupported_probe": "Acest tip de model nu are încă o verificare de sănătate cu cost redus, așa că este omis în mod implicit.",
         "start": "Pornește",
         "status_checking": "Se verifică…",
         "status_skipped": "Omis",
         "timeout": "Expirare",
-        "title": "Verificare sănătate model",
-        "use_all_keys": "Cheie(i)"
+        "timeout_unit": "s",
+        "title": "Verificare model",
+        "toggle_key": "Comută starea de activare pentru {{name}}"
       },
       "collapse_all": "Restrânge tot",
       "context_management": {

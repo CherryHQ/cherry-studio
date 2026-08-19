@@ -9,6 +9,10 @@
       }
     },
     "session": {
+      "run_status": {
+        "busy": "The Agent Session is busy. Please try again shortly.",
+        "unavailable": "The Agent Session is no longer available."
+      },
       "workspace_status": {
         "inaccessible": "La ruta del espacio de trabajo no es accesible: {{path}}",
         "missing": "La ruta del espacio de trabajo no existe: {{path}}",
@@ -80,6 +84,13 @@
     "zoomOut": "Alejar"
   },
   "common": {
+    "channel_available_commands": "Comandos disponibles:",
+    "channel_command_processing_error": "⚠️ Se produjo un error al procesar el comando. Inténtalo de nuevo más tarde.",
+    "channel_message_processing_error": "⚠️ Se produjo un error al procesar tu mensaje. Inténtalo de nuevo más tarde.",
+    "channel_new_session_created": "Nueva sesión creada.",
+    "channel_no_active_session": "No hay ninguna sesión activa.",
+    "channel_session_compacted": "Sesión compactada.",
+    "channel_session_resolution_error": "⚠️ No se pudo resolver una sesión para este agente. Inténtalo de nuevo más tarde.",
     "copy": "Copiar",
     "cut": "Cortar",
     "inspect": "Inspeccionar",

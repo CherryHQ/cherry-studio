@@ -19,7 +19,7 @@ import { loggerService } from '@logger'
 import { collectAssistantFileAttachments } from '@main/ai/messages/assistantFileAttachments'
 import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
 import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
-import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
+import { buildAgentUserContent, wrapAgentSessionDeliveryContent } from '@main/ai/runtime/agentUserContent'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import {
@@ -1230,9 +1230,11 @@ async function materializeUserContent(
   if (unavailableParts.length > 0) {
     const names = unavailableParts.map((part) => part.filename || 'attachment')
     logger.warn('Claude Code attachments could not be sent', { attachments: names })
-    const note = `Unavailable attachments: ${names.join(', ')}`
+    const renderedNames = message.delivery ? names.map((name) => JSON.stringify(name)) : names
+    const note = `Unavailable attachments: ${renderedNames.join(', ')}`
     textContent = textContent.trim() ? `${textContent}\n\n${note}` : note
   }
+  textContent = wrapAgentSessionDeliveryContent(message, textContent)
   if (images.length === 0) return textContent
   return textContent.trim() ? [{ type: 'text', text: textContent }, ...images] : images
 }

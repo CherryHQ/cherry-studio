@@ -9,6 +9,10 @@
       }
     },
     "session": {
+      "run_status": {
+        "busy": "The Agent Session is busy. Please try again shortly.",
+        "unavailable": "The Agent Session is no longer available."
+      },
       "workspace_status": {
         "inaccessible": "Arbeitsbereichspfad ist nicht zugänglich: {{path}}",
         "missing": "Arbeitsbereichspfad existiert nicht: {{path}}",
@@ -80,6 +84,13 @@
     "zoomOut": "Herauszoomen"
   },
   "common": {
+    "channel_available_commands": "Verfügbare Befehle:",
+    "channel_command_processing_error": "⚠️ Beim Verarbeiten des Befehls ist ein Fehler aufgetreten. Bitte versuchen Sie es später erneut.",
+    "channel_message_processing_error": "⚠️ Beim Verarbeiten Ihrer Nachricht ist ein Fehler aufgetreten. Bitte versuchen Sie es später erneut.",
+    "channel_new_session_created": "Neue Sitzung erstellt.",
+    "channel_no_active_session": "Keine aktive Sitzung.",
+    "channel_session_compacted": "Sitzung komprimiert.",
+    "channel_session_resolution_error": "⚠️ Eine Sitzung für diesen Agenten konnte nicht aufgelöst werden. Bitte versuchen Sie es später erneut.",
     "copy": "Kopieren",
     "cut": "Ausschneiden",
     "inspect": "Prüfen",

@@ -388,6 +388,15 @@
         "inaccessible": "O caminho do workspace não está acessível: {{path}}"
       }
     },
+    "session_delivery": {
+      "from": "De {{agent}} / {{session}}",
+      "status": {
+        "accepted": "Aceite",
+        "consumed": "Processado",
+        "delivering": "A entregar",
+        "failed": "Falhou"
+      }
+    },
     "settings": {
       "permissionMode": {
         "title": "Modo de Permissão"
@@ -3390,6 +3399,21 @@
         "stderr": "stderr",
         "stdout": "stdout"
       },
+      "sessionCreate": {
+        "created": "Foi iniciada uma nova sessão",
+        "creating": "A iniciar uma nova sessão",
+        "firstMessage": "Primeira mensagem",
+        "inheritedContext": "A utilizar este agente e espaço de trabalho",
+        "open": "Abrir sessão",
+        "sessionId": "ID da sessão",
+        "untitled": "Sessão sem título"
+      },
+      "sessionSend": {
+        "open": "Abrir sessão",
+        "sending": "A enviar para",
+        "sent": "Enviado para",
+        "to": "Para"
+      },
       "status": {
         "done": "Feito",
         "error": "Erro",
@@ -5621,6 +5645,10 @@
         "title": "Configuração de fonte"
       }
     },
+    "fetch": {
+      "allow_private_network": "Permitir o acesso a endereços da rede local",
+      "allow_private_network_tip": "Permite que as ferramentas de obtenção da web acedam a localhost e a endereços de rede privada. Desative se não quiser que os modelos leiam serviços no seu computador ou na sua LAN."
+    },
     "font_size": {
       "title": "Tamanho da fonte da mensagem"
     },
@@ -6075,40 +6103,48 @@
       "bulk_enable": "Ativar todos",
       "check": {
         "all": "Todos",
-        "button_caption": "Verificação de saúde",
-        "disabled": "Desativado",
+        "all_models": "Todos os modelos",
+        "all_models_disclaimer": "A verificação de todos os modelos envia muitos pedidos reais para os modelos e chaves API selecionados, o que pode gerar custos elevados num curto espaço de tempo. Confirme que aceita o risco de custos antes de começar. Os modelos de geração de imagens, vídeo e áudio, de conversão de voz em texto e de texto em voz são ignorados.",
+        "button_caption": "Verificação de modelos",
+        "checking": "A verificar…",
+        "concurrent_hint": "Os modelos são verificados em simultâneo; as chaves API de cada modelo são sempre verificadas em simultâneo.",
         "disclaimer": "A verificação do estado requer o envio de pedidos; utilize-a com cautela. Os modelos cobrados por utilização podem gerar custos adicionais, que ficam a seu cargo.",
         "enable_concurrent": "Verificação concorrente",
-        "enabled": "Ativado",
         "failed": "Falhou",
         "failed_to_start": "Falha ao iniciar a verificação de saúde",
         "generation_output_audio": "áudio",
         "generation_output_image": "uma imagem",
         "generation_output_video": "um vídeo",
+        "key_scope": "Chaves",
+        "keys_failed_count": "{{failed}}/{{total}} chaves falharam",
+        "latency": "{{latency}} ms",
+        "model": "Modelo",
         "model_button_caption": "Verificar todos os modelos",
-        "model_status_failed": "{{count}} modelos completamente inacessíveis",
-        "model_status_partial": "Desses, {{count}} modelos são inacessíveis com certas chaves",
-        "model_status_passed": "{{count}} modelos passaram na verificação de saúde",
+        "model_scope": "Modelos a verificar",
+        "model_status_failed_one": "{{count}} modelos completamente inacessíveis",
+        "model_status_failed_other": "{{count}} modelos completamente inacessíveis",
+        "model_status_partial_one": "Desses, {{count}} modelos são inacessíveis com certas chaves",
+        "model_status_partial_other": "Desses, {{count}} modelos são inacessíveis com certas chaves",
+        "model_status_passed_one": "{{count}} modelos passaram na verificação de saúde",
+        "model_status_passed_other": "{{count}} modelos passaram na verificação de saúde",
+        "model_status_skipped_one": "{{count}} modelos ignorados",
+        "model_status_skipped_other": "{{count}} modelos ignorados",
         "model_status_summary": "{{provider}}: {{summary}}",
         "no_results": "Sem resultados",
-        "outcome_fail_short": "{{count}} com falha",
-        "outcome_skipped_short": "{{count}} ignorado",
-        "outcome_success_short": "{{count}} aprovados",
-        "outcome_total": "{{count}} no total",
         "passed": "Passou",
-        "pipeline_heading": "Progresso da deteção",
-        "progress_count": "{{done}} / {{total}}",
-        "retry": "Verificar novamente",
-        "select_api_key": "Selecione a chave API a ser usada:",
+        "provider_auth": "Autenticação do fornecedor",
+        "select_api_key": "Selecione a chave API a ser usada",
         "single": "Individual",
+        "single_model": "Modelo individual",
         "skip_reason_generation_cost": "A verificação de integridade deste modelo geraria {{output}} e consumiria cota, por isso é ignorada por padrão.",
         "skip_reason_unsupported_probe": "Este tipo de modelo ainda não possui uma verificação de saúde de baixo custo, portanto é ignorado por padrão.",
         "start": "Começar",
         "status_checking": "A verificar…",
         "status_skipped": "Ignorado",
         "timeout": "tempo expirado",
-        "title": "Verificação de saúde do modelo",
-        "use_all_keys": "Use chaves"
+        "timeout_unit": "s",
+        "title": "Verificação de modelos",
+        "toggle_key": "Ativar ou desativar {{name}}"
       },
       "collapse_all": "Recolher tudo",
       "context_management": {
