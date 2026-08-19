@@ -229,17 +229,7 @@ function buildResourceListSections<T extends ResourceListItemBase>({
 
   const collapsedIdSet = new Set(collapsedIds)
   const sections = new Map<string, { section: ResourceListSection; items: T[]; groupSeeds: ResourceListGroup[] }>()
-  // Seeds define hierarchy order; remote item presence changes as groups collapse.
-  for (const groupSeed of groupSeeds) {
-    const section = groupSeed.section ?? UNSECTIONED_RESOURCE_SECTION
-    const group = getResourceListGroupFromSeed(groupSeed)
-    const existing = sections.get(section.id)
-    if (existing) {
-      existing.groupSeeds.push(group)
-    } else {
-      sections.set(section.id, { section, items: [], groupSeeds: [group] })
-    }
-  }
+  const seededSectionOrder = new Map<string, number>()
 
   for (const item of items) {
     const section = sectionBy(item) ?? UNSECTIONED_RESOURCE_SECTION
@@ -252,7 +242,28 @@ function buildResourceListSections<T extends ResourceListItemBase>({
     }
   }
 
-  const sectionEntries = [...sections.values()]
+  for (const groupSeed of groupSeeds) {
+    const section = groupSeed.section ?? UNSECTIONED_RESOURCE_SECTION
+    const group = getResourceListGroupFromSeed(groupSeed)
+    if (!seededSectionOrder.has(section.id)) {
+      seededSectionOrder.set(section.id, seededSectionOrder.size)
+    }
+    const existing = sections.get(section.id)
+    if (existing) {
+      existing.groupSeeds.push(group)
+    } else {
+      sections.set(section.id, { section, items: [], groupSeeds: [group] })
+    }
+  }
+
+  const sectionEntries = [...sections.values()].sort((left, right) => {
+    const leftOrder = seededSectionOrder.get(left.section.id)
+    const rightOrder = seededSectionOrder.get(right.section.id)
+    if (leftOrder === undefined && rightOrder === undefined) return 0
+    if (leftOrder === undefined) return -1
+    if (rightOrder === undefined) return 1
+    return leftOrder - rightOrder
+  })
   const showSectionHeaders = sectionEntries.length > 1
 
   return sectionEntries.map(({ section, items, groupSeeds }) => {
@@ -396,6 +407,7 @@ export type ResourceListProviderProps<T extends ResourceListItemBase> = {
     targetIndex: number
   }) => boolean
   defaultGroupVisibleCount?: number
+  groupLoadStep?: number
   groupShowMoreLabel?: string
   groupCollapseLabel?: string
   estimateItemSize?: (index: number) => number
@@ -420,7 +432,7 @@ type ProviderAction =
   | { type: 'selectItem'; id: string | null }
   | { type: 'startRename'; id: string }
   | { type: 'cancelRename' }
-  | { type: 'showMoreInGroup'; groupId: string }
+  | { type: 'showMoreInGroup'; groupId: string; defaultCount: number; loadStep: number }
   | { type: 'collapseGroupItems'; groupId: string; defaultCount: number }
   | { type: 'expandGroups'; groupIds: readonly string[] }
   | {
@@ -470,11 +482,13 @@ function reducer(state: ResourceListProviderState, action: ProviderAction): Reso
     case 'cancelRename':
       return { ...state, renamingId: null }
     case 'showMoreInGroup': {
+      const visibleCount = state.groupVisibleCounts[action.groupId] ?? action.defaultCount
+
       return {
         ...state,
         groupVisibleCounts: {
           ...state.groupVisibleCounts,
-          [action.groupId]: Number.POSITIVE_INFINITY
+          [action.groupId]: visibleCount + action.loadStep
         }
       }
     }
@@ -595,6 +609,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
   canDropGroup,
   canDropItem,
   defaultGroupVisibleCount = 5,
+  groupLoadStep = 5,
   groupShowMoreLabel,
   groupCollapseLabel,
   estimateItemSize = estimateResourceListDefaultRowSize,
@@ -914,7 +929,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       selectGroupHeaderItem,
       showMoreInGroup: (groupId: string) => {
         if (remoteGroups?.loadNext(groupId)) return
-        dispatch({ type: 'showMoreInGroup', groupId })
+        dispatch({ type: 'showMoreInGroup', groupId, defaultCount: defaultGroupVisibleCount, loadStep: groupLoadStep })
       },
       retryGroup: (groupId: string) => {
         remoteGroups?.retry(groupId)
@@ -971,6 +986,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
     }),
     [
       defaultGroupVisibleCount,
+      groupLoadStep,
       isControlled,
       isSelectedControlled,
       notifyControlledCollapsedStateChange,
@@ -1027,6 +1043,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       filterOptions,
       estimateItemSize,
       defaultGroupVisibleCount,
+      groupLoadStep,
       groupShowMoreLabel,
       groupCollapseLabel,
       revealRequest,
@@ -1064,6 +1081,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       getItemId,
       getItemLabel,
       groupCollapseLabel,
+      groupLoadStep,
       groupShowMoreLabel,
       onGroupHeaderActivate,
       onEmptyGroupHeaderClick,

@@ -2171,7 +2171,7 @@ describe('ResourceList', () => {
     expect(onEndReached).toHaveBeenCalledTimes(2)
   })
 
-  it('limits each group to the default visible count and expands the group independently', () => {
+  it('loads each group in configured increments and collapses it to the default count', () => {
     const Provider = ResourceList.Provider<TestItem>
     const items = Array.from({ length: 12 }, (_, index) => ({
       id: `item-${index + 1}`,

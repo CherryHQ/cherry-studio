@@ -1096,6 +1096,13 @@ export function Topics({
     activeTopicIdRef.current = ''
     onClearActiveTopic?.()
   }, [onClearActiveTopic])
+  const resolveTopicRemovalFallback = useCallback(
+    async (topic: TopicListItem) => {
+      const fallback = await loadLatestTopic(undefined, topic.id)
+      return fallback ? { ...fallback, pinned: false, pinId: null } : null
+    },
+    [loadLatestTopic]
+  )
   const { remove: coordinateTopicRemoval } = useResourceRemovalCoordinator<TopicListItem>({
     getActiveId: getActiveTopicId,
     getGroupId: getTopicRemovalGroupId,
@@ -1103,7 +1110,8 @@ export function Topics({
     optimisticallyRemove: optimisticallyRemoveTopic,
     restoreOptimisticRemoval: restoreOptimisticallyRemovedTopic,
     selectItem: handleSwitchTopic,
-    clearSelection: clearTopicSelection
+    clearSelection: clearTopicSelection,
+    resolveFallback: resolveTopicRemovalFallback
   })
   const handleDeleteTopicFromMenu = useCallback(
     async (topic: TopicActionItem) => {
@@ -1916,6 +1924,7 @@ export function Topics({
         collapsedState={isAssistantDisplayMode ? collapsedTopicState : undefined}
         revealRequest={preparedRevealRequest}
         defaultGroupVisibleCount={defaultGroupVisibleCount}
+        groupLoadStep={isRightPanel ? Number.POSITIVE_INFINITY : DEFAULT_TOPIC_GROUP_VISIBLE_COUNT}
         getGroupHeaderAction={getGroupHeaderAction}
         getGroupHeaderContextMenu={getGroupHeaderContextMenu}
         getGroupHeaderIcon={getGroupHeaderIcon}

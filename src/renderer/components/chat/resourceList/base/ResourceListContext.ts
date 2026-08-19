@@ -139,6 +139,7 @@ export type ResourceListMeta<T extends ResourceListItemBase> = {
   filterOptions: ResourceListFilterOption<T>[]
   estimateItemSize: (index: number) => number
   defaultGroupVisibleCount: number
+  groupLoadStep: number
   groupShowMoreLabel?: string
   groupCollapseLabel?: string
   revealRequest?: ResourceListRevealRequest

@@ -48,6 +48,7 @@ import {
   inArray,
   isNotNull,
   isNull,
+  ne,
   notInArray,
   or,
   type SQL,
@@ -590,6 +591,7 @@ export class AgentSessionService {
   getLatestActive(query: LatestAgentSessionQuery = {}): AgentSessionEntity | null {
     const db = application.get('DbService').getDb()
     const filters = buildSessionRecordFilters(query)
+    if (query.excludeSessionId) filters.push(ne(sessionsTable.id, query.excludeSessionId))
     const [row] = db
       .select({ session: sessionsTable, workspace: agentWorkspaceTable })
       .from(sessionsTable)

@@ -2183,6 +2183,7 @@ describe('TopicService', () => {
       ])
 
       expect(service.getLatestActive()?.id).toBe('latest')
+      expect(service.getLatestActive({ excludeTopicId: 'latest' })?.id).toBe('mid')
     })
 
     it('returns latest activity within a live assistant scope and excludes a deleted owner', async () => {

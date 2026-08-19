@@ -148,9 +148,10 @@ export const ListAgentSessionsQuerySchema = z.discriminatedUnion('pinned', [
 export type ListAgentSessionsQueryParams = z.input<typeof ListAgentSessionsQuerySchema>
 export type ListAgentSessionsQuery = z.output<typeof ListAgentSessionsQuerySchema>
 
-/** Optional concrete owner scope for `GET /agent-sessions/latest`; omitted means global latest. */
+/** Optional owner scope and deletion exclusion for `GET /agent-sessions/latest`; omitted scope means global latest. */
 export const LatestAgentSessionQuerySchema = z.strictObject({
-  agentId: ConcreteAgentIdSchema.optional()
+  agentId: ConcreteAgentIdSchema.optional(),
+  excludeSessionId: z.uuidv4().optional()
 })
 export type LatestAgentSessionQuery = z.infer<typeof LatestAgentSessionQuerySchema>
 

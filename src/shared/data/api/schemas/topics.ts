@@ -118,9 +118,10 @@ export const ListTopicsQuerySchema = z.discriminatedUnion('pinned', [
 ])
 export type ListTopicsQuery = z.infer<typeof ListTopicsQuerySchema>
 
-/** Optional owner scope for `GET /topics/latest`; omitted means global latest. */
+/** Optional owner scope and deletion exclusion for `GET /topics/latest`; omitted scope means global latest. */
 export const LatestTopicQuerySchema = z.strictObject({
-  assistantId: z.uuidv4().optional()
+  assistantId: z.uuidv4().optional(),
+  excludeTopicId: z.uuidv4().optional()
 })
 export type LatestTopicQuery = z.infer<typeof LatestTopicQuerySchema>
 

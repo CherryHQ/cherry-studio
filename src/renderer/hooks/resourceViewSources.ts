@@ -17,11 +17,12 @@ import { useTopicStats } from './useTopic'
  */
 export function useAssistantTopicsSource({ enabled }: { enabled?: boolean } = {}) {
   const statsSource = useTopicStats({ enabled })
-  const loadLatestTopic = useCallback(async (assistantId?: string) => {
+  const loadLatestTopic = useCallback(async (assistantId?: string, excludeTopicId?: string) => {
+    const query = { ...(assistantId ? { assistantId } : {}), ...(excludeTopicId ? { excludeTopicId } : {}) }
     const result =
-      assistantId === undefined
+      Object.keys(query).length === 0
         ? await dataApiService.get('/topics/latest')
-        : await dataApiService.get('/topics/latest', { query: { assistantId } })
+        : await dataApiService.get('/topics/latest', { query })
     return result.topic
   }, [])
   const reuseOrCreateTopic = useCallback(async (assistantId: string) => {
@@ -40,11 +41,12 @@ export function useAssistantTopicsSource({ enabled }: { enabled?: boolean } = {}
 /** Session counterpart to {@link useAssistantTopicsSource}. */
 export function useAgentSessionsSource({ enabled }: { enabled?: boolean } = {}) {
   const statsSource = useAgentSessionStats({ enabled })
-  const loadLatestSession = useCallback(async (agentId?: string) => {
+  const loadLatestSession = useCallback(async (agentId?: string, excludeSessionId?: string) => {
+    const query = { ...(agentId ? { agentId } : {}), ...(excludeSessionId ? { excludeSessionId } : {}) }
     const result =
-      agentId === undefined
+      Object.keys(query).length === 0
         ? await dataApiService.get('/agent-sessions/latest')
-        : await dataApiService.get('/agent-sessions/latest', { query: { agentId } })
+        : await dataApiService.get('/agent-sessions/latest', { query })
     return result.session
   }, [])
   const reuseOrCreateSession = useCallback(

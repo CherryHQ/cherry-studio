@@ -1267,6 +1267,13 @@ const Sessions = ({
     [sessionGroupBy]
   )
   const clearSessionSelection = useCallback(() => commitActiveSession(null), [commitActiveSession])
+  const resolveSessionRemovalFallback = useCallback(
+    async (session: AgentSessionListItem) => {
+      const fallback = await loadLatestSession(undefined, session.id)
+      return fallback ? { ...fallback, pinned: false, pinId: null } : null
+    },
+    [loadLatestSession]
+  )
   const { remove: coordinateSessionRemoval } = useResourceRemovalCoordinator<AgentSessionListItem>({
     getActiveId: getActiveSessionId,
     getGroupId: getSessionRemovalGroupId,
@@ -1274,7 +1281,8 @@ const Sessions = ({
     optimisticallyRemove: optimisticallyRemoveSession,
     restoreOptimisticRemoval: restoreOptimisticallyRemovedSession,
     selectItem: (session) => commitActiveSession(session.id, session),
-    clearSelection: clearSessionSelection
+    clearSelection: clearSessionSelection,
+    resolveFallback: resolveSessionRemovalFallback
   })
   const handleDeleteSession = useCallback(
     async (id: string) => {
@@ -2517,6 +2525,7 @@ const Sessions = ({
       collapsedState={displayMode === 'time' ? undefined : collapsedSessionState}
       revealRequest={preparedRevealRequest}
       defaultGroupVisibleCount={defaultGroupVisibleCount}
+      groupLoadStep={DEFAULT_SESSION_GROUP_VISIBLE_COUNT}
       getSectionHeaderAction={getSectionHeaderAction}
       getGroupHeaderAction={getGroupHeaderAction}
       getGroupHeaderContextMenu={getGroupHeaderContextMenu}

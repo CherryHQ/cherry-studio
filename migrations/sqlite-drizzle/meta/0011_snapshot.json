@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "a81d7064-6f1f-497c-8945-df93cb5a5849",
+  "id": "f88ffda1-c02a-42a5-a3f7-15eb419fb3c3",
   "prevId": "b2b29e5d-4996-4ace-a87b-8ef7d3dff0ef",
   "tables": {
     "agent": {
@@ -158,6 +158,85 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
+    },
+    "agent_channel_session": {
+      "name": "agent_channel_session",
+      "columns": {
+        "session_id": {
+          "name": "session_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "channel_id": {
+          "name": "channel_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "conversation_id": {
+          "name": "conversation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        }
+      },
+      "indexes": {
+        "agent_channel_session_channel_id_idx": {
+          "name": "agent_channel_session_channel_id_idx",
+          "columns": ["channel_id"],
+          "isUnique": false
+        },
+        "agent_channel_session_active_uniq": {
+          "name": "agent_channel_session_active_uniq",
+          "columns": ["channel_id", "conversation_id"],
+          "isUnique": true,
+          "where": "\"agent_channel_session\".\"is_active\" = 1 AND \"agent_channel_session\".\"conversation_id\" IS NOT NULL"
+        }
+      },
+      "foreignKeys": {
+        "agent_channel_session_session_id_agent_session_id_fk": {
+          "name": "agent_channel_session_session_id_agent_session_id_fk",
+          "tableFrom": "agent_channel_session",
+          "tableTo": "agent_session",
+          "columnsFrom": ["session_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "agent_channel_session_channel_id_agent_channel_id_fk": {
+          "name": "agent_channel_session_channel_id_agent_channel_id_fk",
+          "tableFrom": "agent_channel_session",
+          "tableTo": "agent_channel",
+          "columnsFrom": ["channel_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "agent_channel_session_conversation_id_nonempty_check": {
+          "name": "agent_channel_session_conversation_id_nonempty_check",
+          "value": "\"agent_channel_session\".\"conversation_id\" IS NULL OR length(trim(\"agent_channel_session\".\"conversation_id\")) > 0"
+        },
+        "agent_channel_session_active_conversation_check": {
+          "name": "agent_channel_session_active_conversation_check",
+          "value": "\"agent_channel_session\".\"is_active\" = 0 OR \"agent_channel_session\".\"conversation_id\" IS NOT NULL"
+        }
+      }
     },
     "agent_channel": {
       "name": "agent_channel",
@@ -571,24 +650,14 @@
           "columns": ["task_schedule_id"],
           "isUnique": true
         },
-        "agent_session_created_at_id_idx": {
-          "name": "agent_session_created_at_id_idx",
-          "columns": ["\"created_at\" desc", "id"],
-          "isUnique": false
-        },
-        "agent_session_last_activity_at_id_idx": {
-          "name": "agent_session_last_activity_at_id_idx",
-          "columns": ["\"last_activity_at\" desc", "id"],
-          "isUnique": false
-        },
-        "agent_session_agent_id_last_activity_at_id_idx": {
-          "name": "agent_session_agent_id_last_activity_at_id_idx",
-          "columns": ["agent_id", "\"last_activity_at\" desc", "id"],
-          "isUnique": false
-        },
         "agent_session_order_key_idx": {
           "name": "agent_session_order_key_idx",
           "columns": ["order_key"],
+          "isUnique": false
+        },
+        "agent_session_last_activity_at_idx": {
+          "name": "agent_session_last_activity_at_idx",
+          "columns": ["last_activity_at"],
           "isUnique": false
         },
         "agent_session_updated_at_idx": {
@@ -4308,14 +4377,9 @@
         }
       },
       "indexes": {
-        "topic_created_at_id_idx": {
-          "name": "topic_created_at_id_idx",
-          "columns": ["\"created_at\" desc", "id"],
-          "isUnique": false
-        },
-        "topic_last_activity_at_id_idx": {
-          "name": "topic_last_activity_at_id_idx",
-          "columns": ["\"last_activity_at\" desc", "id"],
+        "topic_last_activity_at_idx": {
+          "name": "topic_last_activity_at_idx",
+          "columns": ["last_activity_at"],
           "isUnique": false
         },
         "topic_updated_at_idx": {
@@ -4328,14 +4392,9 @@
           "columns": ["order_key"],
           "isUnique": false
         },
-        "topic_assistant_id_created_at_id_idx": {
-          "name": "topic_assistant_id_created_at_id_idx",
-          "columns": ["assistant_id", "\"created_at\" desc", "id"],
-          "isUnique": false
-        },
-        "topic_assistant_id_last_activity_at_id_idx": {
-          "name": "topic_assistant_id_last_activity_at_id_idx",
-          "columns": ["assistant_id", "\"last_activity_at\" desc", "id"],
+        "topic_assistant_id_idx": {
+          "name": "topic_assistant_id_idx",
+          "columns": ["assistant_id"],
           "isUnique": false
         }
       },
@@ -4864,58 +4923,9 @@
   },
   "internal": {
     "indexes": {
-      "agent_session_created_at_id_idx": {
-        "columns": {
-          "\"created_at\" desc": {
-            "isExpression": true
-          }
-        }
-      },
-      "agent_session_last_activity_at_id_idx": {
-        "columns": {
-          "\"last_activity_at\" desc": {
-            "isExpression": true
-          }
-        }
-      },
-      "agent_session_agent_id_last_activity_at_id_idx": {
-        "columns": {
-          "\"last_activity_at\" desc": {
-            "isExpression": true
-          }
-        }
-      },
       "fe_external_path_lower_unique_idx": {
         "columns": {
           "lower(\"external_path\")": {
-            "isExpression": true
-          }
-        }
-      },
-      "topic_created_at_id_idx": {
-        "columns": {
-          "\"created_at\" desc": {
-            "isExpression": true
-          }
-        }
-      },
-      "topic_last_activity_at_id_idx": {
-        "columns": {
-          "\"last_activity_at\" desc": {
-            "isExpression": true
-          }
-        }
-      },
-      "topic_assistant_id_created_at_id_idx": {
-        "columns": {
-          "\"created_at\" desc": {
-            "isExpression": true
-          }
-        }
-      },
-      "topic_assistant_id_last_activity_at_id_idx": {
-        "columns": {
-          "\"last_activity_at\" desc": {
             "isExpression": true
           }
         }

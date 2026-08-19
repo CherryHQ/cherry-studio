@@ -737,6 +737,7 @@ describe('AgentSessionService', () => {
       expect(latest?.id).toBe('active-latest')
       // Fully hydrated (workspace joined), matching getById.
       expect(latest?.workspace.id).toBe(workspace.id)
+      expect(agentSessionService.getLatestActive({ excludeSessionId: 'active-latest' })?.id).toBe('mid')
     })
 
     it('returns latest activity within a live agent scope', async () => {

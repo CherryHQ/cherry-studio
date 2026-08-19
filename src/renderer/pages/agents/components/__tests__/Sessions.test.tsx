@@ -2768,7 +2768,7 @@ describe('Sessions', () => {
     await vi.waitFor(() => expect(setActiveSessionId).not.toHaveBeenCalledWith('session-a', expect.anything()))
   })
 
-  it('clears selection without creating a session after deleting an agent last session in the modern sidebar', async () => {
+  it('selects the most recently active remaining session when the deleted group becomes empty', async () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     agentDataMocks.useAgents.mockReturnValue({
       agents: [
@@ -2794,7 +2794,8 @@ describe('Sessions', () => {
       orderKey: 'b',
       lastActivityAt: '2026-01-02T01:00:00.000Z'
     })
-    setupSessions({ sessions: [sessionA, sessionB] })
+    const loadLatestSession = vi.fn().mockResolvedValue(sessionB)
+    setupSessions({ sessions: [sessionA, sessionB], loadLatestSession })
     const onCreateSession = vi.fn()
     const setActiveSessionId = vi.fn()
 
@@ -2817,114 +2818,12 @@ describe('Sessions', () => {
 
     await vi.waitFor(() => expect(sessionDataMocks.deleteSession).toHaveBeenCalledWith('session-a-only'))
     expect(onCreateSession).not.toHaveBeenCalled()
-    expect(setActiveSessionId).toHaveBeenCalledWith(null, null)
-    expect(setActiveSessionId).not.toHaveBeenCalledWith('session-b-first', expect.anything())
-  })
-
-  it('does not jump to another or unknown agent when the current agent becomes empty', async () => {
-    preferenceMocks.values.set('agent.session.display_mode', 'agent')
-    agentDataMocks.useAgents.mockReturnValue({
-      agents: [
-        { id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } },
-        { id: 'agent-b', model: 'model-b', name: 'Beta agent', configuration: { avatar: 'B' } }
-      ],
-      isLoading: false,
-      error: undefined
-    })
-    const sessionA = createSession({ id: 'session-a-only', name: 'A Only session', agentId: 'agent-a', orderKey: 'a' })
-    const sessionB = createSession({
-      id: 'session-b-only',
-      name: 'B Only session',
-      agentId: 'agent-b',
-      orderKey: 'b',
-      workspaceId: undefined,
-      workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
-    })
-    const unknownSession = createSession({
-      id: 'session-unknown',
-      name: 'Unknown Only session',
-      agentId: null,
-      orderKey: 'c'
-    })
-    setupSessions({ sessions: [sessionA, sessionB, unknownSession] })
-    const onCreateSession = vi.fn()
-    const setActiveSessionId = vi.fn()
-
-    render(
-      <SessionsForTest
-        activeSessionId={sessionB.id}
-        onCreateSession={onCreateSession}
-        setActiveSessionId={setActiveSessionId}
-      />
+    expect(loadLatestSession).toHaveBeenCalledWith(undefined, 'session-a-only')
+    expect(setActiveSessionId).toHaveBeenCalledWith(
+      'session-b-first',
+      expect.objectContaining({ id: 'session-b-first' })
     )
-
-    const sessionRow = screen.getByText('B Only session').closest('[role="option"]')
-    const deleteButton = within(sessionRow as HTMLElement).getByLabelText('Delete')
-    await act(async () => fireEvent.click(deleteButton))
-    await act(async () => fireEvent.click(deleteButton))
-
-    await vi.waitFor(() => expect(sessionDataMocks.deleteSession).toHaveBeenCalledWith(sessionB.id))
-    expect(onCreateSession).not.toHaveBeenCalled()
-    expect(setActiveSessionId).toHaveBeenCalledWith(null, null)
-    expect(setActiveSessionId).not.toHaveBeenCalledWith(sessionA.id, expect.anything())
-    expect(setActiveSessionId).not.toHaveBeenCalledWith(unknownSession.id, expect.anything())
-  })
-
-  it('does not create a session after deleting the active agent last session in the right panel', async () => {
-    agentDataMocks.useAgents.mockReturnValue({
-      agents: [
-        { id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } },
-        { id: 'agent-b', model: 'model-b', name: 'Beta agent', configuration: { avatar: 'B' } }
-      ],
-      isLoading: false,
-      error: undefined
-    })
-    setupSessions({
-      sessions: [
-        createSession({
-          id: 'session-a-only',
-          name: 'A Only session',
-          agentId: 'agent-a',
-          orderKey: 'a',
-          updatedAt: '2026-01-03T01:00:00.000Z',
-          workspaceId: undefined,
-          workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
-        }),
-        createSession({
-          id: 'session-b-first',
-          name: 'B First session',
-          agentId: 'agent-b',
-          orderKey: 'b',
-          updatedAt: '2026-01-02T01:00:00.000Z'
-        })
-      ]
-    })
-    const onCreateSession = vi.fn()
-    const setActiveSessionId = vi.fn()
-
-    render(
-      <SessionsForTest
-        agentIdFilter="agent-a"
-        presentation="right-panel"
-        activeSessionId="session-a-only"
-        onCreateSession={onCreateSession}
-        setActiveSessionId={setActiveSessionId}
-      />
-    )
-
-    const sessionRow = screen.getByText('A Only session').closest('[role="option"]')
-    const deleteButton = within(sessionRow as HTMLElement).getByLabelText('Delete')
-    act(() => {
-      fireEvent.click(deleteButton)
-    })
-    act(() => {
-      fireEvent.click(deleteButton)
-    })
-
-    await vi.waitFor(() => expect(sessionDataMocks.deleteSession).toHaveBeenCalledWith('session-a-only'))
-    expect(onCreateSession).not.toHaveBeenCalled()
-    expect(setActiveSessionId).toHaveBeenCalledWith(null, null)
-    expect(setActiveSessionId).not.toHaveBeenCalledWith('session-b-first', expect.anything())
+    expect(setActiveSessionId).not.toHaveBeenCalledWith(null, null)
   })
 
   it("does not recreate a session after deleting an agent's only non-active session", async () => {

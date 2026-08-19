@@ -1210,7 +1210,7 @@ describe('Topics', () => {
     expect(onNewTopic).not.toHaveBeenCalled()
   })
 
-  it('does not switch owners when deleting the last unlinked topic', async () => {
+  it('selects the most recently active remaining topic when the deleted group becomes empty', async () => {
     mockUseInfiniteQuery.mockReturnValue({
       pages: [
         {
@@ -1244,11 +1244,19 @@ describe('Topics', () => {
       mutate: vi.fn()
     })
 
+    const loadLatestTopic = vi.fn().mockResolvedValue(
+      createApiTopic({
+        id: 'topic-a',
+        name: 'Alpha topic',
+        assistantId: 'assistant-1',
+        lastActivityAt: '2026-01-03T01:00:00.000Z'
+      })
+    )
     const { onClearActiveTopic, onNewTopic, setActiveTopic } = renderTopicList({
       activeTopic: createRendererTopic({ id: 'topic-unlinked', name: 'Default topic', assistantId: undefined }),
       assistantTopicsSource: {
         ...createAssistantTopicsSource(),
-        loadLatestTopic: vi.fn().mockResolvedValue(null)
+        loadLatestTopic
       }
     })
 
@@ -1262,8 +1270,9 @@ describe('Topics', () => {
     })
 
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-unlinked'))
-    expect(onClearActiveTopic).toHaveBeenCalledOnce()
-    expect(setActiveTopic).not.toHaveBeenCalled()
+    expect(loadLatestTopic).toHaveBeenCalledWith(undefined, 'topic-unlinked')
+    expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-a' }))
+    expect(onClearActiveTopic).not.toHaveBeenCalled()
     expect(onNewTopic).not.toHaveBeenCalled()
   })
 
@@ -2281,150 +2290,6 @@ describe('Topics', () => {
     await vi.waitFor(() => expect(screen.getByText('A1 Second')).toBeInTheDocument())
     expect(setActiveTopic).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'topic-a1-second' }))
     expect(toast.error).toHaveBeenCalled()
-  })
-
-  it("does not create a topic when deleting the active owner's last topic", async () => {
-    const topics = [
-      createApiTopic({
-        id: 'topic-a1',
-        name: 'A1 Only',
-        assistantId: 'assistant-1',
-        orderKey: 'a',
-        createdAt: '2026-01-02T01:00:00.000Z',
-        lastActivityAt: '2026-01-02T01:00:00.000Z',
-        updatedAt: '2026-01-02T01:00:00.000Z'
-      }),
-      createApiTopic({
-        id: 'topic-b1',
-        name: 'B1 Only',
-        assistantId: 'assistant-2',
-        orderKey: 'b',
-        createdAt: '2026-01-01T01:00:00.000Z',
-        lastActivityAt: '2026-01-01T01:00:00.000Z',
-        updatedAt: '2026-01-01T01:00:00.000Z'
-      })
-    ]
-    mockUseInfiniteQuery.mockReturnValue({
-      pages: [
-        {
-          items: topics
-        }
-      ],
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined,
-      hasNext: false,
-      loadNext: vi.fn(),
-      refresh: vi.fn(),
-      reset: vi.fn(),
-      mutate: vi.fn()
-    })
-    const assistantTopicsSource = createAssistantTopicsSource(topics)
-    const onNewTopic = vi.fn()
-    const { onClearActiveTopic, setActiveTopic } = renderTopicList({
-      activeTopic: createRendererTopic({ id: 'topic-a1', assistantId: 'assistant-1', name: 'A1 Only' }),
-      assistantTopicsSource,
-      onNewTopic
-    })
-
-    const topicRow = screen.getByText('A1 Only').closest('[role="option"]')
-    const deleteButton = within(topicRow as HTMLElement).getByLabelText('Delete')
-    act(() => {
-      fireEvent.click(deleteButton)
-    })
-    act(() => {
-      fireEvent.click(deleteButton)
-    })
-
-    await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a1'))
-    expect(onNewTopic).not.toHaveBeenCalled()
-    expect(setActiveTopic).not.toHaveBeenCalled()
-    expect(setActiveTopic).not.toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-b1' }))
-    expect(onClearActiveTopic).toHaveBeenCalledOnce()
-  })
-
-  it('does not jump to another or unlinked owner when the current owner becomes empty', async () => {
-    const topicA = createApiTopic({
-      id: 'topic-a-only',
-      name: 'A Only',
-      assistantId: 'assistant-1',
-      orderKey: 'a'
-    })
-    const topicB = createApiTopic({
-      id: 'topic-b-only',
-      name: 'B Only',
-      assistantId: 'assistant-2',
-      orderKey: 'b'
-    })
-    const unlinkedTopic = createApiTopic({
-      id: 'topic-unlinked',
-      name: 'Unlinked Only',
-      assistantId: undefined,
-      orderKey: 'c'
-    })
-    const topics = [topicA, topicB, unlinkedTopic]
-    setTopicInfiniteQueryPages(topics)
-    const assistantTopicsSource = createAssistantTopicsSource(topics)
-    const onNewTopic = vi.fn()
-    const { onClearActiveTopic, setActiveTopic } = renderTopicList({
-      activeTopic: createRendererTopic({ id: topicB.id, assistantId: topicB.assistantId, name: topicB.name }),
-      assistantTopicsSource,
-      onNewTopic
-    })
-
-    const deleteButton = within(getTopicRow('B Only')).getByLabelText('Delete')
-    await act(async () => fireEvent.click(deleteButton))
-    await act(async () => fireEvent.click(deleteButton))
-
-    await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith(topicB.id))
-    expect(onNewTopic).not.toHaveBeenCalled()
-    expect(setActiveTopic).not.toHaveBeenCalled()
-    expect(setActiveTopic).not.toHaveBeenCalledWith(expect.objectContaining({ id: topicA.id }))
-    expect(setActiveTopic).not.toHaveBeenCalledWith(expect.objectContaining({ id: unlinkedTopic.id }))
-    expect(onClearActiveTopic).toHaveBeenCalledOnce()
-  })
-
-  it("does not create a topic after deleting the active owner's last topic in the right panel", async () => {
-    setScopedTopicInfiniteQuery([
-      createApiTopic({
-        id: 'topic-a1-only',
-        name: 'A1 Only',
-        assistantId: 'assistant-1',
-        orderKey: 'a',
-        createdAt: '2026-01-03T01:00:00.000Z',
-        updatedAt: '2026-01-03T01:00:00.000Z'
-      }),
-      createApiTopic({
-        id: 'topic-a2-first',
-        name: 'A2 First',
-        assistantId: 'assistant-2',
-        orderKey: 'b',
-        createdAt: '2026-01-02T01:00:00.000Z',
-        updatedAt: '2026-01-02T01:00:00.000Z'
-      })
-    ])
-
-    const onNewTopic = vi.fn()
-    const { onClearActiveTopic, setActiveTopic } = renderTopicList({
-      assistantIdFilter: 'assistant-1',
-      presentation: 'right-panel',
-      activeTopic: createRendererTopic({ id: 'topic-a1-only', assistantId: 'assistant-1', name: 'A1 Only' }),
-      onNewTopic
-    })
-
-    const topicRow = screen.getByText('A1 Only').closest('[role="option"]')
-    const deleteButton = within(topicRow as HTMLElement).getByLabelText('Delete')
-    act(() => {
-      fireEvent.click(deleteButton)
-    })
-    act(() => {
-      fireEvent.click(deleteButton)
-    })
-
-    await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a1-only'))
-    expect(onNewTopic).not.toHaveBeenCalled()
-    expect(setActiveTopic).not.toHaveBeenCalled()
-    expect(onClearActiveTopic).toHaveBeenCalledOnce()
   })
 
   it('renders only the title field in sidebar topic rows', () => {

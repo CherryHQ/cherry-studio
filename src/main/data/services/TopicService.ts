@@ -34,7 +34,7 @@ import type {
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import type { Topic } from '@shared/data/types/topic'
 import type { SQL } from 'drizzle-orm'
-import { and, asc, count, desc, eq, gte, inArray, isNull, notInArray, or, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gte, inArray, isNull, ne, notInArray, or, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
@@ -262,6 +262,7 @@ export class TopicService {
   getLatestActive(query: LatestTopicQuery = {}): Topic | null {
     const db = application.get('DbService').getDb()
     const filters = buildRecordFilters(query)
+    if (query.excludeTopicId) filters.push(ne(topicTable.id, query.excludeTopicId))
 
     const [row] = db
       .select({ topic: topicTable })

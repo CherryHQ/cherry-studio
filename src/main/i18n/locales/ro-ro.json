@@ -84,6 +84,13 @@
     "zoomOut": "Micșorează"
   },
   "common": {
+    "channel_available_commands": "Comenzi disponibile:",
+    "channel_command_processing_error": "⚠️ A apărut o eroare la procesarea comenzii. Încercați din nou mai târziu.",
+    "channel_message_processing_error": "⚠️ A apărut o eroare la procesarea mesajului dvs. Încercați din nou mai târziu.",
+    "channel_new_session_created": "Sesiune nouă creată.",
+    "channel_no_active_session": "Nu există nicio sesiune activă.",
+    "channel_session_compacted": "Sesiune compactată.",
+    "channel_session_resolution_error": "⚠️ Nu s-a putut rezolva o sesiune pentru acest agent. Încercați din nou mai târziu.",
     "copy": "Copiază",
     "cut": "Decupează",
     "inspect": "Inspectează",

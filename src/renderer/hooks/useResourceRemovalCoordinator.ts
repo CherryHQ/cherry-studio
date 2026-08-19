@@ -16,6 +16,7 @@ interface UseResourceRemovalCoordinatorOptions<T> {
   restoreOptimisticRemoval?: (item: T) => void
   selectItem: (item: T) => void
   clearSelection: () => void
+  resolveFallback?: (item: T) => Promise<T | null | undefined>
 }
 
 function pickLoadedNeighbour<T>(items: readonly T[], removedIndex: number): T | undefined {
@@ -27,8 +28,8 @@ function pickLoadedNeighbour<T>(items: readonly T[], removedIndex: number): T | 
  * Shared Topic/Session removal state machine.
  *
  * The coordinator captures the active row's presentation before deletion,
- * selects an already-loaded neighbour optimistically, and clears the selection
- * when the removed row had no loaded neighbour in its owner group. A
+ * selects an already-loaded neighbour optimistically, then falls back to the
+ * most recently active remaining row. A
  * monotonically increasing operation id plus the live active id prevent a
  * failed delete from overwriting a newer selection.
  */
@@ -39,7 +40,8 @@ export function useResourceRemovalCoordinator<T>({
   optimisticallyRemove,
   restoreOptimisticRemoval,
   selectItem,
-  clearSelection
+  clearSelection,
+  resolveFallback
 }: UseResourceRemovalCoordinatorOptions<T>) {
   const operationIdRef = useRef(0)
 
@@ -57,12 +59,12 @@ export function useResourceRemovalCoordinator<T>({
             Math.max(displayedIndex, 0)
           )
         : undefined
+      const replacement = immediateNeighbour ?? (wasActive ? await resolveFallback?.(item) : undefined)
+      const shouldSwitchSelection =
+        wasActive && operationIdRef.current === operationId && getActiveId() === itemId && Boolean(replacement)
 
       optimisticallyRemove?.(item)
-      if (wasActive) {
-        if (immediateNeighbour) selectItem(immediateNeighbour)
-        else clearSelection()
-      }
+      if (shouldSwitchSelection && replacement) selectItem(replacement)
       const optimisticActiveId = getActiveId()
 
       let committed: boolean | void
@@ -70,21 +72,33 @@ export function useResourceRemovalCoordinator<T>({
         committed = await commit()
       } catch (error) {
         restoreOptimisticRemoval?.(item)
-        if (wasActive && operationIdRef.current === operationId && getActiveId() === optimisticActiveId) {
+        if (shouldSwitchSelection && operationIdRef.current === operationId && getActiveId() === optimisticActiveId) {
           selectItem(item)
         }
         throw error
       }
       if (committed === false) {
         restoreOptimisticRemoval?.(item)
-        if (wasActive && operationIdRef.current === operationId && getActiveId() === optimisticActiveId) {
+        if (shouldSwitchSelection && operationIdRef.current === operationId && getActiveId() === optimisticActiveId) {
           selectItem(item)
         }
         return false
       }
+      if (wasActive && !replacement && operationIdRef.current === operationId && getActiveId() === itemId) {
+        clearSelection()
+      }
       return true
     },
-    [clearSelection, getActiveId, getGroupId, getItemId, optimisticallyRemove, restoreOptimisticRemoval, selectItem]
+    [
+      clearSelection,
+      getActiveId,
+      getGroupId,
+      getItemId,
+      optimisticallyRemove,
+      resolveFallback,
+      restoreOptimisticRemoval,
+      selectItem
+    ]
   )
 
   return { remove }
