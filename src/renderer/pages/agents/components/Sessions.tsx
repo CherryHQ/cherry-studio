@@ -482,10 +482,18 @@ const Sessions = ({
 
   const handleToggleSessionPin = useCallback((id: string) => togglePinRef.current(id), [])
 
+  const setTrackedActiveSessionId = useCallback(
+    (id: string | null, session?: AgentSessionEntity | null) => {
+      activeSessionIdRef.current = id
+      setControlledActiveSessionId(id, session)
+    },
+    [setControlledActiveSessionId]
+  )
+
   const setActiveSessionId = useCallback(
     (id: string | null) => {
       const session = id ? (sessionItemsRef.current.find((candidate) => candidate.id === id) ?? null) : null
-      const transition = () => setControlledActiveSessionId(id, session)
+      const transition = () => setTrackedActiveSessionId(id, session)
       const activeSession = activeSessionIdRef.current
         ? sessionItemsRef.current.find((candidate) => candidate.id === activeSessionIdRef.current)
         : null
@@ -504,7 +512,7 @@ const Sessions = ({
       }
       transition()
     },
-    [requestFileNavigation, setControlledActiveSessionId]
+    [requestFileNavigation, setTrackedActiveSessionId]
   )
 
   const { updateSession } = useUpdateSession()
@@ -775,14 +783,14 @@ const Sessions = ({
           return
         }
 
-        if (wasActive && !replacement) setControlledActiveSessionId(null, null)
+        if (wasActive && !replacement) setTrackedActiveSessionId(null, null)
       }
 
       // Switch away from the URL-bound session before deletion so its invalidation cannot trigger
       // missing-route recovery. Cross-workspace switches and deletion stay under the same file guard.
       if (replacement && wasActive) {
         const transition = () => {
-          setControlledActiveSessionId(replacement.id, replacement)
+          setTrackedActiveSessionId(replacement.id, replacement)
           void performDelete()
         }
         const activeSession = activeSessionIdRef.current
@@ -809,7 +817,7 @@ const Sessions = ({
       requestFileNavigation,
       sessionGroupBy,
       setActiveSessionId,
-      setControlledActiveSessionId
+      setTrackedActiveSessionId
     ]
   )
 
