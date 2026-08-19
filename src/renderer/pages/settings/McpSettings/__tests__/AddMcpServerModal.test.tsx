@@ -63,6 +63,7 @@ const toCreatedServers = (dtos: CreateMcpServerDto[]): McpServer[] =>
   dtos.map((dto, index) => ({
     ...dto,
     id: `550e8400-e29b-41d4-a716-44665544000${index}`,
+    serverWireName: `test_server_${index}`,
     isActive: false
   }))
 

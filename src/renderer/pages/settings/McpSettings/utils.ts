@@ -12,6 +12,7 @@ const stripReadonlyMcpServerFields = (server: McpServerDraft): UpdateMcpServerDt
   const dto = { ...server }
   // Keep this aligned with fields that strict create/update DTO schemas reject.
   delete dto.id
+  delete dto.serverWireName
   delete dto.createdAt
   delete dto.updatedAt
   delete dto.url
@@ -32,7 +33,10 @@ export const toUpdateMcpServerDto = (server: McpServerDraft): UpdateMcpServerDto
   return stripReadonlyMcpServerFields(server)
 }
 
-export const isSameMcpServerCandidate = (existing: McpServer, candidate: McpServer): boolean => {
+export const isSameMcpServerCandidate = (
+  existing: McpServer,
+  candidate: Omit<McpServer, 'serverWireName'>
+): boolean => {
   if (candidate.baseUrl && existing.baseUrl === candidate.baseUrl) {
     return true
   }

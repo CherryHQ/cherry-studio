@@ -129,7 +129,7 @@ describe('DshCherryToolBridge', () => {
   })
 
   it('uses the canonical runtime name for an external server and still calls the raw tool', async () => {
-    const call = vi.fn(async () => ({ content: [{ type: 'text', text: 'ok' }] }))
+    const call = vi.fn(async (): Promise<CallToolResult> => ({ content: [{ type: 'text', text: 'ok' }] }))
     const server = createServer([tool('search_issues')], call)
     const metadata = { serverId: 'github-id', serverWireName: 'github_123456789abc' }
     const runtimeName = createMcpToolBinding({ ...metadata, originalToolName: 'search_issues' }).runtimeName

@@ -27,12 +27,15 @@ export const isBuiltinMcpServerName = (name: string): name is BuiltinMcpServerNa
   return BuiltinMcpServerNamesArray.some((n) => n === name)
 }
 
-export type BuiltinMcpServer = McpServer & {
+/** Pre-persistence built-in server preset. The data service assigns its immutable wire name. */
+export type BuiltinMcpServer = Omit<McpServer, 'serverWireName'> & {
   type: 'inMemory' | 'stdio'
   name: BuiltinMcpServerName
 }
 
-export const isInMemoryBuiltinMcpServer = (server: McpServer): server is BuiltinMcpServer & { type: 'inMemory' } => {
+export const isInMemoryBuiltinMcpServer = <T extends Pick<McpServer, 'name' | 'type'>>(
+  server: T
+): server is T & { type: 'inMemory'; name: BuiltinMcpServerName } => {
   return server.type === 'inMemory' && isBuiltinMcpServerName(server.name)
 }
 

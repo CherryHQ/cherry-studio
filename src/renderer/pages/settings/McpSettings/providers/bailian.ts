@@ -53,7 +53,7 @@ interface McpServerCherryDetailResponse {
 export interface BailianSyncResult {
   success: boolean
   message: string
-  allServers: McpServer[]
+  allServers: Omit<McpServer, 'serverWireName'>[]
   errorDetails?: string
 }
 
@@ -114,7 +114,7 @@ export const syncBailianServers = async (token: string): Promise<BailianSyncResu
   try {
     const servers = await fetchAllMcpServers(token)
 
-    const allServers: McpServer[] = []
+    const allServers: Omit<McpServer, 'serverWireName'>[] = []
 
     for (const server of servers) {
       try {
@@ -122,7 +122,7 @@ export const syncBailianServers = async (token: string): Promise<BailianSyncResu
           continue
         }
 
-        const mcpServer: McpServer = {
+        const mcpServer: Omit<McpServer, 'serverWireName'> = {
           id: `@bailian/${server.id}`,
           name: server.name || `Bailian Server ${nanoid()}`,
           description: server.description || '',

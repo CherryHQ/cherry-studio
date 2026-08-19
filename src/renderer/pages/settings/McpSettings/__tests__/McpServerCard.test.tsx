@@ -45,6 +45,7 @@ describe('McpServerCard', () => {
     const brokenServer: McpServer = {
       id: 'server-1',
       name: { corrupt: true } as unknown as string,
+      serverWireName: 'broken_server',
       type: 'stdio',
       command: 'broken',
       isActive: false
