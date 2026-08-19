@@ -54,7 +54,7 @@ Project-specific tools, paths, and conventions.
 - **Build with Tailwind CSS & Shadcn UI**: Use components from `@cherrystudio/ui` (located in `packages/ui`, Shadcn UI + Tailwind CSS) for every new UI component.
 - **Log centrally**: Route all logging through `loggerService` with the right context—no `console.log`.
 - **Access paths centrally**: Use `application.getPath('namespace.key', filename?)` for all main-process filesystem paths—never call `app.getPath()`, `os.homedir()`, or construct paths ad-hoc. Import the singleton via `import { application } from '@application'`.
-- **Lint, test, and format before completion**: Coding tasks are only complete after running `pnpm lint`, `pnpm test`, and `pnpm format` successfully.
+- **Check what you changed, not the whole repo**: for code, run `pnpm lint` (it covers format + typecheck + `i18n:check`) plus the tests covering your change — `pnpm test <path>` for a few files, full `pnpm test` only when the change is broad or you can't name the affected tests. Docs/markdown-only edits need just `pnpm docs:check-links`. CI runs the full gate; your job is to not obviously break it.
 - **Write conventional commits**: Commit small, focused changes using Conventional Commit messages (e.g., `feat(data-api):`, `fix(lifecycle):`, `refactor(quick-assistant):`, `docs(testing):`, `chore(deps):`, `test(window-manager):`). Scope must be a specific kebab-case module, never generic like `main` — when `git log` conflicts with this rule, this rule wins.
 - **Sign commits and sign off**: Every commit must be both cryptographically signed and DCO-signed off. Use `git commit -S --signoff` (not `--signoff` alone), verify the commit object contains a `gpgsig` header with `git cat-file commit HEAD`, and verify the pushed PR commits show `Verified` on GitHub.
 - **Target the right branch**: `main` is the default branch for all active development — submit features, refactors, optimizations, and fixes here.
@@ -68,7 +68,8 @@ Run `pnpm install` first (Node and pnpm versions are pinned in `package.json` �
 - `pnpm lint` — oxlint + eslint fix + typecheck + i18n check + format (writes files)
 - `pnpm test` — run all Vitest tests
 - `pnpm format` — Biome format + lint (write mode)
-- `pnpm build:check` — **REQUIRED before commits**. If it fails on i18n sort, run `pnpm i18n:sync` first; on formatting, run `pnpm format` first; on broken doc links, fix the link.
+- `pnpm docs:check-links` — doc link checker; the only thing `build:check` adds over `lint` + `test`. Run it for docs/markdown edits instead of the full gate.
+- `pnpm build:check` — `lint` + `docs:check-links` + full `test`, i.e. the whole gate in one command. Worth it for broad or risky changes; for anything narrower run the piece that matters. If it fails on i18n sort, run `pnpm i18n:sync` first; on formatting, run `pnpm format` first; on broken doc links, fix the link.
 - `pnpm test:lint` — the CI-equivalent lint gate: it denies oxlint warnings that `pnpm lint` / `pnpm build:check` silently tolerate; run it when CI must pass.
 
 ### Testing
@@ -125,8 +126,8 @@ logger.error("message", error);
 ### i18n
 
 - All user-visible strings must use `i18next` — never hardcode UI strings
-- Run `pnpm i18n:check` to validate; `pnpm i18n:sync` to add missing keys
-- Locale files in `src/renderer/i18n/`
+- Locale catalogs live in `src/renderer/i18n/locales/` and `src/main/i18n/locales/`; both use `en-us.json` as the source of truth
+- Only when you add or change a key: edit `en-us.json`, run `pnpm i18n:sync` (fills the other locales with `[to be translated]:` placeholders), then translate every one. No separate `pnpm i18n:check` run needed — `pnpm lint` includes it, and it rejects leftover placeholders as well as empty values, interpolation/tag mismatches, and unsorted keys.
 
 ### UI Design
 

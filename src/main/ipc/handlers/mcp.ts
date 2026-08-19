@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { readMcpResourcePreview } from '@main/ai/mcp/resourcePreview'
 import type { mcpRequestSchemas } from '@shared/ipc/schemas/mcp'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
@@ -26,6 +27,10 @@ export const mcpHandlers: IpcHandlersFor<typeof mcpRequestSchemas> = {
   },
   'mcp.server.list_prompts': async ({ serverId }) => application.get('McpRuntimeService').listPrompts(serverId),
   'mcp.server.list_resources': async ({ serverId }) => application.get('McpRuntimeService').listResources(serverId),
+  'mcp.server.get_prompt': async ({ serverId, name, args }) =>
+    application.get('McpRuntimeService').getPrompt({ serverId, name, args }),
+  'mcp.server.read_resource_preview': async ({ serverId, uri, maxChars }) =>
+    readMcpResourcePreview({ serverId, uri, maxChars }),
   'mcp.server.check_connectivity': async ({ serverId }) =>
     application.get('McpRuntimeService').checkMcpConnectivity(serverId),
   'mcp.server.get_version': async ({ serverId }) => application.get('McpRuntimeService').getServerVersion(serverId),
