@@ -9,6 +9,11 @@
       }
     },
     "session": {
+      "new": "Nouvelle tâche",
+      "run_status": {
+        "busy": "La session Agent est occupée. Veuillez réessayer dans quelques instants.",
+        "unavailable": "La session Agent n’est plus disponible."
+      },
       "workspace_status": {
         "inaccessible": "Le chemin de l'espace de travail n'est pas accessible : {{path}}",
         "missing": "Le chemin de l'espace de travail n'existe pas : {{path}}",
@@ -79,7 +84,19 @@
     "zoomIn": "Zoom Avant",
     "zoomOut": "Dézoomer"
   },
+  "chat": {
+    "conversation": {
+      "new": "Nouvelle conversation"
+    }
+  },
   "common": {
+    "channel_available_commands": "Commandes disponibles :",
+    "channel_command_processing_error": "⚠️ Une erreur s’est produite lors du traitement de la commande. Veuillez réessayer plus tard.",
+    "channel_message_processing_error": "⚠️ Une erreur s’est produite lors du traitement de votre message. Veuillez réessayer plus tard.",
+    "channel_new_session_created": "Nouvelle session créée.",
+    "channel_no_active_session": "Aucune session active.",
+    "channel_session_compacted": "Session compactée.",
+    "channel_session_resolution_error": "⚠️ Impossible de résoudre une session pour cet agent. Veuillez réessayer plus tard.",
     "copy": "Copier",
     "cut": "Couper",
     "inspect": "Vérifier",
@@ -123,6 +140,16 @@
     "errors": {
       "document_size_limit_exceeded": "Le service actuel d’analyse de documents exige des fichiers inférieurs à {{maxSize}}. Compressez ou fractionnez ce fichier, puis ajoutez-le à nouveau.",
       "pdf_page_limit_exceeded": "Ce PDF dépasse la limite de {{maxPages}} pages du service actuel d’analyse de documents. Fractionnez le PDF manuellement, puis ajoutez-le à nouveau."
+    }
+  },
+  "notification": {
+    "action_required": {
+      "agent": "L’agent a besoin de votre intervention",
+      "assistant": "L’assistant a besoin de votre intervention"
+    },
+    "completion": {
+      "agent": "Tâche de l'agent terminée",
+      "assistant": "Réponse de l'assistant terminée"
     }
   },
   "openclaw": {

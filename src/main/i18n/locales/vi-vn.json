@@ -9,6 +9,11 @@
       }
     },
     "session": {
+      "new": "Nhiệm vụ mới",
+      "run_status": {
+        "busy": "Phiên Agent đang bận. Vui lòng thử lại sau ít phút.",
+        "unavailable": "Phiên Agent không còn khả dụng."
+      },
       "workspace_status": {
         "inaccessible": "Đường dẫn không gian làm việc không thể truy cập: {{path}}",
         "missing": "Đường dẫn không gian làm việc không tồn tại: {{path}}",
@@ -79,7 +84,19 @@
     "zoomIn": "Phóng to",
     "zoomOut": "Thu nhỏ"
   },
+  "chat": {
+    "conversation": {
+      "new": "Cuộc trò chuyện mới"
+    }
+  },
   "common": {
+    "channel_available_commands": "Các lệnh có sẵn:",
+    "channel_command_processing_error": "⚠️ Đã xảy ra lỗi khi xử lý lệnh. Vui lòng thử lại sau.",
+    "channel_message_processing_error": "⚠️ Đã xảy ra lỗi khi xử lý tin nhắn của bạn. Vui lòng thử lại sau.",
+    "channel_new_session_created": "Đã tạo phiên mới.",
+    "channel_no_active_session": "Không có phiên hoạt động.",
+    "channel_session_compacted": "Đã thu gọn phiên.",
+    "channel_session_resolution_error": "⚠️ Không thể phân giải phiên cho tác nhân này. Vui lòng thử lại sau.",
     "copy": "Sao chép",
     "cut": "Cắt",
     "inspect": "Kiểm tra",
@@ -123,6 +140,16 @@
     "errors": {
       "document_size_limit_exceeded": "Dịch vụ phân tích tài liệu hiện tại yêu cầu tệp nhỏ hơn {{maxSize}}. Hãy nén hoặc chia nhỏ tệp này rồi thêm lại.",
       "pdf_page_limit_exceeded": "Tệp PDF này vượt quá giới hạn {{maxPages}} trang của dịch vụ phân tích tài liệu hiện tại. Hãy chia nhỏ PDF theo cách thủ công rồi thêm lại."
+    }
+  },
+  "notification": {
+    "action_required": {
+      "agent": "Agent cần phản hồi của bạn",
+      "assistant": "Trợ lý cần phản hồi của bạn"
+    },
+    "completion": {
+      "agent": "Nhiệm vụ của Agent đã hoàn tất",
+      "assistant": "Phản hồi của Trợ lý đã hoàn tất"
     }
   },
   "openclaw": {

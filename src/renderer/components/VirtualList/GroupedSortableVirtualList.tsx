@@ -1278,7 +1278,7 @@ function GroupedSortableVirtualList<TGroup, TItem, THeader = TGroup, TFooter = u
     <DragOverlay dropAnimation={null}>
       {dragOverlayContent ? (
         <div
-          className="pointer-events-none"
+          className="pointer-events-none rounded-lg bg-background"
           style={{
             height: activeDragState?.overlaySize?.height,
             width: activeDragState?.overlaySize?.width

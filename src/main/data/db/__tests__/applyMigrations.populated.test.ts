@@ -106,6 +106,75 @@ describe('applyMigrations over a populated database', () => {
       .run('44444444-4444-7444-8444-444444444444', '11111111-1111-7111-8111-111111111111', now, now)
   }
 
+  it('quarantines legacy channel sessions without changing conversation history', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0011_rare_vertigo'))
+    const now = Date.now()
+    sqlite
+      .prepare(
+        `INSERT INTO agent
+           (id, type, name, instructions, order_key, created_at, updated_at)
+         VALUES ('agent-channel-migration', 'claude-code', 'Agent', '', 'a0', ?, ?)`
+      )
+      .run(now, now)
+    sqlite
+      .prepare(
+        `INSERT INTO agent_workspace
+           (id, name, path, type, order_key, created_at, updated_at)
+         VALUES ('workspace-channel-migration', 'Workspace', '/tmp/channel-migration', 'user', 'a0', ?, ?)`
+      )
+      .run(now, now)
+    for (const [index, sessionId] of ['session-shared', 'session-unique'].entries()) {
+      sqlite
+        .prepare(
+          `INSERT INTO agent_session
+             (id, agent_id, name, workspace_id, order_key, last_activity_at, created_at, updated_at)
+           VALUES (?, 'agent-channel-migration', ?, 'workspace-channel-migration', ?, ?, ?, ?)`
+        )
+        .run(sessionId, sessionId, `a${index}`, now, now, now)
+      sqlite
+        .prepare(
+          `INSERT INTO agent_session_message
+             (id, session_id, role, data, status, created_at, updated_at)
+           VALUES (?, ?, 'user', '{"parts":[{"type":"text","text":"private history"}]}', 'success', ?, ?)`
+        )
+        .run(`message-${index}`, sessionId, now, now)
+    }
+
+    const insertChannel = sqlite.prepare(
+      `INSERT INTO agent_channel
+         (id, type, name, agent_id, session_id, workspace, config, created_at, updated_at)
+       VALUES (?, 'feishu', ?, 'agent-channel-migration', ?, '{"type":"system"}', '{}', ?, ?)`
+    )
+    insertChannel.run('channel-stale', 'Stale', 'session-shared', now, now - 10)
+    insertChannel.run('channel-recent', 'Recent', 'session-shared', now, now)
+    insertChannel.run('channel-unique', 'Unique', 'session-unique', now, now)
+
+    applyMigrations(db, resolveMigrationsPath())
+
+    expect(
+      sqlite
+        .prepare(
+          `SELECT session_id, channel_id, conversation_id, is_active
+           FROM agent_channel_session ORDER BY session_id`
+        )
+        .all()
+    ).toEqual([
+      {
+        session_id: 'session-shared',
+        channel_id: 'channel-recent',
+        conversation_id: null,
+        is_active: 0
+      },
+      {
+        session_id: 'session-unique',
+        channel_id: 'channel-unique',
+        conversation_id: null,
+        is_active: 0
+      }
+    ])
+    expect(sqlite.prepare('SELECT count(*) AS count FROM agent_session_message').get()).toEqual({ count: 2 })
+  })
+
   it('preserves every file_entry row and its references across the cleanup_policy recreate', () => {
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0004_fresh_roland_deschain'))
     seedBaselineRows()
@@ -173,6 +242,8 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('backfills durable refs for existing agent-session attachments', () => {
+    // The backfill shipped in 0006. Pin its baseline explicitly so a later schema migration does
+    // not move the seed after the backfill and silently stop testing the populated upgrade path.
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0006_mean_morg'))
     const now = Date.now()
     const fileEntryId = '77777777-7777-7777-8777-777777777777'

@@ -166,6 +166,27 @@ describe('PermissionRequestComposer', () => {
     expect(screen.getByTestId('permission-builtin-body-scroll')).toHaveClass('max-h-60', 'overflow-y-auto')
   })
 
+  it('renders the ExitPlanMode plan in the approval preview', () => {
+    render(
+      <PermissionRequestComposer
+        request={makeRequest({
+          title: 'ExitPlanMode',
+          toolResponse: {
+            id: 'exit-plan-call-1',
+            toolCallId: 'exit-plan-call-1',
+            status: 'pending',
+            arguments: { plan: '# Release plan\n\n1. Run the focused tests' },
+            tool: { id: 'ExitPlanMode', name: 'ExitPlanMode', type: 'builtin' }
+          }
+        })}
+        onRespond={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('Release plan')).toBeInTheDocument()
+    expect(screen.getByText('Run the focused tests')).toBeInTheDocument()
+  })
+
   it('does not add a fallback body scroller when the tool content owns scrolling', () => {
     render(
       <PermissionRequestComposer

@@ -1,5 +1,7 @@
 import path from 'node:path'
 
+import { createOpenAI } from '@ai-sdk/openai'
+import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import { generateText as aiCoreGenerateText } from '@cherrystudio/ai-core'
 import { FS_READ_TOOL_NAME } from '@shared/ai/builtinTools'
@@ -47,9 +49,16 @@ vi.mock('@application', () => ({
     get: (name: string) => {
       if (name === 'KnowledgeService') return { hasAnyBase: () => true }
       if (name === 'PreferenceService') return { get: preferenceGetMock }
+      // No connected MCP server in these tests, so nothing declares the resources capability.
+      if (name === 'McpRuntimeService') return { getConnectedServerCapabilities: () => undefined }
       throw new Error(`unexpected service: ${name}`)
     }
   }
+}))
+
+// No MCP servers configured in these tests — keeps the MCP tool/resource resolution off the DB.
+vi.mock('@main/data/services/McpServerService', () => ({
+  mcpServerService: { list: () => ({ items: [] }) }
 }))
 
 const { applyCallOverrides, buildAgentParams, composeStopWhen, resolveToolCallLimit, resolveTools } = await import(
@@ -582,6 +591,29 @@ describe('buildAgentParams web-tool routing', () => {
     }
   )
 
+  it('disables Responses storage for assistant-backed calls too', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'openai', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'openai',
+      presetProviderId: 'openai',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'openai' } }
+    })
+    const model = makeModel({
+      id: 'openai::gpt-5.6',
+      providerId: 'openai',
+      apiModelId: 'gpt-5.6',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
+    })
+
+    const result = await buildAgentParams({ request: {}, signal: undefined, provider, model, assistant })
+
+    expect(result.options.providerOptions?.openai).toMatchObject({ store: false })
+  })
+
   it.each([
     { endpointType: ENDPOINT_TYPE.OPENAI_RESPONSES, runtimeProviderId: 'openai', expectedRoute: 'server' },
     {
@@ -729,6 +761,102 @@ describe('buildAgentParams web-tool routing', () => {
 })
 
 describe('buildAgentParams assistant-less reasoning', () => {
+  it('disables Bailian qwen3.7-max reasoning in the serialized Responses request', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: {
+        providerId: 'openai',
+        providerSettings: {}
+      },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'dashscope',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'openai-compatible' },
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'openai' }
+      }
+    })
+    const model = makeModel({
+      id: 'dashscope::qwen3-7-max',
+      providerId: 'dashscope',
+      apiModelId: 'qwen3.7-max',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'toggle' }],
+        selectableEfforts: ['none', 'auto']
+      }
+    })
+
+    const result = await buildAgentParams({
+      request: { reasoningEffort: 'none' },
+      signal: undefined,
+      provider,
+      model
+    })
+    const prompt: LanguageModelV3CallOptions['prompt'] = [
+      { role: 'user', content: [{ type: 'text', text: 'Translate this.' }] }
+    ]
+    let requestBody: Record<string, unknown> | undefined
+    const sdkModel = createOpenAI({
+      apiKey: 'sk-test',
+      baseURL: 'https://example.com/v1',
+      fetch: async (_input, init) => {
+        requestBody = JSON.parse(String(init?.body))
+        throw new Error('request captured')
+      }
+    }).responses('qwen3.7-max')
+
+    await expect(sdkModel.doGenerate({ prompt, providerOptions: result.options.providerOptions })).rejects.toThrow(
+      'request captured'
+    )
+    expect(requestBody).toMatchObject({ store: false, reasoning: { effort: 'none' } })
+  })
+
+  it('serializes gateway reasoning overrides with Responses storage disabled', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'newapi', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'new-api',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'newapi' } }
+    })
+    const model = makeModel({
+      id: 'new-api::gpt-5.6-sol',
+      providerId: 'new-api',
+      apiModelId: 'gpt-5.6-sol',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES],
+      capabilities: [MODEL_CAPABILITY.REASONING]
+    })
+
+    const result = await buildAgentParams({
+      request: { callOverrides: { providerOptions: { openai: { reasoningEffort: 'none', forceReasoning: true } } } },
+      signal: undefined,
+      provider,
+      model
+    })
+    let requestBody: Record<string, unknown> | undefined
+    const sdkModel = createOpenAI({
+      apiKey: 'sk-test',
+      baseURL: 'https://example.com/v1',
+      fetch: async (_input, init) => {
+        requestBody = JSON.parse(String(init?.body))
+        throw new Error('request captured')
+      }
+    }).responses('gpt-5.6-sol')
+
+    await expect(
+      sdkModel.doGenerate({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Run the task.' }] }],
+        providerOptions: result.options.providerOptions
+      })
+    ).rejects.toThrow('request captured')
+    expect(requestBody).toMatchObject({ store: false, reasoning: { effort: 'none' } })
+  })
+
   const makeOffCapableSetup = () => {
     resolveProviderAiSdkConfigMock.mockResolvedValue({
       config: {
@@ -756,6 +884,29 @@ describe('buildAgentParams assistant-less reasoning', () => {
     })
     return { provider, model }
   }
+
+  it('applies the Ollama context-window default without an assistant', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'ollama', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'ollama',
+      presetProviderId: 'ollama',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'ollama' } }
+    })
+    const model = makeModel({
+      id: 'ollama::qwen3',
+      providerId: 'ollama',
+      apiModelId: 'qwen3',
+      contextWindow: 131072
+    })
+
+    const result = await buildAgentParams({ request: {}, signal: undefined, provider, model })
+
+    expect(result.options.providerOptions?.ollama).toMatchObject({ options: { num_ctx: 131072 } })
+  })
 
   it("encodes an explicit 'none' selection into the off wire mode without an assistant (translate)", async () => {
     const { provider, model } = makeOffCapableSetup()
@@ -832,9 +983,10 @@ describe('buildAgentParams assistant-less reasoning', () => {
     // turning reasoning off must send `thinkingBudget: 0`. This row is exactly
     // the shape that used to leak the Gemini 3 field: a catalog-backed custom
     // row (resolvable apiModelId, no presetModelId) on a gateway with no pin.
-    expect(result.options.providerOptions).toEqual({
-      google: { thinkingConfig: { includeThoughts: false, thinkingBudget: 0 } }
+    expect(result.options.providerOptions?.google).toMatchObject({
+      thinkingConfig: { includeThoughts: false, thinkingBudget: 0 }
     })
+    expect(Object.keys(result.options.providerOptions ?? {})).toEqual(['google'])
   })
 
   it('leaves assistant-less requests without an explicit selection un-emitted (gateway regression guard)', async () => {

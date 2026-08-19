@@ -180,6 +180,20 @@ describe('TraceStorageService', () => {
     expect((await service.getSpans('topic-a', 'trace-a')).map((item) => item.id).sort()).toEqual(['first', 'second'])
   })
 
+  // S12: trace JSONL holds raw prompts/API bodies (dev-gated plaintext by design) and
+  // Electron's userData can be world-readable on Linux, so artifacts must be owner-only.
+  it.skipIf(process.platform === 'win32')('writes owner-only trace artifacts (file 0600, topic dir 0700)', async () => {
+    await service._doInit()
+
+    service.saveEntity(span({ id: 'secret-ish', traceId: 'trace-a', topicId: 'topic-a' }))
+    await service.saveSpans('topic-a')
+
+    const fileStats = await fs.stat(path.join(traceDir, 'topic-a', 'trace-a'))
+    expect(fileStats.mode & 0o777).toBe(0o600)
+    const dirStats = await fs.stat(path.join(traceDir, 'topic-a'))
+    expect(dirStats.mode & 0o777).toBe(0o700)
+  })
+
   // The OTel createSpan/endSpan path is the live source of cached spans. If endSpan does not
   // mark the entity ended, TraceSpanStore can never evict the trace and memory grows unbounded
   // while developer_mode is on. Drive a span through the real pipeline and confirm a fully-ended

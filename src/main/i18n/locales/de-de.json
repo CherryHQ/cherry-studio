@@ -9,6 +9,11 @@
       }
     },
     "session": {
+      "new": "Neue Aufgabe",
+      "run_status": {
+        "busy": "Die Agent-Sitzung ist beschäftigt. Bitte versuchen Sie es in Kürze erneut.",
+        "unavailable": "Die Agent-Sitzung ist nicht mehr verfügbar."
+      },
       "workspace_status": {
         "inaccessible": "Arbeitsbereichspfad ist nicht zugänglich: {{path}}",
         "missing": "Arbeitsbereichspfad existiert nicht: {{path}}",
@@ -79,7 +84,19 @@
     "zoomIn": "Heranzoomen",
     "zoomOut": "Herauszoomen"
   },
+  "chat": {
+    "conversation": {
+      "new": "Neuer Chat"
+    }
+  },
   "common": {
+    "channel_available_commands": "Verfügbare Befehle:",
+    "channel_command_processing_error": "⚠️ Beim Verarbeiten des Befehls ist ein Fehler aufgetreten. Bitte versuchen Sie es später erneut.",
+    "channel_message_processing_error": "⚠️ Beim Verarbeiten Ihrer Nachricht ist ein Fehler aufgetreten. Bitte versuchen Sie es später erneut.",
+    "channel_new_session_created": "Neue Sitzung erstellt.",
+    "channel_no_active_session": "Keine aktive Sitzung.",
+    "channel_session_compacted": "Sitzung komprimiert.",
+    "channel_session_resolution_error": "⚠️ Eine Sitzung für diesen Agenten konnte nicht aufgelöst werden. Bitte versuchen Sie es später erneut.",
     "copy": "Kopieren",
     "cut": "Ausschneiden",
     "inspect": "Prüfen",
@@ -123,6 +140,16 @@
     "errors": {
       "document_size_limit_exceeded": "Der aktuelle Dienst zur Dokumentverarbeitung erfordert Dateien kleiner als {{maxSize}}. Komprimieren oder teilen Sie diese Datei und fügen Sie sie dann erneut hinzu.",
       "pdf_page_limit_exceeded": "Diese PDF überschreitet die Begrenzung von {{maxPages}} Seiten für den aktuellen Dienst zur Dokumentverarbeitung. Teilen Sie die PDF manuell und fügen Sie sie dann erneut hinzu."
+    }
+  },
+  "notification": {
+    "action_required": {
+      "agent": "Agent benötigt Ihre Eingabe",
+      "assistant": "Assistent benötigt Ihre Eingabe"
+    },
+    "completion": {
+      "agent": "Agent-Aufgabe abgeschlossen",
+      "assistant": "Assistentenantwort abgeschlossen"
     }
   },
   "openclaw": {
