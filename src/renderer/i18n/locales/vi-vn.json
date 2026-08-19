@@ -3001,7 +3001,7 @@
       "empty_title": "Tìm kiếm kỹ năng",
       "github_empty_description": "Dán liên kết đến tập tin SKILL.md của một kỹ năng, ví dụ github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
       "github_empty_title": "Cài đặt từ GitHub",
-      "github_url_invalid": "Hãy dán liên kết GitHub có kết thúc bằng SKILL.md",
+      "github_url_invalid": "Dán liên kết GitHub được hỗ trợ trỏ trực tiếp đến tệp SKILL.md",
       "github_url_label": "URL SKILL.md trên GitHub",
       "github_url_placeholder": "Liên kết GitHub, kết thúc bằng /SKILL.md",
       "no_results_description": "Thử một từ khóa khác hoặc nhập tệp ZIP hoặc thư mục cục bộ.",

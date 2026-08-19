@@ -3001,7 +3001,7 @@
       "empty_title": "Caută abilități",
       "github_empty_description": "Lipește un link către fișierul SKILL.md al unei abilități, de exemplu github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
       "github_empty_title": "Instalează de pe GitHub",
-      "github_url_invalid": "Lipește un link GitHub care se termină cu SKILL.md",
+      "github_url_invalid": "Lipește un link GitHub acceptat care indică direct către un fișier SKILL.md",
       "github_url_label": "URL SKILL.md GitHub",
       "github_url_placeholder": "Link GitHub care se termină cu /SKILL.md",
       "no_results_description": "Încearcă un alt cuvânt cheie sau importă un fișier ZIP sau director local.",

@@ -44,7 +44,7 @@ const APP_VERSION = `${app?.getVersion?.() || 'unknown'}`
 /**
  * CS_DIAGNOSTICS makes a packaged build behave like dev for logging: the verbose file
  * level, console output, and the CSLOGGER_MAIN_* overrides all turn on together.
- * Idempotent when already in dev (`isDev || x === isDev`). See docs/guides/diagnostics.md.
+ * Idempotent when already in dev (`isDev || x === isDev`). See docs/references/diagnostics/README.md.
  */
 const DEV_LOGGING = isDev || DIAGNOSTICS_ENABLED
 

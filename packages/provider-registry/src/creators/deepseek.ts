@@ -9,6 +9,17 @@ export default defineCreator({
   idPrefixes: ['deepseek'],
   models: [
     {
+      id: 'deepseek-v4-flash',
+      name: 'DeepSeek V4 Flash',
+      family: 'deepseek-flash',
+      capabilities: ['function-call', 'reasoning', 'structured-output'],
+      contextWindow: 1048576,
+      maxOutputTokens: 393216,
+      inputModalities: ['text'],
+      outputModalities: ['text'],
+      openWeights: true
+    },
+    {
       id: 'deepseek-v4-pro',
       name: 'DeepSeek V4 Pro',
       family: 'deepseek-thinking',
