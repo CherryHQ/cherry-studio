@@ -894,7 +894,7 @@ describe('buildClaudeCodeSessionSettings', () => {
   })
 
   it('denies writes to SQLite files inside userData in every permission mode', async () => {
-    const homePath = path.join('/Users', 'test')
+    const homePath = path.resolve('test-home')
     const userDataPath = path.join(homePath, 'Library', 'Application Support', 'CherryStudio')
     mocks.applicationGetPath.mockImplementation((key: string) => {
       if (key === 'app.userdata') return userDataPath
