@@ -150,10 +150,9 @@ const NOTIFY_TOOL: Tool = {
         type: 'string',
         description: 'Optional: send to a specific channel only (omit to send to all notify-enabled channels)'
       }
-    },
-    // Enforce "message or file_path" so MCP clients can pre-validate; the handler re-checks
-    // the trimmed values (empty strings must still be rejected).
-    anyOf: [{ required: ['message'] }, { required: ['file_path'] }]
+    }
+    // ponytail: no root anyOf — some providers (xAI) reject union root schemas; the handler
+    // enforces "message or file_path" on the trimmed values anyway.
   }
 }
 
