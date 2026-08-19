@@ -12533,25 +12533,6 @@
       "providerId": "gateway"
     },
     {
-      "apiModelId": "openai/gpt-4.1-fast",
-      "modelId": "gpt-4-1-fast",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.875
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 3.5
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 14
-        }
-      },
-      "providerId": "gateway"
-    },
-    {
       "apiModelId": "openai/gpt-4.1-mini",
       "modelId": "gpt-4-1-mini",
       "pricing": {
@@ -12571,25 +12552,6 @@
       "providerId": "gateway"
     },
     {
-      "apiModelId": "openai/gpt-4.1-mini-fast",
-      "modelId": "gpt-4-1-mini-fast",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.175
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.7
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 2.8
-        }
-      },
-      "providerId": "gateway"
-    },
-    {
       "apiModelId": "openai/gpt-4.1-nano",
       "modelId": "gpt-4-1-nano",
       "pricing": {
@@ -12604,25 +12566,6 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0.4
-        }
-      },
-      "providerId": "gateway"
-    },
-    {
-      "apiModelId": "openai/gpt-4.1-nano-fast",
-      "modelId": "gpt-4-1-nano-fast",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.05
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.2
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.8
         }
       },
       "providerId": "gateway"
@@ -12662,25 +12605,6 @@
       "providerId": "gateway"
     },
     {
-      "apiModelId": "openai/gpt-4o-fast",
-      "modelId": "gpt-4o-fast",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 2.125
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 4.25
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 17
-        }
-      },
-      "providerId": "gateway"
-    },
-    {
       "apiModelId": "openai/gpt-4o-mini",
       "modelId": "gpt-4o-mini",
       "pricing": {
@@ -12695,25 +12619,6 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0.6
-        }
-      },
-      "providerId": "gateway"
-    },
-    {
-      "apiModelId": "openai/gpt-4o-mini-fast",
-      "modelId": "gpt-4o-mini-fast",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.125
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.25
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 1
         }
       },
       "providerId": "gateway"
@@ -12859,25 +12764,6 @@
       "providerId": "gateway"
     },
     {
-      "apiModelId": "openai/gpt-5.1-thinking-fast",
-      "modelId": "gpt-5-1-thinking-fast",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.25
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 2.5
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 20
-        }
-      },
-      "providerId": "gateway"
-    },
-    {
       "apiModelId": "openai/gpt-5.2",
       "modelId": "gpt-5-2",
       "pricing": {
@@ -12911,25 +12797,6 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 14
-        }
-      },
-      "providerId": "gateway"
-    },
-    {
-      "apiModelId": "openai/gpt-5.2-fast",
-      "modelId": "gpt-5-2-fast",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.35
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 3.5
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 28
         }
       },
       "providerId": "gateway"
@@ -12969,25 +12836,6 @@
       "providerId": "gateway"
     },
     {
-      "apiModelId": "openai/gpt-5.3-codex-fast",
-      "modelId": "gpt-5-3-codex-fast",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.35
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 3.5
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 28
-        }
-      },
-      "providerId": "gateway"
-    },
-    {
       "apiModelId": "openai/gpt-5.4",
       "modelId": "gpt-5-4",
       "pricing": {
@@ -13007,25 +12855,6 @@
       "providerId": "gateway"
     },
     {
-      "apiModelId": "openai/gpt-5.4-fast",
-      "modelId": "gpt-5-4-fast",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.5
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 5
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 30
-        }
-      },
-      "providerId": "gateway"
-    },
-    {
       "apiModelId": "openai/gpt-5.4-mini",
       "modelId": "gpt-5-4-mini",
       "pricing": {
@@ -13040,25 +12869,6 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 4.5
-        }
-      },
-      "providerId": "gateway"
-    },
-    {
-      "apiModelId": "openai/gpt-5.4-mini-fast",
-      "modelId": "gpt-5-4-mini-fast",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.15
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 1.5
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 9
         }
       },
       "providerId": "gateway"
@@ -13117,25 +12927,6 @@
       "providerId": "gateway"
     },
     {
-      "apiModelId": "openai/gpt-5.5-fast",
-      "modelId": "gpt-5-5-fast",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 1.25
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 12.5
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 75
-        }
-      },
-      "providerId": "gateway"
-    },
-    {
       "apiModelId": "openai/gpt-5.5-pro",
       "modelId": "gpt-5-5-pro",
       "pricing": {
@@ -13174,29 +12965,6 @@
       "providerId": "gateway"
     },
     {
-      "apiModelId": "openai/gpt-5.6-luna-fast",
-      "modelId": "gpt-5-6-luna-fast",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.04
-        },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 0.25
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.4
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 2.4
-        }
-      },
-      "providerId": "gateway"
-    },
-    {
       "apiModelId": "openai/gpt-5.6-sol",
       "modelId": "gpt-5-6-sol",
       "pricing": {
@@ -13215,29 +12983,6 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 15
-        }
-      },
-      "providerId": "gateway"
-    },
-    {
-      "apiModelId": "openai/gpt-5.6-sol-fast",
-      "modelId": "gpt-5-6-sol-fast",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.5
-        },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 3.125
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 5
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 30
         }
       },
       "providerId": "gateway"
@@ -13266,29 +13011,6 @@
       "providerId": "gateway"
     },
     {
-      "apiModelId": "openai/gpt-5.6-terra-fast",
-      "modelId": "gpt-5-6-terra-fast",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.4
-        },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 2.5
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 4
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 24
-        }
-      },
-      "providerId": "gateway"
-    },
-    {
       "apiModelId": "openai/gpt-5-codex",
       "modelId": "gpt-5-codex",
       "pricing": {
@@ -13308,25 +13030,6 @@
       "providerId": "gateway"
     },
     {
-      "apiModelId": "openai/gpt-5-fast",
-      "modelId": "gpt-5-fast",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.25
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 2.5
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 20
-        }
-      },
-      "providerId": "gateway"
-    },
-    {
       "apiModelId": "openai/gpt-5-mini",
       "modelId": "gpt-5-mini",
       "pricing": {
@@ -13341,25 +13044,6 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 2
-        }
-      },
-      "providerId": "gateway"
-    },
-    {
-      "apiModelId": "openai/gpt-5-mini-fast",
-      "modelId": "gpt-5-mini-fast",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.045
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.45
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 3.6
         }
       },
       "providerId": "gateway"
@@ -14972,25 +14656,6 @@
       "providerId": "gateway"
     },
     {
-      "apiModelId": "openai/o3-fast",
-      "modelId": "o3-fast",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.875
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 3.5
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 14
-        }
-      },
-      "providerId": "gateway"
-    },
-    {
       "apiModelId": "openai/o3-mini",
       "modelId": "o3-mini",
       "pricing": {
@@ -15039,25 +14704,6 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 4.4
-        }
-      },
-      "providerId": "gateway"
-    },
-    {
-      "apiModelId": "openai/o4-mini-fast",
-      "modelId": "o4-mini-fast",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.5
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 2
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 8
         }
       },
       "providerId": "gateway"
@@ -38054,5 +37700,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "7c197b75cb499af8"
+  "version": "ddd4ac2fe5a3d926"
 }

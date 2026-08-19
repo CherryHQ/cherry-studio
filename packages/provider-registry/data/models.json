@@ -15593,32 +15593,6 @@
     {
       "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 1047576,
-      "family": "gpt",
-      "id": "gpt-4-1-fast",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 32768,
-      "metadata": {},
-      "name": "GPT-4.1 (Fast)",
-      "outputModalities": ["text"],
-      "ownedBy": "openai",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.875
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 3.5
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 14
-        }
-      }
-    },
-    {
-      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
-      "contextWindow": 1047576,
       "family": "gpt-mini",
       "id": "gpt-4-1-mini",
       "inputModalities": ["text", "image"],
@@ -15645,32 +15619,6 @@
     {
       "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 1047576,
-      "family": "gpt-mini",
-      "id": "gpt-4-1-mini-fast",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 32768,
-      "metadata": {},
-      "name": "GPT-4.1 mini (Fast)",
-      "outputModalities": ["text"],
-      "ownedBy": "openai",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.175
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.7
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 2.8
-        }
-      }
-    },
-    {
-      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
-      "contextWindow": 1047576,
       "family": "gpt-nano",
       "id": "gpt-4-1-nano",
       "inputModalities": ["text", "image"],
@@ -15691,32 +15639,6 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0.4
-        }
-      }
-    },
-    {
-      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
-      "contextWindow": 1047576,
-      "family": "gpt-nano",
-      "id": "gpt-4-1-nano-fast",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 32768,
-      "metadata": {},
-      "name": "GPT-4.1 nano (Fast)",
-      "outputModalities": ["text"],
-      "ownedBy": "openai",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.05
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.2
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.8
         }
       }
     },
@@ -15791,32 +15713,6 @@
     {
       "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 128000,
-      "family": "gpt",
-      "id": "gpt-4o-fast",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 16384,
-      "metadata": {},
-      "name": "GPT-4o (Fast)",
-      "outputModalities": ["text"],
-      "ownedBy": "openai",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 2.125
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 4.25
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 17
-        }
-      }
-    },
-    {
-      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
-      "contextWindow": 128000,
       "family": "gpt-mini",
       "id": "gpt-4o-mini",
       "inputModalities": ["text", "image"],
@@ -15837,32 +15733,6 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0.6
-        }
-      }
-    },
-    {
-      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
-      "contextWindow": 128000,
-      "family": "gpt-mini",
-      "id": "gpt-4o-mini-fast",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 16384,
-      "metadata": {},
-      "name": "GPT-4o mini (Fast)",
-      "outputModalities": ["text"],
-      "ownedBy": "openai",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.125
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.25
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 1
         }
       }
     },
@@ -16104,41 +15974,6 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
-      "contextWindow": 400000,
-      "family": "gpt",
-      "id": "gpt-5-1-thinking-fast",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 128000,
-      "metadata": {},
-      "name": "GPT 5.1 Thinking (Fast)",
-      "outputModalities": ["text"],
-      "ownedBy": "openai",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.25
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 2.5
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 20
-        }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "effort",
-            "values": ["none", "low", "medium", "high"]
-          }
-        ],
-        "supportedEfforts": ["none", "low", "medium", "high"]
-      }
-    },
-    {
       "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 400000,
       "family": "gpt",
@@ -16266,41 +16101,6 @@
     {
       "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 400000,
-      "family": "gpt",
-      "id": "gpt-5-2-fast",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 128000,
-      "metadata": {},
-      "name": "GPT 5.2 (Fast)",
-      "outputModalities": ["text"],
-      "ownedBy": "openai",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.35
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 3.5
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 28
-        }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "effort",
-            "values": ["none", "low", "medium", "high", "xhigh"]
-          }
-        ],
-        "supportedEfforts": ["none", "low", "medium", "high", "xhigh"]
-      }
-    },
-    {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
-      "contextWindow": 400000,
       "family": "gpt-pro",
       "id": "gpt-5-2-pro",
       "inputModalities": ["text", "image"],
@@ -16392,41 +16192,6 @@
     },
     {
       "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
-      "contextWindow": 400000,
-      "family": "gpt-codex",
-      "id": "gpt-5-3-codex-fast",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 128000,
-      "metadata": {},
-      "name": "GPT 5.3 Codex (Fast)",
-      "outputModalities": ["text"],
-      "ownedBy": "openai",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.35
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 3.5
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 28
-        }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "effort",
-            "values": ["low", "medium", "high", "xhigh"]
-          }
-        ],
-        "supportedEfforts": ["low", "medium", "high", "xhigh"]
-      }
-    },
-    {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 128000,
       "family": "gpt-codex-spark",
       "id": "gpt-5-3-codex-spark",
@@ -16496,41 +16261,6 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
-      "contextWindow": 1050000,
-      "family": "gpt",
-      "id": "gpt-5-4-fast",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 128000,
-      "metadata": {},
-      "name": "GPT 5.4 (Fast)",
-      "outputModalities": ["text"],
-      "ownedBy": "openai",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.5
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 5
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 30
-        }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "effort",
-            "values": ["none", "low", "medium", "high", "xhigh"]
-          }
-        ],
-        "supportedEfforts": ["none", "low", "medium", "high", "xhigh"]
-      }
-    },
-    {
       "capabilities": ["reasoning", "image-recognition", "image-generation", "structured-output", "file-input"],
       "contextWindow": 272000,
       "id": "gpt-5-4-image-2",
@@ -16582,41 +16312,6 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 4.5
-        }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "effort",
-            "values": ["none", "low", "medium", "high", "xhigh"]
-          }
-        ],
-        "supportedEfforts": ["none", "low", "medium", "high", "xhigh"]
-      }
-    },
-    {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
-      "contextWindow": 400000,
-      "family": "gpt-mini",
-      "id": "gpt-5-4-mini-fast",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 128000,
-      "metadata": {},
-      "name": "GPT 5.4 Mini (Fast)",
-      "outputModalities": ["text"],
-      "ownedBy": "openai",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.15
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 1.5
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 9
         }
       },
       "reasoning": {
@@ -16718,41 +16413,6 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 33
-        }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "effort",
-            "values": ["none", "low", "medium", "high", "xhigh"]
-          }
-        ],
-        "supportedEfforts": ["none", "low", "medium", "high", "xhigh"]
-      }
-    },
-    {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
-      "contextWindow": 1000000,
-      "family": "gpt",
-      "id": "gpt-5-5-fast",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 128000,
-      "metadata": {},
-      "name": "GPT 5.5 (Fast)",
-      "outputModalities": ["text"],
-      "ownedBy": "openai",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 1.25
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 12.5
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 75
         }
       },
       "reasoning": {
@@ -16877,45 +16537,6 @@
     {
       "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 1050000,
-      "family": "gpt-luna",
-      "id": "gpt-5-6-luna-fast",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 128000,
-      "metadata": {},
-      "name": "GPT 5.6 Luna (Fast)",
-      "outputModalities": ["text"],
-      "ownedBy": "openai",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.04
-        },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 0.25
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.4
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 2.4
-        }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "effort",
-            "values": ["none", "low", "medium", "high", "xhigh", "max"]
-          }
-        ],
-        "supportedEfforts": ["none", "low", "medium", "high", "xhigh", "max"]
-      }
-    },
-    {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
-      "contextWindow": 1050000,
       "id": "gpt-5-6-luna-pro",
       "inputModalities": ["image", "text"],
       "metadata": {},
@@ -16984,45 +16605,6 @@
     {
       "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 1050000,
-      "family": "gpt-sol",
-      "id": "gpt-5-6-sol-fast",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 128000,
-      "metadata": {},
-      "name": "GPT 5.6 Sol (Fast)",
-      "outputModalities": ["text"],
-      "ownedBy": "openai",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.5
-        },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 3.125
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 5
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 30
-        }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "effort",
-            "values": ["none", "low", "medium", "high", "xhigh", "max"]
-          }
-        ],
-        "supportedEfforts": ["none", "low", "medium", "high", "xhigh", "max"]
-      }
-    },
-    {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
-      "contextWindow": 1050000,
       "id": "gpt-5-6-sol-pro",
       "inputModalities": ["image", "text"],
       "metadata": {},
@@ -17076,45 +16658,6 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 13.2
-        }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "effort",
-            "values": ["none", "low", "medium", "high", "xhigh", "max"]
-          }
-        ],
-        "supportedEfforts": ["none", "low", "medium", "high", "xhigh", "max"]
-      }
-    },
-    {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
-      "contextWindow": 1050000,
-      "family": "gpt-terra",
-      "id": "gpt-5-6-terra-fast",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 128000,
-      "metadata": {},
-      "name": "GPT 5.6 Terra (Fast)",
-      "outputModalities": ["text"],
-      "ownedBy": "openai",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.4
-        },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 2.5
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 4
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 24
         }
       },
       "reasoning": {
@@ -17200,41 +16743,6 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
-      "contextWindow": 400000,
-      "family": "gpt",
-      "id": "gpt-5-fast",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 128000,
-      "metadata": {},
-      "name": "GPT-5 (Fast)",
-      "outputModalities": ["text"],
-      "ownedBy": "openai",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.25
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 2.5
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 20
-        }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "effort",
-            "values": ["minimal", "low", "medium", "high"]
-          }
-        ],
-        "supportedEfforts": ["minimal", "low", "medium", "high"]
-      }
-    },
-    {
       "capabilities": ["reasoning", "image-recognition", "image-generation", "structured-output", "file-input"],
       "contextWindow": 400000,
       "id": "gpt-5-image",
@@ -17315,41 +16823,6 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 2
-        }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "effort",
-            "values": ["minimal", "low", "medium", "high"]
-          }
-        ],
-        "supportedEfforts": ["minimal", "low", "medium", "high"]
-      }
-    },
-    {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
-      "contextWindow": 400000,
-      "family": "gpt-mini",
-      "id": "gpt-5-mini-fast",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 128000,
-      "metadata": {},
-      "name": "GPT-5 mini (Fast)",
-      "outputModalities": ["text"],
-      "ownedBy": "openai",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.045
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.45
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 3.6
         }
       },
       "reasoning": {
@@ -18218,41 +17691,6 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
-      "contextWindow": 200000,
-      "family": "o",
-      "id": "o3-fast",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 100000,
-      "metadata": {},
-      "name": "o3 (Fast)",
-      "outputModalities": ["text"],
-      "ownedBy": "openai",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.875
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 3.5
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 14
-        }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "effort",
-            "values": ["low", "medium", "high"]
-          }
-        ],
-        "supportedEfforts": ["low", "medium", "high"]
-      }
-    },
-    {
       "capabilities": ["function-call", "reasoning", "structured-output", "file-input"],
       "contextWindow": 200000,
       "family": "o-mini",
@@ -18341,41 +17779,6 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 4.4
-        }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "effort",
-            "values": ["low", "medium", "high"]
-          }
-        ],
-        "supportedEfforts": ["low", "medium", "high"]
-      }
-    },
-    {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
-      "contextWindow": 200000,
-      "family": "o-mini",
-      "id": "o4-mini-fast",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 100000,
-      "metadata": {},
-      "name": "o4-mini (Fast)",
-      "outputModalities": ["text"],
-      "ownedBy": "openai",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.5
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 2
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 8
         }
       },
       "reasoning": {
@@ -22181,5 +21584,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "46669d044113fb47"
+  "version": "90f2173cfa6525a2"
 }
