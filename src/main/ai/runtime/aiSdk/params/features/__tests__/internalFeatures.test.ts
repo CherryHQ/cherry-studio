@@ -449,7 +449,7 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
           providerId: 'my-vllm',
           reasoning: { selectableEfforts: ['none', 'auto'] }
         },
-        assistant: { id: 'a', settings: { reasoning_effort: 'off' } as Assistant['settings'] },
+        assistant: { id: 'a', settings: { reasoning_effort: 'none' } as Assistant['settings'] },
         reasoning: { kind: 'off', selection: 'none', emissions: [{ target: 'reasoningEffort', value: 'none' }] }
       })
 
