@@ -655,14 +655,18 @@ export class SkillService {
 
     const seenPaths = new Map<string, string>()
     for (const entryPath of selectedPaths) {
-      const key = foldKey(entryPath)
-      const previous = seenPaths.get(key)
-      if (previous && previous !== entryPath) {
-        throw new Error(
-          `The commit contains paths that collide once case and Unicode are normalized (${previous}, ${entryPath}).`
-        )
+      const parts = entryPath.split('/')
+      for (let length = 1; length <= parts.length; length++) {
+        const prefix = parts.slice(0, length).join('/')
+        const key = parts.slice(0, length).map(foldKey).join('/')
+        const previous = seenPaths.get(key)
+        if (previous && previous !== prefix) {
+          throw new Error(
+            `The commit contains paths that collide once case and Unicode are normalized (${previous}, ${prefix}).`
+          )
+        }
+        seenPaths.set(key, prefix)
       }
-      seenPaths.set(key, entryPath)
     }
 
     const sizedEntries = sizedTree.split('\0').flatMap((record) => {

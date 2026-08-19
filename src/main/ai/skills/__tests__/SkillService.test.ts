@@ -860,6 +860,17 @@ describe('SkillService', () => {
       ).rejects.toThrow('collide')
     })
 
+    it('refuses case-folded directory collisions inside the selected skill', async () => {
+      const { skillService } = await setupGithubInstall({
+        refs: [{ name: 'main', oid: 'a'.repeat(40) }],
+        tree: ['skills/demo/SKILL.md', 'skills/demo/Docs/a.md', 'skills/demo/docs/b.md']
+      })
+
+      await expect(
+        skillService.install({ installSource: 'github:https://github.com/owner/repo/blob/main/skills/demo/SKILL.md' })
+      ).rejects.toThrow('collide')
+    })
+
     it('materializes only the selected directory instead of the whole repository', async () => {
       const { skillService, gitCalls } = await setupGithubInstall({ refs: [{ name: 'main', oid: 'a'.repeat(40) }] })
 
