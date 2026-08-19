@@ -3,8 +3,12 @@
  *
  * These are the built-in Agents' own safeguards, not the runtime's cross-cutting policy, so they
  * live with the Agents that declare them: a new built-in Agent adds a row here and the runtime
- * needs no edit. The Claude Code runtime appends this table to its cross-cutting one; other
- * runtimes may enforce it too, or not at all.
+ * needs no edit.
+ *
+ * KNOWN GAP (#18898): only the Claude Code runtime evaluates this table. Pi returns before any
+ * equivalent check under bypassPermissions and dsh has none, so a built-in Agent on those runtimes
+ * is not held to these rules — a pre-existing hole this table inherited, not a design choice. Do
+ * not describe these as cross-runtime guarantees until every runtime shares the evaluator.
  */
 
 import type { GuardHit, ToolGuardContext, ToolGuardRule } from '@main/ai/toolApproval/toolGuards'
