@@ -14,6 +14,7 @@ import type { HarnessClient, NotificationSubscription } from '@deepseek-ai/dsh-s
 import type { SessionEvent, TurnEndReason } from '@deepseek-ai/dsh-session'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
+import { hostToolsEnabled, resolveAgentCapabilities } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { buildAgentMcpServers } from '@main/ai/runtime/agentMcpServers'
 import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
@@ -273,7 +274,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     const citationsGuidance = buildCitationsGuidance({
       web: isToolEnabled('cherry-tools', WEB_SEARCH_TOOL_NAME) || isToolEnabled('cherry-tools', WEB_FETCH_TOOL_NAME),
       kb:
-        (agent.configuration?.builtin_role === 'assistant' || knowledgeBaseScope.length > 0) &&
+        (resolveAgentCapabilities(agent).allKnowledgeBases || knowledgeBaseScope.length > 0) &&
         (isToolEnabled('cherry-tools', KB_SEARCH_TOOL_NAME) || isToolEnabled('cherry-tools', KB_READ_TOOL_NAME))
     })
     const prompt = await buildAgentRuntimePrompt({
@@ -313,7 +314,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     await writeFile(this.compositionPath, yaml, { encoding: 'utf8', mode: 0o600 })
 
     try {
-      const assistantMcpEnabled = agent.configuration?.builtin_role === 'assistant' && !snapshot.linkedChannel
+      const assistantMcpEnabled = hostToolsEnabled(agent, { channelLinked: snapshot.linkedChannel !== null })
       const toolBridge = await buildDshCherryToolBridge(
         buildAgentMcpServers(
           session,

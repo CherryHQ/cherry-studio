@@ -18,6 +18,7 @@ import { agentChannelService as channelService } from '@data/services/AgentChann
 import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
+import { hostToolsEnabled, resolveAgentCapabilities } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { BUILTIN_AGENT_PLUGIN_NAME } from '@main/ai/agents/builtin/builtinAgentDefinition'
 import {
   getBuiltinAgentPluginDirectory,
@@ -43,7 +44,6 @@ import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry
 import { type ClaudeToolContext, resolveDisallowedTools } from '@main/ai/tools/adapters/claudeCode/toolConditions'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
-import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import {
   KB_READ_TOOL_NAME,
   KB_SEARCH_TOOL_NAME,
@@ -155,11 +155,8 @@ export async function buildClaudeCodeSessionSettings(
     options?.linkedChannelSnapshot === undefined
       ? channelService.findBySessionId(session.id)
       : options.linkedChannelSnapshot
-  // Cherry Assistant keeps its existing local-only support MCP behavior. Cherry Support also
-  // exposes product lookups outside local sessions; sensitive tools still require a responder.
-  const assistantMcpEnabled =
-    builtinRole === BUILTIN_AGENT_ROLE.SUPPORT ||
-    (builtinRole === BUILTIN_AGENT_ROLE.ASSISTANT && linkedChannelSnapshot === null)
+  const capabilities = resolveAgentCapabilities(agent)
+  const assistantMcpEnabled = hostToolsEnabled(agent, { channelLinked: linkedChannelSnapshot !== null })
 
   // Validate before opening MCP connections, then overlap the independent setup work.
   const cwd = session.workspace.path
@@ -171,23 +168,20 @@ export async function buildClaudeCodeSessionSettings(
     discoverPlugins(cwd, agent.id)
   ])
   const mcpWarm = await mcpWarmPromise
-  const isSupport = builtinRole === BUILTIN_AGENT_ROLE.SUPPORT
   const needsPrivateSkillPlugin = isExternalCliProvider(provider) || Boolean(builtinRole)
-  const plugins = isSupport
-    ? builtinPluginDirectory
-      ? [{ type: 'local' as const, path: builtinPluginDirectory, skipMcpDiscovery: true }]
-      : undefined
-    : needsPrivateSkillPlugin || builtinPluginDirectory
-      ? [
-          ...(workspacePlugins ?? []),
-          ...(needsPrivateSkillPlugin
-            ? [{ type: 'local' as const, path: skillService.getSkillPluginDirectory(), skipMcpDiscovery: true }]
-            : []),
-          ...(builtinPluginDirectory
-            ? [{ type: 'local' as const, path: builtinPluginDirectory, skipMcpDiscovery: true }]
-            : [])
-        ]
-      : workspacePlugins
+  const localPlugin = (pluginPath: string) => ({ type: 'local' as const, path: pluginPath, skipMcpDiscovery: true })
+  const plugins =
+    capabilities.pluginSources === 'bundle'
+      ? builtinPluginDirectory
+        ? [localPlugin(builtinPluginDirectory)]
+        : undefined
+      : needsPrivateSkillPlugin || builtinPluginDirectory
+        ? [
+            ...(workspacePlugins ?? []),
+            ...(needsPrivateSkillPlugin ? [localPlugin(skillService.getSkillPluginDirectory())] : []),
+            ...(builtinPluginDirectory ? [localPlugin(builtinPluginDirectory)] : [])
+          ]
+        : workspacePlugins
 
   // 4. Tool permissions — shared emitter holder between settings and
   // `canUseTool` so the language model's stream controller can populate
@@ -265,13 +259,13 @@ export async function buildClaudeCodeSessionSettings(
 
   // 8. Auto-approve allowlist for injected built-in MCP servers
   const finalAllowedTools = adjustAllowedToolsForMcp(assistantMcpEnabled, disallowedTools).filter(
-    (toolName) => builtinRole !== BUILTIN_AGENT_ROLE.SUPPORT || toolName !== 'mcp__skills__search_skills'
+    (toolName) => capabilities.skillDiscovery || toolName !== 'mcp__skills__search_skills'
   )
 
   // 9. Skills — pass the SDK skill-name whitelist (managed skills enabled for this
   // agent + the workspace's own .claude/skills). The CLAUDE_CONFIG_DIR/skills mirror
   // is maintained by SkillService (install/uninstall/startup), not here.
-  const skills = await buildSkillWhitelist(agent.id, cwd, builtinRole)
+  const skills = await buildSkillWhitelist(agent, cwd)
 
   // 10. Build settings
   const declaredContextWindow = options?.contextWindow
@@ -307,7 +301,7 @@ export async function buildClaudeCodeSessionSettings(
     systemPrompt,
     // Support loads only Cherry-owned plugin configuration. AGENTS.md context is injected above
     // by AgentsMdLoader, so disabling filesystem settings does not remove workspace instructions.
-    settingSources: isSupport ? [] : getSettingSources(provider),
+    settingSources: capabilities.filesystemSettings ? getSettingSources(provider) : [],
     settings: {
       autoCompactEnabled: true,
       // Cherry owns persistent Agent memory through SOUL/USER/FACT/JOURNAL and agent-memory.
@@ -373,21 +367,23 @@ export { buildMcpServers } from './mcpCatalog'
  * Read-only: the filesystem mirror is maintained at install / uninstall /
  * startup reconcile, never here — so concurrent session builds never race.
  */
-export async function buildSkillWhitelist(agentId: string, cwd: string, builtinRole?: string): Promise<string[]> {
-  if (builtinRole === BUILTIN_AGENT_ROLE.SUPPORT) {
-    return (loadBuiltinAgentDefinition(builtinRole)?.skills ?? []).map(
-      (skill) => `${BUILTIN_AGENT_PLUGIN_NAME}:${skill}`
-    )
+export async function buildSkillWhitelist(
+  agent: Pick<AgentEntity, 'id' | 'configuration'>,
+  cwd: string
+): Promise<string[]> {
+  const builtinRole = agent.configuration?.builtin_role as string | undefined
+  const bundledNames = builtinRole ? (loadBuiltinAgentDefinition(builtinRole)?.skills ?? []) : []
+  if (resolveAgentCapabilities(agent).skillSource === 'bundle') {
+    return bundledNames.map((skill) => `${BUILTIN_AGENT_PLUGIN_NAME}:${skill}`)
   }
 
   const [installedSkills, workspaceNames] = await Promise.all([
-    skillService.list({ agentId }),
+    skillService.list({ agentId: agent.id }),
     skillService.listLocalFolderNames(cwd)
   ])
   const enabledNames = installedSkills.filter((skill) => skill.isEnabled).map((skill) => skill.folderName)
-  const builtinNames = builtinRole ? (loadBuiltinAgentDefinition(builtinRole)?.skills ?? []) : []
 
-  return Array.from(new Set([...enabledNames, ...workspaceNames, ...builtinNames]))
+  return Array.from(new Set([...enabledNames, ...workspaceNames, ...bundledNames]))
 }
 
 async function discoverPlugins(cwd: string, agentId: string): Promise<SdkPluginConfig[] | undefined> {
@@ -577,13 +573,13 @@ export async function buildSystemPrompt(
   /** Root-scoped AGENTS.md instructions; nested scopes are injected lazily by a PreToolUse hook. */
   agentsMdContext?: string
 ): Promise<ClaudeCodeSettings['systemPrompt']> {
-  const isAssistant = agent.configuration?.builtin_role === BUILTIN_AGENT_ROLE.ASSISTANT
+  const canReadAllKnowledgeBases = resolveAgentCapabilities(agent).allKnowledgeBases
   const unavailableTools = new Set(disallowedTools)
   const isLookupEnabled = (toolName: string) => !unavailableTools.has(toCherryBuiltinRuntimeName(toolName))
   const citationsGuidance = buildCitationsGuidance({
     web: isLookupEnabled(WEB_SEARCH_TOOL_NAME) || isLookupEnabled(WEB_FETCH_TOOL_NAME),
     kb:
-      (isAssistant || knowledgeBaseIds.length > 0) &&
+      (canReadAllKnowledgeBases || knowledgeBaseIds.length > 0) &&
       (isLookupEnabled(KB_SEARCH_TOOL_NAME) || isLookupEnabled(KB_READ_TOOL_NAME))
   })
   const customBaseContext = [

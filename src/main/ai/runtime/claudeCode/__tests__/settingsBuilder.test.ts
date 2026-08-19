@@ -136,10 +136,7 @@ vi.mock('@main/ai/agents/prompt', () => ({
   }))
 }))
 
-vi.mock('@main/ai/mcp/servers/assistant', () => ({
-  default: mocks.createAssistantServer,
-  SUPPORT_ASSISTANT_TOOL_NAMES: ['navigate', 'diagnose', 'product_info', 'apply_setting']
-}))
+vi.mock('@main/ai/mcp/servers/assistant', () => ({ default: mocks.createAssistantServer }))
 
 vi.mock('@main/ai/mcp/servers/AssistantFileToolsServer', () => ({
   AssistantFileToolsServer: mocks.createAssistantFileToolsServer

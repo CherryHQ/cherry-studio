@@ -11,6 +11,7 @@ import { createAgent as createAgentCommand } from '@main/ai/agents/createAgent'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
+import { ASSISTANT_TOOL_NAMES, type AssistantToolName } from '@shared/ai/assistantTools'
 import { ErrorCode as DataApiErrorCode, isDataApiError } from '@shared/data/api/errors'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
@@ -231,17 +232,7 @@ const ASSISTANT_TOOLS = {
   product_info: PRODUCT_INFO_TOOL,
   apply_setting: APPLY_SETTING_TOOL,
   create_agent: CREATE_AGENT_TOOL
-} as const
-
-export type AssistantToolName = keyof typeof ASSISTANT_TOOLS
-
-/** Product-support capabilities intentionally exclude creation of arbitrary Agents. */
-export const SUPPORT_ASSISTANT_TOOL_NAMES: readonly AssistantToolName[] = [
-  'navigate',
-  'diagnose',
-  'product_info',
-  'apply_setting'
-]
+} as const satisfies Record<AssistantToolName, Tool>
 
 // Health check cache: { providerId -> { result, timestamp } }
 const healthCache = new Map<string, { result: unknown; timestamp: number }>()
@@ -254,7 +245,7 @@ class AssistantServer {
 
   constructor(
     private readonly defaultModel?: UniqueModelId,
-    enabledToolNames: readonly AssistantToolName[] = Object.keys(ASSISTANT_TOOLS) as AssistantToolName[]
+    enabledToolNames: readonly AssistantToolName[] = ASSISTANT_TOOL_NAMES
   ) {
     this.enabledToolNames = new Set(enabledToolNames)
     this.mcpServer = new McpServer(
