@@ -3,11 +3,15 @@
 *
 !.gitignore
 !README*.md
+!agent-notes
 !cherry-electron-dev
 !cherry-pr-test
 !create-skill
+!docs-governance
+!find-simplifications
 !gh-create-issue
 !gh-create-pr
 !gh-pr-review
 !prepare-release
+!translate-docs
 !vercel-react-best-practices
