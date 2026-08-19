@@ -34,7 +34,9 @@ export function ExitPlanModeTool({
     ),
     children: (
       <div>
-        <Streamdown mode="static">{truncatedContent}</Streamdown>
+        <Streamdown dir="auto" mode="static">
+          {truncatedContent}
+        </Streamdown>
         {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
       </div>
     )

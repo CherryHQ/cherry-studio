@@ -1,6 +1,7 @@
 import type { Tab } from '@renderer/hooks/tab'
 import { ipcApi } from '@renderer/ipc'
 import { IpcChannel } from '@shared/IpcChannel'
+import type { LanguageDirection } from '@shared/utils/languages'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 const DRAG_THRESHOLD = 5
@@ -13,6 +14,11 @@ interface DragState {
   tabId: string
   mode: DragMode
   insertIndex: number
+}
+
+interface TabRect {
+  left: number
+  width: number
 }
 
 interface UseTabDragOptions {
@@ -34,6 +40,51 @@ export interface UseTabDragReturn {
   handleTabClick: (tabId: string) => boolean
   isDragging: (tabId: string) => boolean
   isGhost: (tabId: string) => boolean
+}
+
+export function calculateTabInsertIndex(
+  clientX: number,
+  dragTabId: string,
+  tabIds: string[],
+  startIndex: number,
+  rects: Map<string, TabRect>,
+  direction: LanguageDirection
+): number {
+  for (let index = startIndex; index < tabIds.length; index++) {
+    if (tabIds[index] === dragTabId) continue
+    const rect = rects.get(tabIds[index])
+    if (!rect) continue
+
+    const midpoint = rect.left + rect.width / 2
+    const isBeforeTab = direction === 'rtl' ? clientX > midpoint : clientX < midpoint
+    if (isBeforeTab) return index
+  }
+  return tabIds.length
+}
+
+export function getTabReorderSiblingShift(
+  direction: LanguageDirection,
+  draggedWidth: number,
+  draggedIndex: number,
+  insertIndex: number,
+  currentIndex: number
+): number {
+  const directionSign = direction === 'rtl' ? -1 : 1
+
+  if (draggedIndex < insertIndex && currentIndex > draggedIndex && currentIndex < insertIndex) {
+    return -draggedWidth * directionSign
+  }
+  if (draggedIndex > insertIndex && currentIndex >= insertIndex && currentIndex < draggedIndex) {
+    return draggedWidth * directionSign
+  }
+  return 0
+}
+
+export function resolveTabDragDirection(
+  tabBarDirection: string | null | undefined,
+  documentDirection: string | null | undefined
+): LanguageDirection {
+  return (tabBarDirection || documentDirection) === 'rtl' ? 'rtl' : 'ltr'
 }
 
 export function useTabDrag({
@@ -60,7 +111,8 @@ export function useTabDrag({
     tabType: 'normal' as 'pinned' | 'normal',
     detachedCreated: false,
     tabClosed: false,
-    originalRects: new Map<string, { left: number; width: number }>(),
+    originalRects: new Map<string, TabRect>(),
+    direction: 'ltr' as LanguageDirection,
     grabOffsetX: 0,
     grabOffsetY: 0
   })
@@ -86,15 +138,14 @@ export function useTabDrag({
     (clientX: number, dragTabId: string): number => {
       const list = dragRef.current.tabType === 'pinned' ? pinnedTabs : normalTabs
       const startIndex = dragRef.current.tabType === 'normal' ? normalReorderStartIndex : 0
-      const rects = dragRef.current.originalRects
-      for (let i = startIndex; i < list.length; i++) {
-        if (list[i].id === dragTabId) continue
-        const rect = rects.get(list[i].id)
-        if (rect && clientX < rect.left + rect.width / 2) {
-          return i
-        }
-      }
-      return list.length
+      return calculateTabInsertIndex(
+        clientX,
+        dragTabId,
+        list.map((tab) => tab.id),
+        startIndex,
+        dragRef.current.originalRects,
+        dragRef.current.direction
+      )
     },
     [normalTabs, normalReorderStartIndex, pinnedTabs]
   )
@@ -117,13 +168,7 @@ export function useTabDrag({
       if (!draggedRect) return 0
       const draggedWidth = draggedRect.width + TAB_GAP
 
-      if (draggedIndex < insertIndex) {
-        if (currentIndex > draggedIndex && currentIndex < insertIndex) return -draggedWidth
-      } else if (draggedIndex > insertIndex) {
-        if (currentIndex >= insertIndex && currentIndex < draggedIndex) return draggedWidth
-      }
-
-      return 0
+      return getTabReorderSiblingShift(dragRef.current.direction, draggedWidth, draggedIndex, insertIndex, currentIndex)
     },
     [dragState, pinnedTabs, normalTabs]
   )
@@ -141,7 +186,7 @@ export function useTabDrag({
       target.setPointerCapture(e.pointerId)
 
       // Store original positions of all tabs
-      const originalRects = new Map<string, { left: number; width: number }>()
+      const originalRects = new Map<string, TabRect>()
       for (const t of list) {
         const el = tabRefs.current.get(t.id)
         if (el) {
@@ -159,6 +204,10 @@ export function useTabDrag({
         detachedCreated: false,
         tabClosed: false,
         originalRects,
+        direction: resolveTabDragDirection(
+          tabBarRef.current ? window.getComputedStyle(tabBarRef.current).direction : undefined,
+          document.documentElement.dir
+        ),
         grabOffsetX: e.screenX - window.screenX,
         grabOffsetY: e.screenY - window.screenY
       }

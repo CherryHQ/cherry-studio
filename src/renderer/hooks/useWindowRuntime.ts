@@ -3,7 +3,6 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useAgentSessionAutoRenameSync } from '@renderer/hooks/agent/useSession'
 import { useCustomCss } from '@renderer/hooks/useCustomCss'
-import { useLanguageSync } from '@renderer/hooks/useLanguageSync'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { useTopicAutoRenameSync } from '@renderer/hooks/useTopic'
 import { setDayjsLocale } from '@renderer/i18n/resolver'
@@ -11,7 +10,7 @@ import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { setInlineFilePathHomePath } from '@renderer/utils/filePath'
 import { isWin } from '@renderer/utils/platform'
-import { defaultLanguage } from '@shared/utils/languages'
+import { resolveAppLanguage } from '@shared/utils/languages'
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -24,8 +23,8 @@ const DEFAULT_NAV_BACKGROUND = 'var(--sidebar)'
 
 /**
  * The window runtime shared by every full-chrome window (main + subWindow): the
- * window-level side effects both need, identically. It calls the two hooks the light
- * windows also reuse (`useLanguageSync` / `useCustomCss`) and inlines the concerns
+ * window-level side effects both need, identically. It calls the custom CSS hook the light
+ * windows also reuse and inlines the concerns
  * only main + subWindow have (dayjs locale, root background, app-path snapshot,
  * fullscreen, topic/agent auto-rename).
  *
@@ -47,13 +46,12 @@ export function useWindowRuntime(): void {
   const isMacTransparentWindow = useMacTransparentWindow()
   const navBackground = isMacTransparentWindow ? MAC_TRANSPARENT_NAV_BACKGROUND : DEFAULT_NAV_BACKGROUND
 
-  // Also used by the light windows, so these stay as their own reusable hooks.
-  useLanguageSync()
+  // Also used by the light windows, so this stays as its own reusable hook.
   useCustomCss()
 
   // dayjs locale — only the windows that render localized dates need it.
   useEffect(() => {
-    setDayjsLocale(language || navigator.language || defaultLanguage)
+    setDayjsLocale(resolveAppLanguage(language || navigator.language))
   }, [language])
 
   // Root background (macOS vibrancy / transparent-window aware).

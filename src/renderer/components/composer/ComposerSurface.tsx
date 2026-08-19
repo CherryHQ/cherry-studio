@@ -253,6 +253,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
           aria-label={props.placeholder}
           value={props.text}
           placeholder={props.placeholder}
+          dir="auto"
           rows={1}
           disabled={props.editable === false}
           spellCheck={props.enableSpellCheck}

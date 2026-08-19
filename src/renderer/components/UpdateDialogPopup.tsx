@@ -88,7 +88,7 @@ const PopupContainer: React.FC<Props> = ({ releaseInfo, open, resolve }) => {
           </p>
         </DialogHeader>
         <Divider className="my-0" />
-        <Scrollbar className="max-h-96 overflow-x-hidden pr-2">
+        <Scrollbar className="max-h-96 overflow-x-hidden pe-2">
           <ReleaseNotes content={releaseNotesText} />
         </Scrollbar>
         <Divider className="my-0" />

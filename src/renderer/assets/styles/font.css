@@ -13,6 +13,13 @@
     var(--app-user-code-font-family, 'Cascadia Code'), 'Fira Code', 'Consolas', Menlo, Courier, monospace;
 }
 
+/* :lang() matches the whole ar-* subtree, so ar-YE (and any future ar-*) hits this. */
+html:lang(ar) {
+  --font-family:
+    var(--app-user-font-family, 'Noto Sans Arabic'), 'Geeza Pro', 'Segoe UI', Tahoma, Arial, sans-serif,
+    'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji';
+}
+
 /* Windows系统专用字体配置 */
 body[os='windows'] {
   --font-family:
@@ -24,4 +31,10 @@ body[os='windows'] {
   --code-font-family:
     var(--app-user-code-font-family, 'Cascadia Code'), 'Fira Code', 'Consolas', 'Sarasa Mono SC', 'Microsoft YaHei UI',
     Courier, monospace;
+}
+
+html:lang(ar) body[os='windows'] {
+  --font-family:
+    var(--app-user-font-family, 'Noto Sans Arabic'), 'Segoe UI', Tahoma, Arial, sans-serif, 'Twemoji Country Flags',
+    'Segoe UI Emoji', 'Noto Color Emoji';
 }

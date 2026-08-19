@@ -133,8 +133,9 @@ export function MarkdownCore({
 
   return (
     <MarkdownBlockContext value={markdownCtx}>
-      <div className={['markdown', className].filter(Boolean).join(' ')}>
+      <div dir="auto" className={['markdown', className].filter(Boolean).join(' ')}>
         <Streamdown
+          dir="auto"
           mode={mode}
           plugins={plugins}
           rehypePlugins={rehypePlugins}

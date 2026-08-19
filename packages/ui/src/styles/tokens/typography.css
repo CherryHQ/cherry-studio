@@ -52,3 +52,9 @@
   --cs-paragraph-spacing-heading-xl: 3rem; /* 48px */
   --cs-paragraph-spacing-heading-2xl: 3.75rem; /* 60px */
 }
+
+/* :lang() matches the whole ar-* subtree, so ar-YE (and any future ar-*) hits this. */
+:root:lang(ar) {
+  --cs-font-family-heading: 'Noto Sans Arabic', 'Geeza Pro', 'Segoe UI', Tahoma, Arial, sans-serif;
+  --cs-font-family-body: 'Noto Sans Arabic', 'Geeza Pro', 'Segoe UI', Tahoma, Arial, sans-serif;
+}

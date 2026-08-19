@@ -1,4 +1,5 @@
 import { Checkbox } from '@cherrystudio/ui/components/primitives/checkbox'
+import { DirectionalIcon } from '@cherrystudio/ui/components/primitives/directional-icon'
 import { RadioGroup, RadioGroupItem } from '@cherrystudio/ui/components/primitives/radio-group'
 import {
   Table,
@@ -326,7 +327,9 @@ function DataTable<TData>({
               event.stopPropagation()
               toggleExpandedRow(row.original)
             }}>
-            <ChevronRight className={cn('size-4 transition-transform', isExpanded && 'rotate-90')} />
+            <DirectionalIcon>
+              <ChevronRight className={cn('size-4 transition-transform', isExpanded && 'rotate-90')} />
+            </DirectionalIcon>
           </button>
         )
       },

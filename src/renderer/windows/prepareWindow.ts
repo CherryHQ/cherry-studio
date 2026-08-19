@@ -1,7 +1,9 @@
 import { preferenceService } from '@data/PreferenceService'
 import { DataApiDevtools } from '@data/utils/dataApiDevtools'
-import { initI18n } from '@renderer/i18n/resolver'
+import { syncDocumentLanguage } from '@renderer/i18n/languages'
+import i18n, { initI18n } from '@renderer/i18n/resolver'
 import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
+import { resolveAppLanguage } from '@shared/utils/languages'
 
 interface PrepareWindowOptions {
   /** Preference keys the first frame reads — 'all' warms the entire cache. */
@@ -26,4 +28,5 @@ export async function prepareWindow(options: PrepareWindowOptions): Promise<void
     options.preference === 'all' ? preferenceService.preloadAll() : preferenceService.preload(options.preference)
 
   await Promise.all([initI18n(), preferencesWarm])
+  syncDocumentLanguage(resolveAppLanguage(i18n.resolvedLanguage ?? i18n.language))
 }

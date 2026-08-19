@@ -1,8 +1,9 @@
 import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
-import { languageNativeNameMap } from '@shared/utils/languages'
+import { getLanguageDirection, languageNativeNameMap } from '@shared/utils/languages'
 
 /** Display order of the app's language picker. Labels come from the shared native-name map. */
 const APP_LANGUAGE_FLAGS: ReadonlyArray<{ value: LanguageVarious; flag: string }> = [
+  { value: 'ar-YE', flag: '🇾🇪' },
   { value: 'zh-CN', flag: '🇨🇳' },
   { value: 'zh-TW', flag: '🇭🇰' },
   { value: 'en-US', flag: '🇺🇸' },
@@ -25,4 +26,10 @@ export const appLanguageOptions: ReadonlyArray<{
 
 export function isAppLanguage(value: string | null | undefined): value is LanguageVarious {
   return appLanguageOptions.some((option) => option.value === value)
+}
+
+export function syncDocumentLanguage(language: LanguageVarious): void {
+  const root = document.documentElement
+  root.lang = language
+  root.dir = getLanguageDirection(language)
 }

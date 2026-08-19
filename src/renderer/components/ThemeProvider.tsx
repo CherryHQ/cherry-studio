@@ -26,7 +26,6 @@ const getSystemTheme = () =>
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   const [settedTheme, setSettedTheme] = usePreference('ui.theme_mode', THEME_PREFERENCE_OPTIONS)
-  const [language] = usePreference('app.language')
 
   // Derive the first frame from the saved theme — the entry points await the preference
   // preload before rendering, so waiting for the sync-up effect below would commit one
@@ -58,8 +57,6 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
       document.body.classList.remove('dark')
       document.body.classList.add('light')
     }
-    document.documentElement.lang = language || navigator.language
-
     // if theme is old auto, then set theme to system
     // we can delete this after next big release
     if (settedTheme !== ThemeMode.dark && settedTheme !== ThemeMode.light && settedTheme !== ThemeMode.system) {
@@ -67,7 +64,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     }
 
     initUserTheme()
-  }, [actualTheme, initUserTheme, language, setSettedTheme, settedTheme])
+  }, [actualTheme, initUserTheme, setSettedTheme, settedTheme])
 
   useEffect(() => {
     tailwindThemeChange(actualTheme)

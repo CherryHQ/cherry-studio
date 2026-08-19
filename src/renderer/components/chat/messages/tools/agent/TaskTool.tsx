@@ -92,7 +92,9 @@ function TaskTextOutput({ text, t }: { text: string; t: ReturnType<typeof useTra
     <div>
       <div className="mb-1 font-medium text-muted-foreground text-xs">{t('message.tools.sections.output')}</div>
       <div className="rounded-md bg-muted/30 p-2">
-        <Streamdown mode="static">{text}</Streamdown>
+        <Streamdown dir="auto" mode="static">
+          {text}
+        </Streamdown>
       </div>
     </div>
   )
