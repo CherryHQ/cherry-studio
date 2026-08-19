@@ -159,6 +159,15 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
+  /** Bridge-socket events. A stream-presented approval whose `tool/call` has not landed yet would
+   *  truncate the turn accumulator instead of showing a card, so materialize its tool part first. */
+  private emitBridgeEvent(event: AgentRuntimeEvent): void {
+    if (event.type === 'tool-approval-request' && event.request.presentation === 'stream') {
+      this.adapter.ensureToolCall(event.request.toolCallId, event.request.toolName, event.request.input)
+    }
+    this.eventQueue.push(event)
+  }
+
   /** Flip the live-turn flag; a false→true edge opens a NEW host turn identity. */
   private markTurnActive(): void {
     if (!this.turnActive) this.turnEpoch += 1
@@ -338,7 +347,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
 
       this.bridge = new DshBridgeServer({
         sessionId: this.input.sessionId,
-        emit: (event) => this.eventQueue.push(event),
+        emit: (event) => this.emitBridgeEvent(event),
         getInteractionState: () =>
           application.get('AgentSessionRuntimeService').getInteractionState(this.input.sessionId),
         onToolCall: (name, args, signal) => toolBridge.callTool(name, args, signal),
