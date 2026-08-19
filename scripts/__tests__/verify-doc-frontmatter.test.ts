@@ -58,6 +58,13 @@ describe('checkFile', () => {
     ])
   })
 
+  it('rejects an empty source path', () => {
+    const root = makeRepo({ 'docs/references/x/doc.md': doc('description: Empty\nsources:\n  - ""') })
+    expect(checkFile(root, path.join(root, 'docs/references/x/doc.md'), { requireSources: true })).toEqual([
+      expect.stringContaining('not repo-relative')
+    ])
+  })
+
   it('rejects missing description and missing sources under the reference rule', () => {
     const root = makeRepo({ 'docs/references/x/doc.md': '# Doc without frontmatter\n' })
     const failures = checkFile(root, path.join(root, 'docs/references/x/doc.md'), { requireSources: true })

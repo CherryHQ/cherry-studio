@@ -38,8 +38,8 @@ export const checkFile = (repoRoot: string, filePath: string, rule: FrontmatterR
     failures.push(`${rel}: \`sources\` must be a non-empty list of repo-relative paths`)
   } else {
     for (const source of sources) {
-      // Diff paths are repo-relative, so an absolute or escaping entry can never match one.
-      if (path.isAbsolute(source) || source.split(/[/\\]/).includes('..')) {
+      // Diff paths are non-empty and repo-relative, so invalid entries can never match one.
+      if (source.trim() === '' || path.isAbsolute(source) || source.split(/[/\\]/).includes('..')) {
         failures.push(`${rel}: \`sources\` entry is not repo-relative: ${source}`)
       } else if (!fs.existsSync(path.join(repoRoot, source))) {
         failures.push(`${rel}: source path does not exist: ${source} — the doc may describe deleted or moved code`)
