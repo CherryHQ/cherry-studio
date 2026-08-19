@@ -37,17 +37,21 @@ import {
 import type { CompactionAnchorData } from '@shared/ai/compaction'
 import { classifyTurn } from '@shared/ai/transport'
 import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shared/data/types/message'
-import type { CherryProviderMetadata, ComposerMessageToken } from '@shared/data/types/uiParts'
+import type { CherryProviderMetadata, ComposerMessageSnapshot, ComposerMessageToken } from '@shared/data/types/uiParts'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { getToolName, isDataUIPart, isFileUIPart, isToolUIPart } from 'ai'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
 import React, { useMemo } from 'react'
 
 import MessageAttachments from '../frame/MessageAttachments'
-import MessageVideo from '../frame/MessageVideo'
 import ChatMarkdown, { type InlineHtmlPreviewMode } from '../markdown/ChatMarkdown'
 import { useMessageListActiveTurnStatus, useMessageRenderConfig } from '../MessageListProvider'
-import { isReportArtifactsToolResponse, MessageReportArtifacts } from '../tools/agent'
+import {
+  getSessionToolTarget,
+  isReportArtifactsToolResponse,
+  MessageReportArtifacts,
+  SessionResultCards
+} from '../tools/agent'
 import MessageTools, { canRenderMessageTool } from '../tools/MessageTools'
 import { isAskUserQuestionToolName } from '../tools/shared/agentToolTypes'
 import { hasPartParentToolCallId } from '../tools/toolParentMetadata'
@@ -74,6 +78,7 @@ import {
 import { useMessageParts, useTranslationOverlayEntry } from './MessagePartsContext'
 import MessageProcessGroup from './MessageProcessGroup'
 import PlaceholderBlock, { type PlaceholderStatus } from './PlaceholderBlock'
+import RetryStatusBlock from './RetryStatusBlock'
 import ThinkingBlock, { ThinkingBlockContent } from './ThinkingBlock'
 import { ToolBlockGroup, ToolBlockGroupContent } from './ToolBlockGroup'
 import TranslationBlock from './TranslationBlock'
@@ -88,6 +93,8 @@ const referenceCitationsCache = new WeakMap<
   ContentReference[],
   { citations: Citation[]; citationReferences?: CitationReferenceView[] }
 >()
+
+const MessageVideo = React.lazy(() => import('../frame/MessageVideo'))
 
 // ============================================================================
 // Animation shared by message block renderers.
@@ -284,12 +291,13 @@ function getComposerTokenDisplayText(
   part: CherryMessagePart,
   message: MessageListItem,
   partId: string,
-  expandedTextPartIds: ReadonlySet<string>
+  expandedTextPartIds: ReadonlySet<string>,
+  composer: ComposerMessageSnapshot
 ): string {
   const text = (part as { text?: string }).text ?? ''
   if (message.role !== 'user' || expandedTextPartIds.has(partId)) return text
 
-  return buildUserMessagePreview(text).content
+  return buildUserMessagePreview(text, composer).content
 }
 
 function getVisibleComposerFileTokens(
@@ -302,7 +310,7 @@ function getVisibleComposerFileTokens(
     const composer = getCherryMeta(part)?.composer
     if (!composer) return []
     const partId = `${message.id}-part-${index}`
-    const text = getComposerTokenDisplayText(part, message, partId, expandedTextPartIds)
+    const text = getComposerTokenDisplayText(part, message, partId, expandedTextPartIds, composer)
 
     return getDisplayComposerTokens(composer).flatMap((token) => {
       if (token.kind !== 'file' || !isComposerTokenVisibleInText(token, text)) return []
@@ -615,7 +623,17 @@ function renderPart(
     case 'data-video': {
       const rawData = 'data' in part ? part.data : undefined
       if (!rawData) return null
-      return <MessageVideo key={partId} url={rawData.url} filePath={rawData.filePath} />
+      return (
+        <React.Suspense key={partId} fallback={null}>
+          <MessageVideo url={rawData.url} filePath={rawData.filePath} />
+        </React.Suspense>
+      )
+    }
+
+    case 'data-retry': {
+      const rawData = 'data' in part ? part.data : undefined
+      if (!rawData) return null
+      return <RetryStatusBlock key={partId} data={rawData} />
     }
 
     case 'data-agent-task-event':
@@ -1397,6 +1415,16 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
     [partEntries, message.id]
   )
   const reportArtifactToolResponses = useStableItemArray(nextReportArtifactToolResponses)
+  const sessionTargets = useMemo(
+    () =>
+      isActiveTurnProcessing
+        ? []
+        : buildToolRenderItems(partEntries, message.id, true).flatMap((item) => {
+            const target = getSessionToolTarget(item.toolResponse)
+            return target ? [target] : []
+          }),
+    [isActiveTurnProcessing, message.id, partEntries]
+  )
   const nextReadOnlyFilePreviews = useMemo(() => getReadOnlyFileTokenPreviews(messageParts), [messageParts])
   const readOnlyFilePreviews = useStableReadOnlyFilePreviews(nextReadOnlyFilePreviews)
   const visibleComposerFileTokens = useMemo(
@@ -1486,6 +1514,11 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
         renderOptions={renderOptions}
       />
       {isActiveTurnProcessing && activeTurnStatus?.(null)}
+      {unsettledTextPlayoutPartIds.size === 0 && sessionTargets.length > 0 && (
+        <AnimatedBlockWrapper key={`session-results-${message.id}`} enableAnimation={false} animation="fade">
+          <SessionResultCards targets={sessionTargets} />
+        </AnimatedBlockWrapper>
+      )}
       {canRenderReportArtifacts && (
         <AnimatedBlockWrapper key={`report-artifacts-${message.id}`} enableAnimation={false} animation="fade">
           <MessageReportArtifacts toolResponses={reportArtifactToolResponses} />

@@ -47,8 +47,8 @@ describe('AgentEntitySchema', () => {
       reasoning_effort: 'high'
     })
 
-    const parsed = UpdateAgentSchema.parse({ configuration: { max_turns: undefined } })
-    expect(parsed.configuration).toHaveProperty('max_turns', undefined)
+    const parsed = UpdateAgentSchema.parse({ configuration: { reasoning_effort: undefined } })
+    expect(parsed.configuration).toHaveProperty('reasoning_effort', undefined)
   })
 
   it('validates and deduplicates knowledgeBaseIds at the API parse boundary', () => {

@@ -1,4 +1,5 @@
 export { useCloseConversationTabs } from './useCloseConversationTabs'
+export { useConversationNavigationOwner } from './useConversationNavigationOwner'
 export { TabIdContext, useCurrentTab, useCurrentTabId, useIsActiveTab } from './useCurrentTab'
 export { useMainWindowNavigation } from './useMainWindowNavigation'
 export { useTabs } from './useTabs'
@@ -9,5 +10,5 @@ export {
   useOptionalTabsContext,
   useTabsContext
 } from './useTabsContext'
-export { type TabSelfMetadata, useTabSelfMetadata } from './useTabSelfMetadata'
+export { type TabSelfVisuals, useTabSelfVisuals } from './useTabSelfVisuals'
 export type { Tab, TabsState, TabType } from '@shared/data/cache/cacheValueTypes'

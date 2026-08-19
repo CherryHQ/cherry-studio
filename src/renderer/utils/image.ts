@@ -9,6 +9,13 @@ import { Base64 } from 'js-base64'
 
 const logger = loggerService.withContext('Utils:image')
 const TRANSPARENT_IMAGE_PLACEHOLDER = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=='
+/**
+ * Marker applied to the capture root while html-to-image clones it. Capture-only
+ * CSS (see markdown.css) keys off this attribute, e.g. to unclip inner scroll
+ * containers such as table viewports that would otherwise cut off overflowing
+ * content in the rasterized image.
+ */
+export const IMAGE_CAPTURE_ATTRIBUTE = 'data-image-capturing'
 
 let htmlToImagePromise: Promise<typeof HtmlToImage> | undefined
 
@@ -175,6 +182,20 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
     let restoreLocalImageSources: (() => void) | undefined
 
     try {
+      // Mark the subtree before measuring: capture-only CSS keyed off this
+      // attribute (e.g. unclipped table viewports) can change the scroll size,
+      // and html-to-image freezes computed styles at clone time.
+      el.setAttribute(IMAGE_CAPTURE_ATTRIBUTE, '')
+
+      // Wait for webfonts before cloning. The clone pins every element's
+      // computed width/height, so text re-laid-out with fallback font metrics
+      // would overflow those frozen boxes and get clipped by overflow
+      // containers (table cells are the common victim).
+      await Promise.race([
+        document.fonts?.ready ?? Promise.resolve(),
+        new Promise((resolve) => setTimeout(resolve, 1000))
+      ])
+
       // calculate the size of the element
       const totalWidth = el.scrollWidth
       const totalHeight = el.scrollHeight
@@ -236,6 +257,7 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
       logger.error('Error capturing scrollable element:', error as Error)
       throw error
     } finally {
+      el.removeAttribute(IMAGE_CAPTURE_ATTRIBUTE)
       restoreLocalImageSources?.()
     }
   }
@@ -742,6 +764,51 @@ export const convertImageToPng = async (blob: Blob): Promise<Blob> => {
 
     img.src = url
   })
+}
+
+export const transformImageToPng = async (
+  blob: Blob,
+  transform: { flipX: boolean; flipY: boolean; rotation: number }
+): Promise<Blob> => {
+  const bitmap = await createImageBitmap(blob)
+
+  try {
+    const rotation = ((transform.rotation % 360) + 360) % 360
+    const radians = (rotation * Math.PI) / 180
+    const canvas = document.createElement('canvas')
+    if (rotation % 90 === 0) {
+      const swapsDimensions = rotation === 90 || rotation === 270
+      canvas.width = swapsDimensions ? bitmap.height : bitmap.width
+      canvas.height = swapsDimensions ? bitmap.width : bitmap.height
+    } else {
+      const sine = Math.abs(Math.sin(radians))
+      const cosine = Math.abs(Math.cos(radians))
+      canvas.width = Math.ceil(bitmap.width * cosine + bitmap.height * sine)
+      canvas.height = Math.ceil(bitmap.width * sine + bitmap.height * cosine)
+    }
+    const ctx = canvas.getContext('2d')
+
+    if (!ctx) {
+      throw new Error('Failed to get canvas context')
+    }
+
+    ctx.translate(canvas.width / 2, canvas.height / 2)
+    ctx.rotate(radians)
+    ctx.scale(transform.flipX ? -1 : 1, transform.flipY ? -1 : 1)
+    ctx.drawImage(bitmap, -bitmap.width / 2, -bitmap.height / 2)
+
+    return await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((pngBlob) => {
+        if (pngBlob) {
+          resolve(pngBlob)
+        } else {
+          reject(new Error('Failed to transform image to png'))
+        }
+      }, 'image/png')
+    })
+  } finally {
+    bitmap.close()
+  }
 }
 
 /**

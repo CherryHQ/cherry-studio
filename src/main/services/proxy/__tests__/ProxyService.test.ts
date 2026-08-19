@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   nodeProxyConfigureMock,
+  nodeProxyRoutingSnapshotMock,
   nodeProxyControllerConstructorMock,
   sessionSetProxyMock,
   webviewSetProxyMock,
@@ -11,10 +12,15 @@ const {
   intervalRegistrations
 } = vi.hoisted(() => {
   const nodeProxyConfigureMock = vi.fn()
+  const nodeProxyRoutingSnapshotMock = vi.fn()
 
   return {
     nodeProxyConfigureMock,
-    nodeProxyControllerConstructorMock: vi.fn(() => ({ configure: nodeProxyConfigureMock })),
+    nodeProxyRoutingSnapshotMock,
+    nodeProxyControllerConstructorMock: vi.fn(() => ({
+      configure: nodeProxyConfigureMock,
+      getRoutingSnapshot: nodeProxyRoutingSnapshotMock
+    })),
     sessionSetProxyMock: vi.fn().mockResolvedValue(undefined),
     webviewSetProxyMock: vi.fn().mockResolvedValue(undefined),
     appSetProxyMock: vi.fn().mockResolvedValue(undefined),
@@ -114,6 +120,7 @@ describe('ProxyService — preference wiring', () => {
     MockMainPreferenceServiceUtils.resetMocks()
     intervalRegistrations.length = 0
     getSystemProxyMock.mockResolvedValue({ proxyUrl: 'http://system:1080', noProxy: ['localhost'] })
+    nodeProxyRoutingSnapshotMock.mockReturnValue({ version: 1, mode: 'direct' })
   })
 
   it('defers Node proxy controller construction until proxy apply', async () => {
@@ -160,6 +167,15 @@ describe('ProxyService — preference wiring', () => {
     expect(sessionSetProxyMock).toHaveBeenCalledWith(expected)
     expect(webviewSetProxyMock).toHaveBeenCalledWith(expected)
     expect(appSetProxyMock).toHaveBeenCalledWith(expected)
+  })
+
+  it('exposes the applied Node routing policy as a snapshot for isolated consumers', async () => {
+    const manager = new ProxyService()
+    await (manager as any).onReady()
+
+    await expect(manager.getRoutingSnapshot()).resolves.toEqual({ version: 1, mode: 'direct' })
+
+    expect(nodeProxyConfigureMock).toHaveBeenCalledBefore(nodeProxyRoutingSnapshotMock)
   })
 
   it('applies bare system mode when the OS proxy is unavailable', async () => {

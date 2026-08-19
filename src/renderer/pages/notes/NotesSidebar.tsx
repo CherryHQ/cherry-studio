@@ -4,7 +4,7 @@ import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import NotesSidebarHeader from '@renderer/pages/notes/NotesSidebarHeader'
 import { findNode } from '@renderer/services/NotesTreeService'
 import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
-import { FilePlus, Folder, FolderUp, Loader2, Upload, X } from 'lucide-react'
+import { FilePlus, FileText, Folder, FolderUp, Loader2, Upload, X } from 'lucide-react'
 import type { FC } from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -30,6 +30,8 @@ interface NotesSidebarProps {
   sortType: NotesSortType
   selectedFolderId?: string | null
 }
+
+const renderNoteFileIcon = () => <FileText size={16} className="shrink-0" />
 
 const collectExpandedIds = (nodes: NotesTreeNode[], result: Set<string>): Set<string> => {
   for (const node of nodes) {
@@ -382,6 +384,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
                 selectedId={selectedId}
                 onSelectedChange={handleFileTreeSelectedChange}
                 onMove={handleMove}
+                fileIcon={renderNoteFileIcon}
                 renameSlot={renameSlot}
                 animationSlot={animationSlot}
                 renderRowExtras={renderRowExtras}

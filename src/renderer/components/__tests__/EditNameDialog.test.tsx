@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import EditNameDialog from '../EditNameDialog'
@@ -97,5 +98,42 @@ describe('EditNameDialog', () => {
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledWith('Gamma'))
     expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it('does not submit the raw pinyin buffer when Enter confirms an IME candidate', async () => {
+    renderDialog()
+    const input = within(screen.getByRole('dialog')).getByLabelText('Name')
+
+    // Confirming a CJK candidate types Enter while the input still holds the raw pinyin.
+    fireEvent.change(input, { target: { value: "dui'bi" } })
+    expect(fireEvent.keyDown(input, { key: 'Enter', isComposing: true })).toBe(true)
+    // Legacy fallback: browsers that don't expose isComposing report keyCode 229.
+    expect(fireEvent.keyDown(input, { key: 'Enter', keyCode: 229 })).toBe(true)
+    expect(onSubmit).not.toHaveBeenCalled()
+
+    // Composition ends, the composed text lands in the input, and Enter submits it.
+    fireEvent.change(input, { target: { value: '对比' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledWith('对比'))
+  })
+
+  it('keeps spaces when nested under a keyboard-activatable parent', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <div
+        onKeyDown={(event) => {
+          if (event.key === ' ' || event.key === 'Spacebar') event.preventDefault()
+        }}>
+        <EditNameDialog open title="Edit name" initialName="Alpha" onSubmit={onSubmit} onOpenChange={onOpenChange} />
+      </div>
+    )
+
+    const input = within(screen.getByRole('dialog')).getByLabelText('Name')
+    await user.clear(input)
+    await user.type(input, 'Alpha Beta')
+
+    expect(input).toHaveValue('Alpha Beta')
   })
 })

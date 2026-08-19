@@ -1,4 +1,5 @@
 import { CURRENCY, objectValues } from '@cherrystudio/provider-registry'
+import type { AgentSessionDelivery } from '@shared/ai/agentSessionDelivery'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import { type ReasoningEffortOption, ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 import type {
@@ -210,6 +211,8 @@ export interface CherryUIMessageMetadata {
   totalTokens?: number
   /** Live token/timing view using the same shape as persisted `MessageStats`. */
   stats?: MessageStats
+  /** Trusted cross-session sender attribution and durable delivery lifecycle. */
+  delivery?: AgentSessionDelivery
 }
 
 /** Cherry Studio's UIMessage with custom metadata and data part types. */
@@ -565,6 +568,8 @@ export interface TreeNode {
   role: ContentMessageRole
   /** Derived from the message's hidden `data-clear` part. */
   isContextBoundary?: boolean
+  /** Whether this is an empty successful user leaf awaiting composer input. */
+  isAwaitingInput?: boolean
   /** Content preview (first 50 characters) */
   preview: string
   /** Model identifier */

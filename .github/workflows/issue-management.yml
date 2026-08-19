@@ -5,6 +5,10 @@ on:
     - cron: '0 0 * * *'
   workflow_dispatch:
 
+concurrency:
+  group: stale-issue-management
+  cancel-in-progress: false
+
 env:
   daysBeforeStale: 30 # Number of days of inactivity before marking as stale
   daysBeforeClose: 10 # Number of days to wait after marking as stale before closing
@@ -29,6 +33,7 @@ jobs:
           days-before-close: 0 # Close immediately after stale
           stale-issue-label: 'inactive'
           close-issue-label: 'closed:no-response'
+          close-issue-reason: 'not_planned'
           exempt-all-milestones: true
           exempt-all-assignees: true
           stale-issue-message: |
@@ -37,7 +42,7 @@ jobs:
 
             该问题被标记为"需要更多信息"且已经 ${{ env.daysBeforeStale }} 天没有任何活动，将立即关闭。
           operations-per-run: 50
-          exempt-issue-labels: 'pending, Dev Team'
+          exempt-issue-labels: 'Pending, Dev Team'
           days-before-pr-stale: -1
           days-before-pr-close: -1
 
@@ -48,15 +53,19 @@ jobs:
           days-before-stale: ${{ env.daysBeforeStale }}
           days-before-close: ${{ env.daysBeforeClose }}
           stale-issue-label: 'inactive'
+          close-issue-reason: 'not_planned'
           exempt-all-milestones: true
           exempt-all-assignees: true
           stale-issue-message: |
             This issue has been inactive for a prolonged period and will be closed automatically in ${{ env.daysBeforeClose }} days.
             该问题已长时间处于闲置状态，${{ env.daysBeforeClose }} 天后将自动关闭。
-          exempt-issue-labels: 'pending, Dev Team, kind/enhancement'
+          close-issue-message: |
+            This issue has been closed automatically after ${{ env.daysBeforeClose }} additional days without activity. If the issue is still relevant, please open a new issue with current-version reproduction details.
+            该问题在提醒后又经过 ${{ env.daysBeforeClose }} 天仍无活动，现已自动关闭。如果问题在当前版本中仍然存在，请提交包含复现信息的新 issue。
+          exempt-issue-labels: 'Pending, Dev Team, feature'
           days-before-pr-stale: -1 # Completely disable stalling for PRs
           days-before-pr-close: -1 # Completely disable closing for PRs
 
-          # Temporary to reduce the huge issues number
+          # Process the full issue backlog so eligible stale issues close on schedule.
           operations-per-run: 1000
           debug-only: false

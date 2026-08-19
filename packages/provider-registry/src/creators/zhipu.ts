@@ -8,9 +8,6 @@ export default defineCreator({
   modelsDevProviders: ['zhipuai', 'zai'],
   families: ['glm'],
   idPrefixes: ['glm', 'cogview', 'cogvideo', 'codegeex', 'chatglm'],
-  // BigModel serves the chat web_search tool for the GLM-4/5 chat lines
-  // (docs.bigmodel.cn/cn/guide/tools/web-search).
-  serverTools: { 'web-search': ['glm-4', 'glm-5'] },
   reasoningFamilies: [
     // GLM-5 and GLM-4.5/4.6/4.7. Unanchored to handle provider-prefixed ids.
     // On/off only — bigmodel's API has no thinking budget parameter; depth

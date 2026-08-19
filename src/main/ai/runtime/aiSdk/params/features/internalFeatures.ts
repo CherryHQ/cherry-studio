@@ -29,6 +29,7 @@ import { simulateStreamingFeature } from './simulateStreaming'
 import { skipGeminiThoughtSignatureFeature } from './skipGeminiThoughtSignature'
 import { steerYieldFeature } from './steerYield'
 import { terminalToolFailureFeature } from './terminalToolFailure'
+import { toolSchemaCompatibilityFeature } from './toolSchemaCompatibility'
 
 export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   devtoolsFeature,
@@ -44,6 +45,8 @@ export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   contextBuildFeature,
   anthropicCacheFeature,
   anthropicHeadersFeature,
+  // Provider-agnostic: tool schemas lose the keywords providers reject.
+  toolSchemaCompatibilityFeature,
   openrouterReasoningFeature,
   noThinkFeature,
   qwenThinkingFeature,

@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 
+const { spawnClaudeCodeProcess } = await import('../ClaudeCodeProcessManager')
 const { createClaudeCodeQueryOptions } = await import('../queryOptions')
 
 describe('createClaudeCodeQueryOptions', () => {
   it('strips Cherry-only runtime settings before passing options to the SDK', () => {
+    const ignoredSpawn = vi.fn()
     const opts = createClaudeCodeQueryOptions({
       modelId: 'sonnet',
       settings: {
@@ -14,7 +16,8 @@ describe('createClaudeCodeQueryOptions', () => {
         toolPolicySnapshot: {},
         warmQueryInitializeTimeoutMs: 100,
         mcpToolMetadata: {},
-        runtimeContext: { template: 'Current time: {{time}}', modelName: 'Claude Sonnet' }
+        runtimeContext: { template: 'Current time: {{time}}', modelName: 'Claude Sonnet' },
+        spawnClaudeCodeProcess: ignoredSpawn
       } as any
     })
 
@@ -26,5 +29,6 @@ describe('createClaudeCodeQueryOptions', () => {
     expect(opts).not.toHaveProperty('warmQueryInitializeTimeoutMs')
     expect(opts).not.toHaveProperty('mcpToolMetadata')
     expect(opts).not.toHaveProperty('runtimeContext')
+    expect(opts.spawnClaudeCodeProcess).toBe(spawnClaudeCodeProcess)
   })
 })

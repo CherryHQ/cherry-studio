@@ -55,10 +55,11 @@ the command's *default* binding comes from its definition, and the user's edit i
 **Settings → Shortcuts** overrides it through that preference key. At runtime the
 effective binding is "user preference if set, else the definition default".
 
-A command's `scope: 'main' | 'renderer' | 'both'` decides where its handler runs
-and who listens for its key: the main‑process global‑shortcut registrar
-(`ShortcutService`) for main/global, or the per‑window keydown dispatcher
-(`CommandProvider`) for renderer.
+A command's `scope: 'main' | 'renderer' | 'both'` decides where its handler runs.
+For main-scope bindings, `keybinding.global: true` opts into an OS-wide
+`globalShortcut`; other bindings are handled only while one of the main window's
+own or attached webview `WebContents` has keyboard focus. Renderer-scope bindings
+use the per-window keydown dispatcher (`CommandProvider`).
 
 `COMMAND_DEFINITIONS` is the single source of truth — the `CommandId` union, the
 keybinding rules, the per‑command `shortcut.<id>` key, and the `when`/`enablement`
@@ -89,7 +90,7 @@ keeps only `ShortcutPreferenceKey` + `ResolvedShortcut`.
 | --- | --- |
 | `CommandService` | holds the main‑side handler registry; `execute(command, window?, ctx?)` with context evaluation; wires built‑in handlers (window/zoom/settings/quick‑assistant/selection); registers the native popup menu IPC (`NativeCommandPopupMenu_Show`) |
 | `nativePopupMenu.ts` | stateless module — materializes a renderer‑supplied menu model into an Electron native popup and reports the chosen command back; `CommandService` injects the execute/gate callback |
-| `ShortcutService` | registers `globalShortcut` accelerators from `REGISTERED_KEYBINDINGS` (non‑renderer scope) → `CommandService.execute` |
+| `ShortcutService` | handles non-global main bindings through each main window and attached webview's `before-input-event`; registers only bindings explicitly marked `global` with Electron `globalShortcut` → `CommandService.execute` |
 | `AppMenuService` | builds the macOS app menu from `menuRegistry.resolve({ location: 'app.menu' })` via `menu/adapters/nativeMenuAdapter` → `CommandService.execute` |
 
 ### 3. Renderer runtime — `src/renderer/features/command/`
@@ -123,8 +124,13 @@ window root mounts it: `windows/main/MainApp.tsx` and `windows/subWindow/SubWind
   shortcuts so typing isn't hijacked; modifier shortcuts (Ctrl/Meta/Alt) still
   fire. It only `preventDefault`s when a command with a registered handler
   resolves.
-- **Keyboard (global):** OS `globalShortcut` → `ShortcutService` →
-  `CommandService.execute(command, window)`.
+- **Keyboard (main, window-local):** main window or attached webview
+  `before-input-event` → `ShortcutService` →
+  `CommandService.execute(command, window)`. The event is prevented only after a
+  matching command resolves.
+- **Keyboard (main, global):** OS `globalShortcut` → `ShortcutService` →
+  `CommandService.execute(command, window)`. Only bindings with
+  `keybinding.global: true` use this path.
 - **Native menu:** renderer builds a `NativePopupMenuModel` →
   `window.api.command.showNativePopupMenu` → `CommandService`'s
   `NativeCommandPopupMenu_Show` handler → `showNativePopupMenu` (in

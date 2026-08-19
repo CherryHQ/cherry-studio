@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { useDataChange, useInvalidateCache, usePaginatedQuery, useQuery } from '@renderer/data/hooks/useDataApi'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
@@ -10,6 +11,8 @@ import type { TFunction } from 'i18next'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
+const logger = loggerService.withContext('useTasks')
+
 /**
  * Task reads stay on DataApi (`useQuery` below); task commands go through the
  * IpcApi `ai.agent.task.*` routes (schedule mutations are mixed-effect and
@@ -17,12 +20,9 @@ import { useTranslation } from 'react-i18next'
  * command the DataApi read keys are invalidated explicitly since IpcApi has no
  * auto-refresh tie-in.
  */
-const taskReadKeys = (agentId: string) => [
-  '/agent-tasks',
-  '/agent-tasks/*',
-  `/agents/${agentId}/tasks`,
-  `/agents/${agentId}/tasks/*`
-]
+const taskListReadKeys = (agentId: string) => ['/agent-tasks', `/agents/${agentId}/tasks`]
+
+const taskReadKeys = (agentId: string) => taskListReadKeys(agentId).flatMap((key) => [key, `${key}/*`])
 
 export const TASKS_PAGE_LIMIT = 50
 
@@ -182,16 +182,29 @@ export const useDeleteTask = () => {
   const { t } = useTranslation()
   const invalidate = useInvalidateCache()
   const deleteTask = useCallback(
-    async (agentId: string, taskId: string): Promise<boolean> => {
+    async (agentId: string, taskId: string, options?: { onDeleted?: () => void | Promise<void> }): Promise<boolean> => {
       try {
         await ipcApi.request('ai.agent.task.delete', { agentId, taskId })
-        toast.success({ key: 'delete-task', title: t('common.delete_success') })
-        await invalidate(taskReadKeys(agentId))
-        return true
       } catch (error) {
         toast.error(formatErrorMessageWithPrefix(error, t('agent.tasks.error.deleteFailed', 'Failed to delete task')))
         return false
       }
+
+      toast.success({ key: 'delete-task', title: t('common.delete_success') })
+      let shouldInvalidateTaskDetails = true
+      try {
+        await options?.onDeleted?.()
+      } catch (error) {
+        shouldInvalidateTaskDetails = false
+        logger.warn('Post-delete navigation failed', error as Error)
+      }
+
+      try {
+        await invalidate(shouldInvalidateTaskDetails ? taskReadKeys(agentId) : taskListReadKeys(agentId))
+      } catch (error) {
+        logger.warn('Failed to refresh task data after deletion', error as Error)
+      }
+      return true
     },
     [invalidate, t]
   )

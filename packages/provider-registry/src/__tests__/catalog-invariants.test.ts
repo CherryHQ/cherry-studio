@@ -34,6 +34,16 @@ const models = modelsRaw.models as Array<{
   inputModalities?: string[]
   outputModalities?: string[]
   ownedBy?: string
+  imageGeneration?: {
+    modes?: {
+      generate?: {
+        supports?: {
+          aspectRatio?: { default?: string; options?: string[]; render?: string; type?: string }
+          imageResolution?: { default?: string; options?: string[]; render?: string; type?: string }
+        }
+      }
+    }
+  }
 }>
 const overrides = providerModelsRaw.overrides as Array<{
   providerId: string
@@ -48,6 +58,29 @@ const providerModelOverrides = ProviderModelListSchema.parse(providerModelsRaw).
 const NORMALIZED = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 // shapes a creator never publishes: custom SKUs, double-dash vendor wrappers, routers
 const JUNK = /(?:-vip|-ssvip|-cursor|-all|-nx|-gizmo|-mobile)$|--|^duo-chat-|\bauto\b/
+
+const GEMINI_IMAGE_ASPECT_RATIO_OPTIONS = [
+  {
+    modelId: 'gemini-3-1-flash-image',
+    options: [
+      'auto',
+      'ASPECT_1_1',
+      'ASPECT_1_4',
+      'ASPECT_1_8',
+      'ASPECT_2_3',
+      'ASPECT_3_2',
+      'ASPECT_3_4',
+      'ASPECT_4_1',
+      'ASPECT_4_3',
+      'ASPECT_4_5',
+      'ASPECT_5_4',
+      'ASPECT_8_1',
+      'ASPECT_9_16',
+      'ASPECT_16_9',
+      'ASPECT_21_9'
+    ]
+  }
+] as const
 
 describe('catalog invariants (data/*.json)', () => {
   const ids = models.map((m) => m.id)
@@ -65,6 +98,26 @@ describe('catalog invariants (data/*.json)', () => {
       ownedBy
     })
   })
+
+  it.each(GEMINI_IMAGE_ASPECT_RATIO_OPTIONS)(
+    'keeps smart aspect ratio and explicit resolution controls for $modelId',
+    ({ modelId, options }) => {
+      const supports = models.find((model) => model.id === modelId)?.imageGeneration?.modes?.generate?.supports
+
+      expect(supports?.aspectRatio).toEqual({
+        default: 'auto',
+        options,
+        render: 'chips',
+        type: 'enum'
+      })
+      expect(supports?.imageResolution).toEqual({
+        default: 'auto',
+        options: ['auto', '1K', '2K', '4K'],
+        render: 'chips',
+        type: 'enum'
+      })
+    }
+  )
 
   // `listProviderPresetModels` sends `apiModelId ?? modelId` on the wire, so a row whose canonical key
   // is not the served id must carry `apiModelId` — otherwise the canonical spelling (`glm-5-2` for
@@ -124,6 +177,16 @@ describe('catalog invariants (data/*.json)', () => {
     expect(broken).toEqual([])
   })
 
+  // OpenCode Go is one base URL over three wire protocols picked per model, and its served list comes
+  // from models.dev — so a newly synced model lands here unpinned and silently falls back to
+  // chat/completions (#17860). Classify it against models.dev's per-model `provider.npm`.
+  it('pins an endpoint on every OpenCode Go model', () => {
+    const unpinned = providerModelOverrides
+      .filter((o) => o.providerId === 'opencode' && !o.endpointTypes?.length)
+      .map((o) => o.modelId)
+    expect(unpinned).toEqual([])
+  })
+
   it('does not encode provider-native web search as a generic model capability', () => {
     expect(models.filter((model) => model.capabilities?.includes('web-search')).map((model) => model.id)).toEqual([])
   })
@@ -135,10 +198,11 @@ describe('catalog invariants (data/*.json)', () => {
   it('no image-generation model is web-search eligible except allowlisted gemini-3 image models', () => {
     const WEB_SEARCH_IMAGE_ALLOWLIST = new Set(['gemini-3-pro-image', 'gemini-3-pro-image-preview'])
     const offenders = models
-      .filter(
-        (m) => m.capabilities?.includes('image-generation') && isServerToolModelEligible(m.id, SERVER_TOOL.WEB_SEARCH)
+      .filter((model) => model.capabilities?.includes('image-generation'))
+      .filter((model) =>
+        providers.some((provider) => isServerToolModelEligible(model.id, provider.id, SERVER_TOOL.WEB_SEARCH))
       )
-      .map((m) => m.id)
+      .map((model) => model.id)
       .filter((id) => !WEB_SEARCH_IMAGE_ALLOWLIST.has(id))
     expect(offenders).toEqual([])
   })
@@ -147,7 +211,9 @@ describe('catalog invariants (data/*.json)', () => {
   // text→audio, transcription is audio→text, embedders output vector) must never be eligible.
   it('no non-text-chat model is web-search eligible (tts / transcription / embedding)', () => {
     const offenders = models
-      .filter((m) => isServerToolModelEligible(m.id, SERVER_TOOL.WEB_SEARCH))
+      .filter((model) =>
+        providers.some((provider) => isServerToolModelEligible(model.id, provider.id, SERVER_TOOL.WEB_SEARCH))
+      )
       .filter(
         (m) => !(m.inputModalities ?? ['text']).includes('text') || !(m.outputModalities ?? ['text']).includes('text')
       )
@@ -216,6 +282,13 @@ describe('catalog invariants (data/*.json)', () => {
   it('maxOutputTokens never exceeds contextWindow', () => {
     const bad = models.filter((m) => m.contextWindow && m.maxOutputTokens && m.maxOutputTokens > m.contextWindow)
     expect(bad.map((m) => m.id)).toEqual([])
+  })
+
+  it.each(['deepseek-v4-flash', 'deepseek-v4-pro'])('keeps the official DeepSeek V4 token limits for %s', (id) => {
+    expect(models.find((model) => model.id === id)).toMatchObject({
+      contextWindow: 1048576,
+      maxOutputTokens: 393216
+    })
   })
 
   it('models.json conforms to ModelListSchema', () => {

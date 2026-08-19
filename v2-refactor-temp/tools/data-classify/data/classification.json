@@ -179,18 +179,17 @@
           "originalKey": "topicNamingModel",
           "type": "unknown",
           "defaultValue": "SYSTEM_MODELS.defaultModel[1]",
-          "status": "classified",
-          "category": "preferences",
+          "status": "deleted",
+          "category": null,
           "targetKey": null,
           "children": [
             {
               "category": null,
               "defaultValue": "gpt-4",
               "originalKey": "id",
-              "status": "pending",
+              "status": "deleted",
               "targetKey": null,
-              "type": "string",
-              "note": "Migrated via complex mapping: llm_model_ids_to_unique"
+              "type": "string"
             },
             {
               "category": null,
@@ -851,8 +850,8 @@
         },
         {
           "originalKey": "sendMessageShortcut",
-          "type": "PreferenceTypes.SendMessageShortcut",
-          "defaultValue": "Enter",
+          "type": "PreferenceTypes.ComposerShortcut",
+          "defaultValue": "VALUE: ['Enter']",
           "status": "classified",
           "category": "preferences",
           "targetKey": "chat.input.send_message_shortcut"
@@ -1957,7 +1956,7 @@
         {
           "originalKey": "exportMenuOptions",
           "type": "unknown",
-          "defaultValue": "{ image: true, markdown: true, markdown_reason: true, notion: true, yuque: true, joplin: true, obsidian: true, siyuan: true, docx: true, plain_text: true, notes: true }",
+          "defaultValue": "{ image: true, markdown: true, markdown_reason: true, notion: true, yuque: true, joplin: true, obsidian: true, siyuan: true, docx: true, plain_text: true }",
           "status": "pending",
           "category": null,
           "targetKey": null,
@@ -2041,14 +2040,6 @@
               "status": "classified",
               "targetKey": "data.export.menus.plain_text",
               "type": "boolean"
-            },
-            {
-              "category": "preferences",
-              "defaultValue": true,
-              "originalKey": "notes",
-              "status": "classified",
-              "targetKey": "data.export.menus.notes",
-              "type": "boolean"
             }
           ]
         },
@@ -2131,14 +2122,6 @@
           "status": "classified",
           "category": "preferences",
           "targetKey": "data.export.menus.plain_text"
-        },
-        {
-          "originalKey": "notes",
-          "type": "boolean",
-          "defaultValue": true,
-          "status": "classified",
-          "category": "preferences",
-          "targetKey": "data.export.menus.notes"
         },
         {
           "originalKey": "openAI",

@@ -248,16 +248,18 @@ describe('runAgentTask', () => {
     expect(readHeartbeat).not.toHaveBeenCalled()
   })
 
-  it('skips assistant heartbeat WITHOUT creating a session', async () => {
+  it('treats a built-in Assistant heartbeat like any other Agent heartbeat', async () => {
     vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot())
     vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('heartbeat'))
     vi.mocked(agentService.getAgent).mockReturnValueOnce(
       makeAgent({ builtin_role: 'assistant', heartbeat_enabled: true })
     )
 
-    const out = await runAgentTask(makeCtx())
+    const out = await runAgentTask(
+      makeCtx({ input: { agentId: 'a1', prompt: '__heartbeat__', timeoutMinutes: 2, workspace: { type: 'system' } } })
+    )
 
-    expect(out).toEqual({ sessionId: null, result: 'Skipped (assistant role)' })
+    expect(out).toEqual({ sessionId: null, result: 'Skipped (no file)' })
     expect(agentSessionService.create).not.toHaveBeenCalled()
     expect(agentWorkspaceService.getById).not.toHaveBeenCalled()
     expect(readHeartbeat).not.toHaveBeenCalled()

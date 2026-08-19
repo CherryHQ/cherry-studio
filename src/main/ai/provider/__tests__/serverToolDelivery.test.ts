@@ -33,6 +33,8 @@ type Delivery =
   | { kind: 'implicit' }
   /** Gateway resolves to another row's factories via model/endpoint mapping. */
   | { kind: 'gateway-mapped' }
+  /** Appended to the serialized request body by a custom `fetch` (openai adapter drops unknown tools). */
+  | { kind: 'body-transform' }
 
 const factories = (...names: string[]): Delivery => ({ kind: 'factories', names })
 
@@ -52,11 +54,15 @@ const DELIVERY: Record<string, Partial<Record<string, Delivery>>> = {
   },
   openai: { 'web-search': factories('openai', 'openai-chat') },
   grok: { 'web-search': factories('xai-responses') },
-  openrouter: { 'web-search': factories('openrouter') },
+  openrouter: { 'web-search': factories('openrouter'), 'url-context': factories('openrouter') },
   perplexity: { 'web-search': { kind: 'implicit' } },
   // Responses-endpoint models only; the openai extension's factory emits the bare tool shape.
   doubao: { 'web-search': factories('openai') },
-  dashscope: { 'web-search': { kind: 'provider-options' } },
+  deepseek: { 'web-search': factories('openai') },
+  // web-search: enable_search body params (getWebSearchParams). url-context (web_extractor): chat upgrades
+  // search_strategy to `agent_max` (provider-options), Responses appends the `web_extractor` tool via a
+  // custom-fetch body transform (appendDashScopeWebExtractor) — the openai adapter drops unknown tool ids.
+  dashscope: { 'web-search': { kind: 'provider-options' }, 'url-context': { kind: 'body-transform' } },
   // web_search marker via providerOptions, moved into `tools` by transformZhipuRequestBody.
   zhipu: { 'web-search': { kind: 'provider-options' } },
   // $web_search echo tool injected by the moonshot extension factory.

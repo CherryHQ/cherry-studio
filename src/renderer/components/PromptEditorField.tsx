@@ -197,7 +197,7 @@ export function PromptEditorField({
           {effectiveShowPreview ? (
             <div
               className={cn(
-                'markdown overflow-auto p-3 text-foreground text-xs',
+                'prompt-preview markdown overflow-auto p-3 text-foreground text-xs',
                 hasEditorActions && 'pr-20',
                 fill && 'min-h-0 flex-1'
               )}

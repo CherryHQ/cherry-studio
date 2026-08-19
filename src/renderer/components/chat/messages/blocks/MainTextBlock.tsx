@@ -177,7 +177,7 @@ function buildComposerMessageMarkdownContent(content: string, composer: Composer
   return { markdown, tokens }
 }
 
-export function buildUserMessagePreview(content: string) {
+function buildUserMessageTextPreview(content: string) {
   let effectiveLineCount = 0
   const lineRegex = /([^\r\n]*)(\r\n|\r|\n|$)/g
 
@@ -206,6 +206,57 @@ export function buildUserMessagePreview(content: string) {
     content,
     isTruncated: false
   }
+}
+
+function buildComposerTokenPreviewProjection(content: string, composer: ComposerMessageSnapshot) {
+  let projectedContent = ''
+  const rawOffsets = [0]
+  let cursor = 0
+
+  const appendText = (text: string, rawStart: number) => {
+    projectedContent += text
+    for (let index = 1; index <= text.length; index += 1) {
+      rawOffsets.push(rawStart + index)
+    }
+  }
+
+  getDisplayComposerTokens(composer).forEach((token) => {
+    const offset = Math.max(0, Math.min(content.length, token.textOffset))
+    const promptText = token.promptText
+    const promptTextMatches = !!promptText && content.slice(offset, offset + promptText.length) === promptText
+    if (promptText && !promptTextMatches) return
+
+    if (offset > cursor) {
+      appendText(content.slice(cursor, offset), cursor)
+      cursor = offset
+    }
+
+    // Count a rendered token chip as one visible character. Mapping its end
+    // back to the raw prompt boundary keeps collapsed previews from slicing
+    // through hidden composer context and exposing it as plain text.
+    projectedContent += '\uFFFC'
+    if (promptTextMatches) {
+      cursor = Math.max(cursor, offset + promptText.length)
+    }
+    rawOffsets.push(cursor)
+  })
+
+  if (cursor < content.length) {
+    appendText(content.slice(cursor), cursor)
+  }
+
+  return { content: projectedContent, rawOffsets }
+}
+
+export function buildUserMessagePreview(content: string, composer?: ComposerMessageSnapshot) {
+  if (!composer) return buildUserMessageTextPreview(content)
+
+  const projection = buildComposerTokenPreviewProjection(content, composer)
+  const preview = buildUserMessageTextPreview(projection.content)
+  if (!preview.isTruncated) return { content, isTruncated: false }
+
+  const rawEnd = projection.rawOffsets[preview.content.length] ?? content.length
+  return { content: content.slice(0, rawEnd), isTruncated: true }
 }
 
 function CollapsibleUserMessageContent({
@@ -275,7 +326,7 @@ const MainTextBlock: React.FC<Props> = ({
 }) => {
   const { renderInputMessageAsMarkdown } = useMessageRenderConfig()
   const shouldRenderComposerTokens = role === 'user' && !!composer?.tokens.length
-  const userMessagePreview = useMemo(() => buildUserMessagePreview(content), [content])
+  const userMessagePreview = useMemo(() => buildUserMessagePreview(content, composer), [composer, content])
   const isUserContentCollapsible = role === 'user' && userMessagePreview.isTruncated
   const [internalUserContentExpanded, setInternalUserContentExpanded] = useState(false)
   const isUserContentExpanded = userContentExpanded ?? internalUserContentExpanded

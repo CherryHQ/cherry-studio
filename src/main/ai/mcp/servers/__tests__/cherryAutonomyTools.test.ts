@@ -22,6 +22,14 @@ const mockCreateChannel = vi.fn()
 const mockGetChannel = vi.fn()
 const mockUpdateChannel = vi.fn()
 const mockDeleteChannel = vi.fn()
+const mockGetSession = vi.fn()
+const mockListSessions = vi.fn()
+const mockSearchSessions = vi.fn()
+const mockSearchSessionMessages = vi.fn()
+const mockAcceptSessionDelivery = vi.fn()
+const mockCreateSessionWithDelivery = vi.fn()
+const mockListSessionDeliveries = vi.fn()
+const mockGetInteractionState = vi.fn()
 
 // Task reads stay on AgentTaskService; task commands (create / delete) go
 // through the AgentJobsService routed via the application mock below.
@@ -38,12 +46,44 @@ vi.mock('@data/services/AgentService', () => ({
   }
 }))
 
+vi.mock('@data/services/AgentSessionService', () => ({
+  agentSessionService: {
+    getById: mockGetSession,
+    listAddressableByCursor: mockListSessions,
+    searchWithMetadataEvidence: mockSearchSessions
+  }
+}))
+
+vi.mock('@data/services/AgentSessionMessageService', () => ({
+  AgentSessionDeliveryRoutingError: class extends Error {
+    constructor(
+      readonly code: string,
+      message: string
+    ) {
+      super(message)
+    }
+  },
+  agentSessionMessageService: {
+    acceptSessionDelivery: mockAcceptSessionDelivery,
+    createSessionWithDelivery: mockCreateSessionWithDelivery,
+    listSessionDeliveries: mockListSessionDeliveries,
+    searchRanked: mockSearchSessionMessages
+  }
+}))
+
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
     AgentJobsService: {
       createTask: mockCreateTask,
       deleteTask: mockDeleteTask
+    },
+    AgentSessionRuntimeService: {
+      getInteractionState: mockGetInteractionState
+    },
+    AgentSessionDeliveryService: {
+      accept: mockAcceptSessionDelivery,
+      acceptWithNewSession: mockCreateSessionWithDelivery
     },
     ChannelManager: {
       getNotifyAdapters: mockGetNotifyAdapters,
@@ -93,6 +133,7 @@ function createServer(agentId = 'agent_test', workspacePath = WORKSPACE_PATH) {
   // getKnowledgeBaseIds is required on CherryAgentContext but unused by the autonomy tools.
   return new CherryAutonomyTools({
     agentId,
+    sessionId: 'session_test',
     workspaceSource: WORKSPACE_SOURCE,
     workspacePath,
     getKnowledgeBaseIds: () => []
@@ -112,13 +153,311 @@ async function callTool(
 describe('CherryAutonomyTools', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockGetSession.mockReturnValue({ id: 'session_test', agentId: 'agent_test' })
+    mockListSessions.mockReturnValue({ items: [], nextCursor: undefined })
+    mockSearchSessions.mockReturnValue([])
+    mockSearchSessionMessages.mockReturnValue([])
+    mockListSessionDeliveries.mockReturnValue([])
+    mockGetInteractionState.mockReturnValue({ currentTurn: 'interactive', userResponse: 'stream' })
   })
 
   it('should list all tools', () => {
     const server = createServer()
     const tools = server.tools()
-    expect(tools).toHaveLength(3)
-    expect(tools.map((t) => t.name)).toEqual(['cron', 'notify', 'config'])
+    expect(tools).toHaveLength(8)
+    expect(tools.map((t) => t.name)).toEqual([
+      'cron',
+      'notify',
+      'config',
+      'session_list',
+      'session_search',
+      'session_create',
+      'session_deliveries',
+      'session_send'
+    ])
+    expect(tools.find((tool) => tool.name === 'session_search')?.inputSchema.properties?.query).toMatchObject({
+      maxLength: 4096
+    })
+  })
+
+  describe('session tools', () => {
+    it.each(['session_list', 'session_search', 'session_deliveries', 'session_create', 'session_send'])(
+      'denies %s from a headless turn before reading or mutating another Session',
+      async (toolName) => {
+        mockGetInteractionState.mockReturnValue({ currentTurn: 'headless', userResponse: 'unavailable' })
+        const args =
+          toolName === 'session_search'
+            ? { query: 'secret' }
+            : toolName === 'session_create'
+              ? { message: 'delegate' }
+              : toolName === 'session_send'
+                ? { target_session_id: 'session_b', message: 'delegate' }
+                : {}
+
+        const result = await callTool(createServer(), args, toolName)
+
+        expect(result.isError).toBe(true)
+        expect(JSON.parse(result.content[0].text)).toMatchObject({
+          ok: false,
+          error: { code: 'SESSION_TOOL_FORBIDDEN' }
+        })
+        expect(mockSearchSessionMessages).not.toHaveBeenCalled()
+        expect(mockAcceptSessionDelivery).not.toHaveBeenCalled()
+        expect(mockCreateSessionWithDelivery).not.toHaveBeenCalled()
+      }
+    )
+
+    it('rejects an invalid delivery direction instead of coercing it to incoming', async () => {
+      const result = await callTool(createServer(), { direction: 'sideways' }, 'session_deliveries')
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain("invalid 'direction'")
+      expect(mockListSessionDeliveries).not.toHaveBeenCalled()
+    })
+
+    it('discovers active Session addresses without exposing workspace data', async () => {
+      mockListSessions.mockReturnValue({
+        items: [
+          { sessionId: 'session_test', agentId: 'agent_test', sessionName: 'Current', agentName: 'Agent A' },
+          { sessionId: 'session_b', agentId: 'agent_b', sessionName: 'Build', agentName: 'Agent B' }
+        ]
+      })
+
+      const result = await callTool(createServer(), { limit: 10 }, 'session_list')
+      const payload = JSON.parse(result.content[0].text)
+
+      expect(payload.sessions).toEqual([
+        {
+          agentId: 'agent_test',
+          agentName: 'Agent A',
+          sessionId: 'session_test',
+          sessionName: 'Current',
+          isCurrent: true
+        },
+        {
+          agentId: 'agent_b',
+          agentName: 'Agent B',
+          sessionId: 'session_b',
+          sessionName: 'Build',
+          isCurrent: false
+        }
+      ])
+    })
+
+    it('passes the addressable Session cursor through and returns the next page cursor', async () => {
+      mockListSessions.mockReturnValue({ items: [], nextCursor: 'session-next' })
+
+      const result = await callTool(createServer(), { cursor: 'session-prev', limit: 5 }, 'session_list')
+
+      expect(mockListSessions).toHaveBeenCalledWith({ agentId: undefined, cursor: 'session-prev', limit: 5 })
+      expect(JSON.parse(result.content[0].text)).toEqual({ sessions: [], nextCursor: 'session-next' })
+    })
+
+    it('injects the trusted current identity when sending across Agents', async () => {
+      const accepted = {
+        id: 'message-1',
+        sessionId: 'session_b',
+        delivery: { id: 'delivery-1', status: 'accepted' }
+      }
+      mockAcceptSessionDelivery.mockReturnValue(accepted)
+      const result = await callTool(
+        createServer('agent_test'),
+        { target_session_id: 'session_b', message: 'Implement this' },
+        'session_send'
+      )
+
+      expect(mockAcceptSessionDelivery).toHaveBeenCalledWith({
+        senderAgentId: 'agent_test',
+        senderSessionId: 'session_test',
+        receiverSessionId: 'session_b',
+        content: 'Implement this',
+        replyPolicy: 'none'
+      })
+      expect(JSON.parse(result.content[0].text)).toMatchObject({
+        ok: true,
+        delivery: { id: 'delivery-1', status: 'accepted' }
+      })
+    })
+
+    it('records completion requests without a redundant delivery mode', async () => {
+      mockAcceptSessionDelivery.mockReturnValue({
+        id: 'request-1',
+        sessionId: 'session_b',
+        delivery: { status: 'accepted', replyPolicy: 'completion' }
+      })
+      await callTool(
+        createServer('agent_test'),
+        { target_session_id: 'session_b', message: 'Return the result', reply: 'completion' },
+        'session_send'
+      )
+
+      expect(mockAcceptSessionDelivery).toHaveBeenCalledWith(expect.objectContaining({ replyPolicy: 'completion' }))
+    })
+
+    it('returns message evidence for session search candidates', async () => {
+      mockSearchSessionMessages.mockReturnValue([
+        {
+          messageId: 'message-1',
+          sessionId: 'session_b',
+          sessionName: 'Build',
+          agentId: 'agent_b',
+          agentName: 'Agent B',
+          snippet: 'implemented auth',
+          createdAt: '2026-08-10T00:00:00.000Z'
+        }
+      ])
+
+      const result = await callTool(createServer(), { query: 'auth' }, 'session_search')
+
+      expect(JSON.parse(result.content[0].text).sessions).toEqual([
+        expect.objectContaining({
+          sessionId: 'session_b',
+          matches: [expect.objectContaining({ messageId: 'message-1', snippet: 'implemented auth' })]
+        })
+      ])
+      expect(mockSearchSessionMessages).toHaveBeenCalledWith({
+        q: 'auth',
+        limit: 20,
+        agentId: undefined,
+        addressableOnly: true
+      })
+    })
+
+    it('scopes ranked message and metadata searches before their limits', async () => {
+      await callTool(createServer(), { query: 'auth', agent_id: 'agent_b', limit: 3 }, 'session_search')
+
+      expect(mockSearchSessionMessages).toHaveBeenCalledWith({
+        q: 'auth',
+        limit: 3,
+        agentId: 'agent_b',
+        addressableOnly: true
+      })
+      expect(mockSearchSessions).toHaveBeenCalledWith({
+        q: 'auth',
+        limit: 3,
+        agentId: 'agent_b',
+        addressableOnly: true
+      })
+    })
+
+    it('places metadata-only Session hits after ranked message evidence', async () => {
+      mockSearchSessionMessages.mockReturnValue([
+        {
+          messageId: 'message-ranked',
+          sessionId: 'session-ranked',
+          sessionName: 'Ranked evidence',
+          agentId: 'agent_a',
+          agentName: 'Agent A',
+          snippet: 'ranked evidence',
+          createdAt: '2026-08-10T00:00:00.000Z'
+        }
+      ])
+      mockSearchSessions.mockReturnValue([
+        {
+          item: {
+            id: 'session-metadata',
+            title: 'Metadata only',
+            subtitle: 'Agent B',
+            target: { agentId: 'agent_b' }
+          },
+          matches: [{ field: 'name', snippet: 'Metadata only' }]
+        }
+      ])
+
+      const result = await callTool(createServer(), { query: 'evidence' }, 'session_search')
+
+      expect(JSON.parse(result.content[0].text).sessions).toEqual([
+        expect.objectContaining({ sessionId: 'session-ranked', matches: [expect.anything()] }),
+        expect.objectContaining({
+          sessionId: 'session-metadata',
+          matches: [],
+          metadataMatches: [{ field: 'name', snippet: 'Metadata only' }]
+        })
+      ])
+    })
+
+    it('merges metadata evidence and applies limit to final Sessions', async () => {
+      mockSearchSessionMessages.mockReturnValue([
+        {
+          messageId: 'message-ranked',
+          sessionId: 'session-ranked',
+          sessionName: 'Ranked evidence',
+          agentId: 'agent_a',
+          agentName: 'Agent A',
+          snippet: 'ranked evidence',
+          createdAt: '2026-08-10T00:00:00.000Z'
+        }
+      ])
+      mockSearchSessions.mockReturnValue([
+        {
+          item: {
+            id: 'session-metadata',
+            title: 'Metadata only',
+            subtitle: 'Agent B',
+            target: { agentId: 'agent_b' }
+          },
+          matches: [{ field: 'description', snippet: 'Contains ranked evidence' }]
+        },
+        {
+          item: {
+            id: 'session-over-limit',
+            title: 'Over limit',
+            subtitle: 'Agent C',
+            target: { agentId: 'agent_c' }
+          },
+          matches: [{ field: 'description', snippet: 'More ranked evidence' }]
+        },
+        {
+          item: {
+            id: 'session-ranked',
+            title: 'Ranked evidence',
+            subtitle: 'Agent A',
+            target: { agentId: 'agent_a' }
+          },
+          matches: [{ field: 'name', snippet: 'Ranked evidence' }]
+        }
+      ])
+
+      const result = await callTool(createServer(), { query: 'evidence', limit: 2 }, 'session_search')
+
+      expect(JSON.parse(result.content[0].text).sessions).toEqual([
+        expect.objectContaining({
+          sessionId: 'session-ranked',
+          metadataMatches: [{ field: 'name', snippet: 'Ranked evidence' }]
+        }),
+        expect.objectContaining({
+          sessionId: 'session-metadata',
+          metadataMatches: [{ field: 'description', snippet: 'Contains ranked evidence' }]
+        })
+      ])
+    })
+
+    it('creates a same-Agent Session with its first message before dispatching it', async () => {
+      const message = {
+        id: 'message-1',
+        sessionId: 'session-new',
+        delivery: { id: 'delivery-1', status: 'accepted' }
+      }
+      mockCreateSessionWithDelivery.mockReturnValue({
+        session: { id: 'session-new', agentId: 'agent_test' },
+        message
+      })
+      const result = await callTool(createServer(), { message: 'Hello', title: 'English greeting' }, 'session_create')
+
+      expect(mockCreateSessionWithDelivery).toHaveBeenCalledWith({
+        senderAgentId: 'agent_test',
+        senderSessionId: 'session_test',
+        sessionName: 'English greeting',
+        workspace: WORKSPACE_SOURCE,
+        content: 'Hello'
+      })
+      expect(JSON.parse(result.content[0].text)).toMatchObject({
+        ok: true,
+        agentId: 'agent_test',
+        sessionId: 'session-new',
+        delivery: { id: 'delivery-1', status: 'accepted' }
+      })
+    })
   })
 
   describe('add action', () => {

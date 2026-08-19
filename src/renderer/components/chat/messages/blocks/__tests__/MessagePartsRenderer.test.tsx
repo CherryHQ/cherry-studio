@@ -92,6 +92,10 @@ vi.mock('react-i18next', () => ({
       if (key === 'message.tools.processed') return 'Processed'
       if (key === 'message.tools.error') return 'Error'
       if (key === 'message.tools.thinkingHeader') return 'Thinking...'
+      if (key === 'message.tools.sessionCreate.created') return 'Session created'
+      if (key === 'message.tools.sessionCreate.open') return 'Open session'
+      if (key === 'message.tools.sessionSend.open') return 'Open session'
+      if (key === 'message.tools.sessionSend.sent') return 'Sent to'
       if (key === 'common.preview') return 'Preview'
       if (key === 'common.close') return 'Close'
       if (key === 'common.expand') return 'Expand'
@@ -143,11 +147,7 @@ vi.mock('../ImageBlock', () => ({
 vi.mock('../../tools/MessageTools', () => {
   const canRender = (toolResponse: any) => {
     const name = toolResponse?.tool?.name ?? ''
-    return (
-      name !== 'report_artifacts' &&
-      !name.endsWith('__report_artifacts') &&
-      !(toolResponse?.tool?.type === 'provider' && name === 'web_search')
-    )
+    return name !== 'report_artifacts' && !name.endsWith('__report_artifacts') && name !== 'unknown_provider_tool'
   }
 
   return {
@@ -928,14 +928,50 @@ describe('MessagePartsRenderer', () => {
       expect(second).toContain('https://first.example')
     })
 
-    it('renders video and error value parts', () => {
+    it('renders citations from a deferred agent lookup skeleton', () => {
+      renderParts([
+        {
+          type: 'dynamic-tool',
+          toolName: 'mcp__cherry-tools__web_search',
+          toolCallId: 'search-1',
+          state: 'output-available',
+          input: { query: 'q' },
+          output: {
+            $deferredToolResult: { topicId: 'agent-session:s1', messageId: 'm1', toolCallId: 'search-1' },
+            skeleton: {
+              content: [
+                {
+                  id: '70536f0b-1',
+                  title: 'Entertainment news',
+                  url: 'https://example.com/news',
+                  content: 'summary'
+                }
+              ],
+              metadata: {
+                type: 'mcp',
+                serverName: 'cherry-tools',
+                serverId: 'cherry-tools'
+              }
+            }
+          }
+        },
+        { type: 'text', text: 'Entertainment update. [cite:70536f0b-1]' }
+      ] as unknown as CherryMessagePart[])
+
+      const content = screen.getByTestId('mock-markdown').textContent ?? ''
+      expect(content).toContain("data-citation='1'")
+      expect(content).toContain('https://example.com/news')
+      expect(content).not.toContain('[cite:70536f0b-1]')
+    })
+
+    it('renders video and error value parts', async () => {
       renderParts([
         { type: 'data-video', data: { filePath: '/tmp/v.mp4' } },
         { type: 'data-video', data: { url: 'https://v.test/v.mp4' } },
         { type: 'data-error', data: { name: 'Err', message: 'boom' } }
       ] as unknown as CherryMessagePart[])
 
-      const videos = screen.getAllByTestId('mock-message-video')
+      const videos = await screen.findAllByTestId('mock-message-video')
       expect(videos[0]).toHaveAttribute('data-file-path', '/tmp/v.mp4')
       expect(videos[1]).toHaveAttribute('data-url', 'https://v.test/v.mp4')
       expect(screen.getByTestId('mock-error-block')).toHaveAttribute('data-error-message', 'boom')
@@ -965,15 +1001,15 @@ describe('MessagePartsRenderer', () => {
       expect(JSON.parse(block.getAttribute('data-cached-diagnosis') || 'null')).toEqual(diagnosis)
     })
 
-    it('does not move non-consecutive updates for the same video ahead of intervening content', () => {
+    it('does not move non-consecutive updates for the same video ahead of intervening content', async () => {
       const { container } = renderParts([
         { type: 'data-video', data: { filePath: '/tmp/same.mp4', url: 'https://v.test/first.mp4' } },
         { type: 'text', text: 'between videos' },
         { type: 'data-video', data: { filePath: '/tmp/same.mp4', url: 'https://v.test/second.mp4' } }
       ] as unknown as CherryMessagePart[])
 
+      expect(await screen.findAllByTestId('mock-message-video')).toHaveLength(2)
       const html = container.innerHTML
-      expect(screen.getAllByTestId('mock-message-video')).toHaveLength(2)
       expect(html.indexOf('first.mp4')).toBeLessThan(html.indexOf('between videos'))
       expect(html.indexOf('between videos')).toBeLessThan(html.indexOf('second.mp4'))
     })
@@ -1038,7 +1074,7 @@ describe('MessagePartsRenderer', () => {
       })
     })
 
-    it('waits for the turn and smooth text playout to finish before rendering report artifacts', () => {
+    it('waits for the turn and smooth text playout to finish before rendering result cards', () => {
       let clock = 0
       let rafId = 0
       let rafCallbacks = new Map<number, FrameRequestCallback>()
@@ -1070,17 +1106,28 @@ describe('MessagePartsRenderer', () => {
         input: { artifacts: [{ path: 'dist/report.md', description: 'Report' }] },
         output: {}
       } as unknown as CherryMessagePart
+      const sessionPart = {
+        ...toolPart('create-session', 'output-available', 'session_create'),
+        input: { title: 'Research session' },
+        output: {
+          content: JSON.stringify({ ok: true, sessionId: 'session-research' }),
+          metadata: { type: 'mcp', serverId: 'cherry-tools', serverName: 'cherry-tools' }
+        }
+      } as unknown as CherryMessagePart
       const initialParts = [
         reportPart,
+        sessionPart,
         { type: 'text', text: 'A', state: 'streaming' }
       ] as unknown as CherryMessagePart[]
       const { rerender } = renderParts(initialParts, pendingMessage)
 
       expect(screen.queryByText('report.md')).toBeNull()
+      expect(screen.queryByTestId('session-result-cards')).toBeNull()
 
       const finalText = `A${'b'.repeat(100)}`
       const finalParts = [
         reportPart,
+        sessionPart,
         { type: 'text', text: finalText, state: 'done' }
       ] as unknown as CherryMessagePart[]
       rerender(renderPartsTree(finalParts, pendingMessage))
@@ -1090,10 +1137,12 @@ describe('MessagePartsRenderer', () => {
       rerender(renderPartsTree(finalParts, msg({ status: 'success' })))
 
       expect(screen.queryByText('report.md')).toBeNull()
+      expect(screen.queryByTestId('session-result-cards')).toBeNull()
 
       act(() => tick(50))
 
       expect(screen.getByText('report.md')).toBeInTheDocument()
+      expect(screen.getByTestId('session-result-cards')).toBeInTheDocument()
     })
 
     it('keeps the usingTools placeholder when report_artifacts is the only active part, then shows the card', () => {
@@ -1196,6 +1245,28 @@ describe('MessagePartsRenderer', () => {
       expect(thinkingBlocks[1]).toHaveAttribute('data-streaming', 'false')
       expect(screen.queryByTestId('mock-thinking-content')).toBeNull()
       expect(screen.queryByText('https://example.com')).toBeNull()
+    })
+
+    it('renders DeepSeek provider webSearch parts as tools instead of reasoning-only rows', () => {
+      activateTurn('streaming')
+      renderParts(
+        [
+          { type: 'reasoning', text: 'Finding current sources', state: 'done' },
+          {
+            type: 'tool-webSearch',
+            toolCallId: 'provider-search',
+            state: 'output-available',
+            input: {},
+            output: { action: { type: 'search' } },
+            providerExecuted: true
+          }
+        ] as unknown as CherryMessagePart[],
+        msg({ status: 'pending' })
+      )
+
+      expect(screen.getByRole('button', { name: 'webSearch' })).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'webSearch' }))
+      expect(screen.getByTestId('mock-message-tools')).toHaveAttribute('data-tool-name', 'webSearch')
     })
 
     it('does not render provider ellipsis fillers or let them split live tools', () => {
@@ -1484,6 +1555,35 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByText('final answer')).toBeInTheDocument()
     })
 
+    it('places a completed session action after the final answer and opens it directly', () => {
+      const navigateToRoute = vi.fn()
+      renderParts(
+        [
+          {
+            ...toolPart('create-session', 'output-available', 'session_create'),
+            input: { title: 'Research session' },
+            output: {
+              content: JSON.stringify({ ok: true, sessionId: 'session-research' }),
+              metadata: { type: 'mcp', serverId: 'cherry-tools', serverName: 'cherry-tools' }
+            }
+          },
+          { type: 'text', text: 'The new session is ready.' }
+        ] as unknown as CherryMessagePart[],
+        msg(),
+        { navigateToRoute }
+      )
+
+      const answer = screen.getByText('The new session is ready.')
+      const resultCards = screen.getByTestId('session-result-cards')
+      expectNodeBefore(answer, resultCards)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Open session: Research session' }))
+      expect(navigateToRoute).toHaveBeenCalledWith({
+        path: '/app/agents',
+        query: { sessionId: 'session-research' }
+      })
+    })
+
     it('keeps the final text node mounted across the active-to-terminal frame', () => {
       activateTurn('streaming')
       const parts = [{ type: 'text', text: 'stable answer node' }] as unknown as CherryMessagePart[]
@@ -1587,7 +1687,7 @@ describe('MessagePartsRenderer', () => {
 
     it('does not show an empty completed process group for a non-renderable provider tool', () => {
       renderParts([
-        { ...toolPart('search', 'output-available', 'web_search'), toolType: 'provider' },
+        { ...toolPart('search', 'output-available', 'unknown_provider_tool'), toolType: 'provider' },
         { type: 'text', text: 'Provider-backed final answer' }
       ] as unknown as CherryMessagePart[])
 
@@ -1907,7 +2007,7 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByTestId('mock-message-tools')).toHaveAttribute('data-status', 'cancelled')
     })
 
-    it('does not lose special value parts around completed process history', () => {
+    it('does not lose special value parts around completed process history', async () => {
       renderParts([
         toolPart('read'),
         { type: 'data-code', data: { content: 'answer()', language: 'ts' } },
@@ -1928,7 +2028,7 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByTestId('mock-error-block')).toHaveAttribute('data-error-message', 'visible error')
       expect(screen.getByTestId('mock-image-block')).toBeInTheDocument()
       expect(screen.getByTestId('mock-attachments')).toHaveAttribute('data-file-name', 'result.pdf')
-      expect(screen.getByTestId('mock-message-video')).toHaveAttribute('data-file-path', '/tmp/result.mp4')
+      expect(await screen.findByTestId('mock-message-video')).toHaveAttribute('data-file-path', '/tmp/result.mp4')
       expect(screen.getByTestId('completed-process-trigger')).toHaveAttribute('aria-expanded', 'false')
     })
   })

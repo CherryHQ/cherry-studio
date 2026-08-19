@@ -3,11 +3,14 @@ import { Activity } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { MessageVirtualList } from '../MessageVirtualList'
+import { useScrollRuntimeBoundary } from '../ScrollOwnershipContext'
 
 const runtimeMockState = vi.hoisted(() => ({
   isScrollToBottomButtonVisible: false,
   takeUserControl: vi.fn(),
   scrollToBottom: vi.fn(),
+  notifyWheelIntent: vi.fn(),
+  scrollByWheel: vi.fn(() => true),
   markUserInput: vi.fn(),
   beginScrollbarDrag: vi.fn(),
   endScrollbarDrag: vi.fn(),
@@ -86,6 +89,8 @@ vi.mock('../chatVirtualizerRuntime', async () => {
       isScrollToBottomButtonVisible: runtimeMockState.isScrollToBottomButtonVisible,
       takeUserControl: runtimeMockState.takeUserControl,
       scrollToBottom: runtimeMockState.scrollToBottom,
+      notifyWheelIntent: runtimeMockState.notifyWheelIntent,
+      scrollByWheel: runtimeMockState.scrollByWheel,
       markUserInput: runtimeMockState.markUserInput,
       beginScrollbarDrag: runtimeMockState.beginScrollbarDrag,
       endScrollbarDrag: runtimeMockState.endScrollbarDrag,
@@ -97,11 +102,27 @@ vi.mock('../chatVirtualizerRuntime', async () => {
   }
 })
 
+function ScrollRuntimeBoundaryProbe() {
+  const runtime = useScrollRuntimeBoundary()
+  return (
+    <>
+      <button type="button" onClick={() => runtime.notifyWheelIntent(40)}>
+        notify wheel
+      </button>
+      <button type="button" onClick={() => runtime.scrollByWheel(80)}>
+        scroll by wheel
+      </button>
+    </>
+  )
+}
+
 describe('MessageVirtualList', () => {
   beforeEach(() => {
     runtimeMockState.isScrollToBottomButtonVisible = false
     runtimeMockState.takeUserControl.mockClear()
     runtimeMockState.scrollToBottom.mockClear()
+    runtimeMockState.notifyWheelIntent.mockClear()
+    runtimeMockState.scrollByWheel.mockClear()
     runtimeMockState.markUserInput.mockClear()
     runtimeMockState.beginScrollbarDrag.mockClear()
     runtimeMockState.endScrollbarDrag.mockClear()
@@ -178,6 +199,22 @@ describe('MessageVirtualList', () => {
     expect(screen.getByTestId('virtualizer')).toHaveAttribute('data-shift', 'true')
   })
 
+  it('provides the runtime-owned wheel boundary to message content', () => {
+    render(
+      <MessageVirtualList
+        items={['message-1']}
+        getItemKey={(item) => item}
+        renderItem={() => <ScrollRuntimeBoundaryProbe />}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'notify wheel' }))
+    fireEvent.click(screen.getByRole('button', { name: 'scroll by wheel' }))
+
+    expect(runtimeMockState.notifyWheelIntent).toHaveBeenCalledWith(40)
+    expect(runtimeMockState.scrollByWheel).toHaveBeenCalledWith(80)
+  })
+
   it('registers wheel handling as a native passive listener', async () => {
     const addEventListenerSpy = vi.spyOn(HTMLElement.prototype, 'addEventListener')
 
@@ -219,7 +256,7 @@ describe('MessageVirtualList', () => {
     region.scrollTop = 50
     fireEvent.wheel(content, { deltaY: 40 })
     expect(runtimeMockState.onWheel).not.toHaveBeenCalled()
-    expect(runtimeMockState.takeUserControl).toHaveBeenCalledWith('nested-scroll', content)
+    expect(runtimeMockState.takeUserControl).not.toHaveBeenCalled()
 
     region.scrollTop = 200
     fireEvent.wheel(content, { deltaY: 40 })
@@ -248,7 +285,7 @@ describe('MessageVirtualList', () => {
     region.scrollTop = 200
     fireEvent.wheel(content, { deltaY: 40 })
     expect(runtimeMockState.onWheel).not.toHaveBeenCalled()
-    expect(runtimeMockState.takeUserControl).toHaveBeenCalledWith('nested-scroll', content)
+    expect(runtimeMockState.takeUserControl).not.toHaveBeenCalled()
 
     scrollHeight = 100
     region.scrollTop = 0
@@ -256,7 +293,7 @@ describe('MessageVirtualList', () => {
     expect(runtimeMockState.onWheel).toHaveBeenCalledTimes(1)
   })
 
-  it('converts input-driven nested scrolling into reading ownership', () => {
+  it('keeps nested scrollbar and keyboard scrolling independent from the outer runtime', () => {
     render(
       <MessageVirtualList
         items={['message-1']}
@@ -279,17 +316,64 @@ describe('MessageVirtualList', () => {
     fireEvent.scroll(region)
     expect(runtimeMockState.takeUserControl).not.toHaveBeenCalled()
 
-    // A nested scrollbar drag: the pointer press seeds intent, and the nested
-    // scroll it produces converts the outer list to reading — scroll does not
-    // bubble, so this rides the capture phase.
+    // Pointer drags and keyboard input owned by the nested scroller must not
+    // seed the outer runtime either.
     fireEvent.pointerDown(region)
+    fireEvent.pointerMove(region, { buttons: 1 })
     fireEvent.scroll(region)
-    expect(runtimeMockState.takeUserControl).toHaveBeenCalledWith('nested-scroll', region)
+    fireEvent.keyDown(region, { key: 'PageDown' })
+    expect(runtimeMockState.takeUserControl).not.toHaveBeenCalled()
+    expect(runtimeMockState.markUserInput).not.toHaveBeenCalled()
+    fireEvent.pointerUp(document)
 
     // The outer scroller's own scroll events stay with the runtime's handlers.
     runtimeMockState.takeUserControl.mockClear()
     fireEvent.scroll(scroller)
     expect(runtimeMockState.takeUserControl).not.toHaveBeenCalled()
+  })
+
+  it('hands keyboard and touch scrolling to the outer runtime at a nested boundary', () => {
+    render(
+      <MessageVirtualList
+        items={['message-1']}
+        getItemKey={(item) => item}
+        renderItem={() => (
+          <div data-testid="nested-scroll-region" style={{ overflowY: 'auto' }}>
+            content
+          </div>
+        )}
+      />
+    )
+
+    const region = screen.getByTestId('nested-scroll-region')
+    Object.defineProperty(region, 'clientHeight', { configurable: true, value: 100 })
+    Object.defineProperty(region, 'scrollHeight', { configurable: true, value: 300 })
+    region.scrollTop = 200
+
+    fireEvent.keyDown(region, { key: 'PageDown' })
+    expect(runtimeMockState.markUserInput).toHaveBeenCalledTimes(1)
+
+    runtimeMockState.markUserInput.mockClear()
+    const fireTouchPointerEvent = (type: 'pointerdown' | 'pointermove', clientY: number, buttons: number) => {
+      const event = new Event(type, { bubbles: true, cancelable: true })
+      Object.defineProperties(event, {
+        buttons: { value: buttons },
+        clientY: { value: clientY },
+        pointerType: { value: 'touch' }
+      })
+      fireEvent(region, event)
+    }
+    // jsdom has no PointerEvent constructor, so Testing Library otherwise
+    // falls back to Event and silently drops pointer-specific init fields.
+    fireTouchPointerEvent('pointerdown', 100, 1)
+    fireTouchPointerEvent('pointermove', 80, 1)
+    expect(runtimeMockState.markUserInput).toHaveBeenCalledTimes(1)
+    fireEvent.pointerUp(document)
+
+    runtimeMockState.markUserInput.mockClear()
+    region.style.overscrollBehaviorY = 'contain'
+    fireEvent.keyDown(region, { key: 'PageDown' })
+    expect(runtimeMockState.markUserInput).not.toHaveBeenCalled()
   })
 
   it('ignores purely horizontal wheel input instead of taking scroll ownership', () => {

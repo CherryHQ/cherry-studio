@@ -42,4 +42,20 @@ describe('buildRuntimeContextPrompt', () => {
       'Active model: Test Model'
     )
   })
+
+  it('treats a blank custom template as the shared default preset', async () => {
+    const prompt = await buildRuntimeContextPrompt('Test Model', '   ')
+    expect(prompt).toContain('## Runtime Context')
+    expect(prompt).toContain('- User: Test User')
+    expect(prompt).not.toContain('{{')
+  })
+
+  it('does not invent a username when PreferenceService has none', async () => {
+    preferenceGet.mockImplementation((key: string) => {
+      if (key === 'app.language') return 'en-US'
+      return undefined
+    })
+
+    await expect(buildRuntimeContextPrompt('Test Model', 'User: {{username}}')).resolves.toBe('User: Unknown Username')
+  })
 })

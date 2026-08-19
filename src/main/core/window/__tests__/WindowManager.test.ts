@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { shell } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BaseService } from '../../lifecycle/BaseService'
@@ -430,6 +431,62 @@ describe('WindowManager', () => {
       expect(win).toBeDefined()
       expect(win.loadFile).not.toHaveBeenCalled()
       expect(win.loadURL).not.toHaveBeenCalled()
+    })
+  })
+
+  // ─── will-navigate guard (S13) ──────────────────────────
+
+  describe('will-navigate guard', () => {
+    beforeEach(() => {
+      vi.mocked(shell.openExternal).mockClear()
+    })
+
+    /** The guard WindowManager registers via webContents.on('will-navigate', …). */
+    function getWillNavigateHandler(
+      win: MockBrowserWindow
+    ): (event: { preventDefault: () => void }, url: string) => void {
+      const call = win.webContents.on.mock.calls.find(([event]) => event === 'will-navigate')
+      if (!call) throw new Error('will-navigate handler was not registered')
+      return call[1] as never
+    }
+
+    it('blocks navigation to non-http(s) URLs instead of letting it pass', () => {
+      const id = wm.open('default' as never)
+      const win = wm.getWindow(id) as unknown as MockBrowserWindow
+      const handler = getWillNavigateHandler(win)
+
+      for (const url of ['file:///etc/passwd', 'cherry://settings', 'about:blank']) {
+        const preventDefault = vi.fn()
+        handler({ preventDefault }, url)
+        expect(preventDefault, `expected navigation to ${url} to be blocked`).toHaveBeenCalledTimes(1)
+      }
+      expect(shell.openExternal).not.toHaveBeenCalled()
+    })
+
+    it('allows same-origin http(s) navigation unchanged', () => {
+      const id = wm.open('default' as never)
+      const win = wm.getWindow(id) as unknown as MockBrowserWindow
+      win.webContents.getURL.mockReturnValue('https://app.local/index.html')
+      const handler = getWillNavigateHandler(win)
+
+      const preventDefault = vi.fn()
+      handler({ preventDefault }, 'https://app.local/other.html')
+
+      expect(preventDefault).not.toHaveBeenCalled()
+      expect(shell.openExternal).not.toHaveBeenCalled()
+    })
+
+    it('still blocks cross-origin http(s) and routes it to the system browser', () => {
+      const id = wm.open('default' as never)
+      const win = wm.getWindow(id) as unknown as MockBrowserWindow
+      win.webContents.getURL.mockReturnValue('https://app.local/index.html')
+      const handler = getWillNavigateHandler(win)
+
+      const preventDefault = vi.fn()
+      handler({ preventDefault }, 'https://evil.example.com')
+
+      expect(preventDefault).toHaveBeenCalledTimes(1)
+      expect(shell.openExternal).toHaveBeenCalledWith('https://evil.example.com')
     })
   })
 

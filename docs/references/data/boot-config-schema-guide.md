@@ -128,7 +128,7 @@ The `v2-refactor-temp/tools/data-classify/` directory contains the code generati
 | Source | Accessor | Example |
 |--------|----------|---------|
 | Redux Store | `ReduxStateReader` with category + dot-path | `settings.disableHardwareAcceleration` |
-| ElectronStore | `ConfigManager.get(key)` | Direct key lookup |
+| ElectronStore | `ElectronStoreReader.get(key)` | Direct key lookup |
 | Dexie settings | Key-value table | Direct key lookup |
 | localStorage | `localStorage.getItem(key)` | Direct key lookup |
 | Legacy home config file | `LegacyHomeConfigReader` | `~/.cherrystudio/config/config.json` (`appDataPath` field only) |

@@ -9,12 +9,10 @@ import CopyIcon from '@renderer/components/icons/CopyIcon'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
 import EditIcon from '@renderer/components/icons/EditIcon'
 import RefreshIcon from '@renderer/components/icons/RefreshIcon'
-import { getMessageTitle, messageToMarkdown } from '@renderer/services/ExportService'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { messageToPlainText } from '@renderer/utils/export'
 import { captureScrollableAsBlob, captureScrollableAsDataUrl } from '@renderer/utils/image'
-import { removeTrailingDoubleSpaces } from '@renderer/utils/markdown'
+import { removeTrailingDoubleSpaces } from '@renderer/utils/markdownLight'
 import { createComposerRichClipboardContentFromParts } from '@renderer/utils/message/composerClipboard'
 import { getTranslationFromParts } from '@renderer/utils/message/partsHelpers'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -25,6 +23,7 @@ import {
   AtSign,
   Check,
   CirclePause,
+  CopyPlus,
   FilePenLine,
   Languages,
   ListChecks,
@@ -200,6 +199,11 @@ registerCommand('message.newBranch', async ({ actions, message, t }) => {
   actions.notifySuccess?.(t('chat.message.new.branch.created'))
 })
 
+registerCommand('message.copyToNewTopic', async ({ actions, message, t }) => {
+  await actions.copyBranchToNewTopic?.(message.id)
+  actions.notifySuccess?.(t('chat.message.flow.copy_topic.created'))
+})
+
 registerCommand('message.multiSelect', ({ actions }) => {
   actions.toggleMultiSelectMode?.(true)
 })
@@ -218,6 +222,7 @@ registerCommand('message.exportNotes', async ({ actions, messageForExport }) => 
 })
 
 registerCommand('message.copyPlainText', async ({ actions, messageForExport, t }) => {
+  const { messageToPlainText } = await import('@renderer/utils/export')
   await actions.copyText?.(messageToPlainText(messageForExport), {
     successMessage: t('message.copy.success')
   })
@@ -233,6 +238,7 @@ registerCommand('message.copyImage', async ({ actions, messageContainerRef }) =>
 
 registerCommand('message.exportImage', async ({ actions, messageContainerRef, messageForExport, t }) => {
   const imageData = await captureScrollableAsDataUrl(messageContainerRef)
+  const { getMessageTitle } = await import('@renderer/services/ExportService')
   const title = await getMessageTitle(messageForExport)
   if (!title || !imageData || !actions.saveImage) {
     actions.notifyError?.(t('message.error.unknown'))
@@ -256,6 +262,7 @@ registerCommand('message.exportMarkdownReason', async ({ actions, messageForExpo
 })
 
 registerCommand('message.exportWord', async ({ actions, messageForExport }) => {
+  const { getMessageTitle, messageToMarkdown } = await import('@renderer/services/ExportService')
   const markdown = await messageToMarkdown(messageForExport)
   const title = await getMessageTitle(messageForExport)
   await actions.exportToWord?.(markdown, title)
@@ -436,17 +443,21 @@ registerAction({
   group: 'write',
   order: 20,
   surface: 'menu',
-  availability: ({ actions, isAssistantMessage, isLastMessage, t }) => {
+  availability: ({ actions, isAssistantMessage }) => {
     if (!actions.startMessageBranch || !isAssistantMessage) return false
-    if (isLastMessage) {
-      return {
-        visible: true,
-        enabled: false,
-        reason: t('chat.message.new.branch.disabled.latest')
-      }
-    }
     return true
   }
+})
+
+registerAction({
+  id: 'copy-to-new-topic',
+  commandId: 'message.copyToNewTopic',
+  label: ({ t }) => t('chat.message.flow.copy_topic.label'),
+  icon: <CopyPlus size={15} />,
+  group: 'write',
+  order: 25,
+  surface: 'menu',
+  availability: ({ actions, isAssistantMessage }) => !!actions.copyBranchToNewTopic && isAssistantMessage
 })
 
 registerAction({
@@ -475,12 +486,21 @@ registerAction({
       id: 'save.file',
       commandId: 'message.saveFile',
       label: ({ t }) => t('chat.save.file.title'),
+      order: 10,
       availability: ({ actions }) => !!actions.saveTextFile
+    },
+    {
+      id: 'save.notes',
+      commandId: 'message.exportNotes',
+      label: ({ t }) => t('notes.save'),
+      order: 20,
+      availability: ({ actions, isAssistantMessage }) => isAssistantMessage && !!actions.exportToNotes
     },
     {
       id: 'save.knowledge',
       commandId: 'message.saveKnowledge',
       label: ({ t }) => t('chat.save.knowledge.title'),
+      order: 30,
       availability: ({ actions }) => !!actions.saveToKnowledge
     }
   ]
@@ -495,27 +515,19 @@ registerAction({
   surface: 'menu',
   children: [
     {
-      id: 'export.copy-plain-text',
-      commandId: 'message.copyPlainText',
-      label: ({ t }) => t('chat.topics.copy.plain_text'),
-      availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.plain_text && !!actions.copyText
-    },
-    {
-      id: 'export.copy-image',
-      commandId: 'message.copyImage',
-      label: ({ t }) => t('chat.topics.copy.image'),
-      availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.image && !!actions.copyImage
-    },
-    {
       id: 'export.image',
       commandId: 'message.exportImage',
       label: ({ t }) => t('chat.topics.export.image'),
+      group: 'file',
+      order: 10,
       availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.image && !!actions.saveImage
     },
     {
       id: 'export.markdown',
       commandId: 'message.exportMarkdown',
       label: ({ t }) => t('chat.topics.export.md.label'),
+      group: 'file',
+      order: 20,
       availability: ({ actions, menuConfig }) =>
         menuConfig.exportMenuOptions.markdown && !!actions.exportMessageAsMarkdown
     },
@@ -523,6 +535,8 @@ registerAction({
       id: 'export.markdown-reason',
       commandId: 'message.exportMarkdownReason',
       label: ({ t }) => t('chat.topics.export.md.reason'),
+      group: 'file',
+      order: 30,
       availability: ({ actions, menuConfig }) =>
         menuConfig.exportMenuOptions.markdown_reason && !!actions.exportMessageAsMarkdown
     },
@@ -530,37 +544,65 @@ registerAction({
       id: 'export.word',
       commandId: 'message.exportWord',
       label: ({ t }) => t('chat.topics.export.word'),
+      group: 'file',
+      order: 40,
       availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.docx && !!actions.exportToWord
     },
     {
       id: 'export.notion',
       commandId: 'message.exportNotion',
       label: ({ t }) => t('chat.topics.export.notion'),
+      group: 'external',
+      order: 50,
       availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.notion && !!actions.exportToNotion
     },
     {
       id: 'export.yuque',
       commandId: 'message.exportYuque',
       label: ({ t }) => t('chat.topics.export.yuque'),
+      group: 'external',
+      order: 60,
       availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.yuque && !!actions.exportToYuque
     },
     {
       id: 'export.obsidian',
       commandId: 'message.exportObsidian',
       label: ({ t }) => t('chat.topics.export.obsidian'),
+      group: 'external',
+      order: 70,
       availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.obsidian && !!actions.exportToObsidian
     },
     {
       id: 'export.joplin',
       commandId: 'message.exportJoplin',
       label: ({ t }) => t('chat.topics.export.joplin'),
+      group: 'external',
+      order: 80,
       availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.joplin && !!actions.exportToJoplin
     },
     {
       id: 'export.siyuan',
       commandId: 'message.exportSiyuan',
       label: ({ t }) => t('chat.topics.export.siyuan'),
+      group: 'external',
+      order: 90,
       availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.siyuan && !!actions.exportToSiyuan
+    },
+    {
+      id: 'export.copy-plain-text',
+      commandId: 'message.copyPlainText',
+      label: ({ t }) => t('chat.topics.copy.plain_text'),
+      group: 'copy',
+      order: 100,
+      availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.plain_text && !!actions.copyText
+    },
+    {
+      id: 'export.copy-image',
+      commandId: 'message.copyImage',
+      label: ({ t }) => t('chat.topics.copy.image'),
+      group: 'copy',
+      order: 110,
+      availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.image && !!actions.copyImage
     }
   ]
 })

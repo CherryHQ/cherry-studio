@@ -68,7 +68,7 @@ export function usePaintingModelSwitch({
         presentPaintingGenerateError(error)
         return
       }
-      const targetPainting = createDefaultPainting(providerId)
+      const targetPainting = createDefaultPainting({ providerId })
 
       onPaintingChange({
         ...targetPainting,

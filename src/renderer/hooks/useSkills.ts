@@ -1,4 +1,4 @@
-import { useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
+import { useDataChange, useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
@@ -89,7 +89,8 @@ export function useReconcileSkillsOnOpen(enabled: boolean): void {
  * Hook to read installed skills.
  *
  * Pass `agentId` to get per-agent enablement state. Without `agentId`, the
- * hook returns the global skill library with `isEnabled` forced to false.
+ * hook returns the global skill library with `isEnabled` forced to false and
+ * `isGlobalEnabled` carrying the library-wide switch.
  * Per-agent enablement is edited through the agent form and saved via
  * PATCH /agents (see `AgentEditDialog`), not through this hook.
  * `loading` covers the initial fetch; `refreshing` reports background
@@ -102,6 +103,7 @@ export function useInstalledSkills(agentId?: string, options: { enabled?: boolea
     enabled,
     ...(agentId ? { query: { agentId } } : {})
   })
+  useDataChange(enabled ? '/skills' : [], () => refetch())
   const refresh = useCallback(async () => {
     await ipcApi.request('skill.reconcile', {})
     return refetch()
@@ -149,6 +151,7 @@ export function useAvailableSkills(agentId?: string, workdir?: string, options: 
   const [localSkills, setLocalSkills] = useState<LocalSkill[]>([])
   const [localLoading, setLocalLoading] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)
+  const [loadedLocalSkillsWorkdir, setLoadedLocalSkillsWorkdir] = useState<string>()
   const localRequestIdRef = useRef(0)
   const nextLocalRequestId = useCallback(() => {
     localRequestIdRef.current += 1
@@ -164,6 +167,7 @@ export function useAvailableSkills(agentId?: string, workdir?: string, options: 
       setLocalSkills([])
       setLocalError(null)
       setLocalLoading(false)
+      setLoadedLocalSkillsWorkdir(undefined)
       return
     }
 
@@ -173,12 +177,16 @@ export function useAvailableSkills(agentId?: string, workdir?: string, options: 
     try {
       const result = await ipcApi.request('skill.list_local', { workdir })
       const data = unwrapSkillResult(result)
-      if (requestId === localRequestIdRef.current) setLocalSkills(data)
+      if (requestId === localRequestIdRef.current) {
+        setLocalSkills(data)
+        setLoadedLocalSkillsWorkdir(workdir)
+      }
     } catch (error) {
       if (requestId !== localRequestIdRef.current) return
       const message = skillErrorMessage(error)
       setLocalSkills([])
       setLocalError(message)
+      setLoadedLocalSkillsWorkdir(workdir)
       logger.warn('Failed to list local skills', { workdir, error: message })
     } finally {
       if (requestId === localRequestIdRef.current) setLocalLoading(false)
@@ -191,6 +199,7 @@ export function useAvailableSkills(agentId?: string, workdir?: string, options: 
       setLocalSkills([])
       setLocalError(null)
       setLocalLoading(false)
+      setLoadedLocalSkillsWorkdir(undefined)
       return
     }
 
@@ -205,10 +214,11 @@ export function useAvailableSkills(agentId?: string, workdir?: string, options: 
   }, [refreshInstalledSkills, refreshLocalSkills])
 
   const skills = useMemo(() => buildAvailableSkills(installed.skills, localSkills), [installed.skills, localSkills])
+  const isInitialLocalLoad = enabled && Boolean(workdir) && loadedLocalSkillsWorkdir !== workdir
 
   return {
     skills,
-    loading: installed.loading || localLoading,
+    loading: installed.loading || localLoading || isInitialLocalLoad,
     error: installed.error ?? localError,
     refresh
   }

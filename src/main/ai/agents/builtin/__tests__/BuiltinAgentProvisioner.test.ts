@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { application } from '@application'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
@@ -15,7 +16,7 @@ vi.mock('@main/utils/asar', () => ({
   toAsarUnpackedPath: mocks.toAsarUnpackedPath
 }))
 
-import { loadBuiltinAssistantDefaults } from '../builtinAgentDefinition'
+import { BUILTIN_AGENT_PLUGIN_NAME, loadBuiltinAgentDefaults } from '../builtinAgentDefinition'
 import {
   getBuiltinAgentPluginDirectory,
   loadBuiltinAgentDefinition,
@@ -28,6 +29,16 @@ const TEMPLATE_AGENT_JSON = JSON.stringify({
   configuration: { permission_mode: 'default' },
   skills: ['cherry-assistant-guide']
 })
+const SUPPORT_AGENT_JSON = JSON.stringify({
+  name: { 'en-US': 'Cherry Support', 'zh-CN': 'Cherry Support CN' },
+  instructions: { 'en-US': 'Support instructions', 'zh-CN': 'Chinese support instructions' },
+  configuration: { permission_mode: 'acceptEdits' },
+  skills: ['cherry-assistant-guide', 'faq-collector', 'cherry-studio-feedback', 'issue-reporter']
+})
+const RC5_STOCK_SOUL_PATH = fileURLToPath(new URL('./fixtures/cherry-assistant-rc5-soul.md', import.meta.url))
+const PR17870_INTERIM_STOCK_SOUL_PATH = fileURLToPath(
+  new URL('./fixtures/cherry-assistant-pr17870-interim-soul.md', import.meta.url)
+)
 
 function writeFile(filePath: string, content: string): void {
   fs.mkdirSync(path.dirname(filePath), { recursive: true })
@@ -49,12 +60,16 @@ describe('BuiltinAgentProvisioner', () => {
     vi.spyOn(application, 'getPath').mockReturnValue(templateRoot)
     vi.mocked(app.getLocale).mockReturnValue('en-US')
 
-    writeFile(path.join(templateDir, '.claude', '.claude-plugin', 'plugin.json'), '{"name":"builtin-test"}')
+    writeFile(path.join(templateDir, '.claude', '.claude-plugin', 'plugin.json'), '{"name":"cherry-assistant-builtin"}')
     writeFile(path.join(templateDir, '.claude', 'skills', 'cherry-assistant-guide', 'SKILL.md'), 'SKILL_V1')
     writeFile(path.join(templateDir, 'SOUL.md'), 'TEMPLATE_SOUL')
     writeFile(path.join(templateDir, 'USER.md'), 'TEMPLATE_USER')
     writeFile(path.join(templateDir, 'memory', 'FACT.md'), 'TEMPLATE_FACT')
     writeFile(path.join(templateDir, 'agent.json'), TEMPLATE_AGENT_JSON)
+    writeFile(path.join(templateRoot, 'cherry-support', 'SOUL.md'), 'SUPPORT_SOUL')
+    writeFile(path.join(templateRoot, 'cherry-support', 'USER.md'), 'SUPPORT_USER')
+    writeFile(path.join(templateRoot, 'cherry-support', 'memory', 'FACT.md'), 'SUPPORT_FACT')
+    writeFile(path.join(templateRoot, 'cherry-support', 'agent.json'), SUPPORT_AGENT_JSON)
   })
 
   afterEach(() => {
@@ -88,8 +103,24 @@ describe('BuiltinAgentProvisioner', () => {
     expect(loadBuiltinAgentDefinition('assistant')?.skills).toEqual(['cherry-assistant-guide'])
   })
 
+  it('keeps the canonical bundled plugin name aligned with its manifest', () => {
+    const manifest = JSON.parse(
+      fs.readFileSync(path.join(templateDir, '.claude', '.claude-plugin', 'plugin.json'), 'utf-8')
+    )
+    expect(manifest.name).toBe(BUILTIN_AGENT_PLUGIN_NAME)
+  })
+
+  it('loads Cherry Support identity from its own package and plugins from Cherry Assistant', () => {
+    expect(loadBuiltinAgentDefinition('support')).toMatchObject({
+      name: 'Cherry Support',
+      instructions: 'Support instructions',
+      skills: ['cherry-assistant-guide', 'faq-collector', 'cherry-studio-feedback', 'issue-reporter']
+    })
+    expect(getBuiltinAgentPluginDirectory('support')).toBe(path.join(templateDir, '.claude'))
+  })
+
   it('builds creation defaults from the bundled Agent definition', () => {
-    expect(loadBuiltinAssistantDefaults()).toEqual({
+    expect(loadBuiltinAgentDefaults('assistant')).toEqual({
       name: 'Cherry Assistant',
       configuration: { permission_mode: 'default', builtin_role: 'assistant' }
     })
@@ -98,10 +129,12 @@ describe('BuiltinAgentProvisioner', () => {
   it('rejects invalid bundled creation defaults', () => {
     writeFile(
       path.join(templateDir, 'agent.json'),
-      JSON.stringify({ name: 'Cherry Assistant', configuration: { max_turns: 'invalid' } })
+      JSON.stringify({ name: 'Cherry Assistant', configuration: { permission_mode: 'invalid' } })
     )
 
-    expect(() => loadBuiltinAssistantDefaults()).toThrow('Cherry Assistant package configuration is invalid')
+    expect(() => loadBuiltinAgentDefaults('assistant')).toThrow(
+      'Builtin Agent package configuration is invalid for assistant'
+    )
   })
 
   it('copies persona and memory templates into agent data without copying product files', async () => {
@@ -127,6 +160,33 @@ describe('BuiltinAgentProvisioner', () => {
 
     expect(fs.readFileSync(path.join(agentDataPath, 'SOUL.md'), 'utf-8')).toBe('TEMPLATE_SOUL')
     expect(fs.readFileSync(path.join(agentDataPath, 'USER.md'), 'utf-8')).toBe('TEMPLATE_USER')
+  })
+
+  it('migrates the exact restrictive SOUL.md bundled in v2.0.0-rc.5', async () => {
+    writeFile(path.join(agentDataPath, 'SOUL.md'), fs.readFileSync(RC5_STOCK_SOUL_PATH, 'utf-8'))
+
+    await provisionBuiltinAgent(agentDataPath, 'assistant')
+
+    expect(fs.readFileSync(path.join(agentDataPath, 'SOUL.md'), 'utf-8')).toBe('TEMPLATE_SOUL')
+  })
+
+  it('migrates the exact interim SOUL.md bundled during PR #17870', async () => {
+    writeFile(path.join(agentDataPath, 'SOUL.md'), fs.readFileSync(PR17870_INTERIM_STOCK_SOUL_PATH, 'utf-8'))
+
+    await provisionBuiltinAgent(agentDataPath, 'assistant')
+
+    expect(fs.readFileSync(path.join(agentDataPath, 'SOUL.md'), 'utf-8')).toBe('TEMPLATE_SOUL')
+  })
+
+  it('preserves a user edit made to the legacy bundled SOUL.md', async () => {
+    const stockSoul = fs.readFileSync(RC5_STOCK_SOUL_PATH, 'utf-8')
+    const customizedSoul = stockSoul.replace('warm, patient', 'warm, direct ')
+    expect(Buffer.byteLength(customizedSoul)).toBe(Buffer.byteLength(stockSoul))
+    writeFile(path.join(agentDataPath, 'SOUL.md'), customizedSoul)
+
+    await provisionBuiltinAgent(agentDataPath, 'assistant')
+
+    expect(fs.readFileSync(path.join(agentDataPath, 'SOUL.md'), 'utf-8')).toBe(customizedSoul)
   })
 
   it('initializes missing memory templates after the agent data directory creates memory', async () => {

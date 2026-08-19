@@ -108,3 +108,45 @@ describe('MessageWebSearchToolTitle — foreign result shapes', () => {
     expect(screen.getByText('Failed')).toBeTruthy()
   })
 })
+
+describe('MessageWebSearchToolTitle — provider-executed Responses actions', () => {
+  it('shows the provider search query when the tool input is empty', () => {
+    render(
+      <MessageWebSearchToolTitle
+        toolResponse={
+          {
+            id: 'provider-search',
+            toolCallId: 'provider-search',
+            tool: { id: 'provider-search', name: 'webSearch', type: 'provider' },
+            status: 'done',
+            arguments: {},
+            response: { action: { type: 'search', query: 'DeepSeek V4 latest news' } }
+          } as NormalToolResponse
+        }
+      />
+    )
+
+    expect(screen.getByText('DeepSeek V4 latest news')).toBeInTheDocument()
+    expect(screen.getByText('Searched by the model')).toBeInTheDocument()
+  })
+
+  it('shows the opened page URL returned by DeepSeek', () => {
+    render(
+      <MessageWebSearchToolTitle
+        toolResponse={
+          {
+            id: 'provider-open-page',
+            toolCallId: 'provider-open-page',
+            tool: { id: 'provider-open-page', name: 'webSearch', type: 'provider' },
+            status: 'done',
+            arguments: {},
+            response: { action: { type: 'openPage', url: 'https://example.com/news' } }
+          } as NormalToolResponse
+        }
+      />
+    )
+
+    expect(screen.getByText('https://example.com/news')).toBeInTheDocument()
+    expect(screen.getByText('Searched by the model')).toBeInTheDocument()
+  })
+})
