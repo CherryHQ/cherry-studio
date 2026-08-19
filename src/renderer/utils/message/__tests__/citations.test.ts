@@ -306,7 +306,7 @@ describe('withToolCitationTags', () => {
     // resolver's #2 and kzz-1 to its #3, but they render as 1 and 2.
     expect(content).toContain('1</sup>](https://b.com/y)')
     // Web citations link out; the URL-less KB citation must stay a bare <sup> so rehype-harden
-    // does not rewrite an empty-href anchor into "<span>… [blocked]</span>".
+    // does not unwrap an empty-href anchor into a "<span>", losing the tooltip.
     expect(content).toContain('2</sup>')
     expect(content).not.toContain('2</sup>]()')
     expect(cited.map((c) => c.number)).toEqual([1, 2])

@@ -21,6 +21,7 @@ src/main/data/
 │   ├── schemas/               # Drizzle table definitions
 │   ├── seeding/               # Database initialization
 │   └── DbService.ts           # Database connection management
+├── bootConfig/                # Pre-lifecycle file-backed boot configuration
 ├── migration/                 # Data migration system
 ├── CacheService.ts            # Cache management
 ├── DataApiService.ts          # API coordination
@@ -34,7 +35,9 @@ src/main/data/
 
 The low-level `notifyDataApiDataChange()` publisher is private to `DbService` by lint rule. See [Fenced Exception: Data Change Notification](../../../docs/references/data/api-design-guidelines.md#fenced-exception-data-change-notification) for the remaining fences and delivery contract.
 
-It deliberately lives at the `data/` top level, NOT in `api/` — `api/` is the portable transport framework (HttpAdapter reserved), while this capability is an Electron/IPC special case depending on `WindowManager`.
+It deliberately lives at the `data/` top level, not in `api/`: the API framework
+owns request routing and its IPC adapter, while this capability is an
+Electron-specific broadcast depending on `WindowManager`.
 
 ## Quick Reference
 
@@ -43,11 +46,13 @@ It deliberately lives at the `data/` top level, NOT in `api/` — `api/` is the 
 1. Define schema in `@shared/data/api/schemas/`
 2. Implement handler in `api/handlers/`
 3. Create business service in `services/`
-4. Create repository in `repositories/` (if complex domain)
+
+Services own their Drizzle access. Do not add a repository layer by default;
+see [DataApi in Main](../../../docs/references/data/data-api-in-main.md#repository-pattern-strongly-discouraged).
 
 ### Database Commands
 
 ```bash
 # Generate migrations
-yarn db:migrations:generate
+pnpm db:migrations:generate
 ```

@@ -1,3 +1,10 @@
+---
+description: Renderer stream overlay — TopicStreamSubscription demux by execution and anchor feeding readUIMessageStream snapshots
+sources:
+  - src/renderer/services/aiTransport/TopicStreamSubscription.ts
+  - src/renderer/hooks/useExecutionOverlay.ts
+---
+
 # Execution Overlay
 
 The renderer-side counterpart of Main's `pipeStreamLoop`. Both sides
@@ -68,7 +75,7 @@ class that owns:
   arrived between `register` and the reader's first `read()` are
   already buffered in the stream's internal queue — late readers never
   miss replayed chunks.
-- **Terminal demux.** `Ai_StreamDone` / `Ai_StreamError` close the
+- **Terminal demux.** `ai.stream.done` / `ai.stream.error` close the
   matching branch and fan out an `ExecutionTerminal` (`{ isAbort,
   isError }`) to listeners; if the payload carries `isTopicDone` or no
   `executionId`, every branch terminates together. An explicit
@@ -80,7 +87,7 @@ class that owns:
 | Layer | Owner | Action |
 |---|---|---|
 | Renderer-local subscription | `TopicStreamSubscription.unregister` / `dispose` | Closes the branch reader and releases its topic lease when idle; Main keeps generating |
-| Generation abort | Main (via `useChatWithHistory.stop` → Chat → `Ai_Stream_Abort`) | Stops the LLM |
+| Generation abort | Main (via `useChatWithHistory.stop` → `ai.stream.abort`) | Stops the LLM |
 
 `TopicStreamSubscription` NEVER aborts the LLM. Closing all branches releases
 its attachment lease; `StreamAttachmentService` detaches only if no transport
@@ -260,7 +267,7 @@ src/renderer/pages/home/useChatRuntimeState.ts                     ← persisten
    handoff; only a successful refresh may call `retireThrough(watermark)`, while
    refresh failure retains the final overlay for retry.
 5. **`TopicStreamSubscription` never aborts.** It only detaches.
-   Anything in this layer that calls `Ai_Stream_Abort` is in the
+   Anything in this layer that calls `ai.stream.abort` is in the
    wrong place — abort belongs to `useChatWithHistory.stop`.
 6. **Window-level attachment ownership.** Releasing an
    `IpcChatTransport` stream must NOT detach while a

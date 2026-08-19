@@ -408,7 +408,7 @@ export class AiStreamManager extends BaseService {
   private readonly activeStreams = new Map<string, ActiveStream>()
   /** Aggregate ownership starts at reservation, before an ActiveStream has runtime resources. */
   private readonly topicAggregates = new Map<string, TopicStreamAggregate>()
-  /** Serialises `prepareDispatch → send` per topic so concurrent `Ai_Stream_Open` can't race
+  /** Serialises `prepareDispatch → send` per topic so concurrent `ai.stream.open` requests can't race
    *  the `hasLiveStream` snapshot and orphan a PENDING placeholder row. */
   private readonly dispatchLock = new KeyedMutex()
   private readonly config: AiStreamManagerConfig
@@ -533,7 +533,7 @@ export class AiStreamManager extends BaseService {
   /**
    * Run `fn` under the per-topic dispatch lock. The sole accessor of `dispatchLock`,
    * so every dispatch entry point serialises through one place: `dispatch()` (the chat
-   * `Ai_Stream_Open` + approval-continue paths) and `startAgentSessionRun` (scheduler /
+   * `ai.stream.open` + approval-continue paths) and `startAgentSessionRun` (scheduler /
    * channel-inbound agent-session runs), which can't use `dispatch()` because it carries
    * extra listeners. Holding the same per-topic lock around their `hasLiveStream →
    * prepareDispatch → send` window stops two runs on one topic from both seeing "no live

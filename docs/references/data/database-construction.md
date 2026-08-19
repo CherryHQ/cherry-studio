@@ -1,8 +1,17 @@
+---
+description: How the SQLite DB is built at boot - drizzle migrations, CUSTOM_SQL_STATEMENTS replay, FTS5 fts_rowid, rebuilds
+sources:
+  - src/main/data/db/DbService.ts
+  - src/main/data/db/applyMigrations.ts
+  - src/main/data/db/customSqls.ts
+  - migrations/sqlite-drizzle
+---
+
 # Database Construction (Build, Migrations, Custom SQL, FTS5)
 
 How the SQLite database is **built at boot and evolved over time**. Scope: drizzle migrations, the `CUSTOM_SQL_STATEMENTS` replay, FTS5 / `fts_rowid`, and the additive-vs-rebuild rule.
 
-> **Not here (linked, not duplicated):** schema-authoring patterns (FKs, raw-SQL casing, `rowToEntity`) → [database-patterns.md](./database-patterns.md); default-value & nullability rules → [best-practice-default-values-and-nullability.md](./best-practice-default-values-and-nullability.md); naming (tables / `XxxRow` types) → [naming-conventions.md](../naming-conventions.md); the test harness → [testing/database-testing.md](../testing/database-testing.md); the data-system choice (BootConfig / Cache / Preference / DataApi / `app_state`) → [data/README.md](./README.md); the one-shot v1→v2 data-migration engine → [v2-migration-guide.md](./v2-migration-guide.md).
+> **Not here (linked, not duplicated):** schema-authoring patterns (FKs, raw-SQL casing, `rowToEntity`) → [database-patterns.md](./database-patterns.md); default-value & nullability rules → [best-practice-default-values-and-nullability.md](./best-practice-default-values-and-nullability.md); naming (tables / `XxxRow` types) → [naming-conventions.md](../architecture/naming-conventions.md); the test harness → [testing/database-testing.md](../testing/database-testing.md); the data-system choice (BootConfig / Cache / Preference / DataApi / `app_state`) → [data/README.md](./README.md); the one-shot v1→v2 data-migration engine → [v2-migration-guide.md](./v2-migration-guide.md).
 
 ## 1. Boot init order
 

@@ -1,3 +1,11 @@
+---
+description: Endpoint resolution chain from provider.endpointConfigs and adapterFamily to the AI SDK provider id and variants
+sources:
+  - src/main/ai/provider/endpoint.ts
+  - src/main/ai/provider/config.ts
+  - packages/aiCore/src/core/providers/core/initialization.ts
+---
+
 # Provider Resolution
 
 ## The problem this solves
