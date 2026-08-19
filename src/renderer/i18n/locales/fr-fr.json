@@ -388,6 +388,15 @@
         "inaccessible": "Le chemin de l'espace de travail n'est pas accessible : {{path}}"
       }
     },
+    "session_delivery": {
+      "from": "De {{agent}} / {{session}}",
+      "status": {
+        "accepted": "Accepté",
+        "consumed": "Traité",
+        "delivering": "En cours de livraison",
+        "failed": "Échec"
+      }
+    },
     "settings": {
       "permissionMode": {
         "title": "Mode d'autorisation"
@@ -3390,6 +3399,21 @@
         "stderr": "stderr",
         "stdout": "sortie standard"
       },
+      "sessionCreate": {
+        "created": "Nouvelle session démarrée",
+        "creating": "Démarrage d’une nouvelle session",
+        "firstMessage": "Premier message",
+        "inheritedContext": "Utilisation de cet agent et de cet espace de travail",
+        "open": "Ouvrir la session",
+        "sessionId": "ID de session",
+        "untitled": "Session sans titre"
+      },
+      "sessionSend": {
+        "open": "Ouvrir la session",
+        "sending": "Envoi vers",
+        "sent": "Envoyé à",
+        "to": "À"
+      },
       "status": {
         "done": "Fait",
         "error": "Erreur",
@@ -5621,6 +5645,10 @@
         "title": "Paramètres de police"
       }
     },
+    "fetch": {
+      "allow_private_network": "Autoriser l'accès aux adresses du réseau local",
+      "allow_private_network_tip": "Permet aux outils de récupération web d'accéder à localhost et aux adresses de réseau privé. Désactivez cette option si vous ne souhaitez pas que les modèles lisent les services de votre machine ou de votre réseau local."
+    },
     "font_size": {
       "title": "Taille de police des messages"
     },
@@ -6075,40 +6103,48 @@
       "bulk_enable": "Tout activer",
       "check": {
         "all": "Tous",
-        "button_caption": "Test de santé",
-        "disabled": "Désactivé",
+        "all_models": "Tous les modèles",
+        "all_models_disclaimer": "Le contrôle de tous les modèles envoie de nombreuses requêtes réelles aux modèles et aux clés API sélectionnés, ce qui peut entraîner des frais élevés en peu de temps. Confirmez que vous acceptez le risque financier avant de commencer. Les modèles de génération d’images, de vidéos et d’audio, de transcription et de synthèse vocale sont ignorés.",
+        "button_caption": "Vérification des modèles",
+        "checking": "Vérification…",
+        "concurrent_hint": "Les modèles sont vérifiés simultanément ; les clés API de chaque modèle sont toujours vérifiées simultanément.",
         "disclaimer": "Le contrôle de santé nécessite l'envoi de requêtes, veuillez utiliser avec prudence. Cela peut entraîner des frais supplémentaires pour les modèles facturés à l'utilisation. Vous en assumez la responsabilité.",
         "enable_concurrent": "Activer les tests simultanés",
-        "enabled": "Activé",
         "failed": "Échec",
         "failed_to_start": "Échec du démarrage de la vérification de santé",
         "generation_output_audio": "audio",
         "generation_output_image": "une image",
         "generation_output_video": "une vidéo",
+        "key_scope": "Clé(s)",
+        "keys_failed_count": "{{failed}}/{{total}} clés en échec",
+        "latency": "{{latency}} ms",
+        "model": "Modèle",
         "model_button_caption": "Vérifier tous les modèles",
-        "model_status_failed": "{{count}} modèles sont totalement inaccessibles",
-        "model_status_partial": "Parmi eux, {{count}} modèles sont inaccessibles avec certaines clés",
-        "model_status_passed": "{{count}} modèles ont passé le contrôle de santé",
+        "model_scope": "Modèles à vérifier",
+        "model_status_failed_one": "{{count}} modèles sont totalement inaccessibles",
+        "model_status_failed_other": "{{count}} modèles sont totalement inaccessibles",
+        "model_status_partial_one": "Parmi eux, {{count}} modèles sont inaccessibles avec certaines clés",
+        "model_status_partial_other": "Parmi eux, {{count}} modèles sont inaccessibles avec certaines clés",
+        "model_status_passed_one": "{{count}} modèles ont passé le contrôle de santé",
+        "model_status_passed_other": "{{count}} modèles ont passé le contrôle de santé",
+        "model_status_skipped_one": "{{count}} modèles ignorés",
+        "model_status_skipped_other": "{{count}} modèles ignorés",
         "model_status_summary": "{{provider}} : {{summary}}",
         "no_results": "Aucun résultat",
-        "outcome_fail_short": "{{count}} en échec",
-        "outcome_skipped_short": "{{count}} ignoré",
-        "outcome_success_short": "{{count}} réussis",
-        "outcome_total": "{{count}} au total",
         "passed": "Passé",
-        "pipeline_heading": "Progression de la détection",
-        "progress_count": "{{done}} / {{total}}",
-        "retry": "Vérifier à nouveau",
-        "select_api_key": "Sélectionner la clé API à utiliser :",
+        "provider_auth": "Authentification du fournisseur",
+        "select_api_key": "Sélectionner la clé API à utiliser",
         "single": "Unique",
+        "single_model": "Un seul modèle",
         "skip_reason_generation_cost": "La vérification d'état de ce modèle générerait {{output}} et consommerait du quota, elle est donc ignorée par défaut.",
         "skip_reason_unsupported_probe": "Ce type de modèle ne dispose pas encore de vérification d’intégrité à faible coût, il est donc ignoré par défaut.",
         "start": "Commencer",
         "status_checking": "Vérification…",
         "status_skipped": "Ignoré",
         "timeout": "Délai dépassé",
-        "title": "Test de santé des modèles",
-        "use_all_keys": "Utiliser toutes les clés"
+        "timeout_unit": "s",
+        "title": "Vérification des modèles",
+        "toggle_key": "Changer l’état d’activation de {{name}}"
       },
       "collapse_all": "Tout réduire",
       "context_management": {

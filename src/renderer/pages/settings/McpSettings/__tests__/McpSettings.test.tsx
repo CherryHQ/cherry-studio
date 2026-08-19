@@ -14,19 +14,24 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof Cher
 const mockUseMcpServer = vi.hoisted(() => vi.fn())
 const mocks = vi.hoisted(() => ({
   confirm: vi.fn(),
-  deleteMcpServer: vi.fn(),
+  invalidate: vi.fn(),
   navigate: vi.fn(),
   on: vi.fn<(event: string, callback: (log: McpServerLogEntry & { serverId: string }) => void) => () => void>(() =>
     vi.fn()
   ),
   request: vi.fn(),
+  toastError: vi.fn(),
+  toastSuccess: vi.fn(),
   updateMcpServer: vi.fn()
 }))
 
 let currentServer: McpServer
 let currentSearch: { autoEnable?: 'true' }
 
-vi.mock('@renderer/hooks/useMcpServer', () => ({
+// Keep the real useMcpServerMutations so the delete tests exercise the actual
+// remove flow (IPC channel + cache invalidation), not a stand-in.
+vi.mock('@renderer/hooks/useMcpServer', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
   useMcpServer: mockUseMcpServer
 }))
 
@@ -51,6 +56,16 @@ vi.mock('@renderer/ipc', () => ({
 }))
 
 vi.mock('@renderer/data/hooks/useCache', () => ({ useSharedCacheValue: () => undefined }))
+vi.mock('@renderer/data/hooks/useDataApi', async (importOriginal) => {
+  const actual = await importOriginal<object>()
+  return { ...actual, useInvalidateCache: () => mocks.invalidate }
+})
+vi.mock('@renderer/services/toast', () => ({
+  toast: {
+    success: mocks.toastSuccess,
+    error: mocks.toastError
+  }
+}))
 vi.mock('@renderer/hooks/useMcpRuntimeStatus', () => ({
   useMcpRuntimeStatus: () => ({ state: 'disabled', lastError: undefined })
 }))
@@ -107,12 +122,12 @@ describe('McpSettings', () => {
     }
     currentSearch = { autoEnable: 'true' }
     mocks.confirm.mockResolvedValue(false)
+    mocks.invalidate.mockResolvedValue(undefined)
     mocks.updateMcpServer.mockResolvedValue(undefined)
     mockUseMcpServer.mockImplementation(() => ({
       server: currentServer,
       isLoading: false,
-      updateMcpServer: mocks.updateMcpServer,
-      deleteMcpServer: mocks.deleteMcpServer
+      updateMcpServer: mocks.updateMcpServer
     }))
   })
 
@@ -218,5 +233,56 @@ describe('McpSettings', () => {
 
     await user.click(screen.getByRole('button', { name: 'Copy logs' }))
     expect(clipboardWriteText).toHaveBeenCalledWith(formatMcpLogs([...logs, liveLog]))
+  })
+
+  it('deletes via the mcp.server.remove IPC channel, refreshes the cache, and navigates back', async () => {
+    currentSearch = {}
+    currentServer = { id: 'server-a', name: 'Server A', type: 'stdio', command: 'server-a', isActive: false }
+    mocks.confirm.mockResolvedValue(true)
+    mocks.request.mockResolvedValue(undefined)
+
+    const user = userEvent.setup()
+    render(<McpSettings />)
+    await user.click(screen.getByRole('button', { name: /common\.delete/ }))
+
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith({ to: '/settings/mcp' }))
+    expect(mocks.request).toHaveBeenCalledWith('mcp.server.remove', { serverId: 'server-a' })
+    expect(mocks.invalidate).toHaveBeenCalledWith('/mcp-servers')
+    expect(mocks.toastSuccess).toHaveBeenCalled()
+    expect(mocks.toastError).not.toHaveBeenCalled()
+  })
+
+  it('surfaces an IPC removal failure without refreshing, reporting success, or navigating', async () => {
+    currentSearch = {}
+    currentServer = { id: 'server-a', name: 'Server A', type: 'stdio', command: 'server-a', isActive: false }
+    mocks.confirm.mockResolvedValue(true)
+    mocks.request.mockImplementation((channel: string) =>
+      channel === 'mcp.server.remove' ? Promise.reject(new Error('close failed')) : Promise.resolve([])
+    )
+
+    const user = userEvent.setup()
+    render(<McpSettings />)
+    await user.click(screen.getByRole('button', { name: /common\.delete/ }))
+
+    await waitFor(() => expect(mocks.toastError).toHaveBeenCalled())
+    expect(mocks.invalidate).not.toHaveBeenCalled()
+    expect(mocks.toastSuccess).not.toHaveBeenCalled()
+    expect(mocks.navigate).not.toHaveBeenCalled()
+  })
+
+  it('does not report a committed delete as failed when the cache refresh rejects', async () => {
+    currentSearch = {}
+    currentServer = { id: 'server-a', name: 'Server A', type: 'stdio', command: 'server-a', isActive: false }
+    mocks.confirm.mockResolvedValue(true)
+    mocks.request.mockResolvedValue(undefined)
+    mocks.invalidate.mockRejectedValue(new Error('refetch failed'))
+
+    const user = userEvent.setup()
+    render(<McpSettings />)
+    await user.click(screen.getByRole('button', { name: /common\.delete/ }))
+
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith({ to: '/settings/mcp' }))
+    expect(mocks.toastSuccess).toHaveBeenCalled()
+    expect(mocks.toastError).not.toHaveBeenCalled()
   })
 })
