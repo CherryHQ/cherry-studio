@@ -2,7 +2,7 @@
 title: Migrated conversations keep their V1 list order
 category: data-migration
 severity: notice
-introduced_in_pr: pending
+introduced_in_pr: 8b22c46376
 date: 2026-08-19
 ---
 
@@ -12,12 +12,12 @@ Conversations migrated from V1 now keep the order the user set under each assist
 
 ## Why this matters to the user
 
-After upgrading, a profile that still has V1 Redux data (`persist:cherry-studio`) is repaired once so assistant-mode matches the old list. Time mode and the right panel still group by recent activity and do not offer drag reorder.
+After upgrading, a profile that still has V1 Redux data (`persist:cherry-studio`) is repaired once so assistant-mode overlapping conversations match the old list. Conversations created after migration keep their current placement. Time mode and the right panel still group by recent activity and do not offer drag reorder.
 
 ## What the user should do
 
-nothing — automatic. If V1 browser data was already cleared, restore order with assistant-mode drag, or rerun V1 migration from Settings > Data (that discards current V2 data).
+If `persist:cherry-studio` is still present, nothing — automatic. If that V1 browser data was already cleared, restore order with assistant-mode drag, or rerun V1 migration from Settings > Data (that discards current V2 data).
 
 ## Notes for release manager
 
-Does not implement time-mode recency grouping (#18205) or time-mode drag. Profiles with no remaining V1 persist are left as-is.
+Automatic repair requires remaining `persist:cherry-studio`. Does not implement time-mode recency grouping (#18205) or time-mode drag. Profiles with no remaining V1 persist are left as-is.

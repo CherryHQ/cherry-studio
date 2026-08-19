@@ -6,18 +6,49 @@ import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { asc, eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
+
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory()
 })
+vi.mock('@data/dataApiDataChange', () => ({
+  notifyDataApiDataChange: notifyDataApiDataChangeMock
+}))
 
-const { repairMigratedV1TopicOrder, V1_TOPIC_ORDER_REPAIR_KEY } = await import('../repairV1TopicOrder')
+const { permuteOverlappingOrderKeys, repairMigratedV1TopicOrder, V1_TOPIC_ORDER_REPAIR_KEY } = await import(
+  '../repairV1TopicOrder'
+)
+
+describe('permuteOverlappingOrderKeys', () => {
+  it('reassigns only overlapping slots in Redux order', () => {
+    expect(
+      permuteOverlappingOrderKeys(
+        [
+          { id: 't-e', orderKey: 'a0' },
+          { id: 't-b', orderKey: 'a1' },
+          { id: 't-d', orderKey: 'a2' },
+          { id: 't-a', orderKey: 'a3' },
+          { id: 't-f', orderKey: 'a4' },
+          { id: 't-c', orderKey: 'a5' },
+          { id: 't-g', orderKey: 'a6' }
+        ],
+        (row) => row.id,
+        ['t-c', 't-a', 't-b']
+      )
+    ).toEqual([
+      { id: 't-c', orderKey: 'a1' },
+      { id: 't-b', orderKey: 'a5' }
+    ])
+  })
+})
 
 describe('repairMigratedV1TopicOrder', () => {
   const dbh = setupTestDatabase()
 
   beforeEach(() => {
     MockMainDbServiceUtils.setDb(dbh.db)
+    notifyDataApiDataChangeMock.mockClear()
   })
 
   function seedTopic(id: string, orderKey: string, updatedAt: number): void {
@@ -70,13 +101,24 @@ describe('repairMigratedV1TopicOrder', () => {
       .map((row) => row.entityId)
   }
 
-  it('rewrites recency-stamped keys to Redux [C,A,B] including pin order and a Dexie leftover', () => {
-    seedTopic('t-c', 'a2', 100)
-    seedTopic('t-a', 'a1', 200)
-    seedTopic('t-b', 'a0', 300)
-    seedTopic('t-dexie', 'a3', 50)
-    seedPin('pin-b', 't-b', 'a0')
-    seedPin('pin-c', 't-c', 'a1')
+  function topicKey(id: string): string {
+    const row = dbh.db.select({ orderKey: topicTable.orderKey }).from(topicTable).where(eq(topicTable.id, id)).get()
+    if (!row) throw new Error(`missing topic ${id}`)
+    return row.orderKey
+  }
+
+  it('permutes only Redux-overlapping ids and keeps interleaved V2 rows in place', () => {
+    seedTopic('t-e', 'a0', 500)
+    seedTopic('t-b', 'a1', 300)
+    seedTopic('t-d', 'a2', 400)
+    seedTopic('t-a', 'a3', 200)
+    seedTopic('t-f', 'a4', 450)
+    seedTopic('t-c', 'a5', 100)
+    seedTopic('t-g', 'a6', 50)
+    seedPin('pin-e', 't-e', 'p0')
+    seedPin('pin-b', 't-b', 'p1')
+    seedPin('pin-a', 't-a', 'p2')
+    seedPin('pin-c', 't-c', 'p3')
 
     expect(
       repairMigratedV1TopicOrder({
@@ -84,9 +126,13 @@ describe('repairMigratedV1TopicOrder', () => {
       })
     ).toEqual({ applied: true, reason: 'repaired' })
 
-    expect(topicIdsByOrder()).toEqual(['t-c', 't-a', 't-b', 't-dexie'])
-    expect(pinIdsByOrder()).toEqual(['t-c', 't-b'])
-    expect(new Set(topicIdsByOrder()).size).toBe(4)
+    expect(topicIdsByOrder()).toEqual(['t-e', 't-c', 't-d', 't-a', 't-f', 't-b', 't-g'])
+    expect(topicKey('t-e')).toBe('a0')
+    expect(topicKey('t-d')).toBe('a2')
+    expect(topicKey('t-f')).toBe('a4')
+    expect(topicKey('t-g')).toBe('a6')
+    expect(pinIdsByOrder()).toEqual(['t-e', 't-c', 't-a', 't-b'])
+    expect(new Set(topicIdsByOrder()).size).toBe(7)
     expect(
       dbh.db.select().from(appStateTable).where(eq(appStateTable.key, V1_TOPIC_ORDER_REPAIR_KEY)).get()?.value
     ).toEqual({
@@ -95,7 +141,28 @@ describe('repairMigratedV1TopicOrder', () => {
     })
   })
 
-  it('is a no-op on the second run', () => {
+  it('notifies /topics and /pins after a successful repair commit', () => {
+    seedTopic('t-c', 'a2', 100)
+    seedTopic('t-a', 'a1', 200)
+    seedTopic('t-b', 'a0', 300)
+    seedPin('pin-b', 't-b', 'p0')
+    seedPin('pin-c', 't-c', 'p1')
+
+    expect(
+      repairMigratedV1TopicOrder({
+        assistants: [{ topics: [{ id: 't-c' }, { id: 't-a' }, { id: 't-b' }] }]
+      })
+    ).toEqual({ applied: true, reason: 'repaired' })
+
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+      { endpoint: '/topics', kind: 'projection', entityIds: ['t-c', 't-a', 't-b'] },
+      { endpoint: '/topics', kind: 'order', dimension: 'orderKey', entityIds: ['t-c', 't-a', 't-b'] },
+      { endpoint: '/pins', kind: 'order', dimension: 'orderKey', entityIds: ['pin-c', 'pin-b'] },
+      { endpoint: '/topics', kind: 'order', dimension: 'pinned', entityIds: ['t-c', 't-b'] }
+    ])
+  })
+
+  it('is a no-op on the second run and does not notify again', () => {
     seedTopic('t-c', 'a2', 100)
     seedTopic('t-a', 'a1', 200)
     seedTopic('t-b', 'a0', 300)
@@ -106,6 +173,7 @@ describe('repairMigratedV1TopicOrder', () => {
       })
     ).toEqual({ applied: true, reason: 'repaired' })
     const firstKeys = dbh.db.select({ id: topicTable.id, orderKey: topicTable.orderKey }).from(topicTable).all()
+    notifyDataApiDataChangeMock.mockClear()
 
     expect(
       repairMigratedV1TopicOrder({
@@ -116,9 +184,10 @@ describe('repairMigratedV1TopicOrder', () => {
       firstKeys
     )
     expect(topicIdsByOrder()).toEqual(['t-c', 't-a', 't-b'])
+    expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
   })
 
-  it('does not invent an order when Redux has no topic ids', () => {
+  it('does not invent an order or notify when Redux has no topic ids', () => {
     seedTopic('t-b', 'a0', 300)
     seedTopic('t-a', 'a1', 200)
 
@@ -130,6 +199,7 @@ describe('repairMigratedV1TopicOrder', () => {
       version: 1,
       source: 'skipped'
     })
+    expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
   })
 
   it('does not rewrite leftover-only SQLite rows when Redux ids do not overlap', () => {
@@ -141,9 +211,10 @@ describe('repairMigratedV1TopicOrder', () => {
       })
     ).toEqual({ applied: false, reason: 'no_overlap' })
     expect(topicIdsByOrder()).toEqual(['t-native'])
+    expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
   })
 
-  it('rolls back key rewrites when the marker write fails', () => {
+  it('rolls back key rewrites and does not notify when the marker write fails', () => {
     seedTopic('t-c', 'a2', 100)
     seedTopic('t-a', 'a1', 200)
     seedTopic('t-b', 'a0', 300)
@@ -162,6 +233,7 @@ describe('repairMigratedV1TopicOrder', () => {
       expect(
         dbh.db.select().from(appStateTable).where(eq(appStateTable.key, V1_TOPIC_ORDER_REPAIR_KEY)).get()
       ).toBeUndefined()
+      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
     } finally {
       dbh.sqlite.exec('DROP TRIGGER v1_topic_order_sabotage')
     }

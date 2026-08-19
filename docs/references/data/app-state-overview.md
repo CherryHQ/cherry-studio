@@ -69,7 +69,7 @@ Every key currently in `app_state`. Add a row when introducing a key.
 | `seedRunner:bootstrapCompleted` | `SeedRunner` | `{ completedAt: number }` | Bootstrap-window marker — set after the first fully-successful seeding pass; `bootstrap-only` seeders never run once present. Done-event key (see Disposability exception): never rename once shipped. |
 | `fileManager:contentMetadataGeneration` | `FileManager` | `{ version: number }` | Trust generation for internal-file `size` / `contentHash`; a version change atomically invalidates old hashes before background reconciliation. |
 | `migration_v2_status` | `MigrationEngine` | `MigrationStatusValue`  | **Grandfathered exception.** Bare key predating the `<scope>:` convention; serves only the one-time v1→2.0.0 migration and disappears when the migration module is removed after 2.0.x. Do not rename; do not model new keys on it. |
-| `chatMigrator:v1TopicOrderRepair` | `ChatMigrator` / `repairMigratedV1TopicOrder` | `{ version: 1, source: 'migration' \| 'repair' \| 'skipped' }` | One-shot rewrite of `topic.orderKey` / `pin.orderKey` from preserved V1 Redux `assistants[].topics[]`. Written by ChatMigrator after a successful stamp, or by the already-migrated repair. Done-event key: do not rename once shipped. |
+| `chatMigrator:v1TopicOrderRepair` | `ChatMigrator` / `repairMigratedV1TopicOrder` | `{ version: 1, source: 'migration' \| 'repair' \| 'skipped' }` | One-shot permute of overlapping `topic.orderKey` / `pin.orderKey` from preserved V1 Redux `assistants[].topics[]`. Written by ChatMigrator after a successful stamp, or by the already-migrated repair. Done-event key: do not rename once shipped. |
 
 ## Related Source Code
 
@@ -78,6 +78,7 @@ Every key currently in `app_state`. Add a row when introducing a key.
 | `src/main/data/db/schemas/appState.ts`                | Table schema                  |
 | `src/main/data/db/seeding/SeedRunner.ts`              | `seed:*` owner                |
 | `src/main/data/migration/v2/core/MigrationEngine.ts`  | `migration_v2_status` owner   |
+| `src/main/data/migration/v2/repairV1TopicOrder.ts`    | `chatMigrator:v1TopicOrderRepair` owner |
 
 ## Related Documentation
 

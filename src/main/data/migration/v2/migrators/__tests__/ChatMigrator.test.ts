@@ -10,6 +10,7 @@ vi.mock('@logger', () => ({
   }
 }))
 
+import { appStateTable } from '@data/db/schemas/appState'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { chatMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { messageTable } from '@data/db/schemas/message'
@@ -19,6 +20,7 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { asc, eq } from 'drizzle-orm'
 
 import type { MigrationContext } from '../../core/MigrationContext'
+import { V1_TOPIC_ORDER_REPAIR_KEY } from '../../repairV1TopicOrder'
 import { ChatMigrator } from '../ChatMigrator'
 import type { NewMessage, NewTopic, OldBlock, OldMainTextBlock, OldMessage, OldTopic } from '../mappings/ChatMappings'
 
@@ -1015,6 +1017,9 @@ describe('ChatMigrator.insertStagedTopics phase 3 (pin emission)', () => {
     expect(pins.map((p) => p.entityId)).toEqual(['t-c', 't-b'])
     expect(pins.every((p) => p.orderKey.length > 0)).toBe(true)
     expect(new Set(pins.map((p) => p.orderKey)).size).toBe(pins.length)
+    expect(
+      dbh.db.select().from(appStateTable).where(eq(appStateTable.key, V1_TOPIC_ORDER_REPAIR_KEY)).get()?.value
+    ).toEqual({ version: 1, source: 'migration' })
   })
 
   it('appends Dexie-only leftovers after an empty Redux flatten using updatedAt DESC', async () => {

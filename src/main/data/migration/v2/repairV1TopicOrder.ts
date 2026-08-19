@@ -1,19 +1,15 @@
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { appStateTable } from '@data/db/schemas/appState'
 import { pinTable } from '@data/db/schemas/pin'
 import { topicTable } from '@data/db/schemas/topic'
 import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
-import { eq, sql } from 'drizzle-orm'
+import type { DataApiDataChangeEffect } from '@shared/data/api/types'
+import { eq, isNull, sql } from 'drizzle-orm'
 import * as z from 'zod'
 
-import { assignOrderKeysInSequence } from './utils/orderKey'
-import {
-  collectV1TopicOrderIds,
-  compareTopicLeftoversByUpdatedAtThenId,
-  orderItemsByV1TopicSequence,
-  type V1TopicOrderSource
-} from './utils/v1TopicOrder'
+import { collectV1TopicOrderIds, type V1TopicOrderSource } from './utils/v1TopicOrder'
 
 const logger = loggerService.withContext('ChatMigrator')
 
@@ -31,8 +27,42 @@ export interface V1TopicOrderRepairResult {
   reason: 'already_applied' | 'no_source' | 'no_overlap' | 'repaired'
 }
 
-function comparePinLeftoversByEntityId(a: { entityId: string }, b: { entityId: string }): number {
-  return a.entityId.localeCompare(b.entityId)
+/**
+ * Reassign existing orderKeys among Redux-overlapping rows so those ids
+ * follow `reduxOrderIds`. Non-overlapping rows keep their keys and slots.
+ */
+export function permuteOverlappingOrderKeys<T extends { id: string; orderKey: string }>(
+  rows: readonly T[],
+  getEntityId: (row: T) => string,
+  reduxOrderIds: readonly string[]
+): Array<{ id: string; orderKey: string }> {
+  const byEntityId = new Map<string, T>()
+  for (const row of rows) {
+    byEntityId.set(getEntityId(row), row)
+  }
+
+  const overlapping: T[] = []
+  for (const id of reduxOrderIds) {
+    const row = byEntityId.get(id)
+    if (row) overlapping.push(row)
+  }
+  if (overlapping.length === 0) return []
+
+  const slots = [...overlapping].sort((left, right) => {
+    if (left.orderKey < right.orderKey) return -1
+    if (left.orderKey > right.orderKey) return 1
+    return left.id.localeCompare(right.id)
+  })
+
+  const updates: Array<{ id: string; orderKey: string }> = []
+  for (let i = 0; i < overlapping.length; i++) {
+    const row = overlapping[i]
+    const orderKey = slots[i].orderKey
+    if (row.orderKey !== orderKey) {
+      updates.push({ id: row.id, orderKey })
+    }
+  }
+  return updates
 }
 
 export function writeV1TopicOrderRepairMarker(db: DbOrTx, source: V1TopicOrderRepairSource): void {
@@ -42,7 +72,7 @@ export function writeV1TopicOrderRepairMarker(db: DbOrTx, source: V1TopicOrderRe
     .values({
       key: V1_TOPIC_ORDER_REPAIR_KEY,
       value,
-      description: 'One-shot rewrite of topic/pin orderKey from V1 Redux assistants[].topics[]',
+      description: 'One-shot rewrite of overlapping topic/pin orderKey from V1 Redux assistants[].topics[]',
       createdAt: now,
       updatedAt: now
     })
@@ -50,7 +80,7 @@ export function writeV1TopicOrderRepairMarker(db: DbOrTx, source: V1TopicOrderRe
       target: appStateTable.key,
       set: {
         value,
-        description: 'One-shot rewrite of topic/pin orderKey from V1 Redux assistants[].topics[]',
+        description: 'One-shot rewrite of overlapping topic/pin orderKey from V1 Redux assistants[].topics[]',
         updatedAt: now
       }
     })
@@ -67,78 +97,115 @@ function readRepairMarker(db: DbOrTx): z.infer<typeof V1TopicOrderRepairMarkerSc
   return parsed.success ? parsed.data : null
 }
 
-function stampTopicAndPinOrder(db: DbOrTx, reduxOrderIds: readonly string[]): void {
-  const topics = db.select({ id: topicTable.id, updatedAt: topicTable.updatedAt }).from(topicTable).all()
-  const stampedTopics = assignOrderKeysInSequence(
-    orderItemsByV1TopicSequence(topics, (topic) => topic.id, reduxOrderIds, compareTopicLeftoversByUpdatedAtThenId)
-  )
-  for (const topic of stampedTopics) {
+function stampOverlappingTopicAndPinOrder(
+  db: DbOrTx,
+  reduxOrderIds: readonly string[]
+): { topicIds: string[]; pinIds: string[]; pinnedEntityIds: string[] } {
+  const topics = db
+    .select({ id: topicTable.id, orderKey: topicTable.orderKey })
+    .from(topicTable)
+    .where(isNull(topicTable.deletedAt))
+    .all()
+  const topicUpdates = permuteOverlappingOrderKeys(topics, (topic) => topic.id, reduxOrderIds)
+  for (const update of topicUpdates) {
     db.update(topicTable)
       .set({
-        orderKey: topic.orderKey,
+        orderKey: update.orderKey,
         updatedAt: sql`${topicTable.updatedAt}`
       })
-      .where(eq(topicTable.id, topic.id))
+      .where(eq(topicTable.id, update.id))
       .run()
   }
 
   const pins = db
-    .select({ id: pinTable.id, entityId: pinTable.entityId })
+    .select({ id: pinTable.id, entityId: pinTable.entityId, orderKey: pinTable.orderKey })
     .from(pinTable)
     .where(eq(pinTable.entityType, 'topic'))
     .all()
-  const stampedPins = assignOrderKeysInSequence(
-    orderItemsByV1TopicSequence(pins, (pin) => pin.entityId, reduxOrderIds, comparePinLeftoversByEntityId)
-  )
-  for (const pin of stampedPins) {
+  const pinUpdates = permuteOverlappingOrderKeys(pins, (pin) => pin.entityId, reduxOrderIds)
+  for (const update of pinUpdates) {
     db.update(pinTable)
       .set({
-        orderKey: pin.orderKey,
+        orderKey: update.orderKey,
         updatedAt: sql`${pinTable.updatedAt}`
       })
-      .where(eq(pinTable.id, pin.id))
+      .where(eq(pinTable.id, update.id))
       .run()
   }
+
+  const liveIds = new Set(topics.map((topic) => topic.id))
+  const topicIds = reduxOrderIds.filter((id) => liveIds.has(id))
+  const pinByEntityId = new Map(pins.map((pin) => [pin.entityId, pin.id]))
+  const pinIds: string[] = []
+  const pinnedEntityIds: string[] = []
+  for (const id of reduxOrderIds) {
+    const pinId = pinByEntityId.get(id)
+    if (!pinId) continue
+    pinIds.push(pinId)
+    pinnedEntityIds.push(id)
+  }
+
+  return { topicIds, pinIds, pinnedEntityIds }
+}
+
+function notifyRepairedOrder(topicIds: string[], pinIds: string[], pinnedEntityIds: string[]): void {
+  const effects: DataApiDataChangeEffect[] = [
+    { endpoint: '/topics', kind: 'projection', entityIds: topicIds },
+    { endpoint: '/topics', kind: 'order', dimension: 'orderKey', entityIds: topicIds }
+  ]
+  if (pinIds.length > 0) {
+    effects.push(
+      { endpoint: '/pins', kind: 'order', dimension: 'orderKey', entityIds: pinIds },
+      { endpoint: '/topics', kind: 'order', dimension: 'pinned', entityIds: pinnedEntityIds }
+    )
+  }
+  notifyDataApiDataChange(effects)
 }
 
 /**
- * Rewrite already-migrated topic/pin orderKeys from preserved V1 Redux order.
- * No-ops when the marker exists, when Redux has no topic ids, or when none
- * of those ids exist in SQLite (skip-migration / native v2 profiles).
+ * Rewrite already-migrated overlapping topic/pin orderKeys from preserved V1
+ * Redux order. V2-only rows keep their keys. No-ops when the marker exists,
+ * when Redux has no topic ids, or when none of those ids exist in SQLite.
  */
 export function repairMigratedV1TopicOrder(source: V1TopicOrderSource): V1TopicOrderRepairResult {
-  return application.get('DbService').withWriteTx((tx) => {
+  const result = application.get('DbService').withWriteTx((tx) => {
     if (readRepairMarker(tx)) {
-      return { applied: false, reason: 'already_applied' }
+      return { applied: false as const, reason: 'already_applied' as const }
     }
 
     const reduxOrderIds = collectV1TopicOrderIds(source)
     if (reduxOrderIds.length === 0) {
       writeV1TopicOrderRepairMarker(tx, 'skipped')
       logger.info('V1 topic-order repair skipped: no Redux topic sequence')
-      return { applied: false, reason: 'no_source' }
+      return { applied: false as const, reason: 'no_source' as const }
     }
 
-    const existingIds = new Set(
+    const liveIds = new Set(
       tx
         .select({ id: topicTable.id })
         .from(topicTable)
+        .where(isNull(topicTable.deletedAt))
         .all()
         .map((row) => row.id)
     )
-    const overlap = reduxOrderIds.some((id) => existingIds.has(id))
+    const overlap = reduxOrderIds.some((id) => liveIds.has(id))
     if (!overlap) {
       writeV1TopicOrderRepairMarker(tx, 'skipped')
       logger.info('V1 topic-order repair skipped: Redux sequence has no SQLite overlap')
-      return { applied: false, reason: 'no_overlap' }
+      return { applied: false as const, reason: 'no_overlap' as const }
     }
 
-    stampTopicAndPinOrder(tx, reduxOrderIds)
+    const stamped = stampOverlappingTopicAndPinOrder(tx, reduxOrderIds)
     writeV1TopicOrderRepairMarker(tx, 'repair')
-    logger.info('Rewrote migrated topic/pin order from V1 Redux assistants[].topics[]', {
+    logger.info('Permuted overlapping topic/pin order from V1 Redux assistants[].topics[]', {
       reduxTopicCount: reduxOrderIds.length,
-      topicCount: existingIds.size
+      overlappingTopicCount: stamped.topicIds.length
     })
-    return { applied: true, reason: 'repaired' }
+    return { applied: true as const, reason: 'repaired' as const, ...stamped }
   })
+
+  if (result.applied) {
+    notifyRepairedOrder(result.topicIds, result.pinIds, result.pinnedEntityIds)
+  }
+  return { applied: result.applied, reason: result.reason }
 }

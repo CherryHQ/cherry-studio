@@ -132,7 +132,7 @@ Topic data is merged from Dexie + Redux before transformation:
 | `compact` | `CompactBlock` | Direct copy |
 | `unknown` | (skipped) | Placeholder blocks are dropped |
 
-Already-migrated profiles that still have V1 Redux persist (`persist:cherry-studio`) are repaired once by `repairMigratedV1TopicOrder` (same flatten). Profiles whose persist is gone are left as-is.
+Already-migrated profiles that still have V1 Redux persist (`persist:cherry-studio`) are repaired once by `repairMigratedV1TopicOrder`: overlapping topic/pin ids are permuted into Redux order, and post-migration V2 rows keep their slots. Profiles whose persist is gone are left as-is.
 
 ## Implementation Files
 
