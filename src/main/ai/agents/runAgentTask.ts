@@ -401,7 +401,7 @@ async function notifyTaskError(
           channelId: ch.id,
           chatId,
           event: 'task-error',
-          deliver: () => adapter.sendMessage(chatId, text)
+          text
         })
       }
     }

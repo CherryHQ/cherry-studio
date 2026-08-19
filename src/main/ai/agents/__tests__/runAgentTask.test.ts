@@ -29,9 +29,16 @@ const {
   return {
     mockAbort: vi.fn(),
     mockRemoveListener: vi.fn(),
-    mockGetAdapter: vi.fn(() => undefined),
-    mockEnqueueTerminalDelivery: vi.fn((delivery: { deliver: () => Promise<void> }) => {
-      void delivery.deliver()
+    mockGetAdapter: vi.fn<(channelId?: string) => any>(() => undefined),
+    // Requests are stable data; ChannelManager resolves the adapter and sends. Mirror that here
+    // so these tests still observe the text that reaches the platform.
+    mockEnqueueTerminalDelivery: vi.fn((request: any) => {
+      const adapter = mockGetAdapter(request.channelId)
+      if (!adapter) return false
+      void (async () => {
+        if (request.finalizeStream && (await adapter.onStreamComplete(request.chatId, request.text))) return
+        await adapter.sendMessage(request.chatId, request.fallbackText ?? request.text)
+      })()
       return true
     }),
     mockStartRun: vi.fn(async (opts: { listeners: typeof captured.listeners }) => {
@@ -598,8 +605,10 @@ describe('runAgentTask', () => {
     captured.listeners[0].onDone({ status: 'completed' })
     await promise
 
-    expect(mockGetAdapter).toHaveBeenCalledTimes(1)
+    // The claim is which channels are reached, not how many times the adapter is resolved:
+    // delivery resolves it again at send time so a reconnect uses the live adapter.
     expect(mockGetAdapter).toHaveBeenCalledWith('ch-match')
+    expect(mockGetAdapter).not.toHaveBeenCalledWith('ch-foreign')
     expect(captured.listeners).toHaveLength(2)
     expect(mockEnqueueTerminalDelivery).toHaveBeenCalledTimes(1)
   })

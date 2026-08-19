@@ -14,18 +14,32 @@ import { channelMessageHandler } from './ChannelMessageHandler'
 import type { ChannelLogEntry, ChannelStatusEvent } from './types'
 
 const logger = loggerService.withContext('ChannelManager')
-const TERMINAL_DELIVERY_DEDUP_LIMIT = 4096
 
-export type ChannelTerminalDelivery = {
+/**
+ * A queued external send, as data (C3).
+ *
+ * Deliberately not a `deliver()` closure: one closes over its producer, so a queue waiting behind
+ * a slow channel used to retain the stream listener, its accumulated text, and the adapter itself.
+ * The adapter is resolved from `channelId` at send time instead, which also means a reconnect
+ * between enqueue and send uses the live adapter rather than a captured dead one.
+ */
+export type ChannelDeliveryRequest = {
   id: string
   channelId: string
   chatId: string
   event: 'done' | 'paused' | 'error' | 'task-error'
-  deliver: () => Promise<void>
+  /** Final text to send. Already sanitized by the producer. */
+  text: string
+  /** Sent instead of `text` when the adapter did not absorb the finalize — a paused turn marks
+   *  the message as stopped only in the fallback, never in the adapter's own stream UI. */
+  fallbackText?: string
+  replyToMessageId?: string | number
+  /** Give the adapter a chance to finalize its streaming UI (e.g. close a Feishu card) first. */
+  finalizeStream?: boolean
 }
 
 export interface ChannelTerminalDeliveryOwner {
-  enqueueTerminalDelivery(delivery: ChannelTerminalDelivery): boolean
+  enqueueTerminalDelivery(delivery: ChannelDeliveryRequest): boolean
 }
 
 // Adapter factory registry -- adapters register themselves here. The factory
@@ -76,11 +90,6 @@ export class ChannelManager extends BaseService implements ChannelTerminalDelive
   >()
   private readonly channelLogs = new ChannelLogBuffer()
   private readonly channelStatuses = new Map<string, ChannelStatusEvent>()
-  private readonly terminalDeliveryTails = new Map<string, Promise<void>>()
-  private readonly inFlightTerminalDeliveries = new Map<Promise<void>, ChannelTerminalDelivery>()
-  private readonly terminalDeliveryIds = new Set<string>()
-  private readonly blockedDeliveryChannelIds = new Set<string>()
-  private acceptingTerminalDeliveries = false
 
   // ChannelIngressService starts adapters after producers are ready; this owner
   // keeps lifecycle stop so terminal delivery remains alive until producers stop.
@@ -109,8 +118,7 @@ export class ChannelManager extends BaseService implements ChannelTerminalDelive
   }
 
   async start(): Promise<void> {
-    this.acceptingTerminalDeliveries = true
-    this.blockedDeliveryChannelIds.clear()
+    this.delivery.open()
 
     let channels: Awaited<ReturnType<typeof channelService.listChannels>>
     try {
@@ -135,8 +143,7 @@ export class ChannelManager extends BaseService implements ChannelTerminalDelive
 
   async stop(): Promise<void> {
     logger.info('Stopping channel manager')
-    this.acceptingTerminalDeliveries = false
-    await this.drainTerminalDeliveries()
+    await this.delivery.drain()
     const disconnects = Array.from(this.adapters.values()).map((adapter) =>
       adapter.disconnect().catch((err) => {
         logger.warn('Error disconnecting adapter', {
@@ -148,10 +155,6 @@ export class ChannelManager extends BaseService implements ChannelTerminalDelive
     )
     await Promise.all(disconnects)
     this.adapters.clear()
-    this.terminalDeliveryTails.clear()
-    this.inFlightTerminalDeliveries.clear()
-    this.terminalDeliveryIds.clear()
-    this.blockedDeliveryChannelIds.clear()
     logger.info('Channel manager stopped')
   }
 
@@ -159,62 +162,13 @@ export class ChannelManager extends BaseService implements ChannelTerminalDelive
    * Accept terminal channel work without holding the stream settlement path.
    * One owner serializes sends per channel chat and drains them before adapter teardown.
    */
-  enqueueTerminalDelivery(delivery: ChannelTerminalDelivery): boolean {
-    if (!this.acceptingTerminalDeliveries || this.blockedDeliveryChannelIds.has(delivery.channelId)) {
-      logger.warn('Rejected terminal channel delivery: channel is stopping', {
-        deliveryId: delivery.id,
-        channelId: delivery.channelId,
-        chatId: delivery.chatId,
-        event: delivery.event
-      })
-      return false
-    }
-    if (this.terminalDeliveryIds.has(delivery.id)) {
-      logger.warn('Ignored duplicate terminal channel delivery', {
-        deliveryId: delivery.id,
-        channelId: delivery.channelId,
-        chatId: delivery.chatId,
-        event: delivery.event
-      })
-      return false
-    }
-
-    this.terminalDeliveryIds.add(delivery.id)
-    if (this.terminalDeliveryIds.size > TERMINAL_DELIVERY_DEDUP_LIMIT) {
-      const oldestId = this.terminalDeliveryIds.values().next().value
-      if (oldestId) this.terminalDeliveryIds.delete(oldestId)
-    }
-    const key = `${delivery.channelId}\0${delivery.chatId}`
-    const previous = this.terminalDeliveryTails.get(key) ?? Promise.resolve()
-    const queued = previous.then(async () => {
-      try {
-        await delivery.deliver()
-      } catch (error) {
-        logger.error('Failed to deliver terminal message to channel', {
-          deliveryId: delivery.id,
-          channelId: delivery.channelId,
-          chatId: delivery.chatId,
-          event: delivery.event,
-          error
-        })
-      }
-    })
-
-    this.terminalDeliveryTails.set(key, queued)
-    this.inFlightTerminalDeliveries.set(queued, delivery)
-    const cleanup = () => {
-      this.inFlightTerminalDeliveries.delete(queued)
-      if (this.terminalDeliveryTails.get(key) === queued) this.terminalDeliveryTails.delete(key)
-    }
-    queued.then(cleanup, cleanup)
-    return true
+  /** Delivery is owned by `ChannelTerminalDeliveryService`; kept here for existing callers. */
+  enqueueTerminalDelivery(delivery: ChannelDeliveryRequest): boolean {
+    return this.delivery.enqueue(delivery)
   }
 
-  private async drainTerminalDeliveries(channelIds?: ReadonlySet<string>): Promise<void> {
-    const pending = [...this.inFlightTerminalDeliveries.entries()]
-      .filter(([, delivery]) => !channelIds || channelIds.has(delivery.channelId))
-      .map(([delivery]) => delivery)
-    if (pending.length > 0) await Promise.allSettled(pending)
+  private get delivery() {
+    return application.get('ChannelTerminalDeliveryService')
   }
 
   /**
@@ -287,8 +241,8 @@ export class ChannelManager extends BaseService implements ChannelTerminalDelive
   /** Disconnect the adapter for a single channel without reconnecting. */
   async disconnectChannel(channelId: string, options: { suppressErrors?: boolean } = {}): Promise<void> {
     const { suppressErrors = true } = options
-    this.blockedDeliveryChannelIds.add(channelId)
-    await this.drainTerminalDeliveries(new Set([channelId]))
+    this.delivery.block(channelId)
+    await this.delivery.drain(new Set([channelId]))
     for (const [key, adapter] of this.adapters) {
       if (adapter.channelId !== channelId) continue
 
@@ -335,8 +289,8 @@ export class ChannelManager extends BaseService implements ChannelTerminalDelive
   async disconnectAgent(agentId: string): Promise<void> {
     const toDisconnect = [...this.adapters.entries()].filter(([, a]) => a.agentId === agentId)
     const channelIds = new Set(toDisconnect.map(([, adapter]) => adapter.channelId))
-    for (const channelId of channelIds) this.blockedDeliveryChannelIds.add(channelId)
-    await this.drainTerminalDeliveries(channelIds)
+    for (const channelId of channelIds) this.delivery.block(channelId)
+    await this.delivery.drain(channelIds)
     await Promise.all(
       toDisconnect.map(([key, adapter]) =>
         adapter
@@ -488,7 +442,7 @@ export class ChannelManager extends BaseService implements ChannelTerminalDelive
       // Register adapter immediately so it's discoverable. Callers can either
       // await connect for strict workflows or leave it in the background.
       this.adapters.set(key, adapter)
-      this.blockedDeliveryChannelIds.delete(row.id)
+      this.delivery.reopen(row.id)
 
       const connect = async () => {
         try {

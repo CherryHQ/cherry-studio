@@ -34,6 +34,8 @@ export type ChannelCommandEvent = {
 
 export type SendMessageOptions = {
   parseMode?: 'MarkdownV2' | 'HTML'
+  /** Aborted when Cherry gives up waiting; adapters should pass it to their transport if supported. */
+  signal?: AbortSignal
   /** Inbound message id to reply against. String for QQ (passive `msg_id`); number for Telegram. */
   replyToMessageId?: string | number
 }

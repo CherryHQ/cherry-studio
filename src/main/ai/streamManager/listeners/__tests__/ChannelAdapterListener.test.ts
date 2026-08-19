@@ -12,15 +12,31 @@ import { ChannelAdapterListener } from '../ChannelAdapterListener'
 
 const SECRET = 'sk-ant-api03-ABCDEFGHIJKLMNOPQRSTUVWXYZ012345'
 
+/**
+ * Requests are stable data, so the send happens in ChannelManager. This stands in for it: resolve
+ * the adapter, then perform the same one bounded send, so these tests still observe the real text
+ * that reaches the platform.
+ */
+let deliveryAdapter: ChannelAdapter | undefined
 const immediateDeliveryOwner: ChannelTerminalDeliveryOwner = {
-  enqueueTerminalDelivery(delivery) {
-    void delivery.deliver()
+  enqueueTerminalDelivery(request) {
+    const adapter = deliveryAdapter
+    if (!adapter) return false
+    void (async () => {
+      if (request.finalizeStream && (await adapter.onStreamComplete(request.chatId, request.text))) return
+      const text = request.fallbackText ?? request.text
+      if (request.replyToMessageId !== undefined) {
+        await adapter.sendMessage(request.chatId, text, { replyToMessageId: request.replyToMessageId })
+        return
+      }
+      await adapter.sendMessage(request.chatId, text)
+    })()
     return true
   }
 }
 
 function makeAdapter(overrides: Partial<ChannelAdapter> = {}): ChannelAdapter {
-  return {
+  const adapter = {
     channelId: 'ch-1',
     connected: true,
     onTextUpdate: vi.fn().mockResolvedValue(undefined),
@@ -28,6 +44,8 @@ function makeAdapter(overrides: Partial<ChannelAdapter> = {}): ChannelAdapter {
     sendMessage: vi.fn().mockResolvedValue(undefined),
     ...overrides
   } as unknown as ChannelAdapter
+  deliveryAdapter = adapter
+  return adapter
 }
 
 function delta(text: string): UIMessageChunk {
@@ -143,6 +161,25 @@ describe('ChannelAdapterListener', () => {
 
     expect(adapter.onStreamComplete).not.toHaveBeenCalled()
     expect(adapter.sendMessage).not.toHaveBeenCalled()
+  })
+
+  // C1: this listener outlives an Agent continuation (A1 → A2). Everything per-turn must rebind.
+  it('rebinds per attempt so a continuation does not inherit the prior turn accumulator', async () => {
+    const adapter = makeAdapter()
+    const listener = new ChannelAdapterListener(immediateDeliveryOwner, adapter, 'chat-1')
+
+    listener.onChunk(delta('first answer'), undefined, undefined, 1)
+    listener.onDone({ status: 'success', attemptId: 1 } as StreamDoneResult)
+    await Promise.resolve()
+
+    listener.onChunk(delta('second answer'), undefined, undefined, 2)
+    listener.onDone({ status: 'success', attemptId: 2 } as StreamDoneResult)
+    await Promise.resolve()
+
+    // A2 delivered at all — the spent one-shot flag from A1 must not suppress it...
+    expect(adapter.sendMessage).toHaveBeenCalledTimes(2)
+    // ...and it carries only its own text.
+    expect(vi.mocked(adapter.sendMessage).mock.calls[1][1]).toBe('second answer')
   })
 
   it('submits a hung terminal delivery only once', async () => {

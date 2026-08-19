@@ -37,12 +37,8 @@ vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
     AiStreamManager: { abort: vi.fn() },
-    ChannelManager: {
-      enqueueTerminalDelivery: (delivery: { deliver: () => Promise<void> }) => {
-        void delivery.deliver()
-        return true
-      }
-    }
+    ChannelManager: { getAdapter: () => undefined },
+    ChannelTerminalDeliveryService: { enqueue: () => true }
   } as never)
 })
 

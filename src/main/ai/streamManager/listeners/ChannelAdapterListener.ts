@@ -15,6 +15,25 @@ export class ChannelAdapterListener implements StreamListener {
   private readonly deliveryListenerId = ++nextDeliveryListenerId
   private accumulatedText = ''
   private terminalDeliveryQueued = false
+  /** Attempt the accumulator and one-shot flag currently belong to; undefined = unbound. */
+  private boundAttemptId: number | undefined
+
+  /**
+   * C1: accumulator, one-shot flag and delivery id are per attempt, but this listener outlives an
+   * Agent continuation (A1 → A2). Rebinding on a new attempt is what stops A1's text from being
+   * delivered as A2's answer — and, more damagingly, stops A1's spent one-shot flag from
+   * suppressing A2's delivery entirely.
+   */
+  private bindTo(attemptId: number | undefined): void {
+    if (attemptId === undefined || attemptId === this.boundAttemptId) return
+    // Adopting an identity for text already accumulated unscoped is not a turn change: chunks may
+    // arrive without an attempt id and only the terminal names it. Reset only on a real switch.
+    const isNewAttempt = this.boundAttemptId !== undefined
+    this.boundAttemptId = attemptId
+    if (!isNewAttempt) return
+    this.accumulatedText = ''
+    this.terminalDeliveryQueued = false
+  }
 
   constructor(
     private readonly deliveryOwner: ChannelTerminalDeliveryOwner,
@@ -32,17 +51,12 @@ export class ChannelAdapterListener implements StreamListener {
     this.id = `channel:${adapter.channelId}:${this.platformChatId}`
   }
 
-  /** Deliver a final message, threading the reply target only when this run has one. */
-  private deliver(text: string): Promise<void> {
-    return this.replyToMessageId !== undefined
-      ? this.adapter.sendMessage(this.platformChatId, text, { replyToMessageId: this.replyToMessageId })
-      : this.adapter.sendMessage(this.platformChatId, text)
-  }
-
+  /** Submit stable data, never a closure — the queue must not retain this listener (C3). */
   private enqueueDelivery(
     event: 'done' | 'paused' | 'error',
     attemptId: number | undefined,
-    deliver: () => Promise<void>
+    text: string,
+    opts: { finalizeStream?: boolean; fallbackText?: string } = {}
   ): void {
     if (this.terminalDeliveryQueued) return
     this.terminalDeliveryQueued = true
@@ -51,12 +65,15 @@ export class ChannelAdapterListener implements StreamListener {
       channelId: this.adapter.channelId,
       chatId: this.platformChatId,
       event,
-      deliver
+      text,
+      ...(this.replyToMessageId !== undefined ? { replyToMessageId: this.replyToMessageId } : {}),
+      ...opts
     })
   }
 
   // oxlint-disable-next-line no-unused-vars
-  onChunk(chunk: UIMessageChunk, _sourceModelId?: UniqueModelId): void {
+  onChunk(chunk: UIMessageChunk, _sourceModelId?: UniqueModelId, _anchorMessageId?: string, attemptId?: number): void {
+    this.bindTo(attemptId)
     if (chunk.type === 'text-delta' && chunk.delta) {
       this.accumulatedText += chunk.delta
       // Best-effort streaming update; adapter chooses to throttle. Sanitize here — this is
@@ -70,6 +87,7 @@ export class ChannelAdapterListener implements StreamListener {
   }
 
   onDone(result: StreamDoneResult): void {
+    this.bindTo(result.attemptId)
     const text = sanitizeChannelOutput(this.accumulatedText).text.trim()
     if (!text) {
       logger.warn('ChannelAdapterListener.onDone with empty text', {
@@ -80,28 +98,24 @@ export class ChannelAdapterListener implements StreamListener {
       return
     }
 
-    this.enqueueDelivery('done', result.attemptId, async () => {
-      // Adapter finalizes its streaming UI first (e.g. close Feishu card).
-      const handled = await this.adapter.onStreamComplete(this.platformChatId, text)
-      if (!handled) await this.deliver(text)
-    })
+    this.enqueueDelivery('done', result.attemptId, text, { finalizeStream: true })
   }
 
   onPaused(result: StreamPausedResult): void {
+    this.bindTo(result.attemptId)
     const text = sanitizeChannelOutput(this.accumulatedText).text.trim()
     if (!text) return
 
-    this.enqueueDelivery('paused', result.attemptId, async () => {
-      const handled = await this.adapter.onStreamComplete(this.platformChatId, text)
-      if (!handled) await this.deliver(text + '\n\n_(stopped)_')
+    this.enqueueDelivery('paused', result.attemptId, text, {
+      finalizeStream: true,
+      fallbackText: `${text}\n\n_(stopped)_`
     })
   }
 
   onError(result: StreamErrorResult): void {
+    this.bindTo(result.attemptId)
     if (this.suppressErrorMessage) return
-    this.enqueueDelivery('error', result.attemptId, async () => {
-      await this.deliver(`Error: ${result.error.message ?? 'Unknown error'}`)
-    })
+    this.enqueueDelivery('error', result.attemptId, `Error: ${result.error.message ?? 'Unknown error'}`)
   }
 
   isAlive(): boolean {

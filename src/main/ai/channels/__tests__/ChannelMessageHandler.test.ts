@@ -48,10 +48,23 @@ vi.mock('../security/OutputSanitizer', () => ({
 
 // The global mock (tests/main.setup.ts) wires the default service set, which omits
 // AiStreamManager; the abort path reads it, so override locally with a captured spy.
-const { mockStreamAbort, mockEnqueueTerminalDelivery } = vi.hoisted(() => ({
+const { mockStreamAbort, mockEnqueueTerminalDelivery, deliveryAdapter } = vi.hoisted(() => ({
   mockStreamAbort: vi.fn(),
-  mockEnqueueTerminalDelivery: vi.fn((delivery: { deliver: () => Promise<void> }) => {
-    void delivery.deliver()
+  // Requests are stable data now; ChannelManager resolves the adapter and sends. Stand in for
+  // that here so these tests keep observing the text that actually reaches the platform.
+  deliveryAdapter: { current: undefined as undefined | Record<string, any> },
+  mockEnqueueTerminalDelivery: vi.fn((request: any) => {
+    const adapter = deliveryAdapter.current
+    if (!adapter) return false
+    void (async () => {
+      if (request.finalizeStream && (await adapter.onStreamComplete(request.chatId, request.text))) return
+      const text = request.fallbackText ?? request.text
+      if (request.replyToMessageId !== undefined) {
+        await adapter.sendMessage(request.chatId, text, { replyToMessageId: request.replyToMessageId })
+        return
+      }
+      await adapter.sendMessage(request.chatId, text)
+    })()
     return true
   })
 }))
@@ -145,6 +158,7 @@ function createMockAdapter(overrides: Record<string, unknown> = {}) {
   adapter.onStreamComplete = vi.fn().mockResolvedValue(false)
   adapter.onStreamError = vi.fn().mockResolvedValue(undefined)
   adapter.notifyChatIds = []
+  deliveryAdapter.current = adapter
   return adapter
 }
 

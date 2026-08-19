@@ -4,8 +4,31 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ChannelAdapter, type ChannelAdapterConfig } from '../ChannelAdapter'
 import { ChannelManager, registerAdapterFactory } from '../ChannelManager'
 import { channelMessageHandler } from '../ChannelMessageHandler'
+import { ChannelTerminalDeliveryService } from '../ChannelTerminalDeliveryService'
+
+// Real delivery service: these tests exercise FIFO, dedupe, the bounded send and drain, so a
+// stub would assert nothing. Held indirectly because `vi.mock` factories are hoisted above
+// module-level initialization; it resolves adapters back through the manager under test.
+const holder = vi.hoisted(() => ({ manager: undefined as any, delivery: undefined as any }))
+
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    ChannelManager: { getAdapter: (channelId: string) => holder.manager?.getAdapter(channelId) },
+    ChannelTerminalDeliveryService: {
+      enqueue: (request: unknown) => holder.delivery.enqueue(request),
+      open: () => holder.delivery.open(),
+      block: (channelId: string) => holder.delivery.block(channelId),
+      reopen: (channelId: string) => holder.delivery.reopen(channelId),
+      close: () => holder.delivery.close(),
+      drain: (channelIds?: ReadonlySet<string>) => holder.delivery.drain(channelIds)
+    }
+  } as never)
+})
 
 const channelManager = new ChannelManager()
+holder.manager = channelManager
+holder.delivery = new ChannelTerminalDeliveryService()
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -120,33 +143,38 @@ describe('ChannelManager', () => {
   })
 
   it('serializes terminal deliveries for the same channel chat', async () => {
-    vi.mocked(channelService.listChannels).mockReturnValueOnce([])
+    // Requests are data now, so FIFO is observable where it matters: at the adapter's send.
+    vi.mocked(channelService.listChannels).mockReturnValueOnce([makeChannelRow()])
     await channelManager.start()
     const events: string[] = []
     let releaseFirst!: () => void
+    createdAdapters[0].sendMessage.mockImplementation(async (_chatId: string, text: string) => {
+      if (text === 'first') {
+        events.push('first:start')
+        await new Promise<void>((resolve) => {
+          releaseFirst = () => {
+            events.push('first:end')
+            resolve()
+          }
+        })
+        return
+      }
+      events.push('second')
+    })
 
     channelManager.enqueueTerminalDelivery({
       id: 'delivery-1',
       channelId: 'ch-1',
       chatId: 'chat-1',
       event: 'done',
-      deliver: () =>
-        new Promise<void>((resolve) => {
-          events.push('first:start')
-          releaseFirst = () => {
-            events.push('first:end')
-            resolve()
-          }
-        })
+      text: 'first'
     })
     channelManager.enqueueTerminalDelivery({
       id: 'delivery-2',
       channelId: 'ch-1',
       chatId: 'chat-1',
       event: 'done',
-      deliver: async () => {
-        events.push('second')
-      }
+      text: 'second'
     })
 
     await vi.waitFor(() => expect(events).toEqual(['first:start']))
@@ -155,15 +183,15 @@ describe('ChannelManager', () => {
   })
 
   it('accepts a terminal delivery id at most once', async () => {
-    vi.mocked(channelService.listChannels).mockReturnValueOnce([])
+    vi.mocked(channelService.listChannels).mockReturnValueOnce([makeChannelRow()])
     await channelManager.start()
-    const deliver = vi.fn().mockResolvedValue(undefined)
+    const deliver = createdAdapters[0].sendMessage
     const delivery = {
       id: 'deduplicated-delivery',
       channelId: 'ch-1',
       chatId: 'chat-1',
       event: 'done' as const,
-      deliver
+      text: 'once'
     }
 
     expect(channelManager.enqueueTerminalDelivery(delivery)).toBe(true)
@@ -175,16 +203,19 @@ describe('ChannelManager', () => {
     vi.mocked(channelService.listChannels).mockReturnValueOnce([makeChannelRow()])
     await channelManager.start()
     let releaseDelivery!: () => void
+    createdAdapters[0].sendMessage.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseDelivery = resolve
+        })
+    )
 
     channelManager.enqueueTerminalDelivery({
       id: 'delivery-before-stop',
       channelId: 'ch-1',
       chatId: 'chat-1',
       event: 'done',
-      deliver: () =>
-        new Promise<void>((resolve) => {
-          releaseDelivery = resolve
-        })
+      text: 'pending'
     })
 
     const stopping = channelManager.stop()
@@ -196,17 +227,57 @@ describe('ChannelManager', () => {
     expect(createdAdapters[0].disconnect).toHaveBeenCalledTimes(1)
   })
 
+  // C2: a hung adapter must not own the queue forever, and a timed-out send may in fact have
+  // been delivered — so the channel is blocked rather than retried.
+  it('bounds a hung delivery, blocks the channel, and never retries it', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.mocked(channelService.listChannels).mockReturnValueOnce([makeChannelRow()])
+      await channelManager.start()
+      createdAdapters[0].sendMessage.mockImplementation(() => new Promise<void>(() => {}))
+
+      channelManager.enqueueTerminalDelivery({
+        id: 'hung-delivery',
+        channelId: 'ch-1',
+        chatId: 'chat-1',
+        event: 'done',
+        text: 'never lands'
+      })
+      await vi.waitFor(() => expect(createdAdapters[0].sendMessage).toHaveBeenCalledTimes(1))
+
+      await vi.advanceTimersByTimeAsync(15_000)
+
+      // Ownership released without a second attempt...
+      expect(createdAdapters[0].sendMessage).toHaveBeenCalledTimes(1)
+      // ...and the channel stops accepting, so the queue behind it is not pushed through a
+      // link we no longer trust.
+      expect(
+        channelManager.enqueueTerminalDelivery({
+          id: 'follow-up',
+          channelId: 'ch-1',
+          chatId: 'chat-1',
+          event: 'done',
+          text: 'blocked'
+        })
+      ).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  // Refusing new work is the delivery service's own gate now; the lifecycle DAG stops it before
+  // ChannelManager, so producers can no longer enqueue past a shutdown that already began.
   it('rejects new terminal deliveries after shutdown starts', async () => {
     vi.mocked(channelService.listChannels).mockReturnValueOnce([])
     await channelManager.start()
-    await channelManager.stop()
+    holder.delivery.close()
 
     const accepted = channelManager.enqueueTerminalDelivery({
       id: 'delivery-after-stop',
       channelId: 'ch-1',
       chatId: 'chat-1',
       event: 'done',
-      deliver: vi.fn().mockResolvedValue(undefined)
+      text: 'after-stop'
     })
 
     expect(accepted).toBe(false)
