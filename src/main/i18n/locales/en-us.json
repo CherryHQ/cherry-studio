@@ -84,6 +84,13 @@
     "zoomOut": "Zoom Out"
   },
   "common": {
+    "channel_available_commands": "Available commands:",
+    "channel_command_processing_error": "⚠️ An error occurred while processing the command. Please try again later.",
+    "channel_message_processing_error": "⚠️ An error occurred while processing your message. Please try again later.",
+    "channel_new_session_created": "New session created.",
+    "channel_no_active_session": "No active session.",
+    "channel_session_compacted": "Session compacted.",
+    "channel_session_resolution_error": "⚠️ Failed to resolve a session for this agent. Please try again later.",
     "copy": "Copy",
     "cut": "Cut",
     "inspect": "Inspect",

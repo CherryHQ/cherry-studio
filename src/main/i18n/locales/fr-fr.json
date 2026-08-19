@@ -84,6 +84,13 @@
     "zoomOut": "Dézoomer"
   },
   "common": {
+    "channel_available_commands": "Commandes disponibles :",
+    "channel_command_processing_error": "⚠️ Une erreur s’est produite lors du traitement de la commande. Veuillez réessayer plus tard.",
+    "channel_message_processing_error": "⚠️ Une erreur s’est produite lors du traitement de votre message. Veuillez réessayer plus tard.",
+    "channel_new_session_created": "Nouvelle session créée.",
+    "channel_no_active_session": "Aucune session active.",
+    "channel_session_compacted": "Session compactée.",
+    "channel_session_resolution_error": "⚠️ Impossible de résoudre une session pour cet agent. Veuillez réessayer plus tard.",
     "copy": "Copier",
     "cut": "Couper",
     "inspect": "Vérifier",
