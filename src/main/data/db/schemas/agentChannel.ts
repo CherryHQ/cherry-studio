@@ -1,6 +1,6 @@
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
-import type { ChannelConversationKind, ChannelType } from '@shared/data/types/channel'
+import type { ChannelType } from '@shared/data/types/channel'
 import { sql } from 'drizzle-orm'
 import { check, index, integer, primaryKey, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
@@ -48,7 +48,6 @@ export const agentChannelSessionTable = sqliteTable(
       .references(() => agentChannelTable.id, { onDelete: 'cascade' }),
     // NULL identifies a migrated legacy session whose external owner cannot be proven.
     conversationId: text(),
-    conversationKind: text().$type<ChannelConversationKind>(),
     isActive: integer({ mode: 'boolean' }).notNull().default(false)
   },
   (t) => [
@@ -60,14 +59,7 @@ export const agentChannelSessionTable = sqliteTable(
       'agent_channel_session_conversation_id_nonempty_check',
       sql`${t.conversationId} IS NULL OR length(trim(${t.conversationId})) > 0`
     ),
-    check(
-      'agent_channel_session_conversation_kind_check',
-      sql`${t.conversationKind} IS NULL OR ${t.conversationKind} IN ('direct', 'group', 'channel', 'thread')`
-    ),
-    check(
-      'agent_channel_session_active_conversation_check',
-      sql`${t.isActive} = 0 OR (${t.conversationId} IS NOT NULL AND ${t.conversationKind} IS NOT NULL)`
-    )
+    check('agent_channel_session_active_conversation_check', sql`${t.isActive} = 0 OR ${t.conversationId} IS NOT NULL`)
   ]
 )
 

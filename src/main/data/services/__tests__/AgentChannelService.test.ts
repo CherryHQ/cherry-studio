@@ -270,13 +270,11 @@ describe('AgentChannelService', () => {
         agentChannelService.activateSessionTx(tx, {
           channelId: channel.id,
           conversationId: 'dm-alice',
-          conversationKind: 'direct',
           sessionId: first.id
         })
         agentChannelService.activateSessionTx(tx, {
           channelId: channel.id,
           conversationId: 'dm-alice',
-          conversationKind: 'direct',
           sessionId: second.id
         })
       })
@@ -312,7 +310,6 @@ describe('AgentChannelService', () => {
             sessionId: duplicate.id,
             channelId: channel.id,
             conversationId: 'dm-alice',
-            conversationKind: 'direct',
             isActive: true
           })
           .run()
@@ -343,13 +340,11 @@ describe('AgentChannelService', () => {
         agentChannelService.activateSessionTx(tx, {
           channelId: channel.id,
           conversationId: 'alice',
-          conversationKind: 'direct',
           sessionId: alice.id
         })
         agentChannelService.activateSessionTx(tx, {
           channelId: otherChannel.id,
           conversationId: 'alice',
-          conversationKind: 'direct',
           sessionId: otherAlice.id
         })
       })

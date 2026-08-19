@@ -351,7 +351,6 @@ export class ChannelMessageHandler {
     return {
       chatId: first.chatId,
       ...(first.conversationId ? { conversationId: first.conversationId } : {}),
-      conversationKind: first.conversationKind,
       userId: first.userId,
       userName: first.userName,
       text: mergedText,
@@ -370,12 +369,7 @@ export class ChannelMessageHandler {
     const { agentId } = adapter
 
     try {
-      const session = await this.resolveSession(
-        agentId,
-        adapter.channelId,
-        conversationIdOf(message),
-        message.conversationKind
-      )
+      const session = await this.resolveSession(agentId, adapter.channelId, conversationIdOf(message))
       if (!session) {
         logger.error('Failed to resolve session', { agentId })
         await adapter
@@ -549,7 +543,7 @@ export class ChannelMessageHandler {
       if (
         batch.adapter.agentId === adapter.agentId &&
         batch.adapter.channelId === adapter.channelId &&
-        conversationIdOf(batch.messages[0] ?? command) === conversationIdOf(command)
+        conversationIdOf(batch.messages[0]) === conversationIdOf(command)
       ) {
         clearTimeout(batch.timer)
         this.flushBatch(batchKey)
@@ -588,12 +582,7 @@ export class ChannelMessageHandler {
         case 'new': {
           // TODO(channel-perm-override): channel.permissionMode no longer
           // applied here — config lives on agent now. Tracked separately.
-          const newSession = this.createSessionForConversation(
-            agentId,
-            adapter.channelId,
-            conversationIdOf(command),
-            command.conversationKind
-          )
+          const newSession = this.createSessionForConversation(agentId, adapter.channelId, conversationIdOf(command))
           const trackerKey = conversationKey(agentId, adapter.channelId, conversationIdOf(command))
           this.sessionTracker.set(trackerKey, newSession.id)
           this.evictSessionTracker()
@@ -602,12 +591,7 @@ export class ChannelMessageHandler {
           break
         }
         case 'compact': {
-          const session = await this.resolveSession(
-            agentId,
-            adapter.channelId,
-            conversationIdOf(command),
-            command.conversationKind
-          )
+          const session = await this.resolveSession(agentId, adapter.channelId, conversationIdOf(command))
           if (!session) {
             await adapter.sendMessage(command.chatId, t('common.channel_no_active_session'), replyOpts)
             return
@@ -808,8 +792,7 @@ export class ChannelMessageHandler {
   private async resolveSession(
     agentId: string,
     channelId: string,
-    conversationId: string,
-    conversationKind: ChannelMessageEvent['conversationKind']
+    conversationId: string
   ): Promise<AgentSessionEntity | null> {
     const trackerKey = conversationKey(agentId, channelId, conversationId)
 
@@ -817,7 +800,7 @@ export class ChannelMessageHandler {
     const pending = this.pendingResolutions.get(trackerKey)
     if (pending) return pending
 
-    const resolution = this.doResolveSession(agentId, channelId, conversationId, conversationKind, trackerKey)
+    const resolution = this.doResolveSession(agentId, channelId, conversationId, trackerKey)
     this.pendingResolutions.set(trackerKey, resolution)
     try {
       return await resolution
@@ -830,7 +813,6 @@ export class ChannelMessageHandler {
     agentId: string,
     channelId: string,
     conversationId: string,
-    conversationKind: ChannelMessageEvent['conversationKind'],
     trackerKey: string
   ): Promise<AgentSessionEntity | null> {
     const channelRow = channelService.getChannel(channelId)
@@ -860,17 +842,10 @@ export class ChannelMessageHandler {
       agentId,
       channelId,
       conversationId,
-      conversationKind,
       trackerKey
     })
 
-    const newSession = this.createSessionForConversation(
-      agentId,
-      channelId,
-      conversationId,
-      conversationKind,
-      channelRow ?? undefined
-    )
+    const newSession = this.createSessionForConversation(agentId, channelId, conversationId, channelRow ?? undefined)
     this.sessionTracker.set(trackerKey, newSession.id)
     this.evictSessionTracker()
     return newSession
@@ -880,7 +855,6 @@ export class ChannelMessageHandler {
     agentId: string,
     channelId: string,
     conversationId: string,
-    conversationKind: ChannelMessageEvent['conversationKind'],
     channel?: AgentChannelEntity
   ): AgentSessionEntity {
     const channelRow = channel ?? channelService.getChannel(channelId)
@@ -897,7 +871,6 @@ export class ChannelMessageHandler {
       channelService.activateSessionTx(tx, {
         channelId,
         conversationId,
-        conversationKind,
         sessionId
       })
     })

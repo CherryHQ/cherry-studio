@@ -487,7 +487,6 @@ describe('SlackAdapter', () => {
     await vi.waitFor(() => expect(commandSpy).toHaveBeenCalledTimes(1))
     expect(commandSpy).toHaveBeenCalledWith({
       chatId: 'C0ALLOWED',
-      conversationKind: 'channel',
       userId: USER1_ID,
       userName: 'testuser',
       command: 'new'

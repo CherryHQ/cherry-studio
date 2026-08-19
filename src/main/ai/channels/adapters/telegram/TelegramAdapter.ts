@@ -5,7 +5,6 @@ import {
   type ImageAttachment,
   MAX_FILE_SIZE_BYTES
 } from '@main/utils/downloadAsBase64'
-import type { ChannelConversationKind } from '@shared/data/types/channel'
 import { Bot, InputFile } from 'grammy'
 import { convert as toMarkdownV2 } from 'telegram-markdown-v2'
 
@@ -22,12 +21,6 @@ const TELEGRAM_MAX_LENGTH = 4096
  * is always within budget.
  */
 const TELEGRAM_MARKDOWN_CHUNK_BUDGET = 3200
-
-function conversationKindForChat(type: string): ChannelConversationKind {
-  if (type === 'private') return 'direct'
-  if (type === 'channel') return 'channel'
-  return 'group'
-}
 
 import { splitMessage } from '../../utils'
 
@@ -90,7 +83,6 @@ class TelegramAdapter extends ChannelAdapter {
     bot.command('new', (ctx) => {
       this.emit('command', {
         chatId: ctx.chat.id.toString(),
-        conversationKind: conversationKindForChat(ctx.chat.type),
         userId: ctx.from?.id?.toString() ?? '',
         userName: ctx.from?.first_name ?? '',
         command: 'new'
@@ -100,7 +92,6 @@ class TelegramAdapter extends ChannelAdapter {
     bot.command('compact', (ctx) => {
       this.emit('command', {
         chatId: ctx.chat.id.toString(),
-        conversationKind: conversationKindForChat(ctx.chat.type),
         userId: ctx.from?.id?.toString() ?? '',
         userName: ctx.from?.first_name ?? '',
         command: 'compact'
@@ -110,7 +101,6 @@ class TelegramAdapter extends ChannelAdapter {
     bot.command('help', (ctx) => {
       this.emit('command', {
         chatId: ctx.chat.id.toString(),
-        conversationKind: conversationKindForChat(ctx.chat.type),
         userId: ctx.from?.id?.toString() ?? '',
         userName: ctx.from?.first_name ?? '',
         command: 'help'
@@ -120,7 +110,6 @@ class TelegramAdapter extends ChannelAdapter {
     bot.command('whoami', (ctx) => {
       this.emit('command', {
         chatId: ctx.chat.id.toString(),
-        conversationKind: conversationKindForChat(ctx.chat.type),
         userId: ctx.from?.id?.toString() ?? '',
         userName: ctx.from?.first_name ?? '',
         command: 'whoami'
@@ -131,7 +120,6 @@ class TelegramAdapter extends ChannelAdapter {
     bot.on('message:text', (ctx) => {
       this.emit('message', {
         chatId: ctx.chat.id.toString(),
-        conversationKind: conversationKindForChat(ctx.chat.type),
         userId: ctx.from?.id?.toString() ?? '',
         userName: ctx.from?.first_name ?? '',
         text: ctx.message.text
@@ -152,7 +140,6 @@ class TelegramAdapter extends ChannelAdapter {
 
       this.emit('message', {
         chatId: ctx.chat.id.toString(),
-        conversationKind: conversationKindForChat(ctx.chat.type),
         userId: ctx.from?.id?.toString() ?? '',
         userName: ctx.from?.first_name ?? '',
         text,
@@ -178,7 +165,6 @@ class TelegramAdapter extends ChannelAdapter {
 
       this.emit('message', {
         chatId: ctx.chat.id.toString(),
-        conversationKind: conversationKindForChat(ctx.chat.type),
         userId: ctx.from?.id?.toString() ?? '',
         userName: ctx.from?.first_name ?? '',
         text,

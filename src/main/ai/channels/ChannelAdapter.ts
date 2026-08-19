@@ -1,7 +1,6 @@
 import { loggerService } from '@logger'
 import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase64'
 import type { AgentChannelEntity, AgentChannelType } from '@shared/data/api/schemas/agentChannels'
-import type { ChannelConversationKind } from '@shared/data/types/channel'
 import { EventEmitter } from 'events'
 
 import type { ChannelLogEntry, ChannelLogLevel, ChannelStatusEvent } from './types'
@@ -10,7 +9,6 @@ export type ChannelMessageEvent = {
   chatId: string
   /** Stable external conversation identity. Defaults to chatId for platforms without threads. */
   conversationId?: string
-  conversationKind: ChannelConversationKind
   userId: string
   userName: string
   text: string
@@ -32,7 +30,6 @@ export type ChannelCommandEvent = {
   chatId: string
   /** Stable external conversation identity. Defaults to chatId for platforms without threads. */
   conversationId?: string
-  conversationKind: ChannelConversationKind
   userId: string
   userName: string
   command: 'new' | 'compact' | 'help' | 'whoami'

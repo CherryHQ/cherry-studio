@@ -271,7 +271,6 @@ describe('TelegramAdapter', () => {
 
     expect(commandSpy).toHaveBeenCalledWith({
       chatId: '123',
-      conversationKind: 'group',
       userId: '456',
       userName: 'TestUser',
       command: 'new'
@@ -294,7 +293,6 @@ describe('TelegramAdapter', () => {
 
     expect(commandSpy).toHaveBeenCalledWith({
       chatId: '123',
-      conversationKind: 'group',
       userId: '456',
       userName: 'TestUser',
       command: 'whoami'
@@ -319,7 +317,6 @@ describe('TelegramAdapter', () => {
 
     expect(messageSpy).toHaveBeenCalledWith({
       chatId: '123',
-      conversationKind: 'group',
       userId: '456',
       userName: 'TestUser',
       text: 'Hello bot'

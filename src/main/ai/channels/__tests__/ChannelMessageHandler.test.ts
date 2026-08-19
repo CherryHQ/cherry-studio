@@ -104,10 +104,7 @@ vi.mock('@data/services/AgentChannelService', () => ({
       persistedChannelSessions.bindings.get(`${channelId}:${conversationId}`)
     ),
     activateSessionTx: vi.fn(
-      (
-        _tx: unknown,
-        input: { channelId: string; conversationId: string; conversationKind: string; sessionId: string }
-      ) => {
+      (_tx: unknown, input: { channelId: string; conversationId: string; sessionId: string }) => {
         persistedChannelSessions.bindings.set(`${input.channelId}:${input.conversationId}`, input.sessionId)
       }
     )
@@ -163,11 +160,8 @@ function createMockAdapter(overrides: Record<string, unknown> = {}) {
  * Helper: call handleIncoming and advance fake timers so the debounce fires,
  * then await the returned promise to wait for processing to complete.
  */
-async function handleIncomingAndFlush(
-  adapter: ReturnType<typeof createMockAdapter>,
-  message: Omit<ChannelMessageEvent, 'conversationKind'> & Partial<Pick<ChannelMessageEvent, 'conversationKind'>>
-) {
-  const promise = channelMessageHandler.handleIncoming(adapter, { conversationKind: 'direct', ...message })
+async function handleIncomingAndFlush(adapter: ReturnType<typeof createMockAdapter>, message: ChannelMessageEvent) {
+  const promise = channelMessageHandler.handleIncoming(adapter, { ...message })
   // Advance past the MESSAGE_BATCH_DELAY_MS debounce (10 000 ms)
   await vi.advanceTimersByTimeAsync(10500)
   return promise
@@ -439,7 +433,6 @@ describe('ChannelMessageHandler', () => {
 
     await channelMessageHandler.handleCommand(adapter, {
       chatId: 'chat-1',
-      conversationKind: 'direct',
       userId: 'user-1',
       userName: 'User',
       command: 'new'
@@ -454,8 +447,7 @@ describe('ChannelMessageHandler', () => {
       expect.anything(),
       expect.objectContaining({
         channelId: 'channel-1',
-        conversationId: 'chat-1',
-        conversationKind: 'direct'
+        conversationId: 'chat-1'
       })
     )
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'New session created.', { replyToMessageId: undefined })
@@ -477,7 +469,6 @@ describe('ChannelMessageHandler', () => {
 
     await channelMessageHandler.handleCommand(adapter, {
       chatId: 'chat-1',
-      conversationKind: 'direct',
       userId: 'user-1',
       userName: 'User',
       command: 'compact'
@@ -519,14 +510,12 @@ describe('ChannelMessageHandler', () => {
 
     const message = channelMessageHandler.handleIncoming(adapter, {
       chatId: 'chat-1',
-      conversationKind: 'direct',
       userId: 'user-1',
       userName: 'User',
       text: 'Use the current session'
     })
     const command = channelMessageHandler.handleCommand(adapter, {
       chatId: 'chat-1',
-      conversationKind: 'direct',
       userId: 'user-1',
       userName: 'User',
       command: 'new'
@@ -554,7 +543,6 @@ describe('ChannelMessageHandler', () => {
 
     await channelMessageHandler.handleCommand(adapter, {
       chatId: 'chat-1',
-      conversationKind: 'direct',
       userId: 'user-1',
       userName: 'User',
       command: 'help'
@@ -585,7 +573,6 @@ describe('ChannelMessageHandler', () => {
     try {
       await channelMessageHandler.handleCommand(adapter, {
         chatId: 'chat-merge',
-        conversationKind: 'group',
         userId: 'user-1',
         userName: 'User',
         command: 'help'
@@ -612,7 +599,6 @@ describe('ChannelMessageHandler', () => {
     try {
       await channelMessageHandler.handleCommand(adapter, {
         chatId: 'chat-stale',
-        conversationKind: 'channel',
         userId: 'user-1',
         userName: 'User',
         command: 'help'
@@ -632,7 +618,6 @@ describe('ChannelMessageHandler', () => {
 
     await channelMessageHandler.handleCommand(adapter, {
       chatId: 'oc_123',
-      conversationKind: 'direct',
       userId: 'user-1',
       userName: 'User',
       command: 'whoami'
@@ -660,7 +645,6 @@ describe('ChannelMessageHandler', () => {
 
     await channelMessageHandler.handleCommand(adapter, {
       chatId: 'chat-1',
-      conversationKind: 'direct',
       userId: 'user-1',
       userName: 'User',
       command: 'new'
@@ -725,7 +709,6 @@ describe('ChannelMessageHandler', () => {
       simulateStream([{ type: 'text-delta', delta: `reply:${chatId}` }])
       await handleIncomingAndFlush(adapter, {
         chatId,
-        conversationKind: 'direct',
         userId: chatId,
         userName: chatId,
         text: 'hello'
@@ -736,7 +719,6 @@ describe('ChannelMessageHandler', () => {
     simulateStream([{ type: 'text-delta', delta: 'welcome back' }])
     await handleIncomingAndFlush(adapter, {
       chatId: 'dm-alice',
-      conversationKind: 'direct',
       userId: 'dm-alice',
       userName: 'Alice',
       text: 'again'
@@ -759,7 +741,6 @@ describe('ChannelMessageHandler', () => {
 
     const firstA = channelMessageHandler.handleIncoming(adapter, {
       chatId: 'group-1',
-      conversationKind: 'group',
       userId: 'alice',
       userName: 'Alice',
       text: 'A1'
@@ -767,7 +748,6 @@ describe('ChannelMessageHandler', () => {
     await vi.advanceTimersByTimeAsync(1000)
     const B = channelMessageHandler.handleIncoming(adapter, {
       chatId: 'group-1',
-      conversationKind: 'group',
       userId: 'bob',
       userName: 'Bob',
       text: 'B1'
@@ -775,7 +755,6 @@ describe('ChannelMessageHandler', () => {
     await vi.advanceTimersByTimeAsync(6000)
     const secondA = channelMessageHandler.handleIncoming(adapter, {
       chatId: 'group-1',
-      conversationKind: 'group',
       userId: 'alice',
       userName: 'Alice',
       text: 'A2'
@@ -794,7 +773,6 @@ describe('ChannelMessageHandler', () => {
 
     const firstA = channelMessageHandler.handleIncoming(adapter, {
       chatId: 'group-1',
-      conversationKind: 'group',
       userId: 'alice',
       userName: 'Alice',
       text: 'A1'
@@ -802,7 +780,6 @@ describe('ChannelMessageHandler', () => {
     await vi.advanceTimersByTimeAsync(1000)
     const B = channelMessageHandler.handleIncoming(adapter, {
       chatId: 'group-1',
-      conversationKind: 'group',
       userId: 'bob',
       userName: 'Bob',
       text: 'B1'
@@ -810,7 +787,6 @@ describe('ChannelMessageHandler', () => {
     await vi.advanceTimersByTimeAsync(6000)
     const secondA = channelMessageHandler.handleIncoming(adapter, {
       chatId: 'group-1',
-      conversationKind: 'group',
       userId: 'alice',
       userName: 'Alice',
       text: 'A2'
@@ -818,7 +794,6 @@ describe('ChannelMessageHandler', () => {
     await vi.advanceTimersByTimeAsync(7000)
     const thirdA = channelMessageHandler.handleIncoming(adapter, {
       chatId: 'group-1',
-      conversationKind: 'group',
       userId: 'alice',
       userName: 'Alice',
       text: 'A3'
@@ -838,7 +813,6 @@ describe('ChannelMessageHandler', () => {
       await handleIncomingAndFlush(adapter, {
         chatId: 'group-1',
         conversationId,
-        conversationKind: 'thread',
         userId: 'user-1',
         userName: 'User',
         messageId: `${conversationId}:message`,
@@ -851,7 +825,7 @@ describe('ChannelMessageHandler', () => {
     expect(sessionIds[0]).not.toBe(sessionIds[1])
     expect(channelService.activateSessionTx).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ conversationId: 'thread:one', conversationKind: 'thread' })
+      expect.objectContaining({ conversationId: 'thread:one' })
     )
     expect(adapter.sendMessage).toHaveBeenCalledWith('group-1', 'thread:one', {
       replyToMessageId: 'thread:one:message',
@@ -871,7 +845,6 @@ describe('ChannelMessageHandler', () => {
     // Start a batch but do NOT advance timers — it stays pending in pendingBatches.
     const pending = channelMessageHandler.handleIncoming(adapter, {
       chatId: 'chat-1',
-      conversationKind: 'direct',
       userId: 'user-1',
       userName: 'User',
       text: 'Hi'
@@ -893,7 +866,6 @@ describe('ChannelMessageHandler', () => {
 
     await channelMessageHandler.handleCommand(adapter, {
       chatId: 'chat-1',
-      conversationKind: 'direct',
       userId: 'user-1',
       userName: 'User',
       command: 'new'

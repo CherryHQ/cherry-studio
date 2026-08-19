@@ -18,7 +18,7 @@ import {
   AgentSessionWorkspaceSourceSchema,
   type AgentWorkspaceReferenceItem
 } from '@shared/data/api/schemas/agentWorkspaces'
-import type { ChannelConfig, ChannelConversationKind, ChannelType } from '@shared/data/types/channel'
+import type { ChannelConfig, ChannelType } from '@shared/data/types/channel'
 import { and, eq, inArray } from 'drizzle-orm'
 
 const logger = loggerService.withContext('ChannelService')
@@ -122,7 +122,6 @@ export class AgentChannelService {
     input: {
       channelId: string
       conversationId: string
-      conversationKind: ChannelConversationKind
       sessionId: string
     }
   ): void {

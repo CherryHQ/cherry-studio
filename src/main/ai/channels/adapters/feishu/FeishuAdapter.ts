@@ -446,9 +446,7 @@ class FeishuAdapter extends ChannelAdapter {
 
     const text = message.content.trim()
     const conversationId = message.threadId
-    const conversation = conversationId
-      ? { conversationId: `thread:${conversationId}`, conversationKind: 'thread' as const, replyInThread: true }
-      : { conversationKind: message.chatType === 'p2p' ? ('direct' as const) : ('group' as const) }
+    const conversation = conversationId ? { conversationId: `thread:${conversationId}`, replyInThread: true } : {}
     if (isSlashCommand(text)) {
       const parts = text.split(/\s+/)
       this.emit('command', {
@@ -494,14 +492,18 @@ class FeishuAdapter extends ChannelAdapter {
           params: { type: resource.type === 'image' ? 'image' : 'file' }
         })
         const chunks: Buffer[] = []
+        let size = 0
         for await (const chunk of resourceResponse.getReadableStream()) {
-          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+          const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+          size += buffer.length
+          if (size > MAX_FILE_SIZE_BYTES) {
+            this.log.warn('Feishu resource too large', { fileKey: resource.fileKey, size })
+            break
+          }
+          chunks.push(buffer)
         }
         const buffer = Buffer.concat(chunks)
-        if (buffer.length > MAX_FILE_SIZE_BYTES) {
-          this.log.warn('Feishu resource too large', { fileKey: resource.fileKey, size: buffer.length })
-          continue
-        }
+        if (size > MAX_FILE_SIZE_BYTES) continue
 
         const detected = await fileTypeFromBuffer(buffer)
         if (resource.type === 'image') {

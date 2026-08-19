@@ -340,7 +340,6 @@ describe('FeishuAdapter', () => {
       expect.objectContaining({
         chatId: 'oc_123',
         conversationId: 'thread:thread-1',
-        conversationKind: 'thread',
         replyInThread: true
       })
     )
@@ -358,7 +357,7 @@ describe('FeishuAdapter', () => {
 
     await channelHandlers.message(incomingMessage({ chatType: 'group', rootId: 'root-1' }))
 
-    expect(onMessage).toHaveBeenCalledWith(expect.objectContaining({ chatId: 'oc_123', conversationKind: 'group' }))
+    expect(onMessage).toHaveBeenCalledWith(expect.objectContaining({ chatId: 'oc_123' }))
     expect(onMessage.mock.calls[0][0]).not.toHaveProperty('conversationId')
     expect(onMessage.mock.calls[0][0]).not.toHaveProperty('replyInThread')
   })
@@ -422,7 +421,6 @@ describe('FeishuAdapter', () => {
 
     expect(onMessage).toHaveBeenCalledWith({
       chatId: 'oc_123',
-      conversationKind: 'direct',
       userId: 'ou_user1',
       userName: 'Alice',
       messageId: 'msg-in-1',
@@ -442,7 +440,6 @@ describe('FeishuAdapter', () => {
 
     expect(onCommand).toHaveBeenCalledWith({
       chatId: 'oc_123',
-      conversationKind: 'direct',
       userId: 'ou_user1',
       userName: 'Alice',
       messageId: 'msg-in-1',

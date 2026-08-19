@@ -226,7 +226,6 @@ describe('WeChatAdapter', () => {
     expect(messageSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         chatId: 'user-123',
-        conversationKind: 'direct',
         userId: 'user-123',
         userName: 'user-123',
         text: 'Hello bot'
@@ -249,7 +248,6 @@ describe('WeChatAdapter', () => {
 
     expect(commandSpy).toHaveBeenCalledWith({
       chatId: 'user-123',
-      conversationKind: 'direct',
       userId: 'user-123',
       userName: 'user-123',
       command: 'new'

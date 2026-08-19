@@ -143,7 +143,7 @@ function createMockAdapter(overrides: Record<string, unknown> = {}) {
 }
 
 function msg(text: string): ChannelMessageEvent {
-  return { chatId: 'chat-1', conversationKind: 'direct', userId: 'user-1', userName: 'User', text }
+  return { chatId: 'chat-1', userId: 'user-1', userName: 'User', text }
 }
 
 function pendingBatchCount(handler: ChannelMessageHandler): number {
@@ -232,7 +232,6 @@ describe('ChannelMessageHandler write quiesce', () => {
 
     await handler.handleCommand(adapter, {
       chatId: 'chat-1',
-      conversationKind: 'direct',
       userId: 'user-1',
       userName: 'User',
       command: 'new'
@@ -284,7 +283,6 @@ describe('ChannelMessageHandler write quiesce', () => {
 
     const command = handler.handleCommand(adapter, {
       chatId: 'chat-1',
-      conversationKind: 'direct',
       userId: 'user-1',
       userName: 'User',
       command: 'new'
@@ -316,7 +314,6 @@ describe('ChannelMessageHandler write quiesce', () => {
     await vi.advanceTimersByTimeAsync(8500)
     const help = handler.handleCommand(adapter, {
       chatId: 'chat-1',
-      conversationKind: 'direct',
       userId: 'user-1',
       userName: 'User',
       command: 'help'

@@ -510,7 +510,6 @@ class DiscordAdapter extends ChannelAdapter {
       const cmd = text.split(/\s+/)[0].slice(1) as 'new' | 'compact' | 'help'
       this.emit('command', {
         chatId,
-        conversationKind: msg.guild_id ? 'channel' : 'direct',
         userId: msg.author.id,
         userName: msg.author.username ?? '',
         command: cmd
@@ -534,7 +533,6 @@ class DiscordAdapter extends ChannelAdapter {
 
       this.emit('message', {
         chatId,
-        conversationKind: msg.guild_id ? 'channel' : 'direct',
         userId: msg.author.id,
         userName: msg.author.username ?? '',
         text,
@@ -651,7 +649,6 @@ class DiscordAdapter extends ChannelAdapter {
 
     this.emit('command', {
       chatId,
-      conversationKind: interaction.guild_id ? 'channel' : 'direct',
       userId: user?.id ?? '',
       userName: user?.username ?? '',
       command: commandName as 'new' | 'compact' | 'help'
