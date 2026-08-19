@@ -56,6 +56,7 @@ docs/
 | `references/{architecture-overview,main-process-architecture,renderer-architecture,shared-layer-architecture,naming-conventions}.md` | 移动 → `references/architecture/`。 |
 | `guides/{logging,i18n}.md` | 移动 → `references/` 下各自的主题域。 |
 | `guides/diagnostics.md` | 归属(contrib 还是 reference)在其 Phase 0b 审计时决定。 |
+| `docs/sponsor.md` | **留在 `docs/` 根目录**——根 README 链接的面向用户页面,不是开发者文档;不进参考树、不进门禁、不进双语配对。 |
 | `references/chat/{adapters,conventions}.md` | **保持原位**——明确标注为 target-architecture 设计文档;adapters 代码落地时重新决定其归宿。不在 Phase 0b 范围内。 |
 | `references/file/architecture.md` + `file-manager-architecture.md` | **两篇都保留**——刻意分层且互相声明 SoT 边界,不是腐烂。 |
 
@@ -71,7 +72,9 @@ sources: # code paths this document describes; directories preferred
 ---
 ```
 
-`docs/contrib/**` 只要求 `description`。Agent Notes **不用 frontmatter**——路径与 header block 已经编码了它们的元数据,与 dsh 一致。
+`docs/contrib/**` 只要求 `description`。Agent Notes **不用 frontmatter**——路径与 header block 已经编码了它们的元数据,与 dsh 一致。`docs/sponsor.md` 是根 README 链接的面向用户页面,不是开发者文档:它留在 `docs/` 根目录,不在任何门禁的扫描范围内(门禁只覆盖 `references/` 与 `contrib/`),也不进双语配对。
+
+`sources` 的每一条是一个**路径前缀**:diff 路径等于该条或位于其下时即归属该文档,因此目录条目覆盖其全部子孙。这正是 Phase 4 反向查询能对子树改动生效的原因;也正因如此,过宽的条目会稀释信号——每条应写仍能覆盖该文档全部主题的最窄目录。
 
 未来任何字段的准入标准:它必须承载路径、H1、git 都承载不了的信息,**并且**说得出消费它的脚本。现在即拒绝的字段,每个都已有归属:`domain`/`category`(路径)、`title`(H1)、`updated`/`author`(git)、`status: deprecated`(删除——要么是现行事实要么不存在)、`tags`(无消费者)、`sidebar_position`(站点导航集中在一个映射文件,dsh 式),以及翻译配对 hash(把文件的 hash 写进文件本身会改变 hash——它必须住在 sidecar 里)。
 
@@ -80,10 +83,10 @@ sources: # code paths this document describes; directories preferred
 三个新脚本,全部是 `tsx scripts/*.ts`,遵循仓库较新的脚本惯例(导出函数 + `scripts/__tests__/` 下的测试,同 `i18n-check-values.ts`):
 
 - `verify-doc-structure`——`references/` 根的封闭集;每个域目录有 `README.md`。
-- `verify-doc-frontmatter`——必填字段齐全;每个 `sources` 路径存在。代码一搬走,`middleware.md` 那类腐烂当天就被这道门禁抓住。
+- `verify-doc-frontmatter`——必填字段齐全;每个 `sources` 路径存在。它抓住的是特定一类腐烂:主题已被删除或搬走的文档——`middleware.md` 与 `message-system.md` 正是此类——在代码移动当天即被抓住。**它是存在性检查,不是新鲜度检查**:主题原地变化、或文件在某个宽目录条目内部移动而导致的过时,门禁仍是绿的。语义过时由 Phase 4 的反向查询和评审负责,不在这里。
 - `gen-doc-index`(带 `--check`)——从 frontmatter 重新生成 `docs/README.md`;漂移即失败。
 
-接线:新聚合命令 `pnpm docs:check` = `docs:check-links` + 上述三个。它加入 `ci:basic-check`(补上 CI 完全不查文档的缺口),并替换 `build:check` 里的裸 `docs:check-links`。
+接线:新聚合命令 `pnpm docs:check` = `docs:check-links` + 上述三个,并替换 `build:check` 里的裸 `docs:check-links`。补上 CI 缺口需要改**工作流**,而不只是改 script:`.github/workflows/ci.yml` 并不调用 `pnpm ci:basic-check`——它的 `basic-checks` job 通过 `concurrently` 内联各条命令,因此 `docs:check` 必须加进那个步骤才会在 CI 里真正运行。`ci:basic-check` script 同步更新,以保持本地等价物诚实。
 
 `sources` 的后续消费者:把 PR 的 diff 路径与全部 `sources` 清单求交集,即可机械得出"这个 PR 本应更新的文档",接进 `gh-pr-review` skill(Phase 4)。这把"改代码必须带文档"从自觉守则变成可校验的规则。
 
@@ -115,7 +118,7 @@ sources: # code paths this document describes; directories preferred
 | Phase | 工作 | 验证 |
 |---|---|---|
 | 0a(本 PR) | 本方案;带 stub README 的 `.agents/notes/` 骨架 | 对本 note 的评审即是决策 |
-| 0b | 逐域搬家 + 审计 PR:移动、改名、补 frontmatter、逐条对照代码验证、重写或删除;门禁随第一个搬家的域落地 | `pnpm docs:check` 绿;搬过的文档所有断言对照 `src/` 验证过 |
+| 0b | 逐域搬家 + 审计 PR:移动、改名、逐条对照代码验证、重写或删除。**门禁最后落地,在最后一次搬家之后**,与全语料的 frontmatter 一起 —— `verify-doc-structure` 读整个 `references/` 根、`verify-doc-frontmatter` 读每篇参考文档,树迁移到一半时两者都不可能绿;而为这段短暂的迁移期做一套分级放行白名单,机械成本大于收益 | 每个搬家 PR `docs:check-links` 绿;门禁落地后完整 `pnpm docs:check` 绿;搬过的文档所有断言对照 `src/` 验证过 |
 | 1 | 完整 `.agents/notes/README.md` 规则集 + 格式门禁 + 回填种子 notes(双语) | 格式门禁对全部 notes 绿 |
 | 2 | 配对门禁移植;发现根 `.agents/notes` + `CONTRIBUTING.md`;`CONTRIBUTING.zh.md` | `verify-translation-pairing` 绿 |
 | 3 | 只对审定为现行的文档做翻译回填;配对范围扩到 `docs/**` | 全语料配对绿 |
@@ -139,13 +142,13 @@ sources: # code paths this document describes; directories preferred
 - 三篇死/重复文档已删除;每篇存活的 reference 文档的断言都对照现行代码验证过。
 - 每篇 `references/**` 文档带 `description` + 存在的 `sources`;`verify-doc-frontmatter` 绿。
 - `docs/README.md` 是生成的;`gen-doc-index --check` 绿。
-- CI 在 `ci:basic-check` 里跑 `pnpm docs:check`。
+- CI 跑 `pnpm docs:check` —— 以 `.github/workflows/ci.yml` 的 `basic-checks` job 确实调用它为准,而不是以 `ci:basic-check` script 列出它为准。
 - `.agents/notes/` 持有本 note 加回填的种子,双语,格式门禁绿。
 - `.agents/notes/**` 与 `CONTRIBUTING.md` 通过配对门禁;Phase 3 之后 `docs/**` 也通过。
 
 ## Risks
 
-- **入链翻新。** `CLAUDE.md` 链接大量文档,而 TypeScript 注释里引用的 `docs/*.md` 路径 `docs:check-links` 并不扫描;Phase 0b 的每次移动都必须对旧路径 grep `src/`。缓解:按域原子化移动(搬家 + 修复全部入链在同一个 PR)。
+- **入链翻新。** `docs:check-links` 只解析 Markdown 链接,因此看不到其余任何消费者:`CLAUDE.md` 正文、`eslint.config.mjs` 里的 lint 规则消息、TypeScript 注释,以及*按路径读取文档*的代码——`scripts/uiContract/__tests__/maintainedAnchors.test.ts` 会打开 `ui-semantic-contract.md`,那里漏改会挂掉一个测试而不是一条链接。因此 Phase 0b 的每次移动都要对旧路径 grep **整个仓库**(`src/`、`scripts/`、`packages/`、`tests/`、`.github/`、根配置),而不只是 `src/`。缓解:按域原子化移动(搬家 + 修复全部入链引用在同一个 PR)。
 - **与进行中 PR 的冲突。** 目录树移动会与触及相同文档的在途工作冲突。缓解:Phase 0b 逐域小步推进,不搞一次性大搬家。
 - **双语维护成本。** 每次编辑配对文档都要同步另一侧并重录;高频变动的文档付出最多。有意接受——文档在这里是产品——并通过只配对审定为现行的材料来控制上限。
 - **翻译评审负担。** 配对门禁校验的是结构而非忠实度;中文质量仍需评审者投入,而术语表起点很薄。
