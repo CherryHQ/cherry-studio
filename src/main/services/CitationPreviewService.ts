@@ -1,3 +1,4 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { readableContentService } from '@main/services/readableContent'
@@ -91,7 +92,8 @@ export class CitationPreviewService extends BaseService {
 
     let safeUrl: string
     try {
-      const parsedUrl = new URL(sanitizeRemoteUrl(url))
+      const allowPrivateNetwork = application.get('PreferenceService').get('app.fetch.allow_private_network')
+      const parsedUrl = new URL(sanitizeRemoteUrl(url, undefined, allowPrivateNetwork))
       parsedUrl.hash = ''
       safeUrl = parsedUrl.toString()
     } catch {

@@ -23,19 +23,23 @@ let testRoot: string
 let workspace: string
 let agentData: string
 let outside: string
+let skillRoot: string
 
 beforeAll(() => {
   testRoot = mkdtempSync(join(tmpdir(), 'pi-approval-paths-'))
   workspace = join(testRoot, 'workspace')
   agentData = join(testRoot, 'agent-data')
   outside = join(testRoot, 'outside')
+  skillRoot = join(testRoot, 'skills', 'test-skill')
   mkdirSync(workspace)
   mkdirSync(agentData)
   mkdirSync(outside)
+  mkdirSync(skillRoot, { recursive: true })
   writeFileSync(join(workspace, 'inside.txt'), 'inside')
   writeFileSync(join(agentData, 'SOUL.md'), 'soul')
   writeFileSync(join(agentData, 'USER.md'), 'user')
   writeFileSync(join(outside, 'secret.txt'), 'outside')
+  writeFileSync(join(skillRoot, 'SKILL.md'), 'skill')
   symlinkSync(outside, join(workspace, 'escape'), process.platform === 'win32' ? 'junction' : 'dir')
 })
 
@@ -46,11 +50,13 @@ function buildGate(
   overrides: Partial<{
     workspacePath: string
     agentDataPath: string
+    additionalReadOnlyRoots: readonly string[]
     getPermissionMode: () => AgentPermissionMode | undefined
     getInteractionState: () => { userResponse: 'stream' | 'message' | 'unavailable' }
     isDisabled: (toolName: string) => boolean
     autoApprovedTools: ReadonlySet<string>
     approvalRequiredTools: ReadonlySet<string>
+    nonBypassableApprovalTools: ReadonlySet<string>
   }> = {}
 ) {
   const emitted: any[] = []
@@ -59,12 +65,14 @@ function buildGate(
     sessionId: 's1',
     workspacePath: workspace,
     agentDataPath: agentData,
+    additionalReadOnlyRoots: [],
     emit: (event) => emitted.push(event),
     getPermissionMode: () => 'default',
     getInteractionState: () => ({ userResponse: 'stream' }),
     isDisabled: () => false,
     autoApprovedTools: new Set(),
     approvalRequiredTools: new Set(),
+    nonBypassableApprovalTools: new Set(),
     ...overrides
   }
   const factory = createPiApprovalExtension(context)
@@ -217,6 +225,37 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
     expect(toolApprovalRegistry.size()).toBe(0)
   })
 
+  it('still requests live approval for a non-bypassable delegation tool under bypassPermissions', async () => {
+    const toolName = 'mcp__cherry-tools__session_send'
+    const { handler, emitted } = buildGate({
+      getPermissionMode: () => 'bypassPermissions',
+      approvalRequiredTools: new Set([toolName]),
+      nonBypassableApprovalTools: new Set([toolName])
+    })
+
+    const pending = handler(toolEvent(toolName, {}), extCtx)
+    await flush()
+    expect(emitted).toHaveLength(1)
+    toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved: false })
+    await expect(pending).resolves.toMatchObject({ block: true })
+  })
+
+  it('blocks a non-bypassable delegation tool headlessly under bypassPermissions', async () => {
+    const toolName = 'mcp__cherry-tools__session_create'
+    const { handler, emitted } = buildGate({
+      getPermissionMode: () => 'bypassPermissions',
+      getInteractionState: () => ({ userResponse: 'unavailable' }),
+      approvalRequiredTools: new Set([toolName]),
+      nonBypassableApprovalTools: new Set([toolName])
+    })
+
+    await expect(handler(toolEvent(toolName, {}), extCtx)).resolves.toEqual({
+      block: true,
+      reason: 'This tool always requires user approval and cannot run unattended. Retry interactively.'
+    })
+    expect(emitted).toHaveLength(0)
+  })
+
   it('fails closed immediately when an approval-required tool has no responder', async () => {
     const { handler, emitted } = buildGate({
       getInteractionState: () => ({ userResponse: 'unavailable' })
@@ -301,6 +340,21 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
       void handler(toolEvent('write', { path: join(outside, 'new.txt'), content: 'x' }), extCtx)
       await flush()
       expect(emitted).toHaveLength(1)
+    })
+
+    it('keeps configured skill roots read-only without asking to read them', async () => {
+      const { handler, emitted } = buildAutoGate({ additionalReadOnlyRoots: [skillRoot] })
+      await expect(handler(toolEvent('read', { path: join(skillRoot, 'SKILL.md') }), extCtx)).resolves.toBeUndefined()
+      expect(emitted).toHaveLength(0)
+
+      const pendingWrite = handler(
+        toolEvent('write', { path: join(skillRoot, 'SKILL.md'), content: 'changed' }),
+        extCtx
+      )
+      await flush()
+      expect(emitted).toHaveLength(1)
+      toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved: false })
+      await expect(pendingWrite).resolves.toMatchObject({ block: true })
     })
 
     it('still gates an always-prompt tool', async () => {

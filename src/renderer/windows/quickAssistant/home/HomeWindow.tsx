@@ -48,17 +48,21 @@ const EMPTY_UI_MESSAGES: CherryUIMessage[] = []
 type MiniRoute = 'home' | 'chat' | 'translate' | 'summary' | 'explanation'
 
 /**
- * Finalize a list of live assistant messages: turn any still-streaming
- * reasoning part into `state: 'done'`, deriving `thinkingMs` from
- * `startedAt` if the upstream hasn't set it yet. Called when the execution
- * transitions from active to inactive.
+ * Finalize a list of live assistant messages: turn any still-streaming text
+ * or reasoning part into `state: 'done'`, deriving `thinkingMs` for reasoning
+ * from `startedAt` if the upstream hasn't set it yet. Called when the
+ * execution transitions from active to inactive.
  */
-const finalizeLiveMessages = (messages: CherryUIMessage[]): CherryUIMessage[] => {
+export const finalizeLiveMessages = (messages: CherryUIMessage[]): CherryUIMessage[] => {
   return messages.map((msg) => {
     if (!msg.parts) return msg
     let changed = false
     const newParts = msg.parts.map((part) => {
-      if (part.type !== 'reasoning' || part.state !== 'streaming') return part
+      if ((part.type !== 'text' && part.type !== 'reasoning') || part.state !== 'streaming') return part
+
+      changed = true
+      if (part.type === 'text') return { ...part, state: 'done' as const }
+
       const cherry = readCherryMeta(part)
       const startedAt = cherry?.startedAt
       const thinkingMs = cherry?.thinkingMs
@@ -68,7 +72,6 @@ const finalizeLiveMessages = (messages: CherryUIMessage[]): CherryUIMessage[] =>
         patch = { thinkingMs: Math.round(Math.max(0, Date.now() - startedAt)) }
       }
 
-      changed = true
       return withCherryMeta({ ...part, state: 'done' }, patch)
     })
     return changed ? { ...msg, parts: newParts } : msg

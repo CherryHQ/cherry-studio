@@ -388,6 +388,15 @@
         "inaccessible": "Workspace path is not accessible: {{path}}"
       }
     },
+    "session_delivery": {
+      "from": "From {{agent}} / {{session}}",
+      "status": {
+        "accepted": "Accepted",
+        "consumed": "Consumed",
+        "delivering": "Delivering",
+        "failed": "Failed"
+      }
+    },
     "settings": {
       "permissionMode": {
         "title": "Permission Mode"
@@ -2992,7 +3001,7 @@
       "empty_title": "Search for skills",
       "github_empty_description": "Paste a link to a skill's SKILL.md file, for example github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
       "github_empty_title": "Install from GitHub",
-      "github_url_invalid": "Paste a GitHub link that ends with SKILL.md",
+      "github_url_invalid": "Paste a supported GitHub link directly to a SKILL.md file",
       "github_url_label": "GitHub SKILL.md URL",
       "github_url_placeholder": "GitHub link ending in /SKILL.md",
       "no_results_description": "Try another keyword or import a local ZIP or directory.",
@@ -3390,6 +3399,21 @@
         "stderr": "stderr",
         "stdout": "stdout"
       },
+      "sessionCreate": {
+        "created": "Started a new session",
+        "creating": "Starting a new session",
+        "firstMessage": "First message",
+        "inheritedContext": "Using this agent and workspace",
+        "open": "Open session",
+        "sessionId": "Session ID",
+        "untitled": "Untitled session"
+      },
+      "sessionSend": {
+        "open": "Open session",
+        "sending": "Sending to",
+        "sent": "Sent to",
+        "to": "To"
+      },
       "status": {
         "done": "Done",
         "error": "Error",
@@ -3723,7 +3747,7 @@
   },
   "notification": {
     "assistant": "Assistant Response",
-    "tip": "If the response is successful, then only messages exceeding 30 seconds will trigger a reminder"
+    "tip": "Only controls system notifications while the app is in the background. In-app notifications are always enabled."
   },
   "ocr": {
     "processing": "OCR processing..."
@@ -5621,6 +5645,10 @@
         "title": "Font Settings"
       }
     },
+    "fetch": {
+      "allow_private_network": "Allow fetching local network addresses",
+      "allow_private_network_tip": "Lets web fetch tools reach localhost and private network addresses. Turn this off if you do not want models to read services on your own machine or LAN."
+    },
     "font_size": {
       "title": "Message font size"
     },
@@ -6075,40 +6103,48 @@
       "bulk_enable": "Enable all",
       "check": {
         "all": "All",
-        "button_caption": "Health check",
-        "disabled": "Not enabled",
-        "disclaimer": "Health check sends real requests to the selected models and API keys. Per-request billing or concurrent checks may incur significant costs. Review before starting.",
+        "all_models": "All models",
+        "all_models_disclaimer": "Checking all models sends many real requests to the selected models and API keys, which may incur high charges in a short time. Confirm before starting. Image, video, audio generation, speech-to-text, and text-to-speech models are skipped.",
+        "button_caption": "Model Check",
+        "checking": "Checking…",
+        "concurrent_hint": "Models run concurrently; API keys for each model are always checked concurrently.",
+        "disclaimer": "Model Check sends real requests to the selected models and API keys. Requests may incur charges. Image, video, audio generation, speech-to-text, and text-to-speech models are skipped.",
         "enable_concurrent": "Concurrent",
-        "enabled": "Enabled",
         "failed": "Failed",
-        "failed_to_start": "Failed to start health check",
+        "failed_to_start": "Failed to start model check",
         "generation_output_audio": "audio",
         "generation_output_image": "an image",
         "generation_output_video": "a video",
+        "key_scope": "Key(s)",
+        "keys_failed_count": "{{failed}}/{{total}} keys failed",
+        "latency": "{{latency}} ms",
+        "model": "Model",
         "model_button_caption": "Check all models",
-        "model_status_failed": "{{count}} models completely inaccessible",
-        "model_status_partial": "{{count}} models had inaccessible keys",
-        "model_status_passed": "{{count}} models passed health checks",
+        "model_scope": "Models to check",
+        "model_status_failed_one": "{{count}} model completely inaccessible",
+        "model_status_failed_other": "{{count}} models completely inaccessible",
+        "model_status_partial_one": "{{count}} model had inaccessible keys",
+        "model_status_partial_other": "{{count}} models had inaccessible keys",
+        "model_status_passed_one": "{{count}} model passed model checks",
+        "model_status_passed_other": "{{count}} models passed model checks",
+        "model_status_skipped_one": "{{count}} model skipped",
+        "model_status_skipped_other": "{{count}} models skipped",
         "model_status_summary": "{{provider}}: {{summary}}",
         "no_results": "No results",
-        "outcome_fail_short": "{{count}} failed",
-        "outcome_skipped_short": "{{count}} skipped",
-        "outcome_success_short": "{{count}} passed",
-        "outcome_total": "{{count}} total",
         "passed": "Passed",
-        "pipeline_heading": "Detection progress",
-        "progress_count": "{{done}} / {{total}}",
-        "retry": "Check again",
-        "select_api_key": "Select the API key to use:",
+        "provider_auth": "Provider authentication",
+        "select_api_key": "Select the API key to use",
         "single": "Single",
-        "skip_reason_generation_cost": "This model's health check would generate {{output}} and consume quota, so it is skipped by default.",
-        "skip_reason_unsupported_probe": "This model type does not have a low-cost health check yet, so it is skipped by default.",
+        "single_model": "Single model",
+        "skip_reason_generation_cost": "Checking this model would generate {{output}} and consume quota, so it is skipped by default.",
+        "skip_reason_unsupported_probe": "This model type does not have a low-cost model check yet, so it is skipped by default.",
         "start": "Start",
         "status_checking": "Checking…",
         "status_skipped": "Skipped",
         "timeout": "Timeout",
-        "title": "Model health check",
-        "use_all_keys": "Key(s)"
+        "timeout_unit": "s",
+        "title": "Model Check",
+        "toggle_key": "Toggle {{name}} enabled state"
       },
       "collapse_all": "Collapse all",
       "context_management": {
@@ -6207,7 +6243,7 @@
       "label": "More Settings"
     },
     "notification": {
-      "assistant": "Assistant Message",
+      "assistant": "Conversation Completion Notifications",
       "backup": "Backup Message",
       "knowledge_embed": "KnowledgeBase Message",
       "title": "Notifications",

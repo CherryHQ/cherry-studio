@@ -180,6 +180,7 @@ function resolveRequestedOutputTokens(
 }
 
 const ASK_USER_QUESTION_TOOL_NAME = 'AskUserQuestion'
+const EXIT_PLAN_MODE_TOOL_NAME = 'ExitPlanMode'
 const HEADLESS_INTERACTIVE_TOOLS = [
   ASK_USER_QUESTION_TOOL_NAME,
   'EnterPlanMode',
@@ -228,6 +229,7 @@ function getToolApprovalEmitterHolder(sessionId: string): ToolApprovalEmitterHol
     const nextHolder: ToolApprovalEmitterHolder = {
       dispose: () => {
         nextHolder.emit = undefined
+        nextHolder.emitInput = undefined
         toolApprovalRegistry.abort(sessionId, 'stream-ended')
         // Evict so the module-level Map doesn't grow unbounded across sessions;
         // the holder is rebuilt lazily on the next settings build.
@@ -247,6 +249,16 @@ function getToolApprovalEmitterHolder(sessionId: string): ToolApprovalEmitterHol
 // means no live stream is bound, so the approval is denied.
 function peekToolApprovalEmitter(sessionId: string): ToolApprovalEmitterHolder | undefined {
   return toolApprovalEmitters.get(sessionId)
+}
+
+function surfaceExitPlanModeInput(
+  sessionId: string,
+  toolName: string,
+  input: Record<string, unknown>,
+  toolCallId: string
+): void {
+  if (toolName !== EXIT_PLAN_MODE_TOOL_NAME || typeof input.plan !== 'string' || !input.plan.trim()) return
+  peekToolApprovalEmitter(sessionId)?.emitInput?.({ toolCallId, toolName, input })
 }
 
 // Session-keyed so a warm-pooled query's PreToolUse steer hook and the live connection's
@@ -497,10 +509,8 @@ export async function buildClaudeCodeSessionSettings(
   // without the guidance the model would never emit the `[cite:id]` markers those results need.
   const knowledgeBaseScope = resolveKnowledgeBaseScope(agent.knowledgeBaseIds, options?.knowledgeBaseIds)
   const systemPrompt = await buildSystemPrompt(
-    session,
     agent,
     cwd,
-    linkedChannelSnapshot !== null,
     agentDataPath,
     knowledgeBaseScope,
     disallowedTools,
@@ -918,11 +928,9 @@ async function buildToolPermissions(
     // approval) is a deliberate decision (matches feat/chat-page): the READ tools have no side
     // effects in the main process — web_search/web_fetch read the network,
     // kb_search/kb_read/kb_list read the user's knowledge bases, report_artifacts only records a
-    // declaration. The untrusted-channel exposure this creates (approval-free reads + web_fetch URL
-    // egress for channel-linked sessions) is bounded by the system-level channel security policy
-    // (CHANNEL_SECURITY_PROMPT). The autonomy tools (cron/notify/config) also stay auto-approved —
-    // they were blanket-allowed as the standalone `cherry` server before the merge. Keep this an
-    // explicit allowlist so a future cherry-tools addition does not become auto-approved by prefix.
+    // declaration. The autonomy tools (cron/notify/config) also stay auto-approved — they were
+    // blanket-allowed as the standalone `cherry` server before the merge. Keep this an explicit
+    // allowlist so a future cherry-tools addition does not become auto-approved by prefix.
     autoAllowRuntimeNames: [
       ...CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map(toCherryBuiltinRuntimeName),
       // Assistant MCP read-only lookups are explicit opt-ins. Sensitive and mutating tools must go
@@ -945,6 +953,10 @@ async function buildToolPermissions(
     // no-responder denial at fire time for interactive and approval-required tools. PreToolUse
     // mirrors both groups for bypassPermissions/acceptEdits, where the SDK skips `canUseTool`.
     const interactionState = application.get('AgentSessionRuntimeService').getInteractionState(session.id)
+    // Claude Code streams ExitPlanMode's model-authored `{}` before normalizing the plan file into
+    // the permission input. Replace that raw input while the tool row is still live so the approval
+    // preview — and a later headless denial — retain the plan the SDK actually reviewed.
+    surfaceExitPlanModeInput(session.id, toolName, input, opts.toolUseID)
     const requiresInteractiveResponder =
       HEADLESS_INTERACTIVE_TOOLS.includes(toolName as (typeof HEADLESS_INTERACTIVE_TOOLS)[number]) ||
       approvalRequiredTools.includes(toolName)
@@ -975,6 +987,7 @@ async function buildToolPermissions(
       (typeof opts.agentID === 'string' && opts.agentID.length > 0) || interactionState.currentTurn === 'headless'
     const requiresUserResponse =
       HEADLESS_INTERACTIVE_TOOLS.includes(toolName as (typeof HEADLESS_INTERACTIVE_TOOLS)[number]) ||
+      approvalRequiredTools.includes(toolName) ||
       opts.matchedAskRule !== undefined
 
     // Background agents do not inherit the parent permission mode. Let ordinary requests proceed
@@ -1077,10 +1090,17 @@ async function buildToolPermissions(
   // Headless turns deny tools that need a responder. Interactive AskUserQuestion calls explicitly ask
   // so bypassPermissions cannot skip `canUseTool` and execute without a user-authored answer.
   // Resolve headless state by session id at fire-time so warm connections are judged per turn.
-  const interactiveToolPermissionHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+  const interactiveToolPermissionHook: HookCallback = async (input, toolUseId): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'PreToolUse') return {}
     const toolName = String((input as Record<string, unknown>).tool_name ?? '')
     if (!HEADLESS_INTERACTIVE_TOOLS.includes(toolName as (typeof HEADLESS_INTERACTIVE_TOOLS)[number])) return {}
+
+    const toolInput = (input as Record<string, unknown>).tool_input
+    if (toolUseId && toolInput && typeof toolInput === 'object' && !Array.isArray(toolInput)) {
+      // `canUseTool` is skipped for auto-approved paths (bypassPermissions / acceptEdits), so
+      // surface the normalized plan from the hook that runs under every permission mode.
+      surfaceExitPlanModeInput(session.id, toolName, toolInput as Record<string, unknown>, toolUseId)
+    }
 
     if (application.get('AgentSessionRuntimeService').getInteractionState(session.id).userResponse === 'unavailable') {
       return {
@@ -1405,10 +1425,8 @@ async function buildToolPermissions(
 }
 
 export async function buildSystemPrompt(
-  session: AgentSessionEntity,
   agent: AgentEntity,
   cwd: string,
-  channelLinked?: boolean,
   agentDataPath = cwd,
   /** Resolved knowledge scope for this connection; defaults to the agent's static binding alone. */
   knowledgeBaseIds: readonly string[] = agent.knowledgeBaseIds ?? [],
@@ -1435,7 +1453,6 @@ export async function buildSystemPrompt(
     workspacePath: cwd,
     agentDataPath,
     agent,
-    channelLinked: channelLinked ?? Boolean(channelService.findBySessionId(session.id)),
     citationsGuidance,
     workspaceInstructions: agentsMdContext,
     customBaseContext

@@ -388,6 +388,15 @@
         "inaccessible": "工作區路徑無法存取：{{path}}"
       }
     },
+    "session_delivery": {
+      "from": "來自 {{agent}} / {{session}}",
+      "status": {
+        "accepted": "已接受",
+        "consumed": "已處理",
+        "delivering": "投遞中",
+        "failed": "失敗"
+      }
+    },
     "settings": {
       "permissionMode": {
         "title": "權限模式"
@@ -2992,7 +3001,7 @@
       "empty_title": "搜尋技能",
       "github_empty_description": "請貼上技能的 SKILL.md 檔案連結，例如 github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
       "github_empty_title": "從 GitHub 安裝",
-      "github_url_invalid": "請貼上以 SKILL.md 結尾的 GitHub 連結",
+      "github_url_invalid": "請貼上受支援且直接指向 SKILL.md 檔案的 GitHub 連結",
       "github_url_label": "GitHub SKILL.md 連結",
       "github_url_placeholder": "GitHub 連結，以 /SKILL.md 結尾",
       "no_results_description": "請嘗試其他關鍵字，或從本機匯入 ZIP 檔或資料夾。",
@@ -3390,6 +3399,21 @@
         "stderr": "標準錯誤",
         "stdout": "標準輸出"
       },
+      "sessionCreate": {
+        "created": "已啟動新工作階段",
+        "creating": "正在啟動新工作階段",
+        "firstMessage": "第一則訊息",
+        "inheritedContext": "沿用目前的智慧體與工作區",
+        "open": "開啟工作階段",
+        "sessionId": "工作階段 ID",
+        "untitled": "未命名工作階段"
+      },
+      "sessionSend": {
+        "open": "開啟工作階段",
+        "sending": "正在傳送至",
+        "sent": "已傳送至",
+        "to": "傳送至"
+      },
       "status": {
         "done": "完成",
         "error": "錯誤",
@@ -3723,7 +3747,7 @@
   },
   "notification": {
     "assistant": "助理回應",
-    "tip": "如果回應成功，則只針對超過 30 秒的訊息發出提醒"
+    "tip": "僅控制背景系統通知；應用程式內通知一律開啟。"
   },
   "ocr": {
     "processing": "OCR 處理中..."
@@ -5621,6 +5645,10 @@
         "title": "字型設定"
       }
     },
+    "fetch": {
+      "allow_private_network": "允許存取本機網路位址",
+      "allow_private_network_tip": "允許網頁擷取工具存取 localhost 與內網位址。若不希望模型讀取本機或區域網路上的服務，請關閉。"
+    },
     "font_size": {
       "title": "訊息字型大小"
     },
@@ -6075,40 +6103,48 @@
       "bulk_enable": "全部啟用",
       "check": {
         "all": "所有",
-        "button_caption": "健康檢查",
-        "disabled": "未啟用",
+        "all_models": "所有模型",
+        "all_models_disclaimer": "檢測所有模型會向選取的模型和 API 金鑰傳送大量真實請求，可能在短時間內產生高額費用。請確認可承擔費用風險後再開始。圖片、影片、音訊生成及語音轉文字、文字轉語音模型會略過。",
+        "button_caption": "模型檢測",
+        "checking": "檢測中…",
+        "concurrent_hint": "模型之間可並行檢測；同一模型的多個 API 金鑰一律並行檢測。",
         "disclaimer": "健康檢查會向選中的模型和 API Key 傳送真實請求。按次計費或並行檢查可能產生高額費用，請確認後再開始。",
         "enable_concurrent": "並行檢查",
-        "enabled": "已啟用",
         "failed": "失敗",
         "failed_to_start": "健康檢查啟動失敗",
         "generation_output_audio": "音訊",
         "generation_output_image": "圖片",
         "generation_output_video": "影片",
+        "key_scope": "使用金鑰",
+        "keys_failed_count": "{{failed}}/{{total}} 個金鑰失敗",
+        "latency": "{{latency}} 毫秒",
+        "model": "模型",
         "model_button_caption": "檢查所有模型",
-        "model_status_failed": "{{count}} 個模型完全無法存取",
-        "model_status_partial": "其中 {{count}} 個模型用某些金鑰無法存取",
-        "model_status_passed": "{{count}} 個模型健康檢查成功",
+        "model_scope": "要檢測的模型",
+        "model_status_failed_one": "{{count}} 個模型完全無法存取",
+        "model_status_failed_other": "{{count}} 個模型完全無法存取",
+        "model_status_partial_one": "其中 {{count}} 個模型用某些金鑰無法存取",
+        "model_status_partial_other": "其中 {{count}} 個模型用某些金鑰無法存取",
+        "model_status_passed_one": "{{count}} 個模型健康檢查成功",
+        "model_status_passed_other": "{{count}} 個模型健康檢查成功",
+        "model_status_skipped_one": "{{count}} 個模型已略過",
+        "model_status_skipped_other": "{{count}} 個模型已略過",
         "model_status_summary": "{{provider}}: {{summary}}",
         "no_results": "無結果",
-        "outcome_fail_short": "{{count}} 失敗",
-        "outcome_skipped_short": "{{count}} 跳過",
-        "outcome_success_short": "{{count}} 成功",
-        "outcome_total": "共 {{count}} 項",
         "passed": "已通過",
-        "pipeline_heading": "檢查進度",
-        "progress_count": "{{done}} / {{total}}",
-        "retry": "重新檢查",
-        "select_api_key": "選擇要使用的 API 金鑰：",
+        "provider_auth": "供應商驗證",
+        "select_api_key": "選擇要使用的 API 金鑰",
         "single": "單一模型",
+        "single_model": "單一模型",
         "skip_reason_generation_cost": "此模型的健康檢查會實際產生{{output}}並消耗額度，因此預設略過。",
         "skip_reason_unsupported_probe": "此類模型目前沒有低成本的健康檢查方式，因此預設略過。",
         "start": "開始",
         "status_checking": "檢查中…",
         "status_skipped": "已跳過",
         "timeout": "逾時",
-        "title": "模型健康檢查",
-        "use_all_keys": "使用金鑰"
+        "timeout_unit": "秒",
+        "title": "模型檢測",
+        "toggle_key": "切換 {{name}} 的啟用狀態"
       },
       "collapse_all": "全部折疊",
       "context_management": {
@@ -6207,7 +6243,7 @@
       "label": "更多設定"
     },
     "notification": {
-      "assistant": "助理訊息",
+      "assistant": "對話完成通知",
       "backup": "備份訊息",
       "knowledge_embed": "知識庫訊息",
       "title": "通知",

@@ -1,3 +1,11 @@
+---
+description: 'Message-tree model for topic chat: adjacency list, virtual root, sibling groups, invariants, delete semantics'
+sources:
+  - src/main/data/db/schemas/message.ts
+  - src/main/data/services/MessageService.ts
+  - src/renderer/components/chat/flow
+---
+
 # Message Tree
 
 Canonical reference for the chat **message-tree model**: how a topic's messages are

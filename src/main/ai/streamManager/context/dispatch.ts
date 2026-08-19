@@ -7,6 +7,7 @@
 import { loggerService } from '@logger'
 import { topicService } from '@main/data/services/TopicService'
 import type { AiStreamOpenRequest, AiStreamOpenResponse, ApprovalDecision } from '@shared/ai/transport'
+import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { isAgentSessionWorkspaceError } from '../../runtime/agentSessionWorkspace'
@@ -19,7 +20,7 @@ import { temporaryChatContextProvider } from './TemporaryChatContextProvider'
 
 /**
  * Resume an assistant turn paused on a tool-approval-request. Synthesised
- * inside `Ai_ToolApproval_Respond` after `ToolApprovalRegistry` reports
+ * inside `AiService.respondToolApproval` after `ToolApprovalRegistry` reports
  * no live entry for `approvalId`. Not on the renderer↔main IPC contract.
  */
 export interface MainContinueConversationRequest {
@@ -56,6 +57,9 @@ export type MainDispatchRequest = (
    * task), so runtimes must not enable ask-the-user tools. Never set on renderer requests.
    */
   headless?: boolean
+  /** Main-only durable user row accepted by the cross-session delivery path. */
+  agentDeliveryMessage?: AgentSessionMessageEntity
+  /** Main-only queue policy: never redirect this delivery into the currently-running turn. */
 }
 
 const logger = loggerService.withContext('chatContextDispatch')
@@ -189,7 +193,8 @@ export async function dispatchStreamRequest(
     listeners: prepared.listeners,
     siblingsGroupId: prepared.siblingsGroupId,
     liveExecutionChange,
-    lifecycle: prepared.lifecycle
+    lifecycle: prepared.lifecycle,
+    isPersistentConversation: provider.isPersistentConversation
   })
 
   return {

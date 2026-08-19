@@ -1,13 +1,16 @@
+import type { AgentType } from '@shared/data/types/agent'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
-import { cleanup, render, screen } from '@testing-library/react'
+import type { Provider } from '@shared/data/types/provider'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type * as ReactHookForm from 'react-hook-form'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const modelHook = vi.hoisted(() => ({
   defaultModel: undefined as Model | undefined,
+  defaultProvider: { id: 'provider', name: 'Provider', isEnabled: true } as Provider | undefined,
   useDefaultModel: vi.fn(),
-  agentModelFilter: vi.fn<(model: Model) => boolean>(() => true)
+  agentModelFilter: vi.fn<(agentType: AgentType | undefined, model: Model, provider?: Provider) => boolean>(() => true)
 }))
 
 function makeModel(id: UniqueModelId = 'provider::default'): Model {
@@ -34,8 +37,13 @@ vi.mock('@renderer/hooks/useModel', () => ({
   }
 }))
 
+vi.mock('@renderer/hooks/useProvider', () => ({
+  useProviderById: () => ({ provider: modelHook.defaultProvider })
+}))
+
 vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
-  useAgentModelFilter: () => modelHook.agentModelFilter
+  useAgentModelFilter: (agentType: AgentType | undefined) => (model: Model, provider?: Provider) =>
+    modelHook.agentModelFilter(agentType, model, provider)
 }))
 
 // Mock the step bodies so the wizard shell (navigation, validation gate, submit
@@ -80,6 +88,22 @@ vi.mock('../steps/BasicInfoStep', async () => {
             }}>
             fill pi basic
           </button>
+          <button
+            type="button"
+            onClick={() => {
+              form.setValue('agentType', 'pi')
+              form.setValue('modelId', null)
+            }}>
+            switch to pi
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              form.setValue('agentType', 'dsh')
+              form.setValue('modelId', null)
+            }}>
+            switch to dsh
+          </button>
         </>
       )
     }
@@ -108,6 +132,7 @@ const CANCEL = 'common.cancel'
 afterEach(() => {
   cleanup()
   modelHook.defaultModel = undefined
+  modelHook.defaultProvider = { id: 'provider', name: 'Provider', isEnabled: true } as Provider
   modelHook.useDefaultModel.mockReset()
   modelHook.agentModelFilter.mockReset()
   modelHook.agentModelFilter.mockReturnValue(true)
@@ -133,6 +158,14 @@ describe('ResourceCreateWizard', () => {
     render(<ResourceCreateWizard kind="assistant" open onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
 
     expect(await screen.findByTestId('model-id')).toHaveTextContent('provider::default')
+  })
+
+  it('does not prefill a disabled default model', async () => {
+    modelHook.defaultModel = { ...makeModel(), isEnabled: false }
+
+    render(<ResourceCreateWizard kind="assistant" open onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
+
+    expect(await screen.findByTestId('model-id')).toHaveTextContent('empty')
   })
 
   it('submits the default model when the user does not choose another model', async () => {
@@ -333,4 +366,32 @@ describe('ResourceCreateWizard', () => {
 
     expect(await screen.findByTestId('model-id')).toHaveTextContent('provider::default')
   })
+
+  it('does not prefill a default model when its provider is disabled', async () => {
+    modelHook.defaultModel = makeModel()
+    modelHook.defaultProvider = { id: 'provider', name: 'Provider', isEnabled: false } as Provider
+
+    render(<ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
+
+    expect(await screen.findByTestId('model-id')).toHaveTextContent('empty')
+  })
+
+  it.each(['pi', 'dsh'] as const)(
+    'reselects a compatible default model after switching an agent to the %s runtime',
+    async (agentType) => {
+      const user = userEvent.setup()
+      modelHook.defaultModel = makeModel()
+      modelHook.defaultProvider = { id: 'provider', name: 'Provider', isEnabled: true } as Provider
+      modelHook.agentModelFilter.mockImplementation(
+        (agentType, _model, provider) => agentType === 'claude-code' || Boolean(provider)
+      )
+
+      render(<ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
+
+      expect(await screen.findByTestId('model-id')).toHaveTextContent('provider::default')
+      await user.click(screen.getByRole('button', { name: `switch to ${agentType}` }))
+
+      await waitFor(() => expect(screen.getByTestId('model-id')).toHaveTextContent('provider::default'))
+    }
+  )
 })
