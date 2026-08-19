@@ -59,6 +59,7 @@ import TranslateHistoryList from './components/TranslateHistory'
 import TranslateInputPane from './components/TranslateInputPane'
 import TranslateLanguageBar from './components/TranslateLanguageBar'
 import TranslateOutputPane from './components/TranslateOutputPane'
+import { MarkdownRenderScheduler } from './markdownRenderScheduler'
 import type {
   BabelDocAvailability,
   PdfTranslationFile,
@@ -243,6 +244,11 @@ const TranslatePage: FC = () => {
   })
 
   const [renderedMarkdown, setRenderedMarkdown] = useState<string>('')
+  const shikiFnRef = useRef(shikiMarkdownIt)
+  const renderTimerRef = useRef<number | null>(null)
+  const enableMarkdownRef = useRef(true)
+  const isMountedRef = useRef(true)
+  const schedulerRef = useRef<MarkdownRenderScheduler | null>(null)
   const [copied, setCopied] = useTemporaryValue(false, 2000)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -621,22 +627,64 @@ const TranslatePage: FC = () => {
     [isScrollSyncEnabled]
   )
 
-  useEffect(() => {
-    let cancelled = false
-    const render = async () => {
-      if (!enableMarkdown || !translateOutput) {
-        setRenderedMarkdown('')
-        return
-      }
-      const markdown = await shikiMarkdownIt(translateOutput)
-      if (!cancelled) {
+  // Render executor: the scheduling state machine lives in
+  // markdownRenderScheduler.ts; this adapter only runs renders and commits.
+  const runMarkdownRender = useCallback(async () => {
+    const scheduler = schedulerRef.current
+    if (!scheduler) return
+    const ticket = scheduler.renderStarted()
+    let settled = false
+    try {
+      const markdown = await shikiFnRef.current(ticket.content)
+      if (!isMountedRef.current || !enableMarkdownRef.current) return
+      settled = true
+      if (scheduler.renderCompleted(ticket) === 'commit') {
         setRenderedMarkdown(markdown)
       }
+    } catch (error) {
+      logger.error('Markdown render failed.', error as Error)
+    } finally {
+      if (!settled) scheduler.renderAborted()
     }
-    void render()
+  }, [])
+
+  if (schedulerRef.current === null) {
+    schedulerRef.current = new MarkdownRenderScheduler({
+      now: () => Date.now(),
+      armTimer: (delayMs) => {
+        if (renderTimerRef.current !== null) window.clearTimeout(renderTimerRef.current)
+        renderTimerRef.current = window.setTimeout(() => {
+          renderTimerRef.current = null
+          schedulerRef.current?.onTimerFired()
+        }, delayMs)
+      },
+      clearTimer: () => {
+        if (renderTimerRef.current !== null) {
+          window.clearTimeout(renderTimerRef.current)
+          renderTimerRef.current = null
+        }
+      },
+      requestRender: () => {
+        void runMarkdownRender()
+      },
+      requestPaneClear: () => {
+        setRenderedMarkdown('')
+      }
+    })
+  }
+
+  useEffect(() => {
+    isMountedRef.current = true
     return () => {
-      cancelled = true
+      isMountedRef.current = false
+      schedulerRef.current?.dispose()
     }
+  }, [])
+
+  useEffect(() => {
+    shikiFnRef.current = shikiMarkdownIt
+    enableMarkdownRef.current = enableMarkdown
+    schedulerRef.current?.onOutputChange(translateOutput, enableMarkdown)
   }, [enableMarkdown, shikiMarkdownIt, translateOutput])
 
   const modelSelectorFilter = useCallback(
