@@ -19,7 +19,9 @@ export function ExitPlanModeTool({
   const outputContent = typeof output === 'string' ? output : (output?.plan ?? '')
   // The SDK returns the same normalized plan after approval. Keep distinct result text, but do not
   // render an identical plan twice once both the permission input and tool output are available.
-  const combinedContent = Array.from(new Set([plan, outputContent].filter((content) => content.trim()))).join('\n\n')
+  const combinedContent = Array.from(
+    new Set([plan, outputContent].map((content) => content.trim()).filter(Boolean))
+  ).join('\n\n')
   const { data: truncatedContent, isTruncated, originalLength } = truncateOutput(combinedContent)
   const planCount = combinedContent ? 1 : 0
 

@@ -1098,12 +1098,14 @@ async function buildToolPermissions(
     const toolName = String((input as Record<string, unknown>).tool_name ?? '')
     if (!HEADLESS_INTERACTIVE_TOOLS.includes(toolName as (typeof HEADLESS_INTERACTIVE_TOOLS)[number])) return {}
 
+    const toolInput = (input as Record<string, unknown>).tool_input
+    if (toolUseId && toolInput && typeof toolInput === 'object' && !Array.isArray(toolInput)) {
+      // `canUseTool` is skipped for auto-approved paths (bypassPermissions / acceptEdits), so
+      // surface the normalized plan from the hook that runs under every permission mode.
+      surfaceExitPlanModeInput(session.id, toolName, toolInput as Record<string, unknown>, toolUseId)
+    }
+
     if (application.get('AgentSessionRuntimeService').getInteractionState(session.id).userResponse === 'unavailable') {
-      const toolInput = (input as Record<string, unknown>).tool_input
-      if (toolUseId && toolInput && typeof toolInput === 'object' && !Array.isArray(toolInput)) {
-        // A deny hook short-circuits `canUseTool`, so surface the normalized plan here as well.
-        surfaceExitPlanModeInput(session.id, toolName, toolInput as Record<string, unknown>, toolUseId)
-      }
       return {
         hookSpecificOutput: {
           hookEventName: 'PreToolUse',
