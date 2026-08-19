@@ -183,8 +183,9 @@ describe('PermissionRequestComposer', () => {
       />
     )
 
-    expect(screen.getByText('Release plan')).toBeInTheDocument()
-    expect(screen.getByText('Run the focused tests')).toBeInTheDocument()
+    const preview = screen.getByTestId('permission-preview')
+    expect(preview).toHaveTextContent('Release plan')
+    expect(preview).toHaveTextContent('Run the focused tests')
   })
 
   it('does not add a fallback body scroller when the tool content owns scrolling', () => {
