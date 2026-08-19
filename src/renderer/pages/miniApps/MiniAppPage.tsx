@@ -183,10 +183,10 @@ const MiniAppPage: FC = () => {
             onSplit={closeSplit}
             hostShortcutEnabled={activePane === 'split'}
             onActivate={activateSplitPane}
-            className="w-1/2"
+            className="w-1/2 border-border border-l"
           />
         ) : (
-          <SplitPanePicker occupiedAppId={app.appId} onClose={closeSplit} className="w-1/2" />
+          <SplitPanePicker occupiedAppId={app.appId} onClose={closeSplit} className="w-1/2 border-border border-l" />
         ))}
     </div>
   )
