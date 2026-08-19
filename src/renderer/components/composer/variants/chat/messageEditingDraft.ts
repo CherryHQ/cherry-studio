@@ -9,7 +9,8 @@ import {
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
-import { getFileTypeByExt } from '@shared/utils/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { fileUrlToPath, getFileTypeByExt } from '@shared/utils/file'
 
 import { type ComposerSerializedToken, isComposerDraftTokenKind } from '../../tokens'
 import { chatComposerTokenId, getComposerTokenIds } from '../chatComposerTokens'
@@ -51,6 +52,15 @@ function getFileExtension(value: string | undefined, mediaType: string | undefin
   return ''
 }
 
+function getEditableFilePath(url: string) {
+  try {
+    const path = AbsoluteFilePathSchema.safeParse(fileUrlToPath(new URL(url)))
+    return path.success ? path.data : undefined
+  } catch {
+    return undefined
+  }
+}
+
 function createEditableAttachment(
   part: Extract<CherryMessagePart, { type: 'file' }>,
   index: number,
@@ -62,19 +72,18 @@ function createEditableAttachment(
   const name = part.filename || url.split(/[\\/]/).pop() || `attachment-${index + 1}`
   const ext = getFileExtension(name || url, part.mediaType)
   const type = part.mediaType?.startsWith('image/') ? FILE_TYPE.IMAGE : getFileTypeByExt(ext)
+  const composerFileKind = readCherryMeta(part)?.composerFileKind
+  const path = composerFileKind ? getEditableFilePath(url) : undefined
 
   return {
     fileTokenSourceId,
     name,
     origin_name: name,
-    // The stored part carries a `file://` URL, not a filesystem path. Leave the
-    // path absent rather than smuggling a URL through a path-typed field: the
-    // edit flow re-sends the original part verbatim, so nothing downstream
-    // needs it.
-    path: undefined,
+    ...(path && { path }),
     size: 0,
     ext,
-    type
+    type,
+    ...(path && composerFileKind && { composerFileKind })
   }
 }
 
