@@ -138,6 +138,17 @@ describe('RegionService', () => {
     expect(netRequestMock).toHaveBeenCalledTimes(2)
   })
 
+  it('handles response stream errors after receiving a non-ok status', async () => {
+    const request = Object.assign(new EventEmitter(), { abort: vi.fn(), end: vi.fn() })
+    const response = Object.assign(new EventEmitter(), { headers: {}, statusCode: 502 })
+    request.end.mockImplementation(() => queueMicrotask(() => request.emit('response', response)))
+    netRequestMock.mockReturnValue(request)
+
+    await expect(regionService.getCountry()).resolves.toBe('CN')
+    expect(request.abort).toHaveBeenCalledOnce()
+    expect(() => response.emit('error', new Error('response interrupted'))).not.toThrow()
+  })
+
   it('re-detects when the applied proxy key changes (egress may have moved)', async () => {
     proxyState.appliedProxyKey = 'fixed_servers|http://proxy-us|'
     mockResponse({ country_code: 'US' })

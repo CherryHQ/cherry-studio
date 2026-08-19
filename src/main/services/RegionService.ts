@@ -88,14 +88,15 @@ class RegionService {
       }, REQUEST_TIMEOUT)
 
       request.on('response', (response) => {
+        response.on('error', (error) => finish(error))
+
         if (response.statusCode < 200 || response.statusCode >= 300) {
-          response.on('data', () => {})
+          request.abort()
           finish(new Error(`IP info request failed with HTTP ${response.statusCode}`))
           return
         }
 
         const chunks: Buffer[] = []
-        response.on('error', (error) => finish(error))
         response.on('end', () => {
           try {
             const data = JSON.parse(Buffer.concat(chunks).toString('utf8'))
