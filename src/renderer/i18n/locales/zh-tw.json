@@ -3747,7 +3747,7 @@
   },
   "notification": {
     "assistant": "助理回應",
-    "tip": "此開關控制 Cherry Studio 在背景執行時的完成及回應請求系統通知；應用程式內的卡片一律啟用。"
+    "tip": "僅控制背景系統通知；應用程式內通知一律開啟。"
   },
   "ocr": {
     "processing": "OCR 處理中..."
@@ -6243,7 +6243,7 @@
       "label": "更多設定"
     },
     "notification": {
-      "assistant": "Agent 與助手通知",
+      "assistant": "對話完成通知",
       "backup": "備份訊息",
       "knowledge_embed": "知識庫訊息",
       "title": "通知",

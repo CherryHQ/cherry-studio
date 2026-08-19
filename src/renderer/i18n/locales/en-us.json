@@ -3747,7 +3747,7 @@
   },
   "notification": {
     "assistant": "Assistant Response",
-    "tip": "This switch controls completion and response-request system notifications when Cherry Studio is in the background. In-app cards are always enabled."
+    "tip": "Only controls system notifications while the app is in the background. In-app notifications are always enabled."
   },
   "ocr": {
     "processing": "OCR processing..."
@@ -6243,7 +6243,7 @@
       "label": "More Settings"
     },
     "notification": {
-      "assistant": "Agent & Assistant Notifications",
+      "assistant": "Conversation Completion Notifications",
       "backup": "Backup Message",
       "knowledge_embed": "KnowledgeBase Message",
       "title": "Notifications",

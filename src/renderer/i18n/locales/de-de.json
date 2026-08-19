@@ -3747,7 +3747,7 @@
   },
   "notification": {
     "assistant": "Assistenten-Antwort",
-    "tip": "Dieser Schalter steuert Systembenachrichtigungen für Abschlüsse und Antwortanforderungen, wenn Cherry Studio im Hintergrund läuft. In-App-Karten sind immer aktiviert."
+    "tip": "Steuert nur Systembenachrichtigungen im Hintergrund. In-App-Benachrichtigungen sind immer aktiviert."
   },
   "ocr": {
     "processing": "OCR wird verarbeitet..."
@@ -6243,7 +6243,7 @@
       "label": "Weitere Einstellungen"
     },
     "notification": {
-      "assistant": "Agent- und Assistentenbenachrichtigungen",
+      "assistant": "Benachrichtigungen bei Gesprächsabschluss",
       "backup": "Sicherung",
       "knowledge_embed": "Wissensdatenbank",
       "title": "Benachrichtigungen",

@@ -3747,7 +3747,7 @@
   },
   "notification": {
     "assistant": "助手响应",
-    "tip": "此开关控制 Cherry Studio 处于后台时的完成及响应请求系统通知，软件内卡片始终启用。"
+    "tip": "仅控制后台系统通知，应用内通知始终开启。"
   },
   "ocr": {
     "processing": "OCR 处理中..."
@@ -6243,7 +6243,7 @@
       "label": "更多设置"
     },
     "notification": {
-      "assistant": "Agent 与助手通知",
+      "assistant": "对话完成通知",
       "backup": "备份",
       "knowledge_embed": "知识库",
       "title": "通知",

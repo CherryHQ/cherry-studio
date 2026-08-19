@@ -16,4 +16,4 @@ Users can tell when work in another session finishes without repeatedly switchin
 
 ## What the user should do
 
-Nothing — in-app completion cards are automatic. Enable Agent and Assistant Completion under Notification settings to receive background system notifications.
+Nothing — in-app completion cards are automatic. Enable Conversation Completion Notifications under Notification settings to receive background system notifications.

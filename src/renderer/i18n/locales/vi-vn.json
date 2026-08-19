@@ -3747,7 +3747,7 @@
   },
   "notification": {
     "assistant": "Phản hồi của Trợ lý",
-    "tip": "Công tắc này kiểm soát thông báo hệ thống về hoàn tất và yêu cầu phản hồi khi Cherry Studio chạy ở chế độ nền. Thẻ trong ứng dụng luôn được bật."
+    "tip": "Chỉ kiểm soát thông báo hệ thống khi ứng dụng chạy nền. Thông báo trong ứng dụng luôn được bật."
   },
   "ocr": {
     "processing": "Đang xử lý OCR..."
@@ -6243,7 +6243,7 @@
       "label": "Thêm Cài đặt"
     },
     "notification": {
-      "assistant": "Thông báo của Agent và Trợ lý",
+      "assistant": "Thông báo hoàn tất cuộc trò chuyện",
       "backup": "Tin nhắn sao lưu",
       "knowledge_embed": "Thông báo từ KnowledgeBase",
       "title": "Thông báo",

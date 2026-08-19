@@ -144,11 +144,11 @@
   },
   "notification": {
     "action_required": {
-      "agent": "Agent 需要你的响应",
+      "agent": "智能体任务需要你的响应",
       "assistant": "助手需要你的响应"
     },
     "completion": {
-      "agent": "Agent 任务已完成",
+      "agent": "智能体任务已完成",
       "assistant": "助手回复已完成"
     }
   },

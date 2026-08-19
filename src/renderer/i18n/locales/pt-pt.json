@@ -3747,7 +3747,7 @@
   },
   "notification": {
     "assistant": "Resposta do assistente",
-    "tip": "Este interruptor controla as notificações do sistema de conclusão e pedidos de resposta quando o Cherry Studio está em segundo plano. Os cartões na aplicação estão sempre ativados."
+    "tip": "Controla apenas as notificações do sistema em segundo plano. As notificações na aplicação estão sempre ativadas."
   },
   "ocr": {
     "processing": "Processamento OCR em andamento..."
@@ -6243,7 +6243,7 @@
       "label": "Configurações adicionais"
     },
     "notification": {
-      "assistant": "Notificações do agente e do assistente",
+      "assistant": "Notificações de conclusão de conversas",
       "backup": "Backup",
       "knowledge_embed": "Base de conhecimento",
       "title": "Notificações",

@@ -3747,7 +3747,7 @@
   },
   "notification": {
     "assistant": "Réponse de l'assistant",
-    "tip": "Ce bouton contrôle les notifications système de fin de tâche et de demande de réponse lorsque Cherry Studio est en arrière-plan. Les cartes dans l’application restent toujours activées."
+    "tip": "Contrôle uniquement les notifications système en arrière-plan. Les notifications dans l’application restent toujours activées."
   },
   "ocr": {
     "processing": "Traitement OCR en cours..."
@@ -6243,7 +6243,7 @@
       "label": "Paramètres supplémentaires"
     },
     "notification": {
-      "assistant": "Notifications de l’agent et de l’assistant",
+      "assistant": "Notifications de fin de conversation",
       "backup": "Sauvegarder",
       "knowledge_embed": "Base de connaissances",
       "title": "Notifications",

@@ -3747,7 +3747,7 @@
   },
   "notification": {
     "assistant": "アシスタントの応答",
-    "tip": "このスイッチは、Cherry Studio がバックグラウンドにあるときの完了および応答要求のシステム通知を制御します。アプリ内カードは常に有効です。"
+    "tip": "バックグラウンド時のシステム通知のみを制御します。アプリ内通知は常に有効です。"
   },
   "ocr": {
     "processing": "OCR処理中..."
@@ -6243,7 +6243,7 @@
       "label": "詳細設定"
     },
     "notification": {
-      "assistant": "Agent・アシスタントの通知",
+      "assistant": "会話完了通知",
       "backup": "バックアップメッセージ",
       "knowledge_embed": "ナレッジベースメッセージ",
       "title": "通知",
