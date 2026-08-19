@@ -46,7 +46,7 @@ import { useTranslation } from 'react-i18next'
 
 import { useWebSearchPersist } from '../hooks/useWebSearchPersist'
 import { useWebSearchProviderCheck } from '../hooks/useWebSearchProviderCheck'
-import { WebSearchApiKeyListPopup } from './WebSearchApiKeyList'
+import { WebSearchApiKeyListDialog } from './WebSearchApiKeyList'
 import { WebSearchProviderOption } from './WebSearchProviderOption'
 
 const providerFormClassName = 'flex w-full flex-col gap-3 border-border-subtle border-t pt-4'
@@ -110,6 +110,7 @@ export const WebSearchProviderSetting: FC<Props> = ({
   const savedApiKeysSignature = useMemo(() => apiKeysToSignature(provider.apiKeys), [provider.apiKeys])
   const [apiKeysInput, setApiKeysInput] = useState(savedApiKeysInput)
   const [apiKeysBaseline, setApiKeysBaseline] = useState(savedApiKeysSignature)
+  const [apiKeyListOpen, setApiKeyListOpen] = useState(false)
   const apiKeysDraft = useMemo(() => normalizeApiKeysInput(apiKeysInput), [apiKeysInput])
   const apiKeysDraftSignature = useMemo(() => apiKeysToSignature(apiKeysDraft), [apiKeysDraft])
   const apiKeysDirty = apiKeysDraftSignature !== apiKeysBaseline
@@ -281,10 +282,7 @@ export const WebSearchProviderSetting: FC<Props> = ({
       return
     }
 
-    await WebSearchApiKeyListPopup.show({
-      providerId: provider.id,
-      title: `${provider.name} ${t('settings.provider.api.key.list.title')}`
-    })
+    setApiKeyListOpen(true)
   }
 
   const openLlmProviderSettings = () => {
@@ -490,6 +488,12 @@ export const WebSearchProviderSetting: FC<Props> = ({
         )}
       </div>
       {children}
+      <WebSearchApiKeyListDialog
+        providerId={provider.id}
+        title={`${provider.name} ${t('settings.provider.api.key.list.title')}`}
+        open={apiKeyListOpen}
+        onOpenChange={setApiKeyListOpen}
+      />
     </SettingGroup>
   )
 }

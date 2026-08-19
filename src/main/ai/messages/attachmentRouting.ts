@@ -12,11 +12,12 @@
  *     error.
  *
  * Content is always inlined, so visibility never depends on the model choosing
- * to call `read_file` — weak and non-tool models see it too. Every failure
- * (missing entry, parse error, native materialization)
- * degrades to a model-visible note rather than silently dropping the file or
- * failing the request. Legacy / gateway parts (no `fileEntryId`) keep the eager
- * materialization path, but their image/audio/video parts remain capability-gated.
+ * to call `read_file` — weak and non-tool models see it too. Other failures
+ * (missing entry, parse error, native materialization) degrade to a model-visible
+ * note rather than silently dropping the file or failing the request. Unreadable
+ * non-vision images stop the request. Legacy / gateway parts (no `fileEntryId`)
+ * keep the eager materialization path, but their image/audio/video parts remain
+ * capability-gated.
  *
  * `collectFileAttachments` builds the per-request allow-list `read_file` resolves
  * handles against (unique handles; the internal `fileEntryId` never reaches the
@@ -43,7 +44,7 @@ import { materializeNativeFilePart } from './fileProcessor'
 const logger = loggerService.withContext('ai:attachmentRouting')
 
 const NON_VISION_IMAGE_OCR_ERROR_MESSAGE =
-  "The selected model doesn't support images, and Cherry Studio couldn't extract readable text from the attachment. Choose a vision-capable model or remove the image and try again."
+  "The selected model isn't configured for image input, and Cherry Studio couldn't extract readable text from the attachment. Enable Vision for this model in Provider Settings, choose another vision-capable model, or remove the image and try again."
 
 class NonVisionImageOcrError extends Error {
   readonly i18nKey = 'image_unreadable_for_non_vision_model'
@@ -227,9 +228,8 @@ async function prepareChatMessage<T extends UIMessage>(
         continue
       }
 
-      // Non-vision image → OCR text when it finds any. If OCR cannot produce
-      // text, stop before opening a provider request: sending the native image
-      // to a known non-vision model would only produce a deterministic API error.
+      // Non-vision image → OCR text when available; otherwise stop before the
+      // provider request. Gateway-backed models can explicitly enable Vision.
       if (fileType === FILE_TYPE.IMAGE) {
         const ocrText = await ocrNonVisionImage(fileEntryId, ctx.signal)
         if (ocrText === null) throw new NonVisionImageOcrError()

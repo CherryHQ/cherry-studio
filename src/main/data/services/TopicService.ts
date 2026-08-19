@@ -18,7 +18,11 @@ import type {
   CreateTopicDto,
   DeleteTopicsResult,
   DuplicateTopicDto,
+  LatestTopicQuery,
   ListTopicsQuery,
+  MoveTopicDto,
+  ReusableTopicPlaceholderResponse,
+  ReuseOrCreateTopicDto,
   UpdateTopicDto
 } from '@shared/data/api/schemas/topics'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
@@ -153,18 +157,63 @@ export class TopicService {
    * topic is not guaranteed to be on it. This `lastActivityAt DESC LIMIT 1` proves global
    * latest independent of how the rail happens to page.
    */
-  getLatestActive(): Topic | null {
+  getLatestActive(query: LatestTopicQuery = {}): Topic | null {
     const db = application.get('DbService').getDb()
+    const ownerFilter =
+      query.assistantId === 'unlinked'
+        ? isNull(assistantTable.id)
+        : query.assistantId
+          ? eq(assistantTable.id, query.assistantId)
+          : undefined
 
     const [row] = db
-      .select()
+      .select({ topic: topicTable })
       .from(topicTable)
-      .where(isNull(topicTable.deletedAt))
+      .leftJoin(assistantTable, and(eq(topicTable.assistantId, assistantTable.id), isNull(assistantTable.deletedAt)))
+      .where(and(isNull(topicTable.deletedAt), ownerFilter))
       .orderBy(desc(topicTable.lastActivityAt), asc(topicTable.id))
       .limit(1)
       .all()
 
-    return row ? rowToTopic(row) : null
+    return row ? rowToTopic(row.topic) : null
+  }
+
+  /** Reuse or create one exact empty placeholder under a serialized write transaction. */
+  reuseOrCreatePlaceholder(dto: ReuseOrCreateTopicDto): ReusableTopicPlaceholderResponse {
+    const result = application.get('DbService').withWriteTx((tx) => {
+      if (dto.assistantId) assertActiveAssistantTx(tx, dto.assistantId)
+
+      const [reusable] = tx
+        .select({ topic: topicTable })
+        .from(topicTable)
+        .leftJoin(assistantTable, and(eq(topicTable.assistantId, assistantTable.id), isNull(assistantTable.deletedAt)))
+        .where(
+          and(
+            isNull(topicTable.deletedAt),
+            dto.assistantId ? eq(assistantTable.id, dto.assistantId) : isNull(topicTable.assistantId),
+            dto.excludeTopicId ? notInArray(topicTable.id, [dto.excludeTopicId]) : undefined,
+            isNull(topicTable.activeNodeId),
+            eq(topicTable.isNameManuallyEdited, false),
+            sql`trim(${topicTable.name}) = ''`
+          )
+        )
+        .orderBy(desc(topicTable.updatedAt), asc(topicTable.id))
+        .limit(1)
+        .all()
+
+      if (reusable) return { row: reusable.topic, created: false }
+      return {
+        row: this.createTx(tx, { assistantId: dto.assistantId ?? undefined }),
+        created: true
+      }
+    })
+
+    if (result.created) {
+      this.notifyReadModelChange([result.row.id], 'membership')
+      logger.info('Created empty topic', { id: result.row.id })
+    }
+
+    return { topic: rowToTopic(result.row), created: result.created }
   }
 
   /** Monotonically advance a topic's activity time within the caller's write transaction. */
@@ -204,36 +253,35 @@ export class TopicService {
   }
 
   create(dto: CreateTopicDto): Topic {
-    const dbService = application.get('DbService')
-    const messageService = getDataService('MessageService')
-
-    const row = dbService.withWriteTx((tx) => {
-      const createdAt = Date.now()
-      const topicRow = insertWithOrderKey(
-        tx,
-        topicTable,
-        {
-          name: dto.name,
-          assistantId: dto.assistantId,
-          activeNodeId: null,
-          lastActivityAt: createdAt,
-          createdAt,
-          updatedAt: createdAt
-        },
-        {
-          pkColumn: topicTable.id,
-          position: 'first',
-          scope: isNull(topicTable.deletedAt)
-        }
-      ) as TopicRow
-      messageService.createRootMessageTx(tx, topicRow.id)
-      return topicRow
-    })
+    const row = application.get('DbService').withWriteTx((tx) => this.createTx(tx, dto))
     this.notifyReadModelChange([row.id], 'membership')
 
     logger.info('Created empty topic', { id: row.id })
 
     return rowToTopic(row)
+  }
+
+  private createTx(tx: DbOrTx, dto: CreateTopicDto): TopicRow {
+    const createdAt = Date.now()
+    const topicRow = insertWithOrderKey(
+      tx,
+      topicTable,
+      {
+        name: dto.name,
+        assistantId: dto.assistantId,
+        activeNodeId: null,
+        lastActivityAt: createdAt,
+        createdAt,
+        updatedAt: createdAt
+      },
+      {
+        pkColumn: topicTable.id,
+        position: 'first',
+        scope: isNull(topicTable.deletedAt)
+      }
+    ) as TopicRow
+    getDataService('MessageService').createRootMessageTx(tx, topicRow.id)
+    return topicRow
   }
 
   duplicate(sourceTopicId: string, dto: DuplicateTopicDto): Topic {
@@ -342,6 +390,53 @@ export class TopicService {
     return topic
   }
 
+  /** Atomically update a topic's assistant and global order. */
+  move(id: string, dto: MoveTopicDto): Topic {
+    const topic = application.get('DbService').withWriteTx((tx) => {
+      const [target] = tx
+        .select({ id: topicTable.id })
+        .from(topicTable)
+        .where(and(eq(topicTable.id, id), isNull(topicTable.deletedAt)))
+        .limit(1)
+        .all()
+      if (!target) throw DataApiErrorFactory.notFound('Topic', id)
+
+      assertActiveAssistantTx(tx, dto.assistantId)
+
+      if ('before' in dto.order || 'after' in dto.order) {
+        const anchorId = 'before' in dto.order ? dto.order.before : dto.order.after
+        if (anchorId === id) {
+          const message = 'move: anchor topic must differ from the moved topic'
+          throw DataApiErrorFactory.validation({ order: [message] }, message)
+        }
+
+        const [anchor] = tx
+          .select({ assistantId: topicTable.assistantId })
+          .from(topicTable)
+          .where(and(eq(topicTable.id, anchorId), isNull(topicTable.deletedAt)))
+          .limit(1)
+          .all()
+        if (!anchor) throw DataApiErrorFactory.notFound('Topic', anchorId)
+        if (anchor.assistantId !== dto.assistantId) {
+          const message = 'move: anchor topic must belong to the target assistant'
+          throw DataApiErrorFactory.validation({ order: [message] }, message)
+        }
+      }
+
+      tx.update(topicTable).set({ assistantId: dto.assistantId }).where(eq(topicTable.id, id)).run()
+      applyMoves(tx, topicTable, [{ id, anchor: dto.order }], {
+        pkColumn: topicTable.id,
+        scope: isNull(topicTable.deletedAt)
+      })
+
+      const [row] = tx.select().from(topicTable).where(eq(topicTable.id, id)).limit(1).all()
+      if (!row) throw DataApiErrorFactory.notFound('Topic', id)
+      return rowToTopic(row)
+    })
+    this.notifyReadModelChange([id], 'projection')
+    return topic
+  }
+
   /**
    * Hard delete + tag/pin purge. Any future soft-delete path MUST also
    * call `pinService.purgeForEntitiesTx(tx, 'topic', [id])` — a surviving pin row
@@ -351,6 +446,7 @@ export class TopicService {
     const dbService = application.get('DbService')
     const deletedIds = dbService.withWriteTx((tx) => this.deleteManyByIdsTx(tx, [id], { requireAll: true }))
     this.notifyReadModelChange(deletedIds, 'membership')
+    pinService.notifyPurged()
 
     logger.info('Deleted topic', { id })
   }
@@ -359,6 +455,7 @@ export class TopicService {
     const dbService = application.get('DbService')
     const deletedIds = dbService.withWriteTx((tx) => this.deleteManyByIdsTx(tx, ids, { requireAll: true }))
     this.notifyReadModelChange(deletedIds, 'membership')
+    if (deletedIds.length > 0) pinService.notifyPurged()
 
     logger.info('Deleted topics', { count: deletedIds.length })
 
@@ -619,6 +716,7 @@ export class TopicService {
     const dbService = application.get('DbService')
     const deletedIds = dbService.withWriteTx((tx) => this.deleteByAssistantIdTx(tx, assistantId))
     this.notifyReadModelChange(deletedIds, 'membership')
+    if (deletedIds.length > 0) pinService.notifyPurged()
 
     logger.info('Deleted assistant topics', { assistantId, count: deletedIds.length })
 

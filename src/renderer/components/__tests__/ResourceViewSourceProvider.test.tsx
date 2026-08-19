@@ -84,6 +84,8 @@ function createAssistantSource(
     isRefreshing: refreshing,
     error,
     refetch: vi.fn(),
+    loadLatestTopic: vi.fn().mockResolvedValue(null),
+    reuseOrCreateTopic: vi.fn(),
     mutate: vi.fn()
   } as unknown as AssistantTopicsSource
 }
@@ -123,7 +125,9 @@ function createAgentSource(
     togglePin: vi.fn(),
     isFullyLoaded: complete,
     isLoadingAll: !complete,
-    isPinsLoading: false
+    isPinsLoading: false,
+    loadLatestSession: vi.fn().mockResolvedValue(null),
+    reuseOrCreateSession: vi.fn()
   } as unknown as AgentSessionsSource
 }
 
@@ -135,6 +139,7 @@ function SourceProbe() {
   return (
     <>
       <span data-testid="topic-ids">{topicsSource.topics.map((topic) => topic.id).join(',')}</span>
+      <span data-testid="renderer-topic-ids">{topicsSource.rendererTopics.map((topic) => topic.id).join(',')}</span>
       <span data-testid="topics-loading">{String(topicsSource.isLoadingAll)}</span>
       <span data-testid="topics-refreshing">{String(topicsSource.isRefreshing)}</span>
       <span data-testid="topics-error">{String(Boolean(topicsSource.error))}</span>
@@ -265,6 +270,23 @@ describe('ResourceViewSourceProvider', () => {
 
     await waitFor(() => expect(screen.getByTestId('topics-refreshing')).toHaveTextContent('false'))
     expect(sourceProbeRenders).toHaveBeenCalledTimes(1)
+  })
+
+  it('releases the mapped topic view when no awake assistant list consumes it', async () => {
+    sourceMocks.tabs = [createTab('chat', '/app/chat')]
+    sourceMocks.activeTabId = 'chat'
+    sourceMocks.assistantSource = createAssistantSource(['topic-1'], { complete: true })
+
+    const { rerender } = render(createProviderTree())
+
+    await waitFor(() => expect(screen.getByTestId('renderer-topic-ids')).toHaveTextContent('topic-1'))
+
+    sourceMocks.tabs = [createTab('chat', '/app/chat', true), createTab('settings', '/settings/about')]
+    sourceMocks.activeTabId = 'settings'
+    rerender(createProviderTree())
+
+    expect(screen.getByTestId('topic-ids')).toHaveTextContent('topic-1')
+    expect(screen.getByTestId('renderer-topic-ids')).toBeEmptyDOMElement()
   })
 
   it('reports a failed background refresh without tearing down the stale snapshot', async () => {

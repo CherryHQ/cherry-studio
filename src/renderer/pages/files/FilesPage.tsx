@@ -450,7 +450,6 @@ function FilesPage() {
   }, [refetchFileStats, refreshActiveFiles, refreshTrashedFiles, resetActiveFiles, resetTrashedFiles])
 
   const isTrash = filter.kind === 'library' && filter.value === 'trash'
-  const showUploadButton = filter.kind === 'library' && filter.value === 'all'
   const isImageGrid = filter.kind === 'type' && filter.value === 'image'
   const activeFilterLabel =
     filter.kind === 'library'
@@ -935,7 +934,7 @@ function FilesPage() {
                     <Trash2 className="size-3.5" />
                     {t('files.empty_trash')}
                   </Button>
-                ) : showUploadButton ? (
+                ) : (
                   <Button
                     variant="outline"
                     size="sm"
@@ -944,7 +943,7 @@ function FilesPage() {
                     <Upload className="size-3.5 translate-y-px" />
                     <span>{t('files.upload')}</span>
                   </Button>
-                ) : null}
+                )}
               </div>
             }
           />

@@ -127,7 +127,6 @@ describe('ComplexPreferenceMappings', () => {
       expect(keys).toContain('chat.web_search.default_search_keywords_provider')
       expect(keys).toContain('feature.file_processing.overrides')
       expect(keys).toContain('chat.default_model_id')
-      expect(keys).toContain('topic.naming.model_id')
       expect(keys).toContain('feature.quick_assistant.model_id')
       expect(keys).toContain('feature.translate.model_id')
       expect(keys).toContain('feature.openclaw.gateway_port')

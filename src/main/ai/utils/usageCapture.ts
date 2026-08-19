@@ -46,13 +46,8 @@ function pricingCurrency(pricing: RuntimeModelPricing): AiUsagePricingSnapshot['
     .map((rate) => rate.currency)
     .filter((currency): currency is AiUsagePricingSnapshot['currency'] => currency !== undefined)
   if (explicitCurrencies.length === 0) return undefined
-
-  const currencies = pricing.inputTokenTiers?.length
-    ? tokenRates.map((rate) => rate.currency ?? 'USD')
-    : explicitCurrencies
-
-  if (currencies.some((currency) => currency !== currencies[0])) return undefined
-  return currencies[0]
+  if (explicitCurrencies.some((currency) => currency !== explicitCurrencies[0])) return undefined
+  return explicitCurrencies[0]
 }
 
 export function createAiUsagePricingSnapshot(

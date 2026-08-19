@@ -19,6 +19,7 @@ import {
   resolveDefaultCollapsedGroupIds,
   ResourceList,
   type ResourceListGroupHeaderKind,
+  type ResourceListGroupSeed,
   type ResourceListItemReorderPayload,
   type ResourceListPresentation,
   type ResourceListReorderPayload,
@@ -64,6 +65,7 @@ import {
   createTopicDisplayGroupResolver,
   getAssistantIdFromTopicGroupId,
   getTopicAssistantDisplayGroupId,
+  getTopicAssistantGroupId,
   moveAssistantGroupAfterDrop,
   normalizeTopicDropPayload,
   sortTopicsForDisplayGroups,
@@ -74,7 +76,7 @@ import {
   type TopicDisplayMode
 } from '@renderer/utils/chat/topicsHelpers'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
+import { findLatestActive, pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
 import { cn } from '@renderer/utils/style'
 import { classifyTurn, type TopicStatusSnapshotEntry } from '@shared/ai/transport'
 import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
@@ -91,7 +93,7 @@ import {
   type TopicImageActionType
 } from '../../messages/topicImageActionBus'
 import TopicImageCaptureHost from '../../messages/TopicImageCaptureHost'
-import type { AddNewTopicPayload, AddNewTopicWithReusePayload } from '../../types'
+import type { AddNewTopicPayload } from '../../types'
 import {
   type AssistantGroupActionContext,
   executeAssistantGroupAction,
@@ -135,8 +137,8 @@ interface Props {
   manageAssistantsActive?: boolean
   onActiveAssistantDeleted?: (assistantId: string) => void | Promise<void>
   onAddAssistant?: () => void | Promise<void>
-  onCreateTopicAfterClear?: (payload: AddNewTopicPayload) => void | Promise<void>
-  onNewTopic?: (payload?: AddNewTopicWithReusePayload) => void | Promise<void>
+  clearActiveTopic: () => void
+  onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   onOpenHistoryRecords?: () => void
   onManageAssistants?: () => void | Promise<void>
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
@@ -243,7 +245,7 @@ export function Topics({
   manageAssistantsActive = false,
   onActiveAssistantDeleted,
   onAddAssistant,
-  onCreateTopicAfterClear,
+  clearActiveTopic,
   onNewTopic,
   onOpenHistoryRecords,
   onManageAssistants,
@@ -320,6 +322,7 @@ export function Topics({
   const isAssistantPinActionDisabled = isAssistantPinsLoading || isAssistantPinsRefreshing || isAssistantPinsMutating
   const {
     topics: apiTopics,
+    orderSignature,
     isLoadingAll,
     isFullyLoaded,
     isRefreshing,
@@ -394,11 +397,8 @@ export function Topics({
     targetAssistantId: string | null
   } | null>(null)
   const apiTopicOrderSignature = useMemo(
-    () =>
-      apiBackedTopics
-        .map((topic) => `${topic.id}:${topic.assistantId ?? ''}:${topic.orderKey ?? ''}:${topic.pinned ? '1' : '0'}`)
-        .join('|'),
-    [apiBackedTopics]
+    () => `${orderSignature}#${[...topicPinnedIds].sort().join(',')}`,
+    [orderSignature, topicPinnedIds]
   )
   const topics = apiBackedTopics
   const topicsRef = useRef(topics)
@@ -588,6 +588,9 @@ export function Topics({
       const assistantTopicsBeforeDelete = topicsRef.current.filter(
         (candidate) => candidate.assistantId === topic.assistantId
       )
+      const replacement =
+        pickNeighbourAfterRemoval(assistantTopicsBeforeDelete, topic.id) ??
+        findLatestActive(topicsRef.current.filter((candidate) => candidate.id !== topic.id))
 
       try {
         await removeTopic(topic)
@@ -600,19 +603,14 @@ export function Topics({
 
       if (topic.id !== activeTopicIdRef.current) return
 
-      // Deleting the active topic selects a neighbour within the *same assistant* (both layouts), so
-      // we never jump to an unrelated conversation. When that assistant has no other topic left, open
-      // a fresh empty one for it instead of leaving the view stranded.
-      const next = pickNeighbourAfterRemoval(assistantTopicsBeforeDelete, topic.id)
-      if (next) {
-        setActiveTopic(next)
+      if (replacement) {
+        setActiveTopic(replacement)
         return
       }
 
-      // Never let the fresh replacement reuse the topic we just deleted (stale candidate list).
-      await onNewTopic?.({ assistantId: topic.assistantId ?? null, excludeReuseTopicId: topic.id })
+      clearActiveTopic()
     },
-    [onNewTopic, removeTopic, setActiveTopic, t]
+    [clearActiveTopic, removeTopic, setActiveTopic, t]
   )
 
   const handleDeleteTopicClick = useCallback((topicId: string, event: MouseEvent) => {
@@ -632,8 +630,6 @@ export function Topics({
   const handleConfirmDeleteTopic = useCallback(
     async (topic: Topic, event?: MouseEvent) => {
       event?.stopPropagation()
-      // Deleting the last remaining topic is allowed: handleDeleteTopicFromMenu opens a fresh empty
-      // one for the assistant afterwards, so we never strand the view on an empty list.
       if (deleteTimerRef.current) {
         clearTimeout(deleteTimerRef.current)
         deleteTimerRef.current = null
@@ -720,6 +716,25 @@ export function Topics({
       return { id: TOPIC_ASSISTANT_SECTION_ID, label: t('chat.topics.display.assistant') }
     }
   }, [assistantById, assistantGroupById, isAssistantDisplayMode, isGroupGrouping, t])
+
+  const topicGroupSeeds = useMemo<ResourceListGroupSeed[]>(() => {
+    if (!isAssistantDisplayMode) return []
+
+    return assistantsForDisplayOrder.map((assistant) => {
+      const assistantGroup = assistant.groupId ? assistantGroupById.get(assistant.groupId) : undefined
+      const section = isGroupGrouping
+        ? assistantGroup
+          ? { id: `${TOPIC_ASSISTANT_GROUP_SECTION_PREFIX}${assistantGroup.id}`, label: assistantGroup.name }
+          : { id: TOPIC_ASSISTANT_UNGROUPED_SECTION_ID, label: t('assistants.groups.ungrouped') }
+        : { id: TOPIC_ASSISTANT_SECTION_ID, label: t('chat.topics.display.assistant') }
+
+      return {
+        id: getTopicAssistantGroupId(assistant.id),
+        label: assistant.name,
+        section
+      }
+    })
+  }, [assistantGroupById, assistantsForDisplayOrder, isAssistantDisplayMode, isGroupGrouping, t])
 
   const baseGroupedTopics = useMemo(
     () =>
@@ -871,10 +886,18 @@ export function Topics({
           topicsRef.current.filter((topic) => topic.assistantId === assistantId).map((topic) => topic.id)
         )
         if (latestTargetTopicIds.size === 0) return
+        const activeTopicId = activeTopicIdRef.current
+        const deletedActiveTopicId = latestTargetTopicIds.has(activeTopicId) ? activeTopicId : null
+        const replacement = deletedActiveTopicId
+          ? findLatestActive(topicsRef.current.filter((topic) => !latestTargetTopicIds.has(topic.id)))
+          : undefined
 
         const result = await deleteTopicsByAssistantId(assistantId)
         await refreshTopics()
-        await onCreateTopicAfterClear?.({ assistantId })
+        if (deletedActiveTopicId && activeTopicIdRef.current === deletedActiveTopicId) {
+          if (replacement) setActiveTopic(replacement)
+          else clearActiveTopic()
+        }
         toast.success(t('chat.topics.manage.delete.success', { count: result.deletedCount }))
       } catch (err) {
         logger.error('Failed to delete assistant topics', { assistantId, err })
@@ -884,7 +907,7 @@ export function Topics({
         setDeletingAssistantGroupId(null)
       }
     },
-    [deleteTopicsByAssistantId, onCreateTopicAfterClear, refreshTopics, t]
+    [clearActiveTopic, deleteTopicsByAssistantId, refreshTopics, setActiveTopic, t]
   )
 
   const handleDeleteAssistant = useCallback(
@@ -1312,9 +1335,8 @@ export function Topics({
       const assistantChanged = targetAssistantId !== currentAssistantId
 
       try {
-        // `moveTopic` owns the cache orchestration: the open conversation follows to the new
-        // assistant immediately (via `/topics/:id`), and the combined revalidation is deferred
-        // until after both writes so the optimistic overlay clears once, at the final position.
+        // `moveTopic` owns the atomic write and cache orchestration so the open conversation
+        // follows the new assistant and the optimistic overlay settles at the final position.
         await moveTopic(payload.activeId, {
           assistantId: assistantChanged ? targetAssistantId : undefined,
           anchor
@@ -1348,6 +1370,7 @@ export function Topics({
         status={listStatus}
         selectedId={hasActiveCenterSurface ? null : activeTopic?.id}
         groupBy={topicGroupByForDisplay}
+        groupSeeds={topicGroupSeeds}
         sectionBy={topicSectionBy}
         collapsedState={collapsedTopicState}
         revealRequest={revealRequest}
@@ -1370,6 +1393,7 @@ export function Topics({
         canDropGroup={canDropTopicGroup}
         canDragItem={canDragTopicItem}
         canDropItem={canDropTopicItem}
+        groupEmptyLabel={t('chat.topics.empty.title')}
         groupShowMoreLabel={isRightPanel ? undefined : t('chat.topics.group.show_more')}
         groupCollapseLabel={isRightPanel ? undefined : t('chat.topics.group.collapse')}
         onRenameItem={handleRenameTopic}

@@ -2,7 +2,7 @@ import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Tooltip } fro
 import EditIcon from '@renderer/components/icons/EditIcon'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { SecretInput } from '@renderer/components/SecretInput'
-import { createPopup, popup, type PopupInjectedProps } from '@renderer/services/popup'
+import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { maskApiKey } from '@renderer/utils/api'
 import { cn } from '@renderer/utils/style'
@@ -212,18 +212,23 @@ export const WebSearchApiKeyList: FC<WebSearchApiKeyListProps> = ({ providerId }
   )
 }
 
-interface ShowParams {
+interface WebSearchApiKeyListDialogProps {
   providerId: WebSearchProviderId
   title?: string
+  open: boolean
+  onOpenChange: (open: boolean) => void
 }
 
-type PopupProps = ShowParams & PopupInjectedProps<null>
-
-const PopupContainer: FC<PopupProps> = ({ providerId, title, open, resolve }) => {
+export const WebSearchApiKeyListDialog: FC<WebSearchApiKeyListDialogProps> = ({
+  providerId,
+  title,
+  open,
+  onOpenChange
+}) => {
   const { t } = useTranslation()
 
   return (
-    <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && resolve(null)}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent closeOnOverlayClick={false} className="sm:max-w-150">
         <DialogHeader>
           <DialogTitle className="text-sm">{title || t('settings.provider.api.key.list.title')}</DialogTitle>
@@ -233,5 +238,3 @@ const PopupContainer: FC<PopupProps> = ({ providerId, title, open, resolve }) =>
     </Dialog>
   )
 }
-
-export const WebSearchApiKeyListPopup = createPopup<ShowParams, null>(PopupContainer, { dismissResult: null })

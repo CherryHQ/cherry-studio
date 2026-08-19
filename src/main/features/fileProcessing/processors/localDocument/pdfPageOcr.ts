@@ -20,10 +20,9 @@ const RENDER_SCALE = 3
 /**
  * OCR every page of a scanned PDF and join the recognized text into markdown.
  *
- * `OcrInferenceService.recognize` only accepts an absolute path, so each page is
- * rendered, preprocessed, and written to a job-private temp directory before it
- * is recognized. Pages run one at a time: there is a single inference worker, so
- * concurrency would only queue up inside it while multiplying peak memory.
+ * Each page is rendered, preprocessed, and written to a job-private temp directory
+ * before it is recognized. Pages run one at a time: there is a single inference
+ * worker, so concurrency would only queue up inside it while multiplying peak memory.
  *
  * The output carries no page markers. It feeds the same markdown artifact the
  * anydoc path produces, and that artifact gets chunked and embedded downstream —
@@ -92,7 +91,9 @@ async function recognizePage(
   await write(imagePath, await preprocessImage(Buffer.from(rendered)))
 
   try {
-    const text = await application.get('OcrInferenceService').recognize(modelPaths, imagePath, signal)
+    const { text } = await application
+      .get('OcrInferenceService')
+      .recognize(modelPaths, { kind: 'path', imagePath }, signal)
     return text.trim()
   } finally {
     await remove(imagePath)
