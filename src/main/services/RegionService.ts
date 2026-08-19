@@ -64,29 +64,57 @@ class RegionService {
   }
 
   private async fetchCountry(): Promise<string> {
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT)
+    return new Promise((resolve, reject) => {
+      // net.fetch converts response headers through Web Headers; a proxy's Unicode
+      // diagnostic header can throw outside the returned promise.
+      const request = net.request('https://api.ipinfo.io/lite/me?token=5aa4105b40adbc')
+      let settled = false
 
-    try {
-      const response = await net.fetch('https://api.ipinfo.io/lite/me?token=5aa4105b40adbc', {
-        signal: controller.signal
+      const finish = (error: Error | null, country?: string) => {
+        if (settled) return
+        settled = true
+        clearTimeout(timeoutId)
+
+        if (error) {
+          reject(error)
+        } else {
+          resolve(country!)
+        }
+      }
+
+      const timeoutId = setTimeout(() => {
+        request.abort()
+        finish(new Error('IP info request timed out'))
+      }, REQUEST_TIMEOUT)
+
+      request.on('response', (response) => {
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+          response.on('data', () => {})
+          finish(new Error(`IP info request failed with HTTP ${response.statusCode}`))
+          return
+        }
+
+        const chunks: Buffer[] = []
+        response.on('error', (error) => finish(error))
+        response.on('end', () => {
+          try {
+            const data = JSON.parse(Buffer.concat(chunks).toString('utf8'))
+            const country = data.country_code
+            if (!country) {
+              throw new Error('IP info response missing country_code')
+            }
+
+            logger.info(`Detected user IP address country: ${country}`)
+            finish(null, country)
+          } catch (error) {
+            finish(error as Error)
+          }
+        })
+        response.on('data', (chunk) => chunks.push(chunk))
       })
-
-      if (!response.ok) {
-        throw new Error(`IP info request failed with HTTP ${response.status}`)
-      }
-
-      const data = await response.json()
-      const country = data.country_code
-      if (!country) {
-        throw new Error('IP info response missing country_code')
-      }
-
-      logger.info(`Detected user IP address country: ${country}`)
-      return country
-    } finally {
-      clearTimeout(timeoutId)
-    }
+      request.on('error', (error) => finish(error))
+      request.end()
+    })
   }
 }
 
