@@ -1642,6 +1642,26 @@
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
+      "description": "iFlytek Astron MaaS - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://maas-api.cn-huabei-1.xf-yun.com/v2"
+        }
+      },
+      "id": "xfyun",
+      "metadata": {
+        "website": {
+          "apiKey": "https://training.xfyun.cn/modelService",
+          "docs": "https://www.xfyun.cn/doc/spark/%E6%8E%A8%E7%90%86%E6%9C%8D%E5%8A%A1-http.html",
+          "models": "https://training.xfyun.cn/modelSquare",
+          "official": "https://training.xfyun.cn"
+        }
+      },
+      "name": "iFlytek Astron MaaS"
+    },
+    {
+      "defaultChatEndpoint": "openai-chat-completions",
       "description": "TokenHub - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
@@ -2073,5 +2093,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "7dd1ae83c85245f9"
+  "version": "75b0255f8b51a8cd"
 }

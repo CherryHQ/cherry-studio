@@ -58,6 +58,7 @@ import p_tokenhub from './tokenhub'
 import type { Provider } from './types'
 import p_vertexai from './vertexai'
 import p_voyageai from './voyageai'
+import p_xfyun from './xfyun'
 import p_xirang from './xirang'
 import p_zai from './zai'
 import p_zhipu from './zhipu'
@@ -113,6 +114,7 @@ export const PROVIDERS: Provider[] = [
   p_perplexity,
   p_modelscope,
   p_xirang,
+  p_xfyun,
   p_tokenhub,
   p_baidu_cloud,
   p_gpustack,
