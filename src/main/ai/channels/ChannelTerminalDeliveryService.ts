@@ -144,12 +144,14 @@ export class ChannelTerminalDeliveryService extends BaseService {
 
     const controller = new AbortController()
     const attempt = async (): Promise<void> => {
-      if (request.finalizeStream && (await adapter.onStreamComplete(request.chatId, request.text))) return
+      if (
+        request.finalizeStream &&
+        (await adapter.onStreamComplete(request.chatId, request.text, request.responseOptions))
+      ) {
+        return
+      }
       const text = request.fallbackText ?? request.text
-      await adapter.sendMessage(request.chatId, text, {
-        signal: controller.signal,
-        ...(request.replyToMessageId !== undefined ? { replyToMessageId: request.replyToMessageId } : {})
-      })
+      await adapter.sendMessage(request.chatId, text, { ...request.responseOptions, signal: controller.signal })
     }
 
     let timer: ReturnType<typeof setTimeout> | undefined

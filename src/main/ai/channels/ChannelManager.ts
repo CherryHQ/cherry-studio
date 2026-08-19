@@ -3,12 +3,13 @@ import { agentChannelService as channelService } from '@data/services/AgentChann
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
+import { t } from '@main/i18n'
 import type { AgentChannelEntity as ChannelRow, AgentChannelType } from '@shared/data/api/schemas/agentChannels'
 import type { ChannelConfig } from '@shared/data/types/channel'
 import type { IpcEventName } from '@shared/ipc/schemas/ipcSchemas'
 import type { EventPayload } from '@shared/ipc/types'
 
-import type { ChannelAdapter } from './ChannelAdapter'
+import type { ChannelAdapter, SendMessageOptions } from './ChannelAdapter'
 import { ChannelLogBuffer } from './ChannelLogBuffer'
 import { channelMessageHandler } from './ChannelMessageHandler'
 import type { ChannelLogEntry, ChannelStatusEvent } from './types'
@@ -33,7 +34,8 @@ export type ChannelDeliveryRequest = {
   /** Sent instead of `text` when the adapter did not absorb the finalize — a paused turn marks
    *  the message as stopped only in the fallback, never in the adapter's own stream UI. */
   fallbackText?: string
-  replyToMessageId?: string | number
+  /** Inbound response context (reply target, thread, parse mode) captured at enqueue time. */
+  responseOptions?: SendMessageOptions
   /** Give the adapter a chance to finalize its streaming UI (e.g. close a Feishu card) first. */
   finalizeStream?: boolean
 }
@@ -382,7 +384,10 @@ export class ChannelManager extends BaseService implements ChannelTerminalDelive
             error: err instanceof Error ? err.message : String(err)
           })
           adapter
-            .sendMessage(msg.chatId, '⚠️ An error occurred while processing your message. Please try again later.')
+            .sendMessage(msg.chatId, t('common.channel_message_processing_error'), {
+              replyToMessageId: msg.messageId,
+              ...(msg.replyInThread && { replyInThread: true })
+            })
             .catch(() => {})
         })
       })
@@ -400,7 +405,10 @@ export class ChannelManager extends BaseService implements ChannelTerminalDelive
             error: err instanceof Error ? err.message : String(err)
           })
           adapter
-            .sendMessage(cmd.chatId, '⚠️ An error occurred while processing the command. Please try again later.')
+            .sendMessage(cmd.chatId, t('common.channel_command_processing_error'), {
+              replyToMessageId: cmd.messageId,
+              ...(cmd.replyInThread && { replyInThread: true })
+            })
             .catch(() => {})
         })
       })

@@ -40,7 +40,13 @@ import type { UIMessageChunk } from 'ai'
 
 import { isAgentSessionTopic } from '../agentSession/topic'
 import { applyTurnOutputAttributes } from '../observability'
-import type { AiStreamRequest, CallOverrides, ContextOwner, InProcessUsageContext } from '../types'
+import type {
+  AiStreamRequest,
+  ApprovalRequestedEvent,
+  CallOverrides,
+  ContextOwner,
+  InProcessUsageContext
+} from '../types'
 import {
   AiStreamAdmissionError,
   type DispatchCommandReceipt,
@@ -80,6 +86,7 @@ import type {
   ActiveStream,
   AiStreamManagerConfig,
   CherryUIMessage,
+  ConversationCompletedEvent,
   StreamChunkMetadata,
   StreamChunkPayload,
   StreamCleanupPort,
@@ -163,6 +170,8 @@ export interface SendInput {
   receipt?: DispatchCommandReceipt
   /** Defaults to chat lifecycle. `streamPrompt` passes `promptStreamLifecycle`. */
   lifecycle?: StreamLifecycle
+  /** Admission-time snapshot; temporary/internal streams omit it. */
+  isPersistentConversation?: boolean
 }
 
 /** Published when a topic is stopped. The agent runtime subscribes to this instead of being called. */
@@ -384,6 +393,10 @@ function toSnapshotOutcome(state: AttemptState): { outcome?: 'success' | 'paused
 // stays declared explicitly — the adapter pool must outlive terminal sends.
 @DependsOn(['ChannelManager', 'ChannelTerminalDeliveryService'])
 export class AiStreamManager extends BaseService {
+  private readonly _onApprovalRequested = new Emitter<ApprovalRequestedEvent>()
+  public readonly onApprovalRequested: Event<ApprovalRequestedEvent> = this._onApprovalRequested.event
+  private readonly _onConversationCompleted = new Emitter<ConversationCompletedEvent>()
+  public readonly onConversationCompleted: Event<ConversationCompletedEvent> = this._onConversationCompleted.event
   private readonly activeStreams = new Map<string, ActiveStream>()
   /** Aggregate ownership starts at reservation, before an ActiveStream has runtime resources. */
   private readonly topicAggregates = new Map<string, TopicStreamAggregate>()
@@ -392,6 +405,7 @@ export class AiStreamManager extends BaseService {
   private readonly dispatchLock = new KeyedMutex()
   private readonly config: AiStreamManagerConfig
   private nextExecutionAttemptSequence = 0
+  private nextStreamTurnSequence = 0
   private nextTopicCycleSequence = 0
   /** Per-topic FIFO of steer user-message ids persisted while a turn was live. Chat's analogue of
    *  the agent runtime's `pendingTurns`; drained one continuation turn at a time. */
@@ -455,7 +469,9 @@ export class AiStreamManager extends BaseService {
   constructor(config: Partial<AiStreamManagerConfig> = {}) {
     super()
     this.config = { ...DEFAULT_CONFIG, ...config }
-    this.chatLifecycle = createChatStreamLifecycle(this.config.gracePeriodMs)
+    this.chatLifecycle = createChatStreamLifecycle(this.config.gracePeriodMs, (event) =>
+      this._onConversationCompleted.fire(event)
+    )
   }
 
   protected async onInit(): Promise<void> {
@@ -744,6 +760,11 @@ export class AiStreamManager extends BaseService {
 
     await Promise.allSettled(loopPromises)
     await Promise.allSettled(this.recoveries.inFlightRuns())
+  }
+
+  protected onDestroy(): void {
+    this._onApprovalRequested.dispose()
+    this._onConversationCompleted.dispose()
   }
 
   // ── Public: unified send ──────────────────────────────────────────
@@ -1306,6 +1327,9 @@ export class AiStreamManager extends BaseService {
     const stream: ActiveStream = {
       topicId: input.topicId,
       aggregate,
+      // Surfaced into the topic status snapshot and the main-only completion event as this turn's
+      // stable identity.
+      turnId: `${Date.now()}:${++this.nextStreamTurnSequence}`,
       executions,
       persistencePorts: new Map((input.persistencePorts ?? []).map((port) => [port.id, port])),
       cleanupPorts: new Map((input.cleanupPorts ?? []).map((port) => [port.id, port])),
@@ -1313,7 +1337,8 @@ export class AiStreamManager extends BaseService {
       // `pending` → `streaming` on first chunk.
       status: 'pending',
       isMultiModel,
-      lifecycle: input.lifecycle ?? this.chatLifecycle
+      lifecycle: input.lifecycle ?? this.chatLifecycle,
+      isPersistentConversation: input.isPersistentConversation === true
     }
     this.activeStreams.set(input.topicId, stream)
     // Chat broadcasts to SharedCache so `useChatWithHistory.resumeActiveStream` can attach; prompt is silent.
@@ -1417,7 +1442,8 @@ export class AiStreamManager extends BaseService {
         listeners: [...carriedListeners, ...input.listeners],
         persistencePorts: input.persistencePorts,
         cleanupPorts: input.cleanupPorts,
-        receipt
+        receipt,
+        isPersistentConversation: true
       })
       const admittedAttemptId = receipt.reservedAttemptIds?.[0]
       if (continuationId && admittedAttemptId !== undefined) {
@@ -1773,8 +1799,18 @@ export class AiStreamManager extends BaseService {
     // clears another tool's still-pending approval; topic reduction reads the set's size.
     const hadPendingApprovals = exec.attempt.pendingApprovalToolCallIds.size > 0
     if (chunk.type === 'tool-approval-request') {
+      // Approvals are reducer state on this branch; the ring learns about them via a pushed effect.
       stream.aggregate.setApprovalPending(exec.attemptId, chunk.toolCallId, true)
       exec.runtimeTiming.startApproval(chunk.approvalId, chunk.toolCallId, toolNameFromApprovalChunk(chunk))
+      const publishedApprovals = (exec.publishedApprovalIds ??= new Set())
+      if (!publishedApprovals.has(chunk.approvalId) && stream.isPersistentConversation) {
+        publishedApprovals.add(chunk.approvalId)
+        this._onApprovalRequested.fire({
+          topicId,
+          approvalId: chunk.approvalId,
+          requestedAt: Date.now()
+        })
+      }
     } else if (
       chunk.type === 'tool-output-available' ||
       chunk.type === 'tool-output-error' ||
@@ -2626,6 +2662,7 @@ export class AiStreamManager extends BaseService {
     } else {
       const stream: ActiveStream = {
         topicId: input.topicId,
+        turnId: `${Date.now()}:${++this.nextStreamTurnSequence}`,
         aggregate,
         executions,
         persistencePorts: new Map((input.persistencePorts ?? []).map((port) => [port.id, port])),
@@ -2633,6 +2670,7 @@ export class AiStreamManager extends BaseService {
         listeners: new Map(input.listeners.map((listener) => [listener.id, listener])),
         status: 'pending',
         isMultiModel: executions.size > 1,
+        isPersistentConversation: input.isPersistentConversation === true,
         lifecycle: input.lifecycle ?? this.chatLifecycle
       }
       aggregate.activate()

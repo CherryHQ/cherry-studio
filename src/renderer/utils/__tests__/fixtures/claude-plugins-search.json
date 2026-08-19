@@ -1,71 +1,71 @@
 {
+  "limit": 20,
+  "offset": 0,
   "skills": [
     {
+      "author": "anthropic",
+      "createdAt": "2025-01-15T10:00:00Z",
+      "description": "Automated code review skill for Claude",
       "id": "cp-001",
+      "installs": 1500,
+      "metadata": {
+        "directoryPath": "code-review",
+        "rawFileUrl": "https://raw.githubusercontent.com/anthropic/skills/main/code-review/SKILL.md",
+        "repoName": "skills",
+        "repoOwner": "anthropic"
+      },
       "name": "code-review",
       "namespace": "anthropic",
       "sourceUrl": "https://github.com/anthropic/skills/tree/main/code-review",
-      "description": "Automated code review skill for Claude",
-      "version": "1.2.0",
-      "author": "anthropic",
       "stars": 42,
-      "installs": 1500,
-      "metadata": {
-        "repoOwner": "anthropic",
-        "repoName": "skills",
-        "directoryPath": "code-review",
-        "rawFileUrl": "https://raw.githubusercontent.com/anthropic/skills/main/code-review/SKILL.md"
-      },
-      "createdAt": "2025-01-15T10:00:00Z",
-      "updatedAt": "2025-06-20T14:30:00Z"
+      "updatedAt": "2025-06-20T14:30:00Z",
+      "version": "1.2.0"
     },
     {
+      "author": null,
+      "createdAt": "2025-03-01T08:00:00Z",
+      "description": null,
       "id": "cp-002",
+      "installs": 300,
+      "metadata": null,
       "name": "test-generator",
       "namespace": "community",
       "sourceUrl": null,
-      "description": null,
-      "version": null,
-      "author": null,
       "stars": 10,
-      "installs": 300,
-      "metadata": null,
-      "createdAt": "2025-03-01T08:00:00Z",
-      "updatedAt": "2025-05-10T12:00:00Z"
+      "updatedAt": "2025-05-10T12:00:00Z",
+      "version": null
     },
     {
+      "author": "devtools-org",
+      "description": "Generate technical documentation",
       "id": "cp-003",
+      "metadata": {
+        "repoName": "claude-skills",
+        "repoOwner": "devtools-org"
+      },
       "name": "docs-writer",
       "namespace": "devtools",
-      "description": "Generate technical documentation",
-      "version": "0.5.0",
-      "author": "devtools-org",
-      "metadata": {
-        "repoOwner": "devtools-org",
-        "repoName": "claude-skills"
-      }
+      "version": "0.5.0"
     },
     {
+      "author": "vercel-labs",
+      "createdAt": "2025-06-01T00:00:00Z",
+      "description": "React and Next.js performance optimization guidelines",
       "id": "cp-004",
+      "installs": 8500,
+      "metadata": {
+        "directoryPath": "skills/react-best-practices",
+        "rawFileUrl": "https://raw.githubusercontent.com/vercel-labs/agent-skills/main/skills/react-best-practices/SKILL.md",
+        "repoName": "agent-skills",
+        "repoOwner": "vercel-labs"
+      },
       "name": "vercel-react-best-practices",
       "namespace": "@vercel-labs/agent-skills/react-best-practices",
       "sourceUrl": "https://github.com/vercel-labs/agent-skills/tree/main/skills/react-best-practices",
-      "description": "React and Next.js performance optimization guidelines",
-      "version": null,
-      "author": "vercel-labs",
       "stars": 1200,
-      "installs": 8500,
-      "metadata": {
-        "repoOwner": "vercel-labs",
-        "repoName": "agent-skills",
-        "directoryPath": "skills/react-best-practices",
-        "rawFileUrl": "https://raw.githubusercontent.com/vercel-labs/agent-skills/main/skills/react-best-practices/SKILL.md"
-      },
-      "createdAt": "2025-06-01T00:00:00Z",
-      "updatedAt": "2025-12-15T10:00:00Z"
+      "updatedAt": "2025-12-15T10:00:00Z",
+      "version": null
     }
   ],
-  "total": 4,
-  "limit": 20,
-  "offset": 0
+  "total": 4
 }

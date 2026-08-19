@@ -74,7 +74,7 @@ import {
   stripTransientStatusParts,
   TraceFlushListener
 } from '../streamManager'
-import type { InProcessUsageContext } from '../types'
+import type { ApprovalRequestedEvent, InProcessUsageContext } from '../types'
 import {
   agentSessionContinuationPromise,
   type AgentSessionRuntimeConnectionTarget,
@@ -397,6 +397,8 @@ class AgentSessionRuntimeTerminalListener implements StreamListener {
 // outlives the runtime. See the lifecycle DAG in the runtime-rework plan, Step 5.
 @DependsOn(['ClaudeCodeProcessManager', 'AiStreamManager'])
 export class AgentSessionRuntimeService extends BaseService {
+  private readonly _onApprovalRequested = new Emitter<ApprovalRequestedEvent>()
+  public readonly onApprovalRequested: Event<ApprovalRequestedEvent> = this._onApprovalRequested.event
   private readonly _onTurnTerminal = new Emitter<AgentSessionTurnTerminalEvent>()
   readonly onTurnTerminal: Event<AgentSessionTurnTerminalEvent> = this._onTurnTerminal.event
   private readonly _onRuntimeIdle = new Emitter<{ sessionId: string }>()
@@ -1710,6 +1712,7 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   protected async onDestroy(): Promise<void> {
+    this._onApprovalRequested.dispose()
     this.disposeWarmLeases()
     await this.closeAll()
     try {
@@ -2644,6 +2647,11 @@ export class AgentSessionRuntimeService extends BaseService {
         },
         { publishDataChange: true }
       )
+      this._onApprovalRequested.fire({
+        topicId: entry.topicId,
+        approvalId: request.approvalId,
+        requestedAt: Date.now()
+      })
     } catch (error) {
       logger.error('Failed to persist background tool approval request', {
         sessionId: entry.sessionId,

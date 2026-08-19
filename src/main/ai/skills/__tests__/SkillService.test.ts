@@ -409,12 +409,19 @@ describe('SkillService', () => {
         size: 0,
         contentHash: 'system-hash'
       })
+      vi.mocked(findAllSkillDirectories).mockImplementation(async (directoryPath) =>
+        directoryPath === path.join(home, '.codex', 'skills')
+          ? [{ folderPath: sourceSkillDir, sourcePath: 'large-skill' }]
+          : []
+      )
       vi.mocked(findSkillMdPath).mockImplementation(async (directoryPath) => path.join(directoryPath, 'SKILL.md'))
     })
 
     afterEach(() => {
       restoreGetPath()
       vi.mocked(parseSkillMetadata).mockReset()
+      vi.mocked(findAllSkillDirectories).mockReset()
+      vi.mocked(findAllSkillDirectories).mockResolvedValue([])
       vi.mocked(findSkillMdPath).mockReset()
     })
 
@@ -433,6 +440,47 @@ describe('SkillService', () => {
       expect(parseSkillMetadata).toHaveBeenCalledWith(
         await fs.promises.realpath(sourceSkillDir),
         'large-skill',
+        'skills',
+        { calculateSize: false }
+      )
+    })
+
+    it('discovers skills recursively under known system roots', async () => {
+      const agentsSkillsRoot = path.join(home, '.agents', 'skills')
+      const nestedSkillDir = path.join(agentsSkillsRoot, 'github', 'github-pr-workflow')
+      await fs.promises.mkdir(nestedSkillDir, { recursive: true })
+      await fs.promises.writeFile(path.join(nestedSkillDir, 'SKILL.md'), '# GitHub PR workflow')
+      vi.mocked(findAllSkillDirectories).mockImplementation(async (directoryPath) =>
+        directoryPath === agentsSkillsRoot
+          ? [{ folderPath: nestedSkillDir, sourcePath: path.join('github', 'github-pr-workflow') }]
+          : []
+      )
+      vi.mocked(parseSkillMetadata).mockResolvedValue({
+        sourcePath: path.join('github', 'github-pr-workflow'),
+        filename: 'github-pr-workflow',
+        name: 'GitHub PR Workflow',
+        description: 'Nested system skill',
+        category: 'skills',
+        type: 'skill',
+        version: '1.0.0',
+        size: 0,
+        contentHash: 'nested-system-hash'
+      })
+
+      const result = await skillService.discoverSystem()
+
+      expect(result).toEqual([
+        expect.objectContaining({
+          name: 'GitHub PR Workflow',
+          filename: 'github-pr-workflow',
+          directoryPath: await fs.promises.realpath(nestedSkillDir),
+          status: 'available',
+          placements: [expect.objectContaining({ sourceId: 'agents', sourceName: 'Agent Skills' })]
+        })
+      ])
+      expect(parseSkillMetadata).toHaveBeenCalledWith(
+        await fs.promises.realpath(nestedSkillDir),
+        path.join('github', 'github-pr-workflow'),
         'skills',
         { calculateSize: false }
       )

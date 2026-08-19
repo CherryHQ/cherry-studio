@@ -71,6 +71,7 @@ export type PersistedAgentDispatch = {
 
 export class AgentChatContextProvider implements ChatContextProvider {
   readonly name = 'agent-session'
+  readonly isPersistentConversation = true
 
   canHandle(topicId: string): boolean {
     return isAgentSessionTopic(topicId)

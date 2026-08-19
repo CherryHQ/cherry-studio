@@ -2626,6 +2626,8 @@ describe('AgentSessionRuntimeService', () => {
 
     it('persists an out-of-turn interaction as an independent assistant message', () => {
       const service = new AgentSessionRuntimeService()
+      const approvalRequestedEvents: unknown[] = []
+      service.onApprovalRequested((event) => approvalRequestedEvents.push(event))
       service.beginTurn(baseTurnInput)
       service.markTurnTerminal('session-1', 'success')
       const entry = getEntry(service)
@@ -2664,10 +2666,44 @@ describe('AgentSessionRuntimeService', () => {
         },
         { publishDataChange: true }
       )
+      expect(approvalRequestedEvents).toEqual([
+        {
+          topicId: 'agent-session:session-1',
+          approvalId: 'approval-bg',
+          requestedAt: expect.any(Number)
+        }
+      ])
+    })
+
+    it('does not publish an out-of-turn approval when its interaction message cannot be persisted', () => {
+      mocks.saveMessage.mockImplementationOnce(() => {
+        throw new Error('disk full')
+      })
+      const service = new AgentSessionRuntimeService()
+      const approvalRequestedEvents: unknown[] = []
+      service.onApprovalRequested((event) => approvalRequestedEvents.push(event))
+      service.beginTurn(baseTurnInput)
+      service.markTurnTerminal('session-1', 'success')
+      const entry = getEntry(service)
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'tool-approval-request',
+        request: {
+          approvalId: 'approval-bg',
+          toolCallId: 'tool-call-bg',
+          toolName: 'AskUserQuestion',
+          input: { questions: [{ question: 'Choose a database' }] },
+          presentation: 'message'
+        }
+      })
+
+      expect(approvalRequestedEvents).toEqual([])
     })
 
     it('keeps an in-turn approval on the live assistant stream', () => {
       const service = new AgentSessionRuntimeService()
+      const approvalRequestedEvents: unknown[] = []
+      service.onApprovalRequested((event) => approvalRequestedEvents.push(event))
       service.beginTurn(baseTurnInput)
       const entry = getEntry(service)
       const enqueue = vi.fn()
@@ -2690,6 +2726,7 @@ describe('AgentSessionRuntimeService', () => {
         toolCallId: 'tool-call-live'
       })
       expect(mocks.saveMessage).not.toHaveBeenCalledWith(expect.anything(), { publishDataChange: true })
+      expect(approvalRequestedEvents).toEqual([])
     })
 
     it('remembers whether the turn that spawned background work had an interactive responder', () => {

@@ -1,22 +1,22 @@
 {
   "results": [
     {
+      "displayName": "Code Reviewer Pro",
+      "ownerHandle": "devmaster",
       "score": 0.95,
       "slug": "code-reviewer-pro",
-      "displayName": "Code Reviewer Pro",
       "summary": "Advanced code review with security analysis",
-      "version": "2.1.0",
       "updatedAt": 1719849600,
-      "ownerHandle": "devmaster"
+      "version": "2.1.0"
     },
     {
+      "displayName": "Test Suite Generator",
+      "ownerHandle": "testdev",
       "score": 0.82,
       "slug": "test-suite-gen",
-      "displayName": "Test Suite Generator",
       "summary": "Automatically generate comprehensive test suites",
-      "version": null,
       "updatedAt": 1718640000,
-      "ownerHandle": "testdev"
+      "version": null
     }
   ]
 }

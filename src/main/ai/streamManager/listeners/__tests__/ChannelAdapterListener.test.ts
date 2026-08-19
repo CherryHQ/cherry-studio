@@ -23,13 +23,14 @@ const immediateDeliveryOwner: ChannelTerminalDeliveryOwner = {
     const adapter = deliveryAdapter
     if (!adapter) return false
     void (async () => {
-      if (request.finalizeStream && (await adapter.onStreamComplete(request.chatId, request.text))) return
-      const text = request.fallbackText ?? request.text
-      if (request.replyToMessageId !== undefined) {
-        await adapter.sendMessage(request.chatId, text, { replyToMessageId: request.replyToMessageId })
+      if (
+        request.finalizeStream &&
+        (await adapter.onStreamComplete(request.chatId, request.text, request.responseOptions))
+      ) {
         return
       }
-      await adapter.sendMessage(request.chatId, text)
+      const text = request.fallbackText ?? request.text
+      await adapter.sendMessage(request.chatId, text, request.responseOptions)
     })()
     return true
   }
@@ -115,7 +116,7 @@ describe('ChannelAdapterListener', () => {
 
     listener.onChunk(delta('Array [city'))
 
-    expect(adapter.onTextUpdate).toHaveBeenCalledWith('chat-1', 'Array [city')
+    expect(adapter.onTextUpdate).toHaveBeenCalledWith('chat-1', 'Array [city', undefined)
   })
 
   it('preserves an incomplete citation-like suffix in the final delivery', async () => {
@@ -126,7 +127,7 @@ describe('ChannelAdapterListener', () => {
     listener.onDone({ status: 'success' } as StreamDoneResult)
     await Promise.resolve()
 
-    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'Literal [cite:unfinished')
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'Literal [cite:unfinished', undefined)
   })
 
   it('does not deliver when the accumulated text is empty', () => {

@@ -1,5 +1,10 @@
 import { loggerService } from '@logger'
-import { type ChannelAdapter, type ChannelTerminalDeliveryOwner, sanitizeChannelOutput } from '@main/ai/channels'
+import {
+  type ChannelAdapter,
+  type ChannelTerminalDeliveryOwner,
+  sanitizeChannelOutput,
+  type SendMessageOptions
+} from '@main/ai/channels'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { UIMessageChunk } from 'ai'
 
@@ -45,13 +50,19 @@ export class ChannelAdapterListener implements StreamListener {
      * leaving this on would double-notify every subscribed channel.
      */
     private readonly suppressErrorMessage = false,
-    /** Inbound message id this run answers, so the reply targets it (e.g. QQ passive reply). */
-    private readonly replyToMessageId?: string | number
+    /** Response context for the inbound message, including thread placement where supported. */
+    private readonly responseOptions?: SendMessageOptions
   ) {
-    this.id = `channel:${adapter.channelId}:${this.platformChatId}`
+    const responseKey = this.responseOptions?.replyToMessageId ?? 'unthreaded'
+    this.id = `channel:${adapter.channelId}:${this.platformChatId}:${responseKey}`
   }
 
-  /** Submit stable data, never a closure — the queue must not retain this listener (C3). */
+  private updateStream(text: string): Promise<void> {
+    return this.adapter.onTextUpdate(this.platformChatId, text, this.responseOptions)
+  }
+
+  /** Submit stable data, never a closure — the queue must not retain this listener (C3).
+   *  The inbound response context rides along so the send resolves a live adapter (C2). */
   private enqueueDelivery(
     event: 'done' | 'paused' | 'error',
     attemptId: number | undefined,
@@ -66,7 +77,7 @@ export class ChannelAdapterListener implements StreamListener {
       chatId: this.platformChatId,
       event,
       text,
-      ...(this.replyToMessageId !== undefined ? { replyToMessageId: this.replyToMessageId } : {}),
+      ...(this.responseOptions !== undefined ? { responseOptions: this.responseOptions } : {}),
       ...opts
     })
   }
@@ -80,9 +91,8 @@ export class ChannelAdapterListener implements StreamListener {
       // the live delivery path that reaches the IM platform, so secrets (keys/tokens) must
       // be redacted before they leave.
       const { text } = sanitizeChannelOutput(this.accumulatedText)
-      void this.adapter
-        .onTextUpdate(this.platformChatId, text.replace(INCOMPLETE_CITATION_MARKER_PATTERN, ''))
-        .catch(() => {})
+      const update = this.updateStream(text.replace(INCOMPLETE_CITATION_MARKER_PATTERN, ''))
+      void update.catch(() => {})
     }
   }
 
@@ -98,6 +108,8 @@ export class ChannelAdapterListener implements StreamListener {
       return
     }
 
+    // Adapter finalizes its streaming UI first (e.g. close a Feishu card); the delivery service
+    // owns that ordering now, plus the bounded send and its error handling.
     this.enqueueDelivery('done', result.attemptId, text, { finalizeStream: true })
   }
 
