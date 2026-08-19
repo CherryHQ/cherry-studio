@@ -79,7 +79,10 @@ const SplitPanePicker: FC<Props> = ({ occupiedAppId, onClose, className }) => {
   }
 
   return (
-    <div className={cn('flex h-full min-h-0 flex-col bg-background', className)}>
+    // `pointer-events-auto`: the page's split container is `pointer-events-none`
+    // so the pooled webviews stay clickable through it, which would otherwise
+    // leave this whole panel inert.
+    <div className={cn('pointer-events-auto flex h-full min-h-0 flex-col bg-background', className)}>
       {/* Matches MinimalToolbar's height so the close button lines up with the
           split button it replaces in the other pane. */}
       <div className="flex h-8.75 shrink-0 items-center justify-end bg-background px-3">
