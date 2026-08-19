@@ -251,7 +251,7 @@ describe('DshRuntimeConnection tracing', () => {
     }
   )
 
-  it('opens the tool part before a stream-presented approval that outran its tool/call event', async () => {
+  it('opens the plan-review tool part before its raced tool/call event', async () => {
     const connection = await new DshRuntimeConnection(connectInput).start()
     const events = connection.events[Symbol.asyncIterator]()
     await expect(events.next()).resolves.toMatchObject({ value: { type: 'resume-token' } })
@@ -263,8 +263,8 @@ describe('DshRuntimeConnection tracing', () => {
       request: {
         approvalId: 'approval-1',
         toolCallId: 'call-1',
-        toolName: 'bash',
-        input: { command: 'rm -rf build' },
+        toolName: 'exit_plan_mode',
+        input: { plan: '# Ship it' },
         presentation: 'stream'
       }
     })
@@ -275,7 +275,7 @@ describe('DshRuntimeConnection tracing', () => {
     await expect(events.next()).resolves.toMatchObject({
       value: {
         type: 'chunk',
-        chunk: { type: 'tool-input-available', toolCallId: 'call-1', input: { command: 'rm -rf build' } }
+        chunk: { type: 'tool-input-available', toolCallId: 'call-1', input: { plan: '# Ship it' } }
       }
     })
     await expect(events.next()).resolves.toMatchObject({
