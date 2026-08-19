@@ -827,7 +827,7 @@ Grouping a stateful class with pure-function primitives would break the primitiv
 
 ### 8.2 API
 
-Shipped surface mirrors `src/main/services/file/watcher/index.ts` —
+Shipped surface mirrors `src/main/services/file/watcher.ts` —
 a single `onEvent(listener)` subscriber over a normalized event union.
 Earlier drafts proposed seven separate event channels (`onAdd` /
 `onAddDir` / `onUnlink` / `onUnlinkDir` / `onRename` / `onReady` /
@@ -1432,7 +1432,7 @@ This checklist is the canonical addition procedure. A PR introducing a new origi
 
 | Location | Change required |
 |---|---|
-| `src/shared/data/types/file/fileEntry.ts` → `FileEntryOriginSchema` | Add the new enum value |
+| `src/shared/data/types/file.ts` → `FileEntryOriginSchema` | Add the new enum value |
 | Same file → new `XxxEntrySchema` | Define the row shape for the new variant (which columns are nullable / required / branded) |
 | Same file → `FileEntrySchema` discriminated union | Add the new schema as a union member |
 | Same file → any type guard helpers (`isInternalEntry`, etc.) | Add `isXxxEntry` helper if code needs to narrow |

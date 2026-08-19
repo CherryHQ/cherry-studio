@@ -70,7 +70,7 @@ Default cap ≈ 8k chars/file (tunable).
 
 ## `read_file` — text-only overflow tool
 
-`src/main/ai/tools/fileLookup.ts` + `tools/adapters/aiSdk/builtin/ReadFileTool.ts`.
+`src/main/ai/tools/adapters/aiSdk/builtin/ReadFileTool.ts`.
 
 - Input `{ filename, offset?, limit? }`. The `filename` is the model-facing
   **handle** (unique, normalized — see `collectFileAttachments`), resolved to an

@@ -44,7 +44,7 @@ Two consequences fall out of this split:
 
 | Concept | Where it lives | Example for `topic.create` |
 | --- | --- | --- |
-| Command definition | `COMMAND_DEFINITIONS` (`src/shared/command/definitions.ts`) | `{ id: 'topic.create', scope: 'renderer', keybinding: { defaultBinding: ['CommandOrControl','N'] } }` |
+| Command definition | `COMMAND_DEFINITIONS` (`src/shared/utils/command/definitions.ts`) | `{ id: 'topic.create', scope: 'renderer', keybinding: { defaultBinding: ['CommandOrControl','N'] } }` |
 | Default key binding | the command's `keybinding.defaultBinding` | `Cmd/Ctrl + N` |
 | **User override** | the preference `shortcut.<commandId>` | `shortcut.topic.create` → `{ binding, enabled }` |
 | Handler | a surface via `useCommandHandler` (renderer) or a built‑in (main) | `useCommandHandler('topic.create', addNewTopic)` |
@@ -81,7 +81,7 @@ Pure data and pure functions, no Electron or React.
 | `types.ts` | all command/keybinding/menu/context types |
 
 Token formatting (typed shortcut vocabulary, normalization, display/accelerator
-formatting) lives in `src/shared/shortcuts/tokens.ts`; `src/shared/shortcuts/types.ts`
+formatting) lives in `src/shared/utils/shortcut.ts`; `src/shared/types/shortcut.ts`
 keeps only `ShortcutPreferenceKey` + `ResolvedShortcut`.
 
 ### 2. Main runtime — `src/main/services/`

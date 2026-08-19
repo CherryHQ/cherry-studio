@@ -870,8 +870,8 @@ To avoid the governance pitfall of "added a sourceType but forgot to wire up som
 
 | Step | Location | Action | Enforcement |
 |---|---|---|---|
-| 1 | `src/shared/data/types/file/ref/<name>.ts` | Create the variant file: declare `xxxSourceType` / `xxxRoles` / `xxxRefFields` + `xxxFileRefSchema = createRefSchema(...)` | Code review |
-| 2 | `src/shared/data/types/file/ref/index.ts` | Add the variant to `allSourceTypes` (type aggregation) + `FileRefSchema` discriminated union | Type system narrow failure |
+| 1 | `src/shared/data/types/file.ts` | Create the variant file: declare `xxxSourceType` / `xxxRoles` / `xxxRefFields` + `xxxFileRefSchema = createRefSchema(...)` | Code review |
+| 2 | `src/shared/data/types/file.ts` | Add the variant to `allSourceTypes` (type aggregation) + `FileRefSchema` discriminated union | Type system narrow failure |
 | 3 | `src/main/data/db/schemas/*` | Add the dedicated FK-constrained association table | Migration + schema tests |
 | 4 | Owning business service/migrator | Write/copy/delete relationship rows directly; use FK cascade for source and `file_entry` deletion | Unit/integration tests |
 | 5 | `FileRefService` | Add the table to read/ref-count aggregation only — the registry-driven cleanup anti-join (`persistentRefAbsenceConditions`) picks it up automatically; a missing `persistentFileRefTablesBySourceType` entry fails compilation (`satisfies Record<PersistentFileRefSourceType, …>` in `fileRelations.ts`), and the vitest coverage test additionally pins that `persistentRefAbsenceConditions()` stays registry-derived rather than hand-enumerated | DataApi + sweep tests |

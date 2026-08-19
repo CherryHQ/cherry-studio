@@ -48,7 +48,7 @@ persists, and resumes the stream.
 
 ## Persistent decisions
 
-`useToolApproval` (`src/renderer/pages/home/Messages/Tools/hooks/useToolApproval.ts`)
+`useToolApproval` (`src/renderer/components/chat/messages/tools/hooks/useToolApproval.ts`)
 exposes an `autoApprove` action **only for MCP tools** — when an `mcpTool`
 descriptor is passed. It persists the opt-out by PATCHing the server's
 `disabledAutoApproveTools`, so the MCP settings page reflects it and
@@ -71,5 +71,5 @@ per-tool default for non-MCP (e.g. Claude-Agent) tools.
 
 - Main IPC handler: `src/main/ai/AiService.ts` (`Ai_ToolApproval_Respond`)
 - Renderer bridge: `src/renderer/hooks/useToolApprovalBridge.ts`
-- Persistent decisions: `src/renderer/pages/home/Messages/Tools/hooks/useToolApproval.ts`
+- Persistent decisions: `src/renderer/components/chat/messages/tools/hooks/useToolApproval.ts`
 - Status broadcast: [Stream Manager](./stream-manager.md)

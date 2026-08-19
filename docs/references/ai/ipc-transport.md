@@ -48,7 +48,7 @@ explicit `Ai_ToolApproval_Respond` IPC handled by
 
 ## Dispatch coordinator
 
-`streamDispatchCoordinator` (`src/renderer/services/aiTransport/streamDispatchCoordinator.ts`)
+`streamDispatchService` (`src/renderer/services/aiTransport/StreamDispatchService.ts`)
 sits between the transport and the IPC call so the `Ai_Stream_Open` ack
 (`reservedMessages`, `activeExecutions`, and `preserveActiveNode`) is
 observable to callers that need to seed optimistic UI bubbles, rather than
