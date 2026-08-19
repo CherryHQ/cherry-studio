@@ -190,9 +190,10 @@ import { DIALOG_CLOSE_DURATION_MS, DIALOG_UNMOUNT_DELAY_MS, toUndefinedIfNull } 
 Direction is application-wide. Every renderer document applies the same application-owned value to
 `document.documentElement.dir` for native layout and logical CSS, then mounts one `DirectionProvider` at its root
 for Radix and direction-aware component behavior. Nested direction overrides are not supported. Use logical
-`start` / `end` for reading-order layout. Keep spatial geometry physical: APIs such as Tooltip placement, Drawer
-direction, and PageSidePanel side continue to use `left` / `right` because changing the reading direction must not
-move a surface to the opposite side of its trigger or container.
+`start` / `end` for reading-order layout. Keep spatial geometry physical: Tooltip sides, Drawer direction, and
+PageSidePanel side continue to use `left` / `right` because changing the reading direction must not move a surface
+to the opposite side of its trigger or container. Tooltip alignment suffixes retain their logical `start` / `end`
+meaning along the selected side.
 
 ```tsx
 import { DirectionProvider, DirectionalIcon } from '@cherrystudio/ui/components'

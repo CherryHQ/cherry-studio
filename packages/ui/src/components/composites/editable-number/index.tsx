@@ -47,9 +47,9 @@ const sizeClasses: Record<NonNullable<EditableNumberProps['size']>, string> = {
 }
 
 const alignClasses: Record<NonNullable<EditableNumberProps['align']>, string> = {
-  start: 'justify-start text-start',
+  start: 'justify-start text-left',
   center: 'justify-center text-center',
-  end: 'justify-end text-end'
+  end: 'justify-end text-right'
 }
 
 const clamp = (value: number, min?: number, max?: number) => {
@@ -177,7 +177,7 @@ const EditableNumber: React.FC<EditableNumberProps> = ({
 
   const displayValue = formatter ? formatter(value ?? null) : (value ?? placeholder)
   const shouldRenderDisplayValue = Boolean(formatter || prefix || suffix)
-  const inputAlignClass = align === 'start' ? 'text-start' : align === 'center' ? 'text-center' : 'text-end'
+  const inputAlignClass = align === 'start' ? 'text-left' : align === 'center' ? 'text-center' : 'text-right'
   const inputClassName = cn(
     'border-input bg-background w-full rounded-md border px-3 text-sm shadow-xs outline-none transition-[color,box-shadow] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none',
     'focus-visible:border-primary',

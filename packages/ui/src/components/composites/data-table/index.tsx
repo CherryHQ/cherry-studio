@@ -29,7 +29,7 @@ export type DataTableColumnMeta = {
   headerClassName?: string
   width?: number | string
   maxWidth?: number | string
-  align?: 'start' | 'center' | 'end'
+  align?: 'left' | 'center' | 'right'
 }
 
 type DataTableSelectionBase<TData> = {
@@ -101,9 +101,9 @@ function getHeaderMeta<TData>(columnDef: ColumnDef<TData, unknown>): DataTableCo
 }
 
 function getAlignClass(align?: DataTableColumnMeta['align']) {
-  if (align === 'start') return 'text-start'
   if (align === 'center') return 'text-center'
-  if (align === 'end') return 'text-end'
+  if (align === 'right') return 'text-right'
+  if (align === 'left') return 'text-left'
   return undefined
 }
 

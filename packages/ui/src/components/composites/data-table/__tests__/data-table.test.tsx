@@ -92,13 +92,13 @@ const columns: ColumnDef<Person>[] = [
   {
     accessorKey: 'name',
     header: 'Name',
-    meta: { width: 180, maxWidth: 180, align: 'start' }
+    meta: { width: 180, maxWidth: 180, align: 'left' }
   },
   {
     accessorKey: 'role',
     header: 'Role',
     cell: ({ row }) => <span>{row.original.role}</span>,
-    meta: { align: 'end' }
+    meta: { align: 'right' }
   }
 ]
 
@@ -151,13 +151,13 @@ describe('DataTable', () => {
     expect(screen.getByRole('columnheader', { name: 'Role' }).style.width).toBe('')
   })
 
-  it('aligns columns using logical start and end', () => {
+  it('keeps explicit column alignment physical', () => {
     render(<DataTable data={people} columns={columns} rowKey="id" />)
 
-    expect(screen.getByRole('columnheader', { name: 'Name' })).toHaveClass('text-start')
-    expect(screen.getByRole('cell', { name: 'Ada' })).toHaveClass('text-start')
-    expect(screen.getByRole('columnheader', { name: 'Role' })).toHaveClass('text-end')
-    expect(screen.getByRole('cell', { name: 'Engineer' })).toHaveClass('text-end')
+    expect(screen.getByRole('columnheader', { name: 'Name' })).toHaveClass('text-left')
+    expect(screen.getByRole('cell', { name: 'Ada' })).toHaveClass('text-left')
+    expect(screen.getByRole('columnheader', { name: 'Role' })).toHaveClass('text-right')
+    expect(screen.getByRole('cell', { name: 'Engineer' })).toHaveClass('text-right')
   })
 
   it('counter-rotates the expand chevron in RTL so it still opens downwards', () => {

@@ -15,10 +15,7 @@ type TooltipSide = 'top' | 'bottom' | 'left' | 'right'
 type Align = 'start' | 'center' | 'end'
 type TooltipPlacement = TooltipSide | `${TooltipSide}-${Exclude<Align, 'center'>}` | 'bottomRight'
 
-/**
- * Placement describes physical screen geometry. Reading direction may change the tooltip content,
- * but it must not move a tooltip to the opposite side of its trigger.
- */
+/** Tooltip sides are physical; optional `start` and `end` suffixes retain Radix's logical alignment semantics. */
 function parsePlacement(placement?: TooltipPlacement): { side: TooltipSide; align: Align } {
   const mapping: Record<TooltipPlacement, { side: TooltipSide; align: Align }> = {
     top: { side: 'top', align: 'center' },
