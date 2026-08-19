@@ -495,10 +495,13 @@ export const captureScrollableIframeAsBlob = async (
  */
 export const svgToCanvas = (svgElement: SVGElement, scale = 3): Promise<HTMLCanvasElement> => {
   // 获取 SVG 尺寸信息
+  // 优先使用 viewBox；ECharts 等 SVG 渲染器可能直接设置 width/height 属性且没有 viewBox
   const viewBox = svgElement.getAttribute('viewBox')?.split(' ').map(Number) || []
+  const attrWidth = parseFloat(svgElement.getAttribute('width') || '')
+  const attrHeight = parseFloat(svgElement.getAttribute('height') || '')
   const rect = svgElement.getBoundingClientRect()
-  const width = viewBox[2] || svgElement.clientWidth || rect.width
-  const height = viewBox[3] || svgElement.clientHeight || rect.height
+  const width = viewBox[2] || svgElement.clientWidth || rect.width || attrWidth
+  const height = viewBox[3] || svgElement.clientHeight || rect.height || attrHeight
 
   // 序列化 SVG 内容
   const svgData = new XMLSerializer().serializeToString(svgElement)
