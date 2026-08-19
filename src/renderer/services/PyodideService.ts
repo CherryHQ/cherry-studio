@@ -172,6 +172,11 @@ class PyodideService {
       return { text }
     }
 
+    // 初始化期间到达的取消不会触发之后才注册的 abort 监听器，必须在此补查
+    if (signal?.aborted) {
+      return { text: 'Python execution cancelled' }
+    }
+
     try {
       const output = await new Promise<PyodideOutput>((resolve, reject) => {
         const id = uuid()

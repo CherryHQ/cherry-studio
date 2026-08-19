@@ -9,7 +9,8 @@ interface FakeWorkerInstance {
 }
 
 const workerMocks = vi.hoisted(() => ({
-  instances: [] as any[]
+  instances: [] as any[],
+  holdInit: false
 }))
 
 vi.mock('../../workers/pyodide.worker?worker', () => ({
@@ -21,7 +22,9 @@ vi.mock('../../workers/pyodide.worker?worker', () => ({
 
     constructor() {
       workerMocks.instances.push(this)
-      queueMicrotask(() => this.emit({ type: 'initialized' }))
+      if (!workerMocks.holdInit) {
+        queueMicrotask(() => this.emit({ type: 'initialized' }))
+      }
     }
 
     addEventListener(_type: string, listener: (event: MessageEvent) => void) {
@@ -57,6 +60,7 @@ const outputWithText = (text: string) => ({ result: null, text: `${text}\n`, err
 describe('PyodideService', () => {
   beforeEach(() => {
     workerMocks.instances.length = 0
+    workerMocks.holdInit = false
     pyodideService.terminate()
   })
 
@@ -92,6 +96,20 @@ describe('PyodideService', () => {
 
     await new Promise((resolve) => setTimeout(resolve, 20))
     expect(worker.posted).toHaveLength(1)
+  })
+
+  it('should not reach the worker when cancelled during initialization', async () => {
+    workerMocks.holdInit = true
+    const controller = new AbortController()
+    const run = pyodideService.runScript('print("late")', {}, 60000, controller.signal)
+
+    await vi.waitFor(() => expect(workerMocks.instances).toHaveLength(1))
+    controller.abort()
+    latestWorker().emit({ type: 'initialized' })
+
+    await expect(run).resolves.toEqual({ text: 'Python execution cancelled' })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(latestWorker().posted).toHaveLength(0)
   })
 
   it('should terminate the worker when the running script is cancelled', async () => {
