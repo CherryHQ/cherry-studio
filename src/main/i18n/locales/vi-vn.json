@@ -84,6 +84,13 @@
     "zoomOut": "Thu nhỏ"
   },
   "common": {
+    "channel_available_commands": "Các lệnh có sẵn:",
+    "channel_command_processing_error": "⚠️ Đã xảy ra lỗi khi xử lý lệnh. Vui lòng thử lại sau.",
+    "channel_message_processing_error": "⚠️ Đã xảy ra lỗi khi xử lý tin nhắn của bạn. Vui lòng thử lại sau.",
+    "channel_new_session_created": "Đã tạo phiên mới.",
+    "channel_no_active_session": "Không có phiên hoạt động.",
+    "channel_session_compacted": "Đã thu gọn phiên.",
+    "channel_session_resolution_error": "⚠️ Không thể phân giải phiên cho tác nhân này. Vui lòng thử lại sau.",
     "copy": "Sao chép",
     "cut": "Cắt",
     "inspect": "Kiểm tra",

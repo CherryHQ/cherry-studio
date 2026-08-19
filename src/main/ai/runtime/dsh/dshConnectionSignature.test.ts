@@ -29,11 +29,14 @@ vi.mock('@main/ai/skills/SkillService', () => ({
   skillService: { list: mocks.listSkills, getSkillDirectory: mocks.getSkillDirectory }
 }))
 
-const { capturePiConnectionSnapshot } = await import('./piConnectionSignature')
+vi.mock('@main/ai/runtime/dsh/modelInjection', () => ({ resolveDshInjectionApi: vi.fn(() => undefined) }))
+vi.mock('@main/ai/runtime/agentApiGateway', () => ({ gatewayCredentialsFingerprint: vi.fn(() => 'gateway') }))
+
+const { captureDshConnectionSnapshot } = await import('./dshConnectionSignature')
 
 const agent = {
   id: 'agent-1',
-  type: 'pi',
+  type: 'deepseek-harness',
   model: 'provider::model',
   mcps: ['mcp-1'],
   knowledgeBaseIds: [],
@@ -58,14 +61,15 @@ beforeEach(() => {
   mocks.findBySessionId.mockReturnValue(null)
 })
 
-describe('capturePiConnectionSnapshot', () => {
+describe('captureDshConnectionSnapshot', () => {
   it('ignores the live permission mode but covers every reconcilable external input', async () => {
-    const baseline = (await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')).signature
+    const baseline = (await captureDshConnectionSnapshot('session-1', agent.id, 'provider::model')).signature
     mocks.getAgent.mockReturnValueOnce({
       ...agent,
       configuration: { ...agent.configuration, permission_mode: 'bypassPermissions' }
     })
-    const withPermissionChange = (await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')).signature
+    const withPermissionChange = (await captureDshConnectionSnapshot('session-1', agent.id, 'provider::model'))
+      .signature
     expect(withPermissionChange).toBe(baseline)
 
     const mutations = [
@@ -88,7 +92,7 @@ describe('capturePiConnectionSnapshot', () => {
 
     for (const mutate of mutations) {
       mutate()
-      await expect(capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')).resolves.not.toMatchObject({
+      await expect(captureDshConnectionSnapshot('session-1', agent.id, 'provider::model')).resolves.not.toMatchObject({
         signature: baseline
       })
     }
@@ -98,7 +102,7 @@ describe('capturePiConnectionSnapshot', () => {
     mocks.listSkills.mockResolvedValue([{ id: 'skill-1', folderName: 'pdf', isEnabled: true }])
     mocks.findBySessionId.mockReturnValue({ id: 'channel-1', agentId: agent.id })
 
-    const snapshot = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')
+    const snapshot = await captureDshConnectionSnapshot('session-1', agent.id, 'provider::model')
 
     expect(snapshot).toMatchObject({
       provider: { id: 'provider' },
@@ -113,7 +117,7 @@ describe('capturePiConnectionSnapshot', () => {
   it('does not attach a session link owned by another agent', async () => {
     mocks.findBySessionId.mockReturnValue({ id: 'channel-1', agentId: 'agent-2' })
 
-    await expect(capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')).resolves.toMatchObject({
+    await expect(captureDshConnectionSnapshot('session-1', agent.id, 'provider::model')).resolves.toMatchObject({
       linkedChannel: null
     })
   })
