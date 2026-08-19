@@ -101,7 +101,7 @@ export function HelpMenu({
       <Popover open={menuOpen} onOpenChange={handleMenuOpenChange}>
         <Tooltip
           content={t('help.title')}
-          placement="end"
+          placement="right"
           delay={800}
           fullWidthTrigger={layout !== 'icon'}
           isDisabled={layout !== 'icon'}>

@@ -189,19 +189,19 @@ import { DIALOG_CLOSE_DURATION_MS, DIALOG_UNMOUNT_DELAY_MS, toUndefinedIfNull } 
 
 Direction is application-wide. Every renderer document applies the same application-owned value to
 `document.documentElement.dir` for native layout and logical CSS, then mounts one `DirectionProvider` at its root
-for Radix and JavaScript layout adapters. Nested direction overrides are not supported. Shared component placement
-APIs use logical `start` / `end`; adapters such as `Drawer` and `Tooltip` translate those values only when an
-underlying library requires physical `left` / `right` values.
+for Radix and direction-aware component behavior. Nested direction overrides are not supported. Use logical
+`start` / `end` for reading-order layout. Keep spatial geometry physical: APIs such as Tooltip placement, Drawer
+direction, and PageSidePanel side continue to use `left` / `right` because changing the reading direction must not
+move a surface to the opposite side of its trigger or container.
 
 ```tsx
-import { DirectionProvider, Drawer, DirectionalIcon } from '@cherrystudio/ui/components'
+import { DirectionProvider, DirectionalIcon } from '@cherrystudio/ui/components'
 import { ArrowRight } from 'lucide-react'
 
 document.documentElement.dir = localeDirection
 
 root.render(
   <DirectionProvider dir={localeDirection}>
-    <Drawer side="end">...</Drawer>
     <DirectionalIcon>
       <ArrowRight />
     </DirectionalIcon>

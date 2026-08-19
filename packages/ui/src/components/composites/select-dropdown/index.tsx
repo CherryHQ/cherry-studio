@@ -108,7 +108,7 @@ function VirtualRows<T extends { id: string }>({
           return (
             <div
               key={item.id}
-              className="absolute top-0 start-0 w-full"
+              className="absolute top-0 left-0 w-full"
               style={{ height: vItem.size, transform: `translateY(${vItem.start}px)` }}>
               {renderRow(item)}
             </div>

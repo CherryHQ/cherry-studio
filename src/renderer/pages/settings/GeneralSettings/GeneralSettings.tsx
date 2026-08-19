@@ -175,7 +175,7 @@ const GeneralSettings: FC = () => {
                 <span>{t('settings.proxy.bypass')}</span>
                 <InfoTooltip
                   content={t('settings.proxy.tip')}
-                  placement="end"
+                  placement="right"
                   iconProps={{ className: 'cursor-pointer' }}
                 />
               </SettingRowTitle>

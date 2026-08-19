@@ -1,5 +1,4 @@
 import { Button } from '@cherrystudio/ui/components/primitives/button'
-import { type LogicalSide, resolveInlineSide, useDirection } from '@cherrystudio/ui/components/primitives/direction'
 import { usePortalContainer } from '@cherrystudio/ui/components/primitives/portal-container'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { XIcon } from 'lucide-react'
@@ -18,7 +17,7 @@ import Scrollbar from '../scrollbar'
  *
  * For edge-attached modal sheets, use the shadcn `Drawer` primitive instead.
  */
-type PageSidePanelPlacement = LogicalSide
+type PageSidePanelPlacement = 'left' | 'right'
 
 interface PageSidePanelProps {
   open: boolean
@@ -45,7 +44,7 @@ function PageSidePanel({
   title,
   header,
   footer,
-  side = 'end',
+  side = 'right',
   showCloseButton = true,
   closeLabel = 'Close',
   backdropClassName,
@@ -66,9 +65,6 @@ function PageSidePanel({
   const portalContainer = scopedContainer ?? (typeof document === 'undefined' ? null : document.body)
   const isScopedPortal =
     typeof document !== 'undefined' && portalContainer !== null && portalContainer !== document.body
-  const direction = useDirection()
-  const closedOffset = resolveInlineSide(side, direction) === 'right' ? '100%' : '-100%'
-
   const handleClose = useCallback(
     (event?: React.MouseEvent | React.PointerEvent | React.KeyboardEvent) => {
       event?.preventDefault()
@@ -115,15 +111,15 @@ function PageSidePanel({
             onKeyDown={(e) => {
               if (e.key === 'Escape') handleClose(e)
             }}
-            initial={{ x: closedOffset }}
+            initial={{ x: side === 'right' ? '100%' : '-100%' }}
             animate={{ x: 0 }}
-            exit={{ x: closedOffset }}
+            exit={{ x: side === 'right' ? '100%' : '-100%' }}
             transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
             data-slot="page-side-panel"
             className={cn(
               isScopedPortal ? 'absolute' : 'fixed',
               'top-3 bottom-3 z-70 flex w-100 flex-col overflow-hidden rounded-3xl bg-card text-card-foreground shadow-xl outline-none',
-              side === 'end' ? 'end-3' : 'start-3',
+              side === 'right' ? 'right-3' : 'left-3',
               contentClassName
             )}>
             {hasHeader && (

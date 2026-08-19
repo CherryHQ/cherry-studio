@@ -108,7 +108,7 @@ const S3Settings: FC = () => {
         {t('settings.data.s3.title.label')}
         <InfoTooltip
           content={t('settings.data.s3.title.tooltip')}
-          placement="end"
+          placement="right"
           iconProps={{ className: 'text-color-text-2 cursor-pointer' }}
           onClick={handleTitleClick}
         />

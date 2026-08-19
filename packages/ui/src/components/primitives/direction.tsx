@@ -2,26 +2,26 @@ import {
   DirectionProvider as RadixDirectionProvider,
   useDirection as useRadixDirection
 } from '@radix-ui/react-direction'
+import type { ReactNode } from 'react'
 
 type Direction = 'ltr' | 'rtl'
-type LogicalSide = 'start' | 'end'
-type PhysicalInlineSide = 'left' | 'right'
+interface DirectionProviderProps {
+  children?: ReactNode
+  dir: Direction
+}
 
 /**
- * Provides the application direction to Radix and JavaScript layout adapters. Each renderer root
+ * Provides the application direction to Radix and direction-aware components. Each renderer root
  * mounts this provider with the same application-owned value and synchronizes its document `dir`.
  */
-const DirectionProvider = RadixDirectionProvider
+function DirectionProvider({ children, dir }: DirectionProviderProps) {
+  return <RadixDirectionProvider dir={dir}>{children}</RadixDirectionProvider>
+}
 
 /** Defaults to `ltr` when no provider is mounted. */
 function useDirection(): Direction {
   return useRadixDirection()
 }
 
-function resolveInlineSide(side: LogicalSide, direction: Direction): PhysicalInlineSide {
-  if (side === 'start') return direction === 'rtl' ? 'right' : 'left'
-  return direction === 'rtl' ? 'left' : 'right'
-}
-
-export { DirectionProvider, resolveInlineSide, useDirection }
-export type { Direction, LogicalSide, PhysicalInlineSide }
+export { DirectionProvider, useDirection }
+export type { Direction }

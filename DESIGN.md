@@ -37,8 +37,8 @@ The shared direction is:
   interaction locally.
 - **Mode independence:** authored UI should work in light and dark modes through semantic tokens, without local
   palette branches.
-- **Direction independence:** shared UI should adapt to the application's reading direction through logical layout
-  and placement semantics; use physical positioning only when the geometry itself must not mirror.
+- **Direction independence:** shared UI should adapt reading-order layout to the application's direction while
+  keeping direction-independent spatial geometry physically positioned.
 - **Accessible interaction:** focus, disabled, selected, invalid, and loading states must remain perceivable without
   relying on color alone.
 
@@ -176,9 +176,10 @@ Use Tailwind's numeric spacing scale and standard breakpoints. Layout should res
 priority rather than following a universal page template.
 
 - Preserve a clear reading order as space narrows.
-- In new shared components, prefer logical properties and `start` / `end` placement APIs for reading-order layout.
-  Use physical left / right positioning only for geometry that must not mirror. Existing physical placement is not
-  by itself a defect or a repo-wide migration requirement.
+- In new shared components, prefer logical properties and `start` / `end` APIs only for reading-order layout.
+  Keep physical left / right for geometry that must not mirror, including tooltip sides, fixed panel edges, canvas
+  coordinates, and decorative corners. Existing physical placement is not by itself a defect or a repo-wide
+  migration requirement.
 - Collapse secondary navigation and utilities before primary content.
 - Avoid nested cards when spacing, a divider, or a surface change communicates grouping sufficiently.
 - Keep touch and pointer targets usable at the supported window sizes.

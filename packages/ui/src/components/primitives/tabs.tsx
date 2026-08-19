@@ -130,20 +130,20 @@ const tabsTriggerVariants = cva(
       {
         variant: 'line',
         orientation: 'horizontal',
-        class: 'after:bottom-0 after:start-0 after:h-[2px] after:w-full data-[state=active]:after:h-[4px]'
+        class: 'after:bottom-0 after:left-0 after:h-[2px] after:w-full data-[state=active]:after:h-[4px]'
       },
       {
         variant: 'line',
         orientation: 'vertical',
         class: [
-          'justify-center after:bottom-0 after:start-0 after:h-[4px] after:w-full after:bg-transparent data-[state=active]:after:bg-primary',
+          'justify-center after:bottom-0 after:left-0 after:h-[4px] after:w-full after:bg-transparent data-[state=active]:after:bg-primary',
           'hover:text-primary hover:bg-primary/10'
         ]
       },
       {
         variant: 'underline',
         orientation: 'horizontal',
-        class: 'after:bottom-0 after:start-0 after:h-0.5 after:w-full'
+        class: 'after:bottom-0 after:left-0 after:h-0.5 after:w-full'
       }
     ],
     defaultVariants: {

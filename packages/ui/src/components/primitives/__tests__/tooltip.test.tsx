@@ -174,54 +174,17 @@ describe('Tooltip', () => {
     })
   })
 
-  describe('logical placement', () => {
-    it('maps inline end to the physical right in LTR', () => {
-      render(
-        <DirectionProvider dir="ltr">
-          <Tooltip content="end in LTR" placement="end" isOpen>
-            <button type="button">Trigger</button>
-          </Tooltip>
-        </DirectionProvider>
-      )
-
-      expect(getTooltipContentElement('end in LTR')).toHaveAttribute('data-side', 'right')
-    })
-
-    it('maps inline end to the physical left in RTL', () => {
+  describe('physical placement', () => {
+    it('keeps the requested side in RTL', () => {
       render(
         <DirectionProvider dir="rtl">
-          <Tooltip content="end in RTL" placement="end" isOpen>
+          <Tooltip content="right in RTL" placement="right" isOpen>
             <button type="button">Trigger</button>
           </Tooltip>
         </DirectionProvider>
       )
 
-      expect(getTooltipContentElement('end in RTL')).toHaveAttribute('data-side', 'left')
-    })
-
-    it('falls back to the default placement when given an unrecognised value', () => {
-      render(
-        // Placement still reaches this component from untyped call sites.
-        <Tooltip content="legacy tip" placement={'bottomRight' as never} isOpen>
-          <button type="button">Trigger</button>
-        </Tooltip>
-      )
-
-      const content = getTooltipContentElement('legacy tip')
-      expect(content).toHaveAttribute('data-side', 'top')
-      expect(content).toHaveAttribute('data-align', 'center')
-    })
-
-    it('keeps resolving physical placements for pre-logical call sites', () => {
-      render(
-        <Tooltip content="physical tip" placement={'left-end' as never} isOpen>
-          <button type="button">Trigger</button>
-        </Tooltip>
-      )
-
-      const content = getTooltipContentElement('physical tip')
-      expect(content).toHaveAttribute('data-side', 'left')
-      expect(content).toHaveAttribute('data-align', 'end')
+      expect(getTooltipContentElement('right in RTL')).toHaveAttribute('data-side', 'right')
     })
   })
 

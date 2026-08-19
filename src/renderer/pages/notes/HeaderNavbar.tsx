@@ -306,7 +306,7 @@ const HeaderNavbar = ({
           </Tooltip>
         )}
         {!showWorkspace && (
-          <Tooltip title={t('navbar.show_sidebar')} delay={800} placement="end">
+          <Tooltip title={t('navbar.show_sidebar')} delay={800} placement="right">
             <BaseNavbarIcon
               className="[&_svg]:size-4.5 [&_svg]:text-muted-foreground"
               onClick={handleToggleShowWorkspace}>

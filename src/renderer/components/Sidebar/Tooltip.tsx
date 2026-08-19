@@ -3,19 +3,19 @@ import React from 'react'
 
 const sideToPlacement = {
   bottom: 'bottom',
-  start: 'start',
-  end: 'end',
+  left: 'left',
+  right: 'right',
   top: 'top'
 } as const
 
 export function SidebarTooltip({
   children,
   content,
-  side = 'end'
+  side = 'right'
 }: {
   children: React.ReactNode
   content: string
-  side?: 'end' | 'top' | 'bottom' | 'start'
+  side?: 'right' | 'top' | 'bottom' | 'left'
 }) {
   return (
     <Tooltip

@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import { CommandShortcut } from '../command'
 import { ContextMenuShortcut } from '../context-menu'
-import { DirectionProvider, resolveInlineSide, useDirection } from '../direction'
+import { DirectionProvider, useDirection } from '../direction'
 import { DropdownMenuShortcut } from '../dropdown-menu'
 
 afterEach(() => {
@@ -33,15 +33,6 @@ describe('useDirection', () => {
     )
 
     expect(screen.getByTestId('probe')).toHaveTextContent('rtl')
-  })
-})
-
-describe('resolveInlineSide', () => {
-  it('maps logical sides onto physical ones per direction', () => {
-    expect(resolveInlineSide('start', 'ltr')).toBe('left')
-    expect(resolveInlineSide('end', 'ltr')).toBe('right')
-    expect(resolveInlineSide('start', 'rtl')).toBe('right')
-    expect(resolveInlineSide('end', 'rtl')).toBe('left')
   })
 })
 
