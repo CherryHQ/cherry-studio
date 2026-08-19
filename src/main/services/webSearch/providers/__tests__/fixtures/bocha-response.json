@@ -8,26 +8,26 @@
       "value": [
         {
           "name": "Bocha Title",
-          "summary": null,
           "snippet": "Bocha Content",
+          "summary": null,
           "url": "https://bocha.example/result"
         },
         {
           "name": "Bocha Summary Title",
-          "summary": "Bocha Summary Content",
           "snippet": null,
+          "summary": "Bocha Summary Content",
           "url": "https://bocha.example/summary-result"
         },
         {
           "name": "Bocha Preferred Summary Title",
-          "summary": "Bocha Preferred Summary Content",
           "snippet": "Bocha Ignored Snippet",
+          "summary": "Bocha Preferred Summary Content",
           "url": "https://bocha.example/preferred-summary-result"
         },
         {
           "name": "Bocha Empty Content Title",
-          "summary": null,
           "snippet": null,
+          "summary": null,
           "url": "https://bocha.example/empty-content-result"
         }
       ]

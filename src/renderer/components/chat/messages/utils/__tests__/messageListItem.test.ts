@@ -61,6 +61,17 @@ describe('toMessageListItem', () => {
     expect(item.model).toBeUndefined()
     expect(item.modelId).toBeUndefined()
   })
+
+  it('projects a clear-context marker for the divider renderer', () => {
+    const message = {
+      id: 'clear-1',
+      role: 'user',
+      parts: [{ type: 'data-clear', data: {} }],
+      metadata: { status: 'success' }
+    } as CherryUIMessage
+
+    expect(toMessageListItem(message, { topicId: 'topic-1' }).isContextBoundary).toBe(true)
+  })
 })
 
 describe('getDirectAssistantModelsByUserId', () => {

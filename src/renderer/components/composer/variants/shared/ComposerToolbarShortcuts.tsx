@@ -26,6 +26,8 @@ export interface ComposerToolbarCustomTool {
   customizePlacement?: 'leading'
   /** Defaults to true for category shortcuts that need the unified panel. */
   requiresPanel?: boolean
+  /** Allows model-independent actions to remain usable before a model is configured. */
+  availableWithoutModel?: boolean
   onSelect: (args: { inputAdapter?: QuickPanelInputAdapter; unifiedPanelControl?: ComposerUnifiedPanelControl }) => void
 }
 
@@ -48,6 +50,8 @@ interface ShortcutCandidate {
   toggle: boolean
   /** Runtime state and action have been registered for the current model/context. */
   resolved: boolean
+  /** Model-independent actions bypass the shared model-required guard. */
+  availableWithoutModel?: boolean
   select: () => void
 }
 
@@ -80,7 +84,7 @@ interface CustomizeOrderState {
 
 const CUSTOMIZE_ROW_CLASS = 'flex h-8 items-center gap-1.5 rounded-md px-1.5 hover:bg-accent/60'
 const CUSTOMIZE_ROW_ICON_CLASS =
-  'flex size-5 shrink-0 items-center justify-center text-foreground/70 [&_svg]:!size-[16px]'
+  'flex size-5 shrink-0 items-center justify-center text-muted-foreground [&_svg]:!size-[16px]'
 
 const haveSameOrder = (left: readonly string[], right: readonly string[]) =>
   left.length === right.length && left.every((id, index) => id === right[index])
@@ -205,6 +209,7 @@ export const ComposerToolbarShortcuts = ({
         haspopup: requiresPanel ? 'menu' : undefined,
         toggle: false,
         resolved: true,
+        availableWithoutModel: tool.availableWithoutModel,
         select: () => tool.onSelect({ inputAdapter, unifiedPanelControl })
       }
     })
@@ -329,12 +334,13 @@ export const ComposerToolbarShortcuts = ({
         <div className="flex min-h-8 shrink-0 items-center gap-1.5">
           {visiblePinnedRows.map(({ candidate }) => {
             const shortcut = candidate!
+            const blockedByMissingModel = isModelUnavailable && !shortcut.availableWithoutModel
             const tooltip =
               shortcut.disabled && shortcut.disabledReason
                 ? shortcut.disabledReason
                 : (shortcut.tooltip ?? shortcut.label)
             return (
-              <Tooltip key={shortcut.id} content={tooltip} placement="top" isDisabled={isModelUnavailable}>
+              <Tooltip key={shortcut.id} content={tooltip} placement="top" isDisabled={blockedByMissingModel}>
                 <Button
                   type="button"
                   variant="ghost"
@@ -346,13 +352,13 @@ export const ComposerToolbarShortcuts = ({
                     shortcut.active && 'bg-accent'
                   )}
                   aria-label={typeof shortcut.label === 'string' ? shortcut.label : undefined}
-                  aria-haspopup={isModelUnavailable ? undefined : shortcut.haspopup}
+                  aria-haspopup={blockedByMissingModel ? undefined : shortcut.haspopup}
                   aria-pressed={
-                    !isModelUnavailable && shortcut.toggle && shortcut.resolved ? shortcut.active : undefined
+                    !blockedByMissingModel && shortcut.toggle && shortcut.resolved ? shortcut.active : undefined
                   }
-                  disabled={!isModelUnavailable && shortcut.disabled}
+                  disabled={!blockedByMissingModel && shortcut.disabled}
                   data-active={shortcut.active || undefined}
-                  onClick={isModelUnavailable ? showModelRequiredToast : shortcut.select}>
+                  onClick={blockedByMissingModel ? showModelRequiredToast : shortcut.select}>
                   {shortcut.icon}
                 </Button>
               </Tooltip>
@@ -400,7 +406,7 @@ export const ComposerToolbarShortcuts = ({
                   aria-label={t('chat.input.toolbar.drag_handle', { name: label ?? '' })}
                   // touch-none: let the PointerSensor own touch gestures so a scroll doesn't
                   // pointer-cancel the drag before the activation distance is met.
-                  className="flex size-5 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-muted-foreground/60 outline-none transition-colors duration-150 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 active:cursor-grabbing data-[dragging=true]:cursor-grabbing data-[dragging=true]:text-foreground">
+                  className="flex size-5 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-muted-foreground outline-none transition-colors duration-150 hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground active:cursor-grabbing data-[dragging=true]:cursor-grabbing data-[dragging=true]:text-foreground">
                   <GripVertical className="size-3.5" />
                 </button>
                 <span className={CUSTOMIZE_ROW_ICON_CLASS}>{candidate.icon}</span>

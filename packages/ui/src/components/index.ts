@@ -144,8 +144,11 @@ export {
   type ImagePreviewTransform,
   type ImagePreviewTransformControls,
   type ImagePreviewTransformOptions,
+  type ImagePreviewTransformUpdate,
   ImagePreviewTrigger,
   type ImagePreviewTriggerProps,
+  ImagePreviewViewport,
+  type ImagePreviewViewportProps,
   useImagePreviewTransform
 } from './composites/image-preview'
 // MenuList
@@ -162,7 +165,7 @@ export {
   type SelectGroup as CompositeInputSelectGroup,
   type SelectItem as CompositeInputSelectItem
 } from './composites/composite-input'
-export { Sortable } from './composites/sortable'
+export { BlurCancelPointerSensor, Sortable } from './composites/sortable'
 // TreeView
 export {
   type DragPosition,

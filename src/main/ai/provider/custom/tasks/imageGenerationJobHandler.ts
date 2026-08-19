@@ -1,21 +1,18 @@
 import type { ImageModelV3File } from '@ai-sdk/provider'
 import { application } from '@application'
-import { type AiUsageCaptureContext, aiUsageRecordService } from '@data/services/AiUsageRecordService'
+import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { loggerService } from '@logger'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import type { JobContext, JobHandler } from '@main/core/job/types'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
-import type { FileEntry } from '@shared/data/types/file'
+import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
 import { parseUniqueModelId } from '@shared/data/types/model'
 
 import { resolveProviderAiSdkConfig } from '../../config'
-import type {
-  ImageGenerationSubmitInput,
-  ImageGenerationTransport,
-  ImageTransportDescriptor
-} from '../imageGenerationModel'
+import { resolveEffectiveEndpoint, resolveWireModelId } from '../../endpoint'
+import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
 import { resolveImageTransport } from '../imageTransportRegistry'
 import { createAbortError } from '../transportUtils'
 import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './jobTypes'
@@ -25,18 +22,33 @@ const logger = loggerService.withContext('ImageGenerationJobHandler')
 /**
  * Async image-generation handler for custom-provider submit/poll transports
  * (ppio / dashscope / modelscope / dmxapi-bespoke). Mirrors
- * `imageGenerationModel.doGenerate` but owns the poll loop so it survives a
- * restart: the remote `taskId` is persisted to job metadata after submit, and
- * recovery (`'retry'`) re-dispatches the job, which then resumes polling the
- * same task instead of re-submitting.
+ * `imageGenerationModel.doGenerate` but owns the submit/poll loop.
  *
- * Secrets are never persisted. A resumed remote task resolves the submit key
- * by its persisted non-secret id; a new submit uses normal key selection.
- * Input images / mask are referenced by FileEntry id and read back from
- * FileManager (keeps the payload under the 1MB job cap and restart-safe).
+ * Secrets are never persisted — the apiKey is re-read from provider config on
+ * every attempt via `resolveProviderAiSdkConfig`. Input images / mask are
+ * referenced by FileEntry id and read back from FileManager, keeping the payload
+ * under the 1MB job cap.
+ *
+ * **Deliberately not restart-durable.** The job's only consumer is the in-process
+ * awaiter in `AiService.generateImageViaJob` (`await handle.finished`) — the sole
+ * `handle.finished` in the main process; every other job type's result is a durable
+ * side effect the handler writes itself. Nothing here designates a durable
+ * destination: the payload records no consumer identity, so a result produced after
+ * a restart reaches nobody. It would be downloaded, persisted as zero-referenced
+ * `delete_when_unreferenced` entries, and reclaimed an hour later — and if the crash
+ * landed after the vendor accepted the submit but before the task id was durable,
+ * resuming would submit a second time and bill the user twice. So non-terminal jobs
+ * are cancelled at startup (`recovery: 'abandon'`) instead of resumed.
+ *
+ * To make results survive a restart, do what `file-processing.remote-poll` does:
+ * carry a durable destination in the payload (for paintings, the already-persisted
+ * `painting.id` — the row exists before enqueue) and have this handler write the
+ * result there, which registers `painting_file_ref` rows and makes GC correct for
+ * free. Then switch `recovery` back to `'retry'` and restore the resume branch from
+ * the recipe in `docs/references/job-and-scheduler/handler-authoring.md`.
  */
 export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = {
-  recovery: 'retry',
+  recovery: 'abandon',
   defaultQueue: (input) => `image-generation.${parseUniqueModelId(input.uniqueModelId).providerId}`,
   defaultConcurrency: 2,
   // The transport already retries transient poll errors internally; a job-level
@@ -46,170 +58,84 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
   defaultTimeoutMs: 30 * 60_000,
   async execute(ctx) {
     const input = ctx.input
-    try {
-      const { providerId, modelId } = parseUniqueModelId(input.uniqueModelId)
-      const provider = providerService.getByProviderId(providerId)
-      if (!provider) throw new Error(`Image generation job: provider '${providerId}' not found`)
-      const model = modelService.getByKey(providerId, modelId)
-      if (!model) throw new Error(`Image generation job: model '${modelId}' not found for provider '${providerId}'`)
+    const { providerId, modelId } = parseUniqueModelId(input.uniqueModelId)
+    const provider = providerService.getByProviderId(providerId)
+    if (!provider) throw new Error(`Image generation job: provider '${providerId}' not found`)
+    const model = modelService.getByKey(providerId, modelId)
+    if (!model) throw new Error(`Image generation job: model '${modelId}' not found for provider '${providerId}'`)
 
-      const persistedTaskId = typeof ctx.metadata.taskId === 'string' ? ctx.metadata.taskId : undefined
-      const persistedCaptureContext = readCaptureContext(ctx.metadata.usageCaptureContext)
-      const resumedApiKey = persistedTaskId
-        ? resolvePersistedApiKey(providerId, persistedCaptureContext?.credentialReceipt)
-        : undefined
-      const { config, credentialReceipt: selectedCredentialReceipt } = await resolveProviderAiSdkConfig(
-        provider,
-        model,
-        resumedApiKey ? { apiKeyOverride: resumedApiKey } : undefined
-      )
-      const sdkConfig = { ...config, modelId: model.apiModelId ?? model.id }
-      const captureContext = persistedTaskId
-        ? persistedCaptureContext
-        : createAiUsageCaptureContext({
-            providerId: provider.id,
-            providerName: provider.name,
-            modelId: sdkConfig.modelId,
-            modelName: model.name,
-            pricing: model.pricing,
-            trustProviderReportedCost: provider.apiFeatures.reportsActualCost,
-            reportedCostCurrency: provider.reportedCostCurrency,
-            credentialReceipt: selectedCredentialReceipt,
-            source: input.source ?? null,
-            messageRef: null
-          })
-      const usageStartedAt = persistedTaskId
-        ? typeof ctx.metadata.usageStartedAt === 'number' && Number.isFinite(ctx.metadata.usageStartedAt)
-          ? ctx.metadata.usageStartedAt
-          : Date.now()
-        : Date.now()
-      if (!persistedTaskId) {
-        await ctx.patchMetadata({
-          usageCaptureContext: captureContext,
-          usageStartedAt,
-          credentialReceipt: selectedCredentialReceipt
-        })
-      } else if (!captureContext) {
-        logger.warn('Resumed image job has no immutable usage context; skipping attribution', {
-          jobId: ctx.jobId,
-          taskId: persistedTaskId
-        })
-      }
-      const transport = resolveImageTransport(sdkConfig.providerId, sdkConfig.modelId, sdkConfig.providerSettings)
-      if (!transport) {
-        throw new Error(
-          `Image generation job: no async transport for '${sdkConfig.providerId}' (model '${sdkConfig.modelId}')`
-        )
-      }
-
-      let urls: string[]
-      if (persistedTaskId) {
-        // Restart-resume: skip submit, continue polling the persisted remote task.
-        logger.debug('Resuming image-generation job from persisted task', { jobId: ctx.jobId, taskId: persistedTaskId })
-        urls = await pollUntilDone(transport, persistedTaskId, ctx)
-      } else {
-        const submit = await transport.submit(await buildSubmitInput(input, sdkConfig.modelId, ctx.signal))
-        if (submit.imageUrls) {
-          urls = submit.imageUrls
-        } else if (submit.taskId) {
-          // CRITICAL: persist before polling — without this, restart-recovery
-          // re-submits, wasting the user's vendor quota.
-          await ctx.patchMetadata({
-            taskId: submit.taskId,
-            credentialReceipt: selectedCredentialReceipt
-          })
-          urls = await pollUntilDone(transport, submit.taskId, ctx)
-        } else {
-          // A malformed submit response (neither URLs nor a task id) must fail the
-          // job rather than silently complete with zero files (a paid no-op).
-          throw new Error(`Image generation submit for '${sdkConfig.modelId}' returned neither imageUrls nor a taskId`)
-        }
-      }
-
-      // Record before local download: the provider invocation completed even if
-      // file persistence fails. Polling is part of this invocation, not another
-      // billable call; a successful zero-image response is still an observable
-      // invocation. The stable job id keeps restart delivery idempotent.
-      if (captureContext) {
-        const completedAt = Date.now()
-        aiUsageRecordService.recordInvocation({
-          requestId: `custom-image:${ctx.jobId}`,
-          context: captureContext,
-          modality: 'image',
-          imageCount: urls.length,
-          metrics: { timeCompletionMs: Math.max(0, completedAt - usageStartedAt) },
-          completedAt
-        })
-      }
-
-      // An empty URL list from a *successful* submit/poll (e.g. content moderation
-      // or a degraded vendor response that still charged) must fail rather than
-      // complete as a silent zero-image "success". It was recorded above with
-      // imageCount=0 because the provider invocation itself did complete.
-      if (urls.length === 0) {
-        throw new Error(`Image generation for '${sdkConfig.modelId}' completed but returned no image URLs`)
-      }
-
-      const files = await downloadAndPersistImageUrls(urls, ctx.signal)
-      ctx.reportProgress(100, { stage: 'done' })
-      return { files } satisfies ImageGenerationJobOutput
-    } finally {
-      // Best-effort cleanup of the per-job temp input/mask copies. Owned by the
-      // handler so it also covers the restart-resume path (the original IPC
-      // `finally` is gone after a restart). Safe: resume polls from the persisted
-      // taskId and never re-reads these ids.
-      await deleteImageInputEntries([...(input.inputFileIds ?? []), input.maskFileId])
+    const { config, credentialReceipt } = await resolveProviderAiSdkConfig(provider, model)
+    const sdkConfig = {
+      ...config,
+      modelId: resolveWireModelId(model, resolveEffectiveEndpoint(provider, model).endpointType)
     }
-  }
-}
+    // Built fresh every execution and held in memory only. Upstream persists this
+    // to job metadata so a resumed run can still attribute its cost; with
+    // `recovery: 'abandon'` no run outlives the process, so persisting it would be
+    // a write nobody reads — and would imply a durability this handler does not have.
+    const captureContext = createAiUsageCaptureContext({
+      providerId: provider.id,
+      providerName: provider.name,
+      modelId: sdkConfig.modelId,
+      modelName: model.name,
+      pricing: model.pricing,
+      trustProviderReportedCost: provider.apiFeatures.reportsActualCost,
+      reportedCostCurrency: provider.reportedCostCurrency,
+      credentialReceipt,
+      source: input.source ?? null,
+      messageRef: null
+    })
+    const usageStartedAt = Date.now()
 
-function resolvePersistedApiKey(
-  providerId: string,
-  receipt: AiUsageCaptureContext['credentialReceipt'] | undefined
-): string | undefined {
-  if (receipt?.attribution !== 'explicit' && receipt?.attribution !== 'matched') return undefined
-  const key = providerService.getApiKeys(providerId, { enabled: true }).find((entry) => entry.id === receipt.id)
-  if (!key) {
-    throw new Error(
-      `Image generation job: API key '${receipt.id}' used to submit the remote task is unavailable or disabled`
-    )
-  }
-  return key.key
-}
+    const transport = resolveImageTransport(sdkConfig.providerId, sdkConfig.modelId, sdkConfig.providerSettings)
+    if (!transport) {
+      throw new Error(
+        `Image generation job: no async transport for '${sdkConfig.providerId}' (model '${sdkConfig.modelId}')`
+      )
+    }
 
-function readCaptureContext(value: unknown): AiUsageCaptureContext | undefined {
-  if (!value || typeof value !== 'object') return undefined
-  const context = value as Partial<AiUsageCaptureContext>
-  if (
-    typeof context.providerId !== 'string' ||
-    typeof context.modelId !== 'string' ||
-    typeof context.trustProviderReportedCost !== 'boolean' ||
-    !context.credentialReceipt
-  ) {
-    return undefined
-  }
-  const cloned = {
-    ...structuredClone(context),
-    reportedCostCurrency: context.reportedCostCurrency ?? null
-  } as AiUsageCaptureContext
-  const freeze = (candidate: unknown): void => {
-    if (!candidate || typeof candidate !== 'object' || Object.isFrozen(candidate)) return
-    for (const nested of Object.values(candidate)) freeze(nested)
-    Object.freeze(candidate)
-  }
-  freeze(cloned)
-  return cloned
-}
+    // No persisted-task resume branch: `recovery: 'abandon'` means a job never
+    // outlives the process that enqueued it, so every execution starts at submit.
+    let urls: string[]
+    const submit = await transport.submit(await buildSubmitInput(input, sdkConfig.modelId, ctx.signal))
+    if (submit.imageUrls) {
+      urls = submit.imageUrls
+    } else if (submit.taskId) {
+      urls = await pollUntilDone(transport, submit.taskId, ctx)
+    } else {
+      // A malformed submit response (neither URLs nor a task id) must fail the
+      // job rather than silently complete with zero files (a paid no-op).
+      throw new Error(`Image generation submit for '${sdkConfig.modelId}' returned neither imageUrls nor a taskId`)
+    }
 
-/**
- * Jobs enqueued before `modelDescriptor` became a typed payload field carried
- * it inside the vendor bag instead (`providerParams.modelDescriptor`). A job
- * still queued (or mid-poll) across that upgrade resumes with the new field
- * absent — fall back to the legacy bag location so PPIO/DashScope submit/poll
- * still route correctly.
- */
-function resolveModelDescriptor(input: ImageGenerationJobPayload): ImageTransportDescriptor | undefined {
-  return input.modelDescriptor ?? (input.providerParams?.modelDescriptor as ImageTransportDescriptor | undefined)
+    // Record before local download: the provider invocation completed even if file
+    // persistence fails. Polling is part of this invocation, not another billable
+    // call; a successful zero-image response is still an observable invocation.
+    if (captureContext) {
+      const completedAt = Date.now()
+      aiUsageRecordService.recordInvocation({
+        requestId: `custom-image:${ctx.jobId}`,
+        context: captureContext,
+        modality: 'image',
+        imageCount: urls.length,
+        metrics: { timeCompletionMs: Math.max(0, completedAt - usageStartedAt) },
+        completedAt
+      })
+    }
+
+    // An empty URL list from a *successful* submit/poll (e.g. content moderation
+    // or a degraded vendor response that still charged) must fail rather than
+    // complete as a silent zero-image "success". Covers both submit.imageUrls === []
+    // and poll() === []; the malformed-submit (neither field) case threw above.
+    // Recorded above with imageCount=0 because the provider invocation did complete.
+    if (urls.length === 0) {
+      throw new Error(`Image generation for '${sdkConfig.modelId}' completed but returned no image URLs`)
+    }
+
+    const files = await downloadAndPersistImageUrls(urls, ctx.signal, input.cleanupPolicy)
+    ctx.reportProgress(100, { stage: 'done' })
+    return { files } satisfies ImageGenerationJobOutput
+  }
 }
 
 async function buildSubmitInput(
@@ -227,7 +153,7 @@ async function buildSubmitInput(
     seed: input.seed,
     files,
     mask,
-    modelDescriptor: resolveModelDescriptor(input),
+    modelDescriptor: input.modelDescriptor,
     providerParams: input.providerParams,
     signal
   }
@@ -262,9 +188,9 @@ async function pollUntilDone(
     return await transport.poll(taskId, {
       signal: ctx.signal,
       onProgress: (progress) => ctx.reportProgress(progress, { stage: 'polling' }),
-      // Carry the persisted descriptor so a restart-resumed poll on a fresh
-      // transport instance rebuilds per-task state (DashScope's response family).
-      modelDescriptor: resolveModelDescriptor(ctx.input)
+      // Carry the descriptor so the poll rebuilds per-task state on a transport
+      // instance that did not run the submit (DashScope's response family).
+      modelDescriptor: ctx.input.modelDescriptor
     })
   } finally {
     if (cancelRemote) ctx.signal.removeEventListener('abort', cancelRemote)
@@ -272,7 +198,11 @@ async function pollUntilDone(
 }
 
 /** Download result URLs (always non-empty — the caller guards) and persist each as an internal FileEntry. */
-async function downloadAndPersistImageUrls(urls: string[], signal: AbortSignal): Promise<FileEntry[]> {
+async function downloadAndPersistImageUrls(
+  urls: string[],
+  signal: AbortSignal,
+  cleanupPolicy: CleanupPolicy
+): Promise<FileEntry[]> {
   const fileManager = application.get('FileManager')
   const files: FileEntry[] = []
   for (const url of urls) {
@@ -282,7 +212,8 @@ async function downloadAndPersistImageUrls(urls: string[], signal: AbortSignal):
     files.push(
       await fileManager.createInternalEntry({
         source: 'base64',
-        data: `data:${downloaded.media_type || 'image/png'};base64,${downloaded.data}`
+        data: `data:${downloaded.media_type || 'image/png'};base64,${downloaded.data}`,
+        cleanupPolicy
       })
     )
   }
@@ -299,10 +230,11 @@ async function downloadAndPersistImageUrls(urls: string[], signal: AbortSignal):
 }
 
 /**
- * Best-effort delete the per-job temp input/mask FileEntries created by
- * `generateImageViaJob`. They carry no FileManager ref, so without this they would
- * leak permanently (the orphan scan only reports, never deletes). Idempotent and
- * non-throwing so it is safe to call from both the handler and the IPC `finally`.
+ * Best-effort delete of temp image-input `file_entry` copies. Called by AiService
+ * to clean up inputs it created when the job enqueue fails before the job owns
+ * them. Once a job is enqueued its inputs are held by `job_file_ref`, and the
+ * cleanup pass reclaims them when the job row is pruned — there is no ad-hoc
+ * post-job delete (file-entry-cleanup.md §4.1/§5.1). Idempotent and non-throwing.
  */
 export async function deleteImageInputEntries(ids: ReadonlyArray<string | undefined>): Promise<void> {
   const present = ids.filter((id): id is string => Boolean(id))

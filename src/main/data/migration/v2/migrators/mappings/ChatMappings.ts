@@ -63,7 +63,7 @@ import type {
   TextUIPart
 } from '@shared/data/types/message'
 import type { CherryDataPartTypes, CherryToolMeta } from '@shared/data/types/uiParts'
-import { withCherryMeta } from '@shared/data/types/uiParts'
+import { createClearContextPart, withCherryMeta } from '@shared/data/types/uiParts'
 import { AbsoluteFilePathSchema, type Base64String } from '@shared/types/file'
 import type { SourceUrlUIPart } from 'ai'
 import mime from 'mime'
@@ -411,6 +411,7 @@ export interface NewTopic {
   assistantId: string | null
   activeNodeId: string | null
   orderKey: string
+  lastActivityAt: number
   createdAt: number // timestamp
   updatedAt: number // timestamp
 }
@@ -464,7 +465,8 @@ export interface NewMessage {
  * - pinned: Pin state lives on the polymorphic `pin` table now; the migrator
  *   reads `oldTopic.pinned` separately and emits a `pin` row for it.
  */
-export function transformTopic(oldTopic: OldTopic, activeNodeId: string | null): NewTopic {
+export function transformTopic(oldTopic: OldTopic, activeNodeId: string | null, lastActivityAt?: number): NewTopic {
+  const createdAt = parseTimestamp(oldTopic.createdAt)
   return {
     id: oldTopic.id,
     name: oldTopic.name || '',
@@ -472,7 +474,8 @@ export function transformTopic(oldTopic: OldTopic, activeNodeId: string | null):
     assistantId: oldTopic.assistantId || null,
     activeNodeId,
     orderKey: '', // Stamped by ChatMigrator.insertStagedTopics post-stream.
-    createdAt: parseTimestamp(oldTopic.createdAt),
+    lastActivityAt: Math.max(createdAt, lastActivityAt ?? createdAt),
+    createdAt,
     updatedAt: parseTimestamp(oldTopic.updatedAt)
   }
 }
@@ -515,8 +518,11 @@ export function transformTopic(oldTopic: OldTopic, activeNodeId: string | null):
  * | createdAt | createdAt | ISO string → timestamp |
  * | updatedAt | updatedAt | ISO string → timestamp |
  *
+ * ## Message Type:
+ * Legacy `type: 'clear'` is converted to a hidden `data-clear` part. Other
+ * message type values are dropped.
+ *
  * ## Dropped Fields:
- * - type ('clear' | 'text' | '@')
  * - useful (boolean)
  * - enabledMCPs (deprecated)
  * - agentSessionId (session identifier)
@@ -558,7 +564,9 @@ export async function transformMessage(
     parentId,
     topicId: correctTopicId,
     role: oldMessage.role,
-    data: { parts },
+    data: {
+      parts: oldMessage.type === 'clear' ? [...parts, createClearContextPart()] : parts
+    },
     searchableText: searchableText || '',
     status: normalizeStatus(oldMessage.status),
     siblingsGroupId,
@@ -1321,8 +1329,10 @@ export function buildMessageTree(
     }
   }
 
-  // Build set of known message IDs for validating references
-  const knownIds = new Set(messages.map((m) => m.id))
+  // Only references to messages already processed in chronological order are
+  // safe parent edges. Accepting an ID that appears later can create a cycle
+  // when that later user message links back to a selected response.
+  const seenMessageIds = new Set<string>()
 
   // Track fallback parent for orphaned askId groups (user message deleted)
   // All messages in the same orphaned group share the previousMessageId at the time
@@ -1343,7 +1353,7 @@ export function buildMessageTree(
     if (msg.askId && askIdToGroupId.has(msg.askId)) {
       siblingsGroupId = askIdToGroupId.get(msg.askId)!
 
-      if (knownIds.has(msg.askId)) {
+      if (seenMessageIds.has(msg.askId)) {
         // Normal multi-model: parent is the user message
         parentId = msg.askId
       } else {
@@ -1376,6 +1386,7 @@ export function buildMessageTree(
     }
 
     result.set(msg.id, { parentId, siblingsGroupId })
+    seenMessageIds.add(msg.id)
 
     // Update tracking for next iteration
     previousMessageId = msg.id

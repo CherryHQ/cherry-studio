@@ -988,7 +988,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
               isListboxVisible && activeItemId ? getGlobalSearchOptionDomId(activeItemId) : undefined
             }
             spellCheck={false}
-            className="h-11 rounded-[22px] border-border-subtle bg-muted/20 pr-12 pl-12 text-[15px] shadow-none placeholder:text-muted-foreground focus-visible:ring-1"
+            className="h-11 rounded-[22px] border-border-subtle bg-muted/20 pr-12 pl-12 text-[15px] shadow-none placeholder:text-muted-foreground"
           />
           {query && (
             <button

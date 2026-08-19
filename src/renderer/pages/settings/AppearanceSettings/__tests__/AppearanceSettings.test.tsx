@@ -1,4 +1,3 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { type MenuPresentationMode, ThemeMode } from '@shared/data/preference/preferenceTypes'
@@ -24,8 +23,7 @@ const mocks = vi.hoisted(() => ({ request: vi.fn() }))
 const themeMocks = vi.hoisted(() => ({ setTheme: vi.fn() }))
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.request } }))
 
-vi.mock('@cherrystudio/ui', async (importOriginal) => {
-  const actual = await importOriginal<typeof CherryStudioUi>()
+vi.mock('@cherrystudio/ui', async () => {
   const React = await import('react')
   const passthrough =
     (tag: string) =>
@@ -41,7 +39,6 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   })
 
   return {
-    Badge: passthrough('span'),
     Button,
     CodeEditor: ({ value, ...props }: any) =>
       React.createElement('textarea', { ...props, value: value ?? '', readOnly: true }),
@@ -110,11 +107,13 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
           )
         )
       ),
-    Select: actual.Select,
-    SelectContent: actual.SelectContent,
-    SelectItem: actual.SelectItem,
-    SelectTrigger: actual.SelectTrigger,
-    SelectValue: actual.SelectValue,
+    Select: ({ children }: { children?: React.ReactNode }) => React.createElement(React.Fragment, null, children),
+    SelectContent: passthrough('div'),
+    SelectItem: ({ children, value, ...props }: any) =>
+      React.createElement('div', { ...props, 'data-value': value }, children),
+    SelectTrigger: ({ children, size, ...props }: any) =>
+      React.createElement('button', { ...props, 'data-size': size, role: 'combobox', type: 'button' }, children),
+    SelectValue: () => null,
     Switch: ({ checked, onCheckedChange, ...props }: any) =>
       React.createElement('input', {
         ...props,
@@ -307,16 +306,6 @@ describe('AppearanceSettings selectors', () => {
     expect(screen.queryByRole('combobox', { name: /English/ })).not.toBeInTheDocument()
   })
 
-  it('uses shared Select triggers for language and theme', async () => {
-    const { container } = render(<AppearanceSettings />)
-
-    await waitFor(() => {
-      expect(mocks.request).toHaveBeenCalledWith('system.get_fonts')
-    })
-
-    expect(container.querySelectorAll('[data-slot="select-trigger"]')).toHaveLength(2)
-  })
-
   it('does not render manual chat layout switches', async () => {
     render(<AppearanceSettings />)
 
@@ -336,7 +325,19 @@ describe('AppearanceSettings selectors', () => {
       expect(mocks.request).toHaveBeenCalledWith('system.get_fonts')
     })
 
-    expect(screen.getByRole('button', { name: 'settings.theme.light' })).toHaveAttribute('aria-pressed', 'true')
+    const lightThemeButton = screen.getByRole('button', { name: 'settings.theme.light' })
+    const lightThemePreview = lightThemeButton.firstElementChild
+    const lightThemeLabel = lightThemePreview?.nextElementSibling
+
+    expect(lightThemeButton).toHaveAttribute('aria-pressed', 'true')
+    expect(lightThemePreview).toHaveClass(
+      'border-primary',
+      'ring-2',
+      'group-focus-visible:border-ring',
+      'group-focus-visible:bg-accent'
+    )
+    expect(lightThemePreview).not.toHaveClass('group-focus-visible:ring-3', 'group-focus-visible:ring-ring/50')
+    expect(lightThemeLabel).toHaveTextContent('settings.theme.light')
     expect(screen.getByRole('button', { name: 'settings.theme.dark' })).toHaveAttribute('aria-pressed', 'false')
     expect(screen.getByRole('button', { name: 'settings.theme.system' })).toHaveAttribute('aria-pressed', 'false')
 
@@ -352,42 +353,6 @@ describe('AppearanceSettings selectors', () => {
     expect(groupTitles.slice(0, 2)).toEqual([
       'settings.theme.title',
       'settings.general.common.sections.display_language'
-    ])
-  })
-
-  it('matches both font popover widths to their triggers', async () => {
-    const { container } = render(<AppearanceSettings />)
-
-    await waitFor(() => {
-      expect(mocks.request).toHaveBeenCalledWith('system.get_fonts')
-    })
-
-    const fontPopoverClassNames = Array.from(container.querySelectorAll('[data-popover-class-name]')).map((element) =>
-      element.getAttribute('data-popover-class-name')
-    )
-
-    expect(fontPopoverClassNames).toHaveLength(2)
-    expect(fontPopoverClassNames).toEqual([
-      expect.stringContaining('w-(--radix-popover-trigger-width)'),
-      expect.stringContaining('w-(--radix-popover-trigger-width)')
-    ])
-  })
-
-  it('matches both font control widths to the other selectors', async () => {
-    const { container } = render(<AppearanceSettings />)
-
-    await waitFor(() => {
-      expect(mocks.request).toHaveBeenCalledWith('system.get_fonts')
-    })
-
-    const fontControlRows = Array.from(container.querySelectorAll('[data-popover-class-name]')).map(
-      (element) => element.parentElement
-    )
-
-    expect(fontControlRows).toHaveLength(2)
-    expect(fontControlRows).toEqual([
-      expect.objectContaining({ className: expect.stringContaining('max-w-55') }),
-      expect.objectContaining({ className: expect.stringContaining('max-w-55') })
     ])
   })
 

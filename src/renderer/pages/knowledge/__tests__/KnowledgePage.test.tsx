@@ -1,6 +1,7 @@
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
+import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import type { Group } from '@shared/data/types/group'
 import type {
   KnowledgeBase,
@@ -8,6 +9,7 @@ import type {
   KnowledgeItemOf,
   RestoreKnowledgeBaseResult
 } from '@shared/data/types/knowledge'
+import type { PosixRelativeFilePath } from '@shared/utils/file'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -29,6 +31,8 @@ const mockUseKnowledgeItems = vi.fn()
 const mockUseReindexKnowledgeItem = vi.fn()
 const mockDetailHeaderRender = vi.fn()
 const mockDataSourcePanelRender = vi.fn()
+const mockRagConfigPanelModuleLoad = vi.fn()
+const mockRecallTestPanelModuleLoad = vi.fn()
 
 vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
   useKnowledgeBases: () => mockUseKnowledgeBases(),
@@ -236,6 +240,7 @@ vi.mock('../components/DetailHeader', () => ({
 
 vi.mock('../panels/dataSource/DataSourcePanel', () => ({
   default: ({
+    embeddingModelId,
     items,
     isLoading,
     onAdd,
@@ -248,6 +253,7 @@ vi.mock('../panels/dataSource/DataSourcePanel', () => ({
     onReindex,
     onReindexItems
   }: {
+    embeddingModelId?: string | null
     items: KnowledgeItem[]
     isLoading: boolean
     onAdd: () => void
@@ -260,7 +266,7 @@ vi.mock('../panels/dataSource/DataSourcePanel', () => ({
     onReindex: (item: { id: string }) => void | Promise<void>
     onReindexItems: (itemIds: string[]) => void | Promise<void>
   }) => {
-    mockDataSourcePanelRender({ onPreviewFile })
+    mockDataSourcePanelRender({ embeddingModelId, onPreviewFile })
 
     return (
       <div>
@@ -320,20 +326,26 @@ vi.mock('../panels/dataSource/KnowledgeItemChunkDetailPanel', () => ({
   )
 }))
 
-vi.mock('../panels/ragConfig/RagConfigPanel', () => ({
-  default: ({ base, onRestoreBase }: { base: KnowledgeBase; onRestoreBase: (base: KnowledgeBase) => void }) => (
-    <div data-testid="rag-config-panel">
-      {base.name}
-      <button type="button" onClick={() => onRestoreBase(base)}>
-        RagRestore {base.name}
-      </button>
-    </div>
-  )
-}))
+vi.mock('../panels/ragConfig/RagConfigPanel', () => {
+  mockRagConfigPanelModuleLoad()
+  return {
+    default: ({ base, onRestoreBase }: { base: KnowledgeBase; onRestoreBase: (base: KnowledgeBase) => void }) => (
+      <div data-testid="rag-config-panel">
+        {base.name}
+        <button type="button" onClick={() => onRestoreBase(base)}>
+          RagRestore {base.name}
+        </button>
+      </div>
+    )
+  }
+})
 
-vi.mock('../panels/recallTest/RecallTestPanel', () => ({
-  default: () => <div data-testid="recall-test-panel">recall-test-panel</div>
-}))
+vi.mock('../panels/recallTest/RecallTestPanel', () => {
+  mockRecallTestPanelModuleLoad()
+  return {
+    default: () => <div data-testid="recall-test-panel">recall-test-panel</div>
+  }
+})
 
 vi.mock('../components/AddKnowledgeItemDialog', () => ({
   default: ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) =>
@@ -575,7 +587,7 @@ const createKnowledgeDirectoryItem = ({ id }: { id: string }): KnowledgeItemOf<'
   type: 'directory',
   data: {
     source: `/knowledge/${id}`,
-    relativePath: id
+    relativePath: id as PosixRelativeFilePath
   },
   status: 'completed',
   error: null,
@@ -657,7 +669,11 @@ describe('KnowledgePage', () => {
   it('auto-selects the first knowledge base after bases load', async () => {
     mockUseKnowledgeBases.mockReturnValue({
       bases: [
-        createKnowledgeBase({ id: 'base-1', name: 'Base 1' }),
+        createKnowledgeBase({
+          id: 'base-1',
+          name: 'Base 1',
+          embeddingModelId: LOCAL_EMBEDDING_UNIQUE_MODEL_ID
+        }),
         createKnowledgeBase({ id: 'base-2', name: 'Base 2' })
       ],
       isLoading: false,
@@ -683,6 +699,9 @@ describe('KnowledgePage', () => {
     expect(screen.getByTestId('group-names')).toHaveTextContent('Research,Archive')
     expect(screen.getByTestId('selected-base-id')).toHaveTextContent('base-1')
     expect(screen.getByTestId('data-source-panel')).toHaveTextContent('2:idle')
+    expect(mockDataSourcePanelRender).toHaveBeenLastCalledWith(
+      expect.objectContaining({ embeddingModelId: LOCAL_EMBEDDING_UNIQUE_MODEL_ID })
+    )
   })
 
   it('keeps a global search knowledge selection until cold-start bases load', async () => {
@@ -742,14 +761,19 @@ describe('KnowledgePage', () => {
     })
     expect(screen.queryByTestId('rag-config-panel')).not.toBeInTheDocument()
     expect(screen.queryByTestId('recall-test-panel')).not.toBeInTheDocument()
+    expect(mockRagConfigPanelModuleLoad).not.toHaveBeenCalled()
+    expect(mockRecallTestPanelModuleLoad).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('button', { name: 'OpenRagConfig' }))
-    expect(screen.getByTestId('rag-config-panel')).toHaveTextContent('Base 1')
+    expect(await screen.findByTestId('rag-config-panel')).toHaveTextContent('Base 1')
+    expect(mockRagConfigPanelModuleLoad).toHaveBeenCalledOnce()
+    expect(mockRecallTestPanelModuleLoad).not.toHaveBeenCalled()
     // Data source stays visible behind the drawer
     expect(screen.getByTestId('data-source-panel')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'OpenRecallTest' }))
-    expect(screen.getByTestId('recall-test-panel')).toBeInTheDocument()
+    expect(await screen.findByTestId('recall-test-panel')).toBeInTheDocument()
+    expect(mockRecallTestPanelModuleLoad).toHaveBeenCalledOnce()
   })
 
   it('opens and closes the add-source dialog from the data source panel when a knowledge base is selected', async () => {

@@ -1,3 +1,4 @@
+import type { AiStreamOpenRequest } from '@shared/ai/transport'
 import { describe, expect, it } from 'vitest'
 
 import { aiRequestSchemas } from '../ai'
@@ -27,10 +28,87 @@ describe('ai IPC schemas — uniqueModelId validation', () => {
   it('validates the nested payload uniqueModelId for ai.image.generate', () => {
     const input = (uniqueModelId: string) => ({
       requestId: 'r1',
-      payload: { uniqueModelId, prompt: 'a fox', paramValues: {} }
+      payload: { uniqueModelId, prompt: 'a fox', paramValues: {}, cleanupPolicy: 'delete_when_unreferenced' }
     })
     expect(genImage.safeParse(input('openai::gpt-image')).success).toBe(true)
     expect(genImage.safeParse(input('bad-id')).success).toBe(false)
+  })
+})
+
+describe('ai.stream.open IPC schema', () => {
+  const openStream = aiRequestSchemas['ai.stream.open'].input
+
+  it('preserves reserved-branch target intent at the renderer-to-main boundary', () => {
+    expect(
+      openStream.parse({
+        trigger: 'submit-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'reserved-user',
+        userMessageParts: [{ type: 'text', text: 'continue branch' }],
+        targetMode: 'reserved-branch'
+      })
+    ).toMatchObject({ targetMode: 'reserved-branch' })
+  })
+
+  it('rejects an unknown target mode', () => {
+    expect(
+      openStream.safeParse({
+        trigger: 'submit-message',
+        topicId: 'topic-1',
+        userMessageParts: [],
+        targetMode: 'current-stream'
+      }).success
+    ).toBe(false)
+  })
+
+  it('accepts an explicit failed assistant row for in-place retry', () => {
+    expect(
+      openStream.parse({
+        trigger: 'regenerate-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'user-1',
+        retryMessageId: 'assistant-failed',
+        mentionedModelIds: ['openai::gpt-4o']
+      })
+    ).toMatchObject({ retryMessageId: 'assistant-failed' })
+  })
+
+  it('preserves an explicit live reply-group append target', () => {
+    expect(
+      openStream.parse({
+        trigger: 'regenerate-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'user-1',
+        appendToLiveGroupMessageId: 'assistant-source',
+        mentionedModelIds: ['anthropic::claude-sonnet']
+      })
+    ).toMatchObject({ appendToLiveGroupMessageId: 'assistant-source' })
+  })
+
+  it('rejects duplicate mentioned model ids before dispatch', () => {
+    expect(
+      openStream.safeParse({
+        trigger: 'submit-message',
+        topicId: 'topic-1',
+        userMessageParts: [],
+        mentionedModelIds: ['openai::gpt-4o', 'openai::gpt-4o']
+      }).success
+    ).toBe(false)
+  })
+
+  it('rejects combining in-place retry with live reply-group append', () => {
+    const combined = {
+      trigger: 'regenerate-message',
+      topicId: 'topic-1',
+      parentAnchorId: 'user-1',
+      retryMessageId: 'assistant-failed',
+      appendToLiveGroupMessageId: 'assistant-source'
+    } as const
+
+    // @ts-expect-error retry and append are mutually exclusive in the shared request contract
+    const invalidRequest: AiStreamOpenRequest = combined
+
+    expect(openStream.safeParse(invalidRequest).success).toBe(false)
   })
 })
 
@@ -59,5 +137,37 @@ describe('ai.agent.create IPC schema', () => {
       skillIds: ['skill-a', 'skill-b'],
       knowledgeBaseIds: ['kb-a', 'kb-b']
     })
+  })
+})
+
+describe('ai.agent.session.delete IPC schema', () => {
+  const deleteSessions = aiRequestSchemas['ai.agent.session.delete'].input
+
+  it('bounds one deletion command to the supported SQLite batch size', () => {
+    expect(
+      deleteSessions.safeParse({ sessionIds: Array.from({ length: 200 }, (_, i) => `session-${i}`) }).success
+    ).toBe(true)
+    expect(
+      deleteSessions.safeParse({ sessionIds: Array.from({ length: 201 }, (_, i) => `session-${i}`) }).success
+    ).toBe(false)
+  })
+})
+
+describe('ai.agent.support_session.create IPC schema', () => {
+  const createSupportSession = aiRequestSchemas['ai.agent.support_session.create'].input
+  const createSupportSessionResult = aiRequestSchemas['ai.agent.support_session.create'].output
+
+  it('accepts only a void command payload', () => {
+    expect(createSupportSession.safeParse(undefined).success).toBe(true)
+    expect(createSupportSession.safeParse({}).success).toBe(false)
+  })
+
+  it('returns only the created session id', () => {
+    expect(createSupportSessionResult.parse({ sessionId: 'feedback-session' })).toEqual({
+      sessionId: 'feedback-session'
+    })
+    expect(
+      createSupportSessionResult.safeParse({ sessionId: 'feedback-session', agentId: 'cherry-support' }).success
+    ).toBe(false)
   })
 })

@@ -8,11 +8,15 @@ import HorizontalScrollContainer from '../index'
 
 interface ResizeObserverMockInstance {
   callback: ResizeObserverCallback
-  target?: Element
+  targets: Element[]
 }
 
 const originalResizeObserver = globalThis.ResizeObserver
 const resizeObserverInstances: ResizeObserverMockInstance[] = []
+const accessibleLabels = {
+  scrollLeftLabel: 'Scroll left',
+  scrollRightLabel: 'Scroll right'
+}
 
 function setElementSize(element: HTMLElement, sizes: { clientWidth: number; scrollWidth: number; scrollLeft: number }) {
   Object.defineProperties(element, {
@@ -20,27 +24,38 @@ function setElementSize(element: HTMLElement, sizes: { clientWidth: number; scro
     scrollLeft: { configurable: true, writable: true, value: sizes.scrollLeft },
     scrollWidth: { configurable: true, value: sizes.scrollWidth }
   })
+  Object.defineProperty(element.parentElement, 'clientWidth', {
+    configurable: true,
+    value: sizes.clientWidth
+  })
 }
 
 function triggerResizeObserver() {
   const instance = resizeObserverInstances[0]
-  if (!instance?.target) throw new Error('Expected the scroll element to be observed')
+  if (!instance || instance.targets.length === 0) {
+    throw new Error('Expected the scroll container to be observed')
+  }
 
   act(() => {
-    instance.callback([{ target: instance.target } as ResizeObserverEntry], {} as ResizeObserver)
+    instance.callback(
+      instance.targets.map((target) => ({ target }) as ResizeObserverEntry),
+      {} as ResizeObserver
+    )
   })
+}
+
+function getScrollElement() {
+  return screen.getByTestId('scroll-item').closest('[data-scrolling]') as HTMLElement
 }
 
 describe('HorizontalScrollContainer', () => {
   beforeEach(() => {
     resizeObserverInstances.length = 0
     globalThis.ResizeObserver = vi.fn((callback: ResizeObserverCallback) => {
-      const instance: ResizeObserverMockInstance = { callback }
+      const instance: ResizeObserverMockInstance = { callback, targets: [] }
       resizeObserverInstances.push(instance)
       return {
-        observe: vi.fn((target: Element) => {
-          instance.target = target
-        }),
+        observe: vi.fn((target: Element) => instance.targets.push(target)),
         disconnect: vi.fn()
       } as unknown as ResizeObserver
     }) as unknown as typeof ResizeObserver
@@ -51,44 +66,79 @@ describe('HorizontalScrollContainer', () => {
     globalThis.ResizeObserver = originalResizeObserver
   })
 
-  it('provides keyboard-accessible controls in both directions', () => {
+  it('shows only directions that can still scroll', () => {
     render(
-      <HorizontalScrollContainer scrollDistance={120}>
-        <span>One</span>
-        <span>Two</span>
+      <HorizontalScrollContainer {...accessibleLabels}>
+        <span data-testid="scroll-item">Item</span>
       </HorizontalScrollContainer>
     )
-    const content = screen.getByText('Two').closest('[data-scrolling]') as HTMLElement
-    const scrollBy = vi.fn()
-    Object.defineProperty(content, 'scrollBy', { configurable: true, value: scrollBy })
-    setElementSize(content, { clientWidth: 100, scrollLeft: 0, scrollWidth: 300 })
+    const scrollElement = getScrollElement()
+    setElementSize(scrollElement, { clientWidth: 100, scrollLeft: 0, scrollWidth: 300 })
 
     triggerResizeObserver()
 
     expect(screen.queryByRole('button', { name: 'Scroll left' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Scroll right' }))
-    expect(scrollBy).toHaveBeenCalledWith({ behavior: 'smooth', left: 120 })
+    expect(screen.getByRole('button', { name: 'Scroll right' })).toBeInTheDocument()
 
-    content.scrollLeft = 200
-    fireEvent.scroll(content)
+    scrollElement.scrollLeft = 100
+    fireEvent.scroll(scrollElement)
 
+    expect(screen.getByRole('button', { name: 'Scroll left' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Scroll right' })).toBeInTheDocument()
+
+    scrollElement.scrollLeft = 200
+    fireEvent.scroll(scrollElement)
+
+    expect(screen.getByRole('button', { name: 'Scroll left' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Scroll right' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Scroll left' }))
-    expect(scrollBy).toHaveBeenCalledWith({ behavior: 'smooth', left: -120 })
   })
 
-  it('supports localized control labels', () => {
+  it('scrolls with shared icon buttons and custom accessible labels', () => {
     render(
-      <HorizontalScrollContainer scrollLeftLabel="向左滚动" scrollRightLabel="向右滚动">
-        <span>One</span>
-        <span>Two</span>
+      <HorizontalScrollContainer scrollDistance={120} scrollLeftLabel="Previous items" scrollRightLabel="Next items">
+        <span data-testid="scroll-item">Item</span>
       </HorizontalScrollContainer>
     )
-    const content = screen.getByText('Two').closest('[data-scrolling]') as HTMLElement
-    setElementSize(content, { clientWidth: 100, scrollLeft: 0, scrollWidth: 300 })
+    const scrollElement = getScrollElement()
+    const scrollBy = vi.fn()
+    Object.defineProperty(scrollElement, 'scrollBy', { configurable: true, value: scrollBy })
+    setElementSize(scrollElement, { clientWidth: 100, scrollLeft: 100, scrollWidth: 300 })
 
     triggerResizeObserver()
 
-    expect(screen.getByRole('button', { name: '向右滚动' })).toBeInTheDocument()
+    const leftButton = screen.getByRole('button', { name: 'Previous items' })
+    const rightButton = screen.getByRole('button', { name: 'Next items' })
+    expect(leftButton).toHaveAttribute('data-slot', 'button')
+    expect(rightButton).toHaveAttribute('data-variant', 'ghost')
+    expect(leftButton).toHaveClass('hover:bg-background', 'focus-visible:bg-background')
+    expect(rightButton).toHaveClass('hover:bg-background', 'focus-visible:bg-background')
+    expect(leftButton).not.toHaveClass('hover:bg-accent', 'focus-visible:bg-accent')
+    expect(rightButton).not.toHaveClass('hover:bg-accent', 'focus-visible:bg-accent')
+
+    fireEvent.click(leftButton)
+    fireEvent.click(rightButton)
+
+    expect(scrollBy).toHaveBeenNthCalledWith(1, { behavior: 'smooth', left: -120 })
+    expect(scrollBy).toHaveBeenNthCalledWith(2, { behavior: 'smooth', left: 120 })
+  })
+
+  it('recalculates for DOM content changes without recreating observers', async () => {
+    render(
+      <HorizontalScrollContainer {...accessibleLabels}>
+        <span data-testid="scroll-item">One</span>
+      </HorizontalScrollContainer>
+    )
+    const scrollElement = getScrollElement()
+    setElementSize(scrollElement, { clientWidth: 100, scrollLeft: 0, scrollWidth: 100 })
+    triggerResizeObserver()
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+
+    setElementSize(scrollElement, { clientWidth: 100, scrollLeft: 0, scrollWidth: 300 })
+    act(() => {
+      screen.getByTestId('scroll-item').textContent = 'Two'
+    })
+
+    expect(await screen.findByRole('button', { name: 'Scroll right' })).toBeInTheDocument()
+    expect(resizeObserverInstances).toHaveLength(1)
   })
 })

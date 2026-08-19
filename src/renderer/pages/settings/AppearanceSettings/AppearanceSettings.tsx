@@ -1,5 +1,4 @@
 import {
-  Badge,
   Button,
   CodeEditor,
   Combobox,
@@ -41,7 +40,7 @@ import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { isLinux, isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
-import type { LanguageVarious, MenuPresentationMode } from '@shared/data/preference/preferenceTypes'
+import type { MenuPresentationMode } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { hasV1CustomCssMarker } from '@shared/utils/customCssMigration'
 import { defaultLanguage } from '@shared/utils/languages'
@@ -185,7 +184,9 @@ const AppearanceSettings: FC = () => {
     }
   }, [])
 
-  const onSelectLanguage = (value: LanguageVarious) => {
+  const onSelectLanguage = (value: string) => {
+    if (!isAppLanguage(value)) return
+
     void i18n.changeLanguage(value)
     void setLanguage(value)
   }
@@ -347,16 +348,16 @@ const AppearanceSettings: FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('common.language')}</SettingRowTitle>
           <SelectorRow>
-            <Select value={displayLanguage} onValueChange={(value) => onSelectLanguage(value as LanguageVarious)}>
+            <Select value={displayLanguage} onValueChange={onSelectLanguage}>
               <SelectTrigger
                 size="sm"
                 className="w-full text-sm"
-                aria-label={appLanguageOptions.find((option) => option.value === displayLanguage)?.label}>
+                aria-label={appLanguageOptions.find((lang) => lang.value === displayLanguage)?.label}>
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="text-sm">
                 {appLanguageOptions.map((lang) => (
-                  <SelectItem key={lang.value} value={lang.value}>
+                  <SelectItem className="text-sm" key={lang.value} value={lang.value}>
                     <Flex className="items-center gap-2">
                       <span role="img" aria-label={lang.flag}>
                         {lang.flag}
@@ -383,17 +384,35 @@ const AppearanceSettings: FC = () => {
           <SettingRowTitle>{t('settings.zoom.title')}</SettingRowTitle>
           <ZoomButtonGroup>
             {!isDefaultZoom && (
-              <Button onClick={() => handleZoomFactor(0, true)} variant="ghost" size="icon">
-                <ResetIcon size="14" />
-              </Button>
+              <Tooltip content={t('preview.reset')} delay={800}>
+                <Button
+                  onClick={() => handleZoomFactor(0, true)}
+                  variant="ghost"
+                  size="icon"
+                  aria-label={t('preview.reset')}>
+                  <ResetIcon size="14" />
+                </Button>
+              </Tooltip>
             )}
-            <Button onClick={() => handleZoomFactor(-0.1)} variant="ghost" size="icon">
-              <Minus size="14" />
-            </Button>
+            <Tooltip content={t('preview.zoom_out')} delay={800}>
+              <Button
+                onClick={() => handleZoomFactor(-0.1)}
+                variant="ghost"
+                size="icon"
+                aria-label={t('preview.zoom_out')}>
+                <Minus size="14" />
+              </Button>
+            </Tooltip>
             <ZoomValue>{Math.round(currentZoom * 100)}%</ZoomValue>
-            <Button onClick={() => handleZoomFactor(0.1)} variant="ghost" size="icon">
-              <Plus size="14" />
-            </Button>
+            <Tooltip content={t('preview.zoom_in')} delay={800}>
+              <Button
+                onClick={() => handleZoomFactor(0.1)}
+                variant="ghost"
+                size="icon"
+                aria-label={t('preview.zoom_in')}>
+                <Plus size="14" />
+              </Button>
+            </Tooltip>
           </ZoomButtonGroup>
         </SettingRow>
         <SettingDivider />
@@ -418,9 +437,7 @@ const AppearanceSettings: FC = () => {
       </SettingGroup>
 
       <SettingGroup theme={theme}>
-        <SettingTitle style={{ justifyContent: 'flex-start', gap: 5 }}>
-          {t('settings.display.font.title')} <Badge className="border-primary/20 bg-primary/10 text-primary">New</Badge>
-        </SettingTitle>
+        <SettingTitle>{t('settings.display.font.title')}</SettingTitle>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.display.font.global')}</SettingRowTitle>
@@ -430,9 +447,8 @@ const AppearanceSettings: FC = () => {
                 <ResetIcon size="14" />
               </Button>
             )}
-            <div className="w-full min-w-0 max-w-55">
+            <div className="min-w-0 flex-1">
               <Combobox
-                size="sm"
                 placeholder={t('settings.display.font.select')}
                 emptyText={t('common.no_results')}
                 options={fontOptions}
@@ -456,9 +472,8 @@ const AppearanceSettings: FC = () => {
                 <ResetIcon size="14" />
               </Button>
             )}
-            <div className="w-full min-w-0 max-w-55">
+            <div className="min-w-0 flex-1">
               <Combobox
-                size="sm"
                 placeholder={t('settings.display.font.select')}
                 emptyText={t('common.no_results')}
                 options={fontOptions}
@@ -525,7 +540,7 @@ const AppearanceSettings: FC = () => {
         {hasV1CustomCssMarker(customCss) && (
           <SettingDescription>{t('settings.display.custom.css.migration_notice')}</SettingDescription>
         )}
-        <div className="mt-4 overflow-hidden rounded-lg border border-border/60">
+        <div className="mt-4 overflow-hidden rounded-lg border border-border-subtle">
           <CodeEditor
             theme={activeCmTheme}
             fontSize={fontSize - 1}
@@ -552,7 +567,7 @@ const AppearanceSettings: FC = () => {
 const ThemePreview = ({ mode }: { mode: ThemeMode }) => {
   if (mode === ThemeMode.system) {
     return (
-      <div className="flex h-[85px] overflow-hidden rounded-md border border-neutral-400">
+      <div className="flex aspect-video w-full overflow-hidden rounded-md border border-neutral-400">
         <div className="flex w-1/2 bg-white">
           <div className="w-1/3 border-neutral-200 border-r bg-neutral-100 p-1">
             <div className="size-1.5 rounded-full bg-neutral-400" />
@@ -582,7 +597,7 @@ const ThemePreview = ({ mode }: { mode: ThemeMode }) => {
   return (
     <div
       className={cn(
-        'flex h-[85px] overflow-hidden rounded-md border',
+        'flex aspect-video w-full overflow-hidden rounded-md border',
         isDarkPreview ? 'border-neutral-700 bg-neutral-950' : 'border-neutral-300 bg-white'
       )}>
       <div
@@ -623,13 +638,17 @@ const ThemePreviewSelector = ({
           aria-label={option.label}
           aria-pressed={value === option.value}
           onClick={() => onChange(option.value)}
-          className={cn(
-            'min-w-0 cursor-pointer rounded-lg border border-border bg-background-subtle p-1.5 text-foreground outline-none transition-colors',
-            'hover:border-border-strong hover:bg-accent',
-            'focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50',
-            'aria-pressed:border-primary aria-pressed:ring-2 aria-pressed:ring-primary/20'
-          )}>
-          <ThemePreview mode={option.value} />
+          className="group min-w-0 cursor-pointer rounded-lg pb-1.5 text-foreground outline-none">
+          <div
+            className={cn(
+              'rounded-lg border bg-background-subtle p-1.5 transition-colors',
+              'group-focus-visible:border-ring group-focus-visible:bg-accent',
+              value === option.value
+                ? 'border-primary ring-2 ring-primary/20'
+                : 'border-border group-hover:border-border-strong group-hover:bg-accent'
+            )}>
+            <ThemePreview mode={option.value} />
+          </div>
           <span className="mt-2 flex items-center justify-center gap-1.5 text-sm">
             <Icon className="size-4" />
             <span className="truncate">{option.label}</span>

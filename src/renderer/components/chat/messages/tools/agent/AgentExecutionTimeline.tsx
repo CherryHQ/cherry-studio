@@ -9,6 +9,7 @@ import { isToolPartAwaitingApproval } from '../toolResponse'
 import { AgentToolCallCard } from './AgentToolCallCard'
 import { AskUserQuestionCard } from './AskUserQuestionCard'
 import { NavigateToolInline } from './NavigateTool'
+import { isCherrySessionToolResponse } from './sessionToolResult'
 
 export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalToolResponse }) {
   const { arguments: args, response, tool, status, partialArguments } = toolResponse
@@ -39,11 +40,6 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
     )
   }
 
-  // TodoWrite is globally disabled; old DB messages may still carry it — keep hiding them.
-  if (tool?.name === 'TodoWrite') {
-    return null
-  }
-
   const effectiveStatus = getEffectiveStatus(status, awaitingApproval)
 
   if (effectiveStatus === 'waiting') {
@@ -57,10 +53,11 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
       toolCallId={toolResponse.toolCallId}
       toolName={tool?.name}
       input={args ?? parsedPartialArgs}
-      output={isLoading || isSubagentTool ? undefined : response}
+      output={isLoading ? undefined : response}
       isStreaming={isLoading}
       status={effectiveStatus}
       hasError={status === 'error'}
+      isCherrySessionTool={isCherrySessionToolResponse(toolResponse)}
       openFlowOnClick={isSubagentTool}
       showInlineDetails={!isSubagentTool}
     />

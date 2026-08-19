@@ -1,3 +1,10 @@
+---
+description: How the Application orchestrator registers services, runs the three-phase bootstrap, and controls runtime shutdown
+sources:
+  - src/main/core/application
+  - src/main/core/lifecycle
+---
+
 # Application Overview
 
 Application is the top-level orchestrator that ties together the lifecycle system and the Electron app. It is the single entry point for bootstrapping, shutting down, and controlling services at runtime.
@@ -58,9 +65,17 @@ If a `fail-fast` service throws during bootstrap, a dialog is shown offering Exi
 
 ## Shutdown Flow
 
-`application.shutdown()` is called automatically on:
-- `will-quit` (Electron event, after all windows closed)
-- `SIGINT` / `SIGTERM` (with 5-second force-exit timeout, bypasses Electron event chain)
+`application.shutdown()` is the convergence point for every *graceful* exit — `will-quit` is only where the Electron event chain converges. Routes in and out:
+
+| Trigger | Route |
+| ------- | ----- |
+| Tray / menu quit, window close, `window-all-closed` | `application.quit()` → `before-quit` → `will-quit` → `shutdown()` |
+| macOS Cmd+Q | Electron's built-in `app.quit()`, same chain |
+| `SIGINT` / `SIGTERM` | handler awaits `shutdown()` directly, bypassing the Electron chain |
+| Data reset | `dataReset.ts` calls `application.shutdown()` directly |
+| System shutdown | `PowerService` gets us *into* this path; the OS does not wait for it to finish |
+| `forceExit()` / `relaunch()` | **deliberately** bypass it — `app.exit()` straight away, no teardown |
+| `kill -9`, crash, power loss | bypassed entirely — services self-heal on next start |
 
 ```
 shutdown()
@@ -70,7 +85,15 @@ shutdown()
     └── loggerService.finish()      ← close logger (must be last)
 ```
 
-On non-macOS, `window-all-closed` triggers `application.quit()` which flows through `before-quit` → `will-quit` → `shutdown()`.
+`stopAll()` / `destroyAll()` cap each service at `SERVICE_STOP_TIMEOUT_MS` (5s), so one stuck `onStop()` no longer denies every service behind it its turn. Both return a summary of what timed out or failed, and the `Shutdown complete` line states whether the exit was clean — read it first when diagnosing a bad shutdown.
+
+### The force-exit fuse
+
+Each entry point arms a `SHUTDOWN_TIMEOUT_MS` (30s) `process.exit(1)` timer around `shutdown()`. It is a last resort, not the working mechanism:
+
+- A healthy shutdown finishes in well under a second and never approaches it.
+- It does **not** guarantee the per-service ceiling always runs to completion — six services each burning their full 5s reach it, and `stopAll()` + `destroyAll()` share the budget. Truncating past that point is correct; the app is already in a bad state.
+- Like every timer-based bound here, it is powerless against a synchronously blocking `onStop()`, which never yields the event loop for the timer to fire on.
 
 ## Service Registry
 
@@ -92,22 +115,19 @@ This gives you type-safe access via `application.get('NewService')`.
 
 Services managed by the lifecycle system must **not** export singleton instances. The service CLASS is exported for type references only (e.g., `ServiceRegistry`, `@DependsOn`). All runtime access goes through `application.get()` (unconditional services) or `application.getOptional()` (conditional services with `@Conditional`).
 
-### Assign to a local variable before use
+### Local variables are optional
 
-Do **not** chain `application.get('...')` with method calls directly. Assign the service to a local variable first, then use it:
+Direct chaining is valid and common for a single call. Assign the result to a local variable when it is used repeatedly or when the shorter name improves readability:
 
 ```typescript
-// ✗ BAD: chained calls
-application.get('PreferenceService').get('app.zoom_factor')
+// One call: direct access is fine
 application.get('PreferenceService').set('app.zoom_factor', 1)
 
-// ✓ GOOD: assign first, then use
+// Repeated access: keep one readable local
 const preferenceService = application.get('PreferenceService')
 preferenceService.get('app.zoom_factor')
 preferenceService.set('app.zoom_factor', 1)
 ```
-
-This improves readability, avoids repeated container lookups, and makes the code easier to refactor.
 
 ### Conditional service access
 
@@ -206,18 +226,13 @@ if (application.isQuitting) { /* ... */ }
 | `markQuitting()` | None (flag only) | `autoUpdater.quitAndInstall()` owns its own quit flow |
 | `preventQuit(reason)` | Blocks `before-quit` | Critical operations (returns hold with `dispose()`) |
 
-**Exceptions** (where direct `app.quit()` is acceptable):
-- Before `application` is initialized (e.g., single-instance lock failure in `index.ts`)
-- Migration files (`src/main/data/migration/`) that run before the full app lifecycle
+**Exception:** migration-window code under `src/main/data/migration/` owns a separate pre-bootstrap Electron flow and is excluded from the lint rule. Other preboot code, including the single-instance gate, still calls `application.quit()` rather than a bare Electron quit API.
 
 ### Renderer Usage
 
-The renderer accesses application lifecycle methods via `window.api.application`:
+The renderer's legacy application bridge exposes quit-prevention and relaunch operations. It does not expose a generic `quit()` method. New call sites that only need a normal relaunch use `ipcApi.request('app.relaunch')`; the bridge remains for the quit-hold protocol and legacy relaunch callers that pass Electron options.
 
 ```typescript
-// Quit the app (triggers before-quit → will-quit event chain)
-await window.api.application.quit()
-
 // Relaunch the app
 await window.api.application.relaunch()
 await window.api.application.relaunch({ args: ['--safe-mode'] })
@@ -233,7 +248,6 @@ try {
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `quit()` | `Promise<void>` | Graceful quit via Electron event chain |
 | `relaunch(options?)` | `Promise<void>` | Relaunch the app (with optional args) |
 | `preventQuit(reason)` | `Promise<string>` (holdId) | Block app quit until released |
 | `allowQuit(holdId)` | `Promise<void>` | Release a specific quit prevention hold |

@@ -1,14 +1,21 @@
 import type { Tool } from '@shared/ai/tool'
-import type { AgentEntity } from '@shared/data/api/schemas/agents'
-import type { InstalledSkill } from '@shared/data/types/agent'
+import type { AgentEntity, AgentPermissionMode } from '@shared/data/api/schemas/agents'
+import type { AgentType, InstalledSkill } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { Prompt } from '@shared/data/types/prompt'
 
 export type ResourceType = 'agent' | 'assistant' | 'skill' | 'prompt'
 
+export type ResourceEditDialogTarget = ({ kind: 'assistant'; id: string } | { kind: 'agent'; id: string }) & {
+  /** Leaf tab id to open the dialog on (e.g. `tools.mcp`, `tools.skills`). */
+  initialTab?: string
+}
+
 /** Validated values shared by every Assistant / Agent creation entry point. */
 export type ResourceCreateValues = {
+  agentType: AgentType
+  permissionMode: AgentPermissionMode
   avatar: string
   name: string
   modelId: UniqueModelId

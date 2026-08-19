@@ -1,3 +1,4 @@
+import zhCN from '@renderer/i18n/locales/zh-cn.json'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -17,11 +18,7 @@ vi.mock('@cherrystudio/ui', () => ({
       {label}
     </button>
   ),
-  MenuList: ({ children, className }: { children: ReactNode; className?: string }) => (
-    <div data-testid="menu-list" className={className}>
-      {children}
-    </div>
-  ),
+  MenuList: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   PageHeader: ({ className, title }: { className?: string; title: string }) => (
     <header className={className}>{title}</header>
   )
@@ -48,16 +45,20 @@ vi.mock('react-i18next', () => ({
       ({
         'agent.settings.toolsMcp.mcp.tab': 'MCP',
         'selection.name': '划词助手',
+        'settings.appearance.title': '外观',
         'settings.channels.title': '频道',
         'settings.dependencies.title': '环境依赖',
         'settings.dependencies.localModels.title': '本地模型',
+        'settings.general.common.title': zhCN.settings.general.common.title,
         'settings.menuGroups.automation': '效率',
         'settings.menuGroups.capabilities': '工具',
         'settings.menuGroups.personal': '偏好',
         'settings.menuGroups.quickAccess': '快捷入口',
+        'settings.menuGroups.system': '系统',
         'settings.model': '默认模型',
         'settings.quickAssistant.title': '快捷助手',
         'settings.scheduledTasks.title': '定时任务',
+        'settings.screenshot.title': '截图',
         'settings.shortcuts.title': '快捷键',
         'settings.skills.title': '技能',
         'settings.system.title': '系统',
@@ -73,41 +74,28 @@ describe('SettingsPage', () => {
     navigateMock.mockReset()
   })
 
-  it('keeps setting groups transparent in a macOS transparent window', () => {
-    isMacTransparentWindowMock.mockReturnValue(true)
-
-    const { container } = render(<SettingsPage />)
-
-    expect(container.firstElementChild).toHaveStyle({ '--settings-group-background': 'transparent' })
-  })
-
-  it('uses a subtle group background in dark mode', () => {
-    const { container } = render(<SettingsPage />)
-
-    expect(container.firstElementChild).toHaveClass('dark:[--settings-group-background:var(--background-subtle)]')
-  })
-
-  it('places local models directly below the default model', () => {
+  it('places General directly above Appearance and local models directly below the default model', () => {
     const { container } = render(<SettingsPage />)
 
     expect(container.querySelector('[data-ui="settings.view"]')).toBeInTheDocument()
     expect(container.querySelector('[data-ui="settings.navigation"]')).toBeInTheDocument()
     expect(container.querySelector('[data-ui="settings.content"]')).toBeInTheDocument()
-    expect(screen.getByText('title.settings').closest('header')).toHaveClass('mb-1')
-    expect(screen.getByTestId('menu-list').className).toContain('[&_svg.lucide]:[stroke-width:1.6]')
     expect(screen.getByText('偏好')).toBeInTheDocument()
 
+    const generalItem = screen.getByRole('button', { name: '通用' })
+    const appearanceItem = screen.getByRole('button', { name: '外观' })
     const defaultModelItem = screen.getByRole('button', { name: '默认模型' })
     const localModelsItem = screen.getByRole('button', { name: '本地模型' })
 
+    expect(generalItem.nextElementSibling).toBe(appearanceItem)
     expect(defaultModelItem.nextElementSibling).toBe(localModelsItem)
-    expect(localModelsItem.querySelector('.lucide-file-box')).toBeInTheDocument()
-
+    fireEvent.click(generalItem)
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/general' })
     fireEvent.click(localModelsItem)
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/local-models' })
   })
 
-  it('keeps document processing and OCR together in tools and places dependencies below system', () => {
+  it('keeps document processing and OCR together in tools and dependencies in the system group', () => {
     render(<SettingsPage />)
 
     expect(screen.getByText('工具')).toBeInTheDocument()
@@ -117,11 +105,9 @@ describe('SettingsPage', () => {
     expect(documentProcessingItem.nextElementSibling).toBe(ocrItem)
     expect(ocrItem.nextElementSibling).toHaveAttribute('data-testid', 'menu-divider')
 
-    const systemItem = screen.getByRole('button', { name: '系统' })
     const dependenciesItem = screen.getByRole('button', { name: '环境依赖' })
-    expect(systemItem.nextElementSibling).toBe(dependenciesItem)
-    expect(dependenciesItem.querySelector('.lucide-terminal')).toBeInTheDocument()
-
+    expect(screen.queryByRole('button', { name: '系统' })).not.toBeInTheDocument()
+    expect(screen.getByText('系统').nextElementSibling).toBe(dependenciesItem)
     fireEvent.click(dependenciesItem)
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/dependencies' })
   })
@@ -134,8 +120,6 @@ describe('SettingsPage', () => {
 
     expect(mcpItem).not.toBeNull()
     expect(mcpItem?.nextElementSibling).toBe(skillsItem)
-    expect(skillsItem.querySelector('.lucide-tool-case')).toBeInTheDocument()
-
     fireEvent.click(skillsItem)
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/skills' })
   })
@@ -146,7 +130,7 @@ describe('SettingsPage', () => {
     expect(screen.getByText('效率')).toBeInTheDocument()
     expect(screen.queryByText('快捷入口')).not.toBeInTheDocument()
 
-    const efficiencyItems = ['频道', '定时任务', '快捷键', '快捷助手', '划词助手'].map((name) =>
+    const efficiencyItems = ['频道', '定时任务', '快捷键', '快捷助手', '划词助手', '截图'].map((name) =>
       screen.getByRole('button', { name })
     )
     const menuItems = screen.getAllByTestId('menu-item')

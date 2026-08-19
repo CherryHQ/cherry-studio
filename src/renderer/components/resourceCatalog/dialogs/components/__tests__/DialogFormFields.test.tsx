@@ -54,7 +54,7 @@ vi.mock('@renderer/components/EmojiPicker', () => ({
   EmojiPicker: () => <div data-testid="emoji-picker" />
 }))
 
-import { DialogModelTrigger, EmojiAvatarPicker } from '../DialogFormFields'
+import { DialogModelTrigger } from '../DialogFormFields'
 
 afterEach(() => {
   cleanup()
@@ -71,39 +71,11 @@ describe('DialogModelTrigger', () => {
 
     const trigger = screen.getByRole('button', { name: 'Model' })
 
-    expect(trigger).toHaveClass('h-8', 'rounded-lg', 'gap-2', 'bg-muted/50', 'hover:bg-muted', 'text-sm')
     expect(screen.queryByTestId('model-trigger-placeholder')).not.toBeInTheDocument()
     expect(screen.queryByTestId('model-avatar')).not.toBeInTheDocument()
 
     fireEvent.click(trigger)
 
     expect(onClick).toHaveBeenCalledTimes(1)
-  })
-})
-
-describe('EmojiAvatarPicker', () => {
-  it('only customizes emoji avatar picker width and padding', () => {
-    render(
-      <EmojiAvatarPicker
-        value="🙂"
-        fallback="🙂"
-        open
-        onOpenChange={vi.fn()}
-        onChange={vi.fn()}
-        ariaLabel="Avatar"
-        portalContainer={document.body}
-      />
-    )
-
-    const popoverContent = screen.getByTestId('popover-content')
-
-    expect(popoverContent).toHaveClass('w-auto', 'p-0')
-    expect(popoverContent).not.toHaveClass(
-      'border',
-      'border-border',
-      'bg-popover',
-      'text-popover-foreground',
-      'shadow-lg'
-    )
   })
 })

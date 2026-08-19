@@ -44,13 +44,11 @@ vi.mock('@cherrystudio/ui', async () => {
       children,
       className,
       overlayClassName,
-      overlayProps,
-      size
+      overlayProps
     }: PropsWithChildren<{
       className?: string
       overlayClassName?: string
       overlayProps?: ComponentProps<'div'>
-      size?: string
     }>) => {
       const context = React.use(DialogContext)
 
@@ -65,7 +63,7 @@ vi.mock('@cherrystudio/ui', async () => {
               context?.onOpenChange?.(false)
             }}
           />
-          <div data-testid="dialog-content" data-size={size} className={className}>
+          <div data-testid="dialog-content" className={className}>
             {children}
           </div>
         </>
@@ -87,6 +85,13 @@ import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
 
 import GlobalSearchPopup from '../GlobalSearchPopup'
 
+function openGlobalSearchPopup() {
+  render(<PopupHost />)
+  act(() => {
+    void GlobalSearchPopup.show()
+  })
+}
+
 afterEach(() => {
   // Unmount the host first so settling/removing leftover entries triggers no React
   // update on a still-mounted host (which would fire act warnings). Then drain the
@@ -103,11 +108,7 @@ afterEach(() => {
 
 describe('GlobalSearchPopup', () => {
   it('allows the search panel to autofocus the search input when opened', async () => {
-    render(<PopupHost />)
-
-    act(() => {
-      void GlobalSearchPopup.show()
-    })
+    openGlobalSearchPopup()
 
     await waitFor(() => {
       expect(screen.getByLabelText('Search input')).toHaveFocus()
@@ -115,11 +116,7 @@ describe('GlobalSearchPopup', () => {
   })
 
   it('closes when the blank overlay area is clicked', async () => {
-    render(<PopupHost />)
-
-    act(() => {
-      void GlobalSearchPopup.show()
-    })
+    openGlobalSearchPopup()
 
     await screen.findByLabelText('Search input')
 
@@ -131,16 +128,11 @@ describe('GlobalSearchPopup', () => {
   })
 
   it('renders above chat shell overlays', async () => {
-    render(<PopupHost />)
-
-    act(() => {
-      void GlobalSearchPopup.show()
-    })
+    openGlobalSearchPopup()
 
     const overlay = await screen.findByTestId('dialog-overlay')
     expect(overlay).toHaveClass('z-1001')
-    expect(screen.getByTestId('dialog-content')).toHaveAttribute('data-size', 'xl')
-    expect(screen.getByTestId('dialog-content')).toHaveClass('z-1001', 'h-[min(640px,78vh)]')
+    expect(screen.getByTestId('dialog-content')).toHaveClass('z-1001')
 
     // Flush the lazy panel's Suspense resolution inside act before the test ends.
     await screen.findByLabelText('Search input')

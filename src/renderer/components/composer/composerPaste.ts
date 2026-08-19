@@ -9,13 +9,16 @@ import {
   createComposerTokenContent,
   createComposerTokenMarkerInlineContent
 } from './composerTokenMarkers'
+import { createComposerLinkToken } from './linkToken'
 import { createPromptVariableMarkerRule } from './promptVariables'
 import type { ComposerDraftToken } from './tokens'
 
 /** Pasted text longer than this (in characters) is offered as a file attachment instead of inlined. */
 export const LONG_TEXT_PASTE_THRESHOLD = 1500
+export const PASTED_TEXT_FILE_EXTENSION = '.txt'
 
 interface ComposerPlainTextPasteOptions {
+  inlineLongText?: boolean
   promptVariableStartIndex?: number
   resolveSkillMarker?: (marker: string) => ComposerDraftToken | null | undefined
   resolveKnowledgeBaseMarker?: (marker: string) => ComposerDraftToken | null | undefined
@@ -108,24 +111,15 @@ function resolvePrivateClipboardToken(
     }
   }
 
-  if (
-    token.kind === 'folder' ||
-    token.kind === 'reference' ||
-    token.kind === 'quote' ||
-    token.kind === 'promptVariable'
-  ) {
-    return {
-      token: {
-        id: token.id,
-        kind: token.kind,
-        label: token.label,
-        ...(token.description && { description: token.description }),
-        ...(token.promptText && { promptText: token.promptText })
-      }
+  return {
+    token: {
+      id: token.id,
+      kind: token.kind,
+      label: token.label,
+      ...(token.description && { description: token.description }),
+      ...(token.promptText && { promptText: token.promptText })
     }
   }
-
-  return null
 }
 
 export function getComposerClipboardPasteOverride(
@@ -179,12 +173,28 @@ function createPlainTextPasteMarkerRules(options: ComposerPlainTextPasteOptions)
   return rules
 }
 
+function createComposerLinkPasteContent(text: string): JSONContent[] | null {
+  const url = text.trim()
+  const token = createComposerLinkToken(url)
+  if (!token) return null
+
+  const start = text.indexOf(url)
+  return [
+    ...createComposerPlainTextContent(text.slice(0, start)),
+    createComposerTokenContent(token),
+    ...createComposerPlainTextContent(text.slice(start + url.length))
+  ]
+}
+
 export function getComposerPlainTextPasteOverride(text: string, options: ComposerPlainTextPasteOptions) {
   if (!text) return null
 
-  if (text.length > LONG_TEXT_PASTE_THRESHOLD) {
+  if (!options.inlineLongText && text.length > LONG_TEXT_PASTE_THRESHOLD) {
     return null
   }
+
+  const linkContent = createComposerLinkPasteContent(text)
+  if (linkContent) return linkContent
 
   const markedTextContent = createComposerTokenMarkerInlineContent(text, createPlainTextPasteMarkerRules(options))
   if (markedTextContent.hasToken) return markedTextContent.content

@@ -69,6 +69,7 @@ const providerKeyMap = {
   ppio: 'provider.ppio',
   qiniu: 'provider.qiniu',
   qwenlm: 'provider.qwenlm',
+  'radeon-cloud': 'provider.radeon-cloud',
   silicon: 'provider.silicon',
   stepfun: 'provider.stepfun',
   'tencent-cloud-ti': 'provider.tencent-cloud-ti',
@@ -107,11 +108,16 @@ export const getProviderLabelKey = (id: string): string => {
   return getLabelKey(providerKeyMap, id)
 }
 
+// Must cover every FILE_PROCESSOR_IDS entry: getLabelKey falls back to the raw
+// id (and logs an error) for anything missing, so a gap here surfaces as
+// "local-document" sitting in a dropdown among properly named siblings.
 const fileProcessorKeyMap = {
   doc2x: 'provider.doc2x',
   mineru: 'provider.mineru',
   ovocr: 'provider.ovocr',
   paddleocr: 'provider.paddleocr',
+  'local-paddleocr': 'settings.tool.file_processing.processors.local_paddleocr.name',
+  'local-document': 'settings.tool.file_processing.processors.local_document.name',
   system: 'provider.system',
   tesseract: 'provider.tesseract',
   mistral: 'provider.mistral',
@@ -316,6 +322,7 @@ export const getFileFieldLabelKey = (key: string): string => {
 
 const builtInMcpDescriptionKeyMap: Record<BuiltinMcpServerName, string> = {
   [BuiltinMcpServerNames.flomo]: 'settings.mcp.builtinServersDescriptions.flomo',
+  [BuiltinMcpServerNames.qveris]: 'settings.mcp.builtinServersDescriptions.qveris',
   [BuiltinMcpServerNames.mcpAutoInstall]: 'settings.mcp.builtinServersDescriptions.mcp_auto_install',
   [BuiltinMcpServerNames.memory]: 'settings.mcp.builtinServersDescriptions.memory',
   [BuiltinMcpServerNames.sequentialThinking]: 'settings.mcp.builtinServersDescriptions.sequentialthinking',

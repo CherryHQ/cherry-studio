@@ -1,29 +1,33 @@
-import { Badge, Button, CircularProgress } from '@cherrystudio/ui'
-import { ipcApi, useIpcOn } from '@renderer/ipc'
+import { Badge, Button, DescriptionSwitch } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
+import { useLocalModel } from '@renderer/hooks/useLocalModel'
+import { ipcApi } from '@renderer/ipc'
 import { cn } from '@renderer/utils/style'
 import type { LocalModelKind, LocalModelStatus } from '@shared/data/presets/localModel'
-import { Boxes, Download, ScanText, Trash2, X } from 'lucide-react'
+import { Boxes, Download, RefreshCw, ScanText, Trash2, X } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-/** A transient message shown on the card; the value is also the i18n leaf key. */
-type CardNotice = 'downloadFailed' | 'removeFailed' | 'inUse'
+const logger = loggerService.withContext('LocalModelsSection')
+
+const CARD_NOTICE_KEYS = {
+  downloadFailed: 'settings.dependencies.localModels.notice.downloadFailed',
+  incompleteCache: 'settings.dependencies.localModels.notice.incompleteCache',
+  removeFailed: 'settings.dependencies.localModels.notice.removeFailed',
+  inUse: 'settings.dependencies.localModels.notice.inUse'
+} as const
+
+type CardNotice = keyof typeof CARD_NOTICE_KEYS
 
 /**
- * Shared wiring for a downloadable local model: tracks status/percent, streams
- * progress, and exposes download/cancel/remove. One IPC route family
- * (`local_model.*`) serves both models; `model` selects which one and filters
- * the shared `download_progress` event.
+ * Settings-specific notice state layered over the shared local-model lifecycle.
  */
 function useLocalModelCard(model: LocalModelKind) {
-  const [status, setStatus] = useState<LocalModelStatus>('not_downloaded')
-  const [percent, setPercent] = useState(0)
+  const localModel = useLocalModel(model)
   const [notice, setNotice] = useState<CardNotice | null>(null)
   const mountedRef = useRef(true)
-  // A user cancel rejects the in-flight download too; this flag keeps that path
-  // from being surfaced as a download failure.
-  const cancellingRef = useRef(false)
 
   useEffect(() => {
     mountedRef.current = true
@@ -32,69 +36,37 @@ function useLocalModelCard(model: LocalModelKind) {
     }
   }, [])
 
-  const refresh = useCallback(async () => {
-    try {
-      const res = await ipcApi.request('local_model.get_status', { model })
-      if (mountedRef.current) setStatus(res.status)
-    } catch {
-      // status probe is best-effort; leave the last known state
-    }
-  }, [model])
-
-  useEffect(() => {
-    void refresh()
-  }, [refresh])
-
-  useIpcOn('local_model.download_progress', (p) => {
-    if (!mountedRef.current || p.model !== model) return
-    setPercent(p.percent)
-    if (p.status === 'ready') setStatus('ready')
-    else if (p.status === 'error') setStatus('error')
-  })
-
   const download = async () => {
     setNotice(null)
-    setStatus('downloading')
-    setPercent(0)
-    cancellingRef.current = false
     try {
-      await ipcApi.request('local_model.download', { model })
-      if (mountedRef.current) setStatus('ready')
+      await localModel.download()
     } catch {
-      // A user-initiated cancel rejects too — don't render it as a failure.
-      if (cancellingRef.current || !mountedRef.current) return
-      // Surface the failure instead of silently reverting to the download button.
-      setNotice('downloadFailed')
-      await refresh()
-    }
-  }
-
-  const cancel = async () => {
-    cancellingRef.current = true
-    try {
-      await ipcApi.request('local_model.cancel', { model })
-    } finally {
-      if (mountedRef.current) {
-        setStatus('not_downloaded')
-        setPercent(0)
-      }
+      if (mountedRef.current) setNotice('downloadFailed')
     }
   }
 
   const remove = async () => {
     setNotice(null)
     try {
-      const { removed } = await ipcApi.request('local_model.remove', { model })
+      const { removed } = await localModel.remove()
       if (!mountedRef.current) return
-      // `removed: false` → kept because a knowledge base still uses it (weights intact).
-      if (removed) setStatus('not_downloaded')
-      else setNotice('inUse')
+      if (!removed) setNotice('inUse')
     } catch {
       if (mountedRef.current) setNotice('removeFailed')
     }
   }
 
-  return { status, percent, notice, download, cancel, remove }
+  return {
+    ...localModel,
+    notice:
+      localModel.status === 'error'
+        ? localModel.errorCode === 'incomplete_cache'
+          ? 'incompleteCache'
+          : 'downloadFailed'
+        : notice,
+    download,
+    remove
+  }
 }
 
 interface ModelCardProps {
@@ -123,11 +95,12 @@ const ModelCard: FC<ModelCardProps> = ({
   const { t } = useTranslation()
   const ready = status === 'ready'
   const downloading = status === 'downloading'
+  const retrying = status === 'error'
 
   return (
     <div
       role="listitem"
-      className="flex flex-col rounded-xl border border-border p-4 transition-colors duration-200 ease-in-out hover:border-border-hover"
+      className="flex flex-col rounded-xl border border-border p-4 transition-colors duration-200 ease-in-out hover:border-border-strong"
       style={{ backgroundColor: 'var(--settings-group-background, var(--card))' }}>
       <div className="flex items-start gap-3">
         <div
@@ -145,56 +118,52 @@ const ModelCard: FC<ModelCardProps> = ({
                 {t('settings.dependencies.localModels.status.ready')}
               </Badge>
             )}
-            {ready && (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                className="ml-auto"
-                onClick={onRemove}
-                aria-label={t('settings.dependencies.localModels.remove')}>
-                <Trash2 className="size-3.5" />
-              </Button>
-            )}
-            {!ready &&
-              (downloading ? (
-                <div className="relative ml-auto size-7 shrink-0">
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    className="group size-7 rounded-full"
-                    onClick={onCancel}
-                    aria-label={t('settings.dependencies.localModels.cancel')}>
-                    <X className="size-2.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
-                  </Button>
-                  <span
-                    role="progressbar"
-                    aria-label={t('settings.dependencies.localModels.status.downloading')}
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-valuenow={percent}
-                    className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                    <CircularProgress value={percent} size={24} strokeWidth={2} />
-                  </span>
-                </div>
-              ) : (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="ml-auto h-7 w-28 shrink-0 gap-1 font-medium text-xs"
-                  onClick={onDownload}>
-                  <Download className="size-3.5 shrink-0" />
-                  <span className="truncate">{t('settings.dependencies.localModels.download')}</span>
-                </Button>
-              ))}
           </div>
           <p className="mt-0.5 truncate text-muted-foreground text-xs">{subtitle}</p>
         </div>
+        {ready && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={onRemove}
+            aria-label={t('settings.dependencies.localModels.remove')}>
+            <Trash2 className="size-3.5" />
+          </Button>
+        )}
       </div>
 
       {notice && (
         <p className={cn('mt-2 text-xs leading-4', notice === 'inUse' ? 'text-muted-foreground' : 'text-destructive')}>
-          {t(`settings.dependencies.localModels.notice.${notice}`)}
+          {t(CARD_NOTICE_KEYS[notice])}
         </p>
+      )}
+
+      {downloading && (
+        <div className="mt-3 space-y-1.5">
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+            <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${percent}%` }} />
+          </div>
+          <div className="flex items-center justify-between text-muted-foreground text-xs">
+            <span>{t('settings.dependencies.localModels.status.downloading')}</span>
+            <span>{percent}%</span>
+          </div>
+        </div>
+      )}
+
+      {!ready && (
+        <div className="mt-3 border-border border-t pt-3">
+          {downloading ? (
+            <Button variant="outline" size="sm" className="h-7 w-full gap-1 text-xs" onClick={onCancel}>
+              <X className="size-3.5" />
+              {t('settings.dependencies.localModels.cancel')}
+            </Button>
+          ) : (
+            <Button variant="outline" size="sm" className="h-7 w-full gap-1 text-xs" onClick={onDownload}>
+              {retrying ? <RefreshCw className="size-3.5" /> : <Download className="size-3.5" />}
+              {t(retrying ? 'common.retry' : 'settings.dependencies.localModels.download')}
+            </Button>
+          )}
+        </div>
       )}
     </div>
   )
@@ -206,9 +175,26 @@ const ModelCard: FC<ModelCardProps> = ({
  */
 const LocalModelsSection: FC = () => {
   const { t } = useTranslation()
+  const [hardwareAccelerationEnabled, setHardwareAccelerationEnabled] = usePreference(
+    'feature.local_model.hardware_acceleration.enabled'
+  )
+  const [accelerationSupported, setAccelerationSupported] = useState(false)
 
   const embedding = useLocalModelCard('embedding')
   const ocr = useLocalModelCard('ocr')
+
+  useEffect(() => {
+    let mounted = true
+    void ipcApi
+      .request('local_model.get_acceleration_capability')
+      .then(({ supported }) => {
+        if (mounted) setAccelerationSupported(supported)
+      })
+      .catch((error) => logger.warn('Failed to detect local inference hardware acceleration', error as Error))
+    return () => {
+      mounted = false
+    }
+  }, [])
 
   // Both models share the same inference runtime, so they're unsupported together
   // (e.g. Intel Mac — onnxruntime-node ships no darwin-x64 binding).
@@ -222,6 +208,17 @@ const LocalModelsSection: FC = () => {
       <p className="mt-1 mb-3 text-muted-foreground text-xs leading-5">
         {t('settings.dependencies.localModels.description')}
       </p>
+      {accelerationSupported && !unsupported ? (
+        <div className="mb-3 border-border border-y py-1">
+          <DescriptionSwitch
+            size="sm"
+            label={t('settings.dependencies.localModels.acceleration.label')}
+            description={t('settings.dependencies.localModels.acceleration.description')}
+            checked={hardwareAccelerationEnabled}
+            onCheckedChange={(enabled) => void setHardwareAccelerationEnabled(enabled)}
+          />
+        </div>
+      ) : null}
       {unsupported ? (
         <div
           role="status"

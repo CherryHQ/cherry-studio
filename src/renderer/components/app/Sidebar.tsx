@@ -6,17 +6,20 @@ import useAvatar from '@renderer/hooks/useAvatar'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
+import { MINI_APP_ROUTE_PREFIX, miniAppIdFromTabUrl } from '@renderer/utils/miniAppKeepAlive'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 import {
+  getSidebarApp,
   getSidebarFavoriteKey,
   getSidebarMenuPath,
+  isMessageOnlyConversationUrl,
   REQUIRED_SIDEBAR_FAVORITES,
-  resolveSidebarActiveItem
+  resolveSidebarActiveItem,
+  tabBelongsToApp
 } from '@renderer/utils/sidebar'
-import { clearTabInstanceMetadata } from '@renderer/utils/tabInstanceMetadata'
 import type { Ref } from 'react'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SidebarShellActions } from '../layout/ShellTabBarActions'
@@ -32,21 +35,15 @@ import {
 import UserPopup from '../UserPopup'
 import { resolveSidebarEntry, type SidebarVariantContext } from './sidebarVariants'
 
-const MINI_APP_ROUTE_PREFIX = '/app/mini-app/'
+const FeedbackDialog = lazy(() => import('../feedback/FeedbackDialog'))
 const REQUIRED_SIDEBAR_FAVORITE_SET = new Set<SidebarAppId>(REQUIRED_SIDEBAR_FAVORITES)
-
-function getMiniAppIdFromUrl(url: string | undefined): string | undefined {
-  if (!url?.startsWith(MINI_APP_ROUTE_PREFIX)) return undefined
-  const appId = url.slice(MINI_APP_ROUTE_PREFIX.length).split(/[/?#]/, 1)[0]
-  return appId || undefined
-}
 
 export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const { t } = useTranslation()
   const [userName] = usePreference('app.user.name')
-  const { favorites, setAppPinned, removeMiniApp, reorderFavorites } = useSidebarFavorites()
-  const { activeTab, updateTab, openTab } = useTabs()
-  const { miniApps, pinned } = useMiniApps()
+  const { favorites, miniAppFavoriteIds, setAppPinned, removeMiniApp, reorderFavorites } = useSidebarFavorites()
+  const { activeTab, tabs, updateTab, openTab, setActiveTab } = useTabs()
+  const { miniApps, pinned } = useMiniApps({ enabled: miniAppFavoriteIds.length > 0 })
   const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
 
   // Sidebar width — persisted across restarts. Dragging through the
@@ -54,6 +51,8 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   // follow the cursor without persisting unstable widths.
   const [sidebarWidth, setSidebarWidth] = usePersistCache('ui.sidebar.width')
   const [previewSidebarWidth, setPreviewSidebarWidth] = useState<number | null>(null)
+  const [feedbackDialogMounted, setFeedbackDialogMounted] = useState(false)
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
   const activeSidebarWidth = previewSidebarWidth ?? sidebarWidth
 
   useLayoutEffect(() => {
@@ -105,7 +104,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   // Menu items
   const pathname = activeTab?.url || '/'
-  const activeMiniAppId = getMiniAppIdFromUrl(activeTab?.url)
+  const activeMiniAppId = miniAppIdFromTabUrl(activeTab?.url) ?? undefined
   const openableMiniAppById = useMemo(() => {
     const appById = new Map<string, (typeof miniApps)[number]>()
     for (const app of miniApps) {
@@ -130,8 +129,20 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const handleNavigate = useCallback(
     (menuItemId: string) => {
       const menuId = menuItemId as SidebarAppId
+      const app = getSidebarApp(menuId)
       const path = getSidebarMenuPath(menuId, defaultPaintingProvider)
-      if (!path || activeTab?.url === path) return
+      if (!app || !path) return
+
+      // Conversation apps: any owned tab is already "there" — its URL carries its own
+      // conversation, and re-entering through the route interceptor would just rebind
+      // it. Message-only viewers are not an app entry, so they navigate like any
+      // foreign tab. Apps without sub-instances keep exact-URL matching.
+      const isActiveTarget =
+        !!activeTab &&
+        (app.conversationRoute
+          ? tabBelongsToApp(app, activeTab.url) && !isMessageOnlyConversationUrl(activeTab.url)
+          : activeTab.url === path)
+      if (isActiveTarget) return
 
       const title = getDefaultRouteTitle(path)
 
@@ -145,17 +156,24 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
           url: path,
           title,
           icon: undefined,
-          metadata: clearTabInstanceMetadata(activeTab.metadata)
+          metadata: undefined
         })
         return
       }
 
       openTab(path, { forceNew: true, title })
     },
-    [activeTab, updateTab, openTab, defaultPaintingProvider]
+    [activeTab, defaultPaintingProvider, openTab, updateTab]
   )
+  const handleOpenLaunchpad = useCallback(() => {
+    openTab('/app/launchpad', { title: getDefaultRouteTitle('/app/launchpad'), forceNew: true })
+  }, [openTab])
   const handleOpenSettingsTab = useCallback(() => {
-    openSettingsTab('/settings/provider')
+    openSettingsTab('/settings/general')
+  }, [])
+  const handleOpenFeedback = useCallback(() => {
+    setFeedbackDialogMounted(true)
+    setFeedbackOpen(true)
   }, [])
 
   const handleOpenMiniAppTab = useCallback(
@@ -165,6 +183,12 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
       const path = `${MINI_APP_ROUTE_PREFIX}${app.appId}`
       if (activeTab?.url === path) return
+
+      const existingTab = tabs.find((tab) => tab.type === 'route' && tab.url === path)
+      if (existingTab) {
+        setActiveTab(existingTab.id)
+        return
+      }
 
       const title = app.nameKey ? t(app.nameKey) : app.name
       // Uploaded logo → main-resolved `logoSrc`; preset key → `logo`.
@@ -180,7 +204,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
           url: path,
           title,
           icon,
-          metadata: clearTabInstanceMetadata(activeTab.metadata)
+          metadata: undefined
         })
         return
       }
@@ -191,7 +215,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
         icon
       })
     },
-    [activeTab, openableMiniAppById, openTab, t, updateTab]
+    [activeTab, openableMiniAppById, openTab, setActiveTab, t, tabs, updateTab]
   )
 
   // All per-type sidebar knowledge (icon, label, route, active-match, open, remove)
@@ -222,8 +246,27 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   // favorites order. Unrenderable rows (no route/icon, or an uninstalled mini app)
   // are dropped here but stay in the preference.
   const entries = useMemo(
-    () => favorites.flatMap((favorite) => resolveSidebarEntry(favorite, variantContext) ?? []),
-    [favorites, variantContext]
+    () =>
+      favorites.flatMap((favorite) => {
+        const entry = resolveSidebarEntry(favorite, variantContext)
+        if (!entry) return []
+
+        return [
+          {
+            ...entry,
+            contextMenuItems: [
+              ...(entry.contextMenuItems ?? []),
+              {
+                type: 'item' as const,
+                id: `sidebar.manage.${entry.key}`,
+                label: t('launchpad.manage_sidebar'),
+                onSelect: handleOpenLaunchpad
+              }
+            ]
+          }
+        ]
+      }),
+    [favorites, handleOpenLaunchpad, t, variantContext]
   )
 
   // A single drag reorders the whole mixed list. arrayMove yields the new entry
@@ -247,8 +290,13 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     active: { activeItem, activeTabId: activeMiniAppId },
     title: sidebarUser.name,
     logo: sidebarLogo,
-    actions: (footerLayout: SidebarVisibleLayout) => (
-      <SidebarShellActions layout={footerLayout} onSettingsClick={handleOpenSettingsTab} />
+    actions: (footerLayout: SidebarVisibleLayout, onOverlayOpenChange?: (open: boolean) => void) => (
+      <SidebarShellActions
+        layout={footerLayout}
+        onFeedbackClick={handleOpenFeedback}
+        onSettingsClick={handleOpenSettingsTab}
+        onOverlayOpenChange={onOverlayOpenChange}
+      />
     ),
     onEntriesReorder: handleReorder
   }
@@ -272,6 +320,11 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
           {...sidebarProps}
         />
       )}
+      {feedbackDialogMounted ? (
+        <Suspense fallback={null}>
+          <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
+        </Suspense>
+      ) : null}
     </div>
   )
 }

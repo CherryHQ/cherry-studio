@@ -66,7 +66,10 @@ if (command === 'use') {
   const at = spec.lastIndexOf('@')
   const tool = at > 0 ? spec.slice(0, at) : spec
   const version = at > 0 && spec.slice(at + 1) !== 'latest' ? spec.slice(at + 1) : '1.2.3'
-  state[tool] = [{ version, active: true }]
+  state[tool] = [
+    ...(state[tool] ?? []).filter((entry) => entry.version !== version).map((entry) => ({ ...entry, active: false })),
+    { version, active: true }
+  ]
   fs.mkdirSync(shimsDir, { recursive: true })
   const name = tool.replace(/^core:/, '').split(':').at(-1)
   const shim = path.join(shimsDir, name)
@@ -88,6 +91,10 @@ if (command === 'use') {
   const name = tool.replace(/^core:/, '').split(':').at(-1)
   delete state[tool]
   fs.rmSync(path.join(shimsDir, name), { force: true })
+  writeState(state)
+} else if (command === 'prune') {
+  const tool = args[0]
+  state[tool] = (state[tool] ?? []).filter((entry) => entry.active)
   writeState(state)
 } else if (command !== 'reshim' && command !== 'unuse') {
   process.stderr.write('unsupported command: ' + command)
@@ -125,6 +132,11 @@ if (command === 'use') {
         },
         application: { status: 'applied', version: '1.2.3' }
       }
+    })
+
+    await expect(service.installByName({ name: 'opencode', targetVersion: '2.0.0' })).resolves.toBeUndefined()
+    expect(JSON.parse(fs.readFileSync(path.join(tempDir, 'fake-installed-tools.json'), 'utf8'))).toEqual({
+      opencode: [{ version: '2.0.0', active: true }]
     })
 
     await expect(service.removeTool({ name: 'opencode' })).resolves.toEqual({ status: 'removed' })

@@ -3,25 +3,42 @@ import type * as NodeFs from 'node:fs'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { loadEmbedding, terminate, terminateThen, registerLocalEmbeddingModel, unregisterMock, readdirSync, rm } =
-  vi.hoisted(() => {
-    const terminate = vi.fn()
-    // terminateThen mirrors the real terminate-then-run-after ordering so the
-    // invocationCallOrder assertions below (terminate before rm) still hold.
-    const terminateThen = vi.fn(async (after: () => Promise<unknown>) => {
-      await terminate()
-      return after()
-    })
-    return {
-      loadEmbedding: vi.fn(),
-      terminate,
-      terminateThen,
-      registerLocalEmbeddingModel: vi.fn(),
-      unregisterMock: vi.fn(),
-      readdirSync: vi.fn(),
-      rm: vi.fn()
-    }
+const {
+  acquireEmbeddingModelRemovalGuard,
+  isInChina,
+  loadEmbedding,
+  ensureOnnxRuntime,
+  onnxRuntimeIsReady,
+  releaseRemovalGuard,
+  terminate,
+  terminateThen,
+  existsSync,
+  rm
+} = vi.hoisted(() => {
+  const terminate = vi.fn()
+  // terminateThen mirrors the real terminate-then-run-after ordering so the
+  // invocationCallOrder assertions below (terminate before rm) still hold.
+  const terminateThen = vi.fn(async (after: () => Promise<unknown>) => {
+    await terminate()
+    return after()
   })
+  return {
+    acquireEmbeddingModelRemovalGuard: vi.fn(),
+    isInChina: vi.fn(),
+    loadEmbedding: vi.fn(),
+    ensureOnnxRuntime: vi.fn(),
+    onnxRuntimeIsReady: vi.fn(),
+    releaseRemovalGuard: vi.fn(),
+    terminate,
+    terminateThen,
+    existsSync: vi.fn(),
+    rm: vi.fn()
+  }
+})
+
+vi.mock('@data/services/KnowledgeBaseService', () => ({
+  knowledgeBaseService: { acquireEmbeddingModelRemovalGuard }
+}))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -34,28 +51,24 @@ vi.mock('@application', async () => {
   return result
 })
 
-// Controllable fs for the ready probe (readdirSync) and remove (promises.rm).
+// Controllable fs for the cache probe (existsSync) and remove (promises.rm).
 vi.mock('node:fs', async () => {
   const actual = await vi.importActual<typeof NodeFs>('node:fs')
-  const patched = { ...actual, readdirSync, promises: { ...actual.promises, rm } }
+  const patched = { ...actual, existsSync, promises: { ...actual.promises, rm } }
   return { ...patched, default: patched }
 })
 
-vi.mock('@main/ai/provider/custom/localEmbedding/localEmbeddingRuntime', () => ({
-  currentModelSource: () => ({})
-}))
+// The egress-region signal only decides which mirror is tried first — pin it so the
+// mirror-order assertions below don't depend on where the test machine runs.
+vi.mock('@main/services/RegionService', () => ({ regionService: { isInChina } }))
 
-vi.mock('@main/services/localModel/localEmbeddingRegistration', () => ({
-  registerLocalEmbeddingModel,
-  unregisterLocalEmbeddingModelIfUnused: unregisterMock
-}))
-
-// onnxruntime binary presence is a separate concern (see OnnxRuntimeBinaryService.test.ts) —
-// stub it as always-ready/no-op here so these tests only exercise the model-weight lifecycle.
+// onnxruntime binary presence is a separate concern (see OnnxRuntimeBinaryService.test.ts).
+// Keep it ready/no-op by default, while allowing the runtime-repair regression to model
+// the missing-binary state that triggers the cache-aware mirror path.
 vi.mock('@main/services/localModel/OnnxRuntimeBinaryService', () => ({
   onnxRuntimeBinaryService: {
-    isReady: vi.fn(() => true),
-    ensure: vi.fn(async () => undefined)
+    isReady: onnxRuntimeIsReady,
+    ensure: ensureOnnxRuntime
   }
 }))
 
@@ -69,47 +82,139 @@ const { localEmbeddingDownloadService } = await import('../LocalEmbeddingDownloa
 /** The dedicated cache root — cleanup/removal target it whole so no empty
  * `onnx-community/` parent chain survives (the weights nest two levels below). */
 const MODELS_ROOT = '/mock/feature.embedding.models'
+const MODEL_DIR = `${MODELS_ROOT}/onnx-community/Qwen3-Embedding-0.6B-ONNX`
 const READY_FILE = 'model_quantized.onnx'
+const REQUIRED_FILES = ['config.json', 'tokenizer_config.json', 'tokenizer.json', `onnx/${READY_FILE}`]
 
 function broadcastSpy() {
   return vi.mocked(application.get('IpcApiService').broadcast)
 }
 
-/** A flat (non-directory) dirent for the recursive `containsFile` probe. */
-function fileEntry(name: string): NodeFs.Dirent {
-  return { name, isDirectory: () => false } as unknown as NodeFs.Dirent
+/** transformers.js omits the revision segment for `main` and includes it otherwise. */
+function revisionCacheDir(revision: string): string {
+  return revision === 'main' ? MODEL_DIR : `${MODEL_DIR}/${revision}`
+}
+
+function modelScopeCachePath(file: string): string {
+  return `${revisionCacheDir('master')}/${file}`
+}
+
+/** The simulated on-disk tree, shared by the existsSync probe and the rm below. */
+let cachedPaths = new Set<string>()
+
+function mockCacheFiles(files: string[]): void {
+  cachedPaths = new Set(files)
+  existsSync.mockImplementation((candidate) => cachedPaths.has(String(candidate)))
+}
+
+/** Recursive rm that actually prunes the simulated tree, so a test asserting the weights
+ * survived a failure cannot pass just because the probe was pinned to a stale file list. */
+/** What a mirror leaves on disk once its download really completes. Downloads write the
+ * cache, so tests that stub one must too — the post-download probe reads exactly this. */
+function materializeMirrorCache(source: { revision: string }): void {
+  const dir = revisionCacheDir(source.revision)
+  mockCacheFiles([...cachedPaths, MODEL_DIR, ...REQUIRED_FILES.map((file) => `${dir}/${file}`)])
+}
+
+function mockRecursiveRm(target: unknown): Promise<void> {
+  const root = String(target)
+  for (const path of cachedPaths) {
+    if (path === root || path.startsWith(`${root}/`)) cachedPaths.delete(path)
+  }
+  return Promise.resolve()
 }
 
 describe('LocalEmbeddingDownloadService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    registerLocalEmbeddingModel.mockResolvedValue(undefined)
-    rm.mockResolvedValue(undefined)
+    acquireEmbeddingModelRemovalGuard.mockReturnValue(releaseRemovalGuard)
+    rm.mockImplementation(mockRecursiveRm)
+    isInChina.mockResolvedValue(false)
+    onnxRuntimeIsReady.mockReturnValue(true)
+    ensureOnnxRuntime.mockResolvedValue(undefined)
+    // clearAllMocks keeps implementations — reset the cache probe so one test's
+    // on-disk layout cannot leak into the next (mirror order consults the cache).
+    mockCacheFiles([])
+    loadEmbedding.mockImplementation(async (source: { revision: string }) => materializeMirrorCache(source))
   })
 
   describe('ready probe', () => {
-    it('reports ready when the quantized weights exist under the cache dir', () => {
-      readdirSync.mockReturnValue([fileEntry(READY_FILE)])
+    it('reports ready for the HuggingFace main-revision cache layout', () => {
+      mockCacheFiles([
+        MODEL_DIR,
+        `${MODEL_DIR}/config.json`,
+        `${MODEL_DIR}/tokenizer_config.json`,
+        `${MODEL_DIR}/tokenizer.json`,
+        `${MODEL_DIR}/onnx/${READY_FILE}`
+      ])
+
+      expect(localEmbeddingDownloadService.getStatus()).toBe('ready')
+    })
+
+    it('reports ready for the ModelScope master-revision cache layout', () => {
+      mockCacheFiles([MODEL_DIR, ...REQUIRED_FILES.map(modelScopeCachePath)])
 
       expect(localEmbeddingDownloadService.getStatus()).toBe('ready')
     })
 
     it('reports not_downloaded when the cache dir is absent', () => {
-      readdirSync.mockImplementation(() => {
-        throw new Error('ENOENT')
-      })
+      mockCacheFiles([])
 
       expect(localEmbeddingDownloadService.getStatus()).toBe('not_downloaded')
     })
+
+    it('reports error when only the quantized weights exist', () => {
+      mockCacheFiles([MODEL_DIR, `${MODEL_DIR}/onnx/${READY_FILE}`])
+
+      expect(localEmbeddingDownloadService.getStatus()).toBe('error')
+    })
+
+    it('tells the card WHY via the incomplete_cache error code', () => {
+      mockCacheFiles([MODEL_DIR, `${MODEL_DIR}/config.json`])
+
+      expect(localEmbeddingDownloadService.getStatusInfo()).toEqual({ status: 'error', errorCode: 'incomplete_cache' })
+    })
+
+    it('does not combine files from different revisions into a ready cache', () => {
+      mockCacheFiles([
+        MODEL_DIR,
+        `${MODEL_DIR}/config.json`,
+        `${MODEL_DIR}/tokenizer.json`,
+        modelScopeCachePath('tokenizer_config.json'),
+        modelScopeCachePath(`onnx/${READY_FILE}`)
+      ])
+
+      expect(localEmbeddingDownloadService.getStatus()).toBe('error')
+    })
+
+    it('logs an incomplete cache once with the missing files', () => {
+      // Reset the hot-probe warning guard in case a preceding test left an incomplete cache.
+      mockCacheFiles([])
+      expect(localEmbeddingDownloadService.getStatus()).toBe('not_downloaded')
+      vi.clearAllMocks()
+
+      mockCacheFiles([MODEL_DIR, `${MODEL_DIR}/config.json`])
+
+      expect(localEmbeddingDownloadService.getStatus()).toBe('error')
+      expect(localEmbeddingDownloadService.getStatus()).toBe('error')
+      expect(mockMainLoggerService.warn).toHaveBeenCalledTimes(1)
+      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+        'local embedding model cache is incomplete',
+        expect.objectContaining({
+          missingFiles: expect.arrayContaining([`${MODEL_DIR}/tokenizer.json`, modelScopeCachePath('config.json')])
+        })
+      )
+    })
   })
 
-  it('drives the progress bar off the .onnx weights only, then registers and reports ready', async () => {
-    loadEmbedding.mockImplementation(async (_source, _repo, _dtype, onProgress) => {
+  it('drives the progress bar off the .onnx weights only, then reports ready', async () => {
+    loadEmbedding.mockImplementation(async (source, _repo, _dtype, onProgress) => {
       // The tiny sidecar files each sweep 0→100 before the weights start — they must
       // not move the bar; only the .onnx weights (≈99% of the download) drive it.
       onProgress?.({ status: 'progress', file: 'tokenizer.json', progress: 100 })
       onProgress?.({ status: 'progress', file: READY_FILE, progress: 0 })
       onProgress?.({ status: 'progress', file: READY_FILE, progress: 42 })
+      materializeMirrorCache(source)
     })
 
     await localEmbeddingDownloadService.download()
@@ -129,8 +234,6 @@ describe('LocalEmbeddingDownloadService', () => {
       'local_model.download_progress',
       expect.objectContaining({ file: 'tokenizer.json' })
     )
-    // Only registered once the weights are on disk (lazy equivalent of the boot seeder).
-    expect(registerLocalEmbeddingModel).toHaveBeenCalledTimes(1)
     expect(broadcastSpy()).toHaveBeenCalledWith(
       'local_model.download_progress',
       expect.objectContaining({ status: 'ready', percent: 100 })
@@ -138,32 +241,237 @@ describe('LocalEmbeddingDownloadService', () => {
   })
 
   it('holds the bar at 100 through the dataless done event instead of snapping to 0', async () => {
-    loadEmbedding.mockImplementation(async (_source, _repo, _dtype, onProgress) => {
+    loadEmbedding.mockImplementation(async (source, _repo, _dtype, onProgress) => {
       // transformers.js brackets the byte stream with dataless 'initiate'/'done' events;
       // only the middle 'progress' events carry loaded/total.
       onProgress?.({ status: 'initiate', file: READY_FILE })
       onProgress?.({ status: 'progress', file: READY_FILE, progress: 100, loaded: 614, total: 614 })
       onProgress?.({ status: 'done', file: READY_FILE })
+      materializeMirrorCache(source)
     })
 
     await localEmbeddingDownloadService.download()
 
     // The dataless events must never report 0 — that snapped the full bar back to empty
-    // right before the post-registration 'ready' (the "100% → 0%" flicker).
+    // right before the terminal 'ready' (the "100% → 0%" flicker).
     expect(broadcastSpy()).not.toHaveBeenCalledWith(
       'local_model.download_progress',
       expect.objectContaining({ file: READY_FILE, percent: 0 })
     )
-    // 'done' means the weights are fully on disk — keep the bar full through registration.
+    // 'done' means the weights are fully on disk — keep the bar full until terminal ready.
     expect(broadcastSpy()).toHaveBeenCalledWith(
       'local_model.download_progress',
       expect.objectContaining({ status: 'done', percent: 100 })
     )
   })
 
+  describe('mirror fallback', () => {
+    /** `remoteHost` of the source the Nth loadEmbedding attempt was given. */
+    function attemptedHost(index: number): string {
+      return loadEmbedding.mock.calls[index][0].remoteHost
+    }
+
+    it('tries the region-default mirror first: HuggingFace when not in China', async () => {
+      await localEmbeddingDownloadService.download()
+
+      expect(loadEmbedding).toHaveBeenCalledTimes(1)
+      expect(attemptedHost(0)).toContain('huggingface.co')
+    })
+
+    it('prefers the mirror whose cache is already complete over the region default', async () => {
+      // Runtime-only repair: complete HuggingFace weights on disk (only the shared
+      // onnxruntime binary was missing), while the region signal now says China. The
+      // cached revision must be tried first — the region-default mirror would miss
+      // the other revision's cache key and re-download the ~600MB weights.
+      isInChina.mockResolvedValue(true)
+      mockCacheFiles([
+        MODEL_DIR,
+        `${MODEL_DIR}/config.json`,
+        `${MODEL_DIR}/tokenizer_config.json`,
+        `${MODEL_DIR}/tokenizer.json`,
+        `${MODEL_DIR}/onnx/${READY_FILE}`
+      ])
+      onnxRuntimeIsReady.mockReturnValue(false)
+      ensureOnnxRuntime.mockImplementationOnce(async () => {
+        onnxRuntimeIsReady.mockReturnValue(true)
+      })
+
+      expect(localEmbeddingDownloadService.getStatus()).toBe('not_downloaded')
+
+      await expect(localEmbeddingDownloadService.download()).resolves.toBe('ready')
+
+      expect(ensureOnnxRuntime).toHaveBeenCalledTimes(1)
+      expect(loadEmbedding).toHaveBeenCalledTimes(1)
+      expect(attemptedHost(0)).toContain('huggingface.co')
+    })
+
+    it('tries ModelScope first when the region signal reports China', async () => {
+      isInChina.mockResolvedValue(true)
+
+      await localEmbeddingDownloadService.download()
+
+      expect(attemptedHost(0)).toContain('modelscope.cn')
+    })
+
+    it('falls back to the other mirror when the region default is unreachable', async () => {
+      // The egress-IP region signal is a guess — a proxied China user reads as overseas
+      // and gets HuggingFace, which the worker often cannot reach. ModelScope must still
+      // get its turn instead of the whole download failing.
+      loadEmbedding.mockRejectedValueOnce(new Error('fetch failed'))
+
+      await expect(localEmbeddingDownloadService.download()).resolves.toBe('ready')
+
+      expect(loadEmbedding).toHaveBeenCalledTimes(2)
+      expect(attemptedHost(1)).toContain('modelscope.cn')
+      expect(broadcastSpy()).toHaveBeenCalledWith(
+        'local_model.download_progress',
+        expect.objectContaining({ status: 'ready', percent: 100 })
+      )
+    })
+
+    it('reports every mirror error once all mirrors are exhausted', async () => {
+      const huggingFaceError = new Error('huggingface unreachable')
+      const modelScopeError = new Error('modelscope unreachable')
+      loadEmbedding.mockRejectedValueOnce(huggingFaceError)
+      loadEmbedding.mockRejectedValueOnce(modelScopeError)
+
+      const error = await localEmbeddingDownloadService.download().catch((caught) => caught)
+
+      expect(error).toBeInstanceOf(AggregateError)
+      expect(error.message).toContain('huggingface: huggingface unreachable')
+      expect(error.message).toContain('modelscope: modelscope unreachable')
+      expect(error.errors).toHaveLength(2)
+      expect(error.errors[0]).toMatchObject({ message: 'huggingface: huggingface unreachable' })
+      expect(error.errors[1]).toMatchObject({ message: 'modelscope: modelscope unreachable' })
+      expect(error.errors[0].cause).toBe(huggingFaceError)
+      expect(error.errors[1].cause).toBe(modelScopeError)
+      expect(loadEmbedding).toHaveBeenCalledTimes(2)
+      expect(broadcastSpy()).toHaveBeenCalledWith(
+        'local_model.download_progress',
+        expect.objectContaining({ status: 'error', errorCode: 'download_failed' })
+      )
+    })
+
+    it('tries the next mirror when one resolves without leaving the cache on disk', async () => {
+      // transformers.js can serve a model whose files never reached disk (a cache write it
+      // only warns about), and that mirror's revision dir is then unusable for inference.
+      loadEmbedding.mockImplementationOnce(async () => undefined)
+
+      await expect(localEmbeddingDownloadService.download()).resolves.toBe('ready')
+
+      expect(loadEmbedding).toHaveBeenCalledTimes(2)
+      expect(attemptedHost(1)).toContain('modelscope.cn')
+      expect(localEmbeddingDownloadService.getStatus()).toBe('ready')
+    })
+
+    it('never reports ready when no mirror leaves a complete cache', async () => {
+      // The infinite re-download: `ready` was declared off "loadEmbedding resolved", so the
+      // card flashed ready, the next on-disk probe said incomplete, and returning to the
+      // page re-fetched the ~600MB weights — for as long as a sidecar file kept missing.
+      loadEmbedding.mockImplementation(async (source: { revision: string }) => {
+        const dir = revisionCacheDir(source.revision)
+        const landed = REQUIRED_FILES.filter((file) => file !== 'tokenizer.json')
+        mockCacheFiles([...cachedPaths, MODEL_DIR, ...landed.map((file) => `${dir}/${file}`)])
+      })
+
+      const error = await localEmbeddingDownloadService.download().catch((caught) => caught)
+
+      expect(error).toBeInstanceOf(AggregateError)
+      expect(error.message).toContain('tokenizer.json')
+      expect(loadEmbedding).toHaveBeenCalledTimes(2)
+      expect(broadcastSpy()).not.toHaveBeenCalledWith(
+        'local_model.download_progress',
+        expect.objectContaining({ status: 'ready' })
+      )
+      expect(localEmbeddingDownloadService.getStatusInfo()).toEqual({ status: 'error', errorCode: 'download_failed' })
+    })
+
+    it('does not try the next mirror after a user cancel', async () => {
+      loadEmbedding.mockImplementation((_source, _repo, _dtype, _onProgress, signal: AbortSignal) => {
+        localEmbeddingDownloadService.cancel()
+        return Promise.reject(signal.reason ?? new Error('aborted'))
+      })
+
+      await expect(localEmbeddingDownloadService.download()).resolves.toBe('cancelled')
+
+      // Retrying a cancelled download on the fallback mirror would resurrect the very
+      // transfer the user just stopped.
+      expect(loadEmbedding).toHaveBeenCalledTimes(1)
+      expect(rm).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('failure cleanup', () => {
+    /** A complete HuggingFace-layout cache, i.e. weights an earlier download finished. */
+    const completeWeights = [
+      MODEL_DIR,
+      `${MODEL_DIR}/config.json`,
+      `${MODEL_DIR}/tokenizer_config.json`,
+      `${MODEL_DIR}/tokenizer.json`,
+      `${MODEL_DIR}/onnx/${READY_FILE}`
+    ]
+
+    /** Complete weights, but the shared onnxruntime binary is gone — the state that makes
+     * modelFilesState() report `absent` and the card offer Download for a runtime-only repair. */
+    function mockRuntimeOnlyRepairState(): void {
+      mockCacheFiles(completeWeights)
+      onnxRuntimeIsReady.mockReturnValue(false)
+    }
+
+    it('keeps the complete weights when the runtime-only repair fails', async () => {
+      // performDownload fetches the onnxruntime binary before it touches the weights, so a
+      // registry/checksum failure here happens with the ~600MB model still untouched on disk.
+      // Wiping the model root would make a ~40MB runtime failure cost a full re-download.
+      mockRuntimeOnlyRepairState()
+      ensureOnnxRuntime.mockRejectedValueOnce(new Error('every registry mirror failed'))
+
+      await expect(localEmbeddingDownloadService.download()).rejects.toThrow('every registry mirror failed')
+
+      expect(loadEmbedding).not.toHaveBeenCalled()
+      expect(rm).not.toHaveBeenCalled()
+    })
+
+    it('keeps the complete weights when the runtime-only repair is cancelled', async () => {
+      mockRuntimeOnlyRepairState()
+      ensureOnnxRuntime.mockImplementationOnce(async () => {
+        localEmbeddingDownloadService.cancel()
+        throw new Error('aborted')
+      })
+
+      await expect(localEmbeddingDownloadService.download()).resolves.toBe('cancelled')
+
+      expect(rm).not.toHaveBeenCalled()
+    })
+
+    it('leaves those weights usable once the runtime is repaired on a later run', async () => {
+      mockRuntimeOnlyRepairState()
+      ensureOnnxRuntime.mockRejectedValueOnce(new Error('every registry mirror failed'))
+      await expect(localEmbeddingDownloadService.download()).rejects.toThrow()
+
+      // A fresh instance stands in for an app restart, which clears the in-memory
+      // last-failure flag that otherwise pins the card to `error` for the rest of the run.
+      vi.resetModules()
+      const restarted = (await import('../LocalEmbeddingDownloadService')).localEmbeddingDownloadService
+      onnxRuntimeIsReady.mockReturnValue(true)
+
+      expect(restarted.getStatus()).toBe('ready')
+    })
+
+    it('keeps whatever is on disk when every mirror fails', async () => {
+      // transformers.js renames a cache entry into place only once the file has fully
+      // downloaded, so an exhausted-mirror failure leaves no partials to clean up.
+      loadEmbedding.mockRejectedValueOnce(new Error('huggingface unreachable'))
+      loadEmbedding.mockRejectedValueOnce(new Error('modelscope unreachable'))
+
+      await expect(localEmbeddingDownloadService.download()).rejects.toBeInstanceOf(AggregateError)
+
+      expect(rm).not.toHaveBeenCalled()
+    })
+  })
+
   describe('remove', () => {
     it('keeps the weights when a knowledge base still references the model', async () => {
-      unregisterMock.mockResolvedValue({ removed: false })
+      acquireEmbeddingModelRemovalGuard.mockReturnValueOnce(undefined)
 
       await expect(localEmbeddingDownloadService.remove()).resolves.toEqual({ removed: false })
 
@@ -173,40 +481,40 @@ describe('LocalEmbeddingDownloadService', () => {
     })
 
     it('terminates the worker before deleting the weights when the model is unused', async () => {
-      unregisterMock.mockResolvedValue({ removed: true })
-
       await expect(localEmbeddingDownloadService.remove()).resolves.toEqual({ removed: true })
 
       expect(terminate).toHaveBeenCalledTimes(1)
       expect(rm).toHaveBeenCalledWith(MODELS_ROOT, { recursive: true, force: true })
       // The worker holds the weights open — release it first or the unlink fails on Windows.
       expect(terminate.mock.invocationCallOrder[0]).toBeLessThan(rm.mock.invocationCallOrder[0])
+      expect(vi.mocked(application.get('DbService').getDb().delete)).not.toHaveBeenCalled()
+      expect(releaseRemovalGuard).toHaveBeenCalledOnce()
     })
 
-    it('re-registers the model when deleting the weights fails, so files and DB stay consistent', async () => {
-      unregisterMock.mockResolvedValue({ removed: true })
-      rm.mockRejectedValue(new Error('EBUSY')) // e.g. a Windows lock survives the unlink
-
-      await expect(localEmbeddingDownloadService.remove()).rejects.toThrow('EBUSY')
-
-      // Row already deleted but weights survived → re-register so the leftover weights
-      // don't read as a `ready` model with no user_model row.
-      expect(registerLocalEmbeddingModel).toHaveBeenCalledTimes(1)
-    })
-
-    it('logs the original deletion error even when the compensating re-register also fails', async () => {
-      unregisterMock.mockResolvedValue({ removed: true })
-      rm.mockRejectedValue(new Error('EBUSY'))
-      registerLocalEmbeddingModel.mockRejectedValue(new Error('db down')) // compensation fails too
-
-      await expect(localEmbeddingDownloadService.remove()).rejects.toThrow()
-
-      // The deletion breadcrumb is logged before the re-register runs, so it survives the
-      // re-register throwing over the rethrow.
-      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
-        expect.stringContaining('re-registering'),
-        expect.any(Error)
+    it('holds the removal guard until the asynchronous weight deletion completes', async () => {
+      let finishRemoval: (() => void) | undefined
+      rm.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            finishRemoval = resolve
+          })
       )
+
+      const pendingRemoval = localEmbeddingDownloadService.remove()
+      await vi.waitFor(() => expect(rm).toHaveBeenCalledOnce())
+      expect(releaseRemovalGuard).not.toHaveBeenCalled()
+
+      finishRemoval?.()
+      await expect(pendingRemoval).resolves.toEqual({ removed: true })
+      expect(releaseRemovalGuard).toHaveBeenCalledOnce()
+    })
+
+    it('releases the removal guard when weight deletion fails', async () => {
+      rm.mockRejectedValueOnce(new Error('disk busy'))
+
+      await expect(localEmbeddingDownloadService.remove()).rejects.toThrow('disk busy')
+
+      expect(releaseRemovalGuard).toHaveBeenCalledOnce()
     })
   })
 
@@ -225,23 +533,16 @@ describe('LocalEmbeddingDownloadService', () => {
     const pending = localEmbeddingDownloadService.download()
     localEmbeddingDownloadService.cancel()
 
-    await expect(pending).rejects.toThrow()
+    await expect(pending).resolves.toBe('cancelled')
     expect(terminate).toHaveBeenCalled()
     // A user cancel is not a failure — no error broadcast.
     expect(broadcastSpy()).not.toHaveBeenCalledWith(
       'local_model.download_progress',
       expect.objectContaining({ status: 'error' })
     )
-  })
-
-  it('cleans up the weights when registration fails, leaving no orphan ready state', async () => {
-    loadEmbedding.mockResolvedValue(undefined) // weights land on disk...
-    registerLocalEmbeddingModel.mockRejectedValue(new Error('db down')) // ...but the row write fails
-
-    await expect(localEmbeddingDownloadService.download()).rejects.toThrow('db down')
-
-    // Weights present + no user_model row would read as `ready` and trip the KB FK on select.
-    expect(terminate).toHaveBeenCalled()
-    expect(rm).toHaveBeenCalledWith(MODELS_ROOT, { recursive: true, force: true })
+    expect(broadcastSpy()).toHaveBeenCalledWith(
+      'local_model.download_progress',
+      expect.objectContaining({ status: 'not_downloaded', percent: 0 })
+    )
   })
 })

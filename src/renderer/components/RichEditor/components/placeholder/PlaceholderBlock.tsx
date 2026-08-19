@@ -1,6 +1,8 @@
 import { useTheme } from '@renderer/hooks/useTheme'
 import React from 'react'
 
+const PLACEHOLDER_FOREGROUND = '#656d76'
+
 interface PlaceholderBlockProps {
   /** Icon element to display */
   icon: React.ReactNode
@@ -18,6 +20,7 @@ const PlaceholderBlock: React.FC<PlaceholderBlockProps> = ({ icon, message, onCl
   const { theme } = useTheme()
   const isDark = theme === 'dark'
 
+  // These interaction colors stay owner-local because one shared role cannot preserve both theme treatments.
   const colors = {
     border: isDark ? 'var(--border, #ffffff19)' : '#d0d7de',
     background: isDark ? 'color-mix(in srgb, var(--background) 96%, var(--foreground) 4%)' : 'var(--background-subtle)',
@@ -34,6 +37,7 @@ const PlaceholderBlock: React.FC<PlaceholderBlockProps> = ({ icon, message, onCl
         padding: 24,
         margin: '8px 0',
         textAlign: 'center',
+        color: PLACEHOLDER_FOREGROUND,
         cursor: 'pointer',
         background: colors.background,
         transition: 'all 0.2s ease',
@@ -54,7 +58,7 @@ const PlaceholderBlock: React.FC<PlaceholderBlockProps> = ({ icon, message, onCl
         target.style.backgroundColor = colors.background
       }}>
       {icon}
-      <span style={{ color: '#656d76', fontSize: 14 }}>{message}</span>
+      <span style={{ fontSize: 14 }}>{message}</span>
     </div>
   )
 }

@@ -23,7 +23,8 @@ import {
   MODEL_CAPABILITY
 } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { formatApiHost, withoutTrailingSlash } from '@shared/utils/api'
+import { formatApiHost, formatOllamaApiHost, withoutTrailingApiVersion, withoutTrailingSlash } from '@shared/utils/api'
+import { deriveModelGroupName } from '@shared/utils/model'
 import {
   isAIGatewayProvider,
   isGeminiProvider,
@@ -34,7 +35,7 @@ import {
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import * as z from 'zod'
 
-import { defaultHeaders, getBaseUrl } from '../utils/provider'
+import { defaultHeaders, getBaseUrl, getExtraHeaders } from '../utils/provider'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import {
   createVertexModelListRequest,
@@ -131,8 +132,7 @@ async function getFromApi<T>({
 /** Build default headers with rotated API key */
 
 function defaultGroup(modelId: string, providerId: string): string {
-  const parts = modelId.split('/')
-  return parts.length > 1 ? parts[0] : providerId
+  return deriveModelGroupName(modelId) ?? providerId
 }
 
 /** Build a partial v2 Model from API response */
@@ -185,7 +185,12 @@ const ollamaFetcher: ModelFetcher = {
       responseSchema: OllamaTagsResponseSchema,
       abortSignal: signal
     })
-    return dedup(response.models, (m) => m.name).map((m) => toModel(m.name, provider, { ownedBy: 'ollama' }))
+    return dedup(response.models, (m) => m.name).map((m) =>
+      toModel(m.name, provider, {
+        ownedBy: 'ollama',
+        capabilities: m.capabilities?.includes('thinking') ? [MODEL_CAPABILITY.REASONING] : []
+      })
+    )
   }
 }
 
@@ -380,7 +385,10 @@ const copilotFetcher: ModelFetcher = {
 const ovmsFetcher: ModelFetcher = {
   match: (p) => p.id === SystemProviderIds.ovms,
   fetch: async (provider, signal) => {
-    const baseUrl = formatApiHost(withoutTrailingSlash(getBaseUrl(provider)).replace(/\/v1$/, ''), true, 'v1')
+    // The servable-status document lives at /v1/config; the provider's chat base URL points at
+    // the OpenAI-compatible /v3 namespace, which has no GET /config. Strip whatever version the
+    // host carries so the version below is always the one OVMS actually serves this on.
+    const baseUrl = formatApiHost(withoutTrailingApiVersion(getBaseUrl(provider)), true, 'v1')
     const response = await getFromApi({
       url: `${baseUrl}/config`,
       headers: defaultHeaders(provider),
@@ -447,6 +455,13 @@ function normalizeEndpointTypes(values: string[] | undefined): EndpointType[] | 
       .filter((value): value is EndpointType => Boolean(value)),
     (value) => value
   )
+
+  if (endpointTypes[0] === ENDPOINT_TYPE.OPENAI_EMBEDDINGS) {
+    const chatEndpoint = endpointTypes.find((endpointType) => endpointImpliedCapability(endpointType) === undefined)
+    if (chatEndpoint) {
+      return [chatEndpoint, ...endpointTypes.filter((endpointType) => endpointType !== chatEndpoint)]
+    }
+  }
 
   return endpointTypes.length > 0 ? endpointTypes : undefined
 }
@@ -719,6 +734,40 @@ const openAICompatibleFetcher: ModelFetcher = {
       })
     )
   }
+}
+
+// ── Ollama probe ──
+
+/** Lightweight model-existence check for Ollama — avoids loading the model into memory. */
+export async function probeOllamaModel(
+  provider: Provider,
+  modelApiId: string | undefined,
+  signal?: AbortSignal,
+  apiKeyOverride?: string
+): Promise<{ latency: number }> {
+  const start = performance.now()
+  const baseUrl = formatOllamaApiHost(getBaseUrl(provider))
+  const resolved = providerService.resolveApiKey(provider.id, apiKeyOverride)
+  const headers: Record<string, string> = {
+    ...defaultAppHeaders(),
+    ...getExtraHeaders(provider),
+    'Content-Type': 'application/json'
+  }
+  if (resolved.value) {
+    headers.Authorization = `Bearer ${resolved.value}`
+    headers['X-Api-Key'] = resolved.value
+  }
+  const response = await fetch(`${baseUrl}/show`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ model: modelApiId ?? '' }),
+    signal
+  })
+  if (!response.ok) {
+    const body = (await response.json().catch(() => undefined)) as { error?: string; message?: string } | undefined
+    throw new Error(body?.error ?? body?.message ?? `Ollama /api/show returned ${response.status}`)
+  }
+  return { latency: performance.now() - start }
 }
 
 // ── Registry (order matters: first match wins) ──

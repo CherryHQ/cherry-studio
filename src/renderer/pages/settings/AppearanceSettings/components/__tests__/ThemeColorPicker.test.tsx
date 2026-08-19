@@ -12,6 +12,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof Cher
 
 const translations: Record<string, string> = {
   'settings.theme.color_picker.eyedropper': 'Localized eyedropper',
+  'settings.theme.color_picker.hex': 'Localized hex color',
   'settings.theme.color_picker.hue': 'Localized hue',
   'settings.theme.color_picker.selection': 'Localized color plane'
 }
@@ -37,30 +38,19 @@ describe('ThemeColorPicker', () => {
     expect(normalizeHexColor('09f')).toBe('#0099FF')
   })
 
-  it('opens the v2 color picker instead of a native color input', () => {
+  it('opens the shared color picker instead of a native color input', () => {
     render(<ThemeColorPicker value="#112233" presets={[]} onChange={vi.fn()} ariaLabel="Theme color" />)
 
     expect(screen.queryByLabelText('Theme color', { selector: 'input[type="color"]' })).not.toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: 'Theme color' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Theme color' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Localized hex color' })).toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: 'Theme color' })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Theme color' }))
 
     expect(screen.getByRole('slider', { name: 'Localized color plane' })).toBeInTheDocument()
     expect(screen.getByRole('slider', { name: 'Localized hue' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Localized eyedropper' })).toBeInTheDocument()
-  })
-
-  it('matches the one-pixel focus ring used by inputs and selects', () => {
-    render(<ThemeColorPicker value="#112233" presets={['#112233']} onChange={vi.fn()} ariaLabel="Theme color" />)
-
-    expect(screen.getByRole('button', { name: '#112233' })).toHaveClass(
-      'focus-visible:ring-[1px]',
-      'focus-visible:ring-ring/35'
-    )
-    expect(screen.getByRole('button', { name: 'Theme color' })).toHaveClass(
-      'focus-visible:ring-[1px]',
-      'focus-visible:ring-ring/35'
-    )
   })
 
   it('reverts an invalid draft color on blur', () => {

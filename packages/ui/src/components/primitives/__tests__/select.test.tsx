@@ -30,26 +30,34 @@ afterEach(() => {
 })
 
 describe('SelectContent', () => {
-  it('renders the trigger with a transparent background and border', () => {
+  it('keeps the resting border when opened and reserves the theme border for keyboard focus', () => {
     render(
       <Select defaultValue="alpha">
         <SelectTrigger aria-label="Mode">
           <SelectValue />
         </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="alpha">Alpha</SelectItem>
+        </SelectContent>
       </Select>
     )
 
     const trigger = screen.getByRole('combobox', { name: 'Mode' })
+    expect(trigger).toHaveClass('focus-visible:border-primary')
+    expect(trigger).not.toHaveClass('aria-expanded:border-primary')
+    expect(trigger).toHaveAttribute('data-size', 'default')
+  })
 
-    expect(trigger).toHaveClass(
-      'border',
-      'border-border',
-      'bg-transparent',
-      'focus-visible:border-ring',
-      'focus-visible:ring-ring/35',
-      'focus-visible:ring-[1px]'
+  it('exposes an explicit large trigger density', () => {
+    render(
+      <Select defaultValue="alpha">
+        <SelectTrigger aria-label="Mode" size="lg">
+          <SelectValue />
+        </SelectTrigger>
+      </Select>
     )
-    expect(trigger).not.toHaveClass('bg-muted/50', 'focus-visible:ring-3')
+
+    expect(screen.getByRole('combobox', { name: 'Mode' })).toHaveAttribute('data-size', 'lg')
   })
 
   it('opens and closes without controlled open props', async () => {

@@ -101,7 +101,7 @@ const ThemeColorPicker = ({ value, presets, onChange, ariaLabel, className }: Th
               aria-label={normalizedPreset}
               aria-pressed={selected}
               className={cn(
-                'relative flex h-6 w-6 items-center justify-center rounded-full outline-none transition-opacity hover:opacity-80 focus-visible:ring-[1px] focus-visible:ring-ring/35'
+                'relative flex h-6 w-6 items-center justify-center rounded-full outline-none transition-opacity hover:opacity-80 focus-visible:[box-shadow:inset_0_0_0_2px_var(--ring)]'
               )}
               onClick={() => commitColor(normalizedPreset)}>
               <span
@@ -117,7 +117,7 @@ const ThemeColorPicker = ({ value, presets, onChange, ariaLabel, className }: Th
           <button
             type="button"
             aria-label={ariaLabel}
-            className="relative flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-md border border-border bg-background shadow-xs outline-none focus-visible:ring-[1px] focus-visible:ring-ring/35">
+            className="relative flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-md border border-border bg-background shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
             <span className="h-5 w-5 rounded-sm border border-border" style={{ backgroundColor: normalizedValue }} />
           </button>
         </PopoverTrigger>
@@ -136,7 +136,7 @@ const ThemeColorPicker = ({ value, presets, onChange, ariaLabel, className }: Th
       </Popover>
       <Input
         size="sm"
-        aria-label={ariaLabel}
+        aria-label={t('settings.theme.color_picker.hex')}
         value={draftValue}
         onChange={(event) => setDraftValue(event.target.value)}
         onBlur={handleInputBlur}

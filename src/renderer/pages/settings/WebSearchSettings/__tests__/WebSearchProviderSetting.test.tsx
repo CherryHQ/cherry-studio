@@ -12,7 +12,6 @@ import { WebSearchProviderSetting } from '../components/WebSearchProviderSetting
 
 const navigateMock = vi.fn()
 const ipcRequestMock = vi.hoisted(() => vi.fn())
-const showApiKeyListMock = vi.fn()
 
 vi.mock('react-i18next', async (importOriginal) => {
   const actual = await importOriginal<typeof ReactI18next>()
@@ -33,34 +32,66 @@ vi.mock('@renderer/ipc', () => ({
   }
 }))
 
-vi.mock('@cherrystudio/ui', async (importOriginal) => ({
-  ...(await importOriginal<typeof CherryStudioUi>()),
-  Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
-    <button type="button" {...props}>
-      {children}
-    </button>
-  ),
-  ButtonGroup: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-    <div role="group" {...props}>
-      {children}
-    </div>
-  ),
-  Flex: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
-  InfoTooltip: ({ children }: React.HTMLAttributes<HTMLDivElement>) => <>{children}</>,
-  Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
-  Label: ({ children, ...props }: React.LabelHTMLAttributes<HTMLLabelElement>) => <label {...props}>{children}</label>,
-  RowFlex: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
-  Tooltip: ({ children }: React.HTMLAttributes<HTMLDivElement>) => <>{children}</>
-}))
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof CherryStudioUi>()
+  const React = await import('react')
+  const SelectContext = React.createContext<{ onValueChange?: (value: string) => void }>({})
+
+  return {
+    ...actual,
+    Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
+      <button type="button" {...props}>
+        {children}
+      </button>
+    ),
+    ButtonGroup: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+      <div role="group" {...props}>
+        {children}
+      </div>
+    ),
+    InfoTooltip: ({ children }: React.HTMLAttributes<HTMLDivElement>) => <>{children}</>,
+    Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
+    Label: ({ children, ...props }: React.LabelHTMLAttributes<HTMLLabelElement>) => (
+      <label {...props}>{children}</label>
+    ),
+    RowFlex: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
+    Select: ({
+      children,
+      onValueChange,
+      value
+    }: React.HTMLAttributes<HTMLDivElement> & { onValueChange?: (value: string) => void; value?: string }) => (
+      <SelectContext value={{ onValueChange }}>
+        <div data-testid="select" data-value={value}>
+          {children}
+        </div>
+      </SelectContext>
+    ),
+    SelectContent: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
+    SelectItem: ({ children, value, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { value: string }) => {
+      const { onValueChange } = React.use(SelectContext)
+
+      return (
+        <button type="button" value={value} onClick={() => onValueChange?.(value)} {...props}>
+          {children}
+        </button>
+      )
+    },
+    SelectTrigger: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { size?: string }) => (
+      <button type="button" {...props}>
+        {children}
+      </button>
+    ),
+    SelectValue: ({ placeholder }: { placeholder?: string }) => <span>{placeholder}</span>,
+    Tooltip: ({ children }: React.HTMLAttributes<HTMLDivElement>) => <>{children}</>
+  }
+})
 
 vi.mock('../components/WebSearchProviderLogo', () => ({
   default: ({ providerName }: { providerName: string }) => <span aria-label={`${providerName} logo`} />
 }))
 
 vi.mock('../components/WebSearchApiKeyList', () => ({
-  WebSearchApiKeyListPopup: {
-    show: (...args: unknown[]) => showApiKeyListMock(...args)
-  }
+  WebSearchApiKeyListDialog: () => null
 }))
 
 function createEntry(overrides: Partial<WebSearchProviderMenuEntry> = {}): WebSearchProviderMenuEntry {
@@ -89,8 +120,10 @@ function createEntry(overrides: Partial<WebSearchProviderMenuEntry> = {}): WebSe
 function createProps(entry = createEntry()) {
   return {
     entry,
-    defaultProvider: undefined,
+    entries: [entry],
     providerOverrides: {},
+    sectionTitle: 'settings.tool.websearch.search_provider',
+    sectionTitleId: 'web-search-searchKeywords-title',
     onSetApiKeys: vi.fn().mockResolvedValue(undefined),
     onSetBasicAuth: vi.fn().mockResolvedValue(undefined),
     onSetCapabilityApiHost: vi.fn().mockResolvedValue(undefined),
@@ -103,10 +136,9 @@ describe('WebSearchProviderSetting', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     ipcRequestMock.mockResolvedValue({ results: [] })
-    showApiKeyListMock.mockResolvedValue(undefined)
   })
 
-  it('renders API key controls and opens the key list after saving the current draft', async () => {
+  it('persists the current draft when the API key list button is clicked', async () => {
     const props = createProps()
     render(<WebSearchProviderSetting {...props} />)
 
@@ -117,10 +149,6 @@ describe('WebSearchProviderSetting', () => {
 
     await waitFor(() => {
       expect(props.onSetApiKeys).toHaveBeenCalledWith('tavily', ['key-a', 'key-b'])
-    })
-    expect(showApiKeyListMock).toHaveBeenCalledWith({
-      providerId: 'tavily',
-      title: 'Tavily settings.provider.api.key.list.title'
     })
   })
 
@@ -185,14 +213,40 @@ describe('WebSearchProviderSetting', () => {
     render(
       <WebSearchProviderSetting
         {...createProps(createEntry({ provider: fetchProvider, capability: 'fetchUrls' }))}
-        defaultProvider={fetchProvider}
+        sectionTitle="settings.tool.websearch.fetch_urls_provider"
+        sectionTitleId="web-search-fetchUrls-title"
       />
     )
 
     expect(screen.queryByPlaceholderText('settings.provider.api_key.label')).not.toBeInTheDocument()
     expect(screen.queryByText('settings.provider.api_host')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'settings.tool.websearch.check' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'settings.tool.websearch.is_default' })).toBeDisabled()
+    expect(screen.getByText('settings.tool.websearch.fetch_urls_provider')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'settings.tool.websearch.fetch_urls_provider' })).toBeInTheDocument()
+    expect(screen.queryByText('common.default')).not.toBeInTheDocument()
+    expect(screen.queryByText('settings.tool.websearch.set_as_default')).not.toBeInTheDocument()
+  })
+
+  it('uses the provider select as the default provider control', async () => {
+    const entry = createEntry()
+    const exaProvider: WebSearchProvider = {
+      ...entry.provider,
+      id: 'exa',
+      name: 'Exa',
+      capabilities: [{ feature: 'searchKeywords', apiHost: 'https://api.exa.ai' }]
+    }
+    const exaEntry = createEntry({ provider: exaProvider })
+    const props = {
+      ...createProps(entry),
+      entries: [entry, exaEntry]
+    }
+
+    render(<WebSearchProviderSetting {...props} />)
+    fireEvent.click(screen.getByRole('button', { name: /^Exa logo Exa$/ }))
+
+    await waitFor(() => {
+      expect(props.onSetDefaultProvider).toHaveBeenCalledWith(exaProvider)
+    })
   })
 
   it('persists API host changes for the active capability and checks fetchUrls providers', async () => {

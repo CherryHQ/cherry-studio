@@ -474,9 +474,17 @@ class ModelService {
     // infer the controls from the registry heuristics so custom rows are
     // descriptor-driven like catalog rows (#16598).
     if (dtoValues.reasoning == null) {
-      const inferred = inferCustomModelReasoning(dto.modelId, registryData?.reasoningProfile.wire, {
-        declaredReasoning: (dtoValues.capabilities ?? []).includes(MODEL_CAPABILITY.REASONING)
-      })
+      const declaredReasoning = (dtoValues.capabilities ?? []).includes(MODEL_CAPABILITY.REASONING)
+      const inferred =
+        inferCustomModelReasoning(dto.modelId, registryData?.reasoningProfile.wire, { declaredReasoning }) ??
+        (declaredReasoning && registryData?.reasoningProfile.format === 'ollama'
+          ? projectRuntimeReasoning(
+              {
+                controls: [{ kind: 'toggle' }, { kind: 'effort', values: ['low', 'medium', 'high'] }]
+              },
+              registryData.reasoningProfile.wire
+            )
+          : undefined)
       if (inferred) dtoValues.reasoning = inferred
     }
 
@@ -686,6 +694,7 @@ class ModelService {
 
         const updates: Partial<Model> = {}
         if (imageGeneration) updates.imageGeneration = imageGeneration
+        if (registryOverride?.supportsFastMode) updates.supportsFastMode = true
         const ownedBy = registryOverride?.ownedBy ?? presetModel?.ownedBy ?? inferReasoningOwnedBy(modelId)
         if (ownedBy) updates.ownedBy = ownedBy
         let reasoning: RuntimeReasoning | undefined
@@ -1050,6 +1059,8 @@ class ModelService {
       })
     }
 
+    if (actuallyDeleted > 0) pinService.notifyPurged()
+
     const deletedPresetBackedIds = deletedIds.filter((id) => removalFilter.presetBackedRemovalIds.has(id))
     if (deletedPresetBackedIds.length > 0) {
       logger.info('Deleted preset-backed models during reconcile', {
@@ -1094,6 +1105,7 @@ class ModelService {
         }),
       deleteModelsSqliteHandlers(`${providerId}/${modelId}`)
     )
+    pinService.notifyPurged()
 
     logger.info('Deleted model', { providerId, modelId })
   }
@@ -1159,6 +1171,7 @@ class ModelService {
         }),
       deleteModelsSqliteHandlers(ids.length === 1 ? ids[0] : `batch(${ids.length} items)`)
     )
+    pinService.notifyPurged()
 
     logger.info('Bulk deleted models', {
       count: ids.length,

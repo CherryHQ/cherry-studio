@@ -51,6 +51,15 @@ const PINNED_CODE_TAB: Tab = {
   isPinned: true
 }
 
+const HOME_TAB: Tab = {
+  id: 'home',
+  type: 'route',
+  url: '/app/chat',
+  title: '',
+  lastAccessTime: 0,
+  isDormant: false
+}
+
 // Stable reference: re-renders are then driven only by the i18n.language change,
 // not by a fresh pinnedTabs identity — which is what makes the test catch a dropped
 // i18n.language dependency in the tabs useMemo.
@@ -147,6 +156,7 @@ function SessionInspector() {
         {tabs.map((tab) => `${tab.id}:${tab.isDormant ? 'dormant' : 'awake'}`).join(',')}
       </div>
       <div data-testid="session-ids">{tabs.map((tab) => tab.id).join(',')}</div>
+      <div data-testid="session-urls">{tabs.map((tab) => `${tab.id}=${tab.url}`).join(',')}</div>
     </div>
   )
 }
@@ -284,6 +294,29 @@ function PinnedTabMaterializer() {
   return <div data-testid="detached-pinned">{String(tabs.find((tab) => tab.id === 'detached')?.isPinned)}</div>
 }
 
+function PinnedOverflowSeeder() {
+  const { addTab } = useTabsContext()
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        for (let i = 0; i <= TAB_LIMITS.hardCap; i++) {
+          addTab({
+            id: `pinned-${i}`,
+            type: 'route',
+            url: `/app/chat?topicId=pinned-${i}`,
+            title: `Pinned ${i}`,
+            lastAccessTime: i,
+            isDormant: false,
+            isPinned: true
+          })
+        }
+      }}>
+      Seed pinned overflow
+    </button>
+  )
+}
+
 beforeEach(() => {
   currentLanguage = 'en'
   pinnedTabsValue = [PINNED_FILES_TAB]
@@ -319,15 +352,7 @@ describe('TabsProvider', () => {
   it('refreshes localized route tab titles when the app language changes', async () => {
     // A fresh element each render so React doesn't bail out on referential equality.
     const renderUi = () => (
-      <TabsProvider
-        initialDefaultTab={{
-          id: 'home',
-          type: 'route',
-          url: '/app/chat',
-          title: '',
-          lastAccessTime: 0,
-          isDormant: false
-        }}>
+      <TabsProvider initialDefaultTab={HOME_TAB}>
         <PinnedRouteTitle />
       </TabsProvider>
     )
@@ -369,15 +394,7 @@ describe('TabsProvider', () => {
 
   it('removes a menu-closed pinned tab from the persistent pinned list', async () => {
     render(
-      <TabsProvider
-        initialDefaultTab={{
-          id: 'home',
-          type: 'route',
-          url: '/app/chat',
-          title: '',
-          lastAccessTime: 0,
-          isDormant: false
-        }}>
+      <TabsProvider initialDefaultTab={HOME_TAB}>
         <CloseTabOnMount tabId="files" />
       </TabsProvider>
     )
@@ -398,15 +415,7 @@ describe('TabsProvider', () => {
     pinnedTabsValue = [LEGACY_LIBRARY_PINNED_TAB, PINNED_FILES_TAB]
 
     render(
-      <TabsProvider
-        initialDefaultTab={{
-          id: 'home',
-          type: 'route',
-          url: '/app/chat',
-          title: '',
-          lastAccessTime: 0,
-          isDormant: false
-        }}>
+      <TabsProvider initialDefaultTab={HOME_TAB}>
         <TabIds />
       </TabsProvider>
     )
@@ -422,15 +431,7 @@ describe('TabsProvider', () => {
     pinnedTabsValue = [PINNED_OPENCLAW_TAB, PINNED_FILES_TAB]
 
     render(
-      <TabsProvider
-        initialDefaultTab={{
-          id: 'home',
-          type: 'route',
-          url: '/app/chat',
-          title: '',
-          lastAccessTime: 0,
-          isDormant: false
-        }}>
+      <TabsProvider initialDefaultTab={HOME_TAB}>
         <TabSnapshot />
       </TabsProvider>
     )
@@ -446,15 +447,7 @@ describe('TabsProvider', () => {
 
   it('closes active and adjacent tabs atomically when closing a batch', async () => {
     render(
-      <TabsProvider
-        initialDefaultTab={{
-          id: 'home',
-          type: 'route',
-          url: '/app/chat',
-          title: '',
-          lastAccessTime: 0,
-          isDormant: false
-        }}>
+      <TabsProvider initialDefaultTab={HOME_TAB}>
         <BatchCloseControls />
       </TabsProvider>
     )
@@ -474,15 +467,7 @@ describe('TabsProvider', () => {
 
   it('activates the designated survivor instead of the nearest neighbor when the active tab is batch-closed', async () => {
     render(
-      <TabsProvider
-        initialDefaultTab={{
-          id: 'home',
-          type: 'route',
-          url: '/app/chat',
-          title: '',
-          lastAccessTime: 0,
-          isDormant: false
-        }}>
+      <TabsProvider initialDefaultTab={HOME_TAB}>
         <BatchCloseControls />
       </TabsProvider>
     )
@@ -504,15 +489,7 @@ describe('TabsProvider', () => {
 
   it('wakes a dormant survivor when batch close activates it', async () => {
     render(
-      <TabsProvider
-        initialDefaultTab={{
-          id: 'home',
-          type: 'route',
-          url: '/app/chat',
-          title: '',
-          lastAccessTime: 0,
-          isDormant: false
-        }}>
+      <TabsProvider initialDefaultTab={HOME_TAB}>
         <BatchCloseControls />
       </TabsProvider>
     )
@@ -537,16 +514,7 @@ describe('TabsProvider', () => {
 
   it('wakes the active tab when it is unexpectedly dormant', async () => {
     render(
-      <TabsProvider
-        initialDefaultTab={{
-          id: 'home',
-          type: 'route',
-          url: '/app/chat',
-          title: '',
-          lastAccessTime: 0,
-          isDormant: false
-        }}
-        includePinnedTabs={false}>
+      <TabsProvider initialDefaultTab={HOME_TAB} includePinnedTabs={false}>
         <BatchCloseControls />
       </TabsProvider>
     )
@@ -564,15 +532,7 @@ describe('TabsProvider', () => {
 
   it('falls back to the nearest neighbor when the designated survivor is itself closed', async () => {
     render(
-      <TabsProvider
-        initialDefaultTab={{
-          id: 'home',
-          type: 'route',
-          url: '/app/chat',
-          title: '',
-          lastAccessTime: 0,
-          isDormant: false
-        }}>
+      <TabsProvider initialDefaultTab={HOME_TAB}>
         <BatchCloseControls />
       </TabsProvider>
     )
@@ -593,15 +553,7 @@ describe('TabsProvider', () => {
 
   it('falls back to the left neighbor when the active tab is last in the strip', async () => {
     render(
-      <TabsProvider
-        initialDefaultTab={{
-          id: 'home',
-          type: 'route',
-          url: '/app/chat',
-          title: '',
-          lastAccessTime: 0,
-          isDormant: false
-        }}>
+      <TabsProvider initialDefaultTab={HOME_TAB}>
         <BatchCloseControls />
       </TabsProvider>
     )
@@ -621,15 +573,7 @@ describe('TabsProvider', () => {
     pinnedTabsValue = [{ ...PINNED_FILES_TAB, isDormant: true }]
 
     render(
-      <TabsProvider
-        initialDefaultTab={{
-          id: 'home',
-          type: 'route',
-          url: '/app/chat',
-          title: '',
-          lastAccessTime: 0,
-          isDormant: false
-        }}>
+      <TabsProvider initialDefaultTab={HOME_TAB}>
         <BatchCloseControls />
       </TabsProvider>
     )
@@ -654,16 +598,7 @@ describe('TabsProvider', () => {
 
   it('opens launchpad when closing the only tab', async () => {
     render(
-      <TabsProvider
-        initialDefaultTab={{
-          id: 'home',
-          type: 'route',
-          url: '/app/chat',
-          title: '',
-          lastAccessTime: 0,
-          isDormant: false
-        }}
-        includePinnedTabs={false}>
+      <TabsProvider initialDefaultTab={HOME_TAB} includePinnedTabs={false}>
         <CloseTabOnMount tabId="home" />
       </TabsProvider>
     )
@@ -675,16 +610,7 @@ describe('TabsProvider', () => {
 
   it('does not open launchpad when closing one tab while another remains', async () => {
     render(
-      <TabsProvider
-        initialDefaultTab={{
-          id: 'home',
-          type: 'route',
-          url: '/app/chat',
-          title: '',
-          lastAccessTime: 0,
-          isDormant: false
-        }}
-        includePinnedTabs={false}>
+      <TabsProvider initialDefaultTab={HOME_TAB} includePinnedTabs={false}>
         <CloseHomeAfterSecondTabOpens />
       </TabsProvider>
     )
@@ -719,6 +645,37 @@ describe('TabsProvider', () => {
 })
 
 describe('TabsProvider session restore', () => {
+  it('drops transient mini-app tabs whose in-memory descriptor disappears on restart', async () => {
+    const codeTab: Tab = {
+      id: 'code',
+      type: 'route',
+      url: '/app/code',
+      title: 'Code',
+      lastAccessTime: 1,
+      isDormant: false
+    }
+    const transientMiniAppTab: Tab = {
+      id: 'deepseek-harness',
+      type: 'route',
+      url: '/app/mini-app/deepseek-harness-web',
+      title: 'DeepSeek Harness',
+      metadata: { transientMiniApp: true },
+      lastAccessTime: 2,
+      isDormant: false
+    }
+    normalTabsValue = [codeTab, transientMiniAppTab]
+    activeTabIdValue = transientMiniAppTab.id
+
+    render(
+      <TabsProvider initialDefaultTab={null}>
+        <SessionInspector />
+      </TabsProvider>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('active')).toHaveTextContent(codeTab.id))
+    expect(screen.getByTestId('session-ids')).not.toHaveTextContent(transientMiniAppTab.id)
+  })
+
   it('restores the persisted session and keeps only the active tab awake', async () => {
     const tabA: Tab = { id: 'a', type: 'route', url: '/app/chat', title: '', lastAccessTime: 1, isDormant: false }
     const tabB: Tab = { id: 'b', type: 'route', url: '/app/agents', title: '', lastAccessTime: 2, isDormant: false }
@@ -799,8 +756,8 @@ describe('TabsProvider session restore', () => {
     expect(ids).not.toContain('a')
   })
 
-  it('preserves dormant tabs beyond the active-tab LRU hard cap', async () => {
-    const overflow = TAB_LIMITS.hardCap + 5
+  it('preserves dormant tabs beyond the active-tab LRU budget', async () => {
+    const overflow = TAB_LIMITS.softCap + 5
     const many: Tab[] = Array.from({ length: overflow }, (_, i) => ({
       id: `n${i}`,
       type: 'route',
@@ -827,9 +784,38 @@ describe('TabsProvider session restore', () => {
     const dump = screen.getByTestId('session-tabs').textContent ?? ''
     expect(dump.split(',').filter((tab) => tab.endsWith(':awake'))).toEqual(['n0:awake'])
   })
+
+  it('applies the hard fuse across a batch of pinned additions', () => {
+    render(
+      <TabsProvider>
+        <PinnedOverflowSeeder />
+      </TabsProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Seed pinned overflow' }))
+
+    const updaters = setPinnedTabsMock.mock.calls.map(([arg]) => arg).filter((arg) => typeof arg === 'function')
+    const persisted = updaters.reduce<Tab[]>((tabs, update) => update(tabs), [{ ...PINNED_FILES_TAB, isDormant: true }])
+    expect(persisted.some((tab) => tab.isDormant)).toBe(true)
+    expect(persisted.filter((tab) => !tab.isDormant)).toHaveLength(TAB_LIMITS.softCap)
+    expect(persisted.find((tab) => tab.id === `pinned-${TAB_LIMITS.hardCap}`)?.isDormant).toBe(false)
+  })
 })
 
 describe('migratePinnedTabs', () => {
+  it('drops pinned transient mini-app tabs on restore', () => {
+    const transientMiniAppTab: Tab = {
+      ...PINNED_FILES_TAB,
+      id: 'transient-mini-app',
+      url: '/app/mini-app/transient',
+      metadata: { transientMiniApp: true }
+    }
+
+    const { tabs, changed } = migratePinnedTabs([transientMiniAppTab, PINNED_FILES_TAB])
+    expect(changed).toBe(true)
+    expect(tabs).toEqual([PINNED_FILES_TAB])
+  })
+
   it('redirects an OpenClaw pin to the Code page and flags the change', () => {
     const { tabs, changed } = migratePinnedTabs([PINNED_OPENCLAW_TAB, PINNED_FILES_TAB])
     expect(changed).toBe(true)

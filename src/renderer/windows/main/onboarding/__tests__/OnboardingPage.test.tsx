@@ -127,6 +127,17 @@ vi.mock('../../privacy/PrivacyPolicyDialog', () => ({
 
 import OnboardingPage from '../OnboardingPage'
 
+async function openProviderSetup() {
+  fireEvent.click(screen.getByRole('button', { name: /onboarding\.welcome\.other_provider/ }))
+  await screen.findByTestId('provider-settings')
+}
+
+async function openModelSelection() {
+  await openProviderSetup()
+  fireEvent.click(screen.getByRole('button', { name: 'onboarding.provider_setup.next' }))
+  await screen.findByTestId('model-settings')
+}
+
 describe('OnboardingPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -142,6 +153,12 @@ describe('OnboardingPage', () => {
     addApiKeyMock.mockResolvedValue(undefined)
     updateProviderMock.mockResolvedValue(undefined)
     syncProviderModelsMock.mockResolvedValue([{ id: 'cherryin::gpt-4o-mini', providerId: 'cherryin', isEnabled: true }])
+    dataApiMocks.get.mockImplementation(async (path: string) => {
+      if (path === '/assistants') return { items: [], total: 0 }
+      if (path === '/agents') return { items: [], total: 0 }
+      throw new Error(`Unexpected path: ${path}`)
+    })
+    dataApiMocks.patch.mockResolvedValue(undefined)
     enabledProvidersMock.splice(0, enabledProvidersMock.length, { id: 'openai', isEnabled: true })
     enabledModelsMock.splice(0, enabledModelsMock.length, {
       id: 'openai::gpt-4o-mini',
@@ -163,9 +180,8 @@ describe('OnboardingPage', () => {
   it('shows provider setup with onboarding mode when choosing another provider', async () => {
     render(<OnboardingPage />)
 
-    fireEvent.click(screen.getByRole('button', { name: /onboarding\.welcome\.other_provider/ }))
+    await openProviderSetup()
 
-    await waitFor(() => expect(screen.getByTestId('provider-settings')).toBeInTheDocument())
     expect(screen.getByTestId('provider-settings')).toHaveAttribute('data-onboarding', 'true')
     expect(screen.getByRole('heading', { name: 'onboarding.provider_setup.title' })).toBeInTheDocument()
   })
@@ -173,8 +189,7 @@ describe('OnboardingPage', () => {
   it('moves from provider setup to model selection and completes the flow', async () => {
     render(<OnboardingPage />)
 
-    fireEvent.click(screen.getByRole('button', { name: /onboarding\.welcome\.other_provider/ }))
-    fireEvent.click(await screen.findByRole('button', { name: 'onboarding.provider_setup.next' }))
+    await openModelSelection()
 
     expect(screen.getByRole('heading', { name: 'onboarding.select_model.title' })).toBeInTheDocument()
     expect(screen.getByTestId('model-settings')).toBeInTheDocument()
@@ -188,6 +203,116 @@ describe('OnboardingPage', () => {
     expect(MockUsePreferenceUtils.getPreferenceValue('app.privacy.data_collection.enabled')).toBe(true)
   })
 
+  it('waits for official resources to use the selected model before completing', async () => {
+    let resolveAgentUpdate: (() => void) | undefined
+    dataApiMocks.get.mockImplementation(async (path: string) => {
+      if (path === '/assistants') return { items: [], total: 0 }
+      if (path === '/agents') {
+        return {
+          items: [{ id: 'support-agent', model: null, configuration: { builtin_role: 'support' } }],
+          total: 1
+        }
+      }
+      throw new Error(`Unexpected path: ${path}`)
+    })
+    dataApiMocks.patch.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveAgentUpdate = resolve
+        })
+    )
+    render(<OnboardingPage />)
+
+    await openModelSelection()
+    fireEvent.click(screen.getByRole('button', { name: /onboarding\.select_model\.start/ }))
+
+    await waitFor(() => expect(dataApiMocks.patch).toHaveBeenCalledTimes(1))
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.onboarding.provider_setup.status')).toBe('pending')
+
+    resolveAgentUpdate?.()
+
+    await waitFor(() =>
+      expect(MockUsePreferenceUtils.getPreferenceValue('app.onboarding.provider_setup.status')).toBe('completed')
+    )
+  })
+
+  it('configures official resources beyond the first page before completing', async () => {
+    let resolveSupportUpdate: (() => void) | undefined
+    dataApiMocks.get.mockImplementation(async (path: string, options?: { query?: { page?: number } }) => {
+      if (path === '/assistants') return { items: [], total: 0 }
+      if (path === '/agents' && options?.query?.page === 1) {
+        return {
+          items: Array.from({ length: 500 }, (_, index) => ({
+            id: `ordinary-agent-${index}`,
+            model: null,
+            configuration: {}
+          })),
+          total: 501
+        }
+      }
+      if (path === '/agents' && options?.query?.page === 2) {
+        return {
+          items: [{ id: 'support-agent', model: null, configuration: { builtin_role: 'support' } }],
+          total: 501
+        }
+      }
+      throw new Error(`Unexpected path: ${path}`)
+    })
+    dataApiMocks.patch.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveSupportUpdate = resolve
+        })
+    )
+    render(<OnboardingPage />)
+
+    await openModelSelection()
+    fireEvent.click(screen.getByRole('button', { name: /onboarding\.select_model\.start/ }))
+
+    await waitFor(() =>
+      expect(dataApiMocks.patch).toHaveBeenCalledWith('/agents/support-agent', {
+        body: { model: 'default-model' }
+      })
+    )
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.onboarding.provider_setup.status')).toBe('pending')
+
+    resolveSupportUpdate?.()
+
+    await waitFor(() =>
+      expect(MockUsePreferenceUtils.getPreferenceValue('app.onboarding.provider_setup.status')).toBe('completed')
+    )
+  })
+
+  it('keeps onboarding pending when an official resource update fails and retries it', async () => {
+    dataApiMocks.get.mockImplementation(async (path: string) => {
+      if (path === '/assistants') return { items: [], total: 0 }
+      if (path === '/agents') {
+        return {
+          items: [{ id: 'assistant-agent', model: null, configuration: { builtin_role: 'assistant' } }],
+          total: 1
+        }
+      }
+      throw new Error(`Unexpected path: ${path}`)
+    })
+    dataApiMocks.patch.mockRejectedValueOnce(new Error('write failed')).mockResolvedValueOnce(undefined)
+    render(<OnboardingPage />)
+
+    await openModelSelection()
+    const startButton = screen.getByRole('button', { name: /onboarding\.select_model\.start/ })
+    fireEvent.click(startButton)
+
+    await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith('onboarding.toast.complete_failed'))
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.onboarding.provider_setup.status')).toBe('pending')
+    expect(startButton).toBeEnabled()
+
+    fireEvent.click(startButton)
+
+    await waitFor(() =>
+      expect(MockUsePreferenceUtils.getPreferenceValue('app.onboarding.provider_setup.status')).toBe('completed')
+    )
+    expect(dataApiMocks.patch).toHaveBeenCalledTimes(2)
+  })
+
   it('does not allow CherryAI to satisfy the provider setup requirements', async () => {
     enabledProvidersMock.splice(0, enabledProvidersMock.length, { id: 'cherryai', isEnabled: true })
     enabledModelsMock.splice(0, enabledModelsMock.length, {
@@ -197,9 +322,9 @@ describe('OnboardingPage', () => {
     })
     render(<OnboardingPage />)
 
-    fireEvent.click(screen.getByRole('button', { name: /onboarding\.welcome\.other_provider/ }))
+    await openProviderSetup()
 
-    const nextButton = await screen.findByRole('button', { name: 'onboarding.provider_setup.next' })
+    const nextButton = screen.getByRole('button', { name: 'onboarding.provider_setup.next' })
     expect(nextButton).toHaveAttribute('aria-disabled', 'true')
     nextButton.focus()
     expect(nextButton).toHaveFocus()
@@ -212,9 +337,9 @@ describe('OnboardingPage', () => {
     enabledModelsMock.splice(0)
     render(<OnboardingPage />)
 
-    fireEvent.click(screen.getByRole('button', { name: /onboarding\.welcome\.other_provider/ }))
+    await openProviderSetup()
 
-    const nextButton = await screen.findByRole('button', { name: 'onboarding.provider_setup.next' })
+    const nextButton = screen.getByRole('button', { name: 'onboarding.provider_setup.next' })
     expect(nextButton).toHaveAttribute('aria-disabled', 'true')
     expect(nextButton.parentElement).toHaveAttribute('data-title', 'onboarding.provider_setup.missing_model')
   })
@@ -223,8 +348,7 @@ describe('OnboardingPage', () => {
     selectedModelsMock.translateModel = undefined
     render(<OnboardingPage />)
 
-    fireEvent.click(screen.getByRole('button', { name: /onboarding\.welcome\.other_provider/ }))
-    fireEvent.click(await screen.findByRole('button', { name: 'onboarding.provider_setup.next' }))
+    await openModelSelection()
 
     expect(screen.getByRole('button', { name: /onboarding\.select_model\.start/ })).toBeDisabled()
   })
@@ -235,8 +359,7 @@ describe('OnboardingPage', () => {
     selectedModelsMock.translateModel = { id: 'cherryai::qwen', providerId: CHERRYAI_PROVIDER_ID }
     render(<OnboardingPage />)
 
-    fireEvent.click(screen.getByRole('button', { name: /onboarding\.welcome\.other_provider/ }))
-    fireEvent.click(await screen.findByRole('button', { name: 'onboarding.provider_setup.next' }))
+    await openModelSelection()
 
     const modelSettingsProps = modelSettingsPropsMock.mock.lastCall?.[0]
     expect(modelSettingsProps?.autoFillEmptyModels).toBe(true)
@@ -247,7 +370,10 @@ describe('OnboardingPage', () => {
     expect(screen.getByRole('button', { name: /onboarding\.select_model\.start/ })).toBeDisabled()
   })
 
-  it('replaces the sole seeded assistant and agent models after selecting the default model', async () => {
+  it.each([
+    ['an unconfigured seeded agent', null],
+    ['a legacy CherryAI-seeded agent', CHERRYAI_DEFAULT_UNIQUE_MODEL_ID]
+  ])('configures %s after the user selects a default model', async (_description, seededAgentModel) => {
     dataApiMocks.get.mockImplementation(async (path: string) => {
       if (path === '/assistants') {
         return {
@@ -257,8 +383,11 @@ describe('OnboardingPage', () => {
       }
       if (path === '/agents') {
         return {
-          items: [{ id: 'agent-1', model: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID }],
-          total: 1
+          items: [
+            { id: 'assistant-agent', model: seededAgentModel, configuration: { builtin_role: 'assistant' } },
+            { id: 'support-agent', model: seededAgentModel, configuration: { builtin_role: 'support' } }
+          ],
+          total: 2
         }
       }
       throw new Error(`Unexpected path: ${path}`)
@@ -266,8 +395,7 @@ describe('OnboardingPage', () => {
     dataApiMocks.patch.mockResolvedValue(undefined)
     render(<OnboardingPage />)
 
-    fireEvent.click(screen.getByRole('button', { name: /onboarding\.welcome\.other_provider/ }))
-    fireEvent.click(await screen.findByRole('button', { name: 'onboarding.provider_setup.next' }))
+    await openModelSelection()
 
     const onDefaultModelSelected = modelSettingsPropsMock.mock.lastCall?.[0]?.onDefaultModelSelected
     await act(async () => {
@@ -275,11 +403,14 @@ describe('OnboardingPage', () => {
     })
 
     expect(dataApiMocks.get).toHaveBeenCalledWith('/assistants', { query: { limit: 2 } })
-    expect(dataApiMocks.get).toHaveBeenCalledWith('/agents', { query: { limit: 2 } })
+    expect(dataApiMocks.get).toHaveBeenCalledWith('/agents', { query: { limit: 500, page: 1 } })
     expect(dataApiMocks.patch).toHaveBeenCalledWith('/assistants/assistant-1', {
       body: { modelId: 'openai::gpt-4o' }
     })
-    expect(dataApiMocks.patch).toHaveBeenCalledWith('/agents/agent-1', {
+    expect(dataApiMocks.patch).toHaveBeenCalledWith('/agents/assistant-agent', {
+      body: { model: 'openai::gpt-4o' }
+    })
+    expect(dataApiMocks.patch).toHaveBeenCalledWith('/agents/support-agent', {
       body: { model: 'openai::gpt-4o' }
     })
   })
@@ -297,16 +428,19 @@ describe('OnboardingPage', () => {
       }
       if (path === '/agents') {
         return {
-          items: [{ id: 'agent-1', model: 'openai::existing' }],
-          total: 1
+          items: [
+            { id: 'ordinary-agent', model: null, configuration: {} },
+            { id: 'assistant-agent', model: 'anthropic::custom', configuration: { builtin_role: 'assistant' } },
+            { id: 'support-agent', model: 'openai::custom', configuration: { builtin_role: 'support' } }
+          ],
+          total: 3
         }
       }
       throw new Error(`Unexpected path: ${path}`)
     })
     render(<OnboardingPage />)
 
-    fireEvent.click(screen.getByRole('button', { name: /onboarding\.welcome\.other_provider/ }))
-    fireEvent.click(await screen.findByRole('button', { name: 'onboarding.provider_setup.next' }))
+    await openModelSelection()
 
     const onDefaultModelSelected = modelSettingsPropsMock.mock.lastCall?.[0]?.onDefaultModelSelected
     await act(async () => {
@@ -366,6 +500,30 @@ describe('OnboardingPage', () => {
     )
   })
 
+  it('does not rewrite an already-current privacy agreement before leaving onboarding', async () => {
+    const updatePreferences = vi.fn((updates: Record<string, unknown>) => {
+      if (updates.policyVersion !== undefined) {
+        return Promise.reject(new Error('privacy write unavailable'))
+      }
+      return Promise.resolve()
+    })
+    mockUseMultiplePreferences.mockReturnValueOnce([
+      {
+        providerSetupStatus: 'pending',
+        dataCollectionEnabled: true,
+        policyVersion: LATEST_PRIVACY_POLICY_VERSION
+      },
+      updatePreferences
+    ])
+    render(<OnboardingPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'onboarding.skip' }))
+
+    await waitFor(() => expect(updatePreferences).toHaveBeenCalledWith({ providerSetupStatus: 'skipped' }))
+    expect(updatePreferences).toHaveBeenCalledTimes(1)
+    expect(toastErrorMock).not.toHaveBeenCalled()
+  })
+
   it('shows the privacy control only on the welcome step', async () => {
     render(<OnboardingPage />)
 
@@ -396,9 +554,8 @@ describe('OnboardingPage', () => {
     await waitFor(() =>
       expect(MockUsePreferenceUtils.getPreferenceValue('app.privacy.data_collection.enabled')).toBe(false)
     )
-    fireEvent.click(screen.getByRole('button', { name: 'onboarding.welcome.other_provider' }))
+    await openProviderSetup()
 
-    await waitFor(() => expect(screen.getByTestId('provider-settings')).toBeInTheDocument())
     expect(screen.queryByTestId('privacy-policy-dialog')).not.toBeInTheDocument()
     expect(MockUsePreferenceUtils.getPreferenceValue('app.privacy.policy_version')).toBe('')
     expect(MockUsePreferenceUtils.getPreferenceValue('app.privacy.data_collection.enabled')).toBe(false)
@@ -451,9 +608,8 @@ describe('OnboardingPage', () => {
     expect(agreement).toBeChecked()
     expect(MockUsePreferenceUtils.getPreferenceValue('app.privacy.policy_version')).toBe('')
 
-    fireEvent.click(screen.getByRole('button', { name: 'onboarding.welcome.other_provider' }))
+    await openProviderSetup()
 
-    await waitFor(() => expect(screen.getByTestId('provider-settings')).toBeInTheDocument())
     expect(MockUsePreferenceUtils.getPreferenceValue('app.privacy.policy_version')).toBe(LATEST_PRIVACY_POLICY_VERSION)
   })
 
@@ -525,7 +681,7 @@ describe('OnboardingPage', () => {
       {
         providerSetupStatus: 'pending',
         dataCollectionEnabled: true,
-        policyVersion: LATEST_PRIVACY_POLICY_VERSION
+        policyVersion: ''
       },
       updatePreferences
     ])
@@ -575,7 +731,7 @@ describe('OnboardingPage', () => {
 
     expect(welcomeContent?.parentElement).toHaveClass('pb-20')
     expect(logo.nextElementSibling).toHaveClass('mt-5', 'flex', 'flex-col', 'gap-2')
-    expect(screen.getByText('onboarding.welcome.subtitle')).toHaveClass('text-foreground-secondary')
+    expect(screen.getByText('onboarding.welcome.subtitle')).toHaveClass('text-muted-foreground')
     expect(primaryAction.parentElement).toHaveClass('mt-8')
     expect(primaryAction).toHaveClass('rounded-xl')
     expect(secondaryAction).toHaveClass('rounded-xl')
@@ -590,10 +746,9 @@ describe('OnboardingPage', () => {
     render(<OnboardingPage />)
 
     const loginButton = screen.getByRole('button', { name: 'onboarding.welcome.login_cherryin' })
-    fireEvent.click(loginButton)
+    await act(async () => fireEvent.click(loginButton))
 
     expect(loginButton).toBeDisabled()
-    await act(() => vi.advanceTimersByTimeAsync(10))
     expect(loginButton.querySelector('.lucide-log-in')).not.toBeInTheDocument()
 
     await act(() => vi.advanceTimersByTime(9_999))

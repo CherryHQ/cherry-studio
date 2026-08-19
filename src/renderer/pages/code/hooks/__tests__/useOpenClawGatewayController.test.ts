@@ -1,11 +1,13 @@
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
 import { act, renderHook } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   gatewayPort: undefined as number | undefined,
-  requestMock: vi.fn()
+  requestMock: vi.fn(),
+  openSmartMiniApp: vi.fn(),
+  toastError: vi.fn()
 }))
 
 vi.mock('@data/hooks/usePreference', () => ({
@@ -13,7 +15,7 @@ vi.mock('@data/hooks/usePreference', () => ({
 }))
 
 vi.mock('@renderer/hooks/useMiniAppPopup', () => ({
-  useMiniAppPopup: () => ({ openSmartMiniApp: vi.fn() })
+  useMiniAppPopup: () => ({ openSmartMiniApp: mocks.openSmartMiniApp })
 }))
 
 vi.mock('@renderer/ipc', () => ({
@@ -24,6 +26,10 @@ vi.mock('@renderer/services/LoggerService', () => ({
   loggerService: {
     withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() })
   }
+}))
+
+vi.mock('@renderer/services/toast', () => ({
+  toast: { error: mocks.toastError }
 }))
 
 vi.mock('react-i18next', () => ({
@@ -37,6 +43,7 @@ const enabledProvider = { id: 'anthropic', name: 'Anthropic' } as Provider
 describe('useOpenClawGatewayController', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.spyOn(Date, 'now').mockReturnValue(1_774_560_000_000)
     mocks.gatewayPort = undefined
     mocks.requestMock.mockImplementation((route: string) => {
       if (route === 'openclaw.get_status') return Promise.resolve({ status: 'stopped' })
@@ -45,6 +52,38 @@ describe('useOpenClawGatewayController', () => {
       if (route === 'openclaw.get_dashboard_url') return Promise.resolve('https://dashboard.local')
       return Promise.resolve({ success: true })
     })
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('adds a fresh navigation revision while preserving the dashboard token fragment', async () => {
+    mocks.requestMock.mockImplementation((route: string) => {
+      if (route === 'openclaw.get_status') return Promise.resolve({ status: 'running' })
+      if (route === 'openclaw.get_dashboard_url')
+        return Promise.resolve('https://dashboard.local/?theme=dark#token=secret')
+      return Promise.resolve({ success: true })
+    })
+
+    const { result } = renderHook(() =>
+      useOpenClawGatewayController({
+        selectedCliTool: CodeCli.OPENCLAW,
+        enabledProvider,
+        currentProviderConfig: { modelId: 'anthropic::claude-sonnet-4-5' },
+        upsertProviderConfig: vi.fn(),
+        setCurrentProvider: vi.fn()
+      })
+    )
+
+    await act(async () => {
+      await result.current.onOpenDashboard()
+    })
+
+    const dashboardUrl = new URL(vi.mocked(mocks.openSmartMiniApp).mock.calls[0][0].url)
+    expect(dashboardUrl.searchParams.get('cherry_navigation_revision')).toBe('1774560000000')
+    expect(dashboardUrl.searchParams.get('theme')).toBe('dark')
+    expect(dashboardUrl.hash).toBe('#token=secret')
   })
 
   // Regression: the standalone OpenClaw page used to read `feature.openclaw.gateway_port`
@@ -113,5 +152,31 @@ describe('useOpenClawGatewayController', () => {
     })
 
     expect(mocks.requestMock).toHaveBeenCalledWith('openclaw.start_gateway', { port: undefined })
+  })
+
+  it('stops launch and shows the original validation message when config sync fails', async () => {
+    const validationMessage = 'tools.web.fetch.ssrfPolicy: Unrecognized key'
+    mocks.requestMock.mockImplementation((route: string) => {
+      if (route === 'openclaw.get_status') return Promise.resolve({ status: 'stopped' })
+      if (route === 'openclaw.sync_config') return Promise.resolve({ success: false, message: validationMessage })
+      return Promise.resolve({ success: true })
+    })
+
+    const { result } = renderHook(() =>
+      useOpenClawGatewayController({
+        selectedCliTool: CodeCli.OPENCLAW,
+        enabledProvider,
+        currentProviderConfig: { modelId: 'anthropic::claude-sonnet-4-5' },
+        upsertProviderConfig: vi.fn(),
+        setCurrentProvider: vi.fn()
+      })
+    )
+
+    await act(async () => {
+      await result.current.onLaunch()
+    })
+
+    expect(mocks.requestMock).not.toHaveBeenCalledWith('openclaw.start_gateway', expect.anything())
+    expect(mocks.toastError).toHaveBeenCalledWith(validationMessage)
   })
 })

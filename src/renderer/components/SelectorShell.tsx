@@ -9,7 +9,7 @@ import {
   usePortalContainer
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { AtSign, Search, X } from 'lucide-react'
+import { Search, X } from 'lucide-react'
 import {
   type ComponentPropsWithoutRef,
   isValidElement,
@@ -56,6 +56,7 @@ export type SelectorShellSearch = {
 type SelectorShellMultiSelectBase = {
   label: ReactNode
   hint?: ReactNode
+  tooltip?: ReactNode
   checked: boolean
   disabled?: boolean
   onCheckedChange: (checked: boolean) => void
@@ -472,19 +473,18 @@ export function SelectorShell({
             <div
               ref={setPanelElement}
               className={cn(
-                'flex h-full max-h-[inherit] w-full flex-col overflow-hidden rounded-lg border-[0.5px] border-border bg-popover py-1 shadow-lg',
+                'flex h-full max-h-[inherit] w-full flex-col overflow-hidden rounded-lg border-[0.5px] border-border bg-popover pt-1 shadow-lg',
                 SELECTOR_PANEL_ANIMATION_CLASS
               )}
               data-selector-shell-panel="true">
               {search ? (
                 <div
                   ref={setSearchElement}
-                  className="flex items-center gap-2 px-3 py-2"
+                  className="flex h-9 items-center gap-2 border-border-subtle border-b px-3"
                   data-selector-shell-chrome="search">
-                  <div className="relative flex min-w-0 flex-1 items-center rounded-full border border-border-subtle bg-background">
-                    <Search className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-2.5 size-3.25 text-muted-foreground/50" />
+                  <div className="relative min-w-0 flex-1">
+                    <Search className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-0 size-3.5 text-muted-foreground" />
                     <Input
-                      size="sm"
                       type="text"
                       ref={setSearchInputElement}
                       value={search.value}
@@ -494,9 +494,9 @@ export function SelectorShell({
                       aria-activedescendant={search.activeDescendant}
                       aria-controls={search.ariaControls}
                       className={cn(
-                        'rounded-full border-0 bg-transparent! pr-7 pl-7 shadow-none transition-none dark:bg-transparent!',
+                        'h-7 rounded-none border-0 bg-transparent! py-0 pr-6 pl-5 text-xs leading-7 shadow-none transition-none md:text-xs dark:bg-transparent!',
                         'focus-visible:border-transparent focus-visible:ring-0',
-                        'placeholder:text-muted-foreground/40'
+                        'placeholder:text-muted-foreground'
                       )}
                       data-testid={search.dataTestId}
                       onChange={(event) => search.onChange(event.target.value)}
@@ -508,7 +508,7 @@ export function SelectorShell({
                         variant="ghost"
                         size="icon-sm"
                         aria-label={t('common.clear')}
-                        className="-translate-y-1/2 absolute top-1/2 right-0.5 size-[22px] rounded-full p-0 text-muted-foreground/55 hover:bg-accent/40 hover:text-foreground/75"
+                        className="-translate-y-1/2 absolute top-1/2 right-0 size-[22px] rounded-md p-0 text-muted-foreground hover:bg-accent/40 hover:text-foreground"
                         onMouseDown={(event) => event.preventDefault()}
                         onClick={() => {
                           search.onChange('')
@@ -519,24 +519,23 @@ export function SelectorShell({
                     ) : null}
                   </div>
                   {renderMultiSelectAsSearchBadge && multiSelect ? (
-                    <Tooltip content={multiSelect.ariaLabel ?? multiSelect.label}>
+                    <Tooltip content={multiSelect.tooltip} delay={1500}>
                       <Button
                         type="button"
-                        variant="ghost"
-                        size="icon-sm"
+                        variant="secondary"
+                        size="sm"
                         disabled={multiSelect.disabled}
                         aria-pressed={multiSelect.checked}
                         aria-label={multiSelect.ariaLabel}
-                        title={multiSelect.ariaLabel}
                         data-testid={multiSelect.dataTestId}
                         className={cn(
-                          'size-6 shrink-0 rounded-md bg-transparent p-0 shadow-none',
+                          'h-6 min-h-6 shrink-0 rounded-md px-2 text-xs',
                           multiSelect.checked
-                            ? 'bg-accent text-foreground'
-                            : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
+                            ? 'bg-accent text-accent-foreground hover:bg-accent'
+                            : 'bg-secondary/60 hover:bg-secondary'
                         )}
                         onClick={() => multiSelect.onCheckedChange(!multiSelect.checked)}>
-                        <AtSign className="size-3.5" aria-hidden="true" />
+                        {multiSelect.label}
                       </Button>
                     </Tooltip>
                   ) : null}
@@ -546,7 +545,7 @@ export function SelectorShell({
               {hasFilterContent ? (
                 <div
                   ref={setFilterElement}
-                  className="flex items-center justify-between gap-2 border-border-subtle border-b-[0.5px] px-3 py-2"
+                  className="flex items-center justify-between gap-2 border-border-subtle border-b px-3 py-2"
                   data-selector-shell-chrome="filter">
                   <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">{filterContent}</div>
                 </div>
@@ -555,13 +554,13 @@ export function SelectorShell({
               {renderMultiSelectRow && multiSelect ? (
                 <div
                   ref={setMultiSelectElement}
-                  className="flex items-center justify-between gap-3 border-border-subtle border-b-[0.5px] px-3 py-2"
+                  className="flex items-center justify-between gap-3 border-border border-b px-3 py-2"
                   data-selector-shell-chrome="multi-select"
                   data-testid={multiSelect.rowTestId}>
                   <div className="flex min-w-0 flex-1 items-center gap-1 text-[10px] text-muted-foreground">
                     <span className="truncate">{multiSelect.label}</span>
                     {multiSelect.hint ? (
-                      <span className="truncate text-muted-foreground/60">{multiSelect.hint}</span>
+                      <span className="truncate text-muted-foreground">{multiSelect.hint}</span>
                     ) : null}
                   </div>
                   <Switch
@@ -580,7 +579,7 @@ export function SelectorShell({
               {hasBottomAction ? (
                 <div
                   ref={setBottomActionElement}
-                  className="relative z-1 shrink-0 border-border-subtle border-t-[0.5px] bg-popover"
+                  className="relative z-1 shrink-0 border-border border-t bg-popover"
                   data-selector-shell-chrome="bottom-action">
                   {resolvedBottomActions.map((action, index) => {
                     const selected = action.type === 'selectable' && action.selected
@@ -595,7 +594,7 @@ export function SelectorShell({
                         className={cn(
                           'relative flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50',
                           selected
-                            ? 'bg-accent/70 text-foreground'
+                            ? 'bg-accent/70 text-accent-foreground'
                             : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
                         )}>
                         {selected ? (

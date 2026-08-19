@@ -1,6 +1,13 @@
+---
+description: Per-domain migration of legacy ipcMain and preload channels into IpcApi schemas, handlers, and renderer call sites
+sources:
+  - src/shared/ipc/schemas
+  - src/main/ipc/handlers
+---
+
 # IpcApi Migration Guide
 
-Stage 0 (the framework) ships alongside legacy IPC. Migration is later work — multiple independent PRs, one domain at a time, until everything is collected and the old machinery is retired.
+The framework and most domains have shipped alongside the remaining legacy IPC. Use this guide for one of the groups still present in `src/shared/IpcChannel.ts` or for a bare-string legacy channel; migrate one coherent domain at a time until the old machinery can be retired.
 
 ## Per-Domain Migration (request side)
 
@@ -60,26 +67,24 @@ As domains migrate, their channel enum entries are deleted. At the end, `src/sha
 
 After migration, every main capability the renderer can reach is enumerated in `src/main/ipc/handlers/` — one auditable list. Compare against the deleted scattered `this.ipcHandle` sites to confirm nothing was widened or dropped.
 
-## M→R `send` Work-List
+## M→R migration patterns
 
-~47 push call sites across ~30 channels, classified by destination:
+Classify each push call site by destination before moving it:
 
 | Class | Destination | Notes |
 |---|---|---|
-| **A** typed event (~35, the bulk) | IpcApi `broadcast`/`send` + `useIpcOn` | window lifecycle/state, theme, selection, MCP/adapter notifications, update progress, etc. |
-| **B** topic stream (5) | service-held listener + directed `send` | `Ai_StreamChunk`/`_Done`/`_Error`, `File_TreeMutation`; keep 16ms/2048 batching + multi-window attach |
-| **C** infrastructure (2) | **not collected** | `Preference_Changed`, `Cache_Sync` — stay in their subsystems |
-| **D** special addressing (5) | `ctx.senderId`-based directed `send` | `CherryIN_OAuthResult` ×4 (reply to the initiator window), migration progress |
-
-~40 sites (A+B) move onto the IpcApi event link; only the 2 class-C sites stay out.
+| **A** typed event | IpcApi `broadcast`/`broadcastToType`/`send` + `useIpcOn` | window lifecycle/state, theme, selection, adapter notifications, update progress |
+| **B** topic stream | service-held listener + directed `send` | AI streams and `file.tree.mutation`; preserve batching and per-topic attachment |
+| **C** infrastructure | **not collected** | `Preference_Changed`, `Cache_Sync`, and `DataApi_DataChanged` stay in their subsystems |
+| **D** special addressing | remember `ctx.senderId`, then use directed `send` | OAuth or another async flow that must reply to its initiating window |
 
 ### Class examples (before → after)
 
 ```ts
-// A — typed event (WindowManager_MaximizedChanged): IpcChannel enum + win.webContents.send + preload onXxx + manual removeListener
-export type WindowEventSchemas = { 'window.maximized_changed': { maximized: boolean } }
-application.get('IpcApiService').send(windowId, 'window.maximized_changed', { maximized: isMax })
-useIpcOn('window.maximized_changed', ({ maximized }) => setMax(maximized))
+// A — typed event: one event contract + directed send + typed subscription
+export type WindowEventSchemas = { 'window.maximized_changed': boolean }
+application.get('IpcApiService').send(windowId, 'window.maximized_changed', isMax)
+useIpcOn('window.maximized_changed', setMax)
 
 // B — topic stream (Ai_StreamChunk): the service's listener/batching/multi-window attach are unchanged; only "how to send" + ctx.senderId replaces event.sender
 export type AiEventSchemas = { 'ai.stream.chunk': { topicId: string; chunk: AiChunk } }
@@ -97,10 +102,6 @@ export type OAuthEventSchemas = { 'oauth.deep_link_result': { ok: boolean; apiKe
 application.get('IpcApiService').send(savedSenderId, 'oauth.deep_link_result', { ok: true, apiKeys }) // no-op if the window is gone
 useIpcOn('oauth.deep_link_result', (r) => (r.ok ? saveKeys(r.apiKeys) : showError(r.error)))
 ```
-
-### Known inconsistency to fix during collection
-
-`IpcChannel.Notification_OnClick = 'notification:on-click'` (IpcChannel.ts) is unused; the actual push hardcodes `'notification-click'` (MainWindowService.ts / NotificationService.ts) and the renderer listens for the hardcoded string. Unify into a typed event when collecting the notification domain.
 
 ## Escape Hatch — When a Channel May Stay Out
 
@@ -125,12 +126,11 @@ Does this R→M channel go through IpcApi?
 - **Still gated** — register with native `ipcMain.on` + `registerDisposable` + an explicit `validateSender` call (mirroring the explicit gates in DataApi's `IpcAdapter` and the Preference/Cache handlers). Do **not** use the `this.ipcOn` sugar (slated for removal, see above).
 - **Still documented** — list it in [Not In Scope](#not-in-scope-for-ipcapi) below. A documented carve-out (like `Cache_Sync`) keeps the one-list exposure audit honest; an undocumented omission breaks it.
 
-**Scope discipline** — most of the same feature still migrates in:
+**Scope discipline** — an exception is per channel, not per feature:
 
 | Channel | Disposition |
 |---|---|
 | `Tab_MoveWindow` | **Out** — escape hatch (gated + documented) |
-| `Tab_Detach` / `Tab_DragEnd` / `Ai_AbortImage` | **In** — one-off → `void` request |
 | `Python_ExecutionResponse` | Separate — renderer-as-server reverse RPC (request-id correlated, carries error); IpcApi's main-as-server `request` model doesn't fit, handle on its own |
 | `Cache_Sync` | Stays in the Cache subsystem |
 
@@ -141,4 +141,5 @@ Does this R→M channel go through IpcApi?
 | `Tab_MoveWindow` (per-frame R→M drag; native `ipcMain.on` + own `validateSender`) | `SubWindowService` (escape hatch) |
 | `shell.openExternal`, `webUtils.getPathForFile` (preload calls Electron directly, not IPC) | `window.electron` |
 | `preference.onChanged`, `dataApi.onDataChanged` | their own subsystems |
-| `Cache_Sync` "exclude self" (uses numeric `BrowserWindow.id`) | Cache subsystem |
+| `Cache_Sync` / `Cache_SyncBatch` / `Cache_GetAllShared` | Cache subsystem |
+| `Python_ExecutionRequest` / `Python_ExecutionResponse` | Python renderer-as-server reverse RPC |

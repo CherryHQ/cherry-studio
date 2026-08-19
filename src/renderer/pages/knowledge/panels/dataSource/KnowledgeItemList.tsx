@@ -95,7 +95,7 @@ const KnowledgeItemList = ({
 
   if (isLoading) {
     return (
-      <div className="flex min-h-0 flex-1 items-center justify-center px-4 text-center text-foreground-muted text-sm">
+      <div className="flex min-h-0 flex-1 items-center justify-center px-4 text-center text-foreground-tertiary text-sm">
         {t('common.loading')}
       </div>
     )
@@ -132,16 +132,16 @@ const KnowledgeItemList = ({
               />
             </label>
           </div>
-          <div role="columnheader" className="min-w-0 font-medium text-foreground-muted text-xs">
+          <div role="columnheader" className="min-w-0 font-medium text-foreground-tertiary text-xs">
             {t('knowledge.data_source.table.columns.name')}
           </div>
-          <div role="columnheader" className="font-medium text-foreground-muted text-xs">
+          <div role="columnheader" className="font-medium text-foreground-tertiary text-xs">
             {t('knowledge.data_source.table.columns.type')}
           </div>
-          <div role="columnheader" className="font-medium text-foreground-muted text-xs">
+          <div role="columnheader" className="font-medium text-foreground-tertiary text-xs">
             {t('knowledge.data_source.table.columns.status')}
           </div>
-          <div role="columnheader" className="font-medium text-foreground-muted text-xs">
+          <div role="columnheader" className="font-medium text-foreground-tertiary text-xs">
             {t('knowledge.data_source.table.columns.updated_at')}
           </div>
           {/* Actions column: header stays visually empty (the row's "more" button only shows on
@@ -164,7 +164,7 @@ const KnowledgeItemList = ({
       </div>
       {isLoadingMore ? (
         <div
-          className="flex h-8 shrink-0 items-center justify-center gap-1.5 text-foreground-muted text-xs"
+          className="flex h-8 shrink-0 items-center justify-center gap-1.5 text-foreground-tertiary text-xs"
           aria-live="polite">
           <LoaderCircle className="size-3.5 animate-spin" />
           {t('knowledge.data_source.list.loading_more')}
@@ -172,7 +172,7 @@ const KnowledgeItemList = ({
       ) : !hasMore && items.length > KNOWLEDGE_ITEMS_PAGE_SIZE ? (
         // End-of-list only after a real second page loaded (>1 page worth of rows). Deriving this
         // from the live count instead of a sticky ref means it can't leak across base switches.
-        <div className="flex h-8 shrink-0 items-center justify-center text-foreground-muted text-xs">
+        <div className="flex h-8 shrink-0 items-center justify-center text-foreground-tertiary text-xs">
           {t('knowledge.data_source.list.end_reached')}
         </div>
       ) : null}

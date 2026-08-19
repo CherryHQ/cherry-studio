@@ -123,10 +123,18 @@ function DetailRow({ label, value }: { label: ReactNode; value?: ReactNode }) {
   )
 }
 
-function ModelSelectorDetailCardBody({ item, providerName }: { item: ModelSelectorModelItem; providerName: string }) {
+function ModelSelectorDetailCardBody({
+  item,
+  provider,
+  providerName
+}: {
+  item: ModelSelectorModelItem
+  provider: Provider
+  providerName: string
+}) {
   const { t } = useTranslation()
   const { model, modelIdentifier } = item
-  const tags = useMemo(() => getModelDisplayTags(model), [model])
+  const tags = useMemo(() => getModelDisplayTags(model, undefined, provider), [model, provider])
   const reasoningEfforts = formatReasoningEfforts(
     deriveThinkingOptions(model)?.filter((option) => option !== 'default'),
     t
@@ -138,20 +146,12 @@ function ModelSelectorDetailCardBody({ item, providerName }: { item: ModelSelect
   return (
     <div className="max-h-[min(420px,70vh,var(--radix-hover-card-content-available-height,70vh))] overflow-auto p-3">
       <div className="min-w-0 space-y-1">
-        <div className="truncate font-medium text-foreground text-xs" title={model.name}>
+        <div className="truncate font-medium text-foreground text-sm" title={model.name}>
           {model.name}
         </div>
       </div>
 
-      {tags.length > 0 ? (
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {tags.map((tag) => (
-            <ModelTag key={`${item.key}-detail-${tag}`} tag={tag} size={10} showLabel showTooltip={false} />
-          ))}
-        </div>
-      ) : null}
-
-      <dl className="mt-3 space-y-1.5">
+      <dl className="mt-3 space-y-1.5 border-border border-t pt-3">
         <DetailRow label={t('models.detail.provider')} value={providerName} />
         <DetailRow
           label={t('models.detail.model_id')}
@@ -163,8 +163,16 @@ function ModelSelectorDetailCardBody({ item, providerName }: { item: ModelSelect
         />
       </dl>
 
+      {tags.length > 0 ? (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {tags.map((tag) => (
+            <ModelTag key={`${item.key}-detail-${tag}`} tag={tag} size={10} showLabel showTooltip={false} />
+          ))}
+        </div>
+      ) : null}
+
       {hasTokenDetails ? (
-        <dl className="mt-3 space-y-1.5">
+        <dl className="mt-3 space-y-1.5 border-border border-t pt-3">
           <DetailRow label={t('models.detail.context_window')} value={formatNumber(model.contextWindow)} />
           <DetailRow label={t('models.detail.max_input_tokens')} value={formatNumber(model.maxInputTokens)} />
           <DetailRow label={t('models.detail.max_output_tokens')} value={formatNumber(model.maxOutputTokens)} />
@@ -172,7 +180,7 @@ function ModelSelectorDetailCardBody({ item, providerName }: { item: ModelSelect
       ) : null}
 
       {hasCapabilityDetails ? (
-        <dl className="mt-3 space-y-1.5">
+        <dl className="mt-3 space-y-1.5 border-border border-t pt-3">
           <DetailRow label={t('assistants.settings.reasoning_effort.label')} value={reasoningEfforts} />
           <DetailRow label={t('models.detail.image_modes')} value={imageModes} />
         </dl>
@@ -220,7 +228,7 @@ export const ModelSelectorDetailCard = memo(function ModelSelectorDetailCard({
         collisionPadding={DETAIL_CARD_COLLISION_PADDING}
         portalContainer={portalContainer ?? undefined}
         className="w-84 max-w-(--radix-hover-card-content-available-width) p-0">
-        <ModelSelectorDetailCardBody item={item} providerName={providerName} />
+        <ModelSelectorDetailCardBody item={item} provider={provider} providerName={providerName} />
       </HoverCardContent>
     </HoverCard>
   )

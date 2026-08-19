@@ -1,3 +1,12 @@
+---
+description: Lifecycle service that acquires third-party CLI binaries through mise, with tool registry, snapshots, and IPC
+sources:
+  - src/main/services/BinaryManager.ts
+  - src/shared/data/presets/binaryTools.ts
+  - src/main/ipc/handlers/binary.ts
+  - scripts/download-binaries.js
+---
+
 # BinaryManager Reference
 
 `BinaryManager` is the lifecycle service that acquires and manages third-party CLI binaries through [mise](https://mise.jdx.dev). It owns the custom tool registry and the filesystem/process orchestration around mise; domain services own execution, configuration, and health logic.
@@ -65,6 +74,8 @@ Remove is one custom-tool product flow: it first attempts verified backend clean
 Install and remove mutations are serialized with the custom registry and mise process operations. Per-tool active-operation guards deduplicate an identical install and reject conflicting install/remove requests before they overwrite each other's state.
 
 There are two install routes. `installByName({ name, targetVersion? })` resolves the code-owned fixed recipe or the persisted custom definition and applies it against the live `application` fact — it never writes Preference. An already-applied tool is a no-op (or a one-shot version update when a target is given); an externally satisfied (bundled/system) tool is a logged no-op so a race converges; a `conflict`/`unknown` state rejects without mutating; a backend failure records a failed operation. `addCustomTool(definition)` is the only route that accepts an arbitrary recipe: it validates grammar and collisions, then persists the definition to the registry **before** any backend work, so the tool stays defined and retry-able even if the install fails. An already-applied tool short-circuits only when its active version provably satisfies `requestedVersion` (or none was requested); a mismatched or unprovable version runs the targeted installation. Neither route ever rewrites the persisted definition with a resolved/installed version.
+
+After a one-shot version update is installed and proven runnable, BinaryManager runs a tool-filtered `mise prune <tool>` to remove older versions that are no longer referenced by mise configuration. It then reshims and verifies the active executable again. A prune command failure is logged without turning the already-successful update into a failed install; fresh installs and name-only repair operations do not run this cleanup.
 
 Both publish `installing` before waiting for the global mutation lock and clear or fail the operation under it. A failed operation carries `{ status, action, error }` plus, for a failed one-shot update, the `targetVersion` it was applying — so Retry repeats the same targeted update instead of degrading to a name-only no-op. It never carries a recipe, because the recipe is always re-resolvable from the fixed catalog or the custom registry.
 

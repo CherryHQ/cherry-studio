@@ -1,25 +1,30 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
-import { cleanup, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { render, screen } from '@testing-library/react'
+import { describe, expect, it } from 'vitest'
 
 import { Input } from '../input'
 
-afterEach(cleanup)
-
-describe('Input density', () => {
-  it('preserves the standard default size', () => {
+describe('Input', () => {
+  it('changes its own border on focus without drawing an outer ring', () => {
     render(<Input aria-label="Name" />)
 
-    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveAttribute('data-size', 'default')
-    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveClass('h-9', 'px-3', 'text-sm')
+    const input = screen.getByRole('textbox', { name: 'Name' })
+    expect(input.className).toContain('focus-visible:border-primary')
+    expect(input.className).not.toMatch(/focus-visible:ring-(?!0)/)
+    expect(input.className).not.toContain('focus-visible:outline-')
   })
 
-  it('applies an explicit compact size', () => {
-    render(<Input aria-label="Name" size="sm" />)
+  it('exposes the default density and an explicit compact density', () => {
+    const { rerender } = render(<Input aria-label="Name" />)
 
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveAttribute('data-size', 'default')
+
+    rerender(<Input aria-label="Name" size="sm" />)
     expect(screen.getByRole('textbox', { name: 'Name' })).toHaveAttribute('data-size', 'sm')
-    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveClass('h-8', 'px-2.5', 'text-xs')
+
+    rerender(<Input aria-label="Name" size="lg" />)
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveAttribute('data-size', 'lg')
   })
 })

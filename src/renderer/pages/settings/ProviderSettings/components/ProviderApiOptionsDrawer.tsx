@@ -53,7 +53,7 @@ function OptionTitle({ id, label, help }: { id: string; label: string; help: str
       </label>
       <Tooltip content={help}>
         <span
-          className="inline-flex size-4 shrink-0 items-center justify-center rounded-full text-muted-foreground/55"
+          className="inline-flex size-4 shrink-0 items-center justify-center rounded-full text-foreground-tertiary"
           aria-label={help}>
           <Info className="size-3" aria-hidden />
         </span>

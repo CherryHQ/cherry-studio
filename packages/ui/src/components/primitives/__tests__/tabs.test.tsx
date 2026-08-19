@@ -24,9 +24,7 @@ describe('Tabs density', () => {
     )
 
     expect(screen.getByRole('tablist')).toHaveAttribute('data-size', 'sm')
-    expect(screen.getByRole('tablist')).toHaveClass('h-8')
     expect(screen.getByRole('tab', { name: 'First' })).toHaveAttribute('data-size', 'sm')
-    expect(screen.getByRole('tab', { name: 'First' })).toHaveClass('text-xs')
   })
 })
 

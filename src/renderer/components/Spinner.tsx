@@ -5,13 +5,13 @@ interface Props {
   text: React.ReactNode
 }
 
-// Define variants for the spinner animation
+// These fixed animation endpoints stay owner-local because no shared role preserves them across both themes.
 const spinnerVariants = {
   defaultColor: {
-    color: 'var(--color-foreground)'
+    color: '#2a2a2a'
   },
   dimmed: {
-    color: 'var(--color-foreground-secondary)'
+    color: '#8C9296'
   }
 }
 

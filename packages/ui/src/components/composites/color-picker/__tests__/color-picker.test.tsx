@@ -170,4 +170,21 @@ describe('ColorPicker', () => {
 
     expect(screen.getByRole('slider', { name: 'Localized alpha' })).toBeTruthy()
   })
+
+  it('emits alpha on the 0-1 scale when the alpha slider changes', () => {
+    const onChange = vi.fn()
+    render(
+      <ColorPicker defaultValue="#3366ff" onChange={onChange}>
+        <ColorPickerAlpha />
+      </ColorPicker>
+    )
+
+    fireEvent.keyDown(screen.getByRole('slider', { name: 'Alpha' }), { key: 'ArrowLeft' })
+
+    expect(onChange).toHaveBeenCalled()
+    const emittedAlpha = onChange.mock.lastCall?.[0][3]
+    expect(emittedAlpha).toBeGreaterThan(0)
+    expect(emittedAlpha).toBeLessThanOrEqual(1)
+    expect(emittedAlpha).toBe(0.99)
+  })
 })

@@ -101,7 +101,7 @@ function FullList({ entries, active, onReorder, onContextMenuOpenChange }: ListP
                 label={entry.label}
                 active={isActive}
                 onClick={guardClick(entry.key, entry.onOpen)}
-                className="rounded-xl !text-sidebar-foreground hover:!bg-sidebar-accent hover:!text-sidebar-accent-foreground data-[active=true]:!bg-sidebar-accent data-[active=true]:!text-sidebar-accent-foreground"
+                className="!text-sidebar-foreground hover:!bg-sidebar-accent hover:!text-sidebar-accent-foreground data-[active=true]:!bg-sidebar-accent data-[active=true]:!text-sidebar-accent-foreground rounded-xl"
               />
             </EntryContextMenu>
           </div>

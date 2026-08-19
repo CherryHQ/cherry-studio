@@ -1,4 +1,17 @@
+import type { SpanEntity } from '@mcp-trace/trace-core/types/config'
 import * as z from 'zod'
+
+export interface TraceDataCursor {
+  historyVersion: string | null
+  liveRevision: number
+}
+
+export interface TraceDataResult {
+  cursor: TraceDataCursor
+  /** A reset replaces the viewer snapshot; otherwise `spans` contains live changes only. */
+  reset: boolean
+  spans: SpanEntity[]
+}
 
 /**
  * Container-level OTel trace id: 32 lowercase hex chars. {@link deriveRootSpanId} and the

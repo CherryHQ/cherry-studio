@@ -1,20 +1,21 @@
 import {
   Button,
   ColFlex,
-  Combobox,
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
   Flex,
-  InfoTooltip,
+  HelpTooltip,
   Label
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { KnowledgeBaseSelector } from '@renderer/components/KnowledgeBaseSelector'
 import CustomTag from '@renderer/components/tags/CustomTag'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useAddKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
+import { getMessageTitle } from '@renderer/services/ExportService'
 import {
   analyzeMessagesContent,
   analyzeTopicContent,
@@ -108,7 +109,7 @@ interface SaveResult {
 
 type Props = ShowParams & PopupInjectedProps<SaveResult | null>
 
-const getNoteSource = (source: ContentSource, fallbackConversationTitle: string, sourceTitle?: string) => {
+const getNoteSource = async (source: ContentSource, fallbackConversationTitle: string, sourceTitle?: string) => {
   const trimmedSourceTitle = sourceTitle?.trim()
 
   if (trimmedSourceTitle) {
@@ -127,7 +128,7 @@ const getNoteSource = (source: ContentSource, fallbackConversationTitle: string,
     return source.data.title.trim() || fallbackConversationTitle
   }
 
-  return source.data.id
+  return getMessageTitle(source.data)
 }
 
 const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, open, resolve }) => {
@@ -306,7 +307,7 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
       }
 
       const items: KnowledgeAddItemInput[] = []
-      const noteSource = getNoteSource(source, t('chat.save.topic.knowledge.source_fallback'), sourceTitle)
+      const noteSource = await getNoteSource(source, t('chat.save.topic.knowledge.source_fallback'), sourceTitle)
 
       if (isNoteMode) {
         const note = source.data
@@ -432,21 +433,14 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
     <div className="space-y-4">
       <div className="space-y-2">
         <Label>{t('chat.save.knowledge.select.base.title')}</Label>
-        <Combobox
-          size="sm"
-          className="w-full"
+        <KnowledgeBaseSelector
+          aria-label={t('chat.save.knowledge.select.base.title')}
           emptyText={t('common.no_results')}
-          error={!formState.hasValidBase && !!selectedBaseId}
-          filterOption={(option, search) =>
-            [option.label, option.value].filter(Boolean).join(' ').toLowerCase().includes(search.trim().toLowerCase())
-          }
-          onChange={(value) => setSelectedBaseId(Array.isArray(value) ? value[0] : value)}
+          invalid={!formState.hasValidBase && !!selectedBaseId}
+          onChange={setSelectedBaseId}
           options={knowledgeBaseOptions}
           placeholder={t('chat.save.knowledge.select.base.placeholder')}
-          popoverClassName="w-(--radix-popover-trigger-width)"
           searchPlaceholder={t('common.search')}
-          searchPlacement="trigger"
-          searchable
           value={selectedBaseId}
         />
         {!formState.hasValidBase && selectedBaseId && (
@@ -477,7 +471,7 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
                     {option.count}
                   </CustomTag>
                   <span>{option.label}</span>
-                  <InfoTooltip content={option.description} />
+                  <HelpTooltip content={option.description} />
                 </Flex>
                 {selectedTypes.includes(option.type) && <Check size={16} color={TAG_COLORS.SELECTED} />}
               </button>

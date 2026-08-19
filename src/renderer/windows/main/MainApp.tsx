@@ -1,7 +1,9 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import AppLogo from '@renderer/assets/images/logo.png'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
+import { ConversationNotificationRuntime } from '@renderer/components/ConversationNotificationRuntime'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { AppShell } from '@renderer/components/layout/AppShell'
 import { TabsProvider } from '@renderer/components/layout/TabsProvider'
@@ -9,22 +11,34 @@ import { PopupHost } from '@renderer/components/PopupHost'
 import { ThemeProvider } from '@renderer/components/ThemeProvider'
 import ToastHost from '@renderer/components/ToastHost'
 import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
+import { useMainWindowNavigation } from '@renderer/hooks/tab'
 import { useStorageMonitorNotification } from '@renderer/hooks/useStorageMonitorNotification'
 import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
-import { useEffect } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 
 import { useAppUpdateHandler } from './hooks/useAppUpdateHandler'
+import { useAutoBackupEvents } from './hooks/useAutoBackupEvents'
 import { useTopicNamingErrorNotification } from './hooks/useTopicNamingErrorNotification'
-import OnboardingPage from './onboarding/OnboardingPage'
 import { PrivacyPolicyUpdateGate } from './privacy/PrivacyPolicyUpdateGate'
 
 const logger = loggerService.withContext('MainApp')
+const OnboardingPage = lazy(() => import('./onboarding/OnboardingPage'))
+
+// MainWindowRuntime removes the HTML boot spinner as soon as it mounts, so a suspended first-run
+// screen needs its own stand-in or the window goes blank. Mirrors main/index.html's `#spinner`.
+function BootFallback(): React.ReactElement {
+  return (
+    <div className="fixed inset-0 flex items-center justify-center">
+      <img src={AppLogo} alt="" className="w-25 rounded-full" />
+    </div>
+  )
+}
 // Behavior leaf inside the providers: the shared window runtime plus the main-only
 // concerns, then the popup/toast hosts. It sits inside the providers but outside every
 // TabRouter/<Activity>, so these window-scoped subscriptions and DOM sync are never
 // torn down when a background tab hides.
 //
-// useAppUpdateHandler / useStorageMonitorNotification / useTopicNamingErrorNotification are
+// useAppUpdateHandler / useAutoBackupEvents / useStorageMonitorNotification / useTopicNamingErrorNotification are
 // intentionally main-only (update events only reach the main window; the storage warning and
 // topic-naming-failed toast must not duplicate across windows) and intentionally React hooks:
 // they depend on React-visible
@@ -35,6 +49,7 @@ const logger = loggerService.withContext('MainApp')
 // siblings in the App JSX below, so a window's host composition is visible there.
 function MainWindowRuntime(): null {
   useWindowRuntime()
+  useMainWindowNavigation()
 
   // Main-only: tear down the HTML boot spinner and end the `init` timer. Both are
   // paired with markup only main/index.html creates (`#spinner`, `console.time`), so
@@ -48,6 +63,7 @@ function MainWindowRuntime(): null {
   }, [])
 
   useAppUpdateHandler()
+  useAutoBackupEvents()
   useStorageMonitorNotification()
   useTopicNamingErrorNotification()
 
@@ -57,24 +73,20 @@ function MainWindowRuntime(): null {
 export function MainWindowContent(): React.ReactElement {
   const [providerSetupStatus] = usePreference('app.onboarding.provider_setup.status')
 
-  if (providerSetupStatus === 'pending') {
-    return (
-      <>
-        <OnboardingPage />
-        <MainWindowRuntime />
-        <PopupHost />
-        <ToastHost />
-      </>
-    )
-  }
-
   return (
     <TabsProvider>
-      <AppShell />
+      {providerSetupStatus === 'pending' ? (
+        <Suspense fallback={<BootFallback />}>
+          <OnboardingPage />
+        </Suspense>
+      ) : (
+        <AppShell />
+      )}
       <MainWindowRuntime />
+      <ConversationNotificationRuntime />
       <PopupHost />
       <ToastHost />
-      <PrivacyPolicyUpdateGate />
+      {providerSetupStatus === 'pending' ? null : <PrivacyPolicyUpdateGate />}
     </TabsProvider>
   )
 }
