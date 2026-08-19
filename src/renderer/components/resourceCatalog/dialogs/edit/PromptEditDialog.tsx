@@ -6,8 +6,7 @@ import {
   DialogHeader,
   DialogTitle,
   Input,
-  RadioGroup,
-  RadioGroupItem,
+  Switch,
   Tooltip
 } from '@cherrystudio/ui'
 import { BracesVariableIcon } from '@renderer/components/icons/BracesVariableIcon'
@@ -15,7 +14,7 @@ import PromptEditorField, { type PromptEditorFieldHandles } from '@renderer/comp
 import { PromptPolishActions } from '@renderer/components/resourceCatalog/dialogs/components/PromptPolishActions'
 import type { Prompt, PromptVisibility } from '@shared/data/types/prompt'
 import { PROMPT_CONTENT_MAX, PROMPT_TITLE_MAX } from '@shared/data/types/prompt'
-import { type FC, useCallback, useEffect, useRef, useState } from 'react'
+import { type FC, useCallback, useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const QUICK_PHRASE_POLISH_SYSTEM_PROMPT = [
@@ -65,6 +64,7 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [resetPreviewKey, setResetPreviewKey] = useState(0)
   const promptEditorRef = useRef<PromptEditorFieldHandles | null>(null)
+  const visibilitySwitchId = useId()
   const variablePlaceholder = t('settings.prompts.variablePlaceholder')
 
   const isEdit = !!prompt
@@ -197,26 +197,20 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({
             <legend className="mb-1 font-medium text-foreground text-sm">
               {t('settings.prompts.visibility.label')}
             </legend>
-            <RadioGroup
-              value={formData.visibility}
-              disabled={isSaving}
-              onValueChange={(visibility) =>
-                setFormData((current) => ({ ...current, visibility: visibility as PromptVisibility }))
-              }
-              className="flex items-center gap-6">
-              <label className="flex cursor-pointer items-center gap-2">
-                <RadioGroupItem value="global" />
-                <span className="font-medium text-muted-foreground text-sm">
-                  {t('settings.prompts.visibility.global.title')}
-                </span>
+            <div className="flex items-center justify-between gap-3">
+              <label htmlFor={visibilitySwitchId} className="font-medium text-muted-foreground text-sm">
+                {t('settings.prompts.visibility.global.badge')}
               </label>
-              <label className="flex cursor-pointer items-center gap-2">
-                <RadioGroupItem value="restricted" />
-                <span className="font-medium text-muted-foreground text-sm">
-                  {t('settings.prompts.visibility.restricted.title')}
-                </span>
-              </label>
-            </RadioGroup>
+              <Switch
+                id={visibilitySwitchId}
+                size="sm"
+                checked={formData.visibility === 'global'}
+                disabled={isSaving}
+                onCheckedChange={(checked) =>
+                  setFormData((current) => ({ ...current, visibility: checked ? 'global' : 'restricted' }))
+                }
+              />
+            </div>
           </fieldset>
         </div>
 

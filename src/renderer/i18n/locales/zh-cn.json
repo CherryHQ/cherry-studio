@@ -6303,15 +6303,13 @@
       "variablePlaceholder": "${变量}",
       "visibility": {
         "global": {
-          "badge": "全局",
-          "title": "所有上下文"
+          "badge": "全局"
         },
         "label": "适用范围",
         "makeGlobalConfirmDescription": "改为全局后，该提示词仍会在所有上下文中可用，但会永久删除其 {{count}} 个上下文关联及对应排序。是否继续？",
         "makeGlobalConfirmTitle": "将提示词改为全局？",
         "restricted": {
-          "badge": "指定",
-          "title": "指定上下文"
+          "badge": "指定"
         }
       }
     },

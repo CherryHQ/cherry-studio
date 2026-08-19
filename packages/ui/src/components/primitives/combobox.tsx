@@ -71,6 +71,7 @@ const comboboxInputSizeClasses = {
 export type ComboboxOption<TExtra extends object = Record<never, never>> = {
   value: string
   label: string
+  group?: string
   disabled?: boolean
   icon?: React.ReactNode
   description?: string
@@ -103,7 +104,7 @@ function ComboboxOptionList<TExtra extends object>({
     <CommandItem
       key={option.value}
       value={fallbackToLabel ? option.value || option.label : option.value}
-      keywords={[option.label, option.description ?? '']}
+      keywords={[option.label, option.description ?? '', option.group ?? '']}
       disabled={option.disabled}
       aria-checked={multiple ? isSelected(option.value) : undefined}
       onSelect={() => onSelect(option.value)}
@@ -112,18 +113,33 @@ function ComboboxOptionList<TExtra extends object>({
     </CommandItem>
   )
 
+  const renderOptionGroups = (groupOptions: ComboboxOption<TExtra>[], fallbackToLabel: boolean) => {
+    const groups = new Map<string | undefined, ComboboxOption<TExtra>[]>()
+    for (const option of groupOptions) {
+      const optionsInGroup = groups.get(option.group) ?? []
+      optionsInGroup.push(option)
+      groups.set(option.group, optionsInGroup)
+    }
+
+    return Array.from(groups.entries()).map(([group, optionsInGroup], index) => (
+      <CommandGroup key={`${group ?? 'ungrouped'}:${index}`} heading={group}>
+        {optionsInGroup.map((option) => renderOption(option, fallbackToLabel))}
+      </CommandGroup>
+    ))
+  }
+
   return (
     <CommandList aria-multiselectable={multiple || undefined}>
       {manualFilterEnabled ? (
         visibleOptions.length === 0 ? (
           <div className="py-6 text-center text-muted-foreground text-sm">{emptyText}</div>
         ) : (
-          <CommandGroup>{visibleOptions.map((option) => renderOption(option, true))}</CommandGroup>
+          renderOptionGroups(visibleOptions, true)
         )
       ) : (
         <>
           <CommandEmpty>{emptyText}</CommandEmpty>
-          <CommandGroup>{options.map((option) => renderOption(option, false))}</CommandGroup>
+          {renderOptionGroups(options, false)}
         </>
       )}
     </CommandList>
@@ -265,7 +281,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
         return filterOption(option, activeSearch)
       }
 
-      return [option.label, option.value, option.description]
+      return [option.label, option.value, option.description, option.group]
         .filter(Boolean)
         .join(' ')
         .toLowerCase()

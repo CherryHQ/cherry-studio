@@ -148,15 +148,25 @@ vi.mock('@cherrystudio/ui', () => ({
   DialogHeader: ({ children }: { children: ReactNode }) => <header>{children}</header>,
   DialogTitle: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
   Input: (props: ComponentProps<'input'>) => <input {...props} />,
-  RadioGroup: ({ children, onValueChange }: { children: ReactNode; onValueChange: (value: string) => void }) => (
-    <div>
-      {children}
-      <button type="button" onClick={() => onValueChange('global')}>
-        select global visibility
-      </button>
-    </div>
+  Switch: ({
+    checked,
+    onCheckedChange,
+    size: _size,
+    ...props
+  }: ComponentProps<'button'> & {
+    checked: boolean
+    onCheckedChange: (checked: boolean) => void
+    size?: string
+  }) => (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      data-size={_size}
+      onClick={() => onCheckedChange(!checked)}
+      {...props}
+    />
   ),
-  RadioGroupItem: ({ value }: { value: string }) => <input type="radio" value={value} readOnly />,
   Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
 }))
 
@@ -356,7 +366,7 @@ describe('PromptEditDialog', () => {
       />
     )
 
-    await user.click(screen.getByRole('button', { name: 'select global visibility' }))
+    await user.click(screen.getByRole('switch', { name: 'settings.prompts.visibility.global.badge' }))
     await user.click(screen.getByRole('button', { name: 'common.confirm' }))
 
     await waitFor(() =>

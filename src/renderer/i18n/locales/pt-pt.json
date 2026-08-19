@@ -6303,15 +6303,13 @@
       "variablePlaceholder": "${variable}",
       "visibility": {
         "global": {
-          "badge": "Global",
-          "title": "Todos os contextos"
+          "badge": "Global"
         },
         "label": "Disponibilidade",
         "makeGlobalConfirmDescription": "Tornar este prompt global mantém-no disponível em todo o lado, mas remove permanentemente as suas {{count}} associações de contexto e a respetiva ordem. Continuar?",
         "makeGlobalConfirmTitle": "Tornar o prompt global?",
         "restricted": {
-          "badge": "Selecionado",
-          "title": "Contextos selecionados"
+          "badge": "Selecionado"
         }
       }
     },

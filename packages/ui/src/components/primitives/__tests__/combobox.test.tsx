@@ -175,18 +175,21 @@ describe('Combobox', () => {
     expect(screen.queryByText('Beta')).not.toBeInTheDocument()
   })
 
-  it('searches option labels when values are opaque identifiers', async () => {
+  it('groups opaque options and searches their labels', async () => {
     render(
       <Combobox
         options={[
-          { value: 'assistant:1', label: 'Research helper' },
-          { value: 'agent:2', label: 'Code reviewer' }
+          { value: 'assistant:1', label: 'Research helper', group: 'Assistants' },
+          { value: 'agent:2', label: 'Code reviewer', group: 'Agents' }
         ]}
         searchPlaceholder="Search targets"
       />
     )
 
     fireEvent.click(screen.getByRole('button'))
+    expect(screen.getByRole('group', { name: 'Assistants' })).toHaveTextContent('Research helper')
+    expect(screen.getByRole('group', { name: 'Agents' })).toHaveTextContent('Code reviewer')
+
     fireEvent.change(screen.getByPlaceholderText('Search targets'), { target: { value: 'research' } })
 
     await waitFor(() => expect(screen.getByText('Research helper')).toBeInTheDocument())

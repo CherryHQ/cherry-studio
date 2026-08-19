@@ -6303,15 +6303,13 @@
       "variablePlaceholder": "${variable}",
       "visibility": {
         "global": {
-          "badge": "Global",
-          "title": "Toate contextele"
+          "badge": "Global"
         },
         "label": "Disponibilitate",
         "makeGlobalConfirmDescription": "Transformarea acestui prompt în unul global îl păstrează disponibil peste tot, dar elimină definitiv cele {{count}} asocieri de context și ordinea lor. Continui?",
         "makeGlobalConfirmTitle": "Transformi promptul în unul global?",
         "restricted": {
-          "badge": "Selectat",
-          "title": "Contexte selectate"
+          "badge": "Selectat"
         }
       }
     },

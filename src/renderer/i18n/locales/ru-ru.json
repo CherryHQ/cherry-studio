@@ -6303,15 +6303,13 @@
       "variablePlaceholder": "${variable}",
       "visibility": {
         "global": {
-          "badge": "Глобальный",
-          "title": "Все контексты"
+          "badge": "Глобальный"
         },
         "label": "Доступность",
         "makeGlobalConfirmDescription": "Глобальный промпт останется доступным везде, но его {{count}} связей с контекстами и их порядок будут удалены без возможности восстановления. Продолжить?",
         "makeGlobalConfirmTitle": "Сделать промпт глобальным?",
         "restricted": {
-          "badge": "Выбрано",
-          "title": "Выбранные контексты"
+          "badge": "Выбрано"
         }
       }
     },

@@ -6303,15 +6303,13 @@
       "variablePlaceholder": "${variable}",
       "visibility": {
         "global": {
-          "badge": "Global",
-          "title": "Every context"
+          "badge": "Global"
         },
         "label": "Availability",
         "makeGlobalConfirmDescription": "Making this prompt global keeps it available everywhere, but permanently removes its {{count}} context links and their ordering. Continue?",
         "makeGlobalConfirmTitle": "Make prompt global?",
         "restricted": {
-          "badge": "Selected",
-          "title": "Selected contexts"
+          "badge": "Selected"
         }
       }
     },
