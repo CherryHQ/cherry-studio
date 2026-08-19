@@ -308,6 +308,46 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     })
   })
 
+  it('strips ENABLE_TOOL_SEARCH when the connection model rejects dynamically-loaded tools', async () => {
+    // The settings builder force-enables ToolSearch for every agent; the route must undo that for
+    // models whose provider rejects dynamic tool declarations (Kimi non-K3 → tokenization failed).
+    mocks.buildSessionSettings.mockResolvedValue({ env: { ENABLE_TOOL_SEARCH: 'auto' } })
+    mocks.getModelByKey.mockReturnValue({ id: 'model-1', apiModelId: 'kimi-for-coding', contextWindow: 262_144 })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(request?.settings.env).not.toHaveProperty('ENABLE_TOOL_SEARCH')
+  })
+
+  it('keeps ENABLE_TOOL_SEARCH for models that accept dynamically-loaded tools', async () => {
+    mocks.buildSessionSettings.mockResolvedValue({ env: { ENABLE_TOOL_SEARCH: 'auto' } })
+    mocks.getModelByKey.mockReturnValue({ id: 'model-1', apiModelId: 'kimi-k3', contextWindow: 262_144 })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(request?.settings.env).toMatchObject({ ENABLE_TOOL_SEARCH: 'auto' })
+  })
+
+  it('gates ToolSearch on the per-turn connection model, not the agent model', async () => {
+    // agent.model is Claude, but this turn's connection was captured on kimi-for-coding — the
+    // toggle must follow the connection model (the one that actually receives the declarations).
+    mocks.buildSessionSettings.mockResolvedValue({ env: { ENABLE_TOOL_SEARCH: 'auto' } })
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      apiModelId: modelId === 'model-2' ? 'kimi-for-coding' : 'claude-sonnet',
+      contextWindow: 262_144
+    }))
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession(
+      'session-1',
+      undefined,
+      'provider-1::model-2' as any
+    )
+
+    expect(request?.settings.env).toMatchObject({ ANTHROPIC_MODEL: 'kimi-for-coding' })
+    expect(request?.settings.env).not.toHaveProperty('ENABLE_TOOL_SEARCH')
+  })
+
   it('captures the baseline from the same agent snapshot that materializes the request', async () => {
     const materializedAgent = {
       id: 'agent-1',

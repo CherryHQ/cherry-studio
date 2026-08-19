@@ -80,9 +80,8 @@ export async function captureDshConnectionSnapshot(
   const mcpTools = mcpServers.flatMap((server) =>
     'id' in server ? [{ serverId: server.id, tools: catalog.listTools(server.id, { includeDisabled: false }) }] : []
   )
-  const linkedChannel = agentChannelService
-    .listChannels({ agentId: agent.id })
-    .find((channel) => channel.sessionId === sessionId)
+  const channel = agentChannelService.findBySessionId(sessionId)
+  const linkedChannel = channel?.agentId === agent.id ? channel : null
   const apiKeys = providerService.getApiKeys(parsed.providerId, { enabled: true })
   const configuration = { ...agent.configuration, permission_mode: undefined }
 
