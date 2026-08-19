@@ -7,8 +7,8 @@ import type { SpanProcessor } from '@opentelemetry/sdk-trace-base'
 import { BatchSpanProcessor, ConsoleSpanExporter } from '@opentelemetry/sdk-trace-base'
 import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node'
 
-import type { TraceConfig } from '../trace-core/types/config'
-import { defaultConfig } from '../trace-core/types/config'
+import type { TraceConfig } from '../traceConfig'
+import { defaultConfig } from '../traceConfig'
 
 export class NodeTracer {
   private static provider: NodeTracerProvider

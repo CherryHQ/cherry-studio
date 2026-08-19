@@ -3,26 +3,24 @@ import { trace } from '@opentelemetry/api'
 import type { BufferConfig, ReadableSpan, Span, SpanExporter } from '@opentelemetry/sdk-trace-base'
 import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-base'
 
-export type SpanFunction = (span: ReadableSpan) => void
+import type { TraceStore } from '../storage/TraceStore'
 
-export class FunctionSpanProcessor extends BatchSpanProcessor {
-  private start: SpanFunction
-  private end: SpanFunction
+export class CacheBatchSpanProcessor extends BatchSpanProcessor {
+  private cache: TraceStore
 
-  constructor(_exporter: SpanExporter, start: SpanFunction, end: SpanFunction, config?: BufferConfig) {
+  constructor(_exporter: SpanExporter, cache: TraceStore, config?: BufferConfig) {
     super(_exporter, config)
-    this.start = start
-    this.end = end
+    this.cache = cache
   }
 
   override onEnd(span: ReadableSpan): void {
     super.onEnd(span)
-    this.end(span)
+    this.cache.endSpan(span)
   }
 
   override onStart(span: Span, parentContext: Context): void {
     super.onStart(span, parentContext)
-    this.start({
+    this.cache.createSpan({
       name: span.name,
       kind: span.kind,
       spanContext: () => span.spanContext(),
