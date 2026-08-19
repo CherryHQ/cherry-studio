@@ -59,6 +59,11 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const { agents } = useAgents({ enabled: agentFavoriteIds.length > 0 })
   const { assistants } = useAssistantsApi({ enabled: assistantFavoriteIds.length > 0 })
   const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
+  // Pinned entity rows render through the same icon renderers as their rails, so they
+  // follow the same icon-type preferences instead of always showing the emoji.
+  const [assistantIconType] = usePreference('assistant.icon_type')
+  const [agentIconType] = usePreference('agent.icon_type')
+  const [defaultModelId] = usePreference('chat.default_model_id')
 
   const installedAgents = useMemo(() => new Map(agents.map((agent) => [agent.id, agent])), [agents])
   const installedAssistants = useMemo(
@@ -290,6 +295,9 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       installedMiniApps: openableMiniAppById,
       installedAgents,
       installedAssistants,
+      assistantIconType,
+      agentIconType,
+      defaultModelId,
       isRequiredApp: (id) => REQUIRED_SIDEBAR_FAVORITE_SET.has(id),
       openApp: handleNavigate,
       openMiniApp: handleOpenMiniAppTab,
@@ -306,6 +314,9 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       openableMiniAppById,
       installedAgents,
       installedAssistants,
+      assistantIconType,
+      agentIconType,
+      defaultModelId,
       handleNavigate,
       handleOpenMiniAppTab,
       handleOpenAgentTab,

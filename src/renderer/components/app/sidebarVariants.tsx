@@ -1,11 +1,10 @@
-import EmojiIcon from '@renderer/components/EmojiIcon'
+import { renderAgentEntityIcon, renderAssistantEntityIcon } from '@renderer/components/chat/resourceList/base'
 import { getSidebarIconLabelKey } from '@renderer/i18n/label'
 import type { Assistant } from '@renderer/types/assistant'
-import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 import { getSidebarFavoriteKey, getSidebarMenuPath, isSidebarAppId } from '@renderer/utils/sidebar'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
-import type { SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
+import type { AssistantIconType, SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
 import type { MiniApp } from '@shared/data/types/miniApp'
 
 import { MiniAppIcon, type ResolvedSidebarEntry } from '../Sidebar'
@@ -14,6 +13,11 @@ import { SIDEBAR_ICON_COMPONENTS } from './sidebarIcons'
 /** Exhaustiveness guard: a new `SidebarFavoriteItem` type must add a `case` below. */
 function assertNever(value: never): never {
   throw new Error(`Unhandled sidebar favorite variant: ${JSON.stringify(value)}`)
+}
+
+/** A sidebar row is only identifiable by its icon, so 'none' degrades to the emoji. */
+function sidebarIconType(iconType: AssistantIconType): AssistantIconType {
+  return iconType === 'none' ? 'emoji' : iconType
 }
 
 /**
@@ -27,6 +31,10 @@ export interface SidebarVariantContext {
   installedMiniApps: Map<string, MiniApp>
   installedAgents: Map<string, AgentEntity>
   installedAssistants: Map<string, Assistant>
+  /** Icon-type preferences, so pinned rows match what the assistant / agent rails show. */
+  assistantIconType: AssistantIconType
+  agentIconType: AssistantIconType
+  defaultModelId: string | null
   isRequiredApp: (id: SidebarAppId) => boolean
   openApp: (id: SidebarAppId) => void
   openMiniApp: (id: string) => void
@@ -116,11 +124,12 @@ const agentVariant: SidebarVariantDescriptor<Extract<SidebarFavoriteItem, { type
     // Stale agent (deleted) is dropped from the list but stays in the preference.
     if (!agent) return null
 
-    const emoji = getAgentAvatarFromConfiguration(agent.configuration)
     return {
       key: getSidebarFavoriteKey(item),
       label: agent.name,
-      renderIcon: (size) => <EmojiIcon emoji={emoji} size={size} fontSize={Math.round(size * 0.58)} className="mr-0" />,
+      // Same renderer the agent rail uses, so a pinned row matches the list it came from.
+      // 'none' would leave the row with no glyph at all, so the sidebar keeps the emoji there.
+      renderIcon: (size) => renderAgentEntityIcon(sidebarIconType(ctx.agentIconType), agent, ctx.defaultModelId, size),
       // Active-state highlight stays on the built-in agents app entry; this row
       // only navigates the conversation the interceptor resolves.
       isActive: () => false,
@@ -146,9 +155,10 @@ const assistantVariant: SidebarVariantDescriptor<Extract<SidebarFavoriteItem, { 
     return {
       key: getSidebarFavoriteKey(item),
       label: assistant.name,
-      renderIcon: (size) => (
-        <EmojiIcon emoji={assistant.emoji} size={size} fontSize={Math.round(size * 0.58)} className="mr-0" />
-      ),
+      // Same renderer the assistant rail uses, so a pinned row matches the list it came from.
+      // 'none' would leave the row with no glyph at all, so the sidebar keeps the emoji there.
+      renderIcon: (size) =>
+        renderAssistantEntityIcon(sidebarIconType(ctx.assistantIconType), assistant, ctx.defaultModelId, size),
       // Active-state highlight stays on the built-in assistants app entry.
       isActive: () => false,
       onOpen: () => ctx.openAssistant(assistant.id),
