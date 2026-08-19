@@ -5645,6 +5645,10 @@
         "title": "Schriftart-Einstellungen"
       }
     },
+    "fetch": {
+      "allow_private_network": "Zugriff auf lokale Netzwerkadressen erlauben",
+      "allow_private_network_tip": "Erlaubt Web-Abruf-Tools den Zugriff auf localhost und private Netzwerkadressen. Deaktivieren Sie dies, wenn Modelle keine Dienste auf Ihrem Rechner oder im LAN lesen sollen."
+    },
     "font_size": {
       "title": "Nachrichtenschriftgröße"
     },

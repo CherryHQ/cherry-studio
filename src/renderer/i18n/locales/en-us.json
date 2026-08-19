@@ -5645,6 +5645,10 @@
         "title": "Font Settings"
       }
     },
+    "fetch": {
+      "allow_private_network": "Allow fetching local network addresses",
+      "allow_private_network_tip": "Lets web fetch tools reach localhost and private network addresses. Turn this off if you do not want models to read services on your own machine or LAN."
+    },
     "font_size": {
       "title": "Message font size"
     },

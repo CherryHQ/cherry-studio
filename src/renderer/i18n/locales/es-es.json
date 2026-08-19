@@ -5645,6 +5645,10 @@
         "title": "Configuración de fuente"
       }
     },
+    "fetch": {
+      "allow_private_network": "Permitir el acceso a direcciones de red local",
+      "allow_private_network_tip": "Permite que las herramientas de obtención web accedan a localhost y a direcciones de red privada. Desactívalo si no quieres que los modelos lean servicios de tu equipo o de tu LAN."
+    },
     "font_size": {
       "title": "Tamaño de fuente de mensajes"
     },

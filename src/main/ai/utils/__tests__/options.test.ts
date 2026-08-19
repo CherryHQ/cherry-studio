@@ -252,18 +252,11 @@ describe('OpenAI-compatible reasoning normalization', () => {
       ...(effort === 'high' ? { effort } : {}),
       emissions: [{ target: 'reasoningEffort', value: effort }]
     }
-    const model = {
-      id: 'custom::deepseek-v4-flash',
-      providerId: 'custom',
-      name: 'deepseek-v4-flash',
-      capabilities: [MODEL_CAPABILITY.REASONING]
-    } as unknown as Model
     const providerOptions = buildResolvedReasoningProviderOptions({
       aiSdkProviderId: 'openai',
       providerOptionsKey: 'openai',
       endpointType: ENDPOINT_TYPE.OPENAI_RESPONSES,
-      reasoning,
-      model
+      reasoning
     })
     const fetchMock = vi.fn<typeof fetch>(
       async () =>

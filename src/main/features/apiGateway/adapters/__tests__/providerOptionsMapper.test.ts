@@ -91,10 +91,6 @@ const openAIModel = model('openai', 'gpt-5', ENDPOINT_TYPE.OPENAI_RESPONSES, {
   thinkingTokenLimits: { min: 1000, max: 11_000 }
 })
 
-const openAIResponsesOptions = (reasoningEffort: string) => ({
-  openai: { reasoningEffort, forceReasoning: true }
-})
-
 const geminiModel = model('google', 'gemini-2.5-flash', ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, {
   selectableEfforts: ['none', 'low', 'medium', 'high', 'auto'],
   controls: [{ kind: 'budget', min: 0, max: 24_576 }, { kind: 'toggle' }],
@@ -173,9 +169,9 @@ describe('cross-dialect descriptor translation', () => {
         wire: REASONING_FORMAT_PROFILES['openai-responses'].wire
       })
 
-      expect(mapReasoningEffortToProviderOptions(target, modelWithoutRuntimeReasoning, effort)).toEqual(
-        openAIResponsesOptions(effort)
-      )
+      expect(mapReasoningEffortToProviderOptions(target, modelWithoutRuntimeReasoning, effort)).toEqual({
+        openai: { reasoningEffort: effort, forceReasoning: true }
+      })
     }
   )
 
@@ -219,10 +215,10 @@ describe('cross-dialect descriptor translation', () => {
 
     expect(
       mapAnthropicThinkingToProviderOptions(target, openAIModel, { type: 'enabled', budget_tokens: 6000 })
-    ).toEqual(openAIResponsesOptions('medium'))
-    expect(mapAnthropicThinkingToProviderOptions(target, openAIModel, { type: 'disabled' })).toEqual(
-      openAIResponsesOptions('none')
-    )
+    ).toEqual({ openai: { reasoningEffort: 'medium', forceReasoning: true } })
+    expect(mapAnthropicThinkingToProviderOptions(target, openAIModel, { type: 'disabled' })).toEqual({
+      openai: { reasoningEffort: 'none', forceReasoning: true }
+    })
   })
 
   it('falls back to high when Anthropic budget translation has no descriptor limits', () => {
@@ -237,24 +233,24 @@ describe('cross-dialect descriptor translation', () => {
         type: 'enabled',
         budget_tokens: 1500
       })
-    ).toEqual(openAIResponsesOptions('high'))
+    ).toEqual({ openai: { reasoningEffort: 'high', forceReasoning: true } })
   })
 
   it('normalizes Gemini sentinels, levels, and positive budgets before target dispatch', () => {
     const target = provider('openai', ENDPOINT_TYPE.OPENAI_RESPONSES)
 
-    expect(mapGeminiThinkingToProviderOptions(target, openAIModel, { thinkingBudget: -1 })).toEqual(
-      openAIResponsesOptions('medium')
-    )
-    expect(mapGeminiThinkingToProviderOptions(target, openAIModel, { thinkingBudget: 0 })).toEqual(
-      openAIResponsesOptions('none')
-    )
-    expect(mapGeminiThinkingToProviderOptions(target, openAIModel, { thinkingLevel: 'high' })).toEqual(
-      openAIResponsesOptions('high')
-    )
-    expect(mapGeminiThinkingToProviderOptions(target, openAIModel, { thinkingBudget: 6000 })).toEqual(
-      openAIResponsesOptions('medium')
-    )
+    expect(mapGeminiThinkingToProviderOptions(target, openAIModel, { thinkingBudget: -1 })).toEqual({
+      openai: { reasoningEffort: 'medium', forceReasoning: true }
+    })
+    expect(mapGeminiThinkingToProviderOptions(target, openAIModel, { thinkingBudget: 0 })).toEqual({
+      openai: { reasoningEffort: 'none', forceReasoning: true }
+    })
+    expect(mapGeminiThinkingToProviderOptions(target, openAIModel, { thinkingLevel: 'high' })).toEqual({
+      openai: { reasoningEffort: 'high', forceReasoning: true }
+    })
+    expect(mapGeminiThinkingToProviderOptions(target, openAIModel, { thinkingBudget: 6000 })).toEqual({
+      openai: { reasoningEffort: 'medium', forceReasoning: true }
+    })
   })
 
   it('uses the descriptor serializer for an OpenAI-compatible target', () => {

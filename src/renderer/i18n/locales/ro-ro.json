@@ -5645,6 +5645,10 @@
         "title": "Setări font"
       }
     },
+    "fetch": {
+      "allow_private_network": "Permite accesul la adrese din rețeaua locală",
+      "allow_private_network_tip": "Permite instrumentelor de preluare web să acceseze localhost și adrese din rețeaua privată. Dezactivați dacă nu doriți ca modelele să citească servicii de pe calculatorul dvs. sau din LAN."
+    },
     "font_size": {
       "title": "Dimensiune font mesaj"
     },

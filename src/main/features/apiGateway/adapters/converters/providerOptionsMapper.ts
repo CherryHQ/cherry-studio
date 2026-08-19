@@ -54,8 +54,7 @@ function buildProviderOptions(
     aiSdkProviderId,
     providerOptionsKey: resolveEndpointProviderOptionsKey(provider, resolvedEndpoint),
     endpointType,
-    reasoning,
-    model: invocationModel
+    reasoning
   }) as ProviderOptions
 }
 
