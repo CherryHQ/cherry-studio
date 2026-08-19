@@ -1034,6 +1034,7 @@
   "code_block.edit.save.success": "Gespeichert",
   "code_block.expand": "Ausklappen",
   "code_block.more": "Mehr",
+  "code_block.preview.invalid_json": "Ungültige JSON-Konfiguration",
   "code_block.run": "Code ausführen",
   "code_block.split.label": "Ansicht teilen",
   "code_block.split.restore": "Ansichtsteilung aufheben",

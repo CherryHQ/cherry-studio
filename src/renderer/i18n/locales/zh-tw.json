@@ -1034,6 +1034,7 @@
   "code_block.edit.save.success": "已儲存",
   "code_block.expand": "展開",
   "code_block.more": "更多",
+  "code_block.preview.invalid_json": "配置 JSON 格式錯誤",
   "code_block.run": "執行",
   "code_block.split.label": "分割檢視",
   "code_block.split.restore": "還原分割檢視",

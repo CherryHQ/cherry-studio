@@ -1034,6 +1034,7 @@
   "code_block.edit.save.success": "Salvat",
   "code_block.expand": "Extinde",
   "code_block.more": "Mai mult",
+  "code_block.preview.invalid_json": "Configurație JSON invalidă",
   "code_block.run": "Rulează",
   "code_block.split.label": "Vizualizare divizată",
   "code_block.split.restore": "Restaurează vizualizarea divizată",

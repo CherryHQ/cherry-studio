@@ -1034,6 +1034,7 @@
   "code_block.edit.save.success": "保存しました",
   "code_block.expand": "展開する",
   "code_block.more": "もっと",
+  "code_block.preview.invalid_json": "JSON 設定の形式が無効です",
   "code_block.run": "コードを実行",
   "code_block.split.label": "分割視圖",
   "code_block.split.restore": "分割視圖を解除",

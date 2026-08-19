@@ -1034,6 +1034,7 @@
   "code_block.edit.save.success": "Αποθηκεύτηκε",
   "code_block.expand": "επιλογή",
   "code_block.more": "Περισσότερα",
+  "code_block.preview.invalid_json": "Μη έγκυρη διαμόρφωση JSON",
   "code_block.run": "Εκτέλεση κώδικα",
   "code_block.split.label": "Διαχωρισμός προβολής",
   "code_block.split.restore": "Ακύρωση διαχωρισμού προβολής",

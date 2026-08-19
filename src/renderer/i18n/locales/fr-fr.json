@@ -1034,6 +1034,7 @@
   "code_block.edit.save.success": "Enregistré",
   "code_block.expand": "Développer",
   "code_block.more": "Plus",
+  "code_block.preview.invalid_json": "Configuration JSON invalide",
   "code_block.run": "Exécuter le code",
   "code_block.split.label": "Fractionner la vue",
   "code_block.split.restore": "Annuler la vue fractionnée",

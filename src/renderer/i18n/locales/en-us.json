@@ -1034,6 +1034,7 @@
   "code_block.edit.save.success": "Saved",
   "code_block.expand": "Expand",
   "code_block.more": "More",
+  "code_block.preview.invalid_json": "Invalid JSON configuration",
   "code_block.run": "Run",
   "code_block.split.label": "Split View",
   "code_block.split.restore": "Restore Split View",

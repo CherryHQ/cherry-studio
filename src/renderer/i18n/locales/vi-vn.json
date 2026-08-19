@@ -1034,6 +1034,7 @@
   "code_block.edit.save.success": "Đã lưu",
   "code_block.expand": "Mở rộng",
   "code_block.more": "Thêm",
+  "code_block.preview.invalid_json": "Cấu hình JSON không hợp lệ",
   "code_block.run": "Chạy",
   "code_block.split.label": "Chia đôi màn hình",
   "code_block.split.restore": "Khôi phục Chế độ chia đôi",

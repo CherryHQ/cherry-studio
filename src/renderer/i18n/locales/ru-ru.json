@@ -1034,6 +1034,7 @@
   "code_block.edit.save.success": "Изменения сохранены",
   "code_block.expand": "Развернуть",
   "code_block.more": "Ещё",
+  "code_block.preview.invalid_json": "Некорректная конфигурация JSON",
   "code_block.run": "Выполнить код",
   "code_block.split.label": "Разделить на два окна",
   "code_block.split.restore": "Вернуться к одному окну",

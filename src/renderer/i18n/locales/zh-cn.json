@@ -1034,6 +1034,7 @@
   "code_block.edit.save.success": "已保存",
   "code_block.expand": "展开",
   "code_block.more": "更多",
+  "code_block.preview.invalid_json": "配置 JSON 格式错误",
   "code_block.run": "运行代码",
   "code_block.split.label": "分割视图",
   "code_block.split.restore": "取消分割视图",
