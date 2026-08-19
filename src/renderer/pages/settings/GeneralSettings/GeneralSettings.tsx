@@ -43,6 +43,7 @@ const GeneralSettings: FC = () => {
   const [trayPreferences, setTrayPreferences] = useMultiplePreferences(TRAY_PREFERENCE_KEYS)
   const { enabled: tray, onClose: trayOnClose, onLaunch: launchToTray } = trayPreferences
   const [preventSleepWhenBusy, setPreventSleepWhenBusy] = usePreference('app.power.prevent_sleep_when_busy')
+  const [allowPrivateNetworkFetch, setAllowPrivateNetworkFetch] = usePreference('app.fetch.allow_private_network')
   const [storeProxyMode, setProxyMode] = usePreference('app.proxy.mode')
   const [storeProxyBypassRules, _setProxyBypassRules] = usePreference('app.proxy.bypass_rules')
   const [storeProxyUrl, _setProxyUrl] = usePreference('app.proxy.url')
@@ -189,6 +190,21 @@ const GeneralSettings: FC = () => {
             </SettingRow>
           </>
         )}
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span>{t('settings.fetch.allow_private_network')}</span>
+            <InfoTooltip
+              content={t('settings.fetch.allow_private_network_tip')}
+              placement="right"
+              iconProps={{ className: 'cursor-pointer' }}
+            />
+          </SettingRowTitle>
+          <Switch
+            checked={allowPrivateNetworkFetch}
+            onCheckedChange={(checked) => void setAllowPrivateNetworkFetch(checked)}
+          />
+        </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.hardware_acceleration.title')}</SettingRowTitle>
