@@ -105,19 +105,35 @@ vi.mock('../components/InputBar', () => ({
   default: ({
     text,
     placeholder,
-    handleChange
+    handleChange,
+    handleKeyDown
   }: {
     text: string
     placeholder: string
     handleChange: (event: React.ChangeEvent<HTMLInputElement>) => void
-  }) => <input data-testid="quick-input" value={text} placeholder={placeholder} onChange={handleChange} />
+    handleKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => void
+  }) => (
+    <input
+      data-testid="quick-input"
+      value={text}
+      placeholder={placeholder}
+      onChange={handleChange}
+      onKeyDown={handleKeyDown}
+    />
+  )
 }))
 
 vi.mock('../components/FeatureMenus', () => ({
   default: vi.fn(
-    ({ ref }: { ref?: React.RefObject<{ useFeature: () => void; resetSelectedIndex: () => void } | null> }) => {
+    ({
+      ref,
+      setRoute
+    }: {
+      ref?: React.RefObject<{ useFeature: () => void; resetSelectedIndex: () => void } | null>
+      setRoute: (route: 'chat') => void
+    }) => {
       if (ref) {
-        ref.current = { useFeature: vi.fn(), resetSelectedIndex: vi.fn() }
+        ref.current = { useFeature: () => setRoute('chat'), resetSelectedIndex: vi.fn() }
       }
       return <div data-testid="feature-menus" />
     }
@@ -133,8 +149,8 @@ vi.mock('../components/ClipboardPreview', () => ({
     clipboardText ? <div data-testid="clipboard-preview">{clipboardText}</div> : null
 }))
 
-vi.mock('../../chat/ChatWindow', () => ({
-  default: () => <div data-testid="chat-window" />
+vi.mock('../QuickAssistantMessageList', () => ({
+  default: () => <div data-testid="quick-assistant-message-list" />
 }))
 
 vi.mock('../../translate/TranslateWindow', () => ({
@@ -144,6 +160,9 @@ vi.mock('../../translate/TranslateWindow', () => ({
 describe('HomeWindow', () => {
   beforeEach(() => {
     state.quickAssistantId = ''
+    state.messages = []
+    state.activeExecutions = []
+    state.liveAssistants = []
     state.sendMessage.mockClear()
     state.stopChat.mockClear()
     state.setMessages.mockClear()
@@ -165,5 +184,20 @@ describe('HomeWindow', () => {
 
     expect(screen.getByTestId('quick-input')).toHaveValue('hello')
     expect(screen.queryByTestId('clipboard-preview')).not.toBeInTheDocument()
+  })
+
+  it('clears the shared message-list source when the temporary conversation resets', async () => {
+    render(<HomeWindow draggable={false} />)
+    const input = screen.getByTestId('quick-input')
+
+    fireEvent.change(input, { target: { value: 'hello' } })
+    fireEvent.keyDown(input, { code: 'Enter', key: 'Enter' })
+    expect(await screen.findByTestId('quick-assistant-message-list')).toBeInTheDocument()
+
+    fireEvent.keyDown(screen.getByTestId('quick-input'), { code: 'Escape', key: 'Escape' })
+
+    expect(state.resetTemporaryTopic).toHaveBeenCalledTimes(1)
+    expect(state.setMessages).toHaveBeenLastCalledWith([])
+    expect(state.clearExecutionMessages).toHaveBeenCalled()
   })
 })

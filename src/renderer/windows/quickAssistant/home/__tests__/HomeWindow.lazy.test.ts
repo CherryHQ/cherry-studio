@@ -4,11 +4,11 @@ import { describe, expect, it, vi } from 'vitest'
 // concurrency can blow past the global testTimeout — pin a generous bound.
 const PROBE_TIMEOUT = 45_000
 
-const chatWindowEvaluated = vi.hoisted(() => vi.fn())
+const messageListEvaluated = vi.hoisted(() => vi.fn())
 const translateWindowEvaluated = vi.hoisted(() => vi.fn())
 
-vi.mock('../../chat/ChatWindow', () => {
-  chatWindowEvaluated()
+vi.mock('../QuickAssistantMessageList', () => {
+  messageListEvaluated()
   return { default: () => null }
 })
 
@@ -27,7 +27,7 @@ describe('HomeWindow lazy boundaries', () => {
     'importing HomeWindow does not evaluate the chat/translate branches',
     async () => {
       await import('../HomeWindow')
-      expect(chatWindowEvaluated).not.toHaveBeenCalled()
+      expect(messageListEvaluated).not.toHaveBeenCalled()
       expect(translateWindowEvaluated).not.toHaveBeenCalled()
     },
     PROBE_TIMEOUT
@@ -36,8 +36,8 @@ describe('HomeWindow lazy boundaries', () => {
   it(
     'positive control: the branch modules load on demand',
     async () => {
-      await import('../../chat/ChatWindow')
-      expect(chatWindowEvaluated).toHaveBeenCalledTimes(1)
+      await import('../QuickAssistantMessageList')
+      expect(messageListEvaluated).toHaveBeenCalledTimes(1)
     },
     PROBE_TIMEOUT
   )
