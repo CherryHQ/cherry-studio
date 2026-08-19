@@ -373,7 +373,7 @@ const TranslatePage: FC = () => {
   const translate = useCallback(
     async (
       rawText: string,
-      actualSourceLanguage: TranslateLangCode,
+      actualSourceLanguage: TranslateLangCode | null,
       actualTargetLanguage: TranslateLangCode
     ): Promise<void> => {
       if (isTranslating) return
@@ -414,8 +414,14 @@ const TranslatePage: FC = () => {
     async (rawText: string, allowBidirectional: boolean, isCurrent?: () => boolean): Promise<void> => {
       if (!rawText.trim() || !selectedModelId || isDetecting || isTranslating) return
 
+      if (allowBidirectional && !isBidirectional) {
+        setDetectedLanguage(null)
+        await translate(rawText, null, targetLanguage)
+        return
+      }
+
       let actualSourceLanguage = sourceLanguage
-      if (sourceLanguage === 'auto') {
+      if ((allowBidirectional && isBidirectional) || sourceLanguage === 'auto') {
         setIsDetecting(true)
         try {
           actualSourceLanguage = await detectLanguageOrUnknown(rawText, detectLanguage, (error) => {
@@ -935,6 +941,7 @@ const TranslatePage: FC = () => {
             onTargetChange={(language) => void safePersist(setTargetLanguage(language), 'translate target language')}
             detectedLanguage={detectedLanguage}
             isBidirectional={isPdfMode ? false : isBidirectional}
+            showSourceControls={isPdfMode}
             bidirectionalPair={bidirectionalPair}
             couldExchange={couldExchange}
             onExchange={handleExchange}

@@ -21,6 +21,7 @@ type Props = {
   onTargetChange: (language: TranslateLangCode) => void
   detectedLanguage: TranslateLangCode | null
   isBidirectional: boolean
+  showSourceControls: boolean
   bidirectionalPair: TranslateBidirectionalPair
   couldExchange: boolean
   onExchange: () => void
@@ -45,6 +46,7 @@ const TranslateLanguageBar: FC<Props> = ({
   onTargetChange,
   detectedLanguage,
   isBidirectional,
+  showSourceControls,
   bidirectionalPair,
   couldExchange,
   onExchange
@@ -147,7 +149,7 @@ const TranslateLanguageBar: FC<Props> = ({
 
   return (
     <div className={cn('flex shrink-0 items-center gap-3 px-4 py-4 lg:px-6', className)}>
-      {!isBidirectional && (
+      {!isBidirectional && showSourceControls && (
         <>
           <Combobox
             size="default"

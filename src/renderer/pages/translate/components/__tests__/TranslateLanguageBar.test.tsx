@@ -95,6 +95,7 @@ const baseProps = (): BarProps => ({
   onTargetChange: vi.fn(),
   detectedLanguage: null,
   isBidirectional: false,
+  showSourceControls: true,
   bidirectionalPair: [english.langCode, chinese.langCode],
   couldExchange: true,
   onExchange: vi.fn()
@@ -126,6 +127,17 @@ describe('TranslateLanguageBar', () => {
     expect(screen.getByText('translate.source_language')).toBeInTheDocument()
     expect(screen.getByText('translate.target_language')).toBeInTheDocument()
     expect(screen.getByText('English')).toBeInTheDocument()
+  })
+
+  it('renders only the target language control for single-direction text translation', () => {
+    const props = baseProps()
+    props.showSourceControls = false
+
+    render(<TranslateLanguageBar {...props} />)
+
+    expect(screen.queryByRole('button', { name: sourceLanguageButtonName })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'translate.exchange.label' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: targetLanguageButtonName })).toBeInTheDocument()
   })
 
   it('opens source dropdown and calls onSourceChange on select', () => {
