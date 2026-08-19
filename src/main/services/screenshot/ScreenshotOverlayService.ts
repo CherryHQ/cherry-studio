@@ -22,8 +22,9 @@ import type { DetectedWindow, ScreenshotInitData, ScreenshotResultData } from '@
 import dayjs from 'dayjs'
 import { app, BrowserWindow, clipboard, dialog, type Display, nativeImage, screen } from 'electron'
 
-import { captureAllMonitors, listMonitors, listWindows } from './screenCapture'
+import { captureAllMonitors, listMonitors } from './screenCapture'
 import { type CaptureResult, type MonitorInfo, type RawWindowInfo, ScreenCapturePermissionError } from './types'
+import { listWindowsOffThread } from './windowEnumerator'
 
 const logger = loggerService.withContext('ScreenshotOverlayService')
 
@@ -191,6 +192,11 @@ export class ScreenshotOverlayService extends BaseService {
       const generation = ++this.sessionGeneration
 
       try {
+        // Started before the capture so the enumeration — hundreds of milliseconds of
+        // native work — overlaps the PNG encode and the window opening rather than
+        // following them. It runs off the main thread; see listWindowsOffThread.
+        const snapCandidates = collectSnapCandidates()
+
         const captures = await captureAllMonitors()
         const windowManager = application.get('WindowManager')
         const mediaProtocol = application.get('MediaProtocolService')
@@ -207,10 +213,11 @@ export class ScreenshotOverlayService extends BaseService {
         // display's pixel grid, so its scale factor is the reference for normalizing.
         const primaryScaleFactor = screen.getPrimaryDisplay().scaleFactor
 
-        // Computed before any overlay exists so our own windows cannot become targets.
-        const snapCandidates = collectSnapCandidates()
         const autoOcr = preferenceService.get('feature.screenshot.auto_ocr')
         const ocrAvailable = isLocalModelReady('ocr')
+
+        // Which overlay covers which display, for the snap-target push below.
+        const snapOverlays: { windowId: WindowId; display: Display }[] = []
 
         for (const display of displays) {
           const captureResult = matchCapture(display, captures, monitorInfoList, primaryScaleFactor)
@@ -256,7 +263,6 @@ export class ScreenshotOverlayService extends BaseService {
                 height: captureResult.height,
                 scaleFactor: display.scaleFactor
               },
-              windows: projectSnapCandidates(display, snapCandidates, primaryScaleFactor),
               autoOcr,
               ocrAvailable
             }
@@ -272,6 +278,7 @@ export class ScreenshotOverlayService extends BaseService {
 
           this.overlayWindowIds.push(windowId)
           this.overlayMediaIds.set(windowId, mediaId)
+          snapOverlays.push({ windowId, display })
 
           // Transparent first so the OS show animation is never visible.
           window.setOpacity(0)
@@ -293,6 +300,8 @@ export class ScreenshotOverlayService extends BaseService {
         // Thrown into the catch below rather than returned: the user pressed a shortcut
         // and nothing appeared, which is a failed capture, not a quiet edge case.
         if (this.overlayWindowIds.length === 0) throw new Error('no display produced an overlay')
+
+        void this.pushSnapTargets(generation, snapCandidates, snapOverlays, primaryScaleFactor)
 
         logger.info(`Screenshot session started with ${this.overlayWindowIds.length} overlay(s)`)
       } catch (error) {
@@ -440,6 +449,33 @@ export class ScreenshotOverlayService extends BaseService {
     if (this.overlayMediaIds.get(windowId) !== mediaId) return
     this.renderersReady.add(windowId)
     this.pendingReveals.get(windowId)?.reveal()
+  }
+
+  /**
+   * Push each overlay the snap targets clipped to its own display.
+   *
+   * The list is pushed rather than carried in the init data because enumerating it
+   * takes hundreds of milliseconds; waiting for it before opening the overlays put
+   * it squarely on the shortcut's critical path. An overlay is fully usable before
+   * it lands — hovering just snaps to the whole display until then.
+   */
+  private async pushSnapTargets(
+    generation: number,
+    candidates: Promise<RawWindowInfo[]>,
+    overlays: { windowId: WindowId; display: Display }[],
+    primaryScaleFactor: number
+  ): Promise<void> {
+    const snapCandidates = await candidates
+    // The session may have ended while the enumeration ran; a pooled overlay is only
+    // hidden, so its renderer would happily apply targets for a capture it no longer shows.
+    if (generation !== this.sessionGeneration) return
+
+    const ipcApiService = application.get('IpcApiService')
+    for (const { windowId, display } of overlays) {
+      ipcApiService.send(windowId, 'screenshot.snap_targets', {
+        windows: projectSnapCandidates(display, snapCandidates, primaryScaleFactor)
+      })
+    }
   }
 
   /** Copy the overlay's result to the clipboard and end the session. */
@@ -785,9 +821,9 @@ function matchCapture(
 }
 
 /** The windows that may act as hover-to-snap targets, before any per-display work. */
-function collectSnapCandidates(): RawWindowInfo[] {
+async function collectSnapCandidates(): Promise<RawWindowInfo[]> {
   const selfPid = process.pid
-  return listWindows().filter(
+  return (await listWindowsOffThread()).filter(
     (w) =>
       // Filters by pid, so every window of this app is excluded — the main window
       // and the launcher are just as wrong a snap target as an overlay.
@@ -849,7 +885,7 @@ function projectSnapCandidates(
     // 5 physical pixels; reordering changes what gets dropped on HiDPI Windows.
     if (width < MIN_SNAP_TARGET_SIZE || height < MIN_SNAP_TARGET_SIZE) continue
 
-    projected.push({ title: w.title, appName: w.appName, x, y, width, height })
+    projected.push({ title: w.title, x, y, width, height })
   }
 
   return projected
