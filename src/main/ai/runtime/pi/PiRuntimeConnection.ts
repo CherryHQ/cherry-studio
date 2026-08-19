@@ -222,7 +222,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       const linkedChannel = initialSnapshot.linkedChannel
       const knowledgeBaseScope = resolveKnowledgeBaseScope(agent.knowledgeBaseIds, this.input.knowledgeBaseIds)
       const isToolEnabled = (serverName: string, toolName: string) =>
-        !this.disabledTools.has(buildPiMcpToolName(serverName, toolName))
+        !this.disabledTools.has(
+          serverName === 'cherry-tools'
+            ? getBuiltinRuntimeName(MCP_BUILTIN_SERVER_IDS.cherryTools, toolName)
+            : buildPiMcpToolName(serverName, toolName)
+        )
       const citationsGuidance = buildCitationsGuidance({
         web: isToolEnabled('cherry-tools', WEB_SEARCH_TOOL_NAME) || isToolEnabled('cherry-tools', WEB_FETCH_TOOL_NAME),
         kb:
