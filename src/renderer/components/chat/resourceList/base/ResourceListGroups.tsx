@@ -379,6 +379,32 @@ type GroupShowMoreProps = ComponentProps<'div'> & {
   ref?: Ref<HTMLDivElement>
 }
 
+type GroupEmptyProps = ComponentProps<'div'> & {
+  ref?: Ref<HTMLDivElement>
+}
+
+export function GroupEmpty({ className, ref, style, ...props }: GroupEmptyProps) {
+  const meta = useResourceListMeta()
+
+  if (!meta.groupEmptyLabel) return null
+
+  return (
+    <div
+      ref={ref}
+      style={style}
+      className={cn(
+        'flex items-center pr-1.5 text-foreground-tertiary',
+        RESOURCE_LIST_DEFAULT_ROW_LAYOUT.className,
+        RESOURCE_LIST_TEXT_START_PADDING_CLASS,
+        RESOURCE_LIST_LABEL_CLASS,
+        className
+      )}
+      {...props}>
+      {meta.groupEmptyLabel}
+    </div>
+  )
+}
+
 export function GroupShowMore({ groupId, className, ref, style, ...props }: GroupShowMoreProps) {
   const actions = useResourceListActions()
   const meta = useResourceListMeta()

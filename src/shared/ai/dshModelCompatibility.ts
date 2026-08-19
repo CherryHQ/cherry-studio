@@ -21,7 +21,7 @@ import { isGatewayRoutableModel } from '@shared/utils/model'
 import { isLoginBasedProvider } from '@shared/utils/provider'
 
 /**
- * Transport families Cherry can inject into `dsh-llm-pi-ai` (0.1.0-rc.6).
+ * Transport families Cherry can inject into `dsh-llm-pi-ai` (0.1.0-rc.7).
  * OpenAI and Anthropic use hand-declared protocol routes; Google Generate
  * Content reuses pi-ai's built-in `google` catalog provider. Azure and signed
  * Bedrock/Vertex routes cannot be expressed by this composition contract.
@@ -87,7 +87,7 @@ export function hasKnownDshContextWindow(model: Model): model is Model & { conte
   return typeof model.contextWindow === 'number' && Number.isFinite(model.contextWindow) && model.contextWindow > 0
 }
 
-/** DSH rc.6 always requires text input; undeclared modalities retain the existing chat-model default. */
+/** DSH rc.7 always requires text input; undeclared modalities retain the existing chat-model default. */
 export function hasDshTextInput(model: Model): boolean {
   return model.inputModalities === undefined || model.inputModalities.includes(MODALITY.TEXT)
 }

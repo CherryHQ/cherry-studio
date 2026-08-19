@@ -54,7 +54,7 @@ import { TopicRightPane } from './components/TopicRightPane'
 import { parseChatRouteSearch } from './routeSearch'
 import { Topics } from './Tabs/components/Topics'
 import HomeTabs from './Tabs/HomeTabs'
-import type { AddNewTopicPayload, AddNewTopicWithReusePayload } from './types'
+import type { AddNewTopicPayload } from './types'
 
 const logger = loggerService.withContext('HomePage')
 const LAST_USED_ASSISTANT_CACHE_KEY = 'ui.chat.last_used_assistant_id'
@@ -367,6 +367,10 @@ const HomePage: FC = () => {
     },
     [closeSurface, setActiveTopic]
   )
+  const clearActiveTopicAndCloseResourceView = useCallback(() => {
+    closeSurface()
+    reenterChatRoute()
+  }, [closeSurface, reenterChatRoute])
 
   const activateCreatedTopic = useCallback(
     (topic: Topic) => {
@@ -421,7 +425,7 @@ const HomePage: FC = () => {
   )
 
   const resolveEmptyTopic = useCallback(
-    async (payload?: AddNewTopicWithReusePayload, options?: NewTopicAssistantTargetOptions): Promise<Topic> => {
+    async (payload?: AddNewTopicPayload, options?: NewTopicAssistantTargetOptions): Promise<Topic> => {
       const selection = resolveNewTopicAssistantTarget(payload?.assistantId, options)
       const reuseTargetAssistantId = selection.assistantId ?? (payload?.assistantId === null ? null : undefined)
       const result =
@@ -432,7 +436,7 @@ const HomePage: FC = () => {
               }),
               created: true
             }
-          : await reuseOrCreateTopic(reuseTargetAssistantId, payload?.excludeReuseTopicId)
+          : await reuseOrCreateTopic(reuseTargetAssistantId)
 
       if (result.created) {
         void refreshTopics().catch((err) => {
@@ -445,7 +449,7 @@ const HomePage: FC = () => {
   )
 
   const createAndActivateEmptyTopic = useCallback(
-    async (payload?: AddNewTopicWithReusePayload, options?: NewTopicAssistantTargetOptions): Promise<Topic | null> => {
+    async (payload?: AddNewTopicPayload, options?: NewTopicAssistantTargetOptions): Promise<Topic | null> => {
       if (isCreatingTopicRef.current) return null
       isCreatingTopicRef.current = true
       try {
@@ -463,40 +467,11 @@ const HomePage: FC = () => {
     [activateCreatedTopic, resolveEmptyTopic, t]
   )
 
-  const createAndActivateFreshTopic = useCallback(
-    async (payload: AddNewTopicPayload) => {
-      if (isCreatingTopicRef.current) return
-      isCreatingTopicRef.current = true
-      try {
-        const selection = resolveNewTopicAssistantTarget(payload.assistantId)
-        const topic = await createTopic({
-          ...(selection.assistantId ? { assistantId: selection.assistantId } : {})
-        })
-        activateCreatedTopic(mapApiTopicToRendererTopic(topic))
-        void refreshTopics().catch((err) => {
-          logger.warn('Failed to refresh topics after fresh topic create', err as Error)
-        })
-      } catch (err) {
-        logger.error('Failed to create fresh topic', err as Error)
-        toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
-      } finally {
-        isCreatingTopicRef.current = false
-      }
-    },
-    [activateCreatedTopic, createTopic, refreshTopics, resolveNewTopicAssistantTarget, t]
-  )
-
   const handleCreateEmptyTopic = useCallback(
-    async (payload?: AddNewTopicWithReusePayload) => {
-      const created = await createAndActivateEmptyTopic(payload)
-      // Post-delete replacement (delete flow passes `excludeReuseTopicId`): if the replacement create
-      // fails, the active topic still points at the just-deleted topic — re-enter through the bare
-      // route so local state and the URL both stop identifying the deleted conversation.
-      if (!created && payload?.excludeReuseTopicId) {
-        reenterChatRoute()
-      }
+    async (payload?: AddNewTopicPayload) => {
+      await createAndActivateEmptyTopic(payload)
     },
-    [createAndActivateEmptyTopic, reenterChatRoute]
+    [createAndActivateEmptyTopic]
   )
 
   const handleCreateEmptyTopicForAssistant = useCallback(
@@ -504,14 +479,9 @@ const HomePage: FC = () => {
     [resolveEmptyTopic]
   )
 
-  // No first-entry auto-create here: `DefaultAssistantSeeder` seeds one topic into every fresh
-  // database and each delete path creates its replacement, so a bare entry that resolves to
-  // nothing means the user really has no topic — the page shows its empty state and they pick
-  // "new topic". (AgentPage keeps its create-on-entry because sessions have no seeder.)
+  // A bare entry with no resolvable topic stays empty until the user explicitly starts a conversation.
 
-  // Classic-layout reset after deleting the active assistant: select the latest
-  // remaining topic (across other assistants). If nothing remains, create a
-  // real empty topic with another available assistant.
+  // After deleting the active assistant, settle on the latest remaining topic or the empty route.
   const handleActiveAssistantDeleted = useCallback(
     async (deletedAssistantId: string) => {
       const requestId = ++ownerFallbackRequestIdRef.current
@@ -525,9 +495,7 @@ const HomePage: FC = () => {
           setActiveTopicAndCloseResourceView(mapApiTopicToRendererTopic(nextTopic))
           return
         }
-        const created = await resolveEmptyTopic(undefined, { excludedAssistantIds: [deletedAssistantId] })
-        if (requestId !== ownerFallbackRequestIdRef.current) return
-        setActiveTopicAndCloseResourceView(created)
+        reenterChatRoute()
       } catch (err) {
         if (requestId !== ownerFallbackRequestIdRef.current) return
         logger.error('Failed to settle chat after deleting active assistant', err as Error, { deletedAssistantId })
@@ -539,7 +507,6 @@ const HomePage: FC = () => {
       lastUsedAssistantId,
       loadLatestTopic,
       reenterChatRoute,
-      resolveEmptyTopic,
       setActiveTopicAndCloseResourceView,
       setLastUsedAssistantId,
       t
@@ -719,7 +686,7 @@ const HomePage: FC = () => {
         historyRecordsActive={historyRecordsActive}
         onOpenHistoryRecords={isWindowFrame ? undefined : openHistoryRecords}
         onSelectTopic={setActiveTopicAndCloseResourceView}
-        onCreateTopicAfterClear={(assistantId) => createAndActivateFreshTopic({ assistantId })}
+        onClearActiveTopic={clearActiveTopicAndCloseResourceView}
         onSelectedAssistantClick={() => {
           closeSurface()
           if (!topicPaneOpen) setTopicPaneUserOpenIntentSeq((seq) => seq + 1)
@@ -739,8 +706,8 @@ const HomePage: FC = () => {
         onAddAssistant={() => {
           setAssistantPickerOpen(true)
         }}
+        clearActiveTopic={clearActiveTopicAndCloseResourceView}
         setActiveTopic={setActiveTopicAndCloseResourceView}
-        onCreateTopicAfterClear={isMessageOnlyView ? undefined : createAndActivateFreshTopic}
         onNewTopic={isMessageOnlyView ? undefined : handleCreateEmptyTopic}
         historyRecordsActive={historyRecordsActive}
         onOpenHistoryRecords={isWindowFrame ? undefined : openHistoryRecords}
@@ -765,8 +732,8 @@ const HomePage: FC = () => {
               presentation="right-panel"
               activeTopic={visibleTopic}
               assistantIdFilter={visibleAssistantId ?? null}
+              clearActiveTopic={clearActiveTopicAndCloseResourceView}
               setActiveTopic={setActiveTopicAndCloseResourceView}
-              onCreateTopicAfterClear={isMessageOnlyView ? undefined : createAndActivateFreshTopic}
               onNewTopic={isMessageOnlyView ? undefined : handleCreateEmptyTopic}
               onSetPanePosition={setTopicListPosition}
               panePosition="right"

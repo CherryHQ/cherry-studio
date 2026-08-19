@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
 
-import { canonOf, prefixHit } from '../../scripts/canonicalize'
+import { canonOf, isModelsDevRoutingAlias, prefixHit } from '../../scripts/canonicalize'
 import { CREATORS } from '../creators'
 import { isServerToolModelEligible } from '../patterns/serverToolModelEligibility'
 import { SERVER_TOOL } from '../schemas/enums'
@@ -152,6 +152,31 @@ describe('catalog invariants (data/*.json)', () => {
   // and coexists with (or shadows) its true base row.
   it('every base id is a canonicalization fixpoint (id === canonOf(id))', () => {
     expect(ids.filter((id) => canonOf(id) !== id)).toEqual([])
+  })
+
+  // A `:batch` twin bills through OpenRouter's async job API, which the app never calls — it must not
+  // reach the catalog as a model or as a provider row (see scripts/canonicalize.ts).
+  it('excludes batch-API twins from both the catalog and provider rows', () => {
+    const isBatch = (id: string) => /[:-]batch$/.test(id)
+    expect([
+      ...ids.filter(isBatch),
+      ...overrides.filter((o) => isBatch(o.apiModelId ?? o.modelId)).map((o) => `${o.providerId}/${o.apiModelId}`)
+    ]).toEqual([])
+  })
+
+  it('drops Vercel OpenAI fast routing aliases without dropping real fast models', () => {
+    expect(isModelsDevRoutingAlias('vercel', 'openai/gpt-5-fast')).toBe(true)
+    expect(isModelsDevRoutingAlias('vercel', 'bytedance/seedance-2.0-fast')).toBe(false)
+    expect(isModelsDevRoutingAlias('openrouter', 'anthropic/claude-opus-4.8-fast')).toBe(false)
+    expect(models.some((model) => model.id === 'claude-opus-4-8-fast')).toBe(true)
+    expect(
+      models.filter((model) => model.ownedBy === 'openai' && model.id.endsWith('-fast')).map((model) => model.id)
+    ).toEqual([])
+    expect(
+      overrides
+        .filter((override) => override.providerId === 'gateway' && /^openai\/.+-fast$/.test(override.apiModelId ?? ''))
+        .map((override) => override.apiModelId)
+    ).toEqual([])
   })
 
   it('assigns overlapping creator prefixes to the most specific owner', () => {
