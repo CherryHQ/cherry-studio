@@ -1,0 +1,299 @@
+name: Backport Release Hotfixes
+
+on:
+  pull_request_target:
+    branches:
+      - main
+    types: [opened, edited, reopened, closed]
+
+concurrency:
+  group: backport-release-fixes
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  classify:
+    name: Classify release hotfix
+    if: github.repository == 'CherryHQ/cherry-studio' && github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Synchronize hotfix label
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.TOKEN_GITHUB_WRITE }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          REPO: ${{ github.repository }}
+        run: |
+          export LC_ALL=C
+          HAS_LABEL="$(gh pr view "$PR_NUMBER" --repo "$REPO" --json labels --jq 'any(.labels[]; .name == "hotfix")')"
+
+          if [[ "$PR_TITLE" =~ ^hotfix(\([a-z0-9][a-z0-9-]*\))?:[[:space:]] ]]; then
+            gh label create "hotfix" --repo "$REPO" --color "D73A4A" --description "Urgent fix for the active draft release" --force
+            if [ "$HAS_LABEL" != "true" ]; then
+              gh pr edit "$PR_NUMBER" --repo "$REPO" --add-label "hotfix"
+            fi
+          elif [ "$HAS_LABEL" = "true" ]; then
+            gh pr edit "$PR_NUMBER" --repo "$REPO" --remove-label "hotfix"
+          fi
+
+  backport:
+    name: Backport hotfix to active release
+    if: |
+      github.repository == 'CherryHQ/cherry-studio' &&
+      github.event.pull_request.merged == true &&
+      (startsWith(github.event.pull_request.title, 'hotfix: ') || startsWith(github.event.pull_request.title, 'hotfix('))
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve active release branch
+        id: release-ref
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.TOKEN_GITHUB_WRITE }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          REPO: ${{ github.repository }}
+        run: |
+          export LC_ALL=C
+
+          if [[ ! "$PR_TITLE" =~ ^hotfix(\([a-z0-9][a-z0-9-]*\))?:[[:space:]] ]]; then
+            echo "Ignoring non-hotfix pull request title: $PR_TITLE"
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          gh label create "hotfix" --repo "$REPO" --color "D73A4A" --description "Urgent fix for the active draft release" --force
+          gh pr edit "$PR_NUMBER" --repo "$REPO" --add-label "hotfix"
+
+          CANDIDATES=()
+          while IFS= read -r TAG; do
+            if [[ ! "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
+              continue
+            fi
+
+            if gh api "repos/$REPO/git/ref/heads/release/$TAG" >/dev/null 2>&1; then
+              CANDIDATES+=("$TAG")
+            fi
+          done < <(gh api "repos/$REPO/releases?per_page=100" --paginate --jq '.[] | select(.draft == true) | .tag_name')
+
+          if [ "${#CANDIDATES[@]}" -eq 0 ]; then
+            echo "No draft semantic-version release has a matching release branch"
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ "${#CANDIDATES[@]}" -ne 1 ]; then
+            RELEASES="$(IFS=', '; echo "${CANDIDATES[*]}")"
+            gh pr comment "$PR_NUMBER" --repo "$REPO" --body "Automatic backport stopped because multiple active release branches match draft releases: $RELEASES"
+            echo "Expected one active release branch, found: $RELEASES" >&2
+            exit 1
+          fi
+
+          TAG="${CANDIDATES[0]}"
+          BRANCH="release/$TAG"
+          HEAD_SHA="$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha')"
+
+          echo "eligible=true" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+          echo "head-sha=$HEAD_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Mark hotfix for backport
+        if: steps.release-ref.outputs.eligible == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.TOKEN_GITHUB_WRITE }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ steps.release-ref.outputs.tag }}
+        run: |
+          LABEL="backport/$TAG"
+          gh label create "$LABEL" --repo "$REPO" --color "FBCA04" --description "Automatically backport this hotfix to $TAG" --force
+          gh pr edit "$PR_NUMBER" --repo "$REPO" --add-label "$LABEL"
+
+      - name: Check out release branch
+        if: steps.release-ref.outputs.eligible == 'true'
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ steps.release-ref.outputs.branch }}
+          token: ${{ secrets.TOKEN_GITHUB_WRITE }}
+
+      - name: Apply fix without committing
+        id: apply-fix
+        if: steps.release-ref.outputs.eligible == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.TOKEN_GITHUB_WRITE }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ steps.release-ref.outputs.tag }}
+        run: |
+          if ! git cat-file -e "$MERGE_SHA^{commit}" 2>/dev/null; then
+            git fetch origin "$MERGE_SHA"
+          fi
+
+          if ! git merge-base --is-ancestor "$MERGE_SHA" origin/main; then
+            echo "Merged commit $MERGE_SHA is not on origin/main" >&2
+            exit 1
+          fi
+
+          if git cherry HEAD "$MERGE_SHA" "$MERGE_SHA^" | grep -q '^-'; then
+            echo "has-changes=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if ! git cherry-pick --no-commit "$MERGE_SHA"; then
+            git cherry-pick --abort || true
+            PENDING_LABEL="backport/$TAG"
+            CONFLICT_LABEL="backport-conflict/$TAG"
+            gh label create "$CONFLICT_LABEL" --repo "$REPO" --color "B60205" --description "Automatic backport to $TAG needs conflict resolution" --force
+            gh pr edit "$PR_NUMBER" --repo "$REPO" --remove-label "$PENDING_LABEL" --add-label "$CONFLICT_LABEL"
+            gh pr comment "$PR_NUMBER" --repo "$REPO" --body "Automatic backport to \`release/$TAG\` has conflicts and needs manual resolution."
+            exit 1
+          fi
+
+          if git diff --cached --quiet; then
+            echo "has-changes=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has-changes=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create signed backport commit payload
+        if: steps.release-ref.outputs.eligible == 'true' && steps.apply-fix.outputs.has-changes == 'true'
+        shell: bash
+        env:
+          BRANCH: ${{ steps.release-ref.outputs.branch }}
+          EXPECTED_HEAD: ${{ steps.release-ref.outputs.head-sha }}
+          GH_TOKEN: ${{ secrets.TOKEN_GITHUB_WRITE }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          REPO: ${{ github.repository }}
+          SOURCE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          TAG: ${{ steps.release-ref.outputs.tag }}
+        run: |
+          AUTHOR_JSON="$(gh api user)"
+          export SIGNOFF_NAME="$(jq -r '.name // .login' <<< "$AUTHOR_JSON")"
+          export SIGNOFF_EMAIL="$(jq -r '"\(.id)+\(.login)@users.noreply.github.com"' <<< "$AUTHOR_JSON")"
+
+          node <<'NODE'
+          const { execFileSync } = require('node:child_process')
+          const fs = require('node:fs')
+          const path = require('node:path')
+
+          const changedPaths = execFileSync(
+            'git',
+            ['diff', '--cached', '--name-only', '--no-renames', '-z'],
+            { encoding: 'buffer' }
+          )
+            .toString('utf8')
+            .split('\0')
+            .filter(Boolean)
+
+          const additions = []
+          const deletions = []
+
+          for (const filePath of changedPaths) {
+            if (!fs.existsSync(filePath)) {
+              deletions.push({ path: filePath })
+              continue
+            }
+
+            const stats = fs.lstatSync(filePath)
+            if (stats.isDirectory()) {
+              throw new Error(`Cannot backport a gitlink: ${filePath}`)
+            }
+            if (stats.isSymbolicLink()) {
+              throw new Error(`Cannot backport a symbolic link: ${filePath}`)
+            }
+
+            const indexMode = execFileSync('git', ['ls-files', '--stage', '--', filePath], { encoding: 'utf8' })
+              .slice(0, 6)
+            let baseMode = null
+            try {
+              baseMode = execFileSync('git', ['ls-tree', 'HEAD', '--', filePath], { encoding: 'utf8' }).slice(0, 6)
+            } catch {}
+            if ((baseMode && baseMode !== indexMode) || (!baseMode && indexMode !== '100644')) {
+              throw new Error(`Cannot backport a file mode change: ${filePath}`)
+            }
+
+            const contents = fs.readFileSync(filePath)
+            additions.push({ path: filePath, contents: contents.toString('base64') })
+          }
+
+          const fileChanges = {}
+          if (additions.length > 0) fileChanges.additions = additions
+          if (deletions.length > 0) fileChanges.deletions = deletions
+
+          const payload = {
+            query: `mutation($input: CreateCommitOnBranchInput!) {
+              createCommitOnBranch(input: $input) {
+                commit { oid url }
+              }
+            }`,
+            variables: {
+              input: {
+                branch: {
+                  repositoryNameWithOwner: process.env.REPO,
+                  branchName: process.env.BRANCH
+                },
+                expectedHeadOid: process.env.EXPECTED_HEAD,
+                message: {
+                  headline: process.env.PR_TITLE,
+                  body: `Backport #${process.env.PR_NUMBER} to ${process.env.BRANCH}.\n\nSource: ${process.env.SOURCE_SHA}\n\nSigned-off-by: ${process.env.SIGNOFF_NAME} <${process.env.SIGNOFF_EMAIL}>`
+                },
+                fileChanges
+              }
+            }
+          }
+
+          fs.writeFileSync(path.join(process.env.RUNNER_TEMP, 'backport-commit.json'), JSON.stringify(payload))
+          NODE
+
+      - name: Commit backport to release branch
+        id: commit
+        if: steps.release-ref.outputs.eligible == 'true' && steps.apply-fix.outputs.has-changes == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.TOKEN_GITHUB_WRITE }}
+          REPO: ${{ github.repository }}
+        run: |
+          RESPONSE="$(gh api graphql --input "$RUNNER_TEMP/backport-commit.json")"
+          COMMIT_SHA="$(jq -r '.data.createCommitOnBranch.commit.oid' <<< "$RESPONSE")"
+          COMMIT_URL="$(jq -r '.data.createCommitOnBranch.commit.url' <<< "$RESPONSE")"
+          VERIFIED="$(gh api "repos/$REPO/commits/$COMMIT_SHA" --jq '.commit.verification.verified')"
+
+          if [ "$VERIFIED" != "true" ]; then
+            echo "Backport commit $COMMIT_SHA was not verified" >&2
+            exit 1
+          fi
+
+          echo "sha=$COMMIT_SHA" >> "$GITHUB_OUTPUT"
+          echo "url=$COMMIT_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Mark backport complete
+        if: steps.release-ref.outputs.eligible == 'true'
+        shell: bash
+        env:
+          COMMIT_URL: ${{ steps.commit.outputs.url }}
+          GH_TOKEN: ${{ secrets.TOKEN_GITHUB_WRITE }}
+          HAS_CHANGES: ${{ steps.apply-fix.outputs.has-changes }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ steps.release-ref.outputs.tag }}
+        run: |
+          PENDING_LABEL="backport/$TAG"
+          COMPLETE_LABEL="backported/$TAG"
+          gh label create "$COMPLETE_LABEL" --repo "$REPO" --color "0E8A16" --description "This fix was backported to $TAG" --force
+          gh pr edit "$PR_NUMBER" --repo "$REPO" --remove-label "$PENDING_LABEL" --add-label "$COMPLETE_LABEL"
+
+          if [ "$HAS_CHANGES" = "true" ]; then
+            gh pr comment "$PR_NUMBER" --repo "$REPO" --body "Automatically backported to \`release/$TAG\`: $COMMIT_URL"
+          else
+            gh pr comment "$PR_NUMBER" --repo "$REPO" --body "No backport commit was needed because \`release/$TAG\` already contains this fix."
+          fi

@@ -1,11 +1,11 @@
 ---
 name: prepare-release
-description: Prepare a new release by collecting commits, generating bilingual release notes, updating version files, and creating a release branch with PR. Use when asked to prepare/create a release, bump version, or run `/prepare-release`.
+description: Prepare a new release by collecting commits, generating bilingual release notes, updating version files, and creating a release branch. Use when asked to prepare/create a release, bump version, or run `/prepare-release`.
 ---
 
 # Prepare Release
 
-Automate the Cherry Studio release workflow: collect changes → generate bilingual release notes → update files → create release branch + PR → trigger CI/CD.
+Automate the Cherry Studio release workflow: collect changes → generate bilingual release notes → update files → create release branch → trigger CI/CD.
 
 ## Arguments
 
@@ -16,38 +16,48 @@ Parse the version intent from the user's message. Accept any of these forms:
 
 Defaults to `patch` if no version is specified. Always echo the resolved target version back to the user before proceeding with any file edits.
 
-- `--dry-run`: Preview only, do not create branch or PR.
+- `--dry-run`: Preview only, do not create a release branch.
 
 ## Workflow
 
 ### Step 1: Determine Version
 
-1. Get the latest tag:
+1. Read the current version from `package.json`. Post Release keeps this synchronized with the last published release.
+2. Resolve the baseline tag as `v{current-version}` and verify that it exists:
    ```bash
-   git describe --tags --abbrev=0
+   git rev-parse --verify refs/tags/v{current-version}
    ```
-2. Read current version from `package.json`.
+   Stop if it is missing. Confirm that it is also the latest published, non-draft GitHub Release:
+   ```bash
+   gh release list --exclude-drafts --limit 1 --json tagName --jq '.[0].tagName'
+   ```
+   Stop on a mismatch: the latest Post Release metadata PR must be merged into `main` before another release is prepared.
 3. Compute the new version based on the argument:
-   - `patch` / `minor` / `major`: bump from the current tag version.
+   - `patch` / `minor` / `major`: bump from the current version.
    - `x.y.z` or `x.y.z-pre.N`: use as-is after validating it is valid semver.
 
 ### Step 2: Collect Commits
 
-1. List all commits since the last tag:
+1. Determine the release-note collection base:
+   - If the baseline tag is an ancestor of `HEAD`, use the tag.
+   - Otherwise, use the latest commit whose subject is `chore(release): sync <baseline-tag> metadata`. This is the Post Release marker on `main` for a tag built from a separate release branch.
+   - Stop with an error if the tag is not an ancestor and its metadata sync commit is missing; otherwise already-released hotfixes could be included again.
+2. List all commits since that base:
    ```bash
-   git log <last-tag>..HEAD --format="%H %s" --no-merges
+   git log <collection-base>..HEAD --format="%H %s" --no-merges
    ```
-2. For each commit, get the full body:
+3. For each commit, get the full body:
    ```bash
    git log <hash> -1 --format="%B"
    ```
-3. Extract the content inside `` ```release-note `` code blocks from each commit body.
-4. Extract the conventional commit type from the title (`feat`, `fix`, `refactor`, `perf`, `docs`, etc.).
-5. **Skip** these commits:
+4. Extract the content inside `` ```release-note `` code blocks from each commit body.
+5. Extract the conventional commit type from the title (`feat`, `fix`, `refactor`, `perf`, `docs`, etc.).
+6. **Skip** these commits:
    - Titles starting with `🤖 Daily Auto I18N`
    - Titles starting with `Merge`
    - Titles starting with `chore(deps)`
    - Titles starting with `chore: release`
+   - Titles starting with `chore(release)`
    - Commits where the release-note block says `NONE`
 
 ### Step 3: Generate Bilingual Release Notes
@@ -141,38 +151,29 @@ If `--dry-run` was specified, stop here.
 
 Otherwise, ask the user to confirm before proceeding to Step 6.
 
-### Step 6: Create Branch and PR
+### Step 6: Create Release Branch
 
 1. Create and push the release branch:
    ```bash
    git checkout -b release/v{version}
    git add package.json electron-builder.yml resources/cherry-studio/release-history.json resources/builtin-agents/cherry-assistant/product-manifest.json
-   git commit -m "chore: release v{version}"
+   git commit -m "chore(release): prepare v{version}"
    git push -u origin release/v{version}
    ```
-2. Create the PR using the `gh-create-pr` skill. If the skill tool is unavailable, read `.agents/skills/gh-create-pr/SKILL.md` and follow it manually. In CI (non-interactive) mode, skip interactive confirmation steps and create the PR directly after filling the template.
-   - Use title: `chore: release v{version}`
-   - Use base branch: `main`
-   - When filling the PR template, incorporate:
-     - The generated release notes (English section only, for readability).
-     - A list of included commits.
-     - A review checklist:
-       - [ ] Review generated release notes in `electron-builder.yml`
-       - [ ] Verify stable release notes are preserved in `resources/cherry-studio/release-history.json`
-       - [ ] Verify version bump in `package.json`
-       - [ ] Verify generated product manifest uses the release version
-       - [ ] CI passes
-       - [ ] Merge to trigger release build
-3. Report the PR URL and next steps.
+2. Report the release branch and next steps. Do not create a PR yet: the release must be built and published from this branch first.
 
 ## CI Trigger Chain
 
-- Creating a PR from `release/v*` to `main` triggers **`ci.yml`** for lint, typecheck, generated-artifact checks, and tests.
-- Merging that PR triggers **`release.yml`**, which builds on macOS, Windows, and Linux and creates a draft GitHub Release.
+- Run **`release.yml`** manually with `release/v{version}` selected as the workflow branch. It validates the branch name against `package.json`, builds the exact branch commit on macOS, Windows, and Linux, and creates or updates a draft GitHub Release.
+- While a single draft semantic-version release is active, **`backport-release-fixes.yml`** automatically backports merged `hotfix:` and `hotfix(scope):` PRs from `main` to its matching release branch. It manages the `hotfix` and backport-status labels and reports conflicts on the source PR; never merge `main` into the release branch.
+- After an automatic backport passes CI, run **`release.yml`** again from the release branch to rebuild the draft release.
+- Publishing the draft GitHub Release triggers **`post-release.yml`**, which verifies that the tag still matches the release branch and creates a `release-sync/v{version}` metadata-only PR from the latest `main`.
+- The metadata PR synchronizes only `package.json`, `electron-builder.yml`, release history, and the generated product manifest. It triggers **`ci.yml`**; merge it only after CI passes.
 
 ## Constraints
 
 - Always read `electron-builder.yml` before modifying it to understand the current format.
 - Never modify files other than `package.json`, `electron-builder.yml`, `resources/cherry-studio/release-history.json`, and the generated `resources/builtin-agents/cherry-assistant/product-manifest.json`.
 - Never push directly to `main`.
-- Always show the generated release notes to the user before creating the branch/PR (unless running in CI with no interactive user).
+- Never create the release metadata PR before the GitHub Release is published; `post-release.yml` owns that step.
+- Always show the generated release notes to the user before creating the release branch (unless running in CI with no interactive user).

@@ -3,10 +3,6 @@ name: Release
 on:
   workflow_dispatch:
     inputs:
-      tag:
-        description: "Release tag (e.g. v1.0.0)"
-        required: true
-        default: "v1.0.0"
       platform:
         description: "Build platform"
         required: true
@@ -17,29 +13,80 @@ on:
           - windows
           - mac
           - linux
-  pull_request_target:
-    branches:
-      - main
-    types:
-      - closed
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: write
 
 jobs:
+  prepare:
+    name: Prepare release ref
+    if: github.repository == 'CherryHQ/cherry-studio'
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.release-ref.outputs.tag }}
+    steps:
+      - name: Check out release commit
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+
+      - name: Validate release branch and version
+        id: release-ref
+        shell: bash
+        run: |
+          export LC_ALL=C
+          BRANCH="${GITHUB_REF_NAME}"
+          TAG="${BRANCH#release/}"
+
+          if [ "$GITHUB_REF_TYPE" != "branch" ] || [[ "$BRANCH" != release/v* ]]; then
+            echo "Release must run from a release/v<semver> branch, not $GITHUB_REF" >&2
+            exit 1
+          fi
+
+          if [[ ! "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
+            echo "Invalid release branch: $BRANCH" >&2
+            exit 1
+          fi
+
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          if [ "$TAG" != "v$PACKAGE_VERSION" ]; then
+            echo "Branch $BRANCH does not match package.json version $PACKAGE_VERSION" >&2
+            exit 1
+          fi
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Point draft release tag at this commit
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release-ref.outputs.tag }}
+        run: |
+          if RELEASE="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" 2>/dev/null)"; then
+            if [ "$(jq -r '.draft' <<< "$RELEASE")" != "true" ]; then
+              echo "Release $TAG is already published; create a new version instead" >&2
+              exit 1
+            fi
+          elif git show-ref --verify --quiet "refs/tags/$TAG" && [ "$(git rev-list -n 1 "$TAG")" != "$GITHUB_SHA" ]; then
+            echo "Tag $TAG exists without a draft release and points to another commit" >&2
+            exit 1
+          fi
+
+          git tag --force "$TAG" "$GITHUB_SHA"
+          git push --force origin "refs/tags/$TAG"
+
   release:
-    # Only run for tag push, workflow_dispatch, or PR from release branches
-    if: |
-      github.event_name == 'push' ||
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'pull_request_target' && github.event.pull_request.merged == true && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.event.pull_request.head.ref, 'release/v'))
+    needs: prepare
     runs-on: ${{ matrix.os }}
 
     strategy:
       matrix:
         os: ${{ fromJSON(
-          github.event_name == 'push' && '["macos-latest", "windows-latest", "ubuntu-latest"]' ||
-          github.event_name == 'pull_request_target' && '["macos-latest", "windows-latest", "ubuntu-latest"]' ||
           github.event.inputs.platform == 'all' && '["macos-latest", "windows-latest", "ubuntu-latest"]' ||
           github.event.inputs.platform == 'linux' && '["ubuntu-latest"]' ||
           github.event.inputs.platform == 'windows' && '["windows-latest"]' ||
@@ -53,28 +100,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
-          ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || '' }}
-
-      - name: Get release tag
-        id: get-tag
-        shell: bash
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
-          elif [ "${{ github.event_name }}" = "pull_request_target" ]; then
-            # Extract version from branch name (release/v1.0.0 -> v1.0.0)
-            BRANCH="${{ github.event.pull_request.head.ref }}"
-            echo "tag=${BRANCH#release/}" >> $GITHUB_OUTPUT
-          else
-            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Set package.json version
-        shell: bash
-        run: |
-          TAG="${{ steps.get-tag.outputs.tag }}"
-          VERSION="${TAG#v}"
-          npm version "$VERSION" --no-git-tag-version --allow-same-version
+          ref: ${{ github.sha }}
 
       - name: Install Node.js
         uses: actions/setup-node@v6
@@ -156,7 +182,8 @@ jobs:
         with:
           draft: true
           allowUpdates: true
+          updateOnlyUnreleased: true
           makeLatest: false
-          tag: ${{ steps.get-tag.outputs.tag }}
-          artifacts: "dist/*.exe,dist/*.zip,dist/*.dmg,dist/*.AppImage,dist/*.snap,dist/*.deb,dist/*.rpm,dist/*.tar.gz,dist/latest*.yml,dist/rc*.yml,dist/beta*.yml,dist/*.blockmap${{ matrix.os == 'ubuntu-latest' && !contains(steps.get-tag.outputs.tag, '-') && ',resources/cherry-studio/release-history.json' || '' }}"
+          tag: ${{ needs.prepare.outputs.tag }}
+          artifacts: "dist/*.exe,dist/*.zip,dist/*.dmg,dist/*.AppImage,dist/*.snap,dist/*.deb,dist/*.rpm,dist/*.tar.gz,dist/latest*.yml,dist/rc*.yml,dist/beta*.yml,dist/*.blockmap${{ matrix.os == 'ubuntu-latest' && !contains(needs.prepare.outputs.tag, '-') && ',resources/cherry-studio/release-history.json' || '' }}"
           token: ${{ secrets.GITHUB_TOKEN }}

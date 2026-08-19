@@ -50,14 +50,19 @@ When contributing to Cherry Studio, please follow these guidelines:
 
    - Create from `main` branch
    - Naming format: `hotfix/issue-number-brief-description`
+   - Use a `hotfix:` or `hotfix(scope):` PR title; CI synchronizes the required `hotfix` label from the title
    - Submit PR back to `main`
 
 5. **Release Branches:**
    - Create from `main` branch
-   - Naming format: `release/version-number`
+   - Naming format: `release/v<semantic-version>`
    - Used for final preparation work before version release
    - Only accepts bug fixes and documentation updates
-   - After testing and preparation, merge back to `main` and tag with version
+   - Build and tag releases from this branch, never from `main`
+   - Merged `hotfix:` PRs are automatically labeled and backported while one matching draft release is active
+   - Resolve any automatically reported backport conflicts without merging all of `main` into the release branch
+   - Publishing the GitHub Release opens a metadata-only sync PR from the release tag to the latest `main`
+   - Keep the metadata PR title unchanged; its squash commit marks the next release-note collection boundary
 
 ## Workflow Diagram
 

@@ -9,6 +9,7 @@ on:
     branches:
       - main
       - v2
+      - "release/v*"
   pull_request:
     branches:
       - main
