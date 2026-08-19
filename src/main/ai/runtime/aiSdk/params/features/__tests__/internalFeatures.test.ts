@@ -440,5 +440,36 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
       expect(result.providerOptions.openai.enable_thinking).toBe(true)
       expect(result.providerOptions.openai.temperature).toBe(0.7)
     })
+
+    it('sends enable_thinking: false when reasoning is off', async () => {
+      const scope = makeScope({
+        provider: { id: 'my-vllm' },
+        model: {
+          id: 'my-vllm::qwen3-14b',
+          providerId: 'my-vllm',
+          reasoning: { selectableEfforts: ['none', 'auto'] }
+        },
+        assistant: { id: 'a', settings: { reasoning_effort: 'off' } as Assistant['settings'] },
+        reasoning: { kind: 'off', selection: 'none', emissions: [{ target: 'reasoningEffort', value: 'none' }] }
+      })
+
+      expect(activeNames(scope)).toContain('qwen-enable-thinking')
+
+      const plugin = collectFromFeatures(scope, INTERNAL_FEATURES).modelAdapters.find(
+        (candidate) => (candidate as { name?: string }).name === 'qwen-enable-thinking'
+      ) as any
+      expect(plugin).toBeDefined()
+
+      // Simulate configureContext + transformParams
+      const extensions = new Map<string, unknown>()
+      const context = { extensions, middlewares: [] as any[] }
+      plugin.configureContext(context)
+
+      const params = { providerOptions: { openai: { temperature: 0.7 } } }
+      const result = plugin.transformParams(params, context)
+
+      expect(result.providerOptions.openai.enable_thinking).toBe(false)
+      expect(result.providerOptions.openai.temperature).toBe(0.7)
+    })
   })
 })
