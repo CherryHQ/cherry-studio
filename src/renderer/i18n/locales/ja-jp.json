@@ -2994,6 +2994,8 @@
       "file_preview": "ファイルプレビュー",
       "installed": "インストール済み",
       "no_description": "説明なし",
+      "open_folder": "フォルダーを開く",
+      "open_folder_failed": "フォルダーを開けませんでした",
       "updated_at": "最近更新"
     },
     "skill_marketplace": {

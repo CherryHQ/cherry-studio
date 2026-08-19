@@ -2994,6 +2994,8 @@
       "file_preview": "Aperçu du fichier",
       "installed": "Installé",
       "no_description": "Aucune description",
+      "open_folder": "Ouvrir le dossier",
+      "open_folder_failed": "Impossible d’ouvrir le dossier",
       "updated_at": "Récemment mis à jour"
     },
     "skill_marketplace": {

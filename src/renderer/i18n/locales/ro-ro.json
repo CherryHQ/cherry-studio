@@ -2994,6 +2994,8 @@
       "file_preview": "Previzualizare fișier",
       "installed": "Instalat",
       "no_description": "Fără descriere",
+      "open_folder": "Deschide directorul",
+      "open_folder_failed": "Directorul nu a putut fi deschis",
       "updated_at": "Actualizat recent"
     },
     "skill_marketplace": {

@@ -2994,6 +2994,8 @@
       "file_preview": "Προεπισκόπηση αρχείου",
       "installed": "Εγκατεστημένο",
       "no_description": "Χωρίς περιγραφή",
+      "open_folder": "Άνοιγμα φακέλου",
+      "open_folder_failed": "Δεν ήταν δυνατό το άνοιγμα του φακέλου",
       "updated_at": "Πρόσφατα ενημερώθηκε"
     },
     "skill_marketplace": {

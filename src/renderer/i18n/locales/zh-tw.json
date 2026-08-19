@@ -2994,6 +2994,8 @@
       "file_preview": "檔案預覽",
       "installed": "已安裝",
       "no_description": "目前沒有描述",
+      "open_folder": "開啟資料夾",
+      "open_folder_failed": "無法開啟資料夾",
       "updated_at": "最近更新"
     },
     "skill_marketplace": {
