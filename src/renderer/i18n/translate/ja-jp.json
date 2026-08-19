@@ -7438,6 +7438,11 @@
         "use_all_keys": "キー"
       },
       "collapse_all": "すべて折りたたむ",
+      "conversation_suggestions": {
+        "default_model": "Use default model",
+        "description": "Generate starter prompts for empty Chat and Agent conversations",
+        "label": "Conversation Suggestions"
+      },
       "default_assistant_model": "デフォルトアシスタントモデル",
       "default_assistant_model_description": "アシスタントにモデルがない場合に使用されます",
       "docs": "モデルドキュメント",

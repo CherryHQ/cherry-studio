@@ -25,6 +25,13 @@ export async function readQuickModel(): Promise<Model | undefined> {
   return (await dataApiService.get(`/models/${id}`)) ?? undefined
 }
 
+export async function readConversationSuggestionsModel(): Promise<Model | undefined> {
+  const id = ((await preferenceService.get('chat.suggestions.model_id')) ??
+    (await preferenceService.get('chat.default_model_id'))) as UniqueModelId | undefined
+  if (!id) return undefined
+  return (await dataApiService.get(`/models/${id}`)) ?? undefined
+}
+
 export async function readTranslateModel(): Promise<Model | undefined> {
   const id = ((await preferenceService.get('feature.translate.model_id')) ??
     (await preferenceService.get('chat.default_model_id'))) as UniqueModelId | undefined

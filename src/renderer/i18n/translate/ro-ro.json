@@ -7438,6 +7438,11 @@
         "use_all_keys": "Cheie(i)"
       },
       "collapse_all": "Restrânge tot",
+      "conversation_suggestions": {
+        "default_model": "Use default model",
+        "description": "Generate starter prompts for empty Chat and Agent conversations",
+        "label": "Conversation Suggestions"
+      },
       "default_assistant_model": "Model asistent implicit",
       "default_assistant_model_description": "Folosit când un asistent nu are model.",
       "docs": "Documentația modelului",

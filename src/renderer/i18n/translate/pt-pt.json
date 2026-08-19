@@ -7438,6 +7438,11 @@
         "use_all_keys": "Use chaves"
       },
       "collapse_all": "Recolher tudo",
+      "conversation_suggestions": {
+        "default_model": "Use default model",
+        "description": "Generate starter prompts for empty Chat and Agent conversations",
+        "label": "Conversation Suggestions"
+      },
       "default_assistant_model": "Modelo de assistente padrão",
       "default_assistant_model_description": "Usado quando um assistente não tem modelo.",
       "docs": "Documentação do modelo",

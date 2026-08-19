@@ -7471,6 +7471,11 @@
         "use_all_keys": "使用密钥"
       },
       "collapse_all": "全部折叠",
+      "conversation_suggestions": {
+        "default_model": "使用默认模型",
+        "description": "为空白 Chat 和 Agent 对话生成推荐话术",
+        "label": "对话推荐"
+      },
       "default_assistant_model": "默认助手模型",
       "default_assistant_model_description": "助手没有模型时使用这个模型",
       "docs": "模型文档",

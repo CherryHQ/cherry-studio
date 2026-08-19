@@ -1,29 +1,19 @@
-import { fetchGenerate } from '@renderer/utils/aiGeneration'
+import type { ConversationSuggestionPersona, ConversationSuggestions } from '@renderer/utils/conversationSuggestions'
 import { renderHook, waitFor } from '@testing-library/react'
 import { createElement, type ReactNode } from 'react'
 import { SWRConfig } from 'swr'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import {
-  type ConversationSuggestionRequestContext,
-  generateConversationSuggestions,
-  parseConversationSuggestions,
-  useConversationSuggestions
-} from '../useConversationSuggestions'
+import { useConversationSuggestions } from '../useConversationSuggestions'
 
-vi.mock('@renderer/utils/aiGeneration', () => ({ fetchGenerate: vi.fn() }))
+const mocks = vi.hoisted(() => ({ generateConversationSuggestions: vi.fn() }))
 
-const context: ConversationSuggestionRequestContext = {
-  mode: 'agent',
-  outputLanguage: 'zh-CN',
-  systemLocale: 'en-US',
-  localDateTime: 'Tuesday, August 11, 2026 at 3:15 PM',
-  timeZone: 'America/Los_Angeles',
-  randomSeed: 'seed-1',
-  persona: { name: 'Code Reviewer', description: 'Reviews changes carefully' }
-}
+vi.mock('@renderer/utils/aiGeneration', () => ({
+  generateConversationSuggestions: mocks.generateConversationSuggestions
+}))
 
-const fallback: [string, string, string] = ['Fallback one', 'Fallback two', 'Fallback three']
+const generated: ConversationSuggestions = ['One', 'Two', 'Three']
+const fallback: ConversationSuggestions = ['Fallback one', 'Fallback two', 'Fallback three']
 
 function createWrapper(cache = new Map()) {
   return function Wrapper({ children }: { children: ReactNode }) {
@@ -31,38 +21,39 @@ function createWrapper(cache = new Map()) {
   }
 }
 
-describe('conversation suggestion generation', () => {
-  beforeEach(() => vi.clearAllMocks())
-
-  it('sends only the approved local and persona context through the default-model helper', async () => {
-    vi.mocked(fetchGenerate).mockResolvedValue('{"suggestions":["检查改动","制定计划","补充验证"]}')
-
-    await expect(generateConversationSuggestions(context)).resolves.toEqual(['检查改动', '制定计划', '补充验证'])
-
-    expect(fetchGenerate).toHaveBeenCalledWith({
-      prompt: expect.stringContaining('For agent mode'),
-      content: JSON.stringify(context),
-      throwOnError: true
-    })
-    expect(fetchGenerate).not.toHaveBeenCalledWith(expect.objectContaining({ model: expect.anything() }))
-    const content = vi.mocked(fetchGenerate).mock.calls[0][0].content
-    expect(content).not.toContain('instructions')
-    expect(content).not.toContain('workspace')
+describe('useConversationSuggestions', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.generateConversationSuggestions.mockResolvedValue(generated)
   })
 
-  it.each([
-    ['wrong count', '{"suggestions":["one","two"]}'],
-    ['duplicates', '{"suggestions":["same","same","other"]}'],
-    ['blank suggestion', '{"suggestions":["one","  ","three"]}'],
-    ['extra field', '{"suggestions":["one","two","three"],"extra":true}'],
-    ['markdown wrapper', '```json\n{"suggestions":["one","two","three"]}\n```'],
-    ['overlong suggestion', JSON.stringify({ suggestions: ['one', 'two', 'x'.repeat(97)] })]
-  ])('rejects %s instead of accepting an unreliable model response', (_case, response) => {
-    expect(() => parseConversationSuggestions(response)).toThrow()
+  it('builds generation context from only locale, local time, seed, mode, language, and persona', async () => {
+    const persona: ConversationSuggestionPersona = { name: 'Code Reviewer', description: 'Reviews changes' }
+    const { result } = renderHook(
+      () =>
+        useConversationSuggestions({
+          mode: 'agent',
+          conversationId: 'session-1',
+          outputLanguage: 'zh-CN',
+          persona,
+          fallback
+        }),
+      { wrapper: createWrapper() }
+    )
+
+    await waitFor(() => expect(result.current.suggestions).toEqual(generated))
+    expect(mocks.generateConversationSuggestions).toHaveBeenCalledWith({
+      mode: 'agent',
+      outputLanguage: 'zh-CN',
+      systemLocale: navigator.language,
+      localDateTime: expect.any(String),
+      timeZone: expect.any(String),
+      randomSeed: expect.any(String),
+      persona
+    })
   })
 
   it('reuses suggestions for the same conversation context during the app run', async () => {
-    vi.mocked(fetchGenerate).mockResolvedValue('{"suggestions":["One","Two","Three"]}')
     const wrapper = createWrapper()
     const options = {
       mode: 'chat' as const,
@@ -72,17 +63,16 @@ describe('conversation suggestion generation', () => {
     }
 
     const first = renderHook(() => useConversationSuggestions(options), { wrapper })
-    await waitFor(() => expect(first.result.current.suggestions).toEqual(['One', 'Two', 'Three']))
+    await waitFor(() => expect(first.result.current.suggestions).toEqual(generated))
     first.unmount()
 
     const second = renderHook(() => useConversationSuggestions(options), { wrapper })
-    await waitFor(() => expect(second.result.current.suggestions).toEqual(['One', 'Two', 'Three']))
+    await waitFor(() => expect(second.result.current.suggestions).toEqual(generated))
 
-    expect(fetchGenerate).toHaveBeenCalledTimes(1)
+    expect(mocks.generateConversationSuggestions).toHaveBeenCalledTimes(1)
   })
 
   it('generates again when the conversation, language, or persona changes', async () => {
-    vi.mocked(fetchGenerate).mockResolvedValue('{"suggestions":["One","Two","Three"]}')
     const { rerender, result } = renderHook(
       ({ conversationId, outputLanguage, persona }) =>
         useConversationSuggestions({
@@ -102,31 +92,53 @@ describe('conversation suggestion generation', () => {
       }
     )
 
-    await waitFor(() => expect(result.current.suggestions).toEqual(['One', 'Two', 'Three']))
+    await waitFor(() => expect(result.current.suggestions).toEqual(generated))
     rerender({
       conversationId: 'session-2',
       outputLanguage: 'en-US',
       persona: { name: 'Agent One', description: 'First persona' }
     })
-    await waitFor(() => expect(fetchGenerate).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(mocks.generateConversationSuggestions).toHaveBeenCalledTimes(2))
     rerender({
       conversationId: 'session-2',
       outputLanguage: 'zh-CN',
       persona: { name: 'Agent One', description: 'First persona' }
     })
-    await waitFor(() => expect(fetchGenerate).toHaveBeenCalledTimes(3))
+    await waitFor(() => expect(mocks.generateConversationSuggestions).toHaveBeenCalledTimes(3))
     rerender({
       conversationId: 'session-2',
       outputLanguage: 'zh-CN',
       persona: { name: 'Agent Two', description: 'Second persona' }
     })
-    await waitFor(() => expect(fetchGenerate).toHaveBeenCalledTimes(4))
+    await waitFor(() => expect(mocks.generateConversationSuggestions).toHaveBeenCalledTimes(4))
   })
 
-  it('shows the local fallback without caching it as generated suggestions', async () => {
-    vi.mocked(fetchGenerate)
+  it('waits to expose fallback suggestions until generation is enabled', async () => {
+    mocks.generateConversationSuggestions.mockRejectedValue(new Error('No default model'))
+    const { rerender, result } = renderHook(
+      ({ enabled }) =>
+        useConversationSuggestions({
+          mode: 'chat',
+          conversationId: 'topic-with-loading-persona',
+          outputLanguage: 'en-US',
+          fallback,
+          enabled
+        }),
+      { initialProps: { enabled: false }, wrapper: createWrapper() }
+    )
+
+    expect(result.current).toEqual({ suggestions: undefined, isLoading: true })
+    expect(mocks.generateConversationSuggestions).not.toHaveBeenCalled()
+
+    rerender({ enabled: true })
+    await waitFor(() => expect(result.current.suggestions).toEqual(fallback))
+    expect(mocks.generateConversationSuggestions).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not cache a local fallback as generated suggestions', async () => {
+    mocks.generateConversationSuggestions
       .mockRejectedValueOnce(new Error('No default model'))
-      .mockResolvedValueOnce('{"suggestions":["Fresh one","Fresh two","Fresh three"]}')
+      .mockResolvedValueOnce(generated)
     const cache = new Map()
     const wrapper = createWrapper(cache)
     const options = {
@@ -141,7 +153,7 @@ describe('conversation suggestion generation', () => {
     first.unmount()
 
     const second = renderHook(() => useConversationSuggestions(options), { wrapper })
-    await waitFor(() => expect(second.result.current.suggestions).toEqual(['Fresh one', 'Fresh two', 'Fresh three']))
-    expect(fetchGenerate).toHaveBeenCalledTimes(2)
+    await waitFor(() => expect(second.result.current.suggestions).toEqual(generated))
+    expect(mocks.generateConversationSuggestions).toHaveBeenCalledTimes(2)
   })
 })

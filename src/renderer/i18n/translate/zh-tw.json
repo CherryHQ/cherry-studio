@@ -7438,6 +7438,11 @@
         "use_all_keys": "使用金鑰"
       },
       "collapse_all": "全部折疊",
+      "conversation_suggestions": {
+        "default_model": "Use default model",
+        "description": "Generate starter prompts for empty Chat and Agent conversations",
+        "label": "Conversation Suggestions"
+      },
       "default_assistant_model": "預設助理模型",
       "default_assistant_model_description": "助理未設定模型時使用。",
       "docs": "模型文件",

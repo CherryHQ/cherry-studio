@@ -1,12 +1,12 @@
 import { Button, Skeleton } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { useConversationSuggestions } from '@renderer/hooks/useConversationSuggestions'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import {
   type ConversationSuggestionMode,
   type ConversationSuggestionPersona,
-  type ConversationSuggestions as SuggestionTuple,
-  useConversationSuggestions
-} from '@renderer/hooks/useConversationSuggestions'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+  type ConversationSuggestions as SuggestionTuple
+} from '@renderer/utils/conversationSuggestions'
 import { useTranslation } from 'react-i18next'
 
 interface ConversationSuggestionsProps {
@@ -27,15 +27,17 @@ export function ConversationSuggestions({
   enabled
 }: ConversationSuggestionsProps) {
   const { i18n } = useTranslation()
-  const [appLanguage] = usePreference('app.language')
+  const [suggestionsEnabled] = usePreference('chat.suggestions.enabled')
   const { suggestions, isLoading } = useConversationSuggestions({
     mode,
     conversationId,
-    outputLanguage: appLanguage || i18n.language || navigator.language,
+    outputLanguage: i18n?.resolvedLanguage ?? i18n?.language ?? navigator.language,
     fallback,
     persona,
-    enabled
+    enabled: suggestionsEnabled && enabled !== false
   })
+
+  if (!suggestionsEnabled) return null
 
   if (isLoading || !suggestions) {
     return (

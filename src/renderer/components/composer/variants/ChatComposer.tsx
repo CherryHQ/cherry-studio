@@ -1308,15 +1308,27 @@ const ChatComposerInner = ({
         typeof payload === 'object' && payload ? (payload as { topicId?: string; text?: string }) : undefined
       if (input?.topicId !== streamScopeKey || !input.text) return
 
-      const currentDraft = actionsRef.current.getDraft()
+      const historyPreview = exitInputHistoryPreview()
+      const currentDraft = historyPreview.draft ?? actionsRef.current.getDraft()
       actionsRef.current.replaceDraft({ text: input.text, tokens: currentDraft.tokens })
       setText(input.text)
       setDraftTokens(currentDraft.tokens.length ? currentDraft.tokens : undefined)
-      resetHistoryIndex()
-      inputHistoryToolsRef.current = null
+      if (historyPreview.tools) {
+        setFiles(historyPreview.tools.files)
+        setMentionedModels(historyPreview.tools.mentionedModels)
+        setSelectedKnowledgeBases(historyPreview.tools.selectedKnowledgeBases)
+      }
       window.requestAnimationFrame(() => actionsRef.current.focus('end'))
     })
-  }, [actionsRef, resetHistoryIndex, setText, streamScopeKey])
+  }, [
+    actionsRef,
+    exitInputHistoryPreview,
+    setFiles,
+    setMentionedModels,
+    setSelectedKnowledgeBases,
+    setText,
+    streamScopeKey
+  ])
 
   useEffect(() => {
     Object.assign(actionsRef.current, { addNewTopic })

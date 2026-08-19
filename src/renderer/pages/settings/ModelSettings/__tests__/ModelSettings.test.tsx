@@ -9,6 +9,7 @@ const harness = vi.hoisted(() => ({
   defaultModel: undefined as Model | undefined,
   quickModel: undefined as Model | undefined,
   translateModel: undefined as Model | undefined,
+  suggestionsModel: undefined as Model | undefined,
   setDefaultModel: vi.fn(),
   setQuickModel: vi.fn(),
   setTranslateModel: vi.fn(),
@@ -82,7 +83,8 @@ vi.mock('@renderer/hooks/useModel', () => ({
     setQuickModel: harness.setQuickModel,
     setTranslateModel: harness.setTranslateModel,
     setPaintingModel: harness.setPaintingModel
-  })
+  }),
+  useModelById: () => ({ model: harness.suggestionsModel })
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
@@ -133,9 +135,12 @@ describe('ModelSettings', () => {
     harness.defaultModel = undefined
     harness.quickModel = undefined
     harness.translateModel = undefined
+    harness.suggestionsModel = undefined
     harness.selectorCallbacks = []
     harness.selectorFilters = []
     harness.preferenceValues = {
+      'chat.suggestions.enabled': true,
+      'chat.suggestions.model_id': null,
       'chat.retry.enabled': false,
       'chat.retry.max_attempts': 2,
       'chat.retry.backoff_enabled': true,
@@ -262,5 +267,16 @@ describe('ModelSettings', () => {
     expect(harness.preferenceSetters['chat.retry.enabled']).toHaveBeenCalledWith(false)
     expect(harness.preferenceSetters['chat.retry.max_attempts']).toHaveBeenNthCalledWith(1, 10)
     expect(harness.preferenceSetters['chat.retry.max_attempts']).toHaveBeenNthCalledWith(2, 1)
+  })
+
+  it('lets users disable suggestions or choose a dedicated model', () => {
+    const selectedModel = createModel('openai', 'gpt-4o-mini')
+    render(<ModelSettings showPaintingModel={false} showSettingsButton={false} />)
+
+    fireEvent.click(screen.getByLabelText('settings.models.conversation_suggestions.label'))
+    act(() => harness.selectorCallbacks[1](selectedModel))
+
+    expect(harness.preferenceSetters['chat.suggestions.enabled']).toHaveBeenCalledWith(false)
+    expect(harness.preferenceSetters['chat.suggestions.model_id']).toHaveBeenCalledWith(selectedModel.id)
   })
 })

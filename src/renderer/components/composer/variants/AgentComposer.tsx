@@ -912,9 +912,10 @@ const AgentComposerInner = ({
     },
     [actionsRef, filesRef, selectedKnowledgeBasesRef, setFiles, setSelectedKnowledgeBases, setText]
   )
-  const { isInputHistoryActive, navigateHistory, resetHistoryIndex, saveHistory } = useInputHistory({
-    applyDraft: applyHistoryDraft
-  })
+  const { isInputHistoryActive, navigateHistory, resetHistoryIndex, takeDraftBeforeHistory, saveHistory } =
+    useInputHistory({
+      applyDraft: applyHistoryDraft
+    })
   const handleTextChange = useCallback(
     (nextText: string) => {
       resetHistoryIndex()
@@ -1063,16 +1064,23 @@ const AgentComposerInner = ({
         typeof payload === 'object' && payload ? (payload as { topicId?: string; text?: string }) : undefined
       if (input?.topicId !== sessionTopicId || !input.text) return
 
-      const currentDraft = actionsRef.current.getDraft()
-      actionsRef.current.replaceDraft({ text: input.text, tokens: currentDraft.tokens })
+      const draftBeforeHistory = takeDraftBeforeHistory()
+      const currentDraft = draftBeforeHistory ?? actionsRef.current.getDraft()
+      const nextDraftTokens = getAgentDraftTokens(currentDraft.tokens)
+      actionsRef.current.replaceDraft({ text: input.text, tokens: nextDraftTokens })
       setText(input.text)
-      setDraftTokens(currentDraft.tokens)
-      draftTokensRef.current = currentDraft.tokens
-      resetHistoryIndex()
+      setDraftTokens(nextDraftTokens)
+      draftTokensRef.current = nextDraftTokens
+      setSelectedSkills(getCachedSkillTokens(nextDraftTokens).map(getSkillFromCachedToken))
+      const savedTools = inputHistoryToolsRef.current
       inputHistoryToolsRef.current = null
+      if (savedTools) {
+        setFiles(savedTools.files)
+        setSelectedKnowledgeBases(savedTools.selectedKnowledgeBases)
+      }
       window.requestAnimationFrame(() => actionsRef.current.focus('end'))
     })
-  }, [actionsRef, resetHistoryIndex, sessionTopicId, setText])
+  }, [actionsRef, sessionTopicId, setFiles, setSelectedKnowledgeBases, setText, takeDraftBeforeHistory])
 
   useEffect(() => {
     if (!launchOptions?.initialDraft) return

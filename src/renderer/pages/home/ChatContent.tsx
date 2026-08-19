@@ -211,20 +211,24 @@ const ChatContentInner: FC<InnerProps> = ({
     <div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
       {isEmptyConversation && (
         <div className="pointer-events-none absolute inset-0 z-10">
-          <ConversationGreeting avatar={assistant?.emoji} title={t('chat.home.welcome_title')}>
-            <ConversationSuggestions
-              mode="chat"
-              conversationId={topic.id}
-              topicId={topic.id}
-              enabled={!assistantContext?.isLoading}
-              persona={assistant ? { name: assistant.name, description: assistant.description } : undefined}
-              fallback={[
-                t('chat.home.suggestions.clarify'),
-                t('chat.home.suggestions.learn'),
-                t('chat.home.suggestions.explore')
-              ]}
-            />
-          </ConversationGreeting>
+          <ConversationGreeting
+            avatar={assistant?.emoji}
+            title={t('chat.home.welcome_title')}
+            footer={
+              <ConversationSuggestions
+                mode="chat"
+                conversationId={topic.id}
+                topicId={topic.id}
+                enabled={!assistantContext?.isLoading}
+                persona={assistant ? { name: assistant.name, description: assistant.description } : undefined}
+                fallback={[
+                  t('chat.home.suggestions.clarify'),
+                  t('chat.home.suggestions.learn'),
+                  t('chat.home.suggestions.explore')
+                ]}
+              />
+            }
+          />
         </div>
       )}
       <ChatMain

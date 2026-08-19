@@ -584,24 +584,26 @@ const AgentChatSessionCenter = ({
         <div className="pointer-events-none absolute inset-0 z-10">
           <ConversationGreeting
             avatar={activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration) : undefined}
-            title={homeWelcomeText ?? ''}>
-            {activeAgent && agentId ? (
-              <ConversationSuggestions
-                mode="agent"
-                conversationId={runtime.sessionId}
-                topicId={buildAgentSessionTopicId(runtime.sessionId)}
-                persona={{
-                  name: activeAgent.name,
-                  description: getAgentDescriptionForDisplay(activeAgent, t)
-                }}
-                fallback={[
-                  t('agent.home.suggestions.inspect'),
-                  t('agent.home.suggestions.plan'),
-                  t('agent.home.suggestions.review')
-                ]}
-              />
-            ) : null}
-          </ConversationGreeting>
+            title={homeWelcomeText ?? ''}
+            footer={
+              activeAgent && agentId && !isMultiSelectMode ? (
+                <ConversationSuggestions
+                  mode="agent"
+                  conversationId={runtime.sessionId}
+                  topicId={buildAgentSessionTopicId(runtime.sessionId)}
+                  persona={{
+                    name: activeAgent.name,
+                    description: getAgentDescriptionForDisplay(activeAgent, t)
+                  }}
+                  fallback={[
+                    t('agent.home.suggestions.inspect'),
+                    t('agent.home.suggestions.plan'),
+                    t('agent.home.suggestions.review')
+                  ]}
+                />
+              ) : null
+            }
+          />
         </div>
       )}
       <AgentChatMain
