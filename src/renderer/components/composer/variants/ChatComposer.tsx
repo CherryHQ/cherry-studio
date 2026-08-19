@@ -857,6 +857,10 @@ const ChatComposerInner = ({
             ? [runtimeModel]
             : EMPTY_MODELS
   const effectiveSubmittedModel = effectiveSubmittedModels.length === 1 ? effectiveSubmittedModels[0] : undefined
+  // Persisted assistant refreshes may clear transient mentions; submit the visible selector
+  // snapshot so the next turn cannot fall back to stale assistant state.
+  const submittedMentionedModels =
+    assistant && useMentionedModelSelector ? mentionedModelSelectorValue : mentionedModels
   // Without an assistant, persistent request controls have no owner. Keep per-turn Fast available.
   const speedControlModel = useMemo(
     () =>
@@ -1369,7 +1373,9 @@ const ChatComposerInner = ({
         // Allow attachment-only sends (matches v1 Inputbar + the send-enabled condition above).
         requireText: false,
         extra: () => ({
-          mentionedModels: mentionedModels.length ? mentionedModels.map((currentModel) => currentModel.id) : undefined,
+          mentionedModels: submittedMentionedModels.length
+            ? submittedMentionedModels.map((currentModel) => currentModel.id)
+            : undefined,
           reasoningEffort:
             assistantId && speedControlModel
               ? resolveComposerReasoningEffort(speedControlModel, reasoningEffort)
@@ -1402,11 +1408,11 @@ const ChatComposerInner = ({
       chatTarget,
       fastMode,
       files,
-      mentionedModels,
       reasoningEffort,
       serviceTier,
       selectedKnowledgeBasesInScope,
-      speedControlModel
+      speedControlModel,
+      submittedMentionedModels
     ]
   )
 
