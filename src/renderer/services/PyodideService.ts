@@ -35,6 +35,7 @@ class PyodideService {
   private initPromise: Promise<void> | null = null
   private initRetryCount: number = 0
   private resolvers: Map<string, { resolve: (value: any) => void; reject: (error: Error) => void }> = new Map()
+  private queue: Promise<unknown> = Promise.resolve()
 
   /**
    * 初始化 Pyodide Worker
@@ -133,10 +134,22 @@ class PyodideService {
    * @param timeout 超时时间（毫秒）
    * @returns 格式化后的执行结果
    */
-  public async runScript(
+  public runScript(
     script: string,
     context: Record<string, any> = {},
     timeout: number = SERVICE_CONFIG.WORKER.REQUEST_TIMEOUT.RUN
+  ): Promise<PyodideExecutionResult> {
+    // Worker 内的 Pyodide 同步执行且共享输出缓冲，必须串行处理请求
+    const run = () => this.executeScript(script, context, timeout)
+    const task = this.queue.then(run, run)
+    this.queue = task
+    return task
+  }
+
+  private async executeScript(
+    script: string,
+    context: Record<string, any>,
+    timeout: number
   ): Promise<PyodideExecutionResult> {
     // 确保Pyodide已初始化
     try {
@@ -156,9 +169,10 @@ class PyodideService {
       const output = await new Promise<PyodideOutput>((resolve, reject) => {
         const id = uuid()
 
-        // 设置消息超时
+        // 超时说明 Python 代码卡死了 worker 线程，只能销毁重建才能释放 CPU
         const timeoutId = setTimeout(() => {
           this.resolvers.delete(id)
+          this.terminate()
           reject(new Error('Python execution timed out'))
         }, timeout)
 
