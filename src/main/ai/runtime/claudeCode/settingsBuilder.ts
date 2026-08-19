@@ -497,7 +497,6 @@ export async function buildClaudeCodeSessionSettings(
   // without the guidance the model would never emit the `[cite:id]` markers those results need.
   const knowledgeBaseScope = resolveKnowledgeBaseScope(agent.knowledgeBaseIds, options?.knowledgeBaseIds)
   const systemPrompt = await buildSystemPrompt(
-    session,
     agent,
     cwd,
     agentDataPath,
@@ -1403,7 +1402,6 @@ async function buildToolPermissions(
 }
 
 export async function buildSystemPrompt(
-  _session: AgentSessionEntity,
   agent: AgentEntity,
   cwd: string,
   agentDataPath = cwd,
