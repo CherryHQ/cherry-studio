@@ -52,10 +52,7 @@ export function buildDshCherryToolName(serverName: string, toolName: string): st
   return `${safePrefix.slice(0, 50)}_${hash}`
 }
 
-const toDshRuntimeName = (runtimeName: string): string => {
-  const [, serverName, toolName] = runtimeName.split('__')
-  return buildDshCherryToolName(serverName, toolName)
-}
+const toDshRuntimeName = (runtimeName: string): string => runtimeName
 
 export const DSH_AUTO_APPROVED_BRIDGED_TOOLS: ReadonlySet<string> = new Set([
   ...CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map((name) => buildDshCherryToolName('cherry-tools', name)),

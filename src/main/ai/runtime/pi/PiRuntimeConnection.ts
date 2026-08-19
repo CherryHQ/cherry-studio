@@ -71,10 +71,7 @@ import { createPiProviderExtension } from './providerExtension'
 const logger = loggerService.withContext('PiRuntimeConnection')
 const PI_BUILTIN_TOOL_NAMES = PI_NATIVE_BUILTIN_TOOLS.map((tool) => tool.name)
 const PI_BUILTIN_TOOL_ALIASES = new Map(PI_BUILTIN_TOOL_NAMES.map((name) => [name.toLowerCase(), name]))
-const toPiMcpRuntimeName = (runtimeName: string): string => {
-  const [, serverName, toolName] = runtimeName.split('__')
-  return buildPiMcpToolName(serverName, toolName)
-}
+const toPiMcpRuntimeName = (runtimeName: string): string => runtimeName
 const PI_AUTO_APPROVED_MCP_TOOLS = new Set([
   ...CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map((name) => buildPiMcpToolName('cherry-tools', name)),
   buildPiMcpToolName('agent-memory', 'memory'),
