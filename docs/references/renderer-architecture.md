@@ -118,7 +118,7 @@ A **headless** capability (no UI) that outgrows one file grows **in place** into
 | Satellites skip shape routing | a topic-**specific** helper lives here even though its shape says `utils/` — the §3 shape tests bind **shared** modules only; a **generic** helper (reads naturally with no topic context) still goes to `utils/` |
 | Single consumer, or out | a satellite stays only while this topic is its sole consumer; a second consumer moves it to `utils/` (generic) or promotes it into the barrel (topic public API) |
 | No UI, ever | no JSX and no React hooks inside; UI parts route into the shared buckets by shape (§3 / §6), and the domain promotes to `features/<domain>/` only once the §4.1 trigger holds |
-| Plain internal names | files drop the topic prefix (the directory carries it) — `aiTransport/streamDispatchCoordinator.ts`, not `aiTransportStreamDispatchCoordinator.ts`; the `Service` / `Manager` suffix still marks only stateful singleton classes ([Naming §5.2](./naming-conventions.md)) |
+| Plain internal names | files drop the topic prefix (the directory carries it) — `aiTransport/StreamDispatchService.ts`, not `aiTransportStreamDispatchService.ts`; the `Service` / `Manager` suffix still marks only stateful singleton classes ([Naming §5.2](./naming-conventions.md)) |
 
 ## 4. `features/` Definition
 
