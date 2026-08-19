@@ -9,6 +9,7 @@
  * by a non-composing keydown, or by the next composition starting. A blur rejects it.
  */
 
+import { ipcApi } from '@renderer/ipc'
 import type { PointerEvent as ReactPointerEvent, RefObject } from 'react'
 import { useCallback, useEffect, useRef } from 'react'
 
@@ -63,6 +64,15 @@ export function TextInput({ position, selection, fontSize, color, onConfirm, onC
       onConfirmRef.current(text)
     } else {
       onCancelRef.current()
+    }
+  }, [])
+
+  // The overlay outranks the macOS IME candidate window, which would leave the user
+  // composing blind; main steps it down for as long as this editor is open.
+  useEffect(() => {
+    void ipcApi.request('screenshot.text_editing', { editing: true })
+    return () => {
+      void ipcApi.request('screenshot.text_editing', { editing: false })
     }
   }, [])
 
