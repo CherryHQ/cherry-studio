@@ -408,6 +408,8 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
+import { tabSessionRegistry } from '@renderer/services/TabSessionRegistry'
+
 import Sidebar from '../Sidebar'
 
 const appFavorite = (id: SidebarAppId): SidebarFavoriteItem => ({ type: 'app', id })
@@ -893,6 +895,59 @@ describe('app Sidebar', () => {
 
     // Re-entering through the interceptor would rebind the tab to the last-used
     // conversation — an owned tab is already "there", whatever session it shows.
+    expect(mocks.updateTab).not.toHaveBeenCalled()
+    expect(mocks.openTab).not.toHaveBeenCalled()
+  })
+
+  it('opens a new tab instead of replacing one that has a task running', () => {
+    // Replacing the tab would abort work the user can neither watch finish nor return to.
+    mocks.sidebarFavorites = [appFavorite('translate'), appFavorite('assistants')]
+    mocks.activeTab = {
+      id: 'busy',
+      type: 'route',
+      url: '/app/translate?tabSession=running',
+      title: 'Translate'
+    }
+    const session = tabSessionRegistry.getOrCreate('running', () => true)
+    session.addTask(new AbortController())
+
+    render(<Sidebar />)
+    fireEvent.click(screen.getByTestId('sidebar-item-assistants'))
+
+    expect(mocks.updateTab).not.toHaveBeenCalled()
+    expect(mocks.openTab).toHaveBeenCalledWith('/app/chat', expect.objectContaining({ forceNew: true }))
+  })
+
+  it('replaces a tab whose task has finished', () => {
+    mocks.sidebarFavorites = [appFavorite('translate'), appFavorite('assistants')]
+    mocks.activeTab = {
+      id: 'idle',
+      type: 'route',
+      url: '/app/translate?tabSession=idle-session',
+      title: 'Translate'
+    }
+    const session = tabSessionRegistry.getOrCreate('idle-session', () => true)
+    session.addTask(new AbortController())()
+
+    render(<Sidebar />)
+    fireEvent.click(screen.getByTestId('sidebar-item-assistants'))
+
+    expect(mocks.updateTab).toHaveBeenCalledWith('idle', expect.objectContaining({ url: '/app/chat' }))
+    expect(mocks.openTab).not.toHaveBeenCalled()
+  })
+
+  it('treats a translate tab as already active regardless of its session id', () => {
+    mocks.sidebarFavorites = [appFavorite('translate')]
+    mocks.activeTab = {
+      id: 'translating',
+      type: 'route',
+      url: '/app/translate?tabSession=abc',
+      title: 'Translate'
+    }
+
+    render(<Sidebar />)
+    fireEvent.click(screen.getByTestId('sidebar-item-translate'))
+
     expect(mocks.updateTab).not.toHaveBeenCalled()
     expect(mocks.openTab).not.toHaveBeenCalled()
   })
