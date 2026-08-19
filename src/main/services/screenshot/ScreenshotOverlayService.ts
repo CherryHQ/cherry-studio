@@ -608,8 +608,11 @@ export class ScreenshotOverlayService extends BaseService {
 
     // Explicit, not left to pool release: an overlay whose session ended mid-edit would
     // otherwise come back at the text editor's level and never cover the Dock again.
-    const windowManager = application.get('WindowManager')
-    for (const windowId of this.overlayWindowIds) windowManager.behavior.setAlwaysOnTopLevel(windowId, null)
+    // Only macOS ever steps an overlay down (see setTextEditing), so only macOS restores.
+    if (isMac) {
+      const windowManager = application.get('WindowManager')
+      for (const windowId of this.overlayWindowIds) windowManager.behavior.setAlwaysOnTopLevel(windowId, null)
+    }
 
     this.overlayWindowIds = []
     this.activeOverlayWindowId = null

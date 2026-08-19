@@ -10,6 +10,7 @@
  */
 
 import { ipcApi } from '@renderer/ipc'
+import { isMac } from '@renderer/utils/platform'
 import type { PointerEvent as ReactPointerEvent, RefObject } from 'react'
 import { useCallback, useEffect, useRef } from 'react'
 
@@ -68,8 +69,10 @@ export function TextInput({ position, selection, fontSize, color, onConfirm, onC
   }, [])
 
   // The overlay outranks the macOS IME candidate window, which would leave the user
-  // composing blind; main steps it down for as long as this editor is open.
+  // composing blind; main steps it down for as long as this editor is open. Nothing to
+  // report elsewhere — the other platforms keep the overlay topmost throughout.
   useEffect(() => {
+    if (!isMac) return
     void ipcApi.request('screenshot.text_editing', { editing: true })
     return () => {
       void ipcApi.request('screenshot.text_editing', { editing: false })
