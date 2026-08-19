@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/process/2026-08-19-phase-0b-doc-audit-outcomes.md
+2026-08-19-phase-0b-doc-audit-outcomes.md: 35c2dbf8f3bea88705156471a4e8acd524c6542c
+2026-08-19-phase-0b-doc-audit-outcomes.zh.md: 1fa0457068dada295b0711204d4869cc9d196ef6
