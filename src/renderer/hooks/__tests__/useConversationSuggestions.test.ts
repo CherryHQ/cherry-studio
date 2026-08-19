@@ -6,10 +6,20 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useConversationSuggestions } from '../useConversationSuggestions'
 
-const mocks = vi.hoisted(() => ({ generateConversationSuggestions: vi.fn() }))
+const mocks = vi.hoisted(() => ({
+  defaultModelId: 'default-model-1' as string | null,
+  generateConversationSuggestions: vi.fn(),
+  suggestionsModelId: null as string | null
+}))
 
 vi.mock('@renderer/utils/aiGeneration', () => ({
   generateConversationSuggestions: mocks.generateConversationSuggestions
+}))
+vi.mock('@data/hooks/usePreference', () => ({
+  usePreference: (key: string) => [
+    key === 'chat.suggestions.model_id' ? mocks.suggestionsModelId : mocks.defaultModelId,
+    vi.fn()
+  ]
 }))
 
 const generated: ConversationSuggestions = ['One', 'Two', 'Three']
@@ -24,6 +34,8 @@ function createWrapper(cache = new Map()) {
 describe('useConversationSuggestions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.defaultModelId = 'default-model-1'
+    mocks.suggestionsModelId = null
     mocks.generateConversationSuggestions.mockResolvedValue(generated)
   })
 
@@ -111,6 +123,30 @@ describe('useConversationSuggestions', () => {
       persona: { name: 'Agent Two', description: 'Second persona' }
     })
     await waitFor(() => expect(mocks.generateConversationSuggestions).toHaveBeenCalledTimes(4))
+  })
+
+  it('generates again when the effective suggestions model changes', async () => {
+    const { rerender } = renderHook(
+      () =>
+        useConversationSuggestions({
+          mode: 'chat',
+          conversationId: 'topic-1',
+          outputLanguage: 'en-US',
+          fallback
+        }),
+      { wrapper: createWrapper() }
+    )
+
+    await waitFor(() => expect(mocks.generateConversationSuggestions).toHaveBeenCalledTimes(1))
+
+    mocks.suggestionsModelId = 'suggestions-model-1'
+    rerender()
+    await waitFor(() => expect(mocks.generateConversationSuggestions).toHaveBeenCalledTimes(2))
+
+    mocks.suggestionsModelId = null
+    mocks.defaultModelId = 'default-model-2'
+    rerender()
+    await waitFor(() => expect(mocks.generateConversationSuggestions).toHaveBeenCalledTimes(3))
   })
 
   it('waits to expose fallback suggestions until generation is enabled', async () => {

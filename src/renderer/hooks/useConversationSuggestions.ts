@@ -1,3 +1,4 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { generateConversationSuggestions } from '@renderer/utils/aiGeneration'
 import {
@@ -26,12 +27,16 @@ export function useConversationSuggestions({
   persona,
   enabled = true
 }: UseConversationSuggestionsOptions) {
+  const [suggestionsModelId] = usePreference('chat.suggestions.model_id')
+  const [defaultModelId] = usePreference('chat.default_model_id')
+  const resolvedModelId = suggestionsModelId ?? defaultModelId
   const key = enabled
     ? [
         'conversation-suggestions',
         mode,
         conversationId,
         outputLanguage,
+        resolvedModelId ?? '',
         persona?.name ?? '',
         persona?.description ?? ''
       ]
