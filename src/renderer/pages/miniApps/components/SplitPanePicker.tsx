@@ -30,9 +30,8 @@ interface Props {
  */
 const SplitPanePicker: FC<Props> = ({ occupiedAppId, onClose, className }) => {
   const { t } = useTranslation()
-  // Every available mini app, not just the launchpad's pinned ones: presets
-  // seed as `enabled`, so a pinned-only list is empty until the user pins
-  // something, and the app to compare against is often not pinned anyway.
+  // Every available mini app, not just the launchpad's pinned ones: presets seed
+  // as `enabled`, so a pinned-only list is empty until the user pins something.
   const { miniApps } = useMiniApps()
   const { openMiniAppInSplit } = useMiniAppPopup()
 
@@ -53,8 +52,7 @@ const SplitPanePicker: FC<Props> = ({ occupiedAppId, onClose, className }) => {
 
   return (
     // `pointer-events-auto`: the page's split container is `pointer-events-none`
-    // so the pooled webviews stay clickable through it, which would otherwise
-    // leave this whole panel inert.
+    // so pooled webviews stay clickable through it, which would leave this inert.
     <div className={cn('pointer-events-auto flex h-full min-h-0 flex-col bg-background', className)}>
       {/* Matches MinimalToolbar's height so the close button lines up with the
           split button it replaces in the other pane. */}

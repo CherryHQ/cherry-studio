@@ -101,9 +101,8 @@ const MiniAppPage: FC = () => {
     if (sharedCacheReady) return
     return cacheService.onSharedCacheReady(() => setSharedCacheReady(true))
   }, [sharedCacheReady])
-  // App shown in the split pane. Falls back to the keep-alive snapshot so a
-  // transient app (no database row) can hold the pane too. A split id equal to
-  // the active app is dropped: one `<webview>` cannot render in both panes.
+  // The keep-alive fallback lets a transient app (no database row) hold the pane;
+  // a split id equal to the active app is dropped, one `<webview>` fills one pane.
   const splitApp = useMemo((): MiniApp | null => {
     if (!splitOpen || !splitMiniAppId || splitMiniAppId === appId) return null
     return (

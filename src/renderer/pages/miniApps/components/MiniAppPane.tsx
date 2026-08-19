@@ -45,9 +45,8 @@ const MiniAppPane: FC<Props> = ({
   // callback identity that changes every render.
   const onActivateRef = useRef(onActivate)
   onActivateRef.current = onActivate
-  // Seed isReady from the pool's own state rather than waiting for a load
-  // event: a pane re-mounting over an already-loaded webview must not flash
-  // the loading mask, which reads as a reload.
+  // Seed isReady from the pool's own state, not a load event: a pane remounting
+  // over an already-loaded webview must not flash the mask, which reads as a reload.
   const [isReady, setIsReady] = useState<boolean>(() => getWebviewLoaded(app.appId))
   const [currentUrl, setCurrentUrl] = useState<string | null>(app.url)
 

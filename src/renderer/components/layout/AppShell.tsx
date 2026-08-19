@@ -59,9 +59,8 @@ export const AppShell = () => {
   const [splitOpen, setSplitOpen] = useCache('mini_app.split_open')
   const [, setSplitMiniAppId] = useCache('mini_app.split_id')
 
-  // Split state is window-wide, so the last mini-app tab leaving this window must
-  // take it along: otherwise the next mini app opens straight into the stale
-  // split, whose app also stays pinned in the keep-alive pool.
+  // Split state is window-wide and does not follow the last mini-app tab out, so
+  // the next mini app would open into a stale split with its app still pooled.
   const clearSplitWithLastMiniAppTab = useCallback(
     (id: string, url: string | undefined) => {
       if (!splitOpen || !miniAppIdFromTabUrl(url)) return

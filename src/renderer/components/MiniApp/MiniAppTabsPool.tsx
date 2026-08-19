@@ -51,9 +51,8 @@ const MiniAppTabsPool: React.FC = () => {
   // webview refs (pool-internal, used to control show/hide)
   const webviewRefs = useRef<Map<string, WebviewTag | null>>(new Map())
 
-  // One `<webview>` element cannot render in two panes at once. Switching tabs
-  // can make the active app equal the split one, so drop the split rather than
-  // point both panes at the same element (which blanks one of them).
+  // One `<webview>` cannot render in two panes, and switching tabs can make the
+  // active app equal the split one, so drop the split instead of blanking a pane.
   const paneSplitId = splitOpen && splitMiniAppId !== currentMiniAppId ? splitMiniAppId : ''
 
   const activeMiniAppId = useMemo(() => {

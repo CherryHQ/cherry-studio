@@ -44,9 +44,8 @@ vi.mock('@renderer/hooks/useMiniAppPopup', () => ({
   useMiniAppPopup: () => ({ openMiniAppInSplit: mocks.openMiniAppInSplit })
 }))
 
-// The real MiniApp tile falls back to `openTab` when no `onOpen` is supplied —
-// which would navigate the whole tab away instead of filling the split pane.
-// This stub exposes both paths so the wiring is observable.
+// The real MiniApp tile falls back to `openTab` when no `onOpen` is supplied,
+// navigating the tab away instead of filling the pane; this stub exposes both.
 vi.mock('@renderer/components/MiniApp/MiniApp', () => ({
   default: ({
     app,
@@ -99,9 +98,8 @@ describe('SplitPanePicker', () => {
   it('disables the app already shown in the other pane for pointer and keyboard alike', () => {
     render(<SplitPanePicker occupiedAppId="deepseek" onClose={mocks.onClose} />)
 
-    // One <webview> renders in one place; picking it again would blank a pane.
-    // A pointer-events style alone would still leave the tile focusable and
-    // activatable with Enter/Space.
+    // One <webview> renders in one place; picking it again would blank a pane, and
+    // a pointer-events style alone would leave the tile Enter/Space-activatable.
     const occupied = screen.getByTestId('tile-deepseek')
     expect(occupied).toHaveAttribute('aria-disabled', 'true')
     expect(occupied).toHaveAttribute('tabindex', '-1')
@@ -117,9 +115,8 @@ describe('SplitPanePicker', () => {
   it('opts back into pointer events so the panel is not inert', () => {
     const { container } = render(<SplitPanePicker occupiedAppId="deepseek" onClose={mocks.onClose} />)
 
-    // MiniAppPage's split container is `pointer-events-none` so clicks reach the
-    // pooled webviews through it. Without an explicit opt-in here the whole
-    // picker inherits that and nothing in it can be clicked.
+    // MiniAppPage's split container is `pointer-events-none` so clicks reach pooled
+    // webviews; without an explicit opt-in the picker inherits it and goes inert.
     expect(container.firstElementChild?.className).toContain('pointer-events-auto')
   })
 })
