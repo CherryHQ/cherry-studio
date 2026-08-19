@@ -43,11 +43,16 @@ jobs:
           REPO: ${{ github.repository }}
           SYNC_BRANCH: ${{ steps.release-ref.outputs.sync-branch }}
         run: |
-          EXISTING_PR="$(gh pr list --repo "$REPO" --base main --head "$SYNC_BRANCH" --state all --json url --jq '.[0].url // empty')"
+          PULL_REQUESTS="$(gh pr list --repo "$REPO" --base main --head "$SYNC_BRANCH" --state all --json mergedAt,state,url)"
+          EXISTING_PR="$(jq -r '[.[] | select(.state == "OPEN" or .mergedAt != null)][0].url // empty' <<< "$PULL_REQUESTS")"
           if [ -n "$EXISTING_PR" ]; then
-            echo "Release metadata pull request already exists: $EXISTING_PR"
+            echo "Open or merged release metadata pull request already exists: $EXISTING_PR"
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
+            CLOSED_PR="$(jq -r '[.[] | select(.state == "CLOSED" and .mergedAt == null)][0].url // empty' <<< "$PULL_REQUESTS")"
+            if [ -n "$CLOSED_PR" ]; then
+              echo "Retrying release metadata sync after closed pull request: $CLOSED_PR"
+            fi
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 

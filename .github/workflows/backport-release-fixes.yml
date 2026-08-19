@@ -130,26 +130,43 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.TOKEN_GITHUB_WRITE }}
           MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
           TAG: ${{ steps.release-ref.outputs.tag }}
         run: |
-          if ! git cat-file -e "$MERGE_SHA^{commit}" 2>/dev/null; then
-            git fetch origin "$MERGE_SHA"
-          fi
+          git fetch origin \
+            "refs/heads/main:refs/remotes/origin/main" \
+            "refs/pull/$PR_NUMBER/head:refs/remotes/pull/$PR_NUMBER/head"
 
           if ! git merge-base --is-ancestor "$MERGE_SHA" origin/main; then
             echo "Merged commit $MERGE_SHA is not on origin/main" >&2
             exit 1
           fi
 
-          if git cherry HEAD "$MERGE_SHA" "$MERGE_SHA^" | grep -q '^-'; then
+          FETCHED_PR_HEAD="$(git rev-parse "refs/remotes/pull/$PR_NUMBER/head")"
+          if [ "$FETCHED_PR_HEAD" != "$PR_HEAD_SHA" ]; then
+            echo "Pull request head changed from $PR_HEAD_SHA to $FETCHED_PR_HEAD" >&2
+            exit 1
+          fi
+
+          if ! git merge-base --is-ancestor "$PR_BASE_SHA" origin/main; then
+            echo "Pull request base $PR_BASE_SHA is not on origin/main" >&2
+            exit 1
+          fi
+
+          PATCH_BASE="$(git merge-base "$PR_BASE_SHA" "$PR_HEAD_SHA")"
+          PATCH_FILE="$RUNNER_TEMP/hotfix.patch"
+          git diff --binary --full-index "$PATCH_BASE" "$PR_HEAD_SHA" -- > "$PATCH_FILE"
+
+          if [ ! -s "$PATCH_FILE" ] || git apply --reverse --check "$PATCH_FILE" 2>/dev/null; then
             echo "has-changes=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          if ! git cherry-pick --no-commit "$MERGE_SHA"; then
-            git cherry-pick --abort || true
+          if ! git apply --3way --index "$PATCH_FILE"; then
+            git reset --hard HEAD
             PENDING_LABEL="backport/$TAG"
             CONFLICT_LABEL="backport-conflict/$TAG"
             gh label create "$CONFLICT_LABEL" --repo "$REPO" --color "B60205" --description "Automatic backport to $TAG needs conflict resolution" --force

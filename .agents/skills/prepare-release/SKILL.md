@@ -22,8 +22,16 @@ Defaults to `patch` if no version is specified. Always echo the resolved target 
 
 ### Step 1: Determine Version
 
-1. Read the current version from `package.json`. Post Release keeps this synchronized with the last published release.
-2. Resolve the baseline tag as `v{current-version}` and verify that it exists:
+1. Fetch `origin/main` and all tags, then verify that the checkout is a clean `main` at exactly `origin/main`:
+   ```bash
+   git fetch origin refs/heads/main:refs/remotes/origin/main --tags
+   test "$(git branch --show-current)" = main
+   test -z "$(git status --porcelain)"
+   test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
+   ```
+   Stop before editing files if any check fails. This prevents a standalone run from creating a release branch from an arbitrary or stale checkout.
+2. Read the current version from `package.json`. Post Release keeps this synchronized with the last published release.
+3. Resolve the baseline tag as `v{current-version}` and verify that it exists:
    ```bash
    git rev-parse --verify refs/tags/v{current-version}
    ```
@@ -32,7 +40,7 @@ Defaults to `patch` if no version is specified. Always echo the resolved target 
    gh release list --exclude-drafts --limit 1 --json tagName --jq '.[0].tagName'
    ```
    Stop on a mismatch: the latest Post Release metadata PR must be merged into `main` before another release is prepared.
-3. Compute the new version based on the argument:
+4. Compute the new version based on the argument:
    - `patch` / `minor` / `major`: bump from the current version.
    - `x.y.z` or `x.y.z-pre.N`: use as-is after validating it is valid semver.
 
@@ -40,7 +48,7 @@ Defaults to `patch` if no version is specified. Always echo the resolved target 
 
 1. Determine the release-note collection base:
    - If the baseline tag is an ancestor of `HEAD`, use the tag.
-   - Otherwise, use the latest commit whose subject is `chore(release): sync <baseline-tag> metadata`. This is the Post Release marker on `main` for a tag built from a separate release branch.
+   - Otherwise, use the latest commit whose subject is exactly `chore(release): sync <baseline-tag> metadata` or that marker followed only by GitHub's squash suffix ` (#<PR-number>)`. This is the Post Release marker on `main` for a tag built from a separate release branch.
    - Stop with an error if the tag is not an ancestor and its metadata sync commit is missing; otherwise already-released hotfixes could be included again.
 2. List all commits since that base:
    ```bash
