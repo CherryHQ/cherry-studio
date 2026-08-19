@@ -20,6 +20,8 @@ import type { McpPrompt } from '@shared/types/mcp'
 import { Loader2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import { collectMcpPromptArgs, McpPromptArgumentDialog, mcpPromptNeedsArgumentForm } from './mcpPromptArgumentDialog'
+
 export const MCP_PROMPTS_LAUNCHER_ID = 'mcp-prompts'
 
 const logger = loggerService.withContext('mcpPromptTool')
@@ -128,6 +130,12 @@ const McpPromptComposerRuntime = ({ context }: { context: McpPromptToolContext }
   const [dataRequested, setDataRequested] = useState(false)
   const [prompts, setPrompts] = useState<McpPrompt[]>([])
   const [isLoadingPrompts, setIsLoadingPrompts] = useState(false)
+  const [pendingPrompt, setPendingPrompt] = useState<{
+    prompt: McpPrompt
+    options?: QuickPanelCallBackOptions
+  } | null>(null)
+  const [argValues, setArgValues] = useState<Record<string, string>>({})
+  const [isSubmittingArgs, setIsSubmittingArgs] = useState(false)
   // A pick fires an IPC round trip; the composer can unmount (or the user can pick again) before it
   // lands, and neither the insert nor the toast may run against a dead runtime.
   const isMountedRef = useRef(true)
@@ -197,32 +205,61 @@ const McpPromptComposerRuntime = ({ context }: { context: McpPromptToolContext }
     [actions]
   )
 
-  const handleSelect = useCallback(
-    async (prompt: McpPrompt, options?: QuickPanelCallBackOptions) => {
+  const fetchAndInsert = useCallback(
+    async (prompt: McpPrompt, args: Record<string, string> | undefined, options?: QuickPanelCallBackOptions) => {
       const generation = ++selectionGenerationRef.current
-      const nonce = createMcpPromptNonce()
       try {
         const result = await ipcApi.request('mcp.server.get_prompt', {
           serverId: prompt.serverId,
           name: prompt.name,
-          args: buildMcpPromptPlaceholderArgs(prompt, nonce)
+          args
         })
         // The composer this insertion targeted may be gone (topic switch, unmount) by now.
-        if (!isMountedRef.current || generation !== selectionGenerationRef.current) return
+        if (!isMountedRef.current || generation !== selectionGenerationRef.current) return false
         const text = flattenMcpPromptMessages(result)
         if (!text) {
           toast.error(t('chat.input.mcp_prompts.empty'))
-          return
+          return false
         }
-        insertSegments(splitMcpPromptText(text, nonce), options)
+        // The server already substituted collected arguments. Keep any leftover `${...}` as text.
+        insertSegments([{ type: 'text', value: text }], options)
+        return true
       } catch (error) {
-        if (!isMountedRef.current || generation !== selectionGenerationRef.current) return
+        if (!isMountedRef.current || generation !== selectionGenerationRef.current) return false
         logger.error('Failed to get MCP prompt', error as Error, { serverId: prompt.serverId, name: prompt.name })
         toast.error(formatErrorMessageWithPrefix(error, t('chat.input.mcp_prompts.insert_failed')))
+        return false
       }
     },
     [insertSegments, t]
   )
+
+  const handleSelect = useCallback(
+    async (prompt: McpPrompt, options?: QuickPanelCallBackOptions) => {
+      if (mcpPromptNeedsArgumentForm(prompt)) {
+        setPendingPrompt({ prompt, options })
+        setArgValues(Object.fromEntries((prompt.arguments ?? []).map((argument) => [argument.name, ''])))
+        return
+      }
+      await fetchAndInsert(prompt, undefined, options)
+    },
+    [fetchAndInsert]
+  )
+
+  const handleArgumentSubmit = useCallback(async () => {
+    if (!pendingPrompt) return
+    const args = collectMcpPromptArgs(pendingPrompt.prompt, argValues)
+    setIsSubmittingArgs(true)
+    try {
+      const inserted = await fetchAndInsert(pendingPrompt.prompt, args, pendingPrompt.options)
+      if (inserted && isMountedRef.current) {
+        setPendingPrompt(null)
+        setArgValues({})
+      }
+    } finally {
+      if (isMountedRef.current) setIsSubmittingArgs(false)
+    }
+  }, [argValues, fetchAndInsert, pendingPrompt])
 
   const items = useMemo<QuickPanelListItem[]>(() => {
     if (!dataRequested || isLoadingPrompts) {
@@ -289,15 +326,29 @@ const McpPromptComposerRuntime = ({ context }: { context: McpPromptToolContext }
     updateList(items)
   }, [isVisible, items, symbol, updateList])
 
-  return null
+  return (
+    <McpPromptArgumentDialog
+      open={pendingPrompt !== null}
+      prompt={pendingPrompt?.prompt ?? null}
+      values={argValues}
+      submitting={isSubmittingArgs}
+      onValuesChange={(name, value) => setArgValues((current) => ({ ...current, [name]: value }))}
+      onOpenChange={(open) => {
+        if (open || isSubmittingArgs) return
+        setPendingPrompt(null)
+        setArgValues({})
+      }}
+      onSubmit={() => void handleArgumentSubmit()}
+    />
+  )
 }
 
 /**
  * MCP Prompt Tool
  *
  * Root-panel entry listing the prompts published by the conversation's MCP servers. Picking one
- * renders it server-side and inserts the text; declared arguments arrive as `${name}` chips the user
- * fills with Tab.
+ * with arguments opens a form, then `prompts/get` runs with the collected values and the rendered
+ * text is inserted. Prompts without arguments call `prompts/get` immediately.
  */
 const mcpPromptTool = defineTool({
   key: 'mcp_prompts',

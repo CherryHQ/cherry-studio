@@ -1020,6 +1020,9 @@
       "mcp_prompts": {
         "description": "Εισαγωγή ενός prompt από έναν διακομιστή MCP",
         "empty": "Δεν υπάρχουν διαθέσιμα prompts MCP",
+        "fill_arguments": "Συμπλήρωση ορισμάτων του prompt",
+        "fill_arguments_description": "Συμπληρώστε τις τιμές του prompt πριν την εισαγωγή",
+        "insert": "Εισαγωγή",
         "insert_failed": "Αποτυχία εισαγωγής του prompt",
         "title": "Prompts MCP"
       },

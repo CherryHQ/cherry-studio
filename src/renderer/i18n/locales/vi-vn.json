@@ -1020,6 +1020,9 @@
       "mcp_prompts": {
         "description": "Chèn prompt do máy chủ MCP cung cấp",
         "empty": "Không có prompt MCP nào",
+        "fill_arguments": "Điền tham số prompt",
+        "fill_arguments_description": "Nhập các tham số của prompt trước khi chèn",
+        "insert": "Chèn",
         "insert_failed": "Không thể chèn prompt",
         "title": "Prompt MCP"
       },

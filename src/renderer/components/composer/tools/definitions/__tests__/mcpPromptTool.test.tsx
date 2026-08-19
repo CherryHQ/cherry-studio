@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  collectMcpPromptArgs,
+  mcpPromptNeedsArgumentForm,
+  mcpPromptRequiredArgsFilled
+} from '../mcpPromptArgumentDialog'
+import {
   buildMcpPromptPlaceholderArgs,
   createMcpPromptNonce,
   flattenMcpPromptMessages,
@@ -64,6 +69,48 @@ describe('renderMcpPromptSegmentsAsText', () => {
         { type: 'argument', name: 'language' }
       ])
     ).toBe('Review ${language}')
+  })
+})
+
+describe('collectMcpPromptArgs', () => {
+  it('omits empty optionals so the server can apply its own default', () => {
+    expect(
+      collectMcpPromptArgs(
+        { arguments: [{ name: 'language', required: true }, { name: 'style' }] },
+        { language: ' Go ', style: '  ' }
+      )
+    ).toEqual({ language: 'Go' })
+  })
+
+  it('sends filled optionals and returns undefined when nothing was provided', () => {
+    expect(
+      collectMcpPromptArgs(
+        { arguments: [{ name: 'language', required: true }, { name: 'style' }] },
+        {
+          language: 'Go',
+          style: 'terse'
+        }
+      )
+    ).toEqual({ language: 'Go', style: 'terse' })
+    expect(collectMcpPromptArgs({ arguments: [{ name: 'style' }] }, { style: '' })).toBeUndefined()
+    expect(collectMcpPromptArgs({ arguments: [] }, {})).toBeUndefined()
+  })
+})
+
+describe('mcpPromptNeedsArgumentForm', () => {
+  it('opens a form for any declared argument, including optionals', () => {
+    expect(mcpPromptNeedsArgumentForm({ arguments: [{ name: 'style' }] })).toBe(true)
+    expect(mcpPromptNeedsArgumentForm({ arguments: [] })).toBe(false)
+    expect(mcpPromptNeedsArgumentForm({})).toBe(false)
+  })
+})
+
+describe('mcpPromptRequiredArgsFilled', () => {
+  it('requires a non-empty value only for required arguments', () => {
+    const prompt = { arguments: [{ name: 'language', required: true }, { name: 'style' }] }
+    expect(mcpPromptRequiredArgsFilled(prompt, { language: '', style: '' })).toBe(false)
+    expect(mcpPromptRequiredArgsFilled(prompt, { language: 'Go', style: '' })).toBe(true)
+    expect(mcpPromptRequiredArgsFilled({ arguments: [{ name: 'style' }] }, { style: '' })).toBe(true)
   })
 })
 

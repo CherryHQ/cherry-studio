@@ -1020,6 +1020,9 @@
       "mcp_prompts": {
         "description": "插入 MCP 服务器提供的提示词",
         "empty": "没有可用的 MCP 提示词",
+        "fill_arguments": "填写提示词参数",
+        "fill_arguments_description": "插入前先填写此提示词所需的参数",
+        "insert": "插入",
         "insert_failed": "提示词插入失败",
         "title": "MCP 提示词"
       },
