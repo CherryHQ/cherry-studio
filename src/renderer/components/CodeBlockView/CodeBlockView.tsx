@@ -395,7 +395,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
     return (
       <div
         className={cn(
-          'split-view-wrapper flex *:w-full *:flex-[1_1_auto]',
+          'split-view-wrapper flex *:min-w-0 *:flex-1',
           !hasStatusBar && (showSpecialView && !showSourceView ? 'rounded-lg' : 'rounded-b-lg'),
           !hasStatusBar && '[&_.code-viewer]:rounded-[inherit]',
           showSpecialView &&
