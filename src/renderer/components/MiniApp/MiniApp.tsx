@@ -46,7 +46,10 @@ const MiniApp: FC<Props> = ({
     openedKeepAliveMiniApps,
     currentMiniAppId,
     miniAppShow,
+    splitMiniAppId,
     setOpenedKeepAliveMiniApps,
+    setSplitOpen,
+    setSplitMiniAppId,
     updateAppStatus,
     removeCustomMiniApp
   } = useMiniApps()
@@ -127,6 +130,12 @@ const MiniApp: FC<Props> = ({
         // Functional update: resolve against the latest list so a mini app opened
         // during the status mutation's await is not clobbered by a stale snapshot.
         setOpenedKeepAliveMiniApps((prev) => prev.filter((item) => item.appId !== app.appId))
+        // Hiding unmounts the app's webview, so a split pane still pointing at it
+        // would sit on its loading mask forever.
+        if (splitMiniAppId === app.appId) {
+          setSplitMiniAppId('')
+          setSplitOpen(false)
+        }
       })
       .catch(reportFailure('miniApp.hide_failed'))
   }
