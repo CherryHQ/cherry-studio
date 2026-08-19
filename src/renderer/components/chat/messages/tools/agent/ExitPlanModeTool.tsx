@@ -1,5 +1,5 @@
+import { Markdown } from '@cherrystudio/ui'
 import { useTranslation } from 'react-i18next'
-import { Streamdown } from 'streamdown'
 
 import type { ExitPlanModeToolInput, ExitPlanModeToolOutput } from '../shared/agentToolTypes'
 import { AgentToolsType } from '../shared/agentToolTypes'
@@ -38,7 +38,7 @@ export function ExitPlanModeTool({
     ),
     children: (
       <div>
-        <Streamdown mode="static">{truncatedContent}</Streamdown>
+        <Markdown id="exit-plan-mode">{truncatedContent}</Markdown>
         {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
       </div>
     )

@@ -13,7 +13,7 @@ individual feature pages.
 - [`@cherrystudio/ui` components](./packages/ui/src/components) own exact variants, dimensions, interaction states,
   motion, and accessibility behavior.
 - [Component stories](./packages/ui/stories/components) demonstrate supported component composition and usage.
-- [UI semantic contract](./docs/references/ui-semantic-contract.md) owns stable DOM hooks used by Custom CSS,
+- [UI semantic contract](./docs/references/components/ui-semantic-contract.md) owns stable DOM hooks used by Custom CSS,
   tests, inspectors, and automation.
 
 If this document conflicts with an implementation detail, use the relevant source above and update this document
