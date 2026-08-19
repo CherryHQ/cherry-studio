@@ -491,6 +491,42 @@ describe('AiStreamManager', () => {
       expect(mgr.hasLiveStreams()).toBe(true)
     })
 
+    it('rejects a fresh start while the current attempt is still finalizing', async () => {
+      const topicId = 'finalizing-admission-topic'
+      let releasePersistence!: () => void
+      const persistence = new FakePersistencePort('persistence:finalizing-admission')
+      persistence.onDoneImpl = () =>
+        new Promise<void>((resolve) => {
+          releasePersistence = resolve
+        })
+      startSingle(mgr, {
+        topicId,
+        modelId: 'provider-a::model-a',
+        request: req(topicId),
+        listeners: [new FakeListener('wc:finalizing-admission')],
+        persistencePorts: [persistence]
+      })
+
+      const settling = mgr.onExecutionDone(topicId, 'provider-a::model-a')
+      expect(persistence.doneResults).toHaveLength(1)
+      mockCreateUserMessageWithPlaceholders.mockClear()
+
+      expect(() =>
+        mgr.reserveDispatchCommand(topicId, { kind: 'start', modelCount: 1 }, 1, {
+          kind: 'user-with-placeholders',
+          input: {
+            topicId,
+            userMessage: { mode: 'create', dto: { role: 'user', data: { parts: [] } } },
+            placeholders: []
+          }
+        })
+      ).toThrow(aiStreamAdmissionReasons.TOPIC_BUSY)
+      expect(mockCreateUserMessageWithPlaceholders).not.toHaveBeenCalled()
+
+      releasePersistence()
+      await settling
+    })
+
     it('opens a new aggregate cycle when reserving during the prior cycle grace period', async () => {
       const topicId = 'cycle-boundary-topic'
       const sender = { id: 71, isDestroyed: () => false, send: vi.fn() } as unknown as Electron.WebContents

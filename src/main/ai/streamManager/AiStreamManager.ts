@@ -1074,12 +1074,15 @@ export class AiStreamManager extends BaseService {
   admitLiveExecutionChange(topicId: string, intent: LiveExecutionChangeIntent): LiveExecutionChangeAdmission {
     const stream = this.activeStreams.get(topicId)
     const isLive = isStreamExecuting(stream)
-    const hasReservedAttempt = !stream && this.topicAggregates.get(topicId)?.hasUnsettledAttempts() === true
-    const hasBlockedAttempt =
-      (stream?.aggregate ?? this.topicAggregates.get(topicId))?.hasPersistenceBlockedAttempts() === true
+    const aggregate = stream?.aggregate ?? this.topicAggregates.get(topicId)
+    const hasUnsettledAttempt = aggregate?.hasUnsettledAttempts() === true
+    const hasDetachedReservation = !stream && hasUnsettledAttempt
+    const hasBlockedAttempt = aggregate?.hasPersistenceBlockedAttempts() === true
 
     if (intent.mode === 'start') {
-      if ((isLive || hasReservedAttempt || hasBlockedAttempt) && intent.modelCount > 0) {
+      // Provider liveness ends before terminal durability. Fresh admission belongs to Topic state:
+      // finalizing and persistence-blocked attempts must settle before this aggregate can rotate.
+      if ((isLive || hasUnsettledAttempt) && intent.modelCount > 0) {
         throw new AiStreamAdmissionError(aiStreamAdmissionReasons.TOPIC_BUSY)
       }
       return { mode: 'start-new' }
@@ -1089,7 +1092,9 @@ export class AiStreamManager extends BaseService {
     if (!isPersistedReplyGroupAnchor(targetMessageId, topicId, intent.parentAnchorId, intent.siblingsGroupId)) {
       throw new AiStreamAdmissionError(aiStreamAdmissionReasons.TARGET_NOT_IN_LIVE_GROUP)
     }
-    if (hasReservedAttempt || hasBlockedAttempt) throw new AiStreamAdmissionError(aiStreamAdmissionReasons.TOPIC_BUSY)
+    if (hasDetachedReservation || hasBlockedAttempt) {
+      throw new AiStreamAdmissionError(aiStreamAdmissionReasons.TOPIC_BUSY)
+    }
     if (!stream || !isLive) return { mode: 'start-new' }
 
     if (intent.mode === 'append') {
