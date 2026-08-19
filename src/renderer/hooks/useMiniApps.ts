@@ -372,8 +372,11 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
         setMiniAppShow(false)
       }
 
+      // The split pane's app is gone; leaving the pane open would replace it
+      // with a picker the user never asked for.
       if (splitMiniAppId === appId) {
         setSplitMiniAppId('')
+        setSplitOpen(false)
       }
 
       clearWebviewState(appId)
@@ -392,6 +395,7 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
       openedOneOffMiniApp,
       setCurrentMiniAppId,
       setSplitMiniAppId,
+      setSplitOpen,
       setMiniAppShow,
       setOpenedKeepAliveMiniApps,
       setOpenedOneOffMiniApp,

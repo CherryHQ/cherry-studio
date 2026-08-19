@@ -1,8 +1,10 @@
+import { useCache } from '@data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useTabs } from '@renderer/hooks/tab'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { useNativeFullscreen } from '@renderer/hooks/useNativeFullscreen'
 import { ipcApi } from '@renderer/ipc'
+import { miniAppIdFromTabUrl } from '@renderer/utils/miniAppKeepAlive'
 import { isMac } from '@renderer/utils/platform'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
@@ -54,6 +56,8 @@ export const AppShell = () => {
     [activeTab, isSettingsTabActive, tabs]
   )
   const isFullscreen = useNativeFullscreen()
+  const [splitOpen, setSplitOpen] = useCache('mini_app.split_open')
+  const [, setSplitMiniAppId] = useCache('mini_app.split_id')
 
   const handleCloseTab = useCallback(
     (id: string) => {
@@ -62,9 +66,21 @@ export const AppShell = () => {
         closeTabs([id], previousWorkspaceTabIdRef.current)
         return
       }
+      // Split state is window-wide, so the last mini-app tab must take it along:
+      // otherwise the next mini app opens straight into the stale split, whose
+      // app also stays pinned in the keep-alive pool.
+      if (splitOpen && miniAppIdFromTabUrl(tab?.url)) {
+        const hasOtherMiniAppTab = tabs.some(
+          (candidate) => candidate.id !== id && miniAppIdFromTabUrl(candidate.url) !== null
+        )
+        if (!hasOtherMiniAppTab) {
+          setSplitOpen(false)
+          setSplitMiniAppId('')
+        }
+      }
       closeTab(id)
     },
-    [closeTab, closeTabs, tabs]
+    [closeTab, closeTabs, setSplitMiniAppId, setSplitOpen, splitOpen, tabs]
   )
 
   const handleDetachTab = useCallback(

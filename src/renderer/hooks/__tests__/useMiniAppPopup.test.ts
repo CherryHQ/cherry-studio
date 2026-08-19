@@ -760,8 +760,43 @@ describe('useMiniAppPopup', () => {
         result.current.closeMiniApp('right-app')
       })
 
-      // A split id pointing at an unpooled app leaves the pane blank.
+      // A split id pointing at an unpooled app leaves the pane blank, and a
+      // still-open pane swaps that app for a picker nobody asked for.
       expect(getSplitId()).toBe('')
+      expect(getSplitOpen()).toBe(false)
+    })
+
+    it('should keep the split pane when the app closed is not the one in it', async () => {
+      const { result, rerender } = renderHook(() => useTestMiniAppPopup())
+
+      await act(async () => {
+        result.current.openMiniAppInSplit(createMiniApp('right-app'))
+      })
+      rerender()
+
+      await act(async () => {
+        result.current.closeMiniApp('left-app')
+      })
+
+      // Only the pane whose app disappeared collapses; the other pane still
+      // holds valid content for whichever mini app the user opens next.
+      expect(getSplitId()).toBe('right-app')
+      expect(getSplitOpen()).toBe(true)
+    })
+
+    it('should collapse the split when every mini app closes', async () => {
+      const { result } = renderHook(() => useTestMiniAppPopup())
+
+      await act(async () => {
+        result.current.openMiniAppInSplit(createMiniApp('right-app'))
+      })
+
+      await act(async () => {
+        result.current.closeAllMiniApps()
+      })
+
+      expect(getSplitId()).toBe('')
+      expect(getSplitOpen()).toBe(false)
     })
 
     it('should keep both apps pooled when only the split view closes', async () => {

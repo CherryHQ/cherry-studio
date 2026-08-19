@@ -253,8 +253,11 @@ export const useMiniAppPopup = () => {
         setOpenedOneOffMiniApp(null)
       }
 
+      // The split pane's app is gone; leaving the pane open would replace it
+      // with a picker the user never asked for.
       if (splitMiniAppId === appid) {
         setSplitMiniAppId('')
+        setSplitOpen(false)
       }
 
       setCurrentMiniAppId('')
@@ -267,6 +270,7 @@ export const useMiniAppPopup = () => {
       setOpenedOneOffMiniApp,
       setCurrentMiniAppId,
       setSplitMiniAppId,
+      setSplitOpen,
       setMiniAppShow
     ]
   )
@@ -278,11 +282,19 @@ export const useMiniAppPopup = () => {
     setOpenedOneOffMiniApp(null)
     setCurrentMiniAppId('')
     setSplitMiniAppId('')
+    setSplitOpen(false)
     setMiniAppShow(false)
     // Mirrors LRU.clear() firing disposeAfter per entry: clean up webviews +
     // close any tab still open for each previously kept-alive app.
     for (const app of list) evictMiniApp(app.appId)
-  }, [setOpenedKeepAliveMiniApps, setOpenedOneOffMiniApp, setCurrentMiniAppId, setSplitMiniAppId, setMiniAppShow])
+  }, [
+    setOpenedKeepAliveMiniApps,
+    setOpenedOneOffMiniApp,
+    setCurrentMiniAppId,
+    setSplitMiniAppId,
+    setSplitOpen,
+    setMiniAppShow
+  ])
 
   /** Hide the miniapp popup (only one-off miniapp unloaded) */
   const hideMiniAppPopup = useCallback(() => {
