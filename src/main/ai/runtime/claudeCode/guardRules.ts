@@ -1,7 +1,8 @@
 /**
  * The Claude Code guard table — every cross-cutting conduct rule the runtime enforces on the
  * PreToolUse plane, in one place. Adding cross-cutting policy means adding a row here; fixed
- * per-tool approval belongs to the structured builtin-tool policy registry.
+ * per-tool approval belongs to the structured builtin-tool policy registry, and a rule that only
+ * one Agent needs belongs to that Agent (see `builtinAgentGuardRules`).
  *
  * Severity-sorted: deny rules precede ask rules so the fold in `evaluateToolGuards` surfaces the
  * same reason deterministically that the SDK's parallel severity fold produced by race before.
@@ -10,28 +11,19 @@
  * every mode (skill-install's explicit opt-out excepted).
  */
 
+import { BUILTIN_AGENT_TOOL_GUARD_RULES } from '@main/ai/agents/builtin/builtinAgentGuardRules'
 import {
   findBuiltinToolPolicy,
   listBuiltinToolPolicies,
   toCherryBuiltinRuntimeName,
   toMcpRuntimeName
-} from '@main/ai/runtime/toolApproval/builtinToolPolicy'
-import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
+} from '@main/ai/toolApproval/builtinToolPolicy'
+import { detectGlobalInstall } from '@main/ai/toolApproval/dependencyGuard'
+import type { GuardHit, ToolGuardContext, ToolGuardRule } from '@main/ai/toolApproval/toolGuards'
 import { CONFIG_TOOL_NAME } from '@shared/ai/builtinTools'
 import { claudeToolRequiresUserInteraction } from '@shared/ai/claudecode/toolRegistry'
 
-import { detectGlobalInstall } from '../toolApproval/dependencyGuard'
-import {
-  detectDestructiveAssistantCommand,
-  isGitHubIssueCreationCommand,
-  isLarkFormSubmissionCommand,
-  isPermanentDeletionToolName
-} from './assistantCommandSafety'
 import { isPathWithinAllowedRoots } from './pathContainment'
-import type { GuardHit, ToolGuardContext, ToolGuardRule } from './toolGuards'
-
-/** Every built-in role is protected — see `isProtectedBuiltinAgentRole`. */
-const PROTECTED_BUILTIN_ROLES: readonly string[] = Object.values(BUILTIN_AGENT_ROLE)
 
 export const ASK_USER_QUESTION_TOOL_NAME = 'AskUserQuestion'
 export const HEADLESS_INTERACTIVE_TOOL_DENIAL =
@@ -67,26 +59,11 @@ function bashCommand(ctx: ToolGuardContext): string | undefined {
   return typeof command === 'string' && command.trim() ? command : undefined
 }
 
-const destructiveBuiltinOperation = (ctx: ToolGuardContext): GuardHit | null => {
-  if (ctx.toolName === 'Bash') {
-    const command = ctx.input?.command
-    const reason = typeof command === 'string' ? detectDestructiveAssistantCommand(command) : undefined
-    return reason ? { evidence: reason } : null
-  }
-  return isPermanentDeletionToolName(ctx.toolName) ? { evidence: 'permanent deletion tool' } : null
-}
-
 const globalInstallCommand = (ctx: ToolGuardContext): GuardHit | null => {
   const command = bashCommand(ctx)
   if (!command) return null
   const reason = detectGlobalInstall(command)
   return reason ? { evidence: reason } : null
-}
-
-const feedbackSubmissionCommand = (ctx: ToolGuardContext): GuardHit | null => {
-  const command = ctx.input?.command
-  if (typeof command !== 'string') return null
-  return isLarkFormSubmissionCommand(command) || isGitHubIssueCreationCommand(command) ? {} : null
 }
 
 const mutatingConfigAction = (ctx: ToolGuardContext): GuardHit | null => {
@@ -110,25 +87,13 @@ const matchesRequiredApproval = (ctx: ToolGuardContext, bypassApproval: 'lift' |
   return policy?.approval === 'required' && policy.bypassApproval === bypassApproval ? {} : null
 }
 
-export const CLAUDE_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
+const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
   {
     id: 'disabled-tool',
     bypassBehavior: 'enforce',
     match: { when: (ctx) => (ctx.toolName && ctx.isDisabled(ctx.toolName) ? {} : null) },
     effect: 'deny',
     reason: (_hit, ctx) => `The ${ctx.toolName} tool is disabled for this agent.`
-  },
-  {
-    // Protected built-in Agents may edit automatically, but must never turn that convenience into
-    // irreversible deletion; confirmed workspace deletion goes through the move-to-trash tool.
-    id: 'builtin-destructive',
-    bypassBehavior: 'enforce',
-    appliesTo: { roles: PROTECTED_BUILTIN_ROLES },
-    match: { when: destructiveBuiltinOperation },
-    effect: 'deny',
-    reason: (hit) =>
-      `This built-in Agent blocked ${hit.evidence}. It must never permanently delete data or bypass this safeguard. ` +
-      'For a confirmed file or directory inside the session workspace, use mcp__assistant-files__move_to_trash; protected paths cannot be deleted.'
   },
   {
     // Global/shared installs leak into ~/.bun, ~/.local/share/uv, … shared by every agent, so this
@@ -180,35 +145,6 @@ export const CLAUDE_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     reason: 'AskUserQuestion requires a live user response.'
   },
   {
-    // Feedback skills submit through Bash under the user's identity (Lark form / GitHub issue).
-    id: 'assistant-feedback',
-    bypassBehavior: 'skipInteractiveEffect',
-    appliesTo: { roles: [BUILTIN_AGENT_ROLE.ASSISTANT] },
-    match: { tool: 'Bash', when: feedbackSubmissionCommand },
-    effect: 'ask',
-    reason: 'Submitting Cherry Studio feedback externally requires live per-call user approval.',
-    headless: {
-      predicate: 'either',
-      reason:
-        'Headless channel or scheduled turns cannot submit Cherry Studio feedback. Keep only a sanitized local feedback draft for an interactive user to review and submit.'
-    }
-  },
-  {
-    // Support shell commands can hide external submissions behind arbitrary wrappers, so every
-    // Bash call asks. Destructive commands fold into builtin-destructive's deny above.
-    id: 'support-bash',
-    bypassBehavior: 'skipInteractiveEffect',
-    appliesTo: { roles: [BUILTIN_AGENT_ROLE.SUPPORT] },
-    match: { tool: 'Bash' },
-    effect: 'ask',
-    reason: 'Cherry Support shell commands require live per-call user approval.',
-    headless: {
-      predicate: 'either',
-      reason:
-        'Headless channel or scheduled turns cannot run shell commands for Cherry Support. Keep only a sanitized local draft using the structured file tools.'
-    }
-  },
-  {
     // Cross-Session delegation keeps its one-hop live-approval ceiling in every mode. This is the
     // policy entry's explicit exception to ordinary Full Access approval lifting.
     id: 'non-bypassable-approval',
@@ -245,4 +181,13 @@ export const CLAUDE_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     reason: (hit, ctx) =>
       `${ctx.toolName} requested a path outside the session workspace (${ctx.cwd}) and agent data directory (${ctx.agentDataPath}): ${hit.evidence}`
   }
+]
+
+/**
+ * Cross-cutting rules first, then whatever the built-in Agents declare. Order only breaks ties
+ * between rules of the same severity, so appending never weakens a decision.
+ */
+export const CLAUDE_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
+  ...CROSS_CUTTING_TOOL_GUARD_RULES,
+  ...BUILTIN_AGENT_TOOL_GUARD_RULES
 ]

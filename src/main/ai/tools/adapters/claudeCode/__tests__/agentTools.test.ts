@@ -12,7 +12,7 @@ import {
   listBuiltinToolPolicies,
   toCherryBuiltinRuntimeName,
   toMcpRuntimeName
-} from '@main/ai/runtime/toolApproval/builtinToolPolicy'
+} from '@main/ai/toolApproval/builtinToolPolicy'
 import { SESSION_CREATE_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 import { KB_MANAGE_TOOL_NAME, TO_MARKDOWN_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'

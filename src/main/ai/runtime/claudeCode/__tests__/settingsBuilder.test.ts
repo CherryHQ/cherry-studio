@@ -8,7 +8,7 @@ import {
   listBuiltinToolPolicies,
   toCherryBuiltinRuntimeName,
   toMcpRuntimeName
-} from '@main/ai/runtime/toolApproval/builtinToolPolicy'
+} from '@main/ai/toolApproval/builtinToolPolicy'
 import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -221,7 +221,7 @@ vi.mock('@main/utils/shellEnv', () => ({
   refreshShellEnv: mocks.refreshShellEnv
 }))
 
-vi.mock('../../toolApproval/ToolApprovalRegistry', () => ({
+vi.mock('@main/ai/toolApproval/ToolApprovalRegistry', () => ({
   toolApprovalRegistry: {
     abort: vi.fn(),
     register: mocks.approvalRegister

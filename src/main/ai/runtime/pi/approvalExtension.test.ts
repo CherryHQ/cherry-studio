@@ -15,7 +15,7 @@ vi.mock('@logger', () => ({
 vi.mock('@main/utils/rtk', () => ({ rtkRewrite: mocks.rtkRewrite }))
 
 const { createPiApprovalExtension, createPiToolAuthorizer } = await import('./approvalExtension')
-const { toolApprovalRegistry } = await import('../toolApproval/ToolApprovalRegistry')
+const { toolApprovalRegistry } = await import('@main/ai/toolApproval/ToolApprovalRegistry')
 
 type Handler = (event: unknown, ctx: unknown) => Promise<{ block?: boolean; reason?: string } | undefined>
 

@@ -6,13 +6,13 @@ import {
   listBuiltinToolPolicies,
   toCherryBuiltinRuntimeName,
   toMcpRuntimeName
-} from '@main/ai/runtime/toolApproval/builtinToolPolicy'
+} from '@main/ai/toolApproval/builtinToolPolicy'
+import { evaluateToolGuards, type ToolGuardContext, validateToolGuardRules } from '@main/ai/toolApproval/toolGuards'
 import { SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 import { approvalRequiredRuntimeNames, CLAUDE_TOOL_GUARD_RULES, HEADLESS_INTERACTIVE_TOOL_DENIAL } from '../guardRules'
-import { evaluateToolGuards, type ToolGuardContext, validateToolGuardRules } from '../toolGuards'
 
 const INTERACTIVE = { currentTurn: 'interactive', userResponse: 'stream' } as const
 const HEADLESS = { currentTurn: 'headless', userResponse: 'unavailable' } as const

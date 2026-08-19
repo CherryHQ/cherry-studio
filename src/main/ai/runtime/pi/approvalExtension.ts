@@ -27,14 +27,14 @@ import path from 'node:path'
 
 import type { ExtensionAPI, ExtensionContext, ExtensionFactory, ToolCallEvent } from '@earendil-works/pi-coding-agent'
 import { loggerService } from '@logger'
+import { detectGlobalInstall } from '@main/ai/toolApproval/dependencyGuard'
+import { detectDestructiveCommand } from '@main/ai/toolApproval/destructiveCommand'
+import { type DispatchDecision, toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { rtkRewrite } from '@main/utils/rtk'
 import { PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 
-import { detectGlobalInstall } from '../toolApproval/dependencyGuard'
-import { detectDestructiveCommand } from '../toolApproval/destructiveCommand'
-import { type DispatchDecision, toolApprovalRegistry } from '../toolApproval/ToolApprovalRegistry'
 import type { AgentRuntimeEvent } from '../types'
 import { PI_TRANSPORT } from './piStreamAdapter'
 

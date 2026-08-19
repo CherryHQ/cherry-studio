@@ -15,12 +15,12 @@ import type { HookCallback, HookJSONOutput } from '@anthropic-ai/claude-agent-sd
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
+import { evaluateToolGuards } from '@main/ai/toolApproval/toolGuards'
 import { rtkRewrite } from '@main/utils/rtk'
 
 import type { AgentRuntimeUserInput } from '../types'
 import type { AgentsMdLoader } from './AgentsMdLoader'
 import { CLAUDE_TOOL_GUARD_RULES } from './guardRules'
-import { evaluateToolGuards } from './toolGuards'
 import type { ClaudeCodeSettings } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeHooks')
