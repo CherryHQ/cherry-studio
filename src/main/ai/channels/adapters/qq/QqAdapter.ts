@@ -441,13 +441,7 @@ class QqAdapter extends ChannelAdapter {
    */
   private async processGroupMessage(msg: QqMessage, chatId: string): Promise<void> {
     try {
-      await this.processMessage(
-        msg,
-        chatId,
-        'group',
-        msg.author.member_openid ?? msg.author.id,
-        msg.author.username ?? ''
-      )
+      await this.processMessage(msg, chatId, msg.author.member_openid ?? msg.author.id, msg.author.username ?? '')
     } catch (err) {
       this.seenMsgIds.delete(msg.id)
       throw err

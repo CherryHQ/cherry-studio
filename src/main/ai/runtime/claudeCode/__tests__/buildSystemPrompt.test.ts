@@ -398,7 +398,6 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
       configuration: { builtin_role: 'assistant' } as never
     })
 
-    const session = makeSession('/workspace/assistant', 'system')
     await buildSystemPrompt(agent, '/workspace/assistant', '/data/Agents/agent-1')
     await buildSystemPrompt(agent, '/workspace/assistant', '/data/Agents/agent-1')
 
