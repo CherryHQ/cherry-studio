@@ -293,6 +293,33 @@ function sameExecutionContribution(
   })
 }
 
+/**
+ * R7: a recomputed-but-identical view must keep its object identity and publish nothing.
+ *
+ * Every field is rebuilt from the same underlying snapshot objects each time, so a fresh view after
+ * a semantic no-op is `!==` the previous one while being element-wise identical. Consumers read
+ * through `useSyncExternalStore`, which compares by identity — republishing one re-renders every
+ * subscriber of a topic for no reason, on every incoming chunk.
+ *
+ * Element-wise reference equality is the right test precisely because the elements are shared: a
+ * changed part array or snapshot is a new object, so this cannot mask a real update.
+ */
+function sameOverlayView(left: ExecutionOverlayView, right: ExecutionOverlayView): boolean {
+  const sameList = <T>(a: readonly T[], b: readonly T[]): boolean =>
+    a.length === b.length && a.every((item, index) => item === b[index])
+  const leftOverlayKeys = Object.keys(left.overlay)
+  return (
+    left.activeNodeOverride === right.activeNodeOverride &&
+    left.refreshError === right.refreshError &&
+    leftOverlayKeys.length === Object.keys(right.overlay).length &&
+    leftOverlayKeys.every((key) => left.overlay[key] === right.overlay[key]) &&
+    sameList(left.liveAssistants, right.liveAssistants) &&
+    sameList(left.attempts, right.attempts) &&
+    sameList(left.optimisticMessages, right.optimisticMessages) &&
+    sameList(left.projectedExecutions, right.projectedExecutions)
+  )
+}
+
 function computeView(
   snapshots: ReadonlyMap<AttemptId, CherryUIMessage>,
   settlements: ReadonlyMap<AttemptId, Pick<ExecutionFinishEvent, 'isAbort' | 'isError'>>,
@@ -993,7 +1020,7 @@ export class ExecutionStreamOverlayService {
       [...entry.desired.values()].flatMap(({ executions }) => executions),
       [...entry.optimisticExecutions.values()]
     ).filter((execution) => !entry.sub.isSettled(execution.attemptId))
-    entry.view = computeView(
+    const next = computeView(
       entry.snapshots,
       entry.settlements,
       entry.optimisticMessages,
@@ -1002,6 +1029,9 @@ export class ExecutionStreamOverlayService {
       entry.refreshError
     )
     entry.lastActiveAt = Date.now()
+    // R7: hold the previous identity and notify nobody when nothing actually changed.
+    if (sameOverlayView(entry.view, next)) return
+    entry.view = next
     for (const listener of [...entry.listeners]) {
       try {
         listener()

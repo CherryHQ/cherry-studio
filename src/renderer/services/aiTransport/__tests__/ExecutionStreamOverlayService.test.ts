@@ -325,6 +325,28 @@ afterEach(() => {
 })
 
 describe('ExecutionStreamOverlayService', () => {
+  // R7. Consumers read through `useSyncExternalStore`, which compares by identity, so a
+  // recomputed-but-identical view re-renders every subscriber of the topic for nothing.
+  it('keeps view identity and notifies nobody when a resync changes nothing', () => {
+    const service = new ExecutionStreamOverlayService()
+    const consumer = {}
+    const reserved = asst('anchor-reserved')
+    service.acquire(TOPIC)
+    service.syncExecutions(TOPIC, consumer, [], () => [reserved])
+
+    let notifications = 0
+    service.subscribe(TOPIC, () => {
+      notifications += 1
+    })
+    const before = service.getView(TOPIC)
+
+    // Same inputs again: semantically a no-op.
+    service.syncExecutions(TOPIC, consumer, [], () => [reserved])
+
+    expect(service.getView(TOPIC)).toBe(before)
+    expect(notifications).toBe(0)
+  })
+
   it('owns optimistic command reservations until the topic projection retires them', () => {
     const service = new ExecutionStreamOverlayService()
     const consumer = {}

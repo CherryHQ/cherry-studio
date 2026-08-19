@@ -14,6 +14,7 @@ import type { UIMessageChunk } from 'ai'
 
 import { streamAttachmentService } from './StreamAttachmentService'
 import { TopicStreamProjection } from './TopicAttemptProjection'
+import { type ClientArrival, createTopicStreamClientState, reduceTopicStreamClient } from './topicStreamClientState'
 
 const logger = loggerService.withContext('TopicStreamSubscription')
 
@@ -93,12 +94,9 @@ export class TopicStreamSubscription {
   #attachInFlight: Promise<void> | null = null
   #releaseAttachment: (() => void) | null = null
   #disposed = false
-  #topicOpen = false
+  #clientState = createTopicStreamClientState()
   #lastQuiesced: TopicQuiescedProjectionEvent | undefined
   #protocol: 'pending' | 'v2' | 'legacy' = 'pending'
-  #cycleId: number | undefined
-  #controlRevision = 0
-  readonly #lastChunkSeq = new Map<AttemptId, number>()
   readonly #pendingProtocolEvents: StreamProtocolEvent[] = []
   readonly #pendingLegacyEvents: Array<() => void> = []
 
@@ -148,7 +146,7 @@ export class TopicStreamSubscription {
   /** Main has explicitly ended an execution with `isTopicDone=false`, so
    *  another execution may follow even when no branch exists yet. */
   isTopicOpen(): boolean {
-    return this.#topicOpen
+    return this.#clientState.topicOpen
   }
 
   isSettled(attemptId: number): boolean {
@@ -163,11 +161,12 @@ export class TopicStreamSubscription {
       this.#branches.delete(id)
     }
     this.#terminalByAttemptId.delete(id)
-    if (this.#branches.size === 0 && this.#attached && !this.#disposed && !this.#topicOpen) {
+    if (this.#branches.size === 0 && this.#attached && !this.#disposed && !this.#clientState.topicOpen) {
       // Defer one tick: a transient `activeExecutions` flicker would otherwise
       // detach→reattach and momentarily drop Main's last listener.
       queueMicrotask(() => {
-        if (this.#branches.size === 0 && this.#attached && !this.#disposed && !this.#topicOpen) this.#detach()
+        if (this.#branches.size === 0 && this.#attached && !this.#disposed && !this.#clientState.topicOpen)
+          this.#detach()
       })
     }
   }
@@ -305,7 +304,7 @@ export class TopicStreamSubscription {
     if (this.#isBranchSettled(toAttemptId(attemptId))) return
     // #cycleId is already synced to this event's cycle (undefined on legacy),
     // so it is authoritative evidence for the branch.
-    const branch = this.#getOrCreateBranch(executionId, payload.anchorMessageId, attemptId, this.#cycleId)
+    const branch = this.#getOrCreateBranch(executionId, payload.anchorMessageId, attemptId, this.#clientState.cycleId)
     if (!branch.closed) branch.controller?.enqueue(payload.chunk)
   }
 
@@ -320,7 +319,7 @@ export class TopicStreamSubscription {
     const chunk: CherryUIMessageChunk = { type: 'data-error', data: { ...error } }
 
     if (executionId && attemptId !== undefined) {
-      const branch = this.#getOrCreateBranch(executionId, anchorMessageId, attemptId, this.#cycleId)
+      const branch = this.#getOrCreateBranch(executionId, anchorMessageId, attemptId, this.#clientState.cycleId)
       if (!branch.closed) branch.controller?.enqueue(chunk)
       return
     }
@@ -454,8 +453,8 @@ export class TopicStreamSubscription {
   #updateTopicOpen(isTopicDone: boolean | undefined): boolean {
     if (isTopicDone === undefined) return false
     const topicOpen = !isTopicDone
-    if (topicOpen === this.#topicOpen) return false
-    this.#topicOpen = topicOpen
+    if (topicOpen === this.#clientState.topicOpen) return false
+    this.#clientState = { ...this.#clientState, topicOpen }
     return true
   }
 
@@ -502,51 +501,60 @@ export class TopicStreamSubscription {
     event: StreamProtocolEvent | StreamProtocolReplayChunkEvent,
     source: 'live' | 'snapshot-replay' = 'live'
   ): void {
-    if (this.#cycleId !== undefined && event.cycleId < this.#cycleId) return
-    if (this.#cycleId === undefined || event.cycleId > this.#cycleId) {
-      this.#cycleId = event.cycleId
-      this.#controlRevision = 0
-      this.#lastChunkSeq.clear()
-      this.#lastQuiesced = undefined
-      // Main opened a new topic cycle: branches classified to an older cycle are dead
-      // authority; unclassified ones may be this cycle's own not-yet-evidenced registrations.
-      this.#retireBranches(
-        [...this.#branches.values()].filter(
-          (branch) => branch.cycleId !== undefined && branch.cycleId !== event.cycleId
-        )
-      )
-    }
-    if (event.type === 'chunk') {
-      if (source === 'snapshot-replay' && 'synthetic' in event && event.synthetic) {
-        this.#routeChunk(event)
-        return
-      }
-      const attemptId = toAttemptId(event.attemptId)
-      const lastChunkSeq = this.#lastChunkSeq.get(attemptId) ?? 0
-      if (event.throughChunkSeq <= lastChunkSeq) return
-      if (event.chunkSeq <= lastChunkSeq) {
-        logger.warn('overlapping stream chunk range dropped', {
-          topicId: this.#topicId,
-          attemptId,
+    const isChunk = event.type === 'chunk'
+    const synthetic = isChunk && 'synthetic' in event && event.synthetic === true
+    const arrival: ClientArrival = isChunk
+      ? {
+          kind: 'chunk',
+          cycleId: event.cycleId,
+          attemptId: toAttemptId(event.attemptId),
           chunkSeq: event.chunkSeq,
           throughChunkSeq: event.throughChunkSeq,
-          lastChunkSeq
+          synthetic: source === 'snapshot-replay' && synthetic,
+          live: source === 'live'
+        }
+      : { kind: 'control', cycleId: event.cycleId, controlRevision: event.controlRevision }
+
+    const transition = reduceTopicStreamClient(this.#clientState, arrival)
+    if (!transition.accepted) {
+      if (transition.rejection === 'overlapping-range' && isChunk) {
+        logger.warn('overlapping stream chunk range dropped', {
+          topicId: this.#topicId,
+          attemptId: toAttemptId(event.attemptId),
+          chunkSeq: event.chunkSeq,
+          throughChunkSeq: event.throughChunkSeq,
+          lastChunkSeq: this.#clientState.chunkCursors.get(toAttemptId(event.attemptId)) ?? 0
         })
-        return
       }
-      this.#lastChunkSeq.set(attemptId, event.throughChunkSeq)
-      const topicStateChanged = source === 'live' && !this.#topicOpen
-      if (source === 'live') {
-        this.#topicOpen = true
-        this.#lastQuiesced = undefined
-      }
-      this.#routeChunk(event)
-      if (topicStateChanged) this.#notifyTopicStateChange()
       return
     }
+    this.#clientState = transition.state
+    let topicOpened = false
+    for (const effect of transition.effects) {
+      switch (effect.type) {
+        case 'retire-stale-branches':
+          // Branches classified to an older cycle are dead authority; unclassified ones may be
+          // this cycle's own not-yet-evidenced registrations.
+          this.#retireBranches(
+            [...this.#branches.values()].filter(
+              (branch) => branch.cycleId !== undefined && branch.cycleId !== effect.cycleId
+            )
+          )
+          break
+        case 'reset-quiescence':
+          this.#lastQuiesced = undefined
+          break
+        case 'topic-state-changed':
+          topicOpened = true
+          break
+      }
+    }
 
-    if (event.controlRevision <= this.#controlRevision) return
-    this.#controlRevision = event.controlRevision
+    if (isChunk) {
+      this.#routeChunk(event)
+      if (topicOpened) this.#notifyTopicStateChange()
+      return
+    }
 
     if (event.type === 'attempt-durably-settled') {
       if (event.outcome === 'error' && event.error) {
@@ -568,8 +576,8 @@ export class TopicStreamSubscription {
 
     this.#projection.advanceWatermark(event.throughAttemptId)
     this.#retireCoveredBranches(event.throughAttemptId)
-    const topicStateChanged = this.#topicOpen
-    this.#topicOpen = false
+    const topicStateChanged = this.#clientState.topicOpen
+    this.#clientState = { ...this.#clientState, topicOpen: false }
     if (topicStateChanged) this.#notifyTopicStateChange()
     this.#notifyTopicQuiesced({ cycleId: event.cycleId, throughAttemptId: event.throughAttemptId })
   }
@@ -587,12 +595,18 @@ export class TopicStreamSubscription {
   #selectV2Protocol(snapshot: StreamAttachSnapshot): void {
     // Mirror the live-path newer-only guard: a reattach can race a live cycle bump,
     // and a snapshot of an already-superseded cycle is dead authority — ignore it wholly.
-    if (this.#cycleId !== undefined && snapshot.cycleId < this.#cycleId) return
+    if (this.#clientState.cycleId !== undefined && snapshot.cycleId < this.#clientState.cycleId) return
     this.#protocol = 'v2'
-    this.#cycleId = snapshot.cycleId
-    this.#controlRevision = snapshot.controlRevision
     this.#pendingLegacyEvents.length = 0
-    this.#topicOpen = snapshot.topicOpen
+    // Adopt the cycle and revision only. The cutoff watermark is raised *after* the replay loop
+    // below — seeding it first would make every replayed chunk look already consumed.
+    this.#clientState = reduceTopicStreamClient(this.#clientState, {
+      kind: 'snapshot',
+      cycleId: snapshot.cycleId,
+      controlRevision: snapshot.controlRevision,
+      cursors: []
+    }).state
+    this.#clientState = { ...this.#clientState, topicOpen: snapshot.topicOpen }
     this.#lastQuiesced = undefined
 
     // The snapshot is the authority on which attempts exist in this cycle.
@@ -610,8 +624,14 @@ export class TopicStreamSubscription {
       })) {
         this.#applyProtocolEvent(event, 'snapshot-replay')
       }
-      const attemptId = toAttemptId(attempt.attemptId)
-      this.#lastChunkSeq.set(attemptId, Math.max(this.#lastChunkSeq.get(attemptId) ?? 0, attempt.throughChunkSeq))
+      // Raise the cutoff only now: anything Main already covered in this snapshot must not be
+      // re-applied when the buffered live pushes drain.
+      this.#clientState = reduceTopicStreamClient(this.#clientState, {
+        kind: 'snapshot',
+        cycleId: snapshot.cycleId,
+        controlRevision: snapshot.controlRevision,
+        cursors: [{ attemptId: toAttemptId(attempt.attemptId), throughChunkSeq: attempt.throughChunkSeq }]
+      }).state
       if (attempt.phase === 'settled' && attempt.outcome) {
         if (attempt.outcome === 'error' && attempt.error) {
           this.#enqueueError(attempt.error, attempt.executionId, attempt.anchorMessageId, attempt.attemptId)
@@ -643,7 +663,7 @@ export class TopicStreamSubscription {
       return left.type === 'chunk' ? -1 : 1
     })
     for (const event of pending) this.#applyProtocolEvent(event)
-    if (!this.#topicOpen && !this.#lastQuiesced) {
+    if (!this.#clientState.topicOpen && !this.#lastQuiesced) {
       const throughAttemptId = Math.max(0, ...snapshot.attempts.map((attempt) => attempt.attemptId))
       this.#retireCoveredBranches(throughAttemptId)
       this.#notifyTopicQuiesced({ cycleId: snapshot.cycleId, throughAttemptId })
@@ -770,7 +790,7 @@ export class TopicStreamSubscription {
         // If every execution unregistered while this attach was in flight, the
         // deferred-detach guard in `unregister` saw `#attached === false` and skipped,
         // so nothing else will release Main's listener. Detach now that attach resolved.
-        if (this.#branches.size === 0 && !this.#disposed && !this.#topicOpen) this.#detach()
+        if (this.#branches.size === 0 && !this.#disposed && !this.#clientState.topicOpen) this.#detach()
       } catch (err) {
         logger.error('streamAttach failed', { topicId: this.#topicId, err })
         // Close open branches so their readers finish with an error terminal
