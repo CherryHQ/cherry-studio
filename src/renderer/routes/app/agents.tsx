@@ -5,14 +5,8 @@ import { createFileRoute, redirect } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/app/agents')({
   validateSearch: (search) => parseAgentRouteSearch(search),
-  // Bare entries resolve their session here, before the page mounts, so the page
-  // renders the final conversation in one pass. Explicit targets and the
-  // feedback entries pass through untouched. A sidebar `?agentId=` entry
-  // resolves that agent's most recent session instead of the global
-  // last-focused one. Message-only entries already carry a session id; a stray
-  // `view=message` without one is still a bare entry. No resolvable session →
-  // fall through bare; the page creates the first session itself (bound to the
-  // pinned agent).
+  // Resolving before mount renders the final conversation in one pass. A sidebar
+  // `?agentId=` entry must resume that agent, not the globally last-focused session.
   beforeLoad: async ({ search }) => {
     if (search.sessionId || search.intent === 'feedback') return
     if (search.agentId) {

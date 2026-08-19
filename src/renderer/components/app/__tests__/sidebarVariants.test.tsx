@@ -53,6 +53,25 @@ describe('sidebarVariants icons', () => {
     expect(screen.getByTestId('icon')).toHaveTextContent('🍒')
   })
 
+  it('sizes a pinned entity icon like the built-in app rows next to it', () => {
+    const ctx = createContext({
+      installedAssistants: new Map([['assistant-1', createAssistant()]])
+    })
+
+    const appEntry = resolveSidebarEntry({ type: 'app', id: 'assistants' }, ctx)
+    const entityEntry = resolveSidebarEntry(assistantFavorite, ctx)
+
+    const { container: appBox } = render(<div>{appEntry?.renderIcon(18, 'lg')}</div>)
+    const { container: entityBox } = render(<div>{entityEntry?.renderIcon(18, 'lg')}</div>)
+
+    // Entity rows sit inline with the app rows, so drawing them at the mini app
+    // scale (24) instead of the row size makes the whole rail look uneven.
+    const appIcon = appBox.querySelector('svg')
+    const entityIcon = entityBox.querySelector('svg, div[style]')
+    expect(appIcon?.getAttribute('width')).toBe('18')
+    expect(entityIcon?.getAttribute('width') ?? (entityIcon as HTMLElement)?.style.width).toMatch(/^18(px)?$/)
+  })
+
   it('renders the model avatar when the icon type preference is model', () => {
     const ctx = createContext({
       assistantIconType: 'model',

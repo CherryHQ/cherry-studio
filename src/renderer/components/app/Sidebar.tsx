@@ -242,9 +242,8 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     [activeTab, openableMiniAppById, openTab, setActiveTab, t, tabs, updateTab]
   )
 
-  // Pinned user entities (agents / assistants) navigate through the same tab
-  // reuse rules as mini apps; the route interceptor resolves the entity's most
-  // recent conversation from the `agentId` / `assistantId` query param.
+  // Pinned entities reuse tabs like mini apps do; the route interceptor turns the
+  // `agentId` / `assistantId` param into that entity's most recent conversation.
   const handleOpenEntityTab = useCallback(
     (path: string, title: string) => {
       if (activeTab?.url === path) return
