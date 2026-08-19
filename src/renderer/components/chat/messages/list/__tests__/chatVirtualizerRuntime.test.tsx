@@ -158,6 +158,13 @@ function setElementMetric(element: HTMLElement, name: 'clientHeight' | 'scrollHe
   })
 }
 
+function setElementLayoutPresence(element: HTMLElement, hasLayout: () => boolean = () => true): void {
+  Object.defineProperty(element, 'getClientRects', {
+    configurable: true,
+    value: () => (hasLayout() ? [element.getBoundingClientRect()] : []) as unknown as DOMRectList
+  })
+}
+
 function installResizeObserverMock(callbacks: ResizeObserverCallback[]): () => void {
   const originalResizeObserver = globalThis.ResizeObserver
 
@@ -297,12 +304,16 @@ describe('useChatVirtualizerRuntime', () => {
     const scrollerProps = runtime?.scrollerProps
     const onWheel = runtime?.scrollerProps.onWheel
     const onScroll = runtime?.scrollerProps.onScroll
+    const notifyWheelIntent = runtime?.notifyWheelIntent
+    const scrollByWheel = runtime?.scrollByWheel
 
     view.rerender(<RuntimeProbe items={items} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
 
     expect(runtime?.scrollerProps).toBe(scrollerProps)
     expect(runtime?.scrollerProps.onWheel).toBe(onWheel)
     expect(runtime?.scrollerProps.onScroll).toBe(onScroll)
+    expect(runtime?.notifyWheelIntent).toBe(notifyWheelIntent)
+    expect(runtime?.scrollByWheel).toBe(scrollByWheel)
   })
 
   it('does not recreate resize observers on unrelated parent rerenders', () => {
@@ -512,6 +523,43 @@ describe('useChatVirtualizerRuntime', () => {
       runtime!.scrollerProps.onScroll(499)
     })
     expect(runtime!.isScrollToBottomButtonVisible).toBe(true)
+  })
+
+  it('keeps the scroll-to-bottom button visible during reading navigation while still far from bottom', () => {
+    const raf = installQueuedAnimationFrame()
+
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let handle: MessageVirtualListHandle | null = null
+      const handleRef: Ref<MessageVirtualListHandle> = (nextHandle) => {
+        handle = nextHandle
+      }
+      render(
+        <RuntimeProbe
+          items={['message-a']}
+          handleRef={handleRef}
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+
+      runtime!.scrollerRef.current = {
+        scrollTop: 500,
+        scrollHeight: 2000,
+        clientHeight: 400
+      } as HTMLDivElement
+
+      act(() => runtime!.takeUserControl('navigation'))
+      expect(runtime!.isScrollToBottomButtonVisible).toBe(true)
+
+      act(() => {
+        handle!.scrollToTop('smooth')
+        runtime!.scrollerProps.onScroll(500)
+      })
+
+      expect(runtime!.isScrollToBottomButtonVisible).toBe(true)
+    } finally {
+      raf.restore()
+    }
   })
 
   it('shows the scroll-to-bottom button when content growth leaves more than one viewport below', () => {
@@ -977,6 +1025,7 @@ describe('useChatVirtualizerRuntime', () => {
           y: headingDocumentTop - scrollTop
         })
       })
+      setElementLayoutPresence(heading)
       blockWrapper.append(heading)
       message.append(blockWrapper)
       runtime!.contentRef.current!.prepend(message)
@@ -996,6 +1045,64 @@ describe('useChatVirtualizerRuntime', () => {
       restoreResizeObserver()
       raf.restore()
     }
+  })
+
+  it('measures an exact range once and completes its navigation immediately', () => {
+    let runtime: ChatVirtualizerRuntime<string> | undefined
+    let handle: MessageVirtualListHandle | null = null
+    const handleRef: Ref<MessageVirtualListHandle> = (nextHandle) => {
+      handle = nextHandle
+    }
+    let scrollTop = 1000
+    render(
+      <RuntimeDomProbe
+        items={['message-a']}
+        handleRef={handleRef}
+        onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+      />
+    )
+    const scroller = runtime!.scrollerRef.current!
+    Object.defineProperty(scroller, 'scrollTop', {
+      configurable: true,
+      get: () => scrollTop,
+      set: (value) => {
+        scrollTop = value
+      }
+    })
+    setElementMetric(scroller, 'clientHeight', () => 400)
+    setElementMetric(scroller, 'scrollHeight', () => 1600)
+    Object.defineProperty(scroller, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({ top: 0, bottom: 400, left: 0, right: 800, width: 800, height: 400, x: 0, y: 0 })
+    })
+
+    const message = document.createElement('div')
+    message.dataset.messageKey = 'message-a'
+    const text = document.createTextNode('matched text')
+    message.append(text)
+    runtime!.contentRef.current!.prepend(message)
+    const range = document.createRange()
+    range.selectNodeContents(text)
+    const getRangeRect = vi.fn(() => ({
+      top: 90,
+      bottom: 110,
+      left: 0,
+      right: 100,
+      width: 100,
+      height: 20,
+      x: 0,
+      y: 90
+    }))
+    Object.defineProperty(range, 'getBoundingClientRect', {
+      configurable: true,
+      value: getRangeRect
+    })
+    act(() => handle!.scrollToBottom())
+    expect(handle!.isFollowing()).toBe(true)
+    act(() => handle!.scrollToRange(range))
+    expect(scrollTop).toBe(1100)
+    expect(getRangeRect).toHaveBeenCalledTimes(1)
+    expect(handle!.isFollowing()).toBe(false)
   })
 
   it('keeps key navigation aimed at the same message when history is prepended mid-animation', () => {
@@ -2179,6 +2286,7 @@ describe('useChatVirtualizerRuntime', () => {
           y: anchorTop
         })
       })
+      setElementLayoutPresence(toggle)
       item.append(toggle)
       runtime!.contentRef.current!.prepend(item)
 
@@ -2189,6 +2297,110 @@ describe('useChatVirtualizerRuntime', () => {
       anchorTop = 170
       act(() => callbacks[0]?.([], {} as ResizeObserver))
       expect(scrollTop).toBe(550)
+    } finally {
+      restoreResizeObserver()
+    }
+  })
+
+  it('falls back to the message item when the semantic anchor is hidden', () => {
+    const callbacks: ResizeObserverCallback[] = []
+    const restoreResizeObserver = installResizeObserverMock(callbacks)
+
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let scrollTop = 500
+      let anchorTop = 120
+      let hasLayout = true
+      render(<RuntimeDomProbe items={['message-a']} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
+      const scroller = runtime!.scrollerRef.current!
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value) => {
+          scrollTop = value
+        }
+      })
+      setElementMetric(scroller, 'clientHeight', () => 400)
+      setElementMetric(scroller, 'scrollHeight', () => 2000)
+      runtime!.vlistHandleRef.current = createHandle()
+
+      const item = document.createElement('div')
+      item.dataset.messageKey = 'message-a'
+      const anchor = document.createElement('button')
+      Object.defineProperty(anchor, 'getBoundingClientRect', {
+        configurable: true,
+        value: () => ({ top: anchorTop })
+      })
+      setElementLayoutPresence(anchor, () => hasLayout)
+      item.append(anchor)
+      runtime!.contentRef.current!.prepend(item)
+
+      act(() => runtime!.takeUserControl('disclosure', anchor))
+
+      // A hidden semantic node stays connected but no longer has a layout box.
+      // The stable message item must take over instead of treating its zero rect
+      // as real movement and writing a new outer scrollTop.
+      hasLayout = false
+      anchorTop = 0
+      act(() => callbacks[0]?.([], {} as ResizeObserver))
+
+      expect(scrollTop).toBe(500)
+    } finally {
+      restoreResizeObserver()
+    }
+  })
+
+  it('anchors to the nested scroll container instead of an element inside its scrolled content', () => {
+    const callbacks: ResizeObserverCallback[] = []
+    const restoreResizeObserver = installResizeObserverMock(callbacks)
+
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let scrollTop = 500
+      let paragraphTop = 220
+      render(<RuntimeDomProbe items={['message-a']} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
+      const scroller = runtime!.scrollerRef.current!
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value) => {
+          scrollTop = value
+        }
+      })
+      setElementMetric(scroller, 'clientHeight', () => 400)
+      setElementMetric(scroller, 'scrollHeight', () => 2000)
+      runtime!.vlistHandleRef.current = createHandle()
+
+      const item = document.createElement('div')
+      item.dataset.messageKey = 'message-a'
+      const region = document.createElement('div')
+      region.style.overflowY = 'auto'
+      setElementMetric(region, 'clientHeight', () => 100)
+      setElementMetric(region, 'scrollHeight', () => 300)
+      Object.defineProperty(region, 'getBoundingClientRect', {
+        configurable: true,
+        value: () => ({ top: 200 })
+      })
+      setElementLayoutPresence(region)
+      const paragraph = document.createElement('p')
+      Object.defineProperty(paragraph, 'getBoundingClientRect', {
+        configurable: true,
+        value: () => ({ top: paragraphTop })
+      })
+      setElementLayoutPresence(paragraph)
+      region.append(paragraph)
+      item.append(region)
+      runtime!.contentRef.current!.prepend(item)
+
+      act(() => runtime!.takeUserControl('disclosure', paragraph))
+
+      // The user scrolls the nested region on its own: the paragraph moves, the
+      // scroll container's border box does not. The freeze must be anchored to
+      // the container, so the inner scroll delta never rewrites outer scrollTop.
+      paragraphTop = 120
+      act(() => callbacks[0]?.([], {} as ResizeObserver))
+
+      expect(scrollTop).toBe(500)
     } finally {
       restoreResizeObserver()
     }
@@ -2356,6 +2568,25 @@ describe('useChatVirtualizerRuntime', () => {
     } finally {
       raf.restore()
     }
+  })
+
+  it.each([
+    [-480, -200],
+    [480, 200]
+  ])('owns forwarded wheel scrolling and bounds deltaY %s to %s', (deltaY, boundedDeltaY) => {
+    let runtime: ChatVirtualizerRuntime<string> | undefined
+    render(<RuntimeDomProbe items={['message-a']} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
+    const scroller = runtime!.scrollerRef.current!
+    const scrollBy = vi.fn()
+    scroller.scrollBy = scrollBy
+
+    let didScroll = false
+    act(() => {
+      didScroll = runtime!.scrollByWheel(deltaY)
+    })
+
+    expect(didScroll).toBe(true)
+    expect(scrollBy).toHaveBeenCalledWith({ top: boundedDeltaY })
   })
 
   it('keeps following the real bottom when the viewport becomes shorter', () => {
@@ -3010,6 +3241,7 @@ describe('useChatVirtualizerRuntime', () => {
           return { top, bottom: top + 32, left: 0, right: 200, width: 200, height: 32, x: 0, y: top }
         }
       })
+      setElementLayoutPresence(heading)
       item.append(heading)
       runtime!.contentRef.current!.prepend(item)
 

@@ -16,6 +16,10 @@ import {
   ScheduledTaskEntitySchema,
   TimeoutMinutesAtomSchema
 } from '@shared/data/api/schemas/agents'
+import {
+  type ReusableAgentSessionPlaceholdersResponse,
+  ReuseOrCreateAgentSessionSchema
+} from '@shared/data/api/schemas/agentSessions'
 import { AgentSessionWorkspaceSourceSchema } from '@shared/data/api/schemas/agentWorkspaces'
 import { JobScheduleNameAtomSchema, TriggerSchema } from '@shared/data/api/schemas/jobs'
 import { CleanupPolicySchema, type FileEntry, FileEntrySchema } from '@shared/data/types/file'
@@ -41,8 +45,8 @@ import { defineRoute } from '../define'
  *
  * Inputs mirror the **wire shape** the renderer actually sends, i.e. the
  * clone-safe subset of the in-process request types: the in-process-only
- * `AbortSignal` and `callOverrides` (an AI SDK `ToolSet`, not structured-clone-safe)
- * are deliberately absent. Outputs reuse the canonical entity schemas
+ * `AbortSignal`, `callOverrides` (an AI SDK `ToolSet`, not structured-clone-safe),
+ * and main-internal `contextOwner` are deliberately absent. Outputs reuse the canonical entity schemas
  * (`FileEntrySchema`, `ModelSchema`) where they exist and `z.custom<T>()` for opaque
  * AI SDK / transport types (usage, stream responses) — the router never parses
  * `output`, and these are built by trusted main, so a field mirror buys nothing
@@ -50,7 +54,7 @@ import { defineRoute } from '../define'
  */
 
 export const CreateAgentCommandSchema = AgentBaseSchema.extend({
-  type: z.literal('claude-code'),
+  type: AgentEntitySchema.shape.type,
   /**
    * Create-only: ids of pre-existing global skills to enable for the new
    * Agent. Join rows are written in the same DB transaction as the Agent.
@@ -71,6 +75,12 @@ const agentTaskFormSchema = z.strictObject({
   trigger: TriggerSchema,
   workspace: AgentSessionWorkspaceSourceSchema,
   timeoutMinutes: TimeoutMinutesAtomSchema,
+  /**
+   * Continue one sticky session across fires instead of creating a fresh one.
+   * Defaults to off. To start a clean conversation, disable and save, then
+   * enable and save in a separate update.
+   */
+  reuseSession: z.boolean().optional(),
   channelIds: z.array(z.string()).optional()
 })
 export type AgentTaskForm = z.infer<typeof agentTaskFormSchema>
@@ -130,11 +140,28 @@ const aiImagePayloadSchema = z.strictObject({
   cleanupPolicy: CleanupPolicySchema
 })
 
+const aiStreamRegenerateShape = {
+  trigger: z.literal('regenerate-message'),
+  parentAnchorId: z.string().min(1),
+  userMessageParts: z.never().optional(),
+  targetMode: z.never().optional(),
+  reasoningEffort: ReasoningEffortOptionSchema.optional(),
+  fastMode: z.boolean().optional()
+}
+
+const mentionedModelIdsSchema = z
+  .array(UniqueModelIdSchema)
+  .refine((modelIds) => new Set(modelIds).size === modelIds.length, {
+    message: 'mentionedModelIds must not contain duplicate model ids'
+  })
+  .optional()
+
 export const aiRequestSchemas = {
   // ── One-shot model calls, grouped by output modality (AiService) ──
   'ai.text.generate': defineRoute({
     input: z.strictObject({
       ...aiBaseRequestShape,
+      reasoningEffort: ReasoningEffortOptionSchema.optional(),
       system: z.string().optional(),
       prompt: z.string().optional(),
       messages: z.array(z.custom<ModelMessage>()).optional()
@@ -179,26 +206,38 @@ export const aiRequestSchemas = {
   // ── Streaming chat (AiStreamManager) ──
   // Requests are R→M; the produced chunk/done/error events ride the AiEventSchemas block below.
   'ai.stream.open': defineRoute({
-    // Discriminated by `trigger`, mirroring AiStreamOpenRequest. `userMessageParts` is opaque
-    // pass-through (main persists it), so its items are `z.custom<CherryMessagePart>()`.
+    // Variant union mirrors AiStreamOpenRequest. `userMessageParts` is opaque pass-through
+    // (main persists it), so its items are `z.custom<CherryMessagePart>()`.
     input: z.intersection(
       z.object({
         topicId: z.string().min(1),
-        mentionedModelIds: z.array(UniqueModelIdSchema).optional()
+        mentionedModelIds: mentionedModelIdsSchema
       }),
-      z.discriminatedUnion('trigger', [
+      z.union([
         z.object({
           trigger: z.literal('submit-message'),
           parentAnchorId: z.string().optional(),
           userMessageParts: z.array(z.custom<CherryMessagePart>()),
+          targetMode: z.enum(['active-path', 'reserved-branch']).optional(),
+          retryMessageId: z.never().optional(),
+          appendToLiveGroupMessageId: z.never().optional(),
           reasoningEffort: ReasoningEffortOptionSchema.optional(),
           fastMode: z.boolean().optional()
         }),
         z.object({
-          trigger: z.literal('regenerate-message'),
-          parentAnchorId: z.string().min(1),
-          reasoningEffort: ReasoningEffortOptionSchema.optional(),
-          fastMode: z.boolean().optional()
+          ...aiStreamRegenerateShape,
+          retryMessageId: z.string().min(1),
+          appendToLiveGroupMessageId: z.never().optional()
+        }),
+        z.object({
+          ...aiStreamRegenerateShape,
+          retryMessageId: z.never().optional(),
+          appendToLiveGroupMessageId: z.string().min(1)
+        }),
+        z.object({
+          ...aiStreamRegenerateShape,
+          retryMessageId: z.never().optional(),
+          appendToLiveGroupMessageId: z.never().optional()
         })
       ])
     ),
@@ -248,9 +287,17 @@ export const aiRequestSchemas = {
     input: CreateAgentCommandSchema,
     output: AgentEntitySchema
   }),
-  'ai.agent.builtin_assistant.ensure': defineRoute({
+  'ai.agent.delete': defineRoute({
+    input: z.strictObject({ agentId: z.string().min(1), deleteSessions: z.boolean().default(false) }),
+    output: z.strictObject({ deleted: z.boolean(), deletedSessionIds: z.array(z.string()).optional() })
+  }),
+  'ai.agent.sessions.delete': defineRoute({
+    input: z.strictObject({ agentId: z.string().min(1) }),
+    output: z.strictObject({ deletedIds: z.array(z.string()) })
+  }),
+  'ai.agent.support_session.create': defineRoute({
     input: z.void(),
-    output: AgentEntitySchema
+    output: z.strictObject({ sessionId: z.string().min(1) })
   }),
   'ai.agent.session.prewarm': defineRoute({
     input: z.strictObject({ sessionId: z.string().min(1) }),
@@ -259,6 +306,18 @@ export const aiRequestSchemas = {
   'ai.agent.session.close_warm': defineRoute({
     input: z.strictObject({ sessionId: z.string().min(1) }),
     output: z.void()
+  }),
+  'ai.agent.session.delete': defineRoute({
+    input: z.strictObject({ sessionIds: z.array(z.string().min(1)).min(1).max(200) }),
+    output: z.strictObject({ deletedIds: z.array(z.string()) })
+  }),
+  'ai.agent.session.reuse_or_create': defineRoute({
+    input: ReuseOrCreateAgentSessionSchema,
+    output: z.custom<ReusableAgentSessionPlaceholdersResponse>()
+  }),
+  'ai.agent.workspace.delete': defineRoute({
+    input: z.strictObject({ workspaceId: z.string().min(1) }),
+    output: z.strictObject({ deletedIds: z.array(z.string()) })
   }),
 
   // ── Agent session runtime queries & commands ──

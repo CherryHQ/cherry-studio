@@ -28,7 +28,12 @@ vi.mock('@main/ai/contextBuild/persistedOutputAdapter', () => ({
 }))
 
 import type { RequestScope } from '../../scope'
-import { buildContextOptions, contextBuildFeature, resolveInFlightTruncateThreshold } from '../contextBuild'
+import {
+  buildContextOptions,
+  contextBuildFeature,
+  hasAnchorRow,
+  resolveInFlightTruncateThreshold
+} from '../contextBuild'
 
 const CACHE_MARK = { anthropic: { cacheControl: { type: 'ephemeral' } } }
 const BIG = 150_000
@@ -63,17 +68,22 @@ interface ScopeOverrides {
   contextSettings?: RequestScope['contextSettings']
   compressionModel?: RequestScope['compressionModel']
   model?: Partial<RequestScope['model']>
+  request?: Partial<RequestScope['request']>
   requestContext?: Partial<RequestScope['requestContext']>
+  canOffloadToolOutputs?: boolean
 }
 
 function makeScope(overrides: ScopeOverrides = {}): RequestScope {
   return {
     registry: { getAll: () => overrides.entries ?? [] },
     model: { id: 'test-model', contextWindow: 200_000, ...overrides.model },
-    request: {},
+    request: { ...overrides.request },
     requestContext: { requestId: 'anchor-1', persistedOutputPaths: new Set<string>(), ...overrides.requestContext },
     contextSettings: overrides.contextSettings ?? DEFAULT_CONTEXT_SETTINGS,
-    compressionModel: overrides.compressionModel ?? null
+    compressionModel: overrides.compressionModel ?? null,
+    // The normal chat turn. The anchor lookup happens once upstream, so storage
+    // routing reads this flag rather than re-querying the row.
+    canOffloadToolOutputs: overrides.canOffloadToolOutputs ?? true
   } as never
 }
 
@@ -127,21 +137,6 @@ function makePrompt(toolName: string, chars: number): LanguageModelV3Prompt {
   ]
 }
 
-/**
- * Expected shape after always-on `compact: { reasoning: 'before-last-message' }`
- * runs: the stale reasoning part on the (non-final) assistant message is
- * dropped. Everything else — system content, tool-call inputs, part- and
- * message-level providerOptions, the json tool output — must still round-trip
- * losslessly through the context module's fromAISDK/toAISDK adapter. This helper lets the
- * round-trip assertions stay strict on the adapter while accounting for the
- * compaction step the feature now configures.
- */
-function compacted(prompt: LanguageModelV3Prompt): LanguageModelV3Prompt {
-  return prompt.map((m) =>
-    m.role === 'assistant' ? { ...m, content: m.content.filter((p) => p.type !== 'reasoning') } : m
-  )
-}
-
 async function runTransform(prompt: LanguageModelV3Prompt, scope: RequestScope): Promise<LanguageModelV3Prompt> {
   const middleware = createContextMiddleware(buildContextOptions(scope)!)
   const result = await middleware.transformParams!({
@@ -191,21 +186,25 @@ describe('buildContextOptions → createMiddleware', () => {
     expect(fs.readdirSync(tmpDir)).toHaveLength(0)
   })
 
-  it('round-trips a prompt under the threshold losslessly (modulo compacted reasoning)', async () => {
+  it('round-trips a user-ending prompt under the threshold losslessly, including historical reasoning', async () => {
     // Deep equality over the WHOLE prompt: system string content, tool-call
-    // input, part-level and message-level providerOptions, the json output.
-    // The stale reasoning part is intentionally dropped by the always-on
-    // `compact` step (see compacted()); everything else must survive. If the
-    // surviving fields differ, the bug is in the context module's fromAISDK/toAISDK
+    // input, historical reasoning, part-level and message-level providerOptions,
+    // and the json output. If any field differs, the bug is in the context module's fromAISDK/toAISDK
     // adapter — STOP and fix it there (packages/aiCore/src/core/context), do
     // not paper over it here.
     const out = await runTransform(makePrompt('web__fetch', 100), makeScope())
-    expect(out).toEqual(compacted(makePrompt('web__fetch', 100)))
+    expect(out).toEqual(makePrompt('web__fetch', 100))
   })
 
-  it('leaves non-truncated portions of an oversized prompt untouched (modulo compacted reasoning)', async () => {
+  it('round-trips a tool-ending prompt under the threshold losslessly, including assistant reasoning', async () => {
+    const prompt = makePrompt('web__fetch', 100).slice(0, -1)
+    const out = await runTransform(prompt, makeScope())
+    expect(out).toEqual(prompt)
+  })
+
+  it('leaves non-truncated portions of an oversized prompt untouched, including reasoning', async () => {
     const out = await runTransform(makePrompt('mcp__srv__dump', BIG), makeScope())
-    const reference = compacted(makePrompt('mcp__srv__dump', BIG))
+    const reference = makePrompt('mcp__srv__dump', BIG)
     expect(out.filter((m) => m.role !== 'tool')).toEqual(reference.filter((m) => m.role !== 'tool'))
   })
 })
@@ -241,25 +240,49 @@ describe('buildContextOptions — storage routing', () => {
   })
 
   it('no message row (temp chat / one-shot streamPrompt) → no storage', () => {
-    // Real MessageService.getById throws NOT_FOUND for missing rows — it never returns null.
-    getByIdMock.mockImplementation(() => {
-      throw DataApiErrorFactory.notFound('Message', 'anchor-1')
-    })
-    const opts = buildContextOptions(makeScope())!
+    const opts = buildContextOptions(makeScope({ canOffloadToolOutputs: false }))!
     expect(opts.truncate?.storage).toBeUndefined()
     expect(adapterFactoryMock).not.toHaveBeenCalled()
+    // The row was resolved upstream; storage routing must not query it again.
+    expect(getByIdMock).not.toHaveBeenCalled()
   })
 
   it('non-anchored oversized results still truncate inline (no files, no marker path)', async () => {
-    getByIdMock.mockImplementation(() => {
-      throw DataApiErrorFactory.notFound('Message', 'anchor-1')
-    })
-    const out = await runTransform(makePrompt('mcp__srv__dump', BIG), makeScope())
+    const out = await runTransform(makePrompt('mcp__srv__dump', BIG), makeScope({ canOffloadToolOutputs: false }))
     const { value } = toolOutput(out)
     expect(value.length).toBeLessThan(10_000)
     expect(value).toContain('--- truncated')
     expect(value).not.toContain('<persisted-output>')
     expect(fs.readdirSync(tmpDir)).toHaveLength(0)
+  })
+})
+
+// The lookup moved out of resolveTruncateStorage so it can gate fs_read's
+// admission too, and now runs once per request in buildAgentParams.
+describe('hasAnchorRow', () => {
+  it('reports an anchored request when the id resolves to a message row', () => {
+    expect(hasAnchorRow('anchor-1')).toBe(true)
+    expect(getByIdMock).toHaveBeenCalledWith('anchor-1')
+  })
+
+  it('treats a missing row as non-anchored (temp chat / one-shot streamPrompt)', () => {
+    // Real MessageService.getById throws NOT_FOUND for missing rows — it never returns null.
+    getByIdMock.mockImplementation(() => {
+      throw DataApiErrorFactory.notFound('Message', 'anchor-1')
+    })
+    expect(hasAnchorRow('anchor-1')).toBe(false)
+  })
+
+  it('skips the lookup entirely when the request carries no message id', () => {
+    expect(hasAnchorRow(undefined)).toBe(false)
+    expect(getByIdMock).not.toHaveBeenCalled()
+  })
+
+  it('rethrows anything that is not a missing row', () => {
+    getByIdMock.mockImplementation(() => {
+      throw new Error('db is on fire')
+    })
+    expect(() => hasAnchorRow('anchor-1')).toThrow('db is on fire')
   })
 })
 
@@ -286,6 +309,19 @@ describe('contextBuildFeature', () => {
     await (plugins[0] as { configureContext: (c: unknown) => void | Promise<void> }).configureContext(ctx)
     expect(ctx.middlewares).toBeUndefined()
   })
+
+  it('does not register context middleware for caller-owned requests', async () => {
+    const scope = makeScope({ request: { contextOwner: 'caller' } })
+    expect(contextBuildFeature.applies!(scope)).toBe(false)
+    expect(buildContextOptions(scope)).toBeNull()
+
+    const plugins = contextBuildFeature.contributeModelAdapters!(scope)
+    const ctx = { middlewares: undefined as LanguageModelMiddleware[] | undefined }
+    await (plugins[0] as { configureContext: (c: unknown) => void | Promise<void> }).configureContext(ctx)
+    expect(ctx.middlewares).toBeUndefined()
+    expect(getByIdMock).not.toHaveBeenCalled()
+    expect(adapterFactoryMock).not.toHaveBeenCalled()
+  })
 })
 
 // The persist lane keeps a plain character threshold (it guards DB size and
@@ -306,6 +342,20 @@ describe('resolveInFlightTruncateThreshold', () => {
 
   it('never trims below the head+tail the truncator keeps anyway', () => {
     expect(resolveInFlightTruncateThreshold(100_000, 1000)).toBe(MIN_IN_FLIGHT_TRUNCATE_THRESHOLD)
+  })
+
+  // A declared max_tokens is billed alongside the input, so the share has to
+  // come off the room the prompt actually has: 200k − 128k leaves 72k, a third
+  // of the budget the raw window would have handed out.
+  it('takes its share of the room left after a declared max_tokens', () => {
+    expect(resolveInFlightTruncateThreshold(100_000, 200_000, 128_000)).toBe(21_600)
+    expect(resolveInFlightTruncateThreshold(100_000, 200_000, undefined)).toBe(60_000)
+  })
+
+  // minimax-m2 ships 205000/205000 and 82 other registry rows are just as
+  // degenerate; unfloored, the share would be 0 and every tool result offloads.
+  it('floors instead of collapsing when the reservation swallows the window', () => {
+    expect(resolveInFlightTruncateThreshold(100_000, 205_000, 205_000)).toBe(12_300)
   })
 
   it('scales with the window (the point of the change)', () => {
@@ -359,7 +409,7 @@ describe('buildContextOptions — compression wiring', () => {
     const scope = makeScope({ contextSettings: DEFAULT_CONTEXT_SETTINGS })
     const opts = buildContextOptions(scope)!
     expect(opts).not.toBeNull()
-    expect(opts.compact).toEqual({ reasoning: 'before-last-message', emptyMessages: 'remove' })
+    expect(opts.compact).toEqual({ reasoning: 'none', emptyMessages: 'remove' })
     // In-flight threshold is window-relative: min(setting, window share).
     expect(opts.truncate?.threshold).toBe(
       resolveInFlightTruncateThreshold(DEFAULT_CONTEXT_SETTINGS.truncateThreshold, 200_000)

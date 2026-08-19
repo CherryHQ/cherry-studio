@@ -1,5 +1,6 @@
 import { captureScrollable, captureScrollableAsDataUrl } from '@renderer/utils/image'
 import { act, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { HTMLAttributes, ReactNode, Ref } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -19,6 +20,7 @@ const scrollToBottom = vi.fn()
 const scrollToTop = vi.fn()
 const scrollToKey = vi.fn()
 const scrollToElement = vi.fn()
+const scrollToRange = vi.fn()
 const messageVirtualListMocks = vi.hoisted(() => ({
   deferScrollContainerReady: false,
   renderItemLimit: undefined as number | undefined,
@@ -27,15 +29,37 @@ const messageVirtualListMocks = vi.hoisted(() => ({
 }))
 const messageGroupRenderCounts = vi.hoisted(() => new Map<string, number>())
 const messageGroupMountCounts = vi.hoisted(() => new Map<string, number>())
+const messageListSearchMock = vi.hoisted(() => ({
+  props: null as {
+    messages: MessageListItem[]
+    excludedMessageIds: ReadonlySet<string>
+    isStreaming: boolean
+  } | null
+}))
 const chatLayoutModeMock = vi.hoisted(() => ({
   railGutterPx: 0,
   setForceWideLayout: () => {},
-  setRailGutterPx: () => {}
+  setRailGutterPx: vi.fn()
 }))
 
 vi.mock('@renderer/components/chat/layout/ChatLayoutModeContext', () => ({
   useChatLayoutMode: () => chatLayoutModeMock
 }))
+
+vi.mock('@renderer/components/chat/HtmlArtifactView', async () => {
+  const { useHtmlArtifactPopupContext } = await import('@renderer/components/chat/HtmlArtifactPopupContext')
+
+  return {
+    HtmlArtifactPopupOutlet: () => {
+      const { popupSession } = useHtmlArtifactPopupContext()
+      return popupSession ? (
+        <div role="dialog" aria-label={`${popupSession.title} popup`}>
+          {popupSession.html}
+        </div>
+      ) : null
+    }
+  }
+})
 
 vi.mock('@renderer/components/icons/LoadingIcon', () => ({
   default: () => <div data-testid="loading-icon" />
@@ -119,6 +143,34 @@ vi.mock('../list/MessageAnchorLine', () => ({
 
 vi.mock('../list/MessageGroup', async () => {
   const React = await import('react')
+  const { useHtmlArtifactPopupContext } = await import('@renderer/components/chat/HtmlArtifactPopupContext')
+  const ArtifactLifecycleControl = () => {
+    const popupContext = useHtmlArtifactPopupContext()
+    const artifactId = 'artifact-1'
+    const html = '<script>interactive()</script>'
+    const isApproved = popupContext.approvedInteractiveHtmlById[artifactId] === html
+
+    return isApproved ? (
+      <button
+        type="button"
+        onClick={() =>
+          popupContext.openPopup({
+            artifactId,
+            html,
+            title: 'Interactive artifact',
+            editable: false,
+            kind: 'document',
+            zoom: 100
+          })
+        }>
+        Open artifact
+      </button>
+    ) : (
+      <button type="button" onClick={() => popupContext.approveInteractiveHtml(artifactId, html)}>
+        Approve artifact
+      </button>
+    )
+  }
   const MockMessageGroup = ({
     messages,
     registerMessageElement
@@ -150,6 +202,7 @@ vi.mock('../list/MessageGroup', async () => {
             />
           )
         })}
+        {messages.some((message) => message.id === 'artifact-source') && <ArtifactLifecycleControl />}
         {groupId}
       </div>
     )
@@ -164,6 +217,13 @@ vi.mock('../list/MessageGroup', async () => {
 vi.mock('../list/MessageNavigation', () => ({
   __esModule: true,
   default: () => null
+}))
+
+vi.mock('../list/MessageListSearch', () => ({
+  MessageListSearch: (props: NonNullable<typeof messageListSearchMock.props>) => {
+    messageListSearchMock.props = props
+    return <div data-testid="message-list-search" />
+  }
 }))
 
 vi.mock('../list/SelectionBox', () => ({
@@ -193,6 +253,7 @@ vi.mock('../list/MessageVirtualList', async () => {
           scrollToTop,
           scrollToKey,
           scrollToElement,
+          scrollToRange,
           isFollowing: () => false,
           getScrollElement: () => messageVirtualListMocks.scrollElement
         }),
@@ -274,6 +335,7 @@ describe('MessageList', () => {
     scrollToTop.mockClear()
     scrollToKey.mockClear()
     scrollToElement.mockClear()
+    scrollToRange.mockClear()
     vi.mocked(captureScrollable).mockReset()
     vi.mocked(captureScrollableAsDataUrl).mockReset()
     messageVirtualListMocks.deferScrollContainerReady = false
@@ -282,13 +344,76 @@ describe('MessageList', () => {
     messageVirtualListMocks.scrollElement = document.createElement('div')
     messageGroupRenderCounts.clear()
     messageGroupMountCounts.clear()
+    messageListSearchMock.props = null
     chatLayoutModeMock.railGutterPx = 0
+    chatLayoutModeMock.setRailGutterPx.mockReset()
   })
 
   it('exposes a stable message-list boundary', () => {
     const { container } = renderMessageList([createMessage('assistant-1', 'assistant')])
 
     expect(container.querySelector('[data-ui~="chat.message-list"]')).toHaveAttribute('id', 'messages')
+  })
+
+  it('keeps artifact popup and approval state when the source virtual row unmounts', async () => {
+    const user = userEvent.setup()
+    const sourceMessage = createMessage('artifact-source', 'assistant')
+    const renderTree = () => (
+      <MessageListProvider value={createValue([sourceMessage])}>
+        <MessageList />
+      </MessageListProvider>
+    )
+    const view = render(renderTree())
+
+    await user.click(screen.getByRole('button', { name: 'Approve artifact' }))
+    await user.click(screen.getByRole('button', { name: 'Open artifact' }))
+    expect(await screen.findByRole('dialog', { name: 'Interactive artifact popup' })).toHaveTextContent(
+      '<script>interactive()</script>'
+    )
+
+    messageVirtualListMocks.renderItemLimit = 0
+    view.rerender(renderTree())
+
+    expect(screen.queryByRole('button', { name: 'Open artifact' })).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Interactive artifact popup' })).toBeInTheDocument()
+
+    messageVirtualListMocks.renderItemLimit = undefined
+    view.rerender(renderTree())
+
+    expect(screen.getByRole('button', { name: 'Open artifact' })).toBeInTheDocument()
+  })
+
+  it('keeps search disabled for embedded lists unless explicitly enabled', () => {
+    renderMessageList([createMessage('assistant-1', 'assistant')])
+
+    expect(screen.queryByTestId('message-list-search')).not.toBeInTheDocument()
+  })
+
+  it('keeps search mounted while excluding pending and live message content', () => {
+    const completed = createMessage('assistant-completed', 'assistant')
+    const pending = createMessage('assistant-pending', 'assistant', 'pending')
+    const live = createMessage('assistant-live', 'assistant')
+
+    render(
+      <MessageListProvider
+        value={createValue([completed, pending, live], {
+          streamingLayers: {
+            historyPartsByMessageId: {},
+            liveMessageIds: [live.id]
+          }
+        })}>
+        <MessageList enableSearch />
+      </MessageListProvider>
+    )
+
+    expect(screen.getByTestId('message-list-search')).toBeInTheDocument()
+    expect(messageListSearchMock.props?.messages.map((message) => message.id)).toEqual([
+      completed.id,
+      pending.id,
+      live.id
+    ])
+    expect(messageListSearchMock.props?.excludedMessageIds.has(live.id)).toBe(true)
+    expect(messageListSearchMock.props?.isStreaming).toBe(true)
   })
 
   it('pads the message column with the rail gutter from the chat layout context', () => {
@@ -301,6 +426,23 @@ describe('MessageList', () => {
       paddingLeft: '48px',
       paddingRight: '48px'
     })
+  })
+
+  it('preserves the measured rail gutter when the message list unmounts', () => {
+    Object.defineProperty(messageVirtualListMocks.scrollElement!, 'clientWidth', { value: 820 })
+    const view = render(
+      <MessageListProvider
+        value={createValue([createMessage('assistant-1', 'assistant')], { messageNavigation: 'anchor' })}>
+        <MessageList />
+      </MessageListProvider>
+    )
+
+    expect(chatLayoutModeMock.setRailGutterPx).toHaveBeenCalledWith(24)
+
+    chatLayoutModeMock.setRailGutterPx.mockClear()
+    view.unmount()
+
+    expect(chatLayoutModeMock.setRailGutterPx).not.toHaveBeenCalled()
   })
 
   it('keeps historical groups sealed while only the live tail changes', () => {

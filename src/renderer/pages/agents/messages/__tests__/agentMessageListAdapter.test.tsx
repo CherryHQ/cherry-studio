@@ -57,7 +57,7 @@ const headerCapabilitiesMock = vi.hoisted(() => ({
   userProfile: { avatar: '🙂' },
   openUserProfile: vi.fn()
 }))
-const navigateMock = vi.hoisted(() => vi.fn())
+const openRouteMock = vi.hoisted(() => vi.fn())
 const ipcApiRequest = vi.hoisted(() => vi.fn())
 const eventMocks = vi.hoisted(() => ({
   emit: vi.fn(),
@@ -151,8 +151,8 @@ vi.mock('@renderer/components/chat/messages/hooks/useMessageHeaderCapabilities',
   useMessageHeaderCapabilities: () => headerCapabilitiesMock
 }))
 
-vi.mock('@tanstack/react-router', () => ({
-  useNavigate: () => navigateMock
+vi.mock('@renderer/services/mainWindowNavigation', () => ({
+  openRoute: openRouteMock
 }))
 
 vi.mock('@renderer/services/EventService', () => ({
@@ -195,6 +195,7 @@ describe('useAgentMessageListProviderValue', () => {
       id: 'agent-session-topic',
       assistantId: 'agent-1',
       name: 'Agent session',
+      lastActivityAt: '2026-01-01T00:00:00.000Z',
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
       messages: []
@@ -338,10 +339,7 @@ describe('useAgentMessageListProviderValue', () => {
     expect(window.api.file.showInFolder).toHaveBeenCalledWith('/Users/me/report.md')
 
     void value?.actions.navigateToRoute?.({ path: '/settings/provider', query: { id: 'provider-1' } })
-    expect(navigateMock).toHaveBeenCalledWith({
-      to: '/settings/provider',
-      search: { id: 'provider-1' }
-    })
+    expect(openRouteMock).toHaveBeenCalledWith('/settings/provider', { id: 'provider-1' })
 
     const locateMessage = vi.fn()
     const startEditing = vi.fn()
@@ -387,6 +385,7 @@ describe('useAgentMessageListProviderValue', () => {
       id: 'agent-session:session-1',
       assistantId: 'agent-1',
       name: 'Agent session',
+      lastActivityAt: '2026-01-01T00:00:00.000Z',
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
       messages: []
@@ -418,6 +417,7 @@ describe('useAgentMessageListProviderValue', () => {
       id: 'agent-session:session-1',
       assistantId: 'agent-1',
       name: 'Agent session',
+      lastActivityAt: '2026-01-01T00:00:00.000Z',
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
       messages: []
@@ -464,6 +464,7 @@ describe('useAgentMessageListProviderValue', () => {
       id: 'agent-session:session-1',
       assistantId: 'agent-1',
       name: 'Agent session',
+      lastActivityAt: '2026-01-01T00:00:00.000Z',
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
       messages: []
@@ -538,6 +539,7 @@ describe('useAgentMessageListProviderValue', () => {
       id: 'agent-session-topic',
       assistantId: 'agent-1',
       name: 'Agent session',
+      lastActivityAt: '2026-01-01T00:00:00.000Z',
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
       messages: []
@@ -606,6 +608,7 @@ describe('useAgentMessageListProviderValue', () => {
       id: 'agent-session-topic',
       assistantId: 'agent-1',
       name: 'Agent session',
+      lastActivityAt: '2026-01-01T00:00:00.000Z',
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
       messages: []
@@ -645,6 +648,7 @@ describe('useAgentMessageListProviderValue', () => {
       id: 'agent-session-topic',
       assistantId: 'agent-1',
       name: 'Agent session',
+      lastActivityAt: '2026-01-01T00:00:00.000Z',
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
       messages: []
@@ -691,6 +695,7 @@ describe('useAgentMessageListProviderValue', () => {
       id: 'agent-session:session-a',
       assistantId: 'agent-1',
       name: 'Agent session',
+      lastActivityAt: '2026-01-01T00:00:00.000Z',
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
       messages: []

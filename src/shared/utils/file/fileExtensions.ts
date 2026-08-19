@@ -19,10 +19,30 @@ export const knowledgeSupportedFileExts = [
   '.csv',
   '.doc',
   '.pptx',
+  '.ppt',
   '.epub',
   '.draftsexport'
 ] as const
-export const knowledgeFileProcessingExts = ['.pdf', '.doc', '.docx', '.pptx', '.xlsx', '.xls'] as const
+/**
+ * The extensions a knowledge base routes through a `document_to_markdown` processor.
+ *
+ * PDF only, deliberately — and this is a knowledge-side routing decision, not a
+ * property of the processors: they all declare `inputs: ['document']` and would
+ * accept an Office file. The point is that a remote OCR round-trip only earns its
+ * cost (API quota, latency, uploading the document) on documents with no reliable
+ * text layer. Office containers carry a structured one, which `AnydocReader`
+ * extracts locally with no network call.
+ *
+ * Note the two are alternatives, never both: a processor's output is recorded as
+ * the item's `indexedRelativePath`, and `toMaterialRelativePath` (knowledge/items.ts)
+ * then makes indexing read that Markdown *instead of* the original file. Narrowing
+ * this list therefore changes which rendering an Office file gets — it does not
+ * remove a duplicated pass.
+ *
+ * Caveat: anydoc has no `win32-arm64` build, where `.pptx`/`.xls`/`.xlsx` fall back
+ * to a plain-text reader that cannot decode them (AnydocReader's docblock; #18190).
+ */
+export const knowledgeFileProcessingExts = ['.pdf'] as const
 
 /**
  * A flat array of all file extensions known by the linguist database.

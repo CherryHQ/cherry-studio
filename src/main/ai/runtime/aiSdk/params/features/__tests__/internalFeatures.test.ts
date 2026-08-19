@@ -81,9 +81,10 @@ async function qwenUserText(scope: RequestScope): Promise<string> {
 }
 
 describe('INTERNAL_FEATURES — decision matrix', () => {
-  it('bare anthropic scope (no assistant): only the always-on context-build activates (pdf-compatibility was removed)', () => {
+  it('bare anthropic scope (no assistant): only the always-on features activate (pdf-compatibility was removed)', () => {
     expect(activeNames(makeScope({ provider: { id: 'anthropic' }, model: {}, aiSdkProviderId: 'anthropic' }))).toEqual([
-      'context-build'
+      'context-build',
+      'tool-schema-compatibility'
     ])
   })
 
@@ -224,10 +225,10 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
     expect(
       activeNames(makeScope({ provider: {}, model: {}, webToolRoutes: { webSearch: 'none', webFetch: 'server' } }))
     ).toContain('provider-tool-urlContext')
-    // Client-side routing adds no provider tool; only the always-on context-build remains.
+    // Client-side routing adds no provider tool; only the always-on features remain.
     expect(
       activeNames(makeScope({ provider: {}, model: {}, webToolRoutes: { webSearch: 'client', webFetch: 'client' } }))
-    ).toEqual(['context-build'])
+    ).toEqual(['context-build', 'tool-schema-compatibility'])
   })
 
   it('drives the Qwen suffix from the resolved request snapshot instead of persisted assistant settings', async () => {

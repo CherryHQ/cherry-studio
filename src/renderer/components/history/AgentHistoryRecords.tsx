@@ -189,7 +189,7 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
   const rowDescriptor = useMemo(
     () => ({
       getName: (session: SessionListItem) => session.name || t('common.unnamed'),
-      getUpdatedAt: (session: SessionListItem) => session.updatedAt,
+      getUpdatedAt: (session: SessionListItem) => session.lastActivityAt,
       getSourceLabel: (session: SessionListItem) =>
         (session.agentId ? agentById.get(session.agentId)?.name : undefined) ?? unknownAgentLabel,
       renderAvatar: (session: SessionListItem) => {

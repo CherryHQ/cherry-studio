@@ -7,7 +7,6 @@ import {
   ResourcePaneCountButton,
   type ResourcePaneCountButtonProps
 } from '@renderer/components/chat/panes/Shell'
-import { EmptyState } from '@renderer/components/chat/primitives'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import ConversationCenterState from '@renderer/components/chat/shell/ConversationCenterState'
 import { ConversationGreeting } from '@renderer/components/chat/shell/ConversationGreeting'
@@ -25,11 +24,10 @@ import {
   MissingAgentHomeComposer
 } from '@renderer/components/composer/variants/AgentComposer'
 import { useCache, useSharedCache } from '@renderer/data/hooks/useCache'
-import { useAgent, useUpdateAgent } from '@renderer/hooks/agent/useAgent'
+import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAgentWorkspaceWarning } from '@renderer/hooks/agent/useAgentWorkspaceWarning'
-import { type AgentSessionSource, useUpdateSession } from '@renderer/hooks/agent/useSession'
-import { useModelById } from '@renderer/hooks/useModel'
+import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import type { ConversationCenterSlot, PaneManualToggleSignal } from '@renderer/types/conversationLayout'
@@ -47,10 +45,12 @@ import { useTranslation } from 'react-i18next'
 import AgentChatMain from './AgentChatMain'
 import AgentComposerSlot from './AgentComposerSlot'
 import { AgentChatNavbar } from './components/AgentChatNavbar'
-import { type AgentFileNavigationRequest, AgentRightPane } from './components/AgentRightPane'
+import { type AgentFileNavigationRequest, AgentRightPane, AgentTaskProgressCapsule } from './components/AgentRightPane'
+import { ApiGatewayRequiredDialog } from './components/ApiGatewayRequiredDialog'
 import { locateAgentMessageInList } from './messages/agentMessageListAdapter'
 import type { CreateAgentSessionDefaults } from './types'
 import { type AgentChatRuntimeState, useAgentChatRuntimeState } from './useAgentChatRuntimeState'
+import type { AgentConversationBootstrap } from './useAgentConversationBootstrap'
 
 const EMPTY_MESSAGES: CherryUIMessage[] = []
 const EMPTY_PARTS: Record<string, CherryMessagePart[]> = {}
@@ -82,11 +82,7 @@ interface AgentChatProps {
   pane?: ReactNode
   paneOpen?: boolean
   panePosition?: ChatPanePosition
-  activeSession?: AgentSessionEntity | null
-  activeSessionLoading?: boolean
-  activeSessionSource?: AgentSessionSource
-  lockedSession?: AgentSessionEntity | null
-  lockedSessionLoading?: boolean
+  conversationBootstrap: AgentConversationBootstrap
   showResourceListControls?: boolean
   sidebarOpen?: boolean
   onSidebarToggle?: () => void
@@ -116,6 +112,8 @@ interface AgentChatProps {
 
 interface AgentChatLayoutProps {
   activeAgent?: GetAgentResponse
+  /** Active model — the right pane needs it for the context-usage denominator. */
+  model?: Model
   center?: ReactNode
   centerClassName?: string
   centerSurface?: ConversationCenterSlot | null
@@ -146,11 +144,7 @@ const AgentChat = ({
   pane,
   paneOpen,
   panePosition,
-  activeSession,
-  activeSessionLoading = false,
-  activeSessionSource = 'none',
-  lockedSession,
-  lockedSessionLoading = false,
+  conversationBootstrap,
   showResourceListControls = true,
   sidebarOpen,
   onSidebarToggle,
@@ -188,13 +182,14 @@ const AgentChat = ({
   const [modelSwitchConfirmOpen, setModelSwitchConfirmOpen] = useState(false)
   const [skipModelSwitchConfirmation, setSkipModelSwitchConfirmation] = useState(false)
 
-  const hasLockedSession = lockedSession !== undefined
-  const sessionSnapshot = hasLockedSession ? (lockedSession ?? null) : (activeSession ?? null)
+  const sessionSnapshot = conversationBootstrap.session
   const visibleAgentId = sessionSnapshot?.agentId ?? null
   const visibleWorkspaceId = sessionSnapshot?.workspaceId ?? null
   const visibleWorkspace = sessionSnapshot?.workspace ?? null
-  const { agent: activeAgent, isLoading: isActiveAgentLoading } = useAgent(visibleAgentId)
-  const { model: activeModel, isLoading: isActiveModelLoading } = useModelById(activeAgent?.model)
+  const activeAgent = conversationBootstrap.resources.agent
+  const isActiveAgentLoading = conversationBootstrap.resources.agentLoading
+  const activeModel = conversationBootstrap.resources.model
+  const isActiveModelLoading = conversationBootstrap.resources.modelLoading
   const { updateModel } = useUpdateAgent()
   const { updateSession } = useUpdateSession()
   const agentModelFilter = useAgentModelFilter(activeAgent?.type)
@@ -212,7 +207,7 @@ const AgentChat = ({
     setCitationPanelCitations(citations)
   }, [])
 
-  const isInitializing = !sessionSnapshot && (hasLockedSession ? lockedSessionLoading : activeSessionLoading)
+  const isInitializing = !sessionSnapshot && conversationBootstrap.sessionLoading
   const citationsPanelOpen = citationPanelCitations !== null
   const conversationState = sessionSnapshot ? 'ready' : isInitializing ? 'pending' : 'unavailable'
   const sessionAgentId = sessionSnapshot?.agentId ?? null
@@ -220,11 +215,11 @@ const AgentChat = ({
   const composerAgentId = isActiveAgentLoading ? (sessionAgentId ?? undefined) : sendableAgentId
   const shouldFetchSessionHistoryOnMount = Boolean(
     sessionSnapshot &&
-      (activeSessionSource === 'query' ||
-        activeSessionSource === 'pending' ||
-        (!!activeSession && activeSessionSource === 'none'))
+      (conversationBootstrap.sessionSource === 'query' ||
+        conversationBootstrap.sessionSource === 'pending' ||
+        conversationBootstrap.sessionSource === 'none')
   )
-  const sessionMessagesEnabled = Boolean(sessionSnapshot && activeSession && activeSession.id === sessionSnapshot.id)
+  const sessionMessagesEnabled = Boolean(sessionSnapshot)
   const runtime = useAgentChatRuntimeState({
     sessionId: sessionSnapshot?.id ?? '',
     sessionMessagesEnabled,
@@ -370,8 +365,6 @@ const AgentChat = ({
       />
     )
     center = <ConversationCenterState state="loading" />
-  } else if (!sessionSnapshot && hasLockedSession) {
-    center = <EmptyState compact className="h-full" title={t('agent.session.get.error.not_found')} />
   } else if (!sessionSnapshot && missingAgentSelection) {
     const composer = !isMultiSelectMode ? (
       <ConversationComposerSlot
@@ -393,6 +386,14 @@ const AgentChat = ({
     )
     center = <ConversationStageCenter placement="docked" main={null} composer={composer} />
   } else if (!sessionSnapshot) {
+    topBar = (
+      <AgentChatNavbar
+        activeAgent={null}
+        showSidebarControls={showResourceListControls}
+        sidebarOpen={sidebarOpen}
+        onSidebarToggle={onSidebarToggle}
+      />
+    )
     center = <ConversationCenterState state="empty" />
   } else {
     topBar = (
@@ -458,6 +459,7 @@ const AgentChat = ({
 
   const layoutProps: AgentChatLayoutProps = {
     activeAgent,
+    model: activeModel,
     center,
     centerClassName,
     centerSurface,
@@ -566,22 +568,25 @@ const AgentChatSessionCenter = ({
   composerLaunchOptions
 }: AgentChatSessionCenterProps) => {
   const composer = (
-    <AgentComposerSlot
-      agentId={agentId}
-      activeAgent={activeAgent}
-      activeModel={activeModel}
-      workspaceWarning={workspaceWarning}
-      isMultiSelectMode={isMultiSelectMode}
-      session={session}
-      sessionId={runtime.sessionId}
-      sendMessage={runtime.sendMessage}
-      stop={runtime.stop}
-      isStreaming={runtime.isPending}
-      sendDisabled={composerPending}
-      onCreateEmptySession={onCreateEmptySession}
-      composerContext={runtime.composerContext}
-      composerLaunchOptions={composerLaunchOptions}
-    />
+    <div className="flex w-full flex-col">
+      {!isMultiSelectMode && <AgentTaskProgressCapsule />}
+      <AgentComposerSlot
+        agentId={agentId}
+        activeAgent={activeAgent}
+        activeModel={activeModel}
+        workspaceWarning={workspaceWarning}
+        isMultiSelectMode={isMultiSelectMode}
+        session={session}
+        sessionId={runtime.sessionId}
+        sendMessage={runtime.sendMessage}
+        stop={runtime.stop}
+        isStreaming={runtime.isPending}
+        sendDisabled={composerPending}
+        onCreateEmptySession={onCreateEmptySession}
+        composerContext={runtime.composerContext}
+        composerLaunchOptions={composerLaunchOptions}
+      />
+    </div>
   )
   const main = (
     <div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
@@ -610,6 +615,7 @@ const AgentChatSessionCenter = ({
         deleteMessage={runtime.deleteMessage}
         respondToolApproval={runtime.respondToolApproval}
       />
+      <ApiGatewayRequiredDialog sessionId={runtime.sessionId} />
     </div>
   )
 
@@ -618,6 +624,7 @@ const AgentChatSessionCenter = ({
 
 function AgentChatLayout({
   activeAgent,
+  model,
   center,
   centerClassName,
   centerSurface,
@@ -644,6 +651,7 @@ function AgentChatLayout({
 }: AgentChatLayoutProps) {
   return (
     <AgentRightPane.Scope
+      model={model}
       conversationState={conversationState}
       workspaceId={sessionSnapshot?.workspaceId}
       workspacePath={sessionSnapshot?.workspace?.path}

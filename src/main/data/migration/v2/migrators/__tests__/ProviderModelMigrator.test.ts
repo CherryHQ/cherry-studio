@@ -16,12 +16,13 @@ import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { asc, eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /** A valid 1×1 PNG so `sharp` can transcode it to WebP during migration. */
 const PNG_1X1 =
-  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC'
 
 import type { MigrationContext } from '../../core/MigrationContext'
 import { AssistantMigrator } from '../AssistantMigrator'
@@ -242,6 +243,62 @@ describe('ProviderModelMigrator', () => {
 
       const models = await dbh.db.select().from(userModelTable)
       expect(models.filter((model) => model.providerId !== CHERRYAI_PROVIDER_ID)).toHaveLength(1)
+    })
+
+    it('skips route-unsafe model ids without blocking the remaining provider migration', async () => {
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [
+            makeProvider('openai', [
+              { id: 'gpt-4o' },
+              { id: 'jackrong-qwopus3.5-27b-v3@?' },
+              { id: 'legacy-model#fragment' }
+            ])
+          ]
+        }
+      })
+
+      const prepareResult = await migrator.prepare(migrationContext)
+      const executeResult = await migrator.execute(migrationContext)
+      const validateResult = await migrator.validate(migrationContext)
+
+      expect(prepareResult.success).toBe(true)
+      expect(prepareResult.warnings).toContain('Skipped 2 model(s) with invalid id')
+      expect(executeResult.success).toBe(true)
+      expect(validateResult.success).toBe(true)
+
+      const models = await dbh.db.select().from(userModelTable)
+      expect(models.filter((model) => model.providerId === 'openai').map((model) => model.modelId)).toEqual(['gpt-4o'])
+    })
+
+    it('keeps the provider and API key when every legacy model id is invalid', async () => {
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [
+            {
+              ...makeProvider('openai', [{ id: 'jackrong-qwopus3.5-27b-v3@?' }, { id: 'legacy-model#fragment' }]),
+              apiKey: 'sk-valid'
+            }
+          ]
+        }
+      })
+
+      const prepareResult = await migrator.prepare(migrationContext)
+      const executeResult = await migrator.execute(migrationContext)
+      const validateResult = await migrator.validate(migrationContext)
+
+      expect(prepareResult.success).toBe(true)
+      expect(prepareResult.warnings).toContain('Skipped 2 model(s) with invalid id')
+      expect(executeResult.success).toBe(true)
+      expect(validateResult.success).toBe(true)
+
+      const provider = dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'openai')).get()
+      const models = dbh.db.select().from(userModelTable).where(eq(userModelTable.providerId, 'openai')).all()
+
+      expect(provider?.apiKeys).toEqual(
+        expect.arrayContaining([expect.objectContaining({ key: 'sk-valid', isEnabled: true })])
+      )
+      expect(models).toEqual([])
     })
 
     it('migrates pinned models from Dexie settings into pin rows in legacy order', async () => {
@@ -1380,6 +1437,57 @@ describe('ProviderModelMigrator', () => {
   })
 
   describe('validate', () => {
+    it('allows migration when a legacy API key contains no usable entries', async () => {
+      const providerId = 'a8ffe6fa-c3f8-42f5-9b32-0baaf40676de'
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [
+            {
+              ...makeProvider(providerId),
+              apiKey: ' ,\n, '
+            }
+          ]
+        }
+      })
+      await migrator.prepare(migrationContext)
+      await migrator.execute(migrationContext)
+      mockMainLoggerService.warn.mockClear()
+
+      const result = await migrator.validate(migrationContext)
+
+      expect(result.success).toBe(true)
+      expect(result.errors).toEqual([])
+      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+        'Legacy provider API key contained no migratable entries; continuing without API keys',
+        { providerId }
+      )
+    })
+
+    it('still rejects migration when a usable API key is missing from the target row', async () => {
+      const providerId = 'custom-provider'
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [
+            {
+              ...makeProvider(providerId),
+              apiKey: 'sk-valid'
+            }
+          ]
+        }
+      })
+      await migrator.prepare(migrationContext)
+      await migrator.execute(migrationContext)
+      dbh.db.update(userProviderTable).set({ apiKeys: [] }).where(eq(userProviderTable.providerId, providerId)).run()
+
+      const result = await migrator.validate(migrationContext)
+
+      expect(result.success).toBe(false)
+      expect(result.errors).toContainEqual({
+        key: `missing_api_key_${providerId}`,
+        message: `Provider ${providerId} should include migrated API keys`
+      })
+    })
+
     it('returns an error ID when validation throws', async () => {
       const cause = new Error('count query failed')
       const migrationContext = createContext({

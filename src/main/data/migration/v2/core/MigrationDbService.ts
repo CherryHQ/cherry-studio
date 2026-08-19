@@ -47,10 +47,31 @@ export class MigrationDbService {
       logger.warn('Failed to configure WAL mode', error as Error)
     }
 
+    // Validate migrations folder exists before attempting schema migration
+    if (!fs.existsSync(paths.migrationsFolder)) {
+      sqlite.close()
+      throw new Error(
+        `Migrations folder not found: ${paths.migrationsFolder}. ` +
+          'This usually means the application was not packaged correctly.'
+      )
+    }
+    logger.info('Migrations folder verified', { path: paths.migrationsFolder })
+
     // Schema migrations + custom SQL (triggers, FTS, etc. — all idempotent). Shared with
     // DbService so table-recreate migrations get the same out-of-transaction FK handling;
     // it restores this connection's setting (ON by default) when it returns.
-    applyMigrations(db, paths.migrationsFolder)
+    try {
+      applyMigrations(db, paths.migrationsFolder)
+    } catch (error) {
+      // Close the SQLite connection to avoid dangling handles, then re-throw with context.
+      try {
+        sqlite.close()
+      } catch {
+        // Best-effort — the original error is more important.
+      }
+      const msg = error instanceof Error ? error.message : String(error)
+      throw new Error(`Database schema migration failed: ${msg}`, { cause: error })
+    }
 
     // Keep foreign keys OFF for the ENTIRE migration. better-sqlite3's single persistent
     // connection makes this one PRAGMA hold for every statement until close() — no replay

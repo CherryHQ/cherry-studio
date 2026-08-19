@@ -771,7 +771,7 @@ describe('MiniAppMigrator', () => {
       const tmpUserData = await fs.mkdtemp(path.join(os.tmpdir(), 'miniapp-mig-'))
       const filesDir = path.join(tmpUserData, 'Data', 'Files')
       await fs.mkdir(filesDir, { recursive: true })
-      const PNG_1X1 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
+      const PNG_1X1 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC'
       await fs.writeFile(
         path.join(filesDir, 'custom-minapps.json'),
         JSON.stringify([
@@ -828,7 +828,7 @@ describe('MiniAppMigrator', () => {
       const filesDir = path.join(tmpUserData, 'Data', 'Files')
       await fs.mkdir(filesDir, { recursive: true })
       // A real 1×1 PNG data URL → transcodes to a WebP written into filesDataDir.
-      const PNG_1X1 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
+      const PNG_1X1 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC'
       await fs.writeFile(
         path.join(filesDir, 'custom-minapps.json'),
         JSON.stringify([

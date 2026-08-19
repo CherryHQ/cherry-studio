@@ -1,9 +1,6 @@
-import { dataApiService } from '@data/DataApiService'
-import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
-import { loggerService } from '@logger'
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
-import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
+import { ChatLayoutModeProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import { ResourcePaneCountButton, type ResourcePaneCountButtonProps } from '@renderer/components/chat/panes/Shell'
 import ConversationCenterState from '@renderer/components/chat/shell/ConversationCenterState'
 import ConversationShell from '@renderer/components/chat/shell/ConversationShell'
@@ -14,21 +11,17 @@ import {
   type ChatConversationControlsProps
 } from '@renderer/components/composer/variants/chat/ChatConversationControls'
 import type { ChatConversationControlsSnapshot } from '@renderer/components/composer/variants/ChatComposer'
-import type { ContentSearchRef } from '@renderer/components/ContentSearch'
-import { ContentSearch } from '@renderer/components/ContentSearch'
 import PromptPopup from '@renderer/components/popups/PromptPopup'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useProviders } from '@renderer/hooks/useProvider'
-import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ConversationCenterSlot, PaneManualToggleSignal } from '@renderer/types/conversationLayout'
 import type { Citation } from '@renderer/types/message'
 import type { Topic } from '@renderer/types/topic'
 import type { FC, ReactNode } from 'react'
-import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { useHotkeys } from 'react-hotkeys-hook'
+import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ChatContent from './ChatContent'
@@ -36,7 +29,6 @@ import ChatNavbar from './components/ChatNavbar'
 import { TopicRightPane, useTopicBranchLiveStateSetter } from './components/TopicRightPane'
 import type { AddNewTopicPayload } from './types'
 
-const logger = loggerService.withContext('Chat')
 const EMPTY_MODELS: ChatConversationControlsSnapshot['mentionedModels'] = []
 const NOOP_MODEL_SELECT: ChatConversationControlsSnapshot['onModelSelect'] = () => undefined
 const NOOP_MODELS_SELECT: ChatConversationControlsSnapshot['onMentionedModelsSelect'] = () => undefined
@@ -54,6 +46,8 @@ function ChatTopBarControls(props: ChatTopBarControlsProps) {
 
 interface Props {
   activeTopic?: Topic
+  /** The entry topic is still resolving — hold the loading center instead of the empty one. */
+  topicPending?: boolean
   centerSurface?: ConversationCenterSlot | null
   pane?: ReactNode
   paneOpen?: boolean
@@ -75,17 +69,12 @@ const Chat: FC<Props> = (props) => {
   const { updateTopic: patchTopic } = useTopicMutations()
   const { t } = useTranslation()
   const [messageStyle] = usePreference('chat.message.style')
-  const invalidateCache = useInvalidateCache()
+  const [topicDisplayMode] = usePreference('topic.tab.display_mode')
   const [citationPanelCitations, setCitationPanelCitations] = useState<Citation[] | null>(null)
   const [branchLocateMessageId, setBranchLocateMessageId] = useState<string | undefined>()
   const setTopicBranchLiveState = useTopicBranchLiveStateSetter()
-  const branchDraftAnchorIdRef = useRef<string | null>(null)
-  const branchSendAnchorOverrideIdRef = useRef<string | null>(null)
 
   const mainRef = React.useRef<HTMLDivElement>(null)
-  const contentSearchRef = useRef<ContentSearchRef>(null)
-  const [filterIncludeUser, setFilterIncludeUser] = useState(false)
-  const { setTimeoutTimer } = useTimer()
   const activeTopic = props.activeTopic
   const centerSurface = props.centerSurface
   const showConversation = Boolean(activeTopic && !centerSurface)
@@ -112,42 +101,14 @@ const Chat: FC<Props> = (props) => {
   const onLocateMessageHandledProp = props.onLocateMessageHandled
 
   useEffect(() => {
-    branchDraftAnchorIdRef.current = null
-    branchSendAnchorOverrideIdRef.current = null
     setBranchLocateMessageId(undefined)
     if (!activeTopicId) return
 
     setTopicBranchLiveState(activeTopicId, null)
     return () => {
-      branchDraftAnchorIdRef.current = null
-      branchSendAnchorOverrideIdRef.current = null
       setTopicBranchLiveState(activeTopicId, null)
     }
   }, [activeTopicId, setTopicBranchLiveState])
-
-  useHotkeys(
-    'esc',
-    () => {
-      contentSearchRef.current?.disable()
-    },
-    { enabled: showConversation },
-    [showConversation]
-  )
-
-  useCommandHandler(
-    'chat.message.search',
-    () => {
-      if (!showConversation) return
-
-      try {
-        const selectedText = window.getSelection()?.toString().trim()
-        contentSearchRef.current?.enable(selectedText)
-      } catch (error) {
-        logger.error('Error enabling content search:', error as Error)
-      }
-    },
-    { enabled: showConversation }
-  )
 
   useCommandHandler(
     'topic.rename',
@@ -169,34 +130,6 @@ const Chat: FC<Props> = (props) => {
     },
     { enabled: showConversation }
   )
-
-  const contentSearchFilter: NodeFilter = {
-    acceptNode(node) {
-      const container = node.parentElement?.closest('.message-content-container')
-      if (!container) return NodeFilter.FILTER_REJECT
-      const message = container.closest('.message')
-      if (!message) return NodeFilter.FILTER_REJECT
-      if (filterIncludeUser) return NodeFilter.FILTER_ACCEPT
-      if (message.classList.contains('message-assistant')) return NodeFilter.FILTER_ACCEPT
-      return NodeFilter.FILTER_REJECT
-    }
-  }
-
-  const userOutlinedItemClickHandler = () => {
-    setFilterIncludeUser(!filterIncludeUser)
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        setTimeoutTimer(
-          'userOutlinedItemClickHandler',
-          () => {
-            contentSearchRef.current?.search()
-            contentSearchRef.current?.focus()
-          },
-          0
-        )
-      })
-    })
-  }
 
   const citationsPanelOpen = citationPanelCitations !== null
 
@@ -222,67 +155,6 @@ const Chat: FC<Props> = (props) => {
     },
     [activeTopicId, setTopicBranchLiveState]
   )
-  const getBranchDraftAnchorId = useCallback(
-    () => branchDraftAnchorIdRef.current ?? branchSendAnchorOverrideIdRef.current,
-    []
-  )
-  const clearBranchDraft = useCallback(() => {
-    branchDraftAnchorIdRef.current = null
-    branchSendAnchorOverrideIdRef.current = null
-  }, [])
-  const handleCancelBranchDraft = useCallback(
-    (nextActiveNodeId?: string | null) => {
-      branchDraftAnchorIdRef.current = null
-      branchSendAnchorOverrideIdRef.current = nextActiveNodeId ?? null
-      if (!activeTopicId) return
-
-      if (nextActiveNodeId === undefined) {
-        setTopicBranchLiveState(activeTopicId, null)
-        return
-      }
-
-      setTopicBranchLiveState(activeTopicId, {
-        topicId: activeTopicId,
-        activeNodeId: nextActiveNodeId,
-        nodes: []
-      })
-    },
-    [activeTopicId, setTopicBranchLiveState]
-  )
-  const handleStartBranchDraft = useCallback(
-    async (anchorMessageId: string) => {
-      if (!activeTopicId) return
-
-      await dataApiService.put(`/topics/${activeTopicId}/active-node`, {
-        body: { nodeId: anchorMessageId }
-      })
-
-      branchDraftAnchorIdRef.current = anchorMessageId
-      branchSendAnchorOverrideIdRef.current = null
-      const draftNodeId = `branch-draft:${anchorMessageId}`
-      const draftState: TopicMessageFlowLiveState = {
-        topicId: activeTopicId,
-        activeNodeId: draftNodeId,
-        nodes: [
-          {
-            id: draftNodeId,
-            parentId: anchorMessageId,
-            role: 'user',
-            preview: t('chat.message.flow.status.awaiting_input'),
-            modelId: null,
-            status: 'paused',
-            createdAt: new Date().toISOString(),
-            isInputDraft: true
-          }
-        ]
-      }
-
-      setTopicBranchLiveState(activeTopicId, draftState)
-      void EventEmitter.emit(EVENT_NAMES.FOCUS_CHAT_COMPOSER, { topicId: activeTopicId })
-      await invalidateCache(`/topics/${activeTopicId}/messages`)
-    },
-    [activeTopicId, invalidateCache, setTopicBranchLiveState, t]
-  )
   const locateMessageId = locateMessageIdProp ?? branchLocateMessageId
   const handleLocateMessageHandled = useCallback(() => {
     setBranchLocateMessageId(undefined)
@@ -290,7 +162,7 @@ const Chat: FC<Props> = (props) => {
       onLocateMessageHandledProp?.()
     }
   }, [locateMessageIdProp, onLocateMessageHandledProp])
-  const center =
+  const centerContent =
     centerSurface?.content ??
     (activeTopic ? (
       <ChatContent
@@ -302,16 +174,17 @@ const Chat: FC<Props> = (props) => {
         locateMessageId={locateMessageId}
         onLocateMessageHandled={handleLocateMessageHandled}
         onBranchLiveStateChange={handleBranchLiveStateChange}
-        clearBranchDraft={clearBranchDraft}
-        getBranchDraftAnchorId={getBranchDraftAnchorId}
-        onStartBranchDraft={handleStartBranchDraft}
         assistantContext={assistantContext}
         providers={providers}
         onConversationControlsChange={setConversationControlsSnapshot}
       />
     ) : (
-      <ConversationCenterState state="loading" />
+      // Nothing left to resolve and still no topic: the library is genuinely empty, so settle on
+      // the empty center rather than spinning forever. Same split as AgentChat.
+      <ConversationCenterState state={props.topicPending ? 'loading' : 'empty'} />
     ))
+  // ChatContent is keyed by topic; keep width-derived layout state outside that remount boundary.
+  const center = <ChatLayoutModeProvider>{centerContent}</ChatLayoutModeProvider>
 
   return (
     <ConversationShell
@@ -352,6 +225,7 @@ const Chat: FC<Props> = (props) => {
                   selectModelLabel={assistantContext.isModelPending ? t('common.loading') : t('button.select_model')}
                   useMentionedModelSelector
                   shouldAutoSelectCreatedAssistant={false}
+                  assistantTriggerAction={topicDisplayMode === 'assistant' ? 'edit' : 'select'}
                   onDialogCloseAutoFocus={handleRestoreComposerFocus}
                   onAssistantChange={handleAssistantChange}
                   onModelSelect={activeConversationControlsSnapshot?.onModelSelect ?? NOOP_MODEL_SELECT}
@@ -393,25 +267,7 @@ const Chat: FC<Props> = (props) => {
         ) : undefined
       }
       center={center}
-      centerTopOverlay={
-        showConversation ? (
-          <ContentSearch
-            ref={contentSearchRef}
-            searchTarget={mainRef as React.RefObject<HTMLElement>}
-            filter={contentSearchFilter}
-            includeUser={filterIncludeUser}
-            onIncludeUserChange={userOutlinedItemClickHandler}
-            positionMode="absolute"
-          />
-        ) : undefined
-      }
-      rightPane={
-        <TopicRightPane.Viewport
-          onLocateMessage={setBranchLocateMessageId}
-          onStartBranchDraft={handleStartBranchDraft}
-          onCancelBranchDraft={handleCancelBranchDraft}
-        />
-      }
+      rightPane={<TopicRightPane.Viewport onLocateMessage={setBranchLocateMessageId} />}
       centerId={centerSurface?.id ?? (showConversation ? 'chat-main' : undefined)}
       centerRef={centerSurface?.ref ?? (showConversation ? mainRef : undefined)}
       centerClassName={

@@ -8,12 +8,17 @@ import type { ChannelMessageEvent } from '../ChannelAdapter'
 import { ChannelManager } from '../ChannelManager'
 import { ChannelMessageHandler, channelMessageHandler } from '../ChannelMessageHandler'
 
-vi.mock('@main/ai/runtime/claudeCode/settingsBuilder', () => {
+const persistedChannelSessions = vi.hoisted(() => ({
+  bindings: new Map<string, string>(),
+  sessions: new Map<string, Record<string, unknown>>()
+}))
+
+vi.mock('@main/ai/runtime/agentSessionWorkspace', () => {
   class MockAgentSessionWorkspaceError extends Error {}
   return {
     AgentSessionWorkspaceError: MockAgentSessionWorkspaceError,
     isAgentSessionWorkspaceError: (error: unknown) => error instanceof MockAgentSessionWorkspaceError,
-    prepareClaudeCodeWorkspaceDirectory: vi.fn()
+    prepareAgentSessionWorkspaceDirectory: vi.fn()
   }
 })
 
@@ -21,10 +26,6 @@ vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({ info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn(), silly: vi.fn() })
   }
-}))
-
-vi.mock('../security/ExternalContentGuard', () => ({
-  wrapExternalContent: vi.fn((text: string) => text)
 }))
 
 vi.mock('../security/OutputSanitizer', () => ({
@@ -49,10 +50,18 @@ vi.mock('@data/services/AgentService', () => ({
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
-  agentSessionService: {
-    getById: vi.fn(),
-    create: vi.fn()
-  }
+  agentSessionService: (() => {
+    const create = vi.fn()
+    return {
+      getById: vi.fn((id: string) => persistedChannelSessions.sessions.get(id)),
+      create,
+      createTx: vi.fn((_tx: unknown, id: string, dto: Record<string, unknown>) => {
+        const template = create(dto) ?? { agentId: dto.agentId, workspace: { path: '/tmp/test-workspace' } }
+        persistedChannelSessions.sessions.set(id, { ...template, id })
+      }),
+      notifyReadModelChange: vi.fn()
+    }
+  })()
 }))
 
 vi.mock('@shared/data/types/model', async (importOriginal) => {
@@ -74,7 +83,15 @@ vi.mock('@data/services/AgentChannelService', () => ({
       .fn()
       .mockReturnValue({ id: 'channel-1', sessionId: null, permissionMode: null, workspace: { type: 'system' } }),
     updateChannel: vi.fn().mockResolvedValue(null),
-    findBySessionId: vi.fn().mockResolvedValue(null)
+    findBySessionId: vi.fn().mockResolvedValue(null),
+    getActiveSessionId: vi.fn((channelId: string, conversationId: string) =>
+      persistedChannelSessions.bindings.get(`${channelId}:${conversationId}`)
+    ),
+    activateSessionTx: vi.fn(
+      (_tx: unknown, input: { channelId: string; conversationId: string; sessionId: string }) => {
+        persistedChannelSessions.bindings.set(`${input.channelId}:${input.conversationId}`, input.sessionId)
+      }
+    )
   }
 }))
 
@@ -105,6 +122,7 @@ function simulateStream(parts: Array<{ type: string; delta?: string }>) {
         }
         await listener.onDone({ status: 'success' })
       }
+      return { mode: 'started' }
     }
   )
 }
@@ -154,6 +172,11 @@ describe('ChannelMessageHandler write quiesce', () => {
       configuration: {},
       model: 'openai::gpt-4'
     } as any)
+    persistedChannelSessions.bindings.clear()
+    persistedChannelSessions.sessions.clear()
+    vi.mocked(agentSessionService.getById).mockImplementation(
+      (id) => persistedChannelSessions.sessions.get(id) as never
+    )
     handler = new ChannelMessageHandler()
   })
 
@@ -225,7 +248,7 @@ describe('ChannelMessageHandler write quiesce', () => {
     vi.mocked(agentSessionService.create).mockReturnValue(SESSION as any)
     // Admission lands (startAgentSessionRun resolves) but no listener ever fires, so the
     // sentinel's executionDone — and therefore the whole turn — stays pending forever.
-    mockStartAgentSessionRun.mockResolvedValue(undefined)
+    mockStartAgentSessionRun.mockResolvedValue({ mode: 'started' })
 
     const turn = handler.handleIncoming(adapter, msg('Hi'))
     let turnSettled = false
@@ -242,6 +265,64 @@ describe('ChannelMessageHandler write quiesce', () => {
     await Promise.resolve()
     expect(turnSettled).toBe(false)
     hold.dispose()
+  })
+
+  it('drainInFlight waits for a command queued behind an active conversation turn', async () => {
+    const adapter = createMockAdapter()
+    vi.mocked(agentSessionService.create).mockReturnValue(SESSION as any)
+    let finishTurn!: () => Promise<void>
+    mockStartAgentSessionRun.mockImplementationOnce(async ({ listeners }) => {
+      finishTurn = async () => {
+        for (const listener of listeners) await listener.onDone({ status: 'success' })
+      }
+    })
+
+    const turn = handler.handleIncoming(adapter, msg('Hi'))
+    await vi.advanceTimersByTimeAsync(8500)
+    expect(mockStartAgentSessionRun).toHaveBeenCalledTimes(1)
+
+    const command = handler.handleCommand(adapter, {
+      chatId: 'chat-1',
+      userId: 'user-1',
+      userName: 'User',
+      command: 'new'
+    })
+    const hold = handler.pause()
+    let drained = false
+    const drain = handler.drainInFlight({ timeoutMs: 1000 }).then((result) => {
+      drained = true
+      return result
+    })
+
+    await Promise.resolve()
+    expect(drained).toBe(false)
+    expect(pendingAdmissionCount(handler)).toBe(1)
+
+    await finishTurn()
+    await expect(drain).resolves.toEqual({ stragglerIds: [] })
+    await Promise.all([turn, command])
+    expect(pendingAdmissionCount(handler)).toBe(0)
+    hold.dispose()
+  })
+
+  it('does not make read-only commands wait for an active conversation turn', async () => {
+    const adapter = createMockAdapter()
+    vi.mocked(agentSessionService.create).mockReturnValue(SESSION as any)
+    mockStartAgentSessionRun.mockResolvedValue(undefined)
+
+    const turn = handler.handleIncoming(adapter, msg('Hi'))
+    await vi.advanceTimersByTimeAsync(8500)
+    const help = handler.handleCommand(adapter, {
+      chatId: 'chat-1',
+      userId: 'user-1',
+      userName: 'User',
+      command: 'help'
+    })
+
+    await expect(help).resolves.toBeUndefined()
+    expect(adapter.sendMessage).toHaveBeenCalled()
+    expect(pendingAdmissionCount(handler)).toBe(0)
+    void turn
   })
 
   it('an early-return processIncoming still settles its admission (backstop onAdmitted)', async () => {
@@ -268,6 +349,7 @@ describe('ChannelMessageHandler write quiesce', () => {
     mockStartAgentSessionRun.mockImplementation(async () => {
       if (aiPaused) throw new Error('AI write-quiesced')
       admitted = true
+      return { mode: 'started' }
     })
 
     const turn = handler.handleIncoming(adapter, msg('Hi'))
@@ -299,7 +381,7 @@ describe('ChannelMessageHandler write quiesce', () => {
     // The flushed-but-unadmitted batch is visible as active work.
     expect(handler.listActiveWork()).toEqual([
       {
-        id: expect.stringMatching(/^agent-1:channel-1:chat-1#\d+$/),
+        id: expect.stringMatching(/^agent-1:channel-1:chat-1:user-1#\d+$/),
         summary: 'flushed batch awaiting turn admission'
       }
     ])
@@ -309,7 +391,7 @@ describe('ChannelMessageHandler write quiesce', () => {
     const result = await drain
 
     expect(result.stragglerIds).toHaveLength(1)
-    expect(result.stragglerIds[0]).toMatch(/^agent-1:channel-1:chat-1#\d+$/)
+    expect(result.stragglerIds[0]).toMatch(/^agent-1:channel-1:chat-1:user-1#\d+$/)
     // Timing out never aborts the straggler — its admission entry is still registered.
     expect(pendingAdmissionCount(handler)).toBe(1)
     hold.dispose()
@@ -343,7 +425,7 @@ describe('ChannelMessageHandler write quiesce', () => {
     const turn = handler.handleIncoming(adapter, msg('Hi'))
     turn.catch(() => {})
 
-    expect(handler.listActiveWork()).toEqual([{ id: 'agent-1:channel-1:chat-1', summary: 'buffered=1' }])
+    expect(handler.listActiveWork()).toEqual([{ id: 'agent-1:channel-1:chat-1:user-1', summary: 'buffered=1' }])
 
     // Discard the pending batch so its debounce timer and promise don't outlive the test.
     handler.clearSessionTracker('agent-1')

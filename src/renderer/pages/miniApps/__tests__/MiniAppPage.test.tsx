@@ -224,6 +224,55 @@ describe('MiniAppPage', () => {
     expect(screen.queryByText('miniApp.error.not_found')).not.toBeInTheDocument()
   })
 
+  it('prefers a republished transient descriptor over a stale local keep-alive snapshot', async () => {
+    mocks.appId = 'openclaw-dashboard'
+    mocks.currentTab = {
+      id: 'detached-tab',
+      type: 'route',
+      url: '/app/mini-app/openclaw-dashboard',
+      title: 'OpenClaw',
+      icon: undefined
+    }
+    mocks.openedKeepAliveMiniApps = [
+      stubApp({
+        appId: 'openclaw-dashboard',
+        name: 'OpenClaw',
+        url: 'http://127.0.0.1:18790#token=stale'
+      })
+    ]
+    MockUseCacheUtils.setSharedCacheValue('mini_app.transient_descriptor.openclaw-dashboard', {
+      appId: 'openclaw-dashboard',
+      name: 'OpenClaw',
+      url: 'http://127.0.0.1:18790#token=fresh',
+      logo: 'openclaw'
+    })
+
+    render(<MiniAppPage />)
+
+    await waitFor(() =>
+      expect(mocks.openMiniAppKeepAlive).toHaveBeenCalledWith(
+        expect.objectContaining({
+          appId: 'openclaw-dashboard',
+          url: 'http://127.0.0.1:18790#token=fresh'
+        })
+      )
+    )
+  })
+
+  it('falls back to a local keep-alive snapshot when no transient descriptor exists', async () => {
+    const cached = stubApp({
+      appId: 'openclaw-dashboard',
+      name: 'OpenClaw',
+      url: 'http://127.0.0.1:18790#token=cached'
+    })
+    mocks.appId = 'openclaw-dashboard'
+    mocks.openedKeepAliveMiniApps = [cached]
+
+    render(<MiniAppPage />)
+
+    await waitFor(() => expect(mocks.openMiniAppKeepAlive).toHaveBeenCalledWith(cached))
+  })
+
   it('renders not-found when neither the database nor the registry knows the app', async () => {
     mocks.appId = 'ghost-app'
 
@@ -262,7 +311,6 @@ describe('MiniAppPage', () => {
     expect(reload).toHaveBeenCalledOnce()
     expect(webview.src).toBe('https://chat.openai.com/c/123')
   })
-
   it('does not call WebView methods before the mini app has finished loading', () => {
     mocks.webviewLoaded = false
     const reload = vi.fn()

@@ -5,11 +5,13 @@ import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, Service
 import { withSpanFunc } from '@mcp-trace/trace-core'
 import type { Tool as SDKTool } from '@modelcontextprotocol/sdk/types'
 import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
-import { buildFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpPrompt, McpResource, McpTool } from '@shared/types/mcp'
+import { redactServerKey } from '@shared/utils/redaction'
 import * as z from 'zod'
+
+import { buildMcpToolWireId } from './mcpToolId'
 
 const logger = loggerService.withContext('McpCatalogService')
 const mcpToolsCacheKey = (serverId: string): SharedCacheKey => `mcp.tools.${serverId}` as SharedCacheKey
@@ -43,6 +45,15 @@ const MCP_TOOL_OUTPUT_SCHEMA = z
   })
   .loose()
 
+// Cache keys embed the serialized server config — log them with the serverKey portion
+// redacted instead of raw (same class of leak as #18648, at debug level).
+function redactCacheKey(cacheKey: string): string {
+  const separator = cacheKey.indexOf(':')
+  return separator === -1
+    ? redactServerKey(cacheKey)
+    : `${cacheKey.slice(0, separator + 1)}${redactServerKey(cacheKey.slice(separator + 1))}`
+}
+
 function withCache<T extends unknown[], R>(
   fn: (...args: T) => Promise<R>,
   getCacheKey: (...args: T) => string,
@@ -54,7 +65,7 @@ function withCache<T extends unknown[], R>(
     const cacheService = application.get('CacheService')
 
     if (cacheService.has(cacheKey)) {
-      logger.debug(`${logPrefix} loaded from cache`, { cacheKey })
+      logger.debug(`${logPrefix} loaded from cache`, { cacheKey: redactCacheKey(cacheKey) })
       const cachedData = cacheService.get<R>(cacheKey)
       if (cachedData) return cachedData
     }
@@ -62,7 +73,11 @@ function withCache<T extends unknown[], R>(
     const start = Date.now()
     const result = await fn(...args)
     cacheService.set(cacheKey, result, ttl)
-    logger.debug(`${logPrefix} cached`, { cacheKey, ttlMs: ttl, durationMs: Date.now() - start })
+    logger.debug(`${logPrefix} cached`, {
+      cacheKey: redactCacheKey(cacheKey),
+      ttlMs: ttl,
+      durationMs: Date.now() - start
+    })
     return result
   }
 }
@@ -83,7 +98,7 @@ export class McpCatalogService extends BaseService {
    * (see `writeToolsCache`). This is the push-invalidation channel that keeps per-session
    * tool snapshots consistent with the cache: the Claude Agent SDK snapshots each MCP bridge
    * server's tools once per session and never re-reads on its own, so the bridge
-   * (`createSdkMcpServerInstance`) subscribes here and relays every cache change as an MCP
+   * (`createMcpBridgeServer`) subscribes here and relays every cache change as an MCP
    * `tools/list_changed` notification, prompting the SDK to re-list against the fresh cache.
    *
    * Deliberately a NEW event, not a re-fire of `McpRuntimeService.onToolListChanged`: that
@@ -175,13 +190,28 @@ export class McpCatalogService extends BaseService {
 
   private async listToolsImpl(server: McpServer): Promise<McpTool[]> {
     try {
-      const { tools } = await application.get('McpRuntimeService').withClient(server.id, (client) => client.listTools())
+      const { tools } = await application.get('McpRuntimeService').withClient(server.id, async (client) => {
+        // A server that publishes only prompts or resources answers `tools/list` with -32601, which
+        // used to surface as "start failed" and made it impossible to enable at all.
+        if (!client.getServerCapabilities()?.tools) {
+          logger.debug('Server does not declare tools capability, skipping list', {
+            serverId: server.id,
+            serverName: server.name
+          })
+          return { tools: [] as SDKTool[] }
+        }
+        return client.listTools()
+      })
       return tools.map((tool: SDKTool) => {
         const serverTool: McpTool = {
           ...tool,
           inputSchema: MCP_TOOL_INPUT_SCHEMA.parse(tool.inputSchema),
           outputSchema: tool.outputSchema ? MCP_TOOL_OUTPUT_SCHEMA.parse(tool.outputSchema) : undefined,
-          id: buildFunctionCallToolName(server.name, tool.name),
+          id: buildMcpToolWireId({
+            serverId: server.id,
+            serverName: server.name,
+            toolName: tool.name
+          }),
           serverId: server.id,
           serverName: server.name,
           type: 'mcp'

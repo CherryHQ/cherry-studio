@@ -160,7 +160,8 @@ export const WEB_SEARCH_PROVIDER_PRESET_MAP = {
     name: 'Querit',
     type: 'api',
     capabilities: [
-      { feature: 'searchKeywords', requiresApiHost: true, requiresApiKey: true, apiHost: 'https://api.querit.ai' }
+      { feature: 'searchKeywords', requiresApiHost: true, requiresApiKey: true, apiHost: 'https://api.querit.ai' },
+      { feature: 'fetchUrls', requiresApiHost: true, requiresApiKey: true, apiHost: 'https://api.querit.ai' }
     ]
   },
   fetch: {
@@ -182,6 +183,12 @@ export const WEB_SEARCH_PROVIDER_PRESET_MAP = {
     capabilities: [
       {
         feature: 'searchKeywords',
+        requiresApiHost: true,
+        requiresApiKey: false,
+        apiHost: 'https://api.firecrawl.dev'
+      },
+      {
+        feature: 'fetchUrls',
         requiresApiHost: true,
         requiresApiKey: false,
         apiHost: 'https://api.firecrawl.dev'

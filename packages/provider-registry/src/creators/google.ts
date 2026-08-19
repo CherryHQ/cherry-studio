@@ -64,14 +64,6 @@ export default defineCreator({
     'text-embedding-005',
     'text-multilingual-embedding'
   ],
-  // Grounding and URL context serve whole generations (2.x, 3.x, incl. the lite line), so key off
-  // the generation prefix like `serverToolFunctionMixing` below — a per-SKU list silently drops
-  // every new minor (3.1, 3.6 …). Image models are excluded at generation time, not here.
-  serverTools: {
-    'web-search': ['gemini-2', 'gemini-3', 'gemini-flash-latest', 'gemini-pro-latest', 'gemini-flash-lite-latest'],
-    // URL context serves the same lines as search grounding (ai.google.dev url-context).
-    'url-context': ['gemini-2', 'gemini-3', 'gemini-flash-latest', 'gemini-pro-latest', 'gemini-flash-lite-latest']
-  },
   // Pre-3 Gemini rejects requests mixing its native tools with function
   // declarations; Gemini 3 combines them (ai.google.dev function-calling).
   serverToolFunctionMixing: ['gemini-3', 'gemini-flash-latest', 'gemini-pro-latest'],
@@ -108,7 +100,6 @@ export default defineCreator({
       name: 'gemini-3-pro-image-preview',
       family: 'gemini-pro',
       capabilities: ['reasoning', 'image-recognition', 'image-generation', 'file-input'],
-      serverTools: ['web-search'],
       inputModalities: ['text', 'image'],
       outputModalities: ['text', 'image'],
       imageGeneration: {
@@ -515,6 +506,58 @@ export default defineCreator({
       }
     },
     {
+      id: 'gemini-3-1-flash-image',
+      name: 'Nano Banana 2',
+      family: 'gemini-flash',
+      capabilities: [
+        'reasoning',
+        'image-recognition',
+        'image-generation',
+        'video-recognition',
+        'structured-output',
+        'file-input'
+      ],
+      inputModalities: ['text', 'image', 'video'],
+      outputModalities: ['text', 'image'],
+      imageGeneration: {
+        modes: {
+          generate: {
+            supports: {
+              aspectRatio: {
+                default: 'auto',
+                options: [
+                  'auto',
+                  'ASPECT_1_1',
+                  'ASPECT_1_4',
+                  'ASPECT_1_8',
+                  'ASPECT_2_3',
+                  'ASPECT_3_2',
+                  'ASPECT_3_4',
+                  'ASPECT_4_1',
+                  'ASPECT_4_3',
+                  'ASPECT_4_5',
+                  'ASPECT_5_4',
+                  'ASPECT_8_1',
+                  'ASPECT_9_16',
+                  'ASPECT_16_9',
+                  'ASPECT_21_9'
+                ],
+                render: 'chips',
+                type: 'enum'
+              },
+              imageResolution: {
+                default: 'auto',
+                // Intentionally omit low-resolution 512 output from this quality-focused product surface.
+                options: ['auto', '1K', '2K', '4K'],
+                render: 'chips',
+                type: 'enum'
+              }
+            }
+          }
+        }
+      }
+    },
+    {
       id: 'gemini-3-1-flash-image-preview',
       name: 'Google: Nano Banana 2 (Gemini 3.1 Flash Image Preview)',
       family: 'gemini-flash',
@@ -606,7 +649,6 @@ export default defineCreator({
         'structured-output',
         'file-input'
       ],
-      serverTools: ['web-search'],
       inputModalities: ['image', 'text'],
       outputModalities: ['text', 'image'],
       imageGeneration: {

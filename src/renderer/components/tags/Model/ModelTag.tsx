@@ -9,7 +9,7 @@ import {
 } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isFreeModel } from '@shared/utils/model'
-import { isBuiltinWebSearchAvailable, isServerToolModelEligible } from '@shared/utils/provider'
+import { isBuiltinWebSearchAvailable } from '@shared/utils/provider'
 import type { ComponentType } from 'react'
 
 import type { CustomTagProps } from '../CustomTag'
@@ -80,16 +80,14 @@ export function isModelTagVisible(
 export function modelMatchesDisplayTag(
   model: ModelDisplayTagSource,
   tag: ModelDisplayTag,
-  provider?: Pick<Provider, 'serverTools'>
+  provider?: Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'serverTools'>
 ) {
   if (tag === 'free') {
     return isFreeModel(model)
   }
 
   if (tag === SERVER_TOOL.WEB_SEARCH) {
-    return provider
-      ? isBuiltinWebSearchAvailable(model as Model, provider)
-      : isServerToolModelEligible(model as Model, SERVER_TOOL.WEB_SEARCH)
+    return provider ? isBuiltinWebSearchAvailable(model as Model, provider) : false
   }
 
   const inputModality = INPUT_MODALITY_BY_DISPLAY_TAG[tag]
@@ -99,7 +97,7 @@ export function modelMatchesDisplayTag(
 export function getModelDisplayTags(
   model: ModelDisplayTagSource,
   options?: ModelTagVisibilityOptions,
-  provider?: Pick<Provider, 'serverTools'>
+  provider?: Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'serverTools'>
 ) {
   return MODEL_DISPLAY_TAGS.filter(
     (tag) => isModelTagVisible(tag, options) && modelMatchesDisplayTag(model, tag, provider)

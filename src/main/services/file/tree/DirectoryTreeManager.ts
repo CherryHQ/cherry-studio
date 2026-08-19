@@ -1,25 +1,30 @@
 /**
  * `DirectoryTreeManager` — main-process bookkeeping for active `DirectoryTreeBuilder`
- * instances behind the `Tree_*` IPC bridge.
+ * instances behind the `file.tree.*` IpcApi routes.
  *
- * Every `File_TreeCreate` IPC call gets a unique `treeId` (the renderer needs
+ * Every `file.tree.create` call gets a unique `treeId` (the renderer needs
  * one to route mutation pushes), but identical `(rootPath, options)` pairs
  * **share one underlying `DirectoryTreeBuilder`** — one ripgrep scan, one
  * chokidar watcher, one set of FDs. This is the right place to dedupe
  * because the expensive resource lives on the main side; renderer-side
  * sharing would always pay an extra IPC round-trip per remount.
  *
+ * A new consumer starts pending: its snapshot is returned with a baseline
+ * revision while later mutations queue main-side. `file.tree.activate` flushes
+ * that queue only after the renderer has installed its listener, closing the
+ * snapshot-to-stream delivery gap without another filesystem scan.
+ *
  * When a `treeId` is disposed and that builder's last consumer leaves, the
  * tear-down is deferred by `DISPOSE_GRACE_MS`. React commits effects in
  * order "deletions before insertions" within a single commit — when a keyed
  * consumer is replaced or a tab unmounts and immediately remounts, the unmount fires
- * `File_TreeDispose` for the old id and the mount fires `File_TreeCreate` for the
+ * `file.tree.dispose` for the old id and the mount fires `file.tree.create` for the
  * new id back-to-back. The grace window lets the new call grab the still-
  * warm builder instead of waiting on a fresh scan + watcher install.
  *
  * Renderer→main IPC sequence on a same-commit consumer replacement:
- *   T0     unmount   File_TreeDispose(old)  → refcount=0, grace timer queued
- *   T0+ε   mount     File_TreeCreate(...)   → cancels timer, attaches as new consumer
+ *   T0     unmount   file.tree.dispose(old)  → refcount=0, grace timer queued
+ *   T0+ε   mount     file.tree.create(...)   → cancels timer, attaches as new consumer
  */
 
 import { randomUUID } from 'node:crypto'
@@ -27,40 +32,17 @@ import { randomUUID } from 'node:crypto'
 import { loggerService } from '@logger'
 import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { IpcChannel } from '@shared/IpcChannel'
-import { AbsoluteFilePathSchema } from '@shared/types/file'
-import {
-  type CreateTreeIpcResult,
-  type DirectoryTreeOptions,
-  DirectoryTreeOptionsSchema,
-  type TreeMutationPushPayload
-} from '@shared/utils/file'
+import type { CreateTreeIpcResult, DirectoryTreeOptions, TreeMutationPushPayload } from '@shared/utils/file'
+import { DirectoryTreeOptionsSchema } from '@shared/utils/file'
 import type { WebContents } from 'electron'
-import * as z from 'zod'
 
 import { createDirectoryTree, type DirectoryTreeBuilder } from './builder'
 
-// IPC param schemas. `DirectoryTreeOptionsSchema` is the shared source of
-// truth (see `@shared/utils/file/tree`); the IPC-level wrappers stay here
-// next to the handlers, matching the FileManager / DataApi convention where
-// leaf schemas live in shared and per-channel param schemas live in main.
-const TreeCreateParamsSchema = z.strictObject({
-  rootPath: AbsoluteFilePathSchema,
-  options: DirectoryTreeOptionsSchema.optional()
-})
-
-const TreeDisposeParamsSchema = z.strictObject({ treeId: z.string().min(1) })
-
-const TreeRenameParamsSchema = z.strictObject({
-  treeId: z.string().min(1),
-  oldPath: AbsoluteFilePathSchema,
-  newPath: AbsoluteFilePathSchema
-})
-
 /**
  * Thrown by `acquireBuilder` when the manager has already torn down by the
- * time an in-flight `createDirectoryTree` resolves. Electron preserves
- * `error.name` across IPC, so the renderer hook can distinguish this from a
- * real failure (which deserves a user-facing toast) by matching the name.
+ * time an in-flight `createDirectoryTree` resolves. The `file.tree.create`
+ * handler maps it to the `DIRECTORY_TREE_STOPPED` domain code so the renderer
+ * hook can distinguish it from a real failure (which deserves a user-facing toast).
  */
 export class DirectoryTreeStoppedError extends Error {
   override readonly name = 'DirectoryTreeStoppedError' as const
@@ -79,6 +61,20 @@ const logger = loggerService.withContext('file/tree/registry')
  * alive for noticeable time.
  */
 const DISPOSE_GRACE_MS = 500
+
+/**
+ * Ceiling on mutations buffered for one un-activated consumer.
+ *
+ * A conforming renderer activates within a single round-trip and buffers a handful;
+ * a hung or non-conforming one can create a tree and then never activate, while a
+ * high-churn workspace keeps appending full payloads. `destroyed` does not help
+ * while the window is alive, so the queue is the only bound. Overflow disposes the
+ * consumer, so a late `activate` returns false; consumers treat that as recoverable
+ * and retake the handshake with a fresh snapshot (see `MAX_ACTIVATION_ATTEMPTS` in
+ * `useDirectoryTree`). Strictly better than growing main-process memory to hold
+ * events for a mirror that may never exist.
+ */
+const MAX_PENDING_MUTATIONS = 1000
 
 /**
  * Per-builder bookkeeping, modeled as a discriminated union on `state`:
@@ -110,17 +106,34 @@ interface Consumer {
   readonly webContentsId: number
   readonly sender: WebContents
   /** Subscription returned by `builder.onMutation()` — disposed when this consumer leaves. */
-  readonly forwardSubscription: Disposable
+  forwardSubscription: Disposable | null
   /** Stable builder reference for forwarding pushes / rename. */
   readonly builder: DirectoryTreeBuilder
   /** Key into `sharedBuilders`; survives state transitions on that record. */
   readonly sharedBuilderKey: string
+  /** Snapshot-to-stream handoff state; mutations queue until renderer readiness is acknowledged. */
+  phase: 'pending' | 'active'
+  /** Revision captured in the create result and required by activate. */
+  readonly snapshotRevision: number
+  /** Last revision assigned to a mutation for this treeId. */
+  revision: number
+  readonly pendingMutations: TreeMutationPushPayload[]
 }
 
 // Delimiter that cannot appear unescaped in any JSON.stringify output —
 // the NUL control character is always emitted as an escape sequence by
 // JSON, keeping the (path, options) boundary in builderKey unambiguous.
 const BUILDER_KEY_DELIMITER = String.fromCharCode(0)
+
+/**
+ * Directed send of the `file.tree.mutation` event on the single IpcApi event
+ * channel — the class-B topic-stream transport. Keyed by the consumer's own
+ * `WebContents` rather than a WindowId (wire-identical to `IpcApiService.send`),
+ * so a tree only reaches the window that created it.
+ */
+function sendMutation(sender: WebContents, payload: TreeMutationPushPayload): void {
+  sender.send(IpcChannel.IpcApi_Event, 'file.tree.mutation', payload)
+}
 
 function builderKey(rootPath: string, options: DirectoryTreeOptions | undefined): string {
   // Match the normalization the builder applies to rootPath (backslash to
@@ -155,12 +168,12 @@ function canonicalizeOptions(options: DirectoryTreeOptions | undefined): string 
 @Injectable('DirectoryTreeManager')
 @ServicePhase(Phase.WhenReady)
 export class DirectoryTreeManager extends BaseService {
-  /** treeId → consumer. One row per `File_TreeCreate` call still alive. */
+  /** treeId → consumer. One row per `file.tree.create` call still alive. */
   private readonly consumers = new Map<string, Consumer>()
   /** Shared builder by `builderKey`. One row per *underlying* watcher. */
   private readonly sharedBuilders = new Map<string, SharedBuilder>()
   /** `(rootPath, options)` → in-flight create promise, so concurrent
-   *  `File_TreeCreate` calls dedupe at builder-creation time. */
+   *  `file.tree.create` calls dedupe at builder-creation time. */
   private readonly inflight = new Map<string, Promise<SharedBuilder>>()
   /** webContentsId → set of treeIds, so we can drop them on contents-destroyed. */
   private readonly byWebContents = new Map<number, Set<string>>()
@@ -176,45 +189,20 @@ export class DirectoryTreeManager extends BaseService {
    */
   private disposed = false
 
-  protected override async onInit(): Promise<void> {
-    this.registerIpcHandlers()
-  }
-
   protected override async onStop(): Promise<void> {
     await this.disposeAll()
   }
 
   /**
-   * Registers the `File_Tree*` IPC contract. Kept as a dedicated helper so
-   * `onInit` stays a one-liner and the channel surface lives in one
-   * named place — same shape as `FileManager.registerIpcHandlers` and
-   * `WindowManager.registerIpcHandlers`.
-   *
-   * Each handler validates its payload through Zod at the boundary; a
-   * malformed renderer call rejects there instead of silently mis-typing
-   * downstream state. Async wrappers ensure a synchronous `parse` throw
-   * surfaces as a Promise rejection (matching `ipcMain.handle`'s contract).
-   */
-  private registerIpcHandlers(): void {
-    this.ipcHandle(IpcChannel.File_TreeCreate, async (event, params: unknown) => {
-      const { rootPath, options } = TreeCreateParamsSchema.parse(params)
-      return this.create(event.sender, rootPath, options)
-    })
-    this.ipcHandle(IpcChannel.File_TreeDispose, async (_event, params: unknown) => {
-      const { treeId } = TreeDisposeParamsSchema.parse(params)
-      this.dispose(treeId)
-    })
-    this.ipcHandle(IpcChannel.File_TreeRename, async (_event, params: unknown) => {
-      const { treeId, oldPath, newPath } = TreeRenameParamsSchema.parse(params)
-      return this.rename(treeId, oldPath, newPath)
-    })
-  }
-
-  /**
-   * Apply an explicit rename to the shared builder backing `treeId`. The
-   * caller is expected to have already performed the FS-level rename — this
+   * Apply an explicit in-place rename to the shared builder backing `treeId`.
+   * The caller is expected to have already performed the FS-level rename — this
    * call only updates the in-memory tree and synthesises the `renamed`
    * mutation that consumers receive. See `directory-tree.md §4.4`.
+   *
+   * Takes a `newName`, not a destination path: the target is always resolved
+   * against `oldPath`'s parent, so a cross-parent move — which `TreeNode.path`
+   * cannot express, it only repoints a basename within the existing parent —
+   * cannot be requested.
    *
    * Returns `false` when:
    *   - the treeId is unknown (already disposed, or never existed); or
@@ -222,16 +210,39 @@ export class DirectoryTreeManager extends BaseService {
    *     `unlink` already removed it — identity is lost but state is
    *     consistent).
    */
-  rename(treeId: string, oldPath: string, newPath: string): boolean {
-    const consumer = this.consumers.get(treeId)
+  rename(treeId: string, oldPath: string, newName: string, ownerWebContentsId: number): boolean {
+    const consumer = this.ownedConsumer(treeId, ownerWebContentsId)
     if (!consumer) return false
-    return consumer.builder.rename(oldPath, newPath)
+    // Same normalization the builder applies, so a Windows-spelled oldPath
+    // resolves against the same parent the builder indexed it under.
+    const parent = oldPath.replace(/\\/g, '/').replace(/\/[^/]*$/, '')
+    return consumer.builder.rename(oldPath, `${parent}/${newName}`)
+  }
+
+  /**
+   * Complete the snapshot-to-stream handoff for a renderer mirror. Mutations
+   * observed after the snapshot stay in the consumer queue until this call,
+   * so installing the renderer listener never races live forwarding.
+   */
+  activateTree(treeId: string, revision: number, ownerWebContentsId: number): boolean {
+    const consumer = this.ownedConsumer(treeId, ownerWebContentsId)
+    if (!consumer || revision !== consumer.snapshotRevision) return false
+    if (consumer.phase === 'active') return true
+    if (consumer.sender.isDestroyed()) return false
+
+    consumer.phase = 'active'
+    for (const payload of consumer.pendingMutations) {
+      sendMutation(consumer.sender, payload)
+    }
+    consumer.pendingMutations.length = 0
+    return true
   }
 
   /**
    * Create a tree for the given `sender` WebContents. Reuses an existing
    * shared builder when `(rootPath, options)` matches another live consumer
-   * (or one inside the dispose grace window).
+   * (or one inside the dispose grace window). The returned consumer remains
+   * pending until `activate` acknowledges the snapshot revision.
    */
   async create(
     sender: WebContents,
@@ -239,28 +250,64 @@ export class DirectoryTreeManager extends BaseService {
     options: DirectoryTreeOptions | undefined
   ): Promise<CreateTreeIpcResult> {
     const key = builderKey(rootPath, options)
-    let shared = await this.acquireBuilder(key, rootPath, options)
-    if (shared.state === 'draining') {
-      shared = this.transitionToActive(shared)
-    }
+    await this.acquireBuilder(key, rootPath, options)
+    // Re-read the canonical record rather than trusting the awaited one. Every create
+    // waiting on the same in-flight acquisition receives the record as it was, and
+    // another waiter's continuation may already have replaced it — e.g. a waiter whose
+    // owner died attaches, disposes, and flips the entry to `draining`. Acting on the
+    // stale `active` copy would skip `transitionToActive`, so the armed timer finds a
+    // live consumer and returns while the entry stays `draining`; the last dispose then
+    // sees a non-`active` state, arms nothing, and the watcher survives until shutdown.
+    const canonical = this.sharedBuilders.get(key)
+    // Only `disposeAll()` removes an entry without a grace timer, and a timer cannot
+    // interleave between the microtasks resuming these waiters — so a missing entry
+    // means the manager shut down underneath us.
+    if (!canonical) throw new DirectoryTreeStoppedError()
+    const shared = canonical.state === 'draining' ? this.transitionToActive(canonical) : canonical
 
     const treeId = randomUUID()
-    const forwardSubscription = shared.builder.onMutation((event) => {
-      if (sender.isDestroyed()) return
-      const payload: TreeMutationPushPayload = { treeId, event }
-      sender.send(IpcChannel.File_TreeMutation, payload)
-    })
-
+    const snapshotRevision = 0
     const consumer: Consumer = {
       treeId,
       webContentsId: sender.id,
       sender,
-      forwardSubscription,
+      forwardSubscription: null,
       builder: shared.builder,
-      sharedBuilderKey: shared.key
+      sharedBuilderKey: shared.key,
+      phase: 'pending',
+      snapshotRevision,
+      revision: snapshotRevision,
+      pendingMutations: []
     }
+    consumer.forwardSubscription = shared.builder.onMutation((event) => {
+      if (sender.isDestroyed()) return
+      const payload: TreeMutationPushPayload = { treeId, revision: ++consumer.revision, event }
+      if (consumer.phase === 'pending') {
+        if (consumer.pendingMutations.length >= MAX_PENDING_MUTATIONS) {
+          logger.warn(
+            `Tree ${treeId} buffered ${MAX_PENDING_MUTATIONS} mutations without activating — disposing the consumer`
+          )
+          this.dispose(treeId)
+          return
+        }
+        consumer.pendingMutations.push(payload)
+        return
+      }
+      sendMutation(sender, payload)
+    })
     shared.consumers.set(treeId, consumer)
     this.consumers.set(treeId, consumer)
+
+    // `acquireBuilder` awaits a ripgrep scan + watcher install. If the owner window
+    // closed during it, `destroyed` has already fired and the `once` below would
+    // never replay it — the consumer (and an otherwise-idle builder) would survive
+    // until app shutdown. Reconcile against the current state instead. Registering
+    // first and disposing lets the normal refcount + grace-window path release the
+    // builder rather than stranding a freshly-created one with zero consumers.
+    if (sender.isDestroyed()) {
+      this.dispose(treeId)
+      throw new Error(`Directory tree owner (webContents ${consumer.webContentsId}) was destroyed during creation`)
+    }
 
     let bucket = this.byWebContents.get(sender.id)
     if (!bucket) {
@@ -279,13 +326,20 @@ export class DirectoryTreeManager extends BaseService {
     }
     bucket.add(treeId)
 
-    return { treeId, snapshot: shared.builder.snapshot() }
+    return { treeId, revision: snapshotRevision, snapshot: shared.builder.snapshot() }
   }
 
-  dispose(treeId: string): boolean {
-    const consumer = this.consumers.get(treeId)
+  /**
+   * @param ownerWebContentsId When given, the call is refused unless it matches the
+   *   consumer's owner. IPC handlers MUST pass it — a `treeId` is an identifier, not
+   *   a capability, and every renderer shares one request channel. Internal callers
+   *   (webContents teardown, overflow, `onStop`) are already authorized and omit it.
+   */
+  dispose(treeId: string, ownerWebContentsId?: number): boolean {
+    const consumer =
+      ownerWebContentsId === undefined ? this.consumers.get(treeId) : this.ownedConsumer(treeId, ownerWebContentsId)
     if (!consumer) return false
-    consumer.forwardSubscription.dispose()
+    consumer.forwardSubscription?.dispose()
     this.consumers.delete(treeId)
     const shared = this.sharedBuilders.get(consumer.sharedBuilderKey)
     if (!shared) return true
@@ -343,6 +397,18 @@ export class DirectoryTreeManager extends BaseService {
   }
 
   // ─── Internals ────────────────────────────────────────────────────────
+
+  /**
+   * Consumer lookup gated on ownership. Every window shares the one IpcApi request
+   * channel, so a `treeId` reaching the manager proves nothing about who holds it —
+   * without this a renderer that learned another window's id could flush its buffer
+   * before it listens, dispose it, or mutate its mirror.
+   */
+  private ownedConsumer(treeId: string, ownerWebContentsId: number): Consumer | undefined {
+    const consumer = this.consumers.get(treeId)
+    if (!consumer || consumer.webContentsId !== ownerWebContentsId) return undefined
+    return consumer
+  }
 
   private async acquireBuilder(
     key: string,

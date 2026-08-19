@@ -234,6 +234,60 @@ describe('KnowledgeIndexStore', () => {
     expect(await count('search_unit')).toBe(0)
   })
 
+  it('consumes a lazy embeddings iterable inside the transaction, deduping repeated hashes in-store', async () => {
+    // The streaming caller (the v1→v2 vector migrator) yields one embedding per chunk in read
+    // order without pre-deduping; INSERT OR IGNORE must collapse repeats to one row, and the
+    // result must be indistinguishable from the equivalent array input.
+    const text = 'aaa bbb aaa'
+    const ranges: Array<[number, number]> = [
+      [0, 3],
+      [4, 7],
+      [8, 11]
+    ]
+    let yielded = 0
+    function* lazyEmbeddings() {
+      for (const [start, end] of ranges) {
+        yielded += 1
+        yield { embeddingTextHash: hashEmbeddingText(text.slice(start, end)), vector: [0.1, 0.2, 0.3] }
+      }
+    }
+    store.rebuildMaterial('m1', { ...buildInput(text, ranges), embeddings: lazyEmbeddings() })
+
+    expect(yielded).toBe(3)
+    expect(await count('search_unit')).toBe(3)
+    // 'aaa' repeats: 3 yields collapse to 2 stored embeddings, same as the deduped array path.
+    expect(await count('embedding')).toBe(2)
+    expect(store.listMaterialUnits('m1').map((u) => u.text)).toEqual(['aaa', 'bbb', 'aaa'])
+  })
+
+  it('rolls the whole rebuild back when the embeddings iterable throws mid-iteration', async () => {
+    store.rebuildMaterial('m1', buildInput('keep this safe', [[0, 4]]))
+
+    // A streaming caller's batch read can fail partway (source drift detected mid-pull). The
+    // transaction must discard everything — including the units and embeddings already written —
+    // and leave the prior index intact.
+    const text = 'new body text'
+    function* failingEmbeddings(): Generator<{ embeddingTextHash: string; vector: number[] }> {
+      yield { embeddingTextHash: hashEmbeddingText(text), vector: [0.1, 0.2, 0.3] }
+      throw new Error('mid-stream drift')
+    }
+    const streamed: RebuildMaterialInput = {
+      material: { relativePath: 'doc.md' },
+      content: { text },
+      units: [
+        { unitType: 'chunk', unitIndex: 0, charStart: 0, charEnd: 13 },
+        { unitType: 'chunk', unitIndex: 1, charStart: 0, charEnd: 13 }
+      ],
+      usesEmbeddings: true,
+      embeddings: failingEmbeddings()
+    }
+    expect(() => store.rebuildMaterial('m1', streamed)).toThrow('mid-stream drift')
+
+    // Prior index intact (transaction rolled back).
+    expect(store.listMaterialUnits('m1').map((u) => u.text)).toEqual(['keep'])
+    expect(await count('embedding')).toBe(1)
+  })
+
   it('rolls back a rebuild that leaves a unit embedding hash without a vector', async () => {
     store.rebuildMaterial('m1', buildInput('keep this safe', [[0, 4]]))
 
@@ -270,7 +324,7 @@ describe('KnowledgeIndexStore', () => {
 
     // The 501st hash lands in the second batch; dropping its vector must fail.
     const missingOne = buildInput(text, ranges)
-    missingOne.embeddings = missingOne.embeddings.filter(
+    missingOne.embeddings = [...missingOne.embeddings].filter(
       (embedding) => embedding.embeddingTextHash !== hashEmbeddingText(words[500])
     )
     expect(() => store.rebuildMaterial('m1', missingOne)).toThrow('without a vector')

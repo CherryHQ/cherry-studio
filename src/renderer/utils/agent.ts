@@ -1,5 +1,8 @@
 import type { PermissionModeCard } from '@renderer/types/agent'
-import type { AgentConfiguration } from '@shared/data/types/agent'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
+import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
+import type { AgentConfiguration, AgentType } from '@shared/data/types/agent'
 import type { ModelSnapshot } from '@shared/data/types/message'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import type { TFunction } from 'i18next'
@@ -21,8 +24,11 @@ export function getAgentDescriptionForDisplay(
   if (agent.description) return agent.description
   // Builtin contract: an empty DB description means the bundle/UI owns the localized
   // default. A non-empty user edit is user-owned and is never overwritten.
-  if (agent.configuration?.builtin_role === 'assistant') {
+  if (agent.configuration?.builtin_role === BUILTIN_AGENT_ROLE.ASSISTANT) {
     return t('agent.builtin.cherry_assistant.description')
+  }
+  if (agent.configuration?.builtin_role === BUILTIN_AGENT_ROLE.SUPPORT) {
+    return t('agent.builtin.cherry_support.description')
   }
   return ''
 }
@@ -87,7 +93,40 @@ export const permissionModeCards: PermissionModeCard[] = [
     descriptionFallback: 'Skips permission checks. Can delete files and use the network.',
     // t('agent.settings.tooling.permissionMode.bypassPermissions.warning')
     warningKey: 'agent.settings.tooling.permissionMode.bypassPermissions.warning',
-    warningFallback: 'Use with caution — all tools will run without asking for approval.',
+    warningFallback: 'Use with caution — most tools run without approval; explicit safety blocks still apply.',
     dangerous: true
   }
 ]
+
+/**
+ * Two modes mean something different on pi, so their copy has to differ too: `auto` is Cherry's own
+ * deterministic gate rather than Claude's model-side classifier (no "depends on the model" caveat),
+ * and `bypassPermissions` really does bypass everything but disabled tools.
+ */
+const PI_CARD_OVERRIDES: Partial<Record<AgentPermissionMode, Partial<PermissionModeCard>>> = {
+  auto: {
+    // t('agent.settings.tooling.permissionMode.auto.description_pi')
+    descriptionKey: 'agent.settings.tooling.permissionMode.auto.description_pi',
+    descriptionFallback: 'Works on its own. Asks when it recognizes a risky action.',
+    // File tools are held to the workspace, but a shell command is only pattern-matched — the copy
+    // must not imply the agent is contained.
+    // t('agent.settings.tooling.permissionMode.auto.warning_pi')
+    warningKey: 'agent.settings.tooling.permissionMode.auto.warning_pi',
+    warningFallback: 'Recognition is best-effort; an unusual command can still slip through.'
+  },
+  bypassPermissions: {
+    // t('agent.settings.tooling.permissionMode.bypassPermissions.warning_pi')
+    warningKey: 'agent.settings.tooling.permissionMode.bypassPermissions.warning_pi',
+    warningFallback:
+      'Dangerous — nothing is ever asked except for disabled tools, including file deletion and network access.'
+  }
+}
+
+/** Permission-mode cards offered for an agent type. Unknown types keep the full set. */
+export function getPermissionModeCards(agentType: AgentType | string | undefined): PermissionModeCard[] {
+  if (!agentType || !(agentType in AGENT_RUNTIME_CAPABILITIES)) return permissionModeCards
+  const modes = new Set<AgentPermissionMode>(AGENT_RUNTIME_CAPABILITIES[agentType as AgentType].permissionModes)
+  return permissionModeCards
+    .filter((card) => modes.has(card.mode))
+    .map((card) => (agentType === 'pi' ? { ...card, ...PI_CARD_OVERRIDES[card.mode] } : card))
+}

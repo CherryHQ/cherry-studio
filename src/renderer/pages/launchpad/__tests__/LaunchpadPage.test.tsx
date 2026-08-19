@@ -2,7 +2,7 @@
 import '@testing-library/jest-dom/vitest'
 
 import type { SidebarAppId } from '@renderer/utils/sidebar'
-import type { SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
+import { type SidebarFavoriteItem, ThemeMode } from '@shared/data/preference/preferenceTypes'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -19,11 +19,11 @@ const mocks = vi.hoisted(() => ({
   setAppOrder: vi.fn(() => Promise.resolve()),
   appOrder: [] as SidebarAppId[],
   sortableCalls: [] as any[],
-  toastError: vi.fn()
+  toastError: vi.fn(),
+  theme: 'light'
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
-  SegmentedControl: () => null,
   Sortable: ({ items, itemKey, renderItem, ...props }: any) => {
     mocks.sortableCalls.push({ items, itemKey, renderItem, ...props })
     const getKey = typeof itemKey === 'function' ? itemKey : (item: any) => item[itemKey]
@@ -84,6 +84,10 @@ vi.mock('@renderer/components/MiniApp/MiniApp', () => ({
   )
 }))
 
+vi.mock('@renderer/components/ProviderAvatar', () => ({
+  ProviderAvatarPrimitive: () => <svg aria-hidden="true" />
+}))
+
 vi.mock('@renderer/components/Scrollbar', () => ({
   default: ({ children, className }: { children: ReactNode; className?: string }) => (
     <div className={className}>{children}</div>
@@ -95,6 +99,15 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
     openedKeepAliveMiniApps: mocks.openedMiniApps,
     pinned: mocks.pinnedMiniApps,
     reorderMiniAppsByStatus: mocks.reorderMiniAppsByStatus
+  })
+}))
+
+vi.mock('@renderer/hooks/useTheme', () => ({
+  useTheme: () => ({
+    theme: mocks.theme,
+    settedTheme: mocks.theme,
+    toggleTheme: vi.fn(),
+    setTheme: vi.fn()
   })
 }))
 
@@ -137,6 +150,7 @@ vi.mock('react-i18next', () => ({
           'files.title': 'Files',
           'knowledge.title': 'Knowledge',
           'launchpad.apps': 'Apps',
+          'launchpad.deepseek_harness_shortcut': 'DSH',
           'launchpad.miniApps': 'Mini Apps',
           'launchpad.pin_to_sidebar': 'Add to Sidebar',
           'launchpad.unpin_from_sidebar': 'Remove from Sidebar',
@@ -160,6 +174,12 @@ import LaunchpadPage from '../LaunchpadPage'
 
 const appFavorite = (id: SidebarAppId): SidebarFavoriteItem => ({ type: 'app', id })
 const miniAppFavorite = (id: string): SidebarFavoriteItem => ({ type: 'mini_app', id })
+
+function getAppTileFace(name: string): HTMLElement {
+  const face = screen.getByRole('button', { name }).querySelector('span.size-14.rounded-2xl')
+  expect(face).toBeInstanceOf(HTMLElement)
+  return face as HTMLElement
+}
 const createMiniApp = (appId: string, overrides: Partial<MiniApp> = {}): MiniApp =>
   ({
     appId,
@@ -188,6 +208,7 @@ describe('LaunchpadPage', () => {
     mocks.setSidebarFavorites.mockResolvedValue(undefined)
     mocks.setAppOrder.mockResolvedValue(undefined)
     mocks.reorderMiniAppsByStatus.mockResolvedValue(undefined)
+    mocks.theme = ThemeMode.light
   })
 
   it('renders the launchpad page chrome and app grid', () => {
@@ -243,6 +264,51 @@ describe('LaunchpadPage', () => {
       'w-[92px]',
       'justify-center'
     )
+  })
+
+  it('paints sidebar app tiles with distinct light-mode mesh gradients and grain', () => {
+    render(<LaunchpadPage />)
+
+    const chat = getAppTileFace('Chat')
+    const knowledge = getAppTileFace('Knowledge')
+
+    expect(chat).toHaveStyle({
+      background: 'linear-gradient(140deg, #BFDBFE 0%, #60A5FA 50%, #A5B4FC 100%)'
+    })
+    expect(knowledge).toHaveStyle({
+      background: 'linear-gradient(140deg, #D9F99D 0%, #A3E635 50%, #BEF264 100%)'
+    })
+    expect(chat.style.background).not.toEqual(knowledge.style.background)
+    expect(chat.querySelector('.mix-blend-overlay')).toBeInTheDocument()
+    expect(knowledge.querySelector('.mix-blend-overlay')).toBeInTheDocument()
+  })
+
+  it('switches sidebar app tile palettes when the resolved theme is dark', () => {
+    const { rerender } = render(<LaunchpadPage />)
+    const lightChatBackground = getAppTileFace('Chat').style.background
+
+    mocks.theme = ThemeMode.dark
+    rerender(<LaunchpadPage />)
+
+    const darkChat = getAppTileFace('Chat')
+    expect(darkChat).toHaveStyle({
+      background: 'linear-gradient(140deg, #93C5FD 0%, #60A5FA 50%, #A5B4FC 100%)'
+    })
+    expect(darkChat.style.background).not.toEqual(lightChatBackground)
+    expect(darkChat.querySelector('.mix-blend-overlay')).toBeInTheDocument()
+  })
+
+  it('keeps the DeepSeek Harness shortcut on its own muted tile, not the app mesh palette', () => {
+    render(<LaunchpadPage />)
+
+    const shortcut = screen.getByRole('button', { name: 'DSH' })
+    const face = shortcut.querySelector('span.size-14.rounded-2xl')
+
+    expect(face).toHaveClass('bg-muted', 'border-border-subtle')
+    expect(face).not.toHaveStyle({
+      background: 'linear-gradient(140deg, #BFDBFE 0%, #60A5FA 50%, #A5B4FC 100%)'
+    })
+    expect(shortcut.querySelector('.mix-blend-overlay')).not.toBeInTheDocument()
   })
 
   it('orders app tiles by the launchpad app order, appending the rest canonically', () => {
@@ -306,6 +372,20 @@ describe('LaunchpadPage', () => {
     await user.click(screen.getByRole('button', { name: 'Knowledge' }))
 
     expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/knowledge' })
+  })
+
+  it('opens the dedicated DeepSeek Harness CodeMate view from its app shortcut', async () => {
+    const user = userEvent.setup()
+
+    render(<LaunchpadPage />)
+    const shortcut = screen.getByRole('button', { name: 'DSH' })
+
+    await user.click(shortcut)
+
+    expect(mocks.navigate).toHaveBeenCalledWith({
+      to: '/app/code',
+      search: { tool: 'deepseek-harness' }
+    })
   })
 
   it('suppresses only the dragged launchpad item click', () => {

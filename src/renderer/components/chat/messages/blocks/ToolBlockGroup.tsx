@@ -1,5 +1,7 @@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@cherrystudio/ui'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { SESSION_CREATE_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
+import { PROVIDER_WEB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import {
   Brain,
@@ -7,6 +9,7 @@ import {
   Database,
   FileSearch,
   FileText,
+  GitBranchPlus,
   Globe,
   ImageIcon,
   ListChecks,
@@ -71,6 +74,8 @@ function getToolHeaderCandidateKey(candidate: ToolHeaderCandidate): string {
 }
 
 const TOOL_GROUP_ICON_BY_NAME: Record<string, LucideIcon> = {
+  [SESSION_CREATE_TOOL_NAME]: GitBranchPlus,
+  [`mcp__cherry-tools__${SESSION_CREATE_TOOL_NAME}`]: GitBranchPlus,
   [AgentToolsType.Agent]: Sparkles,
   [AgentToolsType.Bash]: SquareTerminal,
   [AgentToolsType.BashOutput]: SquareTerminal,
@@ -95,6 +100,7 @@ const TOOL_GROUP_ICON_BY_NAME: Record<string, LucideIcon> = {
   [AgentToolsType.ToolSearch]: FileSearch,
   [AgentToolsType.WebFetch]: Globe,
   [AgentToolsType.WebSearch]: Globe,
+  [PROVIDER_WEB_SEARCH_TOOL_NAME]: Globe,
   [AgentToolsType.Workflow]: Workflow,
   [AgentToolsType.Write]: FileText
 }

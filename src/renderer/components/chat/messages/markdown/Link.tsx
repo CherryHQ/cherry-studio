@@ -1,6 +1,7 @@
+import { isKnownNavigationPath, NavigateToolInline } from '@renderer/components/chat/messages/tools/agent'
 import Favicon from '@renderer/components/icons/FallbackFavicon'
 import type { Citation } from '@renderer/types/message'
-import { findCitationInChildren } from '@renderer/utils/markdown'
+import { findCitationInChildren } from '@renderer/utils/markdownLight'
 import { cn } from '@renderer/utils/style'
 import { omit } from 'es-toolkit/compat'
 import React, { useMemo } from 'react'
@@ -50,6 +51,12 @@ const Link: React.FC<LinkProps> = (props) => {
   // 处理内部链接
   if (props.href?.startsWith('#')) {
     return <span className="link">{props.children}</span>
+  }
+
+  if (props.href && isKnownNavigationPath(props.href)) {
+    const [path, search] = props.href.split('?', 2)
+    const query = search ? Object.fromEntries(new URLSearchParams(search)) : undefined
+    return <NavigateToolInline input={{ path, query }} />
   }
 
   // 包含<sup>标签表示是一个引用链接。

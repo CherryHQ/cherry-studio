@@ -110,46 +110,67 @@ function buildReasoningFamiliesGen(): string {
 }
 
 /**
- * Compile creator-declared server-tool prefixes into exact catalog model ids.
+ * Compile provider-owned server-tool selectors into exact catalog model ids.
  * Exact ids keep runtime availability deterministic and prevent a broad family
  * prefix from leaking onto newly discovered image/TTS/transcription siblings.
  */
-function collectServerToolModels(models: Map<string, any>): Partial<Record<ServerTool, string[]>> {
-  const result: Partial<Record<ServerTool, string[]>> = {}
-  for (const tool of Object.values(SERVER_TOOL)) {
-    const ids: string[] = []
-    for (const model of models.values()) {
-      const explicitlyEligible = (model.serverTools ?? []).includes(tool)
-      const creator = creatorById.get(model.ownedBy)
-      const matchesCreatorRule = (creator?.serverTools?.[tool] ?? []).some((prefix) => prefixHit(model.id, prefix))
-      if (!explicitlyEligible && !matchesCreatorRule) continue
-
-      const inputModalities = model.inputModalities ?? ['text']
-      const outputModalities = model.outputModalities ?? ['text']
-      if (!inputModalities.includes('text') || !outputModalities.includes('text')) continue
-      if (!explicitlyEligible && tool === SERVER_TOOL.WEB_SEARCH && model.capabilities?.includes('image-generation')) {
-        continue
+function collectProviderServerToolModels(
+  models: Map<string, any>
+): Record<string, Partial<Record<ServerTool, string[]>>> {
+  const result: Record<string, Partial<Record<ServerTool, string[]>>> = {}
+  for (const provider of PROVIDERS) {
+    const tools: Partial<Record<ServerTool, string[]>> = {}
+    for (const config of provider.serverTools ?? []) {
+      if (config.modelScope !== 'model-dependent') continue
+      if (!config.modelIdPrefixes?.length && !config.modelIds?.length) {
+        throw new Error(`provider '${provider.id}' has model-dependent ${config.id} without model selectors`)
       }
-      ids.push(model.id)
+
+      const exactModelIds = new Set(config.modelIds ?? [])
+      const explicitImageIds = new Set(config.imageModelIds ?? [])
+      const ids: string[] = []
+      for (const model of models.values()) {
+        if (
+          !exactModelIds.has(model.id) &&
+          !(config.modelIdPrefixes ?? []).some((prefix) => prefixHit(model.id, prefix))
+        ) {
+          continue
+        }
+
+        const inputModalities = model.inputModalities ?? ['text']
+        const outputModalities = model.outputModalities ?? ['text']
+        if (!inputModalities.includes('text') || !outputModalities.includes('text')) continue
+        if (
+          config.id === SERVER_TOOL.WEB_SEARCH &&
+          model.capabilities?.includes('image-generation') &&
+          !explicitImageIds.has(model.id)
+        ) {
+          continue
+        }
+        ids.push(model.id)
+      }
+      if (ids.length > 0) tools[config.id] = ids.sort()
     }
-    if (ids.length > 0) result[tool] = ids.sort()
+    if (Object.keys(tools).length > 0) result[provider.id] = tools
   }
   return result
 }
 
-/** Runtime artifact for model-dependent server-tool eligibility. */
+/** Runtime artifact for provider-specific model-dependent server-tool eligibility. */
 function buildServerToolModelsGen(models: Map<string, any>): string {
-  const modelIds = collectServerToolModels(models)
+  const modelIds = collectProviderServerToolModels(models)
   return [
     '/**',
     ' * GENERATED FILE — DO NOT EDIT.',
     ' *',
-    ' * Compiled from `Creator.serverTools` and exceptional `CreatorModel.serverTools` declarations',
-    ' * by scripts/generate-catalog.ts — edit the creator and run `pnpm generate`.',
+    ' * Compiled from provider-owned server-tool model selectors',
+    ' * by scripts/generate-catalog.ts — edit the provider and run `pnpm generate`.',
     ' */',
     "import type { ServerTool } from '../schemas/enums'",
     '',
-    'export const SERVER_TOOL_MODEL_IDS: Partial<Record<ServerTool, readonly string[]>> =',
+    'export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<',
+    '  Record<string, Partial<Record<ServerTool, readonly string[]>>>',
+    '> =',
     `  ${JSON.stringify(modelIds, null, 2)}`,
     ''
   ].join('\n')
@@ -439,7 +460,7 @@ function buildModels(index: Index, claimed: Map<string, string>): Map<string, an
     if (kind === 'embedding') m.outputModalities = ['vector']
     if (!m.inputModalities?.length) m.inputModalities = ['text']
   }
-  // Server-tool eligibility is compiled separately from Creator.serverTools.
+  // Server-tool eligibility is compiled separately from provider declarations.
   // Remove any stale/upstream web-search capability so it cannot become a
   // second runtime source of truth beside that eligibility table.
   for (const m of models.values()) {
@@ -455,10 +476,20 @@ function buildModels(index: Index, claimed: Map<string, string>): Map<string, an
  */
 function buildProviders(): ProviderEntry[] {
   // oxlint-disable-next-line no-unused-vars
-  return PROVIDERS.map(({ modelsDevProvider, fetchModels, overrides, ...conn }) => ({
-    ...conn,
-    description: `${conn.name} - AI model provider`
-  }))
+  return PROVIDERS.map(({ modelsDevProvider, fetchModels, overrides, ...conn }) => {
+    const serverTools = conn.serverTools?.map((tool) => {
+      const config = { ...tool }
+      delete config.modelIdPrefixes
+      delete config.modelIds
+      delete config.imageModelIds
+      return config
+    })
+    return {
+      ...conn,
+      ...(serverTools ? { serverTools } : {}),
+      description: `${conn.name} - AI model provider`
+    }
+  })
 }
 
 /**
@@ -629,7 +660,6 @@ void (async () => {
       const metadata = m.metadata
       const rest = { ...m }
       delete rest.metadata
-      delete rest.serverTools
       return { ...rest, ...(metadata ? { metadata } : {}) }
     })
   fs.writeFileSync(MODELS_PATH, stampAndSerialize({ models: list }))
