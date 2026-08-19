@@ -506,7 +506,9 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
 
   private async writeTraceFile(spans: SpanEntity[], topicId: string, traceId: string) {
     const dirPath = this.traceTopicDir(topicId)
-    await fs.mkdir(dirPath, { recursive: true })
+    // Owner-only perms: trace JSONL holds raw prompts/API bodies (dev-gated
+    // plaintext by design) and userData can be world-readable on Linux (0755).
+    await fs.mkdir(dirPath, { recursive: true, mode: 0o700 })
     const filePath = this.traceFilePath(topicId, traceId)
     const replacements = new Map(
       spans
@@ -528,7 +530,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     const tmpPath = `${filePath}.${process.pid}.tmp`
     let output: FileHandle | undefined
     try {
-      output = await fs.open(tmpPath, 'w')
+      output = await fs.open(tmpPath, 'w', 0o600)
       if (historySize !== null) {
         const handle = output
         const seenIds = new Set<string>()

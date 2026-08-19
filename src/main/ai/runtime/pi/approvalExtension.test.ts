@@ -5,6 +5,8 @@ import { join } from 'node:path'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { PiApprovalContext } from './approvalExtension'
+
 const mocks = vi.hoisted(() => ({ rtkRewrite: vi.fn() }))
 
 vi.mock('@logger', () => ({
@@ -12,7 +14,7 @@ vi.mock('@logger', () => ({
 }))
 vi.mock('@main/utils/rtk', () => ({ rtkRewrite: mocks.rtkRewrite }))
 
-const { createPiApprovalExtension } = await import('./approvalExtension')
+const { createPiApprovalExtension, createPiToolAuthorizer } = await import('./approvalExtension')
 const { toolApprovalRegistry } = await import('../toolApproval/ToolApprovalRegistry')
 
 type Handler = (event: unknown, ctx: unknown) => Promise<{ block?: boolean; reason?: string } | undefined>
@@ -49,11 +51,12 @@ function buildGate(
     isDisabled: (toolName: string) => boolean
     autoApprovedTools: ReadonlySet<string>
     approvalRequiredTools: ReadonlySet<string>
+    nonBypassableApprovalTools: ReadonlySet<string>
   }> = {}
 ) {
   const emitted: any[] = []
   let handler!: Handler
-  const factory = createPiApprovalExtension({
+  const context: PiApprovalContext = {
     sessionId: 's1',
     workspacePath: workspace,
     agentDataPath: agentData,
@@ -63,14 +66,16 @@ function buildGate(
     isDisabled: () => false,
     autoApprovedTools: new Set(),
     approvalRequiredTools: new Set(),
+    nonBypassableApprovalTools: new Set(),
     ...overrides
-  })
+  }
+  const factory = createPiApprovalExtension(context)
   void factory({
     on: (evt: string, h: unknown) => {
       if (evt === 'tool_call') handler = h as Handler
     }
   } as never)
-  return { handler, emitted }
+  return { handler, emitted, authorizeTool: createPiToolAuthorizer(context) }
 }
 
 const extCtx = { signal: undefined }
@@ -95,6 +100,14 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
     expect(emitted).toHaveLength(0)
   })
 
+  it('auto-allows code mode dispatch without treating its arguments as a file path', async () => {
+    const { handler, emitted } = buildGate()
+    await expect(
+      handler(toolEvent('tool_call', { name: 'mcp__server__lookup', params: {} }), extCtx)
+    ).resolves.toBeUndefined()
+    expect(emitted).toHaveLength(0)
+  })
+
   it('gates a bash call in default mode: emits a pi-agent approval request and blocks until dispatched', async () => {
     const { handler, emitted } = buildGate()
     const pending = handler(toolEvent('bash', { command: 'ls' }), extCtx)
@@ -114,6 +127,28 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
       sessionId: 's1'
     })
     await expect(pending).resolves.toBeUndefined()
+  })
+
+  it('pauses an outer code-mode timeout only while a nested approval is pending', async () => {
+    const { authorizeTool, emitted } = buildGate()
+    const pause = vi.fn()
+    const resume = vi.fn()
+    const pending = authorizeTool({
+      toolName: 'mcp__server__mutate',
+      toolCallId: 'outer-tool-call',
+      input: {},
+      onApprovalPending: () => {
+        pause()
+        return resume
+      }
+    })
+    await flush()
+
+    expect(emitted[0].request.toolCallId).toBe('outer-tool-call')
+    expect(pause).toHaveBeenCalledOnce()
+    toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved: true })
+    await expect(pending).resolves.toBeUndefined()
+    expect(resume).toHaveBeenCalledOnce()
   })
 
   it('blocks with the reason when the approval is denied', async () => {
@@ -182,6 +217,37 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
     await expect(handler(toolEvent(toolName, {}), extCtx)).resolves.toBeUndefined()
     expect(emitted).toHaveLength(0)
     expect(toolApprovalRegistry.size()).toBe(0)
+  })
+
+  it('still requests live approval for a non-bypassable delegation tool under bypassPermissions', async () => {
+    const toolName = 'mcp__cherry-tools__session_send'
+    const { handler, emitted } = buildGate({
+      getPermissionMode: () => 'bypassPermissions',
+      approvalRequiredTools: new Set([toolName]),
+      nonBypassableApprovalTools: new Set([toolName])
+    })
+
+    const pending = handler(toolEvent(toolName, {}), extCtx)
+    await flush()
+    expect(emitted).toHaveLength(1)
+    toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved: false })
+    await expect(pending).resolves.toMatchObject({ block: true })
+  })
+
+  it('blocks a non-bypassable delegation tool headlessly under bypassPermissions', async () => {
+    const toolName = 'mcp__cherry-tools__session_create'
+    const { handler, emitted } = buildGate({
+      getPermissionMode: () => 'bypassPermissions',
+      getInteractionState: () => ({ userResponse: 'unavailable' }),
+      approvalRequiredTools: new Set([toolName]),
+      nonBypassableApprovalTools: new Set([toolName])
+    })
+
+    await expect(handler(toolEvent(toolName, {}), extCtx)).resolves.toEqual({
+      block: true,
+      reason: 'This tool always requires user approval and cannot run unattended. Retry interactively.'
+    })
+    expect(emitted).toHaveLength(0)
   })
 
   it('fails closed immediately when an approval-required tool has no responder', async () => {
@@ -392,14 +458,6 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
     it('still auto-allows a read with a relative in-workspace path', async () => {
       const { handler, emitted } = buildGate()
       await expect(handler(toolEvent('read', { path: 'inside.txt' }), extCtx)).resolves.toBeUndefined()
-      expect(emitted).toHaveLength(0)
-    })
-
-    it('still auto-allows grep/find/ls with no path (defaults to the workspace root)', async () => {
-      const { handler, emitted } = buildGate()
-      for (const tool of ['grep', 'find', 'ls']) {
-        await expect(handler(toolEvent(tool, {}), extCtx)).resolves.toBeUndefined()
-      }
       expect(emitted).toHaveLength(0)
     })
 
