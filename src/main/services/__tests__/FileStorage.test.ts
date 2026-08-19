@@ -47,6 +47,19 @@ describe('FileStorage', () => {
     })
   })
 
+  describe('openPath', () => {
+    it('opens a file with a safe extension via the system default app', async () => {
+      vi.mocked(shell.openPath).mockResolvedValue('')
+      await fileStorage.openPath(event, '/mock/notes/report.md')
+      expect(shell.openPath).toHaveBeenCalledWith('/mock/notes/report.md')
+    })
+
+    it('refuses script extensions before reaching the OS handler', async () => {
+      await expect(fileStorage.openPath(event, '/mock/notes/report.py')).rejects.toThrow('Refusing to open .py')
+      expect(shell.openPath).not.toHaveBeenCalled()
+    })
+  })
+
   describe('writeFile', () => {
     let tmpFile: string
 

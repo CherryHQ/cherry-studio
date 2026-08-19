@@ -2,6 +2,7 @@
  * Agent session message domain API Schema definitions.
  */
 
+import { AgentSessionDeliverySchema } from '@shared/ai/agentSessionDelivery'
 import {
   ContentMessageRoleSchema,
   MessageDataSchema,
@@ -42,7 +43,9 @@ const AgentSessionMessageBaseSchema = z.strictObject({
   status: MessageStatusSchema,
   modelId: z.string().nullable(),
   messageSnapshot: MessageSnapshotSchema.nullable(),
-  stats: MessageStatsSchema.nullable()
+  stats: MessageStatsSchema.nullable(),
+  /** Trusted Main-authored cross-session delivery context; renderer writes cannot set it. */
+  delivery: AgentSessionDeliverySchema.nullable().optional()
 })
 
 export const AgentSessionMessageEntitySchema = AgentSessionMessageBaseSchema.extend({

@@ -106,6 +106,7 @@ export class WebSearchService extends BaseService {
     }
 
     const fallbackProviderId = context.provider.id === 'fetch' ? 'jina' : 'fetch'
+    const allowPrivateNetwork = application.get('PreferenceService').get('app.fetch.allow_private_network')
     const fallbackCandidates = failedIndexes.flatMap((index) => {
       const input = context.inputs[index]
 
@@ -114,7 +115,7 @@ export class WebSearchService extends BaseService {
       }
 
       try {
-        return [{ index, input: sanitizeRemoteUrl(input) }]
+        return [{ index, input: sanitizeRemoteUrl(input, undefined, allowPrivateNetwork) }]
       } catch {
         return []
       }

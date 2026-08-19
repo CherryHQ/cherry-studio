@@ -9,6 +9,10 @@
       }
     },
     "session": {
+      "run_status": {
+        "busy": "Agent 会话正忙，请稍后重试。",
+        "unavailable": "Agent 会话已不可用。"
+      },
       "workspace_status": {
         "inaccessible": "工作区路径不可访问：{{path}}",
         "missing": "工作区路径不存在：{{path}}",
@@ -80,6 +84,13 @@
     "zoomOut": "缩小"
   },
   "common": {
+    "channel_available_commands": "可用命令：",
+    "channel_command_processing_error": "⚠️ 处理命令时发生错误，请稍后重试。",
+    "channel_message_processing_error": "⚠️ 处理消息时发生错误，请稍后重试。",
+    "channel_new_session_created": "已创建新会话。",
+    "channel_no_active_session": "没有活跃会话。",
+    "channel_session_compacted": "会话已压缩。",
+    "channel_session_resolution_error": "⚠️ 无法解析此智能体的会话，请稍后重试。",
     "copy": "复制",
     "cut": "剪切",
     "inspect": "检查",
@@ -104,6 +115,18 @@
     "save_as_html": "保存为 HTML",
     "save_as_pdf": "保存为 PDF",
     "save_file": "保存文件",
+    "screen_capture_permission": {
+      "cancel": "取消",
+      "detail": "请在「系统设置 > 隐私与安全性 > 屏幕录制」中为「{{appName}}」开启屏幕录制权限，然后重启应用。",
+      "message": "截图需要屏幕录制权限。",
+      "open_settings": "打开系统设置",
+      "title": "屏幕录制权限"
+    },
+    "screenshot_failed": {
+      "message": "截图失败。",
+      "ok": "好",
+      "title": "截图失败"
+    },
     "select_folder": "选择文件夹",
     "word_document": "Word 文档"
   },
