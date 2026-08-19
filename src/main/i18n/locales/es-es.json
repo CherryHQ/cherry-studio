@@ -9,6 +9,10 @@
       }
     },
     "session": {
+      "run_status": {
+        "busy": "The Agent Session is busy. Please try again shortly.",
+        "unavailable": "The Agent Session is no longer available."
+      },
       "workspace_status": {
         "inaccessible": "La ruta del espacio de trabajo no es accesible: {{path}}",
         "missing": "La ruta del espacio de trabajo no existe: {{path}}",

@@ -222,7 +222,7 @@ describe('SessionList helpers', () => {
     )
   })
 
-  it('uses workspace rows for workdir labels and ranks independent of session order', () => {
+  it('uses all workspace rows for workdir labels and ranks independent of session order', () => {
     const sessions = [
       createSession({
         id: 'session-a',

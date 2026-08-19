@@ -7,6 +7,7 @@
  * with `session.agentId`.
  */
 
+import { loggerService } from '@logger'
 import { createInfiniteQueryRetentionMiddleware } from '@renderer/data/hooks/createInfiniteQueryRetentionMiddleware'
 import {
   useDataChange,
@@ -18,7 +19,7 @@ import {
 } from '@renderer/data/hooks/useDataApi'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { useStructurallySharedItems } from '@renderer/hooks/useStructurallySharedItems'
-import { useIpcOn } from '@renderer/ipc'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { UpdateAgentBaseOptions } from '@renderer/types/agent'
 import { formatErrorMessageWithPrefix, getErrorMessage } from '@renderer/utils/error'
@@ -39,6 +40,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const DEFAULT_SESSION_PAGE_SIZE = 20
+const logger = loggerService.withContext('useSession')
 
 /** Canonical session-list write refresh. */
 const SESSION_LIST_REFRESH: ConcreteApiPaths[] = ['/agent-sessions', '/agent-sessions/stats']
@@ -218,15 +220,15 @@ export const useSessions = (agentId: string | null | undefined, options: UseSess
       }
     }
   )
-  useDataChange('/agent-sessions', () => {
-    if (enabled !== false) void refresh()
-  })
-
   const flatSessions = useInfiniteFlatItems(pages)
   const sessions = useStructurallySharedItems(flatSessions)
   const hasMore = hasNext
 
   const reload = useCallback(() => refresh(), [refresh])
+  const refreshFromDataChange = useCallback(() => {
+    if (enabled !== false) void refresh()
+  }, [enabled, refresh])
+  useDataChange('/agent-sessions', refreshFromDataChange)
 
   const loadMore = useCallback(() => {
     if (!isLoadingMore && hasMore) {
@@ -251,38 +253,45 @@ export const useSessions = (agentId: string | null | undefined, options: UseSess
 export function useSessionMutations() {
   const { t } = useTranslation()
   const closeConversationTabs = useCloseConversationTabs()
-  const { trigger: deleteTrigger } = useMutation('DELETE', '/agent-sessions/:sessionId', {
-    refresh: SESSION_LIST_REFRESH
-  })
-  const { trigger: deleteManyTrigger } = useMutation('DELETE', '/agent-sessions', {
-    refresh: [...SESSION_LIST_REFRESH, '/agent-workspaces', '/pins', '/agent-channels']
-  })
+  const invalidate = useInvalidateCache()
   const deleteSession = useCallback(
     async (id: string): Promise<boolean> => {
       try {
-        await deleteTrigger({ params: { sessionId: id } })
-        closeConversationTabs('agents', [id])
+        const result = await ipcApi.request('ai.agent.session.delete', { sessionIds: [id] })
+        closeConversationTabs('agents', result.deletedIds)
+        try {
+          await invalidate([...SESSION_LIST_REFRESH, '/agent-workspaces', '/pins', '/agent-channels'])
+        } catch (error) {
+          logger.warn('Failed to refresh after deleting Agent Session', error as Error, { sessionId: id })
+        }
         return true
       } catch (error) {
         toast.error(formatErrorMessageWithPrefix(error, t('agent.session.delete.error.failed')))
         return false
       }
     },
-    [closeConversationTabs, deleteTrigger, t]
+    [closeConversationTabs, invalidate, t]
   )
 
   const deleteSessions = useCallback(
     async (ids: string[]): Promise<DeleteAgentSessionsResult | null> => {
       try {
-        const result = await deleteManyTrigger({ query: { ids: ids.join(',') } })
+        const result = await ipcApi.request('ai.agent.session.delete', { sessionIds: ids })
         closeConversationTabs('agents', result.deletedIds)
+        try {
+          await invalidate([...SESSION_LIST_REFRESH, '/agent-workspaces', '/pins', '/agent-channels'])
+        } catch (error) {
+          logger.warn('Failed to refresh after deleting Agent Sessions', error as Error, {
+            sessionIds: result.deletedIds
+          })
+        }
         return result
       } catch (error) {
         toast.error(formatErrorMessageWithPrefix(error, t('agent.session.delete.error.failed')))
         return null
       }
     },
-    [closeConversationTabs, deleteManyTrigger, t]
+    [closeConversationTabs, invalidate, t]
   )
 
   const { trigger: reorderTrigger } = useMutation('PATCH', '/agent-sessions/:id/order', {

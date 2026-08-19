@@ -385,6 +385,15 @@
         "inaccessible": "工作区路径不可访问：{{path}}"
       }
     },
+    "session_delivery": {
+      "from": "来自 {{agent}} / {{session}}",
+      "status": {
+        "accepted": "已接受",
+        "consumed": "已消费",
+        "delivering": "投递中",
+        "failed": "失败"
+      }
+    },
     "settings": {
       "permissionMode": {
         "title": "权限模式"
@@ -723,6 +732,22 @@
           "description": "管理任务列表",
           "label": "管理任务列表"
         },
+        "tool_call": {
+          "description": "调用一个已发现的工具",
+          "label": "调用工具"
+        },
+        "tool_describe": {
+          "description": "获取工具的完整描述和 TypeScript 签名",
+          "label": "描述工具"
+        },
+        "tool_exec": {
+          "description": "执行 JavaScript 来编排已发现的工具",
+          "label": "执行工具代码"
+        },
+        "tool_search": {
+          "description": "搜索可用工具并读取其 TypeScript 签名",
+          "label": "搜索工具"
+        },
         "update_goal": {
           "description": "更新会话目标的状态或内容",
           "label": "更新目标"
@@ -781,6 +806,7 @@
       "restartSuccess": "API 网关重启成功",
       "startError": "启动 API 网关失败：",
       "startSuccess": "API 网关启动成功",
+      "stopDeferred": "当前翻译完成后，API 网关将自动停止",
       "stopError": "停止 API 网关失败：",
       "stopSuccess": "API 网关停止成功"
     },
@@ -988,6 +1014,19 @@
       "knowledge_base_disabled_by_files": "移除附件后可使用知识库",
       "knowledge_base_unavailable": "请选择支持工具调用的模型",
       "locate_editing_message": "定位原消息",
+      "mcp_prompts": {
+        "description": "插入 MCP 服务器提供的提示词",
+        "empty": "没有可用的 MCP 提示词",
+        "insert_failed": "提示词插入失败",
+        "title": "MCP 提示词"
+      },
+      "mcp_resources": {
+        "description": "引用 MCP 服务器提供的资源",
+        "empty": "没有可用的 MCP 资源",
+        "read_failed": "资源读取失败",
+        "reader_unavailable": "当前模型无法在附加后回读该资源",
+        "title": "MCP 资源"
+      },
       "new": {
         "context": "清除上下文"
       },
@@ -3352,6 +3391,21 @@
         "stderr": "标准错误",
         "stdout": "标准输出"
       },
+      "sessionCreate": {
+        "created": "已启动新会话",
+        "creating": "正在启动新会话",
+        "firstMessage": "首条消息",
+        "inheritedContext": "沿用当前智能体与工作区",
+        "open": "打开会话",
+        "sessionId": "会话 ID",
+        "untitled": "未命名会话"
+      },
+      "sessionSend": {
+        "open": "打开会话",
+        "sending": "正在发送至",
+        "sent": "已发送至",
+        "to": "发送至"
+      },
       "status": {
         "done": "完成",
         "error": "错误",
@@ -5535,6 +5589,7 @@
       },
       "title": "环境依赖",
       "tools": {
+        "babeldoc-stream": "保留版式的 PDF 翻译引擎。首次翻译时会下载版面模型资源。",
         "bun": "MCP 服务及相关工具链使用的 JavaScript 运行时。",
         "claude": "Anthropic 的终端智能编程工具。",
         "codex": "OpenAI 的开源编程代理，可读取、编辑和执行本地仓库中的代码。",
@@ -5582,6 +5637,10 @@
         "title": "字体设置"
       }
     },
+    "fetch": {
+      "allow_private_network": "允许访问本地网络地址",
+      "allow_private_network_tip": "允许网页抓取工具访问 localhost 和内网地址。如果不希望模型读取本机或局域网上的服务，请关闭。"
+    },
     "font_size": {
       "title": "消息字体大小"
     },
@@ -5611,7 +5670,8 @@
         },
         "sections": {
           "display_language": "显示与语言"
-        }
+        },
+        "title": "通用"
       },
       "emoji_picker": "表情选择器",
       "image_upload": "图片上传",
@@ -6081,6 +6141,7 @@
         "max_messages": "保留最近消息数",
         "max_messages_description": "仅发送最近若干条消息，更早的消息不进入上下文；留空表示不限制。助手可单独覆盖",
         "max_messages_unlimited": "不限制",
+        "scope_description": "仅适用于 Cherry Studio 内的助手对话；助手可在自身设置中单独覆盖。",
         "title": "上下文管理",
         "truncate_threshold": "工具输出截断阈值(字符)",
         "truncate_threshold_description": "超过该字符数的工具输出会被转存为文件并截断，模型可按需读回。助手可单独覆盖"
@@ -7193,10 +7254,10 @@
     "history": {
       "back": "返回列表",
       "clear": "清空历史",
-      "clear_description": "清空历史将删除所有翻译历史记录，是否继续？",
+      "clear_description": "清空历史将删除所有翻译历史记录，并一并回收其中生成的译文文件，是否继续？",
       "copy_target": "复制译文",
       "delete": "删除翻译历史",
-      "delete_description": "确定要删除这条翻译历史记录吗？此操作不可撤销。",
+      "delete_description": "确定要删除这条翻译历史记录吗？若是文件翻译，生成的译文文件也会一并回收。此操作不可撤销。",
       "empty": "暂无翻译历史",
       "error": {
         "add": "添加翻译历史失败",
@@ -7204,6 +7265,17 @@
         "delete": "删除失败",
         "load": "加载翻译历史失败",
         "save": "保存翻译历史失败"
+      },
+      "file": {
+        "action_failed": "无法对该文件执行此操作",
+        "badge": "文件翻译",
+        "export": "另存译文文件…",
+        "open": "打开译文文件",
+        "preview": "双栏预览",
+        "reveal": "在文件夹中显示",
+        "source": "源文件",
+        "target": "译文文件",
+        "unavailable": "该翻译记录的文件已不可用"
       },
       "filter": {
         "starred": "仅显示收藏"
@@ -7233,6 +7305,53 @@
     "language_settings": "语言设置",
     "output": {
       "placeholder": "翻译"
+    },
+    "pdf": {
+      "action": {
+        "close": "关闭 PDF 翻译",
+        "export": "导出译文 PDF",
+        "install_babeldoc": "安装 BabelDOC",
+        "update_babeldoc": "更新 BabelDOC"
+      },
+      "dependency": {
+        "checking": "正在检测 BabelDOC...",
+        "description": "安装 BabelDOC 插件即可在翻译 PDF 时保留原始版式。",
+        "installing": "正在安装 BabelDOC...",
+        "outdated_description": "更新 BabelDOC 后即可继续保留原始版式翻译 PDF。",
+        "outdated_title": "需要更新 BabelDOC",
+        "title": "检测到 PDF"
+      },
+      "error": {
+        "generic": "翻译过程中出现错误，请重试。",
+        "ocr_required": "暂不支持扫描版 PDF",
+        "persist_failed": "PDF 已翻译完成，但译文保存失败，请重试。",
+        "title": "PDF 翻译失败"
+      },
+      "export_failed": "导出译文 PDF 失败",
+      "pane": {
+        "translated": "译文 PDF",
+        "translated_text": "译文"
+      },
+      "progress": {
+        "analyzing": "正在分析文档版式",
+        "checking_assets": "正在检查 PDF 处理资源",
+        "downloading_assets": "正在下载 PDF 处理资源...",
+        "extracting_terms": "正在提取文档术语",
+        "loading_model": "正在加载 PDF 处理模型",
+        "parsing": "正在解析 PDF 文档",
+        "percent": "{{progress}}%",
+        "preparing": "正在初始化 PDF 翻译",
+        "preparing_hint": "首次初始化可能需要约 2 分钟，后续通常会更快",
+        "rendering": "正在渲染译文 PDF",
+        "translating": "正在翻译内容",
+        "typesetting": "正在排版译文 PDF",
+        "value": "{{stage}}，阶段 {{stageProgress}}%，总体 {{overallProgress}}%"
+      },
+      "ready": {
+        "description": "选择目标语言并开始翻译。",
+        "title": "等待翻译"
+      },
+      "success": "译文 PDF 已生成"
     },
     "preferred_target": "首选目标",
     "processing": "翻译中...",

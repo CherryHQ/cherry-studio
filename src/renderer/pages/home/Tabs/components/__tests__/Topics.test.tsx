@@ -1306,7 +1306,7 @@ describe('Topics', () => {
     expect(screen.getByRole('button', { name: 'Alpha Assistant' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Beta Assistant' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Add Assistant' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'chat.conversation.new' })).toHaveLength(2)
     expect(onNewTopic).not.toHaveBeenCalled()
   })
 
@@ -3403,6 +3403,29 @@ describe('Topics', () => {
     expect(workSection!.compareDocumentPosition(homeSection!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(workSection!.compareDocumentPosition(alphaAssistant) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(homeSection!.compareDocumentPosition(betaAssistant) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('keeps empty assistant group sections in the assistant list order', () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'assistant.tab.sort_type': 'tags',
+      'topic.tab.display_mode': 'assistant'
+    })
+    const assistantTopicsSource = createAssistantTopicsSource([
+      createApiTopic({
+        id: 'topic-home',
+        name: 'Home topic',
+        assistantId: 'assistant-2',
+        orderKey: 'a'
+      })
+    ])
+
+    renderTopicList({ assistantTopicsSource })
+
+    const workSection = screen.getByRole('button', { name: 'Work' }).closest('div')
+    const homeSection = screen.getByRole('button', { name: 'Home' }).closest('div')
+    expect(workSection).toBeInTheDocument()
+    expect(homeSection).toBeInTheDocument()
+    expect(workSection!.compareDocumentPosition(homeSection!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('renders ungrouped assistants before named groups in group mode', () => {

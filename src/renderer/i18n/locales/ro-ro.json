@@ -385,6 +385,15 @@
         "inaccessible": "Calea către spațiul de lucru nu este accesibilă: {{path}}"
       }
     },
+    "session_delivery": {
+      "from": "De la {{agent}} / {{session}}",
+      "status": {
+        "accepted": "Acceptat",
+        "consumed": "Procesat",
+        "delivering": "În curs de livrare",
+        "failed": "Eșuat"
+      }
+    },
     "settings": {
       "permissionMode": {
         "title": "Mod de permisiune"
@@ -723,6 +732,22 @@
           "description": "Gestionează lista de sarcini",
           "label": "Gestionează lista de sarcini"
         },
+        "tool_call": {
+          "description": "Apelați un instrument descoperit",
+          "label": "Apelați instrumentul"
+        },
+        "tool_describe": {
+          "description": "Obțineți descrierea completă și semnătura TypeScript a unui instrument",
+          "label": "Descrieți instrumentul"
+        },
+        "tool_exec": {
+          "description": "Executați JavaScript care orchestrează instrumentele descoperite",
+          "label": "Executați codul instrumentelor"
+        },
+        "tool_search": {
+          "description": "Căutați instrumentele disponibile și citiți semnăturile lor TypeScript",
+          "label": "Căutați instrumente"
+        },
         "update_goal": {
           "description": "Actualizează starea sau conținutul obiectivului sesiunii",
           "label": "Actualizează obiectivul"
@@ -781,6 +806,7 @@
       "restartSuccess": "Serverul API a repornit cu succes",
       "startError": "Nu s-a putut porni serverul API: ",
       "startSuccess": "Serverul API a pornit cu succes",
+      "stopDeferred": "Serverul API se va opri după finalizarea traducerii curente",
       "stopError": "Nu s-a putut opri serverul API: ",
       "stopSuccess": "Serverul API s-a oprit cu succes"
     },
@@ -988,6 +1014,19 @@
       "knowledge_base_disabled_by_files": "Elimină fișierele atașate pentru a folosi Baza de cunoștințe",
       "knowledge_base_unavailable": "Selectează un model compatibil cu instrumente",
       "locate_editing_message": "Localizați mesajul original",
+      "mcp_prompts": {
+        "description": "Inserați un prompt publicat de un server MCP",
+        "empty": "Niciun prompt MCP disponibil",
+        "insert_failed": "Nu s-a putut insera promptul",
+        "title": "Prompturi MCP"
+      },
+      "mcp_resources": {
+        "description": "Referențiați o resursă publicată de un server MCP",
+        "empty": "Nicio resursă MCP disponibilă",
+        "read_failed": "Nu s-a putut citi resursa",
+        "reader_unavailable": "Modelul curent nu poate reciti această resursă după atașare",
+        "title": "Resurse MCP"
+      },
       "new": {
         "context": "Șterge contextul"
       },
@@ -3352,6 +3391,21 @@
         "stderr": "stderr",
         "stdout": "stdout"
       },
+      "sessionCreate": {
+        "created": "A fost pornită o sesiune nouă",
+        "creating": "Se pornește o sesiune nouă",
+        "firstMessage": "Primul mesaj",
+        "inheritedContext": "Se utilizează acest agent și acest spațiu de lucru",
+        "open": "Deschide sesiunea",
+        "sessionId": "ID sesiune",
+        "untitled": "Sesiune fără titlu"
+      },
+      "sessionSend": {
+        "open": "Deschide sesiunea",
+        "sending": "Se trimite către",
+        "sent": "Trimis către",
+        "to": "Către"
+      },
       "status": {
         "done": "Gata",
         "error": "Eroare",
@@ -5535,6 +5589,7 @@
       },
       "title": "Dependențe de mediu",
       "tools": {
+        "babeldoc-stream": "Motor de traducere PDF care păstrează aspectul. Resursele modelului de aspect sunt descărcate la prima traducere.",
         "bun": "Mediu de execuție JavaScript utilizat de serviciile MCP și lanțurile de instrumente asociate.",
         "claude": "Instrumentul Anthropic de programare asistată de agenți pentru terminal.",
         "codex": "Agentul de programare open-source al OpenAI, care poate citi, edita și executa cod în depozitul tău local.",
@@ -5582,6 +5637,10 @@
         "title": "Setări font"
       }
     },
+    "fetch": {
+      "allow_private_network": "Permite accesul la adrese din rețeaua locală",
+      "allow_private_network_tip": "Permite instrumentelor de preluare web să acceseze localhost și adrese din rețeaua privată. Dezactivați dacă nu doriți ca modelele să citească servicii de pe calculatorul dvs. sau din LAN."
+    },
     "font_size": {
       "title": "Dimensiune font mesaj"
     },
@@ -5611,7 +5670,8 @@
         },
         "sections": {
           "display_language": "Afișare și limbă"
-        }
+        },
+        "title": "Setări comune"
       },
       "emoji_picker": "Selector emoji",
       "image_upload": "Încărcare imagine",
@@ -6081,6 +6141,7 @@
         "max_messages": "Mesaje recente păstrate",
         "max_messages_description": "Trimite doar cele mai recente mesaje; cele anterioare sunt excluse din context. Lăsați gol pentru fără limită. Asistenții pot suprascrie această setare",
         "max_messages_unlimited": "Nelimitat",
+        "scope_description": "Se aplică numai conversațiilor cu asistenții din Cherry Studio. Asistenții pot suprascrie individual aceste setări.",
         "title": "Gestionarea contextului",
         "truncate_threshold": "Prag de trunchiere a rezultatelor instrumentelor (caractere)",
         "truncate_threshold_description": "Rezultatele instrumentelor peste acest număr de caractere sunt descărcate într-un fișier și trunchiate; modelul le poate reciti la nevoie. Asistenții pot suprascrie această setare"
@@ -7193,10 +7254,10 @@
     "history": {
       "back": "Înapoi la listă",
       "clear": "Golește istoricul",
-      "clear_description": "Golirea istoricului va șterge tot istoricul traducerilor, continui?",
+      "clear_description": "Golirea istoricului va șterge tot istoricul traducerilor și va recupera fișierele traduse generate. Continui?",
       "copy_target": "Copiază rezultatul",
       "delete": "Șterge istoricul traducerilor",
-      "delete_description": "Ștergi această înregistrare din istoricul traducerilor? Această acțiune nu poate fi anulată.",
+      "delete_description": "Ștergi această înregistrare din istoricul traducerilor? La o traducere de fișier se recuperează și fișierul tradus. Această acțiune nu poate fi anulată.",
       "empty": "Niciun istoric de traducere",
       "error": {
         "add": "Nu s-a reușit adăugarea istoricului de traducere",
@@ -7204,6 +7265,17 @@
         "delete": "Ștergerea a eșuat",
         "load": "Nu s-a putut încărca istoricul traducerilor",
         "save": "Salvarea istoricului traducerilor a eșuat"
+      },
+      "file": {
+        "action_failed": "Acțiunea nu a putut fi finalizată pentru acest fișier",
+        "badge": "Traducere de fișier",
+        "export": "Salvează fișierul tradus ca…",
+        "open": "Deschide fișierul tradus",
+        "preview": "Previzualizare alăturată",
+        "reveal": "Afișează în dosar",
+        "source": "Fișier sursă",
+        "target": "Fișier tradus",
+        "unavailable": "Fișierele acestei traduceri nu mai sunt disponibile"
       },
       "filter": {
         "starred": "Doar cu stea"
@@ -7233,6 +7305,53 @@
     "language_settings": "Setări limbă",
     "output": {
       "placeholder": "Traducere"
+    },
+    "pdf": {
+      "action": {
+        "close": "Închide traducerea PDF",
+        "export": "Exportă PDF-ul tradus",
+        "install_babeldoc": "Instalează BabelDOC",
+        "update_babeldoc": "Actualizează BabelDOC"
+      },
+      "dependency": {
+        "checking": "Se verifică BabelDOC...",
+        "description": "Instalează pluginul BabelDOC pentru a traduce fișiere PDF păstrând aspectul original.",
+        "installing": "Se instalează BabelDOC...",
+        "outdated_description": "Actualizează BabelDOC pentru a traduce în continuare fișiere PDF păstrând aspectul.",
+        "outdated_title": "Este necesară actualizarea BabelDOC",
+        "title": "PDF detectat"
+      },
+      "error": {
+        "generic": "A apărut o eroare în timpul traducerii. Încearcă din nou.",
+        "ocr_required": "Fișierele PDF scanate nu sunt încă acceptate.",
+        "persist_failed": "PDF-ul a fost tradus, dar rezultatul nu a putut fi salvat. Încearcă din nou.",
+        "title": "Traducerea PDF a eșuat"
+      },
+      "export_failed": "Exportarea PDF-ului tradus a eșuat",
+      "pane": {
+        "translated": "PDF tradus",
+        "translated_text": "Traducere"
+      },
+      "progress": {
+        "analyzing": "Se analizează aspectul documentului",
+        "checking_assets": "Se verifică resursele de procesare PDF",
+        "downloading_assets": "Se descarcă resursele de procesare PDF...",
+        "extracting_terms": "Se extrage terminologia documentului",
+        "loading_model": "Se încarcă modelul de procesare PDF",
+        "parsing": "Se analizează documentul PDF",
+        "percent": "{{progress}}%",
+        "preparing": "Se inițializează traducerea PDF",
+        "preparing_hint": "Prima inițializare poate dura aproximativ 2 minute; rulările următoare sunt de obicei mai rapide",
+        "rendering": "Se randează PDF-ul tradus",
+        "translating": "Se traduce conținutul",
+        "typesetting": "Se tehnoredactează PDF-ul tradus",
+        "value": "{{stage}}, etapa {{stageProgress}}%, total {{overallProgress}}%"
+      },
+      "ready": {
+        "description": "Selectează o limbă țintă și pornește traducerea.",
+        "title": "Gata de traducere"
+      },
+      "success": "PDF-ul tradus a fost generat"
     },
     "preferred_target": "Țintă Preferată",
     "processing": "Traducere în curs...",

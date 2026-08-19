@@ -49,7 +49,7 @@ import type { OrderEndpoints } from './_endpointHelpers'
 
 export type McpServerSchemas = {
   '/mcp-servers': { GET: { ... }; POST: { ... } }
-  '/mcp-servers/:id': { GET: { ... }; PATCH: { ... }; DELETE: { ... } }
+  '/mcp-servers/:id': { GET: { ... }; PATCH: { ... } }
 } & OrderEndpoints<'/mcp-servers'>
 // Adds '/mcp-servers/:id/order' (PATCH) and '/mcp-servers/order:batch' (PATCH)
 // with correct params / body (OrderRequest, OrderBatchRequest) / response.

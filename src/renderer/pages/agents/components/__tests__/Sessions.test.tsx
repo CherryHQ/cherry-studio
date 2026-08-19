@@ -1,5 +1,4 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
-import type * as UseAgentModule from '@renderer/hooks/agent/useAgent'
 import type { AgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import type * as ImageCaptureTargetsHook from '@renderer/hooks/useImageCaptureTargets'
 import { popup } from '@renderer/services/popup'
@@ -341,6 +340,8 @@ const dataApiMocks = vi.hoisted(() => ({
   deleteAgent: vi.fn().mockResolvedValue(undefined),
   deleteAgentSessions: vi.fn().mockResolvedValue({ deletedIds: [] as string[] }),
   deleteWorkspace: vi.fn().mockResolvedValue({ deletedIds: [] as string[] }),
+  invalidate: vi.fn().mockResolvedValue(undefined),
+  ipcRequest: vi.fn(),
   refetchWorkspaces: vi.fn().mockResolvedValue(undefined),
   refetchAgents: vi.fn().mockResolvedValue(undefined),
   reorderAgent: vi.fn().mockResolvedValue(undefined),
@@ -429,10 +430,7 @@ vi.mock('@renderer/hooks/agent/useSession', () => ({
   useUpdateSession: sessionDataMocks.useUpdateSession
 }))
 
-vi.mock('@renderer/hooks/agent/useAgent', async (importOriginal) => ({
-  // Keep the real useDeleteAgent so it registers its mutation (and refresh
-  // contract) through the mocked useMutation below.
-  ...(await importOriginal<typeof UseAgentModule>()),
+vi.mock('@renderer/hooks/agent/useAgent', () => ({
   useAgents: agentDataMocks.useAgents
 }))
 
@@ -509,6 +507,7 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
 }))
 
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
+  useInvalidateCache: () => dataApiMocks.invalidate,
   useQuery: vi.fn((path: string, options?: { enabled?: boolean }) => {
     dataApiMocks.useQuery(path, options)
     if (options?.enabled === false) {
@@ -570,17 +569,18 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
               ? dataApiMocks.reorderAgent
               : method === 'PATCH' && path === '/agent-workspaces/:workspaceId'
                 ? dataApiMocks.updateWorkspace
-                : method === 'DELETE' && path === '/agent-workspaces/:workspaceId'
-                  ? dataApiMocks.deleteWorkspace
-                  : method === 'DELETE' && path === '/agents/:agentId'
-                    ? dataApiMocks.deleteAgent
-                    : method === 'DELETE' && path === '/agents/:agentId/sessions'
-                      ? dataApiMocks.deleteAgentSessions
-                      : vi.fn(),
+                : vi.fn(),
       isLoading: false,
       error: undefined
     }
   })
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: dataApiMocks.ipcRequest,
+    on: vi.fn(() => () => undefined)
+  }
 }))
 
 vi.mock('@renderer/hooks/usePins', () => ({
@@ -984,6 +984,22 @@ describe('Sessions', () => {
       refetch: dataApiMocks.refetchAgents
     })
     vi.clearAllMocks()
+    dataApiMocks.invalidate.mockResolvedValue(undefined)
+    dataApiMocks.ipcRequest.mockImplementation((route: string, input: Record<string, unknown>) => {
+      if (route === 'ai.agent.delete') {
+        return dataApiMocks.deleteAgent({
+          params: { agentId: input.agentId },
+          query: { deleteSessions: input.deleteSessions }
+        })
+      }
+      if (route === 'ai.agent.sessions.delete') {
+        return dataApiMocks.deleteAgentSessions({ params: { agentId: input.agentId } })
+      }
+      if (route === 'ai.agent.workspace.delete') {
+        return dataApiMocks.deleteWorkspace({ params: { workspaceId: input.workspaceId } })
+      }
+      return Promise.resolve(undefined)
+    })
     tabsContextMocks.openTab.mockClear()
     windowFrameMocks.mode = 'embedded'
   })
@@ -3538,13 +3554,10 @@ describe('Sessions', () => {
         content: 'Deleting this work directory also deletes tasks under it. The actual folder is not deleted.'
       })
     )
-    expect(dataApiMocks.mutationOptions.get('DELETE /agent-workspaces/:workspaceId')?.refresh).toEqual([
-      '/agent-sessions',
-      '/agent-sessions/stats',
-      '/agent-workspaces',
-      '/pins',
-      '/agent-channels'
-    ])
+    expect(dataApiMocks.ipcRequest).toHaveBeenCalledWith('ai.agent.workspace.delete', { workspaceId: 'ws-a' })
+    for (const key of ['/agent-sessions', '/agent-sessions/stats', '/agent-workspaces', '/pins', '/agent-channels']) {
+      expect(dataApiMocks.invalidate).toHaveBeenCalledWith(key)
+    }
     expect(sessionDataMocks.deleteSession).not.toHaveBeenCalled()
     expect(callOrder).toEqual(['workspace'])
     expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledWith('agents', ['session-a'])
@@ -3575,6 +3588,7 @@ describe('Sessions', () => {
         params: { workspaceId: 'ws-a' }
       })
     )
+    expect(dataApiMocks.ipcRequest).toHaveBeenCalledWith('ai.agent.workspace.delete', { workspaceId: 'ws-a' })
   })
 
   it('creates sessions from workspace group actions', async () => {
@@ -3736,14 +3750,20 @@ describe('Sessions', () => {
       })
     )
     expect(onActiveAgentDeleted).toHaveBeenCalledWith('agent-a')
-    expect(dataApiMocks.mutationOptions.get('DELETE /agents/:agentId')?.refresh).toEqual([
+    expect(dataApiMocks.ipcRequest).toHaveBeenCalledWith('ai.agent.delete', {
+      agentId: 'agent-a',
+      deleteSessions: true
+    })
+    for (const key of [
       '/agents',
       '/agent-sessions',
       '/agent-sessions/stats',
       '/agent-workspaces',
       '/pins',
       '/agent-channels'
-    ])
+    ]) {
+      expect(dataApiMocks.invalidate).toHaveBeenCalledWith(key)
+    }
     expect(sessionDataMocks.deleteSession).not.toHaveBeenCalled()
     expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledWith('agents', ['session-a'])
     expect(dataApiMocks.refetchAgents).not.toHaveBeenCalled()
@@ -3791,6 +3811,7 @@ describe('Sessions', () => {
     await vi.waitFor(() =>
       expect(dataApiMocks.deleteAgentSessions).toHaveBeenCalledWith({ params: { agentId: 'agent-a' } })
     )
+    expect(dataApiMocks.ipcRequest).toHaveBeenCalledWith('ai.agent.sessions.delete', { agentId: 'agent-a' })
     expect(dataApiMocks.deleteAgent).not.toHaveBeenCalled()
     expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledWith('agents', ['session-a', 'session-not-loaded'])
     expect(popup.confirm).toHaveBeenCalledWith(

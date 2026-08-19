@@ -400,7 +400,6 @@ const HomePage: FC = () => {
     },
     [setActiveTopicAndCloseResourceView]
   )
-
   const activateCreatedTopic = useCallback(
     (topic: Topic) => {
       setActiveTopicAndCloseResourceView(topic)

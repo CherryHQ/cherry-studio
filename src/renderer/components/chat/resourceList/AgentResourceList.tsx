@@ -7,11 +7,12 @@ import {
   ResourceEditDialogHost,
   type ResourceEditDialogTarget
 } from '@renderer/components/resourceCatalog/dialogs/edit'
-import { useMutation } from '@renderer/data/hooks/useDataApi'
-import { useAgents, useDeleteAgent } from '@renderer/hooks/agent/useAgent'
+import { useInvalidateCache, useMutation } from '@renderer/data/hooks/useDataApi'
+import { useAgents } from '@renderer/hooks/agent/useAgent'
 import type { AgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { usePins } from '@renderer/hooks/usePins'
+import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
@@ -99,10 +100,7 @@ export function AgentResourceList({
     togglePin: toggleAgentPin
   } = usePins('agent', { enabled: dataEnabled })
   const closeConversationTabs = useCloseConversationTabs()
-  const deleteAgent = useDeleteAgent()
-  const { trigger: deleteAgentSessions } = useMutation('DELETE', '/agents/:agentId/sessions', {
-    refresh: ['/agent-sessions', '/agent-sessions/stats', '/agent-workspaces', '/pins', '/agent-channels']
-  })
+  const invalidate = useInvalidateCache()
   const { trigger: reorderAgent } = useMutation('PATCH', '/agents/:id/order', { refresh: ['/agents'] })
   const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
@@ -250,17 +248,39 @@ export function AgentResourceList({
           const rollbackSelection = deletesActiveAgent ? prepareActiveAgentDeletion?.() : undefined
           try {
             if (deleteTasksOnly) {
-              const result = await deleteAgentSessions({ params: { agentId } })
+              const result = await ipcApi.request('ai.agent.sessions.delete', { agentId })
               closeConversationTabs('agents', result.deletedIds)
             } else {
-              const result = await deleteAgent({ params: { agentId }, query: { deleteSessions: true } })
+              const result = await ipcApi.request('ai.agent.delete', { agentId, deleteSessions: true })
               closeConversationTabs('agents', result.deletedSessionIds ?? [])
             }
           } catch (error) {
             rollbackSelection?.()
             throw error
           }
-          if (deletesActiveAgent) await onActiveAgentDeleted?.(agentId)
+
+          try {
+            await Promise.all(
+              [
+                '/agents',
+                '/agent-sessions',
+                '/agent-sessions/stats',
+                '/agent-workspaces',
+                '/pins',
+                '/agent-channels'
+              ].map((key) => invalidate(key))
+            )
+          } catch (err) {
+            logger.warn('Failed to refresh after deleting Agent from classic-layout rail', { agentId, err })
+          }
+
+          if (deletesActiveAgent) {
+            try {
+              await onActiveAgentDeleted?.(agentId)
+            } catch (err) {
+              logger.warn('Failed to reconcile active Agent after deletion from classic-layout rail', { agentId, err })
+            }
+          }
         }
         if (deletesActiveAgent && requestContextTransition) await requestContextTransition(deleteAndSettle)
         else await deleteAndSettle()
@@ -276,9 +296,8 @@ export function AgentResourceList({
       activeAgentId,
       agents,
       closeConversationTabs,
-      deleteAgent,
-      deleteAgentSessions,
       deletingAgentId,
+      invalidate,
       onActiveAgentDeleted,
       prepareActiveAgentDeletion,
       requestContextTransition,

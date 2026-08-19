@@ -29,7 +29,7 @@ import {
   type ResourceListViewGroup,
   type ResourceListViewSection
 } from './ResourceListContext'
-import { RESOURCE_LIST_DEFAULT_ROW_LAYOUT } from './resourceListLayout'
+import { estimateResourceListDefaultRowSize } from './resourceListLayout'
 import {
   type ResourceListRemoteGroupService,
   type ResourceListRemoteGroupSnapshot,
@@ -42,7 +42,6 @@ const EMPTY_FILTER_OPTIONS: ResourceListFilterOption<ResourceListItemBase>[] = [
 const EMPTY_GROUP_SEEDS: readonly ResourceListGroupSeed[] = []
 const getDefaultItemId = (item: ResourceListItemBase) => item.id
 const getDefaultItemLabel = (item: ResourceListItemBase) => item.name
-const estimateDefaultItemSize = () => RESOURCE_LIST_DEFAULT_ROW_LAYOUT.size
 const UNGROUPED_RESOURCE_GROUP: ResourceListGroup = { id: 'ungrouped', label: '' }
 const UNSECTIONED_RESOURCE_SECTION: ResourceListSection = { id: 'resource-list:section:unsectioned', label: '' }
 
@@ -230,7 +229,6 @@ function buildResourceListSections<T extends ResourceListItemBase>({
 
   const collapsedIdSet = new Set(collapsedIds)
   const sections = new Map<string, { section: ResourceListSection; items: T[]; groupSeeds: ResourceListGroup[] }>()
-
   // Seeds define hierarchy order; remote item presence changes as groups collapse.
   for (const groupSeed of groupSeeds) {
     const section = groupSeed.section ?? UNSECTIONED_RESOURCE_SECTION
@@ -362,7 +360,6 @@ export type ResourceListProviderProps<T extends ResourceListItemBase> = {
   getGroupHeaderLeadingAction?: ResourceListMeta<T>['getGroupHeaderLeadingAction']
   getGroupHeaderIcon?: ResourceListMeta<T>['getGroupHeaderIcon']
   isGroupHeaderIconVisible?: ResourceListMeta<T>['isGroupHeaderIconVisible']
-  getGroupHeaderClassName?: ResourceListMeta<T>['getGroupHeaderClassName']
   getGroupHeaderTooltip?: ResourceListMeta<T>['getGroupHeaderTooltip']
   groupHeaderClickBehavior?: ResourceListGroupHeaderClickBehaviorResolver
   getGroupHeaderSelected?: ResourceListMeta<T>['getGroupHeaderSelected']
@@ -586,7 +583,6 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
   getGroupHeaderLeadingAction,
   getGroupHeaderIcon,
   isGroupHeaderIconVisible,
-  getGroupHeaderClassName,
   getGroupHeaderTooltip,
   groupHeaderClickBehavior = 'toggle',
   getGroupHeaderSelected,
@@ -601,7 +597,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
   defaultGroupVisibleCount = 5,
   groupShowMoreLabel,
   groupCollapseLabel,
-  estimateItemSize = estimateDefaultItemSize,
+  estimateItemSize = estimateResourceListDefaultRowSize,
   onSelectItem,
   onRenameItem,
   onGroupHeaderSelectItem,
@@ -954,7 +950,8 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
         }
 
         if (isControlled) {
-          const nextCollapsedIds = collapsedStateRef.current.includes(groupId)
+          const wasCollapsed = collapsedStateRef.current.includes(groupId)
+          const nextCollapsedIds = wasCollapsed
             ? collapsedStateRef.current.filter((id) => id !== groupId)
             : [...collapsedStateRef.current, groupId]
           if (isCollapsing) {
@@ -1020,7 +1017,6 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       getGroupHeaderLeadingAction,
       getGroupHeaderIcon,
       isGroupHeaderIconVisible,
-      getGroupHeaderClassName,
       getGroupHeaderTooltip,
       getGroupHeaderClickBehavior,
       getGroupHeaderSelected,
@@ -1057,7 +1053,6 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       filterOptions,
       getSectionHeaderAction,
       getGroupHeaderAction,
-      getGroupHeaderClassName,
       getGroupHeaderClickBehavior,
       getGroupHeaderKind,
       getGroupHeaderContextMenu,

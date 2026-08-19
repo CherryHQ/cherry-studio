@@ -385,6 +385,15 @@
         "inaccessible": "Arbeitsbereichspfad ist nicht zugänglich: {{path}}"
       }
     },
+    "session_delivery": {
+      "from": "Von {{agent}} / {{session}}",
+      "status": {
+        "accepted": "Angenommen",
+        "consumed": "Verarbeitet",
+        "delivering": "Wird zugestellt",
+        "failed": "Fehlgeschlagen"
+      }
+    },
     "settings": {
       "permissionMode": {
         "title": "Berechtigungsmodus"
@@ -723,6 +732,22 @@
           "description": "Aufgabenliste verwalten",
           "label": "Aufgabenliste verwalten"
         },
+        "tool_call": {
+          "description": "Ein gefundenes Tool aufrufen",
+          "label": "Tool aufrufen"
+        },
+        "tool_describe": {
+          "description": "Die vollständige Beschreibung und TypeScript-Signatur eines Tools abrufen",
+          "label": "Tool beschreiben"
+        },
+        "tool_exec": {
+          "description": "JavaScript ausführen, das gefundene Tools orchestriert",
+          "label": "Tool-Code ausführen"
+        },
+        "tool_search": {
+          "description": "Verfügbare Tools suchen und ihre TypeScript-Signaturen lesen",
+          "label": "Tools suchen"
+        },
         "update_goal": {
           "description": "Status oder Inhalt des Sitzungsziels aktualisieren",
           "label": "Ziel aktualisieren"
@@ -781,6 +806,7 @@
       "restartSuccess": "API-Server erfolgreich neu gestartet",
       "startError": "API-Server starten fehlgeschlagen:",
       "startSuccess": "API-Server erfolgreich gestartet",
+      "stopDeferred": "Der API-Server wird beendet, sobald die aktuelle Übersetzung abgeschlossen ist",
       "stopError": "API-Server stoppen fehlgeschlagen:",
       "stopSuccess": "API-Server erfolgreich gestoppt"
     },
@@ -988,6 +1014,19 @@
       "knowledge_base_disabled_by_files": "Entfernen Sie angehängte Dateien, um die Wissensdatenbank zu verwenden.",
       "knowledge_base_unavailable": "Wählen Sie ein werkzeugfähiges Modell",
       "locate_editing_message": "Ursprüngliche Nachricht finden",
+      "mcp_prompts": {
+        "description": "Einen von einem MCP-Server bereitgestellten Prompt einfügen",
+        "empty": "Keine MCP-Prompts verfügbar",
+        "insert_failed": "Prompt konnte nicht eingefügt werden",
+        "title": "MCP-Prompts"
+      },
+      "mcp_resources": {
+        "description": "Eine von einem MCP-Server bereitgestellte Ressource referenzieren",
+        "empty": "Keine MCP-Ressourcen verfügbar",
+        "read_failed": "Ressource konnte nicht gelesen werden",
+        "reader_unavailable": "Das aktuelle Modell kann diese Ressource nach dem Anhängen nicht erneut lesen",
+        "title": "MCP-Ressourcen"
+      },
       "new": {
         "context": "Kontext löschen"
       },
@@ -3352,6 +3391,21 @@
         "stderr": "stderr",
         "stdout": "stdout"
       },
+      "sessionCreate": {
+        "created": "Neue Sitzung gestartet",
+        "creating": "Neue Sitzung wird gestartet",
+        "firstMessage": "Erste Nachricht",
+        "inheritedContext": "Dieser Agent und Arbeitsbereich werden verwendet",
+        "open": "Sitzung öffnen",
+        "sessionId": "Sitzungs-ID",
+        "untitled": "Unbenannte Sitzung"
+      },
+      "sessionSend": {
+        "open": "Sitzung öffnen",
+        "sending": "Wird gesendet an",
+        "sent": "Gesendet an",
+        "to": "An"
+      },
       "status": {
         "done": "Erledigt",
         "error": "Fehler",
@@ -5535,6 +5589,7 @@
       },
       "title": "Umgebungsabhängigkeiten",
       "tools": {
+        "babeldoc-stream": "Layouterhaltende PDF-Übersetzungs-Engine. Die Layout-Modelldaten werden bei der ersten Übersetzung heruntergeladen.",
         "bun": "JavaScript-Laufzeitumgebung für MCP-Dienste und zugehörige Werkzeugketten.",
         "claude": "Anthropics agentenbasiertes Programmierwerkzeug für das Terminal.",
         "codex": "OpenAIs quelloffener Programmieragent, der Code in Ihrem lokalen Repository lesen, bearbeiten und ausführen kann.",
@@ -5582,6 +5637,10 @@
         "title": "Schriftart-Einstellungen"
       }
     },
+    "fetch": {
+      "allow_private_network": "Zugriff auf lokale Netzwerkadressen erlauben",
+      "allow_private_network_tip": "Erlaubt Web-Abruf-Tools den Zugriff auf localhost und private Netzwerkadressen. Deaktivieren Sie dies, wenn Modelle keine Dienste auf Ihrem Rechner oder im LAN lesen sollen."
+    },
     "font_size": {
       "title": "Nachrichtenschriftgröße"
     },
@@ -5611,7 +5670,8 @@
         },
         "sections": {
           "display_language": "Anzeige & Sprache"
-        }
+        },
+        "title": "Allgemeine Einstellungen"
       },
       "emoji_picker": "Emoji-Auswahl",
       "image_upload": "Bild-Upload",
@@ -6081,6 +6141,7 @@
         "max_messages": "Beibehaltene letzte Nachrichten",
         "max_messages_description": "Nur die neuesten Nachrichten senden; ältere werden vom Kontext ausgeschlossen. Leer lassen für keine Begrenzung. Assistenten können dies überschreiben",
         "max_messages_unlimited": "Unbegrenzt",
+        "scope_description": "Gilt nur für Assistentenkonversationen in Cherry Studio. Assistenten können diese Einstellungen individuell überschreiben.",
         "title": "Kontextverwaltung",
         "truncate_threshold": "Kürzungsschwelle für Werkzeugausgaben (Zeichen)",
         "truncate_threshold_description": "Werkzeugausgaben über dieser Zeichenzahl werden in eine Datei ausgelagert und gekürzt; das Modell kann sie bei Bedarf wieder lesen. Assistenten können dies überschreiben"
@@ -7193,10 +7254,10 @@
     "history": {
       "back": "Zurück zur Liste",
       "clear": "Verlauf löschen",
-      "clear_description": "Verlauf löschen entfernt alle Übersetzungshistorien. Fortfahren?",
+      "clear_description": "Beim Leeren des Verlaufs werden alle Übersetzungsverläufe gelöscht und die dabei erzeugten übersetzten Dateien freigegeben. Fortfahren?",
       "copy_target": "Ergebnis kopieren",
       "delete": "Übersetzungshistorie löschen",
-      "delete_description": "Diesen Übersetzungsverlaufseintrag löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
+      "delete_description": "Diesen Eintrag aus dem Übersetzungsverlauf löschen? Bei einer Dateiübersetzung wird auch die übersetzte Datei freigegeben. Diese Aktion kann nicht rückgängig gemacht werden.",
       "empty": "Keine Übersetzungshistorie",
       "error": {
         "add": "Fehler beim Hinzufügen des Übersetzungsverlaufs",
@@ -7204,6 +7265,17 @@
         "delete": "Löschen fehlgeschlagen",
         "load": "Übersetzungsverlauf konnte nicht geladen werden",
         "save": "Speichern der Übersetzungshistorie fehlgeschlagen"
+      },
+      "file": {
+        "action_failed": "Diese Aktion konnte für die Datei nicht ausgeführt werden",
+        "badge": "Dateiübersetzung",
+        "export": "Übersetzte Datei speichern unter …",
+        "open": "Übersetzte Datei öffnen",
+        "preview": "Nebeneinander-Vorschau",
+        "reveal": "Im Ordner anzeigen",
+        "source": "Quelldatei",
+        "target": "Übersetzte Datei",
+        "unavailable": "Die Dateien dieser Übersetzung sind nicht mehr verfügbar"
       },
       "filter": {
         "starred": "Nur mit Stern"
@@ -7233,6 +7305,53 @@
     "language_settings": "Spracheinstellungen",
     "output": {
       "placeholder": "Übersetzen"
+    },
+    "pdf": {
+      "action": {
+        "close": "PDF-Übersetzung schließen",
+        "export": "Übersetztes PDF exportieren",
+        "install_babeldoc": "BabelDOC installieren",
+        "update_babeldoc": "BabelDOC aktualisieren"
+      },
+      "dependency": {
+        "checking": "BabelDOC wird überprüft...",
+        "description": "Installieren Sie das BabelDOC-Plugin, um PDFs unter Beibehaltung ihres ursprünglichen Layouts zu übersetzen.",
+        "installing": "BabelDOC wird installiert...",
+        "outdated_description": "Aktualisieren Sie BabelDOC, um PDFs weiterhin layouterhaltend zu übersetzen.",
+        "outdated_title": "BabelDOC-Update erforderlich",
+        "title": "PDF erkannt"
+      },
+      "error": {
+        "generic": "Bei der Übersetzung ist ein Fehler aufgetreten. Bitte versuchen Sie es erneut.",
+        "ocr_required": "Gescannte PDFs werden noch nicht unterstützt.",
+        "persist_failed": "Das PDF wurde übersetzt, das Ergebnis konnte jedoch nicht gespeichert werden. Bitte versuchen Sie es erneut.",
+        "title": "PDF-Übersetzung fehlgeschlagen"
+      },
+      "export_failed": "Übersetztes PDF konnte nicht exportiert werden",
+      "pane": {
+        "translated": "Übersetztes PDF",
+        "translated_text": "Übersetzung"
+      },
+      "progress": {
+        "analyzing": "Dokumentlayout wird analysiert",
+        "checking_assets": "PDF-Verarbeitungsressourcen werden geprüft",
+        "downloading_assets": "PDF-Verarbeitungsressourcen werden heruntergeladen...",
+        "extracting_terms": "Dokumentterminologie wird extrahiert",
+        "loading_model": "PDF-Verarbeitungsmodell wird geladen",
+        "parsing": "PDF-Dokument wird analysiert",
+        "percent": "{{progress}} %",
+        "preparing": "PDF-Übersetzung wird initialisiert",
+        "preparing_hint": "Die erste Initialisierung dauert etwa 2 Minuten; spätere Durchläufe sind in der Regel schneller",
+        "rendering": "Übersetztes PDF wird gerendert",
+        "translating": "Inhalt wird übersetzt",
+        "typesetting": "Übersetztes PDF wird gesetzt",
+        "value": "{{stage}}, Schritt {{stageProgress}} %, gesamt {{overallProgress}} %"
+      },
+      "ready": {
+        "description": "Wählen Sie eine Zielsprache und starten Sie die Übersetzung.",
+        "title": "Bereit zum Übersetzen"
+      },
+      "success": "Übersetztes PDF wurde erstellt"
     },
     "preferred_target": "Bevorzugtes Ziel",
     "processing": "Wird übersetzt...",

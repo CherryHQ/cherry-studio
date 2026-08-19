@@ -547,7 +547,7 @@ vi.mock('react-i18next', async (importOriginal) => ({
 }))
 
 vi.mock('../components/AgentChatNavbar', () => ({
-  AgentChatNavbar: ({ tools }: { tools?: ReactNode }) => <div>{tools}</div>
+  AgentChatNavbar: ({ tools }: { tools?: ReactNode }) => <div data-testid="agent-chat-navbar">{tools}</div>
 }))
 
 vi.mock('@renderer/components/composer/variants/AgentComposer', () => ({
@@ -930,6 +930,7 @@ describe('AgentChat artifact pane', () => {
     renderAgentChat()
 
     expect(screen.getByTestId('conversation-center-state')).toHaveAttribute('data-state', 'empty')
+    expect(screen.getByTestId('agent-chat-navbar')).toBeInTheDocument()
     expect(screen.queryByTestId('composer-dock-frame')).not.toBeInTheDocument()
   })
 

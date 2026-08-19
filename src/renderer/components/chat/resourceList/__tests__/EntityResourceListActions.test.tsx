@@ -1,6 +1,5 @@
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import type { ResourceEntityRailItem } from '@renderer/components/chat/resourceList/ResourceEntityRail'
-import type * as UseAgentModule from '@renderer/hooks/agent/useAgent'
 import type { AgentSessionsSource, AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
@@ -36,6 +35,8 @@ const agentDataMocks = vi.hoisted(() => ({
   ],
   deleteAgent: vi.fn(),
   deleteAgentSessions: vi.fn(),
+  invalidate: vi.fn(),
+  ipcRequest: vi.fn(),
   refetchAgents: vi.fn(),
   toggleAgentPin: vi.fn()
 }))
@@ -332,10 +333,7 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/agent/useAgent', async (importOriginal) => ({
-  // Keep the real useDeleteAgent so it registers its mutation (and refresh
-  // contract) through the mocked useMutation below.
-  ...(await importOriginal<typeof UseAgentModule>()),
+vi.mock('@renderer/hooks/agent/useAgent', () => ({
   useAgents: () => ({
     agents: agentDataMocks.agents,
     deleteAgent: agentDataMocks.deleteAgent,
@@ -416,14 +414,12 @@ vi.mock('@renderer/hooks/useTopic', () => ({
 }))
 
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
-  useMutation: (_method: string, path: string) => ({
-    trigger:
-      path === '/agents/:agentId'
-        ? agentDataMocks.deleteAgent
-        : path === '/agents/:agentId/sessions'
-          ? agentDataMocks.deleteAgentSessions
-          : vi.fn()
-  })
+  useInvalidateCache: () => agentDataMocks.invalidate,
+  useMutation: () => ({ trigger: vi.fn() })
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: agentDataMocks.ipcRequest, on: vi.fn(() => () => undefined) }
 }))
 
 vi.mock('@renderer/utils/chat/topicsHelpers', () => ({
@@ -473,6 +469,17 @@ describe('classic layout entity resource list actions', () => {
     agentDataMocks.deleteAgent.mockClear()
     agentDataMocks.deleteAgentSessions.mockResolvedValue({ deletedIds: [] })
     agentDataMocks.deleteAgentSessions.mockClear()
+    agentDataMocks.invalidate.mockResolvedValue(undefined)
+    agentDataMocks.invalidate.mockClear()
+    agentDataMocks.ipcRequest.mockImplementation((route, input) =>
+      route === 'ai.agent.sessions.delete'
+        ? agentDataMocks.deleteAgentSessions({ params: { agentId: input.agentId } })
+        : agentDataMocks.deleteAgent({
+            params: { agentId: input.agentId },
+            query: { deleteSessions: input.deleteSessions }
+          })
+    )
+    agentDataMocks.ipcRequest.mockClear()
     agentDataMocks.refetchAgents.mockResolvedValue(undefined)
     agentDataMocks.refetchAgents.mockClear()
     agentDataMocks.toggleAgentPin.mockResolvedValue(undefined)
@@ -807,6 +814,10 @@ describe('classic layout entity resource list actions', () => {
         query: { deleteSessions: true }
       })
     )
+    expect(agentDataMocks.ipcRequest).toHaveBeenCalledWith('ai.agent.delete', {
+      agentId: 'agent-1',
+      deleteSessions: true
+    })
     // Classic layout resets via the dedicated callback, never the draft compose.
     await waitFor(() => expect(onActiveAgentDeleted).toHaveBeenCalledWith('agent-1'))
     expect(onShowMissingAgentSelection).not.toHaveBeenCalled()
@@ -853,6 +864,7 @@ describe('classic layout entity resource list actions', () => {
     await waitFor(() =>
       expect(agentDataMocks.deleteAgentSessions).toHaveBeenCalledWith({ params: { agentId: 'agent-1' } })
     )
+    expect(agentDataMocks.ipcRequest).toHaveBeenCalledWith('ai.agent.sessions.delete', { agentId: 'agent-1' })
     expect(agentDataMocks.deleteAgent).not.toHaveBeenCalled()
     expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledWith('agents', ['session-1', 'session-not-loaded'])
     expect(onActiveAgentDeleted).toHaveBeenCalledWith('agent-1')

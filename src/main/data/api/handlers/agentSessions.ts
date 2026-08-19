@@ -14,19 +14,12 @@ import {
   type AgentSessionSchemas,
   AgentSessionStatsQuerySchema,
   CreateAgentSessionSchema,
-  DeleteAgentSessionsQuerySchema,
   LatestAgentSessionQuerySchema,
   ListAgentSessionsQuerySchema,
-  ReuseOrCreateAgentSessionSchema,
   SetAgentSessionWorkspaceSchema,
   UpdateAgentSessionSchema
 } from '@shared/data/api/schemas/agentSessions'
 import type { HandlersFor } from '@shared/data/api/types'
-import * as z from 'zod'
-
-const AgentSessionsParamsSchema = z.strictObject({
-  agentId: z.string().min(1)
-})
 
 export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
   '/agent-sessions': {
@@ -40,12 +33,6 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
       const parsed = CreateAgentSessionSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
       return agentSessionService.create(parsed.data)
-    },
-
-    DELETE: async ({ query }) => {
-      const parsed = DeleteAgentSessionsQuerySchema.safeParse(query)
-      if (!parsed.success) throw toDataApiError(parsed.error)
-      return agentSessionService.deleteByIds(parsed.data.ids)
     }
   },
 
@@ -57,14 +44,6 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
     }
   },
 
-  '/agent-sessions/reusable-placeholders': {
-    POST: async ({ body }) => {
-      const parsed = ReuseOrCreateAgentSessionSchema.safeParse(body)
-      if (!parsed.success) throw toDataApiError(parsed.error)
-      return agentSessionService.reuseOrCreatePlaceholder(parsed.data)
-    }
-  },
-
   '/agent-sessions/stats': {
     GET: async ({ query }) => {
       const parsed = AgentSessionStatsQuerySchema.safeParse(query ?? {})
@@ -72,7 +51,6 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
       return agentSessionService.stats(parsed.data)
     }
   },
-
   '/agent-sessions/:sessionId': {
     GET: async ({ params }) => {
       return agentSessionService.getById(params.sessionId)
@@ -82,11 +60,6 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
       const parsed = UpdateAgentSessionSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
       return agentSessionService.update(params.sessionId, parsed.data)
-    },
-
-    DELETE: async ({ params }) => {
-      agentSessionService.delete(params.sessionId)
-      return undefined
     }
   },
 
@@ -95,14 +68,6 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
       const parsed = SetAgentSessionWorkspaceSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
       return agentSessionService.setWorkspace(params.sessionId, parsed.data)
-    }
-  },
-
-  '/agents/:agentId/sessions': {
-    DELETE: async ({ params }) => {
-      const parsed = AgentSessionsParamsSchema.safeParse(params)
-      if (!parsed.success) throw toDataApiError(parsed.error)
-      return agentSessionService.deleteByAgentId(parsed.data.agentId)
     }
   },
 

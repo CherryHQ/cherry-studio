@@ -67,8 +67,22 @@
     {
       "idx": 9,
       "version": "6",
-      "when": 1787040350067,
-      "tag": "0009_grey_sphinx",
+      "when": 1787037314810,
+      "tag": "0009_tan_lucky_pierre",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1787057424225,
+      "tag": "0010_fuzzy_korath",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1787110540910,
+      "tag": "0011_rich_peter_parker",
       "breakpoints": true
     }
   ],

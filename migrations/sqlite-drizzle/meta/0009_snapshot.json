@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "bdf9bd03-7475-4651-979c-c6f4d0e2df32",
+  "id": "562deb0e-f421-4303-9a75-c154d4ff272b",
   "prevId": "6411aedf-190d-403e-b590-02663973bcb7",
   "tables": {
     "agent": {
@@ -571,24 +571,14 @@
           "columns": ["task_schedule_id"],
           "isUnique": true
         },
-        "agent_session_created_at_id_idx": {
-          "name": "agent_session_created_at_id_idx",
-          "columns": ["\"created_at\" desc", "id"],
-          "isUnique": false
-        },
-        "agent_session_last_activity_at_id_idx": {
-          "name": "agent_session_last_activity_at_id_idx",
-          "columns": ["\"last_activity_at\" desc", "id"],
-          "isUnique": false
-        },
-        "agent_session_agent_id_last_activity_at_id_idx": {
-          "name": "agent_session_agent_id_last_activity_at_id_idx",
-          "columns": ["agent_id", "\"last_activity_at\" desc", "id"],
-          "isUnique": false
-        },
         "agent_session_order_key_idx": {
           "name": "agent_session_order_key_idx",
           "columns": ["order_key"],
+          "isUnique": false
+        },
+        "agent_session_last_activity_at_idx": {
+          "name": "agent_session_last_activity_at_idx",
+          "columns": ["last_activity_at"],
           "isUnique": false
         },
         "agent_session_updated_at_idx": {
@@ -2383,6 +2373,98 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
+    "translate_history_file_ref": {
+      "name": "translate_history_file_ref",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "file_entry_id": {
+          "name": "file_entry_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "source_id": {
+          "name": "source_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "thfr_entry_id_idx": {
+          "name": "thfr_entry_id_idx",
+          "columns": ["file_entry_id"],
+          "isUnique": false
+        },
+        "thfr_source_id_idx": {
+          "name": "thfr_source_id_idx",
+          "columns": ["source_id"],
+          "isUnique": false
+        },
+        "thfr_unique_idx": {
+          "name": "thfr_unique_idx",
+          "columns": ["source_id", "role"],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "translate_history_file_ref_file_entry_id_file_entry_id_fk": {
+          "name": "translate_history_file_ref_file_entry_id_file_entry_id_fk",
+          "tableFrom": "translate_history_file_ref",
+          "tableTo": "file_entry",
+          "columnsFrom": ["file_entry_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "translate_history_file_ref_source_id_translate_history_id_fk": {
+          "name": "translate_history_file_ref_source_id_translate_history_id_fk",
+          "tableFrom": "translate_history_file_ref",
+          "tableTo": "translate_history",
+          "columnsFrom": ["source_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "thfr_role_check": {
+          "name": "thfr_role_check",
+          "value": "\"translate_history_file_ref\".\"role\" IN ('source', 'target')"
+        }
+      }
+    },
     "group": {
       "name": "group",
       "columns": {
@@ -4153,14 +4235,9 @@
         }
       },
       "indexes": {
-        "topic_created_at_id_idx": {
-          "name": "topic_created_at_id_idx",
-          "columns": ["\"created_at\" desc", "id"],
-          "isUnique": false
-        },
-        "topic_last_activity_at_id_idx": {
-          "name": "topic_last_activity_at_id_idx",
-          "columns": ["\"last_activity_at\" desc", "id"],
+        "topic_last_activity_at_idx": {
+          "name": "topic_last_activity_at_idx",
+          "columns": ["last_activity_at"],
           "isUnique": false
         },
         "topic_updated_at_idx": {
@@ -4173,14 +4250,9 @@
           "columns": ["order_key"],
           "isUnique": false
         },
-        "topic_assistant_id_created_at_id_idx": {
-          "name": "topic_assistant_id_created_at_id_idx",
-          "columns": ["assistant_id", "\"created_at\" desc", "id"],
-          "isUnique": false
-        },
-        "topic_assistant_id_last_activity_at_id_idx": {
-          "name": "topic_assistant_id_last_activity_at_id_idx",
-          "columns": ["assistant_id", "\"last_activity_at\" desc", "id"],
+        "topic_assistant_id_idx": {
+          "name": "topic_assistant_id_idx",
+          "columns": ["assistant_id"],
           "isUnique": false
         }
       },
@@ -4208,6 +4280,14 @@
           "primaryKey": true,
           "notNull": true,
           "autoincrement": false
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'text'"
         },
         "source_text": {
           "name": "source_text",
@@ -4701,58 +4781,9 @@
   },
   "internal": {
     "indexes": {
-      "agent_session_created_at_id_idx": {
-        "columns": {
-          "\"created_at\" desc": {
-            "isExpression": true
-          }
-        }
-      },
-      "agent_session_last_activity_at_id_idx": {
-        "columns": {
-          "\"last_activity_at\" desc": {
-            "isExpression": true
-          }
-        }
-      },
-      "agent_session_agent_id_last_activity_at_id_idx": {
-        "columns": {
-          "\"last_activity_at\" desc": {
-            "isExpression": true
-          }
-        }
-      },
       "fe_external_path_lower_unique_idx": {
         "columns": {
           "lower(\"external_path\")": {
-            "isExpression": true
-          }
-        }
-      },
-      "topic_created_at_id_idx": {
-        "columns": {
-          "\"created_at\" desc": {
-            "isExpression": true
-          }
-        }
-      },
-      "topic_last_activity_at_id_idx": {
-        "columns": {
-          "\"last_activity_at\" desc": {
-            "isExpression": true
-          }
-        }
-      },
-      "topic_assistant_id_created_at_id_idx": {
-        "columns": {
-          "\"created_at\" desc": {
-            "isExpression": true
-          }
-        }
-      },
-      "topic_assistant_id_last_activity_at_id_idx": {
-        "columns": {
-          "\"last_activity_at\" desc": {
             "isExpression": true
           }
         }

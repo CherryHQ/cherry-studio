@@ -35,9 +35,9 @@ import {
 } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { dataApiService } from '@renderer/data/DataApiService'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
-import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
+import { useInvalidateCache, useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useMultiplePreferences, usePreference } from '@renderer/data/hooks/usePreference'
-import { useAgents, useDeleteAgent } from '@renderer/hooks/agent/useAgent'
+import { useAgents } from '@renderer/hooks/agent/useAgent'
 import {
   useAgentSessionStats,
   useSessionMutations,
@@ -1575,13 +1575,7 @@ const Sessions = ({
       refresh: ['/agent-workspaces', '/agent-sessions']
     }
   )
-  const { trigger: deleteWorkspace } = useMutation('DELETE', '/agent-workspaces/:workspaceId', {
-    refresh: ['/agent-sessions', '/agent-sessions/stats', '/agent-workspaces', '/pins', '/agent-channels']
-  })
-  const deleteAgent = useDeleteAgent()
-  const { trigger: deleteAgentSessions } = useMutation('DELETE', '/agents/:agentId/sessions', {
-    refresh: ['/agent-sessions', '/agent-sessions/stats', '/agent-workspaces', '/pins', '/agent-channels']
-  })
+  const invalidate = useInvalidateCache()
   const { trigger: reorderWorkspace } = useMutation('PATCH', '/agent-workspaces/:id/order')
   const { trigger: reorderAgent } = useMutation('PATCH', '/agents/:id/order', { refresh: ['/agents'] })
 
@@ -1613,7 +1607,6 @@ const Sessions = ({
           workspace: defaults.workspace
         })
 
-        if (!createdSession) setActiveSessionId(null)
         return createdSession ?? null
       } catch (err) {
         logger.error('Failed to create session from session list', { err, agentId: defaults.agentId })
@@ -1682,22 +1675,42 @@ const Sessions = ({
           if (deletesActiveSession) commitActiveSession(null)
           try {
             if (deleteTasksOnly) {
-              const result = await deleteAgentSessions({ params: { agentId } })
+              const result = await ipcApi.request('ai.agent.sessions.delete', { agentId })
               closeConversationTabs('agents', result.deletedIds)
             } else {
-              const result = await deleteAgent({ params: { agentId }, query: { deleteSessions: true } })
+              const result = await ipcApi.request('ai.agent.delete', { agentId, deleteSessions: true })
               closeConversationTabs('agents', result.deletedSessionIds ?? [])
             }
           } catch (error) {
             if (currentActiveSession) commitActiveSession(currentActiveSession.id, currentActiveSession)
             throw error
           }
+
+          try {
+            await Promise.all(
+              [
+                '/agents',
+                '/agent-sessions',
+                '/agent-sessions/stats',
+                '/agent-workspaces',
+                '/pins',
+                '/agent-channels'
+              ].map((key) => invalidate(key))
+            )
+          } catch (err) {
+            logger.warn('Failed to refresh after deleting Agent from session group', { agentId, err })
+          }
+
           if (!deletesActiveSession) return
-          if (onActiveAgentDeleted) {
-            await onActiveAgentDeleted(agentId)
-          } else {
-            const remaining = await loadLatestSession()
-            commitActiveSession(remaining?.id ?? null, remaining ?? null)
+          try {
+            if (onActiveAgentDeleted) {
+              await onActiveAgentDeleted(agentId)
+            } else {
+              const remaining = await loadLatestSession()
+              commitActiveSession(remaining?.id ?? null, remaining ?? null)
+            }
+          } catch (err) {
+            logger.warn('Failed to reconcile active Agent after deletion from session group', { agentId, err })
           }
         }
         if (deletesActiveSession && requestFileNavigation) await requestFileNavigation(deleteAndSettle)
@@ -1716,9 +1729,8 @@ const Sessions = ({
       commitActiveSession,
       closeConversationTabs,
       agentById,
-      deleteAgent,
-      deleteAgentSessions,
       deletingAgentId,
+      invalidate,
       loadLatestSession,
       onActiveAgentDeleted,
       requestFileNavigation,
@@ -1760,14 +1772,25 @@ const Sessions = ({
               : sessionItems.find((session) => session.id === activeSessionId)
             : undefined
           if (deletesActiveSession) commitActiveSession(null)
-          let result: Awaited<ReturnType<typeof deleteWorkspace>>
+          let result: { deletedIds: string[] }
           try {
-            result = await deleteWorkspace({ params: { workspaceId } })
+            result = await ipcApi.request('ai.agent.workspace.delete', { workspaceId })
           } catch (error) {
             if (previousActiveSession) commitActiveSession(previousActiveSession.id, previousActiveSession)
             throw error
           }
           closeConversationTabs('agents', result.deletedIds)
+
+          try {
+            await Promise.all(
+              ['/agent-sessions', '/agent-sessions/stats', '/agent-workspaces', '/pins', '/agent-channels'].map((key) =>
+                invalidate(key)
+              )
+            )
+          } catch (err) {
+            logger.warn('Failed to refresh after deleting workspace group', { err, sessionIds, workspaceId })
+          }
+
           if (deletesActiveSession) {
             const affectedSessionIds = new Set(result.deletedIds)
             const remaining = sessionItems.find((session) => !affectedSessionIds.has(session.id))
@@ -1795,8 +1818,8 @@ const Sessions = ({
       activeSession,
       closeConversationTabs,
       commitActiveSession,
-      deleteWorkspace,
       deletingWorkspaceGroupId,
+      invalidate,
       loadLatestSession,
       requestFileNavigation,
       sessionItems,
@@ -2267,18 +2290,6 @@ const Sessions = ({
     [assistantIconType, displayMode]
   )
 
-  const getGroupHeaderClassName = useCallback(
-    (group: ResourceListGroup) => {
-      if (displayMode !== 'agent' || group.id === SESSION_PINNED_GROUP_ID) return undefined
-
-      const agentId = getAgentIdFromSessionGroupId(group.id)
-      if (!agentId || !agentById.has(agentId)) return undefined
-
-      return 'rounded-lg border border-transparent'
-    },
-    [agentById, displayMode]
-  )
-
   // Only the pseudo-group gets a tooltip: it needs explaining. Real agent rows don't — a hint about
   // dragging fired on every hover, covering the row next to it to say something you find by trying.
   const getGroupHeaderTooltip = useCallback(
@@ -2508,7 +2519,6 @@ const Sessions = ({
       defaultGroupVisibleCount={defaultGroupVisibleCount}
       getSectionHeaderAction={getSectionHeaderAction}
       getGroupHeaderAction={getGroupHeaderAction}
-      getGroupHeaderClassName={getGroupHeaderClassName}
       getGroupHeaderContextMenu={getGroupHeaderContextMenu}
       getGroupHeaderIcon={getGroupHeaderIcon}
       isGroupHeaderIconVisible={isGroupHeaderIconVisible}

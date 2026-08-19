@@ -196,6 +196,7 @@ const AgentPage = () => {
   const [selectingMissingAgent, setSelectingMissingAgent] = useState(false)
   const [replacingSessionWorkspace, setReplacingSessionWorkspace] = useState(false)
   const [missingAgentSelection, setMissingAgentSelection] = useState(false)
+  const [pendingSessionDefaults, setPendingSessionDefaults] = useState<CreateAgentSessionDefaults | null>(null)
   const [agentCreateOpen, setAgentCreateOpen] = useState(false)
   const invalidateCache = useInvalidateCache()
   const closeConversationTabs = useCloseConversationTabs()
@@ -429,6 +430,7 @@ const AgentPage = () => {
     (session: AgentSessionEntity, fallbackAgentId?: string | null) => {
       setPendingLocateMessageId(undefined)
       setMissingAgentSelection(false)
+      setPendingSessionDefaults(null)
       const agentId = session.agentId ?? fallbackAgentId
       if (agentId) {
         setRightPaneAgentScopeId(agentId)
@@ -467,12 +469,13 @@ const AgentPage = () => {
     async (defaults: CreateAgentSessionDefaults = {}): Promise<AgentSessionEntity | null> => {
       if (isCreatingEmptySessionRef.current) return null
       isCreatingEmptySessionRef.current = true
-      const agentId = defaults.agentId ?? visibleSession?.agentId ?? null
+      const agentId = defaults.agentId === undefined ? (visibleSession?.agentId ?? null) : defaults.agentId
       try {
         closeSurface()
 
         if (!agentId) {
           setPendingLocateMessageId(undefined)
+          setPendingSessionDefaults(defaults)
           clearActiveSession()
           setMissingAgentSelection(true)
           return null
@@ -533,12 +536,12 @@ const AgentPage = () => {
       if (!agentId) return
       setSelectingMissingAgent(true)
       try {
-        await createAndActivateEmptySession({ agentId })
+        await createAndActivateEmptySession({ ...pendingSessionDefaults, agentId })
       } finally {
         setSelectingMissingAgent(false)
       }
     },
-    [createAndActivateEmptySession]
+    [createAndActivateEmptySession, pendingSessionDefaults]
   )
 
   const handleAgentConversationSelect = useCallback(
@@ -572,6 +575,7 @@ const AgentPage = () => {
         // this setter is a no-op; classic layout feeds the explicit open intent into the stable AgentChat shell.
         setSessionPaneOpen(true)
         setMissingAgentSelection(false)
+        setPendingSessionDefaults(null)
         setPendingLocateMessageId(messageId)
 
         if (!sessionId) {
@@ -643,7 +647,6 @@ const AgentPage = () => {
   }, [currentTabId])
 
   const runFeedbackIntent = useEffectEvent(async (intentGuardCacheKey: string) => {
-    initialEmptySessionEvaluatedRef.current = true
     closeSurface()
     setPendingLocateMessageId(undefined)
     setMissingAgentSelection(false)

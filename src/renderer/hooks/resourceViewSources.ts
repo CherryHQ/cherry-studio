@@ -1,4 +1,5 @@
 import { dataApiService } from '@renderer/data/DataApiService'
+import { ipcApi } from '@renderer/ipc'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import { useCallback } from 'react'
 
@@ -46,11 +47,16 @@ export function useAgentSessionsSource({ enabled }: { enabled?: boolean } = {}) 
         : await dataApiService.get('/agent-sessions/latest', { query: { agentId } })
     return result.session
   }, [])
-  const reuseOrCreateSession = useCallback(async (agentId: string, workspace: AgentSessionWorkspaceSource) => {
-    return dataApiService.post('/agent-sessions/reusable-placeholders', {
-      body: { agentId, workspace }
-    })
-  }, [])
+  const reuseOrCreateSession = useCallback(
+    async (agentId: string, workspace: AgentSessionWorkspaceSource, excludeSessionId?: string) => {
+      return ipcApi.request('ai.agent.session.reuse_or_create', {
+        agentId,
+        workspace,
+        ...(excludeSessionId ? { excludeSessionId } : {})
+      })
+    },
+    []
+  )
   return {
     stats: statsSource.stats,
     loadLatestSession,

@@ -3,7 +3,9 @@
  */
 
 import { application } from '@application'
+import { type InsertTranslateHistoryFileRefRow, translateHistoryFileRefTable } from '@data/db/schemas/fileRelations'
 import { translateHistoryTable } from '@data/db/schemas/translateHistory'
+import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
@@ -12,8 +14,8 @@ import type {
   TranslateHistoryQuery,
   UpdateTranslateHistoryDto
 } from '@shared/data/api/schemas/translate'
-import { parsePersistedLangCode } from '@shared/data/preference/preferenceTypes'
-import type { TranslateHistory } from '@shared/data/types/translate'
+import { parsePersistedLangCode, type PersistedLangCode } from '@shared/data/preference/preferenceTypes'
+import { type TranslateHistory, TranslateHistoryKindSchema } from '@shared/data/types/translate'
 import type { SQL } from 'drizzle-orm'
 import { and, eq, or, sql } from 'drizzle-orm'
 
@@ -25,6 +27,7 @@ const logger = loggerService.withContext('DataApi:TranslateHistoryService')
 function rowToTranslateHistory(row: typeof translateHistoryTable.$inferSelect): TranslateHistory {
   return {
     id: row.id,
+    kind: TranslateHistoryKindSchema.parse(row.kind),
     sourceText: row.sourceText,
     targetText: row.targetText,
     sourceLanguage: row.sourceLanguage === null ? null : parsePersistedLangCode(row.sourceLanguage),
@@ -35,7 +38,64 @@ function rowToTranslateHistory(row: typeof translateHistoryTable.$inferSelect): 
   }
 }
 
+/** What a file translation records, minus the generated columns. */
+export interface CreateFileTranslateHistoryInput {
+  /** Source file name, e.g. `paper.pdf`. */
+  sourceText: string
+  /** Translated file name, e.g. `paper.zh-CN.pdf`. */
+  targetText: string
+  sourceLanguage: PersistedLangCode | null
+  targetLanguage: PersistedLangCode | null
+  /** The generated file; every file translation has exactly one. */
+  targetFileEntryId: string
+  /** Best-effort reference to the original; registration can fail on a case-collision. */
+  sourceFileEntryId?: string
+}
+
 export class TranslateHistoryService {
+  /**
+   * Record a finished file translation: the history row plus its
+   * `translate_history_file_ref` rows, in the caller's transaction.
+   *
+   * One method rather than a `createTx` / `addFileRefsTx` pair (the shape
+   * `JobService` uses) because a `kind='file'` row without refs is not a
+   * representable state — the names in `sourceText`/`targetText` are display
+   * labels with no way back to the files. Callers cannot write the row and
+   * forget the refs if they cannot get at the row alone.
+   *
+   * Tx-scoped so the producing service (today `PdfTranslationService`) composes
+   * it into the same `withWriteTx` its FileManager entries are compensated
+   * against.
+   */
+  createFileTx(tx: DbOrTx, input: CreateFileTranslateHistoryInput): TranslateHistory {
+    const [row] = tx
+      .insert(translateHistoryTable)
+      .values({
+        kind: 'file',
+        sourceText: input.sourceText,
+        targetText: input.targetText,
+        sourceLanguage: input.sourceLanguage,
+        targetLanguage: input.targetLanguage
+      })
+      .returning()
+      .all()
+
+    if (!row) {
+      throw DataApiErrorFactory.database(new Error('Insert did not return a row'), 'create file translate history')
+    }
+
+    const refs: InsertTranslateHistoryFileRefRow[] = [
+      { sourceId: row.id, fileEntryId: input.targetFileEntryId, role: 'target' }
+    ]
+    if (input.sourceFileEntryId !== undefined) {
+      refs.push({ sourceId: row.id, fileEntryId: input.sourceFileEntryId, role: 'source' })
+    }
+    tx.insert(translateHistoryFileRefTable).values(refs).run()
+
+    logger.info('Created file translate history', { id: row.id, refCount: refs.length })
+    return rowToTranslateHistory(row)
+  }
+
   list(query: TranslateHistoryQuery): TranslateHistoryListResponse {
     const db = application.get('DbService').getDb()
     const { limit } = query
@@ -111,6 +171,9 @@ export class TranslateHistoryService {
     const [row] = db
       .insert(translateHistoryTable)
       .values({
+        // Explicit rather than leaning on the column default: the DataApi POST
+        // surface mints text rows only, `kind='file'` goes through `createFileTx`.
+        kind: 'text',
         sourceText: dto.sourceText,
         targetText: dto.targetText,
         sourceLanguage: dto.sourceLanguage,
@@ -137,6 +200,16 @@ export class TranslateHistoryService {
         throw DataApiErrorFactory.notFound('TranslateHistory', id)
       }
 
+      const currentHistory = rowToTranslateHistory(current)
+      const changesFileSnapshot =
+        dto.sourceText !== undefined ||
+        dto.targetText !== undefined ||
+        dto.sourceLanguage !== undefined ||
+        dto.targetLanguage !== undefined
+      if (currentHistory.kind === 'file' && changesFileSnapshot) {
+        throw DataApiErrorFactory.invalidOperation('update file translate history', 'only star can be changed')
+      }
+
       const updates: Partial<typeof translateHistoryTable.$inferInsert> = {}
       if (dto.sourceText !== undefined) updates.sourceText = dto.sourceText
       if (dto.targetText !== undefined) updates.targetText = dto.targetText
@@ -145,7 +218,7 @@ export class TranslateHistoryService {
       if (dto.star !== undefined) updates.star = dto.star
 
       if (Object.keys(updates).length === 0) {
-        return rowToTranslateHistory(current)
+        return currentHistory
       }
 
       const [row] = tx

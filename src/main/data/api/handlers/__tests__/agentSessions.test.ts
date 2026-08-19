@@ -7,12 +7,8 @@ const {
   getLatestActiveMock,
   updateMock,
   setWorkspaceMock,
-  deleteMock,
-  deleteByAgentIdMock,
-  deleteByIdsMock,
   reorderMock,
-  reorderBatchMock,
-  reuseOrCreatePlaceholderMock
+  reorderBatchMock
 } = vi.hoisted(() => ({
   listByCursorMock: vi.fn(),
   createSessionMock: vi.fn(),
@@ -20,12 +16,8 @@ const {
   getLatestActiveMock: vi.fn(),
   updateMock: vi.fn(),
   setWorkspaceMock: vi.fn(),
-  deleteMock: vi.fn(),
-  deleteByAgentIdMock: vi.fn(),
-  deleteByIdsMock: vi.fn(),
   reorderMock: vi.fn(),
-  reorderBatchMock: vi.fn(),
-  reuseOrCreatePlaceholderMock: vi.fn()
+  reorderBatchMock: vi.fn()
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
@@ -36,18 +28,12 @@ vi.mock('@data/services/AgentSessionService', () => ({
     getLatestActive: getLatestActiveMock,
     update: updateMock,
     setWorkspace: setWorkspaceMock,
-    delete: deleteMock,
-    deleteByAgentId: deleteByAgentIdMock,
-    deleteByIds: deleteByIdsMock,
     reorder: reorderMock,
-    reorderBatch: reorderBatchMock,
-    reuseOrCreatePlaceholder: reuseOrCreatePlaceholderMock
+    reorderBatch: reorderBatchMock
   }
 }))
 
 import { agentSessionHandlers } from '../agentSessions'
-
-const AGENT_SESSION_DELETE_MAX_IDS = 200
 
 describe('agentSessionHandlers', () => {
   beforeEach(() => {
@@ -106,42 +92,6 @@ describe('agentSessionHandlers', () => {
     })
   })
 
-  describe('/agent-sessions/reusable-placeholders', () => {
-    it('requires and forwards the full workspace creation target', async () => {
-      const agentId = '018f6ed6-73b8-4f40-8d0d-9bb2f8f1d001'
-      const response = {
-        session: { id: 'session-created' },
-        created: true,
-        deletedDuplicateSessionIds: []
-      }
-      reuseOrCreatePlaceholderMock.mockReturnValueOnce(response)
-
-      await expect(
-        agentSessionHandlers['/agent-sessions/reusable-placeholders'].POST({
-          body: {
-            agentId,
-            workspace: { type: 'user', workspaceId: 'workspace-1' }
-          }
-        } as never)
-      ).resolves.toBe(response)
-
-      expect(reuseOrCreatePlaceholderMock).toHaveBeenCalledWith({
-        agentId,
-        workspace: { type: 'user', workspaceId: 'workspace-1' }
-      })
-    })
-
-    it('rejects an omitted workspace before calling the service', async () => {
-      await expect(
-        agentSessionHandlers['/agent-sessions/reusable-placeholders'].POST({
-          body: { agentId: '018f6ed6-73b8-4f40-8d0d-9bb2f8f1d001' }
-        } as never)
-      ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
-
-      expect(reuseOrCreatePlaceholderMock).not.toHaveBeenCalled()
-    })
-  })
-
   describe('/agent-sessions/:sessionId', () => {
     it('forwards manual-name marker updates to AgentSessionService', async () => {
       const response = { id: 'session-1', name: 'Renamed session', isNameManuallyEdited: true }
@@ -194,80 +144,6 @@ describe('agentSessionHandlers', () => {
       ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
 
       expect(setWorkspaceMock).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('/agents/:agentId/sessions', () => {
-    it('delegates agent-scoped session delete to AgentSessionService', async () => {
-      const response = { deletedIds: ['session-a'] }
-      deleteByAgentIdMock.mockResolvedValueOnce(response)
-
-      const result = await agentSessionHandlers['/agents/:agentId/sessions'].DELETE({
-        params: { agentId: 'agent-1' }
-      } as never)
-
-      expect(deleteByAgentIdMock).toHaveBeenCalledWith('agent-1')
-      expect(deleteMock).not.toHaveBeenCalled()
-      expect(result).toEqual(response)
-    })
-
-    it('rejects invalid agent id before calling the service', async () => {
-      await expect(
-        agentSessionHandlers['/agents/:agentId/sessions'].DELETE({
-          params: { agentId: '' }
-        } as never)
-      ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
-
-      expect(deleteByAgentIdMock).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('/agent-sessions', () => {
-    it('delegates selected session delete to AgentSessionService', async () => {
-      const response = { deletedIds: ['session-a', 'session-b'] }
-      deleteByIdsMock.mockResolvedValueOnce(response)
-
-      const result = await agentSessionHandlers['/agent-sessions'].DELETE({
-        query: { ids: 'session-a,session-b' }
-      } as never)
-
-      expect(deleteByIdsMock).toHaveBeenCalledWith(['session-a', 'session-b'])
-      expect(deleteMock).not.toHaveBeenCalled()
-      expect(result).toEqual(response)
-    })
-
-    it('trims comma-separated session ids before delegating', async () => {
-      const response = { deletedIds: ['session-a', 'session-b'] }
-      deleteByIdsMock.mockResolvedValueOnce(response)
-
-      const result = await agentSessionHandlers['/agent-sessions'].DELETE({
-        query: { ids: ' session-a, , session-b ' }
-      } as never)
-
-      expect(deleteByIdsMock).toHaveBeenCalledWith(['session-a', 'session-b'])
-      expect(result).toEqual(response)
-    })
-
-    it('rejects empty selected session ids before calling the service', async () => {
-      await expect(
-        agentSessionHandlers['/agent-sessions'].DELETE({
-          query: { ids: ' , , ' }
-        } as never)
-      ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
-
-      expect(deleteByIdsMock).not.toHaveBeenCalled()
-    })
-
-    it('rejects too many selected session ids before calling the service', async () => {
-      const ids = Array.from({ length: AGENT_SESSION_DELETE_MAX_IDS + 1 }, (_, index) => `session-${index}`).join(',')
-
-      await expect(
-        agentSessionHandlers['/agent-sessions'].DELETE({
-          query: { ids }
-        } as never)
-      ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
-
-      expect(deleteByIdsMock).not.toHaveBeenCalled()
     })
   })
 })

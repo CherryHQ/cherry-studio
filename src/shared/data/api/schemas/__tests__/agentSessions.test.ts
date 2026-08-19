@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest'
 import {
   AgentSessionStatsQuerySchema,
   CreateAgentSessionSchema,
-  DeleteAgentSessionsQuerySchema,
   LatestAgentSessionQuerySchema,
   ListAgentSessionsQuerySchema,
   ReuseOrCreateAgentSessionSchema,
@@ -14,8 +13,6 @@ import {
 const AGENT_ID = '018f6ed6-73b8-4f40-8d0d-9bb2f8f1d001'
 const MIGRATED_AGENT_ID = '018f6ed6-73b8-5f40-8d0d-9bb2f8f1d001'
 const WORKSPACE_ID = 'workspace-1'
-const AGENT_SESSION_DELETE_MAX_IDS = 200
-
 describe('ListAgentSessionsQuerySchema', () => {
   it('requires sortBy when the ordinary stream is explicit', () => {
     expect(
@@ -207,13 +204,5 @@ describe('AgentSession schemas', () => {
       }).success
     ).toBe(false)
     expect(UpdateAgentSessionSchema.safeParse({ name: overflowName }).success).toBe(false)
-  })
-
-  it('caps bulk delete ids', () => {
-    const validIds = Array.from({ length: AGENT_SESSION_DELETE_MAX_IDS }, (_, index) => `session-${index}`).join(',')
-    const tooManyIds = `${validIds},session-overflow`
-
-    expect(DeleteAgentSessionsQuerySchema.safeParse({ ids: validIds }).success).toBe(true)
-    expect(DeleteAgentSessionsQuerySchema.safeParse({ ids: tooManyIds }).success).toBe(false)
   })
 })

@@ -6,7 +6,9 @@
  * configuration) lives here, not on sessions.
  */
 
+import { loggerService } from '@logger'
 import { useInvalidateCache, useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
+import { ipcApi } from '@renderer/ipc'
 import { createAgentAndRefresh } from '@renderer/services/createAgent'
 import { toast } from '@renderer/services/toast'
 import type { AddAgentForm, UpdateAgentBaseOptions, UpdateAgentForm, UpdateAgentFunction } from '@renderer/types/agent'
@@ -14,7 +16,6 @@ import { parseAgentConfiguration } from '@renderer/utils/agent/utils'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
-import type { ConcreteApiPaths } from '@shared/data/api/types'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { CreateAgentCommand } from '@shared/ipc/schemas/ai'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
@@ -22,27 +23,7 @@ import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 type Result<T> = { success: true; data: T } | { success: false; error: Error }
-
-/**
- * Agent deletion cascades into sessions (list order + stats), pins,
- * workspaces and channel bindings. Single owner of that refresh contract —
- * do not declare `DELETE /agents/:agentId` with a hand-rolled `refresh`
- * list elsewhere.
- */
-const AGENT_DELETE_REFRESH: ConcreteApiPaths[] = [
-  '/agents',
-  '/agent-sessions',
-  '/agent-sessions/stats',
-  '/agent-workspaces',
-  '/pins',
-  '/agent-channels'
-]
-
-/** Raw agent-delete trigger; UX (confirm / toast / tab fixup) stays with the caller. */
-export const useDeleteAgent = () => {
-  const { trigger } = useMutation('DELETE', '/agents/:agentId', { refresh: AGENT_DELETE_REFRESH })
-  return trigger
-}
+const logger = loggerService.withContext('useAgent')
 
 type UpdateAgentModelInput = {
   agentId: string
@@ -107,17 +88,21 @@ export const useAgents = () => {
     [invalidate, t]
   )
 
-  const deleteTrigger = useDeleteAgent()
   const deleteAgent = useCallback(
     async (id: string) => {
       try {
-        await deleteTrigger({ params: { agentId: id } })
+        await ipcApi.request('ai.agent.delete', { agentId: id, deleteSessions: false })
+        try {
+          await Promise.all([invalidate('/agents'), invalidate('/agent-sessions'), invalidate('/pins')])
+        } catch (error) {
+          logger.warn('Failed to refresh after deleting Agent', error as Error, { agentId: id })
+        }
         toast.success(t('common.delete_success'))
       } catch (error) {
         toast.error(formatErrorMessageWithPrefix(error, t('agent.delete.error.failed')))
       }
     },
-    [deleteTrigger, t]
+    [invalidate, t]
   )
 
   return { agents, error, isLoading, addAgent, deleteAgent, refetch }

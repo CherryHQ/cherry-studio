@@ -15,8 +15,10 @@ import { getDataService } from '@data/services/dataServiceRegistry'
 import { pinService } from '@data/services/PinService'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
+import { buildSearchSnippet } from '@main/utils/searchSnippet'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
+import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type {
   AgentSessionEntity,
   AgentSessionListItem,
@@ -34,8 +36,23 @@ import type {
 } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
-import type { CursorPaginationResponse } from '@shared/data/api/types'
-import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, notInArray, or, type SQL, sql } from 'drizzle-orm'
+import type { CursorPaginationResponse, DataApiDataChangeEffect } from '@shared/data/api/types'
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gt,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  notInArray,
+  or,
+  type SQL,
+  sql
+} from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import { asNumericKey, asStringKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
@@ -46,6 +63,22 @@ const logger = loggerService.withContext('AgentSessionService')
 const DEFAULT_LIMIT = 50
 const MAX_LIMIT = 200
 type SessionEntitySearchItem = Extract<EntitySearchItem, { type: 'session' }>
+export type SessionMetadataSearchMatch = {
+  field: 'name' | 'description'
+  snippet: string
+}
+
+export type SessionMetadataSearchResult = {
+  item: SessionEntitySearchItem
+  matches: SessionMetadataSearchMatch[]
+}
+
+export type AddressableAgentSession = {
+  agentId: string
+  agentName: string
+  sessionId: string
+  sessionName: string
+}
 
 function publishTaskReadModelChanges(taskIds: readonly string[]): void {
   if (taskIds.length === 0) return
@@ -56,6 +89,16 @@ function publishTaskReadModelChanges(taskIds: readonly string[]): void {
 type JoinedSessionRow = {
   session: SessionRow
   workspace: AgentWorkspaceRow
+}
+
+export type AgentSessionDeletionOutcome = {
+  deletedIds: string[]
+  taskScheduleIds: string[]
+  deliveryResults: AgentSessionMessageEntity[]
+}
+
+export type ReuseOrCreateAgentSessionOutcome = ReusableAgentSessionPlaceholdersResponse & {
+  deliveryResults: AgentSessionMessageEntity[]
 }
 
 function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
@@ -141,43 +184,55 @@ function buildSessionRecordFilters(query: {
   return filters
 }
 
+type AgentSessionReadModelChangeOptions = {
+  orderKeyChanged?: boolean
+  ownerChanged?: boolean
+  pinsChanged?: boolean
+  searchChanged?: boolean
+  statsChanged?: boolean
+  workspaceChanged?: boolean
+}
+
+export function agentSessionReadModelEffects(
+  sessionIds: readonly string[],
+  kind: 'membership' | 'projection',
+  options: AgentSessionReadModelChangeOptions = {}
+): DataApiDataChangeEffect[] {
+  if (sessionIds.length === 0) {
+    return options.pinsChanged ? [{ endpoint: '/pins', kind: 'membership' }] : []
+  }
+
+  const entityIds = [...new Set(sessionIds)]
+  return [
+    { endpoint: '/agent-sessions', kind, entityIds },
+    ...(options.ownerChanged
+      ? [{ endpoint: '/agent-sessions' as const, kind: 'membership' as const, dimension: 'agentId', entityIds }]
+      : []),
+    ...(options.searchChanged
+      ? [{ endpoint: '/agent-sessions' as const, kind: 'membership' as const, dimension: 'q', entityIds }]
+      : []),
+    ...(options.workspaceChanged
+      ? [{ endpoint: '/agent-sessions' as const, kind: 'membership' as const, dimension: 'workspaceId', entityIds }]
+      : []),
+    { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds },
+    ...(options.orderKeyChanged
+      ? [{ endpoint: '/agent-sessions' as const, kind: 'order' as const, dimension: 'orderKey', entityIds }]
+      : []),
+    { endpoint: '/agent-sessions/:sessionId', entityIds },
+    { endpoint: '/agent-sessions/latest' },
+    ...(kind === 'membership' || options.statsChanged ? [{ endpoint: '/agent-sessions/stats' as const }] : []),
+    ...(options.pinsChanged ? [{ endpoint: '/pins' as const, kind: 'membership' as const }] : [])
+  ]
+}
+
 export class AgentSessionService {
   notifyReadModelChange(
     sessionIds: readonly string[],
     kind: 'membership' | 'projection',
-    options: {
-      orderKeyChanged?: boolean
-      ownerChanged?: boolean
-      pinsChanged?: boolean
-      searchChanged?: boolean
-      statsChanged?: boolean
-      workspaceChanged?: boolean
-    } = {}
+    options: AgentSessionReadModelChangeOptions = {}
   ): void {
-    if (sessionIds.length === 0) {
-      if (options.pinsChanged) notifyDataApiDataChange([{ endpoint: '/pins', kind: 'membership' }])
-      return
-    }
-    const entityIds = [...new Set(sessionIds)]
-    notifyDataApiDataChange([
-      { endpoint: '/agent-sessions', kind, entityIds },
-      ...(options.ownerChanged
-        ? [{ endpoint: '/agent-sessions' as const, kind: 'membership' as const, dimension: 'agentId', entityIds }]
-        : []),
-      ...(options.searchChanged
-        ? [{ endpoint: '/agent-sessions' as const, kind: 'membership' as const, dimension: 'q', entityIds }]
-        : []),
-      ...(options.workspaceChanged
-        ? [{ endpoint: '/agent-sessions' as const, kind: 'membership' as const, dimension: 'workspaceId', entityIds }]
-        : []),
-      { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds },
-      ...(options.orderKeyChanged
-        ? [{ endpoint: '/agent-sessions' as const, kind: 'order' as const, dimension: 'orderKey', entityIds }]
-        : []),
-      { endpoint: '/agent-sessions/:sessionId', entityIds },
-      ...(kind === 'membership' || options.statsChanged ? [{ endpoint: '/agent-sessions/stats' as const }] : []),
-      ...(options.pinsChanged ? [{ endpoint: '/pins' as const, kind: 'membership' as const }] : [])
-    ])
+    const effects = agentSessionReadModelEffects(sessionIds, kind, options)
+    if (effects.length > 0) notifyDataApiDataChange(effects)
   }
 
   /** Owner names affect collection search projections, but not Session entities. */
@@ -200,17 +255,59 @@ export class AgentSessionService {
       { endpoint: '/agent-sessions', kind: 'membership', dimension: 'agentId', entityIds },
       { endpoint: '/agent-sessions', kind: 'membership', dimension: 'q', entityIds },
       { endpoint: '/agent-sessions/:sessionId', entityIds },
+      { endpoint: '/agent-sessions/latest' },
       { endpoint: '/agent-sessions/stats' },
       ...(options.pinsChanged ? [{ endpoint: '/pins' as const, kind: 'membership' as const }] : [])
     ])
   }
 
-  search(query: { q: string; limit: number; updatedAtFrom?: number }): SessionEntitySearchItem[] {
+  listAddressableByCursor(query: {
+    agentId?: string
+    cursor?: string
+    limit?: number
+  }): CursorPaginationResponse<AddressableAgentSession> {
+    const limit = Math.min(Math.max(query.limit ?? DEFAULT_LIMIT, 1), 100)
+    const filters = [isNull(agentsTable.deletedAt)]
+    if (query.agentId) filters.push(eq(sessionsTable.agentId, query.agentId))
+    if (query.cursor) filters.push(gt(sessionsTable.id, query.cursor))
+    const rows = application
+      .get('DbService')
+      .getDb()
+      .select({
+        agentId: agentsTable.id,
+        agentName: agentsTable.name,
+        sessionId: sessionsTable.id,
+        sessionName: sessionsTable.name
+      })
+      .from(sessionsTable)
+      .innerJoin(agentsTable, eq(sessionsTable.agentId, agentsTable.id))
+      .where(and(...filters))
+      .orderBy(asc(sessionsTable.id))
+      .limit(limit + 1)
+      .all()
+    const hasNext = rows.length > limit
+    const items = hasNext ? rows.slice(0, limit) : rows
+    return { items, nextCursor: hasNext ? items.at(-1)?.sessionId : undefined }
+  }
+
+  search(query: { q: string; limit: number; updatedAtFrom?: number; agentId?: string }): SessionEntitySearchItem[] {
+    return this.searchWithMetadataEvidence(query).map((result) => result.item)
+  }
+
+  searchWithMetadataEvidence(query: {
+    q: string
+    limit: number
+    updatedAtFrom?: number
+    agentId?: string
+    addressableOnly?: boolean
+  }): SessionMetadataSearchResult[] {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit, MAX_LIMIT)
     const filters: SQL[] = []
     const search = buildSearchPredicate(query.q)
     if (search) filters.push(search)
+    if (query.agentId) filters.push(eq(sessionsTable.agentId, query.agentId))
+    if (query.addressableOnly) filters.push(isNotNull(agentsTable.id))
     if (query.updatedAtFrom !== undefined) {
       filters.push(gte(sessionsTable.updatedAt, query.updatedAtFrom))
     }
@@ -221,6 +318,7 @@ export class AgentSessionService {
         agentId: sessionsTable.agentId,
         agentName: agentsTable.name,
         name: sessionsTable.name,
+        description: sessionsTable.description,
         lastActivityAt: sessionsTable.lastActivityAt
       })
       .from(sessionsTable)
@@ -230,14 +328,31 @@ export class AgentSessionService {
       .limit(limit)
       .all()
 
-    return rows.map((row) => ({
-      type: 'session',
-      id: row.id,
-      title: row.name,
-      subtitle: row.agentName ?? undefined,
-      lastActivityAt: timestampToISO(row.lastActivityAt),
-      target: { sessionId: row.id, agentId: row.agentId }
-    }))
+    const searchTerm = query.q.trim()
+    const normalizedQuery = searchTerm.toLocaleLowerCase()
+    return rows.map((row) => {
+      const matches: SessionMetadataSearchMatch[] = []
+      if (searchTerm && row.name.toLocaleLowerCase().includes(normalizedQuery)) {
+        matches.push({ field: 'name', snippet: buildSearchSnippet(row.name, [searchTerm], 'substring') })
+      }
+      if (searchTerm && row.description?.toLocaleLowerCase().includes(normalizedQuery)) {
+        matches.push({
+          field: 'description',
+          snippet: buildSearchSnippet(row.description, [searchTerm], 'substring')
+        })
+      }
+      return {
+        item: {
+          type: 'session',
+          id: row.id,
+          title: row.name,
+          subtitle: row.agentName ?? undefined,
+          lastActivityAt: timestampToISO(row.lastActivityAt),
+          target: { sessionId: row.id, agentId: row.agentId }
+        },
+        matches
+      }
+    })
   }
 
   create(dto: CreateAgentSessionDto): AgentSessionEntity {
@@ -414,6 +529,7 @@ export class AgentSessionService {
     sessionIds: string[]
     taskScheduleIds: string[]
     changeKind: 'membership' | 'projection'
+    deliveryResults: AgentSessionMessageEntity[]
   } {
     const sessions = tx
       .select({ id: sessionsTable.id, taskScheduleId: sessionsTable.taskScheduleId })
@@ -423,10 +539,12 @@ export class AgentSessionService {
     const taskScheduleIds = sessions.flatMap((session) => (session.taskScheduleId ? [session.taskScheduleId] : []))
 
     if (options.deleteSessions) {
+      const deliveryResults: AgentSessionMessageEntity[] = []
       return {
-        sessionIds: this.deleteByAgentIdTx(tx, agentId, { validateAgent: false }),
+        sessionIds: this.deleteByAgentIdTx(tx, agentId, { validateAgent: false, deliveryResults }),
         taskScheduleIds,
-        changeKind: 'membership'
+        changeKind: 'membership',
+        deliveryResults
       }
     }
 
@@ -437,10 +555,15 @@ export class AgentSessionService {
         and(eq(sessionsTable.agentId, agentId), isNotNull(sessionsTable.taskScheduleId))!
       )
     }
+    const sessionIds = sessions.map((session) => session.id)
     return {
-      sessionIds: sessions.map((session) => session.id),
+      sessionIds,
       taskScheduleIds,
-      changeKind: 'projection'
+      changeKind: 'projection',
+      deliveryResults: getDataService('AgentSessionMessageService').prepareRetainedSessionAgentDeletionTx(
+        tx,
+        sessionIds
+      )
     }
   }
 
@@ -480,7 +603,7 @@ export class AgentSessionService {
   }
 
   /** Reuse or create one exact empty placeholder under a serialized write transaction. */
-  reuseOrCreatePlaceholder(dto: ReuseOrCreateAgentSessionDto): ReusableAgentSessionPlaceholdersResponse {
+  reuseOrCreatePlaceholderForDelivery(dto: ReuseOrCreateAgentSessionDto): ReuseOrCreateAgentSessionOutcome {
     const reservedId = uuidv4()
     const result = withSqliteErrors(
       () =>
@@ -530,12 +653,13 @@ export class AgentSessionService {
             const duplicateDeletion =
               dto.workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM
                 ? this.cascadeDeleteSessionRowsTx(tx, reusableRows.slice(1))
-                : { deletedIds: [], taskScheduleIds: [] }
+                : { deletedIds: [], taskScheduleIds: [], deliveryResults: [] }
             return {
               session: rowToSession(reusable),
               created: false,
               deletedDuplicateSessionIds: duplicateDeletion.deletedIds,
-              taskScheduleIds: duplicateDeletion.taskScheduleIds
+              taskScheduleIds: duplicateDeletion.taskScheduleIds,
+              deliveryResults: duplicateDeletion.deliveryResults
             }
           }
 
@@ -557,7 +681,8 @@ export class AgentSessionService {
             session: rowToSession(created),
             created: true,
             deletedDuplicateSessionIds: [],
-            taskScheduleIds: []
+            taskScheduleIds: [],
+            deliveryResults: []
           }
         }),
       {
@@ -571,30 +696,34 @@ export class AgentSessionService {
       [...(result.created ? [result.session.id] : []), ...result.deletedDuplicateSessionIds],
       'membership'
     )
+    getDataService('AgentSessionMessageService').publishDeliveryChanges(result.deliveryResults)
     if (result.deletedDuplicateSessionIds.length > 0) pinService.notifyPurged()
     return {
       session: result.session,
       created: result.created,
-      deletedDuplicateSessionIds: result.deletedDuplicateSessionIds
+      deletedDuplicateSessionIds: result.deletedDuplicateSessionIds,
+      deliveryResults: result.deliveryResults
     }
   }
 
   ensureTraceId(sessionId: string): string {
-    return application.get('DbService').withWriteTx((tx) => {
-      const [row] = tx
-        .select({ traceId: sessionsTable.traceId })
-        .from(sessionsTable)
-        .where(eq(sessionsTable.id, sessionId))
-        .limit(1)
-        .all()
+    return application.get('DbService').withWriteTx((tx) => this.ensureTraceIdTx(tx, sessionId))
+  }
 
-      if (!row) throw DataApiErrorFactory.notFound('Session', sessionId)
-      if (row.traceId) return row.traceId
+  ensureTraceIdTx(tx: DbOrTx, sessionId: string): string {
+    const [row] = tx
+      .select({ traceId: sessionsTable.traceId })
+      .from(sessionsTable)
+      .where(eq(sessionsTable.id, sessionId))
+      .limit(1)
+      .all()
 
-      const traceId = randomBytes(16).toString('hex')
-      tx.update(sessionsTable).set({ traceId }).where(eq(sessionsTable.id, sessionId)).run()
-      return traceId
-    })
+    if (!row) throw DataApiErrorFactory.notFound('Session', sessionId)
+    if (row.traceId) return row.traceId
+
+    const traceId = randomBytes(16).toString('hex')
+    tx.update(sessionsTable).set({ traceId }).where(eq(sessionsTable.id, sessionId)).run()
+    return traceId
   }
 
   /**
@@ -921,9 +1050,18 @@ export class AgentSessionService {
   }
 
   delete(id: string): void {
-    const taskScheduleIds = application.get('DbService').withWriteTx((tx) => this.deleteTx(tx, id))
-    publishTaskReadModelChanges(taskScheduleIds)
-    this.notifyReadModelChange([id], 'membership', { pinsChanged: true })
+    this.deleteForDelivery(id)
+  }
+
+  deleteForDelivery(id: string): AgentSessionDeletionOutcome {
+    const result = application.get('DbService').withWriteTx((tx) => {
+      const row = this.getJoinedSessionRowTx(tx, id)
+      return this.cascadeDeleteSessionRowsTx(tx, [row])
+    })
+    publishTaskReadModelChanges(result.taskScheduleIds)
+    getDataService('AgentSessionMessageService').publishDeliveryChanges(result.deliveryResults)
+    this.notifyReadModelChange(result.deletedIds, 'membership', { pinsChanged: true })
+    return result
   }
 
   deleteTx(tx: DbOrTx, id: string): string[] {
@@ -940,8 +1078,13 @@ export class AgentSessionService {
   }
 
   deleteByIds(ids: string[]): DeleteAgentSessionsResult {
+    const result = this.deleteByIdsForDelivery(ids)
+    return { deletedIds: result.deletedIds }
+  }
+
+  deleteByIdsForDelivery(ids: string[]): AgentSessionDeletionOutcome {
     const uniqueIds = Array.from(new Set(ids))
-    if (uniqueIds.length === 0) return { deletedIds: [] }
+    if (uniqueIds.length === 0) return { deletedIds: [], taskScheduleIds: [], deliveryResults: [] }
 
     const result = application.get('DbService').withWriteTx((tx) => {
       const rows = tx
@@ -955,20 +1098,33 @@ export class AgentSessionService {
     })
 
     publishTaskReadModelChanges(result.taskScheduleIds)
+    getDataService('AgentSessionMessageService').publishDeliveryChanges(result.deliveryResults)
     this.notifyReadModelChange(result.deletedIds, 'membership', { pinsChanged: true })
     logger.info('Deleted sessions', { count: result.deletedIds.length })
-    return { deletedIds: result.deletedIds }
+    return result
   }
 
   deleteWorkspaceCascade(workspaceId: string): DeleteAgentSessionsResult {
+    const result = this.deleteWorkspaceCascadeForDelivery(workspaceId)
+    return { deletedIds: result.deletedIds }
+  }
+
+  deleteWorkspaceCascadeForDelivery(workspaceId: string): AgentSessionDeletionOutcome {
     const result = application.get('DbService').withWriteTx((tx) => {
       agentWorkspaceService.getRowByIdTx(tx, workspaceId)
       const channelReferences = agentChannelService.resetWorkspaceReferencesTx(tx, workspaceId)
       const taskReferences = getDataService('AgentTaskService').resetWorkspaceReferencesTx(tx, workspaceId)
       const taskScheduleIds = this.getTaskScheduleIdsForWorkspaceTx(tx, workspaceId)
+      const sessionIds = tx
+        .select({ id: sessionsTable.id })
+        .from(sessionsTable)
+        .where(eq(sessionsTable.workspaceId, workspaceId))
+        .all()
+        .map((session) => session.id)
+      const deliveryResults = getDataService('AgentSessionMessageService').prepareSessionDeletionTx(tx, sessionIds)
       const deletedIds = this.deleteByWorkspaceTx(tx, workspaceId)
       agentWorkspaceService.deleteByIdTx(tx, workspaceId)
-      return { deletedIds, taskScheduleIds, channelReferences, taskReferences }
+      return { deletedIds, taskScheduleIds, channelReferences, taskReferences, deliveryResults }
     })
     publishTaskReadModelChanges([...result.taskScheduleIds, ...result.taskReferences.map((task) => task.id)])
     this.notifyReadModelChange(result.deletedIds, 'membership', { pinsChanged: true })
@@ -978,7 +1134,12 @@ export class AgentSessionService {
       resetChannelCount: result.channelReferences.length,
       resetTaskCount: result.taskReferences.length
     })
-    return { deletedIds: result.deletedIds }
+    getDataService('AgentSessionMessageService').publishDeliveryChanges(result.deliveryResults)
+    return {
+      deletedIds: result.deletedIds,
+      taskScheduleIds: result.taskScheduleIds,
+      deliveryResults: result.deliveryResults
+    }
   }
 
   deleteByWorkspaceTx(tx: DbOrTx, workspaceId: string): string[] {
@@ -993,19 +1154,30 @@ export class AgentSessionService {
   }
 
   deleteByAgentId(agentId: string): DeleteAgentSessionsResult {
-    const result = application.get('DbService').withWriteTx((tx) => {
-      const taskScheduleIds = this.getTaskScheduleIdsForAgentTx(tx, agentId)
-      const deletedIds = this.deleteByAgentIdTx(tx, agentId)
-      return { deletedIds, taskScheduleIds }
-    })
-
-    publishTaskReadModelChanges(result.taskScheduleIds)
-    this.notifyReadModelChange(result.deletedIds, 'membership', { pinsChanged: true })
-    logger.info('Deleted agent sessions', { agentId, count: result.deletedIds.length })
+    const result = this.deleteByAgentIdForDelivery(agentId)
     return { deletedIds: result.deletedIds }
   }
 
-  deleteByAgentIdTx(tx: DbOrTx, agentId: string, options: { validateAgent?: boolean } = {}): string[] {
+  deleteByAgentIdForDelivery(agentId: string): AgentSessionDeletionOutcome {
+    const deliveryResults: AgentSessionMessageEntity[] = []
+    const result = application.get('DbService').withWriteTx((tx) => {
+      const taskScheduleIds = this.getTaskScheduleIdsForAgentTx(tx, agentId)
+      const deletedIds = this.deleteByAgentIdTx(tx, agentId, { deliveryResults })
+      return { deletedIds, taskScheduleIds, deliveryResults }
+    })
+
+    publishTaskReadModelChanges(result.taskScheduleIds)
+    getDataService('AgentSessionMessageService').publishDeliveryChanges(result.deliveryResults)
+    this.notifyReadModelChange(result.deletedIds, 'membership', { pinsChanged: true })
+    logger.info('Deleted agent sessions', { agentId, count: result.deletedIds.length })
+    return result
+  }
+
+  deleteByAgentIdTx(
+    tx: DbOrTx,
+    agentId: string,
+    options: { validateAgent?: boolean; deliveryResults?: AgentSessionMessageEntity[] } = {}
+  ): string[] {
     if (options.validateAgent ?? true) {
       const [agent] = tx
         .select({ id: agentsTable.id })
@@ -1023,13 +1195,25 @@ export class AgentSessionService {
       .where(eq(sessionsTable.agentId, agentId))
       .all()
 
-    return this.cascadeDeleteSessionRowsTx(tx, rows).deletedIds
+    const result = this.cascadeDeleteSessionRowsTx(tx, rows)
+    options.deliveryResults?.push(...result.deliveryResults)
+    return result.deletedIds
   }
 
-  private cascadeDeleteSessionRowsTx(
-    tx: DbOrTx,
-    rows: JoinedSessionRow[]
-  ): { deletedIds: string[]; taskScheduleIds: string[] } {
+  listIdsByAgentTx(tx: DbOrTx, agentId: string): string[] {
+    return tx
+      .select({ id: sessionsTable.id })
+      .from(sessionsTable)
+      .where(eq(sessionsTable.agentId, agentId))
+      .all()
+      .map((row) => row.id)
+  }
+
+  private cascadeDeleteSessionRowsTx(tx: DbOrTx, rows: JoinedSessionRow[]): AgentSessionDeletionOutcome {
+    const deliveryResults = getDataService('AgentSessionMessageService').prepareSessionDeletionTx(
+      tx,
+      rows.map((row) => row.session.id)
+    )
     const taskScheduleIds = this.getTaskScheduleIdsForSessionIdsTx(
       tx,
       rows.map((row) => row.session.id)
@@ -1055,7 +1239,7 @@ export class AgentSessionService {
       agentWorkspaceService.deleteByIdTx(tx, workspaceId)
     }
 
-    return { deletedIds: Array.from(deleted), taskScheduleIds }
+    return { deletedIds: Array.from(deleted), taskScheduleIds, deliveryResults }
   }
 
   private getTaskScheduleIdsForSessionIdsTx(tx: DbOrTx, sessionIds: readonly string[]): string[] {
