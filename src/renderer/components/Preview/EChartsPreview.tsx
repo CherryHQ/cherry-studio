@@ -1,9 +1,10 @@
 import { useTheme } from '@renderer/hooks/useTheme'
 import type { EChartsCoreOption } from 'echarts'
 import * as echarts from 'echarts'
-import { memo, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useDebouncedRender } from './hooks/useDebouncedRender'
 import ImagePreviewLayout from './ImagePreviewLayout'
 import type { BasicPreviewHandles, BasicPreviewProps } from './types'
 
@@ -12,59 +13,65 @@ const EChartsPreview = ({
   enableToolbar = false,
   ref
 }: BasicPreviewProps & { ref?: React.RefObject<BasicPreviewHandles | null> }) => {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const [error, setError] = useState<string | null>(null)
   const { theme } = useTheme()
   const { t } = useTranslation()
+  const chartRef = useRef<ReturnType<typeof echarts.init> | null>(null)
 
-  useEffect(() => {
-    let chart: ReturnType<typeof echarts.init> | null = null
-    let resizeObserver: ResizeObserver | null = null
-    let handleWindowResize: (() => void) | null = null
-    let parsedOption: EChartsCoreOption | undefined
-
-    try {
-      parsedOption = JSON.parse(children) as EChartsCoreOption
-    } catch {
-      setError(t('code_block.preview.invalid_json'))
-      return
-    }
-
-    try {
-      if (!containerRef.current) {
+  const renderChart = useCallback(
+    async (content: string, container: HTMLDivElement) => {
+      if (!content) {
         return
       }
 
-      const chartTheme = theme === 'dark' ? 'dark' : undefined
-      chart = echarts.init(containerRef.current, chartTheme, { renderer: 'svg' })
-      chart.setOption(parsedOption)
-      setError(null)
-
-      if (typeof ResizeObserver !== 'undefined') {
-        resizeObserver = new ResizeObserver(() => chart?.resize())
-        resizeObserver.observe(containerRef.current)
+      let option: EChartsCoreOption
+      try {
+        option = JSON.parse(content) as EChartsCoreOption
+      } catch {
+        throw new Error(t('code_block.preview.invalid_json'))
       }
 
-      handleWindowResize = () => chart?.resize()
-      window.addEventListener('resize', handleWindowResize)
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      setError(message)
+      if (!chartRef.current) {
+        chartRef.current = echarts.init(container, theme === 'dark' ? 'dark' : undefined, { renderer: 'svg' })
+      }
+
+      chartRef.current.setOption(option, true)
+    },
+    [t, theme]
+  )
+
+  const { containerRef, error, isLoading } = useDebouncedRender(children, renderChart, { debounceDelay: 300 })
+
+  useEffect(() => {
+    return () => {
+      chartRef.current?.dispose()
+      chartRef.current = null
+    }
+  }, [theme])
+
+  useEffect(() => {
+    if (!containerRef.current) {
+      return
+    }
+
+    let resizeObserver: ResizeObserver | null = null
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => chartRef.current?.resize())
+      resizeObserver.observe(containerRef.current)
     }
 
     return () => {
-      if (handleWindowResize) {
-        window.removeEventListener('resize', handleWindowResize)
-      }
-      if (resizeObserver) {
-        resizeObserver.disconnect()
-      }
-      chart?.dispose()
+      resizeObserver?.disconnect()
     }
-  }, [children, theme, t])
+  }, [containerRef])
 
   return (
-    <ImagePreviewLayout error={error} enableToolbar={enableToolbar} ref={ref} imageRef={containerRef} source="echarts">
+    <ImagePreviewLayout
+      loading={isLoading}
+      error={error}
+      enableToolbar={enableToolbar}
+      ref={ref}
+      imageRef={containerRef}
+      source="echarts">
       <div ref={containerRef} className="echarts special-preview h-64 w-full" />
     </ImagePreviewLayout>
   )
