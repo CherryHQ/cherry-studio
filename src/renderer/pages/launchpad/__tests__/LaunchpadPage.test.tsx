@@ -170,6 +170,7 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
+import { APP_ICON_BACKGROUNDS_DARK, APP_ICON_BACKGROUNDS_LIGHT } from '../appIconBackgrounds'
 import LaunchpadPage from '../LaunchpadPage'
 
 const appFavorite = (id: SidebarAppId): SidebarFavoriteItem => ({ type: 'app', id })
@@ -273,10 +274,10 @@ describe('LaunchpadPage', () => {
     const knowledge = getAppTileFace('Knowledge')
 
     expect(chat).toHaveStyle({
-      background: 'linear-gradient(140deg, #BFDBFE 0%, #60A5FA 50%, #A5B4FC 100%)'
+      background: APP_ICON_BACKGROUNDS_LIGHT.assistants
     })
     expect(knowledge).toHaveStyle({
-      background: 'linear-gradient(140deg, #D9F99D 0%, #A3E635 50%, #BEF264 100%)'
+      background: APP_ICON_BACKGROUNDS_LIGHT.knowledge
     })
     expect(chat.style.background).not.toEqual(knowledge.style.background)
     expect(chat.querySelector('.mix-blend-overlay')).toBeInTheDocument()
@@ -292,7 +293,7 @@ describe('LaunchpadPage', () => {
 
     const darkChat = getAppTileFace('Chat')
     expect(darkChat).toHaveStyle({
-      background: 'linear-gradient(140deg, #93C5FD 0%, #60A5FA 50%, #A5B4FC 100%)'
+      background: APP_ICON_BACKGROUNDS_DARK.assistants
     })
     expect(darkChat.style.background).not.toEqual(lightChatBackground)
     expect(darkChat.querySelector('.mix-blend-overlay')).toBeInTheDocument()
@@ -306,7 +307,7 @@ describe('LaunchpadPage', () => {
 
     expect(face).toHaveClass('bg-muted', 'border-border-subtle')
     expect(face).not.toHaveStyle({
-      background: 'linear-gradient(140deg, #BFDBFE 0%, #60A5FA 50%, #A5B4FC 100%)'
+      background: APP_ICON_BACKGROUNDS_LIGHT.assistants
     })
     expect(shortcut.querySelector('.mix-blend-overlay')).not.toBeInTheDocument()
   })

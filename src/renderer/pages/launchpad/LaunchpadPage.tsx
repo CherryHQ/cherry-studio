@@ -20,6 +20,8 @@ import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { APP_ICON_BACKGROUNDS_DARK, APP_ICON_BACKGROUNDS_LIGHT } from './appIconBackgrounds'
+
 const BASE_URL = 'https://www.cherry-ai.com/'
 const DEEPSEEK_HARNESS_URL = '/app/code?tool=deepseek-harness'
 
@@ -28,37 +30,9 @@ const LAUNCHPAD_GRID_CLASS = 'grid grid-cols-6 justify-items-center gap-2 px-2'
 const LAUNCHPAD_ITEM_CLASS = 'mx-auto w-[92px]'
 const SORTABLE_CONTENTS_STYLE = { display: 'contents' } as const
 
-// Flat diagonal multi-hue blend (OpenAI-style) — smooth, no spherical highlight or vignette.
-const mesh = (c1: string, c2: string, c3: string) => `linear-gradient(140deg, ${c1} 0%, ${c2} 50%, ${c3} 100%)`
-
 // Grayscale film grain (SVG turbulence) layered over the gradient at low opacity + overlay blend.
 const NOISE_BG =
   "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")"
-
-// Light: medium core (≈400) with lighter edges — colorful but not too deep. White glyph reads on the core.
-const APP_ICON_BACKGROUNDS_LIGHT: Record<SidebarAppId, string> = {
-  assistants: mesh('#BFDBFE', '#60A5FA', '#A5B4FC'),
-  agents: mesh('#A5F3FC', '#38BDF8', '#7DD3FC'),
-  paintings: mesh('#FBCFE8', '#F472B6', '#F9A8D4'),
-  translate: mesh('#BBF7D0', '#4ADE80', '#86EFAC'),
-  mini_app: mesh('#DDD6FE', '#A78BFA', '#C4B5FD'),
-  knowledge: mesh('#D9F99D', '#A3E635', '#BEF264'),
-  files: mesh('#FDE68A', '#FBBF24', '#FCD34D'),
-  code_tools: mesh('#C7D2FE', '#818CF8', '#A5B4FC'),
-  notes: mesh('#FED7AA', '#FB923C', '#FDBA74')
-}
-
-const APP_ICON_BACKGROUNDS_DARK: Record<SidebarAppId, string> = {
-  assistants: mesh('#93C5FD', '#60A5FA', '#A5B4FC'),
-  agents: mesh('#67E8F9', '#38BDF8', '#7DD3FC'),
-  paintings: mesh('#F9A8D4', '#F472B6', '#F0ABFC'),
-  translate: mesh('#86EFAC', '#4ADE80', '#BEF264'),
-  mini_app: mesh('#C4B5FD', '#A78BFA', '#F0ABFC'),
-  knowledge: mesh('#BEF264', '#A3E635', '#6EE7B7'),
-  files: mesh('#FCD34D', '#FBBF24', '#FDBA74'),
-  code_tools: mesh('#A5B4FC', '#818CF8', '#C4B5FD'),
-  notes: mesh('#FDBA74', '#FB923C', '#FCA5A5')
-}
 
 export default function LaunchpadPage() {
   const { t } = useTranslation()
