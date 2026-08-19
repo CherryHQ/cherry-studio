@@ -15,9 +15,20 @@ import { type BuiltinMcpServerName, BuiltinMcpServerNames } from '@shared/utils/
 /** A builtin server as declared in code; the `id` is assigned by the database on install. */
 export type McpServerPreset = Omit<McpServer, 'id' | 'name'> & { name: BuiltinMcpServerName }
 
+/** Frozen because both the renderer catalog and the seeder read these objects live. */
+const freezePresets = (presets: McpServerPreset[]): readonly Readonly<McpServerPreset>[] =>
+  Object.freeze(
+    presets.map((preset) => {
+      if (preset.env) Object.freeze(preset.env)
+      if (preset.headers) Object.freeze(preset.headers)
+      if (preset.args) Object.freeze(preset.args)
+      return Object.freeze(preset)
+    })
+  )
+
 const filesystemManualApprovalTools = ['write', 'edit', 'delete'] as const
 
-export const PRESET_MCP_SERVERS: McpServerPreset[] = [
+export const PRESET_MCP_SERVERS = freezePresets([
   {
     name: BuiltinMcpServerNames.flomo,
     reference: 'https://flomoapp.com',
@@ -159,4 +170,4 @@ export const PRESET_MCP_SERVERS: McpServerPreset[] = [
     installSource: 'builtin',
     isTrusted: true
   }
-]
+])

@@ -2,7 +2,7 @@
 title: flomo, Nowledge Mem and QVeris MCP servers now connect over HTTP
 category: data-migration
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: #18630
 date: 2026-08-15
 ---
 

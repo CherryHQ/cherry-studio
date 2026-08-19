@@ -1,4 +1,5 @@
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
+import { hashObject } from '@data/db/seeding/hashObject'
 import { BuiltinMcpServerSeeder } from '@data/db/seeding/seeders/builtinMcpServerSeeder'
 import { PRESET_MCP_SERVERS } from '@shared/data/presets/mcpServers'
 import { BuiltinMcpServerNames } from '@shared/utils/mcp'
@@ -49,12 +50,15 @@ describe('BuiltinMcpServerSeeder', () => {
     expect((await rowFor(BuiltinMcpServerNames.flomo)).installSource).toBe('builtin')
   })
 
-  it('does not relabel a row the user installed from somewhere else', async () => {
+  it('leaves a server the user owns alone even when its name collides with a builtin', async () => {
     await insert({ name: BuiltinMcpServerNames.flomo, type: 'inMemory', installSource: 'manual' })
 
     new BuiltinMcpServerSeeder().run(dbh.db)
 
-    expect((await rowFor(BuiltinMcpServerNames.flomo)).installSource).toBe('manual')
+    const row = await rowFor(BuiltinMcpServerNames.flomo)
+    expect(row.type).toBe('inMemory')
+    expect(row.baseUrl).toBeNull()
+    expect(row.installSource).toBe('manual')
   })
 
   it('keeps user edits made after the migration', async () => {
@@ -88,10 +92,12 @@ describe('BuiltinMcpServerSeeder', () => {
     expect(await dbh.db.select().from(mcpServerTable)).toEqual([])
   })
 
-  it('changes its version when the preset transports change', () => {
-    const version = new BuiltinMcpServerSeeder().version
+  it('derives its version from the preset transports, so a change reruns the migration', () => {
+    const repointed = PRESET_MCP_SERVERS.map((preset) =>
+      preset.name === BuiltinMcpServerNames.flomo ? { ...preset, baseUrl: 'https://flomoapp.com/mcp/v2' } : preset
+    )
 
-    expect(version).toBe(new BuiltinMcpServerSeeder().version)
-    expect(PRESET_MCP_SERVERS.some((preset) => preset.type !== 'inMemory')).toBe(true)
+    expect(new BuiltinMcpServerSeeder().version).toBe(hashObject(PRESET_MCP_SERVERS))
+    expect(hashObject(repointed)).not.toBe(hashObject(PRESET_MCP_SERVERS))
   })
 })

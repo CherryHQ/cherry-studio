@@ -6,11 +6,13 @@ const preset = (name: string) => PRESET_MCP_SERVERS.find((server) => server.name
 
 describe('PRESET_MCP_SERVERS', () => {
   it('models flomo and nowledge-mem as the HTTP endpoints they are', () => {
-    for (const name of [BuiltinMcpServerNames.flomo, BuiltinMcpServerNames.nowledgeMem]) {
-      expect(preset(name)).toEqual(
-        expect.objectContaining({ type: 'streamableHttp', baseUrl: expect.stringMatching(/^https?:\/\//) })
-      )
-    }
+    // The seeder writes these URLs onto installed rows, so the exact endpoint is the contract.
+    expect(preset(BuiltinMcpServerNames.flomo)).toEqual(
+      expect.objectContaining({ type: 'streamableHttp', baseUrl: 'https://flomoapp.com/mcp' })
+    )
+    expect(preset(BuiltinMcpServerNames.nowledgeMem)).toEqual(
+      expect.objectContaining({ type: 'streamableHttp', baseUrl: 'http://127.0.0.1:14242/mcp' })
+    )
   })
 
   it('models the online-package server as stdio instead of in-memory', () => {
