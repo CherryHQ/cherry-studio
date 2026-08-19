@@ -7,21 +7,31 @@ import { DEFAULT_VERTEX_MODEL_PUBLISHERS } from '../listModels/vertex'
 
 // The fetchers resolve the rotated API key (and, for Vertex, the iam-gcp auth
 // config + signed auth headers) off main-process singletons, then perform the
-// HTTP call through @ai-sdk/provider-utils' getFromApi. Mock all of them at the
+// HTTP calls through @ai-sdk/provider-utils. Mock all of them at the
 // module boundary: ProviderService / VertexAiService to avoid the DB and signing,
 // and provider-utils' getFromApi to capture the exact { url, headers } passed.
-const { getRotatedApiKeyMock, getAuthConfigMock, getAuthHeadersMock, getCopilotTokenMock, aiSdkGetFromApiMock } =
-  vi.hoisted(() => ({
-    getRotatedApiKeyMock: vi.fn<(providerId: string) => string>(),
-    getAuthConfigMock: vi.fn(),
-    getAuthHeadersMock: vi.fn(),
-    getCopilotTokenMock: vi.fn(),
-    aiSdkGetFromApiMock: vi.fn()
-  }))
+const {
+  getRotatedApiKeyMock,
+  resolveApiKeyMock,
+  getAuthConfigMock,
+  getAuthHeadersMock,
+  getCopilotTokenMock,
+  aiSdkGetFromApiMock,
+  postJsonToApiMock
+} = vi.hoisted(() => ({
+  getRotatedApiKeyMock: vi.fn<(providerId: string) => string>(),
+  resolveApiKeyMock: vi.fn(),
+  getAuthConfigMock: vi.fn(),
+  getAuthHeadersMock: vi.fn(),
+  getCopilotTokenMock: vi.fn(),
+  aiSdkGetFromApiMock: vi.fn(),
+  postJsonToApiMock: vi.fn()
+}))
 
 vi.mock('@main/data/services/ProviderService', () => ({
   providerService: {
     getRotatedApiKey: getRotatedApiKeyMock,
+    resolveApiKey: resolveApiKeyMock,
     getAuthConfig: getAuthConfigMock
   }
 }))
@@ -42,16 +52,19 @@ vi.mock('@ai-sdk/provider-utils', async (importOriginal) => {
   const actual = await importOriginal<typeof AiSdkProviderUtils>()
   return {
     ...actual,
-    getFromApi: aiSdkGetFromApiMock
+    getFromApi: aiSdkGetFromApiMock,
+    postJsonToApi: postJsonToApiMock
   }
 })
 
 // Import the SUT after the mocks are declared.
+const { resolveOllamaModelContextWindow } = await import('../custom/ollama/modelInfo')
 const { listModels } = await import('../listModels')
 
 beforeEach(() => {
   vi.clearAllMocks()
   getRotatedApiKeyMock.mockReturnValue('AIza-secret-key')
+  resolveApiKeyMock.mockReturnValue({ value: 'selected-secret-key' })
   getCopilotTokenMock.mockResolvedValue({ token: 'copilot-token' })
   // listModels' getFromApi wrapper reads `value` off the provider-utils result.
   aiSdkGetFromApiMock.mockResolvedValue({
@@ -59,6 +72,7 @@ beforeEach(() => {
       models: [{ name: 'models/gemini-2.0-flash', displayName: 'Gemini 2.0 Flash', description: 'fast' }]
     }
   })
+  postJsonToApiMock.mockResolvedValue({ value: {} })
 })
 
 function makeGeminiProvider() {
@@ -142,6 +156,73 @@ describe('listModels — Ollama capabilities', () => {
     expect(aiSdkGetFromApiMock.mock.calls[0][0]).toMatchObject({
       url: 'http://ollama.test:11434/api/tags'
     })
+  })
+
+  it('reads each model context window from the lightweight show endpoint', async () => {
+    aiSdkGetFromApiMock.mockResolvedValueOnce({
+      value: {
+        models: [
+          {
+            name: 'custom-gemma:12b',
+            capabilities: ['completion', 'tools'],
+            details: { family: 'gemma3' }
+          }
+        ]
+      }
+    })
+    postJsonToApiMock.mockResolvedValueOnce({
+      value: {
+        model_info: {
+          'general.architecture': 'gemma3',
+          'gemma3.context_length': 131_072
+        }
+      }
+    })
+
+    const models = await listModels(makeOllamaProvider())
+
+    expect(models[0]).toMatchObject({
+      apiModelId: 'custom-gemma:12b',
+      contextWindow: 131_072
+    })
+    expect(postJsonToApiMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: 'http://ollama.test:11434/api/show',
+        body: { model: 'custom-gemma:12b', verbose: false }
+      })
+    )
+  })
+
+  it('keeps listed models when optional show metadata is unavailable', async () => {
+    aiSdkGetFromApiMock.mockResolvedValueOnce({
+      value: { models: [{ name: 'offline-details:latest' }] }
+    })
+    postJsonToApiMock.mockRejectedValueOnce(new Error('show unavailable'))
+
+    await expect(listModels(makeOllamaProvider())).resolves.toEqual([
+      expect.objectContaining({ apiModelId: 'offline-details:latest' })
+    ])
+  })
+
+  it('uses the request-selected credential when resolving runtime model metadata', async () => {
+    postJsonToApiMock.mockResolvedValueOnce({
+      value: { model_info: { 'llama.context_length': 32_768 } }
+    })
+    const provider = makeOllamaProvider()
+
+    await resolveOllamaModelContextWindow(provider, 'runtime-only:latest', {
+      apiKeyOverride: 'selected-key'
+    })
+
+    expect(resolveApiKeyMock).toHaveBeenCalledWith('ollama', 'selected-key')
+    expect(postJsonToApiMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: 'Bearer selected-secret-key',
+          'X-Api-Key': 'selected-secret-key'
+        })
+      })
+    )
   })
 })
 

@@ -37,6 +37,7 @@ import * as z from 'zod'
 
 import { defaultHeaders, getBaseUrl, getExtraHeaders } from '../utils/provider'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
+import { resolveOllamaModelContextWindow } from './custom/ollama/modelInfo'
 import {
   createVertexModelListRequest,
   DEFAULT_VERTEX_MODEL_PUBLISHERS,
@@ -185,10 +186,27 @@ const ollamaFetcher: ModelFetcher = {
       responseSchema: OllamaTagsResponseSchema,
       abortSignal: signal
     })
-    return dedup(response.models, (m) => m.name).map((m) =>
+    const models = dedup(response.models, (m) => m.name).map((m) =>
       toModel(m.name, provider, {
         ownedBy: 'ollama',
         capabilities: m.capabilities?.includes('thinking') ? [MODEL_CAPABILITY.REASONING] : []
+      })
+    )
+
+    return Promise.all(
+      models.map(async (model) => {
+        try {
+          const contextWindow = await resolveOllamaModelContextWindow(provider, model.apiModelId ?? '', { signal })
+          return contextWindow ? { ...model, contextWindow } : model
+        } catch (error) {
+          if (signal?.aborted) throw error
+          logger.warn('Optional Ollama model details failed; continuing with tag metadata', {
+            providerId: provider.id,
+            modelId: model.apiModelId,
+            error
+          })
+          return model
+        }
       })
     )
   }

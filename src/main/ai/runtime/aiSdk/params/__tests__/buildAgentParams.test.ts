@@ -18,14 +18,24 @@ import type { ToolEntry } from '../../../../tools/adapters/aiSdk/types'
 import type { AppProviderSettingsMap } from '../../../../types'
 import type { CallOverrides } from '../../../../types/requests'
 
-const { preferenceGetMock, resolveProviderAiSdkConfigMock, resolveRequestContextSettingsSpy } = vi.hoisted(() => ({
+const {
+  preferenceGetMock,
+  resolveOllamaModelContextWindowMock,
+  resolveProviderAiSdkConfigMock,
+  resolveRequestContextSettingsSpy
+} = vi.hoisted(() => ({
   preferenceGetMock: vi.fn(),
+  resolveOllamaModelContextWindowMock: vi.fn(),
   resolveProviderAiSdkConfigMock: vi.fn(),
   resolveRequestContextSettingsSpy: vi.fn()
 }))
 
 vi.mock('../../../../provider/config', () => ({
   resolveProviderAiSdkConfig: resolveProviderAiSdkConfigMock
+}))
+
+vi.mock('../../../../provider/custom/ollama/modelInfo', () => ({
+  resolveOllamaModelContextWindow: resolveOllamaModelContextWindowMock
 }))
 
 // Spy that calls through to the real resolver (the null-pref mock keeps it
@@ -67,6 +77,7 @@ const { applyCallOverrides, buildAgentParams, composeStopWhen, resolveToolCallLi
 
 beforeEach(() => {
   preferenceGetMock.mockReturnValue(null)
+  resolveOllamaModelContextWindowMock.mockReset().mockResolvedValue(undefined)
 })
 
 describe('buildAgentParams provider resolution', () => {
@@ -90,6 +101,43 @@ describe('buildAgentParams provider resolution', () => {
       model,
       expect.objectContaining({ sessionId: 'topic-123' })
     )
+  })
+
+  it('discovers a missing Ollama context window before building the agent request', async () => {
+    resolveOllamaModelContextWindowMock.mockResolvedValue(131_072)
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'ollama', providerSettings: {} },
+      credentialReceipt: { attribution: 'explicit', id: 'key', masked: 'sk-****' }
+    })
+    const provider = makeProvider({
+      id: 'ollama',
+      defaultChatEndpoint: ENDPOINT_TYPE.OLLAMA_CHAT,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OLLAMA_CHAT]: { baseUrl: 'http://ollama.test:11434' }
+      }
+    })
+    const model = makeModel({
+      id: 'ollama::custom-gemma:12b',
+      providerId: 'ollama',
+      apiModelId: 'custom-gemma:12b',
+      contextWindow: undefined
+    })
+
+    const result = await buildAgentParams({
+      request: { apiKeyOverride: 'selected-key' },
+      signal: undefined,
+      provider,
+      model,
+      assistant: makeAssistant()
+    })
+
+    expect(resolveOllamaModelContextWindowMock).toHaveBeenCalledWith(provider, 'custom-gemma:12b', {
+      signal: undefined,
+      apiKeyOverride: 'selected-key'
+    })
+    expect(result.options.providerOptions).toMatchObject({
+      ollama: { options: { num_ctx: 131_072 } }
+    })
   })
 
   it('uses the resolved Vertex MaaS adapter, wire profile, and provider-options namespace', async () => {
