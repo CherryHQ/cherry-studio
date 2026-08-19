@@ -140,6 +140,24 @@ describe('createMcpBridgeServer', () => {
     expect(mocks.callTool).toHaveBeenCalledWith(expect.objectContaining({ name: 'search' }))
   })
 
+  it('rejects an unknown runtime tool without dispatching upstream', async () => {
+    mocks.listTools.mockReturnValue([searchTool()])
+    const client = await connectClient(
+      createMcpBridgeServer(
+        'server-1',
+        { id: 'server-1', name: 'Docs MCP', serverWireName: 'docs_123456789abc' } as never,
+        {
+          namingMode: 'runtime'
+        }
+      )
+    )
+
+    await expect(client.callTool({ name: 'search__not-a-binding', arguments: {} })).rejects.toThrow(
+      'Unknown MCP runtime tool'
+    )
+    expect(mocks.callTool).not.toHaveBeenCalled()
+  })
+
   it('omits the progress listener when the client sent no progressToken', async () => {
     mocks.listTools.mockReturnValue([searchTool()])
     mocks.callTool.mockResolvedValue({ content: [{ type: 'text', text: 'done' }] })
