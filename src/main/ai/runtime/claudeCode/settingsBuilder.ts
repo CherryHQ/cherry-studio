@@ -80,6 +80,7 @@ import {
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
+import { getBuiltinMcpToolIdentity } from '@shared/ai/tools/mcpBuiltinRuntimeNames'
 import { MCP_BUILTIN_SERVER_IDS } from '@shared/ai/tools/mcpToolIdentity'
 import { toCamelCase } from '@shared/ai/tools/mcpToolName'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
@@ -485,6 +486,7 @@ export async function buildClaudeCodeSessionSettings(
   const steerHolder = getSteerHolder(session.id)
   const agentsMdLoader = await AgentsMdLoader.create(cwd)
   const agentsMdContext = await agentsMdLoader.loadInitialContext()
+  const mcpToolMetadata = (await buildMcpToolMetadata(agent)) ?? {}
   // The hooks resolve the approval emitter / steer holder by session id at fire-time, so they are
   // not passed in; the holders above are created here only to expose them on `settings`.
   const { canUseTool, hooks, disallowedTools, toolPolicySnapshot } = await buildToolPermissions(
@@ -492,7 +494,8 @@ export async function buildClaudeCodeSessionSettings(
     agent,
     assistantMcpEnabled,
     agentDataPath,
-    agentsMdLoader
+    agentsMdLoader,
+    mcpToolMetadata
   )
 
   // 5. System prompt. The citation guidance is gated on the same resolved scope that decides whether
@@ -518,9 +521,6 @@ export async function buildClaudeCodeSessionSettings(
     agentDataPath,
     options?.knowledgeBaseIds
   )
-  let mcpToolMetadata = await buildMcpToolMetadata(agent)
-  if (agent.mcps?.length) mcpToolMetadata ??= {}
-
   // 7. Post-timeout reconciliation. If the bounded warm hit its cap, the snapshot (step 4) and
   // metadata above were built from a still-cold cache, while the SDK bridge will expose the warmed
   // tools moments later (the landing refresh fires `onToolsCacheUpdated` → `tools/list_changed` →
@@ -536,7 +536,7 @@ export async function buildClaudeCodeSessionSettings(
         if (!liveAgent) return
         await getToolPolicySnapshot(session.id)?.update(liveAgent)
         const freshMetadata = await buildMcpToolMetadata(liveAgent)
-        if (!metadataRef || !freshMetadata) return
+        if (!freshMetadata) return
         for (const key of Object.keys(metadataRef)) delete metadataRef[key]
         Object.assign(metadataRef, freshMetadata)
       })
@@ -618,7 +618,7 @@ export async function buildClaudeCodeSessionSettings(
     steerHolder,
     toolPolicySnapshot,
     warmQueryKey: session.id,
-    ...(mcpToolMetadata ? { mcpToolMetadata } : {}),
+    ...(agent.mcps?.length ? { mcpToolMetadata } : {}),
     ...(mcpServers ? { mcpServers, strictMcpConfig: true } : {}),
     ...(options?.thinkingOptions?.effort ? { effort: options.thinkingOptions.effort } : {}),
     ...(options?.thinkingOptions?.thinking ? { thinking: options.thinkingOptions.thinking } : {}),
@@ -899,7 +899,8 @@ async function buildToolPermissions(
   agent: AgentEntity,
   assistantMcpEnabled: boolean,
   agentDataPath: string,
-  agentsMdLoader: AgentsMdLoader
+  agentsMdLoader: AgentsMdLoader,
+  mcpToolMetadata: Record<string, McpToolDisplayMetadata>
 ): Promise<{
   canUseTool: CanUseTool
   hooks: ClaudeCodeSettings['hooks']
@@ -1180,8 +1181,15 @@ async function buildToolPermissions(
       const toolInput = (input as Record<string, unknown>).tool_input as Record<string, unknown> | undefined
       const command = toolInput?.command
       if (typeof command === 'string') reason = detectDestructiveAssistantCommand(command)
-    } else if (isPermanentDeletionToolName(toolName)) {
-      reason = 'permanent deletion tool'
+    } else {
+      const mcpTool = mcpToolMetadata[toolName] ?? getBuiltinMcpToolIdentity(toolName)
+      if (isPermanentDeletionToolName(toolName, mcpTool?.name)) {
+        reason = 'permanent deletion tool'
+      } else if (toolName.startsWith('mcp__') && !mcpTool) {
+        // Canonical external names are opaque. Until their catalog binding arrives, protected agents
+        // fail closed rather than accidentally treating a destructive call as auto-approved.
+        reason = 'MCP tool with an unresolved identity'
+      }
     }
 
     if (!reason) return {}
@@ -1478,7 +1486,7 @@ export function buildMcpServers(
     const wireName = server.serverWireName
     if (!wireName) continue
     for (const alias of new Set([id, server.name])) {
-      if (alias === wireName) continue
+      if (alias === wireName || Object.hasOwn(result, alias)) continue
       Object.defineProperty(result, alias, { value: result[wireName], enumerable: false })
     }
   }

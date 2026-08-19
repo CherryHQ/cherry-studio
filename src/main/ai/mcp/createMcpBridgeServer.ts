@@ -270,7 +270,11 @@ export function createMcpBridgeServer(
       const originalToolName = binding?.originalToolName ?? request.params.name
       logger.debug('MCP bridge: calling tool', { mcpId, tool: originalToolName })
       const result = sourceServer
-        ? await (await getSourceClient()).callTool({ name: originalToolName, arguments: request.params.arguments })
+        ? await (await getSourceClient()).callTool(
+            { name: originalToolName, arguments: request.params.arguments },
+            undefined,
+            extra.signal ? { signal: extra.signal } : undefined
+          )
         : await application.get('McpRuntimeService').callTool({
             serverId: serverConfig.id,
             name: originalToolName,

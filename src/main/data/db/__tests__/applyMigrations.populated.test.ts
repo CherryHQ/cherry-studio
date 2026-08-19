@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { applyMigrations } from '@data/db/applyMigrations'
 import type { DbType } from '@data/db/types'
 import { buildMcpServerWireName } from '@main/ai/mcp/mcpToolId'
+import { MCP_BUILTIN_RUNTIME_NAMES } from '@shared/ai/tools/mcpBuiltinRuntimeNames'
 import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
@@ -116,6 +117,23 @@ describe('applyMigrations over a populated database', () => {
          VALUES (?, ?, false, ?, ?), (?, ?, false, ?, ?)`
       )
       .run('mcp-server-a', 'Same Display Name', now, now, 'mcp-server-b', 'Same Display Name', now, now)
+    sqlite
+      .prepare(
+        `INSERT INTO agent (id, type, name, instructions, disabled_tools, order_key, created_at, updated_at)
+         VALUES (?, 'claude-code', 'Agent', '', ?, 'a0', ?, ?)`
+      )
+      .run(
+        'agent-mcp-disabled-tools',
+        JSON.stringify([
+          'mcp__cherry-tools__web_search',
+          'mcp__cherry-tools__web_search',
+          'mcp__assistant-files__move_to_trash',
+          'mcp__skills__install_skill',
+          'Bash'
+        ]),
+        now,
+        now
+      )
 
     applyMigrations(db, resolveMigrationsPath())
 
@@ -147,6 +165,14 @@ describe('applyMigrations over a populated database', () => {
     expect(sqlite.pragma('index_list(mcp_server)')).toEqual(
       expect.arrayContaining([expect.objectContaining({ name: 'mcp_server_wire_name_unique', unique: 1 })])
     )
+    expect(sqlite.prepare('SELECT disabled_tools FROM agent WHERE id = ?').get('agent-mcp-disabled-tools')).toEqual({
+      disabled_tools: JSON.stringify([
+        'Bash',
+        MCP_BUILTIN_RUNTIME_NAMES.assistantFiles.moveToTrash,
+        MCP_BUILTIN_RUNTIME_NAMES.cherryTools.webSearch,
+        MCP_BUILTIN_RUNTIME_NAMES.skills.installSkill
+      ])
+    })
   })
 
   it('quarantines legacy channel sessions without changing conversation history', () => {

@@ -26,6 +26,10 @@ describe('parseFunctionCallToolName', () => {
     // Providers can open a tool_use block before the name is known.
     expect(parseFunctionCallToolName(undefined)).toBeNull()
   })
+
+  it('refuses canonical runtime names because their binding is opaque', () => {
+    expect(parseFunctionCallToolName('mcp__cherry_tools__webSearch__a26653c54bd6')).toBeNull()
+  })
 })
 
 describe('toCamelCase', () => {

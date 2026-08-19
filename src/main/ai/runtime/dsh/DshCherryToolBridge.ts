@@ -35,8 +35,15 @@ interface DshToolBinding {
 
 export interface DshCherryToolBridge {
   tools: BridgeToolDescriptor[]
+  mcpToolMetadata: Readonly<Record<string, DshMcpToolMetadata>>
   callTool(name: string, args: unknown, signal?: AbortSignal): Promise<BridgeToolCallResult>
   close(): Promise<void>
+}
+
+export interface DshMcpToolMetadata {
+  serverId: string
+  serverName: string
+  name: string
 }
 
 export interface DshCherryToolBridgeOptions {
@@ -94,6 +101,7 @@ export async function buildDshCherryToolBridge(
   const clients: Client[] = []
   const tools: BridgeToolDescriptor[] = []
   const bindings = new Map<string, DshToolBinding>()
+  const mcpToolMetadata: Record<string, DshMcpToolMetadata> = {}
 
   for (const [serverId, server] of Object.entries(servers)) {
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
@@ -117,6 +125,11 @@ export async function buildDshCherryToolBridge(
       for (const { descriptor, rawName } of serverTools) {
         tools.push(descriptor)
         bindings.set(descriptor.name, { client, rawName })
+        mcpToolMetadata[descriptor.name] = {
+          serverId: server.serverId ?? serverId,
+          serverName: server.name,
+          name: rawName
+        }
       }
     } catch (error) {
       await client.close().catch(() => undefined)
@@ -130,6 +143,7 @@ export async function buildDshCherryToolBridge(
 
   return {
     tools,
+    mcpToolMetadata,
     async callTool(name, args, signal) {
       const binding = bindings.get(name)
       if (!binding) throw new Error(`Unknown dsh Cherry tool: ${name}`)

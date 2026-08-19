@@ -331,6 +331,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         { agentsDataRoot, toolResultRoot }
       )
       this.toolBridge = toolBridge
+      this.adapter.setMcpToolMetadata(toolBridge.mcpToolMetadata)
       const finalSnapshot = await captureDshConnectionSnapshot(
         this.input.sessionId,
         this.input.agentId,

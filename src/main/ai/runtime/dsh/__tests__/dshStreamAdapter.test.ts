@@ -33,7 +33,7 @@ const toolResultMessage = (id: string, content: ContentBlock[], isError?: boolea
   source: { kind: 'tool', callId: callId(id) }
 })
 
-function makeAdapter() {
+function makeAdapter(mcpToolMetadata: Record<string, { serverId: string; serverName: string; name: string }> = {}) {
   const chunks: CherryUIMessageChunk[] = []
   /** Interleaved sink order: chunk types and lifecycle markers, for ordering assertions. */
   const order: string[] = []
@@ -55,6 +55,7 @@ function makeAdapter() {
     onAutonomousTurnState,
     onPlanMode
   })
+  adapter.setMcpToolMetadata(mcpToolMetadata)
   return {
     adapter,
     chunks,
@@ -212,6 +213,22 @@ describe('DshStreamAdapter', () => {
     expect(chunks[0]).toMatchObject({
       providerMetadata: {
         cherry: { tool: { type: 'mcp', name: 'web_search', serverId: 'cherry-tools', serverName: 'cherry-tools' } }
+      }
+    })
+  })
+
+  it('uses an exact external MCP binding instead of decoding a canonical runtime name', () => {
+    const runtimeName = 'mcp__files_123456789abc__deleteFile__abcdef123456'
+    const { adapter, chunks } = makeAdapter({
+      [runtimeName]: { serverId: 'files-id', serverName: 'Files', name: 'delete_file' }
+    })
+    adapter.handleEvent(
+      envelope('tool/call', { turn: 1, step: 1, callId: callId('external-delete'), name: runtimeName, arguments: '{}' })
+    )
+
+    expect(chunks[0]).toMatchObject({
+      providerMetadata: {
+        cherry: { tool: { type: 'mcp', name: 'delete_file', serverId: 'files-id', serverName: 'Files' } }
       }
     })
   })

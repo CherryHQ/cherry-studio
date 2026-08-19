@@ -204,6 +204,52 @@ describe('createMcpBridgeServer', () => {
     })
   })
 
+  it('forwards the request cancellation signal through a runtime source-server bridge', async () => {
+    const source = new (await import('@modelcontextprotocol/sdk/server/mcp.js')).McpServer(
+      { name: 'source', version: '1.0.0' },
+      { capabilities: { tools: {} } }
+    )
+    let sourceSignal: AbortSignal | undefined
+    const handler = vi.fn((_request, extra: { signal: AbortSignal }) => {
+      sourceSignal = extra.signal
+      return new Promise((resolve) => {
+        extra.signal.addEventListener('abort', () => resolve({ content: [] }), { once: true })
+      })
+    })
+    source.server.setRequestHandler(
+      (await import('@modelcontextprotocol/sdk/types.js')).CallToolRequestSchema,
+      handler as never
+    )
+    source.server.setRequestHandler(
+      (await import('@modelcontextprotocol/sdk/types.js')).ListToolsRequestSchema,
+      async () => ({
+        tools: [{ name: 'search', description: 'Search', inputSchema: { type: 'object' } }]
+      })
+    )
+    const bridge = createMcpBridgeServer('builtin:source', undefined, {
+      namingMode: 'runtime',
+      sourceServer: {
+        server: source,
+        serverId: 'builtin:source',
+        serverName: 'source',
+        serverWireName: 'source'
+      }
+    })
+    const client = await connectClient(bridge)
+    const listed = await client.listTools()
+    const controller = new AbortController()
+
+    const call = client.callTool({ name: listed.tools[0].name, arguments: {} }, undefined, {
+      signal: controller.signal
+    })
+    void call.catch(() => undefined)
+    await vi.waitFor(() => expect(sourceSignal).toBeDefined())
+    controller.abort()
+    await vi.waitFor(() => expect(sourceSignal?.aborted).toBe(true))
+    await expect(call).rejects.toThrow()
+    await client.close()
+  })
+
   it('proxies prompts/get through McpRuntimeService when prompts are advertised', async () => {
     const sdkServer = createRawMcpBridge('server-1')
     const handlers = (sdkServer.server as unknown as { _requestHandlers: Map<string, RequestHandler> })._requestHandlers

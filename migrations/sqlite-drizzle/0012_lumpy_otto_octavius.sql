@@ -2,6 +2,16 @@ ALTER TABLE `mcp_server` ADD `server_wire_name` text;--> statement-breakpoint
 UPDATE `mcp_server`
 SET `server_wire_name` = cs_mcp_server_wire_name(`id`, `name`)
 WHERE `server_wire_name` IS NULL OR length(trim(`server_wire_name`)) = 0;--> statement-breakpoint
+UPDATE `agent`
+SET `disabled_tools` = (
+	SELECT json_group_array(`value`)
+	FROM (
+		SELECT DISTINCT cs_mcp_builtin_runtime_name(`value`) AS `value`
+		FROM json_each(`agent`.`disabled_tools`)
+		ORDER BY `value`
+	)
+)
+WHERE json_valid(`disabled_tools`) AND json_type(`disabled_tools`) = 'array';--> statement-breakpoint
 CREATE UNIQUE INDEX `mcp_server_wire_name_backfill_unique` ON `mcp_server` (`server_wire_name`);--> statement-breakpoint
 CREATE TABLE `__new_mcp_server` (
 	`id` text PRIMARY KEY NOT NULL,

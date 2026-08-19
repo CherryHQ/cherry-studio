@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { buildMcpServerWireName } from '@main/ai/mcp/mcpToolId'
+import { getBuiltinMcpRuntimeNameFromLegacyName } from '@shared/ai/tools/mcpBuiltinRuntimeNames'
 import { sql } from 'drizzle-orm'
 // The one sanctioned call site: this module is what wraps migrate() in the foreign-key
 // handling that the ban points every other caller to.
@@ -60,7 +61,7 @@ export function applyMigrations(db: DbType, migrationsFolder: string): void {
  */
 function registerMcpMigrationFunctions(db: DbType): void {
   const client = (
-    db as DbType & { $client?: { function: (name: string, handler: (...args: unknown[]) => string) => void } }
+    db as DbType & { $client?: { function: (name: string, handler: (...args: unknown[]) => unknown) => void } }
   ).$client
   if (!client) throw new Error('Cannot register MCP migration functions without the SQLite client')
   client.function('cs_mcp_server_wire_name', (serverId, serverName) => {
@@ -69,6 +70,9 @@ function registerMcpMigrationFunctions(db: DbType): void {
     }
     return buildMcpServerWireName({ serverId, serverName })
   })
+  client.function('cs_mcp_builtin_runtime_name', (name) =>
+    typeof name === 'string' ? (getBuiltinMcpRuntimeNameFromLegacyName(name) ?? name) : name
+  )
 }
 
 function isForeignKeysEnforced(db: DbType): boolean {

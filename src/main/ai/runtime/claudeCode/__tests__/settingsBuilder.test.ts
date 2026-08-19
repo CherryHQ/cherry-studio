@@ -217,6 +217,7 @@ vi.mock('../AgentsMdLoader', () => ({
 const {
   assertClaudeCodeWorkspaceDirectory,
   buildClaudeCodeSessionSettings,
+  buildMcpServers,
   disposeToolPolicySnapshot,
   prepareClaudeCodeWorkspaceDirectory,
   registerMcpSessionCatalogSync
@@ -1006,6 +1007,67 @@ describe('buildClaudeCodeSessionSettings', () => {
         {} as never
       )
     ).resolves.toEqual({})
+  })
+
+  it('denies canonical external MCP deletion by its exact catalog binding, and unknown canonical MCP calls fail closed', async () => {
+    const runtimeName = 'mcp__files_123456789abc__deleteFile__abcdef123456'
+    mocks.getAgent.mockReturnValue({
+      id: 'assistant-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: ['files-id'],
+      configuration: { builtin_role: 'assistant', permission_mode: 'bypassPermissions' }
+    })
+    mocks.findByIdOrName.mockReturnValue({
+      id: 'files-id',
+      name: 'Files',
+      serverWireName: 'files_123456789abc'
+    })
+    mocks.listMcpTools.mockReturnValue([{ id: 'files-delete', runtimeName, name: 'delete_file' }])
+
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-external-delete',
+        agentId: 'assistant-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+    const hook = settings.hooks?.PreToolUse?.[0]?.hooks.find(
+      (candidate) => candidate.name === 'assistantDestructiveOperationHook'
+    )
+
+    await expect(
+      hook?.(
+        { hook_event_name: 'PreToolUse', tool_name: runtimeName, tool_input: {} } as never,
+        'tool-use-1',
+        {} as never
+      )
+    ).resolves.toMatchObject({ hookSpecificOutput: { permissionDecision: 'deny' } })
+    await expect(
+      hook?.(
+        {
+          hook_event_name: 'PreToolUse',
+          tool_name: 'mcp__unknown_123456789abc__lookup__abcdef123456',
+          tool_input: {}
+        } as never,
+        'tool-use-2',
+        {} as never
+      )
+    ).resolves.toMatchObject({ hookSpecificOutput: { permissionDecision: 'deny' } })
+  })
+
+  it('does not let an external compatibility alias overwrite an enumerable built-in MCP server key', () => {
+    const servers = buildMcpServers(
+      { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+      { id: 'agent-1', mcps: ['external-id'] } as never,
+      false,
+      new Map([['external-id', { id: 'external-id', name: 'skills', serverWireName: 'external_skills' } as never]])
+    )
+
+    expect(Object.keys(servers ?? {})).toEqual(expect.arrayContaining(['skills', 'external_skills']))
+    expect(servers?.skills).not.toBe(servers?.external_skills)
+    expect(Object.getOwnPropertyDescriptor(servers ?? {}, 'skills')?.enumerable).toBe(true)
   })
 
   it('requires live approval for every Cherry Support Bash call under bypassPermissions', async () => {

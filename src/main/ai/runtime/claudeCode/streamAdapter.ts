@@ -39,6 +39,7 @@ import { extractSystemReminderBodies, SystemReminderTextFilter } from '@main/ai/
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentSessionBackgroundTask } from '@shared/ai/agentSessionBackgroundTasks'
 import type { AgentSessionCompactionAnchorData } from '@shared/ai/agentSessionCompaction'
+import { getBuiltinMcpToolIdentity } from '@shared/ai/tools/mcpBuiltinRuntimeNames'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { CherryUIMessageChunk, CherryUIMessageMetadata, MessageStats } from '@shared/data/types/message'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
@@ -1730,6 +1731,15 @@ export class ClaudeCodeStreamAdapter {
         toolType: 'mcp'
       }
     }
+    const builtin = getBuiltinMcpToolIdentity(tool.name)
+    if (builtin) {
+      return {
+        sdkBlockType: tool.type,
+        serverName: builtin.serverName,
+        serverId: builtin.serverId,
+        toolType: 'mcp'
+      }
+    }
     const parsed = parseFunctionCallToolName(tool.name)
     if (parsed) {
       return {
@@ -1756,21 +1766,38 @@ export class ClaudeCodeStreamAdapter {
   }
 
   private resolveMcpToolDisplayMetadata(state: ToolStreamState): McpToolDisplayMetadata | undefined {
-    if (state.toolType !== 'mcp' && !parseFunctionCallToolName(state.name)) return undefined
+    const builtin = getBuiltinMcpToolIdentity(state.name)
+    if (state.toolType !== 'mcp' && !builtin && !parseFunctionCallToolName(state.name)) return undefined
     return (
       this.mcpToolMetadata[state.name] ??
       (state.serverId ? this.mcpToolMetadata[`mcp__${state.serverId}__${state.name}`] : undefined) ??
-      (state.serverName ? this.mcpToolMetadata[`mcp__${state.serverName}__${state.name}`] : undefined)
+      (state.serverName ? this.mcpToolMetadata[`mcp__${state.serverName}__${state.name}`] : undefined) ??
+      (builtin
+        ? {
+            type: 'mcp',
+            serverId: builtin.serverId,
+            serverName: builtin.serverName,
+            name: builtin.name
+          }
+        : undefined)
     )
   }
 
   private mergeToolDisplayMetadata(state: ToolStreamState): void {
-    const parsed = parseFunctionCallToolName(state.name)
-    if (parsed) {
+    const builtin = getBuiltinMcpToolIdentity(state.name)
+    if (builtin) {
       state.toolType = 'mcp'
-      state.serverName = state.serverName ?? parsed.serverPart
-      state.serverId = state.serverId ?? parsed.serverPart
-      state.displayName = state.displayName ?? parsed.toolPart
+      state.serverName = state.serverName ?? builtin.serverName
+      state.serverId = state.serverId ?? builtin.serverId
+      state.displayName = state.displayName ?? builtin.name
+    } else {
+      const parsed = parseFunctionCallToolName(state.name)
+      if (parsed) {
+        state.toolType = 'mcp'
+        state.serverName = state.serverName ?? parsed.serverPart
+        state.serverId = state.serverId ?? parsed.serverPart
+        state.displayName = state.displayName ?? parsed.toolPart
+      }
     }
 
     const metadata = this.resolveMcpToolDisplayMetadata(state)

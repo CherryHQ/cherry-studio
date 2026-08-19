@@ -156,6 +156,10 @@ export type McpFunctionCallToolNameParts = {
 export function parseFunctionCallToolName(toolName: string | undefined): McpFunctionCallToolNameParts | null {
   if (!toolName?.startsWith('mcp__')) return null
 
+  // Canonical names carry a hashed wire-name suffix and are intentionally not reversible.
+  // Their consumers must resolve an explicit runtime binding instead of treating the digest as a tool name.
+  if (/^mcp__[A-Za-z0-9_]+__[A-Za-z0-9_]+__[0-9a-f]{12}$/.test(toolName)) return null
+
   const rest = toolName.slice('mcp__'.length)
   const delimiterIndex = rest.lastIndexOf('__')
   if (delimiterIndex <= 0 || delimiterIndex >= rest.length - 2) return null
