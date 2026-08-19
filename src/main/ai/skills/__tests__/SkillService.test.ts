@@ -632,6 +632,7 @@ describe('SkillService', () => {
     async function setupGithubInstall(options: {
       refs?: Array<{ name: string; oid: string; namespace?: 'heads' | 'tags' }>
       tree?: Array<string | { path: string; size: number }>
+      realInstall?: boolean
     }) {
       const skillService = new SkillService()
       const workDir = await createTempDir('github-install-')
@@ -673,7 +674,13 @@ describe('SkillService', () => {
         return ''
       })
 
-      const installSpy = vi.spyOn(skillService as never, 'installSkillDir').mockResolvedValue({} as never)
+      const installSkillDir = skillService['installSkillDir'].bind(skillService)
+      const installSpy = vi.spyOn(skillService as never, 'installSkillDir')
+      if (options.realInstall) {
+        installSpy.mockImplementation(installSkillDir as never)
+      } else {
+        installSpy.mockResolvedValue({} as never)
+      }
       vi.mocked(findSkillMdPath).mockImplementation(async (dir: string) => path.join(dir, 'SKILL.md'))
       return { skillService, installSpy, gitCalls, workDir }
     }
@@ -697,8 +704,51 @@ describe('SkillService', () => {
       expect(installSpy).toHaveBeenCalledWith(
         expect.stringContaining(path.join('skills', 'recruit-init')),
         'marketplace',
-        'https://github.com/owner/repo/tree/dev/skills/recruit-init'
+        'https://raw.githubusercontent.com/owner/repo/refs/heads/dev/skills/recruit-init/SKILL.md'
       )
+    })
+
+    it('updates the same skill when switching between blob and explicit raw branch URLs', async () => {
+      const root = await createTempDir('github-reinstall-')
+      const dataSkillsRoot = path.join(root, 'Data', 'Skills')
+      const mirrorRoot = path.join(root, '.claude', 'skills')
+      const getPathSpy = vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
+        const base = key === 'feature.agents.skills' ? dataSkillsRoot : mirrorRoot
+        return filename ? path.join(base, filename) : base
+      })
+      vi.mocked(parseSkillMetadata).mockResolvedValue({
+        sourcePath: 'demo',
+        filename: 'demo',
+        name: 'Demo',
+        description: 'Demo skill',
+        category: 'skills',
+        type: 'skill',
+        version: '1.0.0',
+        size: 0,
+        contentHash: 'demo-hash'
+      })
+      const { skillService } = await setupGithubInstall({
+        refs: [{ name: 'main', oid: 'a'.repeat(40) }],
+        realInstall: true
+      })
+
+      try {
+        const installed = await skillService.install({
+          installSource: 'github:https://github.com/owner/repo/blob/main/skills/demo/SKILL.md'
+        })
+        const updatedFromRaw = await skillService.install({
+          installSource: 'github:https://raw.githubusercontent.com/owner/repo/refs/heads/main/skills/demo/SKILL.md'
+        })
+        const updatedFromBlob = await skillService.install({
+          installSource: 'github:https://github.com/owner/repo/blob/main/skills/demo/SKILL.md'
+        })
+
+        expect(updatedFromRaw).toMatchObject({ id: installed.id, sourceUrl: installed.sourceUrl })
+        expect(updatedFromBlob).toMatchObject({ id: installed.id, sourceUrl: installed.sourceUrl })
+      } finally {
+        getPathSpy.mockRestore()
+        vi.mocked(parseSkillMetadata).mockReset()
+      }
     })
 
     it('resolves a slash-bearing branch against the remote instead of splitting at the first segment', async () => {
@@ -846,6 +896,20 @@ describe('SkillService', () => {
       })
 
       expect(gitFetchArgs(gitCalls)).toEqual(expect.arrayContaining([oid]))
+    })
+
+    it.each(['heads', 'tags'] as const)('does not treat a missing explicit %s ref as a commit', async (namespace) => {
+      const oid = 'c'.repeat(40)
+      const { skillService, gitCalls } = await setupGithubInstall({
+        refs: [{ name: 'main', oid: 'a'.repeat(40) }]
+      })
+
+      await expect(
+        skillService.install({
+          installSource: `github:https://raw.githubusercontent.com/owner/repo/refs/${namespace}/${oid}/skills/demo/SKILL.md`
+        })
+      ).rejects.toThrow('No branch or tag')
+      expect(gitFetchArgs(gitCalls)).toBeUndefined()
     })
 
     it('fails a github URL whose ref matches no branch, tag or commit', async () => {

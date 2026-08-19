@@ -545,14 +545,14 @@ export class SkillService {
 
     const { owner, repo, refNamespace, refAndPath, descriptorFileName } = location
     const repoUrl = `https://github.com/${owner}/${repo}`
-    const { ref, oid, target } = await this.resolveGithubCommit(repoUrl, refAndPath, refNamespace)
-    logger.info('Installing from GitHub', { owner, repo, ref, oid, target })
+    const { ref, namespace, oid, target } = await this.resolveGithubCommit(repoUrl, refAndPath, refNamespace)
+    logger.info('Installing from GitHub', { owner, repo, ref, namespace, oid, target })
 
-    // Keep the ref, not the commit, as the stored origin: a later install of the same skill has to
-    // match this URL to be treated as an update rather than a foreign folder collision.
+    // Keep the resolved ref and namespace, not the commit, as the stored origin so equivalent URL
+    // forms update the same skill while a same-named branch and tag remain distinct.
     const sourcePath = target.kind === 'root' ? ref : `${ref}/${target.path}`
-    const sourceUrl = refNamespace
-      ? `https://raw.githubusercontent.com/${owner}/${repo}/refs/${refNamespace}/${encodeGithubPath(`${sourcePath}/${descriptorFileName}`)}`
+    const sourceUrl = namespace
+      ? `https://raw.githubusercontent.com/${owner}/${repo}/refs/${namespace}/${encodeGithubPath(`${sourcePath}/${descriptorFileName}`)}`
       : `${repoUrl}/tree/${encodeGithubPath(sourcePath)}`
     const tempDir = await this.createTempDir('github')
 
@@ -581,7 +581,7 @@ export class SkillService {
     repoUrl: string,
     refAndPath: string[],
     refNamespace: 'heads' | 'tags' | null
-  ): Promise<{ ref: string; oid: string; target: GithubSkillTarget }> {
+  ): Promise<{ ref: string; namespace: 'heads' | 'tags' | null; oid: string; target: GithubSkillTarget }> {
     const gitCommand = (await findExecutableInEnv('git')) ?? 'git'
     const output = await this.runGit(gitCommand, ['ls-remote', '--heads', '--tags', '--', repoUrl])
     const refs = output.split('\n').flatMap((line) => {
@@ -596,16 +596,21 @@ export class SkillService {
     const resolution = resolveGithubRef(matchingRefs, refAndPath)
     switch (resolution.kind) {
       case 'resolved':
-        return { ref: resolution.ref.name, oid: resolution.ref.oid, target: resolution.target }
+        return {
+          ref: resolution.ref.name,
+          namespace: resolution.ref.namespace,
+          oid: resolution.ref.oid,
+          target: resolution.target
+        }
       case 'ambiguous':
         throw new Error(`${repoUrl} has both a branch and a tag named "${resolution.name}"; the URL cannot say which.`)
       case 'no-match': {
         const [head, ...rest] = refAndPath
         // A permalink names its commit outright, so no ref has to match for it to be exact.
-        if (/^[0-9a-f]{40}$/i.test(head)) {
+        if (refNamespace === null && /^[0-9a-f]{40}$/i.test(head)) {
           const target: GithubSkillTarget =
             rest.length === 0 ? { kind: 'root' } : { kind: 'directory', path: rest.join('/') }
-          return { ref: head, oid: head.toLowerCase(), target }
+          return { ref: head, namespace: null, oid: head.toLowerCase(), target }
         }
         throw new Error(`No branch or tag in ${repoUrl} matches "${refAndPath.join('/')}"`)
       }
