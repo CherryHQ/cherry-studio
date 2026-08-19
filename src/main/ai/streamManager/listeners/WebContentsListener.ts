@@ -1,12 +1,12 @@
 import { projectStreamChunkForRenderer } from '@main/utils/messageOutputProjection'
-import type { UniqueModelId } from '@shared/data/types/model'
+import { ConversationAttachStatus, type ConversationRef, conversationRefKey } from '@shared/ai/conversation'
 import type { IpcEventName } from '@shared/ipc/schemas/ipcSchemas'
 import type { EventPayload } from '@shared/ipc/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { UIMessageChunk } from 'ai'
 
 import type {
-  StreamChunkMetadata,
+  ConversationStreamIdentity,
   StreamDoneResult,
   StreamErrorResult,
   StreamListener,
@@ -34,10 +34,7 @@ export function isRendererListener(listener: Pick<StreamListener, 'id'>): boolea
 interface PendingDelta {
   type: 'text-delta' | 'reasoning-delta' | 'tool-input-delta'
   identifier: string
-  sourceModelId: UniqueModelId | undefined
-  anchorMessageId: string | undefined
-  attemptId: number | undefined
-  metadata: StreamChunkMetadata | undefined
+  identity: ConversationStreamIdentity
   text: string
 }
 
@@ -46,7 +43,7 @@ type CoalescableChunk =
   | { type: 'reasoning-delta'; id: string; delta: string; providerMetadata?: undefined }
   | { type: 'tool-input-delta'; toolCallId: string; inputTextDelta: string }
 
-/** One instance per (topic, window). Id `wc:${wc.id}:${topicId}` is stable across re-attach. */
+/** One instance per (Conversation, window). */
 export class WebContentsListener implements StreamListener {
   readonly id: string
 
@@ -56,18 +53,13 @@ export class WebContentsListener implements StreamListener {
 
   constructor(
     private readonly wc: Electron.WebContents,
-    private readonly topicId: string
+    private readonly conversation: ConversationRef
   ) {
-    this.id = `${RENDERER_LISTENER_ID_PREFIX}${wc.id}:${topicId}`
+    this.id = `${RENDERER_LISTENER_ID_PREFIX}${wc.id}:${conversationRefKey(conversation)}`
   }
 
-  onChunk(
-    chunk: UIMessageChunk,
-    sourceModelId?: UniqueModelId,
-    anchorMessageId?: string,
-    attemptId?: number,
-    metadata?: StreamChunkMetadata
-  ): void {
+  onChunk(chunk: UIMessageChunk, identity?: ConversationStreamIdentity): void {
+    if (!identity) return
     if (this.wc.isDestroyed()) {
       this.discardPending()
       return
@@ -75,21 +67,19 @@ export class WebContentsListener implements StreamListener {
 
     const coalescable = toCoalescable(chunk)
     if (coalescable) {
-      const next = normalizePending(coalescable, sourceModelId, anchorMessageId, attemptId, metadata)
+      const next = normalizePending(coalescable, identity)
       if (
         this.pending &&
         this.pending.type === next.type &&
         this.pending.identifier === next.identifier &&
-        this.pending.sourceModelId === next.sourceModelId &&
-        this.pending.anchorMessageId === next.anchorMessageId &&
-        this.pending.attemptId === next.attemptId
+        this.pending.identity.turnId === next.identity.turnId &&
+        this.pending.identity.executionId === next.identity.executionId &&
+        this.pending.identity.outputNodeId === next.identity.outputNodeId
       ) {
         this.pending.text += next.text
-        if (next.metadata && this.pending.metadata) {
-          this.pending.metadata = {
-            ...next.metadata,
-            chunkSeq: this.pending.metadata.chunkSeq
-          }
+        this.pending.identity = {
+          ...next.identity,
+          chunkSeq: this.pending.identity.chunkSeq
         }
         if (
           performance.now() - this.pendingStartedAt >= MAX_COALESCE_AGE_MS ||
@@ -107,7 +97,7 @@ export class WebContentsListener implements StreamListener {
     }
 
     this.flushPending()
-    this.sendChunk(chunk, sourceModelId, anchorMessageId, attemptId, metadata)
+    this.sendChunk(chunk, identity)
   }
 
   onDone(result: StreamDoneResult): void {
@@ -116,16 +106,16 @@ export class WebContentsListener implements StreamListener {
       return
     }
     this.flushPending()
+    if (!result.turnId || !result.executionId || !result.modelId || !result.anchorMessageId) return
     this.emit('ai.stream.done', {
-      topicId: this.topicId,
-      executionId: result.modelId,
-      ...(result.attemptId !== undefined ? { attemptId: result.attemptId } : {}),
-      ...(result.topicAttemptWatermark !== undefined ? { topicAttemptWatermark: result.topicAttemptWatermark } : {}),
-      anchorMessageId: result.anchorMessageId,
-      status: result.status,
-      isTopicDone: result.isTopicDone
+      conversation: this.conversation,
+      turnId: result.turnId,
+      executionId: result.executionId,
+      modelId: result.modelId,
+      outputNodeId: result.anchorMessageId,
+      status: ConversationAttachStatus.Done,
+      turnTerminal: result.turnTerminal === true
     })
-    this.emitTerminalEvent(result, 'success')
   }
 
   onPaused(result: StreamPausedResult): void {
@@ -134,16 +124,16 @@ export class WebContentsListener implements StreamListener {
       return
     }
     this.flushPending()
+    if (!result.turnId || !result.executionId || !result.modelId || !result.anchorMessageId) return
     this.emit('ai.stream.done', {
-      topicId: this.topicId,
-      executionId: result.modelId,
-      ...(result.attemptId !== undefined ? { attemptId: result.attemptId } : {}),
-      ...(result.topicAttemptWatermark !== undefined ? { topicAttemptWatermark: result.topicAttemptWatermark } : {}),
-      anchorMessageId: result.anchorMessageId,
-      status: result.status,
-      isTopicDone: result.isTopicDone
+      conversation: this.conversation,
+      turnId: result.turnId,
+      executionId: result.executionId,
+      modelId: result.modelId,
+      outputNodeId: result.anchorMessageId,
+      status: ConversationAttachStatus.Paused,
+      turnTerminal: result.turnTerminal === true
     })
-    this.emitTerminalEvent(result, 'paused')
   }
 
   onError(result: StreamErrorResult): void {
@@ -153,16 +143,16 @@ export class WebContentsListener implements StreamListener {
     }
     this.flushPending()
     // `result.finalMessage` is not forwarded — the renderer keeps its own accumulated state.
+    if (!result.turnId || !result.executionId || !result.modelId || !result.anchorMessageId) return
     this.emit('ai.stream.error', {
-      topicId: this.topicId,
-      executionId: result.modelId,
-      ...(result.attemptId !== undefined ? { attemptId: result.attemptId } : {}),
-      ...(result.topicAttemptWatermark !== undefined ? { topicAttemptWatermark: result.topicAttemptWatermark } : {}),
-      anchorMessageId: result.anchorMessageId,
-      isTopicDone: result.isTopicDone,
+      conversation: this.conversation,
+      turnId: result.turnId,
+      executionId: result.executionId,
+      modelId: result.modelId,
+      outputNodeId: result.anchorMessageId,
+      turnTerminal: result.turnTerminal === true,
       error: result.error
     })
-    this.emitTerminalEvent(result, 'error')
   }
 
   isAlive(): boolean {
@@ -179,7 +169,7 @@ export class WebContentsListener implements StreamListener {
     const p = this.pending
     if (!p) return
     this.pending = null
-    this.sendChunk(rebuildChunk(p), p.sourceModelId, p.anchorMessageId, p.attemptId, p.metadata)
+    this.sendChunk(rebuildChunk(p), p.identity)
   }
 
   private discardPending(): void {
@@ -190,63 +180,19 @@ export class WebContentsListener implements StreamListener {
     this.pending = null
   }
 
-  private sendChunk(
-    chunk: UIMessageChunk,
-    sourceModelId?: UniqueModelId,
-    anchorMessageId?: string,
-    attemptId?: number,
-    metadata?: StreamChunkMetadata
-  ): void {
+  private sendChunk(chunk: UIMessageChunk, identity: ConversationStreamIdentity): void {
     if (this.wc.isDestroyed()) return
-    const projectedChunk = projectStreamChunkForRenderer(chunk, this.topicId, anchorMessageId)
+    const projectedChunk = projectStreamChunkForRenderer(chunk, this.conversation, identity.outputNodeId)
     this.emit('ai.stream.chunk', {
-      topicId: this.topicId,
-      executionId: sourceModelId,
-      ...(attemptId !== undefined ? { attemptId } : {}),
-      anchorMessageId,
+      conversation: this.conversation,
+      turnId: identity.turnId,
+      executionId: identity.executionId,
+      modelId: identity.modelId,
+      outputNodeId: identity.outputNodeId,
+      chunkSeq: identity.chunkSeq,
+      throughChunkSeq: identity.throughChunkSeq,
       chunk: projectedChunk
     })
-    if (sourceModelId && attemptId !== undefined && metadata) {
-      this.emit('ai.stream.event', {
-        type: 'chunk',
-        topicId: this.topicId,
-        executionId: sourceModelId,
-        attemptId,
-        anchorMessageId,
-        ...metadata,
-        chunk: projectedChunk
-      })
-    }
-  }
-
-  private emitTerminalEvent(
-    result: StreamDoneResult | StreamPausedResult | StreamErrorResult,
-    outcome: 'success' | 'paused' | 'error'
-  ): void {
-    if (result.cycleId === undefined || result.controlRevision === undefined) return
-    if (result.modelId && result.attemptId !== undefined) {
-      this.emit('ai.stream.event', {
-        type: 'attempt-durably-settled',
-        topicId: this.topicId,
-        cycleId: result.cycleId,
-        controlRevision: result.controlRevision,
-        executionId: result.modelId,
-        attemptId: result.attemptId,
-        anchorMessageId: result.anchorMessageId,
-        outcome,
-        ...('error' in result ? { error: result.error } : {})
-      })
-    }
-    if (result.isTopicDone && result.topicAttemptWatermark !== undefined) {
-      this.emit('ai.stream.event', {
-        type: 'topic-quiesced',
-        topicId: this.topicId,
-        cycleId: result.cycleId,
-        controlRevision: result.topicControlRevision ?? result.controlRevision,
-        throughAttemptId: result.topicAttemptWatermark,
-        outcome
-      })
-    }
   }
 
   /**
@@ -271,31 +217,19 @@ function toCoalescable(chunk: UIMessageChunk): CoalescableChunk | null {
   return null
 }
 
-function normalizePending(
-  chunk: CoalescableChunk,
-  sourceModelId: UniqueModelId | undefined,
-  anchorMessageId: string | undefined,
-  attemptId: number | undefined,
-  metadata: StreamChunkMetadata | undefined
-): PendingDelta {
+function normalizePending(chunk: CoalescableChunk, identity: ConversationStreamIdentity): PendingDelta {
   if (chunk.type === 'tool-input-delta') {
     return {
       type: 'tool-input-delta',
       identifier: chunk.toolCallId,
-      sourceModelId,
-      anchorMessageId,
-      attemptId,
-      metadata,
+      identity,
       text: chunk.inputTextDelta
     }
   }
   return {
     type: chunk.type,
     identifier: chunk.id,
-    sourceModelId,
-    anchorMessageId,
-    attemptId,
-    metadata,
+    identity,
     text: chunk.delta
   }
 }

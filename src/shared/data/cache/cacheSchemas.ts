@@ -5,7 +5,7 @@ import type { Currency } from '@shared/data/types/model'
 import type { AutoBackupType } from '@shared/types/backup'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
-import type { TopicStatusSnapshotEntry } from '../../ai/transport'
+import type { ConversationStatusSnapshotEntry } from '../../ai/transport'
 import type * as CacheValueTypes from './cacheValueTypes'
 
 /**
@@ -286,8 +286,8 @@ export type SharedCacheSchema = {
   'agent.session.background_tasks.${sessionId}': CacheValueTypes.CacheAgentSessionBackgroundTasks
   'agent.session.task_events.${sessionId}': CacheValueTypes.CacheAgentSessionTaskEvents
   'agent.session.flow_parts.${sessionId}.${messageId}': CacheValueTypes.CacheAgentSessionFlowParts
-  'topic.stream.statuses.${topicId}': TopicStatusSnapshotEntry | null
-  'topic.stream.last_seen_completion.${topicId}': number | null
+  'conversation.statuses.${conversationKey}': ConversationStatusSnapshotEntry | null
+  'conversation.last_seen_completion.${conversationKey}': number | null
   'feature.openclaw.gateway_status': CacheValueTypes.OpenClawGatewayStatus
   // API gateway  runtime running state.
   'feature.api_gateway.running': boolean
@@ -335,8 +335,8 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'agent.session.background_tasks.${sessionId}': [],
   'agent.session.task_events.${sessionId}': {},
   'agent.session.flow_parts.${sessionId}.${messageId}': [],
-  'topic.stream.statuses.${topicId}': null,
-  'topic.stream.last_seen_completion.${topicId}': null,
+  'conversation.statuses.${conversationKey}': null,
+  'conversation.last_seen_completion.${conversationKey}': null,
   'feature.openclaw.gateway_status': 'stopped',
   'feature.api_gateway.running': false,
   'feature.binary.latest_versions': {},

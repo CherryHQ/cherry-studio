@@ -14,14 +14,13 @@
  * `compactModelMessages` returns the SAME array reference on a no-op, so we
  * return `undefined` then (nothing to override).
  *
- * Persistent-chat-only: excluded for agent-session topics (they manage their
- * own runtime queue) and temporary-chat topics — mirrors the budgetStop gate it
+ * Chat-driver-only: typed Agent runtime requests (which own their context in a
+ * stateful connection) and temporary-chat topics are excluded. This mirrors the budgetStop gate it
  * replaces. Having both this hook and the old budget-stop active would
  * double-compact, so budgetStop is removed in the same change.
  */
 import { compactModelMessages, resolveCompressionOutputTokens } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
-import { isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import {
   COMPACTION_INPUT_SAFETY_RATIO,
   COMPACTION_MIN_INPUT_BUDGET,
@@ -34,6 +33,7 @@ import { resolveRequestedMaxOutputTokens } from '@main/ai/contextBuild/resolveOu
 import { resolveModelTokenDialect, type TokenDialect } from '@main/ai/tokens/dialect'
 import { estimateModelMessagesSync } from '@main/ai/tokens/footprint'
 import { tokenxTokenizer } from '@main/ai/tokens/textTokenizer'
+import { AiRuntimeKind } from '@main/ai/types'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
 import { isAbortError } from '@main/utils/error'
 import { compactionAnchorChunkId } from '@shared/ai/compaction'
@@ -139,9 +139,9 @@ export const inLoopCompactionFeature: RequestFeature = {
   name: 'in-loop-compaction',
   applies: (scope) => {
     if (scope.request.contextOwner === 'caller') return false
+    if (scope.request.runtime?.kind === AiRuntimeKind.AgentSession) return false
     const topicId = scope.request.chatId
     if (!topicId) return false
-    if (isAgentSessionTopic(topicId)) return false
     if (temporaryChatService.hasTopic(topicId)) return false
     return Boolean(scope.contextSettings.enabled && scope.contextSettings.compress.enabled && scope.compressionModel)
   },

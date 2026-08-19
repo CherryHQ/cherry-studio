@@ -1,3 +1,9 @@
+import {
+  ConversationBlockReason,
+  ConversationKind,
+  ConversationOpenMode,
+  ConversationOpenTrigger
+} from '@shared/ai/conversation'
 import type { AiStreamOpenResponse } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { act, renderHook, waitFor } from '@testing-library/react'
@@ -53,8 +59,8 @@ function renderController(initialScopeKey = 'topic-a') {
         historyAdapter,
         ensureConversation: () => ({ topicId: scopeKey }),
         buildStreamRequest: (_input, conversation) => ({
-          trigger: 'submit-message',
-          topicId: conversation.topicId,
+          trigger: ConversationOpenTrigger.SubmitMessage,
+          conversation: { kind: ConversationKind.Chat, id: conversation.topicId },
           userMessageParts: []
         }),
         refreshMetadata
@@ -73,7 +79,7 @@ describe('useConversationTurnController', () => {
   it('ignores a stream-open acknowledgement from a previous scope', async () => {
     const pendingAck = createDeferred<AiStreamOpenResponse>()
     mocks.streamOpen.mockReturnValueOnce(pendingAck.promise)
-    const { result, rerender, historyAdapter, refreshMetadata } = renderController('agent-session:a')
+    const { result, rerender, historyAdapter, refreshMetadata } = renderController('agent:a')
 
     let sendFromA!: Promise<AiStreamOpenResponse | null>
     act(() => {
@@ -81,10 +87,10 @@ describe('useConversationTurnController', () => {
     })
     await waitFor(() => expect(mocks.streamOpen).toHaveBeenCalledOnce())
 
-    rerender({ scopeKey: 'agent-session:b' })
+    rerender({ scopeKey: 'agent:b' })
     await act(async () => {
       pendingAck.resolve({
-        mode: 'started',
+        mode: ConversationOpenMode.Started,
         reservedMessages: [{ id: 'assistant-a', role: 'assistant', parts: [] } as CherryUIMessage]
       })
       await sendFromA
@@ -93,11 +99,11 @@ describe('useConversationTurnController', () => {
     expect(result.current.phase).toBe('draft')
     expect(historyAdapter.seedReservedMessages).not.toHaveBeenCalled()
     expect(refreshMetadata).toHaveBeenCalledWith(
-      { topicId: 'agent-session:a' },
-      expect.objectContaining({ mode: 'started' })
+      { topicId: 'agent:a' },
+      expect.objectContaining({ mode: ConversationOpenMode.Started })
     )
 
-    mocks.streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+    mocks.streamOpen.mockResolvedValueOnce({ mode: ConversationOpenMode.Started, reservedMessages: [] })
     await act(async () => {
       await result.current.send('from B')
     })
@@ -107,8 +113,8 @@ describe('useConversationTurnController', () => {
 
   it('returns to ready when stream open is blocked', async () => {
     mocks.streamOpen.mockResolvedValueOnce({
-      mode: 'blocked',
-      reason: 'agent-session-workspace',
+      mode: ConversationOpenMode.Blocked,
+      reason: ConversationBlockReason.AgentSessionWorkspace,
       message: 'Workspace access is required'
     })
     const { result, historyAdapter } = renderController()

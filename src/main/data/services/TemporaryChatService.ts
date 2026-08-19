@@ -117,16 +117,69 @@ export class TemporaryChatService {
     return this.appendMessageWithStats(topicId, dto, stats, messageId)
   }
 
+  commitTurnSkeleton(
+    topicId: string,
+    input: {
+      user: CreateMessageDto
+      assistant: Omit<CreateMessageDto, 'role' | 'status'> & { id: string; role: 'assistant' }
+    }
+  ): { user: Message; assistant: Message } {
+    const list = this.messages.get(topicId)
+    const topic = this.topics.get(topicId)
+    if (!list || !topic) throw DataApiErrorFactory.notFound('TemporaryTopic', topicId)
+    const previousLength = list.length
+    const previousTopic = { ...topic }
+    try {
+      const user = this.appendMessageWithStats(topicId, input.user, undefined)
+      const assistant = this.appendMessageWithStats(
+        topicId,
+        { ...input.assistant, status: 'pending' },
+        undefined,
+        input.assistant.id,
+        true
+      )
+      return { user, assistant }
+    } catch (error) {
+      list.splice(previousLength)
+      Object.assign(topic, previousTopic)
+      throw error
+    }
+  }
+
+  settleAssistantMessage(
+    topicId: string,
+    dto: Omit<CreateMessageDto, 'role'> & { role: 'assistant' },
+    runtimeStats: MessageRuntimeStatsInput | undefined,
+    messageId: string
+  ): Message {
+    this.assertAcceptableAppendDto(dto)
+    const list = this.messages.get(topicId)
+    if (!list) throw DataApiErrorFactory.notFound('TemporaryTopic', topicId)
+    const row = list.find((message) => message.id === messageId)
+    if (!row || row.role !== 'assistant' || row.status !== 'pending') {
+      throw DataApiErrorFactory.notFound('TemporaryAssistantMessage', messageId)
+    }
+    const projection = aiUsageRecordService.getMessageUsageProjection({ kind: 'chat', id: messageId })
+    row.data = dto.data
+    row.status = dto.status ?? 'success'
+    row.modelId = dto.modelId ?? row.modelId
+    row.messageSnapshot = dto.messageSnapshot ?? row.messageSnapshot
+    row.stats = mergeMessageUsageProjection(runtimeStats, projection)
+    row.updatedAt = Date.now()
+    return rowToMessage(row)
+  }
+
   private appendMessageWithStats(
     topicId: string,
     dto: CreateMessageDto,
     stats: Message['stats'] | undefined,
-    messageId?: string
+    messageId?: string,
+    allowPending = false
   ): Message {
     if (!this.topics.has(topicId)) {
       throw DataApiErrorFactory.notFound('TemporaryTopic', topicId)
     }
-    this.assertAcceptableAppendDto(dto)
+    this.assertAcceptableAppendDto(dto, allowPending)
 
     const now = Date.now()
     const row: TemporaryMessageRow = {
@@ -284,7 +337,7 @@ export class TemporaryChatService {
     return { topicId, messageCount: msgs.length }
   }
 
-  private assertAcceptableAppendDto(dto: CreateMessageDto): void {
+  private assertAcceptableAppendDto(dto: CreateMessageDto, allowPending = false): void {
     const errors: Record<string, string[]> = {}
 
     if (dto.parentId != null) {
@@ -296,7 +349,7 @@ export class TemporaryChatService {
     if (dto.setAsActive != null) {
       errors.setAsActive = ['setAsActive is not supported in temporary chats (no activeNode)']
     }
-    if (dto.status === 'pending') {
+    if (dto.status === 'pending' && !allowPending) {
       errors.status = ['status=pending is not supported; post completed messages only']
     }
     if (dto.role == null || !VALID_ROLES.includes(dto.role)) {

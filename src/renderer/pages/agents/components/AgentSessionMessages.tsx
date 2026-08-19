@@ -9,7 +9,7 @@ import { ipcApi } from '@renderer/ipc'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@renderer/types/topic'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { buildAgentSessionScopeKey } from '@renderer/utils/agentSession'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { memo, useEffect, useMemo } from 'react'
 
@@ -56,7 +56,7 @@ const AgentSessionMessages = ({
   respondToolApproval
 }: Props) => {
   const { session } = useSession(sessionId)
-  const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
+  const sessionTopicId = useMemo(() => buildAgentSessionScopeKey(sessionId), [sessionId])
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
 
   const sessionAssistantId = session?.agentId ?? agentId
@@ -109,6 +109,7 @@ const AgentSessionMessages = ({
   )
 
   const messageList = useAgentMessageListProviderValue({
+    sessionId,
     topic: derivedTopic,
     messages,
     partsByMessageId,

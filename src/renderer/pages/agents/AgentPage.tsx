@@ -32,7 +32,7 @@ import { useConversationShellPaneState } from '@renderer/hooks/useConversationSh
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
 import { toast } from '@renderer/services/toast'
-import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { buildAgentFileWorkspaceKey, buildAgentSessionScopeKey } from '@renderer/utils/agentSession'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
@@ -124,7 +124,7 @@ const AgentPage = () => {
   const { agents, isLoading: isAgentsLoading } = useAgents()
   const [activeSessionId, setActiveSessionIdState] = useState<string | null>(() => routeActiveSessionId)
   const requestComposerFocus = useComposerFocusRequest(
-    activeSessionId ? buildAgentSessionTopicId(activeSessionId) : null
+    activeSessionId ? buildAgentSessionScopeKey(activeSessionId) : null
   )
   const syncedRouteActiveSessionIdRef = useRef(routeActiveSessionId)
   const ownerFallbackRequestIdRef = useRef(0)
@@ -423,7 +423,7 @@ const AgentPage = () => {
       }
       setActiveSession(session)
       closeSurface()
-      requestComposerFocus(buildAgentSessionTopicId(session.id))
+      requestComposerFocus(buildAgentSessionScopeKey(session.id))
     },
     [closeSurface, rememberLastUsedSession, requestComposerFocus, setActiveSession]
   )

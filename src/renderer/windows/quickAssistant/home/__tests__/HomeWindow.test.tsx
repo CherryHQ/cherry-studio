@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 
+import { ExecutionOverlayPhase } from '@renderer/services/aiTransport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { fireEvent, render, screen } from '@testing-library/react'
@@ -18,12 +19,9 @@ const state = vi.hoisted(() => ({
   },
   messages: [] as never[],
   activeExecutions: [] as never[],
-  attempts: [] as Array<{
-    attemptId: number
-    phase: 'active' | 'settled'
+  records: [] as Array<{
+    phase: ExecutionOverlayPhase
     message: { id: string; role: 'assistant'; parts: Array<{ type: 'text'; text: string }> }
-    isAbort: boolean
-    isError: boolean
   }>,
   sendMessage: vi.fn(),
   stopChat: vi.fn(),
@@ -81,13 +79,17 @@ vi.mock('@renderer/hooks/useTemporaryTopic', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => ({ activeExecutions: state.activeExecutions, isPending: false, topicBusy: false })
+vi.mock('@renderer/hooks/useConversationStreamStatus', () => ({
+  useConversationStreamStatus: () => ({
+    activeExecutions: state.activeExecutions,
+    isPending: state.activeExecutions.length > 0,
+    conversationBusy: state.activeExecutions.length > 0
+  })
 }))
 
 vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
   useExecutionOverlay: () => ({
-    attempts: state.attempts,
+    records: state.records,
     reset: state.resetExecutionMessages,
     clear: state.clearExecutionMessages
   })
@@ -201,7 +203,7 @@ describe('HomeWindow', () => {
     state.quickAssistantId = ''
     state.messages = []
     state.activeExecutions = []
-    state.attempts = []
+    state.records = []
     state.sendMessage.mockClear()
     state.stopChat.mockClear()
     state.setMessages.mockClear()
@@ -227,14 +229,13 @@ describe('HomeWindow', () => {
 
   it('keeps one assistant record across active → settled and consecutive turns', async () => {
     state.messages = [{ id: 'user-1', role: 'user', parts: [] }] as never[]
-    state.activeExecutions = [{ attemptId: 1 }] as never[]
-    state.attempts = [
+    state.activeExecutions = [
+      { turnId: 'turn-1', executionId: 'execution-1', modelId: 'cherryai::qwen', outputNodeId: 'assistant-1' }
+    ] as never[]
+    state.records = [
       {
-        attemptId: 1,
-        phase: 'active',
-        message: { id: 'assistant-1', role: 'assistant', parts: [{ type: 'text', text: 'one' }] },
-        isAbort: false,
-        isError: false
+        phase: ExecutionOverlayPhase.Active,
+        message: { id: 'assistant-1', role: 'assistant', parts: [{ type: 'text', text: 'one' }] }
       }
     ]
     const view = render(<HomeWindow draggable={false} />)
@@ -246,19 +247,16 @@ describe('HomeWindow', () => {
     view.rerender(<HomeWindow draggable={false} />)
     expect(screen.getByTestId('chat-window')).toHaveTextContent('user-1,assistant-1')
 
-    state.attempts = [{ ...state.attempts[0], phase: 'settled' }]
+    state.records = [{ ...state.records[0], phase: ExecutionOverlayPhase.Settled }]
     view.rerender(<HomeWindow draggable={false} />)
     expect(screen.getByTestId('chat-window').textContent?.match(/assistant-1/g)).toHaveLength(1)
 
     state.messages = [...state.messages, { id: 'user-2', role: 'user', parts: [] }] as never[]
-    state.attempts = [
-      ...state.attempts,
+    state.records = [
+      ...state.records,
       {
-        attemptId: 2,
-        phase: 'active',
-        message: { id: 'assistant-2', role: 'assistant', parts: [{ type: 'text', text: 'two' }] },
-        isAbort: false,
-        isError: false
+        phase: ExecutionOverlayPhase.Active,
+        message: { id: 'assistant-2', role: 'assistant', parts: [{ type: 'text', text: 'two' }] }
       }
     ]
     view.rerender(<HomeWindow draggable={false} />)

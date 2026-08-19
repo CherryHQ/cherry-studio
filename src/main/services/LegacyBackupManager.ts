@@ -323,19 +323,22 @@ class BackupManager {
         signal?.throwIfAborted()
         this.assertWritersDrained([channelVerdict])
 
-        const aiStreamManager = application.get('AiStreamManager')
-        const agentSessionRuntime = application.get('AgentSessionRuntimeService')
+        const aiStreamManager = application.get('PromptStreamManager')
+        const conversationRuntime = application.get('ConversationRuntimeService')
+        const agentSessionRuntime = application.get('AgentConnectionManager')
         const agentSessionDelivery = application.get('AgentSessionDeliveryService')
         const jobManager = application.get('JobManager')
         const writerHolds: Array<{ dispose(): void }> = []
         try {
           writerHolds.push(aiStreamManager.pause(quiesceReason))
+          writerHolds.push(conversationRuntime.pause(quiesceReason))
           writerHolds.push(agentSessionRuntime.pause(quiesceReason))
           writerHolds.push(agentSessionDelivery.pause(quiesceReason))
           writerHolds.push(jobManager.pause(quiesceReason))
 
           const writerVerdicts = await Promise.all([
             aiStreamManager.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
+            conversationRuntime.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
             agentSessionRuntime.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
             agentSessionDelivery.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
             jobManager.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS })
@@ -1448,8 +1451,9 @@ class BackupManager {
 
   private assertNoActiveDataWriters(): void {
     if (
-      application.get('AiStreamManager').hasLiveStreams() ||
-      application.get('AgentSessionRuntimeService').hasBusySessions() ||
+      application.get('PromptStreamManager').hasLiveStreams() ||
+      application.get('ConversationRuntimeService').hasLiveStreams() ||
+      application.get('AgentConnectionManager').hasBusySessions() ||
       application.get('AgentSessionDeliveryService').listActiveWork().length > 0
     ) {
       throw new Error(

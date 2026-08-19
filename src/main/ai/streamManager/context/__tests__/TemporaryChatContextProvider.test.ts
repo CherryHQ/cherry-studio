@@ -1,19 +1,21 @@
-import type { AiStreamOpenRequest } from '@shared/ai/transport'
+import { ConversationKind, ConversationOpenTrigger } from '@shared/ai/conversation'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { MainDispatchRequest } from '../dispatch'
 
 // ── Service mocks ────────────────────────────────────────────────────
 
 const getTopicMock = vi.fn()
 const hasTopicMock = vi.fn()
-const appendMessageMock = vi.fn()
+const commitTurnSkeletonMock = vi.fn()
 const listMessagesMock = vi.fn()
 
 vi.mock('@main/data/services/TemporaryChatService', () => ({
   temporaryChatService: {
     getTopic: getTopicMock,
     hasTopic: hasTopicMock,
-    appendMessage: appendMessageMock,
+    commitTurnSkeleton: commitTurnSkeletonMock,
     listMessages: listMessagesMock
   }
 }))
@@ -27,20 +29,6 @@ const getByKeyMock = vi.fn()
 vi.mock('@main/data/services/ModelService', () => ({
   modelService: { getByKey: getByKeyMock }
 }))
-
-// prepareDispatch issues an admission receipt through the manager.
-vi.mock('@application', async () => {
-  const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({
-    AiStreamManager: {
-      issueDispatchCommandReceipt: (_topicId: string, intent: unknown) => ({
-        intent,
-        admission: { mode: 'start-new' },
-        activeNodeDecision: { move: 'advance' }
-      })
-    }
-  } as never)
-})
 
 const { TemporaryChatContextProvider } = await import('../TemporaryChatContextProvider')
 const { PersistenceListener } = await import('../../listeners/PersistenceListener')
@@ -58,13 +46,25 @@ function makeSubscriber() {
   }
 }
 
-function openReq(overrides: Partial<AiStreamOpenRequest> = {}): AiStreamOpenRequest {
+function openReq(overrides: Partial<MainDispatchRequest> = {}): MainDispatchRequest {
   return {
-    topicId: '1',
-    trigger: 'submit-message',
+    conversation: { kind: ConversationKind.Chat, id: '1' },
+    trigger: ConversationOpenTrigger.SubmitMessage,
     userMessageParts: [{ type: 'text', text: 'hi' }],
     ...overrides
-  } as AiStreamOpenRequest
+  } as MainDispatchRequest
+}
+
+async function prepare(
+  provider: InstanceType<typeof TemporaryChatContextProvider>,
+  subscriber = makeSubscriber(),
+  req = openReq(),
+  hasLiveStream = false
+) {
+  const context = { hasLiveStream }
+  const validated = await provider.validateDispatch(req, context, new AbortController().signal)
+  const committed = provider.commitDispatch(subscriber, validated, context)
+  return committed.prepareExecutionContext(new AbortController().signal)
 }
 
 describe('TemporaryChatContextProvider', () => {
@@ -74,7 +74,7 @@ describe('TemporaryChatContextProvider', () => {
     provider = new TemporaryChatContextProvider()
     getTopicMock.mockReset()
     hasTopicMock.mockReset()
-    appendMessageMock.mockReset()
+    commitTurnSkeletonMock.mockReset()
     listMessagesMock.mockReset()
     getAssistantByIdMock.mockReset()
     getByKeyMock.mockReset()
@@ -91,52 +91,42 @@ describe('TemporaryChatContextProvider', () => {
       apiModelId: 'gpt-4o',
       name: 'GPT-4o'
     })
-    appendMessageMock.mockImplementation((_topicId, input) => ({
-      id: 'service-generated-id',
-      ...input
+    commitTurnSkeletonMock.mockImplementation((_topicId, input) => ({
+      user: { id: 'service-generated-id', createdAt: '2026-01-01', ...input.user },
+      assistant: { id: input.assistant.id, createdAt: '2026-01-01', status: 'pending', ...input.assistant }
     }))
-    listMessagesMock.mockReturnValue([
-      {
-        id: 'msg-u',
-        role: 'user',
-        data: { parts: [{ type: 'text', text: 'hi' }] }
-      }
-    ])
+    listMessagesMock.mockReturnValue([])
   })
 
   it('canHandle is state-based (hasTopic), not prefix-based', () => {
     hasTopicMock.mockReturnValueOnce(true)
-    expect(provider.canHandle('1')).toBe(true)
+    expect(provider.canHandle({ kind: ConversationKind.Chat, id: '1' })).toBe(true)
     hasTopicMock.mockReturnValueOnce(false)
-    expect(provider.canHandle('some-uuid')).toBe(false)
+    expect(provider.canHandle({ kind: ConversationKind.Chat, id: 'some-uuid' })).toBe(false)
     // Even a temp-prefixed id returns false once service no longer holds it.
     hasTopicMock.mockReturnValueOnce(false)
-    expect(provider.canHandle('vanished')).toBe(false)
+    expect(provider.canHandle({ kind: ConversationKind.Chat, id: 'vanished' })).toBe(false)
   })
 
   it('rejects regenerate-message — temp chats are immutable append-only', async () => {
     await expect(
-      provider.prepareDispatch(makeSubscriber(), openReq({ trigger: 'regenerate-message' }), { hasLiveStream: false })
+      prepare(provider, makeSubscriber(), openReq({ trigger: ConversationOpenTrigger.RegenerateMessage }))
     ).rejects.toThrow(/regenerate-message is not supported/i)
   })
 
   it('rejects a submit while a turn is in flight — temp chats have no steer queue', async () => {
-    await expect(provider.prepareDispatch(makeSubscriber(), openReq(), { hasLiveStream: true })).rejects.toThrow(
-      /while a turn is in flight/i
-    )
+    await expect(prepare(provider, makeSubscriber(), openReq(), true)).rejects.toThrow(/while a turn is in flight/i)
   })
 
   it('throws when topic does not exist', async () => {
     getTopicMock.mockReturnValueOnce(null)
-    await expect(provider.prepareDispatch(makeSubscriber(), openReq(), { hasLiveStream: false })).rejects.toThrow(
-      /Temporary topic not found/i
-    )
+    await expect(prepare(provider)).rejects.toThrow(/Temporary topic not found/i)
   })
 
   it('uses the default model preference when topic has no assistantId', async () => {
     getTopicMock.mockReturnValueOnce({ id: '1', assistantId: null })
 
-    const prepared = await provider.prepareDispatch(makeSubscriber(), openReq(), { hasLiveStream: false })
+    const prepared = await prepare(provider)
 
     expect(getAssistantByIdMock).not.toHaveBeenCalled()
     expect(prepared.models[0].modelId).toBe('openai::gpt-4o')
@@ -146,7 +136,7 @@ describe('TemporaryChatContextProvider', () => {
   it('uses the default model preference when topic.assistantId is undefined', async () => {
     getTopicMock.mockReturnValueOnce({ id: '1', assistantId: undefined })
 
-    const prepared = await provider.prepareDispatch(makeSubscriber(), openReq(), { hasLiveStream: false })
+    const prepared = await prepare(provider)
 
     expect(getAssistantByIdMock).not.toHaveBeenCalled()
     expect(prepared.models[0].modelId).toBe('openai::gpt-4o')
@@ -164,10 +154,10 @@ describe('TemporaryChatContextProvider', () => {
       name: `${providerId}/${modelId}`
     }))
 
-    const prepared = await provider.prepareDispatch(
+    const prepared = await prepare(
+      provider,
       makeSubscriber(),
-      openReq({ mentionedModelIds: ['anthropic::claude-sonnet-4-5'] }),
-      { hasLiveStream: false }
+      openReq({ mentionedModelIds: ['anthropic::claude-sonnet-4-5'] })
     )
 
     expect(getByKeyMock).toHaveBeenCalledWith('anthropic', 'claude-sonnet-4-5')
@@ -184,10 +174,10 @@ describe('TemporaryChatContextProvider', () => {
       name: `${providerId}/${modelId}`
     }))
 
-    const prepared = await provider.prepareDispatch(
+    const prepared = await prepare(
+      provider,
       makeSubscriber(),
-      openReq({ mentionedModelIds: ['anthropic::claude-sonnet-4-5', 'openai::gpt-4o'] }),
-      { hasLiveStream: false }
+      openReq({ mentionedModelIds: ['anthropic::claude-sonnet-4-5', 'openai::gpt-4o'] })
     )
 
     // Only the first one is materialised.
@@ -196,26 +186,28 @@ describe('TemporaryChatContextProvider', () => {
     expect(prepared.models[0].modelId).toBe('anthropic::claude-sonnet-4-5')
   })
 
-  it('appends the user message, then returns a PreparedDispatch with a TemporaryChatBackend listener', async () => {
+  it('commits user and assistant skeleton atomically before preparing the execution context', async () => {
     const subscriber = makeSubscriber()
+    const request = openReq()
+    const dispatchContext = { hasLiveStream: false }
+    const validated = await provider.validateDispatch(request, dispatchContext, new AbortController().signal)
+    const committed = provider.commitDispatch(subscriber, validated, dispatchContext)
+    const executionContext = await committed.prepareExecutionContext(new AbortController().signal)
 
-    const prepared = await provider.prepareDispatch(subscriber, openReq(), { hasLiveStream: false })
-
-    expect(prepared.topicId).toBe('1')
+    expect(executionContext.conversation).toEqual({ kind: ConversationKind.Chat, id: '1' })
     expect(provider.isPersistentConversation).toBe(false)
 
-    // user message was appended (service allocates the id)
-    expect(appendMessageMock).toHaveBeenCalledTimes(1)
-    const [topicId, userInput] = appendMessageMock.mock.calls[0]
+    expect(commitTurnSkeletonMock).toHaveBeenCalledTimes(1)
+    const [topicId, skeleton] = commitTurnSkeletonMock.mock.calls[0]
     expect(topicId).toBe('1')
-    expect(userInput.role).toBe('user')
-    expect(userInput.id).toBeUndefined()
+    expect(skeleton.user.role).toBe('user')
+    expect(skeleton.assistant).toMatchObject({ role: 'assistant', data: { parts: [] } })
 
-    expect(prepared.models).toHaveLength(1)
-    expect(prepared.models[0].modelId).toBe('openai::gpt-4o')
+    expect(executionContext.models).toHaveLength(1)
+    expect(executionContext.models[0].modelId).toBe('openai::gpt-4o')
 
-    expect(prepared.listeners).toEqual([subscriber])
-    const persistencePorts = prepared.persistencePorts
+    expect(committed.reservation.listeners).toEqual([subscriber])
+    const persistencePorts = committed.reservation.persistencePorts
     expect(persistencePorts).toHaveLength(1)
     // Persistence is strategy-based: a PersistenceListener wrapping the
     // in-memory temp backend. We assert via the public `backendKind` getter
@@ -224,27 +216,27 @@ describe('TemporaryChatContextProvider', () => {
     expect(persist).toBeInstanceOf(PersistenceListener)
     expect((persist as InstanceType<typeof PersistenceListener>).backendKind).toBe('temp')
 
-    // history was built from listMessages (post-append) → 1 user message visible to AI SDK
-    const request = prepared.models[0].request
-    expect(request.messages).toBeDefined()
-    expect(request.messages!).toHaveLength(1)
-    expect(request.messages![0].role).toBe('user')
+    // The model context includes the committed user but not the pending assistant skeleton.
+    const streamRequest = executionContext.models[0].request
+    expect(streamRequest.messages).toBeDefined()
+    expect(streamRequest.messages!).toHaveLength(1)
+    expect(streamRequest.messages![0].role).toBe('user')
     // The stream and temporary backend share one stable message id so
     // invocation records can link to it before later promotion rebuilds the
     // same message projection.
-    expect(request.messageId).toMatch(/^[0-9a-f-]{36}$/)
+    expect(streamRequest.messageId).toMatch(/^[0-9a-f-]{36}$/)
   })
 
   it('reads the knowledge scope from the submitted user-message parts', async () => {
-    const prepared = await provider.prepareDispatch(
+    const prepared = await prepare(
+      provider,
       makeSubscriber(),
       openReq({
         userMessageParts: [
           { type: 'text', text: 'search this' },
           { type: 'data-knowledge-scope', data: { baseIds: ['kb-1', 'kb-1', 'kb-2'] } }
         ]
-      }),
-      { hasLiveStream: false }
+      })
     )
 
     expect(prepared.models[0].request.knowledgeBaseIds).toEqual(['kb-1', 'kb-2'])

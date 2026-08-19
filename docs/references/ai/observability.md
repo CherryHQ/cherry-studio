@@ -45,9 +45,9 @@ The durable history file is written by the stream terminal path:
 
 - `PersistentChatContextProvider` attaches a `TraceFlushListener` to normal
   chat turns.
-- `AgentSessionRuntimeService` attaches the same listener to
-  `agent-session:${sessionId}` turns, including queued follow-up turns.
-- On the topic-level terminal event (`done`, `paused`, or `error`),
+- `AgentConnectionManager` attaches the same listener to exact Agent
+  `ConversationRef` executions, including queued follow-up turns.
+- On the durable Conversation terminal event (`done`, `paused`, or `error`),
   `TraceFlushListener` calls `TraceStorageService.saveSpans(topicId)`.
 - Flush errors are logged as warnings and do not affect message completion.
 

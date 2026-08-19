@@ -60,8 +60,8 @@ vi.mock('@renderer/hooks/useTemporaryTopic', () => ({
   }
 }))
 
-vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => ({ activeExecutions: [], isPending: state.isPending })
+vi.mock('@renderer/hooks/useConversationStreamStatus', () => ({
+  useConversationStreamStatus: () => ({ activeExecutions: [], isPending: state.isPending })
 }))
 
 vi.mock('@renderer/hooks/useExecutionOverlay', () => ({

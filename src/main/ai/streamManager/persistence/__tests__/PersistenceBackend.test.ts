@@ -7,6 +7,7 @@
  * The function is pure, so it is tested directly with no mocks.
  */
 
+import { ConversationOutcomeKind } from '@shared/ai/conversation'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -44,7 +45,7 @@ describe('finalizeInterruptedParts', () => {
   it('returns parts unchanged (by reference) on success', () => {
     const parts: CherryMessagePart[] = [textPart('hi'), inProgressToolPart('input-available')]
 
-    const result = finalizeInterruptedParts(parts, 'success')
+    const result = finalizeInterruptedParts(parts, ConversationOutcomeKind.Success)
 
     // success short-circuits: same array, untouched in-progress tool part.
     expect(result).toBe(parts)
@@ -54,7 +55,7 @@ describe('finalizeInterruptedParts', () => {
     it('rewrites an in-progress tool part to output-error with the paused reason', () => {
       const parts: CherryMessagePart[] = [inProgressToolPart('input-available')]
 
-      const result = finalizeInterruptedParts(parts, 'paused')
+      const result = finalizeInterruptedParts(parts, ConversationOutcomeKind.Paused)
 
       expect(result[0]).toMatchObject({
         type: 'tool-search',
@@ -70,7 +71,7 @@ describe('finalizeInterruptedParts', () => {
     it('rewrites an in-progress input-streaming tool part too', () => {
       const parts: CherryMessagePart[] = [inProgressToolPart('input-streaming')]
 
-      const result = finalizeInterruptedParts(parts, 'paused')
+      const result = finalizeInterruptedParts(parts, ConversationOutcomeKind.Paused)
 
       expect(result[0]).toMatchObject({ state: 'output-error', errorText: 'Interrupted by user' })
     })
@@ -78,7 +79,7 @@ describe('finalizeInterruptedParts', () => {
     it('rewrites an in-progress dynamic-tool part', () => {
       const parts: CherryMessagePart[] = [inProgressDynamicToolPart()]
 
-      const result = finalizeInterruptedParts(parts, 'paused')
+      const result = finalizeInterruptedParts(parts, ConversationOutcomeKind.Paused)
 
       expect(result[0]).toMatchObject({
         type: 'dynamic-tool',
@@ -91,7 +92,7 @@ describe('finalizeInterruptedParts', () => {
       const original = inProgressToolPart('input-available')
       const parts: CherryMessagePart[] = [original]
 
-      const result = finalizeInterruptedParts(parts, 'paused')
+      const result = finalizeInterruptedParts(parts, ConversationOutcomeKind.Paused)
 
       expect(result[0]).not.toBe(original)
       expect((original as { state: string }).state).toBe('input-available')
@@ -102,7 +103,7 @@ describe('finalizeInterruptedParts', () => {
     it('rewrites an in-progress tool part to output-error with the error reason', () => {
       const parts: CherryMessagePart[] = [inProgressToolPart('input-available')]
 
-      const result = finalizeInterruptedParts(parts, 'error')
+      const result = finalizeInterruptedParts(parts, ConversationOutcomeKind.Error)
 
       expect(result[0]).toMatchObject({
         state: 'output-error',
@@ -134,7 +135,7 @@ describe('finalizeInterruptedParts', () => {
     } as unknown as CherryMessagePart
 
     const parts: CherryMessagePart[] = [completed, errored, denied]
-    const result = finalizeInterruptedParts(parts, 'paused')
+    const result = finalizeInterruptedParts(parts, ConversationOutcomeKind.Paused)
 
     // identical objects returned by reference — no rewrite of terminal states.
     expect(result[0]).toBe(completed)
@@ -153,7 +154,7 @@ describe('finalizeInterruptedParts', () => {
       } as unknown as CherryMessagePart
     ]
 
-    const result = finalizeInterruptedParts(parts, 'paused')
+    const result = finalizeInterruptedParts(parts, ConversationOutcomeKind.Paused)
 
     expect(result[0]).toMatchObject({ state: 'output-error', errorText: 'earlier diagnostic' })
   })
@@ -163,7 +164,7 @@ describe('finalizeInterruptedParts', () => {
     const reasoning = { type: 'reasoning', text: 'thinking…' } as unknown as CherryMessagePart
     const parts: CherryMessagePart[] = [text, reasoning, inProgressToolPart('input-available')]
 
-    const result = finalizeInterruptedParts(parts, 'error')
+    const result = finalizeInterruptedParts(parts, ConversationOutcomeKind.Error)
 
     // text + reasoning returned by reference, untouched
     expect(result[0]).toBe(text)
@@ -183,7 +184,7 @@ describe('finalizeInterruptedParts', () => {
       }
     } as unknown as CherryMessagePart
 
-    const result = finalizeInterruptedParts([taskEvent], 'error')
+    const result = finalizeInterruptedParts([taskEvent], ConversationOutcomeKind.Error)
 
     expect(result[0]).toMatchObject({
       type: 'data-agent-task-event',
@@ -207,7 +208,7 @@ describe('finalizeInterruptedParts', () => {
       data: { event: 'started', taskId: 'task-2', status: 'pending' }
     } as unknown as CherryMessagePart
 
-    const result = finalizeInterruptedParts([completed, pending], 'error')
+    const result = finalizeInterruptedParts([completed, pending], ConversationOutcomeKind.Error)
 
     expect(result[0]).toBe(completed)
     expect(result[1]).toBe(pending)
@@ -228,7 +229,7 @@ describe('finalizeInterruptedParts', () => {
       }
     } as unknown as CherryMessagePart
 
-    const result = finalizeInterruptedParts([streamingReasoning], 'paused')
+    const result = finalizeInterruptedParts([streamingReasoning], ConversationOutcomeKind.Paused)
 
     expect(result[0]).toMatchObject({
       type: 'reasoning',
@@ -245,7 +246,7 @@ describe('finalizeInterruptedParts', () => {
       state: 'streaming'
     } as unknown as CherryMessagePart
 
-    const result = finalizeInterruptedParts([streamingReasoning], 'paused')
+    const result = finalizeInterruptedParts([streamingReasoning], ConversationOutcomeKind.Paused)
 
     expect(result[0]).toMatchObject({
       type: 'reasoning',

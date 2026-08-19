@@ -228,7 +228,7 @@ function geminiSchemaToJsonSchema(schema: unknown): JsonSchemaLike {
  * Gemini Message Converter
  *
  * Converts a Gemini `GenerateContentRequest` to AI SDK `CherryUIMessage[]` +
- * `ToolSet` for the gateway's unified `AiStreamManager` pipeline.
+ * `ToolSet` for the gateway's unified `PromptStreamManager` pipeline.
  */
 export class GeminiMessageConverter implements IMessageConverter<GeminiGenerateContentRequest> {
   /**

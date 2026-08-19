@@ -32,14 +32,13 @@ vi.mock('../security/OutputSanitizer', () => ({
   sanitizeChannelOutput: vi.fn((text: string) => ({ text, redacted: false }))
 }))
 
-// The global mock (tests/main.setup.ts) wires the default service set, which omits
-// AiStreamManager; the abort path reads it, so override locally.
+// The global mock omits the Conversation runtime; the abort path reads it, so override locally.
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
-    AiStreamManager: { abort: vi.fn() },
+    ConversationRuntimeService: { abort: vi.fn() },
     ChannelManager: { getAdapter: () => undefined },
-    ChannelTerminalDeliveryService: { enqueue: () => true }
+    ChannelDeliveryService: { updateLive: () => true, enqueueTerminal: () => true, isActive: () => true }
   } as never)
 })
 
@@ -78,6 +77,8 @@ vi.mock('@shared/data/types/model', async (importOriginal) => {
 
 const { mockStartAgentSessionRun } = vi.hoisted(() => ({ mockStartAgentSessionRun: vi.fn() }))
 vi.mock('@main/ai/streamManager/api/startAgentSessionRun', () => ({
+  StartAgentSessionRunMode: { Started: 'started', NotStarted: 'not-started' },
+  StartAgentSessionRunRejection: { Busy: 'busy', SessionInvalid: 'session-invalid' },
   startAgentSessionRun: (...args: unknown[]) => mockStartAgentSessionRun(...args)
 }))
 

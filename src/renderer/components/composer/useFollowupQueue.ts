@@ -30,7 +30,7 @@ function loadPaused(scopeKey: string): boolean {
 interface UseFollowupQueueParams {
   /** Per-conversation key — same `${topicId}:${assistantId}` scope as the draft cache. */
   scopeKey: string
-  /** `done`-and-unacknowledged edge from `useTopicStreamStatus` — the live→idle drain trigger. */
+  /** `done`-and-unacknowledged Conversation edge — the live→idle drain trigger. */
   isFulfilled: boolean
   /** Acknowledge the completion so the drain fires once per turn. */
   markSeen: () => void

@@ -8,6 +8,7 @@
  * never synthesise UIMessages or repeat projection logic.
  */
 
+import { ConversationOutcomeKind } from '@shared/ai/conversation'
 import type { CherryMessagePart, CherryUIMessage, MessageRuntimeStatsInput } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import {
@@ -37,12 +38,14 @@ export function stripTransientStatusParts(parts: CherryMessagePart[]): CherryMes
 
 export function finalizeInterruptedParts(
   parts: CherryMessagePart[],
-  status: 'success' | 'paused' | 'error'
+  status: ConversationOutcomeKind
 ): CherryMessagePart[] {
-  if (status === 'success') return parts
-  const interruptionReason = status === 'paused' ? 'Interrupted by user' : 'Stream errored'
-  const taskError = status === 'paused' ? interruptionReason : `${interruptionReason} before task completed`
-  const toolError = status === 'paused' ? interruptionReason : `${interruptionReason} before tool completed`
+  if (status === ConversationOutcomeKind.Success) return parts
+  const interruptionReason = status === ConversationOutcomeKind.Paused ? 'Interrupted by user' : 'Stream errored'
+  const taskError =
+    status === ConversationOutcomeKind.Paused ? interruptionReason : `${interruptionReason} before task completed`
+  const toolError =
+    status === ConversationOutcomeKind.Paused ? interruptionReason : `${interruptionReason} before tool completed`
   return parts.map((part) => {
     if (part.type === 'reasoning') {
       if (part.state === 'streaming') {
@@ -114,7 +117,7 @@ export function dropEmptyContentParts(parts: CherryMessagePart[]): CherryMessage
 export interface PersistAssistantInput {
   /** Undefined when the stream errored before producing any chunks. */
   finalMessage?: CherryUIMessage
-  status: 'success' | 'paused' | 'error'
+  status: ConversationOutcomeKind
   /** Set when the topic is multi-model. */
   modelId?: UniqueModelId
   runtimeStats?: MessageRuntimeStatsInput

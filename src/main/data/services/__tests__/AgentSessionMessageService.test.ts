@@ -13,6 +13,11 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
+import {
+  AgentSessionDeliveryOutcome,
+  AgentSessionDeliveryReplyPolicy,
+  AgentSessionDeliveryStatus
+} from '@shared/ai/agentSessionDelivery'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
 import { eq } from 'drizzle-orm'
@@ -322,13 +327,22 @@ describe('AgentSessionMessageService', () => {
         content: 'durable work'
       })
 
-      agentSessionMessageService.transitionSessionDelivery('target', accepted.id, 'delivering', {
-        expected: ['accepted'],
-        turnRef: 'assistant-turn'
-      })
+      agentSessionMessageService.transitionSessionDelivery(
+        'target',
+        accepted.id,
+        AgentSessionDeliveryStatus.Delivering,
+        {
+          expected: [AgentSessionDeliveryStatus.Accepted],
+          turnRef: 'assistant-turn'
+        }
+      )
       expect(agentSessionMessageService.listRecoverableSessionDeliveries()).toHaveLength(1)
 
-      const consumed = agentSessionMessageService.updateSessionDeliveryStatus('target', accepted.id, 'consumed')
+      const consumed = agentSessionMessageService.updateSessionDeliveryStatus(
+        'target',
+        accepted.id,
+        AgentSessionDeliveryStatus.Consumed
+      )
       expect(consumed?.delivery).toMatchObject({ status: 'consumed', statusAt: expect.any(String) })
       expect(agentSessionMessageService.listRecoverableSessionDeliveries()).toEqual([])
     })
@@ -360,7 +374,7 @@ describe('AgentSessionMessageService', () => {
         senderSessionId: 'sender',
         receiverSessionId: 'target',
         content: 'Do the work',
-        replyPolicy: 'completion'
+        replyPolicy: AgentSessionDeliveryReplyPolicy.Completion
       })
       const assistantId = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d090'
       agentSessionMessageService.saveMessage({
@@ -372,22 +386,27 @@ describe('AgentSessionMessageService', () => {
           data: { parts: [{ type: 'text', text: 'Frozen result' }] }
         }
       })
-      agentSessionMessageService.transitionSessionDelivery('target', request.id, 'delivering', {
-        expected: ['accepted'],
-        turnRef: assistantId
-      })
+      agentSessionMessageService.transitionSessionDelivery(
+        'target',
+        request.id,
+        AgentSessionDeliveryStatus.Delivering,
+        {
+          expected: [AgentSessionDeliveryStatus.Accepted],
+          turnRef: assistantId
+        }
+      )
 
       const first = agentSessionMessageService.finalizeSessionDelivery({
         requestSessionId: 'target',
         requestMessageId: request.id,
         assistantMessageId: assistantId,
-        outcome: 'success'
+        outcome: AgentSessionDeliveryOutcome.Success
       })
       const second = agentSessionMessageService.finalizeSessionDelivery({
         requestSessionId: 'target',
         requestMessageId: request.id,
         assistantMessageId: assistantId,
-        outcome: 'success'
+        outcome: AgentSessionDeliveryOutcome.Success
       })
 
       expect(first).toMatchObject({
@@ -451,7 +470,7 @@ describe('AgentSessionMessageService', () => {
         senderSessionId: 'sender',
         receiverSessionId: 'target',
         content: 'Do the work',
-        replyPolicy: 'completion'
+        replyPolicy: AgentSessionDeliveryReplyPolicy.Completion
       })
 
       agentSessionService.delete('target')
@@ -480,12 +499,17 @@ describe('AgentSessionMessageService', () => {
         senderSessionId: 'sender',
         receiverSessionId: 'target',
         content: 'Do the work',
-        replyPolicy: 'completion'
+        replyPolicy: AgentSessionDeliveryReplyPolicy.Completion
       })
-      agentSessionMessageService.transitionSessionDelivery('target', request.id, 'delivering', {
-        expected: ['accepted'],
-        turnRef: 'assistant-turn'
-      })
+      agentSessionMessageService.transitionSessionDelivery(
+        'target',
+        request.id,
+        AgentSessionDeliveryStatus.Delivering,
+        {
+          expected: [AgentSessionDeliveryStatus.Accepted],
+          turnRef: 'assistant-turn'
+        }
+      )
 
       agentService.deleteAgent('agent-b', { deleteSessions: false })
 

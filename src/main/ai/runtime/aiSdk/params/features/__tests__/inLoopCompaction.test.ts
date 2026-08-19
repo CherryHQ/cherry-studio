@@ -1,4 +1,5 @@
 import type * as AiCore from '@cherrystudio/ai-core'
+import { AiRuntimeKind } from '@main/ai/types'
 import type { ModelMessage } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -6,9 +7,6 @@ const compactModelMessages = vi.fn()
 vi.mock('@cherrystudio/ai-core', async (importOriginal) => ({
   ...(await importOriginal<typeof AiCore>()),
   compactModelMessages: (...args: unknown[]) => compactModelMessages(...args)
-}))
-vi.mock('@main/ai/agentSession/topic', () => ({
-  isAgentSessionTopic: (id: string) => id.startsWith('agent-session:')
 }))
 vi.mock('@main/data/services/TemporaryChatService', () => ({
   temporaryChatService: { hasTopic: (id: string) => id.startsWith('temp:') }
@@ -38,9 +36,14 @@ const scope = (overrides: {
   compressEnabled?: boolean
   compressionModel?: unknown
   adapterFamily?: string
+  runtime?: AiRuntimeKind
 }) =>
   ({
-    request: { chatId: overrides.chatId, contextOwner: overrides.contextOwner },
+    request: {
+      chatId: overrides.chatId,
+      contextOwner: overrides.contextOwner,
+      ...(overrides.runtime ? { runtime: { kind: overrides.runtime, sessionId: 'session-1', turnId: 'turn-1' } } : {})
+    },
     model: { id: 'prov::model', contextWindow: overrides.contextWindow },
     provider: provider(overrides.adapterFamily),
     contextSettings: {
@@ -110,9 +113,11 @@ describe('inLoopCompactionFeature', () => {
     expect(inLoopCompactionFeature.applies?.(scope({ chatId: 'topic-1', contextWindow: undefined }))).toBe(true)
   })
 
-  it('does not apply for agent-session topics', () => {
+  it('does not apply for typed Agent runtime requests', () => {
     expect(
-      inLoopCompactionFeature.applies?.(scope({ chatId: 'agent-session:s1', contextWindow: CONTEXT_WINDOW }))
+      inLoopCompactionFeature.applies?.(
+        scope({ chatId: 'session-1', contextWindow: CONTEXT_WINDOW, runtime: AiRuntimeKind.AgentSession })
+      )
     ).toBe(false)
   })
 

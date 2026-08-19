@@ -15,6 +15,7 @@ import { dispatchLocateMessage } from '@renderer/components/chat/messages/utils/
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
+import { useConversationStreamStatus } from '@renderer/hooks/useConversationStreamStatus'
 import {
   type ConversationHistoryAdapter,
   type ReservedMessageSeedOptions,
@@ -22,11 +23,11 @@ import {
 } from '@renderer/hooks/useConversationTurnController'
 import { type ExecutionFinishEvent, useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useToolApprovalBridge } from '@renderer/hooks/useToolApprovalBridge'
-import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
 import { isRenderableConversationMessage } from '@renderer/utils/message/messageProjection'
+import { ConversationKind, ConversationOpenTrigger, ConversationTargetMode } from '@shared/ai/conversation'
 import type { ComposerChatTarget } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -50,6 +51,11 @@ export interface ChatTurnInput {
   }
 }
 
+export interface TopicBranchLiveContribution {
+  topicId: string
+  state: TopicMessageFlowLiveState | null
+}
+
 interface UseChatRuntimeStateParams {
   topic: Topic
   isHistoryLoading: boolean
@@ -59,7 +65,13 @@ interface UseChatRuntimeStateParams {
   activeNodeId: string | null
   messagesCacheMutate: UseTopicMessagesCacheParams['mutate']
   assistant?: Assistant
-  onBranchLiveStateChange?: (state: TopicMessageFlowLiveState | null) => void
+  onBranchLiveStateChange?: (contribution: TopicBranchLiveContribution) => void
+}
+
+interface TopicBranchLiveBinding {
+  readonly topicId: string
+  published: boolean
+  onChange?: (contribution: TopicBranchLiveContribution) => void
 }
 
 function projectBranchFlowMessages(
@@ -81,8 +93,9 @@ export function useChatRuntimeState({
   assistant,
   onBranchLiveStateChange
 }: UseChatRuntimeStateParams) {
-  const { regenerate, stop, setMessages, activeExecutions } = useChatWithHistory(topic.id, initialMessages, refresh)
-  const { topicBusy } = useTopicStreamStatus(topic.id)
+  const conversation = useMemo(() => ({ kind: ConversationKind.Chat, id: topic.id }) as const, [topic.id])
+  const { regenerate, stop, setMessages, activeExecutions } = useChatWithHistory(conversation, initialMessages, refresh)
+  const { conversationBusy } = useConversationStreamStatus(conversation)
   const messages = uiMessages
   const invalidateCache = useInvalidateCache()
   const messageListRuntimeRef = useRef<MessageListRuntime | null>(null)
@@ -109,7 +122,8 @@ export function useChatRuntimeState({
   // site inside `chatWriteActions.regenerateWithCapabilities`.
 
   const [translationOverlay, setTranslationOverlayMap] = useState<Record<string, TranslationOverlayEntry>>({})
-  const runtimeBranchLiveStatePublishedRef = useRef(false)
+  const branchLiveBinding = useMemo<TopicBranchLiveBinding>(() => ({ topicId: topic.id, published: false }), [topic.id])
+  branchLiveBinding.onChange = onBranchLiveStateChange
   const setTranslationOverlay = useCallback<TranslationOverlaySetter>((messageId, entry) => {
     setTranslationOverlayMap((prev) => {
       if (entry == null) {
@@ -131,7 +145,21 @@ export function useChatRuntimeState({
     })
   }, [])
 
-  const finishRef = useRef<((executionId: string, event: ExecutionFinishEvent) => void) | undefined>(undefined)
+  const cache = useTopicMessagesCache({ topicId: topic.id, mutate: messagesCacheMutate })
+  const handleExecutionFinish = useCallback(
+    (_executionId: string, { message, isError }: ExecutionFinishEvent) => {
+      const treeCachePath = `/topics/${topic.id}/tree`
+      void (async () => {
+        try {
+          if (isError || !message.parts?.length) await cache.rollbackBranch()
+          await invalidateCache(treeCachePath)
+        } catch (err) {
+          logger.warn('failed to reconcile topic branch flow after execution finish', err as Error)
+        }
+      })()
+    },
+    [cache, invalidateCache, topic.id]
+  )
   const {
     overlay,
     liveAssistants,
@@ -139,8 +167,8 @@ export function useChatRuntimeState({
     projectedExecutions,
     activeNodeOverride,
     seedReservations: seedProjectionReservations
-  } = useExecutionOverlay(topic.id, activeExecutions, messages, {
-    onFinish: (executionId, event) => finishRef.current?.(executionId, event),
+  } = useExecutionOverlay(conversation, activeExecutions, messages, {
+    onFinish: handleExecutionFinish,
     refreshOnQuiesced: refresh
   })
 
@@ -169,7 +197,7 @@ export function useChatRuntimeState({
   const composerChatTarget = useMemo<ComposerChatTarget>(
     () => ({
       parentAnchorId: activeNodeId,
-      mode: activeAwaitingInputMessageId ? 'reserved-branch' : 'active-path'
+      mode: activeAwaitingInputMessageId ? ConversationTargetMode.ReservedBranch : ConversationTargetMode.ActivePath
     }),
     [activeAwaitingInputMessageId, activeNodeId]
   )
@@ -184,7 +212,7 @@ export function useChatRuntimeState({
   // main; MessageService publishes every committed change so the next card
   // comes from refreshed DB state, then Main starts the continuation after
   // every approval settles.
-  const respondToolApproval = useToolApprovalBridge(topic.id)
+  const respondToolApproval = useToolApprovalBridge(conversation)
   const toolApprovalComposerOverrides = useToolApprovalComposerOverrides({
     partsByMessageId,
     streamingLayers,
@@ -195,7 +223,6 @@ export function useChatRuntimeState({
     [toolApprovalComposerOverrides]
   )
 
-  const cache = useTopicMessagesCache({ topicId: topic.id, mutate: messagesCacheMutate })
   const seedMessagesCache = cache.seedReservedMessages
   const seedReservedMessages = useCallback(
     async (reservedMessages: CherryUIMessage[], options: ReservedMessageSeedOptions = {}) => {
@@ -231,7 +258,7 @@ export function useChatRuntimeState({
     },
     buildStreamRequest: ({ text, options }, conversation) => {
       const requestOptions = {
-        topicId: conversation.topicId,
+        conversation: { kind: ConversationKind.Chat, id: conversation.topicId } as const,
         mentionedModelIds: options?.mentionedModels,
         reasoningEffort: options?.reasoningEffort,
         ...(options?.fastMode ? { fastMode: true as const } : {})
@@ -239,7 +266,7 @@ export function useChatRuntimeState({
 
       return {
         ...requestOptions,
-        trigger: 'submit-message',
+        trigger: ConversationOpenTrigger.SubmitMessage,
         parentAnchorId: conversation.parentAnchorId ?? undefined,
         userMessageParts: options?.userMessageParts ?? [{ type: 'text' as const, text }],
         ...(options?.chatTarget ? { targetMode: options.chatTarget.mode } : {})
@@ -261,12 +288,12 @@ export function useChatRuntimeState({
     activeNodeOverride?.previousActiveNodeId === activeNodeId ? activeNodeOverride.activeNodeId : activeNodeId
 
   useEffect(() => {
-    if (!onBranchLiveStateChange) return
+    if (!branchLiveBinding.onChange) return
 
     if (projectedExecutions.length === 0 && branchFlowLiveMessages.length === 0) {
-      if (runtimeBranchLiveStatePublishedRef.current) {
-        runtimeBranchLiveStatePublishedRef.current = false
-        onBranchLiveStateChange(null)
+      if (branchLiveBinding.published) {
+        branchLiveBinding.published = false
+        branchLiveBinding.onChange({ topicId: branchLiveBinding.topicId, state: null })
       }
       return
     }
@@ -283,42 +310,24 @@ export function useChatRuntimeState({
     })
 
     if (!liveState) {
-      if (runtimeBranchLiveStatePublishedRef.current) {
-        runtimeBranchLiveStatePublishedRef.current = false
-        onBranchLiveStateChange(null)
+      if (branchLiveBinding.published) {
+        branchLiveBinding.published = false
+        branchLiveBinding.onChange({ topicId: branchLiveBinding.topicId, state: null })
       }
       return
     }
 
-    runtimeBranchLiveStatePublishedRef.current = true
-    onBranchLiveStateChange(liveState)
+    branchLiveBinding.published = true
+    branchLiveBinding.onChange({ topicId: branchLiveBinding.topicId, state: liveState })
   }, [
     branchFlowActiveNodeId,
     projectedExecutions.length,
     activeStreamingMessageIds,
     branchFlowLiveMessages,
-    onBranchLiveStateChange,
+    branchLiveBinding,
     partsByMessageId,
     topic.id
   ])
-
-  const handleExecutionFinish = useCallback(
-    (_executionId: string, { message, isError }: ExecutionFinishEvent) => {
-      const treeCachePath = `/topics/${topic.id}/tree`
-      void (async () => {
-        try {
-          if (isError || !message.parts?.length) {
-            await cache.rollbackBranch()
-          }
-          await invalidateCache(treeCachePath)
-        } catch (err) {
-          logger.warn('failed to reconcile topic branch flow after execution finish', err as Error)
-        }
-      })()
-    },
-    [cache, invalidateCache, topic.id]
-  )
-  finishRef.current = handleExecutionFinish
 
   const shouldRenderHomeComposer = false
 
@@ -334,7 +343,10 @@ export function useChatRuntimeState({
     seedReservedMessages,
     scrollToBottom,
     startNewContextBlocked:
-      isHistoryLoading || topicBusy || turnController.phase === 'persisting' || turnController.phase === 'opening',
+      isHistoryLoading ||
+      conversationBusy ||
+      turnController.phase === 'persisting' ||
+      turnController.phase === 'opening',
     assistant
   })
 

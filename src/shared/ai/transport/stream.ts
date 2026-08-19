@@ -4,25 +4,29 @@ import type { AssistantTurnOptions, CherryMessagePart, CherryUIMessage } from '.
 import type { UniqueModelId } from '../../data/types/model'
 import type { ReasoningEffortOption } from '../../types/aiSdk'
 import type { SerializedError } from '../../types/error'
+import type {
+  ConversationActiveNodeMove,
+  ConversationAttachStatus,
+  ConversationBlockReason,
+  ConversationOpenMode,
+  ConversationOpenTrigger,
+  ConversationStatus,
+  ConversationTargetMode
+} from '../conversation'
+import {
+  ConversationAdmissionReason,
+  type ConversationExecutionId,
+  type ConversationRef,
+  type ConversationTurnId
+} from '../conversation'
 
-export const aiStreamAdmissionReasons = {
-  SINGLE_MODEL_REQUIRED: 'SINGLE_MODEL_REQUIRED',
-  TARGET_NOT_IN_LIVE_GROUP: 'TARGET_NOT_IN_LIVE_GROUP',
-  MODEL_ALREADY_IN_LIVE_GROUP: 'MODEL_ALREADY_IN_LIVE_GROUP',
-  EXECUTION_NOT_READY: 'EXECUTION_NOT_READY',
-  EXECUTION_CHANGED: 'EXECUTION_CHANGED',
-  TOPIC_BUSY: 'TOPIC_BUSY'
-} as const
-
-export type AiStreamAdmissionReason = (typeof aiStreamAdmissionReasons)[keyof typeof aiStreamAdmissionReasons]
-
-export function isAiStreamAdmissionReason(value: unknown): value is AiStreamAdmissionReason {
-  return Object.values(aiStreamAdmissionReasons).some((reason) => reason === value)
+export function isConversationAdmissionReason(value: unknown): value is ConversationAdmissionReason {
+  return Object.values(ConversationAdmissionReason).some((reason) => reason === value)
 }
 
 export interface AiChatRequestBody extends AssistantTurnOptions {
-  /** Topic ID for message routing and persistence. */
-  topicId: string
+  /** Stable Chat/Agent identity for routing and persistence. */
+  conversation: ConversationRef
   /** Explicit chat target — active branch tip, or the blank user row for a reserved-branch submit. */
   parentAnchorId?: string
   /** Composer-selected request models; one id overrides the fallback, while supported flows may fan out several. */
@@ -37,122 +41,52 @@ export interface AiChatRequestBody extends AssistantTurnOptions {
 
 /** A single chunk of a running stream. */
 export interface StreamChunkPayload {
-  topicId: string
-  /** Multi-model: source model that produced this chunk. Frontend demuxes by this plus anchorMessageId. */
-  executionId?: UniqueModelId
-  /** Unique runtime attempt. Distinguishes repeated runs of the same model against the same row. */
-  attemptId?: number
-  /** Assistant row this execution writes to. Disambiguates same-model chained turns. */
-  anchorMessageId?: string
-  /** Topic lifecycle generation. A new aggregate always gets a new cycle. */
-  cycleId?: number
-  /** Monotonic sequence within one attempt. */
-  chunkSeq?: number
+  conversation: ConversationRef
+  turnId: ConversationTurnId
+  executionId: ConversationExecutionId
+  modelId: UniqueModelId
+  /** Assistant row this execution writes to. */
+  outputNodeId: string
+  /** Monotonic sequence within one execution. */
+  chunkSeq: number
   /** Last sequence represented by this payload after buffer coalescing. */
   throughChunkSeq?: number
   chunk: UIMessageChunk
 }
 
-export interface StreamProtocolChunkEvent extends Omit<StreamChunkPayload, 'attemptId' | 'executionId'> {
-  type: 'chunk'
-  executionId: UniqueModelId
-  attemptId: number
-  cycleId: number
-  chunkSeq: number
-  /** Last raw sequence represented when adjacent deltas were coalesced for the wire. */
-  throughChunkSeq: number
-}
-
-export interface StreamProtocolReplayChunkEvent extends StreamProtocolChunkEvent {
-  /** Replay-only structural repair; route it without advancing the source sequence cursor. */
-  synthetic?: true
-}
-
-export interface StreamProtocolAttemptSettledEvent {
-  type: 'attempt-durably-settled'
-  topicId: string
-  cycleId: number
-  controlRevision: number
-  executionId: UniqueModelId
-  attemptId: number
-  anchorMessageId?: string
-  outcome: 'success' | 'paused' | 'error'
-  error?: SerializedError
-}
-
-export interface StreamProtocolTopicQuiescedEvent {
-  type: 'topic-quiesced'
-  topicId: string
-  cycleId: number
-  controlRevision: number
-  throughAttemptId: number
-  outcome: 'success' | 'paused' | 'error'
-}
-
-export type StreamProtocolEvent =
-  | StreamProtocolChunkEvent
-  | StreamProtocolAttemptSettledEvent
-  | StreamProtocolTopicQuiescedEvent
-
-export interface StreamAttachAttemptSnapshot {
-  executionId: UniqueModelId
-  attemptId: number
-  anchorMessageId?: string
-  seedFromEmpty?: boolean
-  phase: 'reserved' | 'running' | 'finalizing' | 'persistence-blocked' | 'settled'
-  outcome?: 'success' | 'paused' | 'error'
-  error?: SerializedError
-  replayChunks: StreamProtocolReplayChunkEvent[]
-  throughChunkSeq: number
-}
-
-export interface StreamAttachSnapshot {
-  cycleId: number
-  controlRevision: number
-  /** True while an attempt, approval, continuation, or command can still produce work. */
-  topicOpen: boolean
-  attempts: StreamAttachAttemptSnapshot[]
-}
-
 /**
- * Topic-level lifecycle state, broadcast to all windows so observers
- * (sidebars, backup gate, etc.) can track whether a topic is currently
+ * Conversation lifecycle state, broadcast to all windows so observers
+ * (sidebars, backup gate, etc.) can track whether a Conversation is currently
  * producing content without having to attach a chunk listener.
  *
  * Distinct from per-message `AssistantMessageStatus` (persisted in SQLite
- * per assistant reply) — this describes the ActiveStream, which is
- * ephemeral and lives only while AiStreamManager has an entry for the topic.
+ * per assistant reply) — this is a projection of Conversation control state,
+ * while execution resources remain private to Main.
  */
-export type TopicStreamStatus =
-  | 'pending' // ActiveStream created; no chunk has arrived yet from any execution
-  | 'streaming' // at least one chunk has arrived; content is flowing
-  | 'done' // all executions completed successfully
-  | 'aborted' // user stopped; partial content may exist
-  | 'awaiting-approval' // paused waiting for the user to approve/deny a tool call (cross-window via shared cache)
-  | 'error' // at least one execution errored with isTopicDone
-
 /**
- * One live execution on a topic. `anchorMessageId` is the assistant row
+ * One live execution in a Conversation. `outputNodeId` is the assistant row
  * the execution writes to (placeholder for fresh/regenerate, anchor for
  * tool-approval continue). Undefined for transports that don't pre-allocate
  * a row (temporary topic).
  */
-export interface ActiveExecution {
-  executionId: UniqueModelId
-  /** Unique runtime attempt, monotonic within the Main-process lifetime; newer attempts have larger values. */
-  attemptId: number
-  anchorMessageId?: string
-  /** This attempt reset its persisted anchor row and must start from empty parts in every window. */
+export interface ConversationExecutionProjection {
+  turnId: ConversationTurnId
+  executionId: ConversationExecutionId
+  modelId: UniqueModelId
+  outputNodeId?: string
+  /** This execution reset its persisted output row and must start from empty parts in every window. */
   seedFromEmpty?: boolean
 }
 
-export type ActiveNodeDecision = { readonly move: 'advance' | 'keep' }
+export interface ActiveNodeDecision {
+  readonly move: ConversationActiveNodeMove
+}
 
 /** Chat-tree target captured when a queued draft is created. */
 export interface ComposerChatTarget {
   parentAnchorId: string | null
   /** Reserved branches wait for topic idle and must not be injected into the running turn. */
-  mode: 'active-path' | 'reserved-branch'
+  mode: ConversationTargetMode
 }
 
 export interface ComposerQueuedMessagePayload {
@@ -175,30 +109,21 @@ export interface ComposerQueuedMessagePayload {
 }
 
 /**
- * Per-topic stream state entry — stored under the shared
- * `topic.stream.statuses.${topicId}` template cache key.
+ * Per-Conversation stream state entry — stored under the shared
+ * `conversation.statuses.${kind}:${id}` template cache key.
  *
- * `activeExecutions` names every execution in the attempt machine's `running`
- * phase. Empty once every execution has started terminal persistence.
+ * `activeExecutions` names the exact resources still owned by the active logical turn.
+ * It is empty once every execution has entered terminal persistence.
  *
- * `awaitingApprovalAnchors` names every execution with a still-pending
- * `tool-approval-request` (`exec.pendingApprovalToolCallIds` non-empty), even after
- * the execution itself has terminated (MCP `needsApproval` ends the stream
- * cleanly via `done`). The renderer's per-message "is this the active turn
- * target?" predicate reads this — Main is the single authority for the
- * approval anchor's identity; no message-parts scanning, no SWR-lagged DB
- * status proxy.
+ * `awaitingInteractionExecutions` names every execution with a still-open interaction.
+ * The renderer's per-message "is this the active turn target?"
+ * predicate reads this exact projection; Main remains the only interaction authority.
  */
-export interface TopicStatusSnapshotEntry {
-  status: TopicStreamStatus
-  /**
-   * Unique per stream lifecycle; lets per-window seen state distinguish repeated turns on the same
-   * topic. Main writes it today; the renderer consumer is not yet wired — it lands in the renderer
-   * split (do not remove: the consumer is real, just unsplit).
-   */
-  turnId?: string
-  activeExecutions: ActiveExecution[]
-  awaitingApprovalAnchors: ActiveExecution[]
+export interface ConversationStatusSnapshotEntry {
+  status: ConversationStatus
+  turnId?: ConversationTurnId
+  activeExecutions: ConversationExecutionProjection[]
+  awaitingInteractionExecutions: ConversationExecutionProjection[]
   lastCompletedAt?: number
 }
 
@@ -212,28 +137,44 @@ type AiStreamRegenerateTarget =
 
 /** Stream ended. */
 export interface StreamDonePayload {
-  topicId: string
-  executionId?: UniqueModelId
-  attemptId?: number
-  /** Highest attempt owned by this topic lifecycle; attempts through it are terminal when isTopicDone is true. */
-  topicAttemptWatermark?: number
-  anchorMessageId?: string
-  status: 'success' | 'paused'
-  isTopicDone?: boolean
+  conversation: ConversationRef
+  turnId: ConversationTurnId
+  executionId: ConversationExecutionId
+  modelId: UniqueModelId
+  outputNodeId: string
+  status: ConversationAttachStatus.Done | ConversationAttachStatus.Paused
+  turnTerminal: boolean
 }
 
 /** Stream error. */
 export interface StreamErrorPayload {
-  topicId: string
-  /** Multi-model: which model's execution errored. */
-  executionId?: UniqueModelId
-  attemptId?: number
-  /** Highest attempt owned by this topic lifecycle; attempts through it are terminal when isTopicDone is true. */
-  topicAttemptWatermark?: number
-  anchorMessageId?: string
-  /** True when the topic has no remaining streaming executions. */
-  isTopicDone?: boolean
+  conversation: ConversationRef
+  turnId: ConversationTurnId
+  executionId: ConversationExecutionId
+  modelId: UniqueModelId
+  outputNodeId: string
+  turnTerminal: boolean
   error: SerializedError
+}
+
+/** One-shot prompt data plane used by translation and API-style callers. */
+export interface PromptStreamChunkPayload {
+  streamId: string
+  chunk: UIMessageChunk
+}
+
+export interface PromptStreamDonePayload {
+  streamId: string
+  status: ConversationAttachStatus.Done | ConversationAttachStatus.Paused
+}
+
+export interface PromptStreamErrorPayload {
+  streamId: string
+  error: SerializedError
+}
+
+export interface PromptStreamAbortRequest {
+  streamId: string
 }
 
 // ── Request payloads (Renderer → Main) ──────────────────────────────
@@ -247,13 +188,13 @@ export interface StreamErrorPayload {
  * `parentAnchorId` from a continue, etc).
  */
 export type AiStreamOpenRequest = {
-  topicId: string
+  conversation: ConversationRef
   /** Composer-selected request models; one id overrides the fallback, while persistent non-live sends may fan out. */
   mentionedModelIds?: UniqueModelId[]
 } & (
   | {
       /** Brand-new user turn: create the user msg + N assistant placeholders. */
-      trigger: 'submit-message'
+      trigger: ConversationOpenTrigger.SubmitMessage
       /**
        * Active-path mode: parent of the new user message. Reserved-branch mode: the existing
        * blank user row to fill. Omit only for the first message of an empty topic — main does
@@ -273,7 +214,7 @@ export type AiStreamOpenRequest = {
     }
   | ({
       /** Re-run the assistant under an existing user msg. */
-      trigger: 'regenerate-message'
+      trigger: ConversationOpenTrigger.RegenerateMessage
       /** Id of the existing user msg whose assistant child(ren) we're regenerating. */
       parentAnchorId: string
       userMessageParts?: never
@@ -299,7 +240,7 @@ export interface ApprovalDecision {
 }
 
 export interface AiToolApprovalRespondRequest extends ApprovalDecision {
-  topicId?: string
+  conversation?: ConversationRef
   anchorId?: string
 }
 
@@ -309,22 +250,22 @@ export interface AiToolApprovalRespondResponse {
 
 /** Subscribe to a topic's stream state. */
 export interface AiStreamAttachRequest {
-  topicId: string
+  conversation: ConversationRef
 }
 
 /** Unsubscribe from a topic. */
 export interface AiStreamDetachRequest {
-  topicId: string
+  conversation: ConversationRef
 }
 
 /** Abort the active generation on a topic. */
 export interface AiStreamAbortRequest {
-  topicId: string
+  conversation: ConversationRef
 }
 
 /** Resolve a tool output that was deferred at the boundary. See `transport/deferredToolResult`. */
 export interface AiToolResultRequest {
-  topicId: string
+  conversation: ConversationRef
   messageId: string
   toolCallId: string
 }
@@ -354,11 +295,11 @@ export interface AiStreamAttachTerminal {
   finalMessages: Partial<Record<UniqueModelId, CherryUIMessage>>
 }
 export type AiStreamAttachResponse =
-  | { status: 'not-found' }
-  | { status: 'attached'; bufferedChunks: StreamChunkPayload[]; snapshot?: StreamAttachSnapshot }
-  | ({ status: 'done' } & AiStreamAttachTerminal)
-  | ({ status: 'paused' } & AiStreamAttachTerminal)
-  | { status: 'error'; error?: SerializedError }
+  | { status: ConversationAttachStatus.NotFound }
+  | { status: ConversationAttachStatus.Attached; bufferedChunks: StreamChunkPayload[] }
+  | ({ status: ConversationAttachStatus.Done } & AiStreamAttachTerminal)
+  | ({ status: ConversationAttachStatus.Paused } & AiStreamAttachTerminal)
+  | { status: ConversationAttachStatus.Error; error?: SerializedError }
 
 /** Result of an open attempt. */
 export type AiStreamOpenResponse =
@@ -371,9 +312,9 @@ export type AiStreamOpenResponse =
        *                 turn; chat steers may still include `reservedMessages`
        *                 for the queued user row.
        */
-      mode: 'started' | 'injected'
-      /** Runtime identities, including per-attempt ids, for optimistic stream attachment. */
-      activeExecutions?: ActiveExecution[]
+      mode: ConversationOpenMode.Started | ConversationOpenMode.Injected
+      /** Stable turn/execution identities for optimistic stream attachment. */
+      activeExecutions?: ConversationExecutionProjection[]
       /** Admission decision applied atomically while reserving persisted messages. */
       activeNodeDecision?: ActiveNodeDecision
       /**
@@ -384,12 +325,12 @@ export type AiStreamOpenResponse =
       reservedMessages?: CherryUIMessage[]
     }
   | {
-      mode: 'blocked'
-      reason: 'agent-session-workspace'
+      mode: ConversationOpenMode.Blocked
+      reason: ConversationBlockReason.AgentSessionWorkspace
       message: string
     }
   | {
-      mode: 'blocked'
+      mode: ConversationOpenMode.Blocked
       /** Main-side write quiesce (backup restore in progress). Renderer maps this reason to i18n. */
-      reason: 'paused'
+      reason: ConversationBlockReason.Paused
     }

@@ -1,9 +1,9 @@
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { AgentSessionWorkspaceError } from '@main/ai/runtime/agentSessionWorkspace'
 import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
+import { ConversationKind } from '@shared/ai/conversation'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { EventEmitter } from 'events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -47,8 +47,7 @@ vi.mock('../security/OutputSanitizer', () => ({
   sanitizeChannelOutput: vi.fn((text: string) => ({ text, redacted: false }))
 }))
 
-// The global mock (tests/main.setup.ts) wires the default service set, which omits
-// AiStreamManager; the abort path reads it, so override locally with a captured spy.
+// The global mock omits the Conversation runtime; the abort path reads it, so override locally.
 const { mockStreamAbort, mockEnqueueTerminalDelivery, deliveryAdapter } = vi.hoisted(() => ({
   mockStreamAbort: vi.fn(),
   // Requests are stable data now; ChannelManager resolves the adapter and sends. Stand in for
@@ -73,8 +72,17 @@ const { mockStreamAbort, mockEnqueueTerminalDelivery, deliveryAdapter } = vi.hoi
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
-    AiStreamManager: { abort: mockStreamAbort },
-    ChannelManager: { enqueueTerminalDelivery: mockEnqueueTerminalDelivery }
+    ConversationRuntimeService: { abort: mockStreamAbort },
+    ChannelManager: {
+      updateLive: (request: any) => {
+        const adapter = deliveryAdapter.current
+        if (!adapter) return false
+        void adapter.onTextUpdate(request.chatId, request.text, request.responseOptions)
+        return true
+      },
+      enqueueTerminal: mockEnqueueTerminalDelivery,
+      isActive: () => true
+    }
   } as never)
 })
 
@@ -113,6 +121,8 @@ vi.mock('@shared/data/types/model', async (importOriginal) => {
 
 const { mockStartAgentSessionRun } = vi.hoisted(() => ({ mockStartAgentSessionRun: vi.fn() }))
 vi.mock('@main/ai/streamManager/api/startAgentSessionRun', () => ({
+  StartAgentSessionRunMode: { Started: 'started', NotStarted: 'not-started' },
+  StartAgentSessionRunRejection: { Busy: 'busy', SessionInvalid: 'session-invalid' },
   startAgentSessionRun: (...args: unknown[]) => mockStartAgentSessionRun(...args)
 }))
 
@@ -900,6 +910,9 @@ describe('ChannelMessageHandler', () => {
 
     channelMessageHandler.clearSessionTracker('agent-1')
 
-    expect(mockStreamAbort).toHaveBeenCalledWith(buildAgentSessionTopicId(createdSessionId), 'agent-cleared')
+    expect(mockStreamAbort).toHaveBeenCalledWith(
+      { kind: ConversationKind.Agent, id: createdSessionId },
+      'agent-cleared'
+    )
   })
 })

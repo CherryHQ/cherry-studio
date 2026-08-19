@@ -30,13 +30,13 @@ vi.mock('@data/DataApiService', () => ({
   }
 }))
 
-vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => ({ isPending: mocks.topicPending })
-}))
-
 vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: { FOCUS_CHAT_COMPOSER: 'FOCUS_CHAT_COMPOSER' },
   EventEmitter: { emit: mocks.eventEmit }
+}))
+
+vi.mock('@renderer/hooks/useConversationStreamStatus', () => ({
+  useConversationStreamStatus: () => ({ isPending: mocks.topicPending, status: undefined })
 }))
 
 vi.mock('@renderer/components/command', async () => {

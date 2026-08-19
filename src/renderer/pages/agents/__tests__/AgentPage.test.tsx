@@ -1698,7 +1698,7 @@ describe('AgentPage', () => {
     expect(agentPageMocks.invalidateCache).not.toHaveBeenCalled()
     await waitFor(() =>
       expect(EventEmitter.emit).toHaveBeenCalledWith('FOCUS_CHAT_COMPOSER', {
-        topicId: 'agent-session:session-empty-latest'
+        topicId: 'agent:session-empty-latest'
       })
     )
   })
@@ -1807,7 +1807,7 @@ describe('AgentPage', () => {
     expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-composer-empty')
     await waitFor(() =>
       expect(EventEmitter.emit).toHaveBeenCalledWith('FOCUS_CHAT_COMPOSER', {
-        topicId: 'agent-session:session-composer-empty'
+        topicId: 'agent:session-composer-empty'
       })
     )
   })

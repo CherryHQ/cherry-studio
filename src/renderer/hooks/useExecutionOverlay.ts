@@ -1,14 +1,15 @@
 /**
  * React binding for {@link executionStreamOverlayService}, which owns the
- * per-execution streaming overlay (readers, snapshots, rAF batching) keyed by
- * `topicId`. This hook only acquires/releases a refcounted view, feeds the
+ * per-execution streaming overlay (readers, snapshots, batching) keyed by
+ * ConversationRef. This hook only acquires/releases a refcounted view, feeds the
  * service the consumer-visible execution set + DB seed rows, and reads the
  * retained view via `useSyncExternalStore` — so unmounting (route/tab/conversation
  * switch) no longer tears the stream down, and remounting restores the live
  * overlay synchronously. Reader/seed semantics live in the service.
  */
 import { executionStreamOverlayService } from '@renderer/services/aiTransport'
-import type { ActiveExecution, ActiveNodeDecision } from '@shared/ai/transport'
+import { type ConversationExecutionId, type ConversationRef, conversationRefKey } from '@shared/ai/conversation'
+import type { ActiveNodeDecision, ConversationExecutionProjection } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
 
@@ -16,30 +17,30 @@ export type { ExecutionFinishEvent } from '@renderer/services/aiTransport'
 import type {
   ExecutionFinishEvent,
   ExecutionOverlayActiveNodeOverride,
-  ExecutionOverlayAttempt
+  ExecutionOverlayRecord
 } from '@renderer/services/aiTransport'
 
 export interface UseExecutionOverlayOptions {
-  onFinish?: (executionId: string, event: ExecutionFinishEvent) => void
-  /** Persistent projections refresh committed rows at TopicQuiesced, then retire final overlays. */
+  onFinish?: (executionId: ConversationExecutionId, event: ExecutionFinishEvent) => void
+  /** Persistent projections refresh committed rows at Conversation quiescence. */
   refreshOnQuiesced?: () => Promise<unknown>
 }
 
 export interface ExecutionOverlayApi {
-  /** messageId -> latest streamed parts. messageId = anchorMessageId, or the
+  /** messageId -> latest streamed parts. messageId = outputNodeId, or the
    *  start-chunk id when the execution has no pre-allocated row (temp topic). */
   overlay: Record<string, CherryMessagePart[]>
   /** Latest assistant snapshot per execution, in insertion order. */
   liveAssistants: CherryUIMessage[]
-  /** Attempt records whose message stays stable while phase changes active → settled. */
-  attempts: ExecutionOverlayAttempt[]
+  /** Execution records whose message stays stable while phase changes active → settled. */
+  records: ExecutionOverlayRecord[]
   optimisticMessages: CherryUIMessage[]
-  projectedExecutions: ActiveExecution[]
+  projectedExecutions: ConversationExecutionProjection[]
   activeNodeOverride: ExecutionOverlayActiveNodeOverride | null
   refreshError: Error | null
   seedReservations: (
     messages: readonly CherryUIMessage[],
-    executions: readonly ActiveExecution[],
+    executions: readonly ConversationExecutionProjection[],
     activeNodeDecision: ActiveNodeDecision | undefined,
     previousActiveNodeId: string | null
   ) => void
@@ -51,92 +52,121 @@ export interface ExecutionOverlayApi {
   clear: () => void
 }
 
+interface ConversationOverlayBinding {
+  readonly conversation: ConversationRef
+  readonly key: string
+  readonly consumer: object
+  uiMessages: CherryUIMessage[]
+  onFinish: UseExecutionOverlayOptions['onFinish']
+  refreshOnQuiesced: UseExecutionOverlayOptions['refreshOnQuiesced']
+  readonly getSeedMessages: () => CherryUIMessage[]
+}
+
+function createConversationOverlayBinding(conversation: ConversationRef): ConversationOverlayBinding {
+  const binding = {
+    conversation,
+    key: conversationRefKey(conversation),
+    consumer: {},
+    uiMessages: [],
+    onFinish: undefined,
+    refreshOnQuiesced: undefined,
+    getSeedMessages: () => binding.uiMessages
+  } satisfies ConversationOverlayBinding
+  return binding
+}
+
 export function useExecutionOverlay(
-  topicId: string,
-  activeExecutions: readonly ActiveExecution[],
+  conversation: ConversationRef,
+  activeExecutions: readonly ConversationExecutionProjection[],
   uiMessages: CherryUIMessage[],
   options: UseExecutionOverlayOptions = {}
 ): ExecutionOverlayApi {
-  // Identity of this consumer inside the service's refcount/contribution maps.
-  const consumer = useRef({}).current
-
-  const uiMessagesRef = useRef(uiMessages)
-  uiMessagesRef.current = uiMessages
-  const onFinishRef = useRef(options.onFinish)
-  onFinishRef.current = options.onFinish
-  const refreshOnQuiescedRef = useRef(options.refreshOnQuiesced)
-  refreshOnQuiescedRef.current = options.refreshOnQuiesced
-  const topicIdRef = useRef(topicId)
-  topicIdRef.current = topicId
+  const key = conversationRefKey(conversation)
+  const bindingRef = useRef<ConversationOverlayBinding>(undefined)
+  if (!bindingRef.current || bindingRef.current.key !== key) {
+    bindingRef.current = createConversationOverlayBinding(conversation)
+  }
+  const binding = bindingRef.current
+  binding.uiMessages = uiMessages
+  binding.onFinish = options.onFinish
+  binding.refreshOnQuiesced = options.refreshOnQuiesced
 
   // Declared before the sync effect so acquisition (entry creation) always
-  // precedes reader convergence for a new topicId.
+  // precedes reader convergence for a new Conversation.
   useEffect(() => {
-    executionStreamOverlayService.acquire(topicId)
-    const offFinish = executionStreamOverlayService.onFinish(topicId, (executionId, event) =>
-      onFinishRef.current?.(executionId, event)
+    executionStreamOverlayService.acquire(binding.conversation)
+    const offFinish = executionStreamOverlayService.onFinish(binding.conversation, (executionId, event) =>
+      binding.onFinish?.(executionId, event)
     )
     // The service owns the quiesce → refresh → retire handoff (and its retry);
     // this only lends it the consumer's DB refetch while mounted.
-    const offRefresh = refreshOnQuiescedRef.current
+    const offRefresh = binding.refreshOnQuiesced
       ? executionStreamOverlayService.registerRefreshPort(
-          topicId,
-          () => refreshOnQuiescedRef.current?.() ?? Promise.resolve()
+          binding.conversation,
+          () => binding.refreshOnQuiesced?.() ?? Promise.resolve()
         )
       : undefined
     return () => {
       offFinish()
       offRefresh?.()
-      executionStreamOverlayService.release(topicId, consumer)
+      executionStreamOverlayService.release(binding.conversation, binding.consumer)
     }
-  }, [consumer, topicId])
+  }, [binding])
 
-  const getSeedMessages = useCallback(() => uiMessagesRef.current, [])
   // No cleanup: departure must not cancel readers (release() handles removal).
   useEffect(() => {
-    executionStreamOverlayService.syncExecutions(topicId, consumer, activeExecutions, getSeedMessages)
-  }, [activeExecutions, consumer, getSeedMessages, topicId])
+    executionStreamOverlayService.syncExecutions(
+      binding.conversation,
+      binding.consumer,
+      activeExecutions,
+      binding.getSeedMessages
+    )
+  }, [activeExecutions, binding])
 
   const subscribe = useCallback(
-    (listener: () => void) => executionStreamOverlayService.subscribe(topicId, listener),
-    [topicId]
+    (listener: () => void) => executionStreamOverlayService.subscribe(binding.conversation, listener),
+    [binding]
   )
   const view = useSyncExternalStore(
     subscribe,
-    useCallback(() => executionStreamOverlayService.getView(topicId), [topicId])
+    useCallback(() => executionStreamOverlayService.getView(binding.conversation), [binding])
   )
 
-  const api = useRef<ExecutionOverlayApi>(undefined as never)
-  if (!api.current) {
-    api.current = {
+  const api = useRef<{ binding: ConversationOverlayBinding; value: ExecutionOverlayApi }>(undefined)
+  if (!api.current || api.current.binding !== binding) {
+    const value: ExecutionOverlayApi = {
       overlay: view.overlay,
       liveAssistants: view.liveAssistants,
-      attempts: view.attempts,
+      records: view.records,
       optimisticMessages: view.optimisticMessages,
       projectedExecutions: view.projectedExecutions,
       activeNodeOverride: view.activeNodeOverride,
       refreshError: view.refreshError,
       seedReservations: (messages, executions, activeNodeDecision, previousActiveNodeId) =>
         executionStreamOverlayService.seedReservations(
-          topicIdRef.current,
+          binding.conversation,
           messages,
           executions,
           activeNodeDecision,
           previousActiveNodeId,
-          getSeedMessages
+          binding.getSeedMessages
         ),
       disposeOverlay: (messageId: string) =>
-        executionStreamOverlayService.disposeOverlay(topicIdRef.current, messageId),
-      reset: () => executionStreamOverlayService.reset(topicIdRef.current),
-      clear: () => executionStreamOverlayService.clear(topicIdRef.current)
+        executionStreamOverlayService.disposeOverlay(binding.conversation, messageId),
+      reset: () => executionStreamOverlayService.reset(binding.conversation),
+      clear: () => executionStreamOverlayService.clear(binding.conversation)
+    }
+    api.current = {
+      binding,
+      value
     }
   }
-  api.current.overlay = view.overlay
-  api.current.liveAssistants = view.liveAssistants
-  api.current.attempts = view.attempts
-  api.current.optimisticMessages = view.optimisticMessages
-  api.current.projectedExecutions = view.projectedExecutions
-  api.current.activeNodeOverride = view.activeNodeOverride
-  api.current.refreshError = view.refreshError
-  return api.current
+  api.current.value.overlay = view.overlay
+  api.current.value.liveAssistants = view.liveAssistants
+  api.current.value.records = view.records
+  api.current.value.optimisticMessages = view.optimisticMessages
+  api.current.value.projectedExecutions = view.projectedExecutions
+  api.current.value.activeNodeOverride = view.activeNodeOverride
+  api.current.value.refreshError = view.refreshError
+  return api.current.value
 }

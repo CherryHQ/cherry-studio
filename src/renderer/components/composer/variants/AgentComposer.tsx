@@ -43,16 +43,16 @@ import { useAgentSessionSlashCommands } from '@renderer/hooks/agent/useAgentSess
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
+import { useConversationStreamStatus } from '@renderer/hooks/useConversationStreamStatus'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useAvailableSkills } from '@renderer/hooks/useSkills'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { ThinkingOption } from '@renderer/types/reasoning'
 import { TopicType } from '@renderer/types/topic'
-import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { buildAgentFileWorkspaceKey } from '@renderer/utils/agentSession'
 import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@renderer/utils/file/buildFileParts'
 import {
   getComposerShortcutLabel,
@@ -62,6 +62,7 @@ import {
 } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { resolveReasoningEffortForModel } from '@renderer/utils/model'
+import { ConversationKind, conversationRefKey } from '@shared/ai/conversation'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
@@ -829,7 +830,8 @@ const AgentComposerInner = ({
   const [isKnowledgeBaseDraftHydrated, setIsKnowledgeBaseDraftHydrated] = useState(
     initialDraft.knowledgeBaseIds.length === 0
   )
-  const sessionTopicId = buildAgentSessionTopicId(sessionId)
+  const conversation = useMemo(() => ({ kind: ConversationKind.Agent, id: sessionId }) as const, [sessionId])
+  const sessionScopeKey = conversationRefKey(conversation)
   const accessiblePaths = sessionData?.accessiblePaths ?? EMPTY_ACCESSIBLE_PATHS
   const enableResourceMention = accessiblePaths.length > 0
   const userWorkspacePath = workspace?.type === 'user' ? workspace.path : undefined
@@ -900,6 +902,7 @@ const AgentComposerInner = ({
     )
     setShouldValidateSkills(false)
   }, [
+    actionsRef,
     availableSkillsError,
     draftTokens,
     isAvailableSkillsLoading,
@@ -961,7 +964,7 @@ const AgentComposerInner = ({
     draftTokensRef.current = draftTokens
   }, [draftTokens])
 
-  const selectedKnowledgeBasesScopeKey = `${sessionTopicId}:${agentId}`
+  const selectedKnowledgeBasesScopeKey = `${sessionScopeKey}:${agentId}`
   const {
     selectableKnowledgeBases,
     selectedKnowledgeBasesInScope,
@@ -1081,10 +1084,10 @@ const AgentComposerInner = ({
   useEffect(() => {
     return EventEmitter.on(EVENT_NAMES.FOCUS_CHAT_COMPOSER, (payload) => {
       const topicId = typeof payload === 'object' && payload ? (payload as { topicId?: string }).topicId : undefined
-      if (topicId !== sessionTopicId) return
+      if (topicId !== sessionScopeKey) return
       actionsRef.current.focus('end')
     })
-  }, [actionsRef, sessionTopicId])
+  }, [actionsRef, sessionScopeKey])
 
   useEffect(() => {
     if (!launchOptions?.initialDraft) return
@@ -1185,9 +1188,9 @@ const AgentComposerInner = ({
   useComposerQuoteInsertion(actionsRef)
 
   const abortAgentSession = useCallback(async () => {
-    logger.info('Aborting agent session', { sessionTopicId })
+    logger.info('Aborting agent session', { conversation })
     await chatStop()
-  }, [chatStop, sessionTopicId])
+  }, [chatStop, conversation])
 
   const handleAgentChange = useCallback(
     async (nextAgentId: string | null) => {
@@ -1407,7 +1410,7 @@ const AgentComposerInner = ({
             }
           }
         )
-        void EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: sessionTopicId })
+        void EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: sessionScopeKey })
         saveHistory(getComposerHistoryText(payload.userMessageParts))
         launchOptions?.onSent?.()
         return true
@@ -1416,7 +1419,7 @@ const AgentComposerInner = ({
         return false
       }
     },
-    [accessiblePaths, agentId, chatSendMessage, launchOptions, saveHistory, sessionId, sessionTopicId]
+    [accessiblePaths, agentId, chatSendMessage, launchOptions, saveHistory, sessionId, sessionScopeKey]
   )
 
   const clearCurrentDraft = useCallback(() => {
@@ -1455,7 +1458,7 @@ const AgentComposerInner = ({
   ])
 
   // Queue mode (same as chat): while the session streams, follow-ups queue here and auto-drain on idle.
-  const { isFulfilled: sessionFulfilled, markSeen: markSessionSeen } = useTopicStreamStatus(sessionTopicId)
+  const { isFulfilled: sessionFulfilled, markSeen: markSessionSeen } = useConversationStreamStatus(conversation)
   const {
     items: queuedFollowups,
     enqueue: enqueueFollowup,
@@ -1464,7 +1467,7 @@ const AgentComposerInner = ({
     paused: followupPaused,
     setPaused: setFollowupPaused
   } = useFollowupQueue({
-    scopeKey: sessionTopicId,
+    scopeKey: sessionScopeKey,
     isFulfilled: sessionFulfilled,
     markSeen: markSessionSeen,
     onDrain: sendQueuedPayload,

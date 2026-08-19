@@ -1,5 +1,7 @@
 import { loggerService } from '@logger'
 
+import { AgentRuntimeInteractionPresentation } from '../types'
+
 const logger = loggerService.withContext('ToolApprovalRegistry')
 
 /**
@@ -19,7 +21,7 @@ type PendingApproval = {
   toolCallId: string
   toolName: string
   originalInput: Record<string, unknown>
-  presentation: 'stream' | 'message'
+  presentation: AgentRuntimeInteractionPresentation
   resolve: (decision: DispatchDecision) => void
   signal?: AbortSignal
   abortListener?: () => void
@@ -59,7 +61,10 @@ class ToolApprovalRegistry {
       return false
     }
 
-    const stored: PendingApproval = { ...entry, presentation: entry.presentation ?? 'stream' }
+    const stored: PendingApproval = {
+      ...entry,
+      presentation: entry.presentation ?? AgentRuntimeInteractionPresentation.Stream
+    }
     if (signal) {
       const abortListener = () => this.dispatch(approvalId, { approved: false, reason: 'aborted' })
       stored.abortListener = abortListener

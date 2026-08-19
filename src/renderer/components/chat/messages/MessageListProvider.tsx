@@ -190,6 +190,8 @@ export const useOptionalMessageListActions = (): MessageListActions | undefined 
   return use(MessageListActionsContext) ?? undefined
 }
 
+export const useOptionalMessageListConversation = () => use(MessageListMetaContext)?.conversation
+
 /** Topic id of the surrounding message list; undefined in embeds without one. */
 export const useOptionalMessageListTopicId = (): string | undefined => {
   return use(MessageListDataContext)?.topic.id

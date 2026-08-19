@@ -4,8 +4,10 @@
 export {
   type ExecutionFinishEvent,
   type ExecutionOverlayActiveNodeOverride,
-  type ExecutionOverlayAttempt,
+  ExecutionOverlayPhase,
+  type ExecutionOverlayRecord,
+  type ExecutionOverlayView,
   executionStreamOverlayService
 } from './ExecutionStreamOverlayService'
 export { getStreamBlockedMessage } from './getStreamBlockedMessage'
-export { ipcChatTransport } from './IpcChatTransport'
+export { IpcChatTransport, ipcChatTransport } from './IpcChatTransport'

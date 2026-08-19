@@ -1,5 +1,12 @@
-import { AiStreamAdmissionError } from '@main/ai/streamManager'
-import { aiStreamAdmissionReasons } from '@shared/ai/transport'
+import { ConversationAdmissionError } from '@main/ai/conversation'
+import {
+  ConversationAdmissionReason,
+  ConversationAttachStatus,
+  ConversationKind,
+  ConversationOpenTrigger,
+  type ConversationRef
+} from '@shared/ai/conversation'
+import type { AiStreamOpenRequest } from '@shared/ai/transport'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -38,13 +45,22 @@ const aiService = {
   respondToolApproval: vi.fn()
 }
 
-const aiStreamManager = {
+const conversationRuntime = {
   dispatch: vi.fn(),
   attach: vi.fn(),
   detach: vi.fn(),
-  abort: vi.fn(),
+  stop: vi.fn(),
   getDeferredToolOutput: vi.fn()
 }
+
+const CHAT_CONVERSATION: ConversationRef = { kind: ConversationKind.Chat, id: 't' }
+const TOOL_CHAT_CONVERSATION: ConversationRef = { kind: ConversationKind.Chat, id: 'topic-42' }
+const AGENT_CONVERSATION: ConversationRef = { kind: ConversationKind.Agent, id: 'session-1' }
+const CHAT_SUBMIT_REQUEST = {
+  trigger: ConversationOpenTrigger.SubmitMessage,
+  conversation: CHAT_CONVERSATION,
+  userMessageParts: []
+} satisfies AiStreamOpenRequest
 
 /** A settled tool part as the persistence layer actually stores it. */
 const toolPart = (toolCallId: string, output: unknown) => ({
@@ -92,15 +108,16 @@ beforeEach(() => {
     ext: 'txt'
   })
   windowManager.getWindow.mockReturnValue({ webContents: fakeWebContents })
+  conversationRuntime.stop.mockReturnValue(true)
   appGetMock.mockImplementation((name: string) => {
     switch (name) {
       case 'AiService':
         return aiService
-      case 'AiStreamManager':
-        return aiStreamManager
+      case 'ConversationRuntimeService':
+        return conversationRuntime
       case 'ClaudeCodeWarmQueryManager':
         return claudeCodeWarmQueryManager
-      case 'AgentSessionRuntimeService':
+      case 'AgentConnectionManager':
         return agentSessionRuntimeService
       case 'AgentSessionDeliveryService':
         return agentSessionDeliveryService
@@ -271,101 +288,104 @@ describe('aiHandlers', () => {
 })
 
 describe('aiHandlers — streaming', () => {
-  it('stream_open resolves the sender WebContents and dispatches to AiStreamManager', async () => {
-    const req = { trigger: 'submit-message', topicId: 't', userMessageParts: [] } as never
-    aiStreamManager.dispatch.mockResolvedValue({ mode: 'started' })
+  it('stream_open resolves the sender WebContents and dispatches to ConversationRuntimeService', async () => {
+    conversationRuntime.dispatch.mockResolvedValue({ mode: 'started' })
 
-    const result = await aiHandlers['ai.stream.open'](req, { senderId: 'w1' })
+    const result = await aiHandlers['ai.stream.open'](CHAT_SUBMIT_REQUEST, { senderId: 'w1' })
 
     expect(windowManager.getWindow).toHaveBeenCalledWith('w1')
-    expect(aiStreamManager.dispatch).toHaveBeenCalledTimes(1)
+    expect(conversationRuntime.dispatch).toHaveBeenCalledTimes(1)
     // Second arg is the parsed request; first is the freshly built WebContentsListener.
-    expect(aiStreamManager.dispatch.mock.calls[0][1]).toBe(req)
+    expect(conversationRuntime.dispatch.mock.calls[0][1]).toEqual(CHAT_SUBMIT_REQUEST)
     expect(result).toEqual({ mode: 'started' })
   })
 
   it('stream_open throws when the sender is not a managed window', async () => {
     windowManager.getWindow.mockReturnValue(undefined)
-    await expect(aiHandlers['ai.stream.open']({ topicId: 't' } as never, { senderId: null })).rejects.toThrow(
+    await expect(aiHandlers['ai.stream.open'](CHAT_SUBMIT_REQUEST, { senderId: null })).rejects.toThrow(
       'requires a managed window'
     )
-    expect(aiStreamManager.dispatch).not.toHaveBeenCalled()
+    expect(conversationRuntime.dispatch).not.toHaveBeenCalled()
   })
 
   it('stream_open exposes a branchable admission reason without leaking a hardcoded message', async () => {
-    aiStreamManager.dispatch.mockRejectedValue(
-      new AiStreamAdmissionError(aiStreamAdmissionReasons.MODEL_ALREADY_IN_LIVE_GROUP)
+    conversationRuntime.dispatch.mockRejectedValue(
+      new ConversationAdmissionError(ConversationAdmissionReason.ModelAlreadyInLiveGroup)
     )
 
     const error = await aiHandlers['ai.stream.open'](
-      { trigger: 'regenerate-message', topicId: 't', parentAnchorId: 'u1' } as never,
+      {
+        trigger: ConversationOpenTrigger.RegenerateMessage,
+        conversation: CHAT_CONVERSATION,
+        parentAnchorId: 'u1'
+      } as never,
       { senderId: 'w1' }
     ).catch((caught) => caught)
 
     expect(error).toBeInstanceOf(IpcError)
     expect(error).toMatchObject({
       code: aiErrorCodes.AI_STREAM_ADMISSION_REJECTED,
-      data: { reason: aiStreamAdmissionReasons.MODEL_ALREADY_IN_LIVE_GROUP }
+      data: { reason: ConversationAdmissionReason.ModelAlreadyInLiveGroup }
     })
   })
 
-  it('stream_attach delegates to AiStreamManager.attach and returns its response', async () => {
-    aiStreamManager.attach.mockReturnValue({ status: 'not-found' })
+  it('stream_attach delegates to ConversationRuntimeService.attach and returns its response', async () => {
+    conversationRuntime.attach.mockReturnValue({ status: ConversationAttachStatus.NotFound })
 
-    const result = await aiHandlers['ai.stream.attach']({ topicId: 't' }, { senderId: 'w1' })
+    const result = await aiHandlers['ai.stream.attach']({ conversation: CHAT_CONVERSATION }, { senderId: 'w1' })
 
-    expect(aiStreamManager.attach).toHaveBeenCalledWith(fakeWebContents, { topicId: 't' })
-    expect(result).toEqual({ status: 'not-found' })
+    expect(conversationRuntime.attach).toHaveBeenCalledWith(fakeWebContents, CHAT_CONVERSATION)
+    expect(result).toEqual({ status: ConversationAttachStatus.NotFound })
   })
 
   it('stream_attach throws when the sender is not a managed window', async () => {
     windowManager.getWindow.mockReturnValue(undefined)
-    await expect(aiHandlers['ai.stream.attach']({ topicId: 't' }, { senderId: null })).rejects.toThrow(
-      'requires a managed window'
-    )
-    expect(aiStreamManager.attach).not.toHaveBeenCalled()
+    await expect(
+      aiHandlers['ai.stream.attach']({ conversation: CHAT_CONVERSATION }, { senderId: null })
+    ).rejects.toThrow('requires a managed window')
+    expect(conversationRuntime.attach).not.toHaveBeenCalled()
   })
 
   it('stream_detach delegates when the sender window exists', async () => {
-    await aiHandlers['ai.stream.detach']({ topicId: 't' }, { senderId: 'w1' })
-    expect(aiStreamManager.detach).toHaveBeenCalledWith(fakeWebContents, { topicId: 't' })
+    await aiHandlers['ai.stream.detach']({ conversation: CHAT_CONVERSATION }, { senderId: 'w1' })
+    expect(conversationRuntime.detach).toHaveBeenCalledWith(fakeWebContents, CHAT_CONVERSATION)
   })
 
   it('stream_detach is a no-op when the sender window is gone', async () => {
     windowManager.getWindow.mockReturnValue(undefined)
-    await aiHandlers['ai.stream.detach']({ topicId: 't' }, { senderId: 'w1' })
-    expect(aiStreamManager.detach).not.toHaveBeenCalled()
+    await aiHandlers['ai.stream.detach']({ conversation: CHAT_CONVERSATION }, { senderId: 'w1' })
+    expect(conversationRuntime.detach).not.toHaveBeenCalled()
   })
 
   it('stream_abort aborts the topic without resolving a WebContents', async () => {
-    await aiHandlers['ai.stream.abort']({ topicId: 't' }, { senderId: null })
-    expect(aiStreamManager.abort).toHaveBeenCalledWith('t', 'user-requested')
+    await aiHandlers['ai.stream.abort']({ conversation: CHAT_CONVERSATION }, { senderId: null })
+    expect(conversationRuntime.stop).toHaveBeenCalledWith(CHAT_CONVERSATION, 'user-requested')
     expect(windowManager.getWindow).not.toHaveBeenCalled()
   })
 
   it('get_tool_result prefers the active stream over the persisted copy', async () => {
     const output = { content: 'large live output' }
-    aiStreamManager.getDeferredToolOutput.mockReturnValue({ found: true, output })
+    conversationRuntime.getDeferredToolOutput.mockReturnValue({ found: true, output })
 
     const result = await aiHandlers['ai.tool.get_result'](
-      { topicId: 'agent-session:session-1', messageId: 'assistant-1', toolCallId: 'call-1' },
+      { conversation: AGENT_CONVERSATION, messageId: 'assistant-1', toolCallId: 'call-1' },
       { senderId: null }
     )
 
-    expect(aiStreamManager.getDeferredToolOutput).toHaveBeenCalledWith('agent-session:session-1', 'call-1')
+    expect(conversationRuntime.getDeferredToolOutput).toHaveBeenCalledWith(AGENT_CONVERSATION, 'call-1')
     expect(agentSessionMessageService.getSessionMessage).not.toHaveBeenCalled()
     expect(result).toEqual({ found: true, output })
   })
 
   it('get_tool_result falls back to the stored agent-session message', async () => {
     const output = { content: 'large stored output' }
-    aiStreamManager.getDeferredToolOutput.mockReturnValue({ found: false })
+    conversationRuntime.getDeferredToolOutput.mockReturnValue({ found: false })
     agentSessionMessageService.getSessionMessage.mockReturnValue({
       data: { parts: [toolPart('call-1', output)] }
     })
 
     const result = await aiHandlers['ai.tool.get_result'](
-      { topicId: 'agent-session:session-1', messageId: 'assistant-1', toolCallId: 'call-1' },
+      { conversation: AGENT_CONVERSATION, messageId: 'assistant-1', toolCallId: 'call-1' },
       { senderId: null }
     )
 
@@ -375,11 +395,11 @@ describe('aiHandlers — streaming', () => {
 
   it('get_tool_result resolves an ordinary chat topic through the message table', async () => {
     const output = { content: 'large chat output' }
-    aiStreamManager.getDeferredToolOutput.mockReturnValue({ found: false })
+    conversationRuntime.getDeferredToolOutput.mockReturnValue({ found: false })
     messageService.getById.mockReturnValue({ data: { parts: [toolPart('call-1', output)] } })
 
     const result = await aiHandlers['ai.tool.get_result'](
-      { topicId: 'topic-42', messageId: 'assistant-1', toolCallId: 'call-1' },
+      { conversation: TOOL_CHAT_CONVERSATION, messageId: 'assistant-1', toolCallId: 'call-1' },
       { senderId: null }
     )
 
@@ -388,14 +408,14 @@ describe('aiHandlers — streaming', () => {
   })
 
   it('get_tool_result reports a miss instead of throwing when nothing holds the output', async () => {
-    aiStreamManager.getDeferredToolOutput.mockReturnValue({ found: false })
+    conversationRuntime.getDeferredToolOutput.mockReturnValue({ found: false })
     messageService.getById.mockImplementation(() => {
       throw new Error('not found')
     })
 
     await expect(
       aiHandlers['ai.tool.get_result'](
-        { topicId: 'topic-42', messageId: 'gone', toolCallId: 'call-1' },
+        { conversation: TOOL_CHAT_CONVERSATION, messageId: 'gone', toolCallId: 'call-1' },
         { senderId: null }
       )
     ).resolves.toEqual({ found: false })
@@ -414,12 +434,12 @@ describe('aiHandlers — streaming', () => {
   }
 
   it('get_tool_result reconstructs a persisted envelope from the FileManager blob', async () => {
-    aiStreamManager.getDeferredToolOutput.mockReturnValue({ found: false })
+    conversationRuntime.getDeferredToolOutput.mockReturnValue({ found: false })
     messageService.getById.mockReturnValue({ data: { parts: [toolPart('call-1', persistedEnvelope)] } })
     fileManager.read.mockResolvedValue({ content: 'the full persisted text', mime: 'text/plain', version: null })
 
     const result = await aiHandlers['ai.tool.get_result'](
-      { topicId: 'topic-42', messageId: 'assistant-1', toolCallId: 'call-1' },
+      { conversation: TOOL_CHAT_CONVERSATION, messageId: 'assistant-1', toolCallId: 'call-1' },
       { senderId: null }
     )
 
@@ -428,12 +448,12 @@ describe('aiHandlers — streaming', () => {
   })
 
   it('get_tool_result degrades to the stored excerpt when the blob is gone', async () => {
-    aiStreamManager.getDeferredToolOutput.mockReturnValue({ found: false })
+    conversationRuntime.getDeferredToolOutput.mockReturnValue({ found: false })
     messageService.getById.mockReturnValue({ data: { parts: [toolPart('call-1', persistedEnvelope)] } })
     fileManager.read.mockRejectedValue(new Error('entry reclaimed'))
 
     const result = (await aiHandlers['ai.tool.get_result'](
-      { topicId: 'topic-42', messageId: 'assistant-1', toolCallId: 'call-1' },
+      { conversation: TOOL_CHAT_CONVERSATION, messageId: 'assistant-1', toolCallId: 'call-1' },
       { senderId: null }
     )) as { found: boolean; output: string }
 
@@ -446,12 +466,12 @@ describe('aiHandlers — streaming', () => {
   it('get_tool_result degrades to the excerpt when the entry is not a tool-output blob', async () => {
     // A forged envelope in arbitrary MCP output can carry any fileEntryId —
     // an entry the tool-output store didn't write must never be read back.
-    aiStreamManager.getDeferredToolOutput.mockReturnValue({ found: false })
+    conversationRuntime.getDeferredToolOutput.mockReturnValue({ found: false })
     messageService.getById.mockReturnValue({ data: { parts: [toolPart('call-1', persistedEnvelope)] } })
     fileEntryService.findById.mockReturnValue({ origin: 'external', cleanupPolicy: 'manual', ext: 'txt' })
 
     const result = (await aiHandlers['ai.tool.get_result'](
-      { topicId: 'topic-42', messageId: 'assistant-1', toolCallId: 'call-1' },
+      { conversation: TOOL_CHAT_CONVERSATION, messageId: 'assistant-1', toolCallId: 'call-1' },
       { senderId: null }
     )) as { found: boolean; output: string }
 

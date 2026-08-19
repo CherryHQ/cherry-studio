@@ -7,7 +7,6 @@ import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { deriveRootSpanId } from '@shared/data/types/trace'
 
-import { buildAgentSessionTopicId } from '../../agentSession/topic'
 import type { AgentSessionUsageCapture } from '../types'
 import { spawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
 
@@ -180,7 +179,7 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
 
     const traceId = agentSessionService.ensureTraceId(sessionId)
     const traceEnv = await traceBridge.prepareTrace({
-      topicId: buildAgentSessionTopicId(sessionId),
+      topicId: sessionId,
       traceId,
       rootSpanId: deriveRootSpanId(traceId),
       sessionId,

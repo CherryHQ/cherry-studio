@@ -2,7 +2,7 @@ import type * as CherryStudioUi from '@cherrystudio/ui'
 import type * as ImageCaptureTargetsHook from '@renderer/hooks/useImageCaptureTargets'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
-import type { TopicStreamStatus } from '@shared/ai/transport'
+import { ConversationKind, type ConversationRef, ConversationStatus } from '@shared/ai/conversation'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
@@ -308,10 +308,10 @@ const dataApiMocks = vi.hoisted(() => ({
   workspacesRefreshing: false
 }))
 
-const topicStreamStatusMocks = vi.hoisted(() => ({
-  useTopicStreamStatus: vi.fn(() => ({
+const conversationStreamStatusMocks = vi.hoisted(() => ({
+  useConversationStreamStatus: vi.fn(() => ({
     activeExecutions: [],
-    awaitingApprovalAnchors: [],
+    awaitingInteractionExecutions: [],
     isFulfilled: false,
     isPending: false,
     markSeen: vi.fn(),
@@ -345,16 +345,16 @@ vi.mock('@renderer/services/agentSessionExport', () => {
   }
 })
 
-const createTopicStreamStatusMock = (
+const createConversationStreamStatusMock = (
   overrides: {
-    awaitingApprovalAnchors?: Array<{ executionId: string; anchorMessageId?: string }>
+    awaitingInteractionExecutions?: Array<{ executionId: string; anchorMessageId?: string }>
     isFulfilled?: boolean
     isPending?: boolean
-    status?: TopicStreamStatus
+    status?: ConversationStatus
   } = {}
 ) => ({
   activeExecutions: [],
-  awaitingApprovalAnchors: overrides.awaitingApprovalAnchors ?? [],
+  awaitingInteractionExecutions: overrides.awaitingInteractionExecutions ?? [],
   isFulfilled: overrides.isFulfilled ?? false,
   isPending: overrides.isPending ?? false,
   markSeen: vi.fn(),
@@ -438,8 +438,8 @@ vi.mock('@renderer/data/hooks/useCache', () => ({
   ]
 }))
 
-vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: topicStreamStatusMocks.useTopicStreamStatus
+vi.mock('@renderer/hooks/useConversationStreamStatus', () => ({
+  useConversationStreamStatus: conversationStreamStatusMocks.useConversationStreamStatus
 }))
 
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
@@ -530,7 +530,7 @@ vi.mock('@renderer/hooks/usePins', () => ({
 vi.mock('@renderer/utils/agentSession', () => ({
   buildAgentFileWorkspaceKey: (workspaceId?: string | null, workspacePath?: string) =>
     `${workspaceId ?? ''}\0${workspacePath ?? ''}`,
-  buildAgentSessionTopicId: (sessionId: string) => `agent-session:${sessionId}`,
+  buildAgentSessionScopeKey: (sessionId: string) => `agent:${sessionId}`,
   getChannelTypeIcon: vi.fn(() => undefined)
 }))
 
@@ -869,7 +869,9 @@ describe('Sessions', () => {
     cacheMocks.state.activeSessionId = 'session-a'
     fileNavigationMocks.request = null
     setupSessions()
-    topicStreamStatusMocks.useTopicStreamStatus.mockImplementation(() => createTopicStreamStatusMock())
+    conversationStreamStatusMocks.useConversationStreamStatus.mockImplementation(() =>
+      createConversationStreamStatusMock()
+    )
     pinMocks.usePins.mockReturnValue({
       isLoading: false,
       isRefreshing: false,
@@ -2857,15 +2859,21 @@ describe('Sessions', () => {
 
     expect(screen.getByRole('button', { name: 'Project A Workspace' })).toBeInTheDocument()
     expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
-    expect(topicStreamStatusMocks.useTopicStreamStatus).not.toHaveBeenCalledWith('agent-session:session-a')
-    expect(topicStreamStatusMocks.useTopicStreamStatus).not.toHaveBeenCalledWith('agent-session:session-b')
+    expect(conversationStreamStatusMocks.useConversationStreamStatus).not.toHaveBeenCalledWith({
+      kind: ConversationKind.Agent,
+      id: 'session-a'
+    })
+    expect(conversationStreamStatusMocks.useConversationStreamStatus).not.toHaveBeenCalledWith({
+      kind: ConversationKind.Agent,
+      id: 'session-b'
+    })
   })
 
   it('announces fulfilled and pending stream states', () => {
     // Only session-b carries a status; session-a is the selected row and a
     // green completion dot is suppressed there (read-receipt).
-    topicStreamStatusMocks.useTopicStreamStatus.mockImplementation((topicId: string) =>
-      createTopicStreamStatusMock(topicId === 'agent-session:session-b' ? { isFulfilled: true } : {})
+    conversationStreamStatusMocks.useConversationStreamStatus.mockImplementation((conversation: ConversationRef) =>
+      createConversationStreamStatusMock(conversation.id === 'session-b' ? { isFulfilled: true } : {})
     )
 
     const { unmount } = render(<SessionsForTest />)
@@ -2873,8 +2881,8 @@ describe('Sessions', () => {
     const indicator = screen.getByTestId('agent-session-stream-indicator')
     expect(indicator).toHaveAccessibleName('Done')
 
-    topicStreamStatusMocks.useTopicStreamStatus.mockImplementation((topicId: string) =>
-      createTopicStreamStatusMock(topicId === 'agent-session:session-b' ? { isPending: true } : {})
+    conversationStreamStatusMocks.useConversationStreamStatus.mockImplementation((conversation: ConversationRef) =>
+      createConversationStreamStatusMock(conversation.id === 'session-b' ? { isPending: true } : {})
     )
 
     unmount()
@@ -2886,8 +2894,8 @@ describe('Sessions', () => {
 
   it('keeps running and error indicators on the selected session row but suppresses the completion dot', () => {
     // session-a is the selected row in the default fixture.
-    topicStreamStatusMocks.useTopicStreamStatus.mockImplementation((topicId: string) =>
-      createTopicStreamStatusMock(topicId === 'agent-session:session-a' ? { isPending: true } : {})
+    conversationStreamStatusMocks.useConversationStreamStatus.mockImplementation((conversation: ConversationRef) =>
+      createConversationStreamStatusMock(conversation.id === 'session-a' ? { isPending: true } : {})
     )
 
     let view = render(<SessionsForTest />)
@@ -2900,8 +2908,8 @@ describe('Sessions', () => {
       'Running'
     )
 
-    topicStreamStatusMocks.useTopicStreamStatus.mockImplementation((topicId: string) =>
-      createTopicStreamStatusMock(topicId === 'agent-session:session-a' ? { status: 'error' } : {})
+    conversationStreamStatusMocks.useConversationStreamStatus.mockImplementation((conversation: ConversationRef) =>
+      createConversationStreamStatusMock(conversation.id === 'session-a' ? { status: ConversationStatus.Error } : {})
     )
     view.unmount()
     view = render(<SessionsForTest />)
@@ -2913,8 +2921,8 @@ describe('Sessions', () => {
     expect(errorIndicator).toHaveAccessibleName('Error')
 
     // A completion dot on the same selected row IS suppressed (read-receipt).
-    topicStreamStatusMocks.useTopicStreamStatus.mockImplementation((topicId: string) =>
-      createTopicStreamStatusMock(topicId === 'agent-session:session-a' ? { isFulfilled: true } : {})
+    conversationStreamStatusMocks.useConversationStreamStatus.mockImplementation((conversation: ConversationRef) =>
+      createConversationStreamStatusMock(conversation.id === 'session-a' ? { isFulfilled: true } : {})
     )
     view.unmount()
     render(<SessionsForTest />)
@@ -2926,8 +2934,8 @@ describe('Sessions', () => {
   })
 
   it('announces an error when the last turn errored', () => {
-    topicStreamStatusMocks.useTopicStreamStatus.mockImplementation((topicId: string) =>
-      createTopicStreamStatusMock(topicId === 'agent-session:session-b' ? { status: 'error' } : {})
+    conversationStreamStatusMocks.useConversationStreamStatus.mockImplementation((conversation: ConversationRef) =>
+      createConversationStreamStatusMock(conversation.id === 'session-b' ? { status: ConversationStatus.Error } : {})
     )
 
     render(<SessionsForTest />)
@@ -2937,8 +2945,8 @@ describe('Sessions', () => {
   })
 
   it('does not show a stream indicator for an aborted turn', () => {
-    topicStreamStatusMocks.useTopicStreamStatus.mockImplementation((topicId: string) =>
-      createTopicStreamStatusMock(topicId === 'agent-session:session-b' ? { status: 'aborted' } : {})
+    conversationStreamStatusMocks.useConversationStreamStatus.mockImplementation((conversation: ConversationRef) =>
+      createConversationStreamStatusMock(conversation.id === 'session-b' ? { status: ConversationStatus.Aborted } : {})
     )
 
     render(<SessionsForTest />)
@@ -2947,8 +2955,10 @@ describe('Sessions', () => {
   })
 
   it('shows an awaiting-approval badge without a stream indicator', () => {
-    topicStreamStatusMocks.useTopicStreamStatus.mockImplementation((topicId: string) =>
-      createTopicStreamStatusMock(topicId === 'agent-session:session-b' ? { status: 'awaiting-approval' } : {})
+    conversationStreamStatusMocks.useConversationStreamStatus.mockImplementation((conversation: ConversationRef) =>
+      createConversationStreamStatusMock(
+        conversation.id === 'session-b' ? { status: ConversationStatus.AwaitingInteraction } : {}
+      )
     )
 
     render(<SessionsForTest />)
@@ -2962,10 +2972,14 @@ describe('Sessions', () => {
   it('shows only the pill (no spinner) while a live stream pauses for approval', () => {
     // claude-code runtime: stream stays 'streaming' during a permission pause;
     // only the awaiting-approval anchors mark the pause.
-    topicStreamStatusMocks.useTopicStreamStatus.mockImplementation((topicId: string) =>
-      createTopicStreamStatusMock(
-        topicId === 'agent-session:session-b'
-          ? { status: 'streaming', isPending: true, awaitingApprovalAnchors: [{ executionId: 'exec-1' }] }
+    conversationStreamStatusMocks.useConversationStreamStatus.mockImplementation((conversation: ConversationRef) =>
+      createConversationStreamStatusMock(
+        conversation.id === 'session-b'
+          ? {
+              status: ConversationStatus.Streaming,
+              isPending: true,
+              awaitingInteractionExecutions: [{ executionId: 'exec-1' }]
+            }
           : {}
       )
     )
@@ -2981,8 +2995,10 @@ describe('Sessions', () => {
     // session-a is the active session in the default fixture. Awaiting-approval
     // is an ongoing state (unlike the completion dot), so it stays on the
     // selected row too — it only yields to hover actions.
-    topicStreamStatusMocks.useTopicStreamStatus.mockImplementation((topicId: string) =>
-      createTopicStreamStatusMock(topicId === 'agent-session:session-a' ? { status: 'awaiting-approval' } : {})
+    conversationStreamStatusMocks.useConversationStreamStatus.mockImplementation((conversation: ConversationRef) =>
+      createConversationStreamStatusMock(
+        conversation.id === 'session-a' ? { status: ConversationStatus.AwaitingInteraction } : {}
+      )
     )
 
     render(<SessionsForTest />)

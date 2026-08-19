@@ -27,9 +27,9 @@ import {
   AGENT_SESSION_DELIVERY_RECOVERABLE_STATUSES,
   type AgentSessionDeliveryEnvelope,
   type AgentSessionDeliveryError,
-  type AgentSessionDeliveryOutcome,
-  type AgentSessionDeliveryReplyPolicy,
-  type AgentSessionDeliveryStatus
+  AgentSessionDeliveryOutcome,
+  AgentSessionDeliveryReplyPolicy,
+  AgentSessionDeliveryStatus
 } from '@shared/ai/agentSessionDelivery'
 import { applyApprovalDecisions, type ApprovalDecision } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -238,9 +238,9 @@ function terminalResultData(
 
   const text =
     error?.message ??
-    (outcome === 'success'
+    (outcome === AgentSessionDeliveryOutcome.Success
       ? 'Session completed without a text response.'
-      : outcome === 'interrupted'
+      : outcome === AgentSessionDeliveryOutcome.Interrupted
         ? 'Session was interrupted before producing a result.'
         : 'Session failed without a text response.')
   return { parts: [{ type: 'text', text }] }
@@ -516,7 +516,10 @@ export class AgentSessionMessageService {
     if (!session) throw DataApiErrorFactory.notFound('Session', sessionId)
 
     const existing = this.findExistingMessageRow(database, sessionId, messageId)
-    if (existing?.deliveryStatus === 'accepted' || existing?.deliveryStatus === 'delivering') {
+    if (
+      existing?.deliveryStatus === AgentSessionDeliveryStatus.Accepted ||
+      existing?.deliveryStatus === AgentSessionDeliveryStatus.Delivering
+    ) {
       throw DataApiErrorFactory.resourceLocked('Message', messageId, 'an in-flight Session delivery')
     }
 
@@ -1058,7 +1061,7 @@ export class AgentSessionMessageService {
             senderSessionId: input.senderSessionId,
             receiverSessionId: sessionId,
             content,
-            replyPolicy: 'completion'
+            replyPolicy: AgentSessionDeliveryReplyPolicy.Completion
           })
         }),
       {
@@ -1159,7 +1162,7 @@ export class AgentSessionMessageService {
         agentName: receiverAgent.name,
         sessionName: receiverSession.sessionName
       },
-      replyPolicy: input.replyPolicy ?? 'none',
+      replyPolicy: input.replyPolicy ?? AgentSessionDeliveryReplyPolicy.None,
       sourceMessageId: null,
       outcome: null,
       error: null,
@@ -1174,7 +1177,7 @@ export class AgentSessionMessageService {
         status: 'success',
         data: { parts: [{ type: 'text', text: input.content }] },
         delivery,
-        deliveryStatus: 'accepted',
+        deliveryStatus: AgentSessionDeliveryStatus.Accepted,
         deliveryInReplyTo: null,
         deliverySenderSessionId: senderIdentity.sessionId
       }
@@ -1196,7 +1199,7 @@ export class AgentSessionMessageService {
   }
 
   listAcceptedSessionDeliveries(sessionId?: string): AgentSessionMessageEntity[] {
-    const filters = [eq(sessionMessagesTable.deliveryStatus, 'accepted')]
+    const filters = [eq(sessionMessagesTable.deliveryStatus, AgentSessionDeliveryStatus.Accepted)]
     if (sessionId) filters.push(eq(sessionMessagesTable.sessionId, sessionId))
     return application
       .get('DbService')
@@ -1216,7 +1219,10 @@ export class AgentSessionMessageService {
       .select()
       .from(sessionMessagesTable)
       .where(
-        and(eq(sessionMessagesTable.deliveryStatus, 'delivering'), eq(sessionMessagesTable.deliveryTurnRef, turnRef))
+        and(
+          eq(sessionMessagesTable.deliveryStatus, AgentSessionDeliveryStatus.Delivering),
+          eq(sessionMessagesTable.deliveryTurnRef, turnRef)
+        )
       )
       .limit(1)
       .get()
@@ -1307,7 +1313,10 @@ export class AgentSessionMessageService {
       const existing = this.findExistingMessageRow(tx, sessionId, messageId)
       if (!existing?.delivery || !existing.deliveryStatus) return null
       if (options.expected && !options.expected.includes(existing.deliveryStatus)) return null
-      if (existing.deliveryStatus === 'consumed' || existing.deliveryStatus === 'failed') {
+      if (
+        existing.deliveryStatus === AgentSessionDeliveryStatus.Consumed ||
+        existing.deliveryStatus === AgentSessionDeliveryStatus.Failed
+      ) {
         return this.rowToEntity(existing)
       }
 
@@ -1322,7 +1331,8 @@ export class AgentSessionMessageService {
         .set({
           delivery,
           deliveryStatus: status,
-          deliveryTurnRef: status === 'delivering' ? (options.turnRef ?? existing.deliveryTurnRef) : null
+          deliveryTurnRef:
+            status === AgentSessionDeliveryStatus.Delivering ? (options.turnRef ?? existing.deliveryTurnRef) : null
         })
         .where(
           and(
@@ -1346,16 +1356,16 @@ export class AgentSessionMessageService {
     turnRef: string
   ): AgentSessionMessageEntity | null {
     const existing = this.findExistingMessageRow(tx, sessionId, messageId)
-    if (!existing?.delivery || existing.deliveryStatus !== 'accepted') return null
+    if (!existing?.delivery || existing.deliveryStatus !== AgentSessionDeliveryStatus.Accepted) return null
     const delivery = { ...existing.delivery, statusAt: new Date().toISOString() }
     const row = tx
       .update(sessionMessagesTable)
-      .set({ delivery, deliveryStatus: 'delivering', deliveryTurnRef: turnRef })
+      .set({ delivery, deliveryStatus: AgentSessionDeliveryStatus.Delivering, deliveryTurnRef: turnRef })
       .where(
         and(
           eq(sessionMessagesTable.id, messageId),
           eq(sessionMessagesTable.sessionId, sessionId),
-          eq(sessionMessagesTable.deliveryStatus, 'accepted')
+          eq(sessionMessagesTable.deliveryStatus, AgentSessionDeliveryStatus.Accepted)
         )
       )
       .returning()
@@ -1370,7 +1380,7 @@ export class AgentSessionMessageService {
     error: AgentSessionDeliveryError | null = null
   ): AgentSessionMessageEntity | null {
     return this.transitionSessionDelivery(sessionId, messageId, status, {
-      ...(status === 'failed' ? { error, outcome: 'failed' as const } : {})
+      ...(status === AgentSessionDeliveryStatus.Failed ? { error, outcome: AgentSessionDeliveryOutcome.Failed } : {})
     })
   }
 
@@ -1384,7 +1394,10 @@ export class AgentSessionMessageService {
       const request = this.findExistingMessageRow(tx, input.requestSessionId, input.requestMessageId)
       if (!request?.delivery || !request.deliveryStatus) return { requestId: null, result: null }
 
-      if (request.deliveryStatus !== 'delivering' || request.deliveryTurnRef !== input.assistantMessageId) {
+      if (
+        request.deliveryStatus !== AgentSessionDeliveryStatus.Delivering ||
+        request.deliveryTurnRef !== input.assistantMessageId
+      ) {
         return { requestId: null, result: null }
       }
 
@@ -1397,7 +1410,7 @@ export class AgentSessionMessageService {
       if (existingResult) {
         tx.update(sessionMessagesTable)
           .set({
-            deliveryStatus: 'consumed',
+            deliveryStatus: AgentSessionDeliveryStatus.Consumed,
             deliveryTurnRef: null,
             delivery: { ...request.delivery, outcome: input.outcome, statusAt: new Date().toISOString() }
           })
@@ -1405,7 +1418,10 @@ export class AgentSessionMessageService {
           .run()
         return {
           requestId: request.id,
-          result: existingResult.deliveryStatus === 'accepted' ? this.rowToEntity(existingResult) : null
+          result:
+            existingResult.deliveryStatus === AgentSessionDeliveryStatus.Accepted
+              ? this.rowToEntity(existingResult)
+              : null
         }
       }
 
@@ -1415,7 +1431,7 @@ export class AgentSessionMessageService {
       }
 
       let result: AgentSessionMessageEntity | null = null
-      if (request.delivery.replyPolicy === 'completion') {
+      if (request.delivery.replyPolicy === AgentSessionDeliveryReplyPolicy.Completion) {
         const callerExists = tx
           .select({ id: sessionTable.id })
           .from(sessionTable)
@@ -1425,11 +1441,11 @@ export class AgentSessionMessageService {
         if (!callerExists) {
           tx.update(sessionMessagesTable)
             .set({
-              deliveryStatus: 'failed',
+              deliveryStatus: AgentSessionDeliveryStatus.Failed,
               deliveryTurnRef: null,
               delivery: {
                 ...request.delivery,
-                outcome: 'failed',
+                outcome: AgentSessionDeliveryOutcome.Failed,
                 error: { code: 'CALLER_SESSION_DELETED', message: 'Caller Session was deleted' },
                 statusAt: new Date().toISOString()
               }
@@ -1444,7 +1460,7 @@ export class AgentSessionMessageService {
           receiver: request.delivery.sender,
           senderSnapshot: request.delivery.receiverSnapshot,
           receiverSnapshot: request.delivery.senderSnapshot,
-          replyPolicy: 'none',
+          replyPolicy: AgentSessionDeliveryReplyPolicy.None,
           sourceMessageId: assistant.id,
           outcome: input.outcome,
           error: null,
@@ -1458,7 +1474,7 @@ export class AgentSessionMessageService {
             status: 'success',
             data: terminalResultData(assistant, input.outcome),
             delivery: resultEnvelope,
-            deliveryStatus: 'accepted',
+            deliveryStatus: AgentSessionDeliveryStatus.Accepted,
             deliveryInReplyTo: request.id,
             deliverySenderSessionId: request.delivery.receiver.sessionId
           }
@@ -1467,7 +1483,7 @@ export class AgentSessionMessageService {
 
       tx.update(sessionMessagesTable)
         .set({
-          deliveryStatus: 'consumed',
+          deliveryStatus: AgentSessionDeliveryStatus.Consumed,
           deliveryTurnRef: null,
           delivery: { ...request.delivery, outcome: input.outcome, statusAt: new Date().toISOString() }
         })
@@ -1499,7 +1515,7 @@ export class AgentSessionMessageService {
       if (!request?.delivery || !request.deliveryStatus) return { requestId: null, result: null }
       const now = new Date().toISOString()
       let result: AgentSessionMessageEntity | null = null
-      if (request.delivery.replyPolicy === 'completion') {
+      if (request.delivery.replyPolicy === AgentSessionDeliveryReplyPolicy.Completion) {
         const callerExists = tx
           .select({ id: sessionTable.id })
           .from(sessionTable)
@@ -1515,7 +1531,7 @@ export class AgentSessionMessageService {
         result = !callerExists
           ? null
           : existingResult
-            ? existingResult.deliveryStatus === 'accepted'
+            ? existingResult.deliveryStatus === AgentSessionDeliveryStatus.Accepted
               ? this.rowToEntity(existingResult)
               : null
             : this.saveMessageTx(tx, {
@@ -1524,20 +1540,20 @@ export class AgentSessionMessageService {
                   id: uuidv7(),
                   role: 'user',
                   status: 'success',
-                  data: terminalResultData(null, 'failed', error),
+                  data: terminalResultData(null, AgentSessionDeliveryOutcome.Failed, error),
                   delivery: {
                     version: 1,
                     sender: request.delivery.receiver,
                     receiver: request.delivery.sender,
                     senderSnapshot: request.delivery.receiverSnapshot,
                     receiverSnapshot: request.delivery.senderSnapshot,
-                    replyPolicy: 'none',
+                    replyPolicy: AgentSessionDeliveryReplyPolicy.None,
                     sourceMessageId: null,
-                    outcome: 'failed',
+                    outcome: AgentSessionDeliveryOutcome.Failed,
                     error,
                     statusAt: now
                   },
-                  deliveryStatus: 'accepted',
+                  deliveryStatus: AgentSessionDeliveryStatus.Accepted,
                   deliveryInReplyTo: request.id,
                   deliverySenderSessionId: request.delivery.receiver.sessionId
                 }
@@ -1545,9 +1561,9 @@ export class AgentSessionMessageService {
       }
       tx.update(sessionMessagesTable)
         .set({
-          deliveryStatus: 'failed',
+          deliveryStatus: AgentSessionDeliveryStatus.Failed,
           deliveryTurnRef: null,
-          delivery: { ...request.delivery, outcome: 'failed', error, statusAt: now }
+          delivery: { ...request.delivery, outcome: AgentSessionDeliveryOutcome.Failed, error, statusAt: now }
         })
         .where(eq(sessionMessagesTable.id, request.id))
         .run()
@@ -1576,7 +1592,10 @@ export class AgentSessionMessageService {
       .where(
         and(
           inArray(sessionMessagesTable.sessionId, deleting),
-          inArray(sessionMessagesTable.deliveryStatus, ['accepted', 'delivering'])
+          inArray(sessionMessagesTable.deliveryStatus, [
+            AgentSessionDeliveryStatus.Accepted,
+            AgentSessionDeliveryStatus.Delivering
+          ])
         )
       )
       .all()
@@ -1585,7 +1604,7 @@ export class AgentSessionMessageService {
     for (const request of requests) {
       if (
         !request.delivery ||
-        request.delivery.replyPolicy !== 'completion' ||
+        request.delivery.replyPolicy !== AgentSessionDeliveryReplyPolicy.Completion ||
         deleting.includes(request.delivery.sender.sessionId)
       )
         continue
@@ -1617,13 +1636,13 @@ export class AgentSessionMessageService {
               receiver: request.delivery.sender,
               senderSnapshot: request.delivery.receiverSnapshot,
               receiverSnapshot: request.delivery.senderSnapshot,
-              replyPolicy: 'none',
+              replyPolicy: AgentSessionDeliveryReplyPolicy.None,
               sourceMessageId: null,
-              outcome: 'failed',
+              outcome: AgentSessionDeliveryOutcome.Failed,
               error: { code: 'TARGET_SESSION_DELETED', message: 'Target Session was deleted' },
               statusAt: now
             },
-            deliveryStatus: 'accepted',
+            deliveryStatus: AgentSessionDeliveryStatus.Accepted,
             deliveryInReplyTo: request.id,
             deliverySenderSessionId: request.delivery.receiver.sessionId
           }
@@ -1643,7 +1662,10 @@ export class AgentSessionMessageService {
       .where(
         and(
           inArray(sessionMessagesTable.sessionId, [...affected]),
-          inArray(sessionMessagesTable.deliveryStatus, ['accepted', 'delivering'])
+          inArray(sessionMessagesTable.deliveryStatus, [
+            AgentSessionDeliveryStatus.Accepted,
+            AgentSessionDeliveryStatus.Delivering
+          ])
         )
       )
       .all()
@@ -1655,21 +1677,29 @@ export class AgentSessionMessageService {
       const failedRequest = tx
         .update(sessionMessagesTable)
         .set({
-          deliveryStatus: 'failed',
+          deliveryStatus: AgentSessionDeliveryStatus.Failed,
           deliveryTurnRef: null,
-          delivery: { ...request.delivery, outcome: 'interrupted', error, statusAt: now }
+          delivery: { ...request.delivery, outcome: AgentSessionDeliveryOutcome.Interrupted, error, statusAt: now }
         })
         .where(
           and(
             eq(sessionMessagesTable.id, request.id),
-            inArray(sessionMessagesTable.deliveryStatus, ['accepted', 'delivering'])
+            inArray(sessionMessagesTable.deliveryStatus, [
+              AgentSessionDeliveryStatus.Accepted,
+              AgentSessionDeliveryStatus.Delivering
+            ])
           )
         )
         .returning()
         .get()
       if (failedRequest) changes.push(this.rowToEntity(failedRequest))
 
-      if (request.delivery.replyPolicy !== 'completion' || affected.has(request.delivery.sender.sessionId)) continue
+      if (
+        request.delivery.replyPolicy !== AgentSessionDeliveryReplyPolicy.Completion ||
+        affected.has(request.delivery.sender.sessionId)
+      ) {
+        continue
+      }
       const existingResult = tx
         .select({ id: sessionMessagesTable.id })
         .from(sessionMessagesTable)
@@ -1698,13 +1728,13 @@ export class AgentSessionMessageService {
               receiver: request.delivery.sender,
               senderSnapshot: request.delivery.receiverSnapshot,
               receiverSnapshot: request.delivery.senderSnapshot,
-              replyPolicy: 'none',
+              replyPolicy: AgentSessionDeliveryReplyPolicy.None,
               sourceMessageId: null,
-              outcome: 'interrupted',
+              outcome: AgentSessionDeliveryOutcome.Interrupted,
               error,
               statusAt: now
             },
-            deliveryStatus: 'accepted',
+            deliveryStatus: AgentSessionDeliveryStatus.Accepted,
             deliveryInReplyTo: request.id,
             deliverySenderSessionId: request.delivery.receiver.sessionId
           }

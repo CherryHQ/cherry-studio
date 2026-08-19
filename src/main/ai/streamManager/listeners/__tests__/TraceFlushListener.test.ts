@@ -1,3 +1,4 @@
+import { ConversationOutcomeKind } from '@shared/ai/conversation'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -24,7 +25,7 @@ describe('TraceFlushListener', () => {
   it('flushes the topic trace cache when the topic turn is done', async () => {
     const listener = new TraceFlushListener('topic-1')
 
-    await listener.onTopicQuiesced({ status: 'success', isTopicDone: true })
+    await listener.onTopicQuiesced({ status: ConversationOutcomeKind.Success })
 
     expect(mocks.saveSpans).toHaveBeenCalledWith('topic-1')
   })
@@ -32,7 +33,7 @@ describe('TraceFlushListener', () => {
   it('flushes when the cleanup port is invoked for a paused topic', async () => {
     const listener = new TraceFlushListener('topic-1')
 
-    await listener.onTopicQuiesced({ status: 'paused', isTopicDone: true })
+    await listener.onTopicQuiesced({ status: ConversationOutcomeKind.Paused })
 
     expect(mocks.saveSpans).toHaveBeenCalledWith('topic-1')
   })
@@ -43,8 +44,7 @@ describe('TraceFlushListener', () => {
 
     await expect(
       listener.onTopicQuiesced({
-        status: 'error',
-        isTopicDone: true,
+        status: ConversationOutcomeKind.Error,
         error: { name: 'Error', message: 'boom', stack: null }
       })
     ).resolves.toBe(undefined)

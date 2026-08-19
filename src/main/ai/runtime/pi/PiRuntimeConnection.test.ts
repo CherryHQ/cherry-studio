@@ -38,7 +38,7 @@ const mocks = vi.hoisted(() => ({
   getSkillDirectory: vi.fn(),
   resolveInjection: vi.fn(),
   getPath: vi.fn(),
-  getInteractionState: vi.fn(),
+  getAgentInteractionState: vi.fn(),
   loadPiSdk: vi.fn(),
   loadPiAiCompat: vi.fn(),
   unregisterApiProviders: vi.fn(),
@@ -99,7 +99,7 @@ vi.mock('@application', () => ({
   application: {
     getPath: mocks.getPath,
     get: (name: string) =>
-      name === 'AgentSessionRuntimeService' ? { getInteractionState: mocks.getInteractionState } : {}
+      name === 'ConversationRuntimeService' ? { getAgentInteractionState: mocks.getAgentInteractionState } : {}
   }
 }))
 vi.mock('@data/services/AgentSessionService', () => ({ agentSessionService: { getById: mocks.getById } }))
@@ -286,7 +286,7 @@ beforeEach(() => {
     workspace: { path: WORKSPACE, type: 'system' }
   })
   mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', instructions: 'Be helpful.' })
-  mocks.getInteractionState.mockReturnValue({ currentTurn: 'interactive', userResponse: 'stream' })
+  mocks.getAgentInteractionState.mockReturnValue({ currentTurn: 'interactive', userResponse: 'stream' })
   mocks.findChannelBySessionId.mockReturnValue(null)
   mocks.buildPromptParts.mockResolvedValue({ base: { kind: 'native' }, context: 'AGENT PROMPT' })
   mocks.buildCitationsGuidance.mockReturnValue(undefined)

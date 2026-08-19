@@ -4,6 +4,7 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { ConversationOutcomeKind } from '@shared/ai/conversation'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -94,7 +95,7 @@ describe('AgentSessionMessageBackend', () => {
 
     backend.persistAssistant({
       finalMessage: finalMessage('answer'),
-      status: 'success',
+      status: ConversationOutcomeKind.Success,
       runtimeStats: { runtimeTiming: { startedAt: 1_000, completedAt: 2_000, spans: [] }, contextTokens: 42 }
     })
 
@@ -129,8 +130,8 @@ describe('AgentSessionMessageBackend', () => {
       modelId: MODEL_ID
     })
 
-    backend.persistAssistant({ finalMessage: finalMessage('resurrected?'), status: 'success' })
-    backend.persistAssistant({ finalMessage: finalMessage('errored'), status: 'error' })
+    backend.persistAssistant({ finalMessage: finalMessage('resurrected?'), status: ConversationOutcomeKind.Success })
+    backend.persistAssistant({ finalMessage: finalMessage('errored'), status: ConversationOutcomeKind.Error })
     backend.markTerminalError()
 
     expect(assistantRows()).toHaveLength(0)
@@ -150,7 +151,10 @@ describe('AgentSessionMessageBackend', () => {
     })
     const backend = new AgentSessionMessageBackend({ sessionId: SESSION_ID, assistantMessageId: ASSISTANT_MESSAGE_ID })
 
-    backend.persistAssistant({ finalMessage: finalMessage('late paused write'), status: 'paused' })
+    backend.persistAssistant({
+      finalMessage: finalMessage('late paused write'),
+      status: ConversationOutcomeKind.Paused
+    })
     backend.markTerminalError()
 
     expect(assistantRows()[0]).toMatchObject({
@@ -166,7 +170,7 @@ describe('AgentSessionMessageBackend', () => {
       assistantMessageId: ASSISTANT_MESSAGE_ID
     })
 
-    backend.persistAssistant({ status: 'success' })
+    backend.persistAssistant({ status: ConversationOutcomeKind.Success })
 
     expect(assistantRows()[0]).toMatchObject({ status: 'success', data: { parts: [] } })
   })

@@ -3,14 +3,14 @@ import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceServi
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // `application.get('PreferenceService')` is mocked globally via
-// tests/main.setup.ts. We only need to override `AiStreamManager` so we can
+// tests/main.setup.ts. We only need to override `PromptStreamManager` so we can
 // assert on the streamPrompt call.
 const streamPromptMock = vi.fn(() => ({ mode: 'started' as const, activeExecutions: [] }))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
-    AiStreamManager: { streamPrompt: streamPromptMock }
+    PromptStreamManager: { streamPrompt: streamPromptMock }
   } as never)
 })
 
@@ -158,7 +158,7 @@ describe('translateService.open', () => {
     expect(arg.reasoningEffort).toBe('none')
     const listeners = Array.isArray(arg.listener) ? arg.listener : [arg.listener]
     expect(listeners).toHaveLength(1)
-    expect(listeners[0].id).toBe(`wc:test:${streamId}`)
+    expect(listeners[0].id).toBe(`prompt-wc:1:${streamId}`)
   })
 
   it('registers a persistence port when the request carries a messageId', async () => {
@@ -178,7 +178,7 @@ describe('translateService.open', () => {
     )[0][0]
     const listeners = Array.isArray(arg.listener) ? arg.listener : [arg.listener]
     expect(listeners).toHaveLength(1)
-    expect(listeners[0].id).toBe(`wc:test:${streamId}`)
+    expect(listeners[0].id).toBe(`prompt-wc:1:${streamId}`)
     expect(arg.persistencePorts).toHaveLength(1)
     expect(arg.persistencePorts[0].id).toContain('persistence:translation')
   })

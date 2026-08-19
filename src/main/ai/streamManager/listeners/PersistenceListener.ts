@@ -6,6 +6,7 @@
 
 import { loggerService } from '@logger'
 import { serializeError } from '@main/ai/utils/serializeError'
+import { ConversationOutcomeKind } from '@shared/ai/conversation'
 import type {
   CherryMessagePart,
   CherryUIMessage,
@@ -57,19 +58,19 @@ export class PersistenceListener implements StreamPersistencePort {
 
   async onDone(result: StreamDoneResult): Promise<void> {
     if (!this.owns(result.modelId)) return
-    return this.persistAssistant(result.finalMessage, 'success', result.runtimeTiming)
+    return this.persistAssistant(result.finalMessage, ConversationOutcomeKind.Success, result.runtimeTiming)
   }
 
   async onPaused(result: StreamPausedResult): Promise<void> {
     if (!this.owns(result.modelId)) return
-    return this.persistAssistant(result.finalMessage, 'paused', result.runtimeTiming)
+    return this.persistAssistant(result.finalMessage, ConversationOutcomeKind.Paused, result.runtimeTiming)
   }
 
   async onError(result: StreamErrorResult): Promise<void> {
     if (!this.owns(result.modelId)) return
     // Folded once here so backends see a uniform UIMessage shape, not `SerializedError`.
     const withErrorPart = mergeErrorIntoMessage(result.finalMessage, result.error)
-    return this.persistAssistant(withErrorPart, 'error', result.runtimeTiming)
+    return this.persistAssistant(withErrorPart, ConversationOutcomeKind.Error, result.runtimeTiming)
   }
 
   private owns(modelId: UniqueModelId | undefined): boolean {
@@ -78,11 +79,11 @@ export class PersistenceListener implements StreamPersistencePort {
 
   private async persistAssistant(
     finalMessage: CherryUIMessage | undefined,
-    status: 'success' | 'paused' | 'error',
+    status: ConversationOutcomeKind,
     runtimeTiming: MessageRuntimeTiming | undefined
   ): Promise<void> {
     const canPersistEmpty =
-      status === 'success'
+      status === ConversationOutcomeKind.Success
         ? this.opts.backend.canPersistEmptySuccessTerminal
         : this.opts.backend.canPersistEmptyTerminal
     if (!finalMessage && !canPersistEmpty) {
@@ -151,7 +152,7 @@ export class PersistenceListener implements StreamPersistencePort {
       throw new TerminalPersistenceError(serializeError(err), durableErrorWritten)
     }
 
-    if (status === 'success' && finalMessageForPersistence && this.opts.backend.afterPersist) {
+    if (status === ConversationOutcomeKind.Success && finalMessageForPersistence && this.opts.backend.afterPersist) {
       void this.opts.backend.afterPersist(finalMessageForPersistence).catch((err) => {
         logger.warn('afterPersist hook failed', {
           backend: this.opts.backend.kind,

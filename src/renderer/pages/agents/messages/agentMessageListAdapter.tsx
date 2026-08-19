@@ -27,9 +27,9 @@ import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
 import type { Topic } from '@renderer/types/topic'
-import { extractAgentSessionIdFromTopicId } from '@renderer/utils/agentSession'
 import type { DiagnosisResult } from '@renderer/utils/errorDiagnosis'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
+import { ConversationKind } from '@shared/ai/conversation'
 import type { ResponseForPath } from '@shared/data/api/paths'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
@@ -82,6 +82,7 @@ export function locateAgentMessageInList(topicId: string, messageId: string, hig
 }
 
 interface AgentMessageListParams {
+  sessionId: string
   topic: Topic
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
@@ -140,6 +141,7 @@ const requireWorkspaceFilePath = (workspacePath: string | undefined, rawPath: st
 }
 
 export function useAgentMessageListProviderValue({
+  sessionId,
   topic,
   messages,
   partsByMessageId,
@@ -160,7 +162,6 @@ export function useAgentMessageListProviderValue({
   messageTail
 }: AgentMessageListParams): MessageListProviderValue {
   const { t } = useTranslation()
-  const sessionId = useMemo(() => extractAgentSessionIdFromTopicId(topic.id), [topic.id])
   const resolvedAgentId = assistantId ?? topic.assistantId
   const messageItemCacheRef = useRef(
     new WeakMap<
@@ -449,13 +450,14 @@ export function useAgentMessageListProviderValue({
 
   const meta = useMemo<MessageListMeta>(
     () => ({
+      conversation: { kind: ConversationKind.Agent, id: sessionId },
       selectionLayer: true,
       userProfile: headerCapabilities.userProfile,
       assistantProfile,
       imageExportFileName: topic.name,
       aiUsageMessageKind: 'agent-session'
     }),
-    [assistantProfile, headerCapabilities.userProfile, topic.name]
+    [assistantProfile, headerCapabilities.userProfile, sessionId, topic.name]
   )
 
   return useMemo(() => ({ state, actions, meta }), [actions, meta, state])

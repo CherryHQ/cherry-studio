@@ -18,6 +18,7 @@ const assistantContextMock = vi.hoisted(() => ({
   isModelPending: false
 }))
 const providerHookArgs = vi.hoisted(() => [] as unknown[][])
+const branchLiveStateSetter = vi.hoisted(() => vi.fn())
 
 const topic: Topic = {
   id: 'topic-1',
@@ -175,7 +176,7 @@ vi.mock('../components/TopicRightPane', () => {
 
   return {
     TopicRightPane,
-    useTopicBranchLiveStateSetter: () => vi.fn()
+    useTopicBranchLiveStateSetter: () => branchLiveStateSetter
   }
 })
 
@@ -187,6 +188,7 @@ describe('Chat', () => {
     assistantContextMock.isLoading = false
     assistantContextMock.isModelPending = false
     providerHookArgs.length = 0
+    branchLiveStateSetter.mockReset()
   })
 
   it('renders the navbar and right pane shortcuts in the shared conversation shell', () => {
@@ -245,6 +247,27 @@ describe('Chat', () => {
     view.rerender(<Chat activeTopic={{ ...topic, id: 'topic-2' }} />)
 
     expect(screen.getByRole('status', { name: 'rail gutter' })).toHaveTextContent('24')
+  })
+
+  it('keeps late branch-live contributions bound to the topic that produced them', () => {
+    const view = render(<Chat activeTopic={topic} />)
+    const topicOneContribution = chatContentProps.current.onBranchLiveStateChange
+
+    view.rerender(<Chat activeTopic={{ ...topic, id: 'topic-2' }} />)
+    const topicTwoContribution = chatContentProps.current.onBranchLiveStateChange
+    branchLiveStateSetter.mockClear()
+
+    const topicTwoState = { topicId: 'topic-2', messageIds: ['assistant-2'] }
+    act(() => {
+      topicTwoContribution({ topicId: 'topic-2', state: topicTwoState })
+      topicOneContribution({ topicId: 'topic-1', state: null })
+      topicOneContribution({ topicId: 'topic-2', state: null })
+    })
+
+    expect(branchLiveStateSetter.mock.calls).toEqual([
+      ['topic-2', topicTwoState],
+      ['topic-1', null]
+    ])
   })
 
   it('renders the navbar while the active topic is still resolving', () => {

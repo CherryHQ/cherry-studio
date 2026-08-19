@@ -24,7 +24,7 @@ const { mockStreamPrompt, mockGetProvider, mockListModels, mockGetAgentSessionId
 vi.mock('@application', () => ({
   application: {
     get: vi.fn((name: string) => {
-      if (name === 'AiStreamManager') return { streamPrompt: mockStreamPrompt, abort: vi.fn() }
+      if (name === 'PromptStreamManager') return { streamPrompt: mockStreamPrompt, abort: vi.fn() }
       if (name === 'ApiGatewayService')
         return {
           isInternalAgentRequest: vi.fn(() => mockGetAgentSessionId() !== undefined),

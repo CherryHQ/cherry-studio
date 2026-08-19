@@ -15,6 +15,7 @@ import {
   WEB_SEARCH_TOOL_NAME,
   webSearchOutputSchema
 } from '@shared/ai/builtinTools'
+import type { ConversationRef } from '@shared/ai/conversation'
 import {
   type DeferredToolOutput,
   type DeferredToolResultRef,
@@ -195,13 +196,13 @@ function projectToolOutputForRenderer(output: unknown, ref: DeferredToolResultRe
 /** Projects a stored or finalized message part. Returns the same object when nothing changed. */
 export function projectMessagePartForRenderer(
   part: CherryMessagePart,
-  topicId: string,
+  conversation: ConversationRef,
   messageId: string
 ): CherryMessagePart {
   if (!isToolUIPart(part) || part.state !== 'output-available') return part
 
   const output = projectToolOutputForRenderer(part.output, {
-    topicId,
+    conversation,
     messageId,
     toolCallId: part.toolCallId
   })
@@ -212,12 +213,12 @@ export function projectMessagePartForRenderer(
 /** Projects every part of a message. Returns the same array when nothing changed. */
 export function projectMessagePartsForRenderer(
   parts: CherryMessagePart[],
-  topicId: string,
+  conversation: ConversationRef,
   messageId: string
 ): CherryMessagePart[] {
   let projected: CherryMessagePart[] | undefined
   for (let index = 0; index < parts.length; index += 1) {
-    const part = projectMessagePartForRenderer(parts[index], topicId, messageId)
+    const part = projectMessagePartForRenderer(parts[index], conversation, messageId)
     if (part === parts[index]) continue
     projected ??= [...parts]
     projected[index] = part
@@ -228,13 +229,13 @@ export function projectMessagePartsForRenderer(
 /** Projects a live stream chunk. Returns the same object when nothing changed. */
 export function projectStreamChunkForRenderer(
   chunk: UIMessageChunk,
-  topicId: string,
+  conversation: ConversationRef,
   messageId: string | undefined
 ): UIMessageChunk {
   if (chunk.type !== 'tool-output-available' || !messageId) return chunk
 
   const output = projectToolOutputForRenderer(chunk.output, {
-    topicId,
+    conversation,
     messageId,
     toolCallId: chunk.toolCallId
   })

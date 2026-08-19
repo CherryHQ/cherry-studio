@@ -6,14 +6,19 @@ import { DSH_BUILTIN_TOOLS } from '@shared/ai/dshBuiltinTools'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
-import type { AgentRuntimeConnectInput, AgentRuntimeConnection, AgentSessionRuntimeDriver } from '../types'
+import {
+  type AgentRuntimeConnectInput,
+  type AgentRuntimeConnection,
+  type AgentSessionRuntimeDriver,
+  AiRuntimeCapability
+} from '../types'
 import { buildDshCherryToolName, DSH_AUTO_APPROVED_BRIDGED_TOOLS } from './DshCherryToolBridge'
 import { DshRuntimeConnection } from './DshRuntimeConnection'
 import { assertDshProviderUsable } from './modelInjection'
 
 export class DshRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly type = 'dsh'
-  readonly capabilities = ['agent-session'] as const
+  readonly capabilities = [AiRuntimeCapability.AgentSession] as const
 
   async validateSession(session: AgentSessionEntity): Promise<void> {
     const cwd = session.workspace?.path

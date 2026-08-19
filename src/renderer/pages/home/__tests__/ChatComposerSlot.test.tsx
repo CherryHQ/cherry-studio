@@ -1,5 +1,6 @@
 import { type ComposerContextValue, useActiveComposerOverride } from '@renderer/components/composer/ComposerContext'
 import type { Topic } from '@renderer/types/topic'
+import { ConversationTargetMode } from '@shared/ai/conversation'
 import type { ComposerChatTarget } from '@shared/ai/transport'
 import { render, screen, waitFor } from '@testing-library/react'
 import { useLayoutEffect } from 'react'
@@ -45,7 +46,7 @@ vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
 }))
 
 const topic = { id: 'topic-1' } as Topic
-const chatTarget = { parentAnchorId: 'active-node', mode: 'active-path' } as const
+const chatTarget = { parentAnchorId: 'active-node', mode: ConversationTargetMode.ActivePath } as const
 
 const baseProps = {
   placement: 'docked' as const,

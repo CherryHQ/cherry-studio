@@ -1,10 +1,11 @@
+import { ConversationOutcomeKind } from '@shared/ai/conversation'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const appendAssistantMessageMock = vi.fn()
 
 vi.mock('@main/data/services/TemporaryChatService', () => ({
-  temporaryChatService: { appendAssistantMessage: appendAssistantMessageMock }
+  temporaryChatService: { settleAssistantMessage: appendAssistantMessageMock }
 }))
 
 const { TemporaryChatBackend } = await import('../TemporaryChatBackend')
@@ -25,7 +26,7 @@ describe('TemporaryChatBackend.persistAssistant', () => {
         parts: [{ type: 'text', text: 'yo' }],
         metadata: {}
       } as unknown as CherryUIMessage,
-      status: 'success',
+      status: ConversationOutcomeKind.Success,
       modelId: 'openai::gpt-4o',
       runtimeStats: { runtimeTiming }
     })

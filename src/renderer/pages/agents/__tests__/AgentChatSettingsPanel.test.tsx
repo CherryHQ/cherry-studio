@@ -1,4 +1,5 @@
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
+import { ConversationKind } from '@shared/ai/conversation'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ComponentProps, PropsWithChildren, ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
@@ -232,16 +233,15 @@ vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => ({
+vi.mock('@renderer/hooks/useConversationStreamStatus', () => ({
+  useConversationStreamStatus: () => ({
     isPending: topicStreamStatusMock.isPending,
-    topicBusy: topicStreamStatusMock.isPending
-  }),
-  useTopicOverlayHandoffOnTerminal: () => {}
+    conversationBusy: topicStreamStatusMock.isPending
+  })
 }))
 
 vi.mock('@renderer/utils/agentSession', () => ({
-  buildAgentSessionTopicId: (sessionId: string) => `agent-session:${sessionId}`
+  buildAgentSessionScopeKey: (sessionId: string) => `agent:${sessionId}`
 }))
 
 vi.mock('react-i18next', async (importOriginal) => ({
@@ -817,7 +817,7 @@ describe('AgentChat settings panel', () => {
       approved: true,
       reason: undefined,
       updatedInput: undefined,
-      topicId: 'agent-session:session-1',
+      conversation: { kind: ConversationKind.Agent, id: 'session-1' },
       anchorId: 'message-1'
     })
   })

@@ -1,7 +1,7 @@
 /**
  * Proxy Stream Service
  *
- * Routes API-gateway requests through main's `AiStreamManager` as an equal
+ * Routes API-gateway requests through main's `PromptStreamManager` as an equal
  * subscriber (alongside WebContentsListener / ChannelAdapterListener), using a
  * one-shot non-persisting prompt stream. The resulting `UIMessageChunk` stream
  * is translated into each API's SSE / JSON shape by the adapter system, driven
@@ -58,7 +58,7 @@ function isStartupCommitChunk(chunk: UIMessageChunk): boolean {
 
 /**
  * Terminal error for a stream that paused without finishing — the 20-minute idle
- * timeout firing, or a mid-stream abort. `AiStreamManager` classifies both as
+ * timeout firing, or a mid-stream abort. `PromptStreamManager` classifies both as
  * `paused` (not `error`), so the gateway must synthesize a failure: a 504 for the
  * non-streaming path and a dialect error frame for the streaming path. Without
  * this, a truncated reply is indistinguishable from a real completion.
@@ -240,7 +240,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   if (messages !== convertedMessages) {
     logger.info('Appended assistant-tail continuation for internal agent request', { providerId, modelId, streamId })
   }
-  const aiStreamManager = application.get('AiStreamManager')
+  const promptStreamManager = application.get('PromptStreamManager')
 
   if (isStreaming) {
     // Do not commit the HTTP response until the provider has produced a meaningful
@@ -304,7 +304,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
 
         const onAbort = () => {
           abandon()
-          aiStreamManager.abort(streamId, 'gateway client disconnected')
+          promptStreamManager.abort(streamId, 'gateway client disconnected')
           safeClose()
         }
         abortStream = onAbort
@@ -367,7 +367,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
 
         if (closed) return
         try {
-          aiStreamManager.streamPrompt({
+          promptStreamManager.streamPrompt({
             streamId,
             uniqueModelId,
             messages,
@@ -415,7 +415,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   let aborted = false
   const onAbort = () => {
     aborted = true
-    aiStreamManager.abort(streamId, 'gateway client disconnected')
+    promptStreamManager.abort(streamId, 'gateway client disconnected')
     resolveDone()
   }
   if (signal) {
@@ -450,7 +450,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   }
 
   try {
-    aiStreamManager.streamPrompt({
+    promptStreamManager.streamPrompt({
       streamId,
       uniqueModelId,
       messages,

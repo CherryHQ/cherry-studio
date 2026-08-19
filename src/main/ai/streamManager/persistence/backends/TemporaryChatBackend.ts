@@ -1,7 +1,6 @@
 /**
- * In-memory temporary-chat backend — append-only writes to
- * `TemporaryChatService`. Temporary topics have no placeholder and no
- * tree; the listener simply appends the assistant result on terminal events.
+ * In-memory temporary-chat backend. The actor commits the assistant skeleton;
+ * terminal persistence settles that exact message in `TemporaryChatService`.
  *
  * The listener folds any error into `finalMessage.parts` upstream, so a
  * single `persistAssistant` handles success / paused / error uniformly.
@@ -26,7 +25,7 @@ export class TemporaryChatBackend implements PersistenceBackend {
 
   async persistAssistant(input: PersistAssistantInput): Promise<void> {
     const { finalMessage, status, runtimeStats } = input
-    temporaryChatService.appendAssistantMessage(
+    temporaryChatService.settleAssistantMessage(
       this.opts.topicId,
       {
         role: 'assistant',

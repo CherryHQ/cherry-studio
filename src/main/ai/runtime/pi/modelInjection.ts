@@ -34,7 +34,7 @@ import { isLoginBasedProvider } from '@shared/utils/provider'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { getProviderTransportAdapter, type ProviderTransportAdapter } from '../../provider/runtimeTransport'
-import type { AgentSessionUsageCapture } from '../types'
+import { type AgentSessionUsageCapture, AgentSessionUsageCaptureOwner } from '../types'
 import { loadPiAnthropicMessagesApi, loadPiApiStreamSimple } from './piSdk'
 import { withCherryInThinkingReplay } from './piThinkingReplay'
 import { loadPiAiStreamFns, withTransportStream } from './piTransportStream'
@@ -103,7 +103,7 @@ export interface PiProviderInjection {
   /** Provider-specific environment consumed by pi-ai's request implementation. */
   requestEnvironment?: Record<string, string>
   /** Frozen attribution selected together with the credential used by this connection. */
-  usageCapture: Extract<AgentSessionUsageCapture, { owner: 'agent-sdk' }>
+  usageCapture: Extract<AgentSessionUsageCapture, { owner: AgentSessionUsageCaptureOwner.AgentSdk }>
 }
 
 /** Materialize provider-specific stream compatibility before the connection consumes it. */
@@ -186,7 +186,7 @@ export function buildPiProviderInjection(
     apiKey,
     modelId,
     usageCapture: {
-      owner: 'agent-sdk',
+      owner: AgentSessionUsageCaptureOwner.AgentSdk,
       credentialReceipt:
         credentialReceipt ?? (transportAdapter ? { attribution: 'auth', method: 'oauth' } : { attribution: 'unknown' }),
       providerId: provider.id,

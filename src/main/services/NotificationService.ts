@@ -2,13 +2,13 @@ import { application } from '@application'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
-import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import type { ConversationCompletedEvent } from '@main/ai/streamManager'
 import type { ApprovalRequestedEvent } from '@main/ai/types'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
 import { getFullChromeWindowInfos } from '@main/utils/fullChromeWindows'
+import { ConversationKind, type ConversationRef } from '@shared/ai/conversation'
 import type { ConversationNavigationTarget } from '@shared/types/navigation'
 import {
   CONVERSATION_NOTIFICATION_ACTION_KEY,
@@ -31,18 +31,20 @@ function isConversationTarget(meta: unknown): meta is ConversationNavigationTarg
 }
 
 @Injectable('NotificationService')
-@DependsOn(['AgentSessionRuntimeService', 'AiStreamManager', 'ConversationNavigationService'])
+@DependsOn(['AgentConnectionManager', 'ConversationRuntimeService', 'ConversationNavigationService'])
 @ServicePhase(Phase.WhenReady)
 export class NotificationService extends BaseService {
   protected onInit(): void {
     this.registerDisposable(
-      application.get('AiStreamManager').onConversationCompleted((event) => this.handleConversationCompleted(event))
+      application
+        .get('ConversationRuntimeService')
+        .onConversationCompleted((event) => this.handleConversationCompleted(event))
     )
     this.registerDisposable(
-      application.get('AiStreamManager').onApprovalRequested((event) => this.handleApprovalRequested(event))
+      application.get('ConversationRuntimeService').onApprovalRequested((event) => this.handleApprovalRequested(event))
     )
     this.registerDisposable(
-      application.get('AgentSessionRuntimeService').onApprovalRequested((event) => this.handleApprovalRequested(event))
+      application.get('AgentConnectionManager').onApprovalRequested((event) => this.handleApprovalRequested(event))
     )
   }
 
@@ -68,8 +70,8 @@ export class NotificationService extends BaseService {
     electronNotification.show()
   }
 
-  private handleConversationCompleted({ topicId, turnId, completedAt }: ConversationCompletedEvent): void {
-    const target = this.resolveConversationTarget(topicId)
+  private handleConversationCompleted({ conversation, turnId, completedAt }: ConversationCompletedEvent): void {
+    const target = this.resolveConversationTarget(conversation)
     const title =
       target.conversationType === 'agent' ? t('notification.completion.agent') : t('notification.completion.assistant')
     this.deliverConversationNotification({
@@ -85,8 +87,8 @@ export class NotificationService extends BaseService {
     })
   }
 
-  private handleApprovalRequested({ topicId, approvalId, requestedAt }: ApprovalRequestedEvent): void {
-    const target = this.resolveConversationTarget(topicId)
+  private handleApprovalRequested({ conversation, approvalId, requestedAt }: ApprovalRequestedEvent): void {
+    const target = this.resolveConversationTarget(conversation)
     const title =
       target.conversationType === 'agent'
         ? t('notification.action_required.agent')
@@ -115,10 +117,10 @@ export class NotificationService extends BaseService {
     void this.sendNotification(notification)
   }
 
-  private resolveConversationTarget(topicId: string): ConversationNavigationTarget {
-    return isAgentSessionTopic(topicId)
-      ? { conversationType: 'agent', conversationId: extractAgentSessionId(topicId) }
-      : { conversationType: 'assistant', conversationId: topicId }
+  private resolveConversationTarget(conversation: ConversationRef): ConversationNavigationTarget {
+    return conversation.kind === ConversationKind.Agent
+      ? { conversationType: 'agent', conversationId: conversation.id }
+      : { conversationType: 'assistant', conversationId: conversation.id }
   }
 
   private resolveConversationName(target: ConversationNavigationTarget): string {

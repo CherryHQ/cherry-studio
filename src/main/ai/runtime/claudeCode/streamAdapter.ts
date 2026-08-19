@@ -44,7 +44,7 @@ import type { CherryUIMessageChunk, CherryUIMessageMetadata, MessageStats } from
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 import { isMcpContentBlock } from '@shared/utils/mcp'
 
-import type { AgentRuntimeEvent } from '../types'
+import { AgentRuntimeAutonomousState, type AgentRuntimeEvent, AgentRuntimeEventType } from '../types'
 import type { McpToolDisplayMetadata } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeStreamAdapter')
@@ -652,7 +652,10 @@ export class ClaudeCodeStreamAdapter {
       }
       // Parentless content with no turn open is Claude waking the main agent after background work.
       // Translate that SDK protocol into the runtime-neutral receive-only contract.
-      this.statusSink.emit({ type: 'autonomous-turn-state', state: 'started' })
+      this.statusSink.emit({
+        type: AgentRuntimeEventType.AutonomousTurnState,
+        state: AgentRuntimeAutonomousState.Started
+      })
       this.beginTurn()
       this.autonomousTurn = true
     }
@@ -676,7 +679,10 @@ export class ClaudeCodeStreamAdapter {
         this.turnActive = false
         if (this.autonomousTurn) {
           this.autonomousTurn = false
-          this.statusSink.emit({ type: 'autonomous-turn-state', state: 'finished' })
+          this.statusSink.emit({
+            type: AgentRuntimeEventType.AutonomousTurnState,
+            state: AgentRuntimeAutonomousState.Finished
+          })
         }
         return { type: 'result', sessionId: message.session_id, message }
       case 'system':
@@ -736,7 +742,7 @@ export class ClaudeCodeStreamAdapter {
   private createFlowSink(rootToolCallId: string): StreamSink {
     return {
       enqueue: (chunk) => {
-        this.statusSink.emit({ type: 'background-flow-chunk', rootToolCallId, chunk })
+        this.statusSink.emit({ type: AgentRuntimeEventType.BackgroundFlowChunk, rootToolCallId, chunk })
       }
     }
   }
@@ -1332,7 +1338,7 @@ export class ClaudeCodeStreamAdapter {
         this.publishBackgroundTasks()
         if (message.tasks.length > 0) {
           this.backgroundWorkReleasePending = false
-          this.statusSink.emit({ type: 'background-work-state', active: true })
+          this.statusSink.emit({ type: AgentRuntimeEventType.BackgroundWorkState, active: true })
         } else {
           this.backgroundWorkReleasePending = true
         }
@@ -1343,7 +1349,7 @@ export class ClaudeCodeStreamAdapter {
       case 'commands_changed':
         // Mid-session catalog push (skills discovered in a subdirectory, etc.); consumers replace
         // their cached list, since `supportedCommands()` is only read at init.
-        this.statusSink.emit({ type: 'supported-commands', commands: message.commands })
+        this.statusSink.emit({ type: AgentRuntimeEventType.SupportedCommands, commands: message.commands })
         return
       case 'api_retry':
         this.handleApiRetrySystemMessage(message)
@@ -1399,7 +1405,7 @@ export class ClaudeCodeStreamAdapter {
 
   private publishBackgroundTasks(): void {
     this.statusSink.emit({
-      type: 'background-tasks',
+      type: AgentRuntimeEventType.BackgroundTasks,
       tasks: this.backgroundTasks.map((task) => {
         const toolCallId = this.backgroundTaskToolCallIds.get(task.id)
         return toolCallId ? { ...task, toolCallId } : task
@@ -1450,7 +1456,7 @@ export class ClaudeCodeStreamAdapter {
     }
 
     // Keep a process-scoped per-task surface for status history and stop targets.
-    this.statusSink.emit({ type: 'background-task-event', data: eventData })
+    this.statusSink.emit({ type: AgentRuntimeEventType.BackgroundTaskEvent, data: eventData })
 
     if (!this.turnActive) {
       return
@@ -1472,7 +1478,7 @@ export class ClaudeCodeStreamAdapter {
   private handleApiRetrySystemMessage(message: SDKAPIRetryMessage): void {
     if (!this.turnActive) return
     this.statusSink.emit({
-      type: 'api-retry',
+      type: AgentRuntimeEventType.ApiRetry,
       retry: {
         attempt: message.attempt,
         maxRetries: message.max_retries,
@@ -1488,7 +1494,7 @@ export class ClaudeCodeStreamAdapter {
     const retry = message.subagent_retry
     if (!retry || !this.turnActive) return
     this.statusSink.emit({
-      type: 'api-retry',
+      type: AgentRuntimeEventType.ApiRetry,
       retry: {
         attempt: retry.attempt,
         maxRetries: retry.max_retries,
@@ -1502,19 +1508,22 @@ export class ClaudeCodeStreamAdapter {
 
   private handleStatusSystemMessage(message: SDKStatusMessage): void {
     if (message.status === 'compacting') {
-      this.statusSink.emit({ type: 'compaction-start' })
+      this.statusSink.emit({ type: AgentRuntimeEventType.CompactionStart })
       return
     }
     if (message.compact_result === 'failed' || message.compact_error) {
       logger.warn('Claude compaction failed', { sessionId: message.session_id, error: message.compact_error })
-      this.statusSink.emit({ type: 'compaction-error', error: message.compact_error ?? 'Compaction failed' })
+      this.statusSink.emit({
+        type: AgentRuntimeEventType.CompactionError,
+        error: message.compact_error ?? 'Compaction failed'
+      })
       return
     }
     if (message.compact_result === 'success') {
       // A successful compaction may report `success` WITHOUT a following `compact_boundary` (the SDK
       // does not guarantee one). Settle idempotently with a no-anchor completion so the session does
       // not stay `compacting` until the idle TTL; a real boundary below still wins with the anchor.
-      this.statusSink.emit({ type: 'compaction-complete' })
+      this.statusSink.emit({ type: AgentRuntimeEventType.CompactionComplete })
     }
   }
 
@@ -1526,7 +1535,7 @@ export class ClaudeCodeStreamAdapter {
     if (!this.turnActive) this.flowContexts.length = 0
     if (!this.backgroundWorkReleasePending) return
     this.backgroundWorkReleasePending = false
-    this.statusSink.emit({ type: 'background-work-state', active: false })
+    this.statusSink.emit({ type: AgentRuntimeEventType.BackgroundWorkState, active: false })
   }
 
   private handleCompactBoundarySystemMessage(message: SDKCompactBoundaryMessage): void {
@@ -1541,7 +1550,7 @@ export class ClaudeCodeStreamAdapter {
     if (metadata.post_tokens !== undefined) anchor.postTokens = metadata.post_tokens
     if (metadata.duration_ms !== undefined) anchor.durationMs = metadata.duration_ms
 
-    this.statusSink.emit({ type: 'compaction-complete', anchor })
+    this.statusSink.emit({ type: AgentRuntimeEventType.CompactionComplete, anchor })
   }
 
   private handleThinkingTokensSystemMessage(message: SDKThinkingTokensMessage, ctx: StreamContext): void {

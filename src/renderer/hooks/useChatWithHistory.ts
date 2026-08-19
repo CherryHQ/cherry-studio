@@ -1,18 +1,26 @@
 import { Chat, useChat } from '@ai-sdk/react'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
-import { ipcChatTransport } from '@renderer/services/aiTransport'
-import type { ActiveExecution } from '@shared/ai/transport'
+import { IpcChatTransport } from '@renderer/services/aiTransport'
+import { type ConversationRef, conversationRefKey, ConversationStatus } from '@shared/ai/conversation'
+import type { ConversationExecutionProjection } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { ChatRequestOptions, FileUIPart } from 'ai'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
-import { useTopicDbRefreshOnAwaitingApproval } from './useTopicStreamStatus'
-import { useTopicStreamStatus } from './useTopicStreamStatus'
+import {
+  useConversationDbRefreshOnAwaitingInteraction,
+  useConversationStreamStatus
+} from './useConversationStreamStatus'
 
 const logger = loggerService.withContext('useChatWithHistory')
 
-const EMPTY_EXECUTIONS: readonly ActiveExecution[] = Object.freeze([])
+const EMPTY_EXECUTIONS: readonly ConversationExecutionProjection[] = Object.freeze([])
+
+enum ResumeReason {
+  Mount = 'mount',
+  StartedEvent = 'started-event'
+}
 
 // ── Return type ──
 
@@ -23,32 +31,36 @@ export interface UseChatWithHistoryResult {
   error: Error | undefined
   status: ReturnType<typeof useChat<CherryUIMessage>>['status']
   setMessages: (messages: CherryUIMessage[] | ((messages: CherryUIMessage[]) => CherryUIMessage[])) => void
-  activeExecutions: readonly ActiveExecution[]
+  activeExecutions: readonly ConversationExecutionProjection[]
   chat: Chat<CherryUIMessage>
 }
 
 // ── Hook ──
 
 export function useChatWithHistory(
-  topicId: string,
+  conversation: ConversationRef,
   initialMessages: CherryUIMessage[],
   refresh: () => Promise<CherryUIMessage[]>
 ): UseChatWithHistoryResult {
-  const enabled = Boolean(topicId)
-  // The topic id is the Chat instance identity. Initial messages seed only a
-  // newly selected topic; history updates flow through the explicit adapters.
+  const scopeKey = conversationRefKey(conversation)
+  const enabled = Boolean(conversation.id)
+  const binding = useMemo(
+    () => ({ conversation, selectionToken: Symbol(scopeKey) }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- value identity is the Conversation scope key.
+    [scopeKey]
+  )
   const chat = useMemo(
     () =>
       new Chat<CherryUIMessage>({
-        id: topicId,
-        transport: ipcChatTransport,
+        id: scopeKey,
+        transport: new IpcChatTransport({ conversation: binding.conversation }),
         messages: initialMessages,
         onError: (streamError) => {
-          logger.error('AI stream error', { topicId, streamError })
+          logger.error('AI stream error', { conversation: binding.conversation, streamError })
         }
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- topic identity alone owns the Chat lifecycle.
-    [topicId]
+    [scopeKey]
   )
 
   const {
@@ -68,22 +80,24 @@ export function useChatWithHistory(
 
   const stop = useCallback(async () => {
     if (enabled) {
-      void ipcApi.request('ai.stream.abort', { topicId }).catch((err) => {
-        logger.warn('streamAbort failed', { topicId, err })
+      void ipcApi.request('ai.stream.abort', { conversation: binding.conversation }).catch((error) => {
+        logger.warn('streamAbort failed', { conversation: binding.conversation, error })
       })
     }
     await sdkStop()
-  }, [enabled, sdkStop, topicId])
+  }, [binding, enabled, sdkStop])
 
   const refreshRef = useRef(refresh)
   refreshRef.current = refresh
 
-  const { status: topicStreamStatus, activeExecutions: liveExecutions } = useTopicStreamStatus(topicId)
+  const { status: conversationStatus, activeExecutions: liveExecutions } = useConversationStreamStatus(
+    binding.conversation
+  )
   const activeExecutions = liveExecutions.length > 0 ? liveExecutions : EMPTY_EXECUTIONS
 
-  const topicSelectionToken = useMemo(() => Symbol(topicId), [topicId])
-  const currentTopicSelectionTokenRef = useRef(topicSelectionToken)
-  currentTopicSelectionTokenRef.current = topicSelectionToken
+  const conversationSelectionToken = binding.selectionToken
+  const currentTopicSelectionTokenRef = useRef(conversationSelectionToken)
+  currentTopicSelectionTokenRef.current = conversationSelectionToken
   const resumeInFlightRef = useRef<{ ownerToken: symbol; token: symbol } | null>(null)
 
   // `status` and `resumeStream` are read through refs so `resumeActiveStream`
@@ -100,19 +114,25 @@ export function useChatWithHistory(
   resumeStreamRef.current = resumeStream
 
   const resumeActiveStream = useCallback(
-    (reason: 'mount' | 'started-event') => {
+    (reason: ResumeReason) => {
       if (!enabled) return
-      if (reason === 'mount' && (statusRef.current === 'streaming' || statusRef.current === 'submitted')) return
-      if (resumeInFlightRef.current?.ownerToken === topicSelectionToken) return
+      if (reason === ResumeReason.Mount && (statusRef.current === 'streaming' || statusRef.current === 'submitted'))
+        return
+      if (resumeInFlightRef.current?.ownerToken === conversationSelectionToken && reason === ResumeReason.Mount) {
+        return
+      }
 
-      const token = Symbol(topicId)
-      resumeInFlightRef.current = { ownerToken: topicSelectionToken, token }
+      const token = Symbol(scopeKey)
+      resumeInFlightRef.current = { ownerToken: conversationSelectionToken, token }
       void (async () => {
-        if (reason === 'started-event') {
+        if (reason === ResumeReason.StartedEvent) {
           try {
             await refreshRef.current()
           } catch (err) {
-            logger.warn('Failed to refresh messages before resuming stream', { topicId, err })
+            logger.warn('Failed to refresh messages before resuming stream', {
+              conversation: binding.conversation,
+              err
+            })
           }
         }
 
@@ -120,7 +140,7 @@ export function useChatWithHistory(
         // to topic B. Do not let that stale task call B's latest resume callback.
         if (
           resumeInFlightRef.current?.token !== token ||
-          currentTopicSelectionTokenRef.current !== topicSelectionToken
+          currentTopicSelectionTokenRef.current !== conversationSelectionToken
         ) {
           return
         }
@@ -132,39 +152,40 @@ export function useChatWithHistory(
         await resumeStreamRef.current()
       })()
         .catch((err) => {
-          logger.warn('Failed to resume active stream', { topicId, reason, err })
+          logger.warn('Failed to resume active stream', { conversation: binding.conversation, reason, err })
         })
         .finally(() => {
           if (resumeInFlightRef.current?.token === token) resumeInFlightRef.current = null
         })
     },
-    [enabled, topicId, topicSelectionToken]
+    [binding, conversationSelectionToken, enabled, scopeKey]
   )
 
   // One attach attempt per topic selection — not per status change.
   useEffect(() => {
-    resumeActiveStream('mount')
+    resumeActiveStream(ResumeReason.Mount)
   }, [resumeActiveStream])
 
   // Approval pauses need the persisted row refreshed while the live card stays
   // visible. Final done/error/aborted refresh is handled by the page-level
   // overlay handoff so it can refresh before dropping live overlay parts.
-  useTopicDbRefreshOnAwaitingApproval(topicId, refresh)
+  useConversationDbRefreshOnAwaitingInteraction(binding.conversation, refresh)
 
   // Resume-on-pending — distinct purpose from the invalidation signal: it
   // re-attaches a stream that started while this window was unmounted /
   // reloading. Stays here (it's tightly coupled to `resumeActiveStream` and
   // chat-specific) rather than mingling with the generic invalidation gate.
-  const prevTopicStatusRef = useRef<{ status: typeof topicStreamStatus; topicId: string } | undefined>(undefined)
+  const previousStatusRef = useRef<{ status: typeof conversationStatus; key: string } | undefined>(undefined)
   useEffect(() => {
-    const previous = prevTopicStatusRef.current
-    const prev = previous?.topicId === topicId ? previous.status : undefined
-    prevTopicStatusRef.current = { status: topicStreamStatus, topicId }
-    if (!enabled) return
-    if (topicStreamStatus === 'pending' && prev !== 'pending') {
-      resumeActiveStream('started-event')
+    const previous = previousStatusRef.current
+    const sameSelection = previous?.key === scopeKey
+    const previousStatus = sameSelection ? previous.status : undefined
+    previousStatusRef.current = { status: conversationStatus, key: scopeKey }
+    if (!enabled || !sameSelection) return
+    if (conversationStatus === ConversationStatus.Pending && previousStatus !== ConversationStatus.Pending) {
+      resumeActiveStream(ResumeReason.StartedEvent)
     }
-  }, [enabled, resumeActiveStream, topicId, topicStreamStatus])
+  }, [conversationStatus, enabled, resumeActiveStream, scopeKey])
 
   // PR 3: dropped the per-window `onStreamDone` / `onStreamError` IPC
   // listeners that previously called `refresh()` here. Final DB handoff now

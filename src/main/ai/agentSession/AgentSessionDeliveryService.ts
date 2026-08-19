@@ -5,6 +5,9 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { isAgentSessionWorkspaceError } from '@main/ai/runtime/agentSessionWorkspace'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import type { AgentSessionDeliveryReplyPolicy } from '@shared/ai/agentSessionDelivery'
+import { AgentSessionDeliveryOutcome, AgentSessionDeliveryStatus } from '@shared/ai/agentSessionDelivery'
+import { ConversationKind, ConversationOutcomeKind } from '@shared/ai/conversation'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type {
@@ -14,15 +17,21 @@ import type {
 } from '@shared/data/api/schemas/agentSessions'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 
-import { agentChatContextProvider, finalizeInterruptedParts, type StreamListener } from '../streamManager'
-import { buildAgentSessionTopicId } from './topic'
+import type { ConversationTurnTerminalEvent } from '../conversation'
+import { finalizeInterruptedParts, type StreamListener } from '../streamManager'
 
 const logger = loggerService.withContext('AgentSessionDeliveryService')
+
+enum AgentDeliveryDispatchResult {
+  Blocked = 'blocked',
+  Started = 'started',
+  Settled = 'settled',
+  Revalidate = 'revalidate',
+  Stale = 'stale'
+}
 // Filesystem availability has no app event (for example, an external workspace volume remount).
 // Keep this low-frequency fallback; move to path-specific events if the platform exposes them.
 const DELIVERY_RETRY_SWEEP_MS = 60_000
-
-class DeliveryClaimLostError extends Error {}
 
 class AgentSessionDeliverySubscriber implements StreamListener {
   readonly id: string
@@ -45,7 +54,7 @@ export type AcceptSessionDeliveryInput = {
   senderSessionId: string
   receiverSessionId: string
   content: string
-  replyPolicy?: 'none' | 'completion'
+  replyPolicy?: AgentSessionDeliveryReplyPolicy
 }
 
 export type CreateSessionDeliveryInput = {
@@ -58,7 +67,7 @@ export type CreateSessionDeliveryInput = {
 
 @Injectable('AgentSessionDeliveryService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['AgentSessionRuntimeService', 'AiStreamManager'])
+@DependsOn(['AgentConnectionManager', 'ConversationRuntimeService'])
 export class AgentSessionDeliveryService extends BaseService {
   private readonly pauseHolds = new Set<symbol>()
   private readonly kicks = new Map<string, Promise<void>>()
@@ -69,14 +78,16 @@ export class AgentSessionDeliveryService extends BaseService {
 
   protected override onInit(): void {
     this.isShuttingDown = false
-    const runtime = application.get('AgentSessionRuntimeService')
+    const runtime = application.get('ConversationRuntimeService')
     this.registerDisposable(
       runtime.onTurnTerminal((event) => {
-        if (event.boundary === 'row-roll') return
-        this.track(`terminal:${event.assistantMessageId}`, this.handleTurnTerminal(event))
+        if (event.conversation.kind !== ConversationKind.Agent) return
+        this.track(
+          `terminal:${event.turnId}`,
+          this.handleTurnTerminal(event).finally(() => this.kick(event.conversation.id))
+        )
       })
     )
-    this.registerDisposable(runtime.onRuntimeIdle(({ sessionId }) => this.kick(sessionId)))
     this.recoverDeliveries()
     this.registerInterval(() => this.kick(), DELIVERY_RETRY_SWEEP_MS)
     this.kick()
@@ -268,9 +279,10 @@ export class AgentSessionDeliveryService extends BaseService {
     this.assertWritesAvailable()
     const result = agentService.deleteAgentForDelivery(agentId, { deleteSessions })
     if (!deleteSessions) {
-      const manager = application.get('AiStreamManager')
       result.affectedSessionIds.forEach((sessionId) =>
-        manager.pauseRuntimeTurn(buildAgentSessionTopicId(sessionId), 'target-agent-deleted')
+        application
+          .get('ConversationRuntimeService')
+          .stop({ kind: ConversationKind.Agent, id: sessionId }, 'target-agent-deleted')
       )
     }
     await this.finishDeletion(
@@ -304,7 +316,7 @@ export class AgentSessionDeliveryService extends BaseService {
     retrySessionIds: string[] = []
   ): Promise<void> {
     const closed = await Promise.allSettled(
-      sessionIds.map((sessionId) => application.get('AgentSessionRuntimeService').closeSession(sessionId))
+      sessionIds.map((sessionId) => application.get('AgentConnectionManager').closeSession(sessionId))
     )
     for (const deliveryResult of deliveryResults) this.kick(deliveryResult.sessionId)
     retrySessionIds.forEach((sessionId) => this.kick(sessionId))
@@ -316,7 +328,7 @@ export class AgentSessionDeliveryService extends BaseService {
   }
 
   private assertWritesAvailable(): void {
-    if (this.isShuttingDown || this.isWriteQuiesced || application.get('AiStreamManager').isWriteQuiesced) {
+    if (this.isShuttingDown || this.isWriteQuiesced || application.get('ConversationRuntimeService').isWriteQuiesced) {
       throw new Error('Agent Session delivery writes are paused')
     }
   }
@@ -328,13 +340,13 @@ export class AgentSessionDeliveryService extends BaseService {
       const next = agentSessionMessageService.listAcceptedSessionDeliveries(sessionId)[0]
       if (!next) return
       const outcome = await this.dispatchOne(next)
-      if (outcome === 'settled') {
+      if (outcome === AgentDeliveryDispatchResult.Settled) {
         revalidatedRequestId = undefined
         continue
       }
       // Validation crosses an async boundary, so one fresh snapshot retry is useful. Never spin on
       // one durable row: a deterministic mismatch must release backup/shutdown drains.
-      if (outcome === 'revalidate' && revalidatedRequestId !== next.id) {
+      if (outcome === AgentDeliveryDispatchResult.Revalidate && revalidatedRequestId !== next.id) {
         revalidatedRequestId = next.id
         continue
       }
@@ -342,159 +354,39 @@ export class AgentSessionDeliveryService extends BaseService {
     }
   }
 
-  private async dispatchOne(
-    message: AgentSessionMessageEntity
-  ): Promise<'blocked' | 'started' | 'settled' | 'revalidate' | 'stale'> {
-    const manager = application.get('AiStreamManager')
-    const runtime = application.get('AgentSessionRuntimeService')
-    const topicId = buildAgentSessionTopicId(message.sessionId)
-    let outcome: 'blocked' | 'started' | 'settled' | 'revalidate' | 'stale' = 'stale'
-
-    await manager.withDispatchLock(topicId, async () => {
-      if (this.isShuttingDown || this.isWriteQuiesced || manager.isWriteQuiesced) {
-        this.suppressedSessionIds.add(message.sessionId)
-        outcome = 'blocked'
-        return
-      }
-      if (manager.hasLiveStream(topicId) || runtime.isSessionBusy(message.sessionId)) {
-        outcome = 'blocked'
-        return
-      }
-
-      let current: AgentSessionMessageEntity
-      try {
-        current = agentSessionMessageService.getSessionMessage(message.sessionId, message.id)
-      } catch (error) {
-        if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) return
-        throw error
-      }
-      if (current.delivery?.status !== 'accepted') return
-
-      let validated
-      try {
-        validated = await agentChatContextProvider.validateDispatch({
-          trigger: 'submit-message',
-          topicId,
-          userMessageParts: current.data.parts ?? [],
-          headless: true,
-          agentDeliveryMessage: current
-        })
-      } catch (error) {
-        if (isAgentSessionWorkspaceError(error) && error.retryable) {
-          logger.warn('Agent Session delivery target workspace is temporarily unavailable', {
-            deliveryId: current.id,
-            sessionId: current.sessionId,
-            error
-          })
-          outcome = 'blocked'
-          return
-        }
-        this.failBeforeStart(current, error)
-        outcome = 'settled'
-        return
-      }
-
-      // Validation crosses an async boundary. Backup pause, lifecycle stop, or another writer may
-      // have changed admission state while the driver was validating the target.
-      if (this.isShuttingDown || this.isWriteQuiesced || manager.isWriteQuiesced) {
-        this.suppressedSessionIds.add(message.sessionId)
-        outcome = 'blocked'
-        return
-      }
-      if (manager.hasLiveStream(topicId) || runtime.isSessionBusy(message.sessionId)) {
-        outcome = 'blocked'
-        return
-      }
-
-      let persisted
-      try {
-        persisted = application.get('DbService').withWriteTx((tx) => {
-          const prepared = agentChatContextProvider.persistDispatchTx(tx, validated, {
-            id: validated.agentId,
-            updatedAt: validated.agentUpdatedAt,
-            model: validated.uniqueModelId,
-            type: validated.agentType
-          })
-          const claimed = agentSessionMessageService.claimSessionDeliveryTx(
-            tx,
-            current.sessionId,
-            current.id,
-            prepared.assistantMessageId
-          )
-          if (!claimed) throw new DeliveryClaimLostError(`Delivery ${current.id} lost its accepted claim`)
-          return prepared
-        })
-      } catch (error) {
-        if (error instanceof DeliveryClaimLostError) return
-        if (isDataApiError(error) && error.code === ErrorCode.CONCURRENT_MODIFICATION) {
-          outcome = 'revalidate'
-          return
-        }
-        this.failBeforeStart(current, error)
-        outcome = 'settled'
-        return
-      }
-
-      agentSessionMessageService.publishDispatchChanges(current.sessionId, persisted.savedMessages)
-
-      try {
-        const prepared = agentChatContextProvider.activateDispatch(
-          persisted,
-          new AgentSessionDeliverySubscriber(current.id)
-        )
-        try {
-          manager.send({
-            topicId: prepared.topicId,
-            models: prepared.models,
-            listeners: prepared.listeners,
-            persistencePorts: prepared.persistencePorts,
-            cleanupPorts: prepared.cleanupPorts,
-            siblingsGroupId: prepared.siblingsGroupId,
-            lifecycle: prepared.lifecycle
-          })
-        } catch (error) {
-          // send() launches before its final lifecycle callback. A callback failure can therefore
-          // throw after ownership has crossed into a live stream; do not label that turn pre-start
-          // failure or make it eligible for replay.
-          if (!manager.hasLiveStream(prepared.topicId)) throw error
-          logger.warn('Delivery send threw after runtime ownership handoff; keeping it delivering', error as Error, {
-            requestId: current.id,
-            sessionId: current.sessionId,
-            assistantMessageId: persisted.assistantMessageId
-          })
-        }
-        outcome = 'started'
-      } catch (error) {
-        await runtime.closeSession(current.sessionId)
-        const assistant = persisted.savedMessages[1]
-        agentSessionMessageService.resolveCrashOrphanedMessages(
-          [
-            {
-              id: persisted.assistantMessageId,
-              data: {
-                ...assistant.data,
-                parts: finalizeInterruptedParts(assistant.data.parts ?? [], 'error')
-              }
-            }
-          ],
-          [current.sessionId]
-        )
-        const result = agentSessionMessageService.finalizeSessionDelivery({
-          requestSessionId: current.sessionId,
-          requestMessageId: current.id,
-          assistantMessageId: persisted.assistantMessageId,
-          outcome: 'interrupted'
-        })
-        logger.warn('Agent Session delivery turn handoff was interrupted', {
+  private async dispatchOne(message: AgentSessionMessageEntity): Promise<AgentDeliveryDispatchResult> {
+    if (this.isShuttingDown || this.isWriteQuiesced) {
+      this.suppressedSessionIds.add(message.sessionId)
+      return AgentDeliveryDispatchResult.Blocked
+    }
+    let current: AgentSessionMessageEntity
+    try {
+      current = agentSessionMessageService.getSessionMessage(message.sessionId, message.id)
+    } catch (error) {
+      if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) return AgentDeliveryDispatchResult.Stale
+      throw error
+    }
+    if (current.delivery?.status !== AgentSessionDeliveryStatus.Accepted) return AgentDeliveryDispatchResult.Stale
+    try {
+      const started = await application
+        .get('ConversationRuntimeService')
+        .dispatchAgentDelivery(new AgentSessionDeliverySubscriber(current.id), current)
+      return started ? AgentDeliveryDispatchResult.Started : AgentDeliveryDispatchResult.Blocked
+    } catch (error) {
+      if (isAgentSessionWorkspaceError(error) && error.retryable) {
+        logger.warn('Agent Session delivery target workspace is temporarily unavailable', {
           deliveryId: current.id,
-          assistantMessageId: persisted.assistantMessageId,
+          sessionId: current.sessionId,
           error
         })
-        if (result) this.kick(result.sessionId)
-        outcome = 'settled'
+        return AgentDeliveryDispatchResult.Blocked
       }
-    })
-    return outcome
+      if (isDataApiError(error) && error.code === ErrorCode.CONCURRENT_MODIFICATION) {
+        return AgentDeliveryDispatchResult.Revalidate
+      }
+      this.failBeforeStart(current, error)
+      return AgentDeliveryDispatchResult.Settled
+    }
   }
 
   private failBeforeStart(message: AgentSessionMessageEntity, error: unknown): void {
@@ -518,26 +410,29 @@ export class AgentSessionDeliveryService extends BaseService {
     if (result) this.kick(result.sessionId)
   }
 
-  private async handleTurnTerminal(event: {
-    sessionId: string
-    assistantMessageId: string
-    status: 'success' | 'paused' | 'error'
-  }): Promise<void> {
-    const request = agentSessionMessageService.findDeliveringSessionDeliveryByTurnRef(event.assistantMessageId)
-    if (!request) return
-    const result = agentSessionMessageService.finalizeSessionDelivery({
-      requestSessionId: event.sessionId,
-      requestMessageId: request.id,
-      assistantMessageId: event.assistantMessageId,
-      outcome: event.status === 'success' ? 'success' : event.status === 'paused' ? 'interrupted' : 'failed'
-    })
-    if (result) this.kick(result.sessionId)
+  private async handleTurnTerminal(event: ConversationTurnTerminalEvent): Promise<void> {
+    for (const assistantMessageId of event.outputNodeIds) {
+      const request = agentSessionMessageService.findDeliveringSessionDeliveryByTurnRef(assistantMessageId)
+      if (!request) continue
+      const result = agentSessionMessageService.finalizeSessionDelivery({
+        requestSessionId: event.conversation.id,
+        requestMessageId: request.id,
+        assistantMessageId,
+        outcome:
+          event.outcome.kind === ConversationOutcomeKind.Success
+            ? AgentSessionDeliveryOutcome.Success
+            : event.outcome.kind === ConversationOutcomeKind.Paused
+              ? AgentSessionDeliveryOutcome.Interrupted
+              : AgentSessionDeliveryOutcome.Failed
+      })
+      if (result) this.kick(result.sessionId)
+    }
   }
 
   private reconcileCompletedDelivery(sessionId: string): boolean {
     const delivering = agentSessionMessageService
       .listRecoverableSessionDeliveries(sessionId)
-      .find((message) => message.delivery?.status === 'delivering')
+      .find((message) => message.delivery?.status === AgentSessionDeliveryStatus.Delivering)
     if (!delivering?.delivery?.turnRef) return false
 
     let assistant: AgentSessionMessageEntity
@@ -555,12 +450,13 @@ export class AgentSessionDeliveryService extends BaseService {
       throw error
     }
     if (assistant.status === 'pending') {
-      const topicId = buildAgentSessionTopicId(sessionId)
-      const manager = application.get('AiStreamManager')
       if (
-        application.get('AgentSessionRuntimeService').isSessionBusy(sessionId) ||
-        manager.hasLiveStream(topicId) ||
-        manager.hasTerminalPersistenceInFlight(topicId)
+        application
+          .get('ConversationRuntimeService')
+          .hasLiveConversation({ kind: ConversationKind.Agent, id: sessionId }) ||
+        application
+          .get('ConversationRuntimeService')
+          .hasTerminalPersistenceInFlight({ kind: ConversationKind.Agent, id: sessionId })
       ) {
         return true
       }
@@ -575,7 +471,12 @@ export class AgentSessionDeliveryService extends BaseService {
       requestSessionId: sessionId,
       requestMessageId: delivering.id,
       assistantMessageId: assistant.id,
-      outcome: assistant.status === 'success' ? 'success' : assistant.status === 'paused' ? 'interrupted' : 'failed'
+      outcome:
+        assistant.status === 'success'
+          ? AgentSessionDeliveryOutcome.Success
+          : assistant.status === 'paused'
+            ? AgentSessionDeliveryOutcome.Interrupted
+            : AgentSessionDeliveryOutcome.Failed
     })
     if (result) this.kick(result.sessionId)
     return false
@@ -584,7 +485,7 @@ export class AgentSessionDeliveryService extends BaseService {
   private recoverDeliveries(): void {
     const recoverable = agentSessionMessageService.listRecoverableSessionDeliveries()
     for (const message of recoverable) {
-      if (message.delivery?.status !== 'delivering') continue
+      if (message.delivery?.status !== AgentSessionDeliveryStatus.Delivering) continue
       const turnRef = message.delivery.turnRef
       if (!turnRef) {
         const result = agentSessionMessageService.failSessionDelivery(message, {
@@ -616,7 +517,7 @@ export class AgentSessionDeliveryService extends BaseService {
               id: assistant.id,
               data: {
                 ...assistant.data,
-                parts: finalizeInterruptedParts(assistant.data.parts ?? [], 'error')
+                parts: finalizeInterruptedParts(assistant.data.parts ?? [], ConversationOutcomeKind.Error)
               }
             }
           ],
@@ -629,10 +530,10 @@ export class AgentSessionDeliveryService extends BaseService {
         assistantMessageId: assistant.id,
         outcome:
           assistant.status === 'success'
-            ? 'success'
+            ? AgentSessionDeliveryOutcome.Success
             : assistant.status === 'paused' || assistant.status === 'pending'
-              ? 'interrupted'
-              : 'failed'
+              ? AgentSessionDeliveryOutcome.Interrupted
+              : AgentSessionDeliveryOutcome.Failed
       })
       if (result) this.suppressedSessionIds.add(result.sessionId)
     }

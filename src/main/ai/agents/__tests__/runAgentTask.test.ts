@@ -54,17 +54,30 @@ const {
 vi.mock('@application', async () => {
   const mod = await import('@test-mocks/main/application')
   return mod.mockApplicationFactory({
-    // ChannelManager + AiStreamManager aren't in the default mock service set; the
+    // ChannelManager + ConversationRuntimeService aren't in the default mock service set; the
     // streaming path (post heartbeat-skip) reads both, so wire minimal stubs here.
-    ChannelManager: { getAdapter: mockGetAdapter, enqueueTerminalDelivery: mockEnqueueTerminalDelivery },
-    AiStreamManager: { abort: mockAbort, removeListener: mockRemoveListener },
+    ChannelManager: {
+      getAdapter: mockGetAdapter,
+      updateLive: (request: any) => {
+        const adapter = mockGetAdapter(request.channelId)
+        if (!adapter) return false
+        void adapter.onTextUpdate(request.chatId, request.text, request.responseOptions)
+        return true
+      },
+      enqueueTerminal: mockEnqueueTerminalDelivery,
+      enqueueTerminalDelivery: mockEnqueueTerminalDelivery,
+      isActive: () => true
+    },
+    ConversationRuntimeService: { abort: mockAbort, removeListener: mockRemoveListener },
     AgentJobsService: { bindTaskSessionReuse: mockBindTaskSessionReuse },
     // Gate that keeps a reusing fire off a session with a live turn.
-    AgentSessionRuntimeService: { isSessionBusy: mockIsSessionBusy }
+    AgentConnectionManager: { isSessionBusy: mockIsSessionBusy }
   } as never)
 })
 
 vi.mock('@main/ai/streamManager/api/startAgentSessionRun', () => ({
+  StartAgentSessionRunMode: { Started: 'started', NotStarted: 'not-started' },
+  StartAgentSessionRunRejection: { Busy: 'busy', SessionInvalid: 'session-invalid' },
   startAgentSessionRun: mockStartRun
 }))
 
@@ -97,7 +110,7 @@ import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { readHeartbeat } from '@main/ai/agents/heartbeat'
-import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
+import { ConversationKind } from '@shared/ai/conversation'
 
 import { runAgentTask } from '../runAgentTask'
 
@@ -669,7 +682,7 @@ describe('runAgentTask', () => {
     controller.abort(new Error('cancelled by manager'))
 
     await expect(promise).rejects.toThrow('cancelled by manager')
-    expect(mockAbort).toHaveBeenCalledWith(buildAgentSessionTopicId('sess-new'), 'cancelled by manager')
+    expect(mockAbort).toHaveBeenCalledWith({ kind: ConversationKind.Agent, id: 'sess-new' }, 'cancelled by manager')
   })
 
   it('does not abort a queued successor after this task terminal listener has settled', async () => {
@@ -691,7 +704,7 @@ describe('runAgentTask', () => {
     ).resolves.toEqual({ sessionId: 'sess-new', result: 'Completed' })
 
     expect(mockAbort).not.toHaveBeenCalled()
-    expect(mockRemoveListener).toHaveBeenCalledWith(buildAgentSessionTopicId('sess-new'), 'agent-task:s1')
+    expect(mockRemoveListener).toHaveBeenCalledWith({ kind: ConversationKind.Agent, id: 'sess-new' }, 'agent-task:s1')
   })
 
   it('does not abort a user turn when cancellation lands while idle admission is waiting', async () => {
@@ -761,7 +774,10 @@ describe('runAgentTask', () => {
       await vi.advanceTimersByTimeAsync(60_000)
 
       await assertion
-      expect(mockAbort).toHaveBeenCalledWith(buildAgentSessionTopicId('sess-new'), 'Task timed out after 1 minute(s)')
+      expect(mockAbort).toHaveBeenCalledWith(
+        { kind: ConversationKind.Agent, id: 'sess-new' },
+        'Task timed out after 1 minute(s)'
+      )
     } finally {
       vi.useRealTimers()
     }

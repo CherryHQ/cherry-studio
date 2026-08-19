@@ -1,4 +1,5 @@
 import { CITATION_SNIPPET_MAX_CHARS } from '@shared/ai/builtinTools'
+import { ConversationKind, type ConversationRef } from '@shared/ai/conversation'
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { UIMessageChunk } from 'ai'
@@ -10,7 +11,8 @@ import {
   projectStreamChunkForRenderer
 } from '../messageOutputProjection'
 
-const TOPIC_ID = 'agent-session:session-1'
+const CONVERSATION: ConversationRef = { kind: ConversationKind.Agent, id: 'session-1' }
+const CHAT_CONVERSATION: ConversationRef = { kind: ConversationKind.Chat, id: 'topic-42' }
 const MESSAGE_ID = 'message-1'
 const TOOL_CALL_ID = 'call-1'
 
@@ -109,24 +111,28 @@ const blob = (key: string, n: number) => ({
 describe('message tool-output projection', () => {
   it('leaves an output that fits under the threshold untouched', () => {
     const part = partWith(small)
-    expect(projectMessagePartForRenderer(part, TOPIC_ID, MESSAGE_ID)).toBe(part)
+    expect(projectMessagePartForRenderer(part, CONVERSATION, MESSAGE_ID)).toBe(part)
 
     const chunk = chunkWith(small)
-    expect(projectStreamChunkForRenderer(chunk, TOPIC_ID, MESSAGE_ID)).toBe(chunk)
+    expect(projectStreamChunkForRenderer(chunk, CONVERSATION, MESSAGE_ID)).toBe(chunk)
   })
 
   it('replaces an oversized output with a resolvable reference', () => {
-    const projected = projectMessagePartForRenderer(partWith(large), TOPIC_ID, MESSAGE_ID) as unknown as {
+    const projected = projectMessagePartForRenderer(partWith(large), CONVERSATION, MESSAGE_ID) as unknown as {
       output: unknown
     }
     expect(isDeferredToolOutput(projected.output)).toBe(true)
     expect(projected.output).toEqual({
-      $deferredToolResult: { topicId: TOPIC_ID, messageId: MESSAGE_ID, toolCallId: TOOL_CALL_ID }
+      $deferredToolResult: { conversation: CONVERSATION, messageId: MESSAGE_ID, toolCallId: TOOL_CALL_ID }
     })
   })
 
   it('keeps a bounded citation skeleton for an oversized agent lookup', () => {
-    const projected = projectMessagePartForRenderer(partWith(largeAgentWebSearch), TOPIC_ID, MESSAGE_ID) as unknown as {
+    const projected = projectMessagePartForRenderer(
+      partWith(largeAgentWebSearch),
+      CONVERSATION,
+      MESSAGE_ID
+    ) as unknown as {
       output: {
         skeleton?: {
           content: Array<{ id: string; content: string }>
@@ -152,7 +158,7 @@ describe('message tool-output projection', () => {
           serverId: 'cherry-tools'
         }
       }),
-      TOPIC_ID,
+      CONVERSATION,
       MESSAGE_ID
     ) as unknown as {
       output: { skeleton?: { metadata: { name?: string; serverId: string } } }
@@ -168,7 +174,7 @@ describe('message tool-output projection', () => {
   it('keeps kb_search identity fields and a bounded content preview', () => {
     const projected = projectMessagePartForRenderer(
       partWith(largeKnowledgeSearch),
-      TOPIC_ID,
+      CONVERSATION,
       MESSAGE_ID
     ) as unknown as {
       output: { skeleton?: Array<Record<string, unknown>> }
@@ -183,7 +189,11 @@ describe('message tool-output projection', () => {
   })
 
   it('keeps a bounded kb_read document slice', () => {
-    const projected = projectMessagePartForRenderer(partWith(largeKnowledgeRead), TOPIC_ID, MESSAGE_ID) as unknown as {
+    const projected = projectMessagePartForRenderer(
+      partWith(largeKnowledgeRead),
+      CONVERSATION,
+      MESSAGE_ID
+    ) as unknown as {
       output: { skeleton?: Record<string, unknown> }
     }
 
@@ -194,7 +204,11 @@ describe('message tool-output projection', () => {
   })
 
   it('keeps ordered kb_read grep matches up to the combined citation preview limit', () => {
-    const projected = projectMessagePartForRenderer(partWith(largeKnowledgeGrep), TOPIC_ID, MESSAGE_ID) as unknown as {
+    const projected = projectMessagePartForRenderer(
+      partWith(largeKnowledgeGrep),
+      CONVERSATION,
+      MESSAGE_ID
+    ) as unknown as {
       output: { skeleton?: { matches: Array<{ snippet: string }> } }
     }
     const matches = projected.output.skeleton?.matches ?? []
@@ -211,7 +225,7 @@ describe('message tool-output projection', () => {
         ...largeAgentWebSearch,
         metadata: { ...largeAgentWebSearch.metadata, serverName: 'other-server', serverId: 'other-server' }
       }),
-      TOPIC_ID,
+      CONVERSATION,
       MESSAGE_ID
     ) as unknown as { output: { skeleton?: unknown } }
 
@@ -219,7 +233,11 @@ describe('message tool-output projection', () => {
   })
 
   it('trims derived citation entities from the tail to fit the transport budget', () => {
-    const projected = projectMessagePartForRenderer(partWith(manyAgentWebSearch), TOPIC_ID, MESSAGE_ID) as unknown as {
+    const projected = projectMessagePartForRenderer(
+      partWith(manyAgentWebSearch),
+      CONVERSATION,
+      MESSAGE_ID
+    ) as unknown as {
       output: { skeleton?: { content: unknown[] } }
     }
 
@@ -238,10 +256,10 @@ describe('message tool-output projection', () => {
     ['large agent lookup', largeAgentWebSearch]
   ])('projects a %s output identically through the stored and live paths', (_label, output) => {
     const fromPart = (
-      projectMessagePartForRenderer(partWith(output), TOPIC_ID, MESSAGE_ID) as unknown as { output: unknown }
+      projectMessagePartForRenderer(partWith(output), CONVERSATION, MESSAGE_ID) as unknown as { output: unknown }
     ).output
     const fromChunk = (
-      projectStreamChunkForRenderer(chunkWith(output), TOPIC_ID, MESSAGE_ID) as unknown as { output: unknown }
+      projectStreamChunkForRenderer(chunkWith(output), CONVERSATION, MESSAGE_ID) as unknown as { output: unknown }
     ).output
     expect(fromPart).toEqual(fromChunk)
   })
@@ -251,7 +269,7 @@ describe('message tool-output projection', () => {
     const cjk = { content: '\u6d4b'.repeat(DEFER_TOOL_OUTPUT_BYTES / 2) }
     expect(JSON.stringify(cjk).length).toBeLessThan(DEFER_TOOL_OUTPUT_BYTES)
 
-    const projected = projectMessagePartForRenderer(partWith(cjk), TOPIC_ID, MESSAGE_ID) as unknown as {
+    const projected = projectMessagePartForRenderer(partWith(cjk), CONVERSATION, MESSAGE_ID) as unknown as {
       output: unknown
     }
     expect(isDeferredToolOutput(projected.output)).toBe(true)
@@ -259,11 +277,11 @@ describe('message tool-output projection', () => {
 
   it('does nothing without a message id to address the result by', () => {
     const chunk = chunkWith(large)
-    expect(projectStreamChunkForRenderer(chunk, TOPIC_ID, undefined)).toBe(chunk)
+    expect(projectStreamChunkForRenderer(chunk, CONVERSATION, undefined)).toBe(chunk)
   })
 
-  it('is not topic-specific — an ordinary chat topic defers on the same rule', () => {
-    const projected = projectMessagePartForRenderer(partWith(large), 'topic-42', MESSAGE_ID) as unknown as {
+  it('is not Conversation-kind-specific — an ordinary Chat defers on the same rule', () => {
+    const projected = projectMessagePartForRenderer(partWith(large), CHAT_CONVERSATION, MESSAGE_ID) as unknown as {
       output: unknown
     }
     expect(isDeferredToolOutput(projected.output)).toBe(true)
@@ -281,12 +299,12 @@ describe('message tool-output projection', () => {
         shape: 'text'
       }
     }
-    const projected = projectMessagePartForRenderer(partWith(persisted), TOPIC_ID, MESSAGE_ID) as unknown as {
+    const projected = projectMessagePartForRenderer(partWith(persisted), CONVERSATION, MESSAGE_ID) as unknown as {
       output: unknown
     }
     expect(isDeferredToolOutput(projected.output)).toBe(true)
     expect(projected.output).toEqual({
-      $deferredToolResult: { topicId: TOPIC_ID, messageId: MESSAGE_ID, toolCallId: TOOL_CALL_ID },
+      $deferredToolResult: { conversation: CONVERSATION, messageId: MESSAGE_ID, toolCallId: TOOL_CALL_ID },
       excerpt: { head: 'first lines', tail: 'last lines', totalChars: 200_000, totalLines: 5_000 }
     })
   })
@@ -300,12 +318,12 @@ describe('message tool-output projection', () => {
         blobRefs: [blob('/0/content', 1)]
       }
     }
-    const projected = projectMessagePartForRenderer(partWith(persisted), TOPIC_ID, MESSAGE_ID) as unknown as {
+    const projected = projectMessagePartForRenderer(partWith(persisted), CONVERSATION, MESSAGE_ID) as unknown as {
       output: { skeleton?: Array<{ id: string; content: string }> }
     }
 
     expect(projected.output).toMatchObject({
-      $deferredToolResult: { topicId: TOPIC_ID, messageId: MESSAGE_ID, toolCallId: TOOL_CALL_ID },
+      $deferredToolResult: { conversation: CONVERSATION, messageId: MESSAGE_ID, toolCallId: TOOL_CALL_ID },
       excerpt: { head: 'head-1', tail: 'tail-1', totalChars: 1000, totalLines: 10 }
     })
     expect(projected.output.skeleton?.[0]).toMatchObject({ id: '70536f0b-1' })
@@ -323,7 +341,7 @@ describe('message tool-output projection', () => {
         blobRefs: [blob('/0/content', 1)]
       }
     }
-    const projected = projectMessagePartForRenderer(partWith(persisted), TOPIC_ID, MESSAGE_ID) as unknown as {
+    const projected = projectMessagePartForRenderer(partWith(persisted), CONVERSATION, MESSAGE_ID) as unknown as {
       output: { skeleton?: unknown[] }
     }
 

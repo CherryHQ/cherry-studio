@@ -5,11 +5,16 @@ import { createClaudeCodeRuntimeDriver } from './claudeCode'
 import { DshRuntimeDriver } from './dsh/DshRuntimeDriver'
 import { PiRuntimeDriver } from './pi/PiRuntimeDriver'
 import { runtimeDriverRegistry } from './registry'
-import type { AgentRuntimeConnectInput, AgentRuntimeConnection, AgentSessionRuntimeDriver } from './types'
+import {
+  type AgentRuntimeConnectInput,
+  type AgentRuntimeConnection,
+  type AgentSessionRuntimeDriver,
+  AiRuntimeCapability
+} from './types'
 
 class LazyClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly type = 'claude-code'
-  readonly capabilities = ['agent-session'] as const
+  readonly capabilities = [AiRuntimeCapability.AgentSession] as const
 
   private implementationPromise: Promise<AgentSessionRuntimeDriver> | undefined
 
@@ -35,7 +40,7 @@ class LazyClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
   }
 }
 
-/** Register every built-in runtime at the AgentSessionRuntimeService lifecycle boundary. */
+/** Register every built-in runtime at the AgentConnectionManager lifecycle boundary. */
 export function registerRuntimeDrivers(): void {
   runtimeDriverRegistry.register(new LazyClaudeCodeRuntimeDriver())
   runtimeDriverRegistry.register(new PiRuntimeDriver())

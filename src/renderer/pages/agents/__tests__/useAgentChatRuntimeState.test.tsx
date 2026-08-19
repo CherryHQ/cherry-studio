@@ -48,8 +48,8 @@ vi.mock('@renderer/hooks/useConversationTurnController', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => ({ isPending: false, topicBusy: false })
+vi.mock('@renderer/hooks/useConversationStreamStatus', () => ({
+  useConversationStreamStatus: () => ({ isPending: false, conversationBusy: false })
 }))
 
 vi.mock('@renderer/components/composer/useToolApprovalComposerOverrides', () => ({
@@ -158,7 +158,14 @@ describe('useAgentChatRuntimeState', () => {
       deleteMessage: mocks.deleteSessionMessage
     })
     mocks.useChatWithHistory.mockReturnValue({
-      activeExecutions: [{ executionId: 'provider::model', attemptId: 1, anchorMessageId: 'assistant-1' }],
+      activeExecutions: [
+        {
+          turnId: 'turn-1',
+          executionId: 'execution-1',
+          modelId: 'provider::model',
+          outputNodeId: 'assistant-1'
+        }
+      ],
       sendMessage: vi.fn(),
       stop: mocks.chatStop,
       setMessages: mocks.chatSetMessages,
@@ -179,7 +186,14 @@ describe('useAgentChatRuntimeState', () => {
       },
       liveAssistants: [],
       optimisticMessages: [],
-      projectedExecutions: [{ executionId: 'provider::model', attemptId: 1, anchorMessageId: 'assistant-1' }],
+      projectedExecutions: [
+        {
+          turnId: 'turn-1',
+          executionId: 'execution-1',
+          modelId: 'provider::model',
+          outputNodeId: 'assistant-1'
+        }
+      ],
       activeNodeOverride: null,
       seedReservations: mocks.seedProjectionReservations,
       disposeOverlay: mocks.disposeOverlay,
@@ -263,7 +277,14 @@ describe('useAgentChatRuntimeState', () => {
         } as CherryUIMessage
       ],
       optimisticMessages: [],
-      projectedExecutions: [{ executionId: 'provider::model', attemptId: 1, anchorMessageId: 'assistant-1' }],
+      projectedExecutions: [
+        {
+          turnId: 'turn-1',
+          executionId: 'execution-1',
+          modelId: 'provider::model',
+          outputNodeId: 'assistant-1'
+        }
+      ],
       activeNodeOverride: null,
       seedReservations: mocks.seedProjectionReservations,
       disposeOverlay: mocks.disposeOverlay,
@@ -286,7 +307,14 @@ describe('useAgentChatRuntimeState', () => {
       overlay: { 'assistant-1': [{ type: 'text', text: 'a' }] },
       liveAssistants: [{ ...assistantMessage, parts: [{ type: 'text', text: 'a' }] } as CherryUIMessage],
       optimisticMessages: [],
-      projectedExecutions: [{ executionId: 'provider::model', attemptId: 1, anchorMessageId: 'assistant-1' }],
+      projectedExecutions: [
+        {
+          turnId: 'turn-1',
+          executionId: 'execution-1',
+          modelId: 'provider::model',
+          outputNodeId: 'assistant-1'
+        }
+      ],
       activeNodeOverride: null,
       seedReservations: mocks.seedProjectionReservations,
       disposeOverlay: mocks.disposeOverlay,
@@ -306,7 +334,14 @@ describe('useAgentChatRuntimeState', () => {
       overlay: { 'assistant-1': [{ type: 'text', text: 'ab' }] },
       liveAssistants: [{ ...assistantMessage, parts: [{ type: 'text', text: 'ab' }] } as CherryUIMessage],
       optimisticMessages: [],
-      projectedExecutions: [{ executionId: 'provider::model', attemptId: 1, anchorMessageId: 'assistant-1' }],
+      projectedExecutions: [
+        {
+          turnId: 'turn-1',
+          executionId: 'execution-1',
+          modelId: 'provider::model',
+          outputNodeId: 'assistant-1'
+        }
+      ],
       activeNodeOverride: null,
       seedReservations: mocks.seedProjectionReservations,
       disposeOverlay: mocks.disposeOverlay,

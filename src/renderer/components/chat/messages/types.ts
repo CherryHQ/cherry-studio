@@ -6,6 +6,7 @@ import type { MessageExportView } from '@renderer/types/messageExport'
 import type { McpTool } from '@renderer/types/tool'
 import type { Topic } from '@renderer/types/topic'
 import type { AgentSessionDelivery } from '@shared/ai/agentSessionDelivery'
+import type { ConversationRef } from '@shared/ai/conversation'
 import type {
   ChatMessageStyle,
   MultiModelGridPopoverTrigger,
@@ -412,6 +413,8 @@ export interface MessageListActions {
 }
 
 export interface MessageListMeta {
+  /** Exact business identity for cross-process message actions. */
+  conversation?: ConversationRef
   selectionLayer: boolean
   userProfile?: MessageUserProfile
   assistantProfile?: MessageUserProfile

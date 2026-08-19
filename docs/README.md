@@ -25,19 +25,20 @@
 | [Adding an Agent Runtime](./references/ai/adding-a-runtime.md) | Operational checklist for adding an agent runtime via a capability descriptor and a main-process driver package |
 | [Agent Loop](./references/ai/agent-loop.md) | The Agent class wrapping single-pass AI SDK streaming with composeHooks-merged hook contributions and error semantics |
 | [Agent Prompt Layers](./references/ai/agent-prompt-layers.md) | Precedence and lifecycle of agent prompt sources — System Prompt, workspace system.md, SOUL.md persona, and variables |
-| [Agent Session Runtime](./references/ai/agent-session-runtime.md) | Host/driver split for agent sessions — turn lifecycle, follow-up queue, resume tokens, and shared prompt materializer |
+| [Agent connection runtime](./references/ai/agent-session-runtime.md) | Agent connection resource ownership beneath the unified Conversation runtime |
 | [AI Usage Records](./references/ai/ai-usage-records.md) | Immutable ai_usage_record analytics — capture ownership, frozen attribution snapshots, and MessageStats projection |
 | [Chat Attachments](./references/ai/chat-attachments.md) | Per-attachment routing to native file parts or capped extracted text, with read_file paging for truncated overflow |
-| [Core Architecture](./references/ai/core-architecture.md) | End-to-end chat turn flow from renderer IPC transport through AiStreamManager and Agent loop to persistence |
-| [Execution Overlay](./references/ai/execution-overlay.md) | Renderer stream overlay — TopicStreamSubscription demux by execution and anchor feeding readUIMessageStream snapshots |
+| [Conversation Runtime](./references/ai/conversation-runtime.md) | Unified Chat and Agent conversation control model, current ownership failures, commands, effects, and resource boundaries |
+| [AI core architecture](./references/ai/core-architecture.md) | End-to-end Chat and Agent Conversation command, effect, persistence, and resource flow |
+| [Execution Overlay](./references/ai/execution-overlay.md) | Renderer Conversation execution overlay, observational attachment, exact branch demux, and refresh-before-retire handoff |
 | [Image-Generation Parameterized Architecture](./references/ai/image-generation-parameters.md) | Data-driven image-generation params — registry supports to form fields, canonical bag to vendor wire via WireProfile |
-| [IPC Transport](./references/ai/ipc-transport.md) | IpcChatTransport bridging useChat to Main over ai.stream.* IpcApi routes, with dispatch ack coordination and detach vs abort |
+| [IPC Transport](./references/ai/ipc-transport.md) | IpcChatTransport and Conversation stream protocol, including dispatch acknowledgements, exact identities, detach, and Stop |
 | [Model Retry & Fallback](./references/ai/model-retry.md) | User-configurable same-model retry plus fallback models via ai-retry wrapModel, driven by chat.retry.* preferences |
 | [Observability](./references/ai/observability.md) | OTel tracing for AI calls and agent runtimes — Cherry roots, SDK adapters, runtime spans, local projection, and sinks |
 | [Params Pipeline](./references/ai/params-pipeline.md) | buildAgentParams and the RequestFeature model composing plugins, tools, hooks, and provider quirks per request |
 | [Provider Resolution](./references/ai/provider-resolution.md) | Endpoint resolution chain from provider.endpointConfigs and adapterFamily to the AI SDK provider id and variants |
-| [AiStreamManager](./references/ai/stream-manager.md) | AiStreamManager active-stream registry — listener fan-out, reconnect replay, abort, steering, and persistence triggers |
-| [Tool Approval](./references/ai/tool-approval.md) | Main-as-writer tool approval through ai.tool.respond_approval, approval-requested parts, and persistent MCP decisions |
+| [Execution resource managers](./references/ai/stream-manager.md) | Provider execution and prompt-stream resource managers beneath ConversationRuntimeService |
+| [Tool Approval](./references/ai/tool-approval.md) | Conversation-owned tool interactions, Main-authoritative decisions, and Chat versus Agent resume modes |
 | [Tool Registry](./references/ai/tool-registry.md) | Unified aiSdk ToolEntry registry — built-in web/kb tools, MCP sync, meta-tools, and deferred exposition |
 
 ### API Gateway

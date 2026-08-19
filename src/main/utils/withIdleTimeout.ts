@@ -13,7 +13,7 @@
  *
  * Why a stream wrapper and not a plugin: plugins only see request
  * boundaries (`transformParams` / `onRequestEnd`); they have no hook on
- * individual chunks. And why not inside `AiStreamManager`: the manager's
+ * individual chunks. And why not inside `PromptStreamManager`: the manager's
  * read loop is already ~100 lines handling lifecycle + broadcast + abort
  * + accumulator. Keeping the tap as a standalone utility leaves the
  * manager's read loop unchanged and the idle behaviour unit-testable in

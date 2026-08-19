@@ -76,7 +76,7 @@ export interface IStreamAdapter<TOutputEvent = unknown> {
 
   /**
    * Push API: process one chunk and return the events it produced.
-   * Used by the AiStreamManager `SseListener` path; lazily emits message_start.
+   * Used by the PromptStreamManager `SseListener` path; lazily emits message_start.
    */
   transformChunk(chunk: UIMessageChunk): TOutputEvent[]
 

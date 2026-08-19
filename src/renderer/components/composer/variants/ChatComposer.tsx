@@ -32,11 +32,14 @@ import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import {
+  useConversationAwaitingInteraction,
+  useConversationStreamStatus
+} from '@renderer/hooks/useConversationStreamStatus'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useModelById, useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
-import { useTopicAwaitingApproval, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import { type Topic, TopicType } from '@renderer/types/topic'
@@ -49,6 +52,7 @@ import {
   isOpenAIWebSearchModel,
   resolveReasoningEffortForModel
 } from '@renderer/utils/model'
+import { ConversationKind } from '@shared/ai/conversation'
 import type { ComposerChatTarget, ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -504,7 +508,8 @@ const ChatComposerInner = ({
   deferQuickPanel = false
 }: ChatComposerInnerProps) => {
   const streamScopeKey = topicId ?? scopeKey
-  const awaitingApproval = useTopicAwaitingApproval(streamScopeKey)
+  const conversation = useMemo(() => ({ kind: ConversationKind.Chat, id: streamScopeKey }) as const, [streamScopeKey])
+  const awaitingInteraction = useConversationAwaitingInteraction(conversation)
   const scope = TopicType.Chat
   const config = getComposerToolConfig(scope)
   const { files, mentionedModels, selectedKnowledgeBases, isExpanded } = useComposerToolState()
@@ -549,7 +554,7 @@ const ChatComposerInner = ({
   const { editingMessage, cancelEditing, stopEditing } = useMessageEditing()
   const editingMessageForCurrentTopic = topicId && editingMessage?.message.topicId === topicId ? editingMessage : null
   const staleEditingMessage = editingMessage && !editingMessageForCurrentTopic
-  const { isPending, topicBusy, canSteer, isFulfilled, markSeen } = useTopicStreamStatus(streamScopeKey)
+  const { isPending, conversationBusy, canSteer, isFulfilled, markSeen } = useConversationStreamStatus(conversation)
   const [isSending, setIsSending] = useState(false)
   const [isStartingNewContext, setIsStartingNewContext] = useState(false)
   const [savingEditingSessionId, setSavingEditingSessionId] = useState<number | null>(null)
@@ -934,7 +939,7 @@ const ChatComposerInner = ({
     setIsSending(false)
   }, [scopeKey])
 
-  const loading = topicBusy || isSending
+  const loading = conversationBusy || isSending
   const clearContextDisabled =
     loading ||
     Boolean(editingMessageForCurrentTopic) ||
@@ -1416,8 +1421,9 @@ const ChatComposerInner = ({
     (item) => (item.payload.mentionedModels?.length ?? 0) > 0
   )
   const isQueuedFollowupSteerDisabled = useCallback(
-    (item: FollowupQueueItem) => (isPending || awaitingApproval) && item.payload.chatTarget?.mode === 'reserved-branch',
-    [awaitingApproval, isPending]
+    (item: FollowupQueueItem) =>
+      (isPending || awaitingInteraction) && item.payload.chatTarget?.mode === 'reserved-branch',
+    [awaitingInteraction, isPending]
   )
   const { models: allModels } = useModels({ enabled: true }, { fetchEnabled: queuedFollowupModelsDataEnabled })
 

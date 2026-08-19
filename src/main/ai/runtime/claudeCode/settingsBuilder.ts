@@ -34,6 +34,7 @@ import {
   getBuiltinAgentPluginDirectory,
   loadBuiltinAgentDefinition
 } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
+import { AgentInteractionTurnKind, AgentUserResponseMode } from '@main/ai/conversation'
 import {
   buildAgentMcpServers,
   type LinkedChannelSnapshot,
@@ -90,7 +91,7 @@ import { isExternalCliProvider } from '@shared/utils/provider'
 
 import { detectGlobalInstall } from '../toolApproval/dependencyGuard'
 import { toolApprovalRegistry } from '../toolApproval/ToolApprovalRegistry'
-import type { AgentRuntimeUserInput } from '../types'
+import { AgentRuntimeInteractionPresentation, type AgentRuntimeUserInput } from '../types'
 import {
   type Environment,
   hasStaleCherryProxyMarkers,
@@ -487,7 +488,7 @@ export async function buildClaudeCodeSessionSettings(
 
   // 4. Tool permissions — shared emitter holder between settings and
   // `canUseTool` so the language model's stream controller can populate
-  // `emit` per-stream (see AgentSessionRuntimeService's stream adapter setup).
+  // `emit` per-stream (see AgentConnectionManager's stream adapter setup).
   // `dispose` drops any approval still pending for this session when the
   // stream exits abnormally.
   const approvalEmitter = getToolApprovalEmitterHolder(session.id)
@@ -952,7 +953,7 @@ async function buildToolPermissions(
     // Busy-session enqueue/steer cannot rebuild a connection's baked policy, so enforce per-turn
     // no-responder denial at fire time for interactive and approval-required tools. PreToolUse
     // mirrors both groups for bypassPermissions/acceptEdits, where the SDK skips `canUseTool`.
-    const interactionState = application.get('AgentSessionRuntimeService').getInteractionState(session.id)
+    const interactionState = application.get('ConversationRuntimeService').getAgentInteractionState(session.id)
     // Claude Code streams ExitPlanMode's model-authored `{}` before normalizing the plan file into
     // the permission input. Replace that raw input while the tool row is still live so the approval
     // preview — and a later headless denial — retain the plan the SDK actually reviewed.
@@ -960,7 +961,7 @@ async function buildToolPermissions(
     const requiresInteractiveResponder =
       HEADLESS_INTERACTIVE_TOOLS.includes(toolName as (typeof HEADLESS_INTERACTIVE_TOOLS)[number]) ||
       approvalRequiredTools.includes(toolName)
-    if (requiresInteractiveResponder && interactionState.userResponse === 'unavailable') {
+    if (requiresInteractiveResponder && interactionState.userResponse === AgentUserResponseMode.Unavailable) {
       return { behavior: 'deny', message: HEADLESS_INTERACTIVE_TOOL_DENIAL }
     }
 
@@ -980,11 +981,12 @@ async function buildToolPermissions(
       return { behavior: 'allow', updatedInput: input }
     }
 
-    const hasLiveTurnStream = interactionState.userResponse === 'stream'
+    const hasLiveTurnStream = interactionState.userResponse === AgentUserResponseMode.Stream
     // A headless turn (channel / scheduled) is unattended work with no approval UI, like a sub-agent.
     // Resolved per turn, so an interactive turn on a channel-linked session still prompts.
     const isBackgroundAgent =
-      (typeof opts.agentID === 'string' && opts.agentID.length > 0) || interactionState.currentTurn === 'headless'
+      (typeof opts.agentID === 'string' && opts.agentID.length > 0) ||
+      interactionState.currentTurn === AgentInteractionTurnKind.Headless
     const requiresUserResponse =
       HEADLESS_INTERACTIVE_TOOLS.includes(toolName as (typeof HEADLESS_INTERACTIVE_TOOLS)[number]) ||
       approvalRequiredTools.includes(toolName) ||
@@ -1006,7 +1008,7 @@ async function buildToolPermissions(
       (!hasLiveTurnStream && !requiresUserResponse) ||
       (requiresUserResponse &&
         (!hasLiveTurnStream || isBackgroundAgent) &&
-        interactionState.userResponse === 'unavailable')
+        interactionState.userResponse === AgentUserResponseMode.Unavailable)
     ) {
       logger.warn('Approval requested outside a live interactive turn — denying', {
         toolName,
@@ -1015,7 +1017,10 @@ async function buildToolPermissions(
       return { behavior: 'deny', message: OUT_OF_TURN_APPROVAL_DENIAL }
     }
 
-    const presentation = !hasLiveTurnStream || isBackgroundAgent ? 'message' : 'stream'
+    const presentation =
+      !hasLiveTurnStream || isBackgroundAgent
+        ? AgentRuntimeInteractionPresentation.Message
+        : AgentRuntimeInteractionPresentation.Stream
     const approvalId = randomUUID()
     const emit = peekToolApprovalEmitter(session.id)?.emit
     if (!emit) {
@@ -1102,7 +1107,10 @@ async function buildToolPermissions(
       surfaceExitPlanModeInput(session.id, toolName, toolInput as Record<string, unknown>, toolUseId)
     }
 
-    if (application.get('AgentSessionRuntimeService').getInteractionState(session.id).userResponse === 'unavailable') {
+    if (
+      application.get('ConversationRuntimeService').getAgentInteractionState(session.id).userResponse ===
+      AgentUserResponseMode.Unavailable
+    ) {
       return {
         hookSpecificOutput: {
           hookEventName: 'PreToolUse',
@@ -1129,7 +1137,10 @@ async function buildToolPermissions(
     const toolInput = (input as Record<string, unknown>).tool_input as Record<string, unknown> | undefined
     const action = typeof toolInput?.action === 'string' ? toolInput.action : ''
     if (!HEADLESS_CONFIG_MUTATION_ACTIONS.has(action)) return {}
-    if (application.get('AgentSessionRuntimeService').getInteractionState(session.id).currentTurn !== 'headless')
+    if (
+      application.get('ConversationRuntimeService').getAgentInteractionState(session.id).currentTurn !==
+      AgentInteractionTurnKind.Headless
+    )
       return {}
     return {
       hookSpecificOutput: {
@@ -1151,7 +1162,10 @@ async function buildToolPermissions(
     const toolName = String((input as Record<string, unknown>).tool_name ?? '')
     if (toolName !== 'mcp__skills__install_skill') return {}
     if (getToolPolicySnapshot(session.id)?.getPermissionMode() === 'bypassPermissions') return {}
-    if (application.get('AgentSessionRuntimeService').getInteractionState(session.id).currentTurn !== 'headless')
+    if (
+      application.get('ConversationRuntimeService').getAgentInteractionState(session.id).currentTurn !==
+      AgentInteractionTurnKind.Headless
+    )
       return {}
     return {
       hookSpecificOutput: {
@@ -1168,7 +1182,7 @@ async function buildToolPermissions(
   // PreToolUse hooks fire on every tool call regardless of permission mode. The snapshot's disabled
   // set is refreshed in place on every successful agent update, so a mid-session disable is denied on
   // the warm connection in all modes without a reconnect. (A policy update that the SDK rejects is a
-  // separate path — AgentSessionRuntimeService fails closed by tearing the connection down.)
+  // separate path — AgentConnectionManager fails closed by tearing the connection down.)
   const disabledToolHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'PreToolUse') return {}
     const toolName = String((input as Record<string, unknown>).tool_name ?? '')
@@ -1231,8 +1245,11 @@ async function buildToolPermissions(
       return {}
     }
 
-    const interactionState = application.get('AgentSessionRuntimeService').getInteractionState(session.id)
-    if (interactionState.currentTurn === 'headless' || interactionState.userResponse === 'unavailable') {
+    const interactionState = application.get('ConversationRuntimeService').getAgentInteractionState(session.id)
+    if (
+      interactionState.currentTurn === AgentInteractionTurnKind.Headless ||
+      interactionState.userResponse === AgentUserResponseMode.Unavailable
+    ) {
       return {
         hookSpecificOutput: {
           hookEventName: 'PreToolUse',
@@ -1261,8 +1278,11 @@ async function buildToolPermissions(
     const command = toolInput?.command
     if (typeof command === 'string' && detectDestructiveAssistantCommand(command)) return {}
 
-    const interactionState = application.get('AgentSessionRuntimeService').getInteractionState(session.id)
-    if (interactionState.currentTurn === 'headless' || interactionState.userResponse === 'unavailable') {
+    const interactionState = application.get('ConversationRuntimeService').getAgentInteractionState(session.id)
+    if (
+      interactionState.currentTurn === AgentInteractionTurnKind.Headless ||
+      interactionState.userResponse === AgentUserResponseMode.Unavailable
+    ) {
       return {
         hookSpecificOutput: {
           hookEventName: 'PreToolUse',
@@ -1288,7 +1308,10 @@ async function buildToolPermissions(
     if (!input || input.hook_event_name !== 'PreToolUse') return {}
     const toolName = String((input as Record<string, unknown>).tool_name ?? '')
     if (!approvalRequiredTools.includes(toolName)) return {}
-    if (application.get('AgentSessionRuntimeService').getInteractionState(session.id).userResponse === 'unavailable') {
+    if (
+      application.get('ConversationRuntimeService').getAgentInteractionState(session.id).userResponse ===
+      AgentUserResponseMode.Unavailable
+    ) {
       return {
         hookSpecificOutput: {
           hookEventName: 'PreToolUse',
@@ -1386,7 +1409,7 @@ async function buildToolPermissions(
     ) {
       return {}
     }
-    application.get('AgentSessionRuntimeService').recordToolExecutionTiming(session.id, {
+    application.get('AgentConnectionManager').recordToolExecutionTiming(session.id, {
       toolCallId,
       toolName,
       durationMs

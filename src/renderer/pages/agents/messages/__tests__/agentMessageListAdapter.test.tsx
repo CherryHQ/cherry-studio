@@ -74,7 +74,9 @@ vi.mock('@data/hooks/useCache', () => ({
     if (key === 'chat.multi_select_mode') return [true, cacheHookMocks.setMultiSelectMode]
     if (key === 'chat.selected_message_ids') return [['user-1'], cacheHookMocks.setSelectedMessageIds]
     return [undefined, vi.fn()]
-  }
+  },
+  useSharedCache: () => [undefined, vi.fn()],
+  useSharedCacheValue: () => undefined
 }))
 
 vi.mock('@data/CacheService', () => ({
@@ -86,13 +88,6 @@ vi.mock('@data/CacheService', () => ({
 
 vi.mock('@data/DataApiService', () => ({
   dataApiService: dataApiMocks
-}))
-
-vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => ({
-    status: 'idle',
-    activeExecutions: []
-  })
 }))
 
 vi.mock('@renderer/components/chat/messages/hooks/useMessageListRenderConfig', () => ({
@@ -231,6 +226,7 @@ describe('useAgentMessageListProviderValue', () => {
 
     const Probe = () => {
       value = useAgentMessageListProviderValue({
+        sessionId: 'session-1',
         topic,
         messages,
         partsByMessageId,
@@ -382,7 +378,7 @@ describe('useAgentMessageListProviderValue', () => {
 
   it('rejects unresolved relative paths when no workspace root is available', () => {
     const topic = {
-      id: 'agent-session:session-1',
+      id: 'agent:session-1',
       assistantId: 'agent-1',
       name: 'Agent session',
       lastActivityAt: '2026-01-01T00:00:00.000Z',
@@ -394,6 +390,7 @@ describe('useAgentMessageListProviderValue', () => {
     let value: MessageListProviderValue | undefined
     const Probe = () => {
       value = useAgentMessageListProviderValue({
+        sessionId: 'session-1',
         topic,
         messages: [],
         partsByMessageId: {},
@@ -414,7 +411,7 @@ describe('useAgentMessageListProviderValue', () => {
 
   it('injects Agent-session diagnosis persistence into the shared error UI', async () => {
     const topic = {
-      id: 'agent-session:session-1',
+      id: 'agent:session-1',
       assistantId: 'agent-1',
       name: 'Agent session',
       lastActivityAt: '2026-01-01T00:00:00.000Z',
@@ -428,6 +425,7 @@ describe('useAgentMessageListProviderValue', () => {
 
     const Probe = () => {
       useAgentMessageListProviderValue({
+        sessionId: 'session-1',
         topic,
         messages: [],
         partsByMessageId: {},
@@ -461,7 +459,7 @@ describe('useAgentMessageListProviderValue', () => {
 
   it('renders terminal fallbacks in both current and sealed history layers', () => {
     const topic = {
-      id: 'agent-session:session-1',
+      id: 'agent:session-1',
       assistantId: 'agent-1',
       name: 'Agent session',
       lastActivityAt: '2026-01-01T00:00:00.000Z',
@@ -501,6 +499,7 @@ describe('useAgentMessageListProviderValue', () => {
 
     const Probe = () => {
       value = useAgentMessageListProviderValue({
+        sessionId: 'session-1',
         topic,
         messages,
         partsByMessageId,
@@ -571,6 +570,7 @@ describe('useAgentMessageListProviderValue', () => {
       partsByMessageId?: Record<string, CherryMessagePart[]>
     }) => {
       value = useAgentMessageListProviderValue({
+        sessionId: 'session-1',
         topic,
         messages,
         partsByMessageId,
@@ -625,6 +625,7 @@ describe('useAgentMessageListProviderValue', () => {
 
     const Probe = () => {
       value = useAgentMessageListProviderValue({
+        sessionId: 'session-1',
         topic,
         messages,
         partsByMessageId: { 'user-1': messages[0].parts ?? [] },
@@ -667,6 +668,7 @@ describe('useAgentMessageListProviderValue', () => {
 
     const Probe = () => {
       value = useAgentMessageListProviderValue({
+        sessionId: 'session-1',
         topic,
         messages,
         partsByMessageId: { 'user-1': messages[0].parts ?? [] },
@@ -692,7 +694,7 @@ describe('useAgentMessageListProviderValue', () => {
 
   it('keeps capture-scoped session image actions away from the visible runtime', async () => {
     const topic = {
-      id: 'agent-session:session-a',
+      id: 'agent:session-a',
       assistantId: 'agent-1',
       name: 'Agent session',
       lastActivityAt: '2026-01-01T00:00:00.000Z',
@@ -713,6 +715,7 @@ describe('useAgentMessageListProviderValue', () => {
 
     const VisibleProbe = () => {
       visibleValue = useAgentMessageListProviderValue({
+        sessionId: 'session-a',
         topic,
         messages,
         partsByMessageId: { 'user-1': messages[0].parts ?? [] },
@@ -725,6 +728,7 @@ describe('useAgentMessageListProviderValue', () => {
 
     const CaptureProbe = () => {
       captureValue = useAgentMessageListProviderValue({
+        sessionId: 'session-a',
         topic,
         messages,
         partsByMessageId: { 'user-1': messages[0].parts ?? [] },

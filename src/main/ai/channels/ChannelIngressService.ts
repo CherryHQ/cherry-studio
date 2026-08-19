@@ -13,7 +13,7 @@ const CHANNEL_INGRESS_DRAIN_TIMEOUT_MS = SERVICE_STOP_TIMEOUT_MS - 500
 
 @Injectable('ChannelIngressService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['ChannelManager', 'AiService', 'AgentSessionRuntimeService'])
+@DependsOn(['ChannelManager', 'AiService', 'AgentConnectionManager'])
 export class ChannelIngressService extends BaseService {
   private shutdownHold?: Disposable
 

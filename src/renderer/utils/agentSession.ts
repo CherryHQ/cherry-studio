@@ -1,16 +1,11 @@
-const SESSION_TOPIC_PREFIX = 'agent-session:'
+import { ConversationKind, conversationRefKey } from '@shared/ai/conversation'
 
 export const buildAgentFileWorkspaceKey = (workspaceId?: string | null, workspacePath?: string): string => {
   return `${workspaceId ?? ''}\0${workspacePath ?? ''}`
 }
 
-export const buildAgentSessionTopicId = (sessionId: string): string => {
-  return `${SESSION_TOPIC_PREFIX}${sessionId}`
-}
-
-export const extractAgentSessionIdFromTopicId = (topicId: string): string => {
-  return topicId.replace(SESSION_TOPIC_PREFIX, '')
-}
+export const buildAgentSessionScopeKey = (sessionId: string): string =>
+  conversationRefKey({ kind: ConversationKind.Agent, id: sessionId })
 
 import discordIcon from '@renderer/assets/images/channel/discord.svg'
 import feishuIcon from '@renderer/assets/images/channel/feishu.jpeg'

@@ -473,9 +473,10 @@ describe('useChatWriteActions — regenerate', () => {
     failedAssistant.metadata.modelId = 'provider::model-a'
     failedAssistant.parts = [{ type: 'data-error', data: { message: 'failed' } }]
     const activeExecution = {
-      executionId: 'provider::model-a',
-      attemptId: 2,
-      anchorMessageId: 'a1'
+      turnId: 'turn-2',
+      executionId: 'execution-2',
+      modelId: 'provider::model-a',
+      outputNodeId: 'a1'
     }
     const reservedMessage = {
       ...failedAssistant,
@@ -494,7 +495,7 @@ describe('useChatWriteActions — regenerate', () => {
     expect(regenerate).not.toHaveBeenCalled()
     expect(streamOpen).toHaveBeenCalledWith({
       trigger: 'regenerate-message',
-      topicId: 't1',
+      conversation: { kind: 'chat', id: 't1' },
       parentAnchorId: 'u1',
       retryMessageId: 'a1',
       mentionedModelIds: ['provider::model-a']
@@ -532,9 +533,10 @@ describe('useChatWriteActions — regenerate', () => {
       }
     }
     const activeExecution = {
-      executionId: 'provider::model-b',
-      attemptId: 2,
-      anchorMessageId: 'a2'
+      turnId: 'turn-2',
+      executionId: 'execution-2',
+      modelId: 'provider::model-b',
+      outputNodeId: 'a2'
     }
     streamOpen.mockResolvedValueOnce({
       mode: 'started',
@@ -552,7 +554,7 @@ describe('useChatWriteActions — regenerate', () => {
     expect(regenerate).not.toHaveBeenCalled()
     expect(streamOpen).toHaveBeenCalledWith({
       trigger: 'regenerate-message',
-      topicId: 't1',
+      conversation: { kind: 'chat', id: 't1' },
       parentAnchorId: 'u1',
       appendToLiveGroupMessageId: 'a1',
       mentionedModelIds: ['provider::model-b']
@@ -613,7 +615,7 @@ describe('useChatWriteActions — fork and resend', () => {
     expect(streamOpen).toHaveBeenCalledWith(
       expect.objectContaining({
         trigger: 'regenerate-message',
-        topicId: 't1',
+        conversation: { kind: 'chat', id: 't1' },
         parentAnchorId: 'forked-user',
         reasoningEffort: 'high',
         fastMode: true

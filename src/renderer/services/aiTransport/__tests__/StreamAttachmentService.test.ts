@@ -1,3 +1,4 @@
+import { ConversationKind } from '@shared/ai/conversation'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { StreamAttachmentService } from '../StreamAttachmentService'
@@ -11,8 +12,9 @@ describe('StreamAttachmentService', () => {
 
   it('detaches only after the last owner releases a topic', () => {
     const service = new StreamAttachmentService()
-    const releaseTransport = service.acquire('topic-1')
-    const releaseOverlay = service.acquire('topic-1')
+    const conversation = { kind: ConversationKind.Chat, id: 'topic-1' } as const
+    const releaseTransport = service.acquire(conversation)
+    const releaseOverlay = service.acquire(conversation)
 
     releaseTransport()
     expect(request).not.toHaveBeenCalled()
@@ -20,6 +22,6 @@ describe('StreamAttachmentService', () => {
     releaseOverlay()
     releaseOverlay()
     expect(request).toHaveBeenCalledOnce()
-    expect(request).toHaveBeenCalledWith('ai.stream.detach', { topicId: 'topic-1' })
+    expect(request).toHaveBeenCalledWith('ai.stream.detach', { conversation })
   })
 })

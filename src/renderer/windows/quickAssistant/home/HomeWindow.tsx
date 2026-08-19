@@ -4,17 +4,18 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useConversationStreamStatus } from '@renderer/hooks/useConversationStreamStatus'
 import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
 import { useTheme } from '@renderer/hooks/useTheme'
-import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
-import { ipcChatTransport } from '@renderer/services/aiTransport'
+import { ExecutionOverlayPhase, ipcChatTransport } from '@renderer/services/aiTransport'
 import { toast } from '@renderer/services/toast'
 import { getTextFromParts } from '@renderer/utils/message/partsHelpers'
 import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
+import { ConversationKind } from '@shared/ai/conversation'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { type CherryReasoningMeta, readCherryMeta, withCherryMeta } from '@shared/data/types/uiParts'
@@ -143,11 +144,15 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   })
 
   // Primary `useChat.state.messages` receives only user messages. Assistant
-  // content lives in one attempt record that changes phase active → settled;
+  // content lives in one execution record that changes phase active → settled;
   // terminal handoff never copies the message into a second collection.
-  const { activeExecutions, isPending } = useTopicStreamStatus(temporaryTopicId ?? 'pending-temp')
-  const { attempts, clear: clearExecutionMessages } = useExecutionOverlay(
-    temporaryTopicId ?? 'pending-temp',
+  const temporaryConversation = useMemo(
+    () => ({ kind: ConversationKind.Chat, id: temporaryTopicId ?? 'pending-temp' }) as const,
+    [temporaryTopicId]
+  )
+  const { activeExecutions, isPending } = useConversationStreamStatus(temporaryConversation)
+  const { records, clear: clearExecutionMessages } = useExecutionOverlay(
+    temporaryConversation,
     activeExecutions,
     EMPTY_UI_MESSAGES
   )
@@ -158,10 +163,10 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
 
   const allAssistants = useMemo<CherryUIMessage[]>(
     () =>
-      attempts.map((attempt) =>
-        attempt.phase === 'settled' ? finalizeLiveMessages([attempt.message])[0] : attempt.message
+      records.map((record) =>
+        record.phase === ExecutionOverlayPhase.Settled ? finalizeLiveMessages([record.message])[0] : record.message
       ),
-    [attempts]
+    [records]
   )
 
   const partsByMessageId = useMemo<Record<string, CherryMessagePart[]>>(() => {
@@ -173,12 +178,12 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   }, [allAssistants, chatMessages])
 
   // Interleave user messages (from state.messages) with projected assistant
-  // attempts. The assumption: users and assistants
+  // records. The assumption: users and assistants
   // alternate strictly — user[i] precedes assistant[i]. Temporary topics
   // are always a clean linear chat, no branches.
   const displayMessages = useMemo<CherryUIMessage[]>(() => {
     const users = chatMessages.filter((m) => m.role === 'user')
-    const latestAssistantId = attempts.findLast((attempt) => attempt.phase === 'active')?.message.id
+    const latestAssistantId = records.findLast((record) => record.phase === ExecutionOverlayPhase.Active)?.message.id
     const out: CherryUIMessage[] = []
     const turns = Math.max(users.length, allAssistants.length)
     for (let i = 0; i < turns; i++) {
@@ -198,7 +203,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
       }
     }
     return out
-  }, [chatMessages, allAssistants, attempts, isPending])
+  }, [chatMessages, allAssistants, isPending, records])
 
   const messageItems = useMemo(
     () =>

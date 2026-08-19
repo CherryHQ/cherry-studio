@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { AgentUserResponseMode } from '../../conversation'
 import type { PiApprovalContext } from './approvalExtension'
 
 const mocks = vi.hoisted(() => ({ rtkRewrite: vi.fn() }))
@@ -52,7 +53,7 @@ function buildGate(
     agentDataPath: string
     additionalReadOnlyRoots: readonly string[]
     getPermissionMode: () => AgentPermissionMode | undefined
-    getInteractionState: () => { userResponse: 'stream' | 'message' | 'unavailable' }
+    getInteractionState: () => { userResponse: AgentUserResponseMode }
     isDisabled: (toolName: string) => boolean
     autoApprovedTools: ReadonlySet<string>
     approvalRequiredTools: ReadonlySet<string>
@@ -68,7 +69,7 @@ function buildGate(
     additionalReadOnlyRoots: [],
     emit: (event) => emitted.push(event),
     getPermissionMode: () => 'default',
-    getInteractionState: () => ({ userResponse: 'stream' }),
+    getInteractionState: () => ({ userResponse: AgentUserResponseMode.Stream }),
     isDisabled: () => false,
     autoApprovedTools: new Set(),
     approvalRequiredTools: new Set(),
@@ -216,7 +217,7 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
     const toolName = 'mcp__cherry-tools__kb_manage'
     const { handler, emitted } = buildGate({
       getPermissionMode: () => 'bypassPermissions',
-      getInteractionState: () => ({ userResponse: 'unavailable' }),
+      getInteractionState: () => ({ userResponse: AgentUserResponseMode.Unavailable }),
       approvalRequiredTools: new Set([toolName])
     })
 
@@ -244,7 +245,7 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
     const toolName = 'mcp__cherry-tools__session_create'
     const { handler, emitted } = buildGate({
       getPermissionMode: () => 'bypassPermissions',
-      getInteractionState: () => ({ userResponse: 'unavailable' }),
+      getInteractionState: () => ({ userResponse: AgentUserResponseMode.Unavailable }),
       approvalRequiredTools: new Set([toolName]),
       nonBypassableApprovalTools: new Set([toolName])
     })
@@ -258,7 +259,7 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
 
   it('fails closed immediately when an approval-required tool has no responder', async () => {
     const { handler, emitted } = buildGate({
-      getInteractionState: () => ({ userResponse: 'unavailable' })
+      getInteractionState: () => ({ userResponse: AgentUserResponseMode.Unavailable })
     })
 
     await expect(handler(toolEvent('bash', { command: 'ls' }), extCtx)).resolves.toMatchObject({
@@ -272,7 +273,7 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
   it('does not suggest bypass for an always-prompt tool in an unattended turn', async () => {
     const toolName = 'mcp__cherry-tools__kb_manage'
     const { handler, emitted } = buildGate({
-      getInteractionState: () => ({ userResponse: 'unavailable' }),
+      getInteractionState: () => ({ userResponse: AgentUserResponseMode.Unavailable }),
       approvalRequiredTools: new Set([toolName])
     })
 
@@ -285,7 +286,9 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
   })
 
   it('marks an out-of-stream approval for message presentation', async () => {
-    const { handler, emitted } = buildGate({ getInteractionState: () => ({ userResponse: 'message' }) })
+    const { handler, emitted } = buildGate({
+      getInteractionState: () => ({ userResponse: AgentUserResponseMode.Message })
+    })
     const pending = handler(toolEvent('bash', { command: 'ls' }), extCtx)
     await flush()
 

@@ -104,7 +104,7 @@ describe('useMessageErrorActions', () => {
     const message = {
       id: 'message-1',
       role: 'assistant',
-      topicId: 'agent-session:session-1',
+      topicId: 'agent:session-1',
       createdAt: '2026-01-01T00:00:00.000Z',
       status: 'error'
     } satisfies MessageListItem

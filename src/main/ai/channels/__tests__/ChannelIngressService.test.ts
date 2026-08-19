@@ -15,7 +15,7 @@ vi.mock('@application', () => ({
 }))
 
 const { ChannelIngressService } = await import('../ChannelIngressService')
-const { AiStreamManager } = await import('../../streamManager/AiStreamManager')
+const { ConversationRuntimeService } = await import('../../conversation')
 const { JobManager } = await import('../../../core/job/JobManager')
 
 type ChannelIngressServiceInternals = {
@@ -47,13 +47,9 @@ beforeEach(() => {
 
 describe('Channel lifecycle ordering', () => {
   it('keeps terminal delivery alive until stream and job producers stop', () => {
-    expect(getDependencies(AiStreamManager as unknown as ServiceConstructor)).toContain('ChannelManager')
+    expect(getDependencies(ConversationRuntimeService as unknown as ServiceConstructor)).toContain('ChannelManager')
     expect(getDependencies(JobManager)).toContain('ChannelManager')
-    expect(getDependencies(ChannelIngressService)).toEqual([
-      'ChannelManager',
-      'AiService',
-      'AgentSessionRuntimeService'
-    ])
+    expect(getDependencies(ChannelIngressService)).toEqual(['ChannelManager', 'AiService', 'AgentConnectionManager'])
   })
 
   it('opens intake after dependencies are ready', async () => {

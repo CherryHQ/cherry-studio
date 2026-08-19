@@ -2,9 +2,9 @@ import { agentChannelService as channelService } from '@data/services/AgentChann
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ChannelAdapter, type ChannelAdapterConfig } from '../ChannelAdapter'
-import { ChannelManager, registerAdapterFactory } from '../ChannelManager'
+import { ChannelDeliveryService } from '../ChannelDeliveryService'
+import { ChannelDeliveryEvent, ChannelManager, registerAdapterFactory } from '../ChannelManager'
 import { channelMessageHandler } from '../ChannelMessageHandler'
-import { ChannelTerminalDeliveryService } from '../ChannelTerminalDeliveryService'
 
 // Real delivery service: these tests exercise FIFO, dedupe, the bounded send and drain, so a
 // stub would assert nothing. Held indirectly because `vi.mock` factories are hoisted above
@@ -15,10 +15,12 @@ vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
     ChannelManager: {
-      getConnectedAdapter: (channelId: string) => holder.manager?.getConnectedAdapter(channelId)
+      resolveConnectedAdapter: (channelId: string) => holder.manager?.resolveConnectedAdapter(channelId)
     },
-    ChannelTerminalDeliveryService: {
-      enqueue: (request: unknown) => holder.delivery.enqueue(request),
+    ChannelDeliveryService: {
+      updateLive: (request: unknown) => holder.delivery.updateLive(request),
+      enqueueTerminal: (request: unknown) => holder.delivery.enqueueTerminal(request),
+      isActive: () => holder.delivery.isActive(),
       open: () => holder.delivery.open(),
       block: (channelId: string) => holder.delivery.block(channelId),
       reopen: (channelId: string, connectionEpoch: number) => holder.delivery.reopen(channelId, connectionEpoch),
@@ -30,7 +32,7 @@ vi.mock('@application', async () => {
 
 const channelManager = new ChannelManager()
 holder.manager = channelManager
-holder.delivery = new ChannelTerminalDeliveryService()
+holder.delivery = new ChannelDeliveryService()
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -171,14 +173,14 @@ describe('ChannelManager', () => {
       id: 'delivery-1',
       channelId: 'ch-1',
       chatId: 'chat-1',
-      event: 'done',
+      event: ChannelDeliveryEvent.Done,
       text: 'first'
     })
     channelManager.enqueueTerminalDelivery({
       id: 'delivery-2',
       channelId: 'ch-1',
       chatId: 'chat-1',
-      event: 'done',
+      event: ChannelDeliveryEvent.Done,
       text: 'second'
     })
 
@@ -195,7 +197,7 @@ describe('ChannelManager', () => {
       id: 'deduplicated-delivery',
       channelId: 'ch-1',
       chatId: 'chat-1',
-      event: 'done' as const,
+      event: ChannelDeliveryEvent.Done,
       text: 'once'
     }
 
@@ -219,7 +221,7 @@ describe('ChannelManager', () => {
       id: 'delivery-before-stop',
       channelId: 'ch-1',
       chatId: 'chat-1',
-      event: 'done',
+      event: ChannelDeliveryEvent.Done,
       text: 'pending'
     })
 
@@ -246,7 +248,7 @@ describe('ChannelManager', () => {
           id: 'hung-delivery',
           channelId: 'ch-1',
           chatId: 'chat-1',
-          event: 'done',
+          event: ChannelDeliveryEvent.Done,
           text: 'never lands'
         })
       ).toBe(true)
@@ -257,7 +259,7 @@ describe('ChannelManager', () => {
           id: 'queued-before-timeout',
           channelId: 'ch-1',
           chatId: 'chat-1',
-          event: 'done',
+          event: ChannelDeliveryEvent.Done,
           text: 'must be skipped'
         })
       ).toBe(true)
@@ -273,10 +275,11 @@ describe('ChannelManager', () => {
           id: 'follow-up',
           channelId: 'ch-1',
           chatId: 'chat-1',
-          event: 'done',
+          event: ChannelDeliveryEvent.Done,
           text: 'blocked'
         })
       ).toBe(false)
+      expect(channelManager.updateLive({ channelId: 'ch-1', chatId: 'chat-1', text: 'later chunk' })).toBe(false)
     } finally {
       vi.useRealTimers()
     }
@@ -293,7 +296,7 @@ describe('ChannelManager', () => {
       id: 'delivery-after-stop',
       channelId: 'ch-1',
       chatId: 'chat-1',
-      event: 'done',
+      event: ChannelDeliveryEvent.Done,
       text: 'after-stop'
     })
 
@@ -392,11 +395,36 @@ describe('ChannelManager', () => {
         id: 'after-successful-reconnect',
         channelId: 'ch-1',
         chatId: 'chat-1',
-        event: 'done',
+        event: ChannelDeliveryEvent.Done,
         text: 'new epoch'
       })
     ).toBe(true)
     await vi.waitFor(() => expect(createdAdapters[2].sendMessage).toHaveBeenCalledTimes(1))
+  })
+
+  it('aborts the old live epoch and routes later chunks through the replacement adapter', async () => {
+    vi.mocked(channelService.listChannels).mockReturnValueOnce([makeChannelRow()])
+    await channelManager.start()
+    const adapterA = createdAdapters[0]
+    adapterA.onTextUpdate = vi.fn().mockResolvedValue(undefined)
+
+    expect(channelManager.updateLive({ channelId: 'ch-1', chatId: 'chat-1', text: 'first' })).toBe(true)
+    const oldSignal = vi.mocked(adapterA.onTextUpdate).mock.calls[0][2]?.signal
+    expect(oldSignal?.aborted).toBe(false)
+
+    vi.mocked(channelService.getChannel).mockReturnValueOnce(makeChannelRow())
+    await channelManager.syncChannel('ch-1', { awaitConnect: true })
+    const adapterB = createdAdapters[1]
+    adapterB.onTextUpdate = vi.fn().mockResolvedValue(undefined)
+
+    expect(oldSignal?.aborted).toBe(true)
+    expect(channelManager.updateLive({ channelId: 'ch-1', chatId: 'chat-1', text: 'second' })).toBe(true)
+    expect(adapterA.onTextUpdate).toHaveBeenCalledOnce()
+    expect(adapterB.onTextUpdate).toHaveBeenCalledWith(
+      'chat-1',
+      'second',
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    )
   })
 
   it('keeps delivery blocked when an awaited reconnect fails', async () => {
@@ -412,7 +440,7 @@ describe('ChannelManager', () => {
         id: 'after-awaited-connect-failure',
         channelId: 'ch-1',
         chatId: 'chat-1',
-        event: 'done',
+        event: ChannelDeliveryEvent.Done,
         text: 'must stay blocked'
       })
     ).toBe(false)
@@ -432,7 +460,7 @@ describe('ChannelManager', () => {
         id: 'after-background-connect-failure',
         channelId: 'ch-1',
         chatId: 'chat-1',
-        event: 'done',
+        event: ChannelDeliveryEvent.Done,
         text: 'must stay blocked'
       })
     ).toBe(false)

@@ -62,8 +62,9 @@ const createScheduleState = (): ScheduleState => ({
   'SchedulerService',
   'WindowManager',
   'ChannelManager',
-  'AiStreamManager',
-  'AgentSessionRuntimeService',
+  'PromptStreamManager',
+  'ConversationRuntimeService',
+  'AgentConnectionManager',
   'JobManager'
 ])
 export class AutoBackupService extends BaseService {

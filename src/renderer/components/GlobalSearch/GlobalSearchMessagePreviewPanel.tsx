@@ -8,7 +8,7 @@ import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/compon
 import { toAgentSessionUIMessage } from '@renderer/hooks/useAgentSessionParts'
 import { useConversationHistoryQuery } from '@renderer/hooks/useConversationHistoryQuery'
 import { type Topic, TopicType } from '@renderer/types/topic'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { buildAgentSessionScopeKey } from '@renderer/utils/agentSession'
 import { sharedMessageToUIMessage, uiMessagesToPartsMap } from '@renderer/utils/message/messageProjection'
 import { cn } from '@renderer/utils/style'
 import type { CherryUIMessage } from '@shared/data/types/message'
@@ -69,7 +69,7 @@ function getPreviewTopic(target: GlobalSearchMessagePreviewTarget): Topic {
   }
 
   return {
-    id: buildAgentSessionTopicId(target.sessionId),
+    id: buildAgentSessionScopeKey(target.sessionId),
     type: TopicType.Session,
     assistantId: target.agentId ?? '',
     name: target.title,

@@ -1,7 +1,13 @@
 import * as z from 'zod'
 
-export const AgentSessionDeliveryStatusSchema = z.enum(['accepted', 'delivering', 'consumed', 'failed'])
-export type AgentSessionDeliveryStatus = z.infer<typeof AgentSessionDeliveryStatusSchema>
+export enum AgentSessionDeliveryStatus {
+  Accepted = 'accepted',
+  Delivering = 'delivering',
+  Consumed = 'consumed',
+  Failed = 'failed'
+}
+
+export const AgentSessionDeliveryStatusSchema = z.enum(AgentSessionDeliveryStatus)
 
 export const AgentSessionDeliveryIdentitySchema = z.strictObject({
   agentId: z.string().min(1),
@@ -21,11 +27,20 @@ export const AgentSessionDeliveryErrorSchema = z.strictObject({
 })
 export type AgentSessionDeliveryError = z.infer<typeof AgentSessionDeliveryErrorSchema>
 
-export const AgentSessionDeliveryReplyPolicySchema = z.enum(['none', 'completion'])
-export type AgentSessionDeliveryReplyPolicy = z.infer<typeof AgentSessionDeliveryReplyPolicySchema>
+export enum AgentSessionDeliveryReplyPolicy {
+  None = 'none',
+  Completion = 'completion'
+}
 
-export const AgentSessionDeliveryOutcomeSchema = z.enum(['success', 'failed', 'interrupted'])
-export type AgentSessionDeliveryOutcome = z.infer<typeof AgentSessionDeliveryOutcomeSchema>
+export const AgentSessionDeliveryReplyPolicySchema = z.enum(AgentSessionDeliveryReplyPolicy)
+
+export enum AgentSessionDeliveryOutcome {
+  Success = 'success',
+  Failed = 'failed',
+  Interrupted = 'interrupted'
+}
+
+export const AgentSessionDeliveryOutcomeSchema = z.enum(AgentSessionDeliveryOutcome)
 
 /** Main-authored immutable routing plus current single-row lifecycle details. */
 export const AgentSessionDeliveryEnvelopeSchema = z.strictObject({
@@ -56,4 +71,7 @@ export const SESSION_CREATE_TOOL_NAME = 'session_create'
 export const SESSION_DELIVERIES_TOOL_NAME = 'session_deliveries'
 export const SESSION_SEND_TOOL_NAME = 'session_send'
 
-export const AGENT_SESSION_DELIVERY_RECOVERABLE_STATUSES = ['accepted', 'delivering'] as const
+export const AGENT_SESSION_DELIVERY_RECOVERABLE_STATUSES = [
+  AgentSessionDeliveryStatus.Accepted,
+  AgentSessionDeliveryStatus.Delivering
+] as const

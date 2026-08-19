@@ -20,7 +20,7 @@ import type { Provider } from '@shared/data/types/provider'
 import type { RequestContext } from '../../../tools/adapters/aiSdk/context'
 import type { ToolRegistry } from '../../../tools/adapters/aiSdk/registry'
 import type { ToolApplyScope } from '../../../tools/adapters/aiSdk/types'
-import type { AiBaseRequest, AppProviderId, AppProviderSettingsMap } from '../../../types'
+import type { AiBaseRequest, AiStreamRequest, AppProviderId, AppProviderSettingsMap } from '../../../types'
 import type { ResolvedReasoningInvocation } from '../../../utils/reasoningSerializers'
 import type { ResolvedCapabilities } from './capabilities'
 
@@ -36,7 +36,7 @@ export interface SdkConfig<T extends AppProviderKey = AppProviderKey> {
 }
 
 export interface RequestScope extends ToolApplyScope {
-  readonly request: AiBaseRequest & { chatId?: string }
+  readonly request: AiBaseRequest & { chatId?: string; runtime?: AiStreamRequest['runtime'] }
   readonly signal: AbortSignal | undefined
   readonly registry: ToolRegistry
   readonly model: Model

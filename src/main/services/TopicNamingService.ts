@@ -28,10 +28,10 @@ const FALLBACK_PROMPT =
 const summaryLocks = new Set<string>()
 const agentSessionRenameLocks = new Set<string>()
 
-// In-flight async naming writes, keyed `topic:${id}#seq` / `agent-session:${id}#seq`.
+// In-flight async naming writes, keyed by the exact Chat/Agent conversation namespace plus sequence.
 // The summary renames are spawned detached (`void backend.afterPersist(...)` in
 // PersistenceListener), so a stream's loopPromise settles BEFORE the rename's DB
-// write lands. AiStreamManager.drainInFlight awaits this registry so a backup
+// write lands. ConversationRuntimeService.drainInFlight awaits this registry so a backup
 // restore's write-quiesce verdict cannot miss them. Registration happens
 // synchronously at method entry — a detached spawn is captured before its
 // caller's promise resolves.
@@ -267,7 +267,7 @@ export class TopicNamingService {
    * @param agentId    Agent id, used for failure logging context only.
    * @param sessionId  Cherry Studio session id.
    * @param userText   Plain text of the persisted user turn, extracted by
-   *                   AgentSessionRuntimeService from the saved user message.
+   *                   AgentConnectionManager from the saved user message.
    * @param finalMessage Accumulated assistant UIMessage for this turn.
    */
   maybeRenameAgentSession(
@@ -276,7 +276,7 @@ export class TopicNamingService {
     userText: string,
     finalMessage: UIMessage
   ): Promise<void> {
-    return trackNamingWrite(`agent-session:${sessionId}`, () =>
+    return trackNamingWrite(`agent:${sessionId}`, () =>
       this.doMaybeRenameAgentSession(agentId, sessionId, userText, finalMessage)
     )
   }
@@ -328,7 +328,7 @@ export class TopicNamingService {
 
   /**
    * Advisory registry of in-flight async naming writes (drain wait-set for
-   * AiStreamManager's write-quiesce). Read-only; entries self-remove on settle.
+   * ConversationRuntimeService's write-quiesce). Read-only; entries self-remove on settle.
    */
   inFlightWrites(): ReadonlyMap<string, Promise<void>> {
     return inFlightNamingWrites

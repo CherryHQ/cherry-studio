@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
+import { AgentRuntimeInteractionPresentation } from '../../types'
 import type { DispatchDecision } from '../ToolApprovalRegistry'
 import { toolApprovalRegistry } from '../ToolApprovalRegistry'
 
@@ -18,7 +19,7 @@ function makeEntry(overrides: Record<string, unknown> = {}) {
     toolCallId: 'tc1',
     toolName: 'bash',
     originalInput: { cmd: 'ls' },
-    presentation: 'stream' as const,
+    presentation: AgentRuntimeInteractionPresentation.Stream,
     resolve,
     ...overrides
   }
