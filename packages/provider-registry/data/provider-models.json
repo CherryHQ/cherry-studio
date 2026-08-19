@@ -36485,11 +36485,6 @@
       "providerId": "xfyun"
     },
     {
-      "apiModelId": "xopkimi27code",
-      "modelId": "kimi-k2-7-code",
-      "providerId": "xfyun"
-    },
-    {
       "apiModelId": "xminimaxm25",
       "modelId": "minimax-m2-5",
       "providerId": "xfyun"
@@ -36547,8 +36542,10 @@
       "providerId": "xfyun-coding"
     },
     {
-      "apiModelId": "xdeepseekv3",
-      "modelId": "deepseek-v3",
+      "apiModelId": "auto",
+      "modelId": "auto",
+      "name": "Auto",
+      "ownedBy": "iflytek",
       "providerId": "xfyun-coding"
     },
     {
@@ -36642,5 +36639,5 @@
       "providerId": "xfyun-coding"
     }
   ],
-  "version": "ae33f317c7e496cf"
+  "version": "3f83e32658d6b653"
 }
