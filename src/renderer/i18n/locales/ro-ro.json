@@ -6829,6 +6829,12 @@
       "title": "Sistem"
     },
     "theme": {
+      "color_picker": {
+        "eyedropper": "Alege culoarea de pe ecran",
+        "hex": "Culoare hexazecimală",
+        "hue": "Nuanță",
+        "selection": "Saturație și luminozitate"
+      },
       "color_primary": "Culoare primară",
       "dark": "Întunecată",
       "light": "Luminoasă",

@@ -6829,6 +6829,12 @@
       "title": "Système"
     },
     "theme": {
+      "color_picker": {
+        "eyedropper": "Prélever une couleur à l'écran",
+        "hex": "Couleur hexadécimale",
+        "hue": "Teinte",
+        "selection": "Saturation et luminosité"
+      },
       "color_primary": "Couleur principale",
       "dark": "Sombre",
       "light": "Clair",

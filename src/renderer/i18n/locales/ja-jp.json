@@ -6829,6 +6829,12 @@
       "title": "システム"
     },
     "theme": {
+      "color_picker": {
+        "eyedropper": "画面から色を抽出",
+        "hex": "16進カラー",
+        "hue": "色相",
+        "selection": "彩度と明るさ"
+      },
       "color_primary": "テーマ色",
       "dark": "ダーク",
       "light": "ライト",

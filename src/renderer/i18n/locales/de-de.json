@@ -6829,6 +6829,12 @@
       "title": "System"
     },
     "theme": {
+      "color_picker": {
+        "eyedropper": "Farbe vom Bildschirm aufnehmen",
+        "hex": "Hex-Farbe",
+        "hue": "Farbton",
+        "selection": "Farbsättigung und Helligkeit"
+      },
       "color_primary": "Theme-Farbe",
       "dark": "Dunkel",
       "light": "Hell",

@@ -6829,6 +6829,12 @@
       "title": "系统"
     },
     "theme": {
+      "color_picker": {
+        "eyedropper": "从屏幕取色",
+        "hex": "十六进制颜色",
+        "hue": "色相",
+        "selection": "颜色饱和度和亮度"
+      },
       "color_primary": "主题颜色",
       "dark": "深色",
       "light": "浅色",

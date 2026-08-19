@@ -6829,6 +6829,12 @@
       "title": "Hệ thống"
     },
     "theme": {
+      "color_picker": {
+        "eyedropper": "Chọn màu từ màn hình",
+        "hex": "Màu hex",
+        "hue": "Hue",
+        "selection": "Độ bão hòa và độ sáng"
+      },
       "color_primary": "Màu chính",
       "dark": "Tối",
       "light": "Sáng",

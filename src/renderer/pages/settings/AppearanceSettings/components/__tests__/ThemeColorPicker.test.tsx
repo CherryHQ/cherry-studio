@@ -1,14 +1,35 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
+import type * as CherryStudioUi from '@cherrystudio/ui'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { useState } from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ThemeColorPicker, { normalizeHexColor } from '../ThemeColorPicker'
 
+vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
+
+const translations: Record<string, string> = {
+  'settings.theme.color_picker.eyedropper': 'Localized eyedropper',
+  'settings.theme.color_picker.hex': 'Localized hex color',
+  'settings.theme.color_picker.hue': 'Localized hue',
+  'settings.theme.color_picker.selection': 'Localized color plane'
+}
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) => translations[key] ?? key
+  })
+}))
+
+beforeEach(() => {
+  Object.defineProperty(window, 'EyeDropper', { configurable: true, value: class {} })
+})
+
 afterEach(() => {
   cleanup()
+  Reflect.deleteProperty(window, 'EyeDropper')
 })
 
 describe('ThemeColorPicker', () => {
@@ -17,12 +38,19 @@ describe('ThemeColorPicker', () => {
     expect(normalizeHexColor('09f')).toBe('#0099FF')
   })
 
-  it('limits the custom color border to keyboard-visible focus', () => {
+  it('opens the shared color picker instead of a native color input', () => {
     render(<ThemeColorPicker value="#112233" presets={[]} onChange={vi.fn()} ariaLabel="Theme color" />)
 
-    const colorInput = screen.getByLabelText('Theme color')
-    expect(colorInput.parentElement).toHaveClass('has-[:focus-visible]:border-primary')
-    expect(colorInput.parentElement).not.toHaveClass('focus-within:border-primary')
+    expect(screen.queryByLabelText('Theme color', { selector: 'input[type="color"]' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Theme color' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Localized hex color' })).toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: 'Theme color' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Theme color' }))
+
+    expect(screen.getByRole('slider', { name: 'Localized color plane' })).toBeInTheDocument()
+    expect(screen.getByRole('slider', { name: 'Localized hue' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Localized eyedropper' })).toBeInTheDocument()
   })
 
   it('reverts an invalid draft color on blur', () => {

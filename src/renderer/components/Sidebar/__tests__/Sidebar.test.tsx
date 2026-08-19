@@ -191,6 +191,37 @@ describe('Sidebar resize handle', () => {
     expect(resizeHandle).toBeInTheDocument()
     // Electron drag-region opt-out keeps the resize handle interactive.
     expect(resizeHandle).toHaveClass('[-webkit-app-region:no-drag]')
+    expect(resizeHandle).toBeEmptyDOMElement()
+  })
+
+  it('keeps a resize hit zone on the floating sidebar edge', () => {
+    const setWidth = vi.fn()
+    const onResizingChange = vi.fn()
+    const { container } = render(
+      <Sidebar
+        width={SIDEBAR_HIDDEN_THRESHOLD - 10}
+        setWidth={setWidth}
+        active={{ activeItem: 'chat' }}
+        entries={entries}
+        isFloating
+        onResizingChange={onResizingChange}
+      />
+    )
+
+    const resizeHandle = container.querySelector('.slide-in-from-left-2 .cursor-col-resize')
+
+    expect(resizeHandle).toBeInTheDocument()
+    expect(resizeHandle).toHaveClass('[-webkit-app-region:no-drag]')
+    expect(resizeHandle).toBeEmptyDOMElement()
+
+    fireEvent.mouseDown(resizeHandle as HTMLElement, { clientX: 174 })
+    expect(onResizingChange).toHaveBeenLastCalledWith(true)
+
+    fireEvent.mouseMove(document, { clientX: 180 })
+    expect(setWidth).toHaveBeenLastCalledWith(180)
+
+    fireEvent.mouseUp(document)
+    expect(onResizingChange).toHaveBeenLastCalledWith(false)
   })
 
   it('previews intermediate widths and snaps release by drag direction', () => {
@@ -454,6 +485,25 @@ describe('Sidebar resize handle', () => {
     expect(screen.getByText('Chat')).toBeInTheDocument()
     expect(screen.getByText('Qwen')).toBeInTheDocument()
     expect(screen.getByLabelText('Qwen')).toBeInTheDocument()
+  })
+
+  it('uses sidebar accent tokens for selected icon and full items', () => {
+    const { rerender } = render(
+      <Sidebar width={SIDEBAR_ICON_WIDTH} setWidth={vi.fn()} active={{ activeItem: 'chat' }} entries={entries} />
+    )
+
+    const iconButton = screen.getByRole('button', { name: 'Chat' })
+    expect(iconButton).toHaveClass('bg-sidebar-accent', 'text-sidebar-accent-foreground')
+    expect(iconButton.className).not.toContain('sidebar-active-bg')
+
+    rerender(
+      <Sidebar width={SIDEBAR_FULL_THRESHOLD} setWidth={vi.fn()} active={{ activeItem: 'chat' }} entries={entries} />
+    )
+
+    const fullButton = screen.getByRole('button', { name: 'Chat' })
+    expect(fullButton.className).toContain('bg-sidebar-accent')
+    expect(fullButton.className).toContain('text-sidebar-accent-foreground')
+    expect(fullButton.className).not.toContain('sidebar-active-bg')
   })
 
   it('names icon-only docked mini app buttons from the full title when the logo is missing', () => {
