@@ -934,19 +934,14 @@ class ProviderRegistryService {
     )
     let contract: ProviderModelReasoningContract | undefined
     let matchedOverride: ProtoProviderModelOverride | null = null
-    let hasContract = false
     for (const providerId of providerIds) {
       for (const modelId of modelIds) {
         const candidate = this.getLoader().findOverride(providerId, modelId)
-        if (!candidate) continue
-        matchedOverride = candidate
-        contract = effectiveEndpoint ? candidate.reasoningContracts?.[effectiveEndpoint] : undefined
-        if (contract) {
-          hasContract = true
-          break
-        }
+        contract = effectiveEndpoint ? candidate?.reasoningContracts?.[effectiveEndpoint] : undefined
+        if (contract) matchedOverride = candidate
+        if (contract) break
       }
-      if (hasContract) break
+      if (contract) break
     }
 
     const presetReasoning = this.getLoader().findModel(matchedOverride?.modelId ?? model.presetModelId ?? '')?.reasoning
@@ -967,7 +962,6 @@ class ProviderRegistryService {
       contract,
       wireDialect
     })
-
     return { ...resolved, support }
   }
 
