@@ -111,6 +111,22 @@ describe('TopicStreamAggregate', () => {
     expect(aggregate.status()).toBe('done')
   })
 
+  it('reserves a continuation attempt and consumes its exact lease in one commit', () => {
+    const aggregate = new TopicStreamAggregate('topic-1')
+    aggregate.openContinuationLease(lease, 'agent-runtime')
+    const attemptId = toAttemptId(2)
+
+    const prepared = aggregate.prepare({
+      type: 'reserve-continuation-dispatch',
+      attemptIds: [attemptId],
+      leaseId: lease
+    })
+    aggregate.commit(prepared)
+
+    expect(aggregate.attemptState(attemptId)).toEqual({ phase: 'reserved' })
+    expect(aggregate.continuationLease(lease)).toMatchObject({ state: 'consumed', attemptId })
+  })
+
   it('pushes ring eviction pause on the approval edges, never on inner changes (T8)', () => {
     const aggregate = new TopicStreamAggregate('topic-1')
     const pushed: Array<{ attemptId: number; paused: boolean }> = []

@@ -1,5 +1,5 @@
 export { AiStreamAdmissionError } from './admission'
-export type { SendResult } from './AiStreamManager'
+export type { SendResult, StartRuntimeTurnInput } from './AiStreamManager'
 export { AiStreamManager } from './AiStreamManager'
 export { startAgentSessionRun } from './api/startAgentSessionRun'
 export { agentChatContextProvider } from './context/AgentChatContextProvider'
@@ -16,6 +16,8 @@ export {
   finalizeInterruptedParts,
   stripTransientStatusParts
 } from './persistence/PersistenceBackend'
+export type { ContinuationLeaseId, ContinuationReleaseReason } from './topicStreamState'
+export { toContinuationLeaseId } from './topicStreamState'
 export type {
   ActiveStream,
   AiStreamAttachRequest,

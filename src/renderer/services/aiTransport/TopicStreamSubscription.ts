@@ -516,7 +516,8 @@ export class TopicStreamSubscription {
       : { kind: 'control', cycleId: event.cycleId, controlRevision: event.controlRevision }
 
     const transition = reduceTopicStreamClient(this.#clientState, arrival)
-    if (!transition.accepted) {
+    const committed = this.#commitClientTransition(transition)
+    if (!committed.accepted) {
       if (transition.rejection === 'overlapping-range' && isChunk) {
         logger.warn('overlapping stream chunk range dropped', {
           topicId: this.#topicId,
@@ -528,31 +529,10 @@ export class TopicStreamSubscription {
       }
       return
     }
-    this.#clientState = transition.state
-    let topicOpened = false
-    for (const effect of transition.effects) {
-      switch (effect.type) {
-        case 'retire-stale-branches':
-          // Branches classified to an older cycle are dead authority; unclassified ones may be
-          // this cycle's own not-yet-evidenced registrations.
-          this.#retireBranches(
-            [...this.#branches.values()].filter(
-              (branch) => branch.cycleId !== undefined && branch.cycleId !== effect.cycleId
-            )
-          )
-          break
-        case 'reset-quiescence':
-          this.#lastQuiesced = undefined
-          break
-        case 'topic-state-changed':
-          topicOpened = true
-          break
-      }
-    }
 
     if (isChunk) {
       this.#routeChunk(event)
-      if (topicOpened) this.#notifyTopicStateChange()
+      if (committed.topicStateChanged) this.#notifyTopicStateChange()
       return
     }
 
@@ -582,6 +562,36 @@ export class TopicStreamSubscription {
     this.#notifyTopicQuiesced({ cycleId: event.cycleId, throughAttemptId: event.throughAttemptId })
   }
 
+  /** Commit one accepted reducer transition, then apply only its resource effects. */
+  #commitClientTransition(transition: ReturnType<typeof reduceTopicStreamClient>): {
+    accepted: boolean
+    topicStateChanged: boolean
+  } {
+    if (!transition.accepted) return { accepted: false, topicStateChanged: false }
+    this.#clientState = transition.state
+    let topicStateChanged = false
+    for (const effect of transition.effects) {
+      switch (effect.type) {
+        case 'retire-stale-branches':
+          // Branches classified to an older cycle are dead authority; unclassified ones may be
+          // this cycle's own not-yet-evidenced registrations.
+          this.#retireBranches(
+            [...this.#branches.values()].filter(
+              (branch) => branch.cycleId !== undefined && branch.cycleId !== effect.cycleId
+            )
+          )
+          break
+        case 'reset-quiescence':
+          this.#lastQuiesced = undefined
+          break
+        case 'topic-state-changed':
+          topicStateChanged = true
+          break
+      }
+    }
+    return { accepted: true, topicStateChanged }
+  }
+
   /** The quiesce barrier covers every attempt ≤ `throughAttemptId`; a covered
    *  branch that never saw its own terminal is stale and must not stay open. */
   #retireCoveredBranches(throughAttemptId: number): void {
@@ -593,21 +603,20 @@ export class TopicStreamSubscription {
   }
 
   #selectV2Protocol(snapshot: StreamAttachSnapshot): void {
-    // Mirror the live-path newer-only guard: a reattach can race a live cycle bump,
-    // and a snapshot of an already-superseded cycle is dead authority — ignore it wholly.
-    if (this.#clientState.cycleId !== undefined && snapshot.cycleId < this.#clientState.cycleId) return
-    this.#protocol = 'v2'
-    this.#pendingLegacyEvents.length = 0
     // Adopt the cycle and revision only. The cutoff watermark is raised *after* the replay loop
     // below — seeding it first would make every replayed chunk look already consumed.
-    this.#clientState = reduceTopicStreamClient(this.#clientState, {
+    const snapshotTransition = reduceTopicStreamClient(this.#clientState, {
       kind: 'snapshot',
       cycleId: snapshot.cycleId,
       controlRevision: snapshot.controlRevision,
+      topicOpen: snapshot.topicOpen,
       cursors: []
-    }).state
-    this.#clientState = { ...this.#clientState, topicOpen: snapshot.topicOpen }
-    this.#lastQuiesced = undefined
+    })
+    const committed = this.#commitClientTransition(snapshotTransition)
+    if (!committed.accepted) return
+    this.#protocol = 'v2'
+    this.#pendingLegacyEvents.length = 0
+    if (committed.topicStateChanged) this.#notifyTopicStateChange()
 
     // The snapshot is the authority on which attempts exist in this cycle.
     // Branches registered from a stale projection (older cycle, replaced slot)
@@ -626,12 +635,14 @@ export class TopicStreamSubscription {
       }
       // Raise the cutoff only now: anything Main already covered in this snapshot must not be
       // re-applied when the buffered live pushes drain.
-      this.#clientState = reduceTopicStreamClient(this.#clientState, {
+      const cursorTransition = reduceTopicStreamClient(this.#clientState, {
         kind: 'snapshot',
         cycleId: snapshot.cycleId,
         controlRevision: snapshot.controlRevision,
+        topicOpen: snapshot.topicOpen,
         cursors: [{ attemptId: toAttemptId(attempt.attemptId), throughChunkSeq: attempt.throughChunkSeq }]
-      }).state
+      })
+      this.#commitClientTransition(cursorTransition)
       if (attempt.phase === 'settled' && attempt.outcome) {
         if (attempt.outcome === 'error' && attempt.error) {
           this.#enqueueError(attempt.error, attempt.executionId, attempt.anchorMessageId, attempt.attemptId)

@@ -81,11 +81,13 @@ the same topic. `useExecutionOverlay` consumes each branch through
 `pipeStreamLoop`, so the renderer overlay and the persisted message
 are structurally identical.
 
-An attach snapshot owns the topic-level `topicOpen` value. Replayed chunks
-rebuild attempt content but cannot reopen a quiescent snapshot; only a live
-chunk from a current cycle can move the subscription back to open. A closed
-snapshot therefore synthesizes the same quiescence handoff as a live
-`topic-quiesced` barrier after replay finishes.
+An accepted attach snapshot owns the topic-level `topicOpen` value. Acceptance
+is monotonic in both cycle and control revision: a same-cycle snapshot older
+than already-applied live control is ignored as a whole, including its branch
+and quiescence projection. Replayed chunks rebuild attempt content but cannot
+reopen a quiescent snapshot; only a live chunk from a current cycle can move
+the subscription back to open. A closed snapshot therefore synthesizes the
+same quiescence handoff as a live `topic-quiesced` barrier after replay finishes.
 
 Legacy and v2 attach payloads are projections of one Main-side compact replay
 plan. If ring eviction removed a text/reasoning start, Main emits a synthetic

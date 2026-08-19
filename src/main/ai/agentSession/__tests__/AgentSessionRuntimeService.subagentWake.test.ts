@@ -18,7 +18,13 @@ const mocks = vi.hoisted(() => ({
   maybeRenameAgentSession: vi.fn(),
   applicationGet: vi.fn(),
   startRuntimeTurn: vi.fn<(input: any) => any>(() => ({ mode: 'started', activeExecutions: [{ attemptId: 1 }] })),
-  setAgentContinuationLease: vi.fn(),
+  openAgentContinuationLease: vi.fn<(topicId: string, lease: { id: string; voidOnAttemptError: boolean }) => boolean>(
+    () => true
+  ),
+  updateAgentContinuationLease: vi.fn<(topicId: string, lease: { id: string; voidOnAttemptError: boolean }) => boolean>(
+    () => true
+  ),
+  releaseAgentContinuationLease: vi.fn<(topicId: string, leaseId: string, reason: string) => boolean>(() => true),
   onTopicStop: vi.fn(() => ({ dispose: () => {} })),
   registerRuntimeTerminalHold: vi.fn(),
   abortStream: vi.fn(),
@@ -104,7 +110,9 @@ beforeEach(() => {
     if (name === 'AiStreamManager') {
       return {
         startRuntimeTurn: mocks.startRuntimeTurn,
-        setAgentContinuationLease: mocks.setAgentContinuationLease,
+        openAgentContinuationLease: mocks.openAgentContinuationLease,
+        updateAgentContinuationLease: mocks.updateAgentContinuationLease,
+        releaseAgentContinuationLease: mocks.releaseAgentContinuationLease,
         onTopicStop: mocks.onTopicStop,
         registerRuntimeTerminalHold: mocks.registerRuntimeTerminalHold,
         abort: mocks.abortStream,

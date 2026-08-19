@@ -135,10 +135,14 @@ the steer user message sorts between the two assistant rows instead of dangling
 after the whole turn. A continuation lease keeps the topic stream alive across
 the roll (and across a mid-flight compaction) so the continuation carries the
 renderer listeners. The runtime pushes that lease whenever its own state
-changes; the stream manager never asks it what it intends to do next. A steer
-roll and a compaction resume open the lease as `voidOnAttemptError`, because the
-work they promise only exists if the current attempt succeeds — an error
-terminal voids them, while independently queued or deferred work survives it.
+changes; the stream manager never asks it what it intends to do next. Each
+promised continuation gets a fresh lease identity. Runtime handoff consumes
+that exact lease in the same Topic revision that reserves the successor
+attempt, so clearing the runtime promise cannot later abort an admitted turn
+and another queued turn cannot reuse a settled lease. A steer roll and a
+compaction resume open the lease as `voidOnAttemptError`, because the work they
+promise only exists if the current attempt succeeds — an error terminal voids
+them, while independently queued or deferred work survives it.
 The source row's terminal event is marked `row-roll`; lifecycle consumers must
 not treat it as completion of the work that continues in A2.
 

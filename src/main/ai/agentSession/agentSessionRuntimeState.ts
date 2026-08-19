@@ -1,6 +1,7 @@
 import type { UIMessageChunk } from 'ai'
 
 import type { AgentRuntimeConnection, AgentRuntimeUserInput } from '../runtime/types'
+import type { ContinuationLeaseId } from '../streamManager'
 
 export type AgentSessionTerminalStatus = 'success' | 'paused' | 'error'
 export type AgentSessionTerminalOutcome =
@@ -35,6 +36,12 @@ export interface AgentSessionRuntimeConnectionOccupancy {
   background?: { responder: 'interactive' | 'headless' }
   /** A context rewrite is in flight; it holds the session busy and the topic stream alive. */
   compaction?: true
+}
+
+/** Exact Topic lease currently representing the runtime's next promised continuation. */
+export interface AgentSessionContinuationLease {
+  readonly id: ContinuationLeaseId
+  readonly voidOnAttemptError: boolean
 }
 
 export type AgentSessionRuntimeConnectionState =
@@ -87,6 +94,7 @@ export interface AgentSessionRuntimeState<TTurn, TPendingTurn, TReservation> {
   queue: TPendingTurn[]
   launch: AgentSessionRuntimeLaunchState
   connection: AgentSessionRuntimeConnectionState
+  continuationLease?: AgentSessionContinuationLease
   /** Persistence-confirmed status of the most recently settled turn. Survives `reset`. */
   lastTerminal?: AgentSessionTerminalStatus
 }
@@ -125,6 +133,8 @@ export type AgentSessionRuntimeStateEvent<TTurn, TPendingTurn, TReservation> =
   | { type: 'launch-suppressed'; target: AgentSessionRuntimeLaunchTarget }
   | { type: 'launch-finished'; target: AgentSessionRuntimeLaunchTarget }
   | { type: 'launch-resumed' }
+  | { type: 'continuation-lease-set'; lease: AgentSessionContinuationLease }
+  | { type: 'continuation-lease-cleared'; leaseId: ContinuationLeaseId }
   | {
       type: 'connection-occupancy'
       occupancy: 'background' | 'compaction'
@@ -552,6 +562,17 @@ export function transitionAgentSessionRuntime<TTurn, TPendingTurn, TReservation>
         state: { ...state, launch: { kind: 'scheduled', target: state.launch.target } },
         effects: [{ type: 'schedule-launch', target: state.launch.target }]
       }
+    case 'continuation-lease-set':
+      if (state.continuationLease?.id === event.lease.id) {
+        return state.continuationLease.voidOnAttemptError === event.lease.voidOnAttemptError
+          ? { state, effects: [] }
+          : { state: { ...state, continuationLease: event.lease }, effects: [] }
+      }
+      if (state.continuationLease) return invalid(state, event)
+      return { state: { ...state, continuationLease: event.lease }, effects: [] }
+    case 'continuation-lease-cleared':
+      if (state.continuationLease?.id !== event.leaseId) return invalid(state, event)
+      return { state: { ...state, continuationLease: undefined }, effects: [] }
     case 'connection-occupancy': {
       const connection = state.connection
       if (connection.kind !== 'connected') {
@@ -635,6 +656,7 @@ export function transitionAgentSessionRuntime<TTurn, TPendingTurn, TReservation>
       return {
         state: {
           ...createAgentSessionRuntimeState<TTurn, TPendingTurn, TReservation>(),
+          ...(state.continuationLease ? { continuationLease: state.continuationLease } : {}),
           ...(state.lastTerminal ? { lastTerminal: state.lastTerminal } : {})
         },
         effects: [

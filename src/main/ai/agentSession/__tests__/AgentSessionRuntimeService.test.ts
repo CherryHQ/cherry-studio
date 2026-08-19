@@ -24,7 +24,13 @@ const mocks = vi.hoisted(() => ({
   applicationGet: vi.fn(),
   // Returns the admitted attempt, which the runtime records as the row's stream-owned identity.
   startRuntimeTurn: vi.fn<(input: any) => any>(() => ({ mode: 'started', activeExecutions: [{ attemptId: 1 }] })),
-  setAgentContinuationLease: vi.fn(),
+  openAgentContinuationLease: vi.fn<(topicId: string, lease: { id: string; voidOnAttemptError: boolean }) => boolean>(
+    () => true
+  ),
+  updateAgentContinuationLease: vi.fn<(topicId: string, lease: { id: string; voidOnAttemptError: boolean }) => boolean>(
+    () => true
+  ),
+  releaseAgentContinuationLease: vi.fn<(topicId: string, leaseId: string, reason: string) => boolean>(() => true),
   onTopicStop: vi.fn(() => ({ dispose: () => {} })),
   registerRuntimeTerminalHold: vi.fn(),
   abortStream: vi.fn(),
@@ -276,7 +282,9 @@ describe('AgentSessionRuntimeService', () => {
       if (name === 'AiStreamManager') {
         return {
           startRuntimeTurn: mocks.startRuntimeTurn,
-          setAgentContinuationLease: mocks.setAgentContinuationLease,
+          openAgentContinuationLease: mocks.openAgentContinuationLease,
+          updateAgentContinuationLease: mocks.updateAgentContinuationLease,
+          releaseAgentContinuationLease: mocks.releaseAgentContinuationLease,
           onTopicStop: mocks.onTopicStop,
           registerRuntimeTerminalHold: mocks.registerRuntimeTerminalHold,
           abort: mocks.abortStream,
@@ -564,6 +572,32 @@ describe('AgentSessionRuntimeService', () => {
       expect(mocks.saveMessage).toHaveBeenCalledTimes(1)
       expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1)
       expect(entry.runtimeState.queue).toEqual([])
+      void service.closeSession('session-1')
+    })
+
+    it('projects a fresh continuation lease after the prior generation is handed off', async () => {
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      entry.runtimeState.execution = {
+        ...entry.runtimeState.execution,
+        stream: 'open',
+        admission: 'admitted'
+      }
+
+      service.enqueueUserMessage('session-1', userMessage('user-2'))
+      const a2Lease = mocks.openAgentContinuationLease.mock.calls.at(-1)?.[1].id
+      ;(service as any).handleRuntimeEvent(entry, { type: 'turn-complete' })
+      terminalListener(handle).onDone({ status: 'success', isTopicDone: false })
+      await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
+
+      expect(mocks.startRuntimeTurn.mock.calls[0][0].admission).toEqual({ kind: 'continuation', leaseId: a2Lease })
+
+      service.enqueueUserMessage('session-1', userMessage('user-3'))
+      const a3Lease = mocks.openAgentContinuationLease.mock.calls.at(-1)?.[1].id
+      expect(a3Lease).toBeDefined()
+      expect(a3Lease).not.toBe(a2Lease)
+
       void service.closeSession('session-1')
     })
   })
@@ -5209,9 +5243,8 @@ describe('AgentSessionRuntimeService', () => {
     entry.lastResumeToken = 'resume-1'
     entry.currentTurn.activeToolIds.add('tool-1')
     service.markTurnTerminal('session-1', 'success')
-    entry.pendingTurns.push({ message: userMessage('user-2'), reasoningEffort: 'high', fastMode: false })
-
-    await (service as any).startNextTurn(entry)
+    service.enqueueUserMessage('session-1', userMessage('user-2'), { reasoningEffort: 'high' })
+    await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
 
     expect(mocks.saveMessage).toHaveBeenCalledWith({
       sessionId: 'session-1',
@@ -5225,6 +5258,7 @@ describe('AgentSessionRuntimeService', () => {
     expect(mocks.startRuntimeTurn).toHaveBeenCalledWith({
       topicId: 'agent-session:session-1',
       modelId: 'claude-code::claude-sonnet-4-5',
+      admission: { kind: 'continuation', leaseId: expect.any(String) },
       rootSpan: expect.anything(),
       request: {
         chatId: 'agent-session:session-1',

@@ -25,10 +25,11 @@ const TERMINAL_DELIVERY_TIMEOUT_MS = 15_000
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['ChannelManager'])
 export class ChannelTerminalDeliveryService extends BaseService {
-  private readonly tails = new Map<string, Promise<void>>()
-  private readonly inFlight = new Map<Promise<void>, ChannelDeliveryRequest>()
+  private readonly queues = new Map<string, { channelId: string; requests: ChannelDeliveryRequest[] }>()
+  private readonly runners = new Map<string, { channelId: string; promise: Promise<void> }>()
   private readonly deliveryIds = new Set<string>()
   private readonly blockedChannelIds = new Set<string>()
+  private readonly connectionEpochs = new Map<string, number>()
   private accepting = false
 
   protected async onReady(): Promise<void> {
@@ -40,16 +41,18 @@ export class ChannelTerminalDeliveryService extends BaseService {
   protected async onStop(): Promise<void> {
     this.close()
     await this.drain()
-    this.tails.clear()
-    this.inFlight.clear()
+    this.queues.clear()
+    this.runners.clear()
     this.deliveryIds.clear()
     this.blockedChannelIds.clear()
+    this.connectionEpochs.clear()
   }
 
   /** Accepting is enabled on ready; tests and `ChannelManager.start()` re-arm it explicitly. */
   open(): void {
     this.accepting = true
     this.blockedChannelIds.clear()
+    this.connectionEpochs.clear()
   }
 
   /** Stop accepting new work. Queued deliveries still settle — see `drain`. */
@@ -59,10 +62,14 @@ export class ChannelTerminalDeliveryService extends BaseService {
 
   block(channelId: string): void {
     this.blockedChannelIds.add(channelId)
+    this.dropQueued(channelId)
   }
 
-  /** Only a successful reconnect reopens a channel — never a timeout on its own. */
-  reopen(channelId: string): void {
+  /** Only a newer successful connection epoch reopens a channel — never a timeout on its own. */
+  reopen(channelId: string, connectionEpoch: number): void {
+    const currentEpoch = this.connectionEpochs.get(channelId) ?? 0
+    if (connectionEpoch <= currentEpoch) return
+    this.connectionEpochs.set(channelId, connectionEpoch)
     this.blockedChannelIds.delete(channelId)
   }
 
@@ -72,9 +79,9 @@ export class ChannelTerminalDeliveryService extends BaseService {
 
   /** Settle queued work, optionally narrowed to specific channels. */
   async drain(channelIds?: ReadonlySet<string>): Promise<void> {
-    const pending = [...this.inFlight.entries()]
-      .filter(([, request]) => !channelIds || channelIds.has(request.channelId))
-      .map(([promise]) => promise)
+    const pending = [...this.runners.values()]
+      .filter(({ channelId }) => !channelIds || channelIds.has(channelId))
+      .map(({ promise }) => promise)
     if (pending.length > 0) await Promise.allSettled(pending)
   }
 
@@ -105,8 +112,36 @@ export class ChannelTerminalDeliveryService extends BaseService {
     }
 
     const key = `${request.channelId}\0${request.chatId}`
-    const previous = this.tails.get(key) ?? Promise.resolve()
-    const queued = previous.then(async () => {
+    const queue = this.queues.get(key) ?? { channelId: request.channelId, requests: [] }
+    queue.requests.push(request)
+    this.queues.set(key, queue)
+    if (!this.runners.has(key)) this.startRunner(key, queue)
+    return true
+  }
+
+  private startRunner(key: string, queue: { channelId: string; requests: ChannelDeliveryRequest[] }): void {
+    const runner = this.runQueue(key, queue)
+    this.runners.set(key, { channelId: queue.channelId, promise: runner })
+    const cleanup = () => {
+      if (this.runners.get(key)?.promise !== runner) return
+      this.runners.delete(key)
+      if (queue.requests.length === 0) {
+        if (this.queues.get(key) === queue) this.queues.delete(key)
+        return
+      }
+      this.startRunner(key, queue)
+    }
+    runner.then(cleanup, cleanup)
+  }
+
+  private async runQueue(key: string, queue: { channelId: string; requests: ChannelDeliveryRequest[] }): Promise<void> {
+    while (this.queues.get(key) === queue) {
+      const request = queue.requests.shift()
+      if (!request) return
+      if (this.blockedChannelIds.has(request.channelId)) {
+        this.logSkipped(request)
+        continue
+      }
       try {
         await this.send(request)
       } catch (error) {
@@ -118,21 +153,28 @@ export class ChannelTerminalDeliveryService extends BaseService {
           error
         })
       }
-    })
-
-    this.tails.set(key, queued)
-    this.inFlight.set(queued, request)
-    const cleanup = () => {
-      this.inFlight.delete(queued)
-      if (this.tails.get(key) === queued) this.tails.delete(key)
     }
-    queued.then(cleanup, cleanup)
-    return true
+  }
+
+  private dropQueued(channelId: string): void {
+    for (const queue of this.queues.values()) {
+      if (queue.channelId !== channelId) continue
+      for (const request of queue.requests.splice(0)) this.logSkipped(request)
+    }
+  }
+
+  private logSkipped(request: ChannelDeliveryRequest): void {
+    logger.warn('Skipped queued terminal channel delivery: channel is blocked', {
+      deliveryId: request.id,
+      channelId: request.channelId,
+      chatId: request.chatId,
+      event: request.event
+    })
   }
 
   /** Resolve the adapter now, not at enqueue time, and perform the one bounded send. */
   private async send(request: ChannelDeliveryRequest): Promise<void> {
-    const adapter = application.get('ChannelManager').getAdapter(request.channelId)
+    const adapter = application.get('ChannelManager').getConnectedAdapter(request.channelId)
     if (!adapter) {
       logger.warn('Dropped terminal channel delivery: adapter is gone', {
         deliveryId: request.id,
@@ -165,7 +207,7 @@ export class ChannelTerminalDeliveryService extends BaseService {
       const outcome = await Promise.race([attempt().then(() => 'sent' as const), timeout])
       if (outcome !== 'timed-out') return
       controller.abort()
-      this.blockedChannelIds.add(request.channelId)
+      this.block(request.channelId)
       logger.error('Terminal channel delivery timed out; blocking channel without retry', {
         deliveryId: request.id,
         channelId: request.channelId,

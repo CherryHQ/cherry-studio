@@ -52,6 +52,7 @@ import {
   type DispatchCommandReceipt,
   type LiveExecutionChangeAdmission,
   type LiveExecutionChangeIntent,
+  type RuntimeTurnAdmission,
   type StreamIntent
 } from './admission'
 import {
@@ -204,6 +205,8 @@ export interface StartRuntimeTurnInput {
   cleanupPorts?: StreamCleanupPort[]
   rootSpan?: Span
   abortController?: AbortController
+  /** Fresh turns reject live topics; continuations atomically consume their exact lease. */
+  admission: RuntimeTurnAdmission
 }
 
 // ── Inspection snapshots ────────────────────────────────────────────
@@ -424,6 +427,8 @@ export class AiStreamManager extends BaseService {
   /** Which open lease is currently launching, per topic. Launch progress is a resource fact:
    *  the reducer only knows a lease is open, never that it is mid-dispatch. */
   private readonly dispatchingLeases = new Map<string, ContinuationLeaseId>()
+  /** Exact Agent promise projected into Topic state; the Aggregate remains authoritative. */
+  private readonly agentContinuationLeaseIds = new Map<string, ContinuationLeaseId>()
   /** Terminal holds the agent runtime installed while answering the current `onTopicStop`. */
   private readonly pendingRuntimeTerminalHolds = new Map<string, RuntimeTerminalHold>()
   private readonly topicStopEmitter = new Emitter<TopicStopSignal>()
@@ -789,10 +794,15 @@ export class AiStreamManager extends BaseService {
         admission = this.admitLiveExecutionChange(topicId, { mode: 'start', modelCount: 1 })
         break
       case 'steer-continuation':
-      case 'runtime-turn':
         admission = this.dispatchingLeaseId(topicId)
           ? { mode: 'start-new' }
           : this.admitLiveExecutionChange(topicId, { mode: 'start', modelCount: 1 })
+        break
+      case 'runtime-turn':
+        admission =
+          intent.admission.kind === 'continuation'
+            ? { mode: 'start-new' }
+            : this.admitLiveExecutionChange(topicId, { mode: 'start', modelCount: 1 })
         break
       case 'steer-inject':
         admission = isStreamExecuting(this.activeStreams.get(topicId)) ? { mode: 'inject' } : { mode: 'start-new' }
@@ -828,11 +838,17 @@ export class AiStreamManager extends BaseService {
     if (existing?.aggregate.isQuiescent()) this.evictStream(topicId)
     const aggregate = this.getOrCreateTopicAggregate(topicId)
     const admission = this.decideDispatchCommand(topicId, intent)
+    const continuationLeaseId =
+      intent.kind === 'runtime-turn' && intent.admission.kind === 'continuation' ? intent.admission.leaseId : undefined
     const reservedAttemptIds = Array.from({ length: modelCount }, () =>
       toAttemptId(++this.nextExecutionAttemptSequence)
     )
     // One prepared commit for the whole dispatch: all attempts reserve at one revision or none do.
-    const preparedTopic = aggregate.prepare({ type: 'reserve-dispatch', attemptIds: reservedAttemptIds })
+    const preparedTopic = aggregate.prepare(
+      continuationLeaseId
+        ? { type: 'reserve-continuation-dispatch', attemptIds: reservedAttemptIds, leaseId: continuationLeaseId }
+        : { type: 'reserve-dispatch', attemptIds: reservedAttemptIds }
+    )
     if (preparedTopic.rejection) {
       throw new Error(`Dispatch reservation rejected for topic ${topicId}: ${preparedTopic.rejection}`)
     }
@@ -850,6 +866,12 @@ export class AiStreamManager extends BaseService {
       // The row write threw, so the CAS never ran and no attempt exists to roll back.
       if (!this.activeStreams.has(topicId) && !aggregate.hasUnsettledAttempts()) this.topicAggregates.delete(topicId)
       throw error
+    }
+    if (continuationLeaseId) {
+      if (this.dispatchingLeases.get(topicId) === continuationLeaseId) this.dispatchingLeases.delete(topicId)
+      if (this.agentContinuationLeaseIds.get(topicId) === continuationLeaseId) {
+        this.agentContinuationLeaseIds.delete(topicId)
+      }
     }
     if (intent.kind === 'continue-conversation') {
       const stream = this.activeStreams.get(topicId)
@@ -1221,7 +1243,11 @@ export class AiStreamManager extends BaseService {
       }
     }
 
-    const dispatchingContinuationId = this.dispatchingLeaseId(input.topicId)
+    const receiptContinuationId =
+      input.receipt?.intent.kind === 'runtime-turn' && input.receipt.intent.admission.kind === 'continuation'
+        ? input.receipt.intent.admission.leaseId
+        : undefined
+    const dispatchingContinuationId = receiptContinuationId ?? this.dispatchingLeaseId(input.topicId)
     const resumesApproval = input.receipt?.intent.kind === 'continue-conversation'
     if (existing && (dispatchingContinuationId || resumesApproval) && input.models.length > 0) {
       if (existing.cleanupTimer) clearTimeout(existing.cleanupTimer)
@@ -1419,16 +1445,8 @@ export class AiStreamManager extends BaseService {
   }
 
   startRuntimeTurn(input: StartRuntimeTurnInput): SendResult {
-    return this.commitDispatchCommand(input.topicId, { kind: 'runtime-turn' }, (receipt) => {
-      const existing = this.activeStreams.get(input.topicId)
-      const continuationId = this.dispatchingLeaseId(input.topicId)
-      const carriedListeners = existing
-        ? [...existing.listeners.values()].filter((listener) => !listener.id.startsWith('agent-runtime:'))
-        : []
-
-      if (existing && !continuationId) this.evictStream(input.topicId)
-
-      const result = this.send({
+    const sendCommitted = (receipt: DispatchCommandReceipt, carriedListeners: StreamListener[]) =>
+      this.send({
         topicId: input.topicId,
         models: [
           {
@@ -1445,12 +1463,33 @@ export class AiStreamManager extends BaseService {
         receipt,
         isPersistentConversation: true
       })
-      const admittedAttemptId = receipt.reservedAttemptIds?.[0]
-      if (continuationId && admittedAttemptId !== undefined) {
-        this.consumeLease(input.topicId, continuationId, admittedAttemptId)
-      }
-      return result
-    })
+
+    if (input.admission.kind === 'fresh') {
+      return this.commitDispatchCommand(
+        input.topicId,
+        { kind: 'runtime-turn', admission: input.admission },
+        (receipt) => {
+          const existing = this.activeStreams.get(input.topicId)
+          const carriedListeners = existing
+            ? [...existing.listeners.values()].filter((listener) => !listener.id.startsWith('agent-runtime:'))
+            : []
+          if (existing) this.evictStream(input.topicId)
+          return sendCommitted(receipt, carriedListeners)
+        }
+      )
+    }
+
+    const existing = this.activeStreams.get(input.topicId)
+    const carriedListeners = existing
+      ? [...existing.listeners.values()].filter((listener) => !listener.id.startsWith('agent-runtime:'))
+      : []
+    const { receipt } = this.reserveDispatchCommand(
+      input.topicId,
+      { kind: 'runtime-turn', admission: input.admission },
+      1,
+      { kind: 'none' }
+    )
+    return sendCommitted(receipt, carriedListeners)
   }
 
   /**
@@ -1952,7 +1991,7 @@ export class AiStreamManager extends BaseService {
     if (attemptsDurablySettled && (settledOutcomeStatus === 'error' || settledOutcomeStatus === 'aborted')) {
       this.dropPendingSteers(topicId, settledOutcomeStatus)
     }
-    const continuation = this.planDurablySettledContinuation(stream, exec)
+    const continuation = this.planDurablySettledContinuation(stream)
     const topicQuiescent = stream.aggregate.isQuiescent()
     stream.status = this.computeTopicStatus(stream)
     if (!topicQuiescent && stream.status === 'awaiting-approval') {
@@ -2022,7 +2061,7 @@ export class AiStreamManager extends BaseService {
     if (stream.aggregate.areAttemptsDurablySettled()) {
       this.dropPendingSteers(topicId, persistenceFailure ? 'error' : 'aborted')
     }
-    this.planDurablySettledContinuation(stream, exec)
+    this.planDurablySettledContinuation(stream)
     const topicQuiescent = stream.aggregate.isQuiescent()
     stream.status = this.computeTopicStatus(stream)
 
@@ -2086,7 +2125,7 @@ export class AiStreamManager extends BaseService {
     if (stream.aggregate.areAttemptsDurablySettled()) {
       this.dropPendingSteers(topicId, 'error')
     }
-    this.planDurablySettledContinuation(stream, exec)
+    this.planDurablySettledContinuation(stream)
     const topicQuiescent = stream.aggregate.isQuiescent()
     stream.status = this.computeTopicStatus(stream)
     if (this.deferBlockedExecutionPersistence(stream, exec, persistenceFailure)) return
@@ -2225,7 +2264,7 @@ export class AiStreamManager extends BaseService {
     if (attemptsDurablySettled && (runtimeOutcome === 'error' || runtimeOutcome === 'aborted')) {
       this.dropPendingSteers(stream.topicId, runtimeOutcome)
     }
-    const continuation = this.planDurablySettledContinuation(stream, exec)
+    const continuation = this.planDurablySettledContinuation(stream)
     const topicQuiescent = stream.aggregate.isQuiescent()
     stream.status = this.computeTopicStatus(stream)
 
@@ -2243,16 +2282,16 @@ export class AiStreamManager extends BaseService {
 
   /** Decide successor work only after every attempt has a durable terminal. Chat steers win because
    *  they are manager-owned; Agent continuations are registered here and launched by the runtime. */
-  private planDurablySettledContinuation(stream: ActiveStream, exec: StreamExecution): 'chat' | 'agent' | undefined {
+  private planDurablySettledContinuation(stream: ActiveStream): 'chat' | 'agent' | undefined {
     if (!stream.aggregate.areAttemptsDurablySettled()) return undefined
     const outcome = stream.aggregate.runtimeOutcome()
     if (outcome === 'done' && this.hasPendingSteer(stream.topicId)) return 'chat'
     if (!isAgentSessionTopic(stream.topicId) || (outcome !== 'done' && outcome !== 'error')) return undefined
-    // The runtime's own lease answers this. An error terminal has already voided any lease whose
-    // work depended on this attempt succeeding, so no outcome branch is needed here.
-    if (!this.hasAgentContinuationLease(stream.topicId)) return undefined
-
-    this.beginDispatchingLease(stream.aggregate, stream.topicId, `agent:${exec.attemptId}`, 'agent-runtime')
+    // The runtime pushed one exact promised-continuation identity. An error terminal has already
+    // voided a conditional lease, so the surviving open lease can be handed to the runtime launch.
+    const leaseId = this.agentContinuationLeaseId(stream.topicId)
+    if (!leaseId) return undefined
+    this.dispatchingLeases.set(stream.topicId, leaseId)
     return 'agent'
   }
 
@@ -3181,25 +3220,41 @@ export class AiStreamManager extends BaseService {
     this.pendingRuntimeTerminalHolds.set(topicId, hold)
   }
 
-  setAgentContinuationLease(topicId: string, promise: { open: boolean; voidOnAttemptError: boolean }): void {
+  openAgentContinuationLease(
+    topicId: string,
+    lease: { id: ContinuationLeaseId; voidOnAttemptError: boolean }
+  ): boolean {
     const aggregate = this.aggregateFor(topicId)
-    if (!aggregate) return
-    const leaseId = toContinuationLeaseId(`agent-continuation:${topicId}`)
-    if (promise.open) {
-      aggregate.openContinuationLease(leaseId, 'agent-runtime', promise.voidOnAttemptError)
-      return
+    if (!aggregate || !aggregate.openContinuationLease(lease.id, 'agent-runtime', lease.voidOnAttemptError)) {
+      return false
     }
-    if (aggregate.continuationLease(leaseId)?.state === 'open') {
-      this.releaseLease(topicId, leaseId, 'queue-cleared')
-    }
+    this.agentContinuationLeaseIds.set(topicId, lease.id)
+    return true
   }
 
-  /** Whether the agent runtime still promises a follow-up turn on this topic. */
-  private hasAgentContinuationLease(topicId: string): boolean {
-    return (
-      this.aggregateFor(topicId)?.continuationLease(toContinuationLeaseId(`agent-continuation:${topicId}`))?.state ===
-      'open'
-    )
+  updateAgentContinuationLease(
+    topicId: string,
+    lease: { id: ContinuationLeaseId; voidOnAttemptError: boolean }
+  ): boolean {
+    if (this.agentContinuationLeaseIds.get(topicId) !== lease.id) return false
+    return this.aggregateFor(topicId)?.updateContinuationLease(lease.id, lease.voidOnAttemptError) === true
+  }
+
+  releaseAgentContinuationLease(
+    topicId: string,
+    leaseId: ContinuationLeaseId,
+    reason: ContinuationReleaseReason
+  ): boolean {
+    return this.releaseLease(topicId, leaseId, reason)
+  }
+
+  /** Exact open promise currently projected by the Agent runtime. */
+  private agentContinuationLeaseId(topicId: string): ContinuationLeaseId | undefined {
+    const id = this.agentContinuationLeaseIds.get(topicId)
+    if (!id) return undefined
+    if (this.aggregateFor(topicId)?.continuationLease(id)?.state === 'open') return id
+    this.agentContinuationLeaseIds.delete(topicId)
+    return undefined
   }
 
   /** Open a lease without claiming the launch slot — a queued steer waiting its turn. */
@@ -3228,6 +3283,7 @@ export class AiStreamManager extends BaseService {
   ): boolean {
     const consumed = aggregate?.consumeContinuationLease(leaseId, attemptId) === true
     if (this.dispatchingLeases.get(topicId) === leaseId) this.dispatchingLeases.delete(topicId)
+    if (this.agentContinuationLeaseIds.get(topicId) === leaseId) this.agentContinuationLeaseIds.delete(topicId)
     return consumed
   }
 
@@ -3254,6 +3310,7 @@ export class AiStreamManager extends BaseService {
   ): boolean {
     const released = aggregate?.releaseContinuationLease(leaseId, reason) === true
     if (this.dispatchingLeases.get(topicId) === leaseId) this.dispatchingLeases.delete(topicId)
+    if (this.agentContinuationLeaseIds.get(topicId) === leaseId) this.agentContinuationLeaseIds.delete(topicId)
     return released
   }
 
@@ -3275,6 +3332,8 @@ export class AiStreamManager extends BaseService {
     }
     stream.aggregate.evict()
     this.activeStreams.delete(topicId)
+    this.dispatchingLeases.delete(topicId)
+    this.agentContinuationLeaseIds.delete(topicId)
     if (this.topicAggregates.get(topicId) === stream.aggregate) this.topicAggregates.delete(topicId)
   }
 }

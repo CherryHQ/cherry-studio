@@ -125,11 +125,32 @@ describe('reduceTopicStreamClient', () => {
       kind: 'snapshot',
       cycleId: 1,
       controlRevision: 3,
+      topicOpen: false,
       cursors: [{ attemptId: toAttemptId(1), throughChunkSeq: 2 }]
     })
 
     expect(snapshot.accepted).toBe(true)
     expect(snapshot.state.chunkCursors.get(toAttemptId(1))).toBe(7)
     expect(snapshot.state.controlRevision).toBe(3)
+  })
+
+  it('rejects a same-cycle snapshot whose revision trails live control state', () => {
+    const state = reduceTopicStreamClient(createTopicStreamClientState(), {
+      kind: 'control',
+      cycleId: 1,
+      controlRevision: 9
+    }).state
+
+    const snapshot = reduceTopicStreamClient(state, {
+      kind: 'snapshot',
+      cycleId: 1,
+      controlRevision: 4,
+      topicOpen: true,
+      cursors: []
+    })
+
+    expect(snapshot.accepted).toBe(false)
+    expect(snapshot.rejection).toBe('stale-revision')
+    expect(snapshot.state).toBe(state)
   })
 })

@@ -55,6 +55,8 @@ export interface TopicStreamState {
 export type TopicStreamCommand =
   /** Reserves every attempt of one dispatch at a single revision, or none of them (T2). */
   | { type: 'reserve-dispatch'; attemptIds: readonly AttemptId[] }
+  /** Runtime continuation admission consumes its exact lease in the same revision as reservation. */
+  | { type: 'reserve-continuation-dispatch'; attemptIds: readonly AttemptId[]; leaseId: ContinuationLeaseId }
   | { type: 'reserve-attempt'; attemptId: AttemptId }
   | { type: 'forget-attempt'; attemptId: AttemptId }
   | { type: 'attempt-event'; attemptId: AttemptId; event: AttemptEvent }
@@ -66,6 +68,7 @@ export type TopicStreamCommand =
       diagnosticOwner: 'agent-runtime' | 'chat-steer'
       voidOnAttemptError?: boolean
     }
+  | { type: 'continuation-updated'; leaseId: ContinuationLeaseId; voidOnAttemptError: boolean }
   | { type: 'continuation-consumed'; leaseId: ContinuationLeaseId; attemptId: AttemptId }
   | { type: 'continuation-released'; leaseId: ContinuationLeaseId; reason: ContinuationReleaseReason }
   | { type: 'activate' }
@@ -153,16 +156,36 @@ export function reduceTopicStream(state: TopicStreamState, command: TopicStreamC
   if (state.lifecycle === 'evicted' && command.type !== 'activate') return unchanged(state, 'evicted')
 
   switch (command.type) {
-    case 'reserve-dispatch': {
+    case 'reserve-dispatch':
+    case 'reserve-continuation-dispatch': {
       if (command.attemptIds.length === 0) return unchanged(state)
       if (command.attemptIds.some((id) => state.attempts.has(id))) return unchanged(state, 'duplicate-attempt')
+      const continuation =
+        command.type === 'reserve-continuation-dispatch' ? state.continuationLeases.get(command.leaseId) : undefined
+      if (command.type === 'reserve-continuation-dispatch' && continuation?.state !== 'open') {
+        return unchanged(state, 'invalid-continuation')
+      }
       const attempts = new Map(state.attempts)
       for (const id of command.attemptIds) {
         attempts.set(id, { id, state: { phase: 'reserved' }, pendingApprovalToolCallIds: new Set() })
       }
+      let next = withAttempts(state, attempts)
+      const events: TopicStreamEvent[] = command.attemptIds.map((attemptId) => ({
+        type: 'attempt-reserved',
+        attemptId
+      }))
+      if (command.type === 'reserve-continuation-dispatch' && continuation?.state === 'open') {
+        const consumed: TopicContinuationLease = {
+          ...continuation,
+          state: 'consumed',
+          attemptId: command.attemptIds[0]
+        }
+        next = replaceLease(next, consumed)
+        events.push({ type: 'continuation-changed', lease: consumed })
+      }
       return {
-        state: withAttempts(state, attempts),
-        events: command.attemptIds.map((attemptId) => ({ type: 'attempt-reserved', attemptId })),
+        state: next,
+        events,
         effects: [],
         changed: true
       }
@@ -250,6 +273,19 @@ export function reduceTopicStream(state: TopicStreamState, command: TopicStreamC
         voidOnAttemptError: command.voidOnAttemptError === true,
         state: 'open'
       }
+      return {
+        state: replaceLease(state, lease),
+        events: [{ type: 'continuation-changed', lease }],
+        effects: [],
+        changed: true
+      }
+    }
+
+    case 'continuation-updated': {
+      const existing = state.continuationLeases.get(command.leaseId)
+      if (!existing || existing.state !== 'open') return unchanged(state, 'invalid-continuation')
+      if (existing.voidOnAttemptError === command.voidOnAttemptError) return unchanged(state)
+      const lease: TopicContinuationLease = { ...existing, voidOnAttemptError: command.voidOnAttemptError }
       return {
         state: replaceLease(state, lease),
         events: [{ type: 'continuation-changed', lease }],

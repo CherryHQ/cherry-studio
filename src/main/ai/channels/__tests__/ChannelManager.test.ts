@@ -14,12 +14,14 @@ const holder = vi.hoisted(() => ({ manager: undefined as any, delivery: undefine
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
-    ChannelManager: { getAdapter: (channelId: string) => holder.manager?.getAdapter(channelId) },
+    ChannelManager: {
+      getConnectedAdapter: (channelId: string) => holder.manager?.getConnectedAdapter(channelId)
+    },
     ChannelTerminalDeliveryService: {
       enqueue: (request: unknown) => holder.delivery.enqueue(request),
       open: () => holder.delivery.open(),
       block: (channelId: string) => holder.delivery.block(channelId),
-      reopen: (channelId: string) => holder.delivery.reopen(channelId),
+      reopen: (channelId: string, connectionEpoch: number) => holder.delivery.reopen(channelId, connectionEpoch),
       close: () => holder.delivery.close(),
       drain: (channelIds?: ReadonlySet<string>) => holder.delivery.drain(channelIds)
     }
@@ -59,7 +61,7 @@ vi.mock('../ChannelMessageHandler', () => ({
 }))
 
 class MockAdapter extends ChannelAdapter {
-  connect = vi.fn().mockResolvedValue(undefined)
+  connect = vi.fn(async () => this.markConnected())
   disconnect = vi.fn().mockResolvedValue(undefined)
   sendMessage = vi.fn().mockResolvedValue(undefined)
   sendTypingIndicator = vi.fn().mockResolvedValue(undefined)
@@ -74,6 +76,7 @@ class MockAdapter extends ChannelAdapter {
 
 // Track adapters created by the factory
 let createdAdapters: MockAdapter[] = []
+let nextConnectError: Error | undefined
 
 describe('ChannelManager', () => {
   beforeEach(async () => {
@@ -81,6 +84,7 @@ describe('ChannelManager', () => {
     await channelManager.stop()
     vi.clearAllMocks()
     createdAdapters = []
+    nextConnectError = undefined
     // Re-register the mock factory (the map persists across tests since we don't resetModules)
     registerAdapterFactory('telegram', (channel, agentId) => {
       const adapter = new MockAdapter({
@@ -89,6 +93,7 @@ describe('ChannelManager', () => {
         agentId,
         channelConfig: channel.config
       })
+      if (nextConnectError) adapter.connect.mockRejectedValue(nextConnectError)
       createdAdapters.push(adapter)
       return adapter
     })
@@ -236,21 +241,33 @@ describe('ChannelManager', () => {
       await channelManager.start()
       createdAdapters[0].sendMessage.mockImplementation(() => new Promise<void>(() => {}))
 
-      channelManager.enqueueTerminalDelivery({
-        id: 'hung-delivery',
-        channelId: 'ch-1',
-        chatId: 'chat-1',
-        event: 'done',
-        text: 'never lands'
-      })
+      expect(
+        channelManager.enqueueTerminalDelivery({
+          id: 'hung-delivery',
+          channelId: 'ch-1',
+          chatId: 'chat-1',
+          event: 'done',
+          text: 'never lands'
+        })
+      ).toBe(true)
+      // B is already in the owned FIFO before A times out. Blocking must purge it rather than
+      // letting its pre-created continuation run through the now-untrusted channel.
+      expect(
+        channelManager.enqueueTerminalDelivery({
+          id: 'queued-before-timeout',
+          channelId: 'ch-1',
+          chatId: 'chat-1',
+          event: 'done',
+          text: 'must be skipped'
+        })
+      ).toBe(true)
       await vi.waitFor(() => expect(createdAdapters[0].sendMessage).toHaveBeenCalledTimes(1))
 
       await vi.advanceTimersByTimeAsync(15_000)
 
-      // Ownership released without a second attempt...
+      // Ownership released and the already-queued request was skipped without a second send...
       expect(createdAdapters[0].sendMessage).toHaveBeenCalledTimes(1)
-      // ...and the channel stops accepting, so the queue behind it is not pushed through a
-      // link we no longer trust.
+      // ...and later arrivals are rejected by the same channel-wide gate.
       expect(
         channelManager.enqueueTerminalDelivery({
           id: 'follow-up',
@@ -370,6 +387,55 @@ describe('ChannelManager', () => {
     // New adapter created for ch-1
     expect(createdAdapters).toHaveLength(3)
     expect(createdAdapters[2].connect).toHaveBeenCalledTimes(1)
+    expect(
+      channelManager.enqueueTerminalDelivery({
+        id: 'after-successful-reconnect',
+        channelId: 'ch-1',
+        chatId: 'chat-1',
+        event: 'done',
+        text: 'new epoch'
+      })
+    ).toBe(true)
+    await vi.waitFor(() => expect(createdAdapters[2].sendMessage).toHaveBeenCalledTimes(1))
+  })
+
+  it('keeps delivery blocked when an awaited reconnect fails', async () => {
+    vi.mocked(channelService.listChannels).mockReturnValueOnce([])
+    await channelManager.start()
+    vi.mocked(channelService.getChannel).mockReturnValueOnce(makeChannelRow())
+    nextConnectError = new Error('awaited connect failed')
+
+    await expect(channelManager.syncChannel('ch-1', { awaitConnect: true })).rejects.toThrow('awaited connect failed')
+
+    expect(
+      channelManager.enqueueTerminalDelivery({
+        id: 'after-awaited-connect-failure',
+        channelId: 'ch-1',
+        chatId: 'chat-1',
+        event: 'done',
+        text: 'must stay blocked'
+      })
+    ).toBe(false)
+  })
+
+  it('keeps delivery blocked when a background reconnect fails', async () => {
+    vi.mocked(channelService.listChannels).mockReturnValueOnce([])
+    await channelManager.start()
+    vi.mocked(channelService.getChannel).mockReturnValueOnce(makeChannelRow())
+    nextConnectError = new Error('background connect failed')
+
+    await channelManager.syncChannel('ch-1')
+    await vi.waitFor(() => expect(createdAdapters[0].connect).toHaveBeenCalledTimes(1))
+
+    expect(
+      channelManager.enqueueTerminalDelivery({
+        id: 'after-background-connect-failure',
+        channelId: 'ch-1',
+        chatId: 'chat-1',
+        event: 'done',
+        text: 'must stay blocked'
+      })
+    ).toBe(false)
   })
 
   it('inactive channels are skipped', async () => {

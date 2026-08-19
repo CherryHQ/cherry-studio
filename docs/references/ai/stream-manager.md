@@ -80,7 +80,7 @@ reference for that Main-side design.
 │       • TranslationBackend     (translate row)               │
 │    2. dispatchToListeners (after durable settlement)         │
 │       → WebContentsListener / SSE (awaited)                  │
-│       → ChannelAdapterListener → ChannelManager queue        │
+│       → ChannelAdapterListener → terminal delivery service   │
 │    3. dispatchCleanupPorts (only once the topic is quiescent)│
 │       → TraceFlushListener → TraceStorageService.saveSpans   │
 │    Channel callback only enqueues; external delivery cannot  │
@@ -111,7 +111,7 @@ volume × audience width**.
 | `WebContentsListener` | chunk + terminal | explicit `attach` → `ActiveStream.listeners` |
 | `PersistenceListener` | terminal (durable write, gates settlement) | built by the provider / agent runtime, passed in `send()`'s `persistencePorts` → `ActiveStream.persistencePorts` |
 | `TraceFlushListener` | topic quiescence | built by chat / agent-session turn owners, passed in `send()`'s `cleanupPorts` → `ActiveStream.cleanupPorts` |
-| `ChannelAdapterListener` | chunk + terminal | caller injects a listener into `send()`; its terminal callback enqueues once into the `ChannelManager`-owned per-chat delivery queue |
+| `ChannelAdapterListener` | chunk + terminal | caller injects a listener into `send()`; its terminal callback enqueues once into the `ChannelTerminalDeliveryService` per-chat FIFO |
 | `SseListener` | chunk + terminal | caller injects a listener into `send()` |
 | UI indirect consumers (sidebar indicators, …) | topic status | `useSharedCache('topic.stream.statuses.${topicId}')` |
 
@@ -255,14 +255,15 @@ continuations.
 
 `dispatchToListeners` calls `listener.isAlive()` before each notification and
 isolates listener failures. `ChannelAdapterListener` does not await the external
-platform: its terminal callback hands one delivery to `ChannelManager` and
-returns, so IM latency cannot hold renderer terminal state, trace cleanup, or
-topic eviction. `ChannelManager` is the single delivery owner for both live
-stream results and scheduled-task notifications. It serializes work by
-`channelId + chatId`, rejects new work once that channel is stopping, and drains
-accepted work before disconnecting the adapter. A send is attempted once; an
-uncancellable timeout is never retried, so a late first success cannot become a
-duplicate and a hung send remains the queue head instead of being overtaken.
+platform: its terminal callback hands one delivery to
+`ChannelTerminalDeliveryService` and returns, so IM latency cannot hold
+renderer terminal state, trace cleanup, or topic eviction. The delivery
+service is the single FIFO/dedupe/timeout owner for both live stream results
+and scheduled-task notifications; `ChannelManager` owns only adapter connection
+epochs. A timeout blocks the whole channel and skips queued requests, while
+only a newer successful connection epoch reopens it. Accepted work drains
+before `ChannelManager` disconnects the adapter, and a timed-out send is never
+retried because its remote result is uncertain.
 `ChannelIngressService` opens adapters only after the AI producers are ready. On
 shutdown it first pauses channel intake and drains buffered admissions; the
 stream and job producers then stop before `ChannelManager` drains terminal
@@ -818,7 +819,7 @@ listener / persistence-port composition:
 | Scenario | Listeners + persistence ports | Effect |
 |---|---|---|
 | Renderer user message | `WebContentsListener` + `PersistenceListener` port | live UI + persist |
-| Channel bot reply | `ChannelAdapterListener` + agent-session persistence port | agents DB gates settlement; `ChannelManager` serializes the at-most-once IM delivery independently afterward |
+| Channel bot reply | `ChannelAdapterListener` + agent-session persistence port | agents DB gates settlement; `ChannelTerminalDeliveryService` serializes the at-most-once IM delivery independently afterward |
 | Channel + user both watching | above + `WebContentsListener(B)` | parallel fan-out |
 | API server SSE | `SseListener` + `PersistenceListener` port | SSE push + persist |
 | Translate | `WebContentsListener` + `PersistenceListener(TranslationBackend)` port | live overlay + writes `data-translation` part on success |

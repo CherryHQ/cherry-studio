@@ -2,6 +2,8 @@ import type { AttemptId } from '@shared/ai/attempt'
 import type { AiStreamAdmissionReason } from '@shared/ai/transport'
 import type { UniqueModelId } from '@shared/data/types/model'
 
+import type { ContinuationLeaseId } from './topicStreamState'
+
 export type LiveExecutionChangeAdmission =
   | { mode: 'replace-live' }
   | { mode: 'append-live'; groupAnchorMessageId: string }
@@ -26,6 +28,8 @@ export type LiveExecutionChangeIntent =
     }
   | { mode: 'start'; modelCount: number }
 
+export type RuntimeTurnAdmission = { kind: 'fresh' } | { kind: 'continuation'; leaseId: ContinuationLeaseId }
+
 export type StreamIntent =
   | { kind: 'start'; modelCount: number }
   | { kind: 'append-live'; change: Extract<LiveExecutionChangeIntent, { mode: 'append' }> }
@@ -33,7 +37,7 @@ export type StreamIntent =
   | { kind: 'steer-inject' }
   | { kind: 'steer-continuation' }
   | { kind: 'continue-conversation'; anchorMessageId: string }
-  | { kind: 'runtime-turn' }
+  | { kind: 'runtime-turn'; admission: RuntimeTurnAdmission }
   | { kind: 'prompt' }
 
 /** Whether the topic stays on its current branch while this dispatch reserves rows. */

@@ -52,7 +52,7 @@ each subsystem.
 │  Terminal listeners:                                                 │
 │    PersistenceListener → MessageService / TemporaryChat / Translation
 │    WebContentsListener  → wc.send(Ai_StreamDone)                      │
-│    ChannelAdapterListener → ChannelManager delivery queue             │
+│    ChannelAdapterListener → ChannelTerminalDeliveryService FIFO       │
 │    SseListener          → res.write('[DONE]')                         │
 └──────────────────────────────────────────────────────────────────────┘
                                  ↓

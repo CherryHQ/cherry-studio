@@ -67,11 +67,13 @@ import {
   finalizeInterruptedParts,
   PersistenceListener,
   type SendResult,
+  type StartRuntimeTurnInput,
   type StreamCleanupPort,
   type StreamListener,
   type StreamPausedResult,
   type StreamPersistencePort,
   stripTransientStatusParts,
+  toContinuationLeaseId,
   TraceFlushListener
 } from '../streamManager'
 import type { ApprovalRequestedEvent, InProcessUsageContext } from '../types'
@@ -404,6 +406,7 @@ export class AgentSessionRuntimeService extends BaseService {
   private readonly _onRuntimeIdle = new Emitter<{ sessionId: string }>()
   readonly onRuntimeIdle: Event<{ sessionId: string }> = this._onRuntimeIdle.event
   private readonly entries = new Map<string, AgentSessionRuntimeEntry>()
+  private nextContinuationLeaseSequence = 0
   /** Write-quiesce holds (backup restore). Quiesced ⇔ non-empty. Distinct from the BaseService
    *  lifecycle pause — this never touches service state. See `pause()`. */
   private readonly pauseHolds = new Set<symbol>()
@@ -518,17 +521,74 @@ export class AgentSessionRuntimeService extends BaseService {
     return isAgentSessionRuntimeBusy(entry.runtimeState) ? 'active' : 'idle'
   }
 
-  private applyRuntimeStateEvent(entry: AgentSessionRuntimeEntry, event: RuntimeStateEvent): void {
+  private applyRuntimeStateEvent(
+    entry: AgentSessionRuntimeEntry,
+    event: RuntimeStateEvent,
+    syncContinuation = true
+  ): void {
     if (!this.isCurrentEntry(entry)) return
     const transition = transitionAgentSessionRuntime(entry.runtimeState, event)
-    const previous = agentSessionContinuationPromise(entry.runtimeState)
     entry.runtimeState = transition.state
-    const next = agentSessionContinuationPromise(entry.runtimeState)
-    // Push the continuation promise the moment it changes, so the topic never has to ask.
-    if (next.open !== previous.open || next.voidOnAttemptError !== previous.voidOnAttemptError) {
-      application.get('AiStreamManager').setAgentContinuationLease(entry.topicId, next)
-    }
+    if (syncContinuation) this.syncContinuationLease(entry)
     for (const effect of transition.effects) this.applyRuntimeStateEffect(entry, effect)
+  }
+
+  /** Project the reducer's next-work promise into one exact Topic lease. */
+  private syncContinuationLease(entry: AgentSessionRuntimeEntry): void {
+    const promise = agentSessionContinuationPromise(entry.runtimeState)
+    const current = entry.runtimeState.continuationLease
+    const streamManager = application.get('AiStreamManager')
+
+    if (!promise.open) {
+      if (!current) return
+      streamManager.releaseAgentContinuationLease(entry.topicId, current.id, 'queue-cleared')
+      this.applyRuntimeStateEvent(entry, { type: 'continuation-lease-cleared', leaseId: current.id }, false)
+      return
+    }
+
+    if (!current) {
+      const lease = {
+        id: toContinuationLeaseId(`agent-continuation:${entry.sessionId}:${++this.nextContinuationLeaseSequence}`),
+        voidOnAttemptError: promise.voidOnAttemptError
+      }
+      if (streamManager.openAgentContinuationLease(entry.topicId, lease)) {
+        this.applyRuntimeStateEvent(entry, { type: 'continuation-lease-set', lease }, false)
+      }
+      return
+    }
+
+    if (
+      current.voidOnAttemptError !== promise.voidOnAttemptError &&
+      streamManager.updateAgentContinuationLease(entry.topicId, {
+        id: current.id,
+        voidOnAttemptError: promise.voidOnAttemptError
+      })
+    ) {
+      this.applyRuntimeStateEvent(
+        entry,
+        {
+          type: 'continuation-lease-set',
+          lease: { ...current, voidOnAttemptError: promise.voidOnAttemptError }
+        },
+        false
+      )
+    }
+  }
+
+  /** One handoff for queued, steer, receive-only, and deferred runtime turns. */
+  private startRuntimeTurn(
+    entry: AgentSessionRuntimeEntry,
+    input: Omit<StartRuntimeTurnInput, 'admission'>
+  ): SendResult {
+    const continuationLeaseId = entry.runtimeState.continuationLease?.id
+    const result = application.get('AiStreamManager').startRuntimeTurn({
+      ...input,
+      admission: continuationLeaseId ? { kind: 'continuation', leaseId: continuationLeaseId } : { kind: 'fresh' }
+    })
+    if (continuationLeaseId) {
+      this.applyRuntimeStateEvent(entry, { type: 'continuation-lease-cleared', leaseId: continuationLeaseId }, false)
+    }
+    return result
   }
 
   private applyRuntimeStateEffect(
@@ -2988,7 +3048,7 @@ export class AgentSessionRuntimeService extends BaseService {
         messages
       })
     }
-    const handoff = application.get('AiStreamManager').startRuntimeTurn({
+    const handoff = this.startRuntimeTurn(entry, {
       topicId: entry.topicId,
       modelId: entry.modelId,
       rootSpan,
@@ -3065,7 +3125,7 @@ export class AgentSessionRuntimeService extends BaseService {
         messages
       })
     }
-    const handoff = application.get('AiStreamManager').startRuntimeTurn({
+    const handoff = this.startRuntimeTurn(entry, {
       topicId: entry.topicId,
       modelId: turn.modelId,
       rootSpan,
@@ -3161,7 +3221,7 @@ export class AgentSessionRuntimeService extends BaseService {
         messages
       })
     }
-    const handoff = application.get('AiStreamManager').startRuntimeTurn({
+    const handoff = this.startRuntimeTurn(entry, {
       topicId: entry.topicId,
       modelId,
       rootSpan,
@@ -3272,7 +3332,7 @@ export class AgentSessionRuntimeService extends BaseService {
         messages
       })
     }
-    const handoff = application.get('AiStreamManager').startRuntimeTurn({
+    const handoff = this.startRuntimeTurn(entry, {
       topicId: entry.topicId,
       modelId,
       rootSpan,

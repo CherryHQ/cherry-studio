@@ -35,6 +35,7 @@ export interface SnapshotArrival {
   readonly kind: 'snapshot'
   readonly cycleId: number
   readonly controlRevision: number
+  readonly topicOpen: boolean
   readonly cursors: ReadonlyArray<{ attemptId: AttemptId; throughChunkSeq: number }>
 }
 
@@ -93,12 +94,18 @@ export function reduceTopicStreamClient(state: TopicStreamClientState, arrival: 
   const effects = [...advanced.effects]
 
   if (arrival.kind === 'snapshot') {
+    // A same-cycle snapshot is one control projection, not authority to rewind newer live evidence.
+    if (arrival.controlRevision < next.controlRevision) return reject(next, 'stale-revision')
     const chunkCursors = new Map(next.chunkCursors)
     for (const { attemptId, throughChunkSeq } of arrival.cursors) {
       chunkCursors.set(attemptId, Math.max(chunkCursors.get(attemptId) ?? 0, throughChunkSeq))
     }
+    if (arrival.topicOpen !== next.topicOpen) {
+      effects.push({ type: 'topic-state-changed', topicOpen: arrival.topicOpen })
+      if (arrival.topicOpen) effects.push({ type: 'reset-quiescence' })
+    }
     return {
-      state: { ...next, controlRevision: arrival.controlRevision, chunkCursors },
+      state: { ...next, controlRevision: arrival.controlRevision, chunkCursors, topicOpen: arrival.topicOpen },
       effects,
       accepted: true
     }

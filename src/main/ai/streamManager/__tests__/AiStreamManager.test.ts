@@ -1,4 +1,5 @@
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import { toAttemptId } from '@shared/ai/attempt'
 import { aiStreamAdmissionReasons } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -9,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ApprovalRequestedEvent } from '../../types'
 import type { AiStreamRequest } from '../../types/requests'
 import { AiStreamAdmissionError } from '../admission'
+import { toContinuationLeaseId } from '../topicStreamState'
 import type {
   AiStreamManagerConfig,
   CherryUIMessage,
@@ -186,6 +188,7 @@ const fakeCacheService = {
 }
 const mockSaveSpans = vi.fn<(topicId: string) => Promise<void>>(async () => undefined)
 let agentContinuationPromise: { open: boolean; voidOnAttemptError: boolean } | undefined
+let nextAgentContinuationLeaseSequence = 0
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -258,6 +261,12 @@ function req(topicId: string) {
   return { chatId: topicId, trigger: 'submit-message', messages: [] } as any
 }
 
+function openAgentContinuation(manager: ManagerInstance, topicId: string, voidOnAttemptError = false) {
+  const id = toContinuationLeaseId(`test-agent-continuation:${++nextAgentContinuationLeaseSequence}`)
+  expect(manager.openAgentContinuationLease(topicId, { id, voidOnAttemptError })).toBe(true)
+  return id
+}
+
 /**
  * Single-model convenience wrapper around `manager.send`.
  * Returns the resulting snapshot so tests can assert on observable state
@@ -290,7 +299,7 @@ function startSingle(
   // own state changes. `voidOnAttemptError: false` = independently queued work, which survives an
   // error terminal; tests needing the conditional (steer/compaction) kind push it themselves.
   if (agentContinuationPromise && opts.topicId.startsWith('agent-session:')) {
-    manager.setAgentContinuationLease(opts.topicId, agentContinuationPromise)
+    openAgentContinuation(manager, opts.topicId, agentContinuationPromise.voidOnAttemptError)
   }
   const snapshot = manager.inspect(opts.topicId)
   if (!snapshot) throw new Error(`inspect() returned undefined for topicId=${opts.topicId}`)
@@ -328,6 +337,7 @@ describe('AiStreamManager', () => {
     )
     mockSaveSpans.mockResolvedValue(undefined)
     agentContinuationPromise = undefined
+    nextAgentContinuationLeaseSequence = 0
     mockAbortPendingTurn.mockReturnValue({ handled: false })
     mockGetMessageById.mockReset()
     sharedCacheStore.clear()
@@ -703,7 +713,8 @@ describe('AiStreamManager', () => {
         topicId: 'agent-session:s1',
         modelId: 'provider-a::model-a',
         request: req('agent-session:s1'),
-        listeners: [liveListener]
+        listeners: [liveListener],
+        admission: { kind: 'fresh' }
       })
       await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(1))
 
@@ -712,7 +723,8 @@ describe('AiStreamManager', () => {
           topicId: 'agent-session:s1',
           modelId: 'provider-a::model-a',
           request: req('agent-session:s1'),
-          listeners: [new FakeListener('agent-runtime:next')]
+          listeners: [new FakeListener('agent-runtime:next')],
+          admission: { kind: 'fresh' }
         })
       ).toThrow(AiStreamAdmissionError)
       expect(mockStreamText).toHaveBeenCalledTimes(1)
@@ -3501,6 +3513,61 @@ describe('AiStreamManager', () => {
       expect((sharedCacheStore.get(`topic.stream.statuses.${topicId}`) as any)?.status).not.toBe('done')
     })
 
+    it('consumes the exact Agent continuation lease when A1 hands off to A2', async () => {
+      const topicId = 'agent-session:lease-a1-a2'
+      const listener = new FakeListener(`l:${topicId}`)
+      startSingle(mgr, { topicId, modelId: 'provider-a::model-a', request: req(topicId), listeners: [listener] })
+      const a2Lease = openAgentContinuation(mgr, topicId)
+
+      await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+      expect(listener.doneResults.at(-1)?.isTopicDone).toBe(false)
+
+      const a2 = mgr.startRuntimeTurn({
+        topicId,
+        modelId: 'provider-a::model-a',
+        request: req(topicId),
+        listeners: [],
+        admission: { kind: 'continuation', leaseId: a2Lease }
+      })
+      await mgr.onExecutionDone(topicId, 'provider-a::model-a', toAttemptId(a2.activeExecutions[0].attemptId))
+
+      expect(listener.doneResults.at(-1)?.isTopicDone).toBe(true)
+      expect(mgr.inspect(topicId)?.status).toBe('done')
+    })
+
+    it('opens a new Agent lease for A3 while A2 runs instead of reusing A2 identity', async () => {
+      const topicId = 'agent-session:lease-a2-a3'
+      const listener = new FakeListener(`l:${topicId}`)
+      startSingle(mgr, { topicId, modelId: 'provider-a::model-a', request: req(topicId), listeners: [listener] })
+      const a2Lease = openAgentContinuation(mgr, topicId)
+      await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+
+      const a2 = mgr.startRuntimeTurn({
+        topicId,
+        modelId: 'provider-a::model-a',
+        request: req(topicId),
+        listeners: [],
+        admission: { kind: 'continuation', leaseId: a2Lease }
+      })
+      const a3Lease = openAgentContinuation(mgr, topicId)
+      expect(a3Lease).not.toBe(a2Lease)
+
+      await mgr.onExecutionDone(topicId, 'provider-a::model-a', toAttemptId(a2.activeExecutions[0].attemptId))
+      expect(listener.doneResults.at(-1)?.isTopicDone).toBe(false)
+
+      const a3 = mgr.startRuntimeTurn({
+        topicId,
+        modelId: 'provider-a::model-a',
+        request: req(topicId),
+        listeners: [],
+        admission: { kind: 'continuation', leaseId: a3Lease }
+      })
+      await mgr.onExecutionDone(topicId, 'provider-a::model-a', toAttemptId(a3.activeExecutions[0].attemptId))
+
+      expect(listener.doneResults.at(-1)?.isTopicDone).toBe(true)
+      expect(mgr.inspect(topicId)?.status).toBe('done')
+    })
+
     it('Stop delegates to the agent runtime while the topic is parked on a continuation', async () => {
       agentContinuationPromise = { open: true, voidOnAttemptError: false }
       const topicId = 'agent-session:session-1'
@@ -3598,7 +3665,7 @@ describe('AiStreamManager', () => {
         receipt: reservation.receipt
       })
       // Stop voided the previous cycle's promise; the runtime re-promises for the new one.
-      mgr.setAgentContinuationLease(topicId, { open: true, voidOnAttemptError: false })
+      openAgentContinuation(mgr, topicId)
       await mgr.onExecutionDone(topicId, 'provider-a::model-a')
       expect(mgr.inspect(topicId)?.status).toBe('streaming')
 
@@ -4214,7 +4281,8 @@ describe('AiStreamManager', () => {
         topicId: 'agent-session:session-1',
         modelId: 'p::m',
         request: req('agent-session:session-1'),
-        listeners: [new FakeListener('l:session-1')]
+        listeners: [new FakeListener('l:session-1')],
+        admission: { kind: 'fresh' }
       })
       await mgr.onExecutionDone('agent-session:session-1', 'p::m')
 

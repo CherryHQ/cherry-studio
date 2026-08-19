@@ -253,6 +253,11 @@ export class TopicStreamAggregate {
     )
   }
 
+  updateContinuationLease(id: ContinuationLeaseId, voidOnAttemptError: boolean): boolean {
+    const receipt = this.apply({ type: 'continuation-updated', leaseId: id, voidOnAttemptError })
+    return receipt.revision !== receipt.previousRevision
+  }
+
   consumeContinuationLease(id: ContinuationLeaseId, attemptId: AttemptId): boolean {
     return this.apply({ type: 'continuation-consumed', leaseId: id, attemptId }).events.length > 0
   }

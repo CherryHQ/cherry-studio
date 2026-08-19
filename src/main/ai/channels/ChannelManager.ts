@@ -92,6 +92,7 @@ export class ChannelManager extends BaseService implements ChannelTerminalDelive
   >()
   private readonly channelLogs = new ChannelLogBuffer()
   private readonly channelStatuses = new Map<string, ChannelStatusEvent>()
+  private nextConnectionEpoch = 0
 
   // ChannelIngressService starts adapters after producers are ready; this owner
   // keeps lifecycle stop so terminal delivery remains alive until producers stop.
@@ -133,6 +134,7 @@ export class ChannelManager extends BaseService implements ChannelTerminalDelive
     }
 
     const activeChannels = channels.filter((ch) => ch.isActive && ch.agentId)
+    for (const channel of activeChannels) this.delivery.block(channel.id)
 
     // Lazy-load only the adapter modules needed for active channels
     const neededTypes = [...new Set(activeChannels.map((ch) => ch.type))]
@@ -215,6 +217,12 @@ export class ChannelManager extends BaseService implements ChannelTerminalDelive
       if (adapter.channelId === channelId) return adapter
     }
     return undefined
+  }
+
+  /** Resolve only a transport that has reported a successful connection. */
+  getConnectedAdapter(channelId: string): ChannelAdapter | undefined {
+    const adapter = this.getAdapter(channelId)
+    return adapter?.connected ? adapter : undefined
   }
 
   /** Get buffered logs for a channel. */
@@ -443,21 +451,29 @@ export class ChannelManager extends BaseService implements ChannelTerminalDelive
       })
 
       adapter.on('statusChange', (status) => {
+        // A stale adapter may finish after sync installed its replacement; it has no authority to
+        // publish status or reopen delivery for the new connection.
+        if (this.adapters.get(key) !== adapter) return
+        if (status.connected) {
+          this.delivery.reopen(row.id, ++this.nextConnectionEpoch)
+        } else {
+          this.delivery.block(row.id)
+        }
         this.channelStatuses.set(status.channelId, status)
         this.sendToRenderer('channel.status_changed', status)
       })
 
       // Register adapter immediately so it's discoverable. Callers can either
       // await connect for strict workflows or leave it in the background.
+      this.delivery.block(row.id)
       this.adapters.set(key, adapter)
-      this.delivery.reopen(row.id)
 
       const connect = async () => {
         try {
           await adapter.connect()
           logger.info('Channel adapter connected', { agentId, channelId: row.id, type: row.type })
         } catch (error) {
-          this.adapters.delete(key)
+          if (this.adapters.get(key) === adapter) this.adapters.delete(key)
           logger.error('Failed to connect channel adapter', {
             agentId,
             channelId: row.id,

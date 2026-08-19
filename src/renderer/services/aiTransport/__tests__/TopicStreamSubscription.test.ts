@@ -905,6 +905,102 @@ describe('TopicStreamSubscription', () => {
     sub.dispose()
   })
 
+  it('ignores a same-cycle attach snapshot older than live control already applied', async () => {
+    mock.mockApi.streamAttach.mockResolvedValueOnce({
+      status: 'attached',
+      bufferedChunks: [],
+      snapshot: {
+        cycleId: 8,
+        controlRevision: 1,
+        topicOpen: true,
+        attempts: [{ executionId: A, attemptId: 5, phase: 'running', replayChunks: [], throughChunkSeq: 0 }]
+      } satisfies StreamAttachSnapshot
+    })
+    const sub = new TopicStreamSubscription(TOPIC)
+    const first = sub.register(A, undefined, 5)
+    await tick()
+
+    mock.emitProtocol({
+      type: 'attempt-durably-settled',
+      topicId: TOPIC,
+      cycleId: 8,
+      controlRevision: 2,
+      executionId: A,
+      attemptId: 5,
+      outcome: 'success'
+    })
+    mock.emitProtocol({
+      type: 'topic-quiesced',
+      topicId: TOPIC,
+      cycleId: 8,
+      controlRevision: 3,
+      throughAttemptId: 5,
+      outcome: 'success'
+    })
+    expect(await readAll(first)).toEqual([])
+    sub.unregister(A, undefined, 5)
+    await tick()
+
+    let resolveAttach!: (response: { status: 'attached'; bufferedChunks: []; snapshot: StreamAttachSnapshot }) => void
+    mock.mockApi.streamAttach.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveAttach = resolve
+        })
+    )
+    const next = sub.register(B, undefined, 6)
+    await tick()
+
+    // This live barrier lands while the reattach response is still in flight.
+    mock.emitProtocol({
+      type: 'topic-quiesced',
+      topicId: TOPIC,
+      cycleId: 8,
+      controlRevision: 9,
+      throughAttemptId: 5,
+      outcome: 'success'
+    })
+    resolveAttach({
+      status: 'attached',
+      bufferedChunks: [],
+      snapshot: {
+        cycleId: 8,
+        controlRevision: 4,
+        topicOpen: true,
+        attempts: [
+          { executionId: A, attemptId: 5, phase: 'settled', outcome: 'success', replayChunks: [], throughChunkSeq: 0 }
+        ]
+      }
+    })
+    await tick()
+
+    expect(sub.isTopicOpen()).toBe(false)
+    expect(sub.hasOpenBranch(B, undefined, 6)).toBe(true)
+
+    mock.emitProtocol({
+      type: 'chunk',
+      topicId: TOPIC,
+      cycleId: 8,
+      executionId: B,
+      attemptId: 6,
+      chunkSeq: 1,
+      throughChunkSeq: 1,
+      chunk: textChunk('same-cycle-live')
+    })
+    mock.emitProtocol({
+      type: 'attempt-durably-settled',
+      topicId: TOPIC,
+      cycleId: 8,
+      controlRevision: 10,
+      executionId: B,
+      attemptId: 6,
+      outcome: 'success'
+    })
+
+    expect(await readAll(next)).toEqual([textChunk('same-cycle-live')])
+    sub.dispose()
+  })
+
   it('retires covered branches that never saw their own terminal when the topic quiesces', async () => {
     mock.mockApi.streamAttach.mockResolvedValueOnce({
       status: 'attached',
