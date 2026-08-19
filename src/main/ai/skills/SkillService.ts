@@ -27,8 +27,7 @@ import type {
   SystemSkillPlacement
 } from '@shared/types/skill'
 import { ClawhubSkillDetailSchema } from '@shared/types/skill'
-import type { GithubSkillTarget } from '@shared/utils/skillMarketplace'
-import { encodeGithubPath, parseGithubSkillUrl, resolveRefFromSegments } from '@shared/utils/skillMarketplace'
+import { encodeGithubPath, parseGithubSkillUrl } from '@shared/utils/skillMarketplace'
 import { Mutex } from 'async-mutex'
 import { net } from 'electron'
 import StreamZip from 'node-stream-zip'
@@ -47,8 +46,46 @@ const MAX_FILES_COUNT = 2000
 const MAX_FOLDER_NAME_LENGTH = 80
 // A direct-URL install points git at a repository nobody vetted; no single step may hang forever.
 const GIT_COMMAND_TIMEOUT_MS = 2 * 60 * 1000
+const MAX_GIT_TREE_OUTPUT_BYTES = 16 * 1024 * 1024
 const SKILLS_PLUGIN_MANIFEST = `${JSON.stringify({ name: 'cherry-studio-skills' }, null, 2)}\n`
 const BUILTIN_VERSION_FILE = '.version'
+
+type GithubRef = {
+  name: string
+  oid: string
+  namespace: 'heads' | 'tags'
+}
+
+type GithubSkillTarget = { kind: 'root' } | { kind: 'directory'; path: string }
+
+type GithubRefResolution =
+  | { kind: 'resolved'; ref: GithubRef; target: GithubSkillTarget }
+  | { kind: 'ambiguous'; name: string }
+  | { kind: 'no-match' }
+
+function resolveGithubRef(refs: readonly GithubRef[], refAndPath: readonly string[]): GithubRefResolution {
+  const refsByName = new Map<string, GithubRef[]>()
+  for (const ref of refs) {
+    refsByName.set(ref.name, [...(refsByName.get(ref.name) ?? []), ref])
+  }
+
+  for (let length = refAndPath.length; length >= 1; length--) {
+    const name = refAndPath.slice(0, length).join('/')
+    const matches = refsByName.get(name)
+    if (!matches?.length) continue
+    if (matches.length > 1) return { kind: 'ambiguous', name }
+
+    return {
+      kind: 'resolved',
+      ref: matches[0],
+      target:
+        length === refAndPath.length
+          ? { kind: 'root' }
+          : { kind: 'directory', path: refAndPath.slice(length).join('/') }
+    }
+  }
+  return { kind: 'no-match' }
+}
 
 function isOutsidePath(relativePath: string): boolean {
   return relativePath === '..' || relativePath.startsWith(`..${path.sep}`) || path.isAbsolute(relativePath)
@@ -514,7 +551,9 @@ export class SkillService {
     // Keep the ref, not the commit, as the stored origin: a later install of the same skill has to
     // match this URL to be treated as an update rather than a foreign folder collision.
     const sourcePath = target.kind === 'root' ? ref : `${ref}/${target.path}`
-    const sourceUrl = `${repoUrl}/tree/${encodeGithubPath(sourcePath)}`
+    const sourceUrl = refNamespace
+      ? `https://raw.githubusercontent.com/${owner}/${repo}/refs/${refNamespace}/${encodeGithubPath(`${sourcePath}/${descriptorFileName}`)}`
+      : `${repoUrl}/tree/${encodeGithubPath(sourcePath)}`
     const tempDir = await this.createTempDir('github')
 
     try {
@@ -554,7 +593,7 @@ export class SkillService {
     })
 
     const matchingRefs = refNamespace ? refs.filter((ref) => ref.namespace === refNamespace) : refs
-    const resolution = resolveRefFromSegments(matchingRefs, refAndPath)
+    const resolution = resolveGithubRef(matchingRefs, refAndPath)
     switch (resolution.kind) {
       case 'resolved':
         return { ref: resolution.ref.name, oid: resolution.ref.oid, target: resolution.target }
@@ -587,22 +626,18 @@ export class SkillService {
     const gitCommand = (await findExecutableInEnv('git')) ?? 'git'
     const gitDir = path.join(tempDir, 'repo.git')
     const contentDir = path.join(tempDir, 'content')
-    const git = (args: string[]) => this.runGit(gitCommand, [`--git-dir=${gitDir}`, ...args])
+    const git = (args: string[], options?: { maxOutputBytes?: number }) =>
+      this.runGit(gitCommand, [`--git-dir=${gitDir}`, ...args], options)
 
     await fs.promises.mkdir(contentDir, { recursive: true })
     await this.runGit(gitCommand, ['init', '--bare', '--quiet', gitDir])
     await git(['fetch', '--quiet', '--depth', '1', '--filter=blob:none', '--no-tags', '--', repoUrl, oid])
     const pathspec = target.kind === 'root' ? '.' : `:(top,literal)${target.path}`
-    const paths = await git(['ls-tree', '-r', '-z', '--name-only', '--full-tree', 'FETCH_HEAD'])
-    const sizedTree = await git([
-      'ls-tree',
-      '-lr',
-      '-z',
-      '--full-tree',
-      'FETCH_HEAD',
-      ...(target.kind === 'root' ? [] : ['--', pathspec])
-    ])
-    this.assertGithubTargetTree(paths, sizedTree, target, descriptorFileName)
+    const sizedTree = await git(
+      ['ls-tree', '-lr', '-z', '--full-tree', 'FETCH_HEAD', ...(target.kind === 'root' ? [] : ['--', pathspec])],
+      { maxOutputBytes: MAX_GIT_TREE_OUTPUT_BYTES }
+    )
+    this.assertGithubTargetTree(sizedTree, target, descriptorFileName)
 
     await this.runGit(gitCommand, [
       `--git-dir=${gitDir}`,
@@ -622,40 +657,27 @@ export class SkillService {
 
   /** Validate the selected Git tree before checkout writes any untrusted content. */
   private assertGithubTargetTree(
-    paths: string,
     sizedTree: string,
     target: GithubSkillTarget,
     descriptorFileName: 'SKILL.md' | 'skill.md'
   ): void {
     const foldKey = (value: string) => value.normalize('NFC').toLowerCase()
     const targetParts = target.kind === 'root' ? [] : target.path.split('/')
-    const foldedTarget = targetParts.map(foldKey)
-    const selectedPaths: string[] = []
-    const matchingRoots = new Set<string>()
 
-    for (const entryPath of paths.split('\0').filter(Boolean)) {
-      const entryParts = entryPath.split('/')
-      if (target.kind === 'directory') {
-        const rootParts = entryParts.slice(0, targetParts.length)
-        if (!rootParts.every((part, index) => foldKey(part) === foldedTarget[index])) continue
-        matchingRoots.add(rootParts.join('/'))
-        if (rootParts.join('/') !== target.path) continue
-      }
-
-      const relativePath = target.kind === 'root' ? entryPath : entryParts.slice(targetParts.length).join('/')
-      selectedPaths.push(relativePath)
-    }
-
-    if (matchingRoots.size > 1) {
-      throw new Error(
-        `The commit contains directories that collide with "${target.kind === 'directory' ? target.path : '.'}" ` +
-          `once case and Unicode are normalized (${[...matchingRoots].join(', ')}).`
-      )
-    }
+    const sizedEntries = sizedTree.split('\0').flatMap((record) => {
+      if (!record) return []
+      const tab = record.indexOf('\t')
+      if (tab === -1) return []
+      const [, type, , rawSize] = record.slice(0, tab).trim().split(/\s+/)
+      if (type !== 'blob' || !/^\d+$/.test(rawSize)) return []
+      const entryPath = record.slice(tab + 1)
+      const relativePath = target.kind === 'root' ? entryPath : entryPath.split('/').slice(targetParts.length).join('/')
+      return [{ path: relativePath, size: Number(rawSize) }]
+    })
 
     const seenPaths = new Map<string, string>()
-    for (const entryPath of selectedPaths) {
-      const parts = entryPath.split('/')
+    for (const entry of sizedEntries) {
+      const parts = entry.path.split('/')
       for (let length = 1; length <= parts.length; length++) {
         const prefix = parts.slice(0, length).join('/')
         const key = parts.slice(0, length).map(foldKey).join('/')
@@ -668,17 +690,6 @@ export class SkillService {
         seenPaths.set(key, prefix)
       }
     }
-
-    const sizedEntries = sizedTree.split('\0').flatMap((record) => {
-      if (!record) return []
-      const tab = record.indexOf('\t')
-      if (tab === -1) return []
-      const [, type, , rawSize] = record.slice(0, tab).trim().split(/\s+/)
-      if (type !== 'blob' || !/^\d+$/.test(rawSize)) return []
-      const entryPath = record.slice(tab + 1)
-      const relativePath = target.kind === 'root' ? entryPath : entryPath.split('/').slice(targetParts.length).join('/')
-      return [{ path: relativePath, size: Number(rawSize) }]
-    })
 
     if (!sizedEntries.some((entry) => entry.path === descriptorFileName)) {
       const location = target.kind === 'root' ? descriptorFileName : `${target.path}/${descriptorFileName}`
@@ -725,10 +736,11 @@ export class SkillService {
    * The single entry point for every git subprocess an install spawns: bounded, non-interactive, and
    * routed through Cherry's proxy — which lives in the main process env, not in the captured login shell.
    */
-  private async runGit(gitCommand: string, args: string[]): Promise<string> {
+  private async runGit(gitCommand: string, args: string[], options?: { maxOutputBytes?: number }): Promise<string> {
     const env = await getShellEnv()
     return executeCommand(gitCommand, args, {
       capture: true,
+      maxOutputBytes: options?.maxOutputBytes,
       timeout: GIT_COMMAND_TIMEOUT_MS,
       env: {
         ...env,

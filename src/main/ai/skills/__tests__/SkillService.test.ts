@@ -650,8 +650,13 @@ describe('SkillService', () => {
             .join('\n')
         }
         if (args.includes('ls-tree')) {
-          if (args.includes('--name-only')) return tree.map((entry) => `${entry.path}\0`).join('')
-          return tree.map((entry) => `100644 blob ${'d'.repeat(40)} ${entry.size}\t${entry.path}\0`).join('')
+          const separator = args.lastIndexOf('--')
+          const pathspec = separator === -1 ? null : args[separator + 1]
+          const selectedPath = pathspec?.replace(/^:\(top,literal\)/, '')
+          const selectedTree = tree.filter(
+            (entry) => !selectedPath || entry.path === selectedPath || entry.path.startsWith(`${selectedPath}/`)
+          )
+          return selectedTree.map((entry) => `100644 blob ${'d'.repeat(40)} ${entry.size}\t${entry.path}\0`).join('')
         }
         if (args.includes('checkout')) {
           const separator = args.lastIndexOf('--')
@@ -758,7 +763,7 @@ describe('SkillService', () => {
 
     it('uses an explicit tag namespace when a branch has the same name', async () => {
       const tagOid = 'b'.repeat(40)
-      const { skillService, gitCalls } = await setupGithubInstall({
+      const { skillService, installSpy, gitCalls } = await setupGithubInstall({
         refs: [
           { name: 'v1', oid: 'a'.repeat(40) },
           { name: 'v1', oid: tagOid, namespace: 'tags' }
@@ -770,6 +775,11 @@ describe('SkillService', () => {
       })
 
       expect(gitFetchArgs(gitCalls)).toEqual(expect.arrayContaining([tagOid]))
+      expect(installSpy).toHaveBeenCalledWith(
+        expect.any(String),
+        'marketplace',
+        'https://raw.githubusercontent.com/owner/repo/refs/tags/v1/skills/demo/SKILL.md'
+      )
     })
 
     it('installs the exact lowercase descriptor selected by the URL', async () => {
@@ -847,9 +857,7 @@ describe('SkillService', () => {
       expect(gitFetchArgs(gitCalls)).toBeUndefined()
     })
 
-    it('refuses a tree whose directories collide once case is folded', async () => {
-      // A case-insensitive filesystem merges these two into one checkout, so containment checks would
-      // inspect bytes other than the ones the URL selected.
+    it('does not inspect a case-variant sibling outside the selected directory', async () => {
       const { skillService } = await setupGithubInstall({
         refs: [{ name: 'main', oid: 'a'.repeat(40) }],
         tree: ['skills/demo/SKILL.md', 'skills/Demo/SKILL.md']
@@ -857,7 +865,7 @@ describe('SkillService', () => {
 
       await expect(
         skillService.install({ installSource: 'github:https://github.com/owner/repo/blob/main/skills/demo/SKILL.md' })
-      ).rejects.toThrow('collide')
+      ).resolves.toBeDefined()
     })
 
     it('refuses case-folded directory collisions inside the selected skill', async () => {
@@ -882,6 +890,11 @@ describe('SkillService', () => {
       expect(gitCalls.find((args) => args.includes('checkout'))).toEqual(
         expect.arrayContaining(['--', ':(top,literal)skills/demo'])
       )
+      expect(gitCalls.filter((args) => args.includes('ls-tree'))).toEqual([
+        expect.arrayContaining(['--', ':(top,literal)skills/demo'])
+      ])
+      const treeCall = executeCommandMock.mock.calls.find(([, args]) => args.includes('ls-tree'))
+      expect(treeCall?.[2]).toMatchObject({ maxOutputBytes: expect.any(Number) })
     })
 
     it('never lets an untrusted repository prompt for credentials or pull LFS payloads', async () => {

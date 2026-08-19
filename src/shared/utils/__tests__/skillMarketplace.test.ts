@@ -1,4 +1,4 @@
-import { buildGithubSkillResult, parseGithubSkillUrl, resolveRefFromSegments } from '@shared/utils/skillMarketplace'
+import { buildGithubSkillResult, parseGithubSkillUrl } from '@shared/utils/skillMarketplace'
 import { describe, expect, it } from 'vitest'
 
 describe('parseGithubSkillUrl', () => {
@@ -106,55 +106,4 @@ describe('buildGithubSkillResult', () => {
       expect(parseGithubSkillUrl(result!.installSource.slice('github:'.length))).toEqual(parseGithubSkillUrl(url))
     }
   )
-})
-
-describe('resolveRefFromSegments', () => {
-  const head = (name: string, oid = 'a'.repeat(40)) => ({ name, oid, namespace: 'heads' as const })
-
-  it('prefers the longest ref the remote actually has', () => {
-    // Both refs exist; splitting at the first segment would fetch `feature` and look for
-    // `foo/skills/demo` there.
-    expect(
-      resolveRefFromSegments(
-        [head('feature'), head('feature/foo', 'b'.repeat(40))],
-        ['feature', 'foo', 'skills', 'demo']
-      )
-    ).toEqual({
-      kind: 'resolved',
-      ref: head('feature/foo', 'b'.repeat(40)),
-      target: { kind: 'directory', path: 'skills/demo' }
-    })
-  })
-
-  it('resolves a repo-root descriptor instead of falling back to a shorter ref', () => {
-    // `feature/foo` consumes every segment, so the URL names SKILL.md at that branch's root. Falling
-    // through to `feature` would install `foo/SKILL.md` from an unrelated revision.
-    expect(resolveRefFromSegments([head('feature'), head('feature/foo')], ['feature', 'foo'])).toEqual({
-      kind: 'resolved',
-      ref: head('feature/foo'),
-      target: { kind: 'root' }
-    })
-  })
-
-  it('refuses a name carried by both a branch and a tag', () => {
-    expect(
-      resolveRefFromSegments(
-        [head('v1'), { name: 'v1', oid: 'c'.repeat(40), namespace: 'tags' }],
-        ['v1', 'skills', 'demo']
-      )
-    ).toEqual({ kind: 'ambiguous', name: 'v1' })
-  })
-
-  it('carries the observed commit so the install cannot follow a moved branch', () => {
-    const resolution = resolveRefFromSegments([head('main', 'f'.repeat(40))], ['main', 'skills', 'demo'])
-    expect(resolution).toMatchObject({
-      kind: 'resolved',
-      ref: { oid: 'f'.repeat(40) },
-      target: { kind: 'directory', path: 'skills/demo' }
-    })
-  })
-
-  it('reports no match rather than guessing a boundary', () => {
-    expect(resolveRefFromSegments([head('main')], ['a1b2c3', 'skills', 'demo'])).toEqual({ kind: 'no-match' })
-  })
 })

@@ -118,57 +118,8 @@ function invalidPathPart(part: string): boolean {
   )
 }
 
-/** A branch or tag as the remote reports it, carrying the commit it pointed at when observed. */
-export type GithubRef = {
-  name: string
-  oid: string
-  namespace: 'heads' | 'tags'
-}
-
-export type GithubSkillTarget = { kind: 'root' } | { kind: 'directory'; path: string }
-
-export type GithubRefResolution =
-  | { kind: 'resolved'; ref: GithubRef; target: GithubSkillTarget }
-  /** A branch and a tag share the name, so the URL does not say which revision was meant. */
-  | { kind: 'ambiguous'; name: string }
-  | { kind: 'no-match' }
-
 /**
- * Split `refAndDirectory` at the boundary the repo's own refs prove, longest first: with both a
- * `feature` branch and a `feature/foo` branch, `blob/feature/foo/skills/demo/SKILL.md` must resolve
- * to the latter rather than silently installing a different revision's `foo/skills/demo`.
- *
- * The full-length match is tested before any shorter one. `blob/feature/foo/SKILL.md` on branch
- * `feature/foo` is a repo-root descriptor, and reporting that is the only safe answer — skipping it
- * to keep a directory segment would install `foo/SKILL.md` from the unrelated `feature` branch.
- */
-export function resolveRefFromSegments(
-  refs: readonly GithubRef[],
-  refAndDirectory: readonly string[]
-): GithubRefResolution {
-  const byName = new Map<string, GithubRef[]>()
-  for (const ref of refs) {
-    byName.set(ref.name, [...(byName.get(ref.name) ?? []), ref])
-  }
-
-  for (let length = refAndDirectory.length; length >= 1; length--) {
-    const name = refAndDirectory.slice(0, length).join('/')
-    const matches = byName.get(name)
-    if (!matches?.length) continue
-    if (matches.length > 1) return { kind: 'ambiguous', name }
-
-    const ref = matches[0]
-    const target: GithubSkillTarget =
-      length === refAndDirectory.length
-        ? { kind: 'root' }
-        : { kind: 'directory', path: refAndDirectory.slice(length).join('/') }
-    return { kind: 'resolved', ref, target }
-  }
-  return { kind: 'no-match' }
-}
-
-/**
- * Re-encode a decoded repo path for use in a URL. `GithubSkillLocation.directoryPath` is decoded so
+ * Re-encode a decoded repo path for use in a URL. `GithubSkillLocation.refAndPath` is decoded so
  * the installer can resolve it on disk; concatenating it raw would break the round-trip back through
  * `parseGithubSkillUrl` (a `#` in a directory name turns the rest of the URL into a fragment).
  */
