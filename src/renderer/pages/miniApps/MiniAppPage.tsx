@@ -112,9 +112,8 @@ const MiniAppPage: FC = () => {
     )
   }, [allApps, appId, openedKeepAliveMiniApps, splitMiniAppId, splitOpen])
 
-  // Which pane owns the host window's Find shortcut. Both panes mount a search
-  // overlay, and the host `keydown` listener is global, so exactly one of them
-  // may answer it — otherwise one Ctrl/Cmd+F opens both.
+  // Both panes mount a search overlay and the host `keydown` listener is global,
+  // so exactly one may answer Ctrl/Cmd+F — otherwise one press opens both.
   const [activePane, setActivePane] = useState<'primary' | 'split'>('primary')
   const activatePrimaryPane = useCallback(() => setActivePane('primary'), [])
   const activateSplitPane = useCallback(() => setActivePane('split'), [])
