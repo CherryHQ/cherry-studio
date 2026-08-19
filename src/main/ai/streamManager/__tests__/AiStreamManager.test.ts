@@ -1886,11 +1886,12 @@ describe('AiStreamManager', () => {
       })
       await mgr.onExecutionDone('a', 'provider-a::model-a')
 
-      const parked = [
-        ...(mgr as never as { blockedPersistenceRecoveries: Map<string, object> }).blockedPersistenceRecoveries.values()
-      ]
-      expect(parked).toHaveLength(1)
-      const record = parked[0] as Record<string, unknown>
+      const coordinator = (
+        mgr as never as { recoveries: { keysForTopic(topicId: string): string[]; get(key: string): object } }
+      ).recoveries
+      const keys = coordinator.keysForTopic('a')
+      expect(keys).toHaveLength(1)
+      const record = coordinator.get(keys[0]) as Record<string, unknown>
       expect(Object.values(record).some((value) => typeof value === 'function')).toBe(false)
       expect(record).toMatchObject({ kind: 'stream-attempt', topicId: 'a' })
       // Nothing that can reach a listener, buffer, accumulator or abort controller.

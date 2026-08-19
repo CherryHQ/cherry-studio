@@ -73,6 +73,7 @@ import { isRendererListener, WebContentsListener } from './listeners/WebContents
 import { MessageRuntimeTimingCollector } from './MessageRuntimeTimingCollector'
 import { pipeStreamLoop } from './pipeStreamLoop'
 import { projectStreamChunkPayloadForRenderer } from './rendererPayload'
+import { TerminalPersistenceCoordinator, type TerminalRecoveryRecord } from './TerminalPersistenceCoordinator'
 import { TopicStreamAggregate } from './TopicStreamAggregate'
 import { type ContinuationLeaseId, type ContinuationReleaseReason, toContinuationLeaseId } from './topicStreamState'
 import type {
@@ -100,36 +101,6 @@ interface PersistenceDispatchFailure {
   durableErrorWritten: boolean
   blockedPortIds: Set<string>
 }
-
-/**
- * A blocked terminal write, as identity plus immutable payload — never a closure (P3).
- *
- * The previous shape captured `stream` and `exec`, which kept the whole `ActiveStream` (listeners,
- * every sibling execution, chunk rings, accumulators) reachable for as long as storage stayed down.
- * The coordinator resolves the live objects by identity at execution time instead.
- */
-interface StreamAttemptRecovery {
-  readonly kind: 'stream-attempt'
-  readonly topicId: string
-  readonly cycleId: number
-  readonly attemptId: AttemptId
-  /** Ports that still owe a durable write; narrows as partial retries succeed. */
-  blockedPortIds: readonly string[]
-}
-
-/**
- * Reservation-failure marker writes. Still closure-bearing: converting it needs
- * `failDispatchReservation` to take its rows as data, which is a caller-facing signature change.
- * Bounded — it captures the receipt and the caller's marker write, not the stream graph.
- */
-interface ReservationRecovery {
-  readonly kind: 'reservation'
-  readonly topicId: string
-  retry: () => Promise<boolean>
-  abandon: () => Promise<void>
-}
-
-type BlockedPersistenceRecovery = StreamAttemptRecovery | ReservationRecovery
 
 const PERSISTENCE_RETRY_INTERVAL_MS = 5_000
 
@@ -461,11 +432,8 @@ export class AiStreamManager extends BaseService {
   private readonly inFlightChatContinuations = new Map<string, Promise<void>>()
   /** Durable terminal writes that failed without even an error marker. They stay topic-owned and
    *  retry in-process so a transient database outage cannot leave the aggregate open forever. */
-  private readonly blockedPersistenceRecoveries = new Map<string, BlockedPersistenceRecovery>()
-  /** Per-key single-flight: Stop joins only its own key's run; the global
-   *  `inFlightPersistenceRecoveries` registry serves drain/shutdown only. */
-  private readonly activePersistenceRecoveryRuns = new Map<string, Promise<void>>()
-  private readonly inFlightPersistenceRecoveries = new Map<Promise<void>, string>()
+  /** Single owner of blocked terminal writes: parked records, single-flight runs, drain set. */
+  private readonly recoveries = new TerminalPersistenceCoordinator()
   /** Shutdown wins over pause-release compensation (same posture as JobManager). */
   private isShuttingDown = false
   /** Constructed once and reused — `dispatchStreamRequest` passes it through `send()`. */
@@ -657,9 +625,7 @@ export class AiStreamManager extends BaseService {
     for (const topicId of this.inFlightChatContinuations.keys()) {
       work.push({ id: `chat-continuation:${topicId}`, summary: 'steer continuation launching' })
     }
-    for (const [key, recovery] of this.blockedPersistenceRecoveries) {
-      work.push({ id: `persistence-recovery:${key}`, summary: `terminal persistence blocked:${recovery.topicId}` })
-    }
+    work.push(...this.recoveries.listActiveWork())
     return work
   }
 
@@ -678,9 +644,7 @@ export class AiStreamManager extends BaseService {
     for (const [topicId, launch] of this.inFlightChatContinuations) {
       entries.push([launch, `chat-continuation:${topicId}`])
     }
-    for (const [recovery, id] of this.inFlightPersistenceRecoveries) {
-      entries.push([recovery, id])
-    }
+    entries.push(...this.recoveries.drainWaitSet())
     for (const [key, write] of topicNamingService.inFlightWrites()) {
       entries.push([write, `naming:${key}`])
     }
@@ -779,7 +743,7 @@ export class AiStreamManager extends BaseService {
     }
 
     await Promise.allSettled(loopPromises)
-    await Promise.allSettled([...this.inFlightPersistenceRecoveries.keys()])
+    await Promise.allSettled(this.recoveries.inFlightRuns())
   }
 
   // ── Public: unified send ──────────────────────────────────────────
@@ -915,34 +879,7 @@ export class AiStreamManager extends BaseService {
    *  it remains public so recovery can also be triggered explicitly after storage health returns. */
   async retryBlockedPersistence(): Promise<void> {
     if (this.isShuttingDown || this.isWriteQuiesced) return
-
-    const retries: Promise<void>[] = []
-    for (const [key, recovery] of this.blockedPersistenceRecoveries) {
-      if (this.activePersistenceRecoveryRuns.has(key)) continue
-
-      const retry = (async () => {
-        try {
-          const recovered = await this.runRecovery(recovery)
-          if (recovered && this.blockedPersistenceRecoveries.get(key) === recovery) {
-            this.blockedPersistenceRecoveries.delete(key)
-          }
-        } catch (recoveryError) {
-          logger.error('Blocked topic persistence recovery threw', {
-            topicId: recovery.topicId,
-            recoveryError
-          })
-        } finally {
-          this.activePersistenceRecoveryRuns.delete(key)
-        }
-      })()
-      // The async body cannot reach its `finally` before this set: it suspends at
-      // the first `await` no matter how `recovery.retry()` settles.
-      this.activePersistenceRecoveryRuns.set(key, retry)
-      this.inFlightPersistenceRecoveries.set(retry, `persistence-recovery:${recovery.topicId}`)
-      retries.push(retry)
-    }
-    await Promise.allSettled(retries)
-    for (const retry of retries) this.inFlightPersistenceRecoveries.delete(retry)
+    await this.recoveries.runAll((record) => this.runRecovery(record))
   }
 
   /**
@@ -953,9 +890,7 @@ export class AiStreamManager extends BaseService {
    */
   private async abandonBlockedPersistence(topicId: string, reason: string): Promise<void> {
     if (this.isShuttingDown || this.isWriteQuiesced) return
-    const keys = [...this.blockedPersistenceRecoveries]
-      .filter(([, recovery]) => recovery.topicId === topicId)
-      .map(([key]) => key)
+    const keys = this.recoveries.keysForTopic(topicId)
     if (keys.length === 0) return
     logger.warn('Stop while terminal persistence is blocked — retrying once, then abandoning', {
       topicId,
@@ -964,33 +899,18 @@ export class AiStreamManager extends BaseService {
     })
 
     for (const key of keys) {
-      // Serialize with the interval retry: abandoning while a write for the same key is in
-      // flight could publish an error terminal for a write that actually committed. Join only
-      // THIS key's run — another topic's hung recovery must not block this Stop.
+      // Serialize with the interval retry: abandoning while a write for the same key is in flight
+      // could publish an error terminal for a write that actually committed. Join only THIS key's
+      // run — another topic's hung recovery must not block this Stop.
       let activeRun: Promise<void> | undefined
-      while ((activeRun = this.activePersistenceRecoveryRuns.get(key))) {
+      while ((activeRun = this.recoveries.activeRun(key))) {
         await activeRun
       }
-      const recovery = this.blockedPersistenceRecoveries.get(key)
-      if (!recovery) continue
-
-      const run = (async () => {
-        try {
-          const recovered = await this.runRecovery(recovery)
-          if (!recovered) await this.abandonRecovery(recovery)
-          if (this.blockedPersistenceRecoveries.get(key) === recovery) {
-            this.blockedPersistenceRecoveries.delete(key)
-          }
-        } catch (abandonError) {
-          logger.error('Abandoning blocked persistence failed', { topicId, key, abandonError })
-        } finally {
-          this.activePersistenceRecoveryRuns.delete(key)
-        }
-      })()
-      this.activePersistenceRecoveryRuns.set(key, run)
-      this.inFlightPersistenceRecoveries.set(run, `persistence-recovery:${topicId}`)
-      await run
-      this.inFlightPersistenceRecoveries.delete(run)
+      await this.recoveries.run(key, async (record) => {
+        if (await this.runRecovery(record)) return true
+        await this.abandonRecovery(record)
+        return true
+      })
     }
   }
 
@@ -1003,7 +923,7 @@ export class AiStreamManager extends BaseService {
   ): void {
     const attemptIds = receipt.reservedAttemptIds ?? []
     const key = `reservation:${attemptIds.join(',')}`
-    this.blockedPersistenceRecoveries.set(key, {
+    this.recoveries.submit(key, {
       kind: 'reservation',
       topicId,
       retry: async () => {
@@ -2150,7 +2070,7 @@ export class AiStreamManager extends BaseService {
    * so a record can never resurrect an evicted stream or a superseded cycle.
    */
   private resolveBlockedAttempt(
-    record: StreamAttemptRecovery
+    record: Extract<TerminalRecoveryRecord, { kind: 'stream-attempt' }>
   ): { stream: ActiveStream; exec: StreamExecution } | undefined {
     const stream = this.activeStreams.get(record.topicId)
     if (!stream || stream.aggregate.cycleId !== record.cycleId) return undefined
@@ -2160,7 +2080,9 @@ export class AiStreamManager extends BaseService {
   }
 
   /** One retry pass for a record. Returns true when the record is finished and can be dropped. */
-  private async runAttemptRecovery(record: StreamAttemptRecovery): Promise<boolean> {
+  private async runAttemptRecovery(
+    record: Extract<TerminalRecoveryRecord, { kind: 'stream-attempt' }>
+  ): Promise<boolean> {
     const resolved = this.resolveBlockedAttempt(record)
     if (!resolved) return true
     const { stream, exec } = resolved
@@ -2196,18 +2118,20 @@ export class AiStreamManager extends BaseService {
     return true
   }
 
-  private async abandonAttemptRecovery(record: StreamAttemptRecovery): Promise<void> {
+  private async abandonAttemptRecovery(
+    record: Extract<TerminalRecoveryRecord, { kind: 'stream-attempt' }>
+  ): Promise<void> {
     const resolved = this.resolveBlockedAttempt(record)
     if (!resolved) return
     this.transitionAttempt(resolved.stream.aggregate, resolved.exec, { type: 'abandon' })
     await this.settleUnblockedExecution(resolved.stream, resolved.exec)
   }
 
-  private runRecovery(record: BlockedPersistenceRecovery): Promise<boolean> {
+  private runRecovery(record: TerminalRecoveryRecord): Promise<boolean> {
     return record.kind === 'stream-attempt' ? this.runAttemptRecovery(record) : record.retry()
   }
 
-  private abandonRecovery(record: BlockedPersistenceRecovery): Promise<void> {
+  private abandonRecovery(record: TerminalRecoveryRecord): Promise<void> {
     return record.kind === 'stream-attempt' ? this.abandonAttemptRecovery(record) : record.abandon()
   }
 
@@ -2219,7 +2143,7 @@ export class AiStreamManager extends BaseService {
     if (!failure || failure.durableErrorWritten) return false
 
     const key = `execution:${exec.attemptId}`
-    this.blockedPersistenceRecoveries.set(key, {
+    this.recoveries.submit(key, {
       kind: 'stream-attempt',
       topicId: stream.topicId,
       cycleId: stream.aggregate.cycleId,
@@ -3300,9 +3224,7 @@ export class AiStreamManager extends BaseService {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return
     if (stream.cleanupTimer) clearTimeout(stream.cleanupTimer)
-    for (const [key, recovery] of this.blockedPersistenceRecoveries) {
-      if (recovery.topicId === topicId) this.blockedPersistenceRecoveries.delete(key)
-    }
+    this.recoveries.releaseTopic(topicId)
     const unsettledAttempts = [...stream.executions.values()].filter((exec) => !isAttemptSettled(exec.attempt.state))
     if (unsettledAttempts.length > 0) {
       logger.error('Evicting stream with unsettled attempts', {

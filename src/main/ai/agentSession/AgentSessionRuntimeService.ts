@@ -180,6 +180,23 @@ export interface AgentSessionInteractionState {
 }
 
 /**
+ * Exact identity of the attempt a settlement belongs to. `attemptId` is what makes a settlement
+ * refusable: a turn re-handed to a newer attempt must not be closed by the older one's terminal.
+ */
+export interface AgentSettlementIdentity {
+  readonly sessionId: string
+  readonly turnId: string
+  readonly topicId: string
+  readonly cycleId?: number
+  readonly attemptId?: number
+}
+
+/** One-shot typed terminal for a turn the stream manager owned. */
+export type AgentRuntimeTurnSettlement = AgentSettlementIdentity & {
+  readonly outcome: AgentSessionRuntimeTerminalStatus
+}
+
+/**
  * Which owner must drive a turn's pending assistant row to a durable terminal. Exactly one holds
  * it at a time; `stream-owned` carries the attempt identity that took it.
  */
@@ -321,33 +338,49 @@ type AgentSessionRuntimeEntry = {
   backgroundFlowFlush?: Promise<void>
 }
 
+/**
+ * Carries a stream terminal back to the runtime as a settlement with exact identity, rather than
+ * letting the runtime infer "my current turn just ended" from an untyped callback.
+ */
 class AgentSessionRuntimeTerminalListener implements StreamListener {
   readonly id: string
 
   constructor(
     private readonly service: AgentSessionRuntimeService,
     private readonly sessionId: string,
-    private readonly turnId: string
+    private readonly turnId: string,
+    private readonly topicId: string
   ) {
     this.id = `agent-runtime:${sessionId}`
   }
 
+  #settle(outcome: AgentSessionRuntimeTerminalStatus, result: { attemptId?: number; cycleId?: number }): void {
+    this.service.settleRuntimeTurn({
+      sessionId: this.sessionId,
+      turnId: this.turnId,
+      topicId: this.topicId,
+      outcome,
+      ...(result.attemptId !== undefined ? { attemptId: result.attemptId } : {}),
+      ...(result.cycleId !== undefined ? { cycleId: result.cycleId } : {})
+    })
+  }
+
   onChunk(): void {}
 
-  onDone(): void {
+  onDone(result: { attemptId?: number; cycleId?: number } = {}): void {
     // Always advance the runtime turn. For a single-model agent turn, `isTopicDone=false` only means
     // the stream manager is CHAINING the next turn (keeping the stream alive so the queued follow-up
-    // can carry the renderer listeners) — which still needs markTurnTerminal to open that next turn.
-    this.service.markTurnTerminal(this.sessionId, 'success', this.turnId)
+    // can carry the renderer listeners) — which still needs a settlement to open that next turn.
+    this.#settle('success', result)
   }
 
-  onPaused(result: StreamPausedResult): void {
+  onPaused(result: StreamPausedResult = {} as StreamPausedResult): void {
     if (result.isTopicDone === false) return
-    this.service.markTurnTerminal(this.sessionId, 'paused', this.turnId)
+    this.#settle('paused', result)
   }
 
-  onError(): void {
-    this.service.markTurnTerminal(this.sessionId, 'error', this.turnId)
+  onError(result: { attemptId?: number; cycleId?: number } = {}): void {
+    this.#settle('error', result)
   }
 
   isAlive(): boolean {
@@ -572,7 +605,7 @@ export class AgentSessionRuntimeService extends BaseService {
       this.applyRuntimeStateEvent(existing, { type: 'clear-steer-reservation' })
 
       return {
-        listeners: [new AgentSessionRuntimeTerminalListener(this, input.sessionId, turnId)],
+        listeners: [new AgentSessionRuntimeTerminalListener(this, input.sessionId, turnId, input.topicId)],
         persistencePorts: [this.createPersistenceListener(existing, userMessage)],
         cleanupPorts: [new TraceFlushListener(input.topicId)],
         turnId,
@@ -595,7 +628,7 @@ export class AgentSessionRuntimeService extends BaseService {
     this.entries.set(input.sessionId, entry)
 
     return {
-      listeners: [new AgentSessionRuntimeTerminalListener(this, input.sessionId, turnId)],
+      listeners: [new AgentSessionRuntimeTerminalListener(this, input.sessionId, turnId, input.topicId)],
       persistencePorts: [this.createPersistenceListener(entry, userMessage)],
       cleanupPorts: [new TraceFlushListener(input.topicId)],
       turnId,
@@ -942,6 +975,37 @@ export class AgentSessionRuntimeService extends BaseService {
     if (entry.runtimeState.execution.kind === 'idle') {
       this.requestRuntimeLaunch(entry, 'queued-turn')
     }
+  }
+
+  /**
+   * Apply a stream terminal to the turn it names (A4).
+   *
+   * The turn id alone was the only guard before, which cannot see the case this rejects: a turn
+   * handed to attempt N and then re-handed to N+1 — a steer or deferred relaunch — would be closed
+   * by N's in-flight terminal while N+1 is still live. `TurnPersistenceState` records the attempt
+   * that actually took the row, so the mismatch is answerable rather than inferred.
+   */
+  settleRuntimeTurn(settlement: AgentRuntimeTurnSettlement): void {
+    const entry = this.entries.get(settlement.sessionId)
+    if (!entry) return
+    const turn = this.currentTurn(entry)
+    if (!turn || turn.turnId !== settlement.turnId) return
+
+    const persistence = turn.persistence
+    if (
+      persistence.kind === 'stream-owned' &&
+      settlement.attemptId !== undefined &&
+      persistence.attemptId !== settlement.attemptId
+    ) {
+      logger.warn('Ignored settlement from a superseded attempt', {
+        sessionId: settlement.sessionId,
+        turnId: settlement.turnId,
+        settlingAttemptId: settlement.attemptId,
+        ownedAttemptId: persistence.attemptId
+      })
+      return
+    }
+    this.markTurnTerminal(settlement.sessionId, settlement.outcome, settlement.turnId)
   }
 
   markTurnTerminal(sessionId: string, status: AgentSessionRuntimeTerminalStatus, expectedTurnId?: string): void {
@@ -2930,7 +2994,7 @@ export class AgentSessionRuntimeService extends BaseService {
         runtime: { kind: 'agent-session', sessionId: entry.sessionId, turnId }
       },
       abortController: nextTurn.abortController,
-      listeners: [new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turnId)],
+      listeners: [new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turnId, entry.topicId)],
       persistencePorts: [this.createPersistenceListener(entry, nextMessage)],
       cleanupPorts: [new TraceFlushListener(entry.topicId)]
     })
@@ -3006,7 +3070,7 @@ export class AgentSessionRuntimeService extends BaseService {
         runtime: { kind: 'agent-session', sessionId: entry.sessionId, turnId: turn.turnId }
       },
       abortController: turn.abortController,
-      listeners: [new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turn.turnId)],
+      listeners: [new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turn.turnId, entry.topicId)],
       persistencePorts: [this.createPersistenceListener(entry, turn.userMessage)],
       cleanupPorts: [new TraceFlushListener(entry.topicId)]
     })
@@ -3102,7 +3166,7 @@ export class AgentSessionRuntimeService extends BaseService {
         runtime: { kind: 'agent-session', sessionId: entry.sessionId, turnId }
       },
       abortController: receiveOnlyTurn.abortController,
-      listeners: [new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turnId)],
+      listeners: [new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turnId, entry.topicId)],
       persistencePorts: [this.createPersistenceListener(entry, syntheticMessage)],
       cleanupPorts: [new TraceFlushListener(entry.topicId)]
     })
@@ -3214,7 +3278,7 @@ export class AgentSessionRuntimeService extends BaseService {
         runtime: { kind: 'agent-session', sessionId: entry.sessionId, turnId }
       },
       abortController: continuationTurn.abortController,
-      listeners: [new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turnId)],
+      listeners: [new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turnId, entry.topicId)],
       persistencePorts: [this.createPersistenceListener(entry, steerMessage)],
       cleanupPorts: [new TraceFlushListener(entry.topicId)]
     })

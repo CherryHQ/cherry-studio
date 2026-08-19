@@ -420,6 +420,34 @@ describe('AgentSessionRuntimeService', () => {
       expect(service.hasBusySessions()).toBe(true)
     })
 
+    // A4. The turn id alone cannot see this: the turn is still current, so a terminal from the
+    // attempt it was handed to *before* a relaunch would close the attempt that is now live.
+    it('refuses a settlement from an attempt the turn no longer belongs to', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      const turn = entry.currentTurn
+      turn.persistence = { kind: 'stream-owned', topicId: baseTurnInput.topicId, attemptId: 2 }
+
+      service.settleRuntimeTurn({
+        sessionId: 'session-1',
+        turnId: turn.turnId,
+        topicId: baseTurnInput.topicId,
+        attemptId: 1,
+        outcome: 'success'
+      })
+      expect(entry.runtimeState.lastTerminal).toBeUndefined()
+
+      service.settleRuntimeTurn({
+        sessionId: 'session-1',
+        turnId: turn.turnId,
+        topicId: baseTurnInput.topicId,
+        attemptId: 2,
+        outcome: 'success'
+      })
+      expect(entry.runtimeState.lastTerminal).toBe('success')
+    })
+
     it('is false once a turn settles with no queued follow-ups', () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
