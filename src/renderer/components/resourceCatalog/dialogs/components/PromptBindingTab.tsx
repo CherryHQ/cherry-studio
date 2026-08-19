@@ -1,4 +1,4 @@
-import { Alert, Button, EmptyState, ReorderableList } from '@cherrystudio/ui'
+import { Alert, Button, EmptyState, ReorderableList, Tooltip } from '@cherrystudio/ui'
 import { useDataChange, useQuery } from '@data/hooks/useDataApi'
 import { useReorder } from '@data/hooks/useReorder'
 import { usePromptBindingMutations, usePromptMutations } from '@renderer/hooks/resourceCatalog'
@@ -228,16 +228,18 @@ export function PromptBindingTab({ enabled, target, portalContainer }: PromptBin
                     </div>
                   ) : null}
                 </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  disabled={isBinding || isReordering}
-                  onClick={() => void handleBindingChange(prompt.id, false)}
-                  aria-label={t('settings.prompts.binding.remove', { title: prompt.title })}
-                  className="flex h-6 min-h-0 w-6 shrink-0 items-center justify-center rounded-md font-normal text-muted-foreground opacity-0 shadow-none transition-all hover:bg-accent/50 hover:text-foreground focus-visible:opacity-100 focus-visible:ring-0 group-hover:opacity-100">
-                  <Unlink size={10} />
-                </Button>
+                <Tooltip content={t('settings.prompts.binding.remove', { title: prompt.title })}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    disabled={isBinding || isReordering}
+                    onClick={() => void handleBindingChange(prompt.id, false)}
+                    aria-label={t('settings.prompts.binding.remove', { title: prompt.title })}
+                    className="flex h-6 min-h-0 w-6 shrink-0 items-center justify-center rounded-md font-normal text-muted-foreground opacity-0 shadow-none transition-all hover:bg-accent/50 hover:text-foreground focus-visible:opacity-100 focus-visible:ring-0 group-hover:opacity-100">
+                    <Unlink size={10} />
+                  </Button>
+                </Tooltip>
               </div>
             )}
           />

@@ -808,12 +808,16 @@ describe('edit dialogs', () => {
   })
 
   it('unbinds a prompt from the agent being edited', async () => {
+    const user = userEvent.setup()
     promptCatalogState.current.bound = [...promptCatalogState.current.all]
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
 
     selectTab('Prompts')
     expect(screen.getByText('Reusable prompt')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Remove prompt Reusable prompt' }))
+    const removeButton = screen.getByRole('button', { name: 'Remove prompt Reusable prompt' })
+    await user.hover(removeButton)
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Remove prompt Reusable prompt')
+    await user.click(removeButton)
 
     await waitFor(() =>
       expect(unbindPromptMock).toHaveBeenCalledWith({
