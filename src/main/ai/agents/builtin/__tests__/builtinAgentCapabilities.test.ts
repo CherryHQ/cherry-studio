@@ -10,10 +10,7 @@ const agentOf = (type: AgentType, builtinRole?: string) =>
 describe('resolveAgentCapabilities', () => {
   it('gives an Agent with no built-in role the unprivileged defaults', () => {
     expect(resolveAgentCapabilities({ configuration: {} })).toEqual({
-      skillSource: 'user',
-      skillDiscovery: true,
-      filesystemSettings: true,
-      pluginSources: 'workspace',
+      environment: 'open',
       allKnowledgeBases: false
     })
   })
@@ -26,10 +23,7 @@ describe('resolveAgentCapabilities', () => {
 
   it('closes Cherry Support to its own bundle', () => {
     const capabilities = resolveAgentCapabilities({ configuration: { builtin_role: BUILTIN_AGENT_ROLE.SUPPORT } })
-    expect(capabilities.skillSource).toBe('bundle')
-    expect(capabilities.skillDiscovery).toBe(false)
-    expect(capabilities.filesystemSettings).toBe(false)
-    expect(capabilities.pluginSources).toBe('bundle')
+    expect(capabilities.environment).toBe('sealed')
   })
 
   it('withholds arbitrary Agent creation from Cherry Support', () => {

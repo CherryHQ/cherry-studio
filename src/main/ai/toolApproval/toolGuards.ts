@@ -30,8 +30,8 @@ export interface ToolGuardContext {
   readonly input: Readonly<Record<string, unknown>> | undefined
   readonly permissionMode: AgentPermissionMode | undefined
   readonly builtinRole: string | undefined
-  /** Whether the assistant support MCP servers are mounted for this session (not role-derivable). */
-  readonly assistantMcpEnabled: boolean
+  /** Cherry-owned MCP servers mounted for this session (not role-derivable). */
+  readonly mountedServers: ReadonlySet<string>
   readonly cwd: string
   readonly agentDataPath: string
   readonly interaction: ToolGuardInteractionState

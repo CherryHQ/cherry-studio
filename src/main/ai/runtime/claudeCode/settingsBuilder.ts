@@ -18,7 +18,7 @@ import { agentChannelService as channelService } from '@data/services/AgentChann
 import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
-import { hostToolsEnabled, resolveAgentCapabilities } from '@main/ai/agents/builtin/builtinAgentCapabilities'
+import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { BUILTIN_AGENT_PLUGIN_NAME } from '@main/ai/agents/builtin/builtinAgentDefinition'
 import {
   getBuiltinAgentPluginDirectory,
@@ -156,7 +156,7 @@ export async function buildClaudeCodeSessionSettings(
       ? channelService.findBySessionId(session.id)
       : options.linkedChannelSnapshot
   const capabilities = resolveAgentCapabilities(agent)
-  const assistantMcpEnabled = hostToolsEnabled(agent, { channelLinked: linkedChannelSnapshot !== null })
+  const mountedServers = resolveMountedMcpServers(agent, { channelLinked: linkedChannelSnapshot !== null })
 
   // Validate before opening MCP connections, then overlap the independent setup work.
   const cwd = session.workspace.path
@@ -171,7 +171,7 @@ export async function buildClaudeCodeSessionSettings(
   const needsPrivateSkillPlugin = isExternalCliProvider(provider) || Boolean(builtinRole)
   const localPlugin = (pluginPath: string) => ({ type: 'local' as const, path: pluginPath, skipMcpDiscovery: true })
   const plugins =
-    capabilities.pluginSources === 'bundle'
+    capabilities.environment === 'sealed'
       ? builtinPluginDirectory
         ? [localPlugin(builtinPluginDirectory)]
         : undefined
@@ -197,7 +197,7 @@ export async function buildClaudeCodeSessionSettings(
   const { canUseTool, hooks, disallowedTools, toolPolicySnapshot } = await buildToolPermissions(
     session,
     agent,
-    assistantMcpEnabled,
+    mountedServers,
     agentDataPath,
     agentsMdLoader
   )
@@ -221,7 +221,7 @@ export async function buildClaudeCodeSessionSettings(
   const mcpServers = buildMcpServers(
     session,
     agent,
-    assistantMcpEnabled,
+    mountedServers,
     options?.mcpServerSnapshots,
     linkedChannelSnapshot,
     agentDataPath,
@@ -258,9 +258,7 @@ export async function buildClaudeCodeSessionSettings(
   }
 
   // 8. Auto-approve allowlist for injected built-in MCP servers
-  const finalAllowedTools = adjustAllowedToolsForMcp(assistantMcpEnabled, disallowedTools).filter(
-    (toolName) => capabilities.skillDiscovery || toolName !== 'mcp__skills__search_skills'
-  )
+  const finalAllowedTools = adjustAllowedToolsForMcp(mountedServers, disallowedTools)
 
   // 9. Skills — pass the SDK skill-name whitelist (managed skills enabled for this
   // agent + the workspace's own .claude/skills). The CLAUDE_CONFIG_DIR/skills mirror
@@ -301,7 +299,7 @@ export async function buildClaudeCodeSessionSettings(
     systemPrompt,
     // Support loads only Cherry-owned plugin configuration. AGENTS.md context is injected above
     // by AgentsMdLoader, so disabling filesystem settings does not remove workspace instructions.
-    settingSources: capabilities.filesystemSettings ? getSettingSources(provider) : [],
+    settingSources: capabilities.environment === 'sealed' ? [] : getSettingSources(provider),
     settings: {
       autoCompactEnabled: true,
       // Cherry owns persistent Agent memory through SOUL/USER/FACT/JOURNAL and agent-memory.
@@ -373,7 +371,7 @@ export async function buildSkillWhitelist(
 ): Promise<string[]> {
   const builtinRole = agent.configuration?.builtin_role as string | undefined
   const bundledNames = builtinRole ? (loadBuiltinAgentDefinition(builtinRole)?.skills ?? []) : []
-  if (resolveAgentCapabilities(agent).skillSource === 'bundle') {
+  if (resolveAgentCapabilities(agent).environment === 'sealed') {
     return bundledNames.map((skill) => `${BUILTIN_AGENT_PLUGIN_NAME}:${skill}`)
   }
 
@@ -411,7 +409,7 @@ async function discoverPlugins(cwd: string, agentId: string): Promise<SdkPluginC
 async function buildToolPermissions(
   session: AgentSessionEntity,
   agent: AgentEntity,
-  assistantMcpEnabled: boolean,
+  mountedServers: ReadonlySet<string>,
   agentDataPath: string,
   agentsMdLoader: AgentsMdLoader
 ): Promise<{
@@ -426,7 +424,7 @@ async function buildToolPermissions(
   // Raw session context for tool enable-predicates (worktree tools need a .git dir).
   const cwd = session.workspace?.path
   const conditionContext: ClaudeToolContext | undefined = cwd ? { cwd } : undefined
-  const approvalRequiredTools = approvalRequiredRuntimeNames(assistantMcpEnabled)
+  const approvalRequiredTools = approvalRequiredRuntimeNames(mountedServers)
 
   const toolPolicySnapshot = await sessionState().ensureToolPolicySnapshot(session.id, agent, {
     // cherry-tools is injected for every session. Auto-allowing these explicit tools (no per-call
@@ -438,7 +436,7 @@ async function buildToolPermissions(
     // (CHANNEL_SECURITY_PROMPT). The autonomy tools (cron/notify/config) also stay auto-approved —
     // they were blanket-allowed as the standalone `cherry` server before the merge. Keep this an
     // explicit allowlist so a future cherry-tools addition does not become auto-approved by prefix.
-    autoAllowRuntimeNames: listBuiltinToolPolicies({ approval: 'auto', assistantMcpEnabled }).map(toMcpRuntimeName),
+    autoAllowRuntimeNames: listBuiltinToolPolicies({ approval: 'auto', mountedServers }).map(toMcpRuntimeName),
     // Side-effecting and local-data-reading built-in tools must still prompt for approval.
     autoAllowRuntimeNameExceptions: approvalRequiredTools,
     conditionContext
@@ -462,7 +460,7 @@ async function buildToolPermissions(
     // lifts it for `bypassApproval: 'lift'` tools — instead of relying on the SDK skipping
     // `canUseTool` under bypassPermissions.
     const interactionState = application.get('AgentSessionRuntimeService').getInteractionState(session.id)
-    const policy = findBuiltinToolPolicy(toolName, assistantMcpEnabled)
+    const policy = findBuiltinToolPolicy(toolName, mountedServers)
     const approvalHoldsInThisMode =
       policy?.approval === 'required' &&
       !(snapshot.getPermissionMode() === 'bypassPermissions' && policy.bypassApproval === 'lift')
@@ -548,7 +546,7 @@ async function buildToolPermissions(
     cwd,
     agentDataPath,
     builtinRole,
-    assistantMcpEnabled,
+    mountedServers,
     agentsMdLoader
   })
 
@@ -622,8 +620,11 @@ function isToolDisallowed(toolName: string, disallowedTools: readonly string[]):
   return disallowedTools.some((rule) => rule === 'mcp__*' || rule === serverRule || rule === `${serverRule}__*`)
 }
 
-export function adjustAllowedToolsForMcp(assistantMcpEnabled: boolean, disallowedTools: readonly string[]): string[] {
-  return listBuiltinToolPolicies({ approval: 'auto', assistantMcpEnabled })
+export function adjustAllowedToolsForMcp(
+  mountedServers: ReadonlySet<string>,
+  disallowedTools: readonly string[]
+): string[] {
+  return listBuiltinToolPolicies({ approval: 'auto', mountedServers })
     .map(toMcpRuntimeName)
     .filter((toolName) => !isToolDisallowed(toolName, disallowedTools))
 }

@@ -11,22 +11,27 @@
  * a data file. `agent.json` stays the Agent's content (identity, instructions, skills).
  */
 
+import { CHERRY_MCP_SERVER } from '@main/ai/toolApproval/builtinToolPolicy'
 import { type AssistantToolName } from '@shared/ai/assistantTools'
 import { BUILTIN_AGENT_ROLE, type BuiltinAgentRole } from '@shared/ai/builtinAgent'
 import { AGENT_TYPES, type AgentEntity, type AgentType } from '@shared/data/api/schemas/agents'
 
+/**
+ * Two independent axes, not one field per call site: what the Agent lets in from the user's side,
+ * and what it may reach on the host's side.
+ */
 export interface AgentCapabilities {
-  /** 'bundle': only the Agent's own skills, plugin-qualified. 'user': managed + workspace + bundled. */
-  skillSource: 'user' | 'bundle'
-  /** Mount the skills MCP server (search / install). */
-  skillDiscovery: boolean
-  /** Load the provider's filesystem setting sources. */
-  filesystemSettings: boolean
-  /** 'bundle': load the Agent's own plugin directory only. */
-  pluginSources: 'workspace' | 'bundle'
-  /** Read every knowledge base, not just the bound or selected ones. */
+  /**
+   * What composes into the session besides the Agent itself. 'open': the user's environment —
+   * their installed skills, the skill marketplace, the workspace's `.claude/` plugins and settings
+   * files. 'sealed': nothing but what the Agent's own bundle ships, so the Agent behaves the same
+   * on every machine. One axis, because a half-sealed Agent has no meaning today: letting the
+   * workspace supply plugins but not skills would just be an unreviewed hole in the same boundary.
+   */
+  environment: 'open' | 'sealed'
+  /** Read every knowledge base, not just those bound to the Agent or picked in the composer. */
   allKnowledgeBases: boolean
-  /** Absent for Agents with no host access. */
+  /** Tools that act on Cherry Studio itself. Absent for an Agent with no host access. */
   hostTools?: {
     /** Omit for the complete assistant tool set. */
     tools?: readonly AssistantToolName[]
@@ -38,24 +43,18 @@ export interface AgentCapabilities {
 }
 
 const DEFAULT_CAPABILITIES: AgentCapabilities = {
-  skillSource: 'user',
-  skillDiscovery: true,
-  filesystemSettings: true,
-  pluginSources: 'workspace',
+  environment: 'open',
   allKnowledgeBases: false
 }
 
 const CAPABILITIES_BY_ROLE: Record<BuiltinAgentRole, AgentCapabilities> = {
   [BUILTIN_AGENT_ROLE.ASSISTANT]: {
-    ...DEFAULT_CAPABILITIES,
+    environment: 'open',
     allKnowledgeBases: true,
     hostTools: { inChannelSessions: false, runtimes: AGENT_TYPES }
   },
   [BUILTIN_AGENT_ROLE.SUPPORT]: {
-    skillSource: 'bundle',
-    skillDiscovery: false,
-    filesystemSettings: false,
-    pluginSources: 'bundle',
+    environment: 'sealed',
     allKnowledgeBases: false,
     // Product-support capabilities intentionally exclude creation of arbitrary Agents. Support keeps
     // product lookups on channel-linked sessions; the sensitive tools still require a responder.
@@ -83,4 +82,21 @@ export function hostToolsEnabled(
   const hostTools = resolveAgentCapabilities(agent).hostTools
   if (!hostTools?.runtimes.includes(agent.type)) return false
   return hostTools.inChannelSessions || !channelLinked
+}
+
+/**
+ * The Cherry-owned MCP servers this session mounts — the one place that decides, so the server set
+ * and the tool-approval policy derived from it cannot disagree.
+ */
+export function resolveMountedMcpServers(
+  agent: Pick<AgentEntity, 'type' | 'configuration'>,
+  { channelLinked }: { channelLinked: boolean }
+): ReadonlySet<string> {
+  const mounted = new Set<string>([CHERRY_MCP_SERVER.CHERRY_TOOLS, CHERRY_MCP_SERVER.AGENT_MEMORY])
+  if (resolveAgentCapabilities(agent).environment === 'open') mounted.add(CHERRY_MCP_SERVER.SKILLS)
+  if (hostToolsEnabled(agent, { channelLinked })) {
+    mounted.add(CHERRY_MCP_SERVER.ASSISTANT)
+    mounted.add(CHERRY_MCP_SERVER.ASSISTANT_FILES)
+  }
+  return mounted
 }

@@ -1387,7 +1387,7 @@ describe('PiRuntimeConnection', () => {
       expect(mocks.buildAgentMcpServers).toHaveBeenCalledWith(
         expect.anything(),
         expect.anything(),
-        false,
+        new Set(['cherry-tools', 'agent-memory', 'skills']),
         expect.any(Map),
         null,
         AGENT_DATA_PATH,
@@ -1486,7 +1486,7 @@ describe('PiRuntimeConnection', () => {
       expect(mocks.buildAgentMcpServers).toHaveBeenCalledWith(
         agentSession,
         expect.objectContaining({ id: 'agent-1' }),
-        false,
+        new Set(['cherry-tools', 'agent-memory', 'skills']),
         expect.any(Map),
         null,
         AGENT_DATA_PATH,
@@ -1560,7 +1560,7 @@ describe('PiRuntimeConnection', () => {
       expect(mocks.buildAgentMcpServers).toHaveBeenCalledWith(
         agentSession,
         expect.objectContaining({ id: 'agent-1' }),
-        false,
+        new Set(['cherry-tools', 'agent-memory', 'skills']),
         expect.any(Map),
         { id: 'chan-1' },
         AGENT_DATA_PATH,

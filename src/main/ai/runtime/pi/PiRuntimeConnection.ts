@@ -13,7 +13,7 @@ import type {
 } from '@earendil-works/pi-coding-agent'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
-import { hostToolsEnabled, resolveAgentCapabilities } from '@main/ai/agents/builtin/builtinAgentCapabilities'
+import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { endAgentRuntimeSpan, startAgentRuntimeChildSpan } from '@main/ai/observability'
 import { buildAgentMcpServers } from '@main/ai/runtime/agentMcpServers'
 import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
@@ -275,12 +275,12 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
       // Pi custom tools consume the complete runtime-neutral MCP set. Knowledge, memory, skills,
       // assistant tools, and user-configured servers all cross the same protocol adapter.
-      const assistantMcpEnabled = hostToolsEnabled(agent, { channelLinked: linkedChannel !== null })
+      const mountedServers = resolveMountedMcpServers(agent, { channelLinked: linkedChannel !== null })
       this.mcpBridge = await buildMcpToolDefinitions(
         buildAgentMcpServers(
           session,
           agent,
-          assistantMcpEnabled,
+          mountedServers,
           initialSnapshot.mcpServerSnapshots,
           linkedChannel,
           agentDataPath,

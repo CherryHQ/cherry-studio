@@ -8,7 +8,7 @@ function makeCtx(overrides: Partial<ToolGuardContext> = {}): ToolGuardContext {
     input: undefined,
     permissionMode: undefined,
     builtinRole: undefined,
-    assistantMcpEnabled: false,
+    mountedServers: new Set<string>(),
     cwd: '/ws',
     agentDataPath: '/data',
     interaction: { currentTurn: 'interactive', userResponse: 'stream' },

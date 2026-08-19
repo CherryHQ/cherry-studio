@@ -10,6 +10,9 @@ import {
   toMcpRuntimeName
 } from '../builtinToolPolicy'
 
+const WITHOUT_HOST_TOOLS: ReadonlySet<string> = new Set(['cherry-tools', 'agent-memory', 'skills'])
+const WITH_HOST_TOOLS: ReadonlySet<string> = new Set([...WITHOUT_HOST_TOOLS, 'assistant', 'assistant-files'])
+
 describe('builtinToolPolicy', () => {
   it('gives every entry one unique canonical MCP identity', () => {
     const runtimeNames = listBuiltinToolPolicies().map(toMcpRuntimeName)
@@ -17,28 +20,38 @@ describe('builtinToolPolicy', () => {
   })
 
   it('stores approval behavior on each tool entry instead of parallel name lists', () => {
-    expect(findBuiltinToolPolicy(toCherryBuiltinRuntimeName(KB_MANAGE_TOOL_NAME), false)?.approval).toBe('required')
-    expect(findBuiltinToolPolicy(toCherryBuiltinRuntimeName(CLI_INSTALL_TOOL_NAME), false)?.approval).toBe('required')
-    expect(findBuiltinToolPolicy(toCherryBuiltinRuntimeName(CLI_LIST_TOOL_NAME), false)?.approval).toBe('auto')
-    expect(findBuiltinToolPolicy('mcp__skills__install_skill', false)?.approval).toBe('runtime')
-    expect(findBuiltinToolPolicy(toCherryBuiltinRuntimeName(SESSION_SEND_TOOL_NAME), false)).toMatchObject({
-      approval: 'required',
-      bypassApproval: 'enforce'
-    })
+    expect(findBuiltinToolPolicy(toCherryBuiltinRuntimeName(KB_MANAGE_TOOL_NAME), WITHOUT_HOST_TOOLS)?.approval).toBe(
+      'required'
+    )
+    expect(findBuiltinToolPolicy(toCherryBuiltinRuntimeName(CLI_INSTALL_TOOL_NAME), WITHOUT_HOST_TOOLS)?.approval).toBe(
+      'required'
+    )
+    expect(findBuiltinToolPolicy(toCherryBuiltinRuntimeName(CLI_LIST_TOOL_NAME), WITHOUT_HOST_TOOLS)?.approval).toBe(
+      'auto'
+    )
+    expect(findBuiltinToolPolicy('mcp__skills__install_skill', WITHOUT_HOST_TOOLS)?.approval).toBe('runtime')
+    expect(findBuiltinToolPolicy(toCherryBuiltinRuntimeName(SESSION_SEND_TOOL_NAME), WITHOUT_HOST_TOOLS)).toMatchObject(
+      {
+        approval: 'required',
+        bypassApproval: 'enforce'
+      }
+    )
   })
 
   it('filters Assistant-only entries when their MCP servers are not mounted', () => {
-    expect(findBuiltinToolPolicy('mcp__assistant__diagnose', false)).toBeUndefined()
-    expect(findBuiltinToolPolicy('mcp__assistant__diagnose', true)?.approval).toBe('required')
+    expect(findBuiltinToolPolicy('mcp__assistant__diagnose', WITHOUT_HOST_TOOLS)).toBeUndefined()
+    expect(findBuiltinToolPolicy('mcp__assistant__diagnose', WITH_HOST_TOOLS)?.approval).toBe('required')
     expect(
-      listBuiltinToolPolicies({ assistantMcpEnabled: false }).every((entry) => entry.availability === 'always')
+      listBuiltinToolPolicies({ mountedServers: WITHOUT_HOST_TOOLS }).every((entry) =>
+        WITHOUT_HOST_TOOLS.has(entry.serverName)
+      )
     ).toBe(true)
   })
 
   it('does not auto-approve an undeclared future tool', () => {
-    expect(findBuiltinToolPolicy('mcp__cherry-tools__future_mutator', false)).toBeUndefined()
+    expect(findBuiltinToolPolicy('mcp__cherry-tools__future_mutator', WITHOUT_HOST_TOOLS)).toBeUndefined()
     expect(
-      listBuiltinToolPolicies({ approval: 'auto', assistantMcpEnabled: false })
+      listBuiltinToolPolicies({ approval: 'auto', mountedServers: WITHOUT_HOST_TOOLS })
         .map(toMcpRuntimeName)
         .includes('mcp__cherry-tools__future_mutator')
     ).toBe(false)

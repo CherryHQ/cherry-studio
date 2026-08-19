@@ -16,12 +16,14 @@ import { approvalRequiredRuntimeNames, CLAUDE_TOOL_GUARD_RULES, HEADLESS_INTERAC
 
 const INTERACTIVE = { currentTurn: 'interactive', userResponse: 'stream' } as const
 const HEADLESS = { currentTurn: 'headless', userResponse: 'unavailable' } as const
+const WITHOUT_HOST_TOOLS: ReadonlySet<string> = new Set(['cherry-tools', 'agent-memory', 'skills'])
+const WITH_HOST_TOOLS: ReadonlySet<string> = new Set([...WITHOUT_HOST_TOOLS, 'assistant', 'assistant-files'])
 const NON_ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({
   approval: 'required',
-  assistantMcpEnabled: false
+  mountedServers: WITHOUT_HOST_TOOLS
 }).map(toMcpRuntimeName)
 const ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({ approval: 'required' })
-  .filter((entry) => entry.availability === 'assistant')
+  .filter((entry) => !WITHOUT_HOST_TOOLS.has(entry.serverName))
   .map(toMcpRuntimeName)
 
 function makeCtx(overrides: Partial<ToolGuardContext> = {}): ToolGuardContext {
@@ -30,7 +32,7 @@ function makeCtx(overrides: Partial<ToolGuardContext> = {}): ToolGuardContext {
     input: undefined,
     permissionMode: 'default',
     builtinRole: undefined,
-    assistantMcpEnabled: false,
+    mountedServers: WITHOUT_HOST_TOOLS,
     cwd: '/ws',
     agentDataPath: '/data',
     interaction: INTERACTIVE,
@@ -47,8 +49,8 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
   })
 
   it('derives the per-call approval boundary from policy entries and mounted servers', () => {
-    expect(approvalRequiredRuntimeNames(false)).toEqual(NON_ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES)
-    expect(approvalRequiredRuntimeNames(true)).toEqual([
+    expect(approvalRequiredRuntimeNames(WITHOUT_HOST_TOOLS)).toEqual(NON_ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES)
+    expect(approvalRequiredRuntimeNames(WITH_HOST_TOOLS)).toEqual([
       ...NON_ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES,
       ...ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES
     ])
@@ -324,7 +326,9 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
     it('gates assistant tools only when the assistant MCP servers are mounted', async () => {
       const assistantTool = ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES[0]
       await expect(evaluate(makeCtx({ toolName: assistantTool }))).resolves.toBeUndefined()
-      await expect(evaluate(makeCtx({ toolName: assistantTool, assistantMcpEnabled: true }))).resolves.toMatchObject({
+      await expect(
+        evaluate(makeCtx({ toolName: assistantTool, mountedServers: WITH_HOST_TOOLS }))
+      ).resolves.toMatchObject({
         ruleId: 'approval-required'
       })
     })

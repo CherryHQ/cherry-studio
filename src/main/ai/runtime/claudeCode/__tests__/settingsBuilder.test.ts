@@ -21,12 +21,13 @@ const NON_BYPASSABLE_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({
   approval: 'required',
   bypassApproval: 'enforce'
 }).map(toMcpRuntimeName)
+const NON_HOST_MCP_SERVERS: ReadonlySet<string> = new Set(['cherry-tools', 'agent-memory', 'skills'])
 const NON_ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({
   approval: 'required',
-  assistantMcpEnabled: false
+  mountedServers: NON_HOST_MCP_SERVERS
 }).map(toMcpRuntimeName)
 const ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({ approval: 'required' })
-  .filter((entry) => entry.availability === 'assistant')
+  .filter((entry) => !NON_HOST_MCP_SERVERS.has(entry.serverName))
   .map(toMcpRuntimeName)
 
 const mocks = vi.hoisted(() => ({
@@ -1601,7 +1602,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const liftable = listBuiltinToolPolicies({
       approval: 'required',
       bypassApproval: 'lift',
-      assistantMcpEnabled: false
+      mountedServers: NON_HOST_MCP_SERVERS
     }).map(toMcpRuntimeName)
     for (const toolName of liftable) {
       await expect(decide(toolName)).resolves.toEqual({ behavior: 'allow', updatedInput: {} })

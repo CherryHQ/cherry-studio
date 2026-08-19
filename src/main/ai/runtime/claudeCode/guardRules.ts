@@ -48,10 +48,10 @@ export const WORKSPACE_PATH_FIELDS = {
 
 /**
  * Runtime boundary format for the snapshot's auto-allow exceptions. The maintained source is the
- * structured policy registry; Assistant tools count only while those MCP servers are mounted.
+ * structured policy registry; an entry counts only while its MCP server is mounted.
  */
-export function approvalRequiredRuntimeNames(assistantMcpEnabled: boolean): readonly string[] {
-  return listBuiltinToolPolicies({ approval: 'required', assistantMcpEnabled }).map(toMcpRuntimeName)
+export function approvalRequiredRuntimeNames(mountedServers: ReadonlySet<string>): readonly string[] {
+  return listBuiltinToolPolicies({ approval: 'required', mountedServers }).map(toMcpRuntimeName)
 }
 
 function bashCommand(ctx: ToolGuardContext): string | undefined {
@@ -83,7 +83,7 @@ const pathOutsideAllowedRoots = async (ctx: ToolGuardContext): Promise<GuardHit 
 }
 
 const matchesRequiredApproval = (ctx: ToolGuardContext, bypassApproval: 'lift' | 'enforce'): GuardHit | null => {
-  const policy = findBuiltinToolPolicy(ctx.toolName, ctx.assistantMcpEnabled)
+  const policy = findBuiltinToolPolicy(ctx.toolName, ctx.mountedServers)
   return policy?.approval === 'required' && policy.bypassApproval === bypassApproval ? {} : null
 }
 

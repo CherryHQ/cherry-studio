@@ -14,7 +14,7 @@ import type { HarnessClient, NotificationSubscription } from '@deepseek-ai/dsh-s
 import type { SessionEvent, TurnEndReason } from '@deepseek-ai/dsh-session'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
-import { hostToolsEnabled, resolveAgentCapabilities } from '@main/ai/agents/builtin/builtinAgentCapabilities'
+import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { buildAgentMcpServers } from '@main/ai/runtime/agentMcpServers'
 import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
@@ -314,12 +314,12 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     await writeFile(this.compositionPath, yaml, { encoding: 'utf8', mode: 0o600 })
 
     try {
-      const assistantMcpEnabled = hostToolsEnabled(agent, { channelLinked: snapshot.linkedChannel !== null })
+      const mountedServers = resolveMountedMcpServers(agent, { channelLinked: snapshot.linkedChannel !== null })
       const toolBridge = await buildDshCherryToolBridge(
         buildAgentMcpServers(
           session,
           agent,
-          assistantMcpEnabled,
+          mountedServers,
           snapshot.mcpServerSnapshots,
           snapshot.linkedChannel,
           this.agentDataPath,

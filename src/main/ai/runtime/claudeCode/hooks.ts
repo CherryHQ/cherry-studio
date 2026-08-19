@@ -42,8 +42,8 @@ export interface ClaudeCodeHookContext {
   agentDataPath: string
   /** Static per-session agent facts consumed by the guard table's `appliesTo` scoping. */
   builtinRole: string | undefined
-  /** Whether the assistant support MCP servers are mounted for this session. */
-  assistantMcpEnabled: boolean
+  /** Cherry-owned MCP servers mounted for this session. */
+  mountedServers: ReadonlySet<string>
   agentsMdLoader: AgentsMdLoader
 }
 
@@ -66,7 +66,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
       input: toolInput,
       permissionMode: snapshot?.getPermissionMode(),
       builtinRole: ctx.builtinRole,
-      assistantMcpEnabled: ctx.assistantMcpEnabled,
+      mountedServers: ctx.mountedServers,
       cwd,
       agentDataPath,
       interaction: application.get('AgentSessionRuntimeService').getInteractionState(sessionId),

@@ -38,8 +38,16 @@ import {
 } from '@shared/ai/builtinTools'
 
 export type BuiltinToolApproval = 'auto' | 'required' | 'runtime'
-export type BuiltinToolAvailability = 'always' | 'assistant'
 export type BuiltinToolBypassApproval = 'lift' | 'enforce'
+
+/** The Cherry-owned MCP servers. Which of them a session mounts is the runtime's call. */
+export const CHERRY_MCP_SERVER = {
+  CHERRY_TOOLS: 'cherry-tools',
+  AGENT_MEMORY: 'agent-memory',
+  SKILLS: 'skills',
+  ASSISTANT: 'assistant',
+  ASSISTANT_FILES: 'assistant-files'
+} as const
 
 export interface BuiltinToolPolicyEntry {
   readonly serverName: string
@@ -51,18 +59,15 @@ export interface BuiltinToolPolicyEntry {
   readonly approval: BuiltinToolApproval
   /** Whether Full Access lifts a `required` approval. */
   readonly bypassApproval: BuiltinToolBypassApproval
-  /** Assistant-only MCP servers are mounted only for the protected Assistant/Support roles. */
-  readonly availability: BuiltinToolAvailability
 }
 
 function tool(
   serverName: string,
   toolName: string,
   approval: BuiltinToolApproval,
-  availability: BuiltinToolAvailability = 'always',
   bypassApproval: BuiltinToolBypassApproval = 'lift'
 ): BuiltinToolPolicyEntry {
-  return { serverName, toolName, approval, availability, bypassApproval }
+  return { serverName, toolName, approval, bypassApproval }
 }
 
 /**
@@ -70,39 +75,39 @@ function tool(
  * omitting it is fail-closed for auto-approval because every consumer selects explicit entries.
  */
 const BUILTIN_TOOL_POLICIES = {
-  cherryWebSearch: tool('cherry-tools', WEB_SEARCH_TOOL_NAME, 'auto'),
-  cherryWebFetch: tool('cherry-tools', WEB_FETCH_TOOL_NAME, 'auto'),
-  cherryKnowledgeSearch: tool('cherry-tools', KB_SEARCH_TOOL_NAME, 'auto'),
-  cherryKnowledgeRead: tool('cherry-tools', KB_READ_TOOL_NAME, 'auto'),
-  cherryKnowledgeList: tool('cherry-tools', KB_LIST_TOOL_NAME, 'auto'),
-  cherryKnowledgeManage: tool('cherry-tools', KB_MANAGE_TOOL_NAME, 'required'),
-  cherryReportArtifacts: tool('cherry-tools', REPORT_ARTIFACTS_TOOL_NAME, 'auto'),
-  cherryCron: tool('cherry-tools', CRON_TOOL_NAME, 'auto'),
-  cherryNotify: tool('cherry-tools', NOTIFY_TOOL_NAME, 'auto'),
-  cherryConfig: tool('cherry-tools', CONFIG_TOOL_NAME, 'auto'),
-  cherrySessionList: tool('cherry-tools', SESSION_LIST_TOOL_NAME, 'auto'),
-  cherrySessionSearch: tool('cherry-tools', SESSION_SEARCH_TOOL_NAME, 'auto'),
-  cherrySessionDeliveries: tool('cherry-tools', SESSION_DELIVERIES_TOOL_NAME, 'auto'),
-  cherrySessionCreate: tool('cherry-tools', SESSION_CREATE_TOOL_NAME, 'required', 'always', 'enforce'),
-  cherrySessionSend: tool('cherry-tools', SESSION_SEND_TOOL_NAME, 'required', 'always', 'enforce'),
-  cherryCliList: tool('cherry-tools', CLI_LIST_TOOL_NAME, 'auto'),
-  cherryCliSearch: tool('cherry-tools', CLI_SEARCH_TOOL_NAME, 'auto'),
-  cherryCliInstall: tool('cherry-tools', CLI_INSTALL_TOOL_NAME, 'required'),
-  cherryToMarkdown: tool('cherry-tools', TO_MARKDOWN_TOOL_NAME, 'auto'),
-  cherryGenerateImage: tool('cherry-tools', GENERATE_IMAGE_TOOL_NAME, 'required'),
+  cherryWebSearch: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, WEB_SEARCH_TOOL_NAME, 'auto'),
+  cherryWebFetch: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, WEB_FETCH_TOOL_NAME, 'auto'),
+  cherryKnowledgeSearch: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, KB_SEARCH_TOOL_NAME, 'auto'),
+  cherryKnowledgeRead: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, KB_READ_TOOL_NAME, 'auto'),
+  cherryKnowledgeList: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, KB_LIST_TOOL_NAME, 'auto'),
+  cherryKnowledgeManage: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, KB_MANAGE_TOOL_NAME, 'required'),
+  cherryReportArtifacts: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, REPORT_ARTIFACTS_TOOL_NAME, 'auto'),
+  cherryCron: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, CRON_TOOL_NAME, 'auto'),
+  cherryNotify: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, NOTIFY_TOOL_NAME, 'auto'),
+  cherryConfig: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, CONFIG_TOOL_NAME, 'auto'),
+  cherrySessionList: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_LIST_TOOL_NAME, 'auto'),
+  cherrySessionSearch: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_SEARCH_TOOL_NAME, 'auto'),
+  cherrySessionDeliveries: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_DELIVERIES_TOOL_NAME, 'auto'),
+  cherrySessionCreate: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_CREATE_TOOL_NAME, 'required', 'enforce'),
+  cherrySessionSend: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_SEND_TOOL_NAME, 'required', 'enforce'),
+  cherryCliList: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, CLI_LIST_TOOL_NAME, 'auto'),
+  cherryCliSearch: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, CLI_SEARCH_TOOL_NAME, 'auto'),
+  cherryCliInstall: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, CLI_INSTALL_TOOL_NAME, 'required'),
+  cherryToMarkdown: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, TO_MARKDOWN_TOOL_NAME, 'auto'),
+  cherryGenerateImage: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, GENERATE_IMAGE_TOOL_NAME, 'required'),
 
-  agentMemory: tool('agent-memory', 'memory', 'auto'),
-  searchSkills: tool('skills', 'search_skills', 'auto'),
-  installSkill: tool('skills', 'install_skill', 'runtime'),
+  agentMemory: tool(CHERRY_MCP_SERVER.AGENT_MEMORY, 'memory', 'auto'),
+  searchSkills: tool(CHERRY_MCP_SERVER.SKILLS, 'search_skills', 'auto'),
+  installSkill: tool(CHERRY_MCP_SERVER.SKILLS, 'install_skill', 'runtime'),
 
-  assistantNavigate: tool('assistant', 'navigate', 'auto', 'assistant'),
-  assistantProductInfo: tool('assistant', 'product_info', 'auto', 'assistant'),
-  assistantDiagnose: tool('assistant', 'diagnose', 'required', 'assistant'),
-  assistantApplySetting: tool('assistant', 'apply_setting', 'required', 'assistant'),
-  assistantCreateAgent: tool('assistant', 'create_agent', 'required', 'assistant'),
-  assistantReadFile: tool('assistant-files', READ_FILE_TOOL_NAME, 'auto', 'assistant'),
-  assistantMoveToTrash: tool('assistant-files', MOVE_TO_TRASH_TOOL_NAME, 'required', 'assistant'),
-  assistantSaveAttachment: tool('assistant-files', SAVE_ATTACHMENT_TOOL_NAME, 'required', 'assistant')
+  assistantNavigate: tool(CHERRY_MCP_SERVER.ASSISTANT, 'navigate', 'auto'),
+  assistantProductInfo: tool(CHERRY_MCP_SERVER.ASSISTANT, 'product_info', 'auto'),
+  assistantDiagnose: tool(CHERRY_MCP_SERVER.ASSISTANT, 'diagnose', 'required'),
+  assistantApplySetting: tool(CHERRY_MCP_SERVER.ASSISTANT, 'apply_setting', 'required'),
+  assistantCreateAgent: tool(CHERRY_MCP_SERVER.ASSISTANT, 'create_agent', 'required'),
+  assistantReadFile: tool(CHERRY_MCP_SERVER.ASSISTANT_FILES, READ_FILE_TOOL_NAME, 'auto'),
+  assistantMoveToTrash: tool(CHERRY_MCP_SERVER.ASSISTANT_FILES, MOVE_TO_TRASH_TOOL_NAME, 'required'),
+  assistantSaveAttachment: tool(CHERRY_MCP_SERVER.ASSISTANT_FILES, SAVE_ATTACHMENT_TOOL_NAME, 'required')
 } as const satisfies Record<string, BuiltinToolPolicyEntry>
 
 const BUILTIN_TOOL_POLICY_ENTRIES: readonly BuiltinToolPolicyEntry[] = Object.values(BUILTIN_TOOL_POLICIES)
@@ -113,8 +118,8 @@ const BUILTIN_TOOL_POLICY_BY_RUNTIME_NAME = new Map(
 export interface BuiltinToolPolicyQuery {
   readonly approval?: BuiltinToolApproval
   readonly bypassApproval?: BuiltinToolBypassApproval
-  /** Omit to inspect the complete registry; false filters out Assistant-only entries. */
-  readonly assistantMcpEnabled?: boolean
+  /** Omit to inspect the complete registry; otherwise keep only entries whose server is mounted. */
+  readonly mountedServers?: ReadonlySet<string>
 }
 
 /** Query entries without exposing a mutable registry or a maintained name list. */
@@ -123,18 +128,17 @@ export function listBuiltinToolPolicies(query: BuiltinToolPolicyQuery = {}): Bui
     (entry) =>
       (query.approval === undefined || entry.approval === query.approval) &&
       (query.bypassApproval === undefined || entry.bypassApproval === query.bypassApproval) &&
-      (query.assistantMcpEnabled !== false || entry.availability !== 'assistant')
+      (query.mountedServers === undefined || query.mountedServers.has(entry.serverName))
   )
 }
 
-/** Resolve a Claude-style MCP runtime name against the policy active for this session. */
+/** Resolve a Claude-style MCP runtime name against the servers this session actually mounted. */
 export function findBuiltinToolPolicy(
   runtimeName: string,
-  assistantMcpEnabled: boolean
+  mountedServers: ReadonlySet<string>
 ): BuiltinToolPolicyEntry | undefined {
   const entry = BUILTIN_TOOL_POLICY_BY_RUNTIME_NAME.get(runtimeName)
-  if (entry?.availability === 'assistant' && !assistantMcpEnabled) return undefined
-  return entry
+  return entry && mountedServers.has(entry.serverName) ? entry : undefined
 }
 
 /** Standard MCP runtime name used by Claude Code and by safe DSH bridged identities. */

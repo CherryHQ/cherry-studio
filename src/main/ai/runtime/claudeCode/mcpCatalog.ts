@@ -26,7 +26,7 @@ const logger = loggerService.withContext('ClaudeCodeMcpCatalog')
 export function buildMcpServers(
   session: AgentSessionEntity,
   agent: AgentEntity,
-  assistantMcpEnabled: boolean,
+  mountedServers: ReadonlySet<string>,
   mcpServerSnapshots?: McpServerSnapshotMap,
   linkedChannelSnapshot?: LinkedChannelSnapshot,
   agentDataPath = session.workspace.path,
@@ -35,7 +35,7 @@ export function buildMcpServers(
   const servers = buildAgentMcpServers(
     session,
     agent,
-    assistantMcpEnabled,
+    mountedServers,
     mcpServerSnapshots,
     linkedChannelSnapshot,
     agentDataPath,
