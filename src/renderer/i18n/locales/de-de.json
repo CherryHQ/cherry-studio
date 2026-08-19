@@ -388,6 +388,15 @@
         "inaccessible": "Arbeitsbereichspfad ist nicht zugänglich: {{path}}"
       }
     },
+    "session_delivery": {
+      "from": "Von {{agent}} / {{session}}",
+      "status": {
+        "accepted": "Angenommen",
+        "consumed": "Verarbeitet",
+        "delivering": "Wird zugestellt",
+        "failed": "Fehlgeschlagen"
+      }
+    },
     "settings": {
       "permissionMode": {
         "title": "Berechtigungsmodus"
@@ -726,6 +735,22 @@
           "description": "Aufgabenliste verwalten",
           "label": "Aufgabenliste verwalten"
         },
+        "tool_call": {
+          "description": "Ein gefundenes Tool aufrufen",
+          "label": "Tool aufrufen"
+        },
+        "tool_describe": {
+          "description": "Die vollständige Beschreibung und TypeScript-Signatur eines Tools abrufen",
+          "label": "Tool beschreiben"
+        },
+        "tool_exec": {
+          "description": "JavaScript ausführen, das gefundene Tools orchestriert",
+          "label": "Tool-Code ausführen"
+        },
+        "tool_search": {
+          "description": "Verfügbare Tools suchen und ihre TypeScript-Signaturen lesen",
+          "label": "Tools suchen"
+        },
         "update_goal": {
           "description": "Status oder Inhalt des Sitzungsziels aktualisieren",
           "label": "Ziel aktualisieren"
@@ -784,6 +809,7 @@
       "restartSuccess": "API-Server erfolgreich neu gestartet",
       "startError": "API-Server starten fehlgeschlagen:",
       "startSuccess": "API-Server erfolgreich gestartet",
+      "stopDeferred": "Der API-Server wird beendet, sobald die aktuelle Übersetzung abgeschlossen ist",
       "stopError": "API-Server stoppen fehlgeschlagen:",
       "stopSuccess": "API-Server erfolgreich gestoppt"
     },
@@ -991,6 +1017,19 @@
       "knowledge_base_disabled_by_files": "Entfernen Sie angehängte Dateien, um die Wissensdatenbank zu verwenden.",
       "knowledge_base_unavailable": "Wählen Sie ein werkzeugfähiges Modell",
       "locate_editing_message": "Ursprüngliche Nachricht finden",
+      "mcp_prompts": {
+        "description": "Einen von einem MCP-Server bereitgestellten Prompt einfügen",
+        "empty": "Keine MCP-Prompts verfügbar",
+        "insert_failed": "Prompt konnte nicht eingefügt werden",
+        "title": "MCP-Prompts"
+      },
+      "mcp_resources": {
+        "description": "Eine von einem MCP-Server bereitgestellte Ressource referenzieren",
+        "empty": "Keine MCP-Ressourcen verfügbar",
+        "read_failed": "Ressource konnte nicht gelesen werden",
+        "reader_unavailable": "Das aktuelle Modell kann diese Ressource nach dem Anhängen nicht erneut lesen",
+        "title": "MCP-Ressourcen"
+      },
       "new": {
         "context": "Kontext löschen"
       },
@@ -1870,6 +1909,7 @@
       "503": "Dienst nicht verfügbar. Bitte versuchen Sie es später erneut",
       "504": "Gateway-Timeout. Bitte versuchen Sie es später erneut"
     },
+    "image_unreadable_for_non_vision_model": "Das ausgewählte Modell ist nicht für Bildeingaben konfiguriert, und Cherry Studio konnte keinen lesbaren Text aus dem Anhang extrahieren. Aktivieren Sie für dieses Modell unter „Anbietereinstellungen“ die Eingabemodalität „Vision“, wählen Sie ein anderes bildfähiges Modell oder entfernen Sie das Bild und versuchen Sie es erneut.",
     "lastError": "Letzter Fehler",
     "maxEmbeddingsPerCall": "Maximale Embeddings pro Aufruf",
     "message": "Fehlermeldung",
@@ -3358,6 +3398,21 @@
         "searchResults": "Suchergebnisse",
         "stderr": "stderr",
         "stdout": "stdout"
+      },
+      "sessionCreate": {
+        "created": "Neue Sitzung gestartet",
+        "creating": "Neue Sitzung wird gestartet",
+        "firstMessage": "Erste Nachricht",
+        "inheritedContext": "Dieser Agent und Arbeitsbereich werden verwendet",
+        "open": "Sitzung öffnen",
+        "sessionId": "Sitzungs-ID",
+        "untitled": "Unbenannte Sitzung"
+      },
+      "sessionSend": {
+        "open": "Sitzung öffnen",
+        "sending": "Wird gesendet an",
+        "sent": "Gesendet an",
+        "to": "An"
       },
       "status": {
         "done": "Erledigt",
@@ -5542,6 +5597,7 @@
       },
       "title": "Umgebungsabhängigkeiten",
       "tools": {
+        "babeldoc-stream": "Layouterhaltende PDF-Übersetzungs-Engine. Die Layout-Modelldaten werden bei der ersten Übersetzung heruntergeladen.",
         "bun": "JavaScript-Laufzeitumgebung für MCP-Dienste und zugehörige Werkzeugketten.",
         "claude": "Anthropics agentenbasiertes Programmierwerkzeug für das Terminal.",
         "codex": "OpenAIs quelloffener Programmieragent, der Code in Ihrem lokalen Repository lesen, bearbeiten und ausführen kann.",
@@ -5589,6 +5645,10 @@
         "title": "Schriftart-Einstellungen"
       }
     },
+    "fetch": {
+      "allow_private_network": "Zugriff auf lokale Netzwerkadressen erlauben",
+      "allow_private_network_tip": "Erlaubt Web-Abruf-Tools den Zugriff auf localhost und private Netzwerkadressen. Deaktivieren Sie dies, wenn Modelle keine Dienste auf Ihrem Rechner oder im LAN lesen sollen."
+    },
     "font_size": {
       "title": "Nachrichtenschriftgröße"
     },
@@ -5618,7 +5678,8 @@
         },
         "sections": {
           "display_language": "Anzeige & Sprache"
-        }
+        },
+        "title": "Allgemeine Einstellungen"
       },
       "emoji_picker": "Emoji-Auswahl",
       "image_upload": "Bild-Upload",
@@ -6042,40 +6103,48 @@
       "bulk_enable": "Alle aktivieren",
       "check": {
         "all": "Alle",
-        "button_caption": "Gesundheitscheck",
-        "disabled": "Deaktiviert",
+        "all_models": "Alle Modelle",
+        "all_models_disclaimer": "Bei der Prüfung aller Modelle werden viele echte Anfragen an die ausgewählten Modelle und API-Schlüssel gesendet, wodurch innerhalb kurzer Zeit hohe Kosten entstehen können. Bestätigen Sie vor dem Start, dass Sie sich des Kostenrisikos bewusst sind. Modelle zur Bild-, Video- und Audiogenerierung sowie zur Spracherkennung und Sprachsynthese werden übersprungen.",
+        "button_caption": "Modellprüfung",
+        "checking": "Wird geprüft…",
+        "concurrent_hint": "Modelle werden parallel geprüft; die API-Schlüssel eines Modells werden immer gleichzeitig geprüft.",
         "disclaimer": "Gesundheitscheck erfordert Anfragen. Vorsichtig verwenden. Pay-per-use-Modelle können zusätzliche Kosten verursachen.",
         "enable_concurrent": "Parallele Erkennung",
-        "enabled": "Aktiviert",
         "failed": "Fehlgeschlagen",
         "failed_to_start": "Fehler beim Start der Gesundheitsprüfung",
         "generation_output_audio": "Audio",
         "generation_output_image": "ein Bild",
         "generation_output_video": "ein Video",
+        "key_scope": "Schlüssel",
+        "keys_failed_count": "{{failed}}/{{total}} Schlüssel fehlgeschlagen",
+        "latency": "{{latency}} ms",
+        "model": "Modell",
         "model_button_caption": "Alle Modelle prüfen",
-        "model_status_failed": "{{count}} Modelle sind vollständig nicht erreichbar",
-        "model_status_partial": "{{count}} Modelle sind mit einigen Schlüsseln nicht erreichbar",
-        "model_status_passed": "{{count}} Modelle haben die Gesundheitsprüfung bestanden",
+        "model_scope": "Zu prüfende Modelle",
+        "model_status_failed_one": "{{count}} Modelle sind vollständig nicht erreichbar",
+        "model_status_failed_other": "{{count}} Modelle sind vollständig nicht erreichbar",
+        "model_status_partial_one": "{{count}} Modelle sind mit einigen Schlüsseln nicht erreichbar",
+        "model_status_partial_other": "{{count}} Modelle sind mit einigen Schlüsseln nicht erreichbar",
+        "model_status_passed_one": "{{count}} Modelle haben die Gesundheitsprüfung bestanden",
+        "model_status_passed_other": "{{count}} Modelle haben die Gesundheitsprüfung bestanden",
+        "model_status_skipped_one": "{{count}} Modelle übersprungen",
+        "model_status_skipped_other": "{{count}} Modelle übersprungen",
         "model_status_summary": "{{provider}}: {{summary}}",
         "no_results": "Keine Ergebnisse",
-        "outcome_fail_short": "{{count}} fehlgeschlagen",
-        "outcome_skipped_short": "{{count}} übersprungen",
-        "outcome_success_short": "{{count}} bestanden",
-        "outcome_total": "{{count}} insgesamt",
         "passed": "Bestanden",
-        "pipeline_heading": "Prüffortschritt",
-        "progress_count": "{{done}} / {{total}}",
-        "retry": "Erneut prüfen",
-        "select_api_key": "API-Schlüssel auswählen: ",
+        "provider_auth": "Anbieter-Authentifizierung",
+        "select_api_key": "API-Schlüssel auswählen",
         "single": "Einzeln",
+        "single_model": "Einzelnes Modell",
         "skip_reason_generation_cost": "Der Health-Check dieses Modells würde {{output}} erzeugen und Kontingent verbrauchen, daher wird er standardmäßig übersprungen.",
         "skip_reason_unsupported_probe": "Dieser Modelltyp verfügt noch über keine kostengünstige Health-Check-Option, daher wird er standardmäßig übersprungen.",
         "start": "Prüfung starten",
         "status_checking": "Wird geprüft…",
         "status_skipped": "Übersprungen",
         "timeout": "Timeout",
-        "title": "Modell-Gesundheitscheck",
-        "use_all_keys": "Schlüssel verwenden"
+        "timeout_unit": "s",
+        "title": "Modellprüfung",
+        "toggle_key": "Aktivierungsstatus von {{name}} umschalten"
       },
       "collapse_all": "Alle einklappen",
       "context_management": {
@@ -6088,6 +6157,7 @@
         "max_messages": "Beibehaltene letzte Nachrichten",
         "max_messages_description": "Nur die neuesten Nachrichten senden; ältere werden vom Kontext ausgeschlossen. Leer lassen für keine Begrenzung. Assistenten können dies überschreiben",
         "max_messages_unlimited": "Unbegrenzt",
+        "scope_description": "Gilt nur für Assistentenkonversationen in Cherry Studio. Assistenten können diese Einstellungen individuell überschreiben.",
         "title": "Kontextverwaltung",
         "truncate_threshold": "Kürzungsschwelle für Werkzeugausgaben (Zeichen)",
         "truncate_threshold_description": "Werkzeugausgaben über dieser Zeichenzahl werden in eine Datei ausgelagert und gekürzt; das Modell kann sie bei Bedarf wieder lesen. Assistenten können dies überschreiben"
@@ -7200,10 +7270,10 @@
     "history": {
       "back": "Zurück zur Liste",
       "clear": "Verlauf löschen",
-      "clear_description": "Verlauf löschen entfernt alle Übersetzungshistorien. Fortfahren?",
+      "clear_description": "Beim Leeren des Verlaufs werden alle Übersetzungsverläufe gelöscht und die dabei erzeugten übersetzten Dateien freigegeben. Fortfahren?",
       "copy_target": "Ergebnis kopieren",
       "delete": "Übersetzungshistorie löschen",
-      "delete_description": "Diesen Übersetzungsverlaufseintrag löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
+      "delete_description": "Diesen Eintrag aus dem Übersetzungsverlauf löschen? Bei einer Dateiübersetzung wird auch die übersetzte Datei freigegeben. Diese Aktion kann nicht rückgängig gemacht werden.",
       "empty": "Keine Übersetzungshistorie",
       "error": {
         "add": "Fehler beim Hinzufügen des Übersetzungsverlaufs",
@@ -7211,6 +7281,17 @@
         "delete": "Löschen fehlgeschlagen",
         "load": "Übersetzungsverlauf konnte nicht geladen werden",
         "save": "Speichern der Übersetzungshistorie fehlgeschlagen"
+      },
+      "file": {
+        "action_failed": "Diese Aktion konnte für die Datei nicht ausgeführt werden",
+        "badge": "Dateiübersetzung",
+        "export": "Übersetzte Datei speichern unter …",
+        "open": "Übersetzte Datei öffnen",
+        "preview": "Nebeneinander-Vorschau",
+        "reveal": "Im Ordner anzeigen",
+        "source": "Quelldatei",
+        "target": "Übersetzte Datei",
+        "unavailable": "Die Dateien dieser Übersetzung sind nicht mehr verfügbar"
       },
       "filter": {
         "starred": "Nur mit Stern"
@@ -7240,6 +7321,53 @@
     "language_settings": "Spracheinstellungen",
     "output": {
       "placeholder": "Übersetzen"
+    },
+    "pdf": {
+      "action": {
+        "close": "PDF-Übersetzung schließen",
+        "export": "Übersetztes PDF exportieren",
+        "install_babeldoc": "BabelDOC installieren",
+        "update_babeldoc": "BabelDOC aktualisieren"
+      },
+      "dependency": {
+        "checking": "BabelDOC wird überprüft...",
+        "description": "Installieren Sie das BabelDOC-Plugin, um PDFs unter Beibehaltung ihres ursprünglichen Layouts zu übersetzen.",
+        "installing": "BabelDOC wird installiert...",
+        "outdated_description": "Aktualisieren Sie BabelDOC, um PDFs weiterhin layouterhaltend zu übersetzen.",
+        "outdated_title": "BabelDOC-Update erforderlich",
+        "title": "PDF erkannt"
+      },
+      "error": {
+        "generic": "Bei der Übersetzung ist ein Fehler aufgetreten. Bitte versuchen Sie es erneut.",
+        "ocr_required": "Gescannte PDFs werden noch nicht unterstützt.",
+        "persist_failed": "Das PDF wurde übersetzt, das Ergebnis konnte jedoch nicht gespeichert werden. Bitte versuchen Sie es erneut.",
+        "title": "PDF-Übersetzung fehlgeschlagen"
+      },
+      "export_failed": "Übersetztes PDF konnte nicht exportiert werden",
+      "pane": {
+        "translated": "Übersetztes PDF",
+        "translated_text": "Übersetzung"
+      },
+      "progress": {
+        "analyzing": "Dokumentlayout wird analysiert",
+        "checking_assets": "PDF-Verarbeitungsressourcen werden geprüft",
+        "downloading_assets": "PDF-Verarbeitungsressourcen werden heruntergeladen...",
+        "extracting_terms": "Dokumentterminologie wird extrahiert",
+        "loading_model": "PDF-Verarbeitungsmodell wird geladen",
+        "parsing": "PDF-Dokument wird analysiert",
+        "percent": "{{progress}} %",
+        "preparing": "PDF-Übersetzung wird initialisiert",
+        "preparing_hint": "Die erste Initialisierung dauert etwa 2 Minuten; spätere Durchläufe sind in der Regel schneller",
+        "rendering": "Übersetztes PDF wird gerendert",
+        "translating": "Inhalt wird übersetzt",
+        "typesetting": "Übersetztes PDF wird gesetzt",
+        "value": "{{stage}}, Schritt {{stageProgress}} %, gesamt {{overallProgress}} %"
+      },
+      "ready": {
+        "description": "Wählen Sie eine Zielsprache und starten Sie die Übersetzung.",
+        "title": "Bereit zum Übersetzen"
+      },
+      "success": "Übersetztes PDF wurde erstellt"
     },
     "preferred_target": "Bevorzugtes Ziel",
     "processing": "Wird übersetzt...",

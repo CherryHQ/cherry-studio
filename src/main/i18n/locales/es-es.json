@@ -10,6 +10,10 @@
     },
     "session": {
       "new": "Nueva tarea",
+      "run_status": {
+        "busy": "La sesión del Agent está ocupada. Inténtalo de nuevo en breve.",
+        "unavailable": "La sesión del Agent ya no está disponible."
+      },
       "workspace_status": {
         "inaccessible": "La ruta del espacio de trabajo no es accesible: {{path}}",
         "missing": "La ruta del espacio de trabajo no existe: {{path}}",
@@ -86,6 +90,13 @@
     }
   },
   "common": {
+    "channel_available_commands": "Comandos disponibles:",
+    "channel_command_processing_error": "⚠️ Se produjo un error al procesar el comando. Inténtalo de nuevo más tarde.",
+    "channel_message_processing_error": "⚠️ Se produjo un error al procesar tu mensaje. Inténtalo de nuevo más tarde.",
+    "channel_new_session_created": "Nueva sesión creada.",
+    "channel_no_active_session": "No hay ninguna sesión activa.",
+    "channel_session_compacted": "Sesión compactada.",
+    "channel_session_resolution_error": "⚠️ No se pudo resolver una sesión para este agente. Inténtalo de nuevo más tarde.",
     "copy": "Copiar",
     "cut": "Cortar",
     "inspect": "Inspeccionar",

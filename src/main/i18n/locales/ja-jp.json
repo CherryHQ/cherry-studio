@@ -10,6 +10,10 @@
     },
     "session": {
       "new": "新しいタスク",
+      "run_status": {
+        "busy": "Agent セッションは処理中です。しばらくしてからもう一度お試しください。",
+        "unavailable": "Agent セッションは利用できなくなりました。"
+      },
       "workspace_status": {
         "inaccessible": "ワークスペースパスにアクセスできません: {{path}}",
         "missing": "ワークスペースパスが存在しません: {{path}}",
@@ -86,6 +90,13 @@
     }
   },
   "common": {
+    "channel_available_commands": "利用可能なコマンド：",
+    "channel_command_processing_error": "⚠️ コマンドの処理中にエラーが発生しました。しばらくしてからもう一度お試しください。",
+    "channel_message_processing_error": "⚠️ メッセージの処理中にエラーが発生しました。しばらくしてからもう一度お試しください。",
+    "channel_new_session_created": "新しいセッションを作成しました。",
+    "channel_no_active_session": "アクティブなセッションがありません。",
+    "channel_session_compacted": "セッションを圧縮しました。",
+    "channel_session_resolution_error": "⚠️ このエージェントのセッションを解決できませんでした。しばらくしてからもう一度お試しください。",
     "copy": "コピー",
     "cut": "切り取り",
     "inspect": "要素を調査",

@@ -41,6 +41,42 @@ describe('canEditAssistantMessageParts', () => {
           }
         }
       })
+    },
+    {
+      messageParts: parts({
+        type: 'text',
+        text: 'answer from the Responses API',
+        providerMetadata: {
+          openai: { itemId: 'msg_1', phase: 'content' }
+        }
+      })
+    },
+    {
+      messageParts: parts({
+        type: 'text',
+        text: 'answer with provider citations',
+        providerMetadata: {
+          anthropic: { citations: [{ title: 'Example', url: 'https://example.com' }] }
+        }
+      })
+    },
+    {
+      messageParts: parts({
+        type: 'text',
+        text: 'provider-specific answer',
+        providerMetadata: {
+          futureProvider: { opaqueState: 'state-1' }
+        }
+      })
+    },
+    {
+      messageParts: parts({
+        type: 'text',
+        text: 'answer with an out-of-spec provider entry',
+        providerMetadata: {
+          openai: 'msg_1'
+        }
+      })
     }
   ])('allows one unambiguous editable run', ({ messageParts }) => {
     expect(canEditAssistantMessageParts(messageParts)).toBe(true)
@@ -99,9 +135,19 @@ describe('canEditAssistantMessageParts', () => {
     {
       messageParts: parts({
         type: 'text',
-        text: 'provider-specific answer',
+        text: 'signed answer alongside roundtrippable Cherry metadata',
         providerMetadata: {
-          futureProvider: { opaqueState: 'state-1' }
+          cherry: { references: [] },
+          google: { thoughtSignature: 'signature-1' }
+        }
+      })
+    },
+    {
+      messageParts: parts({
+        type: 'text',
+        text: 'answer signed by a provider we do not know yet',
+        providerMetadata: {
+          futureProvider: { replaySignature: 'signature-1' }
         }
       })
     },

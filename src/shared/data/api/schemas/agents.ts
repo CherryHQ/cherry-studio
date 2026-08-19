@@ -255,20 +255,6 @@ export const ListAgentsQuerySchema = z.strictObject({
 export type ListAgentsQueryParams = z.input<typeof ListAgentsQuerySchema>
 export type ListAgentsQuery = z.output<typeof ListAgentsQuerySchema>
 
-export const DeleteAgentQuerySchema = z.strictObject({
-  /**
-   * Delete the agent's sessions in the same main-process transaction.
-   * Omitted/false preserves the historical "delete agent only" behavior.
-   */
-  deleteSessions: z.boolean().optional()
-})
-export type DeleteAgentQueryParams = z.input<typeof DeleteAgentQuerySchema>
-
-export interface DeleteAgentResult {
-  deleted: boolean
-  deletedSessionIds?: string[]
-}
-
 // ============================================================================
 // API Schema definitions
 // ============================================================================
@@ -282,7 +268,7 @@ export type AgentSchemas = {
     }
   }
 
-  /** Get, update, or delete a specific agent */
+  /** Get or update a specific agent. Deletion is a mixed DB/runtime command on IpcApi. */
   '/agents/:agentId': {
     GET: {
       params: { agentId: string }
@@ -292,11 +278,6 @@ export type AgentSchemas = {
       params: { agentId: string }
       body: UpdateAgentDto
       response: AgentEntity
-    }
-    DELETE: {
-      params: { agentId: string }
-      query?: DeleteAgentQueryParams
-      response: DeleteAgentResult
     }
   }
 

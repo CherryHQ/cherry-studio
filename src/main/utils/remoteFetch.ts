@@ -3,6 +3,8 @@ import { request as httpRequest } from 'node:http'
 import { request as httpsRequest, type RequestOptions } from 'node:https'
 import type { LookupFunction } from 'node:net'
 
+import { application } from '@application'
+
 import { type ResolvedRemoteFetchUrl, resolveRemoteFetchUrl } from './remoteUrlSafety'
 
 export const DEFAULT_REMOTE_FETCH_TIMEOUT_MS = 30000
@@ -101,7 +103,10 @@ async function fetchRemoteTextFromUrl(
   signal: AbortSignal,
   redirectsRemaining: number
 ): Promise<string> {
-  const target = await resolveRemoteFetchUrl(url, { signal })
+  const target = await resolveRemoteFetchUrl(url, {
+    signal,
+    allowPrivateNetwork: application.get('PreferenceService').get('app.fetch.allow_private_network')
+  })
   const requestOptions = getRequestOptions(target, options, signal)
   const request = target.url.startsWith('https:') ? httpsRequest : httpRequest
   const maxBytes = options.maxBytes ?? DEFAULT_REMOTE_FETCH_MAX_BYTES

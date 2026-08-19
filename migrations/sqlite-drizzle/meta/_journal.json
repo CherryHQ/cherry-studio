@@ -63,6 +63,27 @@
       "tag": "0008_abnormal_may_parker",
       "version": "6",
       "when": 1786608214102
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1787037314810,
+      "tag": "0009_tan_lucky_pierre",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1787057424225,
+      "tag": "0010_fuzzy_korath",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1787109711737,
+      "tag": "0011_rare_vertigo",
+      "breakpoints": true
     }
   ],
   "version": "7"

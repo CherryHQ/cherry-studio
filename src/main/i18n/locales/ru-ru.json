@@ -10,6 +10,10 @@
     },
     "session": {
       "new": "Новая задача",
+      "run_status": {
+        "busy": "Сеанс Agent занят. Повторите попытку чуть позже.",
+        "unavailable": "Сеанс Agent больше недоступен."
+      },
       "workspace_status": {
         "inaccessible": "Путь к рабочей области недоступен: {{path}}",
         "missing": "Путь к рабочей области не существует: {{path}}",
@@ -86,6 +90,13 @@
     }
   },
   "common": {
+    "channel_available_commands": "Доступные команды:",
+    "channel_command_processing_error": "⚠️ При обработке команды произошла ошибка. Повторите попытку позже.",
+    "channel_message_processing_error": "⚠️ При обработке вашего сообщения произошла ошибка. Повторите попытку позже.",
+    "channel_new_session_created": "Создан новый сеанс.",
+    "channel_no_active_session": "Нет активного сеанса.",
+    "channel_session_compacted": "Сеанс сжат.",
+    "channel_session_resolution_error": "⚠️ Не удалось определить сеанс для этого агента. Повторите попытку позже.",
     "copy": "Копировать",
     "cut": "Вырезать",
     "inspect": "Проверить",

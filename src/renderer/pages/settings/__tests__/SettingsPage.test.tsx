@@ -1,3 +1,4 @@
+import zhCN from '@renderer/i18n/locales/zh-cn.json'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -44,13 +45,16 @@ vi.mock('react-i18next', () => ({
       ({
         'agent.settings.toolsMcp.mcp.tab': 'MCP',
         'selection.name': '划词助手',
+        'settings.appearance.title': '外观',
         'settings.channels.title': '频道',
         'settings.dependencies.title': '环境依赖',
         'settings.dependencies.localModels.title': '本地模型',
+        'settings.general.common.title': zhCN.settings.general.common.title,
         'settings.menuGroups.automation': '效率',
         'settings.menuGroups.capabilities': '工具',
         'settings.menuGroups.personal': '偏好',
         'settings.menuGroups.quickAccess': '快捷入口',
+        'settings.menuGroups.system': '系统',
         'settings.model': '默认模型',
         'settings.quickAssistant.title': '快捷助手',
         'settings.scheduledTasks.title': '定时任务',
@@ -70,7 +74,7 @@ describe('SettingsPage', () => {
     navigateMock.mockReset()
   })
 
-  it('places local models directly below the default model', () => {
+  it('places General directly above Appearance and local models directly below the default model', () => {
     const { container } = render(<SettingsPage />)
 
     expect(container.querySelector('[data-ui="settings.view"]')).toBeInTheDocument()
@@ -78,15 +82,20 @@ describe('SettingsPage', () => {
     expect(container.querySelector('[data-ui="settings.content"]')).toBeInTheDocument()
     expect(screen.getByText('偏好')).toBeInTheDocument()
 
+    const generalItem = screen.getByRole('button', { name: '通用' })
+    const appearanceItem = screen.getByRole('button', { name: '外观' })
     const defaultModelItem = screen.getByRole('button', { name: '默认模型' })
     const localModelsItem = screen.getByRole('button', { name: '本地模型' })
 
+    expect(generalItem.nextElementSibling).toBe(appearanceItem)
     expect(defaultModelItem.nextElementSibling).toBe(localModelsItem)
+    fireEvent.click(generalItem)
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/general' })
     fireEvent.click(localModelsItem)
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/local-models' })
   })
 
-  it('keeps document processing and OCR together in tools and places dependencies below system', () => {
+  it('keeps document processing and OCR together in tools and dependencies in the system group', () => {
     render(<SettingsPage />)
 
     expect(screen.getByText('工具')).toBeInTheDocument()
@@ -96,9 +105,9 @@ describe('SettingsPage', () => {
     expect(documentProcessingItem.nextElementSibling).toBe(ocrItem)
     expect(ocrItem.nextElementSibling).toHaveAttribute('data-testid', 'menu-divider')
 
-    const systemItem = screen.getByRole('button', { name: '系统' })
     const dependenciesItem = screen.getByRole('button', { name: '环境依赖' })
-    expect(systemItem.nextElementSibling).toBe(dependenciesItem)
+    expect(screen.queryByRole('button', { name: '系统' })).not.toBeInTheDocument()
+    expect(screen.getByText('系统').nextElementSibling).toBe(dependenciesItem)
     fireEvent.click(dependenciesItem)
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/dependencies' })
   })

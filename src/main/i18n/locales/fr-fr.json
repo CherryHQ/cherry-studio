@@ -10,6 +10,10 @@
     },
     "session": {
       "new": "Nouvelle tâche",
+      "run_status": {
+        "busy": "La session Agent est occupée. Veuillez réessayer dans quelques instants.",
+        "unavailable": "La session Agent n’est plus disponible."
+      },
       "workspace_status": {
         "inaccessible": "Le chemin de l'espace de travail n'est pas accessible : {{path}}",
         "missing": "Le chemin de l'espace de travail n'existe pas : {{path}}",
@@ -86,6 +90,13 @@
     }
   },
   "common": {
+    "channel_available_commands": "Commandes disponibles :",
+    "channel_command_processing_error": "⚠️ Une erreur s’est produite lors du traitement de la commande. Veuillez réessayer plus tard.",
+    "channel_message_processing_error": "⚠️ Une erreur s’est produite lors du traitement de votre message. Veuillez réessayer plus tard.",
+    "channel_new_session_created": "Nouvelle session créée.",
+    "channel_no_active_session": "Aucune session active.",
+    "channel_session_compacted": "Session compactée.",
+    "channel_session_resolution_error": "⚠️ Impossible de résoudre une session pour cet agent. Veuillez réessayer plus tard.",
     "copy": "Copier",
     "cut": "Couper",
     "inspect": "Vérifier",
