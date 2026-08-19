@@ -26,7 +26,15 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('echarts', () => ({
-  init: mocks.init
+  __esModule: true,
+  init: mocks.init,
+  default: { init: mocks.init }
+}))
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) => (key === 'code_block.preview.invalid_json' ? 'Invalid JSON configuration' : key)
+  })
 }))
 
 vi.mock('@renderer/hooks/useTheme', () => ({
@@ -50,6 +58,7 @@ describe('EChartsPreview', () => {
   let resizeCallback: ResizeObserverCallback | undefined
 
   beforeEach(() => {
+    vi.useFakeTimers()
     vi.clearAllMocks()
     mocks.chart.setOption.mockReset()
     mocks.chart.resize.mockReset()
@@ -72,60 +81,104 @@ describe('EChartsPreview', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     vi.unstubAllGlobals()
   })
 
-  it('parses and renders a valid JSON option into an svg container', () => {
+  const advanceDebounce = async () => {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300)
+    })
+  }
+
+  it('shows a loading indicator while the chart is debounced', async () => {
     render(<EChartsPreview>{validOption}</EChartsPreview>)
+
+    expect(screen.getByTestId('loading-indicator')).toBeInTheDocument()
+  })
+
+  it('parses and renders a valid JSON option into an svg container', async () => {
+    render(<EChartsPreview>{validOption}</EChartsPreview>)
+    await advanceDebounce()
+
     const container = mocks.init.mock.calls[0][0] as HTMLElement
 
     expect(mocks.init).toHaveBeenCalledTimes(1)
     expect(mocks.init).toHaveBeenCalledWith(expect.any(HTMLElement), undefined, { renderer: 'svg' })
-    expect(mocks.chart.setOption).toHaveBeenCalledWith(JSON.parse(validOption))
+    expect(mocks.chart.setOption).toHaveBeenCalledWith(JSON.parse(validOption), true)
     expect(container.querySelector('svg')).toBeInTheDocument()
   })
 
-  it('uses dark theme when the app theme is dark', () => {
+  it('uses dark theme when the app theme is dark', async () => {
     mocks.theme.theme = 'dark'
     render(<EChartsPreview>{validOption}</EChartsPreview>)
+    await advanceDebounce()
+
     expect(mocks.init).toHaveBeenCalledWith(expect.any(HTMLElement), 'dark', { renderer: 'svg' })
   })
 
-  it('surfaces JSON parse errors in PreviewError', () => {
+  it('surfaces JSON parse errors in PreviewError', async () => {
     render(<EChartsPreview>{'{invalid'}</EChartsPreview>)
-    expect(screen.getByText('配置 JSON 格式错误')).toBeInTheDocument()
+    await advanceDebounce()
+
+    expect(screen.getByText('Invalid JSON configuration')).toBeInTheDocument()
     expect(mocks.init).not.toHaveBeenCalled()
   })
 
-  it('surfaces ECharts setOption errors', () => {
+  it('surfaces ECharts setOption errors', async () => {
     mocks.chart.setOption.mockImplementation(() => {
       throw new Error('Invalid option')
     })
     render(<EChartsPreview>{validOption}</EChartsPreview>)
+    await advanceDebounce()
+
     expect(screen.getByText('Invalid option')).toBeInTheDocument()
   })
 
-  it('disposes the previous instance when children changes', () => {
+  it('reuses the existing instance when children changes', async () => {
     const { rerender } = render(<EChartsPreview>{validOption}</EChartsPreview>)
-    expect(mocks.chart.dispose).not.toHaveBeenCalled()
+    await advanceDebounce()
+    expect(mocks.init).toHaveBeenCalledTimes(1)
 
-    rerender(<EChartsPreview>{JSON.stringify({ series: [] })}</EChartsPreview>)
+    const updatedOption = JSON.stringify({ series: [{ data: [3, 4], type: 'line' }] })
+    rerender(<EChartsPreview>{updatedOption}</EChartsPreview>)
+    await advanceDebounce()
+
+    expect(mocks.init).toHaveBeenCalledTimes(1)
+    expect(mocks.chart.setOption).toHaveBeenCalledTimes(2)
+    expect(mocks.chart.setOption).toHaveBeenLastCalledWith(JSON.parse(updatedOption), true)
+  })
+
+  it('re-initializes the chart when the theme changes', async () => {
+    const { rerender } = render(<EChartsPreview>{validOption}</EChartsPreview>)
+    await advanceDebounce()
+    expect(mocks.init).toHaveBeenCalledTimes(1)
+
+    mocks.theme.theme = 'dark'
+    rerender(<EChartsPreview enableToolbar>{validOption}</EChartsPreview>)
+    await advanceDebounce()
+
+    expect(mocks.chart.dispose).toHaveBeenCalledTimes(1)
+    expect(mocks.init).toHaveBeenCalledTimes(2)
+    expect(mocks.init).toHaveBeenLastCalledWith(expect.any(HTMLElement), 'dark', { renderer: 'svg' })
+  })
+
+  it('disposes the chart when the component unmounts', async () => {
+    const { unmount } = render(<EChartsPreview>{validOption}</EChartsPreview>)
+    await advanceDebounce()
+
+    unmount()
     expect(mocks.chart.dispose).toHaveBeenCalledTimes(1)
   })
 
-  it('calls chart.resize when ResizeObserver fires', () => {
+  it('calls chart.resize when ResizeObserver fires', async () => {
     render(<EChartsPreview>{validOption}</EChartsPreview>)
+    await advanceDebounce()
+
     act(() => {
       resizeCallback?.([], mocks.resizeObserver as unknown as ResizeObserver)
     })
-    expect(mocks.chart.resize).toHaveBeenCalledTimes(1)
-  })
 
-  it('calls chart.resize on window resize', () => {
-    render(<EChartsPreview>{validOption}</EChartsPreview>)
-    act(() => {
-      window.dispatchEvent(new Event('resize'))
-    })
     expect(mocks.chart.resize).toHaveBeenCalledTimes(1)
   })
 })
