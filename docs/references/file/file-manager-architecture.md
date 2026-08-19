@@ -102,7 +102,7 @@ See the JSDoc for `canonicalizeFilePath` in `src/shared/utils/file/canonicalize.
 
 **URL encoding puts the server in the authority.** `toFileUrl` emits `file://server/share/…` for a UNC path, not `file:////server/share/…`. The leading `//` produced by separator normalization already *is* the URL authority marker, so appending it to `file://` would leave the authority empty and demote the server to path text — a URL Node rejects with `ERR_INVALID_FILE_URL_PATH`. This also makes `toFileUrl` the exact inverse of `fileUrlToPath`, which decodes `file://host/…` to `//host/…`.
 
-**Containment checks degrade, they do not throw.** `isPathWithinAccessiblePath` / `getAccessiblePathRelativePath` (`src/renderer/components/composer/variants/agent/accessiblePath.ts`) canonicalize before comparing. A path that cannot be canonicalized is not *provably* inside anything, so they return `false` / the input unchanged. Containment is a predicate; it must stay total.
+**Containment checks degrade, they do not throw.** `isSamePath` / `isPathInside` / `getRelativePath` (`src/renderer/utils/path.ts`) canonicalize before comparing. A path that cannot be canonicalized is not *provably* inside anything, so they return `false` / `null`. Containment is a predicate; it must stay total. The agent-side wrappers over them (`src/renderer/components/composer/variants/agent/accessiblePath.ts`) inherit this, and `toAccessiblePaths` there applies the same bar up front: a workspace path with no canonical form yields no accessible bases, and logs.
 
 #### Rejected: Unicode (NFC) normalization of `externalPath`
 

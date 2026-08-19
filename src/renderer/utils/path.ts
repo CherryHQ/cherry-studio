@@ -49,7 +49,7 @@ const isWindowsDrivePath = (path: string) => /^[A-Za-z]:[/\\]/.test(path)
  *   inside `canonicalizeFilePath` is arguably the real defect, but that function
  *   produces the persisted `file_entry.externalPath` key and changing its output
  *   requires a paired migration — see its "Rule-evolution discipline". Tracked
- *   in #17429.)
+ *   in #18207.)
  *
  * These are predicates, not parsers: a path we cannot canonicalize is simply not
  * provably the same as, or inside, anything. So degrade to `null` rather than
@@ -106,11 +106,12 @@ export const isPathInside = (child: AbsoluteFilePath, parent: AbsoluteFilePath):
  * `/`-separated in-app form, not a claim about where the path came from.
  *
  * The brand is asserted, not re-parsed. `PosixRelativeFilePathSchema` refuses
- * exactly: the empty string (hence `'.'` above, which also matches its reading
- * that `''` is the absence of a path), NUL — already refused by
- * `AbsoluteFilePathSchema` — a leading `/`, which slicing a proper prefix
- * cannot leave behind, and an empty segment, which canonicalization drops. No
- * branch can produce any of them; `path.test.ts` guards that claim per branch.
+ * the empty string (hence `'.'` above, which also matches its reading that `''`
+ * is the absence of a path), NUL — already refused by `AbsoluteFilePathSchema` —
+ * and a leading `/`, which slicing a proper prefix cannot leave behind. Its
+ * per-segment `isValidPosixFileName` check cannot fail here: splitting on `/`
+ * and dropping empty segments already excludes everything that check forbids.
+ * `path.test.ts` guards the claim per branch.
  */
 export const getRelativePath = (from: AbsoluteFilePath, to: AbsoluteFilePath): PosixRelativeFilePath | null => {
   const fromPath = toPathKey(from)

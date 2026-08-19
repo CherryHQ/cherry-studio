@@ -69,7 +69,7 @@ import type { FileUIPart } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import type { OutputFor } from '@shared/ipc/types'
-import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
 import { type CanonicalFilePath, canonicalizeFilePath, createFilePathHandle, toFileUrl } from '@shared/utils/file'
 import { Settings2, Terminal, ToolCase } from 'lucide-react'
@@ -82,7 +82,7 @@ import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
 import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
 import { useInputHistory } from '../useInputHistory'
-import { isPathWithinAccessiblePath } from './agent/accessiblePath'
+import { isPathWithinAccessiblePath, toAccessiblePaths } from './agent/accessiblePath'
 import {
   AgentConversationControls,
   type AgentConversationControlsProps,
@@ -189,23 +189,6 @@ const buildAccessiblePathFilePart = (
     },
     attachment
   )
-}
-
-/**
- * `AgentWorkspacePathSchema` only guarantees a non-empty string, so the stored
- * workspace path is asserted to be an absolute filesystem path here, before it
- * reaches the path helpers. A malformed one yields no accessible paths, which
- * degrades to inlining attachments instead of referencing them — still correct,
- * just less efficient.
- */
-const toAccessiblePaths = (workspacePath: string | undefined): AbsoluteFilePath[] => {
-  if (!workspacePath) return []
-  const parsed = AbsoluteFilePathSchema.safeParse(workspacePath)
-  if (!parsed.success) {
-    logger.warn('Ignoring agent workspace path that is not an absolute filesystem path', { path: workspacePath })
-    return []
-  }
-  return [parsed.data]
 }
 
 const buildAgentFilePartsForAttachments = async (
