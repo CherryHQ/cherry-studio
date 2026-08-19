@@ -23,6 +23,23 @@ let cached: typeof NodeScreenshotsModule | null = null
  * `require` rather than `await import` keeps callers synchronous — display and
  * window enumeration have no asynchronous form in the backend.
  */
+/**
+ * Absolute path of the native backend, for a worker that cannot resolve it itself.
+ *
+ * A `worker_threads` worker spawned from an eval'd source string has no module
+ * path to resolve `node-screenshots` against, and the packaged app moves it into
+ * `app.asar.unpacked`. Resolving here — in the process that already loads it
+ * successfully — sidesteps both.
+ */
+export function nativeCaptureBackendPath(): string {
+  try {
+    return require.resolve('node-screenshots')
+  } catch (error) {
+    logger.error('Failed to resolve the native screen capture backend', error as Error)
+    throw new ScreenCaptureError('Screen capture backend is unavailable', { cause: error })
+  }
+}
+
 export function loadNativeCaptureBackend(): typeof NodeScreenshotsModule {
   if (!cached) {
     try {
