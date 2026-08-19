@@ -21,12 +21,13 @@
  */
 
 import { loggerService } from '@logger'
+import type { TabSessionHandle } from '@renderer/services/TabSessionRegistry'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
 import { translateText } from '@renderer/utils/translate'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { TranslateLanguage } from '@shared/data/types/translate'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 import { v4 as uuid } from 'uuid'
 
@@ -59,6 +60,15 @@ export interface UseTranslateOptions {
   onResponse?: (text: string, isComplete: boolean) => void
   /** Logger context name. Default: 'useTranslate'. */
   loggerContext?: string
+  /**
+   * Bind the run to a tab session instead of to this component. The session owns the abort
+   * controller and carries `isTranslating` in cache, so hibernating the tab or switching away
+   * from it no longer cancels the run and a remounted page picks it back up (#18885).
+   *
+   * Omit it wherever the component genuinely is the run's owner — a popup or an overlay that the
+   * user dismissed has no reason to keep translating.
+   */
+  session?: TabSessionHandle | null
 }
 
 export interface UseTranslateResult {
@@ -73,9 +83,28 @@ export interface UseTranslateResult {
   cancel: () => void
 }
 
+const NEVER_BUSY = () => false
+const NO_SUBSCRIPTION = () => () => {}
+
 export function useTranslate(options?: UseTranslateOptions): UseTranslateResult {
   const { t } = useTranslation()
-  const [isTranslating, setIsTranslating] = useState(false)
+  const session = options?.session ?? null
+
+  const [localIsTranslating, setLocalIsTranslating] = useState(false)
+  // A session-owned run outlives this component, so its running state has to be read from the
+  // session rather than mirrored into component state — a page that remounts mid-run (tab switch,
+  // hibernation) must come back showing the run that is still going.
+  const sessionIsTranslating = useSyncExternalStore(
+    session?.subscribe ?? NO_SUBSCRIPTION,
+    session?.isBusy ?? NEVER_BUSY
+  )
+  const isTranslating = session ? sessionIsTranslating : localIsTranslating
+
+  // Called from continuations that may outlive this mount; with a session the running state lives
+  // in the session itself, so there is nothing to write here.
+  const setTranslating = useCallback((running: boolean) => {
+    setLocalIsTranslating(running)
+  }, [])
 
   const optionsRef = useRef(options)
   useEffect(() => {
@@ -92,6 +121,15 @@ export function useTranslate(options?: UseTranslateOptions): UseTranslateResult 
   const activeControllerRef = useRef<AbortController | null>(null)
 
   const cancel = useCallback(() => {
+    // With a session the run may have been started by an earlier mount, so this component's refs
+    // can be empty while a translation is still going — go through the session, which holds it.
+    if (session) {
+      session.abortTasks()
+      activeAbortKeyRef.current = null
+      activeControllerRef.current = null
+      return
+    }
+
     if (!activeAbortKeyRef.current) return
     // Clear the ref first so the in-flight translate's continuation sees
     // "you've been cancelled" and discards its result even if the abort
@@ -99,8 +137,8 @@ export function useTranslate(options?: UseTranslateOptions): UseTranslateResult 
     activeAbortKeyRef.current = null
     activeControllerRef.current?.abort()
     activeControllerRef.current = null
-    setIsTranslating(false)
-  }, [])
+    setTranslating(false)
+  }, [session, setTranslating])
 
   const translate = useCallback<UseTranslateResult['translate']>(
     async (text, targetLanguage) => {
@@ -112,8 +150,9 @@ export function useTranslate(options?: UseTranslateOptions): UseTranslateResult 
       activeControllerRef.current = controller
       activeAbortKeyRef.current = uuid()
       const abortKey = activeAbortKeyRef.current
+      const finishTask = session?.addTask(controller)
 
-      setIsTranslating(true)
+      if (!session) setTranslating(true)
 
       // Gate the progressive callback so a late `onResponse` from a
       // cancelled / superseded run doesn't write into consumer state.
@@ -127,10 +166,11 @@ export function useTranslate(options?: UseTranslateOptions): UseTranslateResult 
 
       const wasSuperseded = () => activeAbortKeyRef.current !== abortKey
       const finishIfActive = () => {
+        finishTask?.()
         if (activeAbortKeyRef.current === abortKey) {
           activeAbortKeyRef.current = null
           activeControllerRef.current = null
-          setIsTranslating(false)
+          setTranslating(false)
         }
       }
 
@@ -160,18 +200,20 @@ export function useTranslate(options?: UseTranslateOptions): UseTranslateResult 
         finishIfActive()
       }
     },
-    [t]
+    [session, setTranslating, t]
   )
 
   // On unmount: abort the active controller (propagates to main via streamAbort
   // inside translateText) and clear the marker so any late settle is discarded.
+  // A session-owned run is exempt — the tab, not this component, decides when it ends.
   useEffect(() => {
+    if (session) return
     return () => {
       activeAbortKeyRef.current = null
       activeControllerRef.current?.abort()
       activeControllerRef.current = null
     }
-  }, [])
+  }, [session])
 
   return { translate, isTranslating, cancel }
 }

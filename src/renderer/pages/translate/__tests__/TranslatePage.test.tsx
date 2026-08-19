@@ -75,6 +75,9 @@ const historyFilesMock = vi.hoisted(() => ({
   } as TranslationFiles
 }))
 
+/** The tab session id the mocked route search hands to the page. */
+const TEST_TAB_SESSION = 'test-tab-session'
+
 vi.mock('react-i18next', () => ({
   initReactI18next: {
     type: '3rdParty',
@@ -138,6 +141,10 @@ vi.mock('@renderer/hooks/translate', async (importOriginal) => ({
     translateCoreMock.historyHookOptions(options)
     return { add: translateCoreMock.addHistory, update: translateCoreMock.updateHistory }
   }
+}))
+
+vi.mock('@tanstack/react-router', () => ({
+  useSearch: () => ({ tabSession: TEST_TAB_SESSION })
 }))
 
 vi.mock('@renderer/hooks/translate/useDetectLang', () => ({
@@ -452,15 +459,20 @@ vi.mock('../pdf/PdfTranslationView', () => {
   return { default: MockPdfTranslationView }
 })
 
+import { tabSessionRegistry } from '@renderer/services/TabSessionRegistry'
+
 import TranslatePage from '../TranslatePage'
 
 describe('TranslatePage', () => {
   beforeEach(() => {
+    // The session registry is a window-wide singleton; without this a run left over from the
+    // previous test would make the next page mount already showing a translation in progress.
+    tabSessionRegistry.sweep(new Set())
     MockUseCacheUtils.resetMocks()
     MockUsePreferenceUtils.resetMocks()
-    MockUseCacheUtils.setCacheValue('translate.input', '')
-    MockUseCacheUtils.setCacheValue('translate.output', '')
-    MockUseCacheUtils.setCacheValue('translate.detecting', false)
+    MockUseCacheUtils.setCacheValue(`translate.input.${TEST_TAB_SESSION}`, '')
+    MockUseCacheUtils.setCacheValue(`translate.output.${TEST_TAB_SESSION}`, '')
+    MockUseCacheUtils.setCacheValue(`translate.detecting.${TEST_TAB_SESSION}`, false)
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'feature.translate.model_id': null,
       'feature.translate.page.source_language': 'auto',
@@ -579,7 +591,10 @@ describe('TranslatePage', () => {
   })
 
   it('exports the trimmed current translation result to notes using the first translated line as title', async () => {
-    MockUseCacheUtils.setCacheValue('translate.output', '\nFirst translated line\nSecond translated line\n')
+    MockUseCacheUtils.setCacheValue(
+      `translate.output.${TEST_TAB_SESSION}`,
+      '\nFirst translated line\nSecond translated line\n'
+    )
     MockUsePreferenceUtils.setPreferenceValue('feature.notes.path', '/notes')
 
     render(<TranslatePage />)
@@ -597,7 +612,10 @@ describe('TranslatePage', () => {
 
   it('logs failures when exporting the current translation result to notes', async () => {
     const exportError = new Error('export failed')
-    MockUseCacheUtils.setCacheValue('translate.output', 'First translated line\nSecond translated line')
+    MockUseCacheUtils.setCacheValue(
+      `translate.output.${TEST_TAB_SESSION}`,
+      'First translated line\nSecond translated line'
+    )
     MockUsePreferenceUtils.setPreferenceValue('feature.notes.path', '/notes')
     exportContentToNotesMock.mockRejectedValueOnce(exportError)
 
@@ -634,7 +652,9 @@ describe('TranslatePage', () => {
     })
 
     await waitFor(() => {
-      expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('typed while reading file content')
+      expect(MockUseCacheUtils.getCacheValue(`translate.input.${TEST_TAB_SESSION}`)).toBe(
+        'typed while reading file content'
+      )
     })
     rerender(<TranslatePage />)
     expect(screen.getByLabelText('translate.input.placeholder')).toHaveValue('typed while reading file content')
@@ -672,7 +692,9 @@ describe('TranslatePage', () => {
     })
     rerender(<TranslatePage />)
 
-    await waitFor(() => expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('recognized image text'))
+    await waitFor(() =>
+      expect(MockUseCacheUtils.getCacheValue(`translate.input.${TEST_TAB_SESSION}`)).toBe('recognized image text')
+    )
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith('translate.files.ocr_completed'))
     await waitFor(() => expect(screen.queryByTestId('translate-input-ocr-processing')).not.toBeInTheDocument())
     await waitFor(() => expect(screen.getByLabelText('translate.input.placeholder')).not.toBeDisabled())
@@ -709,7 +731,7 @@ describe('TranslatePage', () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('translate.files.error.ocr'))
     expect(toast.closeToast).not.toHaveBeenCalled()
     await waitFor(() => expect(screen.getByLabelText('translate.input.placeholder')).not.toBeDisabled())
-    expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('')
+    expect(MockUseCacheUtils.getCacheValue(`translate.input.${TEST_TAB_SESSION}`)).toBe('')
   })
 
   it('locally cancels OCR from the overlay and ignores a later completed snapshot', async () => {
@@ -740,7 +762,7 @@ describe('TranslatePage', () => {
     })
     rerender(<TranslatePage />)
 
-    expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('')
+    expect(MockUseCacheUtils.getCacheValue(`translate.input.${TEST_TAB_SESSION}`)).toBe('')
     expect(toast.success).not.toHaveBeenCalled()
   })
 
@@ -853,8 +875,8 @@ describe('TranslatePage', () => {
     expect(screen.getByTestId('translate-output-content')).toHaveTextContent('streamed translation')
 
     fireEvent.click(screen.getByRole('button', { name: 'translate.pdf.action.close' }))
-    expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('')
-    expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('')
+    expect(MockUseCacheUtils.getCacheValue(`translate.input.${TEST_TAB_SESSION}`)).toBe('')
+    expect(MockUseCacheUtils.getCacheValue(`translate.output.${TEST_TAB_SESSION}`)).toBe('')
   })
 
   it('does not start PDF text fallback translation after closing during language detection', async () => {
@@ -1011,8 +1033,8 @@ describe('TranslatePage', () => {
     await waitFor(() => expect(fileMock.readExternal).toHaveBeenCalledWith('/tmp/first.pdf', true))
 
     fireEvent.click(screen.getByRole('button', { name: 'translate.pdf.action.close' }))
-    expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('')
-    expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('')
+    expect(MockUseCacheUtils.getCacheValue(`translate.input.${TEST_TAB_SESSION}`)).toBe('')
+    expect(MockUseCacheUtils.getCacheValue(`translate.output.${TEST_TAB_SESSION}`)).toBe('')
     fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
     await waitFor(() =>
       expect(screen.getByTestId('pdf-translation-view')).toHaveAttribute('data-file-path', '/tmp/second.pdf')
@@ -1499,7 +1521,9 @@ describe('TranslatePage', () => {
     })
   })
 
-  it('aborts in-flight translation on unmount', async () => {
+  it('keeps an in-flight translation running when the page unmounts', async () => {
+    // #18885: switching tabs unmounts the page under `Activity`, which must not cancel the run —
+    // only the tab dropping the session ends it.
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'feature.translate.model_id': 'openai::gpt-4.1',
       'feature.translate.page.source_language': 'zh-cn'
@@ -1518,6 +1542,36 @@ describe('TranslatePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
     await waitFor(() => expect(signal).toBeDefined())
     unmount()
+
+    expect(signal?.aborted).toBe(false)
+
+    // Remounting picks the same run back up rather than showing an idle page.
+    render(<TranslatePage />)
+    expect(screen.getByRole('button', { name: 'common.stop' })).toBeInTheDocument()
+  })
+
+  it('aborts an in-flight translation once its session is released', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': 'openai::gpt-4.1',
+      'feature.translate.page.source_language': 'zh-cn'
+    })
+    let signal: AbortSignal | undefined
+    translateCoreMock.translateText.mockImplementationOnce(
+      (_text: string, _targetLanguage: string, _onResponse?: unknown, abortSignal?: AbortSignal) => {
+        signal = abortSignal
+        return new Promise<string>(() => {})
+      }
+    )
+
+    const { rerender, unmount } = render(<TranslatePage />)
+    fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
+    rerender(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+    await waitFor(() => expect(signal).toBeDefined())
+    unmount()
+
+    // The tab closed or navigated away: its session id is no longer reachable.
+    tabSessionRegistry.sweep(new Set())
 
     expect(signal?.aborted).toBe(true)
   })
@@ -1619,7 +1673,7 @@ describe('TranslatePage', () => {
 
     expect(signal?.aborted).toBe(true)
     await waitFor(() => expect(screen.getByTestId('translate-output-content')).toHaveTextContent('partial text'))
-    expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('partial text')
+    expect(MockUseCacheUtils.getCacheValue(`translate.output.${TEST_TAB_SESSION}`)).toBe('partial text')
     expect(toast.info).toHaveBeenCalledWith('translate.info.aborted')
     expect(toast.success).not.toHaveBeenCalled()
     expect(translateCoreMock.addHistory).not.toHaveBeenCalled()
@@ -1673,8 +1727,8 @@ describe('TranslatePage', () => {
       expect(MockUsePreferenceUtils.getPreferenceValue('feature.translate.page.target_language')).toBe('ja-jp')
     })
     expect(MockUsePreferenceUtils.getPreferenceValue('feature.translate.page.source_language')).toBe('auto')
-    expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('hello')
-    expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('你好')
+    expect(MockUseCacheUtils.getCacheValue(`translate.input.${TEST_TAB_SESSION}`)).toBe('hello')
+    expect(MockUseCacheUtils.getCacheValue(`translate.output.${TEST_TAB_SESSION}`)).toBe('你好')
   })
 
   it('does not reset the shared source preference when text history has no source language', async () => {
@@ -1716,7 +1770,7 @@ describe('TranslatePage', () => {
       expect(MockUsePreferenceUtils.getPreferenceValue('feature.translate.page.source_language')).toBe('auto')
     })
     // A PDF row's texts are file names — they must not land in the text panes.
-    expect(MockUseCacheUtils.getCacheValue('translate.input')).not.toBe('paper.pdf')
+    expect(MockUseCacheUtils.getCacheValue(`translate.input.${TEST_TAB_SESSION}`)).not.toBe('paper.pdf')
   })
 
   it('reports a PDF history entry whose files are gone instead of opening an empty preview', async () => {
