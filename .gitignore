@@ -42,6 +42,7 @@ stats.html
 .eslintcache
 # Downloaded native binaries (mise, etc.)
 resources/binaries/
+scripts/linux-native/prebuilt/
 
 # ENV
 .env

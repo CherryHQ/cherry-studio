@@ -15,7 +15,8 @@ function provider(overrides: Partial<Provider> = {}): Provider {
       streamOptions: false,
       developerRole: false,
       serviceTier: false,
-      verbosity: false
+      verbosity: false,
+      reportsActualCost: false
     },
     settings: {},
     isEnabled: true,

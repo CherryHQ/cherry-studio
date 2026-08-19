@@ -27,8 +27,8 @@ const comboboxTriggerVariants = cva(
   {
     variants: {
       state: {
-        default: 'border-border aria-expanded:border-primary aria-expanded:ring-3 aria-expanded:ring-primary/20',
-        error: 'border border-destructive! aria-expanded:ring-3 aria-expanded:ring-red-600/20',
+        default: 'border-border focus-visible:border-ring',
+        error: 'border border-destructive!',
         disabled: 'opacity-50 cursor-not-allowed pointer-events-none'
       },
       size: {
@@ -120,6 +120,7 @@ export interface ComboboxProps<TExtra extends object = Record<never, never>>
 
   // Other
   name?: string
+  'aria-labelledby'?: React.AriaAttributes['aria-labelledby']
 }
 
 // ==================== Component ====================
@@ -151,7 +152,8 @@ export function Combobox<TExtra extends object = Record<never, never>>({
   triggerStyle,
   width,
   size,
-  name
+  name,
+  'aria-labelledby': ariaLabelledBy
 }: ComboboxProps<TExtra>) {
   // ==================== State ====================
   const [internalOpen, setInternalOpen] = React.useState(false)
@@ -160,6 +162,8 @@ export function Combobox<TExtra extends object = Record<never, never>>({
   const [contentSearch, setContentSearch] = React.useState('')
   const [activeValue, setActiveValue] = React.useState('')
   const triggerInputRef = React.useRef<HTMLInputElement>(null)
+  const defaultValueLabelId = React.useId()
+  const defaultTriggerLabelledBy = ariaLabelledBy ? `${ariaLabelledBy} ${defaultValueLabelId}` : undefined
 
   const open = controlledOpen ?? internalOpen
   const setOpen = React.useCallback(
@@ -417,6 +421,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
               value={triggerInputValue}
               placeholder={triggerInputPlaceholder}
               disabled={disabled}
+              aria-labelledby={ariaLabelledBy}
               aria-expanded={open}
               aria-invalid={error}
               role="combobox"
@@ -430,8 +435,8 @@ export function Combobox<TExtra extends object = Record<never, never>>({
               style={triggerStyle}
               className={cn(
                 'w-full rounded-md border-1 bg-muted/20 pr-8 shadow-none transition-colors',
-                'focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-primary/20',
-                error && 'border-destructive! focus-visible:ring-red-600/20',
+                'focus-visible:border-ring',
+                error && 'border-destructive!',
                 disabled && 'cursor-not-allowed opacity-50',
                 comboboxInputSizeClasses[inputSize],
                 className
@@ -457,6 +462,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
         <div
           role="combobox"
           tabIndex={disabled ? -1 : 0}
+          aria-labelledby={ariaLabelledBy}
           aria-expanded={open}
           aria-invalid={error}
           aria-disabled={disabled}
@@ -521,9 +527,12 @@ export function Combobox<TExtra extends object = Record<never, never>>({
             disabled={disabled}
             style={{ width: triggerWidth, ...triggerStyle }}
             className={cn(comboboxTriggerVariants({ state, size }), className)}
+            aria-labelledby={defaultTriggerLabelledBy}
             aria-expanded={open}
             aria-invalid={error}>
-            {renderTriggerContent()}
+            <span id={defaultValueLabelId} className="contents">
+              {renderTriggerContent()}
+            </span>
             <ChevronDown className="size-4 opacity-50 shrink-0" />
           </Button>
         </PopoverTrigger>

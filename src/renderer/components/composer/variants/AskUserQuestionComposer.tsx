@@ -195,7 +195,9 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
   return (
     <div
       data-composer-viewport-inset-target=""
-      className={cn('relative z-2 flex flex-col px-4.5 pt-0 pb-4.5', className)}>
+      // pointer-events-auto: the composer dock stack is click-through; override
+      // composers re-enable interaction on their own root.
+      className={cn('pointer-events-auto relative z-2 flex flex-col px-4.5 pt-0 pb-4.5', className)}>
       <div
         className="rounded-[17px] border-[0.5px] border-border p-2.5 backdrop-blur"
         style={{ backgroundColor: 'color-mix(in srgb, var(--background) 88%, transparent)' }}>
@@ -266,8 +268,8 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
                   className={cn(
                     'flex size-8 shrink-0 items-center justify-center rounded-full font-semibold text-sm transition-colors',
                     isSelected
-                      ? 'bg-neutral-950 text-white dark:bg-neutral-50 dark:text-neutral-950'
-                      : 'bg-muted text-muted-foreground group-hover:bg-neutral-950 group-hover:text-white dark:group-hover:bg-neutral-50 dark:group-hover:text-neutral-950'
+                      ? 'bg-foreground text-background'
+                      : 'bg-muted text-muted-foreground group-hover:bg-foreground group-hover:text-background'
                   )}>
                   {optionIndex + 1}
                 </span>

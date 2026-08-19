@@ -179,7 +179,7 @@ function ResourceGroupChip({ name, active = true, onClick }: { name: string; act
   const chip = (
     <span
       className={cn(
-        'inline-flex h-4 max-w-24 items-center overflow-hidden rounded-sm bg-secondary px-1.5 text-[10px] text-foreground-secondary transition-opacity',
+        'inline-flex h-4 max-w-24 items-center overflow-hidden rounded-sm bg-secondary px-1.5 text-[10px] text-muted-foreground transition-opacity',
         !active && 'opacity-50',
         onClick && 'cursor-pointer'
       )}>

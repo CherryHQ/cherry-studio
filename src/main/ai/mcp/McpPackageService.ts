@@ -1,6 +1,7 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { assertZipEntriesWithin } from '@main/utils/zipSafety'
 import * as fs from 'fs'
 import StreamZip from 'node-stream-zip'
 import * as path from 'path'
@@ -27,24 +28,6 @@ export function ensurePathWithin(basePath: string, targetPath: string): string {
   }
 
   return resolvedTarget
-}
-
-/**
- * Guard against zip-slip: `node-stream-zip` writes each entry at `path.join(baseDir, entry.name)`
- * with no containment check, so a name like `../../../foo` would escape `baseDir`. Reject any entry
- * whose resolved destination is outside `baseDir` before extraction. Unlike {@link ensurePathWithin},
- * nested subdirectories are allowed (a DXT archive legitimately contains them).
- *
- * @throws Error if any entry name escapes `baseDir`
- */
-export function assertZipEntriesWithin(entryNames: string[], baseDir: string): void {
-  const root = path.resolve(baseDir)
-  for (const name of entryNames) {
-    const dest = path.resolve(baseDir, name)
-    if (dest !== root && !dest.startsWith(root + path.sep)) {
-      throw new Error(`Unsafe DXT entry path (zip-slip): ${name}`)
-    }
-  }
 }
 
 interface BaseMcpPackageManifest {

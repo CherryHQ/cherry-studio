@@ -40,6 +40,8 @@ beforeEach(() => {
         return { format: 'openai-responses', wire: REASONING_FORMAT_PROFILES['openai-responses'].wire }
       case ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS:
         return { format: 'openai-chat', wire: REASONING_FORMAT_PROFILES['openai-chat'].wire }
+      case ENDPOINT_TYPE.OLLAMA_CHAT:
+        return { format: 'ollama', wire: REASONING_FORMAT_PROFILES['ollama'].wire }
       default:
         throw new Error(`Unexpected endpoint type: ${endpointType}`)
     }
@@ -84,6 +86,11 @@ const geminiModel = model('google', 'gemini-2.5-flash', ENDPOINT_TYPE.GOOGLE_GEN
   selectableEfforts: ['none', 'low', 'medium', 'high', 'auto'],
   controls: [{ kind: 'budget', min: 0, max: 24_576 }, { kind: 'toggle' }],
   thinkingTokenLimits: { min: 0, max: 24_576 }
+})
+
+const ollamaModel = model('ollama', 'gemma3:1b', ENDPOINT_TYPE.OLLAMA_CHAT, {
+  selectableEfforts: ['none', 'low', 'medium', 'high'],
+  controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'high'] }]
 })
 
 describe('same-dialect lossless pass-through', () => {
@@ -159,9 +166,9 @@ describe('cross-dialect descriptor translation', () => {
 
     expect(
       mapAnthropicThinkingToProviderOptions(target, openAIModel, { type: 'enabled', budget_tokens: 6000 })
-    ).toEqual({ openai: { reasoningEffort: 'medium' } })
+    ).toEqual({ openai: { reasoningEffort: 'medium', forceReasoning: true } })
     expect(mapAnthropicThinkingToProviderOptions(target, openAIModel, { type: 'disabled' })).toEqual({
-      openai: { reasoningEffort: 'none' }
+      openai: { reasoningEffort: 'none', forceReasoning: true }
     })
   })
 
@@ -177,23 +184,23 @@ describe('cross-dialect descriptor translation', () => {
         type: 'enabled',
         budget_tokens: 1500
       })
-    ).toEqual({ openai: { reasoningEffort: 'high' } })
+    ).toEqual({ openai: { reasoningEffort: 'high', forceReasoning: true } })
   })
 
   it('normalizes Gemini sentinels, levels, and positive budgets before target dispatch', () => {
     const target = provider('openai', ENDPOINT_TYPE.OPENAI_RESPONSES)
 
     expect(mapGeminiThinkingToProviderOptions(target, openAIModel, { thinkingBudget: -1 })).toEqual({
-      openai: { reasoningEffort: 'medium' }
+      openai: { reasoningEffort: 'medium', forceReasoning: true }
     })
     expect(mapGeminiThinkingToProviderOptions(target, openAIModel, { thinkingBudget: 0 })).toEqual({
-      openai: { reasoningEffort: 'none' }
+      openai: { reasoningEffort: 'none', forceReasoning: true }
     })
     expect(mapGeminiThinkingToProviderOptions(target, openAIModel, { thinkingLevel: 'high' })).toEqual({
-      openai: { reasoningEffort: 'high' }
+      openai: { reasoningEffort: 'high', forceReasoning: true }
     })
     expect(mapGeminiThinkingToProviderOptions(target, openAIModel, { thinkingBudget: 6000 })).toEqual({
-      openai: { reasoningEffort: 'medium' }
+      openai: { reasoningEffort: 'medium', forceReasoning: true }
     })
   })
 
@@ -264,5 +271,37 @@ describe('cross-dialect descriptor translation', () => {
     expect(mapReasoningEffortToProviderOptions(target, openAIModel, undefined)).toBeUndefined()
     expect(mapAnthropicThinkingToProviderOptions(target, openAIModel, undefined)).toBeUndefined()
     expect(mapGeminiThinkingToProviderOptions(target, openAIModel, {})).toBeUndefined()
+  })
+})
+
+describe('ollama think guard (#18695)', () => {
+  const ollamaTarget = provider('ollama', ENDPOINT_TYPE.OLLAMA_CHAT)
+
+  it('returns undefined for SDK default adaptive (no explicit effort) — avoids think:true on non-thinking models', () => {
+    expect(mapAnthropicThinkingToProviderOptions(ollamaTarget, ollamaModel, { type: 'adaptive' })).toBeUndefined()
+  })
+
+  it('returns undefined when no config and no effort (SDK sent nothing)', () => {
+    expect(mapAnthropicThinkingToProviderOptions(ollamaTarget, ollamaModel, undefined)).toBeUndefined()
+  })
+
+  it('emits think:false when user explicitly disabled thinking', () => {
+    expect(mapAnthropicThinkingToProviderOptions(ollamaTarget, ollamaModel, { type: 'disabled' })).toEqual({
+      ollama: { think: false }
+    })
+  })
+
+  it('emits think when user explicitly set an effort level', () => {
+    expect(mapAnthropicThinkingToProviderOptions(ollamaTarget, ollamaModel, undefined, 'high')).toEqual({
+      ollama: { think: 'high' }
+    })
+  })
+
+  it('emits think when user explicitly enabled thinking with budget', () => {
+    expect(
+      mapAnthropicThinkingToProviderOptions(ollamaTarget, ollamaModel, { type: 'enabled', budget_tokens: 4096 })
+    ).toEqual({
+      ollama: { think: 'high' }
+    })
   })
 })

@@ -16,6 +16,7 @@ export {
 } from './AssistantSelector'
 export {
   type ConversationPickerCreateAction,
+  type ConversationPickerCreateRow,
   ConversationPickerDialog,
   type ConversationPickerItem,
   type ConversationPickerLabels

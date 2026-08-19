@@ -1,3 +1,9 @@
+---
+description: OTel tracing for AI calls and agent runtimes — Cherry roots, SDK adapters, runtime spans, local projection, and sinks
+sources:
+  - src/main/ai/observability
+---
+
 # Observability
 
 The `src/main/ai/observability/` subsystem: OTel tracing, the local span
@@ -6,8 +12,8 @@ user-facing surface; this doc covers the whole subsystem.
 
 ## What's instrumented
 
-Every AI SDK call run through Cherry produces an OpenTelemetry span
-tree:
+When developer mode is enabled and a topic trace context exists, an AI SDK call
+run through Cherry produces an OpenTelemetry span tree:
 
 ```
 chat.turn                                      (root, created by context provider)
@@ -50,6 +56,10 @@ Collection and persistence are main-process only. Spans live in
 on the terminal event. The renderer trace viewer (`TracePage`) reads the persisted
 spans on demand through the `trace.getData` IPC — it never collects spans itself.
 
+Trace history is stored under `{userData}/Runtime/trace/<topicId>/<traceId>`.
+The previous `~/.cherrystudio/trace` location is no longer written; it remains a
+cleanup-only target of the `normal_cache` (App cache) option.
+
 ## AdapterTracer
 
 `src/main/ai/observability/adapters/aiSdk/adapterTracer.ts` wraps the OTel `Tracer` returned
@@ -85,6 +95,18 @@ by the global provider. On every `startSpan` / `startActiveSpan` it:
 
 Claude Code Agent SDK spans do not go through `AiSdkSpanAdapter`; they are
 converted by `src/main/ai/observability/adapters/claudeCode/ClaudeCodeOtlpAdapter.ts`.
+
+Pi has no native OTel exporter. Its runtime connection creates Cherry-owned
+`pi.generate_content` spans at the provider stream boundary and
+`pi.execute_tool` spans from Pi's tool lifecycle events. These spans use the
+agent-session trace context supplied by the host and flow through the existing
+`NodeTraceService` and `TraceStorageService`; parallel tool calls are tracked by
+tool-call id and unfinished spans are closed when the connection ends.
+
+DSH likewise uses Cherry-owned spans instead of an external OTLP adapter.
+`DshTraceRecorder` records `dsh.generate_content`, tool, compaction, and child
+runtime spans under the agent-session trace root, refreshes its trace context
+between turns, and closes unfinished spans when the connection ends.
 
 ## Sensitive data capture & redaction
 

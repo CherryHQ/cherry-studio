@@ -6,7 +6,7 @@ import { PathStaleVersionError } from '@main/utils/file'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { readByPath, writeIfUnchangedByPath } from '../content'
+import { readByPath, readChunkByPath, writeIfUnchangedByPath } from '../content'
 
 describe('file/utils/content', () => {
   let tmp: string
@@ -38,6 +38,17 @@ describe('file/utils/content', () => {
     expect(new TextDecoder().decode(result.content)).toBe('hello')
     expect(result.mime).toBe('text/plain')
     expect(result.version.size).toBe(5)
+  })
+
+  it('reads a byte range directly by path', async () => {
+    const target = path.join(tmp, 'range.bin') as AbsoluteFilePath
+    await writeFile(target, new Uint8Array([0, 1, 2, 3, 4]))
+
+    const chunk = await readChunkByPath(target, 1, 3)
+
+    expect(Array.from(chunk.content)).toEqual([1, 2, 3])
+    expect(chunk.mime).toBe('application/octet-stream')
+    expect(chunk.version.size).toBe(5)
   })
 
   it('returns the saved file version after a conditional write', async () => {

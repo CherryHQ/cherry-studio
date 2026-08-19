@@ -8,6 +8,37 @@ import type { embedMany, Experimental_DownloadFunction, generateImage, generateT
 import { type AiPlugin } from '../plugins'
 import type { CoreProviderSettingsMap, StringKeys } from '../providers/types'
 
+export type RuntimeProviderCallEvent =
+  | {
+      modality: 'embedding'
+      requestId: string
+      providerId: string
+      modelId: string
+      usage?: { tokens: number }
+      metrics: { timeCompletionMs: number }
+      completedAt: number
+    }
+  | {
+      modality: 'image'
+      requestId: string
+      providerId: string
+      modelId: string
+      imageCount: number
+      usage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number }
+      metrics: { timeCompletionMs: number }
+      completedAt: number
+    }
+  | {
+      modality: 'rerank'
+      requestId: string
+      providerId: string
+      modelId: string
+      metrics: { timeCompletionMs: number }
+      completedAt: number
+    }
+
+export type RuntimeProviderCallHandler = (event: RuntimeProviderCallEvent) => void
+
 /**
  * 运行时执行器配置
  *
@@ -33,6 +64,7 @@ export interface RuntimeConfig<
 export type generateImageParams = Omit<Parameters<typeof generateImage>[0], 'model'> & {
   model: string | ImageModelV3
   experimental_download?: Experimental_DownloadFunction
+  onProviderCall?: RuntimeProviderCallHandler
 }
 export type generateImageResult = Awaited<ReturnType<typeof generateImage>>
 export type generateTextParams = Parameters<typeof generateText>[0]
@@ -41,6 +73,7 @@ export type streamTextParams = Parameters<typeof streamText>[0]
 // Embedding types (AI SDK v6 only has embedMany, no embed)
 export type EmbedManyParams = Omit<Parameters<typeof embedMany>[0], 'model'> & {
   model: string | EmbeddingModelV3
+  onProviderCall?: RuntimeProviderCallHandler
 }
 export type EmbedManyResult = Awaited<ReturnType<typeof embedMany>>
 
@@ -50,5 +83,6 @@ export type RerankParams<VALUE extends JSONObject | string = string> = Omit<
   'model'
 > & {
   model: string | RerankingModelV3
+  onProviderCall?: RuntimeProviderCallHandler
 }
 export type RerankResult<VALUE extends JSONObject | string = string> = Awaited<ReturnType<typeof rerank<VALUE>>>

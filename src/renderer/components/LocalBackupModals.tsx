@@ -34,6 +34,7 @@ export function LocalBackupModal({
           <DialogTitle>{t('settings.data.local.backup.modal.title')}</DialogTitle>
         </DialogHeader>
         <Input
+          autoFocus
           value={customFileName}
           onChange={(e) => setCustomFileName(e.target.value)}
           placeholder={t('settings.data.local.backup.modal.filename.placeholder')}
@@ -79,10 +80,7 @@ export function useLocalBackupModal(localBackupDir: string | undefined) {
 
     setBackuping(true)
     try {
-      await backupToLocal({
-        showMessage: true,
-        customFileName: customFileName || undefined
-      })
+      await backupToLocal({ customFileName })
       setIsModalVisible(false)
     } catch (error) {
       logger.error('Backup failed:', error as Error)

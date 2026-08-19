@@ -108,8 +108,17 @@ describe('MigrationDiagnosticPanel', () => {
     ).toBeInTheDocument()
     const section = container.querySelector('section')
     expect(section).toHaveClass('space-y-3', 'rounded-xl', 'border', 'border-border', 'bg-muted/15', 'px-4', 'py-3')
-    expect(section).not.toHaveClass('border-warning', 'bg-warning-bg')
+    expect(section).not.toHaveClass('border-warning', 'bg-warning-subtle')
     expect(screen.queryByTestId('toast-host')).not.toBeInTheDocument()
+  })
+
+  it('drops the standalone card chrome when embedded in another disclosure', () => {
+    const { container } = render(<MigrationDiagnosticPanel embedded showPrivacy={false} />)
+
+    const section = container.querySelector('section')
+    expect(section).toHaveClass('space-y-3', 'pt-1')
+    expect(section).not.toHaveClass('rounded-xl', 'border', 'bg-muted/15', 'px-4', 'py-3')
+    expect(screen.queryByText(translations['migration.diagnostics.privacy'])).not.toBeInTheDocument()
   })
 
   it('shows a download icon on the save action', () => {
@@ -117,6 +126,29 @@ describe('MigrationDiagnosticPanel', () => {
 
     const saveButton = screen.getByRole('button', { name: 'Save diagnostic bundle' })
     expect(saveButton.querySelector('svg')).toBeInTheDocument()
+  })
+
+  it('delegates a successful save to the dialog flow', async () => {
+    const onSaved = vi.fn()
+    mocks.saveDiagnostics.mockResolvedValueOnce({ status: 'saved', logs: 'included' })
+    render(<MigrationDiagnosticPanel embedded onSaved={onSaved} showPrivacy={false} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save diagnostic bundle' }))
+
+    await waitFor(() => expect(onSaved).toHaveBeenCalledExactlyOnceWith('included'))
+  })
+
+  it('renders saved follow-up actions from an existing bundle result', () => {
+    render(<MigrationDiagnosticPanel embedded savedLogs="included" showPrivacy={false} />)
+
+    expect(
+      screen.getByText(
+        'The diagnostic bundle was saved locally and was not uploaded automatically. Please send it to the feedback email to help us investigate.'
+      )
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Open file location' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Copy feedback email' })).toBeInTheDocument()
+    expect(mocks.saveDiagnostics).not.toHaveBeenCalled()
   })
 
   it('keeps the failure-page local date when save happens after midnight', async () => {

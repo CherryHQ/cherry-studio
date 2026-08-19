@@ -3,6 +3,8 @@
  */
 
 import {
+  CURRENCY,
+  type Currency,
   ENDPOINT_TYPE,
   endpointImpliedCapability,
   type EndpointType,
@@ -15,6 +17,7 @@ import { loggerService } from '@logger'
 import type { Model as LegacyModel, ModelType, Provider as LegacyProvider } from '@main/data/migration/legacyTypes'
 import { createUniqueModelId, type RuntimeModelPricing } from '@shared/data/types/model'
 import type { ApiFeatures, ApiKeyEntry, AuthConfig, ProviderSettings } from '@shared/data/types/provider'
+import { isBareVertexApiHost } from '@shared/utils/api'
 import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('ProviderModelMappings')
@@ -51,7 +54,6 @@ const CAPABILITY_MAP: Partial<Record<ModelType, ModelCapability | undefined>> = 
   reasoning: MODEL_CAPABILITY.REASONING,
   function_calling: MODEL_CAPABILITY.FUNCTION_CALL,
   embedding: MODEL_CAPABILITY.EMBEDDING,
-  web_search: MODEL_CAPABILITY.WEB_SEARCH,
   rerank: MODEL_CAPABILITY.RERANK
 }
 
@@ -203,7 +205,12 @@ function buildEndpointConfigs(
 ): InsertUserProviderRow['endpointConfigs'] {
   const configs: Partial<Record<EndpointType, StoredEndpointConfigOverride>> = {}
 
-  if (legacy.apiHost && endpointType !== undefined) {
+  // v1 tolerated the official Vertex host in `apiHost` and rebuilt the resource
+  // path per request; v2 lets the SDK derive it, so carrying it over would
+  // persist an override that means "default".
+  const isVertexDefaultHost = Boolean(legacy.isVertex) && isBareVertexApiHost(legacy.apiHost ?? '')
+
+  if (legacy.apiHost && endpointType !== undefined && !isVertexDefaultHost) {
     configs[endpointType] = { ...configs[endpointType], baseUrl: legacy.apiHost }
   }
 
@@ -255,7 +262,7 @@ function isAzureOpenAIProvider(legacy: LegacyProvider): boolean {
   return legacy.id === 'azure-openai' || legacy.type === 'azure-openai'
 }
 
-function buildProviderApiKeys(legacy: LegacyProvider, settings: OldLlmSettings): ApiKeyEntry[] {
+export function buildProviderApiKeys(legacy: LegacyProvider, settings: OldLlmSettings): ApiKeyEntry[] {
   if (isAwsBedrockProvider(legacy) && settings.awsBedrock?.authType === 'apiKey') {
     return buildApiKeys(settings.awsBedrock.apiKey ?? '')
   }
@@ -483,7 +490,7 @@ function mapCapabilities(
   for (const capability of capabilities ?? []) {
     const result = CAPABILITY_MAP[capability.type]
     if (result === undefined) {
-      if (capability.type !== 'text') {
+      if (capability.type !== 'text' && capability.type !== 'web_search') {
         logger.warn('Unknown capability type dropped during migration', { type: capability.type })
       }
       continue
@@ -523,13 +530,25 @@ function mapEndpointTypes(
   return mapped.length > 0 ? Array.from(new Set(mapped)) : null
 }
 
+/** Map only currencies the v2 pricing contract can represent without changing value semantics. */
+function mapPricingCurrency(currencySymbol?: string): Currency | null {
+  const symbol = currencySymbol?.trim()
+  if (!symbol || symbol === '$') return CURRENCY.USD
+  if (symbol === '¥' || symbol === '￥') return CURRENCY.CNY
+
+  logger.warn('Unsupported legacy pricing currency dropped during migration', { currencySymbol })
+  return null
+}
+
 function mapPricing(pricing?: LegacyModel['pricing']): RuntimeModelPricing | null {
   if (!pricing) {
     return null
   }
 
+  const currency = mapPricingCurrency(pricing.currencySymbol)
+  if (!currency) return null
   return {
-    input: { perMillionTokens: pricing.input_per_million_tokens },
-    output: { perMillionTokens: pricing.output_per_million_tokens }
+    input: { perMillionTokens: pricing.input_per_million_tokens, currency },
+    output: { perMillionTokens: pricing.output_per_million_tokens, currency }
   }
 }

@@ -16,6 +16,18 @@ beforeEach(() => {
 })
 
 describe('RelocationApp', () => {
+  it.each([
+    { state: 'before the first progress event', progress: null, label: 'relocation.preparing' },
+    { state: 'while preparing', progress: makeProgress('preparing'), label: 'relocation.preparing' },
+    { state: 'while committing', progress: makeProgress('committing'), label: 'relocation.committing' }
+  ])('shows a status $state', ({ progress, label }) => {
+    useRelocationProgressMock.mockReturnValue({ progress, restart: restartMock })
+
+    render(<RelocationApp />)
+
+    expect(screen.getByText(label)).toBeInTheDocument()
+  })
+
   it('shows determinate copy progress and both relocation paths', () => {
     useRelocationProgressMock.mockReturnValue({
       progress: makeProgress('copying', { bytesCopied: 45, bytesTotal: 100 }),

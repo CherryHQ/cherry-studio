@@ -1,18 +1,25 @@
 /**
  * Read-side service for agent scheduled tasks: list / get / run logs plus the
  * JobScheduleSnapshot → ScheduledTaskEntity mapping and subscription reads.
- * All task mutations go through `AgentJobsService` (IpcApi `ai.agent.task.*`)
- * — this service must not reach JobManager / SchedulerService / ChannelManager.
+ * User-driven task mutations go through `AgentJobsService` (IpcApi
+ * `ai.agent.task.*`); the workspace cleanup methods below are DB-only
+ * transaction primitives used by workspace deletion.
  */
 
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
+import type { DbOrTx } from '@data/db/types'
 import { agentChannelService } from '@data/services/AgentChannelService'
+import { agentSessionService } from '@data/services/AgentSessionService'
+import { registerDataService } from '@data/services/dataServiceRegistry'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { ScheduledTaskEntity, TaskRunLogEntity } from '@shared/data/api/schemas/agents'
 import {
+  AGENT_WORKSPACE_TYPE,
   type AgentSessionWorkspaceSource,
-  AgentSessionWorkspaceSourceSchema
+  AgentSessionWorkspaceSourceSchema,
+  type AgentWorkspaceReferenceItem
 } from '@shared/data/api/schemas/agentWorkspaces'
 import type { JobScheduleSnapshot, JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { ListOptions } from '@shared/data/api/types'
@@ -42,6 +49,68 @@ function normalizeAgentTaskTemplate(value: unknown): AgentTaskJobInputTemplate |
   }
 }
 
+/**
+ * Session-reuse state for an `agent.task` schedule. Lives in the schedule row's
+ * generic `metadata` JSON column (not `jobInputTemplate`) for two reasons: it is
+ * schedule state rather than handler input, so it stays clear of
+ * `AgentJobsService.updateTask`'s template diff / re-arm logic; while the
+ * sticky session pointer is a constrained relation owned by AgentSessionService.
+ */
+export type TaskSessionReuse = {
+  enabled: boolean
+  /** Monotonic config epoch captured by each queued job. */
+  revision: number
+}
+
+const TASK_REUSE_METADATA_KEY = 'reuse'
+
+/** A JSON column can legally hold an array or a primitive; both would spread into garbage. */
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function referencesWorkspace(value: unknown, workspaceId: string): value is Record<string, unknown> {
+  if (!isPlainRecord(value)) return false
+  const workspace = AgentSessionWorkspaceSourceSchema.safeParse(value.workspace)
+  return (
+    workspace.success && workspace.data.type === AGENT_WORKSPACE_TYPE.USER && workspace.data.workspaceId === workspaceId
+  )
+}
+
+function findWorkspaceScheduleReferences(schedules: JobScheduleSnapshot[], workspaceId: string) {
+  const references: Array<{ schedule: JobScheduleSnapshot; template: Record<string, unknown> }> = []
+  for (const schedule of schedules) {
+    if (referencesWorkspace(schedule.jobInputTemplate, workspaceId)) {
+      references.push({ schedule, template: schedule.jobInputTemplate })
+    }
+  }
+  return references
+}
+
+export function normalizeTaskSessionReuseRevision(value: unknown): number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : 0
+}
+
+export function readTaskSessionReuse(metadata: Record<string, unknown> | undefined): TaskSessionReuse {
+  const raw = metadata?.[TASK_REUSE_METADATA_KEY]
+  if (!isPlainRecord(raw)) return { enabled: false, revision: 0 }
+  const reuse = raw as Partial<TaskSessionReuse>
+  const enabled = reuse.enabled === true
+  return { enabled, revision: normalizeTaskSessionReuseRevision(reuse.revision) }
+}
+
+/**
+ * Merge reuse state back into the full metadata record. Callers must pass the
+ * row's current metadata — `JobScheduleService.update` replaces the column
+ * wholesale, so a partial write would drop unrelated keys.
+ */
+export function writeTaskSessionReuse(
+  metadata: Record<string, unknown> | undefined,
+  reuse: TaskSessionReuse
+): Record<string, unknown> {
+  return { ...(isPlainRecord(metadata) ? metadata : {}), [TASK_REUSE_METADATA_KEY]: reuse }
+}
+
 function deriveStatus(snapshot: JobScheduleSnapshot): 'active' | 'paused' | 'completed' {
   if (!snapshot.enabled) return 'paused'
   if (snapshot.trigger.kind === 'once' && snapshot.nextRun == null && snapshot.lastRun != null) return 'completed'
@@ -49,11 +118,56 @@ function deriveStatus(snapshot: JobScheduleSnapshot): 'active' | 'paused' | 'com
 }
 
 export class AgentTaskService {
+  /** Publish every DataApi projection backed by the composed task read model. */
+  notifyReadModelChange(taskIds: readonly string[]): void {
+    const entityIds = [...new Set(taskIds)]
+    if (entityIds.length === 0) return
+    notifyDataApiDataChange([
+      { endpoint: '/agent-tasks', kind: 'projection', entityIds },
+      { endpoint: '/agents/:agentId/tasks', kind: 'projection', entityIds },
+      { endpoint: '/agent-tasks/:taskId', entityIds },
+      { endpoint: '/agents/:agentId/tasks/:taskId', entityIds }
+    ])
+  }
+
+  listWorkspaceReferencesTx(tx: DbOrTx, workspaceId: string): AgentWorkspaceReferenceItem[] {
+    return findWorkspaceScheduleReferences(
+      jobScheduleService.listAllTx(tx, { type: AGENT_TASK_TYPE }),
+      workspaceId
+    ).map(({ schedule }) => ({ id: schedule.id, name: schedule.name ?? '' }))
+  }
+
+  /**
+   * This cleanup changes only the template used when the task creates a new
+   * session. A reused session keeps its own workspace, and any reused session
+   * bound to this workspace is deleted by the same outer transaction. The
+   * trigger is unchanged and JobManager re-reads the schedule before each run,
+   * so this path does not bump the reuse revision, clear the schedule, or re-arm
+   * its timer.
+   */
+  resetWorkspaceReferencesTx(tx: DbOrTx, workspaceId: string): AgentWorkspaceReferenceItem[] {
+    const references = findWorkspaceScheduleReferences(
+      jobScheduleService.listAllTx(tx, { type: AGENT_TASK_TYPE }),
+      workspaceId
+    )
+
+    for (const { schedule, template } of references) {
+      jobScheduleService.updateTx(tx, schedule.id, {
+        jobInputTemplate: {
+          ...template,
+          workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+        }
+      })
+    }
+
+    return references.map(({ schedule }) => ({ id: schedule.id, name: schedule.name ?? '' }))
+  }
+
   getTaskById(taskId: string): ScheduledTaskEntity | null {
     const snapshot = jobScheduleService.getById(taskId)
     if (!snapshot || snapshot.type !== AGENT_TASK_TYPE) return null
     if (!normalizeAgentTaskTemplate(snapshot.jobInputTemplate)) return null
-    return this.toScheduledTaskEntity(snapshot)
+    return this.toScheduledTaskEntity(snapshot, agentSessionService.getByTaskScheduleId(snapshot.id)?.id ?? null)
   }
 
   /**
@@ -106,8 +220,9 @@ export class AgentTaskService {
           : sorted.slice(0, limit)
         : sorted
 
+    const sessionIds = agentSessionService.getTaskSessionIdsByScheduleIds(sliced.map((task) => task.id))
     return {
-      tasks: sliced.map((s) => this.toScheduledTaskEntity(s)),
+      tasks: sliced.map((s) => this.toScheduledTaskEntity(s, sessionIds.get(s.id) ?? null)),
       total: filtered.length
     }
   }
@@ -132,12 +247,13 @@ export class AgentTaskService {
   // Mappers (snapshot → entity)
   // ------------------------------------------------------------------
 
-  private toScheduledTaskEntity(snapshot: JobScheduleSnapshot): ScheduledTaskEntity {
+  private toScheduledTaskEntity(snapshot: JobScheduleSnapshot, reuseSessionId: string | null): ScheduledTaskEntity {
     const tmpl = normalizeAgentTaskTemplate(snapshot.jobInputTemplate)
     if (!tmpl) {
       throw DataApiErrorFactory.invalidOperation('read task', 'invalid agent task template')
     }
     const channelRows = agentChannelService.getSubscribedChannels(snapshot.id)
+    const reuse = readTaskSessionReuse(snapshot.metadata)
     return {
       id: snapshot.id,
       agentId: tmpl.agentId,
@@ -149,6 +265,8 @@ export class AgentTaskService {
       trigger: snapshot.trigger,
       timeoutMinutes: tmpl.timeoutMinutes,
       workspace: tmpl.workspace,
+      reuseSession: reuse.enabled,
+      reuseSessionId: reuse.enabled ? reuseSessionId : null,
       channelIds: channelRows.map((c) => c.id),
       nextRun: snapshot.nextRun,
       lastRun: snapshot.lastRun,
@@ -189,3 +307,4 @@ export class AgentTaskService {
 }
 
 export const agentTaskService = new AgentTaskService()
+registerDataService('AgentTaskService', agentTaskService)

@@ -56,6 +56,18 @@ export function nearestThinkingOption(
   return best ?? selectable[0]
 }
 
+/** Project a persisted selection onto a model's renderer/runtime vocabulary. */
+export function resolveReasoningEffortForModel(
+  model: Model,
+  currentEffort: ReasoningEffortOption | undefined
+): ReasoningEffortOption | undefined {
+  const supportedOptions = deriveThinkingOptions(model)
+  if (!supportedOptions?.some((option) => option !== 'default')) return undefined
+  if (currentEffort && supportedOptions.includes(currentEffort)) return currentEffort
+  if (currentEffort !== undefined) return nearestThinkingOption(currentEffort, supportedOptions) ?? supportedOptions[0]
+  return supportedOptions[0]
+}
+
 export function computeBudgetTokens(
   tokenLimit: { min: number; max: number },
   effortRatio: number,

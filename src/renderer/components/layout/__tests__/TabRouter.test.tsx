@@ -72,7 +72,13 @@ vi.mock('@tanstack/react-router', async () => {
 import { RouteErrorFallback } from '../RouteErrorFallback'
 import { TabRouter } from '../TabRouter'
 
-const tab = (id: string, url: string): Tab => ({ id, url, title: url, type: 'route' }) as Tab
+const tab = (id: string, url: string, overrides: Partial<Tab> = {}): Tab => ({
+  id,
+  url,
+  title: url,
+  type: 'route',
+  ...overrides
+})
 
 beforeAll(() => {
   globalThis.ResizeObserver = class {
@@ -234,21 +240,14 @@ describe('TabRouter PageSidePanel portal isolation', () => {
 })
 
 describe('TabRouter', () => {
-  it('uses the tab entry URL even when instance metadata points to another key', () => {
+  it('uses the tab entry URL as the initial history entry', () => {
     render(
       <TabRouter
-        tab={{
-          id: 'chat-tab',
-          type: 'route',
-          url: '/app/chat?topicId=entry-topic',
+        tab={tab('chat-tab', '/app/chat?topicId=entry-topic', {
           title: 'Chat',
-          metadata: {
-            instanceAppId: 'assistants',
-            instanceKey: 'current-topic'
-          },
           lastAccessTime: 1,
           isDormant: false
-        }}
+        })}
         isActive
         onUrlChange={vi.fn()}
       />
@@ -258,40 +257,14 @@ describe('TabRouter', () => {
     expect(routerMocks.navigate).not.toHaveBeenCalled()
   })
 
-  it('uses the tab entry URL when metadata belongs to a different app route', () => {
-    render(
-      <TabRouter
-        tab={{
-          id: 'settings-tab',
-          type: 'route',
-          url: '/settings/provider',
-          title: 'Settings',
-          metadata: {
-            instanceAppId: 'assistants',
-            instanceKey: 'old-topic'
-          },
-          lastAccessTime: 1,
-          isDormant: false
-        }}
-        isActive
-        onUrlChange={vi.fn()}
-      />
-    )
-
-    expect(createMemoryHistory).toHaveBeenCalledWith({ initialEntries: ['/settings/provider'] })
-  })
-
   it('navigates when the tab entry URL changes externally', () => {
     const { rerender } = render(
       <TabRouter
-        tab={{
-          id: 'chat-tab',
-          type: 'route',
-          url: '/app/chat?topicId=entry-topic',
+        tab={tab('chat-tab', '/app/chat?topicId=entry-topic', {
           title: 'Chat',
           lastAccessTime: 1,
           isDormant: false
-        }}
+        })}
         isActive
         onUrlChange={vi.fn()}
       />
@@ -300,18 +273,11 @@ describe('TabRouter', () => {
 
     rerender(
       <TabRouter
-        tab={{
-          id: 'chat-tab',
-          type: 'route',
-          url: '/app/chat?topicId=current-topic',
+        tab={tab('chat-tab', '/app/chat?topicId=current-topic', {
           title: 'Chat',
-          metadata: {
-            instanceAppId: 'assistants',
-            instanceKey: 'current-topic'
-          },
           lastAccessTime: 1,
           isDormant: false
-        }}
+        })}
         isActive
         onUrlChange={vi.fn()}
       />

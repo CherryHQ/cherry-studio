@@ -10,7 +10,6 @@ import type { ModelListCapabilityCounts, ModelListCapabilityFilter } from './mod
 import { ModelTypeFilterTabs } from './ModelTypeFilterTabs'
 
 export interface ModelListHeaderProps {
-  isBusy: boolean
   hasNoModels: boolean
   searchText: string
   setSearchText: (text: string) => void
@@ -25,7 +24,6 @@ export interface ModelListHeaderProps {
 }
 
 const ModelListHeader: React.FC<ModelListHeaderProps> = ({
-  isBusy,
   hasNoModels,
   searchText,
   setSearchText,
@@ -77,7 +75,7 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
               type="button"
               className={modelListClasses.groupToggleIconButton}
               aria-label={t(groupsExpanded ? 'settings.models.collapse_all' : 'settings.models.expand_all')}
-              disabled={isBusy || hasNoModels}
+              disabled={hasNoModels}
               onClick={onToggleGroupsExpanded}>
               <GroupExpansionIcon className={modelListClasses.toolbarHeaderIcon} />
             </button>
@@ -90,7 +88,6 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
                 type="text"
                 value={searchText}
                 placeholder={t('models.search.placeholder')}
-                disabled={isBusy}
                 onChange={(event) => setSearchText(event.target.value)}
                 onFocus={() => setSearchOpen(true)}
                 onBlur={() => {
@@ -119,7 +116,6 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
                 type="button"
                 className={modelListClasses.searchIconButton}
                 aria-label={t('common.search')}
-                disabled={isBusy}
                 onClick={() => setSearchOpen(true)}>
                 <Search className={modelListClasses.toolbarHeaderIcon} />
               </button>
@@ -130,11 +126,11 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
               type="button"
               className={cn(
                 modelListClasses.searchIconButton,
-                (filterOpen || isFilterActive) && 'bg-accent/40 text-foreground'
+                (filterOpen || isFilterActive) && 'bg-accent/40 text-accent-foreground'
               )}
               aria-label={t('settings.models.filter.label')}
               aria-pressed={filterOpen}
-              disabled={isBusy || hasNoModels}
+              disabled={hasNoModels}
               onClick={() => setFilterOpen((open) => !open)}>
               <Filter className={modelListClasses.toolbarHeaderIcon} />
             </button>

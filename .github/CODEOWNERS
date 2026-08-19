@@ -1,47 +1,9 @@
-# Each block is: blanket rule, then opt-outs (a pattern with no owner clears ownership),
-# then re-assignments to other owners. The last matching pattern wins, so that order matters.
-# A newly added subdirectory has no opt-out line, so it falls back to the blanket rule
-# and requires review — that is intentional. Opt it out here once it is agreed on.
-
-/src/main/ @0xfullex
-/src/main/features/
-/src/main/i18n/
-/src/main/services/
-/src/main/utils/
 /src/main/ai/ @DeJeune
 /src/main/features/fileProcessing/ @eeee0717
 /src/main/features/knowledge/ @eeee0717
 
-/src/renderer/ @0xfullex
-/src/renderer/assets/
-/src/renderer/components/
-/src/renderer/hooks/
-/src/renderer/i18n/
-/src/renderer/pages/
-/src/renderer/routes/
-/src/renderer/services/
-/src/renderer/types/
-/src/renderer/utils/
-/src/renderer/workers/
-
-/src/shared/ @0xfullex
-/src/shared/types/
-/src/shared/utils/
 /src/shared/ai/ @DeJeune
-
-/src/preload/ @0xfullex
 
 /packages/ui/ @kangfenmao
 
-/migrations/ @0xfullex
-/v2-refactor-temp/ @0xfullex
-
-/docs/references/architecture-overview.md @0xfullex
-/docs/references/main-process-architecture.md @0xfullex
-/docs/references/renderer-architecture.md @0xfullex
-/docs/references/shared-layer-architecture.md @0xfullex
-/docs/references/naming-conventions.md @0xfullex
 /docs/references/ai/ @DeJeune
-
-/CLAUDE.md @0xfullex
-/.github/CODEOWNERS @0xfullex

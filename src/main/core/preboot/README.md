@@ -89,7 +89,7 @@ application's own files.
 
 It does **not** mean "user data" in the colloquial sense (用户数据). The
 Electron userData directory contains a mix of user content
-(`cherrystudio.sqlite`, `Data/Files`, `Data/KnowledgeBase`, …) AND
+(`Data/cherrystudio.sqlite`, `Data/Files`, `Data/KnowledgeBase`, …) AND
 Chromium runtime state (`Network/`, `Partitions/`, `IndexedDB`,
 `Local Storage`, …) AND, on Windows and Linux, application logs
 (`logs/` — macOS keeps them in `~/Library/Logs` instead).

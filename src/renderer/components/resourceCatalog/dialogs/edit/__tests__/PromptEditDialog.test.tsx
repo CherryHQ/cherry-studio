@@ -59,10 +59,6 @@ vi.mock('@data/hooks/usePreference', () => ({
   usePreference: () => [14]
 }))
 
-vi.mock('lucide-react', () => ({
-  Braces: () => <span />
-}))
-
 vi.mock('@renderer/components/PromptEditorField', () => ({
   default: MockPromptEditorField
 }))

@@ -16,12 +16,7 @@
  * identical logic; this file is just the AI-SDK `tool()` wrapper.
  */
 
-import {
-  KB_READ_TOOL_NAME,
-  kbGrepOutputSchema,
-  kbReadOutputSchema,
-  kbReadStrictInputSchema
-} from '@shared/ai/builtinTools'
+import { KB_READ_TOOL_NAME, kbGrepOutputSchema, kbReadInputSchema, kbReadOutputSchema } from '@shared/ai/builtinTools'
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
 import * as z from 'zod'
 
@@ -42,25 +37,11 @@ const knowledgeReadResultSchema = z.union([kbReadOutputSchema, kbGrepOutputSchem
 
 const kbReadTool = tool({
   description: KNOWLEDGE_READ_DESCRIPTION,
-  inputSchema: kbReadStrictInputSchema,
+  inputSchema: kbReadInputSchema,
   outputSchema: knowledgeReadResultSchema,
-  strict: true,
   execute: async (input, options) => {
     const { request } = getToolCallContext(options)
-    // Normalize the strict schema's primitive sentinels at the provider boundary. The shared
-    // read/grep core keeps its natural optional-field contract.
-    return readOrGrepConcept(
-      {
-        baseId: input.baseId,
-        conceptId: input.conceptId,
-        charStart: input.charStart,
-        charEnd: input.charEnd || undefined,
-        pattern: input.pattern || undefined,
-        ignoreCase: input.ignoreCase,
-        maxMatches: input.maxMatches || undefined
-      },
-      request.knowledgeBaseIds ?? []
-    )
+    return readOrGrepConcept(input, request.knowledgeBaseIds ?? [])
   },
   toModelOutput: ({ output }) => knowledgeReadModelOutput(output)
 })

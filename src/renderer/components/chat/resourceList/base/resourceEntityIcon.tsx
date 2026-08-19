@@ -35,7 +35,7 @@ function renderFallbackAssistantIcon(emoji?: string | null) {
   return emoji ? (
     <EmojiIcon emoji={emoji} size={24} fontSize={14} className="mr-0" />
   ) : (
-    <span className="flex size-6 items-center justify-center rounded-full bg-sidebar-accent">
+    <span className="flex size-6 items-center justify-center rounded-full bg-background-subtle">
       <Bot size={14} />
     </span>
   )
@@ -49,7 +49,9 @@ export function renderAssistantEntityIcon(
   if (iconType === 'none') return undefined
 
   const modelAvatarModel = buildModelAvatarModel(assistant.modelId ?? fallbackModelId, assistant.modelName)
-  if (iconType === 'model' && modelAvatarModel) return <ModelAvatar model={modelAvatarModel} size={24} />
+  if (iconType === 'model' && modelAvatarModel) {
+    return <ModelAvatar model={modelAvatarModel} size={24} className="border border-border-subtle" />
+  }
 
   return renderFallbackAssistantIcon(assistant.emoji)
 }

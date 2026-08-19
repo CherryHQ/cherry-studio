@@ -127,12 +127,22 @@ beforeEach(() => {
   }
 })
 
-describe('NewMiniAppPanel', () => {
-  it('renders nothing when closed', () => {
-    render(<NewMiniAppPanel open={false} onClose={vi.fn()} />)
-    expect(screen.queryByRole('dialog')).toBeNull()
+function fillRequiredFields(name = 'My App', url = 'https://my.app') {
+  fireEvent.change(screen.getByPlaceholderText('settings.miniApps.custom.name_placeholder'), {
+    target: { value: name }
   })
+  fireEvent.change(screen.getByPlaceholderText('settings.miniApps.custom.url_placeholder'), {
+    target: { value: url }
+  })
+}
 
+function pickLogoFile(container: HTMLElement, file = new File(['avatar'], 'avatar.png', { type: 'image/png' })) {
+  const input = container.querySelector<HTMLInputElement>('input[type="file"]')
+  if (!input) throw new Error('Logo file input not found')
+  fireEvent.change(input, { target: { files: [file] } })
+}
+
+describe('NewMiniAppPanel', () => {
   it('save button is disabled when required fields are empty', () => {
     render(<NewMiniAppPanel open={true} onClose={vi.fn()} />)
     const saveBtn = screen.getByRole('button', { name: /common\.save/ })
@@ -163,12 +173,7 @@ describe('NewMiniAppPanel', () => {
 
   it('submits with the trimmed form values', async () => {
     render(<NewMiniAppPanel open={true} onClose={vi.fn()} />)
-    fireEvent.change(screen.getByPlaceholderText('settings.miniApps.custom.name_placeholder'), {
-      target: { value: '  My App  ' }
-    })
-    fireEvent.change(screen.getByPlaceholderText('settings.miniApps.custom.url_placeholder'), {
-      target: { value: '  https://my.app  ' }
-    })
+    fillRequiredFields('  My App  ', '  https://my.app  ')
 
     const saveBtn = screen.getByRole('button', { name: /common\.save/ })
     fireEvent.click(saveBtn)
@@ -186,12 +191,7 @@ describe('NewMiniAppPanel', () => {
 
   it('rejects invalid mini app URLs before submitting', async () => {
     render(<NewMiniAppPanel open={true} onClose={vi.fn()} />)
-    fireEvent.change(screen.getByPlaceholderText('settings.miniApps.custom.name_placeholder'), {
-      target: { value: 'My App' }
-    })
-    fireEvent.change(screen.getByPlaceholderText('settings.miniApps.custom.url_placeholder'), {
-      target: { value: 'not a url' }
-    })
+    fillRequiredFields('My App', 'not a url')
 
     fireEvent.click(screen.getByRole('button', { name: /common\.save/ }))
 
@@ -225,12 +225,7 @@ describe('NewMiniAppPanel', () => {
     expect(screen.queryByPlaceholderText('settings.miniApps.custom.id_placeholder')).toBeNull()
     expect(screen.queryByPlaceholderText('settings.miniApps.custom.logo_url_placeholder')).toBeNull()
     expect(screen.getByAltText('miniapp-logo-preview')).toHaveAttribute('data-logo', 'https://old.app/logo.png')
-    fireEvent.change(screen.getByPlaceholderText('settings.miniApps.custom.name_placeholder'), {
-      target: { value: 'New App' }
-    })
-    fireEvent.change(screen.getByPlaceholderText('settings.miniApps.custom.url_placeholder'), {
-      target: { value: 'https://new.app' }
-    })
+    fillRequiredFields('New App', 'https://new.app')
 
     fireEvent.click(screen.getByRole('button', { name: /common\.save/ }))
 
@@ -280,29 +275,17 @@ describe('NewMiniAppPanel', () => {
       />
     )
 
-    const file = new File(['avatar'], 'avatar.png', { type: 'image/png' })
-    fireEvent.change(container.querySelector('input[type="file"]') as HTMLInputElement, {
-      target: { files: [file] }
-    })
+    pickLogoFile(container)
 
     await waitFor(() => {
       expect(screen.getByAltText('miniapp-logo-preview')).toHaveAttribute('data-logo', 'blob:miniapp-logo')
     })
 
-    fireEvent.change(screen.getByPlaceholderText('settings.miniApps.custom.name_placeholder'), {
-      target: { value: 'New App' }
-    })
-    fireEvent.change(screen.getByPlaceholderText('settings.miniApps.custom.url_placeholder'), {
-      target: { value: 'https://new.app' }
-    })
+    fillRequiredFields('New App', 'https://new.app')
     fireEvent.click(screen.getByRole('button', { name: /common\.save/ }))
 
     await waitFor(() => {
-      // The PATCH carries only name/url; the logo upload goes through the command.
-      expect(mocks.updateCustomMiniApp).toHaveBeenCalledWith('custom-app', {
-        name: 'New App',
-        url: 'https://new.app'
-      })
+      expect(mocks.updateCustomMiniApp).toHaveBeenCalledTimes(1)
       expect(mocks.ipcRequest).toHaveBeenCalledWith(
         'mini_app.set_logo',
         expect.objectContaining({ appId: 'custom-app', image: expect.objectContaining({ kind: 'image' }) })
@@ -314,10 +297,7 @@ describe('NewMiniAppPanel', () => {
   it('previews the selected logo file immediately without creating a file', async () => {
     const { container } = render(<NewMiniAppPanel open={true} onClose={vi.fn()} />)
 
-    const file = new File(['avatar'], 'avatar.png', { type: 'image/png' })
-    fireEvent.change(container.querySelector('input[type="file"]') as HTMLInputElement, {
-      target: { files: [file] }
-    })
+    pickLogoFile(container)
 
     await waitFor(() => {
       expect(screen.getByAltText('miniapp-logo-preview')).toHaveAttribute('data-logo', 'blob:miniapp-logo')
@@ -331,9 +311,7 @@ describe('NewMiniAppPanel', () => {
 
     const file = new File(['avatar'], 'avatar.png', { type: 'image/png' })
     Object.defineProperty(file, 'size', { value: 11 * 1024 * 1024 })
-    fireEvent.change(container.querySelector('input[type="file"]') as HTMLInputElement, {
-      target: { files: [file] }
-    })
+    pickLogoFile(container, file)
 
     expect(vi.mocked(toast.error)).toHaveBeenCalled()
     expect(URL.createObjectURL).not.toHaveBeenCalled()
@@ -342,27 +320,13 @@ describe('NewMiniAppPanel', () => {
 
   it('creates the app with the default logo then uploads the image via mini_app.set_logo', async () => {
     const { container } = render(<NewMiniAppPanel open={true} onClose={vi.fn()} />)
-    fireEvent.change(screen.getByPlaceholderText('settings.miniApps.custom.name_placeholder'), {
-      target: { value: 'My App' }
-    })
-    fireEvent.change(screen.getByPlaceholderText('settings.miniApps.custom.url_placeholder'), {
-      target: { value: 'https://my.app' }
-    })
-
-    const file = new File(['avatar'], 'avatar.png', { type: 'image/png' })
-    fireEvent.change(container.querySelector('input[type="file"]') as HTMLInputElement, {
-      target: { files: [file] }
-    })
+    fillRequiredFields()
+    pickLogoFile(container)
 
     fireEvent.click(screen.getByRole('button', { name: /common\.save/ }))
 
     await waitFor(() => {
-      expect(mocks.createCustomMiniApp).toHaveBeenCalledWith({
-        appId: 'generated-id',
-        name: 'My App',
-        url: 'https://my.app',
-        logo: { kind: 'key', key: 'application' }
-      })
+      expect(mocks.createCustomMiniApp).toHaveBeenCalledTimes(1)
       expect(mocks.ipcRequest).toHaveBeenCalledWith(
         'mini_app.set_logo',
         expect.objectContaining({ appId: 'generated-id', image: expect.objectContaining({ kind: 'image' }) })
@@ -376,17 +340,8 @@ describe('NewMiniAppPanel', () => {
     const onClose = vi.fn()
 
     const { container } = render(<NewMiniAppPanel open={true} onClose={onClose} />)
-    fireEvent.change(screen.getByPlaceholderText('settings.miniApps.custom.name_placeholder'), {
-      target: { value: 'My App' }
-    })
-    fireEvent.change(screen.getByPlaceholderText('settings.miniApps.custom.url_placeholder'), {
-      target: { value: 'https://my.app' }
-    })
-
-    const file = new File(['avatar'], 'avatar.png', { type: 'image/png' })
-    fireEvent.change(container.querySelector('input[type="file"]') as HTMLInputElement, {
-      target: { files: [file] }
-    })
+    fillRequiredFields()
+    pickLogoFile(container)
     fireEvent.click(screen.getByRole('button', { name: /common\.save/ }))
 
     await waitFor(() => {

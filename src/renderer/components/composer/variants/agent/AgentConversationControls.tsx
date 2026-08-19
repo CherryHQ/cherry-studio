@@ -171,7 +171,7 @@ function ModelControl({
       <span
         className={cn(
           'max-w-40 text-xs',
-          canChangeModel ? (model ? 'text-foreground/85' : 'text-muted-foreground') : undefined,
+          canChangeModel ? (model ? 'text-foreground' : 'text-muted-foreground') : undefined,
           labelClassName
         )}>
         {modelLabel}
@@ -297,7 +297,7 @@ function WorkspaceControl({
                 data-testid="clear-workspace-button"
                 aria-hidden
                 className={cn(
-                  'pointer-events-none absolute inset-0 z-10 flex scale-75 items-center justify-center rounded-full bg-transparent text-muted-foreground/95 opacity-0 transition-all duration-200 hover:bg-muted-foreground/25 hover:text-foreground active:scale-95',
+                  'pointer-events-none absolute inset-0 z-10 flex scale-75 items-center justify-center rounded-full bg-transparent text-muted-foreground opacity-0 transition-all duration-200 hover:bg-muted-foreground/25 hover:text-foreground active:scale-95',
                   !menuOpen && 'group-hover:pointer-events-auto group-hover:scale-100 group-hover:opacity-100',
                   workspaceChanging && 'cursor-not-allowed opacity-50'
                 )}
@@ -320,6 +320,7 @@ function WorkspaceControl({
     <WorkspaceSelector
       value={selectorValue}
       onChange={onWorkspaceChange}
+      shouldClearSelectionOnDelete={false}
       side={side}
       align="start"
       mountStrategy="lazy-keep"

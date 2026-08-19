@@ -7,10 +7,14 @@
 import { assistantDataService } from '@data/services/AssistantService'
 import { loggerService } from '@logger'
 import { isAgentSessionTopic } from '@main/ai/agentSession/topic'
+import { resolveContextSettings } from '@main/ai/contextBuild/resolveContextSettings'
+import { resolveGlobalContextSettings } from '@main/ai/contextBuild/resolveRequestContextSettings'
+import { applyMaxMessagesWindow } from '@main/ai/messages/maxMessagesWindow'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
 import { toContentRole } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
+import { v7 as uuidv7 } from 'uuid'
 
 import type { AiStreamRequest } from '../../types'
 import { PersistenceListener } from '../listeners/PersistenceListener'
@@ -24,6 +28,7 @@ const logger = loggerService.withContext('TemporaryChatContextProvider')
 
 export class TemporaryChatContextProvider implements ChatContextProvider {
   readonly name = 'temporary'
+  readonly isPersistentConversation = false
 
   canHandle(topicId: string): boolean {
     // Defensive — agent-session prefix is never temporary regardless of `hasTopic`.
@@ -92,39 +97,47 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
     })
 
     const prior = temporaryChatService.listMessages(req.topicId)
-    const history: CherryUIMessage[] = prior.map((m) => ({
+    const fullHistory: CherryUIMessage[] = prior.map((m) => ({
       id: m.id,
       role: toContentRole(m.role),
       parts: m.data.parts ?? []
     }))
+    // Same scope rule as the persistent provider, and likewise independent of
+    // the `enabled` kill-switch, which owns the overflow policy instead.
+    const contextSettings = resolveContextSettings({
+      globals: resolveGlobalContextSettings(),
+      assistant: assistant?.settings?.contextSettings
+    })
+    const history = applyMaxMessagesWindow(fullHistory, contextSettings.maxMessages)
 
+    const messageId = uuidv7()
     const listeners: StreamListener[] = [
       subscriber,
       new PersistenceListener({
         topicId: req.topicId,
         modelId: model.id,
-        backend: new TemporaryChatBackend({ topicId: req.topicId, modelId: model.id, messageSnapshot }),
+        backend: new TemporaryChatBackend({ topicId: req.topicId, messageId, modelId: model.id, messageSnapshot }),
         onPersistFailed: (error) =>
           void subscriber.onError({ error, status: 'error', modelId: model.id, isTopicDone: true })
       })
     ]
 
-    // No pre-allocated `messageId`: AI SDK generates one for the UI; the service generates its own on append.
     const streamRequest: AiStreamRequest = {
       chatId: req.topicId,
       trigger: 'submit-message',
       assistantId,
       uniqueModelId: model.id,
+      messageId,
       messages: history,
       knowledgeBaseIds: getKnowledgeBaseIdsFromParts(req.userMessageParts),
-      reasoningEffort: req.trigger === 'submit-message' ? req.reasoningEffort : undefined
+      reasoningEffort: req.trigger === 'submit-message' ? req.reasoningEffort : undefined,
+      ...(req.trigger === 'submit-message' && req.fastMode ? { fastMode: true } : {})
     }
 
     return {
       topicId: req.topicId,
       models: [{ modelId: model.id, request: streamRequest }],
-      listeners,
-      isMultiModel: false
+      listeners
     }
   }
 }

@@ -3,6 +3,8 @@ import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { AiStreamOpenRequest, AiStreamOpenResponse } from '@shared/ai/transport'
 
+import { getStreamBlockedMessage } from './getStreamBlockedMessage'
+
 const logger = loggerService.withContext('StreamDispatchService')
 
 export type StreamDispatchResult =
@@ -35,8 +37,8 @@ class StreamDispatchService {
     ipcApi
       .request('ai.stream.open', request)
       .then((ack) => {
-        if (ack.mode === 'blocked' && ack.reason === 'agent-session-workspace') {
-          toast.error(ack.message)
+        if (ack.mode === 'blocked') {
+          toast.error(getStreamBlockedMessage(ack))
         }
         this.notify({ ok: true, topicId, ack })
       })

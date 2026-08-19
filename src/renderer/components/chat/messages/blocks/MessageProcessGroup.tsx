@@ -1,6 +1,7 @@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@cherrystudio/ui'
 import type { ToolRenderItem } from '@renderer/components/chat/messages/tools/toolResponse'
 import type { MessageListItem } from '@renderer/components/chat/messages/types'
+import type { MessageRuntimeTiming } from '@shared/data/types/message'
 import React, { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -26,6 +27,37 @@ type Props = BaseProps &
 
 const PROCESS_CONTENT_CLASS_NAME =
   'flex w-full flex-col gap-3 [&>.block-wrapper+.block-wrapper]:mt-0! [&>.block-wrapper:empty]:hidden [&>.block-wrapper]:mt-0! [&_.message-thought-container]:mt-0! [&_.message-thought-container]:mb-0!'
+
+function getApprovalWaitDurationMs(runtimeTiming: MessageRuntimeTiming): number {
+  const completedAt = runtimeTiming.completedAt
+  if (completedAt === undefined) return 0
+  const intervals = runtimeTiming.spans
+    .filter((span) => span.kind === 'approval-wait')
+    .map((span) => ({
+      startedAt: Math.max(runtimeTiming.startedAt, span.startedAt),
+      completedAt: Math.min(completedAt, span.completedAt ?? completedAt)
+    }))
+    .filter((span) => span.completedAt > span.startedAt)
+    .sort((left, right) => left.startedAt - right.startedAt)
+
+  let durationMs = 0
+  let mergedStart: number | undefined
+  let mergedEnd: number | undefined
+  for (const interval of intervals) {
+    if (mergedStart === undefined || mergedEnd === undefined) {
+      mergedStart = interval.startedAt
+      mergedEnd = interval.completedAt
+    } else if (interval.startedAt <= mergedEnd) {
+      mergedEnd = Math.max(mergedEnd, interval.completedAt)
+    } else {
+      durationMs += mergedEnd - mergedStart
+      mergedStart = interval.startedAt
+      mergedEnd = interval.completedAt
+    }
+  }
+  if (mergedStart !== undefined && mergedEnd !== undefined) durationMs += mergedEnd - mergedStart
+  return durationMs
+}
 
 const LazyCompletedProcessContent = React.memo(function LazyCompletedProcessContent({
   render
@@ -56,8 +88,13 @@ const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props
   const { t } = useTranslation()
   const [isExpanded, setIsExpanded] = useMessageDisclosureState('completed-process')
   const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
+  const runtimeTiming = message.stats?.runtimeTiming
   const completedElapsedMs = useMemo(() => {
     if (props.phase === 'active') return undefined
+    if (runtimeTiming?.completedAt !== undefined) {
+      const wallClockMs = Math.max(0, runtimeTiming.completedAt - runtimeTiming.startedAt)
+      return Math.max(0, wallClockMs - getApprovalWaitDurationMs(runtimeTiming))
+    }
     if (typeof message.stats?.timeCompletionMs === 'number') return message.stats.timeCompletionMs
     if (!message.updatedAt) return undefined
 
@@ -65,7 +102,7 @@ const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props
     const finishedAt = Date.parse(message.updatedAt)
     if (!Number.isFinite(startedAt) || !Number.isFinite(finishedAt) || finishedAt < startedAt) return undefined
     return finishedAt - startedAt
-  }, [message.createdAt, message.stats?.timeCompletionMs, message.updatedAt, props.phase])
+  }, [message.createdAt, message.stats?.timeCompletionMs, message.updatedAt, props.phase, runtimeTiming])
 
   if (props.phase === 'active') {
     return (
@@ -96,11 +133,16 @@ const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props
         type="single"
         collapsible
         value={isExpanded ? 'history' : ''}
-        onValueChange={(value) => withScrollAnchor(() => setIsExpanded(value === 'history'), { settleAfterMs: 220 })}>
+        onValueChange={(value) =>
+          withScrollAnchor(() => setIsExpanded(value === 'history'), {
+            enterReadingMode: value === 'history',
+            settleAfterMs: 220
+          })
+        }>
         <AccordionItem value="history" className="border-0 first:border-t-0">
           <AccordionTrigger
             data-testid="completed-process-trigger"
-            className="group/tool-group-trigger [&>svg]:-rotate-90 h-auto min-h-7 w-fit max-w-full flex-none select-none justify-start gap-1.5 rounded bg-transparent px-0 py-0.5 text-left font-normal shadow-none hover:no-underline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 focus-visible:ring-0 [&>svg]:size-3.5 [&>svg]:opacity-60 [&>svg]:transition-transform [&[data-state=open]>svg]:rotate-0">
+            className="group/tool-group-trigger [&>svg]:-rotate-90 h-auto min-h-7 w-fit max-w-full flex-none select-none justify-start gap-1.5 rounded bg-transparent px-0 py-0.5 text-left font-normal shadow-none hover:no-underline focus-visible:bg-accent/50 focus-visible:outline-none [&>svg]:size-3.5 [&>svg]:opacity-60 [&>svg]:transition-transform [&[data-state=open]>svg]:rotate-0">
             <div className="min-w-0 overflow-hidden">{header}</div>
           </AccordionTrigger>
           <AccordionContent
