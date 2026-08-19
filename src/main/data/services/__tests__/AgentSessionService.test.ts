@@ -750,6 +750,31 @@ describe('AgentSessionService', () => {
     expect(agentSessionService.getById(session.id).traceId).toBe(traceId)
   })
 
+  it('refuses to mutate an archived session through the write paths that outlive it', async () => {
+    // Archive closes the runtime, but an in-flight turn or a stale order request can
+    // still arrive afterwards; those writes must not land on a trashed row.
+    const session = await createSession('Archived writer')
+    const sibling = await createSession('Sibling')
+    agentSessionService.delete(session.id)
+
+    expect(
+      captureError(() => dbh.db.transaction((tx) => agentSessionService.advanceLastActivityAtTx(tx, session.id, 999)))
+    ).toMatchObject({ code: ErrorCode.NOT_FOUND })
+    expect(captureError(() => agentSessionService.ensureTraceId(session.id))).toMatchObject({
+      code: ErrorCode.NOT_FOUND
+    })
+    expect(captureError(() => agentSessionService.reorder(session.id, { after: sibling.id }))).toMatchObject({
+      code: ErrorCode.NOT_FOUND
+    })
+
+    const [row] = await dbh.db
+      .select({ lastActivityAt: agentSessionTable.lastActivityAt, traceId: agentSessionTable.traceId })
+      .from(agentSessionTable)
+      .where(eq(agentSessionTable.id, session.id))
+    expect(row.lastActivityAt).not.toBe(999)
+    expect(row.traceId).toBeNull()
+  })
+
   it('updates a session and returns the updated entity', async () => {
     const session = await createSession('Before update')
     notifyDataApiDataChangeMock.mockClear()

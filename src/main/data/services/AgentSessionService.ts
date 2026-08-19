@@ -299,7 +299,7 @@ export class AgentSessionService {
         lastActivityAt: sql`max(${sessionsTable.lastActivityAt}, ${timestamp})`,
         updatedAt: sql`max(${sessionsTable.updatedAt}, ${timestamp})`
       })
-      .where(eq(sessionsTable.id, sessionId))
+      .where(and(eq(sessionsTable.id, sessionId), isNull(sessionsTable.deletedAt)))
       .returning({ id: sessionsTable.id })
       .all()
     if (updated.length !== 1) throw DataApiErrorFactory.notFound('Session', sessionId)
@@ -598,7 +598,7 @@ export class AgentSessionService {
     const [row] = tx
       .select({ traceId: sessionsTable.traceId })
       .from(sessionsTable)
-      .where(eq(sessionsTable.id, sessionId))
+      .where(and(eq(sessionsTable.id, sessionId), isNull(sessionsTable.deletedAt)))
       .limit(1)
       .all()
 
@@ -1249,12 +1249,15 @@ export class AgentSessionService {
     const [target] = tx
       .select({ id: sessionsTable.id })
       .from(sessionsTable)
-      .where(eq(sessionsTable.id, id))
+      .where(and(eq(sessionsTable.id, id), isNull(sessionsTable.deletedAt)))
       .limit(1)
       .all()
     if (!target) throw DataApiErrorFactory.notFound('Session', id)
 
-    applyMoves(tx, sessionsTable, [{ id, anchor }], { pkColumn: sessionsTable.id })
+    applyMoves(tx, sessionsTable, [{ id, anchor }], {
+      pkColumn: sessionsTable.id,
+      scope: isNull(sessionsTable.deletedAt)
+    })
   }
 
   reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): void {
@@ -1263,7 +1266,7 @@ export class AgentSessionService {
   }
 
   reorderBatchTx(tx: DbOrTx, moves: Array<{ id: string; anchor: OrderRequest }>): void {
-    applyMoves(tx, sessionsTable, moves, { pkColumn: sessionsTable.id })
+    applyMoves(tx, sessionsTable, moves, { pkColumn: sessionsTable.id, scope: isNull(sessionsTable.deletedAt) })
   }
 }
 
