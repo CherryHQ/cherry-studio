@@ -219,7 +219,11 @@ function isLiveStatus(status: ActiveStream['status']): boolean {
 }
 
 function isStreamExecuting(stream: ActiveStream | undefined): boolean {
-  return Boolean(stream && stream.aggregate.lifecycleState === 'active' && isLiveStatus(stream.status))
+  return Boolean(
+    stream &&
+      stream.aggregate.lifecycleState === 'active' &&
+      [...stream.executions.values()].some((execution) => isAttemptRunning(execution.attempt.state))
+  )
 }
 
 function isPersistedReplyGroupAnchor(
