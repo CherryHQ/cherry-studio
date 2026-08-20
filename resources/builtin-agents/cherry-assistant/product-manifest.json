@@ -289,6 +289,19 @@
       }
     },
     {
+      "id": "chat.reasoning.cycle",
+      "titleKey": "settings.shortcuts.cycle_reasoning_effort",
+      "categoryKey": "settings.shortcuts.chat",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "Shift",
+          "."
+        ]
+      }
+    },
+    {
       "id": "quick_assistant.toggle",
       "titleKey": "settings.shortcuts.quick_assistant",
       "categoryKey": "settings.shortcuts.feature.quick_assistant",
@@ -355,6 +368,18 @@
           "darwin",
           "win32",
           "linux"
+        ]
+      }
+    },
+    {
+      "id": "topic.clear_messages",
+      "titleKey": "chat.topics.clear.title",
+      "categoryKey": "settings.shortcuts.topic",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "L"
         ]
       }
     },

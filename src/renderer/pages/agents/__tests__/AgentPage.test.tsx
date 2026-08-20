@@ -8,6 +8,7 @@ import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -2111,6 +2112,27 @@ describe('AgentPage', () => {
 
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-open'))
     expect(screen.getByTestId('locate-message-id')).toHaveTextContent('message-open')
+  })
+
+  it('cancels a pending message locate when the user selects another session', async () => {
+    const user = userEvent.setup()
+    render(<AgentPage />)
+
+    const sessionMessageHandler = vi
+      .mocked(EventEmitter.on)
+      .mock.calls.find(([eventName]) => eventName === EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE)?.[1] as
+      | ((payload: unknown) => void)
+      | undefined
+
+    act(() => {
+      sessionMessageHandler?.({ sessionId: 'session-open', messageId: 'message-open', targetTabId: 'agent-tab' })
+    })
+    await waitFor(() => expect(screen.getByTestId('locate-message-id')).toHaveTextContent('message-open'))
+
+    await user.click(screen.getByRole('button', { name: 'Select session next' }))
+
+    expect(screen.getByTestId('active-session')).toHaveTextContent('session-next')
+    expect(screen.getByTestId('locate-message-id')).toHaveTextContent('')
   })
 
   it('waits for file-navigation confirmation before applying a global-search session jump', async () => {
