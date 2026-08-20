@@ -262,8 +262,9 @@ describe('AiSdkToAnthropicSse', () => {
 
     // Anthropic's wire format has nowhere to carry Gemini's thought signature, and
     // Gemini 3 rejects a replayed functionCall without it — writer and reader must
-    // agree on the cache key.
-    it('round-trips a streamed thought signature onto the tool call replayed next turn', async () => {
+    // agree on the cache key. Two calls of the same tool pin that the key is the call
+    // id: keying by tool name hands both replays the second call's signature.
+    it('round-trips each parallel call signature onto the tool call replayed next turn', async () => {
       const model = 'gemini:models/gemini-flash-latest'
       const adapter = new AiSdkToAnthropicSse({ model })
 
@@ -272,10 +273,17 @@ describe('AiSdkToAnthropicSse', () => {
           createMockStream([
             {
               type: 'tool-input-available',
-              toolCallId: 'call_sig',
+              toolCallId: 'call_sig_1',
               toolName: 'Bash',
               input: { command: 'ls' },
               providerMetadata: { google: { thoughtSignature: 'sig-abc' } }
+            },
+            {
+              type: 'tool-input-available',
+              toolCallId: 'call_sig_2',
+              toolName: 'Bash',
+              input: { command: 'pwd' },
+              providerMetadata: { google: { thoughtSignature: 'sig-def' } }
             },
             createFinish('tool-calls')
           ])
@@ -286,13 +294,23 @@ describe('AiSdkToAnthropicSse', () => {
         model,
         max_tokens: 1024,
         messages: [
-          { role: 'assistant', content: [{ type: 'tool_use', id: 'call_sig', name: 'Bash', input: { command: 'ls' } }] }
+          {
+            role: 'assistant',
+            content: [
+              { type: 'tool_use', id: 'call_sig_1', name: 'Bash', input: { command: 'ls' } },
+              { type: 'tool_use', id: 'call_sig_2', name: 'Bash', input: { command: 'pwd' } }
+            ]
+          }
         ]
       } as MessageCreateParams)
 
-      expect((messages[0].parts[0] as { callProviderMetadata?: unknown }).callProviderMetadata).toMatchObject({
-        google: { thoughtSignature: 'sig-abc' }
-      })
+      const signatures = messages[0].parts.map(
+        (part) => (part as { callProviderMetadata?: { google?: { thoughtSignature?: string } } }).callProviderMetadata
+      )
+      expect(signatures).toEqual([
+        { google: { thoughtSignature: 'sig-abc' } },
+        { google: { thoughtSignature: 'sig-def' } }
+      ])
     })
   })
 
