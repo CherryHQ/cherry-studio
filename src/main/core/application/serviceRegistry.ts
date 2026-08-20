@@ -32,17 +32,20 @@ import { BinaryManager } from '@main/services/BinaryManager'
 import { CitationPreviewService } from '@main/services/CitationPreviewService'
 import { CodeCliService } from '@main/services/codeCli'
 import { CommandService } from '@main/services/CommandService'
+import { ConversationNavigationService } from '@main/services/ConversationNavigationService'
 import { DeepSeekHarnessService } from '@main/services/deepSeekHarness'
 import { DirectoryTreeManager, FileManager } from '@main/services/file'
 import { LanTransferService } from '@main/services/lanTransfer'
 import { MainNetworkDevtoolsService } from '@main/services/mainNetworkDevtools'
 import { MainWindowService } from '@main/services/MainWindowService'
 import { MediaProtocolService } from '@main/services/mediaProtocol'
+import { NotificationService } from '@main/services/NotificationService'
 import { OAuthRuntimeService } from '@main/services/oauth/runtime/OAuthRuntimeService'
 import { OpenClawService } from '@main/services/OpenClawService'
 import { OvmsManager } from '@main/services/OvmsManager'
 import { PdfTranslationService } from '@main/services/PdfTranslationService'
 import { ProtocolService } from '@main/services/protocol/ProtocolService'
+import { ProviderRegistryUpdaterService } from '@main/services/ProviderRegistryUpdaterService'
 import { ProxyService } from '@main/services/proxy/ProxyService'
 import { PythonService } from '@main/services/PythonService'
 import { QuickAssistantService } from '@main/services/QuickAssistantService'
@@ -93,6 +96,7 @@ export const services = {
   AppMenuService,
   CodeCliService,
   CommandService,
+  ConversationNavigationService,
   CitationPreviewService,
   DeepSeekHarnessService,
   LanTransferService,
@@ -118,6 +122,7 @@ export const services = {
   WebviewService,
   OAuthRuntimeService,
   MainWindowService,
+  NotificationService,
   QuickAssistantService,
   McpPackageService,
   McpRuntimeService,
@@ -140,6 +145,7 @@ export const services = {
   ApiGatewayService,
   AppUpdaterService,
   AutoBackupService,
+  ProviderRegistryUpdaterService,
   SchedulerService,
   JobManager
 } as const

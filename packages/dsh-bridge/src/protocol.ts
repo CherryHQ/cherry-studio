@@ -139,7 +139,12 @@ export interface BridgePluginRequestMap {
   }
   /** One `ctx.userQuestions` ask (today only plan review reaches it) relayed to the host UI. */
   'question/ask': {
-    params: { sessionId: string; questions: AskUserQuestionItem[] }
+    params: {
+      sessionId: string
+      /** Exact `exit_plan_mode` call correlated from the plugin's authoritative session log. */
+      callId: string
+      questions: AskUserQuestionItem[]
+    }
     result: AskUserQuestionAnswer
   }
 }

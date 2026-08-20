@@ -1,3 +1,10 @@
+---
+description: Consumer guide for WindowManager — registering window types, opening windows, event hooks, and useWindowInitData
+sources:
+  - src/main/core/window
+  - src/renderer/hooks/useWindowInitData.ts
+---
+
 # WindowManager Usage Guide
 
 Practical guide for using WindowManager from consumer code. For architectural context, see [Overview](./window-manager-overview.md). For full method reference, see [API Reference](./window-manager-api-reference.md).
@@ -253,8 +260,8 @@ const MyWindowApp: FC = () => {
 }
 ```
 
-- On mount: pulls via `WindowManager_GetInitData` invoke (cold-start path).
-- On re-use: receives the `WindowManager_Reused` payload (PUSH path, zero round-trip).
+- On mount: requests `window.get_init_data` through `ipcApi` (cold-start path).
+- On re-use: receives the `window.reused` payload through `useIpcOn` (push path, zero round-trip).
 - Per-session state resets should live inside the child component in `useEffect([data.someStableId], …)`, so the DOM stays continuous across recycles — never use `key={resetKey}` to forcibly remount; that reintroduces the flash this contract was designed to eliminate.
 
 For the full cold-start vs reuse timing contract, see [Init Data](./window-manager-api-reference.md#init-data) in the API Reference.

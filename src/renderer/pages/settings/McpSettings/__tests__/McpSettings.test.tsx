@@ -235,6 +235,100 @@ describe('McpSettings', () => {
     expect(clipboardWriteText).toHaveBeenCalledWith(formatMcpLogs([...logs, liveLog]))
   })
 
+  it('defers tools/prompts/resources fetches until the matching tab is first opened', async () => {
+    currentSearch = {}
+    currentServer = {
+      id: 'server-a',
+      name: 'Server A',
+      type: 'stdio',
+      command: 'server-a',
+      isActive: true
+    }
+
+    mocks.request.mockImplementation((channel: string) => {
+      if (channel === 'mcp.server.get_version') return Promise.resolve('1.0.0')
+      if (channel === 'mcp.server.list_prompts') return Promise.resolve([])
+      if (channel === 'mcp.server.list_resources') return Promise.resolve([])
+      return Promise.resolve([])
+    })
+
+    const user = userEvent.setup()
+    render(<McpSettings />)
+
+    await waitFor(() =>
+      expect(mocks.request).toHaveBeenCalledWith('mcp.server.get_version', { serverId: currentServer.id })
+    )
+    expect(mocks.request).not.toHaveBeenCalledWith('mcp.server.refresh_tools', expect.anything())
+    expect(mocks.request).not.toHaveBeenCalledWith('mcp.server.list_prompts', expect.anything())
+    expect(mocks.request).not.toHaveBeenCalledWith('mcp.server.list_resources', expect.anything())
+
+    await user.click(screen.getByRole('radio', { name: 'settings.mcp.tabs.tools' }))
+    await waitFor(() =>
+      expect(mocks.request).toHaveBeenCalledWith('mcp.server.refresh_tools', { serverId: currentServer.id })
+    )
+    expect(mocks.request).not.toHaveBeenCalledWith('mcp.server.list_prompts', expect.anything())
+    expect(mocks.request).not.toHaveBeenCalledWith('mcp.server.list_resources', expect.anything())
+
+    await user.click(screen.getByRole('radio', { name: 'settings.mcp.tabs.prompts' }))
+    await waitFor(() =>
+      expect(mocks.request).toHaveBeenCalledWith('mcp.server.list_prompts', { serverId: currentServer.id })
+    )
+    expect(mocks.request).not.toHaveBeenCalledWith('mcp.server.list_resources', expect.anything())
+
+    await user.click(screen.getByRole('radio', { name: 'settings.mcp.tabs.resources' }))
+    await waitFor(() =>
+      expect(mocks.request).toHaveBeenCalledWith('mcp.server.list_resources', { serverId: currentServer.id })
+    )
+
+    mocks.request.mockClear()
+    await user.click(screen.getByRole('radio', { name: 'settings.mcp.tabs.tools' }))
+    await user.click(screen.getByRole('radio', { name: 'settings.mcp.tabs.prompts' }))
+    await user.click(screen.getByRole('radio', { name: 'settings.mcp.tabs.resources' }))
+
+    expect(mocks.request).not.toHaveBeenCalledWith('mcp.server.refresh_tools', expect.anything())
+    expect(mocks.request).not.toHaveBeenCalledWith('mcp.server.list_prompts', expect.anything())
+    expect(mocks.request).not.toHaveBeenCalledWith('mcp.server.list_resources', expect.anything())
+  })
+
+  it('retries a capability tab fetch after the first IPC call fails', async () => {
+    currentSearch = {}
+    currentServer = {
+      id: 'server-a',
+      name: 'Server A',
+      type: 'stdio',
+      command: 'server-a',
+      isActive: true
+    }
+
+    mocks.request.mockImplementation((channel: string) => {
+      if (channel === 'mcp.server.get_version') return Promise.resolve('1.0.0')
+      if (channel === 'mcp.server.refresh_tools') return Promise.reject(new Error('unreachable'))
+      return Promise.resolve([])
+    })
+
+    const user = userEvent.setup()
+    render(<McpSettings />)
+
+    await user.click(screen.getByRole('radio', { name: 'settings.mcp.tabs.tools' }))
+    await waitFor(() =>
+      expect(mocks.request).toHaveBeenCalledWith('mcp.server.refresh_tools', { serverId: currentServer.id })
+    )
+
+    mocks.request.mockClear()
+    mocks.request.mockImplementation((channel: string) => {
+      if (channel === 'mcp.server.get_version') return Promise.resolve('1.0.0')
+      if (channel === 'mcp.server.refresh_tools') return Promise.resolve([])
+      return Promise.resolve([])
+    })
+
+    await user.click(screen.getByRole('radio', { name: 'Logs' }))
+    await user.click(screen.getByRole('radio', { name: 'settings.mcp.tabs.tools' }))
+
+    await waitFor(() =>
+      expect(mocks.request).toHaveBeenCalledWith('mcp.server.refresh_tools', { serverId: currentServer.id })
+    )
+  })
+
   it('deletes via the mcp.server.remove IPC channel, refreshes the cache, and navigates back', async () => {
     currentSearch = {}
     currentServer = { id: 'server-a', name: 'Server A', type: 'stdio', command: 'server-a', isActive: false }

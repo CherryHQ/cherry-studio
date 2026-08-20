@@ -47,6 +47,7 @@ export function buildPathRegistry() {
   const appUserData = app.getPath('userData')
   const appUserDataData = path.join(appUserData, 'Data')
   const appUserDataRuntime = path.join(appUserData, 'Runtime')
+  const appUserDataProviderRegistryOverride = path.join(appUserDataRuntime, 'provider-registry-override')
   const appUserDataToolchain = path.join(appUserData, 'Toolchain')
   const appUserDataToolchainMise = path.join(appUserDataToolchain, 'mise')
   const appSession = app.getPath('sessionData')
@@ -101,6 +102,10 @@ export function buildPathRegistry() {
     'feature.provider_registry.data': app.isPackaged
       ? path.join(appExtraResources, 'provider-registry')
       : path.join(__dirname, '../../packages/provider-registry/data'),
+
+    // Remote-updated override copy of the registry JSON, preferred over the
+    // bundled data when present (see ProviderRegistryUpdaterService). Writable.
+    'feature.provider_registry.override': appUserDataProviderRegistryOverride,
 
     // Local embedding model cache (transformers.js HF cache root, downloaded on first use)
     'feature.embedding.models': path.join(appUserDataRuntime, 'models', 'qwen3-embedding'),

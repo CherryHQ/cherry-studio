@@ -386,6 +386,14 @@ const AgentChat = ({
     )
     center = <ConversationStageCenter placement="docked" main={null} composer={composer} />
   } else if (!sessionSnapshot) {
+    topBar = (
+      <AgentChatNavbar
+        activeAgent={null}
+        showSidebarControls={showResourceListControls}
+        sidebarOpen={sidebarOpen}
+        onSidebarToggle={onSidebarToggle}
+      />
+    )
     center = <ConversationCenterState state="empty" />
   } else {
     topBar = (

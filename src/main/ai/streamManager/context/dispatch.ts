@@ -20,7 +20,7 @@ import { temporaryChatContextProvider } from './TemporaryChatContextProvider'
 
 /**
  * Resume an assistant turn paused on a tool-approval-request. Synthesised
- * inside `Ai_ToolApproval_Respond` after `ToolApprovalRegistry` reports
+ * inside `AiService.respondToolApproval` after `ToolApprovalRegistry` reports
  * no live entry for `approvalId`. Not on the renderer↔main IPC contract.
  */
 export interface MainContinueConversationRequest {
@@ -193,7 +193,8 @@ export async function dispatchStreamRequest(
     listeners: prepared.listeners,
     siblingsGroupId: prepared.siblingsGroupId,
     liveExecutionChange,
-    lifecycle: prepared.lifecycle
+    lifecycle: prepared.lifecycle,
+    isPersistentConversation: provider.isPersistentConversation
   })
 
   return {

@@ -19,6 +19,7 @@ export type {
   AiStreamManagerConfig,
   AiStreamOpenRequest,
   CherryUIMessage,
+  ConversationCompletedEvent,
   StreamChunkPayload,
   StreamDonePayload,
   StreamDoneResult,
