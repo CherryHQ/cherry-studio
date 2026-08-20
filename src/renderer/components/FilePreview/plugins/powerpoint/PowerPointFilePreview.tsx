@@ -2,14 +2,17 @@ import type { PresentationData } from '@aiden0z/pptx-renderer'
 import { buildPresentation, parseZipLazyMedia, PptxViewer, RECOMMENDED_ZIP_LIMITS } from '@aiden0z/pptx-renderer'
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { debounce } from 'es-toolkit/compat'
 import AlertCircle from 'lucide-react/dist/esm/icons/alert-circle'
 import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { FilePreviewLayout } from '../../FilePreviewLayout'
+import { createSelectionReference } from '../../selectionReference'
 import type { FilePreviewPluginProps } from '../../types'
 import { PowerPointFilePreviewToolbar } from './PowerPointFilePreviewToolbar'
+import { selectionToPptxAnchor } from './pptxSelectionAnchor'
 
 const logger = loggerService.withContext('PowerPointFilePreview')
 
@@ -18,6 +21,7 @@ const PPTX_PREVIEW_ZOOM_STEP = 10
 const PPTX_PREVIEW_MIN_ZOOM = 50
 const PPTX_PREVIEW_MAX_ZOOM = 200
 const PPTX_PREVIEW_MAX_SOURCE_BYTES = 25 * 1024 * 1024
+const PPTX_SELECTION_CHANGE_DEBOUNCE_MS = 100
 const EXTERNAL_TARGET_MODE = 'external'
 const EXTERNAL_MEDIA_RELATIONSHIP_TYPES = new Set(['image', 'audio', 'video', 'media'])
 
@@ -83,7 +87,13 @@ function stripExternalMediaRelationships(presentation: PresentationData): void {
   }
 }
 
-export default function PowerPointFilePreview({ filePath, fileName, metadata, refreshKey }: FilePreviewPluginProps) {
+export default function PowerPointFilePreview({
+  filePath,
+  fileName,
+  metadata,
+  refreshKey,
+  onSelectionReference
+}: FilePreviewPluginProps) {
   const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
   const viewerRef = useRef<PptxViewer | null>(null)
@@ -268,6 +278,36 @@ export default function PowerPointFilePreview({ filePath, fileName, metadata, re
       container.innerHTML = ''
     }
   }, [filePath, focusContainer, metadata.size, refreshKey, setPreviewControlsBusy])
+
+  useEffect(() => {
+    if (!onSelectionReference) return
+
+    const container = containerRef.current
+    if (!container) return
+
+    const ownerDocument = container.ownerDocument
+
+    const handleSelectionChange = debounce(() => {
+      const selection = ownerDocument.defaultView?.getSelection() ?? null
+
+      if (!selection?.anchorNode || !container.contains(selection.anchorNode)) {
+        onSelectionReference(null)
+        return
+      }
+
+      const result = selectionToPptxAnchor(selection)
+      onSelectionReference(
+        result ? createSelectionReference({ filePath, anchor: result.anchor, excerpt: result.excerpt, metadata }) : null
+      )
+    }, PPTX_SELECTION_CHANGE_DEBOUNCE_MS)
+
+    ownerDocument.addEventListener('selectionchange', handleSelectionChange)
+
+    return () => {
+      ownerDocument.removeEventListener('selectionchange', handleSelectionChange)
+      handleSelectionChange.cancel()
+    }
+  }, [filePath, metadata, onSelectionReference])
 
   const hasPages = !error && pageCount > 0
 
