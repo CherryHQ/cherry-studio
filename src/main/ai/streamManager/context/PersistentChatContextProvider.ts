@@ -11,6 +11,7 @@ import { assistantDataService } from '@data/services/AssistantService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import {
+  COMPACTION_CONTEXT_WINDOW_SAFETY_MARGIN,
   COMPACTION_INPUT_SAFETY_RATIO,
   COMPACTION_MIN_INPUT_BUDGET,
   CONTEXT_COMPACT_KEEP_BUDGET_RATIO,
@@ -960,9 +961,13 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       logger.warn('no model declares a contextWindow — skipping durable compaction for this request', { topicId })
       return serve(effective)
     }
+    // Apply a safety margin to the declared window so compaction triggers
+    // earlier when the provider's real limit is smaller than the model's
+    // declared contextWindow (common for third-party models/channels).
+    const effectiveContextWindow = Math.floor(minContextWindow * COMPACTION_CONTEXT_WINDOW_SAFETY_MARGIN)
     // Against the room the PROMPT actually has: whatever this request declares
     // as max_tokens is billed alongside the input, so it is not history's to use.
-    const inputRoom = resolveInputRoom(minContextWindow, resolveOutputReservation(assistantId, models))
+    const inputRoom = resolveInputRoom(effectiveContextWindow, resolveOutputReservation(assistantId, models))
     // Selects the media cost tables only; text stays on tokenx, matching the
     // in-loop hook so the two triggers cannot disagree on the same history.
     const dialect = resolveRowDialect(models[0])
@@ -1008,7 +1013,11 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       // The window that matters here is the COMPRESSOR's, not the request
       // model's: an explicitly picked 8k compressor on a 128k chat would
       // otherwise be handed a 128k-derived budget and overflow immediately.
-      const compressionWindow = compressionModel.contextWindow ?? minContextWindow
+      // Apply the same safety margin to the compressor's window so
+      // the summarize call also leaves headroom for overstated declared windows.
+      const compressionWindow = Math.floor(
+        (compressionModel.contextWindow ?? minContextWindow) * COMPACTION_CONTEXT_WINDOW_SAFETY_MARGIN
+      )
       const maxOutputTokens = resolveCompressionOutputTokens(compressionWindow)
       compactionSink?.(anchorId, { status: 'compacting', phase: 'turn-start', startedAt })
       const summary = await summarizeModelMessages(modelMessages, compressionModel.languageModel, {

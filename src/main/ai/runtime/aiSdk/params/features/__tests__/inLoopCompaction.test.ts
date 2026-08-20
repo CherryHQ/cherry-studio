@@ -163,7 +163,7 @@ describe('inLoopCompactionFeature', () => {
   it('returns no override and does not compact when the prompt is below 80% of the window', async () => {
     compactModelMessages.mockClear()
     const prepareStep = getPrepareStep()
-    // trigger = 0.8 * 100_000 = 80_000; a small prompt stays well under it.
+    // trigger = 0.8 * floor(100_000 * 0.9) = 72_000; a small prompt stays well under it.
     const messages = [userMessage(100)]
     const result = await prepareStep({ messages } as any)
     expect(result).toBeUndefined()
