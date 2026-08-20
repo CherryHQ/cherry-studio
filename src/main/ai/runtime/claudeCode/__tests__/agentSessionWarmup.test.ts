@@ -1,7 +1,9 @@
 import { REASONING_FORMAT_PROFILES } from '@cherrystudio/provider-registry'
-import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { EndpointResolutionOptions } from '../../../provider/endpoint'
 
 const mocks = vi.hoisted(() => ({
   getSessionById: vi.fn(),
@@ -111,7 +113,8 @@ vi.mock('../settingsBuilder', () => ({
 const { buildClaudeCodeQueryRequestForAgentSession, deriveConnectionConfig } = await import('../agentSessionWarmup')
 const { ApiGatewayNotRunningError } = await import('../../agentApiGateway')
 
-function resolveTestEffectiveEndpoint(provider: Provider, model: Model, preferredEndpointType?: EndpointType) {
+function resolveTestEffectiveEndpoint(provider: Provider, model: Model, options?: EndpointResolutionOptions) {
+  const preferredEndpointType = options?.requiredEndpointType ?? options?.suggestedEndpointType
   const preferred =
     preferredEndpointType &&
     model.endpointTypes?.includes(preferredEndpointType) &&
