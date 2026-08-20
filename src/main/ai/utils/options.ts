@@ -53,7 +53,7 @@ export function applyFastModeToProviderOptions(
   if (!fastMode || !isSupportFastMode(provider, model)) {
     return providerOptions
   }
-  const serviceTier = FAST_MODE_SERVICE_TIER[provider.fastMode!.transport]
+  const serviceTier = FAST_MODE_SERVICE_TIER[provider.fastMode.transport]
   if (!serviceTier) return providerOptions
 
   return {
