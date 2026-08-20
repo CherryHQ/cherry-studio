@@ -83,12 +83,13 @@ describe('ExternalAppService', () => {
       recommendedTargetId: 'system_default',
       targets: [
         { id: 'system_default', kind: 'system_default' },
-        { id: 'file_manager', kind: 'file_manager' }
+        { id: 'file_manager', kind: 'file_manager' },
+        { id: 'known:vscode', name: 'Visual Studio Code', kind: 'application' }
       ]
     })
   })
 
-  it('enriches the single system-default target without adding another choice', async () => {
+  it('enriches the system-default target without duplicating it', async () => {
     mocks.resolveDefaultApplication.mockResolvedValue({
       name: 'Preview',
       iconDataUrl: 'data:image/png;base64,preview'
@@ -105,7 +106,8 @@ describe('ExternalAppService', () => {
           iconDataUrl: 'data:image/png;base64,preview',
           kind: 'system_default'
         },
-        { id: 'file_manager', kind: 'file_manager' }
+        { id: 'file_manager', kind: 'file_manager' },
+        { id: 'known:vscode', name: 'Visual Studio Code', kind: 'application' }
       ]
     })
     expect(mocks.resolveDefaultApplication).toHaveBeenCalledWith('/tmp/report.pdf')

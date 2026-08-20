@@ -80,10 +80,11 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
   )
   const fileName = useMemo(() => getArtifactFileName(displayPath), [displayPath])
   const iconName = useMemo(() => getFileIconName(displayPath), [displayPath])
-  const [openTargetMenuOpen, setOpenTargetMenuOpen] = useState(false)
+  const [popupMenuOpen, setPopupMenuOpen] = useState(false)
+  const [contextMenuOpen, setContextMenuOpen] = useState(false)
   const hasAbsoluteTargetPath = AbsoluteFilePathSchema.safeParse(targetPath).success
   const { data, error, targets, openTarget } = useExternalOpenTargets(targetPath, 'file', {
-    enabled: hasAbsoluteTargetPath && openTargetMenuOpen
+    enabled: hasAbsoluteTargetPath && (popupMenuOpen || contextMenuOpen)
   })
   const hasOpenActions = Boolean(openArtifactFile || hasAbsoluteTargetPath)
 
@@ -180,7 +181,7 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
         <CommandPopupMenu
           location="webcontents.context"
           extraItems={contextMenuItems}
-          onOpenChange={setOpenTargetMenuOpen}
+          onOpenChange={setPopupMenuOpen}
           align="end"
           side="bottom"
           sideOffset={6}
@@ -206,10 +207,7 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
   }
 
   return (
-    <CommandContextMenu
-      location="webcontents.context"
-      extraItems={contextMenuItems}
-      onOpenChange={setOpenTargetMenuOpen}>
+    <CommandContextMenu location="webcontents.context" extraItems={contextMenuItems} onOpenChange={setContextMenuOpen}>
       {card}
     </CommandContextMenu>
   )

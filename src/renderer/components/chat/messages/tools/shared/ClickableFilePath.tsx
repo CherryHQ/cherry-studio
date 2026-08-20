@@ -40,9 +40,9 @@ export const ClickableFilePath = memo(function ClickableFilePath({
   const canOpen = Boolean(openArtifactFile || openPath)
   const hasAbsoluteTargetPath = AbsoluteFilePathSchema.safeParse(targetPath).success
   const { isLoading, targets, openTarget } = useExternalOpenTargets(targetPath, 'file', {
-    enabled: interactive && hasAbsoluteTargetPath && actionsMenuOpen
+    enabled: canOpen && hasAbsoluteTargetPath && actionsMenuOpen
   })
-  const hasMoreActions = interactive && hasAbsoluteTargetPath
+  const hasMoreActions = canOpen && hasAbsoluteTargetPath
 
   const handleOpenTarget = useCallback(
     (target: ExternalOpenTarget) => {

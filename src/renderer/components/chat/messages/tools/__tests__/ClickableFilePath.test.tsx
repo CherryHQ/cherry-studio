@@ -206,13 +206,13 @@ describe('ClickableFilePath', () => {
   })
 
   it('should render ellipsis dropdown trigger when open targets are available', () => {
-    renderWithProvider(<ClickableFilePath path="/tmp/test.ts" />)
+    renderWithProvider(<ClickableFilePath path="/tmp/test.ts" />, { openArtifactFile: mockOpenArtifactFile })
     expect(screen.getByRole('button', { name: 'More' })).toBeInTheDocument()
     expect(mockUseExternalOpenTargets).toHaveBeenLastCalledWith('/tmp/test.ts', 'file', { enabled: false })
   })
 
   it('should show the path-specific system, file-manager, and app targets without separators', () => {
-    renderWithProvider(<ClickableFilePath path="/tmp/test.ts" />)
+    renderWithProvider(<ClickableFilePath path="/tmp/test.ts" />, { openArtifactFile: mockOpenArtifactFile })
 
     fireEvent.click(screen.getByRole('button', { name: 'More' }))
 
@@ -224,7 +224,7 @@ describe('ClickableFilePath', () => {
   })
 
   it('should open the selected target and dismiss the actions menu', async () => {
-    renderWithProvider(<ClickableFilePath path="/tmp/test.ts" />)
+    renderWithProvider(<ClickableFilePath path="/tmp/test.ts" />, { openArtifactFile: mockOpenArtifactFile })
 
     fireEvent.click(screen.getByRole('button', { name: 'More' }))
     fireEvent.click(screen.getByRole('button', { name: /Finder/ }))
@@ -252,6 +252,7 @@ describe('ClickableFilePath', () => {
   it('should render plain text when openArtifactFile capability is unavailable', () => {
     renderWithProvider(<ClickableFilePath path="/tmp/test.ts" />)
     expect(screen.queryByRole('link', { name: '/tmp/test.ts' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'More' })).not.toBeInTheDocument()
     expect(screen.getAllByText('/tmp/test.ts').length).toBeGreaterThan(0)
   })
 
