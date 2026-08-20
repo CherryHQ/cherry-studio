@@ -27,6 +27,13 @@ describe('SelectionReferenceSchema', () => {
     expect(
       parseSelectionReference({
         ...validReference,
+        path: '/workspace/spec.docx',
+        anchor: { format: 'docx', paragraph: 3, paraId: '502E8D33' }
+      })
+    ).not.toBeNull()
+    expect(
+      parseSelectionReference({
+        ...validReference,
         path: '/workspace/paper.pdf',
         anchor: { format: 'pdf', page: 3 }
       })

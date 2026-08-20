@@ -2,7 +2,7 @@ import type { SelectionReference } from '@renderer/types/selectionReference'
 import type { AbsoluteFilePath, PhysicalFileMetadata } from '@shared/types/file'
 import type { ComponentType } from 'react'
 
-export type FilePreviewFileMetadata = Pick<Extract<PhysicalFileMetadata, { kind: 'file' }>, 'size'>
+export type FilePreviewFileMetadata = Pick<Extract<PhysicalFileMetadata, { kind: 'file' }>, 'size' | 'modifiedAt'>
 export type FilePreviewType = 'artifact' | 'file'
 
 export interface FilePreviewPluginProps {

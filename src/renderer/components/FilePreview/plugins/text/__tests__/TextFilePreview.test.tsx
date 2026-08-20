@@ -36,7 +36,12 @@ const filePath = '/tmp/workspace/example.ts' as AbsoluteFilePath
 
 function renderPreview(refreshKey = 0, size = 24) {
   return render(
-    <TextFilePreview filePath={filePath} fileName="example.ts" metadata={{ size }} refreshKey={refreshKey} />
+    <TextFilePreview
+      filePath={filePath}
+      fileName="example.ts"
+      metadata={{ size, modifiedAt: 1 }}
+      refreshKey={refreshKey}
+    />
   )
 }
 
@@ -132,7 +137,14 @@ describe('TextFilePreview', () => {
     const view = renderPreview()
     await screen.findByTestId('code-viewer')
 
-    view.rerender(<TextFilePreview filePath={filePath} fileName="example.ts" metadata={{ size: 24 }} refreshKey={1} />)
+    view.rerender(
+      <TextFilePreview
+        filePath={filePath}
+        fileName="example.ts"
+        metadata={{ size: 24, modifiedAt: 1 }}
+        refreshKey={1}
+      />
+    )
 
     await waitFor(() => expect(mocks.readText).toHaveBeenCalledTimes(2))
   })

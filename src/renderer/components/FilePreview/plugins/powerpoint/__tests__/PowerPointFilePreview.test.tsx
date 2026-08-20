@@ -153,7 +153,12 @@ afterEach(cleanup)
 describe('PowerPointFilePreview', () => {
   it('loads and renders PPTX slides with a centered standalone toolbar', async () => {
     render(
-      <PowerPointFilePreview filePath={filePath} fileName="roadmap.pptx" metadata={{ size: 1024 }} refreshKey={0} />
+      <PowerPointFilePreview
+        filePath={filePath}
+        fileName="roadmap.pptx"
+        metadata={{ size: 1024, modifiedAt: 1 }}
+        refreshKey={0}
+      />
     )
 
     expect(screen.getByRole('status')).toHaveTextContent('file_preview.loading')
@@ -185,7 +190,12 @@ describe('PowerPointFilePreview', () => {
 
   it('removes external media relationships before loading the viewer', async () => {
     render(
-      <PowerPointFilePreview filePath={filePath} fileName="roadmap.pptx" metadata={{ size: 1024 }} refreshKey={0} />
+      <PowerPointFilePreview
+        filePath={filePath}
+        fileName="roadmap.pptx"
+        metadata={{ size: 1024, modifiedAt: 1 }}
+        refreshKey={0}
+      />
     )
 
     await waitFor(() => expect(mocks.load).toHaveBeenCalledTimes(1))
@@ -201,7 +211,7 @@ describe('PowerPointFilePreview', () => {
       <PowerPointFilePreview
         filePath={filePath}
         fileName="roadmap.pptx"
-        metadata={{ size: 25 * 1024 * 1024 + 1 }}
+        metadata={{ size: 25 * 1024 * 1024 + 1, modifiedAt: 1 }}
         refreshKey={0}
       />
     )
@@ -216,7 +226,12 @@ describe('PowerPointFilePreview', () => {
     mocks.fsRead.mockRejectedValueOnce(error)
 
     render(
-      <PowerPointFilePreview filePath={filePath} fileName="roadmap.pptx" metadata={{ size: 1024 }} refreshKey={0} />
+      <PowerPointFilePreview
+        filePath={filePath}
+        fileName="roadmap.pptx"
+        metadata={{ size: 1024, modifiedAt: 1 }}
+        refreshKey={0}
+      />
     )
 
     expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.load_error.title')
@@ -226,13 +241,23 @@ describe('PowerPointFilePreview', () => {
 
   it('rebuilds and destroys the viewer when refreshKey changes', async () => {
     const view = render(
-      <PowerPointFilePreview filePath={filePath} fileName="roadmap.pptx" metadata={{ size: 1024 }} refreshKey={0} />
+      <PowerPointFilePreview
+        filePath={filePath}
+        fileName="roadmap.pptx"
+        metadata={{ size: 1024, modifiedAt: 1 }}
+        refreshKey={0}
+      />
     )
     await waitFor(() => expect(mocks.fsRead).toHaveBeenCalledTimes(1))
     await waitFor(() => expect(mocks.load).toHaveBeenCalledTimes(1))
 
     view.rerender(
-      <PowerPointFilePreview filePath={filePath} fileName="roadmap.pptx" metadata={{ size: 1024 }} refreshKey={1} />
+      <PowerPointFilePreview
+        filePath={filePath}
+        fileName="roadmap.pptx"
+        metadata={{ size: 1024, modifiedAt: 1 }}
+        refreshKey={1}
+      />
     )
 
     await waitFor(() => expect(mocks.fsRead).toHaveBeenCalledTimes(2))
