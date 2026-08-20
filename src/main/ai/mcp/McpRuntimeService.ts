@@ -115,6 +115,25 @@ export interface McpToolListChangedEvent {
 // still letting users raise it further via `server.timeout`.
 const MCP_CONNECT_TIMEOUT_FLOOR_MS = 180_000
 
+// How long to wait for the user to complete an OAuth browser flow before giving up and
+// marking the server as `pending-auth`. 60 s is generous for a browser redirect + consent
+// tap, while being short enough that a stalled OAuth for one server does not block the
+// prewarm of all other servers for 5 minutes.
+const OAUTH_CALLBACK_TIMEOUT_MS = 60_000
+
+/**
+ * Thrown by `finishOAuth` when the OAuth callback does not arrive within the timeout.
+ * Caught by `connectClient` to set the server status to `pending-auth` rather than the
+ * generic `error` state, so the UI can surface a "re-authenticate" affordance instead of
+ * a generic red-dot error.
+ */
+class OAuthPendingAuthError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'OAuthPendingAuthError'
+  }
+}
+
 // Backstop on `prompts/list` / `resources/list` cursor paging: a server that keeps handing back a
 // cursor would otherwise loop forever. Reaching it is logged, not silently truncated.
 const MCP_LIST_PAGE_LIMIT = 50
@@ -225,7 +244,11 @@ export class McpRuntimeService extends BaseService {
     }
 
     const lastError =
-      state === 'error' ? (error instanceof Error ? error.message : String(error ?? 'Unknown error')) : undefined
+      state === 'error' || state === 'pending-auth'
+        ? error instanceof Error
+          ? error.message
+          : String(error ?? 'Unknown error')
+        : undefined
 
     const cacheService = application.get('CacheService')
     const key = mcpStatusCacheKey(serverId)
@@ -508,7 +531,11 @@ export class McpRuntimeService extends BaseService {
       })
       return client
     } catch (error) {
-      this.setServerStatus(server.id, 'error', error)
+      if (error instanceof OAuthPendingAuthError) {
+        this.setServerStatus(server.id, 'pending-auth', error)
+      } else {
+        this.setServerStatus(server.id, 'error', error)
+      }
       getServerLogger(server).error(`Error activating server ${server.name}`, error as Error)
       this.emitServerLog(server, {
         timestamp: Date.now(),
@@ -621,13 +648,8 @@ export class McpRuntimeService extends BaseService {
       events
     })
 
-    const timeoutId = setTimeout(() => {
-      getServerLogger(server).warn(`OAuth flow timed out`)
-      void callbackServer.close()
-    }, 300000) // 5 minutes timeout
-
     try {
-      const authCode = await callbackServer.waitForAuthCode()
+      const authCode = await callbackServer.waitForAuthCode(OAUTH_CALLBACK_TIMEOUT_MS)
       getServerLogger(server).debug(`Received auth code`)
 
       await transport.finishAuth(authCode)
@@ -639,12 +661,20 @@ export class McpRuntimeService extends BaseService {
       await client.connect(await createServerTransport(typeOverride))
       getServerLogger(server).debug(`Successfully authenticated`)
     } catch (oauthError) {
+      if (oauthError instanceof Error && oauthError.message.startsWith('Timed out waiting for OAuth')) {
+        getServerLogger(server).warn(
+          `OAuth flow timed out after ${OAUTH_CALLBACK_TIMEOUT_MS / 1000}s — marking server as pending-auth`
+        )
+        throw new OAuthPendingAuthError(
+          `OAuth authorization did not complete within ${OAUTH_CALLBACK_TIMEOUT_MS / 1000}s. ` +
+            `Open the MCP settings and re-enable the server to retry.`
+        )
+      }
       getServerLogger(server).error(`OAuth authentication failed`, oauthError as Error)
       throw new Error(
         `OAuth authentication failed: ${oauthError instanceof Error ? oauthError.message : String(oauthError)}`
       )
     } finally {
-      clearTimeout(timeoutId)
       void callbackServer.close()
     }
   }

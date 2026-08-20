@@ -21,6 +21,8 @@ function getStatusBadge(t: TFunction, state: McpRuntimeStatus['state']) {
       return t('settings.mcp.runtimeStatus.connecting', 'Connecting')
     case 'error':
       return t('settings.mcp.runtimeStatus.unavailable', 'Unavailable')
+    case 'pending-auth':
+      return t('settings.mcp.runtimeStatus.pendingAuth', 'Pending Auth')
     default:
       return undefined
   }
@@ -34,6 +36,8 @@ function getStatusBadgeClassName(state: McpRuntimeStatus['state']) {
       return 'border-warning-border bg-warning-subtle text-warning-subtle-foreground'
     case 'error':
       return 'border-error-border bg-error-subtle text-error-subtle-foreground'
+    case 'pending-auth':
+      return 'border-warning-border bg-warning-subtle text-warning-subtle-foreground'
     default:
       return undefined
   }

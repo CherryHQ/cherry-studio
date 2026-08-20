@@ -1092,6 +1092,26 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
     expect(finishOAuth).not.toHaveBeenCalled()
     expect(mcpSdkMock.clients.at(-1)?.connectCalls).toEqual([{ kind: 'streamableHttp' }])
   })
+
+  it('sets pending-auth status and throws when OAuth callback times out', async () => {
+    mcpSdkMock.state.failStreamable = true
+    mcpSdkMock.state.failStreamableUnauthorized = true
+    callbackServerMock.waitForAuthCode.mockReset().mockRejectedValue(
+      new Error('Timed out waiting for OAuth authorization code after 60s')
+    )
+
+    const service = new McpRuntimeService()
+    const server = urlServer('streamableHttp')
+
+    await expect((service as any).getOrCreateClient(server)).rejects.toMatchObject({
+      name: 'OAuthPendingAuthError'
+    })
+
+    // Server must be marked pending-auth, not error, so the UI can show a re-auth affordance.
+    expect(MockMainCacheServiceUtils.getSharedCacheValue(`mcp.status.${server.id}` as any)).toMatchObject({
+      state: 'pending-auth'
+    })
+  })
 })
 
 // Delete-vs-reconnect race: removeServer (close + row delete) scans pendingClients/clients
