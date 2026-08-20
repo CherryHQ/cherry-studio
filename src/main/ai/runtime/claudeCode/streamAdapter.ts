@@ -910,6 +910,8 @@ export class ClaudeCodeStreamAdapter {
   private autonomousTurn = false
   /** An empty task snapshot was seen; wait for the SDK's authoritative idle boundary to release it. */
   private backgroundWorkReleasePending = false
+  /** The idle boundary arrived while terminal statistics were still reconciling. */
+  private backgroundWorkReleaseIdle = false
   /** The latest authoritative level, enriched only by explicit async-launch receipts from this driver. */
   private backgroundTasks: AgentSessionBackgroundTask[] = []
   private readonly backgroundTaskToolCallIds = new Map<string, string>()
@@ -1040,6 +1042,7 @@ export class ClaudeCodeStreamAdapter {
     this.clearBackgroundTaskState()
     this.backgroundTasks = []
     this.backgroundWorkReleasePending = false
+    this.backgroundWorkReleaseIdle = false
     this.flowContexts.length = 0
   }
 
@@ -1844,9 +1847,11 @@ export class ClaudeCodeStreamAdapter {
         this.publishBackgroundTasks()
         if (message.tasks.length > 0) {
           this.backgroundWorkReleasePending = false
+          this.backgroundWorkReleaseIdle = false
           this.statusSink.emit({ type: 'background-work-state', active: true })
         } else {
           this.backgroundWorkReleasePending = true
+          this.backgroundWorkReleaseIdle = false
         }
         return
       }
@@ -2547,6 +2552,14 @@ export class ClaudeCodeStreamAdapter {
   private finishTerminalTaskReconciliation(taskId: string): void {
     this.releaseTerminalTaskState(taskId)
     if (
+      this.backgroundWorkReleasePending &&
+      this.backgroundWorkReleaseIdle &&
+      !this.hasPendingTerminalReconciliation()
+    ) {
+      this.releaseBackgroundWork()
+      return
+    }
+    if (
       !this.turnActive &&
       this.backgroundTasks.length === 0 &&
       !this.backgroundWorkReleasePending &&
@@ -2862,7 +2875,15 @@ export class ClaudeCodeStreamAdapter {
       }
       return
     }
+    this.backgroundWorkReleaseIdle = true
+    if (this.hasPendingTerminalReconciliation()) return
+    this.releaseBackgroundWork()
+  }
+
+  private releaseBackgroundWork(): void {
+    if (!this.backgroundWorkReleasePending || !this.backgroundWorkReleaseIdle) return
     this.backgroundWorkReleasePending = false
+    this.backgroundWorkReleaseIdle = false
     if (this.backgroundTasks.length > 0) {
       this.backgroundTasks = []
       this.publishBackgroundTasks()

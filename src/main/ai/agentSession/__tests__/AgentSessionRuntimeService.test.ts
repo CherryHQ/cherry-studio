@@ -2489,6 +2489,45 @@ describe('AgentSessionRuntimeService', () => {
     })
 
     it('persists the first terminal snapshot and checkpoints a later terminal notification', async () => {
+      let persistedParts: any[] = [
+        {
+          type: 'tool-Workflow',
+          toolCallId: 'workflow-root',
+          state: 'input-available',
+          input: { workflow: 'review' }
+        }
+      ]
+      mocks.getSessionMessage.mockImplementation(() => ({
+        id: 'assistant-1',
+        role: 'assistant',
+        data: { parts: structuredClone(persistedParts) }
+      }))
+      mocks.replaceMessageParts.mockImplementation((_sessionId, _messageId, parts) => {
+        persistedParts = structuredClone(parts)
+      })
+      mocks.checkpointWorkflowTaskEvent.mockImplementation((_sessionId, _messageId, event) => {
+        const terminalIndex = persistedParts.findLastIndex(
+          (part) =>
+            part.type === 'data-agent-task-event' &&
+            part.data.taskId === event.taskId &&
+            part.data.workflow !== undefined &&
+            ['completed', 'stopped', 'error'].includes(part.data.status)
+        )
+        const fallbackIndex = persistedParts.findLastIndex(
+          (part) =>
+            part.type === 'data-agent-task-event' &&
+            part.data.taskId === event.taskId &&
+            part.data.workflow !== undefined
+        )
+        const index = terminalIndex >= 0 ? terminalIndex : fallbackIndex
+        const checkpoint = {
+          type: 'data-agent-task-event',
+          id: index >= 0 ? persistedParts[index].id : `task-${event.taskId}-workflow-checkpoint`,
+          data: event
+        }
+        if (index >= 0) persistedParts[index] = checkpoint
+        else persistedParts.push(checkpoint)
+      })
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
       const entry = getEntry(service)
@@ -2541,29 +2580,63 @@ describe('AgentSessionRuntimeService', () => {
           taskId: 'workflow-1',
           status: 'completed' as const,
           workflow: workflow(300)
-        },
-        {
-          event: 'notification' as const,
-          taskId: 'workflow-1',
-          status: 'completed' as const,
-          workflow: workflow(400)
         }
       ]) {
         ;(service as any).handleRuntimeEvent(entry, { type: 'background-task-event', data })
       }
+
+      await Promise.resolve()
+      expect(mocks.replaceMessageParts).not.toHaveBeenCalled()
+      expect(entry.taskMessageIdsByTaskId?.get('workflow-1')).toBe('assistant-1')
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-task-event',
+        data: {
+          event: 'notification',
+          taskId: 'workflow-1',
+          status: 'completed',
+          workflow: workflow(400)
+        }
+      })
       ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
 
       await vi.waitFor(() => expect(mocks.replaceMessageParts).toHaveBeenCalled())
-      const persistedParts = mocks.replaceMessageParts.mock.calls.at(-1)?.[2] ?? []
-      const workflowEvents = persistedParts.filter(
+      const writtenParts = mocks.replaceMessageParts.mock.calls.at(-1)?.[2] ?? []
+      const workflowEvents = writtenParts.filter(
         (part: any) => part.type === 'data-agent-task-event' && part.data.taskId === 'workflow-1'
       )
-      expect(workflowEvents).toHaveLength(2)
-      expect(workflowEvents.map((part: any) => part.data.workflow?.totalTokens)).toEqual([undefined, 300])
+      const workflowSnapshots = workflowEvents.filter((part: any) => part.data.workflow)
+      expect(workflowSnapshots).toHaveLength(2)
+      expect(workflowSnapshots.map((part: any) => part.data.workflow?.totalTokens)).toEqual([100, 300])
+      expect(workflowEvents).not.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            data: expect.objectContaining({ workflow: expect.objectContaining({ totalTokens: 400 }) })
+          })
+        ])
+      )
       expect(mocks.checkpointWorkflowTaskEvent).toHaveBeenLastCalledWith(
         'session-1',
         'assistant-1',
         expect.objectContaining({ workflow: expect.objectContaining({ totalTokens: 400 }) })
+      )
+      expect(persistedParts).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'data-agent-task-event',
+            data: expect.objectContaining({ workflow: expect.objectContaining({ totalTokens: 400 }) })
+          })
+        ])
+      )
+      expect(mocks.cacheSetShared).toHaveBeenCalledWith(
+        'agent.session.flow_parts.session-1.assistant-1',
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'data-agent-task-event',
+            data: expect.objectContaining({ workflow: expect.objectContaining({ totalTokens: 400 }) })
+          })
+        ]),
+        60_000
       )
     })
 
