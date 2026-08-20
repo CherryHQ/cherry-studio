@@ -50,7 +50,28 @@ export async function buildPluginDirectoryIndex(directories: readonly string[]):
   return index
 }
 
-export async function checkSkillRuntimeDependencies(
+const inFlightChecks = new Map<string, Promise<SkillDependencyCheck>>()
+
+/**
+ * Both PreToolUse planes ask about the same tool call — the guard rule for `deny`, the advisory hook
+ * for `warning` — so share the in-flight run instead of re-parsing SKILL.md and re-probing PATH
+ * twice. The entry is dropped as soon as it settles; nothing is cached across tool calls.
+ */
+export function checkSkillRuntimeDependencies(
+  skillName: string,
+  cwd: string,
+  pluginDirectories: ReadonlyMap<string, string>
+): Promise<SkillDependencyCheck> {
+  const key = `${cwd}\0${skillName}`
+  const shared = inFlightChecks.get(key)
+  if (shared) return shared
+
+  const check = runDependencyCheck(skillName, cwd, pluginDirectories).finally(() => inFlightChecks.delete(key))
+  inFlightChecks.set(key, check)
+  return check
+}
+
+async function runDependencyCheck(
   skillName: string,
   cwd: string,
   pluginDirectories: ReadonlyMap<string, string>
@@ -109,9 +130,10 @@ async function resolveSkillDirectory(
 }
 
 /**
- * `absent` is reserved for a plugin-qualified name whose plugin is loaded but has no such agent, or
- * whose plugin is not loaded at all. A bare name that misses is `unresolved`: the SDK's builtin
- * roster is a moving target, so a miss is not proof.
+ * `absent` is reserved for a plugin-qualified name whose plugin is indexed and has no such agent
+ * file — the one case the index can settle. A bare name that misses is `unresolved` (the SDK's
+ * builtin roster is a moving target), and so is an unindexed plugin: the index only holds what
+ * settingsBuilder passes as `plugins`, while the enabled setting sources let the SDK load more.
  */
 async function resolveAgentStatus(
   agentName: string,
@@ -124,7 +146,7 @@ async function resolveAgentStatus(
   const separator = agentName.indexOf(':')
   if (separator >= 0) {
     const pluginDirectory = pluginDirectories.get(agentName.slice(0, separator))
-    if (!pluginDirectory) return 'absent'
+    if (!pluginDirectory) return 'unresolved'
     const definition = path.join(pluginDirectory, 'agents', `${agentName.slice(separator + 1)}.md`)
     return (await isFile(definition)) ? 'available' : 'absent'
   }

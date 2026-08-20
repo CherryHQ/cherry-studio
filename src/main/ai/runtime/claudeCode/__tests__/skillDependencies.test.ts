@@ -69,7 +69,9 @@ describe('checkSkillRuntimeDependencies', () => {
     await Promise.all(tempDirs.splice(0).map((dir) => fs.promises.rm(dir, { recursive: true, force: true })))
   })
 
-  it('denies a forked skill whose subagent plugin is not loaded', async () => {
+  // The index only holds the plugins settingsBuilder passes; the enabled setting sources let the SDK
+  // load others, so an unindexed plugin is not evidence that its subagent is missing.
+  it('warns instead of denying when the subagent plugin is not in the index', async () => {
     const workdir = await writeWorkspaceSkill(
       'parallel-web-search',
       'context: fork\nagent: parallel:parallel-subagent\n'
@@ -77,9 +79,8 @@ describe('checkSkillRuntimeDependencies', () => {
 
     const result = await checkSkillRuntimeDependencies('parallel-web-search', workdir, new Map())
 
-    expect(result.deny).toBe(
-      'Skill "parallel-web-search" cannot run: its forked subagent "parallel:parallel-subagent" is not installed.'
-    )
+    expect(result.deny).toBeUndefined()
+    expect(result.warning).toContain('"parallel:parallel-subagent"')
   })
 
   it('denies a forked skill whose plugin is loaded but defines no such subagent', async () => {
@@ -163,12 +164,29 @@ describe('checkSkillRuntimeDependencies', () => {
       'parallel-web-search',
       'context: fork\nagent: parallel:parallel-subagent\nallowed-tools: Bash(parallel-cli:*)\n'
     )
+    const plugin = await writePlugin('parallel', ['some-other-agent'])
     mocks.findExecutableInEnv.mockResolvedValue(null)
 
-    const result = await checkSkillRuntimeDependencies('parallel-web-search', workdir, new Map())
+    const result = await checkSkillRuntimeDependencies(
+      'parallel-web-search',
+      workdir,
+      await buildPluginDirectoryIndex([plugin])
+    )
 
     expect(result.deny).toContain('its forked subagent "parallel:parallel-subagent" is not installed')
     expect(result.deny).toContain('the executable "parallel-cli"')
+  })
+
+  // The guard rule and the advisory hook both ask about the same tool call.
+  it('probes PATH once when both PreToolUse planes ask about the same call', async () => {
+    const workdir = await writeWorkspaceSkill('local-skill', 'allowed-tools: Bash(jq:*)\n')
+
+    await Promise.all([
+      checkSkillRuntimeDependencies('local-skill', workdir, new Map()),
+      checkSkillRuntimeDependencies('local-skill', workdir, new Map())
+    ])
+
+    expect(mocks.findExecutableInEnv).toHaveBeenCalledExactlyOnceWith('jq')
   })
 
   it('stays silent for a skill it cannot locate', async () => {
