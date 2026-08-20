@@ -139,7 +139,7 @@ describe('ExternalAppService', () => {
   it('falls back to the containing directory for dangerous unsupported file types', async () => {
     const { ExternalAppService } = await import('../ExternalAppService')
 
-    await expect(new ExternalAppService().listOpenTargets('/tmp/install.command')).resolves.toEqual({
+    await expect(new ExternalAppService().listOpenTargets('/tmp/install.dmg')).resolves.toEqual({
       pathKind: 'file',
       recommendedTargetId: 'file_manager',
       targets: [{ id: 'file_manager', kind: 'file_manager' }]
