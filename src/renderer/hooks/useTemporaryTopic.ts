@@ -53,7 +53,7 @@ export interface UseTemporaryTopicResult {
   ready: boolean
   /** Drop the current topic and lease a fresh one. No-op when disabled. */
   reset: () => void
-  /** Move the temporary topic (plus its messages) into SQLite. */
+  /** Move the temporary topic into SQLite, omitting failed assistant turns. */
   persist: (initialName?: string) => Promise<void>
 }
 

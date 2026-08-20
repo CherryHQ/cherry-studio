@@ -292,6 +292,13 @@
       "description": "Quick assistant model UniqueModelId (provider::modelId, from complex mapping llm_model_ids_to_unique)"
     },
     {
+      "targetKey": "feature.quick_assistant.save_conversations",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Save Quick Assistant conversations to the selected assistant's history"
+    },
+    {
       "targetKey": "feature.translate.model_id",
       "type": "string",
       "defaultValue": null,

@@ -198,6 +198,7 @@ export class TemporaryChatService {
       throw DataApiErrorFactory.notFound('TemporaryTopic', topicId)
     }
     const msgs = this.messages.get(topicId) ?? []
+    const persistedMessages = msgs.filter((message) => message.role !== 'assistant' || message.status !== 'error')
     this.topics.delete(topicId)
     this.messages.delete(topicId)
 
@@ -229,11 +230,11 @@ export class TemporaryChatService {
           }
         )
 
-        // 3. Create the topic's virtual root, then linearize buffered messages under it:
-        // the first message hangs off the root, then parentId[i] = msgs[i-1].id.
+        // 3. Create the topic's virtual root, then linearize retained messages under it:
+        // the first message hangs off the root, then parentId[i] = persistedMessages[i-1].id.
         const rootId = messageService.createRootMessageTx(tx, topic.id)
         let prevId: string = rootId
-        for (const m of msgs) {
+        for (const m of persistedMessages) {
           tx.insert(messageTable)
             .values({
               id: m.id,
@@ -275,13 +276,13 @@ export class TemporaryChatService {
     // Promotion never creates or repairs facts. Rebuild the materialized
     // projection from the records that were captured while the chat was
     // temporary.
-    for (const m of msgs) {
+    for (const m of persistedMessages) {
       if (m.role !== 'assistant') continue
       aiUsageRecordService.refreshMessageProjection({ kind: 'chat', id: m.id })
     }
 
-    logger.info('Persisted temporary topic', { topicId, messageCount: msgs.length })
-    return { topicId, messageCount: msgs.length }
+    logger.info('Persisted temporary topic', { topicId, messageCount: persistedMessages.length })
+    return { topicId, messageCount: persistedMessages.length }
   }
 
   private assertAcceptableAppendDto(dto: CreateMessageDto): void {

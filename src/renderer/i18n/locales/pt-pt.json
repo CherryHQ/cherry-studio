@@ -4183,6 +4183,9 @@
     "clipboard": {
       "empty": "A área de transferência está vazia"
     },
+    "errors": {
+      "save_conversation_failed": "Não foi possível guardar esta conversa. Tente novamente antes de iniciar uma nova conversa."
+    },
     "feature": {
       "chat": "Responder a esta pergunta",
       "explanation": "Explicação",
@@ -6682,6 +6685,8 @@
       "click_tray_to_show": "Clique no ícone da bandeja para iniciar",
       "enable_quick_assistant": "Ativar assistente rápido",
       "read_clipboard_at_startup": "Ler área de transferência ao iniciar",
+      "save_conversations": "Guardar conversas no histórico do assistente",
+      "save_conversations_tooltip": "Guardada após a primeira resposta e apresentada no assistente selecionado. Disponível apenas no modo Assistente.",
       "title": "Assistente Rápido",
       "use_shortcut_to_show": "Clique com o botão direito no ícone da bandeja ou use atalhos para iniciar"
     },

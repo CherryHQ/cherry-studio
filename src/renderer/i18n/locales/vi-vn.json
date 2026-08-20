@@ -4183,6 +4183,9 @@
     "clipboard": {
       "empty": "Khay nhớp trống"
     },
+    "errors": {
+      "save_conversation_failed": "Không thể lưu cuộc trò chuyện này. Hãy thử lại trước khi bắt đầu cuộc trò chuyện mới."
+    },
     "feature": {
       "chat": "Trả lời câu hỏi này",
       "explanation": "Giải thích",
@@ -6682,6 +6685,8 @@
       "click_tray_to_show": "Nhấp vào biểu tượng khay để bắt đầu",
       "enable_quick_assistant": "Bật Trợ lý Nhanh",
       "read_clipboard_at_startup": "Đọc clipboard khi khởi động",
+      "save_conversations": "Lưu cuộc trò chuyện vào lịch sử trợ lý",
+      "save_conversations_tooltip": "Được lưu sau phản hồi đầu tiên và hiển thị bên dưới trợ lý đã chọn. Chỉ khả dụng ở chế độ Trợ lý.",
       "title": "Trợ lý Nhanh",
       "use_shortcut_to_show": "Nhấp chuột phải vào biểu tượng khay hoặc sử dụng phím tắt để bắt đầu"
     },

@@ -228,6 +228,33 @@ describe('TemporaryChatService', () => {
       expect(dbTopic?.activeNodeId).toBeNull()
     })
 
+    it('excludes a failed assistant turn when a later retry succeeds', async () => {
+      const topic = service.createTopic({ name: 'retried' })
+      service.appendMessage(topic.id, { role: 'user', data: mainText('first attempt') })
+      service.appendMessage(topic.id, {
+        role: 'assistant',
+        data: mainText('failed response'),
+        status: 'error'
+      })
+      service.appendMessage(topic.id, { role: 'user', data: mainText('retry') })
+      const successfulAssistant = service.appendMessage(topic.id, {
+        role: 'assistant',
+        data: mainText('successful response')
+      })
+
+      expect(service.persist(topic.id).messageCount).toBe(3)
+
+      const rows = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, topic.id))
+      expect(rows.filter((row) => row.role !== 'root').map(({ role, status }) => ({ role, status }))).toEqual([
+        { role: 'user', status: 'success' },
+        { role: 'user', status: 'success' },
+        { role: 'assistant', status: 'success' }
+      ])
+      expect(dbh.db.select().from(topicTable).where(eq(topicTable.id, topic.id)).get()?.activeNodeId).toBe(
+        successfulAssistant.id
+      )
+    })
+
     it('unknown topicId → notFound', () => {
       expect(() => service.persist('no-such-id')).toThrow(/not found/i)
     })

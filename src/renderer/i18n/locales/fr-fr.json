@@ -4183,6 +4183,9 @@
     "clipboard": {
       "empty": "Presse-papiers vide"
     },
+    "errors": {
+      "save_conversation_failed": "Cette conversation n’a pas pu être enregistrée. Réessayez avant de commencer une nouvelle conversation."
+    },
     "feature": {
       "chat": "Répondre à cette question",
       "explanation": "Explication",
@@ -6682,6 +6685,8 @@
       "click_tray_to_show": "Cliquez sur l'icône dans la barre d'état système pour démarrer",
       "enable_quick_assistant": "Activer l'assistant rapide",
       "read_clipboard_at_startup": "Lire le presse-papiers au démarrage",
+      "save_conversations": "Enregistrer les conversations dans l’historique de l’assistant",
+      "save_conversations_tooltip": "Enregistrée après la première réponse et affichée sous l’assistant sélectionné. Disponible uniquement en mode Assistant.",
       "title": "Assistant Rapide",
       "use_shortcut_to_show": "Cliquez avec le bouton droit sur l'icône dans la barre d'état système ou utilisez un raccourci clavier pour démarrer"
     },
