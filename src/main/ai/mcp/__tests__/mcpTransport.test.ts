@@ -5,10 +5,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const inMemoryServerMock = vi.hoisted(() => ({ connect: vi.fn().mockResolvedValue(undefined) }))
 const createInMemoryMcpServer = vi.hoisted(() => vi.fn().mockResolvedValue(inMemoryServerMock))
 const getBuiltinHttpHeaders = vi.hoisted(() => vi.fn<() => Record<string, string>>(() => ({})))
+const hasInMemoryImplementation = vi.hoisted(() => vi.fn<(name: string) => boolean>(() => true))
 vi.mock('@main/ai/mcp/servers/factory', () => ({
   createInMemoryMcpServer,
   getBuiltinRegistryEnv: () => ({}),
-  getBuiltinHttpHeaders
+  getBuiltinHttpHeaders,
+  hasInMemoryImplementation
 }))
 
 vi.mock('@application', async () => {
@@ -161,6 +163,28 @@ describe('createTransport', () => {
 
     expect(entries).toHaveLength(1)
     expect(entries[0]).toMatchObject({ level: 'stderr', message: 'server crashed', source: 'stdio' })
+  })
+
+  it('runs an in-memory row we cannot start in-process through the connection it declares', async () => {
+    // Legacy rows kept `inMemory` alongside a command; before, they connected via that command.
+    hasInMemoryImplementation.mockReturnValueOnce(false)
+
+    const transport = (await create({
+      type: 'inMemory',
+      name: '@cherry/mcp-auto-install',
+      command: 'npx'
+    })) as unknown as FakeStdioTransport
+
+    expect(transport.params.command).toBe('/usr/local/bin/npx')
+    expect(createInMemoryMcpServer).not.toHaveBeenCalled()
+  })
+
+  it('names the missing in-process server when the row declares no connection either', async () => {
+    hasInMemoryImplementation.mockReturnValueOnce(false)
+
+    await expect(create({ type: 'inMemory', name: '@cherry/ghost' })).rejects.toThrow(
+      /Unknown in-memory MCP server: @cherry\/ghost/
+    )
   })
 
   it('refuses a config that says neither where to connect nor what to run', async () => {

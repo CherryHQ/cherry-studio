@@ -1,6 +1,11 @@
 import { application } from '@application'
 import type { LoggerService } from '@logger'
-import { createInMemoryMcpServer, getBuiltinHttpHeaders, getBuiltinRegistryEnv } from '@main/ai/mcp/servers/factory'
+import {
+  createInMemoryMcpServer,
+  getBuiltinHttpHeaders,
+  getBuiltinRegistryEnv,
+  hasInMemoryImplementation
+} from '@main/ai/mcp/servers/factory'
 import { defaultAppHeaders } from '@main/utils/http'
 import { removeEnvProxy } from '@main/utils/processRunner'
 import { getShellEnv } from '@main/utils/shellEnv'
@@ -199,7 +204,9 @@ async function createStdio(
 export async function createTransport(input: CreateTransportInput): Promise<McpTransport> {
   const { server } = input
 
-  if (server.type === 'inMemory') {
+  // An `inMemory` row we cannot start in-process still describes how to reach the server —
+  // legacy rows kept that type alongside a command — so fall through to what it declares.
+  if (server.type === 'inMemory' && hasInMemoryImplementation(server.name)) {
     return createInMemory(input)
   }
   if (server.baseUrl) {
@@ -207,6 +214,9 @@ export async function createTransport(input: CreateTransportInput): Promise<McpT
   }
   if (server.command) {
     return createStdio(input, server.command)
+  }
+  if (server.type === 'inMemory') {
+    throw new Error(`Unknown in-memory MCP server: ${server.name}`)
   }
   throw new Error('Either baseUrl or command must be provided')
 }

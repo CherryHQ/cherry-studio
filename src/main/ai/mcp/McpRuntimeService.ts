@@ -429,7 +429,11 @@ export class McpRuntimeService extends BaseService {
       getServerLogger(server).error(`Error pinging server ${server.name}`, error as Error)
     }
 
-    await this.discardStaleClient(serverKey)
+    // Discard by identity: a concurrent restart may already have replaced the entry, and
+    // closing by key alone would take down the fresh client it just installed.
+    if (this.clients.get(serverKey) === existingClient) {
+      await this.discardStaleClient(serverKey)
+    }
     return undefined
   }
 

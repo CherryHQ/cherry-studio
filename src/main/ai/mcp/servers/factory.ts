@@ -48,6 +48,11 @@ const inMemoryServers: Partial<Record<BuiltinMcpServerName, InMemoryServerLoader
   }
 }
 
+/** Whether this name has an in-process implementation; anything else must connect for itself. */
+export function hasInMemoryImplementation(name: string): boolean {
+  return name in inMemoryServers
+}
+
 export async function createInMemoryMcpServer(
   name: string,
   args: string[] = [],
