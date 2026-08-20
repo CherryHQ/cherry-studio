@@ -121,6 +121,13 @@ const MCP_CONNECT_TIMEOUT_FLOOR_MS = 180_000
 // prewarm of all other servers for 5 minutes.
 const OAUTH_CALLBACK_TIMEOUT_MS = 60_000
 
+// How long the connect path blocks waiting for the OAuth code before failing fast to
+// `pending-auth`. After this window the callback server keeps listening in background;
+// if the code arrives within the full OAUTH_CALLBACK_TIMEOUT_MS, the server auto-reconnects
+// without user interaction. 8 s is enough for a user who already has a browser tab open,
+// while preventing a single OAuth-gated server from delaying all other servers on startup.
+const OAUTH_GRACE_MS = 8_000
+
 /**
  * Thrown by `finishOAuth` when the OAuth callback does not arrive within the timeout.
  * Caught by `connectClient` to set the server status to `pending-auth` rather than the
@@ -197,6 +204,10 @@ function withCache<T extends unknown[], R>(
 export class McpRuntimeService extends BaseService {
   private clients: Map<string, Client> = new Map()
   private pendingClients: Map<string, Promise<Client>> = new Map()
+  // Cancel functions for in-flight background OAuth listeners, keyed by server id.
+  // Called on server stop, removal, or restart to prevent a stale listener from
+  // racing a fresh connect attempt.
+  private pendingOAuthListeners: Map<string, () => void> = new Map()
   // In-flight liveness probes, deduped per server key. Deliberately separate from
   // pendingClients: removeServer awaits that map, and it must not wait out a ping.
   private pendingProbes: Map<string, Promise<Client | undefined>> = new Map()
@@ -224,6 +235,10 @@ export class McpRuntimeService extends BaseService {
 
   protected async onStop(): Promise<void> {
     this.stopping = true
+    for (const cancel of this.pendingOAuthListeners.values()) {
+      cancel()
+    }
+    this.pendingOAuthListeners.clear()
     this.abortActiveToolCalls()
     await this.waitForPendingClients()
     await this.closeAllClients()
@@ -648,11 +663,41 @@ export class McpRuntimeService extends BaseService {
       events
     })
 
+    // Wait a short grace window so that a user who was already at the consent page
+    // completes without any status change. If the code does not arrive in time, fail
+    // fast (so other servers can activate) and keep the callback server alive in
+    // background — when the code eventually arrives the server auto-reconnects.
+    let graceExpired = false
+    let authCode: string | undefined
     try {
-      const authCode = await callbackServer.waitForAuthCode(OAUTH_CALLBACK_TIMEOUT_MS)
-      getServerLogger(server).debug(`Received auth code`)
+      authCode = await callbackServer.waitForAuthCode(OAUTH_GRACE_MS)
+    } catch (graceError) {
+      if (graceError instanceof Error && graceError.message.startsWith('Timed out waiting for OAuth')) {
+        graceExpired = true
+      } else {
+        void callbackServer.close()
+        getServerLogger(server).error(`OAuth authentication failed`, graceError as Error)
+        throw new Error(
+          `OAuth authentication failed: ${graceError instanceof Error ? graceError.message : String(graceError)}`
+        )
+      }
+    }
 
-      await transport.finishAuth(authCode)
+    if (graceExpired) {
+      getServerLogger(server).info(
+        `OAuth not completed in grace window (${OAUTH_GRACE_MS / 1000}s) — ` +
+          `marking server as pending-auth and listening in background for up to ${OAUTH_CALLBACK_TIMEOUT_MS / 1000}s`
+      )
+      this.scheduleBackgroundOAuthCompletion({ server, transport, callbackServer })
+      throw new OAuthPendingAuthError(
+        `OAuth authorization is pending. Complete the browser flow to connect this server automatically, ` +
+          `or open MCP settings and re-enable the server to retry.`
+      )
+    }
+
+    // Code arrived within the grace window — complete the flow inline.
+    try {
+      await transport.finishAuth(authCode!)
       getServerLogger(server).debug(`OAuth flow completed`)
 
       // The 401 left its transport installed on the client, and the SDK refuses a second
@@ -660,22 +705,73 @@ export class McpRuntimeService extends BaseService {
       await client.close().catch(() => undefined)
       await client.connect(await createServerTransport(typeOverride))
       getServerLogger(server).debug(`Successfully authenticated`)
-    } catch (oauthError) {
-      if (oauthError instanceof Error && oauthError.message.startsWith('Timed out waiting for OAuth')) {
-        getServerLogger(server).warn(
-          `OAuth flow timed out after ${OAUTH_CALLBACK_TIMEOUT_MS / 1000}s — marking server as pending-auth`
-        )
-        throw new OAuthPendingAuthError(
-          `OAuth authorization did not complete within ${OAUTH_CALLBACK_TIMEOUT_MS / 1000}s. ` +
-            `Open the MCP settings and re-enable the server to retry.`
-        )
-      }
-      getServerLogger(server).error(`OAuth authentication failed`, oauthError as Error)
+    } catch (finishError) {
+      getServerLogger(server).error(`OAuth authentication failed`, finishError as Error)
       throw new Error(
-        `OAuth authentication failed: ${oauthError instanceof Error ? oauthError.message : String(oauthError)}`
+        `OAuth authentication failed: ${finishError instanceof Error ? finishError.message : String(finishError)}`
       )
     } finally {
       void callbackServer.close()
+    }
+  }
+
+  /**
+   * Keeps the OAuth callback server alive after the grace window and auto-reconnects
+   * the server when the auth code arrives. Stores a cancel function so that
+   * `restartServer`, `stopServer`, and `removeServer` can abort the listener and
+   * close the port before starting a new connection attempt.
+   */
+  private scheduleBackgroundOAuthCompletion({
+    server,
+    transport,
+    callbackServer
+  }: {
+    server: McpServer
+    transport: SSEClientTransport | StreamableHTTPClientTransport
+    callbackServer: CallBackServer
+  }): void {
+    this.cancelPendingOAuthListener(server.id)
+
+    let active = true
+    const cancel = () => {
+      active = false
+      void callbackServer.close()
+    }
+    this.pendingOAuthListeners.set(server.id, cancel)
+
+    const remaining = OAUTH_CALLBACK_TIMEOUT_MS - OAUTH_GRACE_MS
+    callbackServer
+      .waitForAuthCode(remaining)
+      .then(async (authCode) => {
+        if (!active) return
+        this.pendingOAuthListeners.delete(server.id)
+        getServerLogger(server).debug(`Background OAuth listener received auth code — completing auth`)
+        try {
+          await transport.finishAuth(authCode)
+          getServerLogger(server).info(`OAuth token stored; triggering automatic server reconnect`)
+          await this.restartServer(server.id)
+        } catch (err) {
+          getServerLogger(server).error(`Background OAuth completion failed`, err as Error)
+          this.setServerStatus(server.id, 'error', err)
+        }
+      })
+      .catch((err) => {
+        if (!active) return
+        this.pendingOAuthListeners.delete(server.id)
+        getServerLogger(server).warn(`Background OAuth listener expired without receiving a code`, {
+          err: String(err)
+        })
+      })
+      .finally(() => {
+        void callbackServer.close()
+      })
+  }
+
+  private cancelPendingOAuthListener(serverId: string): void {
+    const cancel = this.pendingOAuthListeners.get(serverId)
+    if (cancel) {
+      cancel()
+      this.pendingOAuthListeners.delete(serverId)
     }
   }
 
@@ -886,6 +982,7 @@ export class McpRuntimeService extends BaseService {
   private async doRemoveServer(serverId: string): Promise<void> {
     const server = this.getServerById(serverId)
     this.removedServerIds.add(serverId)
+    this.cancelPendingOAuthListener(serverId)
     let rowDeleted = false
     try {
       await this.closeClientsForServer(server.id)
@@ -957,6 +1054,9 @@ export class McpRuntimeService extends BaseService {
 
   async restartServer(serverId: string) {
     const server = this.getServerById(serverId)
+    // Cancel any background OAuth listener before reconnecting so the old callback
+    // server releases its port and does not race the fresh connect attempt.
+    this.cancelPendingOAuthListener(serverId)
     getServerLogger(server).debug(`Restarting server`)
     this.emitServerLog(server, {
       timestamp: Date.now(),
