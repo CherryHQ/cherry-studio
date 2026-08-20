@@ -361,6 +361,8 @@ vi.mock('react-i18next', () => ({
         if (key === 'assistants.edit.title') return 'Edit Assistant'
         if (key === 'assistants.pin.title') return 'Pin Assistant'
         if (key === 'assistants.unpin.title') return 'Unpin Assistant'
+        if (key === 'launchpad.pin_to_sidebar') return 'Add to sidebar'
+        if (key === 'launchpad.unpin_from_sidebar') return 'Remove from sidebar'
         if (key === 'assistants.clear.menu_title') return 'Delete all assistant conversations'
         if (key === 'assistants.delete.title') return 'Delete Assistant'
         if (key === 'assistants.delete.content') return 'Delete this assistant and its conversations?'
@@ -3209,6 +3211,47 @@ describe('Topics', () => {
     fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Show in groups' }))
     await vi.waitFor(() =>
       expect(MockUsePreferenceUtils.getPreferenceValue('assistant.tab.sort_type' as never)).toBe('tags')
+    )
+  })
+
+  it('pins an assistant to the sidebar from the assistant group menu', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites' as never, [])
+
+    renderTopicList()
+
+    const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
+    const moreButton = within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' })
+    fireEvent.click(moreButton)
+
+    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Add to sidebar' }))
+
+    await vi.waitFor(() =>
+      expect(MockUsePreferenceUtils.getPreferenceValue('ui.sidebar.favorites' as never)).toEqual([
+        { type: 'app', id: 'assistants' },
+        { type: 'assistant', id: 'assistant-1' }
+      ])
+    )
+  })
+
+  it('unpins an already pinned assistant from the assistant group menu', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites' as never, [
+      { type: 'assistant', id: 'assistant-1' }
+    ])
+
+    renderTopicList()
+
+    const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
+    const moreButton = within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' })
+    fireEvent.click(moreButton)
+
+    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Remove from sidebar' }))
+
+    await vi.waitFor(() =>
+      expect(MockUsePreferenceUtils.getPreferenceValue('ui.sidebar.favorites' as never)).toEqual([
+        { type: 'app', id: 'assistants' }
+      ])
     )
   })
 
