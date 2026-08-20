@@ -6,6 +6,7 @@ import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -1768,6 +1769,27 @@ describe('HomePage', () => {
     expect(screen.getByTestId('locate-message-id')).toHaveTextContent('message-target')
 
     fireEvent.click(screen.getByRole('button', { name: 'Locate handled' }))
+    expect(screen.getByTestId('locate-message-id')).toHaveTextContent('')
+  })
+
+  it('cancels a pending message locate when the user selects another topic', async () => {
+    const user = userEvent.setup()
+    render(<HomePage />)
+
+    const topicMessageHandler = vi
+      .mocked(EventEmitter.on)
+      .mock.calls.find(([eventName]) => eventName === EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE)?.[1] as
+      | ((payload: unknown) => void)
+      | undefined
+
+    act(() => {
+      topicMessageHandler?.({ topic: historyTopic, messageId: 'message-target', targetTabId: 'chat-tab' })
+    })
+    await waitFor(() => expect(screen.getByTestId('locate-message-id')).toHaveTextContent('message-target'))
+
+    await user.click(screen.getByRole('button', { name: 'Select topic next' }))
+
+    expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-next')
     expect(screen.getByTestId('locate-message-id')).toHaveTextContent('')
   })
 

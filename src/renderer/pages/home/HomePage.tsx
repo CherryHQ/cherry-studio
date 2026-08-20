@@ -362,6 +362,7 @@ const HomePage: FC = () => {
   const setActiveTopicAndCloseResourceView = useCallback(
     (topic: Topic) => {
       closeSurface()
+      setPendingLocateMessageId(undefined)
       setActiveTopic(topic)
       return true
     },
