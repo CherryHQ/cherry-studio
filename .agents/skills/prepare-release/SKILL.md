@@ -161,14 +161,17 @@ Otherwise, ask the user to confirm before proceeding to Step 6.
 
 ### Step 6: Create Release Branch
 
-1. Create and push the release branch:
+1. For an interactive local run, create and push a signed, DCO-compliant release commit:
    ```bash
    git checkout -b release/v{version}
    git add package.json electron-builder.yml resources/cherry-studio/release-history.json resources/builtin-agents/cherry-assistant/product-manifest.json
-   git commit -m "chore(release): prepare v{version}"
+   git commit -S --signoff -m "chore(release): prepare v{version}"
+   git cat-file commit HEAD | grep -q '^gpgsig '
+   git log -1 --format=%B | grep -q '^Signed-off-by: '
    git push -u origin release/v{version}
    ```
-2. Report the release branch and next steps. Do not create a PR yet: the release must be built and published from this branch first.
+2. In GitHub Actions, stop after updating the four allowed files and leave them uncommitted. The `prepare-release.yml` workflow owns branch creation and uses GitHub's API to create and verify the signed, DCO-compliant commit. Never run `git commit` or `git push` from the Claude step.
+3. Report the release branch and next steps. Do not create a PR yet: the release must be built and published from this branch first.
 
 ## CI Trigger Chain
 

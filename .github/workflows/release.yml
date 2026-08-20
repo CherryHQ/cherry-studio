@@ -19,6 +19,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
+  actions: read
   contents: write
 
 jobs:
@@ -60,6 +61,34 @@ jobs:
           fi
 
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Verify release commit passed CI
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          CI_RUN="$(gh api --method GET \
+            "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs" \
+            -f head_sha="$GITHUB_SHA" \
+            -f event=push \
+            -f status=success \
+            -F per_page=1 \
+            --jq '.workflow_runs[0] // empty')"
+
+          if [ -z "$CI_RUN" ]; then
+            echo "No successful CI push run found for release commit $GITHUB_SHA" >&2
+            exit 1
+          fi
+
+          if [ "$(jq -r '.head_sha' <<< "$CI_RUN")" != "$GITHUB_SHA" ] || \
+             [ "$(jq -r '.event' <<< "$CI_RUN")" != "push" ] || \
+             [ "$(jq -r '.status' <<< "$CI_RUN")" != "completed" ] || \
+             [ "$(jq -r '.conclusion' <<< "$CI_RUN")" != "success" ]; then
+            echo "CI result did not match the exact release commit" >&2
+            exit 1
+          fi
+
+          echo "Verified successful CI run: $(jq -r '.html_url' <<< "$CI_RUN")"
 
       - name: Point draft release tag at this commit
         shell: bash

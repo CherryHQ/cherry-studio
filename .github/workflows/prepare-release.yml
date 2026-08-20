@@ -51,8 +51,148 @@ jobs:
 
             Since this is running in CI (non-interactive), skip all interactive confirmation steps.
 
-            Configure git before making commits:
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
+            Stop after generating the four allowed release files. Leave the changes uncommitted; the next workflow steps own release branch creation and the signed commit.
         env:
           ANTHROPIC_BASE_URL: ${{ vars.ANTHROPIC_BASE_URL }}
+
+      - name: Prepare release commit payload
+        id: release-commit
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.TOKEN_GITHUB_WRITE }}
+          REPO: ${{ github.repository }}
+          RELEASE_HEAD: ${{ github.sha }}
+        run: |
+          if [ "$(git rev-parse HEAD)" != "$RELEASE_HEAD" ]; then
+            echo "Claude must not create a local release commit" >&2
+            exit 1
+          fi
+
+          RELEASE_VERSION="$(node -p "require('./package.json').version")"
+          RELEASE_BRANCH="release/v$RELEASE_VERSION"
+          AUTHOR_JSON="$(gh api user)"
+          export RELEASE_VERSION RELEASE_BRANCH
+          export SIGNOFF_NAME="$(jq -r '.name // .login' <<< "$AUTHOR_JSON")"
+          export SIGNOFF_EMAIL="$(jq -r '"\(.id)+\(.login)@users.noreply.github.com"' <<< "$AUTHOR_JSON")"
+
+          node <<'NODE'
+          const { execFileSync } = require('node:child_process')
+          const fs = require('node:fs')
+          const path = require('node:path')
+
+          const allowedFiles = new Set([
+            'package.json',
+            'electron-builder.yml',
+            'resources/cherry-studio/release-history.json',
+            'resources/builtin-agents/cherry-assistant/product-manifest.json'
+          ])
+          const statusEntries = execFileSync(
+            'git',
+            ['status', '--porcelain=v1', '-z', '--untracked-files=all'],
+            { encoding: 'utf8' }
+          ).split('\0').filter(Boolean)
+          const changedFiles = []
+
+          for (const entry of statusEntries) {
+            const status = entry.slice(0, 2)
+            const filePath = entry.slice(3)
+            if (status.includes('R') || status.includes('C')) {
+              throw new Error(`Release preparation must not rename or copy files: ${filePath}`)
+            }
+            if (status.includes('D')) {
+              throw new Error(`Release preparation must not delete files: ${filePath}`)
+            }
+            if (!allowedFiles.has(filePath)) {
+              throw new Error(`Unexpected release preparation change: ${filePath}`)
+            }
+            if (!fs.lstatSync(filePath).isFile()) {
+              throw new Error(`Release preparation change is not a regular file: ${filePath}`)
+            }
+            changedFiles.push(filePath)
+          }
+
+          if (changedFiles.length === 0) {
+            throw new Error('Release preparation produced no changes')
+          }
+
+          changedFiles.sort()
+          const additions = changedFiles.map((filePath) => ({
+            path: filePath,
+            contents: fs.readFileSync(filePath).toString('base64')
+          }))
+          const payload = {
+            query: `mutation($input: CreateCommitOnBranchInput!) {
+              createCommitOnBranch(input: $input) {
+                commit { oid url }
+              }
+            }`,
+            variables: {
+              input: {
+                branch: {
+                  repositoryNameWithOwner: process.env.REPO,
+                  branchName: process.env.RELEASE_BRANCH
+                },
+                expectedHeadOid: process.env.RELEASE_HEAD,
+                message: {
+                  headline: `chore(release): prepare v${process.env.RELEASE_VERSION}`,
+                  body: `Signed-off-by: ${process.env.SIGNOFF_NAME} <${process.env.SIGNOFF_EMAIL}>`
+                },
+                fileChanges: { additions }
+              }
+            }
+          }
+
+          fs.writeFileSync(path.join(process.env.RUNNER_TEMP, 'prepare-release-commit.json'), JSON.stringify(payload))
+          NODE
+
+          echo "branch=$RELEASE_BRANCH" >> "$GITHUB_OUTPUT"
+
+      - name: Create signed release commit
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.TOKEN_GITHUB_WRITE }}
+          REPO: ${{ github.repository }}
+          RELEASE_BRANCH: ${{ steps.release-commit.outputs.branch }}
+          RELEASE_HEAD: ${{ github.sha }}
+        run: |
+          if gh api "repos/$REPO/git/ref/heads/$RELEASE_BRANCH" >/dev/null 2>&1; then
+            echo "Release branch $RELEASE_BRANCH already exists" >&2
+            exit 1
+          fi
+
+          gh api --method POST "repos/$REPO/git/refs" \
+            -f ref="refs/heads/$RELEASE_BRANCH" \
+            -f sha="$RELEASE_HEAD" >/dev/null
+
+          COMMIT_SHA=""
+          cleanup_release_branch() {
+            CURRENT_SHA="$(gh api "repos/$REPO/git/ref/heads/$RELEASE_BRANCH" --jq '.object.sha' 2>/dev/null || true)"
+            if [ "$CURRENT_SHA" = "$RELEASE_HEAD" ] || { [ -n "$COMMIT_SHA" ] && [ "$CURRENT_SHA" = "$COMMIT_SHA" ]; }; then
+              gh api --method DELETE "repos/$REPO/git/refs/heads/$RELEASE_BRANCH" >/dev/null || true
+            else
+              echo "Refusing to clean up $RELEASE_BRANCH because it moved unexpectedly" >&2
+            fi
+          }
+          trap cleanup_release_branch ERR
+
+          RESPONSE="$(gh api graphql --input "$RUNNER_TEMP/prepare-release-commit.json")"
+          COMMIT_SHA="$(jq -r '.data.createCommitOnBranch.commit.oid' <<< "$RESPONSE")"
+          COMMIT_URL="$(jq -r '.data.createCommitOnBranch.commit.url' <<< "$RESPONSE")"
+          COMMIT_JSON="$(gh api "repos/$REPO/commits/$COMMIT_SHA")"
+          VERIFIED="$(jq -r '.commit.verification.verified' <<< "$COMMIT_JSON")"
+          AUTHOR_JSON="$(gh api user)"
+          SIGNOFF_NAME="$(jq -r '.name // .login' <<< "$AUTHOR_JSON")"
+          SIGNOFF_EMAIL="$(jq -r '"\(.id)+\(.login)@users.noreply.github.com"' <<< "$AUTHOR_JSON")"
+
+          if [ "$VERIFIED" != "true" ]; then
+            echo "Release commit $COMMIT_SHA was not verified" >&2
+            exit 1
+          fi
+
+          if ! jq -r '.commit.message' <<< "$COMMIT_JSON" | grep -Fqx "Signed-off-by: $SIGNOFF_NAME <$SIGNOFF_EMAIL>"; then
+            echo "Release commit $COMMIT_SHA is missing the expected DCO sign-off" >&2
+            exit 1
+          fi
+
+          trap - ERR
+          echo "Created $RELEASE_BRANCH at $COMMIT_URL"
