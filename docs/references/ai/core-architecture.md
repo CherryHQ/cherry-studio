@@ -20,7 +20,7 @@ Renderer / Channel / Schedule / Delivery
   → pure aggregate transition preview
   → synchronous history commit
   → ConversationAggregate commit
-  → typed history / execution / presentation effects
+  → typed execution / terminal-persistence / presentation effects
   → exact EffectId result command
 ```
 
@@ -28,8 +28,9 @@ Renderer / Channel / Schedule / Delivery
 
 | Owner | Authority |
 |---|---|
-| ConversationActor | admission FIFO, operation identity/epoch, Stop interrupt, final quiescence confirmation |
-| Conversation aggregate | Inbox, logical Turn, executions, interactions, Stop, terminal, domain quiescence |
+| ConversationRuntimeService | composed business owner: admission actors, aggregate runtime, committed input/turn projections, final quiescence confirmation |
+| ConversationActor | one Conversation's pre-commit FIFO, operation identity/epoch, and Stop interrupt |
+| ConversationRuntime / aggregate | pure per-Conversation Inbox, logical Turn, executions, interactions, Stop, terminal, and domain quiescence |
 | Chat/Agent history adapters | existing SQLite tree or ordered Agent rows |
 | AiExecutionManager | provider stream, abort, replay buffer, listener fan-out, private run fence |
 | AgentConnectionManager | connection resources plus Agent-driver redirect, segment, reconcile, and projection effect execution |
@@ -45,8 +46,9 @@ Renderer / Channel / Schedule / Delivery
    preallocated turn, execution, and effect identities.
 3. The history adapter atomically commits the durable user/assistant skeleton;
    a failed transaction leaves the aggregate unchanged.
-4. The actor commits the aggregate directly as `Running` with `Starting`
-   executions. The open acknowledgement now succeeds immediately.
+4. `ConversationRuntimeService` commits the aggregate directly as `Running`
+   with `Starting` executions. The open acknowledgement now succeeds
+   immediately.
 5. Execution resources build context and open the provider under one
    `AbortSignal`. Preparation failure becomes the exact execution's Error
    terminal and never rolls back committed history.
@@ -54,8 +56,9 @@ Renderer / Channel / Schedule / Delivery
    aggregate.
 7. A terminal outcome is immutable. The history port persists it, and only the
    exact persistence result can publish execution/turn terminal state.
-8. Aggregate state determines domain quiescence; the actor additionally waits
-   for its admission and terminal operation registries to drain.
+8. Aggregate state determines domain quiescence;
+   `ConversationRuntimeService` additionally waits for durable inbox,
+   admission, and terminal operation registries to drain.
 
 ## Chat and Agent differences
 

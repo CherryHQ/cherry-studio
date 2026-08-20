@@ -34,7 +34,7 @@ SQLite/SWR durable rows ──────────────────�
 | `StreamAttachmentService` | window-local observer reference counts | when this window detaches |
 | `ConversationStreamSubscription` | execution branches, sequence cursors and replay | how exact chunk events reach readers |
 | `ExecutionStreamOverlayService` | snapshots, optimistic rows and refresh handoff | when a durable projection is safe to reveal |
-| `useExecutionOverlay` | one topic-bound React binding | callbacks and seed rows for that exact Conversation |
+| `useExecutionOverlay` | one Conversation-bound React binding | callbacks and seed rows for that exact Conversation |
 
 Attachment and overlay state are projections. Closing the last renderer reader
 never aborts generation. Stop is the separate `ai.stream.abort` Conversation

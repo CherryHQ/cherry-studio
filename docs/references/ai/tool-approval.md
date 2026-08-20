@@ -43,8 +43,9 @@ message parts directly.
      row. Multiple approvals on one row cannot clobber one another.
 5. When other approvals remain open, only that interaction is resolved. When
    the row has no pending approvals,
-   `ConversationRuntimeService.continueInteraction` validates the exact waiting
-   execution, prepares one model, and resumes it in the same logical Turn.
+   `ConversationRuntimeService.respondChatToolApproval` validates the exact
+   waiting execution, commits the continuation skeleton, and replaces that
+   execution's resource run inside the same logical Turn.
 6. Stop interrupts the same Conversation actor. A late approval or continuation
    result is stale and cannot reopen a stopped or newer Turn.
 

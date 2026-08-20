@@ -27,6 +27,7 @@
 | [Agent Prompt Layers](./references/ai/agent-prompt-layers.md) | Precedence and lifecycle of agent prompt sources — System Prompt, workspace system.md, SOUL.md persona, and variables |
 | [Agent connection runtime](./references/ai/agent-session-runtime.md) | Agent connection resource ownership beneath the unified Conversation runtime |
 | [AI Usage Records](./references/ai/ai-usage-records.md) | Immutable ai_usage_record analytics — capture ownership, frozen attribution snapshots, and MessageStats projection |
+| [Channel runtime](./references/ai/channel-runtime.md) | IM channel connection, ingress, live-update, terminal-delivery, block, and epoch ownership beneath Conversation runtime |
 | [Chat Attachments](./references/ai/chat-attachments.md) | Per-attachment routing to native file parts or capped extracted text, with read_file paging for truncated overflow |
 | [Conversation Runtime](./references/ai/conversation-runtime.md) | Unified Chat and Agent conversation control model, current ownership failures, commands, effects, and resource boundaries |
 | [AI core architecture](./references/ai/core-architecture.md) | End-to-end Chat and Agent Conversation command, effect, persistence, and resource flow |

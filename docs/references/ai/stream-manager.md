@@ -27,11 +27,11 @@ It reports only first-chunk, interaction, terminal, and start-failure facts to
 `ConversationRuntime`. It does not admit turns, select terminal durability, or
 decide quiescence.
 
-After the HistoryPort commits a skeleton, the actor registers an exact
-execution descriptor. The aggregate's `StartExecution` effect synchronously
-creates the resource and its AbortController before `ai.stream.open`
-acknowledges. Context build, compaction, driver binding, and provider open then
-run under that same signal.
+After the HistoryPort commits a skeleton, `ConversationRuntimeService` registers
+an exact execution descriptor. The aggregate's `StartExecution` effect
+synchronously creates the resource and its AbortController before
+`ai.stream.open` acknowledges. Context build, compaction, driver binding, and
+provider open then run under that same signal.
 
 ## PromptStreamManager
 

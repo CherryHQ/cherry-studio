@@ -50,8 +50,9 @@ The Conversation aggregate owns:
 
 ## Connection state
 
-The internal connection reducer uses named string enums for actions, stream and
-admission phases, launch targets, terminal outcomes, and state kinds. It may
+The internal connection reducer uses named string enums for events, generation
+and connection state kinds, stream and delivery phases, occupancy, ownership,
+and driver outcomes. It may
 manage connection mechanics and chunk handoff, but it carries no Topic cycle,
 attempt reservation, continuation lease, or row-ownership token.
 

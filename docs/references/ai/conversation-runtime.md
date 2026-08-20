@@ -8,7 +8,7 @@ sources:
 
 # Conversation Runtime
 
-![Current and target Conversation runtime ownership](../../assets/images/conversation-runtime-behavior.png)
+![Conversation admission, aggregate ownership, and execution resource flow](../../assets/images/conversation-runtime-behavior.png)
 
 ## Why the old boundary failed
 
@@ -21,8 +21,8 @@ The unified runtime moves the boundary up to Conversation and Turn. Provider str
 ## Durable and live authority
 
 - Existing `message` and `agent_session_message` rows remain the durable truth. There is no conversation event log and no dual write.
-- `ConversationActor` is the process-local business owner. Its pure `ConversationAggregate` is the committed domain state; the actor additionally owns the admission FIFO, operation identity/epoch, Stop interrupt, and final quiescence gate.
-- Stream chunks are data-plane traffic. The execution resource owns their ring and sequence; only first-chunk, interaction, and terminal control facts re-enter the actor.
+- `ConversationRuntimeService` is the process-local business owner. It composes one `ConversationActor` admission lane per `ConversationRef` with the pure `ConversationRuntime` aggregate map, exact input/turn projections, and the final quiescence gate. Each actor owns only its pre-commit FIFO, operation identity/epoch, and Stop interrupt.
+- Stream chunks are data-plane traffic. The execution resource owns their ring and sequence; only first-chunk, interaction, and terminal control facts re-enter the Conversation owner.
 - Normal terminal notifications follow durable persistence. An explicit Stop may settle through deferred recovery after the existing exact retry policy; deferred results never produce external Channel delivery.
 
 ## Profiles
@@ -65,7 +65,7 @@ Every new trigger must be added to this table with one control owner, its typed 
 
 Finite control vocabularies are explicit string enums. Discriminated unions narrow payloads through enum members; bare finite-state string unions and numeric enums are not used.
 
-The aggregate owns only:
+Each aggregate entry owns only:
 
 - `ConversationPhase`;
 - NextTurn and NextStep inboxes;
@@ -101,6 +101,8 @@ acknowledged skeleton and persists one Paused terminal.
 
 ## Ports
 
+- `ConversationRuntimeService` executes the admission transaction and commits the
+  previewed command only after the synchronous history boundary succeeds.
 - Chat, Agent, and Temporary Chat history adapters validate without writes,
   commit skeletons synchronously, and build model context only from committed
   identities. Agent connection resources never create message rows.

@@ -15,11 +15,11 @@ plus Cherry REST and Streamable HTTP MCP endpoints. Compatible clients can point
 configured — Cherry becomes a universal translation gateway in front of every
 provider it knows.
 
-Generation requests route through main's `AiStreamManager` as equal,
-**non-persisting** subscribers (alongside the renderer's `WebContentsListener`
-and the IM `ChannelAdapterListener`), and the resulting `UIMessageChunk` stream
-is translated back into the caller's dialect by the adapter system. Models,
-knowledge, and MCP routes call their owning services directly.
+Generation requests route through main's `PromptStreamManager`, the independent
+resource owner for one-shot, non-Conversation model calls. The resulting
+`UIMessageChunk` stream is translated back into the caller's dialect by the
+adapter system. Models, knowledge, and MCP routes call their owning services
+directly.
 
 > **Naming.** React components and the lifecycle service use `apiGateway`;
 > IpcApi routes use `api_gateway.*`; Preference and Shared Cache keys use
@@ -156,12 +156,12 @@ The OpenAI, Anthropic, and Gemini generation routes call
    turns `UIMessageChunk`s into dialect events) and the `ISseFormatter` (event →
    SSE string).
 6. **Drive the stream.** With `streamId = "gateway-<uuid>"`, call
-   `AiStreamManager.streamPrompt({ streamId, uniqueModelId, messages, listener,
+   `PromptStreamManager.streamPrompt({ streamId, uniqueModelId, messages, listener,
    callOverrides, contextOwner: 'caller', idleTimeoutMs })`. Caller ownership
    keeps externally managed history out of Cherry's context-build and in-loop
-   compaction middleware. This uses the **`promptStreamLifecycle`** — no status
-   broadcast, no attach/reconnect, no persistence; the stream evicts immediately
-   at terminal.
+   compaction middleware. A prompt resource has no Conversation status,
+   attach/reconnect, or durable history; the manager evicts it immediately at
+   terminal.
    - **Streaming**: an `SseListener` with a push-API `formatChunk` /
      `formatDone` / `formatPaused` / `formatError` pipes the adapter's events
      through the formatter into a `text/event-stream` `ReadableStream`. The
@@ -172,7 +172,7 @@ The OpenAI, Anthropic, and Gemini generation routes call
      adapter to accumulate state, then `adapter.buildNonStreamingResponse()` is
      returned as a JSON `Response`.
 7. **Abort & timeout.** The route's `request.signal` (client disconnect) calls
-   `aiStreamManager.abort(streamId, …)`. An idle (no-chunk) timeout —
+   `promptStreamManager.abort(streamId, …)`. An idle (no-chunk) timeout —
    **20 minutes** (`GATEWAY_STREAM_IDLE_TIMEOUT_MS`) — and any mid-stream abort
    surface as a **failure**, not a truncated success. Before streaming response
    commitment, an upstream pause rejects with **504**; after commitment it emits
@@ -184,7 +184,7 @@ The OpenAI, Anthropic, and Gemini generation routes call
 client  ──HTTP──▶  route  ──▶  processMessage
                                   │  converter (in dialect → UIMessage[] + tools + overrides)
                                   ▼
-                          AiStreamManager.streamPrompt  (equal, non-persisting subscriber)
+                          PromptStreamManager.streamPrompt  (one-shot resource)
                                   │  UIMessageChunk stream
                                   ▼
                           IStreamAdapter.transformChunk → ISseFormatter.formatEvent
@@ -348,10 +348,11 @@ streaming `buildStreamErrorFrame`.
 
 ## Key invariants
 
-- **Equal, non-persisting subscriber.** The gateway uses
-  `promptStreamLifecycle` — its turns are not persisted, not broadcast as topic
-  status, and not attachable. It shares the exact same `AiStreamManager` engine
-  as the renderer and IM channels.
+- **Independent, non-persisting prompt resource.** Gateway calls have no
+  Conversation aggregate, durable message rows, shared status, or attach
+  protocol. `PromptStreamManager` owns their resource registry and immediate
+  terminal eviction; renderer and IM Conversation executions instead run under
+  `ConversationRuntimeService` and `AiExecutionManager`.
 - **Caller-owned history.** Gateway clients own their context. The gateway sets
   `contextOwner: 'caller'`, so Cherry does not truncate tool results, prune or
   window messages, or run summary compaction. Protocol conversion and provider
@@ -368,7 +369,7 @@ streaming `buildStreamErrorFrame`.
 
 ## Related references
 
-- [AI Reference](../ai/README.md) — `AiStreamManager`, `streamPrompt`,
+- [AI Reference](../ai/README.md) — `PromptStreamManager`, `streamPrompt`,
   `UIMessageChunk`, `buildAgentParams` / `CallOverrides`, the listener model
   (`SseListener`, `WebContentsListener`).
 - [Service Lifecycle](../lifecycle/README.md) — `BaseService`, `Activatable`,
