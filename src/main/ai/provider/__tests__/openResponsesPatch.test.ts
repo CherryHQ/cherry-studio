@@ -47,8 +47,11 @@ describe('patched @ai-sdk/open-responses', () => {
       ]
     })
 
+    // Ark marks `status` as required on reasoning input items; the stateless
+    // store opt-out mirrors what the retired @ai-sdk/openai path always sent.
+    expect(body.store).toBe(false)
     expect(body.input.filter((item: any) => item.type === 'reasoning')).toEqual([
-      { type: 'reasoning', summary: [], content: [{ type: 'reasoning_text', text: 'thinking' }] }
+      { type: 'reasoning', summary: [], content: [{ type: 'reasoning_text', text: 'thinking' }], status: 'completed' }
     ])
     // Ark rejects assistant input items without status (400 MissingParameter:
     // input.status, #18253) — mirror of the retired @ai-sdk/openai hunk (#18258).
@@ -120,6 +123,60 @@ describe('patched @ai-sdk/open-responses', () => {
 
     const ends = chunks.filter((chunk) => chunk.type === 'reasoning-end').map((chunk) => (chunk as any).id)
     expect(ends).toEqual(['rs_real'])
+  })
+
+  it('streams response.reasoning_summary_text.delta as reasoning parts (Ark reasoning family)', async () => {
+    const events = [
+      {
+        type: 'response.output_item.added',
+        output_index: 0,
+        item: { type: 'reasoning', id: 'rs_ark' }
+      },
+      {
+        type: 'response.reasoning_summary_text.delta',
+        item_id: 'rs_ark',
+        output_index: 0,
+        summary_index: 0,
+        delta: 'Ark '
+      },
+      {
+        type: 'response.reasoning_summary_text.delta',
+        item_id: 'rs_ark',
+        output_index: 0,
+        summary_index: 0,
+        delta: 'thinks'
+      },
+      {
+        type: 'response.output_item.done',
+        output_index: 0,
+        item: { type: 'reasoning', id: 'rs_ark' }
+      },
+      {
+        type: 'response.completed',
+        response: { id: 'resp_1', usage: { input_tokens: 1, output_tokens: 1 } }
+      }
+    ]
+    const body = `${events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join('')}data: [DONE]\n\n`
+    const model = createOpenResponses({
+      url: 'https://example.com/v1/responses',
+      name: 'openai',
+      apiKey: 'sk-test',
+      fetch: async () => new Response(body, { headers: { 'content-type': 'text/event-stream' } })
+    })('doubao-seed-1-6')
+
+    const result = await model.doStream({
+      prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }]
+    })
+    const reader = result.stream.getReader()
+    const chunks: LanguageModelV3StreamPart[] = []
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      chunks.push(value)
+    }
+
+    const deltas = chunks.filter((chunk) => chunk.type === 'reasoning-delta').map((chunk) => (chunk as any).delta)
+    expect(deltas.join('')).toBe('Ark thinks')
   })
 
   it('streams response.reasoning_text.delta as reasoning parts (native, load-bearing for DeepSeek)', async () => {

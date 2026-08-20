@@ -25,10 +25,10 @@ index 877abac47ca04c6724f3811a2b92590b6eeff71b..80cdb7817db3accfb663c7d828b44d71
  }>;
  type OpenResponsesOptions = InferSchema<typeof openResponsesOptionsSchema>;
 diff --git a/dist/index.js b/dist/index.js
-index 74fedcb995ae1955ba56b5bfd39e3f9785f90385..8a693e06ef4ae8e19dc74fec40195f45ac40fd48 100644
+index 74fedcb995ae1955ba56b5bfd39e3f9785f90385..d3d6bb63de8c8dd2e3f45b8d53f87f1d9aad84d8 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -89,9 +89,18 @@ async function convertToOpenResponsesInput({
+@@ -89,9 +89,19 @@ async function convertToOpenResponsesInput({
        }
        case "assistant": {
          const assistantContent = [];
@@ -40,14 +40,15 @@ index 74fedcb995ae1955ba56b5bfd39e3f9785f90385..8a693e06ef4ae8e19dc74fec40195f45
 +              reasoningItems.push({
 +                type: "reasoning",
 +                summary: [],
-+                content: [{ type: "reasoning_text", text: part.text }]
++                content: [{ type: "reasoning_text", text: part.text }],
++                status: "completed"
 +              });
 +              break;
 +            }
              case "text": {
                assistantContent.push({ type: "output_text", text: part.text });
                break;
-@@ -108,11 +117,15 @@ async function convertToOpenResponsesInput({
+@@ -108,11 +118,15 @@ async function convertToOpenResponsesInput({
              }
            }
          }
@@ -64,7 +65,7 @@ index 74fedcb995ae1955ba56b5bfd39e3f9785f90385..8a693e06ef4ae8e19dc74fec40195f45
            });
          }
          for (const toolCall of toolCalls) {
-@@ -241,7 +254,7 @@ var import_v42 = require("zod/v4");
+@@ -241,7 +255,7 @@ var import_v42 = require("zod/v4");
  var openResponsesOptionsSchema = (0, import_provider_utils3.lazySchema)(
    () => (0, import_provider_utils3.zodSchema)(
      import_v42.z.object({
@@ -73,7 +74,7 @@ index 74fedcb995ae1955ba56b5bfd39e3f9785f90385..8a693e06ef4ae8e19dc74fec40195f45
        /**
         * Controls reasoning summary output from the model.
         * Valid values: 'concise', 'detailed', 'auto'.
-@@ -305,6 +318,10 @@ var OpenResponsesLanguageModel = class {
+@@ -305,6 +319,10 @@ var OpenResponsesLanguageModel = class {
        parameters: tool.inputSchema,
        ...tool.strict != null ? { strict: tool.strict } : {}
      }));
@@ -84,7 +85,15 @@ index 74fedcb995ae1955ba56b5bfd39e3f9785f90385..8a693e06ef4ae8e19dc74fec40195f45
      const convertedToolChoice = toolChoice == null ? void 0 : toolChoice.type === "tool" ? { type: "function", name: toolChoice.toolName } : toolChoice.type;
      const textFormat = (responseFormat == null ? void 0 : responseFormat.type) === "json" ? {
        type: "json_schema",
-@@ -338,7 +355,7 @@ var OpenResponsesLanguageModel = class {
+@@ -323,6 +341,7 @@ var OpenResponsesLanguageModel = class {
+     return {
+       body: {
+         model: this.modelId,
++        store: false,
+         input,
+         instructions,
+         max_output_tokens: maxOutputTokens,
+@@ -338,7 +357,7 @@ var OpenResponsesLanguageModel = class {
              summary: openResponsesOptions.reasoningSummary
            }
          } : void 0,
@@ -93,7 +102,7 @@ index 74fedcb995ae1955ba56b5bfd39e3f9785f90385..8a693e06ef4ae8e19dc74fec40195f45
          tool_choice: convertedToolChoice,
          ...textFormat != null && { text: { format: textFormat } }
        },
-@@ -497,6 +514,7 @@ var OpenResponsesLanguageModel = class {
+@@ -497,6 +516,7 @@ var OpenResponsesLanguageModel = class {
        usage.raw = responseUsage;
      };
      let isActiveReasoning = false;
@@ -101,15 +110,22 @@ index 74fedcb995ae1955ba56b5bfd39e3f9785f90385..8a693e06ef4ae8e19dc74fec40195f45
      let hasToolCalls = false;
      let finishReason = {
        unified: "other",
-@@ -567,6 +585,7 @@ var OpenResponsesLanguageModel = class {
+@@ -567,6 +587,14 @@ var OpenResponsesLanguageModel = class {
                  id: chunk.item.id
                });
                isActiveReasoning = true;
 +              activeReasoningId = chunk.item.id;
++            } else if (chunk.type === "response.reasoning_summary_text.delta") {
++              const summaryChunk = chunk;
++              controller.enqueue({
++                type: "reasoning-delta",
++                id: summaryChunk.item_id,
++                delta: summaryChunk.delta
++              });
              } else if (chunk.type === "response.reasoning_text.delta") {
                const reasoningChunk = chunk;
                controller.enqueue({
-@@ -577,6 +596,7 @@ var OpenResponsesLanguageModel = class {
+@@ -577,6 +605,7 @@ var OpenResponsesLanguageModel = class {
              } else if (chunk.type === "response.output_item.done" && chunk.item.type === "reasoning") {
                controller.enqueue({ type: "reasoning-end", id: chunk.item.id });
                isActiveReasoning = false;
@@ -117,7 +133,7 @@ index 74fedcb995ae1955ba56b5bfd39e3f9785f90385..8a693e06ef4ae8e19dc74fec40195f45
              } else if (chunk.type === "response.output_item.added" && chunk.item.type === "message") {
                controller.enqueue({ type: "text-start", id: chunk.item.id });
              } else if (chunk.type === "response.output_text.delta") {
-@@ -606,8 +626,8 @@ var OpenResponsesLanguageModel = class {
+@@ -606,8 +635,8 @@ var OpenResponsesLanguageModel = class {
              }
            },
            flush(controller) {
@@ -129,10 +145,10 @@ index 74fedcb995ae1955ba56b5bfd39e3f9785f90385..8a693e06ef4ae8e19dc74fec40195f45
              controller.enqueue({
                type: "finish",
 diff --git a/dist/index.mjs b/dist/index.mjs
-index c3b70bc3a46afbe82f704939e4b1ccc6d47706ee..ea8dfcc3abdac4f76f4c8c4fc8ea9cfaa908c852 100644
+index c3b70bc3a46afbe82f704939e4b1ccc6d47706ee..e64700aac83619670a4c05e213727ade494f3a61 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
-@@ -75,9 +75,18 @@ async function convertToOpenResponsesInput({
+@@ -75,9 +75,19 @@ async function convertToOpenResponsesInput({
        }
        case "assistant": {
          const assistantContent = [];
@@ -144,14 +160,15 @@ index c3b70bc3a46afbe82f704939e4b1ccc6d47706ee..ea8dfcc3abdac4f76f4c8c4fc8ea9cfa
 +              reasoningItems.push({
 +                type: "reasoning",
 +                summary: [],
-+                content: [{ type: "reasoning_text", text: part.text }]
++                content: [{ type: "reasoning_text", text: part.text }],
++                status: "completed"
 +              });
 +              break;
 +            }
              case "text": {
                assistantContent.push({ type: "output_text", text: part.text });
                break;
-@@ -94,11 +103,15 @@ async function convertToOpenResponsesInput({
+@@ -94,11 +104,15 @@ async function convertToOpenResponsesInput({
              }
            }
          }
@@ -168,7 +185,7 @@ index c3b70bc3a46afbe82f704939e4b1ccc6d47706ee..ea8dfcc3abdac4f76f4c8c4fc8ea9cfa
            });
          }
          for (const toolCall of toolCalls) {
-@@ -230,7 +243,7 @@ import { z as z2 } from "zod/v4";
+@@ -230,7 +244,7 @@ import { z as z2 } from "zod/v4";
  var openResponsesOptionsSchema = lazySchema2(
    () => zodSchema2(
      z2.object({
@@ -177,7 +194,7 @@ index c3b70bc3a46afbe82f704939e4b1ccc6d47706ee..ea8dfcc3abdac4f76f4c8c4fc8ea9cfa
        /**
         * Controls reasoning summary output from the model.
         * Valid values: 'concise', 'detailed', 'auto'.
-@@ -294,6 +307,10 @@ var OpenResponsesLanguageModel = class {
+@@ -294,6 +308,10 @@ var OpenResponsesLanguageModel = class {
        parameters: tool.inputSchema,
        ...tool.strict != null ? { strict: tool.strict } : {}
      }));
@@ -188,7 +205,15 @@ index c3b70bc3a46afbe82f704939e4b1ccc6d47706ee..ea8dfcc3abdac4f76f4c8c4fc8ea9cfa
      const convertedToolChoice = toolChoice == null ? void 0 : toolChoice.type === "tool" ? { type: "function", name: toolChoice.toolName } : toolChoice.type;
      const textFormat = (responseFormat == null ? void 0 : responseFormat.type) === "json" ? {
        type: "json_schema",
-@@ -327,7 +344,7 @@ var OpenResponsesLanguageModel = class {
+@@ -312,6 +330,7 @@ var OpenResponsesLanguageModel = class {
+     return {
+       body: {
+         model: this.modelId,
++        store: false,
+         input,
+         instructions,
+         max_output_tokens: maxOutputTokens,
+@@ -327,7 +346,7 @@ var OpenResponsesLanguageModel = class {
              summary: openResponsesOptions.reasoningSummary
            }
          } : void 0,
@@ -197,7 +222,7 @@ index c3b70bc3a46afbe82f704939e4b1ccc6d47706ee..ea8dfcc3abdac4f76f4c8c4fc8ea9cfa
          tool_choice: convertedToolChoice,
          ...textFormat != null && { text: { format: textFormat } }
        },
-@@ -486,6 +503,7 @@ var OpenResponsesLanguageModel = class {
+@@ -486,6 +505,7 @@ var OpenResponsesLanguageModel = class {
        usage.raw = responseUsage;
      };
      let isActiveReasoning = false;
@@ -205,15 +230,22 @@ index c3b70bc3a46afbe82f704939e4b1ccc6d47706ee..ea8dfcc3abdac4f76f4c8c4fc8ea9cfa
      let hasToolCalls = false;
      let finishReason = {
        unified: "other",
-@@ -556,6 +574,7 @@ var OpenResponsesLanguageModel = class {
+@@ -556,6 +576,14 @@ var OpenResponsesLanguageModel = class {
                  id: chunk.item.id
                });
                isActiveReasoning = true;
 +              activeReasoningId = chunk.item.id;
++            } else if (chunk.type === "response.reasoning_summary_text.delta") {
++              const summaryChunk = chunk;
++              controller.enqueue({
++                type: "reasoning-delta",
++                id: summaryChunk.item_id,
++                delta: summaryChunk.delta
++              });
              } else if (chunk.type === "response.reasoning_text.delta") {
                const reasoningChunk = chunk;
                controller.enqueue({
-@@ -566,6 +585,7 @@ var OpenResponsesLanguageModel = class {
+@@ -566,6 +594,7 @@ var OpenResponsesLanguageModel = class {
              } else if (chunk.type === "response.output_item.done" && chunk.item.type === "reasoning") {
                controller.enqueue({ type: "reasoning-end", id: chunk.item.id });
                isActiveReasoning = false;
@@ -221,7 +253,7 @@ index c3b70bc3a46afbe82f704939e4b1ccc6d47706ee..ea8dfcc3abdac4f76f4c8c4fc8ea9cfa
              } else if (chunk.type === "response.output_item.added" && chunk.item.type === "message") {
                controller.enqueue({ type: "text-start", id: chunk.item.id });
              } else if (chunk.type === "response.output_text.delta") {
-@@ -595,8 +615,8 @@ var OpenResponsesLanguageModel = class {
+@@ -595,8 +624,8 @@ var OpenResponsesLanguageModel = class {
              }
            },
            flush(controller) {
@@ -233,7 +265,7 @@ index c3b70bc3a46afbe82f704939e4b1ccc6d47706ee..ea8dfcc3abdac4f76f4c8c4fc8ea9cfa
              controller.enqueue({
                type: "finish",
 diff --git a/src/responses/convert-to-open-responses-input.ts b/src/responses/convert-to-open-responses-input.ts
-index 2e06c35c5d13146dbb42ba9bbe61828bb4bd1a66..39de5e94281ef09e92d2e5d30183328f3ff0c3bd 100644
+index 2e06c35c5d13146dbb42ba9bbe61828bb4bd1a66..1f7024c2c1a572badb43c35f3b0a836df99738f1 100644
 --- a/src/responses/convert-to-open-responses-input.ts
 +++ b/src/responses/convert-to-open-responses-input.ts
 @@ -9,6 +9,7 @@ import type {
@@ -244,7 +276,7 @@ index 2e06c35c5d13146dbb42ba9bbe61828bb4bd1a66..39de5e94281ef09e92d2e5d30183328f
  } from './open-responses-api';
  
  export async function convertToOpenResponsesInput({
-@@ -80,10 +81,19 @@ export async function convertToOpenResponsesInput({
+@@ -80,10 +81,21 @@ export async function convertToOpenResponsesInput({
          const assistantContent: Array<
            OutputTextContentParam | RefusalContentParam
          > = [];
@@ -258,13 +290,15 @@ index 2e06c35c5d13146dbb42ba9bbe61828bb4bd1a66..39de5e94281ef09e92d2e5d30183328f
 +                type: 'reasoning',
 +                summary: [],
 +                content: [{ type: 'reasoning_text', text: part.text }],
++                // Ark marks status as required on reasoning input items.
++                status: 'completed',
 +              });
 +              break;
 +            }
              case 'text': {
                assistantContent.push({ type: 'output_text', text: part.text });
                break;
-@@ -104,12 +114,19 @@ export async function convertToOpenResponsesInput({
+@@ -104,12 +116,19 @@ export async function convertToOpenResponsesInput({
            }
          }
  
@@ -284,8 +318,20 @@ index 2e06c35c5d13146dbb42ba9bbe61828bb4bd1a66..39de5e94281ef09e92d2e5d30183328f
            });
          }
  
+diff --git a/src/responses/open-responses-api.ts b/src/responses/open-responses-api.ts
+index 08cd2cde60a6271ba108c4338207db275d03afa0..9a2d31a03f08aca53f3d2004c7754cb6aeae9b1e 100644
+--- a/src/responses/open-responses-api.ts
++++ b/src/responses/open-responses-api.ts
+@@ -145,6 +145,7 @@ export type ReasoningItemParam = {
+   summary: ReasoningSummaryContentParam[];
+   content?: unknown;
+   encrypted_content?: string;
++  status?: string;
+ };
+ 
+ /**
 diff --git a/src/responses/open-responses-language-model.ts b/src/responses/open-responses-language-model.ts
-index 2650edaed75f2bb981f584f702b5da2894241b70..616bac2af37b4ab54269a94b2f409de45fdaec81 100644
+index 2650edaed75f2bb981f584f702b5da2894241b70..b8c22a7282bdca9a227834845b46e2cc9a49574b 100644
 --- a/src/responses/open-responses-language-model.ts
 +++ b/src/responses/open-responses-language-model.ts
 @@ -106,6 +106,15 @@ export class OpenResponsesLanguageModel implements LanguageModelV3 {
@@ -304,7 +350,16 @@ index 2650edaed75f2bb981f584f702b5da2894241b70..616bac2af37b4ab54269a94b2f409de4
      // Convert tool choice to the Open Responses format
      const convertedToolChoice: ToolChoiceParam | undefined =
        toolChoice == null
-@@ -157,7 +166,10 @@ export class OpenResponsesLanguageModel implements LanguageModelV3 {
+@@ -138,6 +147,8 @@ export class OpenResponsesLanguageModel implements LanguageModelV3 {
+     return {
+       body: {
+         model: this.modelId,
++        // Pre-migration parity: never opt into server-side response storage.
++        store: false,
+         input,
+         instructions,
+         max_output_tokens: maxOutputTokens,
+@@ -157,7 +168,10 @@ export class OpenResponsesLanguageModel implements LanguageModelV3 {
                  }),
                }
              : undefined,
@@ -316,7 +371,7 @@ index 2650edaed75f2bb981f584f702b5da2894241b70..616bac2af37b4ab54269a94b2f409de4
          tool_choice: convertedToolChoice,
          ...(textFormat != null && { text: { format: textFormat } }),
        },
-@@ -338,6 +350,7 @@ export class OpenResponsesLanguageModel implements LanguageModelV3 {
+@@ -338,6 +352,7 @@ export class OpenResponsesLanguageModel implements LanguageModelV3 {
      };
  
      let isActiveReasoning = false;
@@ -324,15 +379,26 @@ index 2650edaed75f2bb981f584f702b5da2894241b70..616bac2af37b4ab54269a94b2f409de4
      let hasToolCalls = false;
      let finishReason: LanguageModelV3FinishReason = {
        unified: 'other',
-@@ -440,6 +453,7 @@ export class OpenResponsesLanguageModel implements LanguageModelV3 {
+@@ -440,6 +455,18 @@ export class OpenResponsesLanguageModel implements LanguageModelV3 {
                  id: chunk.item.id,
                });
                isActiveReasoning = true;
 +              activeReasoningId = chunk.item.id;
++            } else if (
++              (chunk as { type: string }).type ===
++              'response.reasoning_summary_text.delta'
++            ) {
++              // Ark streams reasoning as reasoning_summary_text events.
++              const summaryChunk = chunk as { item_id: string; delta: string };
++              controller.enqueue({
++                type: 'reasoning-delta',
++                id: summaryChunk.item_id,
++                delta: summaryChunk.delta,
++              });
              } else if (
                (chunk as { type: string }).type ===
                'response.reasoning_text.delta'
-@@ -459,6 +473,7 @@ export class OpenResponsesLanguageModel implements LanguageModelV3 {
+@@ -459,6 +486,7 @@ export class OpenResponsesLanguageModel implements LanguageModelV3 {
              ) {
                controller.enqueue({ type: 'reasoning-end', id: chunk.item.id });
                isActiveReasoning = false;
@@ -340,7 +406,7 @@ index 2650edaed75f2bb981f584f702b5da2894241b70..616bac2af37b4ab54269a94b2f409de4
              }
  
              // Text events
-@@ -501,8 +516,8 @@ export class OpenResponsesLanguageModel implements LanguageModelV3 {
+@@ -501,8 +529,8 @@ export class OpenResponsesLanguageModel implements LanguageModelV3 {
            },
  
            flush(controller) {
