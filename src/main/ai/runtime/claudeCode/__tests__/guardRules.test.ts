@@ -434,6 +434,7 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
     })
 
     it('resolves Bash paths from the current directory and tracks cd', async () => {
+      await mkdir(path.join(userDataPath, 'Data', 'KnowledgeBase'), { recursive: true })
       const relativeDatabase = path.join('..', '..', '..', '..', 'cherrystudio.sqlite')
       const homeRelativeDatabase = path.join(
         'Library',
@@ -448,6 +449,10 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
         {
           cwd: systemWorkspace,
           command: 'cd "$HOME/Library/Application Support/CherryStudio/Data" && sqlite3 cherrystudio.sqlite'
+        },
+        {
+          cwd: systemWorkspace,
+          command: 'cd "$HOME/Library/Application Support/CherryStudio/Data/KnowledgeBase" && sqlite3 knowledge.sqlite'
         }
       ]
 
@@ -480,13 +485,50 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
       expect(readDecision?.effect).toBe('ask')
     })
 
-    it.runIf(process.platform !== 'win32')('denies a workspace symlink to the live database', async () => {
-      const linkedDatabase = path.join(systemWorkspace, 'artifact.sqlite')
+    it.runIf(process.platform !== 'win32')('denies extensionless aliases to the live database', async () => {
+      const linkedDatabase = path.join(systemWorkspace, 'live-database')
       await symlink(databaseFile, linkedDatabase)
 
       await expect(
         evaluate(makeCtx({ toolName: 'Write', cwd: systemWorkspace, input: { file_path: linkedDatabase } }))
       ).resolves.toMatchObject({ effect: 'deny', ruleId: 'user-data-sqlite-write' })
+      await expect(
+        evaluate(makeCtx({ cwd: systemWorkspace, input: { command: `sqlite3 "${linkedDatabase}" "vacuum"` } }))
+      ).resolves.toMatchObject({ effect: 'deny', ruleId: 'user-data-sqlite-write' })
+    })
+
+    it.runIf(process.platform !== 'win32')(
+      'resolves parent traversal after following a directory symlink',
+      async () => {
+        const protectedDirectory = path.join(userDataPath, 'Data', 'KnowledgeBase')
+        const nestedDirectory = path.join(protectedDirectory, 'nested')
+        const linkedDirectory = path.join(systemWorkspace, 'knowledge-link')
+        await mkdir(nestedDirectory, { recursive: true })
+        await symlink(nestedDirectory, linkedDirectory)
+        const traversedDatabase = `${linkedDirectory}${path.sep}..${path.sep}escaped.sqlite`
+
+        await expect(
+          evaluate(makeCtx({ toolName: 'Write', cwd: systemWorkspace, input: { file_path: traversedDatabase } }))
+        ).resolves.toMatchObject({ effect: 'deny', ruleId: 'user-data-sqlite-write' })
+      }
+    )
+
+    it.runIf(process.platform !== 'win32')('follows dangling symlinks before classifying a write target', async () => {
+      const protectedDirectory = path.join(userDataPath, 'Data', 'KnowledgeBase')
+      const protectedTarget = path.join(protectedDirectory, 'created.sqlite')
+      const protectedLink = path.join(systemWorkspace, 'protected-alias.sqlite')
+      const workspaceTarget = path.join(systemWorkspace, 'created.sqlite')
+      const workspaceLink = path.join(systemWorkspace, 'workspace-alias.sqlite')
+      await mkdir(protectedDirectory, { recursive: true })
+      await symlink(protectedTarget, protectedLink)
+      await symlink(workspaceTarget, workspaceLink)
+
+      await expect(
+        evaluate(makeCtx({ toolName: 'Write', cwd: systemWorkspace, input: { file_path: protectedLink } }))
+      ).resolves.toMatchObject({ effect: 'deny', ruleId: 'user-data-sqlite-write' })
+      await expect(
+        evaluate(makeCtx({ toolName: 'Write', cwd: systemWorkspace, input: { file_path: workspaceLink } }))
+      ).resolves.toBeUndefined()
     })
   })
 

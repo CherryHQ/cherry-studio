@@ -53,7 +53,6 @@ const SQLITE_WRITE_PATH_FIELDS = {
   NotebookEdit: 'notebook_path',
   Write: 'file_path'
 } as const
-const SQLITE_FILE_MENTION_PATTERN = /\.(?:db|sqlite)(?:-(?:journal|shm|wal))?/i
 
 /**
  * Runtime boundary format for the snapshot's auto-allow exceptions. The maintained source is the
@@ -78,7 +77,7 @@ const globalInstallCommand = (ctx: ToolGuardContext): GuardHit | null => {
 const userDataSqliteWrite = async (ctx: ToolGuardContext): Promise<GuardHit | null> => {
   if (ctx.toolName === 'Bash') {
     const command = bashCommand(ctx)
-    if (!command || !SQLITE_FILE_MENTION_PATTERN.test(command)) return null
+    if (!command) return null
     return (await commandReferencesUserDataSqlite(
       command,
       ctx.cwd,
@@ -93,7 +92,7 @@ const userDataSqliteWrite = async (ctx: ToolGuardContext): Promise<GuardHit | nu
   const pathField = SQLITE_WRITE_PATH_FIELDS[ctx.toolName as keyof typeof SQLITE_WRITE_PATH_FIELDS]
   if (!pathField) return null
   const requestedPath = ctx.input?.[pathField]
-  if (typeof requestedPath !== 'string' || !SQLITE_FILE_MENTION_PATTERN.test(requestedPath)) return null
+  if (typeof requestedPath !== 'string' || !requestedPath.trim()) return null
   return (await isUserDataSqlitePath(
     requestedPath,
     ctx.cwd,

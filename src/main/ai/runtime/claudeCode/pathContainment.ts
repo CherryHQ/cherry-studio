@@ -16,24 +16,46 @@ import { isPathInside } from '@main/utils/file'
 
 const SQLITE_FILE_PATTERN = /\.(?:db|sqlite)(?:-(?:journal|shm|wal))?$/i
 
-async function resolveRealOrNearestExistingPath(targetPath: string): Promise<string> {
-  try {
-    return path.normalize(await fs.promises.realpath(targetPath))
-  } catch {
-    let currentPath = path.dirname(targetPath)
+function appendPathWithoutNormalization(basePath: string, segments: readonly string[]): string {
+  if (segments.length === 0) return basePath
+  const separator = basePath.endsWith(path.sep) ? '' : path.sep
+  return `${basePath}${separator}${segments.join(path.sep)}`
+}
 
-    while (true) {
-      try {
-        const realCurrentPath = await fs.promises.realpath(currentPath)
-        const relativeSuffix = path.relative(currentPath, targetPath)
-        return path.normalize(path.join(realCurrentPath, relativeSuffix))
-      } catch {
-        const parentPath = path.dirname(currentPath)
-        if (parentPath === currentPath) {
-          return path.normalize(targetPath)
-        }
-        currentPath = parentPath
+function resolveFromCwdWithoutNormalization(cwd: string, requestedPath: string): string {
+  return path.isAbsolute(requestedPath)
+    ? requestedPath
+    : appendPathWithoutNormalization(path.resolve(cwd), [requestedPath])
+}
+
+async function resolveRealOrNearestExistingPath(targetPath: string): Promise<string> {
+  let currentPath = targetPath
+  let missingSegments: string[] = []
+
+  while (true) {
+    try {
+      const realCurrentPath = await fs.promises.realpath(currentPath)
+      return path.normalize(appendPathWithoutNormalization(realCurrentPath, missingSegments))
+    } catch {
+      const linkTarget = await fs.promises
+        .lstat(currentPath)
+        .then((stats) => (stats.isSymbolicLink() ? fs.promises.readlink(currentPath) : undefined))
+        .catch(() => undefined)
+      if (linkTarget !== undefined) {
+        const absoluteLinkTarget = path.isAbsolute(linkTarget)
+          ? linkTarget
+          : appendPathWithoutNormalization(path.dirname(currentPath), [linkTarget])
+        currentPath = appendPathWithoutNormalization(absoluteLinkTarget, missingSegments)
+        missingSegments = []
+        continue
       }
+
+      const parentPath = path.dirname(currentPath)
+      if (parentPath === currentPath) {
+        return path.normalize(appendPathWithoutNormalization(currentPath, missingSegments))
+      }
+      missingSegments.unshift(path.basename(currentPath))
+      currentPath = parentPath
     }
   }
 }
@@ -47,7 +69,7 @@ export async function isPathWithinAllowedRoots(
     return false
   }
 
-  const absoluteTarget = path.isAbsolute(requestedPath) ? path.resolve(requestedPath) : path.resolve(cwd, requestedPath)
+  const absoluteTarget = resolveFromCwdWithoutNormalization(cwd, requestedPath)
   const [resolvedWorkspace, resolvedAgentDataPath, resolvedTarget] = await Promise.all([
     resolveRealOrNearestExistingPath(path.resolve(cwd)),
     resolveRealOrNearestExistingPath(path.resolve(agentDataPath)),
@@ -120,11 +142,56 @@ function expandShellHomePath(requestedPath: string, homePath: string): string {
   return expandHomePath(normalizeShellPathText(requestedPath), normalizeShellPathText(path.resolve(homePath)))
 }
 
-function sqlitePathFromShellWord(word: string): string | undefined {
+function pathFromShellWord(word: string): string | undefined {
   const normalizedWord = normalizeShellPathText(word).replace(/[,)}\]]+$/, '')
   const pathText = normalizedWord.slice(normalizedWord.lastIndexOf('=') + 1).replace(/^file:/i, '')
   const pathWithoutQuery = pathText.replace(/[?#].*$/, '')
-  return SQLITE_FILE_PATTERN.test(path.basename(pathWithoutQuery)) ? pathWithoutQuery : undefined
+  return pathWithoutQuery || undefined
+}
+
+interface SqlitePathRoots {
+  workspace: string
+  userData: string
+  databaseFile: string
+}
+
+function normalizeResolvedPath(resolvedPath: string): string {
+  return isMac || isWin ? resolvedPath.toLowerCase() : resolvedPath
+}
+
+async function resolveSqlitePathRoots(
+  workspacePath: string,
+  userDataPath: string,
+  databaseFile: string
+): Promise<SqlitePathRoots> {
+  const [workspace, userData, resolvedDatabaseFile] = await Promise.all([
+    resolveRealOrNearestExistingPath(path.resolve(workspacePath)),
+    resolveRealOrNearestExistingPath(path.resolve(userDataPath)),
+    resolveRealOrNearestExistingPath(path.resolve(databaseFile))
+  ])
+  return {
+    workspace: normalizeResolvedPath(workspace),
+    userData: normalizeResolvedPath(userData),
+    databaseFile: normalizeResolvedPath(resolvedDatabaseFile)
+  }
+}
+
+async function isUserDataSqlitePathWithinRoots(
+  requestedPath: string,
+  resolutionCwd: string,
+  homePath: string,
+  roots: SqlitePathRoots
+): Promise<boolean> {
+  const expandedPath = expandHomePath(requestedPath, homePath)
+  const absoluteTarget = resolveFromCwdWithoutNormalization(resolutionCwd, expandedPath)
+  const target = normalizeResolvedPath(await resolveRealOrNearestExistingPath(absoluteTarget))
+
+  if (target === roots.databaseFile) return true
+  if (!SQLITE_FILE_PATTERN.test(path.basename(target))) return false
+
+  const isInsideUserData = target === roots.userData || isPathInside(target, roots.userData)
+  const isInsideWorkspace = target === roots.workspace || isPathInside(target, roots.workspace)
+  return isInsideUserData && !isInsideWorkspace
 }
 
 export async function commandReferencesUserDataSqlite(
@@ -137,6 +204,7 @@ export async function commandReferencesUserDataSqlite(
   let shellCwd = cwd
   let words: string[] = []
   const tokens = tokenizeShellCommand(command)
+  const roots = await resolveSqlitePathRoots(cwd, userDataPath, databaseFile)
 
   for (let index = 0; index <= tokens.length; index++) {
     const token = tokens[index]
@@ -145,11 +213,8 @@ export async function commandReferencesUserDataSqlite(
       continue
     }
     for (const word of words) {
-      const requestedPath = sqlitePathFromShellWord(word)
-      if (
-        requestedPath &&
-        (await isUserDataSqlitePath(requestedPath, shellCwd, userDataPath, databaseFile, homePath))
-      ) {
+      const requestedPath = pathFromShellWord(word)
+      if (requestedPath && (await isUserDataSqlitePathWithinRoots(requestedPath, shellCwd, homePath, roots))) {
         return true
       }
     }
@@ -174,24 +239,6 @@ export async function isUserDataSqlitePath(
   databaseFile: string,
   homePath: string
 ): Promise<boolean> {
-  const expandedPath = expandHomePath(requestedPath, homePath)
-  const absoluteTarget = path.isAbsolute(expandedPath) ? path.resolve(expandedPath) : path.resolve(cwd, expandedPath)
-  const [resolvedTarget, resolvedWorkspace, resolvedUserData, resolvedDatabaseFile] = await Promise.all([
-    resolveRealOrNearestExistingPath(absoluteTarget),
-    resolveRealOrNearestExistingPath(path.resolve(cwd)),
-    resolveRealOrNearestExistingPath(path.resolve(userDataPath)),
-    resolveRealOrNearestExistingPath(path.resolve(databaseFile))
-  ])
-  const normalizedTarget = isMac || isWin ? resolvedTarget.toLowerCase() : resolvedTarget
-  const normalizedWorkspace = isMac || isWin ? resolvedWorkspace.toLowerCase() : resolvedWorkspace
-  const normalizedUserData = isMac || isWin ? resolvedUserData.toLowerCase() : resolvedUserData
-  const normalizedDatabaseFile = isMac || isWin ? resolvedDatabaseFile.toLowerCase() : resolvedDatabaseFile
-
-  if (normalizedTarget === normalizedDatabaseFile) return true
-  if (!SQLITE_FILE_PATTERN.test(path.basename(normalizedTarget))) return false
-
-  const isInsideUserData = normalizedTarget === normalizedUserData || isPathInside(normalizedTarget, normalizedUserData)
-  const isInsideWorkspace =
-    normalizedTarget === normalizedWorkspace || isPathInside(normalizedTarget, normalizedWorkspace)
-  return isInsideUserData && !isInsideWorkspace
+  const roots = await resolveSqlitePathRoots(cwd, userDataPath, databaseFile)
+  return isUserDataSqlitePathWithinRoots(requestedPath, cwd, homePath, roots)
 }
