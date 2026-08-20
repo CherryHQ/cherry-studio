@@ -33,7 +33,7 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
   // The Claude Agent SDK ships its harness context (agent/skill catalogs, deferred-tool
   // notices) as `system` messages inside `messages`. Mapping them by position turns them
   // into words the model believes it said.
-  it('folds an inline system message into the leading system message', () => {
+  it('keeps an inline system message at its own index instead of merging it into a turn', () => {
     const msgs = converter.toUIMessages(
       params({
         system: 'Be terse.',
@@ -45,9 +45,10 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
       })
     )
 
-    expect(msgs.map((msg) => msg.role)).toEqual(['system', 'user', 'assistant'])
-    expect(msgs[0]).toMatchObject({ parts: [{ type: 'text', text: 'Be terse.\n\nAvailable agent types: ...' }] })
-    expect(msgs[2]).toMatchObject({ parts: [{ type: 'text', text: 'On it.' }] })
+    expect(msgs.map((msg) => msg.role)).toEqual(['system', 'user', 'system', 'assistant'])
+    expect(msgs[0]).toMatchObject({ parts: [{ type: 'text', text: 'Be terse.' }] })
+    expect(msgs[2]).toMatchObject({ parts: [{ type: 'text', text: 'Available agent types: ...' }] })
+    expect(msgs[3]).toMatchObject({ parts: [{ type: 'text', text: 'On it.' }] })
   })
 
   // A trailing inline system message left as an assistant turn makes the request look like an
@@ -63,12 +64,13 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
       })
     )
 
-    expect(msgs.map((msg) => msg.role)).toEqual(['system', 'user'])
+    expect(msgs.map((msg) => msg.role)).toEqual(['user', 'system'])
   })
 
-  it('folds consecutive inline system messages in arrival order', () => {
+  it('keeps consecutive inline system messages separate and in arrival order', () => {
     // Harness state changes arrive in bursts while a session warms up — an MCP server
     // connects, skills are discovered, agent types change — each as its own message.
+    // Each one appends at the tail, so the prefix before it stays cacheable.
     const msgs = converter.toUIMessages(
       params({
         system: 'Be terse.',
@@ -80,15 +82,11 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
       })
     )
 
-    expect(msgs.map((msg) => msg.role)).toEqual(['system', 'user'])
-    expect(msgs[0]).toMatchObject({
-      parts: [
-        {
-          type: 'text',
-          text: 'Be terse.\n\nThe following MCP servers are still connecting: context\n\nNew agent types are now available.'
-        }
-      ]
+    expect(msgs.map((msg) => msg.role)).toEqual(['system', 'user', 'system', 'system'])
+    expect(msgs[2]).toMatchObject({
+      parts: [{ type: 'text', text: 'The following MCP servers are still connecting: context' }]
     })
+    expect(msgs[3]).toMatchObject({ parts: [{ type: 'text', text: 'New agent types are now available.' }] })
   })
 
   it('gives the agent continuation nothing to answer after a mid-session harness update', () => {

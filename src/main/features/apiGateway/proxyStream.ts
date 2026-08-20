@@ -19,9 +19,11 @@
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
 import { SseListener, type StreamListener } from '@main/ai/streamManager'
 import type { CallOverrides } from '@main/ai/types'
 import { applyFastModeToProviderOptions } from '@main/ai/utils/options'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { UIMessageChunk } from 'ai'
 import { v4 as uuidv4 } from 'uuid'
@@ -34,6 +36,7 @@ import { appendInternalAgentContinuation } from './utils/agentContinuation'
 import { normalizeAnthropicToolHistory } from './utils/anthropicToolHistory'
 import { resolveGatewayModelAddress } from './utils/models'
 import { applyAgentPromptCacheKey } from './utils/promptCacheKey'
+import { hoistSystemMessages } from './utils/systemMessageHoist'
 
 const logger = loggerService.withContext('ProxyStreamService')
 
@@ -199,9 +202,15 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   })
 
   const convertedMessages = converter.toUIMessages(effectiveParams)
+  // Only `@ai-sdk/google` rejects a system message after the first user turn; everywhere
+  // else leaving them in place is what keeps the prompt prefix cacheable across turns.
+  const positionedMessages =
+    resolveEffectiveEndpoint(provider, model).endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+      ? hoistSystemMessages(convertedMessages)
+      : convertedMessages
   const messages = isInternalAnthropicAgentRequest
-    ? appendInternalAgentContinuation(convertedMessages)
-    : convertedMessages
+    ? appendInternalAgentContinuation(positionedMessages)
+    : positionedMessages
   const tools = converter.toAiSdkTools?.(effectiveParams)
   const streamOptions = converter.extractStreamOptions(effectiveParams)
 

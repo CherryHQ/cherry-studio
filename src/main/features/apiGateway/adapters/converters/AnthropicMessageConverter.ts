@@ -159,11 +159,11 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
    * Tool calls become `dynamic-tool` parts; a matching tool_result in a later
    * message upgrades the part to `output-available` so history stays coherent.
    *
-   * Inline `system` messages fold into that same leading message rather than
-   * staying in place, because mapping them by position would attribute the Agent
-   * SDK's harness context to the model (every other role maps to `assistant`).
-   * Folding costs the SDK's per-message `cache_control` breakpoint — see #19029
-   * for routing them in place by target capability.
+   * Inline `system` messages stay at their original index as `role: 'system'`
+   * UIMessages. Mapping them by position to `assistant` (every other non-user role)
+   * would attribute the Agent SDK's harness context to the model, and hoisting them
+   * would rewrite the prompt prefix on every turn one arrives, costing the prefix
+   * cache. `hoistSystemMessages` folds them only for targets that reject them.
    */
   toUIMessages(params: MessageCreateParams): CherryUIMessage[] {
     this.prepareToolNames(params.tools)
@@ -173,13 +173,7 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
     const inputMessages: AgentInputMessage[] = params.messages
 
     // System message
-    const systemText = [
-      params.system,
-      ...inputMessages.filter((msg) => msg.role === 'system').map((msg) => msg.content)
-    ]
-      .map(textContentToString)
-      .filter(Boolean)
-      .join('\n\n')
+    const systemText = textContentToString(params.system)
     if (systemText) {
       messages.push({ id: nextUIMessageId(), role: 'system', parts: [{ type: 'text', text: systemText }] })
     }
@@ -202,7 +196,13 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
     }
 
     for (const msg of inputMessages) {
-      if (msg.role === 'system') continue
+      if (msg.role === 'system') {
+        const text = textContentToString(msg.content)
+        if (text) {
+          messages.push({ id: nextUIMessageId(), role: 'system', parts: [{ type: 'text', text }] })
+        }
+        continue
+      }
       const role = msg.role === 'user' ? 'user' : 'assistant'
 
       if (typeof msg.content === 'string') {
