@@ -1,9 +1,9 @@
 /**
  * Off-chat markdown rendering: `<StaticMarkdown>` renders release notes, the update
  * dialog, prompt previews and agent tool output through `@cherrystudio/ui`'s `<Markdown>`
- * with the full plugin preset. Chat messages render via `ChatMarkdown`, which owns the
- * rich, message-context-bound component overrides (code-save, tables, citations, file
- * links) under `components/chat/messages/markdown/`.
+ * with the full plugin preset and Cherry Studio's code, table, link and media renderers.
+ * Hosts may inject surface-specific behavior such as opening local file links.
  */
 
+export { MarkdownHostProvider } from './MarkdownHostProvider'
 export { StaticMarkdown } from './StaticMarkdown'

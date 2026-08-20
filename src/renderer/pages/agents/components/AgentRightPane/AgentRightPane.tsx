@@ -41,6 +41,7 @@ import {
 import { EmptyState } from '@renderer/components/chat/primitives'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import ComposerFloatingCapsule from '@renderer/components/composer/ComposerFloatingCapsule'
+import { FilePreviewNavigationProvider } from '@renderer/components/FilePreview'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
@@ -684,7 +685,7 @@ function AgentRightPaneFilesPanel({ active, scope }: RightPanelComponentProps<Ag
     lastSelectableFileRef.current = null
     actions.setSelectedFile(null)
   }, [actions, model.hasLoaded, model.nodeById, state.previewFileSelection, state.selectedFile, state.workspacePath])
-  return (
+  const pane = (
     <ArtifactPaneView
       headerVariant="pane"
       paneTitle={scope.filesTitle}
@@ -702,6 +703,12 @@ function AgentRightPaneFilesPanel({ active, scope }: RightPanelComponentProps<Ag
       searchKeyword={state.fileTreeSearchKeyword}
       onSearchKeywordChange={actions.setFileTreeSearchKeyword}
     />
+  )
+
+  return actions.canOpenArtifactFile ? (
+    <FilePreviewNavigationProvider openFile={actions.openArtifactFile}>{pane}</FilePreviewNavigationProvider>
+  ) : (
+    pane
   )
 }
 
