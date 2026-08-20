@@ -8,7 +8,9 @@ import { useTranslation } from 'react-i18next'
 
 import { FilePreviewLayout } from '../../FilePreviewLayout'
 import { assertZipLimits } from '../../officeZipPreflight'
+import { createSelectionReference } from '../../selectionReference'
 import type { FilePreviewPluginProps } from '../../types'
+import { selectionToDocxAnchor } from './docxSelectionAnchor'
 import { WordFilePreviewToolbar } from './WordFilePreviewToolbar'
 
 const logger = loggerService.withContext('WordFilePreview')
@@ -18,6 +20,7 @@ const DOCX_PREVIEW_ZOOM_STEP = 0.1
 const DOCX_PREVIEW_MIN_ZOOM = 0.5
 const DOCX_PREVIEW_MAX_ZOOM = 2
 const DOCX_PREVIEW_MAX_SOURCE_BYTES = 25 * 1024 * 1024
+const SELECTION_CHANGE_DEBOUNCE_MS = 100
 const SAFE_HYPERLINK_PROTOCOLS = new Set(['http:', 'https:', 'mailto:'])
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max)
@@ -59,7 +62,13 @@ function sanitizeHyperlinks(body: HTMLElement): void {
   })
 }
 
-export default function WordFilePreview({ filePath, fileName, metadata, refreshKey }: FilePreviewPluginProps) {
+export default function WordFilePreview({
+  filePath,
+  fileName,
+  metadata,
+  refreshKey,
+  onSelectionReference
+}: FilePreviewPluginProps) {
   const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
@@ -215,6 +224,45 @@ export default function WordFilePreview({ filePath, fileName, metadata, refreshK
     pages.forEach((page) => observer.observe(page))
     return () => observer.disconnect()
   }, [pageCount])
+
+  useEffect(() => {
+    if (!onSelectionReference) return
+
+    let debounceTimer: ReturnType<typeof setTimeout> | undefined
+
+    const report = () => {
+      const bodyContainer = bodyRef.current
+      const selection = document.getSelection()
+      if (!bodyContainer || !selection || selection.rangeCount === 0) {
+        onSelectionReference(null)
+        return
+      }
+
+      // Selections that start outside the rendered document are other people's.
+      if (!bodyContainer.contains(selection.getRangeAt(0).startContainer)) {
+        onSelectionReference(null)
+        return
+      }
+
+      const resolved = selectionToDocxAnchor(selection)
+      onSelectionReference(
+        resolved
+          ? createSelectionReference({ filePath, anchor: resolved.anchor, excerpt: resolved.excerpt, metadata })
+          : null
+      )
+    }
+
+    const handleSelectionChange = () => {
+      clearTimeout(debounceTimer)
+      debounceTimer = setTimeout(report, SELECTION_CHANGE_DEBOUNCE_MS)
+    }
+
+    document.addEventListener('selectionchange', handleSelectionChange)
+    return () => {
+      document.removeEventListener('selectionchange', handleSelectionChange)
+      clearTimeout(debounceTimer)
+    }
+  }, [filePath, metadata, onSelectionReference])
 
   const hasPages = !error && pageCount > 0
   const contentStyle = { zoom } as CSSProperties
