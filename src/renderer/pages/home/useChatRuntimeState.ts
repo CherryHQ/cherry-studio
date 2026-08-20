@@ -305,13 +305,8 @@ export function useChatRuntimeState({
     }),
     [cache.rollbackBranch, refresh, seedReservedMessages]
   )
-  const turnController = useConversationTurnController<
-    ChatTurnInput,
-    { topicId: string; parentAnchorId: string | null }
-  >({
-    scopeKey: topic.id,
-    historyAdapter,
-    ensureConversation: async ({ options }) => {
+  const ensureConversation = useCallback(
+    async ({ options }: ChatTurnInput) => {
       if (isHistoryLoading) return null
 
       return {
@@ -319,7 +314,10 @@ export function useChatRuntimeState({
         parentAnchorId: options?.chatTarget ? options.chatTarget.parentAnchorId : (activeNodeId ?? null)
       }
     },
-    buildStreamRequest: ({ text, options }, conversation) => {
+    [activeNodeId, isHistoryLoading, topic.id]
+  )
+  const buildStreamRequest = useCallback(
+    ({ text, options }: ChatTurnInput, conversation: { topicId: string; parentAnchorId: string | null }) => {
       const requestOptions = {
         topicId: conversation.topicId,
         mentionedModelIds: options?.mentionedModels,
@@ -329,13 +327,27 @@ export function useChatRuntimeState({
 
       return {
         ...requestOptions,
-        trigger: 'submit-message',
+        trigger: 'submit-message' as const,
         parentAnchorId: conversation.parentAnchorId ?? undefined,
         userMessageParts: options?.userMessageParts ?? [{ type: 'text' as const, text }],
         ...(options?.chatTarget ? { targetMode: options.chatTarget.mode } : {})
       }
     },
-    refreshMetadata: ({ topicId }) => invalidateCache(['/topics', `/topics/${topicId}`])
+    []
+  )
+  const refreshMetadata = useCallback(
+    ({ topicId }: { topicId: string }) => invalidateCache(['/topics', `/topics/${topicId}`]),
+    [invalidateCache]
+  )
+  const { phase: turnPhase, send } = useConversationTurnController<
+    ChatTurnInput,
+    { topicId: string; parentAnchorId: string | null }
+  >({
+    scopeKey: topic.id,
+    historyAdapter,
+    ensureConversation,
+    buildStreamRequest,
+    refreshMetadata
   })
 
   const activeStreamingMessageIds = useMemo(() => new Set(liveMessageIds), [liveMessageIds])
@@ -462,21 +474,21 @@ export function useChatRuntimeState({
       isHistoryLoading ||
       isTopicStreamPending ||
       isTopicAwaitingApproval ||
-      turnController.phase === 'persisting' ||
-      turnController.phase === 'opening',
+      turnPhase === 'persisting' ||
+      turnPhase === 'opening',
     assistant
   })
 
   const sendMessage = useCallback(
     async (text: string, options?: ChatTurnInput['options']) => {
       try {
-        await turnController.send({ text, options })
+        await send({ text, options })
       } catch (err) {
         logger.warn('failed to open conversation turn', err as Error)
         throw err
       }
     },
-    [turnController]
+    [send]
   )
 
   return {
