@@ -42,7 +42,7 @@ import { cn } from '@renderer/utils/style'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import type { FC, HTMLAttributes } from 'react'
-import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import Chat from './Chat'
@@ -184,7 +184,7 @@ const HomePage: FC = () => {
     [isMessageOnlyView, navigate]
   )
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     ownerFallbackRequestIdRef.current += 1
     setActiveTopicIdState(routeActiveTopicId)
     return () => {
@@ -229,9 +229,13 @@ const HomePage: FC = () => {
     routeTopicId
   ])
   const lastVisibleTopicRef = useRef<Topic | undefined>(undefined)
+  const resolvedActiveTopic = activeTopic?.id === activeTopicId ? activeTopic : undefined
   const visibleTopic = isMessageOnlyView
     ? routeTopic
-    : (activeTopic ?? (isActiveTopicLoading ? lastVisibleTopicRef.current : undefined) ?? undefined)
+    : (resolvedActiveTopic ??
+      (isActiveTopicLoading && lastVisibleTopicRef.current?.id === activeTopicId
+        ? lastVisibleTopicRef.current
+        : undefined))
   const requestComposerFocus = useComposerFocusRequest(visibleTopic?.id)
   const resourceConversationKey = useMemo(() => {
     if (visibleTopic?.id) return `topic:${visibleTopic.id}`
@@ -331,8 +335,8 @@ const HomePage: FC = () => {
       count: allTopics.filter((topic) => topic.assistantId === visibleAssistantId).length
     }
   }, [allTopics, isClassicTopicLayout, topicListPosition, t, visibleAssistantId])
-  // While the bound topic is still loading (or the visible entity intentionally lags behind a
-  // selection), keep the tab's stored title/icon instead of stamping a stale or generic one.
+  // While the bound topic is still loading, keep the tab's stored title/icon instead of stamping
+  // a generic one.
   const targetTopicId = isMessageOnlyView ? routeTopicId : (activeTopicId ?? undefined)
   const preserveTabVisuals = !!targetTopicId && visibleTopic?.id !== targetTopicId
   useTabSelfVisuals({
@@ -343,8 +347,8 @@ const HomePage: FC = () => {
   })
 
   useEffect(() => {
-    if (activeTopic) lastVisibleTopicRef.current = activeTopic
-  }, [activeTopic])
+    if (resolvedActiveTopic) lastVisibleTopicRef.current = resolvedActiveTopic
+  }, [resolvedActiveTopic])
 
   useEffect(() => {
     if (isMessageOnlyView) return
