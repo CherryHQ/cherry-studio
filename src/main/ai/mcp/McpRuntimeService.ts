@@ -416,7 +416,10 @@ export class McpRuntimeService extends BaseService {
       const pingResult = await existingClient.ping({ timeout: PING_TIMEOUT_MS })
       getServerLogger(server).debug(`Ping result`, { ok: !!pingResult })
       if (pingResult) {
-        if (this.removedServerIds.has(server.id)) {
+        // The ping's await is long enough for restartServer/stopServer to have closed and
+        // evicted this client. `removedServerIds` only covers removal, so check the map too:
+        // handing back an evicted client would hand back a closed connection.
+        if (this.clients.get(serverKey) !== existingClient || this.removedServerIds.has(server.id)) {
           return undefined
         }
         this.setServerStatus(server.id, 'connected')

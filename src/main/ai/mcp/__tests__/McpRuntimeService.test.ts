@@ -410,6 +410,31 @@ describe('McpRuntimeService connect single-flight', () => {
     expect(second).not.toBe(stale)
   })
 
+  it('never hands back a cached client a concurrent restart closed', async () => {
+    const service = new McpRuntimeService()
+    const server = {
+      id: 'http-server',
+      name: 'http-server',
+      type: 'streamableHttp',
+      baseUrl: 'https://mcp.example/mcp',
+      isActive: true
+    } as McpServer
+    getByIdMock.mockReturnValue(server)
+
+    // The probe is deliberately not a pending client, so a restart runs straight through it.
+    const pingGate = createDeferred<boolean>()
+    const close = vi.fn().mockResolvedValue(undefined)
+    const stale = { close, ping: vi.fn(() => pingGate.promise) }
+    ;(service as any).clients.set(service.getServerKey(server), stale)
+
+    const probing = service.withClient(server.id, async (client) => client)
+    await service.restartServer(server.id)
+    pingGate.resolve(true)
+
+    expect(await probing).not.toBe(stale)
+    expect(close).toHaveBeenCalled()
+  })
+
   // Two callers in the same turn must share one connect: registering the pending promise after
   // an await let both miss it, open two clients, and leak the one whose entry was overwritten.
   it('opens a single client for concurrent first-time callers', async () => {
