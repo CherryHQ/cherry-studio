@@ -13,7 +13,11 @@ import { McpCatalogService } from '@main/ai/mcp/McpCatalogService'
 import { McpPackageService } from '@main/ai/mcp/McpPackageService'
 import { McpRuntimeService } from '@main/ai/mcp/McpRuntimeService'
 import { ClaudeCodeTraceBridgeService, NodeTraceService, TraceStorageService } from '@main/ai/observability'
-import { ClaudeCodeProcessManager, ClaudeCodeWarmQueryManager } from '@main/ai/runtime/claudeCode'
+import {
+  ClaudeCodeProcessManager,
+  ClaudeCodeSessionStateService,
+  ClaudeCodeWarmQueryManager
+} from '@main/ai/runtime/claudeCode'
 import { AiStreamManager } from '@main/ai/streamManager'
 import { JobManager } from '@main/core/job/JobManager'
 import type { ServiceConstructor } from '@main/core/lifecycle'
@@ -137,6 +141,7 @@ export const services = {
   ChannelManager,
   AiService,
   ClaudeCodeWarmQueryManager,
+  ClaudeCodeSessionStateService,
   AiStreamManager,
   EmbeddingInferenceService,
   OcrInferenceService,

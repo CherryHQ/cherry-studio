@@ -88,7 +88,8 @@ const openParams = {
     readTools: [],
     editTools: [],
     autoApprovedTools: [],
-    approvalRequiredTools: []
+    approvalRequiredTools: [],
+    nonBypassableApprovalTools: []
   },
   tools: []
 }

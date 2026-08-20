@@ -2,9 +2,9 @@ import net from 'node:net'
 
 import type { BridgeNotificationMap } from '@cherrystudio/dsh-bridge'
 import { JsonRpcLineTransport } from '@deepseek-ai/dsh-sdk-protocol'
+import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { toolApprovalRegistry } from '../../toolApproval/ToolApprovalRegistry'
 import type { AgentRuntimeEvent } from '../../types'
 import { DshBridgeServer } from '../DshBridgeServer'
 
@@ -231,6 +231,7 @@ describe('DshBridgeServer', () => {
         editTools: ['edit', 'write'],
         autoApprovedTools: [],
         approvalRequiredTools: [],
+        nonBypassableApprovalTools: [],
         planSafeTools: []
       },
       tools: []

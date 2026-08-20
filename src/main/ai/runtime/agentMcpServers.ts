@@ -1,15 +1,16 @@
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
+import { resolveAgentCapabilities } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { createMcpBridgeServer } from '@main/ai/mcp/createMcpBridgeServer'
 import AgentMemoryServer from '@main/ai/mcp/servers/agentMemory'
-import AssistantServer, { SUPPORT_ASSISTANT_TOOL_NAMES } from '@main/ai/mcp/servers/assistant'
+import AssistantServer from '@main/ai/mcp/servers/assistant'
 import { AssistantFileToolsServer } from '@main/ai/mcp/servers/AssistantFileToolsServer'
 import CherryBuiltinToolsServer from '@main/ai/mcp/servers/cherryBuiltinTools'
 import SkillsServer from '@main/ai/mcp/servers/skills'
+import { CHERRY_MCP_SERVER } from '@main/ai/toolApproval/builtinToolPolicy'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -30,13 +31,14 @@ export interface AgentMcpServer {
 export function buildAgentMcpServers(
   session: AgentSessionEntity,
   agent: AgentEntity,
-  assistantMcpEnabled: boolean,
+  mountedServers: ReadonlySet<string>,
   mcpServerSnapshots?: McpServerSnapshotMap,
   linkedChannelSnapshot?: LinkedChannelSnapshot,
   agentDataPath = session.workspace.path,
   selectedKnowledgeBaseIds: readonly string[] = []
 ): Record<string, AgentMcpServer> {
   const servers: Record<string, AgentMcpServer> = {}
+  const capabilities = resolveAgentCapabilities(agent)
 
   for (const mcpId of agent.mcps ?? []) {
     try {
@@ -54,7 +56,7 @@ export function buildAgentMcpServers(
     linkedChannelSnapshot === undefined ? resolveSourceChannel(agent.id, session.id) : linkedChannelSnapshot?.id
   const workspaceSource = toWorkspaceSource(session)
   servers['cherry-tools'] = {
-    name: 'cherry-tools',
+    name: CHERRY_MCP_SERVER.CHERRY_TOOLS,
     instance: new CherryBuiltinToolsServer({
       agentId: agent.id,
       agentDataPath,
@@ -62,8 +64,7 @@ export function buildAgentMcpServers(
       workspaceSource,
       workspacePath: session.workspace.path,
       sourceChannelId,
-      canAccessAllKnowledgeBases: () =>
-        agentService.getAgent(agent.id)?.configuration?.builtin_role === BUILTIN_AGENT_ROLE.ASSISTANT,
+      canAccessAllKnowledgeBases: () => resolveAgentCapabilities(agentService.getAgent(agent.id)).allKnowledgeBases,
       getKnowledgeBaseIds: () => {
         const liveAgent = agentService.getAgent(agent.id)
         return liveAgent ? resolveKnowledgeBaseScope(liveAgent.knowledgeBaseIds, selectedKnowledgeBaseIds) : []
@@ -71,22 +72,22 @@ export function buildAgentMcpServers(
     }).mcpServer
   }
   servers['agent-memory'] = {
-    name: 'agent-memory',
+    name: CHERRY_MCP_SERVER.AGENT_MEMORY,
     instance: new AgentMemoryServer(agent.id, agentDataPath).mcpServer
   }
-  if (agent.configuration?.builtin_role !== BUILTIN_AGENT_ROLE.SUPPORT) {
-    servers.skills = { name: 'skills', instance: new SkillsServer(agent.id).mcpServer }
+  if (mountedServers.has(CHERRY_MCP_SERVER.SKILLS)) {
+    servers.skills = { name: CHERRY_MCP_SERVER.SKILLS, instance: new SkillsServer(agent.id).mcpServer }
   }
 
-  if (assistantMcpEnabled) {
-    const assistantToolNames =
-      agent.configuration?.builtin_role === BUILTIN_AGENT_ROLE.SUPPORT ? SUPPORT_ASSISTANT_TOOL_NAMES : undefined
+  if (mountedServers.has(CHERRY_MCP_SERVER.ASSISTANT)) {
     servers.assistant = {
-      name: 'assistant',
-      instance: new AssistantServer(agent.model ?? undefined, assistantToolNames).mcpServer
+      name: CHERRY_MCP_SERVER.ASSISTANT,
+      instance: new AssistantServer(agent.model ?? undefined, capabilities.hostTools?.tools).mcpServer
     }
+  }
+  if (mountedServers.has(CHERRY_MCP_SERVER.ASSISTANT_FILES)) {
     servers['assistant-files'] = {
-      name: 'assistant-files',
+      name: CHERRY_MCP_SERVER.ASSISTANT_FILES,
       instance: new AssistantFileToolsServer({
         sessionId: session.id,
         workspacePath: session.workspace.path

@@ -423,8 +423,7 @@
           "bypassPermissions": {
             "description": "Skips permission checks. Can delete files and use the network.",
             "title": "Full Access",
-            "warning": "Use with caution — most tools run without approval; explicit safety blocks still apply.",
-            "warning_pi": "Dangerous — nothing is ever asked except for disabled tools, including file deletion and network access."
+            "warning": "Use with caution — most tools run without approval; explicit safety blocks still apply."
           },
           "default": {
             "description": "Asks before editing files or running commands.",

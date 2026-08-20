@@ -85,7 +85,7 @@ vi.mock('@application', () => ({
 
 const { AgentSessionRuntimeService } = await import('../AgentSessionRuntimeService')
 const { runtimeDriverRegistry } = await import('../../runtime/registry')
-const { toolApprovalRegistry } = await import('../../runtime/toolApproval/ToolApprovalRegistry')
+const { toolApprovalRegistry } = await import('../../toolApproval/ToolApprovalRegistry')
 const baseTurnInput = {
   sessionId: 'session-1',
   topicId: 'agent-session:session-1',

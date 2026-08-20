@@ -423,8 +423,7 @@
           "bypassPermissions": {
             "description": "Überspringt Berechtigungsprüfungen. Kann Dateien löschen und das Netzwerk nutzen.",
             "title": "Vollzugriff",
-            "warning": "Gefahr: Alle Tools werden ohne Genehmigung ausgeführt.",
-            "warning_pi": "Gefährlich — es wird nie nachgefragt, außer bei deaktivierten Tools, einschließlich Dateilöschen und Netzwerkzugriff."
+            "warning": "Gefahr: Alle Tools werden ohne Genehmigung ausgeführt."
           },
           "default": {
             "description": "Fragt vor dem Bearbeiten von Dateien oder dem Ausführen von Befehlen.",

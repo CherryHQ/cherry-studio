@@ -56,8 +56,10 @@ export interface BridgePolicy {
   editTools: string[]
   /** First-party bridged tools that may run without a per-call approval. */
   autoApprovedTools: string[]
-  /** Sensitive bridged tools that still require approval in bypass mode. */
+  /** Sensitive bridged tools needing per-call approval; Full Access lifts ordinary entries. */
   approvalRequiredTools: string[]
+  /** Approval-required tools whose live-user ceiling remains under bypassPermissions. */
+  nonBypassableApprovalTools: string[]
   /**
    * The only tools executable while plan mode is active, beyond contained reads.
    * Host-computed closed list (dsh plan mode enforces nothing itself) — notably it

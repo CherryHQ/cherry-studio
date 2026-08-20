@@ -23,6 +23,7 @@ import { noThinkFeature } from './noThink'
 import { openrouterReasoningFeature } from './openrouterReasoning'
 import { providerUrlContextFeature } from './providerUrlContext'
 import { providerWebSearchFeature } from './providerWebSearch'
+import { qwenEnableThinkingFeature } from './qwenEnableThinking'
 import { qwenThinkingFeature } from './qwenThinking'
 import { reasoningExtractionFeature } from './reasoningExtraction'
 import { simulateStreamingFeature } from './simulateStreaming'
@@ -50,6 +51,7 @@ export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   openrouterReasoningFeature,
   noThinkFeature,
   qwenThinkingFeature,
+  qwenEnableThinkingFeature,
   skipGeminiThoughtSignatureFeature,
   providerWebSearchFeature,
   providerUrlContextFeature,
