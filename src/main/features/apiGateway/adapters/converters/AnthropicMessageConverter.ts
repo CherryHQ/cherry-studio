@@ -271,9 +271,11 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
 
     const aiSdkTools: ToolSet = {}
     for (const anthropicTool of tools) {
-      if (anthropicTool.type === 'bash_20250124') continue
       const toolDef = anthropicTool as AnthropicTool
       const rawSchema = toolDef.input_schema
+      // Client tools always carry `input_schema`; without it this is a server tool
+      // (bash/web_search/text_editor/tool_search/…) only Anthropic's own backend executes.
+      if (!rawSchema) continue
       const schema = jsonSchemaToZod(rawSchema as JsonSchemaLike)
 
       const aiTool = tool({
