@@ -2,8 +2,8 @@ import type { SVGProps } from 'react'
 
 import type { IconComponent } from '../types'
 const PiCli: IconComponent = (props: SVGProps<SVGSVGElement>) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 800 800" {...props}>
-    <rect width="800" height="800" rx="150" fill="#09090b" />
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" width="1em" height="1em" {...props}>
+    <rect width={800} height={800} fill="#09090b" rx={150} />
     <path
       fill="#fff"
       fillRule="evenodd"

@@ -67,7 +67,9 @@ export class HermesDashboardService extends BaseService {
           this.status = 'starting'
           this.url = undefined
           const runtime = await this.resolveRuntime()
+          if (startupAbortController.signal.aborted) throw new Error('Hermes Dashboard startup was cancelled')
           const port = await findAvailablePort()
+          if (startupAbortController.signal.aborted) throw new Error('Hermes Dashboard startup was cancelled')
           const url = `http://${DASHBOARD_HOST}:${port}`
           await this.spawnAndWaitForReady(runtime, port, url, startupAbortController.signal)
           if (!this.child || this.child.exitCode !== null || this.child.signalCode !== null) {
@@ -223,6 +225,10 @@ function waitForReady(child: ChildProcess, url: string, signal: AbortSignal): Pr
     }
     const succeed = () => {
       if (settled) return
+      if (child.exitCode !== null || child.signalCode !== null) {
+        fail(new Error('Hermes Dashboard exited before its health check completed'))
+        return
+      }
       settled = true
       cleanup()
       resolve()
@@ -258,7 +264,8 @@ function waitForReady(child: ChildProcess, url: string, signal: AbortSignal): Pr
     child.once('exit', onClose)
     child.once('close', onClose)
     signal.addEventListener('abort', onAbort, { once: true })
-    checkHealth()
+    if (signal.aborted) onAbort()
+    else checkHealth()
   })
 }
 

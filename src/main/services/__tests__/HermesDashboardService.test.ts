@@ -102,6 +102,27 @@ describe('HermesDashboardService', () => {
     expect(mocks.spawn).not.toHaveBeenCalled()
   })
 
+  it('cancels a startup awaiting binary discovery without spawning the Dashboard', async () => {
+    let resolveSnapshots: (value: { hermes: { availability: { source: 'system'; path: string } } }) => void
+    const getToolSnapshots = vi.fn(
+      () =>
+        new Promise<{ hermes: { availability: { source: 'system'; path: string } } }>((resolve) => {
+          resolveSnapshots = resolve
+        })
+    )
+    mocks.appGet.mockReturnValue({ getToolSnapshots })
+    const service = new HermesDashboardService()
+
+    const starting = service.start()
+    await vi.waitFor(() => expect(getToolSnapshots).toHaveBeenCalledOnce())
+    const stopping = service.stop()
+    resolveSnapshots!({ hermes: { availability: { source: 'system', path: '/usr/local/bin/hermes' } } })
+
+    await expect(starting).resolves.toEqual({ success: false, message: 'Hermes Dashboard startup was cancelled' })
+    await expect(stopping).resolves.toBeUndefined()
+    expect(mocks.spawn).not.toHaveBeenCalled()
+  })
+
   it('terminates only the child process it started', async () => {
     const service = new HermesDashboardService()
     await service.start()
