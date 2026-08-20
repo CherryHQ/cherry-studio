@@ -10,11 +10,10 @@ import { captureScrollable, captureScrollableAsDataUrl } from '@renderer/utils/i
 import { classNames } from '@renderer/utils/style'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { type ComponentProps, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type ComponentProps, lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import NarrowLayout from '../layout/NarrowLayout'
 import { PartsProvider, usePartsMap } from './blocks/MessagePartsContext'
-import MessageOutline from './frame/MessageOutline'
 import { MessageListInitialLoading } from './layout/MessageListLoading'
 import { MessagesContainer } from './layout/shared'
 import MessageAnchorLine from './list/MessageAnchorLine'
@@ -45,6 +44,7 @@ import { createStableGroupedMessagesCache, stableGroupedMessages } from './utils
 
 const MULTI_SELECT_BOTTOM_PADDING_PX = 96
 const MESSAGE_OUTLINE_LAYOUTS: MultiModelMessageStyle[] = ['horizontal', 'vertical', 'fold', 'grid']
+const MessageOutline = lazy(() => import('./frame/MessageOutline'))
 /** Chat content's side padding — matches NarrowLayout's `px-6`, so the inline
  * override is invisible until the rail gutter adds onto it. */
 const CHAT_SIDE_PADDING_PX = 24
@@ -844,11 +844,13 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
         />
       )}
       {activeOutline && activeOutlineMessage && (
-        <MessageOutline
-          message={activeOutlineMessage}
-          multiModelMessageStyle={activeOutline.multiModelMessageStyle}
-          onNavigateToElement={scrollToOutlineElement}
-        />
+        <Suspense fallback={null}>
+          <MessageOutline
+            message={activeOutlineMessage}
+            multiModelMessageStyle={activeOutline.multiModelMessageStyle}
+            onNavigateToElement={scrollToOutlineElement}
+          />
+        </Suspense>
       )}
       {messageNavigation === 'buttons' && (
         <MessageNavigation
