@@ -33,9 +33,9 @@ import { buildStreamErrorFrame } from './errors'
 import { googleReasoningCache, openRouterReasoningCache } from './reasoningCache'
 import { appendInternalAgentContinuation } from './utils/agentContinuation'
 import { normalizeAnthropicToolHistory } from './utils/anthropicToolHistory'
+import { positionInlineSystemMessages } from './utils/inlineSystemMessages'
 import { resolveGatewayModelAddress } from './utils/models'
 import { applyAgentPromptCacheKey } from './utils/promptCacheKey'
-import { hoistSystemMessages, keepsSystemMessagesInPlace } from './utils/systemMessageHoist'
 
 const logger = loggerService.withContext('ProxyStreamService')
 
@@ -202,10 +202,12 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
 
   const convertedMessages = converter.toUIMessages(effectiveParams)
   // Leaving inline system messages in place is what keeps the prompt prefix cacheable
-  // across turns; fold only for targets whose converter would reject them (Gemini).
-  const positionedMessages = keepsSystemMessagesInPlace(resolveEffectiveEndpoint(provider, model).endpointType)
-    ? convertedMessages
-    : hoistSystemMessages(convertedMessages)
+  // across turns; targets that reject them get a downgrade 400 or a fold.
+  const positionedMessages = positionInlineSystemMessages(
+    convertedMessages,
+    resolveEffectiveEndpoint(provider, model).endpointType,
+    config.requestHeaders
+  )
   const messages = isInternalAnthropicAgentRequest
     ? appendInternalAgentContinuation(positionedMessages)
     : positionedMessages

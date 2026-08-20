@@ -2,7 +2,25 @@ import type { CherryUIMessage } from '@shared/data/types/message'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
 
-import { hoistSystemMessages, keepsSystemMessagesInPlace } from '../systemMessageHoist'
+import {
+  hoistSystemMessages,
+  keepsSystemMessagesInPlace,
+  MID_CONVERSATION_SYSTEM_BETA,
+  positionInlineSystemMessages
+} from '../inlineSystemMessages'
+
+const betaHeaders = (value: string) => new Headers({ 'anthropic-beta': value })
+const AGENT_SDK_BETAS = `claude-code-20250219,interleaved-thinking-2025-05-14,${MID_CONVERSATION_SYSTEM_BETA},effort-2025-11-24`
+
+/**
+ * Claude Code 2.1.223's downgrade matcher, read from the binary. Any one clause is
+ * enough for it to retry without the beta and sticky-disable it for the session.
+ */
+const sdkAcceptsAsDowngradeSignal = (status: number, message: string): boolean =>
+  status === 400 &&
+  ((message.includes(MID_CONVERSATION_SYSTEM_BETA) && message.includes('anthropic-beta')) ||
+    (message.includes('Unexpected role') && message.includes('input message role')) ||
+    (message.includes('not supported') && /role .{0,2}system/i.test(message)))
 
 /** Every endpoint the gateway can resolve for a chat request. */
 const ENDPOINT_CHAT_TARGETS: EndpointType[] = [
@@ -77,5 +95,45 @@ describe('keepsSystemMessagesInPlace', () => {
   it('folds when the endpoint is unknown, so a new endpoint cannot 500', () => {
     expect(keepsSystemMessagesInPlace(undefined)).toBe(false)
     expect(keepsSystemMessagesInPlace('some-endpoint-added-later' as EndpointType)).toBe(false)
+  })
+})
+
+describe('positionInlineSystemMessages', () => {
+  const inline = [msg('system', 'Base.', 's0'), msg('user', 'go'), msg('system', 'MCP connecting.', 's1')]
+
+  it('leaves them in place for a target that accepts them', () => {
+    expect(
+      positionInlineSystemMessages(inline, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, betaHeaders(AGENT_SDK_BETAS))
+    ).toBe(inline)
+  })
+
+  it('rejects with a 400 the Agent SDK downgrades from when the client negotiated the beta', () => {
+    let thrown: unknown
+    try {
+      positionInlineSystemMessages(inline, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, betaHeaders(AGENT_SDK_BETAS))
+    } catch (error) {
+      thrown = error
+    }
+
+    const { status, message } = thrown as Error & { status: number }
+    expect(status).toBe(400)
+    expect(sdkAcceptsAsDowngradeSignal(status, message)).toBe(true)
+  })
+
+  it('folds instead of rejecting when the client cannot downgrade', () => {
+    expect(
+      positionInlineSystemMessages(inline, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, betaHeaders('claude-code-20250219'))
+    ).toEqual([{ ...inline[0], parts: [{ type: 'text', text: 'Base.\n\nMCP connecting.' }] }, inline[1]])
+  })
+
+  it('folds when there is no anthropic-beta header at all', () => {
+    expect(positionInlineSystemMessages(inline, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, undefined)).toHaveLength(2)
+  })
+
+  it('never rejects a request that carries no inline system message', () => {
+    const plain = [msg('system', 'Base.'), msg('user', 'go')]
+    expect(
+      positionInlineSystemMessages(plain, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, betaHeaders(AGENT_SDK_BETAS))
+    ).toBe(plain)
   })
 })
