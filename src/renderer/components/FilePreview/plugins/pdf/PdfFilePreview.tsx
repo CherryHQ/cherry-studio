@@ -2,6 +2,7 @@ import '@renderer/assets/styles/vendor/pdf-viewer.css'
 
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { codeViewerSelectionManager } from '@renderer/services/CodeViewerSelectionManager'
 import { toast } from '@renderer/services/toast'
 import { safeOpen } from '@renderer/utils/file/safeOpen'
 import type { AbsoluteFilePath } from '@shared/types/file'
@@ -23,7 +24,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { FilePreviewLayout } from '../../FilePreviewLayout'
+import { createSelectionReference } from '../../selectionReference'
 import type { FilePreviewPluginProps } from '../../types'
+import { selectionToPdfAnchor } from './pdfSelectionAnchor'
 import { PdfFilePreviewToolbar } from './PdfFilePreviewToolbar'
 import { PDF_RANGE_CHUNK_SIZE_BYTES, PdfFileRangeTransport, PdfRangeTooLargeError } from './PdfFileRangeTransport'
 
@@ -119,7 +122,13 @@ function PdfPreviewTooLarge({ filePath }: { filePath: AbsoluteFilePath }) {
   )
 }
 
-export default function PdfFilePreview({ filePath, fileName, metadata, refreshKey }: FilePreviewPluginProps) {
+export default function PdfFilePreview({
+  filePath,
+  fileName,
+  metadata,
+  refreshKey,
+  onSelectionReference
+}: FilePreviewPluginProps) {
   const { t } = useTranslation()
   const rootRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -310,6 +319,7 @@ export default function PdfFilePreview({ filePath, fileName, metadata, refreshKe
     const linkService = new PDFLinkService({ eventBus })
     const viewerAbortController = new AbortController()
     let pdfViewer: PdfJsViewer
+    let unregisterSelection: (() => void) | null = null
 
     try {
       const viewerOptions: PdfViewerOptionsWithAbortSignal = {
@@ -459,6 +469,16 @@ export default function PdfFilePreview({ filePath, fileName, metadata, refreshKe
       container.addEventListener('wheel', handleWheelZoom, { passive: false })
       container.addEventListener('keydown', handleKeyboardZoom)
       container.addEventListener('pointerdown', focusContainer)
+      // container never contains a CodeViewer scroller (this preview only renders pdf.js
+      // pages inside it), so the manager's innermost-match lookup can't cross-match here.
+      unregisterSelection = codeViewerSelectionManager.register(container, (selection) => {
+        const result = selection && selectionToPdfAnchor(selection)
+        onSelectionReference?.(
+          result
+            ? createSelectionReference({ filePath, anchor: result.anchor, excerpt: result.excerpt, metadata })
+            : null
+        )
+      })
     } catch (error) {
       const normalized = error instanceof Error ? error : new Error(String(error))
       logger.error(`Failed to initialize PDF preview: ${filePath}`, normalized)
@@ -475,6 +495,7 @@ export default function PdfFilePreview({ filePath, fileName, metadata, refreshKe
       container.removeEventListener('wheel', handleWheelZoom)
       container.removeEventListener('keydown', handleKeyboardZoom)
       container.removeEventListener('pointerdown', focusContainer)
+      unregisterSelection?.()
       clearPinchWheelTimers()
       detachDocument(pdfViewer)
       pdfViewer.cleanup()
@@ -482,7 +503,7 @@ export default function PdfFilePreview({ filePath, fileName, metadata, refreshKe
         pdfViewerRef.current = null
       }
     }
-  }, [applyViewerBackground, documentProxy, filePath, focusContainer])
+  }, [applyViewerBackground, documentProxy, filePath, focusContainer, metadata, onSelectionReference])
 
   const hasPages = status === 'ready' && pageCount > 0
 
