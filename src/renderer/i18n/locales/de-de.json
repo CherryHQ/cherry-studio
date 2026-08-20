@@ -3602,6 +3602,7 @@
     }
   },
   "navigate": {
+    "model_settings": "Zu den Modelleinstellungen",
     "provider_settings": "Zu Anbietereinstellungen navigieren"
   },
   "notes": {
@@ -4521,6 +4522,10 @@
         "custom": "Benutzerdefinierte Funktionen",
         "delete_confirm": "Diese benutzerdefinierte Funktion wirklich löschen?",
         "drag_hint": "Zum Sortieren ziehen, nach oben bewegen, um Funktion zu aktivieren ({{enabled}}/{{max}})",
+        "models": {
+          "default_description": "Wird für „Erklären“, „Zusammenfassen“, „Überarbeiten“ und benutzerdefinierte Aktionen verwendet, die das Standardmodell nutzen.",
+          "translate_description": "Wird zum Erstellen von Übersetzungen verwendet. Die automatische Spracherkennung kann zusätzlich das Schnellmodell verwenden."
+        },
         "reset": {
           "button": "Zurücksetzen",
           "confirm": "Wirklich auf Standardfunktionen zurücksetzen? Benutzerdefinierte Funktionen werden nicht gelöscht.",

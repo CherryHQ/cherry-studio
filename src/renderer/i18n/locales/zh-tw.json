@@ -3602,6 +3602,7 @@
     }
   },
   "navigate": {
+    "model_settings": "前往模型設定",
     "provider_settings": "前往供應商設定頁面"
   },
   "notes": {
@@ -4521,6 +4522,10 @@
         "custom": "自訂功能",
         "delete_confirm": "確定要刪除這個自訂功能嗎？",
         "drag_hint": "拖曳排序，移動到上方以啟用功能 ({{enabled}}/{{max}})",
+        "models": {
+          "default_description": "用於「解釋」、「總結」、「潤飾」及使用預設模型的自訂功能。",
+          "translate_description": "用於產生翻譯結果；自動語言偵測也可能使用快速模型。"
+        },
         "reset": {
           "button": "重設",
           "confirm": "確定要重設為預設功能嗎？自訂功能不會被刪除。",

@@ -3602,6 +3602,7 @@
     }
   },
   "navigate": {
+    "model_settings": "モデル設定へ移動",
     "provider_settings": "プロバイダー設定に移動"
   },
   "notes": {
@@ -4521,6 +4522,10 @@
         "custom": "カスタム機能",
         "delete_confirm": "このカスタム機能を削除しますか？",
         "drag_hint": "ドラッグで並べ替え (有効{{enabled}}/最大{{max}})",
+        "models": {
+          "default_description": "「説明」「要約」「推敲」、およびデフォルトモデルを使用するカスタムアクションで使用されます。",
+          "translate_description": "翻訳の生成に使用されます。言語の自動検出では高速モデルも使用される場合があります。"
+        },
         "reset": {
           "button": "リセット",
           "confirm": "デフォルトのアクションにリセットしますか？カスタムアクションは削除されません。",

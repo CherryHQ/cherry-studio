@@ -3602,6 +3602,7 @@
     }
   },
   "navigate": {
+    "model_settings": "Đi tới cài đặt mô hình",
     "provider_settings": "Đi tới cài đặt nhà cung cấp"
   },
   "notes": {
@@ -4521,6 +4522,10 @@
         "custom": "Hành động Tùy chỉnh",
         "delete_confirm": "Bạn có chắc chắn muốn xóa hành động tùy chỉnh này không?",
         "drag_hint": "Kéo để sắp xếp lại. Di chuyển lên trên để kích hoạt hành động ({{enabled}}/{{max}})",
+        "models": {
+          "default_description": "Được dùng cho các thao tác Giải thích, Tóm tắt, Trau chuốt và thao tác tùy chỉnh sử dụng mô hình mặc định.",
+          "translate_description": "Được dùng để tạo bản dịch. Tính năng tự động nhận diện ngôn ngữ cũng có thể sử dụng mô hình nhanh."
+        },
         "reset": {
           "button": "Đặt lại",
           "confirm": "Bạn có chắc chắn muốn đặt lại về các hành động mặc định? Các hành động tùy chỉnh sẽ không bị xóa.",

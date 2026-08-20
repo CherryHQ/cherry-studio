@@ -3602,6 +3602,7 @@
     }
   },
   "navigate": {
+    "model_settings": "Accesează setările modelelor",
     "provider_settings": "Mergi la setările furnizorului"
   },
   "notes": {
@@ -4521,6 +4522,10 @@
         "custom": "Acțiune personalizată",
         "delete_confirm": "Ești sigur că vrei să ștergi această acțiune personalizată?",
         "drag_hint": "Trage pentru a reordona. Mută deasupra pentru a activa acțiunea ({{enabled}}/{{max}})",
+        "models": {
+          "default_description": "Folosit de acțiunile Explică, Rezumă, Îmbunătățește și de acțiunile personalizate care utilizează modelul implicit.",
+          "translate_description": "Folosit pentru generarea traducerilor. Detectarea automată a limbii poate utiliza și modelul rapid."
+        },
         "reset": {
           "button": "Resetează",
           "confirm": "Ești sigur că vrei să resetezi la acțiunile implicite? Acțiunile personalizate nu vor fi șterse.",

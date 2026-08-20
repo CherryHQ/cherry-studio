@@ -3602,6 +3602,7 @@
     }
   },
   "navigate": {
+    "model_settings": "Ir para as definições de modelos",
     "provider_settings": "Ir para as configurações do fornecedor"
   },
   "notes": {
@@ -4521,6 +4522,10 @@
         "custom": "Função personalizada",
         "delete_confirm": "Tem a certeza de que pretende eliminar esta função personalizada?",
         "drag_hint": "Arraste para reordenar, mova para cima para ativar a função ({{enabled}}/{{max}})",
+        "models": {
+          "default_description": "Utilizado por Explicar, Resumir, Melhorar e por ações personalizadas que usam o modelo predefinido.",
+          "translate_description": "Utilizado para gerar traduções. A deteção automática do idioma também pode utilizar o modelo rápido."
+        },
         "reset": {
           "button": "Redefinir",
           "confirm": "Tem a certeza de que pretende redefinir para as funções padrão? As funções personalizadas não serão eliminadas.",
