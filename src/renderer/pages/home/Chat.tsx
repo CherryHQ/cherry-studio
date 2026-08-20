@@ -130,6 +130,14 @@ const Chat: FC<Props> = (props) => {
     },
     { enabled: showConversation }
   )
+  useCommandHandler(
+    'topic.clear_messages',
+    () => {
+      if (!activeTopic) return
+      void EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES, activeTopic)
+    },
+    { enabled: showConversation }
+  )
 
   const citationsPanelOpen = citationPanelCitations !== null
 

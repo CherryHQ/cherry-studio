@@ -18,6 +18,8 @@ const assistantContextMock = vi.hoisted(() => ({
   isModelPending: false
 }))
 const providerHookArgs = vi.hoisted(() => [] as unknown[][])
+const commandHandlers = vi.hoisted(() => new Map<string, () => void | Promise<void>>())
+const eventEmitMock = vi.hoisted(() => vi.fn())
 
 const topic: Topic = {
   id: 'topic-1',
@@ -118,6 +120,23 @@ vi.mock('@renderer/hooks/useProvider', () => ({
   }
 }))
 
+vi.mock('@renderer/hooks/command', () => ({
+  useCommandHandler: (command: string, handler: () => void | Promise<void>, options?: { enabled?: boolean }) => {
+    if (options?.enabled === false) commandHandlers.delete(command)
+    else commandHandlers.set(command, handler)
+  }
+}))
+
+vi.mock('@renderer/services/EventService', () => ({
+  EVENT_NAMES: {
+    CLEAR_MESSAGES: 'clear-messages',
+    FOCUS_CHAT_COMPOSER: 'focus-chat-composer'
+  },
+  EventEmitter: {
+    emit: eventEmitMock
+  }
+}))
+
 vi.mock('@renderer/components/composer/variants/chat/ChatConversationControls', () => ({
   ChatConversationControls: ({ assistantName }: { assistantName: string }) => (
     <div data-testid="chat-conversation-controls">{assistantName}</div>
@@ -187,6 +206,17 @@ describe('Chat', () => {
     assistantContextMock.isLoading = false
     assistantContextMock.isModelPending = false
     providerHookArgs.length = 0
+    commandHandlers.clear()
+  })
+
+  it('routes the clear-messages command through the existing confirmation flow', () => {
+    render(<Chat activeTopic={topic} />)
+
+    act(() => {
+      void commandHandlers.get('topic.clear_messages')?.()
+    })
+
+    expect(eventEmitMock).toHaveBeenCalledWith('clear-messages', topic)
   })
 
   it('renders the navbar and right pane shortcuts in the shared conversation shell', () => {
