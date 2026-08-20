@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const service = vi.hoisted(() => ({
   getStatus: vi.fn(),
-  startLogin: vi.fn()
+  startLogin: vi.fn(),
+  syncFreeModels: vi.fn()
 }))
 
 vi.mock('@application', () => ({
@@ -38,6 +39,14 @@ describe('cherryCloudHandlers', () => {
     await expect(cherryCloudHandlers['cherry_cloud.login.start'](undefined, { senderId: 'w1' })).resolves.toEqual({
       phase: 'authorizing',
       displayName: null
+    })
+  })
+
+  it('syncs the signed-in free model catalog', async () => {
+    service.syncFreeModels.mockResolvedValue({ modelCount: 2 })
+
+    await expect(cherryCloudHandlers['cherry_cloud.models.sync'](undefined, { senderId: 'w1' })).resolves.toEqual({
+      modelCount: 2
     })
   })
 

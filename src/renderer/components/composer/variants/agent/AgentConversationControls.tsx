@@ -4,12 +4,13 @@ import OpenExternalAppButton from '@renderer/components/chat/panes/OpenExternalA
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import { type ResourceEditDialogTarget } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { AgentSelector, WorkspaceSelector } from '@renderer/components/resourceCatalog/selectors'
+import { ipcApi } from '@renderer/ipc'
 import { cn } from '@renderer/utils/style'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { Model } from '@shared/data/types/model'
 import { Bot, ChevronDown, CircleSlash, Folder, Sparkles, TriangleAlert, X } from 'lucide-react'
-import React, { useState } from 'react'
+import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -157,6 +158,7 @@ function ModelControl({
   AgentConversationControlsProps,
   'model' | 'selectModelLabel' | 'canChangeModel' | 'side' | 'iconOnly' | 'onModelSelect' | 'modelFilter'
 >) {
+  const [selectorOpen, setSelectorOpen] = useState(false)
   const baseTriggerClassName = side === 'bottom' ? COMPOSER_BELOW_SELECTOR_BUTTON_CLASS : COMPOSER_SELECTOR_BUTTON_CLASS
   const triggerClassName = cn(baseTriggerClassName, iconOnly && model && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS)
   const labelClassName = cn('truncate', iconOnly && model && COMPOSER_ICON_ONLY_LABEL_CLASS)
@@ -179,10 +181,16 @@ function ModelControl({
       <ChevronDown size={14} aria-hidden className={cn('text-muted-foreground', iconOnly && model && 'hidden')} />
     </Button>
   )
+  const handleOpenChange = useCallback((open: boolean) => {
+    setSelectorOpen(open)
+    if (open) void ipcApi.request('cherry_cloud.models.sync').catch(() => undefined)
+  }, [])
 
   return (
     <ModelSelector
       multiple={false}
+      open={selectorOpen}
+      onOpenChange={handleOpenChange}
       value={model}
       onSelect={onModelSelect}
       filter={modelFilter}

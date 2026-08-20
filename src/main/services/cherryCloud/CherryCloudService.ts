@@ -1,27 +1,37 @@
 import { readFile } from 'node:fs/promises'
 
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
+import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { atomicWriteFile } from '@main/utils/file'
+import { CHERRYAI_DEFAULT_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
 import type { CherryCloudStatus } from '@shared/ipc/schemas/cherryCloud'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { app, net, safeStorage, shell } from 'electron'
 import type { ZodType } from 'zod'
 
 import {
+  accountSnapshotSchema,
+  cloudModelListSchema,
   createDesktopAuthorizationResponseSchema,
   EMPTY_STORED_CHERRY_CLOUD_STATE,
   exchangeDesktopAuthorizationResponseSchema,
+  refreshProductSessionResponseSchema,
   type StoredCherryCloudState,
   storedCherryCloudStateSchema
 } from './contracts'
-import { createAuthorizationSecrets, createDeviceKeyPair } from './crypto'
+import { createAuthorizationSecrets, createDeviceKeyPair, createDeviceSignature, createIdempotencyKey } from './crypto'
 import { CherryCloudLoopbackCallback } from './loopbackCallback'
 
 const logger = loggerService.withContext('CherryCloudService')
 const DEFAULT_API_ORIGIN = 'http://127.0.0.1:8080'
 const SESSION_FILE_MODE = 0o600
+const ACCESS_TOKEN_REFRESH_SKEW_MS = 60_000
+const CLOUD_MODEL_GROUP = 'Cherry Cloud'
+const EMPTY_BODY = new Uint8Array()
 
 function isLoopbackHttp(url: URL): boolean {
   return (
@@ -66,6 +76,25 @@ function accessExpiresAt(expiresIn: number): string {
   return new Date(Date.now() + expiresIn * 1000).toISOString()
 }
 
+function requestHeaders(input: RequestInfo | URL, init?: RequestInit): Headers {
+  const headers = new Headers(input instanceof Request ? input.headers : undefined)
+  new Headers(init?.headers).forEach((value, name) => headers.set(name, value))
+  return headers
+}
+
+async function requestBody(input: RequestInfo | URL, init?: RequestInit): Promise<Uint8Array> {
+  const body = init?.body
+  if (body == null) {
+    if (input instanceof Request && input.body) return new Uint8Array(await input.clone().arrayBuffer())
+    return EMPTY_BODY
+  }
+  if (typeof body === 'string') return Buffer.from(body, 'utf8')
+  if (body instanceof URLSearchParams) return Buffer.from(body.toString(), 'utf8')
+  if (body instanceof ArrayBuffer) return new Uint8Array(body)
+  if (ArrayBuffer.isView(body)) return new Uint8Array(body.buffer, body.byteOffset, body.byteLength)
+  throw new Error('Cherry Cloud requests require a replayable byte body')
+}
+
 export class CherryCloudLoginUnavailableError extends Error {
   constructor() {
     super('Cherry Cloud login service is unavailable')
@@ -78,6 +107,8 @@ export class CherryCloudLoginUnavailableError extends Error {
 export class CherryCloudService extends BaseService {
   private storedState: StoredCherryCloudState = structuredClone(EMPTY_STORED_CHERRY_CLOUD_STATE)
   private loginPromise: Promise<CherryCloudStatus> | null = null
+  private refreshPromise: Promise<NonNullable<StoredCherryCloudState['session']>> | null = null
+  private modelSyncPromise: Promise<{ modelCount: number }> | null = null
   private loopbackCallback: CherryCloudLoopbackCallback | null = null
   private exchangePromise: {
     authorizationId: string
@@ -242,6 +273,11 @@ export class CherryCloudService extends BaseService {
       }
       await this.persistState()
       this.emitStatus()
+      void this.syncFreeModels().catch((error) => {
+        logger.warn('Cherry Cloud model sync failed after login', {
+          reason: error instanceof Error ? error.message : String(error)
+        })
+      })
     } catch (error) {
       await this.clearPendingAuthorization(pending)
       throw error
@@ -269,6 +305,240 @@ export class CherryCloudService extends BaseService {
 
   private emitStatus(): void {
     application.get('IpcApiService').broadcast('cherry_cloud.status_changed', this.currentStatus())
+  }
+
+  public async syncFreeModels(): Promise<{ modelCount: number }> {
+    if (this.modelSyncPromise) return this.modelSyncPromise
+
+    const sync = this.syncFreeModelsOnce()
+      .catch((error) => {
+        logger.warn('Cherry Cloud free model sync failed', {
+          reason: error instanceof Error ? error.message : String(error)
+        })
+        throw error
+      })
+      .finally(() => {
+        if (this.modelSyncPromise === sync) this.modelSyncPromise = null
+      })
+    this.modelSyncPromise = sync
+    return sync
+  }
+
+  private async syncFreeModelsOnce(): Promise<{ modelCount: number }> {
+    await this.pruneExpiredState()
+    if (!this.storedState.session) {
+      this.reconcileFreeModels([])
+      return { modelCount: 0 }
+    }
+
+    const [account, catalog] = await Promise.all([
+      this.getAuthenticatedJson('/api/v1/account', accountSnapshotSchema),
+      this.getAuthenticatedJson('/v1/models?limit=1000', cloudModelListSchema, {
+        'anthropic-version': '2023-06-01'
+      })
+    ])
+    const freeModelIds = new Set(
+      account.entitlements
+        .filter((entitlement) => entitlement.status === 'active' && entitlement.is_free)
+        .flatMap((entitlement) => entitlement.model_ids)
+    )
+    const models = catalog.data.filter((model) => freeModelIds.has(model.id))
+    this.reconcileFreeModels(models)
+    return { modelCount: models.length }
+  }
+
+  private reconcileFreeModels(models: Array<{ id: string; display_name: string }>): void {
+    const current = modelService.list({ providerId: CHERRYAI_PROVIDER_ID })
+    const currentByModelId = new Map(current.map((model) => [parseUniqueModelId(model.id).modelId, model]))
+    const remoteByModelId = new Map(models.map((model) => [model.id, model]))
+    const missing = models.filter((model) => !currentByModelId.has(model.id))
+    const updates = current.flatMap((model) => {
+      const modelId = parseUniqueModelId(model.id).modelId
+      if (
+        modelId === CHERRYAI_DEFAULT_MODEL_ID ||
+        (model.group !== CLOUD_MODEL_GROUP && !remoteByModelId.has(modelId))
+      ) {
+        return []
+      }
+      const remote = remoteByModelId.get(modelId)
+      const enabled = Boolean(remote)
+      if (
+        model.name === (remote?.display_name ?? model.name) &&
+        model.group === CLOUD_MODEL_GROUP &&
+        model.endpointTypes?.length === 1 &&
+        model.endpointTypes[0] === ENDPOINT_TYPE.ANTHROPIC_MESSAGES &&
+        model.supportsStreaming &&
+        model.isEnabled === enabled
+      ) {
+        return []
+      }
+      return [
+        {
+          providerId: CHERRYAI_PROVIDER_ID,
+          modelId,
+          patch: {
+            ...(remote ? { name: remote.display_name } : {}),
+            group: CLOUD_MODEL_GROUP,
+            endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+            supportsStreaming: true,
+            isEnabled: enabled
+          }
+        }
+      ]
+    })
+
+    if (missing.length > 0) {
+      modelService.create(
+        missing.map((model) => ({
+          dto: {
+            providerId: CHERRYAI_PROVIDER_ID,
+            modelId: model.id,
+            name: model.display_name,
+            group: CLOUD_MODEL_GROUP,
+            endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+            supportsStreaming: true
+          }
+        }))
+      )
+    }
+    if (updates.length > 0) modelService.bulkUpdate(updates)
+    if (missing.length > 0 || updates.length > 0) {
+      notifyDataApiDataChange([{ endpoint: '/models', kind: 'membership' }])
+    }
+  }
+
+  public async authenticatedFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+    const session = await this.activeSession()
+    const url = this.resolveRequestUrl(input)
+    const headers = requestHeaders(input, init)
+    const idempotencyKey =
+      url.pathname === '/v1/messages' ? (headers.get('Idempotency-Key') ?? createIdempotencyKey()) : undefined
+    const response = await this.signedFetch(url, input, init, session, { bearer: true, idempotencyKey })
+    if (response.status === 401) await this.clearSession()
+    return response
+  }
+
+  public getModelApiBaseUrl(): string {
+    return `${resolveApiOrigin()}/v1`
+  }
+
+  private async getAuthenticatedJson<T>(path: string, schema: ZodType<T>, headers?: HeadersInit): Promise<T> {
+    const response = await this.authenticatedFetch(path, { method: 'GET', headers })
+    if (!response.ok) throw new Error(`Cherry Cloud request failed (${response.status})`)
+    return schema.parse(await response.json())
+  }
+
+  private async activeSession(): Promise<NonNullable<StoredCherryCloudState['session']>> {
+    await this.pruneExpiredState()
+    const session = this.storedState.session
+    if (!session) throw new Error('Cherry Cloud account is not signed in')
+    if (Date.parse(session.accessExpiresAt) - ACCESS_TOKEN_REFRESH_SKEW_MS > Date.now()) return session
+    if (this.refreshPromise) return this.refreshPromise
+
+    const refresh = this.refreshSession(session).finally(() => {
+      if (this.refreshPromise === refresh) this.refreshPromise = null
+    })
+    this.refreshPromise = refresh
+    return refresh
+  }
+
+  private async refreshSession(
+    session: NonNullable<StoredCherryCloudState['session']>
+  ): Promise<NonNullable<StoredCherryCloudState['session']>> {
+    const body = JSON.stringify({ session_id: session.sessionId, refresh_token: session.refreshToken })
+    const url = new URL('/api/v1/product-sessions/refresh', `${resolveApiOrigin()}/`)
+    const response = await this.signedFetch(
+      url,
+      url,
+      { method: 'POST', body, headers: { 'Content-Type': 'application/json' } },
+      session,
+      {
+        bearer: false
+      }
+    )
+    if (!response.ok) {
+      if (response.status === 401) await this.clearSession()
+      throw new Error(`Cherry Cloud session refresh failed (${response.status})`)
+    }
+    const refreshPayload = refreshProductSessionResponseSchema.safeParse(await response.json())
+    if (!refreshPayload.success) {
+      logger.warn('Cherry Cloud session refresh response is invalid', {
+        issues: refreshPayload.error.issues.map((issue) => ({ code: issue.code, path: issue.path.join('.') }))
+      })
+      throw new Error('Cherry Cloud session refresh returned an invalid response')
+    }
+    const refreshed = refreshPayload.data.token_set
+    const next = {
+      ...session,
+      accessToken: refreshed.access_token,
+      accessExpiresAt: accessExpiresAt(refreshed.expires_in),
+      refreshToken: refreshed.refresh_token,
+      sessionId: refreshed.session_id,
+      sessionExpiresAt: refreshed.session_expires_at
+    }
+    this.storedState = { ...this.storedState, session: next }
+    await this.persistState()
+    return next
+  }
+
+  private async clearSession(): Promise<void> {
+    this.storedState = { ...this.storedState, session: null }
+    await this.persistState()
+    this.reconcileFreeModels([])
+    this.emitStatus()
+  }
+
+  private resolveRequestUrl(input: RequestInfo | URL): URL {
+    const url = new URL(input instanceof Request ? input.url : input.toString(), `${resolveApiOrigin()}/`)
+    if (url.origin !== new URL(resolveApiOrigin()).origin) {
+      throw new Error('Cherry Cloud signed requests must stay on the configured API origin')
+    }
+    return url
+  }
+
+  private async signedFetch(
+    url: URL,
+    input: RequestInfo | URL,
+    init: RequestInit | undefined,
+    session: NonNullable<StoredCherryCloudState['session']>,
+    options: { bearer: boolean; idempotencyKey?: string }
+  ): Promise<Response> {
+    const device = this.storedState.device
+    if (!device) throw new Error('Cherry Cloud device credentials are unavailable')
+    const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase()
+    const body = await requestBody(input, init)
+    const headers = requestHeaders(input, init)
+    for (const name of [
+      'Cherry-Device-ID',
+      'Cherry-Request-ID',
+      'Cherry-Timestamp',
+      'Cherry-Body-SHA256',
+      'Cherry-Signature-Version',
+      'Cherry-Signature'
+    ]) {
+      headers.delete(name)
+    }
+    headers.delete('Content-Encoding')
+    headers.set('Cherry-Device-ID', session.deviceId)
+    if (options.bearer) headers.set('Authorization', `Bearer ${session.accessToken}`)
+    else headers.delete('Authorization')
+    if (options.idempotencyKey) headers.set('Idempotency-Key', options.idempotencyKey)
+    const requestTarget = `${url.pathname}${url.search}`
+    const signature = createDeviceSignature({
+      privateKey: device.privateKey,
+      method,
+      requestTarget,
+      body,
+      idempotencyKey: options.idempotencyKey
+    })
+    for (const [name, value] of Object.entries(signature)) headers.set(name, value)
+
+    return net.fetch(url.toString(), {
+      ...init,
+      method,
+      headers,
+      body: body.byteLength > 0 ? Buffer.from(body) : undefined
+    })
   }
 
   private async pruneExpiredState(): Promise<void> {

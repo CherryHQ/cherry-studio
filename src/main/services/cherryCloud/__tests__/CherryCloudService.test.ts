@@ -8,10 +8,24 @@ const mocks = vi.hoisted(() => ({
     port: 49152,
     setExpiresAt: vi.fn()
   },
+  modelBulkUpdate: vi.fn(),
+  modelCreate: vi.fn(),
+  modelList: vi.fn(),
   netFetch: vi.fn(),
+  notifyDataChange: vi.fn(),
   openExternal: vi.fn(),
   storedBytes: null as Uint8Array | null,
   writeFile: vi.fn()
+}))
+
+vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: mocks.notifyDataChange }))
+
+vi.mock('@data/services/ModelService', () => ({
+  modelService: {
+    bulkUpdate: mocks.modelBulkUpdate,
+    create: mocks.modelCreate,
+    list: mocks.modelList
+  }
 }))
 
 vi.mock('@application', () => ({
@@ -59,6 +73,7 @@ vi.mock('@main/utils/file', () => ({
 }))
 
 import { CherryCloudLoginUnavailableError, CherryCloudService } from '../CherryCloudService'
+import { createDeviceKeyPair } from '../crypto'
 
 const authorizationId = '00000000-0000-4000-8000-000000000001'
 const sessionId = '00000000-0000-4000-8000-000000000010'
@@ -102,11 +117,37 @@ function authorizationResponse() {
   }
 }
 
+function restoreSignedInState(accessExpiresAt = '2030-01-02T03:14:05Z') {
+  const device = createDeviceKeyPair()
+  const stored = {
+    version: 1,
+    device,
+    pending: null,
+    session: {
+      accessToken: token('F'),
+      accessExpiresAt,
+      refreshToken: token('G'),
+      sessionId,
+      sessionExpiresAt: '2030-02-01T03:04:05Z',
+      deviceId,
+      accountId,
+      displayName: 'Sora'
+    }
+  }
+  mocks.storedBytes = Buffer.from(JSON.stringify(stored)).map((byte) => byte ^ 0xff)
+  return device
+}
+
 describe('CherryCloudService', () => {
   beforeEach(() => {
     CherryCloudService.resetInstances()
     vi.clearAllMocks()
     mocks.storedBytes = null
+    mocks.modelList.mockReturnValue([
+      { id: 'cherryai::qwen', providerId: 'cherryai', apiModelId: 'qwen', name: 'Qwen', group: 'Qwen' }
+    ])
+    mocks.modelCreate.mockReturnValue([])
+    mocks.modelBulkUpdate.mockReturnValue([])
     mocks.openExternal.mockResolvedValue(undefined)
     mocks.loopbackOpen.mockResolvedValue(mocks.loopbackReceiver)
     vi.stubEnv('CHERRY_CLOUD_LOOPBACK_CALLBACK', 'false')
@@ -309,5 +350,134 @@ describe('CherryCloudService', () => {
     await expect(service.startLogin()).resolves.toEqual({ phase: 'authorizing', displayName: null })
     expect(mocks.netFetch).toHaveBeenCalledTimes(2)
     expect(mocks.openExternal).toHaveBeenCalledTimes(2)
+  })
+
+  it('syncs only models belonging to active free entitlements', async () => {
+    restoreSignedInState()
+    mocks.modelList.mockReturnValue([
+      { id: 'cherryai::qwen', providerId: 'cherryai', apiModelId: 'qwen', name: 'Qwen', group: 'Qwen' },
+      {
+        id: 'cherryai::old-free',
+        providerId: 'cherryai',
+        apiModelId: 'old-free',
+        name: 'Old Free',
+        group: 'Cherry Cloud'
+      }
+    ])
+    mocks.netFetch
+      .mockResolvedValueOnce(
+        jsonResponse({
+          account: { id: accountId },
+          session: { id: sessionId, expires_at: '2030-02-01T03:04:05Z' },
+          device: { id: deviceId },
+          entitlements: [
+            {
+              plan_id: '00000000-0000-4000-8000-000000000040',
+              plan_name: '免费套餐',
+              is_free: true,
+              status: 'active',
+              model_ids: ['deepseek-free']
+            },
+            {
+              plan_id: '00000000-0000-4000-8000-000000000041',
+              plan_name: 'GO 套餐',
+              is_free: false,
+              status: 'active',
+              model_ids: ['deepseek-go']
+            }
+          ]
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: [
+            { id: 'deepseek-free', display_name: 'DeepSeek Free' },
+            { id: 'deepseek-go', display_name: 'DeepSeek GO' }
+          ]
+        })
+      )
+
+    const service = new CherryCloudService()
+    await service._doInit()
+    await expect(service.syncFreeModels()).resolves.toEqual({ modelCount: 1 })
+
+    expect(mocks.modelCreate).toHaveBeenCalledWith([
+      {
+        dto: expect.objectContaining({
+          providerId: 'cherryai',
+          modelId: 'deepseek-free',
+          name: 'DeepSeek Free',
+          group: 'Cherry Cloud'
+        })
+      }
+    ])
+    expect(mocks.modelBulkUpdate).toHaveBeenCalledWith([
+      expect.objectContaining({
+        providerId: 'cherryai',
+        modelId: 'old-free',
+        patch: expect.objectContaining({ isEnabled: false })
+      })
+    ])
+    expect(mocks.notifyDataChange).toHaveBeenCalledWith([{ endpoint: '/models', kind: 'membership' }])
+
+    for (const [, init] of mocks.netFetch.mock.calls) {
+      const headers = new Headers(init.headers)
+      expect(headers.get('Authorization')).toBe(`Bearer ${token('F')}`)
+      expect(headers.get('Cherry-Device-ID')).toBe(deviceId)
+      expect(headers.get('Cherry-Signature')).toMatch(/^[A-Za-z0-9_-]{86}$/)
+    }
+  })
+
+  it('rotates an expired access token before a signed model request', async () => {
+    restoreSignedInState('2026-01-02T03:14:05Z')
+    mocks.netFetch
+      .mockResolvedValueOnce(
+        jsonResponse({
+          token_set: {
+            token_type: 'Bearer',
+            access_token: token('H'),
+            expires_in: 600,
+            refresh_token: token('I'),
+            session_id: sessionId,
+            session_expires_at: '2030-02-01T03:04:05Z'
+          }
+        })
+      )
+      .mockResolvedValueOnce(jsonResponse({ data: [] }))
+
+    const service = new CherryCloudService()
+    await service._doInit()
+    await expect(
+      service.authenticatedFetch('/v1/models?limit=1000', {
+        headers: { 'anthropic-version': '2023-06-01' }
+      })
+    ).resolves.toHaveProperty('status', 200)
+
+    const refreshHeaders = new Headers(mocks.netFetch.mock.calls[0][1].headers)
+    const modelHeaders = new Headers(mocks.netFetch.mock.calls[1][1].headers)
+    expect(refreshHeaders.has('Authorization')).toBe(false)
+    expect(JSON.parse(Buffer.from(mocks.netFetch.mock.calls[0][1].body).toString())).toEqual({
+      session_id: sessionId,
+      refresh_token: token('G')
+    })
+    expect(modelHeaders.get('Authorization')).toBe(`Bearer ${token('H')}`)
+    expect(Buffer.from(mocks.storedBytes!).toString()).not.toContain(token('I'))
+  })
+
+  it('adds an idempotency key to signed Anthropic message requests', async () => {
+    restoreSignedInState()
+    mocks.netFetch.mockResolvedValueOnce(jsonResponse({ type: 'message' }))
+    const service = new CherryCloudService()
+    await service._doInit()
+
+    await service.authenticatedFetch('/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'anthropic-version': '2023-06-01' },
+      body: '{"model":"deepseek-free","messages":[],"max_tokens":8}'
+    })
+
+    const headers = new Headers(mocks.netFetch.mock.calls[0][1].headers)
+    expect(headers.get('Idempotency-Key')).toMatch(/^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/)
+    expect(headers.get('Cherry-Body-SHA256')).toBe('f24394a04116608ee41330b7fd6511ff8e44f65e29f6cfc44bb7c8393de7e5ea')
   })
 })

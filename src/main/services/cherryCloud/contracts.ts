@@ -28,7 +28,15 @@ const tokenSetSchema = z.strictObject({
   session_expires_at: utcDateTimeSchema
 })
 
-const accountSnapshotSchema = z.looseObject({
+const entitlementSchema = z.looseObject({
+  plan_id: z.uuid(),
+  plan_name: z.string().min(1),
+  is_free: z.boolean(),
+  status: z.enum(['inactive', 'active', 'expired']),
+  model_ids: z.array(z.string().min(1))
+})
+
+export const accountSnapshotSchema = z.looseObject({
   account: z.looseObject({
     id: z.uuid(),
     display_name: z.string().min(1).optional()
@@ -39,12 +47,26 @@ const accountSnapshotSchema = z.looseObject({
   }),
   device: z.looseObject({
     id: z.uuid()
-  })
+  }),
+  entitlements: z.array(entitlementSchema).default([])
 })
 
 export const exchangeDesktopAuthorizationResponseSchema = z.strictObject({
   token_set: tokenSetSchema,
   account: accountSnapshotSchema
+})
+
+export const refreshProductSessionResponseSchema = z.strictObject({
+  token_set: tokenSetSchema
+})
+
+export const cloudModelListSchema = z.strictObject({
+  data: z.array(
+    z.looseObject({
+      id: z.string().min(1),
+      display_name: z.string().min(1)
+    })
+  )
 })
 
 export const storedCherryCloudStateSchema = z.strictObject({
