@@ -221,6 +221,30 @@ describe('AnthropicMessageConverter.toAiSdkTools', () => {
     expect(converter.toAiSdkTools(params({}))).toBeUndefined()
   })
 
+  it('drops schema-less server tools and keeps the client tools beside them', () => {
+    const tools = converter.toAiSdkTools(
+      params({
+        tools: [
+          { type: 'web_search_20250305', name: 'web_search' },
+          { type: 'text_editor_20250124', name: 'str_replace_editor' },
+          { name: 'get_weather', description: 'w', input_schema: { type: 'object', properties: {} } }
+        ] as never
+      })
+    )
+
+    expect(Object.keys(tools ?? {})).toEqual(['get_weather'])
+  })
+
+  it('returns undefined when every tool is a schema-less server tool', () => {
+    // Claude Code's ToolSearch declaration reaches the gateway on every tool-enabled
+    // Agent turn; forwarding it to a non-Anthropic provider is not possible (#18643).
+    const tools = converter.toAiSdkTools(
+      params({ tools: [{ type: 'tool_search_tool_regex_20251119', name: 'tool_search_tool_regex' }] as never })
+    )
+
+    expect(tools).toBeUndefined()
+  })
+
   it('normalizes Responses-incompatible names and marks forwarded schemas non-strict', () => {
     const clientToolName = 'mcp__calendar__events.list'
     const request = params({
