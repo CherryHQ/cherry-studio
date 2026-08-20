@@ -1,7 +1,19 @@
 import type { CherryUIMessage } from '@shared/data/types/message'
+import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
 
-import { hoistSystemMessages } from '../systemMessageHoist'
+import { hoistSystemMessages, keepsSystemMessagesInPlace } from '../systemMessageHoist'
+
+/** Every endpoint the gateway can resolve for a chat request. */
+const ENDPOINT_CHAT_TARGETS: EndpointType[] = [
+  ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+  ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+  ENDPOINT_TYPE.OLLAMA_CHAT,
+  ENDPOINT_TYPE.OLLAMA_GENERATE,
+  ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+  ENDPOINT_TYPE.OPENAI_RESPONSES,
+  ENDPOINT_TYPE.OPENAI_TEXT_COMPLETIONS
+]
 
 const msg = (role: CherryUIMessage['role'], text: string, id: string = role): CherryUIMessage =>
   ({ id, role, parts: [{ type: 'text', text }] }) as CherryUIMessage
@@ -43,5 +55,27 @@ describe('hoistSystemMessages', () => {
     const out = hoistSystemMessages([msg('user', 'go'), { id: 's', role: 'system', parts: [] } as CherryUIMessage])
 
     expect(out.map((m) => m.role)).toEqual(['user'])
+  })
+})
+
+describe('keepsSystemMessagesInPlace', () => {
+  it('allows the chat endpoints whose converters were verified to pass a non-leading system through', () => {
+    expect(ENDPOINT_CHAT_TARGETS.filter(keepsSystemMessagesInPlace)).toEqual([
+      ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      ENDPOINT_TYPE.OLLAMA_CHAT,
+      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      ENDPOINT_TYPE.OPENAI_RESPONSES
+    ])
+  })
+
+  it('folds for Gemini and for the completion endpoints whose converters throw', () => {
+    expect(keepsSystemMessagesInPlace(ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)).toBe(false)
+    expect(keepsSystemMessagesInPlace(ENDPOINT_TYPE.OPENAI_TEXT_COMPLETIONS)).toBe(false)
+    expect(keepsSystemMessagesInPlace(ENDPOINT_TYPE.OLLAMA_GENERATE)).toBe(false)
+  })
+
+  it('folds when the endpoint is unknown, so a new endpoint cannot 500', () => {
+    expect(keepsSystemMessagesInPlace(undefined)).toBe(false)
+    expect(keepsSystemMessagesInPlace('some-endpoint-added-later' as EndpointType)).toBe(false)
   })
 })
