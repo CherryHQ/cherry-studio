@@ -6,9 +6,13 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
   Switch,
   TabsContent,
-  Textarea
+  Textarea,
+  Tooltip
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { AgentRuntimeSummary } from '@renderer/components/AgentRuntimeOption'
@@ -49,8 +53,8 @@ import { useForm, type UseFormReturn, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import { type CatalogItem, CatalogToggleGrid } from '../components/CatalogPicker'
+import { EmojiAvatarPicker } from '../components/DialogFormFields'
 import {
-  AvatarField,
   CompactModelField,
   EDIT_DIALOG_PROMPT_MAX_HEIGHT,
   EDIT_DIALOG_PROMPT_MIN_HEIGHT,
@@ -572,22 +576,11 @@ function AgentBasicFields({
 
   return (
     <div className="divide-y divide-border-subtle border-border-subtle border-b [&>*:first-child]:pt-0">
-      <AvatarField
+      <AgentAvatarNameField
         form={form}
         emojiPickerOpen={emojiPickerOpen}
         setEmojiPickerOpen={setEmojiPickerOpen}
-        fallback="🤖"
         portalContainer={portalContainer}
-        size="sm"
-        layout="row"
-      />
-      <TextInputField
-        form={form}
-        name="name"
-        label={t('library.config.agent.field.name.label')}
-        placeholder={t('library.config.agent.field.name.placeholder')}
-        required
-        layout="row"
       />
       <TextInputField
         form={form}
@@ -596,7 +589,7 @@ function AgentBasicFields({
         placeholder={t('library.config.agent.field.description.placeholder')}
         layout="row"
       />
-      <RuntimeField agentType={agentType} />
+      <RuntimeField agentType={agentType} portalContainer={portalContainer} />
       <CompactModelField
         form={form}
         name="modelId"
@@ -659,18 +652,78 @@ function AgentBasicFields({
   )
 }
 
+function AgentAvatarNameField({
+  form,
+  emojiPickerOpen,
+  setEmojiPickerOpen,
+  portalContainer
+}: {
+  form: UseFormReturn<AgentEditFormValues>
+  emojiPickerOpen: boolean
+  setEmojiPickerOpen: (open: boolean) => void
+  portalContainer: HTMLElement | null
+}) {
+  const { t } = useTranslation()
+
+  return (
+    <FormField
+      control={form.control}
+      name="name"
+      rules={{ validate: (value) => value.trim().length > 0 || t('common.required_field') }}
+      render={({ field }) => (
+        <FormItem className={editDialogFormRowClassName}>
+          <FormLabel className={editDialogFormRowLabelClassName}>
+            {t('library.config.dialogs.create.avatar_name_label')}
+          </FormLabel>
+          <InputGroup>
+            <FormField
+              control={form.control}
+              name="avatar"
+              render={({ field: avatarField }) => (
+                <InputGroupAddon>
+                  <EmojiAvatarPicker
+                    value={avatarField.value}
+                    fallback="🤖"
+                    open={emojiPickerOpen}
+                    onOpenChange={setEmojiPickerOpen}
+                    onChange={avatarField.onChange}
+                    ariaLabel={t('library.config.dialogs.create.avatar_aria')}
+                    portalContainer={portalContainer}
+                    avatarClassName="border-0"
+                    avatarFontSize={18}
+                  />
+                </InputGroupAddon>
+              )}
+            />
+            <FormControl>
+              <InputGroupInput
+                {...field}
+                className="pl-1!"
+                placeholder={t('library.config.agent.field.name.placeholder')}
+              />
+            </FormControl>
+          </InputGroup>
+          <FormMessage className="col-start-2" />
+        </FormItem>
+      )}
+    />
+  )
+}
+
 /** Runtime is fixed at creation, so the editor states which one the agent runs on and leaves it at
  *  that — a summary card, with no control to mistake for a live one. */
-function RuntimeField({ agentType }: { agentType: AgentType }) {
+function RuntimeField({ agentType, portalContainer }: { agentType: AgentType; portalContainer: HTMLElement | null }) {
   const { t } = useTranslation()
 
   return (
     <div className={editDialogFormRowClassName}>
       <span className={editDialogFormRowLabelClassName}>{t('library.config.agent.field.runtime.label')}</span>
-      <AgentRuntimeSummary value={agentType} t={t} />
-      <span className="col-start-2 text-muted-foreground text-xs">
-        {t('library.config.agent.field.runtime.immutable_hint')}
-      </span>
+      <Tooltip
+        content={t('library.config.agent.field.runtime.immutable_hint')}
+        fullWidthTrigger
+        portalContainer={portalContainer ?? undefined}>
+        <AgentRuntimeSummary value={agentType} t={t} />
+      </Tooltip>
     </div>
   )
 }

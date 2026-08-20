@@ -2679,14 +2679,14 @@
             "immutable_hint": "建立後不可切換",
             "label": "執行模式",
             "option": {
-              "claude_code": "增強：Claude Agent",
+              "claude_code": "Claude Agent",
               "dsh": "DeepSeek Harness",
-              "pi": "快速：Pi"
+              "pi": "Pi"
             },
             "option_description": {
-              "claude_code": "能力更強 — 支援計畫模式與分級模型",
-              "dsh": "廣泛支援各家供應商，採目標驅動執行",
-              "pi": "回應更快、開銷更低"
+              "claude_code": "綜合能力更強，適合複雜任務",
+              "dsh": "透過外掛靈活擴充及組合能力",
+              "pi": "快速、輕量"
             }
           },
           "small_model": {
@@ -2813,6 +2813,7 @@
           "agent_title": "新增 Agent",
           "assistant_title": "新助理",
           "avatar_aria": "選擇頭像",
+          "avatar_name_label": "頭像和名稱",
           "back": "上一步",
           "capability": {
             "builtin_badge": "預設啟用",

@@ -2679,14 +2679,14 @@
             "immutable_hint": "作成後は変更できません",
             "label": "実行モード",
             "option": {
-              "claude_code": "高度：Claude Agent",
+              "claude_code": "Claude Agent",
               "dsh": "DeepSeek Harness",
-              "pi": "高速：Pi"
+              "pi": "Pi"
             },
             "option_description": {
-              "claude_code": "より強力 — 計画モードとティア別モデル",
-              "dsh": "広範なプロバイダー対応とゴール駆動型の実行",
-              "pi": "高速なレスポンスと低いオーバーヘッド"
+              "claude_code": "総合力が高く、複雑なタスクに最適",
+              "dsh": "柔軟なプラグインで機能を追加・組み合わせ",
+              "pi": "高速・軽量"
             }
           },
           "small_model": {
@@ -2813,6 +2813,7 @@
           "agent_title": "新エージェント",
           "assistant_title": "新しいアシスタント",
           "avatar_aria": "アバターを選択",
+          "avatar_name_label": "アバターと名前",
           "back": "戻る",
           "capability": {
             "builtin_badge": "デフォルトで有効",

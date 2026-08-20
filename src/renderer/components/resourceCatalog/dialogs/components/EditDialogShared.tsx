@@ -45,7 +45,10 @@ const submenuItemClassName =
 
 // Neutralize TabsTrigger's default-variant layout leak (justify-center + flex-1) when a
 // MenuItem is rendered as a vertical tab via `asChild`, keeping rail items left-aligned at h-8.
-const railTabItemClassName = cn(submenuItemClassName, 'data-[state=active]:!shadow-none flex-none justify-start')
+export const resourceDialogRailItemClassName = cn(
+  submenuItemClassName,
+  'data-[state=active]:!shadow-none flex-none justify-start'
+)
 
 const logger = loggerService.withContext('EditDialogShared')
 
@@ -489,7 +492,7 @@ export function EditDialogShell<TValues extends FieldValues>({
                             <MenuItem
                               label={child.label}
                               active={activeTab === child.id}
-                              className={railTabItemClassName}
+                              className={resourceDialogRailItemClassName}
                             />
                           </TabsTrigger>
                         ))
@@ -519,7 +522,7 @@ export function EditDialogShell<TValues extends FieldValues>({
                               <MenuItem
                                 label={tab.label}
                                 active={activeTab === tab.id}
-                                className={railTabItemClassName}
+                                className={resourceDialogRailItemClassName}
                               />
                             </TabsTrigger>
                           )}
@@ -530,7 +533,7 @@ export function EditDialogShell<TValues extends FieldValues>({
                                   <MenuItem
                                     label={child.label}
                                     active={activeTab === child.id}
-                                    className={railTabItemClassName}
+                                    className={resourceDialogRailItemClassName}
                                   />
                                 </TabsTrigger>
                               ))}

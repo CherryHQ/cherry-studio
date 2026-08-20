@@ -2679,14 +2679,14 @@
             "immutable_hint": "创建后不可切换",
             "label": "运行模式",
             "option": {
-              "claude_code": "增强：Claude Agent",
+              "claude_code": "Claude Agent",
               "dsh": "DeepSeek Harness",
-              "pi": "快速：Pi"
+              "pi": "Pi"
             },
             "option_description": {
-              "claude_code": "能力更强，支持 Plan 模式与分层模型",
-              "dsh": "兼容多种模型服务，支持目标驱动执行",
-              "pi": "响应更快，开销更低"
+              "claude_code": "综合能力更强，适合复杂任务",
+              "dsh": "通过插件灵活扩展和组合能力",
+              "pi": "快速、轻量"
             }
           },
           "small_model": {
@@ -2813,6 +2813,7 @@
           "agent_title": "新建智能体",
           "assistant_title": "新建助手",
           "avatar_aria": "选择头像",
+          "avatar_name_label": "头像和名称",
           "back": "上一步",
           "capability": {
             "builtin_badge": "默认启用",

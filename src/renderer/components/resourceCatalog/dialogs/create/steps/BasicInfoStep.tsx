@@ -1,8 +1,18 @@
-import { FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@cherrystudio/ui'
+import {
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+  InfoTooltip,
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput
+} from '@cherrystudio/ui'
 import { AgentRuntimeTiles } from '@renderer/components/AgentRuntimeOption'
 import { PermissionModeSelect } from '@renderer/components/PermissionModeOption'
+import { EmojiAvatarPicker } from '@renderer/components/resourceCatalog/dialogs/components/DialogFormFields'
 import {
-  AvatarField,
   CompactModelField,
   type ModelLabels,
   TextInputField
@@ -79,7 +89,16 @@ function AgentRuntimeModelFields({
         name="agentType"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>{t('library.config.agent.field.runtime.label')}</FormLabel>
+            <div className="flex items-center gap-1.5">
+              <FormLabel className="font-normal">{t('library.config.agent.field.runtime.label')}</FormLabel>
+              <InfoTooltip
+                content={t('library.config.agent.field.runtime.immutable_hint')}
+                iconProps={{
+                  className: 'cursor-help',
+                  'aria-label': `${t('library.config.agent.field.runtime.label')}: ${t('library.config.agent.field.runtime.immutable_hint')}`
+                }}
+              />
+            </div>
             <FormControl>
               <AgentRuntimeTiles
                 value={field.value}
@@ -88,9 +107,6 @@ function AgentRuntimeModelFields({
                 t={t}
               />
             </FormControl>
-            <FormDescription className="text-xs">
-              {t('library.config.agent.field.runtime.immutable_hint')}
-            </FormDescription>
             <FormMessage />
           </FormItem>
         )}
@@ -100,7 +116,7 @@ function AgentRuntimeModelFields({
         name="permissionMode"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>{t('library.config.agent.field.permission_mode.label')}</FormLabel>
+            <FormLabel className="font-normal">{t('library.config.agent.field.permission_mode.label')}</FormLabel>
             <PermissionModeSelect
               cards={permissionModeCards}
               value={field.value}
@@ -145,6 +161,7 @@ export function BasicInfoStep({
   const { t } = useTranslation()
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [modelLabels, setModelLabels] = useState<ModelLabels>(EMPTY_MODEL_LABELS)
+  const avatar = useWatch({ control: form.control, name: 'avatar' })
 
   useEffect(() => {
     form.setFocus('name')
@@ -152,23 +169,39 @@ export function BasicInfoStep({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-[auto_1fr] items-start gap-3">
-        <AvatarField
-          form={form}
-          emojiPickerOpen={emojiPickerOpen}
-          setEmojiPickerOpen={setEmojiPickerOpen}
-          fallback={fallbackAvatar}
-          portalContainer={portalContainer}
-          size="sm"
-        />
-        <TextInputField
-          form={form}
-          name="name"
-          label={t('common.name')}
-          placeholder={t('library.config.dialogs.create.name_placeholder')}
-          required
-        />
-      </div>
+      <FormField
+        control={form.control}
+        name="name"
+        rules={{ validate: (value) => value.trim().length > 0 || t('common.required_field') }}
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel className="font-normal">{t('library.config.dialogs.create.avatar_name_label')}</FormLabel>
+            <InputGroup>
+              <InputGroupAddon>
+                <EmojiAvatarPicker
+                  value={avatar}
+                  fallback={fallbackAvatar}
+                  open={emojiPickerOpen}
+                  onOpenChange={setEmojiPickerOpen}
+                  onChange={(value) => form.setValue('avatar', value, { shouldDirty: true })}
+                  ariaLabel={t('library.config.dialogs.create.avatar_aria')}
+                  portalContainer={portalContainer}
+                  avatarClassName="border-0"
+                  avatarFontSize={18}
+                />
+              </InputGroupAddon>
+              <FormControl>
+                <InputGroupInput
+                  {...field}
+                  className="pl-1!"
+                  placeholder={t('library.config.dialogs.create.name_placeholder')}
+                />
+              </FormControl>
+            </InputGroup>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
 
       {runtimeSelectable ? (
         <AgentRuntimeModelFields

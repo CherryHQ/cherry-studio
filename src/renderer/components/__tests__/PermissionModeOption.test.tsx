@@ -1,8 +1,13 @@
-import { render, screen } from '@testing-library/react'
+import type * as CherryStudioUi from '@cherrystudio/ui'
+import { Form, FormField, FormItem } from '@cherrystudio/ui'
+import { fireEvent, render, screen } from '@testing-library/react'
 import type { TFunction } from 'i18next'
-import { describe, expect, it } from 'vitest'
+import { useForm } from 'react-hook-form'
+import { describe, expect, it, vi } from 'vitest'
 
-import { PermissionModeOptionLabel } from '../PermissionModeOption'
+import { PermissionModeOptionLabel, PermissionModeSelect } from '../PermissionModeOption'
+
+vi.mock('@cherrystudio/ui', async (importOriginal) => await importOriginal<typeof CherryStudioUi>())
 
 // The component only ever calls t(key, fallback); rendering the fallback keeps these
 // assertions about layout rather than about the locale files.
@@ -24,6 +29,38 @@ const withoutWarning = {
   titleFallback: 'Ask Before Acting',
   descriptionKey: 'description.key',
   descriptionFallback: 'Asks before editing files.'
+}
+
+function PermissionModeSelectHarness({ onValueChange }: { onValueChange: (value: string) => void }) {
+  const form = useForm<{ permissionMode: 'default' | 'auto' }>({
+    defaultValues: { permissionMode: 'default' }
+  })
+
+  return (
+    <Form {...form}>
+      <form>
+        <FormField
+          control={form.control}
+          name="permissionMode"
+          render={({ field }) => (
+            <FormItem>
+              <PermissionModeSelect
+                cards={[withoutWarning, withWarning]}
+                value={field.value}
+                onValueChange={(value) => {
+                  field.onChange(value)
+                  onValueChange(value)
+                }}
+                portalContainer={null}
+                ariaLabel="Permission mode"
+                t={t}
+              />
+            </FormItem>
+          )}
+        />
+      </form>
+    </Form>
+  )
 }
 
 describe('PermissionModeOptionLabel', () => {
@@ -58,5 +95,22 @@ describe('PermissionModeOptionLabel', () => {
 
     expect(screen.getByText('Ask Before Acting')).toBeInTheDocument()
     expect(screen.queryByText(/Needs a model/)).not.toBeInTheDocument()
+  })
+})
+
+describe('PermissionModeSelect', () => {
+  it('ignores a transient empty value from the native select', () => {
+    const onValueChange = vi.fn()
+    render(<PermissionModeSelectHarness onValueChange={onValueChange} />)
+
+    expect(screen.getByRole('combobox', { name: 'Permission mode' })).toHaveTextContent('Ask Before Acting')
+
+    const nativeSelect = document.querySelector('select')
+    expect(nativeSelect).not.toBeNull()
+    fireEvent.change(nativeSelect as HTMLSelectElement, { target: { value: '' } })
+    expect(onValueChange).not.toHaveBeenCalled()
+
+    fireEvent.change(nativeSelect as HTMLSelectElement, { target: { value: 'auto' } })
+    expect(onValueChange).toHaveBeenCalledWith('auto')
   })
 })
