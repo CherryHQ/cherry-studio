@@ -92,6 +92,7 @@
   "common": {
     "channel_available_commands": "Các lệnh có sẵn:",
     "channel_command_processing_error": "⚠️ Đã xảy ra lỗi khi xử lý lệnh. Vui lòng thử lại sau.",
+    "channel_message_dropped": "⚠️ Tin nhắn này không được chuyển đến. Vui lòng thử lại hoặc kiểm tra cấu hình kênh.",
     "channel_message_processing_error": "⚠️ Đã xảy ra lỗi khi xử lý tin nhắn của bạn. Vui lòng thử lại sau.",
     "channel_new_session_created": "Đã tạo phiên mới.",
     "channel_no_active_session": "Không có phiên hoạt động.",

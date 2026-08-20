@@ -1,6 +1,7 @@
 import { application } from '@application'
 import * as Lark from '@larksuiteoapi/node-sdk'
 import { WindowType } from '@main/core/window/types'
+import { t } from '@main/i18n'
 import { type FileAttachment, type ImageAttachment, MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
 import type { FeishuDomain } from '@shared/data/types/channel'
 import { clampSurrogateBoundary } from '@shared/utils/text'
@@ -228,7 +229,8 @@ class FeishuAdapter extends ChannelAdapter {
         this.log.info('Feishu WebSocket reconnected')
       },
       reject: (event) => {
-        this.log.debug('Feishu message rejected', { chatId: event.chatId, reason: event.reason })
+        this.log.warn('Feishu message rejected', { chatId: event.chatId, reason: event.reason })
+        this.sendMessage(event.chatId, t('common.channel_message_dropped'), replyOptions()).catch(() => {})
       },
       error: (error) => {
         this.log.error('Feishu channel error', { error: error.message, code: error.code })
@@ -440,7 +442,8 @@ class FeishuAdapter extends ChannelAdapter {
 
   private async handleMessage(message: Lark.NormalizedMessage): Promise<void> {
     if (this.allowedChatIds.length > 0 && !this.allowedChatIds.includes(message.chatId)) {
-      this.log.debug('Dropping message from unauthorized chat', { chatId: message.chatId })
+      this.log.warn('Dropping message from unauthorized chat', { chatId: message.chatId })
+      this.sendMessage(message.chatId, t('common.channel_message_dropped'), replyOptions()).catch(() => {})
       return
     }
 
@@ -462,7 +465,10 @@ class FeishuAdapter extends ChannelAdapter {
     }
 
     const { images, files } = await this.downloadResources(message)
-    if (!text && images.length === 0 && files.length === 0) return
+    if (!text && images.length === 0 && files.length === 0) {
+      this.log.warn('Dropping message with no text and no resources', { chatId: message.chatId })
+      return
+    }
     this.emit('message', {
       chatId: message.chatId,
       ...conversation,

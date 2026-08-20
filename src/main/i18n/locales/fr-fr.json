@@ -92,6 +92,7 @@
   "common": {
     "channel_available_commands": "Commandes disponibles :",
     "channel_command_processing_error": "⚠️ Une erreur s’est produite lors du traitement de la commande. Veuillez réessayer plus tard.",
+    "channel_message_dropped": "⚠️ Ce message n’a pas été délivré. Veuillez réessayer ou vérifier la configuration du canal.",
     "channel_message_processing_error": "⚠️ Une erreur s’est produite lors du traitement de votre message. Veuillez réessayer plus tard.",
     "channel_new_session_created": "Nouvelle session créée.",
     "channel_no_active_session": "Aucune session active.",
