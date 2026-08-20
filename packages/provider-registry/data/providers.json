@@ -515,9 +515,6 @@
       "name": "PPIO"
     },
     {
-      "apiFeatures": {
-        "developerRole": false
-      },
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "Qiniu - AI model provider",
       "endpointConfigs": {
@@ -527,7 +524,10 @@
         },
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
-          "baseUrl": "https://api.qnaigc.com"
+          "baseUrl": "https://api.qnaigc.com",
+          "dialect": {
+            "developerRole": false
+          }
         }
       },
       "id": "qiniu",
@@ -542,9 +542,6 @@
       "name": "Qiniu"
     },
     {
-      "apiFeatures": {
-        "reportsActualCost": true
-      },
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "OpenRouter - AI model provider",
       "endpointConfigs": {
@@ -614,6 +611,7 @@
       },
       "name": "OpenRouter",
       "reportedCostCurrency": "USD",
+      "reportsActualCost": true,
       "serverTools": [
         {
           "id": "web-search",
@@ -1757,15 +1755,15 @@
       ]
     },
     {
-      "apiFeatures": {
-        "streamOptions": false
-      },
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "Mistral - AI model provider",
       "endpointConfigs": {
         "openai-chat-completions": {
           "adapterFamily": "mistral",
-          "baseUrl": "https://api.mistral.ai"
+          "baseUrl": "https://api.mistral.ai",
+          "dialect": {
+            "streamOptions": false
+          }
         }
       },
       "id": "mistral",
@@ -1998,9 +1996,6 @@
       ]
     },
     {
-      "apiFeatures": {
-        "developerRole": false
-      },
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "Poe - AI model provider",
       "endpointConfigs": {
@@ -2011,6 +2006,9 @@
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
           "baseUrl": "https://api.poe.com/v1/",
+          "dialect": {
+            "developerRole": false
+          },
           "reasoningFormat": {
             "type": "openai-chat",
             "wire": {
@@ -2301,5 +2299,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "8c41ff99a7b1fbcb"
+  "version": "7bd010bdd4fe9ac7"
 }

@@ -59,6 +59,7 @@ export type {
 } from './schemas/model'
 export { ReasoningControlSchema } from './schemas/model'
 export type {
+  EndpointDialect,
   ProviderConfig as ProtoProviderConfig,
   ProviderReasoningFormat as ProtoProviderReasoningFormat,
   ProviderConfig,

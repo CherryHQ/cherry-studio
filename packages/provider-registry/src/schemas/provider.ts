@@ -14,26 +14,8 @@ export const EndpointTypeSchema = z.enum(objectValues(ENDPOINT_TYPE))
 const endpointTypeValues: readonly string[] = objectValues(ENDPOINT_TYPE)
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// API Features
+// Endpoint dialect
 // ═══════════════════════════════════════════════════════════════════════════════
-
-/** API feature flags controlling request construction at the SDK level */
-export const ApiFeaturesSchema = z.object({
-  // --- Request format flags ---
-
-  /** Whether the provider supports stream_options for usage data */
-  streamOptions: z.boolean().default(true),
-
-  // --- Provider-specific parameter flags ---
-
-  /** Whether the provider supports the 'developer' role (OpenAI-specific) */
-  developerRole: z.boolean().default(false),
-
-  // --- Response feature flags ---
-
-  /** Whether the provider returns the actual billed cost in its usage response */
-  reportsActualCost: z.boolean().default(false)
-})
 
 /**
  * Provider-owned transport used to request faster processing.
@@ -108,6 +90,18 @@ export const ProviderWebsiteSchema = z.object({
   })
 })
 
+/**
+ * How a host deviates from one endpoint's dialect. These are properties of the
+ * protocol, not of the vendor: a provider serving both chat-completions and
+ * Responses may answer differently for each.
+ */
+export const EndpointDialectSchema = z.object({
+  /** Accepts chat-completions `stream_options` for usage data. Absent ⇒ true. */
+  streamOptions: z.boolean().optional(),
+  /** Accepts messages with `role: "developer"`. Absent ⇒ false. */
+  developerRole: z.boolean().optional()
+})
+
 /** Per-endpoint-type configuration in registry */
 export const RegistryEndpointConfigSchema = z.object({
   /** Base URL for this endpoint type's API */
@@ -132,7 +126,9 @@ export const RegistryEndpointConfigSchema = z.object({
    * registered in `appProviderIds`. Resolvers should prefer this over
    * heuristic id/baseUrl inference when present.
    */
-  adapterFamily: z.string().optional()
+  adapterFamily: z.string().optional(),
+  /** Dialect deviations of this host's implementation of the endpoint. */
+  dialect: EndpointDialectSchema.optional()
 })
 
 export const ProviderConfigSchema = z
@@ -188,8 +184,8 @@ export const ProviderConfigSchema = z
     authOptional: z.boolean().default(false),
     /** Provider-native (server-executed) built-in tools served by this host. */
     serverTools: z.array(ServerToolConfigSchema).default([]),
-    /** API feature flags controlling request construction */
-    apiFeatures: ApiFeaturesSchema.optional(),
+    /** Whether usage responses carry the actual billed amount. */
+    reportsActualCost: z.boolean().default(false),
     /**
      * Registry-owned currency for provider-reported costs whose wire payload
      * carries an amount but no currency. Absent means the amount stays
@@ -219,8 +215,8 @@ export const ProviderListSchema = z.object({
 })
 
 export { ENDPOINT_TYPE } from './enums'
-export type ApiFeatures = z.infer<typeof ApiFeaturesSchema>
 export type ProviderReasoningFormat = z.infer<typeof ProviderReasoningFormatSchema>
+export type EndpointDialect = z.infer<typeof EndpointDialectSchema>
 export type RegistryEndpointConfig = z.infer<typeof RegistryEndpointConfigSchema>
 export type ProviderConfig = z.infer<typeof ProviderConfigSchema>
 export type ProviderList = z.infer<typeof ProviderListSchema>

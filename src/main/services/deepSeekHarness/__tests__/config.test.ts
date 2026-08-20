@@ -5,7 +5,7 @@ import path from 'node:path'
 import type * as FileUtils from '@main/utils/file'
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, MODALITY, MODEL_CAPABILITY } from '@shared/data/types/model'
-import { DEFAULT_API_FEATURES, type Provider } from '@shared/data/types/provider'
+import type { Provider } from '@shared/data/types/provider'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { parse } from 'yaml'
@@ -64,7 +64,7 @@ const provider = (partial: Partial<Provider> = {}): Provider =>
     authType: 'api-key',
     apiKeys: [{ id: 'key', isEnabled: true }],
     isEnabled: true,
-    apiFeatures: DEFAULT_API_FEATURES,
+    reportsActualCost: false,
     settings: {},
     endpointConfigs: {
       [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.anthropic.com/' },
@@ -110,10 +110,12 @@ describe('DeepSeek Harness config transaction', () => {
       resolveDeepSeekHarnessEndpoint(
         provider({
           defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
-          apiFeatures: { ...DEFAULT_API_FEATURES, developerRole: true },
           endpointConfigs: {
             [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.anthropic.com/v1/' },
-            [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://proxy.example/' }
+            [ENDPOINT_TYPE.OPENAI_RESPONSES]: {
+              baseUrl: 'https://proxy.example/',
+              dialect: { developerRole: true }
+            }
           }
         }),
         model({ endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES] })
@@ -125,10 +127,7 @@ describe('DeepSeek Harness config transaction', () => {
     })
 
     expect(
-      resolveDeepSeekHarnessEndpoint(
-        provider({ apiFeatures: { ...DEFAULT_API_FEATURES, developerRole: true } }),
-        model({ endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES] })
-      )
+      resolveDeepSeekHarnessEndpoint(provider(), model({ endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES] }))
     ).toEqual({
       endpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
       protocol: 'openai-responses',
@@ -143,9 +142,11 @@ describe('DeepSeek Harness config transaction', () => {
   it('uses the selected OpenAI endpoint regardless of developer-role support', () => {
     const openAiFirstProvider = provider({
       defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-      apiFeatures: { ...DEFAULT_API_FEATURES, developerRole: false },
       endpointConfigs: {
-        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://proxy.example/v1' },
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://proxy.example/v1',
+          dialect: { developerRole: false }
+        },
         [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://proxy.example/anthropic' }
       }
     })

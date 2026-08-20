@@ -16,7 +16,7 @@ import type { InsertUserProviderRow, StoredEndpointConfigOverride } from '@data/
 import { loggerService } from '@logger'
 import type { Model as LegacyModel, ModelType, Provider as LegacyProvider } from '@main/data/migration/legacyTypes'
 import { createUniqueModelId, type RuntimeModelPricing } from '@shared/data/types/model'
-import type { ApiFeatures, ApiKeyEntry, AuthConfig, ProviderSettings } from '@shared/data/types/provider'
+import type { ApiKeyEntry, AuthConfig, EndpointDialect, ProviderSettings } from '@shared/data/types/provider'
 import { isBareVertexApiHost } from '@shared/utils/api'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -193,7 +193,6 @@ export function transformProvider(legacy: LegacyProvider, settings: OldLlmSettin
     defaultChatEndpoint: endpointType ?? null,
     apiKeys: buildProviderApiKeys(legacy, settings),
     authConfig: buildAuthConfig(legacy, settings),
-    apiFeatures: buildApiFeatures(legacy),
     providerSettings: buildProviderSettings(legacy, settings),
     isEnabled: legacy.enabled ?? true
   }
@@ -217,6 +216,20 @@ function buildEndpointConfigs(
   if (legacy.anthropicApiHost) {
     const ep = ENDPOINT_TYPE.ANTHROPIC_MESSAGES
     configs[ep] = { ...configs[ep], baseUrl: legacy.anthropicApiHost }
+  }
+
+  // Preserve v1's provider-wide value on each configured OpenAI text endpoint;
+  // stream_options itself exists only on chat-completions.
+  const dialect = buildEndpointDialect(legacy)
+  if (dialect) {
+    const chat = ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    if (configs[chat]) {
+      configs[chat] = { ...configs[chat], dialect }
+    }
+    const responses = ENDPOINT_TYPE.OPENAI_RESPONSES
+    if (configs[responses] && dialect.developerRole !== undefined) {
+      configs[responses] = { ...configs[responses], dialect: { developerRole: dialect.developerRole } }
+    }
   }
 
   // Persist the legacy-type adapterFamily hint for custom (no-catalog)
@@ -340,30 +353,21 @@ function buildAuthConfig(legacy: LegacyProvider, settings: OldLlmSettings): Auth
   }
 }
 
-function buildApiFeatures(legacy: LegacyProvider): ApiFeatures | null {
+// v1 kept dialect deviations on the provider; v2 keys them by endpoint.
+// Retired flags have no v2 consumer and are intentionally dropped.
+function buildEndpointDialect(legacy: LegacyProvider): EndpointDialect | null {
   const apiOptions = legacy.apiOptions
-  const features: ApiFeatures = {}
-  let hasValue = false
+  const dialect: EndpointDialect = {}
 
   const notStreamOptions = apiOptions?.isNotSupportStreamOptions ?? legacy.isNotSupportStreamOptions
-  if (notStreamOptions != null) {
-    features.streamOptions = !notStreamOptions
-    hasValue = true
-  }
+  if (notStreamOptions != null) dialect.streamOptions = !notStreamOptions
 
   const supportsDeveloperRole =
     apiOptions?.isSupportDeveloperRole ??
     (legacy.isNotSupportDeveloperRole != null ? !legacy.isNotSupportDeveloperRole : undefined)
-  if (supportsDeveloperRole != null) {
-    features.developerRole = supportsDeveloperRole
-    hasValue = true
-  }
+  if (supportsDeveloperRole != null) dialect.developerRole = supportsDeveloperRole
 
-  // v1's enableThinking / serviceTier / verbosity / arrayContent flags have no v2
-  // counterpart — the first two were retired with the settings nothing could write,
-  // the last is handled by the SDK itself. Drop them on migrate.
-
-  return hasValue ? features : null
+  return Object.keys(dialect).length > 0 ? dialect : null
 }
 
 function buildProviderSettings(legacy: LegacyProvider, llmSettings: OldLlmSettings): ProviderSettings | null {

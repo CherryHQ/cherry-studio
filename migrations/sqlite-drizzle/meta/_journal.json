@@ -84,6 +84,20 @@
       "when": 1787109711737,
       "tag": "0011_rare_vertigo",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1787248383553,
+      "tag": "0012_sink_endpoint_dialect",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1787249328034,
+      "tag": "0013_polite_skrulls",
+      "breakpoints": true
     }
   ],
   "version": "7"

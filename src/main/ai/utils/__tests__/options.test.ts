@@ -230,7 +230,7 @@ describe('OpenAI-compatible reasoning normalization', () => {
       id: providerOptionsKey,
       name: providerOptionsKey,
       settings: {},
-      apiFeatures: {}
+      reportsActualCost: false
     } as Provider
     const capabilityOptions = buildCapabilityProviderOptions(
       model,
@@ -273,15 +273,7 @@ describe('buildCapabilityProviderOptions', () => {
     const provider = {
       id: 'openai',
       name: 'OpenAI',
-      apiFeatures: {
-        arrayContent: true,
-        streamOptions: true,
-        developerRole: false,
-        serviceTier: false,
-        verbosity: false,
-        reportsActualCost: false,
-        enableThinking: true
-      },
+      reportsActualCost: false,
       apiKeys: [],
       authType: 'api-key',
       defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
@@ -512,7 +504,7 @@ describe('buildCapabilityProviderOptions', () => {
         {
           id: 'vertex',
           settings: {},
-          apiFeatures: {}
+          reportsActualCost: false
         } as Provider,
         {
           enableReasoning: false,
@@ -549,7 +541,7 @@ describe('buildCapabilityProviderOptions', () => {
       {
         id: 'ollama',
         settings: {},
-        apiFeatures: {}
+        reportsActualCost: false
       } as Provider,
       {
         enableReasoning: false,
@@ -583,7 +575,7 @@ describe('buildCapabilityProviderOptions', () => {
       {
         id: 'ollama',
         settings: {},
-        apiFeatures: {}
+        reportsActualCost: false
       } as Provider,
       {
         enableReasoning: false,

@@ -24,11 +24,7 @@ import type { InsertUserProviderRow, StoredEndpointConfigOverride } from '@data/
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { ensureCherryAiDefaultProviderAndModelTx } from '@data/db/seeding/seeders/cherryaiDefaultModelSeeder'
 import { assignOrderKeysByScope, assignOrderKeysInSequence } from '@data/migration/v2/utils/orderKey'
-import {
-  diffApiFeatures,
-  matchesModelPricingBaseline,
-  synthesizePresetFromOverride
-} from '@data/services/ProviderRegistryService'
+import { matchesModelPricingBaseline, synthesizePresetFromOverride } from '@data/services/ProviderRegistryService'
 import { generateOrderKeySequenceBetween } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import type { Model as LegacyModel, Provider as LegacyProvider } from '@main/data/migration/legacyTypes'
@@ -36,7 +32,7 @@ import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { providerLogoRef } from '@shared/data/types/file'
 import { createUniqueModelId, isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import type { ApiFeatures } from '@shared/data/types/provider'
+import type { EndpointDialect } from '@shared/data/types/provider'
 import { desc, eq, ne, sql } from 'drizzle-orm'
 import { isEqual } from 'es-toolkit/compat'
 
@@ -65,10 +61,10 @@ const logger = loggerService.withContext('ProviderModelMigrator')
 const BATCH_SIZE = 100
 const RETIRED_PROVIDER_IDS = new Set(['cephalon', 'tokenflux'])
 /** Defaults materialized for non-system providers by final-v1 migrations 127, 129, and 132. */
-const V1_CUSTOM_PROVIDER_API_FEATURES_BASELINE = {
+const V1_CUSTOM_PROVIDER_DIALECT_BASELINE = {
   streamOptions: true,
   developerRole: false
-} satisfies ApiFeatures
+} satisfies EndpointDialect
 
 function inferCherryInEndpointTypes(modelId: string): EndpointType[] {
   const normalizedModelId = modelId.trim().toLowerCase()
@@ -297,16 +293,25 @@ export class ProviderModelMigrator extends BaseMigrator {
       })
     }
     const v1Row = v1Provider ? transformProvider(v1Provider, {}) : null
-    const apiFeaturesBaseline = legacy.isSystem === true ? v1Row?.apiFeatures : V1_CUSTOM_PROVIDER_API_FEATURES_BASELINE
 
     const endpointConfigs: Partial<Record<EndpointType, StoredEndpointConfigOverride>> = {}
     for (const [key, config] of Object.entries(row.endpointConfigs ?? {})) {
       const endpointType = key as EndpointType
       const v1Config = v1Row?.endpointConfigs?.[endpointType]
+      const override: StoredEndpointConfigOverride = {}
       if (config?.baseUrl !== undefined && config.baseUrl !== v1Config?.baseUrl) {
-        endpointConfigs[endpointType] = { baseUrl: config.baseUrl }
-      } else if (!v1Config) {
-        endpointConfigs[endpointType] = {}
+        override.baseUrl = config.baseUrl
+      }
+      const dialectBaseline =
+        v1Config?.dialect ?? (legacy.isSystem === true ? undefined : V1_CUSTOM_PROVIDER_DIALECT_BASELINE)
+      const dialect = Object.fromEntries(
+        Object.entries(config?.dialect ?? {}).filter(
+          ([flag, value]) => value !== dialectBaseline?.[flag as keyof EndpointDialect]
+        )
+      )
+      if (Object.keys(dialect).length > 0) override.dialect = dialect
+      if (Object.keys(override).length > 0 || !v1Config) {
+        endpointConfigs[endpointType] = override
       }
     }
 
@@ -314,8 +319,7 @@ export class ProviderModelMigrator extends BaseMigrator {
       ...row,
       endpointConfigs: Object.keys(endpointConfigs).length > 0 ? endpointConfigs : null,
       defaultChatEndpoint:
-        v1Row && row.defaultChatEndpoint === v1Row.defaultChatEndpoint ? null : row.defaultChatEndpoint,
-      apiFeatures: apiFeaturesBaseline ? diffApiFeatures(row.apiFeatures, apiFeaturesBaseline) : row.apiFeatures
+        v1Row && row.defaultChatEndpoint === v1Row.defaultChatEndpoint ? null : row.defaultChatEndpoint
     }
   }
 

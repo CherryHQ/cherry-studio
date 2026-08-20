@@ -59,14 +59,7 @@ import type {
   RuntimeReasoning
 } from '@shared/data/types/model'
 import { createUniqueModelId, CURRENCY, ReasoningSummarySchema } from '@shared/data/types/model'
-import type {
-  ApiFeatures,
-  EndpointConfig,
-  Provider,
-  ProviderWebsites,
-  RuntimeApiFeatures
-} from '@shared/data/types/provider'
-import { DEFAULT_API_FEATURES } from '@shared/data/types/provider'
+import type { EndpointConfig, Provider, ProviderWebsites } from '@shared/data/types/provider'
 import { isEqual } from 'es-toolkit/compat'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
@@ -89,38 +82,10 @@ export interface ProviderDisplayMetadata {
   reportedCostCurrency?: Currency
   /** Registry-owned Fast request transport. */
   fastMode?: ProtoProviderConfig['fastMode']
-  /** Registry default API feature flags — the delta baseline under row overrides. */
-  apiFeatures?: ApiFeatures
+  /** Whether usage responses carry the actual billed amount. */
+  reportsActualCost?: boolean
   /** Registry default chat endpoint, used when the row stores no override. */
   defaultChatEndpoint?: EndpointType
-}
-
-/**
- * The effective apiFeatures baseline for a preset: registry declarations
- * layered over the app defaults. Rows store only deltas from this.
- */
-export function buildApiFeaturesBaseline(presetApiFeatures: ApiFeatures | null | undefined): RuntimeApiFeatures {
-  return { ...DEFAULT_API_FEATURES, ...presetApiFeatures }
-}
-
-/**
- * Reduce a (possibly full-snapshot) apiFeatures object to the delta against
- * its baseline — key absence means "use the baseline". Returns null when
- * nothing differs, so a renderer echoing the merged runtime snapshot
- * degrades to a clean delta instead of freezing the baseline into the row.
- */
-export function diffApiFeatures(
-  merged: ApiFeatures | null | undefined,
-  baseline: Readonly<ApiFeatures>
-): ApiFeatures | null {
-  if (!merged) return null
-  const delta: Record<string, boolean> = {}
-  for (const [key, value] of Object.entries(merged)) {
-    if (value !== undefined && value !== baseline[key as keyof ApiFeatures]) {
-      delta[key] = value
-    }
-  }
-  return Object.keys(delta).length > 0 ? (delta as ApiFeatures) : null
 }
 
 export interface ListProviderRegistryModelsOptions {
@@ -797,7 +762,7 @@ class ProviderRegistryService {
         serverTools: provider?.serverTools,
         reportedCostCurrency: provider?.reportedCostCurrency,
         fastMode: provider?.fastMode,
-        apiFeatures: (provider?.apiFeatures as ApiFeatures | undefined) ?? undefined,
+        reportsActualCost: provider?.reportsActualCost,
         defaultChatEndpoint: provider?.defaultChatEndpoint ?? undefined
       }
     } catch (error) {
@@ -814,8 +779,8 @@ class ProviderRegistryService {
    *
    * Ownership per field: `adapterFamily` / `modelsApiUrls` are registry-owned
    * (registry wins, row is a legacy fallback); `baseUrl` is user-owned (row
-   * wins). The key set is the union of registry and row keys, so a registry
-   * that gains an endpoint type surfaces it with zero data migration.
+   * wins); `dialect` merges key by key, the row stating only its deviations.
+   * Registry and row endpoint keys are unioned, so additions need no migration.
    *
    * Custom providers (no registry preset) keep their row configs, with
    * `adapterFamily` inferred from the endpoint type when absent — mirroring
@@ -852,6 +817,9 @@ class ProviderRegistryService {
         const baseUrl = rowConfig?.baseUrl ?? presetConfig?.baseUrl
         if (baseUrl !== undefined) config.baseUrl = baseUrl
         if (presetConfig?.modelsApiUrls !== undefined) config.modelsApiUrls = presetConfig.modelsApiUrls
+        // Dialect merges per key: the row states only the deviations the user found.
+        const dialect = { ...presetConfig?.dialect, ...rowConfig?.dialect }
+        if (Object.keys(dialect).length > 0) config.dialect = dialect
         merged[ep] = config
       }
       return Object.keys(merged).length > 0 ? merged : null

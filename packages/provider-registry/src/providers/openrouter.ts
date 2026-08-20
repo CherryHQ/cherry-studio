@@ -6,9 +6,7 @@ export default defineProvider({
   name: 'OpenRouter',
   // OpenRouter's usage response carries the actual billed amount, so the cost
   // engine trusts it over locally computed pricing.
-  apiFeatures: {
-    reportsActualCost: true
-  },
+  reportsActualCost: true,
   reportedCostCurrency: CURRENCY.USD,
   defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {

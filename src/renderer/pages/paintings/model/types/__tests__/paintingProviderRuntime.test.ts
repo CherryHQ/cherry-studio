@@ -10,11 +10,7 @@ function provider(overrides: Partial<Provider> = {}): Provider {
     name: 'CherryIN',
     apiKeys: [],
     authType: 'api-key',
-    apiFeatures: {
-      streamOptions: false,
-      developerRole: false,
-      reportsActualCost: false
-    },
+    reportsActualCost: false,
     settings: {},
     isEnabled: true,
     ...overrides

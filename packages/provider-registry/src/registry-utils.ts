@@ -5,7 +5,7 @@
 
 import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY, type ModelCapability } from './schemas/enums'
 import type { ModelConfig } from './schemas/model'
-import type { ProviderConfig, RegistryEndpointConfig } from './schemas/provider'
+import type { EndpointDialect, ProviderConfig, RegistryEndpointConfig } from './schemas/provider'
 import type { ProviderModelOverride } from './schemas/provider-models'
 import { normalizeModelId } from './utils/normalize'
 
@@ -52,6 +52,7 @@ export interface PersistedEndpointConfig {
   baseUrl?: string
   modelsApiUrls?: { default?: string; embedding?: string; image?: string; reranker?: string }
   adapterFamily?: string
+  dialect?: EndpointDialect
 }
 
 /**
@@ -72,6 +73,7 @@ export function buildPersistedEndpointConfigs(
     if (regConfig.baseUrl) config.baseUrl = regConfig.baseUrl
     if (regConfig.modelsApiUrls) config.modelsApiUrls = regConfig.modelsApiUrls
     if (regConfig.adapterFamily) config.adapterFamily = regConfig.adapterFamily
+    if (regConfig.dialect) config.dialect = regConfig.dialect
 
     if (Object.keys(config).length > 0) configs[k] = config
   }

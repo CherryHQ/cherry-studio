@@ -10,7 +10,7 @@ import {
 } from '@cherrystudio/provider-registry'
 import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
+import type { EndpointDialect, Provider } from '@shared/data/types/provider'
 
 import { getLowerBaseModelName, getRawModelId, isFunctionCallingModel, isGeminiModel, isNonChatModel } from './model'
 import { getProviderHostTopology } from './providerTopology'
@@ -186,12 +186,20 @@ export function isSupportFastMode(
   return provider.fastMode !== undefined && model.supportsFastMode === true
 }
 
-export function isSupportDeveloperRoleProvider(provider: Provider): boolean {
-  return provider.apiFeatures?.developerRole ?? false
-}
-
-export function isSupportStreamOptionsProvider(provider: Provider): boolean {
-  return provider.apiFeatures?.streamOptions ?? false
+/**
+ * The dialect this host speaks on one endpoint. Declared per endpoint because
+ * the same provider may expose chat-completions and Responses with different
+ * compatibility behavior.
+ */
+export function resolveEndpointDialect(
+  provider: Pick<Provider, 'endpointConfigs'>,
+  endpointType: EndpointType | undefined
+): Required<EndpointDialect> {
+  const declared = endpointType ? provider.endpointConfigs?.[endpointType]?.dialect : undefined
+  return {
+    streamOptions: declared?.streamOptions ?? true,
+    developerRole: declared?.developerRole ?? false
+  }
 }
 
 function getServerTool(provider: Pick<Provider, 'serverTools'>, id: ServerTool) {

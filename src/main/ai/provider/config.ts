@@ -30,7 +30,8 @@ import {
   isGeminiProvider,
   isOllamaProvider,
   isVertexProvider,
-  matchesPreset
+  matchesPreset,
+  resolveEndpointDialect
 } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import { isEmpty } from 'es-toolkit/compat'
@@ -269,7 +270,7 @@ export async function resolveProviderAiSdkConfig(
         providerSettings: {
           ...ctx.baseConfig,
           ...buildCommonOptions(ctx),
-          includeUsage: ctx.actualProvider.apiFeatures.streamOptions
+          includeUsage: resolveEndpointDialect(ctx.actualProvider, ctx.endpointType).streamOptions
         }
       }))
     },
@@ -544,7 +545,7 @@ async function buildCherryAIConfig(ctx: BuilderContext): Promise<ProviderConfig<
     providerSettings: {
       ...ctx.baseConfig,
       name: ctx.actualProvider.id,
-      includeUsage: ctx.actualProvider.apiFeatures.streamOptions,
+      includeUsage: resolveEndpointDialect(ctx.actualProvider, ctx.endpointType).streamOptions,
       headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) },
       fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
         const signature = generateSignature({
@@ -793,7 +794,7 @@ function buildOpenAICompatibleConfig(ctx: BuilderContext): ProviderConfig<'opena
       ...ctx.baseConfig,
       ...commonOptions,
       name: ctx.actualProvider.id,
-      includeUsage: ctx.actualProvider.apiFeatures.streamOptions
+      includeUsage: resolveEndpointDialect(ctx.actualProvider, ctx.endpointType).streamOptions
     }
   }
 }
@@ -872,7 +873,7 @@ function buildDashScopeConfig(ctx: BuilderContext): ProviderConfig<'dashscope'> 
     providerSettings: {
       ...ctx.baseConfig,
       headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) },
-      includeUsage: ctx.actualProvider.apiFeatures.streamOptions
+      includeUsage: resolveEndpointDialect(ctx.actualProvider, ctx.endpointType).streamOptions
     }
   }
 }

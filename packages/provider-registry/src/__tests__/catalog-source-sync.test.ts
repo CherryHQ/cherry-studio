@@ -6,7 +6,7 @@
  * the committed JSON reflects them. Coverage is full-payload where the generator output is fully
  * source-derived — the entire provider object (buildProviders strips gen-only fields + templates
  * `description`) and the entire override row (`{ providerId, ...ov }`) — so stale `defaultChatEndpoint`,
- * `apiFeatures`, `metadata`, override `pricing`/`imageGeneration`, etc. are caught. Creator models stay at
+ * endpoint dialects, billing facts, `metadata`, override `pricing`/`imageGeneration`, etc. are caught. Creator models stay at
  * presence/`ownedBy`/`name`: their other fields (capabilities, modalities, limits) are unioned with
  * upstream-inferred metadata, so a full compare would be non-deterministic. Upstream-enriched fields
  * (pricing on md-derived rows, inferred metadata) remain out of scope. Runs in the network-free

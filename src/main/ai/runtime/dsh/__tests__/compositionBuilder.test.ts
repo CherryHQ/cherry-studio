@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url'
 
 import { MODALITY } from '@cherrystudio/provider-registry'
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
-import { DEFAULT_API_FEATURES, type Provider } from '@shared/data/types/provider'
+import type { Provider } from '@shared/data/types/provider'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { describe, expect, it, vi } from 'vitest'
 import { parse } from 'yaml'
@@ -41,7 +41,7 @@ function makeInjection(modelOverrides: Partial<Model> = {}, reasoningEffort: Rea
   const provider = {
     id: 'deepseek',
     name: 'DeepSeek',
-    apiFeatures: DEFAULT_API_FEATURES,
+    reportsActualCost: false,
     defaultChatEndpoint: 'openai-chat-completions',
     endpointConfigs: {
       'openai-chat-completions': { adapterFamily: 'openai', baseUrl: 'https://api.deepseek.com' }
@@ -265,7 +265,7 @@ describe('buildDshCompositionYaml', () => {
     const provider = {
       id: 'cherryin',
       name: 'CherryIN',
-      apiFeatures: DEFAULT_API_FEATURES,
+      reportsActualCost: false,
       defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
       endpointConfigs: {
         [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
@@ -309,7 +309,7 @@ describe('buildDshCompositionYaml', () => {
       const provider = {
         id: providerId,
         name: providerId,
-        apiFeatures: DEFAULT_API_FEATURES,
+        reportsActualCost: false,
         defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
         endpointConfigs: {
           [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {

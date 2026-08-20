@@ -1,3 +1,4 @@
+import type * as ProviderUtils from '@shared/utils/provider'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -35,7 +36,8 @@ vi.mock('../../primitives/ProviderSettingsDrawer', () => ({
     ) : null
 }))
 
-vi.mock('@shared/utils/provider', () => ({
+vi.mock('@shared/utils/provider', async (importOriginal) => ({
+  ...(await importOriginal<typeof ProviderUtils>()),
   isAnthropicSupportedProvider: (...args: unknown[]) => isAnthropicSupportedProviderMock(...args),
   isAzureOpenAIProvider: (...args: unknown[]) => isAzureOpenAIProviderMock(...args),
   isOpenAICompatibleProvider: (...args: unknown[]) => isOpenAICompatibleProviderMock(...args),
@@ -71,18 +73,12 @@ const provider = {
   defaultChatEndpoint: 'openai-chat-completions',
   authType: 'api-key',
   apiKeys: [],
-  endpointConfigs: {},
-  apiFeatures: {
-    arrayContent: true,
-    streamOptions: true,
-    developerRole: false,
-    serviceTier: false,
-    verbosity: false,
-    enableThinking: true
+  endpointConfigs: {
+    'openai-chat-completions': { baseUrl: 'https://api.example.com/v1' },
+    'anthropic-messages': { baseUrl: 'https://api.example.com/anthropic' }
   },
+  reportsActualCost: false,
   settings: {
-    serviceTier: undefined,
-    verbosity: undefined,
     streamOptions: {
       includeUsage: undefined
     },
@@ -109,16 +105,36 @@ describe('ProviderApiOptionsDrawer', () => {
     isSystemProviderMock.mockReturnValue(false)
   })
 
-  it('patches only the toggled apiFeatures key (delta, not a full snapshot)', () => {
+  it('preserves sibling endpoints when changing the selected endpoint dialect', () => {
     render(<ProviderApiOptionsDrawer providerId="openai" open onClose={vi.fn()} />)
 
     fireEvent.click(screen.getByLabelText('settings.provider.api.options.developer_role.label'))
 
-    // Echoing the merged runtime snapshot would mark every baseline value as
-    // a user override; main shallow-merges the stored delta instead.
     expect(updateProviderMock).toHaveBeenCalledWith({
-      apiFeatures: { developerRole: true }
+      endpointConfigs: {
+        'openai-chat-completions': {
+          baseUrl: 'https://api.example.com/v1',
+          dialect: { developerRole: true }
+        },
+        'anthropic-messages': { baseUrl: 'https://api.example.com/anthropic' }
+      }
     })
+  })
+
+  it('does not offer chat-only stream options on a Responses endpoint', () => {
+    useProviderMock.mockReturnValue({
+      provider: {
+        ...provider,
+        defaultChatEndpoint: 'openai-responses',
+        endpointConfigs: { 'openai-responses': { baseUrl: 'https://api.example.com/v1' } }
+      },
+      updateProvider: updateProviderMock
+    })
+
+    render(<ProviderApiOptionsDrawer providerId="openai" open onClose={vi.fn()} />)
+
+    expect(screen.getByLabelText('settings.provider.api.options.developer_role.label')).toBeInTheDocument()
+    expect(screen.queryByLabelText('settings.provider.api.options.stream_options.label')).not.toBeInTheDocument()
   })
 
   it('patches providerSettings.cacheControl when cache threshold changes', () => {

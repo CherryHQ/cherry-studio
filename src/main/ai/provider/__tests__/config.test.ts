@@ -11,7 +11,7 @@ import {
   LOCAL_EMBEDDING_UNIQUE_MODEL_ID
 } from '@shared/data/presets/localEmbedding'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
-import { type AuthConfig, DEFAULT_API_FEATURES } from '@shared/data/types/provider'
+import type { AuthConfig } from '@shared/data/types/provider'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -929,11 +929,11 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
     it('routes DashScope openai-compatible endpoints through DashScope config and preserves stream usage support', async () => {
       const provider = makeProvider({
         id: 'dashscope',
-        apiFeatures: { ...DEFAULT_API_FEATURES, streamOptions: true },
         defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
         endpointConfigs: {
           [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
-            baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1'
+            baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+            dialect: { streamOptions: true }
           }
         }
       })
@@ -1001,12 +1001,12 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
     it('leaves ModelScope CHAT models on openai-compatible (image-only override; keeps includeUsage)', async () => {
       const provider = makeProvider({
         id: 'modelscope',
-        apiFeatures: { ...DEFAULT_API_FEATURES, streamOptions: true },
         defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
         endpointConfigs: {
           [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
             baseUrl: 'https://api-inference.modelscope.cn/v1/',
-            adapterFamily: 'openai-compatible'
+            adapterFamily: 'openai-compatible',
+            dialect: { streamOptions: true }
           }
         }
       })
