@@ -28,7 +28,9 @@ import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
  * Deliberately excluded: `@ai-sdk/google` throws `system messages are only supported at
  * the beginning of the conversation` (`:523`), and the `*-text-completions` /
  * `ollama-generate` converters throw `Unexpected system message in prompt`. Ollama chat
- * serializes the message, but older model renderers such as Qwen3.8 still reject it.
+ * serializes the message, but renderer behavior varies: some fold instruction messages into
+ * a leading system turn while others only consume one at `messages[0]`. The gateway has no
+ * renderer capability signal, so it cannot safely leave a non-leading system message in place.
  */
 const SYSTEM_IN_PLACE_ENDPOINTS: ReadonlySet<EndpointType> = new Set([
   ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
