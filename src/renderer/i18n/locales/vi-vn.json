@@ -514,6 +514,13 @@
         "warning": "Một phiên được tái sử dụng liên tục tích lũy ngữ cảnh, điều này làm tăng chi phí token theo thời gian và có thể tràn cửa sổ ngữ cảnh của mô hình. Để gắn lại một phiên sạch, hãy tắt và lưu, sau đó bật và lưu."
       },
       "run": "Chạy",
+      "runSummary": {
+        "cancelled": "Lần chạy gần nhất đã bị hủy · {{time}}",
+        "completed": "Lần chạy gần nhất thành công · {{time}}",
+        "failed": "Lần chạy gần nhất thất bại · {{time}}",
+        "queued": "Đang chờ chạy",
+        "running": "Đang chạy"
+      },
       "runTriggered": "Nhiệm vụ được kích hoạt",
       "save": "Lưu",
       "schedule": {

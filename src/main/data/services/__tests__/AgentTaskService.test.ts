@@ -7,6 +7,7 @@
 import { jobScheduleTable, jobTable } from '@data/db/schemas/job'
 import type { JobScheduleSnapshot, JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
@@ -255,9 +256,9 @@ describe('AgentTaskService (read side)', () => {
       expect(result.tasks[0]).toMatchObject({ id: 'newer', agentId: 'other' })
     })
 
-    it('projects a running job ahead of newer queued and terminal jobs', () => {
+    it('prioritizes running jobs and projects pending or delayed jobs as queued', () => {
       const first = makeSnapshot({ id: 'active-task', name: 'active-task' })
-      vi.mocked(jobScheduleService.listAll).mockReturnValueOnce([first])
+      vi.mocked(jobScheduleService.listAll).mockReturnValue([first])
       const now = Date.now()
       dbh.db
         .insert(jobScheduleTable)
@@ -326,6 +327,12 @@ describe('AgentTaskService (read side)', () => {
         startedAt: new Date(now - 2_000).toISOString(),
         finishedAt: null
       })
+
+      dbh.db.update(jobTable).set({ status: 'completed', finishedAt: now }).where(eq(jobTable.status, 'running')).run()
+      expect(agentTaskService.listAllTasks().tasks[0].runSummary?.status).toBe('queued')
+
+      dbh.db.update(jobTable).set({ status: 'delayed' }).where(eq(jobTable.status, 'pending')).run()
+      expect(agentTaskService.listAllTasks().tasks[0].runSummary?.status).toBe('queued')
     })
 
     it('projects the newest terminal run and leaves tasks without jobs empty', () => {

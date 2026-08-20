@@ -129,6 +129,10 @@ function toTaskRunDisplayStatus(status: JobStatus): TaskRunDisplayStatus {
   return status === 'pending' || status === 'delayed' ? 'running' : status
 }
 
+function toTaskRunSummaryStatus(status: JobStatus): TaskRunSummary['status'] {
+  return status === 'pending' || status === 'delayed' ? 'queued' : status
+}
+
 type TaskRunSummaryRow = {
   scheduleId: string
   status: JobStatus
@@ -290,7 +294,7 @@ export class AgentTaskService {
       rows.map((row) => [
         row.scheduleId,
         {
-          status: toTaskRunDisplayStatus(row.status),
+          status: toTaskRunSummaryStatus(row.status),
           startedAt: timestampToISO(row.startedAt),
           finishedAt: row.finishedAt === null ? null : timestampToISO(row.finishedAt)
         }

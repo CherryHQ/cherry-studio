@@ -796,6 +796,13 @@ describe('task session reuse copy', () => {
   })
 })
 
+describe('task run summary copy', () => {
+  it('describes queued jobs as waiting instead of running', () => {
+    expect(enUS.agent.tasks.runSummary.queued).toBe('Waiting to run')
+    expect(zhCN.agent.tasks.runSummary.queued).toBe('等待执行')
+  })
+})
+
 describe('TasksSettings routing and creation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -887,6 +894,16 @@ describe('TasksSettings routing and creation', () => {
       },
       {
         ...taskDataMock.defaultTask,
+        id: 'queued-task',
+        name: 'Queued task',
+        runSummary: {
+          status: 'queued',
+          startedAt: '2026-06-25T00:00:00.000Z',
+          finishedAt: null
+        }
+      },
+      {
+        ...taskDataMock.defaultTask,
         id: 'paused-task',
         name: 'Paused task',
         status: 'paused',
@@ -897,6 +914,7 @@ describe('TasksSettings routing and creation', () => {
     render(<TasksSettings />)
 
     expect(await screen.findByText('agent.tasks.runSummary.running')).toBeInTheDocument()
+    expect(screen.getByText('agent.tasks.runSummary.queued')).toBeInTheDocument()
     expect(screen.getAllByText(/agent.tasks.nextRun/)).toHaveLength(2)
     expect((await screen.findAllByText('agent.tasks.status.paused')).length).toBeGreaterThan(1)
   })

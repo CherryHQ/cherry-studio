@@ -158,8 +158,11 @@ export type AgentEntity = z.infer<typeof AgentEntitySchema>
 export const TaskRunDisplayStatusSchema = z.enum(['running', 'completed', 'failed', 'cancelled'])
 export type TaskRunDisplayStatus = z.infer<typeof TaskRunDisplayStatusSchema>
 
+export const TaskRunSummaryStatusSchema = z.enum(['queued', 'running', 'completed', 'failed', 'cancelled'])
+export type TaskRunSummaryStatus = z.infer<typeof TaskRunSummaryStatusSchema>
+
 export const TaskRunSummarySchema = z.strictObject({
-  status: TaskRunDisplayStatusSchema,
+  status: TaskRunSummaryStatusSchema,
   startedAt: z.string(),
   finishedAt: z.string().nullable()
 })

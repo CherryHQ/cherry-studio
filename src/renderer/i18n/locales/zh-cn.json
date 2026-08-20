@@ -518,6 +518,7 @@
         "cancelled": "上次运行已取消 · {{time}}",
         "completed": "上次运行成功 · {{time}}",
         "failed": "上次运行失败 · {{time}}",
+        "queued": "等待执行",
         "running": "运行中"
       },
       "runTriggered": "任务已触发",

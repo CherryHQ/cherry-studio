@@ -514,6 +514,13 @@
         "warning": "O sesiune reutilizată continuă să acumuleze context, ceea ce crește în timp costul tokenurilor și poate depăși fereastra de context a modelului. Pentru a conecta o sesiune nouă, dezactivează și salvează, apoi activează și salvează."
       },
       "run": "Rulează",
+      "runSummary": {
+        "cancelled": "Ultima rulare a fost anulată · {{time}}",
+        "completed": "Ultima rulare a reușit · {{time}}",
+        "failed": "Ultima rulare a eșuat · {{time}}",
+        "queued": "În așteptarea rulării",
+        "running": "În curs de rulare"
+      },
       "runTriggered": "Sarcină declanșată",
       "save": "Salvează",
       "schedule": {

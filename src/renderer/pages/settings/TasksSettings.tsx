@@ -106,6 +106,7 @@ import {
   CircleSlash,
   CircleStop,
   CircleX,
+  Clock3,
   Folder,
   Loader2,
   MoreHorizontal,
@@ -367,6 +368,15 @@ function formatTaskCardTime(value: string) {
 
 const TaskRunSummaryLine: FC<{ summary: NonNullable<ScheduledTaskEntity['runSummary']> }> = ({ summary }) => {
   const { t } = useTranslation()
+
+  if (summary.status === 'queued') {
+    return (
+      <span className="flex items-center gap-1.5 text-muted-foreground">
+        <Clock3 aria-hidden className="size-3" />
+        {t('agent.tasks.runSummary.queued')}
+      </span>
+    )
+  }
 
   if (summary.status === 'running') {
     return (

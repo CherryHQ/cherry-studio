@@ -518,6 +518,7 @@
         "cancelled": "Last run cancelled · {{time}}",
         "completed": "Last run succeeded · {{time}}",
         "failed": "Last run failed · {{time}}",
+        "queued": "Waiting to run",
         "running": "Running"
       },
       "runTriggered": "Task triggered",
