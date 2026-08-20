@@ -139,6 +139,11 @@
       "title": "編集エージェント"
     },
     "home": {
+      "suggestions": {
+        "inspect": "ワークスペースを確認し、最優先で対処すべき問題を特定する",
+        "plan": "現在のプロジェクト目標を、次のステップを含む具体的な実装計画にする",
+        "review": "現在の変更のリスクを確認し、不足している検証を追加する"
+      },
       "welcome_title": "今日は何について話しましょうか？"
     },
     "icon": {
@@ -987,6 +992,11 @@
       }
     },
     "home": {
+      "suggestions": {
+        "clarify": "今抱えている問題を整理し、次のステップを決めるのを手伝って",
+        "explore": "興味深いテーマをいくつかの異なる視点から一緒に探求して",
+        "learn": "すぐに活用できる新しい概念を一つ教えて"
+      },
       "welcome_title": "今日は何について話しましょうか？"
     },
     "input": {
@@ -6161,6 +6171,11 @@
         "title": "コンテキスト管理",
         "truncate_threshold": "ツール出力の切り詰めしきい値（文字）",
         "truncate_threshold_description": "この文字数を超えるツール出力はファイルへ退避して切り詰めます。モデルは必要に応じて読み戻せます。アシスタントごとに上書きできます"
+      },
+      "conversation_suggestions": {
+        "default_model": "デフォルトモデルを使用",
+        "description": "空の Chat と Agent の会話向けに開始プロンプトを生成します",
+        "label": "会話の候補"
       },
       "default_assistant_model": "デフォルトアシスタントモデル",
       "default_assistant_model_description": "アシスタントにモデルがない場合に使用されます",

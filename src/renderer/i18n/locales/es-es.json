@@ -139,6 +139,11 @@
       "title": "Agent de edición"
     },
     "home": {
+      "suggestions": {
+        "inspect": "Revisa este espacio de trabajo e identifica el problema de mayor prioridad",
+        "plan": "Convierte el objetivo actual del proyecto en un plan de implementación con próximos pasos",
+        "review": "Revisa los riesgos de los cambios actuales y añade las verificaciones que faltan"
+      },
       "welcome_title": "¿De qué hablaremos hoy?"
     },
     "icon": {
@@ -987,6 +992,11 @@
       }
     },
     "home": {
+      "suggestions": {
+        "clarify": "Ayúdame a aclarar el problema que tengo y decidir el siguiente paso",
+        "explore": "Explora conmigo un tema interesante desde distintas perspectivas",
+        "learn": "Enséñame un concepto útil que pueda aplicar de inmediato"
+      },
       "welcome_title": "¿De qué hablaremos hoy?"
     },
     "input": {
@@ -6161,6 +6171,11 @@
         "title": "Gestión del contexto",
         "truncate_threshold": "Umbral de truncado de salida de herramientas (caracteres)",
         "truncate_threshold_description": "Las salidas de herramientas que superen este número de caracteres se descargan a un archivo y se truncan; el modelo puede volver a leerlas cuando lo necesite. Los asistentes pueden anularlo"
+      },
+      "conversation_suggestions": {
+        "default_model": "Usar modelo predeterminado",
+        "description": "Generar mensajes iniciales para conversaciones vacías de Chat y Agent",
+        "label": "Sugerencias de conversación"
       },
       "default_assistant_model": "Modelo predeterminado del asistente",
       "default_assistant_model_description": "Se usa cuando un asistente no tiene modelo.",

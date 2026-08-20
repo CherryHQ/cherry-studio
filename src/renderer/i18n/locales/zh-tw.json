@@ -139,6 +139,11 @@
       "title": "編輯 Agent"
     },
     "home": {
+      "suggestions": {
+        "inspect": "檢查目前工作區，找出最需要優先處理的問題",
+        "plan": "把目前專案目標整理成可執行的實作計畫和下一步",
+        "review": "審查目前變更的風險，並補充缺少的驗證"
+      },
       "welcome_title": "今天要做些什麼？"
     },
     "icon": {
@@ -987,6 +992,11 @@
       }
     },
     "home": {
+      "suggestions": {
+        "clarify": "幫我釐清目前遇到的問題，並確定下一步",
+        "explore": "從幾個不同角度和我探索一個有趣的話題",
+        "learn": "教我一個可以立即應用的新概念"
+      },
       "welcome_title": "今天我們要談些什麼？"
     },
     "input": {
@@ -6161,6 +6171,11 @@
         "title": "上下文管理",
         "truncate_threshold": "工具輸出截斷閾值（字元）",
         "truncate_threshold_description": "超過該字元數的工具輸出會被轉存為檔案並截斷，模型可按需讀回。助理可單獨覆寫"
+      },
+      "conversation_suggestions": {
+        "default_model": "使用預設模型",
+        "description": "為空白的 Chat 和 Agent 對話產生開場提示",
+        "label": "對話推薦"
       },
       "default_assistant_model": "預設助理模型",
       "default_assistant_model_description": "助理未設定模型時使用。",

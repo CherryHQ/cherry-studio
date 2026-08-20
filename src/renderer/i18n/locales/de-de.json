@@ -139,6 +139,11 @@
       "title": "Agent bearbeiten"
     },
     "home": {
+      "suggestions": {
+        "inspect": "Prüfe diesen Arbeitsbereich und ermittle das Problem mit der höchsten Priorität",
+        "plan": "Formuliere das aktuelle Projektziel als konkreten Umsetzungsplan mit nächsten Schritten",
+        "review": "Prüfe die aktuellen Änderungen auf Risiken und ergänze fehlende Tests"
+      },
       "welcome_title": "Wovon sollen wir heute sprechen?"
     },
     "icon": {
@@ -987,6 +992,11 @@
       }
     },
     "home": {
+      "suggestions": {
+        "clarify": "Hilf mir, mein aktuelles Problem zu klären und den nächsten Schritt festzulegen",
+        "explore": "Erkunde mit mir ein interessantes Thema aus verschiedenen Perspektiven",
+        "learn": "Erkläre mir ein nützliches Konzept, das ich sofort anwenden kann"
+      },
       "welcome_title": "Worüber sollen wir heute sprechen?"
     },
     "input": {
@@ -6161,6 +6171,11 @@
         "title": "Kontextverwaltung",
         "truncate_threshold": "Kürzungsschwelle für Werkzeugausgaben (Zeichen)",
         "truncate_threshold_description": "Werkzeugausgaben über dieser Zeichenzahl werden in eine Datei ausgelagert und gekürzt; das Modell kann sie bei Bedarf wieder lesen. Assistenten können dies überschreiben"
+      },
+      "conversation_suggestions": {
+        "default_model": "Standardmodell verwenden",
+        "description": "Startprompts für leere Chat- und Agent-Unterhaltungen generieren",
+        "label": "Gesprächsvorschläge"
       },
       "default_assistant_model": "Standard-Assistent-Modell",
       "default_assistant_model_description": "Wird verwendet, wenn ein Assistent kein Modell hat.",

@@ -139,6 +139,11 @@
       "title": "Edit Agent"
     },
     "home": {
+      "suggestions": {
+        "inspect": "Inspect this workspace and identify the highest-priority issue to address",
+        "plan": "Turn the current project goal into a concrete implementation plan with next steps",
+        "review": "Review the current changes for risks and add the missing verification"
+      },
       "welcome_title": "What should we work on today?"
     },
     "icon": {
@@ -987,6 +992,11 @@
       }
     },
     "home": {
+      "suggestions": {
+        "clarify": "Help me clarify the problem I am facing and decide the next step",
+        "explore": "Explore an interesting topic with me from a few different perspectives",
+        "learn": "Teach me a useful concept that I can apply right away"
+      },
       "welcome_title": "What should we talk about today?"
     },
     "input": {
@@ -6161,6 +6171,11 @@
         "title": "Context Management",
         "truncate_threshold": "Tool-output truncation threshold (chars)",
         "truncate_threshold_description": "Tool outputs beyond this many characters are offloaded to a file and truncated; the model can read them back on demand. Assistants can override this"
+      },
+      "conversation_suggestions": {
+        "default_model": "Use default model",
+        "description": "Generate starter prompts for empty Chat and Agent conversations",
+        "label": "Conversation Suggestions"
       },
       "default_assistant_model": "Default Assistant Model",
       "default_assistant_model_description": "Used when an assistant has no model.",

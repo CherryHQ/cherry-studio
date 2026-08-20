@@ -139,6 +139,11 @@
       "title": "Chỉnh sửa Agent"
     },
     "home": {
+      "suggestions": {
+        "inspect": "Kiểm tra không gian làm việc và xác định vấn đề cần ưu tiên xử lý nhất",
+        "plan": "Chuyển mục tiêu hiện tại của dự án thành kế hoạch triển khai cụ thể với các bước tiếp theo",
+        "review": "Rà soát rủi ro của các thay đổi hiện tại và bổ sung các bước kiểm tra còn thiếu"
+      },
       "welcome_title": "Hôm nay chúng ta sẽ nói về điều gì?"
     },
     "icon": {
@@ -987,6 +992,11 @@
       }
     },
     "home": {
+      "suggestions": {
+        "clarify": "Giúp tôi làm rõ vấn đề hiện tại và quyết định bước tiếp theo",
+        "explore": "Cùng tôi khám phá một chủ đề thú vị từ nhiều góc nhìn khác nhau",
+        "learn": "Dạy tôi một khái niệm hữu ích có thể áp dụng ngay"
+      },
       "welcome_title": "Hôm nay chúng ta nên nói về điều gì?"
     },
     "input": {
@@ -6161,6 +6171,11 @@
         "title": "Quản lý ngữ cảnh",
         "truncate_threshold": "Ngưỡng cắt bớt kết quả công cụ (ký tự)",
         "truncate_threshold_description": "Kết quả công cụ vượt quá số ký tự này sẽ được lưu tách ra tệp và cắt bớt; mô hình có thể đọc lại khi cần. Trợ lý có thể ghi đè cài đặt này"
+      },
+      "conversation_suggestions": {
+        "default_model": "Dùng mô hình mặc định",
+        "description": "Tạo lời nhắc mở đầu cho cuộc trò chuyện Chat và Agent trống",
+        "label": "Gợi ý trò chuyện"
       },
       "default_assistant_model": "Mô hình Trợ lý Mặc định",
       "default_assistant_model_description": "Dùng khi trợ lý chưa có mô hình",

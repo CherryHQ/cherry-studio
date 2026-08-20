@@ -139,6 +139,11 @@
       "title": "Editează agentul"
     },
     "home": {
+      "suggestions": {
+        "inspect": "Verifică acest spațiu de lucru și identifică problema cu cea mai mare prioritate",
+        "plan": "Transformă obiectivul actual al proiectului într-un plan concret cu pașii următori",
+        "review": "Analizează riscurile modificărilor curente și adaugă verificările care lipsesc"
+      },
       "welcome_title": "Despre ce să vorbim astăzi?"
     },
     "icon": {
@@ -987,6 +992,11 @@
       }
     },
     "home": {
+      "suggestions": {
+        "clarify": "Ajută-mă să clarific problema actuală și să decid următorul pas",
+        "explore": "Explorează împreună cu mine un subiect interesant din perspective diferite",
+        "learn": "Învață-mă un concept util pe care îl pot aplica imediat"
+      },
       "welcome_title": "Despre ce să vorbim astăzi?"
     },
     "input": {
@@ -6161,6 +6171,11 @@
         "title": "Gestionarea contextului",
         "truncate_threshold": "Prag de trunchiere a rezultatelor instrumentelor (caractere)",
         "truncate_threshold_description": "Rezultatele instrumentelor peste acest număr de caractere sunt descărcate într-un fișier și trunchiate; modelul le poate reciti la nevoie. Asistenții pot suprascrie această setare"
+      },
+      "conversation_suggestions": {
+        "default_model": "Folosește modelul implicit",
+        "description": "Generează prompturi de început pentru conversațiile Chat și Agent goale",
+        "label": "Sugestii de conversație"
       },
       "default_assistant_model": "Model asistent implicit",
       "default_assistant_model_description": "Folosit când un asistent nu are model.",

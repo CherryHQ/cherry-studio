@@ -13,14 +13,14 @@ import {
   SettingsContentColumn,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
-import { useDefaultModel } from '@renderer/hooks/useModel'
+import { useDefaultModel, useModelById } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { TranslateSettingsPanelContent } from '@renderer/pages/translate/TranslateSettings'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
-import type { Model } from '@shared/data/types/model'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { isGenerateImageModel, isNonChatModel } from '@shared/utils/model'
 import {
   ChevronDown,
@@ -30,7 +30,8 @@ import {
   RefreshCcw,
   Rocket,
   RotateCcw,
-  Settings2
+  Settings2,
+  Sparkles
 } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useCallback, useState } from 'react'
@@ -110,10 +111,13 @@ const ModelSettings: FC<ModelSettingsProps> = ({
   const { t } = useTranslation()
 
   const [translateModelPrompt, setTranslateModelPrompt] = usePreference('feature.translate.model_prompt')
+  const [suggestionsEnabled, setSuggestionsEnabled] = usePreference('chat.suggestions.enabled')
+  const [suggestionsModelId, setSuggestionsModelId] = usePreference('chat.suggestions.model_id')
   const [retryEnabled, setRetryEnabled] = usePreference('chat.retry.enabled')
   const [retryMaxAttempts, setRetryMaxAttempts] = usePreference('chat.retry.max_attempts')
   const [retryBackoffEnabled, setRetryBackoffEnabled] = usePreference('chat.retry.backoff_enabled')
   const [retryFallbackModelIds, setRetryFallbackModelIds] = usePreference('chat.retry.fallback_model_ids')
+  const { model: suggestionsModel } = useModelById(suggestionsModelId as UniqueModelId | null)
 
   const chatModelFilter = useCallback(
     (model: Model) => !isNonChatModel(model) && (modelFilter?.(model) ?? true),
@@ -156,6 +160,11 @@ const ModelSettings: FC<ModelSettingsProps> = ({
       void setTranslateModel(selected)
     },
     [setTranslateModel]
+  )
+
+  const onSelectSuggestionsModel = useCallback(
+    (selected: Model | undefined) => void setSuggestionsModelId(selected?.id ?? null),
+    [setSuggestionsModelId]
   )
 
   const onSelectPainting = useCallback(
@@ -201,6 +210,29 @@ const ModelSettings: FC<ModelSettingsProps> = ({
               compact={compact}
               onSelect={onSelectDefault}
               placeholder={t('settings.models.empty')}
+            />
+          </ModelSettingRow>
+          {showDividers && <SettingDivider />}
+          <ModelSettingRow
+            compact={compact}
+            icon={<Sparkles size={16} className="lucide-custom shrink-0 text-foreground" />}
+            title={t('settings.models.conversation_suggestions.label')}
+            description={showDescription ? t('settings.models.conversation_suggestions.description') : undefined}>
+            {suggestionsEnabled && (
+              <DefaultModelSelector
+                model={suggestionsModel}
+                providers={providers}
+                filter={chatModelFilter}
+                compact={compact}
+                onSelect={onSelectSuggestionsModel}
+                placeholder={t('settings.models.conversation_suggestions.default_model')}
+                noneOptionLabel={t('settings.models.conversation_suggestions.default_model')}
+              />
+            )}
+            <Switch
+              checked={suggestionsEnabled}
+              onCheckedChange={(checked) => void setSuggestionsEnabled(checked)}
+              aria-label={t('settings.models.conversation_suggestions.label')}
             />
           </ModelSettingRow>
           {showDividers && <SettingDivider />}

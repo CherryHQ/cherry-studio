@@ -139,6 +139,11 @@
       "title": "Editor de agentes"
     },
     "home": {
+      "suggestions": {
+        "inspect": "Analisa este espaço de trabalho e identifica o problema de maior prioridade",
+        "plan": "Transforma o objetivo atual do projeto num plano de implementação com próximos passos",
+        "review": "Revê os riscos das alterações atuais e adiciona as verificações em falta"
+      },
       "welcome_title": "Sobre o que vamos falar hoje?"
     },
     "icon": {
@@ -987,6 +992,11 @@
       }
     },
     "home": {
+      "suggestions": {
+        "clarify": "Ajuda-me a esclarecer o problema atual e a decidir o próximo passo",
+        "explore": "Explora comigo um tema interessante a partir de diferentes perspetivas",
+        "learn": "Ensina-me um conceito útil que eu possa aplicar de imediato"
+      },
       "welcome_title": "Sobre o que devemos falar hoje?"
     },
     "input": {
@@ -6161,6 +6171,11 @@
         "title": "Gestão de contexto",
         "truncate_threshold": "Limite de truncagem da saída de ferramentas (caracteres)",
         "truncate_threshold_description": "Saídas de ferramentas acima deste número de caracteres são descarregadas para um ficheiro e truncadas; o modelo pode voltar a lê-las quando precisar. Os assistentes podem substituir esta definição"
+      },
+      "conversation_suggestions": {
+        "default_model": "Usar modelo predefinido",
+        "description": "Gerar prompts iniciais para conversas vazias de Chat e Agent",
+        "label": "Sugestões de conversa"
       },
       "default_assistant_model": "Modelo de assistente padrão",
       "default_assistant_model_description": "Usado quando um assistente não tem modelo.",

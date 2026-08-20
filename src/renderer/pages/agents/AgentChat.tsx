@@ -12,6 +12,7 @@ import ConversationCenterState from '@renderer/components/chat/shell/Conversatio
 import { ConversationGreeting } from '@renderer/components/chat/shell/ConversationGreeting'
 import ConversationShell from '@renderer/components/chat/shell/ConversationShell'
 import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
+import { ConversationSuggestions } from '@renderer/components/chat/shell/ConversationSuggestions'
 import { useConversationTopBarPortalLayout } from '@renderer/components/chat/shell/ConversationTopBarPortal'
 import type { ChatPanePosition } from '@renderer/components/chat/shell/paneLayout'
 import ConversationComposerSlot from '@renderer/components/composer/ConversationComposerSlot'
@@ -32,7 +33,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import type { ConversationCenterSlot, PaneManualToggleSignal } from '@renderer/types/conversationLayout'
 import type { Citation } from '@renderer/types/message'
-import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
+import { getAgentAvatarFromConfiguration, getAgentDescriptionForDisplay } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { cn } from '@renderer/utils/style'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -567,6 +568,7 @@ const AgentChatSessionCenter = ({
   onCreateEmptySession,
   composerLaunchOptions
 }: AgentChatSessionCenterProps) => {
+  const { t } = useTranslation()
   const composer = (
     <div className="flex w-full flex-col">
       {!isMultiSelectMode && <AgentTaskProgressCapsule />}
@@ -595,6 +597,24 @@ const AgentChatSessionCenter = ({
           <ConversationGreeting
             avatar={activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration) : undefined}
             title={homeWelcomeText ?? ''}
+            footer={
+              activeAgent && agentId && !isMultiSelectMode ? (
+                <ConversationSuggestions
+                  mode="agent"
+                  conversationId={runtime.sessionId}
+                  topicId={buildAgentSessionTopicId(runtime.sessionId)}
+                  persona={{
+                    name: activeAgent.name,
+                    description: getAgentDescriptionForDisplay(activeAgent, t)
+                  }}
+                  fallback={[
+                    t('agent.home.suggestions.inspect'),
+                    t('agent.home.suggestions.plan'),
+                    t('agent.home.suggestions.review')
+                  ]}
+                />
+              ) : null
+            }
           />
         </div>
       )}

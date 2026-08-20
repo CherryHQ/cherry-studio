@@ -941,9 +941,10 @@ const AgentComposerInner = ({
     },
     [actionsRef, filesRef, selectedKnowledgeBasesRef, setFiles, setSelectedKnowledgeBases, setText]
   )
-  const { isInputHistoryActive, navigateHistory, resetHistoryIndex, saveHistory } = useInputHistory({
-    applyDraft: applyHistoryDraft
-  })
+  const { isInputHistoryActive, navigateHistory, resetHistoryIndex, takeDraftBeforeHistory, saveHistory } =
+    useInputHistory({
+      applyDraft: applyHistoryDraft
+    })
   const handleTextChange = useCallback(
     (nextText: string) => {
       resetHistoryIndex()
@@ -1085,6 +1086,30 @@ const AgentComposerInner = ({
       actionsRef.current.focus('end')
     })
   }, [actionsRef, sessionTopicId])
+
+  useEffect(() => {
+    return EventEmitter.on(EVENT_NAMES.FILL_CHAT_COMPOSER, (payload) => {
+      const input =
+        typeof payload === 'object' && payload ? (payload as { topicId?: string; text?: string }) : undefined
+      if (input?.topicId !== sessionTopicId || !input.text) return
+
+      const draftBeforeHistory = takeDraftBeforeHistory()
+      const currentDraft = draftBeforeHistory ?? actionsRef.current.getDraft()
+      const nextDraftTokens = getAgentDraftTokens(currentDraft.tokens)
+      actionsRef.current.replaceDraft({ text: input.text, tokens: nextDraftTokens })
+      setText(input.text)
+      setDraftTokens(nextDraftTokens)
+      draftTokensRef.current = nextDraftTokens
+      setSelectedSkills(getCachedSkillTokens(nextDraftTokens).map(getSkillFromCachedToken))
+      const savedTools = inputHistoryToolsRef.current
+      inputHistoryToolsRef.current = null
+      if (savedTools) {
+        setFiles(savedTools.files)
+        setSelectedKnowledgeBases(savedTools.selectedKnowledgeBases)
+      }
+      window.requestAnimationFrame(() => actionsRef.current.focus('end'))
+    })
+  }, [actionsRef, sessionTopicId, setFiles, setSelectedKnowledgeBases, setText, takeDraftBeforeHistory])
 
   useEffect(() => {
     if (!launchOptions?.initialDraft) return
