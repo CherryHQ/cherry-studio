@@ -9,14 +9,7 @@ vi.mock('@application', async () => {
 
 vi.mock('@data/services/JobService', () => ({
   jobService: {
-    getById: vi.fn(),
     listRecentTerminalByScheduleId: vi.fn()
-  }
-}))
-
-vi.mock('@data/services/AgentTaskService', () => ({
-  agentTaskService: {
-    notifyRunReadModelChange: vi.fn()
   }
 }))
 
@@ -25,7 +18,6 @@ vi.mock('../runAgentTask', () => ({
 }))
 
 import { application } from '@application'
-import { agentTaskService } from '@data/services/AgentTaskService'
 import { jobService } from '@data/services/JobService'
 
 import { agentTaskJobHandler } from '../agentTaskJobHandler'
@@ -92,8 +84,6 @@ describe('AgentTaskJobHandler', () => {
     pauseSpy.mockReset()
     pauseSpy.mockResolvedValue(true)
     vi.mocked(jobService.listRecentTerminalByScheduleId).mockReset()
-    vi.mocked(jobService.getById).mockReset()
-    vi.mocked(agentTaskService.notifyRunReadModelChange).mockReset()
     vi.mocked(runAgentTask).mockReset()
   })
 
@@ -125,7 +115,6 @@ describe('AgentTaskJobHandler', () => {
 
   describe('execute', () => {
     it('delegates to runAgentTask with the JobContext', async () => {
-      vi.mocked(jobService.getById).mockReturnValueOnce(makeTerminal('completed'))
       vi.mocked(runAgentTask).mockResolvedValueOnce({ sessionId: 'sess-1', result: 'ok' })
       const ctx = {
         jobId: 'j1',
@@ -135,7 +124,6 @@ describe('AgentTaskJobHandler', () => {
       const out = await agentTaskJobHandler.execute(ctx)
 
       expect(out).toEqual({ sessionId: 'sess-1', result: 'ok' })
-      expect(agentTaskService.notifyRunReadModelChange).toHaveBeenCalledWith(['s1'])
       expect(runAgentTask).toHaveBeenCalledWith(ctx)
     })
   })
@@ -152,7 +140,6 @@ describe('AgentTaskJobHandler', () => {
 
       expect(jobService.listRecentTerminalByScheduleId).toHaveBeenCalledWith('s1', 3)
       expect(pauseSpy).toHaveBeenCalledWith('s1')
-      expect(agentTaskService.notifyRunReadModelChange).toHaveBeenCalledWith(['s1'])
     })
 
     it('does not pause when the latest is failed but a recent one is completed', async () => {
@@ -178,14 +165,12 @@ describe('AgentTaskJobHandler', () => {
       expect(pauseSpy).not.toHaveBeenCalled()
     })
 
-    it('refreshes task reads for non-failed terminal events without running the breaker', async () => {
+    it('does not act on non-failed terminal events', async () => {
       await agentTaskJobHandler.onSettled?.(makeSettled({ status: 'completed' }))
       await agentTaskJobHandler.onSettled?.(makeSettled({ status: 'cancelled' }))
 
       expect(jobService.listRecentTerminalByScheduleId).not.toHaveBeenCalled()
       expect(pauseSpy).not.toHaveBeenCalled()
-      expect(agentTaskService.notifyRunReadModelChange).toHaveBeenNthCalledWith(1, ['s1'])
-      expect(agentTaskService.notifyRunReadModelChange).toHaveBeenNthCalledWith(2, ['s1'])
     })
 
     it('does not act when the failed job has no scheduleId (ad-hoc enqueue)', async () => {
@@ -193,7 +178,6 @@ describe('AgentTaskJobHandler', () => {
 
       expect(jobService.listRecentTerminalByScheduleId).not.toHaveBeenCalled()
       expect(pauseSpy).not.toHaveBeenCalled()
-      expect(agentTaskService.notifyRunReadModelChange).not.toHaveBeenCalled()
     })
 
     it('swallows pauseJobScheduleById errors so onSettled cannot throw', async () => {

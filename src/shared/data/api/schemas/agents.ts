@@ -159,7 +159,6 @@ export const TaskRunDisplayStatusSchema = z.enum(['running', 'completed', 'faile
 export type TaskRunDisplayStatus = z.infer<typeof TaskRunDisplayStatusSchema>
 
 export const TaskRunSummarySchema = z.strictObject({
-  id: z.string(),
   status: TaskRunDisplayStatusSchema,
   startedAt: z.string(),
   finishedAt: z.string().nullable()

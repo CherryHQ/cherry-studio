@@ -130,7 +130,6 @@ function toTaskRunDisplayStatus(status: JobStatus): TaskRunDisplayStatus {
 }
 
 type TaskRunSummaryRow = {
-  id: string
   scheduleId: string
   status: JobStatus
   startedAt: number
@@ -147,19 +146,6 @@ export class AgentTaskService {
       { endpoint: '/agents/:agentId/tasks', kind: 'projection', entityIds },
       { endpoint: '/agent-tasks/:taskId', entityIds },
       { endpoint: '/agents/:agentId/tasks/:taskId', entityIds }
-    ])
-  }
-
-  /** Publish task projections plus run history after a Job starts or settles. */
-  notifyRunReadModelChange(taskIds: readonly string[]): void {
-    const entityIds = [...new Set(taskIds)]
-    if (entityIds.length === 0) return
-    notifyDataApiDataChange([
-      { endpoint: '/agent-tasks', kind: 'projection', entityIds },
-      { endpoint: '/agents/:agentId/tasks', kind: 'projection', entityIds },
-      { endpoint: '/agent-tasks/:taskId', entityIds },
-      { endpoint: '/agents/:agentId/tasks/:taskId', entityIds },
-      { endpoint: '/agents/:agentId/tasks/:taskId/logs', kind: 'projection', entityIds }
     ])
   }
 
@@ -200,12 +186,7 @@ export class AgentTaskService {
     const snapshot = jobScheduleService.getById(taskId)
     if (!snapshot || snapshot.type !== AGENT_TASK_TYPE) return null
     if (!normalizeAgentTaskTemplate(snapshot.jobInputTemplate)) return null
-    const runSummary = this.getRunSummariesByScheduleIds([snapshot.id]).get(snapshot.id) ?? null
-    return this.toScheduledTaskEntity(
-      snapshot,
-      agentSessionService.getByTaskScheduleId(snapshot.id)?.id ?? null,
-      runSummary
-    )
+    return this.toScheduledTaskEntity(snapshot, agentSessionService.getByTaskScheduleId(snapshot.id)?.id ?? null)
   }
 
   /**
@@ -278,7 +259,6 @@ export class AgentTaskService {
       .all<TaskRunSummaryRow>(sql`
       WITH ranked_jobs AS (
         SELECT
-          id,
           schedule_id AS "scheduleId",
           status,
           COALESCE(started_at, scheduled_at) AS "startedAt",
@@ -286,7 +266,11 @@ export class AgentTaskService {
           ROW_NUMBER() OVER (
             PARTITION BY schedule_id
             ORDER BY
-              CASE WHEN status IN ('pending', 'delayed', 'running') THEN 0 ELSE 1 END,
+              CASE
+                WHEN status = 'running' THEN 0
+                WHEN status IN ('pending', 'delayed') THEN 1
+                ELSE 2
+              END,
               created_at DESC,
               id DESC
           ) AS row_rank
@@ -297,7 +281,7 @@ export class AgentTaskService {
             sql`, `
           )})
       )
-      SELECT id, "scheduleId", status, "startedAt", "finishedAt"
+      SELECT "scheduleId", status, "startedAt", "finishedAt"
       FROM ranked_jobs
       WHERE row_rank = 1
     `)
@@ -306,7 +290,6 @@ export class AgentTaskService {
       rows.map((row) => [
         row.scheduleId,
         {
-          id: row.id,
           status: toTaskRunDisplayStatus(row.status),
           startedAt: timestampToISO(row.startedAt),
           finishedAt: row.finishedAt === null ? null : timestampToISO(row.finishedAt)
@@ -338,7 +321,7 @@ export class AgentTaskService {
   private toScheduledTaskEntity(
     snapshot: JobScheduleSnapshot,
     reuseSessionId: string | null,
-    runSummary: TaskRunSummary | null
+    runSummary: TaskRunSummary | null = null
   ): ScheduledTaskEntity {
     const tmpl = normalizeAgentTaskTemplate(snapshot.jobInputTemplate)
     if (!tmpl) {

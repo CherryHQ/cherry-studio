@@ -16,7 +16,7 @@ import { JobManager } from '@main/core/job/JobManager'
 import type { JobHandler } from '@main/core/job/types'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
-import type { JobSnapshot, Trigger } from '@shared/data/api/schemas/jobs'
+import type { Trigger } from '@shared/data/api/schemas/jobs'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
 import type { AgentTaskForm } from '@shared/ipc/schemas/ai'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -65,32 +65,6 @@ const form: AgentTaskForm = {
   trigger: intervalTrigger,
   workspace: { type: 'system' },
   timeoutMinutes: 5
-}
-
-function makeQueuedJobSnapshot(status: 'pending' | 'delayed'): JobSnapshot {
-  return {
-    id: 'job-queued',
-    type: 'agent.task',
-    status,
-    priority: 0,
-    queue: `agent:${AGENT_ID}`,
-    idempotencyKey: null,
-    scheduleId: 'task-queued',
-    scheduledAt: '2026-08-13T00:00:00.000Z',
-    startedAt: null,
-    finishedAt: null,
-    attempt: 0,
-    maxAttempts: 1,
-    input: {},
-    output: null,
-    error: null,
-    parentId: null,
-    cancelRequested: false,
-    metadata: {},
-    timeoutMs: null,
-    createdAt: '2026-08-13T00:00:00.000Z',
-    updatedAt: '2026-08-13T00:00:00.000Z'
-  }
 }
 
 describe('AgentJobsService', () => {
@@ -176,7 +150,6 @@ describe('AgentJobsService', () => {
   })
 
   afterAll(async () => {
-    await service._doStop()
     await jobManager._doStop()
     await scheduler._doStop()
     BaseService.resetInstances()
@@ -185,24 +158,6 @@ describe('AgentJobsService', () => {
   beforeEach(() => {
     clearScheduleDisposables()
     seedAgent(AGENT_ID)
-  })
-
-  it.each(['pending', 'delayed'] as const)('publishes task projections when a scheduled run enters %s', (status) => {
-    const subscription = MockMainCacheServiceExport.cacheService.subscribeSharedChange.mock.calls.find(
-      ([key]) => key === 'jobs.state.${jobId}'
-    )
-    expect(subscription).toBeDefined()
-
-    const snapshot = makeQueuedJobSnapshot(status)
-    subscription![1](snapshot, undefined, `jobs.state.${snapshot.id}`)
-
-    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
-      { endpoint: '/agent-tasks', kind: 'projection', entityIds: ['task-queued'] },
-      { endpoint: '/agents/:agentId/tasks', kind: 'projection', entityIds: ['task-queued'] },
-      { endpoint: '/agent-tasks/:taskId', entityIds: ['task-queued'] },
-      { endpoint: '/agents/:agentId/tasks/:taskId', entityIds: ['task-queued'] },
-      { endpoint: '/agents/:agentId/tasks/:taskId/logs', kind: 'projection', entityIds: ['task-queued'] }
-    ])
   })
 
   // ---------------------------------------------------------------- create

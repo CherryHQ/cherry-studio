@@ -491,7 +491,6 @@
         "runAt": "运行时间",
         "running": "运行中...",
         "search": "搜索运行记录...",
-        "selectedRun": "当前定位的运行记录",
         "status": "状态",
         "viewSession": "查看会话"
       },

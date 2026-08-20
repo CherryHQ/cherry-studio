@@ -10,7 +10,6 @@
  */
 
 import { application } from '@application'
-import { agentTaskService } from '@data/services/AgentTaskService'
 import { jobService } from '@data/services/JobService'
 import { loggerService } from '@logger'
 import type { JobHandler } from '@main/core/job/types'
@@ -53,34 +52,26 @@ export const agentTaskJobHandler: JobHandler<AgentTaskInput> = {
   defaultRetryPolicy: { maxAttempts: 1, backoff: 'none', baseDelayMs: 0, maxDelayMs: 0 },
 
   async execute(ctx) {
-    const scheduleId = jobService.getById(ctx.jobId)?.scheduleId
-    if (scheduleId) agentTaskService.notifyRunReadModelChange([scheduleId])
     return await runAgentTask(ctx)
   },
 
   async onSettled(event) {
-    if (!event.scheduleId) return
+    if (event.status !== 'failed' || !event.scheduleId) return
 
+    const recent = jobService.listRecentTerminalByScheduleId(event.scheduleId, RECENT_TERMINAL_WINDOW)
+    if (recent.length < RECENT_TERMINAL_WINDOW) return
+    if (!recent.every((j) => j.status === 'failed')) return
+
+    logger.warn('Agent task schedule failed in last N terminal runs — pausing', {
+      scheduleId: event.scheduleId,
+      window: RECENT_TERMINAL_WINDOW
+    })
     try {
-      if (event.status !== 'failed') return
-
-      const recent = jobService.listRecentTerminalByScheduleId(event.scheduleId, RECENT_TERMINAL_WINDOW)
-      if (recent.length < RECENT_TERMINAL_WINDOW) return
-      if (!recent.every((j) => j.status === 'failed')) return
-
-      logger.warn('Agent task schedule failed in last N terminal runs — pausing', {
-        scheduleId: event.scheduleId,
-        window: RECENT_TERMINAL_WINDOW
+      await application.get('JobManager').pauseJobScheduleById(event.scheduleId)
+    } catch (err) {
+      logger.error('Failed to pause schedule after consecutive failures', err as Error, {
+        scheduleId: event.scheduleId
       })
-      try {
-        await application.get('JobManager').pauseJobScheduleById(event.scheduleId)
-      } catch (err) {
-        logger.error('Failed to pause schedule after consecutive failures', err as Error, {
-          scheduleId: event.scheduleId
-        })
-      }
-    } finally {
-      agentTaskService.notifyRunReadModelChange([event.scheduleId])
     }
   }
 }

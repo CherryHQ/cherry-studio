@@ -120,20 +120,6 @@ describe('AgentTaskService (read side)', () => {
     ])
   })
 
-  it('includes run history only in Job lifecycle projection changes', () => {
-    agentTaskService.notifyRunReadModelChange([TASK_ID, TASK_ID])
-    agentTaskService.notifyRunReadModelChange([])
-
-    expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(1)
-    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
-      { endpoint: '/agent-tasks', kind: 'projection', entityIds: [TASK_ID] },
-      { endpoint: '/agents/:agentId/tasks', kind: 'projection', entityIds: [TASK_ID] },
-      { endpoint: '/agent-tasks/:taskId', entityIds: [TASK_ID] },
-      { endpoint: '/agents/:agentId/tasks/:taskId', entityIds: [TASK_ID] },
-      { endpoint: '/agents/:agentId/tasks/:taskId/logs', kind: 'projection', entityIds: [TASK_ID] }
-    ])
-  })
-
   describe('getTask', () => {
     it('returns a task by id without requiring the owning agent id', () => {
       vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSnapshot())
@@ -269,7 +255,7 @@ describe('AgentTaskService (read side)', () => {
       expect(result.tasks[0]).toMatchObject({ id: 'newer', agentId: 'other' })
     })
 
-    it('projects the newest active run ahead of a newer terminal run', () => {
+    it('projects a running job ahead of newer queued and terminal jobs', () => {
       const first = makeSnapshot({ id: 'active-task', name: 'active-task' })
       vi.mocked(jobScheduleService.listAll).mockReturnValueOnce([first])
       const now = Date.now()
@@ -336,8 +322,8 @@ describe('AgentTaskService (read side)', () => {
       const result = agentTaskService.listAllTasks()
 
       expect(result.tasks[0].runSummary).toMatchObject({
-        id: '0198a000-0000-7000-8000-000000000003',
         status: 'running',
+        startedAt: new Date(now - 2_000).toISOString(),
         finishedAt: null
       })
     })
@@ -401,7 +387,6 @@ describe('AgentTaskService (read side)', () => {
       const result = agentTaskService.listAllTasks()
 
       expect(result.tasks.find((task) => task.id === withJobs.id)?.runSummary).toMatchObject({
-        id: '0198a000-0000-7000-8000-000000000012',
         status: 'cancelled'
       })
       expect(result.tasks.find((task) => task.id === withoutJobs.id)?.runSummary).toBeNull()

@@ -92,7 +92,6 @@ const navigationMocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   openConversation: vi.fn(),
   openRoute: vi.fn(),
-  search: {} as Record<string, unknown>,
   taskId: 'task-1' as string | undefined
 }))
 
@@ -237,35 +236,18 @@ vi.mock('@renderer/services/mainWindowNavigation', () => ({
 }))
 
 vi.mock('@tanstack/react-router', () => ({
-  Link: ({
-    children,
-    params,
-    search,
-    to,
-    ...props
-  }: React.AnchorHTMLAttributes<HTMLAnchorElement> & {
-    children?: React.ReactNode
-    params: { taskId: string }
-    search?: Record<string, string>
-    to: string
-  }) => {
-    const pathname = to.replace('$taskId', params.taskId)
-    const query = search ? `?${new URLSearchParams(search).toString()}` : ''
-    return (
-      <a
-        href={`${pathname}${query}`}
-        onClick={(event) => {
-          event.preventDefault()
-          void navigationMocks.navigate(search ? { to, params, search } : { to, params })
-        }}
-        {...props}>
-        {children}
-      </a>
-    )
-  },
+  Link: ({ children, params, to }: { children?: React.ReactNode; params: { taskId: string }; to: string }) => (
+    <a
+      href={to.replace('$taskId', params.taskId)}
+      onClick={(event) => {
+        event.preventDefault()
+        void navigationMocks.navigate({ to, params })
+      }}>
+      {children}
+    </a>
+  ),
   useNavigate: () => navigationMocks.navigate,
-  useParams: () => ({ taskId: navigationMocks.taskId }),
-  useSearch: () => navigationMocks.search
+  useParams: () => ({ taskId: navigationMocks.taskId })
 }))
 
 vi.mock('react-i18next', () => ({
@@ -416,7 +398,6 @@ vi.mock('@cherrystudio/ui', () => {
     DataTable: ({
       columns,
       data,
-      rowClassName,
       rowKey
     }: {
       columns: Array<{
@@ -425,15 +406,12 @@ vi.mock('@cherrystudio/ui', () => {
         cell?: (context: { getValue: () => unknown; row: { original: Record<string, unknown> } }) => React.ReactNode
       }>
       data: Array<Record<string, unknown>>
-      rowClassName?: string | ((row: Record<string, unknown>, index: number) => string)
       rowKey: string
     }) => (
       <table>
         <tbody>
-          {data.map((row, index) => (
-            <tr
-              key={String(row[rowKey])}
-              className={typeof rowClassName === 'function' ? rowClassName(row, index) : rowClassName}>
+          {data.map((row) => (
+            <tr key={String(row[rowKey])}>
               {columns.map((column) => (
                 <td key={column.id ?? column.accessorKey}>
                   {column.cell
@@ -700,28 +678,16 @@ vi.mock('@cherrystudio/ui', () => {
     Tabs: ({
       children,
       defaultValue,
-      onValueChange,
       value
     }: {
       children?: React.ReactNode
       defaultValue?: string
-      onValueChange?: (value: string) => void
       value?: string
       variant?: string
     }) => {
-      const [internalValue, setInternalValue] = React.useState(value ?? defaultValue ?? '')
-      React.useEffect(() => {
-        if (value) setInternalValue(value)
-      }, [value])
+      const [internalValue, setInternalValue] = React.useState(defaultValue ?? '')
       return (
-        <TabsContext
-          value={{
-            value: internalValue,
-            setValue: (nextValue) => {
-              setInternalValue(nextValue)
-              onValueChange?.(nextValue)
-            }
-          }}>
+        <TabsContext value={{ value: value ?? internalValue, setValue: setInternalValue }}>
           <div data-slot="tabs">{children}</div>
         </TabsContext>
       )
@@ -834,7 +800,6 @@ describe('TasksSettings routing and creation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     navigationMocks.taskId = 'task-1'
-    navigationMocks.search = {}
     navigationMocks.navigate.mockResolvedValue(undefined)
     agentDataMock.agents = [{ id: 'agent-1', name: 'Agent One', configuration: {} }]
     taskDataMock.task = { ...taskDataMock.defaultTask }
@@ -878,13 +843,12 @@ describe('TasksSettings routing and creation', () => {
     })
   })
 
-  it('keeps schedule status visible and opens the projected run in history', async () => {
+  it('keeps schedule status visible and shows the projected run summary', async () => {
     navigationMocks.taskId = undefined
     taskDataMock.task = {
       ...taskDataMock.defaultTask,
       nextRun: '2026-06-26T09:00:00.000Z',
       runSummary: {
-        id: 'log-1',
         status: 'failed',
         startedAt: '2026-06-25T00:00:00.000Z',
         finishedAt: '2026-06-25T00:01:00.000Z'
@@ -895,14 +859,10 @@ describe('TasksSettings routing and creation', () => {
 
     expect((await screen.findAllByText('agent.tasks.status.active')).length).toBeGreaterThan(1)
     expect(screen.getByText(/agent.tasks.nextRun/)).toBeInTheDocument()
-    const runLink = screen.getByRole('link', { name: /agent.tasks.runSummary.failed/ })
-    expect(runLink).toHaveAttribute('href', '/settings/scheduled-tasks/task-1?tab=history&runId=log-1')
-    fireEvent.click(runLink)
-    expect(navigationMocks.navigate).toHaveBeenCalledWith({
-      to: '/settings/scheduled-tasks/$taskId',
-      params: { taskId: 'task-1' },
-      search: { tab: 'history', runId: 'log-1' }
-    })
+    expect(screen.getByText(/agent.tasks.runSummary.failed/).closest('a')).toHaveAttribute(
+      'href',
+      '/settings/scheduled-tasks/task-1'
+    )
   })
 
   it('shows only valid next-run information for each task state', async () => {
@@ -914,7 +874,6 @@ describe('TasksSettings routing and creation', () => {
         name: 'Running task',
         nextRun: '2026-06-26T09:00:00.000Z',
         runSummary: {
-          id: 'running-log',
           status: 'running',
           startedAt: '2026-06-25T00:00:00.000Z',
           finishedAt: null
@@ -937,10 +896,7 @@ describe('TasksSettings routing and creation', () => {
 
     render(<TasksSettings />)
 
-    expect(await screen.findByRole('link', { name: 'agent.tasks.runSummary.running' })).toHaveAttribute(
-      'href',
-      '/settings/scheduled-tasks/running-task?tab=history&runId=running-log'
-    )
+    expect(await screen.findByText('agent.tasks.runSummary.running')).toBeInTheDocument()
     expect(screen.getAllByText(/agent.tasks.nextRun/)).toHaveLength(2)
     expect((await screen.findAllByText('agent.tasks.status.paused')).length).toBeGreaterThan(1)
   })
@@ -1256,7 +1212,6 @@ describe('TasksSettings detail behavior', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     navigationMocks.taskId = 'task-1'
-    navigationMocks.search = {}
     navigationMocks.navigate.mockResolvedValue(undefined)
     agentDataMock.agents = [{ id: 'agent-1', name: 'Agent One', configuration: {} }]
     taskDataMock.task = { ...taskDataMock.defaultTask }
@@ -1293,15 +1248,6 @@ describe('TasksSettings detail behavior', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'agent.tasks.logs.viewSession' }))
     expect(navigationMocks.openConversation).toHaveBeenCalledWith('session-1')
-  })
-
-  it('opens and identifies the run targeted by detail route search', async () => {
-    navigationMocks.search = { tab: 'history', runId: 'log-1' }
-
-    render(<TasksSettings />)
-
-    expect(await screen.findByRole('tab', { name: 'agent.tasks.logs.label' })).toHaveAttribute('aria-selected', 'true')
-    expect(screen.getByText(/agent\.tasks\.logs\.selectedRun/)).toBeInTheDocument()
   })
 
   it('filters channels to the owning Agent and uses Alert for delivery warnings', async () => {

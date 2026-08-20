@@ -71,17 +71,6 @@ function readAgentTaskJobInputTemplate(value: unknown): AgentTaskJobInputTemplat
 export class AgentJobsService extends BaseService {
   protected async onInit(): Promise<void> {
     application.get('JobManager').registerHandler('agent.task', agentTaskJobHandler)
-    this.registerDisposable(
-      application.get('CacheService').subscribeSharedChange('jobs.state.${jobId}', (snapshot) => {
-        if (
-          snapshot?.type === AGENT_TASK_TYPE &&
-          snapshot.scheduleId &&
-          (snapshot.status === 'pending' || snapshot.status === 'delayed')
-        ) {
-          agentTaskService.notifyRunReadModelChange([snapshot.scheduleId])
-        }
-      })
-    )
   }
 
   createTask(agentId: string, form: AgentTaskForm): ScheduledTaskEntity {
