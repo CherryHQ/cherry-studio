@@ -96,7 +96,7 @@ const ModelSettingRow: FC<ModelSettingRowProps> = ({
           <span
             aria-hidden="true"
             data-testid="model-settings-focus-guide"
-            className="animation-provider-model-pull-guide motion-reduce:-translate-y-1/2 pointer-events-none absolute top-1/2 right-full z-10 mr-1 flex h-4 w-5 items-center justify-end text-muted-foreground motion-reduce:animate-none">
+            className="animation-provider-model-pull-guide motion-reduce:-translate-y-1/2 motion-reduce:!animate-none pointer-events-none absolute top-1/2 right-full z-10 mr-1 flex h-4 w-5 items-center justify-end text-muted-foreground">
             <ArrowRight className="size-4" strokeWidth={2.5} />
           </span>
         )}

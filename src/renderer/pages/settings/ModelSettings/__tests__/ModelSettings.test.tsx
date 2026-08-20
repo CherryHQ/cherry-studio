@@ -291,7 +291,9 @@ describe('ModelSettings', () => {
     expect(focusedRows[0]).toHaveTextContent(expectedTitle)
     expect(Element.prototype.scrollIntoView).toHaveBeenCalled()
 
-    expect(focusedRows[0].querySelector('[data-testid="model-settings-focus-guide"]')).toBeInTheDocument()
+    const focusGuide = focusedRows[0].querySelector('[data-testid="model-settings-focus-guide"]')
+    expect(focusGuide).toBeInTheDocument()
+    expect(focusGuide).toHaveClass('motion-reduce:!animate-none', 'motion-reduce:-translate-y-1/2')
     expect(container.querySelectorAll('[data-testid="model-settings-focus-guide"]')).toHaveLength(1)
     expect(setTimeoutTimerMock).toHaveBeenCalledWith('model-settings-focus-guide', expect.any(Function), 1200)
 
