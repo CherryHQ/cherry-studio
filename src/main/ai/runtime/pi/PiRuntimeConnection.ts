@@ -222,8 +222,19 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         workspacePath,
         agentDataPath,
         agent,
-        citationsGuidance
+        citationsGuidance,
+        customBaseContext: [
+          '## Current Workspace',
+          `Current working directory: ${JSON.stringify(workspacePath)}`,
+          'Use it as the default base for file operations and shell commands; resolve unspecified or relative paths against it.'
+        ].join('\n')
       })
+      const supportSystemPrompt =
+        agent.configuration?.builtin_role === 'support'
+          ? [prompt.base.kind === 'custom' ? prompt.base.content : undefined, prompt.append]
+              .filter(Boolean)
+              .join('\n\n')
+          : undefined
       const approvalContext = {
         sessionId: this.input.sessionId,
         workspacePath,
@@ -266,8 +277,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         ],
         // Suppress pi's disk-discovered SYSTEM.md / APPEND_SYSTEM.md before the
         // override runs; Cherry owns the agent persona.
-        systemPromptOverride: () => (prompt.base.kind === 'custom' ? prompt.base.content : undefined),
-        appendSystemPromptOverride: () => (prompt.append ? [prompt.append] : [])
+        systemPromptOverride: () =>
+          supportSystemPrompt ?? (prompt.base.kind === 'custom' ? prompt.base.content : undefined),
+        appendSystemPromptOverride: () => (supportSystemPrompt || !prompt.append ? [] : [prompt.append])
       })
       await resourceLoader.reload()
 

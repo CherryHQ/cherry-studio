@@ -373,16 +373,25 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
     }
   )
 
-  it('loads the bundled product feedback role for Cherry Support', async () => {
+  it('uses the bundled product feedback role instead of the Claude Code identity for Cherry Support', async () => {
     mockLoadBuiltinAgentDefinition.mockReturnValue({
-      instructions: 'Answer questions, provide usage help, troubleshoot problems, and submit feedback.'
+      instructions:
+        "You are Cherry Studio's official built-in product support and feedback AI Agent, not a human employee."
     })
     const agent = makeAgent({ instructions: '', configuration: { builtin_role: 'support' } as never })
 
     const result = await buildSystemPrompt(agent, '/tmp/cwd')
 
+    expect(typeof result).toBe('string')
     expect(promptText(result)).toContain(
-      'Answer questions, provide usage help, troubleshoot problems, and submit feedback.'
+      "You are Cherry Studio's official built-in product support and feedback AI Agent, not a human employee."
+    )
+    expect(promptText(result)).toContain('SOUL_PROMPT')
+    expect(promptText(result)).toContain(WORKSPACE_MARKER)
+    expect(promptText(result)).toContain("Respond in the language of the user's latest message")
+    expect(promptText(result)).not.toContain('You must respond in English')
+    expect(promptText(result).indexOf('official built-in product support')).toBeLessThan(
+      promptText(result).indexOf('SOUL_PROMPT')
     )
     expect(mockLoadBuiltinAgentDefinition).toHaveBeenCalledWith('support')
   })

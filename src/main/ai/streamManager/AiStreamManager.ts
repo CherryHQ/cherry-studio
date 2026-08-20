@@ -866,6 +866,8 @@ export class AiStreamManager extends BaseService {
     uniqueModelId: UniqueModelId
     prompt?: string
     messages?: CherryUIMessage[]
+    /** Standing instructions supplied by the in-process caller. */
+    system?: string
     listener: StreamListener | StreamListener[]
     /** Per-request overrides (sampling/tools/providerOptions) for assistant-less callers (API gateway). */
     callOverrides?: CallOverrides
@@ -889,6 +891,7 @@ export class AiStreamManager extends BaseService {
       trigger: 'submit-message',
       uniqueModelId: input.uniqueModelId,
       messages,
+      system: input.system,
       callOverrides: input.callOverrides,
       contextOwner: input.contextOwner,
       reasoningEffort: input.reasoningEffort,

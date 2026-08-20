@@ -3,6 +3,7 @@ import { loadBuiltinAgentDefinition, provisionBuiltinAgent } from '@main/ai/agen
 import { type AgentPromptBase, PromptBuilder } from '@main/ai/agents/prompt'
 import { getAppLanguage } from '@main/i18n'
 import { replacePromptVariables } from '@main/utils/prompt'
+import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import { REPORT_ARTIFACTS_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { languageEnglishNameMap } from '@shared/utils/languages'
@@ -40,7 +41,7 @@ export interface BuildAgentRuntimePromptOptions {
   citationsGuidance?: string
   /** Runtime-loaded root workspace instructions, if they are not already supplied by the native base. */
   workspaceInstructions?: string
-  /** Context required only when a custom system.md replaces the runtime's native base. */
+  /** Context required when a custom system.md or protected Support identity replaces the native base. */
   customBaseContext?: string
 }
 
@@ -56,7 +57,8 @@ export async function buildAgentRuntimePrompt({
   customBaseContext
 }: BuildAgentRuntimePromptOptions): Promise<AgentRuntimePrompt> {
   const builtinRole = agent.configuration?.builtin_role as string | undefined
-  const isAssistant = builtinRole === 'assistant'
+  const isAssistant = builtinRole === BUILTIN_AGENT_ROLE.ASSISTANT
+  const isSupport = builtinRole === BUILTIN_AGENT_ROLE.SUPPORT
   let instructions = agent.instructions
 
   if (builtinRole && !instructions?.trim()) {
@@ -79,15 +81,17 @@ export async function buildAgentRuntimePrompt({
     agentDataPath
   )
 
+  const agentInstructions = hasAgentInstructions ? buildAgentInstructionsSection(resolvedInstructions) : undefined
+  const roleContext = isSupport
+    ? [agentInstructions, hasAgentInstructions ? AGENT_INSTRUCTION_PRECEDENCE_PROMPT : undefined, parts.context]
+    : [hasAgentInstructions ? AGENT_INSTRUCTION_PRECEDENCE_PROMPT : undefined, parts.context, agentInstructions]
   const append = [
-    hasAgentInstructions ? AGENT_INSTRUCTION_PRECEDENCE_PROMPT : undefined,
-    parts.context,
+    ...roleContext,
     workspaceInstructions,
-    hasAgentInstructions ? buildAgentInstructionsSection(resolvedInstructions) : undefined,
-    parts.base.kind === 'custom' ? customBaseContext : undefined,
+    parts.base.kind === 'custom' || isSupport ? customBaseContext : undefined,
     citationsGuidance,
     REPORT_ARTIFACTS_PROMPT,
-    getLanguageInstruction()
+    isSupport ? "IMPORTANT: Respond in the language of the user's latest message." : getLanguageInstruction()
   ]
     .filter(Boolean)
     .join('\n\n')

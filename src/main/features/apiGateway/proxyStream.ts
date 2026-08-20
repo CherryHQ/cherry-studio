@@ -22,6 +22,7 @@ import { loggerService } from '@logger'
 import { SseListener, type StreamListener } from '@main/ai/streamManager'
 import type { CallOverrides } from '@main/ai/types'
 import { applyFastModeToProviderOptions } from '@main/ai/utils/options'
+import type { CherryUIMessage } from '@shared/data/types/message'
 import type { Provider } from '@shared/data/types/provider'
 import type { UIMessageChunk } from 'ai'
 import { v4 as uuidv4 } from 'uuid'
@@ -38,6 +39,12 @@ import { applyAgentPromptCacheKey } from './utils/promptCacheKey'
 const logger = loggerService.withContext('ProxyStreamService')
 
 const GATEWAY_STREAM_IDLE_TIMEOUT_MS = 20 * 60_000
+const CONFLICTING_SUPPORT_IDENTITY_MARKERS = [
+  'You are Claude Code',
+  "Anthropic's official CLI",
+  "You are a Claude agent, built on Anthropic's Claude Agent SDK."
+] as const
+const CHERRY_SUPPORT_IDENTITY_MARKERS = ['official built-in product support', '官方内置的产品支持'] as const
 
 type StartupState = 'pending' | 'committed' | 'abandoned' | 'failed'
 
@@ -54,6 +61,30 @@ const STARTUP_COMMIT_CHUNK_TYPES: ReadonlySet<UIMessageChunk['type']> = new Set(
 
 function isStartupCommitChunk(chunk: UIMessageChunk): boolean {
   return STARTUP_COMMIT_CHUNK_TYPES.has(chunk.type)
+}
+
+function extractSystemPrompt(messages: CherryUIMessage[]): { conversation: CherryUIMessage[]; system?: string } {
+  const systemSections: string[] = []
+  const conversation = messages.filter((message) => {
+    if (message.role !== 'system') return true
+    const text = message.parts
+      .filter((part) => part.type === 'text')
+      .map((part) => part.text)
+      .join('\n')
+    if (text) systemSections.push(text)
+    return false
+  })
+  return { conversation, system: systemSections.length > 0 ? systemSections.join('\n\n') : undefined }
+}
+
+function removeConflictingSupportIdentity(params: MessageCreateParams): MessageCreateParams {
+  if (!Array.isArray(params.system)) return params
+  const system = params.system.filter((block) => {
+    if (block.type !== 'text') return true
+    if (CHERRY_SUPPORT_IDENTITY_MARKERS.some((marker) => block.text.includes(marker))) return true
+    return !CONFLICTING_SUPPORT_IDENTITY_MARKERS.some((marker) => block.text.includes(marker))
+  })
+  return system.length === params.system.length ? params : { ...params, system }
 }
 
 /**
@@ -163,10 +194,17 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
 
   const provider: Provider = config.provider ?? resolvedProvider
   const isInternalAnthropicAgentRequest = inputFormat === 'anthropic' && isInternalAgentRequest
+  const isInternalSupportRequest =
+    isInternalAnthropicAgentRequest &&
+    config.requestHeaders !== undefined &&
+    application.get('ApiGatewayService').isInternalSupportRequest(config.requestHeaders)
   let effectiveParams = params
 
   if (isInternalAnthropicAgentRequest) {
-    const anthropicParams = params as MessageCreateParams
+    const anthropicParams = isInternalSupportRequest
+      ? removeConflictingSupportIdentity(params as MessageCreateParams)
+      : (params as MessageCreateParams)
+    effectiveParams = anthropicParams
     const normalization = normalizeAnthropicToolHistory(anthropicParams.messages)
 
     if (normalization.status === 'conflict') {
@@ -199,9 +237,10 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   })
 
   const convertedMessages = converter.toUIMessages(effectiveParams)
-  const messages = isInternalAnthropicAgentRequest
-    ? appendInternalAgentContinuation(convertedMessages)
-    : convertedMessages
+  const { conversation, system } = isInternalSupportRequest
+    ? extractSystemPrompt(convertedMessages)
+    : { conversation: convertedMessages, system: undefined }
+  const messages = isInternalAnthropicAgentRequest ? appendInternalAgentContinuation(conversation) : conversation
   const tools = converter.toAiSdkTools?.(effectiveParams)
   const streamOptions = converter.extractStreamOptions(effectiveParams)
 
@@ -237,7 +276,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const formatter: ISseFormatter = StreamAdapterFactory.getFormatter(outputFormat)
 
   const streamId = `gateway-${uuidv4()}`
-  if (messages !== convertedMessages) {
+  if (messages !== conversation) {
     logger.info('Appended assistant-tail continuation for internal agent request', { providerId, modelId, streamId })
   }
   const aiStreamManager = application.get('AiStreamManager')
@@ -371,6 +410,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
             streamId,
             uniqueModelId,
             messages,
+            system,
             listener,
             callOverrides,
             contextOwner: 'caller',
@@ -454,6 +494,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
       streamId,
       uniqueModelId,
       messages,
+      system,
       listener,
       callOverrides,
       contextOwner: 'caller',

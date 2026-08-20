@@ -1,4 +1,5 @@
 import { BaseService } from '@main/core/lifecycle'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -10,22 +11,39 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * preference-change handler is captured so the toggle can be driven directly.
  */
 
-const { mockStart, mockStop, mockSetShared, mockGetActiveUsageContext, mockPreferenceSet, captured } = vi.hoisted(
-  () => ({
-    mockStart: vi.fn(),
-    mockStop: vi.fn(),
-    mockSetShared: vi.fn(),
-    mockGetActiveUsageContext: vi.fn(),
-    mockPreferenceSet: vi.fn(async () => {}),
-    captured: {
-      prefHandler: undefined as ((enabled: boolean) => void) | undefined,
-      enabledPreference: false
-    }
-  })
-)
+const {
+  mockStart,
+  mockStop,
+  mockSetShared,
+  mockGetActiveUsageContext,
+  mockGetSession,
+  mockGetAgent,
+  mockPreferenceSet,
+  captured
+} = vi.hoisted(() => ({
+  mockStart: vi.fn(),
+  mockStop: vi.fn(),
+  mockSetShared: vi.fn(),
+  mockGetActiveUsageContext: vi.fn(),
+  mockGetSession: vi.fn(),
+  mockGetAgent: vi.fn(),
+  mockPreferenceSet: vi.fn(async () => {}),
+  captured: {
+    prefHandler: undefined as ((enabled: boolean) => void) | undefined,
+    enabledPreference: false
+  }
+}))
 
 vi.mock('../server', () => ({
   ApiGateway: vi.fn(() => ({ start: mockStart, stop: mockStop, isRunning: () => true }))
+}))
+
+vi.mock('@data/services/AgentService', () => ({
+  agentService: { getAgent: mockGetAgent }
+}))
+
+vi.mock('@data/services/AgentSessionService', () => ({
+  agentSessionService: { getById: mockGetSession }
 }))
 
 vi.mock('@application', async () => {
@@ -67,10 +85,14 @@ beforeEach(() => {
   mockStop.mockReset()
   mockSetShared.mockClear()
   mockGetActiveUsageContext.mockReset()
+  mockGetSession.mockReset()
+  mockGetAgent.mockReset()
   mockGetActiveUsageContext.mockReturnValue({
     agentSessionId: 'session-1',
     source: { type: 'agent', id: 'agent-1', name: 'Original Agent', icon: '🧠' }
   })
+  mockGetSession.mockReturnValue({ id: 'session-1', agentId: 'agent-1' })
+  mockGetAgent.mockReturnValue({ id: 'agent-1', configuration: { builtin_role: 'support' } })
   mockStart.mockImplementation(() =>
     rejectStart
       ? Promise.reject(new Error('port in use'))
@@ -108,6 +130,37 @@ describe('ApiGatewayService reconcile', () => {
     headers.delete('x-cherry-agent-session-id')
 
     expect(service.isInternalAgentRequest(headers)).toBe(true)
+  })
+
+  it('recognizes Support only from the authenticated session builtin role', () => {
+    const service = new ApiGatewayService()
+    const usageHeaders = service.getAgentSessionUsageHeaders('session-1')
+
+    expect(service.isInternalSupportRequest(new Headers(usageHeaders))).toBe(true)
+    expect(mockGetSession).toHaveBeenCalledWith('session-1')
+    expect(mockGetAgent).toHaveBeenCalledWith('agent-1')
+
+    mockGetAgent.mockReturnValueOnce({ id: 'agent-1', configuration: { builtin_role: 'assistant' } })
+    expect(service.isInternalSupportRequest(new Headers(usageHeaders))).toBe(false)
+    expect(
+      service.isInternalSupportRequest(new Headers({ ...usageHeaders, 'x-cherry-internal-usage-token': 'wrong-proof' }))
+    ).toBe(false)
+  })
+
+  it('treats a missing session as non-Support but propagates storage failures', () => {
+    const service = new ApiGatewayService()
+    const headers = new Headers(service.getAgentSessionUsageHeaders('session-1'))
+
+    mockGetSession.mockImplementationOnce(() => {
+      throw DataApiErrorFactory.notFound('Session', 'session-1')
+    })
+    expect(service.isInternalSupportRequest(headers)).toBe(false)
+
+    const databaseError = DataApiErrorFactory.database(new Error('disk unavailable'))
+    mockGetSession.mockImplementationOnce(() => {
+      throw databaseError
+    })
+    expect(() => service.isInternalSupportRequest(headers)).toThrow(databaseError)
   })
 
   it('accepts agent usage context only with its process-local proof', () => {

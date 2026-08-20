@@ -54,6 +54,8 @@ export interface CallOverrides {
 
 export interface AiBaseRequest {
   assistantId?: string
+  /** Main-internal standing instructions. Renderer IPC schemas deliberately omit this field. */
+  system?: string
   /** "providerId::modelId" */
   uniqueModelId?: UniqueModelId
   mcpToolIds?: string[]
