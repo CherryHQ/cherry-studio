@@ -424,12 +424,16 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
     [server, updateMcpServer]
   )
 
-  const runtimeError = server.isActive && runtimeStatus.state === 'error' ? runtimeStatus.lastError : undefined
+  const runtimeError =
+    server.isActive && (runtimeStatus.state === 'error' || runtimeStatus.state === 'pending-auth')
+      ? runtimeStatus.lastError
+      : undefined
   const runtimeStatusLabel = {
     disabled: t('settings.mcp.runtimeStatus.disabled', 'Disabled'),
     connecting: t('settings.mcp.runtimeStatus.connecting', 'Connecting'),
     connected: t('settings.mcp.runtimeStatus.connected', 'Connected'),
-    error: t('settings.mcp.runtimeStatus.error', 'Error')
+    error: t('settings.mcp.runtimeStatus.error', 'Error'),
+    'pending-auth': t('settings.mcp.runtimeStatus.pendingAuth', 'Pending Auth')
   }[server.isActive ? runtimeStatus.state : 'disabled']
 
   const fieldsProps = {
@@ -665,13 +669,14 @@ const McpRuntimeStatusBadge = ({
   state,
   className,
   ...props
-}: { state: 'disabled' | 'connecting' | 'connected' | 'error' } & React.ComponentProps<'span'>) => (
+}: { state: 'disabled' | 'connecting' | 'connected' | 'error' | 'pending-auth' } & React.ComponentProps<'span'>) => (
   <span
     className={cn(
       'inline-flex h-4.5 items-center rounded-[9px] px-1.5 text-[11px] leading-4.5',
       state === 'connected' && 'border border-success-border bg-success-subtle text-success-subtle-foreground',
       state === 'connecting' && 'border border-warning-border bg-warning-subtle text-warning-subtle-foreground',
       state === 'error' && 'border border-error-border bg-error-subtle text-error-subtle-foreground',
+      state === 'pending-auth' && 'border border-warning-border bg-warning-subtle text-warning-subtle-foreground',
       state === 'disabled' && 'bg-muted text-muted-foreground',
       className
     )}

@@ -30,7 +30,8 @@ const MCP_RUNTIME_STATUS_LABEL_KEYS: Record<McpRuntimeStatus['state'], string> =
   connected: 'settings.mcp.runtimeStatus.connected',
   connecting: 'settings.mcp.runtimeStatus.connecting',
   disabled: 'settings.mcp.runtimeStatus.disabled',
-  error: 'settings.mcp.runtimeStatus.error'
+  error: 'settings.mcp.runtimeStatus.error',
+  'pending-auth': 'settings.mcp.runtimeStatus.pendingAuth'
 }
 const MCP_MODE_LABEL_KEYS: Record<McpMode, string> = {
   auto: 'library.config.tools.mode.auto.label',

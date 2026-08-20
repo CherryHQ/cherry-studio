@@ -121,8 +121,12 @@ export class CallBackServer {
    * Resolve with the OAuth authorization code, or reject if none arrives within
    * `timeoutMs`. Without the reject path the caller's `await` hangs forever on a
    * cancelled / never-completed callback, leaking the connect attempt and its status.
+   *
+   * Default is 60 s — long enough for a user to complete an OAuth flow in a browser
+   * tab, but short enough that a pending-auth server does not stall startup for 5 minutes.
+   * Callers that need a different bound pass `timeoutMs` explicitly.
    */
-  async waitForAuthCode(timeoutMs = 300_000): Promise<string> {
+  async waitForAuthCode(timeoutMs = 60_000): Promise<string> {
     return new Promise((resolve, reject) => {
       const onCode = (code: string) => {
         clearTimeout(timer)

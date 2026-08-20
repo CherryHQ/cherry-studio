@@ -226,9 +226,9 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
     <ErrorBoundary fallbackComponent={Fallback}>
       <CardContainer onClick={handleRowClick} data-slot="mcp-server-row">
         <ServerNameCell>
-          {runtimeStatus.state === 'error' && server.isActive ? (
+          {(runtimeStatus.state === 'error' || runtimeStatus.state === 'pending-auth') && server.isActive ? (
             <Tooltip content={runtimeStatus.lastError || t('settings.mcp.runtimeStatus.error', 'Error')}>
-              <ActiveDot $state="error" />
+              <ActiveDot $state={runtimeStatus.state} />
             </Tooltip>
           ) : (
             <ActiveDot $state={server.isActive ? runtimeStatus.state : 'disabled'} />
@@ -318,13 +318,16 @@ const ActiveDot = ({
   $state,
   className,
   ...props
-}: React.ComponentPropsWithoutRef<'div'> & { $state: 'disabled' | 'connecting' | 'connected' | 'error' }) => (
+}: React.ComponentPropsWithoutRef<'div'> & {
+  $state: 'disabled' | 'connecting' | 'connected' | 'error' | 'pending-auth'
+}) => (
   <div
     className={cn(
       'size-1.5 shrink-0 rounded-full',
       $state === 'connected' && 'bg-success',
       $state === 'connecting' && 'bg-warning',
       $state === 'error' && 'bg-error',
+      $state === 'pending-auth' && 'bg-warning',
       $state === 'disabled' && 'bg-muted-foreground/30',
       className
     )}

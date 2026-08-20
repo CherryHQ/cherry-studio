@@ -34,7 +34,7 @@ export type CacheMiniAppType = MiniApp
 export type CacheMcpTool = McpTool
 
 export type McpRuntimeStatus = {
-  state: 'disabled' | 'connecting' | 'connected' | 'error'
+  state: 'disabled' | 'connecting' | 'connected' | 'error' | 'pending-auth'
   lastCheckedAt: number
   lastError?: string
 }
