@@ -26,9 +26,9 @@ import { useTranslation } from 'react-i18next'
 import { FilePreviewLayout } from '../../FilePreviewLayout'
 import { createSelectionReference } from '../../selectionReference'
 import type { FilePreviewPluginProps } from '../../types'
-import { selectionToPdfAnchor } from './pdfSelectionAnchor'
 import { PdfFilePreviewToolbar } from './PdfFilePreviewToolbar'
 import { PDF_RANGE_CHUNK_SIZE_BYTES, PdfFileRangeTransport, PdfRangeTooLargeError } from './PdfFileRangeTransport'
+import { selectionToPdfAnchor } from './pdfSelectionAnchor'
 
 GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 
