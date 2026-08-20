@@ -2991,11 +2991,19 @@
     "skill_detail": {
       "created_at": "Creado",
       "description": "Descripción",
+      "file_load_failed": "No se pudo cargar el archivo",
       "file_preview": "Vista previa del archivo",
       "installed": "Instalado",
       "no_description": "Sin descripción",
+      "no_files": "No se encontraron archivos",
       "open_folder": "Abrir carpeta",
       "open_folder_failed": "No se pudo abrir la carpeta",
+      "select_file": "Selecciona un archivo para previsualizar",
+      "show_original": "Mostrar original",
+      "show_translation": "Mostrar traducción",
+      "source_files": "Archivos de origen",
+      "translate_to_chinese": "Traducir al chino",
+      "translating": "Traduciendo...",
       "updated_at": "Actualizado recientemente"
     },
     "skill_marketplace": {

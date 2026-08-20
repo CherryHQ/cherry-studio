@@ -2991,11 +2991,19 @@
     "skill_detail": {
       "created_at": "Создано",
       "description": "Описание",
+      "file_load_failed": "Не удалось загрузить файл",
       "file_preview": "Предварительный просмотр файла",
       "installed": "Установлено",
       "no_description": "Нет описания",
+      "no_files": "Файлы не найдены",
       "open_folder": "Открыть папку",
       "open_folder_failed": "Не удалось открыть папку",
+      "select_file": "Выберите файл для просмотра",
+      "show_original": "Показать оригинал",
+      "show_translation": "Показать перевод",
+      "source_files": "Исходные файлы",
+      "translate_to_chinese": "Перевести на китайский",
+      "translating": "Перевод...",
       "updated_at": "Недавно обновлено"
     },
     "skill_marketplace": {

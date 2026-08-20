@@ -2991,11 +2991,19 @@
     "skill_detail": {
       "created_at": "作成済",
       "description": "説明",
+      "file_load_failed": "ファイルを読み込めませんでした",
       "file_preview": "ファイルプレビュー",
       "installed": "インストール済み",
       "no_description": "説明なし",
+      "no_files": "ファイルが見つかりません",
       "open_folder": "フォルダーを開く",
       "open_folder_failed": "フォルダーを開けませんでした",
+      "select_file": "プレビューするファイルを選択",
+      "show_original": "原文を表示",
+      "show_translation": "翻訳を表示",
+      "source_files": "ソースファイル",
+      "translate_to_chinese": "中国語に翻訳",
+      "translating": "翻訳中...",
       "updated_at": "最近更新"
     },
     "skill_marketplace": {

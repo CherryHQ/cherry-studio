@@ -2991,11 +2991,19 @@
     "skill_detail": {
       "created_at": "Creat",
       "description": "Descriere",
+      "file_load_failed": "Fișierul nu a putut fi încărcat",
       "file_preview": "Previzualizare fișier",
       "installed": "Instalat",
       "no_description": "Fără descriere",
+      "no_files": "Nu s-au găsit fișiere",
       "open_folder": "Deschide directorul",
       "open_folder_failed": "Directorul nu a putut fi deschis",
+      "select_file": "Selectează un fișier pentru previzualizare",
+      "show_original": "Arată originalul",
+      "show_translation": "Arată traducerea",
+      "source_files": "Fișiere sursă",
+      "translate_to_chinese": "Tradu în chineză",
+      "translating": "Se traduce...",
       "updated_at": "Actualizat recent"
     },
     "skill_marketplace": {

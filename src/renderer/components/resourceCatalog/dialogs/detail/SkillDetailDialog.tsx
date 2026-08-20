@@ -9,6 +9,8 @@ import { Clock, FolderOpen, ToolCase } from 'lucide-react'
 import { type FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { SkillFileBrowser } from './SkillFileBrowser'
+
 interface Props {
   skill: InstalledSkill | null
   open: boolean
@@ -84,7 +86,7 @@ const SkillDetailDialog: FC<Props> = ({ skill, open, onOpenChange }) => {
 
   return (
     <Dialog open={dialogOpen} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-h-[calc(100vh-2rem)] overflow-hidden sm:max-w-2xl">
+      <DialogContent className="max-h-[calc(100vh-2rem)] overflow-hidden sm:max-w-4xl">
         <DialogHeader className="pr-8">
           <div className="flex min-w-0 items-start gap-3">
             <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-warning-subtle text-warning">
@@ -129,6 +131,10 @@ const SkillDetailDialog: FC<Props> = ({ skill, open, onOpenChange }) => {
               {skill.description || t('library.skill_detail.no_description')}
             </p>
           </section>
+
+          <Separator className="bg-border-subtle" />
+
+          <SkillFileBrowser skillId={skill.id} />
 
           <Separator className="bg-border-subtle" />
 

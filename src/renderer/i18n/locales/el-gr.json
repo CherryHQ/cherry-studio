@@ -2991,11 +2991,19 @@
     "skill_detail": {
       "created_at": "Δημιουργήθηκε",
       "description": "Περιγραφή",
+      "file_load_failed": "Δεν ήταν δυνατή η φόρτωση του αρχείου",
       "file_preview": "Προεπισκόπηση αρχείου",
       "installed": "Εγκατεστημένο",
       "no_description": "Χωρίς περιγραφή",
+      "no_files": "Δεν βρέθηκαν αρχεία",
       "open_folder": "Άνοιγμα φακέλου",
       "open_folder_failed": "Δεν ήταν δυνατό το άνοιγμα του φακέλου",
+      "select_file": "Επιλέξτε αρχείο για προεπισκόπηση",
+      "show_original": "Εμφάνιση πρωτοτύπου",
+      "show_translation": "Εμφάνιση μετάφρασης",
+      "source_files": "Αρχεία προέλευσης",
+      "translate_to_chinese": "Μετάφραση στα Κινεζικά",
+      "translating": "Μετάφραση...",
       "updated_at": "Πρόσφατα ενημερώθηκε"
     },
     "skill_marketplace": {
