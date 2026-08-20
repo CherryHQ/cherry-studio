@@ -30,4 +30,13 @@ describe('hermesDashboardHandlers', () => {
       url: 'http://127.0.0.1:49152'
     })
   })
+
+  it('returns an operation failure when Dashboard startup throws', async () => {
+    dashboard.start.mockRejectedValue(new Error('Dashboard dependencies are missing'))
+
+    await expect(hermesDashboardHandlers['hermes_dashboard.start'](undefined, ctx)).resolves.toEqual({
+      success: false,
+      message: 'Dashboard dependencies are missing'
+    })
+  })
 })

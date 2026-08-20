@@ -3,7 +3,13 @@ import type { hermesDashboardRequestSchemas } from '@shared/ipc/schemas/hermesDa
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
 export const hermesDashboardHandlers: IpcHandlersFor<typeof hermesDashboardRequestSchemas> = {
-  'hermes_dashboard.start': async () => application.get('HermesDashboardService').start(),
+  'hermes_dashboard.start': async () => {
+    try {
+      return await application.get('HermesDashboardService').start()
+    } catch (error) {
+      return { success: false, message: error instanceof Error ? error.message : 'Failed to start Hermes Dashboard' }
+    }
+  },
   'hermes_dashboard.stop': async () => {
     try {
       await application.get('HermesDashboardService').stop()
