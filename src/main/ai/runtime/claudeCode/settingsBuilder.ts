@@ -221,11 +221,11 @@ const WORKSPACE_PATH_FIELDS = {
 } as const
 const SQLITE_WRITE_PATH_FIELDS = {
   Edit: 'file_path',
+  MultiEdit: 'file_path',
   NotebookEdit: 'notebook_path',
   Write: 'file_path'
 } as const
-const SQLITE_FILE_PATTERN = /\.sqlite(?:-(?:journal|shm|wal))?$/i
-const SQLITE_PATH_MENTION_PATTERN = /\.sqlite(?:-(?:journal|shm|wal))?(?=$|[\s,)}\]])/i
+const SQLITE_FILE_PATTERN = /\.(?:db|sqlite)(?:-(?:journal|shm|wal))?$/i
 
 const toolApprovalEmitters = new Map<string, ToolApprovalEmitterHolder>()
 
@@ -703,35 +703,107 @@ async function isPathWithinAllowedRoots(cwd: string, agentDataPath: string, requ
 }
 
 function normalizeShellPathText(value: string): string {
-  const normalized = value
-    .replace(/\\([\\\s"'`$])/g, '$1')
-    .replace(/["']/g, '')
-    .replaceAll('\\', '/')
+  const normalized = value.replace(/\\([\\\s"'`$])/g, '$1').replaceAll('\\', '/')
   return isMac || isWin ? normalized.toLowerCase() : normalized
 }
 
-function commandReferencesUserDataSqlite(
+interface ShellToken {
+  value: string
+  isOperator: boolean
+}
+
+function tokenizeShellCommand(command: string): ShellToken[] {
+  const tokens: ShellToken[] = []
+  let current = ''
+  let quote: '"' | "'" | undefined
+
+  const pushCurrent = () => {
+    if (current) tokens.push({ value: current, isOperator: false })
+    current = ''
+  }
+
+  for (let index = 0; index < command.length; index++) {
+    const character = command[index]
+    if (character === '\\' && quote !== "'") {
+      const next = command[index + 1]
+      if (next && /[\\\s"'`$]/.test(next)) {
+        current += next
+        index++
+      } else {
+        current += character
+      }
+    } else if (quote) {
+      if (character === quote) quote = undefined
+      else current += character
+    } else if (character === '"' || character === "'") {
+      quote = character
+    } else if (/\s/.test(character)) {
+      pushCurrent()
+      if (character === '\n') tokens.push({ value: character, isOperator: true })
+    } else if (/[;&|<>]/.test(character)) {
+      pushCurrent()
+      const doubled = (character === '&' || character === '|') && command[index + 1] === character
+      tokens.push({ value: doubled ? character.repeat(2) : character, isOperator: true })
+      if (doubled) index++
+    } else {
+      current += character
+    }
+  }
+  pushCurrent()
+  return tokens
+}
+
+function expandHomePath(requestedPath: string, homePath: string): string {
+  return requestedPath.replace(/^(?:\$\{home\}|\$home|~)(?=[/\\]|$)/i, () => homePath)
+}
+
+function expandShellHomePath(requestedPath: string, homePath: string): string {
+  return expandHomePath(normalizeShellPathText(requestedPath), normalizeShellPathText(path.resolve(homePath)))
+}
+
+function sqlitePathFromShellWord(word: string): string | undefined {
+  const normalizedWord = normalizeShellPathText(word).replace(/[,)}\]]+$/, '')
+  const pathText = normalizedWord.slice(normalizedWord.lastIndexOf('=') + 1).replace(/^file:/i, '')
+  const pathWithoutQuery = pathText.replace(/[?#].*$/, '')
+  return SQLITE_FILE_PATTERN.test(path.basename(pathWithoutQuery)) ? pathWithoutQuery : undefined
+}
+
+async function commandReferencesUserDataSqlite(
   command: string,
+  cwd: string,
   userDataPath: string,
   databaseFile: string,
   homePath: string
-): boolean {
-  const normalizedHome = normalizeShellPathText(path.resolve(homePath))
-  const normalizedCommand = normalizeShellPathText(command).replace(/(?:\$\{home\}|\$home|~)(?=\/)/gi, normalizedHome)
-  const normalizedDatabaseFile = normalizeShellPathText(path.resolve(databaseFile))
-  if (normalizedCommand.includes(normalizedDatabaseFile)) return true
+): Promise<boolean> {
+  let shellCwd = cwd
+  let words: string[] = []
+  const tokens = tokenizeShellCommand(command)
 
-  const normalizedUserData = normalizeShellPathText(path.resolve(userDataPath)).replace(/\/+$/, '')
-  let searchFrom = 0
-  while (searchFrom < normalizedCommand.length) {
-    const rootIndex = normalizedCommand.indexOf(normalizedUserData, searchFrom)
-    if (rootIndex === -1) return false
-
-    const suffix = normalizedCommand.slice(rootIndex + normalizedUserData.length)
-    if ((suffix === '' || suffix.startsWith('/')) && SQLITE_PATH_MENTION_PATTERN.test(suffix)) {
-      return true
+  for (let index = 0; index <= tokens.length; index++) {
+    const token = tokens[index]
+    if (token && !token.isOperator) {
+      words.push(token.value)
+      continue
     }
-    searchFrom = rootIndex + normalizedUserData.length
+    for (const word of words) {
+      const requestedPath = sqlitePathFromShellWord(word)
+      if (
+        requestedPath &&
+        (await isUserDataSqlitePath(requestedPath, shellCwd, userDataPath, databaseFile, homePath))
+      ) {
+        return true
+      }
+    }
+
+    const operator = token?.value
+    if ((operator === '&&' || operator === ';' || operator === '\n') && words[0] === 'cd') {
+      const requestedDirectory = words[1] ?? homePath
+      const expandedDirectory = expandShellHomePath(requestedDirectory, homePath)
+      shellCwd = path.isAbsolute(expandedDirectory)
+        ? path.resolve(expandedDirectory)
+        : path.resolve(shellCwd, expandedDirectory)
+    }
+    words = []
   }
   return false
 }
@@ -743,28 +815,26 @@ async function isUserDataSqlitePath(
   databaseFile: string,
   homePath: string
 ): Promise<boolean> {
-  const expandedPath =
-    requestedPath === '~'
-      ? homePath
-      : requestedPath.startsWith('~/') || requestedPath.startsWith('~\\')
-        ? path.join(homePath, requestedPath.slice(2))
-        : requestedPath
+  const expandedPath = expandHomePath(requestedPath, homePath)
   const absoluteTarget = path.isAbsolute(expandedPath) ? path.resolve(expandedPath) : path.resolve(cwd, expandedPath)
-  const [resolvedTarget, resolvedUserData, resolvedDatabaseFile] = await Promise.all([
+  const [resolvedTarget, resolvedWorkspace, resolvedUserData, resolvedDatabaseFile] = await Promise.all([
     resolveRealOrNearestExistingPath(absoluteTarget),
+    resolveRealOrNearestExistingPath(path.resolve(cwd)),
     resolveRealOrNearestExistingPath(path.resolve(userDataPath)),
     resolveRealOrNearestExistingPath(path.resolve(databaseFile))
   ])
   const normalizedTarget = isMac || isWin ? resolvedTarget.toLowerCase() : resolvedTarget
+  const normalizedWorkspace = isMac || isWin ? resolvedWorkspace.toLowerCase() : resolvedWorkspace
   const normalizedUserData = isMac || isWin ? resolvedUserData.toLowerCase() : resolvedUserData
   const normalizedDatabaseFile = isMac || isWin ? resolvedDatabaseFile.toLowerCase() : resolvedDatabaseFile
 
-  return (
-    (normalizedTarget === normalizedDatabaseFile || SQLITE_FILE_PATTERN.test(path.basename(normalizedTarget))) &&
-    (normalizedTarget === normalizedDatabaseFile ||
-      normalizedTarget === normalizedUserData ||
-      isPathInside(normalizedTarget, normalizedUserData))
-  )
+  if (normalizedTarget === normalizedDatabaseFile) return true
+  if (!SQLITE_FILE_PATTERN.test(path.basename(normalizedTarget))) return false
+
+  const isInsideUserData = normalizedTarget === normalizedUserData || isPathInside(normalizedTarget, normalizedUserData)
+  const isInsideWorkspace =
+    normalizedTarget === normalizedWorkspace || isPathInside(normalizedTarget, normalizedWorkspace)
+  return isInsideUserData && !isInsideWorkspace
 }
 
 export async function getClaudeCodeLoginShellEnvironment(
@@ -1252,7 +1322,8 @@ async function buildToolPermissions(
     if (toolName === 'Bash') {
       const command = toolInput?.command
       isProtectedWrite =
-        typeof command === 'string' && commandReferencesUserDataSqlite(command, userDataPath, databaseFile, homePath)
+        typeof command === 'string' &&
+        (await commandReferencesUserDataSqlite(command, cwd, userDataPath, databaseFile, homePath))
     } else {
       const pathField = SQLITE_WRITE_PATH_FIELDS[toolName as keyof typeof SQLITE_WRITE_PATH_FIELDS]
       const requestedPath = pathField ? toolInput?.[pathField] : undefined
