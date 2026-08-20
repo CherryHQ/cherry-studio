@@ -59,7 +59,7 @@ describe('ExternalAppService', () => {
 
     await expect(new ExternalAppService().listOpenTargets('/tmp/workspace')).resolves.toEqual({
       pathKind: 'directory',
-      defaultTargetId: 'file_manager',
+      recommendedTargetId: 'file_manager',
       targets: [
         { id: 'file_manager', kind: 'file_manager' },
         { id: 'known:vscode', name: 'Visual Studio Code', kind: 'application' },
@@ -68,12 +68,12 @@ describe('ExternalAppService', () => {
     })
   })
 
-  it('offers only the system default and containing directory for unsupported file types', async () => {
+  it('keeps the system-default recommendation when its display metadata is unavailable', async () => {
     const { ExternalAppService } = await import('../ExternalAppService')
 
     await expect(new ExternalAppService().listOpenTargets('/tmp/report.pdf')).resolves.toEqual({
       pathKind: 'file',
-      defaultTargetId: 'system_default',
+      recommendedTargetId: 'system_default',
       targets: [
         { id: 'system_default', kind: 'system_default' },
         { id: 'file_manager', kind: 'file_manager' }
@@ -90,7 +90,7 @@ describe('ExternalAppService', () => {
 
     await expect(new ExternalAppService().listOpenTargets('/tmp/report.pdf')).resolves.toEqual({
       pathKind: 'file',
-      defaultTargetId: 'system_default',
+      recommendedTargetId: 'system_default',
       targets: [
         {
           id: 'system_default',
@@ -104,7 +104,7 @@ describe('ExternalAppService', () => {
     expect(mocks.resolveDefaultApplication).toHaveBeenCalledWith('/tmp/report.pdf')
   })
 
-  it('matches text files to at most two installed fixed applications', async () => {
+  it('keeps the system recommendation while bounding compatible text applications', async () => {
     mocks.getApplicationInfoForProtocol.mockImplementation(async (protocol: string) => ({
       name: protocol,
       path: `/Applications/${protocol}`
@@ -119,6 +119,7 @@ describe('ExternalAppService', () => {
       { id: 'known:vscode', name: 'Visual Studio Code', kind: 'application' },
       { id: 'known:cursor', name: 'Cursor', kind: 'application' }
     ])
+    expect(result.recommendedTargetId).toBe('system_default')
     expect(result.targets.some((target) => target.id === 'known:zed')).toBe(false)
   })
 
@@ -127,7 +128,7 @@ describe('ExternalAppService', () => {
 
     await expect(new ExternalAppService().listOpenTargets('/tmp/script.js')).resolves.toEqual({
       pathKind: 'file',
-      defaultTargetId: 'known:vscode',
+      recommendedTargetId: 'known:vscode',
       targets: [
         { id: 'file_manager', kind: 'file_manager' },
         { id: 'known:vscode', name: 'Visual Studio Code', kind: 'application' }
@@ -140,7 +141,7 @@ describe('ExternalAppService', () => {
 
     await expect(new ExternalAppService().listOpenTargets('/tmp/install.command')).resolves.toEqual({
       pathKind: 'file',
-      defaultTargetId: 'file_manager',
+      recommendedTargetId: 'file_manager',
       targets: [{ id: 'file_manager', kind: 'file_manager' }]
     })
   })

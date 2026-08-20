@@ -18,9 +18,6 @@ export function getOpenTargetLabel(target: ExternalOpenTarget, t: TFunction): st
     if (isWin) return t('agent.session.file_manager.file_explorer')
     return t('agent.session.file_manager.files')
   }
-  if (target.kind === 'system_default') {
-    return target.name ? t('common.open_in', { name: target.name }) : t('agent.preview_pane.default_app')
-  }
   return target.name ?? t('agent.preview_pane.default_app')
 }
 

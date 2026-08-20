@@ -121,7 +121,7 @@ export class ExternalAppService {
       .map((item) => this.toKnownTarget(item))
     return {
       pathKind: 'directory',
-      defaultTargetId: FILE_MANAGER_TARGET_ID,
+      recommendedTargetId: FILE_MANAGER_TARGET_ID,
       targets: [{ id: FILE_MANAGER_TARGET_ID, kind: 'file_manager' }, ...applicationTargets, ...terminalTargets]
     }
   }
@@ -156,7 +156,7 @@ export class ExternalAppService {
 
     return {
       pathKind: 'file',
-      defaultTargetId: dangerous ? (applicationTargets[0]?.id ?? FILE_MANAGER_TARGET_ID) : SYSTEM_DEFAULT_TARGET_ID,
+      recommendedTargetId: dangerous ? (applicationTargets[0]?.id ?? FILE_MANAGER_TARGET_ID) : SYSTEM_DEFAULT_TARGET_ID,
       targets
     }
   }

@@ -14,7 +14,7 @@ export const externalAppRequestSchemas = {
     input: z.strictObject({ targetPath: z.string().min(1) }),
     output: z.strictObject({
       pathKind: z.enum(['file', 'directory']),
-      defaultTargetId: z.string().min(1),
+      recommendedTargetId: z.string().min(1),
       targets: z.array(externalOpenTargetSchema)
     })
   }),

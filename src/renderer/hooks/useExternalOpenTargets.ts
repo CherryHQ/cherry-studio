@@ -40,10 +40,10 @@ export function usePreferredExternalOpenTarget(targetPath: string, pathKind: Ext
     const preferredTargetId = preferences[preferenceScope]
     return (
       query.targets.find((target) => target.id === preferredTargetId) ??
-      query.targets.find((target) => target.id === query.data?.defaultTargetId) ??
+      query.targets.find((target) => target.id === query.data?.recommendedTargetId) ??
       query.targets[0]
     )
-  }, [preferenceScope, preferences, query.data?.defaultTargetId, query.targets])
+  }, [preferenceScope, preferences, query.data?.recommendedTargetId, query.targets])
 
   return { ...query, selectedTarget }
 }

@@ -2,6 +2,7 @@ export type ExternalOpenTargetKind = 'system_default' | 'application' | 'file_ma
 
 export interface ExternalOpenTarget {
   id: string
+  /** Best-effort display name; absence does not make the target unavailable. */
   name?: string
   iconDataUrl?: string
   kind: ExternalOpenTargetKind
@@ -9,6 +10,7 @@ export interface ExternalOpenTarget {
 
 export interface ExternalOpenTargetResult {
   pathKind: 'file' | 'directory'
-  defaultTargetId: string
+  /** Product fallback used when no valid persisted target preference exists. */
+  recommendedTargetId: string
   targets: ExternalOpenTarget[]
 }

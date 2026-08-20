@@ -21,7 +21,7 @@ describe('externalAppHandlers', () => {
   it('lists targets through ExternalAppService', async () => {
     const result = {
       pathKind: 'directory' as const,
-      defaultTargetId: 'file_manager',
+      recommendedTargetId: 'file_manager',
       targets: [{ id: 'file_manager', name: 'File Explorer', kind: 'file_manager' as const }]
     }
     listOpenTargets.mockResolvedValue(result)
