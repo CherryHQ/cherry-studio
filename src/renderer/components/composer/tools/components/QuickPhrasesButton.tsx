@@ -10,15 +10,13 @@ import {
   type QuickPanelOpenOptions
 } from '@renderer/components/QuickPanel'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
-import { PromptEditDialog } from '@renderer/components/resourceCatalog/dialogs/edit'
-import { PromptManagementDialog } from '@renderer/components/resourceCatalog/dialogs/manage'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { Prompt } from '@shared/data/types/prompt'
 import { Pencil, Plus, Zap } from 'lucide-react'
 import type { Dispatch, SetStateAction } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface Props {
@@ -27,6 +25,17 @@ interface Props {
 }
 
 const logger = loggerService.withContext('QuickPhrasesButton')
+
+const PromptEditDialog = lazy(() =>
+  import('@renderer/components/resourceCatalog/dialogs/edit').then((module) => ({
+    default: module.PromptEditDialog
+  }))
+)
+const PromptManagementDialog = lazy(() =>
+  import('@renderer/components/resourceCatalog/dialogs/manage').then((module) => ({
+    default: module.PromptManagementDialog
+  }))
+)
 
 const useQuickPhrasesToolController = ({ launcher, setInputValue }: Props) => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
@@ -256,13 +265,21 @@ const QuickPhrasesModal = ({
   | 'handleManageModalOpenChange'
 >) => (
   <>
-    <PromptEditDialog
-      open={isAddModalOpen}
-      saving={isCreatingPrompt}
-      onSave={handleAddModalSave}
-      onCancel={closeAddModal}
-    />
-    <PromptManagementDialog open={isManageModalOpen} onOpenChange={handleManageModalOpenChange} />
+    {isAddModalOpen && (
+      <Suspense fallback={null}>
+        <PromptEditDialog
+          open={isAddModalOpen}
+          saving={isCreatingPrompt}
+          onSave={handleAddModalSave}
+          onCancel={closeAddModal}
+        />
+      </Suspense>
+    )}
+    {isManageModalOpen && (
+      <Suspense fallback={null}>
+        <PromptManagementDialog open={isManageModalOpen} onOpenChange={handleManageModalOpenChange} />
+      </Suspense>
+    )}
   </>
 )
 
