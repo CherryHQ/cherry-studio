@@ -69,7 +69,7 @@ describe('useOptimisticResourceName', () => {
     })
     let secondRename!: Promise<boolean>
     act(() => {
-      secondRename = result.current.rename(result.current.items[0]!, 'Latest rename', persistSecondRename)
+      secondRename = result.current.rename(result.current.items[0], 'Latest rename', persistSecondRename)
     })
 
     expect(result.current.items[0]?.name).toBe('Latest rename')
