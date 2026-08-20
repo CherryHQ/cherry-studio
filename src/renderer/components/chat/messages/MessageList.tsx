@@ -845,6 +845,7 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
       )}
       {activeOutline && activeOutlineMessage && (
         <MessageOutline
+          getMessageElement={getMessageElement}
           message={activeOutlineMessage}
           multiModelMessageStyle={activeOutline.multiModelMessageStyle}
           onNavigateToElement={scrollToOutlineElement}
