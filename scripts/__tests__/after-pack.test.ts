@@ -37,7 +37,9 @@ describe('assertDshAsarBoundary', () => {
       )
       fs.mkdirSync(packagePath, { recursive: true })
 
-      expect(() => assertDshAsarBoundary(appOutDir)).toThrow(/DSH dependencies must remain in app\.asar/)
+      expect(() => assertDshAsarBoundary(appOutDir, undefined, undefined, new Set([packageName]))).toThrow(
+        /DSH dependencies must remain in app\.asar/
+      )
     }
   )
 
@@ -54,7 +56,9 @@ describe('assertDshAsarBoundary', () => {
     )
     fs.mkdirSync(packagePath, { recursive: true })
 
-    expect(() => assertDshAsarBoundary(appOutDir)).toThrow(/DSH dependencies must remain in app\.asar/)
+    expect(() => assertDshAsarBoundary(appOutDir, undefined, undefined, new Set(['@deepseek-ai/dsh-agent']))).toThrow(
+      /DSH dependencies must remain in app\.asar/
+    )
   })
 
   it('finds DSH packages under a nested node_modules layout', () => {
@@ -72,7 +76,9 @@ describe('assertDshAsarBoundary', () => {
     )
     fs.mkdirSync(packagePath, { recursive: true })
 
-    expect(() => assertDshAsarBoundary(appOutDir)).toThrow(/DSH dependencies must remain in app\.asar/)
+    expect(() => assertDshAsarBoundary(appOutDir, undefined, undefined, new Set(['@deepseek-ai/dsh-agent']))).toThrow(
+      /DSH dependencies must remain in app\.asar/
+    )
   })
 
   it('rejects foreign native prebuilds when the target is known', () => {
@@ -101,5 +107,15 @@ describe('assertDshAsarBoundary', () => {
     expect(() => assertDshAsarBoundary(appOutDir, undefined, undefined, new Set(['node-pty']))).toThrow(
       /DSH dependencies must remain in app\.asar/
     )
+  })
+
+  it('allows nested DSH dependencies inside an unpacked native application package', () => {
+    const appOutDir = makeAppOutDir()
+    const nativePackagePath = path.join(appOutDir, 'resources', 'app.asar.unpacked', 'node_modules', 'registry-js')
+    fs.mkdirSync(path.join(nativePackagePath, 'build', 'Release'), { recursive: true })
+    fs.writeFileSync(path.join(nativePackagePath, 'build', 'Release', 'registry.node'), '')
+    fs.mkdirSync(path.join(nativePackagePath, 'node_modules', 'detect-libc'), { recursive: true })
+
+    expect(() => assertDshAsarBoundary(appOutDir, undefined, undefined, new Set(['detect-libc']))).not.toThrow()
   })
 })
