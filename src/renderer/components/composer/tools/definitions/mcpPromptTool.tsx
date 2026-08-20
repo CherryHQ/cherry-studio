@@ -1,15 +1,9 @@
 import { loggerService } from '@logger'
-import { createPromptVariableToken } from '@renderer/components/composer/promptVariables'
 import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
 import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import { defineTool, type ToolRenderContext, TopicType } from '@renderer/components/composer/tools/types'
 import { McpLogo } from '@renderer/components/icons/SvgIcon'
-import {
-  type QuickPanelCallBackOptions,
-  type QuickPanelInputAdapter,
-  type QuickPanelListItem,
-  useQuickPanel
-} from '@renderer/components/QuickPanel'
+import { type QuickPanelCallBackOptions, type QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
 import { useAgent } from '@renderer/hooks/agent/useAgent'
 import { useScopedMcpServers } from '@renderer/hooks/useMcpServer'
 import { ipcApi } from '@renderer/ipc'
@@ -28,90 +22,15 @@ const logger = loggerService.withContext('mcpPromptTool')
 
 type McpPromptToolContext = ToolRenderContext<readonly [], readonly ['onTextChange']>
 
-/**
- * Marker handed to the server in place of a value the user has not typed yet, so the rendered
- * template comes back with an exact, findable hole per argument.
- *
- * Per-insertion nonce and a delimiter no template language uses, rather than `${name}`: the marker
- * has to be distinguishable from `${...}` the server itself emits (a shell `${HOME}`, a GitHub
- * Actions expression), which must stay literal text rather than turn into an editable field.
- */
-const buildMcpPromptArgSentinel = (nonce: string, name: string) => `«cs-arg:${nonce}:${name}»`
+export function restoreMcpPromptConsumedQuery(options?: QuickPanelCallBackOptions): boolean {
+  const inputAdapter = options?.inputAdapter
+  const triggerInfo = options?.context.triggerInfo
+  if (!inputAdapter || triggerInfo?.type !== 'input') return false
 
-const mcpPromptArgSentinelPattern = (nonce: string) => new RegExp(`«cs-arg:${nonce}:([^»]+)»`, 'g')
-
-export function createMcpPromptNonce(): string {
-  return crypto.randomUUID().replace(/-/g, '').slice(0, 8)
-}
-
-/**
- * Sentinels for *required* arguments only.
- *
- * An optional argument is omitted, never sent as a marker: MCP's contract is that omitting it lets
- * the server apply its own default, so sending a placeholder string would overwrite that default
- * (and, for an argument the server queries with, send it looking for a row named after the marker).
- */
-export function buildMcpPromptPlaceholderArgs(
-  prompt: Pick<McpPrompt, 'arguments'>,
-  nonce: string
-): Record<string, string> | undefined {
-  const required = (prompt.arguments ?? []).filter((argument) => argument.required)
-  if (required.length === 0) return undefined
-  return Object.fromEntries(
-    required.map((argument) => [argument.name, buildMcpPromptArgSentinel(nonce, argument.name)])
-  )
-}
-
-export type McpPromptSegment = { type: 'text'; value: string } | { type: 'argument'; name: string }
-
-/**
- * Split the rendered prompt into literal text and the argument holes this insertion asked for.
- * Only sentinels carrying this insertion's nonce become fields; everything else, including any
- * `${...}` the server wrote, stays text.
- */
-export function splitMcpPromptText(text: string, nonce: string): McpPromptSegment[] {
-  const segments: McpPromptSegment[] = []
-  const pattern = mcpPromptArgSentinelPattern(nonce)
-  let cursor = 0
-
-  for (const match of text.matchAll(pattern)) {
-    const index = match.index ?? 0
-    if (index > cursor) segments.push({ type: 'text', value: text.slice(cursor, index) })
-    segments.push({ type: 'argument', name: match[1] })
-    cursor = index + match[0].length
-  }
-
-  if (cursor < text.length) segments.push({ type: 'text', value: text.slice(cursor) })
-  return segments
-}
-
-/** Plain-text rendering for composers with no token-capable adapter. */
-export function renderMcpPromptSegmentsAsText(segments: readonly McpPromptSegment[]): string {
-  return segments.map((segment) => (segment.type === 'text' ? segment.value : `\${${segment.name}}`)).join('')
-}
-
-/**
- * Write a rendered prompt into the composer: one chip per argument this insertion declared, and the
- * body as literal text with variable tokenization off — so a `${HOME}` the server itself wrote stays
- * text instead of becoming a field the user can silently overwrite.
- *
- * Chips carry `insertSeparator: false`: the surrounding text is the server's, reproduced verbatim,
- * so an appended space would rewrite `Hello ${name}!` into `Hello ${name} !`.
- */
-export function insertMcpPromptSegments(
-  segments: readonly McpPromptSegment[],
-  inputAdapter: QuickPanelInputAdapter
-): void {
-  segments.forEach((segment, index) => {
-    if (segment.type === 'text') {
-      inputAdapter.insertText(segment.value, { tokenizeVariables: false })
-      return
-    }
-    inputAdapter.insertToken?.(createPromptVariableToken(segment.name, `\${${segment.name}}`, index), {
-      insertSeparator: false
-    })
-  })
+  const trigger = triggerInfo.originalText?.slice(0, 1) ?? ''
+  inputAdapter.insertText(`${trigger}${options.searchText ?? ''}`, { tokenizeVariables: false })
   inputAdapter.focus()
+  return true
 }
 
 /** Text parts of a `prompts/get` result, in order. Image / resource parts have no composer form. */
@@ -186,21 +105,15 @@ const McpPromptComposerRuntime = ({ context }: { context: McpPromptToolContext }
     }
   }, [dataRequested, servers])
 
-  const insertSegments = useCallback(
-    (segments: readonly McpPromptSegment[], options?: QuickPanelCallBackOptions) => {
+  const insertPromptText = useCallback(
+    (text: string, options?: QuickPanelCallBackOptions) => {
       const inputAdapter = options?.inputAdapter
-      if (!inputAdapter?.insertToken) {
-        const text = renderMcpPromptSegmentsAsText(segments)
-        if (inputAdapter) {
-          inputAdapter.insertText(text)
-          inputAdapter.focus()
-          return
-        }
-        actions.onTextChange?.((prev) => `${prev}${text}`)
+      if (inputAdapter) {
+        inputAdapter.insertText(text, { tokenizeVariables: false })
+        inputAdapter.focus()
         return
       }
-
-      insertMcpPromptSegments(segments, inputAdapter)
+      actions.onTextChange?.((prev) => `${prev}${text}`)
     },
     [actions]
   )
@@ -222,7 +135,7 @@ const McpPromptComposerRuntime = ({ context }: { context: McpPromptToolContext }
           return false
         }
         // The server already substituted collected arguments. Keep any leftover `${...}` as text.
-        insertSegments([{ type: 'text', value: text }], options)
+        insertPromptText(text, options)
         return true
       } catch (error) {
         if (!isMountedRef.current || generation !== selectionGenerationRef.current) return false
@@ -231,7 +144,7 @@ const McpPromptComposerRuntime = ({ context }: { context: McpPromptToolContext }
         return false
       }
     },
-    [insertSegments, t]
+    [insertPromptText, t]
   )
 
   const handleSelect = useCallback(
@@ -335,6 +248,7 @@ const McpPromptComposerRuntime = ({ context }: { context: McpPromptToolContext }
       onValuesChange={(name, value) => setArgValues((current) => ({ ...current, [name]: value }))}
       onOpenChange={(open) => {
         if (open || isSubmittingArgs) return
+        restoreMcpPromptConsumedQuery(pendingPrompt?.options)
         setPendingPrompt(null)
         setArgValues({})
       }}

@@ -39,8 +39,8 @@ export function collectMcpPromptArgs(
 ): Record<string, string> | undefined {
   const collected: Record<string, string> = {}
   for (const argument of prompt.arguments ?? []) {
-    const value = (values[argument.name] ?? '').trim()
-    if (!value) continue
+    const value = values[argument.name] ?? ''
+    if (!value.trim()) continue
     collected[argument.name] = value
   }
   return Object.keys(collected).length > 0 ? collected : undefined

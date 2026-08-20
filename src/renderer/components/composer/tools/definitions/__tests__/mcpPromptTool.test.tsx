@@ -1,76 +1,11 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import {
   collectMcpPromptArgs,
   mcpPromptNeedsArgumentForm,
   mcpPromptRequiredArgsFilled
 } from '../mcpPromptArgumentDialog'
-import {
-  buildMcpPromptPlaceholderArgs,
-  createMcpPromptNonce,
-  flattenMcpPromptMessages,
-  renderMcpPromptSegmentsAsText,
-  splitMcpPromptText
-} from '../mcpPromptTool'
-
-const NONCE = 'abc12345'
-
-describe('buildMcpPromptPlaceholderArgs', () => {
-  it('sends a marker for required arguments only, so optional defaults survive', () => {
-    const args = buildMcpPromptPlaceholderArgs(
-      { arguments: [{ name: 'language', required: true }, { name: 'style' }] },
-      NONCE
-    )
-
-    expect(args).toEqual({ language: `«cs-arg:${NONCE}:language»` })
-    expect(args).not.toHaveProperty('style')
-  })
-
-  it('sends no args at all when nothing is required', () => {
-    expect(buildMcpPromptPlaceholderArgs({ arguments: [{ name: 'style' }] }, NONCE)).toBeUndefined()
-    expect(buildMcpPromptPlaceholderArgs({ arguments: [] }, NONCE)).toBeUndefined()
-    expect(buildMcpPromptPlaceholderArgs({}, NONCE)).toBeUndefined()
-  })
-
-  it('mints a fresh nonce per insertion', () => {
-    expect(createMcpPromptNonce()).not.toBe(createMcpPromptNonce())
-  })
-})
-
-describe('splitMcpPromptText', () => {
-  it('turns this insertion’s markers into fields', () => {
-    const text = `Review «cs-arg:${NONCE}:language» carefully`
-
-    expect(splitMcpPromptText(text, NONCE)).toEqual([
-      { type: 'text', value: 'Review ' },
-      { type: 'argument', name: 'language' },
-      { type: 'text', value: ' carefully' }
-    ])
-  })
-
-  it('leaves the server’s own ${...} expressions as literal text', () => {
-    const text = 'Run echo ${HOME} and ${{ github.sha }}'
-
-    expect(splitMcpPromptText(text, NONCE)).toEqual([{ type: 'text', value: text }])
-  })
-
-  it('ignores a marker minted for a different insertion', () => {
-    const text = `stale «cs-arg:deadbeef:language» marker`
-
-    expect(splitMcpPromptText(text, NONCE)).toEqual([{ type: 'text', value: text }])
-  })
-})
-
-describe('renderMcpPromptSegmentsAsText', () => {
-  it('falls back to ${name} holes for composers with no token support', () => {
-    expect(
-      renderMcpPromptSegmentsAsText([
-        { type: 'text', value: 'Review ' },
-        { type: 'argument', name: 'language' }
-      ])
-    ).toBe('Review ${language}')
-  })
-})
+import { flattenMcpPromptMessages, restoreMcpPromptConsumedQuery } from '../mcpPromptTool'
 
 describe('collectMcpPromptArgs', () => {
   it('omits empty optionals so the server can apply its own default', () => {
@@ -79,7 +14,7 @@ describe('collectMcpPromptArgs', () => {
         { arguments: [{ name: 'language', required: true }, { name: 'style' }] },
         { language: ' Go ', style: '  ' }
       )
-    ).toEqual({ language: 'Go' })
+    ).toEqual({ language: ' Go ' })
   })
 
   it('sends filled optionals and returns undefined when nothing was provided', () => {
@@ -131,5 +66,51 @@ describe('flattenMcpPromptMessages', () => {
     expect(flattenMcpPromptMessages(undefined)).toBe('')
     expect(flattenMcpPromptMessages({ messages: [] })).toBe('')
     expect(flattenMcpPromptMessages({ messages: [{ content: { type: 'image' } }] })).toBe('')
+  })
+})
+
+describe('restoreMcpPromptConsumedQuery', () => {
+  it('restores the input-trigger query when the argument dialog is cancelled', () => {
+    const insertText = vi.fn()
+    const focus = vi.fn()
+
+    expect(
+      restoreMcpPromptConsumedQuery({
+        context: { triggerInfo: { type: 'input', originalText: '/' } } as never,
+        action: 'click',
+        item: {} as never,
+        searchText: 'review',
+        inputAdapter: {
+          getText: vi.fn(),
+          insertText,
+          deleteTriggerRange: vi.fn(),
+          focus
+        }
+      })
+    ).toBe(true)
+
+    expect(insertText).toHaveBeenCalledWith('/review', { tokenizeVariables: false })
+    expect(focus).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not restore button-trigger picks because no composer query was consumed', () => {
+    const insertText = vi.fn()
+
+    expect(
+      restoreMcpPromptConsumedQuery({
+        context: { triggerInfo: { type: 'button' } } as never,
+        action: 'click',
+        item: {} as never,
+        searchText: 'review',
+        inputAdapter: {
+          getText: vi.fn(),
+          insertText,
+          deleteTriggerRange: vi.fn(),
+          focus: vi.fn()
+        }
+      })
+    ).toBe(false)
+
+    expect(insertText).not.toHaveBeenCalled()
   })
 })

@@ -21,7 +21,21 @@ vi.mock('@cherrystudio/ui', () => ({
       {loading ? 'loading' : children}
     </button>
   ),
-  Dialog: ({ children, open }: { children: ReactNode; open: boolean }) => (open ? <div>{children}</div> : null),
+  Dialog: ({
+    children,
+    open,
+    onOpenChange
+  }: {
+    children: ReactNode
+    open: boolean
+    onOpenChange?: (open: boolean) => void
+  }) =>
+    open ? (
+      <div>
+        <button aria-label="Close dialog" type="button" onClick={() => onOpenChange?.(false)} />
+        {children}
+      </div>
+    ) : null,
   DialogContent: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => {
     void props
     return <div role="dialog">{children}</div>
@@ -110,5 +124,87 @@ describe('McpPromptArgumentDialog', () => {
 
     expect(onSubmit).toHaveBeenCalledTimes(1)
     expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('resets validation state after closing through onOpenChange', () => {
+    const onOpenChange = vi.fn()
+    const { rerender } = render(
+      <McpPromptArgumentDialog
+        open
+        prompt={prompt}
+        values={{ language: '', style: '' }}
+        submitting={false}
+        onValuesChange={vi.fn()}
+        onOpenChange={onOpenChange}
+        onSubmit={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Insert' }))
+    expect(screen.getByRole('alert')).toHaveTextContent('Required field')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close dialog' }))
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+
+    rerender(
+      <McpPromptArgumentDialog
+        open={false}
+        prompt={prompt}
+        values={{ language: '', style: '' }}
+        submitting={false}
+        onValuesChange={vi.fn()}
+        onOpenChange={onOpenChange}
+        onSubmit={vi.fn()}
+      />
+    )
+    rerender(
+      <McpPromptArgumentDialog
+        open
+        prompt={prompt}
+        values={{ language: '', style: '' }}
+        submitting={false}
+        onValuesChange={vi.fn()}
+        onOpenChange={onOpenChange}
+        onSubmit={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('disables argument inputs and cancel while submitting', () => {
+    render(
+      <McpPromptArgumentDialog
+        open
+        prompt={prompt}
+        values={{ language: 'Go', style: '' }}
+        submitting
+        onValuesChange={vi.fn()}
+        onOpenChange={vi.fn()}
+        onSubmit={vi.fn()}
+      />
+    )
+
+    expect(screen.getByLabelText('language*')).toBeDisabled()
+    expect(screen.getByLabelText('style')).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Close dialog' })).toBeInTheDocument()
+  })
+
+  it('renders the prompt description above the argument fields', () => {
+    render(
+      <McpPromptArgumentDialog
+        open
+        prompt={prompt}
+        values={{ language: '', style: '' }}
+        submitting={false}
+        onValuesChange={vi.fn()}
+        onOpenChange={vi.fn()}
+        onSubmit={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('Review a patch')).toBeInTheDocument()
+    expect(screen.getByText('Target language')).toBeInTheDocument()
   })
 })
