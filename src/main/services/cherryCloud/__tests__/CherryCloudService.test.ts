@@ -207,6 +207,42 @@ describe('CherryCloudService', () => {
     expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
   })
 
+  it('does not let a matching error callback clear an exchange in progress', async () => {
+    let resolveExchange!: (response: Response) => void
+    const pendingExchange = new Promise<Response>((resolve) => {
+      resolveExchange = resolve
+    })
+    mocks.netFetch
+      .mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
+      .mockReturnValueOnce(pendingExchange)
+    const service = new CherryCloudService()
+    await service._doInit()
+    await service.startLogin()
+    const createBody = JSON.parse(mocks.netFetch.mock.calls[0][1].body as string)
+
+    const validCallback = service.handleCallback(
+      new URL(
+        `cherrystudio://cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
+      )
+    )
+    await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(2))
+    const errorCallback = service.handleCallback(
+      new URL(
+        `cherrystudio://cloud-auth/callback?authorization_id=${authorizationId}&state=${createBody.state}&error=access_denied`
+      )
+    )
+
+    expect(await service.getStatus()).toEqual({ phase: 'authorizing', displayName: null })
+    resolveExchange(jsonResponse(exchangeResponse()))
+    await expect(Promise.all([validCallback, errorCallback])).resolves.toEqual([undefined, undefined])
+    expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+
+    CherryCloudService.resetInstances()
+    const restored = new CherryCloudService()
+    await restored._doInit()
+    expect(await restored.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+  })
+
   it('clears a matching malformed callback so login can be started again', async () => {
     mocks.netFetch
       .mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
