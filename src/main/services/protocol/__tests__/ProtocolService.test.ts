@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   appMock,
+  cherryCloudServiceMock,
   loggerMock,
   handlersMock,
   ipcApiServiceMock,
@@ -17,6 +18,9 @@ const {
     on: vi.fn(),
     removeListener: vi.fn(),
     setAsDefaultProtocolClient: vi.fn()
+  }
+  const cherryCloudServiceMock = {
+    handleCallback: vi.fn()
   }
   const loggerMock = {
     debug: vi.fn(),
@@ -48,6 +52,7 @@ const {
   }
   return {
     appMock,
+    cherryCloudServiceMock,
     loggerMock,
     handlersMock,
     ipcApiServiceMock,
@@ -77,6 +82,7 @@ vi.mock('@application', () => ({
       if (name === 'IpcApiService') return ipcApiServiceMock
       if (name === 'MainWindowService') return mainWindowServiceMock
       if (name === 'OAuthRuntimeService') return oauthRuntimeServiceMock
+      if (name === 'CherryCloudService') return cherryCloudServiceMock
       if (name === 'WindowManager') return windowManagerMock
       throw new Error(`unexpected service: ${name}`)
     },
@@ -139,6 +145,7 @@ describe('ProtocolService', () => {
     originalDefaultApp = (process as NodeJS.Process & { defaultApp?: boolean }).defaultApp
     vi.clearAllMocks()
     oauthRuntimeServiceMock.handleDeepLinkCallback.mockResolvedValue(undefined)
+    cherryCloudServiceMock.handleCallback.mockResolvedValue(undefined)
     service = new ProtocolService()
   })
 
@@ -198,6 +205,19 @@ describe('ProtocolService', () => {
       url: 'cherrystudio://unknown/path?foo=bar',
       params: { foo: 'bar' }
     })
+  })
+
+  it('routes Cherry Cloud callbacks only to the main-process login service', async () => {
+    await markProtocolHandlingReady()
+
+    ;(service as any).handleProtocolUrl(
+      'cherrystudio://cloud-auth/callback?authorization_id=00000000-0000-4000-8000-000000000001&handoff_code=secret&state=state'
+    )
+
+    await vi.waitFor(() => expect(cherryCloudServiceMock.handleCallback).toHaveBeenCalledTimes(1))
+    const callback = cherryCloudServiceMock.handleCallback.mock.calls[0][0] as URL
+    expect(callback.hostname).toBe('cloud-auth')
+    expect(ipcApiServiceMock.broadcast).not.toHaveBeenCalled()
   })
 
   describe('protocol URL readiness', () => {

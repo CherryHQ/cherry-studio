@@ -198,6 +198,12 @@ export class ProtocolService extends BaseService {
             .handleDeepLinkCallback(urlObj)
             .catch((error) => logger.error('Failed to handle OAuth callback', error as Error))
           return
+        case 'cloud-auth':
+          application
+            .get('CherryCloudService')
+            .handleCallback(urlObj)
+            .catch((error) => logger.error('Failed to handle Cherry Cloud callback', error as Error))
+          return
       }
 
       // Default branch: deep link with no main-process handler. Fan out to every
