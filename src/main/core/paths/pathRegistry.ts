@@ -47,6 +47,7 @@ export function buildPathRegistry() {
   const appUserData = app.getPath('userData')
   const appUserDataData = path.join(appUserData, 'Data')
   const appUserDataRuntime = path.join(appUserData, 'Runtime')
+  const appUserDataProviderRegistryOverride = path.join(appUserDataRuntime, 'provider-registry-override')
   const appUserDataToolchain = path.join(appUserData, 'Toolchain')
   const appUserDataToolchainMise = path.join(appUserDataToolchain, 'mise')
   const appSession = app.getPath('sessionData')
@@ -102,12 +103,19 @@ export function buildPathRegistry() {
       ? path.join(appExtraResources, 'provider-registry')
       : path.join(__dirname, '../../packages/provider-registry/data'),
 
+    // Remote-updated override copy of the registry JSON, preferred over the
+    // bundled data when present (see ProviderRegistryUpdaterService). Writable.
+    'feature.provider_registry.override': appUserDataProviderRegistryOverride,
+
     // Local embedding model cache (transformers.js HF cache root, downloaded on first use)
     'feature.embedding.models': path.join(appUserDataRuntime, 'models', 'qwen3-embedding'),
 
     // onnxruntime-node native binary (napi addon + shared lib), downloaded on first
     // use of local embedding or local OCR — see OnnxRuntimeBinaryService.
     'feature.onnxruntime.binary': path.join(appUserDataToolchain, 'onnxruntime'),
+
+    // BabelDOC runtime cache (layout model, fonts, CMap/tiktoken assets)
+    'feature.pdf_translation.babeldoc': path.join(appUserDataRuntime, 'models', 'babeldoc'),
 
     // BinaryManager (tool manager)
     'feature.binary.data': appUserDataToolchainMise,
@@ -116,6 +124,9 @@ export function buildPathRegistry() {
     // without reading the user's real values (see getBinaryIsolatedHomeEnv).
     'feature.binary.data.isolated.localappdata': path.join(appUserDataToolchainMise, 'localappdata'),
     'feature.binary.data.isolated.appdata': path.join(appUserDataToolchainMise, 'appdata'),
+
+    // DeepSeek Harness
+    'feature.deepseek_harness.workspace': path.join(appUserDataData, 'DeepSeekHarness', 'Workspace'),
 
     // MCP
     'feature.mcp': path.join(CHERRY_HOME, 'mcp'),
@@ -147,6 +158,10 @@ export function buildPathRegistry() {
     // pi resume tokens persist the pi session id, never a filesystem path.
     'feature.agents.pi.root': path.join(appUserDataData, 'Agents', '.pi'), // Cherry-owned pi coding-agent home; passed explicitly as agentDir
     'feature.agents.pi.sessions': path.join(appUserDataData, 'Agents', '.pi', 'sessions'), // Passed explicitly as sessionDir
+    // NOTE(app-managed-dirs): dsh dirs are new in this PR and freely relocatable —
+    // dsh resume tokens persist the session id, never a filesystem path.
+    'feature.agents.dsh.root': path.join(appUserDataData, 'Agents', '.dsh'), // Cherry-owned dsh home (DSH_HOME) + per-connection compositions
+    'feature.agents.dsh.sessions': path.join(appUserDataData, 'Agents', '.dsh', 'sessions'), // JSONL session-persistence root
     'feature.agents.data': path.join(appUserDataData, 'Agents'), // per-agent identity + memory data
     'feature.agents.system_workspaces': path.join(appUserDataData, 'Agents', 'system'), // app-owned session workspaces
     'feature.agents.builtin': path.join(appRootResources, 'builtin-agents'), // bundled agent templates (read-only)
@@ -191,7 +206,9 @@ export function buildPathRegistry() {
     'feature.cli.temp': path.join(appTemp, 'cli'),
     'feature.dxt.uploads.temp': path.join(appTemp, 'dxt_uploads'),
     'feature.file_processing.temp': path.join(appTemp, 'file-processing'),
+    'feature.mcp.resource_results.temp': path.join(appTemp, 'mcp-resource-results'),
     'feature.preprocess.temp': path.join(appTemp, 'preprocess'),
+    'feature.pdf_translation.temp': path.join(appTemp, 'pdf-translation'),
     'feature.lan_transfer.temp': path.join(appTemp, 'lan-transfer'),
     // FileManager's `withTempCopy` escape hatch parent dir; each call mkdtemps a
     // unique sub-directory under here.
@@ -205,6 +222,7 @@ export function buildPathRegistry() {
 
     // -- F. external.* — third-party tool paths (Cherry reads/writes, does NOT own) --
     'external.openclaw.config': path.join(os.homedir(), '.openclaw'),
+    'external.deepseek_harness.config': path.join(os.homedir(), '.dsh'),
     // Nested ternary (not object literal) to satisfy file-level ESLint constraint
     'external.obsidian.config_file': isWin
       ? path.join(app.getPath('appData'), 'obsidian', 'obsidian.json')

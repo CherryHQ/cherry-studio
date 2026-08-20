@@ -98,9 +98,30 @@ export const permissionModeCards: PermissionModeCard[] = [
   }
 ]
 
+/**
+ * `auto` means something different on pi, so its copy has to differ too: it is Cherry's own
+ * deterministic gate rather than Claude's model-side classifier (no "depends on the model" caveat).
+ * `bypassPermissions` now reads the same on every runtime — approvals are lifted, explicit safety
+ * blocks (disabled tools, global installs, and cross-Session delegation ceilings) still apply.
+ */
+const PI_CARD_OVERRIDES: Partial<Record<AgentPermissionMode, Partial<PermissionModeCard>>> = {
+  auto: {
+    // t('agent.settings.tooling.permissionMode.auto.description_pi')
+    descriptionKey: 'agent.settings.tooling.permissionMode.auto.description_pi',
+    descriptionFallback: 'Works on its own. Asks when it recognizes a risky action.',
+    // File tools are held to the workspace, but a shell command is only pattern-matched — the copy
+    // must not imply the agent is contained.
+    // t('agent.settings.tooling.permissionMode.auto.warning_pi')
+    warningKey: 'agent.settings.tooling.permissionMode.auto.warning_pi',
+    warningFallback: 'Recognition is best-effort; an unusual command can still slip through.'
+  }
+}
+
 /** Permission-mode cards offered for an agent type. Unknown types keep the full set. */
 export function getPermissionModeCards(agentType: AgentType | string | undefined): PermissionModeCard[] {
   if (!agentType || !(agentType in AGENT_RUNTIME_CAPABILITIES)) return permissionModeCards
   const modes = new Set<AgentPermissionMode>(AGENT_RUNTIME_CAPABILITIES[agentType as AgentType].permissionModes)
-  return permissionModeCards.filter((card) => modes.has(card.mode))
+  return permissionModeCards
+    .filter((card) => modes.has(card.mode))
+    .map((card) => (agentType === 'pi' ? { ...card, ...PI_CARD_OVERRIDES[card.mode] } : card))
 }

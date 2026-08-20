@@ -18,6 +18,8 @@ import { findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
  * alternatives, and PATH lookup cannot see commands the Bash tool reaches through Git Bash.
  */
 
+export const SKILL_TOOL_NAME = 'Skill'
+
 const NAME_PATTERN = /^[a-zA-Z0-9_-]+(?::[a-zA-Z0-9_-]+)?$/
 const BASH_EXECUTABLE_PATTERN = /^Bash\(\s*([a-zA-Z0-9_][a-zA-Z0-9_-]{0,127})(?=[:\s)])/u
 const SDK_BUILTIN_SUBAGENTS = new Set(['claude', 'Explore', 'general-purpose', 'Plan', 'statusline-setup'])

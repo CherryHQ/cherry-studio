@@ -17,6 +17,7 @@
  */
 import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import { PI_TOOL_EXEC_TOOL_NAME, PI_TOOL_SEARCH_TOOL_NAME } from '@shared/ai/piBuiltinTools'
 import type { CherryUIMessageChunk } from '@shared/data/types/message'
 
 export interface PiStreamSink {
@@ -157,7 +158,7 @@ export class PiStreamAdapter {
     this.sink.enqueue({
       type: 'tool-output-available',
       toolCallId,
-      output: result ?? null,
+      output: projectPiToolOutput(toolName, result),
       dynamic: true,
       providerExecuted: true,
       providerMetadata: toolProviderMetadata(toolName)
@@ -194,6 +195,12 @@ export class PiStreamAdapter {
       }
     })
   }
+}
+
+function projectPiToolOutput(toolName: string, result: unknown): unknown {
+  if (toolName !== PI_TOOL_SEARCH_TOOL_NAME && toolName !== PI_TOOL_EXEC_TOOL_NAME) return result ?? null
+  if (!result || typeof result !== 'object' || !('details' in result)) return result ?? null
+  return (result as { details?: unknown }).details ?? result
 }
 
 interface TurnUsageTotals {

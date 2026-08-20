@@ -21,7 +21,7 @@ src/renderer/data/
     ├── createInfiniteQueryRetentionMiddleware.ts # Configurable bounded retention for infinite-query consumers
     ├── useDataApi.ts       # useQuery, useMutation, useInfiniteQuery, useInfiniteFlatItems, usePaginatedQuery, useDataChange, useReadCache, useWriteCache, useInvalidateCache, prefetch
     ├── useReorder.ts       # optimistic drag-and-drop reordering
-    ├── usePreference.ts    # usePreference, usePreferences
+    ├── usePreference.ts    # usePreference, useMultiplePreferences
     └── useCache.ts         # useCache, useSharedCache, useSharedCacheValue, usePersistCache
 ```
 
@@ -35,11 +35,11 @@ const { trigger: createTopic } = useMutation('/topics', 'POST')
 
 // Preferences
 import { usePreference } from '@data/hooks/usePreference'
-const [theme, setTheme] = usePreference('app.theme.mode')
+const [language, setLanguage] = usePreference('app.language')
 
 // Cache (three-tier renderer cache)
 import { useCache, useSharedCache, usePersistCache } from '@data/hooks/useCache'
-const [counter, setCounter] = useCache('ui.counter', 0)
+const [isSelecting, setIsSelecting] = useCache('chat.multi_select_mode')
 
 // Non-reactive DataApi cache control (snapshot read / overlay write / invalidate)
 import { useReadCache, useWriteCache, useInvalidateCache } from '@data/hooks/useDataApi'

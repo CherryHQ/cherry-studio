@@ -272,6 +272,8 @@ export async function findAllSkillDirectories(
     const entries = await fs.promises.readdir(dirPath, { withFileTypes: true })
 
     for (const entry of entries) {
+      // Skip hidden directories and node_modules
+      if (entry.name.startsWith('.') || entry.name === 'node_modules') continue
       // Support both directories and symlinks pointing to directories
       if (await isDirectoryOrSymlinkToDirectory(entry, dirPath)) {
         const subDirPath = path.join(dirPath, entry.name)

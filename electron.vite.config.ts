@@ -2,13 +2,36 @@ import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import react from '@vitejs/plugin-react-swc'
 import { CodeInspectorPlugin } from 'code-inspector-plugin'
 import { defineConfig } from 'electron-vite'
+import { readFileSync } from 'fs'
 import { resolve } from 'path'
 import { visualizer } from 'rollup-plugin-visualizer'
+import { parse } from 'yaml'
 
 // assert not supported by biome
 // import pkg from './package.json' assert { type: 'json' }
 import pkg from './package.json'
+import { chunkExportGuardPlugin } from './scripts/checkChunkExports'
 import { uiContractPlugin } from './scripts/uiContract/vitePlugin'
+import { parseReleaseHistory, validateCurrentReleaseHistory } from './src/shared/utils/releaseNotes'
+
+type ElectronBuilderConfig = {
+  releaseInfo?: {
+    releaseNotes?: unknown
+  }
+}
+
+const electronBuilderConfig = parse(
+  readFileSync(resolve(__dirname, 'electron-builder.yml'), 'utf8')
+) as ElectronBuilderConfig
+const bundledReleaseNotes = electronBuilderConfig.releaseInfo?.releaseNotes
+const bundledReleaseHistory = parseReleaseHistory(
+  readFileSync(resolve(__dirname, 'resources/cherry-studio/release-history.json'), 'utf8')
+)
+
+if (typeof bundledReleaseNotes !== 'string' || !bundledReleaseNotes.trim()) {
+  throw new Error('electron-builder.yml must define non-empty releaseInfo.releaseNotes')
+}
+validateCurrentReleaseHistory({ releaseNotes: bundledReleaseNotes, version: pkg.version }, bundledReleaseHistory)
 
 const visualizerPlugin = (type: 'renderer' | 'main') => {
   return process.env[`VISUALIZER_${type.toUpperCase()}`] ? [visualizer({ open: true })] : []
@@ -25,7 +48,12 @@ const isProd = process.env.NODE_ENV === 'production'
 // move it to `dependencies`: that would externalize it, and since devDependencies are
 // pruned from production packages, the packaged app would fail at runtime with
 // MODULE_NOT_FOUND (no test catches this). See docs/references/api-gateway/README.md.
-const mainExternalDependencies = Object.keys(pkg.dependencies)
+const mainExternalDependencies = [
+  ...Object.keys(pkg.dependencies),
+  // optionalDependencies too: platform-gated natives (e.g. node-mac-permissions) are real import
+  // targets, not napi sub-packages, so rollup would fail on the .node; production keeps them installed.
+  ...Object.keys(pkg.optionalDependencies ?? {})
+]
 const mainExternalModules = ['bufferutil', 'utf-8-validate', 'electron', ...mainExternalDependencies]
 
 export const isMainExternalModule = (id: string) => {
@@ -34,7 +62,7 @@ export const isMainExternalModule = (id: string) => {
 
 export default defineConfig({
   main: {
-    plugins: [...visualizerPlugin('main')],
+    plugins: [chunkExportGuardPlugin(), ...visualizerPlugin('main')],
     resolve: {
       alias: {
         '@main': resolve('src/main'),
@@ -42,8 +70,6 @@ export default defineConfig({
         '@data': resolve('src/main/data'),
         '@shared': resolve('src/shared'),
         '@logger': resolve('src/main/core/logger/LoggerService'),
-        '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core'),
-        '@mcp-trace/trace-node': resolve('packages/mcp-trace/trace-node'),
         '@cherrystudio/ai-core/provider': resolve('packages/aiCore/src/core/providers'),
         '@cherrystudio/ai-core/built-in/plugins': resolve('packages/aiCore/src/core/plugins/built-in'),
         '@cherrystudio/ai-core': resolve('packages/aiCore/src'),
@@ -59,8 +85,14 @@ export default defineConfig({
       rollupOptions: {
         external: isMainExternalModule,
         output: {
-          // conf removes its containing file from require.cache; isolate it so the app entry stays cached.
-          manualChunks: (id) => (id.includes('/node_modules/conf/') ? 'electron-store-conf' : undefined)
+          manualChunks: (id) => {
+            // conf removes its containing file from require.cache; isolate it so the app entry stays cached.
+            if (id.includes('/node_modules/conf/')) return 'electron-store-conf'
+            // rolldown drops this chunk's named exports when it merges with a re-export-only
+            // facade chunk, leaving createOpenAI undefined at runtime. Keep it alone.
+            if (id.includes('/node_modules/@ai-sdk/openai/')) return 'ai-sdk-openai'
+            return undefined
+          }
         },
         onwarn(warning, warn) {
           if (warning.code === 'COMMONJS_VARIABLE_IN_ESM') return
@@ -82,8 +114,7 @@ export default defineConfig({
     ],
     resolve: {
       alias: {
-        '@shared': resolve('src/shared'),
-        '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core')
+        '@shared': resolve('src/shared')
       }
     },
     build: {
@@ -104,6 +135,11 @@ export default defineConfig({
     }
   },
   renderer: {
+    define: {
+      __APP_RELEASE_HISTORY__: JSON.stringify(bundledReleaseHistory),
+      __APP_RELEASE_NOTES__: JSON.stringify(bundledReleaseNotes),
+      __APP_RELEASE_VERSION__: JSON.stringify(pkg.version)
+    },
     plugins: [
       uiContractPlugin(),
       tanstackRouter({
@@ -125,7 +161,6 @@ export default defineConfig({
         '@shared': resolve('src/shared'),
         '@logger': resolve('src/renderer/services/LoggerService'),
         '@data': resolve('src/renderer/data'),
-        '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core'),
         '@cherrystudio/ai-core/provider': resolve('packages/aiCore/src/core/providers'),
         '@cherrystudio/ai-core/built-in/plugins': resolve('packages/aiCore/src/core/plugins/built-in'),
         '@cherrystudio/ai-core': resolve('packages/aiCore/src'),
@@ -158,7 +193,8 @@ export default defineConfig({
           selectionAction: resolve(__dirname, 'src/renderer/windows/selection/action/index.html'),
           migrationV2: resolve(__dirname, 'src/renderer/windows/migrationV2/index.html'),
           userDataRelocation: resolve(__dirname, 'src/renderer/windows/userDataRelocation/index.html'),
-          subWindow: resolve(__dirname, 'src/renderer/windows/subWindow/index.html')
+          subWindow: resolve(__dirname, 'src/renderer/windows/subWindow/index.html'),
+          screenshot: resolve(__dirname, 'src/renderer/windows/screenshot/index.html')
         },
         onwarn(warning, warn) {
           if (warning.code === 'COMMONJS_VARIABLE_IN_ESM') return

@@ -4,6 +4,7 @@ import * as path from 'node:path'
 import { loggerService } from '@logger'
 import { isOutsidePath } from '@main/utils/file'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
+import { assertZipEntriesWithin } from '@main/utils/zipSafety'
 import StreamZip from 'node-stream-zip'
 
 /**
@@ -32,6 +33,7 @@ export async function extractZip(zipFilePath: string, destDir: string): Promise<
 
   try {
     const entries = await zip.entries()
+    assertZipEntriesWithin(Object.keys(entries), destDir)
     let totalSize = 0
     let fileCount = 0
 

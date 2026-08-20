@@ -86,7 +86,7 @@
       "id": "silicon",
       "metadata": {
         "website": {
-          "apiKey": "https://cloud.siliconflow.cn/",
+          "apiKey": "https://cloud.siliconflow.cn/i/d1nTBKXU",
           "docs": "https://docs.siliconflow.cn/",
           "models": "https://cloud.siliconflow.cn/models",
           "official": "https://www.siliconflow.cn"
@@ -2073,5 +2073,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "cde3bb6539c1f8fa"
+  "version": "7dd1ae83c85245f9"
 }

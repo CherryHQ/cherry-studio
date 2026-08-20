@@ -8,13 +8,20 @@ import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
+import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { loggerService } from '@logger'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
+import { SKILL_LIST_MEMBERSHIP_DIMENSIONS } from '@shared/data/api/schemas/skills'
+import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import { setupTestDatabase } from '@test-helpers/db'
 import AdmZip from 'adm-zip'
 import { eq } from 'drizzle-orm'
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const notifyDataApiDataChangeMock = vi.hoisted(() => vi.fn())
+
+vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
 
 vi.mock('@main/utils/markdownParser', () => ({
   parseSkillMetadata: vi.fn(),
@@ -35,7 +42,11 @@ vi.mock('@main/utils/processRunner', () => ({
 // extraction, directory resolution) while the rest of the path still runs for real.
 vi.mock('../skillPaths', async (importOriginal) => {
   const actual = (await importOriginal()) as typeof skillPaths
-  return { ...actual, createTempDir: vi.fn(actual.createTempDir) }
+  return {
+    ...actual,
+    createTempDir: vi.fn(actual.createTempDir),
+    safeRemoveDirectory: vi.fn(actual.safeRemoveDirectory)
+  }
 })
 vi.mock('../skillArchive', async (importOriginal) => {
   const actual = (await importOriginal()) as typeof skillArchive
@@ -78,6 +89,7 @@ describe('SkillService', () => {
   // install test cannot hand its stub to the next.
   beforeEach(() => {
     vi.mocked(skillPaths.createTempDir).mockReset()
+    vi.mocked(skillPaths.safeRemoveDirectory).mockReset()
     vi.mocked(skillArchive.extractZip).mockReset()
     vi.mocked(skillArchive.resolveSkillDirectory).mockReset()
   })
@@ -176,6 +188,39 @@ describe('SkillService', () => {
       const two = result.find((s) => s.id === SKILL_ID_2)
       expect(one?.isEnabled).toBe(true)
       expect(two?.isEnabled).toBe(false)
+    })
+
+    it('keeps the global state separate and lets it override an agent enablement without erasing it', async () => {
+      const skillService = new SkillService()
+      await seedAgent()
+      await seedSkills()
+      await dbh.db.insert(agentSkillTable).values({
+        agentId: AGENT_ID,
+        skillId: SKILL_ID_1,
+        isEnabled: true
+      })
+      const disabledSkill = agentGlobalSkillService.updateGlobalEnabled(SKILL_ID_1, false)
+
+      const globallyListed = await skillService.list()
+      const agentListed = await skillService.list({ agentId: AGENT_ID })
+      const storedPreference = dbh.db
+        .select()
+        .from(agentSkillTable)
+        .where(eq(agentSkillTable.skillId, SKILL_ID_1))
+        .get()
+
+      expect(disabledSkill?.isGlobalEnabled).toBe(false)
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/skills', kind: 'projection', entityIds: [SKILL_ID_1] },
+        { endpoint: '/skills', kind: 'membership', dimension: 'agentId', entityIds: [SKILL_ID_1] },
+        { endpoint: '/skills/:skillId', entityIds: [SKILL_ID_1] }
+      ])
+      const emittedEffects = notifyDataApiDataChangeMock.mock.calls[0]?.[0] as DataApiDataChangeEffect[]
+      const membershipEffect = emittedEffects.find((effect) => effect.kind === 'membership')
+      expect(Object.values(SKILL_LIST_MEMBERSHIP_DIMENSIONS)).toContain(membershipEffect?.dimension)
+      expect(globallyListed.find((skill) => skill.id === SKILL_ID_1)?.isGlobalEnabled).toBe(false)
+      expect(agentListed.find((skill) => skill.id === SKILL_ID_1)).toBeUndefined()
+      expect(storedPreference?.isEnabled).toBe(true)
     })
 
     it('defaults isEnabled to false for non-builtin skills and true for builtin skills when agentId has no skill rows', async () => {
@@ -400,12 +445,19 @@ describe('SkillService', () => {
         size: 0,
         contentHash: 'system-hash'
       })
+      vi.mocked(findAllSkillDirectories).mockImplementation(async (directoryPath) =>
+        directoryPath === path.join(home, '.codex', 'skills')
+          ? [{ folderPath: sourceSkillDir, sourcePath: 'large-skill' }]
+          : []
+      )
       vi.mocked(findSkillMdPath).mockImplementation(async (directoryPath) => path.join(directoryPath, 'SKILL.md'))
     })
 
     afterEach(() => {
       restoreGetPath()
       vi.mocked(parseSkillMetadata).mockReset()
+      vi.mocked(findAllSkillDirectories).mockReset()
+      vi.mocked(findAllSkillDirectories).mockResolvedValue([])
       vi.mocked(findSkillMdPath).mockReset()
     })
 
@@ -424,6 +476,47 @@ describe('SkillService', () => {
       expect(parseSkillMetadata).toHaveBeenCalledWith(
         await fs.promises.realpath(sourceSkillDir),
         'large-skill',
+        'skills',
+        { calculateSize: false }
+      )
+    })
+
+    it('discovers skills recursively under known system roots', async () => {
+      const agentsSkillsRoot = path.join(home, '.agents', 'skills')
+      const nestedSkillDir = path.join(agentsSkillsRoot, 'github', 'github-pr-workflow')
+      await fs.promises.mkdir(nestedSkillDir, { recursive: true })
+      await fs.promises.writeFile(path.join(nestedSkillDir, 'SKILL.md'), '# GitHub PR workflow')
+      vi.mocked(findAllSkillDirectories).mockImplementation(async (directoryPath) =>
+        directoryPath === agentsSkillsRoot
+          ? [{ folderPath: nestedSkillDir, sourcePath: path.join('github', 'github-pr-workflow') }]
+          : []
+      )
+      vi.mocked(parseSkillMetadata).mockResolvedValue({
+        sourcePath: path.join('github', 'github-pr-workflow'),
+        filename: 'github-pr-workflow',
+        name: 'GitHub PR Workflow',
+        description: 'Nested system skill',
+        category: 'skills',
+        type: 'skill',
+        version: '1.0.0',
+        size: 0,
+        contentHash: 'nested-system-hash'
+      })
+
+      const result = await skillService.discoverSystem()
+
+      expect(result).toEqual([
+        expect.objectContaining({
+          name: 'GitHub PR Workflow',
+          filename: 'github-pr-workflow',
+          directoryPath: await fs.promises.realpath(nestedSkillDir),
+          status: 'available',
+          placements: [expect.objectContaining({ sourceId: 'agents', sourceName: 'Agent Skills' })]
+        })
+      ])
+      expect(parseSkillMetadata).toHaveBeenCalledWith(
+        await fs.promises.realpath(nestedSkillDir),
+        path.join('github', 'github-pr-workflow'),
         'skills',
         { calculateSize: false }
       )
@@ -565,12 +658,16 @@ describe('SkillService', () => {
      */
     async function setupGithubInstall(options: {
       refs?: Array<{ name: string; oid: string; namespace?: 'heads' | 'tags' }>
-      tree?: string[]
+      tree?: Array<string | { path: string; size: number }>
+      realInstall?: boolean
     }) {
       const skillService = new SkillService()
       const workDir = await createTempDir('github-install-')
       vi.mocked(skillPaths.createTempDir).mockResolvedValue(workDir as never)
-      const tree = options.tree ?? ['skills/demo/SKILL.md']
+      vi.mocked(skillPaths.safeRemoveDirectory).mockResolvedValue(undefined as never)
+      const tree = (options.tree ?? ['skills/demo/SKILL.md']).map((entry) =>
+        typeof entry === 'string' ? { path: entry, size: 8 } : entry
+      )
       const gitCalls: string[][] = []
 
       executeCommandMock.mockImplementation(async (_command: string, args: string[]) => {
@@ -580,17 +677,37 @@ describe('SkillService', () => {
             .map((ref) => `${ref.oid}\trefs/${ref.namespace ?? 'heads'}/${ref.name}`)
             .join('\n')
         }
-        if (args.includes('ls-tree')) return tree.join('\n')
+        if (args.includes('ls-tree')) {
+          const separator = args.lastIndexOf('--')
+          const pathspec = separator === -1 ? null : args[separator + 1]
+          const selectedPath = pathspec?.replace(/^:\(top,literal\)/, '')
+          const selectedTree = tree.filter(
+            (entry) => !selectedPath || entry.path === selectedPath || entry.path.startsWith(`${selectedPath}/`)
+          )
+          return selectedTree.map((entry) => `100644 blob ${'d'.repeat(40)} ${entry.size}\t${entry.path}\0`).join('')
+        }
         if (args.includes('checkout')) {
-          for (const entry of tree) {
-            await fs.promises.mkdir(path.join(workDir, path.dirname(entry)), { recursive: true })
-            await fs.promises.writeFile(path.join(workDir, entry), '# skill')
+          const separator = args.lastIndexOf('--')
+          const pathspec = args[separator + 1]
+          const selectedPath = pathspec === '.' ? null : pathspec.replace(/^:\(top,literal\)/, '')
+          for (const entry of tree.filter(
+            (entry) => !selectedPath || entry.path === selectedPath || entry.path.startsWith(`${selectedPath}/`)
+          )) {
+            const contentPath = path.join(workDir, 'content', entry.path)
+            await fs.promises.mkdir(path.dirname(contentPath), { recursive: true })
+            await fs.promises.writeFile(contentPath, '# skill')
           }
         }
         return ''
       })
 
-      const installSpy = vi.spyOn(skillService as never, 'installSkillDir').mockResolvedValue({} as never)
+      const installSkillDir = skillService['installSkillDir'].bind(skillService)
+      const installSpy = vi.spyOn(skillService as never, 'installSkillDir')
+      if (options.realInstall) {
+        installSpy.mockImplementation(installSkillDir as never)
+      } else {
+        installSpy.mockResolvedValue({} as never)
+      }
       vi.mocked(findSkillMdPath).mockImplementation(async (dir: string) => path.join(dir, 'SKILL.md'))
       return { skillService, installSpy, gitCalls, workDir }
     }
@@ -614,8 +731,51 @@ describe('SkillService', () => {
       expect(installSpy).toHaveBeenCalledWith(
         expect.stringContaining(path.join('skills', 'recruit-init')),
         'marketplace',
-        'https://github.com/owner/repo/tree/dev/skills/recruit-init'
+        'https://raw.githubusercontent.com/owner/repo/refs/heads/dev/skills/recruit-init/SKILL.md'
       )
+    })
+
+    it('updates the same skill when switching between blob and explicit raw branch URLs', async () => {
+      const root = await createTempDir('github-reinstall-')
+      const dataSkillsRoot = path.join(root, 'Data', 'Skills')
+      const mirrorRoot = path.join(root, '.claude', 'skills')
+      const getPathSpy = vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
+        const base = key === 'feature.agents.skills' ? dataSkillsRoot : mirrorRoot
+        return filename ? path.join(base, filename) : base
+      })
+      vi.mocked(parseSkillMetadata).mockResolvedValue({
+        sourcePath: 'demo',
+        filename: 'demo',
+        name: 'Demo',
+        description: 'Demo skill',
+        category: 'skills',
+        type: 'skill',
+        version: '1.0.0',
+        size: 0,
+        contentHash: 'demo-hash'
+      })
+      const { skillService } = await setupGithubInstall({
+        refs: [{ name: 'main', oid: 'a'.repeat(40) }],
+        realInstall: true
+      })
+
+      try {
+        const installed = await skillService.install({
+          installSource: 'github:https://github.com/owner/repo/blob/main/skills/demo/SKILL.md'
+        })
+        const updatedFromRaw = await skillService.install({
+          installSource: 'github:https://raw.githubusercontent.com/owner/repo/refs/heads/main/skills/demo/SKILL.md'
+        })
+        const updatedFromBlob = await skillService.install({
+          installSource: 'github:https://github.com/owner/repo/blob/main/skills/demo/SKILL.md'
+        })
+
+        expect(updatedFromRaw).toMatchObject({ id: installed.id, sourceUrl: installed.sourceUrl })
+        expect(updatedFromBlob).toMatchObject({ id: installed.id, sourceUrl: installed.sourceUrl })
+      } finally {
+        getPathSpy.mockRestore()
+        vi.mocked(parseSkillMetadata).mockReset()
+      }
     })
 
     it('resolves a slash-bearing branch against the remote instead of splitting at the first segment', async () => {
@@ -634,18 +794,111 @@ describe('SkillService', () => {
       expect(gitFetchArgs(gitCalls)).toEqual(expect.arrayContaining([wanted]))
     })
 
-    it('refuses a URL that names a repo-root SKILL.md instead of falling back to a shorter ref', async () => {
+    it('installs a repository-root SKILL.md without exposing Git metadata as skill content', async () => {
+      const oid = 'a'.repeat(40)
+      const { skillService, installSpy } = await setupGithubInstall({
+        refs: [{ name: 'main', oid }],
+        tree: ['SKILL.md', 'scripts/run.ts']
+      })
+
+      await skillService.install({
+        installSource: 'github:https://github.com/owner/repo/blob/main/SKILL.md'
+      })
+
+      const installedDirectory = installSpy.mock.calls[0][0] as string
+      await expect(fs.promises.access(path.join(installedDirectory, 'SKILL.md'))).resolves.toBeUndefined()
+      await expect(fs.promises.access(path.join(installedDirectory, '.git'))).rejects.toMatchObject({ code: 'ENOENT' })
+    })
+
+    it('uses the longest slash-bearing ref for a repository-root SKILL.md', async () => {
       const { skillService, gitCalls } = await setupGithubInstall({
         refs: [
           { name: 'feature', oid: 'a'.repeat(40) },
           { name: 'feature/foo', oid: 'b'.repeat(40) }
+        ],
+        tree: ['SKILL.md']
+      })
+
+      await skillService.install({ installSource: 'github:https://github.com/owner/repo/blob/feature/foo/SKILL.md' })
+
+      expect(gitFetchArgs(gitCalls)).toEqual(expect.arrayContaining(['b'.repeat(40)]))
+    })
+
+    it('installs a repository-root Skill from a full commit permalink', async () => {
+      const oid = 'c'.repeat(40)
+      const { skillService, installSpy, gitCalls } = await setupGithubInstall({ tree: ['SKILL.md'] })
+
+      await skillService.install({ installSource: `github:https://github.com/owner/repo/blob/${oid}/SKILL.md` })
+
+      expect(gitFetchArgs(gitCalls)).toEqual(expect.arrayContaining([oid]))
+      expect(installSpy).toHaveBeenCalledWith(
+        expect.stringContaining(`${path.sep}content`),
+        'marketplace',
+        `https://github.com/owner/repo/tree/${oid}`
+      )
+    })
+
+    it('uses an explicit tag namespace when a branch has the same name', async () => {
+      const tagOid = 'b'.repeat(40)
+      const { skillService, installSpy, gitCalls } = await setupGithubInstall({
+        refs: [
+          { name: 'v1', oid: 'a'.repeat(40) },
+          { name: 'v1', oid: tagOid, namespace: 'tags' }
         ]
       })
 
+      await skillService.install({
+        installSource: 'github:https://github.com/owner/repo/raw/refs/tags/v1/skills/demo/SKILL.md'
+      })
+
+      expect(gitFetchArgs(gitCalls)).toEqual(expect.arrayContaining([tagOid]))
+      expect(installSpy).toHaveBeenCalledWith(
+        expect.any(String),
+        'marketplace',
+        'https://raw.githubusercontent.com/owner/repo/refs/tags/v1/skills/demo/SKILL.md'
+      )
+    })
+
+    it('installs the exact lowercase descriptor selected by the URL', async () => {
+      const { skillService, installSpy } = await setupGithubInstall({
+        refs: [{ name: 'main', oid: 'a'.repeat(40) }],
+        tree: ['skills/demo/skill.md']
+      })
+
+      await skillService.install({
+        installSource: 'github:https://raw.githubusercontent.com/owner/repo/main/skills/demo/skill.md'
+      })
+
+      const installedDirectory = installSpy.mock.calls[0][0] as string
+      await expect(fs.promises.access(path.join(installedDirectory, 'skill.md'))).resolves.toBeUndefined()
+    })
+
+    it('rejects a missing exact descriptor before checkout', async () => {
+      const { skillService, gitCalls } = await setupGithubInstall({
+        refs: [{ name: 'main', oid: 'a'.repeat(40) }],
+        tree: ['skills/demo/skill.md']
+      })
+
       await expect(
-        skillService.install({ installSource: 'github:https://github.com/owner/repo/blob/feature/foo/SKILL.md' })
-      ).rejects.toThrow('repository root')
-      expect(gitFetchArgs(gitCalls)).toBeUndefined()
+        skillService.install({
+          installSource: 'github:https://github.com/owner/repo/blob/main/skills/demo/SKILL.md'
+        })
+      ).rejects.toThrow('No SKILL.md found')
+      expect(gitCalls.some((args) => args.includes('checkout'))).toBe(false)
+    })
+
+    it('rejects an oversized selected target before checkout', async () => {
+      const { skillService, gitCalls } = await setupGithubInstall({
+        refs: [{ name: 'main', oid: 'a'.repeat(40) }],
+        tree: ['skills/demo/SKILL.md', { path: 'skills/demo/model.bin', size: 100 * 1024 * 1024 }]
+      })
+
+      await expect(
+        skillService.install({
+          installSource: 'github:https://github.com/owner/repo/blob/main/skills/demo/SKILL.md'
+        })
+      ).rejects.toThrow('too large')
+      expect(gitCalls.some((args) => args.includes('checkout'))).toBe(false)
     })
 
     it('refuses a ref name carried by both a branch and a tag', async () => {
@@ -672,6 +925,20 @@ describe('SkillService', () => {
       expect(gitFetchArgs(gitCalls)).toEqual(expect.arrayContaining([oid]))
     })
 
+    it.each(['heads', 'tags'] as const)('does not treat a missing explicit %s ref as a commit', async (namespace) => {
+      const oid = 'c'.repeat(40)
+      const { skillService, gitCalls } = await setupGithubInstall({
+        refs: [{ name: 'main', oid: 'a'.repeat(40) }]
+      })
+
+      await expect(
+        skillService.install({
+          installSource: `github:https://raw.githubusercontent.com/owner/repo/refs/${namespace}/${oid}/skills/demo/SKILL.md`
+        })
+      ).rejects.toThrow('No branch or tag')
+      expect(gitFetchArgs(gitCalls)).toBeUndefined()
+    })
+
     it('fails a github URL whose ref matches no branch, tag or commit', async () => {
       const { skillService, gitCalls } = await setupGithubInstall({ refs: [{ name: 'main', oid: 'a'.repeat(40) }] })
 
@@ -681,12 +948,21 @@ describe('SkillService', () => {
       expect(gitFetchArgs(gitCalls)).toBeUndefined()
     })
 
-    it('refuses a tree whose directories collide once case is folded', async () => {
-      // A case-insensitive filesystem merges these two into one checkout, so containment checks would
-      // inspect bytes other than the ones the URL selected.
+    it('does not inspect a case-variant sibling outside the selected directory', async () => {
       const { skillService } = await setupGithubInstall({
         refs: [{ name: 'main', oid: 'a'.repeat(40) }],
         tree: ['skills/demo/SKILL.md', 'skills/Demo/SKILL.md']
+      })
+
+      await expect(
+        skillService.install({ installSource: 'github:https://github.com/owner/repo/blob/main/skills/demo/SKILL.md' })
+      ).resolves.toBeDefined()
+    })
+
+    it('refuses case-folded directory collisions inside the selected skill', async () => {
+      const { skillService } = await setupGithubInstall({
+        refs: [{ name: 'main', oid: 'a'.repeat(40) }],
+        tree: ['skills/demo/SKILL.md', 'skills/demo/Docs/a.md', 'skills/demo/docs/b.md']
       })
 
       await expect(
@@ -702,9 +978,14 @@ describe('SkillService', () => {
       })
 
       expect(gitFetchArgs(gitCalls)).toEqual(expect.arrayContaining(['--filter=blob:none']))
-      expect(gitCalls.find((args) => args.includes('sparse-checkout'))).toEqual(
-        expect.arrayContaining(['/skills/demo/'])
+      expect(gitCalls.find((args) => args.includes('checkout'))).toEqual(
+        expect.arrayContaining(['--', ':(top,literal)skills/demo'])
       )
+      expect(gitCalls.filter((args) => args.includes('ls-tree'))).toEqual([
+        expect.arrayContaining(['--', ':(top,literal)skills/demo'])
+      ])
+      const treeCall = executeCommandMock.mock.calls.find(([, args]) => args.includes('ls-tree'))
+      expect(treeCall?.[2]).toMatchObject({ maxOutputBytes: expect.any(Number) })
     })
 
     it('never lets an untrusted repository prompt for credentials or pull LFS payloads', async () => {
@@ -1416,7 +1697,7 @@ describe('SkillService', () => {
       expect(rows[0]?.source).toBe('local')
       expect(rows[0]?.name).toBe('New Skill')
       expect(rows[0]?.version).toBe('3.0.0')
-      expect(rows[0]?.isEnabled).toBe(false)
+      expect(rows[0]?.isEnabled).toBe(true)
       await expect(fs.promises.access(path.join(authored, 'SKILL.md'))).resolves.toBeUndefined()
       expect((await fs.promises.lstat(path.join(mirrorRoot, 'new-skill'))).isSymbolicLink()).toBe(true)
     })
@@ -1762,6 +2043,39 @@ describe('SkillService', () => {
       expect(
         await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.skillId, SKILL_ID_BUILTIN))
       ).toHaveLength(1)
+    })
+  })
+
+  describe('extractZip (zip-slip guard)', () => {
+    it('rejects entries that escape the destination dir before extracting', async () => {
+      const zipDir = await createTempDir('skill-zipslip-')
+      const destDir = await createTempDir('skill-dest-')
+      const zip = new AdmZip()
+      zip.addFile('SKILL.md', Buffer.from('---\nname: x\n---\n'))
+      zip.addFile('../../../evil-slip-marker.sh', Buffer.from('pwn'))
+      const zipPath = path.join(zipDir, 'skill.zip')
+      zip.writeZip(zipPath)
+
+      // node-stream-zip rejects malicious names itself ('Malicious entry') and the
+      // explicit guard is defense-in-depth — either layer rejecting satisfies the contract.
+      await expect(skillArchive.extractZip(zipPath, destDir)).rejects.toThrow(/zip-slip|Malicious entry/)
+
+      // Nothing was written — not the safe entry, and no marker escaped beside destDir.
+      expect(fs.existsSync(path.join(destDir, 'SKILL.md'))).toBe(false)
+      expect(fs.existsSync(path.join(destDir, '..', 'evil-slip-marker.sh'))).toBe(false)
+    })
+
+    it('extracts a well-formed skill zip', async () => {
+      const zipDir = await createTempDir('skill-zip-ok-')
+      const destDir = await createTempDir('skill-dest-')
+      const zip = new AdmZip()
+      zip.addFile('SKILL.md', Buffer.from('---\nname: x\n---\n'))
+      zip.addFile('nested/helper.md', Buffer.from('# helper'))
+      const zipPath = path.join(zipDir, 'skill.zip')
+      zip.writeZip(zipPath)
+
+      await skillArchive.extractZip(zipPath, destDir)
+      await expect(fs.promises.readFile(path.join(destDir, 'SKILL.md'), 'utf-8')).resolves.toContain('name: x')
     })
   })
 })
