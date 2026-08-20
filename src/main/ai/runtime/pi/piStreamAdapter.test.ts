@@ -230,7 +230,7 @@ describe('PiStreamAdapter', () => {
     })
   })
 
-  it('stamps MCP tools with type mcp and serverName from the tool name', () => {
+  it('stamps MCP tools with type mcp, name, and serverName from the tool name', () => {
     const chunks = collect([
       { type: 'tool_execution_start', toolCallId: 'm1', toolName: 'mcp__exa__search', args: {} } as AgentSessionEvent,
       {
@@ -243,12 +243,15 @@ describe('PiStreamAdapter', () => {
     ])
     const toolOutput = chunks.find((chunk) => chunk.type === 'tool-output-available')
     expect(toolOutput).toMatchObject({
-      providerMetadata: { cherry: { transport: PI_TRANSPORT, tool: { type: 'mcp', serverName: 'exa' } } }
+      providerMetadata: {
+        cherry: { transport: PI_TRANSPORT, tool: { type: 'mcp', name: 'search', serverName: 'exa' } }
+      }
     })
   })
 
-  it('projects details for MCP tools so normalized output reaches the resolver', async () => {
+  it('keeps full result for third-party MCP tools instead of projecting details', async () => {
     const details = [{ id: 'a-1', title: 'First', url: 'https://a.com', content: 'x' }]
+    const result = { content: [{ type: 'text', text: 'results' }], details }
     const message = await accumulate(
       collect([
         { type: 'tool_execution_start', toolCallId: 'm2', toolName: 'mcp__exa__search', args: {} },
@@ -256,14 +259,14 @@ describe('PiStreamAdapter', () => {
           type: 'tool_execution_end',
           toolCallId: 'm2',
           toolName: 'mcp__exa__search',
-          result: { content: [{ type: 'text', text: 'results' }], details },
+          result,
           isError: false
         }
       ] as AgentSessionEvent[])
     )
     expect(message.parts.find((part) => part.type === 'dynamic-tool')).toMatchObject({
       toolName: 'mcp__exa__search',
-      output: details
+      output: result
     })
   })
 })

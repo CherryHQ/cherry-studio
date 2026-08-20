@@ -101,25 +101,9 @@ describe('resolveMessageCitations', () => {
     expect(mc.byId.get('qqq-1')).toMatchObject({ type: 'knowledge', content: 'kb chunk' })
   })
 
-  it('ignores third-party MCP tools sharing the builtin name when output is not normalized', () => {
+  it('ignores third-party MCP tools sharing the builtin name', () => {
     const mc = resolveMessageCitations([dynamicMcpPart('mcp__other-server__web_search', webResults('abc'))])
     expect(mc.all).toHaveLength(0)
-  })
-
-  it('resolves third-party MCP tools whose output was normalized to webSearchOutputSchema', () => {
-    // Simulates Pi adapter normalization: MCP output in {id, title, url, content} format
-    const mcpPart = {
-      type: 'dynamic-tool',
-      toolName: 'mcp__exa__search',
-      toolCallId: 'c3',
-      state: 'output-available',
-      input: { query: 'q' },
-      output: webResults('exa')
-    } as CherryMessagePart
-    const mc = resolveMessageCitations([mcpPart])
-    expect(mc.all).toHaveLength(2)
-    expect(mc.byId.get('exa-1')).toMatchObject({ number: 1, url: 'https://a.com/x', type: 'websearch' })
-    expect(mc.byId.get('exa-2')).toMatchObject({ number: 2, url: 'https://b.com/y', type: 'websearch' })
   })
 
   it('requires cherry-tools metadata for raw same-named dynamic tools', () => {

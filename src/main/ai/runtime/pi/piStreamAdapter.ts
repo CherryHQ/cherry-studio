@@ -34,7 +34,7 @@ function toolProviderMetadata(toolName: string, extra: Record<string, unknown> =
     cherry: {
       transport: PI_TRANSPORT,
       tool: parsed
-        ? { type: 'mcp' as const, serverName: parsed.serverPart }
+        ? { type: 'mcp' as const, name: parsed.toolPart, serverName: parsed.serverPart }
         : { type: 'builtin' as const, name: toolName }
     },
     pi: { toolName, ...extra }
@@ -203,11 +203,7 @@ export class PiStreamAdapter {
 
 function projectPiToolOutput(toolName: string, result: unknown): unknown {
   if (!result || typeof result !== 'object' || !('details' in result)) return result ?? null
-  if (
-    toolName === PI_TOOL_SEARCH_TOOL_NAME ||
-    toolName === PI_TOOL_EXEC_TOOL_NAME ||
-    parseFunctionCallToolName(toolName)
-  ) {
+  if (toolName === PI_TOOL_SEARCH_TOOL_NAME || toolName === PI_TOOL_EXEC_TOOL_NAME) {
     return (result as { details?: unknown }).details ?? result
   }
   return result ?? null
