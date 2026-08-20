@@ -123,6 +123,18 @@ describe('HermesDashboardService', () => {
     expect(mocks.spawn).not.toHaveBeenCalled()
   })
 
+  it('rejects new dashboards once lifecycle shutdown begins', async () => {
+    const service = new HermesDashboardService()
+
+    await (service as any).onStop()
+
+    await expect(service.start()).resolves.toEqual({
+      success: false,
+      message: 'Hermes Dashboard is unavailable during application shutdown'
+    })
+    expect(mocks.spawn).not.toHaveBeenCalled()
+  })
+
   it('terminates only the child process it started', async () => {
     const service = new HermesDashboardService()
     await service.start()

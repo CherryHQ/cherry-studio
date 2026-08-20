@@ -38,11 +38,17 @@ export class HermesDashboardService extends BaseService {
   private readonly operationMutex = new Mutex()
   private readonly startupAbortControllers = new Set<AbortController>()
   private child: ChildProcess | null = null
+  private isLifecycleStopping = false
   private status: HermesDashboardStatus = 'stopped'
   private stoppingChild: ChildProcess | null = null
   private url: string | undefined
 
+  protected onInit(): void {
+    this.isLifecycleStopping = false
+  }
+
   protected async onStop(): Promise<void> {
+    this.isLifecycleStopping = true
     await this.stop()
   }
 
@@ -55,6 +61,9 @@ export class HermesDashboardService extends BaseService {
     this.startupAbortControllers.add(startupAbortController)
     try {
       return await this.operationMutex.runExclusive(async () => {
+        if (this.isLifecycleStopping) {
+          return { success: false, message: 'Hermes Dashboard is unavailable during application shutdown' }
+        }
         if (startupAbortController.signal.aborted) {
           return { success: false, message: 'Hermes Dashboard startup was cancelled' }
         }
@@ -98,9 +107,15 @@ export class HermesDashboardService extends BaseService {
   async stop(): Promise<void> {
     for (const startup of this.startupAbortControllers) startup.abort()
     await this.operationMutex.runExclusive(async () => {
-      await this.stopOwnedProcessLocked()
-      this.status = 'stopped'
-      this.url = undefined
+      try {
+        await this.stopOwnedProcessLocked()
+        this.status = 'stopped'
+      } catch (error) {
+        this.status = 'error'
+        throw error
+      } finally {
+        this.url = undefined
+      }
     })
   }
 
@@ -159,12 +174,17 @@ export class HermesDashboardService extends BaseService {
     const child = this.child
     if (!child) return
     this.stoppingChild = child
-    await terminateOwnedProcess(child, false)
-    if (await waitForTermination(child, GRACEFUL_STOP_TIMEOUT_MS)) return
+    try {
+      await terminateOwnedProcess(child, false)
+      if (await waitForTermination(child, GRACEFUL_STOP_TIMEOUT_MS)) return
 
-    await terminateOwnedProcess(child, true)
-    if (!(await waitForTermination(child, FORCE_STOP_TIMEOUT_MS))) {
-      throw new Error('Hermes Dashboard did not exit after forced termination')
+      await terminateOwnedProcess(child, true)
+      if (!(await waitForTermination(child, FORCE_STOP_TIMEOUT_MS))) {
+        throw new Error('Hermes Dashboard did not exit after forced termination')
+      }
+    } catch (error) {
+      if (this.stoppingChild === child) this.stoppingChild = null
+      throw error
     }
   }
 }
@@ -225,10 +245,6 @@ function waitForReady(child: ChildProcess, url: string, signal: AbortSignal): Pr
     }
     const succeed = () => {
       if (settled) return
-      if (child.exitCode !== null || child.signalCode !== null) {
-        fail(new Error('Hermes Dashboard exited before its health check completed'))
-        return
-      }
       settled = true
       cleanup()
       resolve()
