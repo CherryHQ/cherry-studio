@@ -3944,6 +3944,7 @@ describe('ClaudeCodeStreamAdapter', () => {
           uuid: crypto.randomUUID(),
           state: 'idle'
         } as any)
+        expect(statusEvents).not.toContainEqual({ type: 'background-work-state', active: false })
         vi.advanceTimersByTime(999)
 
         expect(getLastBackgroundTaskEvent(statusEvents)?.data.workflow).toMatchObject({ totalCumulativeTokens: 120 })
@@ -3967,6 +3968,7 @@ describe('ClaudeCodeStreamAdapter', () => {
             ])
           }
         })
+        expect(statusEvents.at(-1)).toEqual({ type: 'background-work-state', active: false })
       } finally {
         fixture.cleanup()
         vi.useRealTimers()

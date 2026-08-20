@@ -2185,14 +2185,21 @@ export class AgentSessionRuntimeService extends BaseService {
         const parts = accumulator.latest?.parts as CherryMessagePart[] | undefined
         if (parts) {
           agentSessionMessageService.replaceMessageParts(entry.sessionId, accumulator.messageId, parts)
-          this.writeWorkflowCheckpointsForMessage(entry, accumulator.messageId, entry.closing === true)
+          const checkpointed = this.writeWorkflowCheckpointsForMessage(
+            entry,
+            accumulator.messageId,
+            entry.closing === true
+          )
+          const finalParts = checkpointed
+            ? agentSessionMessageService.getSessionMessage(entry.sessionId, accumulator.messageId).data.parts
+            : parts
           this.releaseBackgroundFlowMessageState(entry, accumulator.messageId)
-          if (this.isCurrentEntry(entry)) {
+          if (this.isCurrentEntry(entry) || entry.closing === true) {
             application
               .get('CacheService')
               .setShared(
                 AGENT_SESSION_FLOW_PARTS_CACHE_KEY(entry.sessionId, accumulator.messageId),
-                parts,
+                finalParts ?? parts,
                 BACKGROUND_FLOW_HANDOFF_TTL_MS
               )
           }
@@ -2235,7 +2242,23 @@ export class AgentSessionRuntimeService extends BaseService {
     ) {
       return
     }
+    if (
+      hasAgentSessionRuntimeBackgroundWork(entry.runtimeState) &&
+      taskIds.some((taskId) => this.taskWaitsForTerminalReconciliation(events[taskId]))
+    ) {
+      return
+    }
     void this.finishBackgroundFlowAccumulator(entry, accumulator)
+  }
+
+  private taskWaitsForTerminalReconciliation(event: AgentTaskEventPartData | undefined): boolean {
+    return (
+      event?.workflow !== undefined ||
+      event?.taskType === 'local_workflow' ||
+      event?.taskType === 'local_agent' ||
+      event?.taskType === 'subagent' ||
+      event?.subagentType !== undefined
+    )
   }
 
   private releaseBackgroundFlowMessageState(entry: AgentSessionRuntimeEntry, messageId: string): void {
@@ -2407,11 +2430,13 @@ export class AgentSessionRuntimeService extends BaseService {
 
     if (merged.toolUseId) this.rememberBackgroundTaskToolCall(entry, merged.taskId, merged.toolUseId)
     const persistedData = this.prepareTaskEventForTranscript(entry, data, merged)
-    this.routeBackgroundTaskEventChunk(entry, merged.taskId, {
-      type: 'data-agent-task-event',
-      id: `task-${merged.taskId}-${merged.event}`,
-      data: persistedData
-    } as UIMessageChunk)
+    if (persistedData) {
+      this.routeBackgroundTaskEventChunk(entry, merged.taskId, {
+        type: 'data-agent-task-event',
+        id: `task-${merged.taskId}-${merged.event}`,
+        data: persistedData
+      } as UIMessageChunk)
+    }
     const messageId = entry.taskMessageIdsByTaskId?.get(merged.taskId)
     if (messageId && data.workflow) this.scheduleWorkflowCheckpoint(entry, messageId, merged)
     if (messageId && entry.terminalTaskIds?.has(merged.taskId)) {
@@ -2475,22 +2500,26 @@ export class AgentSessionRuntimeService extends BaseService {
     entry: AgentSessionRuntimeEntry,
     messageId: string,
     allowDetached = false
-  ): void {
+  ): boolean {
+    let checkpointed = false
     for (const [taskId, checkpoint] of entry.workflowCheckpoints ?? []) {
       if (checkpoint.messageId === messageId) {
+        checkpointed = true
         this.writeWorkflowCheckpoint(entry, taskId, checkpoint, allowDetached)
       }
     }
+    return checkpointed
   }
 
   private prepareTaskEventForTranscript(
     entry: AgentSessionRuntimeEntry,
     incoming: AgentTaskEventPartData,
     merged: AgentTaskEventPartData
-  ): AgentTaskEventPartData {
+  ): AgentTaskEventPartData | undefined {
     if (incoming.workflow) {
       const isTerminal = isTerminalAgentSessionTaskStatus(incoming.status)
       const terminalPersisted = entry.terminalWorkflowSnapshotPersistedTaskIds?.has(merged.taskId) ?? false
+      if (isTerminal && terminalPersisted) return undefined
       const persisted = isTerminal
         ? (entry.terminalWorkflowSnapshotPersistedTaskIds ??= new Set<string>())
         : (entry.workflowSnapshotPersistedTaskIds ??= new Set<string>())
