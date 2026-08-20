@@ -452,6 +452,12 @@
       "faster": "Schneller",
       "label": "Geschwindigkeit",
       "smarter": "Intelligenter",
+      "summary": {
+        "auto": "Automatisch",
+        "concise": "Kompakt",
+        "detailed": "Ausführlich",
+        "label": "Denkzusammenfassung"
+      },
       "title": "Antworteinstellungen"
     },
     "tasks": {

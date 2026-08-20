@@ -452,6 +452,12 @@
       "faster": "Faster",
       "label": "Speed",
       "smarter": "Smarter",
+      "summary": {
+        "auto": "Auto",
+        "concise": "Concise",
+        "detailed": "Detailed",
+        "label": "Thinking summary"
+      },
       "title": "Response settings"
     },
     "tasks": {

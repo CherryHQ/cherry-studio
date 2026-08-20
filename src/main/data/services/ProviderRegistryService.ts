@@ -53,11 +53,12 @@ import type {
   Currency,
   ImageGenerationSupport,
   Model,
+  ReasoningSummary,
   RuntimeModelPricing,
   RuntimeParameterSupport,
   RuntimeReasoning
 } from '@shared/data/types/model'
-import { createUniqueModelId, CURRENCY } from '@shared/data/types/model'
+import { createUniqueModelId, CURRENCY, ReasoningSummarySchema } from '@shared/data/types/model'
 import type {
   ApiFeatures,
   EndpointConfig,
@@ -282,6 +283,19 @@ function deriveSelectableEfforts(
     if (selection === REASONING_EFFORT.AUTO) return profile.auto !== undefined || profile.effort !== undefined
     return profile.effort !== undefined
   })
+}
+
+/**
+ * Summary verbosity is offered only where the endpoint's wire actually carries it —
+ * third-party Responses hosts reject the field, so the control must not appear for them.
+ */
+function deriveSummaryOptions(profile: ReasoningWireProfile): ReasoningSummary[] | undefined {
+  if (profile.disabled) return undefined
+  const modes = [profile.default, profile.auto, profile.effort]
+  const carriesSummary = modes.some((mode) =>
+    mode?.operations.some((operation) => operation.value.source === 'assistant-summary')
+  )
+  return carriesSummary ? [...ReasoningSummarySchema.options] : undefined
 }
 
 /** Apply add/remove/force capability override on top of a base list. */
@@ -657,6 +671,7 @@ export function projectRuntimeReasoning(
   return {
     controls: reasoning.controls,
     selectableEfforts: deriveSelectableEfforts(reasoning, profile),
+    summaryOptions: deriveSummaryOptions(profile),
     thinkingTokenLimits: reasoning.thinkingTokenLimits,
     defaultEffort: reasoning.defaultEffort
   }

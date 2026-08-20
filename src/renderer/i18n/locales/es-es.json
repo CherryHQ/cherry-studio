@@ -452,6 +452,12 @@
       "faster": "Más rápido",
       "label": "Velocidad",
       "smarter": "Más inteligente",
+      "summary": {
+        "auto": "Automático",
+        "concise": "Conciso",
+        "detailed": "Detallado",
+        "label": "Resumen del razonamiento"
+      },
       "title": "Configuración de respuesta"
     },
     "tasks": {

@@ -10,7 +10,7 @@ import * as z from 'zod'
 
 import { ContextSettingsOverrideSchema } from './contextSettings'
 import { GroupIdSchema } from './group'
-import { UniqueModelIdSchema } from './model'
+import { ReasoningSummarySchema, UniqueModelIdSchema } from './model'
 
 // ============================================================================
 // Sub-Schemas
@@ -60,6 +60,8 @@ export const AssistantSettingsSchema = z.object({
   streamOutput: z.boolean(),
   /** Canonical reasoning selection; endpoint profiles own provider-specific wire values. */
   reasoning_effort: ReasoningEffortOptionSchema,
+  /** Summary verbosity, where the endpoint carries one. Absent = the endpoint's own default. */
+  reasoning_summary: ReasoningSummarySchema.optional(),
   // -- Tool use --
   mcpMode: McpModeSchema,
   maxToolCalls: z.number().int().positive(),

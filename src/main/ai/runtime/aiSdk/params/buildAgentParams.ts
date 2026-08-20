@@ -229,7 +229,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     model: invocationModel,
     profile: reasoningProfile.wire,
     maxTokens: requestedMaxOutputTokens ?? model.maxOutputTokens,
-    assistantSummary: provider.settings.summaryText
+    assistantSummary: assistant?.settings.reasoning_summary
   })
   const nativeFileSupport = resolveNativeFileSupport(provider, model, {
     endpointType,

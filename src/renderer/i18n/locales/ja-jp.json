@@ -452,6 +452,12 @@
       "faster": "より速く",
       "label": "スピード",
       "smarter": "スマーター",
+      "summary": {
+        "auto": "自動",
+        "concise": "簡潔",
+        "detailed": "詳細",
+        "label": "思考の要約"
+      },
       "title": "応答設定"
     },
     "tasks": {

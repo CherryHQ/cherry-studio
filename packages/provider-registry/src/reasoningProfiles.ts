@@ -92,8 +92,10 @@ const formatProfiles = {
   'openai-chat': {
     wire: genericEffort()
   },
+  // No `reasoning.summary` here: third-party Responses hosts emit summaries unasked and reject the
+  // field (Ark 400s on it). OpenAI's own hosts opt in via `openaiResponsesSummaryWire`.
   'openai-responses': {
-    wire: genericEffort('reasoningSummary')
+    wire: genericEffort()
   },
   anthropic: {
     wire: {

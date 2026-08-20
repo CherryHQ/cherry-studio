@@ -452,6 +452,12 @@
       "faster": "更快",
       "label": "速度",
       "smarter": "更智能",
+      "summary": {
+        "auto": "自动",
+        "concise": "简洁",
+        "detailed": "详细",
+        "label": "思考摘要"
+      },
       "title": "响应设置"
     },
     "tasks": {

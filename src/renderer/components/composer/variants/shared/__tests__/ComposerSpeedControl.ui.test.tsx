@@ -350,3 +350,60 @@ describe('ComposerSpeedControl UI', () => {
     expect(screen.queryByTestId('reasoning-slider')).not.toBeInTheDocument()
   })
 })
+
+describe('ComposerSpeedControl summary verbosity', () => {
+  const summaryModel = {
+    ...codexModel,
+    reasoning: { ...codexModel.reasoning, summaryOptions: ['auto', 'concise', 'detailed'] }
+  } satisfies Model
+
+  it('reports the picked verbosity and marks it selected', async () => {
+    const onReasoningSummaryChange = vi.fn()
+    render(
+      <ComposerSpeedControl
+        model={summaryModel}
+        reasoningEffort="default"
+        reasoningSummary="concise"
+        fastMode={false}
+        onReasoningEffortChange={vi.fn()}
+        onReasoningSummaryChange={onReasoningSummaryChange}
+        onFastModeChange={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'agent.speed.summary.concise' })).toHaveAttribute('aria-pressed', 'true')
+    await userEvent.click(screen.getByRole('button', { name: 'agent.speed.summary.detailed' }))
+    expect(onReasoningSummaryChange).toHaveBeenCalledWith('detailed')
+  })
+
+  it('defaults to auto when nothing is stored', () => {
+    render(
+      <ComposerSpeedControl
+        model={summaryModel}
+        reasoningEffort="default"
+        fastMode={false}
+        onReasoningEffortChange={vi.fn()}
+        onReasoningSummaryChange={vi.fn()}
+        onFastModeChange={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'agent.speed.summary.auto' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  // Endpoints without a summary knob (every third-party Responses host) must show nothing.
+  it('hides the row when the endpoint carries no summary knob', () => {
+    render(
+      <ComposerSpeedControl
+        model={codexModel}
+        reasoningEffort="default"
+        fastMode={false}
+        onReasoningEffortChange={vi.fn()}
+        onReasoningSummaryChange={vi.fn()}
+        onFastModeChange={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByRole('button', { name: 'agent.speed.summary.auto' })).toBeNull()
+  })
+})

@@ -131,7 +131,9 @@ import {
 } from '@cherrystudio/provider-registry/node'
 
 // Must import after mocks are set up
-const { mergePresetModel, providerRegistryService } = await import('../ProviderRegistryService')
+const { mergePresetModel, projectRuntimeReasoning, providerRegistryService } = await import(
+  '../ProviderRegistryService'
+)
 
 const mockReadModels = vi.mocked(readModelRegistry)
 const mockReadProviderModels = vi.mocked(readProviderModelRegistry)
@@ -931,5 +933,27 @@ describe('ProviderRegistryService', () => {
 
       expect(result.reasoningProfile.format).toBe('openai-chat')
     })
+  })
+})
+
+describe('projectRuntimeReasoning summary options', () => {
+  const effortSupport = { controls: [{ kind: 'effort' as const, values: ['low' as const, 'high' as const] }] }
+
+  // The renderer must not offer a knob the endpoint rejects — Ark 400s on `reasoning.summary`.
+  it('offers summary verbosity only where the wire carries it', () => {
+    const withSummary = projectRuntimeReasoning(effortSupport, {
+      effort: {
+        operations: [
+          { target: 'reasoningEffort', value: { source: 'effort' } },
+          { target: 'reasoningSummary', value: { source: 'assistant-summary' } }
+        ]
+      }
+    })
+    const withoutSummary = projectRuntimeReasoning(effortSupport, {
+      effort: { operations: [{ target: 'reasoningEffort', value: { source: 'effort' } }] }
+    })
+
+    expect(withSummary.summaryOptions).toEqual(['auto', 'concise', 'detailed'])
+    expect(withoutSummary.summaryOptions).toBeUndefined()
   })
 })

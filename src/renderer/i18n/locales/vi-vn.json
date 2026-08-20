@@ -452,6 +452,12 @@
       "faster": "Nhanh hơn",
       "label": "Tốc độ",
       "smarter": "Thông minh hơn",
+      "summary": {
+        "auto": "Tự động",
+        "concise": "Ngắn gọn",
+        "detailed": "Chi tiết",
+        "label": "Tóm tắt suy luận"
+      },
       "title": "Cài đặt phản hồi"
     },
     "tasks": {

@@ -22575,6 +22575,10 @@
       "apiModelId": "deepseek/deepseek-v3.1-terminus",
       "modelId": "deepseek-v3-1-terminus",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.135
+        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 0.27
@@ -22652,15 +22656,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.0168
+          "perMillionTokens": 0.01624
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.084
+          "perMillionTokens": 0.0812
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.168
+          "perMillionTokens": 0.1624
         }
       },
       "providerId": "openrouter",
@@ -36942,6 +36946,10 @@
       "apiModelId": "deepseek-ai/deepseek-v3.1-maas",
       "modelId": "deepseek-v3-1-maas",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.06
+        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 0.6
@@ -36978,11 +36986,7 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.075
-        },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 0.383
+          "perMillionTokens": 0.03
         },
         "input": {
           "currency": "USD",
@@ -37082,6 +37086,10 @@
       "apiModelId": "gemini-3.1-flash-image",
       "modelId": "gemini-3-1-flash-image",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.05
+        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 0.5
@@ -37213,15 +37221,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.15
+          "perMillionTokens": 0.075
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 1.5
+          "perMillionTokens": 0.75
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 7.5
+          "perMillionTokens": 3.75
         }
       },
       "providerId": "vertexai"
@@ -37268,6 +37276,10 @@
       "apiModelId": "gemini-3-pro-image",
       "modelId": "gemini-3-pro-image",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 2
@@ -37336,6 +37348,10 @@
       "apiModelId": "zai-org/glm-4.7-maas",
       "modelId": "glm-4-7-maas",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.06
+        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 0.6
@@ -37385,6 +37401,10 @@
       "apiModelId": "openai/gpt-oss-20b-maas",
       "modelId": "gpt-oss-20b-maas",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.007
+        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 0.07
@@ -37400,6 +37420,10 @@
       "apiModelId": "moonshotai/kimi-k2-thinking-maas",
       "modelId": "kimi-k2-thinking-maas",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.06
+        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 0.6
@@ -37731,5 +37755,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "9df73ac151c4e255"
+  "version": "c5fb0b4789225df1"
 }

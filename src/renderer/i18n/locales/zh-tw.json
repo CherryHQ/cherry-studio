@@ -452,6 +452,12 @@
       "faster": "更快",
       "label": "速度",
       "smarter": "更聰明",
+      "summary": {
+        "auto": "自動",
+        "concise": "簡潔",
+        "detailed": "詳細",
+        "label": "思考摘要"
+      },
       "title": "回應設定"
     },
     "tasks": {

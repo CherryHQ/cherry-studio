@@ -452,6 +452,12 @@
       "faster": "Mai rapid",
       "label": "Viteză",
       "smarter": "Mai inteligent",
+      "summary": {
+        "auto": "Automat",
+        "concise": "Concis",
+        "detailed": "Detaliat",
+        "label": "Rezumatul gândirii"
+      },
       "title": "Setări de răspuns"
     },
     "tasks": {

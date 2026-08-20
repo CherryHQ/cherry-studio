@@ -2,7 +2,7 @@ import { Button, Popover, PopoverContent, PopoverTrigger, RadioGroup, RadioGroup
 import type { ThinkingOption } from '@renderer/types/reasoning'
 import { cn } from '@renderer/utils/style'
 import { deriveThinkingOptions } from '@shared/ai/reasoning'
-import type { Model } from '@shared/data/types/model'
+import type { Model, ReasoningSummary } from '@shared/data/types/model'
 import { ChevronDown, Gauge, Zap } from 'lucide-react'
 import { type ReactNode, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -31,6 +31,12 @@ const EFFORT_LABEL_KEYS: Record<ThinkingOption, string> = {
   auto: 'assistants.settings.reasoning_effort.auto'
 }
 
+const SUMMARY_LABEL_KEYS: Record<ReasoningSummary, string> = {
+  auto: 'agent.speed.summary.auto',
+  concise: 'agent.speed.summary.concise',
+  detailed: 'agent.speed.summary.detailed'
+}
+
 const WHEEL_STEP_THRESHOLD = 40
 const WHEEL_IDLE_RESET_MS = 120
 
@@ -38,7 +44,10 @@ interface ComposerSpeedControlProps {
   model: Model
   reasoningEffort: ThinkingOption
   fastMode: boolean
+  /** Omit both to hide the summary row — surfaces where the selection has nowhere to persist. */
+  reasoningSummary?: ReasoningSummary
   onReasoningEffortChange: (effort: ThinkingOption) => void
+  onReasoningSummaryChange?: (summary: ReasoningSummary) => void
   onFastModeChange: (enabled: boolean) => void
 }
 
@@ -124,8 +133,10 @@ export function resolveComposerReasoningEffort(model: Model, effort: ThinkingOpt
 export function ComposerSpeedControl({
   model,
   reasoningEffort,
+  reasoningSummary,
   fastMode,
   onReasoningEffortChange,
+  onReasoningSummaryChange,
   onFastModeChange
 }: ComposerSpeedControlProps) {
   const { t } = useTranslation()
@@ -135,6 +146,9 @@ export function ComposerSpeedControl({
   }, [model])
   const supportsReasoning = reasoningOptions.length > 1
   const supportsFast = model.supportsFastMode === true
+  // Only endpoints whose wire carries a summary knob project these; the wire's own default is 'auto'.
+  const summaryOptions = onReasoningSummaryChange ? (model.reasoning?.summaryOptions ?? []) : []
+  const selectedSummary: ReasoningSummary = reasoningSummary ?? 'auto'
 
   if (!supportsReasoning && !supportsFast) return null
 
@@ -288,6 +302,28 @@ export function ComposerSpeedControl({
               </label>
             ))}
           </RadioGroup>
+        ) : null}
+        {summaryOptions.length > 0 ? (
+          <div className="flex h-9 items-center gap-1 border-frame-border border-t px-2">
+            <span className="shrink-0 text-muted-foreground">{t('agent.speed.summary.label')}:</span>
+            <div className="ml-auto flex shrink-0 items-center gap-0.5">
+              {summaryOptions.map((summary) => (
+                <Button
+                  key={summary}
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className={cn(
+                    'h-7 rounded-md px-2 text-muted-foreground text-xs',
+                    selectedSummary === summary && 'text-primary hover:text-primary'
+                  )}
+                  aria-pressed={selectedSummary === summary}
+                  onClick={() => onReasoningSummaryChange?.(summary)}>
+                  {t(SUMMARY_LABEL_KEYS[summary])}
+                </Button>
+              ))}
+            </div>
+          </div>
         ) : null}
       </PopoverContent>
     </Popover>
