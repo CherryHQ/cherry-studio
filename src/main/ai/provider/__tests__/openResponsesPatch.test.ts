@@ -71,6 +71,94 @@ describe('patched @ai-sdk/open-responses', () => {
     expect(result.warnings).toEqual([])
   })
 
+  it('passes serviceTier and include through to the wire body', async () => {
+    let body: any
+    await makeModel((b) => (body = b)).doGenerate({
+      prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
+      providerOptions: { openai: { serviceTier: 'fast', include: ['reasoning.encrypted_content'] } }
+    })
+
+    expect(body.service_tier).toBe('fast')
+    expect(body.include).toEqual(['reasoning.encrypted_content'])
+  })
+
+  it('replays encrypted reasoning with its item id (Ark stateless thinking passback)', async () => {
+    let body: any
+    await makeModel((b) => (body = b)).doGenerate({
+      prompt: [
+        {
+          role: 'assistant',
+          content: [
+            {
+              type: 'reasoning',
+              text: 'summary',
+              providerOptions: { openai: { itemId: 'rs_1', reasoningEncryptedContent: 'ENC' } }
+            }
+          ]
+        },
+        { role: 'user', content: [{ type: 'text', text: 'next' }] }
+      ]
+    })
+
+    expect(body.input.filter((item: any) => item.type === 'reasoning')).toEqual([
+      {
+        type: 'reasoning',
+        summary: [],
+        content: [{ type: 'reasoning_text', text: 'summary' }],
+        status: 'completed',
+        id: 'rs_1',
+        encrypted_content: 'ENC'
+      }
+    ])
+  })
+
+  it('surfaces encrypted_content on reasoning-end providerMetadata', async () => {
+    const events = [
+      {
+        type: 'response.output_item.added',
+        output_index: 0,
+        item: { type: 'reasoning', id: 'rs_enc' }
+      },
+      {
+        type: 'response.reasoning_summary_text.delta',
+        item_id: 'rs_enc',
+        output_index: 0,
+        summary_index: 0,
+        delta: 'x'
+      },
+      {
+        type: 'response.output_item.done',
+        output_index: 0,
+        item: { type: 'reasoning', id: 'rs_enc', encrypted_content: 'ENC' }
+      },
+      {
+        type: 'response.completed',
+        response: { id: 'resp_1', usage: { input_tokens: 1, output_tokens: 1 } }
+      }
+    ]
+    const sse = `${events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join('')}data: [DONE]\n\n`
+    const model = createOpenResponses({
+      url: 'https://example.com/v1/responses',
+      name: 'openai',
+      apiKey: 'sk-test',
+      fetch: async () => new Response(sse, { headers: { 'content-type': 'text/event-stream' } })
+    })('doubao-seed-2-1-pro')
+
+    const result = await model.doStream({
+      prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }]
+    })
+    const reader = result.stream.getReader()
+    const chunks: LanguageModelV3StreamPart[] = []
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      chunks.push(value)
+    }
+
+    const end = chunks.find((chunk) => chunk.type === 'reasoning-end') as any
+    expect(end.providerMetadata).toEqual({ openai: { itemId: 'rs_enc', reasoningEncryptedContent: 'ENC' } })
+  })
+
   it('passes provider-defined tools (web_search) through alongside function tools', async () => {
     let body: any
     await makeModel((b) => (body = b)).doGenerate({

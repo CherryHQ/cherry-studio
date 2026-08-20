@@ -42,7 +42,7 @@ const createStripReasoningReplayPlugin = () =>
   })
 
 /** Ark generations before seed-2.x reject reasoning items; seed-2.x accepts them (verified live). */
-const ARK_REASONING_REPLAY_MODEL = /seed-2|seed-evolving/i
+export const ARK_REASONING_REPLAY_MODEL = /seed-2|seed-evolving/i
 
 /** Providers whose Responses endpoint rejects reasoning input items. */
 export const stripReasoningReplayFeature: RequestFeature = {

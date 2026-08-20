@@ -14,6 +14,7 @@
 import type { RequestFeature } from '../feature'
 import { anthropicCacheFeature } from './anthropicCache'
 import { anthropicHeadersFeature } from './anthropicHeaders'
+import { arkEncryptedReasoningFeature } from './arkEncryptedReasoning'
 import { contextBuildFeature } from './contextBuild'
 import { deepseekDsmlParserFeature } from './deepseekDsmlParserPlugin'
 import { devtoolsFeature } from './devtools'
@@ -56,6 +57,8 @@ export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   skipGeminiThoughtSignatureFeature,
   // Ark (pre-seed-2.x) and HF reject reasoning input items — strip them on replay.
   stripReasoningReplayFeature,
+  // Ark seed-2.x: request encrypted thinking so replay preserves reasoning quality.
+  arkEncryptedReasoningFeature,
   providerWebSearchFeature,
   providerUrlContextFeature,
   // Stop when a trusted local tool cannot succeed without an external change.
