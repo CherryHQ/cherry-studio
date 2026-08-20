@@ -2993,7 +2993,7 @@
       "empty_title": "Pesquisar competências",
       "github_empty_description": "Cole a ligação para um ficheiro SKILL.md de uma skill, por exemplo github.com/proprietário/repositório/blob/main/skills/minha-skill/SKILL.md",
       "github_empty_title": "Instalar do GitHub",
-      "github_url_invalid": "Cole uma ligação do GitHub que termine com SKILL.md",
+      "github_url_invalid": "Cole uma ligação do GitHub suportada que aponte diretamente para um ficheiro SKILL.md",
       "github_url_label": "URL GitHub SKILL.md",
       "github_url_placeholder": "Ligação GitHub que termina em /SKILL.md",
       "no_results_description": "Experimente outra palavra-chave ou importe um ficheiro ZIP local ou uma pasta.",
@@ -3739,7 +3739,7 @@
   },
   "notification": {
     "assistant": "Resposta do assistente",
-    "tip": "Se a resposta for bem-sucedida, lembrete apenas para mensagens que excedam 30 segundos"
+    "tip": "Controla apenas as notificações do sistema em segundo plano. As notificações na aplicação estão sempre ativadas."
   },
   "ocr": {
     "processing": "Processamento OCR em andamento..."
@@ -6235,7 +6235,7 @@
       "label": "Configurações adicionais"
     },
     "notification": {
-      "assistant": "Mensagem do assistente",
+      "assistant": "Notificações de conclusão de conversas",
       "backup": "Backup",
       "knowledge_embed": "Base de conhecimento",
       "title": "Notificações",

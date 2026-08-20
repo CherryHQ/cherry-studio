@@ -2993,7 +2993,7 @@
       "empty_title": "Nach Fähigkeiten suchen",
       "github_empty_description": "Fügen Sie einen Link zu einer SKILL.md-Datei einer Fähigkeit ein, z. B. github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
       "github_empty_title": "Von GitHub installieren",
-      "github_url_invalid": "Fügen Sie einen GitHub-Link ein, der mit SKILL.md endet",
+      "github_url_invalid": "Fügen Sie einen unterstützten GitHub-Link ein, der direkt auf eine SKILL.md-Datei verweist",
       "github_url_label": "GitHub-SKILL.md-URL",
       "github_url_placeholder": "GitHub-Link, endend mit /SKILL.md",
       "no_results_description": "Versuchen Sie ein anderes Stichwort oder importieren Sie eine lokale ZIP-Datei oder ein Verzeichnis.",
@@ -3739,7 +3739,7 @@
   },
   "notification": {
     "assistant": "Assistenten-Antwort",
-    "tip": "Bei erfolgreicher Antwort wird nur für Nachrichten über 30 Sekunden eine Benachrichtigung angezeigt"
+    "tip": "Steuert nur Systembenachrichtigungen im Hintergrund. In-App-Benachrichtigungen sind immer aktiviert."
   },
   "ocr": {
     "processing": "OCR wird verarbeitet..."
@@ -6235,7 +6235,7 @@
       "label": "Weitere Einstellungen"
     },
     "notification": {
-      "assistant": "Assistenten-Nachrichten",
+      "assistant": "Benachrichtigungen bei Gesprächsabschluss",
       "backup": "Sicherung",
       "knowledge_embed": "Wissensdatenbank",
       "title": "Benachrichtigungen",

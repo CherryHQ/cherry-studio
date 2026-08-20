@@ -9,9 +9,10 @@
       }
     },
     "session": {
+      "new": "Nova tarefa",
       "run_status": {
-        "busy": "The Agent Session is busy. Please try again shortly.",
-        "unavailable": "The Agent Session is no longer available."
+        "busy": "A sessão do Agent está ocupada. Tente novamente dentro de instantes.",
+        "unavailable": "A sessão do Agent já não está disponível."
       },
       "workspace_status": {
         "inaccessible": "O caminho do espaço de trabalho não está acessível: {{path}}",
@@ -83,6 +84,11 @@
     "zoomIn": "Ampliar",
     "zoomOut": "Reduzir Zoom"
   },
+  "chat": {
+    "conversation": {
+      "new": "Nova conversa"
+    }
+  },
   "common": {
     "channel_available_commands": "Comandos disponíveis:",
     "channel_command_processing_error": "⚠️ Ocorreu um erro ao processar o comando. Tente novamente mais tarde.",
@@ -134,6 +140,16 @@
     "errors": {
       "document_size_limit_exceeded": "O serviço atual de análise de documentos requer ficheiros menores que {{maxSize}}. Comprima ou divida este ficheiro e adicione-o novamente.",
       "pdf_page_limit_exceeded": "Este PDF excede o limite de {{maxPages}} páginas do serviço atual de análise de documentos. Divida o PDF manualmente e adicione-o novamente."
+    }
+  },
+  "notification": {
+    "action_required": {
+      "agent": "O agente precisa da sua intervenção",
+      "assistant": "O assistente precisa da sua intervenção"
+    },
+    "completion": {
+      "agent": "Tarefa do agente concluída",
+      "assistant": "Resposta do assistente concluída"
     }
   },
   "openclaw": {

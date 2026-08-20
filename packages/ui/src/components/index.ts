@@ -149,7 +149,7 @@ export {
   type SelectGroup as CompositeInputSelectGroup,
   type SelectItem as CompositeInputSelectItem
 } from './composites/composite-input'
-export { Sortable } from './composites/sortable'
+export { BlurCancelPointerSensor, Sortable } from './composites/sortable'
 // TreeView
 export {
   type DragPosition,

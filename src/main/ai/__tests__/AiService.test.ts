@@ -1566,6 +1566,50 @@ describe('AiService tool approval', () => {
     expect(embedSpy).toHaveBeenCalledWith(expect.objectContaining({ values: ['test'] }))
   })
 
+  it('checks image-only models through the image endpoint, not chat', async () => {
+    const service = createService()
+    const imageSpy = vi.spyOn(service, 'generateImage').mockResolvedValue({ files: [] })
+    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
+    mockModelGetByKey.mockReturnValue({
+      id: 'test-provider::test-image',
+      providerId: 'test-provider',
+      apiModelId: 'test-image',
+      name: 'Test Image',
+      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
+      supportsStreaming: false,
+      isEnabled: true,
+      isHidden: false
+    })
+
+    await service.checkModel({ uniqueModelId: 'test-provider::test-image' })
+
+    expect(imageSpy).toHaveBeenCalledWith(expect.objectContaining({ prompt: expect.any(String) }))
+    expect(generateSpy).not.toHaveBeenCalled()
+  })
+
+  it('checks chat models that can also generate images through text generation', async () => {
+    const service = createService()
+    const imageSpy = vi.spyOn(service, 'generateImage').mockResolvedValue({ files: [] })
+    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
+    mockModelGetByKey.mockReturnValue({
+      id: 'test-provider::test-multimodal',
+      providerId: 'test-provider',
+      apiModelId: 'test-multimodal',
+      name: 'Test Multimodal',
+      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    })
+
+    await service.checkModel({ uniqueModelId: 'test-provider::test-multimodal' })
+
+    expect(generateSpy).toHaveBeenCalled()
+    expect(imageSpy).not.toHaveBeenCalled()
+  })
+
   it('fails rerank health checks when the probe returns an empty ranking', async () => {
     const service = createService()
     vi.spyOn(service, 'rerank').mockResolvedValue({ ranking: [] })

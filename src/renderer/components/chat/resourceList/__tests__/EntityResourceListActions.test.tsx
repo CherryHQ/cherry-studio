@@ -63,6 +63,7 @@ const tabsContextMocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  BlurCancelPointerSensor: class BlurCancelPointerSensor {},
   Button: ({ children, onClick, ...props }: { children?: ReactNode; onClick?: () => void }) => (
     <button {...props} type="button" onClick={onClick}>
       {children}

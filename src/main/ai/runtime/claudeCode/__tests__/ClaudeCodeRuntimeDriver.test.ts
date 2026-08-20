@@ -3385,6 +3385,25 @@ describe('ClaudeCodeRuntimeDriver', () => {
         }
       }
     })
+
+    approvalEmitter.emitInput({
+      toolCallId: 'tool-plan-1',
+      toolName: 'ExitPlanMode',
+      input: { plan: '# Plan' }
+    })
+    await expect(events.next()).resolves.toMatchObject({
+      value: {
+        type: 'chunk',
+        chunk: {
+          type: 'tool-input-available',
+          toolCallId: 'tool-plan-1',
+          toolName: 'ExitPlanMode',
+          input: { plan: '# Plan' },
+          dynamic: true,
+          providerExecuted: true
+        }
+      }
+    })
     void connection.close()
     expect(dispose).toHaveBeenCalled()
   })
