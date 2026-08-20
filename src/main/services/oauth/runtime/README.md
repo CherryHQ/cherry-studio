@@ -87,7 +87,7 @@ provider also touches:
 3. **Settings UI** — an entry in `providerSpecificSettingsRegistry.tsx`. Loopback
    providers reuse the shared `LoginOauthPanel` (pass `i18nNs`, `showAccountId`);
    deep-link providers currently need a bespoke panel (`CherryInOauth.tsx`).
-4. **i18n** — `settings.provider.<ns>.*` keys; complete every locale and validation step in the [i18n workflow](../../../../../docs/guides/i18n.md#translation-completion-in-pull-requests).
+4. **i18n** — `settings.provider.<ns>.*` keys; complete every locale and validation step in the [i18n workflow](../../../../../docs/references/i18n/README.md#translation-completion-in-pull-requests).
 5. **Chat runtime** — `src/main/ai/provider/config.ts` (`buildXxxConfig` /
    `buildXxxFetch`) + per-provider request shaping. This is a *separate axis*
    from OAuth (every upstream API differs) and cannot be made config-only.

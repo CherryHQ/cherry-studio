@@ -3001,7 +3001,7 @@
       "empty_title": "搜索技能",
       "github_empty_description": "粘贴某个技能 SKILL.md 文件的链接，例如 github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
       "github_empty_title": "从 GitHub 安装",
-      "github_url_invalid": "请粘贴以 SKILL.md 结尾的 GitHub 链接",
+      "github_url_invalid": "请粘贴受支持且直接指向 SKILL.md 文件的 GitHub 链接",
       "github_url_label": "GitHub SKILL.md 链接",
       "github_url_placeholder": "GitHub 链接，以 /SKILL.md 结尾",
       "no_results_description": "请尝试其他关键词,或本地导入 ZIP 文件/目录。",
@@ -3747,7 +3747,7 @@
   },
   "notification": {
     "assistant": "助手响应",
-    "tip": "如果响应成功，则只针对超过30秒的消息进行提醒"
+    "tip": "仅控制后台系统通知，应用内通知始终开启。"
   },
   "ocr": {
     "processing": "OCR 处理中..."
@@ -6245,7 +6245,7 @@
       "label": "更多设置"
     },
     "notification": {
-      "assistant": "助手消息",
+      "assistant": "对话完成通知",
       "backup": "备份",
       "knowledge_embed": "知识库",
       "title": "通知",

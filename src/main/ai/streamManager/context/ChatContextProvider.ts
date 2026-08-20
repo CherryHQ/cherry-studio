@@ -1,6 +1,6 @@
 /**
  * ChatContextProvider — produces a ready-to-dispatch bundle for one
- * `Ai_Stream_Open` request. `dispatchStreamRequest` picks the first
+ * `ai.stream.open` request. `dispatchStreamRequest` picks the first
  * provider whose `canHandle(topicId)` matches, asks it to prepare, and
  * calls `manager.send(...)` itself. See `docs/references/ai/stream-manager.md`.
  */
@@ -71,6 +71,8 @@ export interface DispatchContext {
 
 export interface ChatContextProvider {
   readonly name: string
+  /** Admission-time ownership; temporary providers must opt out. */
+  readonly isPersistentConversation: boolean
 
   /** Synchronous, side-effect free — runs on every request. */
   canHandle(topicId: string): boolean

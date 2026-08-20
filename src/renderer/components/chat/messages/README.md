@@ -160,9 +160,8 @@ Public entry files should export shared contracts and shared UI. Avoid exporting
 For changes in this directory, prefer focused tests around the affected component family:
 
 ```bash
-pnpm exec vitest run \
-  src/renderer/src/components/chat/messages \
-  src/renderer/src/pages/home/__tests__/ChatContent.test.tsx
+pnpm test src/renderer/components/chat/messages \
+  src/renderer/pages/home/__tests__/ChatContent.test.tsx
 ```
 
 When touching blocks, markdown, stream collectors, or tool renderers, include their local tests as well.
@@ -170,7 +169,7 @@ When touching blocks, markdown, stream collectors, or tool renderers, include th
 Before handing off implementation work, run:
 
 ```bash
-npm run typecheck:web
+pnpm lint
 ```
 
 Run broader project validation when the change reaches outside the message-list vertical slice.

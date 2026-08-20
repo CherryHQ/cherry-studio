@@ -1111,7 +1111,7 @@ export class CacheService {
   }
 
   /**
-   * Schedule persist cache save with 200ms debounce to avoid excessive writes
+   * Schedule persist cache save with 350ms debounce to avoid excessive writes
    */
   private schedulePersistSave(): void {
     this.persistDirty = true
