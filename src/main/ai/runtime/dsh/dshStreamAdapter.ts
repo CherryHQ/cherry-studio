@@ -26,10 +26,12 @@ import type {} from '@deepseek-ai/dsh-plan-mode'
 import type { SessionEvent, SessionEventMap, TurnEndReason } from '@deepseek-ai/dsh-session'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
+import { getBuiltinMcpToolIdentity } from '@shared/ai/tools/mcpBuiltinRuntimeNames'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { CherryUIMessageChunk } from '@shared/data/types/message'
 
 import type { AgentRuntimeEvent } from '../types'
+import type { DshMcpToolMetadata } from './DshCherryToolBridge'
 
 /** dsh transport tag consumed by the renderer's tool-part routing. */
 export const DSH_TRANSPORT = AGENT_RUNTIME_CAPABILITIES.dsh.transport
@@ -68,16 +70,23 @@ export interface DshStreamSink {
   onPlanMode(active: boolean): void
 }
 
-function toolProviderMetadata(toolName: string, extra: Record<string, unknown> = {}) {
+function toolProviderMetadata(
+  toolName: string,
+  mcpToolMetadata: Readonly<Record<string, DshMcpToolMetadata>>,
+  extra: Record<string, unknown> = {}
+) {
   // Bridged MCP tools keep their `mcp__server__tool` wire name; report the MCP identity behind it
   // so the renderer routes them to the same cards it gives Claude Code's MCP results.
-  const mcp = parseFunctionCallToolName(toolName)
+  const binding = mcpToolMetadata[toolName] ?? getBuiltinMcpToolIdentity(toolName)
+  const legacy = binding ? undefined : parseFunctionCallToolName(toolName)
   return {
     cherry: {
       transport: DSH_TRANSPORT,
-      tool: mcp
-        ? { type: 'mcp', name: mcp.toolPart, serverId: mcp.serverPart, serverName: mcp.serverPart }
-        : { type: 'builtin', name: toolName }
+      tool: binding
+        ? { type: 'mcp', name: binding.name, serverId: binding.serverId, serverName: binding.serverName }
+        : legacy
+          ? { type: 'mcp', name: legacy.toolPart, serverId: legacy.serverPart, serverName: legacy.serverPart }
+          : { type: 'builtin', name: toolName }
     },
     dsh: { toolName, ...extra }
   }
@@ -126,8 +135,13 @@ export class DshStreamAdapter {
   private turnActive = false
   /** The current turn was opened by runtime content (a goal round), not a host prompt. */
   private autonomousTurn = false
+  private mcpToolMetadata: Readonly<Record<string, DshMcpToolMetadata>> = {}
 
   constructor(private readonly sink: DshStreamSink) {}
+
+  setMcpToolMetadata(metadata: Readonly<Record<string, DshMcpToolMetadata>>): void {
+    this.mcpToolMetadata = metadata
+  }
 
   /** Mark the next turn as host-prompted; called by the connection before each bridge prompt. */
   beginTurn(): void {
@@ -340,7 +354,7 @@ export class DshStreamAdapter {
       toolName,
       providerExecuted: true,
       dynamic: true,
-      providerMetadata: toolProviderMetadata(toolName)
+      providerMetadata: toolProviderMetadata(toolName, this.mcpToolMetadata)
     })
     this.sink.enqueue({
       type: 'tool-input-available',
@@ -349,7 +363,7 @@ export class DshStreamAdapter {
       input: parseToolArguments(data.arguments),
       providerExecuted: true,
       dynamic: true,
-      providerMetadata: toolProviderMetadata(toolName)
+      providerMetadata: toolProviderMetadata(toolName, this.mcpToolMetadata)
     })
   }
 
@@ -370,7 +384,7 @@ export class DshStreamAdapter {
         errorText: stringifyToolOutput(output),
         dynamic: true,
         providerExecuted: true,
-        providerMetadata: toolProviderMetadata(toolName, data.error ? { error: data.error } : {})
+        providerMetadata: toolProviderMetadata(toolName, this.mcpToolMetadata, data.error ? { error: data.error } : {})
       })
       return
     }
@@ -380,7 +394,7 @@ export class DshStreamAdapter {
       output: normalizeToolOutput(output),
       dynamic: true,
       providerExecuted: true,
-      providerMetadata: toolProviderMetadata(toolName)
+      providerMetadata: toolProviderMetadata(toolName, this.mcpToolMetadata)
     })
   }
 

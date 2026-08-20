@@ -39,7 +39,7 @@ interface ModelScopeServer {
 interface ModelScopeSyncResult {
   success: boolean
   message: string
-  allServers: McpServer[]
+  allServers: Omit<McpServer, 'serverWireName'>[]
   errorDetails?: string
 }
 
@@ -89,14 +89,14 @@ export const syncModelScopeServers = async (token: string): Promise<ModelScopeSy
     }
 
     // Transform ModelScope servers to MCP servers format
-    const allServers: McpServer[] = []
+    const allServers: Omit<McpServer, 'serverWireName'>[] = []
     logger.debug('ModelScope servers:', servers)
     for (const server of servers) {
       try {
         if (!server.operational_urls?.[0]?.url) continue
 
         const url = server.operational_urls[0].url
-        const mcpServer: McpServer = {
+        const mcpServer: Omit<McpServer, 'serverWireName'> = {
           id: `@modelscope/${server.id}`,
           name: server.chinese_name || server.name || `ModelScope Server ${nanoid()}`,
           description: server.description || '',

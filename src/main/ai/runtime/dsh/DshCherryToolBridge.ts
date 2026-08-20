@@ -4,6 +4,7 @@ import { application } from '@application'
 import type { BridgeToolCallResult, BridgeToolDescriptor } from '@cherrystudio/dsh-bridge'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
+import { getBuiltinRuntimeName } from '@main/ai/mcp/mcpBuiltinToolManifest'
 import type { AgentMcpServer } from '@main/ai/runtime/agentMcpServers'
 import {
   ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES,
@@ -11,13 +12,16 @@ import {
   ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES,
   ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES,
   CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES,
-  CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES
+  CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES,
+  toCherryBuiltinRuntimeName
 } from '@main/ai/runtime/toolApproval/cherryBuiltinApproval'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
+import { MCP_BUILTIN_SERVER_IDS } from '@shared/ai/tools/mcpToolIdentity'
 import { toCamelCase } from '@shared/ai/tools/mcpToolName'
 
+import { createMcpToolBinding } from '../mcpToolBinding'
 import { dshToolResultErrorText, projectDshToolResult } from './dshToolResultProjection'
 
 const logger = loggerService.withContext('DshCherryToolBridge')
@@ -31,8 +35,15 @@ interface DshToolBinding {
 
 export interface DshCherryToolBridge {
   tools: BridgeToolDescriptor[]
+  mcpToolMetadata: Readonly<Record<string, DshMcpToolMetadata>>
   callTool(name: string, args: unknown, signal?: AbortSignal): Promise<BridgeToolCallResult>
   close(): Promise<void>
+}
+
+export interface DshMcpToolMetadata {
+  serverId: string
+  serverName: string
+  name: string
 }
 
 export interface DshCherryToolBridgeOptions {
@@ -51,21 +62,18 @@ export function buildDshCherryToolName(serverName: string, toolName: string): st
   return `${safePrefix.slice(0, 50)}_${hash}`
 }
 
-const toDshRuntimeName = (runtimeName: string): string => {
-  const [, serverName, toolName] = runtimeName.split('__')
-  return buildDshCherryToolName(serverName, toolName)
-}
+const toDshRuntimeName = (runtimeName: string): string => runtimeName
 
 export const DSH_AUTO_APPROVED_BRIDGED_TOOLS: ReadonlySet<string> = new Set([
-  ...CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map((name) => buildDshCherryToolName('cherry-tools', name)),
-  buildDshCherryToolName('agent-memory', 'memory'),
-  buildDshCherryToolName('skills', 'search_skills'),
+  ...CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map(toCherryBuiltinRuntimeName),
+  getBuiltinRuntimeName(MCP_BUILTIN_SERVER_IDS.agentMemory, 'memory'),
+  getBuiltinRuntimeName(MCP_BUILTIN_SERVER_IDS.skills, 'search_skills'),
   ...ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES.map(toDshRuntimeName),
   ...ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES.map(toDshRuntimeName)
 ])
 
 export const DSH_APPROVAL_REQUIRED_BRIDGED_TOOLS: ReadonlySet<string> = new Set([
-  ...CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map((name) => buildDshCherryToolName('cherry-tools', name)),
+  ...CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map(toCherryBuiltinRuntimeName),
   ...ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES.map(toDshRuntimeName),
   ...ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES.map(toDshRuntimeName)
 ])
@@ -93,6 +101,7 @@ export async function buildDshCherryToolBridge(
   const clients: Client[] = []
   const tools: BridgeToolDescriptor[] = []
   const bindings = new Map<string, DshToolBinding>()
+  const mcpToolMetadata: Record<string, DshMcpToolMetadata> = {}
 
   for (const [serverId, server] of Object.entries(servers)) {
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
@@ -103,7 +112,7 @@ export async function buildDshCherryToolBridge(
       const result = await client.listTools()
       const serverNames = new Set<string>()
       const serverTools = result.tools.map((tool) => ({
-        descriptor: toBridgeDescriptor(server.name, tool),
+        descriptor: toBridgeDescriptor(server, tool),
         rawName: tool.name
       }))
       for (const { descriptor } of serverTools) {
@@ -116,6 +125,11 @@ export async function buildDshCherryToolBridge(
       for (const { descriptor, rawName } of serverTools) {
         tools.push(descriptor)
         bindings.set(descriptor.name, { client, rawName })
+        mcpToolMetadata[descriptor.name] = {
+          serverId: server.serverId ?? serverId,
+          serverName: server.name,
+          name: rawName
+        }
       }
     } catch (error) {
       await client.close().catch(() => undefined)
@@ -129,6 +143,7 @@ export async function buildDshCherryToolBridge(
 
   return {
     tools,
+    mcpToolMetadata,
     async callTool(name, args, signal) {
       const binding = bindings.get(name)
       if (!binding) throw new Error(`Unknown dsh Cherry tool: ${name}`)
@@ -150,9 +165,16 @@ export async function buildDshCherryToolBridge(
   }
 }
 
-function toBridgeDescriptor(serverName: string, tool: Tool): BridgeToolDescriptor {
+function toBridgeDescriptor(server: AgentMcpServer, tool: Tool): BridgeToolDescriptor {
   return {
-    name: buildDshCherryToolName(serverName, tool.name),
+    name:
+      server.serverId && server.serverWireName
+        ? createMcpToolBinding({
+            serverId: server.serverId,
+            serverWireName: server.serverWireName,
+            originalToolName: tool.name
+          }).runtimeName
+        : buildDshCherryToolName(server.name, tool.name),
     description: tool.description ?? '',
     inputSchema: tool.inputSchema as Record<string, unknown>
   }

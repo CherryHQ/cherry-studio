@@ -61,7 +61,10 @@ describe('AgentsMigrator > migrateAgentMcps malformed legacy data', () => {
         }))
       )
       .run()
-    dbh.db.insert(mcpServerTable).values({ id: TARGET_MCP_ID, name: 'Migrated MCP' }).run()
+    dbh.db
+      .insert(mcpServerTable)
+      .values({ id: TARGET_MCP_ID, name: 'Migrated MCP', serverWireName: 'test_migrated_mcp' })
+      .run()
   })
 
   it('skips malformed JSON without blocking valid associations', () => {

@@ -4,7 +4,6 @@ import { mcpServerService } from '@data/services/McpServerService'
 import { prepareAgentSessionWorkspaceDirectory } from '@main/ai/runtime/agentSessionWorkspace'
 import { PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
 import type { Tool } from '@shared/ai/tool'
-import { buildFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
 import type { AgentRuntimeConnectInput, AgentRuntimeConnection, AgentSessionRuntimeDriver } from '../types'
@@ -47,7 +46,7 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
       const server = mcpServerService.findByIdOrName(idOrName)
       if (!server) return []
       return catalog.listTools(server.id, { includeDisabled: false }).map((tool) => ({
-        id: buildFunctionCallToolName(server.name, tool.name),
+        id: tool.runtimeName,
         name: tool.name,
         origin: 'mcp' as const,
         approval: 'prompt' as const,

@@ -8,6 +8,7 @@
  * reaches the approval policy itself, so it lives in main per the shared-layer boundary.
  */
 
+import { getBuiltinRuntimeName } from '@main/ai/mcp/mcpBuiltinToolManifest'
 import { CLI_INSTALL_TOOL_NAME, CLI_LIST_TOOL_NAME, CLI_SEARCH_TOOL_NAME } from '@main/ai/mcp/servers/cherryCliTools'
 import { MOVE_TO_TRASH_TOOL_NAME } from '@main/ai/tools/moveToTrash'
 import { SAVE_ATTACHMENT_TOOL_NAME } from '@main/ai/tools/saveAttachment'
@@ -33,12 +34,14 @@ import {
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
+import { MCP_BUILTIN_SERVER_IDS } from '@shared/ai/tools/mcpToolIdentity'
 
 /** The in-process MCP server id that hosts the cherry builtin tools. */
-export const CHERRY_BUILTIN_MCP_SERVER = 'cherry-tools'
+export const CHERRY_BUILTIN_MCP_SERVER = MCP_BUILTIN_SERVER_IDS.cherryTools
 
 /** Build the fully-qualified runtime name the agent SDK uses to invoke a cherry builtin tool. */
-export const toCherryBuiltinRuntimeName = (toolName: string): string => `mcp__${CHERRY_BUILTIN_MCP_SERVER}__${toolName}`
+export const toCherryBuiltinRuntimeName = (toolName: string): string =>
+  getBuiltinRuntimeName(MCP_BUILTIN_SERVER_IDS.cherryTools, toolName)
 
 /**
  * cherry-tools that MUST go through per-call user approval — never auto-approved, even for
@@ -93,8 +96,8 @@ export const CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES: readonly string[] = [
  * future assistant tool must opt in here explicitly.
  */
 export const ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES: readonly string[] = [
-  'mcp__assistant__navigate',
-  'mcp__assistant__product_info'
+  getBuiltinRuntimeName(MCP_BUILTIN_SERVER_IDS.assistant, 'navigate'),
+  getBuiltinRuntimeName(MCP_BUILTIN_SERVER_IDS.assistant, 'product_info')
 ]
 
 /**
@@ -103,14 +106,15 @@ export const ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES: readonly string[] = [
  * persistent business data. (pi's `bypassPermissions` is an explicit opt-out and lifts even this.)
  */
 export const ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES: readonly string[] = [
-  'mcp__assistant__diagnose',
-  'mcp__assistant__apply_setting',
-  'mcp__assistant__create_agent'
+  getBuiltinRuntimeName(MCP_BUILTIN_SERVER_IDS.assistant, 'diagnose'),
+  getBuiltinRuntimeName(MCP_BUILTIN_SERVER_IDS.assistant, 'apply_setting'),
+  getBuiltinRuntimeName(MCP_BUILTIN_SERVER_IDS.assistant, 'create_agent')
 ]
 
 /** Cherry Assistant-only file tools live on their own session-scoped MCP server. */
-export const ASSISTANT_FILE_MCP_SERVER = 'assistant-files'
-export const toAssistantFileRuntimeName = (toolName: string): string => `mcp__${ASSISTANT_FILE_MCP_SERVER}__${toolName}`
+export const ASSISTANT_FILE_MCP_SERVER = MCP_BUILTIN_SERVER_IDS.assistantFiles
+export const toAssistantFileRuntimeName = (toolName: string): string =>
+  getBuiltinRuntimeName(MCP_BUILTIN_SERVER_IDS.assistantFiles, toolName)
 
 export const ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES: readonly string[] = [
   toAssistantFileRuntimeName(READ_FILE_TOOL_NAME)

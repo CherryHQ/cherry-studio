@@ -48,6 +48,7 @@ const createMcpToolResponse = (overrides: Partial<McpToolResponse> = {}): McpToo
   tool: {
     id: 'CherryBrowser__execute',
     name: 'execute',
+    runtimeName: 'mcp__cherryBrowser__execute',
     type: 'mcp',
     serverId: 'CherryBrowser',
     serverName: 'CherryBrowser',

@@ -2,6 +2,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@c
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { SESSION_CREATE_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 import { PROVIDER_WEB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
+import { MCP_BUILTIN_RUNTIME_NAMES } from '@shared/ai/tools/mcpBuiltinRuntimeNames'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import {
   Brain,
@@ -75,7 +76,7 @@ function getToolHeaderCandidateKey(candidate: ToolHeaderCandidate): string {
 
 const TOOL_GROUP_ICON_BY_NAME: Record<string, LucideIcon> = {
   [SESSION_CREATE_TOOL_NAME]: GitBranchPlus,
-  [`mcp__cherry-tools__${SESSION_CREATE_TOOL_NAME}`]: GitBranchPlus,
+  [MCP_BUILTIN_RUNTIME_NAMES.cherryTools.sessionCreate]: GitBranchPlus,
   [AgentToolsType.Agent]: Sparkles,
   [AgentToolsType.Bash]: SquareTerminal,
   [AgentToolsType.BashOutput]: SquareTerminal,

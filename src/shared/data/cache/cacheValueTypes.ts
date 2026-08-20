@@ -45,7 +45,8 @@ export type McpRuntimeStatus = {
  * provider key. Re-fetchable network data, so it lives in persist cache rather
  * than Preference/DataApi.
  */
-export type McpAvailableServers = Record<string, McpServer[]>
+/** Marketplace entries are create candidates; the data service assigns their immutable wire names. */
+export type McpAvailableServers = Record<string, Array<Omit<McpServer, 'serverWireName'>>>
 
 /**
  * Tab type for browser-like tabs

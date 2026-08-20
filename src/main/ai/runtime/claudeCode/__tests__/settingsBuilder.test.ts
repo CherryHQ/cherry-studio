@@ -217,6 +217,7 @@ vi.mock('../AgentsMdLoader', () => ({
 const {
   assertClaudeCodeWorkspaceDirectory,
   buildClaudeCodeSessionSettings,
+  buildMcpServers,
   disposeToolPolicySnapshot,
   prepareClaudeCodeWorkspaceDirectory,
   registerMcpSessionCatalogSync
@@ -636,7 +637,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       agent as never
     )
 
-    expect(mocks.createMcpBridgeServer).toHaveBeenCalledWith('mcp-1', materializedServer)
+    expect(mocks.createMcpBridgeServer).toHaveBeenCalledWith('mcp-1', materializedServer, { namingMode: 'runtime' })
   })
 
   it('loads the user setting source so managed skills under CLAUDE_CONFIG_DIR can be discovered', async () => {
@@ -928,7 +929,7 @@ describe('buildClaudeCodeSessionSettings', () => {
         expect.objectContaining({
           hookSpecificOutput: expect.objectContaining({
             permissionDecision: 'deny',
-            permissionDecisionReason: expect.stringContaining('mcp__assistant-files__move_to_trash')
+            permissionDecisionReason: expect.stringContaining('mcp__assistant_files__moveToTrash__b1ffadb33d56')
           })
         })
       )
@@ -1008,6 +1009,67 @@ describe('buildClaudeCodeSessionSettings', () => {
     ).resolves.toEqual({})
   })
 
+  it('denies canonical external MCP deletion by its exact catalog binding, and unknown canonical MCP calls fail closed', async () => {
+    const runtimeName = 'mcp__files_123456789abc__deleteFile__abcdef123456'
+    mocks.getAgent.mockReturnValue({
+      id: 'assistant-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: ['files-id'],
+      configuration: { builtin_role: 'assistant', permission_mode: 'bypassPermissions' }
+    })
+    mocks.findByIdOrName.mockReturnValue({
+      id: 'files-id',
+      name: 'Files',
+      serverWireName: 'files_123456789abc'
+    })
+    mocks.listMcpTools.mockReturnValue([{ id: 'files-delete', runtimeName, name: 'delete_file' }])
+
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-external-delete',
+        agentId: 'assistant-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+    const hook = settings.hooks?.PreToolUse?.[0]?.hooks.find(
+      (candidate) => candidate.name === 'assistantDestructiveOperationHook'
+    )
+
+    await expect(
+      hook?.(
+        { hook_event_name: 'PreToolUse', tool_name: runtimeName, tool_input: {} } as never,
+        'tool-use-1',
+        {} as never
+      )
+    ).resolves.toMatchObject({ hookSpecificOutput: { permissionDecision: 'deny' } })
+    await expect(
+      hook?.(
+        {
+          hook_event_name: 'PreToolUse',
+          tool_name: 'mcp__unknown_123456789abc__lookup__abcdef123456',
+          tool_input: {}
+        } as never,
+        'tool-use-2',
+        {} as never
+      )
+    ).resolves.toMatchObject({ hookSpecificOutput: { permissionDecision: 'deny' } })
+  })
+
+  it('does not let an external compatibility alias overwrite an enumerable built-in MCP server key', () => {
+    const servers = buildMcpServers(
+      { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+      { id: 'agent-1', mcps: ['external-id'] } as never,
+      false,
+      new Map([['external-id', { id: 'external-id', name: 'skills', serverWireName: 'external_skills' } as never]])
+    )
+
+    expect(Object.keys(servers ?? {})).toEqual(expect.arrayContaining(['skills', 'external_skills']))
+    expect(servers?.skills).not.toBe(servers?.external_skills)
+    expect(Object.getOwnPropertyDescriptor(servers ?? {}, 'skills')?.enumerable).toBe(true)
+  })
+
   it('requires live approval for every Cherry Support Bash call under bypassPermissions', async () => {
     let interactionState = { currentTurn: 'interactive', userResponse: 'stream' }
     mocks.applicationGet.mockImplementation((name: string) => {
@@ -1074,7 +1136,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     await expect(permissionDecisions('Write', { file_path: 'feedback.md', content: 'draft' })).resolves.not.toContain(
       'deny'
     )
-    await expect(permissionDecisions('mcp__assistant__product_info', {})).resolves.not.toContain('deny')
+    await expect(permissionDecisions('mcp__assistant__productInfo__c0cfa9e1920f', {})).resolves.not.toContain('deny')
 
     mocks.getAgent.mockReturnValue({
       id: 'assistant-1',
@@ -1247,7 +1309,11 @@ describe('buildClaudeCodeSessionSettings', () => {
     for (const toolName of requiredTools) {
       await expect(permissionDecisions(toolName)).resolves.toContain('ask')
     }
-    for (const toolName of ['Bash', 'mcp__assistant__navigate', 'mcp__assistant__product_info']) {
+    for (const toolName of [
+      'Bash',
+      'mcp__assistant__navigate__78c92f559d6a',
+      'mcp__assistant__productInfo__c0cfa9e1920f'
+    ]) {
       await expect(permissionDecisions(toolName)).resolves.not.toContain('ask')
     }
   })
@@ -1273,12 +1339,12 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.disallowedTools).toEqual(expect.arrayContaining(['Bash', 'Read']))
     // The injected cherry-tools/agent-memory servers are always pre-approved via the allowlist.
     expect(settings.allowedTools).toEqual(
-      expect.arrayContaining(['mcp__cherry-tools__cron', 'mcp__agent-memory__memory'])
+      expect.arrayContaining(['mcp__cherry_tools__cron__ceb5bf2c5e21', 'mcp__agent_memory__memory__b472a1250bce'])
     )
   })
 
   it('does not auto-approve disabled MCP tools', async () => {
-    const disabledTools = ['mcp__cherry-tools__web_fetch', 'mcp__agent-memory__memory']
+    const disabledTools = ['mcp__cherry_tools__webFetch__0d46b7903981', 'mcp__agent_memory__memory__b472a1250bce']
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       type: 'claude-code',
@@ -1298,7 +1364,7 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     expect(settings.disallowedTools).toEqual(expect.arrayContaining(disabledTools))
     for (const toolName of disabledTools) expect(settings.allowedTools).not.toContain(toolName)
-    expect(settings.allowedTools).toContain('mcp__cherry-tools__web_search')
+    expect(settings.allowedTools).toContain('mcp__cherry_tools__webSearch__a26653c54bd6')
   })
 
   it('appends web-only citation guidance to the system prompt by default', async () => {
@@ -1312,8 +1378,8 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     const systemPrompt = systemPromptText(settings.systemPrompt)
     expect(systemPrompt).toContain('## Citations')
-    expect(systemPrompt).toContain('mcp__cherry-tools__web_search')
-    expect(systemPrompt).not.toContain('mcp__cherry-tools__kb_search')
+    expect(systemPrompt).toContain('mcp__cherry_tools__webSearch__a26653c54bd6')
+    expect(systemPrompt).not.toContain('mcp__cherry_tools__kbSearch__7fb1469c1b2d')
   })
 
   it('includes kb_search in citation guidance when the agent has bound knowledge bases', async () => {
@@ -1334,7 +1400,7 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
-    expect(systemPromptText(settings.systemPrompt)).toContain('mcp__cherry-tools__kb_search')
+    expect(systemPromptText(settings.systemPrompt)).toContain('mcp__cherry_tools__kbSearch__7fb1469c1b2d')
   })
 
   // The kb_* tools are exposed from the resolved scope, so an unbound Agent still gets them from the
@@ -1359,7 +1425,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       knowledgeBaseIds: ['kb-selected']
     })
 
-    expect(systemPromptText(settings.systemPrompt)).toContain('mcp__cherry-tools__kb_search')
+    expect(systemPromptText(settings.systemPrompt)).toContain('mcp__cherry_tools__kbSearch__7fb1469c1b2d')
   })
 
   it('omits citation guidance when both web tools are disabled and no knowledge base is bound', async () => {
@@ -1369,7 +1435,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       model: 'anthropic::claude-sonnet',
       mcps: [],
       allowedTools: [],
-      disabledTools: ['mcp__cherry-tools__web_search', 'mcp__cherry-tools__web_fetch'],
+      disabledTools: ['mcp__cherry_tools__webSearch__a26653c54bd6', 'mcp__cherry_tools__webFetch__0d46b7903981'],
       configuration: {}
     })
     const session = {
@@ -1391,7 +1457,11 @@ describe('buildClaudeCodeSessionSettings', () => {
       mcps: [],
       allowedTools: [],
       knowledgeBaseIds: ['kb-1'],
-      disabledTools: ['mcp__cherry-tools__web_search', 'mcp__cherry-tools__web_fetch', 'mcp__cherry-tools__kb_search'],
+      disabledTools: [
+        'mcp__cherry_tools__webSearch__a26653c54bd6',
+        'mcp__cherry_tools__webFetch__0d46b7903981',
+        'mcp__cherry_tools__kbSearch__7fb1469c1b2d'
+      ],
       configuration: {}
     })
     const session = {
@@ -1402,7 +1472,7 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
-    expect(settings.disallowedTools).toEqual(expect.arrayContaining(['mcp__cherry-tools__kb_read']))
+    expect(settings.disallowedTools).toEqual(expect.arrayContaining(['mcp__cherry_tools__kbRead__01a3c9c066e6']))
     expect(systemPromptText(settings.systemPrompt)).not.toContain('## Citations')
   })
 
@@ -1472,7 +1542,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.disallowedTools ?? []).not.toEqual(
       expect.arrayContaining(['AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode'])
     )
-    expect(settings.disallowedTools ?? []).not.toContain('mcp__cherry-tools__notify')
+    expect(settings.disallowedTools ?? []).not.toContain('mcp__cherry_tools__notify__2484dc7ba152')
   })
 
   it('denies interactive no-responder tools at tool fire time for the current headless turn', async () => {
@@ -1783,7 +1853,7 @@ describe('buildClaudeCodeSessionSettings', () => {
           hook(
             {
               hook_event_name: 'PreToolUse',
-              tool_name: 'mcp__cherry-tools__config',
+              tool_name: 'mcp__cherry_tools__config__7ebbe6253854',
               tool_input: { action }
             } as never,
             'tool-use-1',
@@ -1844,7 +1914,7 @@ describe('buildClaudeCodeSessionSettings', () => {
           hook(
             {
               hook_event_name: 'PreToolUse',
-              tool_name: 'mcp__skills__install_skill',
+              tool_name: 'mcp__skills__installSkill__75e07e762fcb',
               tool_input: { install_source: 'claude-plugins:owner/repo/skills/example' }
             } as never,
             'tool-use-1',
@@ -1893,7 +1963,7 @@ describe('buildClaudeCodeSessionSettings', () => {
         hook(
           {
             hook_event_name: 'PreToolUse',
-            tool_name: 'mcp__skills__install_skill',
+            tool_name: 'mcp__skills__installSkill__75e07e762fcb',
             tool_input: { install_source: 'claude-plugins:owner/repo/skills/example' }
           } as never,
           'tool-use-1',
@@ -2069,7 +2139,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     })
     expect(settings.skills).toEqual(expect.arrayContaining(['system-skill', 'cherry-assistant-guide', 'faq-collector']))
     expect(settings.mcpServers?.skills).toBeDefined()
-    expect(settings.allowedTools).toContain('mcp__skills__search_skills')
+    expect(settings.allowedTools).toContain('mcp__skills__searchSkills__73d6e4100870')
   })
 
   it('restricts Cherry Support to its bundled skills without marketplace access', async () => {
@@ -2125,7 +2195,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(mocks.listSkills).not.toHaveBeenCalled()
     expect(mocks.listLocalSkillFolderNames).not.toHaveBeenCalled()
     expect(settings.mcpServers?.skills).toBeUndefined()
-    expect(settings.allowedTools).not.toContain('mcp__skills__search_skills')
+    expect(settings.allowedTools).not.toContain('mcp__skills__searchSkills__73d6e4100870')
     expect(mocks.createAssistantServer).toHaveBeenCalledWith('anthropic::claude-sonnet', [
       'navigate',
       'diagnose',
@@ -2155,22 +2225,22 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.mcpServers?.assistant).toBeDefined()
     expect(settings.mcpServers?.['assistant-files']).toBeDefined()
     // Only read-only Assistant tools are pre-approved. Mutations and diagnose use per-call approval.
-    expect(settings.allowedTools).toContain('mcp__assistant__navigate')
-    expect(settings.allowedTools).toContain('mcp__assistant__product_info')
-    expect(settings.allowedTools).toContain('mcp__assistant-files__read_file')
-    expect(settings.allowedTools).not.toContain('mcp__assistant__apply_setting')
-    expect(settings.allowedTools).not.toContain('mcp__assistant__create_agent')
+    expect(settings.allowedTools).toContain('mcp__assistant__navigate__78c92f559d6a')
+    expect(settings.allowedTools).toContain('mcp__assistant__productInfo__c0cfa9e1920f')
+    expect(settings.allowedTools).toContain('mcp__assistant_files__readFile__5d2275a68b0b')
+    expect(settings.allowedTools).not.toContain('mcp__assistant__applySetting__b76773b19eee')
+    expect(settings.allowedTools).not.toContain('mcp__assistant__createAgent__2a307a1740c0')
     expect(settings.allowedTools).not.toContain('mcp__assistant__*')
-    expect(settings.allowedTools).not.toContain('mcp__assistant__diagnose')
-    expect(settings.allowedTools).not.toContain('mcp__assistant-files__save_attachment')
-    expect(settings.allowedTools).not.toContain('mcp__assistant-files__move_to_trash')
+    expect(settings.allowedTools).not.toContain('mcp__assistant__diagnose__7461c4bedfe3')
+    expect(settings.allowedTools).not.toContain('mcp__assistant_files__saveAttachment__310619340d60')
+    expect(settings.allowedTools).not.toContain('mcp__assistant_files__moveToTrash__b1ffadb33d56')
     expect(settings.allowedTools).not.toContain('mcp__assistant-files__*')
     const snapshotOptions = mocks.createToolPolicySnapshot.mock.calls.at(-1)?.[1]
-    expect(snapshotOptions.autoAllowRuntimeNames).toContain('mcp__assistant__navigate')
-    expect(snapshotOptions.autoAllowRuntimeNames).toContain('mcp__assistant__product_info')
-    expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__apply_setting')
-    expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__create_agent')
-    expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__diagnose')
+    expect(snapshotOptions.autoAllowRuntimeNames).toContain('mcp__assistant__navigate__78c92f559d6a')
+    expect(snapshotOptions.autoAllowRuntimeNames).toContain('mcp__assistant__productInfo__c0cfa9e1920f')
+    expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__applySetting__b76773b19eee')
+    expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__createAgent__2a307a1740c0')
+    expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__diagnose__7461c4bedfe3')
     expect(snapshotOptions.autoAllowRuntimeNameExceptions).toEqual(
       expect.arrayContaining([
         ...ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES,
@@ -2190,7 +2260,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(listed.tools.map((tool: { name: string }) => tool.name)).toEqual(
       expect.arrayContaining(['kb_search', 'kb_read', 'kb_list', 'kb_manage', 'cli_list', 'cli_search', 'cli_install'])
     )
-    expect(systemPromptText(settings.systemPrompt)).toContain('mcp__cherry-tools__kb_search')
+    expect(systemPromptText(settings.systemPrompt)).toContain('mcp__cherry_tools__kbSearch__7fb1469c1b2d')
   })
 
   it('exposes CLI management tools to a normal Agent session', async () => {
@@ -2234,8 +2304,8 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     expect(settings.mcpServers?.assistant).toBeDefined()
     expect(settings.mcpServers?.['assistant-files']).toBeDefined()
-    expect(settings.allowedTools).toContain('mcp__assistant__navigate')
-    expect(settings.allowedTools).toContain('mcp__assistant-files__read_file')
+    expect(settings.allowedTools).toContain('mcp__assistant__navigate__78c92f559d6a')
+    expect(settings.allowedTools).toContain('mcp__assistant_files__readFile__5d2275a68b0b')
     expect(mocks.findBySessionId).not.toHaveBeenCalled()
   })
 
@@ -2260,11 +2330,11 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     expect(settings.mcpServers?.assistant).toBeUndefined()
     expect(settings.mcpServers?.['assistant-files']).toBeUndefined()
-    expect(settings.allowedTools).not.toContain('mcp__assistant__navigate')
-    expect(settings.allowedTools).not.toContain('mcp__assistant__product_info')
-    expect(settings.allowedTools).not.toContain('mcp__assistant-files__read_file')
+    expect(settings.allowedTools).not.toContain('mcp__assistant__navigate__78c92f559d6a')
+    expect(settings.allowedTools).not.toContain('mcp__assistant__productInfo__c0cfa9e1920f')
+    expect(settings.allowedTools).not.toContain('mcp__assistant_files__readFile__5d2275a68b0b')
     const snapshotOptions = mocks.createToolPolicySnapshot.mock.calls.at(-1)?.[1]
-    expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__navigate')
+    expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__navigate__78c92f559d6a')
   })
 
   it('keeps Support product info in channel sessions while denying unattended diagnostics and all-KB access', async () => {
@@ -2308,16 +2378,16 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     expect(settings.mcpServers?.assistant).toBeDefined()
     expect(settings.mcpServers?.['assistant-files']).toBeDefined()
-    expect(settings.allowedTools).toContain('mcp__assistant__product_info')
-    expect(settings.allowedTools).not.toContain('mcp__assistant__diagnose')
+    expect(settings.allowedTools).toContain('mcp__assistant__productInfo__c0cfa9e1920f')
+    expect(settings.allowedTools).not.toContain('mcp__assistant__diagnose__7461c4bedfe3')
     await expect(
-      settings.canUseTool?.('mcp__assistant__diagnose', {}, {
+      settings.canUseTool?.('mcp__assistant__diagnose__7461c4bedfe3', {}, {
         signal: { aborted: false },
         toolUseID: 'diagnose-1'
       } as never)
     ).resolves.toMatchObject({ behavior: 'deny' })
     await expect(
-      settings.canUseTool?.('mcp__assistant__product_info', {}, {
+      settings.canUseTool?.('mcp__assistant__productInfo__c0cfa9e1920f', {}, {
         signal: { aborted: false },
         toolUseID: 'product-info-1'
       } as never)
@@ -2463,7 +2533,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(mocks.createToolPolicySnapshot).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
-        autoAllowRuntimeNames: expect.arrayContaining(['mcp__cherry-tools__notify']),
+        autoAllowRuntimeNames: expect.arrayContaining(['mcp__cherry_tools__notify__2484dc7ba152']),
         autoAllowRuntimeNameExceptions: exceptions
       })
     )

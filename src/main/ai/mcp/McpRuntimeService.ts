@@ -35,7 +35,7 @@ import type {
   ServerCapabilities,
   ToolListChangedNotificationSchema
 } from '@modelcontextprotocol/sdk/types.js'
-import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
+import { buildMcpWireToolId, isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
 import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
 import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
@@ -359,25 +359,30 @@ export class McpRuntimeService extends BaseService {
   }
 
   /**
-   * Call a tool by its full ID (serverId__toolName format).
-   * Used by Hub server's runtime.
+   * Call a tool by an exact catalog identity/runtime/legacy id. Runtime names are opaque;
+   * ownership is resolved from the current catalog and the raw protocol name is taken from it.
    */
   public async callToolById(toolId: string, params: unknown, callId?: string): Promise<McpCallToolResponse> {
-    const parts = toolId.split('__')
-    if (parts.length < 2) {
-      throw new Error(`Invalid tool ID format: ${toolId}`)
+    const candidates = mcpServerService.list({ isActive: true }).items.flatMap((server) => {
+      const tools = application.get('McpCatalogService').listTools(server.id, { includeDisabled: true })
+      return tools
+        .filter(
+          (tool) =>
+            tool.id === toolId || tool.runtimeName === toolId || buildMcpWireToolId(server.name, tool.name) === toolId
+        )
+        .map((tool) => ({ server, tool }))
+    })
+    if (candidates.length !== 1) {
+      throw new Error(`Unknown or ambiguous MCP tool identity: ${toolId}`)
     }
 
-    const serverId = parts[0]
-    const toolName = parts.slice(1).join('__')
+    const [{ server, tool }] = candidates
 
-    const server = mcpServerService.getById(serverId)
-
-    logger.debug(`[callToolById] Calling tool ${toolName} on server ${server.name}`)
+    logger.debug(`[callToolById] Calling tool ${tool.name} on server ${server.name}`)
 
     return this.callToolByServer({
       server,
-      name: toolName,
+      name: tool.name,
       args: params,
       callId
     })

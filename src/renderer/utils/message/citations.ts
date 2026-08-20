@@ -37,6 +37,7 @@ import {
   WEB_SEARCH_TOOL_NAME,
   webSearchOutputSchema
 } from '@shared/ai/builtinTools'
+import { getBuiltinMcpToolIdentity } from '@shared/ai/tools/mcpBuiltinRuntimeNames'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import { isDeferredToolOutput, isPersistedToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -122,6 +123,10 @@ function resolveCitableToolName(part: CherryMessagePart): string | null {
     return null
   }
 
+  const builtin = getBuiltinMcpToolIdentity(rawName)
+  if (builtin?.serverId === CHERRY_TOOLS_MCP_SERVER && CITABLE_TOOL_NAMES.has(builtin.name)) {
+    return builtin.name
+  }
   const parsed = parseFunctionCallToolName(rawName)
   if (parsed && parsed.serverPart === CHERRY_TOOLS_MCP_SERVER && CITABLE_TOOL_NAMES.has(parsed.toolPart)) {
     return parsed.toolPart

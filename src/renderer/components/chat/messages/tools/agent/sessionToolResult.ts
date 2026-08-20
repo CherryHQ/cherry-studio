@@ -1,4 +1,5 @@
 import { SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
+import { MCP_BUILTIN_RUNTIME_NAMES } from '@shared/ai/tools/mcpBuiltinRuntimeNames'
 
 import type { ToolResponseLike } from '../toolResponse'
 
@@ -19,11 +20,11 @@ export interface SessionToolTarget {
 }
 
 function isSessionCreateToolName(toolName: string | undefined): boolean {
-  return toolName === SESSION_CREATE_TOOL_NAME || toolName === `mcp__cherry-tools__${SESSION_CREATE_TOOL_NAME}`
+  return toolName === SESSION_CREATE_TOOL_NAME || toolName === MCP_BUILTIN_RUNTIME_NAMES.cherryTools.sessionCreate
 }
 
 function isSessionSendToolName(toolName: string | undefined): boolean {
-  return toolName === SESSION_SEND_TOOL_NAME || toolName === `mcp__cherry-tools__${SESSION_SEND_TOOL_NAME}`
+  return toolName === SESSION_SEND_TOOL_NAME || toolName === MCP_BUILTIN_RUNTIME_NAMES.cherryTools.sessionSend
 }
 
 export function isCherrySessionToolResponse(toolResponse: ToolResponseLike): boolean {

@@ -46,7 +46,8 @@ import { applyDeferExposition } from '../../../tools/adapters/aiSdk/exposition/a
 import { syncMcpToolsToRegistry } from '../../../tools/adapters/aiSdk/mcp/mcpTools'
 import {
   resolveAssistantMcpToolIds,
-  resolveMcpResourceServers
+  resolveMcpResourceServers,
+  resolveMcpToolIds
 } from '../../../tools/adapters/aiSdk/mcp/resolveAssistantMcpTools'
 import { registry, ToolRegistry } from '../../../tools/adapters/aiSdk/registry'
 import { createAiRepair } from '../../../tools/adapters/aiSdk/repair'
@@ -371,6 +372,9 @@ async function resolveRequestToolSignals(
   hasAnyKnowledgeBase: boolean
 }> {
   let mcpIdList = request.mcpToolIds
+  if (mcpIdList) {
+    mcpIdList = resolveMcpToolIds(mcpIdList)
+  }
   if (!mcpIdList && request.assistantId) {
     mcpIdList = await resolveAssistantMcpToolIds(request.assistantId)
   }

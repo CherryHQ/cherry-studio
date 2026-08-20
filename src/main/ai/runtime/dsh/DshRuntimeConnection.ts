@@ -14,6 +14,7 @@ import type { HarnessClient, NotificationSubscription } from '@deepseek-ai/dsh-s
 import type { SessionEvent, TurnEndReason } from '@deepseek-ai/dsh-session'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
+import { getBuiltinRuntimeName } from '@main/ai/mcp/mcpBuiltinToolManifest'
 import { buildAgentMcpServers } from '@main/ai/runtime/agentMcpServers'
 import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
@@ -28,6 +29,7 @@ import {
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
 import { type DshBuiltinToolDescriptor, getDshRuntimeBuiltinTools } from '@shared/ai/dshBuiltinTools'
+import { MCP_BUILTIN_SERVER_IDS } from '@shared/ai/tools/mcpToolIdentity'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
@@ -266,7 +268,11 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
 
     const knowledgeBaseScope = resolveKnowledgeBaseScope(agent.knowledgeBaseIds, this.input.knowledgeBaseIds)
     const isToolEnabled = (serverName: string, toolName: string) =>
-      !this.disabledTools.has(buildDshCherryToolName(serverName, toolName))
+      !this.disabledTools.has(
+        serverName === 'cherry-tools'
+          ? getBuiltinRuntimeName(MCP_BUILTIN_SERVER_IDS.cherryTools, toolName)
+          : buildDshCherryToolName(serverName, toolName)
+      )
     const citationsGuidance = buildCitationsGuidance({
       web: isToolEnabled('cherry-tools', WEB_SEARCH_TOOL_NAME) || isToolEnabled('cherry-tools', WEB_FETCH_TOOL_NAME),
       kb:
@@ -323,6 +329,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         { agentsDataRoot, toolResultRoot }
       )
       this.toolBridge = toolBridge
+      this.adapter.setMcpToolMetadata(toolBridge.mcpToolMetadata)
       const finalSnapshot = await captureDshConnectionSnapshot(
         this.input.sessionId,
         this.input.agentId,

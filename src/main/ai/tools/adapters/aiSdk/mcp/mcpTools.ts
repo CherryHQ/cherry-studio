@@ -84,7 +84,8 @@ function toEntry(mcpTool: McpTool, server: McpServer): ToolEntry {
   // `forcePrompt` once keeps `defer` and `needsApproval` in lock-step (they must always agree).
   const forcePrompt = isMcpToolForcePromptBySource(server, mcpTool)
   return {
-    name: mcpTool.id,
+    name: mcpTool.runtimeName,
+    identityKey: mcpTool.id,
     namespace: namespaceForServer(server.id),
     namespaceLabel: `mcp:${server.name}`,
     description: mcpTool.description || mcpTool.name,
@@ -121,11 +122,14 @@ export async function syncMcpToolsToRegistry(
   // must NOT evict a still-active server's previously-registered tools — without this
   // guard the eviction loop below sees every prior tool as `missing` and deregisters them.
   const refreshedNamespaces = new Set<string>()
-  const freshNames = new Set<string>()
+  const freshIdentityKeys = new Set<string>()
+  const freshRuntimeNames = new Set<string>()
+
+  if (selectedToolIds?.size === 0) return
 
   if (selectedToolIds) {
     for (const entry of reg.getAll()) {
-      if (selectedToolIds.has(entry.name) && entry.namespace.startsWith('mcp:')) {
+      if (entry.identityKey && selectedToolIds.has(entry.identityKey) && entry.namespace.startsWith('mcp:')) {
         targetNamespaces.add(entry.namespace)
       }
     }
@@ -134,20 +138,21 @@ export async function syncMcpToolsToRegistry(
   for (const server of activeServers) {
     // Every selection is accounted for, so no later server can own one — skip the
     // remaining catalog reads (and leave their namespaces out of the eviction scope).
-    if (selectedToolIds && freshNames.size === selectedToolIds.size) break
     const namespace = namespaceForServer(server.id)
     try {
       const enabledTools = application.get('McpCatalogService').listTools(server.id, { includeDisabled: false })
       const scopedTools = selectedToolIds ? enabledTools.filter((tool) => selectedToolIds.has(tool.id)) : enabledTools
       if (!selectedToolIds || scopedTools.length > 0) targetNamespaces.add(namespace)
       for (const mcpTool of scopedTools) {
-        // A wire id encodes serverId + protocol tool name, so a repeat can only be the
-        // same identity listed twice by one server. First wins.
-        if (freshNames.has(mcpTool.id)) continue
+        // The full identity key is derived from serverId + protocol tool name, so a repeat
+        // can only be the same catalog identity. First wins.
+        if (freshIdentityKeys.has(mcpTool.id)) continue
         reg.register(toEntry(mcpTool, server))
-        freshNames.add(mcpTool.id)
+        freshIdentityKeys.add(mcpTool.id)
+        freshRuntimeNames.add(mcpTool.runtimeName)
       }
       refreshedNamespaces.add(namespace)
+      if (selectedToolIds && freshIdentityKeys.size >= selectedToolIds.size) break
     } catch (error) {
       logger.error('Failed to list MCP tools for server', {
         serverId: server.id,
@@ -163,8 +168,11 @@ export async function syncMcpToolsToRegistry(
     // Gate the in-scope eviction on a successful refresh, so a failed `listTools` leaves
     // the prior snapshot intact. A truly deactivated server is still evicted regardless.
     const inSyncScope = targetNamespaces.has(entry.namespace) && refreshedNamespaces.has(entry.namespace)
-    const missing = !freshNames.has(entry.name)
-    const missingFromSelectedSync = selectedToolIds ? selectedToolIds.has(entry.name) : true
+    const missing = !freshRuntimeNames.has(entry.name)
+    const identityKey = entry.identityKey
+    const missingFromSelectedSync = selectedToolIds
+      ? identityKey !== undefined && selectedToolIds.has(identityKey)
+      : true
     if (serverDeactivated || (inSyncScope && missing && missingFromSelectedSync)) {
       reg.deregister(entry.name)
     }

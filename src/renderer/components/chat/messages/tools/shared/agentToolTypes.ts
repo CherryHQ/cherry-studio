@@ -47,7 +47,7 @@ import type {
   WorkflowInput,
   WorkflowOutput
 } from '@anthropic-ai/claude-agent-sdk/sdk-tools'
-import { TO_MARKDOWN_TOOL_NAME } from '@shared/ai/builtinTools'
+import { MCP_BUILTIN_RUNTIME_NAMES } from '@shared/ai/tools/mcpBuiltinRuntimeNames'
 import * as z from 'zod'
 
 import type { ToolDisclosureItem } from './ToolDisclosure'
@@ -223,7 +223,7 @@ export function isAskUserQuestionToolName(toolName: unknown): boolean {
 }
 
 /** cherry-tools document converter — an MCP tool, so it is keyed by its runtime wire name. */
-export const TO_MARKDOWN_RUNTIME_TOOL_NAME = `mcp__cherry-tools__${TO_MARKDOWN_TOOL_NAME}`
+export const TO_MARKDOWN_RUNTIME_TOOL_NAME = MCP_BUILTIN_RUNTIME_NAMES.cherryTools.toMarkdown
 
 /**
  * Whether an `Agent`/`Task` result is a launch receipt for a subagent that is still running. A

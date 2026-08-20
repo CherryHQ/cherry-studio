@@ -1,4 +1,5 @@
 import { SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
+import { MCP_BUILTIN_RUNTIME_NAMES } from '@shared/ai/tools/mcpBuiltinRuntimeNames'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
 import {
@@ -69,10 +70,10 @@ export function AgentToolCallCard({
   const actions = useOptionalMessageListActions()
   const renderedItem =
     isCherrySessionTool &&
-    (toolName === SESSION_CREATE_TOOL_NAME || toolName === `mcp__cherry-tools__${SESSION_CREATE_TOOL_NAME}`)
+    (toolName === SESSION_CREATE_TOOL_NAME || toolName === MCP_BUILTIN_RUNTIME_NAMES.cherryTools.sessionCreate)
       ? SessionCreateTool({ input, output, hasError, isStreaming, status })
       : isCherrySessionTool &&
-          (toolName === SESSION_SEND_TOOL_NAME || toolName === `mcp__cherry-tools__${SESSION_SEND_TOOL_NAME}`)
+          (toolName === SESSION_SEND_TOOL_NAME || toolName === MCP_BUILTIN_RUNTIME_NAMES.cherryTools.sessionSend)
         ? SessionSendTool({ input, output, hasError, isStreaming, status })
         : isValidAgentToolsType(toolName)
           ? renderTool(toolName, input ?? {}, output, hasError)

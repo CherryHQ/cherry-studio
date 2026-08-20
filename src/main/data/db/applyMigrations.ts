@@ -1,4 +1,6 @@
 import { loggerService } from '@logger'
+import { buildMcpServerWireName } from '@main/ai/mcp/mcpToolId'
+import { getBuiltinMcpRuntimeNameFromLegacyName } from '@shared/ai/tools/mcpBuiltinRuntimeNames'
 import { sql } from 'drizzle-orm'
 // The one sanctioned call site: this module is what wraps migrate() in the foreign-key
 // handling that the ban points every other caller to.
@@ -30,6 +32,7 @@ export function applyMigrations(db: DbType, migrationsFolder: string): void {
   const enforced = isForeignKeysEnforced(db)
   db.run(sql.raw('PRAGMA foreign_keys = OFF'))
   try {
+    registerMcpMigrationFunctions(db)
     migrate(db, { migrationsFolder })
   } finally {
     db.run(sql.raw(`PRAGMA foreign_keys = ${enforced ? 'ON' : 'OFF'}`))
@@ -49,6 +52,27 @@ export function applyMigrations(db: DbType, migrationsFolder: string): void {
   for (const statement of CUSTOM_SQL_STATEMENTS) {
     db.run(sql.raw(statement))
   }
+}
+
+/**
+ * SQLite has no built-in SHA-256, but the server wire name must be backfilled with the exact
+ * main-process naming algorithm. Register the function on Drizzle's single better-sqlite3
+ * connection so the appended migration can derive populated rows without duplicating crypto.
+ */
+function registerMcpMigrationFunctions(db: DbType): void {
+  const client = (
+    db as DbType & { $client?: { function: (name: string, handler: (...args: unknown[]) => unknown) => void } }
+  ).$client
+  if (!client) throw new Error('Cannot register MCP migration functions without the SQLite client')
+  client.function('cs_mcp_server_wire_name', (serverId, serverName) => {
+    if (typeof serverId !== 'string' || typeof serverName !== 'string') {
+      throw new Error('MCP server wire-name migration received invalid server data')
+    }
+    return buildMcpServerWireName({ serverId, serverName })
+  })
+  client.function('cs_mcp_builtin_runtime_name', (name) =>
+    typeof name === 'string' ? (getBuiltinMcpRuntimeNameFromLegacyName(name) ?? name) : name
+  )
 }
 
 function isForeignKeysEnforced(db: DbType): boolean {

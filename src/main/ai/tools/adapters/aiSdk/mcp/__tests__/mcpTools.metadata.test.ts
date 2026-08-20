@@ -64,6 +64,7 @@ describe('MCP tool metadata reaches the UI parts', () => {
     listTools.mockReturnValue([
       {
         id: WIRE_ID,
+        runtimeName: WIRE_ID,
         serverId: 'server-a',
         serverName: '票据 OCR',
         name: '识别发票',

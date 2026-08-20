@@ -44,6 +44,7 @@ function mcpToolResponse(response: unknown): McpToolResponse {
     tool: {
       id: 'cherry-tools__generate_image',
       name: 'generate_image',
+      runtimeName: 'mcp__cherry_tools__generate_image',
       type: 'mcp',
       serverId: 'cherry-tools',
       serverName: 'cherry-tools',

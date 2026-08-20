@@ -1,4 +1,6 @@
+import { getBuiltinServerWireName } from '@main/ai/mcp/mcpBuiltinToolManifest'
 import { createAssistantFileAttachmentHandle } from '@main/ai/messages/assistantFileAttachments'
+import { MCP_BUILTIN_SERVER_IDS } from '@shared/ai/tools/mcpToolIdentity'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -24,6 +26,8 @@ const mocks = vi.hoisted(() => ({
   registerMcpSessionCatalogSync: vi.fn(),
   adapterInstances: [] as any[]
 }))
+
+const ASSISTANT_FILE_SERVER_KEY = getBuiltinServerWireName(MCP_BUILTIN_SERVER_IDS.assistantFiles)
 
 vi.mock('@application', () => ({
   application: { get: mocks.applicationGet }
@@ -1001,7 +1005,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       },
       key: 'warm-key',
       options: { model: 'sonnet' },
-      settings: { mcpServers: { 'assistant-files': { type: 'sdk' } } },
+      settings: { mcpServers: { [ASSISTANT_FILE_SERVER_KEY]: { type: 'sdk' } } },
       sdkModelId: 'sonnet-sdk',
       initializeTimeoutMs: 100
     })
@@ -1064,7 +1068,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       },
       key: 'warm-key',
       options: { model: 'sonnet' },
-      settings: { mcpServers: { 'assistant-files': { type: 'sdk' } } },
+      settings: { mcpServers: { [ASSISTANT_FILE_SERVER_KEY]: { type: 'sdk' } } },
       sdkModelId: 'sonnet-sdk',
       initializeTimeoutMs: 100
     })

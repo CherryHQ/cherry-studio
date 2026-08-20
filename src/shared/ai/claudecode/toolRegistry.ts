@@ -10,6 +10,8 @@
  * and the renderer's tool metadata, which still coexist until those call sites are ported.
  */
 
+import { MCP_BUILTIN_RUNTIME_NAMES as R } from '@shared/ai/tools/mcpBuiltinRuntimeNames'
+
 import type { ClaudeToolDescriptor } from './toolRules'
 
 export type ClaudeToolCategory = 'shell' | 'file' | 'search' | 'orchestration' | 'media' | 'context'
@@ -262,21 +264,21 @@ const CLAUDE_TOOL_REGISTRY = {
   // ── in-process MCP tools ─────────────────────────────────────────
   // cherry-tools (always injected today)
   CherryWebSearch: {
-    name: 'mcp__cherry-tools__web_search',
+    name: R.cherryTools.webSearch,
     category: 'context',
     exposure: 'user',
     description: 'Searches the web via your configured provider',
     mcpServer: 'cherry-tools'
   },
   CherryWebFetch: {
-    name: 'mcp__cherry-tools__web_fetch',
+    name: R.cherryTools.webFetch,
     category: 'context',
     exposure: 'user',
     description: 'Fetches and reads a web page',
     mcpServer: 'cherry-tools'
   },
   CherryKbSearch: {
-    name: 'mcp__cherry-tools__kb_search',
+    name: R.cherryTools.kbSearch,
     category: 'context',
     exposure: 'user',
     description: 'Searches your knowledge bases',
@@ -287,11 +289,11 @@ const CLAUDE_TOOL_REGISTRY = {
   // follows the visible "Knowledge Search" toggle (dependsOn kb_search): disabling search also revokes
   // browsing, so the user-facing toggle honestly covers all knowledge-base read access.
   CherryKbList: {
-    name: 'mcp__cherry-tools__kb_list',
+    name: R.cherryTools.kbList,
     category: 'context',
     exposure: 'internal',
     description: 'Lists your knowledge bases, or outlines one base’s structure',
-    dependsOn: ['mcp__cherry-tools__kb_search'],
+    dependsOn: [R.cherryTools.kbSearch],
     mcpServer: 'cherry-tools',
     requiresKnowledgeScope: true
   },
@@ -299,18 +301,18 @@ const CLAUDE_TOOL_REGISTRY = {
   // toggle. It returns whole documents (more than kb_search's chunks), so it follows the visible
   // "Knowledge Search" toggle (dependsOn kb_search): disabling search also revokes document reads.
   CherryKbRead: {
-    name: 'mcp__cherry-tools__kb_read',
+    name: R.cherryTools.kbRead,
     category: 'context',
     exposure: 'internal',
     description: 'Reads a knowledge base document, or greps within it',
-    dependsOn: ['mcp__cherry-tools__kb_search'],
+    dependsOn: [R.cherryTools.kbSearch],
     mcpServer: 'cherry-tools',
     requiresKnowledgeScope: true
   },
   // The one mutating KB tool (add/delete/refresh sources) — exposed as its own toggle so the user
   // can see and disable write access; it still requires per-call approval at runtime.
   CherryKbManage: {
-    name: 'mcp__cherry-tools__kb_manage',
+    name: R.cherryTools.kbManage,
     category: 'context',
     exposure: 'user',
     description: 'Adds, deletes, or refreshes knowledge base documents',
@@ -321,7 +323,7 @@ const CLAUDE_TOOL_REGISTRY = {
   // toggle because it reads local files outside the workspace, so disabling Read must not leave a
   // second, unrelated door open.
   CherryToMarkdown: {
-    name: 'mcp__cherry-tools__to_markdown',
+    name: R.cherryTools.toMarkdown,
     category: 'file',
     exposure: 'user',
     description: 'Markdown is easier for the agent to read',
@@ -329,7 +331,7 @@ const CLAUDE_TOOL_REGISTRY = {
   },
   // agent autonomy / channels (hosted by cherry-tools). notify needs a connected channel to do anything.
   CherryCron: {
-    name: 'mcp__cherry-tools__cron',
+    name: R.cherryTools.cron,
     category: 'orchestration',
     exposure: 'user',
     description: 'Manages the in-app scheduler',
@@ -339,14 +341,14 @@ const CLAUDE_TOOL_REGISTRY = {
   // channels") when the agent has none — see cherryAutonomyTools.ts sendNotification. Do not re-add a
   // channel enable-predicate, or an agent can't notify in the same run it uses config to add its first channel.
   CherryNotify: {
-    name: 'mcp__cherry-tools__notify',
+    name: R.cherryTools.notify,
     category: 'orchestration',
     exposure: 'user',
     description: 'Sends a notification through a connected channel',
     mcpServer: 'cherry-tools'
   },
   CherryConfig: {
-    name: 'mcp__cherry-tools__config',
+    name: R.cherryTools.config,
     category: 'orchestration',
     exposure: 'user',
     description: 'Inspects and manages this agent configuration and channels',
@@ -355,7 +357,7 @@ const CLAUDE_TOOL_REGISTRY = {
   // media (image generation). Hosted by cherry-tools; requires per-call approval and returns a
   // "configure a painting model" note at runtime when none is set (see cherryBuiltinApproval.ts).
   CherryGenerateImage: {
-    name: 'mcp__cherry-tools__generate_image',
+    name: R.cherryTools.generateImage,
     category: 'media',
     exposure: 'user',
     description: 'Generates an image from a text prompt using your configured painting model',
@@ -363,7 +365,7 @@ const CLAUDE_TOOL_REGISTRY = {
   },
   // agent-memory (cross-session memory)
   AgentMemory: {
-    name: 'mcp__agent-memory__memory',
+    name: R.agentMemory.memory,
     category: 'context',
     exposure: 'user',
     description: 'Stores and recalls cross-session memory',
@@ -371,14 +373,14 @@ const CLAUDE_TOOL_REGISTRY = {
   },
   // skills (marketplace discovery + install)
   SearchSkills: {
-    name: 'mcp__skills__search_skills',
+    name: R.skills.searchSkills,
     category: 'context',
     exposure: 'internal',
     description: 'Searches the skill marketplace',
     mcpServer: 'skills'
   },
   InstallSkill: {
-    name: 'mcp__skills__install_skill',
+    name: R.skills.installSkill,
     category: 'context',
     exposure: 'internal',
     description: 'Installs a marketplace skill into the library',
@@ -437,16 +439,16 @@ export interface ClaudeUserFacingTool {
 
 /** Friendly labels for MCP wire tools whose `name` is an opaque `mcp__server__wire` id. */
 const MCP_TOOL_LABELS: Record<string, string> = {
-  'mcp__cherry-tools__web_search': 'Web Search',
-  'mcp__cherry-tools__web_fetch': 'Web Fetch',
-  'mcp__cherry-tools__kb_search': 'Knowledge Search',
-  'mcp__cherry-tools__kb_manage': 'Manage Knowledge',
-  'mcp__cherry-tools__to_markdown': 'File to Markdown',
-  'mcp__agent-memory__memory': 'Memory',
-  'mcp__cherry-tools__cron': 'Scheduler',
-  'mcp__cherry-tools__notify': 'Notify',
-  'mcp__cherry-tools__config': 'Configuration',
-  'mcp__cherry-tools__generate_image': 'Generate Image'
+  [R.cherryTools.webSearch]: 'Web Search',
+  [R.cherryTools.webFetch]: 'Web Fetch',
+  [R.cherryTools.kbSearch]: 'Knowledge Search',
+  [R.cherryTools.kbManage]: 'Manage Knowledge',
+  [R.cherryTools.toMarkdown]: 'File to Markdown',
+  [R.agentMemory.memory]: 'Memory',
+  [R.cherryTools.cron]: 'Scheduler',
+  [R.cherryTools.notify]: 'Notify',
+  [R.cherryTools.config]: 'Configuration',
+  [R.cherryTools.generateImage]: 'Generate Image'
 }
 
 /**

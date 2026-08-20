@@ -1,12 +1,13 @@
 import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
 import { GENERATE_IMAGE_TOOL_NAME, generateImageOutputSchema } from '@shared/ai/builtinTools'
+import { MCP_BUILTIN_RUNTIME_NAMES } from '@shared/ai/tools/mcpBuiltinRuntimeNames'
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { getToolName, isToolUIPart } from 'ai'
 
 import { buildToolResponseFromPart } from '../toolResponse'
 
-const CHERRY_MCP_GENERATE_IMAGE_TOOL_NAME = `mcp__cherry-tools__${GENERATE_IMAGE_TOOL_NAME}`
+const CHERRY_MCP_GENERATE_IMAGE_TOOL_NAME = MCP_BUILTIN_RUNTIME_NAMES.cherryTools.generateImage
 
 export function isGenerateImageToolName(toolName: string): boolean {
   return toolName === GENERATE_IMAGE_TOOL_NAME || toolName === CHERRY_MCP_GENERATE_IMAGE_TOOL_NAME

@@ -16,6 +16,7 @@ import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
+import { getBuiltinServerWireName } from '@main/ai/mcp/mcpBuiltinToolManifest'
 import { collectAssistantFileAttachments } from '@main/ai/messages/assistantFileAttachments'
 import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
 import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
@@ -31,6 +32,7 @@ import { probeReadable } from '@main/utils/file'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { Tool } from '@shared/ai/tool'
+import { MCP_BUILTIN_SERVER_IDS } from '@shared/ai/tools/mcpToolIdentity'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -384,7 +386,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       throw new Error(`Unable to build Claude Code query options for agent session ${this.input.sessionId}`)
     }
     this.connectionConfig = request.connectionConfig
-    this.assistantFileToolsEnabled = Boolean(request.settings.mcpServers?.['assistant-files'])
+    this.assistantFileToolsEnabled = Boolean(
+      request.settings.mcpServers?.[getBuiltinServerWireName(MCP_BUILTIN_SERVER_IDS.assistantFiles)]
+    )
 
     const traceEnv = await this.prepareTraceEnv()
     const options: Options = {

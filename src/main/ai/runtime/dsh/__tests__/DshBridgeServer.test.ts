@@ -257,12 +257,12 @@ describe('DshBridgeServer', () => {
       harness.transport.request('tool/call', {
         sessionId: SESSION_ID,
         callId: 'tool-1',
-        name: 'mcp__cherry-tools__web_search',
+        name: 'mcp__cherry_tools__webSearch__a26653c54bd6',
         args: { query: 'Cherry Studio' }
       })
-    ).resolves.toEqual({ text: 'mcp__cherry-tools__web_search:ok', data: { query: 'Cherry Studio' } })
+    ).resolves.toEqual({ text: 'mcp__cherry_tools__webSearch__a26653c54bd6:ok', data: { query: 'Cherry Studio' } })
     expect(onToolCall).toHaveBeenCalledWith(
-      'mcp__cherry-tools__web_search',
+      'mcp__cherry_tools__webSearch__a26653c54bd6',
       { query: 'Cherry Studio' },
       expect.any(AbortSignal)
     )
@@ -272,7 +272,7 @@ describe('DshBridgeServer', () => {
       harness.transport.request('tool/call', {
         sessionId: SESSION_ID,
         callId: 'tool-2',
-        name: 'mcp__cherry-tools__web_search',
+        name: 'mcp__cherry_tools__webSearch__a26653c54bd6',
         args: {}
       })
     ).rejects.toThrow('provider unavailable')

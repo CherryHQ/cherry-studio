@@ -15,7 +15,7 @@ describe('claudeRegistrySdkDescriptors', () => {
   it('excludes disabled SDK tools and all MCP tools', () => {
     expect(names.has('WebSearch')).toBe(false)
     expect(names.has('NotebookEdit')).toBe(false)
-    expect(names.has('mcp__cherry-tools__web_search')).toBe(false)
+    expect(names.has('mcp__cherry_tools__webSearch__a26653c54bd6')).toBe(false)
   })
 
   it('marks every descriptor as builtin origin', () => {
@@ -34,22 +34,22 @@ describe('claudeUserFacingTools', () => {
   })
 
   it('labels MCP wire tools via MCP_TOOL_LABELS and SDK tools by their name', () => {
-    expect(byName.get('mcp__cherry-tools__web_search')?.label).toBe('Web Search')
+    expect(byName.get('mcp__cherry_tools__webSearch__a26653c54bd6')?.label).toBe('Web Search')
     expect(byName.get('Bash')?.label).toBe('Bash')
   })
 
   it('exposes the mutating kb_manage and autonomy tools but hides the read-only kb deep tools', () => {
-    expect(byName.has('mcp__cherry-tools__kb_manage')).toBe(true) // user — its own toggle
-    expect(byName.get('mcp__cherry-tools__kb_manage')?.label).toBe('Manage Knowledge')
-    expect(byName.has('mcp__cherry-tools__notify')).toBe(true)
-    expect(byName.get('mcp__cherry-tools__notify')?.label).toBe('Notify')
-    expect(byName.has('mcp__cherry-tools__config')).toBe(true)
-    expect(byName.get('mcp__cherry-tools__config')?.label).toBe('Configuration')
-    expect(byName.has('mcp__cherry-tools__kb_read')).toBe(false) // internal — follows kb capability
+    expect(byName.has('mcp__cherry_tools__kbManage__d21480aca963')).toBe(true) // user — its own toggle
+    expect(byName.get('mcp__cherry_tools__kbManage__d21480aca963')?.label).toBe('Manage Knowledge')
+    expect(byName.has('mcp__cherry_tools__notify__2484dc7ba152')).toBe(true)
+    expect(byName.get('mcp__cherry_tools__notify__2484dc7ba152')?.label).toBe('Notify')
+    expect(byName.has('mcp__cherry_tools__config__7ebbe6253854')).toBe(true)
+    expect(byName.get('mcp__cherry_tools__config__7ebbe6253854')?.label).toBe('Configuration')
+    expect(byName.has('mcp__cherry_tools__kbRead__01a3c9c066e6')).toBe(false) // internal — follows kb capability
   })
 
   it('exposes generate_image as a user-facing media tool', () => {
-    const tool = byName.get('mcp__cherry-tools__generate_image')
+    const tool = byName.get('mcp__cherry_tools__generateImage__d51e7b5767c3')
     expect(tool?.label).toBe('Generate Image')
     expect(tool?.category).toBe('media')
   })
@@ -58,19 +58,19 @@ describe('claudeUserFacingTools', () => {
 describe('CLAUDE_KNOWLEDGE_TOOL_NAMES', () => {
   it('covers exactly the four in-process knowledge-base tool wire names', () => {
     expect([...CLAUDE_KNOWLEDGE_TOOL_NAMES].sort()).toEqual([
-      'mcp__cherry-tools__kb_list',
-      'mcp__cherry-tools__kb_manage',
-      'mcp__cherry-tools__kb_read',
-      'mcp__cherry-tools__kb_search'
+      'mcp__cherry_tools__kbList__1ca9920aae6d',
+      'mcp__cherry_tools__kbManage__d21480aca963',
+      'mcp__cherry_tools__kbRead__01a3c9c066e6',
+      'mcp__cherry_tools__kbSearch__7fb1469c1b2d'
     ])
   })
 
   it('contains the user-facing kb toggles so the edit-dialog catalog can gate them', () => {
     // These are the two the builtin catalog hides when the agent has no bound base.
-    expect(CLAUDE_KNOWLEDGE_TOOL_NAMES.has('mcp__cherry-tools__kb_search')).toBe(true)
-    expect(CLAUDE_KNOWLEDGE_TOOL_NAMES.has('mcp__cherry-tools__kb_manage')).toBe(true)
+    expect(CLAUDE_KNOWLEDGE_TOOL_NAMES.has('mcp__cherry_tools__kbSearch__7fb1469c1b2d')).toBe(true)
+    expect(CLAUDE_KNOWLEDGE_TOOL_NAMES.has('mcp__cherry_tools__kbManage__d21480aca963')).toBe(true)
     // Non-kb cherry tools must not be swept in.
-    expect(CLAUDE_KNOWLEDGE_TOOL_NAMES.has('mcp__cherry-tools__web_search')).toBe(false)
-    expect(CLAUDE_KNOWLEDGE_TOOL_NAMES.has('mcp__cherry-tools__generate_image')).toBe(false)
+    expect(CLAUDE_KNOWLEDGE_TOOL_NAMES.has('mcp__cherry_tools__webSearch__a26653c54bd6')).toBe(false)
+    expect(CLAUDE_KNOWLEDGE_TOOL_NAMES.has('mcp__cherry_tools__generateImage__d51e7b5767c3')).toBe(false)
   })
 })

@@ -42,6 +42,8 @@ export const McpServerSchema = z.strictObject({
   id: z.uuidv4(),
   /** Server name */
   name: z.string().min(1),
+  /** Immutable provider-safe server key, generated from the initial id/name pair. */
+  serverWireName: z.string().min(1),
   /** Communication type */
   type: McpServerTypeSchema.optional(),
   /** Server description */

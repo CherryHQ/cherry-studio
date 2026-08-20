@@ -1,5 +1,6 @@
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { McpServerService, mcpServerService } from '@data/services/McpServerService'
+import { buildMcpServerWireName } from '@main/ai/mcp/mcpToolId'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
@@ -9,9 +10,12 @@ describe('McpServerService', () => {
   const dbh = setupTestDatabase()
 
   async function seedServer(overrides: Partial<typeof mcpServerTable.$inferInsert> = {}) {
+    const id = overrides.id ?? 'srv-1'
+    const name = overrides.name ?? 'test-server'
     const values: typeof mcpServerTable.$inferInsert = {
-      id: 'srv-1',
-      name: 'test-server',
+      id,
+      name,
+      serverWireName: buildMcpServerWireName({ serverId: id, serverName: name }),
       type: 'stdio',
       command: 'npx',
       args: ['-y', 'my-server'],
@@ -153,9 +157,11 @@ describe('McpServerService', () => {
   describe('update', () => {
     it('should update and return server', async () => {
       await seedServer()
+      const originalWireName = mcpServerService.getById('srv-1').serverWireName
 
       const result = mcpServerService.update('srv-1', { name: 'updated-name' })
       expect(result.name).toBe('updated-name')
+      expect(result.serverWireName).toBe(originalWireName)
 
       const [row] = await dbh.db.select().from(mcpServerTable).where(eq(mcpServerTable.id, 'srv-1'))
       expect(row.name).toBe('updated-name')

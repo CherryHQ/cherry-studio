@@ -1,3 +1,4 @@
+import { createMcpToolBinding } from '@main/ai/runtime/mcpToolBinding'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { ProgressNotificationSchema, ToolListChangedNotificationSchema } from '@modelcontextprotocol/sdk/types.js'
@@ -34,6 +35,10 @@ vi.mock('@application', () => ({
 
 const { createMcpBridgeServer } = await import('../createMcpBridgeServer')
 
+function createRawMcpBridge(mcpId: string, snapshot?: any, options: any = {}) {
+  return createMcpBridgeServer(mcpId, snapshot, { ...options, namingMode: 'raw' })
+}
+
 type RequestHandler = (request: unknown, extra: unknown) => Promise<unknown>
 
 /** Latest listener passed to the mocked `onToolsCacheUpdated` — the test's stand-in for
@@ -48,6 +53,11 @@ function searchTool() {
     id: 'search-id',
     serverId: 'server-1',
     serverName: 'Docs MCP',
+    runtimeName: createMcpToolBinding({
+      serverId: 'server-1',
+      serverWireName: 'docs_123456789abc',
+      originalToolName: 'search'
+    }).runtimeName,
     type: 'mcp'
   }
 }
@@ -100,7 +110,7 @@ describe('createMcpBridgeServer', () => {
       return { content: [{ type: 'text', text: 'done' }] }
     })
 
-    const client = await connectClient(createMcpBridgeServer('server-1'))
+    const client = await connectClient(createRawMcpBridge('server-1'))
     const seen: { progress: number; total?: number }[] = []
     client.setNotificationHandler(ProgressNotificationSchema, async (notification) => {
       seen.push({ progress: notification.params.progress, total: notification.params.total })
@@ -117,11 +127,46 @@ describe('createMcpBridgeServer', () => {
     ])
   })
 
+  it('uses canonical runtime tool wire names in runtime mode and calls the raw tool name', async () => {
+    mocks.listTools.mockReturnValue([searchTool()])
+    mocks.callTool.mockResolvedValue({ content: [{ type: 'text', text: 'done' }] })
+    const server = { id: 'server-1', name: 'Docs MCP', serverWireName: 'docs_123456789abc' }
+    const binding = createMcpToolBinding({
+      serverId: server.id,
+      serverWireName: server.serverWireName,
+      originalToolName: 'search'
+    })
+    const client = await connectClient(createMcpBridgeServer('server-1', server as never, { namingMode: 'runtime' }))
+
+    const listed = await client.listTools()
+    expect(listed.tools.map((tool) => tool.name)).toEqual([binding.toolWireName])
+    await client.callTool({ name: binding.toolWireName, arguments: {} })
+    expect(mocks.callTool).toHaveBeenCalledWith(expect.objectContaining({ name: 'search' }))
+  })
+
+  it('rejects an unknown runtime tool without dispatching upstream', async () => {
+    mocks.listTools.mockReturnValue([searchTool()])
+    const client = await connectClient(
+      createMcpBridgeServer(
+        'server-1',
+        { id: 'server-1', name: 'Docs MCP', serverWireName: 'docs_123456789abc' } as never,
+        {
+          namingMode: 'runtime'
+        }
+      )
+    )
+
+    await expect(client.callTool({ name: 'search__not-a-binding', arguments: {} })).rejects.toThrow(
+      'Unknown MCP runtime tool'
+    )
+    expect(mocks.callTool).not.toHaveBeenCalled()
+  })
+
   it('omits the progress listener when the client sent no progressToken', async () => {
     mocks.listTools.mockReturnValue([searchTool()])
     mocks.callTool.mockResolvedValue({ content: [{ type: 'text', text: 'done' }] })
 
-    const client = await connectClient(createMcpBridgeServer('server-1'))
+    const client = await connectClient(createRawMcpBridge('server-1'))
     await client.callTool({ name: 'search', arguments: {} })
 
     // No token means no address to send notifications to, so the runtime must not be
@@ -132,14 +177,14 @@ describe('createMcpBridgeServer', () => {
   it('uses a request-captured server snapshot without re-reading the edited database row', () => {
     const capturedServer = { id: 'server-1', name: 'Captured MCP' }
 
-    createMcpBridgeServer('server-1', capturedServer as never)
+    createRawMcpBridge('server-1', capturedServer as never)
 
     expect(mocks.findByIdOrName).not.toHaveBeenCalled()
   })
 
   it('forwards the request cancellation signal to McpRuntimeService.callTool', async () => {
     mocks.callTool.mockResolvedValue({ content: [] })
-    const sdkServer = createMcpBridgeServer('server-1')
+    const sdkServer = createRawMcpBridge('server-1')
     const handlers = (sdkServer.server as unknown as { _requestHandlers: Map<string, RequestHandler> })._requestHandlers
     const handler = handlers.get('tools/call')
 
@@ -159,8 +204,54 @@ describe('createMcpBridgeServer', () => {
     })
   })
 
+  it('forwards the request cancellation signal through a runtime source-server bridge', async () => {
+    const source = new (await import('@modelcontextprotocol/sdk/server/mcp.js')).McpServer(
+      { name: 'source', version: '1.0.0' },
+      { capabilities: { tools: {} } }
+    )
+    let sourceSignal: AbortSignal | undefined
+    const handler = vi.fn((_request, extra: { signal: AbortSignal }) => {
+      sourceSignal = extra.signal
+      return new Promise((resolve) => {
+        extra.signal.addEventListener('abort', () => resolve({ content: [] }), { once: true })
+      })
+    })
+    source.server.setRequestHandler(
+      (await import('@modelcontextprotocol/sdk/types.js')).CallToolRequestSchema,
+      handler as never
+    )
+    source.server.setRequestHandler(
+      (await import('@modelcontextprotocol/sdk/types.js')).ListToolsRequestSchema,
+      async () => ({
+        tools: [{ name: 'search', description: 'Search', inputSchema: { type: 'object' } }]
+      })
+    )
+    const bridge = createMcpBridgeServer('builtin:source', undefined, {
+      namingMode: 'runtime',
+      sourceServer: {
+        server: source,
+        serverId: 'builtin:source',
+        serverName: 'source',
+        serverWireName: 'source'
+      }
+    })
+    const client = await connectClient(bridge)
+    const listed = await client.listTools()
+    const controller = new AbortController()
+
+    const call = client.callTool({ name: listed.tools[0].name, arguments: {} }, undefined, {
+      signal: controller.signal
+    })
+    void call.catch(() => undefined)
+    await vi.waitFor(() => expect(sourceSignal).toBeDefined())
+    controller.abort()
+    await vi.waitFor(() => expect(sourceSignal?.aborted).toBe(true))
+    await expect(call).rejects.toThrow()
+    await client.close()
+  })
+
   it('proxies prompts/get through McpRuntimeService when prompts are advertised', async () => {
-    const sdkServer = createMcpBridgeServer('server-1')
+    const sdkServer = createRawMcpBridge('server-1')
     const handlers = (sdkServer.server as unknown as { _requestHandlers: Map<string, RequestHandler> })._requestHandlers
     const handler = handlers.get('prompts/get')
 
@@ -185,7 +276,7 @@ describe('createMcpBridgeServer', () => {
   it('lists tools from the cache-only listTools without blocking, stripping bridge-internal fields', async () => {
     mocks.listTools.mockReturnValue([searchTool()])
 
-    const sdkServer = createMcpBridgeServer('server-1')
+    const sdkServer = createRawMcpBridge('server-1')
     const handlers = (sdkServer.server as unknown as { _requestHandlers: Map<string, RequestHandler> })._requestHandlers
     const handler = handlers.get('tools/list')
 
@@ -202,7 +293,7 @@ describe('createMcpBridgeServer', () => {
   })
 
   it('declares tools.listChanged so the SDK client attaches its re-list handler', async () => {
-    const sdkServer = createMcpBridgeServer('server-1')
+    const sdkServer = createRawMcpBridge('server-1')
     const client = await connectClient(sdkServer)
 
     expect(client.getServerCapabilities()?.tools).toEqual({ listChanged: true })
@@ -211,7 +302,7 @@ describe('createMcpBridgeServer', () => {
   })
 
   it('does not subscribe to cache updates until the session actually initializes', () => {
-    createMcpBridgeServer('server-1')
+    createRawMcpBridge('server-1')
     // A bridge whose query never starts must not leak an emitter subscription.
     expect(mocks.onToolsCacheUpdated).not.toHaveBeenCalled()
   })
@@ -222,7 +313,7 @@ describe('createMcpBridgeServer', () => {
     // the tools. The other half — the Agent SDK CLI auto-re-listing when it receives the
     // notification — is SDK behavior (verified against 0.3.185) that this test does NOT
     // cover; it stands in with a manual re-list.
-    const sdkServer = createMcpBridgeServer('server-1')
+    const sdkServer = createRawMcpBridge('server-1')
     const client = await connectClient(sdkServer)
 
     const notified = new Promise<void>((resolve) => {
@@ -248,7 +339,7 @@ describe('createMcpBridgeServer', () => {
     // The subscription lifecycle is self-managed via oninitialized/onclose, so a
     // connect → close → reconnect sequence on one instance must not end up with zero
     // or two live subscriptions. Locks the ??=-plus-reset pairing.
-    const sdkServer = createMcpBridgeServer('server-1')
+    const sdkServer = createRawMcpBridge('server-1')
 
     const firstClient = await connectClient(sdkServer)
     expect(mocks.onToolsCacheUpdated).toHaveBeenCalledTimes(1)
@@ -272,7 +363,7 @@ describe('createMcpBridgeServer', () => {
   })
 
   it('ignores cache updates for other servers', async () => {
-    const sdkServer = createMcpBridgeServer('server-1')
+    const sdkServer = createRawMcpBridge('server-1')
     const client = await connectClient(sdkServer)
 
     const notificationHandler = vi.fn(async () => {})
@@ -287,7 +378,7 @@ describe('createMcpBridgeServer', () => {
   })
 
   it('disposes the cache subscription when the transport closes, and swallows late fires', async () => {
-    const sdkServer = createMcpBridgeServer('server-1')
+    const sdkServer = createRawMcpBridge('server-1')
     const client = await connectClient(sdkServer)
     expect(mocks.onToolsCacheUpdated).toHaveBeenCalledTimes(1)
 
@@ -303,7 +394,7 @@ describe('createMcpBridgeServer', () => {
   })
 
   it('responds to resource template discovery when resources are advertised', async () => {
-    const sdkServer = createMcpBridgeServer('server-1')
+    const sdkServer = createRawMcpBridge('server-1')
     const handlers = (sdkServer.server as unknown as { _requestHandlers: Map<string, RequestHandler> })._requestHandlers
     const handler = handlers.get('resources/templates/list')
 

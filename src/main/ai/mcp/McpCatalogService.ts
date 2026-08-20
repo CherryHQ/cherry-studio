@@ -11,7 +11,7 @@ import type { McpPrompt, McpResource, McpTool } from '@shared/types/mcp'
 import { redactServerKey } from '@shared/utils/redaction'
 import * as z from 'zod'
 
-import { buildMcpToolWireId } from './mcpToolId'
+import { buildMcpToolIdentityKey, buildMcpToolRuntimeName } from './mcpToolId'
 
 const logger = loggerService.withContext('McpCatalogService')
 const mcpToolsCacheKey = (serverId: string): SharedCacheKey => `mcp.tools.${serverId}` as SharedCacheKey
@@ -188,6 +188,22 @@ export class McpCatalogService extends BaseService {
     return tools.filter((tool) => !isMcpToolDisabledBySource(latestServer, tool))
   }
 
+  /** Rehydrate cache entries written before the canonical identity/runtime fields existed. */
+  private normalizeTools(server: McpServer, tools: McpTool[]): McpTool[] {
+    return tools.map((tool) => ({
+      ...tool,
+      id: buildMcpToolIdentityKey({ serverId: server.id, toolName: tool.name }),
+      runtimeName: buildMcpToolRuntimeName({
+        serverId: server.id,
+        serverWireName: server.serverWireName,
+        toolName: tool.name
+      }),
+      serverId: server.id,
+      serverName: server.name,
+      type: 'mcp'
+    }))
+  }
+
   private async listToolsImpl(server: McpServer): Promise<McpTool[]> {
     try {
       const { tools } = await application.get('McpRuntimeService').withClient(server.id, async (client) => {
@@ -207,9 +223,13 @@ export class McpCatalogService extends BaseService {
           ...tool,
           inputSchema: MCP_TOOL_INPUT_SCHEMA.parse(tool.inputSchema),
           outputSchema: tool.outputSchema ? MCP_TOOL_OUTPUT_SCHEMA.parse(tool.outputSchema) : undefined,
-          id: buildMcpToolWireId({
+          id: buildMcpToolIdentityKey({
             serverId: server.id,
-            serverName: server.name,
+            toolName: tool.name
+          }),
+          runtimeName: buildMcpToolRuntimeName({
+            serverId: server.id,
+            serverWireName: server.serverWireName,
             toolName: tool.name
           }),
           serverId: server.id,
@@ -282,14 +302,16 @@ export class McpCatalogService extends BaseService {
     // racing an in-flight session warm doesn't open a second connection to the same server.
     if (cached === undefined) void this.warmToolsCache(serverId)
     const tools = cached ?? []
-    if (options.includeDisabled || tools.length === 0) return tools
+    if (tools.length === 0) return tools
     let server: McpServer | undefined
     try {
       server = this.getServerById(serverId)
     } catch {
       server = undefined
     }
-    return server ? tools.filter((tool) => !isMcpToolDisabledBySource(server, tool)) : tools
+    if (!server) return tools
+    const normalized = this.normalizeTools(server, tools)
+    return options.includeDisabled ? normalized : normalized.filter((tool) => !isMcpToolDisabledBySource(server, tool))
   }
 
   /**

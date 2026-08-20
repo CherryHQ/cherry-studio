@@ -84,6 +84,13 @@
       "when": 1787109711737,
       "tag": "0011_rare_vertigo",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1787129422991,
+      "tag": "0012_lumpy_otto_octavius",
+      "breakpoints": true
     }
   ],
   "version": "7"

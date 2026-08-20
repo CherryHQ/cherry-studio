@@ -62,7 +62,9 @@ const {
   CherryBuiltinToolsServer
 } = await import('../cherryBuiltinTools')
 const { CherryKnowledgeTools } = await import('../cherryKnowledgeTools')
+const { getBuiltinRuntimeName } = await import('@main/ai/mcp/mcpBuiltinToolManifest')
 const { CLAUDE_KNOWLEDGE_TOOL_NAMES } = await import('@shared/ai/claudecode/toolRegistry')
+const { MCP_BUILTIN_SERVER_IDS } = await import('@shared/ai/tools/mcpToolIdentity')
 const { WEB_LOOKUP_ERROR_NOTE } = await import('@main/ai/tools/webLookup')
 
 const signal = new AbortController().signal
@@ -172,7 +174,7 @@ describe('cherryBuiltinTools', () => {
   it('keeps runtime knowledge tools aligned with the shared wire-name registry', () => {
     const runtimeWireNames = makeKnowledgeTools(['kb-1'])
       .tools()
-      .map((tool) => `mcp__cherry-tools__${tool.name}`)
+      .map((tool) => getBuiltinRuntimeName(MCP_BUILTIN_SERVER_IDS.cherryTools, tool.name))
       .sort()
 
     expect(runtimeWireNames).toEqual([...CLAUDE_KNOWLEDGE_TOOL_NAMES].sort())
