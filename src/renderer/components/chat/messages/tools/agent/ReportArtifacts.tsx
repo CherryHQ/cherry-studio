@@ -163,20 +163,33 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
     targets
   ])
 
-  const card = (
+  const previewButton = (
+    <button
+      type="button"
+      aria-disabled={!openArtifactFile}
+      onClick={openArtifactFile ? handlePreview : undefined}
+      title={displayPath}
+      aria-label={`${t('common.preview')} ${fileName}`}
+      className="flex min-h-12 min-w-0 flex-1 items-center gap-2.5 border-0 bg-transparent px-2.5 py-2 text-left aria-disabled:cursor-default">
+      <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-background">
+        <Icon icon={`material-icon-theme:${iconName}`} className="text-[20px]" />
+      </span>
+      <span className="min-w-0 truncate font-medium text-[13px] text-foreground leading-5">{fileName}</span>
+    </button>
+  )
+
+  return (
     <div className="group/artifact flex w-full max-w-xl items-center overflow-hidden rounded-lg border-[0.5px] border-border bg-background-subtle transition-colors hover:bg-accent">
-      <button
-        type="button"
-        aria-disabled={!openArtifactFile}
-        onClick={openArtifactFile ? handlePreview : undefined}
-        title={displayPath}
-        aria-label={`${t('common.preview')} ${fileName}`}
-        className="flex min-h-12 min-w-0 flex-1 items-center gap-2.5 border-0 bg-transparent px-2.5 py-2 text-left aria-disabled:cursor-default">
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-background">
-          <Icon icon={`material-icon-theme:${iconName}`} className="text-[20px]" />
-        </span>
-        <span className="min-w-0 truncate font-medium text-[13px] text-foreground leading-5">{fileName}</span>
-      </button>
+      {contextMenuItems.length === 0 ? (
+        previewButton
+      ) : (
+        <CommandContextMenu
+          location="webcontents.context"
+          extraItems={contextMenuItems}
+          onOpenChange={setContextMenuOpen}>
+          {previewButton}
+        </CommandContextMenu>
+      )}
       {hasOpenActions && (
         <CommandPopupMenu
           location="webcontents.context"
@@ -200,16 +213,6 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
         </CommandPopupMenu>
       )}
     </div>
-  )
-
-  if (contextMenuItems.length === 0) {
-    return card
-  }
-
-  return (
-    <CommandContextMenu location="webcontents.context" extraItems={contextMenuItems} onOpenChange={setContextMenuOpen}>
-      {card}
-    </CommandContextMenu>
   )
 }
 
