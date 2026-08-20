@@ -229,4 +229,44 @@ describe('PiStreamAdapter', () => {
       state: 'output-available'
     })
   })
+
+  it('stamps MCP tools with type mcp, name, and serverName from the tool name', () => {
+    const chunks = collect([
+      { type: 'tool_execution_start', toolCallId: 'm1', toolName: 'mcp__exa__search', args: {} } as AgentSessionEvent,
+      {
+        type: 'tool_execution_end',
+        toolCallId: 'm1',
+        toolName: 'mcp__exa__search',
+        result: { content: [{ type: 'text', text: 'results' }] },
+        isError: false
+      } as AgentSessionEvent
+    ])
+    const toolOutput = chunks.find((chunk) => chunk.type === 'tool-output-available')
+    expect(toolOutput).toMatchObject({
+      providerMetadata: {
+        cherry: { transport: PI_TRANSPORT, tool: { type: 'mcp', name: 'search', serverName: 'exa' } }
+      }
+    })
+  })
+
+  it('keeps full result for third-party MCP tools instead of projecting details', async () => {
+    const details = [{ id: 'a-1', title: 'First', url: 'https://a.com', content: 'x' }]
+    const result = { content: [{ type: 'text', text: 'results' }], details }
+    const message = await accumulate(
+      collect([
+        { type: 'tool_execution_start', toolCallId: 'm2', toolName: 'mcp__exa__search', args: {} },
+        {
+          type: 'tool_execution_end',
+          toolCallId: 'm2',
+          toolName: 'mcp__exa__search',
+          result,
+          isError: false
+        }
+      ] as AgentSessionEvent[])
+    )
+    expect(message.parts.find((part) => part.type === 'dynamic-tool')).toMatchObject({
+      toolName: 'mcp__exa__search',
+      output: result
+    })
+  })
 })

@@ -423,8 +423,7 @@
           "bypassPermissions": {
             "description": "Überspringt Berechtigungsprüfungen. Kann Dateien löschen und das Netzwerk nutzen.",
             "title": "Vollzugriff",
-            "warning": "Gefahr: Alle Tools werden ohne Genehmigung ausgeführt.",
-            "warning_pi": "Gefährlich — es wird nie nachgefragt, außer bei deaktivierten Tools, einschließlich Dateilöschen und Netzwerkzugriff."
+            "warning": "Gefahr: Alle Tools werden ohne Genehmigung ausgeführt."
           },
           "default": {
             "description": "Fragt vor dem Bearbeiten von Dateien oder dem Ausführen von Befehlen.",
@@ -3602,6 +3601,7 @@
     }
   },
   "navigate": {
+    "model_settings": "Zu den Modelleinstellungen",
     "provider_settings": "Zu Anbietereinstellungen navigieren"
   },
   "notes": {
@@ -4521,6 +4521,10 @@
         "custom": "Benutzerdefinierte Funktionen",
         "delete_confirm": "Diese benutzerdefinierte Funktion wirklich löschen?",
         "drag_hint": "Zum Sortieren ziehen, nach oben bewegen, um Funktion zu aktivieren ({{enabled}}/{{max}})",
+        "models": {
+          "default_description": "Wird für „Erklären“, „Zusammenfassen“, „Überarbeiten“ und benutzerdefinierte Aktionen verwendet, die das Standardmodell nutzen.",
+          "translate_description": "Wird zum Erstellen von Übersetzungen verwendet. Die automatische Spracherkennung kann zusätzlich das Schnellmodell verwenden."
+        },
         "reset": {
           "button": "Zurücksetzen",
           "confirm": "Wirklich auf Standardfunktionen zurücksetzen? Benutzerdefinierte Funktionen werden nicht gelöscht.",
@@ -6208,8 +6212,9 @@
       "provider_key_confirm_title": "API-Schlüssel für {{provider}} hinzufügen",
       "provider_name": "Anbietername",
       "quick_assistant_default_tag": "Standard",
-      "quick_assistant_model": "Schnellassistent-Modell",
+      "quick_assistant_response_settings": "Antworteinstellungen",
       "quick_assistant_selection": "Assistent auswählen",
+      "quick_assistant_usage_method": "Verwendungsart",
       "quick_model": {
         "description": "Modell für einfache Aufgaben wie Themenbenennung und Keyword-Extraktion",
         "label": "Schnellmodell",

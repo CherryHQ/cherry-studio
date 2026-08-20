@@ -18,6 +18,9 @@ const assistantContextMock = vi.hoisted(() => ({
   isModelPending: false
 }))
 const providerHookArgs = vi.hoisted(() => [] as unknown[][])
+const commandHandlers = vi.hoisted(() => new Map<string, () => void | Promise<void>>())
+const eventEmitMock = vi.hoisted(() => vi.fn())
+const activeTabMock = vi.hoisted(() => ({ current: true }))
 
 const topic: Topic = {
   id: 'topic-1',
@@ -118,6 +121,27 @@ vi.mock('@renderer/hooks/useProvider', () => ({
   }
 }))
 
+vi.mock('@renderer/hooks/command', () => ({
+  useCommandHandler: (command: string, handler: () => void | Promise<void>, options?: { enabled?: boolean }) => {
+    if (options?.enabled === false) commandHandlers.delete(command)
+    else commandHandlers.set(command, handler)
+  }
+}))
+
+vi.mock('@renderer/hooks/tab', () => ({
+  useIsActiveTab: () => activeTabMock.current
+}))
+
+vi.mock('@renderer/services/EventService', () => ({
+  EVENT_NAMES: {
+    CLEAR_MESSAGES: 'clear-messages',
+    FOCUS_CHAT_COMPOSER: 'focus-chat-composer'
+  },
+  EventEmitter: {
+    emit: eventEmitMock
+  }
+}))
+
 vi.mock('@renderer/components/composer/variants/chat/ChatConversationControls', () => ({
   ChatConversationControls: ({ assistantName }: { assistantName: string }) => (
     <div data-testid="chat-conversation-controls">{assistantName}</div>
@@ -187,6 +211,26 @@ describe('Chat', () => {
     assistantContextMock.isLoading = false
     assistantContextMock.isModelPending = false
     providerHookArgs.length = 0
+    commandHandlers.clear()
+    activeTabMock.current = true
+  })
+
+  it('routes the clear-messages command through the existing confirmation flow', () => {
+    render(<Chat activeTopic={topic} />)
+
+    act(() => {
+      void commandHandlers.get('topic.clear_messages')?.()
+    })
+
+    expect(eventEmitMock).toHaveBeenCalledWith('clear-messages', topic)
+  })
+
+  it('does not register the clear-messages command for a background tab', () => {
+    activeTabMock.current = false
+
+    render(<Chat activeTopic={topic} />)
+
+    expect(commandHandlers.has('topic.clear_messages')).toBe(false)
   })
 
   it('renders the navbar and right pane shortcuts in the shared conversation shell', () => {
