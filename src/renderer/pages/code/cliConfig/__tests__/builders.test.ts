@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildOpenCodeConfig, buildPiModelsConfig, buildPiSettingsConfig, buildQwenConfig } from '../builders'
+import {
+  buildHermesConfig,
+  buildHermesEnvConfig,
+  buildOpenCodeConfig,
+  buildPiModelsConfig,
+  buildPiSettingsConfig,
+  buildQwenConfig
+} from '../builders'
 
 describe('buildOpenCodeConfig', () => {
   it('adds string provider headers', () => {
@@ -77,6 +84,50 @@ describe('buildQwenConfig', () => {
       unrelated: true,
       auth: { someOtherField: 'keep-me', selectedType: 'openai' }
     })
+  })
+})
+
+describe('Hermes config builders', () => {
+  it('keeps user model settings while injecting the custom endpoint by environment reference', () => {
+    expect(
+      buildHermesConfig(
+        {
+          userTop: 'keep',
+          model: { context_length: 200000, provider: 'old-provider', default: 'old-model', api_key: 'old-key' }
+        },
+        {
+          apiKeyEnv: '${CHERRY_HERMES_API_KEY}',
+          apiMode: 'chat_completions',
+          baseUrl: 'https://api.example.com/v1',
+          model: 'example-model'
+        }
+      )
+    ).toEqual({
+      userTop: 'keep',
+      model: {
+        context_length: 200000,
+        provider: 'custom',
+        default: 'example-model',
+        base_url: 'https://api.example.com/v1',
+        api_key: '${CHERRY_HERMES_API_KEY}',
+        api_mode: 'chat_completions'
+      }
+    })
+  })
+
+  it('replaces only the Cherry-owned Hermes credential in the environment file', () => {
+    expect([
+      ...buildHermesEnvConfig(
+        new Map([
+          ['USER_KEY', 'keep'],
+          ['CHERRY_HERMES_API_KEY', 'old']
+        ]),
+        'sk-secret'
+      )
+    ]).toEqual([
+      ['USER_KEY', 'keep'],
+      ['CHERRY_HERMES_API_KEY', 'sk-secret']
+    ])
   })
 })
 

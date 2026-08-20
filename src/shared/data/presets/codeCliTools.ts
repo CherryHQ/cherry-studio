@@ -5,7 +5,7 @@ export interface CodeCliToolPreset {
   id: CodeCli
   executable: string
   packageName: string
-  install: 'registry' | 'npm'
+  install: 'registry' | 'npm' | 'pipx'
   miseTool: string
   misePrerelease?: boolean
   /** Use npm CLI when mise's embedded installer cannot install this package. */
@@ -17,7 +17,8 @@ type CodeCliToolDefinition = Omit<CodeCliToolPreset, 'miseTool'>
 function defineCodeCliTool(definition: CodeCliToolDefinition): Readonly<CodeCliToolPreset> {
   return Object.freeze({
     ...definition,
-    miseTool: definition.install === 'npm' ? `npm:${definition.packageName}` : definition.executable
+    miseTool:
+      definition.install === 'registry' ? definition.executable : `${definition.install}:${definition.packageName}`
   })
 }
 
@@ -79,7 +80,8 @@ export const CODE_CLI_TOOL_PRESETS = Object.freeze([
     executable: 'pi',
     packageName: '@earendil-works/pi-coding-agent',
     install: 'npm'
-  })
+  }),
+  defineCodeCliTool({ id: CodeCli.HERMES, executable: 'hermes', packageName: 'hermes-agent', install: 'pipx' })
 ] as const satisfies readonly Readonly<CodeCliToolPreset>[])
 
 export const CODE_CLI_TOOL_PRESET_MAP = Object.freeze(

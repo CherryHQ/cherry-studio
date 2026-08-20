@@ -4,6 +4,7 @@ import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 import type { CliConfigWriteFile } from '@shared/utils/cliConfig'
 import { CLI_CONFIG_FILE_SPECS } from '@shared/utils/cliConfig'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { parse as parseYaml } from 'yaml'
 
 import { clearCliConfig, writeCliConfigDraft } from '../index'
 
@@ -132,6 +133,42 @@ describe('writeCliConfigDraft', () => {
     await expect(writeCliConfigDraft({ cliTool: CodeCli.CLAUDE_CODE, modelId: 'ghost::claude-4' })).rejects.toThrow(
       /Provider not found/
     )
+  })
+
+  it('writes Hermes custom-runtime metadata separately from the API key', async () => {
+    mockGet({
+      '/providers/deepseek': () => openaiCompatProvider,
+      '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+      '/models/': () => null
+    })
+
+    await writeCliConfigDraft({ cliTool: CodeCli.HERMES, modelId: 'deepseek::hermes-3' })
+
+    expect(mocks.request).toHaveBeenCalledWith('code_cli.write_config', {
+      cliTool: CodeCli.HERMES,
+      files: [
+        { target: 'hermes-config', content: expect.any(String) },
+        { target: 'hermes-env', content: expect.any(String) }
+      ]
+    })
+    const files = vi.mocked(mocks.request).mock.calls.at(-1)?.[1].files as CliConfigWriteFile[]
+    const config = files.find((file) => file.target === 'hermes-config')
+    const env = files.find((file) => file.target === 'hermes-env')
+    if (!config || typeof config.content !== 'string' || !env || typeof env.content !== 'string') {
+      throw new Error('Expected Hermes config and environment files')
+    }
+
+    expect(parseYaml(config.content)).toEqual({
+      model: {
+        provider: 'custom',
+        default: 'hermes-3',
+        base_url: 'https://api.deepseek.com/v1',
+        api_key: '${CHERRY_HERMES_API_KEY}',
+        api_mode: 'chat_completions'
+      }
+    })
+    expect(config.content).not.toContain('sk-secret')
+    expect(env.content).toContain('CHERRY_HERMES_API_KEY=sk-secret')
   })
 
   describe('claude-code (~/.claude/settings.json)', () => {
