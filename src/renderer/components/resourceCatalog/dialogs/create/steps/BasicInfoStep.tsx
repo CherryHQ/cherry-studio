@@ -88,9 +88,9 @@ function AgentRuntimeModelFields({
         name="agentType"
         render={({ field }) => (
           <FormItem>
-            <FormLabel className="items-baseline gap-1.5 font-normal">
+            <FormLabel className="items-baseline gap-1.5 font-medium">
               {t('library.config.agent.field.runtime.label')}
-              <span className="text-muted-foreground text-xs">
+              <span className="font-normal text-muted-foreground text-xs">
                 {t('library.config.agent.field.runtime.immutable_hint')}
               </span>
             </FormLabel>
@@ -111,7 +111,7 @@ function AgentRuntimeModelFields({
         name="permissionMode"
         render={({ field }) => (
           <FormItem>
-            <FormLabel className="font-normal">{t('library.config.agent.field.permission_mode.label')}</FormLabel>
+            <FormLabel className="font-medium">{t('library.config.agent.field.permission_mode.label')}</FormLabel>
             <PermissionModeSelect
               cards={permissionModeCards}
               value={field.value}
@@ -128,6 +128,7 @@ function AgentRuntimeModelFields({
         form={form}
         name="modelId"
         label={t('common.model')}
+        labelClassName="font-medium"
         filter={modelFilter}
         portalContainer={portalContainer}
         modelLabels={modelLabels}
@@ -170,7 +171,7 @@ export function BasicInfoStep({
         rules={{ validate: (value) => value.trim().length > 0 || t('common.required_field') }}
         render={({ field }) => (
           <FormItem>
-            <FormLabel className="font-normal">{t('library.config.dialogs.create.avatar_name_label')}</FormLabel>
+            <FormLabel className="font-medium">{t('library.config.dialogs.create.avatar_name_label')}</FormLabel>
             <InputGroup>
               <InputGroupAddon>
                 <EmojiAvatarPicker
@@ -212,6 +213,7 @@ export function BasicInfoStep({
           form={form}
           name="modelId"
           label={t('common.model')}
+          labelClassName="font-medium"
           filter={modelFilter}
           portalContainer={portalContainer}
           modelLabels={modelLabels}
@@ -225,6 +227,7 @@ export function BasicInfoStep({
         form={form}
         name="description"
         label={t('common.description')}
+        labelClassName="font-medium"
         placeholder={t('library.config.dialogs.create.description_placeholder')}
       />
     </div>

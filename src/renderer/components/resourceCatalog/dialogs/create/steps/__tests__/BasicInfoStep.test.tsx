@@ -118,6 +118,21 @@ describe('BasicInfoStep', () => {
     expect(screen.queryByText('library.config.agent.field.runtime.pi_hint')).not.toBeInTheDocument()
   })
 
+  it('uses medium weight for create labels while keeping guidance regular', () => {
+    render(<Harness runtimeSelectable />)
+
+    for (const label of [
+      'library.config.dialogs.create.avatar_name_label',
+      'library.config.agent.field.runtime.label',
+      'library.config.agent.field.permission_mode.label',
+      'common.model',
+      'common.description'
+    ]) {
+      expect(screen.getByText(label, { exact: true })).toHaveClass('font-medium')
+    }
+    expect(screen.getByText('library.config.agent.field.runtime.immutable_hint')).toHaveClass('font-normal')
+  })
+
   it('uses smart approval for Claude and Pi while DSH auto-accepts edits', async () => {
     const user = userEvent.setup()
     render(<Harness runtimeSelectable />)
