@@ -481,9 +481,9 @@ function buildOllamaProviderOptions(
   return {
     ollama: {
       ...reasoningOptions,
-      // Ollama defaults to a 2048-token context window unless num_ctx is supplied;
-      // forward the model's configured contextWindow so large-context models are
-      // not silently truncated.
+      // Forward the model's context window so large-context models are not silently
+      // truncated. Omitting it is deliberate when unknown: Ollama then sizes by available
+      // VRAM (4k / 32k / 256k), which beats any fixed guess we could substitute.
       ...(model.contextWindow ? { options: { num_ctx: model.contextWindow } } : {})
     }
   }

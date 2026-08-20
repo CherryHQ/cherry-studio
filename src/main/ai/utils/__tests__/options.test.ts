@@ -559,7 +559,7 @@ describe('buildCapabilityProviderOptions', () => {
     expect(result).toMatchObject({ ollama: { options: { num_ctx: 32_768 } } })
   })
 
-  it('omits num_ctx for Ollama models without a configured contextWindow', () => {
+  it('omits num_ctx for an Ollama model whose contextWindow could not be read', () => {
     const result = buildCapabilityProviderOptions(
       {
         id: 'ollama::qwen3:32b',
@@ -590,6 +590,8 @@ describe('buildCapabilityProviderOptions', () => {
       }
     )
 
+    // Not a fixed floor: Ollama sizes by available VRAM (4k / 32k / 256k) when num_ctx is
+    // absent, so substituting a guess would shrink the window on a well-provisioned machine.
     expect(result.ollama).not.toHaveProperty('options')
   })
 })
