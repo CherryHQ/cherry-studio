@@ -50,12 +50,18 @@ async function enrichCreateItems(dtos: CreateModelDto[]) {
   return await Promise.all(
     dtos.map(async (dto) => {
       try {
+        const modelEndpointSelection =
+          dto.endpointTypes || dto.preferredEndpointType
+            ? {
+                endpointTypes: dto.endpointTypes,
+                preferredEndpointType: dto.preferredEndpointType
+              }
+            : undefined
         return {
           dto,
-          registryData: providerRegistryService.lookupModel(dto.providerId, dto.modelId, undefined, {
-            endpointTypes: dto.endpointTypes,
-            preferredEndpointType: dto.preferredEndpointType
-          })
+          registryData: modelEndpointSelection
+            ? providerRegistryService.lookupModel(dto.providerId, dto.modelId, undefined, modelEndpointSelection)
+            : providerRegistryService.lookupModel(dto.providerId, dto.modelId)
         }
       } catch (error) {
         if (!(isDataApiError(error) && error.code === ErrorCode.NOT_FOUND)) {
