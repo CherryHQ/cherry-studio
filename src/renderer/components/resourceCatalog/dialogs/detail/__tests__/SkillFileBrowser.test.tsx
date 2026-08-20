@@ -1,5 +1,4 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
-import type { FileTreeNode } from '@renderer/components/FileTree'
 import type { SkillFileNode } from '@shared/types/skill'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -46,21 +45,32 @@ vi.mock('@renderer/services/toast', () => ({
   toast: { error: toastErrorMock }
 }))
 
-vi.mock('@renderer/components/FileTree', () => ({
-  FileTree: ({ nodes, onSelectedChange }: { nodes: FileTreeNode[]; onSelectedChange: (id: string) => void }) => {
-    const rows = (items: FileTreeNode[]): ReactNode[] =>
-      items.flatMap((node) => [
-        <button key={node.id} type="button" onClick={() => onSelectedChange(node.id)}>
-          {node.name}
-        </button>,
-        ...(node.children ? rows(node.children) : [])
-      ])
-    return <div>{rows(nodes)}</div>
-  }
+vi.mock('@iconify/react', () => ({
+  Icon: ({ icon }: { icon: string }) => <span data-icon={icon} />
+}))
+
+vi.mock('@renderer/components/VirtualList', () => ({
+  DynamicVirtualList: ({
+    list,
+    children
+  }: {
+    list: unknown[]
+    children: (item: unknown, index: number) => ReactNode
+  }) => (
+    <div>
+      {list.map((item, index) => (
+        <div key={index}>{children(item, index)}</div>
+      ))}
+    </div>
+  )
 }))
 
 vi.mock('@renderer/components/CodeViewer', () => ({
-  default: ({ value }: { value: string }) => <pre>code viewer: {value}</pre>
+  default: ({ value, expanded, height }: { value: string; expanded: boolean; height: string }) => (
+    <pre data-expanded={String(expanded)} data-height={height}>
+      code viewer: {value}
+    </pre>
+  )
 }))
 
 import { SkillFileBrowser } from '../SkillFileBrowser'
@@ -71,7 +81,10 @@ const tree: SkillFileNode[] = [
     name: 'scripts',
     path: 'scripts',
     type: 'directory',
-    children: [{ name: 'setup.ts', path: 'scripts/setup.ts', type: 'file' }]
+    children: [
+      { name: 'SKILL.md', path: 'scripts/SKILL.md', type: 'file' },
+      { name: 'setup.ts', path: 'scripts/setup.ts', type: 'file' }
+    ]
   }
 ]
 
@@ -100,8 +113,9 @@ describe('SkillFileBrowser', () => {
     render(<SkillFileBrowser skillId="skill-1" />)
 
     expect(await screen.findByText('markdown: # Review Helper')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'SKILL.md' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'setup.ts' })).toBeInTheDocument()
+    expect(screen.getByRole('tree', { name: 'library.skill_detail.source_files' })).toBeInTheDocument()
+    expect(screen.getByRole('treeitem', { name: 'SKILL.md' })).toBeInTheDocument()
+    expect(screen.queryByRole('treeitem', { name: 'setup.ts' })).not.toBeInTheDocument()
     expect(listFilesMock).toHaveBeenCalledWith('skill-1')
     expect(readSkillFileMock).toHaveBeenCalledWith('skill-1', 'SKILL.md')
   })
@@ -111,9 +125,12 @@ describe('SkillFileBrowser', () => {
     render(<SkillFileBrowser skillId="skill-1" />)
 
     await screen.findByText('markdown: # Review Helper')
-    await user.click(screen.getByRole('button', { name: 'setup.ts' }))
+    await user.click(screen.getByRole('treeitem', { name: 'scripts' }))
+    await user.click(screen.getByRole('treeitem', { name: 'setup.ts' }))
 
-    expect(await screen.findByText('code viewer: export const setup = true')).toBeInTheDocument()
+    const codeViewer = await screen.findByText('code viewer: export const setup = true')
+    expect(codeViewer).toHaveAttribute('data-expanded', 'false')
+    expect(codeViewer).toHaveAttribute('data-height', '100%')
     expect(readSkillFileMock).toHaveBeenLastCalledWith('skill-1', 'scripts/setup.ts')
     expect(screen.queryByRole('button', { name: 'library.skill_detail.translate_to_chinese' })).not.toBeInTheDocument()
   })
