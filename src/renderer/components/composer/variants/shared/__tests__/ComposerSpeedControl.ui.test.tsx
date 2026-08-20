@@ -5,7 +5,11 @@ import userEvent from '@testing-library/user-event'
 import { type ButtonHTMLAttributes, type MouseEvent, type ReactNode, useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
-import { ComposerSpeedControl, resolveComposerReasoningEffort } from '../ComposerSpeedControl'
+import {
+  ComposerSpeedControl,
+  getNextComposerReasoningEffort,
+  resolveComposerReasoningEffort
+} from '../ComposerSpeedControl'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
@@ -110,6 +114,15 @@ function ControlledSpeedControl({ model, initialEffort }: { model: Model; initia
 }
 
 describe('ComposerSpeedControl UI', () => {
+  it('cycles declared reasoning efforts in display order and wraps to Default', () => {
+    expect(getNextComposerReasoningEffort(codexModel, 'default')).toBe('none')
+    expect(getNextComposerReasoningEffort(codexModel, 'max')).toBe('default')
+  })
+
+  it('does not cycle when the model has no selectable reasoning effort', () => {
+    expect(getNextComposerReasoningEffort({ ...codexModel, reasoning: undefined }, 'default')).toBeUndefined()
+  })
+
   it('preserves a stored Default for a multi-tier slider model', () => {
     expect(resolveComposerReasoningEffort(codexModel, 'default')).toBe('default')
   })

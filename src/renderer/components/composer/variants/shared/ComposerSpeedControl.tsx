@@ -34,6 +34,11 @@ const EFFORT_LABEL_KEYS: Record<ThinkingOption, string> = {
 const WHEEL_STEP_THRESHOLD = 40
 const WHEEL_IDLE_RESET_MS = 120
 
+function getComposerReasoningOptions(model: Model): ThinkingOption[] {
+  const declaredEfforts = new Set(deriveThinkingOptions(model) ?? [])
+  return SLIDER_EFFORT_ORDER.filter((effort) => declaredEfforts.has(effort))
+}
+
 interface ComposerSpeedControlProps {
   model: Model
   reasoningEffort: ThinkingOption
@@ -121,6 +126,14 @@ export function resolveComposerReasoningEffort(model: Model, effort: ThinkingOpt
   return reasoningOptions.includes(effort) ? effort : 'default'
 }
 
+export function getNextComposerReasoningEffort(model: Model, effort: ThinkingOption): ThinkingOption | undefined {
+  const reasoningOptions = getComposerReasoningOptions(model)
+  if (reasoningOptions.length <= 1) return undefined
+
+  const currentIndex = reasoningOptions.indexOf(resolveComposerReasoningEffort(model, effort))
+  return reasoningOptions[(currentIndex + 1) % reasoningOptions.length]
+}
+
 export function ComposerSpeedControl({
   model,
   reasoningEffort,
@@ -129,10 +142,7 @@ export function ComposerSpeedControl({
   onFastModeChange
 }: ComposerSpeedControlProps) {
   const { t } = useTranslation()
-  const reasoningOptions = useMemo(() => {
-    const declaredEfforts = new Set(deriveThinkingOptions(model) ?? [])
-    return SLIDER_EFFORT_ORDER.filter((effort) => declaredEfforts.has(effort))
-  }, [model])
+  const reasoningOptions = useMemo(() => getComposerReasoningOptions(model), [model])
   const supportsReasoning = reasoningOptions.length > 1
   const supportsFast = model.supportsFastMode === true
 

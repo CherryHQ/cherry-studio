@@ -35,6 +35,7 @@ const mocks = vi.hoisted(() => ({
   reconcileTokens: vi.fn(),
   commandHandlers: new Map<string, () => void>(),
   commandOptions: new Map<string, { enabled?: boolean }>(),
+  isActiveTab: true,
   eventListeners: new Map<string, (payload: unknown) => void>(),
   eventEmit: vi.fn(),
   eventOn: vi.fn(),
@@ -522,7 +523,7 @@ vi.mock('@renderer/hooks/command', () => ({
 }))
 
 vi.mock('@renderer/hooks/tab', () => ({
-  useIsActiveTab: () => true
+  useIsActiveTab: () => mocks.isActiveTab
 }))
 
 vi.mock('@renderer/hooks/useTopic', () => ({
@@ -710,6 +711,7 @@ describe('ChatComposer', () => {
     })
     mocks.commandHandlers.clear()
     mocks.commandOptions.clear()
+    mocks.isActiveTab = true
     mocks.eventListeners.clear()
     mocks.eventEmit.mockReset()
     mocks.eventOn.mockReset()
@@ -916,6 +918,40 @@ describe('ChatComposer', () => {
     expect(onSend).toHaveBeenCalledWith('hello', expect.objectContaining({ reasoningEffort: 'high' }))
 
     await act(async () => finishPatch?.())
+  })
+
+  it('cycles the active chat reasoning effort through the command', () => {
+    mocks.model = {
+      ...model,
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'effort' as const, values: ['high' as const, 'low' as const] }],
+        selectableEfforts: ['high' as const, 'low' as const]
+      }
+    }
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    expect(mocks.commandOptions.get('chat.reasoning.cycle')).toEqual({ enabled: true })
+    act(() => mocks.commandHandlers.get('chat.reasoning.cycle')?.())
+
+    expect(mocks.updateAssistantSettings).toHaveBeenCalledWith({ reasoning_effort: 'low' })
+  })
+
+  it('does not enable the reasoning command for an inactive chat tab', () => {
+    mocks.isActiveTab = false
+    mocks.model = {
+      ...model,
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'effort' as const, values: ['low' as const, 'high' as const] }],
+        selectableEfforts: ['low' as const, 'high' as const]
+      }
+    }
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    expect(mocks.commandOptions.get('chat.reasoning.cycle')).toEqual({ enabled: false })
   })
 
   it('submits Fast for an eligible Codex model', async () => {

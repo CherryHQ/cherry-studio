@@ -89,7 +89,11 @@ import {
   hasUnsyncedComposerAttachments
 } from './shared/composerQueuedPayload'
 import { useComposerQuoteInsertion } from './shared/composerQuote'
-import { ComposerSpeedControl, resolveComposerReasoningEffort } from './shared/ComposerSpeedControl'
+import {
+  ComposerSpeedControl,
+  getNextComposerReasoningEffort,
+  resolveComposerReasoningEffort
+} from './shared/ComposerSpeedControl'
 import { type ComposerToolbarCustomTool, ComposerToolbarShortcuts } from './shared/ComposerToolbarShortcuts'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
 import { useComposerKnowledgeBaseScope } from './shared/useComposerKnowledgeBaseScope'
@@ -1314,6 +1318,18 @@ const ChatComposerInner = ({
   useCommandHandler('chat.context.toggle_new', () => void handleStartNewContext(), {
     enabled: isActiveTab && Boolean(chatWrite) && !clearContextDisabled
   })
+  useCommandHandler(
+    'chat.reasoning.cycle',
+    () => {
+      if (!speedControlModel) return
+      const nextEffort = getNextComposerReasoningEffort(speedControlModel, reasoningEffort)
+      if (nextEffort) handleReasoningEffortChange(nextEffort)
+    },
+    {
+      enabled:
+        isActiveTab && Boolean(speedControlModel && getNextComposerReasoningEffort(speedControlModel, reasoningEffort))
+    }
+  )
 
   const buildQueuedPayload = useCallback(
     (draft: ComposerSerializedDraft): ComposerQueuedMessagePayload | null => {

@@ -6773,6 +6773,7 @@
       },
       "conflict_with": "Déjà utilisé par \"{{name}}\"",
       "copy_last_message": "Copier le dernier message",
+      "cycle_reasoning_effort": "Changer l’effort de raisonnement",
       "edit_last_user_message": "Éditer le dernier message utilisateur",
       "empty": "Aucun raccourci n’est disponible dans ce groupe",
       "exit_fullscreen": "Quitter le plein écran",

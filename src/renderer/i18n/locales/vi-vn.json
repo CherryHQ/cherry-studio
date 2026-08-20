@@ -6773,6 +6773,7 @@
       },
       "conflict_with": "Đã được \"{{name}}\" sử dụng",
       "copy_last_message": "Sao tin nhắn cuối cùng",
+      "cycle_reasoning_effort": "Chuyển mức độ suy luận",
       "edit_last_user_message": "Chỉnh sửa tin nhắn cuối cùng của người dùng",
       "empty": "Không có phím tắt nào khả dụng trong nhóm này",
       "exit_fullscreen": "Thoát toàn màn hình",
