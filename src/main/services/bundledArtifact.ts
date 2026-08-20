@@ -22,6 +22,7 @@ import { extract } from 'tar'
 
 const logger = loggerService.withContext('BundledArtifact')
 const TREE_MARKER_FILE = '.artifact.json'
+const IGNORABLE_TREE_METADATA = new Set(['.DS_Store'])
 const LOCK_STALE_MS = 30_000
 const LOCK_UPDATE_MS = 10_000
 
@@ -378,6 +379,12 @@ async function isBundledTreeContentReady(files: readonly BundledTreeFile[], dest
   try {
     const installedFiles = new Map<string, fs.Stats>()
     await collectTreeFiles(destination, destination, installedFiles)
+    const declaredPaths = new Set(files.map((file) => file.path))
+    for (const installedPath of installedFiles.keys()) {
+      if (!declaredPaths.has(installedPath) && IGNORABLE_TREE_METADATA.has(path.basename(installedPath))) {
+        installedFiles.delete(installedPath)
+      }
+    }
     if (installedFiles.size !== files.length) return false
     for (const file of files) {
       const stat = installedFiles.get(file.path)

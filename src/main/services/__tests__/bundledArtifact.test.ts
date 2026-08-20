@@ -408,6 +408,8 @@ describe('ensureBundledTree', () => {
     expect((await ensureBundledTree(manifest, artifact, destination)).status).toBe('installed')
     fs.writeFileSync(path.join(destination, 'git', 'cmd', 'injected.dll'), 'unexpected', 'utf8')
     expect((await ensureBundledTree(manifest, artifact, destination)).status).toBe('installed')
+    fs.writeFileSync(path.join(destination, '.DS_Store'), 'Finder metadata', 'utf8')
+    expect((await ensureBundledTree(manifest, artifact, destination)).status).toBe('ready')
 
     expect(fs.readFileSync(path.join(destination, 'git', 'cmd', 'git.exe'), 'utf8')).toBe('git-runtime')
     expect(fs.existsSync(path.join(destination, 'git', 'cmd', 'injected.dll'))).toBe(false)

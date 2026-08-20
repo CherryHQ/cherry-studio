@@ -7,7 +7,6 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { zstdDecompressSync } from 'node:zlib'
 
 import { afterEach, describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
@@ -116,18 +115,19 @@ describe('Claude Agent SDK payload', () => {
     expect(() => assertClaudeAgentSdkNativeVersion('linux', 'x64', { projectRoot })).toThrow(/native binary missing/)
   })
 
-  it('writes a versioned Zstd payload without changing the installed SDK binary', async () => {
+  it('keeps the macOS Claude executable raw for outer package compression', async () => {
     const projectRoot = makeTmpDir('before-pack-claude-bundle-')
     const resourcesDir = makeTmpDir('before-pack-claude-resources-')
     writePackage(projectRoot, '@anthropic-ai/claude-agent-sdk', '1.2.3')
     writePackage(projectRoot, '@anthropic-ai/claude-agent-sdk-darwin-arm64', '1.2.3', 'claude')
 
     const artifact = await bundleClaudeAgentSdk('darwin', 'arm64', { projectRoot, resourcesDir })
-    const archive = path.join(resourcesDir, 'darwin-arm64', artifact.files[0].archive)
     const manifest = JSON.parse(readFileSync(path.join(resourcesDir, 'darwin-arm64', 'manifest.json'), 'utf8'))
 
     expect(artifact).toMatchObject({ kind: 'files', version: '1.2.3' })
-    expect(zstdDecompressSync(readFileSync(archive)).toString()).toBe('claude-1.2.3')
+    expect(artifact.files[0]).toMatchObject({ archive: 'claude', compression: 'none' })
+    expect(readFileSync(path.join(resourcesDir, 'darwin-arm64', 'claude'), 'utf8')).toBe('claude-1.2.3')
+    expect(existsSync(path.join(resourcesDir, 'darwin-arm64', 'claude.zst'))).toBe(false)
     expect(manifest.artifacts.claude).toEqual(artifact)
     expect(
       readFileSync(path.join(projectRoot, 'node_modules/@anthropic-ai/claude-agent-sdk-darwin-arm64/claude'), 'utf8')

@@ -88,7 +88,7 @@ describe('compressed artifact contract', () => {
     name: string,
     version: string,
     outputs: string[],
-    compression: 'none' | 'zstd' = 'zstd'
+    compression: 'none' | 'zstd' = 'none'
   ): Promise<FilesArtifact> {
     const sourceDir = makeTmpDir(`dl-source-${name}-`)
     const files = outputs.map((output) => {
@@ -143,32 +143,26 @@ describe('compressed artifact contract', () => {
     ).toEqual([{ archive: 'tree.tar.zst', sha256: 'c'.repeat(64) }])
   })
 
-  it('uses outer package compression for Linux single-file payloads', () => {
-    expect(singleFileCompression('darwin')).toBe('zstd')
+  it('uses outer package compression for all single-file payloads', () => {
+    expect(singleFileCompression('darwin')).toBe('none')
     expect(singleFileCompression('linux')).toBe('none')
     expect(singleFileCompression('win32')).toBe('none')
   })
 
-  it('round-trips file payloads and verifies their compressed checksum', async () => {
-    const { outputDir, resourcesDir } = makeResourcesDir('darwin-x64')
-    const manifest: TestManifest = { schemaVersion: 2, platform: 'darwin', arch: 'x64', artifacts: {} }
+  it('round-trips explicitly compressed file payloads', async () => {
+    const { outputDir } = makeResourcesDir('darwin-x64')
     const sourceDir = makeTmpDir('dl-large-source-')
     const source = path.join(sourceDir, 'mise')
     const payload = Buffer.alloc(1024 * 1024, 0x5a)
     fs.writeFileSync(source, payload)
     const artifact = await bundleFilesArtifact({
       version: '1.0.0',
-      files: [{ source, output: 'mise', archive: 'mise.zst' }],
+      files: [{ source, output: 'mise', archive: 'mise.zst', compression: 'zstd' }],
       outputDir
     })
-    manifest.artifacts.mise = artifact
-    writeManifest(outputDir, manifest)
 
     const archive = path.join(outputDir, artifact.files[0].archive)
     expect(zstdDecompressSync(fs.readFileSync(archive))).toEqual(payload)
-    await expect(
-      verifyBundledArtifacts('darwin', 'x64', { tools: [regularTool, windowsOnlyTool], resourcesDir })
-    ).resolves.toBeUndefined()
   })
 
   it('keeps Windows single-file native payloads raw while verifying both hashes', async () => {
@@ -193,7 +187,7 @@ describe('compressed artifact contract', () => {
     ).resolves.toBeUndefined()
   })
 
-  it('rejects a compressed payload changed after manifest generation', async () => {
+  it('rejects a raw payload changed after manifest generation', async () => {
     const { outputDir, resourcesDir } = makeResourcesDir('darwin-x64')
     const manifest: TestManifest = { schemaVersion: 2, platform: 'darwin', arch: 'x64', artifacts: {} }
     const artifact = await addFilesArtifact(outputDir, manifest, 'mise', '1.0.0', ['mise'])
@@ -216,15 +210,15 @@ describe('compressed artifact contract', () => {
     )
   })
 
-  it('rejects an uncompressed original left beside its payload', async () => {
+  it('rejects a stale compressed duplicate beside a raw payload', async () => {
     const { outputDir, resourcesDir } = makeResourcesDir('darwin-x64')
     const manifest: TestManifest = { schemaVersion: 2, platform: 'darwin', arch: 'x64', artifacts: {} }
     await addFilesArtifact(outputDir, manifest, 'mise', '1.0.0', ['mise'])
     writeManifest(outputDir, manifest)
-    fs.writeFileSync(path.join(outputDir, 'mise'), 'uncompressed copy', 'utf8')
+    fs.writeFileSync(path.join(outputDir, 'mise.zst'), 'stale compressed copy', 'utf8')
 
     await expect(verifyBundledArtifacts('darwin', 'x64', { tools: [regularTool], resourcesDir })).rejects.toThrow(
-      /raw binary still present/
+      /compressed single-file payload still present/
     )
   })
 

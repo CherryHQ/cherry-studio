@@ -3,12 +3,14 @@ const fs = require('fs')
 const os = require('os')
 const { builtinModules, createRequire } = require('module')
 const path = require('path')
+const { pathToFileURL } = require('url')
 
 const { bundleTreeArtifact, writeManifest } = require('../../../scripts/download-binaries')
 
 const DSH_RUNTIME_PACKAGE = '@cherrystudio/dsh-bridge'
-const DSH_RUNTIME_FILTER_VERSION = 7
+const DSH_RUNTIME_FILTER_VERSION = 9
 const DSH_RUNTIME_ARCHIVE = 'dsh-runtime.tar.zst'
+const DSH_RUNTIME_BUNDLE_DIRECTORY = '.cherry-runtime'
 const DSH_RUNTIME_TARGETS = new Set([
   'darwin-arm64',
   'darwin-x64',
@@ -49,6 +51,7 @@ const DSH_RUNTIME_SOURCE_EXTENSIONS = new Set([
 ])
 const DSH_RUNTIME_BUILD_ARTIFACT_EXTENSIONS = new Set(['.a', '.ilk', '.o', '.obj', '.pdb'])
 const DSH_RUNTIME_BUILD_FILE_NAMES = new Set(['binding.gyp', 'cmakelists.txt', 'configure', 'configure.ac', 'makefile'])
+const DSH_RUNTIME_CODE_EXTENSIONS = new Set(['.cjs', '.js', '.mjs'])
 const DSH_RUNTIME_TEST_FILE = /(?:^|[._-])(test|spec)(?:[._-]|$)/i
 const DSH_RUNTIME_BUILD_METADATA =
   /(?:^|[/\\])(?:babel|biome|esbuild|jest|jsconfig|rollup|rspack|swc|tsconfig|tsup|turbo|vite|vitest|webpack)(?:[.-][^/\\]+)*\.(?:c?js|json|mjs|ts)$/i
@@ -93,6 +96,7 @@ function shouldKeepRuntimePath(relativePath, platform, arch) {
   const basename = segments.at(-1) ?? ''
 
   if (segments.includes('.pnpm') || segments.includes('.bin')) return false
+  if (basename === '.DS_Store') return false
   if (normalized.startsWith('node_modules/@cherrystudio/dsh-bridge/dist/runtime/')) return false
   if (segments.some((segment) => EXCLUDED_DIRECTORIES.has(segment))) return false
   if (DSH_RUNTIME_BUILD_METADATA.test(normalized)) return false
@@ -368,7 +372,7 @@ function addResolvedEntrypoint(runtimeRoot, entrypoints, candidate) {
   if (!relative || relative.startsWith('../') || path.isAbsolute(relative)) {
     throw new Error(`DSH runtime entrypoint escaped staging root: ${candidate} -> ${resolved} (root ${runtimeRoot})`)
   }
-  if (!fs.statSync(resolved).isFile()) throw new Error(`DSH runtime entrypoint is not a file: ${candidate}`)
+  if (!fs.statSync(resolved).isFile()) return
   entrypoints.add(relative)
 }
 
@@ -396,6 +400,13 @@ function collectRuntimeEntrypoints(runtimeRoot, platform, arch) {
       addResolvedEntrypoint(runtimeRoot, entrypoints, resolvedTarget)
     }
 
+    const exportValues = new Set()
+    collectConcreteExportValues(manifest.exports, exportValues)
+    for (const value of exportValues) {
+      const resolvedTarget = resolveRuntimePackageTarget({ directory, manifestPath, name }, value)
+      if (resolvedTarget) addResolvedEntrypoint(runtimeRoot, entrypoints, resolvedTarget)
+    }
+
     const specifiers = new Set()
     collectExportSpecifiers(manifest.exports, name, specifiers)
     for (const specifier of specifiers) {
@@ -413,6 +424,292 @@ function collectRuntimeEntrypoints(runtimeRoot, platform, arch) {
     }
   }
   return [...entrypoints].sort()
+}
+
+function isDshOwnedPackage(name) {
+  return name === DSH_RUNTIME_PACKAGE || name.startsWith('@deepseek-ai/dsh-')
+}
+
+function resolveRuntimePackageTarget(packageRecord, value) {
+  if (typeof value !== 'string' || value.includes('*')) return
+  const target = path.resolve(packageRecord.directory, value)
+  const relative = path.relative(packageRecord.directory, target)
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    throw new Error(`DSH runtime entrypoint escaped package root: ${packageRecord.name}:${value}`)
+  }
+
+  try {
+    return fs.realpathSync(target)
+  } catch {
+    try {
+      return fs.realpathSync(createRequire(packageRecord.manifestPath).resolve(target))
+    } catch {
+      return
+    }
+  }
+}
+
+function collectRuntimeBundleTargets(packageRecord) {
+  const values = new Set()
+  collectConcreteExportValues(packageRecord.manifest.main, values)
+  collectConcreteExportValues(packageRecord.manifest.module, values)
+  collectConcreteExportValues(packageRecord.manifest.bin, values)
+  if (isDshOwnedPackage(packageRecord.name)) collectConcreteExportValues(packageRecord.manifest.exports, values)
+
+  const targets = new Set()
+  for (const value of values) {
+    const target = resolveRuntimePackageTarget(packageRecord, value)
+    if (!target || !DSH_RUNTIME_CODE_EXTENSIONS.has(path.extname(target).toLowerCase())) continue
+    targets.add(target)
+  }
+  return [...targets].sort()
+}
+
+function bundleEntryName(packageName, sourcePath) {
+  const digest = crypto.createHash('sha1').update(`${packageName}\0${sourcePath}`).digest('hex').slice(0, 12)
+  return `entry-${digest}`
+}
+
+function collectRuntimeBundlePlans(packages, excludedNames = new Set()) {
+  const plans = []
+  for (const packageRecord of packages) {
+    if (!isDshOwnedPackage(packageRecord.name) || excludedNames.has(packageRecord.name)) continue
+    const entries = []
+    const sourceToEntry = new Map()
+    for (const sourcePath of collectRuntimeBundleTargets(packageRecord)) {
+      const id = bundleEntryName(packageRecord.name, sourcePath)
+      entries.push({ id, sourcePath })
+      sourceToEntry.set(sourcePath, id)
+    }
+    if (entries.length > 0)
+      plans.push({
+        packageRecord,
+        entries,
+        sourceToEntry,
+        outputDir: path.join(packageRecord.directory, DSH_RUNTIME_BUNDLE_DIRECTORY)
+      })
+  }
+  return plans
+}
+
+let tsdownBuildPromise
+
+async function loadTsdownBuild(packageRoot) {
+  if (!tsdownBuildPromise) {
+    const tsdownPath = require.resolve('tsdown', { paths: [packageRoot] })
+    tsdownBuildPromise = import(pathToFileURL(tsdownPath).href).then((module) => {
+      if (typeof module.build !== 'function') throw new Error(`tsdown build API is unavailable: ${tsdownPath}`)
+      return module.build
+    })
+  }
+  return tsdownBuildPromise
+}
+
+async function bundleRuntimePackage(plan, packageRoot, nativePackageNames) {
+  const build = await loadTsdownBuild(packageRoot)
+  fs.rmSync(plan.outputDir, { recursive: true, force: true })
+  const entry = Object.fromEntries(plan.entries.map(({ id, sourcePath }) => [id, sourcePath]))
+  try {
+    await build({
+      entry,
+      outDir: plan.outputDir,
+      cwd: plan.packageRecord.directory,
+      workspace: false,
+      tsconfig: false,
+      format: ['esm'],
+      dts: false,
+      clean: true,
+      platform: 'node',
+      sourcemap: false,
+      minify: false,
+      treeshake: true,
+      hash: false,
+      external: [...nativePackageNames],
+      noExternal: (id) => {
+        if (id.startsWith('.') || id.startsWith('/') || NODE_BUILTIN_MODULES.has(id)) return false
+        return !nativePackageNames.has(packageNameFromSpecifier(id))
+      },
+      logLevel: 'warn',
+      outputOptions: {
+        entryFileNames: '[name].mjs',
+        chunkFileNames: '[name]-[hash].mjs'
+      }
+    })
+  } catch (error) {
+    throw new Error(`Unable to bundle DSH runtime package ${plan.packageRecord.name}`, { cause: error })
+  }
+
+  for (const { id } of plan.entries) {
+    const outputPath = path.join(plan.outputDir, `${id}.mjs`)
+    if (!fs.existsSync(outputPath)) throw new Error(`Missing DSH runtime bundle output: ${outputPath}`)
+  }
+}
+
+function mapRuntimeTarget(packageRecord, value, sourceToBundle) {
+  if (typeof value !== 'string' || value.includes('*')) return value
+  const sourcePath = resolveRuntimePackageTarget(packageRecord, value)
+  const entryId = sourcePath && sourceToBundle.get(sourcePath)
+  if (!entryId) return value
+  return `./${normalizeRelativePath(path.relative(packageRecord.directory, path.join(packageRecord.directory, DSH_RUNTIME_BUNDLE_DIRECTORY, `${entryId}.mjs`)))}`
+}
+
+function rewriteRuntimeManifestValue(value, packageRecord, sourceToBundle) {
+  if (typeof value === 'string') return mapRuntimeTarget(packageRecord, value, sourceToBundle)
+  if (Array.isArray(value)) return value.map((item) => rewriteRuntimeManifestValue(item, packageRecord, sourceToBundle))
+  if (!value || typeof value !== 'object') return value
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => [key, rewriteRuntimeManifestValue(item, packageRecord, sourceToBundle)])
+  )
+}
+
+function rewriteRuntimePackageManifest(plan) {
+  const packageRecord = plan.packageRecord
+  const manifest = JSON.parse(fs.readFileSync(packageRecord.manifestPath, 'utf8'))
+  for (const key of ['main', 'module', 'bin', 'exports']) {
+    if (manifest[key] !== undefined)
+      manifest[key] = rewriteRuntimeManifestValue(manifest[key], packageRecord, plan.sourceToEntry)
+  }
+  fs.writeFileSync(packageRecord.manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
+}
+
+function walkFiles(root, callback) {
+  if (!fs.existsSync(root)) return
+  for (const entry of fs
+    .readdirSync(root, { withFileTypes: true })
+    .sort((left, right) => left.name.localeCompare(right.name))) {
+    const absolutePath = path.join(root, entry.name)
+    if (entry.isDirectory()) walkFiles(absolutePath, callback)
+    else if (entry.isFile()) callback(absolutePath)
+  }
+}
+
+function nativePackageNames(packages, platform, arch) {
+  const result = new Set()
+  for (const packageRecord of packages) {
+    let hasNative = false
+    walkFiles(packageRecord.directory, (filePath) => {
+      if (hasNative || !DSH_RUNTIME_NATIVE_EXTENSIONS.has(path.extname(filePath).toLowerCase())) return
+      const relative = normalizeRelativePath(path.relative(packageRecord.directory, filePath))
+      if (relative.startsWith('node_modules/')) return
+      if (!isForeignNativePath(relative, platform, arch)) hasNative = true
+    })
+    if (hasNative) result.add(packageRecord.name)
+  }
+
+  const parents = new Map()
+  for (const packageRecord of packages) {
+    for (const dependencyName of dependencyNamesFromManifest(packageRecord.manifest)) {
+      const packageNames = parents.get(dependencyName) ?? new Set()
+      packageNames.add(packageRecord.name)
+      parents.set(dependencyName, packageNames)
+    }
+  }
+  const queue = [...result]
+  while (queue.length > 0) {
+    const childName = queue.pop()
+    for (const parentName of parents.get(childName) ?? []) {
+      if (parentName === DSH_RUNTIME_PACKAGE) continue
+      if (result.has(parentName)) continue
+      result.add(parentName)
+      queue.push(parentName)
+    }
+  }
+  return result
+}
+
+function packageNameFromSpecifier(specifier) {
+  if (specifier.startsWith('@')) return specifier.split('/').slice(0, 2).join('/')
+  return specifier.split('/')[0]
+}
+
+function collectBundleExternalPackageNames(plans, availableNames) {
+  const result = new Set()
+  const importPattern = /(?:\bfrom\s*|\bimport\s*|\b(?:import|export)\s*\(\s*|\brequire\s*\(\s*)['"]([^'"]+)['"]/g
+  for (const plan of plans) {
+    walkFiles(plan.outputDir, (filePath) => {
+      const source = fs
+        .readFileSync(filePath, 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/(^|\s)\/\/.*$/gm, '$1')
+      for (const match of source.matchAll(importPattern)) {
+        const specifier = match[1]
+        if (
+          !specifier ||
+          !/^(?:@[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+|[A-Za-z0-9._-]+)(?:\/[A-Za-z0-9._@+~-]+)*$/.test(specifier) ||
+          specifier.startsWith('.') ||
+          specifier.startsWith('/') ||
+          NODE_BUILTIN_MODULES.has(specifier)
+        )
+          continue
+        const name = packageNameFromSpecifier(specifier)
+        if (availableNames.has(name)) result.add(name)
+      }
+    })
+  }
+  return result
+}
+
+function expandPackageDependencyNames(names, packages) {
+  const byName = new Map()
+  for (const packageRecord of packages) {
+    const records = byName.get(packageRecord.name) ?? []
+    records.push(packageRecord)
+    byName.set(packageRecord.name, records)
+  }
+  const queue = [...names]
+  const visited = new Set()
+  while (queue.length > 0) {
+    const name = queue.pop()
+    if (!name || visited.has(name)) continue
+    visited.add(name)
+    for (const packageRecord of byName.get(name) ?? []) {
+      for (const dependencyName of dependencyNamesFromManifest(packageRecord.manifest)) {
+        if (byName.has(dependencyName) && !names.has(dependencyName)) {
+          names.add(dependencyName)
+          queue.push(dependencyName)
+        }
+      }
+    }
+  }
+}
+
+function isRuntimeCodePath(filePath) {
+  return DSH_RUNTIME_CODE_EXTENSIONS.has(path.extname(filePath).toLowerCase())
+}
+
+function pruneDshPackage(packageRecord) {
+  const packageRoot = packageRecord.directory
+  walkFiles(packageRoot, (filePath) => {
+    const relative = normalizeRelativePath(path.relative(packageRoot, filePath))
+    if (relative.startsWith('node_modules/')) return
+    if (relative === 'package.json' || relative.startsWith(`${DSH_RUNTIME_BUNDLE_DIRECTORY}/`)) return
+    if (!isRuntimeCodePath(filePath) && !DSH_RUNTIME_SOURCE_EXTENSIONS.has(path.extname(filePath).toLowerCase())) return
+    fs.rmSync(filePath, { force: true })
+  })
+}
+
+function pruneRuntimeTree(packages, plans, platform, arch) {
+  const availableNames = new Set(packages.map(({ name }) => name).filter(Boolean))
+  const requiredNames = new Set(packages.filter(({ name }) => isDshOwnedPackage(name)).map(({ name }) => name))
+  const nativeNames = nativePackageNames(packages, platform, arch)
+  const externalNames = collectBundleExternalPackageNames(plans, availableNames)
+  for (const name of externalNames) requiredNames.add(name)
+  const dependencyRoots = new Set(nativeNames)
+  for (const name of externalNames) {
+    if (!isDshOwnedPackage(name)) dependencyRoots.add(name)
+  }
+  expandPackageDependencyNames(dependencyRoots, packages)
+  for (const name of dependencyRoots) requiredNames.add(name)
+
+  const packageDirectories = packages
+    .filter(({ name }) => name && !isDshOwnedPackage(name) && !requiredNames.has(name))
+    .map(({ directory }) => directory)
+    .sort((left, right) => right.length - left.length)
+  for (const directory of packageDirectories) fs.rmSync(directory, { recursive: true, force: true })
+  const bundledNames = new Set(plans.map(({ packageRecord }) => packageRecord.name))
+  for (const packageRecord of packages) {
+    if (bundledNames.has(packageRecord.name)) pruneDshPackage(packageRecord)
+  }
 }
 
 function fileHash(filePath) {
@@ -440,10 +737,27 @@ function runtimeVersion({ projectRoot, platform, arch, packages, artifact }) {
   return crypto.createHash('sha256').update(JSON.stringify(input)).digest('hex')
 }
 
-async function bundleDshRuntimeTree({ projectRoot, runtimeRoot, outputDir, platform, arch }) {
+async function bundleDshRuntimeTree({
+  projectRoot,
+  packageRoot = path.join(__dirname, '..'),
+  runtimeRoot,
+  outputDir,
+  platform,
+  arch,
+  pruneUnbundledPackages = false
+}) {
   fs.rmSync(outputDir, { recursive: true, force: true })
   fs.mkdirSync(outputDir, { recursive: true })
   const packages = collectRuntimePackages(runtimeRoot, platform, arch)
+  const nativeNames = nativePackageNames(packages, platform, arch)
+  const plans = collectRuntimeBundlePlans(packages, nativeNames)
+  for (const plan of plans) {
+    await bundleRuntimePackage(plan, packageRoot, nativeNames)
+    rewriteRuntimePackageManifest(plan)
+  }
+  if (pruneUnbundledPackages) pruneRuntimeTree(packages, plans, platform, arch)
+
+  const finalPackages = collectRuntimePackages(runtimeRoot, platform, arch)
   const entrypoints = collectRuntimeEntrypoints(runtimeRoot, platform, arch)
   const artifact = await bundleTreeArtifact({
     version: 'pending',
@@ -453,9 +767,9 @@ async function bundleDshRuntimeTree({ projectRoot, runtimeRoot, outputDir, platf
     outputDir,
     stripRoot: true
   })
-  artifact.version = runtimeVersion({ projectRoot, platform, arch, packages, artifact })
+  artifact.version = runtimeVersion({ projectRoot, platform, arch, packages: finalPackages, artifact })
   writeManifest(outputDir, { schemaVersion: 2, platform, arch, artifacts: { 'dsh-runtime': artifact } })
-  return { artifact, packageNames: packages.map(({ name }) => name).filter(Boolean) }
+  return { artifact, packageNames: finalPackages.map(({ name }) => name).filter(Boolean) }
 }
 
 function retainRuntimeVariant(outputRoot, currentVariant) {
@@ -504,10 +818,12 @@ async function buildDshRuntimePackage({ platform, arch, ...options }) {
     retainRuntimeVariant(outputRoot, `${platform}-${arch}`)
     return await bundleDshRuntimeTree({
       projectRoot,
+      packageRoot,
       runtimeRoot,
       outputDir: path.join(outputRoot, `${platform}-${arch}`),
       platform,
-      arch
+      arch,
+      pruneUnbundledPackages: options.pruneUnbundledPackages ?? true
     })
   } finally {
     if (ownsRuntimeRoot) fs.rmSync(runtimeRoot, { recursive: true, force: true })

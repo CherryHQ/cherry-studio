@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import { createRequire } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -35,7 +36,11 @@ function writeManifest(root: string, relativePath: string, manifest: Record<stri
   writeFile(root, relativePath, `${JSON.stringify(manifest)}\n`)
 }
 
-function createRuntimeFixture(): { projectRoot: string; runtimeRoot: string; outputDir: string } {
+function createRuntimeFixture(includeDshPackage = false): {
+  projectRoot: string
+  runtimeRoot: string
+  outputDir: string
+} {
   const projectRoot = makeDirectory('dsh-runtime-project-')
   const runtimeRoot = makeDirectory('dsh-runtime-tree-')
   const outputDir = makeDirectory('dsh-runtime-output-')
@@ -86,6 +91,18 @@ function createRuntimeFixture(): { projectRoot: string; runtimeRoot: string; out
     main: './index.js'
   })
   writeFile(runtimeRoot, 'node_modules/duplicate/index.js', 'module.exports = 2\n')
+
+  if (includeDshPackage) {
+    writeManifest(runtimeRoot, 'node_modules/@deepseek-ai/dsh-fixture/package.json', {
+      name: '@deepseek-ai/dsh-fixture',
+      version: '1.0.0',
+      type: 'module',
+      main: './lib/index.js',
+      exports: { '.': './lib/index.js', './bin': './bin/fixture.cjs' }
+    })
+    writeFile(runtimeRoot, 'node_modules/@deepseek-ai/dsh-fixture/lib/index.js', 'export const fixture = true\n')
+    writeFile(runtimeRoot, 'node_modules/@deepseek-ai/dsh-fixture/bin/fixture.cjs', '#!/usr/bin/env node\n')
+  }
 
   return { projectRoot, runtimeRoot, outputDir }
 }
@@ -168,7 +185,34 @@ describe('DSH runtime packaging', () => {
     expect(shouldKeepRuntimePath('node_modules/pkg/lib/index.js.map', 'darwin', 'arm64')).toBe(false)
     expect(shouldKeepRuntimePath('node_modules/pkg/pnpm-lock.yaml', 'darwin', 'arm64')).toBe(false)
     expect(shouldKeepRuntimePath('node_modules/pkg/esbuild.config.js', 'darwin', 'arm64')).toBe(false)
+    expect(shouldKeepRuntimePath('node_modules/pkg/.DS_Store', 'darwin', 'arm64')).toBe(false)
     expect(shouldKeepRuntimePath('node_modules/pkg/data/model.bin', 'darwin', 'arm64')).toBe(true)
+  })
+
+  it('bundles DSH-owned entries and removes unused package sources', async () => {
+    const fixture = createRuntimeFixture(true)
+    const { artifact } = await bundleDshRuntimeTree({
+      ...fixture,
+      platform: 'darwin',
+      arch: 'arm64',
+      pruneUnbundledPackages: true
+    })
+    const paths = artifact.files.map((file) => file.path)
+    const bundlePath = paths.find((filePath) =>
+      filePath.startsWith('node_modules/@deepseek-ai/dsh-fixture/.cherry-runtime/')
+    )
+
+    expect(bundlePath).toBeDefined()
+    expect(paths).not.toContain('node_modules/@deepseek-ai/dsh-fixture/lib/index.js')
+    expect(paths.some((filePath) => filePath.startsWith('node_modules/fixture-package/'))).toBe(false)
+
+    const runtimeRequire = createRequire(path.join(fixture.runtimeRoot, 'package.json'))
+    const runtimeRoot = fs.realpathSync(fixture.runtimeRoot)
+    const resolved = path
+      .relative(runtimeRoot, fs.realpathSync(runtimeRequire.resolve('@deepseek-ai/dsh-fixture')))
+      .replaceAll(path.sep, '/')
+    expect(paths).toContain(resolved)
+    expect(artifact.files.length).toBeLessThan(20)
   })
 
   it('derives asar exclusions from the package graph without dropping shared dependencies', () => {

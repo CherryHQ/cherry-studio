@@ -505,10 +505,9 @@ function artifactArchiveEntries(artifact) {
     : [{ archive: artifact.archive, sha256: artifact.archiveSha256 }]
 }
 
-function singleFileCompression(platform) {
-  // Debian/RPM/AppImage already apply package-level compression on Linux;
-  // keep single-file native payloads raw so the outer format can compress them.
-  return platform === 'darwin' ? 'zstd' : 'none'
+function singleFileCompression() {
+  // The outer installer/package already compresses single-file native payloads.
+  return 'none'
 }
 
 function removeSupersededArchives(outputDir, previousArtifact, nextArtifact) {
@@ -766,11 +765,8 @@ async function verifyBundledArtifacts(platform, arch, options = {}) {
     }
     if (pkg.archive === 'zip-tree') {
       if (fs.existsSync(path.join(outputDir, pkg.dir))) missing.push(`${tool.name} (raw tree still present)`)
-    } else if (
-      singleFileCompression(platform) === 'zstd' &&
-      pkg.binaries.some((binary) => fs.existsSync(path.join(outputDir, binary)))
-    ) {
-      missing.push(`${tool.name} (raw binary still present)`)
+    } else if (pkg.binaries.some((binary) => fs.existsSync(path.join(outputDir, `${binary}.zst`)))) {
+      missing.push(`${tool.name} (compressed single-file payload still present)`)
     }
   }
 
