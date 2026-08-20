@@ -102,6 +102,11 @@ const mcpSdkMock = vi.hoisted(() => {
         throw new SseError(405, 'Non-200 status code (405)')
       }
       if (mcpSdkMock.state.failStreamable) {
+        if (mcpSdkMock.state.failStreamableUnauthorized) {
+          const error = new Error('Unauthorized')
+          error.name = 'UnauthorizedError'
+          throw error
+        }
         throw new StreamableHTTPError(mcpSdkMock.state.failStreamableCode ?? 503, 'boom')
       }
     }
@@ -134,6 +139,7 @@ const mcpSdkMock = vi.hoisted(() => {
     clients,
     state: {
       failStreamable: false,
+      failStreamableUnauthorized: false,
       failStreamableCode: 503,
       capabilities: undefined as Record<string, unknown> | undefined
     }
@@ -257,6 +263,7 @@ describe('McpRuntimeService QVeris hosted transport', () => {
       name: BuiltinMcpServerNames.qveris,
       type: 'streamableHttp',
       baseUrl: 'https://mcp.qveris.ai/mcp',
+      installSource: 'builtin',
       env: { QVERIS_API_KEY: 'qveris-test-key' },
       isActive: true
     } as McpServer
@@ -283,6 +290,7 @@ describe('McpRuntimeService QVeris hosted transport', () => {
       name: BuiltinMcpServerNames.qveris,
       type: 'streamableHttp',
       baseUrl: 'https://mcp.qveris.ai/mcp',
+      installSource: 'builtin',
       env: { QVERIS_API_KEY: '' },
       isActive: true
     } as McpServer
@@ -912,6 +920,7 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
     BaseService.resetInstances()
     MockMainCacheServiceUtils.resetMocks()
     mcpSdkMock.state.failStreamable = false
+    mcpSdkMock.state.failStreamableUnauthorized = false
     mcpSdkMock.state.failStreamableCode = 503
   })
 
@@ -961,6 +970,21 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
     await expect((service as any).getOrCreateClient(urlServer('streamableHttp'))).rejects.toThrow()
 
     // The only connect attempt is the configured streamableHttp one — no SSE fallback happened.
+    expect(mcpSdkMock.clients.at(-1)?.connectCalls).toEqual([{ kind: 'streamableHttp' }])
+  })
+
+  it('surfaces static Authorization failures without starting OAuth', async () => {
+    mcpSdkMock.state.failStreamable = true
+    mcpSdkMock.state.failStreamableUnauthorized = true
+    const service = new McpRuntimeService()
+    const finishOAuth = vi.spyOn(service as any, 'finishOAuth').mockRejectedValue(new Error('OAuth must not start'))
+    const server = {
+      ...urlServer('streamableHttp'),
+      headers: { Authorization: 'Bearer expired' }
+    }
+
+    await expect((service as any).getOrCreateClient(server)).rejects.toMatchObject({ name: 'UnauthorizedError' })
+    expect(finishOAuth).not.toHaveBeenCalled()
     expect(mcpSdkMock.clients.at(-1)?.connectCalls).toEqual([{ kind: 'streamableHttp' }])
   })
 })

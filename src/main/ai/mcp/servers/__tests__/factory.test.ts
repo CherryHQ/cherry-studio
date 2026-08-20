@@ -14,7 +14,11 @@ const server = (overrides: Partial<McpServer>): McpServer =>
 
 describe('getBuiltinRegistryEnv', () => {
   it('points mcp-auto-install at the registered catalog path when a registry is configured', () => {
-    const autoInstall = { name: BuiltinMcpServerNames.mcpAutoInstall, command: 'npx' }
+    const autoInstall = {
+      name: BuiltinMcpServerNames.mcpAutoInstall,
+      command: 'npx',
+      installSource: 'builtin' as const
+    }
 
     expect(getBuiltinRegistryEnv(server({ ...autoInstall, registryUrl: 'https://npm.example' }))).toEqual({
       MCP_REGISTRY_PATH: '/mock/feature.mcp.registry_file'
@@ -24,14 +28,33 @@ describe('getBuiltinRegistryEnv', () => {
 
   it('leaves every other server alone', () => {
     const other = server({ name: 'my-server', command: 'node', registryUrl: 'https://npm.example' })
+    const collision = server({
+      name: BuiltinMcpServerNames.mcpAutoInstall,
+      installSource: 'manual',
+      command: 'npx',
+      registryUrl: 'https://npm.example'
+    })
+    const prefix = server({
+      name: `${BuiltinMcpServerNames.mcpAutoInstall}-custom`,
+      installSource: 'builtin',
+      command: 'npx',
+      registryUrl: 'https://npm.example'
+    })
 
     expect(getBuiltinRegistryEnv(other)).toEqual({})
+    expect(getBuiltinRegistryEnv(collision)).toEqual({})
+    expect(getBuiltinRegistryEnv(prefix)).toEqual({})
   })
 })
 
 describe('getBuiltinHttpHeaders', () => {
   const qveris = (apiKey?: string) =>
-    server({ name: BuiltinMcpServerNames.qveris, type: 'streamableHttp', env: { QVERIS_API_KEY: apiKey ?? '' } })
+    server({
+      name: BuiltinMcpServerNames.qveris,
+      type: 'streamableHttp',
+      installSource: 'builtin',
+      env: { QVERIS_API_KEY: apiKey ?? '' }
+    })
 
   it('authenticates QVeris with the API key the user configured', () => {
     expect(getBuiltinHttpHeaders(qveris('secret'))).toEqual({ Authorization: 'Bearer secret' })
@@ -44,6 +67,11 @@ describe('getBuiltinHttpHeaders', () => {
 
   it('adds nothing for any other server', () => {
     expect(getBuiltinHttpHeaders(server({ name: BuiltinMcpServerNames.flomo, type: 'streamableHttp' }))).toEqual({})
+    expect(
+      getBuiltinHttpHeaders(
+        server({ name: BuiltinMcpServerNames.qveris, type: 'streamableHttp', installSource: 'manual' })
+      )
+    ).toEqual({})
   })
 })
 

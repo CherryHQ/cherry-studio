@@ -25,8 +25,7 @@ const RUNNERS: Record<string, Runner> = {
     bundled: 'bun',
     // `bun x -y <pkg>` is bun's npx equivalent. Prefix by position, not membership: a package
     // argument that happens to be `x` or `-y` must not suppress it.
-    transformArgs: (args) =>
-      args.length === 0 || args[0] === 'x' ? args : args[0] === '-y' ? ['x', ...args] : ['x', '-y', ...args],
+    transformArgs: (args) => (args.length === 0 ? args : args[0] === '-y' ? ['x', ...args] : ['x', '-y', ...args]),
     registryEnv: (url) => ({ NPM_CONFIG_REGISTRY: url }),
     notFound: () =>
       'npx not found in PATH and bundled bun is not available. This may indicate an installation issue.\n' +

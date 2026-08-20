@@ -68,7 +68,7 @@ export async function createInMemoryMcpServer(
  * API key the user configures as an env var, so it cannot be stored as a static header.
  */
 export function getBuiltinHttpHeaders(server: McpServer): Record<string, string> {
-  if (server.name !== BuiltinMcpServerNames.qveris) return {}
+  if (server.installSource !== 'builtin' || server.name !== BuiltinMcpServerNames.qveris) return {}
 
   const apiKey = server.env?.QVERIS_API_KEY?.trim()
   if (!apiKey) {
@@ -82,6 +82,12 @@ export function getBuiltinHttpHeaders(server: McpServer): Record<string, string>
  * reads its catalog from a file whose location only exists at runtime.
  */
 export function getBuiltinRegistryEnv(server: McpServer): Record<string, string> {
-  if (!server.registryUrl || !server.name.includes('mcp-auto-install')) return {}
+  if (
+    server.installSource !== 'builtin' ||
+    server.name !== BuiltinMcpServerNames.mcpAutoInstall ||
+    !server.registryUrl
+  ) {
+    return {}
+  }
   return { MCP_REGISTRY_PATH: application.getPath('feature.mcp.registry_file') }
 }

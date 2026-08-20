@@ -51,9 +51,26 @@ function mergeHeaders(...sources: Array<Record<string, string> | undefined>): Re
   return headers
 }
 
+function buildHttpHeaders(server: McpServer): Record<string, string> {
+  return mergeHeaders(defaultAppHeaders(), server.headers, getBuiltinHttpHeaders(server))
+}
+
+function hasAuthorization(headers: Record<string, string>): boolean {
+  return Object.keys(headers).some((name) => name.toLowerCase() === 'authorization')
+}
+
+export function isMcpOAuthEnabled(server: McpServer): boolean {
+  const type = server.type ?? 'sse'
+  return (
+    Boolean(server.baseUrl) &&
+    (type === 'sse' || type === 'streamableHttp') &&
+    !hasAuthorization(buildHttpHeaders(server))
+  )
+}
+
 function buildHttpOptions(server: McpServer, authProvider: McpOAuthClientProvider) {
-  const headers = mergeHeaders(defaultAppHeaders(), server.headers, getBuiltinHttpHeaders(server))
-  const authenticated = Object.keys(headers).some((name) => name.toLowerCase() === 'authorization')
+  const headers = buildHttpHeaders(server)
+  const authenticated = hasAuthorization(headers)
   return {
     requestInit: { headers },
     // A server that already authenticates with its own credential must not be sent through

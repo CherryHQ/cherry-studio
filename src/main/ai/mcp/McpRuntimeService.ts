@@ -36,7 +36,7 @@ import {
 } from './mcpClientSdk'
 import type { McpPackageService } from './McpPackageService'
 import { redactCacheKey } from './mcpRedact'
-import { createTransport } from './mcpTransport'
+import { createTransport, isMcpOAuthEnabled } from './mcpTransport'
 import { CallBackServer } from './oauth/callback'
 import { McpOAuthClientProvider } from './oauth/provider'
 import { ServerLogBuffer } from './ServerLogBuffer'
@@ -535,7 +535,11 @@ export class McpRuntimeService extends BaseService {
         await client.connect(transport, connectOptions)
         return
       } catch (error: any) {
-        if (error instanceof Error && (error.name === 'UnauthorizedError' || error.message.includes('Unauthorized'))) {
+        if (
+          error instanceof Error &&
+          isMcpOAuthEnabled(server) &&
+          (error.name === 'UnauthorizedError' || error.message.includes('Unauthorized'))
+        ) {
           logger.debug(`Authentication required for server: ${server.name}`)
           await this.finishOAuth({
             client,

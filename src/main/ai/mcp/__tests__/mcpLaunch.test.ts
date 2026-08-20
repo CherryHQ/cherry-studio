@@ -46,13 +46,13 @@ describe('resolveLaunchCommand', () => {
     expect(launch.args).toEqual(['x', '-y', 'example-mcp'])
   })
 
-  it('prefixes `x -y` by position, so a package argument named x or -y is not mistaken for it', async () => {
+  it('prefixes `x -y` by position, including when the package itself is named x or -y', async () => {
     binaryMock.isBinaryExists.mockResolvedValue(true)
 
+    expect((await resolve('npx', ['x'])).args).toEqual(['x', '-y', 'x'])
+    expect((await resolve('npx', ['-y'])).args).toEqual(['x', '-y'])
     expect((await resolve('npx', ['pkg', 'x'])).args).toEqual(['x', '-y', 'pkg', 'x'])
     expect((await resolve('npx', ['pkg', '-y'])).args).toEqual(['x', '-y', 'pkg', '-y'])
-    // Already rewritten (a retried connect attempt) — must not stack another prefix.
-    expect((await resolve('npx', ['x', '-y', 'pkg'])).args).toEqual(['x', '-y', 'pkg'])
   })
 
   it('does not mutate the caller’s args', async () => {
