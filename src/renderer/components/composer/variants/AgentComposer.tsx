@@ -305,7 +305,7 @@ type Props = {
   resolvedModel: Model | undefined
   resolvedWorkspaceWarning: string | null
   externalContextControls?: boolean
-  sendMessage: (message?: { text: string }, options?: AgentComposerSendOptions) => Promise<void>
+  sendMessage: (message?: { text: string }, options?: AgentComposerSendOptions) => Promise<boolean | void>
   stop: () => Promise<void>
   onCreateEmptySession?: () => void | Promise<unknown>
   onAgentChange?: (agentId: string | null) => void | Promise<void>
@@ -1395,7 +1395,7 @@ const AgentComposerInner = ({
       try {
         const attachments = (payload.attachments as ComposerAttachment[] | undefined) ?? []
         const fileParts = await buildAgentFilePartsForAttachments(attachments, accessiblePaths)
-        await chatSendMessage(
+        const sent = await chatSendMessage(
           { text: payload.text },
           {
             body: {
@@ -1407,16 +1407,18 @@ const AgentComposerInner = ({
             }
           }
         )
+        if (sent === false) return false
         void EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: sessionTopicId })
         saveHistory(getComposerHistoryText(payload.userMessageParts))
         launchOptions?.onSent?.()
         return true
       } catch (error: unknown) {
         logger.warn('Failed to send message:', error as Error)
+        toast.error(t('chat.input.send_failed'))
         return false
       }
     },
-    [accessiblePaths, agentId, chatSendMessage, launchOptions, saveHistory, sessionId, sessionTopicId]
+    [accessiblePaths, agentId, chatSendMessage, launchOptions, saveHistory, sessionId, sessionTopicId, t]
   )
 
   const clearCurrentDraft = useCallback(() => {
@@ -1467,8 +1469,7 @@ const AgentComposerInner = ({
     scopeKey: sessionTopicId,
     isFulfilled: sessionFulfilled,
     markSeen: markSessionSeen,
-    onDrain: sendQueuedPayload,
-    onDrainFailed: () => toast.error(t('chat.input.send_failed'))
+    onDrain: sendQueuedPayload
   })
 
   // Edit a queued item = atomically restore the whole editor draft, then synchronize live token
@@ -1541,7 +1542,6 @@ const AgentComposerInner = ({
             shouldValidateSkills: previousShouldValidateSkills
           })
         }
-        toast.error(t('chat.input.send_failed'))
       }
     },
     [
@@ -1740,7 +1740,6 @@ const AgentComposerInner = ({
                     // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
                     const sent = await sendQueuedPayload(item.payload)
                     if (sent) removeFollowup(id)
-                    else toast.error(t('chat.input.send_failed'))
                   }}
                   onEdit={(id) => {
                     const item = queuedFollowups.find((entry) => entry.id === id)

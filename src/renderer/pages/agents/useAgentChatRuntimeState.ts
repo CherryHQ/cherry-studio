@@ -109,7 +109,7 @@ export interface AgentChatRuntimeState {
   loadOlder?: () => void
   isPending: boolean
   stop: () => Promise<void>
-  sendMessage: (message?: { text: string }, options?: AgentSendOptions) => Promise<void>
+  sendMessage: (message?: { text: string }, options?: AgentSendOptions) => Promise<boolean>
   deleteMessage: (messageId: string) => Promise<void>
   respondToolApproval: (input: MessageToolApprovalInput) => Promise<void>
   composerContext: ComposerContextValue
@@ -175,7 +175,7 @@ export function useAgentChatRuntimeState({
   })
   const sendMessage = useCallback(
     async (message?: { text: string }, options?: AgentSendOptions) => {
-      await send({ text: message?.text ?? '', options })
+      return send({ text: message?.text ?? '', options })
     },
     [send]
   )

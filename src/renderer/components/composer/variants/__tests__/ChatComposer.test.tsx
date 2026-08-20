@@ -2300,8 +2300,27 @@ describe('ChatComposer', () => {
     })
   })
 
-  it('keeps the current draft when sending a new message fails', async () => {
-    const onSend = vi.fn().mockRejectedValue(new Error('open failed'))
+  it('restores the current text, attachment, and draft tokens when Main blocks the send', async () => {
+    const file = { fileTokenSourceId: 'source-1', name: 'draft.pdf', path: '/tmp/draft.pdf' } as any
+    const fileToken = {
+      id: 'file:source-1',
+      kind: 'file',
+      label: 'draft.pdf',
+      payload: file,
+      index: 0,
+      textOffset: 0
+    } as ComposerSerializedToken
+    const quoteToken = {
+      id: 'quote-1',
+      kind: 'quote',
+      label: 'Quote',
+      promptText: 'quoted text',
+      index: 1,
+      textOffset: 0
+    } as ComposerSerializedToken
+    const draft = { text: 'draft message', tokens: [fileToken, quoteToken] }
+    const onSend = vi.fn().mockResolvedValue(false)
+    mocks.files = [file]
 
     render(<ChatComposer topic={topic} onSend={onSend} />)
 
@@ -2311,16 +2330,20 @@ describe('ChatComposer', () => {
     await waitFor(() => expect(mocks.surfaceProps?.text).toBe('draft message'))
 
     await act(async () => {
-      await mocks.surfaceProps?.onSendDraft({ text: 'draft message', tokens: [] })
+      await mocks.surfaceProps?.onSendDraft(draft)
     })
 
     expect(onSend).toHaveBeenCalledWith(
       'draft message',
       expect.objectContaining({
-        userMessageParts: [expect.objectContaining({ type: 'text', text: 'draft message' })]
+        userMessageParts: expect.arrayContaining([expect.objectContaining({ type: 'text', text: 'draft message' })])
       })
     )
     expect(mocks.surfaceProps?.text).toBe('draft message')
+    expect(mocks.files).toEqual([file])
+    expect(mocks.surfaceProps?.draftTokens).toEqual([fileToken, quoteToken])
+    expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual([])
+    expect(toast.error).not.toHaveBeenCalledWith('chat.input.send_failed')
   })
 
   it('wires ArrowUp input history navigation and applies the latest history text to the composer', async () => {

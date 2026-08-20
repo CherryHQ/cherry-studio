@@ -149,6 +149,8 @@ describe('useAgentChatRuntimeState', () => {
     mocks.seedReservedMessages.mockResolvedValue(undefined)
     mocks.deleteSessionMessage.mockResolvedValue(undefined)
     mocks.chatStop.mockResolvedValue(undefined)
+    mocks.sendTurn.mockReset()
+    mocks.sendTurn.mockResolvedValue(true)
     mocks.useAgentSessionParts.mockReturnValue({
       messages: [assistantMessage],
       isLoading: false,
@@ -193,6 +195,24 @@ describe('useAgentChatRuntimeState', () => {
         warning: mocks.toastWarning
       }
     })
+  })
+
+  it('reports a blocked stream open as not sent', async () => {
+    mocks.sendTurn.mockResolvedValueOnce(false)
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+
+    let sent: boolean | undefined
+    await act(async () => {
+      sent = await result.current.sendMessage({ text: 'keep this draft' })
+    })
+
+    expect(sent).toBe(false)
   })
 
   it('does not wire per-overlay finish refresh for agent sessions', () => {

@@ -4699,7 +4699,7 @@ describe('AgentComposer', () => {
     expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual([])
   })
 
-  it('restores the current draft, files, and skill tokens when sending a new agent message fails', async () => {
+  it('restores the current draft, files, and skill tokens when Main blocks a new agent message', async () => {
     mocks.availableSkills = [pdfSkill]
     mocks.draftText = 'draft message'
     const skillToken = {
@@ -4717,7 +4717,7 @@ describe('AgentComposer', () => {
     } as ComposerSerializedToken
     mocks.draftTokens = [skillToken, fileToken]
     mocks.files = [file]
-    mocks.sendMessage.mockRejectedValueOnce(new Error('send failed'))
+    mocks.sendMessage.mockResolvedValueOnce(false)
 
     render(
       <AgentComposer
@@ -4762,7 +4762,7 @@ describe('AgentComposer', () => {
     )
     expect(mocks.clearTimeoutTimer).toHaveBeenCalledWith('agentComposerSendMessage')
     expect(mocks.timeoutCallbacks.has('agentComposerSendMessage')).toBe(false)
-    expect(toast.error).toHaveBeenCalledWith('chat.input.send_failed')
+    expect(toast.error).not.toHaveBeenCalledWith('chat.input.send_failed')
   })
 
   it('inserts quoted selected text as a quote token from the main-window quote IPC', async () => {
