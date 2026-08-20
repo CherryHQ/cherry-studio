@@ -20,6 +20,7 @@ const assistantContextMock = vi.hoisted(() => ({
 const providerHookArgs = vi.hoisted(() => [] as unknown[][])
 const commandHandlers = vi.hoisted(() => new Map<string, () => void | Promise<void>>())
 const eventEmitMock = vi.hoisted(() => vi.fn())
+const activeTabMock = vi.hoisted(() => ({ current: true }))
 
 const topic: Topic = {
   id: 'topic-1',
@@ -127,6 +128,10 @@ vi.mock('@renderer/hooks/command', () => ({
   }
 }))
 
+vi.mock('@renderer/hooks/tab', () => ({
+  useIsActiveTab: () => activeTabMock.current
+}))
+
 vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: {
     CLEAR_MESSAGES: 'clear-messages',
@@ -207,6 +212,7 @@ describe('Chat', () => {
     assistantContextMock.isModelPending = false
     providerHookArgs.length = 0
     commandHandlers.clear()
+    activeTabMock.current = true
   })
 
   it('routes the clear-messages command through the existing confirmation flow', () => {
@@ -217,6 +223,14 @@ describe('Chat', () => {
     })
 
     expect(eventEmitMock).toHaveBeenCalledWith('clear-messages', topic)
+  })
+
+  it('does not register the clear-messages command for a background tab', () => {
+    activeTabMock.current = false
+
+    render(<Chat activeTopic={topic} />)
+
+    expect(commandHandlers.has('topic.clear_messages')).toBe(false)
   })
 
   it('renders the navbar and right pane shortcuts in the shared conversation shell', () => {
