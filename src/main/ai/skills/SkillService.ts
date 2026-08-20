@@ -14,6 +14,7 @@ import { directoryExists } from '@main/utils/legacyFile'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
 import { executeCommand } from '@main/utils/processRunner'
 import { getShellEnv } from '@main/utils/shellEnv'
+import { assertZipEntriesWithin } from '@main/utils/zipSafety'
 import type { InstalledSkill, ListSkillsQuery } from '@shared/data/api/schemas/skills'
 import type {
   SkillFileNode,
@@ -939,6 +940,7 @@ export class SkillService {
 
     try {
       const entries = await zip.entries()
+      assertZipEntriesWithin(Object.keys(entries), destDir)
       let totalSize = 0
       let fileCount = 0
 
