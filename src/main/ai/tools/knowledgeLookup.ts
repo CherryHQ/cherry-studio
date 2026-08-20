@@ -80,13 +80,15 @@ Use this when:
 - The question references topics likely covered in stored documents
 - Specific factual lookup that isn't general knowledge
 
-Workflow: call kb_list first to discover available bases and their contents, then call this tool with the chosen baseIds. You may call this multiple times with refined queries or different baseIds if the first results are insufficient. Cite: append [cite:id] immediately after each statement a result supports, using the result's exact \`id\` field.`
+Workflow: when a relevant base ID is already known (for example, from an attached knowledge base), call kb_search directly with that ID in baseIds. Call kb_list first only when no relevant base ID is known. You may call this multiple times with refined queries or different baseIds if the first results are insufficient. Cite: append [cite:id] immediately after each statement a result supports, using the result's exact \`id\` field.`
 
 export const KNOWLEDGE_LIST_DESCRIPTION = `Browse the user's knowledge bases and their structure.
 
 Two modes, selected by \`baseId\`:
 - Omit \`baseId\` to list one page of available bases — each with its name, group, item count, and a few sample sources (filenames, URLs, note titles) so you can judge what it covers. Use \`query\` to filter by base name or source. If \`nextCursor\` is returned, pass it as \`cursor\` to continue. Call this first when the user asks about their materials and you don't already know which base is relevant, then call kb_search with the chosen baseIds. If a base comes back with \`itemsUnavailable: true\` its contents could not be read this call (not that it is empty) — do not tell the user it holds nothing; retry or use kb_search.
-- Pass a \`baseId\` to outline that base instead: a flat top-down list of its folders and documents, each with a \`depth\`, title, type, \`status\`, and — for a readable document — a \`conceptId\` you can pass to kb_read. A node only carries a \`conceptId\` once its \`status\` is "completed"; a still-indexing or failed document has none. Use this to see how a base is organized, or to find a document's conceptId, without searching.`
+- Pass a \`baseId\` to outline that base instead: a flat top-down list of its folders and documents, each with a \`depth\`, title, type, \`status\`, and — for a readable document — a \`conceptId\` you can pass to kb_read. A node only carries a \`conceptId\` once its \`status\` is "completed"; a still-indexing or failed document has none. Use this to see how a base is organized, or to find a document's conceptId, without searching.
+
+This tool returns metadata and structure, not retrieved evidence. Do not answer content questions from names or sampleSources; use kb_search for relevant passages or kb_read for a known document.`
 
 export const KNOWLEDGE_READ_DESCRIPTION = `Read a single knowledge base document by its Concept ID — or grep inside it.
 

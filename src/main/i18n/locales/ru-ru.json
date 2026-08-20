@@ -9,6 +9,11 @@
       }
     },
     "session": {
+      "new": "Новая задача",
+      "run_status": {
+        "busy": "Сеанс Agent занят. Повторите попытку чуть позже.",
+        "unavailable": "Сеанс Agent больше недоступен."
+      },
       "workspace_status": {
         "inaccessible": "Путь к рабочей области недоступен: {{path}}",
         "missing": "Путь к рабочей области не существует: {{path}}",
@@ -79,7 +84,19 @@
     "zoomIn": "Увеличить",
     "zoomOut": "Уменьшить"
   },
+  "chat": {
+    "conversation": {
+      "new": "Новый чат"
+    }
+  },
   "common": {
+    "channel_available_commands": "Доступные команды:",
+    "channel_command_processing_error": "⚠️ При обработке команды произошла ошибка. Повторите попытку позже.",
+    "channel_message_processing_error": "⚠️ При обработке вашего сообщения произошла ошибка. Повторите попытку позже.",
+    "channel_new_session_created": "Создан новый сеанс.",
+    "channel_no_active_session": "Нет активного сеанса.",
+    "channel_session_compacted": "Сеанс сжат.",
+    "channel_session_resolution_error": "⚠️ Не удалось определить сеанс для этого агента. Повторите попытку позже.",
     "copy": "Копировать",
     "cut": "Вырезать",
     "inspect": "Проверить",
@@ -123,6 +140,16 @@
     "errors": {
       "document_size_limit_exceeded": "Текущая служба разбора документов поддерживает файлы меньше {{maxSize}}. Сожмите или разделите этот файл, затем добавьте его снова.",
       "pdf_page_limit_exceeded": "Этот PDF превышает ограничение в {{maxPages}} страниц для текущей службы разбора документов. Разделите PDF вручную, затем добавьте его снова."
+    }
+  },
+  "notification": {
+    "action_required": {
+      "agent": "Агент ожидает вашего ответа",
+      "assistant": "Ассистент ожидает вашего ответа"
+    },
+    "completion": {
+      "agent": "Задача агента выполнена",
+      "assistant": "Ответ ассистента готов"
     }
   },
   "openclaw": {

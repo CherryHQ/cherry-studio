@@ -9,6 +9,11 @@
       }
     },
     "session": {
+      "new": "新しいタスク",
+      "run_status": {
+        "busy": "Agent セッションは処理中です。しばらくしてからもう一度お試しください。",
+        "unavailable": "Agent セッションは利用できなくなりました。"
+      },
       "workspace_status": {
         "inaccessible": "ワークスペースパスにアクセスできません: {{path}}",
         "missing": "ワークスペースパスが存在しません: {{path}}",
@@ -79,7 +84,19 @@
     "zoomIn": "ズームイン",
     "zoomOut": "ズームアウト"
   },
+  "chat": {
+    "conversation": {
+      "new": "新しいチャット"
+    }
+  },
   "common": {
+    "channel_available_commands": "利用可能なコマンド：",
+    "channel_command_processing_error": "⚠️ コマンドの処理中にエラーが発生しました。しばらくしてからもう一度お試しください。",
+    "channel_message_processing_error": "⚠️ メッセージの処理中にエラーが発生しました。しばらくしてからもう一度お試しください。",
+    "channel_new_session_created": "新しいセッションを作成しました。",
+    "channel_no_active_session": "アクティブなセッションがありません。",
+    "channel_session_compacted": "セッションを圧縮しました。",
+    "channel_session_resolution_error": "⚠️ このエージェントのセッションを解決できませんでした。しばらくしてからもう一度お試しください。",
     "copy": "コピー",
     "cut": "切り取り",
     "inspect": "要素を調査",
@@ -123,6 +140,16 @@
     "errors": {
       "document_size_limit_exceeded": "現在のドキュメント解析サービスでは、{{maxSize}} 未満のファイルが必要です。このファイルを圧縮または分割してから、もう一度追加してください。",
       "pdf_page_limit_exceeded": "この PDF は、現在のドキュメント解析サービスの {{maxPages}} ページ制限を超えています。PDF を手動で分割してから、もう一度追加してください。"
+    }
+  },
+  "notification": {
+    "action_required": {
+      "agent": "Agent があなたの入力を待っています",
+      "assistant": "アシスタントがあなたの入力を待っています"
+    },
+    "completion": {
+      "agent": "Agent タスクが完了しました",
+      "assistant": "アシスタントの応答が完了しました"
     }
   },
   "openclaw": {

@@ -14,6 +14,8 @@ const mocks = vi.hoisted(() => ({
   agentCanHandle: vi.fn<(topicId: string) => boolean>(),
   agentPrepare: vi.fn(),
   persistentPrepare: vi.fn(),
+  temporaryCanHandle: vi.fn<(topicId: string) => boolean>(),
+  temporaryPrepare: vi.fn(),
   isWorkspaceErr: vi.fn<(error: unknown) => boolean>(),
   setActiveNode: vi.fn()
 }))
@@ -25,16 +27,23 @@ vi.mock('@main/data/services/TopicService', () => ({
 vi.mock('../AgentChatContextProvider', () => ({
   agentChatContextProvider: {
     name: 'agent',
+    isPersistentConversation: true,
     canHandle: mocks.agentCanHandle,
     prepareDispatch: mocks.agentPrepare
   }
 }))
 vi.mock('../TemporaryChatContextProvider', () => ({
-  temporaryChatContextProvider: { name: 'temporary', canHandle: () => false, prepareDispatch: vi.fn() }
+  temporaryChatContextProvider: {
+    name: 'temporary',
+    isPersistentConversation: false,
+    canHandle: mocks.temporaryCanHandle,
+    prepareDispatch: mocks.temporaryPrepare
+  }
 }))
 vi.mock('../PersistentChatContextProvider', () => ({
   persistentChatContextProvider: {
     name: 'persistent',
+    isPersistentConversation: true,
     canHandle: () => true,
     prepareDispatch: mocks.persistentPrepare
   }
@@ -91,6 +100,7 @@ beforeEach(() => {
   preparedWithCtx = undefined
   vi.clearAllMocks()
   mocks.agentCanHandle.mockReturnValue(false)
+  mocks.temporaryCanHandle.mockReturnValue(false)
   mocks.isWorkspaceErr.mockReturnValue(false)
 })
 
@@ -131,6 +141,17 @@ describe('dispatchStreamRequest — steer', () => {
     expect(manager.enqueuePendingSteer).not.toHaveBeenCalled()
     expect(order).toEqual(['prepareDispatch', 'send'])
     expect(preparedWithCtx).toEqual({ hasLiveStream: false })
+    expect(manager.send).toHaveBeenCalledWith(expect.objectContaining({ isPersistentConversation: true }))
+  })
+
+  it('snapshots temporary ownership at admission', async () => {
+    mocks.temporaryCanHandle.mockReturnValue(true)
+    wirePrepare(mocks.temporaryPrepare, 'temporary-1', { inject: false })
+    const manager = makeManager(false)
+
+    await dispatchStreamRequest(manager, makeSubscriber(), chatReq('temporary-1'))
+
+    expect(manager.send).toHaveBeenCalledWith(expect.objectContaining({ isPersistentConversation: false }))
   })
 
   it('never enqueues a chat steer for an agent-session topic (agent runtime owns its follow-ups)', async () => {
