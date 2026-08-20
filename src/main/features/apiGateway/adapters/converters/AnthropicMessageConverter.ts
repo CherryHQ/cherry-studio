@@ -29,6 +29,25 @@ const RESPONSES_TOOL_NAME_PATTERN = /^[A-Za-z0-9_-]+$/
 const RESPONSES_TOOL_NAME_MAX_LENGTH = 64
 const TOOL_NAME_HASH_LENGTH = 12
 
+/**
+ * Claude Code sends per-turn reminders as `role: 'system'` entries inside `messages`,
+ * which the loosely-validated route forwards as-is. Coercing them to `assistant`
+ * would fabricate a turn the model never took, so they are folded into the system prompt.
+ */
+function isSystemMessage(msg: MessageCreateParams['messages'][number]): boolean {
+  return (msg.role as string) === 'system'
+}
+
+/** Anthropic system content — a string or text blocks — as plain text. */
+function systemContentToText(content: unknown): string {
+  if (typeof content === 'string') return content
+  if (!Array.isArray(content)) return ''
+  return content
+    .filter((block): block is { type: 'text'; text: string } => block?.type === 'text')
+    .map((block) => block.text)
+    .join('\n')
+}
+
 function isResponsesCompatibleToolName(name: string): boolean {
   return name.length <= RESPONSES_TOOL_NAME_MAX_LENGTH && RESPONSES_TOOL_NAME_PATTERN.test(name)
 }
@@ -140,7 +159,8 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
   /**
    * Convert Anthropic MessageCreateParams to AI SDK `CherryUIMessage[]`.
    *
-   * The leading system prompt is emitted as a `role: 'system'` UIMessage —
+   * The system prompt — `params.system` plus any `role: 'system'` entry the client
+   * placed in `messages` — is emitted as one leading `role: 'system'` UIMessage;
    * `convertToModelMessages` (run by main) lifts that to the SDK `system`.
    * Tool calls become `dynamic-tool` parts; a matching tool_result in a later
    * message upgrades the part to `output-available` so history stays coherent.
@@ -149,18 +169,13 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
     this.prepareToolNames(params.tools)
     const messages: CherryUIMessage[] = []
 
-    // System message
-    if (params.system) {
-      const systemText =
-        typeof params.system === 'string'
-          ? params.system
-          : params.system
-              .filter((block) => block.type === 'text')
-              .map((block) => block.text)
-              .join('\n')
-      if (systemText) {
-        messages.push({ id: nextUIMessageId(), role: 'system', parts: [{ type: 'text', text: systemText }] })
-      }
+    // System message, plus any `role: 'system'` entry the client put in `messages`.
+    const systemText = [params.system, ...params.messages.filter(isSystemMessage).map((msg) => msg.content)]
+      .map(systemContentToText)
+      .filter(Boolean)
+      .join('\n')
+    if (systemText) {
+      messages.push({ id: nextUIMessageId(), role: 'system', parts: [{ type: 'text', text: systemText }] })
     }
 
     // tool_use id → name (for tool_result parts) and tool_use id → result conversion.
@@ -181,6 +196,7 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
     }
 
     for (const msg of params.messages) {
+      if (isSystemMessage(msg)) continue
       const role = msg.role === 'user' ? 'user' : 'assistant'
 
       if (typeof msg.content === 'string') {

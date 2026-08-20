@@ -16,6 +16,37 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
     expect(msgs[1]).toMatchObject({ role: 'user', parts: [{ type: 'text', text: 'hi' }] })
   })
 
+  it('folds a client-sent system message into the system prompt instead of faking an assistant turn', () => {
+    // Claude Code appends `role: 'system'` reminders to `messages`; converting one to an
+    // assistant turn leaves a text-only assistant tail the model is asked to continue from.
+    const msgs = converter.toUIMessages(
+      params({
+        system: 'Be terse.',
+        messages: [
+          { role: 'user', content: 'hi' },
+          { role: 'system', content: 'Available agent types: claude, Explore.' }
+        ] as never
+      })
+    )
+
+    expect(msgs.map((msg) => msg.role)).toEqual(['system', 'user'])
+    expect(msgs[0].parts).toEqual([{ type: 'text', text: 'Be terse.\nAvailable agent types: claude, Explore.' }])
+  })
+
+  it('folds a block-shaped system message that arrives before the user turn', () => {
+    const msgs = converter.toUIMessages(
+      params({
+        messages: [
+          { role: 'system', content: [{ type: 'text', text: 'Reminder.' }] },
+          { role: 'user', content: 'hi' }
+        ] as never
+      })
+    )
+
+    expect(msgs.map((msg) => msg.role)).toEqual(['system', 'user'])
+    expect(msgs[0].parts).toEqual([{ type: 'text', text: 'Reminder.' }])
+  })
+
   it('joins a structured (text-block) system prompt', () => {
     const msgs = converter.toUIMessages(
       params({
