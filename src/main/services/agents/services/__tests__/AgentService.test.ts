@@ -85,6 +85,7 @@ import {
   taskRunLogsTable
 } from '../../database/schema'
 import { AgentService } from '../AgentService'
+import { DatabaseManager } from '../../database/DatabaseManager'
 
 function createSelectQuery(rows: unknown[]) {
   return {
@@ -160,6 +161,38 @@ async function createAgentDatabase(rows: AgentRow[]) {
     )
   `)
   await database.insert(agentsTable).values(rows)
+
+  return {
+    database,
+    cleanup: () => {
+      client.close()
+      // On Windows the libsql client may not release the DB file handle synchronously
+      // after close(), leaving the temp dir locked and making rmSync fail with EPERM.
+      try {
+        fs.rmSync(directory, { recursive: true, force: true })
+      } catch {
+        // ignore
+      }
+    }
+  }
+}
+
+async function setupTestDatabase() {
+  const fs = await vi.importActual<TestFsModule>('node:fs')
+  const os = await vi.importActual<TestOsModule>('node:os')
+  const path = await vi.importActual<TestPathModule>('node:path')
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-sync-test-'))
+  const client = createClient({ url: `file:${path.join(directory, 'agents.db')}`, intMode: 'number' })
+
+  const migrationDir = path.join(__dirname, '../../../../../../resources/database/drizzle')
+  const migrationFiles = fs.readdirSync(migrationDir).filter((f: string) => f.endsWith('.sql')).sort()
+
+  for (const file of migrationFiles) {
+    const sql = fs.readFileSync(path.join(migrationDir, file), 'utf-8')
+    await client.executeMultiple(sql)
+  }
+
+  const database = drizzle(client)
 
   return {
     database,
@@ -598,88 +631,22 @@ describe('AgentService session settings sync', () => {
     }
   }
 
-  async function createAgentWithSessionsDatabase(agent: AgentRow, sessions: SessionRow[]) {
-    const fs = await vi.importActual<TestFsModule>('node:fs')
-    const os = await vi.importActual<TestOsModule>('node:os')
-    const path = await vi.importActual<TestPathModule>('node:path')
-    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-sync-test-'))
-    const client = createClient({ url: `file:${path.join(directory, 'agents.db')}`, intMode: 'number' })
-    const database = drizzle(client)
-
-    await client.execute(`
-      CREATE TABLE agents (
-        id TEXT PRIMARY KEY,
-        type TEXT NOT NULL,
-        name TEXT NOT NULL,
-        description TEXT,
-        deleted_at TEXT,
-        accessible_paths TEXT,
-        instructions TEXT,
-        model TEXT NOT NULL,
-        plan_model TEXT,
-        small_model TEXT,
-        mcps TEXT,
-        allowed_tools TEXT,
-        configuration TEXT,
-        sort_order INTEGER NOT NULL DEFAULT 0,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      )
-    `)
-    await client.execute(`
-      CREATE TABLE sessions (
-        id TEXT PRIMARY KEY,
-        agent_type TEXT NOT NULL,
-        agent_id TEXT NOT NULL,
-        name TEXT NOT NULL,
-        description TEXT,
-        accessible_paths TEXT,
-        instructions TEXT,
-        model TEXT NOT NULL,
-        plan_model TEXT,
-        small_model TEXT,
-        mcps TEXT,
-        allowed_tools TEXT,
-        slash_commands TEXT,
-        configuration TEXT,
-        sort_order INTEGER NOT NULL DEFAULT 0,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      )
-    `)
-    await database.insert(agentsTable).values(agent)
-    await database.insert(sessionsTable).values(sessions)
-
-    return {
-      database,
-      cleanup: () => {
-        client.close()
-        // On Windows the libsql client may not release the DB file handle synchronously
-        // after close(), leaving the temp dir locked and making rmSync fail with EPERM.
-        try {
-          fs.rmSync(directory, { recursive: true, force: true })
-        } catch {
-          // ignore
-        }
-      }
-    }
-  }
-
   it('propagates accessible_paths changes to sessions that inherited the old agent value', async () => {
     const agentId = 'agent_sync_test'
     const inheritedSessionId = 'session_inherited'
     const customizedSessionId = 'session_customized'
     const oldPaths = JSON.stringify(['/old/workspace'])
-    const { cleanup, database } = await createAgentWithSessionsDatabase(
-      createAgentRow({ id: agentId, accessible_paths: oldPaths }),
-      [
-        createSessionRow(agentId, inheritedSessionId, { accessible_paths: oldPaths }),
-        createSessionRow(agentId, customizedSessionId, { accessible_paths: JSON.stringify(['/custom/workspace']) })
-      ]
-    )
+    const { cleanup, database } = await setupTestDatabase()
 
     try {
-      vi.spyOn(service as never, 'getDatabase').mockResolvedValue(database as never)
+      await database.insert(agentsTable).values(createAgentRow({ id: agentId, accessible_paths: oldPaths }))
+      await database.insert(sessionsTable).values([
+        createSessionRow(agentId, inheritedSessionId, { accessible_paths: oldPaths }),
+        createSessionRow(agentId, customizedSessionId, { accessible_paths: JSON.stringify(['/custom/workspace']) })
+      ])
+
+      const dbManager = { getDatabase: () => database, isInitialized: () => true }
+      vi.spyOn(DatabaseManager, 'getInstance').mockResolvedValue(dbManager as unknown as DatabaseManager)
       // Avoid creating real directories on disk while resolving paths in the test.
       vi.spyOn(service as never, 'resolveAccessiblePaths').mockImplementation((paths: unknown) => paths as never)
 
@@ -700,13 +667,16 @@ describe('AgentService session settings sync', () => {
     const agentId = 'agent_sync_test'
     const sessionId = 'session_inherited'
     const paths = JSON.stringify(['/workspace'])
-    const { cleanup, database } = await createAgentWithSessionsDatabase(
-      createAgentRow({ id: agentId, accessible_paths: paths }),
-      [createSessionRow(agentId, sessionId, { accessible_paths: paths })]
-    )
+    const { cleanup, database } = await setupTestDatabase()
 
     try {
-      vi.spyOn(service as never, 'getDatabase').mockResolvedValue(database as never)
+      await database.insert(agentsTable).values(createAgentRow({ id: agentId, accessible_paths: paths }))
+      await database.insert(sessionsTable).values([
+        createSessionRow(agentId, sessionId, { accessible_paths: paths })
+      ])
+
+      const dbManager = { getDatabase: () => database, isInitialized: () => true }
+      vi.spyOn(DatabaseManager, 'getInstance').mockResolvedValue(dbManager as unknown as DatabaseManager)
       vi.spyOn(service as never, 'resolveAccessiblePaths').mockImplementation((paths: unknown) => paths as never)
 
       await service.updateAgent(agentId, { accessible_paths: ['/workspace'] })
