@@ -1,7 +1,6 @@
 const crypto = require('crypto')
 const fs = require('fs')
 const os = require('os')
-const { execFileSync } = require('child_process')
 const { builtinModules, createRequire } = require('module')
 const path = require('path')
 
@@ -455,15 +454,6 @@ async function bundleDshRuntimeTree({ projectRoot, runtimeRoot, outputDir, platf
   return { artifact, packageNames: packages.map(({ name }) => name).filter(Boolean) }
 }
 
-function deployDshBridge(projectRoot, deployRoot) {
-  const pnpm = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
-  execFileSync(
-    pnpm,
-    ['--filter', DSH_RUNTIME_PACKAGE, 'deploy', '--legacy', '--prod', '--offline', '--ignore-scripts', deployRoot],
-    { cwd: projectRoot, stdio: 'inherit' }
-  )
-}
-
 function retainRuntimeVariant(outputRoot, currentVariant) {
   if (!fs.existsSync(outputRoot)) return
   for (const entry of fs.readdirSync(outputRoot, { withFileTypes: true })) {
@@ -478,13 +468,15 @@ async function buildDshRuntimePackage({ platform, arch, ...options }) {
   const projectRoot = options.projectRoot ?? path.join(__dirname, '..', '..')
   const packageRoot = options.packageRoot ?? path.join(__dirname, '..')
   const outputRoot = options.outputRoot ?? path.join(packageRoot, 'dist', 'runtime')
-  const deployRoot = options.deployRoot ?? fs.mkdtempSync(path.join(os.tmpdir(), 'cherry-dsh-deploy-'))
+  // The installed workspace graph is already lockfile-resolved; re-running pnpm deploy would require uncached registry metadata.
+  const sourceRoot = options.sourceRoot ?? options.deployRoot ?? packageRoot
   const runtimeRoot = options.runtimeRoot ?? fs.mkdtempSync(path.join(os.tmpdir(), 'cherry-dsh-runtime-'))
-  const ownsDeployRoot = options.deployRoot === undefined
   const ownsRuntimeRoot = options.runtimeRoot === undefined
 
   try {
-    if (options.deployRoot === undefined) deployDshBridge(projectRoot, deployRoot)
+    if (!fs.existsSync(path.join(sourceRoot, 'package.json'))) {
+      throw new Error(`Missing installed DSH bridge package: ${path.join(sourceRoot, 'package.json')}`)
+    }
     const packageNames = new Set(collectDshRuntimePackageNames(projectRoot))
     fs.mkdirSync(path.join(runtimeRoot, 'node_modules', '@cherrystudio', 'dsh-bridge'), { recursive: true })
     fs.writeFileSync(
@@ -494,7 +486,7 @@ async function buildDshRuntimePackage({ platform, arch, ...options }) {
 
     const bridgeRoot = path.join(runtimeRoot, 'node_modules', '@cherrystudio', 'dsh-bridge')
     copyRuntimePackageGraph(
-      deployRoot,
+      sourceRoot,
       bridgeRoot,
       'node_modules/@cherrystudio/dsh-bridge',
       { platform, arch, packageNames },
@@ -514,7 +506,6 @@ async function buildDshRuntimePackage({ platform, arch, ...options }) {
       arch
     })
   } finally {
-    if (ownsDeployRoot) fs.rmSync(deployRoot, { recursive: true, force: true })
     if (ownsRuntimeRoot) fs.rmSync(runtimeRoot, { recursive: true, force: true })
   }
 }
