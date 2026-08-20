@@ -6812,6 +6812,7 @@
       "batchInstallComplete": "Đã cài đặt {{count}} kỹ năng",
       "batchInstallPartialFailed": "Đã cài đặt {{success}}/{{total}} kỹ năng, {{failed}} thất bại",
       "batchInstallQueued": "Đang chờ xử lý",
+      "enabledOnly": "Chỉ kỹ năng đã bật",
       "globalToggle": "Bật kỹ năng {{name}} trên toàn hệ thống",
       "install": "Cài đặt",
       "installFailed": "Không thể cài đặt kỹ năng: {{name}}",

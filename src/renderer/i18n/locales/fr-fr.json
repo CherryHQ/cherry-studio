@@ -6812,6 +6812,7 @@
       "batchInstallComplete": "{{count}} compétences installées",
       "batchInstallPartialFailed": "{{success}}/{{total}} compétences installées, {{failed}} échouées",
       "batchInstallQueued": "En attente",
+      "enabledOnly": "Compétences activées uniquement",
       "globalToggle": "Activer globalement la compétence {{name}}",
       "install": "Installer",
       "installFailed": "Échec de l'installation de la compétence : {{name}}",

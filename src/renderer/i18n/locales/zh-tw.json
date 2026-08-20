@@ -6812,6 +6812,7 @@
       "batchInstallComplete": "已安裝 {{count}} 個技能",
       "batchInstallPartialFailed": "已安裝 {{success}}/{{total}} 個技能，{{failed}} 個失敗",
       "batchInstallQueued": "等待安裝",
+      "enabledOnly": "僅顯示已啟用技能",
       "globalToggle": "全域啟用技能 {{name}}",
       "install": "安裝",
       "installFailed": "技能安裝失敗：{{name}}",

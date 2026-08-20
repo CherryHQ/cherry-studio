@@ -6812,6 +6812,7 @@
       "batchInstallComplete": "Installed {{count}} skills",
       "batchInstallPartialFailed": "Installed {{success}}/{{total}} skills, {{failed}} failed",
       "batchInstallQueued": "Queued",
+      "enabledOnly": "Enabled Skills Only",
       "globalToggle": "Globally enable skill {{name}}",
       "install": "Install",
       "installFailed": "Failed to install skill: {{name}}",

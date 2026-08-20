@@ -6812,6 +6812,7 @@
       "batchInstallComplete": "Instalate {{count}} abilități",
       "batchInstallPartialFailed": "S-au instalat {{success}}/{{total}} abilități; {{failed}} au eșuat",
       "batchInstallQueued": "În așteptare",
+      "enabledOnly": "Doar abilitățile activate",
       "globalToggle": "Activează global abilitatea {{name}}",
       "install": "Instalare",
       "installFailed": "Nu s-a putut instala abilitatea: {{name}}",
