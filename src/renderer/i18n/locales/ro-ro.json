@@ -1752,6 +1752,7 @@
       "name_required": "Numele grupului este obligatoriu"
     },
     "help": "Ajutor",
+    "hide_credential": "Ascunde datele de autentificare",
     "html_preview": "Previzualizare HTML",
     "i_know": "Am înțeles",
     "knowledge_base": "Bază de cunoștințe",
@@ -1795,6 +1796,7 @@
     "selectedItems": "{{count}} elemente selectate",
     "selectedMessages": "{{count}} mesaje selectate",
     "settings": "Setări",
+    "show_credential": "Afișează datele de autentificare",
     "stop": "Oprește",
     "success": "Succes",
     "swap": "Schimbă",

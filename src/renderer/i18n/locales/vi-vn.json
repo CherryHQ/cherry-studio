@@ -1752,6 +1752,7 @@
       "name_required": "Tên nhóm là bắt buộc"
     },
     "help": "Giúp đỡ",
+    "hide_credential": "Ẩn thông tin xác thực",
     "html_preview": "Xem trước HTML",
     "i_know": "Tôi biết",
     "knowledge_base": "Cơ sở tri thức",
@@ -1795,6 +1796,7 @@
     "selectedItems": "Đã chọn {{count}} mục",
     "selectedMessages": "Đã chọn {{count}} tin nhắn",
     "settings": "Cài đặt",
+    "show_credential": "Hiển thị thông tin xác thực",
     "stop": "Dừng lại",
     "success": "Thành công",
     "swap": "Hoán đổi",

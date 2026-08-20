@@ -1752,6 +1752,7 @@
       "name_required": "Group name is required"
     },
     "help": "Help",
+    "hide_credential": "Hide credential",
     "html_preview": "HTML Preview",
     "i_know": "I know",
     "knowledge_base": "Knowledge Base",
@@ -1795,6 +1796,7 @@
     "selectedItems": "Selected {{count}} items",
     "selectedMessages": "Selected {{count}} messages",
     "settings": "Settings",
+    "show_credential": "Show credential",
     "stop": "Stop",
     "success": "Success",
     "swap": "Swap",

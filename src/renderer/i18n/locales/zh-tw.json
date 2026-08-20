@@ -1752,6 +1752,7 @@
       "name_required": "群組名稱為必填欄位"
     },
     "help": "幫助",
+    "hide_credential": "隱藏憑證",
     "html_preview": "HTML 預覽",
     "i_know": "我知道了",
     "knowledge_base": "知識庫",
@@ -1795,6 +1796,7 @@
     "selectedItems": "已選擇 {{count}} 項",
     "selectedMessages": "已選取 {{count}} 則訊息",
     "settings": "設定",
+    "show_credential": "顯示憑證",
     "stop": "停止",
     "success": "成功",
     "swap": "交換",

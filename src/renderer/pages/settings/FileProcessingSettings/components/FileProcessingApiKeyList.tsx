@@ -1,7 +1,8 @@
-import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input } from '@cherrystudio/ui'
+import { Button, Dialog, DialogContent, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import EditIcon from '@renderer/components/icons/EditIcon'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { SecretInput } from '@renderer/components/SecretInput'
 import { createPopup, popup, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
@@ -126,9 +127,8 @@ const FileProcessingApiKeyItem: FC<FileProcessingApiKeyItemProps> = ({ item, onU
     <div className="flex min-h-10 items-center justify-between gap-2 border-border-subtle border-b px-3 py-2 last:border-b-0">
       {isEditing ? (
         <>
-          <Input
+          <SecretInput
             ref={inputRef}
-            type="password"
             value={editValue}
             onChange={(event) => setEditValue(event.target.value)}
             onKeyDown={(event) => {
@@ -137,7 +137,8 @@ const FileProcessingApiKeyItem: FC<FileProcessingApiKeyItemProps> = ({ item, onU
               }
             }}
             placeholder={t('settings.provider.api.key.new_key.placeholder')}
-            className="h-8 min-w-0 flex-1 rounded-lg border-border-subtle bg-foreground/3 text-sm leading-tight placeholder:text-muted-foreground md:text-sm"
+            className="h-8 min-w-0 flex-1 rounded-lg border-border-subtle bg-foreground/3"
+            inputClassName="text-sm leading-tight placeholder:text-muted-foreground md:text-sm"
             spellCheck={false}
           />
           <div className="flex shrink-0 items-center gap-0.5">

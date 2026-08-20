@@ -1752,6 +1752,7 @@
       "name_required": "Название группы обязательно"
     },
     "help": "Помощь",
+    "hide_credential": "Скрыть учётные данные",
     "html_preview": "Предпросмотр HTML",
     "i_know": "Я понял",
     "knowledge_base": "База знаний",
@@ -1795,6 +1796,7 @@
     "selectedItems": "Выбрано {{count}} элементов",
     "selectedMessages": "Выбрано {{count}} сообщений",
     "settings": "Настройки",
+    "show_credential": "Показать учётные данные",
     "stop": "остановить",
     "success": "Успешно",
     "swap": "Поменять местами",

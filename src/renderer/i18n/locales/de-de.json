@@ -1752,6 +1752,7 @@
       "name_required": "Gruppenname ist erforderlich"
     },
     "help": "Hilfe",
+    "hide_credential": "Zugangsdaten ausblenden",
     "html_preview": "HTML-Vorschau",
     "i_know": "Verstanden",
     "knowledge_base": "Wissensdatenbank",
@@ -1795,6 +1796,7 @@
     "selectedItems": "{{count}} Elemente ausgewählt",
     "selectedMessages": "{{count}} Nachrichten ausgewählt",
     "settings": "Einstellungen",
+    "show_credential": "Zugangsdaten anzeigen",
     "stop": "Stoppen",
     "success": "Erfolgreich",
     "swap": "Tauschen",

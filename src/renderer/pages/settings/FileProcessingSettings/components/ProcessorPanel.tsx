@@ -12,6 +12,7 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { FileProcessorIcon } from '@renderer/components/icons/FileProcessorIcon'
+import { SecretInput } from '@renderer/components/SecretInput'
 import {
   SettingGroup,
   SettingHelpLink,
@@ -291,8 +292,7 @@ export function ProcessorPanel({
               ) : null}
             </div>
             <div className="flex min-w-0 items-center gap-2">
-              <Input
-                type="password"
+              <SecretInput
                 value={apiKeysInput}
                 onChange={(event) => setApiKeysInput(event.target.value)}
                 onBlur={() => void handleApiKeysBlur()}

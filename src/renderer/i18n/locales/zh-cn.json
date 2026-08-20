@@ -1752,6 +1752,7 @@
       "name_required": "请输入分组名称"
     },
     "help": "帮助",
+    "hide_credential": "隐藏凭据",
     "html_preview": "HTML 预览",
     "i_know": "我知道了",
     "knowledge_base": "知识库",
@@ -1795,6 +1796,7 @@
     "selectedItems": "已选择 {{count}} 项",
     "selectedMessages": "选中 {{count}} 条消息",
     "settings": "设置",
+    "show_credential": "显示凭据",
     "stop": "停止",
     "success": "成功",
     "swap": "交换",

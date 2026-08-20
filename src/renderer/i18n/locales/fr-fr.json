@@ -1752,6 +1752,7 @@
       "name_required": "Le nom du groupe est obligatoire"
     },
     "help": "Aide",
+    "hide_credential": "Masquer les identifiants",
     "html_preview": "Aperçu HTML",
     "i_know": "J'ai compris",
     "knowledge_base": "Base de connaissances",
@@ -1795,6 +1796,7 @@
     "selectedItems": "{{count}} éléments sélectionnés",
     "selectedMessages": "{{count}} messages sélectionnés",
     "settings": "Paramètres",
+    "show_credential": "Afficher les identifiants",
     "stop": "Arrêter",
     "success": "Succès",
     "swap": "Échanger",

@@ -1752,6 +1752,7 @@
       "name_required": "Απαιτείται όνομα ομάδας"
     },
     "help": "Βοήθεια",
+    "hide_credential": "Απόκρυψη διαπιστευτηρίων",
     "html_preview": "Προεπισκόπηση HTML",
     "i_know": "Το έχω καταλάβει",
     "knowledge_base": "Βάση γνώσεων",
@@ -1795,6 +1796,7 @@
     "selectedItems": "Επιλέχθηκαν {{count}} αντικείμενα",
     "selectedMessages": "Επιλέχθηκαν {{count}} μηνύματα",
     "settings": "Ρυθμίσεις",
+    "show_credential": "Εμφάνιση διαπιστευτηρίων",
     "stop": "σταματήστε",
     "success": "Επιτυχία",
     "swap": "Εναλλαγή",

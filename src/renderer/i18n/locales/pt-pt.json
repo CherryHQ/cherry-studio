@@ -1752,6 +1752,7 @@
       "name_required": "O nome do grupo é obrigatório"
     },
     "help": "Ajuda",
+    "hide_credential": "Ocultar credencial",
     "html_preview": "Pré-visualização em HTML",
     "i_know": "Entendi",
     "knowledge_base": "Base de Conhecimento",
@@ -1795,6 +1796,7 @@
     "selectedItems": "{{count}} itens selecionados",
     "selectedMessages": "{{count}} mensagens selecionadas",
     "settings": "Configurações",
+    "show_credential": "Mostrar credencial",
     "stop": "Parar",
     "success": "Sucesso",
     "swap": "Trocar",
