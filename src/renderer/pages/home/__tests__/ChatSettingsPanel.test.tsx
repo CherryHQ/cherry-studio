@@ -151,9 +151,12 @@ vi.mock('../ChatContent', () => ({
           type="button"
           onClick={() =>
             onBranchLiveStateChange?.({
-              activeNodeId: 'assistant-live',
-              nodes: [],
-              topicId: 'topic-1'
+              topicId: 'topic-1',
+              state: {
+                activeNodeId: 'assistant-live',
+                nodes: [],
+                topicId: 'topic-1'
+              }
             })
           }>
           push live branch state

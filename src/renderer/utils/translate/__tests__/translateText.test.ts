@@ -6,7 +6,7 @@ vi.mock('i18next', () => ({
   t: (key: string) => `t(${key})`
 }))
 
-// AI stream calls go through ipcApi.request('ai.stream_*') / ipcApi.on('ai.stream_*') and
+// Prompt stream calls go through ipcApi.request('ai.prompt.*') / ipcApi.on('ai.prompt.*') and
 // `translate.open` now goes through ipcApi.request('translate.open', …). `ipcMock` is re-pointed
 // at the fresh per-test mock in beforeEach.
 const { ipcMock } = vi.hoisted(() => ({
@@ -30,12 +30,12 @@ import { translateText } from '../translateText'
  * Flow under test:
  *   1. Normalise the target language (DTO → langCode) and validate
  *   2. Generate a `translate:`-prefixed `streamId`
- *   3. Subscribe to `onStreamChunk` / `onStreamDone` / `onStreamError` BEFORE
+ *   3. Subscribe to prompt chunk / done / error events BEFORE
  *      invoking main (so the first chunk cannot race past the listener)
  *   4. Call `ipcApi.request('translate.open', { streamId, text, targetLangCode })`
  *   5. Accumulate text-delta chunks, fire `onResponse`, resolve trimmed
  *      final text on done
- *   6. Abort via the `ai.stream.abort` route keyed on `streamId`
+ *   6. Abort via the `ai.prompt.abort` route keyed on `streamId`
  */
 
 const TARGET = {
@@ -46,44 +46,44 @@ const TARGET = {
   updatedAt: '2026-01-01T00:00:00.000Z'
 } as TranslateLanguage
 
-interface MockAiApi {
-  streamAbort: ReturnType<typeof vi.fn>
-  onStreamChunk: ReturnType<typeof vi.fn>
-  onStreamDone: ReturnType<typeof vi.fn>
-  onStreamError: ReturnType<typeof vi.fn>
+interface MockPromptApi {
+  abort: ReturnType<typeof vi.fn>
+  onChunk: ReturnType<typeof vi.fn>
+  onDone: ReturnType<typeof vi.fn>
+  onError: ReturnType<typeof vi.fn>
 }
 
 interface MockListeners {
-  chunk: Array<(data: { topicId: string; chunk: unknown }) => void>
-  done: Array<(data: { topicId: string }) => void>
-  error: Array<(data: { topicId: string; error?: { name?: string; message?: string } }) => void>
+  chunk: Array<(data: { streamId: string; chunk: unknown }) => void>
+  done: Array<(data: { streamId: string }) => void>
+  error: Array<(data: { streamId: string; error?: { name?: string; message?: string } }) => void>
 }
 
 function createMocks(): {
-  ai: MockAiApi
+  prompt: MockPromptApi
   translateOpen: ReturnType<typeof vi.fn>
   listeners: MockListeners
   request: ReturnType<typeof vi.fn>
   on: (event: string, cb: (p: unknown) => void) => () => void
 } {
   const listeners: MockListeners = { chunk: [], done: [], error: [] }
-  const ai: MockAiApi = {
-    streamAbort: vi.fn().mockResolvedValue(undefined),
-    onStreamChunk: vi.fn((cb: (data: { topicId: string; chunk: unknown }) => void) => {
+  const prompt: MockPromptApi = {
+    abort: vi.fn().mockResolvedValue(undefined),
+    onChunk: vi.fn((cb: (data: { streamId: string; chunk: unknown }) => void) => {
       listeners.chunk.push(cb)
       return () => {
         const i = listeners.chunk.indexOf(cb)
         if (i >= 0) listeners.chunk.splice(i, 1)
       }
     }),
-    onStreamDone: vi.fn((cb: (data: { topicId: string }) => void) => {
+    onDone: vi.fn((cb: (data: { streamId: string }) => void) => {
       listeners.done.push(cb)
       return () => {
         const i = listeners.done.indexOf(cb)
         if (i >= 0) listeners.done.splice(i, 1)
       }
     }),
-    onStreamError: vi.fn((cb: (data: { topicId: string; error?: { name?: string; message?: string } }) => void) => {
+    onError: vi.fn((cb: (data: { streamId: string; error?: { name?: string; message?: string } }) => void) => {
       listeners.error.push(cb)
       return () => {
         const i = listeners.error.indexOf(cb)
@@ -99,25 +99,25 @@ function createMocks(): {
     switch (route) {
       case 'translate.open':
         return translateOpen(input as { streamId: string })
-      case 'ai.stream.abort':
-        return ai.streamAbort(input)
+      case 'ai.prompt.abort':
+        return prompt.abort(input)
       default:
         return Promise.resolve(undefined)
     }
   })
   const on = (event: string, cb: (p: unknown) => void): (() => void) => {
     switch (event) {
-      case 'ai.stream.chunk':
-        return ai.onStreamChunk(cb as never)
-      case 'ai.stream.done':
-        return ai.onStreamDone(cb as never)
-      case 'ai.stream.error':
-        return ai.onStreamError(cb as never)
+      case 'ai.prompt.chunk':
+        return prompt.onChunk(cb as never)
+      case 'ai.prompt.done':
+        return prompt.onDone(cb as never)
+      case 'ai.prompt.error':
+        return prompt.onError(cb as never)
       default:
         return () => {}
     }
   }
-  return { ai, translateOpen, listeners, request, on }
+  return { prompt, translateOpen, listeners, request, on }
 }
 
 /** Pull the renderer-generated streamId from the latest `ipcApi.request('translate.open', …)` call. */
@@ -127,18 +127,18 @@ function lastStreamId(request: ReturnType<typeof vi.fn>): string {
   return (calls[calls.length - 1][1] as { streamId: string }).streamId
 }
 
-function emitChunk(listeners: MockListeners, delta: string, topicId: string) {
+function emitChunk(listeners: MockListeners, delta: string, streamId: string) {
   for (const cb of [...listeners.chunk]) {
-    cb({ topicId, chunk: { type: 'text-delta', id: 't1', delta } })
+    cb({ streamId, chunk: { type: 'text-delta', id: 't1', delta } })
   }
 }
 
-function emitDone(listeners: MockListeners, topicId: string) {
-  for (const cb of [...listeners.done]) cb({ topicId })
+function emitDone(listeners: MockListeners, streamId: string) {
+  for (const cb of [...listeners.done]) cb({ streamId })
 }
 
-function emitError(listeners: MockListeners, error: { name?: string; message: string }, topicId: string) {
-  for (const cb of [...listeners.error]) cb({ topicId, error })
+function emitError(listeners: MockListeners, error: { name?: string; message: string }, streamId: string) {
+  for (const cb of [...listeners.error]) cb({ streamId, error })
 }
 
 /** Wait until `translate.open` has resolved — guarantees subscribers are wired. */
@@ -149,14 +149,14 @@ async function waitForOpen(request: ReturnType<typeof vi.fn>) {
   await Promise.resolve()
 }
 
-let mockAi: MockAiApi
+let mockPrompt: MockPromptApi
 let mockRequest: ReturnType<typeof vi.fn>
 let mockTranslateOpen: ReturnType<typeof vi.fn>
 let mockListeners: MockListeners
 
 beforeEach(() => {
   const m = createMocks()
-  mockAi = m.ai
+  mockPrompt = m.prompt
   mockRequest = m.request
   mockTranslateOpen = m.translateOpen
   mockListeners = m.listeners
@@ -180,7 +180,7 @@ describe('translateText (main-driven streaming)', () => {
         targetLangCode: 'en-us'
       })
       const openCallOrder = mockRequest.mock.invocationCallOrder[0]
-      for (const subscribe of [mockAi.onStreamChunk, mockAi.onStreamDone, mockAi.onStreamError]) {
+      for (const subscribe of [mockPrompt.onChunk, mockPrompt.onDone, mockPrompt.onError]) {
         expect(subscribe.mock.invocationCallOrder[0]).toBeLessThan(openCallOrder)
       }
 
@@ -312,7 +312,7 @@ describe('translateText (main-driven streaming)', () => {
   })
 
   describe('abort signal', () => {
-    it('calls streamAbort with the streamId when the signal fires mid-stream', async () => {
+    it('calls prompt abort with the streamId when the signal fires mid-stream', async () => {
       const controller = new AbortController()
       const promise = translateText('source', TARGET, undefined, controller.signal)
       await waitForOpen(mockRequest)
@@ -326,7 +326,7 @@ describe('translateText (main-driven streaming)', () => {
 
       await promise.catch(() => undefined)
 
-      expect(mockAi.streamAbort).toHaveBeenCalledWith({ topicId: streamId })
+      expect(mockPrompt.abort).toHaveBeenCalledWith({ streamId })
     })
 
     it('rejects synchronously when the supplied signal is already aborted', async () => {
