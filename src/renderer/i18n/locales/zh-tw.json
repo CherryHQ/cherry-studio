@@ -1702,6 +1702,7 @@
     "agent_one": "代理人",
     "agent_other": "Agent",
     "all": "全部",
+    "archive": "歸檔",
     "assistant": "Agent",
     "assistant_one": "助理",
     "assistant_other": "助理",
@@ -1726,6 +1727,7 @@
     "delete": "刪除",
     "delete_confirm": "確定要刪除嗎？",
     "delete_failed": "刪除失敗",
+    "delete_permanently": "永久刪除",
     "delete_success": "刪除成功",
     "description": "描述",
     "detail": "詳細資訊",
@@ -2072,7 +2074,6 @@
       "no_match_title": "找不到符合的檔案",
       "title": "尚未有任何檔案"
     },
-    "empty_trash": "清空回收站",
     "error": {
       "delete_failed": "刪除檔案失敗",
       "delete_partial_failed": "部分檔案刪除失敗",
@@ -2090,7 +2091,6 @@
     "name": "名稱",
     "open": "開啟",
     "other": "其他",
-    "permanent_delete": "永久刪除",
     "permanent_delete_confirm": {
       "description": "將永久刪除 {{count}} 個檔案，此操作無法復原。",
       "title": "永久刪除檔案？"
@@ -2100,7 +2100,6 @@
     },
     "remove_from_library": "從庫中移除",
     "rename": "重新命名",
-    "restore": "還原",
     "select_all": "全選目前顯示的檔案",
     "select_all_short": "全選",
     "select_file": "選取 {{name}}",
@@ -2108,7 +2107,6 @@
     "size": "大小",
     "text": "文字",
     "title": "檔案",
-    "trash": "回收站",
     "type": "類型",
     "upload": "上傳檔案",
     "video": "影片"
@@ -5377,6 +5375,60 @@
         "token_placeholder": "請輸入思源筆記 Token"
       },
       "title": "資料",
+      "trash": {
+        "days_remaining_expired": "已過期",
+        "days_remaining_lt_one": "剩餘不足 1 天",
+        "days_remaining_one": "剩餘 {{count}} 天",
+        "days_remaining_other": "剩餘 {{count}} 天",
+        "deleted_at": "刪除於 {{time}}",
+        "domain": {
+          "agents": "Agent",
+          "assistants": "助理",
+          "files": "檔案",
+          "paintings": "繪圖",
+          "sessions": "工作階段",
+          "topics": "話題"
+        },
+        "empty": {
+          "section": "暫無已刪除的項目"
+        },
+        "empty_trash": {
+          "button": "清空回收筒",
+          "confirm_content": "回收筒中所有分類的全部項目將被立即永久刪除，且無法復原。",
+          "confirm_title": "確定要清空回收筒嗎？",
+          "error": "清空回收筒失敗",
+          "success": "回收筒已清空"
+        },
+        "error": {
+          "load": "載入失敗"
+        },
+        "load_more": "載入更多",
+        "page_next": "下一頁",
+        "page_prev": "上一頁",
+        "permanent_delete": {
+          "confirm_content": "「{{name}}」將被永久刪除，且無法復原。",
+          "confirm_title": "確定要永久刪除嗎？",
+          "error": "永久刪除失敗",
+          "label": "永久刪除",
+          "success": "已永久刪除"
+        },
+        "restore": {
+          "error": "復原失敗",
+          "label": "復原",
+          "success": "已復原"
+        },
+        "retention": {
+          "days_one": "{{count}} 天",
+          "days_other": "{{count}} 天",
+          "forever": "永久保留",
+          "label": "已刪除項目保留"
+        },
+        "retention_hint_never": "已刪除的項目將保留，直到你手動永久刪除",
+        "retention_hint_one": "已刪除的項目將在 {{count}} 天後被自動永久刪除",
+        "retention_hint_other": "已刪除的項目將在 {{count}} 天後被自動永久刪除",
+        "title": "最近刪除",
+        "unnamed": "未命名"
+      },
       "v1_remigration": {
         "acknowledgement": "我已了解風險並願意繼續。",
         "back": "上一步",

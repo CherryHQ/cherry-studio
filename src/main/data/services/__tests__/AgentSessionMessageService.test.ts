@@ -428,7 +428,8 @@ describe('AgentSessionMessageService', () => {
         outcome: 'interrupted',
         error: { code: 'TARGET_AGENT_DELETED' }
       })
-      expect(agentSessionService.getById('target').agentId).toBeNull()
+      // Archived (not purged) agent: the link survives so restoring it re-attaches the session.
+      expect(agentSessionService.getById('target').agentId).toBe('agent-b')
       const [result] = agentSessionMessageService.listSessionDeliveries({ sessionId: 'sender', requestId: request.id })
       expect(result.delivery).toMatchObject({
         inReplyTo: request.id,

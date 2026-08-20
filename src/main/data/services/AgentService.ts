@@ -33,7 +33,7 @@ import type { ListOptions } from '@shared/data/api/types'
 import type { AgentType } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { isGatewayRoutableModel } from '@shared/utils/model'
-import { and, asc, count, desc, eq, gte, inArray, isNull, ne, or, type SQL, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, lt, ne, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('AgentService')
@@ -183,6 +183,7 @@ function rowToAgent(
     configuration: parseConfiguration(row.configuration, row.id),
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt),
+    deletedAt: row.deletedAt != null ? timestampToISO(row.deletedAt) : undefined,
     modelName
   }
 }
@@ -529,12 +530,14 @@ export class AgentService {
     return rowToAgent(agent, modelName, mcpsMap.get(id) ?? [], knowledgeBasesMap.get(id) ?? [])
   }
 
-  listAgents(options: ListOptions = {}): { agents: AgentEntity[]; total: number } {
+  listAgents(options: ListOptions & { inTrash?: boolean } = {}): { agents: AgentEntity[]; total: number } {
     const database = application.get('DbService').getDb()
 
     // AND-compose deletedAt-null + optional server-side search. The localized builtin
     // fallback is part of the predicate, so pagination and full-library search stay authoritative.
-    const conditions: SQL[] = [isNull(agentsTable.deletedAt)]
+    const conditions: SQL[] = [
+      options.inTrash === true ? isNotNull(agentsTable.deletedAt) : isNull(agentsTable.deletedAt)
+    ]
     if (options.search) {
       conditions.push(buildAgentSearchPredicate(options.search))
     }
@@ -767,7 +770,7 @@ export class AgentService {
 
   deleteAgent(
     id: string,
-    options: { deleteSessions?: boolean } = {}
+    options: { deleteSessions?: boolean; permanent?: boolean } = {}
   ): { deleted: boolean; deletedSessionIds?: string[] } {
     const result = this.deleteAgentForDelivery(id, options)
     return {
@@ -778,32 +781,64 @@ export class AgentService {
 
   deleteAgentForDelivery(
     id: string,
-    options: { deleteSessions?: boolean } = {}
+    options: { deleteSessions?: boolean; permanent?: boolean } = {}
   ): {
     deleted: boolean
     deletedSessionIds?: string[]
     affectedSessionIds: string[]
     deliveryResults: AgentSessionMessageEntity[]
   } {
-    // By default sessions detach (agentId → NULL) via FK ON DELETE SET NULL; callers
-    // can opt into deleting them in this same transaction. `pin` has no FK back
-    // to agent, so purge it alongside the agent row. Junction table rows are
-    // cascade-deleted by FK.
+    const permanent = options.permanent === true
     const result = withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx((tx) => {
           const [agent] = tx
             .select({ id: agentsTable.id })
             .from(agentsTable)
-            .where(and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt)))
+            .where(permanent ? eq(agentsTable.id, id) : and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt)))
             .limit(1)
             .all()
           if (!agent) return { rowsAffected: 0, sessionImpact: undefined }
 
-          const sessionImpact = agentSessionService.prepareForAgentDeletionTx(tx, id, {
-            deleteSessions: options.deleteSessions === true
-          })
-          return { ...this.deleteAgentTx(tx, id), sessionImpact }
+          if (permanent) {
+            const sessionImpact = agentSessionService.prepareForAgentDeletionTx(tx, id, {
+              deleteSessions: options.deleteSessions === true
+            })
+            return { ...this.deleteAgentTx(tx, id), sessionImpact }
+          }
+
+          // One timestamp for the agent and the sessions archived with it, so
+          // `restoreAgent` can bring back exactly that set.
+          const archivedAt = Date.now()
+          const sessionIds = agentSessionService.listIdsByAgentTx(tx, id)
+          const archived =
+            options.deleteSessions === true
+              ? agentSessionService.archiveByAgentIdTx(tx, id, { validateAgent: false, deletedAt: archivedAt })
+              : {
+                  archivedIds: [],
+                  taskScheduleIds: [],
+                  // Sessions outlive the archived agent, but deliveries targeting
+                  // them can no longer complete — interrupt them like a hard delete.
+                  deliveryResults: getDataService('AgentSessionMessageService').prepareRetainedSessionAgentDeletionTx(
+                    tx,
+                    sessionIds
+                  )
+                }
+          const result = tx
+            .update(agentsTable)
+            .set({ deletedAt: archivedAt })
+            .where(and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt)))
+            .run()
+          pinService.purgeForEntityTx(tx, 'agent', id)
+          return {
+            rowsAffected: result.changes,
+            sessionImpact: {
+              sessionIds,
+              taskScheduleIds: archived.taskScheduleIds,
+              changeKind: archived.archivedIds.length > 0 ? ('membership' as const) : ('projection' as const),
+              deliveryResults: archived.deliveryResults
+            }
+          }
         }),
       defaultHandlersFor('Agent', id)
     )
@@ -829,6 +864,51 @@ export class AgentService {
     pinService.purgeForEntityTx(tx, 'agent', id)
     const result = tx.delete(agentsTable).where(eq(agentsTable.id, id)).run()
     return { rowsAffected: result.changes }
+  }
+
+  /** Restore an archived agent, together with the sessions archived with it. */
+  restoreAgent(id: string): AgentEntity {
+    const { row, restoredSessionIds } = application.get('DbService').withWriteTx((tx) => {
+      const [archived] = tx
+        .select({ deletedAt: agentsTable.deletedAt })
+        .from(agentsTable)
+        .where(and(eq(agentsTable.id, id), isNotNull(agentsTable.deletedAt)))
+        .limit(1)
+        .all()
+      if (archived?.deletedAt == null) throw DataApiErrorFactory.notFound('Agent', id)
+
+      const [restored] = tx.update(agentsTable).set({ deletedAt: null }).where(eq(agentsTable.id, id)).returning().all()
+      return {
+        row: restored,
+        restoredSessionIds: agentSessionService.restoreArchivedWithAgentTx(tx, id, archived.deletedAt)
+      }
+    })
+    if (restoredSessionIds.length > 0) agentSessionService.notifyReadModelChange(restoredSessionIds, 'membership')
+
+    const database = application.get('DbService').getDb()
+    const modelName = row.model
+      ? (modelService.getNamesByUniqueIdsTx(database, [row.model]).get(row.model) ?? null)
+      : null
+    const agent = rowToAgent(
+      row,
+      modelName,
+      fetchMcpsForAgents(database, [id]).get(id) ?? [],
+      fetchKnowledgeBasesForAgents(database, [id]).get(id) ?? []
+    )
+    logger.info('Restored agent', { id })
+    return agent
+  }
+
+  purgeExpiredTx(tx: DbOrTx, cutoffMs: number, limit: number): string[] {
+    const rows = tx
+      .select({ id: agentsTable.id })
+      .from(agentsTable)
+      .where(and(isNotNull(agentsTable.deletedAt), lt(agentsTable.deletedAt, cutoffMs)))
+      .limit(limit)
+      .all()
+    const ids = rows.map((row) => row.id)
+    for (const id of ids) this.deleteAgentTx(tx, id)
+    return ids
   }
 
   agentExists(id: string): boolean {

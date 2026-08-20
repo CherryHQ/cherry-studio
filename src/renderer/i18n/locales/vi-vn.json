@@ -1702,6 +1702,7 @@
     "agent_one": "Đại lý",
     "agent_other": "Agent",
     "all": "Tất cả",
+    "archive": "Lưu trữ",
     "assistant": "Trợ lý",
     "assistant_one": "Trợ lý",
     "assistant_other": "Trợ lý",
@@ -1726,6 +1727,7 @@
     "delete": "Xóa",
     "delete_confirm": "Bạn có chắc chắn muốn xóa không?",
     "delete_failed": "Không xóa được",
+    "delete_permanently": "Xoá vĩnh viễn",
     "delete_success": "Đã xóa thành công",
     "description": "Mô tả",
     "detail": "Chi tiết",
@@ -2072,7 +2074,6 @@
       "no_match_title": "Không tìm thấy tệp phù hợp",
       "title": "Chưa có tệp nào"
     },
-    "empty_trash": "Xóa thùng rác",
     "error": {
       "delete_failed": "Không thể xóa tệp",
       "delete_partial_failed": "Một số tệp không thể bị xóa",
@@ -2090,7 +2091,6 @@
     "name": "Tên",
     "open": "Mở",
     "other": "Khác",
-    "permanent_delete": "Xóa vĩnh viễn",
     "permanent_delete_confirm": {
       "description": "Thao tác này sẽ xóa vĩnh viễn {{count}} tệp. Không thể hoàn tác hành động này.",
       "title": "Xóa vĩnh viễn tệp?"
@@ -2100,7 +2100,6 @@
     },
     "remove_from_library": "Xóa khỏi thư viện",
     "rename": "Đổi tên",
-    "restore": "Khôi phục",
     "select_all": "Chọn các tệp hiển thị",
     "select_all_short": "Chọn Tất Cả",
     "select_file": "Chọn {{name}}",
@@ -2108,7 +2107,6 @@
     "size": "Kích thước",
     "text": "Văn bản",
     "title": "Tập tin",
-    "trash": "Rác",
     "type": "Kiểu",
     "upload": "Tải lên tệp",
     "video": "Video"
@@ -5377,6 +5375,60 @@
         "token_placeholder": "Vui lòng nhập mã thông báo Siyuan Note"
       },
       "title": "Cài đặt dữ liệu",
+      "trash": {
+        "days_remaining_expired": "Đã hết hạn",
+        "days_remaining_lt_one": "Còn chưa đến 1 ngày",
+        "days_remaining_one": "Còn {{count}} ngày",
+        "days_remaining_other": "Còn {{count}} ngày",
+        "deleted_at": "Đã xoá lúc {{time}}",
+        "domain": {
+          "agents": "Agent",
+          "assistants": "Trợ lý",
+          "files": "Tệp",
+          "paintings": "Hình ảnh",
+          "sessions": "Phiên",
+          "topics": "Chủ đề"
+        },
+        "empty": {
+          "section": "Không có mục đã xoá"
+        },
+        "empty_trash": {
+          "button": "Dọn thùng rác",
+          "confirm_content": "Tất cả các mục trong mọi danh mục sẽ bị xoá vĩnh viễn ngay lập tức. Không thể hoàn tác.",
+          "confirm_title": "Dọn thùng rác?",
+          "error": "Dọn thùng rác thất bại",
+          "success": "Đã dọn thùng rác"
+        },
+        "error": {
+          "load": "Tải thất bại"
+        },
+        "load_more": "Tải thêm",
+        "page_next": "Tiếp",
+        "page_prev": "Trước",
+        "permanent_delete": {
+          "confirm_content": "“{{name}}” sẽ bị xoá vĩnh viễn. Không thể hoàn tác.",
+          "confirm_title": "Xoá vĩnh viễn?",
+          "error": "Xoá thất bại",
+          "label": "Xoá vĩnh viễn",
+          "success": "Đã xoá vĩnh viễn"
+        },
+        "restore": {
+          "error": "Khôi phục thất bại",
+          "label": "Khôi phục",
+          "success": "Đã khôi phục"
+        },
+        "retention": {
+          "days_one": "{{count}} ngày",
+          "days_other": "{{count}} ngày",
+          "forever": "Vĩnh viễn",
+          "label": "Giữ các mục đã xoá trong"
+        },
+        "retention_hint_never": "Các mục đã xoá được giữ lại cho đến khi bạn xoá vĩnh viễn",
+        "retention_hint_one": "Các mục sẽ bị xoá vĩnh viễn sau {{count}} ngày",
+        "retention_hint_other": "Các mục sẽ bị xoá vĩnh viễn sau {{count}} ngày",
+        "title": "Đã xoá gần đây",
+        "unnamed": "Không có tiêu đề"
+      },
       "v1_remigration": {
         "acknowledgement": "Tôi hiểu rủi ro và muốn tiếp tục.",
         "back": "Quay lại",

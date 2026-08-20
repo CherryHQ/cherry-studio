@@ -397,7 +397,9 @@ vi.mock('react-i18next', () => ({
         if (key === 'chat.topics.export.obsidian') return 'Export to Obsidian'
         if (key === 'chat.topics.export.joplin') return 'Export to Joplin'
         if (key === 'chat.topics.export.siyuan') return 'Export to Siyuan'
+        if (key === 'common.archive') return 'Archive'
         if (key === 'common.delete') return 'Delete'
+        if (key === 'common.delete_permanently') return 'Delete Permanently'
         if (key === 'common.delete_success') return 'Deleted'
         if (key === 'common.delete_failed') return 'Delete failed'
         if (key === 'common.more') return 'More'
@@ -1529,9 +1531,10 @@ describe('Topics', () => {
       'ExportExport as ImageExport as MarkdownExport as Markdown with ReasoningExport as WordExport to NotionExport to YuqueExport to ObsidianExport to JoplinExport to Siyuan',
       'CopyCopy as ImageCopy as MarkdownCopy as Plain Text',
       '',
-      'Delete'
+      'Archive',
+      'Delete Permanently'
     ])
-    expect(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' })).toHaveAttribute(
+    expect(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete Permanently' })).toHaveAttribute(
       'variant',
       'destructive'
     )
@@ -1721,7 +1724,7 @@ describe('Topics', () => {
     fireEvent.contextMenu(getByText('Alpha topic'))
     const alphaMenu = getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
-    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete Permanently' }))
 
     // Deletion is delegated to ConfirmActionPopup, which gates the action behind its own confirm
     // dialog (that "don't run until confirmed" gate is covered by ConfirmActionPopup's unit test).
@@ -1731,7 +1734,7 @@ describe('Topics', () => {
         expect.objectContaining({ title: 'Delete Conversations', action: expect.any(Function) })
       )
     )
-    await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a'))
+    await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a', { permanent: true }))
   })
 
   it('requires a second inline click before deleting a topic', async () => {

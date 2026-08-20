@@ -6,6 +6,7 @@ import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import type {
+  TopicDeleteMode,
   TopicExportMenuOptions,
   TopicMoveAssistantTarget
 } from '@renderer/components/chat/actions/topicContextMenuActions'
@@ -529,7 +530,11 @@ export function Topics({
     [patchTopic]
   )
 
-  const removeTopic = useCallback((topic: Topic) => deleteTopicById(topic.id), [deleteTopicById])
+  const removeTopic = useCallback(
+    (topic: Topic, permanent?: boolean) =>
+      permanent ? deleteTopicById(topic.id, { permanent: true }) : deleteTopicById(topic.id),
+    [deleteTopicById]
+  )
 
   const handleRenameTopic = useCallback(
     (topicId: string, name: string) => {
@@ -584,7 +589,7 @@ export function Topics({
   )
 
   const handleDeleteTopicFromMenu = useCallback(
-    async (topic: Topic) => {
+    async (topic: Topic, mode: TopicDeleteMode = 'archive') => {
       const assistantTopicsBeforeDelete = topicsRef.current.filter(
         (candidate) => candidate.assistantId === topic.assistantId
       )
@@ -593,7 +598,7 @@ export function Topics({
         findLatestActive(topicsRef.current.filter((candidate) => candidate.id !== topic.id))
 
       try {
-        await removeTopic(topic)
+        await removeTopic(topic, mode === 'permanent')
       } catch (err) {
         logger.error('Failed to delete topic', { topicId: topic.id, err })
         const message = err instanceof Error ? err.message : t('chat.topics.manage.delete.error')
@@ -1572,7 +1577,7 @@ interface TopicListBodyProps {
   onClearMessages: (topic: Topic) => void
   onConfirmDelete: (topic: Topic, event?: MouseEvent) => Promise<void>
   onDeleteClick: (topicId: string, event: MouseEvent) => void
-  onDeleteFromMenu: (topic: Topic) => Promise<void>
+  onDeleteFromMenu: (topic: Topic, mode?: TopicDeleteMode) => Promise<void>
   onMoveToAssistant: (topic: Topic, assistantId: string) => void | Promise<void>
   onOpenInNewTab?: (topic: Topic) => void
   onOpenInNewWindow?: (topic: Topic) => void

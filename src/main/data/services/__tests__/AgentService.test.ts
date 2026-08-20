@@ -17,6 +17,7 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 // data-service registry, which createAgent resolves lazily for skill validation/join.
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { agentService } from '@data/services/AgentService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { mcpServerService } from '@data/services/McpServerService'
@@ -1052,12 +1053,41 @@ describe('AgentService', () => {
     it('hard-deletes an agent and removes the row', async () => {
       const { id } = await insertAgent({ id: 'agent_regular_test_001' })
 
-      const result = agentService.deleteAgent(id)
+      const result = agentService.deleteAgent(id, { permanent: true })
 
       expect(result.deleted).toBe(true)
       expect(result.deletedSessionIds).toBeUndefined()
       const rows = await dbh.db.select().from(agentTable)
       expect(rows.find((r) => r.id === id)).toBeUndefined()
+    })
+
+    it('archives by default and restores exactly the sessions archived with the agent', async () => {
+      const { id } = await insertAgent({ id: 'agent_archive_restore_001' })
+      await dbh.db.insert(agentWorkspaceTable).values([
+        { id: 'workspace-archive-1', name: 'W1', path: '/tmp/agent-archive-1', orderKey: 'a0' },
+        { id: 'workspace-archive-2', name: 'W2', path: '/tmp/agent-archive-2', orderKey: 'a1' }
+      ])
+      await dbh.db.insert(agentSessionTable).values([
+        { id: 'session-with-agent', agentId: id, name: '', workspaceId: 'workspace-archive-1', orderKey: 'a0' },
+        { id: 'session-trashed-earlier', agentId: id, name: '', workspaceId: 'workspace-archive-2', orderKey: 'a1' }
+      ])
+      // Trashed on its own a day earlier — must stay in the trash after the agent comes back.
+      agentSessionService.deleteByIds(['session-trashed-earlier'])
+      await dbh.db
+        .update(agentSessionTable)
+        .set({ deletedAt: Date.now() - 86_400_000 })
+        .where(eq(agentSessionTable.id, 'session-trashed-earlier'))
+
+      expect(agentService.deleteAgent(id, { deleteSessions: true })).toMatchObject({ deleted: true })
+      expect(await dbh.db.select().from(agentTable).where(eq(agentTable.id, id))).toHaveLength(1)
+
+      agentService.restoreAgent(id)
+
+      const sessions = await dbh.db
+        .select({ id: agentSessionTable.id, deletedAt: agentSessionTable.deletedAt })
+        .from(agentSessionTable)
+      expect(sessions.find((s) => s.id === 'session-with-agent')?.deletedAt).toBeNull()
+      expect(sessions.find((s) => s.id === 'session-trashed-earlier')?.deletedAt).not.toBeNull()
     })
 
     it('purges agent pins on delete (pin table has no FK)', async () => {
@@ -1078,7 +1108,7 @@ describe('AgentService', () => {
       await insertKnowledgeBase('kb_agent_delete')
       const { id } = await insertAgent({ id: 'agent_with_kb_001', knowledgeBaseIds: ['kb_agent_delete'] })
 
-      agentService.deleteAgent(id)
+      agentService.deleteAgent(id, { permanent: true })
 
       const rows = await dbh.db.select().from(agentKnowledgeBaseTable).where(eq(agentKnowledgeBaseTable.agentId, id))
       expect(rows).toHaveLength(0)
@@ -1109,7 +1139,7 @@ describe('AgentService', () => {
       ])
       notifyDataApiDataChangeMock.mockClear()
 
-      const result = agentService.deleteAgent(id, { deleteSessions: true })
+      const result = agentService.deleteAgent(id, { deleteSessions: true, permanent: true })
 
       expect(result.deleted).toBe(true)
       expect(result.deletedSessionIds).toEqual(['session-delete-with-agent'])
@@ -1132,7 +1162,7 @@ describe('AgentService', () => {
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(2)
     })
 
-    it('clears a task binding before default agent deletion detaches its session', async () => {
+    it('clears a task binding before permanent agent deletion detaches its session', async () => {
       const { id } = await insertAgent({ id: 'agent_default_detach_001' })
       const task = jobScheduleService.create({
         type: 'agent.task',
@@ -1158,7 +1188,7 @@ describe('AgentService', () => {
       })
       notifyDataApiDataChangeMock.mockClear()
 
-      expect(agentService.deleteAgent(id)).toMatchObject({ deleted: true })
+      expect(agentService.deleteAgent(id, { permanent: true })).toMatchObject({ deleted: true })
 
       const [session] = await dbh.db
         .select({ agentId: agentSessionTable.agentId, taskScheduleId: agentSessionTable.taskScheduleId })
@@ -1203,7 +1233,9 @@ describe('AgentService', () => {
       })
 
       try {
-        expect(() => agentService.deleteAgent(id, { deleteSessions: true })).toThrow('agent delete failed')
+        expect(() => agentService.deleteAgent(id, { deleteSessions: true, permanent: true })).toThrow(
+          'agent delete failed'
+        )
       } finally {
         deleteAgentSpy.mockRestore()
       }

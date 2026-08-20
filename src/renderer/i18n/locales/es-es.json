@@ -1702,6 +1702,7 @@
     "agent_one": "Agente",
     "agent_other": "Agentes",
     "all": "Todo",
+    "archive": "Archivar",
     "assistant": "Agente inteligente",
     "assistant_one": "Asistente",
     "assistant_other": "Asistentes",
@@ -1726,6 +1727,7 @@
     "delete": "Eliminar",
     "delete_confirm": "¿Está seguro de que desea eliminarlo?",
     "delete_failed": "Error al eliminar",
+    "delete_permanently": "Eliminar permanentemente",
     "delete_success": "Eliminación exitosa",
     "description": "Descripción",
     "detail": "Detalles",
@@ -2072,7 +2074,6 @@
       "no_match_title": "No se encontraron archivos coincidentes",
       "title": "Sin archivos todavía"
     },
-    "empty_trash": "Vaciar papelera",
     "error": {
       "delete_failed": "Error al eliminar archivos",
       "delete_partial_failed": "Algunos archivos no pudieron ser eliminados",
@@ -2090,7 +2091,6 @@
     "name": "Nombre del archivo",
     "open": "Abrir",
     "other": "Otro",
-    "permanent_delete": "Eliminar permanentemente",
     "permanent_delete_confirm": {
       "description": "Esto eliminará permanentemente {{count}} archivo(s). Esta acción no se puede deshacer.",
       "title": "¿Eliminar archivos permanentemente?"
@@ -2100,7 +2100,6 @@
     },
     "remove_from_library": "Eliminar de la biblioteca",
     "rename": "Renombrar",
-    "restore": "Restaurar",
     "select_all": "Seleccionar archivos visibles",
     "select_all_short": "Seleccionar todo",
     "select_file": "Seleccionar {{name}}",
@@ -2108,7 +2107,6 @@
     "size": "Tamaño",
     "text": "Texto",
     "title": "Archivo",
-    "trash": "Basura",
     "type": "Tipo",
     "upload": "Subir archivos",
     "video": "Video"
@@ -5377,6 +5375,60 @@
         "token_placeholder": "Por favor ingrese el token de Siyuan Notas"
       },
       "title": "Configuración de datos",
+      "trash": {
+        "days_remaining_expired": "Caducado",
+        "days_remaining_lt_one": "Queda menos de 1 día",
+        "days_remaining_one": "Queda {{count}} día",
+        "days_remaining_other": "Quedan {{count}} días",
+        "deleted_at": "Eliminado el {{time}}",
+        "domain": {
+          "agents": "Agentes",
+          "assistants": "Asistentes",
+          "files": "Archivos",
+          "paintings": "Imágenes",
+          "sessions": "Sesiones",
+          "topics": "Temas"
+        },
+        "empty": {
+          "section": "No hay elementos eliminados"
+        },
+        "empty_trash": {
+          "button": "Vaciar papelera",
+          "confirm_content": "Todos los elementos de todas las categorías se eliminarán permanentemente de inmediato. Esta acción no se puede deshacer.",
+          "confirm_title": "¿Vaciar la papelera?",
+          "error": "No se pudo vaciar la papelera",
+          "success": "Papelera vaciada"
+        },
+        "error": {
+          "load": "Error al cargar"
+        },
+        "load_more": "Cargar más",
+        "page_next": "Siguiente",
+        "page_prev": "Anterior",
+        "permanent_delete": {
+          "confirm_content": "«{{name}}» se eliminará permanentemente. Esta acción no se puede deshacer.",
+          "confirm_title": "¿Eliminar permanentemente?",
+          "error": "Error al eliminar",
+          "label": "Eliminar permanentemente",
+          "success": "Eliminado permanentemente"
+        },
+        "restore": {
+          "error": "Error al restaurar",
+          "label": "Restaurar",
+          "success": "Restaurado"
+        },
+        "retention": {
+          "days_one": "{{count}} día",
+          "days_other": "{{count}} días",
+          "forever": "Para siempre",
+          "label": "Conservar los elementos eliminados durante"
+        },
+        "retention_hint_never": "Los elementos eliminados se conservan hasta que los elimines permanentemente",
+        "retention_hint_one": "Los elementos se eliminan permanentemente después de {{count}} día",
+        "retention_hint_other": "Los elementos se eliminan permanentemente después de {{count}} días",
+        "title": "Eliminados recientemente",
+        "unnamed": "Sin título"
+      },
       "v1_remigration": {
         "acknowledgement": "Entiendo el riesgo y quiero continuar.",
         "back": "Atrás",

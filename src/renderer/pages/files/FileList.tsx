@@ -1,15 +1,6 @@
 import { Button, Checkbox, type CheckedState } from '@cherrystudio/ui'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import {
-  ChevronDown,
-  ChevronsUpDown,
-  ChevronUp,
-  FolderOpen,
-  Pencil,
-  RotateCcw,
-  SquareArrowOutUpRight,
-  Trash2
-} from 'lucide-react'
+import { ChevronDown, ChevronsUpDown, ChevronUp, FolderOpen, Pencil, SquareArrowOutUpRight, Trash2 } from 'lucide-react'
 import { memo, type RefObject, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -111,10 +102,8 @@ export const FileList = memo(function FileList({
   onSelect,
   onOpen,
   onDelete,
-  onRestore,
   onRename,
   onShowInFolder,
-  isTrash,
   menuActions,
   scrollRef,
   renamingId,
@@ -126,10 +115,8 @@ export const FileList = memo(function FileList({
   onSelect: (id: string) => void
   onOpen: (file: FileItem) => void
   onDelete: (id: string) => void
-  onRestore: (id: string) => void
   onRename: (id: string) => void
   onShowInFolder: (id: string) => void
-  isTrash: boolean
   menuActions: FileContextMenuActions
   scrollRef: RefObject<HTMLDivElement | null>
   renamingId: string | null
@@ -161,19 +148,14 @@ export const FileList = memo(function FileList({
         const Icon = typeIcons[file.type]
         const isRenaming = renamingId === file.id
         const canUseFileActions = !file.isMissing
-        const canRestore = isTrash && canUseFileActions
-        const canOpen = !isTrash && canUseFileActions
-        const canRename = !isTrash && canUseFileActions
-        const canShowInFolder = !isTrash && canUseFileActions
-        const deleteLabel = isTrash
-          ? t('files.permanent_delete')
-          : file.origin === 'external'
-            ? t('files.remove_from_library')
-            : t('files.delete.label')
+        const canOpen = canUseFileActions
+        const canRename = canUseFileActions
+        const canShowInFolder = canUseFileActions
+        const deleteLabel = file.origin === 'external' ? t('files.remove_from_library') : t('files.delete.label')
         const renderActionPlaceholder = (key: string) => <div key={key} className="size-6" aria-hidden="true" />
 
         return (
-          <FileContextMenu key={file.id} file={file} isTrash={isTrash} actions={menuActions}>
+          <FileContextMenu key={file.id} file={file} actions={menuActions}>
             <div
               onClick={() => {
                 if (!isRenaming && !file.isMissing) onOpen(file)
@@ -253,20 +235,7 @@ export const FileList = memo(function FileList({
                 ) : (
                   renderActionPlaceholder('rename')
                 )}
-                {canRestore ? (
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={t('files.restore')}
-                    title={t('files.restore')}
-                    className="!text-muted-foreground hover:!text-foreground size-6 hover:bg-transparent"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onRestore(file.id)
-                    }}>
-                    <RotateCcw size={13} />
-                  </Button>
-                ) : canShowInFolder ? (
+                {canShowInFolder ? (
                   <Button
                     variant="ghost"
                     size="icon-sm"

@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import type {
   TopicActionContext,
+  TopicDeleteMode,
   TopicExportMenuOptions
 } from '@renderer/components/chat/actions/topicContextMenuActions'
 import { renderAssistantEntityIcon } from '@renderer/components/chat/resourceList/base'
@@ -184,11 +185,11 @@ const AssistantHistoryRecords = ({
   )
 
   const handleDeleteTopicFromMenu = useCallback(
-    async (topic: RendererTopic) => {
+    async (topic: RendererTopic, mode: TopicDeleteMode = 'archive') => {
       if (topic.pinned) return
 
       try {
-        await deleteTopicById(topic.id)
+        await deleteTopicById(topic.id, { permanent: mode === 'permanent' })
       } catch (err) {
         logger.error('Failed to delete topic from history records', { topicId: topic.id, err })
         const message = err instanceof Error ? err.message : t('chat.topics.manage.delete.error')
@@ -464,7 +465,7 @@ const AssistantHistoryRecords = ({
       loadingDescription: t('history.records.loading.description'),
       pinLabel: t('chat.topics.pin'),
       unpinLabel: t('chat.topics.unpin'),
-      deleteLabel: t('common.delete'),
+      deleteLabel: t('common.archive'),
       renameDialogTitle: t('chat.topics.edit.title')
     }
   }

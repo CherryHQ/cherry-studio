@@ -23,6 +23,7 @@ import { WindowManager } from '@main/core/window/WindowManager'
 import { ApiGatewayService } from '@main/features/apiGateway/ApiGatewayService'
 import { FileProcessingService, TesseractRuntimeService } from '@main/features/fileProcessing'
 import { KnowledgeService, KnowledgeVectorStoreService } from '@main/features/knowledge'
+import { TrashService } from '@main/features/trash'
 import { IpcApiService } from '@main/ipc/IpcApiService'
 import { AnalyticsService } from '@main/services/AnalyticsService'
 import { AppMenuService } from '@main/services/AppMenuService'
@@ -147,7 +148,8 @@ export const services = {
   AutoBackupService,
   ProviderRegistryUpdaterService,
   SchedulerService,
-  JobManager
+  JobManager,
+  TrashService
 } as const
 
 /** Auto-derived service name to instance type mapping */

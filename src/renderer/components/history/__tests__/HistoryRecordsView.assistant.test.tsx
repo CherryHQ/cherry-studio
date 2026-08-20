@@ -276,11 +276,13 @@ vi.mock('react-i18next', () => ({
         'chat.topics.pin': 'Pin Conversation',
         'chat.topics.unpin': 'Unpin Conversation',
         'common.all': 'All',
+        'common.archive': 'Archive',
         'common.assistant': 'Assistant',
         'common.back': 'Back',
         'common.cancel': 'Cancel',
         'common.close': 'Close',
         'common.delete': 'Delete',
+        'common.delete_permanently': 'Delete Permanently',
         'common.more': 'More',
         'common.name': 'Name',
         'common.required_field': 'Required field',
@@ -1017,7 +1019,8 @@ describe('HistoryRecordsView assistant mode', () => {
       'ExportExport as ImageExport as MarkdownExport as Markdown with ReasoningExport as WordExport to NotionExport to YuqueExport to ObsidianExport to JoplinExport to Siyuan',
       'CopyCopy as ImageCopy as MarkdownCopy as Plain Text',
       '',
-      'Delete'
+      'Archive',
+      'Delete Permanently'
     ])
   })
 
@@ -1072,7 +1075,7 @@ describe('HistoryRecordsView assistant mode', () => {
     expect(checkbox).toHaveAttribute('aria-checked', 'true')
   })
 
-  it('deletes a topic from the history row action column without selecting the row', async () => {
+  it('archives a topic from the history row action column without selecting the row', async () => {
     hookMocks.useTopics.mockReturnValue({
       topics: [createTopic(), createTopic({ id: 'topic-beta', name: 'Beta topic' })],
       error: undefined,
@@ -1086,17 +1089,13 @@ describe('HistoryRecordsView assistant mode', () => {
 
     const alphaRow = screen.getByText('Alpha topic').closest('[role="row"]')
     expect(alphaRow).not.toBeNull()
-    fireEvent.click(within(alphaRow as HTMLElement).getByTestId('history-delete-button'))
-
-    expect(screen.getByRole('dialog')).toHaveTextContent('Delete Conversations')
-    expect(hookMocks.deleteTopic).not.toHaveBeenCalled()
-
+    // The row button archives (recoverable), so it needs no confirmation step.
     await act(async () => {
-      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+      fireEvent.click(within(alphaRow as HTMLElement).getByTestId('history-delete-button'))
       await flushAnimationFrame()
     })
 
-    expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha')
+    expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha', { permanent: false })
     expect(onRecordSelect).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
   })
@@ -1214,7 +1213,7 @@ describe('HistoryRecordsView assistant mode', () => {
 
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
-    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete Permanently' }))
     await act(async () => {
       await flushCommandMenuAction()
     })
@@ -1225,7 +1224,7 @@ describe('HistoryRecordsView assistant mode', () => {
       await flushAnimationFrame()
     })
 
-    expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha')
+    expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha', { permanent: true })
   })
 
   it('switches to the adjacent topic after deleting the active topic from the history row context menu', async () => {
@@ -1249,7 +1248,7 @@ describe('HistoryRecordsView assistant mode', () => {
 
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
-    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete Permanently' }))
     await act(async () => {
       await flushCommandMenuAction()
     })
@@ -1258,7 +1257,7 @@ describe('HistoryRecordsView assistant mode', () => {
       await flushAnimationFrame()
     })
 
-    expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha')
+    expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha', { permanent: true })
     expect(onRecordSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-beta', name: 'Beta topic' }))
   })
 
@@ -1299,7 +1298,7 @@ describe('HistoryRecordsView assistant mode', () => {
 
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
-    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete Permanently' }))
     await act(async () => {
       await flushCommandMenuAction()
     })
@@ -1308,7 +1307,7 @@ describe('HistoryRecordsView assistant mode', () => {
       await flushAnimationFrame()
     })
 
-    expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha')
+    expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha', { permanent: true })
     expect(onRecordSelect).not.toHaveBeenCalled()
   })
 
@@ -1334,7 +1333,7 @@ describe('HistoryRecordsView assistant mode', () => {
 
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
-    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete Permanently' }))
     await act(async () => {
       await flushCommandMenuAction()
     })
@@ -1343,7 +1342,7 @@ describe('HistoryRecordsView assistant mode', () => {
       await flushAnimationFrame()
     })
 
-    expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha')
+    expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha', { permanent: true })
     expect(onRecordSelect).not.toHaveBeenCalled()
   })
 })
@@ -1356,6 +1355,7 @@ describe('HistoryRecordsView locale resources', () => {
       'common.back',
       'common.cancel',
       'common.delete',
+      'common.delete_permanently',
       'common.required_field',
       'common.save'
     ]

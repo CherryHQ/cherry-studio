@@ -1702,6 +1702,7 @@
     "agent_one": "智能体",
     "agent_other": "智能体",
     "all": "全部",
+    "archive": "归档",
     "assistant": "助手",
     "assistant_one": "助手",
     "assistant_other": "助手",
@@ -1726,6 +1727,7 @@
     "delete": "删除",
     "delete_confirm": "确定要删除吗？",
     "delete_failed": "删除失败",
+    "delete_permanently": "永久删除",
     "delete_success": "删除成功",
     "description": "描述",
     "detail": "详情",
@@ -2072,7 +2074,6 @@
       "no_match_title": "没有找到匹配的文件",
       "title": "暂无文件"
     },
-    "empty_trash": "清空回收站",
     "error": {
       "delete_failed": "删除文件失败",
       "delete_partial_failed": "部分文件删除失败",
@@ -2090,7 +2091,6 @@
     "name": "文件名",
     "open": "打开",
     "other": "其他",
-    "permanent_delete": "永久删除",
     "permanent_delete_confirm": {
       "description": "将永久删除 {{count}} 个文件，此操作无法撤销。",
       "title": "永久删除文件？"
@@ -2100,7 +2100,6 @@
     },
     "remove_from_library": "从库中移除",
     "rename": "重命名",
-    "restore": "恢复",
     "select_all": "全选当前列表",
     "select_all_short": "全选",
     "select_file": "选择 {{name}}",
@@ -2108,7 +2107,6 @@
     "size": "大小",
     "text": "文本",
     "title": "文件",
-    "trash": "回收站",
     "type": "类型",
     "upload": "上传文件",
     "video": "视频"
@@ -5377,6 +5375,60 @@
         "token_placeholder": "请输入思源笔记令牌"
       },
       "title": "数据",
+      "trash": {
+        "days_remaining_expired": "已过期",
+        "days_remaining_lt_one": "剩余不足 1 天",
+        "days_remaining_one": "剩余 {{count}} 天",
+        "days_remaining_other": "剩余 {{count}} 天",
+        "deleted_at": "删除于 {{time}}",
+        "domain": {
+          "agents": "Agent",
+          "assistants": "助手",
+          "files": "文件",
+          "paintings": "绘画",
+          "sessions": "会话",
+          "topics": "话题"
+        },
+        "empty": {
+          "section": "暂无已删除的项目"
+        },
+        "empty_trash": {
+          "button": "清空回收站",
+          "confirm_content": "回收站中所有分类的全部项目将被立即彻底删除，且无法恢复。",
+          "confirm_title": "确定要清空回收站吗？",
+          "error": "清空回收站失败",
+          "success": "回收站已清空"
+        },
+        "error": {
+          "load": "加载失败"
+        },
+        "load_more": "加载更多",
+        "page_next": "下一页",
+        "page_prev": "上一页",
+        "permanent_delete": {
+          "confirm_content": "“{{name}}”将被彻底删除，且无法恢复。",
+          "confirm_title": "确定要彻底删除吗？",
+          "error": "彻底删除失败",
+          "label": "彻底删除",
+          "success": "已彻底删除"
+        },
+        "restore": {
+          "error": "恢复失败",
+          "label": "恢复",
+          "success": "已恢复"
+        },
+        "retention": {
+          "days_one": "{{count}} 天",
+          "days_other": "{{count}} 天",
+          "forever": "永久保留",
+          "label": "已删除项目保留"
+        },
+        "retention_hint_never": "已删除的项目将一直保留，直到你手动彻底删除",
+        "retention_hint_one": "已删除的项目将在 {{count}} 天后被自动彻底删除",
+        "retention_hint_other": "已删除的项目将在 {{count}} 天后被自动彻底删除",
+        "title": "最近删除",
+        "unnamed": "未命名"
+      },
       "v1_remigration": {
         "acknowledgement": "我已了解风险并愿意继续。",
         "back": "上一步",

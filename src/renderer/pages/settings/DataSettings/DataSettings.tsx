@@ -13,7 +13,7 @@ import {
   settingsSubmenuScrollClassName,
   settingsSubmenuSectionTitleClassName
 } from '@renderer/pages/settings/settingsStyles'
-import { BookOpen, CloudUpload, FileText, FolderCog, FolderInput, Import, Server } from 'lucide-react'
+import { BookOpen, CloudUpload, FileText, FolderCog, FolderInput, Import, Server, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -28,6 +28,7 @@ import NutstoreSettings from './NutstoreSettings'
 import ObsidianSettings from './ObsidianSettings'
 import S3Settings from './S3Settings'
 import SiyuanSettings from './SiyuanSettings'
+import TrashSettings from './TrashSettings/TrashSettings'
 import WebDavSettings from './WebDavSettings'
 import YuqueSettings from './YuqueSettings'
 
@@ -38,6 +39,7 @@ const DataSettings: FC = () => {
 
   const menuItems = [
     { key: 'data', title: t('settings.data.data.title'), icon: <FolderCog size={16} /> },
+    { key: 'trash', title: t('settings.data.trash.title'), icon: <Trash2 size={16} /> },
     { key: 'divider_1', isDivider: true, text: t('settings.data.divider.cloud_storage') },
     { key: 'local_backup', title: t('settings.data.local.title'), icon: <FolderCog size={16} /> },
     { key: 'webdav', title: t('settings.data.webdav.title'), icon: <CloudUpload size={16} /> },
@@ -98,6 +100,7 @@ const DataSettings: FC = () => {
       </div>
       <SettingsContentColumn theme={theme}>
         {menu === 'data' && <BasicDataSettings />}
+        {menu === 'trash' && <TrashSettings />}
         {menu === 'webdav' && <WebDavSettings />}
         {menu === 'nutstore' && <NutstoreSettings />}
         {menu === 's3' && <S3Settings />}

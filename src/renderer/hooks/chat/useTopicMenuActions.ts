@@ -3,6 +3,7 @@ import {
   executeTopicMenuAction,
   resolveTopicMenuActions,
   type TopicActionContext,
+  type TopicDeleteMode,
   type TopicExportMenuOptions,
   type TopicMoveAssistantTarget
 } from '@renderer/components/chat/actions/topicContextMenuActions'
@@ -18,6 +19,7 @@ import type { TFunction } from 'i18next'
 import { useCallback, useMemo } from 'react'
 
 type TopicMenuHandler = (topic: Topic) => void | Promise<void>
+type TopicDeleteHandler = (topic: Topic, mode: TopicDeleteMode) => void | Promise<void>
 type TopicMoveToAssistantHandler = (topic: Topic, assistantId: string) => void | Promise<void>
 
 export interface TopicMenuActionOptions {
@@ -28,7 +30,7 @@ export interface TopicMenuActionOptions {
   onAutoRename: TopicMenuHandler
   onClearMessages: TopicMenuHandler
   onCopyImage?: TopicMenuHandler
-  onDelete: TopicMenuHandler
+  onDelete: TopicDeleteHandler
   onExportImage?: TopicMenuHandler
   assistantMoveTargets?: readonly TopicMoveAssistantTarget[]
   onMoveToAssistant?: TopicMoveToAssistantHandler

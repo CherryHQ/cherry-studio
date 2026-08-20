@@ -58,7 +58,9 @@ export const ListTopicsQuerySchema = z.strictObject({
   /** Page size; defaults to 50 in the service. */
   limit: z.coerce.number().int().positive().max(200).optional(),
   /** Substring filter on topic name (case-insensitive LIKE). */
-  q: z.string().optional()
+  q: z.string().optional(),
+  /** `true` lists only archived topics; omitted/false lists active topics. */
+  inTrash: z.boolean().optional()
 })
 export type ListTopicsQuery = z.infer<typeof ListTopicsQuerySchema>
 
@@ -137,7 +139,7 @@ export interface ReusableTopicPlaceholderResponse {
   created: boolean
 }
 
-const DeleteTopicsIdsQueryValueSchema = z
+const TopicIdsQueryValueSchema = z
   .string()
   .transform((value) =>
     value
@@ -148,9 +150,26 @@ const DeleteTopicsIdsQueryValueSchema = z
   .pipe(z.array(z.string().min(1)).min(1))
 
 export const DeleteTopicsQuerySchema = z.strictObject({
-  ids: DeleteTopicsIdsQueryValueSchema
+  ids: TopicIdsQueryValueSchema,
+  /** `true` permanently deletes instead of archiving to the trash. */
+  permanent: z.boolean().optional()
 })
 export type DeleteTopicsQuery = z.input<typeof DeleteTopicsQuerySchema>
+
+export const DeleteTopicQuerySchema = z.strictObject({
+  /** `true` permanently deletes instead of archiving to the trash. */
+  permanent: z.boolean().optional()
+})
+export type DeleteTopicQuery = z.input<typeof DeleteTopicQuerySchema>
+
+export const RestoreTopicsQuerySchema = z.strictObject({
+  ids: TopicIdsQueryValueSchema
+})
+export type RestoreTopicsQuery = z.input<typeof RestoreTopicsQuerySchema>
+
+export interface RestoreTopicsResult {
+  restoredIds: string[]
+}
 
 // ============================================================================
 // API Schema Definitions
@@ -191,7 +210,8 @@ export type TopicSchemas = {
       response: Topic
     }
     /**
-     * Delete an explicit set of topics.
+     * Delete an explicit set of topics. Archives by default; permanently
+     * deletes when `permanent=true`.
      *
      * Used by multi-select table flows where the selection can span assistants.
      * This operation is all-or-nothing: if any supplied ID does not resolve to
@@ -200,6 +220,14 @@ export type TopicSchemas = {
     DELETE: {
       query: DeleteTopicsQuery
       response: DeleteTopicsResult
+    }
+  }
+
+  /** Bulk restore archived topics. Missing or active IDs are omitted. */
+  '/topics/restore': {
+    POST: {
+      query: RestoreTopicsQuery
+      response: RestoreTopicsResult
     }
   }
 
@@ -250,10 +278,19 @@ export type TopicSchemas = {
       body: UpdateTopicDto
       response: Topic
     }
-    /** Delete a topic and all its messages */
+    /** Archive a topic by default; permanently delete it when requested. */
     DELETE: {
       params: { id: string }
+      query?: DeleteTopicQuery
       response: void
+    }
+  }
+
+  /** Restore one archived topic. Pins and tags are not restored. */
+  '/topics/:id/restore': {
+    POST: {
+      params: { id: string }
+      response: Topic
     }
   }
 

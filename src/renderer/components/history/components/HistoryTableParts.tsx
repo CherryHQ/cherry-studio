@@ -315,7 +315,7 @@ export function HistoryActionsCell<TContext = unknown>({
   onTogglePin
 }: HistoryActionsCellProps<TContext>) {
   const [pendingDeleteAction, setPendingDeleteAction] = useState<ResolvedAction<TContext> | undefined>()
-  const deleteAction = useMemo(() => actions.find(isDeleteAction), [actions])
+  const deleteAction = useMemo(() => findRowDeleteAction(actions), [actions])
   const handleAction = useCallback(
     (action: ResolvedAction<TContext>) => {
       window.requestAnimationFrame(() => {
@@ -357,6 +357,19 @@ export function HistoryActionsCell<TContext = unknown>({
       />
     </>
   )
+}
+
+/**
+ * Row trash button: prefer the recoverable action when the domain has one
+ * (topics archive to the trash), so it never hard-deletes behind a plain
+ * "Delete" icon. Callers label the button to match.
+ */
+function findRowDeleteAction<TContext>(actions: readonly ResolvedAction<TContext>[]) {
+  return actions.find(isArchiveAction) ?? actions.find(isDeleteAction)
+}
+
+function isArchiveAction<TContext>(action: ResolvedAction<TContext>) {
+  return action.id.endsWith('.archive') || action.commandId?.endsWith('.archive')
 }
 
 function isDeleteAction<TContext>(action: ResolvedAction<TContext>) {

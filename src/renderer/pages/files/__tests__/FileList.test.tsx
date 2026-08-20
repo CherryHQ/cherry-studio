@@ -53,7 +53,6 @@ const file: FileItem = {
 const menuActions: FileContextMenuActions = {
   onRename: vi.fn(),
   onDelete: vi.fn(),
-  onRestore: vi.fn(),
   onShowInFolder: vi.fn()
 }
 
@@ -64,10 +63,8 @@ function fileListProps(renamingId: string | null): ComponentProps<typeof FileLis
     onSelect: vi.fn(),
     onOpen: vi.fn(),
     onDelete: vi.fn(),
-    onRestore: vi.fn(),
     onRename: vi.fn(),
     onShowInFolder: vi.fn(),
-    isTrash: false,
     menuActions,
     scrollRef: { current: document.createElement('div') },
     renamingId,

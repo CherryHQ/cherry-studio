@@ -88,7 +88,6 @@ const fileManager = {
   batchTrash: vi.fn(),
   batchRestore: vi.fn(),
   batchPermanentDelete: vi.fn(),
-  emptyTrash: vi.fn(),
   rename: vi.fn(),
   readChunk: vi.fn(),
   open: vi.fn(),
@@ -314,7 +313,6 @@ describe('fileHandlers', () => {
     fileManager.batchTrash.mockResolvedValue(batchResult)
     fileManager.batchRestore.mockResolvedValue(batchResult)
     fileManager.batchPermanentDelete.mockResolvedValue(batchResult)
-    fileManager.emptyTrash.mockResolvedValue(batchResult)
 
     await expect(fileHandlers['file.batch_get_dangling_states']({ ids }, ctx)).resolves.toEqual({
       [ids[0]]: 'present'
@@ -322,13 +320,11 @@ describe('fileHandlers', () => {
     await expect(fileHandlers['file.batch_trash']({ ids }, ctx)).resolves.toBe(batchResult)
     await expect(fileHandlers['file.batch_restore']({ ids }, ctx)).resolves.toBe(batchResult)
     await expect(fileHandlers['file.batch_permanent_delete']({ ids }, ctx)).resolves.toBe(batchResult)
-    await expect(fileHandlers['file.empty_trash'](undefined, ctx)).resolves.toBe(batchResult)
 
     expect(fileManager.batchGetDanglingStates).toHaveBeenCalledWith({ ids })
     expect(fileManager.batchTrash).toHaveBeenCalledWith(ids)
     expect(fileManager.batchRestore).toHaveBeenCalledWith(ids)
     expect(fileManager.batchPermanentDelete).toHaveBeenCalledWith(ids)
-    expect(fileManager.emptyTrash).toHaveBeenCalled()
   })
 
   it('delegates single-entry commands to FileManager', async () => {

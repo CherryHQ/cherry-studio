@@ -1702,6 +1702,7 @@
     "agent_one": "Agent",
     "agent_other": "Agenten",
     "all": "Alle",
+    "archive": "Archivieren",
     "assistant": "Assistent",
     "assistant_one": "Assistent",
     "assistant_other": "Assistenten",
@@ -1726,6 +1727,7 @@
     "delete": "Löschen",
     "delete_confirm": "Möchten Sie wirklich löschen?",
     "delete_failed": "Löschen fehlgeschlagen",
+    "delete_permanently": "Endgültig löschen",
     "delete_success": "Erfolgreich gelöscht",
     "description": "Beschreibung",
     "detail": "Details",
@@ -2072,7 +2074,6 @@
       "no_match_title": "Keine passenden Dateien gefunden",
       "title": "Noch keine Dateien"
     },
-    "empty_trash": "Papierkorb leeren",
     "error": {
       "delete_failed": "Fehler beim Löschen der Dateien",
       "delete_partial_failed": "Einige Dateien konnten nicht gelöscht werden",
@@ -2090,7 +2091,6 @@
     "name": "Dateiname",
     "open": "Öffnen",
     "other": "Andere",
-    "permanent_delete": "Dauerhaft löschen",
     "permanent_delete_confirm": {
       "description": "Dies wird {{count}} Datei(en) dauerhaft entfernen. Diese Aktion kann nicht rückgängig gemacht werden.",
       "title": "Dateien dauerhaft löschen?"
@@ -2100,7 +2100,6 @@
     },
     "remove_from_library": "Aus der Bibliothek entfernen",
     "rename": "Umbenennen",
-    "restore": "Wiederherstellen",
     "select_all": "Sichtbare Dateien auswählen",
     "select_all_short": "Alle auswählen",
     "select_file": "{{name}} auswählen",
@@ -2108,7 +2107,6 @@
     "size": "Größe",
     "text": "Text",
     "title": "Dateien",
-    "trash": "Müll",
     "type": "Typ",
     "upload": "Dateien hochladen",
     "video": "Video"
@@ -5377,6 +5375,60 @@
         "token_placeholder": "Bitte SiYuan-Token eingeben"
       },
       "title": "Dateneinstellungen",
+      "trash": {
+        "days_remaining_expired": "Abgelaufen",
+        "days_remaining_lt_one": "Weniger als 1 Tag übrig",
+        "days_remaining_one": "Noch {{count}} Tag",
+        "days_remaining_other": "Noch {{count}} Tage",
+        "deleted_at": "Gelöscht am {{time}}",
+        "domain": {
+          "agents": "Agenten",
+          "assistants": "Assistenten",
+          "files": "Dateien",
+          "paintings": "Bilder",
+          "sessions": "Sitzungen",
+          "topics": "Themen"
+        },
+        "empty": {
+          "section": "Keine gelöschten Elemente"
+        },
+        "empty_trash": {
+          "button": "Papierkorb leeren",
+          "confirm_content": "Alle Elemente in allen Kategorien werden sofort endgültig gelöscht. Dies kann nicht rückgängig gemacht werden.",
+          "confirm_title": "Papierkorb leeren?",
+          "error": "Papierkorb konnte nicht geleert werden",
+          "success": "Papierkorb geleert"
+        },
+        "error": {
+          "load": "Laden fehlgeschlagen"
+        },
+        "load_more": "Mehr laden",
+        "page_next": "Weiter",
+        "page_prev": "Zurück",
+        "permanent_delete": {
+          "confirm_content": "„{{name}}“ wird endgültig gelöscht. Dies kann nicht rückgängig gemacht werden.",
+          "confirm_title": "Endgültig löschen?",
+          "error": "Löschen fehlgeschlagen",
+          "label": "Endgültig löschen",
+          "success": "Endgültig gelöscht"
+        },
+        "restore": {
+          "error": "Wiederherstellen fehlgeschlagen",
+          "label": "Wiederherstellen",
+          "success": "Wiederhergestellt"
+        },
+        "retention": {
+          "days_one": "{{count}} Tag",
+          "days_other": "{{count}} Tage",
+          "forever": "Unbegrenzt",
+          "label": "Gelöschte Elemente aufbewahren für"
+        },
+        "retention_hint_never": "Gelöschte Elemente bleiben erhalten, bis du sie endgültig löschst",
+        "retention_hint_one": "Elemente werden nach {{count}} Tag endgültig gelöscht",
+        "retention_hint_other": "Elemente werden nach {{count}} Tagen endgültig gelöscht",
+        "title": "Zuletzt gelöscht",
+        "unnamed": "Unbenannt"
+      },
       "v1_remigration": {
         "acknowledgement": "Ich verstehe das Risiko und möchte fortfahren.",
         "back": "Zurück",

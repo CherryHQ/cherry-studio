@@ -55,6 +55,10 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
     }
   },
 
+  '/agent-sessions/:sessionId/restore': {
+    POST: async ({ params }) => agentSessionService.restore(params.sessionId)
+  },
+
   '/agent-sessions/:sessionId/workspace': {
     PUT: async ({ params, body }) => {
       const parsed = SetAgentSessionWorkspaceSchema.safeParse(body)

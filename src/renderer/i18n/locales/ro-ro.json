@@ -1702,6 +1702,7 @@
     "agent_one": "Agent",
     "agent_other": "Agenți",
     "all": "Tot",
+    "archive": "Arhivează",
     "assistant": "Asistent",
     "assistant_one": "Asistent",
     "assistant_other": "Asistenți",
@@ -1726,6 +1727,7 @@
     "delete": "Șterge",
     "delete_confirm": "Ești sigur că vrei să ștergi?",
     "delete_failed": "Nu s-a putut șterge",
+    "delete_permanently": "Șterge definitiv",
     "delete_success": "Șters cu succes",
     "description": "Descriere",
     "detail": "Detaliu",
@@ -2072,7 +2074,6 @@
       "no_match_title": "Nu au fost găsite fișiere potrivite",
       "title": "Niciun fișier încă"
     },
-    "empty_trash": "Coș de gunoi gol",
     "error": {
       "delete_failed": "Nu s-au putut șterge fișierele",
       "delete_partial_failed": "Anumite fișiere nu au putut fi șterse",
@@ -2090,7 +2091,6 @@
     "name": "Nume",
     "open": "Deschide",
     "other": "Altele",
-    "permanent_delete": "Șterge definitiv",
     "permanent_delete_confirm": {
       "description": "Aceasta va elimina permanent {{count}} fișier(e). Această acțiune nu poate fi anulată.",
       "title": "Șterge permanent fișierele?"
@@ -2100,7 +2100,6 @@
     },
     "remove_from_library": "Elimină din bibliotecă",
     "rename": "Redenumește",
-    "restore": "Restaurează",
     "select_all": "Selectează fișierele vizibile",
     "select_all_short": "Selectează tot",
     "select_file": "Selectează {{name}}",
@@ -2108,7 +2107,6 @@
     "size": "Dimensiune",
     "text": "Text",
     "title": "Fișiere",
-    "trash": "Gunoi",
     "type": "Tip",
     "upload": "Încărcați fișierele",
     "video": "Video"
@@ -5377,6 +5375,60 @@
         "token_placeholder": "Te rugăm să introduci tokenul SiYuan Note"
       },
       "title": "Setări date",
+      "trash": {
+        "days_remaining_expired": "Expirat",
+        "days_remaining_lt_one": "A rămas mai puțin de 1 zi",
+        "days_remaining_one": "A mai rămas {{count}} zi",
+        "days_remaining_other": "Au mai rămas {{count}} zile",
+        "deleted_at": "Șters la {{time}}",
+        "domain": {
+          "agents": "Agenți",
+          "assistants": "Asistenți",
+          "files": "Fișiere",
+          "paintings": "Imagini",
+          "sessions": "Sesiuni",
+          "topics": "Subiecte"
+        },
+        "empty": {
+          "section": "Niciun element șters"
+        },
+        "empty_trash": {
+          "button": "Golește coșul",
+          "confirm_content": "Toate elementele din toate categoriile vor fi șterse definitiv imediat. Această acțiune nu poate fi anulată.",
+          "confirm_title": "Golești coșul?",
+          "error": "Golirea coșului a eșuat",
+          "success": "Coșul a fost golit"
+        },
+        "error": {
+          "load": "Încărcarea a eșuat"
+        },
+        "load_more": "Încarcă mai multe",
+        "page_next": "Următoarea",
+        "page_prev": "Anterioara",
+        "permanent_delete": {
+          "confirm_content": "„{{name}}” va fi șters definitiv. Această acțiune nu poate fi anulată.",
+          "confirm_title": "Ștergi definitiv?",
+          "error": "Ștergerea a eșuat",
+          "label": "Șterge definitiv",
+          "success": "Șters definitiv"
+        },
+        "restore": {
+          "error": "Restaurarea a eșuat",
+          "label": "Restaurează",
+          "success": "Restaurat"
+        },
+        "retention": {
+          "days_one": "{{count}} zi",
+          "days_other": "{{count}} zile",
+          "forever": "Pentru totdeauna",
+          "label": "Păstrează elementele șterse timp de"
+        },
+        "retention_hint_never": "Elementele șterse sunt păstrate până când le ștergi definitiv",
+        "retention_hint_one": "Elementele sunt șterse definitiv după {{count}} zi",
+        "retention_hint_other": "Elementele sunt șterse definitiv după {{count}} zile",
+        "title": "Șterse recent",
+        "unnamed": "Fără titlu"
+      },
       "v1_remigration": {
         "acknowledgement": "Înțeleg riscul și doresc să continui.",
         "back": "Înapoi",

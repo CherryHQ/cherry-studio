@@ -1702,6 +1702,7 @@
     "agent_one": "エージェント",
     "agent_other": "エージェント",
     "all": "すべて",
+    "archive": "アーカイブ",
     "assistant": "アシスタント",
     "assistant_one": "アシスタント",
     "assistant_other": "アシスタント",
@@ -1726,6 +1727,7 @@
     "delete": "削除",
     "delete_confirm": "削除してもよろしいですか？",
     "delete_failed": "削除に失敗しました",
+    "delete_permanently": "完全に削除",
     "delete_success": "削除に成功しました",
     "description": "説明",
     "detail": "詳細",
@@ -2072,7 +2074,6 @@
       "no_match_title": "一致するファイルが見つかりません",
       "title": "ファイルがありません"
     },
-    "empty_trash": "ゴミ箱を空にする",
     "error": {
       "delete_failed": "ファイルの削除に失敗しました",
       "delete_partial_failed": "一部のファイルを削除できませんでした",
@@ -2090,7 +2091,6 @@
     "name": "名前",
     "open": "開く",
     "other": "その他",
-    "permanent_delete": "完全に削除",
     "permanent_delete_confirm": {
       "description": "これにより、{{count}}個のファイルが永久に削除されます。この操作は元に戻せません。",
       "title": "ファイルを完全に削除しますか？"
@@ -2100,7 +2100,6 @@
     },
     "remove_from_library": "ライブラリから削除",
     "rename": "名前を変更",
-    "restore": "復元",
     "select_all": "表示されているファイルを選択",
     "select_all_short": "すべて選択",
     "select_file": "{{name}}を選択",
@@ -2108,7 +2107,6 @@
     "size": "サイズ",
     "text": "テキスト",
     "title": "ファイル",
-    "trash": "ゴミ",
     "type": "タイプ",
     "upload": "ファイルをアップロード",
     "video": "ビデオ"
@@ -5377,6 +5375,60 @@
         "token_placeholder": "思源ノートトークンを入力してください"
       },
       "title": "データ設定",
+      "trash": {
+        "days_remaining_expired": "期限切れ",
+        "days_remaining_lt_one": "残り 1 日未満",
+        "days_remaining_one": "残り {{count}} 日",
+        "days_remaining_other": "残り {{count}} 日",
+        "deleted_at": "{{time}} に削除",
+        "domain": {
+          "agents": "エージェント",
+          "assistants": "アシスタント",
+          "files": "ファイル",
+          "paintings": "画像",
+          "sessions": "セッション",
+          "topics": "トピック"
+        },
+        "empty": {
+          "section": "削除された項目はありません"
+        },
+        "empty_trash": {
+          "button": "ゴミ箱を空にする",
+          "confirm_content": "すべてのカテゴリのすべての項目がただちに完全に削除されます。この操作は取り消せません。",
+          "confirm_title": "ゴミ箱を空にしますか？",
+          "error": "ゴミ箱を空にできませんでした",
+          "success": "ゴミ箱を空にしました"
+        },
+        "error": {
+          "load": "読み込みに失敗しました"
+        },
+        "load_more": "さらに読み込む",
+        "page_next": "次へ",
+        "page_prev": "前へ",
+        "permanent_delete": {
+          "confirm_content": "「{{name}}」を完全に削除します。この操作は取り消せません。",
+          "confirm_title": "完全に削除しますか？",
+          "error": "削除に失敗しました",
+          "label": "完全に削除",
+          "success": "完全に削除しました"
+        },
+        "restore": {
+          "error": "復元に失敗しました",
+          "label": "復元",
+          "success": "復元しました"
+        },
+        "retention": {
+          "days_one": "{{count}} 日",
+          "days_other": "{{count}} 日",
+          "forever": "無期限",
+          "label": "削除した項目を保持する期間"
+        },
+        "retention_hint_never": "削除した項目は、完全に削除するまで保持されます",
+        "retention_hint_one": "項目は {{count}} 日後に完全に削除されます",
+        "retention_hint_other": "項目は {{count}} 日後に完全に削除されます",
+        "title": "最近削除した項目",
+        "unnamed": "無題"
+      },
       "v1_remigration": {
         "acknowledgement": "リスクを理解したうえで続行します。",
         "back": "戻る",

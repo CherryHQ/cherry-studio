@@ -1702,6 +1702,7 @@
     "agent_one": "Агент",
     "agent_other": "Агента",
     "all": "Все",
+    "archive": "Архивировать",
     "assistant": "Ассистент",
     "assistant_one": "Ассистент",
     "assistant_other": "Ассистента",
@@ -1726,6 +1727,7 @@
     "delete": "Удалить",
     "delete_confirm": "Вы уверены, что хотите удалить?",
     "delete_failed": "Не удалось удалить",
+    "delete_permanently": "Удалить навсегда",
     "delete_success": "Удаление выполнено успешно",
     "description": "Описание",
     "detail": "Подробности",
@@ -2072,7 +2074,6 @@
       "no_match_title": "Совпадающие файлы не найдены",
       "title": "Пока нет файлов"
     },
-    "empty_trash": "Очистить корзину",
     "error": {
       "delete_failed": "Не удалось удалить файлы",
       "delete_partial_failed": "Некоторые файлы не удалось удалить",
@@ -2090,7 +2091,6 @@
     "name": "Имя",
     "open": "Открыть",
     "other": "Другое",
-    "permanent_delete": "Удалить навсегда",
     "permanent_delete_confirm": {
       "description": "Это навсегда удалит {{count}} файл(ов). Это действие нельзя отменить.",
       "title": "Удалить файлы навсегда?"
@@ -2100,7 +2100,6 @@
     },
     "remove_from_library": "Удалить из библиотеки",
     "rename": "Переименовать",
-    "restore": "Восстановить",
     "select_all": "Выбрать видимые файлы",
     "select_all_short": "Выбрать все",
     "select_file": "Выбрать {{name}}",
@@ -2108,7 +2107,6 @@
     "size": "Размер",
     "text": "Текст",
     "title": "Файлы",
-    "trash": "Мусор",
     "type": "Тип",
     "upload": "Загрузить файлы",
     "video": "Видео"
@@ -5377,6 +5375,60 @@
         "token_placeholder": "Введите токен SiYuan Note"
       },
       "title": "Настройки данных",
+      "trash": {
+        "days_remaining_expired": "Срок истёк",
+        "days_remaining_lt_one": "Осталось менее 1 дня",
+        "days_remaining_one": "Остался {{count}} день",
+        "days_remaining_other": "Осталось {{count}} дн.",
+        "deleted_at": "Удалено {{time}}",
+        "domain": {
+          "agents": "Агенты",
+          "assistants": "Ассистенты",
+          "files": "Файлы",
+          "paintings": "Изображения",
+          "sessions": "Сессии",
+          "topics": "Темы"
+        },
+        "empty": {
+          "section": "Нет удалённых элементов"
+        },
+        "empty_trash": {
+          "button": "Очистить корзину",
+          "confirm_content": "Все элементы во всех категориях будут немедленно удалены навсегда. Это действие нельзя отменить.",
+          "confirm_title": "Очистить корзину?",
+          "error": "Не удалось очистить корзину",
+          "success": "Корзина очищена"
+        },
+        "error": {
+          "load": "Не удалось загрузить"
+        },
+        "load_more": "Загрузить ещё",
+        "page_next": "Далее",
+        "page_prev": "Назад",
+        "permanent_delete": {
+          "confirm_content": "«{{name}}» будет удалён навсегда. Это действие нельзя отменить.",
+          "confirm_title": "Удалить навсегда?",
+          "error": "Не удалось удалить",
+          "label": "Удалить навсегда",
+          "success": "Удалено навсегда"
+        },
+        "restore": {
+          "error": "Не удалось восстановить",
+          "label": "Восстановить",
+          "success": "Восстановлено"
+        },
+        "retention": {
+          "days_one": "{{count}} день",
+          "days_other": "{{count}} дн.",
+          "forever": "Бессрочно",
+          "label": "Хранить удалённые элементы"
+        },
+        "retention_hint_never": "Удалённые элементы хранятся, пока вы не удалите их навсегда",
+        "retention_hint_one": "Элементы удаляются навсегда через {{count}} день",
+        "retention_hint_other": "Элементы удаляются навсегда через {{count}} дн.",
+        "title": "Недавно удалённые",
+        "unnamed": "Без названия"
+      },
       "v1_remigration": {
         "acknowledgement": "Я понимаю риск и хочу продолжить.",
         "back": "Назад",

@@ -104,9 +104,9 @@ export class AgentSessionDeliveryService extends BaseService {
     return created
   }
 
-  deleteSessions(ids: string[]): Promise<{ deletedIds: string[] }> {
+  deleteSessions(ids: string[], permanent: boolean = false): Promise<{ deletedIds: string[] }> {
     const uniqueIds = [...new Set(ids)]
-    const work = this.deleteSessionsInternal(uniqueIds)
+    const work = this.deleteSessionsInternal(uniqueIds, permanent)
     this.track(
       `delete:${uniqueIds.join(',')}`,
       work.then(() => undefined)
@@ -123,8 +123,12 @@ export class AgentSessionDeliveryService extends BaseService {
     return work
   }
 
-  deleteAgent(agentId: string, deleteSessions: boolean): Promise<{ deleted: boolean; deletedSessionIds?: string[] }> {
-    const work = this.deleteAgentInternal(agentId, deleteSessions)
+  deleteAgent(
+    agentId: string,
+    deleteSessions: boolean,
+    permanent: boolean = false
+  ): Promise<{ deleted: boolean; deletedSessionIds?: string[] }> {
+    const work = this.deleteAgentInternal(agentId, deleteSessions, permanent)
     this.track(
       `delete-agent:${agentId}`,
       work.then(() => undefined)
@@ -132,8 +136,8 @@ export class AgentSessionDeliveryService extends BaseService {
     return work
   }
 
-  deleteAgentSessions(agentId: string): Promise<{ deletedIds: string[] }> {
-    const work = this.deleteAgentSessionsInternal(agentId)
+  deleteAgentSessions(agentId: string, permanent: boolean = false): Promise<{ deletedIds: string[] }> {
+    const work = this.deleteAgentSessionsInternal(agentId, permanent)
     this.track(
       `delete-agent-sessions:${agentId}`,
       work.then(() => undefined)
@@ -241,9 +245,9 @@ export class AgentSessionDeliveryService extends BaseService {
     }
   }
 
-  private async deleteSessionsInternal(ids: string[]): Promise<{ deletedIds: string[] }> {
+  private async deleteSessionsInternal(ids: string[], permanent: boolean): Promise<{ deletedIds: string[] }> {
     this.assertWritesAvailable()
-    const result = agentSessionService.deleteByIdsForDelivery(ids)
+    const result = agentSessionService.deleteByIdsForDelivery(ids, { permanent })
     await this.finishDeletion(result.deletedIds, result.deliveryResults)
     return { deletedIds: result.deletedIds }
   }
@@ -263,16 +267,19 @@ export class AgentSessionDeliveryService extends BaseService {
 
   private async deleteAgentInternal(
     agentId: string,
-    deleteSessions: boolean
+    deleteSessions: boolean,
+    permanent: boolean
   ): Promise<{ deleted: boolean; deletedSessionIds?: string[] }> {
     this.assertWritesAvailable()
-    const result = agentService.deleteAgentForDelivery(agentId, { deleteSessions })
+    const result = agentService.deleteAgentForDelivery(agentId, { deleteSessions, permanent })
     if (!deleteSessions) {
       const manager = application.get('AiStreamManager')
       result.affectedSessionIds.forEach((sessionId) =>
         manager.pauseRuntimeTurn(buildAgentSessionTopicId(sessionId), 'target-agent-deleted')
       )
     }
+    // Sessions that outlive the agent (archived or permanently deleted) keep
+    // their queue — kick it so pending deliveries re-evaluate against the gone agent.
     await this.finishDeletion(
       result.affectedSessionIds,
       result.deliveryResults,
@@ -284,9 +291,9 @@ export class AgentSessionDeliveryService extends BaseService {
     }
   }
 
-  private async deleteAgentSessionsInternal(agentId: string): Promise<{ deletedIds: string[] }> {
+  private async deleteAgentSessionsInternal(agentId: string, permanent: boolean): Promise<{ deletedIds: string[] }> {
     this.assertWritesAvailable()
-    const result = agentSessionService.deleteByAgentIdForDelivery(agentId)
+    const result = agentSessionService.deleteByAgentIdForDelivery(agentId, { permanent })
     await this.finishDeletion(result.deletedIds, result.deliveryResults)
     return { deletedIds: result.deletedIds }
   }

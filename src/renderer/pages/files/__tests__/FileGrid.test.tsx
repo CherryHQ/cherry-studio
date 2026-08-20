@@ -52,7 +52,6 @@ const imageFile: FileItem = {
 const menuActions: FileContextMenuActions = {
   onRename: vi.fn(),
   onDelete: vi.fn(),
-  onRestore: vi.fn(),
   onShowInFolder: vi.fn()
 }
 
@@ -63,7 +62,6 @@ function fileGridProps(files: FileItem[], width = 400): ComponentProps<typeof Fi
     files,
     onOpen: vi.fn(),
     onDelete: vi.fn(),
-    isTrash: false,
     menuActions,
     scrollRef: { current: scrollElement },
     onLayoutChange: vi.fn(),

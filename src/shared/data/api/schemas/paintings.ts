@@ -14,6 +14,8 @@ const OptionalNullableTrimmedStringSchema = TrimmedStringSchema.nullable()
 export const ListPaintingsQuerySchema = z
   .object({
     providerId: TrimmedStringSchema.optional(),
+    /** true = list the trash (archived paintings only); omitted/false = active only. */
+    inTrash: z.boolean().optional(),
     cursor: z.string().optional(),
     limit: z.int().positive().max(PAINTINGS_MAX_LIMIT).default(PAINTINGS_DEFAULT_LIMIT)
   })
@@ -41,6 +43,16 @@ export const UpdatePaintingSchema = z
   })
   .strict()
 export type UpdatePaintingDto = z.infer<typeof UpdatePaintingSchema>
+
+export const DeletePaintingQuerySchema = z.strictObject({
+  /**
+   * true = hard-delete the DB row (skips/empties the trash; `painting_file_ref`
+   * rows are removed by the FK cascade). Omitted/false archives the painting
+   * into the trash (soft delete, restorable via POST /paintings/:id/restore).
+   */
+  permanent: z.boolean().optional()
+})
+export type DeletePaintingQueryParams = z.input<typeof DeletePaintingQuerySchema>
 
 export interface PaintingListResponse extends CursorPaginationResponse<Painting> {
   items: Painting[]
@@ -71,7 +83,15 @@ export type PaintingsSchemas = {
     }
     DELETE: {
       params: { id: string }
+      query?: DeletePaintingQueryParams
       response: void
+    }
+  }
+
+  '/paintings/:id/restore': {
+    POST: {
+      params: { id: string }
+      response: Painting
     }
   }
 } & OrderEndpoints<'/paintings'>

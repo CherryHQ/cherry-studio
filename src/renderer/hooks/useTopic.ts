@@ -422,10 +422,13 @@ export function useTopicMutations() {
   )
 
   const deleteTopic = useCallback(
-    async (topicId: string): Promise<void> => {
-      await deleteTrigger({ params: { id: topicId } })
+    async (topicId: string, options?: { permanent?: boolean }): Promise<void> => {
+      await deleteTrigger({
+        params: { id: topicId },
+        query: options?.permanent ? { permanent: true } : undefined
+      })
       closeConversationTabs('assistants', [topicId])
-      logger.info('Deleted topic', { id: topicId })
+      logger.info(options?.permanent ? 'Permanently deleted topic' : 'Archived topic', { id: topicId })
     },
     [closeConversationTabs, deleteTrigger]
   )

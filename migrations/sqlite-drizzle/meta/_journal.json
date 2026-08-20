@@ -84,6 +84,13 @@
       "when": 1787109711737,
       "tag": "0011_rare_vertigo",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1787119104830,
+      "tag": "0012_mature_miss_america",
+      "breakpoints": true
     }
   ],
   "version": "7"
