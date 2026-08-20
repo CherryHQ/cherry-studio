@@ -7,13 +7,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   findExecutableInEnv: vi.fn<(name: string) => Promise<string | null>>(),
   getByFolderName: vi.fn(() => null as unknown),
+  listAll: vi.fn<() => Array<{ folderName: string; name: string }>>(),
   getInstalledSkillDirectory: vi.fn(() => ''),
   skillPluginDirectory: { value: '/nonexistent-claude-root' }
 }))
 
 vi.mock('@main/utils/commandResolver', () => ({ findExecutableInEnv: mocks.findExecutableInEnv }))
 vi.mock('@data/services/AgentGlobalSkillService', () => ({
-  agentGlobalSkillService: { getByFolderName: mocks.getByFolderName }
+  agentGlobalSkillService: { getByFolderName: mocks.getByFolderName, listAll: mocks.listAll }
 }))
 vi.mock('@main/ai/skills/SkillService', () => ({
   skillService: {
@@ -58,9 +59,22 @@ describe('checkSkillRuntimeDependencies', () => {
     return directory
   }
 
+  /** A library skill whose directory name and SKILL.md `name` disagree, as a bundle's often do. */
+  async function writeLibrarySkill(folderName: string, declaredName: string, frontmatter: string) {
+    const directory = path.join(await createTempDir('skill-deps-library-'), folderName)
+    await fs.promises.mkdir(directory, { recursive: true })
+    await fs.promises.writeFile(
+      path.join(directory, 'SKILL.md'),
+      `---\nname: ${declaredName}\ndescription: test skill\n${frontmatter}---\n\nBody\n`
+    )
+    mocks.getInstalledSkillDirectory.mockReturnValue(directory)
+    return directory
+  }
+
   beforeEach(() => {
     mocks.findExecutableInEnv.mockResolvedValue('/usr/bin/anything')
     mocks.getByFolderName.mockReturnValue(null)
+    mocks.listAll.mockReturnValue([])
     mocks.skillPluginDirectory.value = '/nonexistent-claude-root'
   })
 
@@ -187,6 +201,38 @@ describe('checkSkillRuntimeDependencies', () => {
     ])
 
     expect(mocks.findExecutableInEnv).toHaveBeenCalledExactlyOnceWith('jq')
+  })
+
+  // The installer names the folder after the bundle directory, so a name-addressed call would
+  // otherwise skip the check for every bundle whose directory does not match its `name`.
+  it('checks a library skill addressed by its SKILL.md name rather than its folder', async () => {
+    await writeLibrarySkill('vendor-bundle-dir', 'parallel-web-search', 'context: fork\nagent: parallel:missing\n')
+    mocks.listAll.mockReturnValue([{ folderName: 'vendor-bundle-dir', name: 'parallel-web-search' }])
+    const plugin = await writePlugin('parallel', ['some-other-agent'])
+
+    const result = await checkSkillRuntimeDependencies(
+      'parallel-web-search',
+      await createTempDir('skill-deps-workspace-'),
+      await buildPluginDirectoryIndex([plugin])
+    )
+
+    expect(result.deny).toContain('its forked subagent "parallel:missing" is not installed')
+  })
+
+  it('refuses to guess when the name matches more than one library skill', async () => {
+    mocks.listAll.mockReturnValue([
+      { folderName: 'first-copy', name: 'parallel-web-search' },
+      { folderName: 'second-copy', name: 'parallel-web-search' }
+    ])
+
+    const result = await checkSkillRuntimeDependencies(
+      'parallel-web-search',
+      await createTempDir('skill-deps-workspace-'),
+      new Map()
+    )
+
+    expect(result).toEqual({})
+    expect(mocks.getInstalledSkillDirectory).not.toHaveBeenCalled()
   })
 
   it('stays silent for a skill it cannot locate', async () => {

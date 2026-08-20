@@ -122,8 +122,13 @@ async function resolveSkillDirectory(
     return pluginDirectory ? path.join(pluginDirectory, 'skills', skillName.slice(separator + 1)) : null
   }
 
-  const installed = agentGlobalSkillService.getByFolderName(skillName)
-  if (installed) return skillService.getInstalledSkillDirectory(installed)
+  const byFolder = agentGlobalSkillService.getByFolderName(skillName)
+  if (byFolder) return skillService.getInstalledSkillDirectory(byFolder)
+
+  // The SDK addresses a skill by its SKILL.md `name` or its directory name, but the installer derives
+  // folderName from the bundle directory. Only a unique name match is safe to check a call against.
+  const byName = agentGlobalSkillService.listAll().filter((skill) => skill.name === skillName)
+  if (byName.length === 1) return skillService.getInstalledSkillDirectory(byName[0])
 
   const localDirectory = path.join(cwd, '.claude', 'skills', skillName)
   return (await findSkillMdPath(localDirectory)) ? localDirectory : null
