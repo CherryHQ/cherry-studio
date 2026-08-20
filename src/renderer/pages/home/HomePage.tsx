@@ -63,7 +63,7 @@ const ASSISTANT_CONVERSATION_RESOURCE_KINDS = [
   'assistant'
 ] as const satisfies readonly AssistantConversationResourceKind[]
 
-type NewTopicAssistantSelectionSource = 'explicit' | 'last-used' | 'first-assistant' | 'runtime-fallback'
+type NewTopicAssistantSelectionSource = 'explicit' | 'route' | 'last-used' | 'first-assistant' | 'runtime-fallback'
 type ResolvedNewTopicAssistantSelection = { assistantId?: string; source: NewTopicAssistantSelectionSource }
 
 type NewTopicAssistantTargetOptions = {
@@ -91,6 +91,7 @@ const HomePage: FC = () => {
   const routeSearch = parseChatRouteSearch(useSearch({ strict: false }) as Record<string, unknown>)
   const navigate = useNavigate()
   const routeTopicId = routeSearch.topicId
+  const routeAssistantId = routeSearch.assistantId
   const isMessageOnlyView = routeSearch.view === 'message' && !!routeTopicId
   const handleManualPaneOpen = useCallback(() => {
     requestAnimationFrame(() => {
@@ -155,6 +156,11 @@ const HomePage: FC = () => {
       if (isAvailableAssistantId(explicitAssistantId)) {
         return { assistantId: explicitAssistantId, source: 'explicit' }
       }
+      // A sidebar `?assistantId=` entry whose assistant has no topics yet creates for that exact
+      // assistant, not whatever was last focused (mirrors AgentPage's `preferredAgentId`).
+      if (isAvailableAssistantId(routeAssistantId)) {
+        return { assistantId: routeAssistantId, source: 'route' }
+      }
       if (isAvailableAssistantId(validLastUsedAssistantId)) {
         return { assistantId: validLastUsedAssistantId, source: 'last-used' }
       }
@@ -164,7 +170,7 @@ const HomePage: FC = () => {
       }
       return { source: 'runtime-fallback' }
     },
-    [assistantIdSet, assistants, validLastUsedAssistantId]
+    [assistantIdSet, assistants, routeAssistantId, validLastUsedAssistantId]
   )
 
   const routeActiveTopicId = isMessageOnlyView ? null : (routeTopicId ?? null)
@@ -362,6 +368,7 @@ const HomePage: FC = () => {
   const setActiveTopicAndCloseResourceView = useCallback(
     (topic: Topic) => {
       closeSurface()
+      setPendingLocateMessageId(undefined)
       setActiveTopic(topic)
       return true
     },

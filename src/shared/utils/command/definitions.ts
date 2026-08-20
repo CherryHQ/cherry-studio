@@ -200,6 +200,15 @@ export const COMMAND_DEFINITIONS = [
     }
   }),
   defineCommand({
+    id: 'topic.clear_messages',
+    titleKey: 'chat.topics.clear.title',
+    categoryKey: 'settings.shortcuts.topic',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', 'L']
+    }
+  }),
+  defineCommand({
     id: 'topic.create',
     titleKey: 'settings.shortcuts.new_topic',
     categoryKey: 'settings.shortcuts.topic',

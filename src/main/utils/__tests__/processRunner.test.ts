@@ -1,48 +1,27 @@
-import type { ChildProcess } from 'node:child_process'
-import { EventEmitter } from 'node:events'
+import { describe, expect, it, vi } from 'vitest'
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const crossSpawnMock = vi.hoisted(() => vi.fn())
-
-vi.mock('cross-spawn', () => ({ default: crossSpawnMock }))
+vi.mock('@main/utils/shellEnv', () => ({ getShellEnv: vi.fn() }))
 
 import { executeCommand } from '../processRunner'
 
-function createChildProcess() {
-  const child = new EventEmitter() as EventEmitter & {
-    stdout: EventEmitter
-    stderr: EventEmitter
-  }
-  child.stdout = new EventEmitter()
-  child.stderr = new EventEmitter()
-  return child
-}
+const printStdout = ['-e', "process.stdout.write('command output')"]
 
 describe('executeCommand', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('captures stdout by default', async () => {
-    const child = createChildProcess()
-    crossSpawnMock.mockReturnValue(child as unknown as ChildProcess)
-
-    const result = executeCommand('example', [], { env: {} })
-    child.stdout.emit('data', Buffer.from('command output'))
-    child.emit('close', 0)
-
-    await expect(result).resolves.toBe('command output')
+  it('returns stdout when capture is omitted', async () => {
+    await expect(executeCommand(process.execPath, printStdout, { env: process.env })).resolves.toBe('command output')
   })
 
   it('discards stdout when capture is explicitly disabled', async () => {
-    const child = createChildProcess()
-    crossSpawnMock.mockReturnValue(child as unknown as ChildProcess)
+    await expect(executeCommand(process.execPath, printStdout, { capture: false, env: process.env })).resolves.toBe('')
+  })
 
-    const result = executeCommand('example', [], { capture: false, env: {} })
-    child.stdout.emit('data', Buffer.from('command output'))
-    child.emit('close', 0)
-
-    await expect(result).resolves.toBe('')
+  it('terminates a command whose captured stdout exceeds the configured limit', async () => {
+    await expect(
+      executeCommand(process.execPath, ['-e', "process.stdout.write('x'.repeat(64))"], {
+        capture: true,
+        env: process.env,
+        maxOutputBytes: 16
+      })
+    ).rejects.toThrow('output exceeded 16 bytes')
   })
 })

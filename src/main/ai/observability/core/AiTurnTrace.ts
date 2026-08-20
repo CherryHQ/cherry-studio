@@ -1,5 +1,4 @@
 import { loggerService } from '@logger'
-import { convertSpanToSpanEntity } from '@mcp-trace/trace-core/core/spanConvert'
 import type { Attributes, Span, SpanKind, SpanOptions, TimeInput, Tracer } from '@opentelemetry/api'
 import { ROOT_CONTEXT, SpanStatusCode, trace, TraceFlags } from '@opentelemetry/api'
 import type { ReadableSpan } from '@opentelemetry/sdk-trace-base'
@@ -7,6 +6,7 @@ import { deriveRootSpanId } from '@shared/data/types/trace'
 
 import { TRACER_NAME } from '../constants'
 import { observabilitySinks } from '../sinks/ObservabilitySinkRegistry'
+import { convertSpanToSpanEntity } from './spanConvert'
 
 // `deriveRootSpanId` now lives in `@shared/data/types/trace` so the renderer trace viewer can
 // share it; re-exported here for existing main-side import paths.

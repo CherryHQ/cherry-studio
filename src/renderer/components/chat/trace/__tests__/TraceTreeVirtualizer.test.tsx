@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import type { SpanEntity } from '@mcp-trace/trace-core'
+import type { SpanEntity } from '@shared/data/types/trace'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
