@@ -17,17 +17,23 @@ import {
   storedCherryCloudStateSchema
 } from './contracts'
 import { createAuthorizationSecrets, createDeviceKeyPair } from './crypto'
+import { CherryCloudLoopbackCallback } from './loopbackCallback'
 
 const logger = loggerService.withContext('CherryCloudService')
 const DEFAULT_API_ORIGIN = 'http://127.0.0.1:8080'
 const SESSION_FILE_MODE = 0o600
 
+function isLoopbackHttp(url: URL): boolean {
+  return (
+    url.protocol === 'http:' &&
+    (url.hostname === '127.0.0.1' || url.hostname === 'localhost' || url.hostname === '[::1]')
+  )
+}
+
 function resolveApiOrigin(): string {
   const raw = process.env.CHERRY_CLOUD_API_ORIGIN?.trim() || DEFAULT_API_ORIGIN
   const url = new URL(raw)
-  const isLocalHttp =
-    url.protocol === 'http:' &&
-    (url.hostname === '127.0.0.1' || url.hostname === 'localhost' || url.hostname === '[::1]')
+  const isLocalHttp = isLoopbackHttp(url)
 
   if (url.protocol !== 'https:' && !isLocalHttp) {
     throw new Error('Cherry Cloud API origin must use HTTPS or a local HTTP address')
@@ -37,6 +43,17 @@ function resolveApiOrigin(): string {
   }
 
   return url.toString().replace(/\/$/, '')
+}
+
+function shouldUseLoopbackCallback(): boolean {
+  const configured = process.env.CHERRY_CLOUD_LOOPBACK_CALLBACK?.trim()
+  if (!configured || configured === 'false') return false
+  if (configured !== 'true') throw new Error('CHERRY_CLOUD_LOOPBACK_CALLBACK must be true or false')
+  if (app.isPackaged) throw new Error('Cherry Cloud loopback callbacks are only available in development')
+  if (!isLoopbackHttp(new URL(resolveApiOrigin()))) {
+    throw new Error('Cherry Cloud loopback callbacks require a local HTTP backend')
+  }
+  return true
 }
 
 function platformName(): 'darwin' | 'windows' | 'linux' {
@@ -61,6 +78,7 @@ export class CherryCloudLoginUnavailableError extends Error {
 export class CherryCloudService extends BaseService {
   private storedState: StoredCherryCloudState = structuredClone(EMPTY_STORED_CHERRY_CLOUD_STATE)
   private loginPromise: Promise<CherryCloudStatus> | null = null
+  private loopbackCallback: CherryCloudLoopbackCallback | null = null
   private exchangePromise: {
     authorizationId: string
     state: string
@@ -68,6 +86,10 @@ export class CherryCloudService extends BaseService {
   } | null = null
 
   protected async onInit(): Promise<void> {
+    this.registerDisposable(() => {
+      this.loopbackCallback?.dispose()
+      this.loopbackCallback = null
+    })
     await this.restoreState()
   }
 
@@ -93,42 +115,56 @@ export class CherryCloudService extends BaseService {
 
     const device = this.storedState.device ?? createDeviceKeyPair()
     const secrets = createAuthorizationSecrets()
-    const created = await this.postJson(
-      '/api/v1/desktop/authorizations',
-      {
-        state: secrets.state,
-        code_challenge: secrets.codeChallenge,
-        code_challenge_method: 'S256',
-        device_public_key: device.publicKey,
-        platform: platformName(),
-        client_version: app.getVersion().replace(/^v/, '')
-      },
-      createDesktopAuthorizationResponseSchema
-    )
+    const loopbackCallback = shouldUseLoopbackCallback() ? await this.openLoopbackCallback() : null
+    let pending: NonNullable<StoredCherryCloudState['pending']> | null = null
 
-    this.storedState = {
-      ...this.storedState,
-      device,
-      pending: {
+    try {
+      const created = await this.postJson(
+        '/api/v1/desktop/authorizations',
+        {
+          state: secrets.state,
+          code_challenge: secrets.codeChallenge,
+          code_challenge_method: 'S256',
+          device_public_key: device.publicKey,
+          platform: platformName(),
+          client_version: app.getVersion().replace(/^v/, ''),
+          ...(loopbackCallback ? { callback_port: loopbackCallback.port } : {})
+        },
+        createDesktopAuthorizationResponseSchema
+      )
+      loopbackCallback?.setExpiresAt(created.expires_at)
+      pending = {
         authorizationId: created.authorization_id,
         state: secrets.state,
         codeVerifier: secrets.codeVerifier,
         expiresAt: created.expires_at
       }
-    }
-    await this.persistState()
-    this.emitStatus()
-
-    try {
-      await shell.openExternal(created.authorization_url)
-    } catch (error) {
-      this.storedState.pending = null
+      this.storedState = { ...this.storedState, device, pending }
       await this.persistState()
       this.emitStatus()
+
+      await shell.openExternal(created.authorization_url)
+    } catch (error) {
+      loopbackCallback?.dispose()
+      if (this.loopbackCallback === loopbackCallback) this.loopbackCallback = null
+      if (pending) await this.clearPendingAuthorization(pending)
       throw error
     }
 
     return this.currentStatus()
+  }
+
+  private async openLoopbackCallback(): Promise<CherryCloudLoopbackCallback> {
+    this.loopbackCallback?.dispose()
+    const receiver = await CherryCloudLoopbackCallback.open(async (url) => {
+      try {
+        await this.handleCallback(url)
+      } finally {
+        if (this.loopbackCallback === receiver) this.loopbackCallback = null
+      }
+    }, resolveApiOrigin())
+    this.loopbackCallback = receiver
+    return receiver
   }
 
   public async handleCallback(url: URL): Promise<void> {
