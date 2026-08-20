@@ -167,12 +167,14 @@ const useQuickPhrasesToolController = ({ launcher, setInputValue }: Props) => {
     newList.push({
       label: t('settings.prompts.manage'),
       icon: <Pencil />,
+      fixedToBottom: true,
       action: openManageModal
     })
 
     newList.push({
       label: t('settings.prompts.add') + '...',
       icon: <Plus />,
+      fixedToBottom: true,
       action: openAddModal
     })
 

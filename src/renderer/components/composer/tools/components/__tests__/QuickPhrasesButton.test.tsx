@@ -1,8 +1,14 @@
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type * as LucideReact from 'lucide-react'
+import { useEffect } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { installSyncRafMock } from '../../../../../../../tests/__mocks__/requestAnimationFrame'
+import { QuickPanelProvider } from '../../../../QuickPanel/QuickPanelProvider'
+import { QuickPanelView } from '../../../../QuickPanel/QuickPanelView'
+import type { QuickPanelInputAdapter, QuickPanelListItem } from '../../../../QuickPanel/types'
+import { useQuickPanel } from '../../../../QuickPanel/useQuickPanel'
 import { QuickPhrasesToolRuntime } from '../QuickPhrasesButton'
 
 const mocks = vi.hoisted(() => ({
@@ -84,7 +90,30 @@ vi.mock('react-i18next', () => ({
 const createLauncherApi = (): ToolLauncherApi => ({
   registerLaunchers: vi.fn(() => vi.fn())
 })
-import { installSyncRafMock } from '../../../../../../../tests/__mocks__/requestAnimationFrame'
+
+function FilteredPromptPanel({
+  items,
+  inputAdapter
+}: {
+  items: QuickPanelListItem[]
+  inputAdapter: QuickPanelInputAdapter
+}) {
+  const { open } = useQuickPanel()
+
+  useEffect(() => {
+    open({
+      list: items,
+      symbol: 'quick-phrases',
+      title: 'settings.prompts.title',
+      trackInputQuery: true,
+      queryAnchor: 0,
+      triggerInfo: { type: 'input', position: 0, originalText: inputAdapter.getText() }
+    })
+  }, [inputAdapter, items, open])
+
+  return <QuickPanelView inputAdapter={inputAdapter} />
+}
+
 let restoreRequestAnimationFrame: (() => void) | undefined
 describe('QuickPhrasesToolRuntime', () => {
   beforeEach(() => {
@@ -260,5 +289,53 @@ describe('QuickPhrasesToolRuntime', () => {
     })
 
     expect(inputAdapter.focus).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps manage and add actions visible as fixed bottom rows when no prompt matches the composer query', async () => {
+    const launcher = createLauncherApi()
+
+    render(<QuickPhrasesToolRuntime launcher={launcher} setInputValue={vi.fn()} />)
+
+    await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
+
+    const [quickPhrasesLauncher] = vi.mocked(launcher.registerLaunchers).mock.calls[0][0]
+    act(() => {
+      quickPhrasesLauncher.action?.({
+        parentPanel: { list: [], symbol: '/' },
+        queryAnchor: 0,
+        quickPanel: {} as never,
+        source: 'root-panel',
+        triggerInfo: { type: 'button' }
+      })
+    })
+
+    const panelOptions = mocks.quickPanelOpen.mock.calls[0][0]
+    const inputAdapter: QuickPanelInputAdapter = {
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn(),
+      getCursorOffset: () => 15,
+      getText: () => '/does-not-exist',
+      insertText: vi.fn()
+    }
+
+    render(
+      <QuickPanelProvider>
+        <FilteredPromptPanel items={panelOptions.list} inputAdapter={inputAdapter} />
+      </QuickPanelProvider>
+    )
+
+    const fixedBottom = await screen.findByTestId('quick-panel-fixed-bottom')
+    const visibleActions = within(fixedBottom)
+      .getAllByRole('button')
+      .map((row) => row.textContent)
+
+    expect(screen.queryByText('Prompt 1')).not.toBeInTheDocument()
+    expect(visibleActions).toEqual(['settings.prompts.manage', 'settings.prompts.add...'])
+
+    act(() => {
+      fireEvent.click(within(fixedBottom).getByText('settings.prompts.manage'))
+    })
+
+    expect(await screen.findByTestId('prompt-management-dialog')).toBeInTheDocument()
   })
 })
