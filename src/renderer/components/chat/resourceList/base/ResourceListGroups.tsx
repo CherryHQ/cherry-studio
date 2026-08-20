@@ -167,7 +167,6 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
   const groupHeaderContextMenu = meta.getGroupHeaderContextMenu?.(group)
   const groupHeaderLeadingAction = meta.getGroupHeaderLeadingAction?.(group, groupHeaderContext)
   const customGroupHeaderIcon = meta.getGroupHeaderIcon?.(group, groupHeaderContext)
-  const groupHeaderClassName = meta.getGroupHeaderClassName?.(group)
   const groupHeaderTooltip = meta.getGroupHeaderTooltip?.(group)
   const groupHeaderIcon = customGroupHeaderIcon ?? null
   // Default to `entity` explicitly: a list that declares no kinds at all reads as all-entity.
@@ -250,8 +249,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
         !showsSelectedSurface && RESOURCE_LIST_DESCENDANT_FOCUS_ROW_CLASS,
         showsSelectedSurface && 'has-[:focus-visible]:bg-resource-list-row-selected',
         isBucketHeader && 'text-muted-foreground',
-        showsSelectedSurface && RESOURCE_LIST_SELECTED_ROW_CLASS,
-        groupHeaderClassName
+        showsSelectedSurface && RESOURCE_LIST_SELECTED_ROW_CLASS
       )}>
       {groupHeaderLeadingAction && (
         <div
@@ -379,6 +377,32 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
 type GroupShowMoreProps = ComponentProps<'div'> & {
   groupId: string
   ref?: Ref<HTMLDivElement>
+}
+
+type GroupEmptyProps = ComponentProps<'div'> & {
+  ref?: Ref<HTMLDivElement>
+}
+
+export function GroupEmpty({ className, ref, style, ...props }: GroupEmptyProps) {
+  const meta = useResourceListMeta()
+
+  if (!meta.groupEmptyLabel) return null
+
+  return (
+    <div
+      ref={ref}
+      style={style}
+      className={cn(
+        'flex items-center pr-1.5 text-foreground-tertiary',
+        RESOURCE_LIST_DEFAULT_ROW_LAYOUT.className,
+        RESOURCE_LIST_TEXT_START_PADDING_CLASS,
+        RESOURCE_LIST_LABEL_CLASS,
+        className
+      )}
+      {...props}>
+      {meta.groupEmptyLabel}
+    </div>
+  )
 }
 
 export function GroupShowMore({ groupId, className, ref, style, ...props }: GroupShowMoreProps) {

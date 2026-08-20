@@ -70,8 +70,32 @@ const packages = [
   '@aiany/sqlite-vec-linux-arm64',
   '@aiany/sqlite-vec-linux-x64',
   '@aiany/sqlite-vec-windows-arm64',
-  '@aiany/sqlite-vec-windows-x64'
+  '@aiany/sqlite-vec-windows-x64',
+  // Screen capture backend. Its platform binaries are npm sibling packages, not nested
+  // under the main package, so they are declared in optionalDependencies like every other
+  // family here — that is what puts them at top-level node_modules where the keep/exclude
+  // filters and the asarUnpack glob can see them. loong64 is omitted: not a target arch.
+  'node-screenshots-darwin-arm64',
+  'node-screenshots-darwin-x64',
+  'node-screenshots-linux-arm64-gnu',
+  'node-screenshots-linux-x64-gnu',
+  'node-screenshots-linux-x64-musl',
+  'node-screenshots-win32-arm64-msvc',
+  'node-screenshots-win32-ia32-msvc',
+  'node-screenshots-win32-x64-msvc',
+  // macOS permission prompts. Unlike everything above, one package covers both arches.
+  'node-mac-permissions'
 ]
+
+/**
+ * Platform-gated packages whose names carry no arch token, so the name matcher in
+ * {@link keepPackages} cannot classify them. Kept for every arch of their own platform and
+ * excluded everywhere else — otherwise a Windows or Linux package cross-built on a Mac
+ * would ship a darwin-only `.node`.
+ */
+const platformOnlyPackages = {
+  darwin: ['node-mac-permissions']
+}
 
 const platformToArch = {
   mac: 'darwin',
@@ -85,7 +109,10 @@ const platformToArch = {
 // sqlite-vec-windows-x64 instead of wrongly excluding it.
 const keepPackages = (platform, arch) => {
   const platformTokens = platform === 'win32' ? ['win32', 'windows'] : [platform]
-  return packages.filter((p) => p.includes(arch) && platformTokens.some((t) => p.includes(t)))
+  return [
+    ...packages.filter((p) => p.includes(arch) && platformTokens.some((t) => p.includes(t))),
+    ...(platformOnlyPackages[platform] ?? [])
+  ]
 }
 
 // Cross-arch prebuilt packages come from supportedArchitectures in pnpm-workspace.yaml —
@@ -106,6 +133,7 @@ const assertPrebuiltPackages = (platform, arch) => {
   }
 }
 exports.assertPrebuiltPackages = assertPrebuiltPackages
+exports.keepPackages = keepPackages
 
 const resolvePackageManifest = (packageName, require_) => {
   for (const searchPath of require_.resolve.paths(packageName) ?? []) {

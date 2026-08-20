@@ -182,6 +182,28 @@ describe('PiStreamAdapter', () => {
     expect(tool).toMatchObject({ toolName: 'read', state: 'output-available', output: 'contents' })
   })
 
+  it('projects code-mode details as the renderer-facing output', async () => {
+    const details = { result: { total: 1 }, logs: ['searched'] }
+    const message = await accumulate(
+      collect([
+        { type: 'tool_execution_start', toolCallId: 'code-1', toolName: 'tool_exec', args: { code: 'return 1' } },
+        {
+          type: 'tool_execution_end',
+          toolCallId: 'code-1',
+          toolName: 'tool_exec',
+          result: { content: [{ type: 'text', text: '{"total":1}' }], details },
+          isError: false
+        }
+      ] as AgentSessionEvent[])
+    )
+
+    expect(message.parts.find((part) => part.type === 'dynamic-tool')).toMatchObject({
+      toolName: 'tool_exec',
+      state: 'output-available',
+      output: details
+    })
+  })
+
   it('preserves a report_artifacts declaration for runtime-neutral renderer projection', async () => {
     const toolName = 'mcp__cherry-tools__report_artifacts'
     const input = {
@@ -205,6 +227,46 @@ describe('PiStreamAdapter', () => {
       toolName,
       input,
       state: 'output-available'
+    })
+  })
+
+  it('stamps MCP tools with type mcp, name, and serverName from the tool name', () => {
+    const chunks = collect([
+      { type: 'tool_execution_start', toolCallId: 'm1', toolName: 'mcp__exa__search', args: {} } as AgentSessionEvent,
+      {
+        type: 'tool_execution_end',
+        toolCallId: 'm1',
+        toolName: 'mcp__exa__search',
+        result: { content: [{ type: 'text', text: 'results' }] },
+        isError: false
+      } as AgentSessionEvent
+    ])
+    const toolOutput = chunks.find((chunk) => chunk.type === 'tool-output-available')
+    expect(toolOutput).toMatchObject({
+      providerMetadata: {
+        cherry: { transport: PI_TRANSPORT, tool: { type: 'mcp', name: 'search', serverName: 'exa' } }
+      }
+    })
+  })
+
+  it('keeps full result for third-party MCP tools instead of projecting details', async () => {
+    const details = [{ id: 'a-1', title: 'First', url: 'https://a.com', content: 'x' }]
+    const result = { content: [{ type: 'text', text: 'results' }], details }
+    const message = await accumulate(
+      collect([
+        { type: 'tool_execution_start', toolCallId: 'm2', toolName: 'mcp__exa__search', args: {} },
+        {
+          type: 'tool_execution_end',
+          toolCallId: 'm2',
+          toolName: 'mcp__exa__search',
+          result,
+          isError: false
+        }
+      ] as AgentSessionEvent[])
+    )
+    expect(message.parts.find((part) => part.type === 'dynamic-tool')).toMatchObject({
+      toolName: 'mcp__exa__search',
+      output: result
     })
   })
 })

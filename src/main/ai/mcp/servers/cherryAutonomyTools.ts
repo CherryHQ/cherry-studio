@@ -12,11 +12,21 @@ import { application } from '@application'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentChannelWorkflowService } from '@data/services/AgentChannelWorkflowService'
 import { agentService } from '@data/services/AgentService'
+import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
 import { type ChannelAdapter, resolveWorkspaceFile, sanitizeChannelOutput } from '@main/ai/channels'
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
 import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
+import {
+  AgentSessionDeliveryStatusSchema,
+  SESSION_CREATE_TOOL_NAME,
+  SESSION_DELIVERIES_TOOL_NAME,
+  SESSION_LIST_TOOL_NAME,
+  SESSION_SEARCH_TOOL_NAME,
+  SESSION_SEND_TOOL_NAME
+} from '@shared/ai/agentSessionDelivery'
 import { CONFIG_TOOL_NAME, CRON_TOOL_NAME, NOTIFY_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
@@ -40,6 +50,11 @@ export interface CherryAgentContext {
    * granted access. The autonomy tools ignore this field.
    */
   getKnowledgeBaseIds: () => string[]
+}
+
+type CherryAutonomyContext = CherryAgentContext & {
+  /** Trusted current Session identity injected by settingsBuilder; never accepted from tool args. */
+  sessionId: string
 }
 
 /**
@@ -135,10 +150,9 @@ const NOTIFY_TOOL: Tool = {
         type: 'string',
         description: 'Optional: send to a specific channel only (omit to send to all notify-enabled channels)'
       }
-    },
-    // Enforce "message or file_path" so MCP clients can pre-validate; the handler re-checks
-    // the trimmed values (empty strings must still be rejected).
-    anyOf: [{ required: ['message'] }, { required: ['file_path'] }]
+    }
+    // ponytail: no root anyOf — some providers (xAI) reject union root schemas; the handler
+    // enforces "message or file_path" on the trimmed values anyway.
   }
 }
 
@@ -252,16 +266,109 @@ const CONFIG_TOOL: Tool = {
   }
 }
 
-const AUTONOMY_TOOLS: readonly Tool[] = [CRON_TOOL, NOTIFY_TOOL, CONFIG_TOOL]
+const SESSION_LIST_TOOL: Tool = {
+  name: SESSION_LIST_TOOL_NAME,
+  description:
+    'List active Cherry Agent Sessions that can receive a message. Returns both agentId and sessionId for every address.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      agent_id: { type: 'string', description: 'Optional Agent id filter.' },
+      cursor: { type: 'string', description: 'Opaque cursor returned by the previous page.' },
+      limit: { type: 'number', description: 'Maximum Sessions to return (default 50, max 100).' }
+    }
+  }
+}
+
+const SESSION_SEARCH_TOOL: Tool = {
+  name: SESSION_SEARCH_TOOL_NAME,
+  description: 'Search visible Cherry Agent Sessions by metadata and message evidence.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      query: {
+        type: 'string',
+        maxLength: 4096,
+        description: 'Natural-language or keyword query, ranked by lexical relevance.'
+      },
+      agent_id: { type: 'string', description: 'Optional Agent id filter.' },
+      limit: { type: 'number', description: 'Maximum Sessions to return (default 20, max 100).' }
+    },
+    required: ['query']
+  }
+}
+
+const SESSION_DELIVERIES_TOOL: Tool = {
+  name: SESSION_DELIVERIES_TOOL_NAME,
+  description: 'Inspect durable incoming or outgoing cross-Session requests, results, and delivery state.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      direction: { type: 'string', enum: ['incoming', 'outgoing'] },
+      request_id: { type: 'string', description: 'Optional request id; correlated results are included.' },
+      status: { type: 'string', enum: ['accepted', 'delivering', 'consumed', 'failed'] },
+      limit: { type: 'number', description: 'Maximum deliveries to return (default 20, max 100).' }
+    }
+  }
+}
+
+const SESSION_CREATE_TOOL: Tool = {
+  name: SESSION_CREATE_TOOL_NAME,
+  description:
+    'Create a new Session for the current Agent and send its first durable message. The new Session inherits the current workspace policy and uses the Agent model.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      message: { type: 'string', description: 'First message for the new Session.' },
+      title: { type: 'string', maxLength: 255, description: 'Optional Session title.' }
+    },
+    required: ['message']
+  }
+}
+
+const SESSION_SEND_TOOL: Tool = {
+  name: SESSION_SEND_TOOL_NAME,
+  description:
+    'Send a durable message to another Cherry Agent Session. Sender agentId/sessionId are injected by the trusted runtime and cannot be supplied by the caller.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      target_session_id: {
+        type: 'string',
+        description: 'Target sessionId returned by session_list or delivery sender.'
+      },
+      message: { type: 'string', description: 'Message for the target Agent.' },
+      reply: {
+        type: 'string',
+        enum: ['none', 'completion'],
+        description: 'completion returns one asynchronous terminal result in a separate turn.'
+      }
+    },
+    required: ['target_session_id', 'message']
+  }
+}
+
+const AUTONOMY_TOOLS: readonly Tool[] = [
+  CRON_TOOL,
+  NOTIFY_TOOL,
+  CONFIG_TOOL,
+  SESSION_LIST_TOOL,
+  SESSION_SEARCH_TOOL,
+  SESSION_CREATE_TOOL,
+  SESSION_DELIVERIES_TOOL,
+  SESSION_SEND_TOOL
+]
 
 export class CherryAutonomyTools {
   private agentId: string
+  private sessionId: string
   private workspace: AgentSessionWorkspaceSource
   private workspacePath: string
   private sourceChannelId: string | undefined
 
-  constructor(context: CherryAgentContext) {
+  constructor(context: CherryAutonomyContext) {
     this.agentId = context.agentId
+    this.sessionId = context.sessionId
     this.workspace = context.workspaceSource
     this.workspacePath = context.workspacePath
     this.sourceChannelId = context.sourceChannelId
@@ -293,6 +400,16 @@ export class CherryAutonomyTools {
         }
         case NOTIFY_TOOL_NAME:
           return await this.sendNotification(args)
+        case SESSION_LIST_TOOL_NAME:
+          return this.listSessions(args)
+        case SESSION_SEARCH_TOOL_NAME:
+          return this.searchSessions(args)
+        case SESSION_CREATE_TOOL_NAME:
+          return await this.createSession(args)
+        case SESSION_DELIVERIES_TOOL_NAME:
+          return this.listSessionDeliveries(args)
+        case SESSION_SEND_TOOL_NAME:
+          return await this.sendSessionMessage(args)
         case CONFIG_TOOL_NAME: {
           const action = args.action
           switch (action) {
@@ -325,10 +442,213 @@ export class CherryAutonomyTools {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       logger.error(`Tool error: ${toolName}`, { agentId: this.agentId, error: message })
+      if (!(error instanceof AgentSessionDeliveryRoutingError)) {
+        return {
+          content: [{ type: 'text' as const, text: `Error: ${message}` }],
+          isError: true
+        }
+      }
       return {
-        content: [{ type: 'text' as const, text: `Error: ${message}` }],
+        content: [{ type: 'text' as const, text: JSON.stringify({ ok: false, error: { code: error.code, message } }) }],
         isError: true
       }
+    }
+  }
+
+  private assertCurrentSessionIdentity(): void {
+    const session = agentSessionService.getById(this.sessionId)
+    if (session.agentId !== this.agentId) {
+      throw new AgentSessionDeliveryRoutingError('SENDER_FORBIDDEN', 'The active runtime no longer owns this Session')
+    }
+  }
+
+  private assertSessionToolsAuthorized(): void {
+    const interaction = application.get('AgentSessionRuntimeService').getInteractionState(this.sessionId)
+    if (interaction.currentTurn === 'headless' || interaction.userResponse === 'unavailable') {
+      throw new AgentSessionDeliveryRoutingError(
+        'SESSION_TOOL_FORBIDDEN',
+        'Cross-Session discovery and delegation require an interactive user turn'
+      )
+    }
+  }
+
+  private listSessions(args: Record<string, unknown>) {
+    this.assertCurrentSessionIdentity()
+    this.assertSessionToolsAuthorized()
+    const agentId = typeof args.agent_id === 'string' && args.agent_id.trim() ? args.agent_id.trim() : undefined
+    const cursor = typeof args.cursor === 'string' && args.cursor.trim() ? args.cursor.trim() : undefined
+    const limit = typeof args.limit === 'number' ? Math.min(Math.max(Math.trunc(args.limit), 1), 100) : 50
+    const page = agentSessionService.listAddressableByCursor({ agentId, cursor, limit })
+    const sessions = page.items.map((session) => ({
+      ...session,
+      isCurrent: session.sessionId === this.sessionId
+    }))
+    return {
+      content: [{ type: 'text' as const, text: JSON.stringify({ sessions, nextCursor: page.nextCursor }) }]
+    }
+  }
+
+  private searchSessions(args: Record<string, unknown>) {
+    this.assertCurrentSessionIdentity()
+    this.assertSessionToolsAuthorized()
+    const query = typeof args.query === 'string' ? args.query.trim() : ''
+    if (!query) throw new McpError(ErrorCode.InvalidParams, "'query' is required")
+    if (query.length > 4096) throw new McpError(ErrorCode.InvalidParams, "'query' must be at most 4096 characters")
+    const agentId = typeof args.agent_id === 'string' && args.agent_id.trim() ? args.agent_id.trim() : undefined
+    const limit = typeof args.limit === 'number' ? Math.min(Math.max(Math.trunc(args.limit), 1), 100) : 20
+    const matches = agentSessionMessageService.searchRanked({ q: query, limit, agentId, addressableOnly: true })
+    const sessions = new Map<
+      string,
+      {
+        agentId?: string
+        agentName?: string
+        sessionId: string
+        sessionName: string
+        isCurrent: boolean
+        matches: Array<{ messageId: string; snippet: string; createdAt: string }>
+        metadataMatches: Array<{ field: 'name' | 'description'; snippet: string }>
+      }
+    >()
+    for (const match of matches) {
+      const candidate = sessions.get(match.sessionId) ?? {
+        agentId: match.agentId,
+        agentName: match.agentName,
+        sessionId: match.sessionId,
+        sessionName: match.sessionName,
+        isCurrent: match.sessionId === this.sessionId,
+        matches: [],
+        metadataMatches: []
+      }
+      candidate.matches.push({ messageId: match.messageId, snippet: match.snippet, createdAt: match.createdAt })
+      sessions.set(match.sessionId, candidate)
+    }
+    for (const result of agentSessionService.searchWithMetadataEvidence({
+      q: query,
+      limit,
+      agentId,
+      addressableOnly: true
+    })) {
+      const match = result.item
+      const existing = sessions.get(match.id)
+      if (existing) {
+        existing.metadataMatches.push(...result.matches)
+        continue
+      }
+      if (sessions.size >= limit) continue
+      sessions.set(match.id, {
+        agentId: match.target.agentId ?? undefined,
+        agentName: match.subtitle,
+        sessionId: match.id,
+        sessionName: match.title,
+        isCurrent: match.id === this.sessionId,
+        matches: [],
+        metadataMatches: result.matches
+      })
+    }
+    return { content: [{ type: 'text' as const, text: JSON.stringify({ sessions: [...sessions.values()] }) }] }
+  }
+
+  private listSessionDeliveries(args: Record<string, unknown>) {
+    this.assertCurrentSessionIdentity()
+    this.assertSessionToolsAuthorized()
+    const limit = typeof args.limit === 'number' ? Math.min(Math.max(Math.trunc(args.limit), 1), 100) : 20
+    if (args.direction !== undefined && args.direction !== 'incoming' && args.direction !== 'outgoing') {
+      throw new McpError(ErrorCode.InvalidParams, "invalid 'direction'")
+    }
+    const direction = args.direction ?? 'incoming'
+    const requestId = typeof args.request_id === 'string' ? args.request_id.trim() : undefined
+    const statusResult = args.status === undefined ? undefined : AgentSessionDeliveryStatusSchema.safeParse(args.status)
+    if (statusResult && !statusResult.success) throw new McpError(ErrorCode.InvalidParams, "invalid 'status'")
+    const deliveries = agentSessionMessageService
+      .listSessionDeliveries({
+        sessionId: this.sessionId,
+        direction,
+        requestId,
+        status: statusResult?.data,
+        limit
+      })
+      .flatMap((message) =>
+        message.delivery
+          ? [
+              {
+                id: message.id,
+                envelope: message.delivery,
+                content: (message.data.parts ?? [])
+                  .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
+                  .map((part) => part.text)
+                  .join('\n')
+              }
+            ]
+          : []
+      )
+    return { content: [{ type: 'text' as const, text: JSON.stringify({ deliveries }) }] }
+  }
+
+  private async createSession(args: Record<string, unknown>) {
+    this.assertCurrentSessionIdentity()
+    this.assertSessionToolsAuthorized()
+    const content = typeof args.message === 'string' ? args.message.trim() : ''
+    const title = typeof args.title === 'string' ? args.title.trim() : ''
+    if (!content) throw new McpError(ErrorCode.InvalidParams, "'message' is required")
+    if (args.title !== undefined && typeof args.title !== 'string') {
+      throw new McpError(ErrorCode.InvalidParams, "'title' must be a string")
+    }
+    if (title.length > 255) throw new McpError(ErrorCode.InvalidParams, "'title' must be at most 255 characters")
+
+    const created = application.get('AgentSessionDeliveryService').acceptWithNewSession({
+      senderAgentId: this.agentId,
+      senderSessionId: this.sessionId,
+      sessionName: title,
+      workspace: this.workspace,
+      content
+    })
+    return {
+      content: [
+        {
+          type: 'text' as const,
+          text: JSON.stringify({
+            ok: true,
+            agentId: created.session.agentId,
+            sessionId: created.session.id,
+            requestId: created.message.id,
+            delivery: created.message.delivery
+          })
+        }
+      ]
+    }
+  }
+
+  private async sendSessionMessage(args: Record<string, unknown>) {
+    this.assertCurrentSessionIdentity()
+    this.assertSessionToolsAuthorized()
+    const receiverSessionId = typeof args.target_session_id === 'string' ? args.target_session_id.trim() : ''
+    const content = typeof args.message === 'string' ? args.message.trim() : ''
+    const reply = args.reply === undefined ? 'none' : args.reply
+    if (reply !== 'none' && reply !== 'completion') {
+      throw new McpError(ErrorCode.InvalidParams, "'reply' must be none or completion")
+    }
+    if (!receiverSessionId) throw new McpError(ErrorCode.InvalidParams, "'target_session_id' is required")
+    if (!content) throw new McpError(ErrorCode.InvalidParams, "'message' is required")
+
+    const accepted = application.get('AgentSessionDeliveryService').accept({
+      senderAgentId: this.agentId,
+      senderSessionId: this.sessionId,
+      receiverSessionId,
+      content,
+      replyPolicy: reply
+    })
+    return {
+      content: [
+        {
+          type: 'text' as const,
+          text: JSON.stringify({
+            ok: true,
+            requestId: accepted.id,
+            status: 'accepted',
+            delivery: accepted.delivery
+          })
+        }
+      ]
     }
   }
 

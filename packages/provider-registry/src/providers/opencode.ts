@@ -27,6 +27,9 @@ const qwenBudgetWire: ReasoningWireProfile = {
 const chatFixedModels = [
   'glm-5',
   'glm-5-1',
+  // GLM-5.3 reached opencode's listing without a zhipu catalog entry: pin the wire it serves so it
+  // can't silently fall back, and claim no effort knobs until the contract is known.
+  'glm-5-3',
   'kimi-k2-5',
   'kimi-k2-6',
   'kimi-k2-7-code',
@@ -84,6 +87,13 @@ const endpointOverrides: Partial<ProviderModelOverride>[] = [
     endpointTypes: ['openai-responses' as const],
     reasoningContracts: {
       'openai-responses': { support: effortSupport(['none', 'low', 'medium', 'high', 'xhigh', 'max']) }
+    }
+  },
+  {
+    modelId: 'muse-spark-1-2-contributor',
+    endpointTypes: ['openai-responses' as const],
+    reasoningContracts: {
+      'openai-responses': { support: effortSupport(['minimal', 'low', 'medium', 'high', 'xhigh']) }
     }
   },
   ...anthropicFixedModels.map((modelId) => ({

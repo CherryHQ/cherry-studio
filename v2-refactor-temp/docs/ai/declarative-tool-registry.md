@@ -101,7 +101,7 @@ Approval = `permission_mode` cards + read-only default-safe set. **Round-trip un
 
 ## CI drift guard
 - **Removals** → typecheck failure (named SDK-type imports + `_sdkCoverage` assertion per `kind:'sdk' && sdkTyped` key).
-- **Additions** → `scripts/check-claude-tools.ts` (mirrors `scripts/check-i18n.ts`): parse `ToolInputSchemas`/`ToolOutputSchemas` member identifiers via TS compiler API, strip `Input`/`Output`, apply SDK→name alias map, diff vs registry `kind:'sdk' && sdkTyped` keys → CI fails on any unmapped new SDK builtin.
+- **Additions** → `scripts/check-claude-tools.ts` (mirrors `scripts/i18n-check.ts`): parse `ToolInputSchemas`/`ToolOutputSchemas` member identifiers via TS compiler API, strip `Input`/`Output`, apply SDK→name alias map, diff vs registry `kind:'sdk' && sdkTyped` keys → CI fails on any unmapped new SDK builtin.
 - `sdkTyped:false` (teams) + `kind:'mcp'` tools are hand-tracked, exempt from the union guard.
 
 ## Final classification
