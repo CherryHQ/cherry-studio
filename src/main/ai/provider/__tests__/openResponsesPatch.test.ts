@@ -50,6 +50,11 @@ describe('patched @ai-sdk/open-responses', () => {
     expect(body.input.filter((item: any) => item.type === 'reasoning')).toEqual([
       { type: 'reasoning', summary: [], content: [{ type: 'reasoning_text', text: 'thinking' }] }
     ])
+    // Ark rejects assistant input items without status (400 MissingParameter:
+    // input.status, #18253) — mirror of the retired @ai-sdk/openai hunk (#18258).
+    expect(body.input.filter((item: any) => item.type === 'message' && item.role === 'assistant')).toEqual([
+      { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: 'answer' }], status: 'completed' }
+    ])
   })
 
   it('accepts vendor effort tiers outside the upstream enum (deepseek max)', async () => {
