@@ -54,7 +54,18 @@ const mainExternalDependencies = [
   // targets, not napi sub-packages, so rollup would fail on the .node; production keeps them installed.
   ...Object.keys(pkg.optionalDependencies ?? {})
 ]
-const mainExternalModules = ['bufferutil', 'utf-8-validate', 'electron', ...mainExternalDependencies]
+// The packaged DSH subprocess resolves these ESM SDK modules from its verified
+// runtime archive; keep them external for development mode without shipping a second copy.
+const dshDevelopmentExternalModules = Object.keys(pkg.devDependencies ?? {}).filter((name) =>
+  name.startsWith('@deepseek-ai/dsh-sdk-')
+)
+const mainExternalModules = [
+  'bufferutil',
+  'utf-8-validate',
+  'electron',
+  ...mainExternalDependencies,
+  ...dshDevelopmentExternalModules
+]
 
 export const isMainExternalModule = (id: string) => {
   return mainExternalModules.some((moduleId) => id === moduleId || id.startsWith(`${moduleId}/`))

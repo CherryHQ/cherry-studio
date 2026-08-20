@@ -147,6 +147,20 @@ describe('Claude Agent SDK payload', () => {
     expect(readFileSync(path.join(resourcesDir, 'win32-x64', file.archive), 'utf8')).toBe('claude-1.2.3')
     expect(existsSync(path.join(resourcesDir, 'win32-x64', 'claude.exe.zst'))).toBe(false)
   })
+
+  it('keeps the Linux Claude executable raw for outer package compression', async () => {
+    const projectRoot = makeTmpDir('before-pack-claude-linux-bundle-')
+    const resourcesDir = makeTmpDir('before-pack-claude-linux-resources-')
+    writePackage(projectRoot, '@anthropic-ai/claude-agent-sdk', '1.2.3')
+    writePackage(projectRoot, '@anthropic-ai/claude-agent-sdk-linux-x64', '1.2.3', 'claude')
+
+    const artifact = await bundleClaudeAgentSdk('linux', 'x64', { projectRoot, resourcesDir })
+    const file = artifact.files[0]
+
+    expect(file).toMatchObject({ archive: 'claude', compression: 'none' })
+    expect(readFileSync(path.join(resourcesDir, 'linux-x64', file.archive), 'utf8')).toBe('claude-1.2.3')
+    expect(existsSync(path.join(resourcesDir, 'linux-x64', 'claude.zst'))).toBe(false)
+  })
 })
 
 describe('keepPackages', () => {

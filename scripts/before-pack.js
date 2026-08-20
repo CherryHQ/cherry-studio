@@ -6,7 +6,13 @@ const { parse } = require('yaml')
 
 const { dshRuntimePackageExcludeFilters } = require('../packages/dsh-bridge/scripts/runtimeBuilder.cjs')
 const { ensureLinuxNativeArtifact } = require('./linux-native/download')
-const { bundleFilesArtifact, readManifest, verifyBundledArtifacts, writeManifest } = require('./download-binaries')
+const {
+  bundleFilesArtifact,
+  readManifest,
+  singleFileCompression,
+  verifyBundledArtifacts,
+  writeManifest
+} = require('./download-binaries')
 
 // if you want to add new prebuild binaries packages with different architectures, you can add them here
 // please add to allX64 and allArm64 from pnpm-lock.yaml
@@ -179,6 +185,7 @@ const bundleClaudeAgentSdk = async (platform, arch, options = {}) => {
   const platformKey = `${platform}-${arch}`
   const outputDir = path.join(resourcesDir, platformKey)
   const claude = assertClaudeAgentSdkNativeVersion(platform, arch, { projectRoot })
+  const compression = singleFileCompression(platform)
   fs.mkdirSync(outputDir, { recursive: true })
 
   const artifact = await bundleFilesArtifact({
@@ -187,8 +194,8 @@ const bundleClaudeAgentSdk = async (platform, arch, options = {}) => {
       {
         source: claude.binaryPath,
         output: claude.binaryName,
-        archive: platform === 'win32' ? claude.binaryName : 'claude.zst',
-        compression: platform === 'win32' ? 'none' : 'zstd',
+        archive: compression === 'none' ? claude.binaryName : 'claude.zst',
+        compression,
         mode: 0o755
       }
     ],

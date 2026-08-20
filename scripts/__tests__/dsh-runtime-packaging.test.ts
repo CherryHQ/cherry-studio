@@ -4,6 +4,7 @@ import path from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
+import { isMainExternalModule } from '../../electron.vite.config'
 import {
   bundleDshRuntimeTree,
   dshRuntimePackageExcludeFilters,
@@ -69,6 +70,7 @@ function createRuntimeFixture(): { projectRoot: string; runtimeRoot: string; out
   writeFile(runtimeRoot, 'node_modules/fixture-package/lib/resource.bin', 'runtime resource\n')
   writeFile(runtimeRoot, 'node_modules/fixture-package/data/config.json', '{"runtime":true}\n')
   writeFile(runtimeRoot, 'node_modules/fixture-package/bin/fixture.cjs', '#!/usr/bin/env node\n')
+  writeFile(runtimeRoot, 'node_modules/fixture-package/doc/runtime.js', 'module.exports = {}\n')
   writeFile(runtimeRoot, 'node_modules/fixture-package/README.md', 'documentation\n')
   writeFile(runtimeRoot, 'node_modules/fixture-package/lib/index.js.map', '{}\n')
   writeFile(runtimeRoot, 'node_modules/fixture-package/tests/ignored.js', 'ignored\n')
@@ -89,6 +91,11 @@ function createRuntimeFixture(): { projectRoot: string; runtimeRoot: string; out
 }
 
 describe('DSH runtime packaging', () => {
+  it('externalizes development-only SDK imports while the packaged runtime owns them', () => {
+    expect(isMainExternalModule('@deepseek-ai/dsh-sdk-client')).toBe(true)
+    expect(isMainExternalModule('@deepseek-ai/dsh-sdk-protocol/subpath')).toBe(true)
+  })
+
   it('discovers package entrypoints, preserves resources and nested versions, and excludes build-only files', async () => {
     const fixture = createRuntimeFixture()
     const { artifact } = await bundleDshRuntimeTree({
@@ -101,6 +108,7 @@ describe('DSH runtime packaging', () => {
     expect(artifact).toMatchObject({ kind: 'tree', compression: 'zstd', archive: 'dsh-runtime.tar.zst' })
     expect(paths).toContain('node_modules/fixture-package/lib/resource.bin')
     expect(paths).toContain('node_modules/fixture-package/data/config.json')
+    expect(paths).toContain('node_modules/fixture-package/doc/runtime.js')
     expect(paths).toContain('node_modules/fixture-package/node_modules/duplicate/index.js')
     expect(paths).toContain('node_modules/duplicate/index.js')
     expect(artifact.entrypoints).toContain('node_modules/fixture-package/bin/fixture.cjs')
@@ -155,6 +163,8 @@ describe('DSH runtime packaging', () => {
     ).toBe(false)
     expect(shouldKeepRuntimePath('node_modules/pkg/README.md', 'darwin', 'arm64')).toBe(false)
     expect(shouldKeepRuntimePath('node_modules/pkg/doc/index.md', 'darwin', 'arm64')).toBe(false)
+    expect(shouldKeepRuntimePath('node_modules/pkg/doc/directives.js', 'darwin', 'arm64')).toBe(true)
+    expect(shouldKeepRuntimePath('node_modules/pkg/docs/runtime.json', 'darwin', 'arm64')).toBe(true)
     expect(shouldKeepRuntimePath('node_modules/pkg/lib/index.js.map', 'darwin', 'arm64')).toBe(false)
     expect(shouldKeepRuntimePath('node_modules/pkg/pnpm-lock.yaml', 'darwin', 'arm64')).toBe(false)
     expect(shouldKeepRuntimePath('node_modules/pkg/esbuild.config.js', 'darwin', 'arm64')).toBe(false)
@@ -165,7 +175,11 @@ describe('DSH runtime packaging', () => {
     const projectRoot = makeDirectory('dsh-runtime-graph-')
     writeManifest(projectRoot, 'package.json', {
       name: 'app',
-      dependencies: { '@cherrystudio/dsh-bridge': '1.0.0', '@deepseek-ai/shared': '1.0.0', shared: '1.0.0' }
+      dependencies: {
+        '@cherrystudio/dsh-bridge': '1.0.0',
+        'app-entry': '1.0.0',
+        shared: '1.0.0'
+      }
     })
     writeManifest(projectRoot, 'node_modules/@cherrystudio/dsh-bridge/package.json', {
       name: '@cherrystudio/dsh-bridge',
@@ -182,6 +196,11 @@ describe('DSH runtime packaging', () => {
       name: '@deepseek-ai/shared',
       version: '1.0.0'
     })
+    writeManifest(projectRoot, 'node_modules/app-entry/package.json', {
+      name: 'app-entry',
+      version: '1.0.0',
+      dependencies: { '@deepseek-ai/shared': '1.0.0' }
+    })
     writeManifest(projectRoot, 'node_modules/shared/package.json', { name: 'shared', version: '1.0.0' })
     writeManifest(projectRoot, 'node_modules/node-pty/package.json', { name: 'node-pty', version: '1.1.0' })
     writeManifest(projectRoot, 'node_modules/koffi/package.json', { name: 'koffi', version: '3.1.4' })
@@ -195,5 +214,11 @@ describe('DSH runtime packaging', () => {
     expect(filters).toContain('!node_modules/**/node_modules/koffi/**')
     expect(filters).not.toContain('!node_modules/@deepseek-ai/shared/**')
     expect(filters).not.toContain('!node_modules/shared/**')
+
+    writeManifest(projectRoot, 'node_modules/app-entry/package.json', {
+      name: 'app-entry',
+      version: '1.0.0'
+    })
+    expect(dshRuntimePackageExcludeNames(projectRoot)).toContain('@deepseek-ai/shared')
   })
 })

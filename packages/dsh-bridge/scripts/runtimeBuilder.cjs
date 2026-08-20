@@ -7,7 +7,7 @@ const path = require('path')
 const { bundleTreeArtifact, writeManifest } = require('../../../scripts/download-binaries')
 
 const DSH_RUNTIME_PACKAGE = '@cherrystudio/dsh-bridge'
-const DSH_RUNTIME_FILTER_VERSION = 6
+const DSH_RUNTIME_FILTER_VERSION = 7
 const DSH_RUNTIME_ARCHIVE = 'dsh-runtime.tar.zst'
 const DSH_RUNTIME_TARGETS = new Set([
   'darwin-arm64',
@@ -23,8 +23,6 @@ const EXCLUDED_DIRECTORIES = new Set([
   '__tests__',
   'benchmarks',
   'coverage',
-  'doc',
-  'docs',
   'examples',
   'fixtures',
   'test',
@@ -103,6 +101,12 @@ function shouldKeepRuntimePath(relativePath, platform, arch) {
     return false
   }
   if (/^(?:README|LICENSE|CHANGELOG)(?:[._-]|$)/i.test(basename)) return false
+  if (
+    segments.some((segment) => segment === 'doc' || segment === 'docs') &&
+    /\.(?:adoc|md|mdx|rst|txt)$/i.test(basename)
+  ) {
+    return false
+  }
   if (/\.(?:map|d\.[cm]?ts|[cm]?ts|tsx)$/i.test(basename)) return false
 
   const extension = path.extname(basename).toLowerCase()

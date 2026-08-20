@@ -506,7 +506,9 @@ function artifactArchiveEntries(artifact) {
 }
 
 function singleFileCompression(platform) {
-  return platform === 'win32' ? 'none' : 'zstd'
+  // Debian/RPM/AppImage already apply package-level compression on Linux;
+  // keep single-file native payloads raw so the outer format can compress them.
+  return platform === 'darwin' ? 'zstd' : 'none'
 }
 
 function removeSupersededArchives(outputDir, previousArtifact, nextArtifact) {
@@ -810,6 +812,7 @@ module.exports = {
   sha256File,
   verifyBundledArtifacts,
   writeManifest,
+  singleFileCompression,
   MANIFEST_SCHEMA_VERSION,
   TOOLS
 }
