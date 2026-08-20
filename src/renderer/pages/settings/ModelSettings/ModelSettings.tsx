@@ -26,6 +26,7 @@ import type { Model } from '@shared/data/types/model'
 import { isGenerateImageModel, isNonChatModel } from '@shared/utils/model'
 import { useSearch } from '@tanstack/react-router'
 import {
+  ArrowRight,
   ChevronDown,
   Languages,
   MessageSquareMore,
@@ -64,7 +65,7 @@ interface ModelSettingRowProps {
   children: ReactNode
   rowRef?: Ref<HTMLDivElement>
   focused?: boolean
-  focusFaded?: boolean
+  focusGuideVisible?: boolean
 }
 
 const ModelSettingRow: FC<ModelSettingRowProps> = ({
@@ -75,12 +76,9 @@ const ModelSettingRow: FC<ModelSettingRowProps> = ({
   children,
   rowRef,
   focused,
-  focusFaded
+  focusGuideVisible
 }) => (
-  <div
-    ref={rowRef}
-    data-focused={focused || undefined}
-    className={cn(focused && !focusFaded && '-mx-2 rounded-md bg-primary/10 px-2 ring-1 ring-primary/40 ring-inset')}>
+  <div ref={rowRef} data-focused={focused || undefined}>
     <SettingRow className={cn(compact ? 'flex-col items-stretch gap-3 py-1' : 'items-start gap-6 py-1.5')}>
       <div className="min-w-0 flex-1">
         <SettingRowTitle className="gap-2">
@@ -89,7 +87,19 @@ const ModelSettingRow: FC<ModelSettingRowProps> = ({
         </SettingRowTitle>
         {description && <SettingDescription className="mt-1.5 leading-5">{description}</SettingDescription>}
       </div>
-      <div className={compact ? 'flex w-full items-center gap-2' : 'flex w-[340px] shrink-0 items-center gap-2'}>
+      <div
+        className={cn(
+          compact ? 'flex w-full items-center gap-2' : 'flex w-[340px] shrink-0 items-center gap-2',
+          'relative'
+        )}>
+        {focused && focusGuideVisible && (
+          <span
+            aria-hidden="true"
+            data-testid="model-settings-focus-guide"
+            className="animation-provider-model-pull-guide motion-reduce:-translate-y-1/2 pointer-events-none absolute top-1/2 right-full z-10 mr-1 flex h-4 w-5 items-center justify-end text-muted-foreground motion-reduce:animate-none">
+            <ArrowRight className="size-4" strokeWidth={2.5} />
+          </span>
+        )}
         {children}
       </div>
     </SettingRow>
@@ -132,7 +142,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
   const { focus } = validateModelSettingsSearch(useSearch({ strict: false }) as Record<string, unknown>)
   const defaultRowRef = useRef<HTMLDivElement | null>(null)
   const translateRowRef = useRef<HTMLDivElement | null>(null)
-  const [focusFaded, setFocusFaded] = useState(false)
+  const [showFocusGuide, setShowFocusGuide] = useState(false)
   const { setTimeoutTimer } = useTimer()
 
   const [translateModelPrompt, setTranslateModelPrompt] = usePreference('feature.translate.model_prompt')
@@ -207,8 +217,8 @@ const ModelSettings: FC<ModelSettingsProps> = ({
     if (!target) return
 
     scrollIntoView(target)
-    setFocusFaded(false)
-    setTimeoutTimer('model-settings-focus-fade', () => setFocusFaded(true), 2000)
+    setShowFocusGuide(true)
+    setTimeoutTimer('model-settings-focus-guide', () => setShowFocusGuide(false), 1200)
   }, [compact, focus, setTimeoutTimer])
 
   const groupStyle = compact ? { padding: 0, border: 'none', background: 'transparent' } : undefined
@@ -230,7 +240,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
             compact={compact}
             rowRef={defaultRowRef}
             focused={focus === 'default'}
-            focusFaded={focusFaded}
+            focusGuideVisible={showFocusGuide}
             icon={<MessageSquareMore size={16} className="lucide-custom shrink-0 text-foreground" />}
             title={t('settings.models.default_assistant_model')}
             description={showDescription ? t('settings.models.default_assistant_model_description') : undefined}>
@@ -278,7 +288,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
             compact={compact}
             rowRef={translateRowRef}
             focused={focus === 'translate'}
-            focusFaded={focusFaded}
+            focusGuideVisible={showFocusGuide}
             icon={<Languages size={16} className="lucide-custom shrink-0 text-foreground" />}
             title={t('settings.models.translate_model')}
             description={showDescription ? t('settings.models.translate_model_description') : undefined}>

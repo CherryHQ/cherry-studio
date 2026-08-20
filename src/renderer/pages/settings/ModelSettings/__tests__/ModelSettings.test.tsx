@@ -281,7 +281,7 @@ describe('ModelSettings', () => {
   it.each([
     ['default', 'settings.models.default_assistant_model'],
     ['translate', 'settings.models.translate_model']
-  ] as const)('focuses the %s model row requested by the route', (focus, expectedTitle) => {
+  ] as const)('points to the %s model selector requested by the route', (focus, expectedTitle) => {
     routerSearch.current = { focus }
 
     const { container } = render(<ModelSettings showPaintingModel={false} showSettingsButton={false} />)
@@ -290,5 +290,15 @@ describe('ModelSettings', () => {
     expect(focusedRows).toHaveLength(1)
     expect(focusedRows[0]).toHaveTextContent(expectedTitle)
     expect(Element.prototype.scrollIntoView).toHaveBeenCalled()
+
+    expect(focusedRows[0].querySelector('[data-testid="model-settings-focus-guide"]')).toBeInTheDocument()
+    expect(container.querySelectorAll('[data-testid="model-settings-focus-guide"]')).toHaveLength(1)
+    expect(setTimeoutTimerMock).toHaveBeenCalledWith('model-settings-focus-guide', expect.any(Function), 1200)
+
+    const timerCallback = setTimeoutTimerMock.mock.calls[0][1]
+    act(() => {
+      void timerCallback()
+    })
+    expect(container.querySelector('[data-testid="model-settings-focus-guide"]')).not.toBeInTheDocument()
   })
 })
