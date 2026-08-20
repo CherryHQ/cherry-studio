@@ -48,6 +48,7 @@ const RUNTIME_DESCRIPTION_KEYS: Record<AgentType, string> = {
 }
 
 const RUNTIMES = Object.keys(AGENT_RUNTIME_CAPABILITIES) as AgentType[]
+const RUNTIME_CARD_CLASS_NAME = 'w-full items-center gap-2 rounded-lg px-3 py-1.5 font-normal'
 
 function RuntimeCardBody({ runtime, t, compact = false }: { runtime: AgentType; t: TFunction; compact?: boolean }) {
   const caps = AGENT_RUNTIME_CAPABILITIES[runtime]
@@ -107,7 +108,8 @@ export function AgentRuntimeTiles({
             size="sm"
             variant="outline"
             className={cn(
-              'w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-1.5 font-normal hover:bg-accent/50',
+              RUNTIME_CARD_CLASS_NAME,
+              'cursor-pointer hover:bg-accent/50',
               // Keep keyboard focus visible while selection is indicated by the checkmark alone.
               'has-[[data-slot=radio-group-item]:focus-visible]:bg-accent',
               'has-[[data-slot=radio-group-item]:focus-visible]:ring-1 has-[[data-slot=radio-group-item]:focus-visible]:ring-ring has-[[data-slot=radio-group-item]:focus-visible]:ring-inset'
@@ -129,8 +131,11 @@ export function AgentRuntimeTiles({
 /** The runtime an agent already has. Not a control — there is nothing left to choose. */
 export function AgentRuntimeSummary({ value, t }: { value: AgentType; t: TFunction }) {
   return (
-    <Item size="sm" variant="muted" className="w-full rounded-xl">
-      <RuntimeCardBody runtime={value} t={t} />
+    <Item size="sm" variant="outline" className={RUNTIME_CARD_CLASS_NAME}>
+      <RuntimeCardBody runtime={value} t={t} compact />
+      <ItemActions className="size-4 shrink-0">
+        <Check className="size-4 text-primary" />
+      </ItemActions>
     </Item>
   )
 }
