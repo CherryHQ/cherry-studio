@@ -256,10 +256,9 @@ const AgentPage = () => {
     routeSessionId
   ])
   const lastVisibleSessionRef = useRef<AgentSessionEntity | null>(null)
-  const resolvedActiveSession = activeSession?.id === activeSessionId ? activeSession : null
   const visibleSession = isMessageOnlyView
     ? routeSession
-    : (resolvedActiveSession ??
+    : (activeSession ??
       (isActiveSessionLoading && lastVisibleSessionRef.current?.id === activeSessionId
         ? lastVisibleSessionRef.current
         : null))
@@ -367,8 +366,8 @@ const AgentPage = () => {
   }, [activeSession, isMessageOnlyView])
 
   useEffect(() => {
-    if (resolvedActiveSession) lastVisibleSessionRef.current = resolvedActiveSession
-  }, [resolvedActiveSession])
+    if (activeSession) lastVisibleSessionRef.current = activeSession
+  }, [activeSession])
 
   useEffect(() => {
     // Track "last focused session" only for persisted sessions. Gated on

@@ -229,10 +229,9 @@ const HomePage: FC = () => {
     routeTopicId
   ])
   const lastVisibleTopicRef = useRef<Topic | undefined>(undefined)
-  const resolvedActiveTopic = activeTopic?.id === activeTopicId ? activeTopic : undefined
   const visibleTopic = isMessageOnlyView
     ? routeTopic
-    : (resolvedActiveTopic ??
+    : (activeTopic ??
       (isActiveTopicLoading && lastVisibleTopicRef.current?.id === activeTopicId
         ? lastVisibleTopicRef.current
         : undefined))
@@ -347,8 +346,8 @@ const HomePage: FC = () => {
   })
 
   useEffect(() => {
-    if (resolvedActiveTopic) lastVisibleTopicRef.current = resolvedActiveTopic
-  }, [resolvedActiveTopic])
+    if (activeTopic) lastVisibleTopicRef.current = activeTopic
+  }, [activeTopic])
 
   useEffect(() => {
     if (isMessageOnlyView) return

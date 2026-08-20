@@ -1978,6 +1978,7 @@ describe('HomePage', () => {
 
     homeMocks.routeSearch = { topicId: 'topic-b' }
     homeMocks.activeTopicLoading = true
+    homeMocks.forceActiveTopicUndefined = true
     rerender(<HomePage />)
 
     await waitFor(() => expect(homeMocks.activeTopicOptions?.activeTopicId).toBe('topic-b'))
