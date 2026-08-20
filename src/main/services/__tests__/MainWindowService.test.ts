@@ -19,6 +19,8 @@ const { platformState, prefValues, applicationMock, windowManagerMock, loggerMoc
     const windowManagerMock = {
       getWindow: vi.fn(),
       getWindowId: vi.fn(),
+      getWindowIdByWebContents: vi.fn(),
+      getWindowType: vi.fn(),
       // Mirrors the real shape: runtime behavior setters live on `wm.behavior`
       // (see BehaviorController in src/main/core/window/behavior.ts).
       behavior: {
@@ -126,6 +128,7 @@ vi.mock('@main/core/lifecycle', async () => {
 })
 
 import { WindowType } from '@main/core/window/types'
+import { IpcChannel } from '@shared/IpcChannel'
 import { HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX, HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
 import { app } from 'electron'
 
@@ -151,6 +154,7 @@ interface MockBrowserWindow extends EventEmitter {
     setZoomFactor: ReturnType<typeof vi.fn>
     on: ReturnType<typeof vi.fn>
     setWindowOpenHandler: ReturnType<typeof vi.fn>
+    send: ReturnType<typeof vi.fn>
   }
 }
 
@@ -174,7 +178,8 @@ function createMockWindow(): MockBrowserWindow {
     setZoomFactor: vi.fn(),
     // capture render-process-gone listener for crash-recovery tests
     on: vi.fn(),
-    setWindowOpenHandler: vi.fn()
+    setWindowOpenHandler: vi.fn(),
+    send: vi.fn()
   }
   return win
 }
@@ -216,6 +221,9 @@ describe('MainWindowService', () => {
     applicationMock.forceExit.mockReset()
     windowManagerMock.behavior.setMacShowInDockByType.mockReset()
     windowManagerMock.getWindowId.mockReset()
+    windowManagerMock.getWindowIdByWebContents.mockReset()
+    windowManagerMock.getWindowType.mockReset()
+    windowManagerMock.getWindow.mockReset()
     windowManagerMock.open.mockClear()
     windowManagerMock.pushInitDataToType.mockClear()
     loggerMock.error.mockReset()
@@ -842,6 +850,71 @@ describe('MainWindowService', () => {
 
       expect(navigateTo('http://127.0.0.1:5173/windows/main/index.html').preventDefault).toHaveBeenCalledOnce()
       expect(navigateTo('file:///Users/victim/Downloads/evil.html').preventDefault).toHaveBeenCalledOnce()
+    })
+  })
+
+  describe('quoteToMainWindow routing', () => {
+    beforeEach(() => {
+      ;(svc as any).mainWindow = win
+    })
+
+    it('routes quotes originating from a detached SubWindow into that sub window', () => {
+      const subWindow = createMockWindow()
+      windowManagerMock.getWindowIdByWebContents.mockReturnValue('sub-window-1')
+      windowManagerMock.getWindowType.mockReturnValue(WindowType.SubWindow)
+      windowManagerMock.getWindow.mockReturnValue(subWindow)
+
+      svc.quoteToMainWindow('Selected text', { id: 9001 } as any)
+
+      expect(subWindow.webContents.send).toHaveBeenCalledWith(IpcChannel.App_QuoteToMain, 'Selected text')
+      // Must NOT force the main window to the front when quoting from a sub window.
+      expect(win.show).not.toHaveBeenCalled()
+      expect(win.focus).not.toHaveBeenCalled()
+      expect(win.webContents.send).not.toHaveBeenCalled()
+    })
+
+    it('routes quotes from the main window back to the main window', () => {
+      windowManagerMock.getWindowIdByWebContents.mockReturnValue('main-window-1')
+      windowManagerMock.getWindowType.mockReturnValue(WindowType.Main)
+
+      svc.quoteToMainWindow('Selected text', { id: 1000 } as any)
+
+      // showMainWindow focuses the main window so the quote lands in its composer.
+      expect(win.show).toHaveBeenCalled()
+      expect(win.focus).toHaveBeenCalled()
+    })
+
+    it('routes quotes from a non-SubWindow helper window (selection toolbar) to the main window', () => {
+      windowManagerMock.getWindowIdByWebContents.mockReturnValue('toolbar-window-1')
+      windowManagerMock.getWindowType.mockReturnValue(WindowType.SelectionToolbar)
+
+      svc.quoteToMainWindow('Selected text', { id: 500 } as any)
+
+      expect(win.show).toHaveBeenCalled()
+      expect(win.focus).toHaveBeenCalled()
+    })
+
+    it('falls back to the main window when the sender window cannot be resolved', () => {
+      windowManagerMock.getWindowIdByWebContents.mockReturnValue(undefined)
+
+      svc.quoteToMainWindow('Selected text', { id: 999 } as any)
+
+      expect(win.show).toHaveBeenCalled()
+      expect(win.focus).toHaveBeenCalled()
+    })
+
+    it('falls back to the main window when the SubWindow has been destroyed', () => {
+      const subWindow = createMockWindow()
+      subWindow.isDestroyed.mockReturnValue(true)
+      windowManagerMock.getWindowIdByWebContents.mockReturnValue('sub-window-1')
+      windowManagerMock.getWindowType.mockReturnValue(WindowType.SubWindow)
+      windowManagerMock.getWindow.mockReturnValue(subWindow)
+
+      svc.quoteToMainWindow('Selected text', { id: 9002 } as any)
+
+      expect(subWindow.webContents.send).not.toHaveBeenCalled()
+      expect(win.show).toHaveBeenCalled()
+      expect(win.focus).toHaveBeenCalled()
     })
   })
 })
