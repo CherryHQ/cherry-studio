@@ -37,7 +37,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { ArrowRight, Check, ChevronDown, Info } from 'lucide-react'
 import type React from 'react'
 import type { FC } from 'react'
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const QuickAssistantSettings: FC = () => {
@@ -57,6 +57,8 @@ const QuickAssistantSettings: FC = () => {
   const { defaultModel } = useDefaultModel()
   const navigate = useNavigate()
   const [assistantSelectOpen, setAssistantSelectOpen] = useState(false)
+  const modeTitleId = useId()
+  const configurationTitleId = useId()
 
   const assistantOptions = assistants
   const firstAssistantId = assistantOptions[0]?.id
@@ -139,35 +141,41 @@ const QuickAssistantSettings: FC = () => {
       </SettingGroup>
       {enableQuickAssistant && (
         <SettingGroup theme={theme}>
-          <SettingRow className="min-h-8.5 flex-nowrap gap-3">
-            <SettingRowTitle className="gap-2.5">
-              {t('settings.models.quick_assistant_model')}
+          <SettingRow role="group" aria-labelledby={modeTitleId} className="min-h-8.5 gap-3">
+            <SettingRowTitle id={modeTitleId} className="gap-2.5">
+              {t('settings.models.quick_assistant_mode')}
               <InfoTooltip
                 content={t('selection.settings.user_modal.model.tooltip')}
                 showArrow
                 iconProps={{ className: 'cursor-pointer' }}
               />
             </SettingRowTitle>
-            <RowFlex className="items-center gap-2.5">
-              {!isAssistantMode && (
-                <RowFlex className="min-w-0 items-center gap-2">
-                  <RowFlex className="min-w-0 max-w-40 items-center gap-2">
-                    {defaultModel ? <ModelAvatar model={defaultModel} size={18} className="shrink-0" /> : null}
-                    <span className="truncate text-foreground text-sm">
-                      {defaultModel?.name ?? t('settings.models.empty')}
-                    </span>
-                  </RowFlex>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="shrink-0"
-                    onClick={() => void navigate({ to: '/settings/model', search: { focus: 'default' } })}>
-                    <ArrowRight size={13} />
-                    {t('navigate.model_settings')}
-                  </Button>
-                </RowFlex>
+            <SegmentedControl<'assistant' | 'model'>
+              aria-label={t('settings.models.quick_assistant_mode')}
+              size="sm"
+              value={isAssistantMode ? 'assistant' : 'model'}
+              options={[
+                {
+                  value: 'assistant',
+                  label: t('settings.models.use_assistant'),
+                  disabled: assistantOptions.length === 0
+                },
+                { value: 'model', label: t('settings.models.use_model') }
+              ]}
+              onValueChange={(value) => void setQuickAssistantId(value === 'assistant' ? (firstAssistantId ?? '') : '')}
+            />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow role="group" aria-labelledby={configurationTitleId} className="min-h-8.5 flex-nowrap gap-3">
+            <SettingRowTitle id={configurationTitleId}>
+              {t(
+                isAssistantMode
+                  ? 'settings.models.quick_assistant_selection'
+                  : 'settings.models.default_assistant_model'
               )}
-              {!quickAssistantId || !selectedAssistant ? null : (
+            </SettingRowTitle>
+            {isAssistantMode ? (
+              selectedAssistant ? (
                 <RowFlex className="items-center">
                   <Popover open={assistantSelectOpen} onOpenChange={setAssistantSelectOpen}>
                     <PopoverTrigger asChild>
@@ -219,23 +227,25 @@ const QuickAssistantSettings: FC = () => {
                     </PopoverContent>
                   </Popover>
                 </RowFlex>
-              )}
-              <SegmentedControl<'assistant' | 'model'>
-                size="sm"
-                value={isAssistantMode ? 'assistant' : 'model'}
-                options={[
-                  {
-                    value: 'assistant',
-                    label: t('settings.models.use_assistant'),
-                    disabled: assistantOptions.length === 0
-                  },
-                  { value: 'model', label: t('settings.models.use_model') }
-                ]}
-                onValueChange={(value) =>
-                  void setQuickAssistantId(value === 'assistant' ? (firstAssistantId ?? '') : '')
-                }
-              />
-            </RowFlex>
+              ) : null
+            ) : (
+              <RowFlex className="min-w-0 items-center gap-3">
+                <RowFlex className="min-w-0 max-w-44 items-center gap-2">
+                  {defaultModel ? <ModelAvatar model={defaultModel} size={18} className="shrink-0" /> : null}
+                  <span className="truncate text-foreground text-sm">
+                    {defaultModel?.name ?? t('settings.models.empty')}
+                  </span>
+                </RowFlex>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0"
+                  onClick={() => void navigate({ to: '/settings/model', search: { focus: 'default' } })}>
+                  <ArrowRight size={13} />
+                  {t('navigate.model_settings')}
+                </Button>
+              </RowFlex>
+            )}
           </SettingRow>
         </SettingGroup>
       )}

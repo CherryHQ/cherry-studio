@@ -6213,6 +6213,7 @@
       "provider_key_confirm_title": "API-Schlüssel für {{provider}} hinzufügen",
       "provider_name": "Anbietername",
       "quick_assistant_default_tag": "Standard",
+      "quick_assistant_mode": "Schnellassistent-Modus",
       "quick_assistant_model": "Schnellassistent-Modell",
       "quick_assistant_selection": "Assistent auswählen",
       "quick_model": {

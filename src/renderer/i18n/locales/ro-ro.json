@@ -6213,6 +6213,7 @@
       "provider_key_confirm_title": "Adaugă cheia API pentru {{provider}}",
       "provider_name": "Nume furnizor",
       "quick_assistant_default_tag": "Implicit",
+      "quick_assistant_mode": "Mod asistent rapid",
       "quick_assistant_model": "Model asistent rapid",
       "quick_assistant_selection": "Selectează asistent",
       "quick_model": {

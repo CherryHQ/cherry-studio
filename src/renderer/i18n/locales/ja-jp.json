@@ -6213,6 +6213,7 @@
       "provider_key_confirm_title": "{{provider}} の API キーを追加",
       "provider_name": "プロバイダー名",
       "quick_assistant_default_tag": "デフォルト",
+      "quick_assistant_mode": "クイックアシスタントモード",
       "quick_assistant_model": "クイックアシスタントモデル",
       "quick_assistant_selection": "アシスタントを選択します",
       "quick_model": {

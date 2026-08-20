@@ -2,7 +2,7 @@ import '@testing-library/jest-dom/vitest'
 
 import type { Model } from '@shared/data/types/model'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -69,17 +69,19 @@ vi.mock('@cherrystudio/ui', async () => {
     },
     RowFlex: passthrough('div'),
     SegmentedControl: ({
+      'aria-label': ariaLabel,
       options,
       value,
       onValueChange
     }: {
+      'aria-label'?: string
       options: Array<{ disabled?: boolean; label: string; value: string }>
       value: string
       onValueChange?: (value: string) => void
     }) =>
       React.createElement(
         'div',
-        { role: 'radiogroup' },
+        { 'aria-label': ariaLabel, role: 'radiogroup' },
         options.map((option) =>
           React.createElement(
             'button',
@@ -154,25 +156,36 @@ describe('QuickAssistantSettings', () => {
     navigateMock.mockClear()
   })
 
-  it('shows the default model and opens its global model setting in default-model mode', async () => {
+  it('separates default-model mode from its model configuration', async () => {
     const user = userEvent.setup()
     MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.assistant_id', '')
     modelState.defaultModel = defaultModelFixture
 
     render(<QuickAssistantSettings />)
 
-    expect(screen.getByText('GPT-4o')).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'navigate.model_settings' }))
+    const modeRow = screen.getByRole('group', { name: 'settings.models.quick_assistant_mode' })
+    const modelRow = screen.getByRole('group', { name: 'settings.models.default_assistant_model' })
+
+    expect(within(modeRow).getByRole('radiogroup')).toBeInTheDocument()
+    expect(modeRow).not.toHaveTextContent('GPT-4o')
+    expect(within(modelRow).getByText('GPT-4o')).toBeInTheDocument()
+
+    await user.click(within(modelRow).getByRole('button', { name: 'navigate.model_settings' }))
 
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/model', search: { focus: 'default' } })
   })
 
-  it('does not show the global model link in assistant mode', () => {
+  it('separates assistant mode from the mode selector without global model navigation', () => {
     MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.assistant_id', 'assistant-1')
     modelState.defaultModel = defaultModelFixture
 
     render(<QuickAssistantSettings />)
 
+    const modeRow = screen.getByRole('group', { name: 'settings.models.quick_assistant_mode' })
+    const assistantRow = screen.getByRole('group', { name: 'settings.models.quick_assistant_selection' })
+
+    expect(within(modeRow).getByRole('radiogroup')).toBeInTheDocument()
+    expect(within(assistantRow).getByRole('button', { expanded: false })).toHaveTextContent('Assistant 1')
     expect(screen.queryByRole('button', { name: 'navigate.model_settings' })).not.toBeInTheDocument()
   })
 
