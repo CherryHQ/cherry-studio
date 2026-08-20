@@ -1,7 +1,16 @@
 diff --git a/dist/index.js b/dist/index.js
-index 1c78d6f13caed5cbfa034d86f5e51729d540a1ba..369b39b863edb531f8a86223900bc955ffc31c41 100644
+index 1c78d6f13caed5cbfa034d86f5e51729d540a1ba..2e4f1a303666d5dde57f7eee1aed7bd90193a84e 100644
 --- a/dist/index.js
 +++ b/dist/index.js
+@@ -737,7 +737,7 @@ var OpenAIChatLanguageModel = class {
+       // messages:
+       messages
+     };
+-    if (isReasoningModel) {
++    if (modelCapabilities.isReasoningModel) {
+       if (openaiOptions.reasoningEffort !== "none" || !modelCapabilities.supportsNonReasoningParameters) {
+         if (baseArgs.temperature != null) {
+           baseArgs.temperature = void 0;
 @@ -1725,7 +1725,8 @@ var openaiImageResponseSchema = (0, import_provider_utils12.lazySchema)(
        created: import_v48.z.number().nullish(),
        data: import_v48.z.array(
@@ -102,6 +111,15 @@ index 1c78d6f13caed5cbfa034d86f5e51729d540a1ba..369b39b863edb531f8a86223900bc955
        import_v421.z.object({
          type: import_v421.z.literal("response.reasoning_summary_part.done"),
          item_id: import_v421.z.string(),
+@@ -4812,7 +4837,7 @@ var OpenAIResponsesLanguageModel = class {
+         }
+       }
+     };
+-    if (isReasoningModel) {
++    if (modelCapabilities.isReasoningModel) {
+       if (!((openaiOptions == null ? void 0 : openaiOptions.reasoningEffort) === "none" && modelCapabilities.supportsNonReasoningParameters)) {
+         if (baseArgs.temperature != null) {
+           baseArgs.temperature = void 0;
 @@ -6105,6 +6130,17 @@ var OpenAIResponsesLanguageModel = class {
                    }
                  }
@@ -121,9 +139,18 @@ index 1c78d6f13caed5cbfa034d86f5e51729d540a1ba..369b39b863edb531f8a86223900bc955
                if (store) {
                  controller.enqueue({
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 3dee8855a0cff4c2d5bef4ff1cb2a92a48bd8c4f..14cd5af472436ead77af1fc4eb196f1813381dcd 100644
+index 3dee8855a0cff4c2d5bef4ff1cb2a92a48bd8c4f..0f9e7c9d4055f92619e7389799bc227c080ce008 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
+@@ -728,7 +728,7 @@ var OpenAIChatLanguageModel = class {
+       // messages:
+       messages
+     };
+-    if (isReasoningModel) {
++    if (modelCapabilities.isReasoningModel) {
+       if (openaiOptions.reasoningEffort !== "none" || !modelCapabilities.supportsNonReasoningParameters) {
+         if (baseArgs.temperature != null) {
+           baseArgs.temperature = void 0;
 @@ -1740,7 +1740,8 @@ var openaiImageResponseSchema = lazySchema7(
        created: z8.number().nullish(),
        data: z8.array(
@@ -224,6 +251,15 @@ index 3dee8855a0cff4c2d5bef4ff1cb2a92a48bd8c4f..14cd5af472436ead77af1fc4eb196f18
        z21.object({
          type: z21.literal("response.reasoning_summary_part.done"),
          item_id: z21.string(),
+@@ -4891,7 +4916,7 @@ var OpenAIResponsesLanguageModel = class {
+         }
+       }
+     };
+-    if (isReasoningModel) {
++    if (modelCapabilities.isReasoningModel) {
+       if (!((openaiOptions == null ? void 0 : openaiOptions.reasoningEffort) === "none" && modelCapabilities.supportsNonReasoningParameters)) {
+         if (baseArgs.temperature != null) {
+           baseArgs.temperature = void 0;
 @@ -6184,6 +6209,17 @@ var OpenAIResponsesLanguageModel = class {
                    }
                  }
@@ -243,9 +279,18 @@ index 3dee8855a0cff4c2d5bef4ff1cb2a92a48bd8c4f..14cd5af472436ead77af1fc4eb196f18
                if (store) {
                  controller.enqueue({
 diff --git a/dist/internal/index.js b/dist/internal/index.js
-index 27527ce4b6c232e26c4bed988292d8fdd5dbbb5f..a6772ddc0448979d20ecdb7310e2d33d6e7823c4 100644
+index 27527ce4b6c232e26c4bed988292d8fdd5dbbb5f..fb4082853ddb20ce66c7ae7e5b2581e4a8cba40a 100644
 --- a/dist/internal/index.js
 +++ b/dist/internal/index.js
+@@ -764,7 +764,7 @@ var OpenAIChatLanguageModel = class {
+       // messages:
+       messages
+     };
+-    if (isReasoningModel) {
++    if (modelCapabilities.isReasoningModel) {
+       if (openaiOptions.reasoningEffort !== "none" || !modelCapabilities.supportsNonReasoningParameters) {
+         if (baseArgs.temperature != null) {
+           baseArgs.temperature = void 0;
 @@ -1752,7 +1752,8 @@ var openaiImageResponseSchema = (0, import_provider_utils12.lazySchema)(
        created: import_v48.z.number().nullish(),
        data: import_v48.z.array(
@@ -346,6 +391,15 @@ index 27527ce4b6c232e26c4bed988292d8fdd5dbbb5f..a6772ddc0448979d20ecdb7310e2d33d
        import_v417.z.object({
          type: import_v417.z.literal("response.reasoning_summary_part.done"),
          item_id: import_v417.z.string(),
+@@ -5073,7 +5098,7 @@ var OpenAIResponsesLanguageModel = class {
+         }
+       }
+     };
+-    if (isReasoningModel) {
++    if (modelCapabilities.isReasoningModel) {
+       if (!((openaiOptions == null ? void 0 : openaiOptions.reasoningEffort) === "none" && modelCapabilities.supportsNonReasoningParameters)) {
+         if (baseArgs.temperature != null) {
+           baseArgs.temperature = void 0;
 @@ -6366,6 +6391,17 @@ var OpenAIResponsesLanguageModel = class {
                    }
                  }
@@ -365,9 +419,18 @@ index 27527ce4b6c232e26c4bed988292d8fdd5dbbb5f..a6772ddc0448979d20ecdb7310e2d33d
                if (store) {
                  controller.enqueue({
 diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
-index db50beda01459008c836cd5648e024340fe31e90..7a539419d05e021d9bb909f961b115340078cdbe 100644
+index db50beda01459008c836cd5648e024340fe31e90..8944669a00acc033bbd2c2faa04c04a2d32bbef9 100644
 --- a/dist/internal/index.mjs
 +++ b/dist/internal/index.mjs
+@@ -720,7 +720,7 @@ var OpenAIChatLanguageModel = class {
+       // messages:
+       messages
+     };
+-    if (isReasoningModel) {
++    if (modelCapabilities.isReasoningModel) {
+       if (openaiOptions.reasoningEffort !== "none" || !modelCapabilities.supportsNonReasoningParameters) {
+         if (baseArgs.temperature != null) {
+           baseArgs.temperature = void 0;
 @@ -1732,7 +1732,8 @@ var openaiImageResponseSchema = lazySchema7(
        created: z8.number().nullish(),
        data: z8.array(
@@ -468,6 +531,15 @@ index db50beda01459008c836cd5648e024340fe31e90..7a539419d05e021d9bb909f961b11534
        z17.object({
          type: z17.literal("response.reasoning_summary_part.done"),
          item_id: z17.string(),
+@@ -5129,7 +5154,7 @@ var OpenAIResponsesLanguageModel = class {
+         }
+       }
+     };
+-    if (isReasoningModel) {
++    if (modelCapabilities.isReasoningModel) {
+       if (!((openaiOptions == null ? void 0 : openaiOptions.reasoningEffort) === "none" && modelCapabilities.supportsNonReasoningParameters)) {
+         if (baseArgs.temperature != null) {
+           baseArgs.temperature = void 0;
 @@ -6422,6 +6447,17 @@ var OpenAIResponsesLanguageModel = class {
                    }
                  }
@@ -486,6 +558,19 @@ index db50beda01459008c836cd5648e024340fe31e90..7a539419d05e021d9bb909f961b11534
              } else if (value.type === "response.reasoning_summary_part.done") {
                if (store) {
                  controller.enqueue({
+diff --git a/src/chat/openai-chat-language-model.ts b/src/chat/openai-chat-language-model.ts
+index 96077d47c9e104143430d261e040b9ae89340940..31417bad69cc06d5213be0b17b3ef08aa6d77671 100644
+--- a/src/chat/openai-chat-language-model.ts
++++ b/src/chat/openai-chat-language-model.ts
+@@ -180,7 +180,7 @@ export class OpenAIChatLanguageModel implements LanguageModelV3 {
+ 
+     // remove unsupported settings for reasoning models
+     // see https://platform.openai.com/docs/guides/reasoning#limitations
+-    if (isReasoningModel) {
++    if (modelCapabilities.isReasoningModel) {
+       // when reasoning effort is none, gpt-5.1 models allow temperature, topP, logprobs
+       //  https://platform.openai.com/docs/guides/latest-model#gpt-5-1-parameter-compatibility
+       if (
 diff --git a/src/image/openai-image-api.ts b/src/image/openai-image-api.ts
 index de779ca46aa2102cc5bef4a733ef6b6807260731..14b724785e15ab95f4cd2ff4d35d35c2ca7605c7 100644
 --- a/src/image/openai-image-api.ts
@@ -592,9 +677,18 @@ index 53a3f242d81d0b52d9126b0f4580a30778373606..715f51cb5d5cc3a2f5cbd537e8d50893
          type: z.literal('response.reasoning_summary_part.done'),
          item_id: z.string(),
 diff --git a/src/responses/openai-responses-language-model.ts b/src/responses/openai-responses-language-model.ts
-index fe9616c8119e0d81750b4b367115aa1e58c9bc3d..b277aac9d3f9bb972da7ecb5ab03a1ab449df5c5 100644
+index fe9616c8119e0d81750b4b367115aa1e58c9bc3d..ee29c4bf14104ceb2e5ce1dafe816828b14018cb 100644
 --- a/src/responses/openai-responses-language-model.ts
 +++ b/src/responses/openai-responses-language-model.ts
+@@ -358,7 +358,7 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
+ 
+     // remove unsupported settings for reasoning models
+     // see https://platform.openai.com/docs/guides/reasoning#limitations
+-    if (isReasoningModel) {
++    if (modelCapabilities.isReasoningModel) {
+       // when reasoning effort is none, gpt-5.1 models allow temperature, topP, logprobs
+       //  https://platform.openai.com/docs/guides/latest-model#gpt-5-1-parameter-compatibility
+       if (
 @@ -1969,6 +1969,17 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
                    } satisfies ResponsesReasoningProviderMetadata,
                  },
