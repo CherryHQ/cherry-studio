@@ -2,7 +2,7 @@
 
 ## Status
 
-Approved on 2026-08-20.
+Approved on 2026-08-20. The quick-assistant two-row layout revision was approved on 2026-08-20.
 
 ## Context
 
@@ -61,14 +61,22 @@ Support focused navigation through the model settings route:
 
 Validate the route search value. On arrival, scroll the requested row into view and apply a brief visual highlight, following the existing shortcut-settings focused-row behavior. A missing or invalid focus value renders the page normally.
 
+The shortcut-settings precedent is the interaction contract: validate a stable identifier at the route boundary, scroll the matching row into view, apply the primary-tint background and ring, and fade the visual treatment after two seconds while leaving the user at the scrolled position. The model settings implementation should stay local because its row structure differs from shortcut settings; a shared component or hook is not justified for two consumers.
+
 ### Quick assistant
 
-When the quick assistant is in default-model mode:
+Split model-source selection from source-specific configuration inside the existing quick-assistant model card:
 
-- Show the effective current default assistant model beside the mode control.
-- Add the same outline navigation button targeting `/settings/model?focus=default`.
+1. The first row is **Quick assistant mode** and contains only the existing segmented control for **Use assistant** and **Default model**.
+2. After a divider, the second row reflects the selected mode:
+   - Assistant mode labels the row **Assistant** and shows the existing assistant selector.
+   - Default-model mode labels the row **Default assistant model**, shows the effective current default model, and provides the outline navigation button targeting `/settings/model?focus=default`.
 
-Assistant mode retains its existing assistant selector and does not add a global-model navigation button because the selected assistant owns its model.
+The mode control is the parent decision and must precede the configuration it controls. Do not place the model, navigation button, and segmented control in one horizontal cluster. Keep the explicit navigation label rather than reducing it to an icon-only button: it is a deliberate cross-page action and matches the web-search provider-settings precedent.
+
+Assistant mode does not show a global-model navigation button because the selected assistant owns its model. Existing behavior remains unchanged when no assistants exist, while assistants are loading, or when a saved assistant has been deleted: the assistant option is disabled when unavailable, a loading selection is preserved, and an invalid loaded selection falls back to default-model mode.
+
+Both rows may wrap at narrow widths, but each row keeps one responsibility. Model and assistant names truncate before the mode control or navigation action becomes unusable.
 
 ## Data flow and ownership
 
@@ -90,6 +98,7 @@ Add focused renderer tests that would fail if:
 - Selection settings omit either effective model or send either navigation button to the wrong focused row.
 - Translation model fallback is displayed differently from the model actually used.
 - Quick assistant default-model mode omits the effective default model or navigation, or assistant mode incorrectly shows the global-model navigation.
+- Quick assistant renders the mode selector and source-specific configuration as one ambiguous control cluster instead of separate setting rows.
 - The model settings route accepts an unsupported focus value or fails to focus the requested row.
 
 Run the closest affected Vitest files and `pnpm lint`. Interactive verification should confirm both selection-setting buttons and the quick-assistant button land on and highlight the correct global model row.
@@ -107,3 +116,7 @@ This addresses the original report but leaves explain, summarize, refine, and de
 ### Navigation without row focus
 
 This requires less routing work, but the global page contains multiple model selectors and forces the user to rediscover the intended row. Focused navigation provides a precise destination while preserving the global page as the sole editor.
+
+### Reordering the quick-assistant controls within one row
+
+Placing the segmented control before the current model improves reading order and requires fewer layout changes, but long model names, translated button labels, and the assistant selector still compete for one horizontal row. Splitting mode and configuration into two rows adds one divider and one row of height in exchange for clearer ownership and more robust sizing.
