@@ -1808,6 +1808,7 @@ describe('HomePage', () => {
   })
 
   it('keeps the current topic visible while the active topic is reloading', async () => {
+    homeMocks.routeSearch = { topicId: 'topic-initial' }
     const { rerender } = render(<HomePage />)
 
     await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-initial'))
