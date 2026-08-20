@@ -17,12 +17,13 @@ import {
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import useAvatar from '@renderer/hooks/useAvatar'
-import { ipcApi } from '@renderer/ipc'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { checkEntityImageSize, prepareEntityImageBytes } from '@renderer/utils/image'
 import { isEmoji } from '@renderer/utils/naming'
-import React, { useRef, useState } from 'react'
+import type { CherryCloudStatus } from '@shared/ipc/schemas/cherryCloud'
+import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { EmojiPicker } from './EmojiPicker'
@@ -36,9 +37,31 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
 
   const [avatarPopoverOpen, setAvatarPopoverOpen] = useState(false)
   const [avatarPopoverView, setAvatarPopoverView] = useState<AvatarPopoverView>('menu')
+  const [cloudStatus, setCloudStatus] = useState<CherryCloudStatus | null>(null)
+  const [isStartingLogin, setIsStartingLogin] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { t } = useTranslation()
   const avatar = useAvatar()
+
+  useIpcOn('cherry_cloud.status_changed', setCloudStatus)
+
+  useEffect(() => {
+    if (!open) return
+
+    let active = true
+    void ipcApi
+      .request('cherry_cloud.status.get')
+      .then((status) => {
+        if (active) setCloudStatus(status)
+      })
+      .catch(() => {
+        if (active) setCloudStatus({ phase: 'signed-out', displayName: null })
+      })
+
+    return () => {
+      active = false
+    }
+  }, [open])
 
   const onOpenChange = (nextOpen: boolean) => {
     if (!nextOpen) {
@@ -88,6 +111,17 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
       setAvatarPopoverView('menu')
     } catch (error: any) {
       toast.error(error.message)
+    }
+  }
+
+  const handleCloudLogin = async () => {
+    setIsStartingLogin(true)
+    try {
+      setCloudStatus(await ipcApi.request('cherry_cloud.login.start'))
+    } catch {
+      toast.error(t('settings.provider.oauth.error'))
+    } finally {
+      setIsStartingLogin(false)
     }
   }
 
@@ -171,6 +205,31 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
             className="w-full flex-1 text-center"
             maxLength={30}
           />
+        </RowFlex>
+        <RowFlex className="border-border-subtle border-t px-5 py-4">
+          {cloudStatus?.phase === 'signed-in' ? (
+            <div
+              role="status"
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-success-border bg-success-subtle px-3 py-2 text-success-subtle-foreground text-xs">
+              <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-success" />
+              <ColFlex className="min-w-0 items-center leading-tight">
+                {cloudStatus.displayName ? (
+                  <span className="max-w-full truncate font-medium">{cloudStatus.displayName}</span>
+                ) : null}
+                <span>{t('settings.provider.oauth.logged_in')}</span>
+              </ColFlex>
+            </div>
+          ) : (
+            <Button
+              className="w-full"
+              loading={cloudStatus === null || cloudStatus?.phase === 'authorizing' || isStartingLogin}
+              onClick={() => void handleCloudLogin()}
+              variant="emphasis">
+              {cloudStatus?.phase === 'authorizing'
+                ? t('settings.provider.codex.signing_in')
+                : t('settings.provider.oauth.button', { provider: 'Cherry Studio' })}
+            </Button>
+          )}
         </RowFlex>
       </DialogContent>
     </Dialog>
