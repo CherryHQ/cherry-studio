@@ -1,6 +1,8 @@
 /**
  * Renderer helpers that call the AI (`ai.text.generate`) to produce short text:
  * generic text generation plus topic/note auto-naming. Stateless request/response.
+ * Every request passes `reasoningEffort: 'none'`: short throwaway output never
+ * benefits from provider-default thinking, which only adds latency and tokens.
  */
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
@@ -9,7 +11,7 @@ import { ipcApi } from '@renderer/ipc'
 import type { Assistant } from '@renderer/types/assistant'
 import type { ExportableMessage } from '@renderer/types/messageExport'
 import { getErrorMessage } from '@renderer/utils/error'
-import { purifyMarkdownImages } from '@renderer/utils/markdown'
+import { purifyMarkdownImages } from '@renderer/utils/markdownLight'
 import { getNamingTextContent } from '@renderer/utils/message/find'
 import { readDefaultModel, readQuickModel } from '@renderer/utils/model'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils/naming'
@@ -54,6 +56,7 @@ export async function fetchMessagesSummary({
   try {
     const { text } = await ipcApi.request('ai.text.generate', {
       uniqueModelId: model.id,
+      reasoningEffort: 'none',
       system: prompt,
       prompt: conversation
     })
@@ -84,6 +87,7 @@ export async function fetchNoteSummary({ content }: { content: string; assistant
   try {
     const { text } = await ipcApi.request('ai.text.generate', {
       uniqueModelId: model.id,
+      reasoningEffort: 'none',
       system: prompt,
       prompt: purifiedContent
     })
@@ -113,6 +117,7 @@ export async function fetchGenerate({
     }
     const { text } = await ipcApi.request('ai.text.generate', {
       uniqueModelId: resolvedModel.id,
+      reasoningEffort: 'none',
       system: prompt,
       prompt: content
     })

@@ -23,9 +23,9 @@ const { importSkillDialogState, installedSkillsState, marketplaceDialogState, sy
     },
     installedSkillsState: {
       skills: [
-        { id: 'skill-a', name: 'Alpha Skill', source: 'local' },
-        { id: 'skill-b', name: 'Beta Skill', source: 'local' },
-        { id: 'skill-builtin', name: 'Builtin Skill', source: 'builtin' }
+        { id: 'skill-a', name: 'Alpha Skill', source: 'local', isGlobalEnabled: true },
+        { id: 'skill-b', name: 'Beta Skill', source: 'local', isGlobalEnabled: true },
+        { id: 'skill-builtin', name: 'Builtin Skill', source: 'builtin', isGlobalEnabled: true }
       ] as InstalledSkill[]
     },
     systemSkillDialogState: {
@@ -85,6 +85,8 @@ function CapabilityStepHarness() {
       avatar: '🤖',
       name: '',
       description: '',
+      agentType: 'claude-code',
+      permissionMode: 'default',
       modelId: null,
       prompt: '',
       knowledgeBaseIds: [],
@@ -103,9 +105,9 @@ function CapabilityStepHarness() {
 describe('CapabilityStep', () => {
   beforeEach(() => {
     installedSkillsState.skills = [
-      { id: 'skill-a', name: 'Alpha Skill', source: 'local' },
-      { id: 'skill-b', name: 'Beta Skill', source: 'local' },
-      { id: 'skill-builtin', name: 'Builtin Skill', source: 'builtin' }
+      { id: 'skill-a', name: 'Alpha Skill', source: 'local', isGlobalEnabled: true },
+      { id: 'skill-b', name: 'Beta Skill', source: 'local', isGlobalEnabled: true },
+      { id: 'skill-builtin', name: 'Builtin Skill', source: 'builtin', isGlobalEnabled: true }
     ] as InstalledSkill[]
     importSkillDialogState.current = null
     marketplaceDialogState.current = null
@@ -201,8 +203,13 @@ describe('CapabilityStep', () => {
   it('does not expose uninstall actions in the agent creation flow', () => {
     installedSkillsState.skills = [
       ...installedSkillsState.skills,
-      { id: 'system-skill-id', name: 'System Skill', source: 'system' } as InstalledSkill,
-      { id: 'marketplace-skill-id', name: 'Marketplace Skill', source: 'marketplace' } as InstalledSkill
+      { id: 'system-skill-id', name: 'System Skill', source: 'system', isGlobalEnabled: true } as InstalledSkill,
+      {
+        id: 'marketplace-skill-id',
+        name: 'Marketplace Skill',
+        source: 'marketplace',
+        isGlobalEnabled: true
+      } as InstalledSkill
     ]
     render(<CapabilityStepHarness />)
 

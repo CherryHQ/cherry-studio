@@ -7,14 +7,16 @@ import {
   ResourceEditDialogHost,
   type ResourceEditDialogTarget
 } from '@renderer/components/resourceCatalog/dialogs/edit'
-import { useMutation } from '@renderer/data/hooks/useDataApi'
+import { useInvalidateCache, useMutation } from '@renderer/data/hooks/useDataApi'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import type { AgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { usePins } from '@renderer/hooks/usePins'
+import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
 import { Pin, PinOff, Plus, Smile, SquarePen, Trash2 } from 'lucide-react'
@@ -29,7 +31,6 @@ import {
   SessionListOptionsMenu
 } from './base'
 import { ResourceEntityRail, type ResourceEntityRailItem } from './ResourceEntityRail'
-import { sortResourceItemsByPinnedTime } from './resourceEntitySort'
 import { type ResourceEntityRailReorderAnchor, useResourceEntityRail } from './useResourceEntityRail'
 
 const logger = loggerService.withContext('AgentResourceList')
@@ -54,7 +55,7 @@ type AgentResourceListProps = {
   onManageAgents?: () => void | Promise<void>
   onSelectSession: (sessionId: string, session: AgentSessionEntity) => void
   onSelectedAgentClick?: () => void | Promise<void>
-  onCreateSession: (agentId: string) => void | Promise<unknown>
+  onCreateSession: (agentId: string) => Promise<AgentSessionEntity | null>
   onShowMissingAgentSelection?: () => void | Promise<void>
   /**
    * Called after the currently-active agent is deleted so the classic-layout page can
@@ -94,8 +95,8 @@ export function AgentResourceList({
     isPinsLoading,
     isValidating,
     error: sessionsError,
-    deleteSessions,
-    reload
+    reload,
+    loadLatestSession
   } = agentSessionsSource
   const {
     isLoading: isAgentPinsLoading,
@@ -105,9 +106,7 @@ export function AgentResourceList({
     togglePin: toggleAgentPin
   } = usePins('agent', { enabled: dataEnabled })
   const closeConversationTabs = useCloseConversationTabs()
-  const { trigger: deleteAgent } = useMutation('DELETE', '/agents/:agentId', {
-    refresh: ['/agents', '/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels']
-  })
+  const invalidate = useInvalidateCache()
   const { trigger: reorderAgent } = useMutation('PATCH', '/agents/:id/order', { refresh: ['/agents'] })
   const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
@@ -116,6 +115,24 @@ export function AgentResourceList({
   const sessionItems = useMemo<SessionListItem[]>(
     () => sessions.map((session) => ({ ...session, pinned: pinIdBySessionId.has(session.id) })),
     [pinIdBySessionId, sessions]
+  )
+  const handleActivationError = useCallback(
+    (error: unknown) => {
+      logger.error('Failed to activate agent resource from classic-layout rail', { error })
+      toast.error(formatErrorMessageWithPrefix(error, t('common.error')))
+    },
+    [t]
+  )
+  const handleCreateSession = useCallback(
+    async (agentId: string) => {
+      try {
+        const session = await onCreateSession(agentId)
+        if (session) onSelectSession(session.id, session)
+      } catch (error) {
+        handleActivationError(error)
+      }
+    },
+    [handleActivationError, onCreateSession, onSelectSession]
   )
 
   const entities = useMemo<ResourceEntityRailItem[]>(
@@ -135,7 +152,7 @@ export function AgentResourceList({
                 type="button"
                 aria-label={t('agent.session.new')}
                 onClick={() => {
-                  void onCreateSession(agent.id)
+                  void handleCreateSession(agent.id)
                 }}>
                 <NewConversationIcon className="block" />
               </ResourceList.GroupHeaderActionButton>
@@ -143,13 +160,9 @@ export function AgentResourceList({
           )
         }
       }),
-    [agentPinnedIdSet, agents, assistantIconType, defaultModelId, onCreateSession, t]
+    [agentPinnedIdSet, agents, assistantIconType, defaultModelId, handleCreateSession, t]
   )
 
-  const sortSessionsForEntity = useCallback(
-    (entitySessions: SessionListItem[]) => sortResourceItemsByPinnedTime(entitySessions, new Date()),
-    []
-  )
   const getSessionAgentId = useCallback((session: SessionListItem) => session.agentId, [])
   const handlePickSession = useCallback(
     (session: SessionListItem) => onSelectSession(session.id, session),
@@ -168,7 +181,6 @@ export function AgentResourceList({
     },
     [t]
   )
-
   const { items, listStatus, selectedId, handleSelect, handleReorder } = useResourceEntityRail({
     entities,
     resources: sessionItems,
@@ -176,9 +188,10 @@ export function AgentResourceList({
     activeEntityId: activeAgentId,
     isLoading: isAgentsLoading || isLoading || isLoadingAll || !isFullyLoaded || isPinsLoading,
     isError: !!(agentsError || sessionsError),
-    sortResourcesForEntity: sortSessionsForEntity,
     onPickResource: handlePickSession,
+    loadResourceForEntity: loadLatestSession,
     onCreateResource: onCreateSession,
+    onActivationError: handleActivationError,
     reorder: reorderAgentEntity,
     refetchEntities: refetchAgents,
     onReorderError: handleReorderError
@@ -213,10 +226,9 @@ export function AgentResourceList({
     async (agentId: string) => {
       if (deletingAgentId) return
 
-      const deleteTasksOnly = agents.find((agent) => agent.id === agentId)?.configuration?.builtin_role === 'assistant'
-      const sessionIds = deleteTasksOnly
-        ? sessions.filter((session) => session.agentId === agentId).map((session) => session.id)
-        : []
+      const deleteTasksOnly = isProtectedBuiltinAgentRole(
+        agents.find((agent) => agent.id === agentId)?.configuration?.builtin_role
+      )
 
       setDeletingAgentId(agentId)
       try {
@@ -233,17 +245,34 @@ export function AgentResourceList({
         if (!confirmed) return
 
         if (deleteTasksOnly) {
-          if (sessionIds.length > 0 && !(await deleteSessions(sessionIds))) return
+          const result = await ipcApi.request('ai.agent.sessions.delete', { agentId })
+          closeConversationTabs('agents', result.deletedIds)
         } else {
-          const result = await deleteAgent({ params: { agentId }, query: { deleteSessions: true } })
+          const result = await ipcApi.request('ai.agent.delete', { agentId, deleteSessions: true })
           closeConversationTabs('agents', result.deletedSessionIds ?? [])
         }
+        try {
+          await Promise.all(
+            ['/agents', '/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'].map((key) =>
+              invalidate(key)
+            )
+          )
+        } catch (err) {
+          logger.warn('Failed to refresh after deleting Agent from classic-layout rail', { agentId, err })
+        }
         if (activeAgentId === agentId) {
-          await onActiveAgentDeleted?.(agentId)
+          try {
+            await onActiveAgentDeleted?.(agentId)
+          } catch (err) {
+            logger.warn('Failed to reconcile active Agent after deletion from classic-layout rail', { agentId, err })
+          }
         }
 
-        if (!deleteTasksOnly) await refetchAgents()
-        await reload()
+        try {
+          await Promise.all([...(deleteTasksOnly ? [] : [refetchAgents()]), reload()])
+        } catch (err) {
+          logger.warn('Failed to reload resources after deleting Agent from classic-layout rail', { agentId, err })
+        }
         toast.success(t('common.delete_success'))
       } catch (err) {
         logger.error('Failed to delete agent from classic-layout rail', { agentId, err })
@@ -256,13 +285,11 @@ export function AgentResourceList({
       activeAgentId,
       agents,
       closeConversationTabs,
-      deleteAgent,
-      deleteSessions,
       deletingAgentId,
+      invalidate,
       onActiveAgentDeleted,
       refetchAgents,
       reload,
-      sessions,
       t
     ]
   )
@@ -270,7 +297,9 @@ export function AgentResourceList({
   const getContextMenuActions = useCallback(
     (item: ResourceEntityRailItem): ResolvedAction[] => {
       const pinned = agentPinnedIdSet.has(item.id)
-      const deleteTasksOnly = agents.find((agent) => agent.id === item.id)?.configuration?.builtin_role === 'assistant'
+      const deleteTasksOnly = isProtectedBuiltinAgentRole(
+        agents.find((agent) => agent.id === item.id)?.configuration?.builtin_role
+      )
 
       return [
         buildResolvedResourceEntityMenuAction({

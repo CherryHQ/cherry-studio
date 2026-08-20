@@ -51,7 +51,7 @@ Instance-keyed behavior added to the engine side is entity leakage — at any
 module depth, cross-module (features into `core/`, `data/`, `shared/`) and
 intra-module (a module's own generic layer) alike.
 
-The renderer (`docs/references/renderer-architecture.md`) expresses the same
+The renderer (`docs/references/architecture/renderer.md`) expresses the same
 rule as a **type × domain grid with strictly downward edges**: the shared row
 (`components/`, `hooks/`, `services/`, `utils/`, `data/`, `ipc/`, `workers/`)
 and the primitives below it are **domain-blind by definition**; domain
@@ -84,7 +84,7 @@ engine/declaration and domain-blind tests above):
 | Renderer infra cells (`data/`, `ipc/`, `workers/`) | the generic query/mutation layer hard-coding one feature's refresh graph; the IPC facade special-casing one route; a worker encoding one domain's payload shape |
 | Sibling domains (`features/<domain>/`, `pages/<domain>/`) | one domain branching on another domain's ids/types/state — the sideways edge the doc routes up (app-layer composition) or down (extract the shared piece); a shared "coordinator" hook that names both domains is the same edge hidden in the shared row |
 | Renderer app layer (`windows/`, `routes/`, top-level `pages/`) | cross-domain orchestration pushed down into one feature or a shared hook instead of being composed at the app layer |
-| Renderer top-level / capability placement | a capability landing as a blob — a new top-level directory, or a cross-cutting capability (command/keybinding-style) dressed as a peer domain feature — instead of decomposing by shape across existing cells (renderer-architecture §6) |
+| Renderer top-level / capability placement | a capability landing as a blob — a new top-level directory, or a cross-cutting capability (command/keybinding-style) dressed as a peer domain feature — instead of decomposing by shape across existing cells (`docs/references/architecture/renderer.md` §6) |
 | `packages/ui` primitives | a primitive acquiring a business prop, domain rendering branch, or data-layer knowledge instead of a render-prop/slot injection point |
 | `src/shared/` contracts | shared types/enums/utils gaining fields or members only one process or domain consumes |
 
@@ -217,10 +217,10 @@ context:
 
 | Doc | When |
 | --- | --- |
-| `docs/references/naming-conventions.md` | Always |
-| `docs/references/main-process-architecture.md` (follow the subsystem references it routes to for touched subsystems) | Diff touches `src/main/` |
-| `docs/references/renderer-architecture.md` | Diff touches `src/renderer/` |
-| `docs/references/shared-layer-architecture.md` | Diff touches `src/shared/` |
+| `docs/references/architecture/naming-conventions.md` | Always |
+| `docs/references/architecture/main-process.md` (follow the subsystem references it routes to for touched subsystems) | Diff touches `src/main/` |
+| `docs/references/architecture/renderer.md` | Diff touches `src/renderer/` |
+| `docs/references/architecture/shared-layer.md` | Diff touches `src/shared/` |
 | `docs/references/data/README.md` (follow its routing into the subsystem rows below) | Diff touches any data surface: DB schemas, DataApi, Cache, Preference, BootConfig, or their renderer hooks |
 
 On-demand docs carry the same authority when their area is touched: the
@@ -297,7 +297,7 @@ source prefers a different style.
 
 ## Naming And Module Shape
 
-Use `docs/references/naming-conventions.md` as the authority when the diff adds,
+Use `docs/references/architecture/naming-conventions.md` as the authority when the diff adds,
 renames, or moves a path, changes a primary export's role, or creates a module
 boundary. Do not infer the rule from whichever nearby legacy file is easiest to
 copy.

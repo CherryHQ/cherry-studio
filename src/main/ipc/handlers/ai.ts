@@ -4,7 +4,7 @@ import { fileEntryService } from '@data/services/FileEntryService'
 import { messageService } from '@data/services/MessageService'
 import { loggerService } from '@logger'
 import { createAgent } from '@main/ai/agents/createAgent'
-import { createBuiltinAssistantFeedbackSession } from '@main/ai/agents/createBuiltinAssistantFeedbackSession'
+import { createBuiltinSupportSession } from '@main/ai/agents/createBuiltinSupportSession'
 import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import { inflateEntities, isToolOutputBlobEntry, reconstructOutput } from '@main/ai/contextBuild/toolOutputStore'
 import { AiStreamAdmissionError, WebContentsListener } from '@main/ai/streamManager'
@@ -206,7 +206,11 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
 
   // ── Agent creation + session warm-connection lifecycle. ──
   'ai.agent.create': createAgent,
-  'ai.agent.feedback_session.create': async () => ({ sessionId: createBuiltinAssistantFeedbackSession().id }),
+  'ai.agent.delete': ({ agentId, deleteSessions }) =>
+    application.get('AgentSessionDeliveryService').deleteAgent(agentId, deleteSessions),
+  'ai.agent.sessions.delete': ({ agentId }) =>
+    application.get('AgentSessionDeliveryService').deleteAgentSessions(agentId),
+  'ai.agent.support_session.create': async () => ({ sessionId: createBuiltinSupportSession().id }),
   // Warm-lease acquire: opens the live connection eagerly (not just a warm-query park) so the
   // session's slash-command catalog is read into the cache before the first message — the
   // warm-query handle can't expose it. Trace mode is no exception: the primed connection resolves
@@ -220,6 +224,12 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.agent.session.close_warm': async ({ sessionId }, { senderId }) => {
     application.get('AgentSessionRuntimeService').releaseWarmLease(sessionId, senderWebContents(senderId))
   },
+  'ai.agent.session.delete': ({ sessionIds }) =>
+    application.get('AgentSessionDeliveryService').deleteSessions(sessionIds),
+  'ai.agent.session.reuse_or_create': (input) =>
+    application.get('AgentSessionDeliveryService').reuseOrCreateSession(input),
+  'ai.agent.workspace.delete': ({ workspaceId }) =>
+    application.get('AgentSessionDeliveryService').deleteWorkspace(workspaceId),
 
   // ── Agent session runtime queries & commands. ──
   'ai.agent.session.refresh_context_usage': async ({ sessionId }) => {

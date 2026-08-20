@@ -1,5 +1,6 @@
 /** Migrates legacy v1 Dexie `files` table into the v2 `file_entry` SQLite table. */
 
+import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -57,6 +58,37 @@ function basenameAnySep(p: string): string {
 function stripExt(base: string): string {
   const dot = base.lastIndexOf('.')
   return dot > 0 ? base.slice(0, dot) : base
+}
+
+/**
+ * Copy a blob found under a raw v1 storage name to the canonical `{id}.{ext}` the v2 runtime
+ * resolves. Returns the failure reason, or null on success.
+ *
+ * tmp + fsync + rename, not a direct `copyFileSync` onto the target (file-manager-architecture
+ * §5.1): a crash mid-copy must never leave a truncated file at the canonical name, because the
+ * next run's candidate walk would prefer it over the intact raw blob and migrate corrupted bytes
+ * under the v1 `size`. Any residue is a `.tmp-{uuid}` the FS orphan sweep already collects.
+ */
+function copyToCanonicalName(src: string, dest: string): string | null {
+  const tmp = `${dest}.tmp-${randomUUID()}`
+  try {
+    fs.copyFileSync(src, tmp, fs.constants.COPYFILE_EXCL)
+    const fd = fs.openSync(tmp, 'r+')
+    try {
+      fs.fsyncSync(fd)
+    } finally {
+      fs.closeSync(fd)
+    }
+    fs.renameSync(tmp, dest)
+    return null
+  } catch (error) {
+    try {
+      fs.unlinkSync(tmp)
+    } catch {
+      // Best-effort: the sweep reclaims a stranded `.tmp-{uuid}`.
+    }
+    return error instanceof Error ? error.message : String(error)
+  }
 }
 
 /**
@@ -151,8 +183,9 @@ function toFileEntry(
   // physical file for the FS orphan sweep to reclaim.
   const internalPrefix = path.join(userData, 'Data', 'Files')
   const candidatePaths = legacyStorageNames(row).map((storageName) => path.join(internalPrefix, storageName))
+  const canonicalPath = candidatePaths[0]
   const existingPath = candidatePaths.find((candidate) => fs.existsSync(candidate))
-  const physicalPath = existingPath ?? candidatePaths[0]
+  const physicalPath = existingPath ?? canonicalPath
   const isInternal = row.path.startsWith(internalPrefix) || existingPath !== undefined
 
   if (!isInternal) {
@@ -188,6 +221,19 @@ function toFileEntry(
         `Invalid size for file id=${row.id} and physical file is unreadable; skipping row. raw=${JSON.stringify(row.size)}`
       )
       return null
+    }
+  }
+
+  // The blob may sit under the raw name (`{id}.exe ` — POSIX keeps the trailing space) while `ext`
+  // migrates normalized; copy, not rename, so an aborted migration leaves v1's own lookup intact.
+  if (existingPath !== undefined && existingPath !== canonicalPath) {
+    const copyFailure = copyToCanonicalName(existingPath, canonicalPath)
+    if (copyFailure !== null) {
+      onWarning(
+        `Failed to copy file id=${row.id} to its v2 storage name (${existingPath} -> ${canonicalPath}): ` +
+          `${copyFailure}. The row still migrates and the original file is intact, but the file cannot be ` +
+          `opened until it is copied to the new name.`
+      )
     }
   }
 

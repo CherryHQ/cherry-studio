@@ -6,7 +6,6 @@
 > ### Branch strategy
 >
 > - Active development targets `main`.
-> - v1 maintenance targets `v1`; forward-port fixes to `main` separately when needed.
 
 ### What this PR does
 
@@ -41,7 +40,7 @@ If this PR introduces breaking changes, please describe the changes and the impa
 This checklist is not enforcing, but it's a reminder of items that could be relevant to every PR.
 Approvers are expected to review this list.
 
-- [ ] Branch: This PR targets the correct branch — `main` for active development, `v1` for v1 maintenance fixes
+- [ ] Branch: This PR targets `main`
 - [ ] PR: The PR description is expressive enough and will help future contributors
 - [ ] Code: [Write code that humans can understand](https://en.wikiquote.org/wiki/Martin_Fowler#code-for-humans) and [Keep it simple](https://en.wikipedia.org/wiki/KISS_principle)
 - [ ] Refactor: You have [left the code cleaner than you found it (Boy Scout Rule)](https://learning.oreilly.com/library/view/97-things-every/9780596809515/ch08.html)

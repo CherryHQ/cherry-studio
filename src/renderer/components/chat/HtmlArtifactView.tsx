@@ -3,6 +3,11 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { Icon } from '@iconify/react'
 import { loggerService } from '@logger'
 import {
+  HtmlArtifactPopupHost,
+  useHtmlArtifactPopupContext,
+  useOptionalHtmlArtifactPopupContext
+} from '@renderer/components/chat/HtmlArtifactPopupContext'
+import {
   canConsumeVerticalWheel,
   clampForwardedWheelDelta,
   findVerticalWheelConsumer,
@@ -25,14 +30,10 @@ import { HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX, HTML_ARTIFACT_PREVIEW_PARTITION 
 import type { ConsoleMessageEvent, WebviewTag } from 'electron'
 import { Code2, Compass, DownloadIcon, Eye, Maximize2, ShieldAlert, ZoomIn, ZoomOut } from 'lucide-react'
 import {
-  createContext,
   lazy,
   memo,
-  type ReactNode,
   type RefObject,
   Suspense,
-  use,
-  useCallback,
   useEffect,
   useId,
   useLayoutEffect,
@@ -76,37 +77,6 @@ interface HtmlArtifactViewProps {
   kind?: HtmlArtifactKind
   /** Purely presentational: caps the height and hides the toolbar / code view while generating. */
   isStreaming?: boolean
-}
-
-interface HtmlArtifactPopupSession {
-  artifactId: string
-  html: string
-  title: string
-  onSave?: (html: string) => void
-  editable: boolean
-  kind: HtmlArtifactKind
-  zoom: number
-}
-
-type HtmlArtifactPopupUpdate = Omit<HtmlArtifactPopupSession, 'zoom'>
-
-interface HtmlArtifactPopupContextValue {
-  approvedInteractiveHtmlById: Readonly<Record<string, string>>
-  popupSession: HtmlArtifactPopupSession | null
-  approveInteractiveHtml: (artifactId: string, html: string) => void
-  openPopup: (session: HtmlArtifactPopupSession) => void
-  syncPopup: (update: HtmlArtifactPopupUpdate) => void
-  closePopup: () => void
-}
-
-const HtmlArtifactPopupContext = createContext<HtmlArtifactPopupContextValue | null>(null)
-
-function useHtmlArtifactPopupContext(): HtmlArtifactPopupContextValue {
-  const popupContext = use(HtmlArtifactPopupContext)
-  if (!popupContext) {
-    throw new Error('HTML artifact popup components must be rendered within HtmlArtifactPopupHost')
-  }
-  return popupContext
 }
 
 type HtmlArtifactBridgeMessage =
@@ -660,7 +630,7 @@ const HtmlArtifactConsentCard = memo(function HtmlArtifactConsentCard({
   )
 })
 
-function HtmlArtifactPopupOutlet() {
+export function HtmlArtifactPopupOutlet() {
   const popupContext = useHtmlArtifactPopupContext()
   const popupSession = popupContext.popupSession
   if (!popupSession) return null
@@ -703,55 +673,6 @@ function HtmlArtifactPopupOutlet() {
         }}
       />
     </Suspense>
-  )
-}
-
-export function HtmlArtifactPopupHost({ children }: { children: ReactNode }) {
-  const [approvedInteractiveHtmlById, setApprovedInteractiveHtmlById] = useState<Record<string, string>>({})
-  const [popupSession, setPopupSession] = useState<HtmlArtifactPopupSession | null>(null)
-  const approveInteractiveHtml = useCallback((artifactId: string, html: string) => {
-    setApprovedInteractiveHtmlById((current) =>
-      current[artifactId] === html ? current : { ...current, [artifactId]: html }
-    )
-  }, [])
-  const openPopup = useCallback((session: HtmlArtifactPopupSession) => {
-    setPopupSession(session)
-  }, [])
-  const syncPopup = useCallback((update: HtmlArtifactPopupUpdate) => {
-    setPopupSession((current) => {
-      if (!current || current.artifactId !== update.artifactId) return current
-      if (
-        current.html === update.html &&
-        current.title === update.title &&
-        current.onSave === update.onSave &&
-        current.editable === update.editable &&
-        current.kind === update.kind
-      ) {
-        return current
-      }
-      return { ...current, ...update }
-    })
-  }, [])
-  const closePopup = useCallback(() => {
-    setPopupSession(null)
-  }, [])
-  const contextValue = useMemo<HtmlArtifactPopupContextValue>(
-    () => ({
-      approvedInteractiveHtmlById,
-      popupSession,
-      approveInteractiveHtml,
-      openPopup,
-      syncPopup,
-      closePopup
-    }),
-    [approvedInteractiveHtmlById, approveInteractiveHtml, closePopup, openPopup, popupSession, syncPopup]
-  )
-
-  return (
-    <HtmlArtifactPopupContext value={contextValue}>
-      {children}
-      <HtmlArtifactPopupOutlet />
-    </HtmlArtifactPopupContext>
   )
 }
 
@@ -984,7 +905,7 @@ const HtmlArtifactViewContent = memo(function HtmlArtifactViewContent({
 })
 
 export const HtmlArtifactView = memo(function HtmlArtifactView(props: HtmlArtifactViewProps) {
-  const popupContext = use(HtmlArtifactPopupContext)
+  const popupContext = useOptionalHtmlArtifactPopupContext()
   const generatedArtifactId = useId()
   const artifactId = props.artifactId ?? generatedArtifactId
 
