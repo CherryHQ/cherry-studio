@@ -11,8 +11,8 @@ function readOption(name, fallback) {
 
 const packageRoot = path.join(__dirname, '..')
 const projectRoot = path.join(packageRoot, '..', '..')
-const platform = readOption('platform', process.env.CHERRY_TARGET_PLATFORM ?? process.platform)
-const arch = readOption('arch', process.env.CHERRY_TARGET_ARCH ?? process.arch)
+const platform = readOption('platform', process.platform)
+const arch = readOption('arch', process.arch)
 
 buildDshRuntimePackage({ projectRoot, packageRoot, platform, arch })
   .then(({ artifact }) => {
