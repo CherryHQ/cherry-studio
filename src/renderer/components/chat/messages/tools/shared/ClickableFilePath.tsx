@@ -1,29 +1,21 @@
 import { MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
 import { Icon } from '@iconify/react'
-import { getEditorIcon } from '@renderer/components/icons/EditorIcon'
-import { FinderIcon } from '@renderer/components/icons/SvgIcon'
+import { getOpenTargetBadge, getOpenTargetLabel, OpenTargetIcon } from '@renderer/components/OpenTarget'
+import { useExternalOpenTargets } from '@renderer/hooks/useExternalOpenTargets'
 import { getFileIconName } from '@renderer/utils/fileIconName'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
-import { openFileTarget } from '@renderer/utils/openFileTarget'
-import { isMac, isWin } from '@renderer/utils/platform'
-import type { ExternalAppInfo } from '@shared/types/externalApp'
-import { FolderOpen, MoreHorizontal } from 'lucide-react'
+import type { ExternalOpenTarget } from '@shared/types/externalApp'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { MoreHorizontal } from 'lucide-react'
 import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useOptionalMessageListActions, useOptionalMessageListUi } from '../../MessageListProvider'
+import { useOptionalMessageListActions } from '../../MessageListProvider'
 
 interface ClickableFilePathProps {
   path: string
   displayName?: string
   interactive?: boolean
-  /**
-   * Explicit open handler. When provided it takes over the primary click
-   * (receiving the resolved path) instead of the message-list actions — lets
-   * surfaces without a `MessageListProvider` (e.g. the artifact file preview)
-   * route the click to their own open logic. The "more actions" popover still
-   * derives from the message-list context and is simply absent off-context.
-   */
   onOpen?: (path: string) => void
 }
 
@@ -36,38 +28,32 @@ export const ClickableFilePath = memo(function ClickableFilePath({
   const { t } = useTranslation()
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false)
   const displayPath = useMemo(() => normalizeInlineFilePath(path), [path])
-  const targetPath = useMemo(() => resolveInlineFilePath(path), [path])
+  const unresolvedTargetPath = useMemo(() => resolveInlineFilePath(path), [path])
   const iconName = useMemo(() => getFileIconName(displayPath), [displayPath])
-  const ui = useOptionalMessageListUi()
   const actions = useOptionalMessageListActions()
+  const resolvePath = actions?.resolvePath
+  const targetPath = useMemo(
+    () => resolvePath?.(unresolvedTargetPath) ?? unresolvedTargetPath,
+    [resolvePath, unresolvedTargetPath]
+  )
   const openArtifactFile = interactive ? actions?.openArtifactFile : undefined
   const openPath = interactive ? actions?.openPath : undefined
-  const showInFolder = interactive ? actions?.showInFolder : undefined
-  const openInExternalApp = interactive ? actions?.openInExternalApp : undefined
   const notifyError = actions?.notifyError
-  const canOpen = Boolean(onOpen || openArtifactFile || openPath)
-  const availableEditors = ui?.externalCodeEditors ?? []
-  const hasEditorActions = Boolean(openInExternalApp && availableEditors.length > 0)
-  const hasMoreActions = Boolean(showInFolder) || hasEditorActions
-  const fileManagerName = useMemo(() => {
-    if (isMac) {
-      return t('agent.session.file_manager.finder')
-    }
-    if (isWin) {
-      return t('agent.session.file_manager.file_explorer')
-    }
-    return t('agent.session.file_manager.files')
-  }, [t])
+  const canOpenWithActions = Boolean(openArtifactFile || openPath)
+  const canOpen = Boolean(onOpen || canOpenWithActions)
+  const hasAbsoluteTargetPath = AbsoluteFilePathSchema.safeParse(targetPath).success
+  const { isLoading, targets, openTarget } = useExternalOpenTargets(targetPath, 'file', {
+    enabled: canOpenWithActions && hasAbsoluteTargetPath && actionsMenuOpen
+  })
+  const hasMoreActions = canOpenWithActions && hasAbsoluteTargetPath
 
-  const renderFileManagerIcon = () => (isMac ? <FinderIcon className="size-4" /> : <FolderOpen size={16} />)
-
-  const openInEditor = useCallback(
-    (app: ExternalAppInfo) => {
-      Promise.resolve(openInExternalApp?.(app, targetPath)).catch(() => {
+  const handleOpenTarget = useCallback(
+    (target: ExternalOpenTarget) => {
+      void openTarget(target).catch(() => {
         notifyError?.(t('chat.input.tools.open_file_error', { path: targetPath }))
       })
     },
-    [notifyError, openInExternalApp, t, targetPath]
+    [notifyError, openTarget, t, targetPath]
   )
 
   const handleOpen = useCallback(
@@ -78,11 +64,15 @@ export const ClickableFilePath = memo(function ClickableFilePath({
         onOpen(targetPath)
         return
       }
-      await openFileTarget(targetPath, {
-        openArtifactFile,
-        openPath,
-        onError: () => notifyError?.(t('chat.input.tools.open_file_error', { path: targetPath }))
-      })
+      try {
+        if (openArtifactFile) {
+          await openArtifactFile(targetPath)
+        } else {
+          await openPath?.(targetPath)
+        }
+      } catch {
+        notifyError?.(t('chat.input.tools.open_file_error', { path: targetPath }))
+      }
     },
     [canOpen, onOpen, notifyError, openArtifactFile, openPath, t, targetPath]
   )
@@ -130,32 +120,20 @@ export const ClickableFilePath = memo(function ClickableFilePath({
           </PopoverTrigger>
           <PopoverContent className="w-56 p-1" align="start">
             <MenuList>
-              {showInFolder && (
+              {isLoading && targets.length === 0 && <MenuItem label={t('common.loading')} disabled />}
+              {targets.map((target) => (
                 <MenuItem
-                  label={fileManagerName}
-                  icon={renderFileManagerIcon()}
+                  key={target.id}
+                  label={getOpenTargetLabel(target, t)}
+                  icon={<OpenTargetIcon target={target} />}
+                  suffix={getOpenTargetBadge(target, t)}
                   onClick={(e) => {
                     e.stopPropagation()
                     setActionsMenuOpen(false)
-                    Promise.resolve(showInFolder(targetPath)).catch(() => {
-                      notifyError?.(t('chat.input.tools.file_not_found', { path: targetPath }))
-                    })
+                    handleOpenTarget(target)
                   }}
                 />
-              )}
-              {openInExternalApp &&
-                availableEditors.map((app) => (
-                  <MenuItem
-                    key={app.id}
-                    label={app.name}
-                    icon={getEditorIcon(app)}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setActionsMenuOpen(false)
-                      openInEditor(app)
-                    }}
-                  />
-                ))}
+              ))}
             </MenuList>
           </PopoverContent>
         </Popover>

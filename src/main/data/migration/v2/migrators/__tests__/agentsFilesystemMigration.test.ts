@@ -1732,6 +1732,44 @@ describe('agentsFilesystemMigration', () => {
     }
   )
 
+  it('preserves an Agent data directory that already contains identity files', async () => {
+    const { agentsDataRoot, legacyWorkspace } = await createFixture()
+    await mkdir(legacyWorkspace, { recursive: true })
+    await writeFile(path.join(legacyWorkspace, 'SOUL.md'), 'legacy soul')
+
+    const latestSession = sessionPlan(agentsDataRoot, legacyWorkspace, {
+      sourceSessionId: 'session_latest',
+      finalSessionId: FINAL_LATEST_SESSION_ID,
+      createdAt: Date.parse('2026-07-22T00:00:00Z'),
+      updatedAt: Date.parse('2026-07-23T00:00:00Z')
+    })
+    const agentDataPath = path.join(agentsDataRoot, FINAL_AGENT_ID)
+    await mkdir(agentDataPath, { recursive: true })
+    await writeFile(path.join(agentDataPath, 'SOUL.md'), 'existing soul')
+    await writeFile(path.join(agentDataPath, 'V2-ONLY.md'), 'stale agent data')
+
+    const input = {
+      agentsDataRoot,
+      agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+      sessions: [latestSession]
+    }
+
+    // First run: source exists, target is cleared and re-populated.
+    const result1 = await stageLegacyAgentFiles(input)
+    expect(result1.skippedTargetCount).toBe(0)
+    expect(await readFile(path.join(agentDataPath, 'SOUL.md'), 'utf8')).toBe('legacy soul')
+    // V2-ONLY.md is removed because the target was cleared.
+    await expect(access(path.join(agentDataPath, 'V2-ONLY.md'))).rejects.toThrow()
+
+    // Remove the v1 source workspace to simulate an app update cleanup.
+    await rm(legacyWorkspace, { recursive: true })
+
+    // Second run: source is gone, target with identity files is preserved.
+    const result2 = await stageLegacyAgentFiles(input)
+    expect(result2.skippedTargetCount).toBe(1)
+    expect(await readFile(path.join(agentDataPath, 'SOUL.md'), 'utf8')).toBe('legacy soul')
+  })
+
   it('replaces an existing identity target without changing the legacy source', async () => {
     const { agentsDataRoot, legacyWorkspace } = await createFixture()
     await mkdir(legacyWorkspace, { recursive: true })

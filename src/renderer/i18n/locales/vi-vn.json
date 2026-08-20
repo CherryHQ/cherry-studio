@@ -3490,6 +3490,12 @@
         "title": "Ẩn"
       }
     },
+    "split": {
+      "already_open": "Đã hiển thị ở khung bên kia",
+      "choose": "Chọn mini-app để hiển thị song song",
+      "close": "Đóng chế độ chia đôi",
+      "open": "Chia đôi màn hình"
+    },
     "title": "Mini-app",
     "unpin_failed": "Không thể gỡ ghim ứng dụng mini",
     "update_partial_failure": "{{failed}} trong tổng số {{total}} bản cập nhật không thành công"
@@ -3601,6 +3607,7 @@
     }
   },
   "navigate": {
+    "model_settings": "Đi tới cài đặt mô hình",
     "provider_settings": "Đi tới cài đặt nhà cung cấp"
   },
   "notes": {
@@ -4520,6 +4527,10 @@
         "custom": "Hành động Tùy chỉnh",
         "delete_confirm": "Bạn có chắc chắn muốn xóa hành động tùy chỉnh này không?",
         "drag_hint": "Kéo để sắp xếp lại. Di chuyển lên trên để kích hoạt hành động ({{enabled}}/{{max}})",
+        "models": {
+          "default_description": "Được dùng cho các thao tác Giải thích, Tóm tắt, Trau chuốt và thao tác tùy chỉnh sử dụng mô hình mặc định.",
+          "translate_description": "Được dùng để tạo bản dịch. Tính năng tự động nhận diện ngôn ngữ cũng có thể sử dụng mô hình nhanh."
+        },
         "reset": {
           "button": "Đặt lại",
           "confirm": "Bạn có chắc chắn muốn đặt lại về các hành động mặc định? Các hành động tùy chỉnh sẽ không bị xóa.",
@@ -6207,8 +6218,9 @@
       "provider_key_confirm_title": "Thêm khóa API cho {{provider}}",
       "provider_name": "Tên nhà cung cấp",
       "quick_assistant_default_tag": "Mặc định",
-      "quick_assistant_model": "Mô hình Trợ lý Nhanh",
+      "quick_assistant_response_settings": "Cài đặt phản hồi",
       "quick_assistant_selection": "Chọn Trợ lý",
+      "quick_assistant_usage_method": "Phương thức sử dụng",
       "quick_model": {
         "description": "Mô hình được sử dụng cho các tác vụ đơn giản như đặt tên chủ đề và trích xuất từ khóa",
         "label": "Mô hình Nhanh",

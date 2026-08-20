@@ -1,7 +1,7 @@
 import { Button, type RenderRowArgs } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { Icon } from '@iconify/react'
-import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
+import { CommandContextMenu, type CommandContextMenuExtraItem, type MaybePromise } from '@renderer/components/command'
 import { getFileIconName } from '@renderer/utils/fileIconName'
 import { ChevronRight } from 'lucide-react'
 import type React from 'react'
@@ -13,7 +13,7 @@ interface FileTreeRowProps {
   renameSlot?: FileTreeRenameSlot
   animationSlot?: FileTreeAnimationSlot
   renderRowExtras?: (node: FileTreeNode) => React.ReactNode
-  getMenuItems?: (node: FileTreeNode) => readonly CommandContextMenuExtraItem[]
+  getMenuItems?: (node: FileTreeNode) => MaybePromise<readonly CommandContextMenuExtraItem[]>
   fileIcon?: (node: FileTreeNode) => React.ReactNode
   folderIcon?: (node: FileTreeNode, expanded: boolean) => React.ReactNode
 }
@@ -141,13 +141,12 @@ export function FileTreeRow(props: FileTreeRowProps) {
     </div>
   )
 
-  const menuItems = getMenuItems?.(node)
-  if (!menuItems || menuItems.length === 0) {
+  if (!getMenuItems) {
     return row
   }
 
   return (
-    <CommandContextMenu location="webcontents.context" extraItems={menuItems}>
+    <CommandContextMenu location="webcontents.context" getExtraItems={() => getMenuItems(node)}>
       {row}
     </CommandContextMenu>
   )
