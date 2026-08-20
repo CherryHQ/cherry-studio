@@ -62,7 +62,8 @@ it.each([
 运行：
 
 ```bash
-pnpm test src/renderer/pages/settings/ModelSettings/__tests__/ModelSettings.test.tsx
+pnpm exec vitest run --silent --project renderer \
+  src/renderer/pages/settings/ModelSettings/__tests__/ModelSettings.test.tsx
 ```
 
 预期：FAIL。两个聚焦样例都找不到 `model-settings-focus-guide`，并且旧计时器仍使用 `model-settings-focus-fade` 和 `2000`。
@@ -211,7 +212,8 @@ useEffect(() => {
 运行：
 
 ```bash
-pnpm test src/renderer/pages/settings/ModelSettings/__tests__/ModelSettings.test.tsx
+pnpm exec vitest run --silent --project renderer \
+  src/renderer/pages/settings/ModelSettings/__tests__/ModelSettings.test.tsx
 ```
 
 预期：PASS，现有模型筛选、Preference 写入和两个定位箭头样例全部通过。
