@@ -2,9 +2,24 @@ import * as z from 'zod'
 
 import { defineRoute } from '../define'
 
+const externalOpenTargetSchema = z.strictObject({
+  id: z.string().min(1),
+  name: z.string().min(1).optional(),
+  iconDataUrl: z.string().min(1).optional(),
+  kind: z.enum(['system_default', 'application', 'file_manager', 'terminal'])
+})
+
 export const externalAppRequestSchemas = {
-  'external_app.open': defineRoute({
-    input: z.strictObject({ appId: z.literal('wt'), targetPath: z.string().min(1) }),
+  'external_app.target.list': defineRoute({
+    input: z.strictObject({ targetPath: z.string().min(1) }),
+    output: z.strictObject({
+      pathKind: z.enum(['file', 'directory']),
+      defaultTargetId: z.string().min(1),
+      targets: z.array(externalOpenTargetSchema)
+    })
+  }),
+  'external_app.target.open': defineRoute({
+    input: z.strictObject({ targetPath: z.string().min(1), targetId: z.string().min(1) }),
     output: z.void()
   })
 }

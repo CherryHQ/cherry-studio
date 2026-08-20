@@ -1,5 +1,6 @@
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import { setInlineFilePathHomePath } from '@renderer/utils/filePath'
+import type { ExternalOpenTarget } from '@shared/types/externalApp'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import type * as ReactI18next from 'react-i18next'
@@ -8,6 +9,27 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MessageListProvider } from '../../../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListProviderValue } from '../../../types'
 import { MessageReportArtifacts } from '../ReportArtifacts'
+
+const { externalOpenTargets, mockOpenTarget } = vi.hoisted(() => ({
+  mockOpenTarget: vi.fn().mockResolvedValue(undefined),
+  externalOpenTargets: [
+    { id: 'system_default', kind: 'system_default' },
+    { id: 'file_manager', kind: 'file_manager' }
+  ] satisfies ExternalOpenTarget[]
+}))
+
+vi.mock('@renderer/hooks/useExternalOpenTargets', () => ({
+  useExternalOpenTargets: (targetPath: string) => ({
+    targets: externalOpenTargets,
+    openTarget: (target: ExternalOpenTarget) => mockOpenTarget(targetPath, target)
+  })
+}))
+
+vi.mock('@renderer/components/OpenTarget', () => ({
+  getOpenTargetBadge: () => undefined,
+  getOpenTargetLabel: (target: ExternalOpenTarget) => (target.kind === 'system_default' ? 'Open File' : 'Finder'),
+  OpenTargetIcon: ({ target }: { target: ExternalOpenTarget }) => <span data-testid={`${target.id}-icon`} />
+}))
 
 vi.mock('react-i18next', async (importOriginal) => ({
   ...(await importOriginal<typeof ReactI18next>()),
@@ -123,7 +145,6 @@ describe('MessageReportArtifacts', () => {
 
   it('previews on card click and opens externally from the open-with menu', async () => {
     const openArtifactFile = vi.fn().mockResolvedValue(undefined)
-    const openPath = vi.fn().mockResolvedValue(undefined)
 
     renderWithProvider(
       <MessageReportArtifacts
@@ -139,7 +160,7 @@ describe('MessageReportArtifacts', () => {
           } as NormalToolResponse
         ]}
       />,
-      { openArtifactFile, openPath }
+      { openArtifactFile }
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Preview report.md' }))
@@ -150,13 +171,12 @@ describe('MessageReportArtifacts', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open with report.md' }))
     fireEvent.click(screen.getByRole('button', { name: 'Open File' }))
     await waitFor(() => {
-      expect(openPath).toHaveBeenCalledWith('dist/report.md')
+      expect(mockOpenTarget).toHaveBeenCalledWith('dist/report.md', externalOpenTargets[0])
     })
   })
 
   it('resolves home-relative artifact paths before previewing or opening externally', async () => {
     const openArtifactFile = vi.fn().mockResolvedValue(undefined)
-    const openPath = vi.fn().mockResolvedValue(undefined)
     setInlineFilePathHomePath('/Users/alice')
 
     renderWithProvider(
@@ -173,7 +193,7 @@ describe('MessageReportArtifacts', () => {
           } as NormalToolResponse
         ]}
       />,
-      { openArtifactFile, openPath }
+      { openArtifactFile }
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Preview report.html' }))
@@ -184,13 +204,11 @@ describe('MessageReportArtifacts', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open with report.html' }))
     fireEvent.click(screen.getByRole('button', { name: 'Open File' }))
     await waitFor(() => {
-      expect(openPath).toHaveBeenCalledWith('/Users/alice/Desktop/report.html')
+      expect(mockOpenTarget).toHaveBeenCalledWith('/Users/alice/Desktop/report.html', externalOpenTargets[0])
     })
   })
 
   it('runs artifact actions from the right-click context menu', async () => {
-    const openPath = vi.fn().mockResolvedValue(undefined)
-    const showInFolder = vi.fn().mockResolvedValue(undefined)
     const copyText = vi.fn().mockResolvedValue(undefined)
 
     renderWithProvider(
@@ -207,7 +225,7 @@ describe('MessageReportArtifacts', () => {
           } as NormalToolResponse
         ]}
       />,
-      { openPath, showInFolder, copyText }
+      { copyText }
     )
 
     const previewButton = screen.getByRole('button', { name: 'Preview report.md' })
@@ -225,8 +243,8 @@ describe('MessageReportArtifacts', () => {
     fireEvent.click(contextMenu().getByRole('button', { name: 'Copy' }))
 
     await waitFor(() => {
-      expect(openPath).toHaveBeenCalledWith('dist/report.md')
-      expect(showInFolder).toHaveBeenCalledWith('dist/report.md')
+      expect(mockOpenTarget).toHaveBeenCalledWith('dist/report.md', externalOpenTargets[0])
+      expect(mockOpenTarget).toHaveBeenCalledWith('dist/report.md', externalOpenTargets[1])
       expect(copyText).toHaveBeenCalledWith('dist/report.md', { successMessage: 'Copied' })
     })
   })

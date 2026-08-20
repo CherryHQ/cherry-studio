@@ -555,8 +555,39 @@ vi.mock('@renderer/utils/platform', () => ({
   isWin: false
 }))
 
-vi.mock('@renderer/hooks/useExternalApps', () => ({
-  useExternalApps: () => ({ data: mocks.externalApps })
+vi.mock('@renderer/components/OpenTarget', () => ({
+  OpenTargetButton: ({ targetPath, pathKind }: { targetPath: string; pathKind: 'file' | 'directory' }) => (
+    <button
+      type="button"
+      aria-label="Open in Finder"
+      onClick={() => (pathKind === 'file' ? mocks.showInFolder(targetPath) : mocks.openPath(targetPath))}
+    />
+  ),
+  loadOpenTargetMenuItems: async ({ targetPath, pathKind }: { targetPath: string; pathKind: 'file' | 'directory' }) => [
+    ...(pathKind === 'file'
+      ? [
+          {
+            type: 'item' as const,
+            id: 'system-default',
+            label: 'agent.preview_pane.default_app',
+            onSelect: () => mocks.openPath(targetPath)
+          }
+        ]
+      : []),
+    {
+      type: 'item' as const,
+      id: 'file-manager',
+      label: 'Finder',
+      icon: <svg aria-hidden="true" data-testid="finder-icon" />,
+      onSelect: () => (pathKind === 'file' ? mocks.showInFolder(targetPath) : mocks.openPath(targetPath))
+    },
+    ...mocks.externalApps.map((app) => ({
+      type: 'item' as const,
+      id: `app-${app.id}`,
+      label: app.name,
+      onSelect: () => mocks.windowOpen(`editor://${app.id}${targetPath}`)
+    }))
+  ]
 }))
 
 vi.mock('@renderer/ipc', () => ({
@@ -574,15 +605,6 @@ vi.mock('@renderer/ipc', () => ({
     },
     on: (_event: string, callback: unknown) => mocks.treeOnMutation(callback)
   }
-}))
-
-vi.mock('@renderer/utils/editor', () => ({
-  buildEditorUrl: (app: { id: string }, path: string) => `editor://${app.id}${path}`,
-  getEditorIcon: (app: { id: string }) => <span aria-hidden="true">{app.id}</span>
-}))
-
-vi.mock('@renderer/components/icons/EditorIcon', () => ({
-  getEditorIcon: (app: { id: string }) => <span aria-hidden="true">{app.id}</span>
 }))
 
 vi.mock('react-i18next', () => ({
