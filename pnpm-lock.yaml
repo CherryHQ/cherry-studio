@@ -1804,6 +1804,9 @@ importers:
       lucide-react:
         specifier: ^0.563.0
         version: 0.563.0(react@19.2.7)
+      semver:
+        specifier: ^7.7.1
+        version: 7.7.1
     devDependencies:
       '@ai-sdk/provider-utils':
         specifier: 4.0.40
@@ -26663,7 +26666,7 @@ snapshots:
     dependencies:
       globalthis: 1.0.4
       matcher: 4.0.0
-      semver: 7.8.5
+      semver: 7.7.1
       serialize-error: 8.1.0
 
   globals@14.0.0: {}
@@ -30529,7 +30532,7 @@ snapshots:
       esbuild: 0.25.12
       open: 10.2.0
       recast: 0.23.11
-      semver: 7.7.3
+      semver: 7.8.5
       use-sync-external-store: 1.6.0(react@19.2.3)
       ws: 8.21.0
     optionalDependencies:
@@ -31026,7 +31029,7 @@ snapshots:
       hookable: 5.5.3
       rolldown: 1.0.0-beta.45
       rolldown-plugin-dts: 0.17.8(@typescript/native-preview@7.0.0-dev.20260204.1)(rolldown@1.0.0-beta.45)(typescript@5.8.3)
-      semver: 7.7.3
+      semver: 7.8.5
       tinyexec: 1.0.2
       tinyglobby: 0.2.15
       tree-kill: 1.2.2
