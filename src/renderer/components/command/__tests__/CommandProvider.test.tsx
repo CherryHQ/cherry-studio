@@ -262,13 +262,13 @@ describe('CommandProvider', () => {
 
       const { unmount } = renderProvider(null)
 
-      expect(addEventListener.mock.calls.filter(([type]) => type === 'compositionstart')).toHaveLength(1)
-      expect(addEventListener.mock.calls.filter(([type]) => type === 'compositionend')).toHaveLength(1)
+      expect(addEventListener.mock.calls.filter(([type]) => (type as string) === 'compositionstart')).toHaveLength(1)
+      expect(addEventListener.mock.calls.filter(([type]) => (type as string) === 'compositionend')).toHaveLength(1)
 
       unmount()
 
-      expect(removeEventListener.mock.calls.filter(([type]) => type === 'compositionstart')).toHaveLength(1)
-      expect(removeEventListener.mock.calls.filter(([type]) => type === 'compositionend')).toHaveLength(1)
+      expect(removeEventListener.mock.calls.filter(([type]) => (type as string) === 'compositionstart')).toHaveLength(1)
+      expect(removeEventListener.mock.calls.filter(([type]) => (type as string) === 'compositionend')).toHaveLength(1)
     })
   })
 })

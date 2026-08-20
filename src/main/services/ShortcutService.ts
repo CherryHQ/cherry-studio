@@ -138,13 +138,12 @@ export class ShortcutService extends BaseService {
     if (!this.registeredWindows.has(window)) {
       this.registeredWindows.add(window)
 
-      const onBeforeInput = (event: Electron.Event, input: Electron.Input) => {
+      const onBeforeInput = (event: Electron.Event, input: Electron.Input, webContentsId: number) => {
         if (input.type !== 'keyDown') return
 
         // Track per-webContents composition state with a safety timeout.  If
         // isComposing stays true for longer than the threshold (no compositionend
         // received), mark the composition as stuck so shortcuts can resume.
-        const webContentsId = event.sender?.id ?? 0
         let compState = this.compositionStates.get(webContentsId)
         if (input.isComposing) {
           if (!compState) {
@@ -211,22 +210,25 @@ export class ShortcutService extends BaseService {
       }
       const { webContents } = window
       const onDidAttachWebview = (_event: Electron.Event, guestContents: WebContents) => {
+        const guestId = guestContents.id
+        const onGuestBeforeInput = (e: Electron.Event, input: Electron.Input) => onBeforeInput(e, input, guestId)
         const cleanup = () => {
-          guestContents.off('before-input-event', onBeforeInput)
+          guestContents.off('before-input-event', onGuestBeforeInput)
           guestContents.off('destroyed', cleanup)
           this.guestInputCleanups.delete(guestContents)
-          this.compositionStates.delete(guestContents.id)
+          this.compositionStates.delete(guestId)
         }
 
-        guestContents.on('before-input-event', onBeforeInput)
+        guestContents.on('before-input-event', onGuestBeforeInput)
         guestContents.once('destroyed', cleanup)
         this.guestInputCleanups.set(guestContents, cleanup)
       }
 
-      webContents.on('before-input-event', onBeforeInput)
+      const onMainBeforeInput = (e: Electron.Event, input: Electron.Input) => onBeforeInput(e, input, webContents.id)
+      webContents.on('before-input-event', onMainBeforeInput)
       webContents.on('did-attach-webview', onDidAttachWebview)
       window.once('closed', onClosed)
-      this.registerDisposable(() => webContents.off('before-input-event', onBeforeInput))
+      this.registerDisposable(() => webContents.off('before-input-event', onMainBeforeInput))
       this.registerDisposable(() => webContents.off('did-attach-webview', onDidAttachWebview))
       this.registerDisposable(() => window.off('closed', onClosed))
     }
