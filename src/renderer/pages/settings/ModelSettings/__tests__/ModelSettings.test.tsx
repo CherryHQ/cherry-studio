@@ -20,6 +20,11 @@ const harness = vi.hoisted(() => ({
   preferenceSetters: {} as Record<string, ReturnType<typeof vi.fn>>
 }))
 
+const routerSearch = vi.hoisted(() => ({ current: {} as { focus?: string } }))
+const setTimeoutTimerMock = vi.hoisted(() => vi.fn())
+
+Element.prototype.scrollIntoView = vi.fn()
+
 vi.mock('@cherrystudio/ui', () => ({
   Avatar: ({ children }: { children: ReactNode }) => <span>{children}</span>,
   AvatarFallback: ({ children }: { children: ReactNode }) => <span>{children}</span>,
@@ -93,6 +98,10 @@ vi.mock('@renderer/hooks/useTheme', () => ({
   useTheme: () => ({ theme: 'light' })
 }))
 
+vi.mock('@renderer/hooks/useTimer', () => ({
+  useTimer: () => ({ setTimeoutTimer: setTimeoutTimerMock })
+}))
+
 vi.mock('@renderer/pages/translate/TranslateSettings', () => ({
   TranslateSettingsPanelContent: () => null
 }))
@@ -103,6 +112,10 @@ vi.mock('@renderer/services/toast', () => ({
 
 vi.mock('@renderer/utils/model', () => ({
   getModelLogoRef: () => undefined
+}))
+
+vi.mock('@tanstack/react-router', () => ({
+  useSearch: () => routerSearch.current
 }))
 
 vi.mock('react-i18next', () => ({
@@ -130,6 +143,7 @@ const createModel = (providerId: string, apiModelId: string): Model =>
 describe('ModelSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    routerSearch.current = {}
     harness.defaultModel = undefined
     harness.quickModel = undefined
     harness.translateModel = undefined
@@ -262,5 +276,19 @@ describe('ModelSettings', () => {
     expect(harness.preferenceSetters['chat.retry.enabled']).toHaveBeenCalledWith(false)
     expect(harness.preferenceSetters['chat.retry.max_attempts']).toHaveBeenNthCalledWith(1, 10)
     expect(harness.preferenceSetters['chat.retry.max_attempts']).toHaveBeenNthCalledWith(2, 1)
+  })
+
+  it.each([
+    ['default', 'settings.models.default_assistant_model'],
+    ['translate', 'settings.models.translate_model']
+  ] as const)('focuses the %s model row requested by the route', (focus, expectedTitle) => {
+    routerSearch.current = { focus }
+
+    const { container } = render(<ModelSettings showPaintingModel={false} showSettingsButton={false} />)
+
+    const focusedRows = container.querySelectorAll('[data-focused]')
+    expect(focusedRows).toHaveLength(1)
+    expect(focusedRows[0]).toHaveTextContent(expectedTitle)
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalled()
   })
 })

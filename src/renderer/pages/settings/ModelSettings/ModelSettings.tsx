@@ -16,12 +16,15 @@ import {
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
+import { useTimer } from '@renderer/hooks/useTimer'
 import { TranslateSettingsPanelContent } from '@renderer/pages/translate/TranslateSettings'
 import { toast } from '@renderer/services/toast'
+import { scrollIntoView } from '@renderer/utils/dom'
 import { cn } from '@renderer/utils/style'
 import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
 import type { Model } from '@shared/data/types/model'
 import { isGenerateImageModel, isNonChatModel } from '@shared/utils/model'
+import { useSearch } from '@tanstack/react-router'
 import {
   ChevronDown,
   Languages,
@@ -32,10 +35,11 @@ import {
   RotateCcw,
   Settings2
 } from 'lucide-react'
-import type { FC, ReactNode } from 'react'
-import { useCallback, useState } from 'react'
+import type { FC, ReactNode, Ref } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { validateModelSettingsSearch } from './modelSettingsFocus'
 import { TopicNamingSettings } from './TopicNamingSettings'
 
 const logger = loggerService.withContext('ModelSettings')
@@ -58,21 +62,38 @@ interface ModelSettingRowProps {
   description?: ReactNode
   compact?: boolean
   children: ReactNode
+  rowRef?: Ref<HTMLDivElement>
+  focused?: boolean
+  focusFaded?: boolean
 }
 
-const ModelSettingRow: FC<ModelSettingRowProps> = ({ icon, title, description, compact, children }) => (
-  <SettingRow className={cn(compact ? 'flex-col items-stretch gap-3 py-1' : 'items-start gap-6 py-1.5')}>
-    <div className="min-w-0 flex-1">
-      <SettingRowTitle className="gap-2">
-        {icon}
-        {title}
-      </SettingRowTitle>
-      {description && <SettingDescription className="mt-1.5 leading-5">{description}</SettingDescription>}
-    </div>
-    <div className={compact ? 'flex w-full items-center gap-2' : 'flex w-[340px] shrink-0 items-center gap-2'}>
-      {children}
-    </div>
-  </SettingRow>
+const ModelSettingRow: FC<ModelSettingRowProps> = ({
+  icon,
+  title,
+  description,
+  compact,
+  children,
+  rowRef,
+  focused,
+  focusFaded
+}) => (
+  <div
+    ref={rowRef}
+    data-focused={focused || undefined}
+    className={cn(focused && !focusFaded && '-mx-2 rounded-md bg-primary/10 px-2 ring-1 ring-primary/40 ring-inset')}>
+    <SettingRow className={cn(compact ? 'flex-col items-stretch gap-3 py-1' : 'items-start gap-6 py-1.5')}>
+      <div className="min-w-0 flex-1">
+        <SettingRowTitle className="gap-2">
+          {icon}
+          {title}
+        </SettingRowTitle>
+        {description && <SettingDescription className="mt-1.5 leading-5">{description}</SettingDescription>}
+      </div>
+      <div className={compact ? 'flex w-full items-center gap-2' : 'flex w-[340px] shrink-0 items-center gap-2'}>
+        {children}
+      </div>
+    </SettingRow>
+  </div>
 )
 
 type ModelSettingsPanel = 'quick-model' | 'translate' | null
@@ -108,6 +129,11 @@ const ModelSettings: FC<ModelSettingsProps> = ({
   const [activePanel, setActivePanel] = useState<ModelSettingsPanel>(null)
   const { theme } = useTheme()
   const { t } = useTranslation()
+  const { focus } = validateModelSettingsSearch(useSearch({ strict: false }) as Record<string, unknown>)
+  const defaultRowRef = useRef<HTMLDivElement | null>(null)
+  const translateRowRef = useRef<HTMLDivElement | null>(null)
+  const [focusFaded, setFocusFaded] = useState(false)
+  const { setTimeoutTimer } = useTimer()
 
   const [translateModelPrompt, setTranslateModelPrompt] = usePreference('feature.translate.model_prompt')
   const [retryEnabled, setRetryEnabled] = usePreference('chat.retry.enabled')
@@ -174,6 +200,17 @@ const ModelSettings: FC<ModelSettingsProps> = ({
     setActivePanel(null)
   }, [])
 
+  useEffect(() => {
+    if (compact || !focus) return
+
+    const target = focus === 'default' ? defaultRowRef.current : translateRowRef.current
+    if (!target) return
+
+    scrollIntoView(target)
+    setFocusFaded(false)
+    setTimeoutTimer('model-settings-focus-fade', () => setFocusFaded(true), 2000)
+  }, [compact, focus, setTimeoutTimer])
+
   const groupStyle = compact ? { padding: 0, border: 'none', background: 'transparent' } : undefined
 
   const ContainerComponent = compact ? SettingContainer : SettingsContentColumn
@@ -191,6 +228,9 @@ const ModelSettings: FC<ModelSettingsProps> = ({
           )}
           <ModelSettingRow
             compact={compact}
+            rowRef={defaultRowRef}
+            focused={focus === 'default'}
+            focusFaded={focusFaded}
             icon={<MessageSquareMore size={16} className="lucide-custom shrink-0 text-foreground" />}
             title={t('settings.models.default_assistant_model')}
             description={showDescription ? t('settings.models.default_assistant_model_description') : undefined}>
@@ -236,6 +276,9 @@ const ModelSettings: FC<ModelSettingsProps> = ({
           {showDividers && <SettingDivider />}
           <ModelSettingRow
             compact={compact}
+            rowRef={translateRowRef}
+            focused={focus === 'translate'}
+            focusFaded={focusFaded}
             icon={<Languages size={16} className="lucide-custom shrink-0 text-foreground" />}
             title={t('settings.models.translate_model')}
             description={showDescription ? t('settings.models.translate_model_description') : undefined}>
