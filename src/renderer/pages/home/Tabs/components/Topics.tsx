@@ -9,6 +9,7 @@ import type {
   TopicExportMenuOptions,
   TopicMoveAssistantTarget
 } from '@renderer/components/chat/actions/topicContextMenuActions'
+import { useClearTopicMessages } from '@renderer/components/chat/messages/hooks/useClearTopicMessages'
 import { useOptionalRightPanelActions, useOptionalRightPanelState } from '@renderer/components/chat/panes/Shell'
 import {
   buildResourceListGroupDropAnchor,
@@ -52,7 +53,6 @@ import { usePins } from '@renderer/hooks/usePins'
 import { finishTopicRenaming, getTopicMessages, startTopicRenaming, useTopicMutations } from '@renderer/hooks/useTopic'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
@@ -256,6 +256,7 @@ export function Topics({
   setActiveTopic
 }: Props) {
   const { t } = useTranslation()
+  const clearTopicMessages = useClearTopicMessages()
   const isRightPanel = presentation === 'right-panel'
   const tabs = useOptionalTabsContext()
   const conversationNav = useConversationNavigation('assistants')
@@ -649,9 +650,7 @@ export function Topics({
     []
   )
 
-  const handleClearMessages = useCallback((topic: Topic) => {
-    void EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES, topic)
-  }, [])
+  const handleClearMessages = useCallback((topic: Topic) => clearTopicMessages(topic.id), [clearTopicMessages])
 
   const handleAutoRename = useCallback(
     async (topic: Topic) => {

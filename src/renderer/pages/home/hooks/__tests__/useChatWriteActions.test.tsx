@@ -31,14 +31,12 @@ function makeCache() {
     seedReservedMessages: vi.fn(async () => {}),
     patchMessageInBranch: vi.fn(),
     rollbackBranch: vi.fn(async () => {}),
-    clearBranchCache: vi.fn(async () => {}),
     deleteMessageTrigger: vi.fn(async () => ({ deletedIds: [] })),
     deleteMessageGroupTrigger: vi.fn(async () => ({ deletedIds: [] })),
     patchMessageTrigger: vi.fn(async () => {}),
     createSiblingTrigger: vi.fn(async () => ({})),
     createMessageTrigger: vi.fn(async () => ({})),
-    setActiveNodeTrigger: vi.fn(async () => ({})),
-    clearTopicMessagesTrigger: vi.fn(async () => ({ deletedIds: [] }))
+    setActiveNodeTrigger: vi.fn(async () => ({}))
   } as unknown as Parameters<typeof useChatWriteActions>[0]['cache']
 }
 

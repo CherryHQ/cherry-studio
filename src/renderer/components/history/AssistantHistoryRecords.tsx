@@ -4,6 +4,7 @@ import type {
   TopicActionContext,
   TopicExportMenuOptions
 } from '@renderer/components/chat/actions/topicContextMenuActions'
+import { useClearTopicMessages } from '@renderer/components/chat/messages/hooks/useClearTopicMessages'
 import { renderAssistantEntityIcon } from '@renderer/components/chat/resourceList/base'
 import { AssistantSelector } from '@renderer/components/resourceCatalog/selectors'
 import { useCache } from '@renderer/data/hooks/useCache'
@@ -21,7 +22,6 @@ import {
   startTopicRenaming,
   useTopicMutations
 } from '@renderer/hooks/useTopic'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { Topic as RendererTopic } from '@renderer/types/topic'
 import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
@@ -63,6 +63,7 @@ const AssistantHistoryRecords = ({
   toolbarLeading
 }: AssistantHistoryRecordsProps) => {
   const { t } = useTranslation()
+  const clearTopicMessages = useClearTopicMessages()
   const [groupNow] = useState(() => new Date())
   const conversationNav = useConversationNavigation('assistants')
 
@@ -262,9 +263,7 @@ const AssistantHistoryRecords = ({
     [batchUpdateTopics, t]
   )
 
-  const handleClearMessages = useCallback((topic: RendererTopic) => {
-    void EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES, topic)
-  }, [])
+  const handleClearMessages = useCallback((topic: RendererTopic) => clearTopicMessages(topic.id), [clearTopicMessages])
 
   const handleAutoRename = useCallback(
     async (topic: RendererTopic) => {
