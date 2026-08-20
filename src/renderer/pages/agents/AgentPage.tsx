@@ -98,6 +98,7 @@ const AgentPage = () => {
   const isActiveTab = useIsActiveTab()
   const currentTabId = useCurrentTabId()
   const routeSessionId = routeSearch.sessionId
+  const routeAgentId = routeSearch.agentId
   const isMessageOnlyView = routeSearch.view === 'message' && !!routeSessionId
   const routeActiveSessionId = isMessageOnlyView ? null : (routeSessionId ?? null)
   // Shared full-list source for session UI plus exact latest/reusable lookups.
@@ -454,7 +455,10 @@ const AgentPage = () => {
     async (defaults: CreateAgentSessionDefaults = {}): Promise<AgentSessionEntity | null> => {
       if (isCreatingEmptySessionRef.current) return null
       isCreatingEmptySessionRef.current = true
-      const agentId = defaults.agentId === undefined ? (visibleSession?.agentId ?? null) : defaults.agentId
+      // A sidebar `?agentId=` entry whose agent has no sessions yet falls through to the page;
+      // create for that exact agent rather than whatever session happens to be visible.
+      const agentId =
+        defaults.agentId === undefined ? (visibleSession?.agentId ?? routeAgentId ?? null) : defaults.agentId
       try {
         closeSurface()
 
@@ -477,7 +481,7 @@ const AgentPage = () => {
         isCreatingEmptySessionRef.current = false
       }
     },
-    [activateSession, clearActiveSession, closeSurface, resolveEmptySession, t, visibleSession?.agentId]
+    [activateSession, clearActiveSession, closeSurface, resolveEmptySession, routeAgentId, t, visibleSession?.agentId]
   )
 
   const showMissingAgentSelection = useCallback(() => {
@@ -497,11 +501,15 @@ const AgentPage = () => {
       setPendingSession(null)
 
       const excluded = new Set(excludedAgentIds)
+      // A sidebar `?agentId=` entry with no sessions yet starts a fresh session for that
+      // exact agent, not whatever was last focused.
+      const routeAgent =
+        routeAgentId && !excluded.has(routeAgentId) ? agents.find((agent) => agent.id === routeAgentId) : undefined
       const rememberedAgent =
         lastUsedAgentId && !excluded.has(lastUsedAgentId)
           ? agents.find((agent) => agent.id === lastUsedAgentId)
           : undefined
-      const defaultAgent = rememberedAgent ?? agents.find((agent) => !excluded.has(agent.id))
+      const defaultAgent = routeAgent ?? rememberedAgent ?? agents.find((agent) => !excluded.has(agent.id))
       if (!defaultAgent) {
         setActiveSessionId(null)
         setPendingSessionDefaults(null)
@@ -511,7 +519,15 @@ const AgentPage = () => {
 
       return createAndActivateEmptySession({ agentId: defaultAgent.id })
     },
-    [agents, closeSurface, createAndActivateEmptySession, lastUsedAgentId, setActiveSessionId, setPendingSession]
+    [
+      agents,
+      closeSurface,
+      createAndActivateEmptySession,
+      lastUsedAgentId,
+      routeAgentId,
+      setActiveSessionId,
+      setPendingSession
+    ]
   )
 
   // Stable wrapper for the classic-layout rail's per-agent "new session" action. Adapting the
@@ -708,6 +724,7 @@ const AgentPage = () => {
   const setActiveSessionAndClearTransient = useCallback(
     (sessionId: string | null, session?: AgentSessionEntity | null) => {
       closeSurface()
+      setPendingLocateMessageId(undefined)
       if (!sessionId) {
         reenterAgentRoute()
         return

@@ -3490,6 +3490,12 @@
         "title": "Hide"
       }
     },
+    "split": {
+      "already_open": "Already shown in the other pane",
+      "choose": "Choose a mini app to show alongside",
+      "close": "Close split view",
+      "open": "Split view"
+    },
     "title": "MiniApp",
     "unpin_failed": "Failed to unpin mini-app",
     "update_partial_failure": "{{failed}} of {{total}} updates failed"

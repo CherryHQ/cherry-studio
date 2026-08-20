@@ -1,5 +1,6 @@
 import { dataApiService } from '@data/DataApiService'
 import type { Topic } from '@renderer/types/topic'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import {
@@ -508,6 +509,56 @@ describe('useActiveTopic', () => {
     expect(result.current.activeTopic?.id).toBe('topic-a')
     expect(result.current.topicSource).toBe('pending')
     expect(result.current.isLoading).toBe(false)
+  })
+
+  it('does not serve cached query data after the canonical query reports not found', () => {
+    MockUseDataApiUtils.mockQueryResult('/topics/topic-a', {
+      data: createApiTopic({ id: 'topic-a' }),
+      error: DataApiErrorFactory.notFound('Topic', 'topic-a'),
+      isLoading: false
+    })
+
+    const { result } = renderHook(() => useActiveTopic({ activeTopicId: 'topic-a', setActiveTopicId: vi.fn() }))
+
+    expect(result.current.activeTopic).toBeUndefined()
+    expect(result.current.topicSource).toBe('none')
+    expect(result.current.isLoading).toBe(false)
+  })
+
+  it('does not serve a pending topic after the canonical query reports not found', () => {
+    const pendingTopic = { id: 'topic-a', name: 'Pending topic' } as unknown as Topic
+    MockUseDataApiUtils.mockQueryResult('/topics/topic-a', {
+      data: undefined,
+      error: DataApiErrorFactory.notFound('Topic', 'topic-a'),
+      isLoading: false
+    })
+
+    const { result, rerender } = renderHook(
+      ({ activeTopicId }) => useActiveTopic({ activeTopicId, setActiveTopicId: vi.fn() }),
+      { initialProps: { activeTopicId: null as string | null } }
+    )
+
+    act(() => result.current.setActiveTopic(pendingTopic))
+    rerender({ activeTopicId: 'topic-a' })
+
+    expect(result.current.activeTopic).toBeUndefined()
+    expect(result.current.topicSource).toBe('none')
+  })
+
+  it('keeps a pending topic available after a transient query error', () => {
+    const pendingTopic = { id: 'topic-a', name: 'Pending topic' } as unknown as Topic
+    MockUseDataApiUtils.mockQueryResult('/topics/topic-a', {
+      data: undefined,
+      error: new Error('temporarily unavailable'),
+      isLoading: false
+    })
+
+    const { result } = renderHook(() =>
+      useActiveTopic({ initialTopic: pendingTopic, activeTopicId: 'topic-a', setActiveTopicId: vi.fn() })
+    )
+
+    expect(result.current.activeTopic).toBe(pendingTopic)
+    expect(result.current.topicSource).toBe('pending')
   })
 
   it('stays loading while a specific active id resolves with no pending fallback (route/tab restore)', () => {

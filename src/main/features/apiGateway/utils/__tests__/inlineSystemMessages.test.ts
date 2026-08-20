@@ -80,7 +80,6 @@ describe('keepsSystemMessagesInPlace', () => {
   it('allows the chat endpoints whose converters were verified to pass a non-leading system through', () => {
     expect(ENDPOINT_CHAT_TARGETS.filter(keepsSystemMessagesInPlace)).toEqual([
       ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
-      ENDPOINT_TYPE.OLLAMA_CHAT,
       ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
       ENDPOINT_TYPE.OPENAI_RESPONSES
     ])
@@ -120,6 +119,19 @@ describe('positionInlineSystemMessages', () => {
     expect(sdkAcceptsAsDowngradeSignal(status, message)).toBe(true)
   })
 
+  it('lets the Agent SDK downgrade inline system messages before sending them to Ollama', () => {
+    let thrown: unknown
+    try {
+      positionInlineSystemMessages(inline, ENDPOINT_TYPE.OLLAMA_CHAT, betaHeaders(AGENT_SDK_BETAS))
+    } catch (error) {
+      thrown = error
+    }
+
+    const { status, message } = thrown as Error & { status: number }
+    expect(status).toBe(400)
+    expect(sdkAcceptsAsDowngradeSignal(status, message)).toBe(true)
+  })
+
   it('folds instead of rejecting when the client cannot downgrade', () => {
     expect(
       positionInlineSystemMessages(inline, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, betaHeaders('claude-code-20250219'))
@@ -128,6 +140,13 @@ describe('positionInlineSystemMessages', () => {
 
   it('folds when there is no anthropic-beta header at all', () => {
     expect(positionInlineSystemMessages(inline, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, undefined)).toHaveLength(2)
+  })
+
+  it('folds Ollama inline system messages when the client cannot downgrade', () => {
+    expect(positionInlineSystemMessages(inline, ENDPOINT_TYPE.OLLAMA_CHAT, undefined)).toEqual([
+      { ...inline[0], parts: [{ type: 'text', text: 'Base.\n\nMCP connecting.' }] },
+      inline[1]
+    ])
   })
 
   it('never rejects a request that carries no inline system message', () => {

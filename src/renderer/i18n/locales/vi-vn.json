@@ -3490,6 +3490,12 @@
         "title": "Ẩn"
       }
     },
+    "split": {
+      "already_open": "Đã hiển thị ở khung bên kia",
+      "choose": "Chọn mini-app để hiển thị song song",
+      "close": "Đóng chế độ chia đôi",
+      "open": "Chia đôi màn hình"
+    },
     "title": "Mini-app",
     "unpin_failed": "Không thể gỡ ghim ứng dụng mini",
     "update_partial_failure": "{{failed}} trong tổng số {{total}} bản cập nhật không thành công"

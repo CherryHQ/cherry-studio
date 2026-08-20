@@ -3490,6 +3490,12 @@
         "title": "Cacher"
       }
     },
+    "split": {
+      "already_open": "Déjà affichée dans l'autre volet",
+      "choose": "Choisir une mini-application à afficher à côté",
+      "close": "Fermer la vue fractionnée",
+      "open": "Vue fractionnée"
+    },
     "title": "Mini-programme",
     "unpin_failed": "Échec du détachement de la mini-application",
     "update_partial_failure": "{{failed}} sur {{total}} mises à jour ont échoué"

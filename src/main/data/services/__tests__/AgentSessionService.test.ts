@@ -547,6 +547,30 @@ describe('AgentSessionService', () => {
       })
     })
 
+    it('updates lastActivityAt when reusing an empty placeholder', async () => {
+      const userWorkspace = await createWorkspace('reuse-activity')
+      const oldActivityAt = Date.now() - 86_400_000 // yesterday
+      await dbh.db.insert(agentSessionTable).values({
+        id: 'reuse-activity-session',
+        agentId: 'agent-session-test',
+        name: '',
+        workspaceId: userWorkspace.id,
+        orderKey: 'a0',
+        lastActivityAt: oldActivityAt,
+        updatedAt: oldActivityAt
+      })
+
+      const result = agentSessionService.reuseOrCreatePlaceholderForDelivery({
+        agentId: 'agent-session-test',
+        workspace: { type: 'user', workspaceId: userWorkspace.id }
+      })
+
+      expect(result.created).toBe(false)
+      expect(result.session.id).toBe('reuse-activity-session')
+      expect(result.session.lastActivityAt).not.toBe(oldActivityAt)
+      expect(new Date(result.session.lastActivityAt).getTime()).toBeGreaterThanOrEqual(Date.now() - 1000)
+    })
+
     it('publishes pin membership after deleting a pinned system placeholder duplicate', async () => {
       const retained = agentSessionService.create({
         agentId: 'agent-session-test',

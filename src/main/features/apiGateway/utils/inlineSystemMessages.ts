@@ -24,17 +24,18 @@ import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
  *   `mid-conversation-system-2026-04-07` beta itself (`dist/index.mjs:2380`)
  * - `@ai-sdk/openai` 3.0.53 pushes it on both the chat and responses paths (`:114`, `:2761`)
  * - `@ai-sdk/openai-compatible` 2.0.62 pushes it (`:114`)
- * - `ollama-ai-provider-v2` 3.3.1 pushes it in `convertToOllamaChatMessages` (`:697`)
  *
  * Deliberately excluded: `@ai-sdk/google` throws `system messages are only supported at
  * the beginning of the conversation` (`:523`), and the `*-text-completions` /
- * `ollama-generate` converters throw `Unexpected system message in prompt`.
+ * `ollama-generate` converters throw `Unexpected system message in prompt`. Ollama chat
+ * serializes the message, but renderer behavior varies: some fold instruction messages into
+ * a leading system turn while others only consume one at `messages[0]`. The gateway has no
+ * renderer capability signal, so it cannot safely leave a non-leading system message in place.
  */
 const SYSTEM_IN_PLACE_ENDPOINTS: ReadonlySet<EndpointType> = new Set([
   ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
   ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-  ENDPOINT_TYPE.OPENAI_RESPONSES,
-  ENDPOINT_TYPE.OLLAMA_CHAT
+  ENDPOINT_TYPE.OPENAI_RESPONSES
 ])
 
 /** Whether `endpointType` keeps a non-leading system message in place instead of rejecting it. */
