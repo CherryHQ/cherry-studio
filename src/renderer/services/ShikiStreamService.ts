@@ -1,11 +1,5 @@
 import { loggerService } from '@logger'
-import {
-  DEFAULT_LANGUAGES,
-  DEFAULT_THEMES,
-  getHighlighter,
-  loadLanguageIfNeeded,
-  loadThemeIfNeeded
-} from '@renderer/utils/shiki'
+import { DEFAULT_LANGUAGES, DEFAULT_THEMES, getHighlighter, loadLanguageAndThemeIfNeeded } from '@renderer/utils/shiki'
 import { LRUCache } from 'lru-cache'
 import type { HighlighterGeneric, ThemedToken } from 'shiki/core'
 
@@ -264,10 +258,7 @@ class ShikiStreamService {
       this.highlighter = await getHighlighter()
     }
 
-    const loadedLanguage = await loadLanguageIfNeeded(this.highlighter, language)
-    const loadedTheme = await loadThemeIfNeeded(this.highlighter, theme)
-
-    return { loadedLanguage, loadedTheme }
+    return loadLanguageAndThemeIfNeeded(this.highlighter, language, theme)
   }
 
   /**

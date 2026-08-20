@@ -38,6 +38,15 @@ vi.mock('../ModelDrawer', () => ({
   EditModelDrawer: () => null
 }))
 
+vi.mock('../modelListHealthContext', () => ({
+  useModelListHealthResults: () => ({ modelStatusMap: new Map(), modelStatuses: [] }),
+  useModelListHealthRun: () => ({
+    apiKeyEntries: [],
+    savingKeyId: null,
+    toggleApiKey: vi.fn()
+  })
+}))
+
 const { modelListGroupMock, modelListStateMock, searchTextMock } = vi.hoisted(() => ({
   modelListGroupMock: vi.fn(({ groupName }: { groupName: string }) => <div>{groupName}</div>),
   modelListStateMock: { hasNoModels: false, hasVisibleModels: true },

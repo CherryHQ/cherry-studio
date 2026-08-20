@@ -1,5 +1,5 @@
 import type { Provider } from '@shared/data/types/provider'
-import { CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
+import { CodeCli, isApiGatewayProviderId, normalizeDeepSeekHarnessSettings } from '@shared/types/codeCli'
 import { formatApiHost } from '@shared/utils/api'
 import { GEMINI_GATEWAY_MODEL_SUFFIX, stripGeminiGatewayModelSuffix } from '@shared/utils/apiGateway'
 import {
@@ -905,5 +905,6 @@ export function sanitizeCliConfigBlob(
   cliTool: string,
   configBlob: Record<string, unknown> | undefined
 ): Record<string, any> {
+  if (cliTool === CodeCli.DEEPSEEK_HARNESS) return normalizeDeepSeekHarnessSettings(configBlob)
   return getAdapter(cliTool)?.sanitize(configBlob) ?? asRecord(configBlob)
 }

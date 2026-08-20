@@ -1,4 +1,4 @@
-import type { SpanEntity } from '@mcp-trace/trace-core'
+import type { SpanEntity } from '@shared/data/types/trace'
 
 export interface TraceNode extends Omit<SpanEntity, 'parentId'> {
   parentId: string | null

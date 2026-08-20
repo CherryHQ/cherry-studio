@@ -327,6 +327,39 @@ describe('useConfigPanelController', () => {
     })
   })
 
+  describe('DeepSeek Harness selection', () => {
+    it('defers gateway startup and shared config writes until the managed launch action', async () => {
+      const ensureReady = vi.fn().mockResolvedValue('gateway-key')
+      const options = {
+        ...baseOptions(),
+        selectedCliTool: CodeCli.DEEPSEEK_HARNESS,
+        currentProviderId: null,
+        providerConfigs: {
+          [CLI_API_GATEWAY_PROVIDER_ID]: { modelId: 'deepseek::deepseek-chat' }
+        } as any,
+        apiGatewayProvider: {
+          provider: { id: CLI_API_GATEWAY_PROVIDER_ID } as Provider,
+          apiKey: 'gateway-key',
+          ensureReady
+        }
+      }
+      mocks.resolveCliConfigApplyContext.mockReturnValue({
+        modelId: 'deepseek::deepseek-chat',
+        writePrimaryModel: true
+      })
+      const { result } = renderHook(() => useConfigPanelController(options))
+
+      await act(async () => {
+        result.current.onToggleCurrent({ id: CLI_API_GATEWAY_PROVIDER_ID } as Provider)
+        await flushMicrotasks()
+      })
+
+      expect(options.setCurrentProvider).toHaveBeenCalledWith(CLI_API_GATEWAY_PROVIDER_ID)
+      expect(ensureReady).not.toHaveBeenCalled()
+      expect(mocks.writeCliConfigDraft).not.toHaveBeenCalled()
+    })
+  })
+
   // Reviewer A3: the active-provider state must only change after the CLI files were actually
   // rewritten. If the scrub/write fails, leaving `currentProvider` flipped would show the UI as
   // switched/disabled while the CLI still holds the previous managed credentials.

@@ -43,18 +43,24 @@ interface LocalEmbeddingCacheProbe {
  */
 const ONNXRUNTIME_PERCENT = 10
 
+function sourceCacheDir(modelDir: string, sourceId: ModelSourceId): string {
+  // transformers.js FileCache omits the revision segment for `main`, but includes it
+  // otherwise (buildResourcePaths in @huggingface/transformers/src/utils/hub.js).
+  const { revision } = getModelSource(sourceId)
+  return revision === 'main' ? modelDir : path.join(modelDir, revision)
+}
+
+function missingModelFiles(sourceDir: string): string[] {
+  return REQUIRED_MODEL_FILES.map((file) => path.join(sourceDir, file)).filter((file) => !fs.existsSync(file))
+}
+
 function cacheState(modelDir: string): LocalEmbeddingCacheProbe {
   if (!fs.existsSync(modelDir)) return { state: 'absent', missingFiles: [] }
 
   const missingFiles: string[] = []
   for (const sourceId of ALL_MODEL_SOURCE_IDS) {
-    const { revision } = getModelSource(sourceId)
-    // transformers.js FileCache omits the revision segment for `main`, but includes it
-    // otherwise (buildResourcePaths in @huggingface/transformers/src/utils/hub.js).
-    const sourceDir = revision === 'main' ? modelDir : path.join(modelDir, revision)
-    const sourceMissingFiles = REQUIRED_MODEL_FILES.map((file) => path.join(sourceDir, file)).filter(
-      (file) => !fs.existsSync(file)
-    )
+    const sourceDir = sourceCacheDir(modelDir, sourceId)
+    const sourceMissingFiles = missingModelFiles(sourceDir)
     if (sourceMissingFiles.length === 0) {
       return { state: 'ready', completeSource: sourceId, completeDir: sourceDir, missingFiles: [] }
     }
@@ -142,6 +148,12 @@ class LocalEmbeddingDownloadService extends LocalModelDownloadService {
         await application
           .get('EmbeddingInferenceService')
           .loadEmbedding(getModelSource(id), MODEL_REPO, MODEL_DTYPE, (p) => this.broadcastProgress(p), signal)
+        // A resolved load doesn't prove the files landed: confirm with the same on-disk probe
+        // the card reads, or ready/incomplete flip forever and re-download the ~600MB weights.
+        const missingFiles = missingModelFiles(sourceCacheDir(this.modelDir(), id))
+        if (missingFiles.length > 0) {
+          throw new Error(`the download left the cache incomplete (missing ${missingFiles.join(', ')})`)
+        }
         return
       } catch (error) {
         if (signal.aborted) throw error

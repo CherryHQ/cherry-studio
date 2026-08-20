@@ -224,9 +224,9 @@ export function generateCitationTag(citation: Citation): string {
   const supTag = `<sup data-citation='${citation.number}'>${citation.number}</sup>`
   if (!isLinkableCitationUrl(citation.url)) {
     // Knowledge-base and memory citations have no URL. Wrapping them in `[...]()` yields an empty
-    // href, which rehype-harden rewrites into `<span>…<sup/> [blocked]</span>` — that both defaces
-    // the marker and drops the tooltip, since the tooltip only mounts on `<a>`. Emit the bare
-    // `<sup>` instead; `components.sup` (CitationSup) mounts the tooltip for this case.
+    // href, which rehype-harden unwraps into `<span>…<sup/></span>` — dropping the tooltip, since
+    // it only mounts on `<a>`. Emit the bare `<sup>` instead; `components.sup` (CitationSup)
+    // mounts the tooltip for this case.
     return supTag
   }
 

@@ -109,13 +109,26 @@ export interface OcrModelPaths {
   charactersDictionary: string
 }
 
-/** Recognize text in an image file; loads the PaddleOCR pipeline first if needed. */
+/** One recognized text run with its box in the source image's pixel space. */
+export interface OcrLine {
+  text: string
+  box: { x: number; y: number; width: number; height: number }
+  confidence: number
+}
+
+/**
+ * Where the image comes from. A discriminated union, not two optional fields:
+ * the latter would let `{}` and `{ imagePath, imageBytes }` typecheck, pushing
+ * the "exactly one" rule into a runtime check nobody remembers to write.
+ */
+export type OcrRecognizeSource = { kind: 'path'; imagePath: string } | { kind: 'bytes'; imageBytes: Uint8Array }
+
+/** Recognize text in an image; `bytes` exists so in-memory captures never touch disk. */
 export interface OcrRecognizeMessage {
   type: 'ocr.recognize'
   id: string
   modelPaths: OcrModelPaths
-  /** Absolute path to the image file; the worker reads it into a buffer. */
-  imagePath: string
+  source: OcrRecognizeSource
 }
 
 export type InferenceRequest =
@@ -154,6 +167,8 @@ export interface InferenceResultMessage {
   embeddings?: number[][] | null
   /** Recognized text (`ocr.recognize`). */
   text?: string | null
+  /** Recognized runs with their boxes (`ocr.recognize`), grouped as the engine grouped them. */
+  lines?: OcrLine[][] | null
   /** Token counts, one per input text (`embedding.countTokens`). */
   tokenCounts?: number[] | null
 }

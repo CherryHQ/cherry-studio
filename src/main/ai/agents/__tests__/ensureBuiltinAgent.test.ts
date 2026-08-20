@@ -27,7 +27,6 @@ describe('ensureBuiltinAgent command', () => {
       configuration: {
         avatar: '🧰',
         permission_mode: 'default',
-        max_turns: 100,
         bootstrap_completed: true,
         builtin_role: 'support',
         env_vars: {}
@@ -49,7 +48,6 @@ describe('ensureBuiltinAgent command', () => {
       configuration: {
         avatar: '🧰',
         permission_mode: 'default',
-        max_turns: 100,
         bootstrap_completed: true,
         builtin_role: 'support',
         env_vars: {}
@@ -60,7 +58,7 @@ describe('ensureBuiltinAgent command', () => {
 
   it('refuses to create a system Agent from an invalid package definition', () => {
     mocks.loadDefaults.mockImplementation(() => {
-      throw new Error('Builtin Agent package configuration is invalid for support: max_turns')
+      throw new Error('Builtin Agent package configuration is invalid for support: permission_mode')
     })
 
     expect(() => ensureBuiltinAgent('support')).toThrow('Builtin Agent package configuration is invalid')

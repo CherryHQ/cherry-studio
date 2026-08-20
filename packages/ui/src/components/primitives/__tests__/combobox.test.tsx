@@ -5,6 +5,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { Combobox, type ComboboxOption } from '../combobox'
+import { Label } from '../label'
 
 const options: ComboboxOption[] = [
   { value: 'alpha', label: 'Alpha' },
@@ -27,6 +28,25 @@ afterEach(() => {
 })
 
 describe('Combobox', () => {
+  it('uses external labels as accessible names for every trigger variant', () => {
+    render(
+      <>
+        <Label id="default-combobox-label">Default model</Label>
+        <Combobox aria-labelledby="default-combobox-label" options={options} value="beta" />
+
+        <Label id="search-combobox-label">Search model</Label>
+        <Combobox aria-labelledby="search-combobox-label" options={options} searchPlacement="trigger" />
+
+        <Label id="multiple-combobox-label">Multiple models</Label>
+        <Combobox aria-labelledby="multiple-combobox-label" multiple options={options} />
+      </>
+    )
+
+    expect(screen.getByRole('button', { name: 'Default model Beta' })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Search model' })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Multiple models' })).toBeInTheDocument()
+  })
+
   it('keeps the resting border when opened and reserves the theme border for keyboard focus', () => {
     render(<Combobox options={options} placeholder="Pick one" emptyText="No results" />)
 

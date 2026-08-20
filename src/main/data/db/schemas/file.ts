@@ -3,11 +3,7 @@ import { check, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-o
 
 import { createUpdateDeleteTimestamps, uuidPrimaryKeyOrdered } from './_columnHelpers'
 
-/**
- * NOTE: `file_upload` (AI provider upload cache) is intentionally NOT included
- * — deferred until Vercel AI SDK's Files Upload API exits pre-release status.
- * Design is preserved in file-manager-architecture.md §9 for future reference.
- */
+/** Provider upload state has no current file-domain owner or table. */
 
 /**
  * File entry table — all files managed by Cherry.

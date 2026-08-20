@@ -144,6 +144,24 @@ describe('VersionStatusCard', () => {
     expect(screen.getByRole('button', { name: 'code.installing' })).toBeDisabled()
   })
 
+  it('prevents upgrading a tool whose managed runtime is active', () => {
+    const onUpgrade = vi.fn()
+    render(
+      <VersionStatusCard
+        toolId="deepseek-harness"
+        toolName="DeepSeek Harness"
+        status={{ source: 'mise', installed: true, current: '1.0.0', latest: '1.1.0', canUpgrade: true }}
+        onUpgrade={onUpgrade}
+        upgradeDisabled
+      />
+    )
+
+    const upgradeButton = screen.getByRole('button', { name: 'code.upgrade' })
+    expect(upgradeButton).toBeDisabled()
+    fireEvent.click(upgradeButton)
+    expect(onUpgrade).not.toHaveBeenCalled()
+  })
+
   it('renders an open-dashboard action when running and triggers it on click', () => {
     const onOpenDashboard = vi.fn()
     render(
@@ -157,7 +175,8 @@ describe('VersionStatusCard', () => {
       />
     )
 
-    const button = screen.getByRole('button', { name: 'openclaw.gateway.open_dashboard' })
+    const button = screen.getByRole('button', { name: 'code.open_web_ui' })
+    expect(screen.getByRole('button', { name: 'code.stop' })).toBeInTheDocument()
     fireEvent.click(button)
     expect(onOpenDashboard).toHaveBeenCalledTimes(1)
   })
@@ -174,7 +193,7 @@ describe('VersionStatusCard', () => {
       />
     )
 
-    expect(screen.queryByRole('button', { name: 'openclaw.gateway.open_dashboard' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'code.open_web_ui' })).not.toBeInTheDocument()
   })
 
   it('renders a persistent failure row with retry label and opens details on click', () => {

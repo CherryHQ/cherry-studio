@@ -1,3 +1,10 @@
+---
+description: User-configurable same-model retry plus fallback models via ai-retry wrapModel, driven by chat.retry.* preferences
+sources:
+  - src/main/ai/runtime/aiSdk/retry
+  - src/renderer/pages/settings/ModelSettings/ModelSettings.tsx
+---
+
 # Model Retry & Fallback
 
 ## What it is

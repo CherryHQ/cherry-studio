@@ -45,11 +45,6 @@ export const mcpServerHandlers: HandlersFor<McpServerSchemas> = {
     PATCH: async ({ params, body }) => {
       const parsed = UpdateMcpServerSchema.parse(body)
       return mcpServerService.update(params.id, parsed)
-    },
-
-    DELETE: async ({ params }) => {
-      mcpServerService.delete(params.id)
-      return undefined
     }
   }
 }

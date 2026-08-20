@@ -77,7 +77,7 @@ describe('ChannelAdapterListener', () => {
 
     listener.onChunk(delta('Array [city'))
 
-    expect(adapter.onTextUpdate).toHaveBeenCalledWith('chat-1', 'Array [city')
+    expect(adapter.onTextUpdate).toHaveBeenCalledWith('chat-1', 'Array [city', undefined)
   })
 
   it('preserves an incomplete citation-like suffix in the final delivery', async () => {
@@ -87,7 +87,7 @@ describe('ChannelAdapterListener', () => {
     listener.onChunk(delta('Literal [cite:unfinished'))
     await listener.onDone({ status: 'success' } as StreamDoneResult)
 
-    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'Literal [cite:unfinished')
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'Literal [cite:unfinished', undefined)
   })
 
   it('does not deliver when the accumulated text is empty', async () => {

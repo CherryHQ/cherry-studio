@@ -186,7 +186,7 @@ describe('AutoBackupService', () => {
     }
   })
 
-  it('preserves the remaining interval after the service is recreated', async () => {
+  it('applies the startup grace period when the remaining interval is shorter', async () => {
     await vi.advanceTimersByTimeAsync(60_000)
     expect(legacyBackupManager.backupToWebdav).toHaveBeenCalledTimes(2)
     expect(legacyBackupManager.backupToS3).toHaveBeenCalledOnce()
@@ -196,7 +196,7 @@ describe('AutoBackupService', () => {
     await vi.advanceTimersByTimeAsync(30_000)
     await recreateService()
 
-    await vi.advanceTimersByTimeAsync(29_000)
+    await vi.advanceTimersByTimeAsync(59_000)
     expect(legacyBackupManager.backupToWebdav).toHaveBeenCalledTimes(2)
     expect(legacyBackupManager.backupToS3).toHaveBeenCalledOnce()
     expect(legacyBackupManager.backupToLocalDir).toHaveBeenCalledOnce()
@@ -209,7 +209,7 @@ describe('AutoBackupService', () => {
     expect(mocks.decryptToken).toHaveBeenCalledTimes(2)
   })
 
-  it('runs shortly after startup when the persisted interval is already overdue', async () => {
+  it('waits through the startup grace period when the persisted interval is already overdue', async () => {
     setPreference('data.backup.s3.auto_sync', false)
     setPreference('data.backup.local.auto_sync', false)
     setPreference('data.backup.nutstore.auto_sync', false)
@@ -221,7 +221,27 @@ describe('AutoBackupService', () => {
     })
     await recreateService()
 
-    await vi.advanceTimersByTimeAsync(999)
+    await vi.advanceTimersByTimeAsync(59_999)
+    expect(legacyBackupManager.backupToWebdav).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(1)
+    expect(legacyBackupManager.backupToWebdav).toHaveBeenCalledOnce()
+  })
+
+  it('preserves a remaining interval that is longer than the startup grace period', async () => {
+    setPreference('data.backup.webdav.sync_interval', 5)
+    setPreference('data.backup.s3.auto_sync', false)
+    setPreference('data.backup.local.auto_sync', false)
+    setPreference('data.backup.nutstore.auto_sync', false)
+    MockMainCacheServiceExport.cacheService.setPersist('backup.auto_sync.last_attempt_times', {
+      webdav: Date.now() - 3.5 * 60_000,
+      s3: null,
+      local: null,
+      nutstore: null
+    })
+    await recreateService()
+
+    await vi.advanceTimersByTimeAsync(89_999)
     expect(legacyBackupManager.backupToWebdav).not.toHaveBeenCalled()
 
     await vi.advanceTimersByTimeAsync(1)
@@ -339,7 +359,7 @@ describe('AutoBackupService', () => {
 
     await vi.advanceTimersByTimeAsync(30_000)
     await recreateService()
-    await vi.advanceTimersByTimeAsync(29_000)
+    await vi.advanceTimersByTimeAsync(59_000)
     expect(mocks.backupToWebdav).toHaveBeenCalledOnce()
 
     await vi.advanceTimersByTimeAsync(1_000)

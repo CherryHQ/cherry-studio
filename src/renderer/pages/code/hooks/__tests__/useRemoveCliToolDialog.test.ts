@@ -9,6 +9,15 @@ vi.mock('react-i18next', () => ({
 }))
 
 describe('useRemoveCliToolDialog', () => {
+  it('localizes the confirmation actions', () => {
+    const { result } = renderHook(() =>
+      useRemoveCliToolDialog({ toolName: 'DeepSeek Harness', remove: vi.fn(async () => {}) })
+    )
+
+    expect(result.current.removeDialogProps.cancelText).toBe('common.cancel')
+    expect(result.current.removeDialogProps.confirmText).toBe('common.confirm')
+  })
+
   it('shows loading while the tool removal is in progress', async () => {
     let finishRemoval: () => void = () => {}
     const removal = new Promise<void>((resolve) => {

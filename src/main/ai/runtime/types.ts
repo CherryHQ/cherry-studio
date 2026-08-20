@@ -103,6 +103,7 @@ export type AgentRuntimeEvent =
   | {
       type: 'usage'
       invocation: {
+        /** Globally unique, driver-namespaced invocation id used directly for idempotent persistence. */
         requestId: string
         model: string
         /** Frozen when the provider invocation is first observed; never inferred later from host turn state. */
@@ -111,6 +112,7 @@ export type AgentRuntimeEvent =
           inputTokens: number
           outputTokens: number
           totalTokens: number
+          reasoningTokens?: number
           noCacheTokens: number
           cacheReadTokens: number
           cacheWriteTokens: number

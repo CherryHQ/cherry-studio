@@ -164,6 +164,34 @@ export const isMaxTemperatureOneModel = (model: Model): boolean => {
 // Model family checks (lightweight ID-based, safe for runtime)
 // ---------------------------------------------------------------------------
 
+/**
+ * Whether the model accepts dynamically-loaded tool declarations (the mechanism behind
+ * Claude Code's ToolSearch: `tool_reference` blocks / `system` messages carrying a `tools`
+ * array injected mid-conversation).
+ *
+ * Claude Code forces ToolSearch on for every non-first-party host when Cherry sets
+ * `ENABLE_TOOL_SEARCH=auto` (see settingsBuilder). Most Anthropic-compatible providers
+ * simply ignore unknown content blocks, but Moonshot's Anthropic endpoint rejects them on
+ * every model except Kimi K3 with `400 Invalid request: tokenization failed`
+ * (https://platform.kimi.com/docs/guide/use-dynamic-tool-loading). Kimi K3 ids resolve to
+ * `k3`/`kimi-k3*`/... — everything else in the Kimi family is excluded.
+ *
+ * Input is a raw API model id (e.g. `kimi-for-coding`); namespace prefixes (`provider:id`)
+ * and Claude Code's `[1m]` suffix are stripped before matching.
+ */
+export const supportsDynamicallyLoadedTools = (apiModelId: string): boolean => {
+  // Strip the gateway namespace prefix (`providerId:apiModelId`) and Claude Code's `[1m]`
+  // context suffix before matching — both wrap the raw API model id this check targets.
+  const bareId =
+    apiModelId
+      .replace(/\[1m\]$/i, '')
+      .split(':')
+      .pop() ?? ''
+  const id = getLowerBaseModelName(bareId)
+  if (!VENDOR_PATTERNS.kimi.test(id)) return true
+  return /^(?:k3|kimi-k3)(?:[-_.]|$)/i.test(id)
+}
+
 // Vendor identity checks all delegate to `VENDOR_PATTERNS` in
 // `@cherrystudio/provider-registry`. Do NOT inline new regex here —
 // add the vendor to the registry's pattern map instead of duplicating

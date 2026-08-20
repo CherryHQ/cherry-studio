@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { type BuiltinMcpServerName, BuiltinMcpServerNames } from '@shared/utils/mcp'
+import { redactRecord } from '@shared/utils/redaction'
 
 const logger = loggerService.withContext('McpFactory')
 
@@ -9,7 +10,9 @@ export async function createInMemoryMcpServer(
   args: string[] = [],
   envs: Record<string, string> = {}
 ): Promise<Server> {
-  logger.debug(`[MCP] Creating in-memory MCP server: ${name} with args: ${args} and envs: ${JSON.stringify(envs)}`)
+  logger.debug(
+    `[MCP] Creating in-memory MCP server: ${name} with args: ${args} and envs: ${JSON.stringify(redactRecord(envs))}`
+  )
   switch (name) {
     case BuiltinMcpServerNames.memory: {
       const { default: MemoryServer } = await import('./memory')

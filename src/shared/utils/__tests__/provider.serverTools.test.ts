@@ -82,7 +82,7 @@ describe('server-tool model eligibility', () => {
     expect(isServerToolModelEligible(embedding, { id: 'anthropic' }, SERVER_TOOL.WEB_SEARCH)).toBe(false)
   })
 
-  // Gateways serve namespaced ids (`google/gemini-3-pro-preview`). VENDOR_PATTERNS are anchored, so
+  // Gateways serve namespaced ids (`google/gemini-3-1-pro-preview`). VENDOR_PATTERNS are anchored, so
   // an unstripped namespace matches nothing and `vendors` narrowing withheld the tool from every
   // model whose vendor slug differs from its namespace — cherryin's Gemini and Claude lines both.
   it('narrows by vendor through a gateway namespace prefix', () => {
@@ -91,7 +91,7 @@ describe('server-tool model eligibility', () => {
       serverTools: [{ id: SERVER_TOOL.WEB_SEARCH, modelScope: 'model-dependent', vendors: ['gemini', 'openai'] }]
     } as unknown as Provider
 
-    expect(isBuiltinWebSearchAvailable(model('google/gemini-3-pro-preview'), cherryin)).toBe(true)
+    expect(isBuiltinWebSearchAvailable(model('google/gemini-3-1-pro-preview'), cherryin)).toBe(true)
     expect(isBuiltinWebSearchAvailable(model('openai/gpt-5.5'), cherryin)).toBe(true)
     // Still excluded: its vendor is simply not on the declaration.
     expect(isBuiltinWebSearchAvailable(model('deepseek/deepseek-v3.2'), cherryin)).toBe(false)
@@ -129,7 +129,7 @@ describe('server-tool model eligibility', () => {
     // Gemini 3 combines them, so the same gateway keeps the server route.
     expect(
       resolveWebToolRoutes(
-        model('google/gemini-3-pro-preview', { capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] }),
+        model('google/gemini-3-1-pro-preview', { capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] }),
         {
           ...gateway
         } as Provider,
@@ -319,7 +319,7 @@ describe('conflict-aware routing', () => {
 
 describe('finalizeWebToolRoutes', () => {
   const gemini25 = model('gemini-2.5-pro', { capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] })
-  const gemini3 = model('gemini-3-pro-preview', { capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] })
+  const gemini3 = model('gemini-3-1-pro-preview', { capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] })
   const geminiProvider = { id: 'gemini', serverTools: [] } as unknown as Provider
   const openrouterLike = { id: 'openrouter', serverTools: [] } as unknown as Provider
 

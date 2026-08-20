@@ -54,7 +54,10 @@ describe('InferenceService on darwin-x64', () => {
 
   it('rejects recognize (OCR) without spawning a worker', async () => {
     await expect(
-      ocrInferenceService.recognize({ detection: '/a', recognition: '/b', charactersDictionary: '/c' }, '/img.png')
+      ocrInferenceService.recognize(
+        { detection: '/a', recognition: '/b', charactersDictionary: '/c' },
+        { kind: 'path', imagePath: '/img.png' }
+      )
     ).rejects.toThrow(/darwin x64/)
     expect(WorkerCtor).not.toHaveBeenCalled()
   })

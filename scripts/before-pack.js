@@ -1,6 +1,7 @@
 const { Arch } = require('electron-builder')
 const { execSync } = require('child_process')
 const fs = require('fs')
+const { createRequire } = require('module')
 const path = require('path')
 const { parse } = require('yaml')
 
@@ -69,8 +70,32 @@ const packages = [
   '@aiany/sqlite-vec-linux-arm64',
   '@aiany/sqlite-vec-linux-x64',
   '@aiany/sqlite-vec-windows-arm64',
-  '@aiany/sqlite-vec-windows-x64'
+  '@aiany/sqlite-vec-windows-x64',
+  // Screen capture backend. Its platform binaries are npm sibling packages, not nested
+  // under the main package, so they are declared in optionalDependencies like every other
+  // family here — that is what puts them at top-level node_modules where the keep/exclude
+  // filters and the asarUnpack glob can see them. loong64 is omitted: not a target arch.
+  'node-screenshots-darwin-arm64',
+  'node-screenshots-darwin-x64',
+  'node-screenshots-linux-arm64-gnu',
+  'node-screenshots-linux-x64-gnu',
+  'node-screenshots-linux-x64-musl',
+  'node-screenshots-win32-arm64-msvc',
+  'node-screenshots-win32-ia32-msvc',
+  'node-screenshots-win32-x64-msvc',
+  // macOS permission prompts. Unlike everything above, one package covers both arches.
+  'node-mac-permissions'
 ]
+
+/**
+ * Platform-gated packages whose names carry no arch token, so the name matcher in
+ * {@link keepPackages} cannot classify them. Kept for every arch of their own platform and
+ * excluded everywhere else — otherwise a Windows or Linux package cross-built on a Mac
+ * would ship a darwin-only `.node`.
+ */
+const platformOnlyPackages = {
+  darwin: ['node-mac-permissions']
+}
 
 const platformToArch = {
   mac: 'darwin',
@@ -84,7 +109,10 @@ const platformToArch = {
 // sqlite-vec-windows-x64 instead of wrongly excluding it.
 const keepPackages = (platform, arch) => {
   const platformTokens = platform === 'win32' ? ['win32', 'windows'] : [platform]
-  return packages.filter((p) => p.includes(arch) && platformTokens.some((t) => p.includes(t)))
+  return [
+    ...packages.filter((p) => p.includes(arch) && platformTokens.some((t) => p.includes(t))),
+    ...(platformOnlyPackages[platform] ?? [])
+  ]
 }
 
 // Cross-arch prebuilt packages come from supportedArchitectures in pnpm-workspace.yaml —
@@ -105,19 +133,88 @@ const assertPrebuiltPackages = (platform, arch) => {
   }
 }
 exports.assertPrebuiltPackages = assertPrebuiltPackages
+exports.keepPackages = keepPackages
+
+const resolvePackageManifest = (packageName, require_) => {
+  for (const searchPath of require_.resolve.paths(packageName) ?? []) {
+    const candidate = path.join(searchPath, ...packageName.split('/'), 'package.json')
+    if (!fs.existsSync(candidate)) continue
+
+    const manifestPath = fs.realpathSync(candidate)
+    return { manifest: JSON.parse(fs.readFileSync(manifestPath, 'utf8')), manifestPath }
+  }
+}
+
+const collectDshRuntimePackageNames = (projectRoot) => {
+  const rootManifestPath = path.join(projectRoot, 'package.json')
+  const rootRequire = createRequire(rootManifestPath)
+  const packageNames = new Set()
+  const requiredPeers = new Set()
+  const visitedManifests = new Set()
+
+  const visit = (packageName, require_, optional = false) => {
+    const resolved = resolvePackageManifest(packageName, require_)
+    if (!resolved) {
+      if (optional) return
+      throw new Error(`Missing DSH runtime package ${packageName}`)
+    }
+
+    packageNames.add(packageName)
+    if (visitedManifests.has(resolved.manifestPath)) return
+    visitedManifests.add(resolved.manifestPath)
+
+    const packageRequire = createRequire(resolved.manifestPath)
+    for (const dependency of Object.keys(resolved.manifest.dependencies ?? {})) {
+      visit(dependency, packageRequire)
+    }
+    for (const dependency of Object.keys(resolved.manifest.optionalDependencies ?? {})) {
+      visit(dependency, packageRequire, true)
+    }
+    for (const peer of Object.keys(resolved.manifest.peerDependencies ?? {})) {
+      if (!resolved.manifest.peerDependenciesMeta?.[peer]?.optional) requiredPeers.add(peer)
+    }
+  }
+
+  visit('@cherrystudio/dsh-bridge', rootRequire)
+
+  const missingPeers = [...requiredPeers].filter((peer) => !packageNames.has(peer)).sort()
+  if (missingPeers.length) throw new Error(`Missing production DSH peer dependencies: ${missingPeers.join(', ')}`)
+
+  return [...packageNames].sort()
+}
+exports.collectDshRuntimePackageNames = collectDshRuntimePackageNames
+
+const buildDshAsarUnpackPatterns = (projectRoot) =>
+  collectDshRuntimePackageNames(projectRoot).flatMap((packageName) => [
+    `node_modules/${packageName}/**`,
+    `node_modules/**/node_modules/${packageName}/**`
+  ])
+exports.buildDshAsarUnpackPatterns = buildDshAsarUnpackPatterns
 
 exports.default = async function (context) {
   const arch = context.arch === Arch.arm64 ? 'arm64' : 'x64'
   const platformName = context.packager.platform.name
   const platform = platformToArch[platformName]
+  const projectRoot = path.join(__dirname, '..')
 
   assertPrebuiltPackages(platform, arch)
+
+  const configuredAsarUnpack = context.packager.config.asarUnpack
+  const dshAsarUnpack = buildDshAsarUnpackPatterns(projectRoot)
+  context.packager.config.asarUnpack = [
+    ...(Array.isArray(configuredAsarUnpack)
+      ? configuredAsarUnpack
+      : configuredAsarUnpack
+        ? [configuredAsarUnpack]
+        : []),
+    ...dshAsarUnpack
+  ]
+  process.stdout.write(`Unpacking ${dshAsarUnpack.length / 2} DSH runtime dependency packages\n`)
 
   if (platform === 'linux') {
     const linuxArch = context.arch === Arch.arm64 ? 'arm64' : context.arch === Arch.x64 ? 'x64' : null
     if (!linuxArch) throw new Error(`Unsupported Linux packaging architecture: ${context.arch}`)
 
-    const projectRoot = path.join(__dirname, '..')
     const artifact = ensureLinuxNativeArtifact({ projectRoot, arch: linuxArch })
     process.stdout.write(
       `${artifact.cached ? 'Verified cached' : 'Downloaded'} GLIBC-compatible better-sqlite3 for ` +

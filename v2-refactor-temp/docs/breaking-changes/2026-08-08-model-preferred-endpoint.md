@@ -28,4 +28,4 @@ Nothing — automatic. To change a model's protocol, open Settings → Providers
 
 ## Notes for release manager
 
-New `preferred_endpoint_type` column on `user_model` (migration `0008_fancy_masque.sql`, additive and nullable). New i18n key `settings.models.add.preferred_endpoint.label`.
+New `preferred_endpoint_type` column on `user_model` (migration `0012_fat_namorita.sql`, additive and nullable). New i18n key `settings.models.add.preferred_endpoint.label`.

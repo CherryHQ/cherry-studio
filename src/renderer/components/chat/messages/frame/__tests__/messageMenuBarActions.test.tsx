@@ -791,10 +791,32 @@ describe('messageMenuBarActions', () => {
     })
   })
 
-  it('hides new branch from user message menus', () => {
+  it('copies the selected assistant path from beside the new branch action', async () => {
+    const copyBranchToNewTopic = vi.fn()
+    const notifySuccess = vi.fn()
+    const context = createActionContext({
+      actions: {
+        copyBranchToNewTopic,
+        notifySuccess,
+        startMessageBranch: vi.fn()
+      } as MessageListActions
+    })
+
+    const menuActions = resolveMessageMenuBarMenuActions(context)
+
+    expect(menuActions.slice(0, 2).map((action) => action.id)).toEqual(['new-branch', 'copy-to-new-topic'])
+
+    await executeMessageMenuBarAction('copy-to-new-topic', context)
+
+    expect(copyBranchToNewTopic).toHaveBeenCalledWith('message-1')
+    expect(notifySuccess).toHaveBeenCalledWith('chat.message.flow.copy_topic.created')
+  })
+
+  it('hides branch actions from user message menus', () => {
     const menuActions = resolveMessageMenuBarMenuActions(
       createActionContext({
         actions: {
+          copyBranchToNewTopic: vi.fn(),
           startMessageBranch: vi.fn(),
           toggleMultiSelectMode: vi.fn()
         } as MessageListActions,

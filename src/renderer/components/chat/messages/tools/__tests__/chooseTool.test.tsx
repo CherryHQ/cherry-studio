@@ -47,6 +47,11 @@ describe('chooseTool', () => {
     expect(testIdOf(chooseTool(resp('web_search')))).toBe('web-card')
   })
 
+  it('routes cross-session tools to their dedicated agent cards', () => {
+    expect(testIdOf(chooseTool(resp('session_create')))).toBe('agent-card')
+    expect(testIdOf(chooseTool(resp('session_send')))).toBe('agent-card')
+  })
+
   it('routes provider-executed web search wire names to the web card', () => {
     expect(testIdOf(chooseTool(resp('web_search', 'provider')))).toBe('web-card')
     expect(testIdOf(chooseTool(resp('webSearch', 'provider')))).toBe('web-card')
@@ -71,5 +76,33 @@ describe('chooseTool', () => {
     const response = buildToolResponseFromPart(part)
     expect(response?.tool.type).toBe('builtin')
     expect(testIdOf(chooseTool(response as NormalToolResponse))).toBe('image-card')
+  })
+
+  it('routes pi runtime built-ins to the generic agent card', () => {
+    expect(testIdOf(chooseTool(resp('read', 'provider')))).toBe('agent-card')
+    expect(testIdOf(chooseTool(resp('bash', 'provider')))).toBe('agent-card')
+    expect(chooseTool(resp('read', 'builtin'))).toBeNull()
+  })
+
+  it('routes actual Pi builtin metadata through the response adapter to the agent card', () => {
+    const part = {
+      type: 'dynamic-tool',
+      toolCallId: 'pi-read',
+      toolName: 'read',
+      state: 'output-available',
+      input: { path: '/workspace/file.md' },
+      output: 'content',
+      callProviderMetadata: {
+        cherry: { transport: 'pi-agent', tool: { type: 'builtin', name: 'read' } }
+      }
+    } as unknown as CherryMessagePart
+
+    const response = buildToolResponseFromPart(part)
+    expect(response?.tool.type).toBe('provider')
+    expect(testIdOf(chooseTool(response as NormalToolResponse))).toBe('agent-card')
+  })
+
+  it('returns null for an unknown non-Cherry tool', () => {
+    expect(chooseTool(resp('totally_unknown_tool', 'builtin'))).toBeNull()
   })
 })

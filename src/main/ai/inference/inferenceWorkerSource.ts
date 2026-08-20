@@ -72,7 +72,8 @@ function requestLogContext(msg) {
   const context = ['request=' + msg.type, 'proxy=' + proxyStatus]
   if (typeof msg.modelRepo === 'string') context.push('model=' + JSON.stringify(msg.modelRepo))
   if (typeof msg.modelDir === 'string') context.push('modelDir=' + JSON.stringify(msg.modelDir))
-  if (msg.source) {
+  // OCR carries its own \`source\` (where the image comes from); only a download source has a remoteHost.
+  if (msg.source && typeof msg.source.remoteHost === 'string') {
     let origin
     try {
       origin = new URL(msg.source.remoteHost).origin
@@ -246,7 +247,7 @@ async function handleOcr(msg, buffer) {
   const service = await getPaddleService(msg.modelPaths)
   const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength)
   const result = await service.recognize(arrayBuffer)
-  parentPort.postMessage({ type: 'result', id: msg.id, text: result.text })
+  parentPort.postMessage({ type: 'result', id: msg.id, text: result.text, lines: result.lines })
 }
 
 async function disposeCachedInference() {
@@ -270,8 +271,8 @@ async function disposeCachedInference() {
 async function runWithHardwareFallback(msg, run) {
   if (msg.type === 'ocr.recognize') {
     // File access is request preparation, not a provider failure; keep it outside fallback.
-    const fs = require('node:fs')
-    const buffer = fs.readFileSync(msg.imagePath)
+    const buffer =
+      msg.source.kind === 'bytes' ? msg.source.imageBytes : require('node:fs').readFileSync(msg.source.imagePath)
     run = () => handleOcr(msg, buffer)
   }
 
@@ -331,7 +332,7 @@ parentPort.on('message', (msg) => {
     }
     // Must be set before the first lazy require of @huggingface/transformers /
     // ppu-paddle-ocr below (getTransformers/getPpu), both of which transitively
-    // require onnxruntime-node — see patches/onnxruntime-node@1.24.3.patch.
+    // require onnxruntime-node — see patches/onnxruntime-node@1.25.1.patch.
     if (msg.onnxRuntimeBindingPath) process.env.CHERRY_ONNXRUNTIME_BINDING_PATH = msg.onnxRuntimeBindingPath
     return
   }

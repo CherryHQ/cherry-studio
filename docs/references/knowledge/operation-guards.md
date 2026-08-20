@@ -1,10 +1,20 @@
+---
+description: Guard and recovery semantics for Knowledge add, delete, reindex, and embedding-enable operations
+sources:
+  - src/main/features/knowledge/ingestion
+  - src/main/features/knowledge/tasks
+  - src/main/data/services/KnowledgeItemService.ts
+---
+
 # Knowledge Operation Guards
 
-This document records the guard and recovery semantics for the three caller-facing knowledge item operations:
+This document records the guard and recovery semantics for the caller-facing
+Knowledge mutation operations:
 
 - `addItems`
 - `deleteItems`
 - `reindexItems`
+- `enableEmbeddingModel`
 
 The operations intentionally do not share one generic validation pipeline. They share small guards where the semantics match, but each operation keeps its own explicit flow because their state transitions and enqueue-failure behavior are different.
 
@@ -50,12 +60,18 @@ Used only by `reindexItems`.
 - Loads each selected root subtree with roots included.
 - Allows reindex only when every item in every selected subtree is terminal: `completed` or `failed`.
 - Rejects active or deleting subtree state: `idle`, `preparing`, `processing`, `reading`, `embedding`, or `deleting`.
+- Probes each selected root before vector deletion. A confirmed missing file or
+  directory source is rejected; an unverifiable source (for example a transient
+  permission failure) is also rejected without destroying existing vectors.
+- URL and note roots remain rebuildable from their URL/DB content and do not use
+  the local-file existence check.
 
 This is the backend authority for user-triggered reindex. UI may hide the reindex action for non-terminal rows, but the service guard must still reject stale or direct calls.
 
 ### Chunk Operations
 
-Used by `listItemChunks`. (The chunk-level delete `deleteItemChunk` was removed with the per-base index store cutover — chunks are derived index rows now, replaced wholesale by `rebuildMaterial`.)
+Used by `listItemChunks`. Chunks are derived index rows, replaced wholesale by
+`rebuildMaterial`; there is no chunk-delete mutation.
 
 - Rejects failed bases through `assertBaseCanRunRuntimeOperation`.
 - Loads the requested item and rejects items outside the requested `baseId`.
@@ -68,10 +84,19 @@ The UI should only expose chunk viewing for completed rows, but the service guar
 
 `addItems` accepts new item payloads and creates persisted `knowledge_item` rows before scheduling the first workflow jobs.
 
+The conflict strategy is part of admission:
+
+- `rename` (default) keeps every input and allocates collision-free `_N` paths.
+- `detect` returns conflicts and writes nothing when root names collide.
+- `replace` uses last-input-wins within the batch, cancels active jobs for
+  conflicting roots before taking the base lock, purges those roots under the
+  lock, and then imports the replacements.
+
 ```text
 addItems(baseId, inputs)
   -> reject failed base
   -> no-op on empty inputs
+  -> resolve detect / replace conflicts when requested
   -> under same-base mutation lock:
        create each item
        set root status to preparing for containers
@@ -98,6 +123,10 @@ The compensating rule is:
 - the original enqueue error is rethrown to the caller.
 
 This prevents stuck active rows while avoiding deletion of rows that may already be referenced by a queued job.
+
+If item creation fails before scheduling, add rolls back the rows it accepted
+and best-effort removes copied file or URL snapshot bytes. Cleanup failure is
+logged without masking the original admission error.
 
 ## `deleteItems`
 
@@ -220,6 +249,19 @@ Knowledge source files are Knowledge-owned raw files, not FileManager refs. Rein
 
 Leaf indexing reads from the current `knowledge_item.data` and rewrites derived vector material. Stale descendants from a container expansion are removed through the delete-subtree cleanup path, which purges vectors/files and then deletes rows.
 
+## `enableEmbeddingModel`
+
+This operation is only for a completed BM25-only base that has no embedding
+model. It first applies the same terminal-subtree and source-availability checks
+as reindex. It then persists the model/dimensions through
+`KnowledgeBaseService.update(..., { allowEmbeddingModelBackfill: true })` and
+enqueues reindex for every non-deleting root.
+
+It cannot switch an already-configured embedding model; that remains a restore
+operation because existing vectors were built under a different contract. If
+the base has no roots, only the configuration changes and no reindex job is
+needed.
+
 ## `prepare-root`
 
 `prepare-root` is an internal job, but it creates child rows and schedules their leaf indexing jobs, so it has its own cleanup and compensation rules.
@@ -260,9 +302,10 @@ When changing these operations, check the operation-specific failure behavior be
 
 | Operation | Failed base | Root collapse | Extra status guard | State before enqueue | Enqueue failure |
 | --- | --- | --- | --- | --- | --- |
-| `addItems` | Reject | N/A | N/A | `preparing` / `processing` | Mark unscheduled accepted rows `failed` |
+| `addItems` | Reject | N/A | Conflict strategy | `preparing` / `processing` | Mark unscheduled accepted rows `failed` |
 | `deleteItems` | Allow | Yes | N/A | `deleting` (uncommitted; same transaction as enqueue) | Roll back to the previous status |
-| `reindexItems` | Reject | Yes | Entire selected subtree must be `completed` or `failed` | None | Throw; no active state was written |
+| `reindexItems` | Reject | Yes | Entire subtree terminal; selected root sources available | None | Throw; no active state was written |
+| `enableEmbeddingModel` | Reject | All non-deleting roots | BM25-only base; same reindex admission checks | Model/dimensions committed before reindex enqueue | Propagate the reindex enqueue error; config remains enabled |
 | `listItemChunks` | Reject | N/A | Requested item must be `completed`; container list rejects deleting descendants | N/A | N/A |
 
 Prefer shared helpers for exact common behavior, such as base-state guards, base ownership checks, root collapse, queue names, and idempotency key builders. Keep operation flows explicit when the state or recovery semantics differ.

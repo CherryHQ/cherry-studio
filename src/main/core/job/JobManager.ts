@@ -574,10 +574,9 @@ export class JobManager extends BaseService {
    * Register a handler for a JobRegistry type. Must be called from the owning
    * service's `onInit` so the handler is in place before JobManager's startup
    * recovery runs (~60 s after `onAllReady` fires, owned by `runStartupRecoveryFlow`).
-   * Registering from a business service's `onAllReady` is unsafe — that hook
-   * fires in parallel with JobManager's `onAllReady`, and by the time the
-   * deferred recovery wakes up, existing non-terminal jobs for an unregistered
-   * type get treated as orphans and cancelled.
+   * Do not defer registration to `onAllReady`: those hooks may start async work
+   * without the lifecycle manager awaiting completion, while startup recovery
+   * later treats non-terminal jobs for an unregistered type as orphans.
    *
    * @param type - JobRegistry key (compile-time validated via declaration merging)
    * @param handler - Handler implementation; `recovery` is required

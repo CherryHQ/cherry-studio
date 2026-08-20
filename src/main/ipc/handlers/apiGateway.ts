@@ -1,13 +1,11 @@
 import { application } from '@application'
 import type { apiGatewayRequestSchemas } from '@shared/ipc/schemas/apiGateway'
 import type { IpcHandlersFor } from '@shared/ipc/types'
-import type { ApiGatewayStatusResult } from '@shared/types/apiGateway'
+import type { ApiGatewayStatusResult, ApiGatewayStopResult } from '@shared/types/apiGateway'
 
 /**
- * API-gateway handlers delegating to the ApiGatewayService lifecycle service. The
- * service's start/stop/restart THROW on failure; this wraps each into the
- * `ApiGatewayStatusResult` the renderer branches on (the wrapper moved here from the
- * service's own former IPC registration).
+ * API-gateway handlers delegating to the ApiGatewayService lifecycle service. Each service method
+ * throws on failure; stop also returns whether shutdown completed or is deferred by a lease.
  */
 async function toStatusResult(action: () => Promise<void>): Promise<ApiGatewayStatusResult> {
   try {
@@ -18,8 +16,17 @@ async function toStatusResult(action: () => Promise<void>): Promise<ApiGatewaySt
   }
 }
 
+async function stopGateway(): Promise<ApiGatewayStopResult> {
+  try {
+    const outcome = await application.get('ApiGatewayService').stop()
+    return { success: true, outcome }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+  }
+}
+
 export const apiGatewayHandlers: IpcHandlersFor<typeof apiGatewayRequestSchemas> = {
   'api_gateway.start': () => toStatusResult(() => application.get('ApiGatewayService').start()),
-  'api_gateway.stop': () => toStatusResult(() => application.get('ApiGatewayService').stop()),
+  'api_gateway.stop': stopGateway,
   'api_gateway.restart': () => toStatusResult(() => application.get('ApiGatewayService').restart())
 }

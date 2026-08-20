@@ -5,14 +5,16 @@
  */
 
 import { application } from '@application'
+import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
-import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { topicNamingService } from '@main/services/TopicNamingService'
-import { DataApiErrorFactory } from '@shared/data/api/errors'
+import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
-import type { CherryUIMessage } from '@shared/data/types/message'
-import { parseUniqueModelId } from '@shared/data/types/model'
+import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
+import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { UIMessage } from 'ai'
 import { v7 as uuidv7 } from 'uuid'
 
@@ -33,217 +35,230 @@ function toReservedAgentUIMessage(row: AgentSessionMessageEntity): CherryUIMessa
       createdAt: row.createdAt,
       modelId: row.modelId ?? undefined,
       messageSnapshot: row.messageSnapshot ?? undefined,
+      delivery: row.delivery ?? undefined,
       stats: row.stats ?? undefined,
       ...(row.stats?.totalTokens ? { totalTokens: row.stats.totalTokens } : {})
     }
   } as CherryUIMessage
 }
 
+export type ValidatedAgentDispatch = {
+  sessionId: string
+  topicId: string
+  agentId: string
+  agentUpdatedAt: string
+  agentType: string
+  agentName: string
+  uniqueModelId: UniqueModelId
+  reasoningEffort: ReasoningEffortOption
+  fastMode?: boolean
+  headless: boolean
+  messageSnapshot: MessageSnapshot
+  userMessageId: string
+  userMessageParts: CherryMessagePart[]
+  deliveryMessage?: AgentSessionMessageEntity
+  shouldAutoNameInitialTurn: boolean
+}
+
+export type PersistedAgentDispatch = {
+  validated: ValidatedAgentDispatch
+  assistantMessageId: string
+  traceId: string
+  userMessage: AgentSessionMessageEntity
+  savedMessages: AgentSessionMessageEntity[]
+}
+
 export class AgentChatContextProvider implements ChatContextProvider {
   readonly name = 'agent-session'
+  readonly isPersistentConversation = true
 
   canHandle(topicId: string): boolean {
     return isAgentSessionTopic(topicId)
   }
 
-  async prepareDispatch(
-    subscriber: StreamListener,
-    req: MainDispatchRequest,
-    ctx?: DispatchContext
-  ): Promise<PreparedDispatch> {
+  async validateDispatch(req: MainDispatchRequest): Promise<ValidatedAgentDispatch> {
     if (req.trigger !== 'submit-message') {
       throw new Error(`Agent sessions only support 'submit-message' (got '${req.trigger}')`)
     }
 
     const sessionId = extractAgentSessionId(req.topicId)
-
-    const session = agentSessionService.getById(sessionId)
+    let session
+    try {
+      session = agentSessionService.getById(sessionId)
+    } catch (error) {
+      if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
+        throw new AgentSessionDeliveryRoutingError('TARGET_UNAVAILABLE', `Target Session is unavailable: ${sessionId}`)
+      }
+      throw error
+    }
     if (!session.agentId) {
-      throw new Error(`Cannot dispatch on orphan session ${sessionId} — its agent was deleted`)
+      throw new AgentSessionDeliveryRoutingError(
+        'TARGET_UNAVAILABLE',
+        `Cannot dispatch on orphan session ${sessionId} — its agent was deleted`
+      )
     }
 
     const agentId = session.agentId
     const agent = agentService.getAgent(agentId)
-    if (!agent) throw new Error(`Agent not found for session ${sessionId}: ${agentId}`)
-    if (!agent.model) throw new Error(`Agent ${agent.id} has no model configured`)
-    const reasoningEffort = req.reasoningEffort ?? agent.configuration?.reasoning_effort ?? 'default'
+    if (!agent) {
+      throw new AgentSessionDeliveryRoutingError('TARGET_UNAVAILABLE', `Agent not found for Session ${sessionId}`)
+    }
+    if (!agent.model) {
+      throw new AgentSessionDeliveryRoutingError('TARGET_UNAVAILABLE', `Agent ${agent.id} has no model configured`)
+    }
 
     const driver = runtimeDriverRegistry.getAgentSessionDriver(agent.type)
     if (!driver) {
-      throw new Error(`Unsupported agent runtime type: ${agent.type}`)
+      throw new AgentSessionDeliveryRoutingError('TARGET_UNAVAILABLE', `Unsupported agent runtime type: ${agent.type}`)
     }
     await driver.validateSession(session)
 
+    const deliveryMessage = req.agentDeliveryMessage
+    if (
+      deliveryMessage &&
+      (deliveryMessage.sessionId !== sessionId || deliveryMessage.role !== 'user' || !deliveryMessage.delivery)
+    ) {
+      throw new Error('Invalid durable agent delivery message')
+    }
+
     const uniqueModelId = agent.model
     const { providerId, modelId: rawModelId } = parseUniqueModelId(uniqueModelId)
-    // The agent owns the model it ran — snapshot the agent (with the model nested) so the
-    // header shows the agent first, even after the agent is deleted.
-    const messageSnapshot = {
-      id: agent.id,
-      name: agent.name,
-      // Normalized effective avatar (mirrors renderer `getAgentAvatar`): blank/whitespace → the default,
-      // so we never freeze a truthy-but-broken source. `🤖` is `DEFAULT_AGENT_AVATAR`.
-      emoji: agent.configuration?.avatar?.trim() || '🤖',
-      model: { id: rawModelId, name: agent.modelName ?? rawModelId, provider: providerId }
-    }
-
-    const userMessageId = uuidv7()
-    const userMessageParts = req.userMessageParts ?? []
-    const createdAt = new Date().toISOString()
-
-    const userMessage: AgentSessionMessageEntity = {
-      id: userMessageId,
+    const shouldAutoNameInitialTurn = deliveryMessage
+      ? !agentSessionMessageService.hasSessionMessages(sessionId, deliveryMessage.id)
+      : !agentSessionMessageService.hasSessionMessages(sessionId)
+    return {
       sessionId,
-      role: 'user',
-      data: { parts: userMessageParts },
-      status: 'success',
-      searchableText: '',
-      modelId: null,
-      messageSnapshot: null,
-      stats: null,
-      runtimeResumeToken: null,
-      createdAt,
-      updatedAt: createdAt
+      topicId: req.topicId,
+      agentId,
+      agentUpdatedAt: agent.updatedAt,
+      agentType: agent.type,
+      agentName: agent.name,
+      uniqueModelId,
+      reasoningEffort: req.reasoningEffort ?? agent.configuration?.reasoning_effort ?? 'default',
+      fastMode: req.fastMode,
+      headless: req.headless === true,
+      messageSnapshot: {
+        id: agent.id,
+        name: agent.name,
+        // Normalized effective avatar (mirrors renderer `getAgentAvatar`).
+        emoji: agent.configuration?.avatar?.trim() || '🤖',
+        model: { id: rawModelId, name: agent.modelName ?? rawModelId, provider: providerId }
+      },
+      userMessageId: deliveryMessage?.id ?? uuidv7(),
+      userMessageParts: deliveryMessage?.data.parts ?? req.userMessageParts ?? [],
+      ...(deliveryMessage ? { deliveryMessage } : {}),
+      shouldAutoNameInitialTurn
     }
+  }
 
-    // Decide enqueue-vs-begin off the runtime entry's authoritative state, NOT
-    // `AiStreamManager.hasLiveStream`: the latter is false during the inter-turn drain window
-    // (the settled stream is terminal-in-grace) while the entry is mid-transition, so trusting it
-    // would take the begin branch and clobber the in-flight drain's `currentTurn` / `pendingTurns`.
-    if (application.get('AgentSessionRuntimeService').isSessionBusy(sessionId)) {
-      if (ctx?.requireIdle) {
-        throw DataApiErrorFactory.resourceLocked('Agent session', sessionId, 'an active turn')
-      }
-      // Follow-up to an in-flight session: persist the user row, hand the message to the
-      // runtime so it opens the next turn (interrupt → re-dispatch), and attach
-      // the new subscriber. No new placeholder/model — that would orphan a row.
-      const savedUserMessage = agentSessionMessageService.saveMessage({
-        sessionId,
-        message: {
-          id: userMessageId,
-          role: 'user',
-          status: 'success',
-          data: { parts: userMessageParts }
-        }
-      })
-
-      application.get('AgentSessionRuntimeService').enqueueUserMessage(sessionId, userMessage, {
-        headless: req.headless === true,
-        messageSnapshot,
-        reasoningEffort,
-        fastMode: req.fastMode
-      })
-
-      return {
-        topicId: req.topicId,
-        models: [],
-        reservedMessages: [toReservedAgentUIMessage(savedUserMessage)],
-        listeners: [subscriber]
-      }
-    }
-
-    // Match normal topics: only the first turn of an untouched conversation may auto-name.
-    // Later idle turns still create a fresh runtime entry, so runtime state alone cannot
-    // distinguish them from the initial turn; persisted messages are the durable boundary.
-    const shouldAutoNameInitialTurn = !agentSessionMessageService.hasSessionMessages(sessionId)
+  persistDispatchTx(
+    tx: DbOrTx,
+    validated: ValidatedAgentDispatch,
+    expectedAgent?: string | { id: string; updatedAt: string; model: string; type: string }
+  ): PersistedAgentDispatch {
     const assistantMessageId = uuidv7()
+    const savedMessages = agentSessionMessageService.saveMessagesTx(
+      tx,
+      {
+        sessionId: validated.sessionId,
+        messages: [
+          {
+            id: validated.userMessageId,
+            role: 'user',
+            status: 'success',
+            data: { parts: validated.userMessageParts }
+          },
+          {
+            id: assistantMessageId,
+            role: 'assistant',
+            status: 'pending',
+            data: { parts: [] },
+            modelId: validated.uniqueModelId,
+            messageSnapshot: validated.messageSnapshot
+          }
+        ]
+      },
+      expectedAgent
+    )
+    return {
+      validated,
+      assistantMessageId,
+      traceId: agentSessionService.ensureTraceIdTx(tx, validated.sessionId),
+      userMessage: savedMessages[0],
+      savedMessages
+    }
+  }
 
-    // Container trace: one trace tree per session. The turn's `ai.turn` span is a
-    // child under it; Claude Code child spans join via the connection's TRACEPARENT.
-    const traceId = agentSessionService.ensureTraceId(sessionId)
+  activateDispatch(persisted: PersistedAgentDispatch, subscriber: StreamListener): PreparedDispatch {
+    const { validated, assistantMessageId, traceId, userMessage, savedMessages } = persisted
+    if (validated.shouldAutoNameInitialTurn) {
+      topicNamingService.maybeRenameAgentSessionFromFirstUserMessage(validated.sessionId, userMessage.data)
+    }
+
     const turnTrace = startAiChildTurnSpan(
       'ai.turn',
       {
         attributes: {
-          'cs.topic_id': req.topicId,
-          'cs.trigger': req.trigger,
-          'cs.model_id': uniqueModelId,
+          'cs.topic_id': validated.topicId,
+          'cs.trigger': 'submit-message',
+          'cs.model_id': validated.uniqueModelId,
           'cs.role': 'assistant',
-          'cs.agent_id': agentId,
-          'cs.session_id': sessionId
+          'cs.agent_id': validated.agentId,
+          'cs.session_id': validated.sessionId
         }
       },
-      { topicId: req.topicId, modelName: parseUniqueModelId(uniqueModelId).modelId },
+      { topicId: validated.topicId, modelName: parseUniqueModelId(validated.uniqueModelId).modelId },
       traceId
     )
 
-    // Atomic user + pending-assistant write so `useAgentSessionParts` observes both at once.
-    let savedMessages: AgentSessionMessageEntity[]
+    applyTurnInputAttributes(turnTrace.rootSpan, {
+      modelId: validated.uniqueModelId,
+      topicId: validated.topicId,
+      operation: 'invoke_agent',
+      messages: [{ id: validated.userMessageId, role: 'user', parts: validated.userMessageParts }] as UIMessage[],
+      agentName: validated.agentName
+    })
+
+    let runtime
     try {
-      savedMessages = agentSessionMessageService.saveMessages(
-        {
-          sessionId,
-          messages: [
-            {
-              id: userMessageId,
-              role: 'user',
-              status: 'success',
-              data: { parts: userMessageParts }
-            },
-            {
-              id: assistantMessageId,
-              role: 'assistant',
-              status: 'pending',
-              data: { parts: [] },
-              modelId: uniqueModelId,
-              messageSnapshot
-            }
-          ]
-        },
-        ctx?.expectedAgentId
-      )
+      runtime = application.get('AgentSessionRuntimeService').beginTurn({
+        sessionId: validated.sessionId,
+        topicId: validated.topicId,
+        agentId: validated.agentId,
+        agentType: validated.agentType,
+        modelId: validated.uniqueModelId,
+        reasoningEffort: validated.reasoningEffort,
+        fastMode: validated.fastMode,
+        assistantMessageId,
+        userMessage,
+        headless: validated.headless,
+        traceId,
+        messageSnapshot: validated.messageSnapshot,
+        shouldAutoName: validated.shouldAutoNameInitialTurn
+      })
     } catch (error) {
       turnTrace.end('error', error instanceof Error ? error : new Error(String(error)))
       throw error
     }
-    if (shouldAutoNameInitialTurn) {
-      // Fire-and-forget is safe: the naming service isolates errors and rechecks state before writing.
-      topicNamingService.maybeRenameAgentSessionFromFirstUserMessage(sessionId, savedMessages[0]?.data)
-    }
-
-    // Author the turn span's input/identity here (where the agent + user message live).
-    applyTurnInputAttributes(turnTrace.rootSpan, {
-      modelId: uniqueModelId,
-      topicId: req.topicId,
-      operation: 'invoke_agent',
-      messages: [{ id: userMessageId, role: 'user', parts: userMessageParts }] as UIMessage[],
-      agentName: agent.name
-    })
-
-    const runtime = application.get('AgentSessionRuntimeService').beginTurn({
-      sessionId,
-      topicId: req.topicId,
-      agentId,
-      agentType: agent.type,
-      modelId: uniqueModelId,
-      reasoningEffort,
-      fastMode: req.fastMode,
-      assistantMessageId,
-      userMessage,
-      headless: req.headless === true,
-      traceId,
-      messageSnapshot,
-      shouldAutoName: shouldAutoNameInitialTurn
-    })
 
     return {
-      topicId: req.topicId,
+      topicId: validated.topicId,
       models: [
         {
-          modelId: uniqueModelId,
+          modelId: validated.uniqueModelId,
           request: {
-            chatId: req.topicId,
+            chatId: validated.topicId,
             trigger: 'submit-message',
-            assistantId: agentId,
-            uniqueModelId,
+            assistantId: validated.agentId,
+            uniqueModelId: validated.uniqueModelId,
             messages: [
-              { id: userMessageId, role: 'user', parts: userMessageParts },
+              { id: validated.userMessageId, role: 'user', parts: validated.userMessageParts },
               { id: assistantMessageId, role: 'assistant', parts: [] }
             ],
             messageId: assistantMessageId,
-            reasoningEffort,
-            fastMode: req.fastMode,
-            runtime: { kind: 'agent-session', sessionId, turnId: runtime.turnId }
+            reasoningEffort: validated.reasoningEffort,
+            fastMode: validated.fastMode,
+            runtime: { kind: 'agent-session', sessionId: validated.sessionId, turnId: runtime.turnId }
           },
           rootSpan: turnTrace.rootSpan,
           abortController: runtime.abortController
@@ -252,6 +267,50 @@ export class AgentChatContextProvider implements ChatContextProvider {
       reservedMessages: savedMessages.map(toReservedAgentUIMessage),
       listeners: [subscriber, ...runtime.listeners]
     }
+  }
+
+  async prepareDispatch(
+    subscriber: StreamListener,
+    req: MainDispatchRequest,
+    ctx?: DispatchContext
+  ): Promise<PreparedDispatch> {
+    const validated = await this.validateDispatch(req)
+
+    // Ordinary interactive follow-ups still use the runtime FIFO. Durable cross-Session deliveries
+    // are gated by AgentSessionDeliveryService and never enter this branch.
+    if (application.get('AgentSessionRuntimeService').isSessionBusy(validated.sessionId)) {
+      if (ctx?.requireIdle) {
+        throw DataApiErrorFactory.resourceLocked('Agent session', validated.sessionId, 'an active turn')
+      }
+      const savedUserMessage = agentSessionMessageService.saveMessage({
+        sessionId: validated.sessionId,
+        message: {
+          id: validated.userMessageId,
+          role: 'user',
+          status: 'success',
+          data: { parts: validated.userMessageParts }
+        }
+      })
+
+      application.get('AgentSessionRuntimeService').enqueueUserMessage(validated.sessionId, savedUserMessage, {
+        headless: validated.headless,
+        messageSnapshot: validated.messageSnapshot,
+        reasoningEffort: validated.reasoningEffort,
+        fastMode: validated.fastMode
+      })
+
+      return {
+        topicId: validated.topicId,
+        models: [],
+        reservedMessages: [toReservedAgentUIMessage(savedUserMessage)],
+        listeners: [subscriber]
+      }
+    }
+
+    const persisted = application
+      .get('DbService')
+      .withWriteTx((tx) => this.persistDispatchTx(tx, validated, ctx?.expectedAgentId))
+    return this.activateDispatch(persisted, subscriber)
   }
 }
 

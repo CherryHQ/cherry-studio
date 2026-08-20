@@ -319,26 +319,35 @@ describe('SkillMarketplaceDialog', () => {
       }
     }
 
-    it('installs the skill a SKILL.md URL points at without querying the registries', async () => {
+    it.each([
+      [
+        'repository-root blob link',
+        'https://github.com/owner/repo/blob/main/SKILL.md',
+        'github:https://github.com/owner/repo/blob/main/SKILL.md'
+      ],
+      [
+        'official raw link',
+        'https://github.com/owner/repo/raw/refs/heads/main/SKILL.md',
+        'github:https://raw.githubusercontent.com/owner/repo/refs/heads/main/SKILL.md'
+      ]
+    ])('installs a %s without querying the registries', async (_case, url, installSource) => {
       const user = userEvent.setup()
       renderDialog()
 
-      await selectGithubAndType('https://github.com/owner/repo/blob/main/skills/resume-review/SKILL.md')
+      await selectGithubAndType(url)
 
       expect(searchMock).not.toHaveBeenCalled()
-      expect(screen.getByText('resume-review')).toBeInTheDocument()
+      expect(screen.getByText('repo')).toBeInTheDocument()
       // The dropdown counts what each source currently offers, and GitHub's one row is not in
       // `results` — reading only the registry list would leave it blank.
       expect(within(sourceSelect()).getByRole('option', { name: 'GitHub1' })).toBeInTheDocument()
       await user.click(screen.getByRole('button', { name: /settings.skills.install/ }))
       await waitFor(() => {
-        expect(installMock).toHaveBeenCalledWith(
-          'github:https://github.com/owner/repo/blob/main/skills/resume-review/SKILL.md'
-        )
+        expect(installMock).toHaveBeenCalledWith(installSource)
       })
     })
 
-    it('reports a URL that does not end with SKILL.md instead of offering an install', async () => {
+    it('reports an unsupported GitHub URL format instead of offering an install', async () => {
       renderDialog()
 
       await selectGithubAndType('https://github.com/owner/repo')

@@ -96,16 +96,16 @@ const expectedVariableCounts: Record<string, number> = {
 const expectedAppLocaleFiles = [
   'locales/en-us.json',
   'locales/zh-cn.json',
-  'translate/de-de.json',
-  'translate/el-gr.json',
-  'translate/es-es.json',
-  'translate/fr-fr.json',
-  'translate/ja-jp.json',
-  'translate/pt-pt.json',
-  'translate/ro-ro.json',
-  'translate/ru-ru.json',
-  'translate/vi-vn.json',
-  'translate/zh-tw.json'
+  'locales/de-de.json',
+  'locales/el-gr.json',
+  'locales/es-es.json',
+  'locales/fr-fr.json',
+  'locales/ja-jp.json',
+  'locales/pt-pt.json',
+  'locales/ro-ro.json',
+  'locales/ru-ru.json',
+  'locales/vi-vn.json',
+  'locales/zh-tw.json'
 ]
 
 const readPaintingShowcaseTranslation = (relativeFilePath: string) => {

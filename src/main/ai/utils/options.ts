@@ -274,7 +274,15 @@ export function buildResolvedReasoningProviderOptions(context: {
   const options = shouldNormalizeOpenAICompatibleReasoning(context.aiSdkProviderId, context.endpointType)
     ? normalizeOpenAICompatibleParams(encoded.options)
     : encoded.options
-  return Object.keys(options).length > 0 ? { [encoded.providerId]: options } : {}
+  if (Object.keys(options).length === 0) return {}
+
+  return {
+    [encoded.providerId]: {
+      ...options,
+      ...(context.endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES &&
+        encoded.providerId === 'openai' && { forceReasoning: true })
+    }
+  }
 }
 
 /** Whether a custom parameter key names a providerOptions namespace rather than a body field. */

@@ -628,6 +628,23 @@ describe('FilesPage file operations', () => {
     })
   })
 
+  it('imports selected files from a type category view', async () => {
+    const fileApi = window.api.file as typeof window.api.file & { select: ReturnType<typeof vi.fn> }
+    fileApi.select = vi.fn().mockResolvedValue([{ path: '/tmp/import-from-text-category.md' }])
+    mockFiles([entry])
+    mockFileStats(statsForEntries([entry]), vi.fn().mockResolvedValue(undefined))
+    render(<FilesPage />)
+
+    fireEvent.click(screen.getByText('files.text'))
+    fireEvent.click(screen.getByText('files.upload'))
+
+    await waitFor(() => {
+      expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_create_internal_entries', {
+        items: [{ source: 'path', path: '/tmp/import-from-text-category.md', cleanupPolicy: 'manual' }]
+      })
+    })
+  })
+
   it('hides upload and shows empty trash in the trash view', async () => {
     mockUseInfiniteQuery.mockImplementation((_path, options) => ({
       pages: (options?.query as { inTrash?: boolean } | undefined)?.inTrash ? [{ items: [trashedEntry] }] : [],
@@ -1138,7 +1155,6 @@ describe('FilesPage file operations', () => {
     expect(await screen.findByAltText('photo.png')).toBeInTheDocument()
     expect(screen.queryByLabelText('files.select_all_short')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('files.select_file')).not.toBeInTheDocument()
-    expect(screen.queryByText('files.upload')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('files.actions')).not.toBeInTheDocument()
 
     fireEvent.contextMenu(screen.getByAltText('photo.png'))

@@ -108,9 +108,8 @@ vi.mock('../settingsBuilder', () => ({
   getClaudeCodeLoginShellEnvironment: mocks.getClaudeCodeLoginShellEnvironment
 }))
 
-const { ApiGatewayNotRunningError, buildClaudeCodeQueryRequestForAgentSession, deriveConnectionConfig } = await import(
-  '../agentSessionWarmup'
-)
+const { buildClaudeCodeQueryRequestForAgentSession, deriveConnectionConfig } = await import('../agentSessionWarmup')
+const { ApiGatewayNotRunningError } = await import('../../agentApiGateway')
 
 function resolveTestEffectiveEndpoint(provider: Provider, model: Model, preferredEndpointType?: EndpointType) {
   const preferred =
@@ -309,30 +308,70 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     })
   })
 
+  it('strips ENABLE_TOOL_SEARCH when the connection model rejects dynamically-loaded tools', async () => {
+    // The settings builder force-enables ToolSearch for every agent; the route must undo that for
+    // models whose provider rejects dynamic tool declarations (Kimi non-K3 → tokenization failed).
+    mocks.buildSessionSettings.mockResolvedValue({ env: { ENABLE_TOOL_SEARCH: 'auto' } })
+    mocks.getModelByKey.mockReturnValue({ id: 'model-1', apiModelId: 'kimi-for-coding', contextWindow: 262_144 })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(request?.settings.env).not.toHaveProperty('ENABLE_TOOL_SEARCH')
+  })
+
+  it('keeps ENABLE_TOOL_SEARCH for models that accept dynamically-loaded tools', async () => {
+    mocks.buildSessionSettings.mockResolvedValue({ env: { ENABLE_TOOL_SEARCH: 'auto' } })
+    mocks.getModelByKey.mockReturnValue({ id: 'model-1', apiModelId: 'kimi-k3', contextWindow: 262_144 })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(request?.settings.env).toMatchObject({ ENABLE_TOOL_SEARCH: 'auto' })
+  })
+
+  it('gates ToolSearch on the per-turn connection model, not the agent model', async () => {
+    // agent.model is Claude, but this turn's connection was captured on kimi-for-coding — the
+    // toggle must follow the connection model (the one that actually receives the declarations).
+    mocks.buildSessionSettings.mockResolvedValue({ env: { ENABLE_TOOL_SEARCH: 'auto' } })
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      apiModelId: modelId === 'model-2' ? 'kimi-for-coding' : 'claude-sonnet',
+      contextWindow: 262_144
+    }))
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession(
+      'session-1',
+      undefined,
+      'provider-1::model-2' as any
+    )
+
+    expect(request?.settings.env).toMatchObject({ ANTHROPIC_MODEL: 'kimi-for-coding' })
+    expect(request?.settings.env).not.toHaveProperty('ENABLE_TOOL_SEARCH')
+  })
+
   it('captures the baseline from the same agent snapshot that materializes the request', async () => {
     const materializedAgent = {
       id: 'agent-1',
       model: 'provider-1::model-1',
       disabledTools: [],
       mcps: [],
-      configuration: { max_turns: 1 }
+      configuration: { env_vars: { FOO: '1' } }
     }
     const editedAgent = {
       ...materializedAgent,
-      configuration: { max_turns: 2 }
+      configuration: { env_vars: { FOO: '2' } }
     }
     mocks.getAgent.mockReturnValue(materializedAgent)
     mocks.buildSessionSettings.mockImplementationOnce(async (_session, _provider, _options, agentSnapshot) => {
       expect(agentSnapshot).toBe(materializedAgent)
       // Simulate an agent edit while the async settings builder is still materializing the request.
       mocks.getAgent.mockReturnValue(editedAgent)
-      return { maxTurns: agentSnapshot.configuration.max_turns, skills: [] }
+      return { env: agentSnapshot.configuration.env_vars, skills: [] }
     })
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
     const current = await deriveConnectionConfig('session-1')
 
-    expect(request?.settings.maxTurns).toBe(1)
+    expect(request?.settings.env?.FOO).toBe('1')
     expect(current.ok).toBe(true)
     if (!request || !current.ok) throw new Error('expected request and current config')
     expect(request.connectionConfig.rebuildSignature).not.toBe(current.config.rebuildSignature)
@@ -1379,16 +1418,6 @@ describe('deriveConnectionConfig', () => {
     })
     const planModelChanged = await deriveSignature()
     expect(planModelChanged.rebuildSignature).not.toBe(base.rebuildSignature)
-
-    mocks.getAgent.mockReturnValue({
-      id: 'agent-1',
-      model: 'provider-1::model-1',
-      disabledTools: [],
-      mcps: [],
-      configuration: { max_turns: 5 }
-    })
-    const maxTurnsChanged = await deriveSignature()
-    expect(maxTurnsChanged.rebuildSignature).not.toBe(base.rebuildSignature)
 
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',

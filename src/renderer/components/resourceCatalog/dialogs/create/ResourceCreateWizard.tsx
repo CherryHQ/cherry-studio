@@ -1,7 +1,11 @@
 import { Button, Dialog, DialogContent, DialogTitle, Form, Scrollbar } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
+import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useDefaultModel } from '@renderer/hooks/useModel'
-import type { Model, UniqueModelId } from '@shared/data/types/model'
+import { useProviderById } from '@renderer/hooks/useProvider'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import type { UniqueModelId } from '@shared/data/types/model'
 import { Check } from 'lucide-react'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useForm, type UseFormReturn, useFormState, useWatch } from 'react-hook-form'
@@ -25,7 +29,7 @@ type ResourceCreateWizardProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSubmit: (values: ResourceCreateWizardValues) => Promise<void> | void
-  modelFilter?: (model: Model) => boolean
+  modelFilter?: ModelSelectorFilter
   isSubmitting?: boolean
   /** Seeds the name field when the caller already knows it (e.g. the picker's search query). */
   initialName?: string
@@ -43,6 +47,8 @@ function getDefaultValues(kind: ResourceCreateWizardKind, initialName = ''): Res
     avatar: getResourceCreateDefaultAvatar(kind),
     name: initialName,
     description: '',
+    agentType: 'claude-code',
+    permissionMode: AGENT_RUNTIME_CAPABILITIES['claude-code'].createDefaults.permissionMode,
     modelId: null,
     prompt: '',
     knowledgeBaseIds: [],
@@ -128,9 +134,18 @@ export function ResourceCreateWizard({
 }: ResourceCreateWizardProps) {
   const { t } = useTranslation()
   const form = useForm<ResourceCreateWizardFormValues>({ defaultValues: getDefaultValues(kind, initialName) })
+  const agentType = form.watch('agentType')
+  const agentModelFilter = useAgentModelFilter(kind === 'agent' ? agentType : undefined)
+  const activeModelFilter = kind === 'agent' ? agentModelFilter : modelFilter
   const { defaultModel } = useDefaultModel({ enabled: open })
+  const { provider: defaultModelProvider } = useProviderById(open ? defaultModel?.providerId : undefined)
   const selectableDefaultModelId =
-    open && defaultModel && (!modelFilter || modelFilter(defaultModel)) ? defaultModel.id : null
+    open &&
+    defaultModel?.isEnabled &&
+    defaultModelProvider?.isEnabled &&
+    (!activeModelFilter || activeModelFilter(defaultModel, defaultModelProvider))
+      ? defaultModel.id
+      : null
   const autoSelectedDefaultModelIdRef = useRef<UniqueModelId | null>(null)
   const [stepIndex, setStepIndex] = useState(0)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
@@ -152,8 +167,13 @@ export function ResourceCreateWizard({
     if (kind === 'assistant') return [basic, systemPrompt, knowledge]
 
     const capability = { id: 'capability' as const, label: t('library.config.dialogs.create.step.capability') }
-    return [basic, systemPrompt, capability, knowledge]
-  }, [kind, t])
+    const caps = AGENT_RUNTIME_CAPABILITIES[agentType]
+    return [basic, systemPrompt, ...(caps.skills ? [capability] : []), ...(caps.knowledgeBases ? [knowledge] : [])]
+  }, [agentType, kind, t])
+
+  useEffect(() => {
+    setStepIndex((index) => Math.min(index, steps.length - 1))
+  }, [steps.length])
 
   // `initialName` seeds the form on open only. Reading it through an effect event keeps it out of the
   // deps, so a caller that passes a still-live value (a search box's query, say) cannot reset a form the
@@ -171,7 +191,7 @@ export function ResourceCreateWizard({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest initialName; this effect is keyed by the open transition.
   }, [kind, open])
 
-  // Preference/model hydration may finish after the dialog opens. Seed only an
+  // Preference/model/provider hydration may finish after the dialog opens. Seed only an
   // empty field, and retract only a value that this effect auto-selected if it
   // later falls outside the active model filter.
   useEffect(() => {
@@ -201,7 +221,7 @@ export function ResourceCreateWizard({
 
     autoSelectedDefaultModelIdRef.current = selectableDefaultModelId
     form.setValue('modelId', selectableDefaultModelId, { shouldDirty: false, shouldTouch: false })
-  }, [form, kind, open, selectableDefaultModelId])
+  }, [agentType, form, kind, open, selectableDefaultModelId])
 
   const isLast = stepIndex === steps.length - 1
 
@@ -251,6 +271,8 @@ export function ResourceCreateWizard({
     try {
       await onSubmit({
         avatar: values.avatar,
+        agentType: values.agentType,
+        permissionMode: values.permissionMode,
         name: values.name.trim(),
         modelId: values.modelId,
         description: values.description.trim(),
@@ -336,7 +358,8 @@ export function ResourceCreateWizard({
                     form={form}
                     portalContainer={dialogContentElement}
                     fallbackAvatar={getResourceCreateDefaultAvatar(kind)}
-                    modelFilter={modelFilter}
+                    modelFilter={activeModelFilter}
+                    runtimeSelectable={kind === 'agent'}
                     onSettingsNavigate={closeBeforeAction}
                   />
                 ) : null}

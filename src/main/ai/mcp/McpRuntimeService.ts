@@ -6,6 +6,7 @@ import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { createInMemoryMcpServer } from '@main/ai/mcp/servers/factory'
+import { TraceMethod, withSpanFunc } from '@main/ai/observability'
 import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
 import { getBinaryPath, isBinaryExists } from '@main/utils/binaryResolver'
@@ -13,7 +14,6 @@ import { findCommandInShellEnv, findExecutableInEnv } from '@main/utils/commandR
 import { defaultAppHeaders } from '@main/utils/http'
 import { removeEnvProxy } from '@main/utils/processRunner'
 import { getShellEnv } from '@main/utils/shellEnv'
-import { TraceMethod, withSpanFunc } from '@mcp-trace/trace-core'
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import type { SSEClientTransport, SSEClientTransportOptions, SseError } from '@modelcontextprotocol/sdk/client/sse.js'
 import type { StdioClientTransport, StdioServerParameters } from '@modelcontextprotocol/sdk/client/stdio.js'
@@ -32,6 +32,7 @@ import type {
   PromptListChangedNotificationSchema,
   ResourceListChangedNotificationSchema,
   ResourceUpdatedNotificationSchema,
+  ServerCapabilities,
   ToolListChangedNotificationSchema
 } from '@modelcontextprotocol/sdk/types.js'
 import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
@@ -41,6 +42,7 @@ import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
 import type { McpServerLogEntry } from '@shared/types/mcp'
 import type { McpPrompt, McpResource } from '@shared/types/mcp'
 import { BuiltinMcpServerNames, isInMemoryBuiltinMcpServer } from '@shared/utils/mcp'
+import { redactDeep, redactServerKey } from '@shared/utils/redaction'
 import { safeSerialize } from '@shared/utils/serialize'
 import { app, net } from 'electron'
 import { EventEmitter } from 'events'
@@ -195,6 +197,10 @@ export interface McpToolListChangedEvent {
 // still letting users raise it further via `server.timeout`.
 const MCP_CONNECT_TIMEOUT_FLOOR_MS = 180_000
 
+// Backstop on `prompts/list` / `resources/list` cursor paging: a server that keeps handing back a
+// cursor would otherwise loop forever. Reaching it is logged, not silently truncated.
+const MCP_LIST_PAGE_LIMIT = 50
+
 // Liveness ping before reusing a cached client. 1s falsely timed out on stdio servers busy
 // with a previous request, forcing needless reconnects.
 const PING_TIMEOUT_MS = 5_000
@@ -224,41 +230,14 @@ function isTransportFallbackError(error: unknown, sdk: McpClientSdk): boolean {
   return false
 }
 
-// Redact potentially sensitive fields in objects (headers, tokens, api keys)
-export function redactSensitive(input: any): any {
-  const SENSITIVE_KEYS = ['authorization', 'Authorization', 'apiKey', 'api_key', 'apikey', 'token', 'access_token']
-  const MAX_STRING = 300
-
-  // Track visited objects so a circular graph (e.g. an Error with an assigned `cause`,
-  // or HTTP request<->response cross-references) can't drive unbounded recursion → stack
-  // overflow inside the logger. This runs on caught Errors and server-controlled payloads.
-  const redact = (val: any, seen: WeakSet<object>): any => {
-    if (val == null) return val
-    if (typeof val === 'string') {
-      return val.length > MAX_STRING ? `${val.slice(0, MAX_STRING)}…<${val.length - MAX_STRING} more>` : val
-    }
-    if (typeof val === 'object') {
-      if (seen.has(val)) return '[Circular]'
-      seen.add(val)
-    }
-    if (Array.isArray(val)) return val.map((v) => redact(v, seen))
-    if (typeof val === 'object') {
-      const out: Record<string, any> = {}
-      for (const [k, v] of Object.entries(val)) {
-        if (SENSITIVE_KEYS.includes(k)) {
-          out[k] = '<redacted>'
-        } else {
-          out[k] = redact(v, seen)
-        }
-      }
-      return out
-    }
-    return val
-  }
-
-  return redact(input, new WeakSet())
+// Cache keys embed the serialized server config — log them with the serverKey portion
+// redacted instead of raw (same class of leak as #18648, at debug level).
+function redactCacheKey(cacheKey: string): string {
+  const separator = cacheKey.indexOf(':')
+  return separator === -1
+    ? redactServerKey(cacheKey)
+    : `${cacheKey.slice(0, separator + 1)}${redactServerKey(cacheKey.slice(separator + 1))}`
 }
-
 // Create a context-aware logger for a server
 function getServerLogger(server: McpServer, extra?: Record<string, any>) {
   const base = {
@@ -289,7 +268,7 @@ function withCache<T extends unknown[], R>(
     const cacheService = application.get('CacheService')
 
     if (cacheService.has(cacheKey)) {
-      logger.debug(`${logPrefix} loaded from cache`, { cacheKey })
+      logger.debug(`${logPrefix} loaded from cache`, { cacheKey: redactCacheKey(cacheKey) })
       const cachedData = cacheService.get<R>(cacheKey)
       if (cachedData) {
         return cachedData
@@ -299,7 +278,11 @@ function withCache<T extends unknown[], R>(
     const start = Date.now()
     const result = await fn(...args)
     cacheService.set(cacheKey, result, ttl)
-    logger.debug(`${logPrefix} cached`, { cacheKey, ttlMs: ttl, durationMs: Date.now() - start })
+    logger.debug(`${logPrefix} cached`, {
+      cacheKey: redactCacheKey(cacheKey),
+      ttlMs: ttl,
+      durationMs: Date.now() - start
+    })
     return result
   }
 }
@@ -310,6 +293,10 @@ function withCache<T extends unknown[], R>(
 export class McpRuntimeService extends BaseService {
   private clients: Map<string, Client> = new Map()
   private pendingClients: Map<string, Promise<Client>> = new Map()
+  // Ids removed this run (ids are never reused). Guards the delete-vs-reconnect race:
+  // a late connect must self-close instead of re-caching a client nothing would ever close.
+  private removedServerIds = new Set<string>()
+  private pendingRemovals = new Map<string, Promise<void>>()
   // Keyed by toolCallKey(callId, scope). Caller-supplied call ids are NOT process-wide
   // unique (AI SDK providers may reuse ids like "call_0" across topics), so scoped callers
   // are namespaced, and every concurrent call registers its own controller under its key
@@ -343,6 +330,12 @@ export class McpRuntimeService extends BaseService {
   }
 
   public setServerStatus(serverId: string, state: McpRuntimeState, error?: unknown): void {
+    // A late writer racing removal (e.g. a connectivity check's error path) must not
+    // resurrect the status entry doRemoveServer deleted for a removed server.
+    if (this.removedServerIds.has(serverId)) {
+      return
+    }
+
     const lastError =
       state === 'error' ? (error instanceof Error ? error.message : String(error ?? 'Unknown error')) : undefined
 
@@ -391,15 +384,39 @@ export class McpRuntimeService extends BaseService {
   }
 
   public getServerKey(server: McpServer): string {
+    const fingerprint = crypto
+      .createHash('sha256')
+      .update(
+        JSON.stringify({
+          baseUrl: server.baseUrl,
+          command: server.command,
+          args: Array.isArray(server.args) ? server.args : [],
+          registryUrl: server.registryUrl,
+          env: server.env,
+          headers: server.headers
+        })
+      )
+      .digest('hex')
+
     return JSON.stringify({
-      baseUrl: server.baseUrl,
-      command: server.command,
-      args: Array.isArray(server.args) ? server.args : [],
-      registryUrl: server.registryUrl,
-      env: server.env,
-      headers: server.headers,
-      id: server.id
+      id: server.id,
+      fingerprint
     })
+  }
+
+  /**
+   * Capabilities the server declared during the handshake, or `undefined` when it has never
+   * connected. Synchronous and connection-free by design: it is the gate for exposing the
+   * `mcp_resource_*` tools on the chat hot path, which must never open a connection to decide.
+   */
+  public getConnectedServerCapabilities(serverId: string): ServerCapabilities | undefined {
+    let server: McpServer | undefined
+    try {
+      server = this.getServerById(serverId)
+    } catch {
+      return undefined
+    }
+    return this.clients.get(this.getServerKey(server))?.getServerCapabilities()
   }
 
   private isServerKeyForId(serverKey: string, serverId: string): boolean {
@@ -437,6 +454,10 @@ export class McpRuntimeService extends BaseService {
       throw new Error('MCP runtime is stopping')
     }
 
+    if (this.removedServerIds.has(server.id)) {
+      throw new Error(`MCP server ${server.name} has been removed`)
+    }
+
     if (!server.isActive) {
       this.setServerStatus(server.id, 'disabled')
       throw new Error(`MCP server ${server.name} is disabled`)
@@ -455,6 +476,7 @@ export class McpRuntimeService extends BaseService {
     // Check if we already have a client for this server configuration
     const existingClient = this.clients.get(serverKey)
     if (existingClient) {
+      let alive = false
       try {
         // Check if the existing client is still connected
         const pingResult = await existingClient.ping({
@@ -462,17 +484,23 @@ export class McpRuntimeService extends BaseService {
           timeout: PING_TIMEOUT_MS
         })
         getServerLogger(server).debug(`Ping result`, { ok: !!pingResult })
-        // If the ping fails, close the client and create a new one
-        if (!pingResult) {
-          await this.discardStaleClient(serverKey)
-        } else {
-          this.setServerStatus(server.id, 'connected')
-          return existingClient
-        }
+        alive = !!pingResult
       } catch (error: any) {
         getServerLogger(server).error(`Error pinging server ${server.name}`, error as Error)
-        await this.discardStaleClient(serverKey)
       }
+      // If the ping fails, close the client and create a new one
+      if (!alive) {
+        await this.discardStaleClient(serverKey)
+      } else if (!this.removedServerIds.has(server.id)) {
+        this.setServerStatus(server.id, 'connected')
+        return existingClient
+      }
+    }
+
+    // Re-check after the ping/cleanup awaits above: removeServer may have completed
+    // meanwhile — do not hand back or start a connection for a removed server.
+    if (this.removedServerIds.has(server.id)) {
+      throw new Error(`MCP server ${server.name} has been removed`)
     }
 
     this.setServerStatus(server.id, 'connecting')
@@ -506,16 +534,25 @@ export class McpRuntimeService extends BaseService {
         ): Promise<StdioClientTransport | SSEClientTransport | InMemoryTransport | StreamableHTTPClientTransport> => {
           // Create appropriate transport based on configuration
 
-          // Special case for nowledgeMem and flomo - uses HTTP transport instead of in-memory
+          // Special case for hosted built-in MCP servers - uses HTTP transport instead of in-memory.
           if (
             isInMemoryBuiltinMcpServer(server) &&
-            (server.name === BuiltinMcpServerNames.nowledgeMem || server.name === BuiltinMcpServerNames.flomo)
+            (server.name === BuiltinMcpServerNames.nowledgeMem ||
+              server.name === BuiltinMcpServerNames.flomo ||
+              server.name === BuiltinMcpServerNames.qveris)
           ) {
             const httpUrlMap: Record<string, string> = {
               [BuiltinMcpServerNames.nowledgeMem]: 'http://127.0.0.1:14242/mcp',
-              [BuiltinMcpServerNames.flomo]: 'https://flomoapp.com/mcp'
+              [BuiltinMcpServerNames.flomo]: 'https://flomoapp.com/mcp',
+              [BuiltinMcpServerNames.qveris]: 'https://mcp.qveris.ai/mcp'
             }
             const httpUrl = httpUrlMap[server.name]
+            const qverisApiKey = server.env?.QVERIS_API_KEY?.trim()
+
+            if (server.name === BuiltinMcpServerNames.qveris && !qverisApiKey) {
+              throw new Error('QVeris MCP requires the QVERIS_API_KEY environment variable')
+            }
+
             const options: StreamableHTTPClientTransportOptions = {
               fetch: async (url, init) => {
                 return net.fetch(typeof url === 'string' ? url : url.toString(), init)
@@ -523,10 +560,11 @@ export class McpRuntimeService extends BaseService {
               requestInit: {
                 headers: {
                   ...defaultAppHeaders(),
-                  APP: 'Cherry Studio'
+                  APP: 'Cherry Studio',
+                  ...(server.name === BuiltinMcpServerNames.qveris ? { Authorization: `Bearer ${qverisApiKey}` } : {})
                 }
               },
-              authProvider
+              ...(server.name === BuiltinMcpServerNames.qveris ? {} : { authProvider })
             }
             getServerLogger(server).debug(`Using StreamableHTTPClientTransport for ${server.name}`)
             return new sdk.StreamableHTTPClientTransport(new URL(httpUrl), options)
@@ -560,7 +598,7 @@ export class McpRuntimeService extends BaseService {
               }
               // redact headers before logging
               getServerLogger(server).debug(`StreamableHTTPClientTransport options`, {
-                options: redactSensitive(options)
+                options: redactDeep(options)
               })
               return new sdk.StreamableHTTPClientTransport(new URL(server.baseUrl), options)
             } else if (urlBasedType === 'sse') {
@@ -864,7 +902,7 @@ export class McpRuntimeService extends BaseService {
               }
               const fallbackType = candidates[i + 1]
               getServerLogger(server).warn(`Transport '${candidateType}' failed, falling back to '${fallbackType}'`, {
-                error: redactSensitive(error)
+                error: redactDeep(error)
               })
               // Close the whole client (not just the transport) so the SDK resets its internal
               // _transport before we retry. Reusing the client for the fallback mirrors the OAuth
@@ -889,6 +927,11 @@ export class McpRuntimeService extends BaseService {
           if (this.stopping || this.isStopped || this.isDestroyed) {
             await client.close()
             throw new Error('MCP runtime is stopping')
+          }
+
+          if (this.removedServerIds.has(server.id)) {
+            await client.close()
+            throw new Error(`MCP server ${server.name} was removed during connect`)
           }
 
           // Store the new client in the cache
@@ -916,7 +959,7 @@ export class McpRuntimeService extends BaseService {
             timestamp: Date.now(),
             level: 'error',
             message: `Error activating server: ${(error as Error)?.message}`,
-            data: redactSensitive(error),
+            data: redactDeep(error),
             source: 'client'
           })
           throw error
@@ -970,13 +1013,17 @@ export class McpRuntimeService extends BaseService {
 
       // Set up cancelled notification handler
       client.setNotificationHandler(sdk.CancelledNotificationSchema, async (notification) => {
-        logger.debug(`Operation cancelled for server: ${server.name}`, notification.params)
+        logger.debug(
+          `Operation cancelled for server: ${server.name}`,
+          redactDeep(notification.params) as Record<string, unknown>
+        )
       })
 
       // Set up logging message notification handler
       client.setNotificationHandler(sdk.LoggingMessageNotificationSchema, async (notification) => {
         const data = notification.params?.data
-        const message = safeSerialize(notification.params.data) ?? 'No data'
+        const redactedData = redactDeep(data)
+        const message = safeSerialize(redactedData) ?? 'No data'
         logger.debug(`Message from server ${server.name}: ${message}`)
         if (data) {
           this.emitServerLog(server, {
@@ -984,7 +1031,7 @@ export class McpRuntimeService extends BaseService {
             // FIXME: as McpServerLogEntry['level'] not type safe
             level: (notification.params?.level as McpServerLogEntry['level']) || 'info',
             message,
-            data: redactSensitive(notification.params?.data),
+            data: redactedData,
             source: notification.params?.logger || 'server'
           })
         }
@@ -1012,7 +1059,7 @@ export class McpRuntimeService extends BaseService {
     cacheService.delete(`mcp:list_tool:${serverKey}`)
     cacheService.delete(`mcp:list_prompts:${serverKey}`)
     cacheService.delete(`mcp:list_resources:${serverKey}`)
-    logger.debug(`Cleared all caches for server`, { serverKey })
+    logger.debug(`Cleared all caches for server`, { serverKey: redactServerKey(serverKey) })
   }
 
   private getLatestSourcePolicy(server: McpServer): McpServer {
@@ -1067,13 +1114,13 @@ export class McpRuntimeService extends BaseService {
     if (client) {
       // Remove the client from the cache
       await client.close()
-      logger.debug(`Closed server`, { serverKey })
+      logger.debug(`Closed server`, { serverKey: redactServerKey(serverKey) })
       this.clients.delete(serverKey)
       // Clear all caches for this server
       this.clearServerCache(serverKey)
       this.serverLogs.remove(serverKey)
     } else {
-      logger.warn(`No client found for server`, { serverKey })
+      logger.warn(`No client found for server`, { serverKey: redactServerKey(serverKey) })
     }
   }
 
@@ -1107,13 +1154,66 @@ export class McpRuntimeService extends BaseService {
     }
   }
 
-  async removeServer(serverId: string) {
+  async removeServer(serverId: string): Promise<void> {
+    // Concurrent removals of one server (e.g. two windows) share one flow: the loser's
+    // row delete would fail NOT_FOUND and surface a spurious "delete failed" toast.
+    const inFlight = this.pendingRemovals.get(serverId)
+    if (inFlight) return inFlight
+    const removal = this.doRemoveServer(serverId).finally(() => {
+      this.pendingRemovals.delete(serverId)
+    })
+    this.pendingRemovals.set(serverId, removal)
+    return removal
+  }
+
+  // Fail open: only a confirmed missing row counts as deleted. On a transient DB
+  // failure the row may still exist, and keeping the tombstone would dead-lock it.
+  private serverRowMayExist(serverId: string): boolean {
+    try {
+      return mcpServerService.list({ id: serverId }).items.length > 0
+    } catch (error) {
+      logger.warn(
+        `Row-existence check failed for server ${serverId}; treating the row as still present`,
+        error as Error
+      )
+      return true
+    }
+  }
+
+  private async doRemoveServer(serverId: string): Promise<void> {
     const server = this.getServerById(serverId)
+    this.removedServerIds.add(serverId)
+    let rowDeleted = false
     try {
       await this.closeClientsForServer(server.id)
+      mcpServerService.delete(serverId)
+      rowDeleted = true
+    } catch (error) {
+      // Roll back unless the row is confirmed gone; once it is gone the tombstone
+      // must survive, else the server would dead-lock until app restart.
+      if (this.serverRowMayExist(serverId)) {
+        this.removedServerIds.delete(serverId)
+      }
+      throw error
     } finally {
-      application.get('McpCatalogService').clearSharedToolsCache(server.id)
-      this.setServerStatus(server.id, 'disabled')
+      // Best-effort, isolated per step: after the row delete committed neither hiccup
+      // may fail the removal, and a cache failure must not skip the status step.
+      try {
+        application.get('McpCatalogService').clearSharedToolsCache(server.id)
+      } catch (error) {
+        getServerLogger(server).error(`Post-removal tools cache cleanup failed`, error as Error)
+      }
+      try {
+        if (rowDeleted) {
+          // Writing 'disabled' here would orphan a status entry for a row that no
+          // longer exists; a rolled-back removal keeps its row, so it keeps a status.
+          application.get('CacheService').deleteShared(mcpStatusCacheKey(server.id))
+        } else {
+          this.setServerStatus(server.id, 'disabled')
+        }
+      } catch (error) {
+        getServerLogger(server).error(`Post-removal status cleanup failed`, error as Error)
+      }
     }
 
     // Cleanup OAuth token file for this server, but only if no other server
@@ -1202,7 +1302,7 @@ export class McpRuntimeService extends BaseService {
         timestamp: Date.now(),
         level: 'error',
         message: `Connectivity check failed: ${(error as Error).message}`,
-        data: redactSensitive(error),
+        data: redactDeep(error),
         source: 'connectivity'
       })
       // Close the client if connectivity check fails to ensure a clean state for the next attempt
@@ -1254,7 +1354,7 @@ export class McpRuntimeService extends BaseService {
           throw getAbortReason(effectiveSignal)
         }
         getServerLogger(server, { tool: name, callId: toolCallId }).debug(`Calling tool`, {
-          args: redactSensitive(args)
+          args: redactDeep(args)
         })
         if (typeof args === 'string') {
           if (args.trim() === '') {
@@ -1358,15 +1458,24 @@ export class McpRuntimeService extends BaseService {
    */
   private async listPromptsImpl(server: McpServer): Promise<McpPrompt[]> {
     const client = await this.getOrCreateClient(server)
+    if (!client.getServerCapabilities()?.prompts) {
+      getServerLogger(server).debug(`Server does not declare prompts capability, skipping list`)
+      return []
+    }
     getServerLogger(server).debug(`Listing prompts`)
     try {
-      const { prompts } = await client.listPrompts()
-      return prompts.map((prompt: any) => ({
-        ...prompt,
-        id: `p${nanoid()}`,
-        serverId: server.id,
-        serverName: server.name
-      }))
+      const prompts: McpPrompt[] = []
+      let cursor: string | undefined
+      for (let page = 0; page < MCP_LIST_PAGE_LIMIT; page++) {
+        const result = await client.listPrompts(cursor ? { cursor } : undefined)
+        for (const prompt of result.prompts ?? []) {
+          prompts.push({ ...(prompt as any), id: `p${nanoid()}`, serverId: server.id, serverName: server.name })
+        }
+        cursor = result.nextCursor
+        if (!cursor) return prompts
+      }
+      getServerLogger(server).warn(`Stopped paging prompts at the page limit`, { pageLimit: MCP_LIST_PAGE_LIMIT })
+      return prompts
     } catch (error: unknown) {
       // -32601 (method not found) means the server has no prompts capability — a stable
       // empty result that is safe to cache. Any other error is transient; rethrow it so
@@ -1404,37 +1513,37 @@ export class McpRuntimeService extends BaseService {
   /**
    * Get a specific prompt from an MCP server (implementation)
    */
-  private async getPromptImpl(server: McpServer, name: string, args?: Record<string, any>): Promise<GetPromptResult> {
+  private async getPromptImpl(
+    server: McpServer,
+    name: string,
+    args?: Record<string, any>,
+    signal?: AbortSignal
+  ): Promise<GetPromptResult> {
     logger.debug(`Getting prompt ${name} from server: ${server.name}`)
     const client = await this.getOrCreateClient(server)
-    return await client.getPrompt({ name, arguments: args })
+    return await client.getPrompt({ name, arguments: args }, signal ? { signal } : undefined)
   }
 
   /**
-   * Get a specific prompt from an MCP server with caching
+   * Render a prompt on an MCP server.
+   *
+   * Uncached for the same reason as `getResource`: `prompts/list_changed` and restart clear the list
+   * key only, so a rendered-prompt cache would serve a stale template for its whole TTL after the
+   * server replaced it.
    */
   @TraceMethod({ spanName: 'getPrompt', tag: 'mcp' })
   public async getPrompt({
     serverId,
     name,
-    args
+    args,
+    signal
   }: {
     serverId: string
     name: string
     args?: Record<string, any>
+    signal?: AbortSignal
   }): Promise<GetPromptResult> {
-    const server = this.getServerById(serverId)
-    const cachedGetPrompt = withCache<[McpServer, string, Record<string, any> | undefined], GetPromptResult>(
-      this.getPromptImpl.bind(this),
-      (server, name, args) => {
-        const serverKey = this.getServerKey(server)
-        const argsKey = args ? JSON.stringify(args) : 'no-args'
-        return `mcp:get_prompt:${serverKey}:${name}:${argsKey}`
-      },
-      30 * 60 * 1000, // 30 minutes TTL
-      `[MCP] Prompt ${name} from ${server.name}`
-    )
-    return await cachedGetPrompt(server, name, args)
+    return await this.getPromptImpl(this.getServerById(serverId), name, args, signal)
   }
 
   /**
@@ -1442,15 +1551,24 @@ export class McpRuntimeService extends BaseService {
    */
   private async listResourcesImpl(server: McpServer): Promise<McpResource[]> {
     const client = await this.getOrCreateClient(server)
+    if (!client.getServerCapabilities()?.resources) {
+      logger.debug(`Server ${server.name} does not declare resources capability, skipping list`)
+      return []
+    }
     logger.debug(`Listing resources for server: ${server.name}`)
     try {
-      const result = await client.listResources()
-      const resources = result.resources || []
-      return (Array.isArray(resources) ? resources : []).map((resource: any) => ({
-        ...resource,
-        serverId: server.id,
-        serverName: server.name
-      }))
+      const resources: McpResource[] = []
+      let cursor: string | undefined
+      for (let page = 0; page < MCP_LIST_PAGE_LIMIT; page++) {
+        const result = await client.listResources(cursor ? { cursor } : undefined)
+        for (const resource of Array.isArray(result.resources) ? result.resources : []) {
+          resources.push({ ...(resource as any), serverId: server.id, serverName: server.name })
+        }
+        cursor = result.nextCursor
+        if (!cursor) return resources
+      }
+      getServerLogger(server).warn(`Stopped paging resources at the page limit`, { pageLimit: MCP_LIST_PAGE_LIMIT })
+      return resources
     } catch (error: any) {
       // -32601 (method not found) is a stable empty result safe to cache; rethrow anything
       // else so a transient failure isn't cached as an empty list for the full TTL.
@@ -1486,11 +1604,11 @@ export class McpRuntimeService extends BaseService {
   /**
    * Get a specific resource from an MCP server (implementation)
    */
-  private async getResourceImpl(server: McpServer, uri: string): Promise<GetResourceResponse> {
+  private async getResourceImpl(server: McpServer, uri: string, signal?: AbortSignal): Promise<GetResourceResponse> {
     getServerLogger(server, { uri }).debug(`Getting resource`)
     const client = await this.getOrCreateClient(server)
     try {
-      const result = await client.readResource({ uri: uri })
+      const result = await client.readResource({ uri: uri }, signal ? { signal } : undefined)
       const contents: McpResource[] = []
       if (result.contents && result.contents.length > 0) {
         result.contents.forEach((content: any) => {
@@ -1511,21 +1629,24 @@ export class McpRuntimeService extends BaseService {
   }
 
   /**
-   * Get a specific resource from an MCP server with caching
+   * Read a specific resource from an MCP server.
+   *
+   * Deliberately uncached: resource *content* changes independently of the resource list, and the
+   * only invalidation this service has (`resources/list_changed`, `resources/updated`, restart,
+   * `clearServerCache`) clears list keys. A content cache here would keep serving stale bytes — and
+   * stale permissions — for its whole TTL after the server said the resource changed.
    */
   @TraceMethod({ spanName: 'getResource', tag: 'mcp' })
-  public async getResource({ serverId, uri }: { serverId: string; uri: string }): Promise<GetResourceResponse> {
-    const server = this.getServerById(serverId)
-    const cachedGetResource = withCache<[McpServer, string], GetResourceResponse>(
-      this.getResourceImpl.bind(this),
-      (server, uri) => {
-        const serverKey = this.getServerKey(server)
-        return `mcp:get_resource:${serverKey}:${uri}`
-      },
-      30 * 60 * 1000, // 30 minutes TTL
-      `[MCP] Resource ${uri} from ${server.name}`
-    )
-    return await cachedGetResource(server, uri)
+  public async getResource({
+    serverId,
+    uri,
+    signal
+  }: {
+    serverId: string
+    uri: string
+    signal?: AbortSignal
+  }): Promise<GetResourceResponse> {
+    return await this.getResourceImpl(this.getServerById(serverId), uri, signal)
   }
 
   // 实现 abortTool 方法
@@ -1560,7 +1681,7 @@ export class McpRuntimeService extends BaseService {
 
       // Try to get server information which may include version
       const serverInfo = client.getServerVersion()
-      getServerLogger(server).debug(`Server info`, redactSensitive(serverInfo))
+      getServerLogger(server).debug(`Server info`, redactDeep(serverInfo) as Record<string, unknown>)
 
       if (serverInfo && serverInfo.version) {
         getServerLogger(server).debug(`Server version`, { version: serverInfo.version })

@@ -96,10 +96,12 @@ export type TextOutput = {
 }
 
 export interface SkillToolInput {
-  skill: string
+  /** Claude uses `skill`; dsh's native skill tool uses `name`. */
+  skill?: string
+  name?: string
   args?: string
 }
-export type SkillToolOutput = string
+export type SkillToolOutput = string | TextOutput[]
 
 export type ReadToolInput = FileReadInput
 export type ReadToolOutput = FileReadOutput | string | TextOutput[]
@@ -125,9 +127,9 @@ export type SearchToolOutput = string
 export type GlobToolInput = GlobInput
 export type GlobToolOutput = GlobOutput | string
 
-export type TodoItem = TodoWriteInput['todos'][number]
-export type TodoWriteToolInput = TodoWriteInput
-export type TodoWriteToolOutput = TodoWriteOutput | string
+export type TodoItem = Omit<TodoWriteInput['todos'][number], 'activeForm'> & { activeForm?: string }
+export type TodoWriteToolInput = { todos: TodoItem[] }
+export type TodoWriteToolOutput = TodoWriteOutput | string | TextOutput[]
 
 export type WebSearchToolInput = WebSearchInput
 export type WebSearchToolOutput = WebSearchOutput | string

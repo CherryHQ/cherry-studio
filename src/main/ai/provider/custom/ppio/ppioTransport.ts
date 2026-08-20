@@ -6,9 +6,8 @@ import { createAbortError, fileToDataUrl, isTerminalHttpStatus, waitWithSignal }
 /**
  * PPIO submit/poll transport.
  *
- * Ported from the legacy painting service
- * (`src/renderer/src/pages/paintings/providers/ppio/service.ts`):
- * same API host, adaptive 3s(<60s)/10s poll interval, `maxAttempts` 120,
+ * Preserves the legacy painting transport's API host, adaptive
+ * 3s(<60s)/10s poll interval, `maxAttempts` 120,
  * `maxTransientRetries` 10, `TASK_STATUS_*` machine, per-model param builders
  * and the synchronous (`isSync`) path.
  */

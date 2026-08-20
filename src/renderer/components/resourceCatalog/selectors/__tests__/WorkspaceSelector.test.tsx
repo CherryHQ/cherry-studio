@@ -9,6 +9,7 @@ const {
   createWorkspaceMock,
   deleteWorkspaceMock,
   invalidateCacheMock,
+  ipcRequestMock,
   refetchReferencesMock,
   refetchWorkspacesMock,
   selectFolderMock,
@@ -21,6 +22,7 @@ const {
   createWorkspaceMock: vi.fn(),
   deleteWorkspaceMock: vi.fn(),
   invalidateCacheMock: vi.fn(),
+  ipcRequestMock: vi.fn(),
   refetchReferencesMock: vi.fn(),
   refetchWorkspacesMock: vi.fn(),
   selectFolderMock: vi.fn(),
@@ -43,6 +45,10 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
 
 vi.mock('@renderer/hooks/tab', () => ({
   useCloseConversationTabs: () => closeConversationTabsMock
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: ipcRequestMock, on: vi.fn(() => () => undefined) }
 }))
 
 vi.mock('@renderer/services/toast', () => ({
@@ -242,6 +248,9 @@ beforeEach(() => {
   })
   createWorkspaceMock.mockResolvedValue(CREATED_WORKSPACE)
   deleteWorkspaceMock.mockResolvedValue({ deletedIds: ['session-alpha-recent', 'session-alpha-older'] })
+  ipcRequestMock.mockImplementation((_route, input) =>
+    deleteWorkspaceMock({ params: { workspaceId: input.workspaceId } })
+  )
   invalidateCacheMock.mockResolvedValue(undefined)
   refetchReferencesMock.mockResolvedValue(undefined)
   refetchWorkspacesMock.mockResolvedValue(undefined)

@@ -176,6 +176,8 @@ export interface CherryToolMeta {
   transport?: string
   /** Tool name (used by approval bridge before the part has been finalized). */
   toolName?: string
+  /** Runtime-neutral subagent linkage: the spawning tool call this part nests under. */
+  parentToolCallId?: string
   /** MCP / builtin tool identity. Matches `ToolType` consumed by `toolResponse.ts`. */
   tool?: {
     serverId?: string

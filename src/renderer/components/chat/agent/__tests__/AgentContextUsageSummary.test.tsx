@@ -9,13 +9,13 @@ vi.mock('react-i18next', () => ({
 
 import { AgentContextUsageSummary } from '../AgentContextUsageSummary'
 
-const buildUsage = (categories: { name: string; tokens: number }[]): AgentSessionContextUsage =>
-  ({
-    categories: categories.map((category) => ({ ...category, color: '#000' })),
-    totalTokens: 1000,
-    maxTokens: 2000,
-    model: 'claude-opus-4-8'
-  }) as AgentSessionContextUsage
+const buildUsage = (categories: { name: string; tokens: number }[]): AgentSessionContextUsage => ({
+  categories,
+  totalTokens: 1000,
+  maxTokens: 2000,
+  percentage: 50,
+  model: 'claude-opus-4-8'
+})
 
 describe('AgentContextUsageSummary', () => {
   it('translates known category names', () => {

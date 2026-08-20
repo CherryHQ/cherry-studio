@@ -23,6 +23,7 @@ import {
   AtSign,
   Check,
   CirclePause,
+  CopyPlus,
   FilePenLine,
   Languages,
   ListChecks,
@@ -196,6 +197,11 @@ registerCommand('message.abortTranslation', async ({ actions, message }) => {
 registerCommand('message.newBranch', async ({ actions, message, t }) => {
   await actions.startMessageBranch?.(message.id)
   actions.notifySuccess?.(t('chat.message.new.branch.created'))
+})
+
+registerCommand('message.copyToNewTopic', async ({ actions, message, t }) => {
+  await actions.copyBranchToNewTopic?.(message.id)
+  actions.notifySuccess?.(t('chat.message.flow.copy_topic.created'))
 })
 
 registerCommand('message.multiSelect', ({ actions }) => {
@@ -441,6 +447,17 @@ registerAction({
     if (!actions.startMessageBranch || !isAssistantMessage) return false
     return true
   }
+})
+
+registerAction({
+  id: 'copy-to-new-topic',
+  commandId: 'message.copyToNewTopic',
+  label: ({ t }) => t('chat.message.flow.copy_topic.label'),
+  icon: <CopyPlus size={15} />,
+  group: 'write',
+  order: 25,
+  surface: 'menu',
+  availability: ({ actions, isAssistantMessage }) => !!actions.copyBranchToNewTopic && isAssistantMessage
 })
 
 registerAction({

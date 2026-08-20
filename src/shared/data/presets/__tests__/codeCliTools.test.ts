@@ -7,6 +7,7 @@ const EXPECTED_ACQUISITION_FACTS = [
   ['openai-codex', 'codex', '@openai/codex', 'registry', 'codex'],
   ['opencode', 'opencode', 'opencode-ai', 'registry', 'opencode'],
   ['openclaw', 'openclaw', 'openclaw', 'npm', 'npm:openclaw'],
+  ['deepseek-harness', 'dsh', '@deepseek-ai/dsh', 'npm', 'npm:@deepseek-ai/dsh'],
   ['gemini-cli', 'gemini', '@google/gemini-cli', 'npm', 'npm:@google/gemini-cli'],
   ['qwen-code', 'qwen', '@qwen-code/qwen-code', 'npm', 'npm:@qwen-code/qwen-code'],
   ['kimi-code', 'kimi', '@moonshot-ai/kimi-code', 'npm', 'npm:@moonshot-ai/kimi-code'],

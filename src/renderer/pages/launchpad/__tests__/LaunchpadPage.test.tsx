@@ -83,6 +83,10 @@ vi.mock('@renderer/components/MiniApp/MiniApp', () => ({
   )
 }))
 
+vi.mock('@renderer/components/ProviderAvatar', () => ({
+  ProviderAvatarPrimitive: () => <svg aria-hidden="true" />
+}))
+
 vi.mock('@renderer/components/Scrollbar', () => ({
   default: ({ children, className }: { children: ReactNode; className?: string }) => (
     <div className={className}>{children}</div>
@@ -136,6 +140,7 @@ vi.mock('react-i18next', () => ({
           'files.title': 'Files',
           'knowledge.title': 'Knowledge',
           'launchpad.apps': 'Apps',
+          'launchpad.deepseek_harness_shortcut': 'DSH',
           'launchpad.miniApps': 'Mini Apps',
           'launchpad.pin_to_sidebar': 'Add to Sidebar',
           'launchpad.unpin_from_sidebar': 'Remove from Sidebar',
@@ -273,6 +278,20 @@ describe('LaunchpadPage', () => {
     await user.click(screen.getByRole('button', { name: 'Knowledge' }))
 
     expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/knowledge' })
+  })
+
+  it('opens the dedicated DeepSeek Harness CodeMate view from its app shortcut', async () => {
+    const user = userEvent.setup()
+
+    render(<LaunchpadPage />)
+    const shortcut = screen.getByRole('button', { name: 'DSH' })
+
+    await user.click(shortcut)
+
+    expect(mocks.navigate).toHaveBeenCalledWith({
+      to: '/app/code',
+      search: { tool: 'deepseek-harness' }
+    })
   })
 
   it('suppresses only the dragged launchpad item click', () => {

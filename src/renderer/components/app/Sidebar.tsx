@@ -19,7 +19,7 @@ import {
   tabBelongsToApp
 } from '@renderer/utils/sidebar'
 import type { Ref } from 'react'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SidebarShellActions } from '../layout/ShellTabBarActions'
@@ -35,6 +35,7 @@ import {
 import UserPopup from '../UserPopup'
 import { resolveSidebarEntry, type SidebarVariantContext } from './sidebarVariants'
 
+const FeedbackDialog = lazy(() => import('../feedback/FeedbackDialog'))
 const REQUIRED_SIDEBAR_FAVORITE_SET = new Set<SidebarAppId>(REQUIRED_SIDEBAR_FAVORITES)
 
 export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
@@ -50,6 +51,8 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   // follow the cursor without persisting unstable widths.
   const [sidebarWidth, setSidebarWidth] = usePersistCache('ui.sidebar.width')
   const [previewSidebarWidth, setPreviewSidebarWidth] = useState<number | null>(null)
+  const [feedbackDialogMounted, setFeedbackDialogMounted] = useState(false)
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
   const activeSidebarWidth = previewSidebarWidth ?? sidebarWidth
 
   useLayoutEffect(() => {
@@ -165,7 +168,11 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     openTab('/app/launchpad', { title: getDefaultRouteTitle('/app/launchpad'), forceNew: true })
   }, [openTab])
   const handleOpenSettingsTab = useCallback(() => {
-    openSettingsTab('/settings/provider')
+    openSettingsTab('/settings/general')
+  }, [])
+  const handleOpenFeedback = useCallback(() => {
+    setFeedbackDialogMounted(true)
+    setFeedbackOpen(true)
   }, [])
 
   const handleOpenMiniAppTab = useCallback(
@@ -282,8 +289,13 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     active: { activeItem, activeTabId: activeMiniAppId },
     title: sidebarUser.name,
     logo: sidebarLogo,
-    actions: (footerLayout: SidebarVisibleLayout) => (
-      <SidebarShellActions layout={footerLayout} onSettingsClick={handleOpenSettingsTab} />
+    actions: (footerLayout: SidebarVisibleLayout, onOverlayOpenChange?: (open: boolean) => void) => (
+      <SidebarShellActions
+        layout={footerLayout}
+        onFeedbackClick={handleOpenFeedback}
+        onSettingsClick={handleOpenSettingsTab}
+        onOverlayOpenChange={onOverlayOpenChange}
+      />
     ),
     onEntriesReorder: handleReorder
   }
@@ -306,6 +318,11 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
           {...sidebarProps}
         />
       )}
+      {feedbackDialogMounted ? (
+        <Suspense fallback={null}>
+          <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
+        </Suspense>
+      ) : null}
     </div>
   )
 }

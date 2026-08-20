@@ -27,6 +27,7 @@ const mocks = vi.hoisted(() => ({
   deferredEditorMinHeight: 46,
   editorContentLineCount: 1,
   editorViewComposing: false,
+  editorViewDom: undefined as HTMLElement | undefined,
   editorScrollHeight: 28,
   insertContent: vi.fn(),
   insertComposerToken: vi.fn(),
@@ -34,7 +35,9 @@ const mocks = vi.hoisted(() => ({
   deleteSelection: vi.fn(),
   setMeta: vi.fn(),
   setContent: vi.fn(),
+  setHardBreak: vi.fn(),
   setNodeSelection: vi.fn(),
+  setTextSelection: vi.fn(),
   chainRun: vi.fn(),
   docContentSize: 0,
   docDescendants: vi.fn(),
@@ -175,6 +178,7 @@ vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
       commands: {
         focus: mocks.focus,
         setContent: mocks.setContent,
+        setHardBreak: mocks.setHardBreak,
         setNodeSelection: mocks.setNodeSelection
       },
       chain: () => ({
@@ -191,6 +195,10 @@ vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
           },
           setNodeSelection: (...args: unknown[]) => {
             mocks.setNodeSelection(...args)
+            return { run: mocks.chainRun }
+          },
+          setTextSelection: (...args: unknown[]) => {
+            mocks.setTextSelection(...args)
             return { run: mocks.chainRun }
           },
           deleteSelection: () => {
@@ -226,6 +234,9 @@ vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
       view: {
         get composing() {
           return mocks.editorViewComposing
+        },
+        get dom() {
+          return mocks.editorViewDom
         },
         dispatch: mocks.dispatch
       },
@@ -427,8 +438,12 @@ async function primeComposerClipboardSessionCache(plainText: string, fragment: s
 }
 
 describe('ComposerSurface', () => {
+  let hasFocusSpy: ReturnType<typeof vi.spyOn> | undefined
+
   beforeEach(() => {
     clearMockTimers()
+    // jsdom reports an unfocused document, which would short-circuit every focus-restore path.
+    hasFocusSpy = vi.spyOn(document, 'hasFocus').mockReturnValue(true)
     mocks.editorOptions = undefined
     mocks.editorInstance = undefined
     mocks.currentView = undefined
@@ -439,6 +454,7 @@ describe('ComposerSurface', () => {
     mocks.deferredEditorMinHeight = 46
     mocks.editorContentLineCount = 1
     mocks.editorViewComposing = false
+    mocks.editorViewDom = document.createElement('div')
     mocks.editorScrollHeight = 28
     mocks.insertContent.mockReset()
     mocks.insertComposerToken.mockReset()
@@ -446,7 +462,9 @@ describe('ComposerSurface', () => {
     mocks.deleteSelection.mockReset()
     mocks.setMeta.mockReset()
     mocks.setContent.mockReset()
+    mocks.setHardBreak.mockReset()
     mocks.setNodeSelection.mockReset()
+    mocks.setTextSelection.mockReset()
     mocks.chainRun.mockReset()
     mocks.docContentSize = 0
     mocks.docDescendants.mockReset()
@@ -505,10 +523,65 @@ describe('ComposerSurface', () => {
     })
   })
 
-  it('defers the editor engine so the composer frame can render first', () => {
+  it('renders the editor view synchronously so the fallback swap never drops the input target', () => {
     render(<ComposerSurface {...baseProps} />)
 
-    expect(mocks.editorOptions?.immediatelyRender).toBe(false)
+    expect(mocks.editorOptions?.immediatelyRender).toBe(true)
+    expect(mocks.focus).toHaveBeenCalledWith('end')
+  })
+
+  it('replays a deferred paste on the editor view only, not through the document paste handler', async () => {
+    const viewDom = mocks.editorViewDom!
+    document.body.appendChild(viewDom)
+    class FakeClipboardEvent extends Event {
+      clipboardData: unknown
+      constructor(type: string, init: EventInit & { clipboardData?: unknown }) {
+        super(type, init)
+        this.clipboardData = init.clipboardData
+      }
+    }
+    vi.stubGlobal('ClipboardEvent', FakeClipboardEvent)
+    const onView = vi.fn()
+    const onDocument = vi.fn()
+    viewDom.addEventListener('paste', onView)
+    document.addEventListener('paste', onDocument)
+
+    render(
+      <ComposerSurface
+        {...baseProps}
+        deferredIntent={{ transfer: { kind: 'paste', data: { files: [] } as unknown as DataTransfer } }}
+      />
+    )
+
+    // The editor's own listener sits on the view element; the document-level handler in
+    // pasteHandling would hand the same payload to this composer a second time.
+    await waitFor(() => expect(onView).toHaveBeenCalledTimes(1))
+    expect(onDocument).not.toHaveBeenCalled()
+
+    document.removeEventListener('paste', onDocument)
+    viewDom.remove()
+    vi.unstubAllGlobals()
+  })
+
+  it('restores the caret the fallback left behind instead of collapsing to the end', () => {
+    mocks.docContentSize = 10
+    mocks.docTextBetween.mockImplementation((_from: number, to: number) => 'x'.repeat(Math.max(0, to)))
+
+    render(<ComposerSurface {...baseProps} text="draft" initialTextSelection={{ start: 3, end: 3 }} />)
+
+    expect(mocks.setTextSelection).toHaveBeenCalledWith({ from: 3, to: 3 })
+    expect(mocks.focus).not.toHaveBeenCalled()
+  })
+
+  it('leaves focus alone when the user moved on to another input while the runtime loaded', () => {
+    const elsewhere = document.createElement('input')
+    document.body.appendChild(elsewhere)
+    elsewhere.focus()
+
+    render(<ComposerSurface {...baseProps} />)
+
+    expect(mocks.focus).not.toHaveBeenCalled()
+    elsewhere.remove()
   })
 
   it('uses the card color with a subtle shadow', () => {
@@ -562,8 +635,49 @@ describe('ComposerSurface', () => {
     }
   })
 
+  it('does not restore mount focus for an eagerly loaded draft the fallback never focused', () => {
+    mocks.stabilizeEditor = true
+    render(<ComposerSurface {...baseProps} text="draft" deferredIntent={{}} />)
+
+    expect(mocks.focus).not.toHaveBeenCalled()
+  })
+
+  it('restores mount focus when the fallback textarea held focus', () => {
+    mocks.stabilizeEditor = true
+    render(<ComposerSurface {...baseProps} text="draft" deferredIntent={{ hadFocus: true }} />)
+
+    expect(mocks.focus).toHaveBeenCalled()
+  })
+
+  it('applies the transferred text selection when the editor is created', async () => {
+    const text = 'previous chat prompt'
+    const textEndPosition = text.length + 1
+    mocks.stabilizeEditor = true
+    mocks.docContentSize = text.length + 2
+    mocks.docTextBetween.mockImplementation((_from: number, to: number) => text.slice(0, Math.max(0, to - 1)))
+    const hasFocusSpy = vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+
+    try {
+      render(
+        <ComposerSurface {...baseProps} text={text} initialTextSelection={{ start: text.length, end: text.length }} />
+      )
+
+      await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+      act(() => {
+        mocks.editorOptions.onCreate({ editor: mocks.editorInstance })
+      })
+
+      await waitFor(() =>
+        expect(mocks.setTextSelection).toHaveBeenCalledWith({ from: textEndPosition, to: textEndPosition })
+      )
+    } finally {
+      hasFocusSpy.mockRestore()
+    }
+  })
+
   afterEach(() => {
     clearMockTimers()
+    hasFocusSpy?.mockRestore()
     document.body.style.cursor = ''
     document.body.style.userSelect = ''
   })
@@ -4497,6 +4611,19 @@ describe('ComposerSurface', () => {
     expect(onSendDraft).not.toHaveBeenCalled()
   })
 
+  it.each(['a', ' ', 'Backspace', 'ArrowLeft'])('never reads %s as the send shortcut', async (key) => {
+    const onSendDraft = vi.fn()
+    render(<ComposerSurface {...baseProps} text="draft" onSendDraft={onSendDraft} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    const event = new KeyboardEvent('keydown', { key, cancelable: true })
+    mocks.editorOptions.editorProps.handleKeyDown(null, event)
+
+    expect(event.defaultPrevented).toBe(false)
+    expect(onSendDraft).not.toHaveBeenCalled()
+  })
+
   it.each(['Enter', 'NumpadEnter'])('does not swallow composing %s while the QuickPanel is visible', async (key) => {
     const onSendDraft = vi.fn()
     mocks.quickPanelIsVisible = true
@@ -4513,7 +4640,7 @@ describe('ComposerSurface', () => {
     expect(onSendDraft).not.toHaveBeenCalled()
   })
 
-  it('preserves Shift+Enter newline while the visible QuickPanel has no active key handler', async () => {
+  it('preserves the newline shortcut while the visible QuickPanel has no active key handler', async () => {
     const onSendDraft = vi.fn()
     mocks.quickPanelIsVisible = true
     mocks.quickPanelDispatchKeyDown.mockReturnValue(false)
@@ -4523,10 +4650,43 @@ describe('ComposerSurface', () => {
     await waitFor(() => expect(mocks.editorOptions).toBeDefined())
 
     const event = new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, cancelable: true })
-    expect(mocks.editorOptions.editorProps.handleKeyDown(null, event)).toBe(false)
+    expect(mocks.editorOptions.editorProps.handleKeyDown(null, event)).toBe(true)
     expect(mocks.quickPanelDispatchKeyDown).toHaveBeenCalledWith(event)
-    expect(event.defaultPrevented).toBe(false)
+    expect(mocks.setHardBreak).toHaveBeenCalledTimes(1)
     expect(onSendDraft).not.toHaveBeenCalled()
+  })
+
+  it('inserts a line break with the configured newline shortcut', async () => {
+    const onSendDraft = vi.fn()
+    mocks.preferences['chat.input.send_message_shortcut'] = 'Enter'
+    mocks.preferences['chat.input.newline_shortcut'] = 'Ctrl+Enter'
+
+    render(<ComposerSurface {...baseProps} onSendDraft={onSendDraft} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    const newline = new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, cancelable: true })
+    expect(mocks.editorOptions.editorProps.handleKeyDown(null, newline)).toBe(true)
+    expect(mocks.setHardBreak).toHaveBeenCalledTimes(1)
+    expect(onSendDraft).not.toHaveBeenCalled()
+
+    // Shift+Enter is no longer the line break once the preference points elsewhere.
+    const shiftEnter = new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, cancelable: true })
+    expect(mocks.editorOptions.editorProps.handleKeyDown(null, shiftEnter)).toBe(true)
+    expect(shiftEnter.defaultPrevented).toBe(true)
+    expect(mocks.setHardBreak).toHaveBeenCalledTimes(1)
+  })
+
+  it('falls back to Enter for line breaks when the send shortcut takes Shift+Enter', async () => {
+    mocks.preferences['chat.input.send_message_shortcut'] = 'Shift+Enter'
+
+    render(<ComposerSurface {...baseProps} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    const event = new KeyboardEvent('keydown', { key: 'Enter', cancelable: true })
+    expect(mocks.editorOptions.editorProps.handleKeyDown(null, event)).toBe(true)
+    expect(mocks.setHardBreak).toHaveBeenCalledTimes(1)
   })
 
   it('uses Shift+Enter to send while editing when it is configured as the send shortcut', async () => {
@@ -4559,6 +4719,64 @@ describe('ComposerSurface', () => {
     expect(mocks.editorOptions.editorProps.handleKeyDown(null, event)).toBe(true)
     expect(event.defaultPrevented).toBe(true)
     expect(onSendDraft).not.toHaveBeenCalled()
+  })
+
+  it('routes the steer shortcut to onSendDraft with { steer: true }', async () => {
+    const onSendDraft = vi.fn()
+    mocks.preferences['chat.input.send_message_shortcut'] = 'Enter'
+
+    render(<ComposerSurface {...baseProps} steerShortcut={['CommandOrControl', 'Enter']} onSendDraft={onSendDraft} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    const event = new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, cancelable: true })
+    expect(mocks.editorOptions.editorProps.handleKeyDown(null, event)).toBe(true)
+    expect(event.defaultPrevented).toBe(true)
+    expect(onSendDraft).toHaveBeenCalledTimes(1)
+    expect(onSendDraft).toHaveBeenCalledWith(expect.anything(), { steer: true })
+  })
+
+  it('sends through the normal shortcut without the steer flag when a steer shortcut is set', async () => {
+    const onSendDraft = vi.fn()
+    mocks.preferences['chat.input.send_message_shortcut'] = 'Enter'
+
+    render(<ComposerSurface {...baseProps} steerShortcut={['CommandOrControl', 'Enter']} onSendDraft={onSendDraft} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    const event = new KeyboardEvent('keydown', { key: 'Enter', cancelable: true })
+    expect(mocks.editorOptions.editorProps.handleKeyDown(null, event)).toBe(true)
+    expect(onSendDraft).toHaveBeenCalledTimes(1)
+    expect(onSendDraft).toHaveBeenCalledWith(expect.anything())
+  })
+
+  it('steers rather than sends when the steer shortcut equals the send shortcut', async () => {
+    const onSendDraft = vi.fn()
+    mocks.preferences['chat.input.send_message_shortcut'] = ['CommandOrControl', 'Enter']
+
+    render(<ComposerSurface {...baseProps} steerShortcut={['CommandOrControl', 'Enter']} onSendDraft={onSendDraft} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    const event = new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, cancelable: true })
+    expect(mocks.editorOptions.editorProps.handleKeyDown(null, event)).toBe(true)
+    expect(onSendDraft).toHaveBeenCalledTimes(1)
+    expect(onSendDraft).toHaveBeenCalledWith(expect.anything(), { steer: true })
+  })
+
+  it('does nothing for an unbound Enter combination when no steer shortcut is set', async () => {
+    const onSendDraft = vi.fn()
+    mocks.preferences['chat.input.send_message_shortcut'] = 'Enter'
+
+    render(<ComposerSurface {...baseProps} onSendDraft={onSendDraft} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    const event = new KeyboardEvent('keydown', { key: 'Enter', altKey: true, cancelable: true })
+    // Swallowed rather than forwarded: the base keymap would otherwise split the single block.
+    expect(mocks.editorOptions.editorProps.handleKeyDown(null, event)).toBe(true)
+    expect(onSendDraft).not.toHaveBeenCalled()
+    expect(mocks.setHardBreak).not.toHaveBeenCalled()
   })
 
   it('does not restore editor focus after an async send when focus moved elsewhere', async () => {
@@ -4624,7 +4842,6 @@ describe('ComposerSurface', () => {
     const initialEditorProps = mocks.editorOptions.editorProps
     const initialHandleKeyDown = initialEditorProps.handleKeyDown
 
-    let enterHandled = true
     let ctrlEnterHandled = false
     act(() => {
       mocks.preferences['chat.input.send_message_shortcut'] = 'Ctrl+Enter'
@@ -4632,13 +4849,12 @@ describe('ComposerSurface', () => {
       flushSync(() => {
         rerender(<ComposerSurface {...baseProps} onSendDraft={onSendDraft} />)
       })
-      enterHandled = initialHandleKeyDown(null, new KeyboardEvent('keydown', { key: 'Enter' }))
+      initialHandleKeyDown(null, new KeyboardEvent('keydown', { key: 'Enter' }))
       ctrlEnterHandled = initialHandleKeyDown(null, new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true }))
     })
 
     expect(mocks.editorOptions.editorProps).toBe(initialEditorProps)
     expect(mocks.editorOptions.editorProps.handleKeyDown).toBe(initialHandleKeyDown)
-    expect(enterHandled).toBe(false)
     expect(ctrlEnterHandled).toBe(true)
     expect(onSendDraft).toHaveBeenCalledTimes(1)
     expect(onSendDraft).toHaveBeenCalledWith({ text: '', tokens: [] })

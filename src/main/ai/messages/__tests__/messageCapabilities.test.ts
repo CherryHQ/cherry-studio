@@ -7,6 +7,7 @@ import {
   gateToolResultMedia,
   resolveMediaCapabilities,
   resolveToolResultMediaCapabilities,
+  routeToolResultMedia,
   stripUnsupportedMedia
 } from '../messageCapabilities'
 
@@ -118,5 +119,57 @@ describe('resolveToolResultMediaCapabilities', () => {
   it('passes the model caps through on anthropic/google wires (same reference)', () => {
     expect(resolveToolResultMediaCapabilities(caps, 'anthropic')).toBe(caps)
     expect(resolveToolResultMediaCapabilities(caps, 'google')).toBe(caps)
+  })
+})
+
+describe('routeToolResultMedia', () => {
+  const VISION = { image: true, video: false, audio: false }
+  const NO_TOOL_MEDIA = { image: false, video: false, audio: false }
+  const imageToolMessage = (toolCallId: string): ModelMessage =>
+    ({
+      role: 'tool',
+      content: [
+        {
+          type: 'tool-result',
+          toolCallId,
+          toolName: 'mcp_resource_read',
+          output: {
+            type: 'content',
+            value: [
+              { type: 'text', text: 'saved to /tmp/image.png' },
+              { type: 'image-data', data: 'BASE64', mediaType: 'image/png' }
+            ]
+          }
+        }
+      ]
+    }) as ModelMessage
+
+  it('relocates an image after the complete tool-result run when the model sees images but its wire cannot', () => {
+    const routed = routeToolResultMedia(
+      [imageToolMessage('one'), imageToolMessage('two'), { role: 'assistant', content: 'continue' }],
+      VISION,
+      NO_TOOL_MEDIA
+    )
+
+    expect(routed.map((message) => message.role)).toEqual(['tool', 'tool', 'user', 'assistant'])
+    expect(JSON.stringify(routed.slice(0, 2))).not.toContain('image-data')
+    expect(routed[2]).toEqual({
+      role: 'user',
+      content: [
+        { type: 'text', text: '[tool-result attachment call_id="one" image=1]' },
+        { type: 'image', image: 'BASE64', mediaType: 'image/png' },
+        { type: 'text', text: '[tool-result attachment call_id="two" image=1]' },
+        { type: 'image', image: 'BASE64', mediaType: 'image/png' }
+      ]
+    })
+  })
+
+  it('keeps native tool-result images on a capable wire and omits them for a non-vision model', () => {
+    const message = imageToolMessage('one')
+    expect(routeToolResultMedia([message], VISION, VISION)[0]).toBe(message)
+
+    const withoutVision = routeToolResultMedia([message], NO_TOOL_MEDIA, NO_TOOL_MEDIA)
+    expect(JSON.stringify(withoutVision)).not.toContain('image-data')
+    expect(withoutVision).toHaveLength(1)
   })
 })

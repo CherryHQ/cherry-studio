@@ -41,6 +41,12 @@ describe('main i18n', () => {
       expect(t('dialog.save_file')).toBe('Save File')
     })
 
+    it('localizes Agent Session admission errors', () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'zh-CN')
+      expect(t('agent.session.run_status.busy')).toBe('Agent 会话正忙，请稍后重试。')
+      expect(t('agent.session.run_status.unavailable')).toBe('Agent 会话已不可用。')
+    })
+
     it('interpolates {{var}} placeholders', () => {
       MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'en-US')
       expect(t('agent.session.workspace_status.inaccessible', { path: '/tmp/x' })).toBe(

@@ -78,12 +78,12 @@ describe('systemImageToTextHandler', () => {
     ['jpeg', 'jpg', 'image/jpeg'],
     ['webp', 'webp', 'image/webp'],
     ['gif', 'gif', 'image/gif']
-  ])('transcodes a %s to PNG on Windows so the binding can decode it', async (format, ext, mime) => {
+  ] as const)('transcodes a %s to PNG on Windows so the binding can decode it', async (format, ext, mime) => {
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'system-ocr-test-'))
     try {
       const imagePath = path.join(tempDir, `scan.${ext}`)
       const bytes = await sharp({ create: { width: 8, height: 8, channels: 3, background: 'red' } })
-        .toFormat(format as keyof sharp.FormatEnum)
+        .toFormat(format)
         .toBuffer()
       await fs.writeFile(imagePath, bytes)
 

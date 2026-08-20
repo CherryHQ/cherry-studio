@@ -34,7 +34,8 @@ import type { ImageGenerationMode } from '@shared/data/types/model'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { Base64String, CreateInternalEntryIpcParams, UrlString } from '@shared/types/file'
-import { isEmbeddingModel, isFunctionCallingModel, isRerankModel } from '@shared/utils/model'
+import { isEmbeddingModel, isFunctionCallingModel, isGenerateImageModel, isRerankModel } from '@shared/utils/model'
+import { isOllamaProvider } from '@shared/utils/provider'
 import {
   type EmbeddingModelUsage,
   isToolUIPart,
@@ -54,7 +55,7 @@ import { deleteImageInputEntries, imageGenerationJobHandler } from './provider/c
 import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './provider/custom/tasks/jobTypes'
 import { buildVendorProviderOptions } from './provider/custom/wire/buildImageRequest'
 import { DEFAULT_DIFFUSION_REGISTRATION, WIRE_REGISTRY } from './provider/custom/wire/wireProfile'
-import { listModels as listModelsFromProvider } from './provider/listModels'
+import { listModels as listModelsFromProvider, probeOllamaModel } from './provider/listModels'
 import type { AgentLoopHooks, NativeFileSupport, RequestFeature } from './runtime/aiSdk'
 import { Agent, buildAgentParams, buildFallbackModels, createRetryableWrap, readRetryPolicy } from './runtime/aiSdk'
 import { skillService } from './skills/SkillService'
@@ -1112,9 +1113,20 @@ export class AiService extends BaseService {
 
   /** Dispatches rerank first, then prefers text for chat-primary models over embedding. */
   async checkModel(request: AiBaseRequest & { timeout?: number }): Promise<{ latency: number }> {
-    const { model } = this.getProviderAndModel(request)
+    const { provider, model } = this.getProviderAndModel(request)
     const start = performance.now()
     const timeout = request.timeout ?? 15000
+
+    if (isOllamaProvider(provider)) {
+      const controller = new AbortController()
+      const timeoutHandle = setTimeout(() => controller.abort(), timeout)
+      try {
+        return await probeOllamaModel(provider, model.apiModelId, controller.signal, request.apiKeyOverride)
+      } finally {
+        clearTimeout(timeoutHandle)
+      }
+    }
+
     const primaryEndpoint = model.endpointTypes?.[0]
     const hasChatPrimaryEndpoint = primaryEndpoint != null && endpointImpliedCapability(primaryEndpoint) === undefined
 
@@ -1142,8 +1154,18 @@ export class AiService extends BaseService {
       })
     } else if (isEmbeddingModel(model) && !hasChatPrimaryEndpoint) {
       probe = this.embedMany({ ...probeRequest, values: ['test'] })
+    } else if (isGenerateImageModel(model) && !hasChatPrimaryEndpoint) {
+      // Image-only models reject /chat/completions with a 400 — probe the image endpoint.
+      probe = this.generateImage({
+        ...probeRequest,
+        prompt: 'a red circle',
+        paramValues: {},
+        cleanupPolicy: 'delete_when_unreferenced'
+      })
     } else {
-      probe = this.generateText({ ...probeRequest, system: 'test', prompt: 'hi' })
+      // Latency is the probe's measured output — thinking tokens would pollute it
+      // for reasoning-capable models whose provider default enables reasoning.
+      probe = this.generateText({ ...probeRequest, system: 'test', prompt: 'hi', reasoningEffort: 'none' })
     }
 
     try {

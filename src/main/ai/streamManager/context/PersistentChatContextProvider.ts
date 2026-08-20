@@ -224,6 +224,7 @@ function assertUniqueMentionedModelIds(modelIds: readonly UniqueModelId[] | unde
 
 export class PersistentChatContextProvider implements ChatContextProvider {
   readonly name = 'persistent'
+  readonly isPersistentConversation = true
 
   /** Default provider — matches any topic not claimed by a more specific provider. */
   canHandle(): boolean {
@@ -239,7 +240,6 @@ export class PersistentChatContextProvider implements ChatContextProvider {
 
     // 1. Resolve context
     const topic = topicService.getById(req.topicId)
-
     // A failed assistant retry is identity-preserving: reset and rerun the exact row so its
     // sibling position, descendants, and the topic's active branch remain untouched.
     if (req.trigger === 'regenerate-message' && req.retryMessageId) {

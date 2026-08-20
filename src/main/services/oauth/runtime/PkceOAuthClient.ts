@@ -3,6 +3,13 @@ import { createHash, randomBytes } from 'node:crypto'
 import { net } from 'electron'
 import * as z from 'zod'
 
+// Bound every token-endpoint call (code exchange + refresh). Electron's `net.fetch`
+// has no default timeout, so a hung/unreachable token endpoint would otherwise
+// block indefinitely — stalling both the aiSdk chat path and the pi runtime's
+// per-call OAuth resolution. A timeout surfaces as a non-4xx error, which
+// callers classify as retriable (session kept, next request retries).
+const TOKEN_HTTP_TIMEOUT_MS = 30_000
+
 // Token endpoint response. Superset of what every provider returns — extra
 // fields each provider cares about (id_token, expires_in) are optional so the
 // same schema validates Codex, CherryIN, and future providers alike.
@@ -121,7 +128,8 @@ export class PkceOAuthClient {
     const response = await net.fetch(this.config.tokenUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams(params).toString()
+      body: new URLSearchParams(params).toString(),
+      signal: AbortSignal.timeout(TOKEN_HTTP_TIMEOUT_MS)
     })
 
     if (!response.ok) {

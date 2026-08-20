@@ -4,9 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ProviderSetting from '../ProviderSetting'
 
 const useProviderMock = vi.fn()
+const useProviderApiKeyMock = vi.fn()
 const useProviderOnboardingAutoEnableMock = vi.fn()
-const openHealthCheckMock = vi.fn()
-const authenticationSectionPropsSpy = vi.fn()
 
 vi.mock('@renderer/hooks/useTheme', () => ({
   useTheme: () => ({
@@ -22,24 +21,40 @@ vi.mock('../hooks/providerSetting/useProviderOnboardingAutoEnable', () => ({
   useProviderOnboardingAutoEnable: (...args: any[]) => useProviderOnboardingAutoEnableMock(...args)
 }))
 
+vi.mock('../hooks/providerSetting/useProviderApiKey', () => ({
+  useProviderApiKey: (...args: any[]) => useProviderApiKeyMock(...args)
+}))
+
 vi.mock('../components/ProviderHeader', () => ({
   default: ({ providerId }: any) => <div>{`provider-header-${providerId}`}</div>
 }))
 
-vi.mock('../ConnectionSettings/AuthenticationSection', () => ({
-  default: (props: any) => {
-    authenticationSectionPropsSpy(props)
-    return <div>{`authentication-section-${props.providerId}`}</div>
-  }
-}))
+vi.mock('../ConnectionSettings/AuthenticationSection', async () => {
+  const { useAuthenticationApiKey } = await import('../hooks/providerSetting/useAuthenticationApiKey')
 
-vi.mock('../ModelList', () => ({
-  ModelList: ({ providerId }: any) => <div>{`model-list-${providerId}`}</div>,
-  ModelListHealthProvider: ({ children }: any) => <>{children}</>,
-  useModelListHealth: () => ({
-    openHealthCheck: openHealthCheckMock
-  })
-}))
+  function AuthenticationSectionMock({ providerId }: any) {
+    const { inputApiKey } = useAuthenticationApiKey()
+    return <div>{`authentication-section-${providerId}-${inputApiKey}`}</div>
+  }
+
+  return {
+    default: AuthenticationSectionMock
+  }
+})
+
+vi.mock('../ModelList', async () => {
+  const { useAuthenticationApiKey } = await import('../hooks/providerSetting/useAuthenticationApiKey')
+
+  function ModelListMock({ providerId }: any) {
+    const { inputApiKey } = useAuthenticationApiKey()
+    return <div>{`model-list-${providerId}-${inputApiKey}`}</div>
+  }
+
+  return {
+    ModelList: ModelListMock,
+    ModelListHealthProvider: ({ children }: any) => <>{children}</>
+  }
+})
 
 describe('ProviderSetting', () => {
   beforeEach(() => {
@@ -47,21 +62,24 @@ describe('ProviderSetting', () => {
     useProviderMock.mockReturnValue({
       provider: { id: 'openai', isEnabled: true, name: 'openai' }
     })
+    useProviderApiKeyMock.mockReturnValue({
+      serverApiKey: 'server-key',
+      inputApiKey: 'shared-draft-key',
+      setInputApiKey: vi.fn(),
+      hasPendingSync: true,
+      commitInputApiKeyNow: vi.fn()
+    })
   })
 
-  it('keeps onboarding coordination at the page boundary', () => {
+  it('shares one API-key draft between authentication and model settings', () => {
     render(<ProviderSetting providerId="openai" isOnboarding />)
 
     expect(screen.getByTestId('provider-detail-shell')).toBeInTheDocument()
     expect(screen.getByText('provider-header-openai')).toBeInTheDocument()
-    expect(screen.getByText('authentication-section-openai')).toBeInTheDocument()
-    expect(screen.getByText('model-list-openai')).toBeInTheDocument()
-    expect(authenticationSectionPropsSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        providerId: 'openai',
-        onOpenModelHealthCheck: openHealthCheckMock
-      })
-    )
+    expect(screen.getByText('authentication-section-openai-shared-draft-key')).toBeInTheDocument()
+    expect(screen.getByText('model-list-openai-shared-draft-key')).toBeInTheDocument()
+    expect(useProviderApiKeyMock).toHaveBeenCalledTimes(1)
+    expect(useProviderApiKeyMock).toHaveBeenCalledWith('openai')
     expect(useProviderOnboardingAutoEnableMock).toHaveBeenCalledWith({
       providerId: 'openai',
       isOnboarding: true
@@ -76,5 +94,6 @@ describe('ProviderSetting', () => {
     const { container } = render(<ProviderSetting providerId="missing" />)
 
     expect(container).toBeEmptyDOMElement()
+    expect(useProviderApiKeyMock).not.toHaveBeenCalled()
   })
 })

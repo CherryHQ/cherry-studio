@@ -1,4 +1,4 @@
-import type { SpanEntity } from '@mcp-trace/trace-core'
+import type { SpanEntity } from '@shared/data/types/trace'
 import type { TraceDataCursor } from '@shared/data/types/trace'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'

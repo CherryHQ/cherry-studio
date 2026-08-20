@@ -260,7 +260,24 @@ export function useTabDrag({
         }
       }
 
-      if (dragState.mode === 'reorder') {
+      // `dragState.mode` lags behind (setState flushes after the pointer events), so
+      // key off the ref that the detach branch sets synchronously.
+      const detaching = dragState.mode === 'detach' || dragRef.current.detachedCreated
+      if (detaching) {
+        if (!dragRef.current.tabClosed && dragRef.current.tabType === 'normal') {
+          closeTab(dragState.tabId)
+        }
+        // A fast drop can beat the pointermoves that position the fresh sub-window
+        // (SubWindowService keeps position-aware windows hidden until a move shows them).
+        if (dragRef.current.detachedCreated) {
+          window.electron.ipcRenderer.send(IpcChannel.Tab_MoveWindow, {
+            tabId: dragState.tabId,
+            x: e.screenX - 400,
+            y: e.screenY - 20
+          })
+        }
+        void ipcApi.request('tab.drag_end')
+      } else if (dragState.mode === 'reorder') {
         didDragRef.current = true
         const list = dragRef.current.tabType === 'pinned' ? pinnedTabs : normalTabs
         const oldIndex = list.findIndex((t) => t.id === dragState.tabId)
@@ -275,11 +292,6 @@ export function useTabDrag({
             reorderTabs(dragRef.current.tabType, oldIndex, adjustedIndex)
           }
         }
-      } else if (dragState.mode === 'detach') {
-        if (!dragRef.current.tabClosed && dragRef.current.tabType === 'normal') {
-          closeTab(dragState.tabId)
-        }
-        void ipcApi.request('tab.drag_end')
       }
 
       if (rafId.current !== null) {

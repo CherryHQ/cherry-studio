@@ -85,7 +85,6 @@ const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, pain
         showTagFilter={false}
         showPinnedModels={false}
         showPinActions={false}
-        prioritizedProviderIds={painting.providerId ? [painting.providerId] : undefined}
         contentClassName="w-[min(420px,calc(100vw-2rem))] rounded-[8px]"
         trigger={
           <Button

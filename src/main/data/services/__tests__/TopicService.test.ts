@@ -1793,8 +1793,142 @@ describe('TopicService', () => {
       expect(service.getLatestActive()?.id).toBe('latest')
     })
 
+    it('returns latest activity within a live or unlinked assistant scope', async () => {
+      const service = new TopicService()
+      await dbh.db.insert(assistantTable).values([
+        {
+          id: 'assistant-scoped',
+          name: 'Scoped',
+          emoji: '🌟',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a0'
+        },
+        {
+          id: 'assistant-other',
+          name: 'Other',
+          emoji: '🌟',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a1'
+        },
+        {
+          id: 'assistant-deleted-scope',
+          name: 'Deleted',
+          emoji: '🌟',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a2',
+          deletedAt: 100
+        }
+      ])
+      await dbh.db.insert(topicTable).values([
+        {
+          id: 'topic-scoped',
+          name: 'Scoped',
+          assistantId: 'assistant-scoped',
+          orderKey: 'a0',
+          lastActivityAt: 100
+        },
+        {
+          id: 'topic-other',
+          name: 'Other',
+          assistantId: 'assistant-other',
+          orderKey: 'a1',
+          lastActivityAt: 500
+        },
+        {
+          id: 'topic-unassigned',
+          name: 'Unassigned',
+          orderKey: 'a2',
+          lastActivityAt: 200
+        },
+        {
+          id: 'topic-deleted-owner',
+          name: 'Deleted owner',
+          assistantId: 'assistant-deleted-scope',
+          orderKey: 'a3',
+          lastActivityAt: 300
+        }
+      ])
+
+      expect(service.getLatestActive({ assistantId: 'assistant-scoped' })?.id).toBe('topic-scoped')
+      expect(service.getLatestActive({ assistantId: 'unlinked' })?.id).toBe('topic-deleted-owner')
+    })
+
     it('returns null when there are no topics', () => {
       expect(new TopicService().getLatestActive()).toBeNull()
+    })
+  })
+
+  describe('reuseOrCreatePlaceholder', () => {
+    it('reuses the latest-updated structurally empty topic for the exact owner', async () => {
+      const service = new TopicService()
+      await dbh.db.insert(assistantTable).values({
+        id: 'assistant-reusable',
+        name: 'Reusable',
+        emoji: '🌟',
+        settings: DEFAULT_ASSISTANT_SETTINGS,
+        orderKey: 'a0'
+      })
+      await dbh.db.insert(topicTable).values([
+        {
+          id: 'created-later',
+          name: '',
+          assistantId: 'assistant-reusable',
+          orderKey: 'a0',
+          createdAt: 300,
+          updatedAt: 200
+        },
+        {
+          id: 'updated-later',
+          name: '  ',
+          assistantId: 'assistant-reusable',
+          orderKey: 'a1',
+          createdAt: 100,
+          updatedAt: 400
+        },
+        {
+          id: 'started',
+          name: '',
+          assistantId: 'assistant-reusable',
+          activeNodeId: 'message-id',
+          orderKey: 'a2',
+          updatedAt: 900
+        },
+        {
+          id: 'manually-named',
+          name: '',
+          assistantId: 'assistant-reusable',
+          isNameManuallyEdited: true,
+          orderKey: 'a3',
+          updatedAt: 800
+        },
+        { id: 'unassigned', name: '', orderKey: 'a4', updatedAt: 700 }
+      ])
+
+      expect(service.reuseOrCreatePlaceholder({ assistantId: 'assistant-reusable' })).toMatchObject({
+        topic: { id: 'updated-later' },
+        created: false
+      })
+      expect(service.reuseOrCreatePlaceholder({ assistantId: null })).toMatchObject({
+        topic: { id: 'unassigned' },
+        created: false
+      })
+    })
+
+    it('creates at most one reusable placeholder for repeated requests', async () => {
+      const service = new TopicService()
+      await dbh.db.insert(assistantTable).values({
+        id: 'assistant-create-placeholder',
+        name: 'Create placeholder',
+        emoji: '✨',
+        settings: DEFAULT_ASSISTANT_SETTINGS,
+        orderKey: 'a0'
+      })
+
+      const first = service.reuseOrCreatePlaceholder({ assistantId: 'assistant-create-placeholder' })
+      const second = service.reuseOrCreatePlaceholder({ assistantId: 'assistant-create-placeholder' })
+
+      expect(first.created).toBe(true)
+      expect(second).toMatchObject({ topic: { id: first.topic.id }, created: false })
     })
   })
 })

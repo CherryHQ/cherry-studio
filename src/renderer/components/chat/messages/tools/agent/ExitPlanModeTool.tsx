@@ -1,5 +1,5 @@
+import { Markdown } from '@cherrystudio/ui'
 import { useTranslation } from 'react-i18next'
-import { Streamdown } from 'streamdown'
 
 import type { ExitPlanModeToolInput, ExitPlanModeToolOutput } from '../shared/agentToolTypes'
 import { AgentToolsType } from '../shared/agentToolTypes'
@@ -17,9 +17,13 @@ export function ExitPlanModeTool({
   const { t } = useTranslation()
   const plan = input?.plan ?? ''
   const outputContent = typeof output === 'string' ? output : (output?.plan ?? '')
-  const combinedContent = plan + '\n\n' + outputContent
+  // The SDK returns the same normalized plan after approval. Keep distinct result text, but do not
+  // render an identical plan twice once both the permission input and tool output are available.
+  const combinedContent = Array.from(
+    new Set([plan, outputContent].map((content) => content.trim()).filter(Boolean))
+  ).join('\n\n')
   const { data: truncatedContent, isTruncated, originalLength } = truncateOutput(combinedContent)
-  const planCount = plan.split('\n\n').length
+  const planCount = combinedContent ? 1 : 0
 
   return {
     key: AgentToolsType.ExitPlanMode,
@@ -34,7 +38,7 @@ export function ExitPlanModeTool({
     ),
     children: (
       <div>
-        <Streamdown mode="static">{truncatedContent}</Streamdown>
+        <Markdown id="exit-plan-mode">{truncatedContent}</Markdown>
         {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
       </div>
     )

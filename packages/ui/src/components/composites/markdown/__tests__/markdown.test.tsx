@@ -112,6 +112,55 @@ describe('Markdown (static)', () => {
     expect(received).toBeUndefined()
   })
 
+  it('keeps the text of a link whose protocol sanitize rejects', () => {
+    const { container } = render(<Markdown id="m7">{'[Download deck](sandbox:/mnt/data/deck.pptx)'}</Markdown>)
+
+    expect(container.textContent).toBe('Download deck')
+    expect(container.innerHTML).not.toContain('blocked')
+    // Not linkable: the rejected protocol must not survive as a clickable href.
+    expect(container.querySelector('a[href]')).toBeNull()
+    expect(container.innerHTML).not.toContain('sandbox:')
+  })
+
+  it('keeps an href-less anchor from defacing the surrounding text', () => {
+    const { container } = render(<Markdown id="m8">{'Before <a role="toc_link" id="id201"></a> after'}</Markdown>)
+
+    expect(container.textContent).toBe('Before  after')
+    expect(container.innerHTML).not.toContain('blocked')
+  })
+
+  it('falls back to alt text for an image whose protocol sanitize rejects', () => {
+    const { container } = render(
+      <Markdown id="m10">{'![Sales chart](sandbox:/mnt/data/chart.png)\n\n![f](file:///x/a.png)'}</Markdown>
+    )
+
+    expect(container.textContent).toBe('Sales chart\nf')
+    expect(container.innerHTML).not.toContain('blocked')
+    // Not loadable: the rejected protocol must not survive as a real image source.
+    expect(container.querySelector('img')).toBeNull()
+    expect(container.innerHTML).not.toContain('sandbox:')
+    expect(container.innerHTML).not.toContain('file://')
+  })
+
+  it('drops an unrenderable image that has no alt text', () => {
+    const { container } = render(<Markdown id="m11">{'![](sandbox:/x.png)'}</Markdown>)
+
+    expect(container.textContent).toBe('')
+    expect(container.innerHTML).not.toContain('blocked')
+    expect(container.querySelector('img')).toBeNull()
+  })
+
+  it('drops javascript: hrefs and script elements', () => {
+    const { container } = render(
+      <Markdown id="m9">{'[click](javascript:alert(1))\n\n<script>alert(2)</script>'}</Markdown>
+    )
+
+    expect(container.querySelector('a[href]')).toBeNull()
+    expect(container.querySelector('script')).toBeNull()
+    expect(container.innerHTML).not.toContain('javascript:')
+    expect(container.innerHTML).not.toContain('alert(2)')
+  })
+
   it('forwards an extra rehype plugin', () => {
     let visited = 0
     const counterPlugin = () => (tree: { children: unknown[] }) => {

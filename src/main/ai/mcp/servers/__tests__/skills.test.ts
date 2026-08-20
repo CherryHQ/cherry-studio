@@ -173,19 +173,29 @@ describe('SkillsServer', () => {
       expect(result.content[0].text).toContain('No installable skills found')
     })
 
-    it('resolves a GitHub SKILL.md URL to an installable skill the registries never indexed', async () => {
+    it.each([
+      [
+        'repository-root blob link',
+        'https://github.com/Viy1204/recruiting-copilot/blob/master/SKILL.md',
+        'https://github.com/Viy1204/recruiting-copilot/blob/master/SKILL.md'
+      ],
+      [
+        'official raw link',
+        'https://github.com/Viy1204/recruiting-copilot/raw/refs/heads/master/SKILL.md',
+        'https://raw.githubusercontent.com/Viy1204/recruiting-copilot/refs/heads/master/SKILL.md'
+      ]
+    ])('resolves a %s without querying registries', async (_case, url, canonicalUrl) => {
       const server = createServer()
-      installMock.mockResolvedValue({ id: 'skill-1', name: 'resume-review', folderName: 'resume-review' })
+      installMock.mockResolvedValue({ id: 'skill-1', name: 'recruiting-copilot', folderName: 'recruiting-copilot' })
       toggleMock.mockReturnValue({ id: 'skill-1', isEnabled: true })
 
-      const url = 'https://github.com/Viy1204/recruiting-copilot/blob/master/skills/resume-review/SKILL.md'
       const search = await callTool(server, 'search_skills', { query: url })
 
       expect(fetchMock).not.toHaveBeenCalled()
-      expect(search.content[0].text).toContain(`github:${url}`)
+      expect(search.content[0].text).toContain(`github:${canonicalUrl}`)
 
-      const install = await callTool(server, 'install_skill', { install_source: `github:${url}` })
-      expect(installMock).toHaveBeenCalledWith({ installSource: `github:${url}` })
+      const install = await callTool(server, 'install_skill', { install_source: `github:${canonicalUrl}` })
+      expect(installMock).toHaveBeenCalledWith({ installSource: `github:${canonicalUrl}` })
       expect(install.isError).toBeFalsy()
     })
 

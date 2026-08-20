@@ -1,7 +1,6 @@
+import { resolveAihubmixChatFamily, resolveAihubmixEndpointType } from '@shared/data/presets/gatewayChatRouting'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
-
-import { resolveAihubmixChatFamily, resolveAihubmixEndpointType } from '../aihubmix/aihubmixRouting'
 
 // The family here must stay in lock-step with `createChatModel`'s dispatch in aihubmixProvider.ts —
 // both derive from `resolveAihubmixChatFamily`, so this table also guards that dispatch.

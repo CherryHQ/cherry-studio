@@ -850,8 +850,8 @@
         },
         {
           "originalKey": "sendMessageShortcut",
-          "type": "PreferenceTypes.SendMessageShortcut",
-          "defaultValue": "Enter",
+          "type": "PreferenceTypes.ComposerShortcut",
+          "defaultValue": "VALUE: ['Enter']",
           "status": "classified",
           "category": "preferences",
           "targetKey": "chat.input.send_message_shortcut"

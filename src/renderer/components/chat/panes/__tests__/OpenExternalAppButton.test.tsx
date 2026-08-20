@@ -67,8 +67,17 @@ vi.mock('@cherrystudio/ui', async () => {
     ),
     MenuList: ({ children }: PropsWithChildren) => <div>{children}</div>,
     NormalTooltip: ({ children }: PropsWithChildren<{ content: string }>) => <>{children}</>,
-    Popover: ({ children }: PropsWithChildren) => {
-      const [open, setOpen] = ReactActual.useState(false)
+    Popover: ({
+      children,
+      open: controlledOpen,
+      onOpenChange
+    }: PropsWithChildren<{ open?: boolean; onOpenChange?: (open: boolean) => void }>) => {
+      const [uncontrolledOpen, setUncontrolledOpen] = ReactActual.useState(false)
+      const open = controlledOpen ?? uncontrolledOpen
+      const setOpen = (nextOpen: boolean) => {
+        if (controlledOpen === undefined) setUncontrolledOpen(nextOpen)
+        onOpenChange?.(nextOpen)
+      }
       return <PopoverContext value={{ open, setOpen }}>{children}</PopoverContext>
     },
     PopoverContent: ({ children }: PropsWithChildren) => {
@@ -221,7 +230,9 @@ describe('OpenExternalAppButton', () => {
     await user.click(screen.getByRole('button', { name: 'Finder' }))
     await waitFor(() => expect(mocks.openPath).toHaveBeenCalledWith('/tmp/workspace'))
     expect(MockUseCacheUtils.getPersistCacheValue('agent.open_external_app.last_used_target')).toBe('file_manager')
+    expect(screen.queryByRole('button', { name: 'Finder' })).not.toBeInTheDocument()
 
+    await user.click(screen.getByRole('button', { name: 'More' }))
     await user.click(screen.getByRole('button', { name: 'Cursor' }))
     await waitFor(() =>
       expect(MockUseCacheUtils.getPersistCacheValue('agent.open_external_app.last_used_target')).toBe('cursor')

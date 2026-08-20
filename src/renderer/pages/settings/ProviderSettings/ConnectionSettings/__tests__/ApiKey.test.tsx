@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 
-import { fireEvent, render, screen } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ApiKey from '../ApiKey'
@@ -32,6 +32,10 @@ vi.mock('../ProviderApiKeyListDrawer', () => ({
   default: () => null
 }))
 
+vi.mock('../../ModelList', () => ({
+  ProviderModelCheck: () => <button type="button" aria-label="settings.models.check.button_caption" />
+}))
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) => key
@@ -57,33 +61,13 @@ describe('ApiKey', () => {
     })
   })
 
-  it('disables the check button for normal providers without an API key', () => {
-    render(
-      <ApiKey providerId="openai" apiKeyConnectivity={{ checking: false } as any} onOpenConnectionCheck={vi.fn()} />
-    )
+  it('places model check after key management in the API key action row', () => {
+    render(<ApiKey providerId="openai" />)
 
-    expect(screen.getByRole('button', { name: 'settings.provider.check' })).toBeDisabled()
-  })
+    const buttons = screen.getAllByRole('button')
+    const keyListButton = screen.getByRole('button', { name: 'settings.provider.api.key.list.title' })
+    const modelCheckButton = screen.getByRole('button', { name: 'settings.models.check.button_caption' })
 
-  it('allows the check button for no-key providers without an API key', () => {
-    const onOpenConnectionCheck = vi.fn()
-    useProviderMock.mockReturnValue({
-      provider: { id: 'ollama', name: 'Ollama' }
-    })
-
-    render(
-      <ApiKey
-        providerId="ollama"
-        apiKeyConnectivity={{ checking: false } as any}
-        onOpenConnectionCheck={onOpenConnectionCheck}
-        requiresApiKey={false}
-      />
-    )
-
-    const checkButton = screen.getByRole('button', { name: 'settings.provider.check' })
-    expect(checkButton).not.toBeDisabled()
-
-    fireEvent.click(checkButton)
-    expect(onOpenConnectionCheck).toHaveBeenCalledTimes(1)
+    expect(buttons.indexOf(keyListButton)).toBeLessThan(buttons.indexOf(modelCheckButton))
   })
 })

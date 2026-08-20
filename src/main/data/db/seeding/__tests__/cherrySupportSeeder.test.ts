@@ -50,7 +50,6 @@ describe('CherrySupportSeeder', () => {
     expect(support.configuration).toMatchObject({
       avatar: '🧰',
       permission_mode: 'acceptEdits',
-      max_turns: 100,
       bootstrap_completed: true,
       builtin_role: BUILTIN_AGENT_ROLE.SUPPORT
     })
@@ -96,7 +95,7 @@ describe('CherrySupportSeeder', () => {
       .set({
         name: 'My Reserved Agent',
         instructions: 'Keep these instructions',
-        configuration: { avatar: 'U', max_turns: 7 }
+        configuration: { avatar: 'U', heartbeat_interval: 7 }
       })
       .where(eq(agentTable.id, CHERRY_SUPPORT_AGENT_ID))
       .run()
@@ -108,7 +107,7 @@ describe('CherrySupportSeeder', () => {
       id: CHERRY_SUPPORT_AGENT_ID,
       name: 'My Reserved Agent',
       instructions: 'Keep these instructions',
-      configuration: { avatar: 'U', max_turns: 7, builtin_role: 'support' }
+      configuration: { avatar: 'U', heartbeat_interval: 7, builtin_role: 'support' }
     })
     expect(dbh.db.select().from(agentSessionTable).all()).toHaveLength(1)
   })
@@ -143,7 +142,7 @@ describe('CherrySupportSeeder', () => {
         instructions: 'Keep my instructions',
         model: null,
         orderKey: 'a0',
-        configuration: { builtin_role: 'support', avatar: 'U', max_turns: 7 }
+        configuration: { builtin_role: 'support', avatar: 'U', heartbeat_interval: 7 }
       })
       .run()
 
@@ -151,7 +150,7 @@ describe('CherrySupportSeeder', () => {
 
     const [ordinary] = dbh.db.select().from(agentTable).where(eq(agentTable.id, 'ordinary-agent')).all()
     expect(ordinary).toMatchObject({ name: 'My Agent', instructions: 'Keep my instructions' })
-    expect(ordinary.configuration).toEqual({ avatar: 'U', max_turns: 7 })
+    expect(ordinary.configuration).toEqual({ avatar: 'U', heartbeat_interval: 7 })
     expect(builtinAgents(dbh.db, BUILTIN_AGENT_ROLE.SUPPORT)).toEqual([
       expect.objectContaining({ id: CHERRY_SUPPORT_AGENT_ID })
     ])

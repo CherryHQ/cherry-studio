@@ -13,7 +13,8 @@ import {
   isSpeechToTextModel,
   isTextToSpeechModel,
   isVideoModel,
-  isVisionModel
+  isVisionModel,
+  supportsDynamicallyLoadedTools
 } from '@shared/utils/model'
 import { describe, expect, it } from 'vitest'
 
@@ -156,6 +157,32 @@ describe('shared model capability helpers', () => {
         providerId: 'corp:west'
       }
       expect(isGatewayRoutableModel(colonProvider)).toBe(false)
+    })
+  })
+
+  describe('supportsDynamicallyLoadedTools', () => {
+    it.each([
+      ['claude-sonnet-4-5', true],
+      ['gpt-5.1', true],
+      ['deepseek-v4-flash', true],
+      ['qwen3.7-plus', true],
+      // Kimi K3 is the only model in the family that accepts dynamically-loaded tool declarations.
+      ['k3', true],
+      ['kimi-k3', true],
+      ['kimi-k3-0905-preview', true],
+      // Everything else in the Kimi family rejects them with `tokenization failed`.
+      ['kimi-for-coding', false],
+      ['kimi-k2.5', false],
+      ['kimi-k2-0711-preview', false],
+      ['kimi-latest', false],
+      ['moonshot-v1-128k', false],
+      // Namespace prefixes and Claude Code's [1m] suffix must not break matching.
+      ['provider:kimi-for-coding', false],
+      ['provider:k3', true],
+      ['kimi-for-coding[1m]', false],
+      ['k3[1m]', true]
+    ])('classifies %s as %s', (modelId, expected) => {
+      expect(supportsDynamicallyLoadedTools(modelId)).toBe(expected)
     })
   })
 })

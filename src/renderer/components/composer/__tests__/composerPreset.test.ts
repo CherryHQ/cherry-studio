@@ -57,7 +57,9 @@ describe('createComposerEditorPreset', () => {
     expect(extensionNames).toContain('composerSuggestion')
   })
 
-  it.each(['Enter', 'NumpadEnter'])('inserts a hard break for plain %s instead of splitting the paragraph', (key) => {
+  // Which Enter combination inserts a hard break is a user preference resolved in
+  // ComposerSurfaceRuntime, so the key routing is covered by ComposerSurface.test.tsx.
+  it('inserts a hard break without splitting the paragraph', () => {
     const scrolledIntoView: boolean[] = []
     editor = new Editor({
       element: document.createElement('div'),
@@ -67,7 +69,7 @@ describe('createComposerEditorPreset', () => {
     editor.commands.focus('end', { scrollIntoView: false })
     editor.on('transaction', ({ transaction }) => scrolledIntoView.push(transaction.scrolledIntoView))
 
-    editor.view.dom.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }))
+    editor.commands.setHardBreak()
 
     expect(editor.getJSON()).toEqual({
       type: 'doc',

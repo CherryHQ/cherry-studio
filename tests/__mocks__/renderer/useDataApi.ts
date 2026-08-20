@@ -49,6 +49,10 @@ type RefreshOption<TPath extends ApiPath, TMethod extends 'POST' | 'PUT' | 'DELE
  * Create mock data based on API path
  */
 function createMockDataForPath(path: string): any {
+  if (path === '/providers/:providerId/api-keys') {
+    return { keys: [] }
+  }
+
   if (path === '/files/entries/stats') {
     return {
       activeTotal: 0,

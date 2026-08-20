@@ -28,6 +28,7 @@ const logger = loggerService.withContext('TemporaryChatContextProvider')
 
 export class TemporaryChatContextProvider implements ChatContextProvider {
   readonly name = 'temporary'
+  readonly isPersistentConversation = false
 
   canHandle(topicId: string): boolean {
     // Defensive — agent-session prefix is never temporary regardless of `hasTopic`.

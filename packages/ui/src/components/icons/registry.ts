@@ -10,7 +10,7 @@ import type { IconMeta } from './types'
 // story and swap these inline regex for `VENDOR_PATTERNS.<vendor>`.
 
 /**
- * Model ID regex patterns mapped to MODEL_ICON_CATALOG keys.
+ * Model ID regex patterns mapped to model icon keys.
  * Order matters: more specific patterns must come before general ones.
  */
 const MODEL_ICON_PATTERNS: ReadonlyArray<[RegExp, string]> = [
@@ -158,7 +158,7 @@ const MODEL_ICON_PATTERNS: ReadonlyArray<[RegExp, string]> = [
 ]
 
 /**
- * Model ID regex → PROVIDER_ICON_CATALOG key.
+ * Model ID regex → provider icon key.
  * Used when a model has no dedicated model icon but its name implies a provider.
  * E.g. "deepseek-chat" → deepseek provider icon, "llama-3.1-70b" → meta provider icon.
  */

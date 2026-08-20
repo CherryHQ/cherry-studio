@@ -207,7 +207,7 @@ vi.mock('../windowRegistry', () => {
       quirks: {
         macRestoreFocusOnHide: true,
         macClearHoverOnHide: true,
-        macReapplyAlwaysOnTop: true
+        reapplyAlwaysOnTop: true
       }
     },
     // Pooled action with only restoreFocusOnHide (like SelectionAction)
@@ -233,7 +233,7 @@ vi.mock('../windowRegistry', () => {
       lifecycle: 'default',
       htmlPath: 'floatingTop/index.html',
       windowOptions: {},
-      quirks: { macReapplyAlwaysOnTop: true }
+      quirks: { reapplyAlwaysOnTop: true }
     },
     // behavior.hideOnBlur — singleton, declarative blur→hide
     blurHider: {
@@ -512,9 +512,9 @@ describe('WindowManager quirks — applyQuirks monkey-patching', () => {
     })
   })
 
-  // ─── macReapplyAlwaysOnTop ──────────────────────────────────
+  // ─── reapplyAlwaysOnTop ──────────────────────────────────
 
-  describe('macReapplyAlwaysOnTop', () => {
+  describe('reapplyAlwaysOnTop', () => {
     it('re-applies setAlwaysOnTop(true, level) after show()', () => {
       wm.open('toolbar' as never)
       const toolbar = firstWindow()
@@ -569,27 +569,42 @@ describe('WindowManager quirks — applyQuirks monkey-patching', () => {
     })
   })
 
-  // ─── Non-mac identity check ─────────────────────────────────
+  // ─── Non-mac platform boundaries ────────────────────────────
 
   describe('non-mac platforms', () => {
-    it('does NOT patch any method when isMac=false — identity preserved', () => {
+    it('leaves the mac-only hide/close quirks unpatched — identity preserved', () => {
       platform.isMac = false
       platform.isLinux = true
 
       wm.open('toolbar' as never)
       const toolbar = firstWindow()
 
-      // Capture the mock fn refs stored at construction time
-      const hideMock = toolbar.hide
-      const closeMock = toolbar.close
-      const showMock = toolbar.show
-      const showInactiveMock = toolbar.showInactive
+      // A patched method is a plain arrow wrapper; an untouched one is still the
+      // constructor's vi mock.
+      expect(vi.isMockFunction(toolbar.hide)).toBe(true)
+      expect(vi.isMockFunction(toolbar.close)).toBe(true)
 
-      // After applyQuirks on non-mac: methods must remain the original mock fns
-      expect(toolbar.hide).toBe(hideMock)
-      expect(toolbar.close).toBe(closeMock)
-      expect(toolbar.show).toBe(showMock)
-      expect(toolbar.showInactive).toBe(showInactiveMock)
+      toolbar.hide()
+      expect(toolbar.webContents.sendInputEvent).not.toHaveBeenCalled()
+    })
+
+    it('still re-applies setAlwaysOnTop after show()/showInactive() on Windows', () => {
+      // Regression for #18092: the selection toolbar sank behind third-party
+      // topmost windows because this re-assert used to be gated on isMac, and
+      // Windows resolves topmost z-order by whoever asserted it last.
+      platform.isMac = false
+      platform.isWin = true
+
+      wm.open('toolbar' as never)
+      const toolbar = firstWindow()
+
+      toolbar.setAlwaysOnTop.mockClear()
+      toolbar.show()
+      expect(toolbar.setAlwaysOnTop).toHaveBeenCalledWith(true, 'screen-saver')
+
+      toolbar.setAlwaysOnTop.mockClear()
+      toolbar.showInactive()
+      expect(toolbar.setAlwaysOnTop).toHaveBeenCalledWith(true, 'screen-saver')
     })
   })
 
@@ -721,7 +736,7 @@ describe('WindowManager quirks — applyQuirks monkey-patching', () => {
       const win = firstWindow()
 
       // The initial call from applyWindowBehavior (pre-quirk-patch) uses 2 args.
-      // Subsequent patched show() calls also re-apply via the macReapplyAlwaysOnTop
+      // Subsequent patched show() calls also re-apply via the reapplyAlwaysOnTop
       // quirk — but 'topWithLevel' does not declare that quirk, so show()s do
       // not add more setAlwaysOnTop calls. Filter by the 2-arg shape to assert
       // the initial application specifically.

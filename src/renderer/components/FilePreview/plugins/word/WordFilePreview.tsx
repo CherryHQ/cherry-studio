@@ -7,8 +7,8 @@ import { type CSSProperties, useCallback, useEffect, useRef, useState } from 're
 import { useTranslation } from 'react-i18next'
 
 import { FilePreviewLayout } from '../../FilePreviewLayout'
+import { assertZipLimits } from '../../officeZipPreflight'
 import type { FilePreviewPluginProps } from '../../types'
-import { assertDocxZipLimits } from './docxZipPreflight'
 import { WordFilePreviewToolbar } from './WordFilePreviewToolbar'
 
 const logger = loggerService.withContext('WordFilePreview')
@@ -136,7 +136,7 @@ export default function WordFilePreview({ filePath, fileName, metadata, refreshK
         assertSourceSize(docxData.byteLength)
         if (!isCurrent()) return
 
-        assertDocxZipLimits(docxData)
+        assertZipLimits(docxData, 'DOCX')
         if (!isCurrent()) return
 
         await renderAsync(docxData, stagingBody, stagingStyle, {

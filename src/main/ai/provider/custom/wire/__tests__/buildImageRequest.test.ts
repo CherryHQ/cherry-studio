@@ -182,6 +182,10 @@ describe('buildVendorProviderOptions — Google native image family (contribute 
       vertex: { imageConfig: { imageSize: '2K' } }
     })
   })
+
+  it.each(['google', 'google-vertex'])('omits automatic imageResolution for %s', (providerId) => {
+    expect(engine(providerId, { imageResolution: 'auto', numImages: 1 })).toEqual({})
+  })
 })
 
 describe('buildVendorProviderOptions — DashScope (passthrough, mapped wins)', () => {

@@ -195,27 +195,42 @@ describe('runExec / handleToolCall', () => {
     expect(childSignal).toBeInstanceOf(AbortSignal)
     expect(childSignal?.aborted).toBe(true)
     expect((abortedReason as Error)?.message).toBe('parent stop')
-    expect(out.result).toBe('aborted')
+    expect(out.isError).toBe(true)
+    expect(out.error).toBe('tool_exec aborted: parent stop')
   })
 
   it('aborts immediately when the parent signal is already aborted before invoke', async () => {
     const parentController = new AbortController()
     parentController.abort(new Error('already done'))
 
-    let childAbortedAtStart: boolean | undefined
-    const execute = vi.fn().mockImplementation((_params, options: ToolExecutionOptions) => {
-      childAbortedAtStart = options.abortSignal?.aborted
-      return 'ok'
-    })
+    const execute = vi.fn()
 
     const reg = registryWith({ name: 'mcp__s1__t', tool: toolWith({ execute }) })
     const code = `return await tools.invoke('mcp__s1__t', {})`
-    await runExec(code, {
+    const out = await runExec(code, {
       registry: reg,
       parentOptions: makeOptions({ abortSignal: parentController.signal })
     })
 
-    expect(childAbortedAtStart).toBe(true)
+    expect(out.isError).toBe(true)
+    expect(out.error).toBe('tool_exec aborted: already done')
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('terminates pure worker code when the parent aborts', async () => {
+    const parentController = new AbortController()
+    const reg = registryWith({ name: 'mcp__s1__t', tool: toolWith({ execute: vi.fn() }) })
+    const pending = runExec(`await new Promise(() => {})`, {
+      registry: reg,
+      parentOptions: makeOptions({ abortSignal: parentController.signal })
+    })
+
+    parentController.abort(new Error('user stopped'))
+
+    await expect(pending).resolves.toMatchObject({
+      isError: true,
+      error: 'tool_exec aborted: user stopped'
+    })
   })
 
   // ── Timeout: code that never resolves is killed after EXECUTION_TIMEOUT_MS ──

@@ -14,7 +14,7 @@ const repoRoot = resolve(fileURLToPath(import.meta.url), '../../../..')
  * anchors are enforced without editing this test.
  */
 async function documentedMaintainedTokens(): Promise<string[]> {
-  const document = await readFile(resolve(repoRoot, 'docs/references/ui-semantic-contract.md'), 'utf8')
+  const document = await readFile(resolve(repoRoot, 'docs/references/components/ui-semantic-contract.md'), 'utf8')
   const lists = document.match(/^The maintained .* currently includes:\n\n(?:-[^\n]*\n(?:[ \t]+[^\n]*\n)*)+/gm) ?? []
   return lists.flatMap((list) => (list.match(/`[^`]+`/g) ?? []).map((token) => token.slice(1, -1)))
 }

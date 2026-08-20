@@ -200,19 +200,16 @@ describe('diffAgentUpdate', () => {
     })
   })
 
-  it('emits only edited configuration keys and explicitly removes max_turns', () => {
+  it('emits only edited configuration keys', () => {
     const agent = createAgent({
-      configuration: { avatar: '🤖', plugin_state: 'keep-me', max_turns: 10 }
+      configuration: { avatar: '🤖', plugin_state: 'keep-me' }
     })
     const baseline = buildInitialAgentFormState(agent)
     const next = { ...baseline, avatar: '🚀' }
 
     const result = diffAgentUpdate(baseline, next)
     // Main preserves plugin_state by merging this intent into the latest row.
-    expect(result?.dto.configuration).toEqual({
-      avatar: '🚀',
-      max_turns: undefined
-    })
+    expect(result?.dto.configuration).toEqual({ avatar: '🚀' })
   })
 
   it('round-trips env_vars through the textarea format', () => {

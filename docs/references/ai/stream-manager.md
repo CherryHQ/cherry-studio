@@ -1,3 +1,11 @@
+---
+description: AiStreamManager active-stream registry — listener fan-out, reconnect replay, abort, steering, and persistence triggers
+sources:
+  - src/main/ai/streamManager/AiStreamManager.ts
+  - src/main/ai/streamManager/pipeStreamLoop.ts
+  - src/main/ai/streamManager/context
+---
+
 # AiStreamManager
 
 ## What it is
@@ -40,11 +48,11 @@ reference for that Main-side design.
 ┌──────────────── Renderer ────────────────────────────────────┐
 │                                                              │
 │  useChat({ id: topicId, transport: IpcChatTransport })       │
-│    ├─ sendMessages   → Ai_Stream_Open  (topicId, trigger, userMessageParts, …)
-│    ├─ reconnectToStream → Ai_Stream_Attach ({ topicId })     │
-│    └─ abort signal   → Ai_Stream_Abort  ({ topicId })        │
+│    ├─ sendMessages      → ai.stream.open                     │
+│    ├─ reconnectToStream → ai.stream.attach                   │
+│    └─ abort signal      → ai.stream.abort                    │
 │                                                              │
-│  History:           useQuery('/topics/:id/messages')         │
+│  History:           useQuery('/topics/:topicId/messages')    │
 │  Topic-level state: useTopicStreamStatus → shared cache       │
 └──────────────────────────────────────────────────────────────┘
                  ↕ IPC (all keyed by topicId)
@@ -74,7 +82,7 @@ reference for that Main-side design.
 │       • TemporaryChatBackend   (in-memory)                   │
 │       • AgentSessionMessageBackend (agent-session DB)        │
 │       • TranslationBackend     (translate row)               │
-│    2. WebContentsListener → wc.send(Ai_StreamDone/Error)     │
+│    2. WebContentsListener → ai.stream.done/error events      │
 │       other notification listeners (channel / SSE)          │
 │    3. TraceFlushListener → TraceStorageService.saveSpans    │
 │    Persistence failure → emit correction error and suppress  │
@@ -104,15 +112,15 @@ volume × audience width**.
 | `PersistenceListener` | terminal | built by the provider and added in `send()` |
 | `TraceFlushListener` | terminal | built by chat / agent-session turn owners and added in `send()` |
 | `ChannelAdapterListener` / `SseListener` | chunk + terminal | caller injects into `send()`'s `listeners` |
-| UI indirect consumers (sidebar indicators, …) | topic status | `useSharedCache('topic.stream.statuses.${topicId}')` |
+| UI indirect consumers (sidebar indicators, …) | topic status | `useSharedCacheValue('topic.stream.statuses.${topicId}')` |
 
 ### Two channels: targeted listener dispatch vs SharedCache mirror
 
 | | Targeted listener dispatch | SharedCache mirror |
 |---|---|---|
-| Transport | `Ai_StreamChunk` / `Ai_StreamDone` / `Ai_StreamError` | `cacheService.setShared('topic.stream.statuses.${topicId}', …)` → built-in `Cache_Sync` broadcast |
+| Transport | `ai.stream.chunk` / `ai.stream.done` / `ai.stream.error` | `cacheService.setShared('topic.stream.statuses.${topicId}', …)` → built-in `Cache_Sync` broadcast |
 | Main-side registry | `ActiveStream.listeners: Map<listenerId, StreamListener>` | none — uses the generic `CacheService` infra |
-| Subscriber API | `attach` to register, explicit `detach` | `useSharedCache('topic.stream.statuses.${topicId}')` by topicId |
+| Subscriber API | `attach` to register, explicit `detach` | `useSharedCacheValue('topic.stream.statuses.${topicId}')` by topicId |
 | Per-event size | tens of bytes to KBs (10s/s) | tens of bytes (≤ 5 transitions per stream) |
 | Audience | narrow (one window per listener typically) | wide (every sidebar / indicator across all windows) |
 | Cost of irrelevant pushes | high (bandwidth + deserialization) | negligible |
@@ -129,7 +137,7 @@ Choose by **consumer / producer fanout**:
 
 ### Rules that follow from the channel split
 
-- **`Ai_Stream_Attach` is required.** The listener channel requires
+- **`ai.stream.attach` is required.** The listener channel requires
   explicit consumer registration; `attach` is the entry point and also
   returns a compact replay to fill the "before I subscribed" gap.
 - **Bootstrap needs no extra IPC.** A new window pulls all shared cache
@@ -160,7 +168,7 @@ Choose by **consumer / producer fanout**:
 
 ```
 src/main/ai/
-├── AiService.ts                       lifecycle service: streamText + non-streaming IPC gateway
+├── AiService.ts                       provider-call owner: streamText + one-shot operations
 └── runtime/aiSdk/
     └── Agent.ts                       single-pass `Agent.stream` wrapper (see Agent Loop)
 
@@ -685,7 +693,7 @@ dispatchStreamRequest → manager.send({ models, listeners, siblingsGroupId })
 ## Steering
 
 Steering a chat turn is **enqueue + yield + chain**, not abort-and-restart and
-not mid-turn injection. When a new `Ai_Stream_Open` arrives for a chat topic that
+not mid-turn injection. When a new `ai.stream.open` arrives for a chat topic that
 is still streaming:
 
 1. `PersistentChatContextProvider` (its `hasLiveStream` branch) persists the
@@ -726,21 +734,21 @@ duplicated; the rest are stream-manager-specific.
 
 | Flow | Trigger | Mechanism | Terminal / result |
 |---|---|---|---|
-| Submit (standard) | `Ai_Stream_Open` | `dispatchStreamRequest` → `prepareDispatch` (persist user msg, reserve placeholders, build listeners + models) → `manager.send` → N × `runExecutionLoop` | `Ai_StreamDone`; `PersistenceListener.persistAssistant`; chat lifecycle `scheduleCleanup(30 s)` |
-| Steering — chat resubmit | `Ai_Stream_Open` on a live chat topic | provider persists the steer user row + `enqueuePendingSteer` → `pendingSteers`; `steerYield` stops the running turn cleanly; `onExecutionDone` chains a `steer-continuation` | prior turn persisted as **`success`**; the continuation answers the steer — see [Steering](#steering) |
-| Agent-session follow-up | `Ai_Stream_Open` on a live `agent-session:*` topic | provider persists the user row, `enqueueUserMessage` steers via `connection.redirect()` (no abort) or queues on `pendingTurns`; `manager.send` upserts the subscriber → `{ mode: 'injected' }` | steer folds into the current turn (rolled at a `steer-boundary`), else the next turn starts from `pendingTurns` — see [Agent Session Runtime](./agent-session-runtime.md#live-follow-up) |
-| Tool-approval pause+resume | approval-request chunk → `awaiting-approval` | decision via `Ai_ToolApproval_Respond`; Claude-Agent unblocks `canUseTool`, MCP dispatches `continue-conversation` | card clears when the resumed stream broadcasts `pending` — see [Tool Approval](./tool-approval.md) |
-| Reconnect | `Ai_Stream_Attach` on mount | `manager.attach`: `not-found` / streaming (register listener + compact replay) / done-paused (`finalMessage(s)`) / error | live chunks resume, or the final row is returned; attach never changes runtime state |
-| Abort — user stop | `Ai_Stream_Abort` | per exec: `abortController.abort` → loop `signal` aborts → broadcast reader `cancel` → read loop `done` | partial persisted as **`paused`**; topic status → `aborted` (or `awaiting-approval` if an exec had it set) |
+| Submit (standard) | `ai.stream.open` | `dispatchStreamRequest` → `prepareDispatch` (persist user msg, reserve placeholders, build listeners + models) → `manager.send` → N × `runExecutionLoop` | `ai.stream.done`; `PersistenceListener.persistAssistant`; chat lifecycle `scheduleCleanup(30 s)` |
+| Steering — chat resubmit | `ai.stream.open` on a live chat topic | provider persists the steer user row + `enqueuePendingSteer` → `pendingSteers`; `steerYield` stops the running turn cleanly; `onExecutionDone` chains a `steer-continuation` | prior turn persisted as **`success`**; the continuation answers the steer — see [Steering](#steering) |
+| Agent-session follow-up | `ai.stream.open` on a live `agent-session:*` topic | provider persists the user row, `enqueueUserMessage` steers via `connection.redirect()` (no abort) or queues on `pendingTurns`; `manager.send` upserts the subscriber → `{ mode: 'injected' }` | steer folds into the current turn (rolled at a `steer-boundary`), else the next turn starts from `pendingTurns` — see [Agent Session Runtime](./agent-session-runtime.md#live-follow-up) |
+| Tool-approval pause+resume | approval-request chunk → `awaiting-approval` | decision via `ai.tool.respond_approval`; a live agent runtime resolves its registry entry, while MCP dispatches `continue-conversation` | card clears when the resumed stream broadcasts `pending` — see [Tool Approval](./tool-approval.md) |
+| Reconnect | `ai.stream.attach` on mount | `manager.attach`: `not-found` / streaming (register listener + compact replay) / done-paused (`finalMessage(s)`) / error | live chunks resume, or the final row is returned; attach never changes runtime state |
+| Abort — user stop | `ai.stream.abort` | per exec: `abortController.abort` → loop `signal` aborts → broadcast reader `cancel` → read loop `done` | partial persisted as **`paused`**; topic status → `aborted` (or `awaiting-approval` if an exec had it set) |
 | Abort — no subscribers | last `WebContentsListener` dies + `backgroundMode === 'abort'` | `onChunk` prunes dead listeners; `listeners.size === 0` → auto `abort(topicId, 'no-subscribers')` | partial persisted as **`paused`** — never silently `success` or leaked |
-| Multi-window | window B opens a live topic | B sends `Ai_Stream_Attach` → compact replay + its own `WebContentsListener`; each chunk fans out to A and B | both windows render the same chunks in sync |
+| Multi-window | window B opens a live topic | B sends `ai.stream.attach` → compact replay + its own `WebContentsListener`; each chunk fans out to A and B | both windows render the same chunks in sync |
 | Channel / Agent | `AiStreamManager.send` in-process (no IPC) | scenario differs only by listener composition (table below) | per-listener effect |
 
 **Topic status needs no `attach`.** Observers that only care "is this topic
 live?" (sidebar loading indicators, topic-list status dots) don't register a
 `WebContentsListener`. Every status transition writes the SharedCache key
-`topic.stream.statuses.${topicId}`; observers read it via `useSharedCache`
-directly. `Ai_Stream_Attach` is only needed when a window wants live chunks.
+`topic.stream.statuses.${topicId}`; observers read it via `useSharedCacheValue`
+directly. `ai.stream.attach` is only needed when a window wants live chunks.
 
 ### Channel / Agent listener composition
 
@@ -762,22 +770,22 @@ listener composition:
 
 | Channel | Payload | Response | Semantics |
 |---|---|---|---|
-| `Ai_Stream_Open` | `AiStreamOpenRequest` (`submit-message` \| `regenerate-message`) | `{ mode, activeExecutions?, reservedMessages?, preserveActiveNode? }` | Open / inject; provider routes by topicId |
-| `Ai_Stream_Attach` | `{ topicId }` | `AiStreamAttachResponse` | Subscribe; returns compact replay when streaming |
-| `Ai_Stream_Detach` | `{ topicId }` | void | Unsubscribe (stream continues) |
-| `Ai_Stream_Abort` | `{ topicId }` | void | Stop current generation |
+| `ai.stream.open` | `AiStreamOpenRequest` (`submit-message` \| `regenerate-message`) | `{ mode, activeExecutions?, reservedMessages?, preserveActiveNode? }` | Open / inject; provider routes by topicId |
+| `ai.stream.attach` | `{ topicId }` | `AiStreamAttachResponse` | Subscribe; returns compact replay when streaming |
+| `ai.stream.detach` | `{ topicId }` | void | Unsubscribe (stream continues) |
+| `ai.stream.abort` | `{ topicId }` | void | Stop current generation |
 
 > Topic status snapshots need no dedicated IPC: a new window pulls every
 > `topic.stream.statuses.${topicId}` entry via `Cache_GetAllShared` on
-> mount, and `useSharedCache` subscribes by topicId.
+> mount, and `useSharedCacheValue` subscribes by topicId.
 
 ### Push channels (Main → Renderer)
 
 | Channel | Payload | Notes |
 |---|---|---|
-| `Ai_StreamChunk` | `{ topicId, executionId?, chunk }` | Multi-model carries `executionId`; **only sent to attached windows** |
-| `Ai_StreamDone` | `{ topicId, executionId?, status, isTopicDone }` | `status ∈ { 'success', 'paused' }` — natural completion vs user abort; **only sent to attached windows** |
-| `Ai_StreamError` | `{ topicId, executionId?, isTopicDone, error }` | `SerializedError`; **only sent to attached windows** |
+| `ai.stream.chunk` | `{ topicId, executionId?, chunk }` | Multi-model carries `executionId`; **only sent to attached windows** |
+| `ai.stream.done` | `{ topicId, executionId?, status, isTopicDone }` | `status ∈ { 'success', 'paused' }` — natural completion vs user abort; **only sent to attached windows** |
+| `ai.stream.error` | `{ topicId, executionId?, isTopicDone, error }` | `SerializedError`; **only sent to attached windows** |
 
 Topic-level status transitions are NOT a bespoke IPC — they live in the
 SharedCache key `topic.stream.statuses.${topicId}` (Main `setShared` →
@@ -794,7 +802,7 @@ built-in `Cache_Sync` broadcast). The entry shape is
 ```
 
 `pending` doubles as the "new stream just created" signal — the old
-`Ai_StreamStarted` IPC is gone. Grace-period cleanup does NOT clear the
+dedicated stream-started IPC is unnecessary. Grace-period cleanup does NOT clear the
 entry — terminal values (`done` / `aborted` / `error`) stay so renderer
 consumers (DB-refresh trigger, awaiting-approval indicators, sidebar
 badges) can observe them. The badge "should I show this?" gate is a
@@ -819,7 +827,8 @@ demux chunks per model.
 
 ## ChatContextProvider — per-topicId namespace dispatch
 
-`Ai_Stream_Open` is handled in Main by `dispatchStreamRequest`
+The `ai.stream.open` IpcApi handler delegates to `AiStreamManager.dispatch`,
+which serializes the topic and calls `dispatchStreamRequest`
 (`context/dispatch.ts`):
 
 ```

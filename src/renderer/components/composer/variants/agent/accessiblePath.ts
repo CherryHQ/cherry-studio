@@ -1,15 +1,44 @@
-// TODO(file-infra): Move the path-containment helpers below
-// (`isPathWithinAccessiblePath` / `getAccessiblePathRelativePath`) into a
-// renderer-safe, general-purpose `isPathInside` / `getRelativePath` in
-// `@shared/utils/file` once that infra exists — the main-side `isPathInside`
-// (`src/main/utils/file/path.ts`) can't be reused here because it depends on
-// `node:path`. Generalizing needs relative inputs and per-mount
-// case-insensitivity handling resolved first, so this module stays an
-// agent-local stopgap until then. (UNC is settled: not canonicalizable, hence
-// never contained — see `tryCanonicalize` below and
-// `docs/references/file/file-manager-architecture.md §1.2 "UNC paths"`.)
+import { getRelativePath, isPathInside, isSamePath, toPathKey } from '@renderer/utils/path'
 import { isMac, isWin } from '@renderer/utils/platform'
-import { canonicalizeFilePath } from '@shared/utils/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
+import type { PosixRelativeFilePath } from '@shared/utils/file'
+
+/**
+ * Agent-specific policy over the generic renderer path primitives: match a path
+ * against a list of accessible bases. Path semantics (canonicalization, strict
+ * containment, un-canonicalizable input) live in `@renderer/utils/path`.
+ *
+ * Nothing here is an access-control gate — the authoritative one is main-side
+ * `WorkspaceFileGuard.resolveWorkspaceFile`.
+ */
+
+/** True iff `filePath` is one of `accessiblePaths` or a descendant of one. */
+export const isPathWithinAccessiblePath = (
+  filePath: AbsoluteFilePath,
+  accessiblePaths: readonly AbsoluteFilePath[]
+): boolean => accessiblePaths.some((base) => isSamePath(filePath, base) || isPathInside(filePath, base))
+
+/**
+ * `filePath` relative to the accessible base that contains it, or `filePath`
+ * unchanged if none matches.
+ *
+ * The return type is a union because the two branches return genuinely
+ * different things, and a caller that must tell them apart can now do so
+ * instead of inferring it from whether a leading `/` happens to be there.
+ * Today's caller wants neither — it renders the value — so the union costs it
+ * nothing.
+ */
+export const getAccessiblePathRelativePath = (
+  filePath: AbsoluteFilePath,
+  accessiblePaths: readonly AbsoluteFilePath[]
+): PosixRelativeFilePath | AbsoluteFilePath => {
+  for (const base of accessiblePaths) {
+    const relative = getRelativePath(base, filePath)
+    if (relative !== null) return relative
+  }
+  return filePath
+}
 
 /**
  * Case-folding matches the main-side `isPathInside` (`src/main/utils/file/path.ts`):
@@ -17,63 +46,30 @@ import { canonicalizeFilePath } from '@shared/utils/file'
  */
 const isCaseInsensitivePlatform = isMac || isWin
 
-const toComparisonKey = (value: string) => (isCaseInsensitivePlatform ? value.toLowerCase() : value)
-
-const normalizeSeparators = (value: string) => value.replace(/\\/g, '/')
-
-const withTrailingSlash = (value: string) => (value.endsWith('/') ? value : `${value}/`)
-
 /**
- * `canonicalizeFilePath` throws on input it cannot reduce to a byte-faithful
- * canonical form — today that is UNC (`\\server\share\…`), which is a valid
- * `AbsoluteFilePath` but has no defined canonical root here. Containment is a
- * predicate, not a parser: a path we cannot canonicalize is simply not
- * provably inside anything, so degrade to `null` rather than throwing out of
- * `isPathWithinAccessiblePath` and taking the caller down with it.
+ * A `Set`-able identity key for mention dedup — **deliberately looser than
+ * `isSamePath`**, and not interchangeable with it.
+ *
+ * Case-folding here is a UI heuristic, not an identity claim. It is a per-mount
+ * property that no string can decide, so the primitives in `@renderer/utils/path`
+ * refuse to guess. This consumer can afford the guess because both error
+ * directions are trivial: a folder that cannot be re-mentioned, or a duplicate
+ * token. The reference-vs-inline decision above cannot — a false "same" there
+ * sends the model a `file://` pointing at a different real file — which is why
+ * the fold lives at this call site instead of in the shared primitive.
+ *
+ * The two folder-token sources spell the same path differently
+ * (`listDirectoryEntries` inherits the workspace path's spelling, drag-and-drop
+ * carries the OS's), so a case mismatch is genuinely reachable.
+ *
+ * Keying through `toPathKey` rather than folding separators here is what keeps
+ * `/workspace/a\b.txt` — one POSIX file — from colliding with `/workspace/a/b.txt`.
+ * Input that is not an absolute path, or has no canonical form (UNC), keys on
+ * itself: unequal to everything but an identical spelling, which is the right
+ * answer for dedup.
  */
-const tryCanonicalize = (value: string): string | null => {
-  try {
-    return canonicalizeFilePath(value)
-  } catch {
-    return null
-  }
-}
-
-/** Canonical key for path identity, with a normalized fallback for unsupported UNC paths. */
-export const getPathComparisonKey = (value: string): string =>
-  toComparisonKey(normalizeSeparators(tryCanonicalize(value) ?? value))
-
-/** Canonicalized, `/`-separated form of an accessible base path, or null if the match fails. */
-const findAccessibleBasePath = (filePath: string, accessiblePaths: readonly string[]): string | null => {
-  const canonicalFilePath = tryCanonicalize(filePath)
-  if (canonicalFilePath === null) return null
-  const comparisonFilePath = toComparisonKey(normalizeSeparators(canonicalFilePath))
-
-  for (const basePath of accessiblePaths) {
-    const canonicalBasePath = tryCanonicalize(basePath)
-    if (canonicalBasePath === null) continue
-    const normalizedBasePath = normalizeSeparators(canonicalBasePath)
-    const comparisonBasePath = toComparisonKey(normalizedBasePath)
-    if (
-      comparisonFilePath === comparisonBasePath ||
-      comparisonFilePath.startsWith(toComparisonKey(withTrailingSlash(normalizedBasePath)))
-    ) {
-      return normalizedBasePath
-    }
-  }
-
-  return null
-}
-
-/** True iff `filePath` is `accessiblePaths[i]` itself or a descendant of it. */
-export const isPathWithinAccessiblePath = (filePath: string, accessiblePaths: readonly string[]): boolean =>
-  findAccessibleBasePath(filePath, accessiblePaths) !== null
-
-/** `filePath` relative to the accessible base path that contains it, or `filePath` unchanged if none matches. */
-export const getAccessiblePathRelativePath = (filePath: string, accessiblePaths: readonly string[]): string => {
-  const basePath = findAccessibleBasePath(filePath, accessiblePaths)
-  if (basePath === null) return filePath
-  // A non-null `basePath` proves `filePath` canonicalized above, so this
-  // cannot throw.
-  return normalizeSeparators(canonicalizeFilePath(filePath)).slice(withTrailingSlash(basePath).length)
+export const getPathComparisonKey = (value: string): string => {
+  const parsed = AbsoluteFilePathSchema.safeParse(value)
+  const key = (parsed.success ? toPathKey(parsed.data) : null) ?? value
+  return isCaseInsensitivePlatform ? key.toLowerCase() : key
 }

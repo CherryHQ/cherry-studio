@@ -1,4 +1,4 @@
-import { mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
+import { MockUseDataApiUtils, mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -12,6 +12,7 @@ import {
   useProviderById,
   useProviderDisplayName,
   useProviderMutations,
+  useProviderPreset,
   useProviders
 } from '../useProvider'
 
@@ -31,6 +32,25 @@ const mockProvider2: any = {
 }
 
 const mockProviderList = [mockProvider1, mockProvider2]
+
+describe('useProviderPreset', () => {
+  it('revalidates registry-backed model projections after a snapshot update', () => {
+    const refetch = vi.fn().mockResolvedValue(undefined)
+    mockUseQuery.mockReturnValue({
+      data: { models: [] },
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      refetch,
+      mutate: vi.fn()
+    })
+    renderHook(() => useProviderPreset('openai', ['models']))
+
+    MockUseDataApiUtils.emitDataChange([{ endpoint: '/providers/:providerId/preset' }])
+
+    expect(refetch).toHaveBeenCalledOnce()
+  })
+})
 
 describe('useProviders', () => {
   beforeEach(() => {

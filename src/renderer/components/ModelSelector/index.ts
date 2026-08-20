@@ -9,6 +9,7 @@ export {
 export type {
   FlatListItem,
   ModelSelectorAlign,
+  ModelSelectorFilter,
   ModelSelectorGroupItem,
   ModelSelectorModelItem,
   ModelSelectorMultiIdProps,

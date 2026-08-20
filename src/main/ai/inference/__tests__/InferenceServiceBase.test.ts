@@ -286,7 +286,7 @@ describe('embeddingInferenceService / ocrInferenceService isolation', () => {
   it('terminating the embedding host does not touch an in-flight OCR request or its worker', async () => {
     const ocrPending = ocrInferenceService.recognize(
       { detection: '/a', recognition: '/b', charactersDictionary: '/c' },
-      '/img.png'
+      { kind: 'path', imagePath: '/img.png' }
     )
     const ocrWorker = await latestWorker()
 
@@ -310,7 +310,7 @@ describe('embeddingInferenceService / ocrInferenceService isolation', () => {
     expect(ocrSettled).toBe(false)
 
     ocrWorker.emit('message', { type: 'result', id: lastRequestId(ocrWorker), text: 'ok' })
-    await expect(ocrPending).resolves.toBe('ok')
+    await expect(ocrPending).resolves.toEqual({ text: 'ok', lines: [] })
   })
 })
 
@@ -358,7 +358,7 @@ describe('InferenceService worker init message', () => {
 
     const ocrPending = ocrInferenceService.recognize(
       { detection: '/a', recognition: '/b', charactersDictionary: '/c' },
-      '/img.png'
+      { kind: 'path', imagePath: '/img.png' }
     )
     const ocrWorker = await latestWorker(2)
     const ocrInit = initMessage(ocrWorker)

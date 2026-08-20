@@ -80,13 +80,15 @@ Use this when:
 - The question references topics likely covered in stored documents
 - Specific factual lookup that isn't general knowledge
 
-Workflow: call kb_list first to discover available bases and their contents, then call this tool with the chosen baseIds. You may call this multiple times with refined queries or different baseIds if the first results are insufficient. Cite: append [cite:id] immediately after each statement a result supports, using the result's exact \`id\` field.`
+Workflow: when a relevant base ID is already known (for example, from an attached knowledge base), call kb_search directly with that ID in baseIds. Call kb_list first only when no relevant base ID is known. You may call this multiple times with refined queries or different baseIds if the first results are insufficient. Cite: append [cite:id] immediately after each statement a result supports, using the result's exact \`id\` field.`
 
 export const KNOWLEDGE_LIST_DESCRIPTION = `Browse the user's knowledge bases and their structure.
 
 Two modes, selected by \`baseId\`:
 - Omit \`baseId\` to list one page of available bases — each with its name, group, item count, and a few sample sources (filenames, URLs, note titles) so you can judge what it covers. Use \`query\` to filter by base name or source. If \`nextCursor\` is returned, pass it as \`cursor\` to continue. Call this first when the user asks about their materials and you don't already know which base is relevant, then call kb_search with the chosen baseIds. If a base comes back with \`itemsUnavailable: true\` its contents could not be read this call (not that it is empty) — do not tell the user it holds nothing; retry or use kb_search.
-- Pass a \`baseId\` to outline that base instead: a flat top-down list of its folders and documents, each with a \`depth\`, title, type, \`status\`, and — for a readable document — a \`conceptId\` you can pass to kb_read. A node only carries a \`conceptId\` once its \`status\` is "completed"; a still-indexing or failed document has none. Use this to see how a base is organized, or to find a document's conceptId, without searching.`
+- Pass a \`baseId\` to outline that base instead: a flat top-down list of its folders and documents, each with a \`depth\`, title, type, \`status\`, and — for a readable document — a \`conceptId\` you can pass to kb_read. A node only carries a \`conceptId\` once its \`status\` is "completed"; a still-indexing or failed document has none. Use this to see how a base is organized, or to find a document's conceptId, without searching.
+
+This tool returns metadata and structure, not retrieved evidence. Do not answer content questions from names or sampleSources; use kb_search for relevant passages or kb_read for a known document.`
 
 export const KNOWLEDGE_READ_DESCRIPTION = `Read a single knowledge base document by its Concept ID — or grep inside it.
 
@@ -132,6 +134,20 @@ export const KNOWLEDGE_LOOKUP_ERROR_NOTE =
 /** kb_list infra failure (e.g. `KnowledgeService.listBasesForDiscovery()` threw) — a fixed note, not a raw error string. */
 export const KNOWLEDGE_LIST_ERROR_NOTE =
   'Listing the knowledge bases failed (a knowledge-service error); tell the user instead of retrying.'
+
+/**
+ * A stored tool result that matches none of the shapes below (an output written by an older build, a
+ * trimmed/rendered envelope, a non-object). The `toModelOutput` formatters re-run over EVERY tool
+ * part of the conversation on every turn (`convertToModelMessages`), so one unreadable part must
+ * degrade to this note — throwing breaks every later turn of that conversation, not just the part.
+ */
+export const KNOWLEDGE_UNREADABLE_OUTPUT_NOTE =
+  'This knowledge base tool result could not be read back from the conversation history. Ignore it — call kb_list to re-check the current knowledge bases before acting on it.'
+
+/** Narrow to the object shapes the formatters below discriminate on; anything else is unreadable. */
+function isObjectOutput<T>(output: T): output is T & object {
+  return typeof output === 'object' && output !== null && !Array.isArray(output)
+}
 
 export function isKnowledgeLookupError(output: KnowledgeSearchResultOrError): output is KnowledgeLookupError {
   // kb_search success is always the results array; the error object is the only non-array shape.
@@ -272,6 +288,10 @@ async function readConcept(
 export function knowledgeReadModelOutput(
   output: KnowledgeReadResultOrError
 ): { type: 'text'; value: string } | { type: 'json'; value: KbReadOutput | KbGrepOutput } {
+  if (!isObjectOutput(output)) {
+    logger.warn('kb_read output is not an object; rendering the unreadable-output note', { received: typeof output })
+    return { type: 'text', value: KNOWLEDGE_UNREADABLE_OUTPUT_NOTE }
+  }
   if (isConceptLookupError(output)) {
     return { type: 'text', value: output.error }
   }
@@ -517,6 +537,10 @@ export async function manageKnowledge(
 export function knowledgeManageModelOutput(
   output: KnowledgeManageResultOrError
 ): { type: 'text'; value: string } | { type: 'json'; value: KbManageOutput } {
+  if (!isObjectOutput(output)) {
+    logger.warn('kb_manage output is not an object; rendering the unreadable-output note', { received: typeof output })
+    return { type: 'text', value: KNOWLEDGE_UNREADABLE_OUTPUT_NOTE }
+  }
   if (isConceptLookupError(output)) {
     return { type: 'text', value: output.error }
   }
@@ -639,15 +663,22 @@ export function knowledgeListModelOutput(
 ): { type: 'text'; value: string } | { type: 'json'; value: KbListOutput | KbTreeOutput } {
   const outlineMode = input?.baseId != null
 
+  if (!isObjectOutput(output)) {
+    logger.warn('kb_list output is not an object; rendering the unreadable-output note', { received: typeof output })
+    return { type: 'text', value: KNOWLEDGE_UNREADABLE_OUTPUT_NOTE }
+  }
+
   if ('error' in output) {
     // Outline mode surfaces the specific error (out-of-scope / not-found / service); list mode hides
     // the raw listBasesForDiscovery() infra error behind a fixed note (mirrors kb_search's all-failed path).
     return { type: 'text', value: outlineMode ? output.error : KNOWLEDGE_LIST_ERROR_NOTE }
   }
 
-  if ('items' in output) {
+  // `Array.isArray` rather than the key alone: a stored part can carry `items`/`nodes` without the
+  // array (or neither), and a bare deref of the missing one is what crashed the whole conversation.
+  if ('items' in output && Array.isArray(output.items)) {
     if (output.items.length === 0) {
-      if (output.total > 0 || input.cursor) {
+      if (output.total > 0 || input?.cursor) {
         return {
           type: 'text',
           value:
@@ -666,10 +697,17 @@ export function knowledgeListModelOutput(
   }
 
   // Outline mode success: one base's tree.
-  if (output.nodes.length === 0) {
-    return { type: 'text', value: `Knowledge base "${output.baseId}" has no items yet.` }
+  if ('nodes' in output && Array.isArray(output.nodes)) {
+    if (output.nodes.length === 0) {
+      return { type: 'text', value: `Knowledge base "${output.baseId}" has no items yet.` }
+    }
+    return { type: 'json', value: output }
   }
-  return { type: 'json', value: output }
+
+  logger.warn('kb_list output matches no known shape; rendering the unreadable-output note', {
+    keys: Object.keys(output)
+  })
+  return { type: 'text', value: KNOWLEDGE_UNREADABLE_OUTPUT_NOTE }
 }
 
 function buildOutputItem(

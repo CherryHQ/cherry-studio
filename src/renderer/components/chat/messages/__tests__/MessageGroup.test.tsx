@@ -210,6 +210,9 @@ vi.mock('../MessageListProvider', () => ({
 }))
 
 vi.mock('../frame/MessageHeader', () => ({
+  AgentSessionDeliveryBadge: ({ delivery }: { delivery: NonNullable<MessageListItem['delivery']> }) => (
+    <div data-testid="agent-session-delivery-badge">{delivery.status}</div>
+  ),
   default: mocks.MessageHeader
 }))
 
@@ -761,6 +764,42 @@ describe('MessageGroup', () => {
     expect(container).not.toHaveTextContent('chat.message.editing_current')
     expect(container.querySelector('#message-user-bubble-editing-1 .message-editing-hint')).toBeNull()
     expect(container.querySelector('#message-user-bubble-editing-1 .message-menubar')).toBeNull()
+  })
+
+  it('shows delivery attribution for bubble-style user messages', () => {
+    mocks.settings.mockReturnValue({
+      multiModelMessageStyle: 'vertical',
+      gridColumns: 2,
+      gridPopoverTrigger: 'click',
+      messageFont: 'system',
+      fontSize: 14,
+      messageStyle: 'bubble',
+      showMessageOutline: false
+    })
+    const sender = { agentId: 'agent-a', sessionId: 'sender' }
+    const message = {
+      ...createMessage('delivered-user-1', 0, 'vertical'),
+      role: 'user',
+      delivery: {
+        version: 1,
+        sender,
+        receiver: { agentId: 'agent-b', sessionId: 'target' },
+        senderSnapshot: { agentName: 'Agent A', sessionName: 'Sender' },
+        receiverSnapshot: { agentName: 'Agent B', sessionName: 'Target' },
+        replyPolicy: 'none',
+        turnRef: null,
+        sourceMessageId: null,
+        outcome: 'success',
+        error: null,
+        statusAt: new Date().toISOString(),
+        status: 'consumed',
+        inReplyTo: null
+      }
+    } as MessageListItem & { index: number; multiModelMessageStyle: MultiModelMessageStyle }
+
+    render(<MessageGroup messages={[message]} />)
+
+    expect(screen.getByTestId('agent-session-delivery-badge')).toHaveTextContent('consumed')
   })
 
   it('selects a message when clicking message content in multi-select mode', () => {

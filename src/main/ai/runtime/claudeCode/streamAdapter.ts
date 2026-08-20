@@ -36,6 +36,7 @@ import type {
 } from '@anthropic-ai/sdk/resources/beta/messages'
 import { loggerService } from '@logger'
 import { extractSystemReminderBodies, SystemReminderTextFilter } from '@main/ai/steerReminder'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentSessionBackgroundTask } from '@shared/ai/agentSessionBackgroundTasks'
 import type { AgentSessionCompactionAnchorData } from '@shared/ai/agentSessionCompaction'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
@@ -1794,7 +1795,7 @@ export class ClaudeCodeStreamAdapter {
         parentToolCallId: sdkParentToolUseId
       },
       cherry: {
-        transport: 'claude-agent'
+        transport: AGENT_RUNTIME_CAPABILITIES['claude-code'].transport
       }
     }
   }
@@ -1810,7 +1811,7 @@ export class ClaudeCodeStreamAdapter {
     return {
       'claude-code': claudeCode,
       cherry: {
-        transport: 'claude-agent',
+        transport: AGENT_RUNTIME_CAPABILITIES['claude-code'].transport,
         tool: {
           type: state.toolType ?? 'provider',
           ...(state.displayName ? { name: state.displayName } : {}),

@@ -433,7 +433,6 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
         type: ch.type,
         name: ch.name,
         agentId: ch.agentId,
-        sessionId: ch.sessionId,
         workspace: ch.workspace,
         config: ch.config,
         isActive: ch.isActive,

@@ -1,13 +1,14 @@
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useTabs } from '@renderer/hooks/tab'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
-import { ipcApi, useIpcOn } from '@renderer/ipc'
+import { useNativeFullscreen } from '@renderer/hooks/useNativeFullscreen'
+import { ipcApi } from '@renderer/ipc'
 import { isMac } from '@renderer/utils/platform'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import { isSettingsPath } from '@shared/data/types/settingsPath'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 import Sidebar from '../app/Sidebar'
 import { createRecentRouteEntryFromTab, recordGlobalSearchRecentEntry } from '../GlobalSearch/globalSearchGroups'
@@ -52,7 +53,7 @@ export const AppShell = () => {
     () => (isSettingsTabActive && activeTab ? [activeTab] : tabs),
     [activeTab, isSettingsTabActive, tabs]
   )
-  const [isFullscreen, setIsFullscreen] = useState(false)
+  const isFullscreen = useNativeFullscreen()
 
   const handleCloseTab = useCallback(
     (id: string) => {
@@ -105,30 +106,6 @@ export const AppShell = () => {
       GlobalSearchPopup.hide()
     }
   }, [isSettingsTabActive])
-
-  useEffect(() => {
-    if (!isMac) return
-
-    let cancelled = false
-    void ipcApi
-      .request('window.is_full_screen')
-      .then((value) => {
-        if (!cancelled) {
-          setIsFullscreen(value)
-        }
-      })
-      .catch(() => undefined)
-
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  useIpcOn('window.fullscreen_changed', (value) => {
-    if (isMac) {
-      setIsFullscreen(value)
-    }
-  })
 
   // The compact minimum tracks the active tab's route here, at window level.
   // It must not live in the pages themselves: they sit inside <Activity>, whose

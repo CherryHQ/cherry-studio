@@ -240,7 +240,6 @@ describe('Cherry Assistant guide', () => {
         configuration: expect.objectContaining({
           avatar: '🧰',
           permission_mode: 'acceptEdits',
-          max_turns: 100,
           bootstrap_completed: true,
           builtin_role: 'support'
         }),

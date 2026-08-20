@@ -14,6 +14,7 @@ import {
   checkEntityImageSize,
   convertToBase64,
   getImageBlobFromSource,
+  IMAGE_CAPTURE_ATTRIBUTE,
   makeSvgSizeAdaptive,
   MAX_ENTITY_IMAGE_UPLOAD_BYTES,
   prepareEntityImageBytes,
@@ -280,6 +281,34 @@ describe('utils/image', () => {
       const result = await captureScrollable(ref)
 
       expect(result).toBe(finalCanvas)
+    })
+
+    it('marks the capture root during capture and removes the marker afterward', async () => {
+      const finalCanvas = { toDataURL: vi.fn(() => 'final') } as unknown as HTMLCanvasElement
+      const div = document.createElement('div')
+      Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
+
+      vi.mocked(htmlToImage.toCanvas).mockImplementation(async (node) => {
+        expect(node.hasAttribute(IMAGE_CAPTURE_ATTRIBUTE)).toBe(true)
+        return finalCanvas
+      })
+
+      const ref = { current: div } as React.RefObject<HTMLDivElement>
+      await expect(captureScrollable(ref)).resolves.toBe(finalCanvas)
+      expect(div.hasAttribute(IMAGE_CAPTURE_ATTRIBUTE)).toBe(false)
+    })
+
+    it('removes the capture marker when capture fails', async () => {
+      vi.mocked(htmlToImage.toCanvas).mockRejectedValue(new Error('capture failed'))
+
+      const div = document.createElement('div')
+      Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
+      const ref = { current: div } as React.RefObject<HTMLDivElement>
+
+      await expect(captureScrollable(ref)).rejects.toThrow('capture failed')
+      expect(div.hasAttribute(IMAGE_CAPTURE_ATTRIBUTE)).toBe(false)
     })
 
     it('should exclude HTML artifacts from image capture', async () => {

@@ -61,6 +61,7 @@ const {
   mockAiStreamHold,
   mockAgentSessionRuntime,
   mockAgentSessionHold,
+  mockAgentSessionDelivery,
   mockWindowManager,
   mockRelaunch,
   mockHashDbFile,
@@ -72,14 +73,17 @@ const {
   mockRandomUUID,
   mockZipExtract,
   mockZipClose,
+  mockZipEntries,
   MockStreamZipAsync
 } = vi.hoisted(() => {
   const mockChannelHold = { dispose: vi.fn() }
   const mockJobHold = { dispose: vi.fn() }
   const mockAiStreamHold = { dispose: vi.fn() }
   const mockAgentSessionHold = { dispose: vi.fn() }
+  const mockAgentSessionDeliveryHold = { dispose: vi.fn() }
   const mockZipExtract = vi.fn()
   const mockZipClose = vi.fn()
+  const mockZipEntries = vi.fn(async () => ({}))
   return {
     mockLogger: {
       debug: vi.fn(),
@@ -111,6 +115,11 @@ const {
       hasBusySessions: vi.fn(() => false)
     },
     mockAgentSessionHold,
+    mockAgentSessionDelivery: {
+      pause: vi.fn(() => mockAgentSessionDeliveryHold),
+      drainInFlight: vi.fn(async (): Promise<{ stragglerIds: string[] }> => ({ stragglerIds: [] })),
+      listActiveWork: vi.fn(() => [])
+    },
     mockWindowManager: { broadcastToType: vi.fn(), getWindowsByType: vi.fn(() => []) },
     mockRelaunch: vi.fn(),
     mockHashDbFile: vi.fn(),
@@ -122,8 +131,9 @@ const {
     mockRandomUUID: vi.fn(),
     mockZipExtract,
     mockZipClose,
+    mockZipEntries,
     MockStreamZipAsync: vi.fn(function () {
-      return { extract: mockZipExtract, close: mockZipClose }
+      return { entries: mockZipEntries, extract: mockZipExtract, close: mockZipClose }
     })
   }
 })
@@ -268,6 +278,9 @@ vi.mock('@application', () => ({
       }
       if (name === 'AgentSessionRuntimeService') {
         return mockAgentSessionRuntime
+      }
+      if (name === 'AgentSessionDeliveryService') {
+        return mockAgentSessionDelivery
       }
       throw new Error(`[MockApplication] Unknown service: ${name}`)
     }),
@@ -474,6 +487,8 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect(mockAiStreamManager.drainInFlight).toHaveBeenCalledWith({ timeoutMs: 30_000 })
     expect(mockAgentSessionRuntime.pause).toHaveBeenCalledOnce()
     expect(mockAgentSessionRuntime.drainInFlight).toHaveBeenCalledWith({ timeoutMs: 30_000 })
+    expect(mockAgentSessionDelivery.pause).toHaveBeenCalledOnce()
+    expect(mockAgentSessionDelivery.drainInFlight).toHaveBeenCalledWith({ timeoutMs: 30_000 })
     expect(mockJobManager.pause).toHaveBeenCalledOnce()
     expect(mockJobManager.drainInFlight).toHaveBeenCalledWith({ timeoutMs: 30_000 })
     expect(mockDbService.checkpointTruncate).toHaveBeenCalledTimes(2)
@@ -1204,6 +1219,19 @@ describe('BackupManager direct v2 data compatibility', () => {
     )
 
     expect(mockZipExtract).toHaveBeenCalledOnce()
+    expect(mockZipClose).toHaveBeenCalledOnce()
+    expect(mockWriteRestoreJournal).not.toHaveBeenCalled()
+  })
+
+  it('rejects a backup ZIP whose entries escape the extraction dir (zip-slip)', async () => {
+    mockZipEntries.mockResolvedValueOnce({ '../../../evil.sh': { size: 4 }, 'metadata.json': { size: 2 } })
+
+    await expect(backupManager.restore({} as Electron.IpcMainInvokeEvent, '/backup/evil.zip')).rejects.toThrow(
+      'zip-slip'
+    )
+
+    // The rejection happens before any entry is written and the archive is still closed.
+    expect(mockZipExtract).not.toHaveBeenCalled()
     expect(mockZipClose).toHaveBeenCalledOnce()
     expect(mockWriteRestoreJournal).not.toHaveBeenCalled()
   })

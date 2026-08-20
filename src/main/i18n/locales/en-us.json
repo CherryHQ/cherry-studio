@@ -9,6 +9,11 @@
       }
     },
     "session": {
+      "new": "New task",
+      "run_status": {
+        "busy": "The Agent Session is busy. Please try again shortly.",
+        "unavailable": "The Agent Session is no longer available."
+      },
       "workspace_status": {
         "inaccessible": "Workspace path is not accessible: {{path}}",
         "missing": "Workspace path does not exist: {{path}}",
@@ -79,7 +84,19 @@
     "zoomIn": "Zoom In",
     "zoomOut": "Zoom Out"
   },
+  "chat": {
+    "conversation": {
+      "new": "New Chat"
+    }
+  },
   "common": {
+    "channel_available_commands": "Available commands:",
+    "channel_command_processing_error": "⚠️ An error occurred while processing the command. Please try again later.",
+    "channel_message_processing_error": "⚠️ An error occurred while processing your message. Please try again later.",
+    "channel_new_session_created": "New session created.",
+    "channel_no_active_session": "No active session.",
+    "channel_session_compacted": "Session compacted.",
+    "channel_session_resolution_error": "⚠️ Failed to resolve a session for this agent. Please try again later.",
     "copy": "Copy",
     "cut": "Cut",
     "inspect": "Inspect",
@@ -104,6 +121,18 @@
     "save_as_html": "Save as HTML",
     "save_as_pdf": "Save as PDF",
     "save_file": "Save File",
+    "screen_capture_permission": {
+      "cancel": "Cancel",
+      "detail": "Grant Screen Recording permission to \"{{appName}}\" in System Settings > Privacy & Security > Screen Recording, then restart the app.",
+      "message": "Screen Recording permission is required to take screenshots.",
+      "open_settings": "Open System Settings",
+      "title": "Screen Recording Permission"
+    },
+    "screenshot_failed": {
+      "message": "The screenshot could not be taken.",
+      "ok": "OK",
+      "title": "Screenshot Failed"
+    },
     "select_folder": "Select Folder",
     "word_document": "Word Document"
   },
@@ -111,6 +140,16 @@
     "errors": {
       "document_size_limit_exceeded": "The current document parsing service requires files smaller than {{maxSize}}. Compress or split this file, then add it again.",
       "pdf_page_limit_exceeded": "This PDF exceeds the {{maxPages}}-page limit for the current document parsing service. Split the PDF manually, then add it again."
+    }
+  },
+  "notification": {
+    "action_required": {
+      "agent": "Agent needs your input",
+      "assistant": "Assistant needs your input"
+    },
+    "completion": {
+      "agent": "Agent task complete",
+      "assistant": "Assistant response complete"
     }
   },
   "openclaw": {

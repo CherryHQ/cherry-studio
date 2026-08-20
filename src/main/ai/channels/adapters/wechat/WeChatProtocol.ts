@@ -294,7 +294,9 @@ async function cdnDownloadFile(item: FileItem): Promise<Buffer | null> {
 // --------------- CDN upload ---------------
 
 const GetUploadUrlRespSchema = z.object({
-  upload_param: z.string()
+  upload_param: z.string().optional(),
+  /** 官方较新的响应字段：服务端直接返回完整上传 URL，存在时优先直接 POST（无需客户端拼接）。 */
+  upload_full_url: z.string().optional()
 })
 
 async function cdnUploadImage(
@@ -307,6 +309,10 @@ async function cdnUploadImage(
   const aeskey = randomBytes(16)
   const filekey = randomBytes(16).toString('hex')
   const md5Hash = await import('node:crypto').then((c) => c.createHash('md5').update(imageData).digest('hex'))
+  // 先加密再请求 getuploadurl：官方（Tencent/openclaw-weixin upload.ts）的 filesize 是
+  // PKCS7 密文大小（Math.ceil((rawsize+1)/16)*16），而非明文大小。直接复用 ciphertext.length
+  // 可保证与实际上传的密文严格一致——filesize 与上传体不一致是「文件已过期/已被清理」的最可疑根因。
+  const ciphertext = aesEcbEncrypt(imageData, aeskey)
 
   // Step 1: get upload URL
   const raw = await apiFetch(
@@ -318,7 +324,7 @@ async function cdnUploadImage(
       to_user_id: toUserId,
       rawsize: imageData.length,
       rawfilemd5: md5Hash,
-      filesize: imageData.length,
+      filesize: ciphertext.length,
       no_need_thumb: true,
       aeskey: aeskey.toString('hex'),
       base_info: buildBaseInfo()
@@ -327,11 +333,18 @@ async function cdnUploadImage(
     uin,
     15_000
   )
-  const { upload_param } = GetUploadUrlRespSchema.parse(raw)
+  const resp = GetUploadUrlRespSchema.parse(raw)
+  const uploadFullUrl = resp.upload_full_url?.trim()
+  const uploadParam = resp.upload_param
+  if (!uploadFullUrl && !uploadParam) {
+    logger.error('getuploadurl response missing both upload_full_url and upload_param')
+    return null
+  }
 
-  // Step 2: encrypt and upload
-  const ciphertext = aesEcbEncrypt(imageData, aeskey)
-  const uploadUrl = `${CDN_BASE_URL}/upload?encrypted_query_param=${encodeURIComponent(upload_param)}&filekey=${encodeURIComponent(filekey)}`
+  // Step 2: upload（官方优先直接 POST upload_full_url，否则回退用 upload_param 拼接）
+  const uploadUrl = uploadFullUrl
+    ? uploadFullUrl
+    : `${CDN_BASE_URL}/upload?encrypted_query_param=${encodeURIComponent(uploadParam!)}&filekey=${encodeURIComponent(filekey)}`
   const uploadResp = await net.fetch(uploadUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/octet-stream' },
@@ -832,7 +845,7 @@ export class WeixinBot {
           image_item: {
             media: {
               encrypt_query_param: uploaded.downloadEncryptedQueryParam,
-              aes_key: Buffer.from(uploaded.aeskey).toString('base64'),
+              aes_key: Buffer.from(uploaded.aeskey.toString('hex')).toString('base64'),
               encrypt_type: 1
             },
             mid_size: uploaded.ciphertextSize

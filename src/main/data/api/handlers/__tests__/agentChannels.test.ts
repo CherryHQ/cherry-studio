@@ -58,7 +58,6 @@ const mockChannel = {
   type: 'telegram',
   name: 'Test Channel',
   agentId: AGENT_ID,
-  sessionId: null,
   config: { bot_token: 'abc123', allowed_chat_ids: [] },
   isActive: true,
   activeChatIds: null,

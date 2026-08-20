@@ -1,9 +1,9 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { TraceMethod } from '@main/ai/observability'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isAbortError } from '@main/utils/error'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
-import { TraceMethod } from '@mcp-trace/trace-core'
 import type { WebSearchCapability, WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 import type {
   WebSearchExecutionConfig,
@@ -106,6 +106,7 @@ export class WebSearchService extends BaseService {
     }
 
     const fallbackProviderId = context.provider.id === 'fetch' ? 'jina' : 'fetch'
+    const allowPrivateNetwork = application.get('PreferenceService').get('app.fetch.allow_private_network')
     const fallbackCandidates = failedIndexes.flatMap((index) => {
       const input = context.inputs[index]
 
@@ -114,7 +115,7 @@ export class WebSearchService extends BaseService {
       }
 
       try {
-        return [{ index, input: sanitizeRemoteUrl(input) }]
+        return [{ index, input: sanitizeRemoteUrl(input, undefined, allowPrivateNetwork) }]
       } catch {
         return []
       }

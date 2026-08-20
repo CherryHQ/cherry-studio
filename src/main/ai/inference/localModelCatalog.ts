@@ -75,13 +75,13 @@ export const LOCAL_MODELS = {
 }
 
 /** Must match package.json's pinned `onnxruntime-node` dependency version. */
-export const ONNXRUNTIME_NODE_VERSION = '1.24.3'
+export const ONNXRUNTIME_NODE_VERSION = '1.25.1'
 
 /** sha256 of the whole `onnxruntime-node@{ONNXRUNTIME_NODE_VERSION}` npm tarball — the
  * per-platform native binary + shared lib(s) are extracted from this same verified stream,
  * so there is no separate sub-file checksum to track. Regenerate with:
  * `curl -sL https://registry.npmjs.org/onnxruntime-node/-/onnxruntime-node-{version}.tgz | shasum -a 256` */
-export const ONNXRUNTIME_TARBALL_SHA256 = 'aa1bb5fa261ea68de05dd53efbba210cd7adf2d2850f4c3a201054c74cc78040'
+export const ONNXRUNTIME_TARBALL_SHA256 = '582c44aac00414a5580fe9dcbebcb12c8bf1cc703ab3507203455db842e168f9'
 
 /** Platform+arch leaf inside the onnxruntime-node npm tarball; mirrors dist/binding.js's own
  * `bin/napi-v6/${process.platform}/${process.arch}` addressing. */
@@ -93,7 +93,7 @@ export interface OnnxRuntimeLeaf {
 /** No `darwin.x64` entry — onnxruntime-node ships no darwin-x64 binding (see `isDarwinX64`). */
 export const ONNXRUNTIME_LEAVES: Record<string, Record<string, OnnxRuntimeLeaf>> = {
   darwin: {
-    arm64: { binding: 'onnxruntime_binding.node', sharedLibs: ['libonnxruntime.1.24.3.dylib'] }
+    arm64: { binding: 'onnxruntime_binding.node', sharedLibs: ['libonnxruntime.1.25.1.dylib'] }
   },
   linux: {
     x64: { binding: 'onnxruntime_binding.node', sharedLibs: ['libonnxruntime.so.1'] },

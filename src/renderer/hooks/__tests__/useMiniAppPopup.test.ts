@@ -408,7 +408,8 @@ describe('useMiniAppPopup', () => {
       expect(MockUseCacheUtils.getCacheValue('mini_app.current_id')).toBe('top-nav-app')
       expect(mockTabs.openTab).toHaveBeenCalledWith('/app/mini-app/top-nav-app', {
         title: 'Top Nav App',
-        icon: 'icon'
+        icon: 'icon',
+        metadata: { transientMiniApp: true }
       })
     })
 
@@ -532,7 +533,8 @@ describe('useMiniAppPopup', () => {
       expect(MockUseCacheUtils.getCacheValue('mini_app.current_id')).toBe('cached-app')
       expect(mockTabs.openTab).toHaveBeenCalledWith('/app/mini-app/cached-app', {
         title: 'Cached App',
-        icon: 'icon'
+        icon: 'icon',
+        metadata: { transientMiniApp: true }
       })
     })
 

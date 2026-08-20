@@ -1,13 +1,6 @@
+import { BlurCancelPointerSensor } from '@cherrystudio/ui'
 import type { DragEndEvent, DragOverEvent, DragStartEvent, UniqueIdentifier } from '@dnd-kit/core'
-import {
-  DndContext,
-  DragOverlay,
-  KeyboardSensor,
-  PointerSensor,
-  useDroppable,
-  useSensor,
-  useSensors
-} from '@dnd-kit/core'
+import { DndContext, DragOverlay, KeyboardSensor, useDroppable, useSensor, useSensors } from '@dnd-kit/core'
 import { SortableContext, type SortingStrategy, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type React from 'react'
@@ -207,7 +200,7 @@ const DEFAULT_DRAG_CAPABILITIES: Required<GroupedSortableVirtualListDragCapabili
   itemCrossGroup: true
 }
 
-class ContextMenuSafePointerSensor extends PointerSensor {
+class ContextMenuSafePointerSensor extends BlurCancelPointerSensor {
   static activators = [
     {
       eventName: 'onPointerDown',
@@ -220,7 +213,7 @@ class ContextMenuSafePointerSensor extends PointerSensor {
         return true
       }
     }
-  ] as (typeof PointerSensor)['activators']
+  ] as (typeof BlurCancelPointerSensor)['activators']
 }
 
 function toItemSortableId(id: UniqueIdentifier) {
@@ -1278,7 +1271,7 @@ function GroupedSortableVirtualList<TGroup, TItem, THeader = TGroup, TFooter = u
     <DragOverlay dropAnimation={null}>
       {dragOverlayContent ? (
         <div
-          className="pointer-events-none"
+          className="pointer-events-none rounded-lg bg-background"
           style={{
             height: activeDragState?.overlaySize?.height,
             width: activeDragState?.overlaySize?.width

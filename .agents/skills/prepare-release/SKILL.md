@@ -127,7 +127,8 @@ Release notes are for **end users**, not developers. Exclude anything users don'
 
 1. **`package.json`**: Update the `"version"` field to the new version.
 2. **`electron-builder.yml`**: Replace the content under `releaseInfo.releaseNotes: |` with the generated notes. Preserve the 4-space YAML indentation for the block scalar content.
-3. **Built-in knowledge**: Run `pnpm build:builtin-knowledge` after updating the version. This refreshes `resources/builtin-agents/cherry-assistant/product-manifest.json` with the new package version. Never edit the generated manifest by hand.
+3. **`resources/cherry-studio/release-history.json`**: For a stable `x.y.z` release, add the version and its exact generated bilingual notes at the start of the array. Replace an existing entry for the same version instead of creating a duplicate. Leave this file unchanged for prereleases.
+4. **Built-in knowledge**: Run `pnpm build:builtin-knowledge` after updating the version. This refreshes `resources/builtin-agents/cherry-assistant/product-manifest.json` with the new package version. Never edit the generated manifest by hand.
 
 ### Step 5: Present for Review
 
@@ -145,7 +146,7 @@ Otherwise, ask the user to confirm before proceeding to Step 6.
 1. Create and push the release branch:
    ```bash
    git checkout -b release/v{version}
-   git add package.json electron-builder.yml resources/builtin-agents/cherry-assistant/product-manifest.json
+   git add package.json electron-builder.yml resources/cherry-studio/release-history.json resources/builtin-agents/cherry-assistant/product-manifest.json
    git commit -m "chore: release v{version}"
    git push -u origin release/v{version}
    ```
@@ -157,6 +158,7 @@ Otherwise, ask the user to confirm before proceeding to Step 6.
      - A list of included commits.
      - A review checklist:
        - [ ] Review generated release notes in `electron-builder.yml`
+       - [ ] Verify stable release notes are preserved in `resources/cherry-studio/release-history.json`
        - [ ] Verify version bump in `package.json`
        - [ ] Verify generated product manifest uses the release version
        - [ ] CI passes
@@ -171,6 +173,6 @@ Otherwise, ask the user to confirm before proceeding to Step 6.
 ## Constraints
 
 - Always read `electron-builder.yml` before modifying it to understand the current format.
-- Never modify files other than `package.json`, `electron-builder.yml`, and the generated `resources/builtin-agents/cherry-assistant/product-manifest.json`.
+- Never modify files other than `package.json`, `electron-builder.yml`, `resources/cherry-studio/release-history.json`, and the generated `resources/builtin-agents/cherry-assistant/product-manifest.json`.
 - Never push directly to `main`.
 - Always show the generated release notes to the user before creating the branch/PR (unless running in CI with no interactive user).

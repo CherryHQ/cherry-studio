@@ -1,8 +1,18 @@
 diff --git a/dist/index.js b/dist/index.js
-index 1c78d6f13caed5cbfa034d86f5e51729d540a1ba..b363ccfbe357b64a2b282a9ed54c11edd1ce23d8 100644
+index 1c78d6f13caed5cbfa034d86f5e51729d540a1ba..7d496e21ca8f8f135d44913529af24837d1dff1c 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -1753,13 +1753,15 @@ var modelMaxImagesPerCall = {
+@@ -1725,7 +1725,8 @@ var openaiImageResponseSchema = (0, import_provider_utils12.lazySchema)(
+       created: import_v48.z.number().nullish(),
+       data: import_v48.z.array(
+         import_v48.z.object({
+-          b64_json: import_v48.z.string(),
++          b64_json: import_v48.z.string().nullish(),
++          url: import_v48.z.string().nullish(),
+           revised_prompt: import_v48.z.string().nullish()
+         })
+       ),
+@@ -1753,13 +1754,15 @@ var modelMaxImagesPerCall = {
    "gpt-image-1": 10,
    "gpt-image-1-mini": 10,
    "gpt-image-1.5": 10,
@@ -19,7 +29,33 @@ index 1c78d6f13caed5cbfa034d86f5e51729d540a1ba..b363ccfbe357b64a2b282a9ed54c11ed
  ];
  function hasDefaultResponseFormat(modelId) {
    return defaultResponseFormatPrefixes.some(
-@@ -3778,6 +3780,11 @@ var openaiResponsesChunkSchema = (0, import_provider_utils26.lazySchema)(
+@@ -1843,7 +1846,11 @@ var OpenAIImageModel = class {
+         fetch: this.config.fetch
+       });
+       return {
+-        images: response2.data.map((item) => item.b64_json),
++        images: response2.data.flatMap((item) => {
++          if (typeof item.b64_json === "string") return [item.b64_json];
++          if (typeof item.url === "string") return [item.url];
++          return [];
++        }),
+         warnings,
+         usage: response2.usage != null ? {
+           inputTokens: (_e = response2.usage.input_tokens) != null ? _e : void 0,
+@@ -1899,7 +1906,11 @@ var OpenAIImageModel = class {
+       fetch: this.config.fetch
+     });
+     return {
+-      images: response.data.map((item) => item.b64_json),
++      images: response.data.flatMap((item) => {
++        if (typeof item.b64_json === "string") return [item.b64_json];
++        if (typeof item.url === "string") return [item.url];
++        return [];
++      }),
+       warnings,
+       usage: response.usage != null ? {
+         inputTokens: (_i = response.usage.input_tokens) != null ? _i : void 0,
+@@ -3778,6 +3789,11 @@ var openaiResponsesChunkSchema = (0, import_provider_utils26.lazySchema)(
          summary_index: import_v421.z.number(),
          delta: import_v421.z.string()
        }),
@@ -31,7 +67,7 @@ index 1c78d6f13caed5cbfa034d86f5e51729d540a1ba..b363ccfbe357b64a2b282a9ed54c11ed
        import_v421.z.object({
          type: import_v421.z.literal("response.reasoning_summary_part.done"),
          item_id: import_v421.z.string(),
-@@ -6105,6 +6112,17 @@ var OpenAIResponsesLanguageModel = class {
+@@ -6105,6 +6121,17 @@ var OpenAIResponsesLanguageModel = class {
                    }
                  }
                });
@@ -50,10 +86,20 @@ index 1c78d6f13caed5cbfa034d86f5e51729d540a1ba..b363ccfbe357b64a2b282a9ed54c11ed
                if (store) {
                  controller.enqueue({
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 3dee8855a0cff4c2d5bef4ff1cb2a92a48bd8c4f..268878bc11eb713bd31f075e4f346c9341f5dd81 100644
+index 3dee8855a0cff4c2d5bef4ff1cb2a92a48bd8c4f..0a26c7c33f5919f17cdfe40bdef89e8146ef9667 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
-@@ -1768,13 +1768,15 @@ var modelMaxImagesPerCall = {
+@@ -1740,7 +1740,8 @@ var openaiImageResponseSchema = lazySchema7(
+       created: z8.number().nullish(),
+       data: z8.array(
+         z8.object({
+-          b64_json: z8.string(),
++          b64_json: z8.string().nullish(),
++          url: z8.string().nullish(),
+           revised_prompt: z8.string().nullish()
+         })
+       ),
+@@ -1768,13 +1769,15 @@ var modelMaxImagesPerCall = {
    "gpt-image-1": 10,
    "gpt-image-1-mini": 10,
    "gpt-image-1.5": 10,
@@ -70,7 +116,33 @@ index 3dee8855a0cff4c2d5bef4ff1cb2a92a48bd8c4f..268878bc11eb713bd31f075e4f346c93
  ];
  function hasDefaultResponseFormat(modelId) {
    return defaultResponseFormatPrefixes.some(
-@@ -3855,6 +3857,11 @@ var openaiResponsesChunkSchema = lazySchema19(
+@@ -1858,7 +1861,11 @@ var OpenAIImageModel = class {
+         fetch: this.config.fetch
+       });
+       return {
+-        images: response2.data.map((item) => item.b64_json),
++        images: response2.data.flatMap((item) => {
++          if (typeof item.b64_json === "string") return [item.b64_json];
++          if (typeof item.url === "string") return [item.url];
++          return [];
++        }),
+         warnings,
+         usage: response2.usage != null ? {
+           inputTokens: (_e = response2.usage.input_tokens) != null ? _e : void 0,
+@@ -1914,7 +1921,11 @@ var OpenAIImageModel = class {
+       fetch: this.config.fetch
+     });
+     return {
+-      images: response.data.map((item) => item.b64_json),
++      images: response.data.flatMap((item) => {
++        if (typeof item.b64_json === "string") return [item.b64_json];
++        if (typeof item.url === "string") return [item.url];
++        return [];
++      }),
+       warnings,
+       usage: response.usage != null ? {
+         inputTokens: (_i = response.usage.input_tokens) != null ? _i : void 0,
+@@ -3855,6 +3866,11 @@ var openaiResponsesChunkSchema = lazySchema19(
          summary_index: z21.number(),
          delta: z21.string()
        }),
@@ -82,7 +154,7 @@ index 3dee8855a0cff4c2d5bef4ff1cb2a92a48bd8c4f..268878bc11eb713bd31f075e4f346c93
        z21.object({
          type: z21.literal("response.reasoning_summary_part.done"),
          item_id: z21.string(),
-@@ -6184,6 +6191,17 @@ var OpenAIResponsesLanguageModel = class {
+@@ -6184,6 +6200,17 @@ var OpenAIResponsesLanguageModel = class {
                    }
                  }
                });
@@ -101,10 +173,20 @@ index 3dee8855a0cff4c2d5bef4ff1cb2a92a48bd8c4f..268878bc11eb713bd31f075e4f346c93
                if (store) {
                  controller.enqueue({
 diff --git a/dist/internal/index.js b/dist/internal/index.js
-index 27527ce4b6c232e26c4bed988292d8fdd5dbbb5f..488ea3c9be006ba1a3f980743c36ed6e2f314180 100644
+index 27527ce4b6c232e26c4bed988292d8fdd5dbbb5f..9426ec4224219765594253052dd593d5aaa38489 100644
 --- a/dist/internal/index.js
 +++ b/dist/internal/index.js
-@@ -1780,13 +1780,15 @@ var modelMaxImagesPerCall = {
+@@ -1752,7 +1752,8 @@ var openaiImageResponseSchema = (0, import_provider_utils12.lazySchema)(
+       created: import_v48.z.number().nullish(),
+       data: import_v48.z.array(
+         import_v48.z.object({
+-          b64_json: import_v48.z.string(),
++          b64_json: import_v48.z.string().nullish(),
++          url: import_v48.z.string().nullish(),
+           revised_prompt: import_v48.z.string().nullish()
+         })
+       ),
+@@ -1780,13 +1781,15 @@ var modelMaxImagesPerCall = {
    "gpt-image-1": 10,
    "gpt-image-1-mini": 10,
    "gpt-image-1.5": 10,
@@ -121,7 +203,33 @@ index 27527ce4b6c232e26c4bed988292d8fdd5dbbb5f..488ea3c9be006ba1a3f980743c36ed6e
  ];
  function hasDefaultResponseFormat(modelId) {
    return defaultResponseFormatPrefixes.some(
-@@ -3720,6 +3722,11 @@ var openaiResponsesChunkSchema = (0, import_provider_utils24.lazySchema)(
+@@ -1870,7 +1873,11 @@ var OpenAIImageModel = class {
+         fetch: this.config.fetch
+       });
+       return {
+-        images: response2.data.map((item) => item.b64_json),
++        images: response2.data.flatMap((item) => {
++          if (typeof item.b64_json === "string") return [item.b64_json];
++          if (typeof item.url === "string") return [item.url];
++          return [];
++        }),
+         warnings,
+         usage: response2.usage != null ? {
+           inputTokens: (_e = response2.usage.input_tokens) != null ? _e : void 0,
+@@ -1926,7 +1933,11 @@ var OpenAIImageModel = class {
+       fetch: this.config.fetch
+     });
+     return {
+-      images: response.data.map((item) => item.b64_json),
++      images: response.data.flatMap((item) => {
++        if (typeof item.b64_json === "string") return [item.b64_json];
++        if (typeof item.url === "string") return [item.url];
++        return [];
++      }),
+       warnings,
+       usage: response.usage != null ? {
+         inputTokens: (_i = response.usage.input_tokens) != null ? _i : void 0,
+@@ -3720,6 +3731,11 @@ var openaiResponsesChunkSchema = (0, import_provider_utils24.lazySchema)(
          summary_index: import_v417.z.number(),
          delta: import_v417.z.string()
        }),
@@ -133,7 +241,7 @@ index 27527ce4b6c232e26c4bed988292d8fdd5dbbb5f..488ea3c9be006ba1a3f980743c36ed6e
        import_v417.z.object({
          type: import_v417.z.literal("response.reasoning_summary_part.done"),
          item_id: import_v417.z.string(),
-@@ -6366,6 +6373,17 @@ var OpenAIResponsesLanguageModel = class {
+@@ -6366,6 +6382,17 @@ var OpenAIResponsesLanguageModel = class {
                    }
                  }
                });
@@ -152,10 +260,20 @@ index 27527ce4b6c232e26c4bed988292d8fdd5dbbb5f..488ea3c9be006ba1a3f980743c36ed6e
                if (store) {
                  controller.enqueue({
 diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
-index db50beda01459008c836cd5648e024340fe31e90..5dd870eb91e2b9487c818d75476214cb8df5a965 100644
+index db50beda01459008c836cd5648e024340fe31e90..c5e7e54d831fbac316ee5c8f7c503891ba0062df 100644
 --- a/dist/internal/index.mjs
 +++ b/dist/internal/index.mjs
-@@ -1760,13 +1760,15 @@ var modelMaxImagesPerCall = {
+@@ -1732,7 +1732,8 @@ var openaiImageResponseSchema = lazySchema7(
+       created: z8.number().nullish(),
+       data: z8.array(
+         z8.object({
+-          b64_json: z8.string(),
++          b64_json: z8.string().nullish(),
++          url: z8.string().nullish(),
+           revised_prompt: z8.string().nullish()
+         })
+       ),
+@@ -1760,13 +1761,15 @@ var modelMaxImagesPerCall = {
    "gpt-image-1": 10,
    "gpt-image-1-mini": 10,
    "gpt-image-1.5": 10,
@@ -172,7 +290,33 @@ index db50beda01459008c836cd5648e024340fe31e90..5dd870eb91e2b9487c818d75476214cb
  ];
  function hasDefaultResponseFormat(modelId) {
    return defaultResponseFormatPrefixes.some(
-@@ -3746,6 +3748,11 @@ var openaiResponsesChunkSchema = lazySchema15(
+@@ -1850,7 +1853,11 @@ var OpenAIImageModel = class {
+         fetch: this.config.fetch
+       });
+       return {
+-        images: response2.data.map((item) => item.b64_json),
++        images: response2.data.flatMap((item) => {
++          if (typeof item.b64_json === "string") return [item.b64_json];
++          if (typeof item.url === "string") return [item.url];
++          return [];
++        }),
+         warnings,
+         usage: response2.usage != null ? {
+           inputTokens: (_e = response2.usage.input_tokens) != null ? _e : void 0,
+@@ -1906,7 +1913,11 @@ var OpenAIImageModel = class {
+       fetch: this.config.fetch
+     });
+     return {
+-      images: response.data.map((item) => item.b64_json),
++      images: response.data.flatMap((item) => {
++        if (typeof item.b64_json === "string") return [item.b64_json];
++        if (typeof item.url === "string") return [item.url];
++        return [];
++      }),
+       warnings,
+       usage: response.usage != null ? {
+         inputTokens: (_i = response.usage.input_tokens) != null ? _i : void 0,
+@@ -3746,6 +3757,11 @@ var openaiResponsesChunkSchema = lazySchema15(
          summary_index: z17.number(),
          delta: z17.string()
        }),
@@ -184,7 +328,7 @@ index db50beda01459008c836cd5648e024340fe31e90..5dd870eb91e2b9487c818d75476214cb
        z17.object({
          type: z17.literal("response.reasoning_summary_part.done"),
          item_id: z17.string(),
-@@ -6422,6 +6429,17 @@ var OpenAIResponsesLanguageModel = class {
+@@ -6422,6 +6438,17 @@ var OpenAIResponsesLanguageModel = class {
                    }
                  }
                });
@@ -202,6 +346,50 @@ index db50beda01459008c836cd5648e024340fe31e90..5dd870eb91e2b9487c818d75476214cb
              } else if (value.type === "response.reasoning_summary_part.done") {
                if (store) {
                  controller.enqueue({
+diff --git a/src/image/openai-image-api.ts b/src/image/openai-image-api.ts
+index de779ca46aa2102cc5bef4a733ef6b6807260731..14b724785e15ab95f4cd2ff4d35d35c2ca7605c7 100644
+--- a/src/image/openai-image-api.ts
++++ b/src/image/openai-image-api.ts
+@@ -9,7 +9,8 @@ export const openaiImageResponseSchema = lazySchema(() =>
+       created: z.number().nullish(),
+       data: z.array(
+         z.object({
+-          b64_json: z.string(),
++          b64_json: z.string().nullish(),
++          url: z.string().nullish(),
+           revised_prompt: z.string().nullish(),
+         }),
+       ),
+diff --git a/src/image/openai-image-model.ts b/src/image/openai-image-model.ts
+index d456d6398aefb5f78650780867bba92427b1d542..baaade4152183264b1af2b1ac2907bbb7adb4edd 100644
+--- a/src/image/openai-image-model.ts
++++ b/src/image/openai-image-model.ts
+@@ -116,7 +116,11 @@ export class OpenAIImageModel implements ImageModelV3 {
+       });
+ 
+       return {
+-        images: response.data.map(item => item.b64_json),
++        images: response.data.flatMap(item => {
++          if (typeof item.b64_json === 'string') return [item.b64_json];
++          if (typeof item.url === 'string') return [item.url];
++          return [];
++        }),
+         warnings,
+         usage:
+           response.usage != null
+@@ -178,7 +182,11 @@ export class OpenAIImageModel implements ImageModelV3 {
+     });
+ 
+     return {
+-      images: response.data.map(item => item.b64_json),
++      images: response.data.flatMap(item => {
++        if (typeof item.b64_json === 'string') return [item.b64_json];
++        if (typeof item.url === 'string') return [item.url];
++        return [];
++      }),
+       warnings,
+       usage:
+         response.usage != null
 diff --git a/src/responses/openai-responses-api.ts b/src/responses/openai-responses-api.ts
 index 53a3f242d81d0b52d9126b0f4580a30778373606..715f51cb5d5cc3a2f5cbd537e8d508936d7cb2df 100644
 --- a/src/responses/openai-responses-api.ts

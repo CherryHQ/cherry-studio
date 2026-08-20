@@ -6,6 +6,13 @@
   },
   "definitions": [
     {
+      "targetKey": "app.fetch.allow_private_network",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Allow web fetch tools to reach local and private network addresses (v2 new feature, no v1 source)"
+    },
+    {
       "targetKey": "app.power.prevent_sleep_when_busy",
       "type": "boolean",
       "defaultValue": false,
@@ -684,6 +691,44 @@
       "defaultValue": false,
       "status": "classified",
       "description": "Notes line-break rendering mode: a single newline renders as a line break (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "chat.input.steer_shortcut",
+      "type": "PreferenceTypes.ComposerShortcut",
+      "defaultValue": "VALUE: null",
+      "status": "classified",
+      "description": "A second send-style shortcut that, in Agent mode while the session is streaming, sends the draft straight into the running turn instead of queueing it. No stored default: the effective default is platform-dependent (Command+Enter on macOS, Ctrl+Enter elsewhere) and resolved at read time. Send / newline / steer shortcuts are mutually exclusive."
+    },
+    {
+      "targetKey": "chat.input.newline_shortcut",
+      "type": "PreferenceTypes.ComposerShortcut",
+      "defaultValue": "VALUE: null",
+      "status": "classified",
+      "description": "The composer shortcut that inserts a line break. No stored default: resolved at read time to Shift+Enter, or Enter when the send shortcut already takes Shift+Enter. Send / newline / inject shortcuts are mutually exclusive."
+    },
+    {
+      "targetKey": "feature.screenshot.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Whether interactive screen capture is enabled"
+    },
+    {
+      "targetKey": "feature.screenshot.auto_ocr",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Whether OCR runs automatically after a selection is made"
+    },
+    {
+      "targetKey": "shortcut.screenshot.capture",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": ["CommandOrControl", "Shift", "A"],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: screenshot.capture (unified command system)"
     }
   ]
 }

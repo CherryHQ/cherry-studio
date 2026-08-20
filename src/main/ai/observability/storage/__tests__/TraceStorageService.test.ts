@@ -4,14 +4,14 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle'
-import { convertSpanToSpanEntity } from '@mcp-trace/trace-core/core/spanConvert'
-import type { SpanEntity } from '@mcp-trace/trace-core/types/config'
 import { SpanStatusCode } from '@opentelemetry/api'
 import type { ReadableSpan, TimedEvent } from '@opentelemetry/sdk-trace-base'
+import type { SpanEntity } from '@shared/data/types/trace'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { convertSpanToSpanEntity } from '../../core/spanConvert'
 import { TraceSpanStore } from '../TraceSpanStore'
 import { TraceStorageService } from '../TraceStorageService'
 
@@ -178,6 +178,20 @@ describe('TraceStorageService', () => {
     }
 
     expect((await service.getSpans('topic-a', 'trace-a')).map((item) => item.id).sort()).toEqual(['first', 'second'])
+  })
+
+  // S12: trace JSONL holds raw prompts/API bodies (dev-gated plaintext by design) and
+  // Electron's userData can be world-readable on Linux, so artifacts must be owner-only.
+  it.skipIf(process.platform === 'win32')('writes owner-only trace artifacts (file 0600, topic dir 0700)', async () => {
+    await service._doInit()
+
+    service.saveEntity(span({ id: 'secret-ish', traceId: 'trace-a', topicId: 'topic-a' }))
+    await service.saveSpans('topic-a')
+
+    const fileStats = await fs.stat(path.join(traceDir, 'topic-a', 'trace-a'))
+    expect(fileStats.mode & 0o777).toBe(0o600)
+    const dirStats = await fs.stat(path.join(traceDir, 'topic-a'))
+    expect(dirStats.mode & 0o777).toBe(0o700)
   })
 
   // The OTel createSpan/endSpan path is the live source of cached spans. If endSpan does not

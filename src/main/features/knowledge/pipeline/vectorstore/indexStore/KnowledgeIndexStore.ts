@@ -1,6 +1,12 @@
 import { loggerService } from '@logger'
+import {
+  extractFtsTokens,
+  extractShortTerms,
+  needsLikeFallback,
+  toFtsLikePattern,
+  toFtsMatchQuery
+} from '@main/utils/trigramFtsQuery'
 
-import { extractFtsTokens, extractShortTerms, needsLikeFallback, toFtsLikePattern, toFtsMatchQuery } from './ftsQuery'
 import { computeSearchTextId, computeUnitId, hashContentText, hashEmbeddingText } from './hashing'
 import { hasAnyMaterial as indexHasAnyMaterial } from './indexMeta'
 import type {

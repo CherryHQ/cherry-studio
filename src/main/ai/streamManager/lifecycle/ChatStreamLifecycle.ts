@@ -2,17 +2,22 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import type { ActiveExecution, TopicStreamStatus } from '@shared/ai/transport'
 
-import type { ActiveStream } from '../types'
+import type { ActiveStream, ConversationCompletedEvent } from '../types'
 import type { StreamLifecycle } from './StreamLifecycle'
 
 const logger = loggerService.withContext('ChatStreamLifecycle')
 
 /**
  * Chat strategy: cross-window status broadcast (`topic.stream.statuses.<topicId>`),
- * attach re-enabled, 30 s grace-period before eviction.
+ * main-only persistent-conversation completion event, attach re-enabled, and a
+ * 30 s grace-period before eviction.
  */
-export function createChatStreamLifecycle(gracePeriodMs: number): StreamLifecycle {
+export function createChatStreamLifecycle(
+  gracePeriodMs: number,
+  onConversationCompleted: (event: ConversationCompletedEvent) => void
+): StreamLifecycle {
   const broadcast = (stream: ActiveStream, status: TopicStreamStatus) => {
+    const completedAt = status === 'done' ? Date.now() : undefined
     try {
       const activeExecutions: ActiveExecution[] = []
       const awaitingApprovalAnchors: ActiveExecution[] = []
@@ -33,7 +38,7 @@ export function createChatStreamLifecycle(gracePeriodMs: number): StreamLifecycl
       const cacheService = application.get('CacheService')
       const key = `topic.stream.statuses.${stream.topicId}` as const
       const prev = cacheService.getShared(key)
-      const lastCompletedAt = status === 'done' ? Date.now() : prev?.lastCompletedAt
+      const lastCompletedAt = completedAt ?? prev?.lastCompletedAt
       cacheService.setShared(key, {
         status,
         turnId: stream.turnId,
@@ -46,6 +51,7 @@ export function createChatStreamLifecycle(gracePeriodMs: number): StreamLifecycl
       // must not turn a successfully started stream into a failed IPC response.
       logger.warn('Failed to broadcast chat stream status', { topicId: stream.topicId, status, error })
     }
+    return completedAt
   }
 
   return {
@@ -63,7 +69,14 @@ export function createChatStreamLifecycle(gracePeriodMs: number): StreamLifecycl
       broadcast(stream, stream.status)
     },
     onTerminal(stream) {
-      broadcast(stream, stream.status)
+      const completedAt = broadcast(stream, stream.status)
+      if (stream.status === 'done' && completedAt !== undefined && stream.isPersistentConversation) {
+        onConversationCompleted({
+          topicId: stream.topicId,
+          turnId: stream.turnId,
+          completedAt
+        })
+      }
     },
     canAttach() {
       return true

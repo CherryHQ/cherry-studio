@@ -61,19 +61,20 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * Composer rebuilds text parts instead of patching them in place. A valid Cherry composer
- * snapshot on a single text part can be rebuilt from the edited draft, and empty references carry
- * no content. Every other metadata field is opaque state that cannot be safely attached to changed
- * text (for example, Gemini thought signatures), so editing must be rejected instead of dropping it.
+ * Provider state the model must receive back verbatim, such as a Gemini thought signature.
+ * It is bound to the exact text it was issued for, so it cannot follow an edited draft.
+ * The one-level scan is verified against Gemini's flat `google.thoughtSignature`; a provider
+ * that nests such state deeper would fail open, so deepen the scan when one appears.
  */
-function hasUnroundtrippableTextMetadata(part: TextMessagePart, textPartCount: number): boolean {
-  const providerMetadata: unknown = part.providerMetadata
-  if (providerMetadata === undefined) return false
-  if (!isRecord(providerMetadata)) return true
-  if (Object.keys(providerMetadata).length === 0) return false
-  if (Object.keys(providerMetadata).some((provider) => provider !== 'cherry')) return true
+function hasEchoBackProviderState(value: unknown): boolean {
+  return isRecord(value) && Object.keys(value).some((key) => /signature/i.test(key))
+}
 
-  const cherry = providerMetadata.cherry
+/**
+ * A valid Cherry composer snapshot on a single text part can be rebuilt from the edited draft, and
+ * empty references carry no content. Every other Cherry field is unknown to Composer.
+ */
+function hasUnroundtrippableCherryMetadata(cherry: unknown, part: TextMessagePart, textPartCount: number): boolean {
   if (!isRecord(cherry)) return cherry !== undefined
 
   for (const [key, value] of Object.entries(cherry)) {
@@ -91,6 +92,23 @@ function hasUnroundtrippableTextMetadata(part: TextMessagePart, textPartCount: n
   }
 
   return false
+}
+
+/**
+ * Composer rebuilds text parts instead of patching them in place. Provider metadata derived from
+ * the text — response item ids, citations, cache hints — is dropped along with the old text, so
+ * only echo-back state has to reject the edit.
+ */
+function hasUnroundtrippableTextMetadata(part: TextMessagePart, textPartCount: number): boolean {
+  const providerMetadata: unknown = part.providerMetadata
+  if (providerMetadata === undefined) return false
+  if (!isRecord(providerMetadata)) return true
+
+  return Object.entries(providerMetadata).some(([provider, value]) =>
+    provider === 'cherry'
+      ? hasUnroundtrippableCherryMetadata(value, part, textPartCount)
+      : hasEchoBackProviderState(value)
+  )
 }
 
 /**

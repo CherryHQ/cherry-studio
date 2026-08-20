@@ -103,6 +103,19 @@ describe('McpServerService', () => {
     it('should throw validation error when name is whitespace only', () => {
       expect(() => mcpServerService.create({ name: '   ' })).toThrow(DataApiError)
     })
+
+    it('rejects an enabled QVeris server without an API key', () => {
+      expect(() =>
+        mcpServerService.create({
+          name: '@cherry/qveris',
+          type: 'inMemory',
+          env: { QVERIS_API_KEY: '' },
+          isActive: true
+        })
+      ).toThrow(DataApiError)
+
+      expect(dbh.db.select().from(mcpServerTable).all()).toEqual([])
+    })
   })
 
   describe('createMany', () => {
@@ -168,6 +181,16 @@ describe('McpServerService', () => {
         err = e
       }
       expect(err).toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
+    })
+
+    it('requires an API key before enabling QVeris', async () => {
+      await seedServer({ name: '@cherry/qveris', type: 'inMemory', env: { QVERIS_API_KEY: '' }, isActive: false })
+
+      expect(() => mcpServerService.update('srv-1', { isActive: true })).toThrow(DataApiError)
+      expect(mcpServerService.getById('srv-1').isActive).toBe(false)
+
+      mcpServerService.update('srv-1', { env: { QVERIS_API_KEY: 'qveris-test-key' } })
+      expect(mcpServerService.update('srv-1', { isActive: true }).isActive).toBe(true)
     })
   })
 

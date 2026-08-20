@@ -107,7 +107,6 @@ describe('AgentChannelWorkflowService.updateChannel — DB rollback integration'
     expect(after.name).toBe(snapshot.name)
     expect(after.type).toBe(snapshot.type)
     expect(after.agentId).toBe(snapshot.agentId)
-    expect(after.sessionId).toBe(snapshot.sessionId)
     expect(after.workspace).toEqual(snapshot.workspace)
     expect(after.config).toEqual(snapshot.config)
     expect(after.isActive).toBe(snapshot.isActive)
@@ -206,7 +205,7 @@ describe('AgentChannelWorkflowService.updateChannel — DB rollback integration'
     const created = await agentChannelWorkflowService.createChannel({
       type: 'telegram',
       name: 'Null-Field Channel',
-      // agentId / sessionId / activeChatIds / permissionMode left NULL
+      // agentId / activeChatIds / permissionMode left NULL
       workspace: { type: 'system' },
       config: TELEGRAM_CONFIG,
       isActive: true

@@ -92,6 +92,10 @@ vi.mock('react-i18next', () => ({
       if (key === 'message.tools.processed') return 'Processed'
       if (key === 'message.tools.error') return 'Error'
       if (key === 'message.tools.thinkingHeader') return 'Thinking...'
+      if (key === 'message.tools.sessionCreate.created') return 'Session created'
+      if (key === 'message.tools.sessionCreate.open') return 'Open session'
+      if (key === 'message.tools.sessionSend.open') return 'Open session'
+      if (key === 'message.tools.sessionSend.sent') return 'Sent to'
       if (key === 'common.preview') return 'Preview'
       if (key === 'common.close') return 'Close'
       if (key === 'common.expand') return 'Expand'
@@ -1070,7 +1074,7 @@ describe('MessagePartsRenderer', () => {
       })
     })
 
-    it('waits for the turn and smooth text playout to finish before rendering report artifacts', () => {
+    it('waits for the turn and smooth text playout to finish before rendering result cards', () => {
       let clock = 0
       let rafId = 0
       let rafCallbacks = new Map<number, FrameRequestCallback>()
@@ -1102,17 +1106,28 @@ describe('MessagePartsRenderer', () => {
         input: { artifacts: [{ path: 'dist/report.md', description: 'Report' }] },
         output: {}
       } as unknown as CherryMessagePart
+      const sessionPart = {
+        ...toolPart('create-session', 'output-available', 'session_create'),
+        input: { title: 'Research session' },
+        output: {
+          content: JSON.stringify({ ok: true, sessionId: 'session-research' }),
+          metadata: { type: 'mcp', serverId: 'cherry-tools', serverName: 'cherry-tools' }
+        }
+      } as unknown as CherryMessagePart
       const initialParts = [
         reportPart,
+        sessionPart,
         { type: 'text', text: 'A', state: 'streaming' }
       ] as unknown as CherryMessagePart[]
       const { rerender } = renderParts(initialParts, pendingMessage)
 
       expect(screen.queryByText('report.md')).toBeNull()
+      expect(screen.queryByTestId('session-result-cards')).toBeNull()
 
       const finalText = `A${'b'.repeat(100)}`
       const finalParts = [
         reportPart,
+        sessionPart,
         { type: 'text', text: finalText, state: 'done' }
       ] as unknown as CherryMessagePart[]
       rerender(renderPartsTree(finalParts, pendingMessage))
@@ -1122,10 +1137,12 @@ describe('MessagePartsRenderer', () => {
       rerender(renderPartsTree(finalParts, msg({ status: 'success' })))
 
       expect(screen.queryByText('report.md')).toBeNull()
+      expect(screen.queryByTestId('session-result-cards')).toBeNull()
 
       act(() => tick(50))
 
       expect(screen.getByText('report.md')).toBeInTheDocument()
+      expect(screen.getByTestId('session-result-cards')).toBeInTheDocument()
     })
 
     it('keeps the usingTools placeholder when report_artifacts is the only active part, then shows the card', () => {
@@ -1536,6 +1553,35 @@ describe('MessagePartsRenderer', () => {
       expect(screen.queryByTestId('tool-history-content')).toBeNull()
       expect(screen.queryByTestId('mock-tool-group-content')).toBeNull()
       expect(screen.getByText('final answer')).toBeInTheDocument()
+    })
+
+    it('places a completed session action after the final answer and opens it directly', () => {
+      const navigateToRoute = vi.fn()
+      renderParts(
+        [
+          {
+            ...toolPart('create-session', 'output-available', 'session_create'),
+            input: { title: 'Research session' },
+            output: {
+              content: JSON.stringify({ ok: true, sessionId: 'session-research' }),
+              metadata: { type: 'mcp', serverId: 'cherry-tools', serverName: 'cherry-tools' }
+            }
+          },
+          { type: 'text', text: 'The new session is ready.' }
+        ] as unknown as CherryMessagePart[],
+        msg(),
+        { navigateToRoute }
+      )
+
+      const answer = screen.getByText('The new session is ready.')
+      const resultCards = screen.getByTestId('session-result-cards')
+      expectNodeBefore(answer, resultCards)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Open session: Research session' }))
+      expect(navigateToRoute).toHaveBeenCalledWith({
+        path: '/app/agents',
+        query: { sessionId: 'session-research' }
+      })
     })
 
     it('keeps the final text node mounted across the active-to-terminal frame', () => {

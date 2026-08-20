@@ -381,7 +381,7 @@ describe('OpenClawService gateway status state machine', () => {
       expect(sanitized).not.toContain('bearer-sensitive-value')
       expect(sanitized).not.toContain(basicSecret)
       expect(sanitized).not.toContain(customSecret)
-      expect(sanitized).toContain('[REDACTED]')
+      expect(sanitized).toContain('<redacted>')
       expect(sanitized.length).toBeLessThanOrEqual(2000)
     })
 

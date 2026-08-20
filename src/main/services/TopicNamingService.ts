@@ -143,9 +143,6 @@ function buildStructuredConversation(messages: StructuredMessage[]): string {
 export class TopicNamingService {
   maybeRenameFromFirstUserMessage(topicId: string, userMessageId: string): void {
     try {
-      const enabled = application.get('PreferenceService').get('topic.naming.enabled')
-      if (!enabled) return
-
       const topic = this.getTopic(topicId)
       if (!topic || topic.isNameManuallyEdited) return
       if (!canAutoRenameTopicName(topic.name)) return
@@ -234,9 +231,6 @@ export class TopicNamingService {
    */
   maybeRenameAgentSessionFromFirstUserMessage(sessionId: string, userMessage: MessageData | string | undefined): void {
     try {
-      const enabled = application.get('PreferenceService').get('topic.naming.enabled')
-      if (!enabled) return
-
       const session = this.getAgentSession(sessionId, 'initial')
       if (session?.isNameManuallyEdited) return
       if (!session || !canAutoRenameAgentSessionName(session.name)) return

@@ -18,7 +18,7 @@ import { PreferencesMigrator } from '../PreferencesMigrator'
 
 /** A valid 1×1 PNG so `sharp` can transcode the avatar to WebP during migration. */
 const PNG_1X1 =
-  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC'
 
 interface SeedSources {
   redux?: Record<string, unknown>

@@ -1,4 +1,12 @@
-import { Badge, Button, ConfirmDialog, HoverCard, HoverCardContent, HoverCardTrigger, Tooltip } from '@cherrystudio/ui'
+import {
+  Button,
+  CircularProgress,
+  ConfirmDialog,
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+  Tooltip
+} from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { AgentContextUsageSummary } from '@renderer/components/chat/agent/AgentContextUsageSummary'
 import MessageList from '@renderer/components/chat/messages/MessageList'
@@ -32,6 +40,7 @@ import {
 } from '@renderer/components/chat/panes/useArtifactFileTreeModel'
 import { EmptyState } from '@renderer/components/chat/primitives'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
+import ComposerFloatingCapsule from '@renderer/components/composer/ComposerFloatingCapsule'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
@@ -1018,10 +1027,97 @@ function useAgentRightPaneStatus(active = true): AgentRightPaneStatus {
   return status
 }
 
+export function AgentTaskProgressCapsule() {
+  const { t } = useTranslation()
+  const runtime = useAgentRightPaneRuntime()
+  const status = useAgentRightPaneStatus()
+
+  if (status.totalTaskCount === 0 || status.completedTaskCount === status.totalTaskCount) return null
+
+  const hasActiveAssistantRun = runtime.messages.some(
+    (message) => message.role === 'assistant' && message.metadata?.status === 'pending'
+  )
+  const explicitActiveTaskIndex = status.tasks.findIndex((task) => task.status === 'in_progress')
+  const inferredActiveTaskIndex =
+    hasActiveAssistantRun && explicitActiveTaskIndex < 0
+      ? status.tasks.findIndex((task) => task.status === 'pending')
+      : -1
+  const currentTaskIndex =
+    explicitActiveTaskIndex >= 0
+      ? explicitActiveTaskIndex
+      : inferredActiveTaskIndex >= 0
+        ? inferredActiveTaskIndex
+        : status.tasks.findIndex((task) => task.status !== 'completed')
+  const inferredActiveTaskId = inferredActiveTaskIndex >= 0 ? status.tasks[inferredActiveTaskIndex]?.id : undefined
+  const currentTaskNumber = currentTaskIndex >= 0 ? currentTaskIndex + 1 : status.completedTaskCount + 1
+  const progressPercentage = (status.completedTaskCount / status.totalTaskCount) * 100
+  const progressLabel = t('agent.right_pane.status.task_count', {
+    completed: status.completedTaskCount,
+    total: status.totalTaskCount
+  })
+  const compactProgressLabel = t('agent.right_pane.status.task_progress_compact', {
+    current: currentTaskNumber,
+    total: status.totalTaskCount
+  })
+
+  return (
+    <div className="pointer-events-none flex w-full justify-center px-4 pb-2" data-testid="agent-task-progress-capsule">
+      <HoverCard openDelay={120} closeDelay={100}>
+        <HoverCardTrigger asChild>
+          <ComposerFloatingCapsule tabIndex={0} className="gap-1.5 px-2.5">
+            <span
+              role="progressbar"
+              aria-label={progressLabel}
+              aria-valuemin={0}
+              aria-valuemax={status.totalTaskCount}
+              aria-valuenow={status.completedTaskCount}
+              className="flex shrink-0 items-center justify-center">
+              <CircularProgress
+                value={progressPercentage}
+                size={17}
+                strokeWidth={2}
+                className="stroke-border"
+                progressClassName="stroke-info transition-[stroke-dashoffset] duration-300 motion-reduce:transition-none"
+              />
+            </span>
+            <span aria-live="polite" className="tabular-nums">
+              {compactProgressLabel}
+            </span>
+          </ComposerFloatingCapsule>
+        </HoverCardTrigger>
+        <HoverCardContent
+          align="center"
+          side="top"
+          sideOffset={8}
+          className="w-64 max-w-[calc(100vw-2rem)] overflow-hidden p-2.5 shadow-lg">
+          <Scrollbar className="max-h-64" data-testid="agent-task-progress-details">
+            <ul className="space-y-1 pr-1">
+              {status.tasks.map((task) => {
+                const displayStatus = task.id === inferredActiveTaskId ? 'in_progress' : task.status
+                return (
+                  <li key={task.id} className="flex min-w-0 items-start gap-2 rounded-md px-1.5 py-1">
+                    <TaskStatusIcon status={displayStatus} />
+                    <span
+                      className={cn(
+                        'wrap-break-word min-w-0 flex-1 whitespace-normal text-xs leading-5',
+                        displayStatus === 'completed' ? 'text-muted-foreground' : 'text-foreground'
+                      )}>
+                      {displayStatus === 'in_progress' && task.activeText ? task.activeText : task.title}
+                    </span>
+                  </li>
+                )
+              })}
+            </ul>
+          </Scrollbar>
+        </HoverCardContent>
+      </HoverCard>
+    </div>
+  )
+}
+
 function AgentStatusRightPanel({ active }: RightPanelComponentProps<AgentRightPanelScope>) {
   const meta = useAgentRightPaneMeta()
   const actions = useAgentRightPaneActions()
-  const { t } = useTranslation()
   const status = useAgentRightPaneStatus(active)
   const { usage, percentage, maxTokens } = useAgentSessionContextUsage(meta.sessionId, meta.model)
   const compaction = useAgentSessionCompaction(meta.sessionId)
@@ -1030,38 +1126,6 @@ function AgentStatusRightPanel({ active }: RightPanelComponentProps<AgentRightPa
 
   return (
     <div className="h-full space-y-4 overflow-auto p-3 text-sm">
-      {status.tasks.length > 0 && (
-        <section className="space-y-2">
-          <div className="flex items-center justify-between gap-2">
-            <h3 className="font-medium text-foreground text-sm">{t('agent.right_pane.status.tasks')}</h3>
-            <Badge variant="outline" className="text-[11px]">
-              {t('agent.right_pane.status.task_count', {
-                completed: status.completedTaskCount,
-                total: status.totalTaskCount
-              })}
-            </Badge>
-          </div>
-          <div className="space-y-1.5">
-            {status.tasks.map((task) => (
-              <div
-                key={task.id}
-                className="flex items-start gap-2 rounded-md border border-border-subtle bg-background-subtle px-2.5 py-2">
-                <TaskStatusIcon status={task.status} />
-                <div className="min-w-0 flex-1">
-                  <div
-                    className={cn(
-                      'wrap-break-word text-foreground text-xs leading-5',
-                      task.status === 'completed' && 'text-muted-foreground line-through'
-                    )}>
-                    {task.status === 'in_progress' && task.activeText ? task.activeText : task.title}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
       {artifacts.length > 0 && <AgentRightPaneArtifactsSection artifacts={artifacts} compact={false} />}
 
       <AgentContextUsageSummary
@@ -1071,7 +1135,7 @@ function AgentStatusRightPanel({ active }: RightPanelComponentProps<AgentRightPa
         isCompacting={isCompacting}
         className="rounded-md border border-border-subtle px-3 py-2"
       />
-      <AgentRightPaneHighlights status={status} includeTasks={false} includeArtifacts={false} />
+      <AgentRightPaneHighlights status={status} includeArtifacts={false} />
     </div>
   )
 }
@@ -1214,12 +1278,10 @@ function AgentRightPaneArtifactsSection({ artifacts, compact }: { artifacts: Age
 function AgentRightPaneHighlights({
   status,
   compact = false,
-  includeTasks = true,
   includeArtifacts = true
 }: {
   status: AgentRightPaneStatus
   compact?: boolean
-  includeTasks?: boolean
   includeArtifacts?: boolean
 }) {
   const actions = useAgentRightPaneActions()
@@ -1228,36 +1290,13 @@ function AgentRightPaneHighlights({
   const shellRunTasks = status.runTasks.filter(isShellRunTask)
   const workflowRunTasks = status.runTasks.filter(isLocalWorkflowRunTask)
   const agentRunTasks = status.runTasks.filter((task) => !isShellRunTask(task) && !isLocalWorkflowRunTask(task))
-  const tasks = includeTasks ? status.tasks : []
   const artifacts = includeArtifacts && actions.canOpenArtifactFile ? status.artifacts : []
-  const hasHighlights = tasks.length > 0 || status.runTasks.length > 0 || artifacts.length > 0
+  const hasHighlights = status.runTasks.length > 0 || artifacts.length > 0
 
   if (!hasHighlights) return null
 
   return (
     <div className={cn('space-y-2.5', compact ? 'text-xs' : 'text-sm')}>
-      {tasks.length > 0 && (
-        <AgentRightPaneHighlightSection
-          title={t('agent.right_pane.status.tasks')}
-          icon={<Activity size={14} className="text-muted-foreground" />}
-          compact={compact}>
-          <ul className="space-y-1">
-            {tasks.map((task) => (
-              <li key={task.id} className="flex min-w-0 items-start gap-2">
-                <TaskStatusIcon status={task.status} />
-                <span
-                  className={cn(
-                    'wrap-break-word min-w-0 flex-1 text-xs leading-5',
-                    task.status === 'completed' ? 'text-muted-foreground line-through' : 'text-muted-foreground'
-                  )}>
-                  {task.status === 'in_progress' && task.activeText ? task.activeText : task.title}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </AgentRightPaneHighlightSection>
-      )}
-
       {artifacts.length > 0 && <AgentRightPaneArtifactsSection artifacts={artifacts} compact={compact} />}
 
       {workflowRunTasks.length > 0 && (

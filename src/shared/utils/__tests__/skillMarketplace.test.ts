@@ -1,4 +1,4 @@
-import { buildGithubSkillResult, parseGithubSkillUrl, resolveRefFromSegments } from '@shared/utils/skillMarketplace'
+import { buildGithubSkillResult, parseGithubSkillUrl } from '@shared/utils/skillMarketplace'
 import { describe, expect, it } from 'vitest'
 
 describe('parseGithubSkillUrl', () => {
@@ -8,8 +8,9 @@ describe('parseGithubSkillUrl', () => {
     ).toEqual({
       owner: 'Viy1204',
       repo: 'recruiting-copilot',
-      refAndDirectory: ['main', 'skills', 'resume-review'],
-      name: 'resume-review'
+      refNamespace: null,
+      refAndPath: ['main', 'skills', 'resume-review'],
+      descriptorFileName: 'SKILL.md'
     })
   })
 
@@ -17,8 +18,26 @@ describe('parseGithubSkillUrl', () => {
     expect(parseGithubSkillUrl('https://raw.githubusercontent.com/owner/repo/v2.1/plugins/a/b/skill.md')).toEqual({
       owner: 'owner',
       repo: 'repo',
-      refAndDirectory: ['v2.1', 'plugins', 'a', 'b'],
-      name: 'b'
+      refNamespace: null,
+      refAndPath: ['v2.1', 'plugins', 'a', 'b'],
+      descriptorFileName: 'skill.md'
+    })
+  })
+
+  it('accepts a SKILL.md at the repository root', () => {
+    expect(parseGithubSkillUrl('https://github.com/owner/repo/blob/main/SKILL.md')).not.toBeNull()
+  })
+
+  it.each([
+    'https://github.com/owner/repo/raw/refs/heads/main/SKILL.md',
+    'https://raw.githubusercontent.com/owner/repo/refs/heads/main/SKILL.md'
+  ])('normalizes an official raw URL (%s)', (url) => {
+    expect(parseGithubSkillUrl(url)).toEqual({
+      owner: 'owner',
+      repo: 'repo',
+      refNamespace: 'heads',
+      refAndPath: ['main'],
+      descriptorFileName: 'SKILL.md'
     })
   })
 
@@ -28,7 +47,6 @@ describe('parseGithubSkillUrl', () => {
     ['a tree URL, which denotes a directory', 'https://github.com/owner/repo/tree/main/skills/foo/SKILL.md'],
     ['a filename the installer does not look for', 'https://github.com/owner/repo/blob/main/skills/foo/SKILL.MD'],
     ['a different file in the skill directory', 'https://github.com/owner/repo/blob/main/skills/foo/README.md'],
-    ['a SKILL.md at the repo root', 'https://github.com/owner/repo/blob/main/SKILL.md'],
     ['a non-github host', 'https://gitlab.com/owner/repo/blob/main/skills/foo/SKILL.md'],
     ['a path that escapes the repo', 'https://github.com/owner/repo/blob/main/skills/../../etc/SKILL.md'],
     ['a segment hiding a separator', 'https://github.com/owner/repo/blob/main/skills/foo%2F../SKILL.md'],
@@ -47,7 +65,7 @@ describe('parseGithubSkillUrl', () => {
   })
 
   it('decodes escaped directory names', () => {
-    expect(parseGithubSkillUrl('https://github.com/o/r/blob/main/skills/foo%23bar/SKILL.md')?.refAndDirectory).toEqual([
+    expect(parseGithubSkillUrl('https://github.com/o/r/blob/main/skills/foo%23bar/SKILL.md')?.refAndPath).toEqual([
       'main',
       'skills',
       'foo#bar'
@@ -62,8 +80,14 @@ describe('buildGithubSkillResult', () => {
 
     expect(fromRaw?.installSource).toBe('github:https://github.com/owner/repo/blob/main/skills/foo/SKILL.md')
     expect(fromRaw).toEqual(fromBlob)
-    expect(fromRaw?.name).toBe('foo')
+    expect(fromRaw?.name).toBe('repo')
     expect(fromRaw?.sourceRegistry).toBe('github')
+  })
+
+  it('preserves a lowercase descriptor filename in the canonical install source', () => {
+    expect(
+      buildGithubSkillResult('https://raw.githubusercontent.com/owner/repo/main/skills/foo/skill.md')?.installSource
+    ).toBe('github:https://github.com/owner/repo/blob/main/skills/foo/skill.md')
   })
 
   it('returns null for input the installer could not resolve', () => {
@@ -82,46 +106,4 @@ describe('buildGithubSkillResult', () => {
       expect(parseGithubSkillUrl(result!.installSource.slice('github:'.length))).toEqual(parseGithubSkillUrl(url))
     }
   )
-})
-
-describe('resolveRefFromSegments', () => {
-  const head = (name: string, oid = 'a'.repeat(40)) => ({ name, oid, namespace: 'heads' as const })
-
-  it('prefers the longest ref the remote actually has', () => {
-    // Both refs exist; splitting at the first segment would fetch `feature` and look for
-    // `foo/skills/demo` there.
-    expect(
-      resolveRefFromSegments(
-        [head('feature'), head('feature/foo', 'b'.repeat(40))],
-        ['feature', 'foo', 'skills', 'demo']
-      )
-    ).toEqual({ kind: 'resolved', ref: head('feature/foo', 'b'.repeat(40)), directoryPath: 'skills/demo' })
-  })
-
-  it('reports a repo-root descriptor instead of falling back to a shorter ref', () => {
-    // `feature/foo` consumes every segment, so the URL names SKILL.md at that branch's root. Falling
-    // through to `feature` would install `foo/SKILL.md` from an unrelated revision.
-    expect(resolveRefFromSegments([head('feature'), head('feature/foo')], ['feature', 'foo'])).toEqual({
-      kind: 'repo-root',
-      ref: head('feature/foo')
-    })
-  })
-
-  it('refuses a name carried by both a branch and a tag', () => {
-    expect(
-      resolveRefFromSegments(
-        [head('v1'), { name: 'v1', oid: 'c'.repeat(40), namespace: 'tags' }],
-        ['v1', 'skills', 'demo']
-      )
-    ).toEqual({ kind: 'ambiguous', name: 'v1' })
-  })
-
-  it('carries the observed commit so the install cannot follow a moved branch', () => {
-    const resolution = resolveRefFromSegments([head('main', 'f'.repeat(40))], ['main', 'skills', 'demo'])
-    expect(resolution).toMatchObject({ kind: 'resolved', ref: { oid: 'f'.repeat(40) } })
-  })
-
-  it('reports no match rather than guessing a boundary', () => {
-    expect(resolveRefFromSegments([head('main')], ['a1b2c3', 'skills', 'demo'])).toEqual({ kind: 'no-match' })
-  })
 })

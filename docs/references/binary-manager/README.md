@@ -1,3 +1,12 @@
+---
+description: Lifecycle service that acquires third-party CLI binaries through mise, with tool registry, snapshots, and IPC
+sources:
+  - src/main/services/BinaryManager.ts
+  - src/shared/data/presets/binaryTools.ts
+  - src/main/ipc/handlers/binary.ts
+  - scripts/download-binaries.js
+---
+
 # BinaryManager Reference
 
 `BinaryManager` is the lifecycle service that acquires and manages third-party CLI binaries through [mise](https://mise.jdx.dev). It owns the custom tool registry and the filesystem/process orchestration around mise; domain services own execution, configuration, and health logic.

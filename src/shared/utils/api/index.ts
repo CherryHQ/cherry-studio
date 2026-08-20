@@ -4,6 +4,7 @@ export {
   formatOllamaApiHost,
   getTrailingApiVersion,
   hasApiVersion,
+  isBareVertexApiHost,
   isWithTrailingSharp,
   joinApiKeyString,
   maskApiKey,

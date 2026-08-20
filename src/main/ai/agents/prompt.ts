@@ -65,12 +65,12 @@ type CacheEntry = {
  * How the agent's base system prompt should be established, decided from the
  * workspace alone and kept free of any SDK type:
  *
- * - `claude_code` — no workspace `system.md`; the runtime uses the SDK preset.
- * - `custom` — an explicit workspace `system.md` replaces only that base preset.
+ * - `native` — no workspace `system.md`; the runtime uses its native base prompt.
+ * - `custom` — an explicit workspace `system.md` replaces only that native base.
  *
  * Cherry-owned context remains separate and is appended in either case.
  */
-export type AgentPromptBase = { kind: 'claude_code' } | { kind: 'custom'; content: string }
+export type AgentPromptBase = { kind: 'native' } | { kind: 'custom'; content: string }
 
 export interface AgentPromptParts {
   base: AgentPromptBase
@@ -135,7 +135,7 @@ export class PromptBuilder {
     const systemPath = await resolveFile(workspacePath, 'system.md', true)
     const base: AgentPromptBase = systemPath
       ? { kind: 'custom', content: await this.readCachedFile(systemPath, path.dirname(systemPath), true) }
-      : { kind: 'claude_code' }
+      : { kind: 'native' }
 
     // Bootstrap detection: inject bootstrap instructions if not completed
     const needsBootstrap = await this.shouldRunBootstrap(agentDataPath, config, hasUserInstructions)

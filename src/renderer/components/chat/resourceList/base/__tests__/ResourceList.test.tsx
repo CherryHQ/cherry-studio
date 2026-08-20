@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { type ReactNode, useMemo, useState } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -313,8 +314,9 @@ describe('ResourceList', () => {
     expect(ITEMS.map((item) => item.id).join(',')).toBe(originalOrder)
   })
 
-  it('renders seeded empty groups without showing the empty state', () => {
+  it('renders an empty-group label only while a seeded empty group is expanded', async () => {
     const Provider = ResourceList.Provider<TestItem>
+    const user = userEvent.setup()
 
     render(
       <Provider
@@ -325,6 +327,7 @@ describe('ResourceList', () => {
             label: 'Empty Assistant'
           }
         ]}
+        groupEmptyLabel="No conversations"
         groupBy={(item) => ({ id: item.kind, label: item.kind })}>
         <ResourceList.Frame>
           <Inspector />
@@ -340,12 +343,17 @@ describe('ResourceList', () => {
     )
 
     expect(screen.getByRole('button', { name: 'Empty Assistant' })).toBeInTheDocument()
+    expect(screen.getByText('No conversations')).toBeInTheDocument()
     expect(screen.queryByText('No Resources')).not.toBeInTheDocument()
     expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
       names: [],
       visibleNames: [],
       groups: ['assistant-empty']
     })
+
+    await user.click(screen.getByRole('button', { name: 'Empty Assistant' }))
+
+    expect(screen.queryByText('No conversations')).not.toBeInTheDocument()
   })
 
   it('keeps seeded groups before item-derived groups and toggles empty select-first groups', () => {
@@ -1987,7 +1995,7 @@ describe('ResourceList', () => {
     await waitFor(() => expect(onAction).toHaveBeenCalledWith('topic'))
   })
 
-  it('auto-hides the shared list viewport scrollbar after scrolling stops', () => {
+  it('restarts the shared list viewport scrollbar fade after continued scrolling', () => {
     vi.useFakeTimers()
     const Provider = ResourceList.Provider<TestItem>
 
@@ -2007,24 +2015,71 @@ describe('ResourceList', () => {
 
     const viewport = screen.getByRole('listbox')
     expect(viewport).toHaveAttribute('data-scrolling', 'false')
+    // scrollbarColor is part of the shared viewport's documented fade behavior.
+    expect(viewport).toHaveStyle({ scrollbarColor: 'transparent transparent' })
 
     fireEvent.scroll(viewport)
     expect(viewport).toHaveAttribute('data-scrolling', 'true')
+    expect(viewport).toHaveStyle({ scrollbarColor: 'var(--scrollbar-thumb) transparent' })
+
+    act(() => {
+      vi.advanceTimersByTime(1000)
+    })
+    fireEvent.scroll(viewport)
+
+    act(() => {
+      vi.advanceTimersByTime(1199)
+    })
+    expect(viewport).toHaveAttribute('data-scrolling', 'true')
+    expect(viewport).toHaveStyle({ scrollbarColor: 'var(--scrollbar-thumb) transparent' })
+
+    act(() => {
+      vi.advanceTimersByTime(1)
+    })
+    expect(viewport).toHaveAttribute('data-scrolling', 'true')
+    expect(viewport).toHaveStyle({
+      scrollbarColor: 'color-mix(in srgb, var(--scrollbar-thumb) 70%, transparent) transparent'
+    })
+
+    act(() => {
+      vi.advanceTimersByTime(420)
+    })
+    expect(viewport).toHaveAttribute('data-scrolling', 'false')
+    expect(viewport).toHaveStyle({ scrollbarColor: 'transparent transparent' })
+  })
+
+  it('keeps the shared list viewport fade deadline when the system clock moves backward', () => {
+    vi.useFakeTimers()
+    const Provider = ResourceList.Provider<TestItem>
+
+    render(
+      <Provider items={ITEMS}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    const viewport = screen.getByRole('listbox')
+    fireEvent.scroll(viewport)
+    vi.setSystemTime(Date.now() - 60_000)
 
     act(() => {
       vi.advanceTimersByTime(1200)
     })
 
-    expect(viewport).toHaveAttribute('data-scrolling', 'true')
-
-    act(() => {
-      vi.advanceTimersByTime(420)
+    expect(viewport).toHaveStyle({
+      scrollbarColor: 'color-mix(in srgb, var(--scrollbar-thumb) 70%, transparent) transparent'
     })
-
-    expect(viewport).toHaveAttribute('data-scrolling', 'false')
   })
 
-  it('limits each group to the default visible count and expands the group independently', () => {
+  it('loads each group in configured increments and collapses it to the default count', () => {
     const Provider = ResourceList.Provider<TestItem>
     const items = Array.from({ length: 12 }, (_, index) => ({
       id: `item-${index + 1}`,
@@ -2058,6 +2113,13 @@ describe('ResourceList', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
 
+    expect(screen.getByText('Item 10')).toBeInTheDocument()
+    expect(screen.queryByText('Item 11')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Show more' })).toBeInTheDocument()
+    expect(virtualMocks.useVirtualizer).toHaveBeenLastCalledWith(expect.objectContaining({ count: 12 }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
+
     expect(screen.getByText('Item 12')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Collapse' })).toBeInTheDocument()
     expect(virtualMocks.useVirtualizer).toHaveBeenLastCalledWith(expect.objectContaining({ count: 14 }))
@@ -2065,6 +2127,52 @@ describe('ResourceList', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Collapse' }))
 
     expect(screen.getByText('Item 5')).toBeInTheDocument()
+    expect(screen.queryByText('Item 6')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Show more' })).toBeInTheDocument()
+  })
+
+  it('restores the default visible count after a controlled group is collapsed and reopened', async () => {
+    const Provider = ResourceList.Provider<TestItem>
+    const user = userEvent.setup()
+    const items = Array.from({ length: 6 }, (_, index) => ({
+      id: `item-${index + 1}`,
+      name: `Item ${index + 1}`,
+      kind: 'session' as const,
+      updatedAt: index
+    }))
+
+    function ControlledGroupHarness() {
+      const [collapsedState, setCollapsedState] = useState<string[]>([])
+
+      return (
+        <Provider
+          items={items}
+          collapsedState={collapsedState}
+          defaultGroupVisibleCount={5}
+          groupBy={() => ({ id: 'group', label: 'Group' })}
+          groupShowMoreLabel="Show more"
+          onCollapsedStateChange={setCollapsedState}>
+          <ResourceList.Frame>
+            <ResourceList.VirtualItems<TestItem>
+              renderItem={(item) => (
+                <ResourceList.Item item={item}>
+                  <span>{item.name}</span>
+                </ResourceList.Item>
+              )}
+            />
+          </ResourceList.Frame>
+        </Provider>
+      )
+    }
+
+    render(<ControlledGroupHarness />)
+
+    await user.click(screen.getByRole('button', { name: 'Show more' }))
+    expect(screen.getByText('Item 6')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Group' }))
+    await user.click(screen.getByRole('button', { name: 'Group' }))
+
     expect(screen.queryByText('Item 6')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Show more' })).toBeInTheDocument()
   })

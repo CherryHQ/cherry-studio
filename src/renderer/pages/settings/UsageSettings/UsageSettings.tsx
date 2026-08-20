@@ -1,14 +1,13 @@
 import { Button, EmptyState, Popover, PopoverContent, PopoverTrigger, SegmentedControl } from '@cherrystudio/ui'
+import { usePersistCache } from '@data/hooks/useCache'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { formatCompactNumber } from '@renderer/utils/number'
 import { cn } from '@renderer/utils/style'
 import type {
   AiUsageRecordGroupIdentity,
   AiUsageRecordListSortBy,
-  AiUsageRecordSortOrder,
   AiUsageRecordStatsBucket
 } from '@shared/data/api/schemas/aiUsageRecords'
-import type { Currency } from '@shared/data/types/model'
 import { ChevronDown, SlidersHorizontal, X } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -25,7 +24,6 @@ import {
   getWindowRange,
   GROUP_BY_KEYS,
   GROUP_BY_LABEL_KEYS,
-  type GroupByKey,
   METRIC_KEYS,
   METRIC_LABEL_KEYS,
   PERIOD_CHART_TYPES,
@@ -35,16 +33,14 @@ import {
   TOP_COUNT_KEYS,
   TOTAL_CHART_TYPES,
   type UsageChartType,
-  type UsageMetricKey,
-  type UsageRollupKey,
+  type UsageTopCount,
   WINDOW_KEYS,
-  WINDOW_LABEL_KEYS,
-  type WindowKey
+  WINDOW_LABEL_KEYS
 } from './usageAnalytics'
 import { formatCost, parseDateKey } from './usageDisplay'
 import { UsageDistributionChart } from './UsageDistributionChart'
 import { UsageEntriesTable } from './UsageEntriesTable'
-import UsageHeatmap, { type UsageHeatmapMetric } from './UsageHeatmap'
+import UsageHeatmap from './UsageHeatmap'
 import {
   InsightCell,
   MetricCell,
@@ -71,17 +67,19 @@ type UsageApiKeyDisplay = Pick<
 
 function UsageSettings() {
   const { t, i18n } = useTranslation()
-  const [windowKey, setWindowKey] = useState<WindowKey>('30d')
-  const [groupBy, setGroupBy] = useState<GroupByKey>('provider')
-  const [chartMetric, setChartMetric] = useState<UsageMetricKey>('tokens')
-  const [selectedChartType, setSelectedChartType] = useState<UsageChartType>('bar')
-  const [rollup, setRollup] = useState<UsageRollupKey>('daily')
-  const [topCount, setTopCount] = useState<number>(10)
+  const [windowKey, setWindowKey] = usePersistCache('settings.usage.window')
+  const [groupBy, setGroupBy] = usePersistCache('settings.usage.group_by')
+  const [chartMetric, setChartMetric] = usePersistCache('settings.usage.chart_metric')
+  const [selectedChartType, setSelectedChartType] = usePersistCache('settings.usage.chart_type')
+  const [rollup, setRollup] = usePersistCache('settings.usage.rollup')
+  const [topCount, setTopCount] = usePersistCache('settings.usage.top_count')
+  // Drill-down day is session-scoped: restoring a past date would reopen the page on an empty range.
   const [selectedDate, setSelectedDate] = useState<string | undefined>()
-  const [selectedCurrency, setSelectedCurrency] = useState<Currency | undefined>()
-  const [heatmapMetric, setHeatmapMetric] = useState<UsageHeatmapMetric>('tokens')
-  const [entrySortBy, setEntrySortBy] = useState<AiUsageRecordListSortBy>('createdAt')
-  const [entrySortOrder, setEntrySortOrder] = useState<AiUsageRecordSortOrder>('desc')
+  const [persistedCurrency, setSelectedCurrency] = usePersistCache('settings.usage.currency')
+  const [heatmapMetric, setHeatmapMetric] = usePersistCache('settings.usage.heatmap_metric')
+  const [entrySortBy, setEntrySortBy] = usePersistCache('settings.usage.entry_sort_by')
+  const [entrySortOrder, setEntrySortOrder] = usePersistCache('settings.usage.entry_sort_order')
+  const selectedCurrency = persistedCurrency ?? undefined
 
   const windowRange = useMemo(() => getWindowRange(windowKey), [windowKey])
   const previousWindowRange = useMemo(() => getPreviousWindowRange(windowKey), [windowKey])
@@ -617,7 +615,7 @@ function UsageSettings() {
                           <SegmentedControl
                             options={topCountOptions}
                             value={String(topCount)}
-                            onValueChange={(value) => setTopCount(Number(value))}
+                            onValueChange={(value) => setTopCount(Number(value) as UsageTopCount)}
                             size="sm"
                           />
                         </UsageControlRow>

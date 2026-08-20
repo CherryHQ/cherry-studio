@@ -16,6 +16,7 @@ export interface ConfigListProps {
   providerConfigs: Record<string, CliProviderConfig>
   currentProviderId: string | null
   currentProviderModelName?: string
+  providerActionsDisabled?: boolean
   resolveMeta: (provider: Provider, cfg?: CliProviderConfig) => { providerName: string; modelName?: string }
   onConfigure: (provider: Provider) => void
   onToggleCurrent: (provider: Provider) => void
@@ -33,6 +34,7 @@ export const ConfigList: FC<ConfigListProps> = ({
   providerConfigs,
   currentProviderId,
   currentProviderModelName,
+  providerActionsDisabled,
   resolveMeta,
   onConfigure,
   onToggleCurrent,
@@ -108,6 +110,7 @@ export const ConfigList: FC<ConfigListProps> = ({
             modelName={modelName}
             description={isApiGatewayProviderId(provider.id) ? t('code.api_gateway.description') : undefined}
             isCurrent={currentProviderId === provider.id}
+            actionsDisabled={providerActionsDisabled}
             dragging={dragging}
             onMoveToTop={onMoveToTop}
             onConfigure={onConfigure}

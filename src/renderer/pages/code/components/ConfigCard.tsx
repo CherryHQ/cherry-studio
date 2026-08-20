@@ -15,6 +15,7 @@ export interface ProviderCardProps {
   /** Optional one-line blurb shown under the name — used to promote the unified gateway. */
   description?: string
   isCurrent: boolean
+  actionsDisabled?: boolean
   dragging?: boolean
   onMoveToTop?: (provider: Provider) => void
   onConfigure: (provider: Provider) => void
@@ -29,6 +30,7 @@ export const ProviderCard: FC<ProviderCardProps> = ({
   modelName,
   description,
   isCurrent,
+  actionsDisabled,
   dragging,
   onMoveToTop,
   onConfigure,
@@ -104,6 +106,7 @@ export const ProviderCard: FC<ProviderCardProps> = ({
             variant="outline"
             size="sm"
             onClick={() => onConfigure(provider)}
+            disabled={actionsDisabled}
             className="min-h-0 border-border-subtle px-2.5 py-1">
             <SquarePen size={11} />
             {t('code.configure')}
@@ -113,6 +116,7 @@ export const ProviderCard: FC<ProviderCardProps> = ({
             variant={isCurrent ? 'destructive' : 'default'}
             size="sm"
             onClick={() => onToggleCurrent(provider)}
+            disabled={actionsDisabled}
             className="min-h-0 px-2.5 py-1">
             {isCurrent ? <CircleMinus size={11} /> : <Play size={11} />}
             {isCurrent ? t('code.disable') : t('code.enable')}

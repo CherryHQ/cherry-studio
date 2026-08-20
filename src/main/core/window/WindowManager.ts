@@ -1375,6 +1375,11 @@ export class WindowManager extends BaseService {
           event.preventDefault()
           void shell.openExternal(url)
         }
+      } else {
+        // Non-web schemes (file:, custom protocols) have no legitimate in-window
+        // navigation path; deny like the window-open handler denies non-http(s) popups.
+        event.preventDefault()
+        logger.warn(`Blocked navigation to untrusted URL scheme: ${url}`)
       }
     })
 

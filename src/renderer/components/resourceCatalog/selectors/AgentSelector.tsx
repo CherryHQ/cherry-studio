@@ -5,7 +5,6 @@ import {
 } from '@renderer/components/resourceCatalog/dialogs/create'
 import type { SelectorShellMountStrategy, SelectorShellProps } from '@renderer/components/SelectorShell'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
-import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAgentMutations } from '@renderer/hooks/resourceCatalog'
 import { usePins } from '@renderer/hooks/usePins'
 import { toast } from '@renderer/services/toast'
@@ -68,7 +67,6 @@ export function AgentSelector(props: AgentSelectorProps) {
     mountStrategy
   } = props
   const { t } = useTranslation()
-  const modelFilter = useAgentModelFilter('claude-code')
   const [internalOpen, setInternalOpen] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
@@ -195,7 +193,6 @@ export function AgentSelector(props: AgentSelectorProps) {
       isSubmitting={isCreatingAgent}
       onOpenChange={handleCreateDialogOpenChange}
       onSubmit={handleSubmitCreate}
-      modelFilter={modelFilter}
     />
   )
 

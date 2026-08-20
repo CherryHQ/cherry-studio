@@ -12,7 +12,6 @@ import { WebSearchProviderSetting } from '../components/WebSearchProviderSetting
 
 const navigateMock = vi.fn()
 const ipcRequestMock = vi.hoisted(() => vi.fn())
-const showApiKeyListMock = vi.fn()
 
 vi.mock('react-i18next', async (importOriginal) => {
   const actual = await importOriginal<typeof ReactI18next>()
@@ -92,9 +91,7 @@ vi.mock('../components/WebSearchProviderLogo', () => ({
 }))
 
 vi.mock('../components/WebSearchApiKeyList', () => ({
-  WebSearchApiKeyListPopup: {
-    show: (...args: unknown[]) => showApiKeyListMock(...args)
-  }
+  WebSearchApiKeyListDialog: () => null
 }))
 
 function createEntry(overrides: Partial<WebSearchProviderMenuEntry> = {}): WebSearchProviderMenuEntry {
@@ -139,10 +136,9 @@ describe('WebSearchProviderSetting', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     ipcRequestMock.mockResolvedValue({ results: [] })
-    showApiKeyListMock.mockResolvedValue(undefined)
   })
 
-  it('renders API key controls and opens the key list after saving the current draft', async () => {
+  it('persists the current draft when the API key list button is clicked', async () => {
     const props = createProps()
     render(<WebSearchProviderSetting {...props} />)
 
@@ -153,10 +149,6 @@ describe('WebSearchProviderSetting', () => {
 
     await waitFor(() => {
       expect(props.onSetApiKeys).toHaveBeenCalledWith('tavily', ['key-a', 'key-b'])
-    })
-    expect(showApiKeyListMock).toHaveBeenCalledWith({
-      providerId: 'tavily',
-      title: 'Tavily settings.provider.api.key.list.title'
     })
   })
 

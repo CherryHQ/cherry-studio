@@ -54,7 +54,9 @@ const createAgentResourceItemId = (filePath: string) =>
   `agent-resource:${createStablePathHash(filePath.replace(/\\/g, '/'))}`
 
 const EMPTY_QUERY_RESOURCE_LIMIT = 5
-const RESOURCE_SEARCH_MAX_DEPTH = 3
+// Matches main's own `listDirectory` default depth; the previous 3 hid every file
+// nested deeper than three levels in a real workspace.
+const RESOURCE_SEARCH_MAX_DEPTH = 10
 const RESOURCE_RESULT_LIMIT = 40
 const RESOURCE_SEARCH_DEBOUNCE_MS = 200
 
@@ -76,7 +78,7 @@ const createGroupHeaderItem = (id: string, label: string): ComposerSuggestionIte
 })
 
 interface AgentResourceMentionOptions {
-  accessiblePaths: readonly string[]
+  accessiblePaths: readonly AbsoluteFilePath[]
   files: ComposerAttachment[]
   setFiles: React.Dispatch<React.SetStateAction<ComposerAttachment[]>>
   /** Whether the agent session exposes any accessible workspace paths to mention. */

@@ -2,7 +2,7 @@ import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { ChannelType } from '@shared/data/types/channel'
 import { sql } from 'drizzle-orm'
-import { index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { check, index, integer, primaryKey, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
 import { agentTable } from './agent'
@@ -37,6 +37,32 @@ export const agentChannelTable = sqliteTable(
   ]
 )
 
+export const agentChannelSessionTable = sqliteTable(
+  'agent_channel_session',
+  {
+    sessionId: text()
+      .primaryKey()
+      .references(() => agentSessionTable.id, { onDelete: 'cascade' }),
+    channelId: text()
+      .notNull()
+      .references(() => agentChannelTable.id, { onDelete: 'cascade' }),
+    // NULL identifies a migrated legacy session whose external owner cannot be proven.
+    conversationId: text(),
+    isActive: integer({ mode: 'boolean' }).notNull().default(false)
+  },
+  (t) => [
+    index('agent_channel_session_channel_id_idx').on(t.channelId),
+    uniqueIndex('agent_channel_session_active_uniq')
+      .on(t.channelId, t.conversationId)
+      .where(sql`${t.isActive} = 1 AND ${t.conversationId} IS NOT NULL`),
+    check(
+      'agent_channel_session_conversation_id_nonempty_check',
+      sql`${t.conversationId} IS NULL OR length(trim(${t.conversationId})) > 0`
+    ),
+    check('agent_channel_session_active_conversation_check', sql`${t.isActive} = 0 OR ${t.conversationId} IS NOT NULL`)
+  ]
+)
+
 export const agentChannelTaskTable = sqliteTable(
   'agent_channel_task',
   {
@@ -59,5 +85,7 @@ export const agentChannelTaskTable = sqliteTable(
 
 export type AgentChannelRow = typeof agentChannelTable.$inferSelect
 export type InsertAgentChannelRow = typeof agentChannelTable.$inferInsert
+export type AgentChannelSessionRow = typeof agentChannelSessionTable.$inferSelect
+export type InsertAgentChannelSessionRow = typeof agentChannelSessionTable.$inferInsert
 export type AgentChannelTaskRow = typeof agentChannelTaskTable.$inferSelect
 export type InsertAgentChannelTaskRow = typeof agentChannelTaskTable.$inferInsert

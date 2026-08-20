@@ -1,19 +1,16 @@
+import type { NormalizedMessage } from '@larksuiteoapi/node-sdk'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const registrationMocks = vi.hoisted(() => ({
-  begin: vi.fn(),
-  poll: vi.fn()
-}))
+const registrationMocks = vi.hoisted(() => ({ begin: vi.fn(), poll: vi.fn() }))
+const loggerMocks = vi.hoisted(() => ({ info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn(), silly: vi.fn() }))
 
 vi.mock('@logger', () => ({
   loggerService: {
-    withContext: () => ({ info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn(), silly: vi.fn() })
+    withContext: () => loggerMocks
   }
 }))
 
-vi.mock('../../ChannelManager', () => ({
-  registerAdapterFactory: vi.fn()
-}))
+vi.mock('../../ChannelManager', () => ({ registerAdapterFactory: vi.fn() }))
 
 vi.mock('electron', () => ({
   app: { getPath: () => '/mock/userData' },
@@ -22,9 +19,7 @@ vi.mock('electron', () => ({
 }))
 
 vi.mock('../../../../../MainWindowService', () => ({
-  windowService: {
-    getMainWindow: () => null
-  }
+  windowService: { getMainWindow: () => null }
 }))
 
 vi.mock('../feishu/FeishuAppRegistration', () => ({
@@ -32,62 +27,38 @@ vi.mock('../feishu/FeishuAppRegistration', () => ({
   registrationPoll: registrationMocks.poll
 }))
 
-const mockImCreate = vi.fn().mockResolvedValue({ code: 0, data: { message_id: 'msg-1' } })
-const mockImUpdate = vi.fn().mockResolvedValue({ code: 0 })
-const mockCardCreate = vi.fn().mockResolvedValue({ code: 0, data: { card_id: 'card-1' } })
-const mockCardSettings = vi.fn().mockResolvedValue({ code: 0 })
-const mockCardUpdate = vi.fn().mockResolvedValue({ code: 0 })
-const mockElementContent = vi.fn().mockResolvedValue({ code: 0 })
+const mockConnect = vi.fn()
+const mockDisconnect = vi.fn()
+const mockSend = vi.fn()
+const mockStream = vi.fn()
 const mockMessageResourceGet = vi.fn()
-const mockReactionCreate = vi.fn().mockResolvedValue({ code: 0, data: { reaction_id: 'rx-1' } })
-const mockReactionDelete = vi.fn().mockResolvedValue({ code: 0 })
-// The SDK unwraps upload responses to the inner data object (not a {code,data} envelope).
-const mockFileCreate = vi.fn().mockResolvedValue({ file_key: 'file-1' })
-const mockImageCreate = vi.fn().mockResolvedValue({ image_key: 'img-1' })
+const mockAddReaction = vi.fn()
+const mockRemoveReaction = vi.fn()
+const mockSetContent = vi.fn()
+let channelHandlers: Record<string, (...args: any[]) => any> = {}
+let channelOptions: Record<string, any> | undefined
 
-const mockClient = {
-  im: {
-    message: {
-      create: mockImCreate,
-      update: mockImUpdate
-    },
-    file: {
-      create: mockFileCreate
-    },
-    image: {
-      create: mockImageCreate
-    },
-    messageResource: {
-      get: mockMessageResourceGet
-    },
-    messageReaction: {
-      create: mockReactionCreate,
-      delete: mockReactionDelete
-    }
-  },
-  cardkit: {
-    v1: {
-      card: { create: mockCardCreate, settings: mockCardSettings, update: mockCardUpdate },
-      cardElement: { content: mockElementContent }
-    }
-  }
+const mockChannel = {
+  connect: mockConnect,
+  disconnect: mockDisconnect,
+  send: mockSend,
+  stream: mockStream,
+  rawClient: { im: { v1: { messageResource: { get: mockMessageResourceGet } } } },
+  addReaction: mockAddReaction,
+  removeReaction: mockRemoveReaction,
+  on: vi.fn((handlers: Record<string, (...args: any[]) => any>) => {
+    channelHandlers = handlers
+    return vi.fn()
+  })
 }
 
-const mockWsStart = vi.fn().mockResolvedValue(undefined)
-let capturedEventHandlers: Record<string, (...args: unknown[]) => unknown> = {}
-
 vi.mock('@larksuiteoapi/node-sdk', () => ({
-  Client: vi.fn().mockImplementation(() => mockClient),
-  WSClient: vi.fn().mockImplementation(() => ({ start: mockWsStart })),
-  EventDispatcher: vi.fn().mockImplementation(() => ({
-    register: vi.fn().mockImplementation((handles: Record<string, (...args: unknown[]) => unknown>) => {
-      capturedEventHandlers = handles
-      return {}
-    })
-  })),
-  AppType: { SelfBuild: 0 },
-  Domain: { Feishu: 'https://open.feishu.cn', Lark: 'https://open.larksuite.com' },
-  LoggerLevel: { warn: 2 }
+  createLarkChannel: vi.fn((options) => {
+    channelOptions = options
+    return mockChannel
+  }),
+  Domain: { Feishu: 0, Lark: 1 },
+  LoggerLevel: { info: 3 }
 }))
 
 import '../feishu/FeishuAdapter'
@@ -95,38 +66,53 @@ import '../feishu/FeishuAdapter'
 import { registerAdapterFactory } from '../../ChannelManager'
 
 function getFactory() {
-  const calls = vi.mocked(registerAdapterFactory).mock.calls
-  const feishuCall = calls.find((c) => c[0] === 'feishu')
-  if (!feishuCall) throw new Error('registerAdapterFactory was not called for feishu')
-  return feishuCall[1] as (channel: any, agentId: string) => any
+  const call = vi.mocked(registerAdapterFactory).mock.calls.find(([type]) => type === 'feishu')
+  if (!call) throw new Error('registerAdapterFactory was not called for feishu')
+  return call[1] as (channel: any, agentId: string) => any
+}
+
+function incomingMessage(overrides: Partial<NormalizedMessage> = {}): NormalizedMessage {
+  return {
+    messageId: 'msg-in-1',
+    chatId: 'oc_123',
+    chatType: 'p2p',
+    senderId: 'ou_user1',
+    senderName: 'Alice',
+    content: 'Hello agent',
+    rawContentType: 'text',
+    resources: [],
+    mentions: [],
+    mentionAll: false,
+    mentionedBot: false,
+    createTime: Date.now(),
+    ...overrides
+  }
 }
 
 describe('FeishuAdapter', () => {
   beforeEach(() => {
-    mockImCreate.mockClear().mockResolvedValue({ code: 0, data: { message_id: 'msg-1' } })
-    mockImUpdate.mockClear().mockResolvedValue({ code: 0 })
-    mockCardCreate.mockClear().mockResolvedValue({ code: 0, data: { card_id: 'card-1' } })
-    mockCardSettings.mockClear().mockResolvedValue({ code: 0 })
-    mockCardUpdate.mockClear().mockResolvedValue({ code: 0 })
-    mockElementContent.mockClear().mockResolvedValue({ code: 0 })
+    mockConnect.mockReset().mockResolvedValue(undefined)
+    mockDisconnect.mockReset().mockResolvedValue(undefined)
+    mockSend.mockReset().mockResolvedValue({ messageId: 'msg-out-1' })
     mockMessageResourceGet.mockReset()
-    mockReactionCreate.mockClear().mockResolvedValue({ code: 0, data: { reaction_id: 'rx-1' } })
-    mockReactionDelete.mockClear().mockResolvedValue({ code: 0 })
-    mockFileCreate.mockClear().mockResolvedValue({ file_key: 'file-1' })
-    mockImageCreate.mockClear().mockResolvedValue({ image_key: 'img-1' })
-    mockWsStart.mockClear().mockResolvedValue(undefined)
+    mockAddReaction.mockReset().mockResolvedValue('rx-1')
+    mockRemoveReaction.mockReset().mockResolvedValue(undefined)
+    mockSetContent.mockReset().mockResolvedValue(undefined)
+    mockStream.mockReset().mockImplementation(async (_chatId, input) => {
+      await input.markdown({ messageId: 'stream-1', setContent: mockSetContent, append: vi.fn() })
+      return { messageId: 'stream-1' }
+    })
+    mockChannel.on.mockClear()
     registrationMocks.begin.mockReset().mockRejectedValue(new Error('Registration unavailable'))
     registrationMocks.poll.mockReset()
-    capturedEventHandlers = {}
+    channelHandlers = {}
+    channelOptions = undefined
   })
 
-  afterEach(() => {
-    vi.useRealTimers()
-  })
+  afterEach(() => vi.useRealTimers())
 
   function createAdapter(overrides: Record<string, unknown> = {}) {
-    const factory = getFactory()
-    return factory(
+    return getFactory()(
       {
         id: (overrides.channelId as string) ?? 'ch-1',
         type: 'feishu',
@@ -134,6 +120,8 @@ describe('FeishuAdapter', () => {
         config: {
           app_id: (overrides.app_id as string) ?? 'test-app-id',
           app_secret: (overrides.app_secret as string) ?? 'test-app-secret',
+          encrypt_key: (overrides.encrypt_key as string) ?? '',
+          verification_token: (overrides.verification_token as string) ?? '',
           allowed_chat_ids: (overrides.allowed_chat_ids as string[]) ?? ['oc_123'],
           domain: (overrides.domain as string) ?? 'feishu'
         }
@@ -142,32 +130,96 @@ describe('FeishuAdapter', () => {
     )
   }
 
-  it('connect() creates client, event dispatcher, and starts WebSocket', async () => {
+  it('reports connected only after the official channel handshake completes', async () => {
+    let finishConnect!: () => void
+    mockConnect.mockReturnValue(new Promise<void>((resolve) => (finishConnect = resolve)))
+    const adapter = createAdapter()
+
+    const connecting = adapter.connect()
+    await Promise.resolve()
+
+    expect(adapter.connected).toBe(false)
+    finishConnect()
+    await connecting
+    expect(adapter.connected).toBe(true)
+  })
+
+  it('configures official connection health, mention policy, and channel user agent', async () => {
+    const adapter = createAdapter({ domain: 'lark' })
+    await adapter.connect()
+
+    expect(channelOptions).toMatchObject({
+      appId: 'test-app-id',
+      appSecret: 'test-app-secret',
+      domain: 1,
+      source: 'cherry-studio',
+      policy: { dmMode: 'open', requireMention: true, respondToMentionAll: false },
+      safety: { batch: { text: { delayMs: 0 } } },
+      outbound: { textChunkLimit: 4000 },
+      wsConfig: { pingTimeout: 10 }
+    })
+  })
+
+  it('forwards configured event security to the WebSocket dispatcher', async () => {
+    const adapter = createAdapter({
+      encrypt_key: 'test-encrypt-key',
+      verification_token: 'test-verification-token'
+    })
+    await adapter.connect()
+
+    expect(channelOptions).toMatchObject({
+      transport: 'websocket',
+      webhook: {
+        encryptKey: 'test-encrypt-key',
+        verificationToken: 'test-verification-token'
+      }
+    })
+  })
+
+  it('keeps active stream listeners alive while the WebSocket reconnects', async () => {
+    const adapter = createAdapter()
+    const statuses: Array<{ connected: boolean }> = []
+    adapter.on('statusChange', (status) => statuses.push(status))
+    await adapter.connect()
+
+    channelHandlers.reconnecting()
+    expect(adapter.connected).toBe(true)
+    channelHandlers.reconnected()
+
+    expect(statuses.map(({ connected }) => connected)).toEqual([true, true])
+  })
+
+  it('disconnects the official channel', async () => {
     const adapter = createAdapter()
     await adapter.connect()
-
-    expect(mockWsStart).toHaveBeenCalledWith({ eventDispatcher: expect.anything() })
+    await adapter.disconnect()
+    expect(mockDisconnect).toHaveBeenCalledOnce()
+    expect(adapter.connected).toBe(false)
   })
 
-  it('connect() with missing app_id starts background registration instead of WebSocket', async () => {
-    const adapter = createAdapter({ app_id: '' })
-    await adapter.connect()
-    // checkReady() returns false → performConnect runs in background,
-    // starts registration flow instead of WebSocket
-    expect(mockWsStart).not.toHaveBeenCalled()
+  it('does not reconnect the adapter when disconnect happens during the handshake', async () => {
+    let finishConnect!: () => void
+    mockConnect.mockReturnValue(new Promise<void>((resolve) => (finishConnect = resolve)))
+    const adapter = createAdapter()
+
+    const connecting = adapter.connect()
+    await Promise.resolve()
+    await adapter.disconnect()
+    finishConnect()
+    await connecting
+
+    expect(adapter.connected).toBe(false)
+    expect(mockDisconnect).toHaveBeenCalledTimes(2)
   })
 
-  it('emits a QR code and credentials when registration completes', async () => {
+  it('starts QR registration when credentials are missing', async () => {
     registrationMocks.begin.mockResolvedValue({
       deviceCode: 'device-code',
       verificationUri: 'https://accounts.feishu.cn/device/qr',
       interval: 1,
       expiresIn: 600
     })
-    registrationMocks.poll.mockResolvedValue({
-      appId: 'new-app-id',
-      appSecret: 'new-app-secret'
-    })
+    registrationMocks.poll.mockResolvedValue({ appId: 'new-app-id', appSecret: 'new-app-secret' })
     const adapter = createAdapter({ app_id: '', app_secret: '' })
     const onQr = vi.fn()
     const onCredentials = vi.fn()
@@ -178,57 +230,20 @@ describe('FeishuAdapter', () => {
 
     await vi.waitFor(() => {
       expect(onQr).toHaveBeenCalledWith('https://accounts.feishu.cn/device/qr')
-      expect(onCredentials).toHaveBeenCalledWith({
-        appId: 'new-app-id',
-        appSecret: 'new-app-secret'
-      })
+      expect(onCredentials).toHaveBeenCalledWith({ appId: 'new-app-id', appSecret: 'new-app-secret' })
     })
+    expect(mockConnect).not.toHaveBeenCalled()
   })
 
-  it('does not emit a QR code when disconnected before registration begins', async () => {
-    let resolveBegin!: (value: {
-      deviceCode: string
-      verificationUri: string
-      interval: number
-      expiresIn: number
-    }) => void
-    registrationMocks.begin.mockReturnValue(
-      new Promise((resolve) => {
-        resolveBegin = resolve
-      })
-    )
-    const adapter = createAdapter({ app_id: '', app_secret: '' })
-    const onQr = vi.fn()
-    adapter.on('qr', onQr)
-
-    await adapter.connect()
-    await adapter.disconnect()
-    resolveBegin({
-      deviceCode: 'device-code',
-      verificationUri: 'https://accounts.feishu.cn/device/qr',
-      interval: 1,
-      expiresIn: 600
-    })
-    await Promise.resolve()
-    await Promise.resolve()
-
-    expect(onQr).not.toHaveBeenCalled()
-    expect(registrationMocks.poll).not.toHaveBeenCalled()
-  })
-
-  it('does not emit credentials when disconnected during registration polling', async () => {
-    let resolvePoll!: (value: { appId: string; appSecret: string }) => void
+  it('does not finish QR registration after disconnect', async () => {
+    let finishPoll!: (result: { appId: string; appSecret: string }) => void
     registrationMocks.begin.mockResolvedValue({
       deviceCode: 'device-code',
       verificationUri: 'https://accounts.feishu.cn/device/qr',
       interval: 1,
       expiresIn: 600
     })
-    registrationMocks.poll.mockReturnValue(
-      new Promise((resolve) => {
-        resolvePoll = resolve
-      })
-    )
+    registrationMocks.poll.mockReturnValue(new Promise((resolve) => (finishPoll = resolve)))
     const adapter = createAdapter({ app_id: '', app_secret: '' })
     const onCredentials = vi.fn()
     adapter.on('credentials', onCredentials)
@@ -236,526 +251,358 @@ describe('FeishuAdapter', () => {
     await adapter.connect()
     await vi.waitFor(() => expect(registrationMocks.poll).toHaveBeenCalledOnce())
     await adapter.disconnect()
-    resolvePoll({ appId: 'new-app-id', appSecret: 'new-app-secret' })
-    await Promise.resolve()
+    finishPoll({ appId: 'new-app-id', appSecret: 'new-app-secret' })
     await Promise.resolve()
 
     expect(onCredentials).not.toHaveBeenCalled()
   })
 
-  it('sendMessage() sends post-type message via SDK', async () => {
+  it('sends markdown through the official channel and replies to the inbound message', async () => {
     const adapter = createAdapter()
     await adapter.connect()
-    await adapter.sendMessage('oc_123', 'Hello Feishu')
+    await adapter.sendMessage('oc_123', 'Hello Feishu', { replyToMessageId: 'msg-in-1' })
+    expect(mockSend).toHaveBeenCalledWith('oc_123', { markdown: 'Hello Feishu' }, { replyTo: 'msg-in-1' })
+  })
 
-    expect(mockImCreate).toHaveBeenCalledWith({
-      params: { receive_id_type: 'chat_id' },
-      data: {
-        receive_id: 'oc_123',
-        msg_type: 'post',
-        content: expect.stringContaining('Hello Feishu')
-      }
+  it('sends images and files through typed media inputs', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    await adapter.sendFile('oc_123', {
+      filename: 'chart.png',
+      data: Buffer.from('png').toString('base64'),
+      media_type: 'image/png',
+      size: 3
     })
-
-    // Verify it's a proper post payload with md tag
-    const content = JSON.parse(mockImCreate.mock.calls[0][0].data.content)
-    expect(content.zh_cn.content[0][0]).toEqual({ tag: 'md', text: 'Hello Feishu' })
-  })
-
-  it('sendMessage() chunks long messages', async () => {
-    vi.useFakeTimers()
-    const adapter = createAdapter()
-    await adapter.connect()
-
-    const longText = 'A'.repeat(5000)
-    const sendPromise = adapter.sendMessage('oc_123', longText)
-
-    await vi.runAllTimersAsync()
-    await sendPromise
-
-    expect(mockImCreate).toHaveBeenCalledTimes(2)
-  })
-
-  it('sendMessage() throws when Feishu returns an API error', async () => {
-    const adapter = createAdapter()
-    await adapter.connect()
-    mockImCreate.mockResolvedValueOnce({ code: 99991663, msg: 'permission denied' })
-
-    await expect(adapter.sendMessage('oc_123', 'Hello Feishu')).rejects.toThrow(
-      'Send Feishu message failed: permission denied'
-    )
-  })
-
-  it('sendFile() uploads a generic file then posts a file message', async () => {
-    const adapter = createAdapter()
-    await adapter.connect()
-
-    const data = Buffer.from('pdf-bytes').toString('base64')
     await adapter.sendFile('oc_123', {
       filename: 'report.pdf',
-      data,
+      data: Buffer.from('pdf').toString('base64'),
       media_type: 'application/pdf',
-      size: 9
+      size: 3
     })
 
-    expect(mockFileCreate).toHaveBeenCalledWith({
-      data: { file_type: 'stream', file_name: 'report.pdf', file: expect.any(Buffer) }
-    })
-    expect(mockImCreate).toHaveBeenCalledWith({
-      params: { receive_id_type: 'chat_id' },
-      data: { receive_id: 'oc_123', msg_type: 'file', content: JSON.stringify({ file_key: 'file-1' }) }
+    expect(mockSend).toHaveBeenNthCalledWith(1, 'oc_123', { image: { source: expect.any(Buffer) } })
+    expect(mockSend).toHaveBeenNthCalledWith(2, 'oc_123', {
+      file: { source: expect.any(Buffer), fileName: 'report.pdf' }
     })
   })
 
-  it('sendFile() uploads images via the image API and posts an image message', async () => {
+  it('bridges cumulative text updates to the official streaming API', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+    await channelHandlers.message(incomingMessage())
+
+    const responseOptions = { replyToMessageId: 'msg-in-1' }
+    await adapter.onTextUpdate('oc_123', 'partial', responseOptions)
+    await adapter.onTextUpdate('oc_123', 'partial response', responseOptions)
+    await expect(adapter.onStreamComplete('oc_123', 'final response', responseOptions)).resolves.toBe(true)
+
+    expect(mockStream).toHaveBeenCalledWith('oc_123', expect.any(Object), { replyTo: 'msg-in-1' })
+    expect(mockSetContent).toHaveBeenNthCalledWith(1, 'partial')
+    expect(mockSetContent).toHaveBeenNthCalledWith(2, 'partial response')
+    expect(mockSetContent).toHaveBeenNthCalledWith(3, 'final response')
+  })
+
+  it('falls back to a regular message when stream completion fails', async () => {
+    mockStream.mockImplementationOnce(async (_chatId, input) => {
+      await input.markdown({ messageId: 'stream-1', setContent: mockSetContent, append: vi.fn() })
+      throw new Error('stream failed')
+    })
     const adapter = createAdapter()
     await adapter.connect()
 
-    const data = Buffer.from('png-bytes').toString('base64')
-    await adapter.sendFile('oc_123', { filename: 'chart.png', data, media_type: 'image/png', size: 9 })
+    await adapter.onTextUpdate('oc_123', 'partial', { replyToMessageId: 'msg-in-1' })
 
-    expect(mockImageCreate).toHaveBeenCalledWith({ data: { image_type: 'message', image: expect.any(Buffer) } })
-    expect(mockFileCreate).not.toHaveBeenCalled()
-    expect(mockImCreate).toHaveBeenCalledWith({
-      params: { receive_id_type: 'chat_id' },
-      data: { receive_id: 'oc_123', msg_type: 'image', content: JSON.stringify({ image_key: 'img-1' }) }
+    await expect(adapter.onStreamComplete('oc_123', 'final', { replyToMessageId: 'msg-in-1' })).resolves.toBe(false)
+  })
+
+  it('sends proactive streams at the chat root instead of replying to the last inbound message', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+    await channelHandlers.message(incomingMessage())
+
+    await adapter.onTextUpdate('oc_123', 'proactive update')
+
+    expect(mockStream).toHaveBeenCalledWith('oc_123', expect.any(Object), undefined)
+  })
+
+  it('isolates thread events and keeps streamed replies in the originating thread', async () => {
+    const adapter = createAdapter()
+    const onMessage = vi.fn()
+    adapter.on('message', onMessage)
+    await adapter.connect()
+
+    await channelHandlers.message(incomingMessage({ chatType: 'group', threadId: 'thread-1', rootId: 'root-1' }))
+    await adapter.onTextUpdate('oc_123', 'partial', { replyToMessageId: 'msg-in-1', replyInThread: true })
+    await adapter.onStreamComplete('oc_123', 'final', { replyToMessageId: 'msg-in-1', replyInThread: true })
+
+    expect(onMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chatId: 'oc_123',
+        conversationId: 'thread:thread-1',
+        replyInThread: true
+      })
+    )
+    expect(mockStream).toHaveBeenCalledWith('oc_123', expect.any(Object), {
+      replyTo: 'msg-in-1',
+      replyInThread: true
     })
   })
 
-  it('sendFile() throws when the upload returns no file_key', async () => {
+  it('keeps ordinary quoted replies in the chat conversation', async () => {
     const adapter = createAdapter()
+    const onMessage = vi.fn()
+    adapter.on('message', onMessage)
     await adapter.connect()
-    mockFileCreate.mockResolvedValueOnce(null)
 
-    await expect(
-      adapter.sendFile('oc_123', { filename: 'a.bin', data: '', media_type: 'application/octet-stream', size: 0 })
-    ).rejects.toThrow('(no file_key)')
-    expect(mockImCreate).not.toHaveBeenCalled()
+    await channelHandlers.message(incomingMessage({ chatType: 'group', rootId: 'root-1' }))
+
+    expect(onMessage).toHaveBeenCalledWith(expect.objectContaining({ chatId: 'oc_123' }))
+    expect(onMessage.mock.calls[0][0]).not.toHaveProperty('conversationId')
+    expect(onMessage.mock.calls[0][0]).not.toHaveProperty('replyInThread')
   })
 
-  it('sendFile() throws when the image upload returns no image_key', async () => {
+  it('preserves partial output when finalizing a failed stream', async () => {
     const adapter = createAdapter()
     await adapter.connect()
-    mockImageCreate.mockResolvedValueOnce(null)
 
-    const data = Buffer.from('png-bytes').toString('base64')
-    await expect(
-      adapter.sendFile('oc_123', { filename: 'chart.png', data, media_type: 'image/png', size: 9 })
-    ).rejects.toThrow('(no image_key)')
-    expect(mockImCreate).not.toHaveBeenCalled()
+    await adapter.onTextUpdate('oc_123', 'partial response')
+    await adapter.onStreamError('oc_123', 'generation failed')
+
+    expect(mockSetContent).toHaveBeenLastCalledWith('partial response\n\n---\n**Error**: generation failed')
   })
 
-  it('sendFile() propagates a failure when the message post fails after a successful upload', async () => {
+  it('settles the stream when its best-effort error update fails', async () => {
     const adapter = createAdapter()
     await adapter.connect()
-    mockImCreate.mockRejectedValueOnce(new Error('permission denied'))
+    await adapter.onTextUpdate('oc_123', 'partial response')
+    mockSetContent.mockRejectedValueOnce(new Error('card update failed'))
 
-    const data = Buffer.from('pdf-bytes').toString('base64')
-    await expect(
-      adapter.sendFile('oc_123', { filename: 'report.pdf', data, media_type: 'application/pdf', size: 9 })
-    ).rejects.toThrow('permission denied')
-    // Upload succeeded; the failure is on the message post, so the upload was still attempted.
-    expect(mockFileCreate).toHaveBeenCalled()
+    await expect(adapter.onStreamError('oc_123', 'generation failed')).resolves.toBeUndefined()
   })
 
-  it('onTextUpdate() creates streaming card and updates content via CardKit', async () => {
-    vi.useFakeTimers()
+  it('ignores late card updates after disconnecting an active stream', async () => {
     const adapter = createAdapter()
     await adapter.connect()
+    await adapter.onTextUpdate('oc_123', 'partial response')
+    const stream = (
+      adapter as unknown as { streams: Map<string, { update: (text: string) => Promise<void> }> }
+    ).streams.get('oc_123')
+    expect(stream).toBeDefined()
 
-    await adapter.onTextUpdate('oc_123', 'partial text...')
+    await adapter.disconnect()
+    mockSetContent.mockClear()
+    await stream!.update('late update')
 
-    // Card is created eagerly (before throttle)
-    expect(mockCardCreate).toHaveBeenCalledWith({
-      data: {
-        type: 'card_json',
-        data: expect.stringContaining('streaming_mode')
-      }
-    })
+    expect(mockSetContent).not.toHaveBeenCalled()
+  })
 
-    expect(mockImCreate).toHaveBeenCalledWith({
-      params: { receive_id_type: 'chat_id' },
-      data: {
-        receive_id: 'oc_123',
-        msg_type: 'interactive',
-        content: expect.stringContaining('card-1')
-      }
-    })
+  it('logs callback failures instead of leaving a rejected SDK handler promise', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+    vi.spyOn(adapter, 'downloadResources').mockRejectedValueOnce(new Error('download failed'))
 
-    // Flush is deferred (long-gap batching) — advance timers to trigger it
-    await vi.advanceTimersByTimeAsync(500)
-
-    expect(mockElementContent).toHaveBeenCalledWith({
-      path: { card_id: 'card-1', element_id: 'streaming_content' },
-      data: {
-        content: 'partial text...',
-        sequence: expect.any(Number)
-      }
+    expect(channelHandlers.message(incomingMessage())).toBeUndefined()
+    await vi.waitFor(() => {
+      expect(loggerMocks.error).toHaveBeenCalledWith(
+        'Failed to handle Feishu message',
+        expect.objectContaining({ chatId: 'oc_123', messageId: 'msg-in-1', error: 'download failed' })
+      )
     })
   })
 
-  it('onStreamComplete() closes streaming mode and returns true', async () => {
-    vi.useFakeTimers()
+  it('emits normalized text, sender identity, and reply message id', async () => {
     const adapter = createAdapter()
+    const onMessage = vi.fn()
+    adapter.on('message', onMessage)
     await adapter.connect()
 
-    await adapter.onTextUpdate('oc_123', 'partial text...')
-    // Advance past the long-gap batch delay so the flush completes
-    await vi.advanceTimersByTimeAsync(500)
+    await channelHandlers.message(incomingMessage())
 
-    await expect(adapter.onStreamComplete('oc_123', 'final text')).resolves.toBe(true)
-
-    expect(mockCardSettings).toHaveBeenCalledWith({
-      path: { card_id: 'card-1' },
-      data: {
-        settings: expect.stringContaining('streaming_mode'),
-        sequence: expect.any(Number)
-      }
-    })
-  })
-
-  it('sendTypingIndicator() is a no-op when no user message has been seen', async () => {
-    const adapter = createAdapter()
-    await adapter.connect()
-    await adapter.sendTypingIndicator('oc_123')
-    expect(mockReactionCreate).not.toHaveBeenCalled()
-  })
-
-  async function deliverIncomingTextMessage(messageId = 'msg-in-1', chatId = 'oc_123') {
-    const handler = capturedEventHandlers['im.message.receive_v1']
-    await handler({
-      sender: { sender_id: { open_id: 'ou_user1' } },
-      message: {
-        message_id: messageId,
-        chat_id: chatId,
-        chat_type: 'p2p',
-        message_type: 'text',
-        content: JSON.stringify({ text: 'Hello agent' })
-      }
-    })
-  }
-
-  it('sendTypingIndicator() reacts to the latest user message with INHALE and is idempotent', async () => {
-    const adapter = createAdapter()
-    await adapter.connect()
-
-    await deliverIncomingTextMessage()
-
-    await adapter.sendTypingIndicator('oc_123')
-    await adapter.sendTypingIndicator('oc_123')
-
-    expect(mockReactionCreate).toHaveBeenCalledTimes(1)
-    expect(mockReactionCreate).toHaveBeenCalledWith({
-      path: { message_id: 'msg-in-1' },
-      data: { reaction_type: { emoji_type: 'Typing' } }
-    })
-  })
-
-  it('sendMessage() promotes the typing reaction from INHALE to OK_HAND', async () => {
-    const adapter = createAdapter()
-    await adapter.connect()
-
-    await deliverIncomingTextMessage()
-    mockReactionCreate.mockResolvedValueOnce({ code: 0, data: { reaction_id: 'rx-thinking' } })
-    await adapter.sendTypingIndicator('oc_123')
-
-    mockReactionCreate.mockResolvedValueOnce({ code: 0, data: { reaction_id: 'rx-done' } })
-    await adapter.sendMessage('oc_123', 'reply')
-
-    expect(mockReactionDelete).toHaveBeenCalledWith({
-      path: { message_id: 'msg-in-1', reaction_id: 'rx-thinking' }
-    })
-    expect(mockReactionCreate).toHaveBeenLastCalledWith({
-      path: { message_id: 'msg-in-1' },
-      data: { reaction_type: { emoji_type: 'OK' } }
-    })
-  })
-
-  it('sendMessage() does not add OK_HAND when there was no prior typing reaction', async () => {
-    const adapter = createAdapter()
-    await adapter.connect()
-
-    // /new style ack — no incoming user message tracked, no typing indicator first
-    await adapter.sendMessage('oc_123', 'New session created.')
-
-    expect(mockReactionCreate).not.toHaveBeenCalled()
-    expect(mockReactionDelete).not.toHaveBeenCalled()
-  })
-
-  it('onStreamError() swaps the reaction to CRY and posts the error to chat', async () => {
-    const adapter = createAdapter()
-    await adapter.connect()
-
-    await deliverIncomingTextMessage()
-    mockReactionCreate.mockResolvedValueOnce({ code: 0, data: { reaction_id: 'rx-thinking' } })
-    await adapter.sendTypingIndicator('oc_123')
-
-    mockReactionCreate.mockResolvedValueOnce({ code: 0, data: { reaction_id: 'rx-error' } })
-    mockImCreate.mockClear()
-    await adapter.onStreamError('oc_123', 'boom')
-
-    expect(mockReactionDelete).toHaveBeenCalledWith({
-      path: { message_id: 'msg-in-1', reaction_id: 'rx-thinking' }
-    })
-    expect(mockReactionCreate).toHaveBeenLastCalledWith({
-      path: { message_id: 'msg-in-1' },
-      data: { reaction_type: { emoji_type: 'CRY' } }
-    })
-    // No streaming controller exists, so the error must be sent as a plain message
-    expect(mockImCreate).toHaveBeenCalledWith({
-      params: { receive_id_type: 'chat_id' },
-      data: {
-        receive_id: 'oc_123',
-        msg_type: 'post',
-        content: expect.stringContaining('boom')
-      }
-    })
-  })
-
-  it('onStreamError() defers to the streaming card when one exists (no extra message)', async () => {
-    vi.useFakeTimers()
-    const adapter = createAdapter()
-    await adapter.connect()
-
-    await deliverIncomingTextMessage()
-    mockReactionCreate.mockResolvedValueOnce({ code: 0, data: { reaction_id: 'rx-thinking' } })
-    await adapter.sendTypingIndicator('oc_123')
-    await adapter.onTextUpdate('oc_123', 'partial...')
-    await vi.advanceTimersByTimeAsync(500)
-
-    mockImCreate.mockClear()
-    mockReactionCreate.mockResolvedValueOnce({ code: 0, data: { reaction_id: 'rx-error' } })
-
-    await adapter.onStreamError('oc_123', 'boom')
-
-    // The streaming card displays the error; no plain "Error" message should be sent
-    expect(mockImCreate).not.toHaveBeenCalled()
-  })
-
-  it('handles incoming text messages and emits message event', async () => {
-    const adapter = createAdapter()
-    await adapter.connect()
-
-    const messageSpy = vi.fn()
-    adapter.on('message', messageSpy)
-
-    const handler = capturedEventHandlers['im.message.receive_v1']
-    expect(handler).toBeDefined()
-
-    await handler({
-      sender: { sender_id: { open_id: 'ou_user1' } },
-      message: {
-        message_id: 'msg-in-1',
-        chat_id: 'oc_123',
-        chat_type: 'p2p',
-        message_type: 'text',
-        content: JSON.stringify({ text: 'Hello agent' })
-      }
-    })
-
-    expect(messageSpy).toHaveBeenCalledWith({
+    expect(onMessage).toHaveBeenCalledWith({
       chatId: 'oc_123',
       userId: 'ou_user1',
-      userName: '',
+      userName: 'Alice',
+      messageId: 'msg-in-1',
       text: 'Hello agent'
     })
   })
 
-  it('handles slash commands from text messages', async () => {
+  it('routes normalized slash commands without invoking the agent', async () => {
     const adapter = createAdapter()
+    const onCommand = vi.fn()
+    const onMessage = vi.fn()
+    adapter.on('command', onCommand)
+    adapter.on('message', onMessage)
     await adapter.connect()
 
-    const commandSpy = vi.fn()
-    adapter.on('command', commandSpy)
+    await channelHandlers.message(incomingMessage({ content: '/new project' }))
 
-    const handler = capturedEventHandlers['im.message.receive_v1']
-    await handler({
-      sender: { sender_id: { open_id: 'ou_user1' } },
-      message: {
-        message_id: 'msg-cmd-1',
-        chat_id: 'oc_123',
-        chat_type: 'p2p',
-        message_type: 'text',
-        content: JSON.stringify({ text: '/new' })
-      }
-    })
-
-    expect(commandSpy).toHaveBeenCalledWith({
+    expect(onCommand).toHaveBeenCalledWith({
       chatId: 'oc_123',
       userId: 'ou_user1',
-      userName: '',
+      userName: 'Alice',
+      messageId: 'msg-in-1',
       command: 'new',
-      args: undefined
+      args: 'project'
     })
+    expect(onMessage).not.toHaveBeenCalled()
   })
 
-  it('handles /whoami from text messages', async () => {
+  it('retains the configured chat allowlist after SDK normalization', async () => {
+    const adapter = createAdapter({ allowed_chat_ids: ['oc_allowed'] })
+    const onMessage = vi.fn()
+    adapter.on('message', onMessage)
+    await adapter.connect()
+
+    await channelHandlers.message(incomingMessage({ chatId: 'oc_blocked' }))
+
+    expect(onMessage).not.toHaveBeenCalled()
+  })
+
+  it('downloads normalized image and file resources for the agent', async () => {
     const adapter = createAdapter()
+    const onMessage = vi.fn()
+    adapter.on('message', onMessage)
     await adapter.connect()
+    const png = Buffer.from('89504e470d0a1a0a0000000d49484452', 'hex')
+    const pdf = Buffer.from('%PDF-1.7')
+    mockMessageResourceGet
+      .mockResolvedValueOnce({
+        getReadableStream: async function* () {
+          yield png
+        }
+      })
+      .mockResolvedValueOnce({
+        getReadableStream: async function* () {
+          yield pdf
+        }
+      })
 
-    const commandSpy = vi.fn()
-    adapter.on('command', commandSpy)
+    channelHandlers.message(
+      incomingMessage({
+        content: '<image>\n<file name="report.pdf">',
+        resources: [
+          { type: 'image', fileKey: 'img-1' },
+          { type: 'file', fileKey: 'file-1', fileName: 'report.pdf' }
+        ]
+      })
+    )
+    await vi.waitFor(() => expect(mockMessageResourceGet).toHaveBeenCalledTimes(2))
 
-    const handler = capturedEventHandlers['im.message.receive_v1']
-    await handler({
-      sender: { sender_id: { open_id: 'ou_user1' } },
-      message: {
-        message_id: 'msg-cmd-2',
-        chat_id: 'oc_123',
-        chat_type: 'p2p',
-        message_type: 'text',
-        content: JSON.stringify({ text: '/whoami' })
-      }
+    expect(mockMessageResourceGet).toHaveBeenNthCalledWith(1, {
+      path: { message_id: 'msg-in-1', file_key: 'img-1' },
+      params: { type: 'image' }
     })
-
-    expect(commandSpy).toHaveBeenCalledWith({
-      chatId: 'oc_123',
-      userId: 'ou_user1',
-      userName: '',
-      command: 'whoami',
-      args: undefined
+    expect(mockMessageResourceGet).toHaveBeenNthCalledWith(2, {
+      path: { message_id: 'msg-in-1', file_key: 'file-1' },
+      params: { type: 'file' }
     })
+    expect(onMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        images: [{ data: png.toString('base64'), media_type: 'image/png' }],
+        files: [
+          {
+            filename: 'report.pdf',
+            data: pdf.toString('base64'),
+            media_type: 'application/pdf',
+            size: pdf.length
+          }
+        ]
+      })
+    )
   })
 
-  it('auth guard blocks unauthorized chat IDs', async () => {
-    const adapter = createAdapter({ allowed_chat_ids: ['oc_123'] })
+  it('downloads audio as a file and skips unsupported stickers', async () => {
+    const adapter = createAdapter()
+    const onMessage = vi.fn()
+    adapter.on('message', onMessage)
     await adapter.connect()
-
-    const messageSpy = vi.fn()
-    adapter.on('message', messageSpy)
-
-    const handler = capturedEventHandlers['im.message.receive_v1']
-    await handler({
-      sender: { sender_id: { open_id: 'ou_user1' } },
-      message: {
-        message_id: 'msg-blocked',
-        chat_id: 'oc_unauthorized',
-        chat_type: 'p2p',
-        message_type: 'text',
-        content: JSON.stringify({ text: 'Should be blocked' })
-      }
-    })
-
-    expect(messageSpy).not.toHaveBeenCalled()
-  })
-
-  it('strips @mention tags from group messages', async () => {
-    const adapter = createAdapter({ allowed_chat_ids: [] })
-    await adapter.connect()
-
-    const messageSpy = vi.fn()
-    adapter.on('message', messageSpy)
-
-    const handler = capturedEventHandlers['im.message.receive_v1']
-    await handler({
-      sender: { sender_id: { open_id: 'ou_user1' } },
-      message: {
-        message_id: 'msg-mention',
-        chat_id: 'oc_group1',
-        chat_type: 'group',
-        message_type: 'text',
-        content: JSON.stringify({ text: '@_user_1 Hello agent' })
-      }
-    })
-
-    expect(messageSpy).toHaveBeenCalledWith(expect.objectContaining({ text: 'Hello agent' }))
-  })
-
-  it('handles incoming image messages and emits message event with attachment', async () => {
-    const adapter = createAdapter({ allowed_chat_ids: [] })
-    await adapter.connect()
-
-    const messageSpy = vi.fn()
-    adapter.on('message', messageSpy)
-
-    const pngBuffer = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x01, 0x02, 0x03])
+    const audio = Buffer.from('audio')
     mockMessageResourceGet.mockResolvedValue({
-      getReadableStream: () => {
-        const { Readable } = require('node:stream')
-        return Readable.from([pngBuffer])
-      },
-      headers: { 'content-type': 'image/png' }
-    })
-
-    const handler = capturedEventHandlers['im.message.receive_v1']
-    await handler({
-      sender: { sender_id: { open_id: 'ou_user1' } },
-      message: {
-        message_id: 'msg-image',
-        chat_id: 'oc_123',
-        chat_type: 'p2p',
-        message_type: 'image',
-        content: JSON.stringify({ image_key: 'img_abc' })
+      getReadableStream: async function* () {
+        yield audio
       }
     })
 
-    // Downloader is fire-and-forget — flush microtasks
-    await new Promise((resolve) => setImmediate(resolve))
+    channelHandlers.message(
+      incomingMessage({
+        content: '<audio key="audio-1"/>',
+        resources: [
+          { type: 'audio', fileKey: 'audio-1', fileName: 'note.mp3' },
+          { type: 'sticker', fileKey: 'sticker-1' }
+        ]
+      })
+    )
+    await vi.waitFor(() => expect(mockMessageResourceGet).toHaveBeenCalledOnce())
 
     expect(mockMessageResourceGet).toHaveBeenCalledWith({
-      params: { type: 'image' },
-      path: { message_id: 'msg-image', file_key: 'img_abc' }
+      path: { message_id: 'msg-in-1', file_key: 'audio-1' },
+      params: { type: 'file' }
     })
-    expect(messageSpy).toHaveBeenCalledWith({
-      chatId: 'oc_123',
-      userId: 'ou_user1',
-      userName: '',
-      text: '',
-      images: [
-        {
-          data: pngBuffer.toString('base64'),
-          media_type: 'image/png'
-        }
-      ]
-    })
+    await vi.waitFor(() =>
+      expect(onMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          files: [expect.objectContaining({ filename: 'note.mp3', data: audio.toString('base64') })]
+        })
+      )
+    )
   })
 
-  it('emits fallback message when image content has no image_key', async () => {
-    const adapter = createAdapter({ allowed_chat_ids: [] })
+  it('uses official reaction APIs for thinking and completion status', async () => {
+    const adapter = createAdapter()
     await adapter.connect()
+    await channelHandlers.message(incomingMessage())
+    mockAddReaction.mockResolvedValueOnce('rx-thinking').mockResolvedValueOnce('rx-done')
 
-    const messageSpy = vi.fn()
-    adapter.on('message', messageSpy)
+    const responseOptions = { replyToMessageId: 'msg-in-1' }
+    await adapter.sendTypingIndicator('oc_123', responseOptions)
+    await adapter.sendMessage('oc_123', 'Done', responseOptions)
 
-    const handler = capturedEventHandlers['im.message.receive_v1']
-    await handler({
-      sender: { sender_id: { open_id: 'ou_user1' } },
-      message: {
-        message_id: 'msg-image-bad',
-        chat_id: 'oc_123',
-        chat_type: 'p2p',
-        message_type: 'image',
-        content: '{}'
-      }
-    })
-
-    expect(mockMessageResourceGet).not.toHaveBeenCalled()
-    expect(messageSpy).not.toHaveBeenCalled()
+    expect(mockAddReaction).toHaveBeenNthCalledWith(1, 'msg-in-1', 'Typing')
+    expect(mockRemoveReaction).toHaveBeenCalledWith('msg-in-1', 'rx-thinking')
+    expect(mockAddReaction).toHaveBeenNthCalledWith(2, 'msg-in-1', 'OK')
+    expect(adapter.chatReactions.size).toBe(0)
   })
 
-  it('ignores unsupported message types (e.g. sticker)', async () => {
-    const adapter = createAdapter({ allowed_chat_ids: [] })
+  it('keeps every long thread reply chunk in the originating thread', async () => {
+    const adapter = createAdapter()
     await adapter.connect()
+    const text = 'A'.repeat(4001)
 
-    const messageSpy = vi.fn()
-    adapter.on('message', messageSpy)
+    await adapter.sendMessage('oc_123', text, { replyToMessageId: 'msg-in-1', replyInThread: true })
 
-    const handler = capturedEventHandlers['im.message.receive_v1']
-    await handler({
-      sender: { sender_id: { open_id: 'ou_user1' } },
-      message: {
-        message_id: 'msg-sticker',
-        chat_id: 'oc_123',
-        chat_type: 'p2p',
-        message_type: 'sticker',
-        content: '{}'
-      }
-    })
-
-    expect(messageSpy).not.toHaveBeenCalled()
+    expect(mockSend.mock.calls.map(([, input]) => input.markdown).join('')).toBe(text)
+    expect(mockSend).toHaveBeenCalledTimes(2)
+    for (const [chatId, input, options] of mockSend.mock.calls) {
+      expect(chatId).toBe('oc_123')
+      expect(input.markdown.length).toBeLessThanOrEqual(4000)
+      expect(options).toEqual({ replyTo: 'msg-in-1', replyInThread: true })
+    }
   })
 
-  it('sets notifyChatIds from allowed_chat_ids', () => {
+  it('balances code fences across long thread reply chunks', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+    const text = [
+      '```typescript',
+      ...Array.from({ length: 300 }, (_, index) => `const value${index} = ${index}`),
+      '```'
+    ].join('\n')
+
+    await adapter.sendMessage('oc_123', text, { replyToMessageId: 'msg-in-1', replyInThread: true })
+
+    const chunks = mockSend.mock.calls.map(([, input]) => input.markdown as string)
+    expect(chunks.length).toBeGreaterThan(1)
+    for (const chunk of chunks) {
+      expect(chunk.length).toBeLessThanOrEqual(4000)
+      expect(chunk.match(/^```/gm)).toHaveLength(2)
+    }
+    expect(chunks.join('\n').match(/^const value\d+ = \d+$/gm)).toHaveLength(300)
+    expect(chunks.slice(1).every((chunk) => chunk.startsWith('```typescript\n'))).toBe(true)
+  })
+
+  it('keeps notification chat ids from configuration', () => {
     const adapter = createAdapter({ allowed_chat_ids: ['oc_a', 'oc_b'] })
     expect(adapter.notifyChatIds).toEqual(['oc_a', 'oc_b'])
   })

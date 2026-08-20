@@ -361,8 +361,29 @@ function createCitationLookup(citations: MessageCitations): {
   return { lookup, markerNumberMap }
 }
 
+/**
+ * Rewrite whatever a model puts inside a `[cite:…]` bracket into the chained `[cite:a][cite:b]`
+ * the prompt asks for. Models keep inventing near-misses — padding, comma lists, a repeated
+ * `cite:` per id — so read the bracket as a bag of ids rather than matching one spelling at a
+ * time: every id-shaped token in it is an id, and a bracket holding none is left alone.
+ */
+function canonicalizeMarkers(content: string): string {
+  return mapMarkdownOutsideCode(content, (text) =>
+    text.replace(/\[cite:[^\]\n]*\]/g, (marker) => {
+      const ids = marker
+        .slice('[cite:'.length, -1)
+        .match(/[\w-]+/g)
+        ?.filter((id) => id !== 'cite')
+      return ids?.length ? ids.map((id) => `[cite:${id}]`).join('') : marker
+    })
+  )
+}
+
 function normalizeMarkerContent(content: string, markerNumberMap: Map<number, Citation>): string {
-  return markerNumberMap.size > 0 ? normalizeCitationMarks(content, markerNumberMap, WEB_SEARCH_SOURCE.AISDK) : content
+  const canonical = canonicalizeMarkers(content)
+  return markerNumberMap.size > 0
+    ? normalizeCitationMarks(canonical, markerNumberMap, WEB_SEARCH_SOURCE.AISDK)
+    : canonical
 }
 
 function collapseMarkerRuns(text: string, byMarker: ReadonlyMap<string, Citation>): string {
@@ -385,7 +406,7 @@ export function resolveCitationMarkerParts(
   citations: MessageCitations
 ): ResolvedCitationMarkers[] {
   if (citations.byId.size === 0) {
-    return contents.map((content) => ({ content, byMarker: new Map(), cited: [] }))
+    return contents.map((content) => ({ content: canonicalizeMarkers(content), byMarker: new Map(), cited: [] }))
   }
 
   const { lookup, markerNumberMap } = createCitationLookup(citations)
@@ -475,7 +496,7 @@ export function toExportableCitations(
  * without inventing a second, conflicting sequence.
  */
 export function stripCitationMarkers(content: string): string {
-  return mapMarkdownOutsideCode(content, (text) => text.replace(CITATION_MARKER_PATTERN, ''))
+  return mapMarkdownOutsideCode(canonicalizeMarkers(content), (text) => text.replace(CITATION_MARKER_PATTERN, ''))
 }
 
 /**

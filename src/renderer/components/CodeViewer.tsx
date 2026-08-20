@@ -2,6 +2,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useCodeHighlight } from '@renderer/hooks/useCodeHighlight'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
+import { codeViewerSelectionManager } from '@renderer/services/CodeViewerSelectionManager'
 import { getReactStyleFromToken } from '@renderer/utils/shiki'
 import { cn } from '@renderer/utils/style'
 import { uuid } from '@renderer/utils/uuid'
@@ -425,45 +426,39 @@ const CodeViewer = ({
   }, [virtualItems, debouncedHighlightLines, highlight])
 
   // Monitor selection changes, clear stale selection state, and auto-expand in collapsed state
-  const handleSelectionChange = useMemo(
-    () =>
-      debounce(() => {
-        const selection = window.getSelection()
+  const handleSelectionChange = useCallback(
+    (selection: Selection | null) => {
+      if (!selection || !selectionBelongsToViewer(selection)) {
+        savedSelectionRef.current = null
+        return
+      }
 
-        // No valid selection: clear and return
-        if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
-          savedSelectionRef.current = null
-          return
+      // In collapsed state, detect multi-line selection and request expand
+      if (!expanded && onRequestExpand) {
+        const saved = saveSelection()
+        if (saved && saved.endLine > saved.startLine) {
+          logger.debug('Multi-line selection detected in collapsed state, requesting expand', {
+            startLine: saved.startLine,
+            endLine: saved.endLine
+          })
+          onRequestExpand()
         }
-
-        // Only handle selections within this CodeViewer
-        if (!selectionBelongsToViewer(selection)) {
-          savedSelectionRef.current = null
-          return
-        }
-
-        // In collapsed state, detect multi-line selection and request expand
-        if (!expanded && onRequestExpand) {
-          const saved = saveSelection()
-          if (saved && saved.endLine > saved.startLine) {
-            logger.debug('Multi-line selection detected in collapsed state, requesting expand', {
-              startLine: saved.startLine,
-              endLine: saved.endLine
-            })
-            onRequestExpand()
-          }
-        }
-      }, 100),
+      }
+    },
     [expanded, onRequestExpand, saveSelection, selectionBelongsToViewer]
   )
+  const selectionChangeHandlerRef = useRef(handleSelectionChange)
+
+  useLayoutEffect(() => {
+    selectionChangeHandlerRef.current = handleSelectionChange
+  }, [handleSelectionChange])
 
   useEffect(() => {
-    document.addEventListener('selectionchange', handleSelectionChange)
-    return () => {
-      document.removeEventListener('selectionchange', handleSelectionChange)
-      handleSelectionChange.cancel()
-    }
-  }, [handleSelectionChange])
+    const scroller = scrollerRef.current
+    if (!scroller) return
+
+    return codeViewerSelectionManager.register(scroller, (selection) => selectionChangeHandlerRef.current(selection))
+  }, [])
 
   // Listen for copy events
   useEffect(() => {

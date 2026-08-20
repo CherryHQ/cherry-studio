@@ -1,10 +1,17 @@
+---
+description: Entry point for IpcApi docs — subsystem boundary, naming quick reference, migration status, and doc navigation
+sources:
+  - src/main/ipc
+  - src/shared/ipc
+---
+
 # IpcApi Reference
 
 Entry point for **IpcApi** — Cherry Studio's unified, type-safe channel for RPC-over-IPC: command/capability calls from the renderer into the main process, plus typed main→renderer events.
 
 IpcApi is the **fifth parallel subsystem** alongside BootConfig / Cache / Preference / DataApi. It does **not** absorb any of them — it collects the "business capability IPC" those four cannot cover (window/system/shell/notification/external-service/file commands).
 
-> **Status:** the Stage-0 framework (schema mechanism, `IpcRouter`, `IpcApiService`, preload forwarder, renderer facade, `useIpcOn`) has shipped, and the business-channel migration is essentially complete — `IpcChannel.ts` now holds only the data/IpcApi infrastructure channels plus the intentionally-not-migrated groups (v1-only, the frozen file cluster, deferred lan_transfer / micro-domains / copilot, the skill scaffold, and the `Tab_MoveWindow` / Python escape hatches; each carries a self-contained comment in `IpcChannel.ts`). The endgame collapse (shrinking `IpcChannel.ts` to `ipc/channels.ts`, removing `BaseService.ipcHandle`/`ipcOn`, narrowing `window.electron`) is still pending.
+> **Status:** the framework and most business domains have shipped. `src/shared/IpcChannel.ts` still contains the DataApi/Preference/Cache transports plus legacy app, backup, file, LAN-transfer, Copilot, and small-domain channels, as well as the deliberate `Tab_MoveWindow` and Python reverse-RPC carve-outs. Retiring those remaining legacy entries, moving the transport constants under `ipc/`, and narrowing `window.electron` are still pending.
 
 ## Quick Navigation
 
@@ -33,7 +40,7 @@ Decision rule: SQLite data → DataApi; user setting → Preference; losable/sha
 | Channels | `IpcApi_Request` (`ipc-api:request`) / `IpcApi_Event` (`ipc-api:event`) |
 | Main coordinator | `IpcApiService` (`request` dispatch + `broadcast`/`send`) |
 | Preload bridge | `window.api.ipcApi` (`{ request, on }`) |
-| Renderer facade | `ipcApi` (`ipcApi.request('window.set_minimum_size', x)`) + `useIpcOn` |
+| Renderer facade | `ipcApi` (`ipcApi.request('window.main.set_minimum_size', x)`) + `useIpcOn` |
 | Route / event names | dot **snake_case**, any depth ≥ 2 (`file.read_doc`, `ai.agent.task.create`); resource path first, verb last; payload fields stay camelCase |
 | Request schemas | `*RequestSchemas` → `ipcRequestSchemas` / `IpcRoute` |
 | Event contracts (pure types) | `*EventSchemas` → `IpcEventSchemas` / `IpcEventName` |

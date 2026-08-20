@@ -1,125 +1,96 @@
+---
+description: Current Python code-block execution path through CodeBlockView, PyodideService, and the Pyodide Web Worker
+sources:
+  - src/renderer/components/CodeBlockView
+  - src/renderer/services/PyodideService.ts
+  - src/renderer/workers/pyodide.worker.ts
+---
+
 # Code Execution
 
-This document describes the Python code execution feature for code blocks. The implementation uses [Pyodide][pyodide-link] to run Python code directly in the browser environment, placed inside a Web Worker to avoid blocking the main UI thread.
+Python fenced-code blocks can run in the renderer through Pyodide. Execution
+happens in a Web Worker so loading packages and running Python do not block the
+React UI thread.
 
-The entire implementation is divided into three main parts: UI Layer, Service Layer, and Worker Layer.
+## Activation
 
-## Execution Flow
+`CodeBlockView` exposes the run tool only when both conditions hold:
 
-```mermaid
-sequenceDiagram
-    participant User
-    participant CodeBlockView (UI)
-    participant PyodideService (Service)
-    participant PyodideWorker (Worker)
+- the block language is `python`;
+- `chat.code.execution.enabled` is true.
 
-    User->>CodeBlockView (UI): Click "Run" button
-    CodeBlockView (UI)->>PyodideService (Service): Call runScript(code)
-    PyodideService (Service)->>PyodideWorker (Worker): Send postMessage({ id, python: code })
-    PyodideWorker (Worker)->>PyodideWorker (Worker): Load Pyodide and related packages
-    PyodideWorker (Worker)->>PyodideWorker (Worker): (On demand) Inject shims and merge code
-    PyodideWorker (Worker)->>PyodideWorker (Worker): Execute merged Python code
-    PyodideWorker (Worker)-->>PyodideService (Service): Return postMessage({ id, output })
-    PyodideService (Service)-->>CodeBlockView (UI): Return { text, image } object
-    CodeBlockView (UI)->>User: Display text and/or image output in status bar
+The timeout comes from `chat.code.execution.timeout_minutes` and defaults to one
+minute. Clicking Run calls
+`pyodideService.runScript(source, {}, timeoutMinutes * 60_000)` using the latest
+source held by the workbench. The returned `{ text, image? }` renders below the
+code surface in `StatusBar`.
+
+## Runtime flow
+
+```text
+CodeBlockView
+  → PyodideService.runScript
+    → initialize one shared pyodide.worker
+    → postMessage({ id, python, context })
+      → loadPackagesFromImports(python)
+      → runPythonAsync(python)
+      → postMessage({ id, output })
+    → formatOutput(output)
+  → StatusBar text and optional image
 ```
 
-## 1. UI Layer
+`PyodideService` owns worker initialization, request IDs, response resolvers,
+timeouts, reset, and termination. Initialization is shared across calls and may
+retry up to five times. A run timeout rejects that request's resolver; it does
+not interrupt Python already executing inside the worker.
 
-The user-facing code execution component is [CodeBlockView][codeblock-view-link].
+The service also listens for the legacy
+`IpcChannel.Python_ExecutionRequest` renderer event and replies on
+`Python_ExecutionResponse`, allowing a main-process caller to use the same
+worker.
 
-### Key Mechanisms:
+## Worker behavior
 
-- **Run Button**: When the code block language is `python` and `codeExecution.enabled` is true, a "Run" button is conditionally rendered in `CodeToolbar`.
-- **Event Handling**: The run button's `onClick` triggers the `handleRunScript` function.
-- **Service Call**: `handleRunScript` calls `pyodideService.runScript(code)`, passing the Python code from the code block to the service.
-- **State Management and Output Display**: Uses `executionResult` to manage all execution output; whenever there's any result (text or image), the [StatusBar][statusbar-link] component is rendered for unified display.
+The worker loads Pyodide 0.28.0 from jsDelivr, so first use and newly imported
+packages require network access. For each request it:
 
-```typescript
-// src/renderer/components/CodeBlockView/view.tsx
-const [executionResult, setExecutionResult] = useState<{ text: string; image?: string } | null>(null)
+1. creates a fresh Python globals dictionary;
+2. calls `loadPackagesFromImports` for packages named by the source;
+3. injects a Matplotlib shim when the source contains `matplotlib`;
+4. runs the source with `runPythonAsync`;
+5. converts proxy results into structured-cloneable JavaScript values;
+6. captures stdout, stderr, execution errors, and an optional Matplotlib PNG;
+7. destroys the per-request globals dictionary.
 
-const handleRunScript = useCallback(() => {
-  setIsRunning(true)
-  setExecutionResult(null)
+The `context` field is part of the service message shape but is not currently
+injected into the Python globals.
 
-  pyodideService
-    .runScript(children, {}, codeExecution.timeoutMinutes * 60000)
-    .then((result) => {
-      setExecutionResult(result)
-    })
-    .catch((error) => {
-      console.error('Unexpected error:', error)
-      setExecutionResult({
-        text: `Unexpected error: ${error.message || 'Unknown error'}`
-      })
-    })
-    .finally(() => {
-      setIsRunning(false)
-    })
-}, [children, codeExecution.timeoutMinutes]);
+## Output and failure semantics
 
-// ... in JSX
-{isExecutable && executionResult && (
-  <StatusBar>
-    {executionResult.text}
-    {executionResult.image && (
-      <ImageOutput>
-        <img src={executionResult.image} alt="Matplotlib plot" />
-      </ImageOutput>
-    )}
-  </StatusBar>
-)}
+`PyodideService.formatOutput` prefers stdout, otherwise formats the expression
+result, then appends stderr/errors. A run with no output returns
+`Execution completed with no output.` Initialization, timeout, and internal
+failures resolve to user-visible text instead of rejecting the UI call.
+
+Matplotlib's patched `show()` saves the current figure to an in-memory PNG data
+URL. `CodeBlockView` displays that image together with any text result.
+
+## Security boundary
+
+The worker isolates computation from the UI thread, but it is not a security
+sandbox for untrusted Python. It downloads the Pyodide runtime and imported
+packages, and executes the supplied source. The feature is therefore disabled by
+default and must remain an explicit user setting.
+
+## Verification
+
+The UI contract is covered by:
+
+```bash
+pnpm test src/renderer/components/CodeBlockView/__tests__/CodeBlockView.test.tsx
 ```
 
-## 2. Service Layer
-
-The service layer acts as a bridge between UI components and the Web Worker running Pyodide. Its logic is encapsulated in the singleton class [PyodideService][pyodide-service-link].
-
-### Main Responsibilities:
-
-- **Worker Management**: Initialize, manage, and communicate with the Pyodide Web Worker.
-- **Request Handling**: Manage concurrent requests using a `resolvers` Map, matching requests and responses via unique IDs.
-- **API for UI**: Expose the `runScript(script, context, timeout)` method to UI. Returns `Promise<{ text: string; image?: string }>` to support multiple output types including images.
-- **Output Processing**: Receive `output` objects containing text, errors, and optional image data from the Worker. Format text and errors into a user-friendly string and return it along with image data to the UI layer.
-- **IPC Endpoint**: The service also listens on `IpcChannel.Python_ExecutionRequest` (`python:execution-request`) and replies via `IpcChannel.Python_ExecutionResponse` (`python:execution-response`), allowing the main process to request Python code execution.
-
-## 3. Worker Layer
-
-The core Python execution happens inside the Web Worker defined in [pyodide.worker.ts][pyodide-worker-link]. This ensures computationally intensive Python code doesn't freeze the user interface.
-
-### Worker Logic:
-
-- **Pyodide Loading**: The Worker loads the Pyodide engine from CDN and sets up handlers to capture Python's `stdout` and `stderr`.
-- **Dynamic Package Installation**: Uses `pyodide.loadPackagesFromImports()` to automatically analyze and install packages imported in the code.
-- **On-demand Shim Execution**: The Worker checks if the incoming code contains "matplotlib". If so, it executes a Python "shim" first to ensure image output goes to the global namespace.
-- **Result Serialization**: Execution results are recursively converted to serializable standard JavaScript objects via `.toJs()` and similar methods.
-- **Structured Output**: After execution, the Worker sends a message back to the service layer containing `id` and an `output` object. The `output` is a structured object with `result`, `text`, `error`, and an optional `image` field (for Base64 image data).
-
-### Data Flow
-
-1. **UI Layer ([CodeBlockView][codeblock-view-link])**: User clicks the "Run" button.
-2. **Service Layer ([PyodideService][pyodide-service-link])**:
-   - Receives the code execution request.
-   - Calls the Web Worker, passing user code.
-3. **Worker Layer ([pyodide.worker.ts][pyodide-worker-link])**:
-   - Loads the Pyodide runtime.
-   - Dynamically installs packages declared in `import` statements.
-   - **Injects Matplotlib shim**: If code contains `matplotlib`, prepends shim code that forces the `AGG` backend.
-   - **Executes code and captures output**: After execution, checks all `matplotlib.pyplot` figures; if images exist, saves them to an in-memory `BytesIO` object and encodes as Base64 strings.
-   - **Structured return**: Wraps captured text output and Base64 image data in a JSON object (`{ "text": "...", "image": "data:image/png;base64,..." }`) and returns it to the main thread.
-4. **Service Layer ([PyodideService][pyodide-service-link])**:
-   - Receives structured data from the Worker.
-   - Passes data as-is to the UI layer.
-5. **UI Layer ([CodeBlockView][codeblock-view-link])**:
-   - Receives the object containing text and image data.
-   - Uses `useState` to manage execution results (`executionResult`).
-   - Renders text output and image (if present) in the interface.
-
-<!-- Link Definitions -->
-
-[pyodide-link]: https://pyodide.org/
-[codeblock-view-link]: /src/renderer/components/CodeBlockView/view.tsx
-[pyodide-service-link]: /src/renderer/services/PyodideService.ts
-[pyodide-worker-link]: /src/renderer/workers/pyodide.worker.ts
-[statusbar-link]: /src/renderer/components/CodeBlockView/StatusBar.tsx
+Changes to the service or worker also require a manual run that covers initial
+runtime download, package loading, timeout reporting, stdout/stderr, and
+Matplotlib image output; those layers currently have no dedicated automated
+tests.

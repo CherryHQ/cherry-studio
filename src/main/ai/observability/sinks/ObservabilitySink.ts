@@ -1,5 +1,5 @@
-import type { SpanEntity } from '@mcp-trace/trace-core/types/config'
 import type { ReadableSpan, TimedEvent } from '@opentelemetry/sdk-trace-base'
+import type { SpanEntity } from '@shared/data/types/trace'
 
 export interface ObservabilitySink {
   readonly id: string

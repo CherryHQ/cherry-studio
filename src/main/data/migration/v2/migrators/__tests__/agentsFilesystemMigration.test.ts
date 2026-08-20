@@ -32,14 +32,17 @@ import {
   stageLegacyAgentFiles
 } from '../agentsFilesystemMigration'
 
-const { copyMutation, platformState } = vi.hoisted(() => ({
+const { copyMutation, platformState, realpathFailures } = vi.hoisted(() => ({
   copyMutation: {
     afterCopyFile: undefined as undefined | ((sourcePath: string, destinationPath: string) => Promise<void>),
     beforeCpEntry: undefined as undefined | ((sourcePath: string, destinationPath: string) => Promise<void>),
     copyFileCalls: [] as Array<[sourcePath: string, destinationPath: string]>,
+    linkFailure: undefined as undefined | NodeJS.ErrnoException,
+    linkCalls: [] as Array<[sourcePath: string, destinationPath: string]>,
     symlinkCalls: [] as Array<[target: string, path: string, type?: string | null]>
   },
-  platformState: { isMac: false, isWin: false }
+  platformState: { isMac: false, isWin: false },
+  realpathFailures: new Map<string, NodeJS.ErrnoException>()
 }))
 
 vi.mock('@main/core/platform', async (importOriginal) => {
@@ -80,6 +83,16 @@ vi.mock('node:fs/promises', async (importOriginal) => {
       const result = await original.copyFile(...args)
       await copyMutation.afterCopyFile?.(String(args[0]), String(args[1]))
       return result
+    },
+    link: async (...args: Parameters<typeof original.link>) => {
+      copyMutation.linkCalls.push([String(args[0]), String(args[1])])
+      if (copyMutation.linkFailure) throw copyMutation.linkFailure
+      return original.link(...args)
+    },
+    realpath: async (...args: Parameters<typeof original.realpath>) => {
+      const failure = realpathFailures.get(path.resolve(String(args[0])))
+      if (failure) throw failure
+      return original.realpath(...args)
     },
     symlink: async (...args: Parameters<typeof original.symlink>) => {
       copyMutation.symlinkCalls.push([String(args[0]), String(args[1]), args[2]])
@@ -150,7 +163,10 @@ describe('agentsFilesystemMigration', () => {
     copyMutation.afterCopyFile = undefined
     copyMutation.beforeCpEntry = undefined
     copyMutation.copyFileCalls.length = 0
+    copyMutation.linkFailure = undefined
+    copyMutation.linkCalls.length = 0
     copyMutation.symlinkCalls.length = 0
+    realpathFailures.clear()
     platformState.isMac = false
     platformState.isWin = false
     await Promise.all(tempRoots.splice(0).map((tempRoot) => rm(tempRoot, { recursive: true, force: true })))
@@ -1155,6 +1171,141 @@ describe('agentsFilesystemMigration', () => {
     expect(await readFile(path.join(agentsDataRoot, 'source-owner-final', 'SOUL.md'), 'utf8')).toBe('legacy source')
   })
 
+  it('skips filesystem output when an external virtual-drive workspace cannot be resolved', async () => {
+    const { tempRoot, agentsDataRoot } = await createFixture()
+    const externalWorkspace = path.join(tempRoot, 'virtual-drive')
+    await mkdir(externalWorkspace)
+    await writeFile(path.join(externalWorkspace, 'SOUL.md'), 'cloud workspace')
+
+    const externalSession = sessionPlan(agentsDataRoot, externalWorkspace, {
+      sourceSessionId: 'session_external',
+      finalSessionId: FINAL_LATEST_SESSION_ID,
+      createdAt: Date.parse('2026-07-22T00:00:00Z'),
+      updatedAt: Date.parse('2026-07-23T00:00:00Z'),
+      managed: false
+    })
+    const realpathError = Object.assign(new Error(`UNKNOWN: unknown error, realpath '${externalWorkspace}'`), {
+      code: 'UNKNOWN',
+      errno: -4094,
+      path: externalWorkspace,
+      syscall: 'realpath'
+    })
+    realpathFailures.set(path.resolve(externalWorkspace), realpathError)
+
+    const input = {
+      agentsDataRoot,
+      agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+      sessions: [externalSession]
+    }
+
+    await expect(stageLegacyAgentFiles(input)).resolves.toEqual({ skippedTargetCount: 1 })
+    expect(await readFile(path.join(externalWorkspace, 'SOUL.md'), 'utf8')).toBe('cloud workspace')
+    await expect(access(path.join(agentsDataRoot, FINAL_AGENT_ID))).rejects.toThrow()
+    await expect(stageLegacyAgentFiles(input)).resolves.toEqual({ skippedTargetCount: 1 })
+  })
+
+  it('preserves existing targets when an external virtual-drive workspace cannot be resolved', async () => {
+    const { tempRoot, agentsDataRoot } = await createFixture()
+    const externalWorkspace = path.join(tempRoot, 'virtual-drive')
+    const existingTargetId = 'existing-target'
+    const existingTarget = path.join(agentsDataRoot, existingTargetId)
+    await mkdir(externalWorkspace)
+    await writeFile(path.join(externalWorkspace, 'SOUL.md'), 'cloud workspace')
+    await mkdir(existingTarget)
+    await writeFile(path.join(existingTarget, 'keep.txt'), 'keep existing target')
+
+    const externalSession = sessionPlan(agentsDataRoot, externalWorkspace, {
+      sourceSessionId: 'session_external',
+      finalSessionId: FINAL_LATEST_SESSION_ID,
+      createdAt: Date.parse('2026-07-22T00:00:00Z'),
+      updatedAt: Date.parse('2026-07-23T00:00:00Z'),
+      managed: false
+    })
+    realpathFailures.set(
+      path.resolve(externalWorkspace),
+      Object.assign(new Error(`UNKNOWN: unknown error, realpath '${externalWorkspace}'`), {
+        code: 'UNKNOWN',
+        errno: -4094,
+        path: externalWorkspace,
+        syscall: 'realpath'
+      })
+    )
+
+    const input = {
+      agentsDataRoot,
+      agents: [
+        { sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID },
+        { sourceAgentId: 'unrelated-source', finalAgentId: existingTargetId }
+      ],
+      sessions: [externalSession]
+    }
+
+    await expect(stageLegacyAgentFiles(input)).resolves.toEqual({ skippedTargetCount: 2 })
+    expect(await readFile(path.join(externalWorkspace, 'SOUL.md'), 'utf8')).toBe('cloud workspace')
+    expect(await readFile(path.join(existingTarget, 'keep.txt'), 'utf8')).toBe('keep existing target')
+    await expect(stageLegacyAgentFiles(input)).resolves.toEqual({ skippedTargetCount: 2 })
+    expect(await readFile(path.join(existingTarget, 'keep.txt'), 'utf8')).toBe('keep existing target')
+  })
+
+  it('keeps realpath UNKNOWN fatal for a source inside the agents root', async () => {
+    const { agentsDataRoot, legacyWorkspace } = await createFixture()
+    await mkdir(legacyWorkspace, { recursive: true })
+    const managedSession = sessionPlan(agentsDataRoot, legacyWorkspace, {
+      sourceSessionId: 'session_managed',
+      finalSessionId: FINAL_LATEST_SESSION_ID,
+      createdAt: Date.parse('2026-07-22T00:00:00Z'),
+      updatedAt: Date.parse('2026-07-23T00:00:00Z'),
+      managed: false
+    })
+    realpathFailures.set(
+      path.resolve(legacyWorkspace),
+      Object.assign(new Error(`UNKNOWN: unknown error, realpath '${legacyWorkspace}'`), {
+        code: 'UNKNOWN',
+        errno: -4094,
+        path: legacyWorkspace,
+        syscall: 'realpath'
+      })
+    )
+
+    await expect(
+      stageLegacyAgentFiles({
+        agentsDataRoot,
+        agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+        sessions: [managedSession]
+      })
+    ).rejects.toMatchObject({ code: 'UNKNOWN', syscall: 'realpath' })
+  })
+
+  it('keeps realpath UNKNOWN fatal for a case-only agents root on Windows', async () => {
+    const { agentsDataRoot } = await createFixture()
+    platformState.isWin = true
+    const caseVariantRoot = agentsDataRoot.toUpperCase()
+    const managedSession = sessionPlan(agentsDataRoot, caseVariantRoot, {
+      sourceSessionId: 'session_managed',
+      finalSessionId: FINAL_LATEST_SESSION_ID,
+      createdAt: Date.parse('2026-07-22T00:00:00Z'),
+      updatedAt: Date.parse('2026-07-23T00:00:00Z'),
+      managed: false
+    })
+    realpathFailures.set(
+      path.resolve(caseVariantRoot),
+      Object.assign(new Error(`UNKNOWN: unknown error, realpath '${caseVariantRoot}'`), {
+        code: 'UNKNOWN',
+        errno: -4094,
+        path: caseVariantRoot,
+        syscall: 'realpath'
+      })
+    )
+
+    await expect(
+      stageLegacyAgentFiles({
+        agentsDataRoot,
+        agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+        sessions: [managedSession]
+      })
+    ).rejects.toMatchObject({ code: 'UNKNOWN', syscall: 'realpath' })
+  })
+
   it('preserves an Agent target that is also its own legacy Session workspace', async () => {
     const { agentsDataRoot } = await createFixture()
     const agentDataPath = path.join(agentsDataRoot, FINAL_AGENT_ID)
@@ -1701,6 +1852,38 @@ describe('agentsFilesystemMigration', () => {
     ).rejects.toThrow(/identity destination conflict/i)
 
     expect(await readFile(destinationSoulPath, 'utf8')).toBe('concurrent soul')
+    expect(await readFile(sourceSoulPath, 'utf8')).toBe('legacy soul')
+  })
+
+  it('publishes an identity file when Windows reports EISDIR for hard links', async () => {
+    const { agentsDataRoot, legacyWorkspace } = await createFixture()
+    const sourceSoulPath = path.join(legacyWorkspace, 'SOUL.md')
+    const destinationSoulPath = path.join(agentsDataRoot, FINAL_AGENT_ID, 'SOUL.md')
+    await mkdir(legacyWorkspace, { recursive: true })
+    await writeFile(sourceSoulPath, 'legacy soul')
+    copyMutation.linkFailure = Object.assign(new Error('illegal operation on a directory'), {
+      code: 'EISDIR',
+      syscall: 'link'
+    })
+
+    const latestSession = sessionPlan(agentsDataRoot, legacyWorkspace, {
+      sourceSessionId: 'session_latest',
+      finalSessionId: FINAL_LATEST_SESSION_ID,
+      createdAt: Date.parse('2026-07-22T00:00:00Z'),
+      updatedAt: Date.parse('2026-07-23T00:00:00Z')
+    })
+
+    await expect(
+      stageLegacyAgentFiles({
+        agentsDataRoot,
+        agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+        sessions: [latestSession]
+      })
+    ).resolves.toEqual({ skippedTargetCount: 0 })
+
+    expect(copyMutation.linkCalls).toHaveLength(1)
+    expect(copyMutation.copyFileCalls.some(([, destinationPath]) => destinationPath === destinationSoulPath)).toBe(true)
+    expect(await readFile(destinationSoulPath, 'utf8')).toBe('legacy soul')
     expect(await readFile(sourceSoulPath, 'utf8')).toBe('legacy soul')
   })
 

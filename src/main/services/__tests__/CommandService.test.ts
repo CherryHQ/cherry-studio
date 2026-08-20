@@ -121,6 +121,17 @@ describe('CommandService', () => {
     expect(selectionServiceMock.processSelectTextByShortcut).toHaveBeenCalledTimes(1)
   })
 
+  it('gates screenshot.capture on the feature preference through the command context', () => {
+    // The built-in handler lands with the overlay service; the gate under test is the context key.
+    service.registerHandler('screenshot.capture', vi.fn())
+
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.screenshot.enabled', true)
+    expect(service.canExecute('screenshot.capture')).toBe(true)
+
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.screenshot.enabled', false)
+    expect(service.canExecute('screenshot.capture')).toBe(false)
+  })
+
   it('opens settings through the main-window settings helper', () => {
     service.execute('app.settings.open')
 

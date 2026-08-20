@@ -13,7 +13,8 @@ import type {
   InferenceInitMessage,
   InferenceRequest,
   InferenceResponse,
-  LocalInferenceProfileId
+  LocalInferenceProfileId,
+  OcrLine
 } from './inferenceProtocol'
 import { inferenceWorkerSource } from './inferenceWorkerSource'
 
@@ -35,6 +36,7 @@ export interface InferenceProgress {
 interface InferenceResult {
   embeddings?: number[][] | null
   text?: string | null
+  lines?: OcrLine[][] | null
   tokenCounts?: number[] | null
 }
 
@@ -206,9 +208,12 @@ export abstract class InferenceServiceBase extends BaseService {
         if (!pending) return
         this.pending.delete(msg.id)
         pending.cleanup()
+        // Explicit allowlist, not a spread: every protocol field a caller reads must be
+        // added here too, or it is silently dropped between the worker and the service.
         pending.resolve({
           embeddings: msg.embeddings ?? null,
           text: msg.text ?? null,
+          lines: msg.lines ?? null,
           tokenCounts: msg.tokenCounts ?? null
         })
         return

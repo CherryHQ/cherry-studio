@@ -17,6 +17,7 @@ import { loggerService } from '@logger'
 import type { Model as LegacyModel, ModelType, Provider as LegacyProvider } from '@main/data/migration/legacyTypes'
 import { createUniqueModelId, type RuntimeModelPricing } from '@shared/data/types/model'
 import type { ApiFeatures, ApiKeyEntry, AuthConfig, ProviderSettings } from '@shared/data/types/provider'
+import { isBareVertexApiHost } from '@shared/utils/api'
 import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('ProviderModelMappings')
@@ -204,7 +205,12 @@ function buildEndpointConfigs(
 ): InsertUserProviderRow['endpointConfigs'] {
   const configs: Partial<Record<EndpointType, StoredEndpointConfigOverride>> = {}
 
-  if (legacy.apiHost && endpointType !== undefined) {
+  // v1 tolerated the official Vertex host in `apiHost` and rebuilt the resource
+  // path per request; v2 lets the SDK derive it, so carrying it over would
+  // persist an override that means "default".
+  const isVertexDefaultHost = Boolean(legacy.isVertex) && isBareVertexApiHost(legacy.apiHost ?? '')
+
+  if (legacy.apiHost && endpointType !== undefined && !isVertexDefaultHost) {
     configs[endpointType] = { ...configs[endpointType], baseUrl: legacy.apiHost }
   }
 

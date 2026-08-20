@@ -16,13 +16,13 @@
  * - Implementation lives under `./internal/*` (entry / content / system ops),
  *   `./tree/*`, `./utils/*`, and `./watcher.ts` as private modules. Narrow
  *   documented helpers are re-exported below for legitimate outside callers.
- * - Pure FS / path / metadata primitives live under `@main/utils/file` (sole FS
- *   owner, open to the entire Main process). Modules that need raw
+ * - Pure FS / path / metadata primitives live under `@main/utils/file` (open
+ *   to the entire Main process). Modules that need raw
  *   `atomicWriteFile` / `stat` etc. import that barrel directly.
  * - `./watcher.ts` exposes `createDirectoryWatcher()` as a consumable primitive
  *   for business modules (e.g. future NoteService). Not a lifecycle service.
- * - `./danglingCache.ts` is a file-module singleton; only queried via the
- *   DataApi handler or via FileManager side effects.
+ * - `./danglingCache.ts` is a file-module singleton; renderer reads route
+ *   through File IpcApi, while FileManager and watcher operations update it.
  *
  * If you find yourself reaching into an internal path, the answer is almost
  * certainly "add a FileManager method or expose a narrow helper here" instead.

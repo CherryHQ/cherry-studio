@@ -236,9 +236,9 @@ describe('localDocumentToMarkdownHandler', () => {
         pages: [{ data: new Uint8Array([partial[0]]) }]
       }))
       recognizeMock
-        .mockResolvedValueOnce(' page one \n')
-        .mockResolvedValueOnce('page two')
-        .mockResolvedValueOnce('page three')
+        .mockResolvedValueOnce({ text: ' page one \n', lines: [] })
+        .mockResolvedValueOnce({ text: 'page two', lines: [] })
+        .mockResolvedValueOnce({ text: 'page three', lines: [] })
       const reportProgress = vi.fn()
 
       await expect(prepared.execute({ signal: new AbortController().signal, reportProgress })).resolves.toEqual({
@@ -253,9 +253,14 @@ describe('localDocumentToMarkdownHandler', () => {
         imageBuffer: true,
         imageDataUrl: false
       })
-      expect(recognizeMock).toHaveBeenNthCalledWith(1, MODEL_PATHS, expect.any(String), expect.anything())
+      expect(recognizeMock).toHaveBeenNthCalledWith(
+        1,
+        MODEL_PATHS,
+        { kind: 'path', imagePath: expect.any(String) },
+        expect.anything()
+      )
       // Each job renders into its own directory under the file-processing temp root.
-      const [, firstImagePath] = recognizeMock.mock.calls[0]
+      const firstImagePath = recognizeMock.mock.calls[0][1].imagePath
       expect(path.dirname(path.dirname(firstImagePath))).toBe(tempRoot)
       expect(path.basename(path.dirname(firstImagePath))).toMatch(/^local-document-[\w-]+$/)
       expect(path.basename(firstImagePath)).toBe('page-1.png')
@@ -278,9 +283,9 @@ describe('localDocumentToMarkdownHandler', () => {
         pages: [{ data: new Uint8Array([partial[0]]) }]
       }))
       recognizeMock
-        .mockResolvedValueOnce('page one')
-        .mockResolvedValueOnce('page two')
-        .mockResolvedValueOnce('page three')
+        .mockResolvedValueOnce({ text: 'page one', lines: [] })
+        .mockResolvedValueOnce({ text: 'page two', lines: [] })
+        .mockResolvedValueOnce({ text: 'page three', lines: [] })
 
       await expect(
         prepared.execute({ signal: new AbortController().signal, reportProgress: vi.fn() })
@@ -302,7 +307,7 @@ describe('localDocumentToMarkdownHandler', () => {
       getScreenshotMock.mockResolvedValueOnce({ pages: [] }).mockResolvedValueOnce({
         pages: [{ data: new Uint8Array([2]) }]
       })
-      recognizeMock.mockResolvedValueOnce('only page two')
+      recognizeMock.mockResolvedValueOnce({ text: 'only page two', lines: [] })
 
       await expect(
         prepared.execute({ signal: new AbortController().signal, reportProgress: vi.fn() })
@@ -335,7 +340,7 @@ describe('localDocumentToMarkdownHandler', () => {
       const controller = new AbortController()
       recognizeMock.mockImplementationOnce(async () => {
         controller.abort()
-        return 'page one'
+        return { text: 'page one', lines: [] }
       })
 
       await expect(prepared.execute({ signal: controller.signal, reportProgress: vi.fn() })).rejects.toThrow()

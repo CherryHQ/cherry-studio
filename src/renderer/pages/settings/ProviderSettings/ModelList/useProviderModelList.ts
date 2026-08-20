@@ -140,9 +140,12 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
     }
   }, [derivedState.filteredModels, searchText])
 
-  const openEditModelDrawer = useCallback((model: Model) => {
-    setEditingModel(model)
-  }, [])
+  const openEditModelDrawer = useCallback(
+    (model: Model) => {
+      if (!disabled) setEditingModel(model)
+    },
+    [disabled]
+  )
 
   const closeEditModelDrawer = useCallback(() => {
     setEditingModel(null)
@@ -150,6 +153,7 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
 
   const onDeleteModel = useCallback(
     async (model: Model) => {
+      if (disabled) return
       if (defaultModelIds.has(model.id)) {
         return
       }
@@ -177,11 +181,12 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
         })
       }
     },
-    [defaultModelIds, deleteModel]
+    [defaultModelIds, deleteModel, disabled]
   )
 
   const onDeleteModels = useCallback(
     async (modelsToDelete: Model[]) => {
+      if (disabled) return
       const deletableModels = modelsToDelete.filter((model) => !defaultModelIds.has(model.id))
       if (deletableModels.length === 0) {
         return
@@ -232,7 +237,7 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
         })
       }
     },
-    [defaultModelIds, deleteModels]
+    [defaultModelIds, deleteModels, disabled]
   )
 
   const enabledSections = useMemo(() => toGroupSections(displayState.groups), [displayState.groups])

@@ -355,6 +355,15 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
     expect(messageUpdateMock).not.toHaveBeenCalled()
   })
 
+  it('does not create an empty successful ordinary-chat reply', async () => {
+    const listener = makeMessageServiceListener()
+
+    await listener.onDone({ finalMessage: undefined, status: 'success' })
+
+    expect(messageFinalizeMock).not.toHaveBeenCalled()
+    expect(messageUpdateMock).not.toHaveBeenCalled()
+  })
+
   it('drives the placeholder row to status=error when the persist write fails', async () => {
     messageFinalizeMock.mockImplementationOnce(() => {
       throw new Error('write failed')

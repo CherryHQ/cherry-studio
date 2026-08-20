@@ -1,5 +1,4 @@
-import type { CompoundIcon } from '@cherrystudio/ui'
-import { Bocha, Cherryin, Exa, Firecrawl, Jina, Querit, Searxng, Tavily, Zhipu } from '@cherrystudio/ui/icons'
+import { type IconRef, providerIconRef } from '@cherrystudio/ui/icons'
 import type {
   WebSearchCapability,
   WebSearchProvider,
@@ -24,7 +23,7 @@ const WEB_SEARCH_CAPABILITY_ORDER: readonly WebSearchCapability[] = ['searchKeyw
 
 type WebSearchProviderDisplayMeta = {
   descriptionKey: string
-  logo: CompoundIcon
+  iconRef: IconRef
   officialWebsite?: string
   apiKeyWebsite?: string
 }
@@ -32,57 +31,57 @@ type WebSearchProviderDisplayMeta = {
 const WEB_SEARCH_PROVIDER_DISPLAY_META: Record<WebSearchProviderId, WebSearchProviderDisplayMeta> = {
   bocha: {
     descriptionKey: 'settings.tool.websearch.provider_description.bocha',
-    logo: Bocha,
+    iconRef: providerIconRef('bocha'),
     officialWebsite: 'https://bochaai.com',
     apiKeyWebsite: 'https://open.bochaai.com/overview'
   },
   exa: {
     descriptionKey: 'settings.tool.websearch.provider_description.exa',
-    logo: Exa,
+    iconRef: providerIconRef('exa'),
     officialWebsite: 'https://exa.ai',
     apiKeyWebsite: 'https://dashboard.exa.ai/api-keys'
   },
   'exa-mcp': {
     descriptionKey: 'settings.tool.websearch.provider_description.exa_mcp',
-    logo: Exa,
+    iconRef: providerIconRef('exa'),
     officialWebsite: 'https://exa.ai'
   },
   fetch: {
     descriptionKey: 'settings.tool.websearch.provider_description.fetch',
-    logo: Cherryin
+    iconRef: providerIconRef('cherryin')
   },
   jina: {
     descriptionKey: 'settings.tool.websearch.provider_description.jina',
-    logo: Jina,
+    iconRef: providerIconRef('jina'),
     officialWebsite: 'https://jina.ai/reader',
     apiKeyWebsite: 'https://jina.ai'
   },
   querit: {
     descriptionKey: 'settings.tool.websearch.provider_description.querit',
-    logo: Querit,
+    iconRef: providerIconRef('querit'),
     officialWebsite: 'https://querit.ai',
     apiKeyWebsite: 'https://www.querit.ai/en/dashboard/api-keys'
   },
   searxng: {
     descriptionKey: 'settings.tool.websearch.provider_description.searxng',
-    logo: Searxng,
+    iconRef: providerIconRef('searxng'),
     officialWebsite: 'https://docs.searxng.org'
   },
   tavily: {
     descriptionKey: 'settings.tool.websearch.provider_description.tavily',
-    logo: Tavily,
+    iconRef: providerIconRef('tavily'),
     officialWebsite: 'https://tavily.com',
     apiKeyWebsite: 'https://app.tavily.com/home'
   },
   zhipu: {
     descriptionKey: 'settings.tool.websearch.provider_description.zhipu',
-    logo: Zhipu,
+    iconRef: providerIconRef('zhipu'),
     officialWebsite: 'https://docs.bigmodel.cn/cn/guide/tools/web-search',
     apiKeyWebsite: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
   },
   firecrawl: {
     descriptionKey: 'settings.tool.websearch.provider_description.firecrawl',
-    logo: Firecrawl,
+    iconRef: providerIconRef('firecrawl'),
     officialWebsite: 'https://firecrawl.dev',
     apiKeyWebsite: 'https://firecrawl.dev/app/api-keys'
   }
@@ -92,8 +91,8 @@ export function getWebSearchProviderDescriptionKey(providerId: WebSearchProvider
   return WEB_SEARCH_PROVIDER_DISPLAY_META[providerId].descriptionKey
 }
 
-export function getWebSearchProviderLogo(providerId: WebSearchProviderId): CompoundIcon {
-  return WEB_SEARCH_PROVIDER_DISPLAY_META[providerId].logo
+export function getWebSearchProviderIconRef(providerId: WebSearchProviderId): IconRef {
+  return WEB_SEARCH_PROVIDER_DISPLAY_META[providerId].iconRef
 }
 
 export function getWebSearchProviderOfficialWebsite(providerId: WebSearchProviderId): string | undefined {

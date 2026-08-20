@@ -2,7 +2,7 @@ import { COMPOSER_FILE_KIND, FILE_TYPE, type FileMetadata } from '@renderer/type
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { Editor } from '@tiptap/core'
-import { AllSelection, NodeSelection, Selection } from '@tiptap/pm/state'
+import { AllSelection, NodeSelection, Selection, TextSelection } from '@tiptap/pm/state'
 import { EditorContent, useEditor } from '@tiptap/react'
 import { type ButtonHTMLAttributes, type HTMLAttributes, type ReactNode, useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -1374,4 +1374,23 @@ describe('ComposerToken', () => {
     await waitFor(() => expect(editor!.state.selection).toBeInstanceOf(AllSelection))
     expect(screen.queryByLabelText('${city}')).toBeNull()
   })
+
+  it.each(['Backspace', 'Delete'])(
+    'collapses an all-selection after deleting the whole composer with %s',
+    async (key) => {
+      let editor: Editor | null = null
+      render(<ComposerEditorHarness text="draft" onEditor={(nextEditor) => (editor = nextEditor)} />)
+
+      await waitFor(() => expect(editor).not.toBeNull())
+
+      fireEvent.keyDown(editor!.view.dom, { key: 'a', ctrlKey: true })
+      expect(editor!.state.selection).toBeInstanceOf(AllSelection)
+
+      fireEvent.keyDown(editor!.view.dom, { key })
+
+      expect(serializeComposerDocument(editor!).text).toBe('')
+      expect(editor!.state.selection).toBeInstanceOf(TextSelection)
+      expect(editor!.state.selection.empty).toBe(true)
+    }
+  )
 })

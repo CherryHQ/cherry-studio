@@ -1,5 +1,5 @@
 ---
-title: Editing an agent no longer keeps its max-turns limit
+title: Agents no longer have a max-turns limit
 category: data-migration
 severity: breaking
 introduced_in_pr: #16187
@@ -8,32 +8,28 @@ date: 2026-06-18
 
 ## What changed
 
-The v2 agent edit dialog no longer surfaces or preserves the agent's `max_turns`
-configuration. Saving any configuration change (avatar, permission mode, env
-vars, soul mode, heartbeat, …) sends an explicit removal for `max_turns`
-alongside only the edited keys, so a previously-set per-agent turn cap is
-dropped without replacing unrelated configuration.
+The per-agent `max_turns` configuration is retired. The v2 edit dialog never
+surfaced it, and the runtime no longer reads it either — an agent now runs until
+it finishes, is interrupted, or hits a limit it does not own (context
+compaction, provider errors). The built-in Cherry Assistant / Cherry Support
+agents no longer ship a turn cap.
 
 ## Why this matters to the user
 
 An agent that had a `max_turns` limit set (e.g. carried over from v1 or set
-through an earlier build) silently loses it the next time the user edits that
-agent in the library. There is no field in the v2 edit UI to view or restore it,
-so the agent reverts to the runtime default turn behavior.
+through an earlier build) no longer stops after that many request/response
+cycles. Long autonomous runs that used to end with "reached maximum number of
+turns" now continue. There is no field in the v2 UI to view or restore the cap.
 
 ## What the user should do
 
-Nothing — automatic. `max_turns` is being retired from the per-agent
-configuration in v2; agents run under the default turn behavior.
+Nothing — automatic. Anyone who still wants a hard turn cap can set the
+`CLAUDE_CODE_MAX_TURNS` environment variable in the agent's advanced settings.
 
 ## Notes for release manager
 
-- The main-process runtime still reads `agent.configuration.max_turns`
-  (`src/main/ai/runtime/claudeCode/settingsBuilder.ts:304`). The retirement is
-  currently only enforced at the edit-form layer, so the field is dropped on edit
-  but still honored at runtime if present. **Follow-up:** remove the runtime read
-  to fully complete the retirement, or re-surface the field if the cap is meant to
-  stay. Tracked as inherited from `feat/chat-page`.
+- Stored `max_turns` values stay in the configuration JSON blob (the `.loose()`
+  schema keeps unknown extras); they are simply never read again.
 - Behavior is inherited verbatim from `feat/chat-page` (added in
   `5383513090 feat(agent): enhance agent configuration with permission mode and
   soul mode options`); the durable change belongs upstream there as well.

@@ -1,7 +1,6 @@
+import { redactSecretText } from '@shared/utils/redaction'
 import { parse as parseJsonc, type ParseError } from 'jsonc-parser'
 import { parse as parseToml } from 'smol-toml'
-
-import { redactSecretsInMessage } from './redact'
 
 /** Resolve `~`/relative paths to absolute (renderer cannot call application.getPath). */
 export async function resolveAbs(p: string): Promise<string> {
@@ -70,7 +69,7 @@ export function parseTomlOrThrow(content: string): Record<string, any> {
     // smol-toml embeds a source codeblock (the offending line +/- 1) straight into its own message,
     // so this must be redacted right here — every call site (direct or through parseOrThrow) inherits it.
     const rawMessage = err instanceof Error ? err.message : String(err)
-    throw new Error(redactSecretsInMessage(rawMessage))
+    throw new Error(redactSecretText(rawMessage))
   }
 }
 

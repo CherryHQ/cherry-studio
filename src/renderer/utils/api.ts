@@ -1,4 +1,4 @@
-import { formatApiHost, withoutTrailingSlash } from '@shared/utils/api'
+import { formatApiHost, isBareVertexApiHost, withoutTrailingSlash } from '@shared/utils/api'
 import { trim } from 'es-toolkit/compat'
 
 // Re-export from shared, for backward compatibility
@@ -32,7 +32,7 @@ export function formatOllamaApiHost(host: string): string {
 export function formatVertexApiHost(input: { apiHost?: string; project: string; location: string }): string {
   const { apiHost, project, location } = input
   const trimmedHost = withoutTrailingSlash(trim(apiHost ?? ''))
-  if (!trimmedHost || trimmedHost.endsWith('aiplatform.googleapis.com')) {
+  if (!trimmedHost || isBareVertexApiHost(trimmedHost)) {
     const host =
       location === 'global' ? 'https://aiplatform.googleapis.com' : `https://${location}-aiplatform.googleapis.com`
     return `${formatApiHost(host)}/projects/${project}/locations/${location}`

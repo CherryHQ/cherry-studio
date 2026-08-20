@@ -363,7 +363,6 @@ describe('create_agent', () => {
       model: 'anthropic::claude-sonnet',
       configuration: {
         permission_mode: 'default',
-        max_turns: 100,
         env_vars: {}
       }
     })

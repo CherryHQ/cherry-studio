@@ -16,7 +16,7 @@ const API_GATEWAY_PREFERENCE_KEYS = {
 /**
  * API Gateway hook.
  *
- * - Config flows through the DataApi preference layer (`feature.api_gateway.*`).
+ * - Config flows through the Preference subsystem (`feature.api_gateway.*`).
  * - Running state is published by Main to the shared cache (Main is
  *   authoritative); the renderer observes it read-only via `useSharedCacheValue`
  *   (no default write-back into the Main-owned key). No IPC ready-broadcast or
@@ -74,7 +74,11 @@ export const useApiGateway = () => {
     try {
       const result = await ipcApi.request('api_gateway.stop')
       if (result.success) {
-        toast.success(t('apiGateway.messages.stopSuccess'))
+        if (result.outcome === 'deferred') {
+          toast.info(t('apiGateway.messages.stopDeferred'))
+        } else {
+          toast.success(t('apiGateway.messages.stopSuccess'))
+        }
       } else {
         toast.error(t('apiGateway.messages.stopError') + result.error)
       }

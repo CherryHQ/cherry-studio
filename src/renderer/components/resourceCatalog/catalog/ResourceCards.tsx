@@ -1,4 +1,6 @@
-import { Badge, Button } from '@cherrystudio/ui'
+import { Badge, Button, Switch } from '@cherrystudio/ui'
+import { useSkillMutationsById } from '@renderer/hooks/resourceCatalog'
+import { toast } from '@renderer/services/toast'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
 import { RESOURCE_TYPE_META } from '@renderer/utils/resourceCatalog'
 import { cn } from '@renderer/utils/style'
@@ -33,6 +35,29 @@ interface ResourceCardProps {
 
 function hasOverflowActions(resource: ResourceItem) {
   return resource.type === 'assistant'
+}
+
+function SkillGlobalToggle({ resource }: { resource: Extract<ResourceItem, { type: 'skill' }> }) {
+  const { t } = useTranslation()
+  const { updateGlobalEnabled, isUpdating } = useSkillMutationsById(resource.id)
+
+  const handleCheckedChange = async (checked: boolean) => {
+    try {
+      await updateGlobalEnabled(checked)
+    } catch {
+      toast.error(t('settings.skills.toggleFailed', { name: resource.name }))
+    }
+  }
+
+  return (
+    <Switch
+      size="sm"
+      checked={resource.raw.isGlobalEnabled}
+      disabled={isUpdating}
+      aria-label={t('settings.skills.globalToggle', { name: resource.name })}
+      onCheckedChange={handleCheckedChange}
+    />
+  )
 }
 
 export function ResourceCard({
@@ -112,7 +137,19 @@ export function ResourceCard({
             )}
           </div>
           <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
-            {showOverflowMenu ? (
+            {r.type === 'skill' && isSettings ? (
+              <div className="flex items-center gap-1">
+                <SkillGlobalToggle resource={r} />
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={t('library.action.uninstall')}
+                  onClick={() => onDelete(r)}
+                  className="text-muted-foreground opacity-0 hover:bg-error-subtle hover:text-error-subtle-foreground focus-visible:opacity-100 group-hover:opacity-100">
+                  <Trash2 size={12} className="lucide-custom" />
+                </Button>
+              </div>
+            ) : showOverflowMenu ? (
               <ResourceCardMenu
                 resource={r}
                 onDuplicate={onDuplicate}

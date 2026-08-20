@@ -102,7 +102,10 @@ export function useModelSelectorData({
   const availableProviders = providers
   const availableModels = models
 
-  const baseModelFilter = useCallback((model: Model) => filter?.(model) ?? true, [filter])
+  const baseModelFilter = useCallback(
+    (model: Model, provider?: Provider) => filter?.(model, provider) ?? true,
+    [filter]
+  )
 
   // Agent-only providers (e.g. `claude-code`, login-based, no API key) are hidden
   // from general selectors; only agent pickers (whose filter is marked) surface them.
@@ -123,11 +126,12 @@ export function useModelSelectorData({
   // 交叉过滤：Provider.isEnabled 与 Model.isEnabled 互不联动，禁用 provider 下可能仍有启用 model。
   // 这里必须剔除孤儿 model，保证每条 model 都能找到对应分组。
   const modelsByProvider = useMemo(() => {
-    const enabledProviderIds = new Set(sortedProviders.map((provider) => provider.id))
+    const providerById = new Map(sortedProviders.map((provider) => [provider.id, provider]))
     const grouped = new Map<string, Model[]>()
 
     for (const model of availableModels) {
-      if (!enabledProviderIds.has(model.providerId) || !baseModelFilter(model)) {
+      const provider = providerById.get(model.providerId)
+      if (!provider || !baseModelFilter(model, provider)) {
         continue
       }
 
@@ -232,8 +236,10 @@ export function useModelSelectorData({
     const items: FlatListItem[] = []
     const pinnedIdSet = new Set(pinnedIds)
     const providerById = new Map(sortedProviders.map((provider) => [provider.id, provider]))
-    const finalModelFilter = (model: Model) =>
-      (!showTagFilter || tagFilter(model, providerById.get(model.providerId))) && baseModelFilter(model)
+    const finalModelFilter = (model: Model) => {
+      const provider = providerById.get(model.providerId)
+      return (!showTagFilter || tagFilter(model, provider)) && baseModelFilter(model, provider)
+    }
     // `searchFilter(provider)` runs fuzzy scoring + sort per provider; cache the tag-filtered
     // result so duplicate-name detection and the list below share one pass per provider.
     const tagFilteredModelsByProvider = new Map<string, Model[]>(

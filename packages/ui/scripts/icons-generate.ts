@@ -7,8 +7,8 @@
  * Modes:
  *   no --type        generate icons, providers, and models in sequence
  *   --type=icons      icons/general/*.svg                     → src/components/icons/general/{name}.tsx      (flat)
- *   --type=providers  generate provider icons, avatars, barrels, and catalogs
- *   --type=models     generate model icons, avatars, barrels, and catalogs
+ *   --type=providers  generate provider icons, avatars, barrels, catalogs, and loaders
+ *   --type=models     generate model icons, avatars, barrels, and loaders
  */
 import { transform } from '@svgr/core'
 import crypto from 'crypto'

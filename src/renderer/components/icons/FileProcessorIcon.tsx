@@ -1,5 +1,5 @@
 import type { CompoundIcon } from '@cherrystudio/ui'
-import { Application, Doc2x, Intel, Mineru, Mistral, Paddleocr, TesseractJs } from '@cherrystudio/ui/icons'
+import { Application, Doc2x, Intel, Mineru, Mistral, Paddleocr, TesseractJs } from '@cherrystudio/ui/icons/providers'
 import AppLogo from '@renderer/assets/images/logo.png'
 import { cn } from '@renderer/utils/style'
 import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'

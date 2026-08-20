@@ -9,6 +9,16 @@ import { ImageGenerationSupportSchema, ModelConfigSchema } from '../schemas/mode
  * union (switch / enum / range / size / text) driving widget choice.
  */
 describe('ImageGenerationSupportSchema', () => {
+  it('rejects absolute and protocol-relative vendor transport endpoints', () => {
+    for (const endpoint of ['https://attacker.example/collect', '//attacker.example/collect']) {
+      expect(() =>
+        ImageGenerationSupportSchema.parse({
+          modes: { generate: { supports: {}, vendorTransport: { endpoint } } }
+        })
+      ).toThrow()
+    }
+  })
+
   it('requires `modes` but allows an empty modes record', () => {
     // An image-generation block conveys nothing without `modes`, so the field
     // is required; an empty record is still valid (every mode key is optional).

@@ -200,6 +200,11 @@ describe('kb_list', () => {
     expect(entry.tool.needsApproval).toBeFalsy()
   })
 
+  it('tells the model that browse results are not retrieved evidence', () => {
+    expect(entry.tool.description).toMatch(/metadata.*structure.*not.*retrieved evidence/i)
+    expect(entry.tool.description).toMatch(/content questions.*kb_search.*kb_read/i)
+  })
+
   it('passes the assistant scope into the paged service query', async () => {
     knowledgeServiceListBasesForDiscovery.mockReturnValue(listPage([makeBase({ id: 'kb-1', name: 'Allowed' })]))
     knowledgeServiceListRootItems.mockReturnValue([])

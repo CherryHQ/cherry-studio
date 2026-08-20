@@ -1,12 +1,12 @@
 import { InputGroup, InputGroupAddon, InputGroupInput, Tooltip } from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProvider'
-import type { ApiKeyConnectivity } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
-import { Activity, Eye, EyeOff, KeyRound, Loader2 } from 'lucide-react'
+import { Eye, EyeOff, KeyRound } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useAuthenticationApiKey } from '../hooks/providerSetting/useAuthenticationApiKey'
 import { useProviderMeta } from '../hooks/providerSetting/useProviderMeta'
+import { ProviderModelCheck } from '../ModelList'
 import ProviderField from '../primitives/ProviderField'
 import ProviderSection from '../primitives/ProviderSection'
 import { fieldClasses, ProviderHelpLink } from '../primitives/ProviderSettingsPrimitives'
@@ -14,19 +14,10 @@ import ProviderApiKeyListDrawer from './ProviderApiKeyListDrawer'
 
 interface ApiKeyProps {
   providerId: string
-  apiKeyConnectivity: ApiKeyConnectivity
-  onOpenConnectionCheck: () => void
-  requiresApiKey?: boolean
   onRequestModelPullGuide?: () => void
 }
 
-export default function ApiKey({
-  providerId,
-  apiKeyConnectivity,
-  onOpenConnectionCheck,
-  requiresApiKey = true,
-  onRequestModelPullGuide
-}: ApiKeyProps) {
+export default function ApiKey({ providerId, onRequestModelPullGuide }: ApiKeyProps) {
   const { t } = useTranslation()
   const { provider } = useProvider(providerId)
   const meta = useProviderMeta(providerId)
@@ -119,24 +110,7 @@ export default function ApiKey({
                 </button>
               </span>
             </Tooltip>
-            <Tooltip content={t('settings.provider.check')}>
-              <span className="inline-flex shrink-0">
-                <button
-                  type="button"
-                  disabled={
-                    provider.id === 'copilot' || (requiresApiKey && !inputApiKey) || apiKeyConnectivity.checking
-                  }
-                  className={fieldClasses.inputActionButton}
-                  aria-label={t('settings.provider.check')}
-                  onClick={onOpenConnectionCheck}>
-                  {apiKeyConnectivity.checking ? (
-                    <Loader2 size={14} className="animate-spin" />
-                  ) : (
-                    <Activity size={14} />
-                  )}
-                </button>
-              </span>
-            </Tooltip>
+            <ProviderModelCheck />
           </div>
         </ProviderField>
       </ProviderSection>

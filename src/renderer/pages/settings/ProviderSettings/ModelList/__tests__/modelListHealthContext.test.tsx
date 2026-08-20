@@ -1,99 +1,208 @@
-import { HealthStatus, type ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
-import { act, render } from '@testing-library/react'
+import type { ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
+import { HealthStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
+import { act, render, screen } from '@testing-library/react'
 import { useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import ModelList from '../ModelList'
-import { ModelListHealthProvider, useModelListHealth } from '../modelListHealthContext'
-
-const providerModelListRenderSpy = vi.fn()
-const healthResultsRenderSpy = vi.fn()
-const runControls = {
-  availableApiKeys: [],
-  healthCheckOpen: false,
-  openHealthCheck: vi.fn(),
-  closeHealthCheck: vi.fn(),
-  resetHealthCheckRun: vi.fn(),
-  startHealthCheck: vi.fn()
-}
+import { ModelListHealthProvider, useModelListHealthRun } from '../modelListHealthContext'
 
 let setIsChecking!: (isChecking: boolean) => void
-let setModelStatuses!: (statuses: ModelWithStatus[]) => void
+let setIsSingleChecking!: (isChecking: boolean) => void
+const startHealthCheck = vi.fn()
+const resetSingleModelResult = vi.fn()
+const startSingleModelCheck = vi.fn()
+const prepareCredentials = vi.fn()
+const updateApiKey = vi.fn()
+const emptyModels: never[] = []
+const emptyApiKeyEntries: never[] = []
+let initialSingleModelResult: ModelWithStatus | null = null
+let latestRun!: ReturnType<typeof useModelListHealthRun>
+
+vi.mock('../../hooks/providerSetting/useModelCheckCredentials', () => ({
+  useModelCheckCredentials: () => ({
+    apiKeyEntries: emptyApiKeyEntries,
+    canSelectApiKey: true,
+    requiresApiKey: true,
+    credentialChangeVersion: 0,
+    prepareCredentials
+  })
+}))
 
 vi.mock('../useHealthCheck', () => ({
   useHealthCheck: () => {
     const [isChecking, updateIsChecking] = useState(false)
-    const [modelStatuses, updateModelStatuses] = useState<ModelWithStatus[]>([])
     setIsChecking = updateIsChecking
-    setModelStatuses = updateModelStatuses
 
-    return { isChecking, modelStatuses, ...runControls }
+    return {
+      isChecking,
+      modelStatuses: [],
+      startHealthCheck
+    }
   }
 }))
 
-vi.mock('../ProviderModelList', () => ({
-  default: (props: unknown) => {
-    providerModelListRenderSpy(props)
-    return <div data-testid="provider-model-list-content" />
+vi.mock('../../hooks/providerSetting/useProviderConnectionCheck', () => ({
+  useProviderConnectionCheck: () => {
+    const [isSingleModelChecking, updateIsSingleModelChecking] = useState(false)
+    const [singleModelResult, setSingleModelResult] = useState(initialSingleModelResult)
+    setIsSingleChecking = updateIsSingleModelChecking
+    return {
+      models: emptyModels,
+      isSingleModelChecking,
+      singleModelResult,
+      resetSingleModelResult: () => {
+        resetSingleModelResult()
+        setSingleModelResult(null)
+      },
+      startSingleModelCheck
+    }
   }
 }))
 
-vi.mock('../ProviderModelPullReconcile', () => ({ default: () => null }))
-vi.mock('../ProviderModelAdd', () => ({ default: () => null }))
-vi.mock('../ProviderModelDownload', () => ({ default: () => null }))
-vi.mock('../ProviderModelHealthCheck', () => ({ default: () => null }))
+vi.mock('@renderer/hooks/useProvider', () => ({
+  useProviderMutations: () => ({ updateApiKey })
+}))
 
-function HealthResultsObserver() {
-  const { modelStatuses } = useModelListHealth()
-  healthResultsRenderSpy(modelStatuses)
-  return null
+function HealthRunObserver() {
+  latestRun = useModelListHealthRun()
+  return (
+    <div>
+      <span data-testid="dialog-state">{latestRun.modelCheckOpen ? 'open' : 'closed'}</span>
+      <span data-testid="single-result">{latestRun.singleModelResult?.kind ?? 'none'}</span>
+    </div>
+  )
 }
 
-describe('ModelList health subscriptions', () => {
+describe('ModelList health run coordination', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    initialSingleModelResult = null
+    startSingleModelCheck.mockResolvedValue('failed')
+    startHealthCheck.mockResolvedValue(true)
   })
 
-  it('does not rerender the model list for per-model health result updates', () => {
+  it('keeps dialog visibility independent from runner cancellation and closes only on accepted outcomes', async () => {
     render(
       <ModelListHealthProvider providerId="openai">
-        <ModelList providerId="openai" />
-        <HealthResultsObserver />
+        <HealthRunObserver />
       </ModelListHealthProvider>
     )
 
-    expect(providerModelListRenderSpy).toHaveBeenCalledTimes(1)
-    expect(healthResultsRenderSpy).toHaveBeenLastCalledWith([])
+    act(() => latestRun.openModelCheck())
+    expect(latestRun.canSelectApiKey).toBe(true)
+    expect(latestRun.modelCheckOpen).toBe(true)
+    act(() => latestRun.closeModelCheck())
+    expect(latestRun.modelCheckOpen).toBe(false)
+
+    act(() => latestRun.openModelCheck())
+    await act(async () => {
+      await latestRun.startSingleModelCheck({
+        model: {
+          id: 'openai::gpt-4o',
+          providerId: 'openai',
+          name: 'GPT-4o',
+          capabilities: [],
+          supportsStreaming: true,
+          isEnabled: true,
+          isHidden: false
+        },
+        keySelection: { mode: 'all' }
+      })
+    })
+    expect(latestRun.modelCheckOpen).toBe(true)
+
+    startSingleModelCheck.mockResolvedValueOnce('passed')
+    await act(async () => {
+      await latestRun.startSingleModelCheck({
+        model: {
+          id: 'openai::gpt-4o',
+          providerId: 'openai',
+          name: 'GPT-4o',
+          capabilities: [],
+          supportsStreaming: true,
+          isEnabled: true,
+          isHidden: false
+        },
+        keySelection: { mode: 'all' }
+      })
+    })
+    expect(latestRun.modelCheckOpen).toBe(false)
+
+    act(() => latestRun.openModelCheck())
+    startHealthCheck.mockResolvedValueOnce(false)
+    await act(async () => {
+      await latestRun.startHealthCheck({ keySelection: { mode: 'all' }, isConcurrent: true, timeout: 15000 })
+    })
+    expect(latestRun.modelCheckOpen).toBe(true)
+
+    startHealthCheck.mockResolvedValueOnce(true)
+    await act(async () => {
+      await latestRun.startHealthCheck({ keySelection: { mode: 'all' }, isConcurrent: true, timeout: 15000 })
+    })
+    expect(latestRun.modelCheckOpen).toBe(false)
+  })
+
+  it('clears a prior single-model result when reopening the dialog', () => {
+    initialSingleModelResult = {
+      kind: 'failed',
+      model: {
+        id: 'openai::gpt-4o',
+        providerId: 'openai',
+        name: 'GPT-4o',
+        capabilities: [],
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false
+      },
+      keyResults: [],
+      status: HealthStatus.FAILED,
+      checking: false,
+      error: { name: 'ProviderError', message: 'Unauthorized', stack: null }
+    }
+
+    render(
+      <ModelListHealthProvider providerId="openai">
+        <HealthRunObserver />
+      </ModelListHealthProvider>
+    )
+
+    expect(screen.getByTestId('single-result')).toHaveTextContent('failed')
+    act(() => latestRun.openModelCheck())
+    expect(screen.getByTestId('single-result')).toHaveTextContent('none')
+  })
+
+  it('prevents single-model and all-model runners from overlapping', async () => {
+    render(
+      <ModelListHealthProvider providerId="openai">
+        <HealthRunObserver />
+      </ModelListHealthProvider>
+    )
+
+    act(() => setIsChecking(true))
+    await act(async () => {
+      await latestRun.startSingleModelCheck({
+        model: {
+          id: 'openai::gpt-4o',
+          providerId: 'openai',
+          name: 'GPT-4o',
+          capabilities: [],
+          supportsStreaming: true,
+          isEnabled: true,
+          isHidden: false
+        },
+        keySelection: { mode: 'all' }
+      })
+    })
+    expect(startSingleModelCheck).not.toHaveBeenCalled()
 
     act(() => {
-      setModelStatuses([
-        {
-          kind: 'checking',
-          model: {
-            id: 'openai::gpt-4o',
-            providerId: 'openai',
-            name: 'GPT-4o',
-            capabilities: [],
-            supportsStreaming: true,
-            isEnabled: true,
-            isHidden: false
-          },
-          checking: true,
-          status: HealthStatus.NOT_CHECKED,
-          keyResults: []
-        }
-      ])
+      setIsChecking(false)
+      setIsSingleChecking(true)
     })
-
-    expect(providerModelListRenderSpy).toHaveBeenCalledTimes(1)
-    expect(healthResultsRenderSpy).toHaveBeenLastCalledWith([
-      expect.objectContaining({ model: expect.objectContaining({ id: 'openai::gpt-4o' }) })
-    ])
-
-    act(() => {
-      setIsChecking(true)
+    await act(async () => {
+      await latestRun.startHealthCheck({ keySelection: { mode: 'all' }, isConcurrent: true, timeout: 15000 })
     })
-
-    expect(providerModelListRenderSpy).toHaveBeenCalledTimes(2)
+    expect(startHealthCheck).not.toHaveBeenCalled()
+    expect(latestRun.isModelChecking).toBe(true)
   })
 })

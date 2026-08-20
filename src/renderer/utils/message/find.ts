@@ -37,7 +37,12 @@ function formatErrorPart(data: Partial<ErrorPartData> | undefined): string {
   return [data.name, data.code, data.message].filter(Boolean).join('\n')
 }
 
-function getRenderableTextContent(part: CherryMessagePart): string {
+/**
+ * Canonical part → Markdown serialization for the text-like part types
+ * (`text` / `data-code` / `data-translation` / `data-error`). Every export path
+ * must go through this so a code part keeps its fences and language tag.
+ */
+export function getRenderableTextContent(part: CherryMessagePart): string {
   switch (part.type) {
     case 'text':
       return part.text ?? ''
