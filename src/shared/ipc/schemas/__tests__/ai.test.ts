@@ -1,3 +1,4 @@
+import { ConversationKind } from '@shared/ai/conversation'
 import type { AiStreamOpenRequest } from '@shared/ai/transport'
 import { describe, expect, it } from 'vitest'
 
@@ -37,12 +38,13 @@ describe('ai IPC schemas — uniqueModelId validation', () => {
 
 describe('ai.stream.open IPC schema', () => {
   const openStream = aiRequestSchemas['ai.stream.open'].input
+  const conversation = { kind: ConversationKind.Chat, id: 'topic-1' } as const
 
   it('preserves reserved-branch target intent at the renderer-to-main boundary', () => {
     expect(
       openStream.parse({
         trigger: 'submit-message',
-        topicId: 'topic-1',
+        conversation,
         parentAnchorId: 'reserved-user',
         userMessageParts: [{ type: 'text', text: 'continue branch' }],
         targetMode: 'reserved-branch'
@@ -54,7 +56,7 @@ describe('ai.stream.open IPC schema', () => {
     expect(
       openStream.safeParse({
         trigger: 'submit-message',
-        topicId: 'topic-1',
+        conversation,
         userMessageParts: [],
         targetMode: 'current-stream'
       }).success
@@ -65,7 +67,7 @@ describe('ai.stream.open IPC schema', () => {
     expect(
       openStream.parse({
         trigger: 'regenerate-message',
-        topicId: 'topic-1',
+        conversation,
         parentAnchorId: 'user-1',
         retryMessageId: 'assistant-failed',
         mentionedModelIds: ['openai::gpt-4o']
@@ -77,7 +79,7 @@ describe('ai.stream.open IPC schema', () => {
     expect(
       openStream.parse({
         trigger: 'regenerate-message',
-        topicId: 'topic-1',
+        conversation,
         parentAnchorId: 'user-1',
         appendToLiveGroupMessageId: 'assistant-source',
         mentionedModelIds: ['anthropic::claude-sonnet']
@@ -89,7 +91,7 @@ describe('ai.stream.open IPC schema', () => {
     expect(
       openStream.safeParse({
         trigger: 'submit-message',
-        topicId: 'topic-1',
+        conversation,
         userMessageParts: [],
         mentionedModelIds: ['openai::gpt-4o', 'openai::gpt-4o']
       }).success
@@ -99,7 +101,7 @@ describe('ai.stream.open IPC schema', () => {
   it('rejects combining in-place retry with live reply-group append', () => {
     const combined = {
       trigger: 'regenerate-message',
-      topicId: 'topic-1',
+      conversation,
       parentAnchorId: 'user-1',
       retryMessageId: 'assistant-failed',
       appendToLiveGroupMessageId: 'assistant-source'
