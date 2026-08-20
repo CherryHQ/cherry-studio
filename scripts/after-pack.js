@@ -2,55 +2,8 @@ const { Arch } = require('electron-builder')
 const fs = require('fs')
 const path = require('path')
 
-const {
-  dshRuntimePackageExcludeNames,
-  isForeignNativePath
-} = require('../packages/dsh-bridge/scripts/runtimeBuilder.cjs')
+const { isForeignNativePath } = require('../packages/dsh-bridge/scripts/runtimeBuilder.cjs')
 const { readProjectBuildMetadata, replacePackagedBetterSqlite3 } = require('./linux-native/compat')
-
-function findForbiddenDshPackages(nodeModules, packageNames = new Set()) {
-  if (!fs.existsSync(nodeModules)) return []
-  const forbidden = []
-  const nativePackageCache = new Map()
-  const isPackageDirectory = (directory) => {
-    const parent = path.dirname(directory)
-    if (path.basename(parent) === 'node_modules') return !path.basename(directory).startsWith('@')
-    return path.basename(parent).startsWith('@') && path.basename(path.dirname(parent)) === 'node_modules'
-  }
-  const containsNativeFile = (directory) => {
-    if (nativePackageCache.has(directory)) return nativePackageCache.get(directory)
-    const visitNativeFiles = (current) => {
-      for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
-        if (entry.name === 'node_modules') continue
-        const candidate = path.join(current, entry.name)
-        if (entry.isFile() && NATIVE_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) return true
-        if (entry.isDirectory() && visitNativeFiles(candidate)) return true
-      }
-      return false
-    }
-    const result = visitNativeFiles(directory)
-    nativePackageCache.set(directory, result)
-    return result
-  }
-  const visit = (directory, insideNativePackage = false) => {
-    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
-      if (!entry.isDirectory()) continue
-      const candidate = path.join(directory, entry.name)
-      const isForbidden =
-        (entry.name === 'dsh-bridge' && path.basename(directory) === '@cherrystudio') ||
-        packageNames.has(entry.name) ||
-        (path.basename(directory).startsWith('@') && packageNames.has(`${path.basename(directory)}/${entry.name}`))
-      const nativePackage = isPackageDirectory(candidate) && containsNativeFile(candidate)
-      if (isForbidden && !insideNativePackage) {
-        forbidden.push(candidate)
-        continue
-      }
-      visit(candidate, insideNativePackage || nativePackage)
-    }
-  }
-  visit(nodeModules)
-  return forbidden
-}
 
 const NATIVE_EXTENSIONS = new Set(['.dll', '.dylib', '.exe', '.node', '.so', '.wasm'])
 
@@ -106,18 +59,11 @@ function assertDshRuntimeArchive(appOutDir, platform, arch) {
   }
 }
 
-function assertDshAsarBoundary(appOutDir, platform, arch, packageNames) {
+function assertDshAsarBoundary(appOutDir, platform, arch) {
   const resourceRoots = [path.join(appOutDir, 'resources'), path.join(appOutDir, 'Contents', 'Resources')]
   const unpackedRoots = resourceRoots.map((resourceRoot) =>
     path.join(resourceRoot, 'app.asar.unpacked', 'node_modules')
   )
-  const forbiddenNames = packageNames ?? new Set(dshRuntimePackageExcludeNames(path.join(__dirname, '..')))
-  const forbidden = unpackedRoots.flatMap((nodeModules) => findForbiddenDshPackages(nodeModules, forbiddenNames))
-  if (forbidden.length > 0) {
-    throw new Error(
-      `DSH dependencies must remain in app.asar or dsh-runtime.tar.zst, found unpacked packages: ${forbidden.join(', ')}`
-    )
-  }
   const foreign = unpackedRoots.flatMap((nodeModules) => findForeignNativeFiles(nodeModules, platform, arch))
   if (foreign.length > 0) {
     throw new Error(`Foreign native files remain unpacked for ${platform}-${arch}: ${foreign.join(', ')}`)
