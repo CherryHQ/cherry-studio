@@ -134,6 +134,7 @@
   "agent.preview_pane.no_search_results": "Aucun fichier ne correspond à votre recherche",
   "agent.preview_pane.office.title": "L'ouverture des fichiers {{extension}} n'est pas encore prise en charge ici",
   "agent.preview_pane.preview": "Aperçu",
+  "agent.preview_pane.quote_selection": "Citer la sélection",
   "agent.preview_pane.refresh": "Actualiser",
   "agent.preview_pane.search_placeholder": "Rechercher des fichiers...",
   "agent.preview_pane.too_large.description": "Le fichier dépasse la limite d’aperçu de {{limit}}.",

@@ -134,6 +134,7 @@
   "agent.preview_pane.no_search_results": "Keine Dateien entsprechen Ihrer Suche",
   "agent.preview_pane.office.title": "Das Öffnen von {{extension}}-Dateien wird hier noch nicht unterstützt",
   "agent.preview_pane.preview": "Vorschau",
+  "agent.preview_pane.quote_selection": "Auswahl zitieren",
   "agent.preview_pane.refresh": "Aktualisieren",
   "agent.preview_pane.search_placeholder": "Dateien suchen…",
   "agent.preview_pane.too_large.description": "Datei überschreitet das {{limit}}-Vorschau-Limit.",

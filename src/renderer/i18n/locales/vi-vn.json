@@ -134,6 +134,7 @@
   "agent.preview_pane.no_search_results": "Không có tệp nào khớp với tìm kiếm của bạn",
   "agent.preview_pane.office.title": "Mở tệp {{extension}} ở đây hiện chưa được hỗ trợ",
   "agent.preview_pane.preview": "Xem trước",
+  "agent.preview_pane.quote_selection": "Trích dẫn vùng chọn",
   "agent.preview_pane.refresh": "Làm mới",
   "agent.preview_pane.search_placeholder": "Tìm kiếm tệp...",
   "agent.preview_pane.too_large.description": "Tệp vượt quá giới hạn xem trước {{limit}}.",

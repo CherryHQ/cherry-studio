@@ -134,6 +134,7 @@
   "agent.preview_pane.no_search_results": "沒有任何檔案符合您的搜尋",
   "agent.preview_pane.office.title": "在此處開啟 {{extension}} 檔案尚不支援",
   "agent.preview_pane.preview": "預覽",
+  "agent.preview_pane.quote_selection": "引用選取範圍",
   "agent.preview_pane.refresh": "重新整理",
   "agent.preview_pane.search_placeholder": "搜尋檔案...",
   "agent.preview_pane.too_large.description": "檔案超過 {{limit}} 預覽限制。",

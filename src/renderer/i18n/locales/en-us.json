@@ -134,6 +134,7 @@
   "agent.preview_pane.no_search_results": "No files match your search",
   "agent.preview_pane.office.title": "Opening {{extension}} files here is not supported yet",
   "agent.preview_pane.preview": "Preview",
+  "agent.preview_pane.quote_selection": "Quote selection",
   "agent.preview_pane.refresh": "Refresh",
   "agent.preview_pane.search_placeholder": "Search files...",
   "agent.preview_pane.too_large.description": "File exceeds the {{limit}} preview limit.",
