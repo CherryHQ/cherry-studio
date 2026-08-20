@@ -57,7 +57,7 @@ vi.mock('@renderer/components/composer/useToolApprovalComposerOverrides', () => 
   useToolApprovalComposerOverrides: () => []
 }))
 
-vi.mock('@renderer/components/chat/messages/utils/messageUiStateCache', () => ({
+vi.mock('@renderer/services/messageUiStateCache', () => ({
   invalidateCachedMessageUiStates: mocks.invalidateMessages
 }))
 

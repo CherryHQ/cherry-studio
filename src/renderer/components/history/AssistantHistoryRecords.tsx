@@ -4,11 +4,11 @@ import type {
   TopicActionContext,
   TopicExportMenuOptions
 } from '@renderer/components/chat/actions/topicContextMenuActions'
-import { useClearTopicMessages } from '@renderer/components/chat/messages/hooks/useClearTopicMessages'
 import { renderAssistantEntityIcon } from '@renderer/components/chat/resourceList/base'
 import { AssistantSelector } from '@renderer/components/resourceCatalog/selectors'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@renderer/data/hooks/usePreference'
+import { useClearTopicMessages } from '@renderer/hooks/chat/useClearTopicMessages'
 import { createTopicActionContext, useTopicMenuPreset } from '@renderer/hooks/chat/useTopicMenuActions'
 import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useAssistants } from '@renderer/hooks/useAssistant'

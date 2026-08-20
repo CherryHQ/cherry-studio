@@ -171,16 +171,12 @@ vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
 }))
 
 const topicDataMocks = vi.hoisted(() => ({
-  clearTopicMessages: vi.fn().mockResolvedValue(undefined),
+  clearTopicMessagesTrigger: vi.fn().mockResolvedValue({ deletedIds: ['message-c'] }),
   deleteTopicsByAssistantId: vi.fn().mockResolvedValue({ deletedIds: [] as string[], deletedCount: 0 }),
   deleteTopic: vi.fn().mockResolvedValue(undefined),
   moveTopic: vi.fn().mockResolvedValue(undefined),
   refreshTopics: vi.fn().mockResolvedValue(undefined),
   updateTopic: vi.fn().mockResolvedValue(undefined)
-}))
-
-vi.mock('@renderer/components/chat/messages/hooks/useClearTopicMessages', () => ({
-  useClearTopicMessages: () => topicDataMocks.clearTopicMessages
 }))
 
 const pinMutationMocks = vi.hoisted(() => ({
@@ -796,6 +792,7 @@ describe('Topics', () => {
     pinMutationMocks.createPin.mockResolvedValue(createTopicPin())
     pinMutationMocks.deletePin.mockResolvedValue(undefined)
     assistantMutationMocks.deleteAssistant.mockResolvedValue({ deleted: true, deletedTopicIds: [] })
+    topicDataMocks.clearTopicMessagesTrigger.mockResolvedValue({ deletedIds: ['message-c'] })
     topicDataMocks.deleteTopicsByAssistantId.mockResolvedValue({ deletedIds: [], deletedCount: 0 })
     tabsContextMocks.openTab.mockClear()
     tabsContextMocks.setActiveTab.mockClear()
@@ -810,6 +807,9 @@ describe('Topics', () => {
       }
       if (method === 'DELETE' && path === '/assistants/:id') {
         return { trigger: assistantMutationMocks.deleteAssistant, isLoading: false, error: undefined }
+      }
+      if (method === 'DELETE' && path === '/topics/:topicId/messages') {
+        return { trigger: topicDataMocks.clearTopicMessagesTrigger, isLoading: false, error: undefined }
       }
       return { trigger: vi.fn(), isLoading: false, error: undefined }
     })
@@ -1553,7 +1553,11 @@ describe('Topics', () => {
     const menuContent = gammaMenu?.querySelector('[data-testid="context-menu-content"]')
     await user.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Clear messages' }))
 
-    await vi.waitFor(() => expect(topicDataMocks.clearTopicMessages).toHaveBeenCalledExactlyOnceWith('topic-c'))
+    await vi.waitFor(() =>
+      expect(topicDataMocks.clearTopicMessagesTrigger).toHaveBeenCalledExactlyOnceWith({
+        params: { topicId: 'topic-c' }
+      })
+    )
     expect(setActiveTopic).not.toHaveBeenCalled()
     expect(confirmActionShow).toHaveBeenCalledWith(
       expect.objectContaining({ title: 'Clear all messages?', okText: 'Confirm', action: expect.any(Function) })

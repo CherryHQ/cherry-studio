@@ -1,14 +1,22 @@
 import { useMutation } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
+import { invalidateCachedMessageUiStates } from '@renderer/services/messageUiStateCache'
 import { useCallback } from 'react'
-
-import { invalidateCachedMessageUiStates } from '../utils/messageUiStateCache'
 
 const logger = loggerService.withContext('useClearTopicMessages')
 
 export function useClearTopicMessages() {
   const { trigger } = useMutation('DELETE', '/topics/:topicId/messages', {
-    refresh: ({ args }) => [`/topics/${args!.params.topicId}/messages`, `/topics/${args!.params.topicId}/tree`]
+    refresh: ({ args }) => {
+      const topicId = args!.params.topicId
+      return [
+        '/topics',
+        `/topics/${topicId}`,
+        '/topics/latest',
+        `/topics/${topicId}/messages`,
+        `/topics/${topicId}/tree`
+      ]
+    }
   })
 
   return useCallback(

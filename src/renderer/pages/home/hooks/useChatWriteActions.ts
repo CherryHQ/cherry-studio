@@ -14,11 +14,11 @@
  */
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
-import { invalidateCachedMessageUiStates } from '@renderer/components/chat/messages/utils/messageUiStateCache'
 import type { ChatWriteActions } from '@renderer/hooks/chat/ChatWriteContext'
 import type { ReservedMessageSeedOptions } from '@renderer/hooks/useConversationTurnController'
 import { ipcApi } from '@renderer/ipc'
 import { getStreamBlockedMessage } from '@renderer/services/aiTransport'
+import { invalidateCachedMessageUiStates } from '@renderer/services/messageUiStateCache'
 import { toast } from '@renderer/services/toast'
 import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'

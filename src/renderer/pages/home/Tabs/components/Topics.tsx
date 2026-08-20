@@ -9,7 +9,6 @@ import type {
   TopicExportMenuOptions,
   TopicMoveAssistantTarget
 } from '@renderer/components/chat/actions/topicContextMenuActions'
-import { useClearTopicMessages } from '@renderer/components/chat/messages/hooks/useClearTopicMessages'
 import { useOptionalRightPanelActions, useOptionalRightPanelState } from '@renderer/components/chat/panes/Shell'
 import {
   buildResourceListGroupDropAnchor,
@@ -41,6 +40,7 @@ import {
 import EditNameDialog from '@renderer/components/EditNameDialog'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
 import type { ResourceEditDialogTarget } from '@renderer/components/resourceCatalog/dialogs/edit'
+import { useClearTopicMessages } from '@renderer/hooks/chat/useClearTopicMessages'
 import { useTopicMenuActions } from '@renderer/hooks/chat/useTopicMenuActions'
 import type { AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs, useOptionalTabsContext } from '@renderer/hooks/tab'

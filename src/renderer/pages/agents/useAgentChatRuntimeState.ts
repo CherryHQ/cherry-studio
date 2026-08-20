@@ -7,7 +7,6 @@ import {
   parseAskUserQuestionToolInput
 } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import type { MessageStreamingLayers, MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
-import { invalidateCachedMessageUiStates } from '@renderer/components/chat/messages/utils/messageUiStateCache'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import type { AgentComposerSendOptions } from '@renderer/components/composer/variants/AgentComposer'
@@ -20,6 +19,7 @@ import {
 import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useTopicOverlayHandoffOnTerminal, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { ipcApi } from '@renderer/ipc'
+import { invalidateCachedMessageUiStates } from '@renderer/services/messageUiStateCache'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
 import type { AiStreamOpenRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'

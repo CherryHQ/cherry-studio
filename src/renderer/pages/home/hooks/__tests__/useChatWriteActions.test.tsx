@@ -16,7 +16,7 @@ vi.mock('@renderer/ipc', () => ({
 vi.mock('@renderer/hooks/useAssistant', () => ({
   useAssistant: () => ({ assistant: { settings: {} } })
 }))
-vi.mock('@renderer/components/chat/messages/utils/messageUiStateCache', () => ({
+vi.mock('@renderer/services/messageUiStateCache', () => ({
   invalidateCachedMessageUiStates: invalidateMessages
 }))
 
