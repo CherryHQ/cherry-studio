@@ -38,6 +38,9 @@ import type {
 import { isEqual } from 'es-toolkit/compat'
 
 const STORAGE_PERSIST_KEY = 'cs_cache_persist'
+const ARTIFACT_PANE_WIDTH_KEY = 'ui.chat.artifact_pane.width' as const
+const ARTIFACT_PANE_WIDTH_VERSION_KEY = 'ui.chat.artifact_pane.width_version' as const
+const LEGACY_ARTIFACT_PANE_AUTO_WIDTH = 460
 
 const logger = loggerService.withContext('CacheService')
 
@@ -1072,6 +1075,8 @@ export class CacheService {
         }
       }
 
+      this.migrateArtifactPaneWidthDefault(data)
+
       // Clean up localStorage (remove invalid keys and save merged data)
       this.savePersistCache()
       logger.debug('Loaded persist cache from localStorage with defaults')
@@ -1081,6 +1086,16 @@ export class CacheService {
       // Fallback to defaults only
       logger.debug('Fallback to default persist cache values')
     }
+  }
+
+  private migrateArtifactPaneWidthDefault(data: Record<string, unknown>): void {
+    const currentVersion = DefaultRendererPersistCache[ARTIFACT_PANE_WIDTH_VERSION_KEY]
+    if (data[ARTIFACT_PANE_WIDTH_VERSION_KEY] === currentVersion) return
+
+    if (data[ARTIFACT_PANE_WIDTH_KEY] === LEGACY_ARTIFACT_PANE_AUTO_WIDTH) {
+      this.persistCache.set(ARTIFACT_PANE_WIDTH_KEY, DefaultRendererPersistCache[ARTIFACT_PANE_WIDTH_KEY])
+    }
+    this.persistCache.set(ARTIFACT_PANE_WIDTH_VERSION_KEY, currentVersion)
   }
 
   /**
