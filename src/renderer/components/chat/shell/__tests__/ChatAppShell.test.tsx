@@ -256,38 +256,56 @@ describe('ChatAppShell', () => {
   })
 
   it('keeps pane state while it is collapsed and reopened', async () => {
+    const paneMounts: string[] = []
     const user = userEvent.setup()
 
     function Pane() {
       const [query, setQuery] = useState('')
 
+      useEffect(() => {
+        paneMounts.push('mounted')
+      }, [])
+
       return <input aria-label="Pane query" value={query} onChange={(event) => setQuery(event.target.value)} />
     }
 
-    const { container, rerender } = render(<ChatAppShell pane={<Pane />} paneOpen centerContent={<div />} />)
+    const { container, rerender } = render(<ChatAppShell pane={<Pane />} paneOpen centerContent={<div>content</div>} />)
 
     await user.type(screen.getByRole('textbox', { name: 'Pane query' }), 'persisted')
 
-    rerender(<ChatAppShell pane={<Pane />} paneOpen={false} centerContent={<div />} />)
+    rerender(<ChatAppShell pane={<Pane />} paneOpen={false} centerContent={<div>content</div>} />)
 
     const navigationPane = container.querySelector('[data-ui~="part:conversation-navigation"]')
     expect(navigationPane).toHaveAttribute('aria-hidden', 'true')
     expect(navigationPane).toHaveAttribute('inert')
     expect(screen.getByLabelText('Pane query')).toHaveValue('persisted')
 
-    rerender(<ChatAppShell pane={<Pane />} paneOpen centerContent={<div />} />)
+    rerender(<ChatAppShell pane={<Pane />} paneOpen centerContent={<div>content</div>} />)
 
     expect(screen.getByRole('textbox', { name: 'Pane query' })).toHaveValue('persisted')
+    expect(paneMounts).toEqual(['mounted'])
   })
 
   it('defers mounting a pane that has never been opened', () => {
-    const { rerender } = render(<ChatAppShell pane={<aside>topics</aside>} paneOpen={false} centerContent={<div />} />)
+    const paneMounts: string[] = []
+
+    function Pane() {
+      useEffect(() => {
+        paneMounts.push('mounted')
+      }, [])
+
+      return <aside>topics</aside>
+    }
+
+    const { rerender } = render(<ChatAppShell pane={<Pane />} paneOpen={false} centerContent={<div />} />)
 
     expect(screen.queryByText('topics')).not.toBeInTheDocument()
+    expect(paneMounts).toEqual([])
 
-    rerender(<ChatAppShell pane={<aside>topics</aside>} paneOpen centerContent={<div />} />)
+    rerender(<ChatAppShell pane={<Pane />} paneOpen centerContent={<div />} />)
 
     expect(screen.getByText('topics')).toBeInTheDocument()
+    expect(paneMounts).toEqual(['mounted'])
   })
 
   it('mounts the pane only in the selected position', () => {

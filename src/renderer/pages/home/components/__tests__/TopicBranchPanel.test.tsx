@@ -14,14 +14,20 @@ const mocks = vi.hoisted(() => ({
   topicPending: false,
   eventEmit: vi.fn(),
   useDataChange: vi.fn(),
+  readCache: vi.fn(),
   useQuery: vi.fn(),
-  useMutation: vi.fn()
+  useMutation: vi.fn(),
+  invalidateCache: vi.fn(),
+  writeCache: vi.fn().mockResolvedValue(undefined)
 }))
 
 vi.mock('@data/hooks/useDataApi', () => ({
   useDataChange: mocks.useDataChange,
+  useReadCache: () => mocks.readCache,
   useMutation: mocks.useMutation,
-  useQuery: mocks.useQuery
+  useQuery: mocks.useQuery,
+  useInvalidateCache: () => mocks.invalidateCache,
+  useWriteCache: () => mocks.writeCache
 }))
 
 vi.mock('@data/DataApiService', () => ({

@@ -5,7 +5,7 @@ import { useMessageImageCaptureMessages } from '@renderer/components/chat/messag
 import MessageImageCaptureHost from '@renderer/components/chat/messages/MessageImageCaptureHost'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { projectBranchMessagesToUI } from '@renderer/hooks/useTopicMessages'
-import type { Topic } from '@renderer/types/topic'
+import type { TopicReference } from '@renderer/types/topic'
 import { isRenderableConversationMessage } from '@renderer/utils/message/messageProjection'
 import type { BranchMessagesResponse, CherryUIMessage } from '@shared/data/types/message'
 import { memo, useCallback } from 'react'
@@ -18,7 +18,7 @@ const TOPIC_CAPTURE_MESSAGES_PAGE_SIZE = 200
 const passThroughUIMessage = (message: CherryUIMessage) => message
 
 interface TopicImageCaptureHostProps {
-  topic: Topic
+  topic: TopicReference
 }
 
 export async function getTopicImageCaptureMessages(topicId: string): Promise<CherryUIMessage[]> {

@@ -757,6 +757,9 @@ export class AgentService {
     const updated = this.getAgent(id)
     if (updated) {
       this._onAgentUpdated.fire({ agentId: id, updates, agent: updated })
+      if (updates.name !== undefined) {
+        agentSessionService.notifyOwnerProjectionChange()
+      }
     }
     return updated
   }
@@ -812,10 +815,13 @@ export class AgentService {
     if (deleted && result.sessionImpact) {
       agentTaskService.notifyReadModelChange(result.sessionImpact.taskScheduleIds)
       getDataService('AgentSessionMessageService').publishDeliveryChanges(result.sessionImpact.deliveryResults)
-      agentSessionService.notifyReadModelChange(result.sessionImpact.sessionIds, result.sessionImpact.changeKind)
+      if (result.sessionImpact.changeKind === 'membership') {
+        agentSessionService.notifyReadModelChange(result.sessionImpact.sessionIds, 'membership', { pinsChanged: true })
+      } else {
+        agentSessionService.notifyOwnerRemovalChange(result.sessionImpact.sessionIds, { pinsChanged: true })
+      }
       this._onAgentDeleted.fire({ agentId: id })
     }
-    if (deleted) pinService.notifyPurged()
     const deletedSessionIds = options.deleteSessions === true ? result.sessionImpact?.sessionIds : undefined
     return {
       deleted,

@@ -274,7 +274,7 @@
       },
       "display": {
         "agent": "Agent",
-        "time": "Thời gian",
+        "time": "Tác vụ",
         "title": "Chế độ hiển thị",
         "workdir": "Thư mục làm việc"
       },
@@ -299,16 +299,13 @@
         "collapse": "Thu gọn hiển thị",
         "collapse_all": "Thu gọn tất cả",
         "conversation": "Cuộc trò chuyện",
-        "earlier": "Trước đó",
+        "drag_hint": "Kéo để sắp xếp lại. Kéo các nhiệm vụ để điều chỉnh nhóm hiển thị và ẩn.",
         "expand_all": "Mở rộng tất cả",
         "no_workdir": "Không có thư mục làm việc",
         "show_more": "Mở rộng hiển thị",
         "tasks": "Nhiệm vụ",
-        "this_week": "Tuần này",
-        "today": "Hôm nay",
         "unknown_agent": "Agent không xác định",
-        "unknown_agent_tip": "Đây là nhóm phiên cũ không có Agent, không phải Agent thực tế. Bạn chỉ có thể xem và không thể tiếp tục chạy nhóm này.",
-        "yesterday": "Hôm qua"
+        "unknown_agent_tip": "Đây là nhóm phiên cũ không có Agent, không phải Agent thực tế. Bạn chỉ có thể xem và không thể tiếp tục chạy nhóm này."
       },
       "list": {
         "title": "Nhiệm vụ"
@@ -1344,7 +1341,7 @@
       },
       "display": {
         "assistant": "Trợ lý",
-        "time": "Thời gian",
+        "time": "Cuộc trò chuyện",
         "title": "Chế độ hiển thị"
       },
       "draft": "Bản nháp",
@@ -1410,14 +1407,10 @@
       "group": {
         "collapse": "Thu gọn hiển thị",
         "collapse_all": "Thu gọn tất cả",
-        "earlier": "Trước đó",
         "expand_all": "Mở rộng tất cả",
         "show_more": "Mở rộng hiển thị",
-        "this_week": "Tuần này",
-        "today": "Hôm nay",
         "unknown_assistant": "Trợ lý Không liên kết",
-        "unknown_assistant_tip": "Đây là nhóm cuộc trò chuyện lịch sử không có trợ lý, không phải trợ lý thực tế. Chuyển cuộc trò chuyện sang trợ lý hiện có để tiếp tục.",
-        "yesterday": "Hôm qua"
+        "unknown_assistant_tip": "Đây là nhóm cuộc trò chuyện lịch sử không có trợ lý, không phải trợ lý thực tế. Chuyển cuộc trò chuyện sang trợ lý hiện có để tiếp tục."
       },
       "list": "Danh sách cuộc trò chuyện",
       "manage": {
@@ -1795,6 +1788,12 @@
     "selectedItems": "Đã chọn {{count}} mục",
     "selectedMessages": "Đã chọn {{count}} tin nhắn",
     "settings": "Cài đặt",
+    "sort": {
+      "activity_at": "Thời gian hoạt động",
+      "created_at": "Thời gian tạo",
+      "manual_order": "Thứ tự thủ công",
+      "title": "Thứ tự sắp xếp"
+    },
     "stop": "Dừng lại",
     "success": "Thành công",
     "swap": "Hoán đổi",
@@ -2242,8 +2241,6 @@
       "filter": {
         "selectAgent": "Chọn Agent",
         "selectAssistant": "Chọn trợ lý",
-        "statusLabel": "Trạng thái",
-        "statusPlaceholder": "Chọn trạng thái",
         "unlinkedAssistant": "Trợ lý không liên kết"
       },
       "loading": {
@@ -2255,11 +2252,6 @@
       "searchSession": "Tìm kiếm nhiệm vụ...",
       "searchTopic": "Tìm kiếm cuộc trò chuyện...",
       "shortTitle": "Lịch sử",
-      "status": {
-        "completed": "Hoàn thành",
-        "failed": "Thất bại",
-        "running": "Chạy"
-      },
       "table": {
         "actions": "Hành động",
         "conversation": "Cuộc trò chuyện",

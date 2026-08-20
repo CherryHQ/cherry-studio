@@ -1,5 +1,6 @@
 import { MenuDivider, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
-import { ChevronsDownUp, ChevronsUpDown, ListFilter } from 'lucide-react'
+import type { TopicSessionSortBy } from '@shared/data/preference/preferenceTypes'
+import { Activity, CalendarPlus, ChevronsDownUp, ChevronsUpDown, GripVertical, ListFilter } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useState } from 'react'
 
@@ -24,25 +25,40 @@ type ConversationListSectionToggle = {
   ids: readonly string[]
 }
 
-type ConversationListOptionsMenuProps<TMode extends string> = {
+type ConversationListOptionGroup<TValue extends string> = {
+  onChange: (value: TValue) => void
+  options: readonly ConversationListOption<TValue>[]
+  title: string
+  value: TValue
+}
+
+export const TOPIC_SESSION_SORT_OPTIONS = [
+  { icon: <CalendarPlus size={16} />, labelKey: 'common.sort.created_at', value: 'createdAt' },
+  { icon: <Activity size={16} />, labelKey: 'common.sort.activity_at', value: 'lastActivityAt' },
+  { icon: <GripVertical size={16} />, labelKey: 'common.sort.manual_order', value: 'orderKey' }
+] satisfies ReadonlyArray<{ icon: ReactNode; labelKey: string; value: TopicSessionSortBy }>
+
+type ConversationListOptionsMenuProps<TMode extends string, TSort extends string> = {
   historyAction?: ConversationListMenuAction
   manageAction?: ConversationListMenuAction
   mode: TMode
   onChange: (mode: TMode) => void
   options: readonly ConversationListOption<TMode>[]
   sectionToggle?: ConversationListSectionToggle
+  sort?: ConversationListOptionGroup<TSort>
   title: string
 }
 
-export function ConversationListOptionsMenu<TMode extends string>({
+export function ConversationListOptionsMenu<TMode extends string, TSort extends string>({
   historyAction,
   manageAction,
   mode,
   onChange,
   options,
   sectionToggle,
+  sort,
   title
-}: ConversationListOptionsMenuProps<TMode>) {
+}: ConversationListOptionsMenuProps<TMode, TSort>) {
   const [open, setOpen] = useState(false)
   const runAfterMenuClose = (action: () => void) => {
     setOpen(false)
@@ -82,6 +98,22 @@ export function ConversationListOptionsMenu<TMode extends string>({
               onClick={() => runAfterMenuClose(() => onChange(option.value))}
             />
           ))}
+          {sort && (
+            <>
+              <MenuDivider />
+              <div className="px-2.5 py-1 font-normal text-muted-foreground text-xs">{sort.title}</div>
+              {sort.options.map((option) => (
+                <MenuItem
+                  key={option.value}
+                  size="sm"
+                  icon={option.icon}
+                  label={option.label}
+                  active={sort.value === option.value}
+                  onClick={() => runAfterMenuClose(() => sort.onChange(option.value))}
+                />
+              ))}
+            </>
+          )}
           {sectionToggle && sectionToggle.ids.length > 0 && (
             <>
               <MenuDivider />

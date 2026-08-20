@@ -274,7 +274,7 @@
       },
       "display": {
         "agent": "Agent",
-        "time": "Time",
+        "time": "Task",
         "title": "Display mode",
         "workdir": "Work directory"
       },
@@ -299,16 +299,13 @@
         "collapse": "Collapse",
         "collapse_all": "Collapse all",
         "conversation": "Conversations",
-        "earlier": "Earlier",
+        "drag_hint": "Drag to reorder. Drag tasks to adjust display and hidden groups.",
         "expand_all": "Expand all",
         "no_workdir": "No work directory",
         "show_more": "Show more",
         "tasks": "Tasks",
-        "this_week": "This week",
-        "today": "Today",
         "unknown_agent": "Unlinked Agent",
-        "unknown_agent_tip": "This is a historical session group without an agent, not an actual agent. It is view-only and cannot continue running.",
-        "yesterday": "Yesterday"
+        "unknown_agent_tip": "This is a historical session group without an agent, not an actual agent. It is view-only and cannot continue running."
       },
       "list": {
         "title": "Tasks"
@@ -1344,7 +1341,7 @@
       },
       "display": {
         "assistant": "Assistant",
-        "time": "Time",
+        "time": "Conversation",
         "title": "Display mode"
       },
       "draft": "Draft",
@@ -1410,14 +1407,10 @@
       "group": {
         "collapse": "Collapse",
         "collapse_all": "Collapse all",
-        "earlier": "Earlier",
         "expand_all": "Expand all",
         "show_more": "Show more",
-        "this_week": "This week",
-        "today": "Today",
         "unknown_assistant": "Unlinked Assistant",
-        "unknown_assistant_tip": "This is a historical conversation group without an assistant, not an actual assistant. Move the conversation to an existing assistant to continue.",
-        "yesterday": "Yesterday"
+        "unknown_assistant_tip": "This is a historical conversation group without an assistant, not an actual assistant. Move the conversation to an existing assistant to continue."
       },
       "list": "Conversation List",
       "manage": {
@@ -1795,6 +1788,12 @@
     "selectedItems": "Selected {{count}} items",
     "selectedMessages": "Selected {{count}} messages",
     "settings": "Settings",
+    "sort": {
+      "activity_at": "Activity time",
+      "created_at": "Creation time",
+      "manual_order": "Manual order",
+      "title": "Sort order"
+    },
     "stop": "Stop",
     "success": "Success",
     "swap": "Swap",
@@ -2242,8 +2241,6 @@
       "filter": {
         "selectAgent": "Select an agent",
         "selectAssistant": "Select an assistant",
-        "statusLabel": "Status",
-        "statusPlaceholder": "Select status",
         "unlinkedAssistant": "Unlinked assistant"
       },
       "loading": {
@@ -2255,11 +2252,6 @@
       "searchSession": "Search tasks...",
       "searchTopic": "Search conversations...",
       "shortTitle": "History",
-      "status": {
-        "completed": "Completed",
-        "failed": "Failed",
-        "running": "Running"
-      },
       "table": {
         "actions": "Actions",
         "conversation": "Conversation",

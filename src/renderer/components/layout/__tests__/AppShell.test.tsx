@@ -3,7 +3,6 @@ import '@testing-library/jest-dom/vitest'
 
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
-import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -92,12 +91,6 @@ vi.mock('../../MiniApp/MiniAppTabsPool', () => ({
   default: () => <div data-testid="mini-app-pool" />
 }))
 
-vi.mock('../../ResourceViewSourceProvider', () => ({
-  ResourceViewSourceProvider: ({ children }: { children: ReactNode }) => (
-    <div data-testid="resource-view-source-provider">{children}</div>
-  )
-}))
-
 vi.mock('../AppShellTabBar', () => ({
   AppShellTabBar: (props: Record<string, unknown>) => {
     mocks.tabBarProps = props
@@ -132,17 +125,6 @@ afterEach(() => {
 })
 
 describe('AppShell', () => {
-  it('owns the resource source provider at the route host boundary', () => {
-    render(<AppShell />)
-
-    const provider = screen.getByTestId('resource-view-source-provider')
-
-    expect(provider).toContainElement(screen.getByTestId('tab-router'))
-    expect(provider).not.toContainElement(screen.getByTestId('mini-app-pool'))
-    expect(provider).not.toContainElement(screen.getByTestId('sidebar'))
-    expect(provider).not.toContainElement(screen.getByTestId('tab-bar'))
-  })
-
   it('applies the compact minimum window size for the active chat tab and resets it on leaving', async () => {
     mocks.tabs = [
       ...mocks.tabs,

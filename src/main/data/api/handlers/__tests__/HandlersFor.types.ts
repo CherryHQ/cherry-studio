@@ -9,64 +9,38 @@
  * expected error does not occur, tsgo produces "Unused '@ts-expect-error'
  * directive" and typecheck fails. So running `pnpm typecheck:node` with
  * zero diagnostics in this file proves the entire matrix holds.
- *
- * The matrix is run twice per case: once against the new `HandlersFor<>`
- * helper, once against the old hand-rolled mapped type (kept here as the
- * control). Any future divergence in safety guarantees is caught
- * automatically.
  */
 
 import type { TopicSchemas } from '@shared/data/api/schemas/topics'
-import type { ApiHandler, ApiMethods, HandlersFor } from '@shared/data/api/types'
-
-// ----------------------------------------------------------------------------
-// Control: the pre-refactor hand-rolled mapped type, verbatim from how each
-// handler file used to express its shape. Kept here as an equivalence anchor.
-// ----------------------------------------------------------------------------
-
-type OldTopicHandler<Path extends keyof TopicSchemas, Method extends ApiMethods<Path>> = ApiHandler<Path, Method>
-type OldTopicHandlers = {
-  [Path in keyof TopicSchemas]: {
-    [Method in keyof TopicSchemas[Path]]: OldTopicHandler<Path, Method & ApiMethods<Path>>
-  }
-}
+import type { HandlersFor } from '@shared/data/api/types'
 
 // Response shapes are complex zod-inferred types; the matrix tests
 // path/method/param invariants, not response types, so short-circuit via cast.
 const ok = async (): Promise<any> => ({}) as any
-const auxiliaryTopicHandlers = {
-  '/assistants/:assistantId/topics': { DELETE: ok },
+const assistantTopicsDeleteHandler = {
+  '/assistants/:assistantId/topics': { DELETE: ok }
+} satisfies Pick<HandlersFor<TopicSchemas>, '/assistants/:assistantId/topics'>
+const topicMoveHandler = {
   '/topics/:id/move': { POST: ok }
-} satisfies Pick<HandlersFor<TopicSchemas>, '/assistants/:assistantId/topics' | '/topics/:id/move'>
+} satisfies Pick<HandlersFor<TopicSchemas>, '/topics/:id/move'>
 
 // ============================================================================
-// P1 — POSITIVE: a fully-covered, correctly-typed handler compiles under both
-// patterns. This anchors the matrix: every negative case below removes or
-// warps exactly one dimension from this shape.
+// P1 — POSITIVE: a fully-covered, correctly-typed handler compiles. This
+// anchors the matrix: every negative case below removes or warps one dimension.
 // ============================================================================
 
-const _p1_new: HandlersFor<TopicSchemas> = {
+const _p1: HandlersFor<TopicSchemas> = {
   '/topics': { GET: ok, POST: ok, DELETE: ok },
   '/topics/:id': { GET: ok, PATCH: ok, DELETE: async () => undefined },
   '/topics/latest': { GET: ok },
   '/topics/reusable-placeholder': { POST: ok },
+  '/topics/stats': { GET: ok },
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/duplicate': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
   '/topics/order:batch': { PATCH: async () => undefined },
-  ...auxiliaryTopicHandlers
-}
-
-const _p1_old: OldTopicHandlers = {
-  '/topics': { GET: ok, POST: ok, DELETE: ok },
-  '/topics/:id': { GET: ok, PATCH: ok, DELETE: async () => undefined },
-  '/topics/latest': { GET: ok },
-  '/topics/reusable-placeholder': { POST: ok },
-  '/topics/:id/active-node': { PUT: ok },
-  '/topics/:id/duplicate': { POST: ok },
-  '/topics/:id/order': { PATCH: async () => undefined },
-  '/topics/order:batch': { PATCH: async () => undefined },
-  ...auxiliaryTopicHandlers
+  ...assistantTopicsDeleteHandler,
+  ...topicMoveHandler
 }
 
 // ============================================================================
@@ -74,12 +48,7 @@ const _p1_old: OldTopicHandlers = {
 // ============================================================================
 
 // @ts-expect-error - all '/topics/:id*' paths missing
-const _n1_new: HandlersFor<TopicSchemas> = {
-  '/topics': { GET: ok, POST: ok, DELETE: ok }
-}
-
-// @ts-expect-error - all '/topics/:id*' paths missing
-const _n1_old: OldTopicHandlers = {
+const _n1: HandlersFor<TopicSchemas> = {
   '/topics': { GET: ok, POST: ok, DELETE: ok }
 }
 
@@ -88,30 +57,19 @@ const _n1_old: OldTopicHandlers = {
 // exhaustiveness must reject this.
 // ============================================================================
 
-const _n2_new: HandlersFor<TopicSchemas> = {
+const _n2: HandlersFor<TopicSchemas> = {
   '/topics': { GET: ok, POST: ok, DELETE: ok },
   // @ts-expect-error - DELETE missing on '/topics/:id'
   '/topics/:id': { GET: ok, PATCH: ok },
   '/topics/latest': { GET: ok },
   '/topics/reusable-placeholder': { POST: ok },
+  '/topics/stats': { GET: ok },
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/duplicate': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
   '/topics/order:batch': { PATCH: async () => undefined },
-  ...auxiliaryTopicHandlers
-}
-
-const _n2_old: OldTopicHandlers = {
-  '/topics': { GET: ok, POST: ok, DELETE: ok },
-  // @ts-expect-error - DELETE missing on '/topics/:id'
-  '/topics/:id': { GET: ok, PATCH: ok },
-  '/topics/latest': { GET: ok },
-  '/topics/reusable-placeholder': { POST: ok },
-  '/topics/:id/active-node': { PUT: ok },
-  '/topics/:id/duplicate': { POST: ok },
-  '/topics/:id/order': { PATCH: async () => undefined },
-  '/topics/order:batch': { PATCH: async () => undefined },
-  ...auxiliaryTopicHandlers
+  ...assistantTopicsDeleteHandler,
+  ...topicMoveHandler
 }
 
 // ============================================================================
@@ -119,30 +77,18 @@ const _n2_old: OldTopicHandlers = {
 // property check must reject this.
 // ============================================================================
 
-const _n3_new: HandlersFor<TopicSchemas> = {
+const _n3: HandlersFor<TopicSchemas> = {
   '/topics': { GET: ok, POST: ok, DELETE: ok },
   '/topics/:id': { GET: ok, PATCH: ok, DELETE: async () => undefined },
   '/topics/latest': { GET: ok },
   '/topics/reusable-placeholder': { POST: ok },
+  '/topics/stats': { GET: ok },
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/duplicate': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
   '/topics/order:batch': { PATCH: async () => undefined },
-  ...auxiliaryTopicHandlers,
-  // @ts-expect-error - '/tpoic' is a typo; not in TopicSchemas
-  '/tpoic': { GET: ok }
-}
-
-const _n3_old: OldTopicHandlers = {
-  '/topics': { GET: ok, POST: ok, DELETE: ok },
-  '/topics/:id': { GET: ok, PATCH: ok, DELETE: async () => undefined },
-  '/topics/latest': { GET: ok },
-  '/topics/reusable-placeholder': { POST: ok },
-  '/topics/:id/active-node': { PUT: ok },
-  '/topics/:id/duplicate': { POST: ok },
-  '/topics/:id/order': { PATCH: async () => undefined },
-  '/topics/order:batch': { PATCH: async () => undefined },
-  ...auxiliaryTopicHandlers,
+  ...assistantTopicsDeleteHandler,
+  ...topicMoveHandler,
   // @ts-expect-error - '/tpoic' is a typo; not in TopicSchemas
   '/tpoic': { GET: ok }
 }
@@ -153,30 +99,18 @@ const _n3_old: OldTopicHandlers = {
 // looked at ApiPaths would incorrectly accept it.
 // ============================================================================
 
-const _n4_new: HandlersFor<TopicSchemas> = {
+const _n4: HandlersFor<TopicSchemas> = {
   '/topics': { GET: ok, POST: ok, DELETE: ok },
   '/topics/:id': { GET: ok, PATCH: ok, DELETE: async () => undefined },
   '/topics/latest': { GET: ok },
   '/topics/reusable-placeholder': { POST: ok },
+  '/topics/stats': { GET: ok },
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/duplicate': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
   '/topics/order:batch': { PATCH: async () => undefined },
-  ...auxiliaryTopicHandlers,
-  // @ts-expect-error - '/messages/:id' belongs to MessageSchemas, not TopicSchemas
-  '/messages/:id': { GET: ok }
-}
-
-const _n4_old: OldTopicHandlers = {
-  '/topics': { GET: ok, POST: ok, DELETE: ok },
-  '/topics/:id': { GET: ok, PATCH: ok, DELETE: async () => undefined },
-  '/topics/latest': { GET: ok },
-  '/topics/reusable-placeholder': { POST: ok },
-  '/topics/:id/active-node': { PUT: ok },
-  '/topics/:id/duplicate': { POST: ok },
-  '/topics/:id/order': { PATCH: async () => undefined },
-  '/topics/order:batch': { PATCH: async () => undefined },
-  ...auxiliaryTopicHandlers,
+  ...assistantTopicsDeleteHandler,
+  ...topicMoveHandler,
   // @ts-expect-error - '/messages/:id' belongs to MessageSchemas, not TopicSchemas
   '/messages/:id': { GET: ok }
 }
@@ -187,7 +121,7 @@ const _n4_old: OldTopicHandlers = {
 // rejected even though it is a valid HTTP method elsewhere.
 // ============================================================================
 
-const _n5_new: HandlersFor<TopicSchemas> = {
+const _n5: HandlersFor<TopicSchemas> = {
   '/topics': {
     GET: ok,
     POST: ok,
@@ -198,29 +132,13 @@ const _n5_new: HandlersFor<TopicSchemas> = {
   '/topics/:id': { GET: ok, PATCH: ok, DELETE: async () => undefined },
   '/topics/latest': { GET: ok },
   '/topics/reusable-placeholder': { POST: ok },
+  '/topics/stats': { GET: ok },
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/duplicate': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
   '/topics/order:batch': { PATCH: async () => undefined },
-  ...auxiliaryTopicHandlers
-}
-
-const _n5_old: OldTopicHandlers = {
-  '/topics': {
-    GET: ok,
-    POST: ok,
-    DELETE: ok,
-    // @ts-expect-error - PUT not declared on '/topics' in TopicSchemas
-    PUT: ok
-  },
-  '/topics/:id': { GET: ok, PATCH: ok, DELETE: async () => undefined },
-  '/topics/latest': { GET: ok },
-  '/topics/reusable-placeholder': { POST: ok },
-  '/topics/:id/active-node': { PUT: ok },
-  '/topics/:id/duplicate': { POST: ok },
-  '/topics/:id/order': { PATCH: async () => undefined },
-  '/topics/order:batch': { PATCH: async () => undefined },
-  ...auxiliaryTopicHandlers
+  ...assistantTopicsDeleteHandler,
+  ...topicMoveHandler
 }
 
 // ============================================================================
@@ -228,7 +146,7 @@ const _n5_old: OldTopicHandlers = {
 // for `/topics/:id`; accessing `params.wrongKey` must be rejected.
 // ============================================================================
 
-const _n6_new: HandlersFor<TopicSchemas> = {
+const _n6: HandlersFor<TopicSchemas> = {
   '/topics': { GET: ok, POST: ok, DELETE: ok },
   '/topics/:id': {
     GET: async ({ params }) => {
@@ -241,31 +159,13 @@ const _n6_new: HandlersFor<TopicSchemas> = {
   },
   '/topics/latest': { GET: ok },
   '/topics/reusable-placeholder': { POST: ok },
+  '/topics/stats': { GET: ok },
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/duplicate': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
   '/topics/order:batch': { PATCH: async () => undefined },
-  ...auxiliaryTopicHandlers
-}
-
-const _n6_old: OldTopicHandlers = {
-  '/topics': { GET: ok, POST: ok, DELETE: ok },
-  '/topics/:id': {
-    GET: async ({ params }) => {
-      // @ts-expect-error - 'wrongKey' does not exist on params (only 'id' does)
-      void params.wrongKey
-      return {} as any
-    },
-    PATCH: ok,
-    DELETE: async () => undefined
-  },
-  '/topics/latest': { GET: ok },
-  '/topics/reusable-placeholder': { POST: ok },
-  '/topics/:id/active-node': { PUT: ok },
-  '/topics/:id/duplicate': { POST: ok },
-  '/topics/:id/order': { PATCH: async () => undefined },
-  '/topics/order:batch': { PATCH: async () => undefined },
-  ...auxiliaryTopicHandlers
+  ...assistantTopicsDeleteHandler,
+  ...topicMoveHandler
 }
 
 // ============================================================================
@@ -274,7 +174,7 @@ const _n6_old: OldTopicHandlers = {
 // the DTO must be rejected.
 // ============================================================================
 
-const _n7_new: HandlersFor<TopicSchemas> = {
+const _n7: HandlersFor<TopicSchemas> = {
   '/topics': {
     GET: ok,
     DELETE: ok,
@@ -287,47 +187,21 @@ const _n7_new: HandlersFor<TopicSchemas> = {
   '/topics/:id': { GET: ok, PATCH: ok, DELETE: async () => undefined },
   '/topics/latest': { GET: ok },
   '/topics/reusable-placeholder': { POST: ok },
+  '/topics/stats': { GET: ok },
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/duplicate': { POST: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
   '/topics/order:batch': { PATCH: async () => undefined },
-  ...auxiliaryTopicHandlers
-}
-
-const _n7_old: OldTopicHandlers = {
-  '/topics': {
-    GET: ok,
-    DELETE: ok,
-    POST: async ({ body }) => {
-      // @ts-expect-error - 'nonExistentField' is not part of CreateTopicDto
-      void body?.nonExistentField
-      return {} as any
-    }
-  },
-  '/topics/:id': { GET: ok, PATCH: ok, DELETE: async () => undefined },
-  '/topics/latest': { GET: ok },
-  '/topics/reusable-placeholder': { POST: ok },
-  '/topics/:id/active-node': { PUT: ok },
-  '/topics/:id/duplicate': { POST: ok },
-  '/topics/:id/order': { PATCH: async () => undefined },
-  '/topics/order:batch': { PATCH: async () => undefined },
-  ...auxiliaryTopicHandlers
+  ...assistantTopicsDeleteHandler,
+  ...topicMoveHandler
 }
 
 // Prevent "declared but never used" diagnostics — these are type-level probes.
-void _p1_new
-void _p1_old
-void _n1_new
-void _n1_old
-void _n2_new
-void _n2_old
-void _n3_new
-void _n3_old
-void _n4_new
-void _n4_old
-void _n5_new
-void _n5_old
-void _n6_new
-void _n6_old
-void _n7_new
-void _n7_old
+void _p1
+void _n1
+void _n2
+void _n3
+void _n4
+void _n5
+void _n6
+void _n7

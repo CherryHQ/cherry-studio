@@ -20,7 +20,9 @@ preference. The layout is derived from the resource-list display mode.
 
 ## State
 
-- Display mode and topic/session position are stored as Preference data.
+- Display mode, topic/session position, and topic/session item sort are stored as Preference data.
+- `topic.sort_type` and `agent.session.sort_type` both default to `createdAt`. Changing display mode does not change
+  either sort preference.
 - `topic.tab.show` controls whether the left resource list is expanded.
 - Classic-layout right-pane state is persisted independently per surface via
   `useClassicLayoutRightPaneOpen(surface, { enabled, defaultOpen })`:
@@ -40,7 +42,8 @@ behavior) power the classic left rail. `AssistantResourceList` and
 menus.
 
 - Home shows assistants; Agent shows agents.
-- Only entities that already own topics/sessions are shown.
+- The complete assistant/agent catalog is shown, including entities that do not
+  own topics/sessions yet.
 - The top action creates or selects an assistant/agent through the shared picker.
 - Management entries live in the display/options menu, not as extra top rail
   entries.
@@ -60,8 +63,8 @@ the first resource tab through `ResourcePaneProvider` / `useResourcePane`.
   rail's re-entry behavior.
 - The right panel shares the existing RightPanel chrome with branch, trace,
   files, status, and flow panels.
-- Right-panel topic/session lists stay time-grouped and do not write the left
-  list's display-mode collapse state.
+- Right-panel topic/session lists use the flat display, follow the corresponding selected item sort, and do not
+  write the left list's display-mode collapse state.
 
 ## Composer Entity Controls
 
@@ -85,13 +88,21 @@ Classic-layout agent chats keep the workspace control visible in the composer.
 
 ## Data Flow
 
-No DataApi endpoint filters topics/sessions by entity. The entity rail and right
-panel read the same full-list source and filter in the frontend.
+Topic and session lists use independent pinned and unpinned cursor streams. Ordinary rows can use creation order,
+activity order, or manual order; pinned rows keep their independent pin order. Search and owner scoping are applied
+by DataApi so each surface can page without loading the complete collection into the renderer.
 
-- Home uses `useAssistantTopicsSource`.
-- Agent uses `useAgentSessionsSource`.
-- Create/delete/rename/clear/move use the existing mutation and invalidate flow;
-  after a mutation, both sides re-derive from the refreshed shared source.
+In assistant, agent, and work-directory grouping modes, owner metadata supplies
+the complete group list. Topic/session statistics supply counts and synthetic
+unlinked groups; ordinary rows are requested independently when a group is
+expanded.
+
+- Home list surfaces use `useTopics`; exact selection, latest-topic, and reusable
+  placeholder lookups come from `useAssistantTopicsSource`.
+- Agent list surfaces use `useSessions`; exact selection, latest-session, and
+  reusable placeholder lookups come from `useAgentSessionsSource`.
+- Create/delete/rename/clear/move mutations refresh the affected streams through
+  their domain hooks.
 
 ## Key Files
 
@@ -100,6 +111,9 @@ panel read the same full-list source and filter in the frontend.
 - `src/renderer/components/chat/resourceList/AssistantResourceList.tsx`
 - `src/renderer/components/chat/resourceList/AgentResourceList.tsx`
 - `src/renderer/components/chat/panes/Shell/resourcePane.tsx`
+- `src/renderer/hooks/resourceViewSources.ts`
+- `src/renderer/hooks/useTopic.ts`
+- `src/renderer/hooks/agent/useSession.ts`
 - `src/renderer/pages/home/HomePage.tsx`
 - `src/renderer/pages/agents/AgentPage.tsx`
 - `src/renderer/pages/agents/AgentChat.tsx`

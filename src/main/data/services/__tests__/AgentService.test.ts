@@ -1117,7 +1117,7 @@ describe('AgentService', () => {
       expect(agentRows).toHaveLength(0)
       const sessionRows = await dbh.db.select().from(agentSessionTable)
       expect(sessionRows.map((row) => row.id)).toEqual(['session-keep-with-other-agent'])
-      expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(1, [
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
         { endpoint: '/agent-sessions', kind: 'membership', entityIds: ['session-delete-with-agent'] },
         {
           endpoint: '/agent-sessions',
@@ -1126,10 +1126,9 @@ describe('AgentService', () => {
           entityIds: ['session-delete-with-agent']
         },
         { endpoint: '/agent-sessions/:sessionId', entityIds: ['session-delete-with-agent'] },
-        { endpoint: '/agent-sessions/latest' }
+        { endpoint: '/agent-sessions/stats' },
+        { endpoint: '/pins', kind: 'membership' }
       ])
-      expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(2, [{ endpoint: '/pins', kind: 'membership' }])
-      expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(2)
     })
 
     it('clears a task binding before default agent deletion detaches its session', async () => {
@@ -1169,12 +1168,14 @@ describe('AgentService', () => {
         { endpoint: '/agent-sessions', kind: 'projection', entityIds: ['session-default-detach'] },
         {
           endpoint: '/agent-sessions',
-          kind: 'order',
-          dimension: 'lastActivityAt',
+          kind: 'membership',
+          dimension: 'agentId',
           entityIds: ['session-default-detach']
         },
+        { endpoint: '/agent-sessions', kind: 'membership', dimension: 'q', entityIds: ['session-default-detach'] },
         { endpoint: '/agent-sessions/:sessionId', entityIds: ['session-default-detach'] },
-        { endpoint: '/agent-sessions/latest' }
+        { endpoint: '/agent-sessions/stats' },
+        { endpoint: '/pins', kind: 'membership' }
       ])
     })
 

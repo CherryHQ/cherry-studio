@@ -22,9 +22,9 @@ against the v2 agent shape, so it pulls the whole agent-session stack with it.
    agent shape: `name: string`, `modelName: string | null`, and
    `planModel?: \`${string}::${string}\`` (branded `UniqueModelId`) — vs main's
    `model: string` / `planModel?: string` / no `name`. `HistoryRecordsPage`
-   passes `Map<string, Agent>` into `buildAgentSources` / `buildAgentStatusItems`
-   (`SessionList.helpers.ts`, brought) which expect the enriched shape →
-   `TS2345` at HistoryRecordsPage:555/571/715, plus `deleteSessions` /
+   passes `Map<string, Agent>` into `buildAgentSources`
+   (`SessionList.helpers.ts`, brought) which expects the enriched shape →
+   `TS2345` at HistoryRecordsPage:555/715, plus `deleteSessions` /
    signature drift at :514/516/585. Bringing `types/agent.ts` cascades through
    `hooks/agents/*` (useAgent 10/14, useActiveSession 1/18,
    useAgentSessionInitializer 0/28, useSession tests 170/8, …) and every
@@ -49,8 +49,8 @@ against the v2 agent shape, so it pulls the whole agent-session stack with it.
   (#16202 deleted it from main; `resourceListRevealEvents` needs it).
 - `components/chat/resources` + `components/chat/actions/ResourceListActionContextMenu`.
 - `components/chat/messages/hooks` + `messageListProviderBuilder`,
-  `useConversationNavigation`, `hooks/agents/useAgentSessionStreamStatuses`,
-  the home/agent context-menu helpers — all relocated v2 files.
+  `useConversationNavigation`, the home/agent context-menu helpers — all
+  relocated v2 files.
 - `pages/history/HistoryPage` was renamed → `HistoryRecordsPage`; main's
   `components/Popups/SearchPopup` still imports the old path → repoint or shim.
 
@@ -70,8 +70,8 @@ against the v2 agent shape, so it pulls the whole agent-session stack with it.
 - `tsgo --noEmit -p tsconfig.web.json --composite false` → 0 (excl. the 6
   markdown env-noise modules).
 - `vitest run src/renderer/pages/agents src/renderer/pages/history`.
-- Manual: open History (topic + agent-session tabs), session group/status
-  filters, agent source grouping.
+- Manual: open History (topic + agent-session tabs), session groups, and agent
+  source filtering.
 
 ## Retires these transitional shims (from the 7 page carves)
 

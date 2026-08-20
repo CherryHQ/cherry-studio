@@ -40,7 +40,8 @@ describe('PinService', () => {
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
         { endpoint: '/pins', kind: 'membership', entityIds: [result.id] },
         { endpoint: '/pins/:id', entityIds: [result.id] },
-        { endpoint: '/topics', kind: 'membership', dimension: 'pinned', entityIds: [ENTITY_ID_1] }
+        { endpoint: '/topics', kind: 'membership', dimension: 'pinned', entityIds: [ENTITY_ID_1] },
+        { endpoint: '/topics/stats' }
       ])
     })
 
@@ -121,7 +122,8 @@ describe('PinService', () => {
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
         { endpoint: '/pins', kind: 'membership', entityIds: [result.id] },
         { endpoint: '/pins/:id', entityIds: [result.id] },
-        { endpoint: '/agent-sessions', kind: 'membership', dimension: 'pinned', entityIds: [ENTITY_ID_1] }
+        { endpoint: '/agent-sessions', kind: 'membership', dimension: 'pinned', entityIds: [ENTITY_ID_1] },
+        { endpoint: '/agent-sessions/stats' }
       ])
     })
   })
@@ -138,7 +140,8 @@ describe('PinService', () => {
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
         { endpoint: '/pins', kind: 'membership', entityIds: [pin.id] },
         { endpoint: '/pins/:id', entityIds: [pin.id] },
-        { endpoint: '/topics', kind: 'membership', dimension: 'pinned', entityIds: [ENTITY_ID_1] }
+        { endpoint: '/topics', kind: 'membership', dimension: 'pinned', entityIds: [ENTITY_ID_1] },
+        { endpoint: '/topics/stats' }
       ])
     })
 

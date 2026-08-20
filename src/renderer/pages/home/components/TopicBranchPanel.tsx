@@ -12,6 +12,7 @@ import {
 } from '@renderer/components/chat/flow'
 import { CommandContextMenu } from '@renderer/components/command'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
+import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { toast } from '@renderer/services/toast'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { Message as DbMessage, TreeResponse } from '@shared/data/types/message'
@@ -75,9 +76,7 @@ const TopicBranchPanel: FC<Props> = ({
   const { trigger: setActiveNode } = useMutation('PUT', '/topics/:id/active-node', {
     refresh: [messagesCachePath, treeCachePath]
   })
-  const { trigger: copyBranchToNewTopic } = useMutation('POST', '/topics/:id/duplicate', {
-    refresh: ['/topics']
-  })
+  const { duplicateTopicBranch } = useTopicMutations()
   const { reserveBranch, deleteReservedBranch } = useTopicBranchActions(topicId)
 
   const tree = useMemo(
@@ -144,10 +143,7 @@ const TopicBranchPanel: FC<Props> = ({
   const handleCopyBranchToNewTopic = useCallback(
     async (messageId: string) => {
       try {
-        await copyBranchToNewTopic({
-          params: { id: topicId },
-          body: { nodeId: messageId }
-        })
+        await duplicateTopicBranch(topicId, messageId)
         toast.success(t('chat.message.flow.copy_topic.created'))
       } catch (err) {
         if (err instanceof DataApiError && err.code === ErrorCode.NOT_FOUND) {
@@ -158,7 +154,7 @@ const TopicBranchPanel: FC<Props> = ({
         toast.error(t('common.error'))
       }
     },
-    [copyBranchToNewTopic, t, topicId]
+    [duplicateTopicBranch, t, topicId]
   )
 
   const handleDeleteAwaitingInputMessage = useCallback(

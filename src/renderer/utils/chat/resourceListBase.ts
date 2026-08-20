@@ -1,12 +1,8 @@
-import dayjs from 'dayjs'
-
 export type ResourceListGroup = {
   id: string
   label: string
   count?: number
 }
-
-export type ResourceListTimeBucket = 'today' | 'yesterday' | 'this-week' | 'earlier'
 
 export type ResourceListGroupResolver<T> = (item: T) => ResourceListGroup | null
 
@@ -31,40 +27,6 @@ export type ResourceListGroupReorderPayload = {
   targetIndex: number
 }
 
-type TimestampInput = dayjs.ConfigType
-type GroupRankResolver<T> = (item: T) => number
-
-export function getResourceTimeBucket(timestamp: TimestampInput, now?: TimestampInput): ResourceListTimeBucket {
-  if (timestamp === undefined) {
-    return 'earlier'
-  }
-
-  const item = dayjs(timestamp)
-  const current = now === undefined ? dayjs() : dayjs(now)
-  if (!item.isValid() || !current.isValid()) {
-    return 'earlier'
-  }
-
-  const itemStart = item.startOf('day')
-  const todayStart = current.startOf('day')
-
-  if (itemStart.isSame(todayStart)) {
-    return 'today'
-  }
-
-  const yesterdayStart = todayStart.subtract(1, 'day')
-  if (itemStart.isSame(yesterdayStart)) {
-    return 'yesterday'
-  }
-
-  const weekStart = todayStart.startOf('week')
-  if (itemStart.isSame(weekStart) || (itemStart.isAfter(weekStart) && itemStart.isBefore(yesterdayStart))) {
-    return 'this-week'
-  }
-
-  return 'earlier'
-}
-
 export function composeResourceListGroupResolvers<T>(
   ...resolvers: Array<ResourceListGroupResolver<T>>
 ): ResourceListGroupResolver<T> {
@@ -87,32 +49,11 @@ export function createPinnedGroupResolver<T>({
   return (item) => (isPinned(item) ? group : null)
 }
 
-export function createTimeGroupResolver<T>({
-  getTimestamp,
-  labels,
-  now
-}: {
-  getTimestamp: (item: T) => TimestampInput
-  labels: Record<ResourceListTimeBucket, string>
-  now?: TimestampInput
-}): ResourceListGroupResolver<T> {
-  return (item) => {
-    const bucket = getResourceTimeBucket(getTimestamp(item), now)
-    return { id: `time:${bucket}`, label: labels[bucket] }
-  }
-}
-
-export function createPinnedFirstSorter<T>({ isPinned }: { isPinned: (item: T) => boolean }): GroupRankResolver<T> {
-  return (item) => (isPinned(item) ? 0 : 1)
-}
-
-export function sortByResourceGroupRank<T>(items: readonly T[], getGroupRank: GroupRankResolver<T>): T[] {
-  return items
-    .map((item, index) => ({ item, index, rank: getGroupRank(item) }))
-    .sort((a, b) => a.rank - b.rank || a.index - b.index)
-    .map(({ item }) => item)
-}
-
+/**
+ * Shared topic/session display precedence: group rank first, pinned rows in
+ * their incoming server order, then the caller's within-group ordering with a
+ * stable incoming-index tiebreak.
+ */
 export function sortRankedResourceItems<T>(
   items: readonly T[],
   {
@@ -137,13 +78,24 @@ export function sortRankedResourceItems<T>(
     .map(({ item }) => item)
 }
 
-export function compareResourceRecency<T>(getUpdatedAt: (item: T) => string): (a: T, b: T) => number {
-  return (a, b) => {
-    const aMs = Date.parse(getUpdatedAt(a))
-    const bMs = Date.parse(getUpdatedAt(b))
-    if (Number.isFinite(aMs) && Number.isFinite(bMs)) return bMs - aMs
-    return 0
-  }
+function compareResourceTimestampOrder(aValue: string, bValue: string, aId: string, bId: string): number {
+  const aMs = Date.parse(aValue)
+  const bMs = Date.parse(bValue)
+  if (Number.isFinite(aMs) && Number.isFinite(bMs) && aMs !== bMs) return bMs - aMs
+  if (Number.isFinite(aMs) !== Number.isFinite(bMs)) return Number.isFinite(aMs) ? -1 : 1
+  return compareResourceIds(aId, bId)
+}
+
+export function compareResourceIds(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0
+}
+
+export function compareResourceCreationOrder<T extends { createdAt: string; id: string }>(a: T, b: T): number {
+  return compareResourceTimestampOrder(a.createdAt, b.createdAt, a.id, b.id)
+}
+
+export function compareResourceActivityOrder<T extends { lastActivityAt: string; id: string }>(a: T, b: T): number {
+  return compareResourceTimestampOrder(a.lastActivityAt, b.lastActivityAt, a.id, b.id)
 }
 
 export type ResourceListOrderAnchor = { before: string } | { after: string } | { position: 'last' }
@@ -157,12 +109,16 @@ export function compareResourceOrderKey(a?: string, b?: string) {
   return 0
 }
 
-export function buildResourceListItemDropAnchor(payload: ResourceListItemReorderPayload): ResourceListOrderAnchor {
+export function buildResourceListItemDropAnchor(
+  payload: ResourceListItemReorderPayload
+): ResourceListOrderAnchor | undefined {
   if (payload.overType === 'item') {
     return payload.position === 'before' ? { before: payload.overId } : { after: payload.overId }
   }
 
-  return { position: 'last' }
+  // A group header owns no record-order anchor. Callers may still move the
+  // record into that group while preserving its existing order key.
+  return undefined
 }
 
 export function buildResourceListGroupDropAnchor(
@@ -191,48 +147,4 @@ export function moveResourceListStringGroupAfterDrop(
   next.splice(insertIndex, 0, activeId)
 
   return next
-}
-
-/**
- * Time buckets only carry meaning against each other: a list that falls entirely into "Earlier"
- * gains nothing from a header saying so. Blank the label in that case — {@link ResourceList} drops
- * headers without one — while keeping the group id so ordering and collapse state stay intact.
- *
- * Any other group in the list — "Pinned" in particular — puts the label back to work: it now marks
- * where that group ends, so only a list that is ONE group top to bottom drops its header.
- * `ignoreGroupIds` names groups that must keep their label even alone ("Pinned" is a state, not a
- * point on the time axis, so it stays legible on its own).
- */
-export function withSoleGroupLabelHidden<T>(
-  resolver: ResourceListGroupResolver<T>,
-  items: readonly T[],
-  { ignoreGroupIds }: { ignoreGroupIds?: readonly string[] } = {}
-): ResourceListGroupResolver<T> {
-  const ignored = new Set(ignoreGroupIds ?? [])
-  const groupIds = new Set<string>()
-  for (const item of items) {
-    const group = resolver(item)
-    if (group) groupIds.add(group.id)
-    if (groupIds.size > 1) return resolver
-  }
-
-  const [soleGroupId] = groupIds
-  if (groupIds.size !== 1 || ignored.has(soleGroupId)) return resolver
-
-  return (item) => {
-    const group = resolver(item)
-    if (!group) return null
-    return { ...group, label: '' }
-  }
-}
-
-export function withResourceListGroupIdPrefix<T>(
-  prefix: string,
-  resolver: ResourceListGroupResolver<T>
-): ResourceListGroupResolver<T> {
-  return (item) => {
-    const group = resolver(item)
-    if (!group) return null
-    return { ...group, id: `${prefix}${group.id}` }
-  }
 }

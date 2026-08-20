@@ -274,7 +274,7 @@
       },
       "display": {
         "agent": "Agent",
-        "time": "Timp",
+        "time": "Sarcină",
         "title": "Mod de afișare",
         "workdir": "Director de lucru"
       },
@@ -299,16 +299,13 @@
         "collapse": "Restrânge afișarea",
         "collapse_all": "Restrânge tot",
         "conversation": "Conversații",
-        "earlier": "Mai devreme",
+        "drag_hint": "Trage pentru a reordona. Trage sarcinile pentru a ajusta grupurile afișate și ascunse.",
         "expand_all": "Extinde tot",
         "no_workdir": "Niciun director de lucru",
         "show_more": "Extinde afișarea",
         "tasks": "Sarcini",
-        "this_week": "Săptămâna aceasta",
-        "today": "Astăzi",
         "unknown_agent": "Agent necunoscut",
-        "unknown_agent_tip": "Aceasta este o grup de sesiuni istoric fără un agent, nu un agent real. Este doar pentru vizualizare și nu poate continua să ruleze.",
-        "yesterday": "Ieri"
+        "unknown_agent_tip": "Aceasta este o grup de sesiuni istoric fără un agent, nu un agent real. Este doar pentru vizualizare și nu poate continua să ruleze."
       },
       "list": {
         "title": "Sarcini"
@@ -1344,7 +1341,7 @@
       },
       "display": {
         "assistant": "Asistent",
-        "time": "Timp",
+        "time": "Conversație",
         "title": "Mod afișare"
       },
       "draft": "Proiect",
@@ -1410,14 +1407,10 @@
       "group": {
         "collapse": "Restrânge afișarea",
         "collapse_all": "Restrânge tot",
-        "earlier": "Mai devreme",
         "expand_all": "Extinde tot",
         "show_more": "Extinde afișarea",
-        "this_week": "Săptămâna aceasta",
-        "today": "Astăzi",
         "unknown_assistant": "Asistent Deconectat",
-        "unknown_assistant_tip": "Acesta este un grup de conversație istoric fără un asistent, nu un asistent real. Mutați conversația la un asistent existent pentru a continua.",
-        "yesterday": "Ieri"
+        "unknown_assistant_tip": "Acesta este un grup de conversație istoric fără un asistent, nu un asistent real. Mutați conversația la un asistent existent pentru a continua."
       },
       "list": "Listă subiecte",
       "manage": {
@@ -1795,6 +1788,12 @@
     "selectedItems": "{{count}} elemente selectate",
     "selectedMessages": "{{count}} mesaje selectate",
     "settings": "Setări",
+    "sort": {
+      "activity_at": "Ora activității",
+      "created_at": "Ora creării",
+      "manual_order": "Ordine manuală",
+      "title": "Ordine de sortare"
+    },
     "stop": "Oprește",
     "success": "Succes",
     "swap": "Schimbă",
@@ -2242,8 +2241,6 @@
       "filter": {
         "selectAgent": "Selectează un agent",
         "selectAssistant": "Selectează un asistent",
-        "statusLabel": "Stare",
-        "statusPlaceholder": "Selectează starea",
         "unlinkedAssistant": "Asistent deconectat"
       },
       "loading": {
@@ -2255,11 +2252,6 @@
       "searchSession": "Căutare sarcini...",
       "searchTopic": "Caută conversații...",
       "shortTitle": "Istorie",
-      "status": {
-        "completed": "Finalizat",
-        "failed": "Eșuat",
-        "running": "Alergare"
-      },
       "table": {
         "actions": "Acțiuni",
         "conversation": "Conversație",

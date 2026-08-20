@@ -1,9 +1,11 @@
 import { Tooltip } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import { CommandPopupMenu } from '@renderer/components/command'
 import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
+import { toast } from '@renderer/services/toast'
 import { MoreHorizontal } from 'lucide-react'
 import type { ReactNode, RefObject } from 'react'
 import { useCallback, useMemo, useRef } from 'react'
@@ -20,6 +22,8 @@ import {
   type ResourceListStatus
 } from './base'
 
+const logger = loggerService.withContext('ResourceEntityRail')
+
 export type ResourceEntityRailItem = {
   id: string
   name: string
@@ -28,8 +32,7 @@ export type ResourceEntityRailItem = {
   orderKey?: string
   reorderable?: boolean
   /**
-   * When true, a *visible* entity floats into the "已固定" section at the top and cannot be dragged.
-   * It does not affect visibility — an entity with no resources stays hidden whether pinned or not.
+   * When true, the entity floats into the "已固定" section at the top and cannot be dragged.
    */
   pinned?: boolean
   /** Canonical assistant group. Only consulted when `groupByGroup` is enabled. */
@@ -161,15 +164,23 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   const effectiveListRef = listRef ?? fallbackListRef
   const effectiveSelectedId = selectionSuppressed ? null : selectedId
   const effectiveSelectedClickId = selectedClickId === undefined ? selectedId : selectedClickId
+  const reportSelectionError = useCallback(
+    (error: unknown, item: T) => {
+      logger.error('Failed to select resource entity rail item', { error, itemId: item.id, variant })
+      toast.error(t('common.error'))
+    },
+    [t, variant]
+  )
   const handleItemClick = useCallback(
     (item: T) => {
-      if (effectiveSelectedClickId === item.id && onSelectedClick) {
-        void onSelectedClick(item)
-        return
+      const action = effectiveSelectedClickId === item.id && onSelectedClick ? onSelectedClick : onSelect
+      try {
+        void Promise.resolve(action(item)).catch((error) => reportSelectionError(error, item))
+      } catch (error) {
+        reportSelectionError(error, item)
       }
-      void onSelect(item)
     },
-    [effectiveSelectedClickId, onSelect, onSelectedClick]
+    [effectiveSelectedClickId, onSelect, onSelectedClick, reportSelectionError]
   )
   // Keyboard activation (Enter/Space) goes through the list's `selectItem` action, not the row's
   // onClick, so route it back through `handleItemClick` to keep keyboard and mouse in sync —

@@ -37,7 +37,6 @@ const EMPTY_GROUP_HEADER_ITEMS: ResourceListItemBase[] = []
  */
 const GROUP_HEADER_CHEVRON_SLOT_CLASS =
   '-ml-1.5 hidden size-6 shrink-0 items-center justify-center text-muted-foreground group-hover/resource-list-group:flex group-has-[:focus-visible]/resource-list-group:flex group-has-data-[state=open]/resource-list-group:flex'
-
 function stopEventPropagation(event: { stopPropagation: () => void }) {
   event.stopPropagation()
 }
@@ -161,7 +160,9 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
   const groupItems = viewGroup?.allItems ?? EMPTY_GROUP_HEADER_ITEMS
   const clickBehavior = meta.getGroupHeaderClickBehavior(group)
   const isCollapsible = clickBehavior !== 'none'
-  const selected = clickBehavior === 'select-first-then-toggle' && groupState.selected
+  const selected =
+    clickBehavior === 'select-first-then-toggle' &&
+    (meta.getGroupHeaderSelected ? meta.getGroupHeaderSelected(group) : groupState.selected)
   const groupHeaderContext = { collapsed }
   const groupHeaderAction = meta.getGroupHeaderAction?.(group)
   const groupHeaderContextMenu = meta.getGroupHeaderContextMenu?.(group)
@@ -184,10 +185,15 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
     },
     [onContextMenu]
   )
-  const handleClick = useCallback(() => {
+  const handleClick = useCallback(async () => {
     if (!isCollapsible) return
 
     if (clickBehavior === 'select-first-then-toggle' && !selected) {
+      if (meta.onGroupHeaderActivate) {
+        const handled = await meta.onGroupHeaderActivate(group)
+        if (handled !== false) return
+      }
+
       const firstItem = groupItems[0]
       if (firstItem) {
         actions.selectGroupHeaderItem(meta.getItemId(firstItem))
@@ -195,7 +201,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
       }
 
       if (meta.onEmptyGroupHeaderClick) {
-        const handled = meta.onEmptyGroupHeaderClick(group)
+        const handled = await meta.onEmptyGroupHeaderClick(group)
         if (handled !== false) return
       }
     }
@@ -383,34 +389,38 @@ type GroupEmptyProps = ComponentProps<'div'> & {
   ref?: Ref<HTMLDivElement>
 }
 
-export function GroupEmpty({ className, ref, style, ...props }: GroupEmptyProps) {
-  const meta = useResourceListMeta()
-
-  if (!meta.groupEmptyLabel) return null
-
+export function GroupEmpty({ children, className, ref, style, ...props }: GroupEmptyProps) {
   return (
     <div
       ref={ref}
       style={style}
+      data-resource-list-empty-group="true"
       className={cn(
-        'flex items-center pr-1.5 text-foreground-tertiary',
+        'flex items-center pr-1.5 text-foreground-disabled',
         RESOURCE_LIST_DEFAULT_ROW_LAYOUT.className,
         RESOURCE_LIST_TEXT_START_PADDING_CLASS,
         RESOURCE_LIST_LABEL_CLASS,
         className
       )}
       {...props}>
-      {meta.groupEmptyLabel}
+      <span className="min-w-0 truncate">{children}</span>
     </div>
   )
 }
 
 export function GroupShowMore({ groupId, className, ref, style, ...props }: GroupShowMoreProps) {
+  const { t } = useTranslation()
   const actions = useResourceListActions()
   const meta = useResourceListMeta()
   const groupState = useResourceListGroupState(groupId)
   const canCollapseToDefault = groupState.canCollapseToDefault
-  const label = canCollapseToDefault ? meta.groupCollapseLabel : meta.groupShowMoreLabel
+  const label = groupState.hasError
+    ? t('common.retry')
+    : groupState.isLoading
+      ? t('common.loading')
+      : canCollapseToDefault
+        ? meta.groupCollapseLabel
+        : meta.groupShowMoreLabel
 
   if (!label) return null
 
@@ -427,11 +437,16 @@ export function GroupShowMore({ groupId, className, ref, style, ...props }: Grou
       {...props}>
       <button
         type="button"
+        disabled={groupState.isLoading}
         className={cn(
-          'flex h-5 min-w-0 items-center justify-start rounded-sm px-0 text-left text-foreground-tertiary transition-colors duration-150 hover:text-foreground focus-visible:bg-accent focus-visible:text-accent-foreground focus-visible:outline-none',
+          'flex h-5 min-w-0 items-center justify-start rounded-sm px-0 text-left text-foreground-tertiary transition-colors duration-150 hover:text-foreground focus-visible:bg-accent focus-visible:text-accent-foreground focus-visible:outline-none disabled:cursor-wait',
           RESOURCE_LIST_LABEL_CLASS
         )}
         onClick={() => {
+          if (groupState.hasError) {
+            actions.retryGroup(groupId)
+            return
+          }
           if (canCollapseToDefault) {
             actions.collapseGroupItems(groupId)
             return

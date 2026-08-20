@@ -84,6 +84,13 @@
       "when": 1787109711737,
       "tag": "0011_rare_vertigo",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1787117855916,
+      "tag": "0012_needy_prima",
+      "breakpoints": true
     }
   ],
   "version": "7"

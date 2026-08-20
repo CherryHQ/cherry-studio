@@ -274,7 +274,7 @@
       },
       "display": {
         "agent": "エージェント",
-        "time": "時間",
+        "time": "タスク",
         "title": "表示モード",
         "workdir": "作業フォルダー"
       },
@@ -299,16 +299,13 @@
         "collapse": "折りたたみ表示",
         "collapse_all": "すべて折りたたむ",
         "conversation": "会話",
-        "earlier": "以前",
+        "drag_hint": "ドラッグして並び替えます。タスクをドラッグして表示グループと非表示グループを調整してください。",
         "expand_all": "すべて展開",
         "no_workdir": "作業フォルダーがありません",
         "show_more": "表示を拡大",
         "tasks": "タスク",
-        "this_week": "今週",
-        "today": "今日",
         "unknown_agent": "不明なエージェント",
-        "unknown_agent_tip": "これはエージェントではなく、エージェントなしの履歴セッショングループです。表示専用で、実行を継続することはできません。",
-        "yesterday": "昨日"
+        "unknown_agent_tip": "これはエージェントではなく、エージェントなしの履歴セッショングループです。表示専用で、実行を継続することはできません。"
       },
       "list": {
         "title": "タスク"
@@ -1344,7 +1341,7 @@
       },
       "display": {
         "assistant": "アシスタント",
-        "time": "時間",
+        "time": "会話",
         "title": "表示モード"
       },
       "draft": "ドラフト",
@@ -1410,14 +1407,10 @@
       "group": {
         "collapse": "折りたたみ表示",
         "collapse_all": "すべて折りたたむ",
-        "earlier": "以前",
         "expand_all": "すべて展開",
         "show_more": "表示を拡大",
-        "this_week": "今週",
-        "today": "今日",
         "unknown_assistant": "リンクされていないアシスタント",
-        "unknown_assistant_tip": "これはアシスタントではなく、履歴的な会話グループです。続行するには、既存のアシスタントに会話を移動してください。",
-        "yesterday": "昨日"
+        "unknown_assistant_tip": "これはアシスタントではなく、履歴的な会話グループです。続行するには、既存のアシスタントに会話を移動してください。"
       },
       "list": "トピックリスト",
       "manage": {
@@ -1795,6 +1788,12 @@
     "selectedItems": "{{count}}件の項目を選択しました",
     "selectedMessages": "{{count}}件のメッセージを選択しました",
     "settings": "設定",
+    "sort": {
+      "activity_at": "アクティビティ時刻",
+      "created_at": "作成日時",
+      "manual_order": "手動順序",
+      "title": "並び順"
+    },
     "stop": "停止",
     "success": "成功",
     "swap": "交換",
@@ -2242,8 +2241,6 @@
       "filter": {
         "selectAgent": "エージェントを選択",
         "selectAssistant": "アシスタントを選択",
-        "statusLabel": "ステータス",
-        "statusPlaceholder": "ステータスを選択",
         "unlinkedAssistant": "リンクされていないアシスタント"
       },
       "loading": {
@@ -2255,11 +2252,6 @@
       "searchSession": "タスクを検索...",
       "searchTopic": "会話を検索...",
       "shortTitle": "履歴",
-      "status": {
-        "completed": "完了",
-        "failed": "失敗",
-        "running": "走っている"
-      },
       "table": {
         "actions": "アクション",
         "conversation": "会話",

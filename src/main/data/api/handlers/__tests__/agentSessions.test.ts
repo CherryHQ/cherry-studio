@@ -41,20 +41,28 @@ describe('agentSessionHandlers', () => {
   })
 
   describe('/agent-sessions', () => {
+    // Agent ids are UUID v4 (remapAgentPrefixIds rewrites legacy prefix ids),
+    // and AgentSessionOwnerScopeSchema enforces uuid | 'unlinked'.
+    const AGENT_ID = '018f6ed6-73b8-4f40-8d0d-9bb2f8f1d001'
+
     it('forwards query to agentSessionService.listByCursor', async () => {
       const response = { items: [], nextCursor: undefined }
       listByCursorMock.mockResolvedValueOnce(response)
 
       const result = await agentSessionHandlers['/agent-sessions'].GET({
         query: {
-          agentId: 'agent-1',
-          limit: '10'
+          agentId: AGENT_ID,
+          limit: '10',
+          pinned: false,
+          sortBy: 'lastActivityAt'
         }
       } as never)
 
       expect(listByCursorMock).toHaveBeenCalledWith({
-        agentId: 'agent-1',
-        limit: 10
+        agentId: AGENT_ID,
+        limit: 10,
+        pinned: false,
+        sortBy: 'lastActivityAt'
       })
       expect(result).toBe(response)
     })
@@ -66,12 +74,21 @@ describe('agentSessionHandlers', () => {
       getLatestActiveMock.mockReturnValueOnce(session)
 
       await expect(agentSessionHandlers['/agent-sessions/latest'].GET({} as never)).resolves.toEqual({ session })
+      expect(getLatestActiveMock).toHaveBeenCalledWith({})
     })
 
     it('returns { session: null } when there are no sessions', async () => {
       getLatestActiveMock.mockReturnValueOnce(null)
 
       await expect(agentSessionHandlers['/agent-sessions/latest'].GET({} as never)).resolves.toEqual({ session: null })
+    })
+
+    it('rejects the aggregate unlinked owner scope', async () => {
+      await expect(
+        agentSessionHandlers['/agent-sessions/latest'].GET({ query: { agentId: 'unlinked' } } as never)
+      ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
+
+      expect(getLatestActiveMock).not.toHaveBeenCalled()
     })
   })
 

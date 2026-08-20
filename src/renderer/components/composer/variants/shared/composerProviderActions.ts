@@ -6,7 +6,7 @@ import type { ComposerSurfaceActions } from '@renderer/components/composer/Compo
  * `pages/home/types` re-exports it for page-side consumers.
  */
 export interface AddNewTopicPayload {
-  assistantId?: string | null
+  assistantId?: string
 }
 
 /**

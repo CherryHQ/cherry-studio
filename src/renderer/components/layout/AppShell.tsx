@@ -14,7 +14,6 @@ import Sidebar from '../app/Sidebar'
 import { createRecentRouteEntryFromTab, recordGlobalSearchRecentEntry } from '../GlobalSearch/globalSearchGroups'
 import GlobalSearchPopup from '../GlobalSearch/GlobalSearchPopup'
 import MiniAppTabsPool from '../MiniApp/MiniAppTabsPool'
-import { ResourceViewSourceProvider } from '../ResourceViewSourceProvider'
 import { AppShellTabBar } from './AppShellTabBar'
 import { TabRouter } from './TabRouter'
 
@@ -182,18 +181,16 @@ export const AppShell = () => {
         data-ui="app.content"
         className="relative min-h-0 flex-1 overflow-hidden rounded-[12px] border-[0.5px] border-border bg-background">
         {/* Route Tabs: Only render non-dormant tabs */}
-        <ResourceViewSourceProvider>
-          {tabs
-            .filter((t) => t.type === 'route' && !t.isDormant)
-            .map((tab) => (
-              <TabRouter
-                key={tab.id}
-                tab={tab}
-                isActive={tab.id === activeTabId}
-                onUrlChange={(url) => handleUrlChange(tab.id, url)}
-              />
-            ))}
-        </ResourceViewSourceProvider>
+        {tabs
+          .filter((t) => t.type === 'route' && !t.isDormant)
+          .map((tab) => (
+            <TabRouter
+              key={tab.id}
+              tab={tab}
+              isActive={tab.id === activeTabId}
+              onUrlChange={(url) => handleUrlChange(tab.id, url)}
+            />
+          ))}
 
         {/* MiniApp keep-alive WebView pool — global, shared across modes */}
         <MiniAppTabsPool />

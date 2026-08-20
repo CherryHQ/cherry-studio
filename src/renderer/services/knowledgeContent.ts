@@ -2,7 +2,7 @@ import { getTopicMessages } from '@renderer/hooks/useTopic'
 import i18n from '@renderer/i18n/resolver'
 import type { FileMetadata } from '@renderer/types/file'
 import type { ExportableMessage } from '@renderer/types/messageExport'
-import type { Topic } from '@renderer/types/topic'
+import type { TopicReference } from '@renderer/types/topic'
 import {
   analyzeMessageContent,
   CONTENT_TYPES,
@@ -17,7 +17,7 @@ import {
  * @param topic 话题对象
  * @returns 话题内容统计
  */
-export async function analyzeTopicContent(topic: Topic): Promise<TopicContentStats> {
+export async function analyzeTopicContent(topic: TopicReference): Promise<TopicContentStats> {
   const messages = await getTopicMessages(topic.id)
 
   return analyzeMessagesContent(messages)
@@ -97,7 +97,10 @@ export function processMessagesContent(
  * @param selectedTypes 选择的内容类型
  * @returns 话题预处理结果
  */
-export async function processTopicContent(topic: Topic, selectedTypes: ContentType[]): Promise<TopicPreprocessResult> {
+export async function processTopicContent(
+  topic: TopicReference,
+  selectedTypes: ContentType[]
+): Promise<TopicPreprocessResult> {
   const messages = await getTopicMessages(topic.id)
 
   return processMessagesContent(topic.name, messages, selectedTypes)

@@ -2700,12 +2700,24 @@ describe('AgentComposer', () => {
       Array.from({ length: 7 }, (_, index) => ({ path: `/workspace/docs/f${index}.md`, isDirectory: false }))
     )
     vi.mocked(dataApiService.get).mockImplementation((async (path: string) => {
-      if (path === '/agent-sessions') {
+      if (path === '/search/entities') {
         return {
-          items: [{ id: 's1', agentId: 'agent-1', name: 'Session One', updatedAt: '2026-01-01T00:00:00.000Z' }]
+          query: '',
+          groups: [
+            {
+              type: 'session',
+              items: [
+                {
+                  id: 's1',
+                  title: 'Session One',
+                  subtitle: 'Alpha agent',
+                  target: { agentId: 'agent-1' }
+                }
+              ]
+            }
+          ]
         }
       }
-      if (path === '/search/entities') return { query: '', groups: [] }
       return undefined
     }) as never)
 
@@ -2738,9 +2750,22 @@ describe('AgentComposer', () => {
     mocks.listDirectoryEntries.mockResolvedValue([])
     let resolveMessages: ((value: unknown) => void) | undefined
     vi.mocked(dataApiService.get).mockImplementation((async (path: string) => {
-      if (path === '/agent-sessions') {
+      if (path === '/search/entities') {
         return {
-          items: [{ id: 's1', agentId: 'agent-1', name: 'Session One', updatedAt: '2026-01-01T00:00:00.000Z' }]
+          query: '',
+          groups: [
+            {
+              type: 'session',
+              items: [
+                {
+                  id: 's1',
+                  title: 'Session One',
+                  subtitle: 'Alpha agent',
+                  target: { agentId: 'agent-1' }
+                }
+              ]
+            }
+          ]
         }
       }
       if (path === '/agent-sessions/s1/messages') {
@@ -2748,7 +2773,6 @@ describe('AgentComposer', () => {
           resolveMessages = resolve
         })
       }
-      if (path === '/search/entities') return { query: '', groups: [] }
       return undefined
     }) as never)
 
@@ -2805,13 +2829,25 @@ describe('AgentComposer', () => {
   it('drops the reference chip when its transcript fails to load', async () => {
     mocks.listDirectoryEntries.mockResolvedValue([])
     vi.mocked(dataApiService.get).mockImplementation((async (path: string) => {
-      if (path === '/agent-sessions') {
+      if (path === '/search/entities') {
         return {
-          items: [{ id: 's1', agentId: 'agent-1', name: 'Session One', updatedAt: '2026-01-01T00:00:00.000Z' }]
+          query: '',
+          groups: [
+            {
+              type: 'session',
+              items: [
+                {
+                  id: 's1',
+                  title: 'Session One',
+                  subtitle: 'Alpha agent',
+                  target: { agentId: 'agent-1' }
+                }
+              ]
+            }
+          ]
         }
       }
       if (path === '/agent-sessions/s1/messages') throw new Error('offline')
-      if (path === '/search/entities') return { query: '', groups: [] }
       return undefined
     }) as never)
 

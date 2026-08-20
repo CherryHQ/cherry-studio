@@ -19,7 +19,6 @@ export {
 } from './resourceEntityIcon'
 export type {
   ResourceListActionMap,
-  ResourceListContextValue,
   ResourceListDragCapabilities,
   ResourceListFilterOption,
   ResourceListGroup,
@@ -44,7 +43,6 @@ export type {
 } from './ResourceList'
 export {
   ResourceList,
-  useResourceList,
   useResourceListActions,
   useResourceListControlsState,
   useResourceListGroupState,
@@ -54,26 +52,23 @@ export {
   useResourceListView
 } from './ResourceList'
 export { remapResourceListCollapsedGroupIds } from './resourceListExpansion'
-export type { ResourceListGroupResolver, ResourceListTimeBucket } from './resourceListGrouping'
+export { RESOURCE_LIST_SELECTED_ROW_CLASS, RESOURCE_LIST_TITLE_FADE_CLASS } from './resourceListLayout'
+export type { ResourceListRemoteGroupSnapshot } from './ResourceListRemoteGroups'
 export {
-  compareResourceRecency,
-  composeResourceListGroupResolvers,
-  createPinnedFirstSorter,
-  createPinnedGroupResolver,
-  createTimeGroupResolver,
-  getResourceTimeBucket,
-  sortByResourceGroupRank,
-  sortRankedResourceItems
-} from './resourceListGrouping'
-export type { ResourceListOrderAnchor } from './resourceListReorder'
+  ResourceListRemoteGroupService,
+  useRegisterResourceListRemoteGroup,
+  useResourceListRemoteGroupService,
+  useResourceListRemoteGroupSnapshots
+} from './ResourceListRemoteGroups'
+export { SESSION_DISPLAY_LABEL_KEYS, SessionListOptionsMenu } from './SessionListOptionsMenu'
+export { TopicListOptionsMenu } from './TopicListOptionsMenu'
+export { useDisplayModeRevealRequest } from './useDisplayModeRevealRequest'
+export { usePrepareResourceListRemoteReveal } from './usePrepareResourceListRemoteReveal'
+export { useResourceListPinnedItems } from './useResourceListPinnedItems'
+export type { ResourceListOrderAnchor } from '@renderer/utils/chat/resourceListBase'
 export {
   buildResourceListGroupDropAnchor,
   buildResourceListItemDropAnchor,
   compareResourceOrderKey,
-  moveResourceListStringGroupAfterDrop,
-  withResourceListGroupIdPrefix
-} from './resourceListReorder'
-export { SESSION_DISPLAY_LABEL_KEYS, SessionListOptionsMenu } from './SessionListOptionsMenu'
-export { TopicListOptionsMenu } from './TopicListOptionsMenu'
-export type { UseResourceListPinnedStateOptions, UseResourceListPinnedStateResult } from './useResourceListPinnedState'
-export { useResourceListPinnedState } from './useResourceListPinnedState'
+  moveResourceListStringGroupAfterDrop
+} from '@renderer/utils/chat/resourceListBase'

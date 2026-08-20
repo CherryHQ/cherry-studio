@@ -59,6 +59,29 @@ describe('topicHandlers', () => {
   })
 
   describe('/topics', () => {
+    it('requires an explicit ordinary sort profile before delegating', async () => {
+      await expect(
+        topicHandlers['/topics'].GET({
+          query: { pinned: false }
+        } as never)
+      ).rejects.toThrow()
+
+      expect(listByCursorMock).not.toHaveBeenCalled()
+    })
+
+    it('delegates an ordinary list with its explicit sort profile', async () => {
+      const response = { items: [] }
+      listByCursorMock.mockReturnValueOnce(response)
+
+      await expect(
+        topicHandlers['/topics'].GET({
+          query: { pinned: false, sortBy: 'createdAt' }
+        } as never)
+      ).resolves.toBe(response)
+
+      expect(listByCursorMock).toHaveBeenCalledWith({ pinned: false, sortBy: 'createdAt' })
+    })
+
     it('delegates selected topic delete to TopicService', async () => {
       const result = { deletedIds: ['topic-a', 'topic-b'], deletedCount: 2 }
       deleteByIdsMock.mockResolvedValueOnce(result)
@@ -103,6 +126,7 @@ describe('topicHandlers', () => {
       getLatestActiveMock.mockReturnValueOnce(topic)
 
       await expect(topicHandlers['/topics/latest'].GET({} as never)).resolves.toEqual({ topic })
+      expect(getLatestActiveMock).toHaveBeenCalledWith({})
     })
 
     it('returns { topic: null } when the library is empty', async () => {
@@ -110,23 +134,39 @@ describe('topicHandlers', () => {
 
       await expect(topicHandlers['/topics/latest'].GET({} as never)).resolves.toEqual({ topic: null })
     })
+
+    it('rejects the list-only unlinked owner scope', async () => {
+      await expect(
+        topicHandlers['/topics/latest'].GET({ query: { assistantId: 'unlinked' } } as never)
+      ).rejects.toThrow()
+
+      expect(getLatestActiveMock).not.toHaveBeenCalled()
+    })
   })
 
   describe('/topics/reusable-placeholder', () => {
-    it('forwards the exact nullable owner and exclusion to the atomic service operation', async () => {
+    it('forwards the exact concrete owner to the atomic service operation', async () => {
+      const assistantId = '11111111-1111-4111-8111-111111111111'
       const response = { topic: { id: 'topic-created' }, created: true }
       reuseOrCreatePlaceholderMock.mockReturnValueOnce(response)
 
       await expect(
         topicHandlers['/topics/reusable-placeholder'].POST({
-          body: { assistantId: null, excludeTopicId: 'topic-deleted' }
+          body: { assistantId }
         } as never)
       ).resolves.toBe(response)
 
-      expect(reuseOrCreatePlaceholderMock).toHaveBeenCalledWith({
-        assistantId: null,
-        excludeTopicId: 'topic-deleted'
-      })
+      expect(reuseOrCreatePlaceholderMock).toHaveBeenCalledWith({ assistantId })
+    })
+
+    it('rejects an unlinked creation target before calling the service', async () => {
+      await expect(
+        topicHandlers['/topics/reusable-placeholder'].POST({
+          body: { assistantId: null }
+        } as never)
+      ).rejects.toThrow()
+
+      expect(reuseOrCreatePlaceholderMock).not.toHaveBeenCalled()
     })
   })
 

@@ -274,7 +274,7 @@
       },
       "display": {
         "agent": "Agent",
-        "time": "時間",
+        "time": "任務",
         "title": "顯示模式",
         "workdir": "工作目錄"
       },
@@ -299,16 +299,13 @@
         "collapse": "摺疊顯示",
         "collapse_all": "摺疊全部",
         "conversation": "對話",
-        "earlier": "更早",
+        "drag_hint": "拖曳以重新排序。拖曳任務以調整顯示與隱藏分組。",
         "expand_all": "展開全部",
         "no_workdir": "無工作目錄",
         "show_more": "展開顯示",
         "tasks": "任務",
-        "this_week": "本週",
-        "today": "今天",
         "unknown_agent": "未連結的 Agent",
-        "unknown_agent_tip": "這是一個沒有 Agent 的歷史工作階段群組，並非實際的 Agent。此群組僅供檢視，無法繼續執行。",
-        "yesterday": "昨天"
+        "unknown_agent_tip": "這是一個沒有 Agent 的歷史工作階段群組，並非實際的 Agent。此群組僅供檢視，無法繼續執行。"
       },
       "list": {
         "title": "任務"
@@ -1344,7 +1341,7 @@
       },
       "display": {
         "assistant": "助理",
-        "time": "時間",
+        "time": "對話",
         "title": "顯示模式"
       },
       "draft": "草稿",
@@ -1410,14 +1407,10 @@
       "group": {
         "collapse": "摺疊顯示",
         "collapse_all": "摺疊全部",
-        "earlier": "更早",
         "expand_all": "展開全部",
         "show_more": "展開顯示",
-        "this_week": "本週",
-        "today": "今天",
         "unknown_assistant": "未連結的助理",
-        "unknown_assistant_tip": "這是一個沒有助理的歷史對話群組，並非實際的助理。請將對話移至現有的助理以繼續。",
-        "yesterday": "昨天"
+        "unknown_assistant_tip": "這是一個沒有助理的歷史對話群組，並非實際的助理。請將對話移至現有的助理以繼續。"
       },
       "list": "對話清單",
       "manage": {
@@ -1795,6 +1788,12 @@
     "selectedItems": "已選擇 {{count}} 項",
     "selectedMessages": "已選取 {{count}} 則訊息",
     "settings": "設定",
+    "sort": {
+      "activity_at": "活動時間",
+      "created_at": "建立時間",
+      "manual_order": "手動排序",
+      "title": "排序方式"
+    },
     "stop": "停止",
     "success": "成功",
     "swap": "交換",
@@ -2242,8 +2241,6 @@
       "filter": {
         "selectAgent": "請選擇 Agent",
         "selectAssistant": "請選擇助理",
-        "statusLabel": "狀態",
-        "statusPlaceholder": "請選擇狀態",
         "unlinkedAssistant": "未連結的助理"
       },
       "loading": {
@@ -2255,11 +2252,6 @@
       "searchSession": "搜尋任務...",
       "searchTopic": "搜尋對話...",
       "shortTitle": "歷史",
-      "status": {
-        "completed": "已完成",
-        "failed": "失敗",
-        "running": "執行中"
-      },
       "table": {
         "actions": "動作",
         "conversation": "對話",

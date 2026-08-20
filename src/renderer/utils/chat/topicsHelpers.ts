@@ -1,28 +1,25 @@
-import type { Topic } from '@renderer/types/topic'
+import type { TopicReference } from '@renderer/types/topic'
 import {
   buildResourceListGroupDropAnchor,
   buildResourceListItemDropAnchor,
+  compareResourceActivityOrder,
+  compareResourceCreationOrder,
+  compareResourceIds,
   compareResourceOrderKey,
-  compareResourceRecency,
   composeResourceListGroupResolvers,
   createPinnedGroupResolver,
-  createTimeGroupResolver,
-  getResourceTimeBucket,
   moveResourceListStringGroupAfterDrop,
   type ResourceListGroup,
   type ResourceListGroupReorderPayload,
   type ResourceListGroupResolver,
   type ResourceListItemReorderPayload,
-  type ResourceListTimeBucket,
-  sortRankedResourceItems,
-  withResourceListGroupIdPrefix
+  sortRankedResourceItems
 } from '@renderer/utils/chat/resourceListBase'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
+import type { TopicSortBy } from '@shared/data/api/schemas/topics'
 import type { TopicDisplayMode as PreferenceTopicDisplayMode } from '@shared/data/preference/preferenceTypes'
 
 export type TopicDisplayMode = PreferenceTopicDisplayMode
-
-export type TopicListGroupKind = 'pinned' | 'time' | 'assistant' | 'unlinked-assistant'
 
 export type TopicDisplayAssistant = {
   id: string
@@ -32,7 +29,7 @@ export type TopicDisplayAssistant = {
 
 export type TopicDisplayGroupLabels = {
   pinned: string
-  time: Record<ResourceListTimeBucket, string>
+  ordinary: string
   assistant: {
     unlinked: string
   }
@@ -42,55 +39,28 @@ export type TopicDisplayGroupOptions = {
   assistantById?: ReadonlyMap<string, TopicDisplayAssistant>
   labels: TopicDisplayGroupLabels
   mode: TopicDisplayMode
-  now?: Parameters<typeof getResourceTimeBucket>[1]
   pinnedAsSection?: boolean
 }
 
 export type TopicDisplaySortOptions = {
   assistantRankById?: ReadonlyMap<string, number>
   mode: TopicDisplayMode
-  now?: Parameters<typeof getResourceTimeBucket>[1]
+  sortBy: TopicSortBy
 }
 
-export type TopicListItem = Topic & {
-  name: string
+export type TopicListItem = TopicReference & {
   orderKey?: string
-}
-
-const TOPIC_TIME_BUCKET_RANK: Record<ResourceListTimeBucket, number> = {
-  today: 1,
-  yesterday: 2,
-  'this-week': 3,
-  earlier: 4
+  pinned?: boolean
 }
 
 export const TOPIC_PINNED_GROUP_ID = 'topic:pinned'
+export const TOPIC_ORDINARY_GROUP_ID = 'topic:created'
 export const TOPIC_PINNED_SECTION_ID = 'topic:section:pinned'
 export const TOPIC_ASSISTANT_SECTION_ID = 'topic:section:assistant'
 export const TOPIC_UNLINKED_ASSISTANT_GROUP_ID = 'topic:assistant:unknown'
 
 const TOPIC_ASSISTANT_GROUP_ID_PREFIX = 'topic:assistant:'
 const TOPIC_UNLINKED_ASSISTANT_RANK = Number.MAX_SAFE_INTEGER
-
-export function moveTopicAfterDrop<T extends { id: string }>(
-  topics: readonly T[],
-  payload: ResourceListItemReorderPayload
-): T[] {
-  const activeIndex = topics.findIndex((topic) => topic.id === payload.activeId)
-  const overIndex = topics.findIndex((topic) => topic.id === payload.overId)
-
-  if (activeIndex < 0 || overIndex < 0 || activeIndex === overIndex) {
-    return [...topics]
-  }
-
-  const next = [...topics]
-  const [movedTopic] = next.splice(activeIndex, 1)
-  const adjustedOverIndex = next.findIndex((topic) => topic.id === payload.overId)
-  const insertIndex = payload.position === 'before' ? adjustedOverIndex : adjustedOverIndex + 1
-  next.splice(insertIndex, 0, movedTopic)
-
-  return next
-}
 
 export function applyOptimisticTopicDisplayMove<T extends TopicListItem>(
   topics: readonly T[],
@@ -130,7 +100,7 @@ export function applyOptimisticTopicDisplayMove<T extends TopicListItem>(
   return next
 }
 
-export function buildTopicDropAnchor(payload: ResourceListItemReorderPayload): OrderRequest {
+export function buildTopicDropAnchor(payload: ResourceListItemReorderPayload): OrderRequest | undefined {
   return buildResourceListItemDropAnchor(payload)
 }
 
@@ -150,29 +120,6 @@ export function moveAssistantGroupAfterDrop(
   return moveResourceListStringGroupAfterDrop(assistantIds, activeAssistantId, overAssistantId, payload)
 }
 
-export function normalizeTopicDropPayload(payload: ResourceListItemReorderPayload): ResourceListItemReorderPayload {
-  return payload
-}
-
-export function groupTopicByPinned(topic: Pick<Topic, 'pinned'>, pinnedLabel: string, topicLabel: string) {
-  if (topic.pinned) {
-    return { id: 'pinned', label: pinnedLabel }
-  }
-
-  return { id: 'topics', label: topicLabel }
-}
-
-export function getTopicTimeBucket(
-  lastActivityAt: string,
-  now?: Parameters<typeof getResourceTimeBucket>[1]
-): ResourceListTimeBucket {
-  return getResourceTimeBucket(lastActivityAt, now)
-}
-
-function withTopicGroupIdPrefix<T>(resolver: ResourceListGroupResolver<T>): ResourceListGroupResolver<T> {
-  return withResourceListGroupIdPrefix('topic:', resolver)
-}
-
 export function getAssistantIdFromTopicGroupId(groupId: string): string | undefined {
   if (groupId === TOPIC_UNLINKED_ASSISTANT_GROUP_ID || !groupId.startsWith(TOPIC_ASSISTANT_GROUP_ID_PREFIX)) {
     return undefined
@@ -189,50 +136,44 @@ export function getTopicAssistantDisplayGroupId(topic: { assistantId?: string | 
   return topic.assistantId ? getTopicAssistantGroupId(topic.assistantId) : TOPIC_UNLINKED_ASSISTANT_GROUP_ID
 }
 
-export function createTopicDisplayGroupResolver<T extends Pick<Topic, 'assistantId' | 'lastActivityAt' | 'pinned'>>({
+export function createTopicDisplayGroupResolver<T extends Pick<TopicListItem, 'assistantId' | 'pinned'>>({
   assistantById,
   labels,
   mode,
-  now,
   pinnedAsSection = false
 }: TopicDisplayGroupOptions): ResourceListGroupResolver<T> {
   const pinnedResolver = createPinnedGroupResolver<T>({
     isPinned: (topic) => topic.pinned === true,
-    group: { id: 'pinned', label: mode === 'time' || !pinnedAsSection ? labels.pinned : '' } satisfies ResourceListGroup
+    group: {
+      id: TOPIC_PINNED_GROUP_ID,
+      label: mode === 'time' || !pinnedAsSection ? labels.pinned : ''
+    } satisfies ResourceListGroup
   })
 
   if (mode === 'time') {
-    return withTopicGroupIdPrefix(
-      composeResourceListGroupResolvers(
-        pinnedResolver,
-        createTimeGroupResolver<T>({
-          getTimestamp: (topic) => topic.lastActivityAt,
-          labels: labels.time,
-          now
-        })
-      )
-    )
+    return composeResourceListGroupResolvers(pinnedResolver, () => ({
+      id: TOPIC_ORDINARY_GROUP_ID,
+      label: labels.ordinary
+    }))
   }
 
-  return withTopicGroupIdPrefix(
-    composeResourceListGroupResolvers(pinnedResolver, (topic) => {
-      const assistantId = topic.assistantId
+  return composeResourceListGroupResolvers(pinnedResolver, (topic) => {
+    const assistantId = topic.assistantId
 
-      if (!assistantId) {
-        return { id: 'assistant:unknown', label: labels.assistant.unlinked }
-      }
+    if (!assistantId) {
+      return { id: TOPIC_UNLINKED_ASSISTANT_GROUP_ID, label: labels.assistant.unlinked }
+    }
 
-      const assistant = assistantById?.get(assistantId)
-      if (assistant) {
-        return { id: `assistant:${assistant.id}`, label: assistant.name }
-      }
+    const assistant = assistantById?.get(assistantId)
+    if (assistant) {
+      return { id: getTopicAssistantGroupId(assistant.id), label: assistant.name }
+    }
 
-      return { id: 'assistant:unknown', label: labels.assistant.unlinked }
-    })
-  )
+    return { id: TOPIC_UNLINKED_ASSISTANT_GROUP_ID, label: labels.assistant.unlinked }
+  })
 }
 
-function getAssistantGroupRank<T extends Pick<Topic, 'assistantId' | 'pinned'>>(
+function getAssistantGroupRank<T extends Pick<TopicListItem, 'assistantId' | 'pinned'>>(
   topic: T,
   assistantRankById?: ReadonlyMap<string, number>
 ) {
@@ -248,28 +189,29 @@ function getAssistantGroupRank<T extends Pick<Topic, 'assistantId' | 'pinned'>>(
   return TOPIC_UNLINKED_ASSISTANT_RANK
 }
 
-function readOptionalOrderKey<T extends object>(item: T): string | undefined {
-  return 'orderKey' in item && typeof item.orderKey === 'string' ? item.orderKey : undefined
-}
-
-export function sortTopicsForDisplayGroups<T extends Pick<Topic, 'assistantId' | 'lastActivityAt' | 'pinned'>>(
+export function sortTopicsForDisplayGroups<T extends TopicListItem & { createdAt: string; lastActivityAt: string }>(
   topics: readonly T[],
   options: TopicDisplaySortOptions
 ): T[] {
   const isPinned = (topic: T) => topic.pinned === true
+  const compareWithinGroup =
+    options.sortBy === 'createdAt'
+      ? compareResourceCreationOrder
+      : options.sortBy === 'lastActivityAt'
+        ? compareResourceActivityOrder
+        : (a: T, b: T) => compareResourceOrderKey(a.orderKey, b.orderKey) || compareResourceIds(a.id, b.id)
 
   if (options.mode === 'assistant') {
     return sortRankedResourceItems(topics, {
       getRank: (topic) => getAssistantGroupRank(topic, options.assistantRankById),
       isPinned,
-      compareWithinGroup: (a, b) => compareResourceOrderKey(readOptionalOrderKey(a), readOptionalOrderKey(b))
+      compareWithinGroup
     })
   }
 
   return sortRankedResourceItems(topics, {
-    getRank: (topic) =>
-      topic.pinned === true ? 0 : TOPIC_TIME_BUCKET_RANK[getTopicTimeBucket(topic.lastActivityAt, options.now)],
+    getRank: (topic) => (topic.pinned === true ? 0 : 1),
     isPinned,
-    compareWithinGroup: compareResourceRecency((topic) => topic.lastActivityAt)
+    compareWithinGroup
   })
 }

@@ -94,6 +94,8 @@ export type AssistantTabSortType = 'tags' | 'list'
 
 export type TopicDisplayMode = 'time' | 'assistant'
 
+export type TopicSessionSortBy = 'createdAt' | 'lastActivityAt' | 'orderKey'
+
 export type TopicTabPosition = 'left' | 'right'
 
 export type AgentSessionDisplayMode = 'time' | 'agent' | 'workdir'

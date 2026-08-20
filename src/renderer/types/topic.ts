@@ -16,7 +16,8 @@ export type Topic = {
    */
   assistantId: string | undefined
   name: string
-  lastActivityAt: string
+  /** DataApi-backed Topic projections always provide this value. */
+  lastActivityAt?: string
   createdAt: string
   updatedAt: string
   /**
@@ -32,4 +33,10 @@ export type Topic = {
   pinned?: boolean
   prompt?: string
   isNameManuallyEdited?: boolean
+}
+
+export type TopicReference = {
+  assistantId?: string
+  id: string
+  name: string
 }

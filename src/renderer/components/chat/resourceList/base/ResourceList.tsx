@@ -9,9 +9,7 @@ import { useTranslation } from 'react-i18next'
 
 import {
   getResourceListOptionDomId,
-  type ResourceListContextValue,
   type ResourceListItemBase,
-  useResourceList,
   useResourceListActions,
   useResourceListControlsState,
   useResourceListGroupState,
@@ -40,7 +38,6 @@ import { VirtualDraggableItems, VirtualItems } from './ResourceListVirtual'
 
 export type {
   ResourceListActionMap,
-  ResourceListContextValue,
   ResourceListDragCapabilities,
   ResourceListFilterOption,
   ResourceListGroup,
@@ -256,6 +253,28 @@ type SectionToggleMenuItemProps = Omit<ComponentProps<typeof MenuItem>, 'label' 
   sectionIds: readonly string[]
 }
 
+function useSectionToggle(sectionIds: readonly string[]) {
+  const actions = useResourceListActions()
+  const view = useResourceListView()
+  const sectionIdSet = new Set(sectionIds)
+  const sections = view.sections.filter((candidate) => sectionIdSet.has(candidate.section.id))
+  const groups = sections.flatMap((section) => section.groups)
+  const groupIds = groups.map((group) => group.group.id)
+  const expandGroupIds = [...sections.map((section) => section.section.id), ...groupIds]
+  const expandedGroupIds = groups.filter((group) => !group.collapsed).map((group) => group.group.id)
+  const hasExpandedGroup = expandedGroupIds.length > 0
+
+  const toggle = () => {
+    if (hasExpandedGroup) {
+      actions.collapseGroups(expandedGroupIds)
+    } else {
+      actions.expandGroups(expandGroupIds)
+    }
+  }
+
+  return { groupIds, hasExpandedGroup, toggle }
+}
+
 function SectionToggleMenuItem({
   collapseIcon,
   collapseLabel,
@@ -266,15 +285,7 @@ function SectionToggleMenuItem({
   sectionIds,
   ...props
 }: SectionToggleMenuItemProps) {
-  const actions = useResourceListActions()
-  const view = useResourceListView()
-  const sectionIdSet = new Set(sectionIds)
-  const sections = view.sections.filter((candidate) => sectionIdSet.has(candidate.section.id))
-  const groups = sections.flatMap((section) => section.groups)
-  const groupIds = groups.map((group) => group.group.id)
-  const expandGroupIds = [...sections.map((section) => section.section.id), ...groupIds]
-  const expandedGroupIds = groups.filter((group) => !group.collapsed).map((group) => group.group.id)
-  const hasExpandedGroup = expandedGroupIds.length > 0
+  const { groupIds, hasExpandedGroup, toggle } = useSectionToggle(sectionIds)
   const isDisabled = disabled || groupIds.length === 0
 
   return (
@@ -285,12 +296,7 @@ function SectionToggleMenuItem({
       onClick={(event) => {
         onClick?.(event)
         if (event.defaultPrevented || isDisabled) return
-
-        if (hasExpandedGroup) {
-          actions.collapseGroups(expandedGroupIds)
-        } else {
-          actions.expandGroups(expandGroupIds)
-        }
+        toggle()
       }}
       {...props}
     />
@@ -418,7 +424,6 @@ function Item<T extends ResourceListItemBase>({
       data-active-descendant={rowState.active && !rowState.selected ? true : undefined}
       data-selected={rowState.selected || undefined}
       data-reveal-focus={rowState.revealFocused || undefined}
-      data-dragging={rowState.dragging || undefined}
       tabIndex={tabIndex ?? -1}
       className={cn(
         'group relative flex w-full cursor-pointer items-center gap-1.5 px-2.5 text-foreground outline-none transition-all duration-150 has-[[data-resource-list-leading-slot=true]]:px-1.5',
@@ -627,9 +632,12 @@ function ItemActions({ active, children, className, ref, ...props }: ItemActions
 type BodyProps<T extends ResourceListItemBase> = {
   draggable?: boolean
   emptyFallback?: ReactNode
+  emptyGroupLabel?: ReactNode
   errorFallback?: ReactNode
   listRef?: Ref<HTMLDivElement>
-  renderItem: (item: T, context: ResourceListContextValue<T>) => ReactNode
+  /** Invoked when the virtual scroller approaches its bottom. */
+  onEndReached?: () => void
+  renderItem: (item: T) => ReactNode
   virtualClassName?: string
   /** Accessible name forwarded to the listbox scroller in both the plain and draggable paths. */
   ariaLabel?: string
@@ -638,8 +646,10 @@ type BodyProps<T extends ResourceListItemBase> = {
 function Body<T extends ResourceListItemBase>({
   draggable = false,
   emptyFallback,
+  emptyGroupLabel,
   errorFallback,
   listRef,
+  onEndReached,
   renderItem,
   virtualClassName,
   ariaLabel
@@ -667,13 +677,22 @@ function Body<T extends ResourceListItemBase>({
         ref={listRef}
         className={resolvedVirtualClassName}
         ariaLabel={ariaLabel}
+        emptyGroupLabel={emptyGroupLabel}
+        onEndReached={onEndReached}
         renderItem={renderItem}
       />
     )
   }
 
   return (
-    <VirtualItems ref={listRef} className={resolvedVirtualClassName} ariaLabel={ariaLabel} renderItem={renderItem} />
+    <VirtualItems
+      ref={listRef}
+      className={resolvedVirtualClassName}
+      ariaLabel={ariaLabel}
+      emptyGroupLabel={emptyGroupLabel}
+      onEndReached={onEndReached}
+      renderItem={renderItem}
+    />
   )
 }
 
@@ -777,7 +796,6 @@ const ResourceList = {
 
 export {
   ResourceList,
-  useResourceList,
   useResourceListActions,
   useResourceListControlsState,
   useResourceListGroupState,

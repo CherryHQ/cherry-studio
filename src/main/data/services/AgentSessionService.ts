@@ -21,6 +21,11 @@ import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type {
   AgentSessionEntity,
+  AgentSessionListItem,
+  AgentSessionSearchScope,
+  AgentSessionSortBy,
+  AgentSessionStats,
+  AgentSessionStatsQuery,
   CreateAgentSessionDto,
   DeleteAgentSessionsResult,
   LatestAgentSessionQuery,
@@ -32,16 +37,27 @@ import type {
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse, DataApiDataChangeEffect } from '@shared/data/api/types'
-import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, notInArray, or, type SQL, sql } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gt,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  ne,
+  notInArray,
+  or,
+  type SQL,
+  sql
+} from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
+import { asNumericKey, asStringKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
-import {
-  decodePinnedListCursor,
-  encodeEntityCursor,
-  encodeEntitySectionStart,
-  encodePinCursor
-} from './utils/pinnedListCursor'
 
 const logger = loggerService.withContext('AgentSessionService')
 
@@ -105,6 +121,10 @@ function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
   }
 }
 
+function toAgentSessionListItem(session: AgentSessionEntity, pinId: string | null): AgentSessionListItem {
+  return { ...session, pinned: pinId !== null, pinId }
+}
+
 function buildSearchPredicate(search: string | undefined): SQL | undefined {
   const trimmed = search?.trim()
   if (!trimmed) return undefined
@@ -116,24 +136,130 @@ function buildSearchPredicate(search: string | undefined): SQL | undefined {
   return or(nameMatch, descriptionMatch)
 }
 
+/**
+ * Search predicate for the flat list/stats paths. `name` matches the session
+ * name only; `name-or-owner` additionally ORs the owning live agent's name
+ * (queries using this scope must LEFT JOIN the agent table on live agents only).
+ */
+function buildScopedSearchPredicate(q: string | undefined, scope: AgentSessionSearchScope): SQL | undefined {
+  const trimmed = q?.trim()
+  if (!trimmed) return undefined
+  const pattern = `%${trimmed.replace(/[\\%_]/g, '\\$&')}%`
+  const nameMatch = sql`${sessionsTable.name} LIKE ${pattern} ESCAPE '\\'`
+  if (scope === 'name') return nameMatch
+  const agentNameMatch = sql`${agentsTable.name} LIKE ${pattern} ESCAPE '\\'`
+  return or(nameMatch, agentNameMatch)
+}
+
+/**
+ * Shared record filters for the flat list and stats paths.
+ * `pinned` is NOT built here — it needs the pin subquery and only applies to
+ * lists. Sessions are hard-deleted, so there is no session deletedAt guard.
+ *
+ * Owner-scope filters read the LEFT-JOINed `agentsTable` (joined on live agents
+ * only), so every query using these filters must join `agentsTable` on
+ * `sessionsTable.agentId = agentsTable.id AND agentsTable.deletedAt IS NULL`.
+ */
+function buildSessionRecordFilters(query: {
+  q?: string
+  searchScope?: AgentSessionSearchScope
+  agentId?: string
+  workspaceId?: string
+}): SQL[] {
+  const filters: SQL[] = []
+  const search = buildScopedSearchPredicate(query.q, query.searchScope ?? 'name')
+  if (search) filters.push(search)
+  if (query.agentId === 'unlinked') {
+    // agentId IS NULL or the referenced agent is soft-deleted — the live agent join fails either way.
+    filters.push(isNull(agentsTable.id))
+  } else if (query.agentId !== undefined) {
+    // Concrete owner scope matches live agents only.
+    filters.push(eq(agentsTable.id, query.agentId))
+  }
+  if (query.workspaceId === 'system') {
+    filters.push(eq(agentWorkspaceTable.type, AGENT_WORKSPACE_TYPE.SYSTEM))
+  } else if (query.workspaceId !== undefined) {
+    filters.push(eq(agentWorkspaceTable.type, AGENT_WORKSPACE_TYPE.USER))
+    filters.push(eq(sessionsTable.workspaceId, query.workspaceId))
+  }
+  return filters
+}
+
+type AgentSessionReadModelChangeOptions = {
+  orderKeyChanged?: boolean
+  ownerChanged?: boolean
+  pinsChanged?: boolean
+  searchChanged?: boolean
+  statsChanged?: boolean
+  workspaceChanged?: boolean
+}
+
 export function agentSessionReadModelEffects(
   sessionIds: readonly string[],
-  kind: 'membership' | 'projection'
+  kind: 'membership' | 'projection',
+  options: AgentSessionReadModelChangeOptions = {}
 ): DataApiDataChangeEffect[] {
-  if (sessionIds.length === 0) return []
+  if (sessionIds.length === 0) {
+    return options.pinsChanged ? [{ endpoint: '/pins', kind: 'membership' }] : []
+  }
+
   const entityIds = [...new Set(sessionIds)]
   return [
     { endpoint: '/agent-sessions', kind, entityIds },
+    ...(options.ownerChanged
+      ? [{ endpoint: '/agent-sessions' as const, kind: 'membership' as const, dimension: 'agentId', entityIds }]
+      : []),
+    ...(options.searchChanged
+      ? [{ endpoint: '/agent-sessions' as const, kind: 'membership' as const, dimension: 'q', entityIds }]
+      : []),
+    ...(options.workspaceChanged
+      ? [{ endpoint: '/agent-sessions' as const, kind: 'membership' as const, dimension: 'workspaceId', entityIds }]
+      : []),
     { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds },
+    ...(options.orderKeyChanged
+      ? [{ endpoint: '/agent-sessions' as const, kind: 'order' as const, dimension: 'orderKey', entityIds }]
+      : []),
     { endpoint: '/agent-sessions/:sessionId', entityIds },
-    { endpoint: '/agent-sessions/latest' }
+    { endpoint: '/agent-sessions/latest' },
+    ...(kind === 'membership' || options.statsChanged ? [{ endpoint: '/agent-sessions/stats' as const }] : []),
+    ...(options.pinsChanged ? [{ endpoint: '/pins' as const, kind: 'membership' as const }] : [])
   ]
 }
 
 export class AgentSessionService {
-  notifyReadModelChange(sessionIds: readonly string[], kind: 'membership' | 'projection'): void {
-    const effects = agentSessionReadModelEffects(sessionIds, kind)
+  notifyReadModelChange(
+    sessionIds: readonly string[],
+    kind: 'membership' | 'projection',
+    options: AgentSessionReadModelChangeOptions = {}
+  ): void {
+    const effects = agentSessionReadModelEffects(sessionIds, kind, options)
     if (effects.length > 0) notifyDataApiDataChange(effects)
+  }
+
+  /** Owner names affect collection search projections, but not Session entities. */
+  notifyOwnerProjectionChange(): void {
+    notifyDataApiDataChange([
+      { endpoint: '/agent-sessions', kind: 'projection' },
+      { endpoint: '/agent-sessions', kind: 'membership', dimension: 'q' }
+    ])
+  }
+
+  /** A removed owner changes owner-scoped membership and owner-name projections. */
+  notifyOwnerRemovalChange(sessionIds: readonly string[], options: { pinsChanged?: boolean } = {}): void {
+    if (sessionIds.length === 0) {
+      if (options.pinsChanged) notifyDataApiDataChange([{ endpoint: '/pins', kind: 'membership' }])
+      return
+    }
+    const entityIds = [...new Set(sessionIds)]
+    notifyDataApiDataChange([
+      { endpoint: '/agent-sessions', kind: 'projection', entityIds },
+      { endpoint: '/agent-sessions', kind: 'membership', dimension: 'agentId', entityIds },
+      { endpoint: '/agent-sessions', kind: 'membership', dimension: 'q', entityIds },
+      { endpoint: '/agent-sessions/:sessionId', entityIds },
+      { endpoint: '/agent-sessions/latest' },
+      { endpoint: '/agent-sessions/stats' },
+      ...(options.pinsChanged ? [{ endpoint: '/pins' as const, kind: 'membership' as const }] : [])
+    ])
   }
 
   listAddressableByCursor(query: {
@@ -455,28 +581,23 @@ export class AgentSessionService {
   }
 
   /**
-   * The single most-recently-active session, or `null` when there are none.
+   * The single most-recently-active session in the requested live-agent scope,
+   * or `null` when that scope is empty. Omitting the scope is global.
    *
-   * First-entry restore resumes the last-touched session. It cannot read the
-   * regular first page of `listByCursor` for this: that pages pinned-first then
-   * by `orderKey ASC` (creation/manual order, newest-created first), so a
-   * recently-active session is not guaranteed to be on it. This
-   * `lastActivityAt DESC LIMIT 1` proves global latest independent of the rail's ordering.
+   * First-entry restore resumes the most-recently-active session. It cannot read the
+   * regular first page of `listByCursor` for this because list order and pin
+   * membership are independent of latest activity.
    */
   getLatestActive(query: LatestAgentSessionQuery = {}): AgentSessionEntity | null {
     const db = application.get('DbService').getDb()
-    const ownerFilter =
-      query.agentId === 'unlinked'
-        ? isNull(agentsTable.id)
-        : query.agentId
-          ? eq(agentsTable.id, query.agentId)
-          : undefined
+    const filters = buildSessionRecordFilters(query)
+    if (query.excludeSessionId) filters.push(ne(sessionsTable.id, query.excludeSessionId))
     const [row] = db
       .select({ session: sessionsTable, workspace: agentWorkspaceTable })
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
       .leftJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
-      .where(ownerFilter)
+      .where(filters.length > 0 ? and(...filters) : undefined)
       .orderBy(desc(sessionsTable.lastActivityAt), asc(sessionsTable.id))
       .limit(1)
       .all()
@@ -517,7 +638,6 @@ export class AgentSessionService {
               and(
                 eq(sessionsTable.agentId, dto.agentId),
                 workspaceFilter,
-                dto.excludeSessionId ? notInArray(sessionsTable.id, [dto.excludeSessionId]) : undefined,
                 eq(sessionsTable.isNameManuallyEdited, false),
                 sql`trim(${sessionsTable.name}) = ''`,
                 sql`NOT EXISTS (
@@ -609,98 +729,186 @@ export class AgentSessionService {
   }
 
   /**
-   * Two-section page mirroring `TopicService.listByCursor`: pinned sessions
-   * first (via the shared `pin` table, ordered by `pin.orderKey`) then unpinned
-   * by `session.orderKey ASC, id ASC` (manual/creation drag order). A partial
-   * pin page spills into the unpinned section to fill `limit`. Pins float a
-   * session to the top independent of its own `orderKey`, so both rails share
-   * one pagination contract; recency ordering for the time-grouped view is
-   * applied by the renderer over the loaded list.
+   * Two independent list streams — pinned and ordinary rows never mix in one
+   * response or cursor:
+   *
+   * - `pinned === true` → pin-owned stream ordered by `pin.orderKey ASC,
+   *   session.id ASC`. The pinned stream has no `sortBy` dimension.
+   * - `pinned === false` → ordinary keyset stream ordered by `sortBy`
+   *   (`createdAt`/`lastActivityAt` → `DESC, id ASC`; `orderKey` → `ASC, id ASC`).
+   *   Pinned rows are excluded from this stream.
+   *
+   * Every ordinary-stream caller selects its sort profile explicitly; there is
+   * no legacy composite pinned-then-ordinary view.
    */
-  listByCursor(query: ListAgentSessionsQuery = {}): CursorPaginationResponse<AgentSessionEntity> {
+  listByCursor(query: ListAgentSessionsQuery): CursorPaginationResponse<AgentSessionListItem> {
+    if (query.pinned === true) {
+      return this.listPinnedByCursor(query)
+    }
+    return this.listOrdinaryByCursor(query, query.sortBy)
+  }
+
+  /** Pinned-only page in persisted pin order. */
+  private listPinnedByCursor(query: ListAgentSessionsQuery): CursorPaginationResponse<AgentSessionListItem> {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
-    const cursor = decodePinnedListCursor(query.cursor, 'agent-session')
-    const agentFilter = query.agentId ? eq(sessionsTable.agentId, query.agentId) : undefined
+    const filters = buildSessionRecordFilters(query)
+    const ordering = keysetOrdering(pinTable.orderKey, sessionsTable.id, { major: 'asc', tie: 'asc' })
+    const cursor = decodeListCursor(query.cursor, asStringKey, 'agent-sessions-pinned')
+    if (cursor) filters.push(ordering.where(cursor))
 
-    const items: Array<{ session: AgentSessionEntity; pinOrderKey?: string }> = []
-
-    if (cursor.section === 'pin') {
-      const pinAfter = cursor.orderKey
-        ? or(
-            gt(pinTable.orderKey, cursor.orderKey),
-            and(eq(pinTable.orderKey, cursor.orderKey), gt(sessionsTable.id, cursor.id))
-          )
-        : undefined
-      const pinRows = db
-        .select({ session: sessionsTable, workspace: agentWorkspaceTable, pinOrderKey: pinTable.orderKey })
-        .from(sessionsTable)
-        .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
-        .innerJoin(pinTable, and(eq(pinTable.entityType, 'session'), eq(pinTable.entityId, sessionsTable.id)))
-        .where(and(agentFilter, pinAfter))
-        .orderBy(asc(pinTable.orderKey), asc(sessionsTable.id))
-        .limit(limit + 1)
-        .all()
-
-      // Stale pin cursor (anchor unpinned/deleted between requests) → 0 rows for
-      // a non-empty `cursor.orderKey`. Hand back an entity-section-start cursor so
-      // the next call advances cleanly instead of restarting the pin section.
-      if (pinRows.length === 0 && cursor.orderKey !== '') {
-        return { items: [], nextCursor: encodeEntitySectionStart() }
-      }
-
-      const hasMoreInPin = pinRows.length > limit
-      for (const row of pinRows.slice(0, limit)) {
-        items.push({ session: rowToSession(row), pinOrderKey: row.pinOrderKey })
-      }
-
-      if (hasMoreInPin) {
-        const last = items[items.length - 1]
-        return {
-          items: items.map((i) => i.session),
-          nextCursor: encodePinCursor(last.pinOrderKey ?? '', last.session.id)
-        }
-      }
-
-      if (items.length >= limit) {
-        return { items: items.map((i) => i.session), nextCursor: encodeEntitySectionStart() }
-      }
-    }
-
-    // Tuple cursor `(orderKey, id)` over `ORDER BY orderKey ASC, id ASC`: the id
-    // tiebreaker prevents dedup/skip across pages when two rows share an orderKey.
-    const remaining = limit - items.length
-    const pinnedSubquery = db.select({ id: pinTable.entityId }).from(pinTable).where(eq(pinTable.entityType, 'session'))
-
-    let sessionAfter: SQL | undefined
-    if (cursor.section === 'entity' && cursor.orderKey !== null) {
-      sessionAfter = or(
-        gt(sessionsTable.orderKey, cursor.orderKey),
-        and(eq(sessionsTable.orderKey, cursor.orderKey), gt(sessionsTable.id, cursor.id))
-      )
-    }
-
-    const sessionRows = db
-      .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+    // Always LEFT JOIN live agents so owner-scope filters and name-or-owner
+    // search share one join and non-live owners normalize consistently.
+    const rows = db
+      .select({
+        session: sessionsTable,
+        workspace: agentWorkspaceTable,
+        pinId: pinTable.id,
+        pinOrderKey: pinTable.orderKey
+      })
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
-      .where(and(agentFilter, notInArray(sessionsTable.id, pinnedSubquery), sessionAfter))
-      .orderBy(asc(sessionsTable.orderKey), asc(sessionsTable.id))
-      .limit(remaining + 1)
+      .innerJoin(pinTable, and(eq(pinTable.entityType, 'session'), eq(pinTable.entityId, sessionsTable.id)))
+      .leftJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
+      .where(and(...filters))
+      .orderBy(...ordering.orderBy)
+      .limit(limit + 1)
       .all()
 
-    const hasMoreInSession = sessionRows.length > remaining
-    for (const row of sessionRows.slice(0, remaining)) {
-      items.push({ session: rowToSession(row) })
+    const hasMore = rows.length > limit
+    const pageRows = rows.slice(0, limit)
+    const last = pageRows[pageRows.length - 1]
+
+    return {
+      items: pageRows.map((row) => toAgentSessionListItem(rowToSession(row), row.pinId)),
+      nextCursor: hasMore && last ? encodeCursor(last.pinOrderKey, last.session.id) : undefined
+    }
+  }
+
+  /**
+   * Flat single-stream page, mirroring
+   * `TopicService.listOrdinaryByCursor`: `createdAt` → immutable creation order,
+   * `lastActivityAt` → activity order (both `DESC, id ASC`), and `orderKey` →
+   * manual order (`ASC, id ASC`), with the shared `(sortValue, id)` cursor.
+   * Always LEFT JOINs live agents so owner-scope filters and name-or-owner
+   * search share one join.
+   */
+  private listOrdinaryByCursor(
+    query: ListAgentSessionsQuery,
+    sortBy: AgentSessionSortBy
+  ): CursorPaginationResponse<AgentSessionListItem> {
+    const db = application.get('DbService').getDb()
+    const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
+
+    const filters = buildSessionRecordFilters(query)
+    const pinnedSubquery = db.select({ id: pinTable.entityId }).from(pinTable).where(eq(pinTable.entityType, 'session'))
+    filters.push(notInArray(sessionsTable.id, pinnedSubquery))
+
+    const isTimestampSort = sortBy === 'createdAt' || sortBy === 'lastActivityAt'
+    const timestampColumn = sortBy === 'createdAt' ? sessionsTable.createdAt : sessionsTable.lastActivityAt
+    const ordering = isTimestampSort
+      ? keysetOrdering(timestampColumn, sessionsTable.id, { major: 'desc', tie: 'asc' })
+      : keysetOrdering(sessionsTable.orderKey, sessionsTable.id, { major: 'asc', tie: 'asc' })
+    const cursor = isTimestampSort
+      ? decodeListCursor(query.cursor, asNumericKey, 'agent-sessions-flat')
+      : decodeListCursor(query.cursor, asStringKey, 'agent-sessions-flat')
+    if (cursor) filters.push(ordering.where(cursor))
+
+    const rows = db
+      .select({
+        session: sessionsTable,
+        workspace: agentWorkspaceTable
+      })
+      .from(sessionsTable)
+      .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+      .leftJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
+      .where(and(...filters))
+      .orderBy(...ordering.orderBy)
+      .limit(limit + 1)
+      .all()
+
+    const hasMore = rows.length > limit
+    const pageRows = rows.slice(0, limit)
+    const last = pageRows[pageRows.length - 1]
+    const getSortValue = (row: (typeof pageRows)[number]) =>
+      sortBy === 'createdAt'
+        ? row.session.createdAt
+        : sortBy === 'lastActivityAt'
+          ? row.session.lastActivityAt
+          : row.session.orderKey
+    const nextCursor = hasMore && last ? encodeCursor(getSortValue(last), last.session.id) : undefined
+
+    return {
+      items: pageRows.map((row) => toAgentSessionListItem(rowToSession(row), null)),
+      nextCursor
+    }
+  }
+
+  /**
+   * Factual aggregation for `GET /agent-sessions/stats`,
+   * mirroring `TopicService.stats`: totals include pinned rows. Stats and list
+   * use independent SQLite snapshots; a subsequent refetch reconciles transient drift.
+   */
+  stats(query: AgentSessionStatsQuery = {}): AgentSessionStats {
+    const db = application.get('DbService').getDb()
+    const filters = buildSessionRecordFilters(query)
+    const pinJoin = and(eq(pinTable.entityType, 'session'), eq(pinTable.entityId, sessionsTable.id))
+    const agentLiveJoin = and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt))
+    // No-live-agent rows (null agentId or soft-deleted agent) fold into the null unlinked entry.
+    const agentScope = sql<string | null>`CASE
+      WHEN ${agentsTable.id} IS NULL THEN NULL
+      ELSE ${sessionsTable.agentId} END`
+
+    const byAgentRows = db
+      .select({
+        agentId: agentScope,
+        count: count(),
+        pinnedCount: count(pinTable.id)
+      })
+      .from(sessionsTable)
+      .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+      .leftJoin(agentsTable, agentLiveJoin)
+      .leftJoin(pinTable, pinJoin)
+      .where(and(...filters))
+      .groupBy(agentScope)
+      .all()
+
+    let total = 0
+    let pinnedCount = 0
+    for (const row of byAgentRows) {
+      total += row.count
+      pinnedCount += row.pinnedCount
     }
 
-    let nextCursor: string | undefined
-    if (hasMoreInSession) {
-      const last = sessionRows[remaining - 1]
-      nextCursor = encodeEntityCursor(last.session.orderKey, last.session.id)
+    const result: AgentSessionStats = {
+      total,
+      pinnedCount,
+      byAgent: byAgentRows.map((row) => ({
+        agentId: row.agentId,
+        count: row.count,
+        pinnedCount: row.pinnedCount
+      })),
+      byWorkspace: []
     }
 
-    return { items: items.map((i) => i.session), nextCursor }
+    const workspaceScopeExpr = sql<string>`CASE
+      WHEN ${agentWorkspaceTable.type} = ${AGENT_WORKSPACE_TYPE.SYSTEM} THEN 'system'
+      ELSE ${sessionsTable.workspaceId} END`
+    result.byWorkspace = db
+      .select({
+        workspaceId: workspaceScopeExpr,
+        count: count(),
+        pinnedCount: count(pinTable.id)
+      })
+      .from(sessionsTable)
+      .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+      .leftJoin(agentsTable, agentLiveJoin)
+      .leftJoin(pinTable, pinJoin)
+      .where(and(...filters))
+      .groupBy(workspaceScopeExpr)
+      .all()
+
+    return result
   }
 
   update(id: string, dto: UpdateAgentSessionDto): AgentSessionEntity {
@@ -723,7 +931,11 @@ export class AgentSessionService {
     )
     if (!result.row) throw DataApiErrorFactory.notFound('Session', id)
     publishTaskReadModelChanges(result.clearedTaskScheduleIds)
-    this.notifyReadModelChange([id], 'projection')
+    this.notifyReadModelChange([id], 'projection', {
+      ownerChanged: dto.agentId !== undefined,
+      searchChanged: dto.name !== undefined || dto.agentId !== undefined,
+      statsChanged: dto.name !== undefined || dto.agentId !== undefined
+    })
     return this.getById(id)
   }
 
@@ -760,7 +972,7 @@ export class AgentSessionService {
       () => application.get('DbService').withWriteTx((tx) => this.setWorkspaceTx(tx, id, source)),
       defaultHandlersFor('Session', id)
     )
-    this.notifyReadModelChange([id], 'projection')
+    this.notifyReadModelChange([id], 'projection', { statsChanged: true, workspaceChanged: true })
     return this.getById(id)
   }
 
@@ -850,8 +1062,7 @@ export class AgentSessionService {
     })
     publishTaskReadModelChanges(result.taskScheduleIds)
     getDataService('AgentSessionMessageService').publishDeliveryChanges(result.deliveryResults)
-    this.notifyReadModelChange(result.deletedIds, 'membership')
-    if (result.deletedIds.length > 0) pinService.notifyPurged()
+    this.notifyReadModelChange(result.deletedIds, 'membership', { pinsChanged: true })
     return result
   }
 
@@ -890,8 +1101,7 @@ export class AgentSessionService {
 
     publishTaskReadModelChanges(result.taskScheduleIds)
     getDataService('AgentSessionMessageService').publishDeliveryChanges(result.deliveryResults)
-    this.notifyReadModelChange(result.deletedIds, 'membership')
-    if (result.deletedIds.length > 0) pinService.notifyPurged()
+    this.notifyReadModelChange(result.deletedIds, 'membership', { pinsChanged: true })
     logger.info('Deleted sessions', { count: result.deletedIds.length })
     return result
   }
@@ -919,8 +1129,7 @@ export class AgentSessionService {
       return { deletedIds, taskScheduleIds, channelReferences, taskReferences, deliveryResults }
     })
     publishTaskReadModelChanges([...result.taskScheduleIds, ...result.taskReferences.map((task) => task.id)])
-    this.notifyReadModelChange(result.deletedIds, 'membership')
-    if (result.deletedIds.length > 0) pinService.notifyPurged()
+    this.notifyReadModelChange(result.deletedIds, 'membership', { pinsChanged: true })
     logger.info('Deleted user workspace', {
       workspaceId,
       deletedSessionCount: result.deletedIds.length,
@@ -961,8 +1170,7 @@ export class AgentSessionService {
 
     publishTaskReadModelChanges(result.taskScheduleIds)
     getDataService('AgentSessionMessageService').publishDeliveryChanges(result.deliveryResults)
-    this.notifyReadModelChange(result.deletedIds, 'membership')
-    if (result.deletedIds.length > 0) pinService.notifyPurged()
+    this.notifyReadModelChange(result.deletedIds, 'membership', { pinsChanged: true })
     logger.info('Deleted agent sessions', { agentId, count: result.deletedIds.length })
     return result
   }
@@ -1083,6 +1291,7 @@ export class AgentSessionService {
 
   reorder(id: string, anchor: OrderRequest): void {
     application.get('DbService').withWriteTx((tx) => this.reorderTx(tx, id, anchor))
+    this.notifyReadModelChange([id], 'projection', { orderKeyChanged: true })
   }
 
   reorderTx(tx: DbOrTx, id: string, anchor: OrderRequest): void {
@@ -1100,6 +1309,11 @@ export class AgentSessionService {
   reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): void {
     if (moves.length === 0) return
     application.get('DbService').withWriteTx((tx) => this.reorderBatchTx(tx, moves))
+    this.notifyReadModelChange(
+      moves.map((move) => move.id),
+      'projection',
+      { orderKeyChanged: true }
+    )
   }
 
   reorderBatchTx(tx: DbOrTx, moves: Array<{ id: string; anchor: OrderRequest }>): void {

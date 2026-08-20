@@ -196,7 +196,7 @@ describe('TemporaryChatService', () => {
         { endpoint: '/topics', kind: 'membership', entityIds: [topic.id] },
         { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds: [topic.id] },
         { endpoint: '/topics/:id', entityIds: [topic.id] },
-        { endpoint: '/topics/latest' }
+        { endpoint: '/topics/stats' }
       ])
 
       // In-memory store is cleared

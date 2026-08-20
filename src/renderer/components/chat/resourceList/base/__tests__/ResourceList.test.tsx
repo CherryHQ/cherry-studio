@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { type ReactNode, useMemo, useState } from 'react'
+import { type ReactNode, useMemo, useState, useSyncExternalStore } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -20,6 +20,7 @@ const virtualMocks = vi.hoisted(() => ({
         size: 40
       })),
     getTotalSize: () => options.count * 40,
+    getVirtualIndexes: () => Array.from({ length: options.count }, (_, index) => index),
     measure: vi.fn(),
     measureElement: vi.fn(),
     scrollElement: null,
@@ -128,13 +129,15 @@ import { SessionResourceList } from '../../SessionResourceList'
 import { TopicResourceList } from '../../TopicResourceList'
 import {
   ResourceList,
-  useResourceList,
   useResourceListActions,
+  useResourceListControlsState,
   useResourceListGroupState,
-  useResourceListRowState
+  useResourceListRowState,
+  useResourceListView
 } from '../ResourceList'
-import type { ResourceListContextValue, ResourceListItemBase } from '../ResourceListContext'
+import { type ResourceListItemBase, useResourceListUiStore } from '../ResourceListContext'
 import { RESOURCE_LIST_DEFAULT_ROW_LAYOUT } from '../resourceListLayout'
+import { ResourceListRemoteGroupService } from '../ResourceListRemoteGroups'
 
 afterEach(() => {
   dndMocks.droppableData.clear()
@@ -177,16 +180,21 @@ function chevronFor(groupHeaderButton: HTMLElement): HTMLElement {
 }
 
 function Inspector() {
-  const { state, view } = useResourceList<TestItem>()
+  const controls = useResourceListControlsState()
+  const store = useResourceListUiStore()
+  const listbox = useSyncExternalStore(store.subscribeListbox, store.getListboxSnapshot, store.getListboxSnapshot)
+  const view = useResourceListView<TestItem>()
   return (
     <output data-testid="inspector">
       {JSON.stringify({
-        activeId: state.activeId,
-        query: state.query,
-        filters: state.filters,
-        collapsedGroups: state.collapsedGroups,
-        selectedId: state.selectedId,
-        renamingId: state.renamingId,
+        activeId: listbox.activeId,
+        query: controls.query,
+        filters: controls.filters,
+        collapsedGroups: [
+          ...view.sections.filter((section) => section.collapsed).map((section) => section.section.id),
+          ...view.groups.filter((group) => group.collapsed).map((group) => group.group.id)
+        ],
+        selectedId: listbox.selectedId,
         names: view.items.map((item) => item.name),
         visibleNames: view.visibleItems.map((item) => item.name),
         groups: view.groups.map((group) => group.group.id),
@@ -314,9 +322,8 @@ describe('ResourceList', () => {
     expect(ITEMS.map((item) => item.id).join(',')).toBe(originalOrder)
   })
 
-  it('renders an empty-group label only while a seeded empty group is expanded', async () => {
+  it('renders one placeholder row inside an expanded seeded empty group', () => {
     const Provider = ResourceList.Provider<TestItem>
-    const user = userEvent.setup()
 
     render(
       <Provider
@@ -327,11 +334,11 @@ describe('ResourceList', () => {
             label: 'Empty Assistant'
           }
         ]}
-        groupEmptyLabel="No conversations"
         groupBy={(item) => ({ id: item.kind, label: item.kind })}>
         <ResourceList.Frame>
           <Inspector />
           <ResourceList.Body<TestItem>
+            emptyGroupLabel="No chats"
             renderItem={(item) => (
               <ResourceList.Item item={item}>
                 <span>{item.name}</span>
@@ -343,7 +350,7 @@ describe('ResourceList', () => {
     )
 
     expect(screen.getByRole('button', { name: 'Empty Assistant' })).toBeInTheDocument()
-    expect(screen.getByText('No conversations')).toBeInTheDocument()
+    expect(screen.getByText('No chats')).toBeInTheDocument()
     expect(screen.queryByText('No Resources')).not.toBeInTheDocument()
     expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
       names: [],
@@ -351,12 +358,11 @@ describe('ResourceList', () => {
       groups: ['assistant-empty']
     })
 
-    await user.click(screen.getByRole('button', { name: 'Empty Assistant' }))
-
-    expect(screen.queryByText('No conversations')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Empty Assistant' }))
+    expect(screen.queryByText('No chats')).not.toBeInTheDocument()
   })
 
-  it('keeps seeded groups before item-derived groups and toggles empty select-first groups', () => {
+  it('keeps seeded groups before item-derived groups and toggles empty select-first groups', async () => {
     const Provider = ResourceList.Provider<TestItem>
     const onGroupHeaderSelectItem = vi.fn()
     const onCollapsedStateChange = vi.fn()
@@ -394,8 +400,10 @@ describe('ResourceList', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Empty Topic' }))
 
+    await waitFor(() => {
+      expect(onCollapsedStateChange).toHaveBeenCalledWith(['empty-topic'])
+    })
     expect(onGroupHeaderSelectItem).not.toHaveBeenCalled()
-    expect(onCollapsedStateChange).toHaveBeenCalledWith(['empty-topic'])
   })
 
   it('ignores invalid controlled collapsed state from stale persisted cache', () => {
@@ -427,7 +435,7 @@ describe('ResourceList', () => {
     })
   })
 
-  it('lets callers handle empty select-first group clicks', () => {
+  it('lets callers handle empty select-first group clicks', async () => {
     const Provider = ResourceList.Provider<TestItem>
     const onEmptyGroupHeaderClick = vi.fn()
     const onCollapsedStateChange = vi.fn()
@@ -460,18 +468,20 @@ describe('ResourceList', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Empty Topic' }))
 
-    expect(onEmptyGroupHeaderClick).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'empty-topic', label: 'Empty Topic' })
-    )
+    await waitFor(() => {
+      expect(onEmptyGroupHeaderClick).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'empty-topic', label: 'Empty Topic' })
+      )
+    })
     expect(onCollapsedStateChange).not.toHaveBeenCalled()
   })
 
-  it('keeps resource actions stable when local filter state changes', () => {
+  it('keeps resource action consumers isolated from local filter state changes', () => {
     const actionRefs: unknown[] = []
     const Provider = ResourceList.Provider<TestItem>
 
     function ActionProbe() {
-      const { actions } = useResourceList<TestItem>()
+      const actions = useResourceListActions()
       actionRefs.push(actions)
       return (
         <button type="button" onClick={() => actions.toggleFilter('pinned')}>
@@ -502,22 +512,20 @@ describe('ResourceList', () => {
     expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
       filters: ['pinned']
     })
-    expect(actionRefs.length).toBeGreaterThanOrEqual(2)
-    expect(actionRefs.at(-1)).toBe(actionRefs[0])
+    expect(actionRefs).toHaveLength(1)
   })
 
   it('updates only affected rows when selection changes locally', () => {
     const renderCounts = new Map<string, number>()
     const Provider = ResourceList.Provider<TestItem>
 
-    function Row({ context, item }: { context: ResourceListContextValue<TestItem>; item: TestItem }) {
+    function Row({ item }: { item: TestItem }) {
       const rowState = useResourceListRowState(item.id)
       renderCounts.set(item.id, (renderCounts.get(item.id) ?? 0) + 1)
 
       return (
         <ResourceList.Item item={item}>
           <span data-testid={`${item.id}-state`}>{rowState.selected ? 'selected' : 'idle'}</span>
-          <span data-testid={`${item.id}-context-selected`}>{context.state.selectedId ?? 'none'}</span>
         </ResourceList.Item>
       )
     }
@@ -525,7 +533,7 @@ describe('ResourceList', () => {
     render(
       <Provider items={ITEMS}>
         <ResourceList.Frame>
-          <ResourceList.VirtualItems<TestItem> renderItem={(item, context) => <Row context={context} item={item} />} />
+          <ResourceList.VirtualItems<TestItem> renderItem={(item) => <Row item={item} />} />
         </ResourceList.Frame>
       </Provider>
     )
@@ -538,7 +546,6 @@ describe('ResourceList', () => {
 
     fireEvent.click(screen.getByTestId('alpha-state').closest('[role="option"]') as HTMLElement)
     expect(screen.getByTestId('alpha-state')).toHaveTextContent('selected')
-    expect(screen.getByTestId('alpha-context-selected')).toHaveTextContent('alpha')
     expect(Object.fromEntries(renderCounts)).toEqual({
       alpha: 2,
       beta: 1,
@@ -548,8 +555,6 @@ describe('ResourceList', () => {
     fireEvent.click(screen.getByTestId('beta-state').closest('[role="option"]') as HTMLElement)
     expect(screen.getByTestId('alpha-state')).toHaveTextContent('idle')
     expect(screen.getByTestId('beta-state')).toHaveTextContent('selected')
-    expect(screen.getByTestId('alpha-context-selected')).toHaveTextContent('beta')
-    expect(screen.getByTestId('beta-context-selected')).toHaveTextContent('beta')
     expect(Object.fromEntries(renderCounts)).toEqual({
       alpha: 3,
       beta: 2,
@@ -841,7 +846,7 @@ describe('ResourceList', () => {
     const Provider = ResourceList.Provider<TestItem>
 
     function Row({ item }: { item: TestItem }) {
-      const { actions } = useResourceList<TestItem>()
+      const actions = useResourceListActions()
       return (
         <ResourceList.Item item={item}>
           <ResourceList.RenameField item={item} aria-label={`Rename ${item.name}`} />
@@ -861,7 +866,6 @@ describe('ResourceList', () => {
     render(
       <Provider items={ITEMS} onRenameItem={onRenameItem}>
         <ResourceList.Frame>
-          <Inspector />
           <ResourceList.VirtualItems<TestItem> renderItem={(item) => <Row item={item} />} />
         </ResourceList.Frame>
       </Provider>
@@ -874,9 +878,7 @@ describe('ResourceList', () => {
     fireEvent.keyDown(input, { key: 'Enter' })
 
     expect(onRenameItem).toHaveBeenCalledWith('alpha', 'Renamed Alpha')
-    expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
-      renamingId: null
-    })
+    expect(screen.queryByLabelText('Rename Alpha')).not.toBeInTheDocument()
   })
 
   it('keeps inline rename open while an IME is composing so the pinyin buffer is never committed', () => {
@@ -884,7 +886,7 @@ describe('ResourceList', () => {
     const Provider = ResourceList.Provider<TestItem>
 
     function Row({ item }: { item: TestItem }) {
-      const { actions } = useResourceList<TestItem>()
+      const actions = useResourceListActions()
       return (
         <ResourceList.Item item={item}>
           <ResourceList.RenameField item={item} aria-label={`Rename ${item.name}`} />
@@ -987,7 +989,7 @@ describe('ResourceList', () => {
     const Provider = ResourceList.Provider<TestItem>
 
     function Row({ item }: { item: TestItem }) {
-      const { actions } = useResourceList<TestItem>()
+      const actions = useResourceListActions()
       const rowState = useResourceListRowState(item.id)
 
       return (
@@ -1004,7 +1006,6 @@ describe('ResourceList', () => {
     render(
       <Provider items={ITEMS} onRenameItem={onRenameItem}>
         <ResourceList.Frame>
-          <Inspector />
           <ResourceList.VirtualItems<TestItem> renderItem={(item) => <Row item={item} />} />
         </ResourceList.Frame>
       </Provider>
@@ -1017,9 +1018,6 @@ describe('ResourceList', () => {
 
     expect(onRenameItem).not.toHaveBeenCalled()
     expect(screen.queryByLabelText('Rename Alpha')).not.toBeInTheDocument()
-    expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
-      renamingId: null
-    })
   })
 
   it('renders context menu actions from resource item composition', async () => {
@@ -1036,7 +1034,7 @@ describe('ResourceList', () => {
     ]
 
     function Row({ item }: { item: TestItem }) {
-      const { actions } = useResourceList<TestItem>()
+      const actions = useResourceListActions()
       return (
         <ResourceListActionContextMenu
           item={item}
@@ -1762,6 +1760,57 @@ describe('ResourceList', () => {
     })
   })
 
+  it('activates an inactive group without changing expansion before toggling the active group', async () => {
+    const onGroupHeaderActivate = vi.fn()
+    const Provider = ResourceList.Provider<TestItem>
+
+    function ActivationHarness() {
+      const [activeGroupId, setActiveGroupId] = useState<string | null>(null)
+      const [collapsedGroups, setCollapsedGroups] = useState<string[]>(['session'])
+
+      return (
+        <Provider
+          items={ITEMS}
+          groupBy={(item) => ({ id: item.kind, label: item.kind })}
+          groupHeaderClickBehavior="select-first-then-toggle"
+          getGroupHeaderSelected={(group) => group.id === activeGroupId}
+          onGroupHeaderActivate={(group) => {
+            onGroupHeaderActivate(group.id)
+            setActiveGroupId(group.id)
+          }}
+          collapsedState={collapsedGroups}
+          onCollapsedStateChange={setCollapsedGroups}>
+          <ResourceList.Frame>
+            <ResourceList.VirtualItems<TestItem>
+              renderItem={(item) => (
+                <ResourceList.Item item={item}>
+                  <span>{item.name}</span>
+                </ResourceList.Item>
+              )}
+            />
+          </ResourceList.Frame>
+        </Provider>
+      )
+    }
+
+    render(<ActivationHarness />)
+
+    const sessionGroupButton = screen.getByRole('button', { name: 'session' })
+    const sessionChevron = chevronFor(sessionGroupButton)
+    expect(sessionChevron).toHaveAttribute('aria-expanded', 'false')
+
+    fireEvent.click(sessionGroupButton)
+
+    await waitFor(() => expect(onGroupHeaderActivate).toHaveBeenCalledWith('session'))
+    expect(sessionGroupButton).toHaveAttribute('aria-current', 'true')
+    expect(sessionChevron).toHaveAttribute('aria-expanded', 'false')
+
+    fireEvent.click(sessionGroupButton)
+
+    expect(onGroupHeaderActivate).toHaveBeenCalledTimes(1)
+    expect(sessionChevron).toHaveAttribute('aria-expanded', 'true')
+  })
+
   it('folds a group open from its chevron without selecting anything in it', () => {
     const onGroupHeaderSelectItem = vi.fn()
     const Provider = ResourceList.Provider<TestItem>
@@ -2079,6 +2128,49 @@ describe('ResourceList', () => {
     })
   })
 
+  it('notifies once when the shared list viewport reaches the pagination threshold', () => {
+    const onEndReached = vi.fn()
+    const Provider = ResourceList.Provider<TestItem>
+    const renderList = (callback: () => void) => (
+      <Provider items={ITEMS}>
+        <ResourceList.Frame>
+          <ResourceList.Body<TestItem>
+            onEndReached={callback}
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+    const view = render(renderList(onEndReached))
+
+    const viewport = screen.getByRole('listbox')
+    expect(screen.queryByRole('button', { name: 'Show more' })).not.toBeInTheDocument()
+    expect(onEndReached).not.toHaveBeenCalled()
+    Object.defineProperties(viewport, {
+      clientHeight: { configurable: true, value: 200 },
+      scrollHeight: { configurable: true, value: 1000 },
+      scrollTop: { configurable: true, value: 0, writable: true }
+    })
+    fireEvent.scroll(viewport)
+    viewport.scrollTop = 700
+    fireEvent.scroll(viewport)
+    fireEvent.scroll(viewport)
+    expect(onEndReached).toHaveBeenCalledTimes(1)
+
+    view.rerender(renderList(() => onEndReached()))
+    expect(onEndReached).toHaveBeenCalledTimes(1)
+
+    viewport.scrollTop = 0
+    fireEvent.scroll(viewport)
+    viewport.scrollTop = 700
+    fireEvent.scroll(viewport)
+    expect(onEndReached).toHaveBeenCalledTimes(2)
+  })
+
   it('loads each group in configured increments and collapses it to the default count', () => {
     const Provider = ResourceList.Provider<TestItem>
     const items = Array.from({ length: 12 }, (_, index) => ({
@@ -2129,27 +2221,101 @@ describe('ResourceList', () => {
     expect(screen.getByText('Item 5')).toBeInTheDocument()
     expect(screen.queryByText('Item 6')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Show more' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Group' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Group' }))
+
+    expect(screen.getByText('Item 5')).toBeInTheDocument()
+    expect(screen.queryByText('Item 6')).not.toBeInTheDocument()
   })
 
-  it('restores the default visible count after a controlled group is collapsed and reopened', async () => {
+  it('loads the next remote page without applying the local group window', () => {
     const Provider = ResourceList.Provider<TestItem>
-    const user = userEvent.setup()
-    const items = Array.from({ length: 6 }, (_, index) => ({
-      id: `item-${index + 1}`,
-      name: `Item ${index + 1}`,
-      kind: 'session' as const,
+    const items = Array.from({ length: 5 }, (_, index) => ({
+      id: `remote-${index + 1}`,
+      name: `Remote ${index + 1}`,
+      kind: 'topic' as const,
       updatedAt: index
     }))
+    const remoteGroups = new ResourceListRemoteGroupService<TestItem>()
+    const registration = remoteGroups.register('remote')
+    const loadNext = vi.fn()
+    remoteGroups.update(registration, {
+      groupId: 'remote',
+      hasNext: true,
+      isLoading: false,
+      isRefreshing: false,
+      items,
+      loadNext,
+      queryKey: 'remote-query',
+      reset: vi.fn(),
+      retry: vi.fn()
+    })
 
-    function ControlledGroupHarness() {
+    render(
+      <Provider
+        items={items}
+        remoteGroups={remoteGroups}
+        defaultGroupVisibleCount={2}
+        groupBy={() => ({ id: 'remote', label: 'Remote group', count: 8 })}
+        groupShowMoreLabel="Show more">
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    expect(screen.getByText('Remote 5')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
+    expect(loadNext).toHaveBeenCalledOnce()
+  })
+
+  it('returns a remote group to its first page after folding and reopening it', async () => {
+    const user = userEvent.setup()
+    const Provider = ResourceList.Provider<TestItem>
+    const loadedItems = Array.from({ length: 10 }, (_, index) => ({
+      id: `remote-${index + 1}`,
+      name: `Remote ${index + 1}`,
+      kind: 'topic' as const,
+      updatedAt: index
+    }))
+    const remoteGroups = new ResourceListRemoteGroupService<TestItem>()
+    const registration = remoteGroups.register('remote')
+    const snapshot = {
+      groupId: 'remote',
+      hasNext: true,
+      isLoading: false,
+      isRefreshing: false,
+      items: loadedItems,
+      loadNext: vi.fn(),
+      queryKey: 'remote-query',
+      reset: vi.fn(),
+      retry: vi.fn()
+    }
+    snapshot.reset.mockImplementation(() => {
+      remoteGroups.update(registration, { ...snapshot, items: loadedItems.slice(0, 5) })
+    })
+    remoteGroups.update(registration, snapshot)
+
+    function RemoteGroupHarness() {
       const [collapsedState, setCollapsedState] = useState<string[]>([])
+      const snapshots = useSyncExternalStore(remoteGroups.subscribe, remoteGroups.getSnapshot, remoteGroups.getSnapshot)
+      const items = snapshots.flatMap((group) => group.items)
 
       return (
         <Provider
           items={items}
+          remoteGroups={remoteGroups}
           collapsedState={collapsedState}
           defaultGroupVisibleCount={5}
-          groupBy={() => ({ id: 'group', label: 'Group' })}
+          groupBy={() => ({ id: 'remote', label: 'Remote group', count: 12 })}
           groupShowMoreLabel="Show more"
           onCollapsedStateChange={setCollapsedState}>
           <ResourceList.Frame>
@@ -2165,18 +2331,163 @@ describe('ResourceList', () => {
       )
     }
 
-    render(<ControlledGroupHarness />)
+    render(<RemoteGroupHarness />)
 
-    await user.click(screen.getByRole('button', { name: 'Show more' }))
-    expect(screen.getByText('Item 6')).toBeInTheDocument()
+    expect(screen.getByText('Remote 10')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Group' }))
-    await user.click(screen.getByRole('button', { name: 'Group' }))
+    await user.click(screen.getByRole('button', { name: 'Remote group' }))
+    expect(screen.queryByText('Remote 1')).not.toBeInTheDocument()
 
-    expect(screen.queryByText('Item 6')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Remote group' }))
+    expect(screen.getByText('Remote 5')).toBeInTheDocument()
+    expect(screen.queryByText('Remote 6')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Show more' })).toBeInTheDocument()
   })
 
+  it('keeps populated remote groups stable during background refreshes', () => {
+    const Provider = ResourceList.Provider<TestItem>
+    const items = [{ id: 'remote-1', name: 'Remote 1', kind: 'topic' as const, updatedAt: 1 }]
+    const remoteGroups = new ResourceListRemoteGroupService<TestItem>()
+    const registration = remoteGroups.register('remote')
+    const snapshot = {
+      groupId: 'remote',
+      hasNext: false,
+      isLoading: false,
+      isRefreshing: true,
+      items,
+      loadNext: vi.fn(),
+      queryKey: 'remote-query',
+      reset: vi.fn(),
+      retry: vi.fn()
+    }
+    remoteGroups.update(registration, snapshot)
+
+    render(
+      <Provider
+        items={items}
+        remoteGroups={remoteGroups}
+        groupBy={() => ({ id: 'remote', label: 'Remote group', count: 1 })}
+        groupShowMoreLabel="Show more">
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    expect(screen.getByText('Remote 1')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'common.loading' })).not.toBeInTheDocument()
+
+    act(() => {
+      remoteGroups.update(registration, { ...snapshot, isLoading: true })
+    })
+    expect(screen.getByRole('button', { name: 'common.loading' })).toBeInTheDocument()
+  })
+
+  it('retries only the failed remote group', () => {
+    const Provider = ResourceList.Provider<TestItem>
+    const remoteGroups = new ResourceListRemoteGroupService<TestItem>()
+    const registration = remoteGroups.register('remote')
+    const retry = vi.fn()
+    remoteGroups.update(registration, {
+      error: new Error('Failed request'),
+      groupId: 'remote',
+      hasNext: false,
+      isLoading: false,
+      isRefreshing: false,
+      items: [],
+      loadNext: vi.fn(),
+      queryKey: 'remote-query',
+      reset: vi.fn(),
+      retry
+    })
+
+    render(
+      <Provider
+        items={[]}
+        remoteGroups={remoteGroups}
+        groupBy={() => ({ id: 'remote', label: 'Remote group' })}
+        groupSeeds={[{ id: 'remote', label: 'Remote group', count: 3 }]}
+        groupShowMoreLabel="Show more">
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem> renderItem={() => null} />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.retry' }))
+    expect(retry).toHaveBeenCalledOnce()
+  })
+
+  it('uses controlled remote query state without filtering the server result locally', () => {
+    const Provider = ResourceList.Provider<TestItem>
+    const allItems = Array.from({ length: 10 }, (_, index) => ({
+      id: `remote-${index + 1}`,
+      name: `Remote ${index + 1}`,
+      kind: 'topic' as const,
+      updatedAt: 10 - index
+    }))
+
+    function RemoteHarness() {
+      const [query, setQuery] = useState('does-not-match-loaded-items')
+
+      return (
+        <Provider
+          items={allItems.slice(0, 5)}
+          groupBy={() => ({ id: 'remote', label: 'Remote' })}
+          groupSeeds={[{ id: 'remote', label: 'Remote', count: 10 }]}
+          remoteSearch={{
+            query,
+            onQueryChange: setQuery
+          }}>
+          <ResourceList.Frame>
+            <Inspector />
+            <ResourceList.VirtualItems<TestItem>
+              renderItem={(item) => (
+                <ResourceList.Item item={item}>
+                  <span>{item.name}</span>
+                </ResourceList.Item>
+              )}
+            />
+          </ResourceList.Frame>
+        </Provider>
+      )
+    }
+
+    render(<RemoteHarness />)
+
+    expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
+      query: 'does-not-match-loaded-items',
+      names: ['Remote 1', 'Remote 2', 'Remote 3', 'Remote 4', 'Remote 5']
+    })
+  })
+
+  it('preserves a remote query when the requested item already belongs to its result', () => {
+    const Provider = ResourceList.Provider<TestItem>
+    const onQueryChange = vi.fn()
+
+    render(
+      <Provider
+        items={[{ id: 'matching', name: 'Matching', kind: 'topic', updatedAt: 1 }]}
+        groupBy={() => ({ id: 'remote', label: 'Remote' })}
+        groupSeeds={[{ id: 'remote', label: 'Remote', count: 1 }]}
+        revealRequest={{ itemId: 'matching', requestId: 1, clearQuery: true }}
+        remoteSearch={{
+          query: 'match',
+          onQueryChange
+        }}>
+        <Inspector />
+      </Provider>
+    )
+
+    expect(onQueryChange).not.toHaveBeenCalled()
+    expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({ query: 'match' })
+  })
   it('toggles every group in a section from a menu item without collapsing the section', () => {
     const Provider = ResourceList.Provider<TestItem & { groupId: string }>
     const items = [

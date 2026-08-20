@@ -26,7 +26,7 @@ import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { ExportableMessage } from '@renderer/types/messageExport'
 import type { NotesTreeNode } from '@renderer/types/note'
-import type { Topic } from '@renderer/types/topic'
+import type { TopicReference } from '@renderer/types/topic'
 import type { ContentType, MessageContentStats, TopicContentStats } from '@renderer/utils/knowledge'
 import { analyzeMessageContent, CONTENT_TYPES, processMessageContent } from '@renderer/utils/knowledge'
 import { resolveKnowledgeFileMetadataEntryData } from '@renderer/utils/knowledgeFileEntry'
@@ -93,7 +93,7 @@ interface ContentTypeOption {
 type ContentSource =
   | { type: 'message'; data: ExportableMessage }
   | { type: 'messages'; data: { title: string; messages: ExportableMessage[] } }
-  | { type: 'topic'; data: Topic }
+  | { type: 'topic'; data: TopicReference }
   | { type: 'note'; data: NotesTreeNode }
 
 interface ShowParams {
@@ -543,7 +543,7 @@ const SaveToKnowledgePopup = {
     popup.show({ dialogTitle: title, source: { type: 'message', data: message }, sourceTitle: title }),
   showForMessages: (messages: ExportableMessage[], title: string): Promise<SaveResult | null> =>
     popup.show({ source: { type: 'messages', data: { title, messages } }, sourceTitle: title }),
-  showForTopic: (topic: Topic, title?: string): Promise<SaveResult | null> =>
+  showForTopic: (topic: TopicReference, title?: string): Promise<SaveResult | null> =>
     popup.show({ dialogTitle: title, source: { type: 'topic', data: topic }, sourceTitle: title }),
   showForNote: (note: NotesTreeNode, title?: string): Promise<SaveResult | null> =>
     popup.show({ dialogTitle: title, source: { type: 'note', data: note }, sourceTitle: title })

@@ -1,12 +1,12 @@
 import { dataApiService } from '@data/DataApiService'
 import type { Topic } from '@renderer/types/topic'
-import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import {
   MockUseDataApiUtils,
   mockUseDataChange,
   mockUseInfiniteQuery,
   mockUseInvalidateCache,
+  mockUseMutation,
   mockUseQuery,
   mockUseWriteCache
 } from '@test-mocks/renderer/useDataApi'
@@ -16,10 +16,10 @@ import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import {
   getTopicMessages,
   useActiveTopic,
-  useLatestTopic,
   useTopicById,
   useTopicMutations,
-  useTopics
+  useTopics,
+  useTopicStats
 } from '../useTopic'
 
 const mockCloseConversationTabs = vi.hoisted(() => vi.fn())
@@ -49,17 +49,6 @@ const apiMessage = (id: string, isContextBoundary = false) => ({
   stats: null,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z'
-})
-
-const createApiTopic = (overrides: Partial<ApiTopic> = {}): ApiTopic => ({
-  id: 'topic-1',
-  name: 'Topic',
-  isNameManuallyEdited: false,
-  orderKey: 'a0',
-  lastActivityAt: '2026-01-01T00:00:00.000Z',
-  createdAt: '2026-01-01T00:00:00.000Z',
-  updatedAt: '2026-01-01T00:00:00.000Z',
-  ...overrides
 })
 
 describe('getTopicMessages', () => {
@@ -154,151 +143,14 @@ describe('useTopics', () => {
     vi.clearAllMocks()
   })
 
-  it('disables loaded-page revalidation while a load-all topic chain is still growing', () => {
-    renderHook(() => useTopics({ loadAll: true }))
-
-    expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/topics', {
-      query: undefined,
-      limit: 200,
-      enabled: undefined,
-      swrOptions: { revalidateAll: false, revalidateFirstPage: false }
-    })
-  })
-
-  it('flips revalidateAll on once a load-all topic chain is fully loaded', () => {
-    mockUseInfiniteQuery.mockReturnValue({
-      pages: [{ items: [{ id: 'topic-a' }] }],
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined,
-      hasNext: false,
-      loadNext: vi.fn(),
-      refresh: vi.fn().mockResolvedValue(undefined),
-      reset: vi.fn(),
-      mutate: vi.fn().mockResolvedValue(undefined)
-    } as never)
-
-    renderHook(() => useTopics({ loadAll: true }))
-
-    expect(mockUseInfiniteQuery).toHaveBeenLastCalledWith('/topics', {
-      query: undefined,
-      limit: 200,
-      enabled: undefined,
-      swrOptions: { revalidateAll: true, revalidateFirstPage: false }
-    })
-  })
-
-  it('keeps progressive topic sources on first-page revalidation', () => {
-    renderHook(() => useTopics())
-
-    expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/topics', {
-      query: undefined,
-      limit: 50,
-      enabled: undefined,
-      swrOptions: { revalidateAll: false, revalidateFirstPage: true }
-    })
-  })
-
   it('converges the topic list for every notification regardless of entity hints', () => {
-    renderHook(() => useTopics())
-    const mutate = mockUseInfiniteQuery.mock.results.at(-1)?.value.mutate
+    renderHook(() => useTopics({ pinned: false, sortBy: 'lastActivityAt' }))
+    const refresh = mockUseInfiniteQuery.mock.results.at(-1)?.value.refresh
     const listener = mockUseDataChange.mock.calls.at(-1)?.[1]
 
     listener?.([{ endpoint: '/topics', kind: 'projection', entityIds: [] }])
 
-    expect(mutate).toHaveBeenCalled()
-  })
-
-  it('does not revalidate previously loaded pages while the load-all chain grows', () => {
-    // Simulate a multi-page loadAll: each render grows `pages` by one and
-    // keeps `hasNext` true until the final page. The auto-paginate effect
-    // drives `loadNext`; we assert that across every growth render the
-    // loaded-page revalidation stays disabled: `revalidateAll` prevents a
-    // quadratic re-fetch of earlier pages, while `revalidateFirstPage`
-    // prevents one redundant page-0 request per `loadNext`.
-    const loadNext = vi.fn()
-    let pages: Array<{ items: Array<{ id: string }>; nextCursor?: string }> = [
-      { items: [{ id: 't1' }], nextCursor: 'c1' }
-    ]
-    let hasNext = true
-
-    mockUseInfiniteQuery.mockImplementation(
-      () =>
-        ({
-          pages,
-          isLoading: false,
-          isRefreshing: false,
-          error: undefined,
-          hasNext,
-          loadNext,
-          refresh: vi.fn().mockResolvedValue(undefined),
-          reset: vi.fn(),
-          mutate: vi.fn().mockResolvedValue(undefined)
-        }) as never
-    )
-
-    const { rerender } = renderHook(() => useTopics({ loadAll: true, pageSize: 1 }))
-
-    // Page 1 → 2
-    pages = [...pages, { items: [{ id: 't2' }], nextCursor: 'c2' }]
-    act(() => rerender())
-    // Page 2 → 3 (final)
-    pages = [...pages, { items: [{ id: 't3' }] }]
-    hasNext = false
-    act(() => rerender())
-
-    // The auto-paginate effect drives loadNext; the key regression check is
-    // that neither previous pages nor page 0 are revalidated during growth.
-    expect(loadNext).toHaveBeenCalled()
-
-    // All calls during growth (every call except the final post-fully-loaded
-    // re-render where the effect flips revalidateAll on) must keep both
-    // growth-time revalidation modes off.
-    const growthCalls = mockUseInfiniteQuery.mock.calls.slice(0, -1)
-    expect(growthCalls.length).toBeGreaterThan(0)
-    for (const call of growthCalls) {
-      expect(call[1]).toMatchObject({ swrOptions: { revalidateAll: false, revalidateFirstPage: false } })
-    }
-    // The final call — after the chain is fully loaded — flips revalidateAll on.
-    const lastCall = mockUseInfiniteQuery.mock.calls[mockUseInfiniteQuery.mock.calls.length - 1]
-    expect(lastCall[1]).toMatchObject({ swrOptions: { revalidateAll: true, revalidateFirstPage: false } })
-  })
-
-  it('reuses deeply equal topic entities by id while allowing their order to change', () => {
-    const topicA = createApiTopic({ id: 'topic-a', name: 'Topic A' })
-    const topicB = createApiTopic({ id: 'topic-b', name: 'Topic B' })
-    let pages = [{ items: [topicA, topicB] }]
-    mockUseInfiniteQuery.mockImplementation(
-      () =>
-        ({
-          pages,
-          isLoading: false,
-          isRefreshing: false,
-          error: undefined,
-          hasNext: false,
-          loadNext: vi.fn(),
-          refresh: vi.fn().mockResolvedValue(undefined),
-          reset: vi.fn(),
-          mutate: vi.fn().mockResolvedValue(undefined)
-        }) as never
-    )
-
-    const { result, rerender } = renderHook(() => useTopics())
-    const firstTopics = result.current.topics
-
-    pages = [{ items: [{ ...topicB }, { ...topicA }] }]
-    rerender()
-
-    expect(result.current.topics).not.toBe(firstTopics)
-    expect(result.current.topics[0]).toBe(firstTopics[1])
-    expect(result.current.topics[1]).toBe(firstTopics[0])
-
-    const reorderedTopics = result.current.topics
-    pages = [{ items: [{ ...topicB, lastActivityAt: '2026-01-02T00:00:00.000Z' }, { ...topicA }] }]
-    rerender()
-
-    expect(result.current.topics[0]).not.toBe(reorderedTopics[0])
-    expect(result.current.topics[1]).toBe(reorderedTopics[1])
+    expect(refresh).toHaveBeenCalled()
   })
 })
 
@@ -342,6 +194,27 @@ describe('useTopicMutations', () => {
     expect(mockCloseConversationTabs).toHaveBeenCalledWith('assistants', ['topic-a'])
   })
 
+  it('refreshes stats only when a topic patch changes its name or owner', () => {
+    renderHook(() => useTopicMutations())
+
+    const updateMutationCall = mockUseMutation.mock.calls.find(
+      ([method, path]) => method === 'PATCH' && path === '/topics/:id'
+    )
+    const refresh = updateMutationCall?.[2]?.refresh as (context: {
+      args: { params: { id: string }; body: Record<string, unknown> }
+    }) => unknown[]
+
+    expect(refresh({ args: { params: { id: 'topic-a' }, body: { name: 'Renamed topic' } } })).toEqual([
+      '/topics',
+      '/topics/stats',
+      '/topics/topic-a'
+    ])
+    expect(refresh({ args: { params: { id: 'topic-a' }, body: { isNameManuallyEdited: true } } })).toEqual([
+      '/topics',
+      '/topics/topic-a'
+    ])
+  })
+
   it('deletes selected topics through comma-separated query ids', async () => {
     const response = { deletedIds: ['topic-a', 'topic-b'], deletedCount: 2 }
     const deleteTrigger = vi.fn().mockResolvedValue(response)
@@ -368,14 +241,6 @@ describe('useTopicMutations', () => {
     expect(deleted).toBe(response)
   })
 
-  it('exposes selected-topic delete loading through isDeleting', () => {
-    MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/topics', vi.fn(), { isLoading: true })
-
-    const { result } = renderHook(() => useTopicMutations())
-
-    expect(result.current.isDeleting).toBe(true)
-  })
-
   it('batch updates topics and returns per-topic settled results', async () => {
     const failed = new Error('move failed')
     vi.mocked(dataApiService.patch)
@@ -400,10 +265,10 @@ describe('useTopicMutations', () => {
     expect(settled[1]).toEqual({ status: 'rejected', reason: failed })
   })
 
-  it('moves a topic across assistants with one atomic write, then revalidates once', async () => {
-    const movedTopic = createApiTopic({ id: 'topic-a', assistantId: 'assistant-2', orderKey: 'a2' })
-    const moveTrigger = vi.fn().mockResolvedValue(movedTopic)
-    MockUseDataApiUtils.mockMutationWithTrigger('POST', '/topics/:id/move', moveTrigger)
+  it('moves a topic atomically, updates its by-id cache, then revalidates once', async () => {
+    const cachedTopic = { id: 'topic-a', assistantId: 'assistant-1', name: 'Topic A' }
+    MockUseDataApiUtils.seedCache('/topics/topic-a', cachedTopic as never)
+    const post = vi.mocked(dataApiService.post).mockResolvedValueOnce(undefined as never)
 
     const { result } = renderHook(() => useTopicMutations())
     const writeCacheSpy = mockUseWriteCache.mock.results[0].value as Mock
@@ -413,15 +278,19 @@ describe('useTopicMutations', () => {
       result.current.moveTopic('topic-a', { assistantId: 'assistant-2', anchor: { after: 'topic-d' } })
     )
 
-    expect(moveTrigger).toHaveBeenCalledExactlyOnceWith({
-      params: { id: 'topic-a' },
+    expect(post).toHaveBeenCalledWith('/topics/topic-a/move', {
       body: { assistantId: 'assistant-2', order: { after: 'topic-d' } }
     })
     expect(dataApiService.patch).not.toHaveBeenCalled()
-    expect(writeCacheSpy).toHaveBeenCalledWith('/topics/topic-a', movedTopic)
-    expect(writeCacheSpy.mock.invocationCallOrder[0]).toBeGreaterThan(moveTrigger.mock.invocationCallOrder[0])
+    // The atomic move commits before the by-id cache changes, so an open conversation follows
+    // the new assistant without exposing a partially moved server state.
+    expect(writeCacheSpy).toHaveBeenCalledWith('/topics/topic-a', {
+      ...cachedTopic,
+      assistantId: 'assistant-2'
+    })
+    expect(writeCacheSpy.mock.invocationCallOrder[0]).toBeGreaterThan(post.mock.invocationCallOrder[0])
     expect(invalidateSpy).toHaveBeenCalledTimes(1)
-    expect(invalidateSpy).toHaveBeenCalledWith(['/topics', '/topics/topic-a'])
+    expect(invalidateSpy).toHaveBeenCalledWith(['/topics', '/topics/stats', '/topics/topic-a'])
     expect(invalidateSpy.mock.invocationCallOrder[0]).toBeGreaterThan(writeCacheSpy.mock.invocationCallOrder[0])
   })
 
@@ -437,13 +306,11 @@ describe('useTopicMutations', () => {
     expect(patch).toHaveBeenCalledTimes(1)
     expect(patch).toHaveBeenCalledWith('/topics/topic-a/order', { body: { before: 'topic-b' } })
     expect(writeCacheSpy).not.toHaveBeenCalled()
-    expect(invalidateSpy).toHaveBeenCalledWith('/topics')
+    expect(invalidateSpy).toHaveBeenCalledWith(['/topics'])
   })
 
-  it('reconciles caches and rethrows when an atomic topic move fails', async () => {
-    const moveError = new Error('move failed')
-    const moveTrigger = vi.fn().mockRejectedValue(moveError)
-    MockUseDataApiUtils.mockMutationWithTrigger('POST', '/topics/:id/move', moveTrigger)
+  it('reconciles caches and rethrows when the atomic move fails', async () => {
+    vi.mocked(dataApiService.post).mockRejectedValueOnce(new Error('move failed'))
 
     const { result } = renderHook(() => useTopicMutations())
     const invalidateSpy = mockUseInvalidateCache.mock.results[0].value as Mock
@@ -457,27 +324,26 @@ describe('useTopicMutations', () => {
       }
     })
 
-    expect(caught).toBe(moveError)
-    expect(invalidateSpy).toHaveBeenCalledWith(['/topics', '/topics/topic-a'])
+    // Rethrown so the caller can roll its optimistic UI back.
+    expect(caught).toEqual(new Error('move failed'))
+    expect(invalidateSpy).toHaveBeenCalledWith(['/topics', '/topics/stats', '/topics/topic-a'])
   })
 })
 
-describe('useLatestTopic', () => {
+describe('useTopicStats', () => {
   beforeEach(() => {
     MockUseDataApiUtils.resetMocks()
     vi.clearAllMocks()
   })
 
-  it('keeps first-entry restore gated while cached latest topic is revalidating', () => {
-    MockUseDataApiUtils.mockQueryResult('/topics/latest', {
-      data: { topic: { id: 'topic-a' } } as never,
-      isRefreshing: true
-    })
+  it('refetches mounted stats when Main publishes a stats change', () => {
+    renderHook(() => useTopicStats())
+    const refetch = mockUseQuery.mock.results.at(-1)?.value.refetch
+    const listener = mockUseDataChange.mock.calls.at(-1)?.[1]
 
-    const { result } = renderHook(() => useLatestTopic())
+    listener?.([{ endpoint: '/topics/stats' }])
 
-    expect(result.current.latestTopic?.id).toBe('topic-a')
-    expect(result.current.isLoading).toBe(true)
+    expect(refetch).toHaveBeenCalled()
   })
 })
 
@@ -489,7 +355,7 @@ describe('useActiveTopic', () => {
 
   it('reports not-loading while idle, so first-entry restore is never gated on the topic list', () => {
     // Core of the /latest fast path: with no active id yet the hook resolves the active
-    // topic by id (not by scanning the loadAll list), so it is not "loading" and the
+    // topic by id (not by scanning a paged list), so it is not "loading" and the
     // first-entry effect is free to resume the latest topic immediately.
     const { result } = renderHook(() => useActiveTopic({ activeTopicId: null, setActiveTopicId: vi.fn() }))
 

@@ -21,7 +21,7 @@ import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
 import { BrushCleaning, Edit3, PinIcon, PinOffIcon, Plus, Smile, Tags, Trash2 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -42,21 +42,18 @@ const ASSISTANT_ENTITY_CLEAR_TOPICS_ACTION_ID = 'assistant-entity.clear-topics'
 const ASSISTANT_ENTITY_TOGGLE_GROUPING_ACTION_ID = 'assistant-entity.toggle-grouping'
 const ASSISTANT_ENTITY_ICON_TYPE_ACTION_ID = 'assistant-entity.icon-type'
 const ASSISTANT_ENTITY_DELETE_ACTION_ID = 'assistant-entity.delete'
-const UNLINKED_ASSISTANT_ENTITY_ID = 'assistant-entity:unlinked'
-
 type AssistantResourceListProps = {
   activeAssistantId?: string | null
   dataEnabled?: boolean
   historyRecordsActive?: boolean
   manageAssistantsActive?: boolean
   assistantTopicsSource: AssistantTopicsSource
-  onAddAssistant?: () => void | Promise<void>
+  onAddAssistant: () => void | Promise<void>
   onOpenHistoryRecords?: () => void
   onManageAssistants?: () => void | Promise<void>
   onSelectTopic: (topic: Topic) => void | boolean
-  onClearActiveTopic: () => void
   onSelectedAssistantClick?: () => void | Promise<void>
-  onCreateTopic: (assistantId: string | null) => Promise<Topic | null>
+  onCreateTopic: (assistantId: string) => Promise<Topic | null>
   /**
    * Called after the currently-active assistant is deleted so the classic-layout page
    * can settle (select the latest remaining topic / fall back). This is the old
@@ -75,7 +72,6 @@ export function AssistantResourceList({
   onOpenHistoryRecords,
   onManageAssistants,
   onSelectTopic,
-  onClearActiveTopic,
   onSelectedAssistantClick,
   onCreateTopic,
   onActiveAssistantDeleted
@@ -85,32 +81,23 @@ export function AssistantResourceList({
   const [assistantIconType, setAssistantIconType] = usePreference('assistant.icon_type')
   const [defaultModelId] = usePreference('chat.default_model_id')
   const [topicDisplayMode, setTopicDisplayMode] = usePreference('topic.tab.display_mode')
+  const [topicSortBy, setTopicSortBy] = usePreference('topic.sort_type')
   const [collapsedGroupIds, setCollapsedGroupIds] = usePersistCache('ui.assistant.entity_rail.expansion')
   // Keep the persisted legacy token (`tags`) for preference compatibility; runtime grouping uses Group rows.
   const isGroupGrouping = assistantSortType === 'tags'
   const {
     assistants,
-    hasLoaded: hasAssistantsLoaded,
     isLoading: isAssistantsLoading,
     error: assistantsError,
     refetch: refreshAssistants
   } = useAssistantsApi()
+  const { loadLatestTopic } = assistantTopicsSource
   const {
     groups: assistantGroups,
     isLoading: isAssistantGroupsLoading,
     error: assistantGroupsError
   } = useGroups('assistant', { enabled: dataEnabled && isGroupGrouping })
   const { reorderGroup: reorderAssistantGroup } = useGroupReorder()
-  const {
-    topics: apiTopics,
-    rendererTopics,
-    isLoadingAll: isTopicsLoadingAll,
-    isFullyLoaded: isTopicsFullyLoaded,
-    isRefreshing: isTopicsRefreshing,
-    error: topicsError,
-    loadLatestTopic
-  } = assistantTopicsSource
-  const { isLoading: isTopicPinsLoading, pinnedIds: topicPinnedIds } = usePins('topic', { enabled: dataEnabled })
   const {
     isLoading: isAssistantPinsLoading,
     isMutating: isAssistantPinsMutating,
@@ -120,32 +107,17 @@ export function AssistantResourceList({
   } = usePins('assistant', { enabled: dataEnabled })
   const closeConversationTabs = useCloseConversationTabs()
   const { deleteAssistant } = useAssistantMutations()
-  const { deleteTopicsByAssistantId, refreshTopics } = useTopicMutations()
-  const topicPinnedIdSet = useMemo(() => new Set(topicPinnedIds), [topicPinnedIds])
+  const { deleteTopicsByAssistantId } = useTopicMutations()
   const [deletingAssistantId, setDeletingAssistantId] = useState<string | null>(null)
   const [clearingTopicsAssistantId, setClearingTopicsAssistantId] = useState<string | null>(null)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
   const assistantPinnedIdSet = useMemo(() => new Set(assistantPinnedIds), [assistantPinnedIds])
-  const assistantIdSet = useMemo(() => new Set(assistants.map((assistant) => assistant.id)), [assistants])
   const assistantGroupById = useMemo(
     () => new Map(assistantGroups.map((group) => [group.id, group] as const)),
     [assistantGroups]
   )
   const isAssistantPinActionDisabled = isAssistantPinsLoading || isAssistantPinsRefreshing || isAssistantPinsMutating
-  // The shared mapped list carries `pinned: false`, so only pinned rows need a copy.
-  const topics = useMemo(
-    () => rendererTopics.map((topic) => (topicPinnedIdSet.has(topic.id) ? { ...topic, pinned: true } : topic)),
-    [rendererTopics, topicPinnedIdSet]
-  )
-  const topicsRef = useRef(topics)
-  useEffect(() => {
-    topicsRef.current = topics
-  }, [topics])
-
-  const createTopicForAssistant = useCallback(
-    (assistantId: string) => onCreateTopic(assistantId === UNLINKED_ASSISTANT_ENTITY_ID ? null : assistantId),
-    [onCreateTopic]
-  )
+  const createTopicForAssistant = useCallback((assistantId: string) => onCreateTopic(assistantId), [onCreateTopic])
   const handleActivationError = useCallback(
     (error: unknown) => {
       logger.error('Failed to activate assistant resource from classic-layout rail', { error })
@@ -164,33 +136,9 @@ export function AssistantResourceList({
     },
     [createTopicForAssistant, handleActivationError, onSelectTopic]
   )
-  const getAssistantEntityId = useCallback(
-    (assistantId: string | null | undefined) =>
-      assistantId && (!hasAssistantsLoaded || assistantIdSet.has(assistantId))
-        ? assistantId
-        : UNLINKED_ASSISTANT_ENTITY_ID,
-    [assistantIdSet, hasAssistantsLoaded]
-  )
-  const hasUnlinkedAssistantTopics = useMemo(
-    () => apiTopics.some((topic) => getAssistantEntityId(topic.assistantId) === UNLINKED_ASSISTANT_ENTITY_ID),
-    [apiTopics, getAssistantEntityId]
-  )
-  const entities = useMemo<ResourceEntityRailItem[]>(() => {
-    const unlinkedAssistantEntity: ResourceEntityRailItem[] = hasUnlinkedAssistantTopics
-      ? [
-          {
-            id: UNLINKED_ASSISTANT_ENTITY_ID,
-            name: t('chat.topics.group.unknown_assistant'),
-            tooltip: t('chat.topics.group.unknown_assistant_tip'),
-            reorderable: false
-            // No "new topic" action: this is only a display bucket for topics whose
-            // assistant is absent or no longer available.
-          }
-        ]
-      : []
-
-    return [
-      ...assistants.map((assistant) => {
+  const entities = useMemo<ResourceEntityRailItem[]>(
+    () =>
+      assistants.map((assistant) => {
         const group = assistant.groupId ? assistantGroupById.get(assistant.groupId) : undefined
         const icon = renderAssistantEntityIcon(
           assistantIconType,
@@ -225,36 +173,19 @@ export function AssistantResourceList({
           )
         }
       }),
-      ...unlinkedAssistantEntity
-    ]
-  }, [
-    assistantGroupById,
-    assistantIconType,
-    assistants,
-    assistantPinnedIdSet,
-    defaultModelId,
-    handleCreateTopic,
-    hasUnlinkedAssistantTopics,
-    t
-  ])
-
-  const getTopicAssistantId = useCallback(
-    (topic: Topic) => getAssistantEntityId(topic.assistantId),
-    [getAssistantEntityId]
+    [assistantGroupById, assistantIconType, assistants, assistantPinnedIdSet, defaultModelId, handleCreateTopic, t]
   )
-  const loadLatestTopicForAssistant = useCallback(
+
+  const loadLatestTopicForEntity = useCallback(
     async (assistantId: string) => {
-      const topic = await loadLatestTopic(assistantId === UNLINKED_ASSISTANT_ENTITY_ID ? null : assistantId)
+      const topic = await loadLatestTopic(assistantId)
       return topic ? mapApiTopicToRendererTopic(topic) : null
     },
     [loadLatestTopic]
   )
-  const activeAssistantEntityId = getAssistantEntityId(activeAssistantId)
   const { trigger: reorderAssistantOrder } = useMutation('PATCH', '/assistants/:id/order', { refresh: ['/assistants'] })
   const reorderAssistant = useCallback(
     async (assistantId: string, anchor: ResourceEntityRailReorderAnchor) => {
-      if (assistantId === UNLINKED_ASSISTANT_ENTITY_ID) return
-
       await reorderAssistantOrder({ params: { id: assistantId }, body: anchor })
     },
     [reorderAssistantOrder]
@@ -280,25 +211,18 @@ export function AssistantResourceList({
 
   const { items, listStatus, selectedId, handleSelect, handleReorder } = useResourceEntityRail({
     entities,
-    resources: topics,
-    getResourceParentId: getTopicAssistantId,
-    activeEntityId: activeAssistantEntityId,
-    isLoading:
-      isAssistantsLoading ||
-      (isGroupGrouping && isAssistantGroupsLoading) ||
-      isTopicsLoadingAll ||
-      !isTopicsFullyLoaded ||
-      isTopicPinsLoading,
-    isError: !!(assistantsError || (isGroupGrouping && assistantGroupsError) || topicsError),
+    activeEntityId: activeAssistantId,
+    isLoading: isAssistantsLoading,
+    isStructureLoading: isAssistantPinsLoading || (isGroupGrouping && isAssistantGroupsLoading),
+    isError: !!(assistantsError || (isGroupGrouping && assistantGroupsError)),
     onPickResource: onSelectTopic,
-    loadResourceForEntity: loadLatestTopicForAssistant,
+    loadResourceForEntity: loadLatestTopicForEntity,
     onCreateResource: createTopicForAssistant,
     onActivationError: handleActivationError,
     reorder: reorderAssistant,
     refetchEntities: refreshAssistants,
     onReorderError: handleReorderError
   })
-
   const openAssistantEditor = useCallback((assistantId: string) => {
     setEditDialogTarget({ kind: 'assistant', id: assistantId })
   }, [])
@@ -309,21 +233,17 @@ export function AssistantResourceList({
 
       try {
         await toggleAssistantPin(assistantId)
-        await refreshAssistants()
       } catch (err) {
         logger.error('Failed to toggle assistant pin from classic-layout rail', { assistantId, err })
         toast.error(t('common.error'))
       }
     },
-    [isAssistantPinActionDisabled, refreshAssistants, t, toggleAssistantPin]
+    [isAssistantPinActionDisabled, t, toggleAssistantPin]
   )
 
   const handleClearAssistantTopics = useCallback(
     async (assistantId: string) => {
       if (clearingTopicsAssistantId || deletingAssistantId) return
-
-      const targetTopics = topicsRef.current.filter((topic) => topic.assistantId === assistantId)
-      if (targetTopics.length === 0) return
 
       setClearingTopicsAssistantId(assistantId)
       try {
@@ -339,21 +259,7 @@ export function AssistantResourceList({
         })
         if (!confirmed) return
 
-        // Re-validate against the latest topics after the confirm dialog: the list may
-        // have changed while it was open, and TopicService.deleteByAssistantId() has no
-        // at-least-one guard of its own, so bail out if nothing is left to clear.
-        const latestTargetTopicIds = new Set(
-          topicsRef.current.filter((topic) => topic.assistantId === assistantId).map((topic) => topic.id)
-        )
-        if (latestTargetTopicIds.size === 0) return
-
         const result = await deleteTopicsByAssistantId(assistantId)
-        await refreshTopics()
-        if (activeAssistantId === assistantId) {
-          const nextTopic = await loadLatestTopic()
-          if (nextTopic) onSelectTopic(mapApiTopicToRendererTopic(nextTopic))
-          else onClearActiveTopic()
-        }
 
         toast.success(t('assistants.clear.success_title', { count: result.deletedCount }))
       } catch (err) {
@@ -363,17 +269,7 @@ export function AssistantResourceList({
         setClearingTopicsAssistantId(null)
       }
     },
-    [
-      clearingTopicsAssistantId,
-      deleteTopicsByAssistantId,
-      deletingAssistantId,
-      activeAssistantId,
-      loadLatestTopic,
-      onClearActiveTopic,
-      onSelectTopic,
-      refreshTopics,
-      t
-    ]
+    [clearingTopicsAssistantId, deleteTopicsByAssistantId, deletingAssistantId, t]
   )
 
   const handleDeleteAssistant = useCallback(
@@ -400,8 +296,6 @@ export function AssistantResourceList({
           await onActiveAssistantDeleted?.(assistantId)
         }
 
-        await refreshAssistants()
-        await refreshTopics()
         toast.success(t('common.delete_success'))
       } catch (err) {
         logger.error('Failed to delete assistant from classic-layout rail', { assistantId, err })
@@ -410,22 +304,11 @@ export function AssistantResourceList({
         setDeletingAssistantId(null)
       }
     },
-    [
-      activeAssistantId,
-      closeConversationTabs,
-      deleteAssistant,
-      deletingAssistantId,
-      onActiveAssistantDeleted,
-      refreshAssistants,
-      refreshTopics,
-      t
-    ]
+    [activeAssistantId, closeConversationTabs, deleteAssistant, deletingAssistantId, onActiveAssistantDeleted, t]
   )
 
   const getContextMenuActions = useCallback(
     (item: ResourceEntityRailItem): ResolvedAction[] => {
-      if (item.id === UNLINKED_ASSISTANT_ENTITY_ID) return []
-
       const pinned = assistantPinnedIdSet.has(item.id)
 
       return [
@@ -528,7 +411,7 @@ export function AssistantResourceList({
         variant="assistant"
         items={items}
         selectedId={selectedId}
-        selectedClickId={manageAssistantsActive ? null : activeAssistantEntityId}
+        selectedClickId={manageAssistantsActive ? null : activeAssistantId}
         selectionSuppressed={manageAssistantsActive || historyRecordsActive}
         status={listStatus}
         ariaLabel={t('assistants.abbr')}
@@ -537,7 +420,7 @@ export function AssistantResourceList({
         collapsedState={collapsedGroupIds}
         addIcon={<Plus />}
         addLabel={t('chat.add.assistant.title')}
-        onAdd={onAddAssistant ?? (() => handleCreateTopic(UNLINKED_ASSISTANT_ENTITY_ID))}
+        onAdd={onAddAssistant}
         headerActions={
           <TopicListOptionsMenu
             historyRecordsActive={historyRecordsActive}
@@ -546,6 +429,8 @@ export function AssistantResourceList({
             onChange={(nextMode) => void setTopicDisplayMode(nextMode)}
             onManageAssistants={onManageAssistants}
             onOpenHistoryRecords={onOpenHistoryRecords}
+            onSortByChange={(nextSortBy) => void setTopicSortBy(nextSortBy)}
+            sortBy={topicSortBy}
           />
         }
         onSelect={handleSelect}
@@ -553,7 +438,6 @@ export function AssistantResourceList({
         onCollapsedStateChange={setCollapsedGroupIds}
         onReorder={isGroupGrouping ? undefined : handleReorder}
         onGroupReorder={isGroupGrouping ? handleGroupReorder : undefined}
-        reorderEnabled={isTopicsFullyLoaded && !isTopicsLoadingAll && !isTopicsRefreshing}
         getContextMenuActions={getContextMenuActions}
         onContextMenuAction={handleContextMenuAction}
       />

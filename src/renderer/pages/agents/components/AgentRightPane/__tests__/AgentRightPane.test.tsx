@@ -29,6 +29,7 @@ const {
   getToolResultMock,
   fileSessionDiscardMock,
   fileSessionFlushMock,
+  fileSessionWaitForSaveAndDiscardMock,
   fileSessionState,
   fileTreeModelState,
   fileTreeModelStore,
@@ -46,6 +47,7 @@ const {
   getToolResultMock: vi.fn(),
   fileSessionDiscardMock: vi.fn(),
   fileSessionFlushMock: vi.fn().mockResolvedValue(undefined),
+  fileSessionWaitForSaveAndDiscardMock: vi.fn(),
   fileSessionState: {
     isDirty: false,
     isSaving: false,
@@ -307,6 +309,7 @@ vi.mock('@renderer/hooks/useFileEditSession', () => {
     },
     setDraft: vi.fn(),
     discard: fileSessionDiscardMock,
+    waitForSaveAndDiscard: fileSessionWaitForSaveAndDiscardMock,
     reload: vi.fn(),
     flush: fileSessionFlushMock,
     notifyExternalChange: vi.fn()
@@ -354,13 +357,6 @@ vi.mock('@renderer/hooks/agent/useAgentSessionCompaction', () => ({
 
 vi.mock('@renderer/hooks/agent/useAgentSessionContextUsage', () => ({
   useAgentSessionContextUsage: () => ({ percentage: null, usage: null })
-}))
-
-// A live turn: run-task rows render the status their events report. Staleness is covered where the
-// rule lives, in the projection tests.
-vi.mock('@renderer/hooks/agent/useAgentSessionStreamStatuses', () => ({
-  useAgentSessionStreamStatuses: (sessionIds: readonly string[]) =>
-    new Map(sessionIds.map((sessionId) => [sessionId, { isPending: true, status: 'streaming' }]))
 }))
 
 vi.mock('@renderer/hooks/command', () => ({
@@ -556,6 +552,9 @@ describe('AgentRightPane', () => {
     fileSessionState.isDirty = false
     fileSessionState.isSaving = false
     fileSessionState.saveError = undefined
+    fileSessionWaitForSaveAndDiscardMock.mockImplementation(async () => {
+      fileSessionDiscardMock()
+    })
     fileTreeModelState.hasLoaded = false
     fileTreeModelState.nodeById = new Map()
     fileTreeModelStore.listeners.clear()
@@ -1509,7 +1508,7 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('src/deep.ts')
   })
 
-  it('registers the dirty-navigation guard for navigation owned outside the pane', () => {
+  it('discards a dirty draft before navigation owned outside the pane', async () => {
     const onFileNavigationRequestChange = vi.fn()
     const renderPane = () => (
       <TestAgentRightPane
@@ -1528,13 +1527,66 @@ describe('AgentRightPane', () => {
     const requestNavigation = onFileNavigationRequestChange.mock.calls
       .map(([request]) => request)
       .filter(Boolean)
-      .at(-1) as ((transition: () => void) => void) | undefined
+      .at(-1) as ((transition: () => void) => Promise<void>) | undefined
     const transition = vi.fn()
 
-    act(() => requestNavigation?.(transition))
+    await act(async () => {
+      await requestNavigation?.(transition)
+    })
 
+    expect(fileSessionDiscardMock).toHaveBeenCalledOnce()
+    expect(transition).toHaveBeenCalledOnce()
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('waits for an in-flight save before discarding for external navigation', async () => {
+    let settleSave: (() => void) | undefined
+    fileSessionWaitForSaveAndDiscardMock.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          settleSave = () => {
+            fileSessionDiscardMock()
+            resolve()
+          }
+        })
+    )
+    const onFileNavigationRequestChange = vi.fn()
+    const renderPane = () => (
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}
+        onFileNavigationRequestChange={onFileNavigationRequestChange}>
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const { rerender } = render(renderPane())
+    fileSessionState.isDirty = true
+    fileSessionState.isSaving = true
+    rerender(renderPane())
+    const requestNavigation = onFileNavigationRequestChange.mock.calls
+      .map(([request]) => request)
+      .filter(Boolean)
+      .at(-1) as ((transition: () => void) => Promise<void>) | undefined
+    const transition = vi.fn()
+
+    let navigation: Promise<void> | undefined
+    act(() => {
+      navigation = requestNavigation?.(transition)
+    })
+    expect(fileSessionDiscardMock).not.toHaveBeenCalled()
     expect(transition).not.toHaveBeenCalled()
-    expect(screen.getByRole('dialog')).toHaveTextContent('agent.preview_pane.edit.leave.title')
+
+    await waitFor(() => expect(settleSave).toBeDefined())
+    settleSave?.()
+    await act(async () => {
+      await navigation
+    })
+
+    expect(fileSessionDiscardMock).toHaveBeenCalledOnce()
+    expect(transition).toHaveBeenCalledOnce()
   })
 
   it('keeps the current dirty file when navigation is cancelled', () => {
@@ -1609,7 +1661,7 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-edit-mode', 'preview')
   })
 
-  it('keeps the dirty file bound to its original workspace until the workspace transition is confirmed', () => {
+  it('discards the dirty draft when the workspace changes externally', async () => {
     fileTreeModelState.hasLoaded = true
     fileTreeModelState.nodeById = new Map([['README.md', { kind: 'file' }]])
     const renderPane = (workspacePath: string) => (
@@ -1629,13 +1681,11 @@ describe('AgentRightPane', () => {
     fileSessionState.isDirty = true
     rerender(renderPane('/workspace-b'))
 
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
-    expect(useArtifactFileTreeModelMock.mock.calls.at(-1)?.[0]).toMatchObject({ workspacePath: '/workspace-a' })
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.edit.leave.discard_and_continue' }))
-
-    expect(fileSessionDiscardMock).toHaveBeenCalledOnce()
-    expect(useArtifactFileTreeModelMock.mock.calls.at(-1)?.[0]).toMatchObject({ workspacePath: '/workspace-b' })
+    await waitFor(() => expect(fileSessionDiscardMock).toHaveBeenCalledOnce())
+    await waitFor(() =>
+      expect(useArtifactFileTreeModelMock.mock.calls.at(-1)?.[0]).toMatchObject({ workspacePath: '/workspace-b' })
+    )
+    expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
   })
 

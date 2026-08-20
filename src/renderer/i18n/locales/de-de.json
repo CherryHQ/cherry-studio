@@ -274,7 +274,7 @@
       },
       "display": {
         "agent": "Agent",
-        "time": "Zeit",
+        "time": "Aufgabe",
         "title": "Anzeigemodus",
         "workdir": "Arbeitsverzeichnis"
       },
@@ -299,16 +299,13 @@
         "collapse": "Anzeige einklappen",
         "collapse_all": "Alle einklappen",
         "conversation": "Gespräche",
-        "earlier": "Früher",
+        "drag_hint": "Ziehen zum Neuanordnen. Ziehen Sie Aufgaben, um angezeigte und ausgeblendete Gruppen anzupassen.",
         "expand_all": "Alle erweitern",
         "no_workdir": "Kein Arbeitsverzeichnis",
         "show_more": "Anzeige erweitern",
         "tasks": "Aufgaben",
-        "this_week": "Diese Woche",
-        "today": "Heute",
         "unknown_agent": "Unbekannter Agent",
-        "unknown_agent_tip": "Dies ist eine historische Sitzungsgruppe ohne Agent, kein tatsächlicher Agent. Sie ist nur anzeigbar und kann nicht weiter ausgeführt werden.",
-        "yesterday": "Gestern"
+        "unknown_agent_tip": "Dies ist eine historische Sitzungsgruppe ohne Agent, kein tatsächlicher Agent. Sie ist nur anzeigbar und kann nicht weiter ausgeführt werden."
       },
       "list": {
         "title": "Aufgaben"
@@ -1344,7 +1341,7 @@
       },
       "display": {
         "assistant": "Assistent",
-        "time": "Zeit",
+        "time": "Unterhaltung",
         "title": "Anzeigemodus"
       },
       "draft": "Entwurf",
@@ -1410,14 +1407,10 @@
       "group": {
         "collapse": "Anzeige einklappen",
         "collapse_all": "Alles einklappen",
-        "earlier": "Früher",
         "expand_all": "Alle erweitern",
         "show_more": "Anzeige erweitern",
-        "this_week": "Diese Woche",
-        "today": "Heute",
         "unknown_assistant": "Unverknüpfter Assistent",
-        "unknown_assistant_tip": "Dies ist eine historische Gesprächsgruppe ohne Assistent, kein eigentlicher Assistent. Verschieben Sie das Gespräch zu einem vorhandenen Assistenten, um fortzufahren.",
-        "yesterday": "Gestern"
+        "unknown_assistant_tip": "Dies ist eine historische Gesprächsgruppe ohne Assistent, kein eigentlicher Assistent. Verschieben Sie das Gespräch zu einem vorhandenen Assistenten, um fortzufahren."
       },
       "list": "Themenliste",
       "manage": {
@@ -1795,6 +1788,12 @@
     "selectedItems": "{{count}} Elemente ausgewählt",
     "selectedMessages": "{{count}} Nachrichten ausgewählt",
     "settings": "Einstellungen",
+    "sort": {
+      "activity_at": "Aktivitätszeit",
+      "created_at": "Erstellungszeit",
+      "manual_order": "Manuelle Reihenfolge",
+      "title": "Sortierreihenfolge"
+    },
     "stop": "Stoppen",
     "success": "Erfolgreich",
     "swap": "Tauschen",
@@ -2242,8 +2241,6 @@
       "filter": {
         "selectAgent": "Agent auswählen",
         "selectAssistant": "Assistent auswählen",
-        "statusLabel": "Status",
-        "statusPlaceholder": "Status auswählen",
         "unlinkedAssistant": "Unverknüpfter Assistent"
       },
       "loading": {
@@ -2255,11 +2252,6 @@
       "searchSession": "Aufgaben suchen...",
       "searchTopic": "Unterhaltungen durchsuchen...",
       "shortTitle": "Geschichte",
-      "status": {
-        "completed": "Abgeschlossen",
-        "failed": "Fehlgeschlagen",
-        "running": "Laufen"
-      },
       "table": {
         "actions": "Aktionen",
         "conversation": "Unterhaltung",

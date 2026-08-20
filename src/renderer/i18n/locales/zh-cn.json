@@ -274,7 +274,7 @@
       },
       "display": {
         "agent": "智能体",
-        "time": "时间",
+        "time": "任务",
         "title": "展示方式",
         "workdir": "工作目录"
       },
@@ -299,16 +299,13 @@
         "collapse": "收起",
         "collapse_all": "全部折叠",
         "conversation": "对话",
-        "earlier": "更早",
+        "drag_hint": "拖拽可排序，也可拖拽任务调整展示/隐藏分组。",
         "expand_all": "全部展开",
         "no_workdir": "无工作目录",
         "show_more": "展开更多",
         "tasks": "任务",
-        "this_week": "本周",
-        "today": "今天",
         "unknown_agent": "未关联智能体",
-        "unknown_agent_tip": "这是未关联智能体的历史会话分组，并非真实智能体。仅供查看，无法继续运行。",
-        "yesterday": "昨天"
+        "unknown_agent_tip": "这是未关联智能体的历史会话分组，并非真实智能体。仅供查看，无法继续运行。"
       },
       "list": {
         "title": "任务"
@@ -1344,7 +1341,7 @@
       },
       "display": {
         "assistant": "助手",
-        "time": "时间",
+        "time": "对话",
         "title": "展示方式"
       },
       "draft": "草稿",
@@ -1410,14 +1407,10 @@
       "group": {
         "collapse": "收起",
         "collapse_all": "全部折叠",
-        "earlier": "更早",
         "expand_all": "全部展开",
         "show_more": "展开更多",
-        "this_week": "本周",
-        "today": "今天",
         "unknown_assistant": "未关联助手",
-        "unknown_assistant_tip": "这是未关联助手的历史对话分组，并非真实助手。请将对话移动到现有助手后继续使用。",
-        "yesterday": "昨天"
+        "unknown_assistant_tip": "这是未关联助手的历史对话分组，并非真实助手。请将对话移动到现有助手后继续使用。"
       },
       "list": "对话列表",
       "manage": {
@@ -1795,6 +1788,12 @@
     "selectedItems": "已选择 {{count}} 项",
     "selectedMessages": "选中 {{count}} 条消息",
     "settings": "设置",
+    "sort": {
+      "activity_at": "活动时间",
+      "created_at": "创建时间",
+      "manual_order": "手动排序",
+      "title": "排序方式"
+    },
     "stop": "停止",
     "success": "成功",
     "swap": "交换",
@@ -2242,8 +2241,6 @@
       "filter": {
         "selectAgent": "请选择智能体",
         "selectAssistant": "请选择助手",
-        "statusLabel": "状态",
-        "statusPlaceholder": "请选择状态",
         "unlinkedAssistant": "未关联助手"
       },
       "loading": {
@@ -2255,11 +2252,6 @@
       "searchSession": "搜索任务...",
       "searchTopic": "搜索对话...",
       "shortTitle": "历史记录",
-      "status": {
-        "completed": "已完成",
-        "failed": "失败",
-        "running": "运行中"
-      },
       "table": {
         "actions": "操作",
         "conversation": "对话",

@@ -46,6 +46,7 @@ function ChatTopBarControls(props: ChatTopBarControlsProps) {
 
 interface Props {
   activeTopic?: Topic
+  centerFallback?: ReactNode
   /** The entry topic is still resolving — hold the loading center instead of the empty one. */
   topicPending?: boolean
   centerSurface?: ConversationCenterSlot | null
@@ -78,7 +79,7 @@ const Chat: FC<Props> = (props) => {
   const activeTopic = props.activeTopic
   const centerSurface = props.centerSurface
   const showConversation = Boolean(activeTopic && !centerSurface)
-  const showConversationChrome = !centerSurface
+  const showConversationChrome = !centerSurface && !props.centerFallback
   const activeTopicId = activeTopic?.id
   const assistantContext = useAssistant(activeTopic?.assistantId, {
     loadDefaultModel: Boolean(activeTopic)
@@ -179,9 +180,11 @@ const Chat: FC<Props> = (props) => {
         onConversationControlsChange={setConversationControlsSnapshot}
       />
     ) : (
-      // Nothing left to resolve and still no topic: the library is genuinely empty, so settle on
-      // the empty center rather than spinning forever. Same split as AgentChat.
-      <ConversationCenterState state={props.topicPending ? 'loading' : 'empty'} />
+      (props.centerFallback ?? (
+        // Nothing left to resolve and still no topic: the library is genuinely empty, so settle on
+        // the empty center rather than spinning forever. Same split as AgentChat.
+        <ConversationCenterState state={props.topicPending ? 'loading' : 'empty'} />
+      ))
     ))
   // ChatContent is keyed by topic; keep width-derived layout state outside that remount boundary.
   const center = <ChatLayoutModeProvider>{centerContent}</ChatLayoutModeProvider>

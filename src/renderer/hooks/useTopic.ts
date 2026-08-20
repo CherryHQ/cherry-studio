@@ -2,7 +2,7 @@
  * Topic data layer — three tiers in one module:
  *
  *  1. Pure / non-React helpers — `mapApiTopicToRendererTopic`,
- *     `getTopicById`, `getTopicMessages`, topic-rename cache helpers.
+ *     `getTopicMessages`, topic-rename cache helpers.
  *  2. DataApi tier — raw SQLite-backed queries/mutations
  *     (`useTopics` / `useTopicById` / `useTopicMutations` / `useTopicAutoRenameSync`).
  *  3. Composed hook — `useActiveTopic`.
@@ -15,6 +15,7 @@
 
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
+import { createInfiniteQueryRetentionMiddleware } from '@data/hooks/createInfiniteQueryRetentionMiddleware'
 import {
   useDataChange,
   useInfiniteFlatItems,
@@ -22,66 +23,56 @@ import {
   useInvalidateCache,
   useMutation,
   useQuery,
+  useReadCache,
   useWriteCache
 } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
+import { useStructurallySharedItems } from '@renderer/hooks/useStructurallySharedItems'
 import { useIpcOn } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type { Topic as RendererTopic } from '@renderer/types/topic'
 import { ErrorCode } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
-import type { CreateTopicDto, DeleteTopicsResult, UpdateTopicDto } from '@shared/data/api/schemas/topics'
+import type {
+  CreateTopicDto,
+  DeleteTopicsResult,
+  TopicListItem,
+  TopicSearchScope,
+  TopicSortBy,
+  TopicStatsQuery,
+  UpdateTopicDto
+} from '@shared/data/api/schemas/topics'
+import type { ConcreteApiPaths } from '@shared/data/api/types'
 import { type BranchMessagesResponse, type Message as SharedMessage, toContentRole } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
 import { hasClearContextPart, isBlankUserTurn } from '@shared/data/types/uiParts'
-import { isEqual } from 'es-toolkit/compat'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useTopic')
 
 // ─── Tier 1: pure / non-React helpers ─────────────────────────────────────
 
-const EMPTY_TOPICS: readonly Topic[] = Object.freeze([])
+const EMPTY_TOPICS: readonly TopicListItem[] = Object.freeze([])
 const DEFAULT_TOPIC_PAGE_SIZE = 50
-const LOAD_ALL_TOPIC_PAGE_SIZE = 200
+const topicGroupRetentionMiddleware = createInfiniteQueryRetentionMiddleware({
+  idleTtlMs: 10 * 60_000,
+  maxInactiveGroups: 8,
+  maxInactivePages: 24,
+  releaseDelayMs: 1_000
+})
 
-/**
- * Preserve entity identity across list refreshes when DataApi returns an
- * equivalent object. Order changes still publish a new array, while unchanged
- * rows retain their references for memoized consumers.
- */
-function useStructurallySharedTopics(topics: Topic[]): Topic[] {
-  const previousTopicsRef = useRef<Topic[]>([])
-
-  return useMemo(() => {
-    const previousTopics = previousTopicsRef.current
-    const previousById = new Map(previousTopics.map((topic) => [topic.id, topic] as const))
-    let arrayChanged = previousTopics.length !== topics.length
-
-    const nextTopics = topics.map((topic, index) => {
-      const previous = previousById.get(topic.id)
-      const next = previous && isEqual(previous, topic) ? previous : topic
-      if (next !== previousTopics[index]) {
-        arrayChanged = true
-      }
-      return next
-    })
-    const sharedTopics = arrayChanged ? nextTopics : previousTopics
-    previousTopicsRef.current = sharedTopics
-    return sharedTopics
-  }, [topics])
-}
+/** Canonical topic-list write refresh. */
+const TOPIC_LIST_REFRESH: ConcreteApiPaths[] = ['/topics', '/topics/stats']
 
 /**
  * Map a DataApi topic entity into the renderer {@link RendererTopic} shape.
  * Message history is not loaded here — use `useTopicMessagesV2` or `getTopicMessages`.
  *
- * Pin state is no longer a topic column; consumers that need "is this pinned?"
- * read the `pin` collection (`useQuery('/pins', { query: { entityType: 'topic' } })`)
- * and check membership. The legacy `pinned` flag on the renderer Topic is
- * always `false` here — consumers reading it directly need to migrate.
+ * Pin state is no longer a topic column. Collection callers overlay the fixed
+ * `TopicListItem` pin projection; by-id callers receive a pure entity, so the
+ * legacy `pinned` flag remains `false` in this adapter.
  *
  * @deprecated Transitional adapter — call sites should migrate to the DataApi
  * `Topic` shape directly (no `messages[]`, no `pinned` flag — use `/pins`).
@@ -101,13 +92,6 @@ export function mapApiTopicToRendererTopic(t: Topic): RendererTopic {
     pinned: false,
     isNameManuallyEdited: t.isNameManuallyEdited
   }
-}
-
-export async function getTopicById(topicId: string): Promise<RendererTopic> {
-  const apiTopic = await dataApiService.get(`/topics/${topicId}`)
-  // `messages` stays empty — the sole caller reads only topic metadata
-  // (`topic.id`); message history is fetched on demand via `getTopicMessages`.
-  return mapApiTopicToRendererTopic(apiTopic)
 }
 
 /**
@@ -257,74 +241,94 @@ function convertSharedMessage(shared: SharedMessage, assistantId: string): Messa
 /**
  * List topics across all assistants from SQLite via DataApi.
  *
- * Backed by `useInfiniteQuery` cursor pagination — `/topics` returns a
- * server-composed view (pinned topics first via the `pin` table, then
- * unpinned ordered by `topic.orderKey`). Consumers that genuinely need the
- * full list (`loadAll: true`) auto-paginate to the end; consumers that just
- * want progressive loading (sidebar) leave it `undefined` and call
- * `loadNext()` themselves.
+ * Backed by `useInfiniteQuery` cursor pagination over two independent streams.
+ * `pinned=true` selects the persisted pin-order stream. `pinned=false`
+ * selects the ordinary stream — `'lastActivityAt'` for recent
+ * activity, `'createdAt'` for creation order, or `'orderKey'` for manual order —
+ * and excludes pinned rows. The `assistantId` owner scope
+ * (`uuid | 'unlinked'`) also applies. Consumers page explicitly with
+ * `loadNext()`.
  *
  * `q` triggers server-side LIKE search on `topic.name`.
  */
-export function useTopics(opts?: { q?: string; loadAll?: boolean; pageSize?: number; enabled?: boolean }) {
-  const query = opts?.q?.trim() ? { q: opts.q.trim() } : undefined
-  const loadAll = opts?.loadAll === true
-  const pageSize = opts?.pageSize ?? (loadAll ? LOAD_ALL_TOPIC_PAGE_SIZE : DEFAULT_TOPIC_PAGE_SIZE)
-  // A load-all source must refresh every loaded page once the chain is complete,
-  // but it should fetch only the new page while the chain is growing. SWR
-  // Infinite otherwise revalidates page 0 on every `setSize`, and `revalidateAll`
-  // would re-fetch every previous page. Disable both growth-time behaviors;
-  // once fully loaded, `revalidateAll` still keeps mutations/passive refreshes
-  // complete. Progressive pagination retains SWR's first-page revalidation.
-  const [revalidateAllPages, setRevalidateAllPages] = useState(false)
-  const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh, mutate } = useInfiniteQuery('/topics', {
-    query,
-    limit: pageSize,
-    enabled: opts?.enabled,
-    swrOptions: { revalidateAll: revalidateAllPages, revalidateFirstPage: !loadAll }
-  })
-  const flatTopics = useInfiniteFlatItems(pages)
-  const topics = useStructurallySharedTopics(flatTopics)
-  const isFullyLoaded = !loadAll || (!isLoading && !hasNext)
-  const isLoadingAll = isLoading || (loadAll && hasNext)
+type UseTopicsOptions = {
+  q?: string
+  searchScope?: TopicSearchScope
+  assistantId?: string
+  pageSize?: number
+  enabled?: boolean
+  retainInactive?: boolean
+} & ({ pinned: true; sortBy?: never } | { pinned: false; sortBy: TopicSortBy })
 
-  useEffect(() => {
-    setRevalidateAllPages(loadAll && isFullyLoaded)
-  }, [loadAll, isFullyLoaded])
-
-  // Auto-paginate to completion when the caller wants the full list. The
-  // sidebar leaves `loadAll` unset and drives `loadNext` from scroll
-  // position so paging is visible to the user.
-  useEffect(() => {
-    if (loadAll && hasNext && !isLoading && !isRefreshing) {
-      loadNext()
+export function useTopics(opts: UseTopicsOptions) {
+  const q = opts.q?.trim()
+  const searchScope = opts.searchScope
+  const query = useMemo(() => {
+    const filters = {
+      ...(q ? { q } : {}),
+      ...(q && searchScope ? { searchScope } : {}),
+      ...(opts.assistantId ? { assistantId: opts.assistantId } : {})
     }
-  }, [loadAll, hasNext, isLoading, isRefreshing, loadNext])
+    if (opts.pinned) return { ...filters, pinned: true as const }
+    return { ...filters, pinned: false as const, sortBy: opts.sortBy }
+  }, [opts.assistantId, opts.pinned, opts.sortBy, q, searchScope])
+  const pageSize = opts.pageSize ?? DEFAULT_TOPIC_PAGE_SIZE
+  const { pages, isLoading, isLoadingMore, isRefreshing, error, hasNext, loadNext, refresh, reset } = useInfiniteQuery(
+    '/topics',
+    {
+      query,
+      limit: pageSize,
+      enabled: opts.enabled,
+      swrOptions: {
+        revalidateAll: false,
+        revalidateFirstPage: true,
+        ...(opts.retainInactive ? { use: [topicGroupRetentionMiddleware] } : {})
+      }
+    }
+  )
+  const flatTopics = useInfiniteFlatItems(pages)
+  const topics = useStructurallySharedItems(flatTopics)
 
   useDataChange('/topics', () => {
-    if (opts?.enabled !== false) void mutate()
+    if (opts.enabled !== false) void refresh()
   })
-
   return {
     topics: topics.length > 0 ? topics : EMPTY_TOPICS,
-    pages,
     hasNext,
     loadNext,
     isLoading,
-    isLoadingAll,
-    isFullyLoaded,
+    isLoadingMore,
     isRefreshing,
     error,
     refetch: refresh,
-    mutate
+    reset
   }
+}
+
+/**
+ * Factual topic aggregation from `GET /topics/stats`: totals,
+ * pinned counts, and a per-assistant breakdown whose `assistantId: null`
+ * entry represents unlinked topics. Mutations that affect these facts list
+ * this path explicitly in their refresh targets.
+ */
+export function useTopicStats(opts?: { enabled?: boolean; query?: TopicStatsQuery }) {
+  const { data, isLoading, error, refetch } = useQuery('/topics/stats', {
+    enabled: opts?.enabled,
+    query: opts?.query
+  })
+
+  useDataChange('/topics/stats', () => {
+    if (opts?.enabled !== false) void refetch()
+  })
+
+  return { stats: data, isLoading, error, refetch }
 }
 
 /**
  * Fetch a single topic by id from SQLite via DataApi.
  */
 export function useTopicById(topicId: string | undefined) {
-  const { data, isLoading, error, refetch, mutate } = useQuery(`/topics/${topicId}`, {
+  const { data, isLoading, error, mutate } = useQuery(`/topics/${topicId}`, {
     enabled: !!topicId
   })
   useDataChange(
@@ -337,41 +341,7 @@ export function useTopicById(topicId: string | undefined) {
     { routeParams: topicId ? { id: topicId } : undefined }
   )
 
-  return {
-    topic: data,
-    isLoading,
-    error,
-    refetch,
-    mutate
-  }
-}
-
-/**
- * The globally most-recently-active topic, for first-entry restore.
- *
- * Backed by a dedicated `lastActivityAt DESC LIMIT 1` server query, so it resumes the
- * last-touched conversation without waiting for the full topic history to
- * paginate in and without depending on the pinned-first `/topics` list order.
- *
- * Activity-bearing writes publish a scalar data-change signal so a mounted
- * first-entry surface cannot keep a stale winner from another window. Folding
- * `isRefreshing` into `isLoading` also makes the initial read wait for on-mount
- * revalidation rather than trust a stale cache.
- * `latestTopic` is `undefined` while loading and when the library is empty.
- */
-export function useLatestTopic(opts?: { enabled?: boolean }) {
-  const { data, isLoading, isRefreshing, refetch, mutate } = useQuery('/topics/latest', { enabled: opts?.enabled })
-
-  useDataChange('/topics/latest', () => {
-    void refetch()
-  })
-
-  return {
-    latestTopic: data?.topic ?? undefined,
-    isLoading: isLoading || isRefreshing,
-    refetch,
-    mutate
-  }
+  return { topic: data, isLoading, error }
 }
 
 /**
@@ -379,29 +349,36 @@ export function useLatestTopic(opts?: { enabled?: boolean }) {
  */
 export function useTopicMutations() {
   const invalidate = useInvalidateCache()
+  const readCache = useReadCache()
   const writeCache = useWriteCache()
   const closeConversationTabs = useCloseConversationTabs()
 
-  const { trigger: createTrigger, isLoading: isCreating } = useMutation('POST', '/topics', {
-    refresh: ['/topics']
+  const { trigger: createTrigger } = useMutation('POST', '/topics', {
+    refresh: TOPIC_LIST_REFRESH
   })
-  const { trigger: updateTrigger, isLoading: isUpdating } = useMutation('PATCH', '/topics/:id', {
-    refresh: ({ args }) => ['/topics', `/topics/${args!.params.id}`]
+  const { trigger: updateTrigger } = useMutation('PATCH', '/topics/:id', {
+    refresh: ({ args }) => {
+      const body = args!.body!
+      const refreshStats = 'name' in body || 'assistantId' in body
+      return ['/topics', ...(refreshStats ? (['/topics/stats'] as const) : []), `/topics/${args!.params.id}`]
+    }
   })
-  const { trigger: moveTrigger } = useMutation('POST', '/topics/:id/move')
-  const { trigger: deleteTrigger, isLoading: isDeleting } = useMutation('DELETE', '/topics/:id', {
+  const { trigger: deleteTrigger } = useMutation('DELETE', '/topics/:id', {
     // After delete, only invalidate the list — refreshing `/topics/:id` would
     // trigger a fetch that 404s and caches an error in SWR.
-    refresh: ['/topics']
+    refresh: TOPIC_LIST_REFRESH
   })
-  const { trigger: deleteManyTrigger, isLoading: isDeletingMany } = useMutation('DELETE', '/topics', {
-    refresh: ['/topics', '/pins']
+  const { trigger: deleteManyTrigger } = useMutation('DELETE', '/topics', {
+    refresh: [...TOPIC_LIST_REFRESH, '/pins']
   })
   const { trigger: deleteByAssistantTrigger } = useMutation('DELETE', '/assistants/:assistantId/topics', {
-    refresh: ['/topics', '/pins']
+    refresh: [...TOPIC_LIST_REFRESH, '/pins']
+  })
+  const { trigger: duplicateTrigger } = useMutation('POST', '/topics/:id/duplicate', {
+    refresh: TOPIC_LIST_REFRESH
   })
 
-  const refreshTopics = useCallback(() => invalidate('/topics'), [invalidate])
+  const refreshTopics = useCallback(() => invalidate(TOPIC_LIST_REFRESH), [invalidate])
 
   const createTopic = useCallback(
     async (dto: CreateTopicDto): Promise<Topic> => {
@@ -450,19 +427,29 @@ export function useTopicMutations() {
     [closeConversationTabs, deleteByAssistantTrigger]
   )
 
+  const duplicateTopicBranch = useCallback(
+    async (topicId: string, nodeId: string) => {
+      const topic = await duplicateTrigger({ params: { id: topicId }, body: { nodeId } })
+      logger.info('Duplicated topic branch into new topic', { topicId, nodeId })
+      return topic
+    },
+    [duplicateTrigger]
+  )
+
   /**
-   * Drag-move a topic: re-home it to another assistant (when `assistantId` is
-   * given) and anchor its position. The cache orchestration lives here so
-   * pages don't track a second active-topic state:
+   * Drag-move a topic and keep the opened conversation's by-id cache aligned
+   * with its new assistant. Cross-assistant moves use the atomic move endpoint
+   * introduced by cursor pagination; same-assistant moves only update order.
    *
-   * - Cross-assistant ownership and ordering commit through one atomic endpoint.
-   * - The moved topic's by-id cache follows its new assistant immediately so an
-   *   open conversation re-resolves its composer/model/capabilities.
-   * - Revalidation of `/topics` (+ `/topics/:id` on an assistant change) runs
-   *   after the write so the optimistic reorder overlay clears at the final position.
+   * After the atomic write commits, the cached topic is updated in place so an
+   * open composer immediately re-resolves its model/capabilities. One combined
+   * revalidation then reconciles all paginated topic streams and, for an owner
+   * change, stats and the by-id row without maintaining a second active-topic
+   * state in the page.
    *
-   * Rethrows on failure after reconciling caches with server truth when the
-   * server write may have committed.
+   * `assistantId: null` remains supported for non-drag callers through the
+   * ordinary PATCH contract. Failures are rethrown so the page can roll back
+   * its optimistic row overlay.
    */
   const moveTopic = useCallback(
     async (
@@ -470,19 +457,26 @@ export function useTopicMutations() {
       { assistantId, anchor }: { assistantId?: string | null; anchor: OrderRequest }
     ): Promise<void> => {
       const assistantChanged = assistantId !== undefined
-      const refreshKeys = assistantChanged ? ['/topics', `/topics/${topicId}`] : '/topics'
+      const refreshKeys = assistantChanged
+        ? [...TOPIC_LIST_REFRESH, `/topics/${topicId}`]
+        : (['/topics'] as ConcreteApiPaths[])
 
       try {
-        if (assistantChanged && assistantId) {
-          const topic = await moveTrigger({ params: { id: topicId }, body: { assistantId, order: anchor } })
-          await writeCache(`/topics/${topicId}`, topic)
-        } else {
-          // Ownership-only unlinking keeps the ordinary PATCH contract.
-          // The drag UI currently only moves into concrete Assistant groups.
-          if (assistantChanged) {
+        if (assistantChanged) {
+          if (assistantId) {
+            await dataApiService.post(`/topics/${topicId}/move`, {
+              body: { assistantId, order: anchor }
+            })
+            const cachedTopic = readCache<Topic>(`/topics/${topicId}`)
+            if (cachedTopic) {
+              await writeCache(`/topics/${topicId}`, { ...cachedTopic, assistantId })
+            }
+          } else {
             const topic = await dataApiService.patch(`/topics/${topicId}`, { body: { assistantId } })
             await writeCache(`/topics/${topicId}`, topic)
+            await dataApiService.patch(`/topics/${topicId}/order`, { body: anchor })
           }
+        } else {
           await dataApiService.patch(`/topics/${topicId}/order`, { body: anchor })
         }
         await invalidate(refreshKeys)
@@ -497,7 +491,7 @@ export function useTopicMutations() {
         throw err
       }
     },
-    [invalidate, moveTrigger, writeCache]
+    [invalidate, readCache, writeCache]
   )
 
   const batchUpdateTopics = useCallback(
@@ -505,10 +499,11 @@ export function useTopicMutations() {
       const results = await Promise.allSettled(
         topics.map(({ id, dto }) => dataApiService.patch(`/topics/${id}`, { body: dto }))
       )
-      await refreshTopics()
+      const refreshStats = topics.some(({ dto }) => 'name' in dto || 'assistantId' in dto)
+      await invalidate(refreshStats ? TOPIC_LIST_REFRESH : ['/topics'])
       return results
     },
-    [refreshTopics]
+    [invalidate]
   )
 
   return {
@@ -517,12 +512,10 @@ export function useTopicMutations() {
     deleteTopic,
     deleteTopics,
     deleteTopicsByAssistantId,
+    duplicateTopicBranch,
     moveTopic,
     batchUpdateTopics,
-    refreshTopics,
-    isCreating,
-    isUpdating,
-    isDeleting: isDeleting || isDeletingMany
+    refreshTopics
   }
 }
 
@@ -533,7 +526,7 @@ export function useTopicMutations() {
 export function useTopicAutoRenameSync() {
   const invalidate = useInvalidateCache()
 
-  useIpcOn('ai.topic.auto_renamed', ({ topicId }) => void invalidate(['/topics', `/topics/${topicId}`]))
+  useIpcOn('ai.topic.auto_renamed', ({ topicId }) => void invalidate([...TOPIC_LIST_REFRESH, `/topics/${topicId}`]))
 }
 
 // ─── Tier 3: composed hook ────────────────────────────────────────────────
@@ -561,10 +554,8 @@ export function useActiveTopic({
   setActiveTopicId,
   passive = false
 }: UseActiveTopicOptions) {
-  // Resolve the active topic by id (like `useActiveSession`) rather than scanning the
-  // loadAll `/topics` list. The entry route chooses the id without waiting for topic
-  // history pagination; this hook then loads only that active row while the rail keeps
-  // its own loadAll source.
+  // Resolve the active topic by id (like `useActiveSession`) so first-entry restore
+  // paints from `/latest` immediately; this hook only needs the one active row.
   const {
     topic: apiActiveTopic,
     isLoading: isActiveTopicQueryLoading,
@@ -622,9 +613,8 @@ export function useActiveTopic({
   )
 
   // Clear the active topic entirely. Both `activeTopicId` and the in-memory `pendingTopic`
-  // fallback must be reset, otherwise `activeTopic` would keep resolving to the stale pending
-  // object. Used by post-delete replacement paths that must not strand the view on a topic that
-  // was just deleted when creating its replacement fails.
+  // fallback must be reset, otherwise `activeTopic` would keep resolving to the deleted pending
+  // object after its row is removed.
   const clearActiveTopic = useCallback(() => {
     setPendingTopic(undefined)
     if (!passive) setActiveTopicId(null)

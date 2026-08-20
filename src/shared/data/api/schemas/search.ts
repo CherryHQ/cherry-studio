@@ -27,7 +27,7 @@ export const EntitySearchTypeSchema = z.enum(entitySearchTypes)
 export const ENTITY_SEARCH_MAX_LIMIT_PER_TYPE = 200
 
 export const EntitySearchQuerySchema = z.strictObject({
-  q: z.string().trim().min(1),
+  q: z.string().trim().optional().default(''),
   types: z.array(EntitySearchTypeSchema).min(1).optional(),
   updatedAtFrom: z.iso.datetime().optional(),
   limitPerType: z.coerce.number().int().positive().max(ENTITY_SEARCH_MAX_LIMIT_PER_TYPE).optional()

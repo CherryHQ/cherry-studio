@@ -71,6 +71,9 @@ function notifyPinReadModelChange(pins: readonly Pin[], kind: 'membership' | 'or
         ? { endpoint, kind: 'membership', dimension: 'pinned', entityIds }
         : { endpoint, kind: 'order', dimension: 'pinned', entityIds }
     )
+    if (kind === 'membership') {
+      effects.push({ endpoint: entityType === 'topic' ? '/topics/stats' : '/agent-sessions/stats' })
+    }
   }
 
   notifyDataApiDataChange(effects)

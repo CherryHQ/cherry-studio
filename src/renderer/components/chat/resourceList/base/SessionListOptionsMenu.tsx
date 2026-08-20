@@ -1,9 +1,9 @@
-import type { AgentSessionDisplayMode } from '@shared/data/preference/preferenceTypes'
+import type { AgentSessionDisplayMode, TopicSessionSortBy } from '@shared/data/preference/preferenceTypes'
 import { Bot, Clock, Folder, History } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { ConversationListOptionsMenu } from './ConversationListOptionsMenu'
+import { ConversationListOptionsMenu, TOPIC_SESSION_SORT_OPTIONS } from './ConversationListOptionsMenu'
 
 const SESSION_DISPLAY_OPTIONS: AgentSessionDisplayMode[] = ['time', 'workdir', 'agent']
 export const SESSION_DISPLAY_LABEL_KEYS: Record<AgentSessionDisplayMode, string> = {
@@ -16,7 +16,6 @@ const SESSION_DISPLAY_ICONS: Record<AgentSessionDisplayMode, ReactNode> = {
   time: <Clock size={16} />,
   workdir: <Folder size={16} />
 }
-
 type SessionListOptionsMenuProps = {
   historyRecordsActive?: boolean
   manageAgentsActive?: boolean
@@ -24,7 +23,9 @@ type SessionListOptionsMenuProps = {
   onChange: (mode: AgentSessionDisplayMode) => void
   onManageAgents?: () => void | Promise<void>
   onOpenHistoryRecords?: () => void
+  onSortByChange: (sortBy: TopicSessionSortBy) => void
   sectionIds?: readonly string[]
+  sortBy: TopicSessionSortBy
 }
 
 export function SessionListOptionsMenu({
@@ -34,7 +35,9 @@ export function SessionListOptionsMenu({
   onChange,
   onManageAgents,
   onOpenHistoryRecords,
-  sectionIds
+  onSortByChange,
+  sectionIds,
+  sortBy
 }: SessionListOptionsMenuProps) {
   const { t } = useTranslation()
 
@@ -48,6 +51,16 @@ export function SessionListOptionsMenu({
         label: t(SESSION_DISPLAY_LABEL_KEYS[option]),
         value: option
       }))}
+      sort={{
+        onChange: onSortByChange,
+        options: TOPIC_SESSION_SORT_OPTIONS.map((option) => ({
+          icon: option.icon,
+          label: t(option.labelKey),
+          value: option.value
+        })),
+        title: t('common.sort.title'),
+        value: sortBy
+      }}
       sectionToggle={
         sectionIds
           ? {

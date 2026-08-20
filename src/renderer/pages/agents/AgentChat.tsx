@@ -243,12 +243,12 @@ const AgentChat = ({
   )
   const canChangeWorkspace = Boolean(onSessionWorkspaceChange && isEmptyConversation)
   const runAfterFileNavigation = useCallback(
-    (transition: () => void) => {
+    (transition: () => void | Promise<void>) => {
       if (requestFileNavigation) {
-        requestFileNavigation(transition)
+        void requestFileNavigation(transition)
         return
       }
-      transition()
+      void transition()
     },
     [requestFileNavigation]
   )
@@ -274,23 +274,19 @@ const AgentChat = ({
   )
   const handleSessionWorkspaceChange = useCallback(
     (workspaceId: string | null) => {
-      runAfterFileNavigation(() => {
-        void onSessionWorkspaceChange?.(workspaceId)
+      runAfterFileNavigation(async () => {
+        await onSessionWorkspaceChange?.(workspaceId)
       })
     },
     [onSessionWorkspaceChange, runAfterFileNavigation]
   )
   const handleCreateEmptySession = useCallback(() => {
     if (!sessionSnapshot || !onCreateEmptySession) return
-    const transition = () => {
-      void onCreateEmptySession({
+    const transition = async () => {
+      await onCreateEmptySession({
         agentId: sessionSnapshot.agentId,
         ...getNewSessionWorkspaceDefaults(sessionSnapshot)
       })
-    }
-    if (sessionSnapshot.workspaceId && sessionSnapshot.workspace?.type !== 'system') {
-      transition()
-      return
     }
     runAfterFileNavigation(transition)
   }, [onCreateEmptySession, runAfterFileNavigation, sessionSnapshot])

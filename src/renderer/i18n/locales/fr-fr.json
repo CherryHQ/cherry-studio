@@ -274,7 +274,7 @@
       },
       "display": {
         "agent": "Agent",
-        "time": "Temps",
+        "time": "Tâche",
         "title": "Mode d'affichage",
         "workdir": "Répertoire de travail"
       },
@@ -299,16 +299,13 @@
         "collapse": "Réduire l'affichage",
         "collapse_all": "Réduire tout",
         "conversation": "Conversations",
-        "earlier": "Plus tôt",
+        "drag_hint": "Glisser pour réorganiser. Glisser les tâches pour ajuster les groupes affichés et masqués.",
         "expand_all": "Développer tout",
         "no_workdir": "Aucun répertoire de travail",
         "show_more": "Développer l'affichage",
         "tasks": "Tâches",
-        "this_week": "Cette semaine",
-        "today": "Aujourd'hui",
         "unknown_agent": "Agent inconnu",
-        "unknown_agent_tip": "Il s'agit d'un groupe de session historique sans agent, et non d'un agent réel. Il est en lecture seule et ne peut pas continuer à s'exécuter.",
-        "yesterday": "Hier"
+        "unknown_agent_tip": "Il s'agit d'un groupe de session historique sans agent, et non d'un agent réel. Il est en lecture seule et ne peut pas continuer à s'exécuter."
       },
       "list": {
         "title": "Tâches"
@@ -1344,7 +1341,7 @@
       },
       "display": {
         "assistant": "Assistant",
-        "time": "Temps",
+        "time": "Conversation",
         "title": "Mode d'affichage"
       },
       "draft": "Brouillon",
@@ -1410,14 +1407,10 @@
       "group": {
         "collapse": "Réduire l'affichage",
         "collapse_all": "Réduire tout",
-        "earlier": "Plus tôt",
         "expand_all": "Développer tout",
         "show_more": "Développer l'affichage",
-        "this_week": "Cette semaine",
-        "today": "Aujourd'hui",
         "unknown_assistant": "Assistant non lié",
-        "unknown_assistant_tip": "Il s'agit d'un groupe de conversation historique sans assistant, pas d'un assistant réel. Déplacez la conversation vers un assistant existant pour continuer.",
-        "yesterday": "Hier"
+        "unknown_assistant_tip": "Il s'agit d'un groupe de conversation historique sans assistant, pas d'un assistant réel. Déplacez la conversation vers un assistant existant pour continuer."
       },
       "list": "Liste des sujets",
       "manage": {
@@ -1795,6 +1788,12 @@
     "selectedItems": "{{count}} éléments sélectionnés",
     "selectedMessages": "{{count}} messages sélectionnés",
     "settings": "Paramètres",
+    "sort": {
+      "activity_at": "Heure d’activité",
+      "created_at": "Heure de création",
+      "manual_order": "Ordre manuel",
+      "title": "Ordre de tri"
+    },
     "stop": "Arrêter",
     "success": "Succès",
     "swap": "Échanger",
@@ -2242,8 +2241,6 @@
       "filter": {
         "selectAgent": "Sélectionner un agent",
         "selectAssistant": "Sélectionner un assistant",
-        "statusLabel": "Statut",
-        "statusPlaceholder": "Sélectionner un statut",
         "unlinkedAssistant": "Assistant non lié"
       },
       "loading": {
@@ -2255,11 +2252,6 @@
       "searchSession": "Rechercher des tâches...",
       "searchTopic": "Rechercher des conversations...",
       "shortTitle": "Histoire",
-      "status": {
-        "completed": "Terminé",
-        "failed": "Échoué",
-        "running": "Courir"
-      },
       "table": {
         "actions": "Actions",
         "conversation": "Conversation",

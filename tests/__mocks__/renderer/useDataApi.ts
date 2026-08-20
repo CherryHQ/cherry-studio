@@ -261,6 +261,23 @@ export const mockUsePaginatedQuery = vi.fn(
  * Default returns an empty single page; tests override per-call via
  * mockUseInfiniteQuery.mockImplementation(...) or mockReturnValue(...).
  */
+const createMockInfiniteQueryResult = () => ({
+  pages: [] as Array<{ items: unknown[]; nextCursor?: string }>,
+  isLoading: false,
+  isLoadingMore: false,
+  isRefreshing: false,
+  error: undefined as Error | undefined,
+  hasNext: false,
+  loadNext: vi.fn(),
+  refresh: vi.fn().mockResolvedValue(undefined),
+  reset: vi.fn(),
+  mutate: vi.fn().mockResolvedValue(undefined)
+})
+
+type MockInfiniteQueryResult = Omit<ReturnType<typeof createMockInfiniteQueryResult>, 'isLoadingMore'> & {
+  isLoadingMore?: boolean
+}
+
 export const mockUseInfiniteQuery = vi.fn(
   <TPath extends ApiPath>(
     _path: TPath,
@@ -270,17 +287,7 @@ export const mockUseInfiniteQuery = vi.fn(
       enabled?: boolean
       swrOptions?: any
     }
-  ) => ({
-    pages: [] as Array<{ items: unknown[]; nextCursor?: string }>,
-    isLoading: false,
-    isRefreshing: false,
-    error: undefined as Error | undefined,
-    hasNext: false,
-    loadNext: vi.fn(),
-    refresh: vi.fn().mockResolvedValue(undefined),
-    reset: vi.fn(),
-    mutate: vi.fn().mockResolvedValue(undefined)
-  })
+  ): MockInfiniteQueryResult => createMockInfiniteQueryResult()
 )
 
 /**

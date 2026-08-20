@@ -57,6 +57,8 @@ type AgentResourceListProps = {
   onSelectedAgentClick?: () => void | Promise<void>
   onCreateSession: (agentId: string) => Promise<AgentSessionEntity | null>
   onShowMissingAgentSelection?: () => void | Promise<void>
+  prepareActiveAgentDeletion?: () => () => void
+  requestContextTransition?: (transition: () => void | Promise<void>) => Promise<void>
   /**
    * Called after the currently-active agent is deleted so the classic-layout page can
    * settle (select the latest remaining session / clear). This is the classic
@@ -78,26 +80,18 @@ export function AgentResourceList({
   onSelectedAgentClick,
   onCreateSession,
   onShowMissingAgentSelection,
-  onActiveAgentDeleted
+  onActiveAgentDeleted,
+  prepareActiveAgentDeletion,
+  requestContextTransition
 }: AgentResourceListProps) {
   const { t } = useTranslation()
   // Agent rail icon style is stored under its own key so it no longer mutates the assistant's.
   const [assistantIconType, setAssistantIconType] = usePreference('agent.icon_type')
   const [defaultModelId] = usePreference('chat.default_model_id')
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
+  const [sessionSortBy, setSessionSortBy] = usePreference('agent.session.sort_type')
   const { agents, isLoading: isAgentsLoading, error: agentsError, refetch: refetchAgents } = useAgents()
-  const {
-    sessions,
-    pinIdBySessionId,
-    isLoading,
-    isLoadingAll,
-    isFullyLoaded,
-    isPinsLoading,
-    isValidating,
-    error: sessionsError,
-    reload,
-    loadLatestSession
-  } = agentSessionsSource
+  const { loadLatestSession } = agentSessionsSource
   const {
     isLoading: isAgentPinsLoading,
     isRefreshing: isAgentPinsRefreshing,
@@ -112,10 +106,6 @@ export function AgentResourceList({
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
   const agentPinnedIdSet = useMemo(() => new Set(agentPinnedIds), [agentPinnedIds])
   const isAgentPinActionDisabled = isAgentPinsLoading || isAgentPinsRefreshing || isAgentPinsMutating
-  const sessionItems = useMemo<SessionListItem[]>(
-    () => sessions.map((session) => ({ ...session, pinned: pinIdBySessionId.has(session.id) })),
-    [pinIdBySessionId, sessions]
-  )
   const handleActivationError = useCallback(
     (error: unknown) => {
       logger.error('Failed to activate agent resource from classic-layout rail', { error })
@@ -126,13 +116,17 @@ export function AgentResourceList({
   const handleCreateSession = useCallback(
     async (agentId: string) => {
       try {
-        const session = await onCreateSession(agentId)
-        if (session) onSelectSession(session.id, session)
+        const createAndSelect = async () => {
+          const session = await onCreateSession(agentId)
+          if (session) onSelectSession(session.id, session)
+        }
+        if (requestContextTransition) await requestContextTransition(createAndSelect)
+        else await createAndSelect()
       } catch (error) {
         handleActivationError(error)
       }
     },
-    [handleActivationError, onCreateSession, onSelectSession]
+    [handleActivationError, onCreateSession, onSelectSession, requestContextTransition]
   )
 
   const entities = useMemo<ResourceEntityRailItem[]>(
@@ -163,11 +157,18 @@ export function AgentResourceList({
     [agentPinnedIdSet, agents, assistantIconType, defaultModelId, handleCreateSession, t]
   )
 
-  const getSessionAgentId = useCallback((session: SessionListItem) => session.agentId, [])
   const handlePickSession = useCallback(
-    (session: SessionListItem) => onSelectSession(session.id, session),
-    [onSelectSession]
+    (session: SessionListItem) => {
+      const transition = () => onSelectSession(session.id, session)
+      if (requestContextTransition) {
+        void requestContextTransition(transition)
+        return
+      }
+      transition()
+    },
+    [onSelectSession, requestContextTransition]
   )
+  const loadLatestSessionForAgent = useCallback((agentId: string) => loadLatestSession(agentId), [loadLatestSession])
   const reorderAgentEntity = useCallback(
     async (agentId: string, anchor: ResourceEntityRailReorderAnchor) => {
       await reorderAgent({ params: { id: agentId }, body: anchor })
@@ -183,14 +184,13 @@ export function AgentResourceList({
   )
   const { items, listStatus, selectedId, handleSelect, handleReorder } = useResourceEntityRail({
     entities,
-    resources: sessionItems,
-    getResourceParentId: getSessionAgentId,
     activeEntityId: activeAgentId,
-    isLoading: isAgentsLoading || isLoading || isLoadingAll || !isFullyLoaded || isPinsLoading,
-    isError: !!(agentsError || sessionsError),
+    isLoading: isAgentsLoading,
+    isStructureLoading: isAgentPinsLoading,
+    isError: !!agentsError,
     onPickResource: handlePickSession,
-    loadResourceForEntity: loadLatestSession,
     onCreateResource: onCreateSession,
+    loadResourceForEntity: loadLatestSessionForAgent,
     onActivationError: handleActivationError,
     reorder: reorderAgentEntity,
     refetchEntities: refetchAgents,
@@ -229,7 +229,6 @@ export function AgentResourceList({
       const deleteTasksOnly = isProtectedBuiltinAgentRole(
         agents.find((agent) => agent.id === agentId)?.configuration?.builtin_role
       )
-
       setDeletingAgentId(agentId)
       try {
         const confirmed = await popup.confirm({
@@ -244,35 +243,47 @@ export function AgentResourceList({
         })
         if (!confirmed) return
 
-        if (deleteTasksOnly) {
-          const result = await ipcApi.request('ai.agent.sessions.delete', { agentId })
-          closeConversationTabs('agents', result.deletedIds)
-        } else {
-          const result = await ipcApi.request('ai.agent.delete', { agentId, deleteSessions: true })
-          closeConversationTabs('agents', result.deletedSessionIds ?? [])
-        }
-        try {
-          await Promise.all(
-            ['/agents', '/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'].map((key) =>
-              invalidate(key)
-            )
-          )
-        } catch (err) {
-          logger.warn('Failed to refresh after deleting Agent from classic-layout rail', { agentId, err })
-        }
-        if (activeAgentId === agentId) {
+        const deletesActiveAgent = activeAgentId === agentId
+        const deleteAndSettle = async () => {
+          const rollbackSelection = deletesActiveAgent ? prepareActiveAgentDeletion?.() : undefined
           try {
-            await onActiveAgentDeleted?.(agentId)
+            if (deleteTasksOnly) {
+              const result = await ipcApi.request('ai.agent.sessions.delete', { agentId })
+              closeConversationTabs('agents', result.deletedIds)
+            } else {
+              const result = await ipcApi.request('ai.agent.delete', { agentId, deleteSessions: true })
+              closeConversationTabs('agents', result.deletedSessionIds ?? [])
+            }
+          } catch (error) {
+            rollbackSelection?.()
+            throw error
+          }
+
+          try {
+            await Promise.all(
+              [
+                '/agents',
+                '/agent-sessions',
+                '/agent-sessions/stats',
+                '/agent-workspaces',
+                '/pins',
+                '/agent-channels'
+              ].map((key) => invalidate(key))
+            )
           } catch (err) {
-            logger.warn('Failed to reconcile active Agent after deletion from classic-layout rail', { agentId, err })
+            logger.warn('Failed to refresh after deleting Agent from classic-layout rail', { agentId, err })
+          }
+
+          if (deletesActiveAgent) {
+            try {
+              await onActiveAgentDeleted?.(agentId)
+            } catch (err) {
+              logger.warn('Failed to reconcile active Agent after deletion from classic-layout rail', { agentId, err })
+            }
           }
         }
-
-        try {
-          await Promise.all([...(deleteTasksOnly ? [] : [refetchAgents()]), reload()])
-        } catch (err) {
-          logger.warn('Failed to reload resources after deleting Agent from classic-layout rail', { agentId, err })
-        }
+        if (deletesActiveAgent && requestContextTransition) await requestContextTransition(deleteAndSettle)
+        else await deleteAndSettle()
         toast.success(t('common.delete_success'))
       } catch (err) {
         logger.error('Failed to delete agent from classic-layout rail', { agentId, err })
@@ -288,8 +299,8 @@ export function AgentResourceList({
       deletingAgentId,
       invalidate,
       onActiveAgentDeleted,
-      refetchAgents,
-      reload,
+      prepareActiveAgentDeletion,
+      requestContextTransition,
       t
     ]
   )
@@ -380,12 +391,13 @@ export function AgentResourceList({
             onChange={(nextMode) => void setSessionDisplayMode(nextMode)}
             onManageAgents={onManageAgents}
             onOpenHistoryRecords={onOpenHistoryRecords}
+            onSortByChange={(nextSortBy) => void setSessionSortBy(nextSortBy)}
+            sortBy={sessionSortBy}
           />
         }
         onSelect={handleSelect}
         onSelectedClick={() => void onSelectedAgentClick?.()}
         onReorder={handleReorder}
-        reorderEnabled={isFullyLoaded && !isLoadingAll && !isValidating}
         getContextMenuActions={getContextMenuActions}
         onContextMenuAction={handleContextMenuAction}
       />

@@ -1,7 +1,7 @@
 import { createActionRegistry } from '@renderer/components/chat/actions/actionRegistry'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import { OpenInNewWindowIcon } from '@renderer/components/icons/WindowIcons'
-import type { Topic } from '@renderer/types/topic'
+import type { TopicReference } from '@renderer/types/topic'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import type { TFunction } from 'i18next'
 import {
@@ -37,8 +37,10 @@ export type TopicExportMenuOptions = Record<
   boolean
 >
 
-type TopicMenuHandler = (topic: Topic) => void | Promise<void>
-type TopicMoveToAssistantHandler = (topic: Topic, assistantId: string) => void | Promise<void>
+export type TopicActionItem = TopicReference & { pinned?: boolean }
+
+type TopicMenuHandler = (topic: TopicActionItem) => void | Promise<void>
+type TopicMoveToAssistantHandler = (topic: TopicActionItem, assistantId: string) => void | Promise<void>
 
 export interface TopicMoveAssistantTarget {
   id: string
@@ -70,14 +72,14 @@ export interface TopicActionContext {
   onOpenInNewTab?: TopicMenuHandler
   onOpenInNewWindow?: TopicMenuHandler
   onPinTopic: TopicMenuHandler
+  pinDisabled?: boolean
   onSaveToKnowledge: TopicMenuHandler
   onSaveToNotes: TopicMenuHandler
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
   onStartRename: TopicMenuHandler
   panePosition?: TopicTabPosition
   t: TFunction
-  topic: Topic
-  topicsLength: number
+  topic: TopicActionItem
 }
 
 const topicActionRegistry = createActionRegistry<TopicActionContext>()
@@ -281,7 +283,8 @@ topicActionRegistry.registerAction({
   label: ({ t, topic }) => (topic.pinned ? t('chat.topics.unpin') : t('chat.topics.pin')),
   icon: ({ topic }) => (topic.pinned ? <PinOffIcon size={14} /> : <PinIcon size={14} />),
   order: 30,
-  surface: 'menu'
+  surface: 'menu',
+  availability: ({ pinDisabled }) => ({ enabled: !pinDisabled })
 })
 
 topicActionRegistry.registerAction({
@@ -504,8 +507,8 @@ topicActionRegistry.registerAction({
   order: 90,
   surface: 'menu',
   danger: true,
-  // Deleting the last topic is allowed — the delete handler opens a fresh empty one afterwards, so
-  // the view is never stranded. Pinned topics must be unpinned before they can be deleted.
+  // Deleting the last topic is allowed — the selected assistant remains visible with an empty scoped
+  // list, without creating a replacement. Pinned topics must be unpinned before deletion.
   availability: ({ topic }) => ({ visible: !topic.pinned }),
   confirm: ({ t }) => ({
     title: t('chat.topics.manage.delete.confirm.title'),

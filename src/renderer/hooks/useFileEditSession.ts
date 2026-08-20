@@ -76,6 +76,8 @@ export interface FileEditSession {
   setDraft: (next: string) => void
   /** Drop the in-memory draft back to the last snapshot known to be on disk. */
   discard: () => void
+  /** Wait for an already-started write, then discard any draft that remains. */
+  waitForSaveAndDiscard: () => Promise<void>
   /** Discard local edits, load disk content, resume autosave. */
   reload: () => Promise<void>
   /**
@@ -357,6 +359,17 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
     syncFromModel(model)
   }, [debouncedWrite, syncFromModel])
 
+  const waitForSaveAndDiscard = useCallback(async () => {
+    const model = modelRef.current
+    if (!model) return
+    debouncedWrite.cancel()
+    await model.chain
+    if (modelRef.current !== model) return
+    model.draft = model.snapshot.content
+    model.lastWriteError = null
+    syncFromModel(model)
+  }, [debouncedWrite, syncFromModel])
+
   const reload = useCallback(async () => {
     const model = modelRef.current
     if (!model) return
@@ -454,6 +467,7 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
       error: error && !(error instanceof UnsupportedFileTextError) ? error : undefined,
       setDraft,
       discard,
+      waitForSaveAndDiscard,
       reload,
       flush,
       notifyExternalChange
@@ -471,6 +485,7 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
     saveError,
     setDraft,
     discard,
+    waitForSaveAndDiscard,
     reload,
     flush,
     notifyExternalChange

@@ -12,6 +12,7 @@ import { toDataApiError } from '@shared/data/api/errors'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   type AgentSessionSchemas,
+  AgentSessionStatsQuerySchema,
   CreateAgentSessionSchema,
   LatestAgentSessionQuerySchema,
   ListAgentSessionsQuerySchema,
@@ -23,7 +24,7 @@ import type { HandlersFor } from '@shared/data/api/types'
 export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
   '/agent-sessions': {
     GET: async ({ query }) => {
-      const parsed = ListAgentSessionsQuerySchema.safeParse(query ?? {})
+      const parsed = ListAgentSessionsQuerySchema.safeParse(query)
       if (!parsed.success) throw toDataApiError(parsed.error)
       return agentSessionService.listByCursor(parsed.data)
     },
@@ -43,6 +44,13 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
     }
   },
 
+  '/agent-sessions/stats': {
+    GET: async ({ query }) => {
+      const parsed = AgentSessionStatsQuerySchema.safeParse(query ?? {})
+      if (!parsed.success) throw toDataApiError(parsed.error)
+      return agentSessionService.stats(parsed.data)
+    }
+  },
   '/agent-sessions/:sessionId': {
     GET: async ({ params }) => {
       return agentSessionService.getById(params.sessionId)

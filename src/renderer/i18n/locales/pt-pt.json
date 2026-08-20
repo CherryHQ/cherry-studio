@@ -274,7 +274,7 @@
       },
       "display": {
         "agent": "Agente",
-        "time": "Tempo",
+        "time": "Tarefa",
         "title": "Modo de exibição",
         "workdir": "Pasta de trabalho"
       },
@@ -299,16 +299,13 @@
         "collapse": "Recolher exibição",
         "collapse_all": "Recolher tudo",
         "conversation": "Conversas",
-        "earlier": "Anterior",
+        "drag_hint": "Arraste para reordenar. Arraste as tarefas para ajustar os grupos exibidos e ocultos.",
         "expand_all": "Expandir tudo",
         "no_workdir": "Sem pasta de trabalho",
         "show_more": "Expandir exibição",
         "tasks": "Tarefas",
-        "this_week": "Esta semana",
-        "today": "Hoje",
         "unknown_agent": "Agente desconhecido",
-        "unknown_agent_tip": "Este é um grupo de sessão histórico sem agente, não um agente real. É somente para visualização e não pode continuar em execução.",
-        "yesterday": "Ontem"
+        "unknown_agent_tip": "Este é um grupo de sessão histórico sem agente, não um agente real. É somente para visualização e não pode continuar em execução."
       },
       "list": {
         "title": "Tarefas"
@@ -1344,7 +1341,7 @@
       },
       "display": {
         "assistant": "Assistente",
-        "time": "Tempo",
+        "time": "Conversa",
         "title": "Modo de exibição"
       },
       "draft": "Rascunho",
@@ -1410,14 +1407,10 @@
       "group": {
         "collapse": "Recolher exibição",
         "collapse_all": "Recolher tudo",
-        "earlier": "Anterior",
         "expand_all": "Expandir tudo",
         "show_more": "Expandir exibição",
-        "this_week": "Esta semana",
-        "today": "Hoje",
         "unknown_assistant": "Assistente Desvinculado",
-        "unknown_assistant_tip": "Este é um grupo de conversa histórico snum assistente, não um assistente real. Mova a conversa para um assistente existente para continuar.",
-        "yesterday": "Ontem"
+        "unknown_assistant_tip": "Este é um grupo de conversa histórico snum assistente, não um assistente real. Mova a conversa para um assistente existente para continuar."
       },
       "list": "Lista de tópicos",
       "manage": {
@@ -1795,6 +1788,12 @@
     "selectedItems": "{{count}} itens selecionados",
     "selectedMessages": "{{count}} mensagens selecionadas",
     "settings": "Configurações",
+    "sort": {
+      "activity_at": "Hora da atividade",
+      "created_at": "Hora de criação",
+      "manual_order": "Ordem manual",
+      "title": "Ordenação"
+    },
     "stop": "Parar",
     "success": "Sucesso",
     "swap": "Trocar",
@@ -2242,8 +2241,6 @@
       "filter": {
         "selectAgent": "Selecionar um agente",
         "selectAssistant": "Selecionar um assistente",
-        "statusLabel": "Estado",
-        "statusPlaceholder": "Selecionar estado",
         "unlinkedAssistant": "Assistente desvinculado"
       },
       "loading": {
@@ -2255,11 +2252,6 @@
       "searchSession": "Pesquisar tarefas...",
       "searchTopic": "Pesquisar conversas...",
       "shortTitle": "História",
-      "status": {
-        "completed": "Concluído",
-        "failed": "Falhou",
-        "running": "A executar"
-      },
       "table": {
         "actions": "Ações",
         "conversation": "Conversa",

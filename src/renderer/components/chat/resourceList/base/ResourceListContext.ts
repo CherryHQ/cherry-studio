@@ -1,4 +1,9 @@
 import type { CommandContextMenuExtraItem } from '@renderer/components/command'
+import type {
+  ResourceListGroup,
+  ResourceListGroupReorderPayload,
+  ResourceListItemReorderPayload
+} from '@renderer/utils/chat/resourceListBase'
 import { createContext, type ReactNode, use, useCallback, useSyncExternalStore } from 'react'
 
 import type {
@@ -20,12 +25,6 @@ export type ResourceListRevealRequest = {
   clearQuery?: boolean
   itemId: string
   requestId: number
-}
-
-export type ResourceListGroup = {
-  id: string
-  label: string
-  count?: number
 }
 
 export type ResourceListSection = {
@@ -72,28 +71,13 @@ export type ResourceListDragCapabilities = {
   itemCrossGroup?: boolean
 }
 
-export type ResourceListItemReorderPayload = {
-  type: 'item'
-  activeId: string
-  overId: string
-  position: 'before' | 'after'
-  overType: 'group' | 'item'
-  sourceGroupId: string
-  targetGroupId: string
-  sourceIndex: number
-  targetIndex: number
-}
-
-export type ResourceListGroupReorderPayload = {
-  type: 'group'
-  activeGroupId: string
-  overGroupId: string
-  overType: 'group' | 'item'
-  sourceIndex: number
-  targetIndex: number
-}
-
 export type ResourceListReorderPayload = ResourceListItemReorderPayload | ResourceListGroupReorderPayload
+
+export type {
+  ResourceListGroup,
+  ResourceListGroupReorderPayload,
+  ResourceListItemReorderPayload
+} from '@renderer/utils/chat/resourceListBase'
 
 export type ResourceListVariantContext = {
   variant: 'session' | 'topic' | 'agent' | 'assistant' | 'history' | 'resource'
@@ -109,7 +93,6 @@ export type ResourceListState = {
   renamingId: string | null
   collapsedGroups: string[]
   groupVisibleCounts: Record<string, number>
-  draggingId: string | null
   status: ResourceListStatus
 }
 
@@ -126,6 +109,7 @@ export type ResourceListActionMap = {
   openContextMenu: (id: string) => void
   selectGroupHeaderItem: (id: string) => void
   showMoreInGroup: (groupId: string) => void
+  retryGroup: (groupId: string) => void
   collapseGroupItems: (groupId: string) => void
   expandGroups: (groupIds: readonly string[]) => void
   collapseGroups: (groupIds: readonly string[]) => void
@@ -147,14 +131,15 @@ export type ResourceListMeta<T extends ResourceListItemBase> = {
   isGroupHeaderIconVisible?: (group: ResourceListGroup, context: ResourceListGroupHeaderIconContext) => boolean
   getGroupHeaderTooltip?: (group: ResourceListGroup) => string | undefined
   getGroupHeaderClickBehavior: (group: ResourceListGroup) => ResourceListGroupHeaderClickBehavior
+  getGroupHeaderSelected?: (group: ResourceListGroup) => boolean
+  onGroupHeaderActivate?: (group: ResourceListGroup) => boolean | void | Promise<boolean | void>
   getGroupHeaderKind?: (group: ResourceListGroup) => ResourceListGroupHeaderKind
-  onEmptyGroupHeaderClick?: (group: ResourceListGroup) => boolean | void
+  onEmptyGroupHeaderClick?: (group: ResourceListGroup) => boolean | void | Promise<boolean | void>
   sortOptions: ResourceListSortOption<T>[]
   filterOptions: ResourceListFilterOption<T>[]
   estimateItemSize: (index: number) => number
   defaultGroupVisibleCount: number
   groupLoadStep: number
-  groupEmptyLabel?: string
   groupShowMoreLabel?: string
   groupCollapseLabel?: string
   revealRequest?: ResourceListRevealRequest
@@ -198,6 +183,8 @@ export type ResourceListViewGroup<T extends ResourceListItemBase> = {
   hasMore: boolean
   canCollapseToDefault: boolean
   collapsed: boolean
+  hasError: boolean
+  isLoading: boolean
 }
 
 export type ResourceListViewSection<T extends ResourceListItemBase> = {
@@ -215,14 +202,6 @@ export type ResourceListView<T extends ResourceListItemBase> = {
   sections: ResourceListViewSection<T>[]
 }
 
-export type ResourceListContextValue<T extends ResourceListItemBase> = {
-  state: ResourceListState
-  actions: ResourceListActionMap
-  meta: ResourceListMeta<T>
-  sourceItems: readonly T[]
-  view: ResourceListView<T>
-}
-
 export type ResourceListControlsState = Pick<ResourceListState, 'filters' | 'query' | 'sort' | 'status'>
 
 export type ResourceListItemAccessors<T extends ResourceListItemBase> = Pick<
@@ -234,24 +213,14 @@ export function getResourceListOptionDomId(itemId: string) {
   return `resource-list-option-${encodeURIComponent(itemId)}`
 }
 
-export const ResourceListContext = createContext<ResourceListContextValue<ResourceListItemBase> | null>(null)
 export const ResourceListActionsContext = createContext<ResourceListActionMap | null>(null)
 export const ResourceListControlsContext = createContext<ResourceListControlsState | null>(null)
 export const ResourceListItemAccessorsContext = createContext<ResourceListItemAccessors<ResourceListItemBase> | null>(
   null
 )
 export const ResourceListMetaContext = createContext<ResourceListMeta<ResourceListItemBase> | null>(null)
-export const ResourceListSourceItemsContext = createContext<readonly ResourceListItemBase[] | null>(null)
 export const ResourceListUiStoreContext = createContext<ResourceListUiService | null>(null)
 export const ResourceListViewContext = createContext<ResourceListView<ResourceListItemBase> | null>(null)
-
-export function useResourceList<T extends ResourceListItemBase = ResourceListItemBase>() {
-  const context = use(ResourceListContext)
-  if (!context) {
-    throw new Error('ResourceList compound components must be rendered inside ResourceList.Provider')
-  }
-  return context as unknown as ResourceListContextValue<T>
-}
 
 export function useResourceListActions() {
   const actions = use(ResourceListActionsContext)
@@ -283,14 +252,6 @@ export function useResourceListMeta<T extends ResourceListItemBase = ResourceLis
     throw new Error('ResourceList compound components must be rendered inside ResourceList.Provider')
   }
   return meta as unknown as ResourceListMeta<T>
-}
-
-export function useResourceListSourceItems<T extends ResourceListItemBase = ResourceListItemBase>() {
-  const sourceItems = use(ResourceListSourceItemsContext)
-  if (!sourceItems) {
-    throw new Error('ResourceList compound components must be rendered inside ResourceList.Provider')
-  }
-  return sourceItems as readonly T[]
 }
 
 export function useResourceListUiStore() {

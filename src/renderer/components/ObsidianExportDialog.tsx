@@ -32,7 +32,7 @@ import {
 } from '@renderer/services/ExportService'
 import { toast } from '@renderer/services/toast'
 import type { ExportableMessage } from '@renderer/types/messageExport'
-import type { Topic } from '@renderer/types/topic'
+import type { TopicReference } from '@renderer/types/topic'
 import { XIcon } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 
@@ -58,7 +58,7 @@ interface PopupContainerProps {
   resolve: (success: boolean) => void
   message?: ExportableMessage
   messages?: ExportableMessage[]
-  topic?: Topic
+  topic?: TopicReference
   rawContent?: string
 }
 

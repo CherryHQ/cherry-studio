@@ -4,7 +4,7 @@ import type { FileMetadata } from '@renderer/types/file'
 import type { Citation } from '@renderer/types/message'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type { McpTool } from '@renderer/types/tool'
-import type { Topic } from '@renderer/types/topic'
+import type { TopicReference } from '@renderer/types/topic'
 import type { AgentSessionDelivery } from '@shared/ai/agentSessionDelivery'
 import type {
   ChatMessageStyle,
@@ -282,7 +282,7 @@ export interface MessageTailSlot {
 }
 
 export interface MessageListState {
-  topic: Topic
+  topic: TopicReference
   messages: MessageListItem[]
   partsByMessageId: Record<string, CherryMessagePart[]>
   /** When provided, streaming updates stay isolated from historical message subtrees. */

@@ -12,7 +12,7 @@ import { ipcApi } from '@renderer/ipc'
 import { addNote } from '@renderer/services/NotesService'
 import { toast } from '@renderer/services/toast'
 import type { ExportableMessage } from '@renderer/types/messageExport'
-import type { Topic } from '@renderer/types/topic'
+import type { TopicReference } from '@renderer/types/topic'
 import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
 import { getTitleFromString, messagesToPlainText, processCitations } from '@renderer/utils/export'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
@@ -368,7 +368,7 @@ export const messagesToMarkdown = async (
 }
 
 export const topicToMarkdown = async (
-  topic: Topic,
+  topic: TopicReference,
   exportReasoning?: boolean,
   excludeCitations?: boolean
 ): Promise<string> => {
@@ -383,7 +383,7 @@ export const topicToMarkdown = async (
   return topicName
 }
 
-export const topicToPlainText = async (topic: Topic): Promise<string> => {
+export const topicToPlainText = async (topic: TopicReference): Promise<string> => {
   const topicName = markdownToPlainText(topic.name).trim()
 
   const topicMessages = await getTopicMessages(topic.id)
@@ -433,7 +433,7 @@ export const exportMarkdownContentAsFile = async (title: string, markdown: strin
 }
 
 export const exportTopicAsMarkdown = async (
-  topic: Topic,
+  topic: TopicReference,
   exportReasoning?: boolean,
   excludeCitations?: boolean
 ): Promise<void> => {
@@ -741,7 +741,7 @@ export const exportMessagesToNotion = async (title: string, messages: Exportable
     return executeNotionExport(title, allBlocks)
   })
 
-export const exportTopicToNotion = async (topic: Topic): Promise<boolean> => {
+export const exportTopicToNotion = async (topic: TopicReference): Promise<boolean> => {
   const topicMessages = await getTopicMessages(topic.id)
 
   return exportMessagesToNotion(topic.name, topicMessages)
@@ -1171,7 +1171,7 @@ export const exportMessageToNotes = async (title: string, content: string, folde
  * @param topic 要导出的话题
  * @param folderPath
  */
-export const exportTopicToNotes = async (topic: Topic, folderPath: string): Promise<void> => {
+export const exportTopicToNotes = async (topic: TopicReference, folderPath: string): Promise<void> => {
   try {
     const content = await topicToMarkdown(topic)
     await saveContentToNotes(topic.name, content, folderPath)

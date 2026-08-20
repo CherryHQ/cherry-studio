@@ -6,7 +6,7 @@
  * - Topic CRUD operations
  * - Topic path duplication
  * - Active node switching for branch navigation
- * - Scoped reorder (single + batch) via OrderEndpoints
+ * - Global reorder (single + batch) via OrderEndpoints
  */
 
 import { topicService } from '@data/services/TopicService'
@@ -21,6 +21,7 @@ import {
   ReuseOrCreateTopicSchema,
   SetActiveNodeSchema,
   type TopicSchemas,
+  TopicStatsQuerySchema,
   UpdateTopicSchema
 } from '@shared/data/api/schemas/topics'
 import type { HandlersFor } from '@shared/data/api/types'
@@ -28,7 +29,7 @@ import type { HandlersFor } from '@shared/data/api/types'
 export const topicHandlers: HandlersFor<TopicSchemas> = {
   '/topics': {
     GET: async ({ query }) => {
-      const parsed = ListTopicsQuerySchema.parse(query ?? {})
+      const parsed = ListTopicsQuerySchema.parse(query)
       return topicService.listByCursor(parsed)
     },
 
@@ -57,6 +58,13 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
     }
   },
 
+  '/topics/stats': {
+    GET: async ({ query }) => {
+      const parsed = TopicStatsQuerySchema.parse(query ?? {})
+      return topicService.stats(parsed)
+    }
+  },
+
   '/topics/:id': {
     GET: async ({ params }) => {
       return topicService.getById(params.id)
@@ -76,7 +84,8 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
   '/topics/:id/move': {
     POST: async ({ params, body }) => {
       const parsed = MoveTopicSchema.parse(body)
-      return topicService.move(params.id, parsed)
+      topicService.move(params.id, parsed)
+      return undefined
     }
   },
 

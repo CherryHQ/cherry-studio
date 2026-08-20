@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest'
 
-import { CreateTopicSchema, DuplicateTopicSchema, SetActiveNodeSchema, UpdateTopicSchema } from '../topics'
+import {
+  CreateTopicSchema,
+  DuplicateTopicSchema,
+  LatestTopicQuerySchema,
+  ListTopicsQuerySchema,
+  MoveTopicSchema,
+  ReuseOrCreateTopicSchema,
+  SetActiveNodeSchema,
+  TopicStatsQuerySchema,
+  UpdateTopicSchema
+} from '../topics'
 
 describe('CreateTopicSchema', () => {
   it.each(['sourceNodeId', 'groupId'])('rejects unsupported key %s', (key) => {
@@ -29,6 +39,113 @@ describe('UpdateTopicSchema', () => {
 
   it('accepts null assistantId to clear default-assistant ownership', () => {
     expect(UpdateTopicSchema.parse({ assistantId: null })).toEqual({ assistantId: null })
+  })
+})
+
+describe('MoveTopicSchema', () => {
+  it('requires a live-owner id and one concrete visible-neighbour anchor', () => {
+    const assistantId = '11111111-1111-4111-8111-111111111111'
+    expect(MoveTopicSchema.parse({ assistantId, order: { before: 'topic-2' } })).toEqual({
+      assistantId,
+      order: { before: 'topic-2' }
+    })
+    expect(() => MoveTopicSchema.parse({ assistantId: null, order: { before: 'topic-2' } })).toThrow()
+    expect(() => MoveTopicSchema.parse({ assistantId })).toThrow()
+    expect(() => MoveTopicSchema.parse({ assistantId, order: { position: 'last' } })).toThrow()
+    expect(() => MoveTopicSchema.parse({ assistantId: 'assistant-1', order: { after: 'topic-2' } })).toThrow()
+  })
+})
+
+describe('ListTopicsQuerySchema', () => {
+  it('requires the ordinary stream and its sort profile explicitly', () => {
+    expect(ListTopicsQuerySchema.parse({ q: 'x', limit: 10, pinned: false, sortBy: 'lastActivityAt' })).toEqual({
+      q: 'x',
+      limit: 10,
+      pinned: false,
+      sortBy: 'lastActivityAt'
+    })
+    expect(() => ListTopicsQuerySchema.parse({ q: 'x', limit: 10 })).toThrow()
+    expect(() => ListTopicsQuerySchema.parse({ q: 'x', limit: 10, pinned: false })).toThrow()
+  })
+
+  it.each([{ assistantId: 'unlinked' }])('accepts record filter %j with an explicit sort profile', (filter) => {
+    expect(ListTopicsQuerySchema.parse({ pinned: false, sortBy: 'lastActivityAt', ...filter })).toMatchObject(filter)
+  })
+
+  it('accepts immutable creation order and rejects an unknown sortBy value or non-uuid owner scope', () => {
+    expect(ListTopicsQuerySchema.parse({ pinned: false, sortBy: 'createdAt' })).toEqual({
+      pinned: false,
+      sortBy: 'createdAt'
+    })
+    expect(() => ListTopicsQuerySchema.parse({ pinned: false, sortBy: 'name' })).toThrow()
+    expect(() =>
+      ListTopicsQuerySchema.parse({ pinned: false, sortBy: 'lastActivityAt', assistantId: 'not-a-uuid' })
+    ).toThrow()
+  })
+
+  it('accepts searchScope name/name-or-owner and rejects an unknown scope', () => {
+    expect(
+      ListTopicsQuerySchema.parse({ pinned: false, sortBy: 'createdAt', q: 'x', searchScope: 'name' })
+    ).toMatchObject({
+      searchScope: 'name'
+    })
+    expect(
+      ListTopicsQuerySchema.parse({
+        pinned: false,
+        sortBy: 'createdAt',
+        q: 'x',
+        searchScope: 'name-or-owner'
+      })
+    ).toMatchObject({ searchScope: 'name-or-owner' })
+    expect(() =>
+      ListTopicsQuerySchema.parse({ pinned: false, sortBy: 'createdAt', q: 'x', searchScope: 'full' })
+    ).toThrow()
+  })
+
+  it('accepts the pin-owned stream without sortBy and rejects every sort dimension', () => {
+    expect(ListTopicsQuerySchema.parse({ pinned: true, assistantId: 'unlinked' })).toEqual({
+      pinned: true,
+      assistantId: 'unlinked'
+    })
+    expect(() => ListTopicsQuerySchema.parse({ sortBy: 'lastActivityAt', pinned: true })).toThrow(/unrecognized/i)
+    expect(() => ListTopicsQuerySchema.parse({ sortBy: 'pinOrderKey', pinned: true })).toThrow()
+  })
+})
+
+describe('ReuseOrCreateTopicSchema', () => {
+  it('accepts an exact live owner', () => {
+    const assistantId = '11111111-1111-4111-8111-111111111111'
+    expect(ReuseOrCreateTopicSchema.parse({ assistantId })).toEqual({ assistantId })
+  })
+
+  it('rejects unlinked targets and list-only dimensions', () => {
+    expect(() => ReuseOrCreateTopicSchema.parse({ assistantId: 'unlinked' })).toThrow()
+    expect(() => ReuseOrCreateTopicSchema.parse({ assistantId: null })).toThrow()
+    expect(() => ReuseOrCreateTopicSchema.parse({ assistantId: null, pinned: false })).toThrow(/unrecognized/i)
+  })
+})
+
+describe('LatestTopicQuerySchema', () => {
+  it('accepts global and concrete-owner scopes', () => {
+    const assistantId = '11111111-1111-4111-8111-111111111111'
+    expect(LatestTopicQuerySchema.parse({})).toEqual({})
+    expect(LatestTopicQuerySchema.parse({ assistantId })).toEqual({ assistantId })
+  })
+
+  it('rejects unlinked, pin, and list-order dimensions', () => {
+    expect(() => LatestTopicQuerySchema.parse({ assistantId: 'unlinked' })).toThrow()
+    expect(() => LatestTopicQuerySchema.parse({ assistantId: null })).toThrow()
+    expect(() => LatestTopicQuerySchema.parse({ pinned: true })).toThrow(/unrecognized/i)
+    expect(() => LatestTopicQuerySchema.parse({ sortBy: 'createdAt' })).toThrow(/unrecognized/i)
+  })
+})
+
+describe('TopicStatsQuerySchema', () => {
+  it('rejects cursor/limit/sortBy/pinned — stats take record filters only', () => {
+    expect(() => TopicStatsQuerySchema.parse({ cursor: 'x' })).toThrow()
+    expect(() => TopicStatsQuerySchema.parse({ limit: 10 })).toThrow()
+    expect(() => TopicStatsQuerySchema.parse({ sortBy: 'lastActivityAt' })).toThrow()
+    expect(() => TopicStatsQuerySchema.parse({ pinned: true })).toThrow()
   })
 })
 

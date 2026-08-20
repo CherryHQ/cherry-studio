@@ -8,6 +8,7 @@
  */
 
 import { loggerService } from '@logger'
+import { createInfiniteQueryRetentionMiddleware } from '@renderer/data/hooks/createInfiniteQueryRetentionMiddleware'
 import {
   useDataChange,
   useInfiniteFlatItems,
@@ -16,8 +17,8 @@ import {
   useMutation,
   useQuery
 } from '@renderer/data/hooks/useDataApi'
-import { useReorder } from '@renderer/data/hooks/useReorder'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
+import { useStructurallySharedItems } from '@renderer/hooks/useStructurallySharedItems'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { UpdateAgentBaseOptions } from '@renderer/types/agent'
@@ -26,54 +27,44 @@ import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type {
   AgentSessionEntity,
-  CreateAgentSessionDto,
+  AgentSessionSearchScope,
+  AgentSessionSortBy,
+  AgentSessionStatsQuery,
+  AgentSessionWorkspaceScope,
   DeleteAgentSessionsResult,
   SetAgentSessionWorkspaceDto,
   UpdateAgentSessionDto
 } from '@shared/data/api/schemas/agentSessions'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
-import { isEqual } from 'es-toolkit/compat'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const DEFAULT_SESSION_PAGE_SIZE = 20
 const logger = loggerService.withContext('useSession')
+
+/** Canonical session-list write refresh. */
+const SESSION_LIST_REFRESH: ConcreteApiPaths[] = ['/agent-sessions', '/agent-sessions/stats']
 export type AgentSessionSource = 'query' | 'pending' | 'none'
 type UseSessionsOptions = {
   pageSize?: number
-  loadAll?: boolean
   enabled?: boolean
-}
+  /** Literal substring search term (server-side, escaped LIKE). */
+  q?: string
+  /** 'name' (default) or 'name-or-owner' (session name OR live owning agent name). */
+  searchScope?: AgentSessionSearchScope
+  /** Concrete user workspace id, or the aggregate system/no-workdir scope. */
+  workspaceId?: AgentSessionWorkspaceScope
+  retainInactive?: boolean
+} & ({ pinned: true; sortBy?: never } | { pinned: false; sortBy: AgentSessionSortBy })
 
-export type CreateSessionForm = Omit<CreateAgentSessionDto, 'agentId'>
+const sessionGroupRetentionMiddleware = createInfiniteQueryRetentionMiddleware({
+  idleTtlMs: 10 * 60_000,
+  maxInactiveGroups: 8,
+  maxInactivePages: 24,
+  releaseDelayMs: 1_000
+})
+
 export type UpdateSessionForm = UpdateAgentSessionDto & { id: string }
-
-/**
- * Preserve entity identity across list refreshes when DataApi returns an
- * equivalent object graph. Order changes still publish a new array, while
- * unchanged rows retain their references for memoized consumers.
- */
-function useStructurallySharedSessions(sessions: AgentSessionEntity[]): AgentSessionEntity[] {
-  const previousSessionsRef = useRef<AgentSessionEntity[]>([])
-
-  return useMemo(() => {
-    const previousSessions = previousSessionsRef.current
-    const previousById = new Map(previousSessions.map((session) => [session.id, session] as const))
-    let arrayChanged = previousSessions.length !== sessions.length
-
-    const nextSessions = sessions.map((session, index) => {
-      const previous = previousById.get(session.id)
-      const next = previous && isEqual(previous, session) ? previous : session
-      if (next !== previousSessions[index]) {
-        arrayChanged = true
-      }
-      return next
-    })
-    const sharedSessions = arrayChanged ? nextSessions : previousSessions
-    previousSessionsRef.current = sharedSessions
-    return sharedSessions
-  }, [sessions])
-}
 
 /**
  * Fetch a single session by id. Config (model / instructions / ...) lives on
@@ -98,37 +89,27 @@ export const useSession = (sessionId: string | null) => {
     }
   })
 
-  return { session, error, isLoading, mutate }
+  return { session, error, isLoading }
 }
 
 /**
- * The globally most-recently-active session, for first-entry restore.
- *
- * Backed by a dedicated `lastActivityAt DESC LIMIT 1` server query, so it resumes the
- * last-active session without waiting for the full session history to paginate
- * in and without depending on the pinned-first `/agent-sessions` list order.
- *
- * Activity-bearing writes publish a scalar data-change signal so a mounted
- * first-entry surface cannot keep a stale winner from another window. Folding
- * `isRefreshing` into `isLoading` also makes the initial read wait for on-mount
- * revalidation rather than trust a stale cache.
- * `latestSession` is `undefined` while loading and when there are no sessions.
+ * Factual session aggregation from `GET /agent-sessions/stats`: totals,
+ * pinned counts, and a per-agent breakdown whose
+ * `agentId: null` entry represents orphaned (unlinked) sessions. Local list
+ * mutations that affect these facts list this path explicitly in their
+ * refresh targets.
  */
-export function useLatestSession(opts?: { enabled?: boolean }) {
-  const { data, isLoading, isRefreshing, refetch, mutate } = useQuery('/agent-sessions/latest', {
-    enabled: opts?.enabled
+export function useAgentSessionStats(opts?: { enabled?: boolean; query?: AgentSessionStatsQuery }) {
+  const { data, isLoading, error, refetch } = useQuery('/agent-sessions/stats', {
+    enabled: opts?.enabled,
+    query: opts?.query
   })
 
-  useDataChange('/agent-sessions/latest', () => {
-    void refetch()
+  useDataChange('/agent-sessions/stats', () => {
+    if (opts?.enabled !== false) void refetch()
   })
 
-  return {
-    latestSession: data?.session ?? undefined,
-    isLoading: isLoading || isRefreshing,
-    refetch,
-    mutate
-  }
+  return { stats: data, isLoading, error, refetch }
 }
 
 export interface UseActiveSessionOptions {
@@ -190,16 +171,13 @@ export const useActiveSession = ({ activeSessionId, setActiveSessionId, initialS
   const clearActiveSession = useCallback(() => selectSession(null, null), [selectSession])
 
   return {
-    ...result,
     session,
     sessionSource,
     isLoading: !session && result.isLoading,
-    activeSessionId,
-    setActiveSessionId,
+    error: result.error,
     setActiveSession,
     selectSession,
     clearActiveSession,
-    pendingSession,
     setPendingSession
   }
 }
@@ -207,74 +185,44 @@ export const useActiveSession = ({ activeSessionId, setActiveSessionId, initialS
 /**
  * Cursor-paginated session list. With `agentId` undefined / null the result
  * spans every agent (the global session view); pass an id to scope the
- * listing. Consumers that genuinely need every session can pass
- * `{ loadAll: true }` to auto-page to completion; grouped sidebars use this
- * so drag order is based on the complete list. Reorder uses the same cache key
- * so applying a new order syncs the infinite-query view.
+ * listing. Flat sort profiles include immutable creation order (`createdAt`),
+ * activity order (`lastActivityAt`), and manual order (`orderKey`). Consumers
+ * page explicitly with `loadMore()`.
  */
-export const useSessions = (
-  agentId?: string | null,
-  options: number | UseSessionsOptions = DEFAULT_SESSION_PAGE_SIZE
-) => {
-  const { t } = useTranslation()
-  const closeConversationTabs = useCloseConversationTabs()
-  const invalidate = useInvalidateCache()
-  const pageSize = typeof options === 'number' ? options : (options.pageSize ?? DEFAULT_SESSION_PAGE_SIZE)
-  const loadAll = typeof options === 'number' ? false : (options.loadAll ?? false)
-  const enabled = typeof options === 'number' ? undefined : options.enabled
+export const useSessions = (agentId: string | null | undefined, options: UseSessionsOptions) => {
+  const pageSize = options.pageSize ?? DEFAULT_SESSION_PAGE_SIZE
+  const enabled = options.enabled
+  const q = options.q?.trim() || undefined
+  const searchScope = options.searchScope
+  const workspaceId = options.workspaceId
 
-  // A load-all source must refresh every loaded page once the chain is complete,
-  // but it should fetch only the new page while the chain is growing. SWR
-  // Infinite otherwise revalidates page 0 on every `setSize`, and `revalidateAll`
-  // would re-fetch every previous page. Disable both growth-time behaviors;
-  // once fully loaded, `revalidateAll` still keeps mutations/passive refreshes
-  // complete. Progressive pagination retains SWR's first-page revalidation.
-  const [revalidateAllPages, setRevalidateAllPages] = useState(false)
-  const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery('/agent-sessions', {
-    query: agentId ? { agentId } : undefined,
-    limit: pageSize,
-    enabled,
-    swrOptions: { revalidateAll: revalidateAllPages, revalidateFirstPage: !loadAll }
-  })
-  // Cache key includes the query, so reorder operates on the same key.
-  const { applyReorderedList } = useReorder('/agent-sessions')
-
-  // AgentSessionService returns sessions pinned-first (by `pin.orderKey`) then by
-  // the persisted `orderKey`, `id`. The `/pins` map is composed in the renderer
-  // for row indicators, toggle handling, and display grouping/sorting that
-  // promotes pinned sessions.
-  const flatSessions = useInfiniteFlatItems(pages)
-  const sessions = useStructurallySharedSessions(flatSessions)
-  const {
-    data: pinList,
-    isLoading: isPinsLoading,
-    isRefreshing: isPinsRefreshing,
-    refetch: refetchPins
-  } = useQuery('/pins', { query: { entityType: 'session' }, enabled })
-  useDataChange('/pins', () => {
-    if (enabled !== false) void refetchPins()
-  })
-  const pinIdBySessionId = useMemo(
-    () => new Map(Array.isArray(pinList) ? pinList.map((p) => [p.entityId, p.id] as const) : []),
-    [pinList]
-  )
-  const pinIdBySessionIdRef = useRef(pinIdBySessionId)
-  pinIdBySessionIdRef.current = pinIdBySessionId
-  const total = sessions.length
-  const hasMore = hasNext
-  const isFullyLoaded = !loadAll || (!isLoading && !hasMore)
-  const isLoadingAll = isLoading || (loadAll && hasMore)
-  const isLoadingMore = isRefreshing && pages.length > 1
-
-  useEffect(() => {
-    setRevalidateAllPages(loadAll && isFullyLoaded)
-  }, [loadAll, isFullyLoaded])
-
-  useEffect(() => {
-    if (loadAll && hasMore && !isLoading && !isRefreshing) {
-      loadNext()
+  const query = useMemo(() => {
+    const filters = {
+      ...(agentId ? { agentId } : {}),
+      ...(q ? { q } : {}),
+      ...(q && searchScope ? { searchScope } : {}),
+      ...(workspaceId !== undefined ? { workspaceId } : {})
     }
-  }, [loadAll, hasMore, isLoading, isRefreshing, loadNext])
+    if (options.pinned) return { ...filters, pinned: true as const }
+    return { ...filters, pinned: false as const, sortBy: options.sortBy }
+  }, [agentId, options.pinned, options.sortBy, q, searchScope, workspaceId])
+
+  const { pages, isLoading, isLoadingMore, isRefreshing, error, hasNext, loadNext, refresh, reset } = useInfiniteQuery(
+    '/agent-sessions',
+    {
+      query,
+      limit: pageSize,
+      enabled,
+      swrOptions: {
+        revalidateAll: false,
+        revalidateFirstPage: true,
+        ...(options.retainInactive ? { use: [sessionGroupRetentionMiddleware] } : {})
+      }
+    }
+  )
+  const flatSessions = useInfiniteFlatItems(pages)
+  const sessions = useStructurallySharedItems(flatSessions)
+  const hasMore = hasNext
 
   const reload = useCallback(() => refresh(), [refresh])
   const refreshFromDataChange = useCallback(() => {
@@ -288,46 +236,31 @@ export const useSessions = (
     }
   }, [hasMore, isLoadingMore, loadNext])
 
-  const { trigger: createTrigger } = useMutation('POST', '/agent-sessions', {
-    refresh: ['/agent-sessions', '/agent-workspaces']
-  })
-  const createSession = useCallback(
-    async (form: CreateSessionForm): Promise<AgentSessionEntity | null> => {
-      if (!agentId) {
-        toast.error(t('agent.session.create.error.failed'))
-        return null
-      }
-      let result: AgentSessionEntity
-      try {
-        result = await createTrigger({
-          body: {
-            agentId,
-            name: form.name,
-            description: form.description,
-            workspace: form.workspace
-          }
-        })
-      } catch (error) {
-        toast.error(formatErrorMessageWithPrefix(error, t('agent.session.create.error.failed')))
-        return null
-      }
+  return {
+    sessions,
+    hasMore,
+    error,
+    isLoading,
+    isLoadingMore,
+    isValidating: isRefreshing,
+    reload,
+    loadMore,
+    reset
+  }
+}
 
-      await refresh().catch((error) => {
-        toast.error(formatErrorMessageWithPrefix(error, t('agent.session.get.error.failed')))
-      })
-
-      return result
-    },
-    [agentId, createTrigger, refresh, t]
-  )
-
+/** Session-list writes, mounted only by surfaces that expose these actions. */
+export function useSessionMutations() {
+  const { t } = useTranslation()
+  const closeConversationTabs = useCloseConversationTabs()
+  const invalidate = useInvalidateCache()
   const deleteSession = useCallback(
     async (id: string): Promise<boolean> => {
       try {
         const result = await ipcApi.request('ai.agent.session.delete', { sessionIds: [id] })
         closeConversationTabs('agents', result.deletedIds)
         try {
-          await invalidate(['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'])
+          await invalidate([...SESSION_LIST_REFRESH, '/agent-workspaces', '/pins', '/agent-channels'])
         } catch (error) {
           logger.warn('Failed to refresh after deleting Agent Session', error as Error, { sessionId: id })
         }
@@ -346,7 +279,7 @@ export const useSessions = (
         const result = await ipcApi.request('ai.agent.session.delete', { sessionIds: ids })
         closeConversationTabs('agents', result.deletedIds)
         try {
-          await invalidate(['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'])
+          await invalidate([...SESSION_LIST_REFRESH, '/agent-workspaces', '/pins', '/agent-channels'])
         } catch (error) {
           logger.warn('Failed to refresh after deleting Agent Sessions', error as Error, {
             sessionIds: result.deletedIds
@@ -359,17 +292,6 @@ export const useSessions = (
       }
     },
     [closeConversationTabs, invalidate, t]
-  )
-
-  const reorderSessions = useCallback(
-    async (reorderedList: AgentSessionEntity[]) => {
-      try {
-        await applyReorderedList(reorderedList as unknown as Array<Record<string, unknown>>)
-      } catch (error) {
-        toast.error(formatErrorMessageWithPrefix(error, t('agent.session.reorder.error.failed')))
-      }
-    },
-    [applyReorderedList, t]
   )
 
   const { trigger: reorderTrigger } = useMutation('PATCH', '/agent-sessions/:id/order', {
@@ -388,52 +310,7 @@ export const useSessions = (
     [reorderTrigger, t]
   )
 
-  // Server returns pinned-first via the two-section cursor in
-  // `AgentSessionService.listByCursor`, so pin-state changes affect `/agent-sessions`
-  // page ordering, not just `/pins` membership. Refresh both keys so the
-  // row visibly relocates after pin/unpin.
-  const { trigger: pinTrigger } = useMutation('POST', '/pins', { refresh: ['/pins', '/agent-sessions'] })
-  const { trigger: unpinTrigger } = useMutation('DELETE', '/pins/:id', { refresh: ['/pins', '/agent-sessions'] })
-  const togglePin = useCallback(
-    async (sessionId: string) => {
-      const pinId = pinIdBySessionIdRef.current.get(sessionId)
-      try {
-        if (pinId) {
-          await unpinTrigger({ params: { id: pinId } })
-        } else {
-          await pinTrigger({ body: { entityType: 'session', entityId: sessionId } })
-        }
-        return true
-      } catch (error) {
-        toast.error(formatErrorMessageWithPrefix(error, t('agent.session.pin.error.failed')))
-        return false
-      }
-    },
-    [pinTrigger, unpinTrigger, t]
-  )
-
-  return {
-    sessions,
-    pinIdBySessionId,
-    total,
-    hasMore,
-    error,
-    isLoading,
-    isLoadingMore,
-    isValidating: isRefreshing,
-    reload,
-    loadMore,
-    createSession,
-    deleteSession,
-    deleteSessions,
-    reorderSession,
-    reorderSessions,
-    togglePin,
-    isFullyLoaded,
-    isLoadingAll,
-    isPinsLoading,
-    isPinsRefreshing
-  }
+  return { deleteSession, deleteSessions, reorderSession }
 }
 
 /**
@@ -449,13 +326,21 @@ export const useUpdateSession = () => {
     // The non-null assertion mirrors useTopic.ts and crashes loud
     // if the contract is ever broken instead of silently producing
     // '/agent-sessions/undefined' (which would miss every cache entry).
-    refresh: ({ args }) => ['/agent-sessions', `/agent-sessions/${args!.params.sessionId}` as ConcreteApiPaths]
+    refresh: ({ args }) => {
+      const body = args!.body!
+      const refreshStats = 'name' in body || 'agentId' in body
+      return [
+        '/agent-sessions',
+        ...(refreshStats ? (['/agent-sessions/stats'] as const) : []),
+        `/agent-sessions/${args!.params.sessionId}` as ConcreteApiPaths
+      ]
+    }
   })
   const { trigger: setWorkspaceTrigger } = useMutation('PUT', '/agent-sessions/:sessionId/workspace', {
     // Switching workspace creates/deletes a backing system workspace row, so
     // refresh the workspace list alongside the session caches.
     refresh: ({ args }) => [
-      '/agent-sessions',
+      ...SESSION_LIST_REFRESH,
       `/agent-sessions/${args!.params.sessionId}` as ConcreteApiPaths,
       '/agent-workspaces'
     ]
@@ -507,6 +392,6 @@ export function useAgentSessionAutoRenameSync() {
 
   useIpcOn(
     'ai.agent.session.auto_renamed',
-    ({ sessionId }) => void invalidate(['/agent-sessions', `/agent-sessions/${sessionId}`])
+    ({ sessionId }) => void invalidate([...SESSION_LIST_REFRESH, `/agent-sessions/${sessionId}`])
   )
 }

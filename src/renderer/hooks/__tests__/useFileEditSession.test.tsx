@@ -402,6 +402,34 @@ describe('useFileEditSession', () => {
     expect(writeCalls()).toHaveLength(2)
   })
 
+  it('waits for an in-flight write before completing a context discard', async () => {
+    ipcMocks.request.mockResolvedValueOnce(readResult(utf8('hello\n')))
+    const { result } = renderSession()
+    await waitFor(() => expect(result.current.status).toBe('ready'))
+
+    act(() => result.current.setDraft('unsaved'))
+    let resolveWrite!: (value: ReturnType<typeof writeResult>) => void
+    ipcMocks.request.mockImplementationOnce(() => new Promise((resolve) => (resolveWrite = resolve)))
+    let flushPromise!: Promise<void>
+    act(() => {
+      flushPromise = result.current.flush()
+    })
+    await waitFor(() => expect(result.current.isSaving).toBe(true))
+
+    let discardPromise!: Promise<void>
+    act(() => {
+      discardPromise = result.current.waitForSaveAndDiscard()
+    })
+    expect(result.current.isDirty).toBe(true)
+
+    await act(async () => {
+      resolveWrite(writeResult(2, 7))
+      await flushPromise
+      await discardPromise
+    })
+    expect(result.current.isDirty).toBe(false)
+  })
+
   it('flush rejects while the draft cannot be persisted, then resolves after a successful retry', async () => {
     vi.useFakeTimers()
     try {
