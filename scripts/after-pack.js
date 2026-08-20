@@ -14,6 +14,18 @@ function listAsarPackage(archivePath) {
   }
 }
 
+function findDshRuntimeVariants(entries) {
+  const variants = new Set()
+  for (const entry of entries) {
+    const match = entry
+      .replaceAll('\\', '/')
+      .replace(/^\/+/, '')
+      .match(/^node_modules\/@cherrystudio\/dsh-bridge\/dist\/runtime\/([^/]+)\/dsh-runtime\.tar\.zst$/)
+    if (match) variants.add(match[1])
+  }
+  return variants
+}
+
 function assertDshRuntimeArchive(appOutDir, platform, arch) {
   if (!platform || !arch) return
   const resourceRoots = [path.join(appOutDir, 'resources'), path.join(appOutDir, 'Contents', 'Resources')]
@@ -22,21 +34,14 @@ function assertDshRuntimeArchive(appOutDir, platform, arch) {
     .filter((archivePath) => fs.existsSync(archivePath))
   if (archives.length === 0) return
 
-  const variants = new Set()
-  for (const archivePath of archives) {
-    for (const entry of listAsarPackage(archivePath)) {
-      const match = entry
-        .replace(/^\/+/, '')
-        .match(/^node_modules\/@cherrystudio\/dsh-bridge\/dist\/runtime\/([^/]+)\/dsh-runtime\.tar\.zst$/)
-      if (match) variants.add(match[1])
-    }
-  }
+  const variants = new Set(archives.flatMap((archivePath) => [...findDshRuntimeVariants(listAsarPackage(archivePath))]))
   const expected = `${platform}-${arch}`
   if (variants.size !== 1 || !variants.has(expected)) {
     throw new Error(`Packaged DSH runtime archive mismatch: expected ${expected}, found ${[...variants].join(', ')}`)
   }
 }
 
+exports.findDshRuntimeVariants = findDshRuntimeVariants
 exports.assertDshRuntimeArchive = assertDshRuntimeArchive
 
 exports.default = async function (context) {
