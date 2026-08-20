@@ -36,9 +36,13 @@ Chat surfaces may hand you a fenced `selection-ref` block:
 The `anchor` object is exactly what the scripts take via `--anchor`. Before acting on
 one, compare `fileStamp` against the file's current size/mtime (`stat`); if they
 differ, tell the user the file changed since they selected and ask them to re-select —
-never silently re-anchor. Users may also describe the region in words ("sheet 2,
-columns A through C"); build the anchor JSON yourself, confirming the worksheet name or
-paragraph if ambiguous.
+never silently re-anchor. Before a patch-copy edit, also verify the anchor still points
+where the user thinks: extract the anchored region first and compare its text with the
+reference's `excerpt` (ignoring whitespace differences); on a mismatch, stop and tell
+the user the anchor no longer matches their selection — never edit at a mismatched
+anchor and never go searching for a "close enough" location. Users may also describe
+the region in words ("sheet 2, columns A through C"); build the anchor JSON yourself,
+confirming the worksheet name or paragraph if ambiguous.
 
 Anchor shapes:
 
@@ -47,7 +51,7 @@ Anchor shapes:
 | xlsx | `{"format":"xlsx","sheet":"Sheet1","range":"A1:C10"}` (range may be one cell) |
 | docx | `{"format":"docx","paragraph":3,"charRange":[0,12]}` (`charRange` optional; ordinal counts body-level paragraphs only, tables excluded) |
 | pdf | `{"format":"pdf","page":3,"charRange":[0,120]}` (`charRange` optional, applies to extracted text) |
-| pptx | `{"format":"pptx","slide":2,"nodeId":"4","paragraph":0,"tableCell":{"row":1,"col":0}}` (`slide` is one-based; `nodeId` is the OOXML shape id — omit for the whole slide; `paragraph` and `tableCell` optional) |
+| pptx | `{"format":"pptx","slide":2,"nodeId":"4","paragraph":0,"tableCell":{"row":1,"col":0}}` (`slide` is one-based; `nodeId` is the OOXML shape id — omit for the whole slide; `paragraph` and `tableCell` are optional, mutually exclusive, and only valid together with `nodeId`) |
 
 ## Operations
 
@@ -146,5 +150,10 @@ If verification fails, say so and show the error — do not present an unverifie
   into a new deck is not supported (python-pptx cannot clone slides) — say so
   when asked for it.
 - Patched xlsx string cells become inline strings (valid OOXML; Excel reads them fine).
-- Edited XML parts lose insignificant whitespace formatting; semantics are preserved.
+- Edited XML parts may lose insignificant serialization details (attribute quoting,
+  empty-element form); namespace prefixes and untouched content are preserved.
+- xlsx extraction refuses ranges over 1,000,000 cells; both scripts refuse packages
+  with more than 10,000 entries, an entry over 256 MiB uncompressed, or over 1 GiB
+  total uncompressed — ask the user for a smaller selection or file instead of
+  retrying.
 - Scanned/image-only PDFs yield no text (no OCR here).
