@@ -28,6 +28,7 @@ import type { Provider } from '@shared/data/types/provider'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
+import { supportsDynamicallyLoadedTools } from '@shared/utils/model'
 import {
   isExternalCliProvider,
   isOllamaProvider,
@@ -37,6 +38,7 @@ import {
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { getExtraHeaders } from '../../utils/provider'
+import { gatewayStateTag, resolveApiGatewayRuntime } from '../agentApiGateway'
 import type { AgentSessionUsageCapture } from '../types'
 import {
   createAgentProxyEnvironmentFingerprint,
@@ -83,6 +85,15 @@ interface ClaudeCodeRouteFacts {
     sonnet: string
     haiku: string
   }
+  /**
+   * Whether the primary model accepts dynamically-loaded tool declarations — the mechanism behind
+   * the SDK's ToolSearch, which Cherry force-enables via `ENABLE_TOOL_SEARCH=auto`
+   * (settingsBuilder). False means `mergeRuntimeSettings` must strip that env var, or providers
+   * that reject the injected blocks (Moonshot's Anthropic endpoint on non-K3 models) fail every
+   * turn with `400 Invalid request: tokenization failed`. Computed from the effective connection
+   * model in `deriveRouteFacts`, not `agent.model` — a per-turn connection can override it.
+   */
+  toolSearchCompatible: boolean
   /** Configured model identities keyed by every SDK alias that can appear in `result.modelUsage`. */
   usageModels: Extract<AgentSessionUsageCapture, { owner: 'agent-sdk' }>['frozenModels']
 }
@@ -111,6 +122,7 @@ interface ConnectionMaterializationFacts {
   skills: string[]
   linkedChannelId: string | null
   contextWindow: number | null
+  maxOutputTokens: number | null
   proxyEnvironmentFingerprint: string
 }
 
@@ -229,7 +241,7 @@ export function toolPolicyFactsEqual(a: ToolPolicyFacts, b: ToolPolicyFacts): bo
 /**
  * Staleness identity of an agent-session runtime connection, derived read-only at connect time and
  * re-derived at reconcile time. `rebuildSignature` covers everything baked into the spawned
- * subprocess (route/env, cwd, prompt inputs, skills whitelist, maxTurns, MCP definitions, credential
+ * subprocess (route/env, cwd, prompt inputs, skills whitelist, MCP definitions, credential
  * fingerprint); `live` carries the hot-appliable facts, diffed per key by the connection's reconcile.
  *
  * NOTE: `agent.mcps` and `agent.disabledTools` feed BOTH groups on purpose — their policy-gating
@@ -338,6 +350,7 @@ async function deriveConnectionConfigFromSnapshot(
   const provider = providerService.getByProviderId(providerId)
   const model = modelService.getByKey(providerId, modelId)
   const contextWindow = materialized ? materialized.contextWindow : (model.contextWindow ?? null)
+  const maxOutputTokens = materialized ? materialized.maxOutputTokens : (model.maxOutputTokens ?? null)
   const effectiveFastMode = fastMode && isSupportFastMode(provider, model)
   let routeFacts = materialized?.route
   if (!routeFacts) {
@@ -363,6 +376,7 @@ async function deriveConnectionConfigFromSnapshot(
   const rebuildFacts = {
     modelId: uniqueModelId,
     contextWindow,
+    maxOutputTokens,
     reasoningEffort,
     fastMode: effectiveFastMode,
     route: buildRebuildRouteFacts(routeFacts),
@@ -376,7 +390,6 @@ async function deriveConnectionConfigFromSnapshot(
     builtinRole: agent.configuration?.builtin_role ?? null,
     bootstrapCompleted: agent.configuration?.bootstrap_completed ?? null,
     skills: [...skills].sort(),
-    maxTurns: agent.configuration?.max_turns ?? null,
     envVars: Object.entries(agent.configuration?.env_vars ?? {})
       .filter(([key]) => !isAgentProxyEnvironmentKey(key))
       .sort(([a], [b]) => a.localeCompare(b)),
@@ -465,6 +478,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   // settings, and skill materialization can otherwise make the baseline describe a different
   // compaction window from the one actually passed to Claude Code.
   const contextWindow = model.contextWindow
+  const maxOutputTokens = model.maxOutputTokens
   const fastModeTransport = fastMode && isSupportFastMode(provider, model) ? provider.fastMode.transport : undefined
   const thinkingOptions = resolveClaudeCodeThinkingOptions(model, reasoningEffort)
   const { baseUrl } = resolveEffectiveEndpoint(provider, model)
@@ -501,6 +515,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       provider,
       {
         contextWindow,
+        maxOutputTokens,
         lastAgentSessionId: resumeSessionId,
         mcpServerSnapshots,
         linkedChannelSnapshot,
@@ -529,6 +544,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       skills: settings.skills ?? [],
       linkedChannelId: linkedChannelSnapshot?.id ?? null,
       contextWindow: contextWindow ?? null,
+      maxOutputTokens: maxOutputTokens ?? null,
       proxyEnvironmentFingerprint: createAgentProxyEnvironmentFingerprint(settings.env ?? {}, {
         additionalBypassRule: gatewayBypassRule(route)
       })
@@ -624,6 +640,13 @@ function deriveRouteFacts(
   const haikuRef = resolveRuntimeModelRef(smallModel, primaryRef)
   const modelRefs = [primaryRef, opusRef, sonnetRef, haikuRef]
 
+  // ToolSearch is gated on the *primary* model only: it is the only one that can emit ToolSearch
+  // calls, and every dynamically-loaded tool declaration lands in the shared conversation the
+  // primary model must parse. Sub-models are pinned to the primary whenever they differ from
+  // `agent.model` (see `pinSubModelsToPrimary`), so keying on the primary never misses a
+  // per-turn model override.
+  const toolSearchCompatible = supportsDynamicallyLoadedTools(primaryRef.apiModelId)
+
   // External-cli (e.g. claude-code) authenticates only through the SDK's
   // subscription login, which can serve *only* this provider's own models. A
   // plan/small model pointing at another provider can't run on that login — and
@@ -648,6 +671,7 @@ function deriveRouteFacts(
     return {
       branch: 'external-cli',
       credentialsFingerprint: 'external-cli',
+      toolSearchCompatible,
       modelIds,
       usageModels: buildUsageModels([
         { sdkModelId: modelIds.primary, ref: externalRefs.primary },
@@ -663,7 +687,8 @@ function deriveRouteFacts(
   )
 
   if (shouldUseGateway) {
-    const config = application.get('ApiGatewayService').getCurrentConfig()
+    const apiGatewayService = application.get('ApiGatewayService')
+    const config = apiGatewayService.getCurrentConfig()
     const host = config.host || '127.0.0.1'
     const port = config.port || 23333
     // Fingerprint the persisted gateway key WITHOUT `ensureValidApiKey` (which would generate and
@@ -673,7 +698,11 @@ function deriveRouteFacts(
     return {
       branch: 'gateway',
       baseUrl: `http://${host}:${port}`,
-      credentialsFingerprint: fingerprintCredentials([typeof gatewayKey === 'string' ? gatewayKey : '']),
+      credentialsFingerprint: fingerprintCredentials([
+        typeof gatewayKey === 'string' ? gatewayKey : '',
+        gatewayStateTag(config.enabled, apiGatewayService.isRunning())
+      ]),
+      toolSearchCompatible,
       modelIds: {
         primary: toGatewayModelId(primaryRef),
         opus: toGatewayModelId(opusRef),
@@ -707,6 +736,7 @@ function deriveRouteFacts(
       ...enabledKeys.map((key) => `api-key:${key}`),
       ...(customHeaders ? [`custom-headers:${customHeaders}`] : [])
     ]),
+    toolSearchCompatible,
     modelIds,
     usageModels: buildUsageModels([
       { sdkModelId: modelIds.primary, ref: primaryRef },
@@ -752,7 +782,7 @@ async function resolveClaudeCodeRuntimeRoute(
         customHeaders: gateway.usageHeaders,
         usageCapture: { owner: 'provider-calls' },
         internalRequestToken: gateway.internalRequestToken,
-        credentialsFingerprint: fingerprintCredentials([gateway.apiKey])
+        credentialsFingerprint: fingerprintCredentials([gateway.apiKey, gateway.stateTag])
       }
     }
     case 'direct': {
@@ -782,6 +812,7 @@ function toConnectionRouteFacts(route: ClaudeCodeRuntimeRoute): ClaudeCodeRouteF
     branch: route.branch,
     baseUrl: route.baseUrl,
     credentialsFingerprint: route.credentialsFingerprint,
+    toolSearchCompatible: route.toolSearchCompatible,
     modelIds: route.modelIds,
     usageModels: route.usageModels
   }
@@ -821,31 +852,20 @@ function resolveRuntimeModelRef(
   }
 }
 
+/**
+ * The Claude Agent SDK only ever speaks Anthropic Messages, so the direct route asks the shared
+ * resolver for that dialect instead of taking the in-app-chat default (`endpointTypes[0]`). A model
+ * that declares `anthropic-messages` behind another dialect — DeepSeek V4 Flash lists it third — would
+ * otherwise be pushed onto the gateway, which re-serializes the SDK's native thinking blocks into a
+ * dialect that cannot carry them back. The resolver declines the preference when the model does not
+ * declare the endpoint or the provider configures no base URL for it, which this comparison detects.
+ */
 function usesAnthropicMessagesEndpoint(ref: RuntimeModelRef): boolean {
   if (!ref.provider || !ref.model) return false
-  return resolveEffectiveEndpoint(ref.provider, ref.model).endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES
-}
-
-async function resolveApiGatewayRuntime(sessionId: string): Promise<{
-  baseUrl: string
-  apiKey: string
-  usageHeaders: Record<string, string>
-  internalRequestToken: string
-}> {
-  const apiGatewayService = application.get('ApiGatewayService')
-  const apiKey = await apiGatewayService.ensureValidApiKey()
-  if (!apiGatewayService.isRunning()) {
-    await apiGatewayService.start()
-  }
-  const config = apiGatewayService.getCurrentConfig()
-  const host = config.host || '127.0.0.1'
-  const port = config.port || 23333
-  return {
-    baseUrl: `http://${host}:${port}`,
-    apiKey,
-    usageHeaders: apiGatewayService.getAgentSessionUsageHeaders(sessionId),
-    internalRequestToken: apiGatewayService.getInternalRequestToken()
-  }
+  return (
+    resolveEffectiveEndpoint(ref.provider, ref.model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES).endpointType ===
+    ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+  )
 }
 
 function toGatewayModelId(ref: RuntimeModelRef): string {
@@ -886,6 +906,14 @@ function mergeRuntimeSettings(
     },
     { additionalBypassRule: gatewayBypassRule(route) }
   )
+  // `buildEnvironment` force-enables the SDK's ToolSearch via `ENABLE_TOOL_SEARCH=auto` before the
+  // per-turn model is known, and the var is in the blocked list so agents cannot override it. When
+  // the effective connection model rejects dynamically-loaded tool declarations (e.g. Kimi models
+  // other than K3 on Moonshot's Anthropic endpoint → `400 Invalid request: tokenization failed`),
+  // drop it here so the SDK falls back to loading every tool upfront.
+  if (!route.toolSearchCompatible) {
+    delete env.ENABLE_TOOL_SEARCH
+  }
   return {
     ...settings,
     env

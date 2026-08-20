@@ -88,7 +88,7 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
     ])
   })
 
-  it('reasoning-extraction activates only for the openai-chat wire', () => {
+  it('reasoning-extraction activates for inline-reasoning wires', () => {
     expect(
       activeNames(
         makeScope({
@@ -96,6 +96,16 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
           model: {},
           aiSdkProviderId: 'openai-chat',
           endpointType: 'openai-chat-completions'
+        })
+      )
+    ).toContain('reasoning-extraction')
+    expect(
+      activeNames(
+        makeScope({
+          provider: { id: 'ollama' },
+          model: {},
+          aiSdkProviderId: 'ollama',
+          endpointType: 'ollama-chat'
         })
       )
     ).toContain('reasoning-extraction')

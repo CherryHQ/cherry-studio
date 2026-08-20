@@ -796,9 +796,9 @@ export async function remove(target: AbsoluteFilePath): Promise<void> {
   }
 }
 
-/** Remove a directory recursively. Idempotent on missing path. */
+/** Remove a directory recursively, retrying transient filesystem locks. Idempotent on missing path. */
 export async function removeDir(target: AbsoluteFilePath): Promise<void> {
-  await fsRm(target, { recursive: true, force: true })
+  await fsRm(target, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
 }
 
 /** Create a single directory. Throws if it already exists. */

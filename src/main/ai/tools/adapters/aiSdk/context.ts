@@ -33,6 +33,14 @@ export interface RequestContext {
   readonly knowledgeBaseIds?: readonly string[]
 
   /**
+   * MCP servers whose resources this request may read, frozen when the request was built (same set
+   * that gated the `mcp_resource_*` tools). Execution re-resolves the live set and intersects with
+   * this one, so a server that drops out mid-turn becomes unreadable while one that appears after
+   * the request started can never join. Absent for synthetic / IPC-driven invocations.
+   */
+  readonly mcpResourceServerIds?: ReadonlySet<string>
+
+  /**
    * Absolute paths of persisted tool-output blobs this conversation owns — the
    * exact allow-list `fs_read` may serve. Seeded in `buildAgentParams` from
    * `RetainedContext.persistedOutputPaths` (RAW path, so blobs of
@@ -83,6 +91,16 @@ export function getToolCallContext(options: ToolExecutionOptions): ToolCallConte
     toolCallId: options.toolCallId,
     messages: options.messages
   }
+}
+
+/**
+ * Lenient counterpart of {@link getToolCallContext} for optional enrichment
+ * (e.g. abort-scope tagging): returns undefined instead of throwing when the
+ * context is absent, so the tool call itself never fails over a missing extra.
+ */
+export function getRequestContext(options: ToolExecutionOptions): RequestContext | undefined {
+  const request = options.experimental_context
+  return isRequestContext(request) ? request : undefined
 }
 
 function isRequestContext(value: unknown): value is RequestContext {

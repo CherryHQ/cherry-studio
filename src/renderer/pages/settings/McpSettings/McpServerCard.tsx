@@ -21,6 +21,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { FallbackProps } from 'react-error-boundary'
 import { useTranslation } from 'react-i18next'
 
+import { isQVerisApiKeyMissing, QVerisApiKeyGuide } from './QVerisApiKeyGuide'
 import { useMcpServerTrust } from './useMcpServerTrust'
 
 const logger = loggerService.withContext('McpServerCard')
@@ -31,7 +32,7 @@ interface McpServerCardProps {
 }
 
 const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
-  const { updateMcpServer, deleteMcpServer } = useMcpServerMutations(server.id)
+  const { updateMcpServer, removeMcpServer } = useMcpServerMutations(server.id)
   const [loading, setLoading] = useState(false)
   const [version, setVersion] = useState<string | null>(null)
   const runtimeStatus = useMcpRuntimeStatus(server.id, server.isActive)
@@ -63,6 +64,15 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
 
   const handleToggleActive = useCallback(
     async (active: boolean) => {
+      if (active && isQVerisApiKeyMissing(server)) {
+        void popup.error({
+          title: t('settings.mcp.startError'),
+          content: <QVerisApiKeyGuide />,
+          centered: true
+        })
+        return
+      }
+
       let serverForUpdate = server
       if (active) {
         const trustedServer = await ensureServerTrusted(server)
@@ -112,13 +122,12 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
       })
       if (!confirmed) return
 
-      await ipcApi.request('mcp.server.remove', { serverId: server.id })
-      await deleteMcpServer({})
+      await removeMcpServer()
       toast.success(t('settings.mcp.deleteSuccess'))
     } catch (error: any) {
       toast.error(`${t('settings.mcp.deleteError')}: ${error.message}`)
     }
-  }, [server, deleteMcpServer, t])
+  }, [removeMcpServer, t])
 
   const handleOpenUrl = useCallback(
     (event: React.MouseEvent) => {

@@ -18,6 +18,7 @@ import { Route as SettingsSystemRouteImport } from './routes/settings/system'
 import { Route as SettingsSkillsRouteImport } from './routes/settings/skills'
 import { Route as SettingsShortcutRouteImport } from './routes/settings/shortcut'
 import { Route as SettingsSelectionAssistantRouteImport } from './routes/settings/selection-assistant'
+import { Route as SettingsScreenshotRouteImport } from './routes/settings/screenshot'
 import { Route as SettingsScheduledTasksRouteImport } from './routes/settings/scheduled-tasks'
 import { Route as SettingsQuickAssistantRouteImport } from './routes/settings/quick-assistant'
 import { Route as SettingsProviderRouteImport } from './routes/settings/provider'
@@ -26,6 +27,7 @@ import { Route as SettingsNotificationsRouteImport } from './routes/settings/not
 import { Route as SettingsModelRouteImport } from './routes/settings/model'
 import { Route as SettingsMcpRouteImport } from './routes/settings/mcp'
 import { Route as SettingsLocalModelsRouteImport } from './routes/settings/local-models'
+import { Route as SettingsGeneralRouteImport } from './routes/settings/general'
 import { Route as SettingsFileProcessingRouteImport } from './routes/settings/file-processing'
 import { Route as SettingsDependenciesRouteImport } from './routes/settings/dependencies'
 import { Route as SettingsDataRouteImport } from './routes/settings/data'
@@ -35,6 +37,7 @@ import { Route as SettingsAppearanceRouteImport } from './routes/settings/appear
 import { Route as SettingsApiGatewayRouteImport } from './routes/settings/api-gateway'
 import { Route as SettingsAboutRouteImport } from './routes/settings/about'
 import { Route as AppTranslateRouteImport } from './routes/app/translate'
+import { Route as AppReleaseNotesRouteImport } from './routes/app/release-notes'
 import { Route as AppNotesRouteImport } from './routes/app/notes'
 import { Route as AppLaunchpadRouteImport } from './routes/app/launchpad'
 import { Route as AppKnowledgeRouteImport } from './routes/app/knowledge'
@@ -104,6 +107,11 @@ const SettingsSelectionAssistantRoute =
     path: '/selection-assistant',
     getParentRoute: () => SettingsRoute,
   } as any)
+const SettingsScreenshotRoute = SettingsScreenshotRouteImport.update({
+  id: '/screenshot',
+  path: '/screenshot',
+  getParentRoute: () => SettingsRoute,
+} as any)
 const SettingsScheduledTasksRoute = SettingsScheduledTasksRouteImport.update({
   id: '/scheduled-tasks',
   path: '/scheduled-tasks',
@@ -142,6 +150,11 @@ const SettingsMcpRoute = SettingsMcpRouteImport.update({
 const SettingsLocalModelsRoute = SettingsLocalModelsRouteImport.update({
   id: '/local-models',
   path: '/local-models',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsGeneralRoute = SettingsGeneralRouteImport.update({
+  id: '/general',
+  path: '/general',
   getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsFileProcessingRoute = SettingsFileProcessingRouteImport.update({
@@ -187,6 +200,11 @@ const SettingsAboutRoute = SettingsAboutRouteImport.update({
 const AppTranslateRoute = AppTranslateRouteImport.update({
   id: '/translate',
   path: '/translate',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppReleaseNotesRoute = AppReleaseNotesRouteImport.update({
+  id: '/release-notes',
+  path: '/release-notes',
   getParentRoute: () => AppRoute,
 } as any)
 const AppNotesRoute = AppNotesRouteImport.update({
@@ -314,6 +332,7 @@ export interface FileRoutesByFullPath {
   '/app/knowledge': typeof AppKnowledgeRoute
   '/app/launchpad': typeof AppLaunchpadRoute
   '/app/notes': typeof AppNotesRoute
+  '/app/release-notes': typeof AppReleaseNotesRoute
   '/app/translate': typeof AppTranslateRoute
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-gateway': typeof SettingsApiGatewayRoute
@@ -323,6 +342,7 @@ export interface FileRoutesByFullPath {
   '/settings/data': typeof SettingsDataRoute
   '/settings/dependencies': typeof SettingsDependenciesRoute
   '/settings/file-processing': typeof SettingsFileProcessingRoute
+  '/settings/general': typeof SettingsGeneralRoute
   '/settings/local-models': typeof SettingsLocalModelsRoute
   '/settings/mcp': typeof SettingsMcpRouteWithChildren
   '/settings/model': typeof SettingsModelRoute
@@ -331,6 +351,7 @@ export interface FileRoutesByFullPath {
   '/settings/provider': typeof SettingsProviderRoute
   '/settings/quick-assistant': typeof SettingsQuickAssistantRoute
   '/settings/scheduled-tasks': typeof SettingsScheduledTasksRouteWithChildren
+  '/settings/screenshot': typeof SettingsScreenshotRoute
   '/settings/selection-assistant': typeof SettingsSelectionAssistantRoute
   '/settings/shortcut': typeof SettingsShortcutRoute
   '/settings/skills': typeof SettingsSkillsRoute
@@ -363,6 +384,7 @@ export interface FileRoutesByTo {
   '/app/knowledge': typeof AppKnowledgeRoute
   '/app/launchpad': typeof AppLaunchpadRoute
   '/app/notes': typeof AppNotesRoute
+  '/app/release-notes': typeof AppReleaseNotesRoute
   '/app/translate': typeof AppTranslateRoute
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-gateway': typeof SettingsApiGatewayRoute
@@ -372,12 +394,14 @@ export interface FileRoutesByTo {
   '/settings/data': typeof SettingsDataRoute
   '/settings/dependencies': typeof SettingsDependenciesRoute
   '/settings/file-processing': typeof SettingsFileProcessingRoute
+  '/settings/general': typeof SettingsGeneralRoute
   '/settings/local-models': typeof SettingsLocalModelsRoute
   '/settings/model': typeof SettingsModelRoute
   '/settings/notifications': typeof SettingsNotificationsRoute
   '/settings/ocr': typeof SettingsOcrRoute
   '/settings/provider': typeof SettingsProviderRoute
   '/settings/quick-assistant': typeof SettingsQuickAssistantRoute
+  '/settings/screenshot': typeof SettingsScreenshotRoute
   '/settings/selection-assistant': typeof SettingsSelectionAssistantRoute
   '/settings/shortcut': typeof SettingsShortcutRoute
   '/settings/skills': typeof SettingsSkillsRoute
@@ -412,6 +436,7 @@ export interface FileRoutesById {
   '/app/knowledge': typeof AppKnowledgeRoute
   '/app/launchpad': typeof AppLaunchpadRoute
   '/app/notes': typeof AppNotesRoute
+  '/app/release-notes': typeof AppReleaseNotesRoute
   '/app/translate': typeof AppTranslateRoute
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-gateway': typeof SettingsApiGatewayRoute
@@ -421,6 +446,7 @@ export interface FileRoutesById {
   '/settings/data': typeof SettingsDataRoute
   '/settings/dependencies': typeof SettingsDependenciesRoute
   '/settings/file-processing': typeof SettingsFileProcessingRoute
+  '/settings/general': typeof SettingsGeneralRoute
   '/settings/local-models': typeof SettingsLocalModelsRoute
   '/settings/mcp': typeof SettingsMcpRouteWithChildren
   '/settings/model': typeof SettingsModelRoute
@@ -429,6 +455,7 @@ export interface FileRoutesById {
   '/settings/provider': typeof SettingsProviderRoute
   '/settings/quick-assistant': typeof SettingsQuickAssistantRoute
   '/settings/scheduled-tasks': typeof SettingsScheduledTasksRouteWithChildren
+  '/settings/screenshot': typeof SettingsScreenshotRoute
   '/settings/selection-assistant': typeof SettingsSelectionAssistantRoute
   '/settings/shortcut': typeof SettingsShortcutRoute
   '/settings/skills': typeof SettingsSkillsRoute
@@ -464,6 +491,7 @@ export interface FileRouteTypes {
     | '/app/knowledge'
     | '/app/launchpad'
     | '/app/notes'
+    | '/app/release-notes'
     | '/app/translate'
     | '/settings/about'
     | '/settings/api-gateway'
@@ -473,6 +501,7 @@ export interface FileRouteTypes {
     | '/settings/data'
     | '/settings/dependencies'
     | '/settings/file-processing'
+    | '/settings/general'
     | '/settings/local-models'
     | '/settings/mcp'
     | '/settings/model'
@@ -481,6 +510,7 @@ export interface FileRouteTypes {
     | '/settings/provider'
     | '/settings/quick-assistant'
     | '/settings/scheduled-tasks'
+    | '/settings/screenshot'
     | '/settings/selection-assistant'
     | '/settings/shortcut'
     | '/settings/skills'
@@ -513,6 +543,7 @@ export interface FileRouteTypes {
     | '/app/knowledge'
     | '/app/launchpad'
     | '/app/notes'
+    | '/app/release-notes'
     | '/app/translate'
     | '/settings/about'
     | '/settings/api-gateway'
@@ -522,12 +553,14 @@ export interface FileRouteTypes {
     | '/settings/data'
     | '/settings/dependencies'
     | '/settings/file-processing'
+    | '/settings/general'
     | '/settings/local-models'
     | '/settings/model'
     | '/settings/notifications'
     | '/settings/ocr'
     | '/settings/provider'
     | '/settings/quick-assistant'
+    | '/settings/screenshot'
     | '/settings/selection-assistant'
     | '/settings/shortcut'
     | '/settings/skills'
@@ -561,6 +594,7 @@ export interface FileRouteTypes {
     | '/app/knowledge'
     | '/app/launchpad'
     | '/app/notes'
+    | '/app/release-notes'
     | '/app/translate'
     | '/settings/about'
     | '/settings/api-gateway'
@@ -570,6 +604,7 @@ export interface FileRouteTypes {
     | '/settings/data'
     | '/settings/dependencies'
     | '/settings/file-processing'
+    | '/settings/general'
     | '/settings/local-models'
     | '/settings/mcp'
     | '/settings/model'
@@ -578,6 +613,7 @@ export interface FileRouteTypes {
     | '/settings/provider'
     | '/settings/quick-assistant'
     | '/settings/scheduled-tasks'
+    | '/settings/screenshot'
     | '/settings/selection-assistant'
     | '/settings/shortcut'
     | '/settings/skills'
@@ -671,6 +707,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsSelectionAssistantRouteImport
       parentRoute: typeof SettingsRoute
     }
+    '/settings/screenshot': {
+      id: '/settings/screenshot'
+      path: '/screenshot'
+      fullPath: '/settings/screenshot'
+      preLoaderRoute: typeof SettingsScreenshotRouteImport
+      parentRoute: typeof SettingsRoute
+    }
     '/settings/scheduled-tasks': {
       id: '/settings/scheduled-tasks'
       path: '/scheduled-tasks'
@@ -725,6 +768,13 @@ declare module '@tanstack/react-router' {
       path: '/local-models'
       fullPath: '/settings/local-models'
       preLoaderRoute: typeof SettingsLocalModelsRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/general': {
+      id: '/settings/general'
+      path: '/general'
+      fullPath: '/settings/general'
+      preLoaderRoute: typeof SettingsGeneralRouteImport
       parentRoute: typeof SettingsRoute
     }
     '/settings/file-processing': {
@@ -788,6 +838,13 @@ declare module '@tanstack/react-router' {
       path: '/translate'
       fullPath: '/app/translate'
       preLoaderRoute: typeof AppTranslateRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/release-notes': {
+      id: '/app/release-notes'
+      path: '/release-notes'
+      fullPath: '/app/release-notes'
+      preLoaderRoute: typeof AppReleaseNotesRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/notes': {
@@ -956,6 +1013,7 @@ interface AppRouteChildren {
   AppKnowledgeRoute: typeof AppKnowledgeRoute
   AppLaunchpadRoute: typeof AppLaunchpadRoute
   AppNotesRoute: typeof AppNotesRoute
+  AppReleaseNotesRoute: typeof AppReleaseNotesRoute
   AppTranslateRoute: typeof AppTranslateRoute
   AppMiniAppAppIdRoute: typeof AppMiniAppAppIdRoute
   AppPaintingsSplatRoute: typeof AppPaintingsSplatRoute
@@ -972,6 +1030,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppKnowledgeRoute: AppKnowledgeRoute,
   AppLaunchpadRoute: AppLaunchpadRoute,
   AppNotesRoute: AppNotesRoute,
+  AppReleaseNotesRoute: AppReleaseNotesRoute,
   AppTranslateRoute: AppTranslateRoute,
   AppMiniAppAppIdRoute: AppMiniAppAppIdRoute,
   AppPaintingsSplatRoute: AppPaintingsSplatRoute,
@@ -1032,6 +1091,7 @@ interface SettingsRouteChildren {
   SettingsDataRoute: typeof SettingsDataRoute
   SettingsDependenciesRoute: typeof SettingsDependenciesRoute
   SettingsFileProcessingRoute: typeof SettingsFileProcessingRoute
+  SettingsGeneralRoute: typeof SettingsGeneralRoute
   SettingsLocalModelsRoute: typeof SettingsLocalModelsRoute
   SettingsMcpRoute: typeof SettingsMcpRouteWithChildren
   SettingsModelRoute: typeof SettingsModelRoute
@@ -1040,6 +1100,7 @@ interface SettingsRouteChildren {
   SettingsProviderRoute: typeof SettingsProviderRoute
   SettingsQuickAssistantRoute: typeof SettingsQuickAssistantRoute
   SettingsScheduledTasksRoute: typeof SettingsScheduledTasksRouteWithChildren
+  SettingsScreenshotRoute: typeof SettingsScreenshotRoute
   SettingsSelectionAssistantRoute: typeof SettingsSelectionAssistantRoute
   SettingsShortcutRoute: typeof SettingsShortcutRoute
   SettingsSkillsRoute: typeof SettingsSkillsRoute
@@ -1058,6 +1119,7 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsDataRoute: SettingsDataRoute,
   SettingsDependenciesRoute: SettingsDependenciesRoute,
   SettingsFileProcessingRoute: SettingsFileProcessingRoute,
+  SettingsGeneralRoute: SettingsGeneralRoute,
   SettingsLocalModelsRoute: SettingsLocalModelsRoute,
   SettingsMcpRoute: SettingsMcpRouteWithChildren,
   SettingsModelRoute: SettingsModelRoute,
@@ -1066,6 +1128,7 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsProviderRoute: SettingsProviderRoute,
   SettingsQuickAssistantRoute: SettingsQuickAssistantRoute,
   SettingsScheduledTasksRoute: SettingsScheduledTasksRouteWithChildren,
+  SettingsScreenshotRoute: SettingsScreenshotRoute,
   SettingsSelectionAssistantRoute: SettingsSelectionAssistantRoute,
   SettingsShortcutRoute: SettingsShortcutRoute,
   SettingsSkillsRoute: SettingsSkillsRoute,

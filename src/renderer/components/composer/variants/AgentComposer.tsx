@@ -30,7 +30,10 @@ import {
   type QuickPanelListItem,
   useOptionalQuickPanel
 } from '@renderer/components/QuickPanel'
-import { openResourceEditDialog, ResourceEditDialogEventHost } from '@renderer/components/resourceCatalog/dialogs/edit'
+import {
+  openResourceEditDialog,
+  ResourceEditDialogEventHost
+} from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
@@ -51,18 +54,23 @@ import type { ThinkingOption } from '@renderer/types/reasoning'
 import { TopicType } from '@renderer/types/topic'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@renderer/utils/file/buildFileParts'
-import { getSendMessageShortcutLabel } from '@renderer/utils/input'
+import {
+  getComposerShortcutLabel,
+  resolveNewlineShortcut,
+  resolveSendShortcut,
+  resolveSteerShortcut
+} from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { resolveReasoningEffortForModel } from '@renderer/utils/model'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { FileUIPart } from '@shared/data/types/message'
-import { type Model, parseUniqueModelId } from '@shared/data/types/model'
+import type { Model } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import type { OutputFor } from '@shared/ipc/types'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
-import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { type CanonicalFilePath, canonicalizeFilePath, createFilePathHandle, toFileUrl } from '@shared/utils/file'
 import { Settings2, Terminal, ToolCase } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
@@ -129,7 +137,7 @@ const AGENT_MANAGED_TOKEN_KINDS_BEFORE_KNOWLEDGE_RESTORE = [
 ] as const satisfies readonly ComposerDraftToken['kind'][]
 const AGENT_SKILLS_LAUNCHER_ID = 'agent-skills'
 const AGENT_NEW_SESSION_TOOL_ID = 'composer:new-session'
-const EMPTY_ACCESSIBLE_PATHS: readonly string[] = []
+const EMPTY_ACCESSIBLE_PATHS: readonly AbsoluteFilePath[] = []
 const FILE_IPC_BATCH_SIZE = 500
 
 type AccessibleAttachment = {
@@ -183,9 +191,26 @@ const buildAccessiblePathFilePart = (
   )
 }
 
+/**
+ * `AgentWorkspacePathSchema` only guarantees a non-empty string, so the stored
+ * workspace path is asserted to be an absolute filesystem path here, before it
+ * reaches the path helpers. A malformed one yields no accessible paths, which
+ * degrades to inlining attachments instead of referencing them — still correct,
+ * just less efficient.
+ */
+const toAccessiblePaths = (workspacePath: string | undefined): AbsoluteFilePath[] => {
+  if (!workspacePath) return []
+  const parsed = AbsoluteFilePathSchema.safeParse(workspacePath)
+  if (!parsed.success) {
+    logger.warn('Ignoring agent workspace path that is not an absolute filesystem path', { path: workspacePath })
+    return []
+  }
+  return [parsed.data]
+}
+
 const buildAgentFilePartsForAttachments = async (
   attachments: ComposerAttachment[],
-  accessiblePaths: readonly string[]
+  accessiblePaths: readonly AbsoluteFilePath[]
 ): Promise<FileUIPart[]> => {
   const accessibleAttachments: AccessibleAttachment[] = []
   const internalizedAttachments: ComposerAttachment[] = []
@@ -391,7 +416,7 @@ const AgentComposerRoot = ({
   const sessionSlashCommands = useAgentSessionSlashCommands(sessionId)
   const sessionData = useMemo(() => {
     if (!session || !agent) return undefined
-    const accessiblePaths = session.workspace?.type === 'user' && session.workspace.path ? [session.workspace.path] : []
+    const accessiblePaths = toAccessiblePaths(session.workspace?.type === 'user' ? session.workspace.path : undefined)
     return {
       agentId,
       sessionId,
@@ -502,8 +527,7 @@ interface InnerProps {
 
 function AgentComposerContextUsage({ model, sessionId }: { model?: Model; sessionId: string }) {
   const { t } = useTranslation()
-  const expectedModels = useMemo(() => getContextUsageModelCandidates(model), [model])
-  const { percentage, usage } = useAgentSessionContextUsage(sessionId, expectedModels)
+  const { percentage, usage, maxTokens } = useAgentSessionContextUsage(sessionId, model)
   const compaction = useAgentSessionCompaction(sessionId)
   if (percentage === null || !usage) return null
 
@@ -524,6 +548,7 @@ function AgentComposerContextUsage({ model, sessionId }: { model?: Model; sessio
         <AgentContextUsageSummary
           usage={usage}
           percentage={percentage}
+          maxTokens={maxTokens}
           isCompacting={isCompacting}
           modelName={model?.name}
           showCategories={false}
@@ -542,21 +567,6 @@ function AgentComposerContextUsage({ model, sessionId }: { model?: Model; sessio
       />
     </Tooltip>
   )
-}
-
-function getContextUsageModelCandidates(model: Model | undefined): string[] | undefined {
-  if (!model) return undefined
-  const { providerId, modelId } = parseUniqueModelId(model.id)
-  const apiModelId = model.apiModelId ?? modelId
-  const candidates = [apiModelId, modelId]
-
-  try {
-    candidates.push(formatGatewayModelId(providerId, apiModelId))
-  } catch {
-    // Some models are intentionally not gateway-addressable; their direct ids remain valid candidates.
-  }
-
-  return candidates
 }
 
 type AgentComposerControlProps = Omit<
@@ -746,7 +756,10 @@ const AgentComposerInner = ({
   const [narrowMode] = usePreference('chat.narrow_mode')
   // Yield the same rail gutter as the message column so the composer stays aligned.
   const { railGutterPx } = useChatLayoutMode()
-  const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
+  const [storedSendShortcut] = usePreference('chat.input.send_message_shortcut')
+  const sendMessageShortcut = resolveSendShortcut(storedSendShortcut)
+  const [steerShortcut] = usePreference('chat.input.steer_shortcut')
+  const [newlineShortcut] = usePreference('chat.input.newline_shortcut')
   const { available: topBarPortalAvailable, iconOnly: topBarPortalIconOnly } = useConversationTopBarPortalLayout()
   const {
     pinnedIds: pinnedToolIds,
@@ -1339,9 +1352,18 @@ const AgentComposerInner = ({
     [availableSkills, reconcileTokens]
   )
 
+  const resolvedNewlineShortcut = resolveNewlineShortcut(newlineShortcut, sendMessageShortcut)
+  const resolvedSteerShortcut = resolveSteerShortcut(steerShortcut, sendMessageShortcut, resolvedNewlineShortcut)
+
   const placeholderText = useMemo(
-    () => t('agent.input.placeholder', { key: getSendMessageShortcutLabel(sendMessageShortcut) }),
-    [sendMessageShortcut, t]
+    () =>
+      isStreaming
+        ? t('agent.input.placeholder_streaming', {
+            sendKey: getComposerShortcutLabel(sendMessageShortcut),
+            steerKey: getComposerShortcutLabel(resolvedSteerShortcut)
+          })
+        : t('agent.input.placeholder', { key: getComposerShortcutLabel(sendMessageShortcut) }),
+    [isStreaming, resolvedSteerShortcut, sendMessageShortcut, t]
   )
 
   const buildQueuedPayload = useCallback(
@@ -1470,7 +1492,7 @@ const AgentComposerInner = ({
   )
 
   const handleSendDraft = useCallback(
-    async (draft: ComposerSerializedDraft) => {
+    async (draft: ComposerSerializedDraft, options?: { steer?: boolean }) => {
       if (sendDisabled) return
       if (!model) {
         toast.error(t('code.model_required'))
@@ -1484,8 +1506,9 @@ const AgentComposerInner = ({
       if (!payload) return
 
       // Busy (streaming) → queue the follow-up; the head auto-drains when the session goes idle and
-      // the dock lets the user steer/edit/remove items.
-      if (isStreaming) {
+      // the dock lets the user steer/edit/remove items. The steer shortcut opts out of the queue and
+      // falls through to the direct send below, mirroring the dock's "insert" action.
+      if (isStreaming && !options?.steer) {
         enqueueFollowup(draft, payload)
         clearCurrentDraft()
         return
@@ -1690,6 +1713,8 @@ const AgentComposerInner = ({
           resolveKnowledgeBaseMarker={resolveKnowledgeBaseMarker}
           resolveSkillMarker={resolveSkillMarker}
           placeholder={placeholderText}
+          sendMessageShortcut={sendMessageShortcut}
+          steerShortcut={isStreaming ? resolvedSteerShortcut : undefined}
           sendDisabled={
             sendDisabled ||
             hasPendingReference ||
@@ -1781,7 +1806,8 @@ const MissingAgentHomeComposerInner = ({
   const toolLaunchersVersion = useComposerToolLauncherVersion()
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [fontSize] = usePreference('chat.message.font_size')
-  const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
+  const [storedSendShortcut] = usePreference('chat.input.send_message_shortcut')
+  const sendMessageShortcut = resolveSendShortcut(storedSendShortcut)
   const [narrowMode] = usePreference('chat.narrow_mode')
   // Yield the same rail gutter as the message column so the composer stays aligned.
   const { railGutterPx } = useChatLayoutMode()
@@ -1806,7 +1832,7 @@ const MissingAgentHomeComposerInner = ({
     toast.error(selectAgentMessage)
   }, [selectAgentMessage])
   const placeholderText = t('agent.input.placeholder', {
-    key: getSendMessageShortcutLabel(sendMessageShortcut)
+    key: getComposerShortcutLabel(sendMessageShortcut)
   })
   const controlSlots = renderAgentToolbarControls({
     agent: undefined,
@@ -1838,6 +1864,7 @@ const MissingAgentHomeComposerInner = ({
         managedTokenKinds={AGENT_MANAGED_TOKEN_KINDS}
         onTokensChange={() => undefined}
         placeholder={placeholderText}
+        sendMessageShortcut={sendMessageShortcut}
         sendDisabled
         sendBlockedReason={selectAgentMessage}
         isLoading={false}

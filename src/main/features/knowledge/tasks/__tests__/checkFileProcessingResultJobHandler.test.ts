@@ -226,6 +226,45 @@ describe('check-file-processing-result job handler', () => {
     expect(ingestionService.scheduleIndexing).toHaveBeenCalledWith('kb-1', FILE_ITEM_ID, 'reindex-job')
   })
 
+  it('recognises a local background file-processing job as its own child', async () => {
+    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
+    knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
+    getJobMock.mockResolvedValue(
+      createFileProcessingJobSnapshot({
+        type: 'file-processing.background-local',
+        status: 'completed',
+        input: {
+          feature: 'document_to_markdown',
+          file: { kind: 'path', path: '/mock/feature.knowledgebase.data/kb-1/raw/source.pdf' },
+          output: { kind: 'path', path: '/mock/feature.knowledgebase.data/kb-1/raw/source.md' },
+          context: { dataId: FILE_ITEM_ID },
+          processorId: 'local-document'
+        },
+        output: {
+          artifact: { kind: 'file', format: 'markdown', path: '/mock/feature.knowledgebase.data/kb-1/raw/source.md' }
+        }
+      })
+    )
+
+    await handler.execute(createCtx(createCheckPayload()))
+
+    expect(knowledgeItemUpdateIndexedRelativePathMock).toHaveBeenCalledWith(FILE_ITEM_ID, PROCESSED_RELATIVE_PATH)
+    expect(ingestionService.scheduleIndexing).toHaveBeenCalledWith('kb-1', FILE_ITEM_ID, 'job-1')
+  })
+
+  it('marks the item failed when the linked job has an unrelated job type', async () => {
+    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
+    knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
+    getJobMock.mockResolvedValue(createFileProcessingJobSnapshot({ type: 'knowledge.index-item' }))
+
+    await handler.execute(createCtx(createCheckPayload()))
+
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(FILE_ITEM_ID, 'failed', {
+      error: 'Invalid file processing job for knowledge item: fp-job-1'
+    })
+    expect(ingestionService.scheduleIndexing).not.toHaveBeenCalled()
+  })
+
   it('marks the item failed when the linked job is not the expected file-processing job', async () => {
     const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
     knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
@@ -273,13 +312,14 @@ describe('check-file-processing-result job handler', () => {
     expect(ctx.reportProgress).not.toHaveBeenCalledWith(100, { stage: 'done' })
   })
 
-  it('marks the item failed when file processing fails', async () => {
+  it('marks an over-limit PDF failed with manual split guidance and does not index it', async () => {
     const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
     knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
+    const pageLimitError = '该 PDF 超过当前文档解析服务的 1000 页上限，请手动拆分 PDF 后重新添加。'
     getJobMock.mockResolvedValue(
       createFileProcessingJobSnapshot({
         status: 'failed',
-        error: { code: 'FAILED', message: 'processor failed', retryable: false }
+        error: { code: 'FAILED', message: pageLimitError, retryable: false }
       })
     )
 
@@ -287,8 +327,9 @@ describe('check-file-processing-result job handler', () => {
     await handler.execute(ctx)
 
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(FILE_ITEM_ID, 'failed', {
-      error: 'File processing job fp-job-1 failed: processor failed'
+      error: `File processing job fp-job-1 failed: ${pageLimitError}`
     })
+    expect(knowledgeItemUpdateIndexedRelativePathMock).not.toHaveBeenCalled()
     expect(ingestionService.scheduleIndexing).not.toHaveBeenCalled()
     expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'failed' })
   })

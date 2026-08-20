@@ -151,9 +151,8 @@ const readFileTool = tool({
 export function createReadFileToolEntry(): ToolEntry {
   return {
     name: READ_FILE_TOOL_NAME,
-    // Persist-only: blobs an oversized page echo (`text`) out of message.data
-    // while totalChars/nextOffset ride the skeleton. Never triggers in-flight —
-    // toModelOutput emits text, and the truncator's entity path only sees json.
+    // Persist-lane only (`toModelOutput` emits text, the entity path needs
+    // json). In flight the generic text path still offloads it past threshold.
     codec: makeTextFieldCodec({ textKey: 'text' }),
     namespace: 'file',
     description: 'Read an attached file by filename — returns its text (paged for long files)',

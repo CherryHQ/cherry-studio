@@ -50,6 +50,7 @@ const MINI_APP_ICON_REFS: Record<string, IconRef> = {
   duck: providerIconRef('duck'),
   namiai: providerIconRef('nami-ai'),
   thinkany: providerIconRef('think-any'),
+  github: providerIconRef('github'),
   githubcopilot: providerIconRef('github-copilot'),
   genspark: providerIconRef('genspark'),
   grok: providerIconRef('grok'),

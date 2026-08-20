@@ -9,14 +9,16 @@ import { cn } from '@renderer/utils/style'
  * traffic-light inset, current route title, and window-level pin / back-to-main controls.
  * Page navbars render below it unchanged from their embedded layout.
  */
-export const SubWindowTitleBar = () => (
+export const SubWindowTitleBar = ({ isFullscreen }: { isFullscreen: boolean }) => (
   <header
     className={cn(
       'relative flex w-full shrink-0 select-none items-center gap-2 border-border-subtle border-b bg-background [-webkit-app-region:drag]',
       TITLE_BAR_HEIGHT_CLASS,
       // Reserve the top-right corner for the OS window controls overlay (0px on macOS).
       'pr-[calc(0.5rem+var(--window-controls-width,0px))]',
-      isMac ? 'pl-[env(titlebar-area-x)]' : 'pl-2'
+      // macOS native traffic lights are hidden in fullscreen, so `env(titlebar-area-x)`
+      // collapses to 0 — fall back to the plain inset instead of hugging the left edge.
+      isMac && !isFullscreen ? 'pl-[env(titlebar-area-x)]' : 'pl-2'
     )}>
     <SubWindowTitle className="min-w-0 flex-1" />
     <div className="flex shrink-0 items-center gap-0.5 [-webkit-app-region:no-drag]">

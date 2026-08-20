@@ -18,7 +18,7 @@ import type { KnowledgeFilePreviewTarget } from '../../types'
 import DataSourcePanelHeader from './DataSourcePanelHeader'
 import KnowledgeItemList from './KnowledgeItemList'
 import { dataSourceTypeDisplayConfig } from './utils/models'
-import { getItemTitle } from './utils/selectors'
+import { canReindexKnowledgeItem, getItemTitle } from './utils/selectors'
 
 export interface DataSourcePanelProps {
   embeddingModelId?: string | null
@@ -65,7 +65,7 @@ const getLocalEmbeddingStatusLabel = (status: LocalEmbeddingStatus, t: TFunction
     case 'unsupported':
       return t('settings.dependencies.localModels.unsupported')
     case 'not_downloaded':
-      return t('knowledge.rag.download_local_embedding')
+      return t('knowledge.rag.download_local_model')
     case 'downloading':
       return t('settings.dependencies.localModels.status.downloading')
   }
@@ -231,12 +231,26 @@ const DataSourcePanelContent = ({
   )
 
   const handleBulkReindex = useCallback(async () => {
-    const itemIds = items.filter((item) => selectedIds.has(item.id)).map((item) => item.id)
+    const selectedItems = items.filter((item) => selectedIds.has(item.id))
+    // The main process rejects the whole batch when any selected item is still
+    // indexing, which would also drop the failed ones the user wants to retry.
+    // Skip them here instead, mirroring the row menu's own gate.
+    const reindexableItems = selectedItems.filter(canReindexKnowledgeItem)
+    const skippedCount = selectedItems.length - reindexableItems.length
+
+    if (reindexableItems.length === 0) {
+      toast.warning(t('knowledge.data_source.bulk.reindex_none_eligible'))
+      return
+    }
+
     try {
-      await onReindexItems(itemIds)
+      await onReindexItems(reindexableItems.map((item) => item.id))
     } catch (error) {
       toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.reindex_failed')))
       return
+    }
+    if (skippedCount > 0) {
+      toast.warning(t('knowledge.data_source.bulk.reindex_skipped', { count: skippedCount }))
     }
     setSelectedIds(new Set())
   }, [items, onReindexItems, selectedIds, t])

@@ -1,4 +1,5 @@
-import type { CherryUIMessageChunk } from '@shared/data/types/message'
+import type { CherryUIMessage, CherryUIMessageChunk } from '@shared/data/types/message'
+import { readUIMessageStream } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const loggerMocks = vi.hoisted(() => ({
@@ -15,7 +16,8 @@ vi.mock('@logger', () => ({
   }
 }))
 
-const { ClaudeCodeStreamAdapter } = await import('../streamAdapter')
+const { ClaudeCodeResultError, ClaudeCodeStreamAdapter } = await import('../streamAdapter')
+const { PersistenceListener } = await import('../../../streamManager/listeners/PersistenceListener')
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -493,6 +495,85 @@ describe('ClaudeCodeStreamAdapter', () => {
     expect(parts.map((part) => part.type)).toEqual(['text-start', 'text-delta', 'text-end'])
     expect(parts[1]).toMatchObject({ type: 'text-delta', id: (parts[0] as any).id, delta: 'hi' })
     expect(parts[2]).toMatchObject({ type: 'text-end', id: (parts[0] as any).id })
+  })
+
+  it('does not emit or persist tagged or synthetic-source reminders from the assistant stream', async () => {
+    const { adapter, parts } = createAdapter()
+    const reminder = 'The task tools have not been used recently.'
+
+    adapter.handleMessage({
+      type: 'user',
+      isSynthetic: true,
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: {
+        role: 'user',
+        content: [{ type: 'text', text: `<system-reminder>\n${reminder}\n</system-reminder>` }]
+      }
+    } as any)
+
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+    )
+    for (const text of [
+      'before\n<system-',
+      'reminder>Internal context.</system-rem',
+      'inder>\nThe task tools have ',
+      'not been used recently.\nafter'
+    ]) {
+      adapter.handleMessage(streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } }))
+    }
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+
+    const text = parts
+      .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+      .map((part) => part.delta)
+      .join('')
+    expect(text).toBe('before\n\n\nafter')
+
+    const stream = new ReadableStream<CherryUIMessageChunk>({
+      start(controller) {
+        for (const part of parts) controller.enqueue(part)
+        controller.close()
+      }
+    })
+    let finalMessage: CherryUIMessage | undefined
+    for await (const snapshot of readUIMessageStream<CherryUIMessage>({
+      stream,
+      message: { id: 'assistant-1', role: 'assistant', parts: [] }
+    })) {
+      finalMessage = snapshot
+    }
+    const persistAssistant = vi.fn()
+    const listener = new PersistenceListener({
+      topicId: 'agent-session:session-1',
+      backend: { kind: 'test', persistAssistant },
+      onPersistFailed: vi.fn()
+    })
+    await listener.onDone({ status: 'success', isTopicDone: true, finalMessage })
+
+    expect(persistAssistant).toHaveBeenCalledWith(
+      expect.objectContaining({
+        finalMessage: expect.objectContaining({ parts: [{ type: 'text', text: 'before\n\n\nafter', state: 'done' }] })
+      })
+    )
+  })
+
+  it('preserves ordinary assistant text that mentions system-reminder', () => {
+    const { adapter, parts } = createAdapter()
+
+    adapter.handleMessage(
+      streamEvent({
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'text_delta', text: 'The system-reminder name is documented here.' }
+      })
+    )
+
+    expect(parts).toContainEqual(
+      expect.objectContaining({ type: 'text-delta', delta: 'The system-reminder name is documented here.' })
+    )
   })
 
   it('maps reasoning content block deltas', () => {
@@ -1051,6 +1132,32 @@ describe('ClaudeCodeStreamAdapter', () => {
     expect(sessionIds).toEqual(['sdk-error'])
   })
 
+  it.each([
+    ['is_error', { is_error: true }],
+    ['api_error terminal reason', { terminal_reason: 'api_error' }],
+    ['API error status', { api_error_status: 504 }]
+  ])('throws SDK success results marked by %s', (_, overrides) => {
+    const { adapter, parts, sessionIds } = createAdapter()
+    const resultText = 'API Error: The operation timed out.'
+    let thrown: unknown
+
+    try {
+      adapter.handleMessage(successResult({ result: resultText, ...overrides }))
+    } catch (error) {
+      thrown = error
+    }
+
+    expect(thrown).toBeInstanceOf(ClaudeCodeResultError)
+    expect(thrown).toMatchObject({
+      message: resultText,
+      subtype: 'success',
+      errors: [resultText]
+    })
+    expect(sessionIds).toEqual(['sdk-result'])
+    expect(parts.map((part) => part.type)).toEqual(['message-metadata'])
+    expect(loggerMocks.info).not.toHaveBeenCalledWith(expect.stringContaining('Stream completed'))
+  })
+
   it('emits final live usage metadata before throwing on error results', () => {
     const { adapter, parts } = createAdapter()
 
@@ -1081,6 +1188,59 @@ describe('ClaudeCodeStreamAdapter', () => {
         }
       }
     ])
+  })
+
+  it('flushes a trailing reminder-marker prefix before throwing on error results', () => {
+    const { adapter, parts } = createAdapter()
+
+    adapter.handleMessage(
+      streamEvent({
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'text_delta', text: 'comparison <' }
+      })
+    )
+
+    expect(() =>
+      adapter.handleMessage(
+        successResult({
+          subtype: 'error_during_execution',
+          is_error: true,
+          errors: ['boom']
+        })
+      )
+    ).toThrow('boom')
+
+    expect(
+      parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+    ).toBe('comparison <')
+    expect(parts.findIndex((part) => part.type === 'text-end')).toBeLessThan(
+      parts.findIndex((part) => part.type === 'message-metadata')
+    )
+  })
+
+  it('flushes a trailing reminder-marker prefix when open text parts are finalized', () => {
+    const { adapter, parts } = createAdapter()
+
+    adapter.handleMessage(
+      streamEvent({
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'text_delta', text: 'comparison <' }
+      })
+    )
+    adapter.finalizeOpenTextParts()
+
+    expect(
+      parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+    ).toBe('comparison <')
+    expect(parts.at(-1)?.type).toBe('text-end')
   })
 
   it('emits truncation fallback from buffered text', () => {
@@ -1291,6 +1451,39 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(loggerMocks.warn).toHaveBeenCalledWith(
         'Received a result message with no active turn; dropping turn-complete',
         { sessionId: 'session-1' }
+      )
+    })
+
+    it('throws an API failure result when no turn is active', () => {
+      const { adapter, parts, sessionIds } = createAdapter({}, { openTurn: false })
+      let thrown: unknown
+
+      try {
+        adapter.handleMessage(
+          successResult({
+            session_id: 'resume-api-error',
+            is_error: true,
+            terminal_reason: 'api_error',
+            api_error_status: 504,
+            result: 'API Error: The operation timed out.'
+          })
+        )
+      } catch (error) {
+        thrown = error
+      }
+
+      expect(thrown).toBeInstanceOf(ClaudeCodeResultError)
+      expect(thrown).toMatchObject({
+        message: 'API Error: The operation timed out.',
+        subtype: 'success',
+        terminalReason: 'api_error',
+        apiErrorStatus: 504
+      })
+      expect(sessionIds).toEqual(['resume-api-error'])
+      expect(parts).toEqual([])
+      expect(loggerMocks.warn).not.toHaveBeenCalledWith(
+        'Received a result message with no active turn; dropping turn-complete',
+        expect.anything()
       )
     })
 

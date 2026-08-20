@@ -51,6 +51,8 @@ export const CITATION_SNIPPET_MAX_CHARS = 300
 // ── kb_list ──────────────────────────────────────────────────────
 
 export const KB_LIST_TOOL_NAME = 'kb_list'
+export const KB_LIST_DEFAULT_LIMIT = 20
+export const KB_LIST_MAX_LIMIT = 50
 
 // kb_list has two modes, selected by `baseId`:
 //   - omit `baseId`  → list the user's knowledge bases (name / group / item count / sample sources),
@@ -68,7 +70,9 @@ export const kbListInputSchema = z.object({
     .min(1)
     .max(200)
     .optional()
-    .describe('List mode only: case-insensitive substring filter against base name and sample sources.'),
+    .describe(
+      'List mode only: case-insensitive substring filter against the knowledge base name or source names such as filenames, URLs, and note titles.'
+    ),
   groupId: z
     .string()
     .trim()
@@ -89,7 +93,20 @@ export const kbListInputSchema = z.object({
     .int()
     .nonnegative()
     .optional()
-    .describe('Outline mode only (requires `baseId`): limit the tree to this many folder levels (0 = top level).')
+    .describe('Outline mode only (requires `baseId`): limit the tree to this many folder levels (0 = top level).'),
+  limit: z
+    .number()
+    .int()
+    .positive()
+    .max(KB_LIST_MAX_LIMIT)
+    .default(KB_LIST_DEFAULT_LIMIT)
+    .describe(`List mode only: maximum bases to return (default ${KB_LIST_DEFAULT_LIMIT}, max ${KB_LIST_MAX_LIMIT}).`),
+  cursor: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe('List mode only: continuation cursor returned by the previous kb_list call.')
 })
 
 export const kbListOutputItemSchema = z.object({
@@ -105,7 +122,11 @@ export const kbListOutputItemSchema = z.object({
   itemsUnavailable: z.boolean().optional()
 })
 
-export const kbListOutputSchema = z.array(kbListOutputItemSchema)
+export const kbListOutputSchema = z.object({
+  items: z.array(kbListOutputItemSchema),
+  total: z.number().int().nonnegative(),
+  nextCursor: z.string().optional()
+})
 
 export type KbListInput = z.infer<typeof kbListInputSchema>
 export type KbListOutputItem = z.infer<typeof kbListOutputItemSchema>
@@ -568,3 +589,87 @@ export type ReadFileInput = z.infer<typeof readFileInputSchema>
 export type ReadFileOutput = z.infer<typeof readFileOutputSchema>
 export type ReadFileError = z.infer<typeof readFileErrorSchema>
 export type ReadFileResult = z.infer<typeof readFileResultSchema>
+
+// ── mcp_resource_list / mcp_resource_read ────────────────────────
+// The MCP *resources* half of the protocol (tools are exposed per server by `syncMcpToolsToRegistry`
+// instead). Which servers are reachable is request scope, frozen when the request is built, so
+// `mcp_resource_list` takes no input. A resource is addressed by the `(serverId, uri)` pair the list
+// returns: a uri alone is not unique across servers, and neither is a server *name* — `mcp_server`
+// indexes name without a unique constraint, so two active servers may share one.
+
+export const MCP_RESOURCE_LIST_TOOL_NAME = 'mcp_resource_list'
+export const MCP_RESOURCE_READ_TOOL_NAME = 'mcp_resource_read'
+
+/** Default max characters per `mcp_resource_read` page when the request carries no tool-output cap. */
+export const MCP_RESOURCE_READ_CHAR_CAP = CONTEXT_PERSIST_THRESHOLD_CHARS
+
+/** No inputs: the reachable server set is request scope, not a model decision. */
+export const mcpResourceListInputSchema = z.object({})
+
+export const mcpResourceEntrySchema = z.object({
+  /** Stable identity to pass back to `mcp_resource_read`; `serverName` is display only. */
+  serverId: z.string(),
+  serverName: z.string(),
+  uri: z.string(),
+  name: z.string(),
+  description: z.string().optional(),
+  mimeType: z.string().optional()
+})
+
+export const mcpResourceListOutputSchema = z.object({
+  resources: z.array(mcpResourceEntrySchema)
+})
+
+export const mcpResourceReadInputSchema = z.object({
+  serverId: z
+    .string()
+    .min(1)
+    .describe(
+      'Id of the MCP server publishing the resource, exactly as returned by mcp_resource_list. Server ' +
+        'names are not unique, so the id is what identifies the server.'
+    ),
+  uri: z
+    .string()
+    .min(1)
+    .describe('Resource uri exactly as returned by mcp_resource_list, for example "file:///notes.md".'),
+  offset: z
+    .number()
+    .int()
+    .nonnegative()
+    .optional()
+    .describe('0-based character offset to start from. Page through long resources with the returned nextOffset.')
+})
+
+export const mcpResourceSavedBlobSchema = z.object({
+  uri: z.string(),
+  mimeType: z.string().optional(),
+  /** Absolute path containing the decoded bytes; the base64 payload never enters model context. */
+  blobSavedTo: z.string(),
+  /** Short model-facing explanation of what was saved and where. */
+  text: z.string()
+})
+
+export const mcpResourceReadOutputSchema = z.object({
+  uri: z.string(),
+  serverId: z.string(),
+  serverName: z.string(),
+  mimeType: z.string().optional(),
+  text: z.string(),
+  /** Total characters available in the resource (for paging). */
+  totalChars: z.number().int().nonnegative(),
+  /** Next `offset` to pass to continue reading; omitted when the end was reached. */
+  nextOffset: z.number().int().nonnegative().optional(),
+  /** Binary content decoded to temporary files instead of returning base64 in the tool result. */
+  blobs: z.array(mcpResourceSavedBlobSchema).optional()
+})
+
+/** Unknown uri / unreachable server — distinguishable from a successful read. */
+export const mcpResourceErrorSchema = z.object({ error: z.string() })
+
+export const mcpResourceReadResultSchema = z.union([mcpResourceReadOutputSchema, mcpResourceErrorSchema])
+
+export type McpResourceEntry = z.infer<typeof mcpResourceEntrySchema>
+export type McpResourceSavedBlob = z.infer<typeof mcpResourceSavedBlobSchema>
+export type McpResourceListOutput = z.infer<typeof mcpResourceListOutputSchema>
+export type McpResourceReadOutput = z.infer<typeof mcpResourceReadOutputSchema>
+export type McpResourceReadResult = z.infer<typeof mcpResourceReadResultSchema>

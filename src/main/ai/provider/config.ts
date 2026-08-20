@@ -17,9 +17,21 @@ import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding
 import type { EndpointType, Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { formatApiHost, formatOllamaApiHost, isWithTrailingSharp, withoutTrailingApiVersion } from '@shared/utils/api'
+import {
+  formatApiHost,
+  formatOllamaApiHost,
+  isBareVertexApiHost,
+  isWithTrailingSharp,
+  withoutTrailingApiVersion
+} from '@shared/utils/api'
 import { isGenerateImageModel } from '@shared/utils/model'
-import { isAzureOpenAIProvider, isGeminiProvider, isOllamaProvider, matchesPreset } from '@shared/utils/provider'
+import {
+  isAzureOpenAIProvider,
+  isGeminiProvider,
+  isOllamaProvider,
+  isVertexProvider,
+  matchesPreset
+} from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import { isEmpty } from 'es-toolkit/compat'
 
@@ -27,13 +39,13 @@ import type { ProviderConfig } from '../types'
 import { type AppProviderId, appProviderIds, type AppProviderSettingsMap } from '../types'
 import { customFetch } from '../utils/customFetch'
 import { getBaseUrl, getExtraHeaders, routeToEndpoint } from '../utils/provider'
-import { stripArkUnsupportedIncludes } from './ark'
+import { normalizeArkResponsesResponse, stripArkUnsupportedIncludes } from './ark'
 import { generateSignature } from './cherryai'
 import { buildCodexRequestHeaders, coerceCodexRequestBody } from './codex'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import type { ServingAuthMethod, ServingCredentialReceipt } from './credential'
 import { appendDashScopeWebExtractor } from './custom/dashscope/dashscopeWebExtractor'
-import { dmxapiUsesCustomTransport } from './custom/dmxapi/dmxapiProvider'
+import { dmxapiUsesCustomTransport } from './custom/dmxapi/dmxapiImageRouting'
 import { resolveAiSdkProviderId, type ResolvedEndpoint, resolveEffectiveEndpoint } from './endpoint'
 import { buildGrokCliRequestHeaders, rewriteGrokCliResponsesBody } from './grokCli'
 import { isVertexMaasModelId, normalizeVertexCredentials } from './vertex'
@@ -76,6 +88,13 @@ function formatBaseURL(baseURL: string, provider: Provider, endpointType?: Endpo
 
   const appendApiVersion = !isWithTrailingSharp(baseURL)
 
+  // Preserve the v1 Vertex contract before generic endpoint formatting:
+  // official bare hosts are SDK-derived, while every explicit override keeps
+  // its host/port/path and receives Vertex's default /v1 when needed.
+  if (isVertexProvider(provider)) {
+    return isBareVertexApiHost(baseURL) ? '' : formatApiHost(baseURL, appendApiVersion)
+  }
+
   // Endpoint-driven formatting
   if (endpointType === ENDPOINT_TYPE.OLLAMA_CHAT || endpointType === ENDPOINT_TYPE.OLLAMA_GENERATE) {
     return formatOllamaApiHost(baseURL)
@@ -104,6 +123,15 @@ function formatBaseURL(baseURL: string, provider: Provider, endpointType?: Endpo
 
   return formatApiHost(baseURL, appendApiVersion)
 }
+
+/** Presets whose IMAGE models route to the extension provider's own transport (see the builder). */
+const IMAGE_EXTENSION_PRESETS = [
+  SystemProviderIds.modelscope,
+  SystemProviderIds.ppio,
+  SystemProviderIds.silicon,
+  SystemProviderIds.doubao,
+  SystemProviderIds.dmxapi
+] as const
 
 // ── SDK Config Building ──
 
@@ -173,6 +201,7 @@ export async function resolveProviderAiSdkConfig(
 
   const formattedBaseUrl = formatBaseURL(baseUrl, provider, endpointType)
   const { baseURL, endpoint } = routeToEndpoint(formattedBaseUrl)
+  const imageExtensionPreset = IMAGE_EXTENSION_PRESETS.find((preset) => matchesPreset(provider, preset))
 
   const ctx: BuilderContext = {
     actualProvider: provider,
@@ -215,7 +244,7 @@ export async function resolveProviderAiSdkConfig(
     // DashScope chat is OpenAI-compatible, but Bailian rerank uses a provider-specific URL.
     // Only replace the OpenAI-compatible branch so other DashScope endpoint families stay routed normally.
     {
-      match: (p, id) => p.id === SystemProviderIds.dashscope && id === 'openai-compatible',
+      match: (p, id) => matchesPreset(p, SystemProviderIds.dashscope) && id === 'openai-compatible',
       build: withSelectedApiKey(buildDashScopeConfig)
     },
     // Zhipu chat is OpenAI-compatible, but BigModel's built-in web search rides the
@@ -251,8 +280,10 @@ export async function resolveProviderAiSdkConfig(
       match: (p, id) => id === 'openai' && matchesPreset(p, SystemProviderIds.doubao),
       build: withSelectedApiKey((ctx) => {
         const config = buildGenericProviderConfig(ctx)
-        config.providerSettings.fetch = (input: RequestInfo | URL, init?: RequestInit) =>
-          customFetch(input, { ...init, body: stripArkUnsupportedIncludes(init?.body) })
+        config.providerSettings.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+          const response = await customFetch(input, { ...init, body: stripArkUnsupportedIncludes(init?.body) })
+          return normalizeArkResponsesResponse(input, response)
+        }
         return config
       })
     },
@@ -273,23 +304,21 @@ export async function resolveProviderAiSdkConfig(
     // (createXProvider().imageModel()) — a submit/poll loop for most, Ark's own
     // `/images/generations` protocol for doubao. Override the resolved `openai-compatible` id
     // to the extension id for image models only — chat/embedding fall through to the generic
-    // openai-compatible builder (which keeps `includeUsage`). provider.id is the extension
-    // id here, since the match requires it. Routing here is also what makes the vendor
-    // params land under the `providerOptions` key the image model reads: the delivery
-    // adapter keys the body by this `providerId`, which the generic branch would leave as
-    // `openai-compatible` while the model looked under the provider's own id.
+    // openai-compatible builder (which keeps `includeUsage`). Matched by PRESET, not by a bare
+    // `provider.id` — a user-added instance of the same host carries a UUID id, and keying on
+    // the id left it on the generic image model (multipart `/images/edits`, 404 on Ark #18537).
+    // Routing here is also what makes the vendor params land under the `providerOptions` key
+    // the image model reads: the delivery adapter keys the body by this `providerId`, which the
+    // generic branch would leave as `openai-compatible` while the model looked under its own id.
     {
-      match: (p, id) =>
+      match: (_, id) =>
         id === 'openai-compatible' &&
         isGenerateImageModel(model) &&
-        (p.id === SystemProviderIds.modelscope ||
-          p.id === SystemProviderIds.ppio ||
-          p.id === SystemProviderIds.silicon ||
-          p.id === SystemProviderIds.doubao ||
-          (p.id === SystemProviderIds.dmxapi && dmxapiUsesCustomTransport(model.apiModelId ?? model.id))),
-      // provider.id is guaranteed to be one of these by the match above.
+        imageExtensionPreset !== undefined &&
+        (imageExtensionPreset !== SystemProviderIds.dmxapi || dmxapiUsesCustomTransport(model.apiModelId ?? model.id)),
       build: withSelectedApiKey((ctx) => ({
-        providerId: ctx.actualProvider.id as 'modelscope' | 'ppio' | 'silicon' | 'doubao' | 'dmxapi',
+        // Non-null by the match above.
+        providerId: imageExtensionPreset!,
         endpoint: ctx.endpoint,
         providerSettings: {
           ...ctx.baseConfig,

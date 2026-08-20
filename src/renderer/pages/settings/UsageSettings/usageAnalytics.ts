@@ -31,6 +31,7 @@ export type GroupByKey = (typeof GROUP_BY_KEYS)[number]
 export type UsageMetricKey = (typeof METRIC_KEYS)[number]
 export type UsageChartType = (typeof CHART_TYPE_KEYS)[number]
 export type UsageRollupKey = (typeof ROLLUP_KEYS)[number]
+export type UsageTopCount = (typeof TOP_COUNT_KEYS)[number]
 
 export const EMPTY_TIMELINE_BUCKETS: AiUsageRecordTimelineBucket[] = []
 export const EMPTY_STATS_METRICS: AiUsageRecordStatsMetrics = {

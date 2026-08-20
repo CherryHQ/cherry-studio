@@ -1,11 +1,13 @@
 /**
  * Read-side service for agent scheduled tasks: list / get / run logs plus the
  * JobScheduleSnapshot → ScheduledTaskEntity mapping and subscription reads.
- * All task mutations go through `AgentJobsService` (IpcApi `ai.agent.task.*`)
- * — this service must not reach JobManager / SchedulerService / ChannelManager.
+ * User-driven task mutations go through `AgentJobsService` (IpcApi
+ * `ai.agent.task.*`); the workspace cleanup methods below are DB-only
+ * transaction primitives used by workspace deletion.
  */
 
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
+import type { DbOrTx } from '@data/db/types'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { registerDataService } from '@data/services/dataServiceRegistry'
@@ -14,8 +16,10 @@ import { jobService } from '@data/services/JobService'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { ScheduledTaskEntity, TaskRunLogEntity } from '@shared/data/api/schemas/agents'
 import {
+  AGENT_WORKSPACE_TYPE,
   type AgentSessionWorkspaceSource,
-  AgentSessionWorkspaceSourceSchema
+  AgentSessionWorkspaceSourceSchema,
+  type AgentWorkspaceReferenceItem
 } from '@shared/data/api/schemas/agentWorkspaces'
 import type { JobScheduleSnapshot, JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { ListOptions } from '@shared/data/api/types'
@@ -65,6 +69,24 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+function referencesWorkspace(value: unknown, workspaceId: string): value is Record<string, unknown> {
+  if (!isPlainRecord(value)) return false
+  const workspace = AgentSessionWorkspaceSourceSchema.safeParse(value.workspace)
+  return (
+    workspace.success && workspace.data.type === AGENT_WORKSPACE_TYPE.USER && workspace.data.workspaceId === workspaceId
+  )
+}
+
+function findWorkspaceScheduleReferences(schedules: JobScheduleSnapshot[], workspaceId: string) {
+  const references: Array<{ schedule: JobScheduleSnapshot; template: Record<string, unknown> }> = []
+  for (const schedule of schedules) {
+    if (referencesWorkspace(schedule.jobInputTemplate, workspaceId)) {
+      references.push({ schedule, template: schedule.jobInputTemplate })
+    }
+  }
+  return references
+}
+
 export function normalizeTaskSessionReuseRevision(value: unknown): number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : 0
 }
@@ -106,6 +128,39 @@ export class AgentTaskService {
       { endpoint: '/agent-tasks/:taskId', entityIds },
       { endpoint: '/agents/:agentId/tasks/:taskId', entityIds }
     ])
+  }
+
+  listWorkspaceReferencesTx(tx: DbOrTx, workspaceId: string): AgentWorkspaceReferenceItem[] {
+    return findWorkspaceScheduleReferences(
+      jobScheduleService.listAllTx(tx, { type: AGENT_TASK_TYPE }),
+      workspaceId
+    ).map(({ schedule }) => ({ id: schedule.id, name: schedule.name ?? '' }))
+  }
+
+  /**
+   * This cleanup changes only the template used when the task creates a new
+   * session. A reused session keeps its own workspace, and any reused session
+   * bound to this workspace is deleted by the same outer transaction. The
+   * trigger is unchanged and JobManager re-reads the schedule before each run,
+   * so this path does not bump the reuse revision, clear the schedule, or re-arm
+   * its timer.
+   */
+  resetWorkspaceReferencesTx(tx: DbOrTx, workspaceId: string): AgentWorkspaceReferenceItem[] {
+    const references = findWorkspaceScheduleReferences(
+      jobScheduleService.listAllTx(tx, { type: AGENT_TASK_TYPE }),
+      workspaceId
+    )
+
+    for (const { schedule, template } of references) {
+      jobScheduleService.updateTx(tx, schedule.id, {
+        jobInputTemplate: {
+          ...template,
+          workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+        }
+      })
+    }
+
+    return references.map(({ schedule }) => ({ id: schedule.id, name: schedule.name ?? '' }))
   }
 
   getTaskById(taskId: string): ScheduledTaskEntity | null {

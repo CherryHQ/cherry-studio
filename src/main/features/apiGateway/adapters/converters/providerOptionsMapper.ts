@@ -11,7 +11,11 @@ import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
 import type { ReasoningEffort } from '@cherrystudio/openai/resources'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
-import { resolveAiSdkProviderId, resolveEffectiveEndpoint, resolveProviderOptionsKey } from '@main/ai/provider/endpoint'
+import {
+  resolveAiSdkProviderId,
+  resolveEffectiveEndpoint,
+  resolveEndpointProviderOptionsKey
+} from '@main/ai/provider/endpoint'
 import { buildResolvedReasoningProviderOptions } from '@main/ai/utils/options'
 import { resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
 import { nearestEffortForBudget } from '@shared/ai/reasoning'
@@ -45,11 +49,7 @@ function buildProviderOptions(
   })
   return buildResolvedReasoningProviderOptions({
     aiSdkProviderId,
-    providerOptionsKey: resolveProviderOptionsKey(aiSdkProviderId, {
-      actualProviderId: provider.id,
-      endpointType,
-      gatewayProviderOptionsKey: resolvedEndpoint.providerOptionsKey
-    }),
+    providerOptionsKey: resolveEndpointProviderOptionsKey(provider, resolvedEndpoint),
     endpointType,
     reasoning
   }) as ProviderOptions
@@ -98,6 +98,20 @@ export function mapAnthropicThinkingToProviderOptions(
   const { endpointType } = resolveEffectiveEndpoint(provider, model)
   if (endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) {
     return passThroughAnthropicReasoning(config, effort)
+  }
+
+  // Ollama's ChatHandler 400s when `think` is true for a model that lacks
+  // thinking capability. The SDK default ({type:'adaptive'}) would map to
+  // think:true, breaking agent mode for non-thinking models. Only emit think
+  // when the user explicitly enabled thinking or set a reasoning effort.
+  if (endpointType === ENDPOINT_TYPE.OLLAMA_CHAT) {
+    if (config?.type === 'disabled') return buildProviderOptions(provider, model, 'none', maxTokens)
+    if (effort != null) return buildProviderOptions(provider, model, effort, maxTokens)
+    if (config?.type === 'enabled') {
+      const budgetEffort = nearestEffortForBudget(config.budget_tokens, model.reasoning?.thinkingTokenLimits) ?? 'high'
+      return buildProviderOptions(provider, model, budgetEffort, maxTokens)
+    }
+    return undefined
   }
 
   if (effort != null) return buildProviderOptions(provider, model, effort, maxTokens)
