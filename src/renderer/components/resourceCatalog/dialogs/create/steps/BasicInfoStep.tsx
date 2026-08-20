@@ -4,7 +4,6 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-  InfoTooltip,
   InputGroup,
   InputGroupAddon,
   InputGroupInput
@@ -89,16 +88,12 @@ function AgentRuntimeModelFields({
         name="agentType"
         render={({ field }) => (
           <FormItem>
-            <div className="flex items-center gap-1.5">
-              <FormLabel className="font-normal">{t('library.config.agent.field.runtime.label')}</FormLabel>
-              <InfoTooltip
-                content={t('library.config.agent.field.runtime.immutable_hint')}
-                iconProps={{
-                  className: 'cursor-help',
-                  'aria-label': `${t('library.config.agent.field.runtime.label')}: ${t('library.config.agent.field.runtime.immutable_hint')}`
-                }}
-              />
-            </div>
+            <FormLabel className="items-baseline gap-1.5 font-normal">
+              {t('library.config.agent.field.runtime.label')}
+              <span className="text-muted-foreground text-xs">
+                {t('library.config.agent.field.runtime.immutable_hint')}
+              </span>
+            </FormLabel>
             <FormControl>
               <AgentRuntimeTiles
                 value={field.value}

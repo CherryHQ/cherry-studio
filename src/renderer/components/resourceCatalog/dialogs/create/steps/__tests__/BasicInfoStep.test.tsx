@@ -110,7 +110,8 @@ describe('BasicInfoStep', () => {
   it('exposes every supported runtime as a selectable card with immutable guidance', () => {
     render(<Harness runtimeSelectable />)
 
-    expect(screen.getByRole('img', { name: /runtime\.immutable_hint/ })).toBeInTheDocument()
+    expect(screen.getByText('library.config.agent.field.runtime.immutable_hint')).toBeVisible()
+    expect(screen.queryByRole('img', { name: /runtime\.immutable_hint/ })).not.toBeInTheDocument()
     expect(screen.getByRole('radio', { name: /runtime.option.claude_code/ })).toBeChecked()
     expect(screen.getByRole('radio', { name: /runtime.option.pi/ })).not.toBeChecked()
     expect(screen.getByRole('radio', { name: /runtime.option.dsh/ })).not.toBeChecked()
