@@ -6213,7 +6213,6 @@
       "provider_key_confirm_title": "为 {{provider}} 添加 API 密钥",
       "provider_name": "服务商名称",
       "quick_assistant_default_tag": "默认",
-      "quick_assistant_model": "快捷助手模型",
       "quick_assistant_response_settings": "响应设置",
       "quick_assistant_selection": "选择助手",
       "quick_assistant_usage_method": "使用方式",

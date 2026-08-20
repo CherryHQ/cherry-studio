@@ -216,7 +216,8 @@ const ModelSettings: FC<ModelSettingsProps> = ({
     const target = focus === 'default' ? defaultRowRef.current : translateRowRef.current
     if (!target) return
 
-    scrollIntoView(target)
+    const behavior = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
+    scrollIntoView(target, { behavior, block: 'center', inline: 'nearest' })
     setShowFocusGuide(true)
     setTimeoutTimer('model-settings-focus-guide', () => setShowFocusGuide(false), 1200)
   }, [compact, focus, setTimeoutTimer])

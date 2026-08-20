@@ -6213,7 +6213,6 @@
       "provider_key_confirm_title": "為 {{provider}} 新增 API 金鑰",
       "provider_name": "供應商名稱",
       "quick_assistant_default_tag": "預設",
-      "quick_assistant_model": "快速助理模型",
       "quick_assistant_response_settings": "回應設定",
       "quick_assistant_selection": "選擇助理",
       "quick_assistant_usage_method": "使用方式",

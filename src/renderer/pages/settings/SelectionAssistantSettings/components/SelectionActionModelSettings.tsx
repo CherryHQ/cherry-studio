@@ -1,5 +1,4 @@
-import { Button } from '@cherrystudio/ui'
-import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
+import { ModelSettingsNavigation } from '@renderer/components/ModelSettingsNavigation'
 import {
   SettingDescription,
   SettingDivider,
@@ -9,7 +8,6 @@ import {
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import type { Model } from '@shared/data/types/model'
 import { useNavigate } from '@tanstack/react-router'
-import { ArrowRight } from 'lucide-react'
 import type { FC } from 'react'
 import { useId } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -22,7 +20,6 @@ interface ModelNavigationRowProps {
 }
 
 const ModelNavigationRow: FC<ModelNavigationRowProps> = ({ description, model, onNavigate, title }) => {
-  const { t } = useTranslation()
   const titleId = useId()
 
   return (
@@ -31,16 +28,7 @@ const ModelNavigationRow: FC<ModelNavigationRowProps> = ({ description, model, o
         <SettingRowTitle id={titleId}>{title}</SettingRowTitle>
         <SettingDescription className="mt-1.5 leading-5">{description}</SettingDescription>
       </div>
-      <div className="flex min-w-0 items-center gap-3">
-        <div className="flex min-w-0 max-w-44 items-center gap-2">
-          {model ? <ModelAvatar model={model} size={18} className="shrink-0" /> : null}
-          <span className="truncate text-foreground text-sm">{model?.name ?? t('settings.models.empty')}</span>
-        </div>
-        <Button variant="outline" size="sm" className="shrink-0" onClick={onNavigate}>
-          <ArrowRight size={13} />
-          {t('navigate.model_settings')}
-        </Button>
-      </div>
+      <ModelSettingsNavigation model={model} onNavigate={onNavigate} />
     </SettingRow>
   )
 }

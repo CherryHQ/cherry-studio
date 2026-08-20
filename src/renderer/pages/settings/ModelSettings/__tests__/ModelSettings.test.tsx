@@ -22,6 +22,7 @@ const harness = vi.hoisted(() => ({
 
 const routerSearch = vi.hoisted(() => ({ current: {} as { focus?: string } }))
 const setTimeoutTimerMock = vi.hoisted(() => vi.fn())
+const matchMediaMock = vi.hoisted(() => vi.fn())
 
 Element.prototype.scrollIntoView = vi.fn()
 
@@ -143,6 +144,10 @@ const createModel = (providerId: string, apiModelId: string): Model =>
 describe('ModelSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: matchMediaMock.mockReturnValue({ matches: false })
+    })
     routerSearch.current = {}
     harness.defaultModel = undefined
     harness.quickModel = undefined
@@ -302,5 +307,18 @@ describe('ModelSettings', () => {
       void timerCallback()
     })
     expect(container.querySelector('[data-testid="model-settings-focus-guide"]')).not.toBeInTheDocument()
+  })
+
+  it('avoids smooth scrolling when reduced motion is requested', () => {
+    routerSearch.current = { focus: 'default' }
+    matchMediaMock.mockReturnValue({ matches: true })
+
+    render(<ModelSettings showPaintingModel={false} showSettingsButton={false} />)
+
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({
+      behavior: 'auto',
+      block: 'center',
+      inline: 'nearest'
+    })
   })
 })

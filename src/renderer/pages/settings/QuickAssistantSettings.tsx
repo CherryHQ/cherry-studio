@@ -16,6 +16,7 @@ import {
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
+import { ModelSettingsNavigation } from '@renderer/components/ModelSettingsNavigation'
 import {
   SettingDivider,
   SettingGroup,
@@ -34,7 +35,7 @@ import { cn } from '@renderer/utils/style'
 import HomeWindow from '@renderer/windows/quickAssistant/home/HomeWindow'
 import type { Model } from '@shared/data/types/model'
 import { useNavigate } from '@tanstack/react-router'
-import { ArrowRight, Check, ChevronDown, Info } from 'lucide-react'
+import { Check, ChevronDown, Info } from 'lucide-react'
 import type React from 'react'
 import type { FC } from 'react'
 import { useEffect, useId, useState } from 'react'
@@ -233,22 +234,10 @@ const QuickAssistantSettings: FC = () => {
                 </RowFlex>
               ) : null
             ) : (
-              <RowFlex className="min-w-0 items-center gap-3">
-                <RowFlex className="min-w-0 max-w-44 items-center gap-2">
-                  {defaultModel ? <ModelAvatar model={defaultModel} size={18} className="shrink-0" /> : null}
-                  <span className="truncate text-foreground text-sm">
-                    {defaultModel?.name ?? t('settings.models.empty')}
-                  </span>
-                </RowFlex>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="shrink-0"
-                  onClick={() => void navigate({ to: '/settings/model', search: { focus: 'default' } })}>
-                  <ArrowRight size={13} />
-                  {t('navigate.model_settings')}
-                </Button>
-              </RowFlex>
+              <ModelSettingsNavigation
+                model={defaultModel}
+                onNavigate={() => void navigate({ to: '/settings/model', search: { focus: 'default' } })}
+              />
             )}
           </SettingRow>
         </SettingGroup>

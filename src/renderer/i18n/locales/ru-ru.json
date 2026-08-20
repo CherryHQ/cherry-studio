@@ -6213,7 +6213,6 @@
       "provider_key_confirm_title": "Добавить API ключ для {{provider}}",
       "provider_name": "Имя провайдера",
       "quick_assistant_default_tag": "умолчанию",
-      "quick_assistant_model": "Модель быстрого помощника",
       "quick_assistant_response_settings": "Настройки ответа",
       "quick_assistant_selection": "Выберите помощника",
       "quick_assistant_usage_method": "Способ использования",
