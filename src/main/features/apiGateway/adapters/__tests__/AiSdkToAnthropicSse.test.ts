@@ -1,7 +1,9 @@
-import type { RawMessageStreamEvent } from '@anthropic-ai/sdk/resources/messages'
+import type { MessageCreateParams, RawMessageStreamEvent } from '@anthropic-ai/sdk/resources/messages'
 import type { FinishReason, UIMessageChunk } from 'ai'
 import { describe, expect, it } from 'vitest'
 
+import { googleReasoningCache } from '../../reasoningCache'
+import { AnthropicMessageConverter } from '../converters/AnthropicMessageConverter'
 import { AnthropicSseFormatter } from '../formatters/AnthropicSseFormatter'
 import { AiSdkToAnthropicSse } from '../stream/AiSdkToAnthropicSse'
 
@@ -256,6 +258,41 @@ describe('AiSdkToAnthropicSse', () => {
         return false
       })
       expect(toolBlocks.length).toBe(1)
+    })
+
+    // Anthropic's wire format has nowhere to carry Gemini's thought signature, and
+    // Gemini 3 rejects a replayed functionCall without it — writer and reader must
+    // agree on the cache key.
+    it('round-trips a streamed thought signature onto the tool call replayed next turn', async () => {
+      const model = 'gemini:models/gemini-flash-latest'
+      const adapter = new AiSdkToAnthropicSse({ model })
+
+      await collectEvents(
+        adapter.transform(
+          createMockStream([
+            {
+              type: 'tool-input-available',
+              toolCallId: 'call_sig',
+              toolName: 'Bash',
+              input: { command: 'ls' },
+              providerMetadata: { google: { thoughtSignature: 'sig-abc' } }
+            },
+            createFinish('tool-calls')
+          ])
+        )
+      )
+
+      const messages = new AnthropicMessageConverter({ googleReasoningCache }).toUIMessages({
+        model,
+        max_tokens: 1024,
+        messages: [
+          { role: 'assistant', content: [{ type: 'tool_use', id: 'call_sig', name: 'Bash', input: { command: 'ls' } }] }
+        ]
+      } as MessageCreateParams)
+
+      expect((messages[0].parts[0] as { callProviderMetadata?: unknown }).callProviderMetadata).toMatchObject({
+        google: { thoughtSignature: 'sig-abc' }
+      })
     })
   })
 
