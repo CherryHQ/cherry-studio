@@ -423,8 +423,7 @@
           "bypassPermissions": {
             "description": "Ignora as verificações de permissões. Pode eliminar ficheiros e usar a rede.",
             "title": "Acesso total",
-            "warning": "Utilize com cautela: todas as ferramentas serão executadas sem pedir aprovação.",
-            "warning_pi": "Perigoso — não é pedida confirmação para nada, exceto para ferramentas desativadas, incluindo eliminação de ficheiros e acesso à rede."
+            "warning": "Utilize com cautela: todas as ferramentas serão executadas sem pedir aprovação."
           },
           "default": {
             "description": "Pergunta antes de editar ficheiros ou executar comandos.",
