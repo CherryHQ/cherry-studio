@@ -92,7 +92,8 @@ const providerKeyMap = {
   'minimax-global': 'provider.minimax-global',
   zai: 'provider.zai',
   'local-embedding': 'provider.local-embedding',
-  opencode: 'provider.opencode'
+  opencode: 'provider.opencode',
+  'huawei-maas': 'provider.huawei-maas'
 } as const
 
 /**
