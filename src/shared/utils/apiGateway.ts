@@ -22,15 +22,6 @@ export function formatGatewayModelId(providerId: string, apiModelId: string): st
 }
 
 /**
- * The `apiModelId` half of a gateway address, split at the first `:` exactly like the
- * routes do. A bare model id (no provider prefix) is returned unchanged, so this is safe
- * on any model string a client may send.
- */
-export function toGatewayApiModelId(modelAddress: string): string {
-  return modelAddress.slice(modelAddress.indexOf(':') + 1)
-}
-
-/**
  * Sentinel suffix on the gateway model id handed to gemini-cli (`--model` and
  * `settings.model.name`). gemini-cli normalizes model names it thinks are its own:
  * its `resolveModel` rewrites anything satisfying `endsWith("flash")` (or equal to

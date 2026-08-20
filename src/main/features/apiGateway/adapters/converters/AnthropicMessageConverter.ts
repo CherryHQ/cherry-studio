@@ -18,7 +18,6 @@ import type {
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { toGatewayApiModelId } from '@shared/utils/apiGateway'
 import { isGemini3ModelId } from '@shared/utils/model'
 import type { DynamicToolUIPart, FileUIPart, JSONValue, ReasoningUIPart, TextUIPart, ToolSet } from 'ai'
 import { tool, zodSchema } from 'ai'
@@ -40,6 +39,12 @@ function buildResponsesToolName(name: string, attempt: number): string {
   const hash = createHash('sha1').update(`${name}\0${attempt}`).digest('hex').slice(0, TOOL_NAME_HASH_LENGTH)
   const prefixLength = RESPONSES_TOOL_NAME_MAX_LENGTH - hash.length - 1
   return `${sanitized.slice(0, prefixLength)}_${hash}`
+}
+
+/** The `apiModelId` half of a gateway `providerId:apiModelId` address, split at the
+ *  first `:` like the routes do — a bare model id passes through unchanged. */
+function toApiModelId(modelAddress: string): string {
+  return modelAddress.slice(modelAddress.indexOf(':') + 1)
 }
 
 let uiMessageSeq = 0
@@ -264,7 +269,7 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
    */
   private buildToolCallProviderOptions(model: string | undefined, toolCallId: string): ProviderOptions | undefined {
     const options: ProviderOptions = {}
-    if (model && isGemini3ModelId(toGatewayApiModelId(model))) {
+    if (model && isGemini3ModelId(toApiModelId(model))) {
       // Gemini 3 rejects a replayed functionCall whose signature is missing; the
       // Anthropic wire format has nowhere to carry it, so restore it from the cache.
       const thoughtSignature = this.googleReasoningCache?.get(`google-${toolCallId}`)
