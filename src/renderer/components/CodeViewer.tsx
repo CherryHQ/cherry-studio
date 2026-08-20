@@ -106,6 +106,7 @@ const CodeViewer = ({
   const savedSelectionRef = useRef<SavedSelection | null>(null)
   const shouldStickToBottomRef = useRef(true)
   const wasHighlightEnabledRef = useRef(options?.highlight ?? true)
+  const hasHighlightedRef = useRef(false)
   // Ensure the active selection actually belongs to this CodeViewer instance
   const selectionBelongsToViewer = useCallback((sel: Selection | null) => {
     const scroller = scrollerRef.current
@@ -407,6 +408,7 @@ const CodeViewer = ({
     if (wasHighlightEnabledRef.current) {
       resetHighlight()
       wasHighlightEnabledRef.current = false
+      hasHighlightedRef.current = false
     }
   }, [debouncedHighlightLines, highlight, resetHighlight])
 
@@ -416,14 +418,19 @@ const CodeViewer = ({
     }
   }, [debouncedHighlightLines])
 
-  // 渐进式高亮
+  // 渐进式高亮。首帧绕过防抖，否则静态代码块必然先闪一次淡化明文再变高亮。
   useEffect(() => {
     if (!highlight) return
     if (virtualItems.length > 0 && shikiThemeRef.current) {
       const lastIndex = virtualItems[virtualItems.length - 1].index
-      void debouncedHighlightLines(lastIndex + 1)
+      if (hasHighlightedRef.current) {
+        void debouncedHighlightLines(lastIndex + 1)
+        return
+      }
+      hasHighlightedRef.current = true
+      void highlightLines(lastIndex + 1)
     }
-  }, [virtualItems, debouncedHighlightLines, highlight])
+  }, [virtualItems, debouncedHighlightLines, highlightLines, highlight])
 
   // Monitor selection changes, clear stale selection state, and auto-expand in collapsed state
   const handleSelectionChange = useCallback(

@@ -111,6 +111,28 @@ describe('CodeViewer', () => {
     expect(scroller.scrollTop).toBe(100)
   })
 
+  it('requests the first highlight immediately instead of waiting out the debounce window', () => {
+    render(<CodeViewer value={'line 1\nline 2'} language="typescript" />)
+
+    expect(mocks.highlightLines).toHaveBeenCalledWith(2)
+  })
+
+  it('debounces every highlight request after the first one', async () => {
+    vi.useFakeTimers()
+    try {
+      const { rerender } = render(<CodeViewer value={'line 1'} language="typescript" />)
+      mocks.highlightLines.mockClear()
+
+      rerender(<CodeViewer value={'line 1\nline 2'} language="typescript" />)
+      expect(mocks.highlightLines).not.toHaveBeenCalled()
+
+      await vi.advanceTimersByTimeAsync(300)
+      expect(mocks.highlightLines).toHaveBeenCalledWith(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('does not request syntax highlighting when highlighting is disabled', () => {
     render(<CodeViewer value="line 1\nline 2" language="typescript" options={{ highlight: false }} />)
 
