@@ -188,6 +188,7 @@
         "title": "ここでは {{extension}} ファイルを開くことはまだサポートされていません"
       },
       "preview": "プレビュー",
+      "quote_selection": "選択範囲を引用",
       "refresh": "リフレッシュ",
       "search_placeholder": "ファイルを検索...",
       "too_large": {

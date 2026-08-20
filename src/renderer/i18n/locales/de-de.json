@@ -188,6 +188,7 @@
         "title": "Das Öffnen von {{extension}}-Dateien wird hier noch nicht unterstützt"
       },
       "preview": "Vorschau",
+      "quote_selection": "Auswahl zitieren",
       "refresh": "Aktualisieren",
       "search_placeholder": "Dateien suchen…",
       "too_large": {

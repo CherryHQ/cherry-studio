@@ -188,6 +188,7 @@
         "title": "Opening {{extension}} files here is not supported yet"
       },
       "preview": "Preview",
+      "quote_selection": "Quote selection",
       "refresh": "Refresh",
       "search_placeholder": "Search files...",
       "too_large": {

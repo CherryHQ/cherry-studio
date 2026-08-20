@@ -188,6 +188,7 @@
         "title": "L'ouverture des fichiers {{extension}} n'est pas encore prise en charge ici"
       },
       "preview": "Aperçu",
+      "quote_selection": "Citer la sélection",
       "refresh": "Actualiser",
       "search_placeholder": "Rechercher des fichiers...",
       "too_large": {

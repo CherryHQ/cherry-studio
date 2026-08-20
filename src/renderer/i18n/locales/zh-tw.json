@@ -188,6 +188,7 @@
         "title": "在此處開啟 {{extension}} 檔案尚不支援"
       },
       "preview": "預覽",
+      "quote_selection": "引用選取範圍",
       "refresh": "重新整理",
       "search_placeholder": "搜尋檔案...",
       "too_large": {

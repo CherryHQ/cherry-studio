@@ -188,6 +188,7 @@
         "title": "Abrir archivos {{extension}} aquí aún no está soportado"
       },
       "preview": "Vista previa",
+      "quote_selection": "Citar selección",
       "refresh": "Actualizar",
       "search_placeholder": "Buscar archivos...",
       "too_large": {
