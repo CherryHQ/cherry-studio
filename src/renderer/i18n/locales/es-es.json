@@ -423,8 +423,7 @@
           "bypassPermissions": {
             "description": "Omite las comprobaciones de permisos. Puede eliminar archivos y usar la red.",
             "title": "Acceso completo",
-            "warning": "Usar con precaución: todas las herramientas se ejecutarán sin pedir aprobación.",
-            "warning_pi": "Peligroso: nunca se pide permiso, salvo para herramientas deshabilitadas, incluidas la eliminación de archivos y el acceso a la red."
+            "warning": "Usar con precaución: todas las herramientas se ejecutarán sin pedir aprobación."
           },
           "default": {
             "description": "Pregunta antes de editar archivos o ejecutar comandos.",

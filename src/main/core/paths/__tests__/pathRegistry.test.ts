@@ -53,6 +53,15 @@ describe('buildPathRegistry', () => {
     expect(registry['feature.agents.pi.sessions']).toBe(path.join(piRoot, 'sessions'))
   })
 
+  it('keeps the provider registry override under userData Runtime', () => {
+    const registry = buildPathRegistry()
+
+    expect(registry['feature.provider_registry.override']).toBe(
+      path.join('/mock/userData', 'Runtime', 'provider-registry-override')
+    )
+    expect(shouldAutoEnsure('feature.provider_registry.override')).toBe(true)
+  })
+
   it('keeps the isolated mise tree under the userData toolchain', () => {
     const registry = buildPathRegistry()
     const miseRoot = path.join('/mock/userData', 'Toolchain', 'mise')
@@ -164,6 +173,12 @@ describe('pathRegistry.shouldAutoEnsure', () => {
 
     it('returns true for feature.files.data', () => {
       expect(shouldAutoEnsure('feature.files.data')).toBe(true)
+    })
+
+    it('returns true for the provider registry override (writable, not opted out)', () => {
+      // The remote-updated override dir under Runtime is Cherry-owned and
+      // writable — unlike the read-only bundled feature.provider_registry.data.
+      expect(shouldAutoEnsure('feature.provider_registry.override')).toBe(true)
     })
 
     it('returns true for feature.mcp', () => {
