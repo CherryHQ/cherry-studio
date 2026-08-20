@@ -5894,6 +5894,7 @@
         "connecting": "Conectando",
         "disabled": "Deshabilitado",
         "error": "Error",
+        "pendingAuth": "Autorización pendiente",
         "unavailable": "No disponible"
       },
       "search": {
