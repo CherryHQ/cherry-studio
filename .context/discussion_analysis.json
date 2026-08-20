@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-19T18:00:00Z",
+  "generated_at": "2026-08-20T18:00:00Z",
   "note": "Discussions fetched from open issues with discussion label; GitHub Discussions GraphQL API not available in this session.",
   "discussion_issues_in_sample": [
     {
@@ -7,7 +7,7 @@
       "title": "[Discussion]: v2.0.7 completely unusable — all configs showing errors, request to downgrade",
       "labels": ["help wanted", "discussion"],
       "created_at": "2026-08-18",
-      "comments": 0,
+      "comments": 2,
       "sentiment": "negative — user friction with v2 migration"
     },
     {
@@ -35,23 +35,65 @@
       "sentiment": "UX design discussion"
     },
     {
-      "number": 16901,
-      "title": "[Discussion]: How to set reasoning intensity in 5.6?",
+      "number": 18589,
+      "title": "[Discussion]: Too much reverse optimization",
+      "labels": ["help wanted", "discussion", "ui-ux"],
+      "created_at": "2026-08-14",
+      "comments": 2,
+      "sentiment": "negative — community pushback on v2 UX regressions"
+    },
+    {
+      "number": 18474,
+      "title": "[Discussion]: Code blocks no longer rendered during streaming",
+      "labels": ["help wanted", "discussion", "ui-ux"],
+      "created_at": "2026-08-12",
+      "comments": 1,
+      "sentiment": "regression report — UX degradation vs v1"
+    },
+    {
+      "number": 18363,
+      "title": "[Discussion]: AiStreamManager 状态机身份与 ownership 结构问题",
       "labels": ["help wanted", "discussion"],
-      "created_at": "2026-07-11",
-      "comments": 4,
-      "sentiment": "user confusion — documentation gap"
+      "created_at": "2026-08-11",
+      "comments": 1,
+      "sentiment": "technical debt discussion — architectural issue"
+    },
+    {
+      "number": 18327,
+      "title": "[Discussion]: Token/s generation speed and TTFT display missing since v2.0",
+      "labels": ["help wanted", "discussion", "ui-ux"],
+      "created_at": "2026-08-10",
+      "comments": 0,
+      "sentiment": "feature regression — users miss v1 metrics visibility"
+    },
+    {
+      "number": 18299,
+      "title": "[Discussion]: Why can't v2.x modify an answer while v1.9.x can?",
+      "labels": ["help wanted", "discussion"],
+      "created_at": "2026-08-10",
+      "comments": 1,
+      "sentiment": "negative — capability regression vs v1"
     }
   ],
   "themes": [
-    "v2 migration friction (configs broken, downgrade requests)",
-    "Cherry model provider transparency",
-    "UX design for agent tool approval flow",
-    "Documentation gaps (reasoning intensity, model settings)"
+    "v2 migration friction — configs broken, downgrade requests, UX regressions vs v1",
+    "Cherry model provider transparency — community expects disclosure on built-in provider",
+    "UX design for agent tool approval flow — card placement and interaction model",
+    "Performance and rendering regressions — code blocks, streaming, scroll speed",
+    "Feature parity gaps vs v1 — message editing, token/s display, context flexibility",
+    "Architectural debt — AiStreamManager ownership, stale terminal callbacks"
   ],
+  "sentiment_summary": {
+    "negative_or_concern": 6,
+    "neutral_or_request": 2,
+    "technical_discussion": 1,
+    "trend": "Community sentiment toward v2 is mixed-to-negative; primary pain is v2 regression vs v1 feature parity and config stability"
+  },
   "action_items": [
-    "Address #18857 — v2.0.7 regression report; consider pinning or documenting known issues",
-    "Respond to #18788 — community expects transparency around built-in Cherry provider",
-    "Close #16901 with docs link or add FAQ entry on reasoning intensity"
+    "Address #18857 and #18589 — v2 regression reports are generating user frustration; document known issues or ship fixes",
+    "Respond to #18788 — community expects transparency around built-in Cherry provider (6 comments, growing)",
+    "Investigate #18327 and #18299 — token/s display and message editing are visible v1→v2 regressions",
+    "Track #18474 — streaming code block rendering regression is a common complaint",
+    "Schedule architectural review for #18363 — AiStreamManager state machine ownership affects stream correctness"
   ]
 }

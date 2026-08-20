@@ -1,40 +1,65 @@
 {
-  "generated_at": "2026-08-19T18:00:00Z",
+  "generated_at": "2026-08-20T18:00:00Z",
   "v2_branch_open_prs": 0,
-  "v2_branch_note": "No open PRs targeting v2 branch as of 2026-08-19. All active development on main.",
+  "v2_branch_note": "No open PRs targeting v2 base branch as of 2026-08-20. All active development on main.",
   "v2_related_open_issues": [
     {
       "number": 9011,
       "title": "显示推理 tokens 数量 (Show reasoning token count)",
       "labels": ["feature", "v2", "blocked-v2"],
       "created_at": "2025-08-09",
-      "age_days": 375,
+      "age_days": 376,
       "comments": 4,
       "status": "Blocked — waiting on v2 APIs"
     }
   ],
   "recently_shipped_signals": {
     "version": "v2.0.7",
-    "note": "Issue #18857 references v2.0.7 as causing config errors — recent release",
-    "known_user_friction": "Migration from v1.9.x to v2.0.x breaking configs, request for downgrade path"
+    "note": "Issue #18857 references v2.0.7 as causing config errors — recent release shipped Aug 17-18",
+    "known_user_friction": "Migration from v1.9.x to v2.0.x breaking configs; users requesting downgrade path; UX regressions in editing, streaming, and metrics"
   },
   "active_pr_sprint_today": {
-    "theme": "Performance fixes",
-    "prs_opened_today": [
-      {"number": 18943, "title": "perf(message-selection): coalesce drag selection updates", "author": "DeJeune"},
-      {"number": 18942, "title": "perf(markdown-editor): defer preview rendering", "author": "DeJeune"},
-      {"number": 18941, "title": "fix(horizontal-scroll): avoid duplicate resize listeners", "author": "DeJeune"},
-      {"number": 18940, "title": "fix(translate): give translate tabs their own session identity and task owner", "author": "EurFelux"},
-      {"number": 18934, "title": "fix(screenshot): show the IME candidate window while annotating text", "author": "EurFelux"}
+    "theme": "Performance isolation + launchpad refresh",
+    "prs_open_today": [
+      {"number": 19069, "title": "fix(code-style): isolate theme catalog updates", "author": "DeJeune"},
+      {"number": 19060, "title": "fix(quote): route message quotes to the originating window", "author": "NatsUIJM"},
+      {"number": 19059, "title": "feat(launchpad): refresh built-in app icons", "author": "SiinXu"}
     ],
-    "note": "Coordinated performance sprint by DeJeune + EurFelux targeting rendering, scroll, translate, and screenshot subsystems"
+    "performance_issues_filed_today": [
+      {"number": 19068, "title": "Remove dead per-group flow navigation listeners"},
+      {"number": 19067, "title": "Isolate code-style theme catalog updates"},
+      {"number": 19066, "title": "Stabilize mini-app pool callbacks"},
+      {"number": 19065, "title": "Lazy-load Agent session image export runtime"},
+      {"number": 19064, "title": "Lazy-load closed composer editor dialogs"}
+    ],
+    "note": "Performance sprint continues from yesterday (DeJeune lead). 5 performance issues filed today with associated PR #19069 already open."
   },
   "roadmap_planned_items": [
-    {"number": 6403, "title": "Multi-Window", "labels": ["planned", "Dev Team", "ui-ux"], "age_days": 453},
-    {"number": 6405, "title": "Assistant and Topic Interaction Refactoring", "labels": ["planned", "Dev Team"], "age_days": 453},
-    {"number": 16172, "title": "Improve knowledge base retrieval (hybrid search / reranking)", "labels": ["feature", "rag", "prd", "internal-team"], "age_days": 62},
-    {"number": 16173, "title": "Knowledge base — hide inline reference/citation markers", "labels": ["feature", "rag", "ui-ux", "prd", "internal-team"], "age_days": 62},
-    {"number": 16124, "title": "Built-In Browser Pane (Open & Browse Web Pages In-App)", "labels": ["feature", "ui-ux", "agent", "prd", "internal-team"], "age_days": 63},
-    {"number": 14899, "title": "Unified Notification Center", "labels": ["planned", "p1", "feature", "ui-ux"], "age_days": 104}
-  ]
+    {"number": 6403, "title": "Multi-Window", "labels": ["planned", "Dev Team", "ui-ux"], "age_days": 454},
+    {"number": 6405, "title": "Assistant and Topic Interaction Refactoring", "labels": ["planned", "Dev Team"], "age_days": 454},
+    {"number": 18984, "title": "Traceable Knowledge Base Citations", "labels": ["planned", "feature", "rag", "internal-team"], "age_days": 0, "created_today": true},
+    {"number": 18980, "title": "Conversation and Agent Session Archive", "labels": ["planned", "feature", "internal-team"], "age_days": 0, "created_today": true},
+    {"number": 18976, "title": "Unified Context and Token Usage Breakdown", "labels": ["planned", "feature", "internal-team"], "age_days": 0, "created_today": true},
+    {"number": 18968, "title": "Privacy-safe Structured Model Diagnostics", "labels": ["planned", "feature", "models", "internal-team"], "age_days": 0, "created_today": true},
+    {"number": 18965, "title": "User-provided Reasons When Rejecting Tool Calls", "labels": ["planned", "feature", "assistant", "internal-team"], "age_days": 0, "created_today": true, "comments": 1},
+    {"number": 18960, "title": "Agent Stall Detection and User Intervention", "labels": ["planned", "feature", "assistant", "internal-team"], "age_days": 0, "created_today": true},
+    {"number": 18989, "title": "Explainable Skill Review Before Installation", "labels": ["planned", "feature", "internal-team"], "age_days": 0, "created_today": true},
+    {"number": 19002, "title": "Agent Session Import with Compatibility Preview", "labels": ["planned", "feature", "data", "internal-team"], "age_days": 0, "created_today": true},
+    {"number": 16172, "title": "Improve knowledge base retrieval (hybrid search / reranking)", "labels": ["feature", "rag", "prd", "internal-team"], "age_days": 63},
+    {"number": 16173, "title": "Knowledge base — hide inline reference/citation markers", "labels": ["feature", "rag", "ui-ux", "prd", "internal-team"], "age_days": 63},
+    {"number": 16124, "title": "Built-In Browser Pane (Open & Browse Web Pages In-App)", "labels": ["feature", "ui-ux", "agent", "prd", "internal-team"], "age_days": 64},
+    {"number": 14899, "title": "Unified Notification Center", "labels": ["planned", "p1", "feature", "ui-ux"], "age_days": 105}
+  ],
+  "internal_team_issues_filed_today": {
+    "count": 18,
+    "note": "Large batch of internal-team tagged feature/planned issues filed Aug 20 — likely a product planning sync: agent memory, migration, skills, knowledge, model diagnostics, etc.",
+    "categories": [
+      "Agent capability (stall detection, tool rejection, plans, permission modes)",
+      "Knowledge base (citations, format preflight, chunk exclusion)",
+      "Data/migration (session import, selective restore, migration checkpoints)",
+      "Model/provider (diagnostics, model-check evidence, import/migration)",
+      "Skills (cancellable install, explainable review)",
+      "Observability (context breakdown, Code Mate per-request)"
+    ]
+  }
 }

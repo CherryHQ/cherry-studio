@@ -1,68 +1,57 @@
 {
-  "generated_at": "2026-08-19T18:00:00Z",
-  "methodology": "Health classified by issue created_at age. Sample of 100 most recently updated open issues, extrapolated to 872 total.",
-  "total_open": 872,
+  "generated_at": "2026-08-20T18:00:00Z",
+  "total_open_issues": 912,
+  "delta_from_yesterday": +40,
   "health_summary": {
-    "active": {"count_est": 592, "pct": 68, "definition": "Created within last 7 days"},
-    "aging":  {"count_est": 69,  "pct": 8,  "definition": "Created 8-30 days ago"},
-    "stale":  {"count_est": 165, "pct": 19, "definition": "Created 31-90 days ago"},
-    "zombie": {"count_est": 43,  "pct": 5,  "definition": "Created more than 90 days ago"}
-  },
-  "key_signals": {
-    "high_activity_today": "8 performance-related issues filed today, likely batched from profiling sprint",
-    "screenshot_cluster": "5 screenshot-related issues filed today (OCR, overlay timing, escape key, permission prompt)",
-    "p1_all_zombie": "All 3 P1 issues are >100 days old with no recent resolution",
-    "inactive_label": "~13% of recently-updated issues carry inactive label (bot-driven weekly sweep)",
-    "unlabeled_rate": "25% of issues in sample have no label — triaging backlog needed"
-  },
-  "p1_issues": [
-    {
-      "number": 14899,
-      "title": "[Feature]: Unified Notification Center",
-      "labels": ["planned", "p1", "feature", "ui-ux"],
-      "created_at": "2026-05-07",
-      "age_days": 104,
-      "health": "Zombie",
-      "note": "Tagged planned — intentional roadmap item, not urgent bug"
+    "active_le7d": {
+      "count": 632,
+      "pct": 69,
+      "definition": "updated_at within last 7 days (>= 2026-08-13)"
     },
-    {
-      "number": 13608,
-      "title": "[Bug]: xiaomi mimo response only displays the last line",
-      "labels": ["p1", "models"],
-      "created_at": "2026-03-18",
-      "age_days": 154,
-      "comments": 8,
-      "health": "Zombie",
-      "note": "154 days old, 8 comments — active discussion but unresolved"
+    "aging_8_30d": {
+      "count": 73,
+      "pct": 8,
+      "definition": "updated_at 8–30 days ago (2026-07-21 to 2026-08-12)"
     },
-    {
-      "number": 13193,
-      "title": "[Bug]: Azure OpenAI Resource not found (defaulting to responses API)",
-      "labels": ["p1", "models"],
-      "created_at": "2026-03-04",
-      "age_days": 168,
-      "comments": 1,
-      "health": "Zombie",
-      "note": "168 days old, only 1 comment — effectively abandoned"
+    "stale_31_90d": {
+      "count": 161,
+      "pct": 18,
+      "definition": "updated_at 31–90 days ago (2026-05-22 to 2026-07-20)"
+    },
+    "zombie_gt90d": {
+      "count": 46,
+      "pct": 5,
+      "definition": "updated_at > 90 days ago (before 2026-05-22)"
     }
-  ],
-  "label_health": {
-    "needs-repro": 5,
-    "needs-more-info": 1,
-    "inactive": 13,
-    "blocked-v2": 1,
-    "help wanted": 5
   },
-  "stale_examples": [
-    {"number": 16203, "title": "Quick Assist not calling MCPs / Tools", "created_at": "2026-06-18", "age_days": 62, "labels": ["mcp", "inactive"]},
-    {"number": 16218, "title": "Agent work directory cannot be added after data restore", "created_at": "2026-06-19", "age_days": 61, "labels": ["needs-repro", "inactive"]},
-    {"number": 17316, "title": "Painting history rehydrates every unchanged record", "created_at": "2026-07-23", "age_days": 27, "labels": ["performance"]},
-    {"number": 16901, "title": "How to set reasoning intensity in 5.6?", "created_at": "2026-07-11", "age_days": 39, "labels": ["help wanted", "discussion"]}
-  ],
-  "zombie_examples": [
-    {"number": 6403, "title": "Multi-Window", "created_at": "2025-05-24", "age_days": 453, "labels": ["planned", "Dev Team", "ui-ux"]},
-    {"number": 6405, "title": "Assistant and Topic Interaction Refactoring", "created_at": "2025-05-24", "age_days": 453, "labels": ["planned", "Dev Team", "assistant", "ui-ux"]},
-    {"number": 9011, "title": "显示推理 tokens 数量", "created_at": "2025-08-09", "age_days": 375, "labels": ["feature", "v2", "blocked-v2"]},
-    {"number": 13209, "title": "Properly handle MCP image content (raw base64 in messages)", "created_at": "2026-03-04", "age_days": 168, "labels": ["p2", "feature", "mcp", "ui-ux"]}
+  "unlabeled_issues": {
+    "estimated_count": 219,
+    "pct": 24,
+    "note": "Estimated from 200-issue sample (47 unlabeled of 200)"
+  },
+  "label_health": {
+    "needs_repro_open": 6,
+    "needs_more_info_open": 2,
+    "note": "Issues tagged needs-repro or needs-more-info are waiting on reporter follow-up"
+  },
+  "p1_issues": {
+    "count": 3,
+    "all_zombie": true,
+    "note": "All 3 P1 issues are >90 days old with no recent activity. Consider closing stale P1s or re-triaging.",
+    "issues": [
+      {"number": 14899, "age_days": 105, "last_updated": "2026-05-07"},
+      {"number": 13608, "age_days": 155, "last_updated": "2026-03-19"},
+      {"number": 13193, "age_days": 169, "last_updated": "2026-03-05"}
+    ]
+  },
+  "trending_label_today": "performance",
+  "performance_issues_opened_today": 5,
+  "top_active_areas_today": ["performance", "mcp", "agent/assistant", "models"],
+  "recommendations": [
+    "Triage 219 unlabeled open issues — 24% unlabeled degrades searchability and sprint planning",
+    "All 3 P1 bugs are zombies (105–169 days old). Either re-confirm severity or close as stale.",
+    "#19048 MCP OAuth 300s startup block is a severe UX regression — prioritize fix",
+    "#18800 (data corruption) and #18643 (Ollama tool calls 500) need immediate attention",
+    "5 performance issues opened today suggest an ongoing performance sprint — coordinate with #19069 PR"
   ]
 }

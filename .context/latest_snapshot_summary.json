@@ -1,6 +1,7 @@
 {
-  "generated_at": "2026-08-19T18:00:00Z",
-  "open_issues_total": 872,
+  "generated_at": "2026-08-20T18:00:00Z",
+  "open_issues_total": 912,
+  "open_issues_delta_24h": 40,
   "open_prs_total": 100,
   "p1_issues": [
     {
@@ -8,7 +9,7 @@
       "title": "[Feature]: Unified Notification Center",
       "labels": ["planned", "p1", "feature", "ui-ux"],
       "created_at": "2026-05-07",
-      "age_days": 104,
+      "age_days": 105,
       "comments": 0,
       "status": "Zombie"
     },
@@ -17,7 +18,7 @@
       "title": "[Bug]: xiaomi mimo response only displays the last line",
       "labels": ["p1", "models"],
       "created_at": "2026-03-18",
-      "age_days": 154,
+      "age_days": 155,
       "comments": 8,
       "status": "Zombie"
     },
@@ -26,76 +27,112 @@
       "title": "[Bug]: Azure OpenAI AI_APICallError Resource not found (responses API)",
       "labels": ["p1", "models"],
       "created_at": "2026-03-04",
-      "age_days": 168,
+      "age_days": 169,
       "comments": 1,
       "status": "Zombie"
     }
   ],
   "label_distribution_top15": {
-    "ui-ux": 20,
-    "models": 13,
-    "inactive": 13,
-    "mcp": 9,
-    "rag": 8,
-    "feature": 8,
-    "performance": 7,
-    "needs-repro": 5,
-    "help wanted": 5,
-    "discussion": 5,
-    "assistant": 4,
-    "connectivity": 3,
-    "data": 3,
-    "docs": 3,
-    "agent": 3
+    "ui-ux": 25,
+    "models": 18,
+    "performance": 14,
+    "needs-triage": 13,
+    "internal-team": 13,
+    "mcp": 10,
+    "rag": 9,
+    "feature": 9,
+    "connectivity": 7,
+    "help wanted": 6,
+    "discussion": 6,
+    "needs-repro": 6,
+    "assistant": 5,
+    "data": 5,
+    "docs": 3
   },
-  "unlabeled_pct": 25.0,
-  "inactive_pct": 13.0,
+  "unlabeled_pct": 24.0,
   "issue_health": {
-    "note": "Based on created_at age, extrapolated from sample of 100 to total 872",
-    "active_le7d": 592,
-    "active_pct": 68,
-    "aging_8_30d": 69,
+    "note": "Based on created_at/updated_at age sample of 200; extrapolated to total 912",
+    "active_le7d": 632,
+    "active_pct": 69,
+    "aging_8_30d": 73,
     "aging_pct": 8,
-    "stale_31_90d": 165,
-    "stale_pct": 19,
-    "zombie_gt90d": 43,
+    "stale_31_90d": 161,
+    "stale_pct": 18,
+    "zombie_gt90d": 46,
     "zombie_pct": 5
   },
   "pr_stats": {
     "open_total": 100,
     "base_main": 97,
     "base_feature_branches": 3,
-    "avg_age_days": 2.4,
-    "oldest_age_days": 7,
+    "avg_age_days": 2.1,
+    "oldest_age_days": 8,
     "top_contributors": [
       {"login": "DeJeune", "prs": 25},
       {"login": "404-Page-Found", "prs": 9},
       {"login": "EurFelux", "prs": 8},
-      {"login": "SiinXu", "prs": 7},
+      {"login": "SiinXu", "prs": 8},
       {"login": "GeorgeDong32", "prs": 7},
       {"login": "userInner", "prs": 7},
       {"login": "kennyzheng-builds", "prs": 5},
       {"login": "xxiaoxiong", "prs": 5}
     ],
     "pr_label_distribution": {
-      "no_label": 93,
+      "no_label": 94,
       "needs-review": 4,
       "p1": 2,
-      "ready-to-merge": 1
+      "ready-to-merge": 0
     }
   },
   "v2_branch_stats": {
     "open_prs": 0,
-    "note": "No open PRs targeting v2 base branch as of 2026-08-19"
+    "note": "No open PRs targeting v2 base branch as of 2026-08-20. All active development on main."
   },
   "notable_issues_today": [
-    {"number": 18939, "title": "[Bug]: Defer Markdown preview rendering while typing", "labels": ["performance"]},
-    {"number": 18938, "title": "[Bug]: Coalesce message drag selection work per frame", "labels": ["performance"]},
-    {"number": 18937, "title": "[Bug]: Lazy-load disabled message outline", "labels": ["performance"]},
-    {"number": 18935, "title": "[Bug]: Avoid duplicate resize subscriptions in horizontal scrollers", "labels": ["performance"]},
-    {"number": 18923, "title": "[Bug]: Screenshot overlay takes ~1s to appear (window enumeration)", "labels": ["performance"]},
-    {"number": 18930, "title": "[Bug]: MCP prompts with arguments opened directly instead of dialog", "labels": ["mcp"]},
-    {"number": 18894, "title": "[Bug]: Agent v2 context grows past provider window before auto-compaction", "labels": ["assistant"]},
-    {"number": 18890, "title": "[Bug]: Gemini rejects Claude Agent MCP array schemas without items", "labels": ["mcp", "models"]}
+    {"number": 19070, "title": "[Bug]: Arrow keys and Page Up/Down not working after clicking message content", "labels": [], "comments": 3},
+    {"number": 19068, "title": "[Bug]: Remove dead per-group flow navigation listeners", "labels": ["performance"]},
+    {"number": 19067, "title": "[Bug]: Isolate code-style theme catalog updates", "labels": ["performance"]},
+    {"number": 19066, "title": "[Bug]: Stabilize mini-app pool callbacks", "labels": ["performance"]},
+    {"number": 19065, "title": "[Bug]: Lazy-load Agent session image export runtime", "labels": ["performance"]},
+    {"number": 19064, "title": "[Bug]: Lazy-load closed composer editor dialogs", "labels": ["performance"]},
+    {"number": 19063, "title": "[Feature]: Website Upload: Naming & Auto-Link Crawling", "labels": ["rag"]},
+    {"number": 19062, "title": "[Bug]: Pi agent inline citations still not resolving — #18829 fix incomplete", "labels": []},
+    {"number": 19061, "title": "[Bug]: Launch on boot toggle only persists preference, IPC never invoked, Windows Run entry not created/removed", "labels": []},
+    {"number": 19048, "title": "[Bug]: MCP OAuth flow hard-blocks startup for 300s (hardcoded timeout)", "labels": ["bug", "mcp"], "comments": 1},
+    {"number": 19044, "title": "[Bug]: Selection Assistant completely fails on macOS 26.6.2 with valid I-beam hotspot", "labels": []},
+    {"number": 19040, "title": "[Bug]: Git status snapshot given to Agent changes mid-conversation after stopping generation", "labels": []},
+    {"number": 19003, "title": "[Bug]: LM Studio models never appear in Pi runtime model picker — endpoint resolution falls through", "labels": ["models"], "comments": 1}
+  ],
+  "critical_bugs_needing_attention": [
+    {
+      "number": 19048,
+      "title": "MCP OAuth hard-blocks startup for 300s",
+      "severity": "high",
+      "reason": "Blocks all users who have unfinished MCP OAuth — 300s startup freeze"
+    },
+    {
+      "number": 19061,
+      "title": "Launch on boot IPC never invoked on Windows",
+      "severity": "high",
+      "reason": "Silent regression — user toggle appears to work but Windows Run entry is never updated"
+    },
+    {
+      "number": 18800,
+      "title": "[Bug] Agent modifies its own database causing data corruption",
+      "severity": "critical",
+      "reason": "Data corruption; agent unable to load properly after self-modification"
+    },
+    {
+      "number": 18643,
+      "title": "Agent runtime + Ollama: all tool calls return 500",
+      "severity": "high",
+      "reason": "Breaks all Ollama agent tool usage; active comments Aug 20"
+    },
+    {
+      "number": 18607,
+      "title": "Scheduled tasks silently skip missed runs after v2 upgrade",
+      "severity": "high",
+      "reason": "Silent regression from v1 behavior; tasks appear scheduled but never catch up"
+    }
   ]
 }
