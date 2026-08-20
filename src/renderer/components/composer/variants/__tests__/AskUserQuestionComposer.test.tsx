@@ -68,6 +68,15 @@ function makeRequest(): AskUserQuestionComposerRequest {
 }
 
 describe('AskUserQuestionComposer', () => {
+  it('keeps the full question visible instead of clamping it to one line', () => {
+    render(<AskUserQuestionComposer request={makeRequest()} onRespond={vi.fn()} />)
+
+    const heading = screen.getByRole('heading', { name: 'Choose logger' })
+    // The wrapping classes are the layout contract for the reported long-question truncation.
+    expect(heading).toHaveClass('whitespace-pre-wrap', 'break-words')
+    expect(heading).not.toHaveClass('line-clamp-1')
+  })
+
   it('marks the root panel as a composer viewport inset target', () => {
     const { container } = render(<AskUserQuestionComposer request={makeRequest()} onRespond={vi.fn()} />)
 
