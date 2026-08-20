@@ -22,7 +22,7 @@ import type {
  * - `MessageListMessagesContext` — the messages array itself. Streaming chunks
  *   land here.
  * - `MessageListUiStaticContext` — preference-driven static config (menuConfig,
- *   translationLanguages, externalCodeEditors). Changes when the user flips a
+ *   translationLanguages). Changes when the user flips a
  *   setting.
  * - `MessageListUiSelectorsContext` — per-message getter functions
  *   (getMessageUiState, getMessageSiblings, getMessageActivityState,
@@ -57,7 +57,7 @@ type MessageListMessagesValue = MessageListItem[]
 
 type MessageListUiStaticValue = Pick<
   MessageListState,
-  'menuConfig' | 'translationLanguages' | 'translationLanguagesStatus' | 'externalCodeEditors'
+  'menuConfig' | 'translationLanguages' | 'translationLanguagesStatus'
 >
 
 type MessageListUiSelectorsValue = Pick<
@@ -126,10 +126,9 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
     () => ({
       menuConfig: state.menuConfig,
       translationLanguages: state.translationLanguages,
-      translationLanguagesStatus: state.translationLanguagesStatus,
-      externalCodeEditors: state.externalCodeEditors
+      translationLanguagesStatus: state.translationLanguagesStatus
     }),
-    [state.menuConfig, state.translationLanguages, state.translationLanguagesStatus, state.externalCodeEditors]
+    [state.menuConfig, state.translationLanguages, state.translationLanguagesStatus]
   )
 
   const uiSelectors = useMemo<MessageListUiSelectorsValue>(

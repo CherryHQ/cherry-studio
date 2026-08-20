@@ -407,7 +407,8 @@ export type RendererPersistCacheSchema = {
   'settings.usage.currency': Currency | null
   // MCP marketplace "available servers" fetched per provider; re-fetchable, so cached not stored
   'feature.mcp.provider_available_servers': CacheValueTypes.McpAvailableServers
-  'agent.open_external_app.last_used_target': CacheValueTypes.AgentOpenExternalAppTarget
+  // Last successful external-open target per directory or file-extension scope.
+  'external_app.target.preferences': CacheValueTypes.ExternalOpenTargetPreferences
   // Recently picked emojis (MRU order, capped to 32) shown at the top of the shared emoji picker
   'ui.emoji.recently_used': string[]
   // Screenshot overlay tool preferences — persisted because muscle memory should survive restarts,
@@ -454,7 +455,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'settings.usage.entry_sort_order': 'desc',
   'settings.usage.currency': null,
   'feature.mcp.provider_available_servers': {},
-  'agent.open_external_app.last_used_target': null,
+  'external_app.target.preferences': {},
   'ui.emoji.recently_used': [],
   'ui.screenshot.color_mode': 'hex',
   // Each must be a member of the matching preset list in renderer/windows/screenshot/constants.ts,
