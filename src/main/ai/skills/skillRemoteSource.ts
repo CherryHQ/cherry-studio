@@ -14,6 +14,8 @@ import { net } from 'electron'
 import {
   assertSkillDirectoryWithinLimits,
   extractZip,
+  MAX_EXTRACTED_SIZE,
+  MAX_FILES_COUNT,
   resolveSkillDirectory,
   validateRepositorySkillDirectory
 } from './skillArchive'
@@ -32,8 +34,6 @@ const CLAUDE_PLUGINS_API = 'https://api.claude-plugins.dev'
 // A direct-URL install points git at a repository nobody vetted; no single step may hang forever.
 const GIT_COMMAND_TIMEOUT_MS = 2 * 60 * 1000
 const MAX_GIT_TREE_OUTPUT_BYTES = 16 * 1024 * 1024
-const MAX_EXTRACTED_SIZE = 100 * 1024 * 1024
-const MAX_FILES_COUNT = 2000
 
 type GithubRef = {
   name: string
