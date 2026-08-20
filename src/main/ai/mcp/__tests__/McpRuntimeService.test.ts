@@ -1112,6 +1112,89 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
       state: 'pending-auth'
     })
   })
+
+  it('marks pending-auth immediately after grace window and auto-reconnects when code arrives in background', async () => {
+    // Verify the non-blocking OAuth path: grace window expires → pending-auth (fast),
+    // then the background listener receives the code and auto-reconnects.
+    mcpSdkMock.state.failStreamable = true
+    mcpSdkMock.state.failStreamableUnauthorized = true
+
+    // First call (grace window): times out. Second call (background listener): delivers the
+    // code after a real setTimeout so the initial pending-auth assertion can run first.
+    callbackServerMock.waitForAuthCode
+      .mockRejectedValueOnce(new Error('Timed out waiting for OAuth authorization code after 8s'))
+      .mockImplementationOnce(
+        () =>
+          new Promise<string>((resolve) => {
+            setTimeout(() => {
+              // Clear failure flags so restartServer triggered by background completion succeeds.
+              mcpSdkMock.state.failStreamable = false
+              mcpSdkMock.state.failStreamableUnauthorized = false
+              resolve('background-auth-code')
+            }, 0)
+          })
+      )
+
+    const service = new McpRuntimeService()
+    const server = urlServer('streamableHttp')
+    // restartServer calls getServerById — wire up the mock so the reconnect succeeds.
+    getByIdMock.mockReturnValue(server)
+
+    // Connect must reject fast (after the grace window) without blocking for the full timeout.
+    await expect((service as any).getOrCreateClient(server)).rejects.toMatchObject({
+      name: 'OAuthPendingAuthError'
+    })
+    expect(MockMainCacheServiceUtils.getSharedCacheValue(`mcp.status.${server.id}` as any)).toMatchObject({
+      state: 'pending-auth'
+    })
+
+    // Allow the background listener's async chain (finishAuth → restartServer → connect) to settle.
+    await new Promise<void>((r) => setTimeout(r, 0))
+
+    // Server should have reconnected automatically once the background code arrived.
+    expect(MockMainCacheServiceUtils.getSharedCacheValue(`mcp.status.${server.id}` as any)).toMatchObject({
+      state: 'connected'
+    })
+  })
+
+  it('cancels background OAuth listener on manual restartServer so they do not race', async () => {
+    mcpSdkMock.state.failStreamable = true
+    mcpSdkMock.state.failStreamableUnauthorized = true
+
+    // Grace window expires; background listener hangs (code never arrives).
+    let resolveBackgroundCode!: (code: string) => void
+    callbackServerMock.waitForAuthCode
+      .mockRejectedValueOnce(new Error('Timed out waiting for OAuth authorization code after 8s'))
+      .mockImplementationOnce(() => new Promise<string>((r) => { resolveBackgroundCode = r }))
+
+    const service = new McpRuntimeService()
+    const server = urlServer('streamableHttp')
+    // restartServer calls getServerById — wire up the mock so both the manual and background
+    // reconnect paths (if they ran) can look up the server.
+    getByIdMock.mockReturnValue(server)
+    const restartSpy = vi.spyOn(service, 'restartServer')
+
+    await expect((service as any).getOrCreateClient(server)).rejects.toMatchObject({
+      name: 'OAuthPendingAuthError'
+    })
+
+    // User manually triggers a restart. Clear failure so the fresh connect succeeds.
+    mcpSdkMock.state.failStreamable = false
+    mcpSdkMock.state.failStreamableUnauthorized = false
+    await service.restartServer(server.id)
+
+    expect(MockMainCacheServiceUtils.getSharedCacheValue(`mcp.status.${server.id}` as any)).toMatchObject({
+      state: 'connected'
+    })
+
+    // Resolve the background code after the manual restart already completed.
+    resolveBackgroundCode('late-code')
+    await new Promise<void>((r) => setTimeout(r, 0))
+
+    // restartServer should have been called exactly once (the manual one); the background
+    // listener was cancelled and must not trigger a second restart.
+    expect(restartSpy).toHaveBeenCalledTimes(1)
+  })
 })
 
 // Delete-vs-reconnect race: removeServer (close + row delete) scans pendingClients/clients
