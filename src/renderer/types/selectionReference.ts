@@ -40,22 +40,32 @@ const PdfAnchorSchema = z.object({
   charRange: CharRangeSchema.optional()
 })
 
-const PptxAnchorSchema = z.object({
-  format: z.literal('pptx'),
-  /** One-based slide number, matching the deck's own slide numbering. */
-  slide: z.number().int().positive(),
-  /** OOXML shape id (`p:cNvPr` id) as exposed by the renderer's model/text index. Absent = whole slide. */
-  nodeId: z.string().min(1).optional(),
-  /** Zero-based paragraph within the shape's text body. */
-  paragraph: z.number().int().nonnegative().optional(),
-  /** Zero-based table coordinates when the node is a table. */
-  tableCell: z
-    .object({
-      row: z.number().int().nonnegative(),
-      col: z.number().int().nonnegative()
-    })
-    .optional()
-})
+const PptxAnchorSchema = z
+  .object({
+    format: z.literal('pptx'),
+    /** One-based slide number, matching the deck's own slide numbering. */
+    slide: z.number().int().positive(),
+    /** OOXML shape id (`p:cNvPr` id) as exposed by the renderer's model/text index. Absent = whole slide. */
+    nodeId: z.string().min(1).optional(),
+    /** Zero-based paragraph within the shape's text body. Requires `nodeId`. */
+    paragraph: z.number().int().nonnegative().optional(),
+    /** Zero-based table coordinates when the node is a table. Requires `nodeId`. */
+    tableCell: z
+      .object({
+        row: z.number().int().nonnegative(),
+        col: z.number().int().nonnegative()
+      })
+      .optional()
+  })
+  .refine(
+    (anchor) => anchor.nodeId !== undefined || (anchor.paragraph === undefined && anchor.tableCell === undefined),
+    {
+      message: 'paragraph/tableCell address within a shape and require nodeId'
+    }
+  )
+  .refine((anchor) => anchor.paragraph === undefined || anchor.tableCell === undefined, {
+    message: 'paragraph and tableCell are mutually exclusive'
+  })
 
 export const DocumentAnchorSchema = z.discriminatedUnion('format', [
   XlsxAnchorSchema,
