@@ -15,9 +15,6 @@ export default defineProvider({
     }
   },
   serverTools: [{ id: 'web-search', modelScope: 'model-dependent', modelIdPrefixes: webSearchModels }],
-  apiFeatures: {
-    serviceTier: true
-  },
   metadata: {
     website: {
       apiKey: 'https://platform.openai.com/api-keys',

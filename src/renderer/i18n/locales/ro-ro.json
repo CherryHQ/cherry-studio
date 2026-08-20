@@ -6323,10 +6323,6 @@
             "token_threshold": "Prag de Token Cache",
             "token_threshold_help": "Mesajele care depășesc acest număr de tokenuri vor fi memorate în cache. Setează valoarea la 0 pentru a dezactiva memorarea în cache."
           },
-          "array_content": {
-            "help": "Furnizorul acceptă ca câmpul content al mesajului să fie de tip array?",
-            "label": "Acceptă conținut mesaj în format array"
-          },
           "developer_role": {
             "help": "Furnizorul acceptă mesaje cu rolul: \"developer\"?",
             "label": "Suportă mesaj dezvoltator"
@@ -6336,17 +6332,9 @@
             "label": "Suportă enable_thinking"
           },
           "label": "Setări API",
-          "service_tier": {
-            "help": "Dacă furnizorul acceptă configurarea parametrului service_tier. Când este activat, acest parametru poate fi ajustat în setările nivelului de serviciu de pe pagina de chat. (Doar modele OpenAI)",
-            "label": "Suportă service_tier"
-          },
           "stream_options": {
             "help": "Furnizorul acceptă parametrul stream_options?",
             "label": "Suportă stream_options"
-          },
-          "verbosity": {
-            "help": "Dacă furnizorul acceptă parametrul verbosity",
-            "label": "Suportă verbosity"
           }
         },
         "url": {

@@ -21,8 +21,6 @@ const endpointTypeValues: readonly string[] = objectValues(ENDPOINT_TYPE)
 export const ApiFeaturesSchema = z.object({
   // --- Request format flags ---
 
-  /** Whether the provider supports array-formatted content in messages */
-  arrayContent: z.boolean().default(true),
   /** Whether the provider supports stream_options for usage data */
   streamOptions: z.boolean().default(true),
 
@@ -30,10 +28,6 @@ export const ApiFeaturesSchema = z.object({
 
   /** Whether the provider supports the 'developer' role (OpenAI-specific) */
   developerRole: z.boolean().default(false),
-  /** Whether the provider supports service tier selection (OpenAI/Groq-specific) */
-  serviceTier: z.boolean().default(false),
-  /** Whether the provider supports verbosity settings (OpenAI-specific) */
-  verbosity: z.boolean().default(false),
 
   // --- Response feature flags ---
 

@@ -178,24 +178,12 @@ export function isAnthropicSupportedProvider(provider: Provider): boolean {
   return getProviderHostTopology(provider).hasAnthropicEndpoint
 }
 
-export function isSupportServiceTierProvider(provider: Provider): boolean {
-  return provider.apiFeatures?.serviceTier ?? false
-}
-
 /** Effective Fast support belongs to the provider-model pair, not either side alone. */
 export function isSupportFastMode(
   provider: Pick<Provider, 'fastMode'>,
   model: Pick<Model, 'supportsFastMode'>
 ): provider is Pick<Provider, 'fastMode'> & { fastMode: NonNullable<Provider['fastMode']> } {
   return provider.fastMode !== undefined && model.supportsFastMode === true
-}
-
-export function isSupportVerbosityProvider(provider: Provider): boolean {
-  return provider.apiFeatures?.verbosity ?? false
-}
-
-export function isSupportArrayContentProvider(provider: Provider): boolean {
-  return provider.apiFeatures?.arrayContent ?? false
 }
 
 export function isSupportDeveloperRoleProvider(provider: Provider): boolean {

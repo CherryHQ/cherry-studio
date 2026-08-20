@@ -452,7 +452,7 @@ describe('ProviderModelMigrator', () => {
             }
           },
           defaultChatEndpoint: 'openai-chat-completions',
-          apiFeatures: { serviceTier: false }
+          apiFeatures: { developerRole: false }
         }
       ]
 
@@ -498,7 +498,7 @@ describe('ProviderModelMigrator', () => {
         'https://api.openai.com/v1'
       )
       expect(runtime.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_RESPONSES]?.baseUrl).toBe('https://my-proxy.com/v1')
-      expect(runtime.apiFeatures.serviceTier).toBe(false)
+      expect(runtime.apiFeatures.developerRole).toBe(false)
       expect(runtime.defaultChatEndpoint).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
     })
 
@@ -522,9 +522,9 @@ describe('ProviderModelMigrator', () => {
               enabled: true,
               isSystem: true,
               apiHost: 'https://api.openai.com',
-              isNotSupportArrayContent: true,
+              isNotSupportArrayContent: false,
               isNotSupportDeveloperRole: false,
-              isNotSupportStreamOptions: false,
+              isNotSupportStreamOptions: true,
               models: []
             }
           ]
@@ -540,7 +540,7 @@ describe('ProviderModelMigrator', () => {
         .from(userProviderTable)
         .where(eq(userProviderTable.providerId, 'openai'))
 
-      expect(providerRow.apiFeatures).toEqual({ arrayContent: false })
+      expect(providerRow.apiFeatures).toEqual({ streamOptions: false })
     })
 
     it.each([

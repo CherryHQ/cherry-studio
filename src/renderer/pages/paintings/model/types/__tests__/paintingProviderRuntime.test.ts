@@ -11,11 +11,8 @@ function provider(overrides: Partial<Provider> = {}): Provider {
     apiKeys: [],
     authType: 'api-key',
     apiFeatures: {
-      arrayContent: false,
       streamOptions: false,
       developerRole: false,
-      serviceTier: false,
-      verbosity: false,
       reportsActualCost: false
     },
     settings: {},

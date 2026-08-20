@@ -93,16 +93,6 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
         key: 'streamOptions',
         label: t('settings.provider.api.options.stream_options.label'),
         help: t('settings.provider.api.options.stream_options.help')
-      },
-      {
-        key: 'serviceTier',
-        label: t('settings.provider.api.options.service_tier.label'),
-        help: t('settings.provider.api.options.service_tier.help')
-      },
-      {
-        key: 'verbosity',
-        label: t('settings.provider.api.options.verbosity.label'),
-        help: t('settings.provider.api.options.verbosity.help')
       }
     ],
     [t]
@@ -118,19 +108,7 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
       return []
     }
 
-    const items: ApiOption[] = [
-      {
-        key: 'arrayContent',
-        label: t('settings.provider.api.options.array_content.label'),
-        help: t('settings.provider.api.options.array_content.help')
-      }
-    ]
-
-    if (visibility.isOpenAIProvider) {
-      items.push(...openAIOptions)
-    }
-
-    return items
+    return visibility.isOpenAIProvider ? openAIOptions : []
   }, [openAIOptions, provider, t])
 
   const handleSaveError = useCallback(() => {

@@ -247,9 +247,6 @@
       ]
     },
     {
-      "apiFeatures": {
-        "arrayContent": false
-      },
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "deepseek - AI model provider",
       "endpointConfigs": {
@@ -781,9 +778,6 @@
       ]
     },
     {
-      "apiFeatures": {
-        "serviceTier": true
-      },
       "authMethods": ["oauth"],
       "defaultChatEndpoint": "openai-responses",
       "description": "OpenAI Codex - AI model provider",
@@ -909,9 +903,6 @@
       "name": "Grok CLI"
     },
     {
-      "apiFeatures": {
-        "serviceTier": true
-      },
       "defaultChatEndpoint": "openai-responses",
       "description": "OpenAI - AI model provider",
       "endpointConfigs": {
@@ -1343,9 +1334,6 @@
       ]
     },
     {
-      "apiFeatures": {
-        "arrayContent": false
-      },
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "BAICHUAN AI - AI model provider",
       "endpointConfigs": {
@@ -1510,9 +1498,6 @@
       ]
     },
     {
-      "apiFeatures": {
-        "arrayContent": false
-      },
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "MiniMax - AI model provider",
       "endpointConfigs": {
@@ -1537,9 +1522,6 @@
       "name": "MiniMax"
     },
     {
-      "apiFeatures": {
-        "serviceTier": true
-      },
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "Groq - AI model provider",
       "endpointConfigs": {
@@ -1868,9 +1850,6 @@
       "name": "ModelScope"
     },
     {
-      "apiFeatures": {
-        "arrayContent": false
-      },
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "Xirang - AI model provider",
       "endpointConfigs": {
@@ -2020,7 +1999,6 @@
     },
     {
       "apiFeatures": {
-        "arrayContent": false,
         "developerRole": false
       },
       "defaultChatEndpoint": "openai-chat-completions",
@@ -2323,5 +2301,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "ac5cc2ab57a5f527"
+  "version": "8c41ff99a7b1fbcb"
 }

@@ -29,11 +29,8 @@ const EndpointTypeSchema = z.enum(objectValues(ENDPOINT_TYPE))
 
 /** API feature flags controlling request construction at the SDK level */
 const CatalogApiFeaturesSchema = z.object({
-  arrayContent: z.boolean().optional(),
   streamOptions: z.boolean().optional(),
   developerRole: z.boolean().optional(),
-  serviceTier: z.boolean().optional(),
-  verbosity: z.boolean().optional(),
   reportsActualCost: z.boolean().optional()
 })
 
@@ -327,11 +324,8 @@ export const ProviderSchema = z.object({
 export type Provider = z.infer<typeof ProviderSchema>
 
 export const DEFAULT_API_FEATURES: RuntimeApiFeatures = {
-  arrayContent: true,
   streamOptions: true,
   developerRole: false,
-  serviceTier: false,
-  verbosity: false,
   reportsActualCost: false
 }
 

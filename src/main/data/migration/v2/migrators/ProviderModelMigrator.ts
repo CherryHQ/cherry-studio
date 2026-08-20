@@ -66,7 +66,6 @@ const BATCH_SIZE = 100
 const RETIRED_PROVIDER_IDS = new Set(['cephalon', 'tokenflux'])
 /** Defaults materialized for non-system providers by final-v1 migrations 127, 129, and 132. */
 const V1_CUSTOM_PROVIDER_API_FEATURES_BASELINE = {
-  arrayContent: true,
   streamOptions: true,
   developerRole: false
 } satisfies ApiFeatures
@@ -106,7 +105,6 @@ interface V1ProviderBaseline {
   type: LegacyProvider['type']
   apiHost?: string
   anthropicApiHost?: string
-  isNotSupportArrayContent: boolean
   isNotSupportDeveloperRole: boolean
   isNotSupportStreamOptions: boolean
   models: Record<string, V1ModelBaseline>
@@ -264,7 +262,6 @@ export class ProviderModelMigrator extends BaseMigrator {
       apiKey: '',
       apiHost: baseline.apiHost ?? '',
       anthropicApiHost: baseline.anthropicApiHost,
-      isNotSupportArrayContent: baseline.isNotSupportArrayContent,
       isNotSupportDeveloperRole: baseline.isNotSupportDeveloperRole,
       isNotSupportStreamOptions: baseline.isNotSupportStreamOptions,
       models: Object.values(baseline.models).map((model) => ({

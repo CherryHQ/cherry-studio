@@ -171,11 +171,8 @@ function createProvider(overrides: Partial<DataProvider> = {}): DataProvider {
     apiKeys: [{ id: 'key-1', label: 'Primary', isEnabled: true }],
     authType: 'api-key',
     apiFeatures: {
-      arrayContent: true,
       streamOptions: true,
       developerRole: false,
-      serviceTier: false,
-      verbosity: false,
       reportsActualCost: false
     },
     settings: {},

@@ -6323,10 +6323,6 @@
             "token_threshold": "Cache-Token-Schwellenwert",
             "token_threshold_help": "Nachrichten, die diese Token-Anzahl überschreiten, werden zwischengespeichert. Auf 0 setzen, um das Caching zu deaktivieren."
           },
-          "array_content": {
-            "help": "Unterstützt Array-Format für message content",
-            "label": "Unterstützt Array-Format für message content"
-          },
           "developer_role": {
             "help": "Unterstützt der Anbieter Nachrichten mit der Rolle „developer“?",
             "label": "Unterstützt Developer Message"
@@ -6336,17 +6332,9 @@
             "label": "Unterstützt enable_thinking"
           },
           "label": "API-Einstellungen",
-          "service_tier": {
-            "help": "Legt fest, ob der Anbieter die Konfiguration des Parameters service_tier unterstützt. Wenn diese Option aktiviert ist, kann der Parameter in den Dienststufeneinstellungen der Chatseite angepasst werden. Nur für OpenAI-Modelle.",
-            "label": "Unterstützt service_tier"
-          },
           "stream_options": {
             "help": "Unterstützt der Anbieter den Parameter stream_options?",
             "label": "Unterstützt stream_options"
-          },
-          "verbosity": {
-            "help": "Ob der Anbieter den Ausführlichkeitsparameter unterstützt",
-            "label": "Unterstützung der Ausführlichkeit"
           }
         },
         "url": {

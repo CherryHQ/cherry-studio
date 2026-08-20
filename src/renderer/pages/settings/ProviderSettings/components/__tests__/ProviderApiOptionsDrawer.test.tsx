@@ -153,13 +153,12 @@ describe('ProviderApiOptionsDrawer', () => {
     expect(screen.getByLabelText('settings.provider.api.options.anthropic_cache.cache_last_n')).toHaveValue(2)
   })
 
-  it('only renders array content for non OpenAI providers without anthropic cache support', () => {
+  it('renders nothing for a non-OpenAI provider without anthropic cache support', () => {
     isOpenAICompatibleProviderMock.mockReturnValue(false)
     isAnthropicSupportedProviderMock.mockReturnValue(false)
 
     render(<ProviderApiOptionsDrawer providerId="openai" open onClose={vi.fn()} />)
 
-    expect(screen.getByLabelText('settings.provider.api.options.array_content.label')).toBeInTheDocument()
     expect(screen.queryByLabelText('settings.provider.api.options.developer_role.label')).not.toBeInTheDocument()
     expect(screen.queryByText('settings.openai.title')).not.toBeInTheDocument()
     expect(

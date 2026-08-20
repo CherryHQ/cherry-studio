@@ -6323,10 +6323,6 @@
             "token_threshold": "快取 Token 閾值",
             "token_threshold_help": "超過此 Token 數量的訊息將被快取。設為 0 可停用快取。"
           },
-          "array_content": {
-            "help": "該供應商是否支援 message 的 content 欄位為 array 類型",
-            "label": "支援陣列格式的 message content"
-          },
           "developer_role": {
             "help": "該供應商是否支援 role: \"developer\" 的訊息",
             "label": "支援開發人員訊息"
@@ -6336,17 +6332,9 @@
             "label": "支援 enable_thinking"
           },
           "label": "API 設定",
-          "service_tier": {
-            "help": "該供應商是否支援設定 service_tier 參數。啟用後，可在對話頁面的服務層級設定中調整此參數。（僅限 OpenAI 模型）",
-            "label": "支援 service_tier"
-          },
           "stream_options": {
             "help": "該供應商是否支援 stream_options 參數",
             "label": "支援 stream_options"
-          },
-          "verbosity": {
-            "help": "供應商是否支援詳細程度參數",
-            "label": "支援 verbosity"
           }
         },
         "url": {

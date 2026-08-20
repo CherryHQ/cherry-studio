@@ -6323,10 +6323,6 @@
             "token_threshold": "Ngưỡng Token Bộ nhớ đệm",
             "token_threshold_help": "Các tin nhắn vượt quá số lượng token này sẽ được lưu vào bộ nhớ đệm. Đặt thành 0 để tắt bộ nhớ đệm."
           },
-          "array_content": {
-            "help": "Nhà cung cấp có hỗ trợ trường nội dung của tin nhắn ở dạng mảng không?",
-            "label": "Hỗ trợ nội dung tin nhắn định dạng mảng"
-          },
           "developer_role": {
             "help": "Nhà cung cấp có hỗ trợ tin nhắn với vai trò: \"developer\" không?",
             "label": "Thông báo hỗ trợ nhà phát triển"
@@ -6336,17 +6332,9 @@
             "label": "Hỗ trợ bật enable_thinking"
           },
           "label": "Cài đặt API",
-          "service_tier": {
-            "help": "Liệu nhà cung cấp có hỗ trợ cấu hình tham số service_tier hay không. Khi được bật, tham số này có thể điều chỉnh trong cài đặt service tier trên trang chat. (Chỉ dành cho mô hình OpenAI)",
-            "label": "Hỗ trợ service_tier"
-          },
           "stream_options": {
             "help": "Nhà cung cấp có hỗ trợ tham số stream_options không?",
             "label": "Hỗ trợ stream_options"
-          },
-          "verbosity": {
-            "help": "Cho dù nhà cung cấp có hỗ trợ tham số độ chi tiết hay không",
-            "label": "Hỗ trợ chế độ chi tiết"
           }
         },
         "url": {

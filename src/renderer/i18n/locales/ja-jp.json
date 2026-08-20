@@ -6323,10 +6323,6 @@
             "token_threshold": "キャッシュトークン閾値",
             "token_threshold_help": "このトークン数を超えるメッセージはキャッシュされます。キャッシュを無効にするには0を設定してください。"
           },
-          "array_content": {
-            "help": "このプロバイダーは、message の content フィールドが配列型であることをサポートしていますか",
-            "label": "配列形式のメッセージコンテンツをサポート"
-          },
           "developer_role": {
             "help": "このプロバイダーは role: \"developer\" のメッセージをサポートしていますか",
             "label": "Developer Message をサポート"
@@ -6336,17 +6332,9 @@
             "label": "enable_thinking をサポート"
           },
           "label": "API設定",
-          "service_tier": {
-            "help": "このプロバイダーがservice_tierパラメータの設定をサポートしているかどうか。有効にすると、チャットページのサービスレベル設定でこのパラメータを調整できます。（OpenAIモデルのみ対象）",
-            "label": "service_tier をサポート"
-          },
           "stream_options": {
             "help": "このプロバイダーは stream_options パラメータをサポートしていますか",
             "label": "stream_options をサポート"
-          },
-          "verbosity": {
-            "help": "プロバイダーが冗長度パラメータをサポートしているかどうか",
-            "label": "冗長性のサポート"
           }
         },
         "url": {

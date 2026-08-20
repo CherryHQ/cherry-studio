@@ -11,9 +11,6 @@ export default defineProvider({
       reasoningFormat: { type: 'none' }
     }
   },
-  apiFeatures: {
-    serviceTier: true
-  },
   metadata: {
     website: {
       apiKey: 'https://console.groq.com/keys',

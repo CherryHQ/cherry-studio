@@ -163,7 +163,7 @@ describe('ProviderService read-time registry merge (#17096)', () => {
     const provider = providerService.getByProviderId('cherryin')
 
     // Registry baseline over app defaults; nothing frozen in the row.
-    expect(provider.apiFeatures.serviceTier).toBe(false)
+    expect(provider.apiFeatures.developerRole).toBe(false)
     expect(provider.defaultChatEndpoint).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
     expect(provider.reportedCostCurrency).toBe('USD')
   })
@@ -176,20 +176,17 @@ describe('ProviderService read-time registry merge (#17096)', () => {
       orderKey: 'a0'
     })
 
-    // Toggle one flag away from the baseline (registry says serviceTier: false).
-    providerService.update('cherryin', { apiFeatures: { serviceTier: true } })
+    // Toggle one flag away from the baseline (registry says developerRole: false).
+    providerService.update('cherryin', { apiFeatures: { developerRole: true } })
     let [row] = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'cherryin'))
-    expect(row.apiFeatures).toEqual({ serviceTier: true })
-    expect(providerService.getByProviderId('cherryin').apiFeatures.serviceTier).toBe(true)
+    expect(row.apiFeatures).toEqual({ developerRole: true })
+    expect(providerService.getByProviderId('cherryin').apiFeatures.developerRole).toBe(true)
 
     // A full-snapshot echo that matches the baseline reduces the row to null.
     providerService.update('cherryin', {
       apiFeatures: {
-        arrayContent: true,
         streamOptions: true,
-        developerRole: false,
-        serviceTier: false,
-        verbosity: false
+        developerRole: false
       }
     })
     ;[row] = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'cherryin'))

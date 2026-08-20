@@ -6323,10 +6323,6 @@
             "token_threshold": "Limite de Token de Cache",
             "token_threshold_help": "Mensagens que excederem essa contagem de tokens serão armazenadas em cache. Defina como 0 para desativar o cache."
           },
-          "array_content": {
-            "help": "O fornecedor suporta que o campo content da mensagem seja do tipo array?",
-            "label": "suporta o formato de matriz do conteúdo da mensagem"
-          },
           "developer_role": {
             "help": "O fornecedor suporta mensagens com role: \"developer\"?",
             "label": "Mensagem de suporte ao programador"
@@ -6336,17 +6332,9 @@
             "label": "Apoiar enable_thinking"
           },
           "label": "Definições da API",
-          "service_tier": {
-            "help": "Se o fornecedor suporta a configuração do parâmetro service_tier. Quando ativado, este parâmetro pode ser ajustado nas definições do nível de serviço na página de conversa. (Apenas para modelos OpenAI)",
-            "label": "Suporta service_tier"
-          },
           "stream_options": {
             "help": "O fornecedor suporta o parâmetro stream_options?",
             "label": "suporta stream_options"
-          },
-          "verbosity": {
-            "help": "Se o fornecedor suporta o parâmetro de verbosidade",
-            "label": "Suportar verbosidade"
           }
         },
         "url": {

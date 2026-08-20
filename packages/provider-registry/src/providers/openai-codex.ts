@@ -13,7 +13,6 @@ export default defineProvider({
   defaultChatEndpoint: 'openai-responses',
   modelListSource: 'registry',
   authMethods: ['oauth'],
-  apiFeatures: { serviceTier: true },
   fastMode: { transport: 'openai-priority' },
   endpointConfigs: {
     'openai-responses': {

@@ -345,12 +345,6 @@ function buildApiFeatures(legacy: LegacyProvider): ApiFeatures | null {
   const features: ApiFeatures = {}
   let hasValue = false
 
-  const notArrayContent = apiOptions?.isNotSupportArrayContent ?? legacy.isNotSupportArrayContent
-  if (notArrayContent != null) {
-    features.arrayContent = !notArrayContent
-    hasValue = true
-  }
-
   const notStreamOptions = apiOptions?.isNotSupportStreamOptions ?? legacy.isNotSupportStreamOptions
   if (notStreamOptions != null) {
     features.streamOptions = !notStreamOptions
@@ -365,22 +359,9 @@ function buildApiFeatures(legacy: LegacyProvider): ApiFeatures | null {
     hasValue = true
   }
 
-  const supportsServiceTier =
-    apiOptions?.isSupportServiceTier ??
-    (legacy.isNotSupportServiceTier != null ? !legacy.isNotSupportServiceTier : undefined)
-  if (supportsServiceTier != null) {
-    features.serviceTier = supportsServiceTier
-    hasValue = true
-  }
-
-  // enableThinking was removed from ApiFeatures on HEAD (commit 741d9eb24 —
-  // refactor: route AI SDK adapter via endpoint adapterFamily). Legacy v1
-  // `isNotSupportEnableThinking` no longer maps to a v2 field; drop on migrate.
-
-  if (apiOptions?.isNotSupportVerbosity != null) {
-    features.verbosity = !apiOptions.isNotSupportVerbosity
-    hasValue = true
-  }
+  // v1's enableThinking / serviceTier / verbosity / arrayContent flags have no v2
+  // counterpart — the first two were retired with the settings nothing could write,
+  // the last is handled by the SDK itself. Drop them on migrate.
 
   return hasValue ? features : null
 }

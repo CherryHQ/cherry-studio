@@ -27235,15 +27235,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.0976
+          "perMillionTokens": 0.0944
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.5795
+          "perMillionTokens": 0.5605
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 2.44
+          "perMillionTokens": 2.36
         }
       },
       "providerId": "openrouter",
@@ -37755,5 +37755,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "c5fb0b4789225df1"
+  "version": "7a04528b8462cbc8"
 }
