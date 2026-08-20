@@ -136,7 +136,7 @@ describe('PdfTranslationService', () => {
       'babeldoc-stream': {
         name: 'babeldoc-stream',
         availability: { source: 'mise', path: MANAGED_BINARY },
-        application: { status: 'applied', version: '0.6.4.post2' }
+        application: { status: 'applied', version: '0.6.4.post3' }
       }
     })
     apiGateway.acquireLease.mockResolvedValue(undefined)
