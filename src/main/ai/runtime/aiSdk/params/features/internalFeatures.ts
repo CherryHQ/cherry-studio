@@ -14,9 +14,9 @@
 import type { RequestFeature } from '../feature'
 import { anthropicCacheFeature } from './anthropicCache'
 import { anthropicHeadersFeature } from './anthropicHeaders'
-import { arkEncryptedReasoningFeature } from './arkEncryptedReasoning'
 import { contextBuildFeature } from './contextBuild'
 import { deepseekDsmlParserFeature } from './deepseekDsmlParserPlugin'
+import { deepseekResponsesReasoningReplayFeature } from './deepseekResponsesReasoningReplay'
 import { devtoolsFeature } from './devtools'
 import { gatewayUsageNormalizeFeature } from './gatewayUsageNormalize'
 import { inLoopCompactionFeature } from './inLoopCompaction'
@@ -39,6 +39,8 @@ export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   gatewayUsageNormalizeFeature,
   // DeepSeek-only: re-extract DSML-markup tool calls from text before reasoning extraction.
   deepseekDsmlParserFeature,
+  // DeepSeek-only: tag replayed reasoning so the Responses serializer passes it back (#18150).
+  deepseekResponsesReasoningReplayFeature,
   reasoningExtractionFeature,
   simulateStreamingFeature,
   // Must precede anthropic-cache: middleware array order = transformParams
@@ -55,10 +57,8 @@ export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   qwenThinkingFeature,
   qwenEnableThinkingFeature,
   skipGeminiThoughtSignatureFeature,
-  // Ark (pre-seed-2.x) and HF reject reasoning input items — strip them on replay.
+  // The HuggingFace router rejects reasoning input items — strip them on replay.
   stripReasoningReplayFeature,
-  // Ark seed-2.x: request encrypted thinking so replay preserves reasoning quality.
-  arkEncryptedReasoningFeature,
   providerWebSearchFeature,
   providerUrlContextFeature,
   // Stop when a trusted local tool cannot succeed without an external change.

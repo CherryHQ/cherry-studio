@@ -1,99 +1,64 @@
 import { createOpenResponses } from '@ai-sdk/open-responses'
-import type { LanguageModelV3CallOptions, LanguageModelV3StreamPart } from '@ai-sdk/provider'
+import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
 import { describe, expect, it } from 'vitest'
 
 /**
- * Guards patches/@ai-sdk__open-responses@1.0.34.patch (backports from 2.0.27):
- * reasoning replay on assistant turns, open-string reasoningEffort, and
- * provider-defined tool passthrough. Thinking-mode dialects (DeepSeek et al.)
- * reject multi-turn requests without the replayed reasoning (#18150).
+ * Guards patches/@ai-sdk__open-responses@1.0.34.patch — the two behaviors subset
+ * Responses servers depend on: replaying the chain of thought itself (thinking
+ * dialects reject a turn that dropped it, #18150) and closing an unterminated
+ * reasoning item with its real id.
  */
 
-function makeModel(onBody: (body: any) => void) {
+function sseModel(events: unknown[]) {
+  const body = `${events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join('')}data: [DONE]\n\n`
   return createOpenResponses({
     url: 'https://example.com/v1/responses',
     name: 'openai',
     apiKey: 'sk-test',
-    fetch: async (_input: RequestInfo | URL, init?: RequestInit) => {
-      onBody(JSON.parse(init?.body as string))
-      return new Response(
-        JSON.stringify({
-          id: 'resp_1',
-          created_at: 0,
-          model: 'deepseek-v4-flash',
-          output: [],
-          usage: { input_tokens: 1, output_tokens: 1 }
-        }),
-        { status: 200, headers: { 'content-type': 'application/json' } }
-      )
-    }
-  })('deepseek-v4-flash')
+    fetch: async () => new Response(body, { headers: { 'content-type': 'text/event-stream' } })
+  })('subset-thinking-model')
+}
+
+async function collect(stream: ReadableStream<LanguageModelV3StreamPart>) {
+  const reader = stream.getReader()
+  const chunks: LanguageModelV3StreamPart[] = []
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    chunks.push(value)
+  }
+  return chunks
 }
 
 describe('patched @ai-sdk/open-responses', () => {
   it('replays assistant reasoning as reasoning_text content items', async () => {
     let body: any
-    await makeModel((b) => (body = b)).doGenerate({
+    const model = createOpenResponses({
+      url: 'https://example.com/v1/responses',
+      name: 'openai',
+      apiKey: 'sk-test',
+      fetch: async (_input: RequestInfo | URL, init?: RequestInit) => {
+        body = JSON.parse(init?.body as string)
+        return new Response(
+          JSON.stringify({
+            id: 'resp_1',
+            created_at: 0,
+            model: 'm',
+            output: [],
+            usage: { input_tokens: 1, output_tokens: 1 }
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        )
+      }
+    })('subset-thinking-model')
+
+    await model.doGenerate({
       prompt: [
         {
           role: 'assistant',
           content: [
             { type: 'reasoning', text: 'thinking' },
-            { type: 'text', text: 'answer' },
-            { type: 'tool-call', toolCallId: 'c1', toolName: 't', input: {} }
-          ]
-        },
-        { role: 'user', content: [{ type: 'text', text: 'next' }] }
-      ]
-    })
-
-    // Ark marks `status` as required on reasoning input items; the stateless
-    // store opt-out mirrors what the retired @ai-sdk/openai path always sent.
-    expect(body.store).toBe(false)
-    expect(body.input.filter((item: any) => item.type === 'reasoning')).toEqual([
-      { type: 'reasoning', summary: [], content: [{ type: 'reasoning_text', text: 'thinking' }], status: 'completed' }
-    ])
-    // Ark rejects assistant input items without status (400 MissingParameter:
-    // input.status, #18253) — mirror of the retired @ai-sdk/openai hunk (#18258).
-    expect(body.input.filter((item: any) => item.type === 'message' && item.role === 'assistant')).toEqual([
-      { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: 'answer' }], status: 'completed' }
-    ])
-  })
-
-  it('accepts vendor effort tiers outside the upstream enum (deepseek max)', async () => {
-    let body: any
-    const result = await makeModel((b) => (body = b)).doGenerate({
-      prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
-      providerOptions: { openai: { reasoningEffort: 'max' } }
-    })
-
-    expect(body.reasoning).toEqual({ effort: 'max' })
-    expect(result.warnings).toEqual([])
-  })
-
-  it('passes serviceTier and include through to the wire body', async () => {
-    let body: any
-    await makeModel((b) => (body = b)).doGenerate({
-      prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
-      providerOptions: { openai: { serviceTier: 'fast', include: ['reasoning.encrypted_content'] } }
-    })
-
-    expect(body.service_tier).toBe('fast')
-    expect(body.include).toEqual(['reasoning.encrypted_content'])
-  })
-
-  it('replays encrypted reasoning with its item id (Ark stateless thinking passback)', async () => {
-    let body: any
-    await makeModel((b) => (body = b)).doGenerate({
-      prompt: [
-        {
-          role: 'assistant',
-          content: [
-            {
-              type: 'reasoning',
-              text: 'summary',
-              providerOptions: { openai: { itemId: 'rs_1', reasoningEncryptedContent: 'ENC' } }
-            }
+            { type: 'text', text: 'answer' }
           ]
         },
         { role: 'user', content: [{ type: 'text', text: 'next' }] }
@@ -101,215 +66,26 @@ describe('patched @ai-sdk/open-responses', () => {
     })
 
     expect(body.input.filter((item: any) => item.type === 'reasoning')).toEqual([
-      {
-        type: 'reasoning',
-        summary: [],
-        content: [{ type: 'reasoning_text', text: 'summary' }],
-        status: 'completed',
-        id: 'rs_1',
-        encrypted_content: 'ENC'
-      }
-    ])
-  })
-
-  it('surfaces encrypted_content on reasoning-end providerMetadata', async () => {
-    const events = [
-      {
-        type: 'response.output_item.added',
-        output_index: 0,
-        item: { type: 'reasoning', id: 'rs_enc' }
-      },
-      {
-        type: 'response.reasoning_summary_text.delta',
-        item_id: 'rs_enc',
-        output_index: 0,
-        summary_index: 0,
-        delta: 'x'
-      },
-      {
-        type: 'response.output_item.done',
-        output_index: 0,
-        item: { type: 'reasoning', id: 'rs_enc', encrypted_content: 'ENC' }
-      },
-      {
-        type: 'response.completed',
-        response: { id: 'resp_1', usage: { input_tokens: 1, output_tokens: 1 } }
-      }
-    ]
-    const sse = `${events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join('')}data: [DONE]\n\n`
-    const model = createOpenResponses({
-      url: 'https://example.com/v1/responses',
-      name: 'openai',
-      apiKey: 'sk-test',
-      fetch: async () => new Response(sse, { headers: { 'content-type': 'text/event-stream' } })
-    })('doubao-seed-2-1-pro')
-
-    const result = await model.doStream({
-      prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }]
-    })
-    const reader = result.stream.getReader()
-    const chunks: LanguageModelV3StreamPart[] = []
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      chunks.push(value)
-    }
-
-    const end = chunks.find((chunk) => chunk.type === 'reasoning-end') as any
-    expect(end.providerMetadata).toEqual({ openai: { itemId: 'rs_enc', reasoningEncryptedContent: 'ENC' } })
-  })
-
-  it('passes provider-defined tools (web_search) through alongside function tools', async () => {
-    let body: any
-    await makeModel((b) => (body = b)).doGenerate({
-      prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
-      tools: [
-        { type: 'function', name: 'fn', description: undefined, inputSchema: { type: 'object' } },
-        { type: 'provider', id: 'openai.web_search', name: 'web_search', args: {} }
-      ]
-    })
-
-    expect(body.tools).toEqual([
-      { type: 'function', name: 'fn', parameters: { type: 'object' } },
-      { type: 'web_search' }
+      { type: 'reasoning', summary: [], content: [{ type: 'reasoning_text', text: 'thinking' }] }
     ])
   })
 
   it('closes an unterminated reasoning item with its real id on stream end', async () => {
-    // Upstream flush() hardcoded id 'reasoning-0'; ai's step assembler then errors
-    // with "reasoning part reasoning-0 not found" (seen live: HF MiniMax-M2 + tools).
-    const events = [
-      {
-        type: 'response.output_item.added',
-        output_index: 0,
-        item: { type: 'reasoning', id: 'rs_real' }
-      },
-      { type: 'response.reasoning_text.delta', item_id: 'rs_real', output_index: 0, delta: 'thinking' },
-      {
-        type: 'response.completed',
-        response: { id: 'resp_1', usage: { input_tokens: 1, output_tokens: 1 } }
-      }
-    ]
-    const body = `${events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join('')}data: [DONE]\n\n`
-    const model = createOpenResponses({
-      url: 'https://example.com/v1/responses',
-      name: 'openai',
-      apiKey: 'sk-test',
-      fetch: async () => new Response(body, { headers: { 'content-type': 'text/event-stream' } })
-    })('deepseek-v4-flash')
+    // Upstream flush() hardcodes id 'reasoning-0'; ai's step assembler only knows the
+    // real item id and fails the whole stream with "reasoning part … not found"
+    // (seen live on the HuggingFace router).
+    const chunks = await collect(
+      (
+        await sseModel([
+          { type: 'response.output_item.added', output_index: 0, item: { type: 'reasoning', id: 'rs_real' } },
+          { type: 'response.reasoning_text.delta', item_id: 'rs_real', output_index: 0, delta: 'thinking' },
+          { type: 'response.completed', response: { id: 'resp_1', usage: { input_tokens: 1, output_tokens: 1 } } }
+        ]).doStream({ prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }] })
+      ).stream
+    )
 
-    const result = await model.doStream({
-      prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }]
-    })
-    const reader = result.stream.getReader()
-    const chunks: LanguageModelV3StreamPart[] = []
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      chunks.push(value)
-    }
-
-    const ends = chunks.filter((chunk) => chunk.type === 'reasoning-end').map((chunk) => (chunk as any).id)
-    expect(ends).toEqual(['rs_real'])
-  })
-
-  it('streams response.reasoning_summary_text.delta as reasoning parts (Ark reasoning family)', async () => {
-    const events = [
-      {
-        type: 'response.output_item.added',
-        output_index: 0,
-        item: { type: 'reasoning', id: 'rs_ark' }
-      },
-      {
-        type: 'response.reasoning_summary_text.delta',
-        item_id: 'rs_ark',
-        output_index: 0,
-        summary_index: 0,
-        delta: 'Ark '
-      },
-      {
-        type: 'response.reasoning_summary_text.delta',
-        item_id: 'rs_ark',
-        output_index: 0,
-        summary_index: 0,
-        delta: 'thinks'
-      },
-      {
-        type: 'response.output_item.done',
-        output_index: 0,
-        item: { type: 'reasoning', id: 'rs_ark' }
-      },
-      {
-        type: 'response.completed',
-        response: { id: 'resp_1', usage: { input_tokens: 1, output_tokens: 1 } }
-      }
-    ]
-    const body = `${events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join('')}data: [DONE]\n\n`
-    const model = createOpenResponses({
-      url: 'https://example.com/v1/responses',
-      name: 'openai',
-      apiKey: 'sk-test',
-      fetch: async () => new Response(body, { headers: { 'content-type': 'text/event-stream' } })
-    })('doubao-seed-1-6')
-
-    const result = await model.doStream({
-      prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }]
-    })
-    const reader = result.stream.getReader()
-    const chunks: LanguageModelV3StreamPart[] = []
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      chunks.push(value)
-    }
-
-    const deltas = chunks.filter((chunk) => chunk.type === 'reasoning-delta').map((chunk) => (chunk as any).delta)
-    expect(deltas.join('')).toBe('Ark thinks')
-  })
-
-  it('streams response.reasoning_text.delta as reasoning parts (native, load-bearing for DeepSeek)', async () => {
-    const events = [
-      {
-        type: 'response.output_item.added',
-        output_index: 0,
-        item: { type: 'reasoning', id: 'reasoning-item' }
-      },
-      { type: 'response.reasoning_text.delta', item_id: 'reasoning-item', output_index: 0, delta: 'First ' },
-      { type: 'response.reasoning_text.delta', item_id: 'reasoning-item', output_index: 0, delta: 'step' },
-      {
-        type: 'response.output_item.done',
-        output_index: 0,
-        item: { type: 'reasoning', id: 'reasoning-item' }
-      },
-      {
-        type: 'response.completed',
-        response: {
-          id: 'resp_1',
-          usage: { input_tokens: 3, output_tokens: 2 }
-        }
-      }
-    ]
-    const body = `${events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join('')}data: [DONE]\n\n`
-    const model = createOpenResponses({
-      url: 'https://example.com/v1/responses',
-      name: 'openai',
-      apiKey: 'sk-test',
-      fetch: async () => new Response(body, { headers: { 'content-type': 'text/event-stream' } })
-    })('deepseek-v4-flash')
-
-    const prompt: LanguageModelV3CallOptions['prompt'] = [
-      { role: 'user', content: [{ type: 'text', text: 'Think first.' }] }
-    ]
-    const result = await model.doStream({ prompt })
-    const reader = result.stream.getReader()
-    const chunks: LanguageModelV3StreamPart[] = []
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      chunks.push(value)
-    }
-
-    const deltas = chunks.filter((chunk) => chunk.type === 'reasoning-delta').map((chunk) => (chunk as any).delta)
-    expect(deltas.join('')).toBe('First step')
+    expect(chunks.filter((chunk) => chunk.type === 'reasoning-end').map((chunk) => (chunk as any).id)).toEqual([
+      'rs_real'
+    ])
   })
 })

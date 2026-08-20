@@ -1,5 +1,5 @@
 diff --git a/dist/index.js b/dist/index.js
-index 1c78d6f13caed5cbfa034d86f5e51729d540a1ba..84e7f6efc9bb167b72770ce62ee22bd6bb137289 100644
+index 1c78d6f13caed5cbfa034d86f5e51729d540a1ba..f02737bdeb38a10e637d03a97cb2a2e3bc690acf 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -1725,7 +1725,8 @@ var openaiImageResponseSchema = (0, import_provider_utils12.lazySchema)(
@@ -55,8 +55,95 @@ index 1c78d6f13caed5cbfa034d86f5e51729d540a1ba..84e7f6efc9bb167b72770ce62ee22bd6
        warnings,
        usage: response.usage != null ? {
          inputTokens: (_i = response.usage.input_tokens) != null ? _i : void 0,
+@@ -2673,11 +2684,11 @@ async function convertToOpenAIResponsesInput({
+       case "system": {
+         switch (systemMessageMode) {
+           case "system": {
+-            input.push({ role: "system", content });
++            input.push({ type: "message", role: "system", content });
+             break;
+           }
+           case "developer": {
+-            input.push({ role: "developer", content });
++            input.push({ type: "message", role: "developer", content });
+             break;
+           }
+           case "remove": {
+@@ -2698,6 +2709,7 @@ async function convertToOpenAIResponsesInput({
+       }
+       case "user": {
+         input.push({
++          type: "message",
+           role: "user",
+           content: content.map((part, index) => {
+             var _a2, _b2, _c2;
+@@ -2756,9 +2768,11 @@ async function convertToOpenAIResponsesInput({
+                 break;
+               }
+               input.push({
++                type: "message",
+                 role: "assistant",
+                 content: [{ type: "output_text", text: part.text }],
+                 id,
++                status: "completed",
+                 ...phase != null && { phase }
+               });
+               break;
+@@ -3002,6 +3016,12 @@ async function convertToOpenAIResponsesInput({
+                     encrypted_content: encryptedContent,
+                     summary: summaryParts
+                   });
++                } else if ((providerOptions == null ? void 0 : providerOptions.rawReasoningContent) && part.text.length > 0) {
++                  input.push({
++                    type: "reasoning",
++                    summary: [],
++                    content: [{ type: "reasoning_text", text: part.text }]
++                  });
+                 } else {
+                   warnings.push({
+                     type: "other",
+@@ -3249,7 +3269,8 @@ async function convertToOpenAIResponsesInput({
+ }
+ var openaiResponsesReasoningProviderOptionsSchema = import_v420.z.object({
+   itemId: import_v420.z.string().nullish(),
+-  reasoningEncryptedContent: import_v420.z.string().nullish()
++  reasoningEncryptedContent: import_v420.z.string().nullish(),
++  rawReasoningContent: import_v420.z.boolean().nullish()
+ });
+ 
+ // src/responses/map-openai-responses-finish-reason.ts
+@@ -3778,6 +3799,11 @@ var openaiResponsesChunkSchema = (0, import_provider_utils26.lazySchema)(
+         summary_index: import_v421.z.number(),
+         delta: import_v421.z.string()
+       }),
++      import_v421.z.object({
++        type: import_v421.z.literal("response.reasoning_text.delta"),
++        item_id: import_v421.z.string(),
++        delta: import_v421.z.string()
++      }),
+       import_v421.z.object({
+         type: import_v421.z.literal("response.reasoning_summary_part.done"),
+         item_id: import_v421.z.string(),
+@@ -6105,6 +6131,17 @@ var OpenAIResponsesLanguageModel = class {
+                   }
+                 }
+               });
++            } else if (value.type === "response.reasoning_text.delta") {
++              controller.enqueue({
++                type: "reasoning-delta",
++                id: `${value.item_id}:0`,
++                delta: value.delta,
++                providerMetadata: {
++                  [providerOptionsName]: {
++                    itemId: value.item_id
++                  }
++                }
++              });
+             } else if (value.type === "response.reasoning_summary_part.done") {
+               if (store) {
+                 controller.enqueue({
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 3dee8855a0cff4c2d5bef4ff1cb2a92a48bd8c4f..5d3938b984716dac444fd009ed987a3236fa4231 100644
+index 3dee8855a0cff4c2d5bef4ff1cb2a92a48bd8c4f..2106b48cd7cbc35c0e631f7f8e687d340639a8f5 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
 @@ -1740,7 +1740,8 @@ var openaiImageResponseSchema = lazySchema7(
@@ -112,8 +199,95 @@ index 3dee8855a0cff4c2d5bef4ff1cb2a92a48bd8c4f..5d3938b984716dac444fd009ed987a32
        warnings,
        usage: response.usage != null ? {
          inputTokens: (_i = response.usage.input_tokens) != null ? _i : void 0,
+@@ -2750,11 +2761,11 @@ async function convertToOpenAIResponsesInput({
+       case "system": {
+         switch (systemMessageMode) {
+           case "system": {
+-            input.push({ role: "system", content });
++            input.push({ type: "message", role: "system", content });
+             break;
+           }
+           case "developer": {
+-            input.push({ role: "developer", content });
++            input.push({ type: "message", role: "developer", content });
+             break;
+           }
+           case "remove": {
+@@ -2775,6 +2786,7 @@ async function convertToOpenAIResponsesInput({
+       }
+       case "user": {
+         input.push({
++          type: "message",
+           role: "user",
+           content: content.map((part, index) => {
+             var _a2, _b2, _c2;
+@@ -2833,9 +2845,11 @@ async function convertToOpenAIResponsesInput({
+                 break;
+               }
+               input.push({
++                type: "message",
+                 role: "assistant",
+                 content: [{ type: "output_text", text: part.text }],
+                 id,
++                status: "completed",
+                 ...phase != null && { phase }
+               });
+               break;
+@@ -3079,6 +3093,12 @@ async function convertToOpenAIResponsesInput({
+                     encrypted_content: encryptedContent,
+                     summary: summaryParts
+                   });
++                } else if ((providerOptions == null ? void 0 : providerOptions.rawReasoningContent) && part.text.length > 0) {
++                  input.push({
++                    type: "reasoning",
++                    summary: [],
++                    content: [{ type: "reasoning_text", text: part.text }]
++                  });
+                 } else {
+                   warnings.push({
+                     type: "other",
+@@ -3326,7 +3346,8 @@ async function convertToOpenAIResponsesInput({
+ }
+ var openaiResponsesReasoningProviderOptionsSchema = z20.object({
+   itemId: z20.string().nullish(),
+-  reasoningEncryptedContent: z20.string().nullish()
++  reasoningEncryptedContent: z20.string().nullish(),
++  rawReasoningContent: z20.boolean().nullish()
+ });
+ 
+ // src/responses/map-openai-responses-finish-reason.ts
+@@ -3855,6 +3876,11 @@ var openaiResponsesChunkSchema = lazySchema19(
+         summary_index: z21.number(),
+         delta: z21.string()
+       }),
++      z21.object({
++        type: z21.literal("response.reasoning_text.delta"),
++        item_id: z21.string(),
++        delta: z21.string()
++      }),
+       z21.object({
+         type: z21.literal("response.reasoning_summary_part.done"),
+         item_id: z21.string(),
+@@ -6184,6 +6210,17 @@ var OpenAIResponsesLanguageModel = class {
+                   }
+                 }
+               });
++            } else if (value.type === "response.reasoning_text.delta") {
++              controller.enqueue({
++                type: "reasoning-delta",
++                id: `${value.item_id}:0`,
++                delta: value.delta,
++                providerMetadata: {
++                  [providerOptionsName]: {
++                    itemId: value.item_id
++                  }
++                }
++              });
+             } else if (value.type === "response.reasoning_summary_part.done") {
+               if (store) {
+                 controller.enqueue({
 diff --git a/dist/internal/index.js b/dist/internal/index.js
-index 27527ce4b6c232e26c4bed988292d8fdd5dbbb5f..62f0d9be422d1a0a7e887ee9c2f54bec3b8ede1d 100644
+index 27527ce4b6c232e26c4bed988292d8fdd5dbbb5f..c30c06b93b753a0f8abade6e0e1f449387349f15 100644
 --- a/dist/internal/index.js
 +++ b/dist/internal/index.js
 @@ -1752,7 +1752,8 @@ var openaiImageResponseSchema = (0, import_provider_utils12.lazySchema)(
@@ -169,8 +343,95 @@ index 27527ce4b6c232e26c4bed988292d8fdd5dbbb5f..62f0d9be422d1a0a7e887ee9c2f54bec
        warnings,
        usage: response.usage != null ? {
          inputTokens: (_i = response.usage.input_tokens) != null ? _i : void 0,
+@@ -2615,11 +2626,11 @@ async function convertToOpenAIResponsesInput({
+       case "system": {
+         switch (systemMessageMode) {
+           case "system": {
+-            input.push({ role: "system", content });
++            input.push({ type: "message", role: "system", content });
+             break;
+           }
+           case "developer": {
+-            input.push({ role: "developer", content });
++            input.push({ type: "message", role: "developer", content });
+             break;
+           }
+           case "remove": {
+@@ -2640,6 +2651,7 @@ async function convertToOpenAIResponsesInput({
+       }
+       case "user": {
+         input.push({
++          type: "message",
+           role: "user",
+           content: content.map((part, index) => {
+             var _a2, _b2, _c2;
+@@ -2698,9 +2710,11 @@ async function convertToOpenAIResponsesInput({
+                 break;
+               }
+               input.push({
++                type: "message",
+                 role: "assistant",
+                 content: [{ type: "output_text", text: part.text }],
+                 id,
++                status: "completed",
+                 ...phase != null && { phase }
+               });
+               break;
+@@ -2944,6 +2958,12 @@ async function convertToOpenAIResponsesInput({
+                     encrypted_content: encryptedContent,
+                     summary: summaryParts
+                   });
++                } else if ((providerOptions == null ? void 0 : providerOptions.rawReasoningContent) && part.text.length > 0) {
++                  input.push({
++                    type: "reasoning",
++                    summary: [],
++                    content: [{ type: "reasoning_text", text: part.text }]
++                  });
+                 } else {
+                   warnings.push({
+                     type: "other",
+@@ -3191,7 +3211,8 @@ async function convertToOpenAIResponsesInput({
+ }
+ var openaiResponsesReasoningProviderOptionsSchema = import_v416.z.object({
+   itemId: import_v416.z.string().nullish(),
+-  reasoningEncryptedContent: import_v416.z.string().nullish()
++  reasoningEncryptedContent: import_v416.z.string().nullish(),
++  rawReasoningContent: import_v416.z.boolean().nullish()
+ });
+ 
+ // src/responses/map-openai-responses-finish-reason.ts
+@@ -3720,6 +3741,11 @@ var openaiResponsesChunkSchema = (0, import_provider_utils24.lazySchema)(
+         summary_index: import_v417.z.number(),
+         delta: import_v417.z.string()
+       }),
++      import_v417.z.object({
++        type: import_v417.z.literal("response.reasoning_text.delta"),
++        item_id: import_v417.z.string(),
++        delta: import_v417.z.string()
++      }),
+       import_v417.z.object({
+         type: import_v417.z.literal("response.reasoning_summary_part.done"),
+         item_id: import_v417.z.string(),
+@@ -6366,6 +6392,17 @@ var OpenAIResponsesLanguageModel = class {
+                   }
+                 }
+               });
++            } else if (value.type === "response.reasoning_text.delta") {
++              controller.enqueue({
++                type: "reasoning-delta",
++                id: `${value.item_id}:0`,
++                delta: value.delta,
++                providerMetadata: {
++                  [providerOptionsName]: {
++                    itemId: value.item_id
++                  }
++                }
++              });
+             } else if (value.type === "response.reasoning_summary_part.done") {
+               if (store) {
+                 controller.enqueue({
 diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
-index db50beda01459008c836cd5648e024340fe31e90..e146cd5b3bea1fd123a651de26a9f73fb7942042 100644
+index db50beda01459008c836cd5648e024340fe31e90..55ee0ec809283c31adaeba34e7823a7d2d7ec050 100644
 --- a/dist/internal/index.mjs
 +++ b/dist/internal/index.mjs
 @@ -1732,7 +1732,8 @@ var openaiImageResponseSchema = lazySchema7(
@@ -226,6 +487,93 @@ index db50beda01459008c836cd5648e024340fe31e90..e146cd5b3bea1fd123a651de26a9f73f
        warnings,
        usage: response.usage != null ? {
          inputTokens: (_i = response.usage.input_tokens) != null ? _i : void 0,
+@@ -2641,11 +2652,11 @@ async function convertToOpenAIResponsesInput({
+       case "system": {
+         switch (systemMessageMode) {
+           case "system": {
+-            input.push({ role: "system", content });
++            input.push({ type: "message", role: "system", content });
+             break;
+           }
+           case "developer": {
+-            input.push({ role: "developer", content });
++            input.push({ type: "message", role: "developer", content });
+             break;
+           }
+           case "remove": {
+@@ -2666,6 +2677,7 @@ async function convertToOpenAIResponsesInput({
+       }
+       case "user": {
+         input.push({
++          type: "message",
+           role: "user",
+           content: content.map((part, index) => {
+             var _a2, _b2, _c2;
+@@ -2724,9 +2736,11 @@ async function convertToOpenAIResponsesInput({
+                 break;
+               }
+               input.push({
++                type: "message",
+                 role: "assistant",
+                 content: [{ type: "output_text", text: part.text }],
+                 id,
++                status: "completed",
+                 ...phase != null && { phase }
+               });
+               break;
+@@ -2970,6 +2984,12 @@ async function convertToOpenAIResponsesInput({
+                     encrypted_content: encryptedContent,
+                     summary: summaryParts
+                   });
++                } else if ((providerOptions == null ? void 0 : providerOptions.rawReasoningContent) && part.text.length > 0) {
++                  input.push({
++                    type: "reasoning",
++                    summary: [],
++                    content: [{ type: "reasoning_text", text: part.text }]
++                  });
+                 } else {
+                   warnings.push({
+                     type: "other",
+@@ -3217,7 +3237,8 @@ async function convertToOpenAIResponsesInput({
+ }
+ var openaiResponsesReasoningProviderOptionsSchema = z16.object({
+   itemId: z16.string().nullish(),
+-  reasoningEncryptedContent: z16.string().nullish()
++  reasoningEncryptedContent: z16.string().nullish(),
++  rawReasoningContent: z16.boolean().nullish()
+ });
+ 
+ // src/responses/map-openai-responses-finish-reason.ts
+@@ -3746,6 +3767,11 @@ var openaiResponsesChunkSchema = lazySchema15(
+         summary_index: z17.number(),
+         delta: z17.string()
+       }),
++      z17.object({
++        type: z17.literal("response.reasoning_text.delta"),
++        item_id: z17.string(),
++        delta: z17.string()
++      }),
+       z17.object({
+         type: z17.literal("response.reasoning_summary_part.done"),
+         item_id: z17.string(),
+@@ -6422,6 +6448,17 @@ var OpenAIResponsesLanguageModel = class {
+                   }
+                 }
+               });
++            } else if (value.type === "response.reasoning_text.delta") {
++              controller.enqueue({
++                type: "reasoning-delta",
++                id: `${value.item_id}:0`,
++                delta: value.delta,
++                providerMetadata: {
++                  [providerOptionsName]: {
++                    itemId: value.item_id
++                  }
++                }
++              });
+             } else if (value.type === "response.reasoning_summary_part.done") {
+               if (store) {
+                 controller.enqueue({
 diff --git a/src/image/openai-image-api.ts b/src/image/openai-image-api.ts
 index de779ca46aa2102cc5bef4a733ef6b6807260731..14b724785e15ab95f4cd2ff4d35d35c2ca7605c7 100644
 --- a/src/image/openai-image-api.ts
@@ -270,3 +618,107 @@ index d456d6398aefb5f78650780867bba92427b1d542..baaade4152183264b1af2b1ac2907bbb
        warnings,
        usage:
          response.usage != null
+diff --git a/src/responses/convert-to-openai-responses-input.ts b/src/responses/convert-to-openai-responses-input.ts
+index ad42deeedaf1a9c3fdb578aadb0e295a5499ec39..b1fc6706dd381ef69253817855dcdc471c09c1bd 100644
+--- a/src/responses/convert-to-openai-responses-input.ts
++++ b/src/responses/convert-to-openai-responses-input.ts
+@@ -83,11 +83,11 @@ export async function convertToOpenAIResponsesInput({
+       case 'system': {
+         switch (systemMessageMode) {
+           case 'system': {
+-            input.push({ role: 'system', content });
++            input.push({ type: 'message', role: 'system', content });
+             break;
+           }
+           case 'developer': {
+-            input.push({ role: 'developer', content });
++            input.push({ type: 'message', role: 'developer', content });
+             break;
+           }
+           case 'remove': {
+@@ -109,6 +109,7 @@ export async function convertToOpenAIResponsesInput({
+ 
+       case 'user': {
+         input.push({
++          type: 'message',
+           role: 'user',
+           content: content.map((part, index) => {
+             switch (part.type) {
+@@ -191,9 +192,13 @@ export async function convertToOpenAIResponsesInput({
+               }
+ 
+               input.push({
++                // Ark requires an explicit item type + status on message input items
++                // (#18253); both are the canonical Responses shape OpenAI accepts.
++                type: 'message',
+                 role: 'assistant',
+                 content: [{ type: 'output_text', text: part.text }],
+                 id,
++                status: 'completed',
+                 ...(phase != null && { phase }),
+               });
+ 
+@@ -538,6 +543,17 @@ export async function convertToOpenAIResponsesInput({
+                     encrypted_content: encryptedContent,
+                     summary: summaryParts,
+                   });
++                } else if (
++                  providerOptions?.rawReasoningContent &&
++                  part.text.length > 0
++                ) {
++                  // Thinking dialects (DeepSeek, …) require the reasoning text itself on
++                  // replay; opt-in because OpenAI rejects `content` on reasoning items.
++                  input.push({
++                    type: 'reasoning',
++                    summary: [],
++                    content: [{ type: 'reasoning_text', text: part.text }],
++                  });
+                 } else {
+                   warnings.push({
+                     type: 'other',
+@@ -848,6 +864,7 @@ export async function convertToOpenAIResponsesInput({
+ const openaiResponsesReasoningProviderOptionsSchema = z.object({
+   itemId: z.string().nullish(),
+   reasoningEncryptedContent: z.string().nullish(),
++  rawReasoningContent: z.boolean().nullish(),
+ });
+ 
+ export type OpenAIResponsesReasoningProviderOptions = z.infer<
+diff --git a/src/responses/openai-responses-api.ts b/src/responses/openai-responses-api.ts
+index 53a3f242d81d0b52d9126b0f4580a30778373606..715f51cb5d5cc3a2f5cbd537e8d508936d7cb2df 100644
+--- a/src/responses/openai-responses-api.ts
++++ b/src/responses/openai-responses-api.ts
+@@ -985,6 +985,11 @@ export const openaiResponsesChunkSchema = lazySchema(() =>
+         summary_index: z.number(),
+         delta: z.string(),
+       }),
++      z.object({
++        type: z.literal('response.reasoning_text.delta'),
++        item_id: z.string(),
++        delta: z.string(),
++      }),
+       z.object({
+         type: z.literal('response.reasoning_summary_part.done'),
+         item_id: z.string(),
+diff --git a/src/responses/openai-responses-language-model.ts b/src/responses/openai-responses-language-model.ts
+index fe9616c8119e0d81750b4b367115aa1e58c9bc3d..b277aac9d3f9bb972da7ecb5ab03a1ab449df5c5 100644
+--- a/src/responses/openai-responses-language-model.ts
++++ b/src/responses/openai-responses-language-model.ts
+@@ -1969,6 +1969,17 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
+                   } satisfies ResponsesReasoningProviderMetadata,
+                 },
+               });
++            } else if (value.type === 'response.reasoning_text.delta') {
++              controller.enqueue({
++                type: 'reasoning-delta',
++                id: `${value.item_id}:0`,
++                delta: value.delta,
++                providerMetadata: {
++                  [providerOptionsName]: {
++                    itemId: value.item_id,
++                  } satisfies ResponsesReasoningProviderMetadata,
++                },
++              });
+             } else if (value.type === 'response.reasoning_summary_part.done') {
+               // when OpenAI stores the message data, we can immediately conclude the reasoning part
+               // since we do not need to send the encrypted content.

@@ -142,7 +142,7 @@ export default defineProvider({
       }
     },
     'openai-responses': {
-      adapterFamily: 'open-responses',
+      adapterFamily: 'openai',
       baseUrl: 'https://ark.cn-beijing.volces.com/api/v3/',
       reasoningFormat: { type: 'openai-responses' }
     }

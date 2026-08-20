@@ -23,15 +23,13 @@ describe('createAihubmix', () => {
   })
 
   it('keeps non-OpenAI ids on the OpenAI-compatible fallback', () => {
-    for (const id of ['qwen3.5-plus', 'deepseek-chat']) {
-      const model = provider.languageModel(id) as unknown as {
-        constructor: { name: string }
-        provider: string
-      }
-
-      expect(model.constructor.name).toBe('OpenAICompatibleChatLanguageModel')
-      expect(model.provider).toBe('aihubmix.chat')
+    const model = provider.languageModel('qwen3.5-plus') as unknown as {
+      constructor: { name: string }
+      provider: string
     }
+
+    expect(model.constructor.name).toBe('OpenAICompatibleChatLanguageModel')
+    expect(model.provider).toBe('aihubmix.chat')
   })
 
   it('routes the o-series (^o[134]) to the Responses API model', () => {

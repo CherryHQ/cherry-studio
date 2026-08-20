@@ -1159,7 +1159,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(config.providerId).toBe('openai-compatible')
     })
 
-    it('keeps the DashScope web_extractor fetch appender on the open-responses route', async () => {
+    it('keeps the DashScope web_extractor fetch appender on the Responses route', async () => {
       vi.mocked(net.fetch).mockResolvedValue(new Response('{}', { status: 200 }))
       const provider = makeProvider({
         id: 'dashscope',
@@ -1167,7 +1167,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
         endpointConfigs: {
           [ENDPOINT_TYPE.OPENAI_RESPONSES]: {
             baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1/',
-            adapterFamily: 'open-responses'
+            adapterFamily: 'openai'
           }
         }
       })
@@ -1177,7 +1177,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
         endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
       })
       const config = await providerToAiSdkConfig(provider, model)
-      expect(config.providerId).toBe('open-responses')
+      expect(config.providerId).toBe('openai')
       const settings = config.providerSettings as Record<string, unknown>
       const fetch = settings.fetch as typeof globalThis.fetch
 
@@ -1190,31 +1190,46 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(requestBody.tools).toEqual([{ type: 'web_search' }, { type: 'web_extractor' }])
     })
 
-    it('routes Doubao Responses through the open-responses builder without Ark shims', async () => {
+    it('composes Doubao Responses request and response compatibility in its fetch wrapper', async () => {
+      vi.mocked(net.fetch).mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            id: 'resp_ark',
+            output: [
+              { type: 'message', role: 'assistant', id: 'msg_ark', content: [{ type: 'output_text', text: 'Hi!' }] }
+            ]
+          }),
+          { status: 200, headers: { 'content-type': 'application/json; charset=utf-8' } }
+        )
+      )
       const provider = makeProvider({
         id: 'doubao',
         defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
         endpointConfigs: {
           [ENDPOINT_TYPE.OPENAI_RESPONSES]: {
             baseUrl: 'https://ark.cn-beijing.volces.com/api/v3/',
-            adapterFamily: 'open-responses'
+            adapterFamily: 'openai'
           }
         }
       })
       const model = makeModel({
         providerId: 'doubao',
-        apiModelId: 'doubao-seed-2-0-code-preview-260215',
+        apiModelId: 'doubao-seed-2-1-pro-260628',
         endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
       })
       const config = await providerToAiSdkConfig(provider, model)
-      expect(config.providerId).toBe('open-responses')
       const settings = config.providerSettings as Record<string, unknown>
-      // open-responses sends no `include` and skips response-body validation, so
-      // the Ark strip/normalize fetch shims are gone: plain proxy-aware fetch only.
-      expect(settings.url).toBe('https://ark.cn-beijing.volces.com/api/v3/responses')
-      expect(settings.name).toBe('openai')
-      // Fornax tracing is developer-mode only.
-      expect((settings.headers as Record<string, string>)['X-Fornax-Trace']).toBeUndefined()
+      const fetch = settings.fetch as typeof globalThis.fetch
+
+      const response = await fetch('https://ark.cn-beijing.volces.com/api/v3/responses', {
+        method: 'POST',
+        body: JSON.stringify({ include: ['web_search_call.action.sources'] })
+      })
+
+      const requestBody = JSON.parse(vi.mocked(net.fetch).mock.calls[0][1]?.body as string)
+      const responseBody = (await response.json()) as { output: Array<{ content: Array<{ annotations?: unknown[] }> }> }
+      expect(requestBody).not.toHaveProperty('include')
+      expect(responseBody.output[0].content[0].annotations).toEqual([])
     })
 
     it('adds the X-Fornax-Trace header for Doubao Responses in developer mode', async () => {
@@ -1226,7 +1241,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
           endpointConfigs: {
             [ENDPOINT_TYPE.OPENAI_RESPONSES]: {
               baseUrl: 'https://ark.cn-beijing.volces.com/api/v3/',
-              adapterFamily: 'open-responses'
+              adapterFamily: 'openai'
             }
           }
         })

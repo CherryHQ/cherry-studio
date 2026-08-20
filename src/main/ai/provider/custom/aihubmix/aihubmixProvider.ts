@@ -10,24 +10,19 @@
  */
 import { AnthropicMessagesLanguageModel } from '@ai-sdk/anthropic/internal'
 import { GoogleGenerativeAILanguageModel } from '@ai-sdk/google/internal'
-import { createOpenResponses } from '@ai-sdk/open-responses'
 import { OpenAIChatLanguageModel, OpenAIResponsesLanguageModel, OpenAISpeechModel } from '@ai-sdk/openai/internal'
 import { OpenAICompatibleChatLanguageModel, OpenAICompatibleEmbeddingModel } from '@ai-sdk/openai-compatible'
 import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3, RerankingModelV3 } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 import { OpenAICompatibleRerankingModel } from '@cherrystudio/ai-sdk-provider'
-import { VENDOR_PATTERNS } from '@cherrystudio/provider-registry'
 import { resolveAihubmixChatFamily } from '@shared/data/presets/gatewayChatRouting'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
-import { getLowerBaseModelName } from '@shared/utils/model'
 
 import { createAihubmixImageModel } from './aihubmixImageModel'
 
 export const AIHUBMIX_PROVIDER_NAME = 'aihubmix' as const
 const APP_CODE_HEADER = { 'APP-Code': 'MLTG2087' }
-
-const isOpenAIVendorModelId = (modelId: string): boolean => VENDOR_PATTERNS.openai.test(getLowerBaseModelName(modelId))
 
 export interface AihubmixProviderSettings {
   apiKey?: string
@@ -117,23 +112,14 @@ export function createAihubmix(options: AihubmixProviderSettings = {}): Aihubmix
       fetch: customFetch
     })
 
-  // OpenAI-vendor ids keep the first-party model (store / serviceTier / encrypted reasoning);
-  // other vendors get the spec-neutral Open Responses dialect under the same 'openai' namespace.
   const createResponsesModel = (modelId: string): LanguageModelV3 =>
-    isOpenAIVendorModelId(modelId)
-      ? new OpenAIResponsesLanguageModel(modelId, {
-          provider: `${AIHUBMIX_PROVIDER_NAME}.openai-response`,
-          url: responsesUrl,
-          headers: authHeaders,
-          fetch: customFetch,
-          fileIdPrefixes: ['file-']
-        })
-      : createOpenResponses({
-          url: `${withoutTrailingSlash(responsesBaseURL)}/responses`,
-          name: 'openai',
-          headers: authHeaders(),
-          fetch: customFetch
-        })(modelId)
+    new OpenAIResponsesLanguageModel(modelId, {
+      provider: `${AIHUBMIX_PROVIDER_NAME}.openai-response`,
+      url: responsesUrl,
+      headers: authHeaders,
+      fetch: customFetch,
+      fileIdPrefixes: ['file-']
+    })
 
   const createChatModel = (modelId: string): LanguageModelV3 => {
     switch (resolveAihubmixChatFamily(modelId)) {

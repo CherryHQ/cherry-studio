@@ -6,11 +6,9 @@ import type { LanguageModelMiddleware } from 'ai'
 import type { RequestFeature } from '../feature'
 
 /**
- * Some Responses dialects reject replayed reasoning input items outright:
- * Ark 400s with "Item reasoning is not supported" (pre-seed-2.x) and the HF
- * router 400s on any reasoning item. Strip reasoning parts from replayed
- * assistant turns for those providers — exactly what the retired
- * @ai-sdk/openai path did by dropping metadata-less reasoning.
+ * The HuggingFace router 400s on any reasoning input item, so replayed assistant
+ * turns must drop their reasoning parts — the same outcome @ai-sdk/huggingface
+ * produced by discarding them, minus the tool-history loss.
  */
 export function createStripReasoningReplayMiddleware(): LanguageModelMiddleware {
   return {
@@ -41,19 +39,10 @@ const createStripReasoningReplayPlugin = () =>
     }
   })
 
-/** Ark generations before seed-2.x reject reasoning items; seed-2.x accepts them (verified live). */
-export const ARK_REASONING_REPLAY_MODEL = /seed-2|seed-evolving/i
-
 /** Providers whose Responses endpoint rejects reasoning input items. */
 export const stripReasoningReplayFeature: RequestFeature = {
   name: 'strip-reasoning-replay',
-  applies: (scope) => {
-    if (scope.aiSdkProviderId !== 'open-responses') return false
-    if (matchesPreset(scope.provider, SystemProviderIds.huggingface)) return true
-    return (
-      matchesPreset(scope.provider, SystemProviderIds.doubao) &&
-      !ARK_REASONING_REPLAY_MODEL.test(scope.model.apiModelId ?? scope.model.id)
-    )
-  },
+  applies: (scope) =>
+    scope.aiSdkProviderId === 'open-responses' && matchesPreset(scope.provider, SystemProviderIds.huggingface),
   contributeModelAdapters: () => [createStripReasoningReplayPlugin()]
 }

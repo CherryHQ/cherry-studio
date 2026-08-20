@@ -1,44 +1,8 @@
-diff --git a/dist/index.d.mts b/dist/index.d.mts
-index 877abac47ca04c6724f3811a2b92590b6eeff71b..80cdb7817db3accfb663c7d828b44d7164b49760 100644
---- a/dist/index.d.mts
-+++ b/dist/index.d.mts
-@@ -33,7 +33,7 @@ interface OpenResponsesProviderSettings {
- declare function createOpenResponses(options: OpenResponsesProviderSettings): OpenResponsesProvider;
- 
- declare const openResponsesOptionsSchema: _ai_sdk_provider_utils.LazySchema<{
--    reasoningEffort?: "low" | "high" | "none" | "medium" | "xhigh" | null | undefined;
-+    reasoningEffort?: string | null | undefined;
-     reasoningSummary?: "auto" | "concise" | "detailed" | null | undefined;
- }>;
- type OpenResponsesOptions = InferSchema<typeof openResponsesOptionsSchema>;
-diff --git a/dist/index.d.ts b/dist/index.d.ts
-index 877abac47ca04c6724f3811a2b92590b6eeff71b..80cdb7817db3accfb663c7d828b44d7164b49760 100644
---- a/dist/index.d.ts
-+++ b/dist/index.d.ts
-@@ -33,7 +33,7 @@ interface OpenResponsesProviderSettings {
- declare function createOpenResponses(options: OpenResponsesProviderSettings): OpenResponsesProvider;
- 
- declare const openResponsesOptionsSchema: _ai_sdk_provider_utils.LazySchema<{
--    reasoningEffort?: "low" | "high" | "none" | "medium" | "xhigh" | null | undefined;
-+    reasoningEffort?: string | null | undefined;
-     reasoningSummary?: "auto" | "concise" | "detailed" | null | undefined;
- }>;
- type OpenResponsesOptions = InferSchema<typeof openResponsesOptionsSchema>;
 diff --git a/dist/index.js b/dist/index.js
-index 74fedcb995ae1955ba56b5bfd39e3f9785f90385..081858e9d2653916d1b5110d9e96a1ff94f72d9b 100644
+index 74fedcb995ae1955ba56b5bfd39e3f9785f90385..a96fff7fd467756e268ed400d8a7df12445e3602 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -39,7 +39,8 @@ var import_v43 = require("zod/v4");
- // src/responses/convert-to-open-responses-input.ts
- var import_provider_utils = require("@ai-sdk/provider-utils");
- async function convertToOpenResponsesInput({
--  prompt
-+  prompt,
-+  providerOptionsName
- }) {
-   var _a, _b, _c;
-   const input = [];
-@@ -89,9 +90,24 @@ async function convertToOpenResponsesInput({
+@@ -89,9 +89,18 @@ async function convertToOpenResponsesInput({
        }
        case "assistant": {
          const assistantContent = [];
@@ -47,23 +11,17 @@ index 74fedcb995ae1955ba56b5bfd39e3f9785f90385..081858e9d2653916d1b5110d9e96a1ff
          for (const part of content) {
            switch (part.type) {
 +            case "reasoning": {
-+              const reasoningOptions = part.providerOptions == null ? void 0 : part.providerOptions[providerOptionsName];
-+              const encryptedContent = reasoningOptions == null ? void 0 : reasoningOptions.reasoningEncryptedContent;
-+              const reasoningItemId = reasoningOptions == null ? void 0 : reasoningOptions.itemId;
 +              reasoningItems.push({
 +                type: "reasoning",
 +                summary: [],
-+                content: [{ type: "reasoning_text", text: part.text }],
-+                status: "completed",
-+                ...typeof reasoningItemId === "string" ? { id: reasoningItemId } : {},
-+                ...typeof encryptedContent === "string" ? { encrypted_content: encryptedContent } : {}
++                content: [{ type: "reasoning_text", text: part.text }]
 +              });
 +              break;
 +            }
              case "text": {
                assistantContent.push({ type: "output_text", text: part.text });
                break;
-@@ -108,11 +124,15 @@ async function convertToOpenResponsesInput({
+@@ -108,6 +117,9 @@ async function convertToOpenResponsesInput({
              }
            }
          }
@@ -73,79 +31,7 @@ index 74fedcb995ae1955ba56b5bfd39e3f9785f90385..081858e9d2653916d1b5110d9e96a1ff
          if (assistantContent.length > 0) {
            input.push({
              type: "message",
-             role: "assistant",
--            content: assistantContent
-+            content: assistantContent,
-+            status: "completed"
-           });
-         }
-         for (const toolCall of toolCalls) {
-@@ -241,7 +261,9 @@ var import_v42 = require("zod/v4");
- var openResponsesOptionsSchema = (0, import_provider_utils3.lazySchema)(
-   () => (0, import_provider_utils3.zodSchema)(
-     import_v42.z.object({
--      reasoningEffort: import_v42.z.enum(["none", "low", "medium", "high", "xhigh"]).nullish(),
-+      reasoningEffort: import_v42.z.string().nullish(),
-+      serviceTier: import_v42.z.string().nullish(),
-+      include: import_v42.z.array(import_v42.z.string()).nullish(),
-       /**
-        * Controls reasoning summary output from the model.
-        * Valid values: 'concise', 'detailed', 'auto'.
-@@ -295,7 +317,8 @@ var OpenResponsesLanguageModel = class {
-       instructions,
-       warnings: inputWarnings
-     } = await convertToOpenResponsesInput({
--      prompt
-+      prompt,
-+      providerOptionsName: this.config.providerOptionsName
-     });
-     warnings.push(...inputWarnings);
-     const functionTools = tools == null ? void 0 : tools.filter((tool) => tool.type === "function").map((tool) => ({
-@@ -305,6 +328,10 @@ var OpenResponsesLanguageModel = class {
-       parameters: tool.inputSchema,
-       ...tool.strict != null ? { strict: tool.strict } : {}
-     }));
-+    const providerTools = tools == null ? void 0 : tools.filter((tool) => tool.type === "provider").map((tool) => ({
-+      type: tool.name,
-+      ...tool.args && typeof tool.args === "object" ? tool.args : {}
-+    }));
-     const convertedToolChoice = toolChoice == null ? void 0 : toolChoice.type === "tool" ? { type: "function", name: toolChoice.toolName } : toolChoice.type;
-     const textFormat = (responseFormat == null ? void 0 : responseFormat.type) === "json" ? {
-       type: "json_schema",
-@@ -323,8 +350,15 @@ var OpenResponsesLanguageModel = class {
-     return {
-       body: {
-         model: this.modelId,
-+        store: false,
-         input,
-         instructions,
-+        ...(openResponsesOptions == null ? void 0 : openResponsesOptions.serviceTier) != null && {
-+          service_tier: openResponsesOptions.serviceTier
-+        },
-+        ...(openResponsesOptions == null ? void 0 : openResponsesOptions.include) != null && {
-+          include: openResponsesOptions.include
-+        },
-         max_output_tokens: maxOutputTokens,
-         temperature,
-         top_p: topP,
-@@ -338,7 +372,7 @@ var OpenResponsesLanguageModel = class {
-             summary: openResponsesOptions.reasoningSummary
-           }
-         } : void 0,
--        tools: (functionTools == null ? void 0 : functionTools.length) ? functionTools : void 0,
-+        tools: (functionTools == null ? void 0 : functionTools.length) || (providerTools == null ? void 0 : providerTools.length) ? [...functionTools != null ? functionTools : [], ...providerTools != null ? providerTools : []] : void 0,
-         tool_choice: convertedToolChoice,
-         ...textFormat != null && { text: { format: textFormat } }
-       },
-@@ -445,6 +479,7 @@ var OpenResponsesLanguageModel = class {
-     };
-   }
-   async doStream(options) {
-+    const providerOptionsName = this.config.providerOptionsName;
-     const { body, warnings } = await this.getArgs(options);
-     const { responseHeaders, value: response } = await (0, import_provider_utils4.postJsonToApi)({
-       url: this.config.url,
-@@ -497,6 +532,7 @@ var OpenResponsesLanguageModel = class {
+@@ -497,6 +509,7 @@ var OpenResponsesLanguageModel = class {
        usage.raw = responseUsage;
      };
      let isActiveReasoning = false;
@@ -153,49 +39,23 @@ index 74fedcb995ae1955ba56b5bfd39e3f9785f90385..081858e9d2653916d1b5110d9e96a1ff
      let hasToolCalls = false;
      let finishReason = {
        unified: "other",
-@@ -564,9 +600,20 @@ var OpenResponsesLanguageModel = class {
-             } else if (chunk.type === "response.output_item.added" && chunk.item.type === "reasoning") {
-               controller.enqueue({
-                 type: "reasoning-start",
--                id: chunk.item.id
-+                id: chunk.item.id,
-+                providerMetadata: {
-+                  [providerOptionsName]: { itemId: chunk.item.id }
-+                }
+@@ -567,6 +580,7 @@ var OpenResponsesLanguageModel = class {
+                 id: chunk.item.id
                });
                isActiveReasoning = true;
 +              activeReasoningId = chunk.item.id;
-+            } else if (chunk.type === "response.reasoning_summary_text.delta") {
-+              const summaryChunk = chunk;
-+              controller.enqueue({
-+                type: "reasoning-delta",
-+                id: summaryChunk.item_id,
-+                delta: summaryChunk.delta
-+              });
              } else if (chunk.type === "response.reasoning_text.delta") {
                const reasoningChunk = chunk;
                controller.enqueue({
-@@ -575,8 +622,18 @@ var OpenResponsesLanguageModel = class {
-                 delta: reasoningChunk.delta
-               });
+@@ -577,6 +591,7 @@ var OpenResponsesLanguageModel = class {
              } else if (chunk.type === "response.output_item.done" && chunk.item.type === "reasoning") {
--              controller.enqueue({ type: "reasoning-end", id: chunk.item.id });
-+              controller.enqueue({
-+                type: "reasoning-end",
-+                id: chunk.item.id,
-+                providerMetadata: {
-+                  [providerOptionsName]: {
-+                    itemId: chunk.item.id,
-+                    ...typeof chunk.item.encrypted_content === "string" ? { reasoningEncryptedContent: chunk.item.encrypted_content } : {}
-+                  }
-+                }
-+              });
+               controller.enqueue({ type: "reasoning-end", id: chunk.item.id });
                isActiveReasoning = false;
 +              activeReasoningId = null;
              } else if (chunk.type === "response.output_item.added" && chunk.item.type === "message") {
                controller.enqueue({ type: "text-start", id: chunk.item.id });
              } else if (chunk.type === "response.output_text.delta") {
-@@ -606,8 +663,8 @@ var OpenResponsesLanguageModel = class {
+@@ -606,8 +621,8 @@ var OpenResponsesLanguageModel = class {
              }
            },
            flush(controller) {
@@ -207,20 +67,10 @@ index 74fedcb995ae1955ba56b5bfd39e3f9785f90385..081858e9d2653916d1b5110d9e96a1ff
              controller.enqueue({
                type: "finish",
 diff --git a/dist/index.mjs b/dist/index.mjs
-index c3b70bc3a46afbe82f704939e4b1ccc6d47706ee..b513cb637bc23e33b87a8e2e679c5bb7e6e96fd4 100644
+index c3b70bc3a46afbe82f704939e4b1ccc6d47706ee..bf720e89213a9748411d256e1b1c76188a9e23c8 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
-@@ -25,7 +25,8 @@ import { z as z3 } from "zod/v4";
- // src/responses/convert-to-open-responses-input.ts
- import { convertToBase64 } from "@ai-sdk/provider-utils";
- async function convertToOpenResponsesInput({
--  prompt
-+  prompt,
-+  providerOptionsName
- }) {
-   var _a, _b, _c;
-   const input = [];
-@@ -75,9 +76,24 @@ async function convertToOpenResponsesInput({
+@@ -75,9 +75,18 @@ async function convertToOpenResponsesInput({
        }
        case "assistant": {
          const assistantContent = [];
@@ -229,23 +79,17 @@ index c3b70bc3a46afbe82f704939e4b1ccc6d47706ee..b513cb637bc23e33b87a8e2e679c5bb7
          for (const part of content) {
            switch (part.type) {
 +            case "reasoning": {
-+              const reasoningOptions = part.providerOptions == null ? void 0 : part.providerOptions[providerOptionsName];
-+              const encryptedContent = reasoningOptions == null ? void 0 : reasoningOptions.reasoningEncryptedContent;
-+              const reasoningItemId = reasoningOptions == null ? void 0 : reasoningOptions.itemId;
 +              reasoningItems.push({
 +                type: "reasoning",
 +                summary: [],
-+                content: [{ type: "reasoning_text", text: part.text }],
-+                status: "completed",
-+                ...typeof reasoningItemId === "string" ? { id: reasoningItemId } : {},
-+                ...typeof encryptedContent === "string" ? { encrypted_content: encryptedContent } : {}
++                content: [{ type: "reasoning_text", text: part.text }]
 +              });
 +              break;
 +            }
              case "text": {
                assistantContent.push({ type: "output_text", text: part.text });
                break;
-@@ -94,11 +110,15 @@ async function convertToOpenResponsesInput({
+@@ -94,6 +103,9 @@ async function convertToOpenResponsesInput({
              }
            }
          }
@@ -255,79 +99,7 @@ index c3b70bc3a46afbe82f704939e4b1ccc6d47706ee..b513cb637bc23e33b87a8e2e679c5bb7
          if (assistantContent.length > 0) {
            input.push({
              type: "message",
-             role: "assistant",
--            content: assistantContent
-+            content: assistantContent,
-+            status: "completed"
-           });
-         }
-         for (const toolCall of toolCalls) {
-@@ -230,7 +250,9 @@ import { z as z2 } from "zod/v4";
- var openResponsesOptionsSchema = lazySchema2(
-   () => zodSchema2(
-     z2.object({
--      reasoningEffort: z2.enum(["none", "low", "medium", "high", "xhigh"]).nullish(),
-+      reasoningEffort: z2.string().nullish(),
-+      serviceTier: z2.string().nullish(),
-+      include: z2.array(z2.string()).nullish(),
-       /**
-        * Controls reasoning summary output from the model.
-        * Valid values: 'concise', 'detailed', 'auto'.
-@@ -284,7 +306,8 @@ var OpenResponsesLanguageModel = class {
-       instructions,
-       warnings: inputWarnings
-     } = await convertToOpenResponsesInput({
--      prompt
-+      prompt,
-+      providerOptionsName: this.config.providerOptionsName
-     });
-     warnings.push(...inputWarnings);
-     const functionTools = tools == null ? void 0 : tools.filter((tool) => tool.type === "function").map((tool) => ({
-@@ -294,6 +317,10 @@ var OpenResponsesLanguageModel = class {
-       parameters: tool.inputSchema,
-       ...tool.strict != null ? { strict: tool.strict } : {}
-     }));
-+    const providerTools = tools == null ? void 0 : tools.filter((tool) => tool.type === "provider").map((tool) => ({
-+      type: tool.name,
-+      ...tool.args && typeof tool.args === "object" ? tool.args : {}
-+    }));
-     const convertedToolChoice = toolChoice == null ? void 0 : toolChoice.type === "tool" ? { type: "function", name: toolChoice.toolName } : toolChoice.type;
-     const textFormat = (responseFormat == null ? void 0 : responseFormat.type) === "json" ? {
-       type: "json_schema",
-@@ -312,8 +339,15 @@ var OpenResponsesLanguageModel = class {
-     return {
-       body: {
-         model: this.modelId,
-+        store: false,
-         input,
-         instructions,
-+        ...(openResponsesOptions == null ? void 0 : openResponsesOptions.serviceTier) != null && {
-+          service_tier: openResponsesOptions.serviceTier
-+        },
-+        ...(openResponsesOptions == null ? void 0 : openResponsesOptions.include) != null && {
-+          include: openResponsesOptions.include
-+        },
-         max_output_tokens: maxOutputTokens,
-         temperature,
-         top_p: topP,
-@@ -327,7 +361,7 @@ var OpenResponsesLanguageModel = class {
-             summary: openResponsesOptions.reasoningSummary
-           }
-         } : void 0,
--        tools: (functionTools == null ? void 0 : functionTools.length) ? functionTools : void 0,
-+        tools: (functionTools == null ? void 0 : functionTools.length) || (providerTools == null ? void 0 : providerTools.length) ? [...functionTools != null ? functionTools : [], ...providerTools != null ? providerTools : []] : void 0,
-         tool_choice: convertedToolChoice,
-         ...textFormat != null && { text: { format: textFormat } }
-       },
-@@ -434,6 +468,7 @@ var OpenResponsesLanguageModel = class {
-     };
-   }
-   async doStream(options) {
-+    const providerOptionsName = this.config.providerOptionsName;
-     const { body, warnings } = await this.getArgs(options);
-     const { responseHeaders, value: response } = await postJsonToApi({
-       url: this.config.url,
-@@ -486,6 +521,7 @@ var OpenResponsesLanguageModel = class {
+@@ -486,6 +498,7 @@ var OpenResponsesLanguageModel = class {
        usage.raw = responseUsage;
      };
      let isActiveReasoning = false;
@@ -335,49 +107,23 @@ index c3b70bc3a46afbe82f704939e4b1ccc6d47706ee..b513cb637bc23e33b87a8e2e679c5bb7
      let hasToolCalls = false;
      let finishReason = {
        unified: "other",
-@@ -553,9 +589,20 @@ var OpenResponsesLanguageModel = class {
-             } else if (chunk.type === "response.output_item.added" && chunk.item.type === "reasoning") {
-               controller.enqueue({
-                 type: "reasoning-start",
--                id: chunk.item.id
-+                id: chunk.item.id,
-+                providerMetadata: {
-+                  [providerOptionsName]: { itemId: chunk.item.id }
-+                }
+@@ -556,6 +569,7 @@ var OpenResponsesLanguageModel = class {
+                 id: chunk.item.id
                });
                isActiveReasoning = true;
 +              activeReasoningId = chunk.item.id;
-+            } else if (chunk.type === "response.reasoning_summary_text.delta") {
-+              const summaryChunk = chunk;
-+              controller.enqueue({
-+                type: "reasoning-delta",
-+                id: summaryChunk.item_id,
-+                delta: summaryChunk.delta
-+              });
              } else if (chunk.type === "response.reasoning_text.delta") {
                const reasoningChunk = chunk;
                controller.enqueue({
-@@ -564,8 +611,18 @@ var OpenResponsesLanguageModel = class {
-                 delta: reasoningChunk.delta
-               });
+@@ -566,6 +580,7 @@ var OpenResponsesLanguageModel = class {
              } else if (chunk.type === "response.output_item.done" && chunk.item.type === "reasoning") {
--              controller.enqueue({ type: "reasoning-end", id: chunk.item.id });
-+              controller.enqueue({
-+                type: "reasoning-end",
-+                id: chunk.item.id,
-+                providerMetadata: {
-+                  [providerOptionsName]: {
-+                    itemId: chunk.item.id,
-+                    ...typeof chunk.item.encrypted_content === "string" ? { reasoningEncryptedContent: chunk.item.encrypted_content } : {}
-+                  }
-+                }
-+              });
+               controller.enqueue({ type: "reasoning-end", id: chunk.item.id });
                isActiveReasoning = false;
 +              activeReasoningId = null;
              } else if (chunk.type === "response.output_item.added" && chunk.item.type === "message") {
                controller.enqueue({ type: "text-start", id: chunk.item.id });
              } else if (chunk.type === "response.output_text.delta") {
-@@ -595,8 +652,8 @@ var OpenResponsesLanguageModel = class {
+@@ -595,8 +610,8 @@ var OpenResponsesLanguageModel = class {
              }
            },
            flush(controller) {
@@ -389,10 +135,10 @@ index c3b70bc3a46afbe82f704939e4b1ccc6d47706ee..b513cb637bc23e33b87a8e2e679c5bb7
              controller.enqueue({
                type: "finish",
 diff --git a/src/responses/convert-to-open-responses-input.ts b/src/responses/convert-to-open-responses-input.ts
-index 2e06c35c5d13146dbb42ba9bbe61828bb4bd1a66..00fbc7c2a05430c3ff49dd0c7cd4034e2bccc060 100644
+index 2e06c35c5d13146dbb42ba9bbe61828bb4bd1a66..4e36fecc5c4a6afddf54a067db4ab5a96ee84617 100644
 --- a/src/responses/convert-to-open-responses-input.ts
 +++ b/src/responses/convert-to-open-responses-input.ts
-@@ -9,12 +9,15 @@ import type {
+@@ -9,6 +9,7 @@ import type {
    OpenResponsesRequestBody,
    OutputTextContentParam,
    RefusalContentParam,
@@ -400,15 +146,7 @@ index 2e06c35c5d13146dbb42ba9bbe61828bb4bd1a66..00fbc7c2a05430c3ff49dd0c7cd4034e
  } from './open-responses-api';
  
  export async function convertToOpenResponsesInput({
-   prompt,
-+  providerOptionsName,
- }: {
-   prompt: LanguageModelV3Prompt;
-+  providerOptionsName?: string;
- }): Promise<{
-   input: OpenResponsesRequestBody['input'];
-   instructions: string | undefined;
-@@ -80,10 +83,30 @@ export async function convertToOpenResponsesInput({
+@@ -80,10 +81,20 @@ export async function convertToOpenResponsesInput({
          const assistantContent: Array<
            OutputTextContentParam | RefusalContentParam
          > = [];
@@ -418,32 +156,21 @@ index 2e06c35c5d13146dbb42ba9bbe61828bb4bd1a66..00fbc7c2a05430c3ff49dd0c7cd4034e
          for (const part of content) {
            switch (part.type) {
 +            case 'reasoning': {
-+              const reasoningOptions = providerOptionsName
-+                ? (part.providerOptions?.[providerOptionsName] as
-+                    | { itemId?: unknown; reasoningEncryptedContent?: unknown }
-+                    | undefined)
-+                : undefined;
++              // Subset Responses servers replay the chain of thought itself (backport of 2.0.27).
 +              reasoningItems.push({
 +                type: 'reasoning',
 +                summary: [],
 +                content: [{ type: 'reasoning_text', text: part.text }],
-+                // Ark marks status as required on reasoning input items.
-+                status: 'completed',
-+                ...(typeof reasoningOptions?.itemId === 'string' ? { id: reasoningOptions.itemId } : {}),
-+                ...(typeof reasoningOptions?.reasoningEncryptedContent === 'string'
-+                  ? { encrypted_content: reasoningOptions.reasoningEncryptedContent }
-+                  : {}),
 +              });
 +              break;
 +            }
              case 'text': {
                assistantContent.push({ type: 'output_text', text: part.text });
                break;
-@@ -104,12 +127,19 @@ export async function convertToOpenResponsesInput({
+@@ -104,6 +115,10 @@ export async function convertToOpenResponsesInput({
            }
          }
  
-+        // Push reasoning as separate items
 +        for (const reasoningItem of reasoningItems) {
 +          input.push(reasoningItem);
 +        }
@@ -451,92 +178,11 @@ index 2e06c35c5d13146dbb42ba9bbe61828bb4bd1a66..00fbc7c2a05430c3ff49dd0c7cd4034e
          // Push assistant message with text content if any
          if (assistantContent.length > 0) {
            input.push({
-             type: 'message',
-             role: 'assistant',
-             content: assistantContent,
-+            // Ark rejects assistant input items without status (#18253); valid for OpenAI too.
-+            status: 'completed',
-           });
-         }
- 
-diff --git a/src/responses/open-responses-api.ts b/src/responses/open-responses-api.ts
-index 08cd2cde60a6271ba108c4338207db275d03afa0..9a2d31a03f08aca53f3d2004c7754cb6aeae9b1e 100644
---- a/src/responses/open-responses-api.ts
-+++ b/src/responses/open-responses-api.ts
-@@ -145,6 +145,7 @@ export type ReasoningItemParam = {
-   summary: ReasoningSummaryContentParam[];
-   content?: unknown;
-   encrypted_content?: string;
-+  status?: string;
- };
- 
- /**
 diff --git a/src/responses/open-responses-language-model.ts b/src/responses/open-responses-language-model.ts
-index 2650edaed75f2bb981f584f702b5da2894241b70..e8345f7b62dcdc5cf62d8a8c5054a9193a335de8 100644
+index 2650edaed75f2bb981f584f702b5da2894241b70..eac6ff3712948c9652b93310a2cbb79c3874e421 100644
 --- a/src/responses/open-responses-language-model.ts
 +++ b/src/responses/open-responses-language-model.ts
-@@ -91,6 +91,7 @@ export class OpenResponsesLanguageModel implements LanguageModelV3 {
-       warnings: inputWarnings,
-     } = await convertToOpenResponsesInput({
-       prompt,
-+      providerOptionsName: this.config.providerOptionsName,
-     });
- 
-     warnings.push(...inputWarnings);
-@@ -106,6 +107,15 @@ export class OpenResponsesLanguageModel implements LanguageModelV3 {
-         ...(tool.strict != null ? { strict: tool.strict } : {}),
-       }));
- 
-+    // Pass provider-defined tools (e.g. web_search) through verbatim: args are
-+    // already wire-shaped for Responses dialects; unknown tools are the caller's contract.
-+    const providerTools = tools
-+      ?.filter(tool => tool.type === 'provider')
-+      .map(tool => ({
-+        type: tool.name,
-+        ...(tool.args && typeof tool.args === 'object' ? tool.args : {}),
-+      }));
-+
-     // Convert tool choice to the Open Responses format
-     const convertedToolChoice: ToolChoiceParam | undefined =
-       toolChoice == null
-@@ -138,8 +148,16 @@ export class OpenResponsesLanguageModel implements LanguageModelV3 {
-     return {
-       body: {
-         model: this.modelId,
-+        // Pre-migration parity: never opt into server-side response storage.
-+        store: false,
-         input,
-         instructions,
-+        ...(openResponsesOptions?.serviceTier != null && {
-+          service_tier: openResponsesOptions.serviceTier,
-+        }),
-+        ...(openResponsesOptions?.include != null && {
-+          include: openResponsesOptions.include,
-+        }),
-         max_output_tokens: maxOutputTokens,
-         temperature,
-         top_p: topP,
-@@ -157,7 +175,10 @@ export class OpenResponsesLanguageModel implements LanguageModelV3 {
-                 }),
-               }
-             : undefined,
--        tools: functionTools?.length ? functionTools : undefined,
-+        tools:
-+          functionTools?.length || providerTools?.length
-+            ? [...(functionTools ?? []), ...((providerTools ?? []) as never[])]
-+            : undefined,
-         tool_choice: convertedToolChoice,
-         ...(textFormat != null && { text: { format: textFormat } }),
-       },
-@@ -277,6 +298,7 @@ export class OpenResponsesLanguageModel implements LanguageModelV3 {
-   async doStream(
-     options: LanguageModelV3CallOptions,
-   ): Promise<LanguageModelV3StreamResult> {
-+    const providerOptionsName = this.config.providerOptionsName;
-     const { body, warnings } = await this.getArgs(options);
- 
-     const { responseHeaders, value: response } = await postJsonToApi({
-@@ -338,6 +360,7 @@ export class OpenResponsesLanguageModel implements LanguageModelV3 {
+@@ -338,6 +338,7 @@ export class OpenResponsesLanguageModel implements LanguageModelV3 {
      };
  
      let isActiveReasoning = false;
@@ -544,77 +190,31 @@ index 2650edaed75f2bb981f584f702b5da2894241b70..e8345f7b62dcdc5cf62d8a8c5054a919
      let hasToolCalls = false;
      let finishReason: LanguageModelV3FinishReason = {
        unified: 'other',
-@@ -438,8 +461,23 @@ export class OpenResponsesLanguageModel implements LanguageModelV3 {
-               controller.enqueue({
-                 type: 'reasoning-start',
+@@ -440,6 +441,7 @@ export class OpenResponsesLanguageModel implements LanguageModelV3 {
                  id: chunk.item.id,
-+                providerMetadata: {
-+                  [providerOptionsName]: { itemId: chunk.item.id },
-+                },
                });
                isActiveReasoning = true;
 +              activeReasoningId = chunk.item.id;
-+            } else if (
-+              (chunk as { type: string }).type ===
-+              'response.reasoning_summary_text.delta'
-+            ) {
-+              // Ark streams reasoning as reasoning_summary_text events.
-+              const summaryChunk = chunk as { item_id: string; delta: string };
-+              controller.enqueue({
-+                type: 'reasoning-delta',
-+                id: summaryChunk.item_id,
-+                delta: summaryChunk.delta,
-+              });
              } else if (
                (chunk as { type: string }).type ===
                'response.reasoning_text.delta'
-@@ -457,8 +495,20 @@ export class OpenResponsesLanguageModel implements LanguageModelV3 {
-               chunk.type === 'response.output_item.done' &&
-               chunk.item.type === 'reasoning'
+@@ -459,6 +461,7 @@ export class OpenResponsesLanguageModel implements LanguageModelV3 {
              ) {
--              controller.enqueue({ type: 'reasoning-end', id: chunk.item.id });
-+              controller.enqueue({
-+                type: 'reasoning-end',
-+                id: chunk.item.id,
-+                providerMetadata: {
-+                  [providerOptionsName]: {
-+                    itemId: chunk.item.id,
-+                    ...(typeof (chunk.item as { encrypted_content?: unknown }).encrypted_content === 'string'
-+                      ? { reasoningEncryptedContent: (chunk.item as { encrypted_content?: string }).encrypted_content }
-+                      : {}),
-+                  },
-+                },
-+              });
+               controller.enqueue({ type: 'reasoning-end', id: chunk.item.id });
                isActiveReasoning = false;
 +              activeReasoningId = null;
              }
  
              // Text events
-@@ -501,8 +551,8 @@ export class OpenResponsesLanguageModel implements LanguageModelV3 {
+@@ -501,8 +504,9 @@ export class OpenResponsesLanguageModel implements LanguageModelV3 {
            },
  
            flush(controller) {
 -            if (isActiveReasoning) {
 -              controller.enqueue({ type: 'reasoning-end', id: 'reasoning-0' });
 +            if (isActiveReasoning && activeReasoningId != null) {
++              // Upstream hardcodes 'reasoning-0'; the step assembler only knows the real id.
 +              controller.enqueue({ type: 'reasoning-end', id: activeReasoningId });
              }
  
              controller.enqueue({
-diff --git a/src/responses/open-responses-options.ts b/src/responses/open-responses-options.ts
-index 296a1de1f1122985d7412d3c28bf7f43ae29b543..38a26a1552e4c56b63b20aacf7efc8b60793431b 100644
---- a/src/responses/open-responses-options.ts
-+++ b/src/responses/open-responses-options.ts
-@@ -8,9 +8,9 @@ import { z } from 'zod/v4';
- export const openResponsesOptionsSchema = lazySchema(() =>
-   zodSchema(
-     z.object({
--      reasoningEffort: z
--        .enum(['none', 'low', 'medium', 'high', 'xhigh'])
--        .nullish(),
-+      reasoningEffort: z.string().nullish(),
-+      serviceTier: z.string().nullish(),
-+      include: z.array(z.string()).nullish(),
-       /**
-        * Controls reasoning summary output from the model.
-        * Valid values: 'concise', 'detailed', 'auto'.

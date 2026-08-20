@@ -39,6 +39,7 @@ import type { ProviderConfig } from '../types'
 import { type AppProviderId, appProviderIds, type AppProviderSettingsMap } from '../types'
 import { customFetch } from '../utils/customFetch'
 import { getBaseUrl, getExtraHeaders, routeToEndpoint } from '../utils/provider'
+import { normalizeArkResponsesResponse, stripArkUnsupportedIncludes } from './ark'
 import { generateSignature } from './cherryai'
 import { buildCodexRequestHeaders, coerceCodexRequestBody } from './codex'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
@@ -272,31 +273,42 @@ export async function resolveProviderAiSdkConfig(
         }
       }))
     },
-    // DashScope's web_extractor (help.aliyun.com/zh/model-studio/web-extractor) is a Responses tool that
-    // must accompany web_search and needs thinking mode. It has no tool factory, so it is
-    // appended to the serialized body (dashscopeWebExtractor.ts).
+    // Doubao's built-in search rides the OpenAI Responses adapter, which auto-adds
+    // `include: web_search_call.action.sources` alongside the web_search tool. Ark accepts the
+    // tool but 400s on that include, so strip it on the way out (ark.ts). Ark data reporting
+    // (X-Fornax-Trace) rides along in developer mode, mirroring applyHttpTrace's gate.
     {
-      match: (p, id) => id === 'open-responses' && matchesPreset(p, SystemProviderIds.dashscope),
+      match: (p, id) => id === 'openai' && matchesPreset(p, SystemProviderIds.doubao),
       build: withSelectedApiKey((ctx) => {
-        const config = buildOpenResponsesConfig(ctx)
+        const config = buildGenericProviderConfig(ctx)
+        const settings = config.providerSettings as {
+          headers?: Record<string, string>
+          fetch?: typeof globalThis.fetch
+        }
+        if (application.get('PreferenceService').get('app.developer_mode.enabled')) {
+          settings.headers = { ...settings.headers, 'X-Fornax-Trace': 'true' }
+        }
+        settings.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+          const response = await customFetch(input, { ...init, body: stripArkUnsupportedIncludes(init?.body) })
+          return normalizeArkResponsesResponse(input, response)
+        }
+        return config
+      })
+    },
+    // DashScope's web_extractor (help.aliyun.com/zh/model-studio/web-extractor) is a Responses tool that
+    // must accompany web_search and needs thinking mode. @ai-sdk/openai drops any tool id it does not
+    // know, so it is appended to the serialized body (dashscopeWebExtractor.ts) rather than via a factory.
+    {
+      match: (p, id) => id === 'openai' && matchesPreset(p, SystemProviderIds.dashscope),
+      build: withSelectedApiKey((ctx) => {
+        const config = buildGenericProviderConfig(ctx)
         config.providerSettings.fetch = (input: RequestInfo | URL, init?: RequestInit) =>
           customFetch(input, { ...init, body: appendDashScopeWebExtractor(init?.body) })
         return config
       })
     },
-    // Ark data reporting: X-Fornax-Trace surfaces request traces in the Ark console
-    // for debugging — developer-mode only, mirroring applyHttpTrace's gate.
-    {
-      match: (p, id) => id === 'open-responses' && matchesPreset(p, SystemProviderIds.doubao),
-      build: withSelectedApiKey((ctx) => {
-        const config = buildOpenResponsesConfig(ctx)
-        if (application.get('PreferenceService').get('app.developer_mode.enabled')) {
-          config.providerSettings.headers = { ...config.providerSettings.headers, 'X-Fornax-Trace': 'true' }
-        }
-        return config
-      })
-    },
-    // Spec-neutral Responses dialect (deepseek/doubao/fireworks/… + custom providers).
+    // Subset Responses servers (HuggingFace router today) speak the spec-neutral dialect: the
+    // minimal body only, no OpenAI-only extras they would reject.
     { match: (_, id) => id === 'open-responses', build: withSelectedApiKey(buildOpenResponsesConfig) },
     // modelscope / ppio / doubao / dmxapi: chat & embedding are OpenAI-compatible, but IMAGE
     // generation needs the bespoke transport inside the extension provider

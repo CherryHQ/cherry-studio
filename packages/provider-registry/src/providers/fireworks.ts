@@ -93,7 +93,7 @@ export default defineProvider({
       reasoningFormat: { type: 'openai-chat' }
     },
     'openai-responses': {
-      adapterFamily: 'open-responses',
+      adapterFamily: 'openai',
       baseUrl: 'https://api.fireworks.ai/inference',
       reasoningFormat: { type: 'openai-responses' }
     }

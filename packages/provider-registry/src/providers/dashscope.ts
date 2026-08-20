@@ -350,7 +350,7 @@ export default defineProvider({
       reasoningFormat: { type: 'openai-chat' }
     },
     'openai-responses': {
-      adapterFamily: 'open-responses',
+      adapterFamily: 'openai',
       baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1/',
       reasoningFormat: { type: 'openai-responses' }
     }

@@ -91,7 +91,7 @@ const ENDPOINT_TYPE_TO_DEFAULT_ADAPTER_FAMILY: Partial<Record<EndpointType, stri
   [ENDPOINT_TYPE.OLLAMA_CHAT]: 'ollama',
   [ENDPOINT_TYPE.OLLAMA_GENERATE]: 'ollama',
   [ENDPOINT_TYPE.JINA_RERANK]: 'jina-rerank',
-  [ENDPOINT_TYPE.OPENAI_RESPONSES]: 'open-responses'
+  [ENDPOINT_TYPE.OPENAI_RESPONSES]: 'openai'
 }
 
 /**

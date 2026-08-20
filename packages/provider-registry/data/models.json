@@ -18658,6 +18658,46 @@
     {
       "capabilities": [],
       "contextWindow": 8192,
+      "id": "hy-mt2-1-8b",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Tencent: Hy-MT2-1.8B",
+      "outputModalities": ["text"],
+      "ownedBy": "tencent",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.044
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.17700000000000002
+        }
+      }
+    },
+    {
+      "capabilities": ["structured-output"],
+      "contextWindow": 8192,
+      "id": "hy-mt2-30b-a3b",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Tencent: Hy-MT2-30B-A3B",
+      "outputModalities": ["text"],
+      "ownedBy": "tencent",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.074
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.295
+        }
+      }
+    },
+    {
+      "capabilities": [],
+      "contextWindow": 8192,
       "id": "hy-mt2-lite",
       "maxOutputTokens": 4096,
       "metadata": {},
@@ -21567,5 +21607,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "4a5a94b1909c51f2"
+  "version": "5d82e0c05776474c"
 }

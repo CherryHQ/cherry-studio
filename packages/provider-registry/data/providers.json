@@ -300,7 +300,7 @@
           }
         },
         "openai-responses": {
-          "adapterFamily": "open-responses",
+          "adapterFamily": "openai",
           "baseUrl": "https://api.deepseek.com",
           "reasoningFormat": {
             "type": "openai-responses"
@@ -877,7 +877,7 @@
           }
         },
         "openai-responses": {
-          "adapterFamily": "open-responses",
+          "adapterFamily": "openai",
           "baseUrl": "https://opencode.ai/zen/go/v1",
           "reasoningFormat": {
             "type": "openai-responses"
@@ -1135,7 +1135,7 @@
           }
         },
         "openai-responses": {
-          "adapterFamily": "open-responses",
+          "adapterFamily": "openai",
           "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
           "reasoningFormat": {
             "type": "openai-responses"
@@ -1234,7 +1234,7 @@
           }
         },
         "openai-responses": {
-          "adapterFamily": "open-responses",
+          "adapterFamily": "openai",
           "baseUrl": "https://ark.cn-beijing.volces.com/api/v3/",
           "reasoningFormat": {
             "type": "openai-responses"
@@ -1415,7 +1415,7 @@
           }
         },
         "openai-responses": {
-          "adapterFamily": "open-responses",
+          "adapterFamily": "openai",
           "baseUrl": "https://api.fireworks.ai/inference",
           "reasoningFormat": {
             "type": "openai-responses"
@@ -1656,7 +1656,7 @@
           "baseUrl": "https://tokenhub.tencentmaas.com/v1"
         },
         "openai-responses": {
-          "adapterFamily": "open-responses",
+          "adapterFamily": "openai",
           "baseUrl": "https://tokenhub.tencentmaas.com/v1"
         }
       },
@@ -2007,7 +2007,7 @@
           }
         },
         "openai-responses": {
-          "adapterFamily": "open-responses",
+          "adapterFamily": "openai",
           "baseUrl": "https://api.xiaomimimo.com",
           "reasoningFormat": {
             "type": "openai-responses"
@@ -2076,5 +2076,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "6dde7023f76b1a02"
+  "version": "76bd85ed8f59fc86"
 }

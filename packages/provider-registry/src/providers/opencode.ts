@@ -142,7 +142,7 @@ export default defineProvider({
       reasoningFormat: { type: 'openai-chat' }
     },
     'openai-responses': {
-      adapterFamily: 'open-responses',
+      adapterFamily: 'openai',
       baseUrl: 'https://opencode.ai/zen/go/v1',
       reasoningFormat: { type: 'openai-responses' }
     }

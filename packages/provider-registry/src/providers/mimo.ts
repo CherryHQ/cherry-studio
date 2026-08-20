@@ -32,7 +32,7 @@ export default defineProvider({
       reasoningFormat: { type: 'openai-chat' }
     },
     'openai-responses': {
-      adapterFamily: 'open-responses',
+      adapterFamily: 'openai',
       baseUrl: 'https://api.xiaomimimo.com',
       reasoningFormat: { type: 'openai-responses' }
     }

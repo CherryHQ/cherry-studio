@@ -22652,15 +22652,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.017721
+          "perMillionTokens": 0.01736
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.088606
+          "perMillionTokens": 0.0868
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.177212
+          "perMillionTokens": 0.1736
         }
       },
       "providerId": "openrouter",
@@ -26950,6 +26950,36 @@
       }
     },
     {
+      "apiModelId": "tencent/hy-mt2-1.8b",
+      "modelId": "hy-mt2-1-8b",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.044
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.177
+        }
+      },
+      "providerId": "openrouter"
+    },
+    {
+      "apiModelId": "tencent/hy-mt2-30b-a3b",
+      "modelId": "hy-mt2-30b-a3b",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.074
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.295
+        }
+      },
+      "providerId": "openrouter"
+    },
+    {
       "apiModelId": "tencent/hy3",
       "modelId": "hy3",
       "pricing": {
@@ -27201,15 +27231,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.16
+          "perMillionTokens": 0.1584
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.95
+          "perMillionTokens": 0.9405
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 4
+          "perMillionTokens": 3.96
         }
       },
       "providerId": "openrouter",
@@ -37701,5 +37731,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "fcee6e1edfb472f2"
+  "version": "982c865f6b990d9d"
 }

@@ -15,16 +15,12 @@ const scope = (providerId: string, apiModelId: string, aiSdkProviderId = 'open-r
   }) as unknown as RequestScope
 
 describe('stripReasoningReplayFeature.applies', () => {
-  it('strips for pre-seed-2 Ark models and all HF models, keeps seed-2.x and other providers', () => {
-    expect(stripReasoningReplayFeature.applies!(scope('doubao', 'doubao-seed-1.6-250615'))).toBe(true)
+  it('strips only for the HuggingFace router on the neutral adapter', () => {
     expect(stripReasoningReplayFeature.applies!(scope('huggingface', 'MiniMaxAI/MiniMax-M2'))).toBe(true)
-    // seed-2.x accepts reasoning input items (verified live against Ark).
-    expect(stripReasoningReplayFeature.applies!(scope('doubao', 'doubao-seed-2-1-pro-260628'))).toBe(false)
-    expect(stripReasoningReplayFeature.applies!(scope('deepseek', 'deepseek-v4-flash'))).toBe(false)
-    // Only the open-responses family is affected.
-    expect(stripReasoningReplayFeature.applies!(scope('doubao', 'doubao-seed-1.6-250615', 'openai-compatible'))).toBe(
-      false
-    )
+    // Faithful Responses endpoints keep their reasoning replay.
+    expect(stripReasoningReplayFeature.applies!(scope('deepseek', 'deepseek-v4-flash', 'openai'))).toBe(false)
+    expect(stripReasoningReplayFeature.applies!(scope('doubao', 'doubao-seed-2-1-pro-260628', 'openai'))).toBe(false)
+    expect(stripReasoningReplayFeature.applies!(scope('huggingface', 'MiniMaxAI/MiniMax-M2', 'openai'))).toBe(false)
   })
 })
 
