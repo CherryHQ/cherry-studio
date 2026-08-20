@@ -106,7 +106,7 @@ const CodeViewer = ({
   const savedSelectionRef = useRef<SavedSelection | null>(null)
   const shouldStickToBottomRef = useRef(true)
   const wasHighlightEnabledRef = useRef(options?.highlight ?? true)
-  const hasHighlightedRef = useRef(false)
+  const hasRequestedHighlightRef = useRef(false)
   // Ensure the active selection actually belongs to this CodeViewer instance
   const selectionBelongsToViewer = useCallback((sel: Selection | null) => {
     const scroller = scrollerRef.current
@@ -408,7 +408,7 @@ const CodeViewer = ({
     if (wasHighlightEnabledRef.current) {
       resetHighlight()
       wasHighlightEnabledRef.current = false
-      hasHighlightedRef.current = false
+      hasRequestedHighlightRef.current = false
     }
   }, [debouncedHighlightLines, highlight, resetHighlight])
 
@@ -418,18 +418,33 @@ const CodeViewer = ({
     }
   }, [debouncedHighlightLines])
 
-  // 渐进式高亮。首帧绕过防抖，否则静态代码块必然先闪一次淡化明文再变高亮。
+  // 首帧仅让视口内代码块绕过防抖，避免可见文本闪烁和离屏 Worker 请求突发。
   useEffect(() => {
     if (!highlight) return
-    if (virtualItems.length > 0 && shikiThemeRef.current) {
-      const lastIndex = virtualItems[virtualItems.length - 1].index
-      if (hasHighlightedRef.current) {
+    const shikiTheme = shikiThemeRef.current
+    if (virtualItems.length === 0 || !shikiTheme) return
+
+    const lastIndex = virtualItems[virtualItems.length - 1].index
+    if (!hasRequestedHighlightRef.current) {
+      hasRequestedHighlightRef.current = true
+      const rect = shikiTheme.getBoundingClientRect()
+      const intersectsViewport =
+        rect.width > 0 &&
+        rect.height > 0 &&
+        rect.bottom > 0 &&
+        rect.right > 0 &&
+        rect.top < window.innerHeight &&
+        rect.left < window.innerWidth
+
+      if (!intersectsViewport) {
         void debouncedHighlightLines(lastIndex + 1)
         return
       }
-      hasHighlightedRef.current = true
       void highlightLines(lastIndex + 1)
+      return
     }
+
+    void debouncedHighlightLines(lastIndex + 1)
   }, [virtualItems, debouncedHighlightLines, highlightLines, highlight])
 
   // Monitor selection changes, clear stale selection state, and auto-expand in collapsed state
