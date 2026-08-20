@@ -22,6 +22,8 @@ import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { checkEntityImageSize, prepareEntityImageBytes } from '@renderer/utils/image'
 import { isEmoji } from '@renderer/utils/naming'
+import { cherryCloudErrorCodes } from '@shared/ipc/errors/cherryCloud'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { CherryCloudStatus } from '@shared/ipc/schemas/cherryCloud'
 import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -118,8 +120,12 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
     setIsStartingLogin(true)
     try {
       setCloudStatus(await ipcApi.request('cherry_cloud.login.start'))
-    } catch {
-      toast.error(t('settings.provider.oauth.error'))
+    } catch (error) {
+      toast.error(
+        error instanceof IpcError && error.code === cherryCloudErrorCodes.LOGIN_SERVICE_UNAVAILABLE
+          ? t('error.http.503')
+          : t('settings.provider.cherry_cloud.sign_in_failed')
+      )
     } finally {
       setIsStartingLogin(false)
     }
@@ -216,7 +222,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
                 {cloudStatus.displayName ? (
                   <span className="max-w-full truncate font-medium">{cloudStatus.displayName}</span>
                 ) : null}
-                <span>{t('settings.provider.oauth.logged_in')}</span>
+                <span>{t('settings.provider.cherry_cloud.logged_in')}</span>
               </ColFlex>
             </div>
           ) : (
@@ -226,8 +232,8 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
               onClick={() => void handleCloudLogin()}
               variant="emphasis">
               {cloudStatus?.phase === 'authorizing'
-                ? t('settings.provider.codex.signing_in')
-                : t('settings.provider.oauth.button', { provider: 'Cherry Studio' })}
+                ? t('settings.provider.cherry_cloud.signing_in')
+                : t('settings.provider.cherry_cloud.login')}
             </Button>
           )}
         </RowFlex>

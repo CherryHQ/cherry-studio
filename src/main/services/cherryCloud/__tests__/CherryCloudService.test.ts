@@ -48,7 +48,7 @@ vi.mock('@main/utils/file', () => ({
   })
 }))
 
-import { CherryCloudService } from '../CherryCloudService'
+import { CherryCloudLoginUnavailableError, CherryCloudService } from '../CherryCloudService'
 
 const authorizationId = '00000000-0000-4000-8000-000000000001'
 const sessionId = '00000000-0000-4000-8000-000000000010'
@@ -87,7 +87,7 @@ function exchangeResponse() {
 function authorizationResponse() {
   return {
     authorization_id: authorizationId,
-    authorization_url: `https://cloud.example.invalid/desktop/authorize?authorization_id=${authorizationId}`,
+    authorization_url: `http://localhost:8080/desktop/authorize?authorization_id=${authorizationId}`,
     expires_at: '2030-01-02T03:14:05Z'
   }
 }
@@ -111,7 +111,7 @@ describe('CherryCloudService', () => {
 
     expect(await service.startLogin()).toEqual({ phase: 'authorizing', displayName: null })
     expect(mocks.openExternal).toHaveBeenCalledWith(
-      `https://cloud.example.invalid/desktop/authorize?authorization_id=${authorizationId}`
+      `http://localhost:8080/desktop/authorize?authorization_id=${authorizationId}`
     )
 
     const createRequest = mocks.netFetch.mock.calls[0]
@@ -145,6 +145,15 @@ describe('CherryCloudService', () => {
     const restored = new CherryCloudService()
     await restored._doInit()
     expect(await restored.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+  })
+
+  it('reports an unavailable login service when the backend cannot be reached', async () => {
+    mocks.netFetch.mockRejectedValueOnce(new TypeError('fetch failed'))
+    const service = new CherryCloudService()
+    await service._doInit()
+
+    await expect(service.startLogin()).rejects.toBeInstanceOf(CherryCloudLoginUnavailableError)
+    expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
   })
 
   it('clears a matching pending authorization when the user denies access', async () => {
