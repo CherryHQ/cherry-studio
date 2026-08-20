@@ -145,4 +145,5 @@ mirrors this for catalog entries.
 ## Where to read more
 
 - Runtime usage: [Provider Resolution](./provider-resolution.md)
+- State placement: [Provider State Ownership](./provider-state-ownership.md)
 - Catalog: `packages/provider-registry/data/providers.json`
