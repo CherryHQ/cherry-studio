@@ -79,6 +79,44 @@ describe('patched @ai-sdk/open-responses', () => {
     ])
   })
 
+  it('closes an unterminated reasoning item with its real id on stream end', async () => {
+    // Upstream flush() hardcoded id 'reasoning-0'; ai's step assembler then errors
+    // with "reasoning part reasoning-0 not found" (seen live: HF MiniMax-M2 + tools).
+    const events = [
+      {
+        type: 'response.output_item.added',
+        output_index: 0,
+        item: { type: 'reasoning', id: 'rs_real' }
+      },
+      { type: 'response.reasoning_text.delta', item_id: 'rs_real', output_index: 0, delta: 'thinking' },
+      {
+        type: 'response.completed',
+        response: { id: 'resp_1', usage: { input_tokens: 1, output_tokens: 1 } }
+      }
+    ]
+    const body = `${events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join('')}data: [DONE]\n\n`
+    const model = createOpenResponses({
+      url: 'https://example.com/v1/responses',
+      name: 'openai',
+      apiKey: 'sk-test',
+      fetch: async () => new Response(body, { headers: { 'content-type': 'text/event-stream' } })
+    })('deepseek-v4-flash')
+
+    const result = await model.doStream({
+      prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }]
+    })
+    const reader = result.stream.getReader()
+    const chunks: LanguageModelV3StreamPart[] = []
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      chunks.push(value)
+    }
+
+    const ends = chunks.filter((chunk) => chunk.type === 'reasoning-end').map((chunk) => (chunk as any).id)
+    expect(ends).toEqual(['rs_real'])
+  })
+
   it('streams response.reasoning_text.delta as reasoning parts (native, load-bearing for DeepSeek)', async () => {
     const events = [
       {
