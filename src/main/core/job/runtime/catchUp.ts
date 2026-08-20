@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import type { JobScheduleSnapshot } from '@shared/data/api/schemas/jobs'
 
 import type { JobHandler, JobMissEvent } from '../types'
+import { nextIntervalFire } from './intervalPhase'
 
 const logger = loggerService.withContext('JobCatchUp')
 
@@ -28,10 +29,12 @@ export interface CatchUpAction {
  *
  * "Overdue" depends on trigger kind:
  *   - cron: `schedule.nextRun <= now` (Scheduler / JobManager keep this updated)
- *   - interval: `(lastRun ?? createdAt) + ms <= now` — Scheduler does not
- *     compute a nextRun for non-cron triggers, so the catch-up branch falls
- *     back to lastRun + interval. Without this, an interval schedule with
- *     `after-startup` would never enqueue a make-up job.
+ *   - interval: the first `createdAt + k × ms` grid point after `lastRun`
+ *     (`createdAt` when never fired) is `<= now` — Scheduler computes no
+ *     nextRun for non-cron triggers, so this recomputes the same grid the
+ *     arming path targets (`nextIntervalFire`). Anchoring on the grid rather
+ *     than on `lastRun + ms` keeps a manual or late fire from shifting the
+ *     calendar out from under the missed-run check.
  *   - once: never overdue here. A `once` trigger that already fired
  *     consumed itself; if it never fired, the SchedulerService timer will.
  *
@@ -82,10 +85,11 @@ function isScheduleOverdue(schedule: JobScheduleSnapshot, lastRunMs: number | nu
     return nextRunMs !== null && nextRunMs <= nowMs
   }
   if (trigger.kind === 'interval') {
-    // Anchor: lastRun (if ever fired) else createdAt. Scheduler does not write
-    // nextRun for non-cron triggers, so the anchor + ms math is the authority.
+    // Scheduler writes no nextRun for non-cron triggers, so recompute the same
+    // createdAt grid the arming path uses — searching forward from the last
+    // fire, so a manual or late fire cannot shift the calendar.
     const anchorMs = lastRunMs ?? Date.parse(schedule.createdAt)
-    return anchorMs + trigger.ms <= nowMs
+    return nextIntervalFire(schedule, trigger.ms, anchorMs) <= nowMs
   }
   // once: armed in SchedulerService via setTimeout. If it hasn't fired by now,
   // the timer is still pending — not overdue from catch-up's perspective.

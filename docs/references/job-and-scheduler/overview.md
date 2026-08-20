@@ -179,7 +179,7 @@ const { id } = application.get('DbService').withWriteTx((tx) => {
 jobManager.syncJobScheduleTimerById(id) // post-commit timer sync (create: always; update: when the patch carried trigger/enabled)
 ```
 
-The `*Tx` primitives validate up front (handler, name, trigger semantics → `JOB_SCHEDULE_TRIGGER_INVALID`) and never touch the timer, so a rollback has zero timer side effects. Timer sync is the caller's explicit post-commit step — `enqueueTx`'s post-commit re-read cannot be reused here because its rollback test ("row absent") only holds for INSERT; an UPDATE rollback would read as committed and re-arm, resetting the interval phase. See the `registerJobScheduleTx` JSDoc for the full contract.
+The `*Tx` primitives validate up front (handler, name, trigger semantics → `JOB_SCHEDULE_TRIGGER_INVALID`) and never touch the timer, so a rollback has zero timer side effects. Timer sync is the caller's explicit post-commit step — `enqueueTx`'s post-commit re-read cannot be reused here because its rollback test ("row absent") only holds for INSERT; an UPDATE rollback would read as committed and arm a timer from a trigger that was never persisted. See the `registerJobScheduleTx` JSDoc for the full contract.
 
 ## Renderer-side consumers
 
