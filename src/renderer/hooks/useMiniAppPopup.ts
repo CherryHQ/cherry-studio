@@ -4,16 +4,19 @@ import { loggerService } from '@logger'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { ipcApi } from '@renderer/ipc'
+import {
+  DEFAULT_MAX_KEEP_ALIVE_MINI_APPS,
+  miniAppIdFromTabUrl,
+  trimMiniAppKeepAlive
+} from '@renderer/utils/miniAppKeepAlive'
 import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { MiniApp, MiniAppId } from '@shared/data/types/miniApp'
 import { fileUrlToPath } from '@shared/utils/file'
 import { isEqual } from 'es-toolkit/compat'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useMemo, useRef } from 'react'
 
 const logger = loggerService.withContext('useMiniAppPopup')
-
-const DEFAULT_MAX_KEEP_ALIVE = 10
 
 /** Brand a raw string as MiniAppId. Safe — caller controls the string. */
 function brandId(raw: string): MiniAppId {
@@ -59,41 +62,6 @@ function evictMiniApp(appId: string) {
   }
 }
 
-/**
- * Reduce `list` to length `<= cap` by dropping the oldest non-pinned entries
- * head-first. Apps whose AppShell tab is pinned are never evicted — pinning
- * is the user explicitly saying "keep this loaded", and it overrides the
- * cap. If every entry is pinned, the list stays as-is regardless of cap.
- */
-function evictWithPinExemption(
-  list: MiniApp[],
-  cap: number,
-  pinnedAppIds: ReadonlySet<string> | null
-): { keep: MiniApp[]; evicted: MiniApp[] } {
-  let toDrop = list.length - cap
-  if (toDrop <= 0 || pinnedAppIds === null) return { keep: list, evicted: [] }
-  const keep: MiniApp[] = []
-  const evicted: MiniApp[] = []
-  for (const app of list) {
-    if (toDrop > 0 && !pinnedAppIds.has(app.appId)) {
-      evicted.push(app)
-      toDrop--
-    } else {
-      keep.push(app)
-    }
-  }
-  return { keep, evicted }
-}
-
-const MINI_APP_ROUTE_PREFIX = '/app/mini-app/'
-
-/** Extract the appId from a `/app/mini-app/<id>` URL, or null otherwise. */
-function miniAppIdFromTabUrl(url: string): string | null {
-  if (!url.startsWith(MINI_APP_ROUTE_PREFIX)) return null
-  const id = url.slice(MINI_APP_ROUTE_PREFIX.length).split('/')[0]
-  return id ? id : null
-}
-
 function openExternalMiniAppUrl(url: string) {
   try {
     const parsed = new URL(url)
@@ -135,7 +103,7 @@ export const useMiniAppPopup = () => {
   } = useMiniApps()
   const [maxKeepAliveMiniApps] = usePreference('feature.mini_app.max_keep_alive')
 
-  const cap = maxKeepAliveMiniApps ?? DEFAULT_MAX_KEEP_ALIVE
+  const cap = maxKeepAliveMiniApps ?? DEFAULT_MAX_KEEP_ALIVE_MINI_APPS
 
   // Mirror the React-synced keep-alive list into a ref so callbacks can read
   // the latest value without going through the cache service directly. Avoids
@@ -143,16 +111,15 @@ export const useMiniAppPopup = () => {
   const keepAliveRef = useRef<MiniApp[]>(openedKeepAliveMiniApps)
   keepAliveRef.current = openedKeepAliveMiniApps
 
-  // Pinned AppShell tabs are exempt from keep-alive eviction. The user pins a
-  // tab to say "keep this state alive across switches"; honoring that here
-  // prevents the cap from quietly throwing away webviews behind a pinned tab.
+  // Pinned AppShell tabs are exempt while opening. The global WebView pool owns
+  // dormancy reconciliation because it remains mounted when route hooks do not.
   // Isolated renderer surfaces can open mini-app content without AppShell tabs;
   // in that case skip eviction because pin state is not observable there.
   const tabsContext = useOptionalTabsContext()
-  const tabs = tabsContext?.tabs ?? []
+  const tabs = tabsContext?.tabs
   const openTab = tabsContext?.openTab
   const pinnedMiniAppIds = useMemo(() => {
-    if (!tabsContext) return null
+    if (!tabs) return null
     const ids = new Set<string>()
     for (const tab of tabs) {
       if (!tab.isPinned) continue
@@ -160,21 +127,9 @@ export const useMiniAppPopup = () => {
       if (id) ids.add(id)
     }
     return ids
-  }, [tabs, tabsContext])
+  }, [tabs])
   const pinnedMiniAppIdsRef = useRef(pinnedMiniAppIds)
   pinnedMiniAppIdsRef.current = pinnedMiniAppIds
-
-  // Trim the kept-alive list when the user lowers the cap. Evicts the oldest
-  // non-pinned entries (head of the list) so the most-recently-touched ones —
-  // and any pinned tabs regardless of recency — survive.
-  useEffect(() => {
-    const list = keepAliveRef.current
-    if (list.length <= cap) return
-    const { keep, evicted } = evictWithPinExemption(list, cap, pinnedMiniAppIdsRef.current)
-    if (evicted.length === 0) return
-    setOpenedKeepAliveMiniApps(keep)
-    for (const app of evicted) evictMiniApp(app.appId)
-  }, [cap, setOpenedKeepAliveMiniApps])
 
   /** Open a miniapp (popup shows and miniapp loaded) */
   const openMiniApp = useCallback(
@@ -200,9 +155,10 @@ export const useMiniAppPopup = () => {
         // Evict from the existing list to make room for the newcomer,
         // exempting pinned tabs. The newcomer itself is never evicted by
         // its own open call — that would silently no-op the user's click.
-        // If every existing entry is pinned, the list grows past cap.
+        // If every existing entry is pinned, the list grows past cap until the
+        // window-level pool observes a hard-fuse dormancy change.
         const targetSize = Math.max(cap - 1, 0)
-        const { keep, evicted } = evictWithPinExemption(list, targetSize, pinnedMiniAppIdsRef.current)
+        const { keep, evicted } = trimMiniAppKeepAlive(list, targetSize, pinnedMiniAppIdsRef.current)
         const next = [...keep, app]
         setOpenedKeepAliveMiniApps(next)
         for (const evictedApp of evicted) evictMiniApp(evictedApp.appId)
@@ -313,7 +269,7 @@ export const useMiniAppPopup = () => {
       const wasCached = cachedIndex !== -1
       if (!wasCached) {
         const targetSize = Math.max(cap - 1, 0)
-        const { keep, evicted } = evictWithPinExemption(list, targetSize, pinnedMiniAppIdsRef.current)
+        const { keep, evicted } = trimMiniAppKeepAlive(list, targetSize, pinnedMiniAppIdsRef.current)
         const next = [...keep, app]
         setOpenedKeepAliveMiniApps(next)
         for (const evictedApp of evicted) evictMiniApp(evictedApp.appId)
@@ -337,7 +293,8 @@ export const useMiniAppPopup = () => {
       // Uploaded logo → main-resolved `logoSrc`; preset key → `logo`.
       openTab(`/app/mini-app/${app.appId}`, {
         title: app.name,
-        icon: app.logoSrc ?? app.logo
+        icon: app.logoSrc ?? app.logo,
+        metadata: { transientMiniApp: true }
       })
     },
     [cap, openTab, setOpenedKeepAliveMiniApps, setCurrentMiniAppId, setMiniAppShow]

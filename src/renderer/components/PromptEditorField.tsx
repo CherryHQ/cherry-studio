@@ -177,7 +177,10 @@ export function PromptEditorField({
           )}>
           {effectiveShowPreview ? (
             <div
-              className={cn('markdown overflow-auto p-3 text-foreground text-xs', fill && 'min-h-0 flex-1')}
+              className={cn(
+                'prompt-preview markdown overflow-auto p-3 text-foreground text-xs',
+                fill && 'min-h-0 flex-1'
+              )}
               style={fill ? undefined : { minHeight, maxHeight }}
               onDoubleClick={() => setShowPreview(false)}>
               <StaticMarkdown id={previewId}>{previewValue || value}</StaticMarkdown>

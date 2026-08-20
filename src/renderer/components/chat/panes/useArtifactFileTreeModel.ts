@@ -1,16 +1,10 @@
 import { loggerService } from '@logger'
 import { type FileTreeNode } from '@renderer/components/FileTree'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
+import { ipcApi } from '@renderer/ipc'
 import { joinPath } from '@renderer/utils/path'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import type {
-  CreateTreeIpcResult,
-  DirectoryTreeOptions,
-  TreeDir,
-  TreeDirRoot,
-  TreeMutationPushPayload,
-  TreeNode
-} from '@shared/utils/file'
+import type { CreateTreeIpcResult, DirectoryTreeOptions, TreeDir, TreeDirRoot, TreeNode } from '@shared/utils/file'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 import { getPathBasename, normalizeArtifactPaneFilePath, WORKSPACE_ROOT_ID } from './artifactPanePath'
@@ -18,6 +12,8 @@ import { getPathBasename, normalizeArtifactPaneFilePath, WORKSPACE_ROOT_ID } fro
 const logger = loggerService.withContext('useArtifactFileTreeModel')
 
 const ARTIFACT_TREE_INITIAL_MAX_DEPTH = 3
+/** Handshake rounds before a lazy watcher gives up — see `useDirectoryTree`'s copy. */
+const MAX_ACTIVATION_ATTEMPTS = 3
 const ARTIFACT_FILE_SEARCH_DEBOUNCE_MS = 200
 const ARTIFACT_FILE_SEARCH_MAX_ENTRIES = 200
 const WORKSPACE_TREE_OPTIONS: DirectoryTreeOptions = {
@@ -259,7 +255,7 @@ function useArtifactFileSearch(workspacePath: string | undefined, searchKeyword:
             maxDepth: 0,
             includeHidden: false,
             includeFiles: true,
-            includeDirectories: true,
+            includeDirectories: false,
             maxEntries: ARTIFACT_FILE_SEARCH_MAX_ENTRIES,
             searchPattern: trimmedSearch
           })
@@ -288,6 +284,14 @@ interface LazyDirectoryWatcher {
   disposed: boolean
 }
 
+/**
+ * Grace period before the lazy directory watchers of an unmounted/hidden tree
+ * are actually disposed. Absorbs <Activity> tab switches, which run this
+ * hook's cleanups on hide and re-run its effects on show — without the grace,
+ * every switch paid a tree.dispose + tree.create IPC per expanded directory.
+ */
+const LAZY_WATCHER_DISPOSE_GRACE_MS = 10_000
+
 function useLazyArtifactFileTree({
   workspacePath,
   treeOpen,
@@ -305,6 +309,8 @@ function useLazyArtifactFileTree({
   const lazyLoadingDirIdsRef = useRef<Set<string>>(new Set())
   const lazyRequestIdsByDirIdRef = useRef<Map<string, number>>(new Map())
   const lazyDirectoryWatchersRef = useRef<Map<string, LazyDirectoryWatcher>>(new Map())
+  const pendingWatcherDisposeRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const watchersWorkspacePathRef = useRef(workspacePath)
   const lazyLoadGenerationRef = useRef(0)
   const currentWorkspacePathRef = useRef(workspacePath)
   const [lazyChildrenVersion, setLazyChildrenVersion] = useState(0)
@@ -320,7 +326,7 @@ function useLazyArtifactFileTree({
     watcher.disposed = true
     watcher.unsubscribe?.()
     if (watcher.treeId) {
-      Promise.resolve(window.api.tree.dispose(watcher.treeId)).catch((err) => {
+      Promise.resolve(ipcApi.request('file.tree.dispose', { treeId: watcher.treeId })).catch((err) => {
         logger.warn(`Failed to dispose lazy directory watcher: ${dirId}`, err as Error)
       })
     }
@@ -447,35 +453,67 @@ function useLazyArtifactFileTree({
 
       void (async () => {
         try {
-          const result: CreateTreeIpcResult = await window.api.tree.create(dirPath, {
-            maxDepth: 1,
-            includeHidden: false
-          })
-          if (
-            watcher.disposed ||
-            requestWorkspacePath !== currentWorkspacePathRef.current ||
-            lazyDirectoryWatchersRef.current.get(dirId) !== watcher
-          ) {
-            Promise.resolve(window.api.tree.dispose(result.treeId)).catch((err) => {
-              logger.warn(`Failed to dispose stale lazy directory watcher: ${dirId}`, err as Error)
+          for (let attempt = 1; attempt <= MAX_ACTIVATION_ATTEMPTS; attempt += 1) {
+            const result: CreateTreeIpcResult = await ipcApi.request('file.tree.create', {
+              rootPath: AbsoluteFilePathSchema.parse(dirPath),
+              options: { maxDepth: 1, includeHidden: false }
             })
-            return
-          }
+            if (
+              watcher.disposed ||
+              requestWorkspacePath !== currentWorkspacePathRef.current ||
+              lazyDirectoryWatchersRef.current.get(dirId) !== watcher
+            ) {
+              Promise.resolve(ipcApi.request('file.tree.dispose', { treeId: result.treeId })).catch((err) => {
+                logger.warn(`Failed to dispose stale lazy directory watcher: ${dirId}`, err as Error)
+              })
+              return
+            }
 
-          watcher.treeId = result.treeId
-          watcher.unsubscribe = window.api.tree.onMutation((payload: TreeMutationPushPayload) => {
-            if (payload.treeId !== result.treeId) return
-            loadDirectoryChildren(dirId, { force: true })
-          })
+            // Assign both before awaiting `activate`, so a concurrent
+            // `disposeLazyDirectoryWatcher` tears this watcher down completely.
+            watcher.treeId = result.treeId
+            watcher.unsubscribe = ipcApi.on('file.tree.mutation', (payload) => {
+              if (payload.treeId !== result.treeId) return
+              loadDirectoryChildren(dirId, { force: true })
+            })
+
+            // A created consumer stays pending: mutations queue main-side until it is
+            // activated. Without this the subtree would freeze at its snapshot and the
+            // queue would grow for as long as the directory stays expanded.
+            const activated = await ipcApi.request('file.tree.activate', {
+              treeId: result.treeId,
+              revision: result.revision
+            })
+            if (activated) {
+              // A refused round means events were dropped while we were unwatched, so
+              // the rendered children predate them. Nothing else re-runs this effect.
+              if (attempt > 1) loadDirectoryChildren(dirId, { force: true })
+              return
+            }
+
+            // Main dropped this consumer (pending-buffer overflow) before we activated.
+            // Release the half-installed watcher and take a fresh snapshot — leaving it
+            // would keep the expanded directory frozen with nothing to un-freeze it.
+            logger.warn(`Lazy directory watcher refused activation, retaking the snapshot: ${dirId}`, { attempt })
+            watcher.unsubscribe?.()
+            watcher.unsubscribe = undefined
+            watcher.treeId = undefined
+            Promise.resolve(ipcApi.request('file.tree.dispose', { treeId: result.treeId })).catch((err) => {
+              logger.warn(`Failed to dispose refused lazy directory watcher: ${dirId}`, err as Error)
+            })
+          }
+          throw new Error(`Lazy directory watcher was refused activation ${MAX_ACTIVATION_ATTEMPTS} times: ${dirId}`)
         } catch (err) {
           if (watcher.disposed || lazyDirectoryWatchersRef.current.get(dirId) !== watcher) return
-          lazyDirectoryWatchersRef.current.delete(dirId)
+          // Drops the subscription and the main-side tree too — both may already be
+          // attached if the failure came from `activate` rather than `create`.
+          disposeLazyDirectoryWatcher(dirId)
           const normalized = err instanceof Error ? err : new Error(String(err))
           logger.warn(`Failed to watch lazy directory: ${dirPath}`, normalized)
         }
       })()
     },
-    [loadDirectoryChildren, workspacePath]
+    [disposeLazyDirectoryWatcher, loadDirectoryChildren, workspacePath]
   )
 
   const displayTree = useMemo(() => {
@@ -491,10 +529,26 @@ function useLazyArtifactFileTree({
   }, [resetLazyChildren, treeOpen])
 
   useEffect(() => {
-    return () => {
+    // A dispose scheduled by the previous cleanup (an <Activity> hide) is
+    // canceled here: the watcher map lives in a ref that survived, so the
+    // still-live watchers are reused instead of recreated.
+    if (pendingWatcherDisposeRef.current !== null) {
+      clearTimeout(pendingWatcherDisposeRef.current)
+      pendingWatcherDisposeRef.current = null
+    }
+    // Watchers watch absolute paths under the previous workspace — after a
+    // workspace switch, surviving watchers must be dropped immediately.
+    if (watchersWorkspacePathRef.current !== workspacePath) {
+      watchersWorkspacePathRef.current = workspacePath
       disposeLazyDirectoryWatchers()
     }
-  }, [disposeLazyDirectoryWatchers, treeOpen, workspacePath])
+    return () => {
+      pendingWatcherDisposeRef.current = setTimeout(() => {
+        pendingWatcherDisposeRef.current = null
+        disposeLazyDirectoryWatchers()
+      }, LAZY_WATCHER_DISPOSE_GRACE_MS)
+    }
+  }, [disposeLazyDirectoryWatchers, workspacePath])
 
   useEffect(() => {
     if (!treeOpen) return

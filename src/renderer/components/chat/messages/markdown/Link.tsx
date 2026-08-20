@@ -2,7 +2,7 @@ import { isKnownNavigationPath, NavigateToolInline } from '@renderer/components/
 import Favicon from '@renderer/components/icons/FallbackFavicon'
 import type { Citation } from '@renderer/types/message'
 import { parseFileLinkHref } from '@renderer/utils/filePath'
-import { findCitationInChildren } from '@renderer/utils/markdown'
+import { findCitationInChildren } from '@renderer/utils/markdownLight'
 import { cn } from '@renderer/utils/style'
 import { omit } from 'es-toolkit/compat'
 import React, { useMemo } from 'react'

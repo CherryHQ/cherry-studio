@@ -7,9 +7,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Mock path module to normalize all paths to POSIX format for cross-platform consistency
 // This ensures path operations work the same way regardless of the actual OS
-vi.mock('path', async () => {
+async function posixPathModule() {
   const actual: typeof PathModule = await vi.importActual('path')
-  return {
+  const mocked = {
     ...actual,
     sep: '/', // Always use forward slash for consistency
     delimiter: ':',
@@ -39,7 +39,14 @@ vi.mock('path', async () => {
     posix: actual.posix,
     win32: actual.win32
   }
-})
+  // `default` for the modules that default-import it (legacyFile.ts), named for the rest.
+  return { ...mocked, default: mocked }
+}
+
+// `node:path` is a distinct module id to vitest, and resolveAndValidatePath reaches
+// path through it — mock both or Windows keeps its drive letters.
+vi.mock('path', posixPathModule)
+vi.mock('node:path', posixPathModule)
 
 // Use vi.hoisted to define mocks that are available during hoisting
 const {
@@ -54,6 +61,7 @@ const {
   mockAiStreamHold,
   mockAgentSessionRuntime,
   mockAgentSessionHold,
+  mockAgentSessionDelivery,
   mockWindowManager,
   mockRelaunch,
   mockHashDbFile,
@@ -65,14 +73,17 @@ const {
   mockRandomUUID,
   mockZipExtract,
   mockZipClose,
+  mockZipEntries,
   MockStreamZipAsync
 } = vi.hoisted(() => {
   const mockChannelHold = { dispose: vi.fn() }
   const mockJobHold = { dispose: vi.fn() }
   const mockAiStreamHold = { dispose: vi.fn() }
   const mockAgentSessionHold = { dispose: vi.fn() }
+  const mockAgentSessionDeliveryHold = { dispose: vi.fn() }
   const mockZipExtract = vi.fn()
   const mockZipClose = vi.fn()
+  const mockZipEntries = vi.fn(async () => ({}))
   return {
     mockLogger: {
       debug: vi.fn(),
@@ -104,6 +115,11 @@ const {
       hasBusySessions: vi.fn(() => false)
     },
     mockAgentSessionHold,
+    mockAgentSessionDelivery: {
+      pause: vi.fn(() => mockAgentSessionDeliveryHold),
+      drainInFlight: vi.fn(async (): Promise<{ stragglerIds: string[] }> => ({ stragglerIds: [] })),
+      listActiveWork: vi.fn(() => [])
+    },
     mockWindowManager: { broadcastToType: vi.fn(), getWindowsByType: vi.fn(() => []) },
     mockRelaunch: vi.fn(),
     mockHashDbFile: vi.fn(),
@@ -115,8 +131,9 @@ const {
     mockRandomUUID: vi.fn(),
     mockZipExtract,
     mockZipClose,
+    mockZipEntries,
     MockStreamZipAsync: vi.fn(function () {
-      return { extract: mockZipExtract, close: mockZipClose }
+      return { entries: mockZipEntries, extract: mockZipExtract, close: mockZipClose }
     })
   }
 })
@@ -261,6 +278,9 @@ vi.mock('@application', () => ({
       }
       if (name === 'AgentSessionRuntimeService') {
         return mockAgentSessionRuntime
+      }
+      if (name === 'AgentSessionDeliveryService') {
+        return mockAgentSessionDelivery
       }
       throw new Error(`[MockApplication] Unknown service: ${name}`)
     }),
@@ -467,6 +487,8 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect(mockAiStreamManager.drainInFlight).toHaveBeenCalledWith({ timeoutMs: 30_000 })
     expect(mockAgentSessionRuntime.pause).toHaveBeenCalledOnce()
     expect(mockAgentSessionRuntime.drainInFlight).toHaveBeenCalledWith({ timeoutMs: 30_000 })
+    expect(mockAgentSessionDelivery.pause).toHaveBeenCalledOnce()
+    expect(mockAgentSessionDelivery.drainInFlight).toHaveBeenCalledWith({ timeoutMs: 30_000 })
     expect(mockJobManager.pause).toHaveBeenCalledOnce()
     expect(mockJobManager.drainInFlight).toHaveBeenCalledWith({ timeoutMs: 30_000 })
     expect(mockDbService.checkpointTruncate).toHaveBeenCalledTimes(2)
@@ -1201,6 +1223,19 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect(mockWriteRestoreJournal).not.toHaveBeenCalled()
   })
 
+  it('rejects a backup ZIP whose entries escape the extraction dir (zip-slip)', async () => {
+    mockZipEntries.mockResolvedValueOnce({ '../../../evil.sh': { size: 4 }, 'metadata.json': { size: 2 } })
+
+    await expect(backupManager.restore({} as Electron.IpcMainInvokeEvent, '/backup/evil.zip')).rejects.toThrow(
+      'zip-slip'
+    )
+
+    // The rejection happens before any entry is written and the archive is still closed.
+    expect(mockZipExtract).not.toHaveBeenCalled()
+    expect(mockZipClose).toHaveBeenCalledOnce()
+    expect(mockWriteRestoreJournal).not.toHaveBeenCalled()
+  })
+
   it('does not clobber a pending restore journal', async () => {
     mockReadRestoreJournal.mockReturnValue({
       kind: 'ok',
@@ -1278,7 +1313,7 @@ describe('BackupManager direct v2 data compatibility', () => {
   })
 })
 
-describe('BackupManager.copyDirWithProgress - Symlink Handling', () => {
+describe('BackupManager.copyDirWithProgress', () => {
   let backupManager: BackupManager
 
   beforeEach(() => {
@@ -1439,6 +1474,166 @@ describe('BackupManager.copyDirWithProgress - Symlink Handling', () => {
     expect(fs.remove).toHaveBeenCalledWith('/dest/large.bin')
     expect(fs.chmod).not.toHaveBeenCalled()
     expect(onProgress).not.toHaveBeenCalled()
+  })
+
+  describe('LevelDB Lock Handling', () => {
+    const createBusyFileError = () =>
+      Object.assign(new Error('resource busy or locked, read'), {
+        code: 'EBUSY',
+        errno: -4082
+      })
+
+    const mockAutomaticCopyError = (error: Error) => {
+      vi.mocked(fs.createReadStream).mockReturnValue(
+        new Readable({
+          read() {
+            this.destroy(error)
+          }
+        }) as never
+      )
+      vi.mocked(fs.createWriteStream).mockReturnValue(
+        new Writable({
+          write(_chunk, _encoding, callback) {
+            callback()
+          }
+        }) as never
+      )
+    }
+
+    it.each(['leveldb', 'indexeddb.leveldb'])(
+      'should skip a locked file in %s during an automatic backup copy',
+      async (parentDirectory) => {
+        const lockedFileError = createBusyFileError()
+        const sourceDirectory = `/src/${parentDirectory}`
+        const destinationDirectory = `/dest/${parentDirectory}`
+        const onProgress = vi.fn()
+        vi.mocked(fs.readdir).mockResolvedValue([createDirent('LOCK')] as never)
+        vi.mocked(fs.lstat).mockResolvedValue(createStats('file', 0) as never)
+        mockAutomaticCopyError(lockedFileError)
+
+        await expect(
+          (backupManager as any).copyDirWithProgress(sourceDirectory, destinationDirectory, onProgress, {
+            dereferenceSymlinks: false,
+            signal: new AbortController().signal
+          })
+        ).resolves.toBeUndefined()
+
+        expect(fs.remove).toHaveBeenCalledWith(`${destinationDirectory}/LOCK`)
+        expect(onProgress).not.toHaveBeenCalled()
+        expect(mockLogger.warn).toHaveBeenCalledWith('[BackupManager] Skipping locked file', {
+          path: `${sourceDirectory}/LOCK`
+        })
+      }
+    )
+
+    it('should reject a locked file error when removing the partial automatic backup copy fails', async () => {
+      const lockedFileError = createBusyFileError()
+      vi.mocked(fs.readdir).mockResolvedValue([createDirent('LOCK')] as never)
+      vi.mocked(fs.lstat).mockResolvedValue(createStats('file', 0) as never)
+      vi.mocked(fs.remove).mockRejectedValueOnce(new Error('cleanup failed') as never)
+      mockAutomaticCopyError(lockedFileError)
+
+      await expect(
+        (backupManager as any).copyDirWithProgress('/src/leveldb', '/dest/leveldb', vi.fn(), {
+          dereferenceSymlinks: false,
+          signal: new AbortController().signal
+        })
+      ).rejects.toBe(lockedFileError)
+
+      expect(mockLogger.warn).not.toHaveBeenCalledWith(
+        '[BackupManager] Skipping locked file',
+        expect.objectContaining({ path: '/src/leveldb/LOCK' })
+      )
+    })
+
+    it.each(['.claude', 'notleveldb'])(
+      'should reject EBUSY for a LOCK file in non-LevelDB directory %s during an automatic backup copy',
+      async (parentDirectory) => {
+        const busyFileError = createBusyFileError()
+        const sourceDirectory = `/src/${parentDirectory}`
+        const destinationDirectory = `/dest/${parentDirectory}`
+        vi.mocked(fs.readdir).mockResolvedValue([createDirent('LOCK')] as never)
+        vi.mocked(fs.lstat).mockResolvedValue(createStats('file', 0) as never)
+        mockAutomaticCopyError(busyFileError)
+
+        await expect(
+          (backupManager as any).copyDirWithProgress(sourceDirectory, destinationDirectory, vi.fn(), {
+            dereferenceSymlinks: false,
+            signal: new AbortController().signal
+          })
+        ).rejects.toBe(busyFileError)
+
+        expect(fs.remove).toHaveBeenCalledWith(`${destinationDirectory}/LOCK`)
+      }
+    )
+
+    it('should skip a LevelDB LOCK file during a backup copy without a signal', async () => {
+      const lockedFileError = createBusyFileError()
+      const onProgress = vi.fn()
+      vi.mocked(fs.readdir).mockResolvedValue([createDirent('LOCK')] as never)
+      vi.mocked(fs.lstat).mockResolvedValue(createStats('file', 0) as never)
+      vi.mocked(fs.copy).mockRejectedValueOnce(lockedFileError as never)
+
+      await expect(
+        (backupManager as any).copyDirWithProgress('/src/leveldb', '/dest/leveldb', onProgress, {
+          dereferenceSymlinks: false
+        })
+      ).resolves.toBeUndefined()
+
+      expect(onProgress).not.toHaveBeenCalled()
+      expect(mockLogger.warn).toHaveBeenCalledWith('[BackupManager] Skipping locked file', {
+        path: '/src/leveldb/LOCK'
+      })
+    })
+
+    it('should reject EBUSY for a non-LevelDB LOCK file during a backup copy without a signal', async () => {
+      const busyFileError = createBusyFileError()
+      vi.mocked(fs.readdir).mockResolvedValue([createDirent('LOCK')] as never)
+      vi.mocked(fs.lstat).mockResolvedValue(createStats('file', 0) as never)
+      vi.mocked(fs.copy).mockRejectedValueOnce(busyFileError as never)
+
+      await expect(
+        (backupManager as any).copyDirWithProgress('/src/.claude', '/dest/.claude', vi.fn(), {
+          dereferenceSymlinks: false
+        })
+      ).rejects.toBe(busyFileError)
+    })
+
+    it('should reject EBUSY for a case-variant LevelDB lock filename', async () => {
+      const busyFileError = createBusyFileError()
+      vi.mocked(fs.readdir).mockResolvedValue([createDirent('lock')] as never)
+      vi.mocked(fs.lstat).mockResolvedValue(createStats('file', 0) as never)
+      mockAutomaticCopyError(busyFileError)
+
+      await expect(
+        (backupManager as any).copyDirWithProgress('/src/leveldb', '/dest/leveldb', vi.fn(), {
+          dereferenceSymlinks: false,
+          signal: new AbortController().signal
+        })
+      ).rejects.toBe(busyFileError)
+
+      expect(fs.remove).toHaveBeenCalledWith('/dest/leveldb/lock')
+    })
+
+    it('should reject EBUSY for a non-lock file during an automatic backup copy', async () => {
+      const busyFileError = createBusyFileError()
+      vi.mocked(fs.readdir).mockResolvedValue([createDirent('messages.json')] as never)
+      vi.mocked(fs.lstat).mockResolvedValue(createStats('file', 42) as never)
+      mockAutomaticCopyError(busyFileError)
+
+      await expect(
+        (backupManager as any).copyDirWithProgress('/src', '/dest', vi.fn(), {
+          dereferenceSymlinks: false,
+          signal: new AbortController().signal
+        })
+      ).rejects.toBe(busyFileError)
+
+      expect(fs.remove).toHaveBeenCalledWith('/dest/messages.json')
+      expect(mockLogger.warn).not.toHaveBeenCalledWith(
+        '[BackupManager] Skipping locked file',
+        expect.objectContaining({ path: '/src/messages.json' })
+      )
+    })
   })
 
   it('should skip symlinks during restore copy', async () => {

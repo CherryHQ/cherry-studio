@@ -27,6 +27,7 @@ import { WEB_SEARCH_SOURCE } from '@renderer/types/webSearchProvider'
 import { mapCitationMarksToTags, mapMarkdownOutsideCode, normalizeCitationMarks } from '@renderer/utils/citation'
 import { cleanMarkdownContent } from '@renderer/utils/formats'
 import {
+  CITATION_SNIPPET_MAX_CHARS,
   KB_READ_TOOL_NAME,
   KB_SEARCH_TOOL_NAME,
   kbGrepOutputSchema,
@@ -69,13 +70,6 @@ const CITABLE_TOOL_NAMES: ReadonlySet<string> = new Set([
 ])
 const CHERRY_TOOLS_MCP_SERVER = 'cherry-tools'
 const TOOL_INVOKE_TOOL_NAME = 'tool_invoke'
-
-/**
- * kb_read returns a whole document slice — orders of magnitude more text than a kb_search chunk —
- * but the tooltip only ever shows a snippet. Truncate here so the full slice is not carried
- * through the render path and re-serialized into every `<sup data-citation>` tag.
- */
-const KNOWLEDGE_SNIPPET_MAX_CHARS = 300
 
 type ToolResponsePart = ToolUIPart<UITools> | DynamicToolUIPart
 
@@ -152,8 +146,8 @@ function unwrapCitableOutput(output: unknown): unknown {
 
 function toSnippet(content: string): string {
   const trimmed = content.trim()
-  if (trimmed.length <= KNOWLEDGE_SNIPPET_MAX_CHARS) return trimmed
-  return `${trimmed.slice(0, KNOWLEDGE_SNIPPET_MAX_CHARS)}…`
+  if (trimmed.length <= CITATION_SNIPPET_MAX_CHARS) return trimmed
+  return `${trimmed.slice(0, CITATION_SNIPPET_MAX_CHARS)}…`
 }
 
 /**
@@ -367,8 +361,29 @@ function createCitationLookup(citations: MessageCitations): {
   return { lookup, markerNumberMap }
 }
 
+/**
+ * Rewrite whatever a model puts inside a `[cite:…]` bracket into the chained `[cite:a][cite:b]`
+ * the prompt asks for. Models keep inventing near-misses — padding, comma lists, a repeated
+ * `cite:` per id — so read the bracket as a bag of ids rather than matching one spelling at a
+ * time: every id-shaped token in it is an id, and a bracket holding none is left alone.
+ */
+function canonicalizeMarkers(content: string): string {
+  return mapMarkdownOutsideCode(content, (text) =>
+    text.replace(/\[cite:[^\]\n]*\]/g, (marker) => {
+      const ids = marker
+        .slice('[cite:'.length, -1)
+        .match(/[\w-]+/g)
+        ?.filter((id) => id !== 'cite')
+      return ids?.length ? ids.map((id) => `[cite:${id}]`).join('') : marker
+    })
+  )
+}
+
 function normalizeMarkerContent(content: string, markerNumberMap: Map<number, Citation>): string {
-  return markerNumberMap.size > 0 ? normalizeCitationMarks(content, markerNumberMap, WEB_SEARCH_SOURCE.AISDK) : content
+  const canonical = canonicalizeMarkers(content)
+  return markerNumberMap.size > 0
+    ? normalizeCitationMarks(canonical, markerNumberMap, WEB_SEARCH_SOURCE.AISDK)
+    : canonical
 }
 
 function collapseMarkerRuns(text: string, byMarker: ReadonlyMap<string, Citation>): string {
@@ -391,7 +406,7 @@ export function resolveCitationMarkerParts(
   citations: MessageCitations
 ): ResolvedCitationMarkers[] {
   if (citations.byId.size === 0) {
-    return contents.map((content) => ({ content, byMarker: new Map(), cited: [] }))
+    return contents.map((content) => ({ content: canonicalizeMarkers(content), byMarker: new Map(), cited: [] }))
   }
 
   const { lookup, markerNumberMap } = createCitationLookup(citations)
@@ -481,7 +496,7 @@ export function toExportableCitations(
  * without inventing a second, conflicting sequence.
  */
 export function stripCitationMarkers(content: string): string {
-  return mapMarkdownOutsideCode(content, (text) => text.replace(CITATION_MARKER_PATTERN, ''))
+  return mapMarkdownOutsideCode(canonicalizeMarkers(content), (text) => text.replace(CITATION_MARKER_PATTERN, ''))
 }
 
 /**

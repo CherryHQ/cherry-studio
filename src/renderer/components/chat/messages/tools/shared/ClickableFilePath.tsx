@@ -8,7 +8,7 @@ import { openFileTarget } from '@renderer/utils/openFileTarget'
 import { isMac, isWin } from '@renderer/utils/platform'
 import type { ExternalAppInfo } from '@shared/types/externalApp'
 import { FolderOpen, MoreHorizontal } from 'lucide-react'
-import { memo, useCallback, useMemo } from 'react'
+import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useOptionalMessageListActions, useOptionalMessageListUi } from '../../MessageListProvider'
@@ -34,6 +34,7 @@ export const ClickableFilePath = memo(function ClickableFilePath({
   onOpen
 }: ClickableFilePathProps) {
   const { t } = useTranslation()
+  const [actionsMenuOpen, setActionsMenuOpen] = useState(false)
   const displayPath = useMemo(() => normalizeInlineFilePath(path), [path])
   const targetPath = useMemo(() => resolveInlineFilePath(path), [path])
   const iconName = useMemo(() => getFileIconName(displayPath), [displayPath])
@@ -112,7 +113,7 @@ export const ClickableFilePath = memo(function ClickableFilePath({
         </span>
       </Tooltip>
       {hasMoreActions && (
-        <Popover>
+        <Popover open={actionsMenuOpen} onOpenChange={setActionsMenuOpen}>
           <PopoverTrigger asChild>
             <button
               type="button"
@@ -135,6 +136,7 @@ export const ClickableFilePath = memo(function ClickableFilePath({
                   icon={renderFileManagerIcon()}
                   onClick={(e) => {
                     e.stopPropagation()
+                    setActionsMenuOpen(false)
                     Promise.resolve(showInFolder(targetPath)).catch(() => {
                       notifyError?.(t('chat.input.tools.file_not_found', { path: targetPath }))
                     })
@@ -149,6 +151,7 @@ export const ClickableFilePath = memo(function ClickableFilePath({
                     icon={getEditorIcon(app)}
                     onClick={(e) => {
                       e.stopPropagation()
+                      setActionsMenuOpen(false)
                       openInEditor(app)
                     }}
                   />

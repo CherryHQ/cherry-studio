@@ -18,7 +18,7 @@ interface ModelListSyncDrawerProps {
   open: boolean
   provider?: Provider
   allModels: Model[]
-  localModels: Model[]
+  localModels: readonly Model[]
   removableModelIds: UniqueModelId[]
   defaultModelIds?: UniqueModelId[]
   isLoading: boolean
@@ -64,24 +64,27 @@ export default function ModelListSyncDrawer({
   const removableModelIdSet = useMemo(() => new Set(removableModelIds), [removableModelIds])
   const defaultModelIdSet = useMemo(() => new Set(defaultModelIds), [defaultModelIds])
   const staleModelIdSet = useMemo(() => new Set(staleModelIds), [staleModelIds])
+  const searchedModels = useMemo(() => applyModelFilters(allModels, searchText, 'all'), [allModels, searchText])
   const filteredModels = useMemo(() => {
     if (actualFilter === 'stale') {
-      return applyModelFilters(allModels, searchText, 'all').filter((model) => staleModelIdSet.has(model.id))
+      return searchedModels.filter((model) => staleModelIdSet.has(model.id))
     }
 
-    return applyModelFilters(allModels, searchText, actualFilter)
-  }, [actualFilter, allModels, searchText, staleModelIdSet])
+    return applyModelFilters(searchedModels, '', actualFilter)
+  }, [actualFilter, searchedModels, staleModelIdSet])
   const filteredGroups = useMemo(
     () => groupModels(filteredModels, Boolean(searchText.trim())),
     [filteredModels, searchText]
   )
   // Per-type counts over the search-filtered set (so the tabs track the search).
   const typeCounts = useMemo<ModelListCapabilityCounts>(
-    () => getCapabilityModelCounts(applyModelFilters(allModels, searchText, 'all')),
-    [allModels, searchText]
+    () => getCapabilityModelCounts(searchedModels),
+    [searchedModels]
   )
-  const isAllFilteredInProvider =
-    filteredModels.length > 0 && filteredModels.every((model) => localModelIds.has(model.id))
+  const isAllFilteredInProvider = useMemo(
+    () => filteredModels.length > 0 && filteredModels.every((model) => localModelIds.has(model.id)),
+    [filteredModels, localModelIds]
+  )
   const removableFilteredModelIds = useMemo(
     () =>
       filteredModels

@@ -12,14 +12,16 @@ import type {
 import { useOptionalRightPanelActions, useOptionalRightPanelState } from '@renderer/components/chat/panes/Shell'
 import {
   buildResourceListGroupDropAnchor,
-  type ConversationResourceMenuItem,
+  CONVERSATION_ROW_STATUS_TITLE_CLASS,
+  ConversationRowStatus,
+  type ConversationRowStatusValue,
   renderAssistantEntityIcon,
   resolveDefaultCollapsedGroupIds,
-  RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS,
-  RESOURCE_LIST_TITLE_FADE_CLASS,
-  RESOURCE_LIST_TITLE_FADE_YIELD_CLASS,
   ResourceList,
+  type ResourceListGroupHeaderKind,
+  type ResourceListGroupSeed,
   type ResourceListItemReorderPayload,
+  type ResourceListPresentation,
   type ResourceListReorderPayload,
   type ResourceListRevealRequest,
   type ResourceListSection,
@@ -31,7 +33,12 @@ import {
 import { ResourceRefreshErrorBanner } from '@renderer/components/chat/resourceList/ResourceRefreshErrorBanner'
 import { TopicResourceList } from '@renderer/components/chat/resourceList/TopicResourceList'
 import { CommandPopupMenu } from '@renderer/components/command'
+import {
+  readChatDraftPresence,
+  subscribeChatDraftCache
+} from '@renderer/components/composer/variants/chat/chatDraftCache'
 import EditNameDialog from '@renderer/components/EditNameDialog'
+import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
 import type { ResourceEditDialogTarget } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { useTopicMenuActions } from '@renderer/hooks/chat/useTopicMenuActions'
 import type { AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
@@ -42,13 +49,7 @@ import { useGroupReorder, useGroups } from '@renderer/hooks/useGroups'
 import { useImageCaptureTargets } from '@renderer/hooks/useImageCaptureTargets'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { usePins } from '@renderer/hooks/usePins'
-import {
-  finishTopicRenaming,
-  getTopicMessages,
-  mapApiTopicToRendererTopic,
-  startTopicRenaming,
-  useTopicMutations
-} from '@renderer/hooks/useTopic'
+import { finishTopicRenaming, getTopicMessages, startTopicRenaming, useTopicMutations } from '@renderer/hooks/useTopic'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -56,6 +57,7 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
+import { withSoleGroupLabelHidden } from '@renderer/utils/chat/resourceListBase'
 import {
   applyOptimisticTopicDisplayMove,
   buildAssistantGroupDropAnchor,
@@ -63,6 +65,7 @@ import {
   createTopicDisplayGroupResolver,
   getAssistantIdFromTopicGroupId,
   getTopicAssistantDisplayGroupId,
+  getTopicAssistantGroupId,
   moveAssistantGroupAfterDrop,
   normalizeTopicDropPayload,
   sortTopicsForDisplayGroups,
@@ -73,14 +76,14 @@ import {
   type TopicDisplayMode
 } from '@renderer/utils/chat/topicsHelpers'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
+import { findLatestActive, pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
 import { cn } from '@renderer/utils/style'
 import { classifyTurn, type TopicStatusSnapshotEntry } from '@shared/ai/transport'
 import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import dayjs from 'dayjs'
-import { CircleAlert, Loader2, MoreHorizontal, PinIcon, Plus, SquarePen, Trash2, Unlink, XIcon } from 'lucide-react'
+import { FilePenLine, MoreHorizontal, PinIcon, Plus, Trash2, Unlink, XIcon } from 'lucide-react'
 import type { MouseEvent, RefObject } from 'react'
-import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -90,12 +93,13 @@ import {
   type TopicImageActionType
 } from '../../messages/topicImageActionBus'
 import TopicImageCaptureHost from '../../messages/TopicImageCaptureHost'
-import type { AddNewTopicPayload, AddNewTopicWithReusePayload } from '../../types'
+import type { AddNewTopicPayload } from '../../types'
 import {
   type AssistantGroupActionContext,
   executeAssistantGroupAction,
   resolveAssistantGroupActions
 } from './assistantGroupActions'
+import { EMPTY_TOPIC_LIST_ITEM_RECONCILIATION, reconcileTopicListItems } from './topicListItemSharing'
 
 const logger = loggerService.withContext('Topics')
 const ResourceEditDialogHost = lazy(() =>
@@ -130,16 +134,17 @@ interface Props {
   assistantIdFilter?: string | null
   dataEnabled?: boolean
   historyRecordsActive?: boolean
+  manageAssistantsActive?: boolean
   onActiveAssistantDeleted?: (assistantId: string) => void | Promise<void>
   onAddAssistant?: () => void | Promise<void>
-  onCreateTopicAfterClear?: (payload: AddNewTopicPayload) => void | Promise<void>
-  onNewTopic?: (payload?: AddNewTopicWithReusePayload) => void | Promise<void>
+  clearActiveTopic: () => void
+  onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   onOpenHistoryRecords?: () => void
+  onManageAssistants?: () => void | Promise<void>
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
   panePosition?: TopicTabPosition
-  presentation?: 'sidebar' | 'right-panel'
+  presentation?: ResourceListPresentation
   revealRequest?: ResourceListRevealRequest
-  resourceMenuItems?: readonly ConversationResourceMenuItem[]
   setActiveTopic: (topic: Topic) => void
 }
 
@@ -237,16 +242,17 @@ export function Topics({
   assistantIdFilter,
   dataEnabled = true,
   historyRecordsActive,
+  manageAssistantsActive = false,
   onActiveAssistantDeleted,
   onAddAssistant,
-  onCreateTopicAfterClear,
+  clearActiveTopic,
   onNewTopic,
   onOpenHistoryRecords,
+  onManageAssistants,
   onSetPanePosition,
   panePosition,
-  presentation = 'sidebar',
+  presentation = 'left-panel',
   revealRequest,
-  resourceMenuItems,
   setActiveTopic
 }: Props) {
   const { t } = useTranslation()
@@ -316,6 +322,7 @@ export function Topics({
   const isAssistantPinActionDisabled = isAssistantPinsLoading || isAssistantPinsRefreshing || isAssistantPinsMutating
   const {
     topics: apiTopics,
+    orderSignature,
     isLoadingAll,
     isFullyLoaded,
     isRefreshing,
@@ -379,24 +386,19 @@ export function Topics({
     [queueImageCaptureTarget, showTopicImageExportToast, t]
   )
 
-  const apiBackedTopics = useMemo(
-    () =>
-      apiTopics.map((apiTopic) => {
-        const topic = mapApiTopicToRendererTopic(apiTopic)
-        return { ...topic, pinned: isTopicPinned(apiTopic.id) }
-      }),
-    [apiTopics, isTopicPinned]
-  )
+  const topicItemsReconciliationRef = useRef(EMPTY_TOPIC_LIST_ITEM_RECONCILIATION)
+  const apiBackedTopics = useMemo(() => {
+    const reconciliation = reconcileTopicListItems(apiTopics, isTopicPinned, topicItemsReconciliationRef.current)
+    topicItemsReconciliationRef.current = reconciliation
+    return reconciliation.items
+  }, [apiTopics, isTopicPinned])
   const [optimisticMove, setOptimisticMove] = useState<{
     payload: ResourceListItemReorderPayload
     targetAssistantId: string | null
   } | null>(null)
   const apiTopicOrderSignature = useMemo(
-    () =>
-      apiBackedTopics
-        .map((topic) => `${topic.id}:${topic.assistantId ?? ''}:${topic.orderKey ?? ''}:${topic.pinned ? '1' : '0'}`)
-        .join('|'),
-    [apiBackedTopics]
+    () => `${orderSignature}#${[...topicPinnedIds].sort().join(',')}`,
+    [orderSignature, topicPinnedIds]
   )
   const topics = apiBackedTopics
   const topicsRef = useRef(topics)
@@ -586,6 +588,9 @@ export function Topics({
       const assistantTopicsBeforeDelete = topicsRef.current.filter(
         (candidate) => candidate.assistantId === topic.assistantId
       )
+      const replacement =
+        pickNeighbourAfterRemoval(assistantTopicsBeforeDelete, topic.id) ??
+        findLatestActive(topicsRef.current.filter((candidate) => candidate.id !== topic.id))
 
       try {
         await removeTopic(topic)
@@ -598,19 +603,14 @@ export function Topics({
 
       if (topic.id !== activeTopicIdRef.current) return
 
-      // Deleting the active topic selects a neighbour within the *same assistant* (both layouts), so
-      // we never jump to an unrelated conversation. When that assistant has no other topic left, open
-      // a fresh empty one for it instead of leaving the view stranded.
-      const next = pickNeighbourAfterRemoval(assistantTopicsBeforeDelete, topic.id)
-      if (next) {
-        setActiveTopic(next)
+      if (replacement) {
+        setActiveTopic(replacement)
         return
       }
 
-      // Never let the fresh replacement reuse the topic we just deleted (stale candidate list).
-      await onNewTopic?.({ assistantId: topic.assistantId ?? null, excludeReuseTopicId: topic.id })
+      clearActiveTopic()
     },
-    [onNewTopic, removeTopic, setActiveTopic, t]
+    [clearActiveTopic, removeTopic, setActiveTopic, t]
   )
 
   const handleDeleteTopicClick = useCallback((topicId: string, event: MouseEvent) => {
@@ -630,8 +630,6 @@ export function Topics({
   const handleConfirmDeleteTopic = useCallback(
     async (topic: Topic, event?: MouseEvent) => {
       event?.stopPropagation()
-      // Deleting the last remaining topic is allowed: handleDeleteTopicFromMenu opens a fresh empty
-      // one for the assistant afterwards, so we never strand the view on an empty list.
       if (deleteTimerRef.current) {
         clearTimeout(deleteTimerRef.current)
         deleteTimerRef.current = null
@@ -719,6 +717,25 @@ export function Topics({
     }
   }, [assistantById, assistantGroupById, isAssistantDisplayMode, isGroupGrouping, t])
 
+  const topicGroupSeeds = useMemo<ResourceListGroupSeed[]>(() => {
+    if (!isAssistantDisplayMode) return []
+
+    return assistantsForDisplayOrder.map((assistant) => {
+      const assistantGroup = assistant.groupId ? assistantGroupById.get(assistant.groupId) : undefined
+      const section = isGroupGrouping
+        ? assistantGroup
+          ? { id: `${TOPIC_ASSISTANT_GROUP_SECTION_PREFIX}${assistantGroup.id}`, label: assistantGroup.name }
+          : { id: TOPIC_ASSISTANT_UNGROUPED_SECTION_ID, label: t('assistants.groups.ungrouped') }
+        : { id: TOPIC_ASSISTANT_SECTION_ID, label: t('chat.topics.display.assistant') }
+
+      return {
+        id: getTopicAssistantGroupId(assistant.id),
+        label: assistant.name,
+        section
+      }
+    })
+  }, [assistantGroupById, assistantsForDisplayOrder, isAssistantDisplayMode, isGroupGrouping, t])
+
   const baseGroupedTopics = useMemo(
     () =>
       sortTopicsForDisplayGroups(topics, {
@@ -746,6 +763,14 @@ export function Topics({
     if (!isRightPanel) return groupedTopics
     return groupedTopics.filter((topic) => matchesAssistantFilter(topic, assistantIdFilter))
   }, [assistantIdFilter, groupedTopics, isRightPanel])
+  // Time mode only: "Earlier" above a list with nothing newer restates the list itself.
+  const topicGroupByForDisplay = useMemo(
+    () =>
+      displayMode === 'time'
+        ? withSoleGroupLabelHidden<Topic>(topicGroupBy, filteredTopics, { ignoreGroupIds: [TOPIC_PINNED_GROUP_ID] })
+        : topicGroupBy,
+    [displayMode, filteredTopics, topicGroupBy]
+  )
   const assistantIdsWithTopics = useMemo(() => {
     const assistantIds = new Set<string>()
 
@@ -802,9 +827,7 @@ export function Topics({
         ? 'empty'
         : 'idle'
   const dragReady = isAssistantDisplayMode && isFullyLoaded && !isLoadingAll && !isRefreshing
-  const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
-  const hasActiveCenterSurface = hasActiveResourceMenuItem || historyRecordsActive
-  const manageAssistantsMenuItem = resourceMenuItems?.find((item) => item.id === 'assistant-resource-view')
+  const hasActiveCenterSurface = manageAssistantsActive || historyRecordsActive
   const openAssistantEditor = useCallback((assistantId: string) => {
     setEditDialogTarget({ kind: 'assistant', id: assistantId })
   }, [])
@@ -863,10 +886,18 @@ export function Topics({
           topicsRef.current.filter((topic) => topic.assistantId === assistantId).map((topic) => topic.id)
         )
         if (latestTargetTopicIds.size === 0) return
+        const activeTopicId = activeTopicIdRef.current
+        const deletedActiveTopicId = latestTargetTopicIds.has(activeTopicId) ? activeTopicId : null
+        const replacement = deletedActiveTopicId
+          ? findLatestActive(topicsRef.current.filter((topic) => !latestTargetTopicIds.has(topic.id)))
+          : undefined
 
         const result = await deleteTopicsByAssistantId(assistantId)
         await refreshTopics()
-        await onCreateTopicAfterClear?.({ assistantId })
+        if (deletedActiveTopicId && activeTopicIdRef.current === deletedActiveTopicId) {
+          if (replacement) setActiveTopic(replacement)
+          else clearActiveTopic()
+        }
         toast.success(t('chat.topics.manage.delete.success', { count: result.deletedCount }))
       } catch (err) {
         logger.error('Failed to delete assistant topics', { assistantId, err })
@@ -876,7 +907,7 @@ export function Topics({
         setDeletingAssistantGroupId(null)
       }
     },
-    [deleteTopicsByAssistantId, onCreateTopicAfterClear, refreshTopics, t]
+    [clearActiveTopic, deleteTopicsByAssistantId, refreshTopics, setActiveTopic, t]
   )
 
   const handleDeleteAssistant = useCallback(
@@ -973,7 +1004,7 @@ export function Topics({
                 event.stopPropagation()
                 void onNewTopic?.({ assistantId: assistantGroupId })
               }}>
-              <SquarePen className="block" />
+              <NewConversationIcon className="block" />
             </ResourceList.GroupHeaderActionButton>
           </Tooltip>
         </>
@@ -1057,7 +1088,7 @@ export function Topics({
         if (assistantIconType === 'none') return undefined
 
         return (
-          <span className="flex size-6 items-center justify-center rounded-full bg-sidebar-accent text-muted-foreground">
+          <span className="flex size-6 items-center justify-center rounded-full bg-background-subtle text-muted-foreground">
             <Unlink aria-hidden="true" />
           </span>
         )
@@ -1075,6 +1106,16 @@ export function Topics({
     },
     [assistantById, assistantIconType, defaultModelId, isAssistantDisplayMode]
   )
+  // See Sessions: assistants are entities; pinned, time and unlinked groups only gather rows, so
+  // they use the recessed bucket voice while staying on the shared row rhythm.
+  const getGroupHeaderKind = useCallback((group: { id: string }): ResourceListGroupHeaderKind => {
+    return group.id === TOPIC_UNLINKED_ASSISTANT_GROUP_ID ||
+      group.id === TOPIC_PINNED_GROUP_ID ||
+      group.id.startsWith('topic:time:')
+      ? 'bucket'
+      : 'entity'
+  }, [])
+
   const getGroupHeaderTooltip = useCallback(
     (group: { id: string }) =>
       group.id === TOPIC_UNLINKED_ASSISTANT_GROUP_ID ? t('chat.topics.group.unknown_assistant_tip') : undefined,
@@ -1294,9 +1335,8 @@ export function Topics({
       const assistantChanged = targetAssistantId !== currentAssistantId
 
       try {
-        // `moveTopic` owns the cache orchestration: the open conversation follows to the new
-        // assistant immediately (via `/topics/:id`), and the combined revalidation is deferred
-        // until after both writes so the optimistic overlay clears once, at the final position.
+        // `moveTopic` owns the atomic write and cache orchestration so the open conversation
+        // follows the new assistant and the optimistic overlay settles at the final position.
         await moveTopic(payload.activeId, {
           assistantId: assistantChanged ? targetAssistantId : undefined,
           anchor
@@ -1324,12 +1364,13 @@ export function Topics({
   return (
     <>
       <TopicResourceList<Topic>
-        key={isRightPanel ? `topic-resource-panel:${assistantIdFilter ?? 'blank'}` : 'topic-resource-sidebar'}
-        className={cn(isRightPanel && 'h-full min-h-0 border-r-0')}
+        key={isRightPanel ? `topic-resource-panel:${assistantIdFilter ?? 'blank'}` : 'topic-resource-left-panel'}
+        presentation={presentation}
         items={visibleFilteredTopics}
         status={listStatus}
         selectedId={hasActiveCenterSurface ? null : activeTopic?.id}
-        groupBy={topicGroupBy}
+        groupBy={topicGroupByForDisplay}
+        groupSeeds={topicGroupSeeds}
         sectionBy={topicSectionBy}
         collapsedState={collapsedTopicState}
         revealRequest={revealRequest}
@@ -1340,6 +1381,7 @@ export function Topics({
         getGroupHeaderIcon={getGroupHeaderIcon}
         getGroupHeaderTooltip={getGroupHeaderTooltip}
         isGroupHeaderIconVisible={isGroupHeaderIconVisible}
+        getGroupHeaderKind={getGroupHeaderKind}
         groupHeaderClickBehavior={getGroupHeaderClickBehavior}
         dragCapabilities={{
           groups: dragReady,
@@ -1351,19 +1393,18 @@ export function Topics({
         canDropGroup={canDropTopicGroup}
         canDragItem={canDragTopicItem}
         canDropItem={canDropTopicItem}
+        groupEmptyLabel={t('chat.topics.empty.title')}
         groupShowMoreLabel={isRightPanel ? undefined : t('chat.topics.group.show_more')}
         groupCollapseLabel={isRightPanel ? undefined : t('chat.topics.group.collapse')}
         onRenameItem={handleRenameTopic}
         onGroupHeaderSelectItem={handleGroupHeaderSelectTopic}
         onReorder={handleTopicReorder}
         onCollapsedStateChange={handleTopicCollapsedStateChange}>
-        <ResourceList.Header className={cn('gap-1', isRightPanel && 'pb-1')}>
+        <ResourceList.Header>
           {isRightPanel ? (
             <ResourceList.Search
               aria-label={t('chat.topics.search.title')}
-              className={RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS}
               placeholder={t('chat.topics.search.placeholder')}
-              wrapperClassName="pt-1"
             />
           ) : showHeaderCreateItem && isAssistantDisplayMode ? (
             <ResourceList.HeaderItem
@@ -1376,10 +1417,10 @@ export function Topics({
               actions={
                 <TopicListOptionsMenu
                   historyRecordsActive={historyRecordsActive}
-                  manageAssistantsActive={manageAssistantsMenuItem?.active}
+                  manageAssistantsActive={manageAssistantsActive}
                   mode={displayMode}
                   onChange={handleTopicDisplayModeChange}
-                  onManageAssistants={manageAssistantsMenuItem?.onSelect}
+                  onManageAssistants={onManageAssistants}
                   onOpenHistoryRecords={onOpenHistoryRecords}
                   sectionIds={topicAssistantSectionIds}
                 />
@@ -1391,16 +1432,16 @@ export function Topics({
               type="button"
               command="topic.create"
               aria-label={headerCreateLabel}
-              icon={<SquarePen />}
+              icon={<NewConversationIcon />}
               label={headerCreateLabel}
               onClick={handleHeaderCreate}
               actions={
                 <TopicListOptionsMenu
                   historyRecordsActive={historyRecordsActive}
-                  manageAssistantsActive={manageAssistantsMenuItem?.active}
+                  manageAssistantsActive={manageAssistantsActive}
                   mode={displayMode}
                   onChange={handleTopicDisplayModeChange}
-                  onManageAssistants={manageAssistantsMenuItem?.onSelect}
+                  onManageAssistants={onManageAssistants}
                   onOpenHistoryRecords={onOpenHistoryRecords}
                 />
               }
@@ -1408,10 +1449,10 @@ export function Topics({
           ) : (
             <TopicListOptionsMenu
               historyRecordsActive={historyRecordsActive}
-              manageAssistantsActive={manageAssistantsMenuItem?.active}
+              manageAssistantsActive={manageAssistantsActive}
               mode={displayMode}
               onChange={handleTopicDisplayModeChange}
-              onManageAssistants={manageAssistantsMenuItem?.onSelect}
+              onManageAssistants={onManageAssistants}
               onOpenHistoryRecords={onOpenHistoryRecords}
               sectionIds={isAssistantDisplayMode ? topicAssistantSectionIds : undefined}
             />
@@ -1428,7 +1469,6 @@ export function Topics({
           exportMenuOptions={exportMenuOptions as TopicExportMenuOptions}
           isNewlyRenamed={isNewlyRenamed}
           isRenaming={isRenaming}
-          isRightPanel={isRightPanel}
           listRef={listRef}
           notesPath={notesPath}
           onAutoRename={handleAutoRename}
@@ -1526,7 +1566,6 @@ interface TopicListBodyProps {
   exportMenuOptions: TopicExportMenuOptions
   isNewlyRenamed: (topicId: string) => boolean
   isRenaming: (topicId: string) => boolean
-  isRightPanel: boolean
   listRef: RefObject<HTMLDivElement | null>
   notesPath: string
   onAutoRename: (topic: Topic) => Promise<void>
@@ -1546,7 +1585,7 @@ interface TopicListBodyProps {
   variant: TopicListBodyVariant
 }
 
-type TopicRowSharedProps = Omit<TopicListBodyProps, 'activeTopic' | 'isRightPanel' | 'listRef' | 'variant'>
+type TopicRowSharedProps = Omit<TopicListBodyProps, 'activeTopic' | 'listRef' | 'variant'>
 
 function TopicListBody(props: TopicListBodyProps) {
   const { t } = useTranslation()
@@ -1558,7 +1597,6 @@ function TopicListBody(props: TopicListBodyProps) {
     exportMenuOptions,
     isNewlyRenamed,
     isRenaming,
-    isRightPanel,
     listRef,
     notesPath,
     onAutoRename,
@@ -1637,7 +1675,6 @@ function TopicListBody(props: TopicListBodyProps) {
     <ResourceList.Body<Topic>
       listRef={listRef}
       draggable={variant === 'draggable'}
-      virtualClassName={cn('pt-0', isRightPanel ? 'pb-8' : 'pb-3')}
       errorFallback={<ResourceList.ErrorState message={t('error.boundary.default.message')} />}
       emptyFallback={
         <div className="mx-auto flex h-full w-full max-w-sm items-center justify-center break-words px-5 py-10 text-center text-muted-foreground text-xs">
@@ -1704,8 +1741,16 @@ const TopicRow = memo(function TopicRow({
   // selected row too — only the completion dot (green) is a read-receipt that
   // clears once the row is opened (`!isActive`). Awaiting approval is shown as
   // a badge instead of a spinner because the turn needs user action.
-  const hasTopicStreamIndicator =
-    (isTopicStreamPending || isTopicStreamErrored || (!isActive && isTopicStreamFulfilled)) && !isTopicAwaitingApproval
+  const conversationRowStatus = isTopicAwaitingApproval
+    ? 'approval'
+    : isTopicStreamPending
+      ? 'pending'
+      : isTopicStreamErrored
+        ? 'error'
+        : !isActive && isTopicStreamFulfilled
+          ? 'done'
+          : null
+  const hasTopicStreamIndicator = conversationRowStatus !== null && conversationRowStatus !== 'approval'
   const showPinAction = !rowState.renaming
   const showLeadingSlot = displayMode !== 'time' && !topic.pinned
   const isConfirmingDeletion = deletingTopicId === topic.id
@@ -1756,17 +1801,15 @@ const TopicRow = memo(function TopicRow({
       />
       {!rowState.renaming && (
         <ResourceList.ItemTitle
+          fade
           title={topicName}
           className={cn(
-            'text-foreground dark:text-muted-foreground dark:group-data-[selected=true]:text-foreground dark:group-focus-visible:text-foreground dark:group-hover:text-foreground',
             nameAnimationClassName,
-            RESOURCE_LIST_TITLE_FADE_CLASS,
-            RESOURCE_LIST_TITLE_FADE_YIELD_CLASS,
             // The stream indicator is an absolute overlay (keeps no flex space),
             // so the title needs a standing yield for its dot zone; on hover the
-            // overlay fades out and the actions (pin + delete) take over via
-            // RESOURCE_LIST_TITLE_FADE_YIELD_CLASS's larger hover margin.
-            hasTopicStreamIndicator && 'mr-7'
+            // overlay fades out, the standing yield closes, and the in-flow action rail expands.
+            // The draft indicator needs no yield — it stays in flow and reserves its own space.
+            hasTopicStreamIndicator && CONVERSATION_ROW_STATUS_TITLE_CLASS
           )}
           onDoubleClick={(event) => {
             event.stopPropagation()
@@ -1775,18 +1818,12 @@ const TopicRow = memo(function TopicRow({
           {topicName}
         </ResourceList.ItemTitle>
       )}
-      {!rowState.renaming && isTopicAwaitingApproval && (
-        <span
-          data-testid="topic-awaiting-approval-badge"
-          className="pointer-events-none max-w-28 shrink-0 truncate rounded-full border border-warning-border bg-warning-subtle px-1.5 font-medium text-[10px] text-warning-subtle-foreground leading-4 transition-[max-width,padding,opacity] duration-150 group-hover:max-w-0 group-hover:px-0 group-hover:opacity-0 group-has-[[data-resource-list-item-actions]:focus-within]:max-w-0 group-has-[[data-resource-list-item-actions][data-active=true]]:max-w-0 group-has-[[data-resource-list-item-actions]:focus-within]:px-0 group-has-[[data-resource-list-item-actions][data-active=true]]:px-0 group-has-[[data-resource-list-item-actions]:focus-within]:opacity-0 group-has-[[data-resource-list-item-actions][data-active=true]]:opacity-0">
-          {t('agent.toolPermission.pendingBadge')}
-        </span>
-      )}
-      {hasTopicStreamIndicator && (
-        <TopicStreamIndicator
-          isErrored={isTopicStreamErrored}
-          isFulfilled={isTopicStreamFulfilled}
-          isPending={isTopicStreamPending}
+      {!rowState.renaming && (
+        <TopicTrailingStatus
+          topicId={topic.id}
+          draftLabel={t('chat.topics.draft')}
+          isActive={isActive}
+          status={conversationRowStatus}
         />
       )}
       <ResourceList.ItemActions active={isConfirmingDeletion}>
@@ -1799,7 +1836,7 @@ const TopicRow = memo(function TopicRow({
                 event.stopPropagation()
                 void onPinTopic(topic)
               }}>
-              <PinIcon size={13} className={cn('size-3.25!', topic.pinned && '-rotate-45')} />
+              <PinIcon size={14} className={cn('size-3.5!', topic.pinned && 'fill-current')} />
             </ResourceList.ItemAction>
           </Tooltip>
         )}
@@ -1844,44 +1881,49 @@ const TopicRow = memo(function TopicRow({
   )
 })
 
-const TopicStreamIndicator = ({
-  isErrored,
-  isFulfilled,
-  isPending
+const TOPIC_DRAFT_INDICATOR_CLASS =
+  'pointer-events-none flex size-5 max-w-5 shrink-0 items-center justify-center overflow-hidden opacity-100 transition-[margin,max-width,opacity] duration-150 group-hover:-ml-1.5 group-hover:max-w-0 group-hover:opacity-0 group-has-[[data-resource-list-item-actions]:focus-within]:-ml-1.5 group-has-[[data-resource-list-item-actions][data-active=true]]:-ml-1.5 group-has-[[data-resource-list-item-actions]:focus-within]:max-w-0 group-has-[[data-resource-list-item-actions][data-active=true]]:max-w-0 group-has-[[data-resource-list-item-actions]:focus-within]:opacity-0 group-has-[[data-resource-list-item-actions][data-active=true]]:opacity-0'
+
+const TopicTrailingStatus = ({
+  topicId,
+  draftLabel,
+  isActive,
+  status
 }: {
-  isErrored: boolean
-  isFulfilled: boolean
-  isPending: boolean
+  topicId: string
+  draftLabel: string
+  isActive: boolean
+  status: ConversationRowStatusValue | null
 }) => {
-  const { t } = useTranslation()
+  if (status) {
+    return (
+      <ConversationRowStatus
+        status={status}
+        testId={status === 'approval' ? 'topic-awaiting-approval-badge' : 'topic-stream-indicator'}
+      />
+    )
+  }
 
-  if (!isPending && !isFulfilled && !isErrored) return null
+  // The active row's draft is the text visible in the composer right below it,
+  // so flagging it as unsent tells the user nothing.
+  if (isActive) return null
 
-  const statusLabel = isPending
-    ? t('message.tools.status.running')
-    : isErrored
-      ? t('message.tools.status.error')
-      : t('message.tools.status.done')
+  // The draft subscriber mounts only in the lowest-priority branch. Virtualized
+  // rows that are offscreen, or rows showing a higher-priority status, subscribe
+  // to no draft key at all.
+  return <TopicDraftIndicator topicId={topicId} label={draftLabel} />
+}
+
+const TopicDraftIndicator = ({ topicId, label }: { topicId: string; label: string }) => {
+  const subscribe = useCallback((listener: () => void) => subscribeChatDraftCache(topicId, listener), [topicId])
+  const getSnapshot = useCallback(() => readChatDraftPresence(topicId), [topicId])
+  const hasDraft = useSyncExternalStore(subscribe, getSnapshot, () => false)
+
+  if (!hasDraft) return null
 
   return (
-    // Absolute overlay at the actions' resting spot: it fades out on hover /
-    // focus / delete-confirm so the pin + delete buttons take its place (the
-    // dot/spinner and the actions are mutually exclusive, never side by side).
-    <span
-      aria-label={statusLabel}
-      className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-1.5 flex size-5 shrink-0 items-center justify-center opacity-100 transition-opacity duration-150 group-hover:opacity-0 group-has-[[data-resource-list-item-actions]:focus-within]:opacity-0 group-has-[[data-resource-list-item-actions][data-active=true]]:opacity-0"
-      data-testid="topic-stream-indicator"
-      role="img">
-      {isPending ? (
-        // A spinner reads as "running", where the old pulsing amber dot looked
-        // like a warning. Error uses a distinct icon instead of relying on
-        // red/green color alone; completion remains a green read-receipt dot.
-        <Loader2 aria-hidden="true" className="size-3 animate-spin text-foreground-tertiary" />
-      ) : isErrored ? (
-        <CircleAlert aria-hidden="true" className="size-3 text-error" />
-      ) : (
-        <span aria-hidden="true" className="size-1.25 rounded-full bg-success" />
-      )}
+    <span aria-label={label} className={TOPIC_DRAFT_INDICATOR_CLASS} role="img">
+      <FilePenLine aria-hidden="true" className="size-3 text-foreground-tertiary" />
     </span>
   )
 }

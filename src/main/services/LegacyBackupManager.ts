@@ -30,6 +30,7 @@ import { type AtomicWriteStream, createAtomicWriteStream } from '@main/utils/fil
 import { IdleTimeoutController } from '@main/utils/IdleTimeoutController'
 import { isPathInside, resolveAndValidatePath } from '@main/utils/legacyFile'
 import { getDeviceType, getHostname } from '@main/utils/system'
+import { assertZipEntriesWithin } from '@main/utils/zipSafety'
 import { IpcChannel } from '@shared/IpcChannel'
 import {
   BACKUP_ACTIVE_WRITERS_ERROR_CODE,
@@ -59,6 +60,15 @@ const STALE_TEMP_ARTIFACT_AGE_MS = 24 * 60 * 60 * 1000
 const BACKUP_OPERATION_DIR_PATTERN =
   /^(?:create|lan-create|extract|webdav-download|s3-download)-[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i
 const BACKUP_TEMP_ARCHIVE_PATTERN = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}-.+\.zip$/i
+const WINDOWS_UV_EBUSY_ERRNO = -4082
+
+const isSkippableLevelDbLockError = (sourcePath: string, error: unknown): error is NodeJS.ErrnoException => {
+  const parentDirectory = path.basename(path.dirname(sourcePath)).toLowerCase()
+  const isLevelDbDirectory = parentDirectory === 'leveldb' || parentDirectory.endsWith('.leveldb')
+  if (path.basename(sourcePath) !== 'LOCK' || !isLevelDbDirectory || !(error instanceof Error)) return false
+  const nodeError = error as NodeJS.ErrnoException
+  return nodeError.code === 'EBUSY' || nodeError.errno === WINDOWS_UV_EBUSY_ERRNO
+}
 
 interface DirectBackupMetadata {
   version: number
@@ -315,16 +325,19 @@ class BackupManager {
 
         const aiStreamManager = application.get('AiStreamManager')
         const agentSessionRuntime = application.get('AgentSessionRuntimeService')
+        const agentSessionDelivery = application.get('AgentSessionDeliveryService')
         const jobManager = application.get('JobManager')
         const writerHolds: Array<{ dispose(): void }> = []
         try {
           writerHolds.push(aiStreamManager.pause(quiesceReason))
           writerHolds.push(agentSessionRuntime.pause(quiesceReason))
+          writerHolds.push(agentSessionDelivery.pause(quiesceReason))
           writerHolds.push(jobManager.pause(quiesceReason))
 
           const writerVerdicts = await Promise.all([
             aiStreamManager.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
             agentSessionRuntime.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
+            agentSessionDelivery.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
             jobManager.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS })
           ])
           signal?.throwIfAborted()
@@ -859,6 +872,7 @@ class BackupManager {
       const zip = new StreamZip.async({ file: backupPath })
       try {
         onProgress({ stage: 'extracting', progress: 15, total: 100 })
+        assertZipEntriesWithin(Object.keys(await zip.entries()), extractionDir)
         await zip.extract(null, extractionDir)
       } finally {
         await zip.close()
@@ -1435,7 +1449,8 @@ class BackupManager {
   private assertNoActiveDataWriters(): void {
     if (
       application.get('AiStreamManager').hasLiveStreams() ||
-      application.get('AgentSessionRuntimeService').hasBusySessions()
+      application.get('AgentSessionRuntimeService').hasBusySessions() ||
+      application.get('AgentSessionDeliveryService').listActiveWork().length > 0
     ) {
       throw new Error(
         `${BACKUP_ACTIVE_WRITERS_ERROR_CODE}: A conversation is still running. Wait for it to finish, then retry the backup or restore.`
@@ -1729,13 +1744,32 @@ class BackupManager {
                 })
                 await fs.chmod(destPath, entry.stats.mode)
               } catch (error) {
-                await fs.remove(destPath).catch(() => {})
+                try {
+                  await fs.remove(destPath)
+                } catch {
+                  throw error
+                }
+                if (isSkippableLevelDbLockError(sourcePath, error)) {
+                  logger.warn('[BackupManager] Skipping locked file', { path: sourcePath })
+                  continue
+                }
                 throw error
               }
             } else if (entry.isSymlink) {
               await fs.copy(sourcePath, destPath, { dereference: true })
             } else {
-              await fs.copy(sourcePath, destPath)
+              try {
+                await fs.copy(sourcePath, destPath)
+              } catch (copyError) {
+                // Skip files that are locked by another process (e.g., LevelDB LOCK file
+                // in Local Storage held by the renderer). These files are not needed for
+                // backup integrity and will be recreated on restore if needed.
+                if (isSkippableLevelDbLockError(sourcePath, copyError)) {
+                  logger.warn('[BackupManager] Skipping locked file', { path: sourcePath })
+                  continue
+                }
+                throw copyError
+              }
             }
             onProgress(entry.stats.size)
           } else if (entry.isSymlink) {

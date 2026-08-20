@@ -13,6 +13,7 @@ import {
   RightPanelShortcut,
   RightPanelViewport,
   useRightPanelActions,
+  useRightPanelPresentationMaximized,
   useRightPanelState
 } from '../RightPanel'
 
@@ -148,10 +149,12 @@ const readyScope: TestScope = {
 function ControllerProbe() {
   const state = useRightPanelState()
   const actions = useRightPanelActions()
+  const presentationMaximized = useRightPanelPresentationMaximized()
   return (
     <>
       <output data-testid="active-panel">{state.activePanelId ?? ''}</output>
       <output data-testid="presentation-open">{String(state.presentationOpen)}</output>
+      <output data-testid="presentation-maximized">{String(presentationMaximized)}</output>
       <button type="button" onClick={() => actions.tryOpen('first')}>
         open first
       </button>
@@ -331,13 +334,16 @@ describe('RightPanel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
     expect(screen.getByTestId('right-pane-host')).toHaveAttribute('data-maximized', 'true')
+    expect(screen.getByTestId('presentation-maximized')).toHaveTextContent('true')
     expect(screen.getByRole('button', { name: 'common.minimize' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'open second' }))
+    expect(screen.getByTestId('presentation-maximized')).toHaveTextContent('true')
     expect(screen.getByRole('button', { name: 'common.minimize' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'common.minimize' }))
     expect(screen.getByTestId('right-pane-host')).toHaveAttribute('data-maximized', 'false')
+    expect(screen.getByTestId('presentation-maximized')).toHaveTextContent('false')
     expect(screen.queryByRole('button', { name: 'common.maximize' })).toBeNull()
   })
 

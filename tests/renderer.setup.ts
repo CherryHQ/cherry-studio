@@ -189,6 +189,7 @@ vi.mock('@cherrystudio/ui', () => {
     useMarkdownBlockContext: () => ({ content: '' }),
     createSlugger: () => ({ slug: (value) => String(value ?? '') }),
     extractTextFromNode: () => '',
+    BlurCancelPointerSensor: class BlurCancelPointerSensor {},
     ReorderableList: ({ items, renderItem, getId }) =>
       React.createElement(
         React.Fragment,
@@ -546,8 +547,14 @@ vi.mock('@cherrystudio/ui', () => {
       React.createElement('img', { ...props, alt: alt ?? item?.alt, src: item?.src }),
     Dialog: ({ children, onOpenChange: _onOpenChange, open, ...props }) =>
       open ? React.createElement('div', { ...props, role: 'dialog', 'data-testid': 'dialog' }, children) : null,
-    DialogContent: ({ children, closeOnOverlayClick: _closeOnOverlayClick, size, ...props }) =>
-      React.createElement('div', { ...props, 'data-size': size, 'data-testid': 'dialog-content' }, children),
+    DialogContent: ({
+      children,
+      closeOnOverlayClick: _closeOnOverlayClick,
+      onEscapeKeyDown: _onEscapeKeyDown,
+      showCloseButton: _showCloseButton,
+      size,
+      ...props
+    }) => React.createElement('div', { ...props, 'data-size': size, 'data-testid': 'dialog-content' }, children),
     DialogHeader: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'dialog-header' }, children),
     DialogTitle: ({ children, ...props }) =>
@@ -909,12 +916,23 @@ vi.mock('@cherrystudio/ui', () => {
     TextBadge: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'text-badge' }, children),
     Badge: ({ children, ...props }) => React.createElement('span', { ...props, 'data-testid': 'badge' }, children),
-    EmptyState: ({ title, description, actionLabel, onAction, secondaryLabel, onSecondary, ...props }) =>
+    EmptyState: ({
+      children,
+      title,
+      description,
+      actionLabel,
+      onAction,
+      secondaryLabel,
+      onSecondary,
+      preset,
+      ...props
+    }) =>
       React.createElement(
         'div',
-        { ...props, 'data-testid': 'empty-state' },
+        { ...props, 'data-testid': 'empty-state', 'data-preset': preset },
         title ? React.createElement('div', {}, title) : null,
         description ? React.createElement('div', {}, description) : null,
+        children,
         actionLabel && onAction
           ? React.createElement('button', { type: 'button', onClick: onAction }, actionLabel)
           : null,
@@ -943,14 +961,6 @@ vi.mock('@cherrystudio/ui', () => {
           onChange?.(event.target.value === '' ? null : event.target.valueAsNumber)
       }),
     Skeleton: ({ children, ...props }) => React.createElement('div', { ...props, 'data-testid': 'skeleton' }, children),
-    EmptyState: ({ children, title, description, preset, ...props }) =>
-      React.createElement(
-        'div',
-        { ...props, 'data-testid': 'empty-state', 'data-preset': preset },
-        title ? React.createElement('div', {}, title) : null,
-        description ? React.createElement('div', {}, description) : null,
-        children
-      ),
     HelpTooltip: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'help-tooltip' }, children),
     InfoTooltip: ({ children, ...props }) =>
@@ -987,6 +997,13 @@ vi.mock('@cherrystudio/ui', () => {
         onChange: (e) => onCheckedChange?.(e.target.checked),
         'data-testid': 'switch'
       }),
+    // Tabs primitives — flattened: every panel renders, so tests query content without switching
+    Tabs: ({ children, ...props }) => React.createElement('div', { ...props, 'data-testid': 'tabs' }, children),
+    TabsList: ({ children, ...props }) => React.createElement('div', { ...props, role: 'tablist' }, children),
+    TabsTrigger: ({ children, value, ...props }) =>
+      React.createElement('button', { ...props, role: 'tab', type: 'button', 'data-value': value }, children),
+    TabsContent: ({ children, value, ...props }) =>
+      React.createElement('div', { ...props, role: 'tabpanel', 'data-value': value }, children),
     // Popover primitives — Radix-style trigger / content split
     Popover: ({ children, ...props }) => React.createElement('div', { ...props, 'data-testid': 'popover' }, children),
     PopoverTrigger: ({ children, ...props }) =>
@@ -1012,7 +1029,6 @@ vi.mock('@cherrystudio/ui', () => {
     Skeleton: ({ children, ...props }) => React.createElement('div', { ...props, 'data-testid': 'skeleton' }, children),
     // Icon registry stubs
     PROVIDER_ICON_CATALOG: {},
-    MODEL_ICON_CATALOG: {},
     resolveProviderIcon: () => undefined,
     resolveModelIcon: () => undefined,
     resolveModelToProviderIcon: () => undefined,

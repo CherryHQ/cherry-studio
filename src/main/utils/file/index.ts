@@ -4,7 +4,7 @@
  * ## Layout
  *
  * This topic holds the main-process FS/path primitives, each reached through
- * this single barrel (naming-conventions.md §6.4 / main-process-architecture.md
+ * this single barrel (naming-conventions.md §6.4 / architecture/main-process.md
  * §2.1) — consumers import `from '@main/utils/file'`, never a sub-path:
  *
  * - `./fs` — raw file IO (`read`, `write`, `atomicWriteFile`, `stat`, `copy`,
@@ -66,6 +66,7 @@ export {
   lstat,
   mkdir,
   move,
+  openReadableFileSnapshot,
   type PathReadability,
   PathStaleVersionError,
   type PathVersion,
@@ -76,6 +77,7 @@ export {
   type PreparedAtomicWriteState,
   probeReadable,
   read,
+  type ReadableFileSnapshot,
   readChunk,
   realpath,
   remove,

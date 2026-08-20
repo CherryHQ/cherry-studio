@@ -18,6 +18,7 @@ const { platformState, prefValues, applicationMock, windowManagerMock, loggerMoc
     }
     const windowManagerMock = {
       getWindow: vi.fn(),
+      getWindowId: vi.fn(),
       // Mirrors the real shape: runtime behavior setters live on `wm.behavior`
       // (see BehaviorController in src/main/core/window/behavior.ts).
       behavior: {
@@ -137,6 +138,7 @@ interface MockBrowserWindow extends EventEmitter {
   isMinimized: ReturnType<typeof vi.fn>
   isVisible: ReturnType<typeof vi.fn>
   isFocused: ReturnType<typeof vi.fn>
+  close: ReturnType<typeof vi.fn>
   hide: ReturnType<typeof vi.fn>
   show: ReturnType<typeof vi.fn>
   focus: ReturnType<typeof vi.fn>
@@ -146,6 +148,7 @@ interface MockBrowserWindow extends EventEmitter {
   setFullScreen: ReturnType<typeof vi.fn>
   webContents: {
     reload: ReturnType<typeof vi.fn>
+    setZoomFactor: ReturnType<typeof vi.fn>
     on: ReturnType<typeof vi.fn>
     setWindowOpenHandler: ReturnType<typeof vi.fn>
   }
@@ -158,6 +161,7 @@ function createMockWindow(): MockBrowserWindow {
   win.isMinimized = vi.fn(() => false)
   win.isVisible = vi.fn(() => true)
   win.isFocused = vi.fn(() => true)
+  win.close = vi.fn()
   win.hide = vi.fn()
   win.show = vi.fn()
   win.focus = vi.fn()
@@ -167,6 +171,7 @@ function createMockWindow(): MockBrowserWindow {
   win.setFullScreen = vi.fn()
   win.webContents = {
     reload: vi.fn(),
+    setZoomFactor: vi.fn(),
     // capture render-process-gone listener for crash-recovery tests
     on: vi.fn(),
     setWindowOpenHandler: vi.fn()
@@ -210,6 +215,7 @@ describe('MainWindowService', () => {
     applicationMock.quit.mockReset()
     applicationMock.forceExit.mockReset()
     windowManagerMock.behavior.setMacShowInDockByType.mockReset()
+    windowManagerMock.getWindowId.mockReset()
     windowManagerMock.open.mockClear()
     windowManagerMock.pushInitDataToType.mockClear()
     loggerMock.error.mockReset()
@@ -464,6 +470,24 @@ describe('MainWindowService', () => {
     })
   })
 
+  describe('requestClose', () => {
+    it('starts the native close flow only for the current main window', () => {
+      ;(svc as any).mainWindow = win
+      windowManagerMock.getWindowId.mockReturnValue('main-window')
+
+      expect(svc.requestClose('main-window')).toBe(true)
+      expect(win.close).toHaveBeenCalledOnce()
+    })
+
+    it('leaves non-main close requests to their lifecycle owner', () => {
+      ;(svc as any).mainWindow = win
+      windowManagerMock.getWindowId.mockReturnValue('main-window')
+
+      expect(svc.requestClose('sub-window')).toBe(false)
+      expect(win.close).not.toHaveBeenCalled()
+    })
+  })
+
   describe('toggleMainWindow', () => {
     it('hides a focused visible main window even when tray-close is disabled', () => {
       ;(svc as any).mainWindow = win
@@ -520,6 +544,82 @@ describe('MainWindowService', () => {
         })
       )
       expect(windowManagerMock.pushInitDataToType).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('launch-to-tray initial show suppression', () => {
+    const dockShowMock = (app.dock as NonNullable<typeof app.dock>).show
+    const tabAttachInitData = {
+      kind: 'tab-attach' as const,
+      tab: { id: 'tab-1', type: 'route' as const, url: '/app/chat', title: 'Chat' },
+      requestId: 1
+    }
+
+    // Boot the service the way the lifecycle container does: onInit registers
+    // the window callbacks, onReady arms the launch-to-tray flag and creates
+    // the initial window. The mocked WindowManager does not replay created
+    // events, so tests drive the captured callbacks manually.
+    async function bootWith(onLaunch: boolean) {
+      prefValues['app.tray.on_launch'] = onLaunch
+      await (svc as any).onInit()
+      await (svc as any).onReady()
+      const created = (windowManagerMock.onWindowCreatedByType.mock.calls as any[])[0]?.[1]
+      const destroyed = (windowManagerMock.onWindowDestroyedByType.mock.calls as any[])[0]?.[1]
+      if (!created || !destroyed) throw new Error('window lifecycle callbacks not registered')
+      return { created, destroyed }
+    }
+
+    // Rebuild the main window the way showMainWindow does on cold start and
+    // replay the created callback so setupWindowEvents attaches `ready-to-show`.
+    function rebuildAndShow(svc: MainWindowService, created: (event: { window: MockBrowserWindow }) => void) {
+      ;(svc as any).mainWindow = null
+      svc.showMainWindow(tabAttachInitData)
+      const rebuilt = createMockWindow()
+      created({ window: rebuilt })
+      return rebuilt
+    }
+
+    it('hides the initial launch window ONCE when tray-on-launch is armed, then shows rebuilds', async () => {
+      platformState.isMac = true
+      const { created } = await bootWith(true)
+
+      // First window: created by onReady with launch-to-tray — stays hidden.
+      const initial = createMockWindow()
+      created({ window: initial })
+      initial.emit('ready-to-show')
+      expect(initial.show).not.toHaveBeenCalled()
+      expect(dockShowMock).not.toHaveBeenCalled()
+
+      // Runtime rebuild (tab attach cold path): must become visible even
+      // though app.tray.on_launch is still enabled.
+      const rebuilt = rebuildAndShow(svc, created)
+      rebuilt.emit('ready-to-show')
+      expect(rebuilt.show).toHaveBeenCalledTimes(1)
+      expect(dockShowMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('shows the initial window when tray-on-launch is disabled', async () => {
+      platformState.isMac = true
+      const { created } = await bootWith(false)
+
+      const initial = createMockWindow()
+      created({ window: initial })
+      initial.emit('ready-to-show')
+      expect(initial.show).toHaveBeenCalledTimes(1)
+    })
+
+    it('clears the flag when the initial window is destroyed before ready-to-show', async () => {
+      platformState.isMac = true
+      const { created, destroyed } = await bootWith(true)
+
+      // Initial window destroyed before it ever became ready — the armed flag
+      // must not survive into the next window's ready-to-show.
+      created({ window: createMockWindow() })
+      destroyed()
+
+      const rebuilt = rebuildAndShow(svc, created)
+      rebuilt.emit('ready-to-show')
+      expect(rebuilt.show).toHaveBeenCalledTimes(1)
     })
   })
 

@@ -507,7 +507,7 @@ Numbered list:
     })
 
     // A non-http URL is not linkable, so the marker must be a bare <sup>: an empty-href
-    // markdown link gets rewritten by rehype-harden into "<span>… [blocked]</span>".
+    // markdown link gets unwrapped by rehype-harden into a "<span>", losing the tooltip.
     it('should emit a bare sup (no link wrapper) when the URL is invalid', () => {
       const citation: Citation = {
         number: 2,

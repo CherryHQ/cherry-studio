@@ -3,12 +3,16 @@ import { loggerService } from '@logger'
 import { isMac } from '@main/core/platform'
 import { regionService } from '@main/services/RegionService'
 import { isSafeExternalUrl } from '@main/utils/externalUrlSafety'
+import {
+  getScreenCapturePermissionStatus,
+  openScreenCaptureSettings,
+  requestScreenCapturePermission
+} from '@main/utils/screenCapturePermission'
 import { getDeviceType } from '@main/utils/system'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import type { systemRequestSchemas } from '@shared/ipc/schemas/system'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 import { nativeTheme, shell, systemPreferences } from 'electron'
-import fontList from 'font-list'
 
 const logger = loggerService.withContext('systemHandlers')
 
@@ -21,6 +25,11 @@ const logger = loggerService.withContext('systemHandlers')
  * `false` off darwin — the legacy handlers were only registered inside `if (isMac)`, so a
  * non-darwin invoke used to reject; returning `false` keeps the typed surface uniform.
  * `request_process_trust` prompts the OS dialog and returns the trust state at call time.
+ *
+ * The three screen-recording routes are resident the same way — the screenshot module
+ * already answers 'authorized' and no-ops off darwin, so no branch is needed here.
+ * `request_screen_capture` returns the status re-read after prompting, which is the only
+ * way the caller can tell granted from denied from "the prompt never appeared".
  *
  * The `system.shell.*` routes delegate straight to Electron's `shell` and ignore
  * `IpcContext` (they act on app-level OS resources, not the caller's window). `open_website`
@@ -35,6 +44,7 @@ export const systemHandlers: IpcHandlersFor<typeof systemRequestSchemas> = {
   },
   'system.get_fonts': async () => {
     try {
+      const { default: fontList } = await import('font-list')
       const fonts = await fontList.getFonts()
       return fonts.map((font: string) => font.replace(/^"(.*)"$/, '$1')).filter((font: string) => font.length > 0)
     } catch (error) {
@@ -46,6 +56,11 @@ export const systemHandlers: IpcHandlersFor<typeof systemRequestSchemas> = {
   'system.mac.is_process_trusted': async () => (isMac ? systemPreferences.isTrustedAccessibilityClient(false) : false),
   'system.mac.request_process_trust': async () =>
     isMac ? systemPreferences.isTrustedAccessibilityClient(true) : false,
+  'system.mac.screen_capture_status': async () => getScreenCapturePermissionStatus(),
+  'system.mac.request_screen_capture': async () => requestScreenCapturePermission(),
+  'system.mac.open_screen_capture_settings': async () => {
+    openScreenCaptureSettings()
+  },
   'system.shell.open_path': async (path) => {
     await shell.openPath(path)
   },

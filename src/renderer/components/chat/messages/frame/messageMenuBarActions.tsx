@@ -9,12 +9,10 @@ import CopyIcon from '@renderer/components/icons/CopyIcon'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
 import EditIcon from '@renderer/components/icons/EditIcon'
 import RefreshIcon from '@renderer/components/icons/RefreshIcon'
-import { getMessageTitle, messageToMarkdown } from '@renderer/services/ExportService'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { messageToPlainText } from '@renderer/utils/export'
 import { captureScrollableAsBlob, captureScrollableAsDataUrl } from '@renderer/utils/image'
-import { removeTrailingDoubleSpaces } from '@renderer/utils/markdown'
+import { removeTrailingDoubleSpaces } from '@renderer/utils/markdownLight'
 import { createComposerRichClipboardContentFromParts } from '@renderer/utils/message/composerClipboard'
 import { getTranslationFromParts } from '@renderer/utils/message/partsHelpers'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -25,6 +23,7 @@ import {
   AtSign,
   Check,
   CirclePause,
+  CopyPlus,
   FilePenLine,
   Languages,
   ListChecks,
@@ -200,6 +199,11 @@ registerCommand('message.newBranch', async ({ actions, message, t }) => {
   actions.notifySuccess?.(t('chat.message.new.branch.created'))
 })
 
+registerCommand('message.copyToNewTopic', async ({ actions, message, t }) => {
+  await actions.copyBranchToNewTopic?.(message.id)
+  actions.notifySuccess?.(t('chat.message.flow.copy_topic.created'))
+})
+
 registerCommand('message.multiSelect', ({ actions }) => {
   actions.toggleMultiSelectMode?.(true)
 })
@@ -218,6 +222,7 @@ registerCommand('message.exportNotes', async ({ actions, messageForExport }) => 
 })
 
 registerCommand('message.copyPlainText', async ({ actions, messageForExport, t }) => {
+  const { messageToPlainText } = await import('@renderer/utils/export')
   await actions.copyText?.(messageToPlainText(messageForExport), {
     successMessage: t('message.copy.success')
   })
@@ -233,6 +238,7 @@ registerCommand('message.copyImage', async ({ actions, messageContainerRef }) =>
 
 registerCommand('message.exportImage', async ({ actions, messageContainerRef, messageForExport, t }) => {
   const imageData = await captureScrollableAsDataUrl(messageContainerRef)
+  const { getMessageTitle } = await import('@renderer/services/ExportService')
   const title = await getMessageTitle(messageForExport)
   if (!title || !imageData || !actions.saveImage) {
     actions.notifyError?.(t('message.error.unknown'))
@@ -256,6 +262,7 @@ registerCommand('message.exportMarkdownReason', async ({ actions, messageForExpo
 })
 
 registerCommand('message.exportWord', async ({ actions, messageForExport }) => {
+  const { getMessageTitle, messageToMarkdown } = await import('@renderer/services/ExportService')
   const markdown = await messageToMarkdown(messageForExport)
   const title = await getMessageTitle(messageForExport)
   await actions.exportToWord?.(markdown, title)
@@ -436,17 +443,21 @@ registerAction({
   group: 'write',
   order: 20,
   surface: 'menu',
-  availability: ({ actions, isAssistantMessage, isLastMessage, t }) => {
+  availability: ({ actions, isAssistantMessage }) => {
     if (!actions.startMessageBranch || !isAssistantMessage) return false
-    if (isLastMessage) {
-      return {
-        visible: true,
-        enabled: false,
-        reason: t('chat.message.new.branch.disabled.latest')
-      }
-    }
     return true
   }
+})
+
+registerAction({
+  id: 'copy-to-new-topic',
+  commandId: 'message.copyToNewTopic',
+  label: ({ t }) => t('chat.message.flow.copy_topic.label'),
+  icon: <CopyPlus size={15} />,
+  group: 'write',
+  order: 25,
+  surface: 'menu',
+  availability: ({ actions, isAssistantMessage }) => !!actions.copyBranchToNewTopic && isAssistantMessage
 })
 
 registerAction({

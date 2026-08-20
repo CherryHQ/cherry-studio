@@ -1,3 +1,10 @@
+---
+description: Unified aiSdk ToolEntry registry — built-in web/kb tools, MCP sync, meta-tools, and deferred exposition
+sources:
+  - src/main/ai/tools/adapters/aiSdk
+  - src/main/ai/tools/adapters/claudeCode/agentTools.ts
+---
+
 # Tool Registry
 
 ## Model
@@ -5,7 +12,8 @@
 ```ts
 interface ToolEntry {
   name: string         // wire-name, what the LLM emits in tool_calls
-  namespace: string    // grouping for `tool_search` (web, kb, mcp:<id>, meta)
+  namespace: string    // ownership key (web, kb, mcp:<serverId>, meta) — never shown to the model
+  namespaceLabel?: string // what `tool_search` groups by and shows; defaults to `namespace`
   description: string  // one-line summary for `tool_search`
   defer: 'never' | 'always' | 'auto'
   tool: Tool           // AI SDK Tool (schema + execute + needsApproval + toModelOutput)
@@ -14,11 +22,12 @@ interface ToolEntry {
 ```
 
 `registry` (`src/main/ai/tools/adapters/aiSdk/registry.ts`) is a
-process-wide singleton. Tool files register at module-import time; the
-registry is read at request time by `buildAgentParams`. The Claude Code
-runtime has a *separate* tool system — `tools/adapters/claudeCode/agentTools.ts`
-builds its descriptors from MCP servers and built-in descriptors directly;
-it does not consume this aiSdk `ToolRegistry`.
+process-wide singleton. `AiService.onInit()` calls the single
+`registerBuiltinTools()` entry point; request preparation later reads the
+registry through `buildAgentParams`. Agent-session runtimes build their own
+runtime-native tool surfaces. For example,
+`tools/adapters/claudeCode/agentTools.ts` combines Claude descriptors with MCP
+tools and does not consume this AI SDK `ToolRegistry`.
 
 Tests construct their own `new ToolRegistry()` to avoid singleton pollution.
 
@@ -30,29 +39,34 @@ unambiguous):
 | Source | Name pattern | Example |
 |---|---|---|
 | Built-in | fixed wire name (`<namespace>_<verb>`) | `web_search`, `kb_search` |
-| MCP | `mcp__<camelCase(server)>__<camelCase(tool)>` | `mcp__gmail__sendMessage` |
+| MCP (AI SDK) | `mcp__<server-slug>__<tool-slug>_<identity-digest>` | `mcp__gmail__sendMessage_a1b2c3d4e5f60718293a` |
 | Meta | `tool_<verb>` | `tool_search`, `tool_invoke`, `tool_inspect` (`tool_exec` is defined but not injected — see below) |
 
 The built-in wire names live in `@shared/ai/builtinTools` (single-underscore,
 e.g. `web_search`); they are not derived from a `__` segment convention like MCP.
+The AI SDK MCP digest is derived from the stable server id plus the original
+protocol tool name. The readable slugs romanize Han characters (`tiny-pinyin`)
+so CJK names still produce a meaningful segment; kana and Hangul do not
+romanize and fall back to `server` / `tool` plus the digest. Claude Code keeps
+its separate runtime naming contract.
 
 ## Built-in tools
 
-`src/main/ai/tools/adapters/aiSdk/builtin/` registers **four** entries:
+`src/main/ai/tools/adapters/aiSdk/builtin/` currently registers **eleven**
+entries:
 
-- `web_search` (`WebSearchTool.ts` → `createWebSearchToolEntry`) — namespace
-  `web`. Talks to the configured web-search provider via the
-  renderer-shared search service.
-- `web_fetch` (`WebFetchTool.ts` → `createWebFetchToolEntry`) — namespace
-  `web`. Fetches a URL's content.
-- `kb_search` (`KnowledgeSearchTool.ts`) — semantic search over the active
-  knowledge base.
-- `kb_list` (`KnowledgeListTool.ts`) — enumerate available knowledge bases /
-  documents.
+| Namespace | Tools | Current gate |
+|---|---|---|
+| `web` | `web_search`, `web_fetch` | Selected client-side web routes |
+| `kb` | `kb_list`, `kb_search`, `kb_read`, `kb_manage` | At least one in-scope knowledge base |
+| `file` | `read_file` | First-party conversation attachments exist |
+| `fs` | `fs_read` | Persisted/offloaded tool output can be read back |
+| `mcp_resource` | `mcp_resource_list`, `mcp_resource_read` | An in-scope MCP resource server exists |
+| `image` | `generate_image` | Assistant opt-in plus a configured painting model |
 
 Registration happens in `builtin/registerBuiltinTools.ts` (`registerBuiltinTools`). Each
-tool's `applies` gates on the relevant `assistant.settings.*` flag (e.g.
-`enableWebSearch`).
+tool's `applies` predicate gates it on the current request scope; the gate is
+not limited to assistant settings.
 
 ## MCP tools
 
@@ -60,14 +74,15 @@ tool's `applies` gates on the relevant `assistant.settings.*` flag (e.g.
 
 - `resolveAssistantMcpToolIds` — assistant's enabled MCP servers + per-tool
   disable list → set of tool ids.
-- `mcpTools.syncMcpToolsToRegistry({ selectedToolIds })` — reads each
-  selected server's tools from the catalog via `McpCatalogService.listTools`
-  (cache-only; see [Tool catalog reads](#tool-catalog-reads-never-block-on-mcp)),
-  registers each as a `ToolEntry` whose `tool.execute` proxies through
-  the MCP transport. **Scope:** only servers owning a selected tool are
-  synced. Because the read is last-known-good cache, a server is only evicted
-  from the registry when its cache is genuinely empty — a transient blip can no
-  longer drop a still-active server's tools.
+- `mcpTools.syncMcpToolsToRegistry({ selectedToolIds })` — scans active servers'
+  cache-only catalogs via `McpCatalogService.listTools`, matches full tool ids,
+  and registers only exact selections as `ToolEntry` objects whose
+  `tool.execute` proxies through the MCP transport. The scan stops early once
+  every selected id has been claimed. Ownership uses the stable
+  `namespace: mcp:<serverId>`; display names never determine it, and
+  `namespaceLabel: mcp:<serverName>` is what `tool_search` groups by and shows
+  the model. Because reads are last-known-good cache snapshots, a transient
+  catalog failure does not evict a still-active server's prior entries.
 
 The sync is idempotent; a stale entry is overwritten on the next sync.
 
@@ -148,6 +163,10 @@ deliberately leaves it out: its `worker_threads` + `new Function` sandbox
 runs model-authored code with full Node privileges, a privilege-escalation
 surface vs the renderer's prior restrictions. It is meant to be re-enabled
 behind an explicit Preference key once there is a concrete need.
+
+This statement is specific to the AI SDK registry. The Pi agent runtime has a
+separate, Pi-native `tool_search` / `tool_describe` / `tool_call` / `tool_exec` interface over its bridged MCP tools;
+see [Pi code mode](./agent-session-runtime.md#pi-code-mode).
 
 ## `applies` and tool-call repair
 
