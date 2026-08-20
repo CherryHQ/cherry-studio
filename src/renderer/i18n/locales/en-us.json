@@ -3382,6 +3382,11 @@
         },
         "generating": "Writing up a reply",
         "preparing": "Preparing response",
+        "stalled": {
+          "generic": "Agent appears stuck",
+          "no_progress": "No progress detected",
+          "tool": "Tool call taking longer than expected"
+        },
         "thinking": "Let me think this through",
         "usingTools": "Making progress"
       },

@@ -3382,6 +3382,11 @@
         },
         "generating": "我在整理回复",
         "preparing": "正在准备回复",
+        "stalled": {
+          "generic": "智能体似乎卡住了",
+          "no_progress": "未检测到进展",
+          "tool": "工具调用时间过长"
+        },
         "thinking": "让我认真想一想",
         "usingTools": "继续推进任务"
       },
