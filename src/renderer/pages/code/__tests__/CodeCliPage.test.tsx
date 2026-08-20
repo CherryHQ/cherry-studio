@@ -28,6 +28,7 @@ const {
   upgradeMock,
   removeMock,
   toastErrorMock,
+  popupConfirmMock,
   navigateMock,
   openSettingsTabMock,
   ipcRequestMock,
@@ -56,6 +57,7 @@ const {
   upgradeMock: vi.fn(),
   removeMock: vi.fn(),
   toastErrorMock: vi.fn(),
+  popupConfirmMock: vi.fn(),
   navigateMock: vi.fn(),
   openSettingsTabMock: vi.fn(),
   ipcRequestMock: vi.fn(),
@@ -217,6 +219,8 @@ vi.mock('@renderer/services/mainWindowNavigation', () => ({
 vi.mock('@renderer/services/toast', () => ({
   toast: { error: toastErrorMock }
 }))
+
+vi.mock('@renderer/services/popup', () => ({ popup: { confirm: popupConfirmMock } }))
 
 vi.mock('../cliConfig/claudeModels', () => ({
   getClaudeContextModelId: (providerId: string, config: Record<string, unknown>) => {
@@ -410,6 +414,7 @@ vi.mock('../constants/cliTools', () => ({
     { value: CodeCli.OPENAI_CODEX, label: 'OpenAI Codex', icon: () => null },
     { value: CodeCli.OPEN_CODE, label: 'OpenCode', icon: () => null },
     { value: CodeCli.DEEPSEEK_HARNESS, label: 'DeepSeek Harness', icon: () => null },
+    { value: CodeCli.HERMES, label: 'Hermes', icon: () => null },
     { value: CodeCli.QODER_CLI, label: 'Qoder CLI', icon: () => null }
   ],
   PROVIDERLESS_CLI_TOOLS: new Set([CodeCli.QODER_CLI])
@@ -495,6 +500,7 @@ function baseVersionStatuses(overrides: Partial<Record<CodeCli, Record<string, u
     [CodeCli.OPENAI_CODEX]: { ...base, ...overrides[CodeCli.OPENAI_CODEX] },
     [CodeCli.OPEN_CODE]: { ...base, ...overrides[CodeCli.OPEN_CODE] },
     [CodeCli.DEEPSEEK_HARNESS]: { ...base, ...overrides[CodeCli.DEEPSEEK_HARNESS] },
+    [CodeCli.HERMES]: { ...base, ...overrides[CodeCli.HERMES] },
     [CodeCli.QODER_CLI]: { ...base, ...overrides[CodeCli.QODER_CLI] }
   }
 }
@@ -521,8 +527,11 @@ describe('CodeCliPage', () => {
     reorderProvidersMock.mockResolvedValue(undefined)
     selectFolderMock.mockResolvedValue('/tmp/project')
     navigateMock.mockResolvedValue(undefined)
+    popupConfirmMock.mockResolvedValue(true)
     ipcRequestMock.mockImplementation(async (route: string) => {
-      if (route === 'deepseek_harness.get_status') return { status: 'stopped' }
+      if (route === 'deepseek_harness.get_status' || route === 'hermes_dashboard.get_status')
+        return { status: 'stopped' }
+      if (route === 'hermes_dashboard.start') return { success: true, url: 'http://127.0.0.1:49152' }
       return { success: true }
     })
   })
@@ -559,6 +568,18 @@ describe('CodeCliPage', () => {
       writePrimaryModel: true
     })
     expect(setCurrentProviderMock).toHaveBeenCalledWith('anthropic')
+  })
+
+  it('opens Hermes Dashboard without requiring a selected provider or terminal directory', async () => {
+    mockCodeCliState({ selectedCliTool: CodeCli.HERMES })
+    render(<CodeCliPage />)
+
+    expect(screen.getByTestId('version-status-card')).toHaveAttribute('data-can-launch', 'true')
+    fireEvent.click(screen.getByText('start tool'))
+
+    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('hermes_dashboard.start'))
+    expect(selectFolderMock).not.toHaveBeenCalled()
+    expect(ipcRequestMock).not.toHaveBeenCalledWith('code_cli.run', expect.anything())
   })
 
   it('stores a DeepSeek Harness selection without writing config or starting external services', async () => {

@@ -1612,6 +1612,12 @@
     "endpoint_hint": "Point de terminaison / Clé dans le Service de modèle",
     "folder_placeholder": "Sélectionner le répertoire de travail",
     "format_json": "Formater",
+    "hermes_dashboard": {
+      "confirm": {
+        "content": "Le tableau de bord peut modifier la configuration native et les clés API de Hermes. Ces changements peuvent remplacer le fournisseur et le modèle sélectionnés dans CodeMate.",
+        "title": "Ouvrir le tableau de bord Hermes ?"
+      }
+    },
     "install": "Installer",
     "install_success": "Installation réussie",
     "installing": "Installation…",

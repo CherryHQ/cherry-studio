@@ -14,7 +14,7 @@ const EXPECTED_ACQUISITION_FACTS = [
   ['qoder-cli', 'qoderclicn', '@qodercn-ai/qoderclicn', 'npm', 'npm:@qodercn-ai/qoderclicn'],
   ['github-copilot-cli', 'copilot', '@github/copilot', 'npm', 'npm:@github/copilot'],
   ['pi', 'pi', '@earendil-works/pi-coding-agent', 'npm', 'npm:@earendil-works/pi-coding-agent'],
-  ['hermes', 'hermes', 'hermes-agent', 'pipx', 'pipx:hermes-agent']
+  ['hermes', 'hermes', 'hermes-agent', 'pipx', 'pipx:hermes-agent[extras=web]']
 ]
 
 describe('Code CLI acquisition catalog', () => {
@@ -38,6 +38,7 @@ describe('Code CLI acquisition catalog', () => {
     expect(Object.isFrozen(CODE_CLI_TOOL_PRESETS)).toBe(true)
     expect(CODE_CLI_TOOL_PRESETS.every((preset) => Object.isFrozen(preset))).toBe(true)
     expect(Object.isFrozen(CODE_CLI_TOOL_PRESET_MAP)).toBe(true)
+    expect(Object.isFrozen(CODE_CLI_TOOL_PRESET_MAP[CodeCli.HERMES].pipxExtras)).toBe(true)
   })
 
   it.each(CODE_CLI_TOOL_PRESETS)('$id: indexes the canonical preset', (preset) => {

@@ -1612,6 +1612,12 @@
     "endpoint_hint": "Điểm cuối / Khóa trong Dịch vụ Mô hình",
     "folder_placeholder": "Chọn thư mục làm việc",
     "format_json": "Định dạng",
+    "hermes_dashboard": {
+      "confirm": {
+        "content": "Bảng điều khiển có thể thay đổi cấu hình gốc và khóa API của Hermes. Những thay đổi này có thể ghi đè nhà cung cấp và mô hình đã chọn trong CodeMate.",
+        "title": "Mở bảng điều khiển Hermes?"
+      }
+    },
     "install": "Cài đặt",
     "install_success": "Cài đặt thành công",
     "installing": "Đang cài đặt…",

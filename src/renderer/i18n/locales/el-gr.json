@@ -1612,6 +1612,12 @@
     "endpoint_hint": "Endpoint / κλειδί στην Υπηρεσία μοντέλων",
     "folder_placeholder": "Επιλέξτε κατάλογο εργασίας",
     "format_json": "Μορφοποίηση",
+    "hermes_dashboard": {
+      "confirm": {
+        "content": "Το Dashboard μπορεί να αλλάξει την εγγενή διαμόρφωση και τα κλειδιά API του Hermes. Αυτές οι αλλαγές μπορεί να αντικαταστήσουν τον επιλεγμένο πάροχο και μοντέλο του CodeMate.",
+        "title": "Άνοιγμα του Hermes Dashboard;"
+      }
+    },
     "install": "Εγκατάσταση",
     "install_success": "Εγκατάσταση επιτυχής",
     "installing": "Εγκατάσταση…",

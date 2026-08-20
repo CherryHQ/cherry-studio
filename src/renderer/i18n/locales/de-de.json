@@ -1612,6 +1612,12 @@
     "endpoint_hint": "Endpoint / Schlüssel im Modell-Dienst",
     "folder_placeholder": "Arbeitsverzeichnis auswählen",
     "format_json": "Formatieren",
+    "hermes_dashboard": {
+      "confirm": {
+        "content": "Das Dashboard kann die native Konfiguration und API-Schlüssel von Hermes ändern. Diese Änderungen können den in CodeMate ausgewählten Anbieter und das Modell überschreiben.",
+        "title": "Hermes-Dashboard öffnen?"
+      }
+    },
     "install": "Installieren",
     "install_success": "Installation erfolgreich",
     "installing": "Installation läuft…",

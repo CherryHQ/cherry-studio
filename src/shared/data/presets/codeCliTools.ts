@@ -8,6 +8,8 @@ export interface CodeCliToolPreset {
   install: 'registry' | 'npm' | 'pipx'
   miseTool: string
   misePrerelease?: boolean
+  /** pipx extras required by this CLI's built-in capabilities. */
+  pipxExtras?: readonly string[]
   /** Use npm CLI when mise's embedded installer cannot install this package. */
   miseNpmShellOut?: boolean
 }
@@ -15,10 +17,14 @@ export interface CodeCliToolPreset {
 type CodeCliToolDefinition = Omit<CodeCliToolPreset, 'miseTool'>
 
 function defineCodeCliTool(definition: CodeCliToolDefinition): Readonly<CodeCliToolPreset> {
+  const packageTool =
+    definition.install === 'registry' ? definition.executable : `${definition.install}:${definition.packageName}`
+  const pipxExtras =
+    definition.install === 'pipx' && definition.pipxExtras?.length ? definition.pipxExtras.join(',') : ''
   return Object.freeze({
     ...definition,
-    miseTool:
-      definition.install === 'registry' ? definition.executable : `${definition.install}:${definition.packageName}`
+    ...(pipxExtras ? { pipxExtras: Object.freeze([...definition.pipxExtras!]) } : {}),
+    miseTool: pipxExtras ? `${packageTool}[extras=${pipxExtras}]` : packageTool
   })
 }
 
@@ -81,7 +87,13 @@ export const CODE_CLI_TOOL_PRESETS = Object.freeze([
     packageName: '@earendil-works/pi-coding-agent',
     install: 'npm'
   }),
-  defineCodeCliTool({ id: CodeCli.HERMES, executable: 'hermes', packageName: 'hermes-agent', install: 'pipx' })
+  defineCodeCliTool({
+    id: CodeCli.HERMES,
+    executable: 'hermes',
+    packageName: 'hermes-agent',
+    install: 'pipx',
+    pipxExtras: ['web']
+  })
 ] as const satisfies readonly Readonly<CodeCliToolPreset>[])
 
 export const CODE_CLI_TOOL_PRESET_MAP = Object.freeze(
