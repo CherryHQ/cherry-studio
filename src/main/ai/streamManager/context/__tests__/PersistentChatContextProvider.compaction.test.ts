@@ -639,6 +639,73 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     expect(opts.maxOutputTokens + opts.maxInputTokens).toBeLessThan(8_000)
   })
 
+  // Boundary contract for the safety margin in durable turn-start compaction.
+  // 100K window → effective = floor(100K * 0.9) = 90K; trigger = floor(90K * 0.8) = 72K.
+  // A 73K prompt is above the new 72K trigger but below the old 80K trigger,
+  // proving the margin actually changes the compaction boundary.
+  it('2g-1. compacts inside the new 72K–80K trigger band for a 100K window (turn-start)', async () => {
+    // 100K window → effective = floor(100K * 0.9) = 90K; trigger = floor(90K * 0.8) = 72K.
+    // 19 messages of 4K tokens each = 76K, above the new 72K trigger but below the old 80K trigger.
+    const BIG = 'token '.repeat(4_000)
+    const path = [fakeMsg('u1', 'user', BIG), fakeMsg('a1', 'assistant', BIG)]
+    for (let i = 2; i < 19; i++) {
+      path.push(fakeMsg(`u${i}`, 'user', BIG))
+    }
+    mockGetPathToNode.mockReturnValue(path)
+    compressionOn()
+
+    await makeHistory('u1', [DEFAULT_MODEL_ID], { contextWindow: 100_000 })
+
+    expect(mockSummarizeModelMessages).toHaveBeenCalled()
+  })
+
+  // The compressor fallback must apply the safety margin exactly once, not twice.
+  // When compressionModel.contextWindow is null the fallback uses minContextWindow
+  // (not the already-margined effectiveContextWindow), so the margin is applied once:
+  // floor(minContextWindow * 0.9) not floor(floor(minContextWindow * 0.9) * 0.9).
+  it('2g-2. applies the safety margin exactly once in the compressor-fallback budget', async () => {
+    // 100K chat window, compressor has no declared contextWindow → falls back to minContextWindow.
+    // compressorWindow = floor(100_000 * 0.9) = 90_000 (margin applied once)
+    // NOT floor(floor(100_000 * 0.9) * 0.9) = floor(90_000 * 0.9) = 81_000 (double margin)
+    // Need > 72K tokens to exceed the trigger (floor(90K * 0.8) = 72K).
+    const BIG = 'token '.repeat(4_000)
+    const path = [
+      fakeMsg('u1', 'user', BIG),
+      fakeMsg('a1', 'assistant', BIG),
+      fakeMsg('u2', 'user', BIG),
+      fakeMsg('a2', 'assistant', BIG),
+      fakeMsg('u3', 'user', BIG),
+      fakeMsg('a3', 'assistant', BIG),
+      fakeMsg('u4', 'user', BIG),
+      fakeMsg('a4', 'assistant', BIG),
+      fakeMsg('u5', 'user', BIG),
+      fakeMsg('a5', 'assistant', BIG),
+      fakeMsg('u6', 'user', BIG),
+      fakeMsg('a6', 'assistant', BIG),
+      fakeMsg('u7', 'user', BIG),
+      fakeMsg('a7', 'assistant', BIG),
+      fakeMsg('u8', 'user', BIG),
+      fakeMsg('a8', 'assistant', BIG),
+      fakeMsg('u9', 'user', BIG),
+      fakeMsg('a9', 'assistant', BIG),
+      fakeMsg('u10', 'user', BIG),
+      fakeMsg('a10', 'assistant', BIG)
+    ]
+    mockGetPathToNode.mockReturnValue(path)
+    // Explicit compressor with no contextWindow → triggers fallback path.
+    compressionOn({ languageModel: {}, contextWindow: null })
+
+    await makeHistory('u3', [DEFAULT_MODEL_ID], { contextWindow: 100_000 })
+
+    expect(mockSummarizeModelMessages).toHaveBeenCalled()
+    const opts = mockSummarizeModelMessages.mock.calls[0][2]
+    // resolveCompressionOutputTokens(90_000): share=floor(90_000*0.25)=22_500, ceiling=16_384 → maxOutput=16_384
+    // maxInputTokens = max(2000, floor((90_000 - 16_384) * 0.85)) = floor(73_616 * 0.85) = 62_573
+    // maxOutputTokens + maxInputTokens = 16_384 + 62_573 = 78_957
+    // With double margin (81_000): maxOutput=16_384, maxInput=floor((81_000-16_384)*0.85)=54_923, sum=71_307
+    expect(opts.maxOutputTokens + opts.maxInputTokens).toBe(78_957)
+  })
+
   // Turn-start compaction runs BEFORE the model stream opens, so without a
   // progress event the turn looks stalled for the whole summarize round-trip.
   // It must also settle on every exit, or the spinner outlives the work.
