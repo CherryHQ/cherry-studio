@@ -6,7 +6,7 @@ interface VersionedNamedResource {
   updatedAt: string
 }
 
-interface OptimisticResourceName {
+interface OptimisticNameOverlay {
   /** Source version visible when this rename became the latest intent. */
   baseUpdatedAt: string
   name: string
@@ -24,7 +24,7 @@ interface OptimisticResourceName {
  * are serialized, and `requestId` ensures an older completion cannot replace newer user intent.
  */
 export function useOptimisticResourceName<T extends VersionedNamedResource>(sourceItems: readonly T[]) {
-  const [optimisticNames, setOptimisticNames] = useState<ReadonlyMap<string, OptimisticResourceName>>(() => new Map())
+  const [nameOverlays, setNameOverlays] = useState<ReadonlyMap<string, OptimisticNameOverlay>>(() => new Map())
   const sourceItemsRef = useRef(sourceItems)
   const requestIdRef = useRef(0)
   const queuesRef = useRef(new Map<string, Promise<void>>())
@@ -32,31 +32,31 @@ export function useOptimisticResourceName<T extends VersionedNamedResource>(sour
 
   const items = useMemo(
     () =>
-      optimisticNames.size === 0
+      nameOverlays.size === 0
         ? sourceItems
         : sourceItems.map((item) => {
-            const optimisticName = optimisticNames.get(item.id)
-            return optimisticName === undefined ? item : { ...item, name: optimisticName.name }
+            const overlay = nameOverlays.get(item.id)
+            return overlay === undefined ? item : { ...item, name: overlay.name }
           }),
-    [optimisticNames, sourceItems]
+    [nameOverlays, sourceItems]
   )
 
   useEffect(() => {
-    if (optimisticNames.size === 0) return
+    if (nameOverlays.size === 0) return
 
-    setOptimisticNames((current) => {
+    setNameOverlays((current) => {
       if (current.size === 0) return current
 
       const sourceItemById = new Map(sourceItems.map((item) => [item.id, item]))
-      let next: Map<string, OptimisticResourceName> | undefined
-      for (const [id, optimisticName] of current) {
-        if (!optimisticName.settled) continue
+      let next: Map<string, OptimisticNameOverlay> | undefined
+      for (const [id, overlay] of current) {
+        if (!overlay.settled) continue
 
         const item = sourceItemById.get(id)
         if (
           item === undefined ||
-          item.name === optimisticName.name ||
-          item.updatedAt !== optimisticName.baseUpdatedAt
+          item.name === overlay.name ||
+          Date.parse(item.updatedAt) > Date.parse(overlay.baseUpdatedAt)
         ) {
           next ??= new Map(current)
           next.delete(id)
@@ -65,7 +65,7 @@ export function useOptimisticResourceName<T extends VersionedNamedResource>(sour
 
       return next ?? current
     })
-  }, [optimisticNames, sourceItems])
+  }, [nameOverlays, sourceItems])
 
   /**
    * @param item - The source snapshot being renamed.
@@ -75,7 +75,7 @@ export function useOptimisticResourceName<T extends VersionedNamedResource>(sour
    */
   const rename = useCallback((item: T, name: string, persist: () => Promise<boolean>) => {
     const requestId = ++requestIdRef.current
-    setOptimisticNames((current) => {
+    setNameOverlays((current) => {
       const next = new Map(current)
       next.set(item.id, { baseUpdatedAt: item.updatedAt, name, requestId, settled: false })
       return next
@@ -84,29 +84,29 @@ export function useOptimisticResourceName<T extends VersionedNamedResource>(sour
     const previousRequest = queuesRef.current.get(item.id) ?? Promise.resolve()
     const request = previousRequest.then(() => {
       const latestItem = sourceItemsRef.current.find((candidate) => candidate.id === item.id)
-      setOptimisticNames((current) => {
-        const optimisticName = current.get(item.id)
+      setNameOverlays((current) => {
+        const overlay = current.get(item.id)
         if (
-          optimisticName?.requestId !== requestId ||
+          overlay?.requestId !== requestId ||
           latestItem === undefined ||
-          optimisticName.baseUpdatedAt === latestItem.updatedAt
+          overlay.baseUpdatedAt === latestItem.updatedAt
         ) {
           return current
         }
         const next = new Map(current)
-        next.set(item.id, { ...optimisticName, baseUpdatedAt: latestItem.updatedAt })
+        next.set(item.id, { ...overlay, baseUpdatedAt: latestItem.updatedAt })
         return next
       })
       return persist()
     })
     const settledRequest = request.then(
       (persisted) => {
-        setOptimisticNames((current) => {
-          const optimisticName = current.get(item.id)
-          if (optimisticName?.requestId !== requestId) return current
+        setNameOverlays((current) => {
+          const overlay = current.get(item.id)
+          if (overlay?.requestId !== requestId) return current
           const next = new Map(current)
           if (persisted) {
-            next.set(item.id, { ...optimisticName, settled: true })
+            next.set(item.id, { ...overlay, settled: true })
           } else {
             next.delete(item.id)
           }
@@ -115,7 +115,7 @@ export function useOptimisticResourceName<T extends VersionedNamedResource>(sour
         return persisted
       },
       (error) => {
-        setOptimisticNames((current) => {
+        setNameOverlays((current) => {
           if (current.get(item.id)?.requestId !== requestId) return current
           const next = new Map(current)
           next.delete(item.id)

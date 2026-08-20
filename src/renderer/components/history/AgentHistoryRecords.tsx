@@ -136,10 +136,10 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
       const trimmedName = name.trim()
       if (!session || !trimmedName || trimmedName === session.name) return
 
-      const updatedSession = await renameSessionOptimistically(session, trimmedName, async () =>
+      const renamed = await renameSessionOptimistically(session, trimmedName, async () =>
         Boolean(await updateSession({ id, name: trimmedName, isNameManuallyEdited: true }, { showSuccessToast: false }))
       )
-      if (updatedSession) {
+      if (renamed) {
         toast.success(t('common.saved'))
       }
     },

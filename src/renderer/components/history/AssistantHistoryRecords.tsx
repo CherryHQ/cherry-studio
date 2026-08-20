@@ -174,14 +174,14 @@ const AssistantHistoryRecords = ({
       const title = topic.name || t('chat.default.topic.name')
       if (conversationNav.openConversationTab(topic.id, title, { forceNew: true })) return
 
-      onRecordSelect?.(rendererTopicById.get(topic.id) ?? mapApiTopicToRendererTopic(topic))
+      onRecordSelect?.(getRendererTopic(topic))
       onClose()
     },
-    [conversationNav, onClose, onRecordSelect, rendererTopicById, t]
+    [conversationNav, getRendererTopic, onClose, onRecordSelect, t]
   )
 
   const updateTopic = useCallback(
-    (topic: RendererTopic) =>
+    (topic: Pick<RendererTopic, 'id' | 'isNameManuallyEdited' | 'name'>) =>
       patchTopic(topic.id, { name: topic.name, isNameManuallyEdited: topic.isNameManuallyEdited }),
     [patchTopic]
   )
@@ -310,7 +310,7 @@ const AssistantHistoryRecords = ({
 
       try {
         await renameTopicOptimistically(topic, trimmedName, async () => {
-          await updateTopic({ ...getRendererTopic(topic), name: trimmedName, isNameManuallyEdited: true })
+          await updateTopic({ id: topic.id, name: trimmedName, isNameManuallyEdited: true })
           return true
         })
         toast.success(t('common.saved'))
@@ -320,7 +320,7 @@ const AssistantHistoryRecords = ({
         toast.error(message)
       }
     },
-    [getRendererTopic, renameTopicOptimistically, t, topics, updateTopic]
+    [renameTopicOptimistically, t, topics, updateTopic]
   )
 
   const getTopicActionContext = useCallback(

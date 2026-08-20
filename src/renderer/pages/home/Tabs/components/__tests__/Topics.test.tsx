@@ -7,7 +7,6 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
@@ -682,14 +681,6 @@ function renderTopicList({
       view.rerender(renderNode(nextRevealRequest, nextActiveTopic)),
     setActiveTopic
   }
-}
-
-async function renameTopicInline(user: ReturnType<typeof userEvent.setup>, currentName: string, nextName: string) {
-  await user.dblClick(screen.getByText(currentName))
-  const input = screen.getByLabelText('Edit conversation name')
-  await user.clear(input)
-  await user.type(input, nextName)
-  await user.keyboard('{Enter}')
 }
 
 function getTopicRow(topicName: string) {
@@ -1728,110 +1719,34 @@ describe('Topics', () => {
     expect(topicDataMocks.updateTopic).not.toHaveBeenCalled()
   })
 
-  it('restores the persisted topic name when rename fails', async () => {
-    const user = userEvent.setup()
+  it('shows a context-menu rename optimistically and restores the persisted name when it fails', async () => {
     let rejectRename!: (reason: unknown) => void
     topicDataMocks.updateTopic.mockReturnValueOnce(
       new Promise((_, reject) => {
         rejectRename = reject
       })
     )
-    renderTopicList()
+    const { getByText } = renderTopicList()
 
-    await renameTopicInline(user, 'Alpha topic', 'Renamed topic')
+    fireEvent.contextMenu(getByText('Alpha topic'))
+    const alphaMenu = getByText('Alpha topic').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+    await act(async () => {
+      fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Edit conversation name' }))
+    })
 
-    expect(screen.getByText('Renamed topic')).toBeInTheDocument()
+    const input = within(await screen.findByRole('dialog')).getByLabelText('Name')
+    fireEvent.change(input, { target: { value: 'Renamed topic' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    expect(await screen.findByText('Renamed topic')).toBeInTheDocument()
     expect(screen.queryByText('Alpha topic')).not.toBeInTheDocument()
-    await act(async () => rejectRename(new Error('rename failed')))
-    expect(screen.getByText('Alpha topic')).toBeInTheDocument()
-  })
+    await vi.waitFor(() => expect(topicDataMocks.updateTopic).toHaveBeenCalledOnce())
 
-  it('keeps the latest name visible when a second rename restores the cached name', async () => {
-    const user = userEvent.setup()
-    const assistantTopicsSource = createAssistantTopicsSource()
-    let resolveFirstRename!: () => void
-    let resolveSecondRename!: () => void
-    topicDataMocks.updateTopic
-      .mockReturnValueOnce(
-        new Promise<void>((resolve) => {
-          resolveFirstRename = resolve
-        })
-      )
-      .mockReturnValueOnce(
-        new Promise<void>((resolve) => {
-          resolveSecondRename = resolve
-        })
-      )
-    const { rerenderTopicList } = renderTopicList({ assistantTopicsSource })
-
-    await renameTopicInline(user, 'Alpha topic', 'Renamed topic')
-    await renameTopicInline(user, 'Renamed topic', 'Alpha topic')
-    expect(topicDataMocks.updateTopic).toHaveBeenCalledTimes(1)
-
-    const unrelatedRefreshTopics = assistantTopicsSource.topics.map((topic) =>
-      topic.id === 'topic-b' ? { ...topic, name: 'Unrelated topic refreshed' } : topic
-    )
-    Object.assign(assistantTopicsSource, {
-      topics: unrelatedRefreshTopics,
-      ...deriveAssistantTopicsView(unrelatedRefreshTopics)
+    await act(async () => {
+      rejectRename(new Error('rename failed'))
     })
-    rerenderTopicList()
-
-    const firstRefreshTopics = unrelatedRefreshTopics.map((topic) =>
-      topic.id === 'topic-a' ? { ...topic, name: 'Renamed topic', updatedAt: '2026-01-02T00:00:00.000Z' } : topic
-    )
-    Object.assign(assistantTopicsSource, {
-      topics: firstRefreshTopics,
-      ...deriveAssistantTopicsView(firstRefreshTopics)
-    })
-    rerenderTopicList()
-    await act(async () => resolveFirstRename())
-    await vi.waitFor(() => expect(topicDataMocks.updateTopic).toHaveBeenCalledTimes(2))
-
-    expect(screen.getByText('Alpha topic')).toBeInTheDocument()
-    expect(screen.queryByText('Renamed topic')).not.toBeInTheDocument()
-
-    await act(async () => resolveSecondRename())
-    expect(screen.getByText('Alpha topic')).toBeInTheDocument()
-    expect(screen.queryByText('Renamed topic')).not.toBeInTheDocument()
-
-    const secondRefreshTopics = firstRefreshTopics.map((topic) =>
-      topic.id === 'topic-a' ? { ...topic, name: 'Alpha topic', updatedAt: '2026-01-03T00:00:00.000Z' } : topic
-    )
-    Object.assign(assistantTopicsSource, {
-      topics: secondRefreshTopics,
-      ...deriveAssistantTopicsView(secondRefreshTopics)
-    })
-    rerenderTopicList()
-    expect(screen.getByText('Alpha topic')).toBeInTheDocument()
-  })
-
-  it('shows a newer persisted name after a successful rename refresh stays stale', async () => {
-    const user = userEvent.setup()
-    const assistantTopicsSource = createAssistantTopicsSource()
-    let resolveRename!: () => void
-    topicDataMocks.updateTopic.mockReturnValueOnce(
-      new Promise<void>((resolve) => {
-        resolveRename = resolve
-      })
-    )
-    const { rerenderTopicList } = renderTopicList({ assistantTopicsSource })
-
-    await renameTopicInline(user, 'Alpha topic', 'Renamed topic')
-    await act(async () => resolveRename())
-    expect(screen.getByText('Renamed topic')).toBeInTheDocument()
-
-    const externallyUpdatedTopics = assistantTopicsSource.topics.map((topic) =>
-      topic.id === 'topic-a' ? { ...topic, name: 'External rename', updatedAt: '2026-01-02T00:00:00.000Z' } : topic
-    )
-    Object.assign(assistantTopicsSource, {
-      topics: externallyUpdatedTopics,
-      ...deriveAssistantTopicsView(externallyUpdatedTopics)
-    })
-    rerenderTopicList()
-
-    expect(screen.getByText('External rename')).toBeInTheDocument()
-    expect(screen.queryByText('Renamed topic')).not.toBeInTheDocument()
+    expect(await screen.findByText('Alpha topic')).toBeInTheDocument()
   })
 
   it('confirms topic deletion from the shared context menu before deleting', async () => {

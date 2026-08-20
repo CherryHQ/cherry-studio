@@ -960,6 +960,12 @@ describe('HistoryRecordsView agent mode', () => {
   })
 
   it('renames a session from the history row context menu without selecting the row', async () => {
+    let resolveRename!: (session: AgentSessionEntity) => void
+    hookMocks.updateSession.mockReturnValueOnce(
+      new Promise<AgentSessionEntity>((resolve) => {
+        resolveRename = resolve
+      })
+    )
     const { onClose, onRecordSelect } = setupAgentHistory()
 
     const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
@@ -990,31 +996,6 @@ describe('HistoryRecordsView agent mode', () => {
         { showSuccessToast: false }
       )
     )
-  })
-
-  it('keeps the renamed session visible while the history source refresh is stale', async () => {
-    let resolveRename!: (session: AgentSessionEntity) => void
-    hookMocks.updateSession.mockReturnValueOnce(
-      new Promise<AgentSessionEntity>((resolve) => {
-        resolveRename = resolve
-      })
-    )
-    setupAgentHistory()
-
-    const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
-    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
-    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Edit task name' }))
-    await act(async () => {
-      await flushAnimationFrame()
-    })
-
-    const input = within(screen.getByRole('dialog')).getByLabelText('Name')
-    fireEvent.change(input, { target: { value: 'Renamed session' } })
-    await act(async () => {
-      fireEvent.keyDown(input, { key: 'Enter' })
-      await flushAnimationFrame()
-    })
-
     expect(screen.getByText('Renamed session')).toBeInTheDocument()
     expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
 

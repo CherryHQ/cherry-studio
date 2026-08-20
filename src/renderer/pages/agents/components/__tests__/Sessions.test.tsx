@@ -6,7 +6,6 @@ import type { TopicStreamStatus } from '@shared/ai/transport'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 import { Activity, type ComponentProps, type ReactNode } from 'react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -1848,7 +1847,13 @@ describe('Sessions', () => {
     expect(revealedRow!).not.toHaveAttribute('data-reveal-focus')
   })
 
-  it('renames sessions through the shared update session hook', async () => {
+  it('renames sessions optimistically and rolls back when the update fails', async () => {
+    let resolveRename!: (session: AgentSessionEntity | undefined) => void
+    sessionDataMocks.updateSession.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveRename = resolve
+      })
+    )
     render(<SessionsForTest />)
 
     fireEvent.doubleClick(screen.getByText('Alpha session'))
@@ -1863,27 +1868,9 @@ describe('Sessions', () => {
         { showSuccessToast: false }
       )
     )
-    expect(sessionDataMocks.reorderSession).not.toHaveBeenCalled()
-  })
-
-  it('shows the submitted session name while the rename request is pending and rolls back on failure', async () => {
-    const user = userEvent.setup()
-    let resolveRename: (session: AgentSessionEntity | undefined) => void
-    sessionDataMocks.updateSession.mockReturnValueOnce(
-      new Promise((resolve) => {
-        resolveRename = resolve
-      })
-    )
-    render(<SessionsForTest />)
-
-    await user.dblClick(screen.getByText('Alpha session'))
-    const input = screen.getByLabelText('Edit task name')
-    await user.clear(input)
-    await user.type(input, 'Renamed session')
-    await user.keyboard('{Enter}')
-
     expect(screen.getByText('Renamed session')).toBeInTheDocument()
     expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
+    expect(sessionDataMocks.reorderSession).not.toHaveBeenCalled()
 
     await act(async () => resolveRename(undefined))
 
