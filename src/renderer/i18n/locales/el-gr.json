@@ -134,6 +134,7 @@
   "agent.preview_pane.no_search_results": "Δεν υπάρχουν αρχεία που να ταιριάζουν με την αναζήτησή σας",
   "agent.preview_pane.office.title": "Το άνοιγμα αρχείων {{extension}} εδώ δεν υποστηρίζεται ακόμα",
   "agent.preview_pane.preview": "Προεπισκόπηση",
+  "agent.preview_pane.quote_selection": "Παράθεση επιλογής",
   "agent.preview_pane.refresh": "Ανανέωση",
   "agent.preview_pane.search_placeholder": "Αναζήτηση αρχείων...",
   "agent.preview_pane.too_large.description": "Το αρχείο υπερβαίνει το όριο προεπισκόπησης των {{limit}}.",

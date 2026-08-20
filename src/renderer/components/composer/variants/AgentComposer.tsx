@@ -122,6 +122,7 @@ import {
 import { emptyActions, type ProviderActionHandlers } from './shared/composerProviderActions'
 import { buildComposerQueuedPayload, getComposerHistoryText } from './shared/composerQueuedPayload'
 import { useComposerQuoteInsertion } from './shared/composerQuote'
+import { useComposerSelectionReferenceInsertion } from './shared/composerSelectionReference'
 import { type ComposerToolbarCustomTool, ComposerToolbarShortcuts } from './shared/ComposerToolbarShortcuts'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
 import { useComposerKnowledgeBaseScope } from './shared/useComposerKnowledgeBaseScope'
@@ -1218,6 +1219,7 @@ const AgentComposerInner = ({
   }, [refreshAvailableSkills])
 
   useComposerQuoteInsertion(actionsRef)
+  useComposerSelectionReferenceInsertion(actionsRef, sessionTopicId)
 
   const abortAgentSession = useCallback(async () => {
     logger.info('Aborting agent session', { sessionTopicId })

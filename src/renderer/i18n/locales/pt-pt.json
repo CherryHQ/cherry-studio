@@ -134,6 +134,7 @@
   "agent.preview_pane.no_search_results": "Nenhum ficheiro corresponde à sua pesquisa",
   "agent.preview_pane.office.title": "Abrir ficheiros {{extension}} aqui ainda não é suportado",
   "agent.preview_pane.preview": "Pré-visualização",
+  "agent.preview_pane.quote_selection": "Citar seleção",
   "agent.preview_pane.refresh": "Atualizar",
   "agent.preview_pane.search_placeholder": "Pesquisar ficheiros...",
   "agent.preview_pane.too_large.description": "O ficheiro excede o limite de pré-visualização de {{limit}}.",
