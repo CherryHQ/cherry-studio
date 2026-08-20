@@ -1,7 +1,9 @@
 import '@testing-library/jest-dom/vitest'
 
+import type { Model } from '@shared/data/types/model'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -14,6 +16,8 @@ const assistantState = vi.hoisted(() => ({
   ],
   hasLoaded: true
 }))
+const modelState = vi.hoisted(() => ({ defaultModel: undefined as Model | undefined }))
+const navigateMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@cherrystudio/ui', async () => {
   const React = await import('react')
@@ -94,7 +98,11 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
 }))
 
 vi.mock('@renderer/hooks/useModel', () => ({
-  useDefaultModel: () => ({ defaultModel: undefined })
+  useDefaultModel: () => modelState
+}))
+
+vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => navigateMock
 }))
 
 vi.mock('@renderer/hooks/useTheme', () => ({
@@ -132,6 +140,38 @@ describe('QuickAssistantSettings', () => {
       { id: 'assistant-2', name: 'Assistant 2' }
     ]
     assistantState.hasLoaded = true
+    modelState.defaultModel = undefined
+    navigateMock.mockClear()
+  })
+
+  it('shows the default model and opens its global model setting in default-model mode', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.assistant_id', '')
+    modelState.defaultModel = {
+      id: 'openai::gpt-4o',
+      providerId: 'openai',
+      name: 'GPT-4o'
+    } as Model
+
+    render(<QuickAssistantSettings />)
+
+    expect(screen.getByText('GPT-4o')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'navigate.model_settings' }))
+
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/model', search: { focus: 'default' } })
+  })
+
+  it('does not show the global model link in assistant mode', () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.assistant_id', 'assistant-1')
+    modelState.defaultModel = {
+      id: 'openai::gpt-4o',
+      providerId: 'openai',
+      name: 'GPT-4o'
+    } as Model
+
+    render(<QuickAssistantSettings />)
+
+    expect(screen.queryByRole('button', { name: 'navigate.model_settings' })).not.toBeInTheDocument()
   })
 
   it('clears the selected quick assistant after that assistant is deleted', async () => {

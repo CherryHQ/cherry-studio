@@ -33,7 +33,8 @@ import type { Assistant } from '@renderer/types/assistant'
 import { cn } from '@renderer/utils/style'
 import HomeWindow from '@renderer/windows/quickAssistant/home/HomeWindow'
 import type { Model } from '@shared/data/types/model'
-import { Check, ChevronDown, Info } from 'lucide-react'
+import { useNavigate } from '@tanstack/react-router'
+import { ArrowRight, Check, ChevronDown, Info } from 'lucide-react'
 import type React from 'react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -54,6 +55,7 @@ const QuickAssistantSettings: FC = () => {
   const { theme } = useTheme()
   const { assistants, hasLoaded: haveAssistantsLoaded } = useAssistants()
   const { defaultModel } = useDefaultModel()
+  const navigate = useNavigate()
   const [assistantSelectOpen, setAssistantSelectOpen] = useState(false)
 
   const assistantOptions = assistants
@@ -147,6 +149,24 @@ const QuickAssistantSettings: FC = () => {
               />
             </SettingRowTitle>
             <RowFlex className="items-center gap-2.5">
+              {!isAssistantMode && (
+                <RowFlex className="min-w-0 items-center gap-2">
+                  <RowFlex className="min-w-0 max-w-40 items-center gap-2">
+                    {defaultModel ? <ModelAvatar model={defaultModel} size={18} className="shrink-0" /> : null}
+                    <span className="truncate text-foreground text-sm">
+                      {defaultModel?.name ?? t('settings.models.empty')}
+                    </span>
+                  </RowFlex>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0"
+                    onClick={() => void navigate({ to: '/settings/model', search: { focus: 'default' } })}>
+                    <ArrowRight size={13} />
+                    {t('navigate.model_settings')}
+                  </Button>
+                </RowFlex>
+              )}
               {!quickAssistantId || !selectedAssistant ? null : (
                 <RowFlex className="items-center">
                   <Popover open={assistantSelectOpen} onOpenChange={setAssistantSelectOpen}>
