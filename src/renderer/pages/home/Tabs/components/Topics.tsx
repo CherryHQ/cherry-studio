@@ -532,15 +532,21 @@ export function Topics({
   const removeTopic = useCallback((topic: Topic) => deleteTopicById(topic.id), [deleteTopicById])
 
   const handleRenameTopic = useCallback(
-    (topicId: string, name: string) => {
+    async (topicId: string, name: string) => {
       const topic = topics.find((candidate) => candidate.id === topicId)
       const trimmedName = name.trim()
       if (!topic || !trimmedName || trimmedName === topic.name) {
         return
       }
 
-      void updateTopic({ ...topic, name: trimmedName, isNameManuallyEdited: true })
-      toast.success(t('common.saved'))
+      try {
+        await updateTopic({ ...topic, name: trimmedName, isNameManuallyEdited: true })
+        toast.success(t('common.saved'))
+      } catch (err) {
+        logger.error('Failed to rename topic', { topicId, err })
+        const message = err instanceof Error ? err.message : t('common.save_failed')
+        toast.error(message)
+      }
     },
     [topics, t, updateTopic]
   )
@@ -662,7 +668,13 @@ export function Topics({
       try {
         const { text: summaryText, error: summaryError } = await fetchMessagesSummary({ messages })
         if (summaryText) {
-          void updateTopic({ ...topic, name: summaryText, isNameManuallyEdited: false })
+          try {
+            await updateTopic({ ...topic, name: summaryText, isNameManuallyEdited: false })
+          } catch (err) {
+            logger.error('Failed to save automatically renamed topic', { topicId: topic.id, err })
+            const message = err instanceof Error ? err.message : t('common.save_failed')
+            toast.error(message)
+          }
         } else if (summaryError) {
           toast.error(`${t('message.error.fetchTopicName')}: ${summaryError}`)
         }
@@ -670,7 +682,7 @@ export function Topics({
         finishTopicRenaming(topic.id)
       }
     },
-    [t, updateTopic, finishTopicRenaming]
+    [t, updateTopic]
   )
 
   const topicGroupBy = useMemo(

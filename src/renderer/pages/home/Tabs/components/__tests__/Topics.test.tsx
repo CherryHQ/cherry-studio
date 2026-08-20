@@ -177,6 +177,12 @@ const topicDataMocks = vi.hoisted(() => ({
   updateTopic: vi.fn().mockResolvedValue(undefined)
 }))
 
+const topicRenameMocks = vi.hoisted(() => ({
+  finishTopicRenaming: vi.fn(),
+  getTopicMessages: vi.fn().mockResolvedValue([]),
+  startTopicRenaming: vi.fn()
+}))
+
 const pinMutationMocks = vi.hoisted(() => ({
   createPin: vi.fn(),
   deletePin: vi.fn()
@@ -242,9 +248,9 @@ vi.mock('@renderer/hooks/useTopic', async () => {
   const actual = await vi.importActual<typeof TopicDataApiModule>('@renderer/hooks/useTopic')
   return {
     ...actual,
-    finishTopicRenaming: vi.fn(),
-    getTopicMessages: vi.fn().mockResolvedValue([]),
-    startTopicRenaming: vi.fn(),
+    finishTopicRenaming: topicRenameMocks.finishTopicRenaming,
+    getTopicMessages: topicRenameMocks.getTopicMessages,
+    startTopicRenaming: topicRenameMocks.startTopicRenaming,
     useTopicMutations: () => ({
       updateTopic: topicDataMocks.updateTopic,
       deleteTopic: topicDataMocks.deleteTopic,
@@ -409,6 +415,8 @@ vi.mock('react-i18next', () => ({
         if (key === 'common.name') return 'Name'
         if (key === 'common.required_field') return 'Required field'
         if (key === 'common.save') return 'Save'
+        if (key === 'common.save_failed') return 'Save failed'
+        if (key === 'common.saved') return 'Saved'
         if (key === 'common.select_all') return 'Select All'
         if (key === 'message.tools.status.done') return 'Done'
         if (key === 'message.tools.status.error') return 'Error'
@@ -575,6 +583,16 @@ function createAssistant(overrides: Record<string, unknown> = {}) {
     updatedAt: '2026-01-01T00:00:00.000Z',
     ...overrides
   }
+}
+
+function createDeferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, reject, resolve }
 }
 
 type OnNewTopicMock = Mock<(payload?: { assistantId?: string | null }) => void>
@@ -1713,6 +1731,75 @@ describe('Topics', () => {
     const input = screen.getByLabelText('Edit conversation name')
     expect(input).toHaveFocus()
     expect(topicDataMocks.updateTopic).not.toHaveBeenCalled()
+  })
+
+  it('reports a manual topic rename as saved only after persistence succeeds', async () => {
+    const pendingUpdate = createDeferred<void>()
+    topicDataMocks.updateTopic.mockReturnValueOnce(pendingUpdate.promise)
+    const { getByText } = renderTopicList()
+
+    fireEvent.doubleClick(getByText('Alpha topic'))
+    const input = screen.getByLabelText('Edit conversation name')
+    fireEvent.change(input, { target: { value: 'Renamed topic' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    expect(topicDataMocks.updateTopic).toHaveBeenCalledWith('topic-a', {
+      name: 'Renamed topic',
+      isNameManuallyEdited: true
+    })
+    expect(toast.success).not.toHaveBeenCalled()
+
+    await act(async () => {
+      pendingUpdate.resolve(undefined)
+    })
+
+    expect(toast.success).toHaveBeenCalledWith('Saved')
+  })
+
+  it('reports an error when manually renaming a topic fails', async () => {
+    topicDataMocks.updateTopic.mockRejectedValueOnce(new Error('Rename failed'))
+    const { getByText } = renderTopicList()
+
+    fireEvent.doubleClick(getByText('Alpha topic'))
+    const input = screen.getByLabelText('Edit conversation name')
+    fireEvent.change(input, { target: { value: 'Renamed topic' } })
+    await act(async () => {
+      fireEvent.keyDown(input, { key: 'Enter' })
+    })
+
+    expect(toast.error).toHaveBeenCalledWith('Rename failed')
+    expect(toast.success).not.toHaveBeenCalled()
+  })
+
+  it('keeps automatic topic renaming active until a failed update is handled', async () => {
+    const pendingUpdate = createDeferred<void>()
+    topicRenameMocks.getTopicMessages.mockResolvedValueOnce([{}, {}])
+    topicDataMocks.updateTopic.mockReturnValueOnce(pendingUpdate.promise)
+    const { getByText } = renderTopicList()
+
+    fireEvent.contextMenu(getByText('Alpha topic'))
+    const alphaMenu = getByText('Alpha topic').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+    await act(async () => {
+      fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Generate conversation name' }))
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
+    })
+
+    await vi.waitFor(() =>
+      expect(topicDataMocks.updateTopic).toHaveBeenCalledWith('topic-a', {
+        name: 'Auto title',
+        isNameManuallyEdited: false
+      })
+    )
+    expect(topicRenameMocks.startTopicRenaming).toHaveBeenCalledWith('topic-a')
+    expect(topicRenameMocks.finishTopicRenaming).not.toHaveBeenCalled()
+
+    await act(async () => {
+      pendingUpdate.reject(new Error('Automatic rename failed'))
+    })
+
+    expect(toast.error).toHaveBeenCalledWith('Automatic rename failed')
+    expect(topicRenameMocks.finishTopicRenaming).toHaveBeenCalledWith('topic-a')
   })
 
   it('confirms topic deletion from the shared context menu before deleting', async () => {

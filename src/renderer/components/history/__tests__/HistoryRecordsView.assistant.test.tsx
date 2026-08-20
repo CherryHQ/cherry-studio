@@ -1165,6 +1165,41 @@ describe('HistoryRecordsView assistant mode', () => {
     expect(toast.success).not.toHaveBeenCalled()
   })
 
+  it('keeps automatic topic renaming active until a failed history update is handled', async () => {
+    let rejectUpdate!: (reason?: unknown) => void
+    hookMocks.getTopicMessages.mockResolvedValueOnce([{}, {}])
+    hookMocks.updateTopic.mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          rejectUpdate = reject
+        })
+    )
+    setupAssistantHistory()
+
+    const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+    await act(async () => {
+      fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Generate conversation name' }))
+      await flushCommandMenuAction()
+    })
+
+    await vi.waitFor(() =>
+      expect(hookMocks.updateTopic).toHaveBeenCalledWith('topic-alpha', {
+        name: 'Auto title',
+        isNameManuallyEdited: false
+      })
+    )
+    expect(hookMocks.startTopicRenaming).toHaveBeenCalledWith('topic-alpha')
+    expect(hookMocks.finishTopicRenaming).not.toHaveBeenCalled()
+
+    await act(async () => {
+      rejectUpdate(new Error('Automatic rename failed'))
+    })
+
+    expect(toast.error).toHaveBeenCalledWith('Automatic rename failed')
+    expect(hookMocks.finishTopicRenaming).toHaveBeenCalledWith('topic-alpha')
+  })
+
   it('does not persist empty or unchanged topic names from history rename dialog', async () => {
     const { unmount } = setupAssistantHistory()
 

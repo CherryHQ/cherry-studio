@@ -275,7 +275,13 @@ const AssistantHistoryRecords = ({
       try {
         const { text: summaryText, error: summaryError } = await fetchMessagesSummary({ messages })
         if (summaryText) {
-          void updateTopic({ ...topic, name: summaryText, isNameManuallyEdited: false })
+          try {
+            await updateTopic({ ...topic, name: summaryText, isNameManuallyEdited: false })
+          } catch (err) {
+            logger.error('Failed to save automatically renamed topic from history records', { topicId: topic.id, err })
+            const message = err instanceof Error ? err.message : t('common.save_failed')
+            toast.error(message)
+          }
         } else if (summaryError) {
           toast.error(`${t('message.error.fetchTopicName')}: ${summaryError}`)
         }
