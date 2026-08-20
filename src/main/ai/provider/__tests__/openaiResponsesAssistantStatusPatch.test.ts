@@ -2,14 +2,15 @@ import { createOpenAI } from '@ai-sdk/openai'
 import { describe, expect, it } from 'vitest'
 
 /**
- * Guards the message-item hunk in patches/@ai-sdk__openai@3.0.53.patch.
- * Volcengine Ark rejects message input items that omit `type` or `status`
- * (400 MissingParameter: input.status / input.type, #18253) — the adapter infers
- * both from role. Sending them unconditionally is the canonical Responses shape
- * OpenAI accepts, so no provider needs a separate adapter for it.
+ * Guards the assistant-item hunk in patches/@ai-sdk__openai@3.0.53.patch.
+ * Volcengine Ark rejects an assistant input item that omits `type` or `status`
+ * (400 MissingParameter, reported one field at a time, #18253) — the adapter
+ * infers both from the role. Only the assistant item needs them: Ark validates
+ * per item and takes user/system items as-is, so those keep the adapter's
+ * string-content shape that stricter implementations may require.
  */
 describe('patched @ai-sdk/openai assistant input items', () => {
-  it('sends explicit type and status on message items', async () => {
+  it('sends explicit type and status on assistant items only', async () => {
     let body: any
     const model = createOpenAI({
       apiKey: 'sk-test',
@@ -48,7 +49,8 @@ describe('patched @ai-sdk/openai assistant input items', () => {
         status: 'completed'
       }
     ])
-    expect(body.input.filter((item: any) => item.role === 'user').every((item: any) => item.type === 'message')).toBe(
+    // user/system items keep the adapter's shape — Ark never rejects those.
+    expect(body.input.filter((item: any) => item.role === 'user').every((item: any) => item.type === undefined)).toBe(
       true
     )
   })
