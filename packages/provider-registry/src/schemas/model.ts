@@ -303,7 +303,7 @@ const ImageModeDefSchema = z.object({
   maxInputImages: z.number().int().positive().optional(),
   vendorTransport: z
     .object({
-      endpoint: z.string(),
+      endpoint: z.string().regex(/^\/(?!\/)/, 'vendor transport endpoint must be a root-relative path, not a URL'),
       isSync: z.boolean().optional()
     })
     .optional(),

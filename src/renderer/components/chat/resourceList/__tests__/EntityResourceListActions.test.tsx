@@ -64,6 +64,7 @@ const tabsContextMocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  BlurCancelPointerSensor: class BlurCancelPointerSensor {},
   Button: ({ children, onClick, ...props }: { children?: ReactNode; onClick?: () => void }) => (
     <button {...props} type="button" onClick={onClick}>
       {children}
@@ -347,11 +348,19 @@ function createAssistantTopicsSource(overrides: Partial<AssistantTopicsSource> =
 
 function TestAssistantResourceList({
   assistantTopicsSource = createAssistantTopicsSource(),
+  onClearActiveTopic = vi.fn(),
   ...props
-}: Omit<ComponentProps<typeof AssistantResourceList>, 'assistantTopicsSource'> & {
+}: Omit<ComponentProps<typeof AssistantResourceList>, 'assistantTopicsSource' | 'onClearActiveTopic'> & {
   assistantTopicsSource?: AssistantTopicsSource
+  onClearActiveTopic?: ComponentProps<typeof AssistantResourceList>['onClearActiveTopic']
 }) {
-  return <AssistantResourceList assistantTopicsSource={assistantTopicsSource} {...props} />
+  return (
+    <AssistantResourceList
+      assistantTopicsSource={assistantTopicsSource}
+      onClearActiveTopic={onClearActiveTopic}
+      {...props}
+    />
+  )
 }
 
 vi.mock('@renderer/hooks/useTopic', () => ({
@@ -491,13 +500,16 @@ describe('classic layout entity resource list actions', () => {
 
   it('clears assistant topics from the classic layout assistant context menu', async () => {
     const onSelectTopic = vi.fn()
-    const onCreateTopicAfterClear = vi.fn()
+    const nextTopic = { id: 'topic-2', assistantId: 'assistant-2', name: 'Topic 2' }
+    const assistantTopicsSource = createAssistantTopicsSource({
+      loadLatestTopic: vi.fn().mockResolvedValue(nextTopic)
+    })
 
     render(
       <TestAssistantResourceList
         activeAssistantId="assistant-1"
+        assistantTopicsSource={assistantTopicsSource}
         onSelectTopic={onSelectTopic}
-        onCreateTopicAfterClear={onCreateTopicAfterClear}
         onCreateTopic={vi.fn()}
       />
     )
@@ -518,8 +530,7 @@ describe('classic layout entity resource list actions', () => {
     )
     await waitFor(() => expect(assistantDataMocks.deleteTopicsByAssistantId).toHaveBeenCalledWith('assistant-1'))
     await waitFor(() => expect(assistantDataMocks.refreshTopics).toHaveBeenCalledTimes(1))
-    expect(onCreateTopicAfterClear).toHaveBeenCalledWith('assistant-1')
-    expect(onSelectTopic).not.toHaveBeenCalled()
+    expect(onSelectTopic).toHaveBeenCalledWith(nextTopic)
     expect(toast.success).toHaveBeenCalledWith('assistants.clear.success_title:1')
   })
 
@@ -533,12 +544,10 @@ describe('classic layout entity resource list actions', () => {
       resolveConfirm = resolve
     })
     vi.mocked(popup.confirm).mockReturnValue(confirmPromise)
-    const onCreateTopicAfterClear = vi.fn()
 
     const props = {
       activeAssistantId: 'assistant-1',
       onSelectTopic: vi.fn(),
-      onCreateTopicAfterClear,
       onCreateTopic: vi.fn()
     }
     const { rerender } = render(<TestAssistantResourceList {...props} />)
@@ -562,7 +571,6 @@ describe('classic layout entity resource list actions', () => {
 
     expect(assistantDataMocks.deleteTopicsByAssistantId).not.toHaveBeenCalled()
     expect(assistantDataMocks.refreshTopics).not.toHaveBeenCalled()
-    expect(onCreateTopicAfterClear).not.toHaveBeenCalled()
     expect(toast.success).not.toHaveBeenCalled()
   })
 
@@ -606,16 +614,16 @@ describe('classic layout entity resource list actions', () => {
     expect(screen.getByRole('region', { name: 'chat.topics.group.unknown_assistant' })).toBeInTheDocument()
   })
 
-  it('creates a fresh topic after clearing the only classic assistant topics', async () => {
+  it('clears the active topic after clearing the only classic assistant topics', async () => {
     assistantDataMocks.topics = [{ id: 'topic-2', assistantId: 'assistant-2', name: 'Topic 2' }]
     assistantDataMocks.deleteTopicsByAssistantId.mockResolvedValueOnce({ deletedIds: ['topic-2'], deletedCount: 1 })
-    const onCreateTopicAfterClear = vi.fn()
+    const onClearActiveTopic = vi.fn()
 
     render(
       <TestAssistantResourceList
         activeAssistantId="assistant-2"
         onSelectTopic={vi.fn()}
-        onCreateTopicAfterClear={onCreateTopicAfterClear}
+        onClearActiveTopic={onClearActiveTopic}
         onCreateTopic={vi.fn()}
       />
     )
@@ -629,7 +637,7 @@ describe('classic layout entity resource list actions', () => {
     await waitFor(() => expect(popup.confirm).toHaveBeenCalled())
     await waitFor(() => expect(assistantDataMocks.deleteTopicsByAssistantId).toHaveBeenCalledWith('assistant-2'))
     await waitFor(() => expect(assistantDataMocks.refreshTopics).toHaveBeenCalledTimes(1))
-    expect(onCreateTopicAfterClear).toHaveBeenCalledWith('assistant-2')
+    expect(onClearActiveTopic).toHaveBeenCalledOnce()
     expect(toast.error).not.toHaveBeenCalled()
   })
 

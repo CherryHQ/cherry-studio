@@ -371,8 +371,10 @@ export async function parseSkillMetadata(
     }
   }
 
-  // Parse tools (skills use 'tools', not 'allowed_tools')
   const tools = toStringArray(data.tools)
+  const allowedTools = toStringArray(data['allowed-tools'] ?? data.allowed_tools)
+  const context = toString(data.context)
+  const agent = toString(data.agent)
 
   // Parse tags
   const tags = toStringArray(data.tags)
@@ -406,7 +408,10 @@ export async function parseSkillMetadata(
     name,
     slug,
     description,
+    allowed_tools: allowedTools,
     tools,
+    context,
+    agent,
     category, // "skills" for flat structure
     type: 'skill',
     tags,

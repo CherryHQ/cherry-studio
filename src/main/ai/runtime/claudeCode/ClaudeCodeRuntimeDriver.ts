@@ -817,6 +817,18 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private bindApprovalEmitter(): void {
     if (!this.approvalEmitter) return
     this.approvalEmitter.emit = (request) => this.eventQueue.push({ type: 'tool-approval-request', request })
+    this.approvalEmitter.emitInput = (request) =>
+      this.eventQueue.push({
+        type: 'chunk',
+        chunk: {
+          type: 'tool-input-available',
+          toolCallId: request.toolCallId,
+          toolName: request.toolName,
+          input: request.input,
+          providerExecuted: true,
+          dynamic: true
+        }
+      })
   }
 
   /**

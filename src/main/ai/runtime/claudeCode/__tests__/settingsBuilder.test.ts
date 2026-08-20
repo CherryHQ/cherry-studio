@@ -2,15 +2,31 @@ import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import { CHANNEL_SECURITY_PROMPT } from '@main/ai/runtime/agentPrompt'
 import {
-  ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES,
-  ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES,
-  CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES,
-  toCherryBuiltinRuntimeName
-} from '@main/ai/runtime/toolApproval/cherryBuiltinApproval'
+  listBuiltinToolPolicies,
+  toCherryBuiltinRuntimeName,
+  toMcpRuntimeName
+} from '@main/ai/toolApproval/builtinToolPolicy'
 import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({ approval: 'required' }).map(toMcpRuntimeName)
+const BYPASSABLE_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({
+  approval: 'required',
+  bypassApproval: 'lift'
+}).map(toMcpRuntimeName)
+const NON_BYPASSABLE_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({
+  approval: 'required',
+  bypassApproval: 'enforce'
+}).map(toMcpRuntimeName)
+const NON_HOST_MCP_SERVERS: ReadonlySet<string> = new Set(['cherry-tools', 'agent-memory', 'skills'])
+const NON_ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({
+  approval: 'required',
+  mountedServers: NON_HOST_MCP_SERVERS
+}).map(toMcpRuntimeName)
+const ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({ approval: 'required' })
+  .filter((entry) => !NON_HOST_MCP_SERVERS.has(entry.serverName))
+  .map(toMcpRuntimeName)
 
 const mocks = vi.hoisted(() => ({
   getAgent: vi.fn(),
@@ -21,6 +37,7 @@ const mocks = vi.hoisted(() => ({
   listSkills: vi.fn(),
   listLocalSkillFolderNames: vi.fn(),
   getSkillPluginDirectory: vi.fn(),
+  checkSkillRuntimeDependencies: vi.fn(),
   modelGetByKey: vi.fn(),
   findBySessionId: vi.fn(),
   createMcpBridgeServer: vi.fn(),
@@ -98,6 +115,12 @@ vi.mock('@main/ai/skills/SkillService', () => ({
   }
 }))
 
+vi.mock('../skillDependencies', () => ({
+  SKILL_TOOL_NAME: 'Skill',
+  buildPluginDirectoryIndex: vi.fn(async () => new Map()),
+  checkSkillRuntimeDependencies: mocks.checkSkillRuntimeDependencies
+}))
+
 vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
   getBuiltinAgentPluginDirectory: mocks.getBuiltinAgentPluginDirectory,
   loadBuiltinAgentDefinition: mocks.loadBuiltinAgentDefinition,
@@ -111,10 +134,7 @@ vi.mock('@main/ai/agents/prompt', () => ({
   }))
 }))
 
-vi.mock('@main/ai/mcp/servers/assistant', () => ({
-  default: mocks.createAssistantServer,
-  SUPPORT_ASSISTANT_TOOL_NAMES: ['navigate', 'diagnose', 'product_info', 'apply_setting']
-}))
+vi.mock('@main/ai/mcp/servers/assistant', () => ({ default: mocks.createAssistantServer }))
 
 vi.mock('@main/ai/mcp/servers/AssistantFileToolsServer', () => ({
   AssistantFileToolsServer: mocks.createAssistantFileToolsServer
@@ -130,10 +150,14 @@ vi.mock('@main/ai/tools/adapters/claudeCode/agentTools', () => ({
 
 vi.mock('@application', () => ({
   application: {
+    // Session-keyed live state always resolves to the one real service instance (created below),
+    // so the many per-test `applicationGet` overrides don't each have to register it.
     get: (name: string) =>
-      name === 'BinaryManager'
-        ? { ensureBundledGit: mocks.ensureBundledGit, resolveBinaryPath: mocks.resolveBinaryPath }
-        : mocks.applicationGet(name),
+      name === 'ClaudeCodeSessionStateService'
+        ? sessionStateService
+        : name === 'BinaryManager'
+          ? { ensureBundledGit: mocks.ensureBundledGit, resolveBinaryPath: mocks.resolveBinaryPath }
+          : mocks.applicationGet(name),
     getPath: mocks.applicationGetPath
   }
 }))
@@ -152,10 +176,6 @@ vi.mock('@main/services/proxy/proxyEnv', () => ({
   CHERRY_NODE_PROXY_BYPASS_RULES_ENV: 'CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES',
   CHERRY_NODE_PROXY_RULES_ENV: 'CHERRY_STUDIO_NODE_PROXY_RULES',
   getProxyEnvironment: mocks.getProxyEnvironment
-}))
-
-vi.mock('@main/utils/asar', () => ({
-  toAsarUnpackedPath: (input: string) => input
 }))
 
 vi.mock('../ClaudeCodeBinaryService', () => ({
@@ -196,7 +216,7 @@ vi.mock('@main/utils/shellEnv', () => ({
   refreshShellEnv: mocks.refreshShellEnv
 }))
 
-vi.mock('../../toolApproval/ToolApprovalRegistry', () => ({
+vi.mock('@main/ai/toolApproval/ToolApprovalRegistry', () => ({
   toolApprovalRegistry: {
     abort: vi.fn(),
     register: mocks.approvalRegister
@@ -216,6 +236,10 @@ const {
   prepareClaudeCodeWorkspaceDirectory,
   registerMcpSessionCatalogSync
 } = await import('../settingsBuilder')
+const { ClaudeCodeSessionStateService } = await import('../ClaudeCodeSessionStateService')
+// One real instance per test file — the facade resolves it via application.get, and the real Maps
+// preserve the warm-pool resolve-by-id semantics the Bug A/Bug B and dispose tests exercise.
+const sessionStateService = new ClaudeCodeSessionStateService()
 
 function systemPromptText(systemPrompt: unknown): string {
   if (typeof systemPrompt === 'string') return systemPrompt
@@ -229,9 +253,6 @@ function systemPromptText(systemPrompt: unknown): string {
 
 describe('buildClaudeCodeSessionSettings', () => {
   beforeEach(() => {
-    // The per-session snapshot registry is module-level state; reset session-1 (reused across
-    // tests) so each build creates a fresh snapshot instead of refreshing a prior test's instance.
-    disposeToolPolicySnapshot('session-1')
     vi.clearAllMocks()
     mocks.approvalRegister.mockReturnValue(true)
     mocks.ensureClaudeExecutable.mockResolvedValue('/toolchain/claude')
@@ -286,6 +307,10 @@ describe('buildClaudeCodeSessionSettings', () => {
       }
       throw new Error(`Unexpected application.get(${name})`)
     })
+    // The per-session snapshot registry is service-held state shared across tests; reset session-1
+    // (reused throughout) so each build creates a fresh snapshot instead of refreshing a prior
+    // test's instance. Must run after the application.get implementation above is in place.
+    disposeToolPolicySnapshot('session-1')
     mocks.applicationGetPath.mockImplementation((key: string) => `/app/${key}`)
     mocks.platform.isMac = false
     mocks.getShellEnv.mockResolvedValue({})
@@ -303,6 +328,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.listSkills.mockResolvedValue([])
     mocks.listLocalSkillFolderNames.mockResolvedValue([])
     mocks.getSkillPluginDirectory.mockReturnValue('/app/feature.agents.claude.root')
+    mocks.checkSkillRuntimeDependencies.mockResolvedValue({})
     mocks.getBuiltinAgentPluginDirectory.mockReturnValue(undefined)
     mocks.loadBuiltinAgentDefinition.mockReturnValue(undefined)
   })
@@ -416,6 +442,56 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.settings).toMatchObject({ autoCompactEnabled: true, autoMemoryEnabled: false, fastMode: true })
     expect(settings).not.toHaveProperty('fastMode')
     expect(settings.forwardSubagentText).toBe(true)
+  })
+
+  async function runSkillDependencyHook(hookName: 'toolGuardHook' | 'skillDependencyAdvisoryHook') {
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+
+    const hook = settings.hooks?.PreToolUse?.[0]?.hooks.find((candidate) => candidate.name === hookName)
+    return hook?.(
+      {
+        hook_event_name: 'PreToolUse',
+        tool_name: 'Skill',
+        tool_input: { skill: 'parallel-web-search', args: 'latest React release' }
+      } as never,
+      'tool-use-1',
+      {} as never
+    )
+  }
+
+  it('denies a skill before forked execution when a declared dependency is provably absent', async () => {
+    mocks.checkSkillRuntimeDependencies.mockResolvedValue({
+      deny: 'Skill "parallel-web-search" cannot run: its forked subagent "parallel:parallel-subagent" is not installed.'
+    })
+
+    expect(await runSkillDependencyHook('toolGuardHook')).toEqual({
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'deny',
+        permissionDecisionReason:
+          'Skill "parallel-web-search" cannot run: its forked subagent "parallel:parallel-subagent" is not installed.'
+      }
+    })
+  })
+
+  it('lets an unresolved dependency through as context instead of a permission decision', async () => {
+    mocks.checkSkillRuntimeDependencies.mockResolvedValue({
+      warning: 'Skill "parallel-web-search" may be missing runtime dependencies.'
+    })
+
+    expect(await runSkillDependencyHook('skillDependencyAdvisoryHook')).toEqual({
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        additionalContext: 'Skill "parallel-web-search" may be missing runtime dependencies.'
+      }
+    })
   })
 
   it('appends root AGENTS.md context and wires lazy nested-instruction loading', async () => {
@@ -901,6 +977,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.createToolPolicySnapshot.mockResolvedValue({
       resolve: vi.fn(),
       isDisabled: vi.fn((tool: string) => tool === 'Bash'),
+      getPermissionMode: vi.fn(() => undefined),
       update: vi.fn(),
       setPermissionMode: vi.fn()
     })
@@ -956,41 +1033,33 @@ describe('buildClaudeCodeSessionSettings', () => {
       } as never,
       {} as never
     )
-    const assistantHook = assistantSettings.hooks?.PreToolUse?.[0]?.hooks.find(
-      (hook) => hook.name === 'assistantDestructiveOperationHook'
-    )
-    expect(assistantHook).toBeDefined()
+    const hookOutputs = async (settings: typeof assistantSettings, toolName: string, toolInput: unknown) =>
+      Promise.all(
+        (settings.hooks?.PreToolUse?.[0]?.hooks ?? []).map((hook) =>
+          hook(
+            { hook_event_name: 'PreToolUse', tool_name: toolName, tool_input: toolInput } as never,
+            'tool-use-1',
+            {} as never
+          )
+        )
+      )
+    const denyReasonOf = async (settings: typeof assistantSettings, toolName: string, toolInput: unknown) => {
+      const outputs = (await hookOutputs(settings, toolName, toolInput)) as Array<{
+        hookSpecificOutput?: { permissionDecision?: string; permissionDecisionReason?: string }
+      }>
+      return outputs.find((out) => out?.hookSpecificOutput?.permissionDecision === 'deny')?.hookSpecificOutput
+        ?.permissionDecisionReason
+    }
 
     for (const [toolName, toolInput] of [
       ['Bash', { command: 'rm -rf ./output' }],
       ['mcp__filesystem__delete', { path: 'output' }]
     ] as const) {
-      await expect(
-        assistantHook?.(
-          { hook_event_name: 'PreToolUse', tool_name: toolName, tool_input: toolInput } as never,
-          'tool-use-1',
-          {} as never
-        )
-      ).resolves.toEqual(
-        expect.objectContaining({
-          hookSpecificOutput: expect.objectContaining({
-            permissionDecision: 'deny',
-            permissionDecisionReason: expect.stringContaining('mcp__assistant-files__move_to_trash')
-          })
-        })
+      await expect(denyReasonOf(assistantSettings, toolName, toolInput)).resolves.toContain(
+        'mcp__assistant-files__move_to_trash'
       )
     }
-    await expect(
-      assistantHook?.(
-        {
-          hook_event_name: 'PreToolUse',
-          tool_name: 'Bash',
-          tool_input: { command: 'pnpm test' }
-        } as never,
-        'tool-use-2',
-        {} as never
-      )
-    ).resolves.toEqual({})
+    await expect(denyReasonOf(assistantSettings, 'Bash', { command: 'pnpm test' })).resolves.toBeUndefined()
 
     mocks.getAgent.mockReturnValue({
       id: 'support-1',
@@ -1008,19 +1077,8 @@ describe('buildClaudeCodeSessionSettings', () => {
       } as never,
       {} as never
     )
-    const supportHook = supportSettings.hooks?.PreToolUse?.[0]?.hooks.find(
-      (hook) => hook.name === 'assistantDestructiveOperationHook'
-    )
-    await expect(
-      supportHook?.(
-        { hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'rm -rf ./output' } } as never,
-        'tool-use-support',
-        {} as never
-      )
-    ).resolves.toEqual(
-      expect.objectContaining({
-        hookSpecificOutput: expect.objectContaining({ permissionDecision: 'deny' })
-      })
+    await expect(denyReasonOf(supportSettings, 'Bash', { command: 'rm -rf ./output' })).resolves.toContain(
+      'must never permanently delete data'
     )
 
     mocks.getAgent.mockReturnValue({
@@ -1039,24 +1097,21 @@ describe('buildClaudeCodeSessionSettings', () => {
       } as never,
       {} as never
     )
-    const normalHook = normalSettings.hooks?.PreToolUse?.[0]?.hooks.find(
-      (hook) => hook.name === 'assistantDestructiveOperationHook'
-    )
-    await expect(
-      normalHook?.(
-        {
-          hook_event_name: 'PreToolUse',
-          tool_name: 'Bash',
-          tool_input: { command: 'rm -rf ./output' }
-        } as never,
-        'tool-use-3',
-        {} as never
-      )
-    ).resolves.toEqual({})
+    await expect(denyReasonOf(normalSettings, 'Bash', { command: 'rm -rf ./output' })).resolves.toBeUndefined()
   })
 
-  it('requires live approval for every Cherry Support Bash call under bypassPermissions', async () => {
+  it('gates Support and Assistant Bash per mode: ask interactively, lifted by bypassPermissions, denied headless', async () => {
     let interactionState = { currentTurn: 'interactive', userResponse: 'stream' }
+    // The guard reads the LIVE permission mode from the session snapshot, so a warm connection
+    // honors a mid-session mode switch; drive it through this mutable fn.
+    let permissionMode: string | undefined = undefined
+    mocks.createToolPolicySnapshot.mockResolvedValue({
+      resolve: vi.fn(),
+      isDisabled: vi.fn(() => false),
+      getPermissionMode: vi.fn(() => permissionMode),
+      update: vi.fn(),
+      setPermissionMode: vi.fn()
+    })
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
       if (name === 'McpCatalogService') {
@@ -1110,11 +1165,25 @@ describe('buildClaudeCodeSessionSettings', () => {
       `bash -lc 'gh issue create --repo CherryHQ/cherry-studio --title "Bug" --body-file report.md'`,
       'pnpm test'
     ]
+    // Interactive default mode: every Support Bash call requires a live per-call decision.
     for (const command of bashCommands) {
       await expect(permissionDecisions('Bash', { command })).resolves.toContain('ask')
     }
 
+    // bypassPermissions is the user's explicit opt-out of per-call approval: the ask disappears.
+    // (Net behavior is unchanged — before the guard table, the hook's ask was auto-pierced by the
+    // mode in canUseTool; now it is simply not raised.)
+    permissionMode = 'bypassPermissions'
+    for (const command of bashCommands) {
+      await expect(permissionDecisions('Bash', { command })).resolves.not.toContain('ask')
+    }
+
+    // Headless denial is not an approval and survives bypassPermissions.
     interactionState = { currentTurn: 'headless', userResponse: 'unavailable' }
+    for (const command of bashCommands) {
+      await expect(permissionDecisions('Bash', { command })).resolves.toContain('deny')
+    }
+    permissionMode = undefined
     for (const command of bashCommands) {
       await expect(permissionDecisions('Bash', { command })).resolves.toContain('deny')
     }
@@ -1154,8 +1223,13 @@ describe('buildClaudeCodeSessionSettings', () => {
         })
       )
 
+    // Assistant feedback submission: ask in default mode, lifted by bypass, denied headless.
     await expect(assistantDecisions(directGhCommand)).resolves.toContain('ask')
     await expect(assistantDecisions('pnpm test')).resolves.not.toContain('ask')
+    permissionMode = 'bypassPermissions'
+    await expect(assistantDecisions(directGhCommand)).resolves.not.toContain('ask')
+    interactionState = { currentTurn: 'headless', userResponse: 'unavailable' }
+    await expect(assistantDecisions(directGhCommand)).resolves.toContain('deny')
   })
 
   it('forces file-tool paths outside the session workspace through approval', async () => {
@@ -1203,6 +1277,33 @@ describe('buildClaudeCodeSessionSettings', () => {
     await expect(permissionDecisions('Glob', { path: '/workspace/project' })).resolves.not.toContain('ask')
     await expect(permissionDecisions('Glob', {})).resolves.not.toContain('ask')
     await expect(permissionDecisions('Bash', { command: 'cat /outside/read.txt' })).resolves.not.toContain('ask')
+  })
+
+  it('lifts the workspace-escape ask under bypassPermissions (net-equivalent: the mode auto-pierced it before)', async () => {
+    mocks.createToolPolicySnapshot.mockResolvedValue({
+      resolve: vi.fn(),
+      isDisabled: vi.fn(() => false),
+      getPermissionMode: vi.fn(() => 'bypassPermissions'),
+      update: vi.fn(),
+      setPermissionMode: vi.fn()
+    })
+    const settings = await buildClaudeCodeSessionSettings(
+      { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+      {} as never
+    )
+    const decisions = await Promise.all(
+      (settings.hooks?.PreToolUse?.[0]?.hooks ?? []).map(async (hook) => {
+        const output = await hook(
+          { hook_event_name: 'PreToolUse', tool_name: 'Edit', tool_input: { file_path: '/outside/edit.txt' } } as never,
+          'tool-use-1',
+          {} as never
+        )
+        return (output as { hookSpecificOutput?: { permissionDecision?: string } }).hookSpecificOutput
+          ?.permissionDecision
+      })
+    )
+    expect(decisions).not.toContain('ask')
+    expect(decisions).not.toContain('deny')
   })
 
   it.runIf(process.platform !== 'win32')(
@@ -1255,7 +1356,15 @@ describe('buildClaudeCodeSessionSettings', () => {
     }
   )
 
-  it('forces approval-required runtime tools through PreToolUse under bypassPermissions', async () => {
+  it('lifts ordinary approvals under bypassPermissions but preserves the delegation ceiling', async () => {
+    let permissionMode: string | undefined = undefined
+    mocks.createToolPolicySnapshot.mockResolvedValue({
+      resolve: vi.fn(),
+      isDisabled: vi.fn(() => false),
+      getPermissionMode: vi.fn(() => permissionMode),
+      update: vi.fn(),
+      setPermissionMode: vi.fn()
+    })
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       type: 'claude-code',
@@ -1286,14 +1395,20 @@ describe('buildClaudeCodeSessionSettings', () => {
       )
 
     expect(settings.permissionMode).toBe('bypassPermissions')
-    const requiredTools = [
-      ...CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map(toCherryBuiltinRuntimeName),
-      ...ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES,
-      ...ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES
-    ]
+    const requiredTools = APPROVAL_REQUIRED_RUNTIME_NAMES
+    // Default mode (live snapshot mode undefined): the explicit per-call approval list always asks.
     for (const toolName of requiredTools) {
       await expect(permissionDecisions(toolName)).resolves.toContain('ask')
     }
+    // Full Access lifts ordinary per-call approval, but cross-Session delegation still asks.
+    permissionMode = 'bypassPermissions'
+    for (const toolName of BYPASSABLE_APPROVAL_REQUIRED_RUNTIME_NAMES) {
+      await expect(permissionDecisions(toolName)).resolves.not.toContain('ask')
+    }
+    for (const toolName of NON_BYPASSABLE_APPROVAL_REQUIRED_RUNTIME_NAMES) {
+      await expect(permissionDecisions(toolName)).resolves.toContain('ask')
+    }
+    permissionMode = undefined
     for (const toolName of ['Bash', 'mcp__assistant__navigate', 'mcp__assistant__product_info']) {
       await expect(permissionDecisions(toolName)).resolves.not.toContain('ask')
     }
@@ -1542,7 +1657,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       'EnterPlanMode',
       'ExitPlanMode',
       'EnterWorktree',
-      ...CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map(toCherryBuiltinRuntimeName)
+      ...NON_ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES
     ]
     for (const toolName of toolsRequiringAResponder) {
       const result = await settings.canUseTool?.(toolName, {}, {
@@ -1557,6 +1672,116 @@ describe('buildClaudeCodeSessionSettings', () => {
       })
     }
     expect(getInteractionState).toHaveBeenCalledWith('session-1')
+  })
+
+  it('lifts the fire-time headless denial under bypassPermissions only for liftable approvals', async () => {
+    const getInteractionState = vi.fn(() => ({ currentTurn: 'headless', userResponse: 'unavailable' }))
+    mocks.applicationGet.mockImplementation((name: string) => {
+      if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
+      if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
+      if (name === 'AgentSessionRuntimeService') return { getInteractionState }
+      throw new Error(`Unexpected application.get(${name})`)
+    })
+    mocks.createToolPolicySnapshot.mockResolvedValue({
+      resolve: vi.fn(),
+      isDisabled: vi.fn(() => false),
+      getPermissionMode: vi.fn(() => 'bypassPermissions'),
+      update: vi.fn(),
+      setPermissionMode: vi.fn()
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+    const decide = (toolName: string) =>
+      settings.canUseTool?.(toolName, {}, { signal: { aborted: false }, toolUseID: 'tool-use-1' } as never)
+
+    const liftable = listBuiltinToolPolicies({
+      approval: 'required',
+      bypassApproval: 'lift',
+      mountedServers: NON_HOST_MCP_SERVERS
+    }).map(toMcpRuntimeName)
+    for (const toolName of liftable) {
+      await expect(decide(toolName)).resolves.toEqual({ behavior: 'allow', updatedInput: {} })
+    }
+    // The delegation ceiling and tools whose whole function is a user-authored answer still deny.
+    for (const toolName of [...NON_BYPASSABLE_APPROVAL_REQUIRED_RUNTIME_NAMES, 'AskUserQuestion', 'EnterPlanMode']) {
+      await expect(decide(toolName)).resolves.toEqual({
+        behavior: 'deny',
+        message:
+          'This channel or scheduled turn has no interactive responder, so proceed without asking the user and state your assumptions instead.'
+      })
+    }
+  })
+
+  it('surfaces the normalized ExitPlanMode plan before denying a headless turn', async () => {
+    mocks.applicationGet.mockImplementation((name: string) => {
+      if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
+      if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
+      if (name === 'AgentSessionRuntimeService') {
+        return { getInteractionState: () => ({ currentTurn: 'headless', userResponse: 'unavailable' }) }
+      }
+      throw new Error(`Unexpected application.get(${name})`)
+    })
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+    const emitInput = vi.fn()
+    settings.approvalEmitter!.emitInput = emitInput
+    const input = { plan: '# Release plan\n\n1. Add the regression test' }
+
+    const result = await settings.canUseTool?.('ExitPlanMode', input, {
+      signal: { aborted: false },
+      toolUseID: 'exit-plan-1'
+    } as never)
+
+    expect(emitInput).toHaveBeenCalledWith({
+      toolCallId: 'exit-plan-1',
+      toolName: 'ExitPlanMode',
+      input
+    })
+    expect(result).toEqual({
+      behavior: 'deny',
+      message:
+        'This channel or scheduled turn has no interactive responder, so proceed without asking the user and state your assumptions instead.'
+    })
+  })
+
+  it('surfaces the normalized ExitPlanMode plan before requesting interactive approval', async () => {
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+    const emitInput = vi.fn()
+    const emit = vi.fn()
+    settings.approvalEmitter!.emitInput = emitInput
+    settings.approvalEmitter!.emit = emit
+    const input = { plan: '# Release plan\n\n1. Add the regression test' }
+
+    void settings.canUseTool?.('ExitPlanMode', input, {
+      signal: { aborted: false },
+      toolUseID: 'exit-plan-1'
+    } as never)
+
+    expect(emitInput).toHaveBeenCalledWith({
+      toolCallId: 'exit-plan-1',
+      toolName: 'ExitPlanMode',
+      input
+    })
+    expect(emit).toHaveBeenCalledWith(expect.objectContaining({ toolCallId: 'exit-plan-1', input }))
+    expect(emitInput.mock.invocationCallOrder[0]).toBeLessThan(emit.mock.invocationCallOrder[0])
   })
 
   it('denies interactive no-responder tools via PreToolUse so the gate fires under bypassPermissions', async () => {
@@ -1591,7 +1816,7 @@ describe('buildClaudeCodeSessionSettings', () => {
         expect.objectContaining({ hookSpecificOutput: expect.objectContaining({ permissionDecision: 'deny' }) })
       )
     }
-    for (const toolName of CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map(toCherryBuiltinRuntimeName)) {
+    for (const toolName of NON_ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES) {
       const results = await Promise.all(
         (settings.hooks?.PreToolUse?.[0]?.hooks ?? []).map((hook) =>
           hook(
@@ -1610,6 +1835,95 @@ describe('buildClaudeCodeSessionSettings', () => {
     }
     expect(getInteractionState).toHaveBeenCalledWith('session-1')
   })
+
+  it('surfaces a headless ExitPlanMode plan from PreToolUse before bypassPermissions denies it', async () => {
+    mocks.applicationGet.mockImplementation((name: string) => {
+      if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
+      if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
+      if (name === 'AgentSessionRuntimeService') {
+        return { getInteractionState: () => ({ currentTurn: 'headless', userResponse: 'unavailable' }) }
+      }
+      throw new Error(`Unexpected application.get(${name})`)
+    })
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+    const emitInput = vi.fn()
+    settings.approvalEmitter!.emitInput = emitInput
+    const input = { plan: '# Headless plan' }
+
+    await Promise.all(
+      (settings.hooks?.PreToolUse?.[0]?.hooks ?? []).map((hook) =>
+        hook(
+          { hook_event_name: 'PreToolUse', tool_name: 'ExitPlanMode', tool_input: input } as never,
+          'exit-plan-hook-1',
+          {} as never
+        )
+      )
+    )
+
+    expect(emitInput).toHaveBeenCalledWith({
+      toolCallId: 'exit-plan-hook-1',
+      toolName: 'ExitPlanMode',
+      input
+    })
+  })
+
+  it.each(['bypassPermissions', 'acceptEdits'] as const)(
+    'surfaces an interactive ExitPlanMode plan from PreToolUse under %s',
+    async (permissionMode) => {
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        type: 'claude-code',
+        instructions: 'Follow instructions.',
+        model: 'anthropic::claude-sonnet',
+        planModel: 'anthropic::claude-sonnet',
+        smallModel: 'anthropic::claude-haiku',
+        mcps: [],
+        allowedTools: [],
+        configuration: { permission_mode: permissionMode }
+      })
+      const settings = await buildClaudeCodeSessionSettings(
+        {
+          id: 'session-1',
+          agentId: 'agent-1',
+          workspace: { type: 'user', path: '/workspace/project' }
+        } as never,
+        {} as never
+      )
+      const emitInput = vi.fn()
+      settings.approvalEmitter!.emitInput = emitInput
+      const input = { plan: '# Interactive plan' }
+
+      const results = await Promise.all(
+        (settings.hooks?.PreToolUse?.[0]?.hooks ?? []).map((hook) =>
+          hook(
+            { hook_event_name: 'PreToolUse', tool_name: 'ExitPlanMode', tool_input: input } as never,
+            'exit-plan-hook-1',
+            {} as never
+          )
+        )
+      )
+
+      expect(settings.permissionMode).toBe(permissionMode)
+      expect(results).not.toContainEqual(
+        expect.objectContaining({
+          hookSpecificOutput: expect.objectContaining({ permissionDecision: expect.stringMatching(/ask|deny/) })
+        })
+      )
+      expect(emitInput).toHaveBeenCalledTimes(1)
+      expect(emitInput).toHaveBeenCalledWith({
+        toolCallId: 'exit-plan-hook-1',
+        toolName: 'ExitPlanMode',
+        input
+      })
+    }
+  )
 
   it('forces AskUserQuestion through approval without denying other interactive tools', async () => {
     const getInteractionState = vi.fn(() => ({ currentTurn: 'interactive', userResponse: 'stream' }))
@@ -2063,10 +2377,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__create_agent')
     expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__diagnose')
     expect(snapshotOptions.autoAllowRuntimeNameExceptions).toEqual(
-      expect.arrayContaining([
-        ...ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES,
-        ...ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES
-      ])
+      expect.arrayContaining(ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES)
     )
     expect(snapshotOptions.autoAllowRuntimeNamePrefixes ?? []).toEqual([])
     expect(mocks.createAssistantServer).toHaveBeenCalledWith('anthropic::claude-sonnet', undefined)
@@ -2127,7 +2438,6 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.mcpServers?.['assistant-files']).toBeDefined()
     expect(settings.allowedTools).toContain('mcp__assistant__navigate')
     expect(settings.allowedTools).toContain('mcp__assistant-files__read_file')
-    expect(systemPromptText(settings.systemPrompt)).not.toContain(CHANNEL_SECURITY_PROMPT)
     expect(mocks.findBySessionId).not.toHaveBeenCalled()
   })
 
@@ -2223,7 +2533,6 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(listed.tools.map((tool: { name: string }) => tool.name)).not.toEqual(
       expect.arrayContaining(['kb_search', 'kb_read', 'kb_list', 'kb_manage'])
     )
-    expect(systemPromptText(settings.systemPrompt)).toContain(CHANNEL_SECURITY_PROMPT)
   })
 
   it('does not inject a Cherry Assistant-only contract on every submitted prompt', async () => {
@@ -2260,11 +2569,9 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.steerHolder).toBeDefined()
 
     const preToolUse = settings.hooks?.PreToolUse?.[0]?.hooks
-    // interactiveToolPermissionHook + headlessConfigMutationHook + headlessSkillInstallHook +
-    // disabledToolHook + assistantDestructiveOperationHook + assistantFeedbackSubmissionHook +
-    // supportBashPermissionHook + approvalRequiredToolHook + workspacePathHook + agentsMdHook +
-    // dependencyIsolationHook + rtkRewriteHook + steerHook
-    expect(preToolUse).toHaveLength(13)
+    // toolGuardHook (the declarative guard table) + skillDependencyAdvisoryHook + agentsMdHook +
+    // rtkRewriteHook + steerHook
+    expect(preToolUse).toHaveLength(5)
 
     const steerHook = preToolUse?.find((hook) => hook.name === 'steerHook') as unknown as (input: {
       hook_event_name: string
@@ -2348,10 +2655,10 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     await buildClaudeCodeSessionSettings(session as never, {} as never)
 
-    // settingsBuilder must derive the approval exceptions from the shared constant and pass them to the
-    // snapshot. The agentTools test proves those options gate kb_manage; this proves settingsBuilder
-    // actually supplies them — dropping `.map(toCherryBuiltinRuntimeName)` or the exceptions fails here.
-    const exceptions = CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map(toCherryBuiltinRuntimeName)
+    // settingsBuilder must derive approval exceptions from policy entries and pass them to the
+    // snapshot. The agentTools test proves those options gate kb_manage; this proves the adapter
+    // actually supplies the derived boundary format.
+    const exceptions = NON_ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES
     expect(exceptions).toContain(toCherryBuiltinRuntimeName(KB_MANAGE_TOOL_NAME))
     expect(mocks.createToolPolicySnapshot).toHaveBeenCalledWith(
       expect.anything(),
@@ -2427,6 +2734,7 @@ describe('buildClaudeCodeSessionSettings', () => {
         const snap = {
           resolve: vi.fn(),
           isDisabled: (tool: string) => disabled.has(tool),
+          getPermissionMode: vi.fn(() => undefined),
           update: vi.fn(async () => {
             disabled.add('Bash')
           }),
