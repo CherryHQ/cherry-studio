@@ -14,7 +14,7 @@ import type { ProviderModelOverride } from '../schemas/provider-models'
 /**
  * Connection config emitted to `providers.json`. `description` is templated, so it's omitted here;
  * `endpointConfigs` is relaxed to a partial map (a provider declares only the 1–2 endpoints it speaks);
- * `defaultChatEndpoint` is optional (dynamic/local providers like ollama/lmstudio/new-api omit it).
+ * `defaultChatEndpoint` is optional for providers whose chat route is resolved dynamically.
  */
 type ProviderConnection = Omit<
   ProviderConfig,

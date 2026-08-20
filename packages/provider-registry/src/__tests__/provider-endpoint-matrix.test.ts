@@ -27,6 +27,12 @@ const endpointsOf = (providerId: string, modelId: string): string[] | undefined 
   return entry.endpointTypes as string[] | undefined
 }
 
+describe('lmstudio endpoint matrix', () => {
+  it('defaults endpoint-less discovered models to OpenAI Chat Completions', () => {
+    expect(provider('lmstudio').defaultChatEndpoint).toBe('openai-chat-completions')
+  })
+})
+
 describe('dashscope (Bailian) endpoint matrix', () => {
   /**
    * Bailian serves the whole qwen line on Chat Completions — the OpenAI-compatible Chat doc

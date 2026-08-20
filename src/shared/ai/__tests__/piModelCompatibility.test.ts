@@ -78,6 +78,21 @@ describe('resolvePiApi', () => {
     )
   })
 
+  it('accepts endpoint-less LM Studio models through the provider default', () => {
+    const provider = makeProvider({
+      id: 'lmstudio',
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'http://localhost:1234' },
+        'openai-chat-completions': { adapterFamily: 'openai-compatible', baseUrl: 'http://localhost:1234' }
+      }
+    })
+    const model = makeModel({ id: 'lmstudio::local-model', providerId: 'lmstudio', endpointTypes: undefined })
+
+    expect(resolvePiApi(provider, model)).toBe('openai-completions')
+    expect(isPiCompatibleModel(provider, model)).toBe(true)
+  })
+
   it('is false for an unmapped provider', () => {
     const provider = makeProvider({
       defaultChatEndpoint: 'ollama-chat',
