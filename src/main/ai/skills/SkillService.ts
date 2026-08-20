@@ -9,6 +9,7 @@ import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { findExecutableInEnv } from '@main/utils/commandResolver'
+import { decodeTextBufferIfText } from '@main/utils/file'
 import { deleteDirectoryRecursive } from '@main/utils/fileOperations'
 import { directoryExists } from '@main/utils/legacyFile'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
@@ -44,6 +45,7 @@ const CLAUDE_PLUGINS_API = 'https://api.claude-plugins.dev'
 const MAX_EXTRACTED_SIZE = 100 * 1024 * 1024 // 100MB
 const MAX_FILES_COUNT = 2000
 const MAX_FOLDER_NAME_LENGTH = 80
+const SKILL_FILE_PREVIEW_MAX_SIZE_BYTES = 2 * 1024 * 1024
 // A direct-URL install points git at a repository nobody vetted; no single step may hang forever.
 const GIT_COMMAND_TIMEOUT_MS = 2 * 60 * 1000
 const MAX_GIT_TREE_OUTPUT_BYTES = 16 * 1024 * 1024
@@ -162,7 +164,13 @@ export class SkillService {
     if (!filePath.startsWith(skillRoot + path.sep) && filePath !== skillRoot) return null
 
     try {
-      return await fs.promises.readFile(filePath, 'utf-8')
+      const [realRoot, realFile] = await Promise.all([fs.promises.realpath(skillRoot), fs.promises.realpath(filePath)])
+      if (isOutsidePath(path.relative(realRoot, realFile))) return null
+
+      const stats = await fs.promises.stat(realFile)
+      if (!stats.isFile() || stats.size > SKILL_FILE_PREVIEW_MAX_SIZE_BYTES) return null
+
+      return decodeTextBufferIfText(await fs.promises.readFile(realFile))
     } catch {
       return null
     }

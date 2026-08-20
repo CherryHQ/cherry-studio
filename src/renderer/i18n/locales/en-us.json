@@ -2991,11 +2991,19 @@
     "skill_detail": {
       "created_at": "Created",
       "description": "Description",
+      "file_load_failed": "Could not load file",
       "file_preview": "File preview",
       "installed": "Installed",
       "no_description": "No description",
+      "no_files": "No files found",
       "open_folder": "Open folder",
       "open_folder_failed": "Could not open folder",
+      "select_file": "Select a file to preview",
+      "show_original": "Show original",
+      "show_translation": "Show translation",
+      "source_files": "Source files",
+      "translate_to_chinese": "Translate to Chinese",
+      "translating": "Translating...",
       "updated_at": "Recently updated"
     },
     "skill_marketplace": {

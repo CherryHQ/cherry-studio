@@ -2991,11 +2991,19 @@
     "skill_detail": {
       "created_at": "Đã tạo",
       "description": "Mô tả",
+      "file_load_failed": "Không thể tải tệp",
       "file_preview": "Xem trước tệp",
       "installed": "Đã cài đặt",
       "no_description": "Không có mô tả",
+      "no_files": "Không tìm thấy tệp",
       "open_folder": "Mở thư mục",
       "open_folder_failed": "Không thể mở thư mục",
+      "select_file": "Chọn tệp để xem trước",
+      "show_original": "Hiện bản gốc",
+      "show_translation": "Hiện bản dịch",
+      "source_files": "Tệp nguồn",
+      "translate_to_chinese": "Dịch sang tiếng Trung",
+      "translating": "Đang dịch...",
       "updated_at": "Đã cập nhật gần đây"
     },
     "skill_marketplace": {

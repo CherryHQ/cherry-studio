@@ -2991,11 +2991,19 @@
     "skill_detail": {
       "created_at": "建立時間",
       "description": "描述",
+      "file_load_failed": "無法載入檔案",
       "file_preview": "檔案預覽",
       "installed": "已安裝",
       "no_description": "目前沒有描述",
+      "no_files": "找不到檔案",
       "open_folder": "開啟資料夾",
       "open_folder_failed": "無法開啟資料夾",
+      "select_file": "選擇檔案以預覽",
+      "show_original": "顯示原文",
+      "show_translation": "顯示譯文",
+      "source_files": "來源檔案",
+      "translate_to_chinese": "翻譯成中文",
+      "translating": "翻譯中...",
       "updated_at": "最近更新"
     },
     "skill_marketplace": {
