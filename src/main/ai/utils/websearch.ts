@@ -195,7 +195,7 @@ export function buildProviderBuiltinWebSearchConfig(
     case 'cherryin': {
       // cherryin proxies to a real endpoint forced per model;
       // map it to the AppProviderId whose web-search case applies.
-      const endpoint = model ? getModelPreferredEndpoint(model) : undefined
+      const endpoint = model && provider ? getModelPreferredEndpoint(model, provider) : undefined
       const proxied: AppProviderId | undefined =
         endpoint === ENDPOINT_TYPE.OPENAI_RESPONSES
           ? 'openai'

@@ -66,6 +66,7 @@ import type {
   RuntimeApiFeatures
 } from '@shared/data/types/provider'
 import { DEFAULT_API_FEATURES } from '@shared/data/types/provider'
+import { getModelPreferredEndpoint, isModelEndpointTypeAvailable } from '@shared/utils/provider'
 import { isEqual } from 'es-toolkit/compat'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
@@ -163,6 +164,12 @@ export interface ReasoningProviderContext {
   id: Provider['id']
   presetProviderId?: Provider['presetProviderId'] | null
   defaultChatEndpoint?: Provider['defaultChatEndpoint']
+  endpointConfigs?: Provider['endpointConfigs']
+}
+
+interface ModelEndpointSelection {
+  endpointTypes?: EndpointType[]
+  preferredEndpointType?: EndpointType
 }
 
 function isEmptyPricingEcho(value: unknown): boolean {
@@ -883,14 +890,18 @@ class ProviderRegistryService {
         presetProviderId,
         defaultChatEndpoint:
           provider.defaultChatEndpoint ??
-          (presetProviderId === null ? undefined : (registryProvider?.defaultChatEndpoint ?? undefined))
+          (presetProviderId === null ? undefined : (registryProvider?.defaultChatEndpoint ?? undefined)),
+        endpointConfigs: provider.endpointConfigs
       }
     } catch (error) {
       if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
         return {
           id: providerId,
           presetProviderId: registryProvider?.presetProviderId,
-          defaultChatEndpoint: registryProvider?.defaultChatEndpoint ?? undefined
+          defaultChatEndpoint: registryProvider?.defaultChatEndpoint ?? undefined,
+          endpointConfigs: registryProvider
+            ? (buildPersistedEndpointConfigs(registryProvider.endpointConfigs) as Provider['endpointConfigs'])
+            : undefined
         }
       }
       logger.error('Failed to fetch provider for reasoning profile', error as Error)
@@ -910,13 +921,34 @@ class ProviderRegistryService {
     context: ReasoningProviderContext,
     presetModel: ProtoModelConfig | null,
     registryOverride: ProtoProviderModelOverride | null,
-    fallbackModelId: string
+    fallbackModelId: string,
+    modelEndpointSelection?: ModelEndpointSelection
   ): ResolvedReasoningProfile {
     const profileProvider = this.findProfileProvider(context)
-    const endpointType = resolveReasoningEndpointType(
-      registryOverride?.endpointTypes,
-      context.defaultChatEndpoint ?? profileProvider?.defaultChatEndpoint ?? undefined
-    )
+    const endpointTypes = modelEndpointSelection?.endpointTypes ?? registryOverride?.endpointTypes
+    const preferredEndpointType = modelEndpointSelection?.preferredEndpointType
+    const endpointType =
+      preferredEndpointType &&
+      isModelEndpointTypeAvailable(
+        {
+          id: createUniqueModelId(context.id, fallbackModelId),
+          apiModelId: registryOverride?.apiModelId ?? fallbackModelId,
+          endpointTypes: endpointTypes ? [...endpointTypes] : undefined,
+          preferredEndpointType
+        },
+        {
+          id: context.id,
+          presetProviderId: context.presetProviderId ?? undefined,
+          defaultChatEndpoint: context.defaultChatEndpoint,
+          endpointConfigs: context.endpointConfigs
+        },
+        preferredEndpointType
+      )
+        ? preferredEndpointType
+        : resolveReasoningEndpointType(
+            endpointTypes,
+            context.defaultChatEndpoint ?? profileProvider?.defaultChatEndpoint ?? undefined
+          )
     const contract = endpointType ? registryOverride?.reasoningContracts?.[endpointType] : undefined
     const inferredControls =
       presetModel?.reasoning || contract?.support || !inferReasoningMembership(fallbackModelId)
@@ -945,10 +977,13 @@ class ProviderRegistryService {
     // candidate; without one the heuristic still ranks the whole supported set.
     const effectiveEndpoint =
       endpointType ??
-      resolveReasoningEndpointType(
-        model.preferredEndpointType ? [model.preferredEndpointType] : model.endpointTypes,
-        provider.defaultChatEndpoint
-      )
+      getModelPreferredEndpoint(model, {
+        id: provider.id,
+        presetProviderId: provider.presetProviderId ?? undefined,
+        defaultChatEndpoint: provider.defaultChatEndpoint,
+        endpointConfigs: provider.endpointConfigs
+      }) ??
+      resolveReasoningEndpointType(model.endpointTypes, provider.defaultChatEndpoint)
     const providerIds = Array.from(
       new Set([provider.id, profileProvider?.id, provider.presetProviderId].filter((value): value is string => !!value))
     )
@@ -1024,7 +1059,8 @@ class ProviderRegistryService {
   lookupModel(
     providerId: string,
     modelId: string,
-    providerContextCache?: Map<string, ReasoningProviderContext>
+    providerContextCache?: Map<string, ReasoningProviderContext>,
+    modelEndpointSelection?: ModelEndpointSelection
   ): {
     presetModel: ProtoModelConfig | null
     registryOverride: ProtoProviderModelOverride | null
@@ -1042,7 +1078,13 @@ class ProviderRegistryService {
     return {
       presetModel,
       registryOverride,
-      reasoningProfile: this.resolveProfileForModelData(providerContext, presetModel, registryOverride, modelId)
+      reasoningProfile: this.resolveProfileForModelData(
+        providerContext,
+        presetModel,
+        registryOverride,
+        modelId,
+        modelEndpointSelection
+      )
     }
   }
 

@@ -87,7 +87,7 @@ function resolveEditPreferredEndpointOptions(
   mode: ModelDrawerMode,
   endpointTypes: readonly EndpointType[]
 ): readonly EndpointType[] {
-  if (!provider) return []
+  if (!provider || mode === 'purpose') return []
   if (mode === 'endpoint-types') {
     return endpointTypes.length > 0 ? endpointTypes : MODEL_ENDPOINT_OPTIONS.map((option) => option.id)
   }
@@ -129,7 +129,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   // State holds this session's choice only; everything else derives from the model, so the picker
   // still shows the right chip when the provider resolves after the first render.
   const effectivePreferredEndpoint =
-    preferredEndpointType ?? (model ? getModelPreferredEndpoint(model, provider ?? undefined) : undefined)
+    preferredEndpointType ?? (model && provider ? getModelPreferredEndpoint(model, provider) : undefined)
   const activePreferredEndpoint =
     preferredEndpointOptions.find((candidate) => candidate === effectivePreferredEndpoint) ??
     preferredEndpointOptions[0]

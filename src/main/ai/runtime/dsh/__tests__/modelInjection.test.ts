@@ -162,6 +162,31 @@ describe('resolveDshProviderInjectionFromSnapshot', () => {
     expect(mocks.resolveApiGatewayRuntime).not.toHaveBeenCalled()
   })
 
+  it('uses the persisted model route instead of the legacy endpoint order', async () => {
+    const provider = {
+      ...nativeProvider,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          adapterFamily: 'openai-compatible',
+          baseUrl: 'https://api.example.com/chat'
+        },
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: {
+          adapterFamily: 'openai-compatible',
+          baseUrl: 'https://api.example.com/responses'
+        }
+      }
+    } as Provider
+    const model = makeModel({
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES],
+      preferredEndpointType: ENDPOINT_TYPE.OPENAI_RESPONSES
+    })
+
+    const injection = await resolveDshProviderInjectionFromSnapshot('session-1', provider, model)
+
+    expect(injection.api).toBe('openai-responses')
+    expect(injection.baseUrl).toBe('https://api.example.com/responses/v1')
+  })
+
   it('falls back to the gateway without consuming native key rotation', async () => {
     const injection = await resolveDshProviderInjectionFromSnapshot('session-1', vertexProvider, makeModel())
 

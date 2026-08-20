@@ -128,7 +128,7 @@ function resolvePiEndpoint(provider: Provider, model: Model) {
     model.endpointTypes.includes(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
       ? ENDPOINT_TYPE.ANTHROPIC_MESSAGES
       : undefined
-  return resolveEffectiveEndpoint(provider, model, preferredEndpoint)
+  return resolveEffectiveEndpoint(provider, model, { suggestedEndpointType: preferredEndpoint })
 }
 
 /**

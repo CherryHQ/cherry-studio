@@ -1,3 +1,4 @@
+import { RadioGroup, RadioGroupItem } from '@cherrystudio/ui'
 import { drawerClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { cn } from '@renderer/utils/style'
 import type { EndpointType } from '@shared/data/types/model'
@@ -16,8 +17,7 @@ interface ModelPreferredEndpointSelectProps {
 
 /**
  * Single-choice endpoint picker: exactly one option is always active, because a request is always
- * sent over exactly one protocol. Built on native radio inputs so the browser supplies the group
- * semantics, arrow-key navigation and roving focus a button row would have to reimplement.
+ * sent over exactly one protocol.
  */
 export function ModelPreferredEndpointSelect({
   value,
@@ -26,24 +26,22 @@ export function ModelPreferredEndpointSelect({
   onChange
 }: ModelPreferredEndpointSelectProps) {
   const { t } = useTranslation()
-  const groupName = useId()
+  const groupId = useId()
 
   return (
-    <div role="radiogroup" aria-labelledby={labelledBy} className={drawerClasses.endpointChipRow}>
+    <RadioGroup
+      value={value}
+      aria-labelledby={labelledBy}
+      className={drawerClasses.endpointChipRow}
+      onValueChange={(next) => onChange(next as EndpointType)}>
       {options.map((option) => {
         const active = option === value
         const label = MODEL_ENDPOINT_OPTIONS.find((candidate) => candidate.id === option)?.label
+        const optionId = `${groupId}-${option}`
 
         return (
-          <label key={option}>
-            <input
-              type="radio"
-              name={groupName}
-              value={option}
-              checked={active}
-              className="peer sr-only"
-              onChange={() => onChange(option)}
-            />
+          <label key={option} htmlFor={optionId}>
+            <RadioGroupItem id={optionId} value={option} className="peer sr-only" />
             <span className={cn(drawerClasses.endpointRadioChip, active && drawerClasses.endpointRadioChipActive)}>
               {active ? <Check aria-hidden className="size-3" /> : null}
               {label ? t(label) : option}
@@ -51,6 +49,6 @@ export function ModelPreferredEndpointSelect({
           </label>
         )
       })}
-    </div>
+    </RadioGroup>
   )
 }

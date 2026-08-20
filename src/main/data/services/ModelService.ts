@@ -25,6 +25,7 @@ import {
   type ReasoningProviderContext,
   type ResolvedReasoningProfile
 } from '@data/services/ProviderRegistryService'
+import { providerService } from '@data/services/ProviderService'
 import { insertManyWithOrderKey } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -44,6 +45,7 @@ import type {
   RuntimeReasoning
 } from '@shared/data/types/model'
 import { createUniqueModelId, MODEL_CAPABILITY, ReasoningConfigSchema } from '@shared/data/types/model'
+import { isModelEndpointTypeAvailable } from '@shared/utils/provider'
 import { and, asc, eq, inArray, type SQL } from 'drizzle-orm'
 import { isEqual } from 'es-toolkit/compat'
 
@@ -452,6 +454,31 @@ function createPresetFallback(row: UserModelRow, profile?: ResolvedReasoningProf
 }
 
 class ModelService {
+  private assertPreferredEndpointAvailable(
+    providerId: string,
+    modelId: string,
+    endpointTypes: EndpointType[] | undefined,
+    preferredEndpointType: EndpointType
+  ): void {
+    const provider = providerService.getByProviderId(providerId)
+    if (
+      !isModelEndpointTypeAvailable(
+        {
+          id: createUniqueModelId(providerId, modelId),
+          apiModelId: modelId,
+          endpointTypes,
+          preferredEndpointType
+        },
+        provider,
+        preferredEndpointType
+      )
+    ) {
+      throw DataApiErrorFactory.validation({
+        preferredEndpointType: ['Preferred endpoint is not available for this model and provider']
+      })
+    }
+  }
+
   private getRegistryBaseline(
     providerId: string,
     modelId: string,
@@ -478,8 +505,20 @@ class ModelService {
         registryData?.reasoningProfile.wire,
         registryData?.reasoningProfile.support
       )
+      if (dto.preferredEndpointType) {
+        this.assertPreferredEndpointAvailable(
+          dto.providerId,
+          dto.modelId,
+          dto.endpointTypes ?? baseline.endpointTypes,
+          dto.preferredEndpointType
+        )
+      }
       const deltaFields = collectPresetDeltaFields(dto, baseline)
       return presetDeltaToNewUserModel(dto, presetModel.id, deltaFields)
+    }
+
+    if (dto.preferredEndpointType) {
+      this.assertPreferredEndpointAvailable(dto.providerId, dto.modelId, dto.endpointTypes, dto.preferredEndpointType)
     }
 
     // No preset: a custom model. When the id/capabilities say the model reasons,
@@ -505,6 +544,28 @@ class ModelService {
 
   private buildUpdates(existing: UserModelRow, dto: UpdateModelDto): Partial<InsertUserModelRow> {
     const updates: Partial<InsertUserModelRow> = {}
+    let clearStalePreferredEndpoint = false
+    if (dto.preferredEndpointType || (dto.endpointTypes && existing.preferredEndpointType)) {
+      const currentModel = this.enrichRowsFromRegistry([existing])[0]
+      const endpointTypes = dto.endpointTypes ?? currentModel.endpointTypes
+      if (dto.preferredEndpointType) {
+        this.assertPreferredEndpointAvailable(
+          existing.providerId,
+          existing.modelId,
+          endpointTypes,
+          dto.preferredEndpointType
+        )
+      } else if (
+        existing.preferredEndpointType &&
+        !isModelEndpointTypeAvailable(
+          { ...currentModel, endpointTypes },
+          providerService.getByProviderId(existing.providerId),
+          existing.preferredEndpointType
+        )
+      ) {
+        clearStalePreferredEndpoint = true
+      }
+    }
     const hasPresetDeltaField = (Object.keys(dto) as (keyof UpdateModelDto)[])
       .map(dtoKeyToDbKey)
       .some(isPresetDeltaField)
@@ -538,6 +599,7 @@ class ModelService {
         ;(updates as Record<string, unknown>)[dbKey] = value
       }
     }
+    if (clearStalePreferredEndpoint) updates.preferredEndpointType = null
     return updates
   }
 
@@ -664,11 +726,21 @@ class ModelService {
     return rows.map((row) => {
       if (row.presetModelId) {
         try {
-          const { presetModel, registryOverride, reasoningProfile } = providerRegistryService.lookupModel(
-            row.providerId,
-            row.modelId,
-            reasoningConfigCache
-          )
+          const modelEndpointSelection =
+            row.endpointTypes || row.preferredEndpointType
+              ? {
+                  endpointTypes: row.endpointTypes ?? undefined,
+                  preferredEndpointType: row.preferredEndpointType ?? undefined
+                }
+              : undefined
+          const { presetModel, registryOverride, reasoningProfile } = modelEndpointSelection
+            ? providerRegistryService.lookupModel(
+                row.providerId,
+                row.modelId,
+                reasoningConfigCache,
+                modelEndpointSelection
+              )
+            : providerRegistryService.lookupModel(row.providerId, row.modelId, reasoningConfigCache)
           if (!presetModel) {
             return createPresetFallback(row, reasoningProfile.wire)
           }
@@ -697,11 +769,16 @@ class ModelService {
       const modelId = model.apiModelId
       if (!modelId) return model
       try {
-        const { presetModel, registryOverride, reasoningProfile } = providerRegistryService.lookupModel(
-          model.providerId,
-          modelId,
-          reasoningConfigCache
-        )
+        const modelEndpointSelection =
+          model.endpointTypes || model.preferredEndpointType
+            ? {
+                endpointTypes: model.endpointTypes,
+                preferredEndpointType: model.preferredEndpointType
+              }
+            : undefined
+        const { presetModel, registryOverride, reasoningProfile } = modelEndpointSelection
+          ? providerRegistryService.lookupModel(model.providerId, modelId, reasoningConfigCache, modelEndpointSelection)
+          : providerRegistryService.lookupModel(model.providerId, modelId, reasoningConfigCache)
         const imageGeneration = registryOverride?.imageGeneration ?? presetModel?.imageGeneration
 
         const updates: Partial<Model> = {}

@@ -272,6 +272,47 @@ describe('Model drawers', () => {
     expect(screen.queryByTestId('provider-settings-model-preferred-endpoint-field')).not.toBeInTheDocument()
   })
 
+  it('shows only the chat protocol control for a multi-endpoint custom provider', () => {
+    const provider = {
+      id: 'custom-provider',
+      name: 'Custom Provider',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.example.com/v1' },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.example.com/anthropic' }
+      }
+    }
+    useProviderMock.mockReturnValue({ provider })
+
+    const addDrawer = render(<AddModelDrawer providerId="custom-provider" open prefill={null} onClose={vi.fn()} />)
+
+    expect(screen.getByRole('combobox', { name: 'settings.models.add.purpose.chat_protocol' })).toBeInTheDocument()
+    expect(screen.queryByTestId('provider-settings-model-preferred-endpoint-field')).not.toBeInTheDocument()
+    addDrawer.unmount()
+
+    render(
+      <EditModelDrawer
+        providerId="custom-provider"
+        open
+        onClose={vi.fn()}
+        model={
+          {
+            id: 'custom-provider::chat-model',
+            providerId: 'custom-provider',
+            apiModelId: 'chat-model',
+            name: 'Chat Model',
+            capabilities: [],
+            endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+            supportsStreaming: true
+          } as any
+        }
+      />
+    )
+
+    expect(screen.getByRole('combobox', { name: 'settings.models.add.purpose.chat_protocol' })).toBeInTheDocument()
+    expect(screen.queryByTestId('provider-settings-model-preferred-endpoint-field')).not.toBeInTheDocument()
+  })
+
   it('atomically maps a custom model to image editing from the purpose surface', async () => {
     useProviderMock.mockReturnValue({
       provider: {
