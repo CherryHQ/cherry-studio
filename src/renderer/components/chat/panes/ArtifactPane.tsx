@@ -16,9 +16,9 @@ import {
 import { useFileSize } from '@renderer/hooks/useFileSize'
 import { useIsTextFile } from '@renderer/hooks/useIsTextFile'
 import { toast } from '@renderer/services/toast'
-import { getLanguageByFilePath } from '@renderer/utils/codeLanguage'
 import { buildEditorUrl } from '@renderer/utils/editor'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { getFileExtension } from '@renderer/utils/file'
 import { joinPath } from '@renderer/utils/path'
 import { isMac, isWin } from '@renderer/utils/platform'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
@@ -637,7 +637,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
             <CodeEditor
               key={previewKey}
               value={fileSession.draft}
-              language={getLanguageByFilePath(overlaySelection.filePath)}
+              language={getFileExtension(overlaySelection.filePath)}
               theme={activeCmTheme}
               onChange={(content) => fileSession.setDraft(content)}
               height="100%"
