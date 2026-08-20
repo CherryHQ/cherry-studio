@@ -395,6 +395,53 @@
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
+      "description": "Jalapeno Cloud - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://api.jalapeno-cloud.ai/v1",
+          "reasoningFormat": {
+            "type": "openai-chat",
+            "wire": {
+              "auto": {
+                "operations": [
+                  {
+                    "target": "chat_template_kwargs.thinking",
+                    "value": {
+                      "source": "literal",
+                      "value": true
+                    }
+                  }
+                ]
+              },
+              "off": {
+                "operations": [
+                  {
+                    "target": "chat_template_kwargs.thinking",
+                    "value": {
+                      "source": "literal",
+                      "value": false
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "id": "jalapeno-cloud",
+      "metadata": {
+        "website": {
+          "apiKey": "https://www.jalapeno-cloud.ai/keys/",
+          "docs": "https://www.jalapeno-cloud.ai/docs",
+          "models": "https://www.jalapeno-cloud.ai/models",
+          "official": "https://www.jalapeno-cloud.ai"
+        }
+      },
+      "name": "Jalapeno Cloud"
+    },
+    {
+      "defaultChatEndpoint": "openai-chat-completions",
       "description": "BurnCloud - AI model provider",
       "endpointConfigs": {
         "openai-chat-completions": {
@@ -2073,5 +2120,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "7dd1ae83c85245f9"
+  "version": "f37ffde927ba2f18"
 }

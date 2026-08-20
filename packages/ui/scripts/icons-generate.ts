@@ -35,7 +35,7 @@ const OUTPUT_DIR_MAP: Record<IconType, string> = {
 }
 
 const MANUAL_LOGO_DIRS: Record<LogoType, readonly string[]> = {
-  providers: ['opencode'],
+  providers: ['jalapeno-cloud', 'opencode'],
   models: []
 }
 

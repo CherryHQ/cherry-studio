@@ -48,6 +48,7 @@ const providerKeyMap = {
   hunyuan: 'provider.hunyuan',
   hyperbolic: 'provider.hyperbolic',
   infini: 'provider.infini',
+  'jalapeno-cloud': 'provider.jalapeno-cloud',
   jina: 'provider.jina',
   lanyun: 'provider.lanyun',
   lmstudio: 'provider.lmstudio',
