@@ -124,9 +124,7 @@ function textContentToString(content: MessageCreateParams['system'] | MessagePar
  * The Claude Agent SDK puts `system` messages inside `messages` (agent/skill catalogs,
  * deferred-tool notices), which `MessageParam` does not model.
  */
-function isSystemMessage(message: MessageParam): boolean {
-  return (message.role as string) === 'system'
-}
+type AgentInputMessage = MessageParam | { role: 'system'; content: MessageParam['content'] }
 
 /**
  * Reasoning cache interface for storing provider-specific reasoning state
@@ -162,16 +160,23 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
    * message upgrades the part to `output-available` so history stays coherent.
    *
    * Inline `system` messages fold into that same leading message rather than
-   * staying in place: mapping them by position would attribute the Agent SDK's
-   * harness context to the model (every other role maps to `assistant`), and
-   * `@ai-sdk/google` rejects a system message that is not the first one.
+   * staying in place, because mapping them by position would attribute the Agent
+   * SDK's harness context to the model (every other role maps to `assistant`).
+   * Folding costs the SDK's per-message `cache_control` breakpoint — see #19029
+   * for routing them in place by target capability.
    */
   toUIMessages(params: MessageCreateParams): CherryUIMessage[] {
     this.prepareToolNames(params.tools)
     const messages: CherryUIMessage[] = []
 
+    // Array covariance widens without a cast, so `role` narrows natively from here on.
+    const inputMessages: AgentInputMessage[] = params.messages
+
     // System message
-    const systemText = [params.system, ...params.messages.filter(isSystemMessage).map((msg) => msg.content)]
+    const systemText = [
+      params.system,
+      ...inputMessages.filter((msg) => msg.role === 'system').map((msg) => msg.content)
+    ]
       .map(textContentToString)
       .filter(Boolean)
       .join('\n\n')
@@ -196,8 +201,8 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
       }
     }
 
-    for (const msg of params.messages) {
-      if (isSystemMessage(msg)) continue
+    for (const msg of inputMessages) {
+      if (msg.role === 'system') continue
       const role = msg.role === 'user' ? 'user' : 'assistant'
 
       if (typeof msg.content === 'string') {

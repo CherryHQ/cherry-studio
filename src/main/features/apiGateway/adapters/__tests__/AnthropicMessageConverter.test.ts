@@ -2,6 +2,7 @@ import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
 import { asSchema } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
+import { appendInternalAgentContinuation } from '../../utils/agentContinuation'
 import { AnthropicMessageConverter, type ReasoningCache } from '../converters/AnthropicMessageConverter'
 
 const converter = new AnthropicMessageConverter()
@@ -51,7 +52,7 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
 
   // A trailing inline system message left as an assistant turn makes the request look like an
   // assistant prefill, which `appendInternalAgentContinuation` answers by injecting a synthetic
-  // "continue with the original user request" turn on every first sample of a session.
+  // "continue with the original user request" turn on any sample where one lands last.
   it('leaves a trailing inline system message out of the assistant tail', () => {
     const msgs = converter.toUIMessages(
       params({
@@ -63,6 +64,49 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
     )
 
     expect(msgs.map((msg) => msg.role)).toEqual(['system', 'user'])
+  })
+
+  it('folds consecutive inline system messages in arrival order', () => {
+    // Harness state changes arrive in bursts while a session warms up — an MCP server
+    // connects, skills are discovered, agent types change — each as its own message.
+    const msgs = converter.toUIMessages(
+      params({
+        system: 'Be terse.',
+        messages: [
+          { role: 'user', content: 'summarize the doc' },
+          { role: 'system', content: 'The following MCP servers are still connecting: context' },
+          { role: 'system', content: [{ type: 'text', text: 'New agent types are now available.' }] }
+        ] as MessageCreateParams['messages']
+      })
+    )
+
+    expect(msgs.map((msg) => msg.role)).toEqual(['system', 'user'])
+    expect(msgs[0]).toMatchObject({
+      parts: [
+        {
+          type: 'text',
+          text: 'Be terse.\n\nThe following MCP servers are still connecting: context\n\nNew agent types are now available.'
+        }
+      ]
+    })
+  })
+
+  it('gives the agent continuation nothing to answer after a mid-session harness update', () => {
+    // The reported repeat-reply loop: an `api_system` message arriving at the tail became a
+    // text-only assistant turn, which the continuation then answered with a synthetic user
+    // turn, making the model redo the original request once per harness update.
+    const msgs = converter.toUIMessages(
+      params({
+        messages: [
+          { role: 'user', content: 'summarize the doc' },
+          { role: 'assistant', content: [{ type: 'tool_use', id: 'c1', name: 'Bash', input: {} }] },
+          { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'c1', content: 'ok' }] },
+          { role: 'system', content: 'The following MCP servers are still connecting: context' }
+        ] as MessageCreateParams['messages']
+      })
+    )
+
+    expect(appendInternalAgentContinuation(msgs)).toBe(msgs)
   })
 
   it('converts text + base64 image blocks into text and file parts', () => {
