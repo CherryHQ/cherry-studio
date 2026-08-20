@@ -59,7 +59,7 @@ export async function setupAgentsTestDatabase(): Promise<{
         .split(';')
         .map((s: string) => s.trim())
         .filter(Boolean)) {
-        client.execute(single)
+        void client.execute(single)
       }
     }
   }
@@ -67,7 +67,7 @@ export async function setupAgentsTestDatabase(): Promise<{
   // Seed the migrations table so MigrationService.runMigrations() sees the
   // database as up-to-date if production code checks during the test.
   for (const entry of journal.entries) {
-    client.execute({
+    void client.execute({
       sql: 'INSERT OR IGNORE INTO migrations (version, tag, executed_at) VALUES (?, ?, ?)',
       args: [entry.idx, entry.tag, Date.now()]
     })
