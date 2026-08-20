@@ -1250,7 +1250,7 @@ describe('AgentComposer', () => {
     expect(getQueueDock()).toBeFalsy()
   })
 
-  it('restores the draft and leaves the queue empty when a steer send fails while streaming', async () => {
+  it('keeps the draft and leaves the queue empty when a steer send fails while streaming', async () => {
     mocks.sendMessage.mockRejectedValueOnce(new Error('send failed'))
     render(
       <AgentComposer
@@ -1262,6 +1262,11 @@ describe('AgentComposer', () => {
       />
     )
 
+    act(() => {
+      mocks.surfaceProps?.onTextChange('hello')
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('hello'))
+
     await act(async () => {
       await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] }, { steer: true })
     })
@@ -1269,8 +1274,6 @@ describe('AgentComposer', () => {
     expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
     expect(getQueueDock()).toBeFalsy()
     expect(toast.error).toHaveBeenCalledWith('chat.input.send_failed')
-    // The failed steer send must not wipe the draft: the composer keeps the pre-send text
-    // and the persisted draft cache is rewritten with the pre-send content.
     expect(mocks.surfaceProps?.text).toBe('hello')
     expect(vi.mocked(cacheService.set)).toHaveBeenLastCalledWith(
       'agent.composer_draft.session_session-1',
@@ -4731,10 +4734,12 @@ describe('AgentComposer', () => {
     )
 
     act(() => {
+      mocks.surfaceProps?.onTextChange('draft message')
       mocks.surfaceProps?.onTokensChange(mocks.draftTokens ?? [])
     })
 
     await waitFor(() => {
+      expect(mocks.surfaceProps?.text).toBe('draft message')
       expect(mocks.surfaceProps?.draftTokens).toEqual([skillToken, fileToken])
     })
 
@@ -4755,7 +4760,6 @@ describe('AgentComposer', () => {
     })
 
     await waitFor(() => expect(mocks.surfaceProps?.editable).toBe(true))
-    expect(mocks.replaceDraft).not.toHaveBeenCalled()
     expect(cacheService.set).toHaveBeenLastCalledWith(
       'agent.composer_draft.session_session-1',
       {

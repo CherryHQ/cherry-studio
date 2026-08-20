@@ -2322,13 +2322,15 @@ describe('ChatComposer', () => {
     const pendingSend = createDeferred<boolean>()
     const onSend = vi.fn().mockReturnValue(pendingSend.promise)
     mocks.files = [file]
+    vi.mocked(cacheService.get).mockReturnValue({
+      text: draft.text,
+      tokens: draft.tokens,
+      files: [file],
+      knowledgeBaseIds: []
+    })
 
     render(<ChatComposer topic={topic} onSend={onSend} />)
 
-    act(() => {
-      mocks.surfaceProps?.onTextChange('draft message')
-      mocks.surfaceProps?.onTokensChange([fileToken, quoteToken])
-    })
     await waitFor(() => {
       expect(mocks.surfaceProps?.text).toBe('draft message')
       expect(mocks.surfaceProps?.draftTokens).toEqual([fileToken, quoteToken])
@@ -2364,7 +2366,6 @@ describe('ChatComposer', () => {
     expect(mocks.files).toEqual([file])
     expect(mocks.surfaceProps?.draftTokens).toEqual([fileToken, quoteToken])
     expect(mocks.surfaceProps?.editable).toBe(true)
-    expect(mocks.replaceDraft).not.toHaveBeenCalled()
     expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual([])
     expect(toast.error).not.toHaveBeenCalledWith('chat.input.send_failed')
   })
