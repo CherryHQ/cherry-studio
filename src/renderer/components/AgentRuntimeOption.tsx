@@ -133,9 +133,6 @@ export function AgentRuntimeSummary({ value, t }: { value: AgentType; t: TFuncti
   return (
     <Item size="sm" variant="outline" className={RUNTIME_CARD_CLASS_NAME}>
       <RuntimeCardBody runtime={value} t={t} compact />
-      <ItemActions className="size-4 shrink-0">
-        <Check className="size-4 text-primary" />
-      </ItemActions>
     </Item>
   )
 }
