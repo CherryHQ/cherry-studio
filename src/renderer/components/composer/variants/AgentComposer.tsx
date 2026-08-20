@@ -821,6 +821,8 @@ const AgentComposerInner = ({
   const [shouldValidateSkills, setShouldValidateSkills] = useState(initialDraft.shouldValidateSkills)
   const [text, setTextState] = useState(() => initialDraft.text)
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[]>(() => initialDraft.tokens)
+  const [isDirectSending, setIsDirectSending] = useState(false)
+  const directSendInFlightRef = useRef(false)
   const draftTokensRef = useRef(draftTokens)
   const knowledgeBaseIdsRef = useRef([...initialDraft.knowledgeBaseIds])
   const observedKnowledgeBaseSelectionKeyRef = useRef<string | null>(
@@ -1495,6 +1497,7 @@ const AgentComposerInner = ({
   const handleSendDraft = useCallback(
     async (draft: ComposerSerializedDraft, options?: { steer?: boolean }) => {
       if (sendDisabled) return
+      if (directSendInFlightRef.current) return
       if (!model) {
         toast.error(t('code.model_required'))
         return
@@ -1515,54 +1518,25 @@ const AgentComposerInner = ({
         return
       }
 
-      const previousText = draft.text
-      const previousFiles = files
-      const previousSkills = selectedSkills
-      const previousDraftTokens = draftTokensRef.current
-      const previousShouldValidateSkills = shouldValidateSkills
-
-      clearCurrentDraft()
-      const sent = await sendQueuedPayload(payload)
-      if (!sent) {
-        clearTimeoutTimer('agentComposerSendMessage')
-        setText(previousText)
-        setFiles(previousFiles)
-        setSelectedSkills(previousSkills)
-        setShouldValidateSkills(previousShouldValidateSkills)
-        setDraftTokens(previousDraftTokens)
-        draftTokensRef.current = previousDraftTokens
-        if (draftPersistenceEnabled) {
-          writeAgentDraftCache(draftCacheKey, {
-            text: previousText,
-            tokens: previousDraftTokens,
-            files: previousFiles,
-            knowledgeBaseIds: knowledgeBaseIdsRef.current,
-            workspaceKey,
-            agentId,
-            shouldValidateSkills: previousShouldValidateSkills
-          })
-        }
+      directSendInFlightRef.current = true
+      setIsDirectSending(true)
+      try {
+        const sent = await sendQueuedPayload(payload)
+        if (sent) clearCurrentDraft()
+      } finally {
+        directSendInFlightRef.current = false
+        setIsDirectSending(false)
       }
     },
     [
       buildQueuedPayload,
-      clearTimeoutTimer,
       clearCurrentDraft,
-      agentId,
-      draftCacheKey,
-      draftPersistenceEnabled,
       enqueueFollowup,
-      files,
       isStreaming,
       model,
       sendDisabled,
       sendQueuedPayload,
-      setFiles,
-      setText,
-      selectedSkills,
-      shouldValidateSkills,
       t,
-      workspaceKey,
       workspaceWarning
     ]
   )
@@ -1702,6 +1676,7 @@ const AgentComposerInner = ({
         <ComposerSurface
           text={text}
           onTextChange={handleTextChange}
+          editable={!isDirectSending}
           tokens={tokens}
           draftTokens={draftTokens}
           managedTokenKinds={
@@ -1717,12 +1692,15 @@ const AgentComposerInner = ({
           steerShortcut={isStreaming ? resolvedSteerShortcut : undefined}
           sendDisabled={
             sendDisabled ||
+            isDirectSending ||
             hasPendingReference ||
             modelPending ||
             !!missingModelMessage ||
             (text.trim().length === 0 && files.length === 0 && selectedSkills.length === 0)
           }
-          sendBlockedReason={sendDisabled || hasPendingReference ? t('common.loading') : missingModelMessage}
+          sendBlockedReason={
+            sendDisabled || isDirectSending || hasPendingReference ? t('common.loading') : missingModelMessage
+          }
           isLoading={isStreaming}
           onSendDraft={handleSendDraft}
           onPause={abortAgentSession}

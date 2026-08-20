@@ -551,6 +551,8 @@ const ChatComposerInner = ({
   const staleEditingMessage = editingMessage && !editingMessageForCurrentTopic
   const { isPending, isFulfilled, markSeen } = useTopicStreamStatus(streamScopeKey)
   const [isSending, setIsSending] = useState(false)
+  const [isDirectSending, setIsDirectSending] = useState(false)
+  const directSendInFlightRef = useRef(false)
   const [isStartingNewContext, setIsStartingNewContext] = useState(false)
   const [savingEditingSessionId, setSavingEditingSessionId] = useState<number | null>(null)
   const [text, setText] = useState(() => initialDraft.text)
@@ -1581,6 +1583,8 @@ const ChatComposerInner = ({
 
   const handleSendDraft = useCallback(
     async (draft: ComposerSerializedDraft) => {
+      if (directSendInFlightRef.current) return
+
       if (staleEditingMessage) {
         restoreSavedDraft()
         stopEditing()
@@ -1623,51 +1627,38 @@ const ChatComposerInner = ({
         return
       }
 
-      if (selectedModelForMissingAssistantDefault) {
-        await handleModelSelect(selectedModelForMissingAssistantDefault)
-      }
+      directSendInFlightRef.current = true
+      setIsDirectSending(true)
+      try {
+        if (selectedModelForMissingAssistantDefault) {
+          await handleModelSelect(selectedModelForMissingAssistantDefault)
+        }
 
-      // Optimistically clear the draft so the cleared input doubles as the re-entry
-      // guard, but snapshot it first: a pre-stream failure never reaches the streaming
-      // UI, so restore the full editor draft and its variant-owned tools.
-      const previousDraft = draft
-      const previousFiles = files
-      const previousKnowledgeBases = selectedKnowledgeBases
-
-      clearCurrentDraft()
-      const sent = await sendQueuedPayload(payload)
-      if (!sent) {
-        actionsRef.current.replaceDraft(previousDraft)
-        setText(previousDraft.text)
-        setDraftTokens(previousDraft.tokens.length ? [...previousDraft.tokens] : undefined)
-        setFiles(previousFiles)
-        setSelectedKnowledgeBases(previousKnowledgeBases)
+        const sent = await sendQueuedPayload(payload)
+        if (sent) clearCurrentDraft()
+      } finally {
+        directSendInFlightRef.current = false
+        setIsDirectSending(false)
       }
     },
     [
-      actionsRef,
       buildQueuedPayload,
       canSteer,
       clearCurrentDraft,
       commitEditedMessage,
       editingMessageForCurrentTopic,
       enqueueFollowup,
-      files,
       handleModelSelect,
       loading,
       missingAssistantMessage,
       missingSelectedModelMessage,
       runtimeModel,
       runtimeModelPending,
-      selectedKnowledgeBases,
       selectedModelForMissingAssistantDefault,
       selectedModelForUnlinkedHome,
       sendDisabled,
       selectAssistantMessage,
       sendQueuedPayload,
-      setFiles,
-      setSelectedKnowledgeBases,
-      setText,
       staleEditingMessage,
       stopEditing,
       restoreSavedDraft,
@@ -1776,6 +1767,7 @@ const ChatComposerInner = ({
             (text.trim().length === 0 && files.length === 0) ||
             (loading && !canSteer) ||
             isSavingEdit ||
+            isDirectSending ||
             sendDisabled ||
             searching ||
             runtimeModelPending ||
@@ -1785,7 +1777,7 @@ const ChatComposerInner = ({
             !!missingSelectedModelMessage
           }
           sendBlockedReason={
-            isSavingEdit || sendDisabled || hasPendingReference
+            isSavingEdit || isDirectSending || sendDisabled || hasPendingReference
               ? t('common.loading')
               : (missingAssistantMessage ?? missingModelMessage ?? missingSelectedModelMessage)
           }
@@ -1839,7 +1831,7 @@ const ChatComposerInner = ({
           quickPanelEnabled={config.enableQuickPanel ?? true}
           enableDragDrop={config.enableDragDrop ?? true}
           enableSpellCheck={enableSpellCheck}
-          editable={!searching}
+          editable={!searching && !isDirectSending}
           fontSize={fontSize}
           narrowMode={forceNarrowLayout || narrowMode}
           railGutterPx={railGutterPx}
