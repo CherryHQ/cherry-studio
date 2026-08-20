@@ -31,6 +31,10 @@ function isLegacyMcpAutoInstall(row: McpServerRow): boolean {
  *
  * Only explicit builtin rows or the exact legacy mcp-auto-install default are rewritten. Ambiguous
  * rows without ownership, already-migrated rows, and deleted builtins stay untouched.
+ *
+ * A rewritten row adopts the preset's connection wholesale — an edit to the retired transport's
+ * command or args does not survive, because it describes a way of running the server that no
+ * longer exists. Everything else the user owns (env, isActive, timeout, disabled tools) is kept.
  */
 export class BuiltinMcpServerSeeder implements ISeeder {
   readonly name = 'builtinMcpServer'
@@ -42,39 +46,43 @@ export class BuiltinMcpServerSeeder implements ISeeder {
   }
 
   run(db: DbType): void {
-    for (const preset of PRESET_MCP_SERVERS) {
-      if (preset.type === 'inMemory' || preset.type === undefined) continue
+    // One transaction for the whole catalog: a half-migrated set would leave some servers
+    // pointing at a transport the runtime no longer implements.
+    db.transaction((tx) => {
+      for (const preset of PRESET_MCP_SERVERS) {
+        if (preset.type === 'inMemory' || preset.type === undefined) continue
 
-      const rows = db
-        .select()
-        .from(mcpServerTable)
-        .where(and(eq(mcpServerTable.name, preset.name), eq(mcpServerTable.type, 'inMemory')))
-        .all()
+        const rows = tx
+          .select()
+          .from(mcpServerTable)
+          .where(and(eq(mcpServerTable.name, preset.name), eq(mcpServerTable.type, 'inMemory')))
+          .all()
 
-      for (const row of rows) {
-        if (row.installSource !== 'builtin' && !isLegacyMcpAutoInstall(row)) continue
+        for (const row of rows) {
+          if (row.installSource !== 'builtin' && !isLegacyMcpAutoInstall(row)) continue
 
-        const transportFields =
-          preset.type === 'stdio'
-            ? {
-                baseUrl: null,
-                command: preset.command ?? null,
-                args: preset.args ?? null,
-                headers: null
-              }
-            : {
-                baseUrl: preset.baseUrl ?? null,
-                command: null,
-                registryUrl: null,
-                args: null,
-                headers: preset.headers ?? null
-              }
+          const transportFields =
+            preset.type === 'stdio'
+              ? {
+                  baseUrl: null,
+                  command: preset.command ?? null,
+                  args: preset.args ?? null,
+                  headers: null
+                }
+              : {
+                  baseUrl: preset.baseUrl ?? null,
+                  command: null,
+                  registryUrl: null,
+                  args: null,
+                  headers: preset.headers ?? null
+                }
 
-        db.update(mcpServerTable)
-          .set({ type: preset.type, installSource: 'builtin', ...transportFields })
-          .where(eq(mcpServerTable.id, row.id))
-          .run()
+          tx.update(mcpServerTable)
+            .set({ type: preset.type, installSource: 'builtin', ...transportFields })
+            .where(eq(mcpServerTable.id, row.id))
+            .run()
+        }
       }
-    }
+    })
   }
 }

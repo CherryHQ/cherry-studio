@@ -62,6 +62,15 @@ export function resolveMcpConfigTransportType(type: McpServer['type'], name: str
   return type === 'inMemory' && name === BuiltinMcpServerNames.mcpAutoInstall ? 'stdio' : type
 }
 
+/**
+ * Env reaches the runtime for stdio and in-memory servers. Over HTTP only a built-in that
+ * declares it needs configuration reads it — QVeris turns `QVERIS_API_KEY` into its auth
+ * header — so every other remote server keeps the editor hidden.
+ */
+export function showsEnvEditor(serverType: McpServer['type'], builtinRequiresEnv?: boolean): boolean {
+  return serverType === 'stdio' || serverType === 'inMemory' || Boolean(builtinRequiresEnv)
+}
+
 export function resolveMcpConfigInstallSource(
   server: Pick<McpServer, 'installSource' | 'name' | 'type'>
 ): McpServer['installSource'] {
@@ -282,6 +291,8 @@ interface FieldsProps {
   registryState: McpRegistryState
   /** Built-in servers keep their identity while exposing transport-specific configuration. */
   isBuiltin?: boolean
+  /** A built-in that declares `shouldConfig`: its credentials live in env whatever the transport. */
+  builtinRequiresEnv?: boolean
   /** Single-column layout for the quick-create dialog. */
   singleColumn?: boolean
   /** Allows quick-create to render args before the advanced section. */
@@ -444,7 +455,7 @@ export function McpTransportFields({
   form,
   serverType,
   registryState,
-  isBuiltin,
+  builtinRequiresEnv,
   singleColumn,
   includeArgs = true
 }: FieldsProps) {
@@ -515,7 +526,7 @@ export function McpTransportFields({
         />
       )}
       {(serverType === 'stdio' || serverType === 'inMemory') && includeArgs && <McpArgsField form={form} />}
-      {(serverType === 'stdio' || serverType === 'inMemory' || isBuiltin) && (
+      {showsEnvEditor(serverType, builtinRequiresEnv) && (
         <>
           <FormField
             control={form.control}

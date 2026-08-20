@@ -65,6 +65,7 @@ const mcpSdkMock = vi.hoisted(() => {
   class StreamableHTTPClientTransport {
     kind = 'streamableHttp' as const
     close = vi.fn().mockResolvedValue(undefined)
+    finishAuth = vi.fn().mockResolvedValue(undefined)
     constructor(url: unknown, opts?: unknown) {
       streamableHttpTransports.push({ url, opts })
     }
@@ -145,6 +146,14 @@ const mcpSdkMock = vi.hoisted(() => {
     }
   }
 })
+
+const callbackServerMock = vi.hoisted(() => ({ waitForAuthCode: vi.fn().mockResolvedValue('auth-code') }))
+vi.mock('../oauth/callback', () => ({
+  CallBackServer: class {
+    waitForAuthCode = callbackServerMock.waitForAuthCode
+    close = vi.fn().mockResolvedValue(undefined)
+  }
+}))
 
 vi.mock('@modelcontextprotocol/sdk/client/sse.js', () => ({
   SseError: mcpSdkMock.SseError,
@@ -372,6 +381,33 @@ describe('McpRuntimeService connect single-flight', () => {
     MockMainCacheServiceUtils.resetMocks()
     mcpSdkMock.clients.length = 0
     getByIdMock.mockReset()
+  })
+
+  it('never hands back a cached client another probe closed underneath it', async () => {
+    const service = new McpRuntimeService()
+    const server = {
+      id: 'http-server',
+      name: 'http-server',
+      type: 'streamableHttp',
+      baseUrl: 'https://mcp.example/mcp',
+      isActive: true
+    } as McpServer
+    getByIdMock.mockReturnValue(server)
+
+    // Probe A's ping fails and evicts the client; probe B's ping wins the race and would
+    // otherwise return the connection A already closed.
+    const close = vi.fn().mockResolvedValue(undefined)
+    const stale = { close, ping: vi.fn().mockResolvedValueOnce(false).mockResolvedValue(true) }
+    ;(service as any).clients.set(service.getServerKey(server), stale)
+
+    const [first, second] = await Promise.all([
+      service.withClient(server.id, async (client) => client),
+      service.withClient(server.id, async (client) => client)
+    ])
+
+    expect(close).toHaveBeenCalled()
+    expect(first).not.toBe(stale)
+    expect(second).not.toBe(stale)
   })
 
   // Two callers in the same turn must share one connect: registering the pending promise after
@@ -922,6 +958,7 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
     mcpSdkMock.state.failStreamable = false
     mcpSdkMock.state.failStreamableUnauthorized = false
     mcpSdkMock.state.failStreamableCode = 503
+    callbackServerMock.waitForAuthCode.mockReset().mockResolvedValue('auth-code')
   })
 
   function urlServer(type: 'sse' | 'streamableHttp'): McpServer {
@@ -971,6 +1008,23 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
 
     // The only connect attempt is the configured streamableHttp one — no SSE fallback happened.
     expect(mcpSdkMock.clients.at(-1)?.connectCalls).toEqual([{ kind: 'streamableHttp' }])
+  })
+
+  it('reconnects after OAuth on a client the failed attempt left a transport on', async () => {
+    // The SDK refuses connect() while a transport is installed, and the 401 leaves its own
+    // there — without a close in between, every re-auth would die as "Already connected".
+    mcpSdkMock.state.failStreamable = true
+    mcpSdkMock.state.failStreamableUnauthorized = true
+    callbackServerMock.waitForAuthCode.mockImplementation(async () => {
+      mcpSdkMock.state.failStreamable = false
+      mcpSdkMock.state.failStreamableUnauthorized = false
+      return 'auth-code'
+    })
+
+    const service = new McpRuntimeService()
+    const client = (await (service as any).getOrCreateClient(urlServer('streamableHttp'))) as unknown as MockClient
+
+    expect(client.connectCalls.map((c) => c.kind)).toEqual(['streamableHttp', 'streamableHttp'])
   })
 
   it('surfaces static Authorization failures without starting OAuth', async () => {

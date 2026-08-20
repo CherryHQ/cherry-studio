@@ -28,5 +28,8 @@ again, complete the flow once.
 
 ## Notes for release manager
 
-Only rows still stored as in-memory are touched; a server the user has edited since, or
-never installed, is left alone.
+Only built-in rows still stored as in-memory are touched — a server the user added themselves,
+one already migrated, and one never installed are all left alone. A migrated row adopts the
+preset's connection, so an edit to the retired transport's command or args does not survive;
+everything else the user owns (environment variables, enabled state, timeout, disabled tools)
+is preserved.

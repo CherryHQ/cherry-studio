@@ -6,6 +6,7 @@ import {
   type McpFormValues,
   resolveMcpConfigInstallSource,
   resolveMcpConfigTransportType,
+  showsEnvEditor,
   toMcpFormDefaultValues,
   toMcpServerFields
 } from '../McpServerFields'
@@ -144,5 +145,22 @@ describe('buildMcpSchema', () => {
     expect(result.error?.issues).toContainEqual(
       expect.objectContaining({ path: ['command'], message: 'settings.mcp.command' })
     )
+  })
+})
+
+describe('showsEnvEditor', () => {
+  it('offers env wherever the runtime reads it', () => {
+    expect(showsEnvEditor('stdio')).toBe(true)
+    expect(showsEnvEditor('inMemory')).toBe(true)
+  })
+
+  it('offers env to a hosted built-in that authenticates with one, such as QVeris', () => {
+    expect(showsEnvEditor('streamableHttp', true)).toBe(true)
+  })
+
+  it('hides env from remote servers that never read it', () => {
+    // flomo and Nowledge Mem are built-in HTTP servers with no env consumer.
+    expect(showsEnvEditor('streamableHttp')).toBe(false)
+    expect(showsEnvEditor('sse')).toBe(false)
   })
 })

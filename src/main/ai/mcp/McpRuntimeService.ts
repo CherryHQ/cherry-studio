@@ -178,6 +178,9 @@ function withCache<T extends unknown[], R>(
 export class McpRuntimeService extends BaseService {
   private clients: Map<string, Client> = new Map()
   private pendingClients: Map<string, Promise<Client>> = new Map()
+  // In-flight liveness probes, deduped per server key. Deliberately separate from
+  // pendingClients: removeServer awaits that map, and it must not wait out a ping.
+  private pendingProbes: Map<string, Promise<Client | undefined>> = new Map()
   // Ids removed this run (ids are never reused). Guards the delete-vs-reconnect race:
   // a late connect must self-close instead of re-caching a client nothing would ever close.
   private removedServerIds = new Set<string>()
@@ -362,7 +365,7 @@ export class McpRuntimeService extends BaseService {
 
     const existingClient = this.clients.get(serverKey)
     if (existingClient) {
-      const reused = await this.reuseLiveClient(server, serverKey, existingClient)
+      const reused = await this.probeLiveClient(server, serverKey, existingClient)
       if (reused) {
         return reused
       }
@@ -386,6 +389,22 @@ export class McpRuntimeService extends BaseService {
     return initPromise
   }
 
+  /**
+   * One probe per server key: concurrent callers share the verdict, so a caller cannot be handed
+   * a client that another probe's ping already condemned and closed.
+   */
+  private probeLiveClient(server: McpServer, serverKey: string, existingClient: Client): Promise<Client | undefined> {
+    const inFlight = this.pendingProbes.get(serverKey)
+    if (inFlight) {
+      return inFlight
+    }
+    const probe = this.reuseLiveClient(server, serverKey, existingClient).finally(() => {
+      this.pendingProbes.delete(serverKey)
+    })
+    this.pendingProbes.set(serverKey, probe)
+    return probe
+  }
+
   /** A cached client that still answers a ping; discards it and returns undefined when it does not. */
   private async reuseLiveClient(
     server: McpServer,
@@ -396,12 +415,12 @@ export class McpRuntimeService extends BaseService {
       // add short timeout to prevent hanging
       const pingResult = await existingClient.ping({ timeout: PING_TIMEOUT_MS })
       getServerLogger(server).debug(`Ping result`, { ok: !!pingResult })
-      if (pingResult && !this.removedServerIds.has(server.id)) {
+      if (pingResult) {
+        if (this.removedServerIds.has(server.id)) {
+          return undefined
+        }
         this.setServerStatus(server.id, 'connected')
         return existingClient
-      }
-      if (pingResult) {
-        return undefined
       }
     } catch (error) {
       getServerLogger(server).error(`Error pinging server ${server.name}`, error as Error)
@@ -607,7 +626,9 @@ export class McpRuntimeService extends BaseService {
       await transport.finishAuth(authCode)
       getServerLogger(server).debug(`OAuth flow completed`)
 
-      // Try to connect again
+      // The 401 left its transport installed on the client, and the SDK refuses a second
+      // connect until it is cleared — close before retrying, as the fallback path does.
+      await client.close().catch(() => undefined)
       await client.connect(await createServerTransport(typeOverride))
       getServerLogger(server).debug(`Successfully authenticated`)
     } catch (oauthError) {
