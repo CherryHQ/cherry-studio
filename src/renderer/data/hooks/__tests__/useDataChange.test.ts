@@ -8,7 +8,7 @@
  * resubscription behavior, and latest-listener delivery.
  */
 import { dataApiService } from '@data/DataApiService'
-import type { DataApiDataChangeEffect } from '@shared/data/api/types'
+import { type DataApiDataChangeEffect, DataApiDataChangeScope } from '@shared/data/api/types'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -107,6 +107,19 @@ describe('useDataChange', () => {
     mockService._emitDataChange([matching, { endpoint: '/topics/:id', routeParams: { id: 't2' }, entityIds: ['t2'] }])
 
     expect(listener).toHaveBeenCalledExactlyOnceWith([matching])
+  })
+
+  it('delivers an explicit all-routes effect to a route-scoped subscriber', () => {
+    const listener = vi.fn()
+    renderHook(() => useDataChange('/topics/:id', listener, { routeParams: { id: 't1' } }))
+
+    const effect: DataApiDataChangeEffect = {
+      endpoint: '/topics/:id',
+      scope: DataApiDataChangeScope.AllRoutes
+    }
+    mockService._emitDataChange([effect])
+
+    expect(listener).toHaveBeenCalledExactlyOnceWith([effect])
   })
 
   it('uses the latest route parameters without resubscribing', () => {

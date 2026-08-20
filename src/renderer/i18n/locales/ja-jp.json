@@ -423,8 +423,7 @@
           "bypassPermissions": {
             "description": "権限チェックをスキップします。ファイルの削除やネットワークの使用が可能です。",
             "title": "フルアクセス",
-            "warning": "注意して使用してください — すべてのツールは承認なしで実行されます。",
-            "warning_pi": "危険 — 無効化されたツールを除き、ファイルの削除やネットワークアクセスを含むすべての操作で確認は行われません。"
+            "warning": "注意して使用してください — すべてのツールは承認なしで実行されます。"
           },
           "default": {
             "description": "ファイルの編集やコマンドの実行前に確認します。",
@@ -3001,7 +3000,7 @@
       "empty_title": "スキルを検索",
       "github_empty_description": "SKILL.mdファイルへのリンクを貼り付けてください。例: github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
       "github_empty_title": "GitHubからインストール",
-      "github_url_invalid": "SKILL.mdで終わるGitHubリンクを貼り付けてください",
+      "github_url_invalid": "SKILL.md ファイルを直接指す対応済みの GitHub リンクを貼り付けてください",
       "github_url_label": "GitHub SKILL.md URL",
       "github_url_placeholder": "/SKILL.mdで終わるGitHubリンク",
       "no_results_description": "別のキーワードを試すか、ローカルのZIPファイルまたはフォルダーをインポートしてください。",
@@ -3602,6 +3601,7 @@
     }
   },
   "navigate": {
+    "model_settings": "モデル設定へ移動",
     "provider_settings": "プロバイダー設定に移動"
   },
   "notes": {
@@ -4521,6 +4521,10 @@
         "custom": "カスタム機能",
         "delete_confirm": "このカスタム機能を削除しますか？",
         "drag_hint": "ドラッグで並べ替え (有効{{enabled}}/最大{{max}})",
+        "models": {
+          "default_description": "「説明」「要約」「推敲」、およびデフォルトモデルを使用するカスタムアクションで使用されます。",
+          "translate_description": "翻訳の生成に使用されます。言語の自動検出では高速モデルも使用される場合があります。"
+        },
         "reset": {
           "button": "リセット",
           "confirm": "デフォルトのアクションにリセットしますか？カスタムアクションは削除されません。",
@@ -6208,8 +6212,9 @@
       "provider_key_confirm_title": "{{provider}} の API キーを追加",
       "provider_name": "プロバイダー名",
       "quick_assistant_default_tag": "デフォルト",
-      "quick_assistant_model": "クイックアシスタントモデル",
+      "quick_assistant_response_settings": "応答設定",
       "quick_assistant_selection": "アシスタントを選択します",
+      "quick_assistant_usage_method": "使用方法",
       "quick_model": {
         "description": "トピックの命名や検索キーワードの抽出などの簡単なタスクを実行する際に使用されるモデル",
         "label": "高速モデル",

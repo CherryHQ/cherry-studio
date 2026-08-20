@@ -423,8 +423,7 @@
           "bypassPermissions": {
             "description": "略過權限檢查，可刪除檔案、存取網路。",
             "title": "完全存取",
-            "warning": "危險：大多數工具無需核准即可執行；明確的安全阻擋規則仍然生效。",
-            "warning_pi": "危險 — 除已停用工具外，所有操作均不會詢問，包含檔案刪除與網路存取。"
+            "warning": "危險：大多數工具無需核准即可執行；明確的安全阻擋規則仍然生效。"
           },
           "default": {
             "description": "編輯檔案或執行命令前詢問。",
@@ -3001,7 +3000,7 @@
       "empty_title": "搜尋技能",
       "github_empty_description": "請貼上技能的 SKILL.md 檔案連結，例如 github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
       "github_empty_title": "從 GitHub 安裝",
-      "github_url_invalid": "請貼上以 SKILL.md 結尾的 GitHub 連結",
+      "github_url_invalid": "請貼上受支援且直接指向 SKILL.md 檔案的 GitHub 連結",
       "github_url_label": "GitHub SKILL.md 連結",
       "github_url_placeholder": "GitHub 連結，以 /SKILL.md 結尾",
       "no_results_description": "請嘗試其他關鍵字，或從本機匯入 ZIP 檔或資料夾。",
@@ -3602,6 +3601,7 @@
     }
   },
   "navigate": {
+    "model_settings": "前往模型設定",
     "provider_settings": "前往供應商設定頁面"
   },
   "notes": {
@@ -4521,6 +4521,10 @@
         "custom": "自訂功能",
         "delete_confirm": "確定要刪除這個自訂功能嗎？",
         "drag_hint": "拖曳排序，移動到上方以啟用功能 ({{enabled}}/{{max}})",
+        "models": {
+          "default_description": "用於「解釋」、「總結」、「潤飾」及使用預設模型的自訂功能。",
+          "translate_description": "用於產生翻譯結果；自動語言偵測也可能使用快速模型。"
+        },
         "reset": {
           "button": "重設",
           "confirm": "確定要重設為預設功能嗎？自訂功能不會被刪除。",
@@ -6208,8 +6212,9 @@
       "provider_key_confirm_title": "為 {{provider}} 新增 API 金鑰",
       "provider_name": "供應商名稱",
       "quick_assistant_default_tag": "預設",
-      "quick_assistant_model": "快速助理模型",
+      "quick_assistant_response_settings": "回應設定",
       "quick_assistant_selection": "選擇助理",
+      "quick_assistant_usage_method": "使用方式",
       "quick_model": {
         "description": "用於對話命名、搜尋關鍵字提煉等簡單任務的模型",
         "label": "快速模型",

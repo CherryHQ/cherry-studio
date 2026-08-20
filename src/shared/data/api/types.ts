@@ -605,11 +605,9 @@ export type ScalarGetPaths = Exclude<GetMethodApiPaths, CollectionGetPaths>
  * - `entityIds` always holds primary keys of the entities the endpoint
  *   returns (e.g. '/pins' uses `Pin.id`, never `Pin.entityId`). Plural — a
  *   batch operation emits one entry.
- * - `routeParams` is required for template endpoints and forbidden for static
- *   endpoints. Renderer subscriptions pass their concrete parameters to
- *   `useDataChange`, which filters mismatched effects. This is separate from
- *   `dimension`, which describes a query family rather than identifying one
- *   concrete route instance.
+ * - Template endpoints normally require `routeParams`. A change that affects
+ *   every concrete route instance uses `scope: AllRoutes`; static endpoints
+ *   carry neither field. Renderer subscriptions filter exact route claims.
  *
  * The three kinds are facets, NOT mutually exclusive: one write commonly emits
  * several entries for the same endpoint (e.g. a rename is projection +
@@ -622,8 +620,14 @@ export type ScalarGetPaths = Exclude<GetMethodApiPaths, CollectionGetPaths>
  * receives the same object instances, so the fields are `readonly` — never
  * mutate an effect in a listener.
  */
+export enum DataApiDataChangeScope {
+  AllRoutes = 'all-routes'
+}
+
 type DataApiDataChangeRouteScope<Path extends GetMethodApiPaths> = Path extends `${string}:${string}`
-  ? { readonly routeParams: Readonly<ApiParams<Path, 'GET'>> }
+  ?
+      | { readonly routeParams: Readonly<ApiParams<Path, 'GET'>>; readonly scope?: never }
+      | { readonly scope: DataApiDataChangeScope.AllRoutes; readonly routeParams?: never }
   : { readonly routeParams?: never }
 
 type ScalarDataChangeEffect = {

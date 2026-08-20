@@ -58,7 +58,6 @@ import { AgentUserResponseMode, ConversationResponderKind } from '../conversatio
 import { deriveRootSpanId, startAiChildTurnSpan } from '../observability'
 import { registerRuntimeDrivers } from '../runtime/registerDrivers'
 import { runtimeDriverRegistry } from '../runtime/registry'
-import { type DispatchDecision, toolApprovalRegistry } from '../runtime/toolApproval/ToolApprovalRegistry'
 import type {
   AgentRuntimeConnection,
   AgentRuntimeEvent,
@@ -76,6 +75,7 @@ import {
   AgentSessionUsageCaptureOwner
 } from '../runtime/types'
 import { finalizeInterruptedParts, type StreamListener, type StreamPausedResult } from '../streamManager'
+import { type DispatchDecision, toolApprovalRegistry } from '../toolApproval/ToolApprovalRegistry'
 import type { ApprovalRequestedEvent, InProcessUsageContext } from '../types'
 import {
   AgentAutonomousGenerationState,
@@ -471,7 +471,7 @@ export class AgentConnectionManager extends BaseService {
 
     if (existing && this.resourceStatus(existing) === AgentConnectionResourceStatus.Idle) {
       // A warm connection is always safe to reuse: per-turn headless enforcement lives in `canUseTool`
-      // and PreToolUse hooks (resolved by session id at fire-time via `getInteractionState`), so the
+      // and PreToolUse hooks (resolved by session id through ConversationRuntimeService), so the
       // connection's baked settings no longer vary by headless mode and never need a mismatch rebuild.
       this.clearIdleTimer(existing)
       existing.conversation = input.conversation

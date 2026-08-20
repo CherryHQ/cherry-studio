@@ -14,7 +14,11 @@ import { McpCatalogService } from '@main/ai/mcp/McpCatalogService'
 import { McpPackageService } from '@main/ai/mcp/McpPackageService'
 import { McpRuntimeService } from '@main/ai/mcp/McpRuntimeService'
 import { ClaudeCodeTraceBridgeService, NodeTraceService, TraceStorageService } from '@main/ai/observability'
-import { ClaudeCodeProcessManager, ClaudeCodeWarmQueryManager } from '@main/ai/runtime/claudeCode'
+import {
+  ClaudeCodeProcessManager,
+  ClaudeCodeSessionStateService,
+  ClaudeCodeWarmQueryManager
+} from '@main/ai/runtime/claudeCode'
 import { JobManager } from '@main/core/job/JobManager'
 import type { ServiceConstructor } from '@main/core/lifecycle'
 import { PowerService } from '@main/core/power/PowerService'
@@ -45,6 +49,7 @@ import { OpenClawService } from '@main/services/OpenClawService'
 import { OvmsManager } from '@main/services/OvmsManager'
 import { PdfTranslationService } from '@main/services/PdfTranslationService'
 import { ProtocolService } from '@main/services/protocol/ProtocolService'
+import { ProviderRegistryUpdaterService } from '@main/services/ProviderRegistryUpdaterService'
 import { ProxyService } from '@main/services/proxy/ProxyService'
 import { PythonService } from '@main/services/PythonService'
 import { QuickAssistantService } from '@main/services/QuickAssistantService'
@@ -140,6 +145,7 @@ export const services = {
   AiService,
   ChannelIngressService,
   ClaudeCodeWarmQueryManager,
+  ClaudeCodeSessionStateService,
   EmbeddingInferenceService,
   OcrInferenceService,
   KnowledgeService,
@@ -147,6 +153,7 @@ export const services = {
   ApiGatewayService,
   AppUpdaterService,
   AutoBackupService,
+  ProviderRegistryUpdaterService,
   SchedulerService,
   JobManager
 } as const

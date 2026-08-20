@@ -2,6 +2,7 @@ import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
 import { asSchema } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
+import { appendInternalAgentContinuation } from '../../utils/agentContinuation'
 import { AnthropicMessageConverter, type ReasoningCache } from '../converters/AnthropicMessageConverter'
 
 const converter = new AnthropicMessageConverter()
@@ -27,6 +28,83 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
       })
     )
     expect(msgs[0]).toMatchObject({ role: 'system', parts: [{ type: 'text', text: 'A\nB' }] })
+  })
+
+  // The Claude Agent SDK ships its harness context (agent/skill catalogs, deferred-tool
+  // notices) as `system` messages inside `messages`. Mapping them by position turns them
+  // into words the model believes it said.
+  it('keeps an inline system message at its own index instead of merging it into a turn', () => {
+    const msgs = converter.toUIMessages(
+      params({
+        system: 'Be terse.',
+        messages: [
+          { role: 'user', content: 'summarize the doc' },
+          { role: 'system', content: 'Available agent types: ...' },
+          { role: 'assistant', content: 'On it.' }
+        ] as MessageCreateParams['messages']
+      })
+    )
+
+    expect(msgs.map((msg) => msg.role)).toEqual(['system', 'user', 'system', 'assistant'])
+    expect(msgs[0]).toMatchObject({ parts: [{ type: 'text', text: 'Be terse.' }] })
+    expect(msgs[2]).toMatchObject({ parts: [{ type: 'text', text: 'Available agent types: ...' }] })
+    expect(msgs[3]).toMatchObject({ parts: [{ type: 'text', text: 'On it.' }] })
+  })
+
+  // A trailing inline system message left as an assistant turn makes the request look like an
+  // assistant prefill, which `appendInternalAgentContinuation` answers by injecting a synthetic
+  // "continue with the original user request" turn on any sample where one lands last.
+  it('leaves a trailing inline system message out of the assistant tail', () => {
+    const msgs = converter.toUIMessages(
+      params({
+        messages: [
+          { role: 'user', content: 'list the files' },
+          { role: 'system', content: [{ type: 'text', text: 'Available agent types: ...' }] }
+        ] as MessageCreateParams['messages']
+      })
+    )
+
+    expect(msgs.map((msg) => msg.role)).toEqual(['user', 'system'])
+  })
+
+  it('keeps consecutive inline system messages separate and in arrival order', () => {
+    // Harness state changes arrive in bursts while a session warms up — an MCP server
+    // connects, skills are discovered, agent types change — each as its own message.
+    // Each one appends at the tail, so the prefix before it stays cacheable.
+    const msgs = converter.toUIMessages(
+      params({
+        system: 'Be terse.',
+        messages: [
+          { role: 'user', content: 'summarize the doc' },
+          { role: 'system', content: 'The following MCP servers are still connecting: context' },
+          { role: 'system', content: [{ type: 'text', text: 'New agent types are now available.' }] }
+        ] as MessageCreateParams['messages']
+      })
+    )
+
+    expect(msgs.map((msg) => msg.role)).toEqual(['system', 'user', 'system', 'system'])
+    expect(msgs[2]).toMatchObject({
+      parts: [{ type: 'text', text: 'The following MCP servers are still connecting: context' }]
+    })
+    expect(msgs[3]).toMatchObject({ parts: [{ type: 'text', text: 'New agent types are now available.' }] })
+  })
+
+  it('gives the agent continuation nothing to answer after a mid-session harness update', () => {
+    // The reported repeat-reply loop: an `api_system` message arriving at the tail became a
+    // text-only assistant turn, which the continuation then answered with a synthetic user
+    // turn, making the model redo the original request once per harness update.
+    const msgs = converter.toUIMessages(
+      params({
+        messages: [
+          { role: 'user', content: 'summarize the doc' },
+          { role: 'assistant', content: [{ type: 'tool_use', id: 'c1', name: 'Bash', input: {} }] },
+          { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'c1', content: 'ok' }] },
+          { role: 'system', content: 'The following MCP servers are still connecting: context' }
+        ] as MessageCreateParams['messages']
+      })
+    )
+
+    expect(appendInternalAgentContinuation(msgs)).toBe(msgs)
   })
 
   it('converts text + base64 image blocks into text and file parts', () => {
@@ -219,6 +297,30 @@ describe('AnthropicMessageConverter.toAiSdkTools', () => {
 
   it('returns undefined when there are no tools', () => {
     expect(converter.toAiSdkTools(params({}))).toBeUndefined()
+  })
+
+  it('drops schema-less server tools and keeps the client tools beside them', () => {
+    const tools = converter.toAiSdkTools(
+      params({
+        tools: [
+          { type: 'web_search_20250305', name: 'web_search' },
+          { type: 'text_editor_20250124', name: 'str_replace_editor' },
+          { name: 'get_weather', description: 'w', input_schema: { type: 'object', properties: {} } }
+        ] as never
+      })
+    )
+
+    expect(Object.keys(tools ?? {})).toEqual(['get_weather'])
+  })
+
+  it('returns undefined when every tool is a schema-less server tool', () => {
+    // Claude Code's ToolSearch declaration reaches the gateway on every tool-enabled
+    // Agent turn; forwarding it to a non-Anthropic provider is not possible (#18643).
+    const tools = converter.toAiSdkTools(
+      params({ tools: [{ type: 'tool_search_tool_regex_20251119', name: 'tool_search_tool_regex' }] as never })
+    )
+
+    expect(tools).toBeUndefined()
   })
 
   it('normalizes Responses-incompatible names and marks forwarded schemas non-strict', () => {

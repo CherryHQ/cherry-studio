@@ -423,8 +423,7 @@
           "bypassPermissions": {
             "description": "Ignora as verificações de permissões. Pode eliminar ficheiros e usar a rede.",
             "title": "Acesso total",
-            "warning": "Utilize com cautela: todas as ferramentas serão executadas sem pedir aprovação.",
-            "warning_pi": "Perigoso — não é pedida confirmação para nada, exceto para ferramentas desativadas, incluindo eliminação de ficheiros e acesso à rede."
+            "warning": "Utilize com cautela: todas as ferramentas serão executadas sem pedir aprovação."
           },
           "default": {
             "description": "Pergunta antes de editar ficheiros ou executar comandos.",
@@ -3001,7 +3000,7 @@
       "empty_title": "Pesquisar competências",
       "github_empty_description": "Cole a ligação para um ficheiro SKILL.md de uma skill, por exemplo github.com/proprietário/repositório/blob/main/skills/minha-skill/SKILL.md",
       "github_empty_title": "Instalar do GitHub",
-      "github_url_invalid": "Cole uma ligação do GitHub que termine com SKILL.md",
+      "github_url_invalid": "Cole uma ligação do GitHub suportada que aponte diretamente para um ficheiro SKILL.md",
       "github_url_label": "URL GitHub SKILL.md",
       "github_url_placeholder": "Ligação GitHub que termina em /SKILL.md",
       "no_results_description": "Experimente outra palavra-chave ou importe um ficheiro ZIP local ou uma pasta.",
@@ -3602,6 +3601,7 @@
     }
   },
   "navigate": {
+    "model_settings": "Ir para as definições de modelos",
     "provider_settings": "Ir para as configurações do fornecedor"
   },
   "notes": {
@@ -4521,6 +4521,10 @@
         "custom": "Função personalizada",
         "delete_confirm": "Tem a certeza de que pretende eliminar esta função personalizada?",
         "drag_hint": "Arraste para reordenar, mova para cima para ativar a função ({{enabled}}/{{max}})",
+        "models": {
+          "default_description": "Utilizado por Explicar, Resumir, Melhorar e por ações personalizadas que usam o modelo predefinido.",
+          "translate_description": "Utilizado para gerar traduções. A deteção automática do idioma também pode utilizar o modelo rápido."
+        },
         "reset": {
           "button": "Redefinir",
           "confirm": "Tem a certeza de que pretende redefinir para as funções padrão? As funções personalizadas não serão eliminadas.",
@@ -6208,8 +6212,9 @@
       "provider_key_confirm_title": "Adicionar chave API para {{provider}}",
       "provider_name": "Nome do Fornecedor",
       "quick_assistant_default_tag": "Padrão",
-      "quick_assistant_model": "Modelo do Assistente Rápido",
+      "quick_assistant_response_settings": "Definições de resposta",
       "quick_assistant_selection": "Selecionar Assistente",
+      "quick_assistant_usage_method": "Método de utilização",
       "quick_model": {
         "description": "Modelo utilizado para executar tarefas simples, como nomeação de tópicos, extração de palavras-chave de busca, entre outras.",
         "label": "Modelo rápido",

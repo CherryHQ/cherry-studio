@@ -423,8 +423,7 @@
           "bypassPermissions": {
             "description": "跳过权限检查，可删除文件、访问网络。",
             "title": "完全访问",
-            "warning": "危险：大多数工具无需审批即可执行；明确的安全阻止规则仍然生效。",
-            "warning_pi": "危险：除被禁用的工具外，一切操作都不再询问，包括删除文件和访问网络。"
+            "warning": "危险：大多数工具无需审批即可执行；明确的安全阻止规则仍然生效。"
           },
           "default": {
             "description": "编辑文件或执行命令前询问。",
@@ -3001,7 +3000,7 @@
       "empty_title": "搜索技能",
       "github_empty_description": "粘贴某个技能 SKILL.md 文件的链接，例如 github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
       "github_empty_title": "从 GitHub 安装",
-      "github_url_invalid": "请粘贴以 SKILL.md 结尾的 GitHub 链接",
+      "github_url_invalid": "请粘贴受支持且直接指向 SKILL.md 文件的 GitHub 链接",
       "github_url_label": "GitHub SKILL.md 链接",
       "github_url_placeholder": "GitHub 链接，以 /SKILL.md 结尾",
       "no_results_description": "请尝试其他关键词,或本地导入 ZIP 文件/目录。",
@@ -3602,6 +3601,7 @@
     }
   },
   "navigate": {
+    "model_settings": "前往模型设置",
     "provider_settings": "跳转到服务商设置界面"
   },
   "notes": {
@@ -4521,6 +4521,10 @@
         "custom": "自定义功能",
         "delete_confirm": "确定要删除这个自定义功能吗？",
         "drag_hint": "拖拽排序，移动到上方以启用功能 ({{enabled}}/{{max}})",
+        "models": {
+          "default_description": "用于解释、总结、润色，以及使用默认模型的自定义功能。",
+          "translate_description": "用于生成翻译结果；自动语言检测也可能使用快速模型。"
+        },
         "reset": {
           "button": "重置",
           "confirm": "确定要重置为默认功能吗？自定义功能不会被删除。",
@@ -6208,8 +6212,9 @@
       "provider_key_confirm_title": "为 {{provider}} 添加 API 密钥",
       "provider_name": "服务商名称",
       "quick_assistant_default_tag": "默认",
-      "quick_assistant_model": "快捷助手模型",
+      "quick_assistant_response_settings": "响应设置",
       "quick_assistant_selection": "选择助手",
+      "quick_assistant_usage_method": "使用方式",
       "quick_model": {
         "description": "执行对话命名、搜索关键字提炼等简单任务时使用的模型",
         "label": "快速模型",

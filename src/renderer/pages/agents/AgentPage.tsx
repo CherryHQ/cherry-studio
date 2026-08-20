@@ -708,6 +708,7 @@ const AgentPage = () => {
   const setActiveSessionAndClearTransient = useCallback(
     (sessionId: string | null, session?: AgentSessionEntity | null) => {
       closeSurface()
+      setPendingLocateMessageId(undefined)
       if (!sessionId) {
         reenterAgentRoute()
         return

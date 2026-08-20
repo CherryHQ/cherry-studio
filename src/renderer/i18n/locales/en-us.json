@@ -423,8 +423,7 @@
           "bypassPermissions": {
             "description": "Skips permission checks. Can delete files and use the network.",
             "title": "Full Access",
-            "warning": "Use with caution — most tools run without approval; explicit safety blocks still apply.",
-            "warning_pi": "Dangerous — nothing is ever asked except for disabled tools, including file deletion and network access."
+            "warning": "Use with caution — most tools run without approval; explicit safety blocks still apply."
           },
           "default": {
             "description": "Asks before editing files or running commands.",
@@ -3001,7 +3000,7 @@
       "empty_title": "Search for skills",
       "github_empty_description": "Paste a link to a skill's SKILL.md file, for example github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
       "github_empty_title": "Install from GitHub",
-      "github_url_invalid": "Paste a GitHub link that ends with SKILL.md",
+      "github_url_invalid": "Paste a supported GitHub link directly to a SKILL.md file",
       "github_url_label": "GitHub SKILL.md URL",
       "github_url_placeholder": "GitHub link ending in /SKILL.md",
       "no_results_description": "Try another keyword or import a local ZIP or directory.",
@@ -3602,6 +3601,7 @@
     }
   },
   "navigate": {
+    "model_settings": "Go to model settings",
     "provider_settings": "Go to provider settings"
   },
   "notes": {
@@ -4521,6 +4521,10 @@
         "custom": "Custom Action",
         "delete_confirm": "Are you sure you want to delete this custom action?",
         "drag_hint": "Drag to reorder. Move above to enable action ({{enabled}}/{{max}})",
+        "models": {
+          "default_description": "Used by Explain, Summarize, Refine, and custom actions that use the default model.",
+          "translate_description": "Used to generate translations. Automatic language detection may also use the quick model."
+        },
         "reset": {
           "button": "Reset",
           "confirm": "Are you sure you want to reset to default actions? Custom actions will not be deleted.",
@@ -6208,8 +6212,9 @@
       "provider_key_confirm_title": "Add {{provider}} API Key",
       "provider_name": "Provider Name",
       "quick_assistant_default_tag": "Default",
-      "quick_assistant_model": "Quick Assistant Model",
+      "quick_assistant_response_settings": "Response Settings",
       "quick_assistant_selection": "Select Assistant",
+      "quick_assistant_usage_method": "Usage Method",
       "quick_model": {
         "description": "Model used for simple tasks such as conversation naming and keyword extraction",
         "label": "Quick Model",

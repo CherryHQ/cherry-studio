@@ -14,7 +14,13 @@
  */
 import { describe, expectTypeOf, it } from 'vitest'
 
-import type { CollectionGetPaths, DataApiDataChangeEffect, GetMethodApiPaths, ScalarGetPaths } from '../types'
+import {
+  type CollectionGetPaths,
+  type DataApiDataChangeEffect,
+  DataApiDataChangeScope,
+  type GetMethodApiPaths,
+  type ScalarGetPaths
+} from '../types'
 
 describe('endpoint classification', () => {
   it('pins the collection classification snapshot (update deliberately on schema changes)', () => {
@@ -81,6 +87,7 @@ describe('DataApiDataChangeEffect invariants', () => {
     const legal: DataApiDataChangeEffect[] = [
       { endpoint: '/topics/latest' },
       { endpoint: '/topics/:id', routeParams: { id: 't1' }, entityIds: ['t1'] },
+      { endpoint: '/topics/:id', scope: DataApiDataChangeScope.AllRoutes },
       { endpoint: '/topics', kind: 'projection', entityIds: ['t1'] },
       { endpoint: '/topics', kind: 'membership' },
       { endpoint: '/topics', kind: 'membership', dimension: 'search', entityIds: ['t1'] },

@@ -423,8 +423,7 @@
           "bypassPermissions": {
             "description": "Omite verificările de permisiuni. Poate șterge fișiere și utiliza rețeaua.",
             "title": "Acces complet",
-            "warning": "Folosește cu precauție — toate instrumentele vor rula fără a cere aprobare.",
-            "warning_pi": "Periculos — nu se cere confirmare pentru nicio acțiune, cu excepția instrumentelor dezactivate, inclusiv ștergerea fișierelor și accesul la rețea."
+            "warning": "Folosește cu precauție — toate instrumentele vor rula fără a cere aprobare."
           },
           "default": {
             "description": "Întreabă înainte de a edita fișiere sau de a rula comenzi.",
@@ -3001,7 +3000,7 @@
       "empty_title": "Caută abilități",
       "github_empty_description": "Lipește un link către fișierul SKILL.md al unei abilități, de exemplu github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
       "github_empty_title": "Instalează de pe GitHub",
-      "github_url_invalid": "Lipește un link GitHub care se termină cu SKILL.md",
+      "github_url_invalid": "Lipește un link GitHub acceptat care indică direct către un fișier SKILL.md",
       "github_url_label": "URL SKILL.md GitHub",
       "github_url_placeholder": "Link GitHub care se termină cu /SKILL.md",
       "no_results_description": "Încearcă un alt cuvânt cheie sau importă un fișier ZIP sau director local.",
@@ -3602,6 +3601,7 @@
     }
   },
   "navigate": {
+    "model_settings": "Accesează setările modelelor",
     "provider_settings": "Mergi la setările furnizorului"
   },
   "notes": {
@@ -4521,6 +4521,10 @@
         "custom": "Acțiune personalizată",
         "delete_confirm": "Ești sigur că vrei să ștergi această acțiune personalizată?",
         "drag_hint": "Trage pentru a reordona. Mută deasupra pentru a activa acțiunea ({{enabled}}/{{max}})",
+        "models": {
+          "default_description": "Folosit de acțiunile Explică, Rezumă, Îmbunătățește și de acțiunile personalizate care utilizează modelul implicit.",
+          "translate_description": "Folosit pentru generarea traducerilor. Detectarea automată a limbii poate utiliza și modelul rapid."
+        },
         "reset": {
           "button": "Resetează",
           "confirm": "Ești sigur că vrei să resetezi la acțiunile implicite? Acțiunile personalizate nu vor fi șterse.",
@@ -6208,8 +6212,9 @@
       "provider_key_confirm_title": "Adaugă cheia API pentru {{provider}}",
       "provider_name": "Nume furnizor",
       "quick_assistant_default_tag": "Implicit",
-      "quick_assistant_model": "Model asistent rapid",
+      "quick_assistant_response_settings": "Setări de răspuns",
       "quick_assistant_selection": "Selectează asistent",
+      "quick_assistant_usage_method": "Metodă de utilizare",
       "quick_model": {
         "description": "Model folosit pentru sarcini simple, cum ar fi numirea subiectelor și extragerea cuvintelor cheie",
         "label": "Model rapid",

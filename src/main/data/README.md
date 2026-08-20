@@ -31,7 +31,7 @@ src/main/data/
 
 ## Data Change Notification
 
-`DbService.withWriteTx()` is the transaction publish boundary for cross-window data convergence. A data service declares affected read models with `tx.effects.add(...)` inside the synchronous transaction; nested transactions share the same effect scope, and `DbService` deduplicates and broadcasts the union only after the outermost commit succeeds. Rollback publishes nothing. A successful single-statement autocommit write declares its effects afterward with an independent `DbService.withEffects()` scope. Template endpoints require their schema-defined `routeParams` keys at compile time.
+`DbService.withWriteTx()` is the transaction publish boundary for cross-window data convergence. A data service declares affected read models with `tx.effects.add(...)` inside the synchronous transaction; nested transactions share the same effect scope, and `DbService` deduplicates and broadcasts the union only after the outermost commit succeeds. Rollback publishes nothing. A successful single-statement autocommit write declares its effects afterward with an independent `DbService.withEffects()` scope. Template endpoints require their schema-defined `routeParams` keys at compile time unless a source-wide refresh explicitly uses `DataApiDataChangeScope.AllRoutes`.
 
 The low-level `notifyDataApiDataChange()` publisher is private to `DbService` by lint rule. See [Fenced Exception: Data Change Notification](../../../docs/references/data/api-design-guidelines.md#fenced-exception-data-change-notification) for the remaining fences and delivery contract.
 
