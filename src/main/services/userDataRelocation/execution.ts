@@ -18,6 +18,7 @@ import {
   assertUserDataRelocationRequest,
   invalid,
   isErrno,
+  isPathInside,
   normalizeForCompare,
   pathEntryExists,
   relocationArtifactPaths,
@@ -296,9 +297,27 @@ async function executeRelocation(
           try {
             stat = await fsp.stat(source)
           } catch (error) {
-            if (!isErrno(error, 'ENOENT')) throw error
-            logger.warn('Skipping broken symlink during userData relocation', { source })
-            return false
+            if (isErrno(error, 'ENOENT')) {
+              logger.warn('Skipping broken symlink during userData relocation', { source })
+              return false
+            }
+            if (isErrno(error, 'ELOOP')) {
+              logger.warn('Skipping circular symlink during userData relocation', { source })
+              return false
+            }
+            throw error
+          }
+          if (stat.isDirectory()) {
+            try {
+              if (await isCircularDirectorySymlink(source)) {
+                logger.warn('Skipping circular symlink during userData relocation', { source })
+                return false
+              }
+            } catch (error) {
+              if (!isErrno(error, 'ENOENT')) throw error
+              logger.warn('Skipping userData symlink that vanished during relocation', { source })
+              return false
+            }
           }
         }
         if (stat.isFile()) {
@@ -450,8 +469,38 @@ async function rollbackCopy(options: {
   }
 }
 
+async function isCircularDirectorySymlink(source: string): Promise<boolean> {
+  let targetReal: string
+  try {
+    targetReal = normalizeForCompare(await fsp.realpath(source))
+  } catch (error) {
+    if (isErrno(error, 'ELOOP')) return true
+    throw error
+  }
+
+  let ancestor = path.dirname(source)
+  while (true) {
+    let ancestorReal: string
+    try {
+      ancestorReal = normalizeForCompare(await fsp.realpath(ancestor))
+    } catch (error) {
+      if (isErrno(error, 'ELOOP')) return true
+      throw error
+    }
+    if (targetReal === ancestorReal || isPathInside(ancestorReal, targetReal)) return true
+
+    const parent = path.dirname(ancestor)
+    if (parent === ancestor) return false
+    ancestor = parent
+  }
+}
+
 // Symlinks are followed because relocation materializes their referents.
-async function calculateTotalBytes(root: string, allowMissing = false): Promise<number> {
+async function calculateTotalBytes(
+  root: string,
+  allowMissing = false,
+  ancestorDirectories: ReadonlySet<string> = new Set()
+): Promise<number> {
   let stat: Awaited<ReturnType<typeof fsp.lstat>>
   try {
     stat = await fsp.lstat(root)
@@ -464,11 +513,23 @@ async function calculateTotalBytes(root: string, allowMissing = false): Promise<
       stat = await fsp.stat(root)
     } catch (error) {
       if (isErrno(error, 'ENOENT')) return 0
+      if (isErrno(error, 'ELOOP')) return 0
       throw error
     }
   }
   if (stat.isFile()) return stat.size
   if (!stat.isDirectory()) return 0
+
+  let directoryReal: string
+  try {
+    directoryReal = normalizeForCompare(await fsp.realpath(root))
+  } catch (error) {
+    if (allowMissing && isErrno(error, 'ENOENT')) return 0
+    if (isErrno(error, 'ELOOP')) return 0
+    throw error
+  }
+  if (ancestorDirectories.has(directoryReal)) return 0
+  const childAncestors = new Set(ancestorDirectories).add(directoryReal)
 
   let entries: fs.Dirent<string>[]
   try {
@@ -479,7 +540,7 @@ async function calculateTotalBytes(root: string, allowMissing = false): Promise<
   }
   let total = 0
   for (const entry of entries) {
-    total += await calculateTotalBytes(path.join(root, entry.name), true)
+    total += await calculateTotalBytes(path.join(root, entry.name), true, childAncestors)
   }
   return total
 }

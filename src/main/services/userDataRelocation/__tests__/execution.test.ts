@@ -319,15 +319,21 @@ describe('userDataRelocation execution', () => {
     expectCommitted(target)
   })
 
-  it.skipIf(process.platform === 'win32')('materializes symlinks without creating links in the target', async () => {
+  it('materializes symlinks without creating links in the target', async () => {
     const root = makeRoot()
     const source = path.join(root, 'source')
     const target = path.join(root, 'target')
     const realDirectory = path.join(source, 'real')
     fs.mkdirSync(realDirectory, { recursive: true })
     fs.writeFileSync(path.join(realDirectory, 'data.txt'), 'data')
-    fs.symlinkSync(realDirectory, path.join(source, 'directory-link'), 'dir')
-    fs.symlinkSync(path.join(realDirectory, 'data.txt'), path.join(source, 'file-link'), 'file')
+    fs.symlinkSync(
+      realDirectory,
+      path.join(source, 'directory-link'),
+      process.platform === 'win32' ? 'junction' : 'dir'
+    )
+    if (process.platform !== 'win32') {
+      fs.symlinkSync(path.join(realDirectory, 'data.txt'), path.join(source, 'file-link'), 'file')
+    }
     relocationState['app.userdata'] = source
     relocationState['temp.user_data_relocation'] = pending(source, target)
     const permissionError = Object.assign(new Error('operation not permitted'), { code: 'EPERM' })
@@ -339,9 +345,30 @@ describe('userDataRelocation execution', () => {
 
     expect(symlinkMock).not.toHaveBeenCalled()
     expect(fs.lstatSync(path.join(target, 'directory-link')).isSymbolicLink()).toBe(false)
-    expect(fs.lstatSync(path.join(target, 'file-link')).isSymbolicLink()).toBe(false)
     expect(fs.readFileSync(path.join(target, 'directory-link', 'data.txt'), 'utf8')).toBe('data')
-    expect(fs.readFileSync(path.join(target, 'file-link'), 'utf8')).toBe('data')
+    if (process.platform !== 'win32') {
+      expect(fs.lstatSync(path.join(target, 'file-link')).isSymbolicLink()).toBe(false)
+      expect(fs.readFileSync(path.join(target, 'file-link'), 'utf8')).toBe('data')
+    }
+    expectCommitted(target)
+  })
+
+  it('skips a circular directory symlink while materializing the rest of the tree', async () => {
+    const root = makeRoot()
+    const source = path.join(root, 'source')
+    const target = path.join(root, 'target')
+    const backups = path.join(source, 'backups')
+    fs.mkdirSync(backups, { recursive: true })
+    fs.writeFileSync(path.join(backups, 'data.txt'), 'data')
+    fs.symlinkSync(backups, path.join(backups, 'current'), process.platform === 'win32' ? 'junction' : 'dir')
+    relocationState['app.userdata'] = source
+    relocationState['temp.user_data_relocation'] = pending(source, target)
+
+    const { runUserDataRelocation } = await loadDomain()
+    await expect(runUserDataRelocation()).resolves.toBe('handled')
+
+    expect(fs.readFileSync(path.join(target, 'backups', 'data.txt'), 'utf8')).toBe('data')
+    expect(fs.existsSync(path.join(target, 'backups', 'current'))).toBe(false)
     expectCommitted(target)
   })
 
