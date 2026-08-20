@@ -33,6 +33,8 @@ new shared UI API.
 
 - Ordinary titles use `text-foreground` at medium weight.
 - Ordinary descriptions use solid `text-muted-foreground`; foreground opacity modifiers are not used.
+- Ordinary mode icons use `text-muted-foreground`, one semantic level quieter than their titles while retaining
+  sufficient contrast on 1080p displays.
 - The `auto` compatibility warning uses `text-warning` on a compact warning indicator.
 - The `bypassPermissions` icon, title, visible description, and warning indicator use `text-destructive`.
 - Selection and danger remain separate concepts: the selected check stays neutral while danger stays red.
@@ -49,11 +51,18 @@ new shared UI API.
 ### Agent create/edit Select
 
 - Options retain the existing two-line title/description structure with consistent padding and spacing.
+- Full-size options give the left mode icon 4px of horizontal margin on each side. Combined with the existing 8px
+  row padding and 8px content gap, this leaves 12px from the row edge to the icon and 12px from the icon to the
+  title.
 - The selected option uses the neutral accent surface and ordinary foreground instead of coloring all copy with the
   theme primary. The check remains visible and neutral.
 - Long compatibility and danger warnings move into Tooltips, leaving rows at a consistent height.
 - Warning-bearing rows retain a visible orange or red indicator. The full warning opens on pointer hover and when the
   owning option is keyboard-focused; assistive technology receives the same warning as the option description.
+- The spacing change belongs to the existing renderer feature component `PermissionModeSelectItem`; it does not
+  modify the public `@cherrystudio/ui` `SelectItem`. Compact channel options keep their current icon spacing.
+- The trailing warning remains 8px from the row edge. On warning-bearing selected rows, the check remains 32px from
+  the row edge so the two indicators do not overlap.
 
 ## Tooltip content
 
@@ -79,5 +88,6 @@ Rejected alternatives:
 - Verify ordinary, `auto`, selected, and `bypassPermissions` rows for semantic color and truncation.
 - Verify warning Tooltips by pointer and keyboard, including accessible warning text.
 - Exercise another QuickPanel submenu to ensure the shared row and footer changes remain usable.
-- Run the focused renderer tests for permission presentation and QuickPanel layout, followed by the repository-required
-  lint, test, format, and build checks.
+- Do not add or modify tests for the visual follow-up. Run the existing focused renderer tests for permission
+  presentation and QuickPanel layout, plus targeted type, lint, format, and diff checks. Do not run the full test
+  suite.
