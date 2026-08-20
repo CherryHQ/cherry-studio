@@ -1241,6 +1241,9 @@
           }
         }
       },
+      "fastMode": {
+        "transport": "ark-fast"
+      },
       "id": "doubao",
       "metadata": {
         "website": {
@@ -2073,5 +2076,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "adf168d38e167f27"
+  "version": "6dde7023f76b1a02"
 }

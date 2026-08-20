@@ -284,6 +284,18 @@ export async function resolveProviderAiSdkConfig(
         return config
       })
     },
+    // Ark data reporting: X-Fornax-Trace surfaces request traces in the Ark console
+    // for debugging — developer-mode only, mirroring applyHttpTrace's gate.
+    {
+      match: (p, id) => id === 'open-responses' && matchesPreset(p, SystemProviderIds.doubao),
+      build: withSelectedApiKey((ctx) => {
+        const config = buildOpenResponsesConfig(ctx)
+        if (application.get('PreferenceService').get('app.developer_mode.enabled')) {
+          config.providerSettings.headers = { ...config.providerSettings.headers, 'X-Fornax-Trace': 'true' }
+        }
+        return config
+      })
+    },
     // Spec-neutral Responses dialect (deepseek/doubao/fireworks/… + custom providers).
     { match: (_, id) => id === 'open-responses', build: withSelectedApiKey(buildOpenResponsesConfig) },
     // modelscope / ppio / doubao / dmxapi: chat & embedding are OpenAI-compatible, but IMAGE

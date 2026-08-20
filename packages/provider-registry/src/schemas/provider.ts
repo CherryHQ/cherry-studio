@@ -47,7 +47,7 @@ export const ApiFeaturesSchema = z.object({
  * Model availability remains a provider-model concern; this only describes
  * how the provider carries an enabled Fast request.
  */
-export const FastModeTransportSchema = z.enum(['openai-priority', 'claude-code'])
+export const FastModeTransportSchema = z.enum(['openai-priority', 'claude-code', 'ark-fast'])
 
 /** A provider-native tool plus the scope of models on which the host serves it. */
 export const ServerToolConfigSchema = z.object({

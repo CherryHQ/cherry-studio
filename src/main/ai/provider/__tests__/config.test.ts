@@ -12,6 +12,7 @@ import {
 } from '@shared/data/presets/localEmbedding'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { type AuthConfig, DEFAULT_API_FEATURES } from '@shared/data/types/provider'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -1212,6 +1213,34 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       // the Ark strip/normalize fetch shims are gone: plain proxy-aware fetch only.
       expect(settings.url).toBe('https://ark.cn-beijing.volces.com/api/v3/responses')
       expect(settings.name).toBe('openai')
+      // Fornax tracing is developer-mode only.
+      expect((settings.headers as Record<string, string>)['X-Fornax-Trace']).toBeUndefined()
+    })
+
+    it('adds the X-Fornax-Trace header for Doubao Responses in developer mode', async () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.developer_mode.enabled', true)
+      try {
+        const provider = makeProvider({
+          id: 'doubao',
+          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+          endpointConfigs: {
+            [ENDPOINT_TYPE.OPENAI_RESPONSES]: {
+              baseUrl: 'https://ark.cn-beijing.volces.com/api/v3/',
+              adapterFamily: 'open-responses'
+            }
+          }
+        })
+        const model = makeModel({
+          providerId: 'doubao',
+          apiModelId: 'doubao-seed-2-1-pro-260628',
+          endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
+        })
+        const config = await providerToAiSdkConfig(provider, model)
+        const settings = config.providerSettings as Record<string, unknown>
+        expect((settings.headers as Record<string, string>)['X-Fornax-Trace']).toBe('true')
+      } finally {
+        MockMainPreferenceServiceUtils.setPreferenceValue('app.developer_mode.enabled', false)
+      }
     })
 
     it('routes DMXAPI bespoke-family IMAGE models (e.g. qwen-image) through DMXAPI config', async () => {

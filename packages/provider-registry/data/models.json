@@ -15,24 +15,11 @@
       "ownedBy": "ai21"
     },
     {
-      "capabilities": ["function-call", "structured-output"],
-      "contextWindow": 256000,
+      "capabilities": [],
       "id": "jamba-large-1-7",
-      "inputModalities": ["text"],
       "metadata": {},
-      "name": "AI21: Jamba Large 1.7",
-      "outputModalities": ["text"],
-      "ownedBy": "ai21",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 2
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 8
-        }
-      }
+      "name": "jamba-large-1-7",
+      "ownedBy": "ai21"
     },
     {
       "capabilities": [],
@@ -2323,11 +2310,11 @@
         "structured-output",
         "file-input"
       ],
-      "contextWindow": 262144,
+      "contextWindow": 1000000,
       "family": "qwen",
       "id": "qwen3-8-27b",
       "inputModalities": ["text", "image", "video"],
-      "maxOutputTokens": 262133,
+      "maxOutputTokens": 131072,
       "metadata": {},
       "name": "Qwen3.8 27B",
       "openWeights": true,
@@ -2336,15 +2323,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.01
+          "perMillionTokens": 0.11
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.1
+          "perMillionTokens": 0.55
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.4
+          "perMillionTokens": 3.3
         }
       },
       "reasoning": {
@@ -7251,11 +7238,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.27
+          "perMillionTokens": 0.25
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.12
+          "perMillionTokens": 1
         }
       }
     },
@@ -7747,11 +7734,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.0765
+          "perMillionTokens": 0.065
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.153
+          "perMillionTokens": 0.14
         }
       },
       "reasoning": {
@@ -19234,7 +19221,7 @@
       "id": "s1",
       "inputModalities": ["text"],
       "metadata": {},
-      "name": "S1",
+      "name": "S1 (Free)",
       "outputModalities": ["audio"],
       "ownedBy": "vercel"
     },
@@ -19244,7 +19231,7 @@
       "id": "s2-1-pro",
       "inputModalities": ["text"],
       "metadata": {},
-      "name": "S2.1 Pro",
+      "name": "S2.1 Pro (Free)",
       "outputModalities": ["audio"],
       "ownedBy": "vercel"
     },
@@ -19254,7 +19241,7 @@
       "id": "s2-pro",
       "inputModalities": ["text"],
       "metadata": {},
-      "name": "S2 Pro",
+      "name": "S2 Pro (Free)",
       "outputModalities": ["audio"],
       "ownedBy": "vercel"
     },
@@ -20203,15 +20190,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.5
+          "perMillionTokens": 0.55
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 2
+          "perMillionTokens": 2.2
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 6
+          "perMillionTokens": 6.6
         }
       },
       "reasoning": {
@@ -20947,10 +20934,6 @@
       "outputModalities": ["text"],
       "ownedBy": "zhipu",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.05
-        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 0.3
@@ -20960,26 +20943,6 @@
           "perMillionTokens": 0.9
         }
       },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "toggle"
-          }
-        ],
-        "supportedEfforts": ["none", "auto"]
-      }
-    },
-    {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
-      "contextWindow": 128000,
-      "family": "glm",
-      "id": "glm-4-6v-flash",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 24000,
-      "metadata": {},
-      "name": "GLM-4.6V-Flash",
-      "outputModalities": ["text"],
-      "ownedBy": "zhipu",
       "reasoning": {
         "controls": [
           {
@@ -21552,6 +21515,26 @@
       "ownedBy": "zhipu"
     },
     {
+      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "contextWindow": 1048576,
+      "id": "glm-latest",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Z.ai: GLM Latest",
+      "outputModalities": ["text"],
+      "ownedBy": "zhipu",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.4
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 4.4
+        }
+      }
+    },
+    {
       "capabilities": ["reasoning"],
       "contextWindow": 131072,
       "id": "glm-z1",
@@ -21584,5 +21567,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "90f2173cfa6525a2"
+  "version": "4a5a94b1909c51f2"
 }

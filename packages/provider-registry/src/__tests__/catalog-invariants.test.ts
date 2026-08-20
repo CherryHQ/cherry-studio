@@ -326,11 +326,13 @@ describe('catalog invariants (data/*.json)', () => {
     expect(r.success ? [] : r.error.issues.slice(0, 5)).toEqual([])
   })
 
-  it('Fast transports belong only to Codex and Claude Code', () => {
-    expect(providers.filter((provider) => provider.fastMode).map((provider) => provider.id)).toEqual([
-      'claude-code',
-      'openai-codex'
-    ])
+  it('Fast transports belong only to Codex, Claude Code, and Ark', () => {
+    expect(
+      providers
+        .filter((provider) => provider.fastMode)
+        .map((provider) => provider.id)
+        .sort()
+    ).toEqual(['claude-code', 'doubao', 'openai-codex'])
   })
 
   it('Fast provider-model declarations require a provider transport', () => {
