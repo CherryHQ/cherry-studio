@@ -3,6 +3,7 @@ import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
 import { useTranslate } from '@renderer/hooks/translate'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
+import { getLanguageByFilePath } from '@renderer/utils/codeLanguage'
 import { BUILTIN_LANGUAGE } from '@shared/data/presets/translateLanguages'
 import type { SkillFileNode } from '@shared/types/skill'
 import { FileText, Languages, Loader2 } from 'lucide-react'
@@ -14,29 +15,6 @@ const CodeViewer = lazy(() => import('@renderer/components/CodeViewer'))
 const logger = loggerService.withContext('SkillFileBrowser')
 
 const MARKDOWN_EXTENSIONS = new Set(['md', 'mdx', 'markdown'])
-const LANGUAGE_BY_EXTENSION: Record<string, string> = {
-  bash: 'bash',
-  css: 'css',
-  go: 'go',
-  html: 'html',
-  js: 'javascript',
-  json: 'json',
-  jsx: 'jsx',
-  py: 'python',
-  rb: 'ruby',
-  rs: 'rust',
-  sh: 'bash',
-  sql: 'sql',
-  toml: 'toml',
-  ts: 'typescript',
-  tsx: 'tsx',
-  txt: 'text',
-  xml: 'xml',
-  yaml: 'yaml',
-  yml: 'yaml',
-  zsh: 'bash'
-}
-
 interface Props {
   skillId: string
 }
@@ -48,10 +26,6 @@ function extension(filename: string): string {
 
 function isMarkdownFile(filename: string): boolean {
   return MARKDOWN_EXTENSIONS.has(extension(filename))
-}
-
-function guessLanguage(filename: string): string {
-  return LANGUAGE_BY_EXTENSION[extension(filename)] ?? 'text'
 }
 
 function toFileTreeNode(node: SkillFileNode): FileTreeNode {
@@ -71,6 +45,13 @@ function findFirstFile(nodes: SkillFileNode[], predicate: (node: SkillFileNode) 
     if (child) return child
   }
   return null
+}
+
+function findRootSkillFile(nodes: SkillFileNode[]): string | null {
+  return (
+    nodes.find((node) => node.type === 'file' && node.path.replaceAll('\\', '/').toLowerCase() === 'skill.md')?.path ??
+    null
+  )
 }
 
 function collectFilePaths(nodes: SkillFileNode[], paths = new Set<string>()): Set<string> {
@@ -106,7 +87,7 @@ export function SkillFileBrowser({ skillId }: Props) {
 
   const tree = useMemo(() => sourceTree.map(toFileTreeNode), [sourceTree])
   const filePaths = useMemo(() => collectFilePaths(sourceTree), [sourceTree])
-  const selectedFileName = selectedFile?.split('/').pop() ?? selectedFile
+  const selectedFileName = selectedFile?.split(/[\\/]/).pop() ?? selectedFile
   const selectedIsMarkdown = selectedFile ? isMarkdownFile(selectedFile) : false
   const previewContent = showTranslation && translatedContent !== null ? translatedContent : fileContent
 
@@ -127,7 +108,7 @@ export function SkillFileBrowser({ skillId }: Props) {
         }
 
         setSourceTree(result.data)
-        const skillFile = findFirstFile(result.data, (node) => node.name.toLowerCase() === 'skill.md')
+        const skillFile = findRootSkillFile(result.data)
         const markdownFile = findFirstFile(result.data, (node) => isMarkdownFile(node.name))
         setSelectedFile(skillFile ?? markdownFile ?? findFirstFile(result.data, () => true))
       })
@@ -215,6 +196,7 @@ export function SkillFileBrowser({ skillId }: Props) {
           ) : (
             <FileTree
               nodes={tree}
+              ariaLabel={t('library.skill_detail.source_files')}
               expandedIds={expandedIds}
               onExpandedChange={setExpandedIds}
               selectedId={selectedFile}
@@ -263,12 +245,21 @@ export function SkillFileBrowser({ skillId }: Props) {
               <Suspense fallback={<PreviewLoading />}>
                 {selectedIsMarkdown ? (
                   <div className="px-4 py-3">
-                    <Markdown id={`${skillId}:${selectedFile}:${showTranslation ? 'translation' : 'original'}`}>
+                    <Markdown
+                      id={`${skillId}:${selectedFile}:${showTranslation ? 'translation' : 'original'}`}
+                      footnoteLabel={t('common.footnotes')}>
                       {previewContent}
                     </Markdown>
                   </div>
                 ) : (
-                  <CodeViewer key={selectedFile} value={previewContent} language={guessLanguage(selectedFile)} />
+                  <CodeViewer
+                    key={selectedFile}
+                    value={previewContent}
+                    language={getLanguageByFilePath(selectedFile)}
+                    height="100%"
+                    expanded={false}
+                    className="h-full"
+                  />
                 )}
               </Suspense>
             ) : (

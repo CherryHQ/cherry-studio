@@ -7,11 +7,12 @@ import { application } from '@application'
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
-import { decodeTextBufferIfText, isOutsidePath } from '@main/utils/file'
+import { decodeTextBufferIfText, isOutsidePath, openReadableFileSnapshot } from '@main/utils/file'
 import { directoryExists } from '@main/utils/legacyFile'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
 import { getShellEnv } from '@main/utils/shellEnv'
 import type { InstalledSkill, ListSkillsQuery } from '@shared/data/api/schemas/skills'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import type {
   SkillFileNode,
   SkillImportSystemOptions,
@@ -110,10 +111,18 @@ export class SkillService {
       const [realRoot, realFile] = await Promise.all([fs.promises.realpath(skillRoot), fs.promises.realpath(filePath)])
       if (isOutsidePath(path.relative(realRoot, realFile))) return null
 
-      const stats = await fs.promises.stat(realFile)
-      if (!stats.isFile() || stats.size > SKILL_FILE_PREVIEW_MAX_SIZE_BYTES) return null
+      const snapshot = await openReadableFileSnapshot(realFile as AbsoluteFilePath)
+      try {
+        if (snapshot.size > SKILL_FILE_PREVIEW_MAX_SIZE_BYTES) return null
 
-      return decodeTextBufferIfText(await fs.promises.readFile(realFile))
+        const chunks: Buffer[] = []
+        for await (const chunk of snapshot.createReadStream()) {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+        }
+        return decodeTextBufferIfText(Buffer.concat(chunks, snapshot.size))
+      } finally {
+        await snapshot.close()
+      }
     } catch {
       return null
     }
