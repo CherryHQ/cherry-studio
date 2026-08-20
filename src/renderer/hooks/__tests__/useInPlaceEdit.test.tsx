@@ -1,15 +1,17 @@
-import { render, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { useState } from 'react'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { useInPlaceEdit } from '../useInPlaceEdit'
 
-function RenameNavigationHarness() {
+function RenameNavigationHarness({ onSave }: { onSave?: (value: string) => void }) {
   const [treeRevision, setTreeRevision] = useState(0)
   const [selectedNote, setSelectedNote] = useState('Current note')
   const editor = useInPlaceEdit({
-    onSave: () => setTreeRevision((revision) => revision + 1)
+    onSave: (value) => {
+      onSave?.(value)
+      setTreeRevision((revision) => revision + 1)
+    }
   })
 
   return (
@@ -31,18 +33,53 @@ function RenameNavigationHarness() {
 }
 
 describe('useInPlaceEdit', () => {
-  it('lets the first click select another note while blur saves the rename', async () => {
-    const user = userEvent.setup()
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('waits for the pointer click before blur-save remounts the target row', async () => {
+    vi.useFakeTimers()
     render(<RenameNavigationHarness />)
 
-    await user.click(screen.getByRole('button', { name: 'Rename current note' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Rename current note' }))
     const input = screen.getByRole('textbox', { name: 'Note name' })
-    await user.clear(input)
-    await user.type(input, 'Renamed note')
+    fireEvent.change(input, { target: { value: 'Renamed note' } })
+    const otherNote = screen.getByRole('button', { name: 'Other note' })
 
-    await user.click(screen.getByRole('button', { name: 'Other note' }))
+    fireEvent.pointerDown(otherNote)
+    fireEvent.blur(input, { relatedTarget: otherNote })
+    await act(async () => {
+      vi.runOnlyPendingTimers()
+      await Promise.resolve()
+    })
+
+    expect(screen.getByRole('status', { name: 'Tree revision' })).toHaveTextContent('0')
+
+    fireEvent.pointerUp(otherNote)
+    fireEvent.click(otherNote)
+    await act(async () => {
+      vi.runOnlyPendingTimers()
+      await Promise.resolve()
+    })
 
     expect(screen.getByRole('status', { name: 'Selected note' })).toHaveTextContent('Other note')
-    await waitFor(() => expect(screen.getByRole('status', { name: 'Tree revision' })).toHaveTextContent('1'))
+    expect(screen.getByRole('status', { name: 'Tree revision' })).toHaveTextContent('1')
+  })
+
+  it('flushes a pending blur-save when the editor unmounts', () => {
+    vi.useFakeTimers()
+    const onSave = vi.fn()
+    const view = render(<RenameNavigationHarness onSave={onSave} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rename current note' }))
+    const input = screen.getByRole('textbox', { name: 'Note name' })
+    fireEvent.change(input, { target: { value: 'Renamed note' } })
+    const otherNote = screen.getByRole('button', { name: 'Other note' })
+    fireEvent.pointerDown(otherNote)
+    fireEvent.blur(input, { relatedTarget: otherNote })
+
+    view.unmount()
+
+    expect(onSave).toHaveBeenCalledWith('Renamed note')
   })
 })

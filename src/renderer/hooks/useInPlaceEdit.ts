@@ -39,14 +39,58 @@ export function useInPlaceEdit(options: UseInPlaceEditOptions): UseInPlaceEditRe
   const [editValue, setEditValue] = useState('')
   const originalValueRef = useRef('')
   const isSavingRef = useRef(false)
+  const isMountedRef = useRef(true)
   const inputRef = useRef<HTMLInputElement>(null)
   const blurSaveTimerRef = useRef<number | null>(null)
+  const pendingBlurSaveRef = useRef<(() => void) | null>(null)
+  const pointerDownRef = useRef(false)
+  const pointerEndListenerRef = useRef<(() => void) | null>(null)
 
   const clearPendingBlurSave = useCallback(() => {
-    if (blurSaveTimerRef.current === null) return
-    window.clearTimeout(blurSaveTimerRef.current)
-    blurSaveTimerRef.current = null
+    if (blurSaveTimerRef.current !== null) {
+      window.clearTimeout(blurSaveTimerRef.current)
+      blurSaveTimerRef.current = null
+    }
+    if (pointerEndListenerRef.current) {
+      window.removeEventListener('pointerup', pointerEndListenerRef.current)
+      window.removeEventListener('pointercancel', pointerEndListenerRef.current)
+      pointerEndListenerRef.current = null
+    }
+    pendingBlurSaveRef.current = null
   }, [])
+
+  const flushPendingBlurSave = useCallback(() => {
+    const pendingSave = pendingBlurSaveRef.current
+    clearPendingBlurSave()
+    pendingSave?.()
+  }, [clearPendingBlurSave])
+
+  useEffect(() => {
+    isMountedRef.current = true
+    const handlePointerDown = () => {
+      pointerDownRef.current = true
+    }
+    const handlePointerEnd = () => {
+      pointerDownRef.current = false
+    }
+    const handleWindowBlur = () => {
+      pointerDownRef.current = false
+      flushPendingBlurSave()
+    }
+
+    window.addEventListener('pointerdown', handlePointerDown, true)
+    window.addEventListener('pointerup', handlePointerEnd, true)
+    window.addEventListener('pointercancel', handlePointerEnd, true)
+    window.addEventListener('blur', handleWindowBlur)
+    return () => {
+      isMountedRef.current = false
+      window.removeEventListener('pointerdown', handlePointerDown, true)
+      window.removeEventListener('pointerup', handlePointerEnd, true)
+      window.removeEventListener('pointercancel', handlePointerEnd, true)
+      window.removeEventListener('blur', handleWindowBlur)
+      flushPendingBlurSave()
+    }
+  }, [flushPendingBlurSave])
 
   const startEdit = useCallback(
     (initialValue: string) => {
@@ -57,8 +101,6 @@ export function useInPlaceEdit(options: UseInPlaceEditOptions): UseInPlaceEditRe
     },
     [clearPendingBlurSave]
   )
-
-  useEffect(() => clearPendingBlurSave, [clearPendingBlurSave])
 
   useLayoutEffect(() => {
     if (isEditing) {
@@ -75,17 +117,19 @@ export function useInPlaceEdit(options: UseInPlaceEditOptions): UseInPlaceEditRe
 
     const finalValue = trimOnSave ? editValue.trim() : editValue
     if (finalValue === originalValueRef.current) {
-      setIsEditing(false)
+      if (isMountedRef.current) setIsEditing(false)
       return
     }
 
     isSavingRef.current = true
-    setIsSaving(true)
+    if (isMountedRef.current) setIsSaving(true)
 
     try {
       await onSave(finalValue)
-      setIsEditing(false)
-      setEditValue('')
+      if (isMountedRef.current) {
+        setIsEditing(false)
+        setEditValue('')
+      }
     } catch (error) {
       logger.error('Error saving in-place edit', { error })
 
@@ -96,7 +140,7 @@ export function useInPlaceEdit(options: UseInPlaceEditOptions): UseInPlaceEditRe
         toast.error(t('common.save_failed') || 'Failed to save')
       }
     } finally {
-      setIsSaving(false)
+      if (isMountedRef.current) setIsSaving(false)
       isSavingRef.current = false
     }
   }, [clearPendingBlurSave, trimOnSave, editValue, onSave, onError, t])
@@ -132,11 +176,26 @@ export function useInPlaceEdit(options: UseInPlaceEditOptions): UseInPlaceEditRe
   const handleBlur = useCallback(() => {
     if (isSavingRef.current) return
     clearPendingBlurSave()
+    pendingBlurSaveRef.current = () => void saveEdit()
+
+    if (pointerDownRef.current) {
+      const handlePointerEnd = () => {
+        window.removeEventListener('pointerup', handlePointerEnd)
+        window.removeEventListener('pointercancel', handlePointerEnd)
+        pointerEndListenerRef.current = null
+        blurSaveTimerRef.current = window.setTimeout(flushPendingBlurSave, 0)
+      }
+      pointerEndListenerRef.current = handlePointerEnd
+      window.addEventListener('pointerup', handlePointerEnd, { once: true })
+      window.addEventListener('pointercancel', handlePointerEnd, { once: true })
+      return
+    }
+
     blurSaveTimerRef.current = window.setTimeout(() => {
       blurSaveTimerRef.current = null
-      void saveEdit()
+      flushPendingBlurSave()
     }, 0)
-  }, [clearPendingBlurSave, saveEdit])
+  }, [clearPendingBlurSave, flushPendingBlurSave, saveEdit])
 
   return {
     isEditing,
