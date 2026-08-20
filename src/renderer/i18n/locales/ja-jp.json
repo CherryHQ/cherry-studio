@@ -423,8 +423,7 @@
           "bypassPermissions": {
             "description": "権限チェックをスキップします。ファイルの削除やネットワークの使用が可能です。",
             "title": "フルアクセス",
-            "warning": "注意して使用してください — すべてのツールは承認なしで実行されます。",
-            "warning_pi": "危険 — 無効化されたツールを除き、ファイルの削除やネットワークアクセスを含むすべての操作で確認は行われません。"
+            "warning": "注意して使用してください — すべてのツールは承認なしで実行されます。"
           },
           "default": {
             "description": "ファイルの編集やコマンドの実行前に確認します。",
@@ -3001,7 +3000,7 @@
       "empty_title": "スキルを検索",
       "github_empty_description": "SKILL.mdファイルへのリンクを貼り付けてください。例: github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
       "github_empty_title": "GitHubからインストール",
-      "github_url_invalid": "SKILL.mdで終わるGitHubリンクを貼り付けてください",
+      "github_url_invalid": "SKILL.md ファイルを直接指す対応済みの GitHub リンクを貼り付けてください",
       "github_url_label": "GitHub SKILL.md URL",
       "github_url_placeholder": "/SKILL.mdで終わるGitHubリンク",
       "no_results_description": "別のキーワードを試すか、ローカルのZIPファイルまたはフォルダーをインポートしてください。",
@@ -3747,7 +3746,7 @@
   },
   "notification": {
     "assistant": "アシスタントの応答",
-    "tip": "応答が成功した場合、30秒を超えるメッセージのみに通知を行います"
+    "tip": "バックグラウンド時のシステム通知のみを制御します。アプリ内通知は常に有効です。"
   },
   "ocr": {
     "processing": "OCR処理中..."
@@ -6243,7 +6242,7 @@
       "label": "詳細設定"
     },
     "notification": {
-      "assistant": "アシスタントメッセージ",
+      "assistant": "会話完了通知",
       "backup": "バックアップメッセージ",
       "knowledge_embed": "ナレッジベースメッセージ",
       "title": "通知",

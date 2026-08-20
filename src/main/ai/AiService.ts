@@ -34,7 +34,7 @@ import type { ImageGenerationMode } from '@shared/data/types/model'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { Base64String, CreateInternalEntryIpcParams, UrlString } from '@shared/types/file'
-import { isEmbeddingModel, isFunctionCallingModel, isRerankModel } from '@shared/utils/model'
+import { isEmbeddingModel, isFunctionCallingModel, isGenerateImageModel, isRerankModel } from '@shared/utils/model'
 import { isOllamaProvider } from '@shared/utils/provider'
 import {
   type EmbeddingModelUsage,
@@ -1154,6 +1154,14 @@ export class AiService extends BaseService {
       })
     } else if (isEmbeddingModel(model) && !hasChatPrimaryEndpoint) {
       probe = this.embedMany({ ...probeRequest, values: ['test'] })
+    } else if (isGenerateImageModel(model) && !hasChatPrimaryEndpoint) {
+      // Image-only models reject /chat/completions with a 400 — probe the image endpoint.
+      probe = this.generateImage({
+        ...probeRequest,
+        prompt: 'a red circle',
+        paramValues: {},
+        cleanupPolicy: 'delete_when_unreferenced'
+      })
     } else {
       // Latency is the probe's measured output — thinking tokens would pollute it
       // for reasoning-capable models whose provider default enables reasoning.
