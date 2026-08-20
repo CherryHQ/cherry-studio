@@ -64,8 +64,7 @@ interface ModelSettingRowProps {
   compact?: boolean
   children: ReactNode
   rowRef?: Ref<HTMLDivElement>
-  focused?: boolean
-  focusGuideVisible?: boolean
+  showFocusGuide?: boolean
 }
 
 const ModelSettingRow: FC<ModelSettingRowProps> = ({
@@ -75,10 +74,9 @@ const ModelSettingRow: FC<ModelSettingRowProps> = ({
   compact,
   children,
   rowRef,
-  focused,
-  focusGuideVisible
+  showFocusGuide
 }) => (
-  <div ref={rowRef} data-focused={focused || undefined}>
+  <div ref={rowRef}>
     <SettingRow className={cn(compact ? 'flex-col items-stretch gap-3 py-1' : 'items-start gap-6 py-1.5')}>
       <div className="min-w-0 flex-1">
         <SettingRowTitle className="gap-2">
@@ -92,7 +90,7 @@ const ModelSettingRow: FC<ModelSettingRowProps> = ({
           compact ? 'flex w-full items-center gap-2' : 'flex w-[340px] shrink-0 items-center gap-2',
           'relative'
         )}>
-        {focused && focusGuideVisible && (
+        {showFocusGuide && (
           <span
             aria-hidden="true"
             data-testid="model-settings-focus-guide"
@@ -240,8 +238,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
           <ModelSettingRow
             compact={compact}
             rowRef={defaultRowRef}
-            focused={focus === 'default'}
-            focusGuideVisible={showFocusGuide}
+            showFocusGuide={focus === 'default' && showFocusGuide}
             icon={<MessageSquareMore size={16} className="lucide-custom shrink-0 text-foreground" />}
             title={t('settings.models.default_assistant_model')}
             description={showDescription ? t('settings.models.default_assistant_model_description') : undefined}>
@@ -288,8 +285,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
           <ModelSettingRow
             compact={compact}
             rowRef={translateRowRef}
-            focused={focus === 'translate'}
-            focusGuideVisible={showFocusGuide}
+            showFocusGuide={focus === 'translate' && showFocusGuide}
             icon={<Languages size={16} className="lucide-custom shrink-0 text-foreground" />}
             title={t('settings.models.translate_model')}
             description={showDescription ? t('settings.models.translate_model_description') : undefined}>
