@@ -14,11 +14,12 @@ import {
 import { useFileSize } from '@renderer/hooks/useFileSize'
 import { useIsTextFile } from '@renderer/hooks/useIsTextFile'
 import { toast } from '@renderer/services/toast'
+import type { SelectionReference } from '@renderer/types/selectionReference'
 import { getFileExtension } from '@renderer/utils/file'
 import { joinPath } from '@renderer/utils/path'
 import { isWin } from '@renderer/utils/platform'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { AlertCircle, ArrowLeft, Copy, CopySlash, Eye, RotateCw, Sparkles, SquarePen, X } from 'lucide-react'
+import { AlertCircle, ArrowLeft, Copy, CopySlash, Eye, RotateCw, Sparkles, SquarePen, TextQuote, X } from 'lucide-react'
 import {
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
@@ -117,6 +118,12 @@ interface ArtifactPaneViewBaseProps {
   fileSession?: FileEditSession
   editMode?: 'preview' | 'edit'
   onEditModeChange?: (mode: 'preview' | 'edit') => void
+  /**
+   * Hands the preview's current selection to a composer. Supplying it is what
+   * turns selection capture on: without it the preview never reports one and no
+   * quote affordance is offered.
+   */
+  onInsertSelectionReference?: (reference: SelectionReference) => void
 }
 
 type ArtifactPaneViewProps = ArtifactPaneViewBaseProps &
@@ -151,7 +158,8 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     onSearchKeywordChange,
     fileSession,
     editMode = 'preview',
-    onEditModeChange
+    onEditModeChange,
+    onInsertSelectionReference
   } = props
   const { t } = useTranslation()
   const activeCmTheme = useCmTheme(editMode === 'edit')
@@ -160,6 +168,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   const [contentRefreshToken, setContentRefreshToken] = useState(0)
   const [knownFileSizeBytes, setKnownFileSizeBytes] = useState<number | undefined>(undefined)
   const [staleConflictOpen, setStaleConflictOpen] = useState(false)
+  const [selectionReference, setSelectionReference] = useState<SelectionReference | null>(null)
   // Destructure the stable callbacks so effect/callback deps don't have to
   // list the whole `model` (a fresh object every render).
   const { refresh, reloadExpandedDirectories } = model
@@ -219,7 +228,14 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     setContentRefreshToken(0)
     setKnownFileSizeBytes(undefined)
     setStaleConflictOpen(false)
+    setSelectionReference(null)
   }, [previewKey])
+
+  // The editor replaces the preview, taking the plugin that owns the selection
+  // with it — anything captured before the switch is no longer on screen.
+  useEffect(() => {
+    if (editMode === 'edit') setSelectionReference(null)
+  }, [editMode])
 
   // Successful writes return an exact byte size through the edit session.
   // Invalidate the separate metadata gate whenever that size changes so a
@@ -604,13 +620,33 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
       </div>
     ) : null
 
+  const handleInsertSelectionReference = useCallback(() => {
+    if (!selectionReference) return
+    onInsertSelectionReference?.(selectionReference)
+    setSelectionReference(null)
+  }, [onInsertSelectionReference, selectionReference])
+
   const previewContent = overlaySelection ? (
     <FilePreview
       filePath={getArtifactPaneSelectionPath(overlaySelection)}
       refreshKey={contentRefreshToken}
       type="artifact"
+      onSelectionReference={onInsertSelectionReference ? setSelectionReference : undefined}
     />
   ) : null
+
+  const selectionReferenceChip =
+    onInsertSelectionReference && selectionReference ? (
+      <Button
+        type="button"
+        variant="secondary"
+        size="sm"
+        className="absolute right-4 bottom-4 z-10 gap-1.5 rounded-full shadow-md"
+        onClick={handleInsertSelectionReference}>
+        <TextQuote size={14} />
+        {t('agent.preview_pane.quote_selection')}
+      </Button>
+    ) : null
 
   const renderOverlay = () => {
     if (!overlaySelection) return null
@@ -717,7 +753,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
         )}
         {/* The inset pads inside the editor's scroll container (not this wrapper) so the
             editor runs full height under the elevated composer with trailing scroll room. */}
-        <div className="min-h-0 flex-1 overflow-hidden [&_.cm-scroller]:pb-[var(--chat-composer-inset,0px)]">
+        <div className="relative min-h-0 flex-1 overflow-hidden [&_.cm-scroller]:pb-[var(--chat-composer-inset,0px)]">
           {canEditSelection && editMode === 'edit' && fileSession?.status === 'ready' ? (
             <CodeEditor
               key={previewKey}
@@ -737,7 +773,10 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
               <LoadingState label={t('common.loading')} />
             </div>
           ) : (
-            previewContent
+            <>
+              {previewContent}
+              {selectionReferenceChip}
+            </>
           )}
         </div>
       </div>

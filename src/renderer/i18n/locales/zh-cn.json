@@ -134,6 +134,7 @@
   "agent.preview_pane.no_search_results": "没有文件符合你的搜索",
   "agent.preview_pane.office.title": "暂不支持在此打开 {{extension}} 文件",
   "agent.preview_pane.preview": "预览",
+  "agent.preview_pane.quote_selection": "引用选区",
   "agent.preview_pane.refresh": "刷新",
   "agent.preview_pane.search_placeholder": "搜索文件",
   "agent.preview_pane.too_large.description": "文件超过 {{limit}} 预览上限。",

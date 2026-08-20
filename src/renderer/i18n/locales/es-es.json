@@ -134,6 +134,7 @@
   "agent.preview_pane.no_search_results": "No hay archivos que coincidan con tu búsqueda",
   "agent.preview_pane.office.title": "Abrir archivos {{extension}} aquí aún no está soportado",
   "agent.preview_pane.preview": "Vista previa",
+  "agent.preview_pane.quote_selection": "Citar selección",
   "agent.preview_pane.refresh": "Actualizar",
   "agent.preview_pane.search_placeholder": "Buscar archivos...",
   "agent.preview_pane.too_large.description": "El archivo excede el límite de vista previa de {{limit}}.",
