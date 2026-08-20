@@ -297,7 +297,7 @@ async function executeRelocation(
           try {
             stat = await fsp.stat(source)
           } catch (error) {
-            if (isErrno(error, 'ENOENT')) {
+            if (isErrno(error, 'ENOENT') || isErrno(error, 'ENOTDIR')) {
               logger.warn('Skipping broken symlink during userData relocation', { source })
               return false
             }
@@ -512,7 +512,7 @@ async function calculateTotalBytes(
     try {
       stat = await fsp.stat(root)
     } catch (error) {
-      if (isErrno(error, 'ENOENT')) return 0
+      if (isErrno(error, 'ENOENT') || isErrno(error, 'ENOTDIR')) return 0
       if (isErrno(error, 'ELOOP')) return 0
       throw error
     }

@@ -372,6 +372,30 @@ describe('userDataRelocation execution', () => {
     expectCommitted(target)
   })
 
+  it('skips a broken symlink whose target traverses a file', async () => {
+    const root = makeRoot()
+    const source = path.join(root, 'source')
+    const target = path.join(root, 'target')
+    const obstructingFile = path.join(source, 'not-a-directory')
+    fs.mkdirSync(source)
+    fs.writeFileSync(path.join(source, 'data.txt'), 'data')
+    fs.writeFileSync(obstructingFile, 'file')
+    fs.symlinkSync(
+      path.join(obstructingFile, 'child'),
+      path.join(source, 'broken-link'),
+      process.platform === 'win32' ? 'junction' : 'dir'
+    )
+    relocationState['app.userdata'] = source
+    relocationState['temp.user_data_relocation'] = pending(source, target)
+
+    const { runUserDataRelocation } = await loadDomain()
+    await expect(runUserDataRelocation()).resolves.toBe('handled')
+
+    expect(fs.readFileSync(path.join(target, 'data.txt'), 'utf8')).toBe('data')
+    expect(fs.existsSync(path.join(target, 'broken-link'))).toBe(false)
+    expectCommitted(target)
+  })
+
   it('tolerates a source file that vanishes between enumeration and copy', async () => {
     const root = makeRoot()
     const source = path.join(root, 'source')
