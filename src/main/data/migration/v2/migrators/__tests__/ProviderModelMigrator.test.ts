@@ -22,7 +22,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /** A valid 1×1 PNG so `sharp` can transcode it to WebP during migration. */
 const PNG_1X1 =
-  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC'
 
 import type { MigrationContext } from '../../core/MigrationContext'
 import { AssistantMigrator } from '../AssistantMigrator'
@@ -31,11 +31,16 @@ import { ProviderModelMigrator } from '../ProviderModelMigrator'
 const registryFixtures = {
   models: new Map<string, unknown>(),
   overrides: new Map<string, unknown>(),
-  providers: [] as unknown[]
+  providers: [] as unknown[],
+  loaderPaths: [] as Array<{ models: string; providers: string; providerModels: string }>
 }
 
-vi.mock('@cherrystudio/provider-registry/node', () => {
+vi.mock('@cherrystudio/provider-registry/node', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>()
   class RegistryLoader {
+    constructor(paths: { models: string; providers: string; providerModels: string }) {
+      registryFixtures.loaderPaths.push(paths)
+    }
     findModel(modelId: string) {
       return registryFixtures.models.get(modelId) ?? null
     }
@@ -52,7 +57,7 @@ vi.mock('@cherrystudio/provider-registry/node', () => {
       return []
     }
   }
-  return { RegistryLoader }
+  return { ...actual, RegistryLoader }
 })
 
 function createContext(
@@ -102,6 +107,7 @@ describe('ProviderModelMigrator', () => {
     registryFixtures.models.clear()
     registryFixtures.overrides.clear()
     registryFixtures.providers = []
+    registryFixtures.loaderPaths = []
   })
 
   describe('prepare', () => {
@@ -748,6 +754,11 @@ describe('ProviderModelMigrator', () => {
       const result = await migrator.execute(migrationContext)
 
       expect(result.success).toBe(true)
+      expect(registryFixtures.loaderPaths.at(-1)).toEqual({
+        models: '/mock/feature.provider_registry.data/models.json',
+        providers: '/mock/feature.provider_registry.data/providers.json',
+        providerModels: '/mock/feature.provider_registry.data/provider-models.json'
+      })
       // The legacy baseUrl equals the registry default → nothing user-owned
       // remains, so the row stores no endpoint config at all...
       const [providerRow] = await dbh.db

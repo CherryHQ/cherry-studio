@@ -129,7 +129,7 @@ describe('BuiltinAgentProvisioner', () => {
   it('rejects invalid bundled creation defaults', () => {
     writeFile(
       path.join(templateDir, 'agent.json'),
-      JSON.stringify({ name: 'Cherry Assistant', configuration: { max_turns: 'invalid' } })
+      JSON.stringify({ name: 'Cherry Assistant', configuration: { permission_mode: 'invalid' } })
     )
 
     expect(() => loadBuiltinAgentDefaults('assistant')).toThrow(

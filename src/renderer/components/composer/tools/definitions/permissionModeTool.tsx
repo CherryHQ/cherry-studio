@@ -5,7 +5,7 @@ import { PermissionModeIcon, PermissionModeOptionLabel } from '@renderer/compone
 import { useAgent } from '@renderer/hooks/agent/useAgent'
 import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import type { PermissionMode } from '@renderer/types/agent'
-import { permissionModeCards } from '@renderer/utils/agent'
+import { getPermissionModeCards } from '@renderer/utils/agent'
 import { useCallback, useEffect, useMemo } from 'react'
 
 type PermissionModeContext = ToolRenderContext<readonly [], readonly []>
@@ -19,6 +19,7 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
   // Permission mode lives on the agent — sessions are pure instances. Approval is governed
   // solely by the permission mode (the per-tool allow-list was removed).
   const currentMode = agent?.configuration?.permission_mode ?? 'default'
+  const permissionModeCards = useMemo(() => getPermissionModeCards(agent?.type), [agent?.type])
 
   const handleSelectMode = useCallback(
     (nextMode: PermissionMode) => {
@@ -61,7 +62,7 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
         active: card.mode === currentMode,
         action: () => handleSelectMode(card.mode)
       })),
-    [currentMode, handleSelectMode, t]
+    [currentMode, handleSelectMode, permissionModeCards, t]
   )
 
   useEffect(() => {

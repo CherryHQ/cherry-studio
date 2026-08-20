@@ -71,10 +71,10 @@ conflict.
 
 | Changed area | Consult |
 | --- | --- |
-| Added, renamed, or moved files/directories; new classes, services, managers, features, or barrels | `docs/references/naming-conventions.md` |
-| `src/main/` placement, imports, top-level structure, features, services, or utils | `docs/references/main-process-architecture.md`, plus the subsystem reference it routes to |
-| `src/renderer/` placement, imports, top-level structure, pages, features, shared buckets, or public APIs | `docs/references/renderer-architecture.md` |
-| `src/shared/` placement, exports, runtime state, top-level structure, or cross-process contracts | `docs/references/shared-layer-architecture.md` |
+| Added, renamed, or moved files/directories; new classes, services, managers, features, or barrels | `docs/references/architecture/naming-conventions.md` |
+| `src/main/` placement, imports, top-level structure, features, services, or utils | `docs/references/architecture/main-process.md`, plus the subsystem reference it routes to |
+| `src/renderer/` placement, imports, top-level structure, pages, features, shared buckets, or public APIs | `docs/references/architecture/renderer.md` |
+| `src/shared/` placement, exports, runtime state, top-level structure, or cross-process contracts | `docs/references/architecture/shared-layer.md` |
 | Choosing among DataApi, Cache, Preference, BootConfig, and `app_state` | `docs/references/data/README.md`; stop there unless the diff enters one of the subsystem rows below |
 | DataApi contracts, schemas, types, or errors | `docs/references/data/data-api-overview.md`, `api-design-guidelines.md`, `api-types.md` |
 | DataApi handlers, services, or renderer hooks | Add `docs/references/data/data-api-in-main.md` for main handlers/services and `data-api-in-renderer.md` for renderer consumers |
@@ -136,7 +136,7 @@ source prefers a different style.
 
 ## Naming And Module Shape
 
-Use `docs/references/naming-conventions.md` as the authority when the diff adds,
+Use `docs/references/architecture/naming-conventions.md` as the authority when the diff adds,
 renames, or moves a path, changes a primary export's role, or creates a module
 boundary. Do not infer the rule from whichever nearby legacy file is easiest to
 copy.

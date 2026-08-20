@@ -1,6 +1,9 @@
+import { dataApiService } from '@data/DataApiService'
+import { ipcApi } from '@renderer/ipc'
 import type { Topic as RendererTopic } from '@renderer/types/topic'
+import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
-import { createContext, use } from 'react'
+import { createContext, use, useCallback } from 'react'
 
 import { useSessions } from './agent/useSession'
 import { mapApiTopicToRendererTopic, useTopics } from './useTopic'
@@ -18,11 +21,48 @@ import { mapApiTopicToRendererTopic, useTopics } from './useTopic'
 const AGENT_SESSIONS_LOAD_ALL_PAGE_SIZE = 200
 
 export function useRawAssistantTopicsSource({ enabled }: { enabled?: boolean } = {}) {
-  return useTopics({ loadAll: true, enabled })
+  const listSource = useTopics({ loadAll: true, enabled })
+  const loadLatestTopic = useCallback(async (assistantId?: string | null) => {
+    const result =
+      assistantId === undefined
+        ? await dataApiService.get('/topics/latest')
+        : await dataApiService.get('/topics/latest', { query: { assistantId: assistantId ?? 'unlinked' } })
+    return result.topic
+  }, [])
+  const reuseOrCreateTopic = useCallback(async (assistantId: string | null, excludeTopicId?: string) => {
+    return dataApiService.post('/topics/reusable-placeholder', {
+      body: { assistantId, ...(excludeTopicId ? { excludeTopicId } : {}) }
+    })
+  }, [])
+
+  return { ...listSource, loadLatestTopic, reuseOrCreateTopic }
 }
 
 export function useRawAgentSessionsSource({ enabled }: { enabled?: boolean } = {}) {
-  return useSessions(undefined, { loadAll: true, pageSize: AGENT_SESSIONS_LOAD_ALL_PAGE_SIZE, enabled })
+  const listSource = useSessions(undefined, {
+    loadAll: true,
+    pageSize: AGENT_SESSIONS_LOAD_ALL_PAGE_SIZE,
+    enabled
+  })
+  const loadLatestSession = useCallback(async (agentId?: string | null) => {
+    const result =
+      agentId === undefined
+        ? await dataApiService.get('/agent-sessions/latest')
+        : await dataApiService.get('/agent-sessions/latest', { query: { agentId: agentId ?? 'unlinked' } })
+    return result.session
+  }, [])
+  const reuseOrCreateSession = useCallback(
+    async (agentId: string, workspace: AgentSessionWorkspaceSource, excludeSessionId?: string) => {
+      return ipcApi.request('ai.agent.session.reuse_or_create', {
+        agentId,
+        workspace,
+        ...(excludeSessionId ? { excludeSessionId } : {})
+      })
+    },
+    []
+  )
+
+  return { ...listSource, loadLatestSession, reuseOrCreateSession }
 }
 
 type RawAssistantTopicsSource = ReturnType<typeof useRawAssistantTopicsSource>
@@ -59,7 +99,14 @@ export function deriveAssistantTopicsView(topics: readonly ApiTopic[]): Assistan
 
 export type AssistantTopicsSource = Pick<
   RawAssistantTopicsSource,
-  'topics' | 'isLoadingAll' | 'isFullyLoaded' | 'isRefreshing' | 'error' | 'refetch'
+  | 'topics'
+  | 'isLoadingAll'
+  | 'isFullyLoaded'
+  | 'isRefreshing'
+  | 'error'
+  | 'refetch'
+  | 'loadLatestTopic'
+  | 'reuseOrCreateTopic'
 > &
   RefreshError &
   AssistantTopicsView
@@ -81,6 +128,8 @@ export type AgentSessionsSource = Pick<
   | 'isFullyLoaded'
   | 'isLoadingAll'
   | 'isPinsLoading'
+  | 'loadLatestSession'
+  | 'reuseOrCreateSession'
 > &
   RefreshError
 

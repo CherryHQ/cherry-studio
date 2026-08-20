@@ -7,7 +7,7 @@ import { application } from '@application'
 import { assistantDataService } from '@data/services/AssistantService'
 import { loggerService } from '@logger'
 import { mcpServerService } from '@main/data/services/McpServerService'
-import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
+import { isMcpToolDisabledBySource, isMcpToolForcePromptBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import { type Assistant, DEFAULT_MCP_MODE, type McpMode } from '@shared/data/types/assistant'
 import type { McpServer } from '@shared/data/types/mcpServer'
 
@@ -52,11 +52,57 @@ export function getEffectiveMcpMode(assistant: Assistant): McpMode {
   return assistant.settings?.mcpMode ?? DEFAULT_MCP_MODE
 }
 
-function resolveServersForAssistant(assistant: Assistant, mode: McpMode): McpServer[] {
+export function resolveServersForAssistant(assistant: Assistant, mode: McpMode): McpServer[] {
+  const linkedIds = mode === 'auto' ? null : new Set(assistant.mcpServerIds)
+  // Manual mode with nothing linked can only resolve to an empty set — skip the query. Every chat
+  // request reaches here (the resource-tool gate), and 'manual' is the default mode.
+  if (linkedIds?.size === 0) return []
   const { items: activeServers } = mcpServerService.list({ isActive: true })
-  if (mode === 'auto') return activeServers
-  const linkedIds = new Set(assistant.mcpServerIds)
-  return activeServers.filter((server) => linkedIds.has(server.id))
+  return linkedIds ? activeServers.filter((server) => linkedIds.has(server.id)) : activeServers
+}
+
+/**
+ * Resources have no per-item entry in a server's `disabledTools` / `disabledAutoApproveTools` (those
+ * hold tool names), so a resource inherits the server-wide rule — the `mcp__{server}__*` wildcard
+ * that already governs every tool on that server. A server whose tools are all disabled must not
+ * become readable through the back door of its resources.
+ */
+const RESOURCE_POLICY_SUBJECT = { name: 'resources/read' }
+
+export function isMcpResourceAccessDisabled(server: McpServer): boolean {
+  return isMcpToolDisabledBySource(server, RESOURCE_POLICY_SUBJECT)
+}
+
+export function isMcpResourceReadForcePrompt(server: McpServer): boolean {
+  return isMcpToolForcePromptBySource(server, RESOURCE_POLICY_SUBJECT)
+}
+
+/**
+ * The assistant's in-scope servers that declared the `resources` capability — the gate and the
+ * reachable set for the `mcp_resource_*` tools.
+ *
+ * Reads capabilities off already-connected clients only: this runs on the chat hot path (and again
+ * inside every tool call), so it must never open a connection. A server that has not connected yet
+ * simply doesn't expose its resources this turn; the tools appear once it has.
+ *
+ * `frozenServerIds` is the set resolved when the request was built. Passing it makes execution
+ * narrowing-only: a server that disconnects mid-turn drops out, but one that connects (or gets
+ * linked) after the request started cannot join the readable set.
+ */
+export function resolveMcpResourceServers(
+  assistant: Assistant | undefined,
+  frozenServerIds?: ReadonlySet<string>
+): McpServer[] {
+  if (!assistant) return []
+  const mode = getEffectiveMcpMode(assistant)
+  if (mode === 'disabled') return []
+  const runtime = application.get('McpRuntimeService')
+  return resolveServersForAssistant(assistant, mode).filter(
+    (server) =>
+      (!frozenServerIds || frozenServerIds.has(server.id)) &&
+      !isMcpResourceAccessDisabled(server) &&
+      !!runtime.getConnectedServerCapabilities(server.id)?.resources
+  )
 }
 
 function isToolDisabled(server: McpServer, tool: { name: string; id: string; description?: string }): boolean {

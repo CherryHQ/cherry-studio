@@ -13,7 +13,6 @@
  * (RegistryLoader, buildPersistedEndpointConfigs).
  */
 
-import { application } from '@application'
 import type {
   ProtoModelConfig,
   ProtoProviderConfig,
@@ -45,7 +44,7 @@ import {
   stripDateSnapshot,
   stripVariantQuantDateSuffixes
 } from '@cherrystudio/provider-registry'
-import { RegistryLoader } from '@cherrystudio/provider-registry/node'
+import { type RegistryFileName, RegistryLoader } from '@cherrystudio/provider-registry/node'
 import type { StoredEndpointConfigOverride } from '@data/db/schemas/userProvider'
 import { loggerService } from '@logger'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
@@ -70,6 +69,7 @@ import { DEFAULT_API_FEATURES } from '@shared/data/types/provider'
 import { isEqual } from 'es-toolkit/compat'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
+import { resolveRegistryPaths } from './utils/registryDataPaths'
 
 const logger = loggerService.withContext('DataApi:ProviderRegistryService')
 
@@ -682,17 +682,34 @@ class ProviderRegistryService {
   /** Lazily create the shared RegistryLoader instance. */
   private getLoader(): RegistryLoader {
     if (!this.loader) {
-      this.loader = new RegistryLoader({
-        models: application.getPath('feature.provider_registry.data', 'models.json'),
-        providers: application.getPath('feature.provider_registry.data', 'providers.json'),
-        providerModels: application.getPath('feature.provider_registry.data', 'provider-models.json')
-      })
+      this.loader = new RegistryLoader(resolveRegistryPaths())
     }
     return this.loader
   }
 
   clearCache(): void {
     this.loader = null
+  }
+
+  /**
+   * Current version string of a registry file as the loader sees it
+   * (override-or-bundled), or `null` if unreadable. The remote updater uses this
+   * to decide whether a downloaded catalog is newer than what's on disk.
+   */
+  getCatalogVersion(file: RegistryFileName): string | null {
+    try {
+      const loader = this.getLoader()
+      switch (file) {
+        case 'models.json':
+          return loader.getModelsVersion()
+        case 'providers.json':
+          return loader.getProvidersVersion()
+        case 'provider-models.json':
+          return loader.getProviderModelsVersion()
+      }
+    } catch {
+      return null
+    }
   }
 
   private findRegistryProvider(providerId: string): ProtoProviderConfig | undefined {

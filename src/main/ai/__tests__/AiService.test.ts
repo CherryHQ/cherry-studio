@@ -19,6 +19,7 @@ const mockMessageUpdate = vi.fn()
 const mockMessageApplyApproval = vi.fn()
 const mockProviderGetByProviderId = vi.fn()
 const mockProviderGetRotatedApiKey = vi.fn()
+const mockProviderResolveApiKey = vi.fn()
 const mockModelGetByKey = vi.fn()
 const mockCreateRetryableWrap = vi.fn((options?: unknown): ((model: unknown) => unknown) | undefined => {
   void options
@@ -84,7 +85,8 @@ vi.mock('../utils/customFetch', () => ({
 vi.mock('@main/data/services/ProviderService', () => ({
   providerService: {
     getByProviderId: (...args: unknown[]) => mockProviderGetByProviderId(...args),
-    getRotatedApiKey: (...args: unknown[]) => mockProviderGetRotatedApiKey(...args)
+    getRotatedApiKey: (...args: unknown[]) => mockProviderGetRotatedApiKey(...args),
+    resolveApiKey: (...args: unknown[]) => mockProviderResolveApiKey(...args)
   }
 }))
 
@@ -101,9 +103,13 @@ vi.mock('@data/services/ProviderRegistryService', () => ({
   }
 }))
 
-vi.mock('../provider/listModels', () => ({
-  listModels: (...args: unknown[]) => mockListModelsFromProvider(...args)
-}))
+vi.mock('../provider/listModels', async (importOriginal) => {
+  const actual = await importOriginal<typeof ListModelsModule>()
+  return {
+    ...actual,
+    listModels: (...args: unknown[]) => mockListModelsFromProvider(...args)
+  }
+})
 vi.mock('@main/utils/downloadAsBase64', () => ({
   downloadImageAsBase64: (...args: unknown[]) => mockDownloadImageAsBase64(...args)
 }))
@@ -216,6 +222,10 @@ describe('AiService', () => {
     })
     mockCreateAgent.mockResolvedValue({ generate: mockAgentGenerate })
     mockProviderGetRotatedApiKey.mockReturnValue('test-key')
+    mockProviderResolveApiKey.mockImplementation((_id: string, override?: string) => ({
+      value: override ?? 'test-key',
+      apiKeySelection: { attribution: override ? ('matched' as const) : ('unknown' as const) }
+    }))
     mockProviderGetByProviderId.mockReturnValue({
       id: 'test-provider',
       name: 'Test Provider',
@@ -1510,6 +1520,31 @@ describe('AiService tool approval', () => {
     )
   })
 
+  it('disables reasoning on the text-generation probe', async () => {
+    const service = createService()
+    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
+    mockModelGetByKey.mockReturnValue({
+      id: 'test-provider::test-model',
+      providerId: 'test-provider',
+      apiModelId: 'test-model',
+      name: 'Test Model',
+      capabilities: [],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    })
+
+    await service.checkModel({ uniqueModelId: 'test-provider::test-model' })
+
+    expect(generateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        system: 'test',
+        prompt: 'hi',
+        reasoningEffort: 'none'
+      })
+    )
+  })
+
   it('checks embedding models with the normal embedding path', async () => {
     const service = createService()
     const embedSpy = vi.spyOn(service, 'embedMany').mockResolvedValue({ embeddings: [[1]] })
@@ -1529,6 +1564,50 @@ describe('AiService tool approval', () => {
     })
 
     expect(embedSpy).toHaveBeenCalledWith(expect.objectContaining({ values: ['test'] }))
+  })
+
+  it('checks image-only models through the image endpoint, not chat', async () => {
+    const service = createService()
+    const imageSpy = vi.spyOn(service, 'generateImage').mockResolvedValue({ files: [] })
+    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
+    mockModelGetByKey.mockReturnValue({
+      id: 'test-provider::test-image',
+      providerId: 'test-provider',
+      apiModelId: 'test-image',
+      name: 'Test Image',
+      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
+      supportsStreaming: false,
+      isEnabled: true,
+      isHidden: false
+    })
+
+    await service.checkModel({ uniqueModelId: 'test-provider::test-image' })
+
+    expect(imageSpy).toHaveBeenCalledWith(expect.objectContaining({ prompt: expect.any(String) }))
+    expect(generateSpy).not.toHaveBeenCalled()
+  })
+
+  it('checks chat models that can also generate images through text generation', async () => {
+    const service = createService()
+    const imageSpy = vi.spyOn(service, 'generateImage').mockResolvedValue({ files: [] })
+    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
+    mockModelGetByKey.mockReturnValue({
+      id: 'test-provider::test-multimodal',
+      providerId: 'test-provider',
+      apiModelId: 'test-multimodal',
+      name: 'Test Multimodal',
+      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    })
+
+    await service.checkModel({ uniqueModelId: 'test-provider::test-multimodal' })
+
+    expect(generateSpy).toHaveBeenCalled()
+    expect(imageSpy).not.toHaveBeenCalled()
   })
 
   it('fails rerank health checks when the probe returns an empty ranking', async () => {
@@ -1551,6 +1630,147 @@ describe('AiService tool approval', () => {
         uniqueModelId: 'test-provider::test-reranker'
       })
     ).rejects.toThrow('Rerank health check returned empty ranking')
+  })
+
+  it('uses lightweight /api/show probe for Ollama providers', async () => {
+    const service = createService()
+    const generateSpy = vi.spyOn(service, 'generateText')
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 200 }))
+
+    mockProviderGetByProviderId.mockReturnValue({
+      id: 'ollama',
+      presetProviderId: 'ollama',
+      name: 'Ollama',
+      apiKeys: [],
+      authType: 'api-key',
+      apiFeatures: {
+        arrayContent: true,
+        streamOptions: true,
+        developerRole: false,
+        serviceTier: false,
+        verbosity: false
+      },
+      settings: {},
+      isEnabled: true,
+      endpointConfigs: {
+        'ollama-chat': { baseUrl: 'http://localhost:11434' }
+      },
+      defaultChatEndpoint: 'ollama-chat'
+    })
+    mockModelGetByKey.mockReturnValue({
+      id: 'ollama::llama3',
+      providerId: 'ollama',
+      apiModelId: 'llama3',
+      name: 'Llama 3',
+      capabilities: [],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    })
+
+    const result = await service.checkModel({ uniqueModelId: 'ollama::llama3' })
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'http://localhost:11434/api/show',
+      expect.objectContaining({
+        method: 'POST',
+        signal: expect.any(AbortSignal),
+        body: JSON.stringify({ model: 'llama3' })
+      })
+    )
+    expect(generateSpy).not.toHaveBeenCalled()
+    expect(result.latency).toBeGreaterThanOrEqual(0)
+  })
+
+  it('passes apiKeyOverride into the Ollama probe', async () => {
+    const service = createService()
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 200 }))
+
+    mockProviderGetByProviderId.mockReturnValue({
+      id: 'ollama',
+      presetProviderId: 'ollama',
+      name: 'Ollama',
+      apiKeys: [],
+      authType: 'api-key',
+      apiFeatures: {
+        arrayContent: true,
+        streamOptions: true,
+        developerRole: false,
+        serviceTier: false,
+        verbosity: false
+      },
+      settings: {},
+      isEnabled: true,
+      endpointConfigs: {
+        'ollama-chat': { baseUrl: 'http://localhost:11434' }
+      },
+      defaultChatEndpoint: 'ollama-chat'
+    })
+    mockModelGetByKey.mockReturnValue({
+      id: 'ollama::llama3',
+      providerId: 'ollama',
+      apiModelId: 'llama3',
+      name: 'Llama 3',
+      capabilities: [],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    })
+
+    await service.checkModel({
+      uniqueModelId: 'ollama::llama3',
+      apiKeyOverride: 'sk-selected'
+    })
+
+    expect(mockProviderResolveApiKey).toHaveBeenCalledWith('ollama', 'sk-selected')
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.stringContaining('/api/show'),
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'X-Api-Key': 'sk-selected'
+        })
+      })
+    )
+  })
+
+  it('surfaces Ollama string error from /api/show', async () => {
+    const service = createService()
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ error: 'model "nope" not found' }), { status: 404 })
+    )
+
+    mockProviderGetByProviderId.mockReturnValue({
+      id: 'ollama',
+      presetProviderId: 'ollama',
+      name: 'Ollama',
+      apiKeys: [],
+      authType: 'api-key',
+      apiFeatures: {
+        arrayContent: true,
+        streamOptions: true,
+        developerRole: false,
+        serviceTier: false,
+        verbosity: false
+      },
+      settings: {},
+      isEnabled: true,
+      endpointConfigs: {
+        'ollama-chat': { baseUrl: 'http://localhost:11434' }
+      },
+      defaultChatEndpoint: 'ollama-chat'
+    })
+    mockModelGetByKey.mockReturnValue({
+      id: 'ollama::nope',
+      providerId: 'ollama',
+      apiModelId: 'nope',
+      name: 'Nope',
+      capabilities: [],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    })
+
+    await expect(service.checkModel({ uniqueModelId: 'ollama::nope' })).rejects.toThrow('model "nope" not found')
   })
 })
 
