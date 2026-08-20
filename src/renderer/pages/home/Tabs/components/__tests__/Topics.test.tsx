@@ -178,6 +178,7 @@ const topicDataMocks = vi.hoisted(() => ({
 }))
 
 const topicRenameMocks = vi.hoisted(() => ({
+  cancelTopicRenaming: vi.fn(),
   finishTopicRenaming: vi.fn(),
   getTopicMessages: vi.fn().mockResolvedValue([]),
   startTopicRenaming: vi.fn()
@@ -248,6 +249,7 @@ vi.mock('@renderer/hooks/useTopic', async () => {
   const actual = await vi.importActual<typeof TopicDataApiModule>('@renderer/hooks/useTopic')
   return {
     ...actual,
+    cancelTopicRenaming: topicRenameMocks.cancelTopicRenaming,
     finishTopicRenaming: topicRenameMocks.finishTopicRenaming,
     getTopicMessages: topicRenameMocks.getTopicMessages,
     startTopicRenaming: topicRenameMocks.startTopicRenaming,
@@ -1771,7 +1773,7 @@ describe('Topics', () => {
     expect(toast.success).not.toHaveBeenCalled()
   })
 
-  it('keeps automatic topic renaming active until a failed update is handled', async () => {
+  it('clears automatic topic renaming without a success reveal after a failed update', async () => {
     const pendingUpdate = createDeferred<void>()
     topicRenameMocks.getTopicMessages.mockResolvedValueOnce([{}, {}])
     topicDataMocks.updateTopic.mockReturnValueOnce(pendingUpdate.promise)
@@ -1792,6 +1794,7 @@ describe('Topics', () => {
       })
     )
     expect(topicRenameMocks.startTopicRenaming).toHaveBeenCalledWith('topic-a')
+    expect(topicRenameMocks.cancelTopicRenaming).not.toHaveBeenCalled()
     expect(topicRenameMocks.finishTopicRenaming).not.toHaveBeenCalled()
 
     await act(async () => {
@@ -1799,7 +1802,8 @@ describe('Topics', () => {
     })
 
     expect(toast.error).toHaveBeenCalledWith('Automatic rename failed')
-    expect(topicRenameMocks.finishTopicRenaming).toHaveBeenCalledWith('topic-a')
+    expect(topicRenameMocks.cancelTopicRenaming).toHaveBeenCalledWith('topic-a')
+    expect(topicRenameMocks.finishTopicRenaming).not.toHaveBeenCalled()
   })
 
   it('confirms topic deletion from the shared context menu before deleting', async () => {

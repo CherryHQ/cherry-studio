@@ -18,6 +18,7 @@ import zhCN from '../../../i18n/locales/zh-cn.json'
 import zhTW from '../../../i18n/locales/zh-tw.json'
 
 const hookMocks = vi.hoisted(() => ({
+  cancelTopicRenaming: vi.fn(),
   deleteTopic: vi.fn(),
   deleteTopics: vi.fn(),
   batchUpdateTopics: vi.fn(),
@@ -164,6 +165,7 @@ vi.mock('@renderer/hooks/usePins', () => ({
 }))
 
 vi.mock('@renderer/hooks/useTopic', () => ({
+  cancelTopicRenaming: hookMocks.cancelTopicRenaming,
   finishTopicRenaming: hookMocks.finishTopicRenaming,
   getTopicMessages: hookMocks.getTopicMessages,
   mapApiTopicToRendererTopic: (topic: Topic) => ({
@@ -453,6 +455,7 @@ describe('HistoryRecordsView assistant mode', () => {
     hookMocks.deleteTopics.mockResolvedValue({ deletedIds: ['topic-alpha'], deletedCount: 1 })
     hookMocks.batchUpdateTopics.mockReset()
     hookMocks.batchUpdateTopics.mockResolvedValue([])
+    hookMocks.cancelTopicRenaming.mockReset()
     hookMocks.finishTopicRenaming.mockReset()
     hookMocks.getTopicMessages.mockReset()
     hookMocks.getTopicMessages.mockResolvedValue([])
@@ -1165,7 +1168,7 @@ describe('HistoryRecordsView assistant mode', () => {
     expect(toast.success).not.toHaveBeenCalled()
   })
 
-  it('keeps automatic topic renaming active until a failed history update is handled', async () => {
+  it('clears automatic topic renaming without a success reveal after a failed history update', async () => {
     let rejectUpdate!: (reason?: unknown) => void
     hookMocks.getTopicMessages.mockResolvedValueOnce([{}, {}])
     hookMocks.updateTopic.mockImplementationOnce(
@@ -1190,6 +1193,7 @@ describe('HistoryRecordsView assistant mode', () => {
       })
     )
     expect(hookMocks.startTopicRenaming).toHaveBeenCalledWith('topic-alpha')
+    expect(hookMocks.cancelTopicRenaming).not.toHaveBeenCalled()
     expect(hookMocks.finishTopicRenaming).not.toHaveBeenCalled()
 
     await act(async () => {
@@ -1197,7 +1201,8 @@ describe('HistoryRecordsView assistant mode', () => {
     })
 
     expect(toast.error).toHaveBeenCalledWith('Automatic rename failed')
-    expect(hookMocks.finishTopicRenaming).toHaveBeenCalledWith('topic-alpha')
+    expect(hookMocks.cancelTopicRenaming).toHaveBeenCalledWith('topic-alpha')
+    expect(hookMocks.finishTopicRenaming).not.toHaveBeenCalled()
   })
 
   it('does not persist empty or unchanged topic names from history rename dialog', async () => {

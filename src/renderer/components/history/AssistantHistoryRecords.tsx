@@ -15,6 +15,7 @@ import { useConversationNavigation } from '@renderer/hooks/useConversationNaviga
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { usePins } from '@renderer/hooks/usePins'
 import {
+  cancelTopicRenaming,
   finishTopicRenaming,
   getTopicMessages,
   mapApiTopicToRendererTopic,
@@ -272,11 +273,13 @@ const AssistantHistoryRecords = ({
       if (messages.length < 2) return
 
       startTopicRenaming(topic.id)
+      let didPersistRename = false
       try {
         const { text: summaryText, error: summaryError } = await fetchMessagesSummary({ messages })
         if (summaryText) {
           try {
             await updateTopic({ ...topic, name: summaryText, isNameManuallyEdited: false })
+            didPersistRename = true
           } catch (err) {
             logger.error('Failed to save automatically renamed topic from history records', { topicId: topic.id, err })
             const message = err instanceof Error ? err.message : t('common.save_failed')
@@ -286,7 +289,11 @@ const AssistantHistoryRecords = ({
           toast.error(`${t('message.error.fetchTopicName')}: ${summaryError}`)
         }
       } finally {
-        finishTopicRenaming(topic.id)
+        if (didPersistRename) {
+          finishTopicRenaming(topic.id)
+        } else {
+          cancelTopicRenaming(topic.id)
+        }
       }
     },
     [t, updateTopic]
