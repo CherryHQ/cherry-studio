@@ -992,26 +992,6 @@
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
-      "description": "Github Models - AI model provider",
-      "endpointConfigs": {
-        "openai-chat-completions": {
-          "adapterFamily": "openai-compatible",
-          "baseUrl": "https://models.github.ai/inference"
-        }
-      },
-      "id": "github",
-      "metadata": {
-        "website": {
-          "apiKey": "https://github.com/settings/tokens",
-          "docs": "https://docs.github.com/en/github-models",
-          "models": "https://github.com/marketplace/models",
-          "official": "https://github.com/marketplace/models"
-        }
-      },
-      "name": "Github Models"
-    },
-    {
-      "defaultChatEndpoint": "openai-chat-completions",
       "description": "Github Copilot - AI model provider",
       "endpointConfigs": {
         "openai-chat-completions": {
@@ -2073,5 +2053,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "7dd1ae83c85245f9"
+  "version": "6f2078bd03cfc7de"
 }

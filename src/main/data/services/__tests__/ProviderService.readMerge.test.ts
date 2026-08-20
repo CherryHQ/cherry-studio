@@ -4,6 +4,7 @@ import '@data/services/ProviderRegistryService'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { providerService } from '@data/services/ProviderService'
 import { resolveAiSdkProviderId } from '@main/ai/provider/endpoint'
+import { ErrorCode } from '@shared/data/api/errors'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
@@ -65,6 +66,37 @@ vi.mock('@cherrystudio/provider-registry/node', () => {
 
 describe('ProviderService read-time registry merge (#17096)', () => {
   const dbh = setupTestDatabase()
+
+  it('makes retired providers and their preset-derived copies unavailable to runtime reads', async () => {
+    await dbh.db.insert(userProviderTable).values([
+      {
+        providerId: 'github',
+        presetProviderId: null,
+        name: 'GitHub Models',
+        orderKey: 'a0'
+      },
+      {
+        providerId: 'github-copy',
+        presetProviderId: 'github',
+        name: 'GitHub Models Copy',
+        orderKey: 'a1'
+      },
+      {
+        providerId: 'custom-relay',
+        presetProviderId: null,
+        name: 'Custom Relay',
+        orderKey: 'a2'
+      }
+    ])
+
+    expect(providerService.list({}).map((provider) => provider.id)).toEqual(['custom-relay'])
+    expect(() => providerService.getByProviderId('github')).toThrowError(
+      expect.objectContaining({ code: ErrorCode.NOT_FOUND })
+    )
+    expect(() => providerService.getByProviderId('github-copy')).toThrowError(
+      expect.objectContaining({ code: ErrorCode.NOT_FOUND })
+    )
+  })
 
   it('surfaces a registry-added endpoint type absent from the persisted row', async () => {
     // Stale seed: only openai-chat persisted; google-generate-content added to

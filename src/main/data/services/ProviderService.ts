@@ -43,6 +43,8 @@ import { maskApiKey } from '@shared/utils/api'
 import { and, asc, eq, type SQLWrapper } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
+import { isRetiredProvider } from '../retiredProviders'
+
 const logger = loggerService.withContext('DataApi:ProviderService')
 
 type NewUserProviderInput = Omit<InsertUserProviderRow, 'orderKey'>
@@ -309,7 +311,7 @@ class ProviderService {
             .all()
         : db.select().from(userProviderTable).orderBy(asc(userProviderTable.orderKey)).all()
 
-    return rows.map(rowToRuntimeProvider)
+    return rows.filter((row) => !isRetiredProvider(row.providerId, row.presetProviderId)).map(rowToRuntimeProvider)
   }
 
   /**
@@ -319,7 +321,7 @@ class ProviderService {
     const db = application.get('DbService').getDb()
     const [row] = db.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId)).limit(1).all()
 
-    if (!row) {
+    if (!row || isRetiredProvider(row.providerId, row.presetProviderId)) {
       throw DataApiErrorFactory.notFound('Provider', providerId)
     }
 
@@ -330,6 +332,9 @@ class ProviderService {
    * Create a new provider
    */
   create(dto: CreateProviderDto): Provider {
+    if (isRetiredProvider(dto.providerId, dto.presetProviderId)) {
+      throw DataApiErrorFactory.invalidOperation(`create provider ${dto.providerId}`, 'provider is retired')
+    }
     assertManagedCherryAiProviderMutationAllowed(dto.providerId, `create provider ${dto.providerId}`)
 
     const endpointConfigs = projectEndpointConfigOverrides(

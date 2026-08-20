@@ -517,26 +517,6 @@ describe('listModels — openRouterFetcher image models', () => {
   })
 })
 
-describe('listModels — copied preset provider routing', () => {
-  it('routes a copied GitHub provider through the GitHub catalog fetcher', async () => {
-    const provider = makeProvider({
-      id: '550e8400-e29b-41d4-a716-446655440001',
-      presetProviderId: 'github'
-    })
-    aiSdkGetFromApiMock.mockResolvedValue({
-      value: [{ id: 'openai/gpt-4o', name: 'GPT-4o', publisher: 'OpenAI' }]
-    })
-
-    const models = await listModels(provider)
-
-    expect(aiSdkGetFromApiMock).toHaveBeenCalledTimes(1)
-    expect(aiSdkGetFromApiMock.mock.calls[0][0]).toMatchObject({
-      url: 'https://models.github.ai/catalog/models'
-    })
-    expect(models.map((model) => model.apiModelId)).toEqual(['openai/gpt-4o'])
-  })
-})
-
 describe('listModels — Radeon Cloud source header', () => {
   it('adds X-Source to Radeon model listing without adding it to other providers', async () => {
     const radeonProvider = makeProvider({

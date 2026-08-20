@@ -49,7 +49,6 @@ import {
   AnthropicModelsResponseSchema,
   CopilotModelsResponseSchema,
   GeminiModelsResponseSchema,
-  GitHubModelsResponseSchema,
   NewApiModelsResponseSchema,
   OllamaTagsResponseSchema,
   OpenAIModelsResponseSchema,
@@ -324,27 +323,6 @@ const vertexFetcher: ModelFetcher = {
     }
 
     return filteredModels
-  }
-}
-
-const githubFetcher: ModelFetcher = {
-  match: (p) => matchesPreset(p, SystemProviderIds.github),
-  fetch: async (provider, signal) => {
-    const headers = defaultHeaders(provider)
-    const catalogResponse = await getFromApi({
-      url: 'https://models.github.ai/catalog/models',
-      headers,
-      responseSchema: GitHubModelsResponseSchema,
-      abortSignal: signal
-    })
-    const catalogModels = catalogResponse.map((m) =>
-      toModel(m.id, provider, {
-        name: m.name || m.id,
-        description: pickPreferredString([m.summary, m.description]),
-        ownedBy: m.publisher
-      })
-    )
-    return dedup(catalogModels, (m) => m.apiModelId)
   }
 }
 
@@ -777,7 +755,6 @@ const fetchers: ModelFetcher[] = [
   ollamaFetcher,
   geminiFetcher,
   vertexFetcher,
-  githubFetcher,
   copilotFetcher,
   ovmsFetcher,
   togetherFetcher,
