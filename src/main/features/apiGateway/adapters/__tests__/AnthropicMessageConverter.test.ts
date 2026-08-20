@@ -221,42 +221,28 @@ describe('AnthropicMessageConverter.toAiSdkTools', () => {
     expect(converter.toAiSdkTools(params({}))).toBeUndefined()
   })
 
-  it('accepts OpenAI function tools from local Agent runtimes', () => {
-    const request = params({
-      messages: [{ role: 'user', content: 'hi' }],
-      tools: [
-        {
-          type: 'function',
-          function: {
-            name: 'bash',
-            description: 'run cmd',
-            parameters: {
-              type: 'object',
-              properties: { command: { type: 'string' } },
-              required: ['command']
-            }
-          }
-        }
-      ] as never
-    })
+  it('drops schema-less server tools and keeps the client tools beside them', () => {
+    const tools = converter.toAiSdkTools(
+      params({
+        tools: [
+          { type: 'web_search_20250305', name: 'web_search' },
+          { type: 'text_editor_20250124', name: 'str_replace_editor' },
+          { name: 'get_weather', description: 'w', input_schema: { type: 'object', properties: {} } }
+        ] as never
+      })
+    )
 
-    expect(converter.toUIMessages(request)[0]).toMatchObject({
-      role: 'user',
-      parts: [{ type: 'text', text: 'hi' }]
-    })
-    const tools = converter.toAiSdkTools(request)
-    expect(Object.keys(tools ?? {})).toEqual(['bash'])
-    expect(asSchema(tools!.bash.inputSchema).jsonSchema).toMatchObject({
-      type: 'object',
-      properties: { command: { type: 'string' } },
-      required: ['command']
-    })
+    expect(Object.keys(tools ?? {})).toEqual(['get_weather'])
   })
 
-  it('defaults a missing OpenAI function schema to an empty object', () => {
-    const tools = converter.toAiSdkTools(params({ tools: [{ type: 'function', function: { name: 'ping' } }] as never }))
+  it('returns undefined when every tool is a schema-less server tool', () => {
+    // Claude Code's ToolSearch declaration reaches the gateway on every tool-enabled
+    // Agent turn; forwarding it to a non-Anthropic provider is not possible (#18643).
+    const tools = converter.toAiSdkTools(
+      params({ tools: [{ type: 'tool_search_tool_regex_20251119', name: 'tool_search_tool_regex' }] as never })
+    )
 
-    expect(asSchema(tools!.ping.inputSchema).jsonSchema).toMatchObject({ type: 'object', properties: {} })
+    expect(tools).toBeUndefined()
   })
 
   it('normalizes Responses-incompatible names and marks forwarded schemas non-strict', () => {
