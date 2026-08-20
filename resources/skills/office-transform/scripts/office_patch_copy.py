@@ -14,7 +14,8 @@ file is never modified. Standard library only — no dependencies.
 Edit JSON shapes (pass via --edits):
 
     {"format": "xlsx", "sheet": "Sheet1", "cells": {"B2": 42, "C3": "hello", "D4": true}}
-    {"format": "docx", "replacements": [{"paragraph": 3, "text": "new text"}]}
+    {"format": "docx", "replacements": [{"paragraph": 3, "text": "new text",
+                                          "paraId": "502E8D33", "expectText": "old text"}]}
 
 xlsx: each cell is overwritten with the JSON value (number, string, or
 boolean); an ordinary formula in that cell is replaced by the value, while a
@@ -26,7 +27,12 @@ drops xl/calcChain.xml (see drop_calc_chain); those, plus [Content_Types].xml /
 workbook.xml.rels, are the only parts besides the edited worksheet this script
 ever rewrites.
 docx: 'paragraph' is the zero-based ordinal among BODY-LEVEL paragraphs
-(direct w:body children; tables excluded); the paragraph keeps its paragraph
+(direct w:body children; tables excluded). Optional 'paraId' (w14:paraId) is
+resolved first when present; a paraId that resolves to a different paragraph
+than the ordinal is an error, never a silent pick. Optional 'expectText' is a
+hard gate: the target paragraph's current text (whitespace-normalized) must
+equal it or the edit is refused — take its value from a prior extract of the
+anchor, not from a selection-ref excerpt. The paragraph keeps its paragraph
 style and the first run's character style, and extra run-level styling is
 flattened into the new text. A paragraph holding anything the output shape
 cannot carry is refused rather than silently stripped — see
@@ -47,6 +53,7 @@ import posixpath
 import re
 import sys
 import tempfile
+import unicodedata
 import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path
@@ -253,6 +260,36 @@ def make_tag(sample_tag: str, local_name: str) -> str:
     if ":" in sample_tag:
         return sample_tag.rsplit(":", 1)[0] + ":" + local_name
     return local_name
+
+
+def normalize_text(text: str) -> str:
+    """Mirror of the renderer's normalizeSelectionText: NFC, collapse whitespace, trim."""
+    return re.sub(r"\s+", " ", unicodedata.normalize("NFC", text)).strip()
+
+
+def paragraph_para_id(paragraph) -> str:
+    attrs = paragraph.attributes
+    if attrs is not None:
+        for i in range(attrs.length):
+            attr = attrs.item(i)
+            if attr.name.rsplit(":", 1)[-1] == "paraId":
+                return attr.value
+    return None
+
+
+def paragraph_text(paragraph) -> str:
+    parts = []
+
+    def walk(node):
+        for child in node.childNodes:
+            if child.nodeType == minidom.Node.ELEMENT_NODE:
+                if child.tagName.rsplit(":", 1)[-1] == "t":
+                    parts.append("".join(t.data for t in child.childNodes if t.nodeType == minidom.Node.TEXT_NODE))
+                else:
+                    walk(child)
+
+    walk(paragraph)
+    return "".join(parts)
 
 
 def serialize_part(doc: minidom.Document) -> bytes:
@@ -757,6 +794,28 @@ def patch_docx(archive: zipfile.ZipFile, edits: dict) -> tuple[dict[str, bytes],
         if index >= len(paragraphs):
             fail(f"paragraph {index} out of range (document has {len(paragraphs)} body paragraphs)")
         paragraph = paragraphs[index]
+
+        para_id = replacement.get("paraId")
+        if para_id:
+            matches = [p for p in paragraphs if paragraph_para_id(p) == para_id]
+            if len(matches) > 1:
+                fail(f"paraId {para_id!r} matches {len(matches)} paragraphs; refusing an ambiguous edit")
+            if matches and matches[0] is not paragraph:
+                fail(
+                    f"paraId {para_id!r} and paragraph {index} point at different paragraphs — "
+                    "the document changed since the anchor was captured; re-select instead of guessing"
+                )
+            if matches:
+                paragraph = matches[0]
+
+        expect_text = replacement.get("expectText")
+        if expect_text is not None:
+            current = normalize_text(paragraph_text(paragraph))
+            if normalize_text(expect_text) != current:
+                fail(
+                    f"expectText mismatch for paragraph {index}: the paragraph now reads {current[:120]!r} — "
+                    "the anchor no longer matches; re-extract and re-select instead of editing blind"
+                )
 
         reject_invalid_xml_text(text, f"replacement text for paragraph {index}")
         reject_break_characters(text, index)
