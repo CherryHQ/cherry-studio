@@ -36,7 +36,10 @@ function writeManifest(root: string, relativePath: string, manifest: Record<stri
   writeFile(root, relativePath, `${JSON.stringify(manifest)}\n`)
 }
 
-function createRuntimeFixture(includeDshPackage = false): {
+function createRuntimeFixture(
+  includeDshPackage = false,
+  includeSharedDshPackages = false
+): {
   projectRoot: string
   runtimeRoot: string
   outputDir: string
@@ -102,6 +105,28 @@ function createRuntimeFixture(includeDshPackage = false): {
     })
     writeFile(runtimeRoot, 'node_modules/@deepseek-ai/dsh-fixture/lib/index.js', 'export const fixture = true\n')
     writeFile(runtimeRoot, 'node_modules/@deepseek-ai/dsh-fixture/bin/fixture.cjs', '#!/usr/bin/env node\n')
+  }
+
+  if (includeSharedDshPackages) {
+    writeManifest(runtimeRoot, 'node_modules/@deepseek-ai/dsh-scope/package.json', {
+      name: '@deepseek-ai/dsh-scope',
+      version: '1.0.0',
+      type: 'module',
+      main: './lib/index.js'
+    })
+    writeFile(runtimeRoot, 'node_modules/@deepseek-ai/dsh-scope/lib/index.js', 'export const scopeMarker = Symbol()\n')
+    writeManifest(runtimeRoot, 'node_modules/@deepseek-ai/dsh-agent/package.json', {
+      name: '@deepseek-ai/dsh-agent',
+      version: '1.0.0',
+      type: 'module',
+      main: './lib/index.js',
+      dependencies: { '@deepseek-ai/dsh-scope': '1.0.0' }
+    })
+    writeFile(
+      runtimeRoot,
+      'node_modules/@deepseek-ai/dsh-agent/lib/index.js',
+      'import { scopeMarker } from "@deepseek-ai/dsh-scope"\nexport { scopeMarker }\n'
+    )
   }
 
   return { projectRoot, runtimeRoot, outputDir }
@@ -213,6 +238,26 @@ describe('DSH runtime packaging', () => {
       .replaceAll(path.sep, '/')
     expect(paths).toContain(resolved)
     expect(artifact.files.length).toBeLessThan(20)
+  })
+
+  it('keeps shared DSH identity packages external to prevent duplicate module symbols', async () => {
+    const fixture = createRuntimeFixture(true, true)
+    await bundleDshRuntimeTree({
+      ...fixture,
+      platform: 'darwin',
+      arch: 'arm64',
+      pruneUnbundledPackages: true
+    })
+
+    const agentManifest = JSON.parse(
+      fs.readFileSync(path.join(fixture.runtimeRoot, 'node_modules/@deepseek-ai/dsh-agent/package.json'), 'utf8')
+    )
+    const agentBundle = fs.readFileSync(
+      path.join(fixture.runtimeRoot, 'node_modules/@deepseek-ai/dsh-agent', agentManifest.main),
+      'utf8'
+    )
+    expect(agentBundle).toContain('from "@deepseek-ai/dsh-scope"')
+    expect(agentBundle).not.toContain('scopeMarker = Symbol()')
   })
 
   it('derives asar exclusions from the package graph without dropping shared dependencies', () => {

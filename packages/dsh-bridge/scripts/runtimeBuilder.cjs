@@ -8,7 +8,7 @@ const { pathToFileURL } = require('url')
 const { bundleTreeArtifact, writeManifest } = require('../../../scripts/download-binaries')
 
 const DSH_RUNTIME_PACKAGE = '@cherrystudio/dsh-bridge'
-const DSH_RUNTIME_FILTER_VERSION = 9
+const DSH_RUNTIME_FILTER_VERSION = 10
 const DSH_RUNTIME_ARCHIVE = 'dsh-runtime.tar.zst'
 const DSH_RUNTIME_BUNDLE_DIRECTORY = '.cherry-runtime'
 const DSH_RUNTIME_TARGETS = new Set([
@@ -505,7 +505,7 @@ async function loadTsdownBuild(packageRoot) {
   return tsdownBuildPromise
 }
 
-async function bundleRuntimePackage(plan, packageRoot, nativePackageNames) {
+async function bundleRuntimePackage(plan, packageRoot, externalPackageNames) {
   const build = await loadTsdownBuild(packageRoot)
   fs.rmSync(plan.outputDir, { recursive: true, force: true })
   const entry = Object.fromEntries(plan.entries.map(({ id, sourcePath }) => [id, sourcePath]))
@@ -524,10 +524,10 @@ async function bundleRuntimePackage(plan, packageRoot, nativePackageNames) {
       minify: false,
       treeshake: true,
       hash: false,
-      external: [...nativePackageNames],
+      external: [...externalPackageNames],
       noExternal: (id) => {
         if (id.startsWith('.') || id.startsWith('/') || NODE_BUILTIN_MODULES.has(id)) return false
-        return !nativePackageNames.has(packageNameFromSpecifier(id))
+        return !externalPackageNames.has(packageNameFromSpecifier(id))
       },
       logLevel: 'warn',
       outputOptions: {
@@ -613,6 +613,19 @@ function nativePackageNames(packages, platform, arch) {
       result.add(parentName)
       queue.push(parentName)
     }
+  }
+  return result
+}
+
+function isRuntimeIdentityPackage(name) {
+  // Keep cross-package symbols and Cordis context identity shared by every bundle.
+  return name === 'cordis' || name.startsWith('@cordisjs/') || name.startsWith('@deepseek-ai/')
+}
+
+function runtimeExternalPackageNames(packages, baseNames) {
+  const result = new Set(baseNames)
+  for (const { name } of packages) {
+    if (name && isRuntimeIdentityPackage(name)) result.add(name)
   }
   return result
 }
@@ -750,9 +763,10 @@ async function bundleDshRuntimeTree({
   fs.mkdirSync(outputDir, { recursive: true })
   const packages = collectRuntimePackages(runtimeRoot, platform, arch)
   const nativeNames = nativePackageNames(packages, platform, arch)
+  const externalNames = runtimeExternalPackageNames(packages, nativeNames)
   const plans = collectRuntimeBundlePlans(packages, nativeNames)
   for (const plan of plans) {
-    await bundleRuntimePackage(plan, packageRoot, nativeNames)
+    await bundleRuntimePackage(plan, packageRoot, externalNames)
     rewriteRuntimePackageManifest(plan)
   }
   if (pruneUnbundledPackages) pruneRuntimeTree(packages, plans, platform, arch)
