@@ -17,12 +17,19 @@ const ENDPOINT_FALLBACK_ORDER: readonly EndpointType[] = [
  * When `preferredEndpoint` is set (e.g. from `model.endpointTypes[0]` for relay providers),
  * its config wins over `defaultChatEndpoint` so per-model routing matches the actual request path.
  */
-export function getBaseUrl(provider: Provider, preferredEndpoint?: EndpointType | null): string {
+export function getBaseUrl(
+  provider: Provider,
+  preferredEndpoint?: EndpointType | null,
+  options?: { selectedEndpointOnly?: boolean }
+): string {
   const configs = provider.endpointConfigs
   if (!configs) return ''
 
   if (preferredEndpoint && configs[preferredEndpoint]?.baseUrl) {
     return configs[preferredEndpoint].baseUrl
+  }
+  if (preferredEndpoint && options?.selectedEndpointOnly && Object.hasOwn(configs, preferredEndpoint)) {
+    return ''
   }
 
   const ep = provider.defaultChatEndpoint

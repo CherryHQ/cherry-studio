@@ -62,7 +62,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
           clientSearchAvailable,
           clientFetchAvailable,
           clientToolsPreferred,
-          endpointType: getModelPreferredEndpoint(model, modelProvider ?? undefined),
+          endpointType: modelProvider ? getModelPreferredEndpoint(model, modelProvider) : undefined,
           hasFunctionToolSignals: getEffectiveMcpMode(assistant) !== 'disabled',
           reasoningEffort: assistant.settings.reasoning_effort
         })

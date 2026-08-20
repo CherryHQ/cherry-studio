@@ -52,7 +52,10 @@ async function enrichCreateItems(dtos: CreateModelDto[]) {
       try {
         return {
           dto,
-          registryData: providerRegistryService.lookupModel(dto.providerId, dto.modelId)
+          registryData: providerRegistryService.lookupModel(dto.providerId, dto.modelId, undefined, {
+            endpointTypes: dto.endpointTypes,
+            preferredEndpointType: dto.preferredEndpointType
+          })
         }
       } catch (error) {
         if (!(isDataApiError(error) && error.code === ErrorCode.NOT_FOUND)) {

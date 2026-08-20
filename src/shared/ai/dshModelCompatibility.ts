@@ -13,12 +13,11 @@
  */
 
 import { MODALITY } from '@cherrystudio/provider-registry'
-import { resolveGatewayChatRoute } from '@shared/data/presets/gatewayChatRouting'
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isGatewayRoutableModel } from '@shared/utils/model'
-import { isLoginBasedProvider } from '@shared/utils/provider'
+import { getModelPreferredEndpoint, isLoginBasedProvider } from '@shared/utils/provider'
 
 /**
  * Transport families Cherry can inject into `dsh-llm-pi-ai` (0.1.0-rc.7).
@@ -67,9 +66,7 @@ export function mapEndpointToDshApi(
 
 /** The effective chat endpoint the dsh runtime uses, preserving the model's declared preference order. */
 export function resolveDshEndpointType(provider: Provider, model: Model): EndpointType | undefined {
-  return (
-    model.endpointTypes?.[0] ?? resolveGatewayChatRoute(provider, model)?.endpointType ?? provider.defaultChatEndpoint
-  )
+  return getModelPreferredEndpoint(model, provider)
 }
 
 /** Resolve the dsh `api` protocol for a Cherry provider+model, or `undefined` if unsupported. */

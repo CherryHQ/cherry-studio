@@ -19,8 +19,7 @@ import {
   type DshApi,
   hasDshTextInput,
   hasKnownDshContextWindow,
-  mapEndpointToDshApi,
-  resolveDshEndpointType
+  mapEndpointToDshApi
 } from '@shared/ai/dshModelCompatibility'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
@@ -172,7 +171,7 @@ export interface DshProviderInjection {
 }
 
 function resolveDshEndpoint(provider: Provider, model: Model) {
-  return resolveEffectiveEndpoint(provider, model, resolveDshEndpointType(provider, model))
+  return resolveEffectiveEndpoint(provider, model)
 }
 
 /**

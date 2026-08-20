@@ -26,6 +26,7 @@ import {
 } from '@shared/utils/api'
 import { isGenerateImageModel } from '@shared/utils/model'
 import {
+  isAnthropicOfficialHost,
   isAzureOpenAIProvider,
   isGeminiProvider,
   isOllamaProvider,
@@ -571,7 +572,7 @@ function buildCommonOptions(ctx: BuilderContext) {
  */
 function getEndpointAuthHeaders(ctx: BuilderContext): Record<string, string> {
   const isThirdPartyAnthropicGateway =
-    ctx.endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES && !matchesPreset(ctx.actualProvider, 'anthropic')
+    ctx.endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES && !isAnthropicOfficialHost(ctx.baseConfig.baseURL)
 
   if (!isThirdPartyAnthropicGateway || isEmpty(ctx.baseConfig.apiKey)) {
     return {}

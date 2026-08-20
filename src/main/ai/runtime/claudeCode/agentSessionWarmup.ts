@@ -862,8 +862,9 @@ function resolveRuntimeModelRef(
 function usesAnthropicMessagesEndpoint(ref: RuntimeModelRef): boolean {
   if (!ref.provider || !ref.model) return false
   return (
-    resolveEffectiveEndpoint(ref.provider, ref.model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES).endpointType ===
-    ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+    resolveEffectiveEndpoint(ref.provider, ref.model, {
+      requiredEndpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+    }).endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES
   )
 }
 

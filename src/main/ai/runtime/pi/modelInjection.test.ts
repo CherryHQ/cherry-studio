@@ -120,6 +120,28 @@ describe('buildPiProviderInjection', () => {
     expect(injection.providerConfig.baseUrl).toBe('https://gateway.example.com')
   })
 
+  it('keeps the persisted OpenAI Chat route ahead of the Pi Anthropic heuristic', () => {
+    const provider = makeProvider({
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': {
+          adapterFamily: 'openai-compatible',
+          baseUrl: 'https://gateway.example.com/chat'
+        },
+        'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://gateway.example.com/anthropic' }
+      }
+    })
+    const model = makeModel({
+      endpointTypes: ['openai-chat-completions', 'anthropic-messages'],
+      preferredEndpointType: 'openai-chat-completions'
+    })
+
+    const injection = buildPiProviderInjection(provider, model, REAL_KEY)
+
+    expect(injection.providerConfig.api).toBe('openai-completions')
+    expect(injection.providerConfig.baseUrl).toBe('https://gateway.example.com/chat/v1')
+  })
+
   it('does not prefer Anthropic Messages for other endpoint combinations', () => {
     const provider = makeProvider({
       defaultChatEndpoint: 'openai-responses',

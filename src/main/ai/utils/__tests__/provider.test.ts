@@ -31,6 +31,7 @@ describe('getBaseUrl', () => {
       }
     })
     expect(getBaseUrl(provider, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toBe('https://relay.example/openai')
+    expect(getBaseUrl(provider, ENDPOINT_TYPE.ANTHROPIC_MESSAGES, { selectedEndpointOnly: true })).toBe('')
   })
 
   it('uses legacy behavior when preferredEndpoint is omitted', () => {

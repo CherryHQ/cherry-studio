@@ -1064,11 +1064,11 @@ export class OpenClawService extends BaseService {
             (model) =>
               !model.isHidden && !isNonChatModel(model) && this.getModelEndpointType(model, provider) === endpointType
           )
-          .map((model) => this.toOpenClawModel(model)),
+          .map((model) => this.toOpenClawModel(model, provider)),
         presetProviderId: provider.presetProviderId,
         headers: provider.settings?.extraHeaders
       },
-      primaryModel: this.toOpenClawModel(primaryModel)
+      primaryModel: this.toOpenClawModel(primaryModel, provider)
     }
   }
 
@@ -1118,7 +1118,7 @@ export class OpenClawService extends BaseService {
     }
   }
 
-  private toOpenClawModel(model: DataModel): OpenClawSyncModel {
+  private toOpenClawModel(model: DataModel, provider: DataProvider): OpenClawSyncModel {
     const { modelId } = parseUniqueModelId(model.id)
     const input = model.inputModalities?.filter((modality) => modality === 'text' || modality === 'image')
     const cost = this.toOpenClawCost(model)
@@ -1127,7 +1127,7 @@ export class OpenClawService extends BaseService {
       provider: model.providerId,
       name: model.name,
       group: model.group ?? '',
-      endpoint_type: this.toOpenClawEndpointType(getModelPreferredEndpoint(model)),
+      endpoint_type: this.toOpenClawEndpointType(getModelPreferredEndpoint(model, provider)),
       ...(model.contextWindow ? { contextWindow: model.contextWindow } : {}),
       ...(model.maxOutputTokens ? { maxTokens: model.maxOutputTokens } : {}),
       ...(model.reasoning || model.capabilities.includes(MODEL_CAPABILITY.REASONING) ? { reasoning: true } : {}),
