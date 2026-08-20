@@ -18,6 +18,16 @@ const assistantState = vi.hoisted(() => ({
 }))
 const modelState = vi.hoisted(() => ({ defaultModel: undefined as Model | undefined }))
 const navigateMock = vi.hoisted(() => vi.fn())
+const defaultModelFixture = {
+  id: 'openai::gpt-4o',
+  providerId: 'openai',
+  apiModelId: 'gpt-4o',
+  name: 'GPT-4o',
+  capabilities: [],
+  supportsStreaming: true,
+  isEnabled: true,
+  isHidden: false
+} satisfies Model
 
 vi.mock('@cherrystudio/ui', async () => {
   const React = await import('react')
@@ -147,11 +157,7 @@ describe('QuickAssistantSettings', () => {
   it('shows the default model and opens its global model setting in default-model mode', async () => {
     const user = userEvent.setup()
     MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.assistant_id', '')
-    modelState.defaultModel = {
-      id: 'openai::gpt-4o',
-      providerId: 'openai',
-      name: 'GPT-4o'
-    } as Model
+    modelState.defaultModel = defaultModelFixture
 
     render(<QuickAssistantSettings />)
 
@@ -163,11 +169,7 @@ describe('QuickAssistantSettings', () => {
 
   it('does not show the global model link in assistant mode', () => {
     MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.assistant_id', 'assistant-1')
-    modelState.defaultModel = {
-      id: 'openai::gpt-4o',
-      providerId: 'openai',
-      name: 'GPT-4o'
-    } as Model
+    modelState.defaultModel = defaultModelFixture
 
     render(<QuickAssistantSettings />)
 

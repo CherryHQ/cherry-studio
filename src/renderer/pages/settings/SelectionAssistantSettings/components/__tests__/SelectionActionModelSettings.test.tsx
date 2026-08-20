@@ -6,8 +6,26 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import SelectionActionModelSettings from '../SelectionActionModelSettings'
 
 const modelState = vi.hoisted(() => ({
-  defaultModel: { id: 'openai::gpt-4o', providerId: 'openai', name: 'GPT-4o' } as Model,
-  translateModel: { id: 'deepseek::deepseek-chat', providerId: 'deepseek', name: 'DeepSeek Chat' } as Model
+  defaultModel: {
+    id: 'openai::gpt-4o',
+    providerId: 'openai',
+    apiModelId: 'gpt-4o',
+    name: 'GPT-4o',
+    capabilities: [],
+    supportsStreaming: true,
+    isEnabled: true,
+    isHidden: false
+  } satisfies Model,
+  translateModel: {
+    id: 'deepseek::deepseek-chat',
+    providerId: 'deepseek',
+    apiModelId: 'deepseek-chat',
+    name: 'DeepSeek Chat',
+    capabilities: [],
+    supportsStreaming: true,
+    isEnabled: true,
+    isHidden: false
+  } satisfies Model
 }))
 const navigateMock = vi.hoisted(() => vi.fn())
 
