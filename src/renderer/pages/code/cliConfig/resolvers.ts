@@ -26,7 +26,8 @@ export interface PiProviderInfo {
   endpointType: EndpointType
 }
 
-export type HermesApiMode = 'anthropic_messages' | 'chat_completions' | 'codex_responses'
+export const HERMES_API_MODES = ['anthropic_messages', 'chat_completions', 'codex_responses'] as const
+export type HermesApiMode = (typeof HERMES_API_MODES)[number]
 
 export interface HermesProviderInfo {
   apiMode: HermesApiMode

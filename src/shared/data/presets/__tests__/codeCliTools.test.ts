@@ -38,7 +38,6 @@ describe('Code CLI acquisition catalog', () => {
     expect(Object.isFrozen(CODE_CLI_TOOL_PRESETS)).toBe(true)
     expect(CODE_CLI_TOOL_PRESETS.every((preset) => Object.isFrozen(preset))).toBe(true)
     expect(Object.isFrozen(CODE_CLI_TOOL_PRESET_MAP)).toBe(true)
-    expect(Object.isFrozen(CODE_CLI_TOOL_PRESET_MAP[CodeCli.HERMES].pipxExtras)).toBe(true)
   })
 
   it.each(CODE_CLI_TOOL_PRESETS)('$id: indexes the canonical preset', (preset) => {

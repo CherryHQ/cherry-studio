@@ -8,23 +8,22 @@ export interface CodeCliToolPreset {
   install: 'registry' | 'npm' | 'pipx'
   miseTool: string
   misePrerelease?: boolean
-  /** pipx extras required by this CLI's built-in capabilities. */
-  pipxExtras?: readonly string[]
   /** Use npm CLI when mise's embedded installer cannot install this package. */
   miseNpmShellOut?: boolean
 }
 
-type CodeCliToolDefinition = Omit<CodeCliToolPreset, 'miseTool'>
+type CodeCliToolDefinition = Omit<CodeCliToolPreset, 'miseTool'> & {
+  /** pipx extras required to install this tool's built-in capabilities. */
+  pipxExtras?: readonly string[]
+}
 
-function defineCodeCliTool(definition: CodeCliToolDefinition): Readonly<CodeCliToolPreset> {
+function defineCodeCliTool({ pipxExtras, ...definition }: CodeCliToolDefinition): Readonly<CodeCliToolPreset> {
   const packageTool =
     definition.install === 'registry' ? definition.executable : `${definition.install}:${definition.packageName}`
-  const pipxExtras =
-    definition.install === 'pipx' && definition.pipxExtras?.length ? definition.pipxExtras.join(',') : ''
+  const extras = definition.install === 'pipx' && pipxExtras?.length ? pipxExtras.join(',') : ''
   return Object.freeze({
     ...definition,
-    ...(pipxExtras ? { pipxExtras: Object.freeze([...definition.pipxExtras!]) } : {}),
-    miseTool: pipxExtras ? `${packageTool}[extras=${pipxExtras}]` : packageTool
+    miseTool: extras ? `${packageTool}[extras=${extras}]` : packageTool
   })
 }
 

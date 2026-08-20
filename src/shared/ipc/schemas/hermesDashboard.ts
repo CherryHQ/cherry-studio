@@ -3,7 +3,10 @@ import * as z from 'zod'
 import { defineRoute } from '../define'
 import { operationResultSchema } from './common'
 
-const hermesDashboardStatusSchema = z.enum(['stopped', 'starting', 'running', 'error'])
+export const HERMES_DASHBOARD_STATUSES = ['stopped', 'starting', 'running', 'error'] as const
+export type HermesDashboardStatus = (typeof HERMES_DASHBOARD_STATUSES)[number]
+
+const hermesDashboardStatusSchema = z.enum(HERMES_DASHBOARD_STATUSES)
 
 export const hermesDashboardRequestSchemas = {
   'hermes_dashboard.start': defineRoute({

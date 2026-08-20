@@ -9,6 +9,7 @@ import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecyc
 import { isWin } from '@main/core/platform'
 import { crossPlatformSpawn } from '@main/utils/processRunner'
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
+import type { HermesDashboardStatus } from '@shared/ipc/schemas/hermesDashboard'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { redactSecretText } from '@shared/utils/redaction'
 import { Mutex } from 'async-mutex'
@@ -25,11 +26,9 @@ const FORCE_STOP_TIMEOUT_MS = 1_000
 const OUTPUT_CAPTURE_LIMIT = 32 * 1024
 const DIAGNOSTIC_LIMIT = 2_000
 
-type HermesDashboardStatus = 'stopped' | 'starting' | 'running' | 'error'
-
 interface HermesDashboardRuntime {
   env: NodeJS.ProcessEnv
-  path: string
+  executablePath: string
 }
 
 @Injectable('HermesDashboardService')
@@ -123,7 +122,7 @@ export class HermesDashboardService extends BaseService {
     const snapshot = (await application.get('BinaryManager').getToolSnapshots(['hermes'])).hermes
     if (snapshot.availability.source === 'none') throw new Error('Hermes is not installed')
     const env = snapshot.availability.source === 'system' ? await getRawShellEnv() : await refreshShellEnv()
-    return { env, path: AbsoluteFilePathSchema.parse(snapshot.availability.path) }
+    return { env, executablePath: AbsoluteFilePathSchema.parse(snapshot.availability.path) }
   }
 
   private async spawnAndWaitForReady(
@@ -133,7 +132,7 @@ export class HermesDashboardService extends BaseService {
     signal: AbortSignal
   ): Promise<void> {
     const child = crossPlatformSpawn(
-      runtime.path,
+      runtime.executablePath,
       ['dashboard', '--host', DASHBOARD_HOST, '--port', String(port), '--no-open'],
       {
         env: runtime.env,

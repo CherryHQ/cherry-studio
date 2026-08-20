@@ -77,6 +77,7 @@ import {
   isOpenCodePermissionMode
 } from './permissionModes'
 import {
+  HERMES_API_MODES,
   type HermesApiMode,
   modelSupportsReasoningEffort,
   openCodeNpmInfoFromNpmPackage,
@@ -191,7 +192,7 @@ function cherryProviderKeyFrom(providers: Record<string, any>): string {
 }
 
 function isHermesApiMode(value: unknown): value is HermesApiMode {
-  return value === 'anthropic_messages' || value === 'chat_completions' || value === 'codex_responses'
+  return HERMES_API_MODES.some((apiMode) => apiMode === value)
 }
 
 const claudeAdapter: CliConfigAdapter = {

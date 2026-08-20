@@ -3,13 +3,12 @@ import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import type { HermesDashboardStatus } from '@shared/ipc/schemas/hermesDashboard'
 import { CodeCli } from '@shared/types/codeCli'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useHermesDashboardController')
-
-type HermesDashboardStatus = 'stopped' | 'starting' | 'running' | 'error'
 
 interface HermesDashboardController {
   launching: boolean
