@@ -3001,7 +3001,7 @@
       "empty_title": "スキルを検索",
       "github_empty_description": "SKILL.mdファイルへのリンクを貼り付けてください。例: github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
       "github_empty_title": "GitHubからインストール",
-      "github_url_invalid": "SKILL.mdで終わるGitHubリンクを貼り付けてください",
+      "github_url_invalid": "SKILL.md ファイルを直接指す対応済みの GitHub リンクを貼り付けてください",
       "github_url_label": "GitHub SKILL.md URL",
       "github_url_placeholder": "/SKILL.mdで終わるGitHubリンク",
       "no_results_description": "別のキーワードを試すか、ローカルのZIPファイルまたはフォルダーをインポートしてください。",
