@@ -1,4 +1,5 @@
 export { useCloseConversationTabs } from './useCloseConversationTabs'
+export { useConversationNavigationOwner } from './useConversationNavigationOwner'
 export { TabIdContext, useCurrentTab, useCurrentTabId, useIsActiveTab } from './useCurrentTab'
 export { useMainWindowNavigation } from './useMainWindowNavigation'
 export { useTabs } from './useTabs'

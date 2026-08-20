@@ -32,7 +32,7 @@ type PendingApprovalRegistration = Omit<PendingApproval, 'abortListener' | 'pres
 
 /**
  * Main-side dispatcher for tool-approval decisions. Holds each pending tool
- * request until the renderer's `Ai_ToolApproval_Respond` IPC arrives, then
+ * request until the renderer's `ai.tool.respond_approval` request arrives, then
  * resolves with the neutral `DispatchDecision`. This module is shared by every
  * agent-session driver; the SDK-native conversion lives in each driver.
  */

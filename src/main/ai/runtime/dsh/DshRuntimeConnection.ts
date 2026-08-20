@@ -29,7 +29,6 @@ import {
 } from '@shared/ai/builtinTools'
 import { type DshBuiltinToolDescriptor, getDshRuntimeBuiltinTools } from '@shared/ai/dshBuiltinTools'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
-import type { CherryUIMessageChunk } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
@@ -87,7 +86,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
   private readonly committedInvocationIds = new Set<string>()
   private readonly adapter = new DshStreamAdapter({
     enqueue: (chunk) => {
-      this.observeMainChunk(chunk)
+      this.subagents.noteMainChunk(chunk)
       this.eventQueue.push({ type: 'chunk', chunk })
     },
     onAssistantUsage: (info) => this.recordProviderInvocation(info),
@@ -128,8 +127,6 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
    * comparisons keep using the stored mode alone.
    */
   private runtimePlanActive?: boolean
-  /** Latest streamed `exit_plan_mode` call — anchors the plan-review approval card. */
-  private planReviewAnchor?: string
   private disabledTools = new Set<string>()
   /** Spawn-frozen agent/model facts, excluding the live permission gate. */
   private connectionSignature?: string
@@ -151,12 +148,13 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     this.subagents = new DshSubagentCoordinator(input.sessionId, this.buildSubagentSink())
   }
 
-  /** Main-stream taps: subagent binding anchors and the plan-review card anchor. */
-  private observeMainChunk(chunk: CherryUIMessageChunk): void {
-    this.subagents.noteMainChunk(chunk)
-    if (chunk.type === 'tool-input-start' && chunk.toolName === 'exit_plan_mode') {
-      this.planReviewAnchor = chunk.toolCallId
+  /** Bridge-socket events. A stream-presented approval whose `tool/call` has not landed yet would
+   *  truncate the turn accumulator instead of showing a card, so materialize its tool part first. */
+  private emitBridgeEvent(event: AgentRuntimeEvent): void {
+    if (event.type === 'tool-approval-request' && event.request.presentation === 'stream') {
+      this.adapter.ensureToolCall(event.request.toolCallId, event.request.toolName, event.request.input)
     }
+    this.eventQueue.push(event)
   }
 
   /** Flip the live-turn flag; a false→true edge opens a NEW host turn identity. */
@@ -279,7 +277,6 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       workspacePath,
       agentDataPath: this.agentDataPath,
       agent,
-      channelLinked: snapshot.linkedChannel !== null,
       citationsGuidance,
       // Compensates a custom base for the workspace context the native base owns (claude parity).
       customBaseContext: [
@@ -339,12 +336,11 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
 
       this.bridge = new DshBridgeServer({
         sessionId: this.input.sessionId,
-        emit: (event) => this.eventQueue.push(event),
+        emit: (event) => this.emitBridgeEvent(event),
         getInteractionState: () =>
           application.get('AgentSessionRuntimeService').getInteractionState(this.input.sessionId),
         onToolCall: (name, args, signal) => toolBridge.callTool(name, args, signal),
-        onSubagentLifecycle: (edge) => this.subagents.handleLifecycle(edge),
-        getPlanReviewAnchor: () => this.planReviewAnchor
+        onSubagentLifecycle: (edge) => this.subagents.handleLifecycle(edge)
       })
       await this.bridge.listen()
 

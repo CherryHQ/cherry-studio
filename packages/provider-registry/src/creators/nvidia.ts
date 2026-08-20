@@ -6,5 +6,10 @@ export default defineCreator({
   modelsDevProviders: ['nvidia'],
   families: ['nemotron'],
   idPrefixes: ['nemotron', 'nemoretriever', 'parakeet', 'llama-3-1-nemotron'],
-  reasoningFamilies: [{ pattern: '(?:llama-3-1-)?nemotron-(?:nano|super|ultra|3-(?:nano|super|ultra))' }]
+  // The version segment is optional and open-ended (`nemotron-nano`, `nemotron-3-nano`,
+  // `nemotron-3-5-lightning`), so a new release line only needs its tier word added here.
+  reasoningFamilies: [
+    { pattern: '(?:llama-3-1-)?nemotron-(?:\\d+(?:-\\d+)*-)?(?:nano|super|ultra|lightning)' },
+    { pattern: '^muse-glimmer' }
+  ]
 })

@@ -388,6 +388,15 @@
         "inaccessible": "工作區路徑無法存取：{{path}}"
       }
     },
+    "session_delivery": {
+      "from": "來自 {{agent}} / {{session}}",
+      "status": {
+        "accepted": "已接受",
+        "consumed": "已處理",
+        "delivering": "投遞中",
+        "failed": "失敗"
+      }
+    },
     "settings": {
       "permissionMode": {
         "title": "權限模式"
@@ -726,6 +735,22 @@
           "description": "管理任務清單",
           "label": "管理任務清單"
         },
+        "tool_call": {
+          "description": "呼叫一個已發現的工具",
+          "label": "呼叫工具"
+        },
+        "tool_describe": {
+          "description": "取得工具的完整說明和 TypeScript 簽章",
+          "label": "說明工具"
+        },
+        "tool_exec": {
+          "description": "執行 JavaScript 以協調已發現的工具",
+          "label": "執行工具程式碼"
+        },
+        "tool_search": {
+          "description": "搜尋可用工具並讀取其 TypeScript 簽章",
+          "label": "搜尋工具"
+        },
         "update_goal": {
           "description": "更新工作階段目標的狀態或內容",
           "label": "更新目標"
@@ -784,6 +809,7 @@
       "restartSuccess": "API 閘道重新啟動成功",
       "startError": "啟動 API 閘道失敗：",
       "startSuccess": "API 閘道啟動成功",
+      "stopDeferred": "目前翻譯完成後，API 閘道將自動停止",
       "stopError": "停止 API 閘道失敗：",
       "stopSuccess": "API 閘道停止成功"
     },
@@ -991,6 +1017,19 @@
       "knowledge_base_disabled_by_files": "移除附加檔案以使用知識庫",
       "knowledge_base_unavailable": "選擇具備工具能力的模型",
       "locate_editing_message": "找出原始訊息",
+      "mcp_prompts": {
+        "description": "插入 MCP 伺服器提供的提示詞",
+        "empty": "沒有可用的 MCP 提示詞",
+        "insert_failed": "提示詞插入失敗",
+        "title": "MCP 提示詞"
+      },
+      "mcp_resources": {
+        "description": "引用 MCP 伺服器提供的資源",
+        "empty": "沒有可用的 MCP 資源",
+        "read_failed": "資源讀取失敗",
+        "reader_unavailable": "目前模型無法在附加後重新讀取此資源",
+        "title": "MCP 資源"
+      },
       "new": {
         "context": "清除上下文"
       },
@@ -2962,7 +3001,7 @@
       "empty_title": "搜尋技能",
       "github_empty_description": "請貼上技能的 SKILL.md 檔案連結，例如 github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
       "github_empty_title": "從 GitHub 安裝",
-      "github_url_invalid": "請貼上以 SKILL.md 結尾的 GitHub 連結",
+      "github_url_invalid": "請貼上受支援且直接指向 SKILL.md 檔案的 GitHub 連結",
       "github_url_label": "GitHub SKILL.md 連結",
       "github_url_placeholder": "GitHub 連結，以 /SKILL.md 結尾",
       "no_results_description": "請嘗試其他關鍵字，或從本機匯入 ZIP 檔或資料夾。",
@@ -3360,6 +3399,21 @@
         "stderr": "標準錯誤",
         "stdout": "標準輸出"
       },
+      "sessionCreate": {
+        "created": "已啟動新工作階段",
+        "creating": "正在啟動新工作階段",
+        "firstMessage": "第一則訊息",
+        "inheritedContext": "沿用目前的智慧體與工作區",
+        "open": "開啟工作階段",
+        "sessionId": "工作階段 ID",
+        "untitled": "未命名工作階段"
+      },
+      "sessionSend": {
+        "open": "開啟工作階段",
+        "sending": "正在傳送至",
+        "sent": "已傳送至",
+        "to": "傳送至"
+      },
       "status": {
         "done": "完成",
         "error": "錯誤",
@@ -3693,7 +3747,7 @@
   },
   "notification": {
     "assistant": "助理回應",
-    "tip": "如果回應成功，則只針對超過 30 秒的訊息發出提醒"
+    "tip": "僅控制背景系統通知；應用程式內通知一律開啟。"
   },
   "ocr": {
     "processing": "OCR 處理中..."
@@ -5543,6 +5597,7 @@
       },
       "title": "環境相依套件",
       "tools": {
+        "babeldoc-stream": "保留版式的 PDF 翻譯引擎。首次翻譯時會下載版面模型資源。",
         "bun": "MCP 服務及相關工具鏈使用的 JavaScript 執行環境。",
         "claude": "Anthropic 的終端機 Agent 程式設計工具。",
         "codex": "OpenAI 的開源程式設計 Agent，可讀取、編輯和執行本機儲存庫中的程式碼。",
@@ -5590,6 +5645,10 @@
         "title": "字型設定"
       }
     },
+    "fetch": {
+      "allow_private_network": "允許存取本機網路位址",
+      "allow_private_network_tip": "允許網頁擷取工具存取 localhost 與內網位址。若不希望模型讀取本機或區域網路上的服務，請關閉。"
+    },
     "font_size": {
       "title": "訊息字型大小"
     },
@@ -5619,7 +5678,8 @@
         },
         "sections": {
           "display_language": "顯示與語言"
-        }
+        },
+        "title": "通用"
       },
       "emoji_picker": "表情選擇器",
       "image_upload": "圖片上傳",
@@ -6043,40 +6103,48 @@
       "bulk_enable": "全部啟用",
       "check": {
         "all": "所有",
-        "button_caption": "健康檢查",
-        "disabled": "未啟用",
+        "all_models": "所有模型",
+        "all_models_disclaimer": "檢測所有模型會向選取的模型和 API 金鑰傳送大量真實請求，可能在短時間內產生高額費用。請確認可承擔費用風險後再開始。圖片、影片、音訊生成及語音轉文字、文字轉語音模型會略過。",
+        "button_caption": "模型檢測",
+        "checking": "檢測中…",
+        "concurrent_hint": "模型之間可並行檢測；同一模型的多個 API 金鑰一律並行檢測。",
         "disclaimer": "健康檢查會向選中的模型和 API Key 傳送真實請求。按次計費或並行檢查可能產生高額費用，請確認後再開始。",
         "enable_concurrent": "並行檢查",
-        "enabled": "已啟用",
         "failed": "失敗",
         "failed_to_start": "健康檢查啟動失敗",
         "generation_output_audio": "音訊",
         "generation_output_image": "圖片",
         "generation_output_video": "影片",
+        "key_scope": "使用金鑰",
+        "keys_failed_count": "{{failed}}/{{total}} 個金鑰失敗",
+        "latency": "{{latency}} 毫秒",
+        "model": "模型",
         "model_button_caption": "檢查所有模型",
-        "model_status_failed": "{{count}} 個模型完全無法存取",
-        "model_status_partial": "其中 {{count}} 個模型用某些金鑰無法存取",
-        "model_status_passed": "{{count}} 個模型健康檢查成功",
+        "model_scope": "要檢測的模型",
+        "model_status_failed_one": "{{count}} 個模型完全無法存取",
+        "model_status_failed_other": "{{count}} 個模型完全無法存取",
+        "model_status_partial_one": "其中 {{count}} 個模型用某些金鑰無法存取",
+        "model_status_partial_other": "其中 {{count}} 個模型用某些金鑰無法存取",
+        "model_status_passed_one": "{{count}} 個模型健康檢查成功",
+        "model_status_passed_other": "{{count}} 個模型健康檢查成功",
+        "model_status_skipped_one": "{{count}} 個模型已略過",
+        "model_status_skipped_other": "{{count}} 個模型已略過",
         "model_status_summary": "{{provider}}: {{summary}}",
         "no_results": "無結果",
-        "outcome_fail_short": "{{count}} 失敗",
-        "outcome_skipped_short": "{{count}} 跳過",
-        "outcome_success_short": "{{count}} 成功",
-        "outcome_total": "共 {{count}} 項",
         "passed": "已通過",
-        "pipeline_heading": "檢查進度",
-        "progress_count": "{{done}} / {{total}}",
-        "retry": "重新檢查",
-        "select_api_key": "選擇要使用的 API 金鑰：",
+        "provider_auth": "供應商驗證",
+        "select_api_key": "選擇要使用的 API 金鑰",
         "single": "單一模型",
+        "single_model": "單一模型",
         "skip_reason_generation_cost": "此模型的健康檢查會實際產生{{output}}並消耗額度，因此預設略過。",
         "skip_reason_unsupported_probe": "此類模型目前沒有低成本的健康檢查方式，因此預設略過。",
         "start": "開始",
         "status_checking": "檢查中…",
         "status_skipped": "已跳過",
         "timeout": "逾時",
-        "title": "模型健康檢查",
-        "use_all_keys": "使用金鑰"
+        "timeout_unit": "秒",
+        "title": "模型檢測",
+        "toggle_key": "切換 {{name}} 的啟用狀態"
       },
       "collapse_all": "全部折疊",
       "context_management": {
@@ -6089,6 +6157,7 @@
         "max_messages": "保留最近訊息數",
         "max_messages_description": "僅傳送最近若干則訊息，更早的訊息不進入上下文；留空表示不限制。助理可單獨覆寫",
         "max_messages_unlimited": "不限制",
+        "scope_description": "僅適用於 Cherry Studio 內的助理對話；助理可在自身設定中單獨覆寫。",
         "title": "上下文管理",
         "truncate_threshold": "工具輸出截斷閾值（字元）",
         "truncate_threshold_description": "超過該字元數的工具輸出會被轉存為檔案並截斷，模型可按需讀回。助理可單獨覆寫"
@@ -6174,7 +6243,7 @@
       "label": "更多設定"
     },
     "notification": {
-      "assistant": "助理訊息",
+      "assistant": "對話完成通知",
       "backup": "備份訊息",
       "knowledge_embed": "知識庫訊息",
       "title": "通知",
@@ -7201,10 +7270,10 @@
     "history": {
       "back": "返回清單",
       "clear": "清空歷史",
-      "clear_description": "清空歷史將刪除所有翻譯歷史記錄，是否繼續？",
+      "clear_description": "清空歷史將刪除所有翻譯歷史記錄，並一併回收其中產生的譯文檔案，是否繼續？",
       "copy_target": "複製譯文",
       "delete": "刪除翻譯歷史",
-      "delete_description": "確定要刪除這筆翻譯歷史記錄嗎？此操作無法復原。",
+      "delete_description": "確定要刪除這筆翻譯歷史記錄嗎？若是檔案翻譯，產生的譯文檔案也會一併回收。此操作無法復原。",
       "empty": "翻譯歷史為空",
       "error": {
         "add": "新增翻譯紀錄失敗",
@@ -7212,6 +7281,17 @@
         "delete": "刪除失敗",
         "load": "無法載入翻譯紀錄",
         "save": "儲存翻譯歷史失敗"
+      },
+      "file": {
+        "action_failed": "無法對該檔案執行此操作",
+        "badge": "檔案翻譯",
+        "export": "另存譯文檔案…",
+        "open": "開啟譯文檔案",
+        "preview": "雙欄預覽",
+        "reveal": "在資料夾中顯示",
+        "source": "來源檔案",
+        "target": "譯文檔案",
+        "unavailable": "該翻譯記錄的檔案已無法使用"
       },
       "filter": {
         "starred": "僅顯示收藏"
@@ -7241,6 +7321,53 @@
     "language_settings": "語言設定",
     "output": {
       "placeholder": "翻譯"
+    },
+    "pdf": {
+      "action": {
+        "close": "關閉 PDF 翻譯",
+        "export": "匯出譯文 PDF",
+        "install_babeldoc": "安裝 BabelDOC",
+        "update_babeldoc": "更新 BabelDOC"
+      },
+      "dependency": {
+        "checking": "正在偵測 BabelDOC...",
+        "description": "安裝 BabelDOC 外掛程式即可在翻譯 PDF 時保留原始版式。",
+        "installing": "正在安裝 BabelDOC...",
+        "outdated_description": "更新 BabelDOC 後即可繼續保留原始版式翻譯 PDF。",
+        "outdated_title": "需要更新 BabelDOC",
+        "title": "偵測到 PDF"
+      },
+      "error": {
+        "generic": "翻譯過程中發生錯誤，請重試。",
+        "ocr_required": "暫不支援掃描版 PDF",
+        "persist_failed": "PDF 已翻譯完成，但譯文儲存失敗，請重試。",
+        "title": "PDF 翻譯失敗"
+      },
+      "export_failed": "匯出譯文 PDF 失敗",
+      "pane": {
+        "translated": "譯文 PDF",
+        "translated_text": "譯文"
+      },
+      "progress": {
+        "analyzing": "正在分析文件版面",
+        "checking_assets": "正在檢查 PDF 處理資源",
+        "downloading_assets": "正在下載 PDF 處理資源...",
+        "extracting_terms": "正在擷取文件術語",
+        "loading_model": "正在載入 PDF 處理模型",
+        "parsing": "正在解析 PDF 文件",
+        "percent": "{{progress}}%",
+        "preparing": "正在初始化 PDF 翻譯",
+        "preparing_hint": "首次初始化可能需要約 2 分鐘，後續通常會更快",
+        "rendering": "正在算繪譯文 PDF",
+        "translating": "正在翻譯內容",
+        "typesetting": "正在排版譯文 PDF",
+        "value": "{{stage}}，階段 {{stageProgress}}%，總體 {{overallProgress}}%"
+      },
+      "ready": {
+        "description": "選擇目標語言並開始翻譯。",
+        "title": "等待翻譯"
+      },
+      "success": "譯文 PDF 已產生"
     },
     "preferred_target": "首選目標",
     "processing": "翻譯中...",

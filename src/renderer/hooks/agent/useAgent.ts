@@ -6,7 +6,9 @@
  * configuration) lives here, not on sessions.
  */
 
+import { loggerService } from '@logger'
 import { useInvalidateCache, useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
+import { ipcApi } from '@renderer/ipc'
 import { createAgentAndRefresh } from '@renderer/services/createAgent'
 import { toast } from '@renderer/services/toast'
 import type { AddAgentForm, UpdateAgentBaseOptions, UpdateAgentForm, UpdateAgentFunction } from '@renderer/types/agent'
@@ -21,6 +23,7 @@ import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 type Result<T> = { success: true; data: T } | { success: false; error: Error }
+const logger = loggerService.withContext('useAgent')
 
 type UpdateAgentModelInput = {
   agentId: string
@@ -85,19 +88,21 @@ export const useAgents = () => {
     [invalidate, t]
   )
 
-  const { trigger: deleteTrigger } = useMutation('DELETE', '/agents/:agentId', {
-    refresh: ['/agents', '/agent-sessions', '/pins']
-  })
   const deleteAgent = useCallback(
     async (id: string) => {
       try {
-        await deleteTrigger({ params: { agentId: id } })
+        await ipcApi.request('ai.agent.delete', { agentId: id, deleteSessions: false })
+        try {
+          await Promise.all([invalidate('/agents'), invalidate('/agent-sessions'), invalidate('/pins')])
+        } catch (error) {
+          logger.warn('Failed to refresh after deleting Agent', error as Error, { agentId: id })
+        }
         toast.success(t('common.delete_success'))
       } catch (error) {
         toast.error(formatErrorMessageWithPrefix(error, t('agent.delete.error.failed')))
       }
     },
-    [deleteTrigger, t]
+    [invalidate, t]
   )
 
   return { agents, error, isLoading, addAgent, deleteAgent, refetch }
