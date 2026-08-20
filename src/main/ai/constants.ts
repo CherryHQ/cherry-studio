@@ -18,6 +18,15 @@ export const DEFAULT_MAX_TOKENS = 8192
 export const CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER = 0.375
 
 /**
+ * Safety margin applied to the declared contextWindow when computing compaction
+ * budgets. Third-party models and channels may report a contextWindow larger than
+ * the provider's actual limit, causing auto-compaction to trigger too late. A
+ * smaller effective window ensures compaction fires earlier, leaving headroom for
+ * the gap between the declared and real limits.
+ */
+export const COMPACTION_CONTEXT_WINDOW_SAFETY_MARGIN = 0.9
+
+/**
  * Budget for the compaction request itself. Compaction protects the window, but
  * the summarize call is a window-bound request too: its input carries whole
  * tool outputs, so left un-budgeted it can overflow the compression model's
