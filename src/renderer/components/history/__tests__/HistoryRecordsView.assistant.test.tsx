@@ -1135,6 +1135,39 @@ describe('HistoryRecordsView assistant mode', () => {
     expect(toast.success).toHaveBeenCalledWith('Saved')
   })
 
+  it('keeps the renamed topic visible while the history source refresh is stale', async () => {
+    let resolveRename!: () => void
+    hookMocks.updateTopic.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        resolveRename = resolve
+      })
+    )
+    setupAssistantHistory()
+
+    const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Edit conversation name' }))
+    await act(async () => {
+      await flushAnimationFrame()
+    })
+
+    const input = within(screen.getByRole('dialog')).getByLabelText('Name')
+    fireEvent.change(input, { target: { value: 'Renamed topic' } })
+    await act(async () => {
+      fireEvent.keyDown(input, { key: 'Enter' })
+      await flushAnimationFrame()
+    })
+
+    expect(screen.getByText('Renamed topic')).toBeInTheDocument()
+    expect(screen.queryByText('Alpha topic')).not.toBeInTheDocument()
+
+    await act(async () => {
+      resolveRename()
+    })
+    expect(screen.getByText('Renamed topic')).toBeInTheDocument()
+    expect(screen.queryByText('Alpha topic')).not.toBeInTheDocument()
+  })
+
   it('shows an error when topic rename from history fails', async () => {
     hookMocks.updateTopic.mockRejectedValueOnce(new Error('Rename failed'))
 
@@ -1163,6 +1196,8 @@ describe('HistoryRecordsView assistant mode', () => {
     )
     expect(toast.error).toHaveBeenCalledWith('Rename failed')
     expect(toast.success).not.toHaveBeenCalled()
+    expect(screen.getByText('Alpha topic')).toBeInTheDocument()
+    expect(screen.queryByText('Renamed topic')).not.toBeInTheDocument()
   })
 
   it('does not persist empty or unchanged topic names from history rename dialog', async () => {
