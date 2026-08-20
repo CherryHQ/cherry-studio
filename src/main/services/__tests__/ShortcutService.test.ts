@@ -461,4 +461,136 @@ describe('ShortcutService', () => {
       })
     )
   })
+
+  describe('isComposing safety timeout', () => {
+    it('skips composing keyDown events while composition is active', async () => {
+      await (service as any).onInit()
+
+      const event = { preventDefault: vi.fn() }
+      mainWindow.emitWebContents('before-input-event', event, {
+        type: 'keyDown',
+        key: '+',
+        code: 'Equal',
+        control: process.platform !== 'darwin',
+        meta: process.platform === 'darwin',
+        alt: false,
+        shift: false,
+        isComposing: true
+      })
+
+      expect(event.preventDefault).not.toHaveBeenCalled()
+      expect(commandServiceMock.execute).not.toHaveBeenCalled()
+    })
+
+    it('allows shortcuts after the composition safety timer fires (stuck composition)', async () => {
+      vi.useFakeTimers()
+      await (service as any).onInit()
+
+      // Simulate a composing keyDown to start the safety timer.
+      const composingEvent = { preventDefault: vi.fn() }
+      mainWindow.emitWebContents('before-input-event', composingEvent, {
+        type: 'keyDown',
+        key: '+',
+        code: 'Equal',
+        control: process.platform !== 'darwin',
+        meta: process.platform === 'darwin',
+        alt: false,
+        shift: false,
+        isComposing: true
+      })
+
+      // Advance past the safety timeout.
+      vi.advanceTimersByTime(2_500)
+
+      // Now a composing keyDown should be allowed through because the safety
+      // timer fired and marked the composition as stuck.
+      const event = { preventDefault: vi.fn() }
+      mainWindow.emitWebContents('before-input-event', event, {
+        type: 'keyDown',
+        key: '+',
+        code: 'Equal',
+        control: process.platform !== 'darwin',
+        meta: process.platform === 'darwin',
+        alt: false,
+        shift: false,
+        isComposing: true
+      })
+
+      expect(event.preventDefault).toHaveBeenCalledOnce()
+      expect(commandServiceMock.execute).toHaveBeenCalled()
+      vi.useRealTimers()
+    })
+
+    it('clears composition state on a non-composing keyDown', async () => {
+      await (service as any).onInit()
+
+      // Start composition.
+      const composingEvent = { preventDefault: vi.fn() }
+      mainWindow.emitWebContents('before-input-event', composingEvent, {
+        type: 'keyDown',
+        key: '+',
+        code: 'Equal',
+        control: process.platform !== 'darwin',
+        meta: process.platform === 'darwin',
+        alt: false,
+        shift: false,
+        isComposing: true
+      })
+
+      // Non-composing keyDown clears the state.
+      const normalEvent = { preventDefault: vi.fn() }
+      mainWindow.emitWebContents('before-input-event', normalEvent, {
+        type: 'keyDown',
+        key: '+',
+        code: 'Equal',
+        control: process.platform !== 'darwin',
+        meta: process.platform === 'darwin',
+        alt: false,
+        shift: false,
+        isComposing: false
+      })
+
+      // After a non-composing event, a composing event should be skipped again
+      // (the safety timer was cleared and compositionStuck reset).
+      const event2 = { preventDefault: vi.fn() }
+      mainWindow.emitWebContents('before-input-event', event2, {
+        type: 'keyDown',
+        key: '+',
+        code: 'Equal',
+        control: process.platform !== 'darwin',
+        meta: process.platform === 'darwin',
+        alt: false,
+        shift: false,
+        isComposing: true
+      })
+
+      expect(event2.preventDefault).not.toHaveBeenCalled()
+    })
+
+    it('cleans up composition safety timer on stop', async () => {
+      await (service as any).onInit()
+
+      // Start composition to create a pending timer.
+      mainWindow.emitWebContents(
+        'before-input-event',
+        { preventDefault: vi.fn() },
+        {
+          type: 'keyDown',
+          key: '+',
+          code: 'Equal',
+          control: process.platform !== 'darwin',
+          meta: process.platform === 'darwin',
+          alt: false,
+          shift: false,
+          isComposing: true
+        }
+      )
+
+      expect((service as any).compositionStates.size).toBe(1)
+
+      await (service as any).onStop()
+
+      expect((service as any).compositionStates.size).toBe(0)
+    })
+  })
 })

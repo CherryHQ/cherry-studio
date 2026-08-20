@@ -131,8 +131,32 @@ export function CommandProvider({ children }: { children: React.ReactNode }) {
   }, [contextSnapshot, execute, hasHandler, shortcutPreferences])
 
   useEffect(() => {
+    // Guard against a stuck isComposing state: if compositionstart fires but the
+    // matching compositionend is never received (a known Chromium/IME edge-case),
+    // all subsequent keyboard shortcuts would be silently skipped.  A safety
+    // timer marks the composition as "stuck" so shortcuts resume even when the
+    // browser "forgets" to emit compositionend.
+    const COMPOSITION_SAFETY_MS = 2_000
+    let compositionSafetyTimer: ReturnType<typeof setTimeout> | undefined
+    let compositionStuck = false
+
+    const onCompositionStart = () => {
+      compositionStuck = false
+      clearTimeout(compositionSafetyTimer)
+      compositionSafetyTimer = setTimeout(() => {
+        compositionStuck = true
+      }, COMPOSITION_SAFETY_MS)
+    }
+
+    const onCompositionEnd = () => {
+      compositionStuck = false
+      clearTimeout(compositionSafetyTimer)
+    }
+
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.isComposing) {
+      // Skip during active composition unless the safety timer has fired
+      // (stuck composition — allow shortcuts through).
+      if (event.isComposing && !compositionStuck) {
         return
       }
 
@@ -163,9 +187,14 @@ export function CommandProvider({ children }: { children: React.ReactNode }) {
       state.execute(command)
     }
 
+    window.addEventListener('compositionstart', onCompositionStart)
+    window.addEventListener('compositionend', onCompositionEnd)
     window.addEventListener('keydown', handleKeyDown)
     return () => {
+      window.removeEventListener('compositionstart', onCompositionStart)
+      window.removeEventListener('compositionend', onCompositionEnd)
       window.removeEventListener('keydown', handleKeyDown)
+      clearTimeout(compositionSafetyTimer)
     }
   }, [])
 

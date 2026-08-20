@@ -73,6 +73,14 @@ export class ShortcutService extends BaseService {
   private conflictedKeys = new Set<CommandShortcutPreferenceKey<CommandId>>()
   private registeredAccelerators = new Map<string, RegisteredShortcut>()
 
+  // Guard against a stuck isComposing state: when the browser forgets to emit
+  // a compositionend event, all subsequent keyboard shortcuts would be silently
+  // skipped.  The safety timer marks the composition as "stuck" so shortcuts
+  // resume even when the composition "leaks".
+  private static readonly COMPOSITION_SAFETY_MS = 2_000
+  /** Per-webContents composition tracking state. */
+  private compositionStates = new Map<number, { timer: ReturnType<typeof setTimeout> | undefined; stuck: boolean }>()
+
   protected async onInit() {
     this.registerBuiltInHandlers()
     this.subscribeToPreferenceChanges()
@@ -89,6 +97,10 @@ export class ShortcutService extends BaseService {
   protected async onStop() {
     this.unregisterAll()
     this.resetRuntimeState()
+    for (const state of this.compositionStates.values()) {
+      clearTimeout(state.timer)
+    }
+    this.compositionStates.clear()
   }
 
   private registerBuiltInHandlers(): void {
@@ -127,7 +139,36 @@ export class ShortcutService extends BaseService {
       this.registeredWindows.add(window)
 
       const onBeforeInput = (event: Electron.Event, input: Electron.Input) => {
-        if (input.type !== 'keyDown' || input.isComposing) return
+        if (input.type !== 'keyDown') return
+
+        // Track per-webContents composition state with a safety timeout.  If
+        // isComposing stays true for longer than the threshold (no compositionend
+        // received), mark the composition as stuck so shortcuts can resume.
+        const webContentsId = event.sender?.id ?? 0
+        let compState = this.compositionStates.get(webContentsId)
+        if (input.isComposing) {
+          if (!compState) {
+            compState = { timer: undefined, stuck: false }
+            this.compositionStates.set(webContentsId, compState)
+          }
+          if (!compState.stuck) {
+            // First composing event (or composition restarted) — start the safety timer.
+            if (!compState.timer) {
+              compState.timer = setTimeout(() => {
+                compState!.stuck = true
+              }, ShortcutService.COMPOSITION_SAFETY_MS)
+            }
+            return
+          }
+          // compositionStuck is true — allow through (safety timer fired).
+        } else {
+          // Non-composing key — clear all composition state for this webContents.
+          if (compState) {
+            compState.stuck = false
+            clearTimeout(compState.timer)
+            compState.timer = undefined
+          }
+        }
 
         const preferenceService = application.get('PreferenceService')
         const context: ContextReader = (key) => {
@@ -163,6 +204,7 @@ export class ShortcutService extends BaseService {
       }
       const onClosed = () => {
         this.registeredWindows.delete(window)
+        this.compositionStates.delete(webContents.id)
         if (this.mainWindow === window) {
           this.mainWindow = null
         }
@@ -173,6 +215,7 @@ export class ShortcutService extends BaseService {
           guestContents.off('before-input-event', onBeforeInput)
           guestContents.off('destroyed', cleanup)
           this.guestInputCleanups.delete(guestContents)
+          this.compositionStates.delete(guestContents.id)
         }
 
         guestContents.on('before-input-event', onBeforeInput)

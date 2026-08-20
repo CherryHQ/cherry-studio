@@ -207,4 +207,68 @@ describe('CommandProvider', () => {
 
     expect(loggerMock.warn).toHaveBeenCalledWith('No renderer command handler registered: topic.create')
   })
+
+  describe('isComposing safety timeout', () => {
+    it('skips shortcuts during active composition', () => {
+      vi.useFakeTimers()
+      const onExecute = vi.fn()
+      renderProvider(<RegisteredCommand command="topic.create" onExecute={onExecute} />)
+
+      window.dispatchEvent(new CompositionEvent('compositionstart'))
+      dispatchShortcut({ isComposing: true } as KeyboardEventInit)
+
+      expect(onExecute).not.toHaveBeenCalled()
+      vi.useRealTimers()
+    })
+
+    it('allows shortcuts after composition safety timer fires (stuck composition)', () => {
+      vi.useFakeTimers()
+      const onExecute = vi.fn()
+      renderProvider(<RegisteredCommand command="topic.create" onExecute={onExecute} />)
+
+      // Simulate a composition that starts but never ends (stuck).
+      window.dispatchEvent(new CompositionEvent('compositionstart'))
+      // Advance past the safety timeout.
+      vi.advanceTimersByTime(2_500)
+
+      // The keydown still reports isComposing: true, but the safety timer has
+      // marked the composition as stuck so shortcuts resume.
+      dispatchShortcut({ isComposing: true } as KeyboardEventInit)
+
+      expect(onExecute).toHaveBeenCalledOnce()
+      vi.useRealTimers()
+    })
+
+    it('clears composition state on compositionend', () => {
+      vi.useFakeTimers()
+      const onExecute = vi.fn()
+      renderProvider(<RegisteredCommand command="topic.create" onExecute={onExecute} />)
+
+      window.dispatchEvent(new CompositionEvent('compositionstart'))
+
+      // compositionend resets compositionStuck, so even though isComposing is
+      // still true on the keydown, the shortcut should be skipped because the
+      // composition has properly ended.
+      window.dispatchEvent(new CompositionEvent('compositionend'))
+      dispatchShortcut({ isComposing: true } as KeyboardEventInit)
+
+      expect(onExecute).not.toHaveBeenCalled()
+      vi.useRealTimers()
+    })
+
+    it('registers and cleans up composition event listeners', () => {
+      const addEventListener = vi.spyOn(window, 'addEventListener')
+      const removeEventListener = vi.spyOn(window, 'removeEventListener')
+
+      const { unmount } = renderProvider(null)
+
+      expect(addEventListener.mock.calls.filter(([type]) => type === 'compositionstart')).toHaveLength(1)
+      expect(addEventListener.mock.calls.filter(([type]) => type === 'compositionend')).toHaveLength(1)
+
+      unmount()
+
+      expect(removeEventListener.mock.calls.filter(([type]) => type === 'compositionstart')).toHaveLength(1)
+      expect(removeEventListener.mock.calls.filter(([type]) => type === 'compositionend')).toHaveLength(1)
+    })
+  })
 })
