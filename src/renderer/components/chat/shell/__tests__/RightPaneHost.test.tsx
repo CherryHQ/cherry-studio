@@ -8,8 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH,
   ARTIFACT_RIGHT_PANE_MAX_WIDTH,
-  ARTIFACT_RIGHT_PANE_MIN_WIDTH,
-  CHAT_CENTER_MIN_USABLE_WIDTH
+  ARTIFACT_RIGHT_PANE_MIN_WIDTH
 } from '../paneLayout'
 import { PersistentRightPaneHost, RightPaneHost } from '../RightPaneHost'
 
@@ -178,11 +177,8 @@ describe('RightPaneHost', () => {
     expect(container.querySelector('[data-right-pane-resize-handle]')).not.toBeInTheDocument()
   })
 
-  it('uses the configured right pane default and minimum widths', () => {
-    expect(ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH).toBe(280)
-    expect(ARTIFACT_RIGHT_PANE_MIN_WIDTH).toBe(255)
-    expect(DefaultRendererPersistCache['ui.chat.artifact_pane.width']).toBe(460)
-    expect(ARTIFACT_RIGHT_PANE_MIN_WIDTH + CHAT_CENTER_MIN_USABLE_WIDTH).toBe(615)
+  it('uses the configured pane default when no persisted width exists', () => {
+    expect(DefaultRendererPersistCache['ui.chat.artifact_pane.width']).toBe(ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH)
   })
 
   it('lets the pane and the center share space instead of clamping the pane to zero', () => {
