@@ -6416,6 +6416,12 @@
       "check": "Vérifier",
       "check_all_keys": "Vérifier toutes les clés",
       "check_multiple_keys": "Vérifier plusieurs clés API",
+      "cherry_cloud": {
+        "logged_in": "Connecté",
+        "login": "Se connecter avec un compte Cherry Studio",
+        "sign_in_failed": "Échec de la connexion. Réessayez.",
+        "signing_in": "En attente de l’autorisation du navigateur…"
+      },
       "cherryin": {
         "api_host": {
           "acceleration": "Domaine d'accélération",

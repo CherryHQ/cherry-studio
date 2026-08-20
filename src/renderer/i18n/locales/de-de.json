@@ -6416,6 +6416,12 @@
       "check": "Erkennen",
       "check_all_keys": "Alle Schlüssel testen",
       "check_multiple_keys": "Mehrere API-Schlüssel testen",
+      "cherry_cloud": {
+        "logged_in": "Angemeldet",
+        "login": "Mit Cherry-Studio-Konto anmelden",
+        "sign_in_failed": "Anmeldung fehlgeschlagen. Bitte erneut versuchen.",
+        "signing_in": "Warten auf Browser-Autorisierung…"
+      },
       "cherryin": {
         "api_host": {
           "acceleration": "Beschleunigungsdomäne",

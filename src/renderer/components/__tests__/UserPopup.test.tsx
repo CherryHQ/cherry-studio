@@ -12,7 +12,8 @@ const mocks = vi.hoisted(() => ({
     async (route: string): Promise<unknown> =>
       route === 'cherry_cloud.status.get' ? { phase: 'signed-out', displayName: null } : undefined
   ),
-  statusListener: null as ((status: { phase: string; displayName: string | null }) => void) | null
+  statusListener: null as ((status: { phase: string; displayName: string | null }) => void) | null,
+  toastError: vi.fn()
 }))
 
 type PopoverContextValue = {
@@ -140,6 +141,10 @@ vi.mock('@renderer/ipc', () => ({
   }
 }))
 
+vi.mock('@renderer/services/toast', () => ({
+  toast: { error: mocks.toastError }
+}))
+
 vi.mock('@renderer/utils/naming', () => ({
   isEmoji: (value: string) => value === '🙂'
 }))
@@ -161,6 +166,8 @@ vi.mock('react-i18next', () => ({
 }))
 
 import { PopupHost } from '@renderer/components/PopupHost'
+import { cherryCloudErrorCodes } from '@shared/ipc/errors/cherryCloud'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 
 import UserPopup from '../UserPopup'
 
@@ -278,14 +285,30 @@ describe('UserPopup', () => {
     })
     showUserPopup()
 
-    const loginButton = await screen.findByRole('button', { name: 'settings.provider.oauth.button' })
+    const loginButton = await screen.findByRole('button', { name: 'settings.provider.cherry_cloud.login' })
     await user.click(loginButton)
 
     expect(mocks.ipcRequest).toHaveBeenCalledWith('cherry_cloud.login.start')
-    expect(screen.getByRole('button', { name: 'settings.provider.codex.signing_in' })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: 'settings.provider.cherry_cloud.signing_in' })).toHaveAttribute(
       'aria-busy',
       'true'
     )
+  })
+
+  it('reports when the Cherry Cloud login service is unavailable', async () => {
+    const user = userEvent.setup()
+    mocks.ipcRequest.mockImplementation(async (route: string) => {
+      if (route === 'cherry_cloud.status.get') return { phase: 'signed-out', displayName: null }
+      if (route === 'cherry_cloud.login.start') {
+        throw new IpcError(cherryCloudErrorCodes.LOGIN_SERVICE_UNAVAILABLE)
+      }
+      return undefined
+    })
+    showUserPopup()
+
+    await user.click(await screen.findByRole('button', { name: 'settings.provider.cherry_cloud.login' }))
+
+    expect(mocks.toastError).toHaveBeenCalledWith('error.http.503')
   })
 
   it('shows the persisted Cherry Studio account and responds to login status events', async () => {
@@ -295,12 +318,12 @@ describe('UserPopup', () => {
     showUserPopup()
 
     expect(await screen.findByRole('status')).toHaveTextContent('Sora')
-    expect(screen.getByRole('status')).toHaveTextContent('settings.provider.oauth.logged_in')
-    expect(screen.queryByRole('button', { name: 'settings.provider.oauth.button' })).not.toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('settings.provider.cherry_cloud.logged_in')
+    expect(screen.queryByRole('button', { name: 'settings.provider.cherry_cloud.login' })).not.toBeInTheDocument()
 
     act(() => {
       mocks.statusListener?.({ phase: 'signed-out', displayName: null })
     })
-    expect(await screen.findByRole('button', { name: 'settings.provider.oauth.button' })).toBeEnabled()
+    expect(await screen.findByRole('button', { name: 'settings.provider.cherry_cloud.login' })).toBeEnabled()
   })
 })

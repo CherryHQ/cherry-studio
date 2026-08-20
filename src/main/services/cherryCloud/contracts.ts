@@ -3,11 +3,19 @@ import * as z from 'zod'
 const base64Url32BytesSchema = z.string().regex(/^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/)
 const utcDateTimeSchema = z.iso.datetime()
 
+function isSecureOrLoopbackUrl(value: string): boolean {
+  const url = new URL(value)
+  if (url.username || url.password) return false
+  if (url.protocol === 'https:') return true
+  return (
+    url.protocol === 'http:' &&
+    (url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '[::1]')
+  )
+}
+
 export const createDesktopAuthorizationResponseSchema = z.strictObject({
   authorization_id: z.uuid(),
-  authorization_url: z
-    .url()
-    .refine((value) => new URL(value).protocol === 'https:', 'Authorization URL must use HTTPS'),
+  authorization_url: z.url().refine(isSecureOrLoopbackUrl, 'Authorization URL must use HTTPS or loopback HTTP'),
   expires_at: utcDateTimeSchema
 })
 

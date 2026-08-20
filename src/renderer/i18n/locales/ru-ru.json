@@ -6416,6 +6416,12 @@
       "check": "Проверить",
       "check_all_keys": "Проверить все ключи",
       "check_multiple_keys": "Проверить несколько ключей API",
+      "cherry_cloud": {
+        "logged_in": "Вход выполнен",
+        "login": "Войти с аккаунтом Cherry Studio",
+        "sign_in_failed": "Не удалось войти. Повторите попытку.",
+        "signing_in": "Ожидание авторизации в браузере…"
+      },
       "cherryin": {
         "api_host": {
           "acceleration": "Домен ускорения",

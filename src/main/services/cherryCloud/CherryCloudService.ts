@@ -49,6 +49,13 @@ function accessExpiresAt(expiresIn: number): string {
   return new Date(Date.now() + expiresIn * 1000).toISOString()
 }
 
+export class CherryCloudLoginUnavailableError extends Error {
+  constructor() {
+    super('Cherry Cloud login service is unavailable')
+    this.name = 'CherryCloudLoginUnavailableError'
+  }
+}
+
 @Injectable('CherryCloudService')
 @ServicePhase(Phase.WhenReady)
 export class CherryCloudService extends BaseService {
@@ -278,11 +285,24 @@ export class CherryCloudService extends BaseService {
   }
 
   private async postJson<T>(path: string, body: unknown, schema: ZodType<T>): Promise<T> {
-    const response = await net.fetch(`${resolveApiOrigin()}${path}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    })
+    let response: Response
+    try {
+      response = await net.fetch(`${resolveApiOrigin()}${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      })
+    } catch (error) {
+      logger.warn('Cherry Cloud login request could not reach the service', {
+        path,
+        reason: error instanceof Error ? error.message : String(error)
+      })
+      throw new CherryCloudLoginUnavailableError()
+    }
+    if (response.status === 404 || response.status >= 500) {
+      logger.warn('Cherry Cloud login service returned an unavailable response', { path, status: response.status })
+      throw new CherryCloudLoginUnavailableError()
+    }
     if (!response.ok) {
       throw new Error(`Cherry Cloud login request failed (${response.status})`)
     }
