@@ -84,6 +84,14 @@ function exchangeResponse() {
   }
 }
 
+function authorizationResponse() {
+  return {
+    authorization_id: authorizationId,
+    authorization_url: `https://cloud.example.invalid/desktop/authorize?authorization_id=${authorizationId}`,
+    expires_at: '2030-01-02T03:14:05Z'
+  }
+}
+
 describe('CherryCloudService', () => {
   beforeEach(() => {
     CherryCloudService.resetInstances()
@@ -94,16 +102,7 @@ describe('CherryCloudService', () => {
 
   it('creates a desktop authorization, exchanges its callback, and restores the signed-in account', async () => {
     mocks.netFetch
-      .mockResolvedValueOnce(
-        jsonResponse(
-          {
-            authorization_id: authorizationId,
-            authorization_url: `https://cloud.example.invalid/desktop/authorize?authorization_id=${authorizationId}`,
-            expires_at: '2030-01-02T03:14:05Z'
-          },
-          201
-        )
-      )
+      .mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
       .mockResolvedValueOnce(jsonResponse(exchangeResponse()))
 
     const service = new CherryCloudService()
@@ -149,16 +148,7 @@ describe('CherryCloudService', () => {
   })
 
   it('clears a matching pending authorization when the user denies access', async () => {
-    mocks.netFetch.mockResolvedValueOnce(
-      jsonResponse(
-        {
-          authorization_id: authorizationId,
-          authorization_url: `https://cloud.example.invalid/desktop/authorize?authorization_id=${authorizationId}`,
-          expires_at: '2030-01-02T03:14:05Z'
-        },
-        201
-      )
-    )
+    mocks.netFetch.mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
     const service = new CherryCloudService()
     await service._doInit()
     await service.startLogin()
@@ -176,5 +166,65 @@ describe('CherryCloudService', () => {
       phase: 'signed-out',
       displayName: null
     })
+  })
+
+  it('coalesces concurrent login starts into one authorization and browser launch', async () => {
+    mocks.netFetch.mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
+    const service = new CherryCloudService()
+    await service._doInit()
+
+    await expect(Promise.all([service.startLogin(), service.startLogin()])).resolves.toEqual([
+      { phase: 'authorizing', displayName: null },
+      { phase: 'authorizing', displayName: null }
+    ])
+
+    expect(mocks.netFetch).toHaveBeenCalledTimes(1)
+    expect(mocks.openExternal).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not let an invalid callback block the matching callback exchange', async () => {
+    mocks.netFetch
+      .mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
+      .mockResolvedValueOnce(jsonResponse(exchangeResponse()))
+    const service = new CherryCloudService()
+    await service._doInit()
+    await service.startLogin()
+    const createBody = JSON.parse(mocks.netFetch.mock.calls[0][1].body as string)
+
+    const invalidCallback = service.handleCallback(
+      new URL(
+        `cherrystudio://cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=wrong-state`
+      )
+    )
+    const validCallback = service.handleCallback(
+      new URL(
+        `cherrystudio://cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
+      )
+    )
+
+    await expect(invalidCallback).rejects.toThrow('does not match')
+    await expect(validCallback).resolves.toBeUndefined()
+    expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+  })
+
+  it('clears a matching malformed callback so login can be started again', async () => {
+    mocks.netFetch
+      .mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
+      .mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
+    const service = new CherryCloudService()
+    await service._doInit()
+    await service.startLogin()
+    const createBody = JSON.parse(mocks.netFetch.mock.calls[0][1].body as string)
+
+    await expect(
+      service.handleCallback(
+        new URL(`cherrystudio://cloud-auth/callback?authorization_id=${authorizationId}&state=${createBody.state}`)
+      )
+    ).rejects.toThrow('missing the handoff code')
+    expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
+
+    await expect(service.startLogin()).resolves.toEqual({ phase: 'authorizing', displayName: null })
+    expect(mocks.netFetch).toHaveBeenCalledTimes(2)
+    expect(mocks.openExternal).toHaveBeenCalledTimes(2)
   })
 })

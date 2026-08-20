@@ -53,7 +53,12 @@ function accessExpiresAt(expiresIn: number): string {
 @ServicePhase(Phase.WhenReady)
 export class CherryCloudService extends BaseService {
   private storedState: StoredCherryCloudState = structuredClone(EMPTY_STORED_CHERRY_CLOUD_STATE)
-  private exchangePromise: Promise<void> | null = null
+  private loginPromise: Promise<CherryCloudStatus> | null = null
+  private exchangePromise: {
+    authorizationId: string
+    state: string
+    promise: Promise<void>
+  } | null = null
 
   protected async onInit(): Promise<void> {
     await this.restoreState()
@@ -65,6 +70,16 @@ export class CherryCloudService extends BaseService {
   }
 
   public async startLogin(): Promise<CherryCloudStatus> {
+    if (this.loginPromise) return this.loginPromise
+
+    const login = this.createLogin().finally(() => {
+      if (this.loginPromise === login) this.loginPromise = null
+    })
+    this.loginPromise = login
+    return login
+  }
+
+  private async createLogin(): Promise<CherryCloudStatus> {
     const current = await this.getStatus()
     if (current.phase !== 'signed-out') return current
     this.assertEncryptionAvailable()
@@ -114,34 +129,48 @@ export class CherryCloudService extends BaseService {
       throw new Error('Invalid Cherry Cloud callback')
     }
 
-    if (this.exchangePromise) return this.exchangePromise
-    const exchange = this.exchangeCallback(url).finally(() => {
-      this.exchangePromise = null
-    })
-    this.exchangePromise = exchange
-    return exchange
-  }
-
-  private async exchangeCallback(url: URL): Promise<void> {
-    await this.pruneExpiredState()
     const pending = this.storedState.pending
     const authorizationId = url.searchParams.get('authorization_id')
     const callbackState = url.searchParams.get('state')
-
     if (!pending || authorizationId !== pending.authorizationId || callbackState !== pending.state) {
       throw new Error('Cherry Cloud callback does not match an active authorization')
     }
 
+    if (Date.parse(pending.expiresAt) <= Date.now()) {
+      await this.clearPendingAuthorization(pending)
+      throw new Error('Cherry Cloud authorization has expired')
+    }
+
     if (url.searchParams.has('error')) {
-      this.storedState.pending = null
-      await this.persistState()
-      this.emitStatus()
+      await this.clearPendingAuthorization(pending)
       return
     }
 
     const handoffCode = url.searchParams.get('handoff_code')
-    if (!handoffCode) throw new Error('Cherry Cloud callback is missing the handoff code')
+    if (!handoffCode) {
+      await this.clearPendingAuthorization(pending)
+      throw new Error('Cherry Cloud callback is missing the handoff code')
+    }
 
+    if (
+      this.exchangePromise?.authorizationId === pending.authorizationId &&
+      this.exchangePromise.state === pending.state
+    ) {
+      return this.exchangePromise.promise
+    }
+
+    const exchange = this.exchangeCallback(pending, handoffCode).finally(() => {
+      if (this.exchangePromise?.promise === exchange) this.exchangePromise = null
+    })
+    this.exchangePromise = {
+      authorizationId: pending.authorizationId,
+      state: pending.state,
+      promise: exchange
+    }
+    return exchange
+  }
+
+  private async exchangeCallback(pending: NonNullable<StoredCherryCloudState['pending']>, handoffCode: string) {
     try {
       const exchanged = await this.postJson(
         `/api/v1/desktop/authorizations/${encodeURIComponent(pending.authorizationId)}/exchange`,
@@ -171,11 +200,18 @@ export class CherryCloudService extends BaseService {
       await this.persistState()
       this.emitStatus()
     } catch (error) {
-      this.storedState.pending = null
-      await this.persistState()
-      this.emitStatus()
+      await this.clearPendingAuthorization(pending)
       throw error
     }
+  }
+
+  private async clearPendingAuthorization(pending: NonNullable<StoredCherryCloudState['pending']>): Promise<void> {
+    const current = this.storedState.pending
+    if (!current || current.authorizationId !== pending.authorizationId || current.state !== pending.state) return
+
+    this.storedState = { ...this.storedState, pending: null }
+    await this.persistState()
+    this.emitStatus()
   }
 
   private currentStatus(): CherryCloudStatus {
