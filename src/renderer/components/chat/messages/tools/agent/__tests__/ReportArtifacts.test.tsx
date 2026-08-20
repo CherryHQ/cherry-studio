@@ -1,3 +1,4 @@
+import type * as CherryStudioUi from '@cherrystudio/ui'
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import { setInlineFilePathHomePath } from '@renderer/utils/filePath'
 import type { ExternalOpenTarget } from '@shared/types/externalApp'
@@ -9,6 +10,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MessageListProvider } from '../../../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListProviderValue } from '../../../types'
 import { MessageReportArtifacts } from '../ReportArtifacts'
+
+// The global UI mock does not implement DropdownMenuTrigger's asChild contract,
+// so use the real menu primitives for these interaction tests.
+vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
 
 const { externalOpenTargets, mockOpenTarget, mockUseExternalOpenTargets } = vi.hoisted(() => {
   const targets = [
