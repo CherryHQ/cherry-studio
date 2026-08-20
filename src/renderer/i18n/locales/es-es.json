@@ -423,8 +423,7 @@
           "bypassPermissions": {
             "description": "Omite las comprobaciones de permisos. Puede eliminar archivos y usar la red.",
             "title": "Acceso completo",
-            "warning": "Usar con precaución: todas las herramientas se ejecutarán sin pedir aprobación.",
-            "warning_pi": "Peligroso: nunca se pide permiso, salvo para herramientas deshabilitadas, incluidas la eliminación de archivos y el acceso a la red."
+            "warning": "Usar con precaución: todas las herramientas se ejecutarán sin pedir aprobación."
           },
           "default": {
             "description": "Pregunta antes de editar archivos o ejecutar comandos.",
@@ -3001,7 +3000,7 @@
       "empty_title": "Buscar habilidades",
       "github_empty_description": "Pega un enlace al archivo SKILL.md de una habilidad, por ejemplo github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
       "github_empty_title": "Instalar desde GitHub",
-      "github_url_invalid": "Pega un enlace de GitHub que termine con SKILL.md",
+      "github_url_invalid": "Pega un enlace de GitHub compatible que apunte directamente a un archivo SKILL.md",
       "github_url_label": "URL del SKILL.md en GitHub",
       "github_url_placeholder": "Enlace de GitHub que termina en /SKILL.md",
       "no_results_description": "Prueba otra palabra clave o importa un archivo ZIP local o una carpeta.",

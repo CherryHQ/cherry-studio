@@ -63,15 +63,18 @@ function installProcessErrorHandlers(): void {
  * Register the `web-contents-created` handler that hardens every new
  * webContents with:
  *
- *   1. A `Document-Policy: include-js-call-stacks-in-crash-reports`
+ *   1. Response header filtering for values that Electron's `net.fetch`
+ *      cannot convert to Web `Headers` without throwing.
+ *
+ *   2. A `Document-Policy: include-js-call-stacks-in-crash-reports`
  *      response header. This opts the document into the Chromium feature
  *      `DocumentPolicyIncludeJSCallStacksInCrashReports` that is enabled
  *      unconditionally in `preboot/chromiumFlags.ts`. Both halves
  *      (the feature flag and this header) are required — without the
  *      header, the feature flag alone has no effect.
  *
- *   2. An `unresponsive` listener that collects a JavaScript call stack
- *      from the stuck renderer (enabled by #1) and logs it. This is the
+ *   3. An `unresponsive` listener that collects a JavaScript call stack
+ *      from the stuck renderer (enabled by #2) and logs it. This is the
  *      primary diagnostic signal for "the UI froze" bug reports.
  */
 function hardenWebContents(): void {
@@ -85,7 +88,7 @@ function hardenWebContents(): void {
     webContents.session.webRequest.onHeadersReceived((details, callback) => {
       callback({
         responseHeaders: {
-          ...details.responseHeaders,
+          ...filterByteStringResponseHeaders(details.responseHeaders),
           'Document-Policy': ['include-js-call-stacks-in-crash-reports']
         }
       })
@@ -97,4 +100,23 @@ function hardenWebContents(): void {
       logger.error(`Renderer unresponsive js call stack\n ${callStack}`)
     })
   })
+}
+
+function filterByteStringResponseHeaders(headers: Record<string, string[]> | undefined): Record<string, string[]> {
+  const filteredHeaders: Record<string, string[]> = {}
+
+  for (const [name, values] of Object.entries(headers ?? {})) {
+    const compatibleValues = values.filter((value) => {
+      for (let index = 0; index < value.length; index++) {
+        if (value.charCodeAt(index) > 0xff) return false
+      }
+      return true
+    })
+
+    if (compatibleValues.length > 0) {
+      filteredHeaders[name] = compatibleValues
+    }
+  }
+
+  return filteredHeaders
 }

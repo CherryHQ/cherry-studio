@@ -423,8 +423,7 @@
           "bypassPermissions": {
             "description": "Omite verificările de permisiuni. Poate șterge fișiere și utiliza rețeaua.",
             "title": "Acces complet",
-            "warning": "Folosește cu precauție — toate instrumentele vor rula fără a cere aprobare.",
-            "warning_pi": "Periculos — nu se cere confirmare pentru nicio acțiune, cu excepția instrumentelor dezactivate, inclusiv ștergerea fișierelor și accesul la rețea."
+            "warning": "Folosește cu precauție — toate instrumentele vor rula fără a cere aprobare."
           },
           "default": {
             "description": "Întreabă înainte de a edita fișiere sau de a rula comenzi.",
@@ -3001,7 +3000,7 @@
       "empty_title": "Caută abilități",
       "github_empty_description": "Lipește un link către fișierul SKILL.md al unei abilități, de exemplu github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
       "github_empty_title": "Instalează de pe GitHub",
-      "github_url_invalid": "Lipește un link GitHub care se termină cu SKILL.md",
+      "github_url_invalid": "Lipește un link GitHub acceptat care indică direct către un fișier SKILL.md",
       "github_url_label": "URL SKILL.md GitHub",
       "github_url_placeholder": "Link GitHub care se termină cu /SKILL.md",
       "no_results_description": "Încearcă un alt cuvânt cheie sau importă un fișier ZIP sau director local.",

@@ -423,8 +423,7 @@
           "bypassPermissions": {
             "description": "Ignora as verificações de permissões. Pode eliminar ficheiros e usar a rede.",
             "title": "Acesso total",
-            "warning": "Utilize com cautela: todas as ferramentas serão executadas sem pedir aprovação.",
-            "warning_pi": "Perigoso — não é pedida confirmação para nada, exceto para ferramentas desativadas, incluindo eliminação de ficheiros e acesso à rede."
+            "warning": "Utilize com cautela: todas as ferramentas serão executadas sem pedir aprovação."
           },
           "default": {
             "description": "Pergunta antes de editar ficheiros ou executar comandos.",
@@ -3001,7 +3000,7 @@
       "empty_title": "Pesquisar competências",
       "github_empty_description": "Cole a ligação para um ficheiro SKILL.md de uma skill, por exemplo github.com/proprietário/repositório/blob/main/skills/minha-skill/SKILL.md",
       "github_empty_title": "Instalar do GitHub",
-      "github_url_invalid": "Cole uma ligação do GitHub que termine com SKILL.md",
+      "github_url_invalid": "Cole uma ligação do GitHub suportada que aponte diretamente para um ficheiro SKILL.md",
       "github_url_label": "URL GitHub SKILL.md",
       "github_url_placeholder": "Ligação GitHub que termina em /SKILL.md",
       "no_results_description": "Experimente outra palavra-chave ou importe um ficheiro ZIP local ou uma pasta.",

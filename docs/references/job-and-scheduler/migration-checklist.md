@@ -1,6 +1,12 @@
+---
+description: Per-handler checklist for migrating existing background services to JobManager — recovery, queues, tests, data moves
+sources:
+  - src/main/core/job
+---
+
 # Migration Checklist
 
-Use this checklist when migrating an existing service (KnowledgeRuntime / FileProcessing / agent task / heartbeat) to the unified JobManager. Each migration is a separate project — this doc is the per-handler discipline applied within each.
+Use this checklist when migrating an existing background-work owner to JobManager. Each migration is a separate project — this doc is the per-handler discipline applied within each.
 
 ## Per-handler
 
@@ -23,11 +29,11 @@ Use this checklist when migrating an existing service (KnowledgeRuntime / FilePr
 - [ ] Add JobRegistry type binding via TypeScript declaration merging
 - [ ] Register handler in the owning service's `onInit`
 
-## Data migration (per business)
+## Persisted-data migration (only when existing rows must move)
 
 - [ ] Map existing rows → `jobTable` / `jobScheduleTable` rows
-- [ ] Run migration via `v2-refactor-temp/tools/data-classify` flow
-- [ ] Update v2 migrators in `src/main/data/migration/v2/migrators/` for clean-restart safety
+- [ ] If the SQLite schema changes, update `src/main/data/db/schemas/` and append a generated migration with `pnpm db:migrations:generate`
+- [ ] If v1 source data must enter v2, update the owning migrator under `src/main/data/migration/v2/migrators/`; do not add a runtime v1 fallback
 - [ ] Add a `v2-refactor-temp/docs/breaking-changes/` entry if user-visible behavior changes (e.g., agent task: per-attempt log → single row per enqueue)
 - [ ] Delete or thin-facade the legacy service (keep IPC entry points; redirect to JobManager)
 
@@ -41,8 +47,7 @@ Use this checklist when migrating an existing service (KnowledgeRuntime / FilePr
 
 ## Cross-cutting verification (each phase)
 
-- [ ] `pnpm lint` + `pnpm test` + `pnpm format` clean
-- [ ] DataApi paths (if added) registered in `paths.ts` / `types.ts`
+- [ ] `pnpm lint` and the focused JobManager/owning-domain tests pass; use full `pnpm test` only when the affected surface is broad
+- [ ] DataApi read models (if added) are declared in the owning `src/shared/data/api/schemas/<domain>.ts` file and implemented in the main handler map; `paths.ts` / `types.ts` derive their unions
 - [ ] cacheSchemas entries (if any new cache keys) registered
-- [ ] No commits to legacy services unless they're being deleted/refactored
 - [ ] Migration summary added to PR description (what migrated, what stayed)

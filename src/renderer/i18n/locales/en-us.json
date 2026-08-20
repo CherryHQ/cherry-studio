@@ -423,8 +423,7 @@
           "bypassPermissions": {
             "description": "Skips permission checks. Can delete files and use the network.",
             "title": "Full Access",
-            "warning": "Use with caution — most tools run without approval; explicit safety blocks still apply.",
-            "warning_pi": "Dangerous — nothing is ever asked except for disabled tools, including file deletion and network access."
+            "warning": "Use with caution — most tools run without approval; explicit safety blocks still apply."
           },
           "default": {
             "description": "Asks before editing files or running commands.",
@@ -3001,7 +3000,7 @@
       "empty_title": "Search for skills",
       "github_empty_description": "Paste a link to a skill's SKILL.md file, for example github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
       "github_empty_title": "Install from GitHub",
-      "github_url_invalid": "Paste a GitHub link that ends with SKILL.md",
+      "github_url_invalid": "Paste a supported GitHub link directly to a SKILL.md file",
       "github_url_label": "GitHub SKILL.md URL",
       "github_url_placeholder": "GitHub link ending in /SKILL.md",
       "no_results_description": "Try another keyword or import a local ZIP or directory.",

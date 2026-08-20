@@ -423,8 +423,7 @@
           "bypassPermissions": {
             "description": "権限チェックをスキップします。ファイルの削除やネットワークの使用が可能です。",
             "title": "フルアクセス",
-            "warning": "注意して使用してください — すべてのツールは承認なしで実行されます。",
-            "warning_pi": "危険 — 無効化されたツールを除き、ファイルの削除やネットワークアクセスを含むすべての操作で確認は行われません。"
+            "warning": "注意して使用してください — すべてのツールは承認なしで実行されます。"
           },
           "default": {
             "description": "ファイルの編集やコマンドの実行前に確認します。",
@@ -3001,7 +3000,7 @@
       "empty_title": "スキルを検索",
       "github_empty_description": "SKILL.mdファイルへのリンクを貼り付けてください。例: github.com/owner/repo/blob/main/skills/my-skill/SKILL.md",
       "github_empty_title": "GitHubからインストール",
-      "github_url_invalid": "SKILL.mdで終わるGitHubリンクを貼り付けてください",
+      "github_url_invalid": "SKILL.md ファイルを直接指す対応済みの GitHub リンクを貼り付けてください",
       "github_url_label": "GitHub SKILL.md URL",
       "github_url_placeholder": "/SKILL.mdで終わるGitHubリンク",
       "no_results_description": "別のキーワードを試すか、ローカルのZIPファイルまたはフォルダーをインポートしてください。",

@@ -1,6 +1,6 @@
 import { application } from '@application'
-import type { SpanEntity } from '@mcp-trace/trace-core/types/config'
 import type { TimedEvent } from '@opentelemetry/sdk-trace-base'
+import type { SpanEntity } from '@shared/data/types/trace'
 
 import type { ObservabilitySink } from '../sinks/ObservabilitySink'
 
