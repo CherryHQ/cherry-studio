@@ -188,6 +188,7 @@
         "title": "暂不支持在此打开 {{extension}} 文件"
       },
       "preview": "预览",
+      "quote_selection": "引用选区",
       "refresh": "刷新",
       "search_placeholder": "搜索文件",
       "too_large": {

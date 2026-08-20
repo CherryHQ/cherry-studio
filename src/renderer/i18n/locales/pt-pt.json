@@ -188,6 +188,7 @@
         "title": "Abrir ficheiros {{extension}} aqui ainda não é suportado"
       },
       "preview": "Pré-visualização",
+      "quote_selection": "Citar seleção",
       "refresh": "Atualizar",
       "search_placeholder": "Pesquisar ficheiros...",
       "too_large": {
