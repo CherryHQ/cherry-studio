@@ -57,7 +57,7 @@ const QuickAssistantSettings: FC = () => {
   const { defaultModel } = useDefaultModel()
   const navigate = useNavigate()
   const [assistantSelectOpen, setAssistantSelectOpen] = useState(false)
-  const modeTitleId = useId()
+  const usageMethodTitleId = useId()
   const configurationTitleId = useId()
 
   const assistantOptions = assistants
@@ -141,17 +141,14 @@ const QuickAssistantSettings: FC = () => {
       </SettingGroup>
       {enableQuickAssistant && (
         <SettingGroup theme={theme}>
-          <SettingRow role="group" aria-labelledby={modeTitleId} className="min-h-8.5 gap-3">
-            <SettingRowTitle id={modeTitleId} className="gap-2.5">
-              {t('settings.models.quick_assistant_mode')}
-              <InfoTooltip
-                content={t('selection.settings.user_modal.model.tooltip')}
-                showArrow
-                iconProps={{ className: 'cursor-pointer' }}
-              />
+          <SettingTitle>{t('settings.models.quick_assistant_response_settings')}</SettingTitle>
+          <SettingDivider />
+          <SettingRow role="group" aria-labelledby={usageMethodTitleId} className="min-h-8.5 gap-3">
+            <SettingRowTitle id={usageMethodTitleId}>
+              {t('settings.models.quick_assistant_usage_method')}
             </SettingRowTitle>
             <SegmentedControl<'assistant' | 'model'>
-              aria-label={t('settings.models.quick_assistant_mode')}
+              aria-label={t('settings.models.quick_assistant_usage_method')}
               size="sm"
               value={isAssistantMode ? 'assistant' : 'model'}
               options={[
@@ -167,11 +164,18 @@ const QuickAssistantSettings: FC = () => {
           </SettingRow>
           <SettingDivider />
           <SettingRow role="group" aria-labelledby={configurationTitleId} className="min-h-8.5 flex-nowrap gap-3">
-            <SettingRowTitle id={configurationTitleId}>
+            <SettingRowTitle id={configurationTitleId} className={isAssistantMode ? 'gap-2.5' : undefined}>
               {t(
                 isAssistantMode
                   ? 'settings.models.quick_assistant_selection'
                   : 'settings.models.default_assistant_model'
+              )}
+              {isAssistantMode && (
+                <InfoTooltip
+                  content={t('selection.settings.user_modal.model.tooltip')}
+                  showArrow
+                  iconProps={{ className: 'cursor-pointer' }}
+                />
               )}
             </SettingRowTitle>
             {isAssistantMode ? (

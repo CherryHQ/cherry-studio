@@ -6213,9 +6213,10 @@
       "provider_key_confirm_title": "Thêm khóa API cho {{provider}}",
       "provider_name": "Tên nhà cung cấp",
       "quick_assistant_default_tag": "Mặc định",
-      "quick_assistant_mode": "Chế độ Trợ lý Nhanh",
       "quick_assistant_model": "Mô hình Trợ lý Nhanh",
+      "quick_assistant_response_settings": "Cài đặt phản hồi",
       "quick_assistant_selection": "Chọn Trợ lý",
+      "quick_assistant_usage_method": "Phương thức sử dụng",
       "quick_model": {
         "description": "Mô hình được sử dụng cho các tác vụ đơn giản như đặt tên chủ đề và trích xuất từ khóa",
         "label": "Mô hình Nhanh",

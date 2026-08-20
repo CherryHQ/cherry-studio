@@ -6213,9 +6213,10 @@
       "provider_key_confirm_title": "Agregar clave API para {{provider}}",
       "provider_name": "Nombre del proveedor",
       "quick_assistant_default_tag": "Predeterminado",
-      "quick_assistant_mode": "Modo del asistente rápido",
       "quick_assistant_model": "Modelo del asistente rápido",
+      "quick_assistant_response_settings": "Configuración de respuesta",
       "quick_assistant_selection": "Seleccionar asistente",
+      "quick_assistant_usage_method": "Método de uso",
       "quick_model": {
         "description": "El modelo rápido es utilizado para realizar tareas sencillas como nombrar temas, extraer palabras clave de búsqueda, etc.",
         "label": "Modelo rápido",

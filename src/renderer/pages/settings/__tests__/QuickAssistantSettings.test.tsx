@@ -52,7 +52,8 @@ vi.mock('@cherrystudio/ui', async () => {
       React.createElement('button', { onClick: onSelect, type: 'button' }, children),
     CommandList: passthrough('div'),
     Divider: passthrough('hr'),
-    InfoTooltip: () => null,
+    InfoTooltip: ({ content }: { content: string }) =>
+      React.createElement('button', { 'aria-label': content, type: 'button' }),
     Popover: ({
       children,
       open,
@@ -163,12 +164,20 @@ describe('QuickAssistantSettings', () => {
 
     render(<QuickAssistantSettings />)
 
-    const modeRow = screen.getByRole('group', { name: 'settings.models.quick_assistant_mode' })
+    expect(screen.getByText('settings.models.quick_assistant_response_settings')).toBeInTheDocument()
+
+    const modeRow = screen.getByRole('group', { name: 'settings.models.quick_assistant_usage_method' })
     const modelRow = screen.getByRole('group', { name: 'settings.models.default_assistant_model' })
 
     expect(within(modeRow).getByRole('radiogroup')).toBeInTheDocument()
+    expect(
+      within(modeRow).queryByRole('button', { name: 'selection.settings.user_modal.model.tooltip' })
+    ).not.toBeInTheDocument()
     expect(modeRow).not.toHaveTextContent('GPT-4o')
     expect(within(modelRow).getByText('GPT-4o')).toBeInTheDocument()
+    expect(
+      within(modelRow).queryByRole('button', { name: 'selection.settings.user_modal.model.tooltip' })
+    ).not.toBeInTheDocument()
 
     await user.click(within(modelRow).getByRole('button', { name: 'navigate.model_settings' }))
 
@@ -181,10 +190,16 @@ describe('QuickAssistantSettings', () => {
 
     render(<QuickAssistantSettings />)
 
-    const modeRow = screen.getByRole('group', { name: 'settings.models.quick_assistant_mode' })
+    const modeRow = screen.getByRole('group', { name: 'settings.models.quick_assistant_usage_method' })
     const assistantRow = screen.getByRole('group', { name: 'settings.models.quick_assistant_selection' })
 
     expect(within(modeRow).getByRole('radiogroup')).toBeInTheDocument()
+    expect(
+      within(modeRow).queryByRole('button', { name: 'selection.settings.user_modal.model.tooltip' })
+    ).not.toBeInTheDocument()
+    expect(
+      within(assistantRow).getByRole('button', { name: 'selection.settings.user_modal.model.tooltip' })
+    ).toBeInTheDocument()
     expect(within(assistantRow).getByRole('button', { expanded: false })).toHaveTextContent('Assistant 1')
     expect(screen.queryByRole('button', { name: 'navigate.model_settings' })).not.toBeInTheDocument()
   })

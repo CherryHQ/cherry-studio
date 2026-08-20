@@ -6213,9 +6213,10 @@
       "provider_key_confirm_title": "API-Schlüssel für {{provider}} hinzufügen",
       "provider_name": "Anbietername",
       "quick_assistant_default_tag": "Standard",
-      "quick_assistant_mode": "Schnellassistent-Modus",
       "quick_assistant_model": "Schnellassistent-Modell",
+      "quick_assistant_response_settings": "Antworteinstellungen",
       "quick_assistant_selection": "Assistent auswählen",
+      "quick_assistant_usage_method": "Verwendungsart",
       "quick_model": {
         "description": "Modell für einfache Aufgaben wie Themenbenennung und Keyword-Extraktion",
         "label": "Schnellmodell",

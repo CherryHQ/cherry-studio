@@ -6213,9 +6213,10 @@
       "provider_key_confirm_title": "Προσθήκη κλειδιού API για τον {{provider}}",
       "provider_name": "Όνομα Παρόχου",
       "quick_assistant_default_tag": "Προεπιλογή",
-      "quick_assistant_mode": "Λειτουργία Γρήγορου Βοηθού",
       "quick_assistant_model": "Μοντέλο Γρήγορου Βοηθού",
+      "quick_assistant_response_settings": "Ρυθμίσεις απάντησης",
       "quick_assistant_selection": "Επιλογή Βοηθού",
+      "quick_assistant_usage_method": "Τρόπος χρήσης",
       "quick_model": {
         "description": "Το μοντέλο που χρησιμοποιείται για απλές εργασίες, όπως η ονομασία θεμάτων και η εξαγωγή λέξεων-κλειδιών αναζήτησης",
         "label": "Γρήγορο μοντέλο",
