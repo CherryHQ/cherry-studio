@@ -3,6 +3,7 @@
 import { readFileSync as e } from 'node:fs'
 import t from 'node:path'
 import { fileURLToPath as n } from 'node:url'
+import 'semver'
 Object.freeze({ status: `aborted` })
 function r(e, t, n) {
   function r(n, r) {
@@ -3148,7 +3149,10 @@ const fo = G({
           ])
         ),
         maxInputImages: H().int().positive().optional(),
-        vendorTransport: G({ endpoint: R(), isSync: U().optional() }).optional(),
+        vendorTransport: G({
+          endpoint: R().regex(/^\/(?!\/)/, `vendor transport endpoint must be a root-relative path, not a URL`),
+          isSync: U().optional()
+        }).optional(),
         requirePrompt: U().optional()
       })
     )
@@ -3287,7 +3291,7 @@ const Eo = J(Z(X)),
     verbosity: U().default(!1),
     reportsActualCost: U().default(!1)
   }),
-  ko = J([`openai-priority`, `claude-code`]),
+  ko = J([`openai-priority`, `claude-code`, `ark-fast`]),
   Ao = G({
     id: J(Z(Ka)),
     modelScope: J(Z(qa)).default(qa.MODEL_DEPENDENT),
@@ -3387,7 +3391,13 @@ const Mo = G({
   zo = `anthropic|amazon|meta|google|mistralai|cohere|openai|ai21|microsoft|nvidia`
 ;`${zo}`, `${zo}`
 const Bo = [`models.json`, `providers.json`, `provider-models.json`]
-G({ releaseFloor: R().min(1), schemaVersion: H().int(), files: va(R(), R()) })
+G({
+  minAppVersion: R().min(1),
+  sourceAppVersion: R().min(1),
+  revision: H().int().nonnegative(),
+  schemaVersion: H().int(),
+  files: va(R(), R())
+})
 const Vo = { 'models.json': go, 'providers.json': Po, 'provider-models.json': Ro },
   Ho = 1
 function Uo(e) {
