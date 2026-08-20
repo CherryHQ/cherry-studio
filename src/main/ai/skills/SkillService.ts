@@ -551,7 +551,7 @@ export class SkillService {
     repoUrl: string,
     refAndDirectory: string[]
   ): Promise<{ ref: string; oid: string; directoryPath: string }> {
-    const gitCommand = (await findExecutableInEnv('git')) ?? 'git'
+    const gitCommand = await this.resolveGitCommand()
     const output = await this.runGit(gitCommand, ['ls-remote', '--heads', '--tags', '--', repoUrl])
     const refs = output.split('\n').flatMap((line) => {
       const [oid, fullName] = line.split('\t').map((part) => part.trim())
@@ -590,7 +590,7 @@ export class SkillService {
    * hardened env keeps it from hanging on a credential prompt or smudging LFS payloads.
    */
   private async fetchCommit(repoUrl: string, oid: string, directoryPath: string, destDir: string): Promise<void> {
-    const gitCommand = (await findExecutableInEnv('git')) ?? 'git'
+    const gitCommand = await this.resolveGitCommand()
     const git = (args: string[]) => this.runGit(gitCommand, ['-C', destDir, ...args])
 
     await fs.promises.mkdir(destDir, { recursive: true })
@@ -656,7 +656,7 @@ export class SkillService {
    * not the ones the URL selected.
    */
   private async assertUniqueSkillPath(repoDir: string, directoryPath: string): Promise<void> {
-    const gitCommand = (await findExecutableInEnv('git')) ?? 'git'
+    const gitCommand = await this.resolveGitCommand()
     const output = await this.runGit(gitCommand, ['-C', repoDir, 'ls-tree', '-r', '--name-only', 'FETCH_HEAD'])
     const foldKey = (value: string) => value.normalize('NFC').toLowerCase()
     const wanted = foldKey(`${directoryPath}/`)
@@ -899,12 +899,24 @@ export class SkillService {
   // Git operations
   // ===========================================================================
 
+  private async resolveGitCommand(): Promise<string> {
+    const existing = await findExecutableInEnv('git')
+    if (existing) return existing
+
+    if (isWin) {
+      const bundled = await application.get('BinaryManager').ensureBundledGit()
+      if (bundled) return bundled
+    }
+
+    return 'git'
+  }
+
   /**
    * One shallow clone of whatever the remote calls its default branch — which is what a bare
    * `git clone` already checks out, so resolving the branch first only adds a second way to hang.
    */
   private async cloneRepository(repoUrl: string, destDir: string): Promise<void> {
-    const gitCommand = (await findExecutableInEnv('git')) ?? 'git'
+    const gitCommand = await this.resolveGitCommand()
     await this.runGit(gitCommand, ['clone', '--depth', '1', '--', repoUrl, destDir])
   }
 

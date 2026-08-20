@@ -8,6 +8,7 @@
   "types": "dist/index.d.cts",
   "scripts": {
     "build": "tsdown",
+    "build:runtime": "node scripts/buildRuntime.cjs",
     "clean": "rm -rf dist",
     "test": "vitest run",
     "test:watch": "vitest"

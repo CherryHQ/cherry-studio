@@ -49,6 +49,7 @@ export function buildPathRegistry() {
   const appUserDataRuntime = path.join(appUserData, 'Runtime')
   const appUserDataToolchain = path.join(appUserData, 'Toolchain')
   const appUserDataToolchainMise = path.join(appUserDataToolchain, 'mise')
+  const appUserDataToolchainDsh = path.join(appUserDataToolchain, 'dsh-runtime')
   const appSession = app.getPath('sessionData')
   const sysTemp = app.getPath('temp')
   const appTemp = path.join(sysTemp, 'CherryStudio')
@@ -159,6 +160,7 @@ export function buildPathRegistry() {
     // dsh resume tokens persist the session id, never a filesystem path.
     'feature.agents.dsh.root': path.join(appUserDataData, 'Agents', '.dsh'), // Cherry-owned dsh home (DSH_HOME) + per-connection compositions
     'feature.agents.dsh.sessions': path.join(appUserDataData, 'Agents', '.dsh', 'sessions'), // JSONL session-persistence root
+    'feature.agents.dsh.runtime': appUserDataToolchainDsh,
     'feature.agents.data': path.join(appUserDataData, 'Agents'), // per-agent identity + memory data
     'feature.agents.system_workspaces': path.join(appUserDataData, 'Agents', 'system'), // app-owned session workspaces
     'feature.agents.builtin': path.join(appRootResources, 'builtin-agents'), // bundled agent templates (read-only)

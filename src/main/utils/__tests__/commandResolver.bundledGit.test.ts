@@ -4,7 +4,7 @@ import path from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import which from 'which'
 
-import { ensureBundledGit, getBundledGitPath } from '../bundledGit'
+import { getBundledGitPath } from '../bundledGit'
 import { findExecutableInEnv } from '../commandResolver'
 import { getShellEnv } from '../shellEnv'
 
@@ -17,7 +17,6 @@ vi.mock('../shellEnv', () => ({
   getShellEnv: vi.fn()
 }))
 vi.mock('../bundledGit', () => ({
-  ensureBundledGit: vi.fn(() => Promise.resolve(null)),
   getBundledGitPath: vi.fn(() => null)
 }))
 
@@ -63,7 +62,6 @@ describe('findExecutableInEnv – bundled MinGit resolver ordering', () => {
       throw new Error('not found')
     })
     vi.mocked(getBundledGitPath).mockReturnValue(BUNDLED_GIT)
-    vi.mocked(ensureBundledGit).mockResolvedValue(BUNDLED_GIT)
   })
 
   afterEach(() => {
@@ -81,7 +79,6 @@ describe('findExecutableInEnv – bundled MinGit resolver ordering', () => {
     mockWhichCandidates([MISE_SHIM, BUNDLED_GIT])
 
     await expect(findExecutableInEnv('git')).resolves.toBe(MISE_SHIM)
-    expect(ensureBundledGit).not.toHaveBeenCalled()
   })
 
   it('prefers system git on PATH over the bundled git', async () => {
@@ -109,11 +106,10 @@ describe('findExecutableInEnv – bundled MinGit resolver ordering', () => {
     await expect(findExecutableInEnv('git')).resolves.toBe(MISE_SHIM)
   })
 
-  it('falls back to the bundled git only when every other lookup misses', async () => {
+  it('returns an already-installed bundled git only when every other lookup misses', async () => {
     mockWhichCandidates([BUNDLED_GIT])
 
     await expect(findExecutableInEnv('git')).resolves.toBe(BUNDLED_GIT)
-    expect(ensureBundledGit).toHaveBeenCalledOnce()
   })
 
   it('uses the original bundled git path when Cherry Studio is installed under a Unicode directory', async () => {
@@ -121,7 +117,6 @@ describe('findExecutableInEnv – bundled MinGit resolver ordering', () => {
     const shellEnv = { Path: `C:\\Windows;${bundledGitDir}` }
     vi.mocked(getShellEnv).mockResolvedValue(shellEnv)
     vi.mocked(getBundledGitPath).mockReturnValue(UNICODE_BUNDLED_GIT)
-    vi.mocked(ensureBundledGit).mockResolvedValue(UNICODE_BUNDLED_GIT)
     mockWhichCandidates([UNICODE_BUNDLED_GIT])
 
     await expect(findExecutableInEnv('git')).resolves.toBe(UNICODE_BUNDLED_GIT)
@@ -131,17 +126,8 @@ describe('findExecutableInEnv – bundled MinGit resolver ordering', () => {
 
   it('returns null for git when nothing is found and no bundle is present', async () => {
     vi.mocked(getBundledGitPath).mockReturnValue(null)
-    vi.mocked(ensureBundledGit).mockResolvedValue(null)
     mockWhichCandidates([])
 
     await expect(findExecutableInEnv('git')).resolves.toBeNull()
-  })
-
-  it('surfaces an on-demand MinGit recovery failure after external Git sources miss', async () => {
-    vi.mocked(getBundledGitPath).mockReturnValue(null)
-    vi.mocked(ensureBundledGit).mockRejectedValue(new Error('Bundled MinGit recovery failed: temporary AV lock'))
-    mockWhichCandidates([])
-
-    await expect(findExecutableInEnv('git')).rejects.toThrow('temporary AV lock')
   })
 })

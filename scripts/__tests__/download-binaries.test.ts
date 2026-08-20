@@ -86,14 +86,15 @@ describe('compressed artifact contract', () => {
     manifest: TestManifest,
     name: string,
     version: string,
-    outputs: string[]
+    outputs: string[],
+    compression: 'none' | 'zstd' = 'zstd'
   ): Promise<FilesArtifact> {
     const sourceDir = makeTmpDir(`dl-source-${name}-`)
     const files = outputs.map((output) => {
       const source = path.join(sourceDir, output)
       fs.mkdirSync(path.dirname(source), { recursive: true })
       fs.writeFileSync(source, `${name}:${output}\n`, 'utf8')
-      return { source, output, archive: `${output}.zst` }
+      return { source, output, archive: compression === 'none' ? output : `${output}.zst`, compression }
     })
     const artifact = await bundleFilesArtifact({ version, files, outputDir })
     manifest.artifacts[name] = artifact
@@ -118,8 +119,8 @@ describe('compressed artifact contract', () => {
         kind: 'files',
         version: '1.0.0',
         files: [
-          { archive: 'tool.zst', archiveSha256: 'a'.repeat(64) },
-          { archive: 'helper.zst', archiveSha256: 'b'.repeat(64) }
+          { archive: 'tool.zst', archiveSha256: 'a'.repeat(64), compression: 'zstd' },
+          { archive: 'helper.zst', archiveSha256: 'b'.repeat(64), compression: 'zstd' }
         ]
       })
     ).toEqual([
@@ -127,13 +128,19 @@ describe('compressed artifact contract', () => {
       { archive: 'helper.zst', sha256: 'b'.repeat(64) }
     ])
     expect(
-      artifactArchiveEntries({ kind: 'tree', version: '1.0.0', archive: 'tree.tar.zst', archiveSha256: 'c'.repeat(64) })
+      artifactArchiveEntries({
+        kind: 'tree',
+        version: '1.0.0',
+        compression: 'zstd',
+        archive: 'tree.tar.zst',
+        archiveSha256: 'c'.repeat(64)
+      })
     ).toEqual([{ archive: 'tree.tar.zst', sha256: 'c'.repeat(64) }])
   })
 
   it('round-trips file payloads and verifies their compressed checksum', async () => {
     const { outputDir, resourcesDir } = makeResourcesDir('linux-x64')
-    const manifest: TestManifest = { schemaVersion: 1, platform: 'linux', arch: 'x64', artifacts: {} }
+    const manifest: TestManifest = { schemaVersion: 2, platform: 'linux', arch: 'x64', artifacts: {} }
     const sourceDir = makeTmpDir('dl-large-source-')
     const source = path.join(sourceDir, 'mise')
     const payload = Buffer.alloc(1024 * 1024, 0x5a)
@@ -153,9 +160,31 @@ describe('compressed artifact contract', () => {
     ).resolves.toBeUndefined()
   })
 
+  it('keeps Windows single-file native payloads raw while verifying both hashes', async () => {
+    const { outputDir, resourcesDir } = makeResourcesDir('win32-x64')
+    const manifest: TestManifest = { schemaVersion: 2, platform: 'win32', arch: 'x64', artifacts: {} }
+    const sourceDir = makeTmpDir('dl-raw-source-')
+    const source = path.join(sourceDir, 'mise.exe')
+    const payload = Buffer.from('windows-native-payload')
+    fs.writeFileSync(source, payload)
+    const artifact = await bundleFilesArtifact({
+      version: '1.0.0',
+      files: [{ source, output: 'mise.exe', archive: 'mise.exe', compression: 'none' }],
+      outputDir
+    })
+    manifest.artifacts.mise = artifact
+    writeManifest(outputDir, manifest)
+
+    expect(fs.readFileSync(path.join(outputDir, 'mise.exe'))).toEqual(payload)
+    expect(artifact.files[0].archiveSha256).toBe(artifact.files[0].sha256)
+    await expect(
+      verifyBundledArtifacts('win32', 'x64', { tools: [regularTool], resourcesDir })
+    ).resolves.toBeUndefined()
+  })
+
   it('rejects a compressed payload changed after manifest generation', async () => {
     const { outputDir, resourcesDir } = makeResourcesDir('linux-x64')
-    const manifest: TestManifest = { schemaVersion: 1, platform: 'linux', arch: 'x64', artifacts: {} }
+    const manifest: TestManifest = { schemaVersion: 2, platform: 'linux', arch: 'x64', artifacts: {} }
     const artifact = await addFilesArtifact(outputDir, manifest, 'mise', '1.0.0', ['mise'])
     writeManifest(outputDir, manifest)
     fs.appendFileSync(path.join(outputDir, artifact.files[0].archive), 'corrupt')
@@ -167,7 +196,7 @@ describe('compressed artifact contract', () => {
 
   it('rejects an artifact whose manifest version is stale', async () => {
     const { outputDir, resourcesDir } = makeResourcesDir('linux-x64')
-    const manifest: TestManifest = { schemaVersion: 1, platform: 'linux', arch: 'x64', artifacts: {} }
+    const manifest: TestManifest = { schemaVersion: 2, platform: 'linux', arch: 'x64', artifacts: {} }
     await addFilesArtifact(outputDir, manifest, 'mise', '0.9.0', ['mise'])
     writeManifest(outputDir, manifest)
 
@@ -178,7 +207,7 @@ describe('compressed artifact contract', () => {
 
   it('rejects an uncompressed original left beside its payload', async () => {
     const { outputDir, resourcesDir } = makeResourcesDir('linux-x64')
-    const manifest: TestManifest = { schemaVersion: 1, platform: 'linux', arch: 'x64', artifacts: {} }
+    const manifest: TestManifest = { schemaVersion: 2, platform: 'linux', arch: 'x64', artifacts: {} }
     await addFilesArtifact(outputDir, manifest, 'mise', '1.0.0', ['mise'])
     writeManifest(outputDir, manifest)
     fs.writeFileSync(path.join(outputDir, 'mise'), 'uncompressed copy', 'utf8')
@@ -221,7 +250,7 @@ describe('compressed artifact contract', () => {
 
   it('does not require a Windows-only artifact on Linux', async () => {
     const { outputDir, resourcesDir } = makeResourcesDir('linux-x64')
-    const manifest: TestManifest = { schemaVersion: 1, platform: 'linux', arch: 'x64', artifacts: {} }
+    const manifest: TestManifest = { schemaVersion: 2, platform: 'linux', arch: 'x64', artifacts: {} }
     await addFilesArtifact(outputDir, manifest, 'mise', '1.0.0', ['mise'])
     writeManifest(outputDir, manifest)
 
@@ -232,7 +261,7 @@ describe('compressed artifact contract', () => {
 
   it('still rejects a regular tool with no package for the platform', async () => {
     const { outputDir, resourcesDir } = makeResourcesDir('linux-arm64')
-    writeManifest(outputDir, { schemaVersion: 1, platform: 'linux', arch: 'arm64', artifacts: {} })
+    writeManifest(outputDir, { schemaVersion: 2, platform: 'linux', arch: 'arm64', artifacts: {} })
 
     await expect(verifyBundledArtifacts('linux', 'arm64', { tools: [regularTool], resourcesDir })).rejects.toThrow(
       /mise \(no package for linux-arm64\)/
@@ -241,8 +270,8 @@ describe('compressed artifact contract', () => {
 
   it('still requires the MinGit tree on Windows targets', async () => {
     const { outputDir, resourcesDir } = makeResourcesDir('win32-x64')
-    const manifest: TestManifest = { schemaVersion: 1, platform: 'win32', arch: 'x64', artifacts: {} }
-    await addFilesArtifact(outputDir, manifest, 'mise', '1.0.0', ['mise.exe'])
+    const manifest: TestManifest = { schemaVersion: 2, platform: 'win32', arch: 'x64', artifacts: {} }
+    await addFilesArtifact(outputDir, manifest, 'mise', '1.0.0', ['mise.exe'], 'none')
     writeManifest(outputDir, manifest)
 
     await expect(

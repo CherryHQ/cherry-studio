@@ -4,7 +4,7 @@
  * stopped materialising both CPU architectures for the host OS — the packaging bug that
  * shipped a macOS x64 build without `@img/sharp-darwin-x64`.
  */
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { zstdDecompressSync } from 'node:zlib'
@@ -132,6 +132,20 @@ describe('Claude Agent SDK payload', () => {
     expect(
       readFileSync(path.join(projectRoot, 'node_modules/@anthropic-ai/claude-agent-sdk-darwin-arm64/claude'), 'utf8')
     ).toBe('claude-1.2.3')
+  })
+
+  it('keeps the Windows Claude executable raw for outer installer compression', async () => {
+    const projectRoot = makeTmpDir('before-pack-claude-win-bundle-')
+    const resourcesDir = makeTmpDir('before-pack-claude-win-resources-')
+    writePackage(projectRoot, '@anthropic-ai/claude-agent-sdk', '1.2.3')
+    writePackage(projectRoot, '@anthropic-ai/claude-agent-sdk-win32-x64', '1.2.3', 'claude.exe')
+
+    const artifact = await bundleClaudeAgentSdk('win32', 'x64', { projectRoot, resourcesDir })
+    const file = artifact.files[0]
+
+    expect(file).toMatchObject({ archive: 'claude.exe', compression: 'none' })
+    expect(readFileSync(path.join(resourcesDir, 'win32-x64', file.archive), 'utf8')).toBe('claude-1.2.3')
+    expect(existsSync(path.join(resourcesDir, 'win32-x64', 'claude.exe.zst'))).toBe(false)
   })
 })
 

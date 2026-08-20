@@ -6,6 +6,7 @@ import { Transform, Writable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { createZstdDecompress } from 'node:zlib'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import {
@@ -52,6 +53,19 @@ function assertArchiveHash(actual: string, expected: string): void {
   if (actual !== expected) throw new Error(`Bundled archive checksum mismatch: expected ${expected}, got ${actual}`)
 }
 
+function resolveArchivePath(manifest: BundledArtifactManifest, archive: string, archiveRoot?: string): string {
+  const resolvedRoot = path.resolve(
+    archiveRoot ??
+      path.join(application.getPath('app.root.resources.binaries'), `${manifest.platform}-${manifest.arch}`)
+  )
+  const archivePath = path.resolve(bundledArtifactArchivePath(manifest, archive, resolvedRoot))
+  const relative = path.relative(resolvedRoot, archivePath)
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    throw new Error(`Bundled archive escaped its source root: ${archive}`)
+  }
+  return archivePath
+}
+
 async function rethrowArchiveFailure(filePath: string, expected: string, error: unknown): Promise<never> {
   let actual: string
   try {
@@ -67,7 +81,7 @@ async function rethrowArchiveFailure(filePath: string, expected: string, error: 
 
 async function decompressAndVerifyArchive(
   archivePath: string,
-  expected: { archiveSha256: string; sha256: string; size: number },
+  expected: { compression: 'none' | 'zstd'; archiveSha256: string; sha256: string; size: number },
   destination: NodeJS.WritableStream
 ): Promise<void> {
   const archiveHash = crypto.createHash('sha256')
@@ -75,15 +89,27 @@ async function decompressAndVerifyArchive(
   let contentSize = 0
 
   try {
-    await pipeline(
-      fs.createReadStream(archivePath),
-      hashingTransform(archiveHash),
-      createZstdDecompress(),
-      hashingTransform(contentHash, (chunkSize) => {
-        contentSize += chunkSize
-      }),
-      destination
-    )
+    const source = fs.createReadStream(archivePath)
+    if (expected.compression === 'none') {
+      await pipeline(
+        source,
+        hashingTransform(archiveHash),
+        hashingTransform(contentHash, (chunkSize) => {
+          contentSize += chunkSize
+        }),
+        destination
+      )
+    } else {
+      await pipeline(
+        source,
+        hashingTransform(archiveHash),
+        createZstdDecompress(),
+        hashingTransform(contentHash, (chunkSize) => {
+          contentSize += chunkSize
+        }),
+        destination
+      )
+    }
   } catch (error) {
     await rethrowArchiveFailure(archivePath, expected.archiveSha256, error)
   }
@@ -165,6 +191,22 @@ async function recoverStaleBundledArtifactPaths(destination: string): Promise<vo
   }
 }
 
+async function recoverStaleBundledArtifactGroup(destinationDirectory: string): Promise<void> {
+  const parent = path.dirname(destinationDirectory)
+  const basename = path.basename(destinationDirectory)
+  let entries: fs.Dirent[]
+  try {
+    entries = await fsp.readdir(parent, { withFileTypes: true })
+  } catch {
+    return
+  }
+  await Promise.all(
+    entries
+      .filter((entry) => entry.name.startsWith(`${basename}.tmp-`))
+      .map((entry) => removeStalePath(path.join(parent, entry.name)))
+  )
+}
+
 async function withBundledArtifactLock<T>(destination: string, task: () => Promise<T>): Promise<T> {
   await fsp.mkdir(path.dirname(destination), { recursive: true })
   const release = await lockfile.lock(destination, {
@@ -238,21 +280,79 @@ async function isBundledFileReady(file: BundledArtifactFile, destination: string
   }
 }
 
-async function materializeBundledFile(
+async function materializeBundledFileContents(
   manifest: BundledArtifactManifest,
   file: BundledArtifactFile,
-  destination: string
+  destination: string,
+  archiveRoot?: string
 ): Promise<void> {
-  const archivePath = bundledArtifactArchivePath(manifest, file.archive)
   await fsp.mkdir(path.dirname(destination), { recursive: true })
-  const temporaryPath = `${destination}.tmp-${process.pid}-${randomUUID()}`
+  await decompressAndVerifyArchive(
+    resolveArchivePath(manifest, file.archive, archiveRoot),
+    file,
+    fs.createWriteStream(destination)
+  )
+  if (!isWin) await fsp.chmod(destination, file.mode)
+  if (!(await isBundledFileReady(file, destination))) {
+    throw new Error(`Bundled file failed staging verification: ${destination}`)
+  }
+}
 
+async function replaceBundledFileGroup(
+  stagingDirectory: string,
+  manifestFiles: readonly BundledArtifactFile[],
+  destinationDirectory: string
+): Promise<void> {
+  const backups = new Map<string, string>()
+  const published: string[] = []
   try {
-    await decompressAndVerifyArchive(archivePath, file, fs.createWriteStream(temporaryPath))
-    if (!isWin) await fsp.chmod(temporaryPath, file.mode)
-    await replacePath(temporaryPath, destination, () => isBundledFileReady(file, destination))
+    for (const file of manifestFiles) {
+      const destination = path.join(destinationDirectory, file.output)
+      const backup = `${destination}.old-${process.pid}-${randomUUID()}`
+      try {
+        await fsp.rename(destination, backup)
+        backups.set(destination, backup)
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+      }
+    }
+
+    for (const file of manifestFiles) {
+      const staged = path.join(stagingDirectory, file.output)
+      const destination = path.join(destinationDirectory, file.output)
+      await fsp.mkdir(path.dirname(destination), { recursive: true })
+      await fsp.rename(staged, destination)
+      published.push(destination)
+    }
+
+    for (const file of manifestFiles) {
+      const destination = path.join(destinationDirectory, file.output)
+      if (!(await isBundledFileReady(file, destination))) {
+        throw new Error(`Bundled file failed post-install verification: ${destination}`)
+      }
+    }
+
+    await Promise.all(
+      [...backups.values()].map((backup) =>
+        fsp.rm(backup, { force: true }).catch((error) => {
+          logger.warn('Failed to clean replaced bundled file', { path: backup, error })
+        })
+      )
+    )
+    backups.clear()
+  } catch (error) {
+    await Promise.all(published.map((destination) => fsp.rm(destination, { force: true })))
+    for (const [destination, backup] of backups) {
+      await fsp.rename(backup, destination).catch((rollbackError) => {
+        logger.error('Failed to restore bundled file after group rollback', rollbackError as Error, {
+          destination,
+          backup
+        })
+      })
+    }
+    throw error
   } finally {
-    await fsp.rm(temporaryPath, { force: true })
+    await fsp.rm(stagingDirectory, { recursive: true, force: true })
   }
 }
 
@@ -302,9 +402,10 @@ async function isBundledTreeReady(artifact: BundledTreeArtifact, destination: st
 async function materializeBundledTree(
   manifest: BundledArtifactManifest,
   artifact: BundledTreeArtifact,
-  destination: string
+  destination: string,
+  archiveRoot?: string
 ): Promise<void> {
-  const archivePath = bundledArtifactArchivePath(manifest, artifact.archive)
+  const archivePath = resolveArchivePath(manifest, artifact.archive, archiveRoot)
   await fsp.mkdir(path.dirname(destination), { recursive: true })
   const stagingPath = `${destination}.tmp-${process.pid}-${randomUUID()}`
 
@@ -342,34 +443,54 @@ async function ensureBundledDestination(
 export async function ensureBundledFiles(
   manifest: BundledArtifactManifest,
   artifact: BundledFilesArtifact,
-  destinationDirectory: string
+  destinationDirectory: string,
+  options: { archiveRoot?: string } = {}
 ): Promise<{ status: BundledArtifactStatus; paths: ReadonlyMap<string, string> }> {
-  let status: BundledArtifactStatus = 'ready'
   const paths = new Map<string, string>()
+  for (const file of artifact.files) paths.set(file.output, path.join(destinationDirectory, file.output))
 
-  for (const file of artifact.files) {
-    const destination = path.join(destinationDirectory, file.output)
-    const fileStatus = await ensureBundledDestination(
-      destination,
-      () => isBundledFileReady(file, destination),
-      () => materializeBundledFile(manifest, file, destination)
+  return withBundledArtifactLock(destinationDirectory, async () => {
+    await recoverStaleBundledArtifactGroup(destinationDirectory)
+    await Promise.all(
+      artifact.files.map((file) => recoverStaleBundledArtifactPaths(path.join(destinationDirectory, file.output)))
     )
-    if (fileStatus === 'installed') status = 'installed'
-    paths.set(file.output, destination)
-  }
+    if (
+      await Promise.all(
+        artifact.files.map(async (file) => isBundledFileReady(file, path.join(destinationDirectory, file.output)))
+      ).then((ready) => ready.every(Boolean))
+    ) {
+      return { status: 'ready' as const, paths }
+    }
 
-  return { status, paths }
+    const stagingDirectory = `${destinationDirectory}.tmp-${process.pid}-${randomUUID()}`
+    try {
+      await fsp.mkdir(stagingDirectory, { recursive: true })
+      for (const file of artifact.files) {
+        await materializeBundledFileContents(
+          manifest,
+          file,
+          path.join(stagingDirectory, file.output),
+          options.archiveRoot
+        )
+      }
+      await replaceBundledFileGroup(stagingDirectory, artifact.files, destinationDirectory)
+      return { status: 'installed' as const, paths }
+    } finally {
+      await fsp.rm(stagingDirectory, { recursive: true, force: true })
+    }
+  })
 }
 
 export async function ensureBundledTree(
   manifest: BundledArtifactManifest,
   artifact: BundledTreeArtifact,
-  destination: string
+  destination: string,
+  options: { archiveRoot?: string } = {}
 ): Promise<{ status: BundledArtifactStatus; root: string }> {
   const status = await ensureBundledDestination(
     destination,
     () => isBundledTreeReady(artifact, destination),
-    () => materializeBundledTree(manifest, artifact, destination)
+    () => materializeBundledTree(manifest, artifact, destination, options.archiveRoot)
   )
   return { status, root: destination }
 }

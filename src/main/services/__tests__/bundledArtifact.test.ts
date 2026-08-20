@@ -45,7 +45,7 @@ function sha256(value: Buffer): string {
 }
 
 function makeManifest(artifacts: BundledArtifactManifest['artifacts'] = {}): BundledArtifactManifest {
-  return { schemaVersion: 1, platform: 'linux', arch: 'x64', artifacts }
+  return { schemaVersion: 2, platform: 'linux', arch: 'x64', artifacts }
 }
 
 function writeFileArtifact(payload: Buffer, output = 'tool'): BundledArtifactFile {
@@ -57,7 +57,24 @@ function writeFileArtifact(payload: Buffer, output = 'tool'): BundledArtifactFil
   return {
     output,
     archive,
+    compression: 'zstd',
     archiveSha256: sha256(compressed),
+    sha256: sha256(payload),
+    size: payload.length,
+    mode: 0o755
+  }
+}
+
+function writeRawFileArtifact(payload: Buffer, output = 'tool.exe'): BundledArtifactFile {
+  const archive = output
+  const platformDirectory = path.join(state.resourcesRoot, 'linux-x64')
+  fs.mkdirSync(platformDirectory, { recursive: true })
+  fs.writeFileSync(path.join(platformDirectory, archive), payload)
+  return {
+    output,
+    archive,
+    compression: 'none',
+    archiveSha256: sha256(payload),
     sha256: sha256(payload),
     size: payload.length,
     mode: 0o755
@@ -85,6 +102,7 @@ async function writeTreeArtifact(): Promise<BundledTreeArtifact> {
   return {
     kind: 'tree',
     version: '2.54.0',
+    compression: 'zstd',
     archive: 'mingit.tar.zst',
     archiveSha256: sha256(compressed),
     sha256: sha256(rawTar),
@@ -149,6 +167,73 @@ describe('ensureBundledFiles', () => {
 
     expect(result.status).toBe('installed')
     expect(fs.readFileSync(destination, 'utf8')).toBe('trusted')
+  })
+
+  it('installs a raw native payload after verifying its archive and content hashes', async () => {
+    const payload = Buffer.from('raw-native-payload')
+    const file = writeRawFileArtifact(payload)
+    const artifact = filesArtifact([file])
+    const destinationDirectory = makeTmpDir('bundled-file-raw-')
+
+    const result = await ensureBundledFiles(makeManifest({ tool: artifact }), artifact, destinationDirectory)
+
+    expect(result.status).toBe('installed')
+    expect(fs.readFileSync(path.join(destinationDirectory, file.output))).toEqual(payload)
+  })
+
+  it('reads an archive from an explicit root and rejects traversal outside that root', async () => {
+    const payload = Buffer.from('package-owned runtime')
+    const archiveRoot = makeTmpDir('bundled-package-root-')
+    const archive = 'runtime.tar.zst'
+    const compressed = zstdCompressSync(payload)
+    fs.writeFileSync(path.join(archiveRoot, archive), compressed)
+    const file: BundledArtifactFile = {
+      output: 'runtime.bin',
+      archive,
+      compression: 'zstd',
+      archiveSha256: sha256(compressed),
+      sha256: sha256(payload),
+      size: payload.length,
+      mode: 0o755
+    }
+    const destinationDirectory = makeTmpDir('bundled-package-destination-')
+
+    await ensureBundledFiles(
+      makeManifest({ runtime: filesArtifact([file]) }),
+      filesArtifact([file]),
+      destinationDirectory,
+      {
+        archiveRoot
+      }
+    )
+
+    expect(fs.readFileSync(path.join(destinationDirectory, 'runtime.bin'))).toEqual(payload)
+    const escaped = { ...file, archive: '../outside.zst' }
+    const escapedDestinationDirectory = makeTmpDir('bundled-package-escaped-')
+    await expect(
+      ensureBundledFiles(
+        makeManifest({ runtime: filesArtifact([escaped]) }),
+        filesArtifact([escaped]),
+        escapedDestinationDirectory,
+        { archiveRoot }
+      )
+    ).rejects.toThrow(/escaped its source root/)
+  })
+
+  it('does not publish a raw payload whose archive hash changed', async () => {
+    const payload = Buffer.from('raw-native-payload')
+    const file = writeRawFileArtifact(payload)
+    const artifact = filesArtifact([file])
+    fs.appendFileSync(path.join(state.resourcesRoot, 'linux-x64', file.archive), 'damage')
+    const destinationDirectory = makeTmpDir('bundled-file-raw-damaged-')
+    const destination = path.join(destinationDirectory, file.output)
+    fs.writeFileSync(destination, 'old payload', 'utf8')
+
+    await expect(ensureBundledFiles(makeManifest({ tool: artifact }), artifact, destinationDirectory)).rejects.toThrow(
+      /archive checksum mismatch/
+    )
+
+    expect(fs.readFileSync(destination, 'utf8')).toBe('old payload')
   })
 
   it.runIf(process.platform !== 'win32')('restores executable permission', async () => {
@@ -218,7 +303,7 @@ describe('ensureBundledFiles', () => {
     fs.writeFileSync(destination, 'old payload', 'utf8')
     const rename = fsp.rename.bind(fsp)
     vi.spyOn(fsp, 'rename').mockImplementation(async (source, target) => {
-      if (String(source).startsWith(`${destination}.tmp-`) && target === destination) {
+      if (String(source).includes('.tmp-') && target === destination) {
         throw Object.assign(new Error('busy'), { code: 'EBUSY' })
       }
       return rename(source, target)
@@ -263,15 +348,19 @@ describe('ensureBundledFiles', () => {
     const destinationDirectory = makeTmpDir('bundled-stale-paths-')
     const destination = path.join(destinationDirectory, file.output)
     const backup = `${destination}.old-123-dead`
+    const abandonedGroupStaging = `${destinationDirectory}.tmp-123-dead`
     fs.writeFileSync(backup, payload)
     if (process.platform !== 'win32') fs.chmodSync(backup, 0o755)
     fs.writeFileSync(`${destination}.tmp-123-dead`, 'partial', 'utf8')
+    fs.mkdirSync(abandonedGroupStaging)
+    fs.writeFileSync(path.join(abandonedGroupStaging, 'tool'), 'partial', 'utf8')
 
     const result = await ensureBundledFiles(makeManifest({ tool: artifact }), artifact, destinationDirectory)
 
     expect(result.status).toBe('ready')
     expect(fs.readFileSync(destination)).toEqual(payload)
     expect(fs.readdirSync(destinationDirectory)).toEqual(['tool'])
+    expect(fs.existsSync(abandonedGroupStaging)).toBe(false)
   })
 
   it('deduplicates concurrent first installs through the artifact lock', async () => {
@@ -301,7 +390,7 @@ describe('ensureBundledFiles', () => {
       /payload checksum mismatch/
     )
 
-    expect(fs.readFileSync(path.join(destinationDirectory, first.output), 'utf8')).toBe('first')
+    expect(fs.existsSync(path.join(destinationDirectory, first.output))).toBe(false)
     expect(fs.existsSync(path.join(destinationDirectory, second.output))).toBe(false)
   })
 })

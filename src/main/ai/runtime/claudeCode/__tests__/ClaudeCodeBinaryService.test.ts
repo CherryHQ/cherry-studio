@@ -39,7 +39,7 @@ vi.mock('@main/utils/asar', () => ({ toAsarUnpackedPath: (value: string) => valu
 import { ClaudeCodeBinaryService, resolveInstalledClaudeExecutablePath } from '../ClaudeCodeBinaryService'
 
 const manifest = {
-  schemaVersion: 1 as const,
+  schemaVersion: 2 as const,
   platform: 'darwin',
   arch: 'arm64',
   artifacts: {
@@ -50,6 +50,7 @@ const manifest = {
         {
           output: 'claude',
           archive: 'claude.zst',
+          compression: 'zstd',
           archiveSha256: 'a'.repeat(64),
           sha256: 'b'.repeat(64),
           size: 100,

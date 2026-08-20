@@ -16,13 +16,14 @@ vi.mock('@application', async () => {
 vi.mock('../bundledArtifactManifest', () => ({
   bundledArtifactPlatformKey: (platform: string, arch: string) => `${platform}-${arch}`,
   readBundledArtifactManifest: () => ({
-    schemaVersion: 1,
+    schemaVersion: 2,
     platform: 'win32',
     arch: 'x64',
     artifacts: {
       mingit: {
         kind: 'tree',
         version: '2.54.0',
+        compression: 'zstd',
         archive: 'mingit.tar.zst',
         archiveSha256: 'a'.repeat(64),
         sha256: 'b'.repeat(64),

@@ -68,6 +68,7 @@ describe('buildPathRegistry', () => {
 
     expect(registry['feature.binary.mingit']).toBe(path.join(toolchainRoot, 'mingit'))
     expect(registry['feature.agents.claude.binary']).toBe(path.join(toolchainRoot, 'claude-agent-sdk'))
+    expect(registry['feature.agents.dsh.runtime']).toBe(path.join(toolchainRoot, 'dsh-runtime'))
   })
 
   it('keeps persisted MCP resource blobs in Cherry temporary storage', () => {

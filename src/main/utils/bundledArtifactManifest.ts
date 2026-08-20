@@ -3,12 +3,15 @@ import path from 'node:path'
 
 import { application } from '@application'
 
-const MANIFEST_SCHEMA_VERSION = 1
+const MANIFEST_SCHEMA_VERSION = 2
 const SHA256_PATTERN = /^[a-f0-9]{64}$/
+
+export type BundledArtifactCompression = 'none' | 'zstd'
 
 export type BundledArtifactFile = {
   output: string
   archive: string
+  compression: BundledArtifactCompression
   archiveSha256: string
   sha256: string
   size: number
@@ -31,6 +34,7 @@ export type BundledTreeFile = {
 export type BundledTreeArtifact = {
   kind: 'tree'
   version: string
+  compression: 'zstd'
   archive: string
   archiveSha256: string
   sha256: string
@@ -42,7 +46,7 @@ export type BundledTreeArtifact = {
 export type BundledArtifact = BundledFilesArtifact | BundledTreeArtifact
 
 export type BundledArtifactManifest = {
-  schemaVersion: 1
+  schemaVersion: 2
   platform: string
   arch: string
   artifacts: Record<string, BundledArtifact>
@@ -71,6 +75,7 @@ function isBundledArtifactFile(value: unknown): value is BundledArtifactFile {
   return (
     isSafeRelativePath(value.output) &&
     isSafeRelativePath(value.archive) &&
+    (value.compression === 'none' || value.compression === 'zstd') &&
     isSha256(value.archiveSha256) &&
     isSha256(value.sha256) &&
     typeof value.size === 'number' &&
@@ -104,10 +109,20 @@ function parseArtifact(name: string, value: unknown): BundledArtifact {
   }
   if (value.kind === 'files' && Array.isArray(value.files) && value.files.length > 0) {
     if (!value.files.every(isBundledArtifactFile)) throw new Error(`Invalid bundled files artifact '${name}'`)
+    const outputs = value.files.map((file) => file.output)
+    const archives = value.files.map((file) => file.archive)
+    if (new Set(outputs).size !== outputs.length || new Set(archives).size !== archives.length) {
+      throw new Error(`Invalid bundled files inventory '${name}'`)
+    }
+    const sortedOutputs = [...outputs].sort()
+    if (sortedOutputs.some((output, index) => index > 0 && output.startsWith(`${sortedOutputs[index - 1]}/`))) {
+      throw new Error(`Invalid bundled files inventory '${name}'`)
+    }
     return { kind: 'files', version: value.version, files: value.files }
   }
   if (
     value.kind === 'tree' &&
+    value.compression === 'zstd' &&
     isSafeRelativePath(value.archive) &&
     isSha256(value.archiveSha256) &&
     isSha256(value.sha256) &&
@@ -128,6 +143,7 @@ function parseArtifact(name: string, value: unknown): BundledArtifact {
     return {
       kind: 'tree',
       version: value.version,
+      compression: 'zstd',
       archive: value.archive,
       archiveSha256: value.archiveSha256,
       sha256: value.sha256,
@@ -149,6 +165,15 @@ export function readBundledArtifactManifest(
 ): BundledArtifactManifest {
   const platformKey = bundledArtifactPlatformKey(platform, arch)
   const manifestPath = path.join(application.getPath('app.root.resources.binaries'), platformKey, 'manifest.json')
+  return readBundledArtifactManifestAt(manifestPath, platform, arch)
+}
+
+export function readBundledArtifactManifestAt(
+  manifestPath: string,
+  platform: string = process.platform,
+  arch: string = process.arch
+): BundledArtifactManifest {
+  const platformKey = bundledArtifactPlatformKey(platform, arch)
   let value: unknown
   try {
     value = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
@@ -171,10 +196,17 @@ export function readBundledArtifactManifest(
   return { schemaVersion: MANIFEST_SCHEMA_VERSION, platform, arch, artifacts }
 }
 
-export function bundledArtifactArchivePath(manifest: BundledArtifactManifest, archive: string): string {
+export function bundledArtifactArchivePath(
+  manifest: BundledArtifactManifest,
+  archive: string,
+  archiveRoot?: string
+): string {
   return path.join(
-    application.getPath('app.root.resources.binaries'),
-    bundledArtifactPlatformKey(manifest.platform, manifest.arch),
+    archiveRoot ??
+      path.join(
+        application.getPath('app.root.resources.binaries'),
+        bundledArtifactPlatformKey(manifest.platform, manifest.arch)
+      ),
     archive
   )
 }

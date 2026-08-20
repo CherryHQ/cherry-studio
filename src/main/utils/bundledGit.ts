@@ -5,11 +5,6 @@ import path from 'path'
 
 import { bundledArtifactPlatformKey, readBundledArtifactManifest } from './bundledArtifactManifest'
 
-export async function ensureBundledGit(): Promise<string | null> {
-  if (!isWin) return null
-  return application.get('BinaryManager').ensureBundledGit()
-}
-
 /**
  * Resolve the bundled MinGit materialized from the checksum-verified app payload.
  * Windows-only — other platforms have no bundled git package. Returns the path

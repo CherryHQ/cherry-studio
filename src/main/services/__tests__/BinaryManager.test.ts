@@ -166,6 +166,7 @@ const mockInstallPreferences = (values = DEFAULT_INSTALL_PREFERENCES) => {
 const makeBundledFile = (output: string) => ({
   output,
   archive: `${output}.zst`,
+  compression: 'zstd' as const,
   archiveSha256: 'a'.repeat(64),
   sha256: 'b'.repeat(64),
   size: 100,
@@ -181,6 +182,7 @@ const makeFilesArtifact = (version: string, outputs: string[]) => ({
 const makeTreeArtifact = () => ({
   kind: 'tree' as const,
   version: '2.54.0',
+  compression: 'zstd' as const,
   archive: 'mingit.tar.zst',
   archiveSha256: 'a'.repeat(64),
   sha256: 'b'.repeat(64),
@@ -253,7 +255,7 @@ describe('BinaryManager', () => {
     vi.mocked(refreshShellEnv).mockReset().mockResolvedValue({ PATH: '/usr/local/bin:/usr/bin' })
     manifestRef.value = []
     bundledManifestRef.value = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       platform: process.platform,
       arch: process.arch,
       artifacts: {
@@ -3287,7 +3289,7 @@ describe('BinaryManager', () => {
       const service = new BinaryManager()
       const uv = makeFilesArtifact('0.8.0', ['uv', 'uvx'])
       bundledManifestRef.value = {
-        schemaVersion: 1,
+        schemaVersion: 2,
         platform: process.platform,
         arch: process.arch,
         artifacts: { uv }
@@ -3311,7 +3313,7 @@ describe('BinaryManager', () => {
     it('publishes no availability when a multi-file artifact fails', async () => {
       const service = new BinaryManager()
       bundledManifestRef.value = {
-        schemaVersion: 1,
+        schemaVersion: 2,
         platform: process.platform,
         arch: process.arch,
         artifacts: { uv: makeFilesArtifact('0.8.0', ['uv', 'uvx']) }
@@ -3329,7 +3331,7 @@ describe('BinaryManager', () => {
     it('ignores obsolete runtime version markers', async () => {
       const service = new BinaryManager()
       bundledManifestRef.value = {
-        schemaVersion: 1,
+        schemaVersion: 2,
         platform: process.platform,
         arch: process.arch,
         artifacts: { bun: makeFilesArtifact('1.2.3', ['bun']) }
@@ -3408,7 +3410,7 @@ describe('BinaryManager', () => {
 
       try {
         bundledManifestRef.value = {
-          schemaVersion: 1,
+          schemaVersion: 2,
           platform: 'win32',
           arch: 'x64',
           artifacts: { mingit }
@@ -3447,7 +3449,7 @@ describe('BinaryManager', () => {
 
       try {
         bundledManifestRef.value = {
-          schemaVersion: 1,
+          schemaVersion: 2,
           platform: 'win32',
           arch: 'x64',
           artifacts: { mingit: makeTreeArtifact() }
@@ -3489,7 +3491,7 @@ describe('BinaryManager', () => {
 
       try {
         bundledManifestRef.value = {
-          schemaVersion: 1,
+          schemaVersion: 2,
           platform: 'win32',
           arch: 'x64',
           artifacts: { mingit: makeTreeArtifact() }

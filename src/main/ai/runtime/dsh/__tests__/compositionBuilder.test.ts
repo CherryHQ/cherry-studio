@@ -1,3 +1,5 @@
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -11,7 +13,13 @@ import { parse } from 'yaml'
 vi.mock('@data/services/ProviderService', () => ({ providerService: {} }))
 vi.mock('@data/services/ModelService', () => ({ modelService: {} }))
 
-import { buildDshCompositionYaml, type DshCompositionInput, toDshPluginUrl } from '../compositionBuilder'
+import {
+  buildDshCompositionYaml,
+  type DshCompositionInput,
+  resolveDshPluginPath,
+  resolveDshRuntimeBinPath,
+  toDshPluginUrl
+} from '../compositionBuilder'
 import { buildDshProviderInjection } from '../modelInjection'
 
 const SECRET_API_KEY = 'sk-cherry-super-secret-key'
@@ -168,6 +176,34 @@ describe('buildDshCompositionYaml', () => {
     for (const entry of entries) {
       expect(new URL(entry.name).protocol).toBe('file:')
       expect(path.isAbsolute(fileURLToPath(entry.name)), `not absolute: ${entry.name}`).toBe(true)
+    }
+  })
+
+  it('resolves packaged plugin and runtime bin entries from the extracted runtime root', () => {
+    const runtimeRoot = mkdtempSync(path.join(os.tmpdir(), 'dsh-composition-runtime-'))
+    try {
+      const packageRoot = path.join(runtimeRoot, 'node_modules', '@deepseek-ai', 'dsh-sdk-jsonrpc-demo')
+      mkdirSync(path.join(packageRoot, 'lib'), { recursive: true })
+      writeFileSync(
+        path.join(runtimeRoot, 'package.json'),
+        JSON.stringify({ name: 'cherry-dsh-runtime', private: true, type: 'module' })
+      )
+      writeFileSync(
+        path.join(packageRoot, 'package.json'),
+        JSON.stringify({
+          name: '@deepseek-ai/dsh-sdk-jsonrpc-demo',
+          exports: { './bin': './lib/bin.js', '.': './lib/index.js' }
+        })
+      )
+      writeFileSync(path.join(packageRoot, 'lib', 'bin.js'), 'export {}\n')
+      writeFileSync(path.join(packageRoot, 'lib', 'index.js'), 'export {}\n')
+
+      expect(resolveDshRuntimeBinPath(runtimeRoot)).toBe(realpathSync(path.join(packageRoot, 'lib', 'bin.js')))
+      expect(resolveDshPluginPath('@deepseek-ai/dsh-sdk-jsonrpc-demo', runtimeRoot)).toBe(
+        realpathSync(path.join(packageRoot, 'lib', 'index.js'))
+      )
+    } finally {
+      rmSync(runtimeRoot, { recursive: true, force: true })
     }
   })
 

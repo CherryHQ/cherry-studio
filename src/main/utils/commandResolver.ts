@@ -5,7 +5,7 @@ import fs from 'fs'
 import path from 'path'
 import which from 'which'
 
-import { ensureBundledGit, getBundledGitPath } from './bundledGit'
+import { getBundledGitPath } from './bundledGit'
 import { getShellEnv } from './shellEnv'
 
 /**
@@ -334,7 +334,7 @@ export async function findMiseExecutable(
  * refreshShellEnv() explicitly before calling this function.
  *
  * Cross-platform: uses findCommandInShellEnv first, falls back to findExecutable on Windows,
- * then mise, and finally (for `git` only) the bundled MinGit as the last resort.
+ * then mise, and finally (for `git` only) an already-installed bundled MinGit.
  */
 export async function findExecutableInEnv(name: string): Promise<string | null> {
   const env = await getShellEnv()
@@ -365,9 +365,9 @@ export async function findExecutableInEnv(name: string): Promise<string | null> 
       return viaMise
     }
 
-    // Last resort: the bundled MinGit shipped with the app, so git works even
-    // when the user has no system git installed. System/mise git always win above.
-    return name === 'git' ? await ensureBundledGit() : null
+    // The resolver is intentionally read-only. Callers that own a Git operation
+    // must materialize MinGit through BinaryManager before querying again.
+    return name === 'git' ? getBundledGitPath() : null
   }
 
   return null
