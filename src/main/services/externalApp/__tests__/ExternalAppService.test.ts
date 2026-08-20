@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   getApplicationInfoForProtocol: vi.fn(),
+  isSafeExternalUrl: vi.fn(),
   lstatSync: vi.fn(),
   openExternal: vi.fn(),
   resolveDefaultApplication: vi.fn(),
@@ -28,6 +29,10 @@ vi.mock('@main/services/file', () => ({
   showInFolder: mocks.showInFolder
 }))
 
+vi.mock('@main/utils/externalUrlSafety', () => ({
+  isSafeExternalUrl: mocks.isSafeExternalUrl
+}))
+
 vi.mock('../defaultApplication', () => ({
   resolveDefaultApplication: mocks.resolveDefaultApplication
 }))
@@ -37,6 +42,7 @@ describe('ExternalAppService', () => {
     vi.resetModules()
     vi.clearAllMocks()
     mocks.statSync.mockReturnValue({ isDirectory: () => false })
+    mocks.isSafeExternalUrl.mockReturnValue(true)
     mocks.resolveDefaultApplication.mockResolvedValue(null)
     mocks.getApplicationInfoForProtocol.mockImplementation(async (protocol: string) => {
       if (protocol === 'vscode://') return { name: 'Visual Studio Code', path: '/Applications/Visual Studio Code.app' }
@@ -49,7 +55,7 @@ describe('ExternalAppService', () => {
     vi.unstubAllEnvs()
   })
 
-  it('keeps the file manager first and limits directory applications', async () => {
+  it('keeps the file manager first and lists every supported directory application', async () => {
     mocks.statSync.mockReturnValue({ isDirectory: () => true })
     mocks.getApplicationInfoForProtocol.mockImplementation(async (protocol: string) => ({
       name: protocol,
@@ -63,7 +69,8 @@ describe('ExternalAppService', () => {
       targets: [
         { id: 'file_manager', kind: 'file_manager' },
         { id: 'known:vscode', name: 'Visual Studio Code', kind: 'application' },
-        { id: 'known:cursor', name: 'Cursor', kind: 'application' }
+        { id: 'known:cursor', name: 'Cursor', kind: 'application' },
+        { id: 'known:zed', name: 'Zed', kind: 'application' }
       ]
     })
   })
@@ -104,7 +111,7 @@ describe('ExternalAppService', () => {
     expect(mocks.resolveDefaultApplication).toHaveBeenCalledWith('/tmp/report.pdf')
   })
 
-  it('keeps the system recommendation while bounding compatible text applications', async () => {
+  it('keeps the system recommendation while listing every supported application', async () => {
     mocks.getApplicationInfoForProtocol.mockImplementation(async (protocol: string) => ({
       name: protocol,
       path: `/Applications/${protocol}`
@@ -117,10 +124,10 @@ describe('ExternalAppService', () => {
       { id: 'system_default', kind: 'system_default' },
       { id: 'file_manager', kind: 'file_manager' },
       { id: 'known:vscode', name: 'Visual Studio Code', kind: 'application' },
-      { id: 'known:cursor', name: 'Cursor', kind: 'application' }
+      { id: 'known:cursor', name: 'Cursor', kind: 'application' },
+      { id: 'known:zed', name: 'Zed', kind: 'application' }
     ])
     expect(result.recommendedTargetId).toBe('system_default')
-    expect(result.targets.some((target) => target.id === 'known:zed')).toBe(false)
   })
 
   it('removes the system-default action for dangerous files but keeps controlled editors', async () => {
@@ -137,6 +144,7 @@ describe('ExternalAppService', () => {
   })
 
   it('falls back to the containing directory for dangerous unsupported file types', async () => {
+    mocks.getApplicationInfoForProtocol.mockRejectedValue(new Error('not installed'))
     const { ExternalAppService } = await import('../ExternalAppService')
 
     await expect(new ExternalAppService().listOpenTargets('/tmp/install.dmg')).resolves.toEqual({
@@ -146,12 +154,39 @@ describe('ExternalAppService', () => {
     })
   })
 
-  it('opens only a fixed target resolved for the current file type', async () => {
+  it('treats missing extensionless targets as files when the caller has file context', async () => {
+    mocks.statSync.mockImplementation(() => {
+      throw new Error('not found')
+    })
+    const { ExternalAppService } = await import('../ExternalAppService')
+
+    await expect(new ExternalAppService().listOpenTargets('/tmp/Dockerfile', 'file')).resolves.toEqual({
+      pathKind: 'file',
+      recommendedTargetId: 'system_default',
+      targets: [
+        { id: 'system_default', kind: 'system_default' },
+        { id: 'file_manager', kind: 'file_manager' },
+        { id: 'known:vscode', name: 'Visual Studio Code', kind: 'application' }
+      ]
+    })
+  })
+
+  it('opens only a fixed target available for the current path kind', async () => {
     const { ExternalAppService } = await import('../ExternalAppService')
     const service = new ExternalAppService()
 
-    await service.openTarget('/tmp/README.md', 'known:vscode')
+    await service.openTarget('/tmp/README.md', 'known:vscode', 'file')
     expect(mocks.openExternal).toHaveBeenCalledWith('vscode://file//tmp/README.md?windowId=_blank')
-    await expect(service.openTarget('/tmp/report.pdf', 'known:vscode')).rejects.toThrow('is not available')
+    await expect(service.openTarget('/tmp/report.pdf', 'known:wt', 'file')).rejects.toThrow('is not available')
+  })
+
+  it('validates generated editor URLs before opening them externally', async () => {
+    mocks.isSafeExternalUrl.mockReturnValue(false)
+    const { ExternalAppService } = await import('../ExternalAppService')
+
+    await expect(new ExternalAppService().openTarget('/tmp/README.md', 'known:vscode', 'file')).rejects.toThrow(
+      'failed safety validation'
+    )
+    expect(mocks.openExternal).not.toHaveBeenCalled()
   })
 })

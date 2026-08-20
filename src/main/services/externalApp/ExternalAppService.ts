@@ -3,11 +3,13 @@ import { lstatSync, statSync } from 'node:fs'
 import path from 'node:path'
 
 import { application } from '@application'
+import { loggerService } from '@logger'
 import { safeOpen, showInFolder } from '@main/services/file'
+import { isSafeExternalUrl } from '@main/utils/externalUrlSafety'
 import { removeEnvProxy } from '@main/utils/processRunner'
 import type { ExternalOpenTarget, ExternalOpenTargetResult } from '@shared/types/externalApp'
-import { type AbsoluteFilePath, AbsoluteFilePathSchema, FILE_TYPE, type FileType } from '@shared/types/file'
-import { getFileTypeByExt, isDangerExt, normalizeExt } from '@shared/utils/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
+import { isDangerExt, normalizeExt } from '@shared/utils/file'
 import { app, shell } from 'electron'
 
 import { resolveDefaultApplication } from './defaultApplication'
@@ -16,11 +18,10 @@ const SYSTEM_DEFAULT_TARGET_ID = 'system_default'
 const FILE_MANAGER_TARGET_ID = 'file_manager'
 const KNOWN_TARGET_PREFIX = 'known:'
 const CACHE_DURATION_MS = 5 * 60 * 1000
-const MAX_FILE_APPLICATION_TARGETS = 2
-const MAX_DIRECTORY_APPLICATION_TARGETS = 2
-const MAX_DIRECTORY_TERMINAL_TARGETS = 1
+const logger = loggerService.withContext('ExternalAppService')
 
 type KnownExternalAppId = 'vscode' | 'cursor' | 'zed' | 'wt'
+type ExternalOpenTargetPathKind = ExternalOpenTargetResult['pathKind']
 
 interface KnownExternalAppConfig {
   id: KnownExternalAppId
@@ -28,8 +29,7 @@ interface KnownExternalAppConfig {
   protocol?: string
   executable?: string
   kind: 'application' | 'terminal'
-  pathKinds: Array<'file' | 'directory'>
-  fileTypes?: FileType[]
+  pathKinds: ExternalOpenTargetPathKind[]
 }
 
 interface InstalledKnownExternalApp extends KnownExternalAppConfig {
@@ -42,24 +42,21 @@ const SUPPORTED_EXTERNAL_APPS = [
     name: 'Visual Studio Code',
     protocol: 'vscode://',
     kind: 'application',
-    pathKinds: ['file', 'directory'],
-    fileTypes: [FILE_TYPE.TEXT]
+    pathKinds: ['file', 'directory']
   },
   {
     id: 'cursor',
     name: 'Cursor',
     protocol: 'cursor://',
     kind: 'application',
-    pathKinds: ['file', 'directory'],
-    fileTypes: [FILE_TYPE.TEXT]
+    pathKinds: ['file', 'directory']
   },
   {
     id: 'zed',
     name: 'Zed',
     protocol: 'zed://',
     kind: 'application',
-    pathKinds: ['file', 'directory'],
-    fileTypes: [FILE_TYPE.TEXT]
+    pathKinds: ['file', 'directory']
   },
   {
     id: 'wt',
@@ -74,9 +71,12 @@ export class ExternalAppService {
   private installedAppsCache: { apps: InstalledKnownExternalApp[]; timestamp: number } | null = null
   private readonly openTargetsCache = new Map<string, { result: ExternalOpenTargetResult; timestamp: number }>()
 
-  async listOpenTargets(inputPath: string): Promise<ExternalOpenTargetResult> {
+  async listOpenTargets(
+    inputPath: string,
+    pathKindHint?: ExternalOpenTargetPathKind
+  ): Promise<ExternalOpenTargetResult> {
     const targetPath = this.resolveTargetPath(inputPath)
-    const pathKind = this.getPathKind(targetPath)
+    const pathKind = this.getPathKind(targetPath, pathKindHint)
     const cacheKey = this.getCacheKey(targetPath, pathKind)
     const cached = this.openTargetsCache.get(cacheKey)
     if (cached && Date.now() - cached.timestamp < CACHE_DURATION_MS) return cached.result
@@ -86,9 +86,9 @@ export class ExternalAppService {
     return result
   }
 
-  async openTarget(inputPath: string, targetId: string): Promise<void> {
+  async openTarget(inputPath: string, targetId: string, pathKindHint?: ExternalOpenTargetPathKind): Promise<void> {
     const targetPath = this.resolveTargetPath(inputPath)
-    const result = await this.listOpenTargets(targetPath)
+    const result = await this.listOpenTargets(targetPath, pathKindHint)
     const target = result.targets.find((item) => item.id === targetId)
     if (!target) throw new Error(`Open target "${targetId}" is not available for this path`)
 
@@ -102,7 +102,11 @@ export class ExternalAppService {
       return
     }
     if (target.id.startsWith(KNOWN_TARGET_PREFIX)) {
-      await this.openKnownApplication(target.id.slice(KNOWN_TARGET_PREFIX.length) as KnownExternalAppId, targetPath)
+      await this.openKnownApplication(
+        target.id.slice(KNOWN_TARGET_PREFIX.length) as KnownExternalAppId,
+        targetPath,
+        result.pathKind
+      )
       return
     }
     throw new Error(`Open target "${targetId}" cannot be launched on this platform`)
@@ -113,11 +117,9 @@ export class ExternalAppService {
     const compatibleApps = apps.filter((item) => item.pathKinds.includes('directory'))
     const applicationTargets = compatibleApps
       .filter((item) => item.kind === 'application')
-      .slice(0, MAX_DIRECTORY_APPLICATION_TARGETS)
       .map((item) => this.toKnownTarget(item))
     const terminalTargets = compatibleApps
       .filter((item) => item.kind === 'terminal')
-      .slice(0, MAX_DIRECTORY_TERMINAL_TARGETS)
       .map((item) => this.toKnownTarget(item))
     return {
       pathKind: 'directory',
@@ -130,15 +132,12 @@ export class ExternalAppService {
     const extension = path.extname(targetPath)
     const normalizedExtension = normalizeExt(extension)
     const dangerous = isDangerExt(normalizedExtension)
-    const fileType = getFileTypeByExt(extension)
     const [installedApps, defaultApplication] = await Promise.all([
       this.detectInstalledApps(),
       dangerous ? Promise.resolve(null) : resolveDefaultApplication(targetPath)
     ])
     const applicationTargets = installedApps
       .filter((item) => item.kind === 'application' && item.pathKinds.includes('file'))
-      .filter((item) => item.fileTypes?.includes(fileType))
-      .slice(0, MAX_FILE_APPLICATION_TARGETS)
       .map((item) => this.toKnownTarget(item))
     const targets: ExternalOpenTarget[] = [
       ...(dangerous
@@ -174,12 +173,16 @@ export class ExternalAppService {
             if (!config.protocol) return null
             const info = await app.getApplicationInfoForProtocol(config.protocol)
             return info.name ? { ...config, path: info.path } : null
-          } catch {
+          } catch (error) {
+            logger.debug('External application protocol is unavailable', { appId: config.id, error })
             return null
           }
         })
       )
     ).filter((item) => item !== null)
+    logger.debug('Detected external applications', {
+      apps: apps.map(({ id, path: applicationPath }) => ({ id, path: applicationPath }))
+    })
     this.installedAppsCache = { apps, timestamp: Date.now() }
     return apps
   }
@@ -199,11 +202,14 @@ export class ExternalAppService {
     return AbsoluteFilePathSchema.parse(path.resolve(expanded))
   }
 
-  private getPathKind(targetPath: AbsoluteFilePath): 'file' | 'directory' {
+  private getPathKind(
+    targetPath: AbsoluteFilePath,
+    pathKindHint?: ExternalOpenTargetPathKind
+  ): ExternalOpenTargetPathKind {
     try {
       return statSync(targetPath).isDirectory() ? 'directory' : 'file'
     } catch {
-      return path.basename(targetPath).includes('.') ? 'file' : 'directory'
+      return pathKindHint ?? (path.basename(targetPath).includes('.') ? 'file' : 'directory')
     }
   }
 
@@ -217,29 +223,49 @@ export class ExternalAppService {
     try {
       lstatSync(executablePath)
       return { ...config, path: executablePath }
-    } catch {
+    } catch (error) {
+      logger.debug('External executable is unavailable', { appId: config.id, executablePath, error })
       return null
     }
   }
 
-  private async openKnownApplication(appId: KnownExternalAppId, targetPath: AbsoluteFilePath): Promise<void> {
+  private async openKnownApplication(
+    appId: KnownExternalAppId,
+    targetPath: AbsoluteFilePath,
+    pathKind: ExternalOpenTargetPathKind
+  ): Promise<void> {
     const config = SUPPORTED_EXTERNAL_APPS.find((item) => item.id === appId)
     if (!config) throw new Error(`Unknown external application "${appId}"`)
     if (config.protocol) {
-      await shell.openExternal(this.buildEditorUrl(config, targetPath))
+      const url = this.buildEditorUrl(config, targetPath)
+      if (!isSafeExternalUrl(url)) {
+        logger.warn('Blocked unsafe external application URL', { appId, targetPath })
+        throw new Error(`External application URL for "${appId}" failed safety validation`)
+      }
+      try {
+        await shell.openExternal(url)
+      } catch (error) {
+        logger.error('Failed to open target with external application', { appId, targetPath, error })
+        throw error
+      }
       return
     }
 
     const executablePath = this.resolveExecutablePath(config)
     if (!executablePath) throw new Error(`Executable for external application "${appId}" was not found`)
-    const directory = this.resolveTerminalDirectory(targetPath)
+    const directory = this.resolveTerminalDirectory(targetPath, pathKind)
     const env = { ...process.env }
     removeEnvProxy(env)
-    await new Promise<void>((resolve, reject) => {
-      const child = spawn(executablePath, ['-d', directory], { env, shell: false, windowsHide: false })
-      child.once('spawn', resolve)
-      child.once('error', reject)
-    })
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const child = spawn(executablePath, ['-d', directory], { env, shell: false, windowsHide: false })
+        child.once('spawn', resolve)
+        child.once('error', reject)
+      })
+    } catch (error) {
+      logger.error('Failed to open target with external application', { appId, targetPath, error })
+      throw error
+    }
   }
 
   private buildEditorUrl(config: KnownExternalAppConfig, targetPath: AbsoluteFilePath): string {
@@ -257,8 +283,8 @@ export class ExternalAppService {
     return path.win32.join(localAppData, 'Microsoft', 'WindowsApps', config.executable)
   }
 
-  private resolveTerminalDirectory(targetPath: AbsoluteFilePath): string {
-    return this.getPathKind(targetPath) === 'file' ? path.dirname(targetPath) : targetPath
+  private resolveTerminalDirectory(targetPath: AbsoluteFilePath, pathKind: ExternalOpenTargetPathKind): string {
+    return pathKind === 'file' ? path.dirname(targetPath) : targetPath
   }
 }
 

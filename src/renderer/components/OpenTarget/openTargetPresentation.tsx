@@ -40,7 +40,7 @@ export async function loadOpenTargetMenuItems({
   t: TFunction
 }): Promise<readonly CommandContextMenuExtraItem[]> {
   try {
-    const result = await externalOpenTargetService.list(targetPath)
+    const result = await externalOpenTargetService.list(targetPath, pathKind)
     return result.targets.map((target) => ({
       type: 'item',
       id: `external-open-target.${target.id}`,
@@ -48,7 +48,7 @@ export async function loadOpenTargetMenuItems({
       icon: <OpenTargetIcon target={target} />,
       badge: getOpenTargetBadge(target, t),
       onSelect: () => {
-        void externalOpenTargetService.open(targetPath, pathKind, target.id).catch((error) => {
+        void externalOpenTargetService.open(targetPath, result.pathKind, target.id).catch((error) => {
           toast.error(formatErrorMessageWithPrefix(error, t('files.error.open_path', { path: targetPath })))
         })
       }

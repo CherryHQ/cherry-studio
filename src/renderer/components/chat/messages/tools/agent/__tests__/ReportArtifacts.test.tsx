@@ -10,19 +10,30 @@ import { MessageListProvider } from '../../../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListProviderValue } from '../../../types'
 import { MessageReportArtifacts } from '../ReportArtifacts'
 
-const { externalOpenTargets, mockOpenTarget } = vi.hoisted(() => ({
-  mockOpenTarget: vi.fn().mockResolvedValue(undefined),
-  externalOpenTargets: [
+const { externalOpenTargets, mockOpenTarget, mockUseExternalOpenTargets } = vi.hoisted(() => {
+  const targets = [
     { id: 'system_default', kind: 'system_default' },
     { id: 'file_manager', kind: 'file_manager' }
   ] satisfies ExternalOpenTarget[]
-}))
+  const openTarget = vi.fn().mockResolvedValue(undefined)
+  return {
+    externalOpenTargets: targets,
+    mockOpenTarget: openTarget,
+    mockUseExternalOpenTargets: vi.fn(
+      (targetPath: string, _pathKind: 'file' | 'directory', options?: { enabled?: boolean }) => ({
+        data: options?.enabled
+          ? { pathKind: 'file' as const, recommendedTargetId: 'system_default', targets }
+          : undefined,
+        error: undefined,
+        targets: options?.enabled ? targets : [],
+        openTarget: (target: ExternalOpenTarget) => openTarget(targetPath, target)
+      })
+    )
+  }
+})
 
 vi.mock('@renderer/hooks/useExternalOpenTargets', () => ({
-  useExternalOpenTargets: (targetPath: string) => ({
-    targets: externalOpenTargets,
-    openTarget: (target: ExternalOpenTarget) => mockOpenTarget(targetPath, target)
-  })
+  useExternalOpenTargets: mockUseExternalOpenTargets
 }))
 
 vi.mock('@renderer/components/OpenTarget', () => ({
@@ -160,18 +171,20 @@ describe('MessageReportArtifacts', () => {
           } as NormalToolResponse
         ]}
       />,
-      { openArtifactFile }
+      { openArtifactFile, resolvePath: (path) => `/workspace/${path}` }
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Preview report.md' }))
     await waitFor(() => {
-      expect(openArtifactFile).toHaveBeenCalledWith('dist/report.md')
+      expect(openArtifactFile).toHaveBeenCalledWith('/workspace/dist/report.md')
     })
 
+    expect(mockUseExternalOpenTargets).toHaveBeenLastCalledWith('/workspace/dist/report.md', 'file', { enabled: false })
     fireEvent.click(screen.getByRole('button', { name: 'Open with report.md' }))
+    expect(mockUseExternalOpenTargets).toHaveBeenLastCalledWith('/workspace/dist/report.md', 'file', { enabled: true })
     fireEvent.click(screen.getByRole('button', { name: 'Open File' }))
     await waitFor(() => {
-      expect(mockOpenTarget).toHaveBeenCalledWith('dist/report.md', externalOpenTargets[0])
+      expect(mockOpenTarget).toHaveBeenCalledWith('/workspace/dist/report.md', externalOpenTargets[0])
     })
   })
 
@@ -220,7 +233,7 @@ describe('MessageReportArtifacts', () => {
             tool: { id: 'report-artifacts', name: 'report_artifacts', type: 'builtin' },
             status: 'done',
             arguments: {
-              artifacts: [{ path: 'dist/report.md' }]
+              artifacts: [{ path: '/workspace/dist/report.md' }]
             }
           } as NormalToolResponse
         ]}
@@ -243,9 +256,9 @@ describe('MessageReportArtifacts', () => {
     fireEvent.click(contextMenu().getByRole('button', { name: 'Copy' }))
 
     await waitFor(() => {
-      expect(mockOpenTarget).toHaveBeenCalledWith('dist/report.md', externalOpenTargets[0])
-      expect(mockOpenTarget).toHaveBeenCalledWith('dist/report.md', externalOpenTargets[1])
-      expect(copyText).toHaveBeenCalledWith('dist/report.md', { successMessage: 'Copied' })
+      expect(mockOpenTarget).toHaveBeenCalledWith('/workspace/dist/report.md', externalOpenTargets[0])
+      expect(mockOpenTarget).toHaveBeenCalledWith('/workspace/dist/report.md', externalOpenTargets[1])
+      expect(copyText).toHaveBeenCalledWith('/workspace/dist/report.md', { successMessage: 'Copied' })
     })
   })
 })

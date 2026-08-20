@@ -10,7 +10,7 @@ import { REPORT_ARTIFACTS_TOOL_NAME, reportArtifactsInputSchema } from '@shared/
 import type { ExternalOpenTarget } from '@shared/types/externalApp'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { ChevronDown } from 'lucide-react'
-import { type MouseEvent, useCallback, useMemo } from 'react'
+import { type MouseEvent, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
@@ -80,10 +80,12 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
   )
   const fileName = useMemo(() => getArtifactFileName(displayPath), [displayPath])
   const iconName = useMemo(() => getFileIconName(displayPath), [displayPath])
-  const { targets, openTarget } = useExternalOpenTargets(targetPath, 'file', {
-    enabled: AbsoluteFilePathSchema.safeParse(targetPath).success
+  const [openTargetMenuOpen, setOpenTargetMenuOpen] = useState(false)
+  const hasAbsoluteTargetPath = AbsoluteFilePathSchema.safeParse(targetPath).success
+  const { data, error, targets, openTarget } = useExternalOpenTargets(targetPath, 'file', {
+    enabled: hasAbsoluteTargetPath && openTargetMenuOpen
   })
-  const hasOpenActions = Boolean(openArtifactFile || targets.length > 0)
+  const hasOpenActions = Boolean(openArtifactFile || hasAbsoluteTargetPath)
 
   const handlePreview = useCallback(() => {
     if (!openArtifactFile) return
@@ -118,6 +120,15 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
         onSelect: handlePreview
       })
     }
+    if (hasAbsoluteTargetPath && targets.length === 0 && !data && !error) {
+      items.push({
+        type: 'item',
+        id: 'artifact.open-target.loading',
+        label: t('common.loading'),
+        enabled: false,
+        onSelect: () => undefined
+      })
+    }
     for (const target of targets) {
       items.push({
         type: 'item',
@@ -138,7 +149,18 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
       })
     }
     return items
-  }, [copyText, handleCopyPath, handleOpenTarget, handlePreview, openArtifactFile, t, targets])
+  }, [
+    copyText,
+    data,
+    error,
+    handleCopyPath,
+    handleOpenTarget,
+    handlePreview,
+    hasAbsoluteTargetPath,
+    openArtifactFile,
+    t,
+    targets
+  ])
 
   const card = (
     <div className="group/artifact flex w-full max-w-xl items-center overflow-hidden rounded-lg border-[0.5px] border-border bg-background-subtle transition-colors hover:bg-accent">
@@ -158,6 +180,7 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
         <CommandPopupMenu
           location="webcontents.context"
           extraItems={contextMenuItems}
+          onOpenChange={setOpenTargetMenuOpen}
           align="end"
           side="bottom"
           sideOffset={6}
@@ -183,7 +206,10 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
   }
 
   return (
-    <CommandContextMenu location="webcontents.context" extraItems={contextMenuItems}>
+    <CommandContextMenu
+      location="webcontents.context"
+      extraItems={contextMenuItems}
+      onOpenChange={setOpenTargetMenuOpen}>
       {card}
     </CommandContextMenu>
   )

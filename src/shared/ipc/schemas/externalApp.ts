@@ -11,7 +11,7 @@ const externalOpenTargetSchema = z.strictObject({
 
 export const externalAppRequestSchemas = {
   'external_app.target.list': defineRoute({
-    input: z.strictObject({ targetPath: z.string().min(1) }),
+    input: z.strictObject({ targetPath: z.string().min(1), pathKind: z.enum(['file', 'directory']) }),
     output: z.strictObject({
       pathKind: z.enum(['file', 'directory']),
       recommendedTargetId: z.string().min(1),
@@ -19,7 +19,11 @@ export const externalAppRequestSchemas = {
     })
   }),
   'external_app.target.open': defineRoute({
-    input: z.strictObject({ targetPath: z.string().min(1), targetId: z.string().min(1) }),
+    input: z.strictObject({
+      targetPath: z.string().min(1),
+      pathKind: z.enum(['file', 'directory']),
+      targetId: z.string().min(1)
+    }),
     output: z.void()
   })
 }

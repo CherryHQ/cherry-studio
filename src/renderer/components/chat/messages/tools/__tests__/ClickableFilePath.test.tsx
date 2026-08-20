@@ -23,21 +23,33 @@ vi.stubGlobal('api', {
     getMetadata: mockGetMetadata
   }
 })
-const { externalOpenTargets, mockOpenTarget } = vi.hoisted(() => ({
-  mockOpenTarget: vi.fn().mockResolvedValue(undefined),
-  externalOpenTargets: [
+const { externalOpenTargets, mockOpenTarget, mockUseExternalOpenTargets } = vi.hoisted(() => {
+  const targets = [
     { id: 'system_default', name: 'TextEdit', kind: 'system_default' },
     { id: 'file_manager', name: 'Finder', kind: 'file_manager' },
     { id: 'known:vscode', name: 'Visual Studio Code', kind: 'application' },
     { id: 'known:cursor', name: 'Cursor', kind: 'application' }
   ] satisfies ExternalOpenTarget[]
-}))
+  const openTarget = vi.fn().mockResolvedValue(undefined)
+  return {
+    externalOpenTargets: targets,
+    mockOpenTarget: openTarget,
+    mockUseExternalOpenTargets: vi.fn(
+      (targetPath: string, _pathKind: 'file' | 'directory', options?: { enabled?: boolean }) => ({
+        data: options?.enabled
+          ? { pathKind: 'file' as const, recommendedTargetId: 'system_default', targets }
+          : undefined,
+        error: undefined,
+        isLoading: false,
+        targets: options?.enabled ? targets : [],
+        openTarget: (target: ExternalOpenTarget) => openTarget(targetPath, target)
+      })
+    )
+  }
+})
 
 vi.mock('@renderer/hooks/useExternalOpenTargets', () => ({
-  useExternalOpenTargets: (targetPath: string) => ({
-    targets: externalOpenTargets,
-    openTarget: (target: ExternalOpenTarget) => mockOpenTarget(targetPath, target)
-  })
+  useExternalOpenTargets: mockUseExternalOpenTargets
 }))
 
 vi.mock('@renderer/components/OpenTarget', () => ({
@@ -196,6 +208,7 @@ describe('ClickableFilePath', () => {
   it('should render ellipsis dropdown trigger when open targets are available', () => {
     renderWithProvider(<ClickableFilePath path="/tmp/test.ts" />)
     expect(screen.getByRole('button', { name: 'More' })).toBeInTheDocument()
+    expect(mockUseExternalOpenTargets).toHaveBeenLastCalledWith('/tmp/test.ts', 'file', { enabled: false })
   })
 
   it('should show the path-specific system, file-manager, and app targets without separators', () => {
@@ -203,6 +216,7 @@ describe('ClickableFilePath', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'More' }))
 
+    expect(mockUseExternalOpenTargets).toHaveBeenLastCalledWith('/tmp/test.ts', 'file', { enabled: true })
     expect(screen.getByText('Finder')).toBeInTheDocument()
     expect(screen.queryByText('Reveal in Finder')).not.toBeInTheDocument()
     expect(screen.getByText('Visual Studio Code')).toBeInTheDocument()

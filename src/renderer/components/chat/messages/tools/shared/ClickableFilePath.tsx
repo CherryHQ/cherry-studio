@@ -39,10 +39,10 @@ export const ClickableFilePath = memo(function ClickableFilePath({
   const notifyError = actions?.notifyError
   const canOpen = Boolean(openArtifactFile || openPath)
   const hasAbsoluteTargetPath = AbsoluteFilePathSchema.safeParse(targetPath).success
-  const { targets, openTarget } = useExternalOpenTargets(targetPath, 'file', {
-    enabled: interactive && hasAbsoluteTargetPath
+  const { isLoading, targets, openTarget } = useExternalOpenTargets(targetPath, 'file', {
+    enabled: interactive && hasAbsoluteTargetPath && actionsMenuOpen
   })
-  const hasMoreActions = interactive && targets.length > 0
+  const hasMoreActions = interactive && hasAbsoluteTargetPath
 
   const handleOpenTarget = useCallback(
     (target: ExternalOpenTarget) => {
@@ -116,6 +116,7 @@ export const ClickableFilePath = memo(function ClickableFilePath({
           </PopoverTrigger>
           <PopoverContent className="w-56 p-1" align="start">
             <MenuList>
+              {isLoading && targets.length === 0 && <MenuItem label={t('common.loading')} disabled />}
               {targets.map((target) => (
                 <MenuItem
                   key={target.id}

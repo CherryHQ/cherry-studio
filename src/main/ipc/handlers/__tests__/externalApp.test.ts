@@ -11,7 +11,7 @@ vi.mock('@main/services/externalApp', () => ({
 
 import { externalAppHandlers } from '../externalApp'
 
-const input = { targetId: 'known:wt', targetPath: 'C:\\work\\project' }
+const input = { targetId: 'known:wt', targetPath: 'C:\\work\\project', pathKind: 'directory' as const }
 
 describe('externalAppHandlers', () => {
   beforeEach(() => {
@@ -27,9 +27,12 @@ describe('externalAppHandlers', () => {
     listOpenTargets.mockResolvedValue(result)
 
     await expect(
-      externalAppHandlers['external_app.target.list']({ targetPath: input.targetPath }, { senderId: 'main-1' })
+      externalAppHandlers['external_app.target.list'](
+        { targetPath: input.targetPath, pathKind: input.pathKind },
+        { senderId: 'main-1' }
+      )
     ).resolves.toBe(result)
-    expect(listOpenTargets).toHaveBeenCalledWith(input.targetPath)
+    expect(listOpenTargets).toHaveBeenCalledWith(input.targetPath, input.pathKind)
   })
 
   it('opens the requested target through ExternalAppService', async () => {
@@ -37,7 +40,7 @@ describe('externalAppHandlers', () => {
 
     await externalAppHandlers['external_app.target.open'](input, { senderId: 'main-1' })
 
-    expect(openTarget).toHaveBeenCalledWith('C:\\work\\project', 'known:wt')
+    expect(openTarget).toHaveBeenCalledWith('C:\\work\\project', 'known:wt', 'directory')
   })
 
   it('accepts a trusted caller without a managed window id', async () => {
@@ -45,7 +48,7 @@ describe('externalAppHandlers', () => {
 
     await externalAppHandlers['external_app.target.open'](input, { senderId: null })
 
-    expect(openTarget).toHaveBeenCalledWith('C:\\work\\project', 'known:wt')
+    expect(openTarget).toHaveBeenCalledWith('C:\\work\\project', 'known:wt', 'directory')
   })
 
   it('forwards launch failures', async () => {

@@ -6,7 +6,7 @@ import {
 } from '@renderer/services/externalOpenTargetService'
 import type { ExternalOpenTarget } from '@shared/types/externalApp'
 import { useCallback, useMemo } from 'react'
-import useSWR from 'swr'
+import useSWRImmutable from 'swr/immutable'
 
 export function useExternalOpenTargets(
   targetPath: string,
@@ -14,8 +14,10 @@ export function useExternalOpenTargets(
   options?: { enabled?: boolean }
 ) {
   const queryScope = getExternalOpenTargetScope(targetPath, pathKind)
-  const query = useSWR(options?.enabled === false ? null : ['external-open-targets', queryScope], () =>
-    externalOpenTargetService.list(targetPath)
+  const query = useSWRImmutable(
+    options?.enabled === false ? null : ['external-open-targets', queryScope],
+    () => externalOpenTargetService.list(targetPath, pathKind),
+    { shouldRetryOnError: false }
   )
   const resolvedPathKind = query.data?.pathKind ?? pathKind
 
