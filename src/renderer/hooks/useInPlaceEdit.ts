@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
-import { useCallback, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useInPlaceEdit')
@@ -40,12 +40,25 @@ export function useInPlaceEdit(options: UseInPlaceEditOptions): UseInPlaceEditRe
   const originalValueRef = useRef('')
   const isSavingRef = useRef(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const blurSaveTimerRef = useRef<number | null>(null)
 
-  const startEdit = useCallback((initialValue: string) => {
-    setIsEditing(true)
-    setEditValue(initialValue)
-    originalValueRef.current = initialValue
+  const clearPendingBlurSave = useCallback(() => {
+    if (blurSaveTimerRef.current === null) return
+    window.clearTimeout(blurSaveTimerRef.current)
+    blurSaveTimerRef.current = null
   }, [])
+
+  const startEdit = useCallback(
+    (initialValue: string) => {
+      clearPendingBlurSave()
+      setIsEditing(true)
+      setEditValue(initialValue)
+      originalValueRef.current = initialValue
+    },
+    [clearPendingBlurSave]
+  )
+
+  useEffect(() => clearPendingBlurSave, [clearPendingBlurSave])
 
   useLayoutEffect(() => {
     if (isEditing) {
@@ -58,6 +71,7 @@ export function useInPlaceEdit(options: UseInPlaceEditOptions): UseInPlaceEditRe
 
   const saveEdit = useCallback(async () => {
     if (isSavingRef.current) return
+    clearPendingBlurSave()
 
     const finalValue = trimOnSave ? editValue.trim() : editValue
     if (finalValue === originalValueRef.current) {
@@ -85,13 +99,14 @@ export function useInPlaceEdit(options: UseInPlaceEditOptions): UseInPlaceEditRe
       setIsSaving(false)
       isSavingRef.current = false
     }
-  }, [trimOnSave, editValue, onSave, onError, t])
+  }, [clearPendingBlurSave, trimOnSave, editValue, onSave, onError, t])
 
   const cancelEdit = useCallback(() => {
+    clearPendingBlurSave()
     setIsEditing(false)
     setEditValue('')
     onCancel?.()
-  }, [onCancel])
+  }, [clearPendingBlurSave, onCancel])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -115,14 +130,13 @@ export function useInPlaceEdit(options: UseInPlaceEditOptions): UseInPlaceEditRe
   }, [])
 
   const handleBlur = useCallback(() => {
-    // 这里的逻辑需要注意：
-    // 如果点击了“取消”按钮，可能会先触发 Blur 保存。
-    // 通常 InPlaceEdit 的逻辑是 Blur 即 Save。
-    // 如果不想 Blur 保存，可以去掉这一行，或者判断 relatedTarget。
-    if (!isSavingRef.current) {
+    if (isSavingRef.current) return
+    clearPendingBlurSave()
+    blurSaveTimerRef.current = window.setTimeout(() => {
+      blurSaveTimerRef.current = null
       void saveEdit()
-    }
-  }, [saveEdit])
+    }, 0)
+  }, [clearPendingBlurSave, saveEdit])
 
   return {
     isEditing,
