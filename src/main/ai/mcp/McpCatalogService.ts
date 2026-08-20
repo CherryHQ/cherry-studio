@@ -12,6 +12,7 @@ import * as z from 'zod'
 
 import { redactCacheKey } from './mcpRedact'
 import { buildMcpToolWireId } from './mcpToolId'
+import { OAuthPendingAuthError } from './McpRuntimeService'
 
 const logger = loggerService.withContext('McpCatalogService')
 const mcpToolsCacheKey = (serverId: string): SharedCacheKey => `mcp.tools.${serverId}` as SharedCacheKey
@@ -249,7 +250,11 @@ export class McpCatalogService extends BaseService {
       return options.includeDisabled ? tools : this.filterEnabledTools(server, tools)
     } catch (error) {
       this.writeToolsCache(server.id, [], FAILED_TOOLS_RETRY_MS)
-      this.runtimeService().setServerStatus(server.id, 'error', error)
+      this.runtimeService().setServerStatus(
+        server.id,
+        error instanceof OAuthPendingAuthError ? 'pending-auth' : 'error',
+        error
+      )
       throw error
     }
   }

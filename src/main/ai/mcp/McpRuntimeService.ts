@@ -115,26 +115,13 @@ export interface McpToolListChangedEvent {
 // still letting users raise it further via `server.timeout`.
 const MCP_CONNECT_TIMEOUT_FLOOR_MS = 180_000
 
-// How long to wait for the user to complete an OAuth browser flow before giving up and
-// marking the server as `pending-auth`. 60 s is generous for a browser redirect + consent
-// tap, while being short enough that a stalled OAuth for one server does not block the
-// prewarm of all other servers for 5 minutes.
+// Full browser OAuth callback window before the pending-auth listener expires.
 const OAUTH_CALLBACK_TIMEOUT_MS = 60_000
 
-// How long the connect path blocks waiting for the OAuth code before failing fast to
-// `pending-auth`. After this window the callback server keeps listening in background;
-// if the code arrives within the full OAUTH_CALLBACK_TIMEOUT_MS, the server auto-reconnects
-// without user interaction. 8 s is enough for a user who already has a browser tab open,
-// while preventing a single OAuth-gated server from delaying all other servers on startup.
+// Fast-path grace window before surfacing pending-auth and letting other servers continue.
 const OAUTH_GRACE_MS = 8_000
 
-/**
- * Thrown by `finishOAuth` when the OAuth callback does not arrive within the timeout.
- * Caught by `connectClient` to set the server status to `pending-auth` rather than the
- * generic `error` state, so the UI can surface a "re-authenticate" affordance instead of
- * a generic red-dot error.
- */
-class OAuthPendingAuthError extends Error {
+export class OAuthPendingAuthError extends Error {
   constructor(message: string) {
     super(message)
     this.name = 'OAuthPendingAuthError'
