@@ -1,8 +1,18 @@
 diff --git a/dist/index.js b/dist/index.js
-index 1c78d6f13caed5cbfa034d86f5e51729d540a1ba..a81c976790295607d8f0a4b55b03f529acbebde3 100644
+index 1c78d6f13caed5cbfa034d86f5e51729d540a1ba..84e7f6efc9bb167b72770ce62ee22bd6bb137289 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -1753,13 +1753,15 @@ var modelMaxImagesPerCall = {
+@@ -1725,7 +1725,8 @@ var openaiImageResponseSchema = (0, import_provider_utils12.lazySchema)(
+       created: import_v48.z.number().nullish(),
+       data: import_v48.z.array(
+         import_v48.z.object({
+-          b64_json: import_v48.z.string(),
++          b64_json: import_v48.z.string().nullish(),
++          url: import_v48.z.string().nullish(),
+           revised_prompt: import_v48.z.string().nullish()
+         })
+       ),
+@@ -1753,13 +1754,15 @@ var modelMaxImagesPerCall = {
    "gpt-image-1": 10,
    "gpt-image-1-mini": 10,
    "gpt-image-1.5": 10,
@@ -19,11 +29,47 @@ index 1c78d6f13caed5cbfa034d86f5e51729d540a1ba..a81c976790295607d8f0a4b55b03f529
  ];
  function hasDefaultResponseFormat(modelId) {
    return defaultResponseFormatPrefixes.some(
+@@ -1843,7 +1846,11 @@ var OpenAIImageModel = class {
+         fetch: this.config.fetch
+       });
+       return {
+-        images: response2.data.map((item) => item.b64_json),
++        images: response2.data.flatMap((item) => {
++          if (typeof item.b64_json === "string") return [item.b64_json];
++          if (typeof item.url === "string") return [item.url];
++          return [];
++        }),
+         warnings,
+         usage: response2.usage != null ? {
+           inputTokens: (_e = response2.usage.input_tokens) != null ? _e : void 0,
+@@ -1899,7 +1906,11 @@ var OpenAIImageModel = class {
+       fetch: this.config.fetch
+     });
+     return {
+-      images: response.data.map((item) => item.b64_json),
++      images: response.data.flatMap((item) => {
++        if (typeof item.b64_json === "string") return [item.b64_json];
++        if (typeof item.url === "string") return [item.url];
++        return [];
++      }),
+       warnings,
+       usage: response.usage != null ? {
+         inputTokens: (_i = response.usage.input_tokens) != null ? _i : void 0,
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 3dee8855a0cff4c2d5bef4ff1cb2a92a48bd8c4f..441a6af5cf113f62742fab44ab2eb6b66765009a 100644
+index 3dee8855a0cff4c2d5bef4ff1cb2a92a48bd8c4f..5d3938b984716dac444fd009ed987a3236fa4231 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
-@@ -1768,13 +1768,15 @@ var modelMaxImagesPerCall = {
+@@ -1740,7 +1740,8 @@ var openaiImageResponseSchema = lazySchema7(
+       created: z8.number().nullish(),
+       data: z8.array(
+         z8.object({
+-          b64_json: z8.string(),
++          b64_json: z8.string().nullish(),
++          url: z8.string().nullish(),
+           revised_prompt: z8.string().nullish()
+         })
+       ),
+@@ -1768,13 +1769,15 @@ var modelMaxImagesPerCall = {
    "gpt-image-1": 10,
    "gpt-image-1-mini": 10,
    "gpt-image-1.5": 10,
@@ -40,11 +86,47 @@ index 3dee8855a0cff4c2d5bef4ff1cb2a92a48bd8c4f..441a6af5cf113f62742fab44ab2eb6b6
  ];
  function hasDefaultResponseFormat(modelId) {
    return defaultResponseFormatPrefixes.some(
+@@ -1858,7 +1861,11 @@ var OpenAIImageModel = class {
+         fetch: this.config.fetch
+       });
+       return {
+-        images: response2.data.map((item) => item.b64_json),
++        images: response2.data.flatMap((item) => {
++          if (typeof item.b64_json === "string") return [item.b64_json];
++          if (typeof item.url === "string") return [item.url];
++          return [];
++        }),
+         warnings,
+         usage: response2.usage != null ? {
+           inputTokens: (_e = response2.usage.input_tokens) != null ? _e : void 0,
+@@ -1914,7 +1921,11 @@ var OpenAIImageModel = class {
+       fetch: this.config.fetch
+     });
+     return {
+-      images: response.data.map((item) => item.b64_json),
++      images: response.data.flatMap((item) => {
++        if (typeof item.b64_json === "string") return [item.b64_json];
++        if (typeof item.url === "string") return [item.url];
++        return [];
++      }),
+       warnings,
+       usage: response.usage != null ? {
+         inputTokens: (_i = response.usage.input_tokens) != null ? _i : void 0,
 diff --git a/dist/internal/index.js b/dist/internal/index.js
-index 27527ce4b6c232e26c4bed988292d8fdd5dbbb5f..b359aa3dcac974127dd7405ad3fd110680e61f5d 100644
+index 27527ce4b6c232e26c4bed988292d8fdd5dbbb5f..62f0d9be422d1a0a7e887ee9c2f54bec3b8ede1d 100644
 --- a/dist/internal/index.js
 +++ b/dist/internal/index.js
-@@ -1780,13 +1780,15 @@ var modelMaxImagesPerCall = {
+@@ -1752,7 +1752,8 @@ var openaiImageResponseSchema = (0, import_provider_utils12.lazySchema)(
+       created: import_v48.z.number().nullish(),
+       data: import_v48.z.array(
+         import_v48.z.object({
+-          b64_json: import_v48.z.string(),
++          b64_json: import_v48.z.string().nullish(),
++          url: import_v48.z.string().nullish(),
+           revised_prompt: import_v48.z.string().nullish()
+         })
+       ),
+@@ -1780,13 +1781,15 @@ var modelMaxImagesPerCall = {
    "gpt-image-1": 10,
    "gpt-image-1-mini": 10,
    "gpt-image-1.5": 10,
@@ -61,11 +143,47 @@ index 27527ce4b6c232e26c4bed988292d8fdd5dbbb5f..b359aa3dcac974127dd7405ad3fd1106
  ];
  function hasDefaultResponseFormat(modelId) {
    return defaultResponseFormatPrefixes.some(
+@@ -1870,7 +1873,11 @@ var OpenAIImageModel = class {
+         fetch: this.config.fetch
+       });
+       return {
+-        images: response2.data.map((item) => item.b64_json),
++        images: response2.data.flatMap((item) => {
++          if (typeof item.b64_json === "string") return [item.b64_json];
++          if (typeof item.url === "string") return [item.url];
++          return [];
++        }),
+         warnings,
+         usage: response2.usage != null ? {
+           inputTokens: (_e = response2.usage.input_tokens) != null ? _e : void 0,
+@@ -1926,7 +1933,11 @@ var OpenAIImageModel = class {
+       fetch: this.config.fetch
+     });
+     return {
+-      images: response.data.map((item) => item.b64_json),
++      images: response.data.flatMap((item) => {
++        if (typeof item.b64_json === "string") return [item.b64_json];
++        if (typeof item.url === "string") return [item.url];
++        return [];
++      }),
+       warnings,
+       usage: response.usage != null ? {
+         inputTokens: (_i = response.usage.input_tokens) != null ? _i : void 0,
 diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
-index db50beda01459008c836cd5648e024340fe31e90..04b9e17943287a94287932f08286e041c4a193d0 100644
+index db50beda01459008c836cd5648e024340fe31e90..e146cd5b3bea1fd123a651de26a9f73fb7942042 100644
 --- a/dist/internal/index.mjs
 +++ b/dist/internal/index.mjs
-@@ -1760,13 +1760,15 @@ var modelMaxImagesPerCall = {
+@@ -1732,7 +1732,8 @@ var openaiImageResponseSchema = lazySchema7(
+       created: z8.number().nullish(),
+       data: z8.array(
+         z8.object({
+-          b64_json: z8.string(),
++          b64_json: z8.string().nullish(),
++          url: z8.string().nullish(),
+           revised_prompt: z8.string().nullish()
+         })
+       ),
+@@ -1760,13 +1761,15 @@ var modelMaxImagesPerCall = {
    "gpt-image-1": 10,
    "gpt-image-1-mini": 10,
    "gpt-image-1.5": 10,
@@ -82,3 +200,73 @@ index db50beda01459008c836cd5648e024340fe31e90..04b9e17943287a94287932f08286e041
  ];
  function hasDefaultResponseFormat(modelId) {
    return defaultResponseFormatPrefixes.some(
+@@ -1850,7 +1853,11 @@ var OpenAIImageModel = class {
+         fetch: this.config.fetch
+       });
+       return {
+-        images: response2.data.map((item) => item.b64_json),
++        images: response2.data.flatMap((item) => {
++          if (typeof item.b64_json === "string") return [item.b64_json];
++          if (typeof item.url === "string") return [item.url];
++          return [];
++        }),
+         warnings,
+         usage: response2.usage != null ? {
+           inputTokens: (_e = response2.usage.input_tokens) != null ? _e : void 0,
+@@ -1906,7 +1913,11 @@ var OpenAIImageModel = class {
+       fetch: this.config.fetch
+     });
+     return {
+-      images: response.data.map((item) => item.b64_json),
++      images: response.data.flatMap((item) => {
++        if (typeof item.b64_json === "string") return [item.b64_json];
++        if (typeof item.url === "string") return [item.url];
++        return [];
++      }),
+       warnings,
+       usage: response.usage != null ? {
+         inputTokens: (_i = response.usage.input_tokens) != null ? _i : void 0,
+diff --git a/src/image/openai-image-api.ts b/src/image/openai-image-api.ts
+index de779ca46aa2102cc5bef4a733ef6b6807260731..14b724785e15ab95f4cd2ff4d35d35c2ca7605c7 100644
+--- a/src/image/openai-image-api.ts
++++ b/src/image/openai-image-api.ts
+@@ -9,7 +9,8 @@ export const openaiImageResponseSchema = lazySchema(() =>
+       created: z.number().nullish(),
+       data: z.array(
+         z.object({
+-          b64_json: z.string(),
++          b64_json: z.string().nullish(),
++          url: z.string().nullish(),
+           revised_prompt: z.string().nullish(),
+         }),
+       ),
+diff --git a/src/image/openai-image-model.ts b/src/image/openai-image-model.ts
+index d456d6398aefb5f78650780867bba92427b1d542..baaade4152183264b1af2b1ac2907bbb7adb4edd 100644
+--- a/src/image/openai-image-model.ts
++++ b/src/image/openai-image-model.ts
+@@ -116,7 +116,11 @@ export class OpenAIImageModel implements ImageModelV3 {
+       });
+ 
+       return {
+-        images: response.data.map(item => item.b64_json),
++        images: response.data.flatMap(item => {
++          if (typeof item.b64_json === 'string') return [item.b64_json];
++          if (typeof item.url === 'string') return [item.url];
++          return [];
++        }),
+         warnings,
+         usage:
+           response.usage != null
+@@ -178,7 +182,11 @@ export class OpenAIImageModel implements ImageModelV3 {
+     });
+ 
+     return {
+-      images: response.data.map(item => item.b64_json),
++      images: response.data.flatMap(item => {
++        if (typeof item.b64_json === 'string') return [item.b64_json];
++        if (typeof item.url === 'string') return [item.url];
++        return [];
++      }),
+       warnings,
+       usage:
+         response.usage != null

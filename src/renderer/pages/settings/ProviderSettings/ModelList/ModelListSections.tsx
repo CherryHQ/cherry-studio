@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next'
 
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
 import ModelListGroup from './ModelListGroup'
+import { useModelListHealthResults, useModelListHealthRun } from './modelListHealthContext'
 import ModelListItem from './ModelListItem'
 import type { ModelListGroupSection } from './useProviderModelList'
 
@@ -70,6 +71,8 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
   expansionCommand
 }) => {
   const { t } = useTranslation()
+  const { modelStatusMap } = useModelListHealthResults()
+  const { apiKeyEntries, savingKeyId, toggleApiKey } = useModelListHealthRun()
   const [groupOpenOverrides, setGroupOpenOverrides] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
@@ -190,6 +193,10 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
             <ModelListItem
               provider={provider}
               model={row.model}
+              modelStatus={modelStatusMap.get(row.model.id)}
+              apiKeyEntries={apiKeyEntries}
+              savingKeyId={savingKeyId}
+              onToggleApiKey={toggleApiKey}
               onEdit={onEditModel}
               onDelete={onDeleteModel}
               disabled={disabled || pendingModelIds.has(row.model.id)}

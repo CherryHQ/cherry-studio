@@ -202,9 +202,9 @@ describe('buildAgentParams provider resolution', () => {
       serverTools: [{ id: 'url-context', modelScope: 'model-dependent' }]
     })
     const model = makeModel({
-      id: 'gemini::gemini-3-pro-preview',
+      id: 'gemini::gemini-3-1-pro-preview',
       providerId: 'gemini',
-      apiModelId: 'gemini-3-pro-preview',
+      apiModelId: 'gemini-3-1-pro-preview',
       capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
     })
     const assistant = makeAssistant({ settings: { enableWebSearch: true } })
@@ -591,6 +591,29 @@ describe('buildAgentParams web-tool routing', () => {
     }
   )
 
+  it('disables Responses storage for assistant-backed calls too', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'openai', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'openai',
+      presetProviderId: 'openai',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'openai' } }
+    })
+    const model = makeModel({
+      id: 'openai::gpt-5.6',
+      providerId: 'openai',
+      apiModelId: 'gpt-5.6',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
+    })
+
+    const result = await buildAgentParams({ request: {}, signal: undefined, provider, model, assistant })
+
+    expect(result.options.providerOptions?.openai).toMatchObject({ store: false })
+  })
+
   it.each([
     { endpointType: ENDPOINT_TYPE.OPENAI_RESPONSES, runtimeProviderId: 'openai', expectedRoute: 'server' },
     {
@@ -788,7 +811,50 @@ describe('buildAgentParams assistant-less reasoning', () => {
     await expect(sdkModel.doGenerate({ prompt, providerOptions: result.options.providerOptions })).rejects.toThrow(
       'request captured'
     )
-    expect(requestBody).toMatchObject({ reasoning: { effort: 'none' } })
+    expect(requestBody).toMatchObject({ store: false, reasoning: { effort: 'none' } })
+  })
+
+  it('serializes gateway reasoning overrides with Responses storage disabled', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'newapi', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'new-api',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'newapi' } }
+    })
+    const model = makeModel({
+      id: 'new-api::gpt-5.6-sol',
+      providerId: 'new-api',
+      apiModelId: 'gpt-5.6-sol',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES],
+      capabilities: [MODEL_CAPABILITY.REASONING]
+    })
+
+    const result = await buildAgentParams({
+      request: { callOverrides: { providerOptions: { openai: { reasoningEffort: 'none', forceReasoning: true } } } },
+      signal: undefined,
+      provider,
+      model
+    })
+    let requestBody: Record<string, unknown> | undefined
+    const sdkModel = createOpenAI({
+      apiKey: 'sk-test',
+      baseURL: 'https://example.com/v1',
+      fetch: async (_input, init) => {
+        requestBody = JSON.parse(String(init?.body))
+        throw new Error('request captured')
+      }
+    }).responses('gpt-5.6-sol')
+
+    await expect(
+      sdkModel.doGenerate({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Run the task.' }] }],
+        providerOptions: result.options.providerOptions
+      })
+    ).rejects.toThrow('request captured')
+    expect(requestBody).toMatchObject({ store: false, reasoning: { effort: 'none' } })
   })
 
   const makeOffCapableSetup = () => {
@@ -818,6 +884,29 @@ describe('buildAgentParams assistant-less reasoning', () => {
     })
     return { provider, model }
   }
+
+  it('applies the Ollama context-window default without an assistant', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'ollama', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'ollama',
+      presetProviderId: 'ollama',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'ollama' } }
+    })
+    const model = makeModel({
+      id: 'ollama::qwen3',
+      providerId: 'ollama',
+      apiModelId: 'qwen3',
+      contextWindow: 131072
+    })
+
+    const result = await buildAgentParams({ request: {}, signal: undefined, provider, model })
+
+    expect(result.options.providerOptions?.ollama).toMatchObject({ options: { num_ctx: 131072 } })
+  })
 
   it("encodes an explicit 'none' selection into the off wire mode without an assistant (translate)", async () => {
     const { provider, model } = makeOffCapableSetup()
@@ -894,9 +983,10 @@ describe('buildAgentParams assistant-less reasoning', () => {
     // turning reasoning off must send `thinkingBudget: 0`. This row is exactly
     // the shape that used to leak the Gemini 3 field: a catalog-backed custom
     // row (resolvable apiModelId, no presetModelId) on a gateway with no pin.
-    expect(result.options.providerOptions).toEqual({
-      google: { thinkingConfig: { includeThoughts: false, thinkingBudget: 0 } }
+    expect(result.options.providerOptions?.google).toMatchObject({
+      thinkingConfig: { includeThoughts: false, thinkingBudget: 0 }
     })
+    expect(Object.keys(result.options.providerOptions ?? {})).toEqual(['google'])
   })
 
   it('leaves assistant-less requests without an explicit selection un-emitted (gateway regression guard)', async () => {

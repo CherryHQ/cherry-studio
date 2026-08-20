@@ -150,6 +150,12 @@ jobs:
       - name: Install Dependencies
         run: pnpm install
 
+      - name: Check provider-registry compatibility baseline policy
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: pnpm --filter @cherrystudio/provider-registry compat:policy -- "origin/$BASE_REF"
+
       - name: Check changesets
         if: github.event_name == 'pull_request' && github.head_ref != 'changeset-release/main'
         env:
@@ -174,11 +180,12 @@ jobs:
           # Share one checkout/install while keeping independent checks parallel.
           # Do not kill sibling checks on failure so every failure is reported.
           pnpm exec concurrently \
-            --names "Lint,Type and Hardcoded Strings,Format and Repository" \
-            --prefix-colors "blue,yellow,cyan" \
+            --names "Lint,Type and Hardcoded Strings,Format and Repository,Docs" \
+            --prefix-colors "blue,yellow,cyan,green" \
             "pnpm test:lint" \
             "pnpm typecheck && pnpm i18n:hardcoded:strict" \
-            "pnpm format:check && pnpm build:builtin-knowledge:check && pnpm skills:check"
+            "pnpm format:check && pnpm build:builtin-knowledge:check && pnpm skills:check" \
+            "pnpm docs:check"
 
       - name: DB Migrations Check
         run: |

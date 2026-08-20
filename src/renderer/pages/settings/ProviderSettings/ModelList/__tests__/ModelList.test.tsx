@@ -59,6 +59,22 @@ describe('useProviderModelList', () => {
     expect(result.current.editDrawer.model?.name).toBe('Alpha')
   })
 
+  it('guards edit and delete commands while model checks are running', async () => {
+    const { result } = renderHook(() => useProviderModelList({ providerId: 'openai', disabled: true }))
+
+    act(() => {
+      result.current.sections.onEditModel(models[0])
+    })
+    await act(async () => {
+      await result.current.sections.onDeleteModel(models[0])
+      await result.current.sections.onDeleteModels(models)
+    })
+
+    expect(result.current.editDrawer.open).toBe(false)
+    expect(deleteModelMock).not.toHaveBeenCalled()
+    expect(deleteModelsMock).not.toHaveBeenCalled()
+  })
+
   it('does not delete a model used as a default', async () => {
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'chat.default_model_id': models[0].id,
