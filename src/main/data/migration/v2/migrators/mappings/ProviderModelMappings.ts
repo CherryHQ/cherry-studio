@@ -404,16 +404,6 @@ function buildProviderSettings(legacy: LegacyProvider, llmSettings: OldLlmSettin
     }
   }
 
-  if (legacy.serviceTier) {
-    settings.serviceTier = legacy.serviceTier
-    hasValue = true
-  }
-
-  if (legacy.verbosity) {
-    settings.verbosity = legacy.verbosity
-    hasValue = true
-  }
-
   if (legacy.rateLimit != null) {
     settings.rateLimit = legacy.rateLimit
     hasValue = true

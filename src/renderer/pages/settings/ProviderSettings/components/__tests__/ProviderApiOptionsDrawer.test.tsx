@@ -82,7 +82,6 @@ const provider = {
   },
   settings: {
     serviceTier: undefined,
-    summaryText: undefined,
     verbosity: undefined,
     streamOptions: {
       includeUsage: undefined

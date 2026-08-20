@@ -288,9 +288,7 @@ describe('buildCapabilityProviderOptions', () => {
       endpointConfigs: {
         [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'openai' }
       },
-      settings: {
-        summaryText: 'detailed'
-      },
+      settings: {},
       isEnabled: true
     } as Provider
 
