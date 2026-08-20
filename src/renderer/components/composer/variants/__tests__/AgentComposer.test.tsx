@@ -3081,6 +3081,49 @@ describe('AgentComposer', () => {
     expect(inputAdapter.focus).toHaveBeenCalled()
   })
 
+  it('opens the skills submenu with composer-backed search', () => {
+    mocks.availableSkills = [pdfSkill, reviewSkill]
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const skillsLauncher = mocks.registeredLaunchers.get('agent-skills')?.[0]
+    const open = vi.fn()
+    const inputAdapter = {
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn(),
+      getCursorOffset: () => 6,
+      getText: () => 'skills',
+      insertText: vi.fn()
+    }
+
+    skillsLauncher?.action?.({
+      inputAdapter,
+      parentPanel: { list: [], symbol: '/' },
+      queryAnchor: 0,
+      quickPanel: { open } as any,
+      source: 'root-panel',
+      triggerInfo: { type: 'input', position: 0, originalText: '/skills' }
+    })
+
+    expect(inputAdapter.deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 6 })
+    expect(inputAdapter.focus).toHaveBeenCalled()
+    expect(open).toHaveBeenCalledWith(
+      expect.objectContaining({
+        queryAnchor: 0,
+        symbol: 'agent-skills',
+        trackInputQuery: true,
+        triggerInfo: { type: 'button', position: 0 }
+      })
+    )
+  })
+
   it('stops excluding the skills launcher when the toolbar shortcut is unpinned in place', () => {
     const renderComposer = () => (
       <AgentComposer

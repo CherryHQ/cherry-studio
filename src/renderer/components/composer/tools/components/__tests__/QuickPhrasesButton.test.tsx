@@ -119,6 +119,13 @@ describe('QuickPhrasesToolRuntime', () => {
       position: 0,
       originalText: '/prompt'
     }
+    const inputAdapter = {
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn(),
+      getCursorOffset: () => 6,
+      getText: () => 'prompt',
+      insertText: vi.fn()
+    }
 
     render(<QuickPhrasesToolRuntime launcher={launcher} setInputValue={vi.fn()} />)
 
@@ -128,6 +135,7 @@ describe('QuickPhrasesToolRuntime', () => {
     const [quickPhrasesLauncher] = vi.mocked(launcher.registerLaunchers).mock.calls[0][0]
     act(() => {
       quickPhrasesLauncher.action?.({
+        inputAdapter,
         parentPanel,
         queryAnchor: 0,
         quickPanel: {} as never,
@@ -138,6 +146,8 @@ describe('QuickPhrasesToolRuntime', () => {
 
     await waitFor(() => expect(mocks.useQuery).toHaveBeenCalledWith('/prompts', { enabled: true }))
     expect(mocks.quickPanelClose).not.toHaveBeenCalled()
+    expect(inputAdapter.deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 6 })
+    expect(inputAdapter.focus).toHaveBeenCalled()
     expect(mocks.setTimeoutTimer).not.toHaveBeenCalledWith(
       'openQuickPhrasesRootMenu',
       expect.any(Function),
@@ -148,7 +158,8 @@ describe('QuickPhrasesToolRuntime', () => {
         parentPanel,
         queryAnchor: 0,
         symbol: 'quick-phrases',
-        triggerInfo
+        trackInputQuery: true,
+        triggerInfo: { type: 'button', position: 0 }
       })
     )
   })

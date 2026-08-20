@@ -59,6 +59,31 @@ export type ComposerUnifiedPanelSelectHandler = (
   }
 ) => void
 
+export function prepareComposerQuickPanelSearch({
+  inputAdapter,
+  queryAnchor,
+  triggerInfo
+}: Pick<ComposerUnifiedPanelResourceContext, 'inputAdapter' | 'queryAnchor' | 'triggerInfo'>) {
+  const text = inputAdapter?.getText()
+  const cursorOffset = inputAdapter ? (inputAdapter.getCursorOffset?.() ?? text?.length ?? 0) : undefined
+  const searchAnchor = queryAnchor ?? triggerInfo?.position ?? cursorOffset
+
+  if (inputAdapter && triggerInfo?.type === 'input' && searchAnchor !== undefined) {
+    const rangeEnd = cursorOffset ?? searchAnchor
+    if (rangeEnd > searchAnchor) {
+      inputAdapter.deleteTriggerRange({ from: searchAnchor, to: rangeEnd })
+      inputAdapter.focus()
+    }
+  }
+
+  return {
+    queryAnchor: searchAnchor,
+    trackInputQuery: true,
+    triggerInfo:
+      searchAnchor === undefined ? { type: 'button' as const } : { type: 'button' as const, position: searchAnchor }
+  }
+}
+
 function createQuickPanelWithParent(
   quickPanel: QuickPanelContextType,
   parentPanel?: QuickPanelOpenOptions

@@ -1,7 +1,10 @@
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
-import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
-import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
+import {
+  ComposerPanelSymbol,
+  getQuickPanelSearchAliases,
+  prepareComposerQuickPanelSearch
+} from '@renderer/components/composer/quickPanel'
 import { QUICK_PHRASES_TOOLBAR_MANIFEST } from '@renderer/components/composer/tools/toolbarManifests'
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import {
@@ -198,12 +201,16 @@ const useQuickPhrasesToolController = ({ launcher, setInputValue }: Props) => {
   }, [isQuickPanelVisible, phraseItems, quickPanelSymbol, updateQuickPanelList])
 
   const openQuickPanel = useCallback(
-    (parentPanel?: QuickPanelOpenOptions, queryAnchor?: number, triggerInfo?: QuickPanelOpenOptions['triggerInfo']) => {
+    (
+      inputAdapter?: QuickPanelCallBackOptions['inputAdapter'],
+      parentPanel?: QuickPanelOpenOptions,
+      queryAnchor?: number,
+      triggerInfo?: QuickPanelOpenOptions['triggerInfo']
+    ) => {
       openQuickPanelContext({
         ...quickPanelOpenOptionsRef.current,
         parentPanel,
-        queryAnchor,
-        triggerInfo
+        ...prepareComposerQuickPanelSearch({ inputAdapter, queryAnchor, triggerInfo })
       })
     },
     [openQuickPanelContext]
@@ -217,9 +224,9 @@ const useQuickPhrasesToolController = ({ launcher, setInputValue }: Props) => {
         label: t('settings.prompts.title'),
         description: '',
         searchAliases: getQuickPanelSearchAliases(t, 'settings.prompts.title'),
-        action: ({ parentPanel, queryAnchor, triggerInfo }) => {
+        action: ({ inputAdapter, parentPanel, queryAnchor, triggerInfo }) => {
           setPromptsEnabled(true)
-          openQuickPanel(parentPanel, queryAnchor, triggerInfo)
+          openQuickPanel(inputAdapter, parentPanel, queryAnchor, triggerInfo)
         }
       }
     ])

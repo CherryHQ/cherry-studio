@@ -3,7 +3,11 @@ import { createElement } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ComposerToolLauncher } from '../../toolLauncher'
-import { createUnifiedQuickPanelOpenOptions, hasUnifiedQuickPanelRootContent } from '../unifiedPanel'
+import {
+  createUnifiedQuickPanelOpenOptions,
+  hasUnifiedQuickPanelRootContent,
+  prepareComposerQuickPanelSearch
+} from '../unifiedPanel'
 
 const quickPanel = {
   open: vi.fn(),
@@ -51,6 +55,50 @@ beforeEach(() => {
   quickPanel.getPanelGeneration.mockReturnValue(0)
   quickPanel.registerKeyDownHandler.mockReset()
   quickPanel.registerKeyDownHandler.mockReturnValue(() => undefined)
+})
+
+describe('prepareComposerQuickPanelSearch', () => {
+  it('removes the slash category query before tracking submenu search', () => {
+    const inputAdapter = {
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn(),
+      getCursorOffset: () => 7,
+      getText: () => '/skills',
+      insertText: vi.fn()
+    }
+
+    expect(
+      prepareComposerQuickPanelSearch({
+        inputAdapter,
+        queryAnchor: 0,
+        triggerInfo: { type: 'input', position: 0, originalText: '/skills' }
+      })
+    ).toEqual({
+      queryAnchor: 0,
+      trackInputQuery: true,
+      triggerInfo: { type: 'button', position: 0 }
+    })
+    expect(inputAdapter.deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 7 })
+    expect(inputAdapter.focus).toHaveBeenCalled()
+  })
+
+  it('starts button-opened search at the cursor without changing existing text', () => {
+    const inputAdapter = {
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn(),
+      getCursorOffset: () => 12,
+      getText: () => 'existing text',
+      insertText: vi.fn()
+    }
+
+    expect(prepareComposerQuickPanelSearch({ inputAdapter })).toEqual({
+      queryAnchor: 12,
+      trackInputQuery: true,
+      triggerInfo: { type: 'button', position: 12 }
+    })
+    expect(inputAdapter.deleteTriggerRange).not.toHaveBeenCalled()
+    expect(inputAdapter.focus).not.toHaveBeenCalled()
+  })
 })
 
 describe('createUnifiedQuickPanelOpenOptions', () => {
