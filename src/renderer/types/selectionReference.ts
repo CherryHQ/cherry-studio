@@ -56,6 +56,12 @@ const DocxAnchorSchema = z.object({
   format: z.literal('docx'),
   /** Zero-based ordinal among body-level paragraphs (direct `w:body` children; paragraphs inside tables are not counted). */
   paragraph: z.number().int().nonnegative(),
+  /**
+   * The paragraph's `w14:paraId` when the source document carries one (Word 2010+
+   * writes it; other producers often do not). Consumers prefer it over the ordinal
+   * and must error when both are present but point at different paragraphs.
+   */
+  paraId: z.string().min(1).optional(),
   charRange: CharRangeSchema.optional()
 })
 
