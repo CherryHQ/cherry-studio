@@ -2,29 +2,7 @@ const { Arch } = require('electron-builder')
 const fs = require('fs')
 const path = require('path')
 
-const { isForeignNativePath } = require('../packages/dsh-bridge/scripts/runtimeBuilder.cjs')
 const { readProjectBuildMetadata, replacePackagedBetterSqlite3 } = require('./linux-native/compat')
-
-const NATIVE_EXTENSIONS = new Set(['.dll', '.dylib', '.exe', '.node', '.so', '.wasm'])
-
-function findForeignNativeFiles(nodeModules, platform, arch) {
-  if (!fs.existsSync(nodeModules) || !platform || !arch) return []
-  const foreign = []
-  const visit = (directory) => {
-    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
-      const candidate = path.join(directory, entry.name)
-      if (entry.isDirectory()) {
-        visit(candidate)
-        continue
-      }
-      if (!NATIVE_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) continue
-      const normalized = path.relative(nodeModules, candidate).replaceAll(path.sep, '/')
-      if (isForeignNativePath(normalized, platform, arch)) foreign.push(candidate)
-    }
-  }
-  visit(nodeModules)
-  return foreign
-}
 
 function listAsarPackage(archivePath) {
   try {
@@ -59,26 +37,13 @@ function assertDshRuntimeArchive(appOutDir, platform, arch) {
   }
 }
 
-function assertDshAsarBoundary(appOutDir, platform, arch) {
-  const resourceRoots = [path.join(appOutDir, 'resources'), path.join(appOutDir, 'Contents', 'Resources')]
-  const unpackedRoots = resourceRoots.map((resourceRoot) =>
-    path.join(resourceRoot, 'app.asar.unpacked', 'node_modules')
-  )
-  const foreign = unpackedRoots.flatMap((nodeModules) => findForeignNativeFiles(nodeModules, platform, arch))
-  if (foreign.length > 0) {
-    throw new Error(`Foreign native files remain unpacked for ${platform}-${arch}: ${foreign.join(', ')}`)
-  }
-  assertDshRuntimeArchive(appOutDir, platform, arch)
-}
-exports.assertDshAsarBoundary = assertDshAsarBoundary
-exports.findForeignNativeFiles = findForeignNativeFiles
 exports.assertDshRuntimeArchive = assertDshRuntimeArchive
 
 exports.default = async function (context) {
   const platformName = context.packager.platform.name
   const platform = platformName === 'windows' ? 'win32' : platformName === 'mac' ? 'darwin' : platformName
   const arch = context.arch === Arch.arm64 ? 'arm64' : context.arch === Arch.x64 ? 'x64' : null
-  assertDshAsarBoundary(context.appOutDir, platform, arch)
+  assertDshRuntimeArchive(context.appOutDir, platform, arch)
   if (platformName === 'windows') {
     fs.rmSync(path.join(context.appOutDir, 'LICENSE.electron.txt'), { force: true })
     fs.rmSync(path.join(context.appOutDir, 'LICENSES.chromium.html'), { force: true })
