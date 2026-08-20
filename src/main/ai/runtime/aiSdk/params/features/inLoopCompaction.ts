@@ -189,7 +189,7 @@ export const inLoopCompactionFeature: RequestFeature = {
     // Apply the same safety margin to the compressor's window so
     // the summarize call also leaves headroom for overstated declared windows.
     const compressionWindow = Math.floor(
-      (compressor.contextWindow ?? effectiveContextWindow) * COMPACTION_CONTEXT_WINDOW_SAFETY_MARGIN
+      (compressor.contextWindow ?? contextWindow) * COMPACTION_CONTEXT_WINDOW_SAFETY_MARGIN
     )
     // Resolved once per request: it only selects the per-modality cost table (image/audio/
     // video constants), so it can't change between steps of the same request.
