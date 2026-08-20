@@ -72,7 +72,7 @@ files:
   - "!node_modules/better-sqlite3/binding.gyp"
   - "!node_modules/better-sqlite3/build/{deps,Release/.deps,Release/obj,Release/obj.target}/**"
   - "!node_modules/better-sqlite3/build/{Makefile,binding.Makefile,config.gypi,gyp-mac-tool,better_sqlite3.target.mk,test_extension.target.mk}"
-  - "!node_modules/better-sqlite3/build/Release/{.forge-meta,sqlite3.a,test_extension.node}"
+  - "!node_modules/better-sqlite3/build/Release/{sqlite3.a,test_extension.node}"
   - "!node_modules/@larksuiteoapi/node-sdk/es/**" # main resolves the CommonJS lib entry
   - "!node_modules/@huggingface/transformers/src/**"
   - "!node_modules/@huggingface/transformers/dist/{transformers.js,transformers.min.js,transformers.node.mjs,transformers.node.min.cjs,transformers.node.min.mjs,transformers.web.js,transformers.web.min.js,ort-wasm-simd-threaded.jsep.mjs}"
@@ -169,7 +169,6 @@ publish:
   url: https://releases.cherry-ai.com
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/
-beforeBuild: scripts/before-build.js
 beforePack: scripts/before-pack.js
 afterPack: scripts/after-pack.js
 afterSign: scripts/notarize.js
