@@ -1,7 +1,13 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   broadcast: vi.fn(),
+  loopbackOpen: vi.fn(),
+  loopbackReceiver: {
+    dispose: vi.fn(),
+    port: 49152,
+    setExpiresAt: vi.fn()
+  },
   netFetch: vi.fn(),
   openExternal: vi.fn(),
   storedBytes: null as Uint8Array | null,
@@ -19,7 +25,7 @@ vi.mock('@application', () => ({
 }))
 
 vi.mock('electron', () => ({
-  app: { getVersion: () => '2.1.0' },
+  app: { getVersion: () => '2.1.0', isPackaged: false },
   net: { fetch: mocks.netFetch },
   safeStorage: {
     isEncryptionAvailable: () => true,
@@ -30,6 +36,10 @@ vi.mock('electron', () => ({
         .toString()
   },
   shell: { openExternal: mocks.openExternal }
+}))
+
+vi.mock('../loopbackCallback', () => ({
+  CherryCloudLoopbackCallback: { open: mocks.loopbackOpen }
 }))
 
 vi.mock('node:fs/promises', () => ({
@@ -98,7 +108,11 @@ describe('CherryCloudService', () => {
     vi.clearAllMocks()
     mocks.storedBytes = null
     mocks.openExternal.mockResolvedValue(undefined)
+    mocks.loopbackOpen.mockResolvedValue(mocks.loopbackReceiver)
+    vi.stubEnv('CHERRY_CLOUD_LOOPBACK_CALLBACK', 'false')
   })
+
+  afterEach(() => vi.unstubAllEnvs())
 
   it('creates a desktop authorization, exchanges its callback, and restores the signed-in account', async () => {
     mocks.netFetch
@@ -125,6 +139,7 @@ describe('CherryCloudService', () => {
     expect(createBody.state).toMatch(/^[A-Za-z0-9_-]{43}$/)
     expect(createBody.code_challenge).toMatch(/^[A-Za-z0-9_-]{43}$/)
     expect(createBody.device_public_key).toMatch(/^[A-Za-z0-9_-]{43}$/)
+    expect(createBody.callback_port).toBeUndefined()
 
     await service.handleCallback(
       new URL(
@@ -145,6 +160,29 @@ describe('CherryCloudService', () => {
     const restored = new CherryCloudService()
     await restored._doInit()
     expect(await restored.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+  })
+
+  it('uses an ephemeral loopback callback for local development', async () => {
+    vi.stubEnv('CHERRY_CLOUD_LOOPBACK_CALLBACK', 'true')
+    mocks.netFetch
+      .mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
+      .mockResolvedValueOnce(jsonResponse(exchangeResponse()))
+
+    const service = new CherryCloudService()
+    await service._doInit()
+    await service.startLogin()
+
+    const createBody = JSON.parse(mocks.netFetch.mock.calls[0][1].body as string)
+    expect(createBody.callback_port).toBe(49152)
+    expect(mocks.loopbackReceiver.setExpiresAt).toHaveBeenCalledWith('2030-01-02T03:14:05Z')
+
+    const callback = mocks.loopbackOpen.mock.calls[0][0] as (url: URL) => Promise<void>
+    await callback(
+      new URL(
+        `cherrystudio://cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
+      )
+    )
+    expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
   })
 
   it('reports an unavailable login service when the backend cannot be reached', async () => {
