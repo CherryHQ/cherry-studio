@@ -1959,9 +1959,17 @@ describe('SkillService', () => {
       await expect(fs.promises.access(path.join(mirrorRoot, 'foo'))).rejects.toThrow()
     })
 
-    it('quarantines modified builtin content instead of updating its trusted hash or mirror', async () => {
+    it('copies complete builtin content and quarantines later modifications', async () => {
       vi.mocked(findSkillMdPath).mockImplementation(async (directory) => path.join(directory, 'SKILL.md'))
       const builtinDir = await writeLibrarySkill('skill-creator', '# trusted')
+      await Promise.all([
+        fs.promises.mkdir(path.join(builtinDir, 'agents')),
+        fs.promises.mkdir(path.join(builtinDir, 'scripts'))
+      ])
+      await Promise.all([
+        fs.promises.writeFile(path.join(builtinDir, 'agents', 'reviewer.md'), '# Reviewer'),
+        fs.promises.writeFile(path.join(builtinDir, 'scripts', 'run.sh'), '#!/bin/sh')
+      ])
       const trustedHash = await skillService['computeBuiltinDirectoryHash'](builtinDir)
       await dbh.db.insert(agentGlobalSkillTable).values({
         id: SKILL_ID_BUILTIN,
@@ -1973,6 +1981,12 @@ describe('SkillService', () => {
       })
       await skillService.linkMirror('skill-creator')
       expect((await fs.promises.lstat(path.join(mirrorRoot, 'skill-creator'))).isSymbolicLink()).toBe(false)
+      await expect(
+        fs.promises.readFile(path.join(mirrorRoot, 'skill-creator', 'agents', 'reviewer.md'), 'utf-8')
+      ).resolves.toBe('# Reviewer')
+      await expect(
+        fs.promises.readFile(path.join(mirrorRoot, 'skill-creator', 'scripts', 'run.sh'), 'utf-8')
+      ).resolves.toBe('#!/bin/sh')
       await fs.promises.writeFile(path.join(builtinDir, 'SKILL.md'), '# modified by agent')
 
       await skillService.reconcileSkills()

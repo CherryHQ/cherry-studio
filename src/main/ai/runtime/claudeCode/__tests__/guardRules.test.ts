@@ -33,6 +33,7 @@ function makeCtx(overrides: Partial<ToolGuardContext> = {}): ToolGuardContext {
     permissionMode: 'default',
     builtinRole: undefined,
     mountedServers: WITHOUT_HOST_TOOLS,
+    pluginDirectories: new Map(),
     cwd: '/ws',
     agentDataPath: '/data',
     interaction: INTERACTIVE,
