@@ -130,6 +130,8 @@ export async function executeCommand(
     capture?: boolean
     /** Environment variables (defaults to getShellEnv()) */
     env?: NodeJS.ProcessEnv
+    /** Maximum combined stdout/stderr bytes before the command is terminated */
+    maxOutputBytes?: number
     /** Timeout in milliseconds */
     timeout?: number
   }
@@ -140,16 +142,33 @@ export async function executeCommand(
     const child = crossPlatformSpawn(command, args, { env })
     let stdout = ''
     let stderr = ''
+    let outputBytes = 0
+    let outputLimitError: Error | undefined
+    let timeoutId: ReturnType<typeof setTimeout> | undefined
+
+    const collectOutput = (chunk: unknown): string | null => {
+      if (outputLimitError) return null
+      const text = String(chunk)
+      const chunkBytes = Buffer.isBuffer(chunk) ? chunk.byteLength : Buffer.byteLength(text)
+      const nextOutputBytes = outputBytes + chunkBytes
+      if (options?.maxOutputBytes !== undefined && nextOutputBytes > options.maxOutputBytes) {
+        outputLimitError = new Error(`Command output exceeded ${options.maxOutputBytes} bytes`)
+        if (timeoutId) clearTimeout(timeoutId)
+        child.kill('SIGKILL')
+        return null
+      }
+      outputBytes = nextOutputBytes
+      return text
+    }
 
     child.stdout?.on('data', (chunk) => {
-      stdout += chunk.toString()
+      stdout += collectOutput(chunk) ?? ''
     })
 
     child.stderr?.on('data', (chunk) => {
-      stderr += chunk.toString()
+      stderr += collectOutput(chunk) ?? ''
     })
 
-    let timeoutId: ReturnType<typeof setTimeout> | undefined
     if (options?.timeout) {
       timeoutId = setTimeout(() => {
         child.kill('SIGKILL')
@@ -159,12 +178,14 @@ export async function executeCommand(
 
     child.on('error', (err) => {
       if (timeoutId) clearTimeout(timeoutId)
-      reject(err)
+      reject(outputLimitError ?? err)
     })
 
     child.on('close', (code) => {
       if (timeoutId) clearTimeout(timeoutId)
-      if (code === 0) {
+      if (outputLimitError) {
+        reject(outputLimitError)
+      } else if (code === 0) {
         resolve(options?.capture ? stdout : '')
       } else {
         reject(new Error(stderr || `Command failed with code ${code}`))

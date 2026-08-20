@@ -6,15 +6,15 @@ import { createInterface } from 'node:readline'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { convertSpanToSpanEntity } from '@mcp-trace/trace-core/core/spanConvert'
-import type { TraceStore } from '@mcp-trace/trace-core/core/traceStore'
-import type { Attributes, AttributeValue, SpanEntity } from '@mcp-trace/trace-core/types/config'
 import { SpanStatusCode } from '@opentelemetry/api'
 import type { ReadableSpan, TimedEvent } from '@opentelemetry/sdk-trace-base'
+import type { Attributes, AttributeValue, SpanEntity } from '@shared/data/types/trace'
 import type { TraceDataCursor, TraceDataResult } from '@shared/data/types/trace'
 import { IpcChannel } from '@shared/IpcChannel'
 
+import { convertSpanToSpanEntity } from '../core/spanConvert'
 import { TraceSpanStore } from './TraceSpanStore'
+import type { TraceStore } from './TraceStore'
 
 const logger = loggerService.withContext('TraceStorageService')
 

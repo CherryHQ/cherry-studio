@@ -1,3 +1,9 @@
+---
+description: Lifecycle internals — bootstrap phases, hooks, service states, events, and parallel initialization ordering
+sources:
+  - src/main/core/lifecycle
+---
+
 # Lifecycle Overview
 
 IoC container + service lifecycle management with phased bootstrap and parallel initialization.
@@ -87,7 +93,7 @@ Key points:
 - Best for: window management, tray, system shortcuts, theme management, IPC handlers that need Electron APIs.
 - This is the default phase — if you omit `@ServicePhase`, the service is placed here.
 
-> **⚠️ Cross-phase dependencies are automatic.** BeforeReady services (`PreferenceService`, `DbService`, `CacheService`, `DataApiService`) are guaranteed to finish before WhenReady starts. Do **not** declare `@DependsOn('PreferenceService')` (or similar) on a WhenReady service — it is redundant and misleading. Only use `@DependsOn` for same-phase coupling.
+> **⚠️ Cross-phase dependencies are automatic.** BeforeReady services (`PreferenceService`, `DbService`, `CacheService`, `DataApiService`) are guaranteed to finish before WhenReady starts. Do **not** declare `@DependsOn(['PreferenceService'])` (or similar) on a WhenReady service — it is redundant and misleading. Only use `@DependsOn` for same-phase coupling.
 
 **Background** — Fire-and-forget
 
@@ -285,6 +291,8 @@ manager.on(LifecycleEvents.ALL_SERVICES_READY, () => {
 | `SERVICE_STOPPING`     | `{ name, state }`        | Service is being stopped              |
 | `SERVICE_STOPPED`      | `{ name, state }`        | Service is stopped                    |
 | `SERVICE_DESTROYED`    | `{ name, state }`        | Service is destroyed                  |
+| `SERVICE_ACTIVATED`    | `{ name, state }`        | Activatable service loaded its resources |
+| `SERVICE_DEACTIVATED`  | `{ name, state }`        | Activatable service released its resources |
 | `SERVICE_ERROR`        | `{ name, state, error }` | Service encountered an error          |
 | `ALL_SERVICES_READY`   | (none)                   | All `onAllReady` hooks have been invoked (NOT necessarily completed — see [onAllReady](#onallready-system-wide-readiness)) |
 
@@ -298,7 +306,7 @@ The lifecycle system provides two typed primitives for this, avoiding ad-hoc `Ev
 |---|---|---|
 | "Service B must init after Service A" | `@DependsOn` | PreferenceService depends on DbService |
 | "Service A completed runtime work, others react" (repeatable) | `Emitter<T>` / `Event<T>` | MainWindowService fires `onMainWindowCreated` |
-| "Service A completed runtime work, others react" (one-shot) | `Signal<T>` | DbService signals `migrationComplete` |
+| "Service A completed runtime work, others react" (one-shot) | `Signal<T>` | Available framework primitive; no production service currently exposes one |
 | "Tell a specific service to do something" | Direct method call via `application.get()` | `windowService.showMainWindow()` |
 
 ### Emitter / Event (Repeatable)
@@ -307,7 +315,7 @@ A producer service owns an `Emitter<T>` (private) and exposes its `Event<T>` (pu
 
 ### Signal (One-shot)
 
-A `Signal<T>` resolves exactly once. It implements `PromiseLike<T>` so consumers can `await` it directly. Late subscribers receive the resolved value immediately.
+A `Signal<T>` resolves exactly once. It implements `PromiseLike<T>` so consumers can `await` it directly. Late subscribers receive the resolved value immediately. The primitive is implemented and unit-tested but currently has no production consumer; introduce one only for a concrete one-shot completion contract, not as speculative service surface.
 
 For full usage patterns and code examples, see [Service Events](./lifecycle-usage.md#service-events-emitter--event) and [Signal](./lifecycle-usage.md#signal-one-shot-completion).
 

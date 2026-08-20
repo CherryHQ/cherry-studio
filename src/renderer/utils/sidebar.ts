@@ -1,4 +1,5 @@
 import type { SidebarFavorite, SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
+import { CONVERSATION_ROUTES, conversationRouteUrl } from '@shared/utils/conversationRoute'
 
 /**
  * Context passed to sidebar navigation handlers. Carries per-call state the
@@ -62,18 +63,20 @@ export function isMessageOnlyConversationUrl(url: string): boolean {
 const SIDEBAR_APP_DEFINITIONS = [
   {
     id: 'assistants',
+    // `routePrefix` must stay a string literal — the knowledge-manifest generator reads it
+    // with ts-morph. `conversationRoute` below carries the same path from the shared contract.
     routePrefix: '/app/chat',
     conversationRoute: {
-      keyFromUrl: (url) => getNormalConversationSearchParamFromUrl(url, 'topicId'),
-      urlForKey: (key) => `/app/chat?topicId=${encodeURIComponent(key)}`
+      keyFromUrl: (url) => getNormalConversationSearchParamFromUrl(url, CONVERSATION_ROUTES.assistant.keyParam),
+      urlForKey: (key) => conversationRouteUrl({ conversationType: 'assistant', conversationId: key })
     }
   },
   {
     id: 'agents',
     routePrefix: '/app/agents',
     conversationRoute: {
-      keyFromUrl: (url) => getNormalConversationSearchParamFromUrl(url, 'sessionId'),
-      urlForKey: (key) => `/app/agents?sessionId=${encodeURIComponent(key)}`
+      keyFromUrl: (url) => getNormalConversationSearchParamFromUrl(url, CONVERSATION_ROUTES.agent.keyParam),
+      urlForKey: (key) => conversationRouteUrl({ conversationType: 'agent', conversationId: key })
     }
   },
   {
