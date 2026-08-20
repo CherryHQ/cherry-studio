@@ -408,7 +408,8 @@ describe('useMiniAppPopup', () => {
       expect(MockUseCacheUtils.getCacheValue('mini_app.current_id')).toBe('top-nav-app')
       expect(mockTabs.openTab).toHaveBeenCalledWith('/app/mini-app/top-nav-app', {
         title: 'Top Nav App',
-        icon: 'icon'
+        icon: 'icon',
+        metadata: { transientMiniApp: true }
       })
     })
 
@@ -532,7 +533,8 @@ describe('useMiniAppPopup', () => {
       expect(MockUseCacheUtils.getCacheValue('mini_app.current_id')).toBe('cached-app')
       expect(mockTabs.openTab).toHaveBeenCalledWith('/app/mini-app/cached-app', {
         title: 'Cached App',
-        icon: 'icon'
+        icon: 'icon',
+        metadata: { transientMiniApp: true }
       })
     })
 
@@ -627,28 +629,12 @@ describe('useMiniAppPopup', () => {
       expect(mockClearWebviewState).not.toHaveBeenCalledWith('existing')
     })
 
-    it('should trim the keep-alive list when max keep alive is decreased', async () => {
-      MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.max_keep_alive', 1)
-      // Seed list larger than the cap and mount a fresh hook — the trim
-      // effect runs once on mount when list.length > cap.
-      const initial = [createMiniApp('a'), createMiniApp('b'), createMiniApp('c')]
-      MockUseCacheUtils.setCacheValue(KEEP_ALIVE_KEY, initial)
-      renderHook(() => useTestMiniAppPopup())
-
-      const list = getKeepAlive()
-      expect(list).toHaveLength(1)
-      // The most recently added entry survives (tail of the list)
-      expect(list[0].appId).toBe('c')
-      expect(mockClearWebviewState).toHaveBeenCalledWith('a')
-      expect(mockClearWebviewState).toHaveBeenCalledWith('b')
-    })
-
     // Regression for https://github.com/CherryHQ/cherry-studio/pull/14049 —
     // before the fix, switching between miniapp tabs that the user had pinned
     // in the AppShell tab bar would still evict them from keep-alive (the
     // hook didn't know about pin status), so the side-bar mini-tab list
     // collapsed to whatever cap was. Pinning is the user explicitly saying
-    // "keep this loaded"; the cap must respect that.
+    // "keep this loaded"; the cap must respect that while the tab remains awake.
     describe('pinned-tab exemption', () => {
       it('should not evict a miniapp whose AppShell tab is pinned, even when over cap', async () => {
         MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.max_keep_alive', 3)
@@ -696,26 +682,6 @@ describe('useMiniAppPopup', () => {
         const list = getKeepAlive()
         expect(list.map((a) => a.appId).sort()).toEqual(['newcomer', 'pinA', 'pinC'])
         expect(mockClearWebviewState).toHaveBeenCalledWith('floatB')
-      })
-
-      it('should not trim pinned entries when the user lowers the cap', async () => {
-        MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.max_keep_alive', 1)
-        const initial = [createMiniApp('pinA'), createMiniApp('floatB'), createMiniApp('pinC')]
-        MockUseCacheUtils.setCacheValue(KEEP_ALIVE_KEY, initial)
-        mockTabs.tabs = [
-          { id: 't1', type: 'route', url: '/app/mini-app/pinA', isPinned: true },
-          { id: 't3', type: 'route', url: '/app/mini-app/pinC', isPinned: true }
-        ]
-
-        renderHook(() => useTestMiniAppPopup())
-
-        // Lowering cap to 1 normally trims to one survivor; with pin
-        // exemption the two pinned entries survive and floatB goes.
-        const list = getKeepAlive()
-        expect(list.map((a) => a.appId).sort()).toEqual(['pinA', 'pinC'])
-        expect(mockClearWebviewState).toHaveBeenCalledWith('floatB')
-        expect(mockClearWebviewState).not.toHaveBeenCalledWith('pinA')
-        expect(mockClearWebviewState).not.toHaveBeenCalledWith('pinC')
       })
     })
   })

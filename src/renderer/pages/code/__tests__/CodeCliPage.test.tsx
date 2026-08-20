@@ -1,7 +1,7 @@
 import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig/types'
 import type { CliProviderConfig, CodeCliToolState } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
-import { CLI_OWN_LOGIN_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
+import { CLI_API_GATEWAY_PROVIDER_ID, CLI_OWN_LOGIN_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -12,6 +12,7 @@ const {
   clearCliConfigMock,
   readCliConfigFilesMock,
   extractConnectionFromCliConfigDraftMock,
+  cliConfigConnectionMatchesProviderMock,
   writeCliConfigDraftMock,
   writeOwnLoginCliConfigDraftMock,
   useCodeCliMock,
@@ -28,13 +29,16 @@ const {
   toastErrorMock,
   navigateMock,
   openSettingsTabMock,
+  ipcRequestMock,
   versionStatusesMock,
   mockProviders,
-  mockProviderConfigs
+  mockProviderConfigs,
+  gatewayState
 } = vi.hoisted(() => ({
   clearCliConfigMock: vi.fn(),
   readCliConfigFilesMock: vi.fn(),
   extractConnectionFromCliConfigDraftMock: vi.fn(),
+  cliConfigConnectionMatchesProviderMock: vi.fn(),
   writeCliConfigDraftMock: vi.fn(),
   writeOwnLoginCliConfigDraftMock: vi.fn(),
   useCodeCliMock: vi.fn(),
@@ -51,9 +55,19 @@ const {
   toastErrorMock: vi.fn(),
   navigateMock: vi.fn(),
   openSettingsTabMock: vi.fn(),
+  ipcRequestMock: vi.fn(),
   versionStatusesMock: vi.fn(),
   mockProviders: [] as Provider[],
-  mockProviderConfigs: {} as Record<string, CliProviderConfig>
+  mockProviderConfigs: {} as Record<string, CliProviderConfig>,
+  gatewayState: {
+    bundle: null as {
+      provider: Provider
+      apiKey: string | null
+      ensureReady: ReturnType<typeof vi.fn>
+    } | null,
+    defaultModelId: undefined as string | undefined,
+    modelsById: new Map<string, { id: string; providerId: string; modelId: string; apiModelId: string; name: string }>()
+  }
 }))
 
 const provider = {
@@ -155,11 +169,15 @@ vi.mock('@renderer/hooks/useCodeCli', () => ({
 }))
 
 vi.mock('../hooks/useApiGatewayProvider', () => ({
-  useApiGatewayProvider: () => null
+  useApiGatewayProvider: () => gatewayState.bundle
 }))
 
 vi.mock('@renderer/hooks/useMiniAppPopup', () => ({
   useMiniAppPopup: () => ({ openSmartMiniApp: vi.fn() })
+}))
+
+vi.mock('@renderer/hooks/useModel', () => ({
+  useModels: () => ({ models: [...gatewayState.modelsById.values()], isLoading: false })
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
@@ -168,7 +186,7 @@ vi.mock('@renderer/hooks/useProvider', () => ({
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
-    request: vi.fn(async () => ({}))
+    request: (...args: unknown[]) => ipcRequestMock(...args)
   },
   useIpcOn: vi.fn()
 }))
@@ -222,7 +240,7 @@ vi.mock('../cliConfig/parser', () => ({
 }))
 
 vi.mock('../cliConfig/providerMatching', () => ({
-  cliConfigConnectionMatchesProvider: () => true
+  cliConfigConnectionMatchesProvider: (...args: unknown[]) => cliConfigConnectionMatchesProviderMock(...args)
 }))
 
 // `sanitizeCliConfigBlob` now lives in the adapter registry (re-exported via the barrel).
@@ -242,20 +260,22 @@ vi.mock('../components/ConfigList', () => ({
   ConfigList: ({
     providers,
     onConfigure,
-    onToggleCurrent
+    onToggleCurrent,
+    providerActionsDisabled
   }: {
     providers: Provider[]
     onConfigure: (provider: Provider) => void
     onToggleCurrent: (provider: Provider) => void
+    providerActionsDisabled?: boolean
   }) => (
     <div>
       {providers.length === 0 && <div data-testid="empty-config-list" />}
       {providers.map((item) => (
         <div key={item.id}>
-          <button type="button" onClick={() => onToggleCurrent(item)}>
+          <button type="button" disabled={providerActionsDisabled} onClick={() => onToggleCurrent(item)}>
             toggle {item.id}
           </button>
-          <button type="button" onClick={() => onConfigure(item)}>
+          <button type="button" disabled={providerActionsDisabled} onClick={() => onConfigure(item)}>
             configure {item.id}
           </button>
         </div>
@@ -326,19 +346,30 @@ vi.mock('../components/configEditPanel/OwnLoginConfigPanel', () => ({
 }))
 
 vi.mock('../components/LaunchDialog', () => ({
-  LaunchDialog: () => null
+  LaunchDialog: ({ open, onLaunch }: { open: boolean; onLaunch: () => void }) =>
+    open ? (
+      <button type="button" onClick={onLaunch}>
+        launch tool
+      </button>
+    ) : null
 }))
 
 vi.mock('../components/VersionStatusCard', () => ({
   VersionStatusCard: ({
     canLaunch,
     onRemove,
+    onLaunch,
+    onUpgrade,
+    upgradeDisabled,
     installError,
     onShowError,
     launchDisabledHint
   }: {
     canLaunch?: boolean
     onRemove?: () => void
+    onLaunch?: () => void
+    onUpgrade?: () => void
+    upgradeDisabled?: boolean
     installError?: string
     onShowError?: () => void
     launchDisabledHint?: string
@@ -350,6 +381,16 @@ vi.mock('../components/VersionStatusCard', () => ({
       {onRemove && (
         <button type="button" onClick={onRemove}>
           remove tool
+        </button>
+      )}
+      {onLaunch && (
+        <button type="button" disabled={!canLaunch} onClick={onLaunch}>
+          start tool
+        </button>
+      )}
+      {onUpgrade && (
+        <button type="button" disabled={upgradeDisabled} onClick={onUpgrade}>
+          upgrade tool
         </button>
       )}
       {installError && (
@@ -366,6 +407,7 @@ vi.mock('../constants/cliTools', () => ({
     { value: CodeCli.CLAUDE_CODE, label: 'Claude Code', icon: () => null },
     { value: CodeCli.OPENAI_CODEX, label: 'OpenAI Codex', icon: () => null },
     { value: CodeCli.OPEN_CODE, label: 'OpenCode', icon: () => null },
+    { value: CodeCli.DEEPSEEK_HARNESS, label: 'DeepSeek Harness', icon: () => null },
     { value: CodeCli.QODER_CLI, label: 'Qoder CLI', icon: () => null }
   ],
   PROVIDERLESS_CLI_TOOLS: new Set([CodeCli.QODER_CLI])
@@ -401,7 +443,8 @@ vi.mock('../hooks/useConfigMetadata', () => ({
       providerName: item.name,
       modelName: config?.modelId
     }),
-    gatewayModelsById: new Map()
+    gatewayModelsById: gatewayState.modelsById,
+    defaultGatewayModelId: gatewayState.defaultModelId
   })
 }))
 
@@ -447,6 +490,7 @@ function baseVersionStatuses(overrides: Partial<Record<CodeCli, Record<string, u
     [CodeCli.CLAUDE_CODE]: { ...base, ...overrides[CodeCli.CLAUDE_CODE] },
     [CodeCli.OPENAI_CODEX]: { ...base, ...overrides[CodeCli.OPENAI_CODEX] },
     [CodeCli.OPEN_CODE]: { ...base, ...overrides[CodeCli.OPEN_CODE] },
+    [CodeCli.DEEPSEEK_HARNESS]: { ...base, ...overrides[CodeCli.DEEPSEEK_HARNESS] },
     [CodeCli.QODER_CLI]: { ...base, ...overrides[CodeCli.QODER_CLI] }
   }
 }
@@ -455,11 +499,15 @@ describe('CodeCliPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockProviders.splice(0, mockProviders.length, provider)
+    gatewayState.bundle = null
+    gatewayState.defaultModelId = undefined
+    gatewayState.modelsById.clear()
     mockCodeCliState()
     versionStatusesMock.mockReturnValue(baseVersionStatuses())
     clearCliConfigMock.mockResolvedValue(undefined)
     readCliConfigFilesMock.mockResolvedValue([])
     extractConnectionFromCliConfigDraftMock.mockReturnValue(null)
+    cliConfigConnectionMatchesProviderMock.mockReturnValue(true)
     writeCliConfigDraftMock.mockResolvedValue(undefined)
     upsertProviderConfigMock.mockResolvedValue('anthropic')
     deleteProviderConfigMock.mockResolvedValue(undefined)
@@ -467,6 +515,10 @@ describe('CodeCliPage', () => {
     reorderProvidersMock.mockResolvedValue(undefined)
     selectFolderMock.mockResolvedValue('/tmp/project')
     navigateMock.mockResolvedValue(undefined)
+    ipcRequestMock.mockImplementation(async (route: string) => {
+      if (route === 'deepseek_harness.get_status') return { status: 'stopped' }
+      return { success: true }
+    })
   })
 
   it('opens the config dialog instead of auto-selecting the first model when enabling an unconfigured provider', async () => {
@@ -501,6 +553,90 @@ describe('CodeCliPage', () => {
       writePrimaryModel: true
     })
     expect(setCurrentProviderMock).toHaveBeenCalledWith('anthropic')
+  })
+
+  it('stores a DeepSeek Harness selection without writing config or starting external services', async () => {
+    mockCodeCliState({ selectedCliTool: CodeCli.DEEPSEEK_HARNESS })
+    render(<CodeCliPage />)
+
+    fireEvent.click(screen.getByText('toggle anthropic'))
+    fireEvent.click(await screen.findByText('save model'))
+
+    await waitFor(() => expect(setCurrentProviderMock).toHaveBeenCalledWith('anthropic'))
+    expect(upsertProviderConfigMock).toHaveBeenCalledWith('anthropic', {
+      modelId: 'anthropic::claude-new',
+      config: { env: { TEST: 'true' } }
+    })
+    expect(writeCliConfigDraftMock).not.toHaveBeenCalled()
+    expect(ipcRequestMock).not.toHaveBeenCalledWith('deepseek_harness.start', expect.anything())
+  })
+
+  it('launches DeepSeek Harness through managed IPC without opening the directory flow', async () => {
+    mockCodeCliState({
+      selectedCliTool: CodeCli.DEEPSEEK_HARNESS,
+      providerConfigs: {
+        anthropic: {
+          modelId: 'anthropic::claude-new',
+          config: { agentPreset: 'code', permissionMode: 'read-only' }
+        }
+      },
+      currentProviderId: 'anthropic'
+    })
+    ipcRequestMock.mockImplementation(async (route: string) => {
+      if (route === 'deepseek_harness.get_status') return { status: 'stopped' }
+      if (route === 'deepseek_harness.start') return { success: true, url: 'http://127.0.0.1:43123' }
+      return { success: true }
+    })
+
+    render(<CodeCliPage />)
+    fireEvent.click(screen.getByText('start tool'))
+
+    await waitFor(() =>
+      expect(ipcRequestMock).toHaveBeenCalledWith('deepseek_harness.start', {
+        mode: 'direct',
+        uniqueModelId: 'anthropic::claude-new',
+        agentPreset: 'code',
+        permissionMode: 'read-only'
+      })
+    )
+    expect(selectFolderMock).not.toHaveBeenCalled()
+    expect(ipcRequestMock).not.toHaveBeenCalledWith('code_cli.run', expect.anything())
+  })
+
+  it('locks DeepSeek Harness provider changes and upgrades while its managed process is running', async () => {
+    mockCodeCliState({
+      selectedCliTool: CodeCli.DEEPSEEK_HARNESS,
+      providerConfigs: { anthropic: { modelId: 'anthropic::claude-new', config: {} } },
+      currentProviderId: 'anthropic'
+    })
+    versionStatusesMock.mockReturnValue(
+      baseVersionStatuses({
+        [CodeCli.DEEPSEEK_HARNESS]: { current: '1.0.0', latest: '1.1.0', canUpgrade: true }
+      })
+    )
+    ipcRequestMock.mockImplementation(async (route: string) => {
+      if (route === 'deepseek_harness.get_status') {
+        return { status: 'running', url: 'http://127.0.0.1:43123' }
+      }
+      return { success: true }
+    })
+
+    render(<CodeCliPage />)
+
+    const toggleButton = await screen.findByRole('button', { name: 'toggle anthropic' })
+    const configureButton = screen.getByRole('button', { name: 'configure anthropic' })
+    const upgradeButton = screen.getByRole('button', { name: 'upgrade tool' })
+    await waitFor(() => {
+      expect(toggleButton).toBeDisabled()
+      expect(configureButton).toBeDisabled()
+      expect(upgradeButton).toBeDisabled()
+    })
+    fireEvent.click(toggleButton)
+    fireEvent.click(configureButton)
+    fireEvent.click(upgradeButton)
+    expect(setCurrentProviderMock).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('config-panel')).not.toBeInTheDocument()
+    expect(upgradeMock).not.toHaveBeenCalled()
   })
 
   it('enables the provider after saving detailed config from the pending dialog', async () => {
@@ -566,13 +702,101 @@ describe('CodeCliPage', () => {
     expect(reorderProvidersMock).not.toHaveBeenCalled()
   })
 
-  it('puts the provider selection hint on the disabled launch action', () => {
+  it('launches through the unified gateway with the default model when no provider is selected', async () => {
+    const gatewayProvider = { id: CLI_API_GATEWAY_PROVIDER_ID, name: 'Unified Gateway' } as Provider
+    const defaultModel = {
+      id: 'anthropic::claude-new',
+      providerId: 'anthropic',
+      modelId: 'claude-new',
+      apiModelId: 'claude-new',
+      name: 'Claude New'
+    }
+    const ensureReady = vi.fn().mockResolvedValue('cs-sk-default')
+    gatewayState.bundle = { provider: gatewayProvider, apiKey: null, ensureReady }
+    gatewayState.defaultModelId = defaultModel.id
+    gatewayState.modelsById.set(defaultModel.id, defaultModel)
+    mockCodeCliState({ selectedCliTool: CodeCli.OPEN_CODE })
+
     render(<CodeCliPage />)
 
     const versionCard = screen.getByTestId('version-status-card')
-    expect(screen.queryByText('code.select_provider_before_launch')).not.toBeInTheDocument()
-    expect(versionCard).toHaveAttribute('data-can-launch', 'false')
-    expect(versionCard).toHaveAttribute('data-launch-disabled-hint', 'code.select_provider_before_launch')
+    expect(versionCard).toHaveAttribute('data-can-launch', 'true')
+    expect(versionCard).not.toHaveAttribute('data-launch-disabled-hint')
+
+    fireEvent.click(screen.getByRole('button', { name: 'start tool' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'launch tool' }))
+
+    await waitFor(() => expect(ensureReady).toHaveBeenCalledOnce())
+    expect(writeCliConfigDraftMock).toHaveBeenCalledWith({
+      cliTool: CodeCli.OPEN_CODE,
+      modelId: defaultModel.id,
+      configBlob: undefined,
+      writePrimaryModel: true,
+      gateway: { provider: gatewayProvider, apiKey: 'cs-sk-default' }
+    })
+    expect(ipcRequestMock).toHaveBeenCalledWith('code_cli.run', {
+      mode: 'normal',
+      cliTool: CodeCli.OPEN_CODE,
+      model: 'claude-new',
+      providerId: 'anthropic',
+      gateway: true,
+      directory: '/tmp/project',
+      terminal: undefined
+    })
+  })
+
+  it('does not re-read CLI config after fallback gateway connection state updates', async () => {
+    const gatewayProvider = { id: CLI_API_GATEWAY_PROVIDER_ID, name: 'Unified Gateway' } as Provider
+    const defaultModel = {
+      id: 'anthropic::claude-new',
+      providerId: 'anthropic',
+      modelId: 'claude-new',
+      apiModelId: 'claude-new',
+      name: 'Claude New'
+    }
+    let resolveFirstRead!: (files: CliConfigFileDraft[]) => void
+    const pendingRead = new Promise<CliConfigFileDraft[]>(() => {})
+    readCliConfigFilesMock
+      .mockImplementationOnce(
+        () =>
+          new Promise<CliConfigFileDraft[]>((resolve) => {
+            resolveFirstRead = resolve
+          })
+      )
+      .mockReturnValue(pendingRead)
+    extractConnectionFromCliConfigDraftMock.mockReturnValue({ model: 'other-provider:other-model' })
+    cliConfigConnectionMatchesProviderMock.mockReturnValue(false)
+    gatewayState.bundle = { provider: gatewayProvider, apiKey: null, ensureReady: vi.fn() }
+    gatewayState.defaultModelId = defaultModel.id
+    gatewayState.modelsById.set(defaultModel.id, defaultModel)
+    mockCodeCliState({ selectedCliTool: CodeCli.OPEN_CODE })
+
+    render(<CodeCliPage />)
+    expect(readCliConfigFilesMock).toHaveBeenCalledOnce()
+
+    resolveFirstRead(cliConfigFiles)
+    await waitFor(() => expect(extractConnectionFromCliConfigDraftMock).toHaveBeenCalledOnce())
+
+    expect(readCliConfigFilesMock).toHaveBeenCalledOnce()
+  })
+
+  it('opens unified gateway configuration when no routable default model is available', async () => {
+    const gatewayProvider = { id: CLI_API_GATEWAY_PROVIDER_ID, name: 'Unified Gateway' } as Provider
+    gatewayState.bundle = {
+      provider: gatewayProvider,
+      apiKey: null,
+      ensureReady: vi.fn().mockResolvedValue('cs-sk-default')
+    }
+    mockCodeCliState({ selectedCliTool: CodeCli.OPEN_CODE })
+
+    render(<CodeCliPage />)
+
+    const startButton = screen.getByRole('button', { name: 'start tool' })
+    expect(startButton).toBeEnabled()
+    fireEvent.click(startButton)
+
+    expect(await screen.findByTestId('config-panel')).toHaveAttribute('data-provider-id', CLI_API_GATEWAY_PROVIDER_ID)
+    expect(screen.queryByRole('button', { name: 'launch tool' })).not.toBeInTheDocument()
   })
 
   it('shows the Anthropic Messages endpoint hint for Claude Code provider setup', () => {
@@ -665,6 +889,38 @@ describe('CodeCliPage', () => {
     await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith('code.clear_config_failed'))
     // The in-app cleanup still proceeds so the tool state does not point at a removed provider.
     expect(setCurrentProviderMock).toHaveBeenCalledWith(null)
+  })
+
+  it('stops the managed DeepSeek Harness process before uninstalling and only then clears CodeMate selection', async () => {
+    const events: string[] = []
+    mockCodeCliState({
+      selectedCliTool: CodeCli.DEEPSEEK_HARNESS,
+      providerConfigs: { anthropic: { modelId: 'anthropic::claude-new', config: {} } },
+      currentProviderId: 'anthropic'
+    })
+    ipcRequestMock.mockImplementation(async (route: string) => {
+      if (route === 'deepseek_harness.get_status') return { status: 'running', url: 'http://127.0.0.1:43123' }
+      if (route === 'deepseek_harness.stop') {
+        events.push('stop')
+        return { success: true }
+      }
+      return { success: true }
+    })
+    removeMock.mockImplementation(async () => {
+      events.push('remove')
+      return true
+    })
+    setCurrentProviderMock.mockImplementation(async () => {
+      events.push('clear-selection')
+    })
+
+    render(<CodeCliPage />)
+    fireEvent.click(screen.getByText('remove tool'))
+    fireEvent.click(await screen.findByText('confirm remove'))
+
+    await waitFor(() => expect(removeMock).toHaveBeenCalledWith(CodeCli.DEEPSEEK_HARNESS))
+    expect(events).toEqual(['stop', 'remove', 'clear-selection'])
+    expect(clearCliConfigMock).not.toHaveBeenCalled()
   })
 
   it('surfaces a failed install as an install-error dialog but not a failed uninstall', () => {

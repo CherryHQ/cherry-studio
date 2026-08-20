@@ -15,41 +15,36 @@ const override = (providerId: string, modelId: string) => {
 }
 
 describe('provider reasoning contracts', () => {
-  it('maps DeepSeek V4 Flash reasoning to the official effort vocabulary', () => {
-    const contracts = override('deepseek', 'deepseek-v4-flash').reasoningContracts
-    const responsesWire = contracts?.['openai-responses']?.wire
-    expect(responsesWire?.off?.operations).toEqual([
-      { target: 'reasoningEffort', value: { source: 'literal', value: 'none' } }
-    ])
-    expect(responsesWire?.auto?.effortMap).toEqual({
-      auto: 'high',
-      minimal: 'low',
-      low: 'low',
-      medium: 'high',
-      xhigh: 'max'
-    })
-    expect(responsesWire?.effort).toMatchObject({
-      operations: [{ target: 'reasoningEffort', value: { source: 'effort' } }],
-      effortMap: { minimal: 'low', low: 'low', medium: 'high', xhigh: 'max' }
-    })
-    expect(contracts?.['openai-chat-completions']?.wire?.effort).toMatchObject({
-      operations: [
-        { target: 'thinking.type', value: { source: 'literal', value: 'enabled' } },
-        { target: 'reasoning_effort', value: { source: 'effort' } }
-      ],
-      effortMap: { minimal: 'low', low: 'low', medium: 'high', xhigh: 'max' }
-    })
-  })
-
-  it('keeps DeepSeek V4 Pro low efforts mapped to high', () => {
-    const wire = override('deepseek', 'deepseek-v4-pro').reasoningContracts?.['openai-chat-completions']?.wire
-    expect(wire?.effort?.effortMap).toEqual({
-      minimal: 'high',
-      low: 'high',
-      medium: 'high',
-      xhigh: 'max'
-    })
-  })
+  // DeepSeek publishes one effort table for both V4 SKUs (thinking_mode guide), so Flash and Pro
+  // must not drift apart — and neither may send `xhigh` verbatim, which DeepSeek degrades to `high`.
+  it.each(['deepseek-v4-flash', 'deepseek-v4-pro'])(
+    'maps %s reasoning to the official effort vocabulary',
+    (modelId) => {
+      const contracts = override('deepseek', modelId).reasoningContracts
+      const responsesWire = contracts?.['openai-responses']?.wire
+      expect(responsesWire?.off?.operations).toEqual([
+        { target: 'reasoningEffort', value: { source: 'literal', value: 'none' } }
+      ])
+      expect(responsesWire?.auto?.effortMap).toEqual({
+        auto: 'high',
+        minimal: 'low',
+        low: 'low',
+        medium: 'high',
+        xhigh: 'max'
+      })
+      expect(responsesWire?.effort).toMatchObject({
+        operations: [{ target: 'reasoningEffort', value: { source: 'effort' } }],
+        effortMap: { minimal: 'low', low: 'low', medium: 'high', xhigh: 'max' }
+      })
+      expect(contracts?.['openai-chat-completions']?.wire?.effort).toMatchObject({
+        operations: [
+          { target: 'thinking.type', value: { source: 'literal', value: 'enabled' } },
+          { target: 'reasoning_effort', value: { source: 'effort' } }
+        ],
+        effortMap: { minimal: 'low', low: 'low', medium: 'high', xhigh: 'max' }
+      })
+    }
+  )
 
   // The generic deepseek wire serves deepseek-chat / deepseek-reasoner (reasoningFamilies toggle
   // models with no per-model override). The @ai-sdk/deepseek schema only accepts thinking.type
@@ -64,6 +59,29 @@ describe('provider reasoning contracts', () => {
     ])
     expect(wire?.effort?.operations).toEqual([
       { target: 'thinking.type', value: { source: 'literal', value: 'enabled' } }
+    ])
+  })
+
+  it('binds CherryIN DeepSeek reasoning to a currently served API identity', () => {
+    const deepSeekOverrides = provider('cherryin').overrides?.filter(({ modelId }) => modelId?.startsWith('deepseek'))
+
+    expect(deepSeekOverrides?.map(({ apiModelId, modelId }) => ({ apiModelId, modelId }))).toEqual([
+      { apiModelId: 'deepseek/deepseek-v3.2', modelId: 'deepseek-v3-2' }
+    ])
+  })
+
+  it('uses CherryIN extra_body thinking controls for the served DeepSeek V3.2 model', () => {
+    const wire = provider('cherryin').overrides?.find(({ apiModelId }) => apiModelId === 'deepseek/deepseek-v3.2')
+      ?.reasoningContracts?.['openai-chat-completions']?.wire
+
+    expect(wire?.off?.operations).toEqual([
+      { target: 'extra_body.thinking.type', value: { source: 'literal', value: 'disabled' } }
+    ])
+    expect(wire?.auto?.operations).toEqual([
+      { target: 'extra_body.thinking.type', value: { source: 'literal', value: 'enabled' } }
+    ])
+    expect(wire?.effort?.operations).toEqual([
+      { target: 'extra_body.thinking.type', value: { source: 'literal', value: 'enabled' } }
     ])
   })
 

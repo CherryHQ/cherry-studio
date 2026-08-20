@@ -22,7 +22,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /** A valid 1×1 PNG so `sharp` can transcode it to WebP during migration. */
 const PNG_1X1 =
-  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC'
 
 import type { MigrationContext } from '../../core/MigrationContext'
 import { AssistantMigrator } from '../AssistantMigrator'
@@ -31,11 +31,16 @@ import { ProviderModelMigrator } from '../ProviderModelMigrator'
 const registryFixtures = {
   models: new Map<string, unknown>(),
   overrides: new Map<string, unknown>(),
-  providers: [] as unknown[]
+  providers: [] as unknown[],
+  loaderPaths: [] as Array<{ models: string; providers: string; providerModels: string }>
 }
 
-vi.mock('@cherrystudio/provider-registry/node', () => {
+vi.mock('@cherrystudio/provider-registry/node', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>()
   class RegistryLoader {
+    constructor(paths: { models: string; providers: string; providerModels: string }) {
+      registryFixtures.loaderPaths.push(paths)
+    }
     findModel(modelId: string) {
       return registryFixtures.models.get(modelId) ?? null
     }
@@ -52,7 +57,7 @@ vi.mock('@cherrystudio/provider-registry/node', () => {
       return []
     }
   }
-  return { RegistryLoader }
+  return { ...actual, RegistryLoader }
 })
 
 function createContext(
@@ -102,6 +107,7 @@ describe('ProviderModelMigrator', () => {
     registryFixtures.models.clear()
     registryFixtures.overrides.clear()
     registryFixtures.providers = []
+    registryFixtures.loaderPaths = []
   })
 
   describe('prepare', () => {
@@ -243,6 +249,62 @@ describe('ProviderModelMigrator', () => {
 
       const models = await dbh.db.select().from(userModelTable)
       expect(models.filter((model) => model.providerId !== CHERRYAI_PROVIDER_ID)).toHaveLength(1)
+    })
+
+    it('skips route-unsafe model ids without blocking the remaining provider migration', async () => {
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [
+            makeProvider('openai', [
+              { id: 'gpt-4o' },
+              { id: 'jackrong-qwopus3.5-27b-v3@?' },
+              { id: 'legacy-model#fragment' }
+            ])
+          ]
+        }
+      })
+
+      const prepareResult = await migrator.prepare(migrationContext)
+      const executeResult = await migrator.execute(migrationContext)
+      const validateResult = await migrator.validate(migrationContext)
+
+      expect(prepareResult.success).toBe(true)
+      expect(prepareResult.warnings).toContain('Skipped 2 model(s) with invalid id')
+      expect(executeResult.success).toBe(true)
+      expect(validateResult.success).toBe(true)
+
+      const models = await dbh.db.select().from(userModelTable)
+      expect(models.filter((model) => model.providerId === 'openai').map((model) => model.modelId)).toEqual(['gpt-4o'])
+    })
+
+    it('keeps the provider and API key when every legacy model id is invalid', async () => {
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [
+            {
+              ...makeProvider('openai', [{ id: 'jackrong-qwopus3.5-27b-v3@?' }, { id: 'legacy-model#fragment' }]),
+              apiKey: 'sk-valid'
+            }
+          ]
+        }
+      })
+
+      const prepareResult = await migrator.prepare(migrationContext)
+      const executeResult = await migrator.execute(migrationContext)
+      const validateResult = await migrator.validate(migrationContext)
+
+      expect(prepareResult.success).toBe(true)
+      expect(prepareResult.warnings).toContain('Skipped 2 model(s) with invalid id')
+      expect(executeResult.success).toBe(true)
+      expect(validateResult.success).toBe(true)
+
+      const provider = dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'openai')).get()
+      const models = dbh.db.select().from(userModelTable).where(eq(userModelTable.providerId, 'openai')).all()
+
+      expect(provider?.apiKeys).toEqual(
+        expect.arrayContaining([expect.objectContaining({ key: 'sk-valid', isEnabled: true })])
+      )
+      expect(models).toEqual([])
     })
 
     it('migrates pinned models from Dexie settings into pin rows in legacy order', async () => {
@@ -692,6 +754,11 @@ describe('ProviderModelMigrator', () => {
       const result = await migrator.execute(migrationContext)
 
       expect(result.success).toBe(true)
+      expect(registryFixtures.loaderPaths.at(-1)).toEqual({
+        models: '/mock/feature.provider_registry.data/models.json',
+        providers: '/mock/feature.provider_registry.data/providers.json',
+        providerModels: '/mock/feature.provider_registry.data/provider-models.json'
+      })
       // The legacy baseUrl equals the registry default → nothing user-owned
       // remains, so the row stores no endpoint config at all...
       const [providerRow] = await dbh.db

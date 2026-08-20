@@ -7,6 +7,7 @@
  * flip the status to completed atomically — or leave everything untouched.
  */
 import { appStateTable } from '@data/db/schemas/appState'
+import { agentSessionMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { jobScheduleTable } from '@data/db/schemas/job'
 import { preferenceTable } from '@data/db/schemas/preference'
 import { bootConfigService } from '@main/data/bootConfig'
@@ -133,5 +134,24 @@ describe('MigrationEngine.skipMigration', () => {
     expect(dbh.db.select().from(preferenceTable).all()).toHaveLength(0)
     const schedules = dbh.db.select().from(jobScheduleTable).all()
     expect(schedules.map((s) => s.type)).toEqual(['other.job'])
+  })
+
+  it('clears dangling Agent attachment refs during retry while migration foreign keys are disabled', () => {
+    dbh.sqlite.pragma('foreign_keys = OFF')
+
+    try {
+      dbh.db
+        .insert(agentSessionMessageFileRefTable)
+        .values({ id: 'ref-1', fileEntryId: 'missing-file', sourceId: 'missing-message', role: 'attachment' })
+        .run()
+      expect(dbh.sqlite.pragma('foreign_key_check')).toHaveLength(2)
+
+      ;(engine as any).verifyAndClearNewTables()
+
+      expect(dbh.db.select().from(agentSessionMessageFileRefTable).all()).toHaveLength(0)
+      expect(dbh.sqlite.pragma('foreign_key_check')).toEqual([])
+    } finally {
+      dbh.sqlite.pragma('foreign_keys = ON')
+    }
   })
 })

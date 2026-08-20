@@ -1,3 +1,4 @@
+import { HtmlArtifactPopupHost } from '@renderer/components/chat/HtmlArtifactPopupContext'
 import { useChatLayoutMode } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import { useChatBottomOverlayInset } from '@renderer/components/chat/layout/ChatViewportInsetContext'
 import MultiSelectActionPopup from '@renderer/components/chat/messages/MultiSelectActionPopup'
@@ -9,11 +10,10 @@ import { captureScrollable, captureScrollableAsDataUrl } from '@renderer/utils/i
 import { classNames } from '@renderer/utils/style'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { type ComponentProps, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type ComponentProps, lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import NarrowLayout from '../layout/NarrowLayout'
 import { PartsProvider, usePartsMap } from './blocks/MessagePartsContext'
-import MessageOutline from './frame/MessageOutline'
 import { MessageListInitialLoading } from './layout/MessageListLoading'
 import { MessagesContainer } from './layout/shared'
 import MessageAnchorLine from './list/MessageAnchorLine'
@@ -44,6 +44,7 @@ import { createStableGroupedMessagesCache, stableGroupedMessages } from './utils
 
 const MULTI_SELECT_BOTTOM_PADDING_PX = 96
 const MESSAGE_OUTLINE_LAYOUTS: MultiModelMessageStyle[] = ['horizontal', 'vertical', 'fold', 'grid']
+const MessageOutline = lazy(() => import('./frame/MessageOutline'))
 /** Chat content's side padding — matches NarrowLayout's `px-6`, so the inline
  * override is invisible until the rail gutter adds onto it. */
 const CHAT_SIDE_PADDING_PX = 24
@@ -673,13 +674,12 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
     scrollElement.addEventListener('scroll', handleAnchorUpdate, { passive: true })
     window.addEventListener('resize', handleAnchorUpdate)
 
+    // The layout owner survives topic switches, so preserve its width-derived gutter.
     return () => {
       resizeObserver.disconnect()
       if (frame !== null) cancelAnimationFrame(frame)
       scrollElement.removeEventListener('scroll', handleAnchorUpdate)
       window.removeEventListener('resize', handleAnchorUpdate)
-      // On unmount the composer must not keep yielding rail space.
-      setRailGutterPx(0)
     }
   }, [data.isInitialLoading, data.listKey, setRailGutterPx, shouldTrackAnchorPosition, topic.id])
 
@@ -721,7 +721,7 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
   const topPadding = MESSAGE_VIRTUAL_LIST_DEFAULT_TOP_PADDING_PX
   const topicImageCaptureWidth = activeTopicImageCaptureAction?.captureWidth
 
-  return (
+  const messageList = (
     <MessagesContainer
       id="messages"
       className={classNames(['messages-container', { 'multi-select-mode': isMultiSelectMode }])}
@@ -844,11 +844,13 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
         />
       )}
       {activeOutline && activeOutlineMessage && (
-        <MessageOutline
-          message={activeOutlineMessage}
-          multiModelMessageStyle={activeOutline.multiModelMessageStyle}
-          onNavigateToElement={scrollToOutlineElement}
-        />
+        <Suspense fallback={null}>
+          <MessageOutline
+            message={activeOutlineMessage}
+            multiModelMessageStyle={activeOutline.multiModelMessageStyle}
+            onNavigateToElement={scrollToOutlineElement}
+          />
+        </Suspense>
       )}
       {messageNavigation === 'buttons' && (
         <MessageNavigation
@@ -889,6 +891,8 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
       />
     </MessagesContainer>
   )
+
+  return <HtmlArtifactPopupHost>{messageList}</HtmlArtifactPopupHost>
 }
 
 export default MessageList

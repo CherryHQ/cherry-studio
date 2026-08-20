@@ -4,7 +4,7 @@ import { loggerService } from '@logger'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getHttpMessageLabelKey, getProviderLabelKey } from '@renderer/i18n/label'
 import type { SerializedError } from '@renderer/types/error'
-import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { formatErrorMessageWithPrefix, providerErrorText } from '@renderer/utils/error'
 import { classifyError } from '@renderer/utils/errorClassifier'
 import { Link } from '@tanstack/react-router'
 import { AlertTriangle, ChevronRight, X } from 'lucide-react'
@@ -66,12 +66,12 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
   if (typeof errorStatus === 'number' && HTTP_ERROR_CODES.includes(errorStatus)) {
     return (
       <span>
-        {t(getHttpMessageLabelKey(errorStatus.toString()))} {error?.message}
+        {t(getHttpMessageLabelKey(errorStatus.toString()))} {providerErrorText(error)}
       </span>
     )
   }
 
-  return error?.message || ''
+  return providerErrorText(error)
 }
 
 const MessageErrorInfo: React.FC<{
@@ -239,7 +239,7 @@ const MessageErrorInfo: React.FC<{
 
       {/* Description */}
       <div
-        className="wrap-break-word ml-5.75 line-clamp-3 text-xs leading-normal [&_a]:text-link"
+        className="ml-5.75 line-clamp-3 text-xs leading-normal [overflow-wrap:anywhere] [&_a]:text-link"
         style={{ color: ERROR_DESCRIPTION_COLOR }}>
         <ErrorMessage error={error} />
       </div>

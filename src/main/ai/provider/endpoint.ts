@@ -152,3 +152,18 @@ export function resolveProviderOptionsKey(
       return providerId
   }
 }
+
+/**
+ * Single derivation of the providerOptions namespace for a resolved endpoint:
+ * adapter id via {@link resolveAiSdkProviderId}, then its namespace via
+ * {@link resolveProviderOptionsKey}. Gateway consumers must use this instead of
+ * composing the two calls themselves so reasoning options and other
+ * provider-option writers can never disagree on the namespace.
+ */
+export function resolveEndpointProviderOptionsKey(provider: Provider, resolvedEndpoint: ResolvedEndpoint): string {
+  return resolveProviderOptionsKey(resolveAiSdkProviderId(provider, resolvedEndpoint.endpointType), {
+    actualProviderId: provider.id,
+    endpointType: resolvedEndpoint.endpointType,
+    gatewayProviderOptionsKey: resolvedEndpoint.providerOptionsKey
+  })
+}

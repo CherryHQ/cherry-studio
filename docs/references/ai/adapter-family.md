@@ -1,3 +1,12 @@
+---
+description: How each endpoint config's adapterFamily field selects the @ai-sdk package, and the two write paths that set it
+sources:
+  - src/main/ai/provider/endpoint.ts
+  - packages/provider-registry/src/registry-utils.ts
+  - packages/provider-registry/data/providers.json
+  - src/main/data/migration/v2/migrators/mappings/ProviderModelMappings.ts
+---
+
 # Adapter Family
 
 `adapterFamily` is the optional field on each `EndpointConfig` that picks

@@ -977,6 +977,56 @@ describe('listModels — jinaFetcher (strips jina-ai/ prefix)', () => {
   })
 })
 
+describe('listModels — ovmsFetcher config endpoint', () => {
+  function makeOvmsProvider(baseUrl: string) {
+    return makeProvider({
+      id: 'ovms',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl }
+      }
+    })
+  }
+
+  // OVMS serves its servable-status document at /v1/config only — the /v3 namespace is the
+  // OpenAI-compatible surface and has no GET /config, so asking there 404s and every
+  // downloaded model silently disappears from the list.
+  it.each([
+    ['http://localhost:8000/v3/', 'the shipped default base URL'],
+    ['http://localhost:8000/v3', 'a base URL without the trailing slash'],
+    ['http://localhost:8000/v1', 'a base URL already pinned to v1'],
+    ['http://localhost:8000', 'a bare host']
+  ])('asks %s for the status document at /v1/config (%s) (REGRESSION)', async (baseUrl) => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: { 'Qwen3-4B-int4-ov': { model_version_status: [{ state: 'AVAILABLE' }] } }
+    })
+
+    const models = await listModels(makeOvmsProvider(baseUrl))
+
+    const call = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string }
+    expect(call.url).toBe('http://localhost:8000/v1/config')
+    expect(models.map((m) => m.apiModelId)).toEqual(['Qwen3-4B-int4-ov'])
+  })
+
+  // A servable that is registered in config.json but failed to load must not be offered
+  // as a usable model.
+  it('lists only servables reporting an AVAILABLE version', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        'Qwen3-4B-int4-ov': { model_version_status: [{ state: 'AVAILABLE' }] },
+        'FLUX.1-schnell-int4-ov': {
+          model_version_status: [{ state: 'LOADING', status: { error_code: 'UNKNOWN' } }]
+        },
+        'bge-base-en-v1.5-fp16-ov': { model_version_status: [] }
+      }
+    })
+
+    const models = await listModels(makeOvmsProvider('http://localhost:8000/v3/'))
+
+    expect(models.map((m) => m.apiModelId)).toEqual(['Qwen3-4B-int4-ov'])
+  })
+})
+
 describe('listModels — openAICompatibleFetcher display names', () => {
   it('forwards the upstream name and falls back to the model id when absent', async () => {
     aiSdkGetFromApiMock.mockResolvedValue({
