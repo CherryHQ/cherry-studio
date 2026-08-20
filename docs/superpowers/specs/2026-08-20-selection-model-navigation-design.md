@@ -3,6 +3,7 @@
 ## Status
 
 Approved on 2026-08-20. The quick-assistant two-row layout and response-settings copy revisions were approved on
+2026-08-20. Replacing the focused-row highlight with the provider model-pull arrow animation was approved on
 2026-08-20.
 
 ## Context
@@ -60,9 +61,18 @@ Support focused navigation through the model settings route:
 - `/settings/model?focus=default`
 - `/settings/model?focus=translate`
 
-Validate the route search value. On arrival, scroll the requested row into view and apply a brief visual highlight, following the existing shortcut-settings focused-row behavior. A missing or invalid focus value renders the page normally.
+Validate the route search value. On arrival, scroll the requested row into view and briefly point to its model selector. A
+missing or invalid focus value renders the page normally.
 
-The shortcut-settings precedent is the interaction contract: validate a stable identifier at the route boundary, scroll the matching row into view, apply the primary-tint background and ring, and fade the visual treatment after two seconds while leaving the user at the scrolled position. The model settings implementation should stay local because its row structure differs from shortcut settings; a shared component or hook is not justified for two consumers.
+The shortcut-settings precedent remains the navigation contract: validate a stable identifier at the route boundary,
+scroll the matching row into view, and leave the user at the scrolled position. Instead of tinting the entire row, place an
+`ArrowRight` immediately before the focused row's model selector and reuse the provider model-pull guide animation. The
+arrow fades in while moving toward the selector, briefly rebounds, and fades out over 1.2 seconds. This points to the
+editable control rather than merely identifying its containing row and avoids leaving a visual state behind.
+
+The arrow is transient and decorative: it does not take focus, receive pointer events, or add an accessible name. Keep its
+implementation local to model settings because it is coupled to the row's selector layout. Do not extract the provider
+model-pull guide into shared UI for only two consumers.
 
 ### Quick assistant
 
@@ -99,6 +109,7 @@ The selection settings should display effective models, not raw preference IDs. 
 - Keep visible text labels on navigation buttons; do not rely on the arrow icon alone.
 - Give the response-settings group a visible title and retain a distinct accessible label for the usage-method control.
 - Associate the assistant-mode tooltip with the **Select assistant** label and render it only in assistant mode.
+- Mark the focused-row arrow as hidden from assistive technology and disable its motion when reduced motion is requested.
 - Ensure model names remain readable and truncate only when space requires it.
 - Add every new user-visible string to the English source catalog, synchronize catalogs, and provide real translations for every locale.
 - Reuse existing model-setting labels and empty-state text where their meaning is identical.
@@ -114,8 +125,10 @@ Add focused renderer tests that would fail if:
   instead of a titled group with separate setting rows.
 - Quick assistant shows the assistant-only tooltip beside the usage-method row or in default-model mode.
 - The model settings route accepts an unsupported focus value or fails to focus the requested row.
+- The requested row omits the temporary selector arrow or renders an arrow on a non-requested row.
 
-Run the closest affected Vitest files and `pnpm lint`. Interactive verification should confirm both selection-setting buttons and the quick-assistant button land on and highlight the correct global model row.
+Run the closest affected Vitest files and `pnpm lint`. Interactive verification should confirm both selection-setting
+buttons and the quick-assistant button land on the correct global model row and point to its selector.
 
 ## Alternatives considered
 
@@ -130,6 +143,17 @@ This addresses the original report but leaves explain, summarize, refine, and de
 ### Navigation without row focus
 
 This requires less routing work, but the global page contains multiple model selectors and forces the user to rediscover the intended row. Focused navigation provides a precise destination while preserving the global page as the sole editor.
+
+### Whole-row background and ring
+
+Tinting the row makes the destination easy to find, but it identifies a container rather than the control the user should
+operate. It also introduces a second focus treatment beside the provider model-pull guide. Reusing the short arrow motion
+keeps the interaction language consistent and points directly to the selector.
+
+### Arrow plus row tint
+
+Combining the arrow with a subtle background provides the strongest locator, but the two effects communicate the same
+thing and create unnecessary emphasis on a settings page. The arrow alone is sufficient after scrolling the row into view.
 
 ### Reordering the quick-assistant controls within one row
 
