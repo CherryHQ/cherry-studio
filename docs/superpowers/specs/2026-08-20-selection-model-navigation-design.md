@@ -2,7 +2,8 @@
 
 ## Status
 
-Approved on 2026-08-20. The quick-assistant two-row layout revision was approved on 2026-08-20.
+Approved on 2026-08-20. The quick-assistant two-row layout and response-settings copy revisions were approved on
+2026-08-20.
 
 ## Context
 
@@ -65,14 +66,23 @@ The shortcut-settings precedent is the interaction contract: validate a stable i
 
 ### Quick assistant
 
-Split model-source selection from source-specific configuration inside the existing quick-assistant model card:
+Present model-source selection and source-specific configuration as a titled response-settings group inside the
+quick-assistant page:
 
-1. The first row is **Quick assistant mode** and contains only the existing segmented control for **Use assistant** and **Default model**.
-2. After a divider, the second row reflects the selected mode:
-   - Assistant mode labels the row **Assistant** and shows the existing assistant selector.
+1. The group title is **Response settings**. This avoids repeating the page's **Quick assistant** title while covering
+   both assistant-backed and default-model-backed responses.
+2. The first row is **Usage method** and contains only the existing segmented control for **Use assistant** and
+   **Default model**.
+3. After a divider, the second row reflects the selected mode:
+   - Assistant mode labels the row **Select assistant**, places the existing assistant-mode tooltip immediately after
+     that label, and shows the existing assistant selector.
    - Default-model mode labels the row **Default assistant model**, shows the effective current default model, and provides the outline navigation button targeting `/settings/model?focus=default`.
 
 The mode control is the parent decision and must precede the configuration it controls. Do not place the model, navigation button, and segmented control in one horizontal cluster. Keep the explicit navigation label rather than reducing it to an icon-only button: it is a deliberate cross-page action and matches the web-search provider-settings precedent.
+
+The assistant-mode tooltip says that using an assistant also applies its system prompt and model parameters. It belongs
+beside **Select assistant**, not beside **Usage method**, because it is relevant only while assistant mode is active. The
+default-model row does not show this tooltip.
 
 Assistant mode does not show a global-model navigation button because the selected assistant owns its model. Existing behavior remains unchanged when no assistants exist, while assistants are loading, or when a saved assistant has been deleted: the assistant option is disabled when unavailable, a loading selection is preserved, and an invalid loaded selection falls back to default-model mode.
 
@@ -87,6 +97,8 @@ The selection settings should display effective models, not raw preference IDs. 
 ## Accessibility and localization
 
 - Keep visible text labels on navigation buttons; do not rely on the arrow icon alone.
+- Give the response-settings group a visible title and retain a distinct accessible label for the usage-method control.
+- Associate the assistant-mode tooltip with the **Select assistant** label and render it only in assistant mode.
 - Ensure model names remain readable and truncate only when space requires it.
 - Add every new user-visible string to the English source catalog, synchronize catalogs, and provide real translations for every locale.
 - Reuse existing model-setting labels and empty-state text where their meaning is identical.
@@ -98,7 +110,9 @@ Add focused renderer tests that would fail if:
 - Selection settings omit either effective model or send either navigation button to the wrong focused row.
 - Translation model fallback is displayed differently from the model actually used.
 - Quick assistant default-model mode omits the effective default model or navigation, or assistant mode incorrectly shows the global-model navigation.
-- Quick assistant renders the mode selector and source-specific configuration as one ambiguous control cluster instead of separate setting rows.
+- Quick assistant renders the usage-method selector and source-specific configuration as one ambiguous control cluster
+  instead of a titled group with separate setting rows.
+- Quick assistant shows the assistant-only tooltip beside the usage-method row or in default-model mode.
 - The model settings route accepts an unsupported focus value or fails to focus the requested row.
 
 Run the closest affected Vitest files and `pnpm lint`. Interactive verification should confirm both selection-setting buttons and the quick-assistant button land on and highlight the correct global model row.
@@ -120,3 +134,10 @@ This requires less routing work, but the global page contains multiple model sel
 ### Reordering the quick-assistant controls within one row
 
 Placing the segmented control before the current model improves reading order and requires fewer layout changes, but long model names, translated button labels, and the assistant selector still compete for one horizontal row. Splitting mode and configuration into two rows adds one divider and one row of height in exchange for clearer ownership and more robust sizing.
+
+### Quick-assistant group title
+
+**Quick assistant configuration** repeats the page title, while **Models and assistants** reads like a field inventory.
+**Response settings** is concise, already matches Cherry Studio product language, and accurately covers both available
+response sources. The first row keeps the separate **Usage method** label so the segmented control remains understandable
+and accessible outside the heading context.
