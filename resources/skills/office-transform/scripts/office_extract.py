@@ -22,9 +22,15 @@ import csv
 import json
 import re
 import sys
+import zipfile
 from pathlib import Path
 
 A1_CELL_RE = re.compile(r"^([A-Z]{1,3})([1-9][0-9]*)$")
+
+MAX_RANGE_CELLS = 1_000_000
+MAX_ZIP_ENTRIES = 10_000
+MAX_ENTRY_BYTES = 256 * 1024 * 1024
+MAX_TOTAL_BYTES = 1024 * 1024 * 1024
 
 
 def fail(message: str) -> "sys.NoReturn":
@@ -59,6 +65,24 @@ def parse_a1_range(ref: str) -> tuple[int, int, int, int]:
         max(start[0], end[0]),
         max(start[1], end[1]),
     )
+
+
+def preflight_zip(path: "Path") -> None:
+    """Refuse pathological OOXML packages before a reader decompresses them."""
+    try:
+        with zipfile.ZipFile(path) as archive:
+            infos = archive.infolist()
+    except zipfile.BadZipFile:
+        fail(f"not a valid OOXML package: {path}")
+    if len(infos) > MAX_ZIP_ENTRIES:
+        fail(f"package has {len(infos)} entries (limit {MAX_ZIP_ENTRIES})")
+    total = 0
+    for info in infos:
+        if info.file_size > MAX_ENTRY_BYTES:
+            fail(f"package entry {info.filename!r} decompresses to {info.file_size} bytes (limit {MAX_ENTRY_BYTES})")
+        total += info.file_size
+    if total > MAX_TOTAL_BYTES:
+        fail(f"package decompresses to {total} bytes in total (limit {MAX_TOTAL_BYTES})")
 
 
 def slice_char_range(text: str, char_range) -> str:
@@ -98,12 +122,16 @@ def extract_xlsx(src: Path, anchor: dict, out_path: Path, out_format: str) -> No
     if not sheet_name or not range_ref:
         fail("xlsx anchor requires 'sheet' and 'range'")
 
+    min_col, min_row, max_col, max_row = parse_a1_range(range_ref)
+    area = (max_row - min_row + 1) * (max_col - min_col + 1)
+    if area > MAX_RANGE_CELLS:
+        fail(f"range {range_ref!r} covers {area} cells (limit {MAX_RANGE_CELLS}); select a smaller region")
+
     workbook = load_workbook(src, data_only=True, read_only=True)
     if sheet_name not in workbook.sheetnames:
         fail(f"worksheet not found: {sheet_name!r} (has: {workbook.sheetnames})")
     worksheet = workbook[sheet_name]
 
-    min_col, min_row, max_col, max_row = parse_a1_range(range_ref)
     values = [
         [cell.value for cell in row]
         for row in worksheet.iter_rows(min_row=min_row, max_row=max_row, min_col=min_col, max_col=max_col)
@@ -218,6 +246,8 @@ def extract_pptx(src: Path, anchor: dict, out_path: Path, out_format: str) -> No
 
     node_id = anchor.get("nodeId")
     if node_id is None:
+        if anchor.get("paragraph") is not None or anchor.get("tableCell") is not None:
+            fail("pptx anchor has 'paragraph'/'tableCell' but no 'nodeId'; refusing to fall back to whole-slide extraction")
         lines = [line for shape in iter_shapes_recursive(slide.shapes) for line in shape_text_lines(shape)]
     else:
         shape = next(
@@ -284,6 +314,9 @@ def main() -> None:
     out_format = out_path.suffix.lstrip(".").lower()
     if not out_format:
         fail("output path needs an extension so the output format can be inferred")
+
+    if anchor_format in ("xlsx", "docx", "pptx"):
+        preflight_zip(src)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     extractor(src, anchor, out_path, out_format)

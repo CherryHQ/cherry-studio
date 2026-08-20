@@ -5,7 +5,10 @@ the XML parts the requested edits touch.
 OOXML files are ZIP packages of XML parts. This script copies every part of
 the original byte-for-byte and re-serializes ONLY the affected part (one
 worksheet, or word/document.xml), so fidelity risk is confined to that part.
-The source file is never modified. Standard library only — no dependencies.
+The touched part is manipulated with xml.dom.minidom, which round-trips
+namespace prefixes and declarations verbatim (unlike ElementTree, which
+rewrites unknown prefixes and breaks mc:Ignorable references). The source
+file is never modified. Standard library only — no dependencies.
 
 Edit JSON shapes (pass via --edits):
 
@@ -13,11 +16,13 @@ Edit JSON shapes (pass via --edits):
     {"format": "docx", "replacements": [{"paragraph": 3, "text": "new text"}]}
 
 xlsx: each cell is overwritten with the JSON value (number, string, or
-boolean); an existing formula in that cell is replaced by the value.
+boolean); an existing formula in that cell is replaced by the value. The
+worksheet's <dimension> is widened when edits create cells outside it.
 docx: 'paragraph' is the zero-based ordinal among BODY-LEVEL paragraphs
-(tables excluded); the paragraph keeps its paragraph style and the first
-run's character style, but other inline content (extra run styling,
-hyperlinks) inside that one paragraph is flattened into the new text.
+(direct w:body children; tables excluded); the paragraph keeps its paragraph
+style and the first run's character style, but other inline content (extra
+run styling, hyperlinks) inside that one paragraph is flattened into the
+new text.
 """
 
 import argparse
@@ -27,35 +32,17 @@ import sys
 import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path
+from xml.dom import minidom
 
 SPREADSHEET_NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 RELATIONSHIP_ATTR_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 PACKAGE_RELS_NS = "http://schemas.openxmlformats.org/package/2006/relationships"
-WORD_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
-XML_NS = "http://www.w3.org/XML/1998/namespace"
-
-# Prefixes Word/Excel conventionally use; registering them keeps re-serialized
-# parts using the same prefixes the rest of the package refers to.
-OOXML_PREFIXES = {
-    "": SPREADSHEET_NS,
-    "r": RELATIONSHIP_ATTR_NS,
-    "w": WORD_NS,
-    "mc": "http://schemas.openxmlformats.org/markup-compatibility/2006",
-    "wp": "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing",
-    "w14": "http://schemas.microsoft.com/office/word/2010/wordml",
-    "w15": "http://schemas.microsoft.com/office/word/2012/wordml",
-    "wps": "http://schemas.microsoft.com/office/word/2010/wordprocessingShape",
-    "wpg": "http://schemas.microsoft.com/office/word/2010/wordprocessingGroup",
-    "a": "http://schemas.openxmlformats.org/drawingml/2006/main",
-    "pic": "http://schemas.openxmlformats.org/drawingml/2006/picture",
-    "m": "http://schemas.openxmlformats.org/officeDocument/2006/math",
-    "v": "urn:schemas-microsoft-com:vml",
-    "o": "urn:schemas-microsoft-com:office:office",
-    "w10": "urn:schemas-microsoft-com:office:word",
-    "x14ac": "http://schemas.microsoft.com/office/spreadsheetml/2009/9/ac",
-}
 
 A1_CELL_RE = re.compile(r"^([A-Z]{1,3})([1-9][0-9]*)$")
+
+MAX_ZIP_ENTRIES = 10_000
+MAX_ENTRY_BYTES = 256 * 1024 * 1024
+MAX_TOTAL_BYTES = 1024 * 1024 * 1024
 
 
 def fail(message: str) -> "sys.NoReturn":
@@ -70,6 +57,14 @@ def column_to_index(letters: str) -> int:
     return index
 
 
+def index_to_column(index: int) -> str:
+    letters = ""
+    while index > 0:
+        index, remainder = divmod(index - 1, 26)
+        letters = chr(ord("A") + remainder) + letters
+    return letters
+
+
 def parse_a1_cell(ref: str) -> tuple[int, int]:
     match = A1_CELL_RE.match(ref)
     if not match:
@@ -77,17 +72,62 @@ def parse_a1_cell(ref: str) -> tuple[int, int]:
     return column_to_index(match.group(1)), int(match.group(2))
 
 
-def serialize_part(root: ET.Element) -> bytes:
-    return b'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n' + ET.tostring(root, encoding="unicode").encode(
-        "utf-8"
-    )
+def preflight_zip(archive: zipfile.ZipFile) -> None:
+    """Refuse pathological packages before decompressing anything into memory."""
+    infos = archive.infolist()
+    if len(infos) > MAX_ZIP_ENTRIES:
+        fail(f"package has {len(infos)} entries (limit {MAX_ZIP_ENTRIES})")
+    total = 0
+    for info in infos:
+        if info.file_size > MAX_ENTRY_BYTES:
+            fail(f"package entry {info.filename!r} decompresses to {info.file_size} bytes (limit {MAX_ENTRY_BYTES})")
+        total += info.file_size
+    if total > MAX_TOTAL_BYTES:
+        fail(f"package decompresses to {total} bytes in total (limit {MAX_TOTAL_BYTES})")
+
+
+def read_xml_part(archive: zipfile.ZipFile, name: str) -> bytes:
+    try:
+        data = archive.read(name)
+    except KeyError:
+        fail(f"package has no part named {name!r}")
+    # OOXML parts never carry a DTD; one here can only mean entity-expansion mischief.
+    if b"<!DOCTYPE" in data:
+        fail(f"part {name!r} contains a DOCTYPE declaration; refusing to parse it")
+    return data
+
+
+# ── minidom helpers ──────────────────────────────────────────────────────────
+
+
+def element_children(parent, local_name: str = None):
+    for node in parent.childNodes:
+        if node.nodeType != minidom.Node.ELEMENT_NODE:
+            continue
+        if local_name is None or node.tagName.rsplit(":", 1)[-1] == local_name:
+            yield node
+
+
+def first_child(parent, local_name: str):
+    return next(element_children(parent, local_name), None)
+
+
+def make_tag(sample_tag: str, local_name: str) -> str:
+    """Build a tag using the same namespace prefix as a sibling/parent tag."""
+    if ":" in sample_tag:
+        return sample_tag.rsplit(":", 1)[0] + ":" + local_name
+    return local_name
+
+
+def serialize_part(doc: minidom.Document) -> bytes:
+    return b'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n' + doc.documentElement.toxml().encode("utf-8")
 
 
 # ── xlsx ─────────────────────────────────────────────────────────────────────
 
 
 def resolve_worksheet_part(archive: zipfile.ZipFile, sheet_name: str) -> str:
-    workbook = ET.fromstring(archive.read("xl/workbook.xml"))
+    workbook = ET.fromstring(read_xml_part(archive, "xl/workbook.xml"))
     relationship_id = None
     for sheet in workbook.iter(f"{{{SPREADSHEET_NS}}}sheet"):
         if sheet.get("name") == sheet_name:
@@ -97,7 +137,7 @@ def resolve_worksheet_part(archive: zipfile.ZipFile, sheet_name: str) -> str:
         names = [sheet.get("name") for sheet in workbook.iter(f"{{{SPREADSHEET_NS}}}sheet")]
         fail(f"worksheet not found: {sheet_name!r} (has: {names})")
 
-    rels = ET.fromstring(archive.read("xl/_rels/workbook.xml.rels"))
+    rels = ET.fromstring(read_xml_part(archive, "xl/_rels/workbook.xml.rels"))
     for relationship in rels.iter(f"{{{PACKAGE_RELS_NS}}}Relationship"):
         if relationship.get("Id") == relationship_id:
             target = relationship.get("Target", "")
@@ -106,48 +146,69 @@ def resolve_worksheet_part(archive: zipfile.ZipFile, sheet_name: str) -> str:
     raise AssertionError  # unreachable
 
 
-def qn(namespace: str, tag: str) -> str:
-    return f"{{{namespace}}}{tag}"
-
-
-def set_cell_value(cell: ET.Element, value) -> None:
-    for child in list(cell):
-        cell.remove(child)
-    cell.attrib.pop("t", None)
+def set_cell_value(doc: minidom.Document, cell, value) -> None:
+    for child in list(cell.childNodes):
+        cell.removeChild(child)
+    if cell.hasAttribute("t"):
+        cell.removeAttribute("t")
     if isinstance(value, bool):
-        cell.set("t", "b")
-        ET.SubElement(cell, qn(SPREADSHEET_NS, "v")).text = "1" if value else "0"
+        cell.setAttribute("t", "b")
+        v = doc.createElement(make_tag(cell.tagName, "v"))
+        v.appendChild(doc.createTextNode("1" if value else "0"))
+        cell.appendChild(v)
     elif isinstance(value, (int, float)):
-        ET.SubElement(cell, qn(SPREADSHEET_NS, "v")).text = repr(value)
+        v = doc.createElement(make_tag(cell.tagName, "v"))
+        v.appendChild(doc.createTextNode(repr(value)))
+        cell.appendChild(v)
     elif isinstance(value, str):
-        cell.set("t", "inlineStr")
-        inline = ET.SubElement(cell, qn(SPREADSHEET_NS, "is"))
-        text = ET.SubElement(inline, qn(SPREADSHEET_NS, "t"))
-        text.set(qn(XML_NS, "space"), "preserve")
-        text.text = value
+        cell.setAttribute("t", "inlineStr")
+        inline = doc.createElement(make_tag(cell.tagName, "is"))
+        text = doc.createElement(make_tag(cell.tagName, "t"))
+        text.setAttribute("xml:space", "preserve")
+        text.appendChild(doc.createTextNode(value))
+        inline.appendChild(text)
+        cell.appendChild(inline)
     else:
         fail(f"unsupported cell value type: {type(value).__name__} (use number, string, or boolean)")
 
 
-def find_or_create_ordered(parent: ET.Element, tag: str, sort_key, key, attr_ref: str) -> ET.Element:
+def find_or_create_ordered(doc: minidom.Document, parent, local_name: str, sort_key, key, attr_ref: str):
     """Find child with attribute r == attr_ref, or insert one keeping siblings ordered."""
-    for child in parent.findall(tag):
-        if child.get("r") == attr_ref:
+    siblings = list(element_children(parent, local_name))
+    for child in siblings:
+        if child.getAttribute("r") == attr_ref:
             return child
     # An r-less sibling's position is inferred from document order, so inserting a
     # referenced element beside it could address the same cell twice. Refuse rather
     # than risk a corrupt derived file.
-    if any(child.get("r") is None for child in parent.findall(tag)):
-        fail(f"worksheet has {tag.split('}')[-1]} elements without 'r' attributes; refusing to edit this workbook")
-    created = ET.Element(tag, {"r": attr_ref})
-    insert_at = len(list(parent))
-    for position, child in enumerate(list(parent)):
-        child_ref = child.get("r")
-        if child.tag == tag and child_ref is not None and sort_key(child_ref) > key:
-            insert_at = position
+    if any(not child.hasAttribute("r") for child in siblings):
+        fail(f"worksheet has {local_name} elements without 'r' attributes; refusing to edit this workbook")
+    created = doc.createElement(siblings[0].tagName if siblings else make_tag(parent.tagName, local_name))
+    created.setAttribute("r", attr_ref)
+    before = None
+    for child in siblings:
+        if sort_key(child.getAttribute("r")) > key:
+            before = child
             break
-    parent.insert(insert_at, created)
+    parent.insertBefore(created, before)
     return created
+
+
+def update_dimension(worksheet, edited: list[tuple[int, int]]) -> None:
+    """Widen <dimension> to cover created cells so the used range stays truthful."""
+    dimension = first_child(worksheet, "dimension")
+    if dimension is None:
+        return
+    ref = dimension.getAttribute("ref")
+    parts = ref.split(":") if ref else []
+    corners = [A1_CELL_RE.match(part) for part in parts]
+    if not corners or not all(corners):
+        return  # unrecognized existing ref; leave it untouched
+    cols = [column_to_index(match.group(1)) for match in corners] + [col for col, _ in edited]
+    rows = [int(match.group(2)) for match in corners] + [row for _, row in edited]
+    start = f"{index_to_column(min(cols))}{min(rows)}"
+    end = f"{index_to_column(max(cols))}{max(rows)}"
+    dimension.setAttribute("ref", start if start == end else f"{start}:{end}")
 
 
 def patch_xlsx(archive: zipfile.ZipFile, edits: dict) -> dict[str, bytes]:
@@ -157,24 +218,22 @@ def patch_xlsx(archive: zipfile.ZipFile, edits: dict) -> dict[str, bytes]:
         fail("xlsx edits require 'sheet' and a non-empty 'cells' object")
 
     part_name = resolve_worksheet_part(archive, sheet_name)
-    ET.register_namespace("", SPREADSHEET_NS)
-    for prefix, uri in OOXML_PREFIXES.items():
-        if prefix:
-            ET.register_namespace(prefix, uri)
-    root = ET.fromstring(archive.read(part_name))
-    sheet_data = root.find(qn(SPREADSHEET_NS, "sheetData"))
+    doc = minidom.parseString(read_xml_part(archive, part_name))
+    worksheet = doc.documentElement
+    sheet_data = first_child(worksheet, "sheetData")
     if sheet_data is None:
         fail(f"{part_name} has no sheetData element")
 
-    row_tag = qn(SPREADSHEET_NS, "row")
-    cell_tag = qn(SPREADSHEET_NS, "c")
+    edited: list[tuple[int, int]] = []
     for ref, value in sorted(cells.items(), key=lambda item: (parse_a1_cell(item[0])[1], parse_a1_cell(item[0])[0])):
         column, row_number = parse_a1_cell(ref)
-        row = find_or_create_ordered(sheet_data, row_tag, lambda r: int(r), row_number, str(row_number))
-        cell = find_or_create_ordered(row, cell_tag, lambda r: parse_a1_cell(r)[0], column, ref)
-        set_cell_value(cell, value)
+        row = find_or_create_ordered(doc, sheet_data, "row", lambda r: int(r), row_number, str(row_number))
+        cell = find_or_create_ordered(doc, row, "c", lambda r: parse_a1_cell(r)[0], column, ref)
+        set_cell_value(doc, cell, value)
+        edited.append((column, row_number))
+    update_dimension(worksheet, edited)
 
-    return {part_name: serialize_part(root)}
+    return {part_name: serialize_part(doc)}
 
 
 # ── docx ─────────────────────────────────────────────────────────────────────
@@ -185,16 +244,11 @@ def patch_docx(archive: zipfile.ZipFile, edits: dict) -> dict[str, bytes]:
     if not isinstance(replacements, list) or not replacements:
         fail("docx edits require a non-empty 'replacements' array")
 
-    ET.register_namespace("", WORD_NS)
-    for prefix, uri in OOXML_PREFIXES.items():
-        if prefix and prefix != "r":
-            ET.register_namespace(prefix, uri)
-    ET.register_namespace("r", RELATIONSHIP_ATTR_NS)
-    root = ET.fromstring(archive.read("word/document.xml"))
-    body = root.find(qn(WORD_NS, "body"))
+    doc = minidom.parseString(read_xml_part(archive, "word/document.xml"))
+    body = first_child(doc.documentElement, "body")
     if body is None:
         fail("word/document.xml has no body element")
-    paragraphs = [child for child in body if child.tag == qn(WORD_NS, "p")]
+    paragraphs = list(element_children(body, "p"))
 
     for replacement in replacements:
         index = replacement.get("paragraph")
@@ -206,23 +260,23 @@ def patch_docx(archive: zipfile.ZipFile, edits: dict) -> dict[str, bytes]:
             fail(f"paragraph {index} out of range (document has {len(paragraphs)} body paragraphs)")
         paragraph = paragraphs[index]
 
-        properties = paragraph.find(qn(WORD_NS, "pPr"))
-        first_run_properties = None
-        first_run = paragraph.find(qn(WORD_NS, "r"))
-        if first_run is not None:
-            first_run_properties = first_run.find(qn(WORD_NS, "rPr"))
+        properties = first_child(paragraph, "pPr")
+        first_run = first_child(paragraph, "r")
+        first_run_properties = first_child(first_run, "rPr") if first_run is not None else None
 
-        for child in list(paragraph):
+        for child in list(paragraph.childNodes):
             if child is not properties:
-                paragraph.remove(child)
-        run = ET.SubElement(paragraph, qn(WORD_NS, "r"))
+                paragraph.removeChild(child)
+        run = doc.createElement(make_tag(paragraph.tagName, "r"))
         if first_run_properties is not None:
-            run.append(first_run_properties)
-        text_element = ET.SubElement(run, qn(WORD_NS, "t"))
-        text_element.set(qn(XML_NS, "space"), "preserve")
-        text_element.text = text
+            run.appendChild(first_run_properties)
+        text_element = doc.createElement(make_tag(paragraph.tagName, "t"))
+        text_element.setAttribute("xml:space", "preserve")
+        text_element.appendChild(doc.createTextNode(text))
+        run.appendChild(text_element)
+        paragraph.appendChild(run)
 
-    return {"word/document.xml": serialize_part(root)}
+    return {"word/document.xml": serialize_part(doc)}
 
 
 PATCHERS = {"xlsx": patch_xlsx, "docx": patch_docx}
@@ -254,6 +308,7 @@ def main() -> None:
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(src) as archive:
+        preflight_zip(archive)
         replaced_parts = patcher(archive, edits)
         with zipfile.ZipFile(out_path, "w") as derived:
             for item in archive.infolist():

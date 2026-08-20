@@ -44,6 +44,27 @@ describe('SelectionReferenceSchema', () => {
     expect(parseSelectionReference({ ...validReference, anchor: { format: 'pptx', slide: 0, nodeId: '4' } })).toBeNull()
   })
 
+  it('rejects a shape-scoped pptx address without the shape it belongs to', () => {
+    expect(
+      parseSelectionReference({ ...validReference, anchor: { format: 'pptx', slide: 2, paragraph: 0 } })
+    ).toBeNull()
+    expect(
+      parseSelectionReference({
+        ...validReference,
+        anchor: { format: 'pptx', slide: 2, tableCell: { row: 0, col: 0 } }
+      })
+    ).toBeNull()
+  })
+
+  it('rejects a pptx anchor addressing both a paragraph and a table cell', () => {
+    expect(
+      parseSelectionReference({
+        ...validReference,
+        anchor: { format: 'pptx', slide: 2, nodeId: '4', paragraph: 0, tableCell: { row: 0, col: 0 } }
+      })
+    ).toBeNull()
+  })
+
   it('rejects malformed A1 ranges before they can mis-address an extraction', () => {
     for (const range of ['a1:c10', '1A', 'A0', 'A1:', 'A1:C10:D2', '']) {
       expect(parseSelectionReference({ ...validReference, anchor: { format: 'xlsx', sheet: 'S', range } })).toBeNull()
