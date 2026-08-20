@@ -532,12 +532,22 @@ export class AgentSessionService {
 
           const reusable = reusableRows[0]
           if (reusable) {
+            const now = Date.now()
+            this.advanceLastActivityAtTx(tx, reusable.session.id, now)
+            const updatedSession = tx
+              .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+              .from(sessionsTable)
+              .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+              .where(eq(sessionsTable.id, reusable.session.id))
+              .limit(1)
+              .all()
+            if (!updatedSession.length) throw DataApiErrorFactory.notFound('Session', reusable.session.id)
             const duplicateDeletion =
               dto.workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM
                 ? this.cascadeDeleteSessionRowsTx(tx, reusableRows.slice(1))
                 : { deletedIds: [], taskScheduleIds: [], deliveryResults: [] }
             return {
-              session: rowToSession(reusable),
+              session: rowToSession(updatedSession[0]),
               created: false,
               deletedDuplicateSessionIds: duplicateDeletion.deletedIds,
               taskScheduleIds: duplicateDeletion.taskScheduleIds,
