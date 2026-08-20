@@ -255,8 +255,8 @@ export class JobScheduleService {
   /**
    * Record a fire event: set lastRun to the fire timestamp reported by the
    * caller and nextRun to the next expected fire (or null for terminal
-   * one-shot / no-more-runs). Called from the SchedulerService callback after
-   * each fire. For `once` triggers the natural-fire path passes an effective
+   * one-shot / no-more-runs). Called after automatic fires and when an overdue
+   * once trigger is consumed manually. The natural-fire path passes an effective
    * fire time clamped to no earlier than `trigger.at` (see
    * `JobManager.armSchedule`), so lastRun may exceed the wall-clock instant
    * the callback actually ran.

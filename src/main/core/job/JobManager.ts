@@ -1421,9 +1421,14 @@ export class JobManager extends BaseService {
       scheduleId: schedule.id
     })
     try {
-      jobScheduleService.setLastRun(schedule.id, Date.now())
+      const firedAt = Date.now()
+      if (schedule.trigger.kind === 'once' && firedAt >= schedule.trigger.at) {
+        jobScheduleService.markFired(schedule.id, firedAt, null)
+      } else {
+        jobScheduleService.setLastRun(schedule.id, firedAt)
+      }
     } catch (err) {
-      logger.warn('setLastRun failed after manual trigger — lastRun may be stale', {
+      logger.warn('Failed to persist manual schedule fire — schedule state may be stale', {
         scheduleId: schedule.id,
         err: (err as Error).message
       })
@@ -2158,8 +2163,9 @@ export class JobManager extends BaseService {
     })
     this.scheduleDisposables.set(schedule.id, disp)
     try {
-      const nextRun = scheduler.getNextRun(scheduleKey)
-      jobScheduleService.setNextRun(schedule.id, nextRun?.getTime() ?? null)
+      const nextRun = scheduler.getNextRun(scheduleKey)?.getTime() ?? null
+      const persistedNextRun = schedule.nextRun === null ? null : Date.parse(schedule.nextRun)
+      if (nextRun !== persistedNextRun) jobScheduleService.setNextRun(schedule.id, nextRun)
     } catch (err) {
       logger.warn('Failed to persist nextRun after arming schedule', {
         scheduleId: schedule.id,
