@@ -1,6 +1,11 @@
 import { loggerService } from '@logger'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
-import { type OpenTabOptions, TabsContext, type TabsContextValue } from '@renderer/hooks/tab'
+import {
+  type OpenTabOptions,
+  TabsContext,
+  type TabsContextValue,
+  useConversationNavigationOwner
+} from '@renderer/hooks/tab'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { TabLruManager } from '@renderer/services/TabLruManager'
 import { getDefaultRouteTitle, isPageTitledRoute, isTopLevelRoute } from '@renderer/utils/routeTitle'
@@ -618,6 +623,8 @@ export function TabsProvider({
 
   // Listen for tab attach requests (from Main Process)
   useIpcOn('tab.attached', (tabData) => attachTab(tabData))
+
+  useConversationNavigationOwner({ tabs, openTab, setActiveTab })
 
   /**
    * Get the currently active tab

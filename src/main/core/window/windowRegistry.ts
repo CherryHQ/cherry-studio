@@ -504,6 +504,99 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       inactivityTimeout: 300,
       warmup: 'eager'
     }
+  },
+
+  // Full-display capture overlay — one instance per display, opened and dismissed together.
+  // Pooled because a session creates N windows at once and users re-trigger it repeatedly.
+  [WindowType.Screenshot]: {
+    type: WindowType.Screenshot,
+    lifecycle: 'pooled',
+    htmlPath: 'windows/screenshot/index.html',
+    // preload omitted → defaults to 'preload.js'. OCR runs in the main process,
+    // so this window needs no nodeIntegration and keeps contextIsolation on.
+
+    // ScreenshotOverlayService owns visibility: overlays are shown at opacity 0 and revealed only
+    // once content has painted, so the OS window-open animation never shows over the frozen image.
+    showMode: 'manual',
+    windowOptions: {
+      frame: false,
+      transparent: true,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      resizable: false,
+      movable: false,
+      // frame:false hides the buttons, but OS shortcuts (e.g. Cmd+M) can still fire.
+      minimizable: false,
+      maximizable: false,
+      // Must be false on every platform: on Linux `true` keeps the overlay off the
+      // top layer; on macOS it conflicts with the panel window type.
+      fullscreen: false,
+      // macOS crashes when a transparent overlay window is fullscreenable.
+      fullscreenable: false,
+      hasShadow: false,
+      // Removes WS_THICKFRAME on Windows, killing the frameless show/hide animation.
+      // No effect elsewhere; safe because shadow and resizing are already off.
+      thickFrame: false,
+      backgroundColor: '#00000000',
+      focusable: true,
+      // Make the content area match the display exactly, excluding any frame.
+      useContentSize: true,
+      autoHideMenuBar: true,
+      // macOS: let the first click start a selection instead of only focusing.
+      acceptFirstMouse: true,
+      enableLargerThanScreen: true,
+      platformOverrides: {
+        mac: {
+          // Floating panel that does not steal app activation.
+          type: 'panel',
+          // OS corner rounding would reveal the desktop at the overlay's corners.
+          roundedCorners: false
+        },
+        win: {
+          // Toolbar windows stay above normal windows.
+          type: 'toolbar'
+        }
+        // Linux: no `type` at all — any value breaks focus events on some desktop
+        // environments (KDE, i3).
+      },
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        // Required by every window on the shared preload: that bundle is code-split, and a
+        // sandboxed preload cannot require its chunks — it dies with "module not found".
+        sandbox: false,
+        devTools: true,
+        // Declared on WebPreferences, NOT at the constructor-options root. Off because a red
+        // squiggle under the text-annotation input would be drawn into the annotation layer.
+        spellcheck: false
+      }
+    },
+    behavior: {
+      // screen-saver level puts the overlay above the Dock and menu bar.
+      alwaysOnTop: { level: 'screen-saver' },
+      // visibleOnFullScreen lets the overlay cover macOS fullscreen apps; skipTransformProcessType
+      // stops the process-type change that would flash the Dock icon and disturb focus.
+      visibleOnAllWorkspaces: { enabled: true, visibleOnFullScreen: true, skipTransformProcessType: true },
+      macShowInDock: false
+    },
+    quirks: {
+      // ScreenshotOverlayService hides and re-shows every overlay so the macOS save panel can sit
+      // above them; macOS then drops the level and Windows loses topmost, returning it below the Dock.
+      reapplyAlwaysOnTop: true
+    },
+    poolConfig: {
+      // No standby: capture sessions are user-initiated and bursty, and a permanently
+      // warm overlay would hold a transparent window per display for nothing.
+      standbySize: 0,
+      // A capture session opens one window per display; 4 covers realistic setups.
+      recycleMaxSize: 4,
+      // No decay: a display count does not drift, so shedding one window a minute only
+      // guarantees that the next capture is cold again. The buffer is kept whole and
+      // released whole, 10 minutes after the last capture.
+      decayInterval: 0,
+      inactivityTimeout: 600,
+      warmup: 'lazy'
+    }
   }
 }
 

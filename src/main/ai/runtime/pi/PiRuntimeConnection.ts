@@ -28,16 +28,18 @@ import {
 } from '@main/ai/runtime/toolApproval/cherryBuiltinApproval'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
+import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { type Span, SpanKind, SpanStatusCode } from '@opentelemetry/api'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
+import { SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 import {
   KB_READ_TOOL_NAME,
   KB_SEARCH_TOOL_NAME,
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
-import { PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
+import { PI_NATIVE_BUILTIN_TOOLS, PI_TOOL_EXEC_TOOL_NAME } from '@shared/ai/piBuiltinTools'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { UniqueModelId } from '@shared/data/types/model'
 
@@ -52,8 +54,9 @@ import type {
   AgentRuntimeUserInput,
   AgentSessionUsageCapture
 } from '../types'
-import { createPiApprovalExtension } from './approvalExtension'
+import { createPiApprovalExtension, createPiToolAuthorizer } from './approvalExtension'
 import { materializePiProviderStream, resolvePiProviderInjectionFromSnapshot } from './modelInjection'
+import { createPiCodeModeTools } from './piCodeMode'
 import { capturePiConnectionSnapshot, PiInvalidConnectionSnapshotError } from './piConnectionSignature'
 import {
   buildMcpToolDefinitions,
@@ -66,7 +69,7 @@ import { PiStreamAdapter } from './piStreamAdapter'
 import { createPiProviderExtension } from './providerExtension'
 
 const logger = loggerService.withContext('PiRuntimeConnection')
-const PI_BUILTIN_TOOL_NAMES = PI_BUILTIN_TOOLS.map((tool) => tool.name)
+const PI_BUILTIN_TOOL_NAMES = PI_NATIVE_BUILTIN_TOOLS.map((tool) => tool.name)
 const PI_BUILTIN_TOOL_ALIASES = new Map(PI_BUILTIN_TOOL_NAMES.map((name) => [name.toLowerCase(), name]))
 const toPiMcpRuntimeName = (runtimeName: string): string => {
   const [, serverName, toolName] = runtimeName.split('__')
@@ -80,10 +83,14 @@ const PI_AUTO_APPROVED_MCP_TOOLS = new Set([
   ...ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES.map(toPiMcpRuntimeName)
 ])
 const PI_APPROVAL_REQUIRED_MCP_TOOLS = new Set([
+  PI_TOOL_EXEC_TOOL_NAME,
   ...CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map((name) => buildPiMcpToolName('cherry-tools', name)),
   ...ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES.map(toPiMcpRuntimeName),
   ...ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES.map(toPiMcpRuntimeName)
 ])
+const PI_NON_BYPASSABLE_APPROVAL_TOOLS = new Set(
+  [SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME].map((name) => buildPiMcpToolName('cherry-tools', name))
+)
 interface PendingSteer {
   input: AgentRuntimeUserInput
 }
@@ -226,9 +233,25 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         workspacePath,
         agentDataPath,
         agent,
-        channelLinked: linkedChannel !== null,
         citationsGuidance
       })
+      const approvalContext = {
+        sessionId: this.input.sessionId,
+        workspacePath,
+        agentDataPath,
+        emit: (event: AgentRuntimeEvent) => this.eventQueue.push(event),
+        getInteractionState: () =>
+          application.get('AgentSessionRuntimeService').getInteractionState(this.input.sessionId),
+        getPermissionMode: () => this.permissionMode,
+        isDisabled: (toolName: string) => this.disabledTools.has(toolName),
+        additionalReadOnlyRoots: additionalSkillPaths,
+        // Safe first-party MCP tools may run headlessly; third-party and mutating tools still prompt.
+        // disabledTools hard-blocks every class at fire-time.
+        autoApprovedTools: PI_AUTO_APPROVED_MCP_TOOLS,
+        approvalRequiredTools: PI_APPROVAL_REQUIRED_MCP_TOOLS,
+        nonBypassableApprovalTools: PI_NON_BYPASSABLE_APPROVAL_TOOLS
+      }
+      const authorizeTool = createPiToolAuthorizer(approvalContext)
       const resourceLoader = new pi.DefaultResourceLoader({
         cwd: workspacePath,
         agentDir,
@@ -250,20 +273,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         additionalSkillPaths,
         extensionFactories: [
           createPiProviderExtension(runtimeProviderName, isolatedProviderConfig),
-          createPiApprovalExtension({
-            sessionId: this.input.sessionId,
-            workspacePath,
-            agentDataPath,
-            emit: (event) => this.eventQueue.push(event),
-            getInteractionState: () =>
-              application.get('AgentSessionRuntimeService').getInteractionState(this.input.sessionId),
-            getPermissionMode: () => this.permissionMode,
-            isDisabled: (toolName) => this.disabledTools.has(toolName),
-            // Safe first-party MCP tools may run headlessly; third-party and mutating tools still prompt.
-            // disabledTools hard-blocks every class at fire-time.
-            autoApprovedTools: PI_AUTO_APPROVED_MCP_TOOLS,
-            approvalRequiredTools: PI_APPROVAL_REQUIRED_MCP_TOOLS
-          })
+          createPiApprovalExtension(approvalContext)
         ],
         // Suppress pi's disk-discovered SYSTEM.md / APPEND_SYSTEM.md before the
         // override runs; Cherry owns the agent persona.
@@ -288,7 +298,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           this.input.knowledgeBaseIds
         )
       )
-      const customTools = this.mcpBridge.tools
+      const customTools = createPiCodeModeTools(
+        this.mcpBridge.tools,
+        (toolName) => this.disabledTools.has(toolName),
+        authorizeTool
+      )
       const finalSnapshot = await capturePiConnectionSnapshot(
         this.input.sessionId,
         this.input.agentId,
@@ -807,11 +821,13 @@ interface PiProviderSpanObserver {
 
 function withPiRequestEnvironment(
   streamSimple: NonNullable<ProviderConfig['streamSimple']>,
-  environment: Record<string, string> | undefined
+  providerEnvironment: Record<string, string> | undefined
 ): NonNullable<ProviderConfig['streamSimple']> {
-  if (!environment) return streamSimple
   return (model, context, options) =>
-    streamSimple(model, context, { ...options, env: { ...options?.env, ...environment } })
+    streamSimple(model, context, {
+      ...options,
+      env: { ...options?.env, ...getProxyEnvironment(process.env), ...providerEnvironment }
+    })
 }
 
 function finiteTokenCount(value: number | undefined): number {

@@ -1,4 +1,4 @@
-import { useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
+import { useDataChange, useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
@@ -89,7 +89,8 @@ export function useReconcileSkillsOnOpen(enabled: boolean): void {
  * Hook to read installed skills.
  *
  * Pass `agentId` to get per-agent enablement state. Without `agentId`, the
- * hook returns the global skill library with `isEnabled` forced to false.
+ * hook returns the global skill library with `isEnabled` forced to false and
+ * `isGlobalEnabled` carrying the library-wide switch.
  * Per-agent enablement is edited through the agent form and saved via
  * PATCH /agents (see `AgentEditDialog`), not through this hook.
  * `loading` covers the initial fetch; `refreshing` reports background
@@ -102,6 +103,7 @@ export function useInstalledSkills(agentId?: string, options: { enabled?: boolea
     enabled,
     ...(agentId ? { query: { agentId } } : {})
   })
+  useDataChange(enabled ? '/skills' : [], () => refetch())
   const refresh = useCallback(async () => {
     await ipcApi.request('skill.reconcile', {})
     return refetch()

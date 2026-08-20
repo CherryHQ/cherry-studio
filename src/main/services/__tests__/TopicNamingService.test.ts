@@ -76,16 +76,16 @@ const rendererI18nDir = path.join(process.cwd(), 'src/renderer/i18n')
 const unnamedTranslations = [
   'locales/en-us',
   'locales/zh-cn',
-  'translate/de-de',
-  'translate/el-gr',
-  'translate/es-es',
-  'translate/fr-fr',
-  'translate/ja-jp',
-  'translate/pt-pt',
-  'translate/ro-ro',
-  'translate/ru-ru',
-  'translate/vi-vn',
-  'translate/zh-tw'
+  'locales/de-de',
+  'locales/el-gr',
+  'locales/es-es',
+  'locales/fr-fr',
+  'locales/ja-jp',
+  'locales/pt-pt',
+  'locales/ro-ro',
+  'locales/ru-ru',
+  'locales/vi-vn',
+  'locales/zh-tw'
 ].map((rel) => JSON.parse(fs.readFileSync(path.join(rendererI18nDir, `${rel}.json`), 'utf-8')).common.unnamed)
 
 function createService() {
@@ -276,6 +276,36 @@ describe('TopicNamingService', () => {
       isNameManuallyEdited: false
     })
     expect(mocks.broadcast).toHaveBeenCalledWith('ai.agent.session.auto_renamed', { sessionId: 'session-1' })
+  })
+
+  it('names a topic from the first user message when conversation auto naming is disabled', () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('topic.naming.enabled', false)
+
+    createService().maybeRenameFromFirstUserMessage('topic-1', 'message-1')
+
+    expect(mocks.updateTopic).toHaveBeenCalledWith('topic-1', {
+      name: 'Hello there',
+      isNameManuallyEdited: false
+    })
+    expect(mocks.generateText).not.toHaveBeenCalled()
+  })
+
+  it('names an agent session from the first user message when conversation auto naming is disabled', () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('topic.naming.enabled', false)
+    mocks.getSession.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      name: 'common.unnamed',
+      isNameManuallyEdited: false
+    })
+
+    createService().maybeRenameAgentSessionFromFirstUserMessage('session-1', 'First user text')
+
+    expect(mocks.updateSession).toHaveBeenCalledWith('session-1', {
+      name: 'First user text',
+      isNameManuallyEdited: false
+    })
+    expect(mocks.generateText).not.toHaveBeenCalled()
   })
 
   it.each(unnamedTranslations)('recognizes localized default agent session name "%s"', async (name) => {

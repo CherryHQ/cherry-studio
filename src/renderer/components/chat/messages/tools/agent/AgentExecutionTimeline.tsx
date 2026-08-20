@@ -9,6 +9,7 @@ import { isToolPartAwaitingApproval } from '../toolResponse'
 import { AgentToolCallCard } from './AgentToolCallCard'
 import { AskUserQuestionCard } from './AskUserQuestionCard'
 import { NavigateToolInline } from './NavigateTool'
+import { isCherrySessionToolResponse } from './sessionToolResult'
 
 export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalToolResponse }) {
   const { arguments: args, response, tool, status, partialArguments } = toolResponse
@@ -56,6 +57,7 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
       isStreaming={isLoading}
       status={effectiveStatus}
       hasError={status === 'error'}
+      isCherrySessionTool={isCherrySessionToolResponse(toolResponse)}
       openFlowOnClick={isSubagentTool}
       showInlineDetails={!isSubagentTool}
     />

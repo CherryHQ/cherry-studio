@@ -83,6 +83,10 @@ const EditNameDialog = ({
     // buffer instead of the composed text. `keyCode === 229` is the legacy fallback.
     // oxlint-disable-next-line no-deprecated
     if (event.nativeEvent.isComposing || event.keyCode === 229) return
+    if (event.key === ' ' || event.key === 'Spacebar') {
+      event.stopPropagation()
+      return
+    }
     if (event.key !== 'Enter') return
 
     event.preventDefault()

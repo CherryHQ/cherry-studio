@@ -91,9 +91,9 @@ export class NodeTraceService extends BaseService implements Activatable {
    */
   private async initTracer() {
     const [{ FunctionSpanExporter }, { CacheBatchSpanProcessor }, { NodeTracer }] = await Promise.all([
-      import('@mcp-trace/trace-core/exporters/FuncSpanExporter'),
-      import('@mcp-trace/trace-core/processors/CacheSpanProcessor'),
-      import('@mcp-trace/trace-node/nodeTracer')
+      import('./FunctionSpanExporter'),
+      import('./CacheBatchSpanProcessor'),
+      import('./NodeTracer')
     ])
 
     this.nodeTracer = NodeTracer
