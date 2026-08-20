@@ -60,7 +60,7 @@ describe('permissionModeTool submenu', () => {
     expect(container.querySelector('.lucide-chevron-right')).toBeInTheDocument()
   })
 
-  // The quick panel row is a fixed 30px single line: a stacked warning under the title
+  // The quick panel row is a fixed-height single line: a stacked warning under the title
   // overflows it and collides with the neighbouring rows.
   it('keeps the caveat out of permanent copy and exposes it as row metadata', () => {
     const submenu = renderRuntime()
