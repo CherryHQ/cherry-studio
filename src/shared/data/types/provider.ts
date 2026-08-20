@@ -321,7 +321,7 @@ export const ProviderSchema = z.object({
    */
   reportedCostCurrency: z.enum(objectValues(CURRENCY)).optional(),
   /** Provider-owned transport for Fast requests. Effective availability is model-specific. */
-  fastMode: z.object({ transport: FastModeTransportSchema }).optional(),
+  fastMode: z.object({ transport: FastModeTransportSchema, serviceTier: z.string().optional() }).optional(),
   /** API Keys (without actual key values) */
   apiKeys: z.array(RuntimeApiKeySchema),
   /** Authentication type (no sensitive data) */

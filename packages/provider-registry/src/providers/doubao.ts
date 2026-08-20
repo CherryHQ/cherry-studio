@@ -122,8 +122,8 @@ const overrides: Partial<ProviderModelOverride>[] = [
 export default defineProvider({
   id: 'doubao',
   name: 'doubao',
-  // Ark 低延迟推理: responses `service_tier: 'fast'` (docs/82379/1569618).
-  fastMode: { transport: 'ark-fast' },
+  // Ark 低延迟推理 rides OpenAI's serviceTier option with its own value (docs/82379/1569618).
+  fastMode: { transport: 'openai-priority' as const, serviceTier: 'fast' },
   // Chat Completions stays the provider default: endpoint selection falls back to it for any model
   // without `endpointTypes` (user-added custom models, `/models` discoveries that miss an override), and
   // Ark only serves /responses for 250615+ SKUs. Responses is opted into per model below.

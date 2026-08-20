@@ -38,12 +38,6 @@ import { getWebSearchParams } from './websearch'
 
 const logger = loggerService.withContext('aiCore.utils.options')
 
-/** serviceTier value per Fast transport ('claude-code' rides the SDK, not providerOptions). */
-const FAST_MODE_SERVICE_TIER: Partial<Record<NonNullable<Provider['fastMode']>['transport'], string>> = {
-  'openai-priority': 'priority',
-  'ark-fast': 'fast'
-}
-
 export function applyFastModeToProviderOptions(
   provider: Pick<Provider, 'fastMode'>,
   model: Pick<Model, 'supportsFastMode'>,
@@ -53,8 +47,9 @@ export function applyFastModeToProviderOptions(
   if (!fastMode || !isSupportFastMode(provider, model)) {
     return providerOptions
   }
-  const serviceTier = FAST_MODE_SERVICE_TIER[provider.fastMode.transport]
-  if (!serviceTier) return providerOptions
+  // 'claude-code' carries Fast inside the SDK, not through providerOptions.
+  if (provider.fastMode.transport !== 'openai-priority') return providerOptions
+  const serviceTier = provider.fastMode.serviceTier ?? 'priority'
 
   return {
     ...providerOptions,

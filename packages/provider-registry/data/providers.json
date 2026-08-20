@@ -1242,7 +1242,8 @@
         }
       },
       "fastMode": {
-        "transport": "ark-fast"
+        "serviceTier": "fast",
+        "transport": "openai-priority"
       },
       "id": "doubao",
       "metadata": {
@@ -2076,5 +2077,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "76bd85ed8f59fc86"
+  "version": "1a109faa81b2072f"
 }

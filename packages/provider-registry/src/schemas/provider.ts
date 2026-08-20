@@ -45,9 +45,13 @@ export const ApiFeaturesSchema = z.object({
  * Provider-owned transport used to request faster processing.
  *
  * Model availability remains a provider-model concern; this only describes
- * how the provider carries an enabled Fast request.
+ * how the provider carries an enabled Fast request. `openai-priority` means the
+ * `serviceTier` provider option on the OpenAI namespace — the tier *value* is
+ * vendor-specific and travels in `fastMode.serviceTier` (OpenAI's `priority`,
+ * Ark's `fast`), so a new vendor never has to expand this enum: enum expansion
+ * is a breaking wire change, an optional field is not.
  */
-export const FastModeTransportSchema = z.enum(['openai-priority', 'claude-code', 'ark-fast'])
+export const FastModeTransportSchema = z.enum(['openai-priority', 'claude-code'])
 
 /** A provider-native tool plus the scope of models on which the host serves it. */
 export const ServerToolConfigSchema = z.object({
@@ -199,7 +203,7 @@ export const ProviderConfigSchema = z
      */
     reportedCostCurrency: ZodCurrencySchema,
     /** Provider-owned Fast request transport. Effective support is declared per provider-model pair. */
-    fastMode: z.object({ transport: FastModeTransportSchema }).optional(),
+    fastMode: z.object({ transport: FastModeTransportSchema, serviceTier: z.string().optional() }).optional(),
     /** Additional metadata including website URLs */
     metadata: MetadataSchema.and(ProviderWebsiteSchema)
   })

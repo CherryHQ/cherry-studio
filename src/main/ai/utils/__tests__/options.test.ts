@@ -34,10 +34,15 @@ describe('applyFastModeToProviderOptions', () => {
     expect(applyFastModeToProviderOptions(provider, model, {}, false)).toEqual({})
   })
 
-  it('maps the ark-fast transport to service tier fast', () => {
-    expect(applyFastModeToProviderOptions({ fastMode: { transport: 'ark-fast' } }, model, {}, true)).toEqual({
-      openai: { serviceTier: 'fast' }
-    })
+  it('honours a provider-declared service tier value (Ark asks for fast, not priority)', () => {
+    expect(
+      applyFastModeToProviderOptions(
+        { fastMode: { transport: 'openai-priority', serviceTier: 'fast' } },
+        model,
+        {},
+        true
+      )
+    ).toEqual({ openai: { serviceTier: 'fast' } })
   })
 
   it('sends no service tier for SDK-carried transports (claude-code)', () => {
