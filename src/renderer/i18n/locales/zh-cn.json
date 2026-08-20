@@ -564,12 +564,15 @@
         "run": "运行"
       },
       "confirmation": "确定要运行此 Claude 工具吗?",
+      "decisionDenied": "已拒绝",
       "defaultDenyMessage": "用户拒绝了该工具的权限。",
       "error": {
         "sendFailed": "发送您的决定失败，请重试。"
       },
       "inputPreview": "工具输入预览",
       "pendingBadge": "待确认",
+      "reasonLabel": "拒绝原因（可选）",
+      "reasonPlaceholder": "告诉 Agent 可以改用什么方案",
       "waiting": "等待工具权限决定..."
     },
     "tools": {

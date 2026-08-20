@@ -564,12 +564,15 @@
         "run": "Rulează"
       },
       "confirmation": "Ești sigur că vrei să rulezi acest instrument Claude?",
+      "decisionDenied": "Respins",
       "defaultDenyMessage": "Utilizatorul a refuzat permisiunea pentru acest instrument.",
       "error": {
         "sendFailed": "Nu s-a putut trimite decizia ta. Te rugăm să încerci din nou."
       },
       "inputPreview": "Previzualizare intrare instrument",
       "pendingBadge": "În așteptare",
+      "reasonLabel": "Motivul respingerii (opțional)",
+      "reasonPlaceholder": "Spune Agentului ce să facă în schimb",
       "waiting": "Se așteaptă decizia privind permisiunea instrumentului..."
     },
     "tools": {

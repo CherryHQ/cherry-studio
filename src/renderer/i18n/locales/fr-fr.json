@@ -564,12 +564,15 @@
         "run": "Courir"
       },
       "confirmation": "Êtes-vous sûr de vouloir exécuter cet outil Claude ?",
+      "decisionDenied": "Refusé",
       "defaultDenyMessage": "L'utilisateur a refusé l'autorisation pour cet outil.",
       "error": {
         "sendFailed": "Échec de l'envoi de votre décision. Veuillez réessayer."
       },
       "inputPreview": "Aperçu de l'entrée de l'outil",
       "pendingBadge": "En attente",
+      "reasonLabel": "Motif du refus (facultatif)",
+      "reasonPlaceholder": "Indiquez à l’Agent quoi faire à la place",
       "waiting": "En attente de la décision d'autorisation de l'outil..."
     },
     "tools": {

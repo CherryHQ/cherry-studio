@@ -1,4 +1,4 @@
-import { Button, Kbd } from '@cherrystudio/ui'
+import { Button, Kbd, Textarea } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { getToolGroupIcon, getToolGroupSemanticTitle } from '@renderer/components/chat/messages/blocks/ToolBlockGroup'
 import { isValidAgentToolsType, renderTool, UnknownToolRenderer } from '@renderer/components/chat/messages/tools/agent'
@@ -160,7 +160,9 @@ function PermissionPreviewHeader({ toolName, description }: { toolName: string; 
 export default function PermissionRequestComposer({ request, onRespond, className }: PermissionRequestComposerProps) {
   const { t } = useTranslation()
   const [submittingApprovalId, setSubmittingApprovalId] = useState<string | null>(null)
+  const [rejectionDraft, setRejectionDraft] = useState({ approvalId: request.approvalId, value: '' })
   const isSubmitting = submittingApprovalId === request.approvalId
+  const rejectionReason = rejectionDraft.approvalId === request.approvalId ? rejectionDraft.value : ''
   const subtitle = getPermissionRequestSubtitle(request)
   const ToolIcon = getToolGroupIcon(request.toolResponse.tool, request.toolResponse.arguments)
   const toolTitle = getToolGroupSemanticTitle(request.toolResponse, 'waiting', t)
@@ -196,15 +198,16 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
 
   const deny = useCallback(async () => {
     if (isSubmitting) return
+    const reason = rejectionReason.trim() || t('agent.toolPermission.defaultDenyMessage')
     await respond(
       {
         match: request.match,
         approved: false,
-        reason: t('agent.toolPermission.defaultDenyMessage')
+        reason
       },
       'deny'
     )
-  }, [isSubmitting, request.match, respond, t])
+  }, [isSubmitting, rejectionReason, request.match, respond, t])
 
   useHotkeys('enter', () => void approve(), { preventDefault: true, ignoreEventWhen: isHandledElsewhere }, [approve])
   useHotkeys('esc', () => void deny(), { preventDefault: true, ignoreEventWhen: isHandledElsewhere }, [deny])
@@ -240,6 +243,20 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
         <div className="mt-2 overflow-hidden rounded-[12px] bg-muted dark:bg-muted/30" data-testid="permission-preview">
           <PermissionPreview toolResponse={request.toolResponse} />
         </div>
+
+        <label className="mt-2.5 block px-1 text-muted-foreground text-xs">
+          <span>{t('agent.toolPermission.reasonLabel')}</span>
+          <Textarea.Input
+            value={rejectionReason}
+            disabled={isSubmitting}
+            maxLength={500}
+            rows={2}
+            aria-label={t('agent.toolPermission.reasonLabel')}
+            placeholder={t('agent.toolPermission.reasonPlaceholder')}
+            className="mt-1 min-h-14 resize-none px-3 py-2 text-sm"
+            onValueChange={(value) => setRejectionDraft({ approvalId: request.approvalId, value })}
+          />
+        </label>
 
         <div className="mt-2.5 flex justify-end gap-2 px-1 pb-0.5">
           <Button type="button" variant="outline" disabled={isSubmitting} onClick={() => void deny()}>

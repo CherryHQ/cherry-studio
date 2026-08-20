@@ -564,12 +564,15 @@
         "run": "Correr"
       },
       "confirmation": "Tem a certeza de que quer executar esta ferramenta Claude?",
+      "decisionDenied": "Recusado",
       "defaultDenyMessage": "Utilizador negou permissão para esta ferramenta.",
       "error": {
         "sendFailed": "Não foi possível enviar a sua decisão. Tente novamente."
       },
       "inputPreview": "Pré-visualização da entrada da ferramenta",
       "pendingBadge": "Pendente",
+      "reasonLabel": "Motivo da recusa (opcional)",
+      "reasonPlaceholder": "Indique ao Agente o que fazer em alternativa",
       "waiting": "A aguardar decisão de permissão da ferramenta..."
     },
     "tools": {

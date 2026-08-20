@@ -237,6 +237,25 @@ describe('toolResponse adapter', () => {
     expect(response?.tool.name).toBe('CustomTool')
   })
 
+  it('projects a persisted denial and its reason into cancelled tool history', () => {
+    const part = {
+      type: 'dynamic-tool',
+      toolName: 'Bash',
+      toolCallId: 'call-denied',
+      state: 'approval-responded',
+      input: { command: 'rm -rf build' },
+      approval: { id: 'approval-denied', approved: false, reason: 'use a copy instead' },
+      callProviderMetadata: { cherry: { transport: 'pi', toolName: 'bash' } }
+    } as unknown as CherryMessagePart
+
+    const response = buildToolResponseFromPart(part)
+
+    expect(response).toMatchObject({
+      status: 'cancelled',
+      approval: { approved: false, reason: 'use a copy instead' }
+    })
+  })
+
   it('marks provider-executed Responses tools as provider tools', () => {
     const part = {
       type: 'tool-webSearch',

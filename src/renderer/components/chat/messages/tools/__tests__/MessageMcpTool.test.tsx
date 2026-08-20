@@ -138,6 +138,20 @@ describe('MessageMcpTool', () => {
     expect(screen.getByLabelText('message.tools.autoApproveEnabled')).toBeInTheDocument()
   })
 
+  it('keeps a custom rejection reason visible in MCP tool history', () => {
+    render(
+      <MessageMcpTool
+        toolResponse={createMcpToolResponse({
+          status: 'cancelled',
+          approval: { approved: false, reason: 'Use the read-only endpoint instead' }
+        })}
+      />
+    )
+
+    expect(screen.getByText('agent.toolPermission.decisionDenied')).toBeInTheDocument()
+    expect(screen.getByText('Use the read-only endpoint instead')).toBeInTheDocument()
+  })
+
   it('renders structured tool output that is not an MCP content envelope', async () => {
     const { container } = render(
       <MessageMcpTool

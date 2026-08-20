@@ -564,12 +564,15 @@
         "run": "走る"
       },
       "confirmation": "このClaudeツールを実行してもよろしいですか？",
+      "decisionDenied": "拒否しました",
       "defaultDenyMessage": "ユーザーはこのツールの使用を拒否しました。",
       "error": {
         "sendFailed": "決定の送信に失敗しました。もう一度お試しください。"
       },
       "inputPreview": "ツール入力プレビュー",
       "pendingBadge": "保留中",
+      "reasonLabel": "拒否理由（任意）",
+      "reasonPlaceholder": "代わりに何をすべきか Agent に伝える",
       "waiting": "ツールの許可決定を待っています..."
     },
     "tools": {
