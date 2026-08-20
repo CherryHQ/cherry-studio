@@ -1,5 +1,6 @@
 import { EmptyState, Tabs, TabsList, TabsTrigger } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { SELECTION_EXCERPT_MAX_LENGTH } from '@renderer/types/selectionReference'
 import { formatFileSize } from '@renderer/utils/file'
 import AlertCircle from 'lucide-react/dist/esm/icons/alert-circle'
 import FileSpreadsheet from 'lucide-react/dist/esm/icons/file-spreadsheet'
@@ -8,8 +9,10 @@ import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react
 import { useTranslation } from 'react-i18next'
 
 import { FilePreviewLayout } from '../../FilePreviewLayout'
+import { createSelectionReference } from '../../selectionReference'
 import type { FilePreviewPluginProps } from '../../types'
 import type { ChartRenderer } from './charts/ChartRenderer'
+import type { CellRangeRect } from './gridLayout'
 import type { ChartModel, SheetRenderModel, WorkbookRenderModel } from './renderModel'
 import { SpreadsheetFilePreviewToolbar } from './SpreadsheetFilePreviewToolbar'
 import { useXlsxWorkbook, XLSX_PREVIEW_MAX_SIZE_BYTES } from './useXlsxWorkbook'
@@ -45,13 +48,50 @@ const loadChartRenderer = () => {
 
 const sheetHasChart = (sheet: SheetRenderModel | undefined): boolean => Boolean(sheet && sheet.charts.length > 0)
 
+/**
+ * Hard cap on cells visited while building a selection excerpt. sheet.cells is sparse but the rect is not, so a
+ * whole-column selection would otherwise walk millions of empty coordinates on the main thread.
+ */
+const EXCERPT_MAX_SCAN_CELLS = 50_000
+
+/**
+ * Plain-text snapshot of a selected range: tab-separated cells, newline-separated rows.
+ * Both budgets are checked while scanning — building the full text first and truncating afterwards is what makes a
+ * full-column selection hang. createSelectionReference does the exact normalization and truncation.
+ */
+const buildRangeExcerpt = (sheet: SheetRenderModel, rect: CellRangeRect): string => {
+  const lines: string[] = []
+  let length = 0
+  let scanned = 0
+  for (let row = rect.top; row <= rect.bottom; row++) {
+    const values: string[] = []
+    for (let col = rect.left; col <= rect.right; col++) {
+      if (scanned >= EXCERPT_MAX_SCAN_CELLS || length >= SELECTION_EXCERPT_MAX_LENGTH) break
+      scanned++
+      const text = sheet.cells[`${row}:${col}`]?.text ?? ''
+      values.push(text)
+      length += text.length + 1
+    }
+    lines.push(values.join('\t'))
+    if (scanned >= EXCERPT_MAX_SCAN_CELLS || length >= SELECTION_EXCERPT_MAX_LENGTH) break
+  }
+  return lines.join('\n')
+}
+
 /** Read-only XLSX preview with virtualized sheets, formula status, images, and lazily loaded charts. */
-export default function SpreadsheetFilePreview({ filePath, fileName, metadata, refreshKey }: FilePreviewPluginProps) {
+export default function SpreadsheetFilePreview({
+  filePath,
+  fileName,
+  metadata,
+  refreshKey,
+  onSelectionReference
+}: FilePreviewPluginProps) {
   const { t } = useTranslation()
   const state = useXlsxWorkbook(filePath, refreshKey, metadata.size)
   const [zoom, setZoom] = useState(DEFAULT_ZOOM)
   const [activeSheetName, setActiveSheetName] = useState<string | null>(null)
-  const [selectedCell, setSelectedCell] = useState<SelectedCellInfo | null>(null)
+  // The sheet is stored with the selection: an A1 range means nothing without the sheet it was taken from.
+  const [selectedCell, setSelectedCell] = useState<(SelectedCellInfo & { sheetName: string }) | null>(null)
   const [chartRenderer, setChartRenderer] = useState<ChartRenderer | null>(null)
   const [imageUrls, setImageUrls] = useState<Record<number, string>>({})
 
@@ -70,6 +110,29 @@ export default function SpreadsheetFilePreview({ filePath, fileName, metadata, r
       setActiveSheetName(sheets[0].name)
     }
   }, [sheets, activeSheetName])
+
+  const handleSelectCell = useCallback(
+    (info: SelectedCellInfo | null) =>
+      setSelectedCell(info && activeSheet ? { ...info, sheetName: activeSheet.name } : null),
+    [activeSheet]
+  )
+
+  // The reference is derived from the selection rather than emitted by the selection callback, so clearing the
+  // selection — including the sheet switch and model replacement handled above — reports null on its own. The
+  // sheet is compared rather than assumed: the switch resets the selection in an effect, one commit later.
+  const selectionReference = useMemo(() => {
+    if (!selectedCell || !activeSheet || selectedCell.sheetName !== activeSheet.name) return null
+    return createSelectionReference({
+      filePath,
+      anchor: { format: 'xlsx', sheet: activeSheet.name, range: selectedCell.range },
+      excerpt: buildRangeExcerpt(activeSheet, selectedCell.rect),
+      metadata: { size: metadata.size, modifiedAt: metadata.modifiedAt }
+    })
+  }, [selectedCell, activeSheet, filePath, metadata.size, metadata.modifiedAt])
+
+  useEffect(() => {
+    onSelectionReference?.(selectionReference)
+  }, [selectionReference, onSelectionReference])
 
   // Build image object URLs from model.images when ready, then revoke the previous table on replacement/unmount.
   useEffect(() => {
@@ -161,14 +224,15 @@ export default function SpreadsheetFilePreview({ filePath, fileName, metadata, r
   } else if (!model || !activeSheet) {
     content = null
   } else {
-    // Selected cell status: formula cells show the raw formula; values stay in the grid.
+    // Selection status: the A1 range, plus the cell content when the selection is a single cell (formula cells show
+    // the raw formula). A multi-cell range reports no cell, so only the range is shown.
     const selectedCellContent = selectedCell?.cell?.formula
       ? `= ${selectedCell.cell.formula}`
       : selectedCell?.cell?.text
     const statusBarText = selectedCell
       ? selectedCellContent
-        ? `${selectedCell.address}  ${selectedCellContent}`
-        : selectedCell.address
+        ? `${selectedCell.range}  ${selectedCellContent}`
+        : selectedCell.range
       : null
 
     content = (
@@ -185,7 +249,7 @@ export default function SpreadsheetFilePreview({ filePath, fileName, metadata, r
             styles={model.styles}
             imageUrls={imageUrls}
             zoom={zoom}
-            onSelectCell={setSelectedCell}
+            onSelectCell={handleSelectCell}
             renderChart={renderChart}
           />
         </div>
