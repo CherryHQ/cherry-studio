@@ -136,6 +136,13 @@ export class CherryCloudService extends BaseService {
       throw new Error('Cherry Cloud callback does not match an active authorization')
     }
 
+    if (
+      this.exchangePromise?.authorizationId === pending.authorizationId &&
+      this.exchangePromise.state === pending.state
+    ) {
+      return this.exchangePromise.promise
+    }
+
     if (Date.parse(pending.expiresAt) <= Date.now()) {
       await this.clearPendingAuthorization(pending)
       throw new Error('Cherry Cloud authorization has expired')
@@ -150,13 +157,6 @@ export class CherryCloudService extends BaseService {
     if (!handoffCode) {
       await this.clearPendingAuthorization(pending)
       throw new Error('Cherry Cloud callback is missing the handoff code')
-    }
-
-    if (
-      this.exchangePromise?.authorizationId === pending.authorizationId &&
-      this.exchangePromise.state === pending.state
-    ) {
-      return this.exchangePromise.promise
     }
 
     const exchange = this.exchangeCallback(pending, handoffCode).finally(() => {
