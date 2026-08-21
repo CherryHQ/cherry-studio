@@ -38,6 +38,7 @@ interface ModelContextWindowFieldsProps {
   maxInputTokens: string
   maxOutputTokens: string
   onContextWindowChange: (value: string) => void
+  /** Optional: the normalized value always reaches `onContextWindowChange` first. */
   onContextWindowCommit?: (value: string) => void
   onMaxInputTokensChange: (value: string) => void
   onMaxInputTokensCommit?: (value: string) => void
@@ -67,6 +68,14 @@ function TokenLimitField({
   const selectPreset = (presetValue: string) => {
     onChange(presetValue)
     onCommit?.(presetValue)
+  }
+
+  // `InputNumber` renders `value`, not its own normalized result, so the settled
+  // value has to go back through `onChange` or the field keeps showing what was typed.
+  const settle = (settled: number | null) => {
+    const next = settled === null ? '' : String(settled)
+    onChange(next)
+    onCommit?.(next)
   }
 
   return (
@@ -99,7 +108,7 @@ function TokenLimitField({
         placeholder={placeholder}
         className={drawerClasses.input}
         onChange={(next) => onChange(next === null ? '' : String(next))}
-        onBlur={(next) => onCommit?.(next === null ? '' : String(next))}
+        onBlur={settle}
       />
     </ProviderField>
   )
