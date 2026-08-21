@@ -6,6 +6,7 @@ import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
+import { InputGroup, InputGroupInputNumber } from '../input-group'
 import { InputNumber, type InputNumberProps } from '../input-number'
 
 function Controlled({ initial = null, ...props }: Partial<InputNumberProps> & { initial?: number | null }) {
@@ -199,6 +200,18 @@ describe('InputNumber', () => {
     expect(onBlur).toHaveBeenCalledExactlyOnceWith(10)
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('min (10) is greater than max (5)'))
     warn.mockRestore()
+  })
+
+  it('takes the group control slot so InputGroup can style and focus it', () => {
+    render(
+      <InputGroup>
+        <InputGroupInputNumber aria-label="amount" value={30} onChange={vi.fn()} />
+      </InputGroup>
+    )
+
+    const input = screen.getByLabelText('amount')
+    expect(input).toHaveAttribute('data-slot', 'input-group-control')
+    expect(input.className).toContain('border-0')
   })
 
   it('lets className override the default height', () => {
