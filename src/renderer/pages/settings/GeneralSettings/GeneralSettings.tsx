@@ -75,6 +75,19 @@ const GeneralSettings: FC = () => {
     void setTrayPreferences(isLaunchToTray && !tray ? { enabled: true, onLaunch: true } : { onLaunch: isLaunchToTray })
   }
 
+  const updateLaunchOnBoot = async (checked: boolean) => {
+    await setLaunchOnBoot(checked)
+    // The preference alone does nothing to the OS: without this IPC the login
+    // item / Run entry (or the Linux autostart file) is never written or
+    // removed, so the toggle had no real effect.
+    // See https://github.com/CherryHQ/cherry-studio/issues/19061
+    try {
+      await window.api.setLaunchOnBoot(checked)
+    } catch (error) {
+      toast.error(formatErrorMessage(error))
+    }
+  }
+
   const onSetProxyUrl = () => {
     if (proxyUrl && !isValidProxyUrl(proxyUrl)) {
       toast.error(t('message.error.invalid.proxy.url'))
@@ -123,7 +136,7 @@ const GeneralSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.launch.onboot')}</SettingRowTitle>
-          <Switch checked={launchOnBoot} onCheckedChange={(checked) => void setLaunchOnBoot(checked)} />
+          <Switch checked={launchOnBoot} onCheckedChange={(checked) => void updateLaunchOnBoot(checked)} />
         </SettingRow>
         <SettingDivider />
         <SettingRow>
