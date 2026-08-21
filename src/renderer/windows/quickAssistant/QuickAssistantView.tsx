@@ -6,10 +6,9 @@ import {
   ChatPlacementComposer
 } from '@renderer/components/composer/variants/ChatComposer'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
-import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useDefaultModel } from '@renderer/hooks/useModel'
+import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
 import { useProviders } from '@renderer/hooks/useProvider'
-import { ipcApi } from '@renderer/ipc'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { cn } from '@renderer/utils/style'
 import type { FC } from 'react'
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react'
@@ -52,11 +51,12 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
     useState<ChatConversationControlsSnapshot | null>(null)
   const barRef = useRef<HTMLDivElement>(null)
 
-  const assistantContext = useAssistant(assistantId || null, { loadDefaultModel: false })
-  const { quickModel } = useDefaultModel({ enabled: !assistantId })
-  const composerContext = assistantId
-    ? assistantContext
-    : { ...assistantContext, model: quickModel, isModelMissing: !quickModel }
+  // The bar carries its own assistant picker, so there is no model-only mode to fall back
+  // to — an install that has never picked one starts on the first assistant, exactly like
+  // a new topic in the main window.
+  const { assistants } = useAssistants()
+  const activeAssistantId = assistantId || assistants[0]?.id || null
+  const composerContext = useAssistant(activeAssistantId, { loadDefaultModel: true })
   const { assistant } = composerContext
   const activeConversationControlsSnapshot =
     conversationControlsSnapshot?.scopeKey === COMPOSER_SCOPE_KEY ? conversationControlsSnapshot : null
@@ -67,7 +67,7 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
         activeConversationControlsSnapshot.lockedMentionedModels.length > 1)
   )
   const { providers } = useProviders(undefined, { enabled: shouldLoadProviders })
-  const conversation = useQuickConversation({ assistantId: assistantId || undefined })
+  const conversation = useQuickConversation({ assistantId: activeAssistantId ?? undefined })
   const { topic, topicId, isLoading, isSaved, error, send, stop, reset, save } = conversation
 
   // Wraps setState with an eager IPC call so main's pin flag is updated
@@ -128,6 +128,10 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [handleEsc])
 
+  useIpcOn('quick_assistant.shown', () => {
+    barRef.current?.querySelector<HTMLTextAreaElement>('[data-ui~="part:composer-input"]')?.focus()
+  })
+
   useEffect(() => {
     const resetComposerWhileHidden = () => {
       if (!document.hidden) return
@@ -144,16 +148,9 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
     (text: string, options?: Parameters<typeof send>[1]) => {
       // Only grow once the turn is actually under way — a send dropped because the
       // temporary topic lease has not landed yet would leave an empty panel behind.
-      if (assistantId) {
-        if (send(text, options)) setView('panel')
-        return
-      }
-
-      const mentionedModels = options?.mentionedModels ?? (quickModel ? [quickModel.id] : undefined)
-      if (!mentionedModels?.length) return
-      if (send(text, { ...options, mentionedModels })) setView('panel')
+      if (send(text, options)) setView('panel')
     },
-    [assistantId, quickModel, send]
+    [send]
   )
 
   const handleAssistantChange = useCallback(
@@ -241,8 +238,10 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
           </div>
         )}
 
-        {error && view === 'bar' && (
-          <div className="mb-2 break-all rounded border border-error-border bg-error-subtle px-3 py-2 text-[13px] text-error-subtle-foreground">
+        {error && (
+          <div
+            role="alert"
+            className="mx-2 mb-2 break-all rounded-lg border border-error-border bg-error-subtle px-3 py-2 text-[13px] text-error-subtle-foreground [-webkit-app-region:no-drag]">
             {error}
           </div>
         )}
@@ -261,10 +260,11 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
               scope={COMPOSER_SCOPE_KEY}
               scopeKey={COMPOSER_SCOPE_KEY}
               topicId={topicId ?? undefined}
-              assistantId={assistantId || undefined}
+              assistantId={activeAssistantId ?? undefined}
               resolvedContext={composerContext}
               resolvedProviders={providers}
               externalContextControls
+              sendDisabled={!topicId}
               onConversationControlsChange={setConversationControlsSnapshot}
               onSend={handleSend}
             />
@@ -274,10 +274,14 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
               scope={COMPOSER_SCOPE_KEY}
               scopeKey={COMPOSER_SCOPE_KEY}
               topicId={topicId ?? undefined}
-              assistantId={assistantId || undefined}
+              assistantId={activeAssistantId ?? undefined}
               resolvedContext={composerContext}
               resolvedProviders={providers}
-              externalContextControls={composerEngaged}
+              // Always external: the built-in context row brings a `bg-muted` backdrop
+              // plate sized for a page behind it, which in a transparent frameless window
+              // reads as a second window edge around the composer card.
+              externalContextControls
+              sendDisabled={!topicId}
               onConversationControlsChange={setConversationControlsSnapshot}
               onSend={handleSend}
               onDraftAssistantChange={handleAssistantChange}
@@ -287,10 +291,8 @@ const QuickAssistantView: FC<{ draggable?: boolean }> = ({ draggable = true }) =
           {view === 'bar' && composerEngaged && (
             <div
               data-ui="quick-assistant.contextbar"
-              className="-mt-8 mx-6 overflow-hidden rounded-b-[20px] bg-card text-card-foreground">
-              <div className="flex h-[60px] items-center gap-1.5 overflow-hidden rounded-b-[inherit] bg-muted px-2 pt-5 [&_button]:h-7 [&_button]:px-1.5">
-                {renderConversationControls('top')}
-              </div>
+              className="flex h-10 items-center gap-1.5 overflow-hidden px-3 [&_button]:h-7 [&_button]:px-1.5">
+              {renderConversationControls('top')}
             </div>
           )}
         </div>

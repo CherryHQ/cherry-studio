@@ -1091,6 +1091,7 @@
       },
       "restore": "Restaurar",
       "screenshot": "Captura de pantalla",
+      "screenshot_attach_failed": "Captura de pantalla copiada al portapapeles, pero no se pudo adjuntar: pégala en el mensaje",
       "send": "Enviar",
       "send_failed": "Error al enviar el mensaje",
       "slash_commands": {
@@ -4212,7 +4213,7 @@
     },
     "input": {
       "placeholder": {
-        "empty": "Pregunta a {{model}} para obtener ayuda..."
+        "empty": "Pregunta lo que quieras…"
       }
     },
     "tooltip": {
@@ -6230,9 +6231,7 @@
       "provider_key_confirm_title": "Agregar clave API para {{provider}}",
       "provider_name": "Nombre del proveedor",
       "quick_assistant_default_tag": "Predeterminado",
-      "quick_assistant_response_settings": "Configuración de respuesta",
       "quick_assistant_selection": "Seleccionar asistente",
-      "quick_assistant_usage_method": "Método de uso",
       "quick_model": {
         "description": "El modelo rápido es utilizado para realizar tareas sencillas como nombrar temas, extraer palabras clave de búsqueda, etc.",
         "label": "Modelo rápido",

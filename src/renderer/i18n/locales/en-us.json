@@ -1091,6 +1091,7 @@
       },
       "restore": "Restore",
       "screenshot": "Screenshot",
+      "screenshot_attach_failed": "Screenshot copied to the clipboard, but it could not be attached — paste it into the message instead",
       "send": "Send",
       "send_failed": "Failed to send message",
       "slash_commands": {
@@ -4212,7 +4213,7 @@
     },
     "input": {
       "placeholder": {
-        "empty": "Ask {{model}} for help..."
+        "empty": "Ask anything…"
       }
     },
     "tooltip": {
@@ -6230,9 +6231,7 @@
       "provider_key_confirm_title": "Add {{provider}} API Key",
       "provider_name": "Provider Name",
       "quick_assistant_default_tag": "Default",
-      "quick_assistant_response_settings": "Response Settings",
       "quick_assistant_selection": "Select Assistant",
-      "quick_assistant_usage_method": "Usage Method",
       "quick_model": {
         "description": "Model used for simple tasks such as conversation naming and keyword extraction",
         "label": "Quick Model",

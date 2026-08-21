@@ -1201,7 +1201,9 @@ const ChatComposerInner = ({
     stopEditing()
   }, [restoreSavedDraft, staleEditingMessage, stopEditing])
 
-  const placeholderText = t('chat.input.placeholder', { key: getComposerShortcutLabel(sendMessageShortcut) })
+  const placeholderText = t(config.placeholderKey ?? 'chat.input.placeholder', {
+    key: getComposerShortcutLabel(sendMessageShortcut)
+  })
 
   const tokens = useMemo(
     () => [...files.map(fileToComposerToken), ...selectedKnowledgeBasesInScope.map(knowledgeBaseToComposerToken)],

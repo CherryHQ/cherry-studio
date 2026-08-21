@@ -1091,6 +1091,7 @@
       },
       "restore": "復元",
       "screenshot": "スクリーンショット",
+      "screenshot_attach_failed": "スクリーンショットをクリップボードにコピーしましたが、添付できませんでした。メッセージに貼り付けてください",
       "send": "送信",
       "send_failed": "メッセージの送信に失敗しました",
       "slash_commands": {
@@ -4212,7 +4213,7 @@
     },
     "input": {
       "placeholder": {
-        "empty": "{{model}} に質問してください..."
+        "empty": "何でも聞いてください…"
       }
     },
     "tooltip": {
@@ -6230,9 +6231,7 @@
       "provider_key_confirm_title": "{{provider}} の API キーを追加",
       "provider_name": "プロバイダー名",
       "quick_assistant_default_tag": "デフォルト",
-      "quick_assistant_response_settings": "応答設定",
       "quick_assistant_selection": "アシスタントを選択します",
-      "quick_assistant_usage_method": "使用方法",
       "quick_model": {
         "description": "トピックの命名や検索キーワードの抽出などの簡単なタスクを実行する際に使用されるモデル",
         "label": "高速モデル",

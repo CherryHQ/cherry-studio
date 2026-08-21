@@ -1091,6 +1091,7 @@
       },
       "restore": "Restaurar",
       "screenshot": "Captura de ecrã",
+      "screenshot_attach_failed": "Captura de ecrã copiada para a área de transferência, mas não foi possível anexá-la — cole-a na mensagem",
       "send": "Enviar",
       "send_failed": "Falha ao enviar mensagem",
       "slash_commands": {
@@ -4212,7 +4213,7 @@
     },
     "input": {
       "placeholder": {
-        "empty": "Pergunte a {{model}} para obter ajuda..."
+        "empty": "Pergunte o que quiser…"
       }
     },
     "tooltip": {
@@ -6230,9 +6231,7 @@
       "provider_key_confirm_title": "Adicionar chave API para {{provider}}",
       "provider_name": "Nome do Fornecedor",
       "quick_assistant_default_tag": "Padrão",
-      "quick_assistant_response_settings": "Definições de resposta",
       "quick_assistant_selection": "Selecionar Assistente",
-      "quick_assistant_usage_method": "Método de utilização",
       "quick_model": {
         "description": "Modelo utilizado para executar tarefas simples, como nomeação de tópicos, extração de palavras-chave de busca, entre outras.",
         "label": "Modelo rápido",

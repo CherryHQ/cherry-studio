@@ -1091,6 +1091,7 @@
       },
       "restore": "Khôi phục",
       "screenshot": "Ảnh chụp màn hình",
+      "screenshot_attach_failed": "Ảnh chụp màn hình đã được sao chép vào bảng nhớ tạm nhưng không thể đính kèm — hãy dán vào tin nhắn",
       "send": "Gửi",
       "send_failed": "Không gửi được tin nhắn",
       "slash_commands": {
@@ -4212,7 +4213,7 @@
     },
     "input": {
       "placeholder": {
-        "empty": "Hỏi {{model}} để được giúp đỡ..."
+        "empty": "Hỏi bất cứ điều gì…"
       }
     },
     "tooltip": {
@@ -6230,9 +6231,7 @@
       "provider_key_confirm_title": "Thêm khóa API cho {{provider}}",
       "provider_name": "Tên nhà cung cấp",
       "quick_assistant_default_tag": "Mặc định",
-      "quick_assistant_response_settings": "Cài đặt phản hồi",
       "quick_assistant_selection": "Chọn Trợ lý",
-      "quick_assistant_usage_method": "Phương thức sử dụng",
       "quick_model": {
         "description": "Mô hình được sử dụng cho các tác vụ đơn giản như đặt tên chủ đề và trích xuất từ khóa",
         "label": "Mô hình Nhanh",

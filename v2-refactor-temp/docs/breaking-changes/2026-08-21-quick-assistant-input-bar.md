@@ -19,8 +19,13 @@ Three things went away with the old layout:
 - The feature menu (Translate / Summary / Explanation) and its dedicated translate view.
   These overlap with the selection assistant, which keeps them.
 - Reading the clipboard at startup, along with its settings switch. Clipboard content is
-  now pasted (or dropped) into the composer like anywhere else in the app.
+  now pasted into the composer with the usual shortcut (the quick bar takes pastes, not
+  file drops).
 - The live preview of the quick assistant window inside Settings › Quick Assistant.
+- Settings › Quick Assistant › Usage Method, which chose between "answer with the default
+  model" and "answer as an assistant". The bar has an assistant picker and a model picker
+  built in, so the choice is now made in place; installs that never picked one start on
+  the first assistant.
 
 ## Why this matters to the user
 

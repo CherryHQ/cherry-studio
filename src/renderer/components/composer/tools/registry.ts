@@ -16,7 +16,9 @@ const composerToolConfigRegistry: Partial<Record<ComposerToolScope, ComposerTool
   'quick-assistant': {
     enableQuickPanel: true,
     enableDragDrop: false,
-    inheritedToolScopes: [TopicType.Chat]
+    inheritedToolScopes: [TopicType.Chat],
+    // The chat placeholder documents three affordances and truncates in a 680px bar.
+    placeholderKey: 'quickAssistant.input.placeholder.empty'
   },
   // Image-generation prompt bar: the slash quick panel surfaces only the saved
   // prompts library (the sole root-panel launcher in this scope), plus drag-drop

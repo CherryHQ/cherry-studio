@@ -1091,6 +1091,7 @@
       },
       "restore": "还原",
       "screenshot": "截图",
+      "screenshot_attach_failed": "截图已复制到剪贴板，但未能添加为附件，请直接粘贴到消息中",
       "send": "发送",
       "send_failed": "消息发送失败",
       "slash_commands": {
@@ -4212,7 +4213,7 @@
     },
     "input": {
       "placeholder": {
-        "empty": "询问 {{model}} 获取帮助..."
+        "empty": "问点什么…"
       }
     },
     "tooltip": {
@@ -6230,9 +6231,7 @@
       "provider_key_confirm_title": "为 {{provider}} 添加 API 密钥",
       "provider_name": "服务商名称",
       "quick_assistant_default_tag": "默认",
-      "quick_assistant_response_settings": "响应设置",
       "quick_assistant_selection": "选择助手",
-      "quick_assistant_usage_method": "使用方式",
       "quick_model": {
         "description": "执行对话命名、搜索关键字提炼等简单任务时使用的模型",
         "label": "快速模型",

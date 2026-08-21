@@ -38,13 +38,17 @@ const useScreenshotToolController = ({ launcher, couldAddImageFile, extensions, 
     try {
       const items = await navigator.clipboard.read()
       const item = items.find((entry) => entry.types.includes(SCREENSHOT_MIME_TYPE))
-      if (!item) return
+      if (!item) throw new Error('No PNG item on the clipboard after capture')
+
       const bytes = new Uint8Array(await (await item.getType(SCREENSHOT_MIME_TYPE)).arrayBuffer())
-      await attachImageBytes(SCREENSHOT_FILE_NAME, bytes, setFiles)
+      if (!(await attachImageBytes(SCREENSHOT_FILE_NAME, bytes, setFiles))) {
+        throw new Error('Could not read the screenshot back from its temporary file')
+      }
     } catch (error) {
-      // The capture is still on the clipboard, so Cmd+V remains a way out.
+      // Every failure here still leaves the capture on the clipboard, so say so rather
+      // than letting the button look like it did nothing.
       logger.error('Failed to attach the screenshot', error as Error)
-      toast.error(t('chat.input.file_error'))
+      toast.error(t('chat.input.screenshot_attach_failed'))
     }
   }, [setFiles, t])
 

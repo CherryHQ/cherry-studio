@@ -1091,6 +1091,7 @@
       },
       "restore": "Επαναφορά",
       "screenshot": "Στιγμιότυπο οθόνης",
+      "screenshot_attach_failed": "Το στιγμιότυπο αντιγράφηκε στο πρόχειρο, αλλά δεν ήταν δυνατή η επισύναψή του — επικολλήστε το στο μήνυμα",
       "send": "Αποστολή",
       "send_failed": "Αποτυχία αποστολής μηνύματος",
       "slash_commands": {
@@ -4212,7 +4213,7 @@
     },
     "input": {
       "placeholder": {
-        "empty": "Ρώτα τον {{model}} για βοήθεια..."
+        "empty": "Ρωτήστε οτιδήποτε…"
       }
     },
     "tooltip": {
@@ -6230,9 +6231,7 @@
       "provider_key_confirm_title": "Προσθήκη κλειδιού API για τον {{provider}}",
       "provider_name": "Όνομα Παρόχου",
       "quick_assistant_default_tag": "Προεπιλογή",
-      "quick_assistant_response_settings": "Ρυθμίσεις απάντησης",
       "quick_assistant_selection": "Επιλογή Βοηθού",
-      "quick_assistant_usage_method": "Τρόπος χρήσης",
       "quick_model": {
         "description": "Το μοντέλο που χρησιμοποιείται για απλές εργασίες, όπως η ονομασία θεμάτων και η εξαγωγή λέξεων-κλειδιών αναζήτησης",
         "label": "Γρήγορο μοντέλο",

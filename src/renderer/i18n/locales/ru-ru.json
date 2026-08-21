@@ -1091,6 +1091,7 @@
       },
       "restore": "Восстановить",
       "screenshot": "Снимок экрана",
+      "screenshot_attach_failed": "Снимок экрана скопирован в буфер обмена, но прикрепить его не удалось — вставьте его в сообщение",
       "send": "Отправить",
       "send_failed": "Не удалось отправить сообщение",
       "slash_commands": {
@@ -4212,7 +4213,7 @@
     },
     "input": {
       "placeholder": {
-        "empty": "Задайте вопрос {{model}}..."
+        "empty": "Спросите о чём угодно…"
       }
     },
     "tooltip": {
@@ -6230,9 +6231,7 @@
       "provider_key_confirm_title": "Добавить API ключ для {{provider}}",
       "provider_name": "Имя провайдера",
       "quick_assistant_default_tag": "умолчанию",
-      "quick_assistant_response_settings": "Настройки ответа",
       "quick_assistant_selection": "Выберите помощника",
-      "quick_assistant_usage_method": "Способ использования",
       "quick_model": {
         "description": "модель, используемая для выполнения простых задач, таких как именование тем, извлечение ключевых слов для поиска и т.д.",
         "label": "Быстрая модель",

@@ -289,8 +289,10 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       useContentSize: true,
       skipTaskbar: true,
       autoHideMenuBar: true,
-      hasShadow: false,
-      thickFrame: false,
+      // The bar is one flat surface with no page behind it — the OS shadow is the only
+      // thing separating it from the desktop. `thickFrame` stays default (true): turning
+      // it off would take the Windows resize frame with it despite `resizable: true`.
+      hasShadow: true,
       resizable: true,
       minimizable: false,
       maximizable: false,

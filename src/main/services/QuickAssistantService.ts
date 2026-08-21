@@ -498,6 +498,9 @@ export class QuickAssistantService extends BaseService implements Activatable {
 
     window.setOpacity(1)
     window.show()
+
+    // A hidden window keeps its DOM, so the renderer sees no mount to focus on.
+    application.get('IpcApiService').send(WindowType.QuickAssistant, 'quick_assistant.shown', undefined)
   }
 
   /**

@@ -30,3 +30,12 @@ export const quickAssistantRequestSchemas = {
     output: z.void()
   })
 }
+
+export type QuickAssistantEventSchemas = {
+  /**
+   * The window was summoned. A hidden-then-shown BrowserWindow keeps its DOM, so the
+   * renderer gets no lifecycle callback to re-focus the composer on — without this the
+   * hotkey opens a bar the user has to click before typing.
+   */
+  'quick_assistant.shown': void
+}

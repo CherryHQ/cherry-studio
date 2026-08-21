@@ -119,9 +119,10 @@ export function useTemporaryTopic(options: UseTemporaryTopicOptions = {}): UseTe
   const persist = useCallback(async (initialName?: string) => {
     const id = activeIdRef.current
     if (!id) return
-    await dataApiService.post(`/temporary/topics/${id}/persist`, { body: {} })
-    // Clear before unmount so cleanup skips the now-pointless DELETE.
+    // Release the id before the request, not after: an unmount or reset() while the
+    // POST is in flight would otherwise DELETE the topic out from under it.
     activeIdRef.current = null
+    await dataApiService.post(`/temporary/topics/${id}/persist`, { body: {} })
     logger.debug('Persisted temporary topic', { topicId: id })
 
     const trimmed = initialName?.trim()
