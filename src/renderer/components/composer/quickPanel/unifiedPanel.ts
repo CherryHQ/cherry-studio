@@ -66,13 +66,15 @@ export function prepareComposerQuickPanelSearch({
 }: Pick<ComposerUnifiedPanelResourceContext, 'inputAdapter' | 'queryAnchor' | 'triggerInfo'>) {
   const text = inputAdapter?.getText()
   const cursorOffset = inputAdapter ? (inputAdapter.getCursorOffset?.() ?? text?.length ?? 0) : undefined
-  const searchAnchor = queryAnchor ?? triggerInfo?.position ?? cursorOffset
+  let searchAnchor = queryAnchor ?? triggerInfo?.position ?? cursorOffset
 
   if (inputAdapter && triggerInfo?.type === 'input' && searchAnchor !== undefined) {
     const rangeEnd = cursorOffset ?? searchAnchor
     if (rangeEnd > searchAnchor) {
       inputAdapter.deleteTriggerRange({ from: searchAnchor, to: rangeEnd })
       inputAdapter.focus()
+      // The trigger is gone; a leftover typed prefix must not be tracked as a query.
+      searchAnchor = undefined
     }
   }
 

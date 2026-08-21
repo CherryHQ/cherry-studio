@@ -3095,11 +3095,17 @@ describe('AgentComposer', () => {
 
     const skillsLauncher = mocks.registeredLaunchers.get('agent-skills')?.[0]
     const open = vi.fn()
+    const trigger = '/skills '
+    let text = `${trigger}hello world`
+    let cursorOffset = trigger.length
     const inputAdapter = {
-      deleteTriggerRange: vi.fn(),
+      deleteTriggerRange: vi.fn(({ from, to }: { from: number; to: number }) => {
+        text = `${text.slice(0, from)}${text.slice(to)}`
+        cursorOffset = cursorOffset <= from ? cursorOffset : Math.max(from, cursorOffset - (to - from))
+      }),
       focus: vi.fn(),
-      getCursorOffset: () => 6,
-      getText: () => 'skills',
+      getCursorOffset: () => cursorOffset,
+      getText: () => text,
       insertText: vi.fn()
     }
 
@@ -3109,19 +3115,27 @@ describe('AgentComposer', () => {
       queryAnchor: 0,
       quickPanel: { open } as any,
       source: 'root-panel',
-      triggerInfo: { type: 'input', position: 0, originalText: '/skills' }
+      triggerInfo: { type: 'input', position: 0, originalText: `${trigger}hello world` }
     })
 
-    expect(inputAdapter.deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 6 })
+    expect(inputAdapter.deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: trigger.length })
     expect(inputAdapter.focus).toHaveBeenCalled()
+    expect(text).toBe('hello world')
     expect(open).toHaveBeenCalledWith(
       expect.objectContaining({
-        queryAnchor: 0,
+        queryAnchor: undefined,
         symbol: 'agent-skills',
         trackInputQuery: true,
-        triggerInfo: { type: 'button', position: 0 }
+        triggerInfo: { type: 'button' }
       })
     )
+
+    cursorOffset = text.length
+    const consumeQueryAnchor = open.mock.calls[0][0].queryAnchor as number | undefined
+    if (consumeQueryAnchor !== undefined && cursorOffset > consumeQueryAnchor) {
+      inputAdapter.deleteTriggerRange({ from: consumeQueryAnchor, to: cursorOffset })
+    }
+    expect(text).toBe('hello world')
   })
 
   it('stops excluding the skills launcher when the toolbar shortcut is unpinned in place', () => {

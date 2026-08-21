@@ -74,12 +74,50 @@ describe('prepareComposerQuickPanelSearch', () => {
         triggerInfo: { type: 'input', position: 0, originalText: '/skills' }
       })
     ).toEqual({
-      queryAnchor: 0,
+      queryAnchor: undefined,
       trackInputQuery: true,
-      triggerInfo: { type: 'button', position: 0 }
+      triggerInfo: { type: 'button' }
     })
     expect(inputAdapter.deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 7 })
     expect(inputAdapter.focus).toHaveBeenCalled()
+  })
+
+  it('does not return the pre-deletion queryAnchor after removing a slash trigger with leftover text', () => {
+    // Bug: returning searchAnchor after deleteTriggerRange lets consumeInputQuery wipe leftover
+    // composer text (`hello world`) when a slash-opened Quick Phrases/skills item is selected.
+    const trigger = '/prompt '
+    let text = `${trigger}hello world`
+    let cursorOffset = trigger.length
+    const inputAdapter = {
+      deleteTriggerRange: vi.fn(({ from, to }: { from: number; to: number }) => {
+        text = `${text.slice(0, from)}${text.slice(to)}`
+        cursorOffset = cursorOffset <= from ? cursorOffset : Math.max(from, cursorOffset - (to - from))
+      }),
+      focus: vi.fn(),
+      getCursorOffset: () => cursorOffset,
+      getText: () => text,
+      insertText: vi.fn()
+    }
+
+    const result = prepareComposerQuickPanelSearch({
+      inputAdapter,
+      queryAnchor: 0,
+      triggerInfo: { type: 'input', position: 0, originalText: `${trigger}hello world` }
+    })
+
+    expect(inputAdapter.deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: trigger.length })
+    expect(text).toBe('hello world')
+    expect(result.queryAnchor).toBeUndefined()
+    expect(result.triggerInfo).toEqual({ type: 'button' })
+
+    // consumeInputQuery deletes [queryAnchor, cursor] when queryAnchor is defined. After the
+    // trigger is gone, leftover text sits at the caret; a stale 0-anchor would wipe it.
+    cursorOffset = text.length
+    const consumeQueryAnchor = result.queryAnchor
+    if (consumeQueryAnchor !== undefined && cursorOffset > consumeQueryAnchor) {
+      inputAdapter.deleteTriggerRange({ from: consumeQueryAnchor, to: cursorOffset })
+    }
+    expect(text).toBe('hello world')
   })
 
   it('starts button-opened search at the cursor without changing existing text', () => {

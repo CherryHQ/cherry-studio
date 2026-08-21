@@ -134,11 +134,11 @@ describe('KnowledgeBaseToolRuntime', () => {
       expect.objectContaining({
         multiple: true,
         parentPanel: { list: [], symbol: '/' },
-        queryAnchor: 0,
+        queryAnchor: undefined,
         symbol: ComposerPanelSymbol.KnowledgeBase,
         title: 'Knowledge Base',
         trackInputQuery: true,
-        triggerInfo: { type: 'button', position: 0 }
+        triggerInfo: { type: 'button' }
       })
     )
     const openedOptions = vi.mocked(quickPanel.open).mock.calls[0][0]

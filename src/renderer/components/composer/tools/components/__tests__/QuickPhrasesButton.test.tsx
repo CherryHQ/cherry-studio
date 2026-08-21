@@ -185,12 +185,63 @@ describe('QuickPhrasesToolRuntime', () => {
     expect(mocks.quickPanelOpen).toHaveBeenCalledWith(
       expect.objectContaining({
         parentPanel,
-        queryAnchor: 0,
+        queryAnchor: undefined,
         symbol: 'quick-phrases',
         trackInputQuery: true,
-        triggerInfo: { type: 'button', position: 0 }
+        triggerInfo: { type: 'button' }
       })
     )
+  })
+
+  it('leaves leftover composer text after deleting a slash-triggered prompt query', async () => {
+    // Bug: returning the pre-deletion queryAnchor lets consumeInputQuery wipe `hello world`.
+    const trigger = '/prompt '
+    let text = `${trigger}hello world`
+    let cursorOffset = trigger.length
+    const launcher = createLauncherApi()
+    const inputAdapter = {
+      deleteTriggerRange: vi.fn(({ from, to }: { from: number; to: number }) => {
+        text = `${text.slice(0, from)}${text.slice(to)}`
+        cursorOffset = cursorOffset <= from ? cursorOffset : Math.max(from, cursorOffset - (to - from))
+      }),
+      focus: vi.fn(),
+      getCursorOffset: () => cursorOffset,
+      getText: () => text,
+      insertText: vi.fn()
+    }
+
+    render(<QuickPhrasesToolRuntime launcher={launcher} setInputValue={vi.fn()} />)
+
+    await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
+
+    const [quickPhrasesLauncher] = vi.mocked(launcher.registerLaunchers).mock.calls[0][0]
+    act(() => {
+      quickPhrasesLauncher.action?.({
+        inputAdapter,
+        parentPanel: { list: [], symbol: '/' },
+        queryAnchor: 0,
+        quickPanel: {} as never,
+        source: 'root-panel',
+        triggerInfo: { type: 'input', position: 0, originalText: `${trigger}hello world` }
+      })
+    })
+
+    expect(inputAdapter.deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: trigger.length })
+    expect(text).toBe('hello world')
+    expect(mocks.quickPanelOpen).toHaveBeenCalledWith(
+      expect.objectContaining({
+        queryAnchor: undefined,
+        triggerInfo: { type: 'button' }
+      })
+    )
+
+    cursorOffset = text.length
+    const opened = mocks.quickPanelOpen.mock.calls[0][0]
+    const consumeQueryAnchor = opened.queryAnchor as number | undefined
+    if (consumeQueryAnchor !== undefined && cursorOffset > consumeQueryAnchor) {
+      inputAdapter.deleteTriggerRange({ from: consumeQueryAnchor, to: cursorOffset })
+    }
+    expect(text).toBe('hello world')
   })
 
   it('adds a prompt management action without replacing the add prompt action', async () => {
