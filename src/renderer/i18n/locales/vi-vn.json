@@ -7073,9 +7073,8 @@
       "explore": {
         "analysis": "Phân tích",
         "chart": "Biểu đồ",
-        "clearDate": "Xóa bộ lọc ngày",
-        "drilldownTitle": "Phân tích chi tiết {{date}}",
         "entries": "Yêu cầu",
+        "granularity": "Độ chi tiết",
         "groupBy": "Nhóm theo",
         "loadMore": "Tải thêm",
         "loading": "Đang tải...",
@@ -7085,7 +7084,6 @@
         "noEntries": "Không có mục nào",
         "noEntriesDescription": "Thử một cửa sổ rộng hơn hoặc một nhà cung cấp khác.",
         "rollup": "Cuộn lên / Tổng hợp (tùy ngữ cảnh)",
-        "selectedDate": "Ngày đã chọn: {{date}}",
         "shareLabel": "Chia sẻ",
         "title": "Khám phá",
         "top": "Đầu",
@@ -7099,7 +7097,6 @@
         "source": "Trợ lý / Agent"
       },
       "heatmap": {
-        "ariaDate": "Sử dụng vào {{date}}",
         "title": "Hoạt động hàng ngày"
       },
       "metric": {

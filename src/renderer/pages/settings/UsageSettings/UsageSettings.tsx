@@ -1,4 +1,14 @@
-import { Button, EmptyState, Popover, PopoverContent, PopoverTrigger, SegmentedControl } from '@cherrystudio/ui'
+import {
+  Button,
+  ButtonGroup,
+  EmptyState,
+  SegmentedControl,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { formatCompactNumber } from '@renderer/utils/number'
@@ -8,11 +18,14 @@ import type {
   AiUsageRecordListSortBy,
   AiUsageRecordStatsBucket
 } from '@shared/data/api/schemas/aiUsageRecords'
-import { ChevronDown, SlidersHorizontal, X } from 'lucide-react'
-import { useCallback, useMemo, useState } from 'react'
+import type { Currency } from '@shared/data/types/model'
+import { ChartColumn, ChartLine, ChartPie, type LucideIcon } from 'lucide-react'
+import { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
+  type BoundedTimeRange,
+  CHART_TYPE_KEYS,
   CHART_TYPE_LABEL_KEYS,
   displayModelId,
   getCacheUsageMetrics,
@@ -26,12 +39,9 @@ import {
   GROUP_BY_LABEL_KEYS,
   METRIC_KEYS,
   METRIC_LABEL_KEYS,
-  PERIOD_CHART_TYPES,
-  rangeFromDateKey,
-  ROLLUP_KEYS,
   ROLLUP_LABEL_KEYS,
   TOP_COUNT_KEYS,
-  TOTAL_CHART_TYPES,
+  TREND_ROLLUP_KEYS,
   type UsageChartType,
   type UsageTopCount,
   WINDOW_KEYS,
@@ -49,15 +59,12 @@ import {
   UsageModelLabel,
   UsagePanel,
   UsagePanelHeader,
-  UsagePanelTitle,
-  UsageProviderLabel,
   UsageResponsiveShell,
   UsageSection,
   UsageSectionHeader,
-  UsageSectionTitle,
-  UsageSourceLabel
+  UsageSectionTitle
 } from './UsageSettingsPrimitives'
-import { useUsageData } from './useUsageData'
+import { useUsageData, useUsageEntriesData } from './useUsageData'
 
 type UsageApiKeyStatsBucket = Extract<AiUsageRecordStatsBucket, { groupBy: 'apiKey' }>
 type UsageApiKeyDisplay = Pick<
@@ -65,26 +72,72 @@ type UsageApiKeyDisplay = Pick<
   'apiKeyId' | 'apiKeyLabel' | 'apiKeyMasked' | 'apiKeyAttribution' | 'authMethod'
 >
 
+const CHART_TYPE_ICONS: Record<UsageChartType, LucideIcon> = {
+  bar: ChartColumn,
+  line: ChartLine,
+  pie: ChartPie
+}
+
+const UsageEntriesSection = memo(function UsageEntriesSection({
+  range,
+  currency,
+  getProviderInfo,
+  dateFormatter,
+  timeFormatter
+}: {
+  range: BoundedTimeRange
+  currency: Currency | undefined
+  getProviderInfo: (id: string, snapshotName?: string | null) => { id: string; name: string }
+  dateFormatter: Intl.DateTimeFormat
+  timeFormatter: Intl.DateTimeFormat
+}) {
+  const [sortBy, setSortBy] = usePersistCache('settings.usage.entry_sort_by')
+  const [sortOrder, setSortOrder] = usePersistCache('settings.usage.entry_sort_order')
+  const { entries, total, isLoading, isRefreshing, hasNext, loadNext } = useUsageEntriesData({
+    windowRange: range,
+    currency,
+    sortBy,
+    sortOrder
+  })
+  const handleSort = (nextSortBy: AiUsageRecordListSortBy) => {
+    setSortOrder((currentOrder) => (sortBy === nextSortBy && currentOrder === 'desc' ? 'asc' : 'desc'))
+    setSortBy(nextSortBy)
+  }
+
+  return (
+    <UsageEntriesTable
+      entries={entries}
+      entryTotal={total}
+      isLoading={isLoading}
+      isRefreshing={isRefreshing}
+      hasNextPage={hasNext}
+      sortBy={sortBy}
+      sortOrder={sortOrder}
+      onSort={handleSort}
+      onLoadNext={loadNext}
+      getProviderInfo={getProviderInfo}
+      dateFormatter={dateFormatter}
+      timeFormatter={timeFormatter}
+    />
+  )
+})
+
 function UsageSettings() {
   const { t, i18n } = useTranslation()
   const [windowKey, setWindowKey] = usePersistCache('settings.usage.window')
   const [groupBy, setGroupBy] = usePersistCache('settings.usage.group_by')
   const [chartMetric, setChartMetric] = usePersistCache('settings.usage.chart_metric')
   const [selectedChartType, setSelectedChartType] = usePersistCache('settings.usage.chart_type')
-  const [rollup, setRollup] = usePersistCache('settings.usage.rollup')
+  const [persistedRollup, setRollup] = usePersistCache('settings.usage.rollup')
   const [topCount, setTopCount] = usePersistCache('settings.usage.top_count')
-  // Drill-down day is session-scoped: restoring a past date would reopen the page on an empty range.
-  const [selectedDate, setSelectedDate] = useState<string | undefined>()
   const [persistedCurrency, setSelectedCurrency] = usePersistCache('settings.usage.currency')
-  const [heatmapMetric, setHeatmapMetric] = usePersistCache('settings.usage.heatmap_metric')
-  const [entrySortBy, setEntrySortBy] = usePersistCache('settings.usage.entry_sort_by')
-  const [entrySortOrder, setEntrySortOrder] = usePersistCache('settings.usage.entry_sort_order')
   const selectedCurrency = persistedCurrency ?? undefined
+  const chartType: UsageChartType =
+    selectedChartType === 'line' || selectedChartType === 'pie' ? selectedChartType : 'bar'
+  const rollup = persistedRollup === 'total' ? 'daily' : persistedRollup
 
   const windowRange = useMemo(() => getWindowRange(windowKey), [windowKey])
   const previousWindowRange = useMemo(() => getPreviousWindowRange(windowKey), [windowKey])
-  const selectedRange = useMemo(() => (selectedDate ? rangeFromDateKey(selectedDate) : undefined), [selectedDate])
-  const activeRange = selectedRange ?? windowRange
 
   const { providers } = useProviders()
   const providerMap = useMemo(() => new Map(providers.map((provider) => [provider.id, provider])), [providers])
@@ -94,33 +147,21 @@ function UsageSettings() {
     costCurrency,
     timelineBuckets,
     overviewBuckets,
-    exploreBuckets,
     exploreTimelineRows,
     overviewTotals,
     previousOverviewTotals,
     exploreTotals,
-    exploreOther,
     timelineLoading,
     overviewLoading,
-    exploreStatsLoading,
-    exploreTimelineLoading,
-    entries,
-    entryTotal,
-    entriesLoading,
-    entriesRefreshing,
-    hasNextEntryPage,
-    loadNextEntryPage
+    exploreTimelineLoading
   } = useUsageData({
     windowRange,
     previousWindowRange,
-    activeRange,
     groupBy,
     chartMetric,
     rollup,
     topCount,
-    selectedCurrency,
-    entrySortBy,
-    entrySortOrder
+    selectedCurrency
   })
 
   const activeDateKeys = useMemo(
@@ -209,10 +250,6 @@ function UsageSettings() {
     [i18n.language]
   )
   const formatDelta = useCallback((value: number) => percentFormatter.format(value), [percentFormatter])
-  const formatShare = useCallback(
-    (value: number) => (value > 0 && value < 0.001 ? '<0.1%' : hitRateFormatter.format(value)),
-    [hitRateFormatter]
-  )
   const entryDateFormatter = useMemo(
     () =>
       new Intl.DateTimeFormat(i18n.language, {
@@ -261,7 +298,7 @@ function UsageSettings() {
   )
   const rollupOptions = useMemo(
     () =>
-      ROLLUP_KEYS.map((value) => ({
+      TREND_ROLLUP_KEYS.map((value) => ({
         value,
         label: t(ROLLUP_LABEL_KEYS[value])
       })),
@@ -271,36 +308,24 @@ function UsageSettings() {
     () => TOP_COUNT_KEYS.map((value) => ({ value: String(value), label: String(value) })),
     []
   )
-  // A chart type the current rollup cannot draw falls back during render instead
-  // of being reset by an effect, so switching rollup back restores the choice.
-  const availableChartTypes: readonly UsageChartType[] = rollup === 'total' ? TOTAL_CHART_TYPES : PERIOD_CHART_TYPES
-  const chartType = availableChartTypes.includes(selectedChartType) ? selectedChartType : availableChartTypes[0]
   const chartTypeOptions = useMemo(
-    () =>
-      availableChartTypes.map((value) => ({
-        value,
-        label: t(CHART_TYPE_LABEL_KEYS[value])
-      })),
-    [availableChartTypes, t]
+    () => CHART_TYPE_KEYS.map((value) => ({ value, label: t(CHART_TYPE_LABEL_KEYS[value]) })),
+    [t]
   )
 
-  const selectedDateLabel = selectedDate ? dateFormatter.format(parseDateKey(selectedDate)) : undefined
-  const analysisSummary = [
-    t(GROUP_BY_LABEL_KEYS[groupBy]),
-    t(METRIC_LABEL_KEYS[chartMetric]),
-    t(ROLLUP_LABEL_KEYS[rollup]),
-    t(CHART_TYPE_LABEL_KEYS[chartType])
-  ].join(' / ')
   const hasUsage = totalRequests > 0 || timelineBuckets.some((bucket) => bucket.requestCount > 0)
-  // Explore refetches (group-by / heatmap day) must not blank the window-scoped cards;
+  // Explore refetches must not blank the window-scoped cards;
   // the distribution chart renders its own skeleton.
   const isInitialLoading = timelineLoading || overviewLoading
   const totalExploreMetric = getMetricValue(exploreTotals, chartMetric)
 
-  const getProviderInfo = (id: string, snapshotName?: string | null) => {
-    const provider = providerMap.get(id)
-    return { id, name: snapshotName ?? provider?.name ?? id }
-  }
+  const getProviderInfo = useCallback(
+    (id: string, snapshotName?: string | null) => {
+      const provider = providerMap.get(id)
+      return { id, name: snapshotName ?? provider?.name ?? id }
+    },
+    [providerMap]
+  )
   const getProviderName = (id: string, snapshotName?: string | null) => getProviderInfo(id, snapshotName).name
   const getApiKeyLabel = (apiKey: UsageApiKeyDisplay): string => {
     if (apiKey.apiKeyAttribution === 'auth') {
@@ -350,85 +375,47 @@ function UsageSettings() {
     })
   }
 
-  const handleEntrySort = (sortBy: AiUsageRecordListSortBy) => {
-    setEntrySortOrder((currentOrder) => (entrySortBy === sortBy && currentOrder === 'desc' ? 'asc' : 'desc'))
-    setEntrySortBy(sortBy)
-  }
-
-  const renderBucketLabel = (bucket: AiUsageRecordGroupIdentity) => {
-    const label = getBucketLabel(bucket)
-
-    if (groupBy === 'model') {
-      return (
-        <UsageModelLabel modelId={bucket.modelId} providerId={bucket.providerId ?? ''}>
-          {label}
-        </UsageModelLabel>
-      )
-    }
-
-    if (groupBy === 'source') {
-      return (
-        <UsageSourceLabel sourceType={bucket.sourceType} sourceIcon={bucket.sourceIcon}>
-          {label}
-        </UsageSourceLabel>
-      )
-    }
-
-    return (
-      <UsageProviderLabel provider={getProviderInfo(bucket.providerId ?? '', bucket.providerName)}>
-        {label}
-      </UsageProviderLabel>
-    )
-  }
   const formatChartValue = (value: number) =>
     chartMetric === 'cost' ? formatCost(value, costCurrency) : formatCompactNumber(value)
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <UsageResponsiveShell>
-        <UsageSection>
-          <UsageSectionHeader>
-            <div className="min-w-0">
-              <UsageSectionTitle>{t('settings.usage.overview.title')}</UsageSectionTitle>
-              <p className="mt-1 text-muted-foreground text-sm">
-                {t('settings.usage.summary', {
-                  window: t(WINDOW_LABEL_KEYS[windowKey]),
-                  tokens: formatCompactNumber(totalTokens),
-                  requests: formatCompactNumber(totalRequests)
-                })}
-              </p>
-            </div>
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              {currencyOptions.length > 1 && (
-                <div className="-mx-1 max-w-[calc(100%+0.5rem)] overflow-x-auto px-1">
-                  <SegmentedControl
-                    aria-label={t('settings.usage.currency')}
-                    options={currencyOptions}
-                    value={costCurrency}
-                    onValueChange={setSelectedCurrency}
-                    size="sm"
-                  />
-                </div>
-              )}
-              <div className="-mx-1 max-w-[calc(100%+0.5rem)] overflow-x-auto px-1">
-                <SegmentedControl
-                  options={windowOptions}
-                  value={windowKey}
-                  onValueChange={(value) => {
-                    setWindowKey(value)
-                    setSelectedDate(undefined)
-                  }}
-                  size="sm"
-                />
-              </div>
-            </div>
-          </UsageSectionHeader>
+        <div className="flex min-w-0 @[640px]/usage:flex-row flex-col @[640px]/usage:items-start @[640px]/usage:justify-between gap-3">
+          <div className="min-w-0">
+            <UsageSectionTitle>{t('settings.usage.overview.title')}</UsageSectionTitle>
+            <p className="mt-1 text-muted-foreground text-sm">
+              {t('settings.usage.summary', {
+                window: t(WINDOW_LABEL_KEYS[windowKey]),
+                tokens: formatCompactNumber(totalTokens),
+                requests: formatCompactNumber(totalRequests)
+              })}
+            </p>
+          </div>
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            {currencyOptions.length > 1 && (
+              <SegmentedControl
+                aria-label={t('settings.usage.currency')}
+                options={currencyOptions}
+                value={costCurrency}
+                onValueChange={setSelectedCurrency}
+                size="sm"
+              />
+            )}
+            <SegmentedControl options={windowOptions} value={windowKey} onValueChange={setWindowKey} size="sm" />
+          </div>
+        </div>
 
+        <UsageSection>
           <UsagePanel>
             {isInitialLoading ? (
               <MetricStripSkeleton />
             ) : (
-              <div className="grid min-w-0 @[560px]/usage:grid-cols-2 @[900px]/usage:grid-cols-4 grid-cols-1 gap-px border-border border-b bg-border">
+              <div
+                className={cn(
+                  'grid min-w-0 @[560px]/usage:grid-cols-2 @[900px]/usage:grid-cols-4 grid-cols-1 gap-px bg-border',
+                  hasUsage && 'border-border border-b'
+                )}>
                 <MetricCell
                   label={t('settings.usage.cards.totalCost')}
                   trendValues={costTrendValues}
@@ -478,7 +465,7 @@ function UsageSettings() {
             )}
 
             {!isInitialLoading && hasUsage && (
-              <div className="grid min-w-0 @[560px]/usage:grid-cols-2 @[900px]/usage:grid-cols-4 grid-cols-1 gap-px border-border border-b bg-border">
+              <div className="grid min-w-0 @[560px]/usage:grid-cols-2 @[900px]/usage:grid-cols-4 grid-cols-1 gap-px bg-border">
                 <InsightCell
                   label={t('settings.usage.cards.activeDays')}
                   value={activeDays}
@@ -509,161 +496,133 @@ function UsageSettings() {
                 />
               </div>
             )}
-
-            {hasUsage && (
-              <div className="@[640px]/usage:p-4 p-3">
-                <UsageHeatmap
-                  buckets={timelineBuckets}
-                  selectedDate={selectedDate}
-                  metric={heatmapMetric}
-                  onMetricChange={setHeatmapMetric}
-                  onSelectDate={(date) => setSelectedDate((current) => (current === date ? undefined : date))}
-                  costCurrency={costCurrency}
-                  isLoading={timelineLoading}
-                  range={windowRange}
-                />
-              </div>
-            )}
-
-            {!hasUsage && !isInitialLoading && (
-              <div className="@[640px]/usage:p-4 p-3">
-                <EmptyState
-                  compact
-                  preset="no-result"
-                  title={t('settings.usage.empty.title')}
-                  description={t('settings.usage.empty.description')}
-                />
-              </div>
-            )}
           </UsagePanel>
+
+          {hasUsage && (
+            <UsagePanel>
+              <UsageHeatmap
+                buckets={timelineBuckets}
+                costCurrency={costCurrency}
+                isLoading={timelineLoading}
+                range={windowRange}
+              />
+            </UsagePanel>
+          )}
+
+          {!hasUsage && !isInitialLoading && (
+            <UsagePanel className="@[640px]/usage:p-4 p-3">
+              <EmptyState
+                compact
+                preset="no-result"
+                title={t('settings.usage.empty.title')}
+                description={t('settings.usage.empty.description')}
+              />
+            </UsagePanel>
+          )}
         </UsageSection>
 
         <UsageSection className={cn(!hasUsage && 'hidden')}>
           <UsageSectionHeader>
             <div className="min-w-0">
-              <UsageSectionTitle>
-                {selectedDateLabel
-                  ? t('settings.usage.explore.drilldownTitle', { date: selectedDateLabel })
-                  : t('settings.usage.explore.title')}
-              </UsageSectionTitle>
-              {selectedDateLabel && (
-                <div className="mt-1 flex items-center gap-2 text-foreground-tertiary text-xs">
-                  <span>{t('settings.usage.explore.selectedDate', { date: selectedDateLabel })}</span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-6"
-                    aria-label={t('settings.usage.explore.clearDate')}
-                    onClick={() => setSelectedDate(undefined)}>
-                    <X className="size-3.5" />
-                  </Button>
-                </div>
-              )}
+              <UsageSectionTitle>{t('settings.usage.explore.analysis')}</UsageSectionTitle>
+              <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1 text-foreground-tertiary text-xs">
+                <span>{t(WINDOW_LABEL_KEYS[windowKey])}</span>
+                <span className="ml-1 text-muted-foreground">· {formatChartValue(totalExploreMetric)}</span>
+              </div>
             </div>
           </UsageSectionHeader>
 
           <div className="flex min-w-0 flex-col gap-3">
             <UsagePanel>
-              <UsagePanelHeader className="flex min-w-0 flex-col gap-3">
-                <div className="flex min-w-0 @[760px]/usage:flex-row flex-col @[760px]/usage:items-start @[760px]/usage:justify-between gap-3">
-                  <div className="min-w-0">
-                    <UsagePanelTitle>{t('settings.usage.explore.analysis')}</UsagePanelTitle>
-                    <div className="mt-1 text-foreground-tertiary text-xs">
-                      {analysisSummary} / {formatChartValue(totalExploreMetric)}
-                    </div>
-                  </div>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="max-w-full justify-between gap-2 @[760px]/usage:self-auto self-start">
-                        <span className="inline-flex min-w-0 items-center gap-2">
-                          <SlidersHorizontal className="size-4 shrink-0" />
-                          <span className="min-w-0 truncate">{analysisSummary}</span>
-                        </span>
-                        <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent align="end" className="w-[calc(100vw-2rem)] max-w-lg p-3">
-                      <div className="flex min-w-0 flex-col gap-3">
-                        <UsageControlRow label={t('settings.usage.explore.groupBy')}>
-                          <SegmentedControl
-                            options={groupByOptions}
-                            value={groupBy}
-                            onValueChange={setGroupBy}
-                            size="sm"
-                          />
-                        </UsageControlRow>
-                        <UsageControlRow label={t('settings.usage.explore.metric')}>
-                          <SegmentedControl
-                            options={metricOptions}
-                            value={chartMetric}
-                            onValueChange={setChartMetric}
-                            size="sm"
-                          />
-                        </UsageControlRow>
-                        <UsageControlRow label={t('settings.usage.explore.rollup')}>
-                          <SegmentedControl
-                            options={rollupOptions}
-                            value={rollup}
-                            onValueChange={setRollup}
-                            size="sm"
-                          />
-                        </UsageControlRow>
-                        <UsageControlRow label={t('settings.usage.explore.top')}>
-                          <SegmentedControl
-                            options={topCountOptions}
-                            value={String(topCount)}
-                            onValueChange={(value) => setTopCount(Number(value) as UsageTopCount)}
-                            size="sm"
-                          />
-                        </UsageControlRow>
-                        <UsageControlRow label={t('settings.usage.explore.chart')}>
-                          <SegmentedControl
-                            options={chartTypeOptions}
-                            value={chartType}
-                            onValueChange={setSelectedChartType}
-                            size="sm"
-                          />
-                        </UsageControlRow>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-                </div>
+              <UsagePanelHeader className="flex min-w-0 flex-wrap items-end gap-3">
+                <UsageControlRow className="w-40" label={t('settings.usage.explore.groupBy')}>
+                  <Select value={groupBy} onValueChange={(value) => setGroupBy(value as typeof groupBy)}>
+                    <SelectTrigger size="sm" className="w-full" aria-label={t('settings.usage.explore.groupBy')}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {groupByOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </UsageControlRow>
+                <UsageControlRow className="w-32" label={t('settings.usage.explore.metric')}>
+                  <Select value={chartMetric} onValueChange={(value) => setChartMetric(value as typeof chartMetric)}>
+                    <SelectTrigger size="sm" className="w-full" aria-label={t('settings.usage.explore.metric')}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {metricOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </UsageControlRow>
+                <UsageControlRow className="w-24" label={t('settings.usage.explore.top')}>
+                  <Select
+                    value={String(topCount)}
+                    onValueChange={(value) => setTopCount(Number(value) as UsageTopCount)}>
+                    <SelectTrigger size="sm" className="w-full" aria-label={t('settings.usage.explore.top')}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {topCountOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </UsageControlRow>
+                <UsageControlRow className="@[760px]/usage:ml-auto" label={t('settings.usage.explore.chart')}>
+                  <ButtonGroup attached={false} aria-label={t('settings.usage.explore.chart')}>
+                    {chartTypeOptions.map((option) => {
+                      const Icon = CHART_TYPE_ICONS[option.value]
+                      const isActive = chartType === option.value
+
+                      return (
+                        <Button
+                          key={option.value}
+                          type="button"
+                          variant={isActive ? 'secondary' : 'ghost'}
+                          size="sm"
+                          aria-pressed={isActive}
+                          onClick={() => setSelectedChartType(option.value)}>
+                          <Icon className="size-3.5" />
+                          {option.label}
+                        </Button>
+                      )
+                    })}
+                  </ButtonGroup>
+                </UsageControlRow>
+                <UsageControlRow label={t('settings.usage.explore.granularity')}>
+                  <SegmentedControl options={rollupOptions} value={rollup} onValueChange={setRollup} size="sm" />
+                </UsageControlRow>
               </UsagePanelHeader>
               <UsageDistributionChart
-                activeRange={activeRange}
+                range={windowRange}
                 timelineBuckets={timelineBuckets}
-                exploreBuckets={exploreBuckets}
                 exploreTimelineRows={exploreTimelineRows}
-                exploreTotals={exploreTotals}
-                exploreOther={exploreOther}
                 rollup={rollup}
                 chartMetric={chartMetric}
                 chartType={chartType}
                 topCount={topCount}
                 costCurrency={costCurrency}
-                exploreStatsLoading={exploreStatsLoading}
                 exploreTimelineLoading={exploreTimelineLoading}
                 dateFormatter={dateFormatter}
                 monthFormatter={monthFormatter}
-                formatShare={formatShare}
                 getBucketLabel={getBucketLabel}
-                renderBucketLabel={renderBucketLabel}
               />
             </UsagePanel>
 
-            <UsageEntriesTable
-              entries={entries}
-              entryTotal={entryTotal}
-              isLoading={entriesLoading}
-              isRefreshing={entriesRefreshing}
-              hasNextPage={hasNextEntryPage}
-              sortBy={entrySortBy}
-              sortOrder={entrySortOrder}
-              onSort={handleEntrySort}
-              onLoadNext={loadNextEntryPage}
+            <UsageEntriesSection
+              range={windowRange}
+              currency={costCurrency}
               getProviderInfo={getProviderInfo}
               dateFormatter={entryDateFormatter}
               timeFormatter={entryTimeFormatter}

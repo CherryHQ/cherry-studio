@@ -121,10 +121,9 @@ export const startTopicRenaming = (topicId: string) => {
 }
 
 /**
- * 完成重命名指定话题
+ * 取消指定话题的重命名状态
  */
-export const finishTopicRenaming = (topicId: string) => {
-  // 1. 立即从 renamingTopics 移除
+export const cancelTopicRenaming = (topicId: string) => {
   const renamingTopics = cacheService.get('topic.renaming')
   if (renamingTopics && renamingTopics.includes(topicId)) {
     cacheService.set(
@@ -132,6 +131,14 @@ export const finishTopicRenaming = (topicId: string) => {
       renamingTopics.filter((id) => id !== topicId)
     )
   }
+}
+
+/**
+ * 完成重命名指定话题
+ */
+export const finishTopicRenaming = (topicId: string) => {
+  // 1. 立即从 renamingTopics 移除
+  cancelTopicRenaming(topicId)
 
   // 2. 立即添加到 newlyRenamedTopics
   const currentNewlyRenamed = cacheService.get('topic.newly_renamed') ?? []
