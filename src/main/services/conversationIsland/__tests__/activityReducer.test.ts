@@ -5,6 +5,7 @@ import {
   type ConversationActivityUpdate,
   type ConversationIslandActivity,
   reduceActivities,
+  selectEligibleActivities,
   selectPrimaryActivity,
   TERMINAL_TTL_MS
 } from '../activityReducer'
@@ -50,6 +51,38 @@ describe('activityReducer', () => {
     reduceActivities(activities, update('topic-error-new', 'error', 200))
 
     expect(selectPrimaryActivity(activities, 301).primary?.topicId).toBe('topic-error-new')
+  })
+
+  it('orders eligible activities by priority, recency, and topic id', () => {
+    const activities = state()
+    reduceActivities(activities, update('topic-live-new', 'streaming', 500))
+    reduceActivities(activities, update('topic-error', 'error', 100))
+    reduceActivities(activities, update('topic-approval-old', 'awaiting-approval', 200))
+    reduceActivities(activities, update('topic-approval-z', 'awaiting-approval', 300))
+    reduceActivities(activities, update('topic-approval-a', 'awaiting-approval', 300))
+
+    expect(selectEligibleActivities(activities, 501).map((activity) => activity.topicId)).toEqual([
+      'topic-approval-a',
+      'topic-approval-z',
+      'topic-approval-old',
+      'topic-error',
+      'topic-live-new'
+    ])
+  })
+
+  it('retains an expired terminal activity only while requested', () => {
+    const activities = state()
+    reduceActivities(activities, update('topic-done', 'done', 100))
+    reduceActivities(activities, update('topic-live', 'streaming', 200))
+    const now = 100 + TERMINAL_TTL_MS.done
+
+    expect(
+      selectEligibleActivities(activities, now, new Set(['topic-done'])).map((activity) => activity.topicId)
+    ).toEqual(['topic-done', 'topic-live'])
+    expect(activities.has('topic-done')).toBe(true)
+
+    expect(selectEligibleActivities(activities, now).map((activity) => activity.topicId)).toEqual(['topic-live'])
+    expect(activities.has('topic-done')).toBe(false)
   })
 
   it('expires done after four seconds and error after six seconds independently', () => {

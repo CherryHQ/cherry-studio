@@ -67,28 +67,33 @@ export function reduceActivities(
   })
 }
 
-export function selectPrimaryActivity(
+export function selectEligibleActivities(
   activities: Map<string, ConversationIslandActivity>,
-  now: number
-): ConversationActivitySelection {
-  let primary: ConversationIslandActivity | undefined
-  let eligibleCount = 0
+  now: number,
+  retainedActivityIds = new Set<string>()
+): ConversationIslandActivity[] {
+  const eligibleActivities: ConversationIslandActivity[] = []
 
   for (const [topicId, activity] of activities) {
-    if (activity.expiresAt !== undefined && activity.expiresAt <= now) {
+    if (activity.expiresAt !== undefined && activity.expiresAt <= now && !retainedActivityIds.has(topicId)) {
       activities.delete(topicId)
       continue
     }
 
-    eligibleCount += 1
-    if (
-      !primary ||
-      priority(activity.status) > priority(primary.status) ||
-      (priority(activity.status) === priority(primary.status) && activity.changedAt > primary.changedAt)
-    ) {
-      primary = activity
-    }
+    eligibleActivities.push(activity)
   }
 
-  return { primary, secondaryCount: primary ? eligibleCount - 1 : 0 }
+  return eligibleActivities.sort(
+    (a, b) => priority(b.status) - priority(a.status) || b.changedAt - a.changedAt || a.topicId.localeCompare(b.topicId)
+  )
+}
+
+export function selectPrimaryActivity(
+  activities: Map<string, ConversationIslandActivity>,
+  now: number
+): ConversationActivitySelection {
+  const eligibleActivities = selectEligibleActivities(activities, now)
+  const primary = eligibleActivities[0]
+
+  return { primary, secondaryCount: primary ? eligibleActivities.length - 1 : 0 }
 }
