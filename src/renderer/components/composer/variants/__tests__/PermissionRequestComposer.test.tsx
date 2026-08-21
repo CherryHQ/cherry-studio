@@ -17,7 +17,6 @@ vi.mock('react-i18next', async (importOriginal) => ({
         'agent.toolPermission.error.sendFailed': 'Failed to send your decision. Please try again.',
         'agent.toolPermission.confirmation': 'Allow tool call?',
         'agent.toolPermission.inputPreview': 'Tool input preview',
-        'agent.toolPermission.pending': 'Waiting for confirmation',
         'agent.toolPermission.button.allow': 'Allow',
         'agent.toolPermission.button.deny': 'Deny',
         'agent.toolPermission.button.run': 'Run',
@@ -167,6 +166,28 @@ describe('PermissionRequestComposer', () => {
     expect(screen.getByTestId('permission-builtin-body-scroll')).toHaveClass('max-h-60', 'overflow-y-auto')
   })
 
+  it('renders the ExitPlanMode plan in the approval preview', () => {
+    render(
+      <PermissionRequestComposer
+        request={makeRequest({
+          title: 'ExitPlanMode',
+          toolResponse: {
+            id: 'exit-plan-call-1',
+            toolCallId: 'exit-plan-call-1',
+            status: 'pending',
+            arguments: { plan: '# Release plan\n\n1. Run the focused tests' },
+            tool: { id: 'ExitPlanMode', name: 'ExitPlanMode', type: 'builtin' }
+          }
+        })}
+        onRespond={vi.fn()}
+      />
+    )
+
+    const preview = screen.getByTestId('permission-preview')
+    expect(preview).toHaveTextContent('Release plan')
+    expect(preview).toHaveTextContent('Run the focused tests')
+  })
+
   it('does not add a fallback body scroller when the tool content owns scrolling', () => {
     render(
       <PermissionRequestComposer
@@ -224,8 +245,50 @@ describe('PermissionRequestComposer', () => {
   it('hides the request subtitle when it only repeats the tool name', () => {
     render(<PermissionRequestComposer request={makeRequest()} onRespond={vi.fn()} />)
 
-    const heading = screen.getByRole('heading', { name: 'Processing' })
-    expect(heading.parentElement?.children).toHaveLength(1)
+    expect(screen.getByRole('heading', { name: 'Processing' })).toBeInTheDocument()
+    expect(screen.getAllByText('CustomTool')).toHaveLength(1)
+  })
+
+  it('approves when Enter is pressed outside editable controls', async () => {
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    render(<PermissionRequestComposer request={makeRequest()} onRespond={onRespond} />)
+
+    fireEvent.keyDown(document, { key: 'Enter' })
+
+    await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
+    expect(onRespond).toHaveBeenCalledWith({
+      match: makeRequest().match,
+      approved: true
+    })
+  })
+
+  it('denies when Escape is pressed outside editable controls', async () => {
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    render(<PermissionRequestComposer request={makeRequest()} onRespond={onRespond} />)
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+
+    await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
+    expect(onRespond).toHaveBeenCalledWith({
+      match: makeRequest().match,
+      approved: false,
+      reason: 'User denied permission for this tool.'
+    })
+  })
+
+  it('ignores Enter and Escape typed into an editable control', () => {
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    render(<PermissionRequestComposer request={makeRequest()} onRespond={onRespond} />)
+
+    const input = document.createElement('input')
+    document.body.appendChild(input)
+    try {
+      fireEvent.keyDown(input, { key: 'Enter' })
+      fireEvent.keyDown(input, { key: 'Escape' })
+      expect(onRespond).not.toHaveBeenCalled()
+    } finally {
+      input.remove()
+    }
   })
 
   it('shows progress and resets actions when the next approval becomes active', async () => {
@@ -257,7 +320,7 @@ describe('PermissionRequestComposer', () => {
     })
     rerender(<PermissionRequestComposer request={nextRequest} onRespond={onRespond} />)
 
-    expect(screen.getByRole('status')).toHaveTextContent('Waiting for confirmation')
+    expect(screen.getByRole('status')).toBeEmptyDOMElement()
     expect(screen.getByRole('button', { name: 'Allow' })).not.toBeDisabled()
     expect(screen.getByRole('button', { name: 'Deny' })).not.toBeDisabled()
   })

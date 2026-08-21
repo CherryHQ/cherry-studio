@@ -9,6 +9,7 @@ import {
   autoDiscoverGitBash,
   findCommandInShellEnv,
   findExecutable,
+  findExecutableInEnv,
   findGitBash,
   findViaMise,
   validateGitBashPath
@@ -18,7 +19,26 @@ import {
 vi.mock('child_process')
 vi.mock('fs')
 vi.mock('path')
+vi.mock('../shellEnv', () => ({ getShellEnv: vi.fn() }))
 vi.mock('which')
+
+// On win32 `path` and `path.win32` are the same object, so a mock installed on one is
+// visible through the other — both must share this implementation or they clobber it.
+function resolveWindowsPath(...args: string[]): string {
+  let result = args.join('\\')
+
+  // Handle .. navigation
+  while (result.includes('\\..')) {
+    result = result.replace(/\\[^\\]+\\\.\./g, '')
+  }
+
+  // Ensure absolute path
+  if (!result.match(/^[A-Z]:/)) {
+    result = `C:\\cwd\\${result}`
+  }
+
+  return result
+}
 
 // These tests only run on Windows since the functions have platform guards
 describe.skipIf(process.platform !== 'win32')('process utilities', () => {
@@ -35,21 +55,7 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
     vi.mocked(path.join).mockImplementation((...args) => args.join('\\'))
 
     // Mock path.resolve to handle path resolution with .. support
-    vi.mocked(path.resolve).mockImplementation((...args) => {
-      let result = args.join('\\')
-
-      // Handle .. navigation
-      while (result.includes('\\..')) {
-        result = result.replace(/\\[^\\]+\\\.\./g, '')
-      }
-
-      // Ensure absolute path
-      if (!result.match(/^[A-Z]:/)) {
-        result = `C:\\cwd\\${result}`
-      }
-
-      return result
-    })
+    vi.mocked(path.resolve).mockImplementation(resolveWindowsPath)
 
     // Mock path.dirname
     vi.mocked(path.dirname).mockImplementation((p) => {
@@ -58,9 +64,11 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
       return parts.join('\\')
     })
 
+    vi.mocked(path.basename).mockImplementation((p) => p.split('\\').at(-1) ?? p)
+
     // Mock path.sep
     Object.defineProperty(path, 'sep', { value: '\\', writable: true })
-    vi.mocked(path.win32.resolve).mockImplementation((...args) => args[args.length - 1])
+    vi.mocked(path.win32.resolve).mockImplementation(resolveWindowsPath)
     vi.mocked(path.win32.extname).mockImplementation((p) => p.match(/\.[^\\/.]+$/)?.[0] ?? '')
     vi.mocked(path.win32.relative).mockImplementation((from, to) => {
       const lowerFrom = from.toLowerCase()
@@ -749,6 +757,21 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
   })
 })
 
+describe('validateGitBashPath filename validation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(path.resolve).mockImplementation((input) => input)
+    vi.mocked(path.basename).mockImplementation((input) => input.split('\\').at(-1) ?? input)
+  })
+
+  it('rejects the Git Bash terminal launcher', () => {
+    const launcherPath = 'C:\\PortableGit\\git-bash.exe'
+    vi.mocked(fs.existsSync).mockReturnValue(true)
+
+    expect(validateGitBashPath(launcherPath)).toBeNull()
+  })
+})
+
 describe.skipIf(process.platform !== 'win32')('findViaMise', () => {
   const misePath = 'C:\\Users\\User\\AppData\\Local\\mise\\bin\\mise.exe'
   const env = { PATH: 'C:\\Windows\\system32' }
@@ -758,7 +781,7 @@ describe.skipIf(process.platform !== 'win32')('findViaMise', () => {
     vi.mocked(which)
       .mockReset()
       .mockResolvedValue(null as never)
-    vi.mocked(path.win32.resolve).mockImplementation((...args) => args[args.length - 1])
+    vi.mocked(path.win32.resolve).mockImplementation(resolveWindowsPath)
     vi.mocked(path.win32.extname).mockImplementation((p) => p.match(/\.[^\\/.]+$/)?.[0] ?? '')
     vi.mocked(path.win32.relative).mockImplementation((_from, to) => to)
     vi.mocked(path.win32.isAbsolute).mockImplementation((p) => /^[A-Z]:/i.test(p))
@@ -849,7 +872,7 @@ describe('findCommandInShellEnv', () => {
       .mockReturnValue(null as never)
     // Reset path.isAbsolute to real implementation for these tests
     vi.mocked(path.isAbsolute).mockImplementation((p) => p.startsWith('/') || /^[A-Z]:/i.test(p))
-    vi.mocked(path.win32.resolve).mockImplementation((...args) => args[args.length - 1])
+    vi.mocked(path.win32.resolve).mockImplementation(resolveWindowsPath)
     vi.mocked(path.win32.extname).mockImplementation((p) => p.match(/\.[^\\/.]+$/)?.[0] ?? '')
     vi.mocked(path.win32.relative).mockImplementation((from, to) => {
       const lowerFrom = from.toLowerCase()
@@ -861,10 +884,14 @@ describe('findCommandInShellEnv', () => {
   })
 
   describe('command name validation', () => {
+    // Clearing validation means the platform lookup ran: `which` on Windows,
+    // `sh -c 'command -v'` everywhere else.
+    const commandLookup = () => (process.platform === 'win32' ? which : spawn)
+
     it('should reject empty command name', async () => {
       const result = await findCommandInShellEnv('', {})
       expect(result).toBeNull()
-      expect(spawn).not.toHaveBeenCalled()
+      expect(commandLookup()).not.toHaveBeenCalled()
     })
 
     it('should reject command names with shell metacharacters', async () => {
@@ -880,14 +907,14 @@ describe('findCommandInShellEnv', () => {
       for (const cmd of maliciousCommands) {
         const result = await findCommandInShellEnv(cmd, {})
         expect(result).toBeNull()
-        expect(spawn).not.toHaveBeenCalled()
+        expect(commandLookup()).not.toHaveBeenCalled()
       }
     })
 
     it('should reject command names starting with hyphen', async () => {
       const result = await findCommandInShellEnv('-npx', {})
       expect(result).toBeNull()
-      expect(spawn).not.toHaveBeenCalled()
+      expect(commandLookup()).not.toHaveBeenCalled()
     })
 
     it('should reject path traversal attempts', async () => {
@@ -896,7 +923,7 @@ describe('findCommandInShellEnv', () => {
       for (const cmd of pathTraversalCommands) {
         const result = await findCommandInShellEnv(cmd, {})
         expect(result).toBeNull()
-        expect(spawn).not.toHaveBeenCalled()
+        expect(commandLookup()).not.toHaveBeenCalled()
       }
     })
 
@@ -904,7 +931,7 @@ describe('findCommandInShellEnv', () => {
       const longCommand = 'a'.repeat(129)
       const result = await findCommandInShellEnv(longCommand, {})
       expect(result).toBeNull()
-      expect(spawn).not.toHaveBeenCalled()
+      expect(commandLookup()).not.toHaveBeenCalled()
     })
 
     it('should accept valid command names', async () => {
@@ -919,7 +946,7 @@ describe('findCommandInShellEnv', () => {
 
       const result = await resultPromise
       expect(result).toBeNull()
-      expect(spawn).toHaveBeenCalled()
+      expect(commandLookup()).toHaveBeenCalled()
     })
 
     it('should accept command names with underscores and hyphens', async () => {
@@ -930,7 +957,7 @@ describe('findCommandInShellEnv', () => {
       mockChild.emit('close', 1)
 
       await resultPromise
-      expect(spawn).toHaveBeenCalled()
+      expect(commandLookup()).toHaveBeenCalled()
     })
 
     it('should accept command names at max length (128 chars)', async () => {
@@ -942,7 +969,7 @@ describe('findCommandInShellEnv', () => {
       mockChild.emit('close', 1)
 
       await resultPromise
-      expect(spawn).toHaveBeenCalled()
+      expect(commandLookup()).toHaveBeenCalled()
     })
   })
 
@@ -1059,6 +1086,15 @@ describe('findCommandInShellEnv', () => {
 
       const result = await findCommandInShellEnv('npx', { PATH: 'C:\\nodejs' })
       expect(result).toBeNull()
+    })
+
+    it('findExecutableInEnv should resolve npx.cmd through the shell PATH', async () => {
+      const { getShellEnv } = await import('../shellEnv')
+      vi.mocked(getShellEnv).mockResolvedValue({ PATH: 'C:\\nodejs' })
+      vi.mocked(which).mockResolvedValue(['C:\\Program Files\\nodejs\\npx.cmd'] as never)
+
+      const result = await findExecutableInEnv('npx')
+      expect(result).toBe('C:\\Program Files\\nodejs\\npx.cmd')
     })
   })
 })

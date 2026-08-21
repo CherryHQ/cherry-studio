@@ -150,22 +150,42 @@ jobs:
       - name: Install Dependencies
         run: pnpm install
 
+      - name: Check provider-registry compatibility baseline policy
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: pnpm --filter @cherrystudio/provider-registry compat:policy -- "origin/$BASE_REF"
+
       - name: Check changesets
         if: github.event_name == 'pull_request' && github.head_ref != 'changeset-release/main'
         env:
           BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: pnpm changeset status --since="origin/$BASE_REF"
 
+      - name: I18N Translation Check
+        env:
+          TRANSLATION_BASE_LOCALE: ${{ vars.TRANSLATION_BASE_LOCALE || 'en-us' }}
+        run: |
+          pnpm i18n:sync
+          if [ -n "$(git status --porcelain --untracked-files=all -- src/renderer/i18n src/main/i18n)" ]; then
+            echo "::error::Translations are out of sync. Run pnpm i18n:sync, translate every pending value, and commit the result."
+            git --no-pager status --porcelain --untracked-files=all -- src/renderer/i18n src/main/i18n
+            git --no-pager diff -- src/renderer/i18n src/main/i18n
+            exit 1
+          fi
+          pnpm i18n:check
+
       - name: Read-only Checks
         run: |
           # Share one checkout/install while keeping independent checks parallel.
           # Do not kill sibling checks on failure so every failure is reported.
           pnpm exec concurrently \
-            --names "Lint,Type and Hardcoded Strings,Format and Repository" \
-            --prefix-colors "blue,yellow,cyan" \
+            --names "Lint,Type and Hardcoded Strings,Format and Repository,Docs" \
+            --prefix-colors "blue,yellow,cyan,green" \
             "pnpm test:lint" \
             "pnpm typecheck && pnpm i18n:hardcoded:strict" \
-            "pnpm format:check && pnpm build:builtin-knowledge:check && pnpm i18n:check && pnpm skills:check"
+            "pnpm format:check && pnpm build:builtin-knowledge:check && pnpm skills:check" \
+            "pnpm docs:check"
 
       - name: DB Migrations Check
         run: |
@@ -193,8 +213,8 @@ jobs:
           fi
 
   main-test-shard:
-    name: main-test (${{ matrix.shard }}/3)
-    runs-on: ubuntu-latest
+    name: main-test (${{ matrix.os }} ${{ matrix.shard }}/${{ matrix.shards }})
+    runs-on: ${{ matrix.os }}
     needs: changes
     if: >-
       needs.changes.outputs.main == 'true' ||
@@ -207,7 +227,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest]
         shard: [1, 2, 3]
+        include:
+          - os: ubuntu-latest
+            shards: 3
+          # macOS/Windows run only the platform-gated files (see the test step) —
+          # a small enough set that sharding it would just add runner overhead.
+          - os: macos-latest
+            shard: 1
+            shards: 1
+          - os: windows-2022
+            shard: 1
+            shards: 1
     env:
       CI: true
 
@@ -219,6 +251,10 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version-file: ".node-version"
+
+      - name: macos-latest dependencies fix
+        if: matrix.os == 'macos-latest'
+        run: brew install python-setuptools
 
       - name: Install pnpm
         uses: pnpm/action-setup@v5
@@ -249,6 +285,21 @@ jobs:
           SCRIPTS_CHANGED: ${{ needs.changes.outputs.scripts }}
           TEST_INFRA_CHANGED: ${{ needs.changes.outputs.test-infra }}
         run: |
+          # Non-Linux runners exist to execute the `process.platform` branches that Linux
+          # skips (symlinks, path casing, Windows command resolution). The rest of the
+          # suite hardcodes POSIX paths in its fixtures and carries no per-OS signal, so
+          # only the gated files run there.
+          if [[ "$RUNNER_OS" != "Linux" ]]; then
+            gated=$(grep -rl 'process\.platform' src/main src/shared --include='*.test.ts')
+            if [[ -z "$gated" ]]; then
+              echo "::error::No platform-gated test files found — refusing to run the whole suite."
+              exit 1
+            fi
+            pnpm rebuild:node
+            pnpm exec vitest run --project main --project shared $gated
+            exit 0
+          fi
+
           projects=(--project main)
 
           if [[ "$AI_CORE_CHANGED" == "true" || "$TEST_INFRA_CHANGED" == "true" || "${{ github.event_name }}" != "pull_request" ]]; then
@@ -268,7 +319,7 @@ jobs:
           fi
 
           pnpm rebuild:node
-          pnpm exec vitest run "${projects[@]}" --shard=${{ matrix.shard }}/3
+          pnpm exec vitest run "${projects[@]}" --shard=${{ matrix.shard }}/${{ matrix.shards }}
 
   general-test:
     runs-on: ubuntu-latest

@@ -45,7 +45,7 @@ import type {
   ResponseForPath,
   TemplateApiPaths
 } from '@shared/data/api/paths'
-import type { ConcreteApiPaths, DataApiDataChangeEffect, GetMethodApiPaths } from '@shared/data/api/types'
+import type { ConcreteApiPaths } from '@shared/data/api/types'
 import {
   type CursorPaginationResponse,
   type InferPaginationMode,
@@ -59,6 +59,8 @@ import type { SWRInfiniteConfiguration, SWRInfiniteKeyedMutator } from 'swr/infi
 import useSWRInfinite from 'swr/infinite'
 import type { SWRMutationConfiguration } from 'swr/mutation'
 import useSWRMutation from 'swr/mutation'
+
+export { useDataChange } from './useDataChange'
 
 const logger = loggerService.withContext('useDataApi')
 
@@ -1097,54 +1099,6 @@ export function usePaginatedQuery<TPath extends ApiPath>(
     refresh: refetch,
     reset
   }
-}
-
-// ============================================================================
-// Data Change Subscription Hook
-// ============================================================================
-
-/**
- * Subscribe to DataApi data change notifications for the component's lifetime.
- *
- * Thin React binding over {@link DataApiService.onDataChanged}: subscribes on
- * mount, unsubscribes on unmount, and always invokes the LATEST `listener`
- * (safe to pass an inline closure — re-renders do not resubscribe).
- *
- * The listener receives, for each notification, the entries matching any of
- * the subscribed endpoints merged into one call. Everything below the
- * endpoint is consumer policy: dimension/entityIds filtering, choosing
- * revalidate / rebuild / ignore, and idempotency towards echoes of this
- * window's own writes.
- *
- * @example
- * // Conservative list convergence: any signal → refetch
- * useDataChange('/topics', () => refetch())
- *
- * @example
- * // By-ID surface: filter with entityIds (absent = no claim → act)
- * useDataChange('/topics/:id', (effects) => {
- *   if (effects.some((e) => !e.entityIds || e.entityIds.includes(myId))) mutate()
- * })
- */
-export function useDataChange(
-  endpoints: GetMethodApiPaths | GetMethodApiPaths[],
-  listener: (effects: DataApiDataChangeEffect[]) => void
-): void {
-  const listenerRef = useRef(listener)
-  useEffect(() => {
-    listenerRef.current = listener
-  })
-
-  // Value-stable key: a fresh inline array with the same endpoints must not
-  // resubscribe. NUL-joined — schema template paths are literals that cannot
-  // contain '\0', so the key is collision-free.
-  const endpointsKey = Array.isArray(endpoints) ? endpoints.join('\0') : endpoints
-  useEffect(() => {
-    // An empty endpoints array yields an empty key — nothing to subscribe to.
-    if (endpointsKey === '') return
-    const endpointList = endpointsKey.split('\0') as GetMethodApiPaths[]
-    return dataApiService.onDataChanged(endpointList, (effects) => listenerRef.current(effects))
-  }, [endpointsKey])
 }
 
 // ============================================================================

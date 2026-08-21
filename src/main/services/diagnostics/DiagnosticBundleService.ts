@@ -21,10 +21,10 @@ import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { DiagnosticRange } from '@shared/ipc/schemas/diagnostics'
 import type { InputFor, OutputFor, WindowId } from '@shared/ipc/types'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
-import { ZipArchive } from 'archiver'
 import { Mutex } from 'async-mutex'
 import { dialog } from 'electron'
 
+import { feishuAnonymousFormClient } from './FeishuAnonymousFormClient'
 import {
   collectCrashDumpInventory,
   collectDiagnosticSources,
@@ -56,6 +56,9 @@ const RANGE_DURATION_MS: Record<DiagnosticRange, number> = {
 type InspectResult = OutputFor<'diagnostics.bundle.inspect'>
 type ExportInput = InputFor<'diagnostics.bundle.export'>
 type ExportResult = OutputFor<'diagnostics.bundle.export'>
+type SavedBundle = Extract<ExportResult, { status: 'saved' }>
+type UploadInput = InputFor<'diagnostics.bundle.upload'>
+type UploadResult = OutputFor<'diagnostics.bundle.upload'>
 
 type DestinationIdentity = { readonly status: 'missing' } | ({ readonly status: 'present' } & SourceIdentity)
 
@@ -120,6 +123,7 @@ async function writeBundleZip(
 ): Promise<void> {
   for (const source of sources) assertSafeArchiveName(source.archiveName)
 
+  const { ZipArchive } = await import('archiver')
   const stagingPath = AbsoluteFilePathSchema.parse(
     path.join(path.dirname(destination), `.cherry-studio-diagnostics-${randomUUID()}.tmp`)
   )
@@ -221,7 +225,7 @@ async function assertDestinationOutsideSources(destination: AbsoluteFilePath): P
 
 export class DiagnosticBundleService {
   private readonly inspectionMutex = new Mutex()
-  private inFlightExport: Promise<ExportResult> | null = null
+  private inFlightOperation: Promise<unknown> | null = null
 
   async inspect(rangeName: DiagnosticRange): Promise<InspectResult> {
     return this.inspectionMutex.runExclusive(() => this.performInspection(rangeName))
@@ -252,13 +256,24 @@ export class DiagnosticBundleService {
   }
 
   async exportBundle(input: ExportInput, senderId: WindowId | null): Promise<ExportResult> {
-    if (this.inFlightExport) return { status: 'busy' }
+    if (this.inFlightOperation) return { status: 'busy' }
     const operation = this.performExport(input, senderId)
-    this.inFlightExport = operation
+    this.inFlightOperation = operation
     try {
       return await operation
     } finally {
-      if (this.inFlightExport === operation) this.inFlightExport = null
+      if (this.inFlightOperation === operation) this.inFlightOperation = null
+    }
+  }
+
+  async uploadBundle(input: UploadInput): Promise<UploadResult> {
+    if (this.inFlightOperation) return { status: 'busy' }
+    const operation = this.performUpload(input)
+    this.inFlightOperation = operation
+    try {
+      return await operation
+    } finally {
+      if (this.inFlightOperation === operation) this.inFlightOperation = null
     }
   }
 
@@ -296,6 +311,7 @@ export class DiagnosticBundleService {
     const tempRoot = AbsoluteFilePathSchema.parse(await mkdtemp(application.getPath('app.temp', 'diagnostic-bundle-')))
     try {
       return await this.buildBundle({
+        bundleId: randomUUID(),
         collection,
         destination,
         destinationIdentity,
@@ -303,7 +319,8 @@ export class DiagnosticBundleService {
         range,
         selected: selection.selected,
         sizeOmitted: selection.omitted,
-        tempRoot
+        tempRoot,
+        uploadedAutomatically: false
       })
     } finally {
       await removeDir(tempRoot).catch((error) => {
@@ -314,7 +331,116 @@ export class DiagnosticBundleService {
     }
   }
 
+  private async performUpload(input: UploadInput): Promise<UploadResult> {
+    const createdAt = new Date()
+    const bundleId = randomUUID()
+    const fileName = `cherry-studio-diagnostics-${formatTimestamp(createdAt)}-${bundleId}.zip`
+    let tempRoot: AbsoluteFilePath
+    try {
+      tempRoot = AbsoluteFilePathSchema.parse(await mkdtemp(application.getPath('app.temp', 'diagnostic-upload-')))
+    } catch {
+      throw new IpcError(diagnosticsErrorCodes.BUNDLE_BUILD_FAILED, 'Failed to build diagnostic bundle')
+    }
+    const destination = AbsoluteFilePathSchema.parse(path.join(tempRoot, fileName))
+
+    try {
+      let bundle: SavedBundle
+      try {
+        const range = toTimeRange(input.range, Date.now())
+        const collection = await collectDiagnosticSources(range, input)
+        const enabledCandidates = [...collection.logs, ...collection.traces]
+        const selection = selectSourceCandidates(enabledCandidates, DIAGNOSTIC_SOURCE_LIMIT_BYTES)
+        if (selection.omitted.length > 0) collection.warnings.add('size_limit_reached')
+        bundle = await this.buildBundle({
+          bundleId,
+          collection,
+          destination,
+          destinationIdentity: { status: 'missing' },
+          input,
+          range,
+          selected: selection.selected,
+          sizeOmitted: selection.omitted,
+          tempRoot,
+          uploadedAutomatically: true
+        })
+      } catch {
+        throw new IpcError(diagnosticsErrorCodes.BUNDLE_BUILD_FAILED, 'Failed to build diagnostic bundle')
+      }
+
+      const uploadResult = await feishuAnonymousFormClient.upload({
+        fileName: bundle.fileName,
+        filePath: bundle.filePath,
+        fileSize: bundle.archiveBytes
+      })
+      if (uploadResult.status === 'uploaded') {
+        return {
+          archiveBytes: bundle.archiveBytes,
+          bundleId: bundle.bundleId,
+          hasWarnings: bundle.hasWarnings,
+          includedFileCount: bundle.includedFileCount,
+          omittedFileCount: bundle.omittedFileCount,
+          status: 'uploaded'
+        }
+      }
+
+      let savedBundle: Omit<SavedBundle, 'status'>
+      try {
+        savedBundle = await this.saveUploadFallback(bundle)
+      } catch (error) {
+        if (uploadResult.status === 'submission_unknown') {
+          throw new IpcError(
+            diagnosticsErrorCodes.SUBMISSION_UNKNOWN_FALLBACK_SAVE_FAILED,
+            'Diagnostic submission may have succeeded, but its fallback could not be preserved'
+          )
+        }
+        throw error
+      }
+      if (uploadResult.status === 'submission_unknown') {
+        logger.warn('Diagnostic bundle submission result is unknown')
+        return { ...savedBundle, status: 'submission_unknown' }
+      }
+      logger.warn('Diagnostic bundle requires manual upload', { reason: uploadResult.reason })
+      return {
+        fileName: savedBundle.fileName,
+        filePath: savedBundle.filePath,
+        reason: uploadResult.reason,
+        status: 'manual_upload_required'
+      }
+    } finally {
+      await removeDir(tempRoot).catch((error) => {
+        logger.warn('Failed to clean diagnostic upload temporary files', {
+          code: (error as NodeJS.ErrnoException)?.code ?? 'UNKNOWN'
+        })
+      })
+    }
+  }
+
+  private async saveUploadFallback(bundle: SavedBundle): Promise<Omit<SavedBundle, 'status'>> {
+    const destination = AbsoluteFilePathSchema.parse(application.getPath('sys.downloads', bundle.fileName))
+    try {
+      if ((await probeDestination(destination)).status !== 'missing') {
+        throw new Error('Fallback destination already exists')
+      }
+      await move(bundle.filePath, destination)
+      return {
+        archiveBytes: bundle.archiveBytes,
+        bundleId: bundle.bundleId,
+        fileName: bundle.fileName,
+        filePath: destination,
+        hasWarnings: bundle.hasWarnings,
+        includedFileCount: bundle.includedFileCount,
+        omittedFileCount: bundle.omittedFileCount
+      }
+    } catch {
+      throw new IpcError(
+        diagnosticsErrorCodes.FALLBACK_SAVE_FAILED,
+        'Failed to preserve diagnostic bundle for manual upload'
+      )
+    }
+  }
+
   private async buildBundle({
+    bundleId,
     collection,
     destination,
     destinationIdentity,
@@ -322,8 +448,10 @@ export class DiagnosticBundleService {
     range,
     selected,
     sizeOmitted,
-    tempRoot
+    tempRoot,
+    uploadedAutomatically
   }: {
+    bundleId: string
     collection: Awaited<ReturnType<typeof collectDiagnosticSources>>
     destination: AbsoluteFilePath
     destinationIdentity: DestinationIdentity
@@ -332,7 +460,8 @@ export class DiagnosticBundleService {
     selected: SourceCandidate[]
     sizeOmitted: SourceCandidate[]
     tempRoot: AbsoluteFilePath
-  }): Promise<ExportResult> {
+    uploadedAutomatically: boolean
+  }): Promise<SavedBundle> {
     const staged: StagedSource[] = []
     const failedCandidates: SourceCandidate[] = []
 
@@ -360,7 +489,6 @@ export class DiagnosticBundleService {
       logs: candidateStats(omittedCandidates, 'logs'),
       traces: candidateStats(omittedCandidates, 'traces')
     }
-    const bundleId = randomUUID()
     const serializedRange = serializeTimeRange(range)
     const warnings = warningsArray(collection.warnings)
     const manifest = {
@@ -371,7 +499,7 @@ export class DiagnosticBundleService {
       privacy: {
         containsUnredactedData: input.includeLogs || input.includeTraces,
         publiclyShareable: false,
-        uploadedAutomatically: false
+        uploadedAutomatically
       },
       selection: {
         includeLogs: input.includeLogs,

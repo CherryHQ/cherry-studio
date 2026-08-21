@@ -16,7 +16,7 @@ vi.mock('@renderer/ipc', () => ({
 vi.mock('@renderer/hooks/useAssistant', () => ({
   useAssistant: () => ({ assistant: { settings: {} } })
 }))
-vi.mock('@renderer/components/chat/messages/utils/messageUiStateCache', () => ({
+vi.mock('@renderer/services/messageUiStateCache', () => ({
   invalidateCachedMessageUiStates: invalidateMessages
 }))
 
@@ -31,14 +31,12 @@ function makeCache() {
     seedReservedMessages: vi.fn(async () => {}),
     patchMessageInBranch: vi.fn(),
     rollbackBranch: vi.fn(async () => {}),
-    clearBranchCache: vi.fn(async () => {}),
     deleteMessageTrigger: vi.fn(async () => ({ deletedIds: [] })),
     deleteMessageGroupTrigger: vi.fn(async () => ({ deletedIds: [] })),
     patchMessageTrigger: vi.fn(async () => {}),
     createSiblingTrigger: vi.fn(async () => ({})),
     createMessageTrigger: vi.fn(async () => ({})),
-    setActiveNodeTrigger: vi.fn(async () => ({})),
-    clearTopicMessagesTrigger: vi.fn(async () => ({ deletedIds: [] }))
+    setActiveNodeTrigger: vi.fn(async () => ({}))
   } as unknown as Parameters<typeof useChatWriteActions>[0]['cache']
 }
 
@@ -64,6 +62,7 @@ function renderActions(
   const scrollToBottom = vi.fn()
   const regenerate = vi.fn(async () => {})
   const setMessages = vi.fn()
+  const seedReservedMessages = vi.fn(async () => {})
   const { result } = renderHook(() =>
     useChatWriteActions({
       topic: { id: 't1' } as Topic,
@@ -74,7 +73,7 @@ function renderActions(
       stop: vi.fn(async () => {}),
       refresh: vi.fn(async () => []),
       cache,
-      seedReservedMessages: vi.fn(async () => {}),
+      seedReservedMessages,
       scrollToBottom,
       startNewContextBlocked
     })
@@ -84,7 +83,8 @@ function renderActions(
     result,
     cache,
     scrollToBottom,
-    regenerate
+    regenerate,
+    seedReservedMessages
   }
 }
 
@@ -434,7 +434,9 @@ describe('useChatWriteActions — regenerate', () => {
   beforeEach(() => vi.clearAllMocks())
 
   it('waits for regeneration to finish', async () => {
-    const { actions, regenerate } = renderActions([uiMsg('u1', 'user', 'vroot'), uiMsg('a1', 'assistant', 'u1')])
+    const assistantMessage = uiMsg('a1', 'assistant', 'u1')
+    assistantMessage.parts = [{ type: 'text', text: 'answer' }]
+    const { actions, regenerate } = renderActions([uiMsg('u1', 'user', 'vroot'), assistantMessage])
     let finishRegenerate: (() => void) | undefined
     regenerate.mockImplementationOnce(() => new Promise<void>((resolve) => (finishRegenerate = resolve)))
 
@@ -448,7 +450,8 @@ describe('useChatWriteActions — regenerate', () => {
 
   it('inherits the persisted turn options when retrying an assistant message', async () => {
     const assistantMessage = uiMsg('a1', 'assistant', 'u1')
-    assistantMessage.metadata.turnOptions = { reasoningEffort: 'high', fastMode: true }
+    assistantMessage.parts = [{ type: 'text', text: 'answer' }]
+    assistantMessage.metadata.turnOptions = { reasoningEffort: 'high', serviceTier: 'flex', fastMode: true }
     const { actions, regenerate } = renderActions([uiMsg('u1', 'user', 'vroot'), assistantMessage])
 
     await actions.regenerate('a1')
@@ -458,8 +461,106 @@ describe('useChatWriteActions — regenerate', () => {
       body: expect.objectContaining({
         parentAnchorId: 'u1',
         reasoningEffort: 'high',
+        serviceTier: 'flex',
         fastMode: true
       })
+    })
+  })
+
+  it('retries a failed assistant in place through Main and seeds the fresh attempt identity', async () => {
+    const failedAssistant = uiMsg('a1', 'assistant', 'u1', false, 'error')
+    failedAssistant.metadata.modelId = 'provider::model-a'
+    failedAssistant.metadata.turnOptions = { serviceTier: 'fast' }
+    failedAssistant.parts = [{ type: 'data-error', data: { message: 'failed' } }]
+    const activeExecution = {
+      executionId: 'provider::model-a',
+      attemptId: 2,
+      anchorMessageId: 'a1'
+    }
+    const reservedMessage = {
+      ...failedAssistant,
+      parts: [],
+      metadata: { ...failedAssistant.metadata, status: 'pending' }
+    }
+    streamOpen.mockResolvedValueOnce({
+      mode: 'started',
+      reservedMessages: [reservedMessage],
+      activeExecutions: [activeExecution]
+    })
+    const { actions, regenerate, seedReservedMessages } = renderActions([uiMsg('u1', 'user', 'vroot'), failedAssistant])
+
+    await actions.regenerate('a1')
+
+    expect(regenerate).not.toHaveBeenCalled()
+    expect(streamOpen).toHaveBeenCalledWith({
+      trigger: 'regenerate-message',
+      topicId: 't1',
+      parentAnchorId: 'u1',
+      retryMessageId: 'a1',
+      mentionedModelIds: ['provider::model-a'],
+      serviceTier: 'fast'
+    })
+    expect(seedReservedMessages).toHaveBeenCalledWith([reservedMessage], {
+      activeExecutions: [activeExecution],
+      preserveActiveNode: undefined
+    })
+  })
+
+  it('keeps successful non-text assistants on the ordinary regenerate path', async () => {
+    const nonTextAssistant = uiMsg('a1', 'assistant', 'u1', false, 'success')
+    nonTextAssistant.metadata.modelId = 'provider::model-a'
+    nonTextAssistant.parts = [{ type: 'data-code', data: { content: 'const ok = true', language: 'ts' } }]
+    const { actions, regenerate } = renderActions([uiMsg('u1', 'user', 'vroot'), nonTextAssistant])
+
+    await actions.regenerate('a1')
+
+    expect(streamOpen).not.toHaveBeenCalled()
+    expect(regenerate).toHaveBeenCalledWith({
+      messageId: 'a1',
+      body: expect.objectContaining({ parentAnchorId: 'u1', mentionedModels: ['provider::model-a'] })
+    })
+  })
+
+  it('routes an explicit @ model through Main so a live reply group can append without moving the branch', async () => {
+    const assistantMessage = uiMsg('a1', 'assistant', 'u1')
+    assistantMessage.metadata.modelId = 'provider::model-a'
+    assistantMessage.parts = [{ type: 'text', text: 'answer in progress' }]
+    const reservedMessage = {
+      ...uiMsg('a2', 'assistant', 'u1', false, 'pending'),
+      metadata: {
+        ...uiMsg('a2', 'assistant', 'u1', false, 'pending').metadata,
+        modelId: 'provider::model-b'
+      }
+    }
+    const activeExecution = {
+      executionId: 'provider::model-b',
+      attemptId: 2,
+      anchorMessageId: 'a2'
+    }
+    streamOpen.mockResolvedValueOnce({
+      mode: 'started',
+      reservedMessages: [reservedMessage],
+      activeExecutions: [activeExecution],
+      preserveActiveNode: true
+    })
+    const { actions, regenerate, seedReservedMessages } = renderActions([
+      uiMsg('u1', 'user', 'vroot'),
+      assistantMessage
+    ])
+
+    await actions.regenerate('a1', { modelId: 'provider::model-b' })
+
+    expect(regenerate).not.toHaveBeenCalled()
+    expect(streamOpen).toHaveBeenCalledWith({
+      trigger: 'regenerate-message',
+      topicId: 't1',
+      parentAnchorId: 'u1',
+      appendToLiveGroupMessageId: 'a1',
+      mentionedModelIds: ['provider::model-b']
+    })
+    expect(seedReservedMessages).toHaveBeenCalledWith([reservedMessage], {
+      activeExecutions: [activeExecution],
+      preserveActiveNode: true
     })
   })
 
@@ -468,7 +569,7 @@ describe('useChatWriteActions — regenerate', () => {
     streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
     const assistantMessage = uiMsg('a1', 'assistant', 'u1')
     assistantMessage.metadata.isActiveBranch = true
-    assistantMessage.metadata.turnOptions = { reasoningEffort: 'minimal', fastMode: false }
+    assistantMessage.metadata.turnOptions = { reasoningEffort: 'minimal', serviceTier: 'standard', fastMode: false }
     const { actions } = renderActions([uiMsg('u1', 'user', 'vroot'), assistantMessage])
 
     await actions.resend('u1')
@@ -477,6 +578,7 @@ describe('useChatWriteActions — regenerate', () => {
       expect.objectContaining({
         parentAnchorId: 'u1',
         reasoningEffort: 'minimal',
+        serviceTier: 'standard',
         fastMode: false
       })
     )
@@ -507,6 +609,7 @@ describe('useChatWriteActions — fork and resend', () => {
 
     await actions.forkAndResend('u1', [{ type: 'text', text: 'edited' }] as any, {
       reasoningEffort: 'high',
+      serviceTier: 'flex',
       fastMode: true
     })
 
@@ -516,6 +619,7 @@ describe('useChatWriteActions — fork and resend', () => {
         topicId: 't1',
         parentAnchorId: 'forked-user',
         reasoningEffort: 'high',
+        serviceTier: 'flex',
         fastMode: true
       })
     )
@@ -527,10 +631,10 @@ describe('useChatWriteActions — fork and resend', () => {
     streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
     const firstAssistant = uiMsg('a1', 'assistant', 'u1')
     firstAssistant.metadata.modelId = 'provider::model-a'
-    firstAssistant.metadata.turnOptions = { reasoningEffort: 'high', fastMode: true }
+    firstAssistant.metadata.turnOptions = { reasoningEffort: 'high', serviceTier: 'flex', fastMode: true }
     const secondAssistant = uiMsg('a2', 'assistant', 'u1')
     secondAssistant.metadata.modelId = 'provider::model-b'
-    secondAssistant.metadata.turnOptions = { reasoningEffort: 'high', fastMode: true }
+    secondAssistant.metadata.turnOptions = { reasoningEffort: 'high', serviceTier: 'flex', fastMode: true }
     const { actions } = renderActions([uiMsg('u1', 'user', 'vroot'), firstAssistant, secondAssistant], cache)
 
     await actions.forkAndResend('u1', [{ type: 'text', text: 'edited' }] as any)
@@ -539,6 +643,7 @@ describe('useChatWriteActions — fork and resend', () => {
       expect.objectContaining({
         mentionedModelIds: ['provider::model-a', 'provider::model-b'],
         reasoningEffort: 'high',
+        serviceTier: 'flex',
         fastMode: true
       })
     )

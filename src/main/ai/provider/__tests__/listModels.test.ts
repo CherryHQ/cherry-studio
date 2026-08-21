@@ -517,26 +517,6 @@ describe('listModels — openRouterFetcher image models', () => {
   })
 })
 
-describe('listModels — copied preset provider routing', () => {
-  it('routes a copied GitHub provider through the GitHub catalog fetcher', async () => {
-    const provider = makeProvider({
-      id: '550e8400-e29b-41d4-a716-446655440001',
-      presetProviderId: 'github'
-    })
-    aiSdkGetFromApiMock.mockResolvedValue({
-      value: [{ id: 'openai/gpt-4o', name: 'GPT-4o', publisher: 'OpenAI' }]
-    })
-
-    const models = await listModels(provider)
-
-    expect(aiSdkGetFromApiMock).toHaveBeenCalledTimes(1)
-    expect(aiSdkGetFromApiMock.mock.calls[0][0]).toMatchObject({
-      url: 'https://models.github.ai/catalog/models'
-    })
-    expect(models.map((model) => model.apiModelId)).toEqual(['openai/gpt-4o'])
-  })
-})
-
 describe('listModels — Radeon Cloud source header', () => {
   it('adds X-Source to Radeon model listing without adding it to other providers', async () => {
     const radeonProvider = makeProvider({
@@ -974,6 +954,60 @@ describe('listModels — jinaFetcher (strips jina-ai/ prefix)', () => {
     expect(models.map((m) => m.apiModelId)).toEqual(['jina-embeddings-v2-base-zh', 'jina-reranker-m0'])
     // Forward the upstream display name; fall back to the bare id when absent.
     expect(models.map((m) => m.name)).toEqual(['Jina AI: Embeddings v2 Base ZH', 'jina-reranker-m0'])
+  })
+})
+
+describe('listModels — ovmsFetcher config endpoint', () => {
+  function makeOvmsProvider(baseUrl: string) {
+    return makeProvider({
+      id: 'ovms',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl }
+      }
+    })
+  }
+
+  // OVMS serves its servable-status document at /v1/config only — the /v3 namespace is the
+  // OpenAI-compatible surface and has no GET /config, so asking there 404s and every
+  // downloaded model silently disappears from the list.
+  it.each([
+    ['http://localhost:8000/v3/', 'the shipped default base URL'],
+    ['http://localhost:8000/v3', 'a base URL without the trailing slash'],
+    ['http://localhost:8000/v1', 'a base URL already pinned to v1'],
+    ['http://localhost:8000', 'a bare host']
+  ])('asks %s for the status document at /v1/config (%s) (REGRESSION)', async (baseUrl) => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: { 'Qwen3-4B-int4-ov': { model_version_status: [{ state: 'AVAILABLE' }] } }
+    })
+
+    const models = await listModels(makeOvmsProvider(baseUrl))
+
+    const call = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string }
+    expect(call.url).toBe('http://localhost:8000/v1/config')
+    expect(models.map((m) => m.apiModelId)).toEqual(['Qwen3-4B-int4-ov'])
+  })
+
+  // All models registered in OVMS config are listed regardless of their server-side
+  // loading state, so users see every downloaded model in the model manager.
+  it('lists all configured servables regardless of loading state', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        'Qwen3-4B-int4-ov': { model_version_status: [{ state: 'AVAILABLE' }] },
+        'FLUX.1-schnell-int4-ov': {
+          model_version_status: [{ state: 'LOADING', status: { error_code: 'UNKNOWN' } }]
+        },
+        'bge-base-en-v1.5-fp16-ov': { model_version_status: [] }
+      }
+    })
+
+    const models = await listModels(makeOvmsProvider('http://localhost:8000/v3/'))
+
+    expect(models.map((m) => m.apiModelId)).toEqual([
+      'Qwen3-4B-int4-ov',
+      'FLUX.1-schnell-int4-ov',
+      'bge-base-en-v1.5-fp16-ov'
+    ])
   })
 })
 

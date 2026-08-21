@@ -1,11 +1,14 @@
 import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { arrayMove } from '@dnd-kit/sortable'
+import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useTabs } from '@renderer/hooks/tab'
+import { useAssistantsApi } from '@renderer/hooks/useAssistant'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
+import { MINI_APP_ROUTE_PREFIX, miniAppIdFromTabUrl } from '@renderer/utils/miniAppKeepAlive'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 import {
@@ -18,7 +21,7 @@ import {
   tabBelongsToApp
 } from '@renderer/utils/sidebar'
 import type { Ref } from 'react'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SidebarShellActions } from '../layout/ShellTabBarActions'
@@ -34,28 +37,47 @@ import {
 import UserPopup from '../UserPopup'
 import { resolveSidebarEntry, type SidebarVariantContext } from './sidebarVariants'
 
-const MINI_APP_ROUTE_PREFIX = '/app/mini-app/'
+const FeedbackDialog = lazy(() => import('../feedback/FeedbackDialog'))
 const REQUIRED_SIDEBAR_FAVORITE_SET = new Set<SidebarAppId>(REQUIRED_SIDEBAR_FAVORITES)
-
-function getMiniAppIdFromUrl(url: string | undefined): string | undefined {
-  if (!url?.startsWith(MINI_APP_ROUTE_PREFIX)) return undefined
-  const appId = url.slice(MINI_APP_ROUTE_PREFIX.length).split(/[/?#]/, 1)[0]
-  return appId || undefined
-}
 
 export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const { t } = useTranslation()
   const [userName] = usePreference('app.user.name')
-  const { favorites, miniAppFavoriteIds, setAppPinned, removeMiniApp, reorderFavorites } = useSidebarFavorites()
+  const {
+    favorites,
+    miniAppFavoriteIds,
+    agentFavoriteIds,
+    assistantFavoriteIds,
+    setAppPinned,
+    removeMiniApp,
+    removeAgent,
+    removeAssistant,
+    reorderFavorites
+  } = useSidebarFavorites()
   const { activeTab, tabs, updateTab, openTab, setActiveTab } = useTabs()
   const { miniApps, pinned } = useMiniApps({ enabled: miniAppFavoriteIds.length > 0 })
+  const { agents } = useAgents({ enabled: agentFavoriteIds.length > 0 })
+  const { assistants } = useAssistantsApi({ enabled: assistantFavoriteIds.length > 0 })
   const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
+  // Pinned entity rows render through the same icon renderers as their rails, so they
+  // follow the same icon-type preferences instead of always showing the emoji.
+  const [assistantIconType] = usePreference('assistant.icon_type')
+  const [agentIconType] = usePreference('agent.icon_type')
+  const [defaultModelId] = usePreference('chat.default_model_id')
+
+  const installedAgents = useMemo(() => new Map(agents.map((agent) => [agent.id, agent])), [agents])
+  const installedAssistants = useMemo(
+    () => new Map(assistants.map((assistant) => [assistant.id, assistant])),
+    [assistants]
+  )
 
   // Sidebar width — persisted across restarts. Dragging through the
   // intermediate 50-120px range uses a local preview width so the UI can
   // follow the cursor without persisting unstable widths.
   const [sidebarWidth, setSidebarWidth] = usePersistCache('ui.sidebar.width')
   const [previewSidebarWidth, setPreviewSidebarWidth] = useState<number | null>(null)
+  const [feedbackDialogMounted, setFeedbackDialogMounted] = useState(false)
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
   const activeSidebarWidth = previewSidebarWidth ?? sidebarWidth
 
   useLayoutEffect(() => {
@@ -106,7 +128,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   // Menu items
   const pathname = activeTab?.url || '/'
-  const activeMiniAppId = getMiniAppIdFromUrl(activeTab?.url)
+  const activeMiniAppId = miniAppIdFromTabUrl(activeTab?.url) ?? undefined
   const openableMiniAppById = useMemo(() => {
     const appById = new Map<string, (typeof miniApps)[number]>()
     for (const app of miniApps) {
@@ -171,7 +193,11 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     openTab('/app/launchpad', { title: getDefaultRouteTitle('/app/launchpad'), forceNew: true })
   }, [openTab])
   const handleOpenSettingsTab = useCallback(() => {
-    openSettingsTab('/settings/provider')
+    openSettingsTab('/settings/general')
+  }, [])
+  const handleOpenFeedback = useCallback(() => {
+    setFeedbackDialogMounted(true)
+    setFeedbackOpen(true)
   }, [])
 
   const handleOpenMiniAppTab = useCallback(
@@ -216,6 +242,49 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     [activeTab, openableMiniAppById, openTab, setActiveTab, t, tabs, updateTab]
   )
 
+  // Pinned entities reuse tabs like mini apps do; the route interceptor turns the
+  // `agentId` / `assistantId` param into that entity's most recent conversation.
+  const handleOpenEntityTab = useCallback(
+    (path: string, title: string) => {
+      if (activeTab?.url === path) return
+
+      if (activeTab?.isPinned) {
+        openTab(path, { forceNew: true, title })
+        return
+      }
+
+      if (activeTab) {
+        updateTab(activeTab.id, {
+          url: path,
+          title,
+          icon: undefined,
+          metadata: undefined
+        })
+        return
+      }
+
+      openTab(path, { forceNew: true, title })
+    },
+    [activeTab, openTab, updateTab]
+  )
+
+  const handleOpenAgentTab = useCallback(
+    (agentId: string) => {
+      const agent = installedAgents.get(agentId)
+      if (!agent) return
+      handleOpenEntityTab(`/app/agents?agentId=${encodeURIComponent(agentId)}`, agent.name)
+    },
+    [handleOpenEntityTab, installedAgents]
+  )
+  const handleOpenAssistantTab = useCallback(
+    (assistantId: string) => {
+      const assistant = installedAssistants.get(assistantId)
+      if (!assistant) return
+      handleOpenEntityTab(`/app/chat?assistantId=${encodeURIComponent(assistantId)}`, assistant.name)
+    },
+    [handleOpenEntityTab, installedAssistants]
+  )
+
   // All per-type sidebar knowledge (icon, label, route, active-match, open, remove)
   // lives in the variant registry; the container only supplies the runtime context.
   const variantContext = useMemo<SidebarVariantContext>(
@@ -223,20 +292,38 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       t,
       defaultPaintingProvider,
       installedMiniApps: openableMiniAppById,
+      installedAgents,
+      installedAssistants,
+      assistantIconType,
+      agentIconType,
+      defaultModelId,
       isRequiredApp: (id) => REQUIRED_SIDEBAR_FAVORITE_SET.has(id),
       openApp: handleNavigate,
       openMiniApp: handleOpenMiniAppTab,
+      openAgent: handleOpenAgentTab,
+      openAssistant: handleOpenAssistantTab,
       removeApp: handleRemoveSidebarFavorite,
-      removeMiniApp
+      removeMiniApp,
+      removeAgent,
+      removeAssistant
     }),
     [
       t,
       defaultPaintingProvider,
       openableMiniAppById,
+      installedAgents,
+      installedAssistants,
+      assistantIconType,
+      agentIconType,
+      defaultModelId,
       handleNavigate,
       handleOpenMiniAppTab,
+      handleOpenAgentTab,
+      handleOpenAssistantTab,
       handleRemoveSidebarFavorite,
-      removeMiniApp
+      removeMiniApp,
+      removeAgent,
+      removeAssistant
     ]
   )
 
@@ -288,8 +375,13 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     active: { activeItem, activeTabId: activeMiniAppId },
     title: sidebarUser.name,
     logo: sidebarLogo,
-    actions: (footerLayout: SidebarVisibleLayout) => (
-      <SidebarShellActions layout={footerLayout} onSettingsClick={handleOpenSettingsTab} />
+    actions: (footerLayout: SidebarVisibleLayout, onOverlayOpenChange?: (open: boolean) => void) => (
+      <SidebarShellActions
+        layout={footerLayout}
+        onFeedbackClick={handleOpenFeedback}
+        onSettingsClick={handleOpenSettingsTab}
+        onOverlayOpenChange={onOverlayOpenChange}
+      />
     ),
     onEntriesReorder: handleReorder
   }
@@ -312,6 +404,11 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
           {...sidebarProps}
         />
       )}
+      {feedbackDialogMounted ? (
+        <Suspense fallback={null}>
+          <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
+        </Suspense>
+      ) : null}
     </div>
   )
 }

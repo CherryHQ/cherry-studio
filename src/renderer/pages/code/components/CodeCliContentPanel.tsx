@@ -22,6 +22,7 @@ interface CodeCliContentPanelProps {
     launching: boolean
     running: boolean
     stopping: boolean
+    upgradeDisabled: boolean
   }
   installingTools: Set<string>
   upgradingTools: Set<string>
@@ -35,6 +36,7 @@ interface CodeCliContentPanelProps {
   providerConfigs: Record<string, CliProviderConfig>
   currentProviderId: string | null
   currentProviderModelName?: string
+  providerActionsDisabled?: boolean
   resolveProviderMeta: (provider: Provider, cfg?: CliProviderConfig) => { providerName: string; modelName?: string }
   onInstall: () => void
   onUpgrade: () => void
@@ -73,6 +75,7 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
   providerConfigs,
   currentProviderId,
   currentProviderModelName,
+  providerActionsDisabled,
   resolveProviderMeta,
   onInstall,
   onUpgrade,
@@ -114,6 +117,7 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
             stopping={versionCard.stopping}
             isInstalling={installingTools.has(selectedCliTool)}
             isUpgrading={upgradingTools.has(selectedCliTool)}
+            upgradeDisabled={versionCard.upgradeDisabled}
             installError={installError}
             onShowError={() => setShowInstallError(true)}
             launchDisabledHint={
@@ -168,6 +172,7 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
                 providerConfigs={providerConfigs}
                 currentProviderId={currentProviderId}
                 currentProviderModelName={currentProviderModelName}
+                providerActionsDisabled={providerActionsDisabled}
                 resolveMeta={resolveProviderMeta}
                 onConfigure={onConfigure}
                 onToggleCurrent={onToggleCurrent}

@@ -24,11 +24,13 @@ import { noThinkFeature } from './noThink'
 import { openrouterReasoningFeature } from './openrouterReasoning'
 import { providerUrlContextFeature } from './providerUrlContext'
 import { providerWebSearchFeature } from './providerWebSearch'
+import { qwenEnableThinkingFeature } from './qwenEnableThinking'
 import { qwenThinkingFeature } from './qwenThinking'
 import { reasoningExtractionFeature } from './reasoningExtraction'
 import { simulateStreamingFeature } from './simulateStreaming'
 import { skipGeminiThoughtSignatureFeature } from './skipGeminiThoughtSignature'
 import { steerYieldFeature } from './steerYield'
+import { stripReasoningReplayFeature } from './stripReasoningReplay'
 import { terminalToolFailureFeature } from './terminalToolFailure'
 import { toolSchemaCompatibilityFeature } from './toolSchemaCompatibility'
 
@@ -53,7 +55,10 @@ export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   openrouterReasoningFeature,
   noThinkFeature,
   qwenThinkingFeature,
+  qwenEnableThinkingFeature,
   skipGeminiThoughtSignatureFeature,
+  // The HuggingFace router rejects reasoning input items — strip them on replay.
+  stripReasoningReplayFeature,
   providerWebSearchFeature,
   providerUrlContextFeature,
   // Stop when a trusted local tool cannot succeed without an external change.

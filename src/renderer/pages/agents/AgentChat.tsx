@@ -45,7 +45,8 @@ import { useTranslation } from 'react-i18next'
 import AgentChatMain from './AgentChatMain'
 import AgentComposerSlot from './AgentComposerSlot'
 import { AgentChatNavbar } from './components/AgentChatNavbar'
-import { type AgentFileNavigationRequest, AgentRightPane } from './components/AgentRightPane'
+import { type AgentFileNavigationRequest, AgentRightPane, AgentTaskProgressCapsule } from './components/AgentRightPane'
+import { ApiGatewayRequiredDialog } from './components/ApiGatewayRequiredDialog'
 import { locateAgentMessageInList } from './messages/agentMessageListAdapter'
 import type { CreateAgentSessionDefaults } from './types'
 import { type AgentChatRuntimeState, useAgentChatRuntimeState } from './useAgentChatRuntimeState'
@@ -57,6 +58,11 @@ const EMPTY_PARTS: Record<string, CherryMessagePart[]> = {}
 interface ModelSwitchTarget {
   agentId: string
   model: Model
+}
+
+interface CitationPanelState {
+  sessionId: string
+  citations: Citation[]
 }
 
 function getNewSessionWorkspaceDefaults(
@@ -176,7 +182,8 @@ const AgentChat = ({
   const [skipModelSwitchConfirmationsForAppRun, setSkipModelSwitchConfirmationsForAppRun] = useSharedCache(
     'agent.model_switch_confirmation.skipped'
   )
-  const [citationPanelCitations, setCitationPanelCitations] = useState<Citation[] | null>(null)
+  const currentSessionId = conversationBootstrap.session?.id
+  const [citationPanelState, setCitationPanelState] = useState<CitationPanelState | null>(null)
   const [modelSwitchTarget, setModelSwitchTarget] = useState<ModelSwitchTarget>()
   const [modelSwitchConfirmOpen, setModelSwitchConfirmOpen] = useState(false)
   const [skipModelSwitchConfirmation, setSkipModelSwitchConfirmation] = useState(false)
@@ -194,6 +201,8 @@ const AgentChat = ({
   const agentModelFilter = useAgentModelFilter(activeAgent?.type)
   const workspacePath = visibleWorkspace?.type === 'user' ? visibleWorkspace.path : undefined
   const workspaceWarning = useAgentWorkspaceWarning(workspacePath)
+  const citationPanelCitations =
+    citationPanelState && citationPanelState.sessionId === currentSessionId ? citationPanelState.citations : null
 
   useEffect(() => {
     if (visibleAgentId) onVisibleAgentChange?.(visibleAgentId)
@@ -201,10 +210,17 @@ const AgentChat = ({
   useEffect(() => {
     if (visibleWorkspaceId && visibleWorkspace?.type !== 'system') onVisibleWorkspaceChange?.(visibleWorkspaceId)
   }, [onVisibleWorkspaceChange, visibleWorkspace, visibleWorkspaceId])
+  useEffect(() => {
+    setCitationPanelState(null)
+  }, [currentSessionId])
 
-  const handleOpenCitationsPanel = useCallback(({ citations }: { citations: Citation[] }) => {
-    setCitationPanelCitations(citations)
-  }, [])
+  const handleOpenCitationsPanel = useCallback(
+    ({ citations }: { citations: Citation[] }) => {
+      if (!currentSessionId) return
+      setCitationPanelState({ sessionId: currentSessionId, citations })
+    },
+    [currentSessionId]
+  )
 
   const isInitializing = !sessionSnapshot && conversationBootstrap.sessionLoading
   const citationsPanelOpen = citationPanelCitations !== null
@@ -385,6 +401,14 @@ const AgentChat = ({
     )
     center = <ConversationStageCenter placement="docked" main={null} composer={composer} />
   } else if (!sessionSnapshot) {
+    topBar = (
+      <AgentChatNavbar
+        activeAgent={null}
+        showSidebarControls={showResourceListControls}
+        sidebarOpen={sidebarOpen}
+        onSidebarToggle={onSidebarToggle}
+      />
+    )
     center = <ConversationCenterState state="empty" />
   } else {
     topBar = (
@@ -422,7 +446,7 @@ const AgentChat = ({
     sidePanel = (
       <CitationsPanel
         open={citationsPanelOpen}
-        onClose={() => setCitationPanelCitations(null)}
+        onClose={() => setCitationPanelState(null)}
         citations={citationPanelCitations ?? []}
       />
     )
@@ -559,22 +583,25 @@ const AgentChatSessionCenter = ({
   composerLaunchOptions
 }: AgentChatSessionCenterProps) => {
   const composer = (
-    <AgentComposerSlot
-      agentId={agentId}
-      activeAgent={activeAgent}
-      activeModel={activeModel}
-      workspaceWarning={workspaceWarning}
-      isMultiSelectMode={isMultiSelectMode}
-      session={session}
-      sessionId={runtime.sessionId}
-      sendMessage={runtime.sendMessage}
-      stop={runtime.stop}
-      isStreaming={runtime.isPending}
-      sendDisabled={composerPending}
-      onCreateEmptySession={onCreateEmptySession}
-      composerContext={runtime.composerContext}
-      composerLaunchOptions={composerLaunchOptions}
-    />
+    <div className="flex w-full flex-col">
+      {!isMultiSelectMode && <AgentTaskProgressCapsule />}
+      <AgentComposerSlot
+        agentId={agentId}
+        activeAgent={activeAgent}
+        activeModel={activeModel}
+        workspaceWarning={workspaceWarning}
+        isMultiSelectMode={isMultiSelectMode}
+        session={session}
+        sessionId={runtime.sessionId}
+        sendMessage={runtime.sendMessage}
+        stop={runtime.stop}
+        isStreaming={runtime.isPending}
+        sendDisabled={composerPending}
+        onCreateEmptySession={onCreateEmptySession}
+        composerContext={runtime.composerContext}
+        composerLaunchOptions={composerLaunchOptions}
+      />
+    </div>
   )
   const main = (
     <div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
@@ -603,6 +630,7 @@ const AgentChatSessionCenter = ({
         deleteMessage={runtime.deleteMessage}
         respondToolApproval={runtime.respondToolApproval}
       />
+      <ApiGatewayRequiredDialog sessionId={runtime.sessionId} />
     </div>
   )
 

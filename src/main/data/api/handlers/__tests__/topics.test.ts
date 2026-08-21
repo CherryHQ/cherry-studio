@@ -7,10 +7,12 @@ const {
   deleteMock,
   duplicateMock,
   getByIdMock,
-  getLatestUpdatedMock,
+  getLatestActiveMock,
   listByCursorMock,
+  moveMock,
   reorderBatchMock,
   reorderMock,
+  reuseOrCreatePlaceholderMock,
   setActiveNodeMock,
   updateMock
 } = vi.hoisted(() => ({
@@ -20,10 +22,12 @@ const {
   deleteMock: vi.fn(),
   duplicateMock: vi.fn(),
   getByIdMock: vi.fn(),
-  getLatestUpdatedMock: vi.fn(),
+  getLatestActiveMock: vi.fn(),
   listByCursorMock: vi.fn(),
+  moveMock: vi.fn(),
   reorderBatchMock: vi.fn(),
   reorderMock: vi.fn(),
+  reuseOrCreatePlaceholderMock: vi.fn(),
   setActiveNodeMock: vi.fn(),
   updateMock: vi.fn()
 }))
@@ -36,10 +40,12 @@ vi.mock('@data/services/TopicService', () => ({
     deleteByIds: deleteByIdsMock,
     duplicate: duplicateMock,
     getById: getByIdMock,
-    getLatestUpdated: getLatestUpdatedMock,
+    getLatestActive: getLatestActiveMock,
     listByCursor: listByCursorMock,
+    move: moveMock,
     reorder: reorderMock,
     reorderBatch: reorderBatchMock,
+    reuseOrCreatePlaceholder: reuseOrCreatePlaceholderMock,
     setActiveNode: setActiveNodeMock,
     update: updateMock
   }
@@ -94,15 +100,63 @@ describe('topicHandlers', () => {
   describe('/topics/latest', () => {
     it('wraps the latest topic from TopicService', async () => {
       const topic = { id: 'topic-latest' }
-      getLatestUpdatedMock.mockReturnValueOnce(topic)
+      getLatestActiveMock.mockReturnValueOnce(topic)
 
       await expect(topicHandlers['/topics/latest'].GET({} as never)).resolves.toEqual({ topic })
     })
 
     it('returns { topic: null } when the library is empty', async () => {
-      getLatestUpdatedMock.mockReturnValueOnce(null)
+      getLatestActiveMock.mockReturnValueOnce(null)
 
       await expect(topicHandlers['/topics/latest'].GET({} as never)).resolves.toEqual({ topic: null })
+    })
+
+    it('narrows the latest lookup to one assistant when assistantId is given', async () => {
+      const topic = { id: 'topic-assistant' }
+      getLatestActiveMock.mockReturnValueOnce(topic)
+
+      await expect(
+        topicHandlers['/topics/latest'].GET({ query: { assistantId: 'assistant-1' } } as never)
+      ).resolves.toEqual({ topic })
+
+      expect(getLatestActiveMock).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
+    })
+
+    it('rejects an empty assistantId', async () => {
+      await expect(topicHandlers['/topics/latest'].GET({ query: { assistantId: '' } } as never)).rejects.toThrow()
+
+      expect(getLatestActiveMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('/topics/reusable-placeholder', () => {
+    it('forwards the exact nullable owner and exclusion to the atomic service operation', async () => {
+      const response = { topic: { id: 'topic-created' }, created: true }
+      reuseOrCreatePlaceholderMock.mockReturnValueOnce(response)
+
+      await expect(
+        topicHandlers['/topics/reusable-placeholder'].POST({
+          body: { assistantId: null, excludeTopicId: 'topic-deleted' }
+        } as never)
+      ).resolves.toBe(response)
+
+      expect(reuseOrCreatePlaceholderMock).toHaveBeenCalledWith({
+        assistantId: null,
+        excludeTopicId: 'topic-deleted'
+      })
+    })
+  })
+
+  describe('/topics/:id/move', () => {
+    it('rejects an invalid assistant id before calling the service', async () => {
+      await expect(
+        topicHandlers['/topics/:id/move'].POST({
+          params: { id: 'topic-a' },
+          body: { assistantId: 'assistant-b', order: { after: 'topic-b' } }
+        } as never)
+      ).rejects.toThrow()
+
+      expect(moveMock).not.toHaveBeenCalled()
     })
   })
 

@@ -6,11 +6,25 @@
   },
   "definitions": [
     {
+      "targetKey": "app.fetch.allow_private_network",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Allow web fetch tools to reach local and private network addresses (v2 new feature, no v1 source)"
+    },
+    {
       "targetKey": "app.power.prevent_sleep_when_busy",
       "type": "boolean",
       "defaultValue": false,
       "status": "classified",
       "description": "Prevent system sleep while the app has active work (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "app.notification.update.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Show a system notification when a background update check finds a new version (v2 new feature, no v1 source)"
     },
     {
       "targetKey": "app.onboarding.provider_setup.status",
@@ -64,7 +78,7 @@
     {
       "targetKey": "feature.local_model.hardware_acceleration.enabled",
       "type": "boolean",
-      "defaultValue": false,
+      "defaultValue": true,
       "status": "classified",
       "description": "Enable supported hardware acceleration for local embedding and OCR inference (v2 new feature, no v1 source)"
     },
@@ -222,6 +236,13 @@
       "description": "Char count above which a tool result is persisted to the VFS and replaced with a marker"
     },
     {
+      "targetKey": "chat.context_settings.max_messages",
+      "type": "number",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Serve only the last N messages to the model (v1 contextCount successor). null = unlimited. Independent of the master toggle: it bounds how much history is sent, not what happens on overflow"
+    },
+    {
       "targetKey": "chat.context_settings.compress.enabled",
       "type": "boolean",
       "defaultValue": true,
@@ -234,13 +255,6 @@
       "defaultValue": null,
       "status": "classified",
       "description": "Explicit compression model (UniqueModelId). null = use the current request model"
-    },
-    {
-      "targetKey": "topic.naming.model_id",
-      "type": "string",
-      "defaultValue": null,
-      "status": "classified",
-      "description": "Topic naming model UniqueModelId (provider::modelId, from complex mapping llm_model_ids_to_unique)"
     },
     {
       "targetKey": "topic.tab.display_mode",
@@ -553,7 +567,7 @@
       "description": "Command shortcut: chat.model.select (unified command system)"
     },
     {
-      "targetKey": "shortcut.chat.topic.clear",
+      "targetKey": "shortcut.topic.clear_messages",
       "type": "PreferenceTypes.PreferenceShortcutType",
       "defaultValue": {
         "binding": [
@@ -562,8 +576,8 @@
         ],
         "enabled": true
       },
-      "status": "deleted",
-      "description": "Deleted: command removed (feature not implemented in v2)."
+      "status": "classified",
+      "description": "Command shortcut: topic.clear_messages (unified command system)"
     },
     {
       "targetKey": "shortcut.quick_assistant.toggle",
@@ -677,6 +691,44 @@
       "defaultValue": false,
       "status": "classified",
       "description": "Notes line-break rendering mode: a single newline renders as a line break (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "chat.input.steer_shortcut",
+      "type": "PreferenceTypes.ComposerShortcut",
+      "defaultValue": "VALUE: null",
+      "status": "classified",
+      "description": "A second send-style shortcut that, in Agent mode while the session is streaming, sends the draft straight into the running turn instead of queueing it. No stored default: the effective default is platform-dependent (Command+Enter on macOS, Ctrl+Enter elsewhere) and resolved at read time. Send / newline / steer shortcuts are mutually exclusive."
+    },
+    {
+      "targetKey": "chat.input.newline_shortcut",
+      "type": "PreferenceTypes.ComposerShortcut",
+      "defaultValue": "VALUE: null",
+      "status": "classified",
+      "description": "The composer shortcut that inserts a line break. No stored default: resolved at read time to Shift+Enter, or Enter when the send shortcut already takes Shift+Enter. Send / newline / inject shortcuts are mutually exclusive."
+    },
+    {
+      "targetKey": "feature.screenshot.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Whether interactive screen capture is enabled"
+    },
+    {
+      "targetKey": "feature.screenshot.auto_ocr",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Whether OCR runs automatically after a selection is made"
+    },
+    {
+      "targetKey": "shortcut.screenshot.capture",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": ["CommandOrControl", "Shift", "A"],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: screenshot.capture (unified command system)"
     }
   ]
 }

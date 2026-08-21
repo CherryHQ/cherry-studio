@@ -76,7 +76,11 @@ vi.mock('electron', () => {
       }),
       getVersion: vi.fn(() => '1.0.0'),
       getLocale: vi.fn(() => 'en-US'),
-      getPreferredSystemLanguages: vi.fn(() => ['en-US'])
+      getPreferredSystemLanguages: vi.fn(() => ['en-US']),
+      // Explicit false (matching the previous `undefined` semantics) so the
+      // dev-only logs diversion in core/paths/constants.ts stays exercised.
+      isPackaged: false,
+      setAppLogsPath: vi.fn()
     },
     ipcMain: {
       handle: vi.fn(),
@@ -95,6 +99,7 @@ vi.mock('electron', () => {
     },
     shell: {
       openExternal: vi.fn(),
+      openPath: vi.fn(),
       showItemInFolder: vi.fn(),
       trashItem: vi.fn()
     },
@@ -108,7 +113,8 @@ vi.mock('electron', () => {
       }
     },
     webContents: {
-      getAllWebContents: vi.fn(() => [])
+      getAllWebContents: vi.fn(() => []),
+      fromId: vi.fn(() => undefined)
     },
     systemPreferences: {
       getMediaAccessStatus: vi.fn(),

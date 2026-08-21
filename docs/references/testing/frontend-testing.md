@@ -1,3 +1,12 @@
+---
+description: Normative test rules for renderer, packages/ui, and E2E code covering layer choice, mocking, and review gates
+sources:
+  - src/renderer
+  - packages/ui
+  - tests/e2e
+  - tests/__mocks__
+---
+
 # Frontend Testing Guidelines
 
 This is the normative testing guide for `src/renderer/`, `packages/ui/`, and `tests/e2e/`.
@@ -279,6 +288,6 @@ This test depends on incidental DOM structure and does not protect the copy beha
 
 - [Test Mocks](../../../tests/__mocks__/README.md)
 - [E2E Testing Guide](../../../tests/e2e/README.md)
-- [UI Semantic Contract](../ui-semantic-contract.md)
+- [UI Semantic Contract](../components/ui-semantic-contract.md)
 - [Testing Library query priority](https://testing-library.com/docs/queries/about/)
 - [Vitest: Writing Tests with AI](https://vitest.dev/guide/learn/writing-tests-with-ai)

@@ -55,6 +55,19 @@ describe('agent composer token mapping', () => {
     })
   })
 
+  it('prompts with the skill directory name when the display name differs', () => {
+    const skill = {
+      name: 'Magic Word',
+      description: 'Prints the magic word',
+      filename: 'magic-word'
+    } satisfies LocalSkill
+
+    expect(agentSkillToComposerToken(skill)).toMatchObject({
+      label: 'Magic Word',
+      promptText: 'Use the magic-word skill.'
+    })
+  })
+
   it('extracts file token ids by kind', () => {
     const ids = getAgentComposerTokenIds(
       [
