@@ -1,7 +1,7 @@
 import type * as LifecycleModule from '@main/core/lifecycle'
 import { getPhase } from '@main/core/lifecycle/decorators'
 import { Phase } from '@main/core/lifecycle/types'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { manifestRef, mockExecFileAsync, mockFs, mockFsp, mockPreferenceService, platformMock } = vi.hoisted(() => ({
   manifestRef: { value: [] as Array<{ name: string; tool: string; requestedVersion?: string }> },
@@ -2726,6 +2726,127 @@ describe('BinaryManager', () => {
       await expect(
         (service as any).installWithMise({ name: 'fd', tool: 'fd', requestedVersion: '1.2.3' }, undefined, [])
       ).rejects.toThrow()
+    })
+  })
+
+  describe('pipx index fallback', () => {
+    const TSINGHUA = 'https://pypi.tuna.tsinghua.edu.cn/simple'
+    const TENCENT = 'https://mirrors.cloud.tencent.com/pypi/simple'
+    const OFFICIAL = 'https://pypi.org/simple'
+
+    let originalEnv: NodeJS.ProcessEnv
+
+    beforeEach(async () => {
+      originalEnv = { ...process.env }
+      // An ambient index on the dev machine would look like a user-chosen one.
+      delete process.env['PIP_INDEX_URL']
+      const { regionService } = await import('@main/services/RegionService')
+      vi.mocked(regionService.isInChina).mockResolvedValue(true)
+    })
+
+    afterEach(async () => {
+      process.env = originalEnv
+      const { regionService } = await import('@main/services/RegionService')
+      vi.mocked(regionService.isInChina).mockResolvedValue(false)
+    })
+
+    // The index each `use` attempt actually targeted, in attempt order.
+    const attemptedIndexes = () =>
+      mockExecFileAsync.mock.calls
+        .filter((call: any[]) => call[1][0] === 'use')
+        .map((call: any[]) => call[2].env['UV_DEFAULT_INDEX'])
+
+    const stubMise = (failing: string[]) => {
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[], opts: any) => {
+        if (args[0] === 'use') {
+          const index = opts.env['UV_DEFAULT_INDEX'] ?? opts.env['PIP_INDEX_URL']
+          if (failing.includes(index)) throw new Error(`No matching distribution on ${index}`)
+          return { stdout: '', stderr: '' }
+        }
+        if (args[0] === 'ls') {
+          return {
+            stdout: JSON.stringify({ 'pipx:babeldoc-stream': [{ version: '0.6.4', active: true }] }),
+            stderr: ''
+          }
+        }
+        return { stdout: '', stderr: '' }
+      })
+    }
+
+    const installBabeldoc = (service: InstanceType<typeof BinaryManager>) =>
+      (service as any).installWithMise(
+        { name: 'babeldoc', tool: 'pipx:babeldoc-stream', requestedVersion: '0.6.4' },
+        undefined,
+        []
+      )
+
+    const chinaService = () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      return service
+    }
+
+    it('retries the next mirror when the default China index lags the release', async () => {
+      const service = chinaService()
+      stubMise([TSINGHUA])
+
+      await expect(installBabeldoc(service)).resolves.toBe('0.6.4')
+      expect(attemptedIndexes()).toEqual([TSINGHUA, TENCENT])
+    })
+
+    it('reaches pypi.org only after every China mirror has failed', async () => {
+      const service = chinaService()
+      stubMise([TSINGHUA, TENCENT])
+
+      await expect(installBabeldoc(service)).resolves.toBe('0.6.4')
+      expect(attemptedIndexes()).toEqual([TSINGHUA, TENCENT, OFFICIAL])
+    })
+
+    it('names every index it tried when none of them can install', async () => {
+      const service = chinaService()
+      stubMise([TSINGHUA, TENCENT, OFFICIAL])
+
+      await expect(installBabeldoc(service)).rejects.toThrow(
+        /pypi\.tuna\.tsinghua\.edu\.cn:[\s\S]*mirrors\.cloud\.tencent\.com:[\s\S]*pypi\.org:/
+      )
+    })
+
+    it.each([
+      { name: 'the user chose their own index', inChina: true, pipIndexUrl: 'https://pypi.internal/simple' },
+      { name: 'the user is not in China', inChina: false, pipIndexUrl: '' }
+    ])('does not reach for another index when $name', async ({ inChina, pipIndexUrl }) => {
+      const { regionService } = await import('@main/services/RegionService')
+      vi.mocked(regionService.isInChina).mockResolvedValue(inChina)
+      mockInstallPreferences({ ...DEFAULT_INSTALL_PREFERENCES, pipIndexUrl })
+      const service = chinaService()
+      // Every index fails, so a fallback would show up as extra attempts.
+      stubMise([TSINGHUA, TENCENT, OFFICIAL, pipIndexUrl, undefined as any])
+
+      await expect(installBabeldoc(service)).rejects.toThrow()
+      expect(mockExecFileAsync.mock.calls.filter((call: any[]) => call[1][0] === 'use')).toHaveLength(1)
+    })
+
+    it('leaves npm-backend installs on their single runtime-scoped attempt', async () => {
+      const service = chinaService()
+      stubMise([])
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls') {
+          return { stdout: JSON.stringify({ 'npm:mynpmtool': [{ version: '1.0.0', active: true }] }), stderr: '' }
+        }
+        return { stdout: '', stderr: '' }
+      })
+
+      await expect(
+        (service as any).installWithMise(
+          { name: 'mynpmtool', tool: 'npm:mynpmtool', requestedVersion: '1.0.0' },
+          undefined,
+          []
+        )
+      ).resolves.toBe('1.0.0')
+
+      const useCalls = mockExecFileAsync.mock.calls.filter((call: any[]) => call[1][0] === 'use')
+      expect(useCalls).toHaveLength(1)
+      expect(useCalls[0][2].env['UV_DEFAULT_INDEX']).toBeUndefined()
     })
   })
 

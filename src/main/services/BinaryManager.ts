@@ -86,6 +86,17 @@ const RUNTIME_DEPS: Record<string, `${RuntimeInterpreter}@${string}`> = { npm: '
 const MISE_COMMAND_TIMEOUT_MS = 120_000
 const MISE_INSTALL_TIMEOUT_MS = 15 * 60_000
 
+// Tried in order for China users who have not chosen an index themselves. A
+// mirror that has not synced a freshly published release fails the install
+// outright, and mirror lag is neither rare nor short: Tsinghua's PyPI sync has
+// stalled for over a day at a time, and the university mirrors that pull from
+// it stall with it. Tencent syncs independently, and pypi.org is the backstop.
+const CHINA_PIP_INDEXES = [
+  'https://pypi.tuna.tsinghua.edu.cn/simple',
+  'https://mirrors.cloud.tencent.com/pypi/simple'
+] as const
+const OFFICIAL_PIP_INDEX = 'https://pypi.org/simple'
+
 const REGISTRY_CACHE_TTL_MS = 10 * 60 * 1000
 // `mise latest` for github: backends hits the rate-limited GitHub releases API,
 // so lookups stay off the boot path and run with a small concurrency bound.
@@ -140,6 +151,19 @@ function parseAmbientUrl(value: string | undefined, setting: string): string | u
 
 function toPipxRegistryUrl(indexUrl: string): string {
   return `${indexUrl.replace(/\/+$/, '')}/{}/`
+}
+
+// Retrying an index only means something if every layer moves with it: mise
+// resolves the version through MISE_PIPX_REGISTRY_URL and hands the download to
+// uv, which it only tells about an *extra* index (UV_INDEX) — so UV_DEFAULT_INDEX
+// is what actually displaces pypi.org, and PIP_INDEX_URL covers a pipx fallback.
+function pipIndexEnv(index: string): Record<string, string> {
+  return {
+    PIP_INDEX_URL: index,
+    MISE_PIPX_REGISTRY_URL: toPipxRegistryUrl(index),
+    UV_DEFAULT_INDEX: index,
+    UV_INDEX_URL: index
+  }
 }
 
 function isPathWithin(root: string, candidate: string): boolean {
@@ -220,6 +244,9 @@ export class BinaryManager extends BaseService {
   // concurrent first callers share a single build and a single region lookup.
   private isolatedEnv: Record<string, string> | null = null
   private isolatedEnvPromise: Promise<Record<string, string>> | null = null
+  // Set while building the isolated env: only Cherry's own China default may be
+  // retried against other indexes. Read after awaiting getIsolatedEnv().
+  private usesDefaultChinaPipIndex = false
   private registryCache: Array<{ name: string; tool: string }> | null = null
   private registryCacheTime = 0
   // Serializes custom-registry read-modify-write with filesystem mutations so
@@ -319,6 +346,7 @@ export class BinaryManager extends BaseService {
         () => {
           this.isolatedEnv = null
           this.isolatedEnvPromise = null
+          this.usesDefaultChinaPipIndex = false
         }
       )
     )
@@ -819,14 +847,15 @@ export class BinaryManager extends BaseService {
     }
 
     const inChina = await regionService.isInChina().catch(() => false)
+    this.usesDefaultChinaPipIndex = false
     if (inChina) {
       if (!env['NPM_CONFIG_REGISTRY']) {
         env['NPM_CONFIG_REGISTRY'] = 'https://registry.npmmirror.com'
       }
       if (!env['PIP_INDEX_URL']) {
-        const chinaPipIndex = 'https://pypi.tuna.tsinghua.edu.cn/simple'
-        env['PIP_INDEX_URL'] = chinaPipIndex
-        env['MISE_PIPX_REGISTRY_URL'] = toPipxRegistryUrl(chinaPipIndex)
+        env['PIP_INDEX_URL'] = CHINA_PIP_INDEXES[0]
+        env['MISE_PIPX_REGISTRY_URL'] = toPipxRegistryUrl(CHINA_PIP_INDEXES[0])
+        this.usesDefaultChinaPipIndex = true
       }
     }
 
@@ -888,7 +917,13 @@ export class BinaryManager extends BaseService {
 
   private async runMise(
     args: string[],
-    opts?: { timeoutMs?: number; includePrerelease?: boolean; shellOutNpm?: boolean; prependPath?: string }
+    opts?: {
+      timeoutMs?: number
+      includePrerelease?: boolean
+      shellOutNpm?: boolean
+      prependPath?: string
+      env?: Record<string, string>
+    }
   ): Promise<{ stdout: string; stderr: string }> {
     if (!this.miseBin) {
       // Without mise there is nothing to run. The non-null assertion previously
@@ -900,7 +935,7 @@ export class BinaryManager extends BaseService {
     }
     const isolatedEnv = await this.getIsolatedEnv()
     let env = isolatedEnv
-    if (opts?.includePrerelease || opts?.shellOutNpm || opts?.prependPath) {
+    if (opts?.includePrerelease || opts?.shellOutNpm || opts?.prependPath || opts?.env) {
       env = { ...isolatedEnv }
       if (opts.includePrerelease) env['MISE_PRERELEASES'] = '1'
       if (opts.shellOutNpm) {
@@ -919,6 +954,7 @@ export class BinaryManager extends BaseService {
         env[pathKey] = pathValue
         if (!isWin) env.PATH = pathValue
       }
+      if (opts.env) Object.assign(env, opts.env)
     }
     const timeoutMs = opts?.timeoutMs ?? MISE_COMMAND_TIMEOUT_MS
     const startedAt = Date.now()
@@ -1030,6 +1066,29 @@ export class BinaryManager extends BaseService {
     return runtimeBin
   }
 
+  private async installPipxTool(args: string[], includePrerelease: boolean): Promise<void> {
+    const opts = { timeoutMs: MISE_INSTALL_TIMEOUT_MS, includePrerelease }
+    // usesDefaultChinaPipIndex is a by-product of building the isolated env, and
+    // an index the user chose is used as-is: retrying elsewhere would silently
+    // pull packages from somewhere they did not ask for.
+    await this.getIsolatedEnv()
+    if (!this.usesDefaultChinaPipIndex) {
+      await this.runMise(args, opts)
+      return
+    }
+
+    const failures: string[] = []
+    for (const index of [...CHINA_PIP_INDEXES, OFFICIAL_PIP_INDEX]) {
+      try {
+        await this.runMise(args, { ...opts, env: pipIndexEnv(index) })
+        return
+      } catch (error) {
+        failures.push(`${new URL(index).host}: ${this.errorMessage(error)}`)
+      }
+    }
+    throw new Error(`No PyPI index could install the tool\n${failures.join('\n')}`)
+  }
+
   private async installWithMise(
     definition: CustomToolDefinition,
     targetVersion: string | undefined,
@@ -1059,13 +1118,18 @@ export class BinaryManager extends BaseService {
     const releaseAgeArgs = includePrerelease ? ['--minimum-release-age', '0s'] : []
 
     const runtimeBin = shellOutNpm && runtime ? await this.prepareNpmRuntime(runtime) : undefined
+    const useArgs = ['use', '-g', ...releaseAgeArgs, ...(!shellOutNpm && runtime ? [runtime] : []), toolSpec]
 
-    await this.runMise(['use', '-g', ...releaseAgeArgs, ...(!shellOutNpm && runtime ? [runtime] : []), toolSpec], {
-      timeoutMs: MISE_INSTALL_TIMEOUT_MS,
-      includePrerelease,
-      shellOutNpm,
-      prependPath: runtimeBin
-    })
+    if (backend === 'pipx') {
+      await this.installPipxTool(useArgs, includePrerelease)
+    } else {
+      await this.runMise(useArgs, {
+        timeoutMs: MISE_INSTALL_TIMEOUT_MS,
+        includePrerelease,
+        shellOutNpm,
+        prependPath: runtimeBin
+      })
+    }
     await this.runMise(['reshim'])
     return this.getInstalledVersion(definition.tool, requested)
   }
