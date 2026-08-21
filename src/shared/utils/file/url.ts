@@ -178,10 +178,14 @@ function dirnameSimple(absolutePath: AbsoluteFilePath): AbsoluteFilePath {
  * - Windows: `C:\foo\bar baz.pdf`       → `file:///C:/foo/bar%20baz.pdf`
  * - UNC:     `\\server\share\baz.pdf`   → `file://server/share/baz.pdf`
  *
- * Backslashes are normalized to forward slashes; each path segment is URL-encoded
- * (special chars like space, `#`, `?` become `%20` / `%23` / `%3F`). The Windows
- * drive letter segment (`C:`) is preserved unencoded because `%3A` would break
- * UNC / drive resolution in `<img src>` contexts.
+ * Backslash folding to `/` happens ONLY for Windows-shaped input (drive paths
+ * and backslash UNC): there `\` is a segment separator. On POSIX a backslash is
+ * an ordinary *filename* character, so it is left intact for the per-segment
+ * `encodeURIComponent` below — `/workspace/a\b.txt` must encode its segment as
+ * `a%5Cb.txt`, not silently become a directory hop into `a/`. Each path segment
+ * is URL-encoded (special chars like space, `#`, `?` become `%20` / `%23` /
+ * `%3F`). The Windows drive letter segment (`C:`) is preserved unencoded because
+ * `%3A` would break UNC / drive resolution in `<img src>` contexts.
  *
  * **UNC carries its server in the URL authority, not in the path.** After
  * separator normalization a UNC path is `//server/share/…`, whose leading `//`
@@ -193,14 +197,18 @@ function dirnameSimple(absolutePath: AbsoluteFilePath): AbsoluteFilePath {
  * to `\\server\share\…`. So a path already starting with `//` gets the `file:`
  * scheme only.
  *
- * This also makes the function the exact inverse of `fileUrlToPath`, which
- * decodes a `file://host/…` URL to the `//host/…` form.
+ * This makes the function the exact inverse of `fileUrlToPath` for every shape:
+ * POSIX byte-faithfully (backslash names included), drive paths, and UNC —
+ * whose decode lands on the `\\host\share\…` spelling that encodes identically.
  *
  * @param absolutePath Absolute filesystem path (Unix, Windows drive, or UNC form).
  * @returns `file://` URL suitable for `<img src>` / `<video src>` / `<embed>`.
  */
 export function toFileUrl(absolutePath: AbsoluteFilePath): FileUrlString {
-  let normalized: string = absolutePath.replace(/\\/g, '/')
+  // Windows-shaped = drive (`X:\…` / `X:/…`) or backslash UNC (`\\…`). Shape is
+  // read from the string, not `process.platform`, matching the rest of shared.
+  const isWindowsShaped = /^[A-Za-z]:[/\\]/.test(absolutePath) || absolutePath.startsWith('\\\\')
+  let normalized: string = isWindowsShaped ? absolutePath.replace(/\\/g, '/') : absolutePath
   if (/^[A-Za-z]:/.test(normalized)) {
     normalized = '/' + normalized
   }
@@ -219,7 +227,14 @@ export function toFileUrl(absolutePath: AbsoluteFilePath): FileUrlString {
  *
  * - Unix:    `file:///foo/bar%20baz.pdf`     → `/foo/bar baz.pdf`
  * - Windows: `file:///C:/foo/bar%20baz.pdf`  → `C:/foo/bar baz.pdf`
- * - UNC:     `file://server/share/file.pdf`  → `//server/share/file.pdf`
+ * - UNC:     `file://server/share/file.pdf`  → `\\server\share\file.pdf`
+ *
+ * UNC decodes to the canonical backslash spelling — the form the schema's UNC
+ * branch and `canonicalizeFilePath`'s UNC rejection both recognise. The former
+ * forward-slash output (`//server/share/…`) matched the schema's plain-POSIX
+ * branch instead, so a plain URI round-trip could re-brand a UNC path as an
+ * ordinary absolute path and silently corrupt it downstream. Matches Node's
+ * `fileURLToPath` behavior on Windows.
  *
  * Main-process code should use Node's `fileURLToPath` when it is already in a
  * Node-only module. This helper exists for shared / renderer-safe code.
@@ -234,7 +249,7 @@ export function fileUrlToPath(fileUrl: FileUrlString | URL): string {
   }
 
   const pathname = decodeURIComponent(url.pathname)
-  if (url.hostname) return `//${url.hostname}${pathname}`
+  if (url.hostname) return `\\\\${url.hostname}${pathname.replace(/\//g, '\\')}`
   if (/^\/[A-Za-z]:\//.test(pathname)) return pathname.slice(1)
   return pathname
 }
