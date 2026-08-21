@@ -877,7 +877,14 @@ describe('TranslatePage', () => {
     await waitFor(() => expect(screen.getByTestId('babeldoc-availability')).toHaveTextContent('missing'))
     fireEvent.click(screen.getByRole('button', { name: 'translate.pdf.action.install_babeldoc' }))
 
-    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('binary.install_tool', { name: 'babeldoc-stream' }))
+    // Pinned even on a first install — `@latest` would resolve against whichever
+    // PyPI mirror answers and can land a build older than Cherry's parser needs.
+    await waitFor(() =>
+      expect(ipcRequestMock).toHaveBeenCalledWith('binary.install_tool', {
+        name: 'babeldoc-stream',
+        targetVersion: '0.6.4.post4'
+      })
+    )
     await waitFor(() => expect(screen.getByTestId('babeldoc-availability')).toHaveTextContent('available'))
     expect(pdfHandleMock.start).not.toHaveBeenCalled()
   })
