@@ -315,6 +315,24 @@ describe('ConversationIslandService', () => {
     })
   })
 
+  it('forwards the measured physical notch width to initial and updated snapshots', () => {
+    mocks.geometryResolve.mockReturnValue({
+      bounds: { x: 596, y: 0, width: 320, height: 38 },
+      presentation: 'notch',
+      notchWidth: 184
+    })
+    changePreference('feature.conversation_island.enabled', true)
+    emitActivity('pending', 100)
+    emitActivity('streaming', 200)
+    expect(services.windowManager.open.mock.calls[0][1]).toMatchObject({
+      initData: { presentation: 'notch', notchWidth: 184 }
+    })
+    expect(services.windowManager.pushInitData.mock.lastCall?.[1]).toMatchObject({
+      presentation: 'notch',
+      notchWidth: 184
+    })
+  })
+
   it('resolves the title again when the same topic starts a new turn', () => {
     changePreference('feature.conversation_island.enabled', true)
     emitActivity('pending', 100, 'topic-1', 'assistant', 'turn-1')

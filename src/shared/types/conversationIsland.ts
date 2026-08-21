@@ -11,4 +11,5 @@ export interface ConversationIslandSnapshot {
   navigationTitle: string
   secondaryCount: number
   presentation: 'notch' | 'capsule'
+  notchWidth?: number
 }

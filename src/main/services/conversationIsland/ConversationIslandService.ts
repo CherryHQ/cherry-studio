@@ -18,7 +18,12 @@ import type { ConversationIslandSnapshot, ConversationIslandStateKind } from '@s
 import { type Display, type Rectangle, screen } from 'electron'
 
 import { type ConversationIslandActivity, reduceActivities, selectPrimaryActivity } from './activityReducer'
-import { type MacScreenGeometry, probeMacScreenGeometry, resolveConversationIslandBounds } from './macScreenGeometry'
+import {
+  type ConversationIslandPlacement,
+  type MacScreenGeometry,
+  probeMacScreenGeometry,
+  resolveConversationIslandBounds
+} from './macScreenGeometry'
 
 const logger = loggerService.withContext('ConversationIslandService')
 const ISLAND_WIDTH = 320
@@ -260,7 +265,7 @@ export class ConversationIslandService extends BaseService {
     try {
       const display = this.resolveActivityDisplay(selection.primary.originDisplayId)
       const placement = resolveConversationIslandBounds(display, this.geometries, ISLAND_WIDTH)
-      const snapshot = this.buildSnapshot(selection.primary, selection.secondaryCount, placement.presentation)
+      const snapshot = this.buildSnapshot(selection.primary, selection.secondaryCount, placement)
       this.showOrUpdateWindow(snapshot, placement.bounds)
     } catch (error) {
       logger.error('Failed to present Conversation Island activity', error as Error)
@@ -272,7 +277,7 @@ export class ConversationIslandService extends BaseService {
   private buildSnapshot(
     activity: ConversationIslandActivity,
     secondaryCount: number,
-    presentation: ConversationIslandSnapshot['presentation']
+    placement: ConversationIslandPlacement
   ): ConversationIslandSnapshot {
     const fallback = activity.target.conversationType === 'agent' ? t('agent.session.new') : t('chat.conversation.new')
     let title: string | undefined
@@ -293,7 +298,8 @@ export class ConversationIslandService extends BaseService {
       title,
       navigationTitle: title ?? fallback,
       secondaryCount,
-      presentation
+      presentation: placement.presentation,
+      notchWidth: placement.notchWidth
     }
   }
 
