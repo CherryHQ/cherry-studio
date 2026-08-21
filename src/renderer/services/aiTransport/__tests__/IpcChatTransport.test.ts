@@ -5,6 +5,7 @@ import {
   ConversationOpenMode,
   ConversationOpenTrigger,
   type ConversationRef,
+  ConversationStreamTerminalStatus,
   toConversationExecutionId,
   toConversationTurnId
 } from '@shared/ai/conversation'
@@ -136,7 +137,7 @@ function createMockAiApi() {
           executionId: toConversationExecutionId('execution-1'),
           modelId: 'provider::model' as UniqueModelId,
           outputNodeId: 'assistant-1',
-          status: ConversationAttachStatus.Done,
+          status: ConversationStreamTerminalStatus.Done,
           turnTerminal
         })
     },
@@ -313,7 +314,11 @@ describe('IpcChatTransport', () => {
   })
 
   it('reconnectToStream returns stream when attached', async () => {
-    mock.mockApi.streamAttach.mockResolvedValue({ status: ConversationAttachStatus.Attached, bufferedChunks: [] })
+    mock.mockApi.streamAttach.mockResolvedValue({
+      status: ConversationAttachStatus.Live,
+      turnId: 'turn-1',
+      executions: []
+    })
 
     const stream = await transport.reconnectToStream({ chatId: topicId })
     expect(stream).toBeInstanceOf(ReadableStream)
@@ -321,7 +326,12 @@ describe('IpcChatTransport', () => {
   })
 
   it('reconnectToStream returns closed stream when done', async () => {
-    mock.mockApi.streamAttach.mockResolvedValue({ status: ConversationAttachStatus.Done, finalMessages: {} })
+    mock.mockApi.streamAttach.mockResolvedValue({
+      status: ConversationAttachStatus.Settled,
+      turnId: 'turn-1',
+      executions: [],
+      terminal: { status: ConversationStreamTerminalStatus.Done }
+    })
 
     const stream = await transport.reconnectToStream({ chatId: topicId })
     expect(stream).toBeInstanceOf(ReadableStream)

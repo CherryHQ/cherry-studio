@@ -2,12 +2,22 @@ import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import {
   ConversationAttachStatus,
+  ConversationExecutionAttachState,
   type ConversationExecutionId,
   type ConversationRef,
   conversationRefsEqual,
+  ConversationStreamTerminalStatus,
   type ConversationTurnId
 } from '@shared/ai/conversation'
-import type { ConversationExecutionProjection, StreamChunkPayload } from '@shared/ai/transport'
+import type {
+  AiStreamAttachResponse,
+  ConversationExecutionProjection,
+  ExecutionAttachSnapshot,
+  ExecutionAttachTerminal,
+  StreamChunkPayload,
+  StreamDonePayload,
+  StreamErrorPayload
+} from '@shared/ai/transport'
 import type { CherryUIMessageChunk } from '@shared/data/types/message'
 import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
@@ -15,6 +25,11 @@ import type { UIMessageChunk } from 'ai'
 import { streamAttachmentService } from './StreamAttachmentService'
 
 const logger = loggerService.withContext('ConversationStreamSubscription')
+const ATTACH_RETRY_DELAY_MS = 250
+
+function assertNever(value: never): never {
+  throw new Error(`Unhandled Conversation attachment variant: ${String(value)}`)
+}
 
 export interface ExecutionTerminal {
   turnId: ConversationTurnId
@@ -27,6 +42,25 @@ export interface ExecutionTerminal {
 type TerminalListener = (terminal: ExecutionTerminal) => void
 type ConversationStateListener = () => void
 type ConversationQuiescedListener = (turnId: ConversationTurnId) => void
+type RefreshRequiredListener = (turnIds: readonly ConversationTurnId[]) => void
+
+enum ConversationAttachmentPhase {
+  Detached = 'detached',
+  Attaching = 'attaching',
+  Attached = 'attached',
+  RetryWaiting = 'retry-waiting'
+}
+
+enum BufferedAttachmentEventType {
+  Chunk = 'chunk',
+  Done = 'done',
+  Error = 'error'
+}
+
+type BufferedAttachmentEvent =
+  | { readonly type: BufferedAttachmentEventType.Chunk; readonly payload: StreamChunkPayload }
+  | { readonly type: BufferedAttachmentEventType.Done; readonly payload: StreamDonePayload }
+  | { readonly type: BufferedAttachmentEventType.Error; readonly payload: StreamErrorPayload }
 
 interface Branch {
   readonly projection: ConversationExecutionProjection
@@ -62,10 +96,14 @@ export class ConversationStreamSubscription {
   readonly #terminalListeners = new Set<TerminalListener>()
   readonly #stateListeners = new Set<ConversationStateListener>()
   readonly #quiescedListeners = new Set<ConversationQuiescedListener>()
+  readonly #refreshRequiredListeners = new Set<RefreshRequiredListener>()
   #ipcUnsubs: Array<() => void> = []
-  #attached = false
+  #attachmentPhase = ConversationAttachmentPhase.Detached
   #attachInFlight: Promise<void> | null = null
+  #attachBuffer: BufferedAttachmentEvent[] | null = null
+  #attachRetryTimer: number | null = null
   #releaseAttachment: (() => void) | null = null
+  #attachmentGeneration = 0
   #disposed = false
   #conversationOpen = false
   #lastQuiescedTurnId: ConversationTurnId | undefined
@@ -106,7 +144,8 @@ export class ConversationStreamSubscription {
       this.#branches.delete(executionId)
     }
     this.#terminals.delete(executionId)
-    if (this.#branches.size === 0 && this.#attached && !this.#conversationOpen) {
+    if (this.#branches.size === 0) {
+      this.#setConversationOpen(false)
       queueMicrotask(() => this.#detachIfIdle())
     }
   }
@@ -139,6 +178,11 @@ export class ConversationStreamSubscription {
     return () => this.#quiescedListeners.delete(listener)
   }
 
+  onRefreshRequired(listener: RefreshRequiredListener): () => void {
+    this.#refreshRequiredListeners.add(listener)
+    return () => this.#refreshRequiredListeners.delete(listener)
+  }
+
   dispose(): void {
     if (this.#disposed) return
     this.#disposed = true
@@ -148,6 +192,8 @@ export class ConversationStreamSubscription {
     this.#terminalListeners.clear()
     this.#stateListeners.clear()
     this.#quiescedListeners.clear()
+    this.#refreshRequiredListeners.clear()
+    this.#clearAttachRetry()
     this.#detach()
     for (const unsubscribe of this.#ipcUnsubs) unsubscribe()
     this.#ipcUnsubs = []
@@ -165,6 +211,7 @@ export class ConversationStreamSubscription {
   #routeChunk(payload: StreamChunkPayload): void {
     if (!conversationRefsEqual(payload.conversation, this.conversation)) return
     if (this.#terminals.has(payload.executionId)) return
+    this.#setConversationOpen(true)
     const projection: ConversationExecutionProjection = {
       turnId: payload.turnId,
       executionId: payload.executionId,
@@ -218,64 +265,160 @@ export class ConversationStreamSubscription {
   #setupIpcListeners(): void {
     if (this.#ipcUnsubs.length > 0) return
     this.#ipcUnsubs.push(
-      ipcApi.on('ai.stream.chunk', (data) => this.#routeChunk(data)),
-      ipcApi.on('ai.stream.done', (data) => {
-        if (!conversationRefsEqual(data.conversation, this.conversation)) return
-        this.#settle({
-          turnId: data.turnId,
-          executionId: data.executionId,
-          outputNodeId: data.outputNodeId,
-          isAbort: data.status === ConversationAttachStatus.Paused,
-          isError: false
-        })
-        if (data.turnTerminal) {
-          this.#setConversationOpen(false)
-          this.#publishQuiescence(data.turnId)
-        }
-      }),
-      ipcApi.on('ai.stream.error', (data) => {
-        if (!conversationRefsEqual(data.conversation, this.conversation)) return
-        this.#enqueueError(data.error, data.executionId)
-        this.#settle({
-          turnId: data.turnId,
-          executionId: data.executionId,
-          outputNodeId: data.outputNodeId,
-          isAbort: false,
-          isError: true
-        })
-        if (data.turnTerminal) {
-          this.#setConversationOpen(false)
-          this.#publishQuiescence(data.turnId)
-        }
-      })
+      ipcApi.on('ai.stream.chunk', (payload) =>
+        this.#acceptAttachEvent({ type: BufferedAttachmentEventType.Chunk, payload })
+      ),
+      ipcApi.on('ai.stream.done', (payload) =>
+        this.#acceptAttachEvent({ type: BufferedAttachmentEventType.Done, payload })
+      ),
+      ipcApi.on('ai.stream.error', (payload) =>
+        this.#acceptAttachEvent({ type: BufferedAttachmentEventType.Error, payload })
+      )
     )
   }
 
+  #acceptAttachEvent(event: BufferedAttachmentEvent): void {
+    if (!conversationRefsEqual(event.payload.conversation, this.conversation)) return
+    if (this.#attachBuffer) {
+      this.#attachBuffer.push(event)
+      return
+    }
+    this.#applyAttachEvent(event)
+  }
+
+  #applyAttachEvent(event: BufferedAttachmentEvent): void {
+    switch (event.type) {
+      case BufferedAttachmentEventType.Chunk:
+        this.#routeChunk(event.payload)
+        return
+      case BufferedAttachmentEventType.Done:
+        this.#settle({
+          turnId: event.payload.turnId,
+          executionId: event.payload.executionId,
+          outputNodeId: event.payload.outputNodeId,
+          isAbort: event.payload.status === ConversationStreamTerminalStatus.Paused,
+          isError: false
+        })
+        if (event.payload.turnTerminal) {
+          this.#setConversationOpen(false)
+          this.#publishQuiescence(event.payload.turnId)
+        }
+        return
+      case BufferedAttachmentEventType.Error:
+        this.#enqueueError(event.payload.error, event.payload.executionId)
+        this.#settle({
+          turnId: event.payload.turnId,
+          executionId: event.payload.executionId,
+          outputNodeId: event.payload.outputNodeId,
+          isAbort: false,
+          isError: true
+        })
+        if (event.payload.turnTerminal) {
+          this.#setConversationOpen(false)
+          this.#publishQuiescence(event.payload.turnId)
+        }
+        return
+      default:
+        return assertNever(event)
+    }
+  }
+
+  #applyAttachSnapshot(result: AiStreamAttachResponse): void {
+    const buffered = this.#attachBuffer ?? []
+    this.#attachBuffer = null
+    if (result.status === ConversationAttachStatus.NotFound) {
+      this.#attachmentPhase = ConversationAttachmentPhase.Detached
+      this.#releaseAttachmentLease()
+      this.#setConversationOpen(false)
+      this.#publishRefreshRequired([
+        ...new Set([...this.#branches.values()].map(({ projection }) => projection.turnId))
+      ])
+      for (const event of buffered) this.#applyAttachEvent(event)
+      return
+    }
+
+    this.#attachmentPhase = ConversationAttachmentPhase.Attached
+    for (const snapshot of result.executions) this.#applyExecutionSnapshot(snapshot)
+    this.#setConversationOpen(result.status === ConversationAttachStatus.Live)
+    if (result.status === ConversationAttachStatus.Settled) this.#publishQuiescence(result.turnId)
+    for (const event of buffered) this.#applyAttachEvent(event)
+  }
+
+  #applyExecutionSnapshot(snapshot: ExecutionAttachSnapshot): void {
+    for (const payload of snapshot.replay.chunks) this.#routeChunk(payload)
+    if (snapshot.replay.truncated) this.#publishRefreshRequired([snapshot.projection.turnId])
+    switch (snapshot.state) {
+      case ConversationExecutionAttachState.Live:
+        return
+      case ConversationExecutionAttachState.Settled:
+        this.#settleFromSnapshot(snapshot.projection, snapshot.terminal)
+        return
+      default:
+        return assertNever(snapshot)
+    }
+  }
+
+  #settleFromSnapshot(projection: ConversationExecutionProjection, terminal: ExecutionAttachTerminal): void {
+    if (terminal.status === ConversationStreamTerminalStatus.Error) {
+      this.#enqueueError(terminal.error, projection.executionId)
+    }
+    this.#settle({
+      turnId: projection.turnId,
+      executionId: projection.executionId,
+      outputNodeId: projection.outputNodeId ?? '',
+      isAbort: terminal.status === ConversationStreamTerminalStatus.Paused,
+      isError: terminal.status === ConversationStreamTerminalStatus.Error
+    })
+  }
+
+  #publishRefreshRequired(turnIds: readonly ConversationTurnId[]): void {
+    if (turnIds.length === 0) return
+    for (const listener of this.#refreshRequiredListeners) listener(turnIds)
+  }
+
+  #scheduleAttachRetry(): void {
+    if (this.#disposed || this.#attachRetryTimer !== null || this.#branches.size === 0) return
+    this.#attachRetryTimer = window.setTimeout(() => {
+      this.#attachRetryTimer = null
+      if (!this.#disposed && this.#branches.size > 0) void this.#ensureAttached()
+    }, ATTACH_RETRY_DELAY_MS)
+  }
+
+  #clearAttachRetry(): void {
+    if (this.#attachRetryTimer !== null) window.clearTimeout(this.#attachRetryTimer)
+    this.#attachRetryTimer = null
+  }
+
   async #ensureAttached(): Promise<void> {
-    if (this.#attached || this.#attachInFlight || this.#disposed) return this.#attachInFlight ?? undefined
+    if (this.#attachmentPhase === ConversationAttachmentPhase.Attached || this.#attachInFlight || this.#disposed) {
+      return this.#attachInFlight ?? undefined
+    }
     this.#setupIpcListeners()
+    this.#clearAttachRetry()
     this.#releaseAttachment ??= streamAttachmentService.acquire(this.conversation)
-    this.#attachInFlight = (async () => {
+    this.#attachmentPhase = ConversationAttachmentPhase.Attaching
+    this.#attachBuffer = []
+    const generation = ++this.#attachmentGeneration
+    const attaching = (async () => {
       try {
         const result = await ipcApi.request('ai.stream.attach', { conversation: this.conversation })
-        if (this.#disposed) return
-        this.#attached = true
-        if (result.status === ConversationAttachStatus.Attached) {
-          for (const payload of result.bufferedChunks) this.#routeChunk(payload)
-          return
-        }
-        if (result.status === ConversationAttachStatus.Error && result.error) this.#enqueueError(result.error)
-        for (const branch of this.#branches.values()) this.#closeBranch(branch)
-        this.#setConversationOpen(false)
+        if (this.#disposed || generation !== this.#attachmentGeneration) return
+        this.#applyAttachSnapshot(result)
       } catch (error) {
+        if (generation !== this.#attachmentGeneration) return
         logger.error('Conversation stream attach failed', { conversation: this.conversation, error })
-        for (const branch of this.#branches.values()) this.#closeBranch(branch)
-        this.#setConversationOpen(false)
+        this.#attachmentPhase = ConversationAttachmentPhase.RetryWaiting
+        const buffered = this.#attachBuffer ?? []
+        this.#attachBuffer = null
+        this.#releaseAttachmentLease()
+        for (const event of buffered) this.#applyAttachEvent(event)
+        this.#scheduleAttachRetry()
       } finally {
-        this.#attachInFlight = null
+        if (generation === this.#attachmentGeneration) this.#attachInFlight = null
         this.#detachIfIdle()
       }
     })()
+    this.#attachInFlight = attaching
     return this.#attachInFlight
   }
 
@@ -284,8 +427,15 @@ export class ConversationStreamSubscription {
   }
 
   #detach(): void {
-    this.#attached = false
+    this.#attachmentGeneration += 1
+    this.#attachmentPhase = ConversationAttachmentPhase.Detached
     this.#attachInFlight = null
+    this.#attachBuffer = null
+    this.#clearAttachRetry()
+    this.#releaseAttachmentLease()
+  }
+
+  #releaseAttachmentLease(): void {
     this.#releaseAttachment?.()
     this.#releaseAttachment = null
   }

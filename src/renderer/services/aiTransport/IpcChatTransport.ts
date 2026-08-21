@@ -7,7 +7,8 @@ import {
   ConversationOpenMode,
   ConversationOpenTrigger,
   type ConversationRef,
-  conversationRefsEqual
+  conversationRefsEqual,
+  ConversationStreamTerminalStatus
 } from '@shared/ai/conversation'
 import { type AiChatRequestBody, type AiStreamOpenRequest, type StreamChunkPayload } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
@@ -17,6 +18,10 @@ import { streamAttachmentService } from './StreamAttachmentService'
 import { streamDispatchService } from './StreamDispatchService'
 
 const logger = loggerService.withContext('IpcChatTransport')
+
+function assertNever(value: never): never {
+  throw new Error(`Unhandled stream terminal status: ${String(value)}`)
+}
 
 /** Single execution terminated while other executions on the topic are still streaming. */
 export function isPerExecutionOnly(data: { turnTerminal: boolean }): boolean {
@@ -83,18 +88,24 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
       releaseAttachment()
       return null
     }
-    if (result.status === ConversationAttachStatus.Done || result.status === ConversationAttachStatus.Paused) {
+    if (result.status === ConversationAttachStatus.Settled) {
       releaseAttachment()
-      return new ReadableStream<UIMessageChunk>({ start: (c) => c.close() })
+      const terminal = result.terminal
+      switch (terminal.status) {
+        case ConversationStreamTerminalStatus.Done:
+        case ConversationStreamTerminalStatus.Paused:
+          return new ReadableStream<UIMessageChunk>({ start: (controller) => controller.close() })
+        case ConversationStreamTerminalStatus.Error:
+          return new ReadableStream<UIMessageChunk>({
+            start: (controller) => controller.error(new Error(terminal.error.message ?? 'Stream error'))
+          })
+        default:
+          return assertNever(terminal)
+      }
     }
-    if (result.status === ConversationAttachStatus.Error) {
-      releaseAttachment()
-      return new ReadableStream<UIMessageChunk>({
-        start: (c) => c.error(new Error(result.error?.message ?? 'Stream error'))
-      })
-    }
-    logger.info('Reconnected to stream', { topicId, bufferedChunks: result.bufferedChunks.length })
-    return this.buildListenerStream(conversation, result.bufferedChunks, undefined, undefined, releaseAttachment)
+    const replay = result.executions.flatMap(({ replay }) => replay.chunks)
+    logger.info('Reconnected to stream', { topicId, bufferedChunks: replay.length })
+    return this.buildListenerStream(conversation, replay, undefined, undefined, releaseAttachment)
   }
 
   private buildListenerStream(

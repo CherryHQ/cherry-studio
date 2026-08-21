@@ -2,11 +2,13 @@ import { Popover, PopoverAnchor, PopoverContent } from '@cherrystudio/ui'
 import { useQuery } from '@data/hooks/useDataApi'
 import MessageContent from '@renderer/components/chat/messages/frame/MessageContent'
 import { MessageContentProvider } from '@renderer/components/chat/messages/MessageContentProvider'
+import { MessageContentContextKind } from '@renderer/components/chat/messages/types'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { EmptyState, LoadingState } from '@renderer/components/chat/primitives'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { sharedMessageToUIMessage, uiMessagesToPartsMap } from '@renderer/utils/message/messageProjection'
 import { cn } from '@renderer/utils/style'
+import { ConversationKind } from '@shared/ai/conversation'
 import type { MessageRole, MessageStatus } from '@shared/data/types/message'
 import { Handle, type NodeProps, Position } from '@xyflow/react'
 import dayjs from 'dayjs'
@@ -151,6 +153,10 @@ function TopicMessageFlowNodePreviewCard({
         <MessageContentProvider
           messages={messageItems}
           partsByMessageId={partsByMessageId}
+          contentContext={{
+            kind: MessageContentContextKind.Durable,
+            conversation: { kind: ConversationKind.Chat, id: message.topicId }
+          }}
           renderConfig={{ narrowMode: false, showMessageOutline: false }}>
           <div className={cn('min-w-0', bodySmTypographyClassName)}>
             <MessageContent message={previewMessage} />

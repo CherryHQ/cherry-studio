@@ -15,6 +15,7 @@
  */
 
 import { loggerService } from '@logger'
+import { useMessageListMeta } from '@renderer/components/chat/messages/MessageListProvider'
 import type { ReadOnlyComposerFileTokenPreview } from '@renderer/components/composer/tokenView'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useConversationStreamStatus } from '@renderer/hooks/useConversationStreamStatus'
@@ -35,7 +36,6 @@ import {
   convertReferencesToCitations
 } from '@renderer/utils/partsToBlocks'
 import type { CompactionAnchorData } from '@shared/ai/compaction'
-import { ConversationKind } from '@shared/ai/conversation'
 import { classifyTurn } from '@shared/ai/transport'
 import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shared/data/types/message'
 import type { CherryProviderMetadata, ComposerMessageSnapshot, ComposerMessageToken } from '@shared/data/types/uiParts'
@@ -1531,12 +1531,10 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
 
 const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
   const messageParts = useMessageParts(message.id)
-  const { status: conversationStatus } = useConversationStreamStatus({
-    kind: ConversationKind.Chat,
-    id: message.topicId
-  })
+  const { conversation } = useMessageListMeta()
+  const { status: conversationStatus } = useConversationStreamStatus(conversation)
   const turnState = classifyTurn(conversationStatus)
-  const isProcessing = useIsActiveTurnTarget(message)
+  const isProcessing = useIsActiveTurnTarget(message, conversation)
   const isActiveTurnProcessing = isProcessing && (conversationStatus === undefined || turnState.isTurnActive)
   const isStreamLive =
     isActiveTurnProcessing && (conversationStatus === undefined ? message.status === 'pending' : turnState.isStreamLive)

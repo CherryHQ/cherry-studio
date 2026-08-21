@@ -1,6 +1,6 @@
 import type { MessageListItem } from '@renderer/components/chat/messages/types'
 import { isMessageListItemProcessing } from '@renderer/components/chat/messages/utils/messageListItem'
-import { ConversationKind } from '@shared/ai/conversation'
+import type { ConversationRef } from '@shared/ai/conversation'
 
 import { useConversationStreamStatus } from './useConversationStreamStatus'
 
@@ -31,11 +31,11 @@ import { useConversationStreamStatus } from './useConversationStreamStatus'
  * construction — none of the three signals match. Used wherever a consumer
  * gates "this message is busy / show beat-loader / hide menubar".
  */
-export function useIsActiveTurnTarget(message: Pick<MessageListItem, 'id' | 'topicId' | 'status'>): boolean {
-  const { activeExecutions, awaitingInteractionExecutions } = useConversationStreamStatus({
-    kind: ConversationKind.Chat,
-    id: message.topicId
-  })
+export function useIsActiveTurnTarget(
+  message: Pick<MessageListItem, 'id' | 'status'>,
+  conversation?: ConversationRef
+): boolean {
+  const { activeExecutions, awaitingInteractionExecutions } = useConversationStreamStatus(conversation)
   if (isMessageListItemProcessing(message)) return true
   if (activeExecutions.some((execution) => execution.outputNodeId === message.id)) return true
   if (awaitingInteractionExecutions.some((execution) => execution.outputNodeId === message.id)) return true

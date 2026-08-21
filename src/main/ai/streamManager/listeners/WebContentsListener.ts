@@ -1,5 +1,5 @@
 import { projectStreamChunkForRenderer } from '@main/utils/messageOutputProjection'
-import { ConversationAttachStatus, type ConversationRef, conversationRefKey } from '@shared/ai/conversation'
+import { type ConversationRef, conversationRefKey, ConversationStreamTerminalStatus } from '@shared/ai/conversation'
 import type { IpcEventName } from '@shared/ipc/schemas/ipcSchemas'
 import type { EventPayload } from '@shared/ipc/types'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -113,7 +113,7 @@ export class WebContentsListener implements StreamListener {
       executionId: result.executionId,
       modelId: result.modelId,
       outputNodeId: result.anchorMessageId,
-      status: ConversationAttachStatus.Done,
+      status: ConversationStreamTerminalStatus.Done,
       turnTerminal: result.turnTerminal === true
     })
   }
@@ -131,7 +131,7 @@ export class WebContentsListener implements StreamListener {
       executionId: result.executionId,
       modelId: result.modelId,
       outputNodeId: result.anchorMessageId,
-      status: ConversationAttachStatus.Paused,
+      status: ConversationStreamTerminalStatus.Paused,
       turnTerminal: result.turnTerminal === true
     })
   }

@@ -1,12 +1,15 @@
 import { BaseService } from '@main/core/lifecycle'
 import {
+  ConversationAttachStatus,
+  ConversationExecutionAttachState,
   ConversationExecutionPhase,
   ConversationKind,
   ConversationOpenMode,
   ConversationOpenTrigger,
   ConversationOutcomeKind,
   ConversationPhase,
-  ConversationStatus
+  ConversationStatus,
+  ConversationStreamTerminalStatus
 } from '@shared/ai/conversation'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { UIMessageChunk } from 'ai'
@@ -170,6 +173,39 @@ describe('ConversationRuntimeService', () => {
     finishPreparation(await committed(subscriber, false).prepareExecutionContext(new AbortController().signal))
     controlled.controller.close()
     await vi.waitFor(() => expect(service.inspect(ref).phase).toBe(ConversationPhase.Idle))
+  })
+
+  it('attaches with an atomic live snapshot and an explicit settled terminal', async () => {
+    const subscriber = listener()
+    const provider: ConversationHistoryPort = {
+      name: 'test-chat',
+      isPersistentConversation: true,
+      canHandle: () => true,
+      validateDispatch: vi.fn(async (req, ctx) => validation(req, ctx.hasLiveStream)),
+      commitDispatch: vi.fn(() => committed(subscriber, false))
+    }
+    const controlled = controlledStream()
+    const service = new ConversationRuntimeService({
+      executionManager: new AiExecutionManager(async () => controlled.stream),
+      providers: [provider]
+    })
+    const sender = { id: 42, isDestroyed: () => false, send: vi.fn() } as unknown as Electron.WebContents
+
+    await service.dispatch(subscriber, request())
+    const live = service.attach(sender, ref)
+    expect(live).toMatchObject({
+      status: ConversationAttachStatus.Live,
+      executions: [{ state: ConversationExecutionAttachState.Live, projection: { outputNodeId: 'assistant-1' } }]
+    })
+
+    controlled.controller.close()
+    await vi.waitFor(() => expect(service.inspect(ref).phase).toBe(ConversationPhase.Idle))
+    const settled = service.attach(sender, ref)
+    expect(settled).toMatchObject({
+      status: ConversationAttachStatus.Settled,
+      executions: [{ state: ConversationExecutionAttachState.Settled }],
+      terminal: { status: ConversationStreamTerminalStatus.Done }
+    })
   })
 
   it('interrupts validation before commit so Stop leaves no durable skeleton', async () => {

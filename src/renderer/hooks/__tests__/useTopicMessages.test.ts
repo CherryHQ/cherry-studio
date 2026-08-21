@@ -61,7 +61,7 @@ describe('useTopicMessages', () => {
     })
   })
 
-  it('revalidates every change already scoped to the subscribed topic', () => {
+  it('revalidates only projection changes for messages present in the loaded pages', () => {
     const mutate = vi.fn().mockResolvedValue(undefined)
     const anchorMessage = {
       id: 'anchor-1',
@@ -123,7 +123,7 @@ describe('useTopicMessages', () => {
         }
       ])
     })
-    expect(mutate).toHaveBeenCalledTimes(1)
+    expect(mutate).not.toHaveBeenCalled()
 
     act(() => {
       MockUseDataApiUtils.emitDataChange([
@@ -135,7 +135,7 @@ describe('useTopicMessages', () => {
         }
       ])
     })
-    expect(mutate).toHaveBeenCalledTimes(2)
+    expect(mutate).toHaveBeenCalledTimes(1)
   })
 
   it('revalidates on a same-topic membership change whose entity ids are not loaded yet', () => {

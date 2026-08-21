@@ -36,10 +36,13 @@ export type {
   ComposerQueuedMessagePayload,
   ConversationExecutionProjection,
   ConversationStatusSnapshotEntry,
+  ExecutionAttachSnapshot,
+  ExecutionAttachTerminal,
   PromptStreamAbortRequest,
   PromptStreamChunkPayload,
   PromptStreamDonePayload,
   PromptStreamErrorPayload,
+  ReplayWindow,
   StreamChunkPayload,
   StreamDonePayload,
   StreamErrorPayload

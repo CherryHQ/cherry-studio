@@ -132,8 +132,17 @@ export enum ConversationStatus {
 
 /** Result of attaching an observer to the resource data plane. */
 export enum ConversationAttachStatus {
-  NotFound = 'not-found',
-  Attached = 'attached',
+  Live = 'live',
+  Settled = 'settled',
+  NotFound = 'not-found'
+}
+
+export enum ConversationExecutionAttachState {
+  Live = 'live',
+  Settled = 'settled'
+}
+
+export enum ConversationStreamTerminalStatus {
   Done = 'done',
   Paused = 'paused',
   Error = 'error'

@@ -214,10 +214,28 @@ export function useTopicMessages(
     () => projectDisplayMessagesToUI(branchProjection.displayMessages, projectionCacheRef.current),
     [branchProjection.displayMessages]
   )
+  const loadedMessageIds = useMemo(() => {
+    const ids = new Set<string>()
+    for (const item of branchItems) {
+      ids.add(item.message.id)
+      for (const sibling of item.siblingsGroup ?? []) ids.add(sibling.id)
+    }
+    return ids
+  }, [branchItems])
   useDataChange(
     '/topics/:topicId/messages',
-    () => {
-      if (enabled) void mutate()
+    (effects) => {
+      if (
+        enabled &&
+        effects.some(
+          (effect) =>
+            !effect.entityIds ||
+            effect.kind === 'membership' ||
+            effect.entityIds.some((messageId) => loadedMessageIds.has(messageId))
+        )
+      ) {
+        void mutate()
+      }
     },
     { routeParams: { topicId } }
   )

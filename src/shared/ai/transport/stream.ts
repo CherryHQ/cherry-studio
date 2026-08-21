@@ -8,9 +8,11 @@ import type {
   ConversationActiveNodeMove,
   ConversationAttachStatus,
   ConversationBlockReason,
+  ConversationExecutionAttachState,
   ConversationOpenMode,
   ConversationOpenTrigger,
   ConversationStatus,
+  ConversationStreamTerminalStatus,
   ConversationTargetMode
 } from '../conversation'
 import {
@@ -142,7 +144,7 @@ export interface StreamDonePayload {
   executionId: ConversationExecutionId
   modelId: UniqueModelId
   outputNodeId: string
-  status: ConversationAttachStatus.Done | ConversationAttachStatus.Paused
+  status: ConversationStreamTerminalStatus.Done | ConversationStreamTerminalStatus.Paused
   turnTerminal: boolean
 }
 
@@ -165,7 +167,7 @@ export interface PromptStreamChunkPayload {
 
 export interface PromptStreamDonePayload {
   streamId: string
-  status: ConversationAttachStatus.Done | ConversationAttachStatus.Paused
+  status: ConversationStreamTerminalStatus.Done | ConversationStreamTerminalStatus.Paused
 }
 
 export interface PromptStreamErrorPayload {
@@ -282,24 +284,54 @@ export interface AiAgentSessionWarmCloseRequest {
   sessionId: string
 }
 
-/** Result of an attach attempt.
- *
- * Terminal-state variants (`done` / `paused` / `error`) carry per-execution
- * `finalMessages` so multi-model topics can rebuild every sibling — not just
- * the first one. `finalMessage` (without `s`) is kept as a backwards-compatible
- * convenience pointing at whichever execution iterated first; `undefined`
- * when the stream errored before any execution accumulated content.
- */
-export interface AiStreamAttachTerminal {
-  finalMessage?: CherryUIMessage
-  finalMessages: Partial<Record<UniqueModelId, CherryUIMessage>>
+export interface ReplayWindow {
+  readonly chunks: StreamChunkPayload[]
+  readonly throughChunkSeq: number
+  readonly firstAvailableChunkSeq: number
+  readonly truncated: boolean
 }
+
+export type ExecutionAttachTerminal =
+  | {
+      readonly status: ConversationStreamTerminalStatus.Done
+      readonly finalMessage?: CherryUIMessage
+    }
+  | {
+      readonly status: ConversationStreamTerminalStatus.Paused
+      readonly finalMessage?: CherryUIMessage
+    }
+  | {
+      readonly status: ConversationStreamTerminalStatus.Error
+      readonly error: SerializedError
+      readonly finalMessage?: CherryUIMessage
+    }
+
+export type ExecutionAttachSnapshot =
+  | {
+      readonly state: ConversationExecutionAttachState.Live
+      readonly projection: ConversationExecutionProjection
+      readonly replay: ReplayWindow
+    }
+  | {
+      readonly state: ConversationExecutionAttachState.Settled
+      readonly projection: ConversationExecutionProjection
+      readonly replay: ReplayWindow
+      readonly terminal: ExecutionAttachTerminal
+    }
+
 export type AiStreamAttachResponse =
   | { status: ConversationAttachStatus.NotFound }
-  | { status: ConversationAttachStatus.Attached; bufferedChunks: StreamChunkPayload[] }
-  | ({ status: ConversationAttachStatus.Done } & AiStreamAttachTerminal)
-  | ({ status: ConversationAttachStatus.Paused } & AiStreamAttachTerminal)
-  | { status: ConversationAttachStatus.Error; error?: SerializedError }
+  | {
+      status: ConversationAttachStatus.Live
+      turnId: ConversationTurnId
+      executions: ExecutionAttachSnapshot[]
+    }
+  | {
+      status: ConversationAttachStatus.Settled
+      turnId: ConversationTurnId
+      executions: ExecutionAttachSnapshot[]
+      terminal: ExecutionAttachTerminal
+    }
 
 /** Result of an open attempt. */
 export type AiStreamOpenResponse =

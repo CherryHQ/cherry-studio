@@ -236,6 +236,7 @@ export function useHomeMessageListProviderValue({
     selectionController,
     updateRenderConfig
   } = useMessageListAdapterCapabilities({
+    conversation: { kind: ConversationKind.Chat, id: topic.id },
     topicId,
     topicName: topic.name,
     messages: messageItems,

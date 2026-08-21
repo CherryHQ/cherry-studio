@@ -68,12 +68,6 @@ interface UseChatRuntimeStateParams {
   onBranchLiveStateChange?: (contribution: TopicBranchLiveContribution) => void
 }
 
-interface TopicBranchLiveBinding {
-  readonly topicId: string
-  published: boolean
-  onChange?: (contribution: TopicBranchLiveContribution) => void
-}
-
 function projectBranchFlowMessages(
   optimisticReservations: CherryUIMessage[],
   persistedMessages: CherryUIMessage[],
@@ -122,8 +116,6 @@ export function useChatRuntimeState({
   // site inside `chatWriteActions.regenerateWithCapabilities`.
 
   const [translationOverlay, setTranslationOverlayMap] = useState<Record<string, TranslationOverlayEntry>>({})
-  const branchLiveBinding = useMemo<TopicBranchLiveBinding>(() => ({ topicId: topic.id, published: false }), [topic.id])
-  branchLiveBinding.onChange = onBranchLiveStateChange
   const setTranslationOverlay = useCallback<TranslationOverlaySetter>((messageId, entry) => {
     setTranslationOverlayMap((prev) => {
       if (entry == null) {
@@ -288,13 +280,10 @@ export function useChatRuntimeState({
     activeNodeOverride?.previousActiveNodeId === activeNodeId ? activeNodeOverride.activeNodeId : activeNodeId
 
   useEffect(() => {
-    if (!branchLiveBinding.onChange) return
+    if (!onBranchLiveStateChange) return
 
     if (projectedExecutions.length === 0 && branchFlowLiveMessages.length === 0) {
-      if (branchLiveBinding.published) {
-        branchLiveBinding.published = false
-        branchLiveBinding.onChange({ topicId: branchLiveBinding.topicId, state: null })
-      }
+      onBranchLiveStateChange({ topicId: topic.id, state: null })
       return
     }
 
@@ -310,21 +299,17 @@ export function useChatRuntimeState({
     })
 
     if (!liveState) {
-      if (branchLiveBinding.published) {
-        branchLiveBinding.published = false
-        branchLiveBinding.onChange({ topicId: branchLiveBinding.topicId, state: null })
-      }
+      onBranchLiveStateChange({ topicId: topic.id, state: null })
       return
     }
 
-    branchLiveBinding.published = true
-    branchLiveBinding.onChange({ topicId: branchLiveBinding.topicId, state: liveState })
+    onBranchLiveStateChange({ topicId: topic.id, state: liveState })
   }, [
     branchFlowActiveNodeId,
     projectedExecutions.length,
     activeStreamingMessageIds,
     branchFlowLiveMessages,
-    branchLiveBinding,
+    onBranchLiveStateChange,
     partsByMessageId,
     topic.id
   ])

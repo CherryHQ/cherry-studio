@@ -15,6 +15,7 @@ import {
   type ConversationTurnId,
   toConversationInteractionId
 } from '@shared/ai/conversation'
+import type { ConversationExecutionProjection, ReplayWindow, StreamChunkPayload } from '@shared/ai/transport'
 import type { CherryUIMessage, MessageRuntimeTiming } from '@shared/data/types/message'
 import type { MessageRuntimeSpan } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -79,6 +80,12 @@ export interface ConversationExecutionResult {
   readonly runtimeTiming: MessageRuntimeTiming
 }
 
+export interface ConversationExecutionResourceSnapshot {
+  readonly projection: ConversationExecutionProjection
+  readonly replay: ReplayWindow
+  readonly result?: ConversationExecutionResult
+}
+
 interface ConversationExecutionResource {
   readonly descriptor: ConversationExecutionDescriptor
   readonly sink: ConversationExecutionSink
@@ -96,6 +103,40 @@ interface ConversationExecutionResource {
 }
 
 export type ConversationStreamOpener = (request: AiStreamRequest) => Promise<ReadableStream<UIMessageChunk>>
+
+const MAX_REPLAY_ENTRIES = 10_000
+const MAX_REPLAY_DELTA_BYTES = 16 * 1024
+
+function fitsReplayDelta(value: string): boolean {
+  return Buffer.byteLength(value, 'utf8') <= MAX_REPLAY_DELTA_BYTES
+}
+
+function mergeReplayDelta(previous: StreamChunkPayload, current: StreamChunkPayload): StreamChunkPayload | undefined {
+  if (previous.chunk.type !== current.chunk.type) return undefined
+  if (previous.chunk.type === 'text-delta' && current.chunk.type === 'text-delta') {
+    if (previous.chunk.id !== current.chunk.id) return undefined
+    const delta = previous.chunk.delta + current.chunk.delta
+    if (!fitsReplayDelta(delta)) return undefined
+    return { ...previous, throughChunkSeq: current.throughChunkSeq, chunk: { ...previous.chunk, delta } }
+  }
+  if (previous.chunk.type === 'reasoning-delta' && current.chunk.type === 'reasoning-delta') {
+    if (previous.chunk.id !== current.chunk.id) return undefined
+    const delta = previous.chunk.delta + current.chunk.delta
+    if (!fitsReplayDelta(delta)) return undefined
+    return { ...previous, throughChunkSeq: current.throughChunkSeq, chunk: { ...previous.chunk, delta } }
+  }
+  if (previous.chunk.type === 'tool-input-delta' && current.chunk.type === 'tool-input-delta') {
+    if (previous.chunk.toolCallId !== current.chunk.toolCallId) return undefined
+    const inputTextDelta = previous.chunk.inputTextDelta + current.chunk.inputTextDelta
+    if (!fitsReplayDelta(inputTextDelta)) return undefined
+    return {
+      ...previous,
+      throughChunkSeq: current.throughChunkSeq,
+      chunk: { ...previous.chunk, inputTextDelta }
+    }
+  }
+  return undefined
+}
 
 /** Resource-only provider execution registry; ConversationRuntime owns every control decision. */
 export class AiExecutionManager implements ConversationExecutionPort {
@@ -183,17 +224,43 @@ export class AiExecutionManager implements ConversationExecutionPort {
     this.resources.get(key)?.abortController.abort(effect.reason)
   }
 
-  attach(
+  attachSnapshot(
     conversation: ConversationRef,
+    turnId: ConversationTurnId,
     observer: ConversationExecutionObserver
-  ): readonly ConversationExecutionChunk[] {
-    const replay: ConversationExecutionChunk[] = []
+  ): readonly ConversationExecutionResourceSnapshot[] {
+    const snapshots: ConversationExecutionResourceSnapshot[] = []
     for (const resource of this.resources.values()) {
-      if (conversationRefKey(resource.descriptor.conversation) !== conversationRefKey(conversation)) continue
+      if (
+        conversationRefKey(resource.descriptor.conversation) !== conversationRefKey(conversation) ||
+        resource.descriptor.turnId !== turnId
+      ) {
+        continue
+      }
       resource.observers.set(observer.id, observer)
-      replay.push(...resource.buffer)
+      snapshots.push({
+        projection: {
+          turnId: resource.descriptor.turnId,
+          executionId: resource.descriptor.executionId,
+          modelId: resource.descriptor.modelId,
+          outputNodeId: resource.descriptor.outputNodeId
+        },
+        replay: this.replayWindow(resource),
+        ...(resource.result ? { result: resource.result } : {})
+      })
     }
-    return replay.sort((left, right) => left.chunkSeq - right.chunkSeq)
+    return snapshots
+  }
+
+  observe(conversation: ConversationRef, turnId: ConversationTurnId, observer: ConversationExecutionObserver): void {
+    for (const resource of this.resources.values()) {
+      if (
+        conversationRefKey(resource.descriptor.conversation) === conversationRefKey(conversation) &&
+        resource.descriptor.turnId === turnId
+      ) {
+        resource.observers.set(observer.id, observer)
+      }
+    }
   }
 
   detach(conversation: ConversationRef, observerId: string): void {
@@ -356,7 +423,7 @@ export class AiExecutionManager implements ConversationExecutionPort {
       chunk
     }
     resource.buffer.push(payload)
-    const limit = Math.max(1, resource.descriptor.maxBufferChunks ?? 512)
+    const limit = Math.max(1, Math.min(MAX_REPLAY_ENTRIES, resource.descriptor.maxBufferChunks ?? MAX_REPLAY_ENTRIES))
     if (resource.buffer.length > limit) resource.buffer.splice(0, resource.buffer.length - limit)
     const dead: string[] = []
     for (const [id, observer] of resource.observers) {
@@ -368,6 +435,33 @@ export class AiExecutionManager implements ConversationExecutionPort {
 
   private key(ref: ConversationRef, turnId: ConversationTurnId, executionId: ConversationExecutionId): string {
     return `${conversationRefKey(ref)}\0${turnId}\0${executionId}`
+  }
+
+  private replayWindow(resource: ConversationExecutionResource): ReplayWindow {
+    const chunks: StreamChunkPayload[] = []
+    for (const item of resource.buffer) {
+      const payload: StreamChunkPayload = {
+        conversation: item.conversation,
+        turnId: item.turnId,
+        executionId: item.executionId,
+        modelId: item.modelId,
+        outputNodeId: item.outputNodeId,
+        chunkSeq: item.chunkSeq,
+        throughChunkSeq: item.chunkSeq,
+        chunk: item.chunk
+      }
+      const previous = chunks.at(-1)
+      const merged = previous ? mergeReplayDelta(previous, payload) : undefined
+      if (merged) chunks[chunks.length - 1] = merged
+      else chunks.push(payload)
+    }
+    const firstAvailableChunkSeq = resource.buffer[0]?.chunkSeq ?? resource.nextChunkSeq + 1
+    return {
+      chunks,
+      throughChunkSeq: resource.nextChunkSeq,
+      firstAvailableChunkSeq,
+      truncated: firstAvailableChunkSeq > 1
+    }
   }
 
   private withCompactionAnchors(

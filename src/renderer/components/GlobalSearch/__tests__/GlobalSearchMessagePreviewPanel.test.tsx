@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
+import type { MessageContentContext } from '@renderer/components/chat/messages/types'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
@@ -78,7 +79,20 @@ function mockPreviewInfiniteQuery(path: string) {
 }
 
 vi.mock('@renderer/components/chat/messages/MessageContentProvider', () => ({
-  MessageContentProvider: ({ children }: { children: ReactNode }) => <div>{children}</div>
+  MessageContentProvider: ({
+    children,
+    contentContext
+  }: {
+    children: ReactNode
+    contentContext: MessageContentContext
+  }) => (
+    <div
+      data-testid="message-content-provider"
+      data-conversation-kind={'conversation' in contentContext ? contentContext.conversation.kind : undefined}
+      data-conversation-id={'conversation' in contentContext ? contentContext.conversation.id : undefined}>
+      {children}
+    </div>
+  )
 }))
 
 vi.mock('@renderer/components/chat/messages/frame/MessageContent', () => ({
@@ -311,6 +325,8 @@ describe('GlobalSearchMessagePreviewPanel', () => {
     renderPreview(SESSION_TARGET)
 
     expect(await screen.findByText('message-content:session-message-1')).toBeInTheDocument()
+    expect(screen.getByTestId('message-content-provider')).toHaveAttribute('data-conversation-kind', 'agent')
+    expect(screen.getByTestId('message-content-provider')).toHaveAttribute('data-conversation-id', 'session-1')
     expect(screen.getByText('Session A')).toBeInTheDocument()
     expect(screen.getByText('Task messages')).toBeInTheDocument()
     expect(mocks.useInfiniteQuery).toHaveBeenCalledWith(

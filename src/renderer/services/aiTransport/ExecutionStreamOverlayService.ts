@@ -433,22 +433,15 @@ export class ExecutionStreamOverlayService {
     const pending = [...entry.pendingSnapshots].find(([, value]) => value.snapshot.id === messageId)
     const executionId = snapshot?.[0] ?? pending?.[0]
     if (!executionId || entry.readers.has(executionId)) return
-    entry.pendingSnapshots.delete(executionId)
-    entry.settlements.delete(executionId)
-    entry.readerVersions.delete(executionId)
-    if (entry.pendingSnapshots.size === 0) this.#cancelCommit(entry)
-    if (snapshot) {
-      const next = new Map(entry.snapshots)
-      next.delete(executionId)
-      this.#commitSnapshots(entry, next)
-    }
+    const settlement = entry.settlements.get(executionId)
+    if (settlement) this.#beginHandoff(entry, settlement.turnId)
   }
 
   reset(conversation: ConversationRef): void {
     const entry = this.#entries.get(conversationRefKey(conversation))
     if (!entry) return
     const settledTurnIds = new Set([...entry.settlements.values()].map(({ turnId }) => turnId))
-    this.#retireTurns(entry, settledTurnIds)
+    for (const turnId of settledTurnIds) this.#beginHandoff(entry, turnId)
   }
 
   clear(conversation: ConversationRef): void {
@@ -630,6 +623,10 @@ export class ExecutionStreamOverlayService {
     })
     sub.onConversationQuiesced((turnId) => {
       if (this.#entries.get(key) === entry) this.#beginHandoff(entry, turnId)
+    })
+    sub.onRefreshRequired((turnIds) => {
+      if (this.#entries.get(key) !== entry) return
+      for (const turnId of turnIds) this.#beginHandoff(entry, turnId)
     })
     return entry
   }

@@ -164,4 +164,124 @@ describe('AiExecutionManager', () => {
 
     expect(sink.interactionOpened).toHaveBeenCalledWith(expect.objectContaining({ id: 'approval-1', executionId }))
   })
+
+  it('registers the observer with a semantic compact replay and exact high-water', async () => {
+    const controlled = controlledStream()
+    const initialChunks: ConversationExecutionChunk[] = []
+    const attachedChunks: ConversationExecutionChunk[] = []
+    const sink: ConversationExecutionSink = {
+      firstChunk: vi.fn(),
+      interactionOpened: vi.fn(),
+      terminal: vi.fn(),
+      startFailed: vi.fn()
+    }
+    const manager = new AiExecutionManager(async () => controlled.stream)
+    manager.register({
+      conversation: ref,
+      turnId,
+      executionId,
+      outputNodeId: 'assistant-1',
+      modelId: 'provider::model',
+      request: { chatId: 'topic-1', trigger: 'submit-message', uniqueModelId: 'provider::model', messages: [] },
+      observers: [{ id: 'initial', onChunk: (chunk) => initialChunks.push(chunk), isAlive: () => true }],
+      interactionResumeMode: ConversationInteractionResumeMode.NewRun
+    })
+    manager.start(
+      {
+        type: ConversationEffectType.StartExecution,
+        conversation: ref,
+        turnId,
+        executionId,
+        effectId: toConversationEffectId('start-replay')
+      },
+      sink
+    )
+    controlled.controller.enqueue({ type: 'text-start', id: 'text-1' })
+    controlled.controller.enqueue({ type: 'text-delta', id: 'text-1', delta: 'hello ' })
+    controlled.controller.enqueue({ type: 'text-delta', id: 'text-1', delta: 'world' })
+    controlled.controller.enqueue({ type: 'text-end', id: 'text-1' })
+    await vi.waitFor(() => expect(initialChunks).toHaveLength(4))
+
+    const staleObserver = vi.fn()
+    expect(
+      manager.attachSnapshot(ref, toConversationTurnId('old-turn'), {
+        id: 'stale',
+        onChunk: staleObserver,
+        isAlive: () => true
+      })
+    ).toEqual([])
+
+    const [snapshot] = manager.attachSnapshot(ref, turnId, {
+      id: 'attached',
+      onChunk: (chunk) => attachedChunks.push(chunk),
+      isAlive: () => true
+    })
+    expect(snapshot.replay).toMatchObject({
+      throughChunkSeq: 4,
+      firstAvailableChunkSeq: 1,
+      truncated: false
+    })
+    expect(snapshot.replay.chunks).toMatchObject([
+      { chunkSeq: 1, throughChunkSeq: 1, chunk: { type: 'text-start' } },
+      { chunkSeq: 2, throughChunkSeq: 3, chunk: { type: 'text-delta', delta: 'hello world' } },
+      { chunkSeq: 4, throughChunkSeq: 4, chunk: { type: 'text-end' } }
+    ])
+
+    controlled.controller.enqueue({ type: 'text-start', id: 'text-2' })
+    controlled.controller.close()
+    await Promise.all(manager.inFlightRuns())
+    expect(staleObserver).not.toHaveBeenCalled()
+    expect(attachedChunks).toHaveLength(1)
+    expect(attachedChunks[0]?.chunkSeq).toBe(5)
+  })
+
+  it('marks replay truncation from the first retained execution sequence', async () => {
+    const controlled = controlledStream()
+    const sink: ConversationExecutionSink = {
+      firstChunk: vi.fn(),
+      interactionOpened: vi.fn(),
+      terminal: vi.fn(),
+      startFailed: vi.fn()
+    }
+    const manager = new AiExecutionManager(async () => controlled.stream)
+    manager.register({
+      conversation: ref,
+      turnId,
+      executionId,
+      outputNodeId: 'assistant-1',
+      modelId: 'provider::model',
+      request: { chatId: 'topic-1', trigger: 'submit-message', uniqueModelId: 'provider::model', messages: [] },
+      observers: [],
+      maxBufferChunks: 2,
+      interactionResumeMode: ConversationInteractionResumeMode.NewRun
+    })
+    manager.start(
+      {
+        type: ConversationEffectType.StartExecution,
+        conversation: ref,
+        turnId,
+        executionId,
+        effectId: toConversationEffectId('start-truncated')
+      },
+      sink
+    )
+    controlled.controller.enqueue({ type: 'text-start', id: 'text-1' })
+    controlled.controller.enqueue({ type: 'text-delta', id: 'text-1', delta: 'answer' })
+    controlled.controller.enqueue({ type: 'text-end', id: 'text-1' })
+    await vi.waitFor(() =>
+      expect(
+        manager.attachSnapshot(ref, turnId, { id: 'probe', onChunk: vi.fn(), isAlive: () => true })[0]?.replay
+          .throughChunkSeq
+      ).toBe(3)
+    )
+
+    const [snapshot] = manager.attachSnapshot(ref, turnId, {
+      id: 'attached',
+      onChunk: vi.fn(),
+      isAlive: () => true
+    })
+    expect(snapshot.replay).toMatchObject({ firstAvailableChunkSeq: 2, throughChunkSeq: 3, truncated: true })
+    controlled.controller.close()
+    await Promise.all(manager.inFlightRuns())
+  })
 })

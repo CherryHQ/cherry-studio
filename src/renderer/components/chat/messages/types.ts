@@ -34,6 +34,15 @@ export interface MessageUiState {
   disclosures?: Record<string, boolean>
 }
 
+export enum MessageContentContextKind {
+  Durable = 'durable',
+  Ephemeral = 'ephemeral'
+}
+
+export type MessageContentContext =
+  | { kind: MessageContentContextKind.Durable; conversation: ConversationRef }
+  | { kind: MessageContentContextKind.Ephemeral }
+
 export interface MessageListSelectionState {
   enabled: boolean
   isMultiSelectMode: boolean

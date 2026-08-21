@@ -22,6 +22,7 @@ import {
   ConversationBlockReason,
   ConversationContinuationTrigger,
   type ConversationEffectId,
+  ConversationExecutionAttachState,
   type ConversationExecutionId,
   ConversationExecutionPhase,
   ConversationInteractionResumeMode,
@@ -34,6 +35,7 @@ import {
   conversationRefKey,
   conversationRefsEqual,
   ConversationStatus,
+  ConversationStreamTerminalStatus,
   type ConversationTurnId,
   ConversationTurnKind,
   toConversationActivityId,
@@ -47,7 +49,8 @@ import type {
   ActiveNodeDecision,
   AiStreamAttachResponse,
   AiStreamOpenResponse,
-  ApprovalDecision
+  ApprovalDecision,
+  ExecutionAttachTerminal
 } from '@shared/ai/transport'
 import type { MessageRuntimeSpan } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -620,32 +623,46 @@ export class ConversationRuntimeService extends BaseService {
 
   attach(sender: Electron.WebContents, ref: ConversationRef): AiStreamAttachResponse {
     const listener = new WebContentsListener(sender, ref)
-    const replay = this.executionManager.attach(ref, this.observerForListener(ref, listener))
     const turn = this.latestTurn(ref)
-    if (replay.length === 0 && !turn) return { status: ConversationAttachStatus.NotFound }
-    if (replay.length === 0 && turn?.terminal) {
-      if (turn.terminal.status === ConversationOutcomeKind.Success) {
-        return { status: ConversationAttachStatus.Done, finalMessages: {} }
+    if (!turn) return { status: ConversationAttachStatus.NotFound }
+    const resources = this.executionManager.attachSnapshot(ref, turn.id, this.observerForListener(ref, listener))
+    if (resources.length === 0) return { status: ConversationAttachStatus.NotFound }
+    turn.listeners.set(listener.id, listener)
+    const state = this.runtime.inspect(ref)
+    const aggregateTurn =
+      (state.phase === ConversationPhase.Running || state.phase === ConversationPhase.Stopping) &&
+      state.turn.id === turn.id
+        ? state.turn
+        : undefined
+    const executions = resources.map((resource) => {
+      const aggregateExecution = aggregateTurn?.executions.get(resource.projection.executionId)
+      const settled = turn.terminal !== undefined || aggregateExecution?.phase === ConversationExecutionPhase.Settled
+      if (!settled) {
+        return {
+          state: ConversationExecutionAttachState.Live,
+          projection: resource.projection,
+          replay: resource.replay
+        } as const
       }
-      if (turn.terminal.status === ConversationOutcomeKind.Paused) {
-        return { status: ConversationAttachStatus.Paused, finalMessages: {} }
-      }
-      return { status: ConversationAttachStatus.Error, error: turn.terminal.error }
-    }
-    if (turn) turn.listeners.set(listener.id, listener)
-    return {
-      status: ConversationAttachStatus.Attached,
-      bufferedChunks: replay.map((item) => ({
-        conversation: item.conversation,
-        turnId: item.turnId,
-        executionId: item.executionId,
-        modelId: item.modelId,
-        outputNodeId: item.outputNodeId,
-        chunkSeq: item.chunkSeq,
-        throughChunkSeq: item.chunkSeq,
-        chunk: item.chunk
-      }))
-    }
+      const aggregateOutcome =
+        aggregateExecution?.phase === ConversationExecutionPhase.Settled ? aggregateExecution.outcome : undefined
+      const outcome = resource.result?.outcome ?? aggregateOutcome
+      if (!outcome) throw new Error(`Settled execution ${resource.projection.executionId} has no terminal outcome`)
+      return {
+        state: ConversationExecutionAttachState.Settled,
+        projection: resource.projection,
+        replay: resource.replay,
+        terminal: this.executionAttachTerminal(outcome, resource.result?.finalMessage)
+      } as const
+    })
+    return turn.terminal
+      ? {
+          status: ConversationAttachStatus.Settled,
+          turnId: turn.id,
+          executions,
+          terminal: this.streamAttachTerminal(turn.terminal)
+        }
+      : { status: ConversationAttachStatus.Live, turnId: turn.id, executions }
   }
 
   detach(sender: Electron.WebContents, ref: ConversationRef): void {
@@ -1562,7 +1579,7 @@ export class ConversationRuntimeService extends BaseService {
     const turn = this.latestTurn(ref)
     if (!turn) return
     turn.listeners.set(listener.id, listener)
-    this.executionManager.attach(ref, this.observerForListener(ref, listener))
+    this.executionManager.observe(ref, turn.id, this.observerForListener(ref, listener))
   }
 
   private observerForListener(ref: ConversationRef, listener: StreamListener): ConversationExecutionObserver {
@@ -1673,6 +1690,45 @@ export class ConversationRuntimeService extends BaseService {
       return { status: ConversationOutcomeKind.Paused, turnTerminal: true }
     }
     return { status: ConversationOutcomeKind.Error, turnTerminal: true, error: effect.outcome.error }
+  }
+
+  private executionAttachTerminal(
+    outcome: ConversationOutcome,
+    finalMessage?: StreamDoneResult['finalMessage']
+  ): ExecutionAttachTerminal {
+    if (outcome.kind === ConversationOutcomeKind.Success) {
+      return { status: ConversationStreamTerminalStatus.Done, ...(finalMessage ? { finalMessage } : {}) }
+    }
+    if (outcome.kind === ConversationOutcomeKind.Paused) {
+      return { status: ConversationStreamTerminalStatus.Paused, ...(finalMessage ? { finalMessage } : {}) }
+    }
+    return {
+      status: ConversationStreamTerminalStatus.Error,
+      error: outcome.error,
+      ...(finalMessage ? { finalMessage } : {})
+    }
+  }
+
+  private streamAttachTerminal(
+    result: StreamDoneResult | StreamPausedResult | StreamErrorResult
+  ): ExecutionAttachTerminal {
+    if (result.status === ConversationOutcomeKind.Success) {
+      return {
+        status: ConversationStreamTerminalStatus.Done,
+        ...(result.finalMessage ? { finalMessage: result.finalMessage } : {})
+      }
+    }
+    if (result.status === ConversationOutcomeKind.Paused) {
+      return {
+        status: ConversationStreamTerminalStatus.Paused,
+        ...(result.finalMessage ? { finalMessage: result.finalMessage } : {})
+      }
+    }
+    return {
+      status: ConversationStreamTerminalStatus.Error,
+      error: result.error,
+      ...(result.finalMessage ? { finalMessage: result.finalMessage } : {})
+    }
   }
 
   private publishConversationStatus(

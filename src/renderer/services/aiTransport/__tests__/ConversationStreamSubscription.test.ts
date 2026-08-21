@@ -1,6 +1,8 @@
 import {
   ConversationAttachStatus,
+  ConversationExecutionAttachState,
   ConversationKind,
+  ConversationStreamTerminalStatus,
   toConversationExecutionId,
   toConversationTurnId
 } from '@shared/ai/conversation'
@@ -46,7 +48,11 @@ const emit = (event: string, payload: unknown) => {
 describe('ConversationStreamSubscription', () => {
   beforeEach(() => {
     ipc.listeners.clear()
-    ipc.attach.mockReset().mockResolvedValue({ status: ConversationAttachStatus.Attached, bufferedChunks: [] })
+    ipc.attach.mockReset().mockResolvedValue({
+      status: ConversationAttachStatus.Live,
+      turnId,
+      executions: []
+    })
   })
 
   it('routes an exact execution branch and closes it on its terminal', async () => {
@@ -78,7 +84,7 @@ describe('ConversationStreamSubscription', () => {
       turnId,
       executionId,
       outputNodeId: projection.outputNodeId,
-      status: ConversationAttachStatus.Done,
+      status: ConversationStreamTerminalStatus.Done,
       turnTerminal: true
     })
     await reading
@@ -90,17 +96,29 @@ describe('ConversationStreamSubscription', () => {
 
   it('replays buffered chunks using monotonic execution chunk sequence', async () => {
     ipc.attach.mockResolvedValue({
-      status: ConversationAttachStatus.Attached,
-      bufferedChunks: [
+      status: ConversationAttachStatus.Live,
+      turnId,
+      executions: [
         {
-          conversation,
-          turnId,
-          executionId,
-          modelId: projection.modelId,
-          outputNodeId: projection.outputNodeId,
-          chunkSeq: 2,
-          chunk: { type: 'text-delta', id: 'text-2', delta: 'replay' }
-        } satisfies StreamChunkPayload
+          state: ConversationExecutionAttachState.Live,
+          projection,
+          replay: {
+            chunks: [
+              {
+                conversation,
+                turnId,
+                executionId,
+                modelId: projection.modelId,
+                outputNodeId: projection.outputNodeId,
+                chunkSeq: 2,
+                chunk: { type: 'text-delta', id: 'text-2', delta: 'replay' }
+              } satisfies StreamChunkPayload
+            ],
+            throughChunkSeq: 2,
+            firstAvailableChunkSeq: 2,
+            truncated: true
+          }
+        }
       ]
     })
     const subscription = new ConversationStreamSubscription(conversation)
@@ -110,5 +128,171 @@ describe('ConversationStreamSubscription', () => {
       value: { type: 'text-delta', delta: 'replay' }
     })
     await reader.cancel()
+  })
+
+  it('applies replay before live chunks received while attach is in flight', async () => {
+    let resolveAttach!: (value: unknown) => void
+    ipc.attach.mockReturnValue(
+      new Promise((resolve) => {
+        resolveAttach = resolve
+      })
+    )
+    const subscription = new ConversationStreamSubscription(conversation)
+    const reader = subscription.register(projection).getReader()
+    await Promise.resolve()
+
+    emit('ai.stream.chunk', {
+      conversation,
+      turnId,
+      executionId,
+      modelId: projection.modelId,
+      outputNodeId: projection.outputNodeId,
+      chunkSeq: 2,
+      chunk: { type: 'text-delta', id: 'text-1', delta: 'live' }
+    } satisfies StreamChunkPayload)
+    resolveAttach({
+      status: ConversationAttachStatus.Live,
+      turnId,
+      executions: [
+        {
+          state: ConversationExecutionAttachState.Live,
+          projection,
+          replay: {
+            chunks: [
+              {
+                conversation,
+                turnId,
+                executionId,
+                modelId: projection.modelId,
+                outputNodeId: projection.outputNodeId,
+                chunkSeq: 1,
+                chunk: { type: 'text-start', id: 'text-1' }
+              }
+            ],
+            throughChunkSeq: 1,
+            firstAvailableChunkSeq: 1,
+            truncated: false
+          }
+        }
+      ]
+    })
+
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'text-start' } })
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'text-delta', delta: 'live' } })
+    await reader.cancel()
+  })
+
+  it('does not lose a terminal received while attach replay is in flight', async () => {
+    let resolveAttach!: (value: unknown) => void
+    ipc.attach.mockReturnValue(
+      new Promise((resolve) => {
+        resolveAttach = resolve
+      })
+    )
+    const subscription = new ConversationStreamSubscription(conversation)
+    const reader = subscription.register(projection).getReader()
+    await Promise.resolve()
+
+    emit('ai.stream.done', {
+      conversation,
+      turnId,
+      executionId,
+      modelId: projection.modelId,
+      outputNodeId: projection.outputNodeId,
+      status: ConversationStreamTerminalStatus.Done,
+      turnTerminal: true
+    })
+    resolveAttach({
+      status: ConversationAttachStatus.Live,
+      turnId,
+      executions: [
+        {
+          state: ConversationExecutionAttachState.Live,
+          projection,
+          replay: {
+            chunks: [],
+            throughChunkSeq: 0,
+            firstAvailableChunkSeq: 1,
+            truncated: false
+          }
+        }
+      ]
+    })
+
+    await expect(reader.read()).resolves.toEqual({ done: true, value: undefined })
+    expect(subscription.isSettled(executionId)).toBe(true)
+  })
+
+  it('keeps live events received before a failed attach retry', async () => {
+    let rejectAttach!: (error: Error) => void
+    ipc.attach.mockReturnValue(
+      new Promise((_resolve, reject) => {
+        rejectAttach = reject
+      })
+    )
+    const subscription = new ConversationStreamSubscription(conversation)
+    const reader = subscription.register(projection).getReader()
+    await Promise.resolve()
+
+    emit('ai.stream.chunk', {
+      conversation,
+      turnId,
+      executionId,
+      modelId: projection.modelId,
+      outputNodeId: projection.outputNodeId,
+      chunkSeq: 1,
+      chunk: { type: 'text-delta', id: 'text-1', delta: 'survives' }
+    } satisfies StreamChunkPayload)
+    rejectAttach(new Error('attach failed'))
+
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'text-delta', delta: 'survives' } })
+    await reader.cancel()
+    subscription.dispose()
+  })
+
+  it('requests durable refresh for NotFound without inventing a successful terminal', async () => {
+    ipc.attach.mockResolvedValue({ status: ConversationAttachStatus.NotFound })
+    const subscription = new ConversationStreamSubscription(conversation)
+    const refreshRequired = vi.fn()
+    subscription.onRefreshRequired(refreshRequired)
+    subscription.register(projection)
+
+    await vi.waitFor(() => expect(refreshRequired).toHaveBeenCalledWith([turnId]))
+    expect(subscription.isSettled(executionId)).toBe(false)
+    expect(subscription.hasOpenBranch(executionId)).toBe(true)
+    subscription.dispose()
+  })
+
+  it('ignores an attach snapshot after its last observer unregisters', async () => {
+    let resolveAttach!: (value: unknown) => void
+    ipc.attach.mockReturnValue(
+      new Promise((resolve) => {
+        resolveAttach = resolve
+      })
+    )
+    const subscription = new ConversationStreamSubscription(conversation)
+    subscription.register(projection)
+    await Promise.resolve()
+
+    subscription.unregister(executionId)
+    await Promise.resolve()
+    resolveAttach({
+      status: ConversationAttachStatus.Settled,
+      turnId,
+      executions: [
+        {
+          state: ConversationExecutionAttachState.Settled,
+          projection,
+          replay: { chunks: [], throughChunkSeq: 0, firstAvailableChunkSeq: 1, truncated: false },
+          terminal: { status: ConversationStreamTerminalStatus.Done }
+        }
+      ],
+      terminal: { status: ConversationStreamTerminalStatus.Done }
+    })
+    await Promise.resolve()
+
+    expect(subscription.isSettled(executionId)).toBe(false)
+    expect(subscription.isConversationOpen()).toBe(false)
+    subscription.dispose()
   })
 })

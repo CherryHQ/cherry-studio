@@ -1,4 +1,4 @@
-import { ConversationAttachStatus } from '@shared/ai/conversation'
+import { ConversationStreamTerminalStatus } from '@shared/ai/conversation'
 import type { IpcEventName } from '@shared/ipc/schemas/ipcSchemas'
 import type { EventPayload } from '@shared/ipc/types'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -22,11 +22,11 @@ export class PromptWebContentsListener implements StreamListener {
   }
 
   onDone(): void {
-    this.emit('ai.prompt.done', { streamId: this.streamId, status: ConversationAttachStatus.Done })
+    this.emit('ai.prompt.done', { streamId: this.streamId, status: ConversationStreamTerminalStatus.Done })
   }
 
   onPaused(): void {
-    this.emit('ai.prompt.done', { streamId: this.streamId, status: ConversationAttachStatus.Paused })
+    this.emit('ai.prompt.done', { streamId: this.streamId, status: ConversationStreamTerminalStatus.Paused })
   }
 
   onError(result: StreamErrorResult): void {

@@ -38,6 +38,7 @@ const fakes = vi.hoisted(() => {
     readonly terminalListeners = new Set<(terminal: Terminal) => void>()
     readonly stateListeners = new Set<() => void>()
     readonly quiescedListeners = new Set<(turnId: string) => void>()
+    readonly refreshRequiredListeners = new Set<(turnIds: readonly string[]) => void>()
     conversationOpen = false
 
     constructor(readonly conversation: { kind: string; id: string }) {
@@ -97,6 +98,11 @@ const fakes = vi.hoisted(() => {
     onConversationQuiesced(listener: (turnId: string) => void) {
       this.quiescedListeners.add(listener)
       return () => this.quiescedListeners.delete(listener)
+    }
+
+    onRefreshRequired(listener: (turnIds: readonly string[]) => void) {
+      this.refreshRequiredListeners.add(listener)
+      return () => this.refreshRequiredListeners.delete(listener)
     }
 
     dispose() {}
@@ -259,5 +265,35 @@ describe('ExecutionStreamOverlayService', () => {
     finishRefresh()
     await waitFor(() => expect(service.getView(conversation).records).toHaveLength(0))
     expect(service.getView(conversation).activeNodeOverride).toBeNull()
+  })
+
+  it.each(['dispose', 'reset'] as const)('refreshes durable history before retiring through %s', async (action) => {
+    const service = new ExecutionStreamOverlayService()
+    const conversation = chat(`manual-${action}`)
+    const activeExecution = execution('turn-1', 'execution-1', 'assistant-1')
+    let finishRefresh!: () => void
+    const refresh = vi.fn(() => new Promise<void>((resolve) => (finishRefresh = resolve)))
+
+    service.acquire(conversation)
+    service.registerRefreshPort(conversation, refresh)
+    service.syncExecutions(conversation, {}, [activeExecution], () => [assistant('assistant-1')])
+    const subscription = fakes.instances.get(conversationRefKey(conversation))!
+    streamText(subscription, activeExecution.executionId, 'durable')
+    subscription.settle({
+      turnId: activeExecution.turnId,
+      executionId: activeExecution.executionId,
+      outputNodeId: 'assistant-1',
+      isAbort: false,
+      isError: false
+    })
+    await waitFor(() => expect(service.getView(conversation).records[0]?.phase).toBe(ExecutionOverlayPhase.Settled))
+
+    if (action === 'dispose') service.disposeOverlay(conversation, 'assistant-1')
+    else service.reset(conversation)
+
+    await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1))
+    expect(service.getView(conversation).records).toHaveLength(1)
+    finishRefresh()
+    await waitFor(() => expect(service.getView(conversation).records).toHaveLength(0))
   })
 })

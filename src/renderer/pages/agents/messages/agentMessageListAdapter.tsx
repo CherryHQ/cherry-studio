@@ -247,6 +247,7 @@ export function useAgentMessageListProviderValue({
     selectionController,
     updateRenderConfig
   } = useMessageListAdapterCapabilities({
+    conversation: { kind: ConversationKind.Agent, id: sessionId },
     topicId: topic.id,
     topicName: topic.name,
     messages: messageItems,

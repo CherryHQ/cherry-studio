@@ -243,6 +243,7 @@ describe('useChatRuntimeState', () => {
       topicId: 'topic-1',
       state: expect.objectContaining({ topicId: 'topic-1', messageIds: ['reserved-1'] })
     })
+    mocks.onBranchLiveStateChange.mockClear()
 
     // Same topic hidden→visible: effects re-run with an unchanged topic id, and
     // the branch-live surface must survive instead of collapsing to null.

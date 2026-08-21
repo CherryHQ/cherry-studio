@@ -1,4 +1,5 @@
 import type { DiagnosisResult } from '@renderer/utils/errorDiagnosis'
+import type { ConversationRef } from '@shared/ai/conversation'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import type { MessageListActions, MessageListItem, MessageStreamingLayers } from '../types'
@@ -13,6 +14,7 @@ import { useMessageSelectionController } from './useMessageSelectionController'
 import { useMessageUiStateCache } from './useMessageUiStateCache'
 
 interface UseMessageListAdapterCapabilitiesOptions {
+  conversation: ConversationRef
   topicId: string
   topicName: string
   messages: MessageListItem[]
@@ -28,6 +30,7 @@ interface UseMessageListAdapterCapabilitiesOptions {
  * including the export/copy feed into the selection controller.
  */
 export function useMessageListAdapterCapabilities({
+  conversation,
   topicId,
   topicName,
   messages,
@@ -36,7 +39,7 @@ export function useMessageListAdapterCapabilities({
   deleteMessage,
   persistDiagnosis
 }: UseMessageListAdapterCapabilitiesOptions) {
-  const getMessageActivityState = useMessageActivityState(topicId, partsByMessageId)
+  const getMessageActivityState = useMessageActivityState(conversation, partsByMessageId)
   const { renderConfig, updateRenderConfig } = useMessageListRenderConfig()
   const menuConfig = useMessageMenuConfig()
   const exportActions = useMessageExportActions({ topicName })

@@ -14,8 +14,8 @@ interface ConversationStreamStatusView {
   markSeen: () => void
 }
 
-export function useConversationStreamStatus(conversation: ConversationRef): ConversationStreamStatusView {
-  const key = conversationRefKey(conversation)
+export function useConversationStreamStatus(conversation: ConversationRef | undefined): ConversationStreamStatusView {
+  const key = conversation ? conversationRefKey(conversation) : 'ephemeral'
   const entry = useSharedCacheValue(`conversation.statuses.${key}` as const)
   const [lastSeenCompletion, setLastSeenCompletion] = useSharedCache(
     `conversation.last_seen_completion.${key}` as const
@@ -28,8 +28,10 @@ export function useConversationStreamStatus(conversation: ConversationRef): Conv
   const isFulfilled = status === ConversationStatus.Done && lastCompletedAt !== lastSeenCompletion
 
   const markSeen = useCallback(() => {
-    if (lastCompletedAt != null && lastCompletedAt !== lastSeenCompletion) setLastSeenCompletion(lastCompletedAt)
-  }, [lastCompletedAt, lastSeenCompletion, setLastSeenCompletion])
+    if (conversation && lastCompletedAt != null && lastCompletedAt !== lastSeenCompletion) {
+      setLastSeenCompletion(lastCompletedAt)
+    }
+  }, [conversation, lastCompletedAt, lastSeenCompletion, setLastSeenCompletion])
 
   return {
     status,
