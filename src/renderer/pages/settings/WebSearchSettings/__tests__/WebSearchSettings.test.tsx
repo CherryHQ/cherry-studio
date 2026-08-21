@@ -303,10 +303,6 @@ describe('WebSearchSettings', () => {
 
   it.each([
     ['1000', 100],
-    // The minus sign never reaches the field: `min` forbids negatives, so this
-    // commits as 3 rather than clamping a negative up to the floor.
-    ['-3', 3],
-    ['abc', 1],
     ['3.9', 3]
   ])('normalizes max-result draft %s to %s on commit', async (value, expected) => {
     const { rerender } = render(<WebSearchSettings />)
@@ -325,6 +321,22 @@ describe('WebSearchSettings', () => {
     // re-read explicitly to check what it now shows.
     rerender(<WebSearchSettings />)
     expect(screen.getByLabelText('settings.tool.websearch.search_max_result.label')).toHaveValue(String(expected))
+  })
+
+  // Filtering the offending characters out instead would rewrite what was
+  // pasted: "-3" would save as 3, and "abc" would reset the setting to 1.
+  it.each(['-3', 'abc'])('rejects the pasted max-result draft %s and keeps the saved value', async (value) => {
+    render(<WebSearchSettings />)
+    openAdvancedSettings()
+
+    const field = screen.getByLabelText('settings.tool.websearch.search_max_result.label')
+    const saved = MockUsePreferenceUtils.getPreferenceValue('chat.web_search.max_results')
+
+    fireEvent.change(field, { target: { value } })
+    fireEvent.blur(field)
+
+    expect(field).toHaveValue(String(saved))
+    expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.max_results')).toBe(saved)
   })
 
   it('resets max results to the default value when customized', async () => {

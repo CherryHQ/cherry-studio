@@ -54,12 +54,16 @@ const format = (value: number | null) => (value === null ? '' : String(value))
 const allowsNegative = (min?: number) => min === undefined || min < 0
 const allowsDecimal = (step?: number) => step === undefined || !Number.isInteger(step)
 
-/** Filters to digits, one decimal point, and a minus sign where `min` permits it. Keeps partial input like "1." */
-function sanitize(raw: string, min?: number): string {
-  const negative = allowsNegative(min) && raw.trimStart().startsWith('-')
-  const [integerPart, ...fractionParts] = raw.replace(/[^\d.]/g, '').split('.')
-  const body = fractionParts.length > 0 ? `${integerPart}.${fractionParts.join('')}` : integerPart
-  return negative ? `-${body}` : body
+const signedPattern = /^-?\d*\.?\d*(?:e[+-]?\d*)?$/i
+const unsignedPattern = /^\d*\.?\d*(?:e[+-]?\d*)?$/i
+
+/**
+ * Accepts anything that could still become a number — `"1."`, `"-"`, `"1e-"` —
+ * and rejects the rest wholesale. Deleting the offending characters instead
+ * would silently rewrite the magnitude: `"1e-6"` would become `"16"`.
+ */
+function isTypable(raw: string, min?: number): boolean {
+  return (allowsNegative(min) ? signedPattern : unsignedPattern).test(raw)
 }
 
 /** Normalizes on commit only: an integer `step` truncates, then the value is clamped into range. `min` wins an empty range. */
@@ -97,7 +101,10 @@ function InputNumber({
   const text = draft ?? format(value)
 
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const next = sanitize(event.target.value, min)
+    const next = event.target.value
+    // ReactDOM restores the rendered text on a controlled input whose state did
+    // not change, so returning here is what drops the rejected input.
+    if (!isTypable(next, min)) return
     setDraft(next)
     onChange?.(next === '' || !Number.isFinite(Number(next)) ? null : Number(next))
   }
