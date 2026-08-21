@@ -14,20 +14,16 @@ import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteError
 import type { DbType } from '@data/db/types'
 import { getDataService, registerDataService } from '@data/services/dataServiceRegistry'
 import { pinService } from '@data/services/PinService'
-import {
-  clearSingleFileRefTx,
-  getSingleFileRefId,
-  type LogoBindInput,
-  reconcileLogoSlotTx
-} from '@data/services/utils/entityImageRef'
-import { resolveEntityImageSrc } from '@data/services/utils/entityImageSrc'
+import { resolveFileEntryUrl } from '@data/services/utils/fileEntryUrl'
+import { type LogoBindInput, reconcileLogoSlotTx } from '@data/services/utils/logoRef'
 import { applyMoves, insertManyWithOrderKey, insertWithOrderKey } from '@data/services/utils/orderKey'
+import { clearSingleFileRef, getSingleFileRef } from '@data/services/utils/singleFileRef'
 import { loggerService } from '@logger'
 import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 import type { OrderBatchRequest, OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateProviderDto, ListProvidersQuery, UpdateProviderDto } from '@shared/data/api/schemas/providers'
 import { isManagedCherryAiProviderId } from '@shared/data/presets/cherryai'
-import { providerLogoRef } from '@shared/data/types/file'
+import { providerLogoRef } from '@shared/data/types/fileRef'
 import type {
   ApiKeyEntry,
   AuthConfig,
@@ -139,7 +135,7 @@ function rowToRuntimeProvider(row: UserProviderRow): Provider {
     // `file://` URL on `logoSrc` (mutually exclusive with `logo`) so the
     // renderer never reconstructs a disk path.
     logo: row.logoKey ?? undefined,
-    logoSrc: resolveEntityImageSrc(getSingleFileRefId(logoSlot(row.providerId))),
+    logoSrc: resolveFileEntryUrl(getSingleFileRef(logoSlot(row.providerId))),
     description: presetMetadata.description,
     websites: presetMetadata.websites,
     endpointConfigs: row.endpointConfigs ?? undefined,
@@ -685,7 +681,7 @@ class ProviderService {
       // DB-only: drop the logo slot's ref (the file is preserved per the
       // file layer's policy). The FK cascade would also clear it on row delete;
       // the explicit clear keeps the intent local to this flow.
-      clearSingleFileRefTx(tx, logoSlot(providerId))
+      clearSingleFileRef(tx, logoSlot(providerId))
 
       const deleted = tx
         .delete(userProviderTable)

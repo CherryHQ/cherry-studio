@@ -139,7 +139,7 @@ vi.mock('@renderer/utils/naming', () => ({
 // Canvas isn't available in jsdom; stub the renderer normalize step to fixed bytes.
 vi.mock('@renderer/utils/image', async (importOriginal) => ({
   ...(await importOriginal<typeof ImageUtils>()),
-  prepareEntityImageBytes: vi.fn(async () => new Uint8Array([1, 2, 3]))
+  prepareIconImageBytes: vi.fn(async () => new Uint8Array([1, 2, 3]))
 }))
 
 vi.mock('react-i18next', () => ({

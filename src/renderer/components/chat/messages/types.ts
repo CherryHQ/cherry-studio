@@ -10,7 +10,7 @@ import type {
   MultiModelMessageStyle,
   TranslateLangCode
 } from '@shared/data/preference/preferenceTypes'
-import type { EntityAvatar } from '@shared/data/types/entityAvatar'
+import type { AvatarValue } from '@shared/data/types/avatar'
 import type {
   CherryMessagePart,
   CherryUIMessage,
@@ -141,7 +141,7 @@ export interface MessageErrorDiagnosisInput {
 export interface MessageUserProfile {
   name?: string
   avatar?: string
-  entityAvatar?: EntityAvatar
+  avatarValue?: AvatarValue
 }
 
 export interface MessageToolApprovalMatch {

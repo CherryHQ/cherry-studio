@@ -1,11 +1,9 @@
 /**
  * File-domain data types — the cross-process shapes for Cherry-managed files.
  *
- * Three cohesive sections, all keyed off `FileEntry`:
+ * Two cohesive sections, both keyed off `FileEntry`:
  * - **FileEntry** — the managed-file entity (this section).
  * - **FileHandle** — a call-site reference to a file, by entry-id or raw path.
- * - **FileRef** — the association linking a business entity (chat message,
- *   painting, temp session) to a `FileEntry`.
  *
  * The legacy v1 `FileMetadata` shape lives separately in `./legacyFile.ts`.
  *
@@ -112,11 +110,6 @@ import { type FilePath, SafeExtSchema } from '@shared/types/file'
 import { canonicalizeAbsolutePath } from '@shared/utils/file'
 import * as z from 'zod'
 
-import { type FileEntryId, FileEntryIdSchema } from './fileEntryId'
-import { MessageIdSchema } from './message'
-
-export { type FileEntryId, FileEntryIdSchema } from './fileEntryId'
-
 // ─── Shared building blocks (timestamp + safe name) ───
 
 /** Millisecond epoch timestamp (non-negative integer) */
@@ -157,6 +150,9 @@ export const SafeNameSchema = z
  * carry runtime validation. API handlers MUST validate incoming IDs with
  * `FileEntryIdSchema.parse()` to reject random / non-UUID strings.
  */
+export const FileEntryIdSchema = z.uuid()
+export type FileEntryId = z.infer<typeof FileEntryIdSchema>
+
 // ─── Origin Enum ───
 
 export const FileEntryOriginSchema = z.enum(['internal', 'external'])
@@ -442,242 +438,3 @@ export const FilePathHandleSchema = z.strictObject({
 export const FileHandleSchema = z.discriminatedUnion('kind', [FileEntryHandleSchema, FilePathHandleSchema])
 // TODO: 1. Wire schema and types, so no as cast needed
 // TODO: 2. Add brand for FileHandle since factory function has been used
-
-// ═══════════════════════════════════════════════════════════════════════════
-// FileRef — association from a business entity (chat message, painting, …) to a
-// FileEntry. Combines every registered business-domain variant into a single
-// discriminated union keyed on `sourceType`.
-// ═══════════════════════════════════════════════════════════════════════════
-//
-// ## Adding a new persistent business ref
-//
-// 1. Add a variant section below (`{domain}SourceType` / `{domain}Roles` /
-//    `{domain}RefFields` / `{domain}FileRefSchema = createRefSchema(...)`),
-//    following `tempSession` as a minimal template.
-// 2. Add a dedicated SQLite association table with FKs to `file_entry` and the
-//    owning source table so deleting the source cascades refs at the DB layer.
-// 3. Register the variant in the aggregate: add its source-type literal to
-//    `allSourceTypes` and its schema to the `FileRefSchema` union.
-// 4. Route persistent write/delete through the owning business service;
-//    `FileRefService` only exposes cross-source query/ref-count + temp helpers.
-//
-// `temp_session` is the exception: app-session memory only (CacheService), not
-// SQLite, pruned via orphan sweep. Knowledge files are owned by the Knowledge
-// workflow and do not register FileManager refs.
-
-// ─── Common ref infrastructure ───
-
-export const refCommonFields = Object.freeze({
-  /** Reference ID (UUID v4) */
-  id: z.uuidv4(),
-  /** Referenced file entry ID (UUID v7) */
-  fileEntryId: FileEntryIdSchema,
-  /** Creation timestamp (ms epoch) */
-  createdAt: TimestampSchema,
-  /** Last update timestamp (ms epoch) */
-  updatedAt: TimestampSchema
-})
-
-/**
- * Shape constraint for business-specific ref fields passed to `createRefSchema`.
- *
- * `sourceId` uses `z.ZodType<string>` rather than `z.ZodUUID | z.ZodString`
- * so each variant can pick the strictest subtype (e.g. `z.uuidv7()` for
- * first-class domain objects, `z.string().min(1)` for opaque session IDs) —
- * the base shape stays honest about the variance instead of type-eroding
- * down to `z.ZodString`.
- */
-export type BusinessRefShape = {
-  /** Which business domain owns this reference (e.g. 'chat', 'knowledge', 'painting') */
-  sourceType: z.ZodLiteral<string>
-  /** The owning business entity's ID (e.g. a message ID, a knowledge item ID) */
-  sourceId: z.ZodType<string>
-  /** How the file is used within that domain (e.g. 'attachment', 'source', 'asset') */
-  role: z.ZodEnum
-}
-
-/**
- * Factory: creates a typed FileRef schema by merging common fields
- * (`id`, `fileEntryId`, `createdAt`, `updatedAt`) with business-specific fields
- * (`sourceType`, `sourceId`, `role`).
- *
- * Each sourceType variant should call this once. See the `tempSession` section
- * below for a minimal working example.
- */
-export const createRefSchema = <T extends BusinessRefShape>(shape: T): z.ZodObject<typeof refCommonFields & T> =>
-  z.object({
-    ...refCommonFields,
-    ...shape
-  })
-
-// ─── temp_session variant ───
-//
-// Tracks transient FileEntry records (typically paste previews, draft
-// attachments) that are in use by a session and should be retained until the
-// session completes. Temp refs are backed by main-process CacheService memory,
-// not SQLite, so they disappear on app restart. Temp refs must be explicitly
-// created and removed by the session owner.
-
-export const tempSessionSourceType = 'temp_session' as const
-
-export const tempSessionRoles = ['pending'] as const
-
-/** Business fields only (no common fields like id/nodeId/timestamps) */
-export const tempSessionRefFields = {
-  sourceType: z.literal(tempSessionSourceType),
-  sourceId: z.string().min(1),
-  role: z.enum(tempSessionRoles)
-}
-
-export const tempSessionFileRefSchema = createRefSchema(tempSessionRefFields)
-
-// ─── chat_message variant ───
-//
-// Links a FileEntry to a message row in the v2 chat subsystem. The owning
-// service writes refs when a message is created with file or image blocks. The
-// association table has an FK to `message`, so message deletion cascades its
-// refs at the database layer.
-//
-// `sourceId` uses `MessageIdSchema = z.uuid()` (not `z.uuidv7()`) because v1
-// legacy message IDs are UUIDv4 and are preserved verbatim during migration;
-// both formats are valid UUIDs, so `z.uuid()` accepts both. `role` is
-// `'attachment'` for both image blocks and file blocks — the single meaningful
-// relationship a file can have with a message at this stage.
-
-export const chatMessageSourceType = 'chat_message' as const
-
-export const chatMessageRoles = ['attachment'] as const
-export const chatMessageRoleSchema = z.enum(chatMessageRoles)
-
-export const chatMessageRefFields = {
-  sourceType: z.literal(chatMessageSourceType),
-  sourceId: MessageIdSchema,
-  role: chatMessageRoleSchema
-}
-
-export const chatMessageFileRefSchema = createRefSchema(chatMessageRefFields)
-
-// ─── painting variant ───
-//
-// Links a FileEntry to a `painting` row in the v2 paintings subsystem. The
-// painting association table holds two buckets — generated `output` files and
-// `input` files — which map directly to the two roles below. Painting row
-// deletion is handled by DB-level cascade; explicit cleanup is still used when
-// replacing a painting's file set wholesale.
-//
-// `painting.id` is `uuidPrimaryKey()` — UUID v4 (not v7; paintings have no
-// ordered-id requirement, unlike `knowledge_item`). Extending `paintingRoles`
-// later is additive: rows whose role falls outside the set surface as
-// `ZodError`, the desired clean-up signal.
-
-export const paintingSourceType = 'painting' as const
-
-export const paintingRoles = ['output', 'input'] as const
-export const paintingRoleSchema = z.enum(paintingRoles)
-
-export const paintingRefFields = {
-  sourceType: z.literal(paintingSourceType),
-  sourceId: z.uuidv4(),
-  role: paintingRoleSchema
-}
-
-export const paintingFileRefSchema = createRefSchema(paintingRefFields)
-
-// ─── Single-file entity-image variants ───
-//
-// Unlike the collection refs above (`chat_message`, `painting`), these model a
-// single-file **slot**: one owner holds at most ONE file, set-replaces the
-// previous one, and owns it exclusively. They are **roleless** (an owner has one
-// implicit purpose, so a `role` column would be a constant nothing reads) and
-// use a free-string `sourceId` (opaque owner ids). The user profile avatar has
-// NO ref variant — it is persisted only as a tagged `file:<id>` value in the
-// `app.user.avatar` preference (see `profile.set_avatar`).
-
-/**
- * Define a roleless single-file `file_ref` variant for `sourceType`. Builds the
- * member schema from `refCommonFields` directly (not `createRefSchema`, which
- * requires a `role`). Returns the source-type literal, ref fields, and schema.
- */
-function defineSingleFileRef<const T extends string>(sourceType: T) {
-  const refFields = {
-    sourceType: z.literal(sourceType),
-    sourceId: z.string().min(1)
-  }
-  return { sourceType, refFields, schema: z.object({ ...refCommonFields, ...refFields }) } as const
-}
-
-export const providerLogoRef = defineSingleFileRef('provider_logo')
-export const miniAppLogoRef = defineSingleFileRef('mini_app_logo')
-export const assistantAvatarRef = defineSingleFileRef('assistant_avatar')
-export const agentAvatarRef = defineSingleFileRef('agent_avatar')
-
-/**
- * Prefix tagging an uploaded avatar in the `app.user.avatar` preference, e.g.
- * `file:0190f3c4-…`. The preference is the avatar's only persisted copy (no
- * DTO), so `useAvatar` resolves the tagged id to a `file://` URL through the
- * file IPC; every other form (emoji / default `''`) passes through. Distinct
- * from an already-resolved `file://…` URL.
- *
- * Provider / mini-app uploaded logos and assistant / agent avatars do NOT use
- * this tag — their file id lives in an entity-image `file_ref` table and
- * resolves main-side onto the DTO.
- */
-export const STORED_FILE_REF_PREFIX = 'file:'
-
-/** Tag a file-entry id as a stored-image reference for an owner's display value. */
-export function tagStoredFileRef(id: string): string {
-  return `${STORED_FILE_REF_PREFIX}${id}`
-}
-
-// ─── SourceType type (load-bearing — keys DataApi/query validation) ───
-
-/**
- * All currently-registered FileRef source types — the complete type union.
- *
- * The tuple form is required so `FileRefSourceType` infers as a union of
- * string literals rather than `string`. DataApi handlers and query facades use
- * the same tuple for runtime validation and discriminated-union narrowing.
- *
- * Other business domains (note) deliberately do NOT appear here. They will be
- * added when their owning DB tables migrate to v2 — at which point each variant
- * gains its tuple entry, its `createRefSchema` variant, and its FK-constrained
- * association table in one PR. Keeping those surfaces in lockstep prevents the
- * "type declared but schema unaware" gap.
- */
-export const allSourceTypes = [
-  tempSessionSourceType,
-  chatMessageSourceType,
-  paintingSourceType,
-  providerLogoRef.sourceType,
-  miniAppLogoRef.sourceType,
-  assistantAvatarRef.sourceType,
-  agentAvatarRef.sourceType
-] as const satisfies readonly string[]
-export type FileRefSourceType = (typeof allSourceTypes)[number]
-
-/**
- * Runtime validator for `FileRefSourceType` — used by DataApi handlers to
- * guard `sourceType` query parameters before reaching the service. Stays in
- * lockstep with `allSourceTypes` because it derives from the same tuple.
- */
-export const FileRefSourceTypeSchema = z.enum(allSourceTypes)
-
-// ─── Discriminated Union ───
-
-/**
- * Runtime-validated FileRef schema covering every variant in `allSourceTypes`.
- * `FileRefSchema.parse` accepts any registered variant and rejects rows whose
- * `sourceType` is not in this union — the desired behavior, because a row with
- * an unregistered sourceType implies either a stale artefact or a bug that
- * bypassed the variant-registration discipline.
- */
-export const FileRefSchema = z.discriminatedUnion('sourceType', [
-  tempSessionFileRefSchema,
-  chatMessageFileRefSchema,
-  paintingFileRefSchema,
-  providerLogoRef.schema,
-  miniAppLogoRef.schema,
-  assistantAvatarRef.schema,
-  agentAvatarRef.schema
-])
-export type FileRef = z.infer<typeof FileRefSchema>

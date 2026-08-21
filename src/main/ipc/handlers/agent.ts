@@ -1,4 +1,4 @@
-import { setAgentAvatar } from '@main/services/entityAvatar'
+import { setAgentAvatar } from '@main/services/avatar'
 import type { agentRequestSchemas } from '@shared/ipc/schemas/agent'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 

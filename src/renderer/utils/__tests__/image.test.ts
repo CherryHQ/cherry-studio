@@ -6,11 +6,11 @@ import {
   captureScrollable,
   captureScrollableAsBlob,
   captureScrollableAsDataUrl,
-  checkEntityImageSize,
+  checkIconImageSize,
   convertToBase64,
   makeSvgSizeAdaptive,
-  MAX_ENTITY_IMAGE_UPLOAD_BYTES,
-  prepareEntityImageBytes
+  MAX_ICON_IMAGE_UPLOAD_BYTES,
+  prepareIconImageBytes
 } from '../image'
 
 // mock 依赖
@@ -23,7 +23,7 @@ vi.mock('html-to-image', () => ({
   )
 }))
 
-// Deterministic i18n for checkEntityImageSize (avoids depending on real init).
+// Deterministic i18n for checkIconImageSize (avoids depending on real init).
 vi.mock('@renderer/i18n/resolver', () => ({
   default: { t: (key: string, opts?: Record<string, unknown>) => `${key}:${JSON.stringify(opts)}` }
 }))
@@ -48,7 +48,7 @@ describe('utils/image', () => {
     })
   })
 
-  describe('checkEntityImageSize', () => {
+  describe('checkIconImageSize', () => {
     const makeFile = (size: number): File => {
       const file = new File(['x'], 'avatar.png', { type: 'image/png' })
       Object.defineProperty(file, 'size', { value: size })
@@ -56,17 +56,17 @@ describe('utils/image', () => {
     }
 
     it('returns null when the file is within the limit', () => {
-      expect(checkEntityImageSize(makeFile(MAX_ENTITY_IMAGE_UPLOAD_BYTES))).toBeNull()
+      expect(checkIconImageSize(makeFile(MAX_ICON_IMAGE_UPLOAD_BYTES))).toBeNull()
     })
 
     it('returns a localized message when the file exceeds the limit', () => {
-      const message = checkEntityImageSize(makeFile(MAX_ENTITY_IMAGE_UPLOAD_BYTES + 1))
+      const message = checkIconImageSize(makeFile(MAX_ICON_IMAGE_UPLOAD_BYTES + 1))
       expect(message).toContain('message.error.avatar_image_too_large')
       expect(message).toContain('10MB')
     })
   })
 
-  describe('prepareEntityImageBytes', () => {
+  describe('prepareIconImageBytes', () => {
     afterEach(() => {
       vi.unstubAllGlobals()
       vi.restoreAllMocks()
@@ -78,7 +78,7 @@ describe('utils/image', () => {
       vi.stubGlobal('createImageBitmap', vi.fn().mockRejectedValue(new Error('cannot decode')))
       const file = new File(['x'], 'logo.svg', { type: 'image/svg+xml' })
 
-      await expect(prepareEntityImageBytes(file)).rejects.toThrow('message.error.image_process_failed')
+      await expect(prepareIconImageBytes(file)).rejects.toThrow('message.error.image_process_failed')
     })
 
     it('cover-crops the largest centered square into a 128×128 WebP', async () => {
@@ -97,7 +97,7 @@ describe('utils/image', () => {
         cb({ arrayBuffer: async () => webp.buffer } as Blob)
       })
 
-      const out = await prepareEntityImageBytes(new File(['x'], 'a.png', { type: 'image/png' }))
+      const out = await prepareIconImageBytes(new File(['x'], 'a.png', { type: 'image/png' }))
 
       expect(drawImage).toHaveBeenCalledWith(expect.anything(), 50, 0, 100, 100, 0, 0, 128, 128)
       expect(out).toEqual(webp)

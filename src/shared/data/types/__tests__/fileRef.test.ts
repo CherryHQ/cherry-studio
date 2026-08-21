@@ -13,7 +13,7 @@ import {
   providerLogoRef,
   tempSessionFileRefSchema,
   tempSessionSourceType
-} from '../file'
+} from '../fileRef'
 
 const REF_ID = '11111111-2222-4333-8444-000000000001' // UUIDv4
 const ENTRY_ID = '019606a0-0000-7000-8000-000000000001' // UUIDv7
@@ -25,7 +25,7 @@ describe('FileRefSourceType', () => {
   it('exposes exactly the currently-registered source types', () => {
     // Defensive: this assertion locks the currently-registered set. Adding a
     // new variant must also extend the discriminated union and back it with an
-    // FK-constrained association table — see ref/index.ts.
+    // FK-constrained association table — see fileRef.ts.
     // The user profile avatar deliberately has no variant: it is persisted only in the
     // `app.user.avatar` preference (no ref table).
     expect([...allSourceTypes]).toEqual([
@@ -112,7 +112,7 @@ describe('paintingFileRefSchema', () => {
 })
 
 describe('single-file ref variants', () => {
-  it('accepts a well-formed roleless entity-image ref (free-string sourceId)', () => {
+  it('accepts a well-formed roleless single-file ref (free-string sourceId)', () => {
     for (const ref of [providerLogoRef, miniAppLogoRef, assistantAvatarRef, agentAvatarRef]) {
       const parsed = ref.schema.parse({
         id: REF_ID,

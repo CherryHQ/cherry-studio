@@ -62,8 +62,8 @@ vi.mock('@renderer/hooks/useTags', () => ({
   useTagList: () => ({ tags: [] })
 }))
 
-vi.mock('@renderer/hooks/useEntityAvatar', () => ({
-  useEntityAvatar: () => ({
+vi.mock('@renderer/hooks/useAvatarMutations', () => ({
+  useAvatarMutations: () => ({
     setAgentAvatar: controllerMocks.setAgentAvatar,
     setAssistantAvatar: controllerMocks.setAssistantAvatar
   })

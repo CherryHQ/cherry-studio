@@ -6,7 +6,7 @@ import { getProviderLabelKey } from '@renderer/i18n/label'
 import { ProviderAvatar } from '@renderer/pages/settings/ProviderSettings/components/ProviderAvatar'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { toast } from '@renderer/services/toast'
-import { checkEntityImageSize } from '@renderer/utils/image'
+import { checkIconImageSize } from '@renderer/utils/image'
 import { cn, generateColorFromChar, getForegroundColor } from '@renderer/utils/style'
 import { uuid } from '@renderer/utils/uuid'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
@@ -187,7 +187,7 @@ export default function ProviderEditorDrawer({
       return
     }
 
-    const sizeError = checkEntityImageSize(file)
+    const sizeError = checkIconImageSize(file)
     if (sizeError) {
       toast.error(sizeError)
       return

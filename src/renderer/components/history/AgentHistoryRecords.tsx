@@ -1,6 +1,6 @@
+import { AvatarIcon } from '@renderer/components/AvatarIcon'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import type { SessionActionContext } from '@renderer/components/chat/actions/sessionItemActions'
-import { EntityAvatarIcon } from '@renderer/components/EntityAvatarIcon'
 import { AgentSelector } from '@renderer/components/resourceCatalog/selectors'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useAgentSessionStreamStatuses } from '@renderer/hooks/agent/useAgentSessionStreamStatuses'
@@ -193,7 +193,7 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
       renderAvatar: (session: SessionListItem) => {
         const agent = session.agentId ? agentById.get(session.agentId) : undefined
         return agent ? (
-          <EntityAvatarIcon avatar={agent.avatar} size={20} fontSize={12} className="mr-0 text-foreground" />
+          <AvatarIcon avatar={agent.avatar} size={20} fontSize={12} className="mr-0 text-foreground" />
         ) : null
       },
       rowHeight: 32,
@@ -247,7 +247,7 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
               source?.icon ? (
                 source.icon
               ) : agent ? (
-                <EntityAvatarIcon avatar={agent.avatar} size={16} fontSize={10} className="mr-0 text-foreground" />
+                <AvatarIcon avatar={agent.avatar} size={16} fontSize={10} className="mr-0 text-foreground" />
               ) : undefined
             ) : undefined
           }

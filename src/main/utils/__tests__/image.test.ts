@@ -1,7 +1,7 @@
 import sharp from 'sharp'
 import { describe, expect, it } from 'vitest'
 
-import { transcodeToEntityWebp } from '../image'
+import { transcodeToIconWebp } from '../image'
 
 /** A valid 1×1 PNG. */
 const PNG_1X1 = Buffer.from(
@@ -9,9 +9,9 @@ const PNG_1X1 = Buffer.from(
   'base64'
 )
 
-describe('transcodeToEntityWebp', () => {
+describe('transcodeToIconWebp', () => {
   it('normalizes arbitrary image bytes to a 128×128 WebP', async () => {
-    const out = await transcodeToEntityWebp(new Uint8Array(PNG_1X1))
+    const out = await transcodeToIconWebp(new Uint8Array(PNG_1X1))
     const meta = await sharp(out).metadata()
     expect(meta.format).toBe('webp')
     expect(meta.width).toBe(128)
@@ -19,6 +19,6 @@ describe('transcodeToEntityWebp', () => {
   })
 
   it('throws on undecodable input', async () => {
-    await expect(transcodeToEntityWebp(new Uint8Array([1, 2, 3]))).rejects.toThrow()
+    await expect(transcodeToIconWebp(new Uint8Array([1, 2, 3]))).rejects.toThrow()
   })
 })

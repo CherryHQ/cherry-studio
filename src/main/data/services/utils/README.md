@@ -6,17 +6,23 @@ Before using, read the [Row → Entity Mapping](../../../../../docs/references/d
 
 ## File Index
 
-### `entityImageRef.ts` / `entityImageSrc.ts` — single-file entity images
+### `singleFileRef.ts` / `fileEntryUrl.ts` — shared single-file mechanisms
 
-`entityImageRef.ts` reconciles the FK-backed, roleless file-reference slots used
-by provider/mini-app logos and assistant/agent avatars. `entityImageSrc.ts`
-resolves the referenced file entry to a renderer-ready URL at the row-mapping
-boundary. The DB helper never touches the filesystem; the resolver never writes.
+`singleFileRef.ts` owns the FK-backed, roleless file-reference slot operations
+shared by provider/mini-app logos and assistant/agent avatars. `fileEntryUrl.ts`
+resolves a referenced FileEntry to a renderer-ready URL. The DB helper never
+touches the filesystem; the resolver never writes.
 
-### `entityAvatar.ts` — strict entity-avatar row mapping
+### `logoRef.ts` — logo binding policy
 
-`resolveEntityAvatar` converts the mutually exclusive owner-column emoji and
-resolved image reference into the shared `EntityAvatar` discriminated union.
+`reconcileLogoSlotTx` owns provider/mini-app key, file, and default switching.
+It composes the generic single-file slot operations without leaking logo policy
+into `singleFileRef.ts`.
+
+### `avatar.ts` — strict avatar row mapping
+
+`resolveAvatarValue` converts the mutually exclusive owner-column emoji and
+resolved image reference into the shared `AvatarValue` discriminated union.
 It throws when both sources or neither source exist, so persistence drift is
 never hidden behind a renderer fallback.
 

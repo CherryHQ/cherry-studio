@@ -69,8 +69,8 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useMutation: () => ({ trigger: mocks.createAssistant, isLoading: false })
 }))
 
-vi.mock('@renderer/hooks/useEntityAvatar', () => ({
-  useEntityAvatar: () => ({ setAssistantAvatar: vi.fn() })
+vi.mock('@renderer/hooks/useAvatarMutations', () => ({
+  useAvatarMutations: () => ({ setAssistantAvatar: vi.fn() })
 }))
 
 vi.mock('@renderer/hooks/useAssistantCatalogPresets', () => ({

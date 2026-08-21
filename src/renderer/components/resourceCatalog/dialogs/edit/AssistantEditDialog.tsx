@@ -20,8 +20,8 @@ import {
 import { loggerService } from '@logger'
 import PromptEditorField from '@renderer/components/PromptEditorField'
 import { useAssistantMutationsById } from '@renderer/hooks/resourceCatalog'
+import { useAvatarMutations } from '@renderer/hooks/useAvatarMutations'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
-import { useEntityAvatar } from '@renderer/hooks/useEntityAvatar'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import { useEnsureTags, useTagList } from '@renderer/hooks/useTags'
 import { toast } from '@renderer/services/toast'
@@ -178,7 +178,7 @@ function AssistantEditDialogContent({
   modelFilter
 }: EditDialogBaseProps<AssistantEditDialogResource> & { resource: AssistantEditDialogResource }) {
   const { t } = useTranslation()
-  const { setAssistantAvatar } = useEntityAvatar()
+  const { setAssistantAvatar } = useAvatarMutations()
   const [activeTab, setActiveTab] = useState('basic')
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)

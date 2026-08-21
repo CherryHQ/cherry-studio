@@ -37,8 +37,8 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useMutation: () => ({ trigger: mocks.createAgent, isLoading: false })
 }))
 
-vi.mock('@renderer/hooks/useEntityAvatar', () => ({
-  useEntityAvatar: () => ({ setAgentAvatar: vi.fn() })
+vi.mock('@renderer/hooks/useAvatarMutations', () => ({
+  useAvatarMutations: () => ({ setAgentAvatar: vi.fn() })
 }))
 
 vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({ useAgentModelFilter: () => () => true }))

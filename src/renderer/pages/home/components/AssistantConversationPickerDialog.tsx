@@ -1,7 +1,7 @@
 import { MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { AvatarIcon } from '@renderer/components/AvatarIcon'
 import EmojiIcon from '@renderer/components/EmojiIcon'
-import { EntityAvatarIcon } from '@renderer/components/EntityAvatarIcon'
 import {
   ResourceCreateWizard,
   type ResourceCreateWizardValues
@@ -9,7 +9,7 @@ import {
 import { ConversationPickerDialog, type ConversationPickerItem } from '@renderer/components/resourceCatalog/selectors'
 import { useMutation } from '@renderer/data/hooks/useDataApi'
 import { type AssistantCatalogPreset, useAssistantCatalogPresets } from '@renderer/hooks/useAssistantCatalogPresets'
-import { useEntityAvatar } from '@renderer/hooks/useEntityAvatar'
+import { useAvatarMutations } from '@renderer/hooks/useAvatarMutations'
 import type { Assistant } from '@renderer/types/assistant'
 import { buildCreateAssistantDto, isSelectableAssistantModel } from '@renderer/utils/resourceCatalog'
 import { cn } from '@renderer/utils/style'
@@ -50,7 +50,7 @@ export function AssistantConversationPickerDialog({
   onSelect
 }: AssistantConversationPickerDialogProps) {
   const { t } = useTranslation()
-  const { setAssistantAvatar } = useEntityAvatar()
+  const { setAssistantAvatar } = useAvatarMutations()
   const { presets, isLoading: catalogLoading } = useAssistantCatalogPresets({ enabled: open })
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<AssistantPickerTab | null>(null)
@@ -64,7 +64,7 @@ export function AssistantConversationPickerDialog({
       assistants.map((assistant) => ({
         id: `assistant:${assistant.id}`,
         name: assistant.name,
-        icon: <EntityAvatarIcon avatar={assistant.avatar} size={24} fontSize={14} className="mr-0" />,
+        icon: <AvatarIcon avatar={assistant.avatar} size={24} fontSize={14} className="mr-0" />,
         searchText: assistant.description,
         selection: { type: 'assistant' as const, assistantId: assistant.id }
       })),

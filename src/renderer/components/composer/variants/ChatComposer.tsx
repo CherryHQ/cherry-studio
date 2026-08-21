@@ -1,6 +1,7 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
+import { AvatarIcon } from '@renderer/components/AvatarIcon'
 import { MessageEditingProvider, useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
 import {
   ConversationTopBarPortal,
@@ -20,7 +21,6 @@ import {
 } from '@renderer/components/composer/ComposerToolRuntime'
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
-import { EntityAvatarIcon } from '@renderer/components/EntityAvatarIcon'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
@@ -45,7 +45,7 @@ import { canEditAssistantMessageParts } from '@renderer/utils/message/partsHelpe
 import { canModelUseAssistantWebSearch } from '@renderer/utils/model'
 import { cn } from '@renderer/utils/style'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
-import type { EntityAvatar } from '@shared/data/types/entityAvatar'
+import type { AvatarValue } from '@shared/data/types/avatar'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
@@ -148,7 +148,7 @@ const replaceComposerEditableMessageParts = (
 interface ChatComposerContextControlsProps {
   assistantId: string | null
   assistantName: string
-  assistantAvatar?: EntityAvatar
+  assistantAvatar?: AvatarValue
   model?: Model
   modelPending?: boolean
   providers: Provider[]
@@ -227,7 +227,7 @@ const ChatComposerContextControls = ({
   const assistantTrigger = (
     <Button variant="ghost" size="sm" className={compactTriggerClassName}>
       {assistantAvatar ? (
-        <EntityAvatarIcon avatar={assistantAvatar} size={20} />
+        <AvatarIcon avatar={assistantAvatar} size={20} />
       ) : iconOnly ? (
         <Bot size={16} aria-hidden />
       ) : null}

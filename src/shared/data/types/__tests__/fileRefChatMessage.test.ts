@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import type { FileRefSourceType } from '../file'
-import { allSourceTypes, chatMessageFileRefSchema, FileRefSchema } from '../file'
+import type { FileRefSourceType } from '../fileRef'
+import { allSourceTypes, chatMessageFileRefSchema, FileRefSchema } from '../fileRef'
 import { MessageIdSchema } from '../message'
 
 describe('MessageIdSchema', () => {

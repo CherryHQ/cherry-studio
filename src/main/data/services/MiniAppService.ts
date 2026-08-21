@@ -19,19 +19,15 @@ import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
 import { PRESETS_MINI_APPS } from '@shared/data/presets/miniApps'
-import { miniAppLogoRef } from '@shared/data/types/file'
+import { miniAppLogoRef } from '@shared/data/types/fileRef'
 import type { MiniApp, MiniAppId } from '@shared/data/types/miniApp'
 import { and, asc, desc, eq, gt, inArray, lt, ne } from 'drizzle-orm'
 
-import {
-  clearSingleFileRefTx,
-  getSingleFileRefId,
-  type LogoBindInput,
-  reconcileLogoSlotTx
-} from './utils/entityImageRef'
-import { resolveEntityImageSrc } from './utils/entityImageSrc'
+import { resolveFileEntryUrl } from './utils/fileEntryUrl'
+import { type LogoBindInput, reconcileLogoSlotTx } from './utils/logoRef'
 import { applyMoves, generateOrderKeyBetween, insertWithOrderKey } from './utils/orderKey'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
+import { clearSingleFileRef, getSingleFileRef } from './utils/singleFileRef'
 
 const logger = loggerService.withContext('DataApi:MiniAppService')
 
@@ -78,7 +74,7 @@ function rowToMiniApp(row: MiniAppRow): MiniApp {
     // `file://` URL on `logoSrc` (mutually exclusive with `logo`) so the
     // renderer never reconstructs a disk path.
     logo: clean.logoKey,
-    logoSrc: resolveEntityImageSrc(getSingleFileRefId(logoSlot(clean.appId))),
+    logoSrc: resolveFileEntryUrl(getSingleFileRef(logoSlot(clean.appId))),
     status: clean.status,
     orderKey: clean.orderKey,
     createdAt: timestampToISO(clean.createdAt),
@@ -316,7 +312,7 @@ export class MiniAppService {
           // DB-only: drop the logo slot's ref (the file is preserved per the
           // file layer's policy), then delete the row. The FK cascade would also
           // clear it on row delete; the explicit clear keeps the intent local.
-          clearSingleFileRefTx(tx, logoSlot(appId))
+          clearSingleFileRef(tx, logoSlot(appId))
           tx.delete(miniAppTable).where(eq(miniAppTable.appId, appId)).run()
         }),
       defaultHandlersFor('MiniApp', appId)

@@ -1,8 +1,8 @@
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
+import { AvatarIcon } from '@renderer/components/AvatarIcon'
 import type { ActionDescriptor, ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
-import { EntityAvatarIcon } from '@renderer/components/EntityAvatarIcon'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
-import type { EntityAvatar } from '@shared/data/types/entityAvatar'
+import type { AvatarValue } from '@shared/data/types/avatar'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import type { TFunction } from 'i18next'
 import { Check } from 'lucide-react'
@@ -31,7 +31,7 @@ function buildModelAvatarModel(uniqueModelId: unknown, modelName: string | null 
 
 export function renderAssistantEntityIcon(
   iconType: AssistantIconType,
-  assistant: { avatar: EntityAvatar; modelId?: string | null; modelName?: string | null },
+  assistant: { avatar: AvatarValue; modelId?: string | null; modelName?: string | null },
   fallbackModelId?: string | null
 ) {
   if (iconType === 'none') return undefined
@@ -39,12 +39,12 @@ export function renderAssistantEntityIcon(
   const modelAvatarModel = buildModelAvatarModel(assistant.modelId ?? fallbackModelId, assistant.modelName)
   if (iconType === 'model' && modelAvatarModel) return <ModelAvatar model={modelAvatarModel} size={24} />
 
-  return <EntityAvatarIcon avatar={assistant.avatar} size={24} fontSize={14} className="mr-0" />
+  return <AvatarIcon avatar={assistant.avatar} size={24} fontSize={14} className="mr-0" />
 }
 
 export function renderAgentEntityIcon(
   iconType: AssistantIconType,
-  agent: { avatar: EntityAvatar; model?: string | null; modelName?: string | null } | undefined,
+  agent: { avatar: AvatarValue; model?: string | null; modelName?: string | null } | undefined,
   fallbackModelId?: string | null
 ) {
   if (iconType === 'none') return undefined
@@ -52,7 +52,7 @@ export function renderAgentEntityIcon(
   const modelAvatarModel = buildModelAvatarModel(agent?.model ?? fallbackModelId, agent?.modelName)
   if (iconType === 'model' && modelAvatarModel) return <ModelAvatar model={modelAvatarModel} size={24} />
 
-  return agent ? <EntityAvatarIcon avatar={agent.avatar} size={24} fontSize={14} className="mr-0" /> : undefined
+  return agent ? <AvatarIcon avatar={agent.avatar} size={24} fontSize={14} className="mr-0" /> : undefined
 }
 
 export function buildResolvedIconTypeActions(

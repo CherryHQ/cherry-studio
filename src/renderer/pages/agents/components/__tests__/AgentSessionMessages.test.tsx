@@ -72,7 +72,7 @@ describe('AgentSessionMessages', () => {
       expect.objectContaining({
         assistantProfile: {
           name: 'Image avatar agent',
-          entityAvatar: {
+          avatarValue: {
             kind: 'image',
             fileId: '019606a0-0000-7000-8000-000000000001',
             src: 'file:///tmp/avatar.png'

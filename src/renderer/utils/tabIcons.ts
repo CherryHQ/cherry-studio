@@ -1,4 +1,4 @@
-import type { EntityAvatar } from '@shared/data/types/entityAvatar'
+import type { AvatarValue } from '@shared/data/types/avatar'
 
 /** `Tab.icon` descriptor prefix marking an emoji glyph (vs mini-app id / image url). */
 export const TAB_ICON_EMOJI_PREFIX = 'emoji:'
@@ -9,7 +9,7 @@ export function emojiTabIcon(emoji: string | null | undefined): string | undefin
   return glyph ? `${TAB_ICON_EMOJI_PREFIX}${glyph}` : undefined
 }
 
-/** Convert the strict entity-avatar contract to the tab system's persisted icon descriptor. */
-export function entityAvatarTabIcon(avatar: EntityAvatar | undefined): string | undefined {
+/** Convert AvatarValue to the tab system's persisted icon descriptor. */
+export function avatarTabIcon(avatar: AvatarValue | undefined): string | undefined {
   return avatar?.kind === 'emoji' ? emojiTabIcon(avatar.emoji) : avatar?.src
 }

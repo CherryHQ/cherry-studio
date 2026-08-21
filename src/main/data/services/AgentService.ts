@@ -9,11 +9,11 @@ import type { DbOrTx } from '@data/db/types'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { getDataService } from '@data/services/dataServiceRegistry'
 import { pinService } from '@data/services/PinService'
-import { type ResolvedAvatarImage, resolveEntityAvatar } from '@data/services/utils/entityAvatar'
-import { clearSingleFileRefTx, setSingleFileRefTx } from '@data/services/utils/entityImageRef'
-import { resolveEntityImageSrc } from '@data/services/utils/entityImageSrc'
+import { resolveAvatarValue, type ResolvedAvatarImage } from '@data/services/utils/avatar'
+import { resolveFileEntryUrl } from '@data/services/utils/fileEntryUrl'
 import { applyMoves, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
+import { clearSingleFileRef, setSingleFileRef } from '@data/services/utils/singleFileRef'
 import { loggerService } from '@logger'
 import { Emitter, type Event } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
@@ -30,7 +30,8 @@ import {
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { ListOptions } from '@shared/data/api/types'
 import type { AgentType } from '@shared/data/types/agent'
-import { agentAvatarRef, type FileEntryId } from '@shared/data/types/file'
+import type { FileEntryId } from '@shared/data/types/file'
+import { agentAvatarRef } from '@shared/data/types/fileRef'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { and, asc, count, desc, eq, gte, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
@@ -113,7 +114,7 @@ function rowToAgent(
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt),
     modelName,
-    avatar: resolveEntityAvatar({ type: 'agent', id: row.id }, row.avatarEmoji, avatarImage)
+    avatar: resolveAvatarValue({ type: 'agent', id: row.id }, row.avatarEmoji, avatarImage)
   }
 }
 
@@ -165,7 +166,7 @@ export class AgentService {
       .where(inArray(agentAvatarFileRefTable.sourceId, agentIds))
       .all()
     return new Map(
-      rows.map((row) => [row.agentId, { fileId: row.fileEntryId, src: resolveEntityImageSrc(row.fileEntryId)! }])
+      rows.map((row) => [row.agentId, { fileId: row.fileEntryId, src: resolveFileEntryUrl(row.fileEntryId)! }])
     )
   }
 
@@ -218,7 +219,7 @@ export class AgentService {
         application.get('DbService').withWriteTx((tx) => {
           getDataService('AgentGlobalSkillService').assertSkillsExistTx(tx, skillIds, 'create agent')
           const result = this.createAgentTx(tx, id, insertData)
-          if (avatar.kind === 'image') setSingleFileRefTx(tx, avatarSlot(id), avatar.fileId)
+          if (avatar.kind === 'image') setSingleFileRef(tx, avatarSlot(id), avatar.fileId)
           // Insert junction rows for MCP associations
           if (mcps.length > 0) {
             tx.insert(agentMcpServerTable)
@@ -240,7 +241,7 @@ export class AgentService {
     }
 
     const avatarImage =
-      avatar.kind === 'image' ? { fileId: avatar.fileId, src: resolveEntityImageSrc(avatar.fileId)! } : undefined
+      avatar.kind === 'image' ? { fileId: avatar.fileId, src: resolveFileEntryUrl(avatar.fileId)! } : undefined
     const agent = rowToAgent(row.agent, row.modelName || null, mcps, avatarImage)
     this._onAgentCreated.fire({ agentId: id, agent })
     return agent
@@ -388,7 +389,7 @@ export class AgentService {
       id: row.id,
       title: row.name,
       subtitle: getAgentDescription(row.description, row.configuration) || undefined,
-      avatar: resolveEntityAvatar({ type: 'agent', id: row.id }, row.avatarEmoji, avatarImages.get(row.id)),
+      avatar: resolveAvatarValue({ type: 'agent', id: row.id }, row.avatarEmoji, avatarImages.get(row.id)),
       updatedAt: timestampToISO(row.updatedAt),
       target: { agentId: row.id }
     }))
@@ -480,7 +481,7 @@ export class AgentService {
 
     application.get('DbService').withWriteTx((tx) => {
       this.updateAgentTx(tx, id, { avatarEmoji: null, updatedAt: Date.now() })
-      setSingleFileRefTx(tx, avatarSlot(id), fileId)
+      setSingleFileRef(tx, avatarSlot(id), fileId)
     })
     return this.getAgent(id)!
   }
@@ -490,7 +491,7 @@ export class AgentService {
 
     application.get('DbService').withWriteTx((tx) => {
       this.updateAgentTx(tx, id, { avatarEmoji: emoji, updatedAt: Date.now() })
-      clearSingleFileRefTx(tx, avatarSlot(id))
+      clearSingleFileRef(tx, avatarSlot(id))
     })
     return this.getAgent(id)!
   }

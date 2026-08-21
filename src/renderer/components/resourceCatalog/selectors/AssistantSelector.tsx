@@ -5,7 +5,7 @@ import {
 } from '@renderer/components/resourceCatalog/dialogs/create'
 import type { SelectorShellMountStrategy, SelectorShellProps } from '@renderer/components/SelectorShell'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
-import { useEntityAvatar } from '@renderer/hooks/useEntityAvatar'
+import { useAvatarMutations } from '@renderer/hooks/useAvatarMutations'
 import { usePins } from '@renderer/hooks/usePins'
 import { toast } from '@renderer/services/toast'
 import { buildCreateAssistantDto, isSelectableAssistantModel } from '@renderer/utils/resourceCatalog'
@@ -95,7 +95,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
     mountStrategy
   } = props
   const { t } = useTranslation()
-  const { setAssistantAvatar } = useEntityAvatar()
+  const { setAssistantAvatar } = useAvatarMutations()
   const [internalOpen, setInternalOpen] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)

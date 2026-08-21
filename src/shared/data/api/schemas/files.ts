@@ -50,8 +50,10 @@
  */
 
 import type { CursorPaginationParams, CursorPaginationResponse } from '@shared/data/api/types'
-import type { FileEntry, FileEntryId, FileRef } from '@shared/data/types/file'
-import { FileEntryIdSchema, FileEntryOriginSchema, FileRefSourceTypeSchema } from '@shared/data/types/file'
+import type { FileEntry, FileEntryId } from '@shared/data/types/file'
+import { FileEntryIdSchema, FileEntryOriginSchema } from '@shared/data/types/file'
+import type { FileRef } from '@shared/data/types/fileRef'
+import { FileRefSourceTypeSchema } from '@shared/data/types/fileRef'
 import * as z from 'zod'
 
 /**

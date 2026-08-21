@@ -66,7 +66,7 @@ const AgentSessionMessages = ({
       activeAgent
         ? {
             name: activeAgent.name,
-            entityAvatar: activeAgent.avatar
+            avatarValue: activeAgent.avatar
           }
         : undefined,
     [activeAgent]

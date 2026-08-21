@@ -15,7 +15,7 @@ import MiniAppLogoAvatar from '@renderer/components/icons/MiniAppLogoAvatar'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
-import { checkEntityImageSize, prepareEntityImageBytes } from '@renderer/utils/image'
+import { checkIconImageSize, prepareIconImageBytes } from '@renderer/utils/image'
 import { uuid } from '@renderer/utils/uuid'
 import { MiniAppUrlSchema } from '@shared/data/api/schemas/miniApps'
 import type { MiniApp } from '@shared/data/types/miniApp'
@@ -98,7 +98,7 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
-    const sizeError = checkEntityImageSize(file)
+    const sizeError = checkIconImageSize(file)
     if (sizeError) {
       toast.error(sizeError)
       return
@@ -143,8 +143,8 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
     let logoFailed = false
     if (stagedFile) {
       try {
-        const data = await prepareEntityImageBytes(stagedFile)
-        await ipcApi.request('mini_app.set_logo', { appId, image: { kind: 'image', data } })
+        const data = await prepareIconImageBytes(stagedFile)
+        await ipcApi.request('mini_app.set_logo', { appId, logo: { kind: 'image', data } })
         await refreshCustomMiniApp(appId)
       } catch (error) {
         logoFailed = true

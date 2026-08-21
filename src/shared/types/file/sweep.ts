@@ -7,7 +7,8 @@
  * without crossing the main / renderer boundary.
  */
 
-import type { FileEntryOrigin, FileRefSourceType } from '@shared/data/types/file'
+import type { FileEntryOrigin } from '@shared/data/types/file'
+import type { FileRefSourceType } from '@shared/data/types/fileRef'
 
 /** Counts shared across every `OrphanReport` variant — the "what was seen" portion. */
 export interface OrphanReportCounts {

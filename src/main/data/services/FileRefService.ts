@@ -27,7 +27,8 @@ import {
   type ProviderLogoFileRefRow,
   providerLogoFileRefTable
 } from '@data/db/schemas/fileRelations'
-import type { FileEntryId, FileRef, FileRefSourceType, tempSessionRoles } from '@shared/data/types/file'
+import type { FileEntryId } from '@shared/data/types/file'
+import type { FileRef, FileRefSourceType, tempSessionRoles } from '@shared/data/types/fileRef'
 import {
   agentAvatarRef,
   assistantAvatarRef,
@@ -37,7 +38,7 @@ import {
   paintingSourceType,
   providerLogoRef,
   tempSessionSourceType
-} from '@shared/data/types/file'
+} from '@shared/data/types/fileRef'
 import { asc, count, eq, inArray } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 

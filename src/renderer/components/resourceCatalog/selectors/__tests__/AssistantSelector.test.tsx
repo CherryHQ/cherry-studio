@@ -71,8 +71,8 @@ vi.mock('@renderer/hooks/usePins', () => ({
   usePins: usePinsMock
 }))
 
-vi.mock('@renderer/hooks/useEntityAvatar', () => ({
-  useEntityAvatar: () => ({ setAssistantAvatar: vi.fn() })
+vi.mock('@renderer/hooks/useAvatarMutations', () => ({
+  useAvatarMutations: () => ({ setAssistantAvatar: vi.fn() })
 }))
 
 vi.mock('@renderer/hooks/useModel', async (importOriginal) => ({

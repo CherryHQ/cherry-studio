@@ -172,8 +172,8 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useQuery: useQueryMock
 }))
 
-vi.mock('@renderer/hooks/useEntityAvatar', () => ({
-  useEntityAvatar: () => ({
+vi.mock('@renderer/hooks/useAvatarMutations', () => ({
+  useAvatarMutations: () => ({
     setAgentAvatar: vi.fn(),
     setAssistantAvatar: vi.fn()
   })

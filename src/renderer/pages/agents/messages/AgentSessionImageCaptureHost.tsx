@@ -62,7 +62,7 @@ const AgentSessionImageCaptureHost = ({ activeAgent, modelFallback, session }: A
     assistantProfile: activeAgent
       ? {
           name: activeAgent.name,
-          entityAvatar: activeAgent.avatar
+          avatarValue: activeAgent.avatar
         }
       : undefined,
     assistantId: session.agentId ?? undefined,

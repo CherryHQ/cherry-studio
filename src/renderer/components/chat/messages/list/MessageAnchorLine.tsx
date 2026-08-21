@@ -1,6 +1,6 @@
 import { Avatar, AvatarImage, EmojiAvatar } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
-import { EntityAvatarIcon } from '@renderer/components/EntityAvatarIcon'
+import { AvatarIcon } from '@renderer/components/AvatarIcon'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { scrollIntoView } from '@renderer/utils/dom'
@@ -222,8 +222,8 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
               </MessageItemContainer>
 
               {message.role === 'assistant' ? (
-                assistantProfile?.entityAvatar ? (
-                  <EntityAvatarIcon avatar={assistantProfile.entityAvatar} size={size} fontSize={size * 0.6} />
+                assistantProfile?.avatarValue ? (
+                  <AvatarIcon avatar={assistantProfile.avatarValue} size={size} fontSize={size * 0.6} />
                 ) : (
                   <AnchorModelAvatar model={model} size={size} />
                 )

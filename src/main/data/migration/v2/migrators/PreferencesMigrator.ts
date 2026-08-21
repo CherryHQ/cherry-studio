@@ -6,7 +6,7 @@ import { preferenceTable } from '@data/db/schemas/preference'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
-import { tagStoredFileRef } from '@shared/data/types/file'
+import { tagStoredFileRef } from '@shared/data/types/fileRef'
 import { and, eq, sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
@@ -19,11 +19,11 @@ import {
   REDUX_STORE_MAPPINGS
 } from './mappings/PreferencesMappings'
 import {
-  insertPreparedImageEntryTx,
-  prepareBase64ImageFileEntry,
-  type PreparedEntityImageFile,
-  unlinkPreparedImages
-} from './utils/logoMigration'
+  insertPreparedIconEntryTx,
+  prepareBase64IconFileEntry,
+  type PreparedIconImageFile,
+  unlinkPreparedIcons
+} from './utils/iconImageMigration'
 
 const logger = loggerService.withContext('PreferencesMigrator')
 
@@ -226,7 +226,7 @@ export class PreferencesMigrator extends BaseMigrator {
       return { success: true, processedCount: 0 }
     }
 
-    const avatarFiles: PreparedEntityImageFile[] = []
+    const avatarFiles: PreparedIconImageFile[] = []
     try {
       const db = ctx.db
       const scope = 'default'
@@ -242,7 +242,7 @@ export class PreferencesMigrator extends BaseMigrator {
           typeof item.value === 'string' &&
           item.value.startsWith('data:')
         ) {
-          const avatarFile = await prepareBase64ImageFileEntry(ctx.paths.filesDataDir, AVATAR_REF, item.value)
+          const avatarFile = await prepareBase64IconFileEntry(ctx.paths.filesDataDir, AVATAR_REF, item.value)
           item.value = avatarFile ? tagStoredFileRef(avatarFile.id) : ''
           if (avatarFile) avatarFiles.push(avatarFile)
         }
@@ -250,7 +250,7 @@ export class PreferencesMigrator extends BaseMigrator {
 
       db.transaction((tx) => {
         for (const avatarFile of avatarFiles) {
-          insertPreparedImageEntryTx(tx, avatarFile)
+          insertPreparedIconEntryTx(tx, avatarFile)
         }
 
         // Batch insert all preferences
@@ -285,7 +285,7 @@ export class PreferencesMigrator extends BaseMigrator {
       }
     } catch (error) {
       // Unlink any avatar WebP written before the tx failed — no orphan on retry.
-      await unlinkPreparedImages(avatarFiles)
+      await unlinkPreparedIcons(avatarFiles)
       logger.error('Execute failed', error as Error)
       return {
         success: false,

@@ -3,7 +3,7 @@ import * as z from 'zod'
 import { LogoKeySchema } from './logoKey'
 
 /**
- * Renderer-facing entity-logo create schema (provider / mini-app).
+ * Renderer-facing Provider/MiniApp logo create schema.
  *
  * Only a preset key is expressible here. A custom *uploaded* logo is NOT part of
  * a DataApi DTO; uploads (and all logo *edits*) go through the dedicated IpcApi
@@ -11,7 +11,7 @@ import { LogoKeySchema } from './logoKey'
  * the `file_entry` main-side, and bind it — which is why DataApi services never
  * see raw bytes (pure DB). The service-internal bind input the command
  * orchestrator hands to `reconcileLogoSlotTx` after minting the `file_entry`
- * lives in the main layer (`LogoBindInput` in `@data/services/utils/entityImageRef`),
+ * lives in the main layer (`LogoBindInput` in `@data/services/utils/logoRef`),
  * never here — its `file` variant never originates from the renderer.
  *
  * An uploaded logo lives only in the single-file `file_ref` slot (the source of

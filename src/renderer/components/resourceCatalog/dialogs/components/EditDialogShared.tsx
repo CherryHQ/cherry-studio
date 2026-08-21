@@ -29,7 +29,7 @@ import { ModelSelector } from '@renderer/components/ModelSelector'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { useModelById } from '@renderer/hooks/useModel'
 import { toast } from '@renderer/services/toast'
-import { checkEntityImageSize, prepareEntityImageBytes } from '@renderer/utils/image'
+import { checkIconImageSize, prepareIconImageBytes } from '@renderer/utils/image'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { ArrowUpRight, ChevronDown, Database, HelpCircle, Trash2, X } from 'lucide-react'
 import { type ComponentProps, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -585,14 +585,14 @@ export function AvatarField({
   const [uploading, setUploading] = useState(false)
 
   const handleImageSelect = async (file: File) => {
-    const sizeError = checkEntityImageSize(file)
+    const sizeError = checkIconImageSize(file)
     if (sizeError) {
       toast.error(sizeError)
       return
     }
     setUploading(true)
     try {
-      const data = await prepareEntityImageBytes(file)
+      const data = await prepareIconImageBytes(file)
       await onImageDataChange?.(data)
       setEmojiPickerOpen(false)
     } catch (error) {

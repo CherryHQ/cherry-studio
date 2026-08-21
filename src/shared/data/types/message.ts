@@ -13,7 +13,7 @@ import type {
 } from 'ai'
 import * as z from 'zod'
 
-import { EntityAvatarSchema } from './entityAvatar'
+import { AvatarValueSchema } from './avatar'
 import type { CherryDataPartTypes } from './uiParts'
 
 /**
@@ -397,7 +397,7 @@ export type ModelSnapshot = z.infer<typeof ModelSnapshotSchema>
 export const MessageSnapshotSchema = z.strictObject({
   id: z.string(),
   name: z.string(),
-  avatar: EntityAvatarSchema,
+  avatar: AvatarValueSchema,
   model: ModelSnapshotSchema
 })
 export type MessageSnapshot = z.infer<typeof MessageSnapshotSchema>

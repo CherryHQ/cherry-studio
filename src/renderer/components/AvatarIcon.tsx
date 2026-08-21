@@ -1,16 +1,16 @@
 import { cn } from '@cherrystudio/ui/lib/utils'
 import EmojiIcon from '@renderer/components/EmojiIcon'
-import type { EntityAvatar } from '@shared/data/types/entityAvatar'
+import type { AvatarValue } from '@shared/data/types/avatar'
 import type { CSSProperties } from 'react'
 
-type EntityAvatarIconProps = {
-  avatar: EntityAvatar
+type AvatarIconProps = {
+  avatar: AvatarValue
   className?: string
   size?: number
   fontSize?: number
 }
 
-export function EntityAvatarIcon({ avatar, className, size = 26, fontSize = 15 }: EntityAvatarIconProps) {
+export function AvatarIcon({ avatar, className, size = 26, fontSize = 15 }: AvatarIconProps) {
   if (avatar.kind === 'emoji') {
     return <EmojiIcon emoji={avatar.emoji} className={className} size={size} fontSize={fontSize} />
   }

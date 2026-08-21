@@ -1,4 +1,4 @@
-import { useEntityAvatar } from '@renderer/hooks/useEntityAvatar'
+import { useAvatarMutations } from '@renderer/hooks/useAvatarMutations'
 import { useEnsureTags, useTagList } from '@renderer/hooks/useTags'
 import { toast } from '@renderer/services/toast'
 import type {
@@ -62,7 +62,7 @@ function buildTags(resources: ResourceItem[], backendTags: Tag[], filterType?: R
 
 export function useResourceCatalogController(resourceType: ResourceCatalogControllerType) {
   const { t } = useTranslation()
-  const { setAgentAvatar, setAssistantAvatar } = useEntityAvatar()
+  const { setAgentAvatar, setAssistantAvatar } = useAvatarMutations()
   const [search, setSearch] = useState('')
   const [activeTag, setActiveTag] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<ResourceItem | null>(null)

@@ -14,9 +14,9 @@ vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: mocks.request }
 }))
 
-import { useEntityAvatar } from '../useEntityAvatar'
+import { useAvatarMutations } from '../useAvatarMutations'
 
-describe('useEntityAvatar', () => {
+describe('useAvatarMutations hook', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.invalidate.mockResolvedValue(undefined)
@@ -29,7 +29,7 @@ describe('useEntityAvatar', () => {
     }
     mocks.request.mockResolvedValue(updated)
     const bytes = new Uint8Array([1, 2, 3])
-    const { result } = renderHook(() => useEntityAvatar())
+    const { result } = renderHook(() => useAvatarMutations())
 
     await act(async () => {
       await result.current.setAssistantAvatar('assistant-1', { kind: 'image', data: bytes })
@@ -45,7 +45,7 @@ describe('useEntityAvatar', () => {
 
   it('writes an agent emoji and invalidates every agent avatar surface', async () => {
     mocks.request.mockResolvedValue({ id: 'agent-1', avatar: { kind: 'emoji', emoji: '🦞' } })
-    const { result } = renderHook(() => useEntityAvatar())
+    const { result } = renderHook(() => useAvatarMutations())
 
     await act(async () => {
       await result.current.setAgentAvatar('agent-1', { kind: 'emoji', emoji: '🦞' })

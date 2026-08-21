@@ -1,4 +1,4 @@
-import { setAssistantAvatar } from '@main/services/entityAvatar'
+import { setAssistantAvatar } from '@main/services/avatar'
 import type { assistantRequestSchemas } from '@shared/ipc/schemas/assistant'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 

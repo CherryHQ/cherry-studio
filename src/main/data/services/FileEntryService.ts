@@ -48,7 +48,7 @@ import {
   miniAppLogoRef,
   paintingSourceType,
   providerLogoRef
-} from '@shared/data/types/file'
+} from '@shared/data/types/fileRef'
 import { and, asc, count, eq, isNotNull, isNull, type SQL, sql, type SQLWrapper } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
 import * as z from 'zod'

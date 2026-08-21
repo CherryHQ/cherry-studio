@@ -43,7 +43,8 @@ import { hasPendingRestore } from '@data/db/restore/restoreJournal'
 import type { FileEntryService } from '@data/services/FileEntryService'
 import type { FileRefService } from '@data/services/FileRefService'
 import { loggerService } from '@logger'
-import type { FileEntryId, FileEntryOrigin, FileRefSourceType } from '@shared/data/types/file'
+import type { FileEntryId, FileEntryOrigin } from '@shared/data/types/file'
+import type { FileRefSourceType } from '@shared/data/types/fileRef'
 
 const logger = loggerService.withContext('FileManager:orphanSweep')
 

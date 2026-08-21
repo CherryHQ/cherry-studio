@@ -17,8 +17,8 @@ import {
 import { loggerService } from '@logger'
 import PromptEditorField from '@renderer/components/PromptEditorField'
 import { useAgentMutationsById } from '@renderer/hooks/resourceCatalog'
+import { useAvatarMutations } from '@renderer/hooks/useAvatarMutations'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
-import { useEntityAvatar } from '@renderer/hooks/useEntityAvatar'
 import { useInstalledSkills } from '@renderer/hooks/useSkills'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import {
@@ -204,7 +204,7 @@ function AgentEditDialogContent({
   modelFilter
 }: EditDialogBaseProps<AgentDetail> & { resource: AgentDetail }) {
   const { t } = useTranslation()
-  const { setAgentAvatar } = useEntityAvatar()
+  const { setAgentAvatar } = useAvatarMutations()
   const [activeTab, setActiveTab] = useState('basic')
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)

@@ -1,6 +1,6 @@
 import { Checkbox, CustomTag, EmptyState, type EmptyStatePreset } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { EntityAvatarIcon } from '@renderer/components/EntityAvatarIcon'
+import { AvatarIcon } from '@renderer/components/AvatarIcon'
 import {
   MODEL_SELECTOR_ROW_CHECKBOX_CLASS,
   ModelSelectorRow,
@@ -13,7 +13,7 @@ import {
   type SelectorShellMountStrategy,
   type SelectorShellProps
 } from '@renderer/components/SelectorShell'
-import type { EntityAvatar } from '@shared/data/types/entityAvatar'
+import type { AvatarValue } from '@shared/data/types/avatar'
 import { Pin, Plus, SquarePen } from 'lucide-react'
 import {
   type KeyboardEvent as ReactKeyboardEvent,
@@ -30,7 +30,7 @@ import {
 export type ResourceSelectorShellItem = {
   id: string
   name: string
-  avatar?: EntityAvatar
+  avatar?: AvatarValue
   description?: string
   tag?: string
   disabled?: boolean
@@ -609,7 +609,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
     const pinAction = renderPinAction(item)
 
     const leading = item.avatar ? (
-      <EntityAvatarIcon avatar={item.avatar} size={20} fontSize={16} className="mr-0" />
+      <AvatarIcon avatar={item.avatar} size={20} fontSize={16} className="mr-0" />
     ) : fallbackIcon ? (
       <span className="flex size-5 shrink-0 items-center justify-center">{fallbackIcon}</span>
     ) : null

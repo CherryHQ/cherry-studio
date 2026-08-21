@@ -1,7 +1,7 @@
 import * as z from 'zod'
 
 import { defineRoute } from '../define'
-import { LogoImageIntentSchema } from './entityImage'
+import { SetLogoIntentSchema } from './logo'
 
 /**
  * Provider imperative IPC commands. `provider.set_logo` sends business intent +
@@ -11,7 +11,7 @@ import { LogoImageIntentSchema } from './entityImage'
  */
 export const providerRequestSchemas = {
   'provider.set_logo': defineRoute({
-    input: z.strictObject({ providerId: z.string().min(1), image: LogoImageIntentSchema }),
+    input: z.strictObject({ providerId: z.string().min(1), logo: SetLogoIntentSchema }),
     output: z.void()
   })
 }

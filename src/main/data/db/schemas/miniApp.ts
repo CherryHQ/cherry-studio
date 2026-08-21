@@ -37,7 +37,7 @@ export const miniAppTable = sqliteTable(
      * Preset/bundled logo reference — a `getMiniAppsLogo` icon id (e.g.
      * `'application'`) or a custom app's URL. A user-uploaded custom logo has no
      * key here: it lives solely in the `mini_app_logo_file_ref` table (the
-     * single source of truth), resolved back via `getSingleFileRefId`.
+     * single source of truth), resolved back via `getSingleFileRef`.
      */
     logoKey: text('logo_key'),
 

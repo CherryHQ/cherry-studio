@@ -10,7 +10,7 @@ import { miniAppTable } from '@data/db/schemas/miniApp'
 import { loggerService } from '@logger'
 import { MINI_APP_ID_REGEX } from '@shared/data/api/schemas/miniApps'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
-import { miniAppLogoRef } from '@shared/data/types/file'
+import { miniAppLogoRef } from '@shared/data/types/fileRef'
 import { sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
@@ -18,13 +18,13 @@ import { assignOrderKeysByScope } from '../utils/orderKey'
 import { BaseMigrator } from './BaseMigrator'
 import { transformMiniApp } from './mappings/MiniAppMappings'
 import {
-  type EntityImageRef,
-  insertPreparedImageEntryTx,
-  insertPreparedImageRefTx,
-  prepareBase64ImageFileEntry,
-  type PreparedEntityImageFile,
-  unlinkPreparedImages
-} from './utils/logoMigration'
+  type IconImageRef,
+  insertPreparedIconEntryTx,
+  insertPreparedIconRefTx,
+  prepareBase64IconFileEntry,
+  type PreparedIconImageFile,
+  unlinkPreparedIcons
+} from './utils/iconImageMigration'
 
 type MiniAppRowWithoutOrderKey = Omit<InsertMiniAppRow, 'orderKey'>
 
@@ -193,7 +193,7 @@ export class MiniAppMigrator extends BaseMigrator {
       return { success: true, processedCount: 0 }
     }
 
-    const logoFiles: PreparedEntityImageFile<EntityImageRef>[] = []
+    const logoFiles: PreparedIconImageFile<IconImageRef>[] = []
     try {
       let processed = 0
 
@@ -204,7 +204,7 @@ export class MiniAppMigrator extends BaseMigrator {
       // which is nulled. A non-data-URL logoKey (url / icon ref) is left as-is.
       for (const row of this.preparedRows) {
         if (row.logoKey?.startsWith('data:')) {
-          const logoFile = await prepareBase64ImageFileEntry(
+          const logoFile = await prepareBase64IconFileEntry(
             ctx.paths.filesDataDir,
             miniAppLogoSlot(row.appId),
             row.logoKey
@@ -217,9 +217,9 @@ export class MiniAppMigrator extends BaseMigrator {
       ctx.db.transaction((tx) => {
         // Insert file_entries first (the ref rows' `file_entry_id` FK needs
         // them), then the owner rows, then the ref rows (whose `source_id` FK
-        // needs the owner) — see entityImageRef ordering.
+        // needs the owner) — see singleFileRef ordering.
         for (const logoFile of logoFiles) {
-          insertPreparedImageEntryTx(tx, logoFile)
+          insertPreparedIconEntryTx(tx, logoFile)
         }
 
         for (let i = 0; i < this.preparedRows.length; i += BATCH_SIZE) {
@@ -229,7 +229,7 @@ export class MiniAppMigrator extends BaseMigrator {
         }
 
         for (const logoFile of logoFiles) {
-          insertPreparedImageRefTx(tx, logoFile)
+          insertPreparedIconRefTx(tx, logoFile)
         }
       })
 
@@ -249,7 +249,7 @@ export class MiniAppMigrator extends BaseMigrator {
     } catch (error) {
       // The WebP files are written before the tx; unlink them so a rolled-back
       // transaction leaves no orphans behind for the retry.
-      await unlinkPreparedImages(logoFiles)
+      await unlinkPreparedIcons(logoFiles)
       logger.error('Execute failed', error as Error)
       return {
         success: false,

@@ -1,4 +1,4 @@
-import type { tempSessionSourceType } from '@shared/data/types/file'
+import type { tempSessionSourceType } from '@shared/data/types/fileRef'
 import {
   agentAvatarRef,
   assistantAvatarRef,
@@ -9,7 +9,7 @@ import {
   paintingRoles,
   paintingSourceType,
   providerLogoRef
-} from '@shared/data/types/file'
+} from '@shared/data/types/fileRef'
 import { sql, type SQLWrapper } from 'drizzle-orm'
 import { check, index, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
@@ -88,14 +88,14 @@ export const paintingFileRefTable = sqliteTable(
 )
 
 /**
- * Single-file entity-image refs (provider/mini-app logos and assistant/agent avatars).
+ * Roleless single-file refs (provider/mini-app logos and assistant/agent avatars).
  *
  * These model a single-file slot and are the **single source of truth** for an
- * owner's uploaded entity image. Logo owner rows keep their non-file choice;
+ * owner's uploaded icon image. Logo owner rows keep their non-file choice;
  * assistant/agent rows set `avatarEmoji` to null while an image ref exists.
  * Writes go through the
- * `entityImageRef` helpers (`reconcileLogoSlotTx` / `clearSingleFileRefTx`);
- * reads look the file id back up via `getSingleFileRefId` (one indexed lookup on the unique `(sourceId)`
+ * `singleFileRef` helpers (`reconcileLogoSlotTx` / `clearSingleFileRef`);
+ * reads look the file id back up via `getSingleFileRef` (one indexed lookup on the unique `(sourceId)`
  * index). `sourceId` carries a **FK to the owner** (`onDelete: 'cascade'`) and
  * `fileEntryId` a FK to the file (`onDelete: 'cascade'`), matching the
  * collection ref tables (`chat_message`, `painting`): dropping a provider /

@@ -8,7 +8,7 @@
 import * as z from 'zod'
 
 import { type Assistant, AssistantSchema, AssistantSettingsSchema } from '../../types/assistant'
-import { EntityAvatarInputSchema } from '../../types/entityAvatar'
+import { AvatarInputSchema } from '../../types/avatar'
 import { TagIdSchema } from '../../types/tag'
 import type { OffsetPaginationResponse } from '../types'
 import type { OrderEndpoints } from './_endpointHelpers'
@@ -55,7 +55,7 @@ const TagIdsField = z.array(TagIdSchema).optional()
 export const CreateAssistantSchema = AssistantSchema.pick(ASSISTANT_MUTABLE_FIELDS)
   .partial()
   .required({ name: true })
-  .extend({ avatar: EntityAvatarInputSchema.optional(), tagIds: TagIdsField })
+  .extend({ avatar: AvatarInputSchema.optional(), tagIds: TagIdsField })
 export type CreateAssistantDto = z.infer<typeof CreateAssistantSchema>
 
 /**

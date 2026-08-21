@@ -80,8 +80,8 @@ vi.mock('@renderer/hooks/usePins', () => ({
   usePins: usePinsMock
 }))
 
-vi.mock('@renderer/hooks/useEntityAvatar', () => ({
-  useEntityAvatar: () => ({ setAgentAvatar: vi.fn() })
+vi.mock('@renderer/hooks/useAvatarMutations', () => ({
+  useAvatarMutations: () => ({ setAgentAvatar: vi.fn() })
 }))
 
 vi.mock('@renderer/hooks/useModel', async (importOriginal) => ({

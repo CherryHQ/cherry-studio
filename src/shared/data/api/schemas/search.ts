@@ -5,7 +5,7 @@
  * Content search is full-text-oriented and keeps per-source cursor semantics.
  */
 
-import type { EntityAvatar } from '@shared/data/types/entityAvatar'
+import type { AvatarValue } from '@shared/data/types/avatar'
 import type { AgentSessionMessageSearchRole, TopicMessageSearchRole } from '@shared/data/types/message'
 import * as z from 'zod'
 
@@ -40,7 +40,7 @@ export type EntitySearchItem = {
   id: string
   title: string
   subtitle?: string
-  avatar?: EntityAvatar
+  avatar?: AvatarValue
   updatedAt?: string
 } & EntitySearchTarget
 

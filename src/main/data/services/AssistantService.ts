@@ -19,7 +19,8 @@ import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateAssistantDto, ListAssistantsQuery, UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
-import { assistantAvatarRef, type FileEntryId } from '@shared/data/types/file'
+import type { FileEntryId } from '@shared/data/types/file'
+import { assistantAvatarRef } from '@shared/data/types/fileRef'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { Tag } from '@shared/data/types/tag'
 import { and, asc, desc, eq, gte, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
@@ -28,11 +29,11 @@ import { modelService } from './ModelService'
 import { pinService } from './PinService'
 import { tagService } from './TagService'
 import { topicService } from './TopicService'
-import { type ResolvedAvatarImage, resolveEntityAvatar } from './utils/entityAvatar'
-import { clearSingleFileRefTx, setSingleFileRefTx } from './utils/entityImageRef'
-import { resolveEntityImageSrc } from './utils/entityImageSrc'
+import { resolveAvatarValue, type ResolvedAvatarImage } from './utils/avatar'
+import { resolveFileEntryUrl } from './utils/fileEntryUrl'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
+import { clearSingleFileRef, setSingleFileRef } from './utils/singleFileRef'
 
 const logger = loggerService.withContext('DataApi:AssistantService')
 
@@ -72,7 +73,7 @@ function rowToAssistant(
     updatedAt: timestampToISO(row.updatedAt),
     tags,
     modelName,
-    avatar: resolveEntityAvatar({ type: 'assistant', id: row.id }, row.avatarEmoji, avatarImage)
+    avatar: resolveAvatarValue({ type: 'assistant', id: row.id }, row.avatarEmoji, avatarImage)
   }
 }
 
@@ -115,7 +116,7 @@ export class AssistantDataService {
       .where(inArray(assistantAvatarFileRefTable.sourceId, assistantIds))
       .all()
     return new Map(
-      rows.map((row) => [row.assistantId, { fileId: row.fileEntryId, src: resolveEntityImageSrc(row.fileEntryId)! }])
+      rows.map((row) => [row.assistantId, { fileId: row.fileEntryId, src: resolveFileEntryUrl(row.fileEntryId)! }])
     )
   }
 
@@ -256,7 +257,7 @@ export class AssistantDataService {
       id: row.id,
       title: row.name,
       subtitle: row.description || undefined,
-      avatar: resolveEntityAvatar({ type: 'assistant', id: row.id }, row.avatarEmoji, avatarImages.get(row.id)),
+      avatar: resolveAvatarValue({ type: 'assistant', id: row.id }, row.avatarEmoji, avatarImages.get(row.id)),
       updatedAt: timestampToISO(row.updatedAt),
       target: { assistantId: row.id }
     }))
@@ -398,7 +399,7 @@ export class AssistantDataService {
         scope: isNull(assistantTable.deletedAt)
       }) as AssistantRow
 
-      if (avatar.kind === 'image') setSingleFileRefTx(tx, avatarSlot(inserted.id), avatar.fileId)
+      if (avatar.kind === 'image') setSingleFileRef(tx, avatarSlot(inserted.id), avatar.fileId)
 
       // Insert junction table rows
       this.syncRelationsTx(tx, inserted.id, { mcpServerIds, knowledgeBaseIds })
@@ -422,7 +423,7 @@ export class AssistantDataService {
 
     const avatarImage =
       dto.avatar?.kind === 'image'
-        ? { fileId: dto.avatar.fileId, src: resolveEntityImageSrc(dto.avatar.fileId)! }
+        ? { fileId: dto.avatar.fileId, src: resolveFileEntryUrl(dto.avatar.fileId)! }
         : undefined
     return rowToAssistant(
       row,
@@ -545,7 +546,7 @@ export class AssistantDataService {
         .where(aliveFilter)
         .run()
       if (updated.changes === 0) throw DataApiErrorFactory.notFound('Assistant', id)
-      setSingleFileRefTx(tx, avatarSlot(id), fileId)
+      setSingleFileRef(tx, avatarSlot(id), fileId)
     })
     return this.getById(id)
   }
@@ -559,7 +560,7 @@ export class AssistantDataService {
         .where(aliveFilter)
         .run()
       if (updated.changes === 0) throw DataApiErrorFactory.notFound('Assistant', id)
-      clearSingleFileRefTx(tx, avatarSlot(id))
+      clearSingleFileRef(tx, avatarSlot(id))
     })
     return this.getById(id)
   }

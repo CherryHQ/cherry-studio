@@ -1,4 +1,4 @@
-import { EntityAvatarIcon } from '@renderer/components/EntityAvatarIcon'
+import { AvatarIcon } from '@renderer/components/AvatarIcon'
 import type { AgentSessionStreamState } from '@renderer/hooks/agent/useAgentSessionStreamStatuses'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentEntity } from '@shared/data/types/agent'
@@ -108,7 +108,7 @@ export function buildAssistantSources(
       .map((assistant) => ({
         id: assistant.id,
         label: assistant.name,
-        icon: <EntityAvatarIcon avatar={assistant.avatar} size={18} fontSize={14} className="mr-0" />
+        icon: <AvatarIcon avatar={assistant.avatar} size={18} fontSize={14} className="mr-0" />
       })),
     ...(hasUnlinkedAssistant
       ? [
@@ -144,7 +144,7 @@ export function buildAgentSources(
         return {
           id: agent.id,
           label: agent.name,
-          icon: <EntityAvatarIcon avatar={agent.avatar} size={18} fontSize={11} className="mr-0 text-foreground" />
+          icon: <AvatarIcon avatar={agent.avatar} size={18} fontSize={11} className="mr-0 text-foreground" />
         }
       }),
     ...(hasUnknownAgent

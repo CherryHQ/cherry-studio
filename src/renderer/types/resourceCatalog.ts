@@ -2,7 +2,7 @@ import type { Tool } from '@shared/ai/tool'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { InstalledSkill } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
-import type { EntityAvatar } from '@shared/data/types/entityAvatar'
+import type { AvatarValue } from '@shared/data/types/avatar'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { Prompt } from '@shared/data/types/prompt'
 
@@ -39,8 +39,8 @@ interface ResourceItemBase<TType extends ResourceType, TRaw, TAvatar> {
 }
 
 export type ResourceItem =
-  | (ResourceItemBase<'assistant', Assistant, EntityAvatar> & { tag?: string })
-  | (ResourceItemBase<'agent', AgentDetail, EntityAvatar> & { tag?: never })
+  | (ResourceItemBase<'assistant', Assistant, AvatarValue> & { tag?: string })
+  | (ResourceItemBase<'agent', AgentDetail, AvatarValue> & { tag?: never })
   | (ResourceItemBase<'skill', InstalledSkill, string> & { tag?: never })
   | (ResourceItemBase<'prompt', Prompt, string> & { tag?: never })
 

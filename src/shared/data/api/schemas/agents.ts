@@ -6,7 +6,7 @@
  * a response payload and an entity). DTOs are derived via .pick().
  */
 
-import { EntityAvatarInputSchema, EntityAvatarSchema } from '@shared/data/types/entityAvatar'
+import { AvatarInputSchema, AvatarValueSchema } from '@shared/data/types/avatar'
 import { UniqueModelIdSchema } from '@shared/data/types/model'
 import * as z from 'zod'
 
@@ -144,7 +144,7 @@ export const AgentEntitySchema = AgentBaseSchema.extend({
    */
   modelName: z.string().nullable(),
   /** Exactly one active avatar representation. */
-  avatar: EntityAvatarSchema
+  avatar: AvatarValueSchema
 })
 
 export type AgentEntity = z.infer<typeof AgentEntitySchema>
@@ -188,7 +188,7 @@ export type TaskRunLogEntity = z.infer<typeof TaskRunLogEntitySchema>
 // ============================================================================
 
 export const CreateAgentSchema = AgentEntitySchema.pick({ type: true, ...AGENT_MUTABLE_FIELDS }).extend({
-  avatar: EntityAvatarInputSchema.optional(),
+  avatar: AvatarInputSchema.optional(),
   /**
    * Create-only: ids of pre-existing global skills to enable for the new agent.
    * Writes `agent_skill` join rows in the same create transaction. Builtin

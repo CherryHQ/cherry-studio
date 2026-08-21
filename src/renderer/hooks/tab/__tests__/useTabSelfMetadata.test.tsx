@@ -21,7 +21,7 @@ vi.mock('@renderer/hooks/tab/useTabsContext', () => ({
 }))
 
 vi.mock('@renderer/utils/tabIcons', () => ({
-  entityAvatarTabIcon: (avatar?: { kind: string; emoji?: string; src?: string }) =>
+  avatarTabIcon: (avatar?: { kind: string; emoji?: string; src?: string }) =>
     avatar?.kind === 'emoji' ? `icon:${avatar.emoji}` : avatar?.src
 }))
 

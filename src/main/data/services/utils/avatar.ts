@@ -1,4 +1,4 @@
-import type { EntityAvatar } from '@shared/data/types/entityAvatar'
+import type { AvatarValue } from '@shared/data/types/avatar'
 import type { FileEntryId } from '@shared/data/types/file'
 
 export interface ResolvedAvatarImage {
@@ -6,11 +6,11 @@ export interface ResolvedAvatarImage {
   src: string
 }
 
-export function resolveEntityAvatar(
+export function resolveAvatarValue(
   owner: { type: 'assistant' | 'agent'; id: string },
   emoji: string | null | undefined,
   image: ResolvedAvatarImage | undefined
-): EntityAvatar {
+): AvatarValue {
   const hasEmoji = typeof emoji === 'string' && emoji.length > 0
   const hasImage = image !== undefined
 

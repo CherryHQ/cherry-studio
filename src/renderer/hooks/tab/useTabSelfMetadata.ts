@@ -1,8 +1,8 @@
 import { isPageTitledRoute } from '@renderer/utils/routeTitle'
-import { entityAvatarTabIcon } from '@renderer/utils/tabIcons'
+import { avatarTabIcon } from '@renderer/utils/tabIcons'
 import { buildTabInstanceMetadata } from '@renderer/utils/tabInstanceMetadata'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
-import type { EntityAvatar } from '@shared/data/types/entityAvatar'
+import type { AvatarValue } from '@shared/data/types/avatar'
 import type { TabInstanceAppId } from '@shared/types/tabInstanceMetadata'
 import { useEffect } from 'react'
 
@@ -11,7 +11,7 @@ import { useOptionalTabsContext } from './useTabsContext'
 
 export interface TabSelfMetadata {
   title: string
-  avatar?: EntityAvatar
+  avatar?: AvatarValue
   instanceAppId?: TabInstanceAppId
   instanceKey?: string | null
 }
@@ -54,7 +54,7 @@ export function useTabSelfMetadata({ title, avatar, instanceAppId, instanceKey }
   useEffect(() => {
     if (!currentTabId || !updateTab || !currentTab) return
     if (instanceAppId && !tabBelongsToInstanceApp(currentTab, instanceAppId)) return
-    const icon = entityAvatarTabIcon(avatar)
+    const icon = avatarTabIcon(avatar)
     const metadata = buildTabInstanceMetadata(currentTab.metadata, {
       appId: instanceAppId,
       key: instanceKey

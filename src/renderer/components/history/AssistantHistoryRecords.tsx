@@ -1,11 +1,11 @@
 import { loggerService } from '@logger'
+import { AvatarIcon } from '@renderer/components/AvatarIcon'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import type {
   TopicActionContext,
   TopicExportMenuOptions
 } from '@renderer/components/chat/actions/topicContextMenuActions'
 import { renderAssistantEntityIcon } from '@renderer/components/chat/resourceList/base'
-import { EntityAvatarIcon } from '@renderer/components/EntityAvatarIcon'
 import { AssistantSelector } from '@renderer/components/resourceCatalog/selectors'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@renderer/data/hooks/usePreference'
@@ -438,7 +438,7 @@ const AssistantHistoryRecords = ({
               source?.icon ? (
                 source.icon
               ) : assistant ? (
-                <EntityAvatarIcon avatar={assistant.avatar} size={16} fontSize={12} className="mr-0" />
+                <AvatarIcon avatar={assistant.avatar} size={16} fontSize={12} className="mr-0" />
               ) : (
                 <Bot size={14} />
               )

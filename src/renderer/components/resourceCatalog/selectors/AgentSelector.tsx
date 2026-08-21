@@ -6,7 +6,7 @@ import {
 import type { SelectorShellMountStrategy, SelectorShellProps } from '@renderer/components/SelectorShell'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
-import { useEntityAvatar } from '@renderer/hooks/useEntityAvatar'
+import { useAvatarMutations } from '@renderer/hooks/useAvatarMutations'
 import { usePins } from '@renderer/hooks/usePins'
 import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
@@ -67,7 +67,7 @@ export function AgentSelector(props: AgentSelectorProps) {
     mountStrategy
   } = props
   const { t } = useTranslation()
-  const { setAgentAvatar } = useEntityAvatar()
+  const { setAgentAvatar } = useAvatarMutations()
   const modelFilter = useAgentModelFilter('claude-code')
   const [internalOpen, setInternalOpen] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
