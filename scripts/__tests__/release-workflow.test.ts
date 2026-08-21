@@ -3,7 +3,7 @@ import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
 
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 
 import { prepareBackport } from '../release/backport-patch'
 import {
@@ -20,6 +20,26 @@ interface GitFixture {
 }
 
 let roots: string[] = []
+const inheritedGitEnvironment = Object.entries(process.env).filter(
+  (entry): entry is [string, string] => entry[0].startsWith('GIT_') && entry[1] !== undefined
+)
+
+function clearGitEnvironment(): void {
+  for (const key of Object.keys(process.env)) {
+    if (key.startsWith('GIT_')) delete process.env[key]
+  }
+}
+
+beforeAll(() => {
+  clearGitEnvironment()
+  process.env.GIT_CONFIG_GLOBAL = os.devNull
+  process.env.GIT_CONFIG_NOSYSTEM = '1'
+})
+
+afterAll(() => {
+  clearGitEnvironment()
+  for (const [key, value] of inheritedGitEnvironment) process.env[key] = value
+})
 
 function git(cwd: string, ...args: string[]): string {
   return execFileSync('git', args, { cwd, encoding: 'utf8' }).trim()
@@ -153,19 +173,25 @@ describe('backport patch preparation', () => {
     write(fixture.repo, 'app.txt', 'setting=release\n')
     commit(fixture.repo, 'release change')
 
-    expect(() => runBackport(fixture, mergeSha, 1)).toThrow('conflicts with the active release branch')
+    expect(() => runBackport(fixture, mergeSha, 1)).toThrow(
+      /conflicts with the active release branch[\s\S]*Unmerged paths:\napp\.txt/
+    )
     expect(fs.readFileSync(path.join(fixture.repo, 'app.txt'), 'utf8')).toBe('setting=release\n')
     expect(git(fixture.repo, 'status', '--porcelain')).toBe('')
   })
 })
 
-const HOTFIX_BODY = `\`\`\`release-note
+function hotfixBody(english: string, chinese: string): string {
+  return `\`\`\`release-note
 <!--LANG:en-->
-[Chat] Fix messages disappearing after restart.
+${english}
 <!--LANG:zh-CN-->
-[聊天] 修复重启后消息消失的问题。
+${chinese}
 <!--LANG:END-->
 \`\`\``
+}
+
+const HOTFIX_BODY = hotfixBody('[Chat] Fix messages disappearing after restart.', '[聊天] 修复重启后消息消失的问题。')
 
 function releaseNotes(version: string, item: string): string {
   return `<!--LANG:en-->
@@ -197,6 +223,19 @@ describe('hotfix release notes', () => {
       chinese: '[聊天] 修复重启后消息消失的问题。'
     })
     expect(() => extractHotfixReleaseNote('```release-note\nNONE\n```')).toThrow('language markers')
+  })
+
+  it.each([
+    ['a missing component', 'Fix messages disappearing after restart.', '[聊天] 修复重启后消息消失的问题。'],
+    [
+      'multiple English lines',
+      '[Chat] Fix messages disappearing after restart.\n[Chat] Fix another issue.',
+      '[聊天] 修复重启后消息消失的问题。'
+    ],
+    ['a Markdown bullet prefix', '- [Chat] Fix messages disappearing.', '[聊天] 修复消息消失的问题。'],
+    ['an empty component', '[] Fix messages disappearing.', '[聊天] 修复消息消失的问题。']
+  ])('rejects hotfix notes with %s', (_case, english, chinese) => {
+    expect(() => extractHotfixReleaseNote(hotfixBody(english, chinese))).toThrow('one [Component] release-note line')
   })
 
   it('adds the hotfix to installer notes and stable release history exactly once', () => {
@@ -276,6 +315,70 @@ describe('prepared release validation', () => {
     )
     expect(() => validatePreparedRelease({ cwd: secondFixture.repo, targetVersion: '1.1.0' })).toThrow(
       'electron-builder.yml may change only releaseInfo.releaseNotes'
+    )
+  })
+
+  it('rejects invalid, non-incrementing, and mismatched package versions', () => {
+    const invalidFixture = createPreparedReleaseFixture()
+    expect(() => validatePreparedRelease({ cwd: invalidFixture.repo, targetVersion: 'invalid' })).toThrow(
+      'Invalid target version'
+    )
+
+    const downgradeFixture = createPreparedReleaseFixture()
+    expect(() => validatePreparedRelease({ cwd: downgradeFixture.repo, targetVersion: '1.0.0' })).toThrow(
+      'must be greater than 1.0.0'
+    )
+
+    const mismatchFixture = createPreparedReleaseFixture()
+    const packagePath = path.join(mismatchFixture.repo, 'package.json')
+    const manifest = JSON.parse(fs.readFileSync(packagePath, 'utf8'))
+    manifest.version = '1.2.0'
+    write(mismatchFixture.repo, 'package.json', `${JSON.stringify(manifest, null, 2)}\n`)
+    expect(() => validatePreparedRelease({ cwd: mismatchFixture.repo, targetVersion: '1.1.0' })).toThrow(
+      'does not match 1.1.0'
+    )
+  })
+
+  it('rejects missing language markers and mismatched release-note headings', () => {
+    const missingMarkerFixture = createPreparedReleaseFixture()
+    const missingMarkerBuilder = path.join(missingMarkerFixture.repo, 'electron-builder.yml')
+    fs.writeFileSync(
+      missingMarkerBuilder,
+      fs.readFileSync(missingMarkerBuilder, 'utf8').replace('<!--LANG:zh-CN-->', '<!--LANG:missing-->')
+    )
+    expect(() => validatePreparedRelease({ cwd: missingMarkerFixture.repo, targetVersion: '1.1.0' })).toThrow(
+      'one ordered English and Chinese marker set'
+    )
+
+    const wrongHeadingFixture = createPreparedReleaseFixture()
+    const wrongHeadingBuilder = path.join(wrongHeadingFixture.repo, 'electron-builder.yml')
+    fs.writeFileSync(
+      wrongHeadingBuilder,
+      fs
+        .readFileSync(wrongHeadingBuilder, 'utf8')
+        .replace('Cherry Studio 1.1.0 - 测试版本', 'Cherry Studio 1.0.0 - 测试版本')
+    )
+    expect(() => validatePreparedRelease({ cwd: wrongHeadingFixture.repo, targetVersion: '1.1.0' })).toThrow(
+      'Chinese release notes do not identify Cherry Studio 1.1.0'
+    )
+  })
+
+  it('rejects mismatched or discarded stable release history', () => {
+    const mismatchedNotesFixture = createPreparedReleaseFixture()
+    const mismatchedHistoryPath = path.join(mismatchedNotesFixture.repo, 'resources/cherry-studio/release-history.json')
+    const mismatchedHistory = JSON.parse(fs.readFileSync(mismatchedHistoryPath, 'utf8'))
+    mismatchedHistory[0].releaseNotes = 'different notes'
+    fs.writeFileSync(mismatchedHistoryPath, `${JSON.stringify(mismatchedHistory, null, 2)}\n`)
+    expect(() => validatePreparedRelease({ cwd: mismatchedNotesFixture.repo, targetVersion: '1.1.0' })).toThrow(
+      'must exactly match electron-builder.yml'
+    )
+
+    const discardedHistoryFixture = createPreparedReleaseFixture()
+    const discardedHistoryPath = path.join(discardedHistoryFixture.repo, 'resources/cherry-studio/release-history.json')
+    const discardedHistory = JSON.parse(fs.readFileSync(discardedHistoryPath, 'utf8'))
+    fs.writeFileSync(discardedHistoryPath, `${JSON.stringify([discardedHistory[0]], null, 2)}\n`)
+    expect(() => validatePreparedRelease({ cwd: discardedHistoryFixture.repo, targetVersion: '1.1.0' })).toThrow(
+      'must preserve existing release history entries'
     )
   })
 

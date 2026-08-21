@@ -26,7 +26,6 @@ on:
 concurrency:
   group: release-state
   cancel-in-progress: false
-  queue: max
 
 permissions:
   actions: read
@@ -106,6 +105,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           OPERATION: ${{ github.event.inputs.operation }}
+          PUBLISH_TOKEN: ${{ secrets.TOKEN_GITHUB_WRITE }}
           REPO: ${{ github.repository }}
           TAG: ${{ steps.release-ref.outputs.tag }}
         run: |
@@ -142,7 +142,7 @@ jobs:
             EXPECTED_BUILD="Release build all $BRANCH @ $GITHUB_SHA"
             RELEASE_RUNS="$(gh api --paginate --slurp "repos/$REPO/actions/workflows/release.yml/runs?head_sha=$GITHUB_SHA&event=workflow_dispatch&status=completed&per_page=100")"
             BUILD_RUN="$(jq -c --arg title "$EXPECTED_BUILD" '
-              [.[][] | select(.display_title == $title and .conclusion == "success")][0] // empty
+              [.[] | .workflow_runs[] | select(.display_title == $title and .conclusion == "success")][0] // empty
             ' <<< "$RELEASE_RUNS")"
             if [ -z "$BUILD_RUN" ]; then
               echo "No successful all-platform Release build exists for $GITHUB_SHA" >&2
@@ -165,7 +165,7 @@ jobs:
               exit 1
             fi
 
-            gh release edit "$TAG" --repo "$REPO" --draft=false --verify-tag
+            GH_TOKEN="$PUBLISH_TOKEN" gh release edit "$TAG" --repo "$REPO" --draft=false --verify-tag
             if [ "$(gh api "repos/$REPO/releases/$(jq -r '.id' <<< "$RELEASE")" --jq '.draft')" != "false" ]; then
               echo "Release $TAG was not published" >&2
               exit 1
@@ -307,6 +307,7 @@ jobs:
           allowUpdates: true
           updateOnlyUnreleased: true
           makeLatest: false
+          prerelease: ${{ contains(needs.prepare.outputs.tag, '-') }}
           tag: ${{ needs.prepare.outputs.tag }}
           artifacts: "dist/*.exe,dist/*.zip,dist/*.dmg,dist/*.AppImage,dist/*.snap,dist/*.deb,dist/*.rpm,dist/*.tar.gz,dist/latest*.yml,dist/rc*.yml,dist/beta*.yml,dist/*.blockmap${{ matrix.os == 'ubuntu-latest' && !contains(needs.prepare.outputs.tag, '-') && ',resources/cherry-studio/release-history.json' || '' }}"
           token: ${{ secrets.GITHUB_TOKEN }}

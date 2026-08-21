@@ -14,13 +14,12 @@ on:
   # but we guard the job to main to prevent accidental runs from feature branches)
 
 permissions:
-  contents: write
+  contents: read
   id-token: write
 
 concurrency:
   group: release-state
   cancel-in-progress: false
-  queue: max
 
 jobs:
   prepare:
@@ -31,6 +30,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Install Node.js
         uses: actions/setup-node@v6
@@ -144,7 +144,7 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           RELEASE_PAGES="$(gh api --paginate --slurp "repos/$REPO/releases?per_page=100")"
-          RELEASE_REFS="$(gh api "repos/$REPO/git/matching-refs/heads/release/v")"
+          RELEASE_REF_PAGES="$(gh api --paginate --slurp "repos/$REPO/git/matching-refs/heads/release/v?per_page=100")"
           DRAFT_TAGS="$(jq -r '.[][] | select(.draft == true) | .tag_name' <<< "$RELEASE_PAGES")"
           ACTIVE_RELEASES=()
           while IFS= read -r TAG; do
@@ -156,7 +156,7 @@ jobs:
               continue
             fi
 
-            if jq -e --arg ref "refs/heads/release/$TAG" 'any(.[]; .ref == $ref)' <<< "$RELEASE_REFS" >/dev/null; then
+            if jq -e --arg ref "refs/heads/release/$TAG" 'any(.[][]; .ref == $ref)' <<< "$RELEASE_REF_PAGES" >/dev/null; then
               ACTIVE_RELEASES+=("$TAG")
             fi
           done <<< "$DRAFT_TAGS"
@@ -171,14 +171,16 @@ jobs:
         uses: anthropics/claude-code-action@v1.0.66
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          github_token: ${{ secrets.TOKEN_GITHUB_WRITE }}
-          claude_args: '--model ${{ vars.ANTHROPIC_MODEL }} --allowed-tools "Bash(git:*),Bash(gh release list:*),Bash(cat:*),Edit,Read,Write,Glob,Grep"'
+          github_token: ${{ github.token }}
+          claude_args: '--model ${{ vars.ANTHROPIC_MODEL }} --allowed-tools "Bash(git diff:*),Bash(git log:*),Bash(git merge-base:*),Bash(git rev-parse:*),Bash(git show:*),Bash(git status:*),Bash(gh release list:*),Bash(cat:*),Edit,Read,Write,Glob,Grep"'
           prompt: |
             Run the prepare-release skill with exact version argument: ${{ steps.release-version.outputs.version }}
 
             Read the skill instructions from .agents/skills/prepare-release/SKILL.md and follow them exactly.
 
             Since this is running in CI (non-interactive), skip all interactive confirmation steps.
+
+            The workflow already completed the branch, remote-head, tag, published-release, and active-release checks from Step 1. Do not repeat those checks or run any Git mutation.
 
             Stop after updating package.json, electron-builder.yml, and (for stable releases) release-history.json. Do not edit the generated product manifest. Leave the changes uncommitted; the next workflow steps validate the contents, generate the manifest, and own release branch creation and the signed commit.
         env:

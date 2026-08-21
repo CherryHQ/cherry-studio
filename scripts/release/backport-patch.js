@@ -54,8 +54,19 @@ function applyBackportPatch({ cwd, mergeSha, patchBase, patchFile }) {
   })
   const unmergedPaths = run('git', ['diff', '--name-only', '--diff-filter=U'], cwd)
   if (application.status !== 0 || unmergedPaths) {
+    const diagnostics = [
+      application.error?.message,
+      application.stdout?.trim(),
+      application.stderr?.trim(),
+      unmergedPaths && `Unmerged paths:\n${unmergedPaths}`
+    ]
+      .filter(Boolean)
+      .join('\n')
+      .slice(-8000)
     execFileSync('git', ['reset', '--hard', 'HEAD'], { cwd, stdio: 'ignore' })
-    throw new Error('The merged hotfix result conflicts with the active release branch.')
+    throw new Error(
+      `The merged hotfix result conflicts with the active release branch.${diagnostics ? `\n${diagnostics}` : ''}`
+    )
   }
 
   if (succeeds('git', ['diff', '--cached', '--quiet'], cwd)) {

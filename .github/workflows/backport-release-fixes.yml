@@ -62,7 +62,6 @@ jobs:
     concurrency:
       group: release-state
       cancel-in-progress: false
-      queue: max
     steps:
       - name: Resolve active release branch
         id: release-ref
@@ -85,7 +84,7 @@ jobs:
           gh pr edit "$PR_NUMBER" --repo "$REPO" --add-label "hotfix"
 
           RELEASE_PAGES="$(gh api --paginate --slurp "repos/$REPO/releases?per_page=100")"
-          RELEASE_REFS="$(gh api "repos/$REPO/git/matching-refs/heads/release/v")"
+          RELEASE_REF_PAGES="$(gh api --paginate --slurp "repos/$REPO/git/matching-refs/heads/release/v?per_page=100")"
           DRAFT_TAGS="$(jq -r '.[][] | select(.draft == true) | .tag_name' <<< "$RELEASE_PAGES")"
           CANDIDATES=()
           while IFS= read -r TAG; do
@@ -97,7 +96,7 @@ jobs:
               continue
             fi
 
-            if jq -e --arg ref "refs/heads/release/$TAG" 'any(.[]; .ref == $ref)' <<< "$RELEASE_REFS" >/dev/null; then
+            if jq -e --arg ref "refs/heads/release/$TAG" 'any(.[][]; .ref == $ref)' <<< "$RELEASE_REF_PAGES" >/dev/null; then
               CANDIDATES+=("$TAG")
             fi
           done <<< "$DRAFT_TAGS"
