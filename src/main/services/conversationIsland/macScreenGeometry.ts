@@ -7,12 +7,26 @@ const logger = loggerService.withContext('ConversationIsland:ScreenGeometry')
 
 const PROBE_TIMEOUT_MS = 1_500
 const PROBE_MAX_BUFFER_BYTES = 64 * 1024
-const ISLAND_HEIGHT = 38
 const FALLBACK_TOP_OFFSET = 8
 const MIN_NOTCH_WIDTH = 40
 const MAX_NOTCH_WIDTH = 260
 const TOP_EDGE_TOLERANCE = 2
 const CENTER_TOLERANCE_RATIO = 0.1
+const EXPANDED_WIDTH = 420
+const EXPANDED_ROW_HEIGHT = 44
+const CAPSULE_VERTICAL_PADDING = 16
+const NOTCH_TOP_INSET = 38
+const NOTCH_BOTTOM_PADDING = 8
+
+export type ConversationIslandPresentation = 'notch' | 'capsule'
+
+export interface ConversationIslandSize {
+  width: number
+  height: number
+}
+
+export const COMPACT_ISLAND_SIZE: ConversationIslandSize = { width: 320, height: 38 }
+export const MAX_VISIBLE_EXPANDED_ROWS = 5
 
 const SCREEN_GEOMETRY_JXA = String.raw`
 ObjC.import('AppKit')
@@ -58,8 +72,19 @@ export interface MacScreenGeometry {
 
 export interface ConversationIslandPlacement {
   bounds: Rectangle
-  presentation: 'notch' | 'capsule'
+  presentation: ConversationIslandPresentation
   notchWidth?: number
+}
+
+export function resolveConversationIslandSize(
+  presentation: ConversationIslandPresentation,
+  activityCount: number
+): ConversationIslandSize {
+  if (activityCount < 2) return COMPACT_ISLAND_SIZE
+
+  const visibleRows = Math.min(MAX_VISIBLE_EXPANDED_ROWS, activityCount)
+  const chromeHeight = presentation === 'notch' ? NOTCH_TOP_INSET + NOTCH_BOTTOM_PADDING : CAPSULE_VERTICAL_PADDING
+  return { width: EXPANDED_WIDTH, height: visibleRows * EXPANDED_ROW_HEIGHT + chromeHeight }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -132,13 +157,16 @@ export function parseMacScreenGeometry(raw: string): Map<number, MacScreenGeomet
   }
 }
 
-function fallbackPlacement(display: Pick<Display, 'bounds'>, width: number): ConversationIslandPlacement {
+function fallbackPlacement(
+  display: Pick<Display, 'bounds'>,
+  size: ConversationIslandSize
+): ConversationIslandPlacement {
   return {
     bounds: {
-      x: Math.round(display.bounds.x + (display.bounds.width - width) / 2),
+      x: Math.round(display.bounds.x + (display.bounds.width - size.width) / 2),
       y: Math.round(display.bounds.y + FALLBACK_TOP_OFFSET),
-      width,
-      height: ISLAND_HEIGHT
+      width: size.width,
+      height: size.height
     },
     presentation: 'capsule'
   }
@@ -147,10 +175,10 @@ function fallbackPlacement(display: Pick<Display, 'bounds'>, width: number): Con
 export function resolveConversationIslandBounds(
   display: Pick<Display, 'id' | 'bounds'>,
   geometries: ReadonlyMap<number, MacScreenGeometry>,
-  width: number
+  size: ConversationIslandSize
 ): ConversationIslandPlacement {
   const geometry = geometries.get(display.id)
-  if (!geometry || geometry.safeAreaInsets.top <= 0) return fallbackPlacement(display, width)
+  if (!geometry || geometry.safeAreaInsets.top <= 0) return fallbackPlacement(display, size)
 
   const { frame, auxiliaryTopLeftArea: left, auxiliaryTopRightArea: right } = geometry
   const frameTop = frame.y + frame.height
@@ -166,14 +194,14 @@ export function resolveConversationIslandBounds(
   const isPlausibleWidth = gapWidth >= MIN_NOTCH_WIDTH && gapWidth <= MAX_NOTCH_WIDTH
   const isCentered = Math.abs(gapCenter - frameCenter) <= frame.width * CENTER_TOLERANCE_RATIO
 
-  if (!isAtTop || !isPlausibleWidth || !isCentered) return fallbackPlacement(display, width)
+  if (!isAtTop || !isPlausibleWidth || !isCentered) return fallbackPlacement(display, size)
 
   return {
     bounds: {
-      x: Math.round(display.bounds.x + (gapCenter - frame.x) - width / 2),
+      x: Math.round(display.bounds.x + (gapCenter - frame.x) - size.width / 2),
       y: Math.round(display.bounds.y),
-      width,
-      height: ISLAND_HEIGHT
+      width: size.width,
+      height: size.height
     },
     presentation: 'notch',
     notchWidth: gapWidth

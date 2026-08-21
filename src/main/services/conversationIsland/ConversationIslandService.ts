@@ -19,6 +19,7 @@ import { type Display, type Rectangle, screen } from 'electron'
 
 import { type ConversationIslandActivity, reduceActivities, selectPrimaryActivity } from './activityReducer'
 import {
+  COMPACT_ISLAND_SIZE,
   type ConversationIslandPlacement,
   type MacScreenGeometry,
   probeMacScreenGeometry,
@@ -26,7 +27,6 @@ import {
 } from './macScreenGeometry'
 
 const logger = loggerService.withContext('ConversationIslandService')
-const ISLAND_WIDTH = 320
 
 function snapshotState(status: ConversationIslandActivity['status']): ConversationIslandStateKind {
   return status === 'awaiting-approval' ? 'awaiting-confirmation' : status
@@ -256,7 +256,7 @@ export class ConversationIslandService extends BaseService {
 
     try {
       const display = this.resolveActivityDisplay(selection.primary.originDisplayId)
-      const placement = resolveConversationIslandBounds(display, this.geometries, ISLAND_WIDTH)
+      const placement = resolveConversationIslandBounds(display, this.geometries, COMPACT_ISLAND_SIZE)
       const snapshot = this.buildSnapshot(selection.primary, selection.secondaryCount, placement)
       this.showOrUpdateWindow(snapshot, placement.bounds)
     } catch (error) {

@@ -1,7 +1,11 @@
 import type { Display } from 'electron'
 import { describe, expect, it } from 'vitest'
 
-import { parseMacScreenGeometry, resolveConversationIslandBounds } from '../macScreenGeometry'
+import {
+  parseMacScreenGeometry,
+  resolveConversationIslandBounds,
+  resolveConversationIslandSize
+} from '../macScreenGeometry'
 
 const display = {
   id: 42,
@@ -20,8 +24,19 @@ describe('macScreenGeometry', () => {
   it('maps AppKit-relative notch geometry onto the Electron display bounds', () => {
     const geometries = parseMacScreenGeometry(JSON.stringify([validGeometry]))
 
-    expect(resolveConversationIslandBounds(display, geometries, 320)).toEqual({
+    expect(resolveConversationIslandBounds(display, geometries, { width: 320, height: 38 })).toEqual({
       bounds: { x: 1400, y: 24, width: 320, height: 38 },
+      presentation: 'notch',
+      notchWidth: 120
+    })
+  })
+
+  it('uses the expanded notch size when placing multiple activities', () => {
+    const geometries = parseMacScreenGeometry(JSON.stringify([validGeometry]))
+    const size = resolveConversationIslandSize('notch', 8)
+
+    expect(resolveConversationIslandBounds(display, geometries, size)).toEqual({
+      bounds: { x: 1350, y: 24, width: 420, height: 266 },
       presentation: 'notch',
       notchWidth: 120
     })
@@ -37,8 +52,17 @@ describe('macScreenGeometry', () => {
   it('falls back when the probe has no row for the Electron display', () => {
     const geometries = parseMacScreenGeometry(JSON.stringify([{ ...validGeometry, screenNumber: 7 }]))
 
-    expect(resolveConversationIslandBounds(display, geometries, 320)).toEqual({
+    expect(resolveConversationIslandBounds(display, geometries, { width: 320, height: 38 })).toEqual({
       bounds: { x: 1400, y: 32, width: 320, height: 38 },
+      presentation: 'capsule'
+    })
+  })
+
+  it('uses the expanded capsule size when notch geometry is unavailable', () => {
+    const size = resolveConversationIslandSize('capsule', 8)
+
+    expect(resolveConversationIslandBounds(display, new Map(), size)).toEqual({
+      bounds: { x: 1350, y: 32, width: 420, height: 236 },
       presentation: 'capsule'
     })
   })
@@ -54,7 +78,9 @@ describe('macScreenGeometry', () => {
       ])
     )
 
-    expect(resolveConversationIslandBounds(display, geometries, 320).presentation).toBe('capsule')
+    expect(resolveConversationIslandBounds(display, geometries, { width: 320, height: 38 }).presentation).toBe(
+      'capsule'
+    )
   })
 
   it('drops invalid rows while preserving valid display geometry', () => {
@@ -67,5 +93,17 @@ describe('macScreenGeometry', () => {
     )
 
     expect([...geometries.keys()]).toEqual([42])
+  })
+
+  it.each([
+    ['capsule', 1, { width: 320, height: 38 }],
+    ['capsule', 2, { width: 420, height: 104 }],
+    ['capsule', 5, { width: 420, height: 236 }],
+    ['capsule', 8, { width: 420, height: 236 }],
+    ['notch', 2, { width: 420, height: 134 }],
+    ['notch', 5, { width: 420, height: 266 }],
+    ['notch', 8, { width: 420, height: 266 }]
+  ] as const)('resolves %s size for %i activities', (presentation, activityCount, expected) => {
+    expect(resolveConversationIslandSize(presentation, activityCount)).toEqual(expected)
   })
 })

@@ -64,6 +64,7 @@ vi.mock('@main/utils/fullChromeWindows', () => ({
 }))
 
 vi.mock('../macScreenGeometry', () => ({
+  COMPACT_ISLAND_SIZE: { width: 320, height: 38 },
   probeMacScreenGeometry: (...args: unknown[]) => mocks.geometryProbe(...args),
   resolveConversationIslandBounds: (...args: unknown[]) => mocks.geometryResolve(...args)
 }))
@@ -207,10 +208,12 @@ describe('ConversationIslandService', () => {
     mocks.displays = [internalDisplay, externalDisplay]
     mocks.focusedWindowInfos = []
     mocks.geometryProbe.mockResolvedValue(new Map())
-    mocks.geometryResolve.mockImplementation((display: any, _geometry: unknown, width: number) => ({
-      bounds: { x: display.bounds.x, y: display.bounds.y + 8, width, height: 38 },
-      presentation: 'capsule'
-    }))
+    mocks.geometryResolve.mockImplementation(
+      (display: any, _geometry: unknown, size: { width: number; height: number }) => ({
+        bounds: { x: display.bounds.x, y: display.bounds.y + 8, ...size },
+        presentation: 'capsule'
+      })
+    )
     mocks.i18nSuffix = ''
     mocks.name = 'Research notes'
     mocks.openError = undefined
@@ -266,7 +269,7 @@ describe('ConversationIslandService', () => {
 
     expect(services.windowManager.open).toHaveBeenCalledOnce()
     expect(mocks.geometryProbe).toHaveBeenCalledOnce()
-    expect(mocks.geometryResolve).toHaveBeenCalledWith(externalDisplay, expect.any(Map), 320)
+    expect(mocks.geometryResolve).toHaveBeenCalledWith(externalDisplay, expect.any(Map), { width: 320, height: 38 })
   })
 
   it('discards terminal activity while disabled or when the feature is disabled', () => {
