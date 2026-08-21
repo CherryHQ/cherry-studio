@@ -651,6 +651,24 @@ describe('ConversationIslandService', () => {
     expect(mocks.windows.has('island-1')).toBe(false)
   })
 
+  it('dismisses the expanded window when collapsing to compact bounds fails', () => {
+    changePreference('feature.conversation_island.enabled', true)
+    emitActivity('pending', 100, 'topic-a')
+    emitActivity('streaming', 200, 'topic-b')
+    ;(service as unknown as { setExpanded(expanded: boolean): void }).setExpanded(true)
+    const window = mocks.windows.get('island-1')
+    expect(window.getBounds().width).toBe(420)
+    window.setBounds.mockImplementationOnce(() => {
+      throw new Error('compact resize failed')
+    })
+
+    ;(service as unknown as { setExpanded(expanded: boolean): void }).setExpanded(false)
+
+    expect(window.hide).toHaveBeenCalledOnce()
+    expect(services.windowManager.close).toHaveBeenCalledWith('island-1')
+    expect(mocks.windows.has('island-1')).toBe(false)
+  })
+
   it('refreshes geometry for display and resume events only while enabled', async () => {
     mocks.screen.emit('display-added', {}, externalDisplay)
     expect(mocks.geometryProbe).not.toHaveBeenCalled()

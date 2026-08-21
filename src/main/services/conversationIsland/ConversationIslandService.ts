@@ -353,6 +353,7 @@ export class ConversationIslandService extends BaseService {
       this.presentCompact(now)
     } catch (error) {
       logger.error('Failed to present Conversation Island activity', error as Error)
+      this.dismissIslandWindow()
     }
 
     this.scheduleNextExpiry(now)
