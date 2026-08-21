@@ -27,8 +27,13 @@ import type { CreateTopicDto } from './topics'
 export interface PersistTemporaryChatResponse {
   /** The persistent topic id (identical to the temporary id — no remapping) */
   topicId: string
-  /** Number of messages written to the persistent DB; failed assistant turns are excluded. */
+  /** Number of messages written to the persistent DB. */
   messageCount: number
+}
+
+export interface PersistTemporaryChatRequest {
+  /** Drop failed assistant messages together with their preceding user messages. */
+  discardFailedTurns?: boolean
 }
 
 // ============================================================================
@@ -105,13 +110,14 @@ export type TemporaryChatSchemas = {
   }
 
   /**
-   * Persist endpoint — promote a temporary topic to persistent history, omitting failed assistant turns.
+   * Persist endpoint — promote a temporary topic to persistent history.
    * The topic id does not change; the in-memory copy is discarded on success.
    * @example POST /temporary/topics/abc123/persist
    */
   '/temporary/topics/:id/persist': {
     POST: {
       params: { id: string }
+      body: PersistTemporaryChatRequest
       response: PersistTemporaryChatResponse
     }
   }

@@ -283,7 +283,8 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     setIsPreparing(false)
   }, [stopChat, setMessages, clearExecutionMessages])
 
-  const isLoading = isPreparing || isStreaming || isPersisting
+  const isResponseActive = isPreparing || isStreaming
+  const isInputBlocked = isResponseActive || isPersisting
   const isOutputted = messageItems.some((message) => message.role === 'assistant')
 
   useEffect(() => {
@@ -373,8 +374,13 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   }, [clear, resetTemporaryTopic])
 
   const handleEsc = useCallback(() => {
-    if (isLoading) {
+    if (isResponseActive) {
       handlePause()
+      return
+    }
+
+    if (isPersisting) {
+      void handleCloseWindow()
       return
     }
 
@@ -388,7 +394,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     setFlowError(null)
     setRoute('home')
     setUserInputText('')
-  }, [handleCloseWindow, handlePause, isLoading, resetConversation, route])
+  }, [handleCloseWindow, handlePause, isPersisting, isResponseActive, resetConversation, route])
 
   const handleCopy = useCallback(() => {
     if (!content) return
@@ -404,7 +410,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     switch (e.code) {
       case 'Enter':
       case 'NumpadEnter':
-        if (isLoading) return
+        if (isInputBlocked) return
         e.preventDefault()
         if (requestText) {
           if (route === 'home') {
@@ -462,12 +468,12 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const baseFooterProps = useMemo(
     () => ({
       route,
-      loading: isLoading,
+      loading: isResponseActive,
       onEsc: handleEsc,
       setIsPinned,
       isPinned
     }),
-    [route, isLoading, handleEsc, setIsPinned, isPinned]
+    [route, isResponseActive, handleEsc, setIsPinned, isPinned]
   )
 
   switch (route) {
@@ -482,7 +488,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
                 text={userInputText}
                 model={currentModel}
                 placeholder={inputPlaceholder}
-                loading={isLoading}
+                loading={isInputBlocked}
                 handleKeyDown={handleKeyDown}
                 handleChange={handleChange}
                 ref={inputBarRef}
@@ -518,7 +524,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
                 size="sm"
                 className="h-7 shrink-0"
                 loading={isPersisting}
-                disabled={isPreparing || isStreaming}
+                disabled={isPreparing || isStreaming || isPersisting}
                 onClick={() => void persistConversation()}>
                 {t('common.retry')}
               </Button>
@@ -549,7 +555,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
               text={userInputText}
               model={currentModel}
               placeholder={inputPlaceholder}
-              loading={isLoading}
+              loading={isInputBlocked}
               handleKeyDown={handleKeyDown}
               handleChange={handleChange}
               ref={inputBarRef}

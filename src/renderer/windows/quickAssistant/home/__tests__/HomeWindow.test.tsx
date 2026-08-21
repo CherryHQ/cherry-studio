@@ -26,6 +26,7 @@ const state = vi.hoisted(() => ({
   setMessages: vi.fn(),
   resetExecutionMessages: vi.fn(),
   clearExecutionMessages: vi.fn(),
+  ipcRequest: vi.fn(),
   resetTemporaryTopic: vi.fn(),
   persistTemporaryTopic: vi.fn()
 }))
@@ -33,7 +34,7 @@ const state = vi.hoisted(() => ({
 import HomeWindow, { finalizeLiveMessages } from '../HomeWindow'
 
 vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: vi.fn(), on: vi.fn(() => () => {}) },
+  ipcApi: { request: state.ipcRequest, on: vi.fn(() => () => {}) },
   useIpcOn: vi.fn()
 }))
 
@@ -167,7 +168,11 @@ vi.mock('../components/FeatureMenus', () => ({
 }))
 
 vi.mock('../components/Footer', () => ({
-  default: () => <div data-testid="footer" />
+  default: ({ onEsc }: { onEsc: () => void }) => (
+    <button type="button" onClick={onEsc}>
+      Esc
+    </button>
+  )
 }))
 
 vi.mock('../components/ClipboardPreview', () => ({
@@ -233,6 +238,7 @@ describe('HomeWindow', () => {
     state.setMessages.mockClear()
     state.resetExecutionMessages.mockClear()
     state.clearExecutionMessages.mockClear()
+    state.ipcRequest.mockClear()
     state.resetTemporaryTopic.mockClear()
     state.persistTemporaryTopic.mockReset().mockResolvedValue(undefined)
   })
@@ -309,7 +315,13 @@ describe('HomeWindow', () => {
     const user = userEvent.setup()
     state.quickAssistantId = 'assistant-1'
     state.saveConversations = true
-    state.persistTemporaryTopic.mockRejectedValueOnce(new Error('disk full')).mockResolvedValueOnce(undefined)
+    let finishRetry: (() => void) | undefined
+    state.persistTemporaryTopic.mockRejectedValueOnce(new Error('disk full')).mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishRetry = resolve
+        })
+    )
     const { rerender } = render(<HomeWindow draggable={false} />)
 
     await user.type(screen.getByTestId('quick-input'), 'Important question')
@@ -321,12 +333,41 @@ describe('HomeWindow', () => {
 
     expect(await screen.findByText('quickAssistant.errors.save_conversation_failed')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'common.retry' }))
+    const retry = screen.getByRole('button', { name: 'common.retry' })
+    await user.click(retry)
+    expect(retry).toBeDisabled()
+
+    finishRetry!()
 
     await waitFor(() => {
       expect(screen.queryByText('quickAssistant.errors.save_conversation_failed')).not.toBeInTheDocument()
     })
     expect(state.persistTemporaryTopic).toHaveBeenCalledTimes(2)
+  })
+
+  it('allows the window to close while a conversation save is in flight', async () => {
+    const user = userEvent.setup()
+    state.quickAssistantId = 'assistant-1'
+    state.saveConversations = true
+    state.persistTemporaryTopic.mockImplementation(
+      () =>
+        new Promise<void>(() => {
+          // Keep promotion pending while Escape is handled.
+        })
+    )
+    const { rerender } = render(<HomeWindow draggable={false} />)
+
+    await user.type(screen.getByTestId('quick-input'), 'Important question')
+    await user.click(screen.getByRole('button', { name: 'Ask' }))
+    state.streamStatus = 'streaming'
+    rerender(<HomeWindow draggable={false} />)
+    state.streamStatus = 'done'
+    rerender(<HomeWindow draggable={false} />)
+    await waitFor(() => expect(state.persistTemporaryTopic).toHaveBeenCalled())
+
+    await user.click(screen.getByRole('button', { name: 'Esc' }))
+
+    expect(state.ipcRequest).toHaveBeenCalledWith('quick_assistant.hide')
   })
 
   it('prevents retrying a conversation save while a response is streaming', async () => {

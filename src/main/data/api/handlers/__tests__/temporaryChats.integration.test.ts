@@ -89,7 +89,7 @@ describe('Temporary Chat end-to-end (handler → persist → persistent readback
 
     // 4. Persist. The returned topicId must equal the temporary id unchanged.
     const persistResult = unwrap<PersistTemporaryChatResponse>(
-      await temporaryChatHandlers['/temporary/topics/:id/persist'].POST(req({ params: { id: topic.id } }))
+      await temporaryChatHandlers['/temporary/topics/:id/persist'].POST(req({ params: { id: topic.id }, body: {} }))
     )
     expect(persistResult).toEqual({ topicId: topic.id, messageCount: 4 })
 

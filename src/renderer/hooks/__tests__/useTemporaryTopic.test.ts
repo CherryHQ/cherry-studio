@@ -31,6 +31,9 @@ describe('useTemporaryTopic', () => {
         isNameManuallyEdited: false
       }
     })
+    expect(dataApiService.post).toHaveBeenCalledWith('/temporary/topics/temp-topic-1/persist', {
+      body: { discardFailedTurns: true }
+    })
   })
 
   it('does not persist a lone surrogate when the placeholder name cut lands inside an emoji', async () => {
@@ -48,5 +51,33 @@ describe('useTemporaryTopic', () => {
         isNameManuallyEdited: false
       }
     })
+  })
+
+  it('does not delete a topic while its promotion is in flight', async () => {
+    let finishPersist: (() => void) | undefined
+    vi.mocked(dataApiService.post).mockImplementation(async (path) => {
+      if (path === '/temporary/topics') return { id: 'temp-topic-1' } as never
+      if (path === '/temporary/topics/temp-topic-1/persist') {
+        await new Promise<void>((resolve) => {
+          finishPersist = resolve
+        })
+        return undefined as never
+      }
+      throw new Error(`Unexpected POST ${path}`)
+    })
+    const { result, unmount } = renderHook(() => useTemporaryTopic({ enabled: true }))
+    await waitFor(() => expect(result.current.ready).toBe(true))
+
+    let persistence: Promise<void> | undefined
+    act(() => {
+      persistence = result.current.persist()
+    })
+    await waitFor(() => expect(finishPersist).toBeTypeOf('function'))
+
+    unmount()
+    expect(dataApiService.delete).not.toHaveBeenCalledWith('/temporary/topics/temp-topic-1')
+
+    finishPersist!()
+    await act(async () => persistence)
   })
 })

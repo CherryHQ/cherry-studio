@@ -18,6 +18,7 @@ import { topicTable } from '@data/db/schemas/topic'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CreateMessageDto } from '@shared/data/api/schemas/messages'
+import type { PersistTemporaryChatRequest } from '@shared/data/api/schemas/temporaryChats'
 import type { CreateTopicDto } from '@shared/data/api/schemas/topics'
 import type { Message, MessageRole, MessageRuntimeStatsInput, MessageStatus } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
@@ -190,7 +191,7 @@ export class TemporaryChatService {
     return structuredClone(rows).map(rowToMessage)
   }
 
-  persist(topicId: string): { topicId: string; messageCount: number } {
+  persist(topicId: string, options: PersistTemporaryChatRequest = {}): { topicId: string; messageCount: number } {
     // 1. snapshot-and-clear: take the data out of the Maps immediately so that
     // concurrent handlers can't mutate it while the DB transaction is awaiting.
     const topic = this.topics.get(topicId)
@@ -198,7 +199,7 @@ export class TemporaryChatService {
       throw DataApiErrorFactory.notFound('TemporaryTopic', topicId)
     }
     const msgs = this.messages.get(topicId) ?? []
-    const persistedMessages = msgs.filter((message) => message.role !== 'assistant' || message.status !== 'error')
+    const persistedMessages = options.discardFailedTurns ? this.withoutFailedTurns(msgs) : msgs
     this.topics.delete(topicId)
     this.messages.delete(topicId)
 
@@ -283,6 +284,18 @@ export class TemporaryChatService {
 
     logger.info('Persisted temporary topic', { topicId, messageCount: persistedMessages.length })
     return { topicId, messageCount: persistedMessages.length }
+  }
+
+  private withoutFailedTurns(messages: TemporaryMessageRow[]): TemporaryMessageRow[] {
+    const retained: TemporaryMessageRow[] = []
+    for (const message of messages) {
+      if (message.role === 'assistant' && message.status === 'error') {
+        if (retained.at(-1)?.role === 'user') retained.pop()
+        continue
+      }
+      retained.push(message)
+    }
+    return retained
   }
 
   private assertAcceptableAppendDto(dto: CreateMessageDto): void {
