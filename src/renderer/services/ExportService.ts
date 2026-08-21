@@ -1,6 +1,6 @@
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
-import { Client } from '@notionhq/client'
+import type { Client } from '@notionhq/client'
 // Known same-tier soft-edge (inherited from the former utils/export):
 // `getTopicMessages` is a non-React data accessor that happens to live in the
 // `useTopic` hook module, so this is a service -> hook import. Sinking the
@@ -18,19 +18,54 @@ import { getTitleFromString, messagesToPlainText, processCitations } from '@rend
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { captureScrollableAsBlob, captureScrollableAsDataUrl } from '@renderer/utils/image'
 import { convertMathFormula, markdownToPlainText } from '@renderer/utils/markdown'
+import { stripCitationMarkers } from '@renderer/utils/message/citations'
 import { getComposerTextFromMessage } from '@renderer/utils/message/composerTokens'
 import {
   getCitationContent,
   getMainTextContent,
   getNamingTextContent,
-  getThinkingContent
+  getThinkingContent,
+  getToolCitationExport
 } from '@renderer/utils/message/find'
-import { markdownToBlocks } from '@tryfabric/martian'
+import type { markdownToBlocks } from '@tryfabric/martian'
 import dayjs from 'dayjs'
 import DOMPurify from 'dompurify'
-import { appendBlocks } from 'notion-helper'
+import type { appendBlocks } from 'notion-helper'
 
 const logger = loggerService.withContext('ExportService')
+
+let notionDependenciesPromise: Promise<{
+  Client: typeof Client
+  markdownToBlocks: typeof markdownToBlocks
+  appendBlocks: typeof appendBlocks
+}> | null = null
+
+const loadNotionDependencies = () => {
+  notionDependenciesPromise ??= Promise.all([
+    import('@notionhq/client'),
+    import('@tryfabric/martian'),
+    import('notion-helper')
+  ])
+    .then(([{ Client }, { markdownToBlocks }, { appendBlocks }]) => ({ Client, markdownToBlocks, appendBlocks }))
+    .catch((error) => {
+      // Drop the rejected promise so a retry reloads the chunks instead of replaying the failure.
+      notionDependenciesPromise = null
+      throw error
+    })
+
+  return notionDependenciesPromise
+}
+
+/** Block conversion runs before executeNotionExport's own catch, so it needs the same failure face. */
+const runNotionExport = async (build: () => Promise<boolean>): Promise<boolean> => {
+  try {
+    return await build()
+  } catch (error) {
+    logger.error('Notion export failed:', error as Error)
+    toast.error(i18n.t('message.error.notion.export'))
+    return false
+  }
+}
 
 // Single export-in-progress mutex shared by every exporter below
 // (markdown / Notion / Yuque / Obsidian / Joplin / Siyuan): a second export
@@ -219,6 +254,10 @@ const createBaseMarkdown = async (
       }
       // 使用 DOMPurify 安全地处理思维链内容
       reasoningContent = sanitizeReasoningContent(reasoningContent)
+      // The model cites its sources while reasoning too, but the `[N]` numbering below
+      // belongs to the answer body — strip rather than resolve, so no internal marker
+      // survives and no second, conflicting sequence appears.
+      reasoningContent = stripCitationMarkers(reasoningContent)
       if (forceDollarMathInMarkdown) {
         reasoningContent = convertMathFormula(reasoningContent)
       }
@@ -232,8 +271,13 @@ const createBaseMarkdown = async (
     }
   }
 
-  const content = getComposerTextFromMessage(message, getMainTextContent(message))
-  let citation = excludeCitations ? '' : getCitationContent(message)
+  const rawContent = getComposerTextFromMessage(message, getMainTextContent(message))
+  // Tool-derived citations live as `[cite:id]` markers in the text with no persisted
+  // reference metadata, so resolve them to plain `[N]` here — otherwise the internal
+  // marker leaks into the export and the sources list comes back empty. Messages that
+  // do carry reference metadata keep the legacy path (see `getToolCitationExport`).
+  const { content, citation: toolCitation } = getToolCitationExport(message, rawContent)
+  let citation = excludeCitations ? '' : getCitationContent(message) || toolCitation
 
   let processedContent = forceDollarMathInMarkdown ? convertMathFormula(content) : content
 
@@ -481,6 +525,7 @@ export const exportMessageAsMarkdown = async (
 }
 
 const convertMarkdownToNotionBlocks = async (markdown: string): Promise<any[]> => {
+  const { markdownToBlocks } = await loadNotionDependencies()
   return markdownToBlocks(markdown)
 }
 
@@ -490,6 +535,7 @@ const convertThinkingToNotionBlocks = async (thinkingContent: string): Promise<a
   }
 
   try {
+    const { markdownToBlocks } = await loadNotionDependencies()
     // 预处理思维链内容：将HTML的<br>标签转换为真正的换行符
     const processedContent = thinkingContent.replace(/<br\s*\/?>/g, '\n')
 
@@ -560,6 +606,19 @@ const convertThinkingToNotionBlocks = async (thinkingContent: string): Promise<a
   }
 }
 
+// Reasoning content comes from the message itself, not from the body markdown,
+// so callers can produce these blocks concurrently with the body conversion.
+const convertThinkingBlocksFor = async (message: ExportableMessage, reasoningEnabled: boolean): Promise<any[]> => {
+  if (!reasoningEnabled) {
+    return []
+  }
+  const thinkingContent = stripCitationMarkers(getThinkingContent(message))
+  if (!thinkingContent) {
+    return []
+  }
+  return convertThinkingToNotionBlocks(thinkingContent)
+}
+
 const executeNotionExport = async (title: string, allBlocks: any[]): Promise<boolean> => {
   if (getExportState()) {
     toast.warning(i18n.t('message.warn.export.exporting'))
@@ -589,6 +648,7 @@ const executeNotionExport = async (title: string, allBlocks: any[]): Promise<boo
   }
 
   try {
+    const { Client, appendBlocks } = await loadNotionDependencies()
     const notion = new Client({ auth: notionApiKey })
 
     const responsePromise = notion.pages.create({
@@ -626,59 +686,60 @@ export const exportMessageToNotion = async (
   title: string,
   content: string,
   message?: ExportableMessage
-): Promise<boolean> => {
-  const notionExportReasoning = await preferenceService.get('data.integration.notion.export_reasoning')
+): Promise<boolean> =>
+  runNotionExport(async () => {
+    const notionExportReasoning = await preferenceService.get('data.integration.notion.export_reasoning')
 
-  const notionBlocks = await convertMarkdownToNotionBlocks(content)
+    const notionBlocks = await convertMarkdownToNotionBlocks(content)
 
-  if (notionExportReasoning && message) {
-    const thinkingContent = getThinkingContent(message)
-    if (thinkingContent) {
-      const thinkingBlocks = await convertThinkingToNotionBlocks(thinkingContent)
-      if (notionBlocks.length > 0) {
-        notionBlocks.splice(1, 0, ...thinkingBlocks)
-      } else {
-        notionBlocks.push(...thinkingBlocks)
-      }
-    }
-  }
-
-  return executeNotionExport(title, notionBlocks)
-}
-
-export const exportMessagesToNotion = async (title: string, messages: ExportableMessage[]): Promise<boolean> => {
-  const { notionExportReasoning, excludeCitationsInExport } = await preferenceService.getMultiple({
-    notionExportReasoning: 'data.integration.notion.export_reasoning',
-    excludeCitationsInExport: 'data.export.markdown.exclude_citations'
-  })
-
-  const titleBlocks = await convertMarkdownToNotionBlocks(`# ${title}`)
-
-  // 为每个消息创建blocks
-  const allBlocks: any[] = [...titleBlocks]
-
-  for (const message of messages) {
-    // 将单个消息转换为markdown
-    const messageMarkdown = await messageToMarkdown(message, excludeCitationsInExport)
-    const messageBlocks = await convertMarkdownToNotionBlocks(messageMarkdown)
-
-    if (notionExportReasoning) {
-      const thinkingContent = getThinkingContent(message)
+    if (notionExportReasoning && message) {
+      // Same reason as `createBaseMarkdown`: the body arrives already resolved, so the trace is the
+      // only way an internal marker could still reach Notion.
+      const thinkingContent = stripCitationMarkers(getThinkingContent(message))
       if (thinkingContent) {
         const thinkingBlocks = await convertThinkingToNotionBlocks(thinkingContent)
+        if (notionBlocks.length > 0) {
+          notionBlocks.splice(1, 0, ...thinkingBlocks)
+        } else {
+          notionBlocks.push(...thinkingBlocks)
+        }
+      }
+    }
+
+    return executeNotionExport(title, notionBlocks)
+  })
+
+export const exportMessagesToNotion = async (title: string, messages: ExportableMessage[]): Promise<boolean> =>
+  runNotionExport(async () => {
+    const { notionExportReasoning, excludeCitationsInExport } = await preferenceService.getMultiple({
+      notionExportReasoning: 'data.integration.notion.export_reasoning',
+      excludeCitationsInExport: 'data.export.markdown.exclude_citations'
+    })
+
+    const titleBlocks = await convertMarkdownToNotionBlocks(`# ${title}`)
+
+    // Body and reasoning conversions take independent inputs, so they run
+    // concurrently per message and across messages; map+Promise.all keeps input order.
+    const convertMessage = async (message: ExportableMessage): Promise<any[]> => {
+      const [messageBlocks, thinkingBlocks] = await Promise.all([
+        messageToMarkdown(message, excludeCitationsInExport).then(convertMarkdownToNotionBlocks),
+        convertThinkingBlocksFor(message, notionExportReasoning)
+      ])
+      if (thinkingBlocks.length > 0) {
         if (messageBlocks.length > 0) {
           messageBlocks.splice(1, 0, ...thinkingBlocks)
         } else {
           messageBlocks.push(...thinkingBlocks)
         }
       }
+      return messageBlocks
     }
 
-    allBlocks.push(...messageBlocks)
-  }
+    const messageBlocksList = await Promise.all(messages.map(convertMessage))
+    const allBlocks: any[] = [...titleBlocks, ...messageBlocksList.flat()]
 
-  return executeNotionExport(title, allBlocks)
-}
+    return executeNotionExport(title, allBlocks)
+  })
 
 export const exportTopicToNotion = async (topic: Topic): Promise<boolean> => {
   const topicMessages = await getTopicMessages(topic.id)

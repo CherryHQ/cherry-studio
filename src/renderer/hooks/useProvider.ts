@@ -1,4 +1,5 @@
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
+import { useDataChange } from '@data/hooks/useDataChange'
 import { loggerService } from '@logger'
 import { getProviderLabelKey } from '@renderer/i18n/label'
 import i18n from '@renderer/i18n/resolver'
@@ -87,18 +88,23 @@ export function useProviders(
 }
 
 // ─── Layer 2: Single read + write + delete ────────────────────────────
-export function useProvider(providerId: string | null | undefined) {
+export function useProviderById(providerId: string | null | undefined) {
   const resolvedProviderId = providerId ?? ''
   const { data, isLoading, error, refetch } = useQuery('/providers/:providerId', {
     params: { providerId: resolvedProviderId },
     enabled: !!providerId,
     swrOptions: { keepPreviousData: false }
   })
-  const provider = data
+  return { provider: data, isLoading, error, refetch }
+}
+
+export function useProvider(providerId: string | null | undefined) {
+  const resolvedProviderId = providerId ?? ''
+  const query = useProviderById(providerId)
 
   const mutations = useProviderMutations(resolvedProviderId)
 
-  return { provider, isLoading, error, refetch, ...mutations }
+  return { ...query, ...mutations }
 }
 
 // ─── Layer 3: Pure mutations ──────────────────────────────────────────
@@ -110,7 +116,10 @@ export function useProviderMutations(providerId: string) {
     trigger: patchTrigger,
     isLoading: isUpdating,
     error: updateError
-  } = useMutation('PATCH', '/providers/:providerId', { refresh })
+  } = useMutation('PATCH', '/providers/:providerId', {
+    // Endpoint/default changes alter registry-projected model controls.
+    refresh: [...refresh, '/models', '/models/*']
+  })
 
   const {
     trigger: deleteTrigger,
@@ -260,11 +269,13 @@ export function useProviderApiKeys(providerId: string) {
 
 /** Read a sparse projection of the provider's effective registry preset. */
 export function useProviderPreset(providerId: string | null | undefined, fields: readonly ProviderPresetField[]) {
-  return useQuery('/providers/:providerId/preset', {
+  const query = useQuery('/providers/:providerId/preset', {
     params: { providerId: providerId ?? '' },
     query: { fields: [...fields] },
     enabled: !!providerId
   })
+  useDataChange('/providers/:providerId/preset', () => void query.refetch())
+  return query
 }
 
 /**

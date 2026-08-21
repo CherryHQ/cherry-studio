@@ -306,7 +306,7 @@ describe('AgentsDbMappings', () => {
 
     const sessionInsert = find('agent_session')
     expect(sessionInsert).toContain(
-      'INSERT INTO agent_session (id, agent_id, model_id, name, description, workspace_id, order_key, created_at, updated_at)'
+      'INSERT INTO agent_session (id, agent_id, model_id, name, description, workspace_id, order_key, last_activity_at, created_at, updated_at)'
     )
     expect(sessionInsert).toContain('(SELECT model FROM agent WHERE agent.id = sessions.agent_id) AS model_id')
     expect(sessionInsert).toContain("COALESCE(description, '') AS description")
@@ -315,6 +315,7 @@ describe('AgentsDbMappings', () => {
     )
     expect(sessionInsert).not.toContain('accessible_paths')
     expect(sessionInsert).toContain("'' AS order_key")
+    expect(sessionInsert).toContain("CAST(strftime('%s', created_at) AS INTEGER) * 1000 AS last_activity_at")
 
     const skillInsert = find('agent_global_skill')
     expect(skillInsert).toContain("COALESCE(tags, '[]') AS tags")

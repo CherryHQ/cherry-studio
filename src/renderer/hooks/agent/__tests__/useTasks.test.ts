@@ -2,8 +2,9 @@ import { toast } from '@renderer/services/toast'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { MockUseDataApiUtils, mockUseInvalidateCache } from '@test-mocks/renderer/useDataApi'
+import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, renderHook } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   TASKS_PAGE_LIMIT,
@@ -31,16 +32,33 @@ vi.mock('@renderer/ipc', () => ({
 }))
 
 const taskEntity = { id: 't-1', agentId: 'agent-1', name: 'Task 1', enabled: true }
+const TASK_LIST_READ_KEYS = ['/agent-tasks', '/agents/agent-1/tasks']
 const TASK_READ_KEYS = ['/agent-tasks', '/agent-tasks/*', '/agents/agent-1/tasks', '/agents/agent-1/tasks/*']
 
 // Pin one stable invalidate spy across renders so the read-key assertions
 // below can see it (the default mock returns a fresh fn per render).
 const invalidateSpy = vi.fn(async () => {})
 
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+
+  return { promise, reject, resolve }
+}
+
 beforeEach(() => {
   MockUseDataApiUtils.resetMocks()
   vi.clearAllMocks()
   mockUseInvalidateCache.mockReturnValue(invalidateSpy)
+  vi.spyOn(mockRendererLoggerService, 'warn').mockImplementation(() => {})
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
 })
 
 describe('useTasks', () => {
@@ -85,6 +103,15 @@ describe('useAllTasks', () => {
     expect(result.current.pageCount).toBe(2)
     expect(result.current.hasPrev).toBe(true)
   })
+
+  it('refetches task projections published by a background sticky-session bind', () => {
+    MockUseDataApiUtils.mockPaginatedData('/agent-tasks', [taskEntity])
+    const { result } = renderHook(() => useAllTasks())
+
+    MockUseDataApiUtils.emitDataChange([{ endpoint: '/agent-tasks', kind: 'projection' as const, entityIds: ['t-1'] }])
+
+    expect(result.current.refetch).toHaveBeenCalled()
+  })
 })
 
 describe('useTask', () => {
@@ -95,6 +122,16 @@ describe('useTask', () => {
 
     expect(result.current.task).toEqual(taskEntity)
     expect(result.current.isLoading).toBe(false)
+  })
+
+  it('refetches the matching task detail after a sticky-session pointer change', () => {
+    const refetch = vi.fn()
+    MockUseDataApiUtils.mockQueryResult('/agent-tasks/:taskId', { data: taskEntity as any, refetch })
+    renderHook(() => useTask('t-1'))
+
+    MockUseDataApiUtils.emitDataChange([{ endpoint: '/agent-tasks/:taskId', entityIds: ['t-1'] }])
+
+    expect(refetch).toHaveBeenCalled()
   })
 })
 
@@ -193,10 +230,18 @@ describe('useSetTaskEnabled', () => {
 
 describe('useDeleteTask', () => {
   it('sends the delete command and returns true on success', async () => {
+    const navigation = createDeferred<void>()
     requestMock.mockResolvedValue(undefined)
+    const onDeleted = vi.fn(() => navigation.promise)
 
     const { result } = renderHook(() => useDeleteTask())
-    const deleted = await act(async () => result.current.deleteTask('agent-1', 't-1'))
+    const deletion = result.current.deleteTask('agent-1', 't-1', { onDeleted })
+
+    await vi.waitFor(() => expect(onDeleted).toHaveBeenCalled())
+    expect(invalidateSpy).not.toHaveBeenCalled()
+
+    navigation.resolve()
+    const deleted = await act(async () => deletion)
 
     expect(requestMock).toHaveBeenCalledWith('ai.agent.task.delete', { agentId: 'agent-1', taskId: 't-1' })
     expect(deleted).toBe(true)
@@ -204,14 +249,48 @@ describe('useDeleteTask', () => {
     expect(invalidateSpy).toHaveBeenCalledWith(TASK_READ_KEYS)
   })
 
-  it('toasts error and returns false on failure', async () => {
-    requestMock.mockRejectedValue(new Error('delete failed'))
+  it('preserves a successful deletion when post-delete navigation fails', async () => {
+    const navigation = createDeferred<void>()
+    requestMock.mockResolvedValue(undefined)
+    const onDeleted = vi.fn(() => navigation.promise)
+
+    const { result } = renderHook(() => useDeleteTask())
+    const deletion = result.current.deleteTask('agent-1', 't-1', { onDeleted })
+
+    await vi.waitFor(() => expect(onDeleted).toHaveBeenCalled())
+    expect(invalidateSpy).not.toHaveBeenCalled()
+
+    navigation.reject(new Error('navigation failed'))
+    const deleted = await act(async () => deletion)
+
+    expect(deleted).toBe(true)
+    expect(invalidateSpy).toHaveBeenCalledWith(TASK_LIST_READ_KEYS)
+    expect(toast.success).toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('preserves a successful deletion when refreshing task data fails', async () => {
+    requestMock.mockResolvedValue(undefined)
+    invalidateSpy.mockRejectedValueOnce(new Error('refresh failed'))
 
     const { result } = renderHook(() => useDeleteTask())
     const deleted = await act(async () => result.current.deleteTask('agent-1', 't-1'))
 
+    expect(deleted).toBe(true)
+    expect(toast.success).toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('toasts error and returns false on failure', async () => {
+    requestMock.mockRejectedValue(new Error('delete failed'))
+    const onDeleted = vi.fn()
+
+    const { result } = renderHook(() => useDeleteTask())
+    const deleted = await act(async () => result.current.deleteTask('agent-1', 't-1', { onDeleted }))
+
     expect(deleted).toBe(false)
     expect(toast.error).toHaveBeenCalled()
+    expect(onDeleted).not.toHaveBeenCalled()
     expect(invalidateSpy).not.toHaveBeenCalled()
   })
 })

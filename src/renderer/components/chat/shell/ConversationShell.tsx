@@ -112,9 +112,7 @@ const ConversationShellTopBar = ({ topRightTool, showTopRightToolWhenPaneOpen, c
   const open = presentationState?.presentationOpen ?? false
   const shouldShowTopRightTool = Boolean(topRightTool) && !maximized && (!open || showTopRightToolWhenPaneOpen)
   return (
-    <div
-      data-conversation-shell-topbar
-      className='relative flex h-fit w-full min-w-0 items-center after:pointer-events-none after:absolute after:right-0 after:bottom-0 after:left-0 after:h-px after:bg-border-subtle after:content-[""]'>
+    <div data-conversation-shell-topbar className="relative flex h-fit w-full min-w-0 items-center">
       <div data-conversation-shell-topbar-content className="min-w-0 flex-1">
         {children}
       </div>

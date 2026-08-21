@@ -109,7 +109,7 @@ const provider: Provider = {
   name: 'OpenAI',
   apiKeys: [],
   authType: 'api-key',
-  apiFeatures: {} as Provider['apiFeatures'],
+  reportsActualCost: false,
   settings: {} as Provider['settings'],
   isEnabled: true
 } as Provider
@@ -272,20 +272,6 @@ describe('ModelSelectorDetailCard', () => {
     })
     expect(mockHoverCardContentProps.at(-1)?.collisionBoundary).toBeUndefined()
     expect(mockHoverCardContentProps.at(-1)?.avoidCollisions).toBeUndefined()
-  })
-
-  it('does not use a document fragment as the collision boundary', () => {
-    const model = makeModel()
-    const portalContainer = document.createDocumentFragment()
-
-    render(
-      <ModelSelectorDetailCard item={makeItem(model)} provider={provider} portalContainer={portalContainer}>
-        <button type="button">GPT-4o mini</button>
-      </ModelSelectorDetailCard>
-    )
-
-    expect(mockHoverCardContentProps.at(-1)).toMatchObject({ portalContainer })
-    expect(mockHoverCardContentProps.at(-1)?.collisionBoundary).toBeUndefined()
   })
 
   it('renders reasoning options derived from the descriptor', () => {

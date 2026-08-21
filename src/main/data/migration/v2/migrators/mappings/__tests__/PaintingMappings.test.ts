@@ -67,6 +67,38 @@ describe('PaintingMappings', () => {
     })
   })
 
+  it.each(['?', '#'])('drops route-unsafe scalar pre-composed model ids containing %s', (reservedChar) => {
+    const modelId = `openai::bad${reservedChar}`
+    const result = transformLegacyPaintingRecord('openai_image_generate', {
+      id: 'painting-invalid-scalar-model',
+      providerId: 'openai',
+      modelId,
+      prompt: 'hello'
+    })
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: { modelId: null }
+    })
+    expect(result.warnings).toEqual([expect.stringContaining(`Dropped invalid legacy model id '${modelId}'`)])
+  })
+
+  it.each(['?', '#'])('drops route-unsafe object pre-composed model ids containing %s', (reservedChar) => {
+    const modelId = `openai::bad${reservedChar}`
+    const result = transformLegacyPaintingRecord('openai_image_generate', {
+      id: 'painting-invalid-object-model',
+      providerId: 'openai',
+      modelId: { id: modelId, provider: 'openai' },
+      prompt: 'hello'
+    })
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: { modelId: null }
+    })
+    expect(result.warnings).toEqual([expect.stringContaining(`Dropped invalid legacy model id '${modelId}'`)])
+  })
+
   it('does not carry the legacy parent field into normalized painting rows', () => {
     const result = transformLegacyPaintingRecord('siliconflow_paintings', {
       id: 'painting-parentless',

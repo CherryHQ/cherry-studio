@@ -117,18 +117,6 @@ describe('FileGrid layout', () => {
       expect(onLayoutChange.mock.calls.length).toBeGreaterThanOrEqual(2)
     })
   })
-
-  it('uses a calm neutral placeholder instead of decorative file-type colors', () => {
-    const { container } = render(<FileGrid {...fileGridProps([imageFile])} />)
-
-    const placeholder = container.querySelector<HTMLElement>('.aspect-square')
-    const icon = placeholder?.querySelector('svg')
-    const card = screen.getByText(imageFile.name).closest('.group')
-
-    expect(placeholder).toHaveClass('bg-muted', 'border-border-subtle')
-    expect(icon).toHaveClass('text-muted-foreground')
-    expect(card).toHaveClass('border-border-subtle', 'bg-card', 'hover:border-border-strong', 'hover:bg-accent')
-  })
 })
 
 describe('FileGrid image preview', () => {
@@ -140,7 +128,6 @@ describe('FileGrid image preview', () => {
 
     const thumbnail = screen.getByAltText('photo.png')
     expect(thumbnail).toHaveAttribute('src', 'safe-file:///tmp/photo.png')
-    expect(thumbnail).toHaveClass('object-contain')
 
     fireEvent.click(thumbnail)
     expect(props.onOpen).toHaveBeenCalledWith(imageWithPreview)

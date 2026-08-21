@@ -23,6 +23,7 @@ import { requireSingleInstance } from '@main/core/preboot/singleInstance'
 import { resolveUserDataLocation } from '@main/core/preboot/userDataLocation'
 import { runV2MigrationGate } from '@main/core/preboot/v2MigrationGate'
 import { runDataReset } from '@main/services/dataReset'
+import { registerMediaSchemes } from '@main/services/mediaProtocol'
 import { runUserDataRelocation } from '@main/services/userDataRelocation'
 
 // should be the first to resolveUserDataLocation()
@@ -30,6 +31,9 @@ resolveUserDataLocation()
 requireSingleInstance()
 configureChromiumFlags()
 initCrashTelemetry()
+// Custom media scheme must be declared privileged before the app is ready, and
+// startApp() itself awaits app.whenReady() — so this cannot move in there.
+registerMediaSchemes()
 // Freeze the path registry — bootstrap() asserts this completed.
 application.initPathRegistry()
 

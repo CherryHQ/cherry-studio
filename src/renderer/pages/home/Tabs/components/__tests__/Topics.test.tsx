@@ -1,11 +1,13 @@
 import type * as UseCacheModule from '@renderer/data/hooks/useCache'
 import type * as TopicMenuActionsHook from '@renderer/hooks/chat/useTopicMenuActions'
-import type { AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
+import { type AssistantTopicsSource, deriveAssistantTopicsView } from '@renderer/hooks/resourceViewSources'
+import type * as UseGroupsHook from '@renderer/hooks/useGroups'
 import type * as ImageCaptureTargetsHook from '@renderer/hooks/useImageCaptureTargets'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
@@ -98,6 +100,19 @@ const notesSettingsMocks = vi.hoisted(() => ({
 
 vi.mock('@renderer/hooks/useNotesSettings', () => notesSettingsMocks)
 
+const groupReorderMocks = vi.hoisted(() => ({
+  reorderGroup: vi.fn().mockResolvedValue(undefined)
+}))
+
+vi.mock('@renderer/hooks/useGroups', async () => {
+  const actual = await vi.importActual<typeof UseGroupsHook>('@renderer/hooks/useGroups')
+
+  return {
+    ...actual,
+    useGroupReorder: () => groupReorderMocks
+  }
+})
+
 const imageCaptureTargetsMock = vi.hoisted(() => ({
   targets: undefined as Array<{ requestId: number; target: unknown }> | undefined
 }))
@@ -156,11 +171,19 @@ vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
 }))
 
 const topicDataMocks = vi.hoisted(() => ({
+  clearTopicMessagesTrigger: vi.fn().mockResolvedValue({ deletedIds: ['message-c'] }),
   deleteTopicsByAssistantId: vi.fn().mockResolvedValue({ deletedIds: [] as string[], deletedCount: 0 }),
   deleteTopic: vi.fn().mockResolvedValue(undefined),
   moveTopic: vi.fn().mockResolvedValue(undefined),
   refreshTopics: vi.fn().mockResolvedValue(undefined),
   updateTopic: vi.fn().mockResolvedValue(undefined)
+}))
+
+const topicRenameMocks = vi.hoisted(() => ({
+  cancelTopicRenaming: vi.fn(),
+  finishTopicRenaming: vi.fn(),
+  getTopicMessages: vi.fn().mockResolvedValue([]),
+  startTopicRenaming: vi.fn()
 }))
 
 const pinMutationMocks = vi.hoisted(() => ({
@@ -228,9 +251,10 @@ vi.mock('@renderer/hooks/useTopic', async () => {
   const actual = await vi.importActual<typeof TopicDataApiModule>('@renderer/hooks/useTopic')
   return {
     ...actual,
-    finishTopicRenaming: vi.fn(),
-    getTopicMessages: vi.fn().mockResolvedValue([]),
-    startTopicRenaming: vi.fn(),
+    cancelTopicRenaming: topicRenameMocks.cancelTopicRenaming,
+    finishTopicRenaming: topicRenameMocks.finishTopicRenaming,
+    getTopicMessages: topicRenameMocks.getTopicMessages,
+    startTopicRenaming: topicRenameMocks.startTopicRenaming,
     useTopicMutations: () => ({
       updateTopic: topicDataMocks.updateTopic,
       deleteTopic: topicDataMocks.deleteTopic,
@@ -260,7 +284,6 @@ vi.mock('@renderer/utils/aiGeneration', () => ({
 
 vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: {
-    CLEAR_MESSAGES: 'CLEAR_MESSAGES',
     COPY_TOPIC_IMAGE: 'COPY_TOPIC_IMAGE',
     EXPORT_TOPIC_IMAGE: 'EXPORT_TOPIC_IMAGE'
   },
@@ -320,6 +343,7 @@ vi.mock('react-i18next', () => ({
         if (key === 'chat.topics.display.title') return 'Display mode'
         if (key === 'chat.topics.display.time') return 'Time'
         if (key === 'chat.topics.display.assistant') return 'Assistant'
+        if (key === 'chat.topics.draft') return 'Draft'
         if (key === 'chat.topics.group.today') return 'Today'
         if (key === 'chat.topics.group.yesterday') return 'Yesterday'
         if (key === 'chat.topics.group.this_week') return 'This week'
@@ -346,6 +370,8 @@ vi.mock('react-i18next', () => ({
         if (key === 'assistants.edit.title') return 'Edit Assistant'
         if (key === 'assistants.pin.title') return 'Pin Assistant'
         if (key === 'assistants.unpin.title') return 'Unpin Assistant'
+        if (key === 'launchpad.pin_to_sidebar') return 'Add to sidebar'
+        if (key === 'launchpad.unpin_from_sidebar') return 'Remove from sidebar'
         if (key === 'assistants.clear.menu_title') return 'Delete all assistant conversations'
         if (key === 'assistants.delete.title') return 'Delete Assistant'
         if (key === 'assistants.delete.content') return 'Delete this assistant and its conversations?'
@@ -362,6 +388,7 @@ vi.mock('react-i18next', () => ({
         if (key === 'assistants.clear.title') return 'Clear conversations'
         if (key === 'assistants.clear.content') return 'Delete all assistant conversations?'
         if (key === 'chat.topics.clear.title') return 'Clear messages'
+        if (key === 'chat.input.clear.title') return 'Clear all messages?'
         if (key === 'notes.save') return 'Save to notes'
         if (key === 'chat.save.topic.knowledge.menu_title') return 'Save to knowledge base'
         if (key === 'chat.save.topic.knowledge.title') return 'Save to knowledge base'
@@ -385,15 +412,19 @@ vi.mock('react-i18next', () => ({
         if (key === 'common.delete') return 'Delete'
         if (key === 'common.delete_success') return 'Deleted'
         if (key === 'common.delete_failed') return 'Delete failed'
+        if (key === 'common.error') return 'Error'
         if (key === 'common.more') return 'More'
         if (key === 'common.open_in_new_tab') return 'Open in new tab'
         if (key === 'tab.open_in_new_window') return 'Open in New Window'
         if (key === 'common.cancel') return 'Cancel'
         if (key === 'common.copy_failed') return 'Copy failed'
+        if (key === 'common.confirm') return 'Confirm'
         if (key === 'common.loading') return 'Loading...'
         if (key === 'common.name') return 'Name'
         if (key === 'common.required_field') return 'Required field'
         if (key === 'common.save') return 'Save'
+        if (key === 'common.save_failed') return 'Save failed'
+        if (key === 'common.saved') return 'Saved'
         if (key === 'common.select_all') return 'Select All'
         if (key === 'message.tools.status.done') return 'Done'
         if (key === 'message.tools.status.error') return 'Error'
@@ -416,6 +447,7 @@ vi.mock('react-i18next', () => ({
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
+import { getChatDraftCacheKey, writeChatDraftCache } from '@renderer/components/composer/variants/chat/chatDraftCache'
 import type * as TopicDataApiModule from '@renderer/hooks/useTopic'
 import type { Topic } from '@renderer/types/topic'
 import {
@@ -485,7 +517,8 @@ function createApiTopic(overrides: Partial<ApiTopic> = {}) {
     orderKey: 'a',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
-    ...overrides
+    ...overrides,
+    lastActivityAt: overrides.lastActivityAt ?? overrides.updatedAt ?? '2026-01-01T00:00:00.000Z'
   }
 }
 
@@ -499,8 +532,27 @@ function createRendererTopic(overrides: Partial<Topic> = {}): Topic {
     messages: [],
     pinned: false,
     isNameManuallyEdited: false,
-    ...overrides
+    ...overrides,
+    lastActivityAt: overrides.lastActivityAt ?? overrides.updatedAt ?? '2026-01-01T00:00:00.000Z'
   }
+}
+
+/**
+ * Time groups only label themselves when the list spans more than one bucket, so fixtures that
+ * assert on a bucket header need an older topic to contrast with.
+ */
+function withEarlierTopic(items: ApiTopic[]): ApiTopic[] {
+  return [
+    ...items,
+    createApiTopic({
+      id: 'topic-earlier',
+      name: 'Earlier topic',
+      assistantId: 'assistant-1',
+      orderKey: 'zzz',
+      createdAt: '2025-11-01T01:00:00.000Z',
+      updatedAt: '2025-11-01T01:00:00.000Z'
+    })
+  ]
 }
 
 function createTopicPageItems(count: number): ApiTopic[] {
@@ -541,6 +593,16 @@ function createAssistant(overrides: Record<string, unknown> = {}) {
   }
 }
 
+function createDeferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, reject, resolve }
+}
+
 type OnNewTopicMock = Mock<(payload?: { assistantId?: string | null }) => void>
 
 function createAssistantTopicsSource(topics?: readonly ApiTopic[]): AssistantTopicsSource {
@@ -575,7 +637,8 @@ function createAssistantTopicsSource(topics?: readonly ApiTopic[]): AssistantTop
     mutate: source.mutate,
     pages: source.pages,
     refetch: source.refresh,
-    topics: items
+    topics: items,
+    ...deriveAssistantTopicsView(items)
   } as unknown as AssistantTopicsSource
 }
 
@@ -583,32 +646,34 @@ function renderTopicList({
   activeTopic = createRendererTopic(),
   assistantTopicsSource,
   assistantIdFilter,
+  clearActiveTopic = vi.fn(),
   onActiveAssistantDeleted,
   onAddAssistant = vi.fn(),
-  onCreateTopicAfterClear = vi.fn(),
   historyRecordsActive,
+  manageAssistantsActive,
   onNewTopic = vi.fn(),
+  onManageAssistants,
   onOpenHistoryRecords = vi.fn(),
   onSetPanePosition,
   panePosition,
   presentation,
-  revealRequest,
-  resourceMenuItems
+  revealRequest
 }: {
   activeTopic?: Topic
   assistantTopicsSource?: AssistantTopicsSource
   assistantIdFilter?: string | null
+  clearActiveTopic?: Mock<() => void>
   onActiveAssistantDeleted?: ComponentProps<typeof Topics>['onActiveAssistantDeleted']
   onAddAssistant?: ComponentProps<typeof Topics>['onAddAssistant']
-  onCreateTopicAfterClear?: OnNewTopicMock
   historyRecordsActive?: ComponentProps<typeof Topics>['historyRecordsActive']
+  manageAssistantsActive?: ComponentProps<typeof Topics>['manageAssistantsActive']
   onNewTopic?: OnNewTopicMock
+  onManageAssistants?: ComponentProps<typeof Topics>['onManageAssistants']
   onOpenHistoryRecords?: Mock<() => void>
   onSetPanePosition?: ComponentProps<typeof Topics>['onSetPanePosition']
   panePosition?: ComponentProps<typeof Topics>['panePosition']
-  presentation?: 'sidebar' | 'right-panel'
+  presentation?: ComponentProps<typeof Topics>['presentation']
   revealRequest?: ResourceListRevealRequest
-  resourceMenuItems?: ComponentProps<typeof Topics>['resourceMenuItems']
 } = {}) {
   const setActiveTopic = vi.fn()
   const renderNode = (nextRevealRequest = revealRequest, nextActiveTopic = activeTopic) => (
@@ -616,25 +681,26 @@ function renderTopicList({
       activeTopic={nextActiveTopic}
       assistantTopicsSource={assistantTopicsSource ?? createAssistantTopicsSource()}
       assistantIdFilter={assistantIdFilter}
+      clearActiveTopic={clearActiveTopic}
       historyRecordsActive={historyRecordsActive}
+      manageAssistantsActive={manageAssistantsActive}
       onActiveAssistantDeleted={onActiveAssistantDeleted}
       onAddAssistant={onAddAssistant}
       setActiveTopic={setActiveTopic}
-      onCreateTopicAfterClear={onCreateTopicAfterClear}
       onNewTopic={onNewTopic}
+      onManageAssistants={onManageAssistants}
       onOpenHistoryRecords={onOpenHistoryRecords}
       onSetPanePosition={onSetPanePosition}
       panePosition={panePosition}
       presentation={presentation}
       revealRequest={nextRevealRequest}
-      resourceMenuItems={resourceMenuItems}
     />
   )
   const view = render(renderNode())
   return {
     ...view,
+    clearActiveTopic,
     onAddAssistant,
-    onCreateTopicAfterClear,
     onNewTopic,
     onOpenHistoryRecords,
     rerenderTopicList: (nextRevealRequest = revealRequest, nextActiveTopic = activeTopic) =>
@@ -669,6 +735,23 @@ const topicStreamStatusCacheKey = (topicId: string) => `topic.stream.statuses.${
 const topicStreamLastSeenCompletionCacheKey = (topicId: string) =>
   `topic.stream.last_seen_completion.${topicId}` as never
 
+function setTopicDraft(topicId: string, text: string) {
+  writeChatDraftCache(topicId, {
+    text,
+    tokens: [],
+    files: [],
+    knowledgeBaseIds: [],
+    mentionedModelIds: [],
+    modelMultiSelectMode: false
+  })
+}
+
+function clearTopicDraftCache(...topicIds: string[]) {
+  for (const topicId of topicIds) {
+    cacheService.delete(getChatDraftCacheKey(topicId))
+  }
+}
+
 function setTopicStreamCacheStatus(
   topicId: string,
   status: 'aborted' | 'awaiting-approval' | 'done' | 'error' | 'pending' | 'streaming',
@@ -688,6 +771,17 @@ function clearTopicStreamCache(...topicIds: string[]) {
   }
 }
 
+/**
+ * An entity group header (agent / assistant) switches away when clicked, so its fold control is a
+ * separate button beside the label and `aria-expanded` lives there. Bucket headers (workdir, time
+ * ranges, pinned) still toggle as one row and keep the attribute on the header button itself.
+ */
+function groupChevron(groupHeaderButton: HTMLElement): HTMLElement {
+  const chevron = groupHeaderButton.parentElement?.querySelector(':scope > button[aria-expanded]')
+  if (!chevron) throw new Error('group header has no chevron button')
+  return chevron as HTMLElement
+}
+
 describe('Topics', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -695,6 +789,7 @@ describe('Topics', () => {
     topicStreamStatusMocks.statuses.clear()
     topicRowRenderMocks.counts.clear()
     clearTopicStreamCache('topic-a', 'topic-b', 'topic-c', 'topic-d', 'topic-e')
+    clearTopicDraftCache('topic-a', 'topic-b', 'topic-c', 'topic-d', 'topic-e')
     vi.useFakeTimers({ shouldAdvanceTime: true })
     vi.setSystemTime(new Date(2026, 0, 3, 12))
     MockUsePreferenceUtils.resetMocks()
@@ -711,7 +806,6 @@ describe('Topics', () => {
       'data.export.menus.joplin': true,
       'data.export.menus.markdown': true,
       'data.export.menus.markdown_reason': true,
-      'data.export.menus.notes': true,
       'data.export.menus.notion': true,
       'data.export.menus.obsidian': true,
       'data.export.menus.plain_text': true,
@@ -721,6 +815,7 @@ describe('Topics', () => {
     pinMutationMocks.createPin.mockResolvedValue(createTopicPin())
     pinMutationMocks.deletePin.mockResolvedValue(undefined)
     assistantMutationMocks.deleteAssistant.mockResolvedValue({ deleted: true, deletedTopicIds: [] })
+    topicDataMocks.clearTopicMessagesTrigger.mockResolvedValue({ deletedIds: ['message-c'] })
     topicDataMocks.deleteTopicsByAssistantId.mockResolvedValue({ deletedIds: [], deletedCount: 0 })
     tabsContextMocks.openTab.mockClear()
     tabsContextMocks.setActiveTab.mockClear()
@@ -735,6 +830,9 @@ describe('Topics', () => {
       }
       if (method === 'DELETE' && path === '/assistants/:id') {
         return { trigger: assistantMutationMocks.deleteAssistant, isLoading: false, error: undefined }
+      }
+      if (method === 'DELETE' && path === '/topics/:topicId/messages') {
+        return { trigger: topicDataMocks.clearTopicMessagesTrigger, isLoading: false, error: undefined }
       }
       return { trigger: vi.fn(), isLoading: false, error: undefined }
     })
@@ -932,13 +1030,14 @@ describe('Topics', () => {
     })
     const { setActiveTopic } = renderTopicList()
 
-    expect(screen.getByText('Today')).toBeInTheDocument()
+    // Everything falls into one time bucket, so the list drops the redundant "Today" header.
+    expect(screen.queryByText('Today')).not.toBeInTheDocument()
     fireEvent.click(screen.getByTitle('chat.conversation.new'))
 
     expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-empty', name: '' }))
   })
 
-  it('allows deleting the last remaining topic and opens a fresh one for its assistant afterwards', async () => {
+  it('clears the active topic after deleting the final remaining topic', async () => {
     mockUseInfiniteQuery.mockReturnValue({
       pages: [
         {
@@ -962,7 +1061,7 @@ describe('Topics', () => {
       mutate: vi.fn()
     })
 
-    const { onNewTopic } = renderTopicList({
+    const { clearActiveTopic, onNewTopic } = renderTopicList({
       activeTopic: createRendererTopic({ id: 'topic-a', assistantId: 'assistant-1', name: 'Alpha topic' })
     })
 
@@ -976,11 +1075,104 @@ describe('Topics', () => {
     })
 
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a'))
-    // The fresh replacement must exclude the just-deleted topic from reuse, so a stale candidate list
-    // can't reactivate the deleted id instead of creating a new topic.
-    await vi.waitFor(() =>
-      expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1', excludeReuseTopicId: 'topic-a' })
-    )
+    await vi.waitFor(() => expect(clearActiveTopic).toHaveBeenCalledOnce())
+    expect(onNewTopic).not.toHaveBeenCalled()
+  })
+
+  it('deleting the last unlinked topic selects the latest remaining topic instead of seeding a new unlinked one', async () => {
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [
+        {
+          items: [
+            createApiTopic({
+              id: 'topic-a',
+              name: 'Alpha topic',
+              assistantId: 'assistant-1',
+              orderKey: 'a',
+              createdAt: '2026-01-03T01:00:00.000Z',
+              updatedAt: '2026-01-03T01:00:00.000Z'
+            }),
+            createApiTopic({
+              id: 'topic-unlinked',
+              name: 'Default topic',
+              assistantId: undefined,
+              orderKey: 'b',
+              createdAt: '2026-01-02T01:00:00.000Z',
+              updatedAt: '2026-01-02T01:00:00.000Z'
+            })
+          ]
+        }
+      ],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    })
+
+    const { onNewTopic, setActiveTopic } = renderTopicList({
+      activeTopic: createRendererTopic({ id: 'topic-unlinked', name: 'Default topic', assistantId: undefined })
+    })
+
+    const topicRow = getTopicRow('Default topic')
+    const deleteButton = within(topicRow).getByLabelText('Delete')
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+
+    await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-unlinked'))
+    // The unlinked assistant group is a display fallback, not a real assistant: deleting its last
+    // topic must not seed a fresh unlinked topic. Fall back to the latest remaining topic instead.
+    await vi.waitFor(() => expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-a' })))
+    expect(onNewTopic).not.toHaveBeenCalled()
+  })
+
+  it('deleting the sole unlinked topic clears the active selection', async () => {
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [
+        {
+          items: [
+            createApiTopic({
+              id: 'topic-unlinked',
+              name: 'Default topic',
+              assistantId: undefined,
+              orderKey: 'a'
+            })
+          ]
+        }
+      ],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    })
+
+    const { clearActiveTopic, onNewTopic } = renderTopicList({
+      activeTopic: createRendererTopic({ id: 'topic-unlinked', name: 'Default topic', assistantId: undefined })
+    })
+
+    const topicRow = getTopicRow('Default topic')
+    const deleteButton = within(topicRow).getByLabelText('Delete')
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+
+    await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-unlinked'))
+    await vi.waitFor(() => expect(clearActiveTopic).toHaveBeenCalledOnce())
+    expect(onNewTopic).not.toHaveBeenCalled()
   })
 
   it('requests and auto-paginates full topic pages with the ResourceList bulk page size', async () => {
@@ -1003,7 +1195,7 @@ describe('Topics', () => {
     await vi.waitFor(() => expect(loadNext).toHaveBeenCalledTimes(1))
   })
 
-  it('shows the empty chat state without a creation action', () => {
+  it('shows empty assistant groups with their creation actions', () => {
     mockUseInfiniteQuery.mockReturnValue({
       pages: [{ items: [] }],
       isLoading: false,
@@ -1018,26 +1210,15 @@ describe('Topics', () => {
 
     const { onNewTopic } = renderTopicList()
 
-    const emptyStateText = screen.getByText('No conversations')
+    const emptyStateTexts = screen.getAllByText('No conversations')
 
-    expect(emptyStateText).toHaveClass(
-      'h-full',
-      'w-full',
-      'max-w-sm',
-      'px-5',
-      'py-10',
-      'text-center',
-      'text-xs',
-      'text-muted-foreground',
-      'break-words'
-    )
+    expect(emptyStateTexts).toHaveLength(2)
     expect(screen.queryByRole('heading', { name: 'No conversations' })).not.toBeInTheDocument()
-    expect(emptyStateText.querySelector('svg')).not.toBeInTheDocument()
     expect(
       screen.queryByText('Create a chat and it will stay here so you can continue with its context later.')
     ).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Add Assistant' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'chat.conversation.new' })).toHaveLength(2)
     expect(onNewTopic).not.toHaveBeenCalled()
   })
 
@@ -1113,7 +1294,7 @@ describe('Topics', () => {
 
   it('keeps right panel groups fully expanded without collapse controls', () => {
     mockUseInfiniteQuery.mockReturnValue({
-      pages: [{ items: createTopicPageItems(6) }],
+      pages: [{ items: withEarlierTopic(createTopicPageItems(6)) }],
       isLoading: false,
       isRefreshing: false,
       error: undefined,
@@ -1386,6 +1567,26 @@ describe('Topics', () => {
     )
   })
 
+  it('clears a non-active topic from its context menu without switching the conversation', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    const { getByText, setActiveTopic } = renderTopicList()
+
+    fireEvent.contextMenu(getByText('Gamma topic'))
+    const gammaMenu = getByText('Gamma topic').closest('[data-testid="context-menu"]')
+    const menuContent = gammaMenu?.querySelector('[data-testid="context-menu-content"]')
+    await user.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Clear messages' }))
+
+    await vi.waitFor(() =>
+      expect(topicDataMocks.clearTopicMessagesTrigger).toHaveBeenCalledExactlyOnceWith({
+        params: { topicId: 'topic-c' }
+      })
+    )
+    expect(setActiveTopic).not.toHaveBeenCalled()
+    expect(confirmActionShow).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Clear all messages?', okText: 'Confirm', action: expect.any(Function) })
+    )
+  })
+
   it('opens a topic message page in a new app tab from the context menu', async () => {
     const { getByText } = renderTopicList()
 
@@ -1407,10 +1608,9 @@ describe('Topics', () => {
         callback(0)
       }
     })
-    expect(tabsContextMocks.openTab).toHaveBeenCalledWith('/app/chat', {
+    expect(tabsContextMocks.openTab).toHaveBeenCalledWith('/app/chat?topicId=topic-c', {
       forceNew: true,
-      title: 'Gamma topic',
-      metadata: { instanceAppId: 'assistants', instanceKey: 'topic-c' }
+      title: 'Gamma topic'
     })
     requestAnimationFrameSpy.mockRestore()
   })
@@ -1563,6 +1763,94 @@ describe('Topics', () => {
     const input = screen.getByLabelText('Edit conversation name')
     expect(input).toHaveFocus()
     expect(topicDataMocks.updateTopic).not.toHaveBeenCalled()
+  })
+
+  it('reports a manual topic rename as saved only after persistence succeeds', async () => {
+    const pendingUpdate = createDeferred<void>()
+    topicDataMocks.updateTopic.mockReturnValueOnce(pendingUpdate.promise)
+    const { getByText } = renderTopicList()
+
+    fireEvent.doubleClick(getByText('Alpha topic'))
+    const input = screen.getByLabelText('Edit conversation name')
+    fireEvent.change(input, { target: { value: 'Renamed topic' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    expect(await screen.findByText('Renamed topic')).toBeInTheDocument()
+    await vi.waitFor(() =>
+      expect(topicDataMocks.updateTopic).toHaveBeenCalledWith('topic-a', {
+        name: 'Renamed topic',
+        isNameManuallyEdited: true
+      })
+    )
+    expect(toast.success).not.toHaveBeenCalled()
+
+    await act(async () => {
+      pendingUpdate.resolve(undefined)
+    })
+
+    expect(toast.success).toHaveBeenCalledWith('Saved')
+  })
+
+  it('shows a context-menu rename optimistically and restores the persisted name when it fails', async () => {
+    const pendingUpdate = createDeferred<void>()
+    topicDataMocks.updateTopic.mockReturnValueOnce(pendingUpdate.promise)
+    const { getByText } = renderTopicList()
+
+    fireEvent.contextMenu(getByText('Alpha topic'))
+    const alphaMenu = getByText('Alpha topic').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+    await act(async () => {
+      fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Edit conversation name' }))
+    })
+
+    const input = within(await screen.findByRole('dialog')).getByLabelText('Name')
+    fireEvent.change(input, { target: { value: 'Renamed topic' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    expect(await screen.findByText('Renamed topic')).toBeInTheDocument()
+    expect(screen.queryByText('Alpha topic')).not.toBeInTheDocument()
+    await vi.waitFor(() => expect(topicDataMocks.updateTopic).toHaveBeenCalledOnce())
+
+    await act(async () => {
+      pendingUpdate.reject(new Error('rename failed'))
+    })
+
+    expect(await screen.findByText('Alpha topic')).toBeInTheDocument()
+    expect(toast.error).toHaveBeenCalledWith('Error: rename failed')
+    expect(toast.success).not.toHaveBeenCalled()
+  })
+
+  it('clears automatic topic renaming without a success reveal after a failed update', async () => {
+    const pendingUpdate = createDeferred<void>()
+    topicRenameMocks.getTopicMessages.mockResolvedValueOnce([{}, {}])
+    topicDataMocks.updateTopic.mockReturnValueOnce(pendingUpdate.promise)
+    const { getByText } = renderTopicList()
+
+    fireEvent.contextMenu(getByText('Alpha topic'))
+    const alphaMenu = getByText('Alpha topic').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+    await act(async () => {
+      fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Generate conversation name' }))
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
+    })
+
+    await vi.waitFor(() =>
+      expect(topicDataMocks.updateTopic).toHaveBeenCalledWith('topic-a', {
+        name: 'Auto title',
+        isNameManuallyEdited: false
+      })
+    )
+    expect(topicRenameMocks.startTopicRenaming).toHaveBeenCalledWith('topic-a')
+    expect(topicRenameMocks.cancelTopicRenaming).not.toHaveBeenCalled()
+    expect(topicRenameMocks.finishTopicRenaming).not.toHaveBeenCalled()
+
+    await act(async () => {
+      pendingUpdate.reject(new Error('Automatic rename failed'))
+    })
+
+    expect(toast.error).toHaveBeenCalledWith('Automatic rename failed')
+    expect(topicRenameMocks.cancelTopicRenaming).toHaveBeenCalledWith('topic-a')
+    expect(topicRenameMocks.finishTopicRenaming).not.toHaveBeenCalled()
   })
 
   it('confirms topic deletion from the shared context menu before deleting', async () => {
@@ -1784,7 +2072,7 @@ describe('Topics', () => {
     expect(onNewTopic).not.toHaveBeenCalled()
   })
 
-  it('opens a fresh topic for the assistant, not another assistant, when deleting its only topic in the modern sidebar', async () => {
+  it('switches to the latest topic from another assistant after deleting an assistant last topic', async () => {
     mockUseInfiniteQuery.mockReturnValue({
       pages: [
         {
@@ -1798,12 +2086,20 @@ describe('Topics', () => {
               updatedAt: '2026-01-02T01:00:00.000Z'
             }),
             createApiTopic({
-              id: 'topic-b1',
-              name: 'B1 Only',
+              id: 'topic-b-old',
+              name: 'B Old',
               assistantId: 'assistant-2',
               orderKey: 'b',
               createdAt: '2026-01-01T01:00:00.000Z',
               updatedAt: '2026-01-01T01:00:00.000Z'
+            }),
+            createApiTopic({
+              id: 'topic-b-latest',
+              name: 'B Latest',
+              assistantId: 'assistant-2',
+              orderKey: 'c',
+              createdAt: '2026-01-04T01:00:00.000Z',
+              updatedAt: '2026-01-04T01:00:00.000Z'
             })
           ]
         }
@@ -1833,12 +2129,12 @@ describe('Topics', () => {
 
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a1'))
     await vi.waitFor(() =>
-      expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1', excludeReuseTopicId: 'topic-a1' })
+      expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-b-latest' }))
     )
-    expect(setActiveTopic).not.toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-b1' }))
+    expect(onNewTopic).not.toHaveBeenCalled()
   })
 
-  it('starts an assistant-scoped draft after deleting the active assistant last topic in the right panel', async () => {
+  it('switches to another assistant latest topic after deleting the active assistant last topic in the right panel', async () => {
     mockUseInfiniteQuery.mockReturnValue({
       pages: [
         {
@@ -1888,14 +2184,18 @@ describe('Topics', () => {
     })
 
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a1-only'))
-    expect(setActiveTopic).not.toHaveBeenCalled()
-    expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1', excludeReuseTopicId: 'topic-a1-only' })
+    await vi.waitFor(() =>
+      expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-a2-first' }))
+    )
+    expect(onNewTopic).not.toHaveBeenCalled()
   })
 
-  it('keeps topic rows compact and only renders the title field in the sidebar list', () => {
+  it('renders only the title field in sidebar topic rows', () => {
     renderTopicList()
 
-    expect(screen.getByText('Alpha topic')).toBeInTheDocument()
+    // One rule for both themes: titles sit at `foreground`, no per-theme override.
+    expect(screen.getByText('Alpha topic')).toHaveClass('text-foreground')
+    expect(screen.getByText('Alpha topic')).not.toHaveClass('dark:text-muted-foreground')
     expect(screen.queryByText('2026/01/03 01:00')).not.toBeInTheDocument()
     expect(screen.queryByText('2026/01/02 01:00')).not.toBeInTheDocument()
     expect(screen.queryByText('2025/12/31 01:00')).not.toBeInTheDocument()
@@ -1910,7 +2210,6 @@ describe('Topics', () => {
       joplin: true,
       markdown: true,
       markdown_reason: true,
-      notes: true,
       notion: true,
       obsidian: true,
       plain_text: true,
@@ -1975,13 +2274,7 @@ describe('Topics', () => {
 
     let topicRow = getTopicRow('Gamma topic')
     let indicatorRoot = topicRow.querySelector('[data-testid="topic-stream-indicator"]')
-    // Pending renders a spinner (not the old pulsing amber dot).
-    let indicator = indicatorRoot?.querySelector('.animate-spin')
-    // The indicator is an absolute overlay in every layout now; it fades out on
-    // hover so the pin + delete actions take its resting spot.
     expect(indicatorRoot).toHaveAccessibleName('Running')
-    expect(indicatorRoot).toHaveClass('absolute', 'group-hover:opacity-0')
-    expect(indicator).toHaveClass('text-foreground-muted')
     // The delete button always renders now (revealed on hover); assert only
     // that the row is not in the delete-confirm state.
     expect(topicRow.querySelector('[data-deleting="true"]')).not.toBeInTheDocument()
@@ -1994,14 +2287,7 @@ describe('Topics', () => {
 
     topicRow = getTopicRow('Gamma topic')
     indicatorRoot = topicRow.querySelector('[data-testid="topic-stream-indicator"]')
-    indicator = indicatorRoot?.querySelector('span')
-    // The indicator is an absolute overlay in every layout now; it fades out on
-    // hover so the pin + delete actions take its resting spot.
     expect(indicatorRoot).toHaveAccessibleName('Done')
-    expect(indicatorRoot).toHaveClass('absolute', 'group-hover:opacity-0')
-    expect(indicator).toHaveClass('bg-success')
-    expect(indicator?.tagName).toBe('SPAN')
-    expect(indicator).not.toHaveClass('animate-spin')
     // The delete button always renders now (revealed on hover); assert only
     // that the row is not in the delete-confirm state.
     expect(topicRow.querySelector('[data-deleting="true"]')).not.toBeInTheDocument()
@@ -2019,6 +2305,42 @@ describe('Topics', () => {
     expect(topicRow.querySelector('[aria-label="Pin Conversation"]')).toBeInTheDocument()
   })
 
+  it('shows and clears the draft indicator as draft content changes', () => {
+    renderTopicList()
+
+    let topicRow = getTopicRow('Gamma topic')
+    expect(within(topicRow).queryByRole('img', { name: 'Draft' })).not.toBeInTheDocument()
+
+    act(() => setTopicDraft('topic-c', 'First draft'))
+
+    topicRow = getTopicRow('Gamma topic')
+    expect(within(topicRow).getByRole('img', { name: 'Draft' })).toBeInTheDocument()
+
+    act(() => setTopicDraft('topic-c', 'Updated draft'))
+
+    expect(within(topicRow).getByRole('img', { name: 'Draft' })).toBeInTheDocument()
+
+    act(() => setTopicDraft('topic-c', ''))
+
+    expect(within(topicRow).queryByRole('img', { name: 'Draft' })).not.toBeInTheDocument()
+  })
+
+  it('shows the draft only after a higher-priority topic status clears', () => {
+    setTopicDraft('topic-c', 'Draft while running')
+    setTopicStreamCacheStatus('topic-c', 'pending')
+    renderTopicList()
+
+    let topicRow = getTopicRow('Gamma topic')
+    expect(within(topicRow).getByRole('img', { name: 'Running' })).toBeInTheDocument()
+    expect(within(topicRow).queryByRole('img', { name: 'Draft' })).not.toBeInTheDocument()
+
+    act(() => clearTopicStreamCache('topic-c'))
+
+    topicRow = getTopicRow('Gamma topic')
+    expect(within(topicRow).queryByRole('img', { name: 'Running' })).not.toBeInTheDocument()
+    expect(within(topicRow).getByRole('img', { name: 'Draft' })).toBeInTheDocument()
+  })
+
   it('keeps running and error indicators on the active topic but suppresses its completion dot', () => {
     const activeTopic = createRendererTopic({ id: 'topic-a', assistantId: 'assistant-1', name: 'Alpha topic' })
 
@@ -2026,7 +2348,7 @@ describe('Topics', () => {
     let view = renderTopicList({ activeTopic })
 
     let topicRow = getTopicRow('Alpha topic')
-    expect(topicRow.querySelector('[data-testid="topic-stream-indicator"] .animate-spin')).toBeInTheDocument()
+    expect(topicRow.querySelector('[data-testid="topic-stream-indicator"]')).toHaveAccessibleName('Running')
 
     act(() => setTopicStreamCacheStatus('topic-a', 'error'))
     view.unmount()
@@ -2035,8 +2357,6 @@ describe('Topics', () => {
     topicRow = getTopicRow('Alpha topic')
     const errorIndicator = topicRow.querySelector('[data-testid="topic-stream-indicator"]')
     expect(errorIndicator).toHaveAccessibleName('Error')
-    expect(errorIndicator?.firstElementChild).toHaveClass('text-error')
-    expect(errorIndicator?.firstElementChild?.tagName).toBe('svg')
 
     act(() => setTopicStreamCacheStatus('topic-a', 'done'))
     view.unmount()
@@ -2046,7 +2366,21 @@ describe('Topics', () => {
     expect(topicRow.querySelector('[data-testid="topic-stream-indicator"]')).not.toBeInTheDocument()
   })
 
+  it('hides the draft indicator on the active topic', () => {
+    const activeTopic = createRendererTopic({ id: 'topic-a', assistantId: 'assistant-1', name: 'Alpha topic' })
+
+    renderTopicList({ activeTopic })
+
+    // The active row's draft is the text sitting in the composer right below the list.
+    act(() => setTopicDraft('topic-a', 'Currently typing'))
+    expect(within(getTopicRow('Alpha topic')).queryByRole('img', { name: 'Draft' })).not.toBeInTheDocument()
+
+    act(() => setTopicDraft('topic-c', 'Unsent elsewhere'))
+    expect(within(getTopicRow('Gamma topic')).getByRole('img', { name: 'Draft' })).toBeInTheDocument()
+  })
+
   it('shows an awaiting-approval badge for a terminal topic without a spinner', () => {
+    setTopicDraft('topic-c', 'Draft while awaiting approval')
     setTopicStreamCacheStatus('topic-c', 'awaiting-approval')
     renderTopicList()
 
@@ -2054,8 +2388,8 @@ describe('Topics', () => {
     const badge = within(topicRow).getByTestId('topic-awaiting-approval-badge')
 
     expect(badge).toHaveTextContent('Pending')
-    expect(badge).toHaveClass('text-warning', 'group-hover:opacity-0')
     expect(topicRow.querySelector('[data-testid="topic-stream-indicator"]')).not.toBeInTheDocument()
+    expect(within(topicRow).queryByRole('img', { name: 'Draft' })).not.toBeInTheDocument()
   })
 
   it('shows only the awaiting-approval badge when a live topic pauses for approval', () => {
@@ -2068,33 +2402,13 @@ describe('Topics', () => {
     expect(topicRow.querySelector('[data-testid="topic-stream-indicator"]')).not.toBeInTheDocument()
   })
 
-  it('positions inactive topic stream indicators at the far right in the classic layout and hides them on hover', () => {
-    setTopicStreamCacheStatus('topic-c', 'pending')
-    renderTopicList({
-      activeTopic: createRendererTopic({ id: 'topic-a', assistantId: 'assistant-1', name: 'Alpha topic' }),
-      assistantIdFilter: 'assistant-2',
-      presentation: 'right-panel'
-    })
-
-    const topicRow = getTopicRow('Gamma topic')
-    const indicator = topicRow.querySelector('[data-testid="topic-stream-indicator"]')
-
-    expect(indicator).toBeInTheDocument()
-    expect(indicator).toHaveClass('absolute', 'right-1.5', 'group-hover:opacity-0')
-    expect(indicator?.querySelector('.animate-spin')).toHaveClass('text-foreground-muted')
-    expect(within(topicRow).getByLabelText('Delete')).toBeInTheDocument()
-  })
-
-  it('shows an accessible error icon for an errored topic stream and none for an aborted one', () => {
+  it('announces an errored topic stream and hides aborted streams', () => {
     setTopicStreamCacheStatus('topic-c', 'error')
     let view = renderTopicList()
 
     let topicRow = getTopicRow('Gamma topic')
     const indicator = topicRow.querySelector('[data-testid="topic-stream-indicator"]')
     expect(indicator).toHaveAccessibleName('Error')
-    expect(indicator?.firstElementChild).toHaveClass('text-error')
-    expect(indicator?.firstElementChild?.tagName).toBe('svg')
-    expect(indicator?.firstElementChild).not.toHaveClass('animate-spin')
 
     setTopicStreamCacheStatus('topic-c', 'aborted')
     view.unmount()
@@ -2140,7 +2454,7 @@ describe('Topics', () => {
       }
     })
     mockUseInfiniteQuery.mockReturnValue({
-      pages: [{ items: createTopicPageItems(51) }],
+      pages: [{ items: withEarlierTopic(createTopicPageItems(51)) }],
       isLoading: false,
       isRefreshing: false,
       error: undefined,
@@ -2287,8 +2601,14 @@ describe('Topics', () => {
 
     renderTopicList()
 
-    expect(screen.getByRole('button', { name: 'Alpha Assistant' })).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.getByRole('button', { name: 'Beta Assistant' })).toHaveAttribute('aria-expanded', 'true')
+    expect(groupChevron(screen.getByRole('button', { name: 'Alpha Assistant' }))).toHaveAttribute(
+      'aria-expanded',
+      'false'
+    )
+    expect(groupChevron(screen.getByRole('button', { name: 'Beta Assistant' }))).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    )
     fireEvent.click(screen.getByLabelText('Display mode'))
     fireEvent.click(screen.getByRole('button', { name: 'Collapse all' }))
 
@@ -2400,8 +2720,6 @@ describe('Topics', () => {
       'This week',
       'Earlier'
     ])
-    expect(screen.getByRole('button', { name: 'Pinned' }).querySelector('.lucide-chevron-down')).toBeNull()
-    expect(screen.getByRole('button', { name: 'Today' }).querySelector('.lucide-chevron-down')).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'Pinned' }))
     rerenderTopicList()
@@ -2422,14 +2740,12 @@ describe('Topics', () => {
     const { rerenderTopicList } = renderTopicList()
 
     expect(screen.getByRole('button', { name: 'Today' })).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByRole('button', { name: 'Today' }).querySelector('.lucide-chevron-down')).toBeNull()
     expect(screen.getByText('Alpha topic')).toBeInTheDocument()
     expect(screen.queryByText('Beta pinned')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Today' }))
     expect(getTopicGroupExpansionCache().time).toContain('topic:time:today')
     rerenderTopicList()
-    expect(screen.getByRole('button', { name: 'Today' }).querySelector('.lucide-chevron-down')).toBeNull()
     expect(screen.getByRole('button', { name: 'Today' })).toHaveAttribute('aria-expanded', 'false')
 
     fireEvent.click(screen.getByRole('button', { name: 'Pinned' }))
@@ -2539,7 +2855,8 @@ describe('Topics', () => {
     expect(screen.getByTestId('resource-list-topic')).toBeInTheDocument()
     expect(screen.queryByTestId('resource-list-grouped-loading')).not.toBeInTheDocument()
     expect(screen.getByText('Alpha Assistant')).toBeInTheDocument()
-    expect(screen.queryByText('Beta Assistant')).not.toBeInTheDocument()
+    expect(screen.getByText('Beta Assistant')).toBeInTheDocument()
+    expect(screen.getByText('No conversations')).toBeInTheDocument()
     expect(screen.getByText('First page topic')).toBeInTheDocument()
     expect(screen.queryAllByTestId('topic-list-row')).toHaveLength(1)
     expect(document.querySelectorAll('[data-resource-list-loading-group]')).toHaveLength(0)
@@ -2557,7 +2874,7 @@ describe('Topics', () => {
     mockUseInfiniteQuery.mockReturnValue({
       pages: [
         {
-          items: createTopicPageItems(51)
+          items: withEarlierTopic(createTopicPageItems(51))
         }
       ],
       isLoading: false,
@@ -2581,7 +2898,6 @@ describe('Topics', () => {
     const revealedRow = screen.getByText('Topic 51').closest('[role="option"]')
     expect(revealedRow).not.toBeNull()
     expect(revealedRow!).toHaveAttribute('data-reveal-focus', 'true')
-    expect(revealedRow!).toHaveClass('animation-resource-list-reveal-focus')
     expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Today' })).toHaveAttribute('aria-expanded', 'true')
     expect(virtualMocks.scrollToIndex).toHaveBeenCalledWith(expect.any(Number), { align: 'center' })
@@ -2596,9 +2912,6 @@ describe('Topics', () => {
     const createButton = within(assistantHeader as HTMLElement).getByRole('button', { name: 'chat.conversation.new' })
     expect(createButton).toBeInTheDocument()
     expect(createButton).toHaveAttribute('data-ui', 'chat.topic-list.action.create')
-    expect(createButton).not.toHaveClass('border')
-    expect(createButton.querySelector('.lucide-square-pen')).toBeInTheDocument()
-    expect(screen.getByRole('listbox')).toHaveClass('pt-0')
 
     fireEvent.click(createButton)
 
@@ -2650,7 +2963,10 @@ describe('Topics', () => {
 
     renderTopicList()
 
-    expect(screen.getByRole('button', { name: 'Alpha Assistant' })).toHaveAttribute('aria-expanded', 'false')
+    expect(groupChevron(screen.getByRole('button', { name: 'Alpha Assistant' }))).toHaveAttribute(
+      'aria-expanded',
+      'false'
+    )
     expect(screen.queryByText('Topic A')).not.toBeInTheDocument()
   })
 
@@ -2763,7 +3079,7 @@ describe('Topics', () => {
       mutate: vi.fn()
     })
 
-    const { onNewTopic } = renderTopicList()
+    const { onNewTopic, rerenderTopicList } = renderTopicList()
 
     expect(screen.getByRole('button', { name: 'Pinned' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Unlinked Assistant' })).toBeInTheDocument()
@@ -2781,27 +3097,34 @@ describe('Topics', () => {
         .compareDocumentPosition(screen.getByRole('button', { name: 'Unlinked Assistant' })) &
         Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy()
-    expect(
-      screen.getByRole('button', { name: 'Alpha Assistant' }).querySelector('[data-resource-list-leading-slot="true"]')
-        ?.firstElementChild
-    ).toHaveClass('rounded-full')
-    expect(screen.queryByRole('button', { name: 'Gamma Assistant' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Gamma Assistant' })).toBeInTheDocument()
+    expect(groupChevron(screen.getByRole('button', { name: 'Gamma Assistant' }))).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    )
+    expect(screen.getByText('No conversations')).toBeInTheDocument()
     const assistantSectionButton = screen
       .getAllByRole('button', { name: 'Assistant' })
       .find((button) => button.hasAttribute('aria-expanded'))
     expect(screen.getByRole('button', { name: 'Pinned' })).toHaveAttribute('aria-expanded', 'true')
     expect(assistantSectionButton).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByRole('button', { name: 'Alpha Assistant' })).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.getByRole('button', { name: 'Beta Assistant' })).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.getByRole('button', { name: 'Unlinked Assistant' })).toHaveAttribute('aria-expanded', 'false')
+    expect(groupChevron(screen.getByRole('button', { name: 'Alpha Assistant' }))).toHaveAttribute(
+      'aria-expanded',
+      'false'
+    )
+    expect(groupChevron(screen.getByRole('button', { name: 'Beta Assistant' }))).toHaveAttribute(
+      'aria-expanded',
+      'false'
+    )
+    expect(groupChevron(screen.getByRole('button', { name: 'Unlinked Assistant' }))).toHaveAttribute(
+      'aria-expanded',
+      'false'
+    )
     expect(screen.getByText('Pinned unknown')).toBeInTheDocument()
     expect(screen.queryByText('Known alpha')).not.toBeInTheDocument()
     expect(screen.queryByText('Known beta')).not.toBeInTheDocument()
     expect(screen.queryByText('Default topic')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')).toHaveTextContent('🧪')
-    expect(screen.getByRole('button', { name: 'Beta Assistant' }).closest('div')).toHaveTextContent('✍️')
     const unlinkedAssistantHeader = screen.getByRole('button', { name: 'Unlinked Assistant' }).closest('div')
-    expect(unlinkedAssistantHeader?.querySelector('[data-resource-list-leading-slot="true"]')).not.toBeInTheDocument()
     expect(unlinkedAssistantHeader?.closest('[data-slot="tooltip-trigger"]')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Alpha Assistant' }))
@@ -2823,6 +3146,15 @@ describe('Topics', () => {
         within(header as HTMLElement).queryByRole('button', { name: 'chat.conversation.new' })
       ).not.toBeInTheDocument()
     }
+
+    const defaultTopic = createRendererTopic({ id: 'topic-c', name: 'Default topic', assistantId: undefined })
+    rerenderTopicList(undefined, defaultTopic)
+    fireEvent.click(screen.getByRole('button', { name: 'Unlinked Assistant' }))
+    rerenderTopicList(undefined, defaultTopic)
+    expect(screen.getByText('Default topic').closest('[data-resource-list-item-row="true"]')).toHaveAttribute(
+      'data-resource-list-group-header-icon-visible',
+      'true'
+    )
   })
 
   it('keeps pinned assistants ahead of group order when assistant topics move back to the left panel', () => {
@@ -2869,6 +3201,29 @@ describe('Topics', () => {
     expect(homeSection!.compareDocumentPosition(betaAssistant) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
+  it('keeps empty assistant group sections in the assistant list order', () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'assistant.tab.sort_type': 'tags',
+      'topic.tab.display_mode': 'assistant'
+    })
+    const assistantTopicsSource = createAssistantTopicsSource([
+      createApiTopic({
+        id: 'topic-home',
+        name: 'Home topic',
+        assistantId: 'assistant-2',
+        orderKey: 'a'
+      })
+    ])
+
+    renderTopicList({ assistantTopicsSource })
+
+    const workSection = screen.getByRole('button', { name: 'Work' }).closest('div')
+    const homeSection = screen.getByRole('button', { name: 'Home' }).closest('div')
+    expect(workSection).toBeInTheDocument()
+    expect(homeSection).toBeInTheDocument()
+    expect(workSection!.compareDocumentPosition(homeSection!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
   it('renders ungrouped assistants before named groups in group mode', () => {
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'assistant.tab.sort_type': 'tags',
@@ -2910,56 +3265,9 @@ describe('Topics', () => {
     expect(ungroupedSection!.compareDocumentPosition(homeSection!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it('uses the configured model icon for assistant topic groups', () => {
-    MockUsePreferenceUtils.setMultiplePreferenceValues({
-      'assistant.icon_type': 'model',
-      'chat.default_model_id': 'provider-default::default-model',
-      'topic.tab.display_mode': 'assistant'
-    })
-    mockUseQuery.mockImplementation((path) => {
-      if (path === '/assistants') {
-        return {
-          data: {
-            items: [
-              createAssistant({
-                id: 'assistant-1',
-                modelId: 'provider-a::model-a',
-                modelName: 'Model A'
-              })
-            ],
-            total: 1
-          },
-          isLoading: false,
-          isRefreshing: false,
-          error: undefined,
-          refetch: vi.fn().mockResolvedValue(undefined),
-          mutate: vi.fn().mockResolvedValue(undefined)
-        }
-      }
-
-      return {
-        data: undefined,
-        isLoading: false,
-        isRefreshing: false,
-        error: undefined,
-        refetch: vi.fn().mockResolvedValue(undefined),
-        mutate: vi.fn().mockResolvedValue(undefined)
-      }
-    })
-
-    renderTopicList()
-
-    const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
-    expect(assistantHeader).toBeInTheDocument()
-    expect(within(assistantHeader as HTMLElement).getByTestId('model-avatar')).toHaveAttribute(
-      'data-model-id',
-      'model-a'
-    )
-  })
-
   it('moves assistant group actions into the more menu', async () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
-    const { onCreateTopicAfterClear, onNewTopic, setActiveTopic } = renderTopicList()
+    const { onNewTopic, setActiveTopic } = renderTopicList()
     expect(resourceEditDialogMocks.renderHost).not.toHaveBeenCalled()
 
     const assistantGroupButton = screen.getByRole('button', { name: 'Alpha Assistant' })
@@ -2969,7 +3277,7 @@ describe('Topics', () => {
 
     const moreButton = within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' })
     fireEvent.click(moreButton)
-    expect(assistantGroupButton).toHaveAttribute('aria-expanded', 'true')
+    expect(groupChevron(assistantGroupButton)).toHaveAttribute('aria-expanded', 'true')
 
     const animationFrameCallbacks: FrameRequestCallback[] = []
     const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
@@ -3006,7 +3314,6 @@ describe('Topics', () => {
     const deleteAssistantChatsButton = within(assistantHeader as HTMLElement).getByRole('button', {
       name: 'Delete all assistant conversations'
     })
-    expect(deleteAssistantChatsButton.querySelector('svg')).not.toHaveClass('text-destructive')
     topicDataMocks.deleteTopicsByAssistantId.mockResolvedValueOnce({
       deletedIds: ['topic-a', 'topic-b'],
       deletedCount: 2
@@ -3024,8 +3331,7 @@ describe('Topics', () => {
     await vi.waitFor(() => expect(topicDataMocks.deleteTopicsByAssistantId).toHaveBeenCalledWith('assistant-1'))
     expect(topicDataMocks.deleteTopic).not.toHaveBeenCalled()
     await vi.waitFor(() => expect(topicDataMocks.refreshTopics).toHaveBeenCalled())
-    expect(onCreateTopicAfterClear).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
-    expect(setActiveTopic).not.toHaveBeenCalled()
+    expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-e' }))
     expect(onNewTopic).not.toHaveBeenCalled()
 
     fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'chat.conversation.new' }))
@@ -3044,6 +3350,47 @@ describe('Topics', () => {
     )
   })
 
+  it('pins an assistant to the sidebar from the assistant group menu', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites' as never, [])
+
+    renderTopicList()
+
+    const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
+    const moreButton = within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' })
+    fireEvent.click(moreButton)
+
+    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Add to sidebar' }))
+
+    await vi.waitFor(() =>
+      expect(MockUsePreferenceUtils.getPreferenceValue('ui.sidebar.favorites' as never)).toEqual([
+        { type: 'app', id: 'assistants' },
+        { type: 'assistant', id: 'assistant-1' }
+      ])
+    )
+  })
+
+  it('unpins an already pinned assistant from the assistant group menu', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites' as never, [
+      { type: 'assistant', id: 'assistant-1' }
+    ])
+
+    renderTopicList()
+
+    const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
+    const moreButton = within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' })
+    fireEvent.click(moreButton)
+
+    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Remove from sidebar' }))
+
+    await vi.waitFor(() =>
+      expect(MockUsePreferenceUtils.getPreferenceValue('ui.sidebar.favorites' as never)).toEqual([
+        { type: 'app', id: 'assistants' }
+      ])
+    )
+  })
+
   it('deletes an assistant from the left assistant group menu', async () => {
     const onActiveAssistantDeleted = vi.fn()
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
@@ -3058,7 +3405,6 @@ describe('Topics', () => {
     const deleteAssistantButton = within(assistantHeader as HTMLElement).getByRole('button', {
       name: 'Delete Assistant'
     })
-    expect(deleteAssistantButton.querySelector('svg')).toHaveClass('lucide-custom', 'text-destructive')
 
     fireEvent.click(deleteAssistantButton)
 
@@ -3129,12 +3475,12 @@ describe('Topics', () => {
     const { rerenderTopicList, setActiveTopic } = renderTopicList()
 
     const betaGroupButton = screen.getByRole('button', { name: 'Beta Assistant' })
-    expect(betaGroupButton).toHaveAttribute('aria-expanded', 'true')
+    expect(groupChevron(betaGroupButton)).toHaveAttribute('aria-expanded', 'true')
 
     fireEvent.click(betaGroupButton)
 
     expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-c' }))
-    expect(betaGroupButton).toHaveAttribute('aria-expanded', 'true')
+    expect(groupChevron(betaGroupButton)).toHaveAttribute('aria-expanded', 'true')
     expect(getTopicGroupExpansionCache().assistant).not.toContain('topic:assistant:assistant-2')
 
     rerenderTopicList(
@@ -3143,7 +3489,9 @@ describe('Topics', () => {
     )
 
     const selectedBetaGroupButton = screen.getByRole('button', { name: 'Beta Assistant' })
-    expect(selectedBetaGroupButton).toHaveAttribute('aria-current', 'true')
+    // With the group open the row announces the selection; the header stays quiet so screen readers
+    // hear one "current", not two.
+    expect(selectedBetaGroupButton).not.toHaveAttribute('aria-current')
     expect(selectedBetaGroupButton.closest('[data-selected]')).toHaveAttribute('data-selected', 'true')
 
     fireEvent.click(selectedBetaGroupButton)
@@ -3153,29 +3501,20 @@ describe('Topics', () => {
       undefined,
       createRendererTopic({ id: 'topic-c', assistantId: 'assistant-2', name: 'Gamma topic' })
     )
-    expect(screen.getByRole('button', { name: 'Beta Assistant' })).toHaveAttribute('aria-expanded', 'false')
+    expect(groupChevron(screen.getByRole('button', { name: 'Beta Assistant' }))).toHaveAttribute(
+      'aria-expanded',
+      'false'
+    )
   })
 
-  it('moves the assistant resource entry into the topic options menu', () => {
+  it('keeps assistant management in the topic options menu and suppresses conversation selection while active', () => {
     const onSelect = vi.fn()
     renderTopicList({
       activeTopic: createRendererTopic({ id: 'topic-a', name: 'Alpha topic' }),
-      resourceMenuItems: [
-        {
-          active: true,
-          id: 'assistant-library',
-          label: 'Assistant library',
-          onSelect: vi.fn()
-        },
-        {
-          id: 'assistant-resource-view',
-          label: 'Assistants',
-          onSelect
-        }
-      ]
+      manageAssistantsActive: true,
+      onManageAssistants: onSelect
     })
 
-    expect(screen.queryByRole('button', { name: 'Assistants' })).not.toBeInTheDocument()
     expect(getTopicRow('Alpha topic')).not.toHaveAttribute('data-selected')
 
     fireEvent.click(screen.getByLabelText('Display mode'))
@@ -3200,7 +3539,7 @@ describe('Topics', () => {
     expect(screen.getAllByRole('button', { name: 'Edit Assistant' }).length).toBeGreaterThan(0)
   })
 
-  it('creates a fresh topic after clearing the only assistant group topics', async () => {
+  it('clears the active topic after clearing the only assistant group topics', async () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     mockUseInfiniteQuery.mockReturnValue({
       pages: [
@@ -3231,7 +3570,7 @@ describe('Topics', () => {
       mutate: vi.fn()
     })
 
-    const { onCreateTopicAfterClear } = renderTopicList()
+    const { clearActiveTopic } = renderTopicList()
     topicDataMocks.deleteTopicsByAssistantId.mockResolvedValueOnce({
       deletedIds: ['topic-a', 'topic-b'],
       deletedCount: 2
@@ -3250,7 +3589,7 @@ describe('Topics', () => {
     expect(topicDataMocks.deleteTopic).not.toHaveBeenCalled()
     await vi.waitFor(() => expect(topicDataMocks.deleteTopicsByAssistantId).toHaveBeenCalledWith('assistant-1'))
     await vi.waitFor(() => expect(topicDataMocks.refreshTopics).toHaveBeenCalled())
-    expect(onCreateTopicAfterClear).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
+    expect(clearActiveTopic).toHaveBeenCalledOnce()
     expect(toast.error).not.toHaveBeenCalled()
   })
 
@@ -3275,9 +3614,15 @@ describe('Topics', () => {
 
     renderTopicList()
 
-    expect(screen.getByRole('button', { name: 'Alpha Assistant' })).toHaveAttribute('aria-expanded', 'false')
+    expect(groupChevron(screen.getByRole('button', { name: 'Alpha Assistant' }))).toHaveAttribute(
+      'aria-expanded',
+      'false'
+    )
     expect(screen.queryByText('Alpha topic')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Beta Assistant' })).toHaveAttribute('aria-expanded', 'true')
+    expect(groupChevron(screen.getByRole('button', { name: 'Beta Assistant' }))).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    )
     expect(screen.getByText('Gamma topic')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Alpha Assistant' }))
@@ -3337,6 +3682,29 @@ describe('Topics', () => {
     })
 
     expect(patchSpy).not.toHaveBeenCalled()
+  })
+
+  it('persists canonical assistant group section reorder in group mode', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'assistant.tab.sort_type': 'tags',
+      'topic.tab.display_mode': 'assistant'
+    })
+
+    renderTopicList()
+
+    const workSectionId = 'group:topic:section:assistant-group:group-work'
+    const homeSectionId = 'group:topic:section:assistant-group:group-home'
+    expect(dndMocks.sortableData.has(workSectionId)).toBe(true)
+    expect(dndMocks.sortableData.has(homeSectionId)).toBe(true)
+
+    dndMocks.onDragEnd?.({
+      active: { data: sortableData(workSectionId), id: workSectionId },
+      over: { data: sortableData(homeSectionId), id: homeSectionId }
+    })
+
+    await vi.waitFor(() =>
+      expect(groupReorderMocks.reorderGroup).toHaveBeenCalledWith('group-work', { after: 'group-home' })
+    )
   })
 
   it('shows a toast when assistant group reorder persistence fails', async () => {

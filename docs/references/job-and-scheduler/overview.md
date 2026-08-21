@@ -1,3 +1,11 @@
+---
+description: Job and scheduler architecture — two-service split, DB-driven dispatch, six-state machine, and startup recovery
+sources:
+  - src/main/core/job
+  - src/main/core/scheduler
+  - src/main/data/db/schemas/job.ts
+---
+
 # Job & Scheduler — Architecture Overview
 
 Two independent main-process lifecycle services:
@@ -9,9 +17,15 @@ Two independent main-process lifecycle services:
 
 **Layering rule**: SchedulerService is unaware of Jobs. JobManager uses SchedulerService to arm schedules. Business modules pick one based on need:
 
-- Need cron + persistent observability + retry → register a JobHandler + use `jobManager.registerJobSchedule()`
+- Need cron + persistent observability + retry → register a JobHandler + use `application.get('JobManager').registerJobSchedule()`
 - Need cron only (heartbeat-style, no persistence) → `schedulerService.registerSchedule()` directly
 - Need recurring service-internal GC / self-check → `BaseService.registerInterval` (project convention, not SchedulerService)
+
+### Persistent automatic calendar
+
+`jobScheduleTable.nextRun` means the next **automatic** fire, not the most recent request to run. JobManager persists SchedulerService's value as soon as a cron, interval, or once trigger is armed and advances it after natural fires. Pausing, replacing a trigger before re-arm, or consuming a once trigger clears it; resuming computes a new value. `triggerJobScheduleNow*` is an extra run and updates only `lastRun`, preserving the automatic calendar.
+
+For chained intervals, SchedulerService installs the next timeout after the callback settles. A query made from the tail of that callback predicts `now + interval`; the installed timeout follows immediately after the final synchronous persistence write.
 
 ## DB-driven dispatch
 
@@ -73,17 +87,20 @@ The flow can be interrupted at any point by `onStop`. Three mechanisms cooperate
 |---|---|
 | Quiet window (timer not yet fired) | `registerDisposable(() => clearTimeout(handle))` clears the timer during `_cleanupDisposables`; the callback also re-checks `_isShuttingDown` so a teardown that races with `clearTimeout` is still safe. |
 | Flow mid-flight | Every IO step re-checks `_isShuttingDown` before the next `await`, returning early on shutdown. |
-| Flow already started | `onStop` awaits `this._recoveryDone` before tearing down resources, so the current step finishes gracefully before queues, abort controllers, and disposables are released. |
+| Flow already started | `onStop` awaits `this._recoveryDone` before tearing down resources, so the current step finishes gracefully before queues, abort controllers, and disposables are released. The join is unconditional on purpose — racing it against a deadline would let the teardown run while recovery is still writing. |
+
+The join is bounded from the outside: shutdown caps every service at `SERVICE_STOP_TIMEOUT_MS` (5s). If the in-flight recovery step outlasts that, the framework stops waiting on JobManager and moves on — no `SERVICE_STOPPED`, and the pass is recorded as unclean. The teardown after the join still runs whenever recovery does finish, just too late to count: it now overlaps the shutdown of services further down the order. Whether `onDestroy` still runs on top of it depends on that late finish beating `destroyAll()` to JobManager — a race, not a guarantee (see [Lifecycle Overview — teardown time contract](../lifecycle/lifecycle-overview.md#teardown-time-contract)). Acceptable either way because none of it is load-bearing — enqueue writes to the DB immediately and startup recovery repairs whatever was left mid-flight.
 
 **Handler registration timing**
 
-Handlers must be registered in the owning service's `onInit` (see [handler-authoring.md — Registration Timing](./handler-authoring.md#registration-timing)). By the time the 60-second timer fires every consumer has finished `onInit` / `onReady`, so `runStartupRecovery` sees the full handler set. Registering a handler from another service's `onAllReady` is unsafe: that hook runs in parallel with JobManager's, and any non-terminal job for an unregistered type during recovery gets treated as an orphan and cancelled.
+Handlers must be registered in the owning service's `onInit` (see [handler-authoring.md — Registration Timing](./handler-authoring.md#registration-timing)). All `onInit` / `onReady` work completes before `LifecycleManager.allReady()` invokes JobManager's hook, so the registry is complete before the recovery timer is scheduled. Do not put registration behind async work in another service's `onAllReady`: those hooks are fire-and-forget, and recovery cancels non-terminal rows whose type is still unregistered when the sweep runs.
 
 ## Pause and drain (write quiesce)
 
 Serves backup restore (#16850): after the restore snapshot is taken at time T, any JobManager write to the old live DB fails the fingerprint re-check and wastes the whole restore attempt. `pause()` stops **autonomous** writes to avoid that waste; the fingerprint gate stays the correctness backstop. The restore orchestrator must NOT run as a JobManager job — a handler that pauses and drains its own manager deadlocks until timeout.
 
 ```ts
+const jobManager = application.get('JobManager')
 const hold = jobManager.pause('backup restore')
 const verdict = await jobManager.drainInFlight({ timeoutMs: 15_000 })
 const clean = verdict.stragglerIds.length === 0 && !verdict.startupRecoveryPending
@@ -108,20 +125,18 @@ await createSnapshot()
 
 **Blocked while paused** (autonomous writes): dispatch claims (entry check + post-mutex re-check), schedule fire callbacks (crons are additionally paused at the croner layer so `limit` quotas survive the window), GC / delayed-promotion ticks, delayed/retry promotion fires, and new startup-recovery steps — a started step (one schedule's `onMissed` + catch-up enqueue, atomic) runs to completion and is awaited by drain.
 
-**Allowed while paused** (request-driven): `enqueue` / `enqueueTx` (rows land at rest and the snapshot captures them), `cancel` / `cancelMany`, schedule mutations, and `triggerJobScheduleNow*` — forced onto its direct-enqueue fallback (row lands `pending` + `markFired`; `true` still means "row persisted").
+**Allowed while paused** (request-driven): `enqueue` / `enqueueTx` (rows land at rest and the snapshot captures them), `cancel` / `cancelMany`, schedule mutations, and `triggerJobScheduleNow*` — forced onto its direct-enqueue fallback (row lands `pending` and only `lastRun` changes; `true` still means "row persisted").
 
 Missed cron fires are skipped, not caught up (croner semantics). A suppressed `once` fire is re-armed on release from the recorded id set — exactly once; never rebuild by scanning "enabled ∧ missing scheduler entry", which also matches historical completed one-shots.
 
-## Why DB-driven and not in-memory queue?
+## Why dispatch is DB-driven
 
-We considered BullMQ / bee-queue / better-queue / agenda / graphile-worker / bree etc. and selected this design because:
+The current design keeps lifecycle state in SQLite because:
 
 - All persistence already in SQLite (no Redis / MongoDB / PostgreSQL dependency)
 - Restart recovery is automatic — memory replays from DB
-- Race safety needs only one mutex pair (Layer 0 + Layer 1) around `count → claim`
+- Claiming is atomic around `count → claim` on the single better-sqlite3 connection
 - No double-source-of-truth bookkeeping (PQueue + DB) and its sync discipline
-
-Throughput: ~200 dispatch/s at single-process better-sqlite3 throughput, well above Cherry Studio's largest scenario (1000+ knowledge bases, each with concurrency=5, never exceeds globalMaxConcurrency=50 simultaneous running jobs).
 
 ## Strongly-typed JobRegistry
 
@@ -131,14 +146,14 @@ Business modules use TypeScript declaration merging to register `type → payloa
 declare module '@main/core/job/jobRegistry' {
   interface JobRegistry {
     'agent.task': AgentTaskPayload
-    'knowledge.index-leaf': IndexLeafPayload
+    'knowledge.index-documents': IndexDocumentsPayload
   }
 }
 ```
 
 After this declaration:
 
-- `jobManager.enqueue('agent.task', payload)` is compile-time type-checked
+- `application.get('JobManager').enqueue('agent.task', payload)` is compile-time type-checked
 - Renaming a type surfaces every call site via the TypeScript error pipeline
 - Wrong payload shape is a compile error
 
@@ -147,6 +162,7 @@ After this declaration:
 `enqueue` persists the row on the bare connection — fine when the enqueue is the only write. When a business-state flip and the job INSERT must commit atomically (e.g. mark items `deleting` **and** enqueue the purge job), use the transactional variant inside a `DbService.withWriteTx` callback:
 
 ```ts
+const jobManager = application.get('JobManager')
 application.get('DbService').withWriteTx((tx) => {
   itemService.setStatusTx(tx, ids, 'deleting') // business write
   return jobManager.enqueueTx(tx, 'my.purge', { ids }) // job INSERT, same tx
@@ -160,6 +176,7 @@ Post-commit side effects (state publish, dispatch / delayed arming) are deferred
 When a schedule row and a related business write must commit atomically, compose the transactional primitives inside a `DbService.withWriteTx` callback, then sync the timer after the transaction returns:
 
 ```ts
+const jobManager = application.get('JobManager')
 const { id } = application.get('DbService').withWriteTx((tx) => {
   const created = jobManager.registerJobScheduleTx(tx, { type: 'agent.task', ... }) // schedule row
   agentChannelService.replaceTaskSubscriptionsTx(tx, created.id, channelIds) // business write, same tx

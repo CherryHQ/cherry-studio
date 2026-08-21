@@ -260,6 +260,8 @@ function createUnifiedPanelListItem(
     id: launcher.id,
     label: launcher.label,
     description: getLauncherDescription(launcher),
+    tooltip: launcher.tooltip,
+    tooltipAnchor: launcher.tooltipAnchor,
     icon: launcher.icon,
     suffix: launcher.suffix,
     searchAliases: launcher.searchAliases,

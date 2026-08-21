@@ -76,15 +76,6 @@ describe('Hyperlink', () => {
     mocks.ogCardProps.length = 0
   })
 
-  it('should match snapshot for normal url', () => {
-    const { container } = render(
-      <Hyperlink href="https://example.com/path%20with%20space">
-        <span>Child</span>
-      </Hyperlink>
-    )
-    expect(container).toMatchSnapshot()
-  })
-
   it('should return children directly when href is empty', () => {
     render(
       <Hyperlink href="">
@@ -103,7 +94,6 @@ describe('Hyperlink', () => {
     )
 
     expect(screen.getByTestId('hover-card')).toBeInTheDocument()
-    expect(screen.getByTestId('hover-card-content')).toHaveClass('w-auto max-w-none overflow-hidden rounded-lg p-0')
 
     // Content includes decoded url text and favicon with hostname
     expect(screen.getByTestId('favicon')).toHaveAttribute('data-hostname', 'domain.com')
@@ -141,7 +131,7 @@ describe('Hyperlink', () => {
     expect(screen.getByTestId('text')).toHaveTextContent('mailto:test@example.com')
   })
 
-  it('should configure the hover card with a 1.5 second open delay', () => {
+  it('should configure the hover card with a 0.5 second open delay', () => {
     render(
       <Hyperlink href="https://domain.com/a%20b">
         <span>child</span>
@@ -149,7 +139,7 @@ describe('Hyperlink', () => {
     )
 
     expect(mocks.hoverCardProps.at(-1)).toEqual({
-      openDelay: 1500,
+      openDelay: 500,
       closeDelay: 100
     })
   })

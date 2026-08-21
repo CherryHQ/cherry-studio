@@ -29,6 +29,7 @@ export default defineProvider({
       }
     }
   },
+  serverTools: [{ id: 'web-search', modelScope: 'model-dependent', modelIdPrefixes: ['grok-4'] }],
   metadata: {
     website: {
       docs: 'https://docs.x.ai/',

@@ -143,9 +143,6 @@ function buildStructuredConversation(messages: StructuredMessage[]): string {
 export class TopicNamingService {
   maybeRenameFromFirstUserMessage(topicId: string, userMessageId: string): void {
     try {
-      const enabled = application.get('PreferenceService').get('topic.naming.enabled')
-      if (!enabled) return
-
       const topic = this.getTopic(topicId)
       if (!topic || topic.isNameManuallyEdited) return
       if (!canAutoRenameTopicName(topic.name)) return
@@ -208,11 +205,7 @@ export class TopicNamingService {
       ]
 
       const uniqueModelId = this.resolveNamingModelId()
-      const title = await this.generateSummaryTitle(
-        assistantId,
-        uniqueModelId,
-        buildStructuredConversation(structuredConversation)
-      )
+      const title = await this.generateSummaryTitle(uniqueModelId, buildStructuredConversation(structuredConversation))
       if (!title) return
 
       this.renameTopicIfStillAuto(topic.id, title, userText)
@@ -238,9 +231,6 @@ export class TopicNamingService {
    */
   maybeRenameAgentSessionFromFirstUserMessage(sessionId: string, userMessage: MessageData | string | undefined): void {
     try {
-      const enabled = application.get('PreferenceService').get('topic.naming.enabled')
-      if (!enabled) return
-
       const session = this.getAgentSession(sessionId, 'initial')
       if (session?.isNameManuallyEdited) return
       if (!session || !canAutoRenameAgentSessionName(session.name)) return
@@ -269,10 +259,12 @@ export class TopicNamingService {
    *
    * Mirrors {@link maybeRenameFromConversationSummary} but targets the agents
    * DB (`session.name`) rather than `topics.name`. Uses the shared topic
-   * naming model preference (`topic.naming.model_id`) for summarization,
-   * matching normal chat topic naming behavior.
+   * quick-assistant model preference for summarization, matching normal chat
+   * topic naming behavior. The agent id is deliberately
+   * NOT passed to the generation request — that would attach the agent's tool
+   * configuration (MCP tools, web search, knowledge bases) to the title.
    *
-   * @param agentId    Agent id used as AI generation context.
+   * @param agentId    Agent id, used for failure logging context only.
    * @param sessionId  Cherry Studio session id.
    * @param userText   Plain text of the persisted user turn, extracted by
    *                   AgentSessionRuntimeService from the saved user message.
@@ -312,11 +304,7 @@ export class TopicNamingService {
         { role: finalMessage.role, mainText: cleanMarkdownImages(getMainTextContentFromUiMessage(finalMessage)) }
       ]
 
-      const title = await this.generateSummaryTitle(
-        agentId,
-        uniqueModelId,
-        buildStructuredConversation(structuredConversation)
-      )
+      const title = await this.generateSummaryTitle(uniqueModelId, buildStructuredConversation(structuredConversation))
       if (!title) return
 
       const nextName = sanitizeConversationTitle(title)
@@ -364,17 +352,21 @@ export class TopicNamingService {
     }
   }
 
-  private async generateSummaryTitle(
-    assistantId: string | undefined,
-    uniqueModelId: UniqueModelId,
-    prompt: string
-  ): Promise<string | null> {
+  private async generateSummaryTitle(uniqueModelId: UniqueModelId, prompt: string): Promise<string | null> {
     const systemPrompt = this.resolveNamingPrompt()
+    // A title is a throwaway 10-word summary: never carry the source assistant /
+    // agent id, or buildAgentParams resolves its tool configuration (MCP tools,
+    // web search, knowledge bases) onto this request — the manual rename path in
+    // the renderer omits assistantId for the same reason.
     const request: AiGenerateRequest = {
-      assistantId,
       uniqueModelId,
       system: systemPrompt,
-      prompt
+      prompt,
+      // A title is 10 words: never reason. Set this explicitly so the request builder does not
+      // fall back to the source assistant's saved `reasoning_effort` (buildAgentParams precedence is
+      // `request.reasoningEffort ?? assistant.settings.reasoning_effort ?? 'default'`), which would
+      // otherwise leak a `high`/`xhigh`/`max` thinking budget onto this throwaway request.
+      reasoningEffort: 'none'
     }
 
     try {
@@ -401,37 +393,40 @@ export class TopicNamingService {
   }
 
   private resolveNamingModelId(): UniqueModelId {
-    const configured = application.get('PreferenceService').get('topic.naming.model_id')
-    const parsed = UniqueModelIdSchema.safeParse(configured)
-    if (!parsed.success) {
-      if (configured != null) {
-        logger.warn('topic.naming.model_id is invalid; falling back to managed CherryAI default model', { configured })
-      }
-      return CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
+    const preferenceService = application.get('PreferenceService')
+
+    const configured =
+      preferenceService.get('feature.quick_assistant.model_id') ?? preferenceService.get('chat.default_model_id')
+    const quickModelId = this.toUsableNamingModelId(configured)
+    if (quickModelId) return quickModelId
+    if (configured != null) {
+      logger.warn('Quick assistant model is not usable for topic naming; falling back to managed CherryAI default', {
+        configured
+      })
     }
+
+    return CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
+  }
+
+  /**
+   * Validate a `providerId::modelId` candidate for topic naming. Returns the id when usable, else
+   * `null`. A candidate is rejected when it fails to parse, its model no longer exists, or its
+   * provider is an external-CLI (agent-only) provider — those reuse a CLI's own login, hold no
+   * app-side credential, and cannot serve a generation request, so they can never name a topic
+   * (capability-derived, so any such provider is covered without keying on a specific id).
+   */
+  private toUsableNamingModelId(candidate: string | null | undefined): UniqueModelId | null {
+    const parsed = UniqueModelIdSchema.safeParse(candidate)
+    if (!parsed.success) return null
 
     const { providerId, modelId } = parseUniqueModelId(parsed.data)
     try {
-      // External-CLI providers (e.g. Claude Code) reuse a CLI's own login: they
-      // hold no app-side credential and cannot serve a generation request, so they
-      // can never name a topic. Capability-derived, so any such provider is covered
-      // without keying on a specific id.
       const provider = providerService.getByProviderId(providerId)
-      if (isExternalCliProvider(provider)) {
-        logger.warn(
-          'topic.naming.model_id points to an external-CLI (agent-only) provider; falling back to managed CherryAI default model',
-          { configured }
-        )
-        return CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
-      }
-
+      if (isExternalCliProvider(provider)) return null
       modelService.getByKey(providerId, modelId)
       return parsed.data
-    } catch (error) {
-      logger.warn('topic.naming.model_id points to a missing model; falling back to managed CherryAI default model', {
-        configured
-      })
-      return CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
+    } catch {
+      return null
     }
   }
 

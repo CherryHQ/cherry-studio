@@ -4,7 +4,7 @@ import { exportMarkdownContentAsFile, messagesToMarkdown } from '@renderer/servi
 import { toast } from '@renderer/services/toast'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type { Model } from '@renderer/types/model'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { buildAgentSessionTopicId, getAgentSessionModelFallbackSnapshot } from '@renderer/utils/agentSession'
 import { messagesToPlainText } from '@renderer/utils/export'
 import { markdownToPlainText } from '@renderer/utils/markdown'
 import {
@@ -32,13 +32,7 @@ export function getAgentSessionExportTitle(session: Pick<AgentSessionExportTarge
   return session.name.trim() || i18next.t('agent.session.new') || session.id
 }
 
-export function getAgentSessionModelFallbackSnapshot(
-  session: Pick<AgentSessionExportTarget, 'modelId'>
-): ModelSnapshot | undefined {
-  if (!session.modelId || !isUniqueModelId(session.modelId)) return undefined
-  const { providerId, modelId } = parseUniqueModelId(session.modelId)
-  return { id: modelId, name: modelId, provider: providerId }
-}
+export { getAgentSessionModelFallbackSnapshot }
 
 function modelSnapshotToModel(snapshot: ModelSnapshot | null | undefined): Model | undefined {
   if (!snapshot) return undefined

@@ -13,7 +13,7 @@ const menuItemVariants = cva(
     'border border-transparent',
     'transition-all duration-150',
     'outline-none select-none',
-    'focus-visible:ring-ring/50 focus-visible:ring-[3px]',
+    'focus-visible:bg-accent',
     'disabled:pointer-events-none disabled:opacity-40',
     '[&_svg]:pointer-events-none [&_svg]:shrink-0'
   ),

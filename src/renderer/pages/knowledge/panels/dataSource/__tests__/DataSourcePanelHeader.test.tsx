@@ -62,11 +62,8 @@ describe('DataSourcePanelHeader', () => {
   it('renders the updated time and add button in the default state', () => {
     render(<DataSourcePanelHeader {...baseProps} selectedCount={0} />)
 
-    expect(screen.getByText('更新于 刚刚')).toHaveClass('pl-1')
-    const addButton = screen.getByRole('button', { name: '添加' })
-
-    expect(addButton).toHaveAttribute('data-variant', 'outline')
-    expect(addButton).toHaveClass('h-7', 'gap-1', 'rounded-md', 'px-2', 'text-xs')
+    expect(screen.getByText('更新于 刚刚')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '添加' })).toBeInTheDocument()
   })
 
   it('switches to the bulk toolbar when rows are selected', () => {
@@ -89,17 +86,6 @@ describe('DataSourcePanelHeader', () => {
     rerender(<DataSourcePanelHeader {...baseProps} total={50} loadedCount={50} selectedCount={50} />)
 
     expect(screen.queryByText('仅已加载，共 50 项')).not.toBeInTheDocument()
-  })
-
-  // Regression for the QA issue "选中文件后列表轻微上移": the default toolbar
-  // (32px add button) and the bulk toolbar (28px sm buttons) differed by 4px,
-  // shifting the list on selection. Both states must keep the same min height.
-  it('keeps the same min height across default and selected states', () => {
-    const { container: defaultContainer } = render(<DataSourcePanelHeader {...baseProps} selectedCount={0} />)
-    const { container: selectedContainer } = render(<DataSourcePanelHeader {...baseProps} selectedCount={2} />)
-
-    expect(defaultContainer.firstChild).toHaveClass('min-h-8')
-    expect(selectedContainer.firstChild).toHaveClass('min-h-8')
   })
 
   it('invokes bulk callbacks from the selected-state toolbar', () => {

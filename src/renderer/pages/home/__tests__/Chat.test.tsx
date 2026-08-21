@@ -1,5 +1,8 @@
+import type * as ChatLayoutModeContextModule from '@renderer/components/chat/layout/ChatLayoutModeContext'
+import { popup } from '@renderer/services/popup'
 import type { Topic } from '@renderer/types/topic'
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -15,11 +18,17 @@ const assistantContextMock = vi.hoisted(() => ({
   isLoading: false,
   isModelPending: false
 }))
+const providerHookArgs = vi.hoisted(() => [] as unknown[][])
+const commandHandlers = vi.hoisted(() => new Map<string, () => void | Promise<void>>())
+const eventEmitMock = vi.hoisted(() => vi.fn())
+const clearTopicMessagesMock = vi.hoisted(() => vi.fn(async () => undefined))
+const activeTabMock = vi.hoisted(() => ({ current: true }))
 
 const topic: Topic = {
   id: 'topic-1',
   assistantId: 'assistant-1',
   name: 'Topic',
+  lastActivityAt: '2026-01-01T00:00:00.000Z',
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
   messages: [],
@@ -58,8 +67,12 @@ vi.mock('@renderer/components/chat/citations/CitationsPanel', () => ({
   default: () => <div data-testid="citations-panel" />
 }))
 
-vi.mock('@renderer/components/ContentSearch', () => ({
-  ContentSearch: () => <div data-testid="content-search" />
+vi.mock('@renderer/components/chat/shell/ConversationCenterState', () => ({
+  default: ({ state }: { state: string }) => <div data-testid="conversation-center-state">{state}</div>
+}))
+
+vi.mock('@renderer/components/FindBar', () => ({
+  FindBar: () => <div data-testid="content-search" />
 }))
 
 vi.mock('@renderer/components/popups/PromptPopup', () => ({
@@ -104,7 +117,34 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
-  useProviders: () => ({ providers: [] })
+  useProviders: (...args: unknown[]) => {
+    providerHookArgs.push(args)
+    return { providers: [] }
+  }
+}))
+
+vi.mock('@renderer/hooks/command', () => ({
+  useCommandHandler: (command: string, handler: () => void | Promise<void>, options?: { enabled?: boolean }) => {
+    if (options?.enabled === false) commandHandlers.delete(command)
+    else commandHandlers.set(command, handler)
+  }
+}))
+
+vi.mock('@renderer/hooks/tab', () => ({
+  useIsActiveTab: () => activeTabMock.current
+}))
+
+vi.mock('@renderer/hooks/chat/useClearTopicMessages', () => ({
+  useClearTopicMessages: () => clearTopicMessagesMock
+}))
+
+vi.mock('@renderer/services/EventService', () => ({
+  EVENT_NAMES: {
+    FOCUS_CHAT_COMPOSER: 'focus-chat-composer'
+  },
+  EventEmitter: {
+    emit: eventEmitMock
+  }
 }))
 
 vi.mock('@renderer/components/composer/variants/chat/ChatConversationControls', () => ({
@@ -117,12 +157,29 @@ vi.mock('react-hotkeys-hook', () => ({
   useHotkeys: vi.fn()
 }))
 
-vi.mock('../ChatContent', () => ({
-  default: (props: any) => {
+vi.mock('../ChatContent', async () => {
+  const { useChatLayoutMode } = await vi.importActual<typeof ChatLayoutModeContextModule>(
+    '@renderer/components/chat/layout/ChatLayoutModeContext'
+  )
+
+  function MockChatContent(props: any) {
     chatContentProps.current = props
-    return <div data-testid="chat-content" />
+    const { railGutterPx, setRailGutterPx } = useChatLayoutMode()
+
+    return (
+      <div data-testid="chat-content">
+        <output aria-label="rail gutter">{railGutterPx}</output>
+        <button type="button" onClick={() => setRailGutterPx(24)}>
+          reserve rail gutter
+        </button>
+      </div>
+    )
   }
-}))
+
+  return {
+    default: MockChatContent
+  }
+})
 
 vi.mock('../components/ChatNavbar', () => ({
   default: ({
@@ -158,6 +215,40 @@ describe('Chat', () => {
     chatContentProps.current = null
     assistantContextMock.isLoading = false
     assistantContextMock.isModelPending = false
+    providerHookArgs.length = 0
+    commandHandlers.clear()
+    activeTabMock.current = true
+  })
+
+  it('clears the active topic once the confirmation is accepted', async () => {
+    render(<Chat activeTopic={topic} />)
+
+    await act(async () => {
+      await commandHandlers.get('topic.clear_messages')?.()
+    })
+
+    expect(popup.confirm).toHaveBeenCalled()
+    expect(clearTopicMessagesMock).toHaveBeenCalledWith(topic.id)
+  })
+
+  it('leaves the topic untouched when the confirmation is dismissed', async () => {
+    vi.mocked(popup.confirm).mockResolvedValueOnce(false)
+
+    render(<Chat activeTopic={topic} />)
+
+    await act(async () => {
+      await commandHandlers.get('topic.clear_messages')?.()
+    })
+
+    expect(clearTopicMessagesMock).not.toHaveBeenCalled()
+  })
+
+  it('does not register the clear-messages command for a background tab', () => {
+    activeTabMock.current = false
+
+    render(<Chat activeTopic={topic} />)
+
+    expect(commandHandlers.has('topic.clear_messages')).toBe(false)
   })
 
   it('renders the navbar and right pane shortcuts in the shared conversation shell', () => {
@@ -189,11 +280,47 @@ describe('Chat', () => {
     expect(chatContentProps.current?.assistantContext?.isModelPending).toBe(true)
   })
 
+  it('loads provider metadata only for multi-model control details', () => {
+    render(<Chat activeTopic={topic} />)
+
+    expect(providerHookArgs.at(-1)).toEqual([undefined, { enabled: false }])
+
+    act(() => {
+      chatContentProps.current?.onConversationControlsChange?.({
+        scopeKey: topic.id,
+        mentionedModels: [],
+        mentionedModelSelectorValue: [{ id: 'provider::model-a' }, { id: 'provider::model-b' }],
+        lockedMentionedModels: []
+      })
+    })
+
+    expect(providerHookArgs.at(-1)).toEqual([undefined, { enabled: true }])
+  })
+
+  it('preserves the rail gutter while switching topics', async () => {
+    const user = userEvent.setup()
+    const view = render(<Chat activeTopic={topic} />)
+
+    await user.click(screen.getByRole('button', { name: 'reserve rail gutter' }))
+    expect(screen.getByRole('status', { name: 'rail gutter' })).toHaveTextContent('24')
+
+    view.rerender(<Chat activeTopic={{ ...topic, id: 'topic-2' }} />)
+
+    expect(screen.getByRole('status', { name: 'rail gutter' })).toHaveTextContent('24')
+  })
+
   it('renders the navbar while the active topic is still resolving', () => {
-    render(<Chat showResourceListControls />)
+    render(<Chat showResourceListControls topicPending />)
 
     expect(screen.getByTestId('chat-navbar')).toBeInTheDocument()
     expect(conversationShellProps.current?.topBar).toBeTruthy()
     expect(conversationShellProps.current?.topRightTool).toBeFalsy()
+    expect(screen.getByTestId('conversation-center-state')).toHaveTextContent('loading')
+  })
+
+  it('settles on the empty center once the entry resolved no topic', () => {
+    render(<Chat showResourceListControls />)
+
+    expect(screen.getByTestId('conversation-center-state')).toHaveTextContent('empty')
   })
 })

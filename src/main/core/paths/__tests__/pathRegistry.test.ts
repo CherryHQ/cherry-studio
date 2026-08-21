@@ -1,12 +1,16 @@
+import os from 'node:os'
 import path from 'node:path'
 
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const getPathMock = vi.hoisted(() => vi.fn((key: string) => `/mock/${key}`))
 
 vi.mock('electron', () => ({
   app: {
     getAppPath: vi.fn(() => '/mock/app'),
-    getPath: vi.fn((key: string) => `/mock/${key}`),
-    isPackaged: false
+    getPath: getPathMock,
+    isPackaged: false,
+    setAppLogsPath: vi.fn()
   }
 }))
 
@@ -20,6 +24,10 @@ import { buildPathRegistry, shouldAutoEnsure } from '../pathRegistry'
 //
 // We do NOT mock buildPathRegistry. The shouldAutoEnsure rule is pure; the
 // local Electron mock also lets the path-layout test exercise the real registry.
+
+beforeEach(() => {
+  getPathMock.mockReset().mockImplementation((key: string) => `/mock/${key}`)
+})
 
 describe('buildPathRegistry', () => {
   it('keeps the database and restore journal together under userData Data', () => {
@@ -38,6 +46,23 @@ describe('buildPathRegistry', () => {
     expect(registry['feature.agents.claude.skills']).toBe(path.join(claudeRoot, 'skills'))
   })
 
+  it('keeps pi runtime state under the Agents data directory', () => {
+    const registry = buildPathRegistry()
+    const piRoot = path.join('/mock/userData', 'Data', 'Agents', '.pi')
+
+    expect(registry['feature.agents.pi.root']).toBe(piRoot)
+    expect(registry['feature.agents.pi.sessions']).toBe(path.join(piRoot, 'sessions'))
+  })
+
+  it('keeps the provider registry override under userData Runtime', () => {
+    const registry = buildPathRegistry()
+
+    expect(registry['feature.provider_registry.override']).toBe(
+      path.join('/mock/userData', 'Runtime', 'provider-registry-override')
+    )
+    expect(shouldAutoEnsure('feature.provider_registry.override')).toBe(true)
+  })
+
   it('keeps the isolated mise tree under the userData toolchain', () => {
     const registry = buildPathRegistry()
     const miseRoot = path.join('/mock/userData', 'Toolchain', 'mise')
@@ -45,6 +70,75 @@ describe('buildPathRegistry', () => {
     expect(registry['feature.binary.data']).toBe(miseRoot)
     expect(registry['feature.binary.data.isolated.localappdata']).toBe(path.join(miseRoot, 'localappdata'))
     expect(registry['feature.binary.data.isolated.appdata']).toBe(path.join(miseRoot, 'appdata'))
+  })
+
+  it('keeps persisted MCP resource blobs in Cherry temporary storage', () => {
+    const registry = buildPathRegistry()
+
+    expect(registry['feature.mcp.resource_results.temp']).toBe(
+      path.join('/mock/temp', 'CherryStudio', 'mcp-resource-results')
+    )
+  })
+
+  it('stores active traces under userData Runtime and keeps the old path cleanup-only', () => {
+    const registry = buildPathRegistry()
+
+    expect(registry['feature.trace']).toBe(path.join('/mock/userData', 'Runtime', 'trace'))
+    expect(registry['v1.trace']).toBe(path.join(registry['cherry.home'], 'trace'))
+    expect(shouldAutoEnsure('feature.trace')).toBe(true)
+    expect(shouldAutoEnsure('v1.trace')).toBe(false)
+  })
+
+  it('keeps the old CLI install root cleanup-only', () => {
+    const registry = buildPathRegistry()
+
+    expect(registry['v1.cli.install']).toBe(path.join(registry['cherry.home'], 'install'))
+    expect(shouldAutoEnsure('v1.cli.install')).toBe(false)
+  })
+
+  it('keeps the root database and Claude config cleanup-only', () => {
+    const registry = buildPathRegistry()
+
+    expect(registry['v1.database.file']).toBe(path.join('/mock/userData', 'cherrystudio.sqlite'))
+    expect(registry['v1.agents.claude']).toBe(path.join('/mock/userData', '.claude'))
+    expect(shouldAutoEnsure('v1.database.file')).toBe(false)
+    expect(shouldAutoEnsure('v1.agents.claude')).toBe(false)
+  })
+
+  it('falls back when Electron cannot resolve an optional user system path', () => {
+    getPathMock.mockImplementation((key: string) => {
+      if (key === 'documents') {
+        throw new Error("Failed to get 'documents' path")
+      }
+      return `/mock/${key}`
+    })
+
+    const registry = buildPathRegistry()
+
+    expect(registry['sys.documents']).toBe(path.join(os.homedir(), 'Documents'))
+    expect(registry['sys.downloads']).toBe('/mock/downloads')
+    expect(registry['sys.desktop']).toBe('/mock/desktop')
+  })
+
+  it('registers the Cherry Assistant product manifest inside bundled resources', () => {
+    const registry = buildPathRegistry()
+
+    expect(registry['feature.agents.assistant.manifest.file']).toBe(
+      '/mock/app/resources/builtin-agents/cherry-assistant/product-manifest.json'
+    )
+  })
+
+  it('uses the shared user-owned DeepSeek Harness home', () => {
+    const registry = buildPathRegistry()
+    expect(registry['external.deepseek_harness.config']).toBe(path.join(os.homedir(), '.dsh'))
+  })
+
+  it('isolates the managed DeepSeek Harness workspace from the user home', () => {
+    const registry = buildPathRegistry()
+    expect(registry['feature.deepseek_harness.workspace']).toBe(
+      path.join('/mock/userData', 'Data', 'DeepSeekHarness', 'Workspace')
+    )
+    expect(shouldAutoEnsure('feature.deepseek_harness.workspace')).toBe(true)
   })
 })
 
@@ -80,6 +174,12 @@ describe('pathRegistry.shouldAutoEnsure', () => {
 
     it('returns true for feature.files.data', () => {
       expect(shouldAutoEnsure('feature.files.data')).toBe(true)
+    })
+
+    it('returns true for the provider registry override (writable, not opted out)', () => {
+      // The remote-updated override dir under Runtime is Cherry-owned and
+      // writable — unlike the read-only bundled feature.provider_registry.data.
+      expect(shouldAutoEnsure('feature.provider_registry.override')).toBe(true)
     })
 
     it('returns true for feature.mcp', () => {
@@ -200,6 +300,17 @@ describe('pathRegistry.shouldAutoEnsure', () => {
 
     it('returns false for app.database.migrations (packaged read-only path)', () => {
       expect(shouldAutoEnsure('app.database.migrations')).toBe(false)
+    })
+
+    it('returns false for the bundled Cherry Assistant product manifest', () => {
+      expect(shouldAutoEnsure('feature.agents.assistant.manifest.file')).toBe(false)
+    })
+
+    it('does not auto-create the persist:webview session directory', () => {
+      const registry = buildPathRegistry()
+
+      expect(registry['app.session.webview']).toBe(path.join('/mock/sessionData', 'Partitions', 'webview'))
+      expect(shouldAutoEnsure('app.session.webview')).toBe(false)
     })
   })
 

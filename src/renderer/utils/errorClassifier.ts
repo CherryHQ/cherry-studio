@@ -3,6 +3,7 @@ import type { SerializedError } from '@renderer/types/error'
 export interface ErrorClassification {
   category:
     | 'auth'
+    | 'permission'
     | 'region'
     | 'model'
     | 'quota'
@@ -99,17 +100,16 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
     msg.includes('not available in your territory') ||
     (msg.includes('territory') && (numStatus === 403 || msg.includes('unsupported')))
   ) {
-    return { category: 'region', i18nKey: 'error.diagnosis.region', navTarget: '/settings/system' }
+    return { category: 'region', i18nKey: 'error.diagnosis.region', navTarget: '/settings/general' }
   }
 
-  // Auth errors (401/403)
+  // Auth errors (401). 403 is handled below: a refused request is often unrelated to key
+  // validity, so claiming the key is invalid sends users off regenerating working keys.
   if (
     numStatus === 401 ||
-    numStatus === 403 ||
     msg.includes('invalid_api_key') ||
     msg.includes('authentication') ||
-    msg.includes('unauthorized') ||
-    msg.includes('forbidden')
+    msg.includes('unauthorized')
   ) {
     return { category: 'auth', i18nKey: 'error.diagnosis.auth', navTarget: `/settings/provider${providerSuffix}` }
   }
@@ -128,6 +128,16 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
   // Explicit billing signals win over the HTTP 429 rate-limit default.
   if (numStatus === 402 || isQuotaErrorMessage(msg)) {
     return { category: 'quota', i18nKey: 'error.diagnosis.quota', navTarget: `/settings/provider${providerSuffix}` }
+  }
+
+  // 403 = the request was refused, cause unspecified. Kept below region/model/quota because
+  // those more specific causes also ship as 403.
+  if (numStatus === 403 || msg.includes('forbidden')) {
+    return {
+      category: 'permission',
+      i18nKey: 'error.diagnosis.permission',
+      navTarget: `/settings/provider${providerSuffix}`
+    }
   }
 
   // Rate limit (429 / "too many requests")
@@ -209,7 +219,7 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
     msg.includes('fetch failed') ||
     msg.includes('enotfound')
   ) {
-    return { category: 'network', i18nKey: 'error.diagnosis.network', navTarget: '/settings/system' }
+    return { category: 'network', i18nKey: 'error.diagnosis.network', navTarget: '/settings/general' }
   }
 
   // Proxy / SSL certificate errors
@@ -220,7 +230,7 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
     msg.includes('self-signed') ||
     msg.includes('unable_to_verify_leaf_signature')
   ) {
-    return { category: 'proxy', i18nKey: 'error.diagnosis.proxy', navTarget: '/settings/system' }
+    return { category: 'proxy', i18nKey: 'error.diagnosis.proxy', navTarget: '/settings/general' }
   }
 
   // Server errors (5xx / overloaded)

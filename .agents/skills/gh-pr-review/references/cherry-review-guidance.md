@@ -19,6 +19,7 @@ Classify each reviewed module before looking for issues:
 | Shared layer | `src/shared/` | Actual cross-process demand, immutable/stateless surface, closed top level, API contracts |
 | Renderer data hooks | `src/renderer/data/`, hooks using `useQuery`, `useMutation`, cache/preference hooks | SWR keys, invalidation, optimistic updates, external store snapshots |
 | React UI | `src/renderer/`, `packages/ui/` | `@cherrystudio/ui`, i18n, a11y, hooks correctness, design-system fit |
+| Network downloads | Package-manager configuration, lockfiles, install/download code, model or binary manifests | Global and China-accelerated sources, artifact parity, source selection, integrity checks |
 | Naming / module shape | Added, renamed, or moved files/directories; new classes and barrels | Path casing, export-role naming, Service/Manager roles, promotion, barrel boundaries |
 
 ## Anti-Fragmentation Review Principles
@@ -61,6 +62,27 @@ Report these as:
 - **Notice** when the diff needs author confirmation about whether a capability
   should be upstreamed, generalized, or intentionally kept local.
 
+## Network Download Source Gate
+
+Every component fetched over the network during development, build,
+installation, or runtime must have both a usable global source and a usable
+China-accelerated source. This includes package-manager dependencies such as
+npm packages, runtime and toolchain binaries, offline models, and other
+downloaded assets.
+
+- For registry packages, the supported install path must work with both the
+  default global registry and a China mirror; dependency declarations do not
+  need duplicate URLs.
+- For models, binaries, and URL-addressed assets, both sources must resolve to
+  the same version and content and use the same integrity validation when one
+  is available.
+- A hard-coded single source, or a second source that no supported code or
+  configuration path can select, does not satisfy this requirement.
+
+Treat any new or changed network download that lacks either usable source as a
+**Blocker**. Do not approve or recommend merging the change until both sources
+are provided.
+
 ## Reference Routing
 
 Load references by changed area. Do not paste every external guide into every
@@ -71,10 +93,10 @@ conflict.
 
 | Changed area | Consult |
 | --- | --- |
-| Added, renamed, or moved files/directories; new classes, services, managers, features, or barrels | `docs/references/naming-conventions.md` |
-| `src/main/` placement, imports, top-level structure, features, services, or utils | `docs/references/main-process-architecture.md`, plus the subsystem reference it routes to |
-| `src/renderer/` placement, imports, top-level structure, pages, features, shared buckets, or public APIs | `docs/references/renderer-architecture.md` |
-| `src/shared/` placement, exports, runtime state, top-level structure, or cross-process contracts | `docs/references/shared-layer-architecture.md` |
+| Added, renamed, or moved files/directories; new classes, services, managers, features, or barrels | `docs/references/architecture/naming-conventions.md` |
+| `src/main/` placement, imports, top-level structure, features, services, or utils | `docs/references/architecture/main-process.md`, plus the subsystem reference it routes to |
+| `src/renderer/` placement, imports, top-level structure, pages, features, shared buckets, or public APIs | `docs/references/architecture/renderer.md` |
+| `src/shared/` placement, exports, runtime state, top-level structure, or cross-process contracts | `docs/references/architecture/shared-layer.md` |
 | Choosing among DataApi, Cache, Preference, BootConfig, and `app_state` | `docs/references/data/README.md`; stop there unless the diff enters one of the subsystem rows below |
 | DataApi contracts, schemas, types, or errors | `docs/references/data/data-api-overview.md`, `api-design-guidelines.md`, `api-types.md` |
 | DataApi handlers, services, or renderer hooks | Add `docs/references/data/data-api-in-main.md` for main handlers/services and `data-api-in-renderer.md` for renderer consumers |
@@ -136,7 +158,7 @@ source prefers a different style.
 
 ## Naming And Module Shape
 
-Use `docs/references/naming-conventions.md` as the authority when the diff adds,
+Use `docs/references/architecture/naming-conventions.md` as the authority when the diff adds,
 renames, or moves a path, changes a primary export's role, or creates a module
 boundary. Do not infer the rule from whichever nearby legacy file is easiest to
 copy.

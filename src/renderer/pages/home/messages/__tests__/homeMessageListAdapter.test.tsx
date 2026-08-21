@@ -1,5 +1,6 @@
 import type { MessageListProviderValue, MessageListRuntime } from '@renderer/components/chat/messages/types'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import { mockUseMutation } from '@test-mocks/renderer/useDataApi'
 import { act, render, waitFor } from '@testing-library/react'
 import { type ReactNode, useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -35,7 +36,20 @@ const commandHandlerMock = vi.hoisted(() => vi.fn())
 const modelSelectorMock = vi.hoisted(() => ({
   props: [] as any[]
 }))
+const { refetchTranslationLanguagesMock, useLanguagesMock } = vi.hoisted(() => {
+  const refetchTranslationLanguagesMock = vi.fn(async () => undefined)
+  return {
+    refetchTranslationLanguagesMock,
+    useLanguagesMock: vi.fn(() => ({
+      languages: [],
+      getLabel: vi.fn(() => ''),
+      status: 'ready' as const,
+      refetch: refetchTranslationLanguagesMock
+    }))
+  }
+})
 const useMessageErrorActionsMock = vi.hoisted(() => vi.fn<(options?: unknown) => Record<string, never>>(() => ({})))
+const openRouteMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@data/DataApiService', () => ({
   dataApiService: {
@@ -95,11 +109,12 @@ vi.mock('@renderer/hooks/command', () => ({
   useCommandHandler: commandHandlerMock
 }))
 
+vi.mock('@renderer/services/mainWindowNavigation', () => ({
+  openRoute: openRouteMock
+}))
+
 vi.mock('@renderer/hooks/translate', () => ({
-  useLanguages: () => ({
-    languages: [],
-    getLabel: vi.fn(() => '')
-  })
+  useLanguages: useLanguagesMock
 }))
 
 vi.mock('@renderer/components/chat/messages/hooks/useMessageActivityState', () => ({
@@ -165,7 +180,6 @@ vi.mock('@renderer/components/chat/messages/messageListProviderBuilder', () => (
 
 vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: {
-    CLEAR_MESSAGES: 'CLEAR_MESSAGES',
     COPY_TOPIC_IMAGE: 'COPY_TOPIC_IMAGE',
     EDIT_MESSAGE: 'EDIT_MESSAGE',
     EXPORT_TOPIC_IMAGE: 'EXPORT_TOPIC_IMAGE',
@@ -239,6 +253,7 @@ const createTopic = (id: string): Topic =>
     id,
     assistantId: 'assistant-1',
     name: `Topic ${id}`,
+    lastActivityAt: '2026-01-01T00:00:00.000Z',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     messages: []
@@ -246,7 +261,6 @@ const createTopic = (id: string): Topic =>
 
 function MessageListAdapterHarness({
   imageActionConsumer,
-  localSendGeneration,
   streamingLayers,
   messages = [],
   onBindRuntime,
@@ -256,7 +270,6 @@ function MessageListAdapterHarness({
   topic
 }: {
   imageActionConsumer?: 'capture'
-  localSendGeneration?: number
   streamingLayers?: MessageListProviderValue['state']['streamingLayers']
   messages?: CherryUIMessage[]
   onBindRuntime?: MessageListProviderValue['actions']['bindRuntime']
@@ -267,11 +280,10 @@ function MessageListAdapterHarness({
 }) {
   const value = useHomeMessageListProviderValue({
     topic,
-    assistant: { id: 'assistant-1', name: 'Assistant' } as any,
+    assistant: { id: 'assistant-1', name: 'Assistant', emoji: '🤖' } as any,
     messages,
     partsByMessageId,
     streamingLayers,
-    localSendGeneration,
     imageActionConsumer,
     onBindRuntime,
     onStartBranchDraft
@@ -308,18 +320,46 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     })
   })
 
-  it('forwards the local-send generation to the shared list state', () => {
+  it('loads translation languages only after the message menu requests them', async () => {
     let value: MessageListProviderValue | undefined
 
-    render(
-      <MessageListAdapterHarness
-        topic={createTopic('topic-a')}
-        localSendGeneration={3}
-        onValue={(nextValue) => (value = nextValue)}
-      />
-    )
+    render(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />)
 
-    expect(value?.state.localSendGeneration).toBe(3)
+    expect(useLanguagesMock).toHaveBeenLastCalledWith({ enabled: false })
+
+    act(() => value?.actions.requestTranslationLanguages?.())
+
+    await waitFor(() => expect(useLanguagesMock).toHaveBeenLastCalledWith({ enabled: true }))
+  })
+
+  it('exposes the current assistant profile for migrated messages without snapshots', () => {
+    let value: MessageListProviderValue | undefined
+
+    render(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />)
+
+    expect(value?.meta.assistantProfile).toEqual({ name: 'Assistant', avatar: '🤖' })
+  })
+
+  it('exposes the language load status and retries through the shared refetch', () => {
+    let value: MessageListProviderValue | undefined
+
+    render(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />)
+
+    expect(value?.state.translationLanguagesStatus).toBe('ready')
+
+    act(() => value?.actions.retryTranslationLanguages?.())
+
+    expect(refetchTranslationLanguagesMock).toHaveBeenCalledOnce()
+  })
+
+  it('opens navigation entries in an application tab', () => {
+    let value: MessageListProviderValue | undefined
+
+    render(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />)
+
+    act(() => void value?.actions.navigateToRoute?.({ path: '/app/paintings', query: { source: 'assistant' } }))
+
+    expect(openRouteMock).toHaveBeenCalledWith('/app/paintings', { source: 'assistant' })
   })
 
   it('injects Home-message diagnosis persistence into the shared error UI', async () => {
@@ -380,7 +420,6 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     )
 
     const runtime: MessageListRuntime = {
-      captureLocalSendScrollEligibility: vi.fn(),
       copyTopicImage: vi.fn(),
       exportTopicImage: vi.fn(),
       locateMessage: vi.fn(),
@@ -485,7 +524,6 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     )
 
     const runtime: MessageListRuntime = {
-      captureLocalSendScrollEligibility: vi.fn(),
       copyTopicImage: vi.fn().mockResolvedValue(undefined),
       exportTopicImage: vi.fn(),
       locateMessage: vi.fn(),
@@ -502,7 +540,6 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     expect(commandHandlerMock).toHaveBeenCalledWith('chat.message.edit_last_user', expect.any(Function), {
       enabled: false
     })
-    expect(eventMocks.on).not.toHaveBeenCalledWith('CLEAR_MESSAGES', expect.any(Function))
     expect(eventMocks.on).not.toHaveBeenCalledWith('COPY_TOPIC_IMAGE', expect.any(Function))
     expect(eventMocks.on).not.toHaveBeenCalledWith('EXPORT_TOPIC_IMAGE', expect.any(Function))
     expect(value?.actions.getMessageDeleteAvailability).toBeUndefined()
@@ -626,6 +663,35 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
 
     expect(onStartBranchDraft).toHaveBeenCalledWith('assistant-old')
     expect(chatWriteMock.setActiveNode).not.toHaveBeenCalled()
+  })
+
+  it('copies a message path into a new topic through the topic duplicate endpoint', async () => {
+    const copyBranchToNewTopicTrigger = vi.fn().mockResolvedValue(createTopic('copied-topic'))
+    let value: MessageListProviderValue | undefined
+
+    await mockUseMutation.withImplementation(
+      () => ({
+        trigger: copyBranchToNewTopicTrigger,
+        isLoading: false,
+        error: undefined
+      }),
+      async () => {
+        render(
+          <MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />
+        )
+
+        await waitFor(() => expect(value).toBeDefined())
+        await value?.actions.copyBranchToNewTopic?.('assistant-old')
+      }
+    )
+
+    expect(mockUseMutation).toHaveBeenCalledWith('POST', '/topics/:id/duplicate', {
+      refresh: ['/topics']
+    })
+    expect(copyBranchToNewTopicTrigger).toHaveBeenCalledWith({
+      params: { id: 'topic-a' },
+      body: { nodeId: 'assistant-old' }
+    })
   })
 
   it('keeps a message translation active until its final update is persisted', async () => {

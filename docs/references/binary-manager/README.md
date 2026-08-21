@@ -1,3 +1,12 @@
+---
+description: Lifecycle service that acquires third-party CLI binaries through mise, with tool registry, snapshots, and IPC
+sources:
+  - src/main/services/BinaryManager.ts
+  - src/shared/data/presets/binaryTools.ts
+  - src/main/ipc/handlers/binary.ts
+  - scripts/download-binaries.js
+---
+
 # BinaryManager Reference
 
 `BinaryManager` is the lifecycle service that acquires and manages third-party CLI binaries through [mise](https://mise.jdx.dev). It owns the custom tool registry and the filesystem/process orchestration around mise; domain services own execution, configuration, and health logic.
@@ -29,13 +38,13 @@ Backup and restore transport `feature.binary.tools` as portable custom definitio
 `getToolSnapshots(names)` is the one availability surface for renderer and main consumers. Each `BinaryToolSnapshot` combines four independent dimensions:
 
 - `definition`: the user-added `CustomToolDefinition` backing this name; absent for a fixed tool.
-- `application`: the exact-backend-application fact (`applied` / `broken` / `absent` / `conflict` / `unknown`) — whether the exact managed recipe is applied through mise, computed independently of `availability`. Only an `active: true` mise entry whose executable shim and `mise which` target are both runnable can be `applied`; installed but inactive entries are `broken`, and their shim contributes mise availability only when the same target check passes.
+- `application`: the exact-backend-application fact (`applied` / `broken` / `absent` / `conflict` / `unknown`) — whether the exact managed recipe is applied through mise, computed independently of `availability`. Only an `active: true` mise entry whose executable shim and `mise which` target are both runnable can be `applied`; installed but inactive entries are `broken`, and their shim contributes mise availability only when the same target check passes. A tool name is not always an executable — `core:rust` exposes `rustc`/`cargo` and no `rust` — so a recipe without an eponymous shim qualifies through a concrete executable `mise bin-paths --json` reports for it, and only when that executable clears the same bar: a shim that passes the platform-appropriate access check whose target `mise which --tool` still resolves for this recipe.
 - `availability`: current `mise`, `bundled`, `system`, or `none` fact, including an executable path when available.
 - `operation`: optional current install/remove state.
 
 The returned record is intentionally a superset of the requested names. It also includes custom registry entries, active operation entries, and discovered `node`/`python` runtime dependencies from mise. Candidate recipes come from the fixed catalog and the custom registry only — an operation-only name carries no recipe and so omits its `application` fact. This lets a newly mounted settings window render a complete management view.
 
-A snapshot obtains live mise data with one `mise ls --json` query and reports a mise executable only after its shim passes the platform-appropriate access check and `mise which` resolves an accessible target. System discovery uses the raw login-shell environment so Cherry's directories and `MISE_*` settings cannot make a Cherry executable look like a system executable.
+A snapshot obtains live mise data with one `mise ls --json` query and reports a mise executable only after its shim passes the platform-appropriate access check and `mise which` resolves an accessible target; the per-recipe `mise bin-paths --json` fallback above runs only for an installed tool that has no shim of its own. Post-install validation, prune verification, and snapshot derivation share that one runnable proof; they differ only in where the active install entry comes from (a per-recipe `mise ls` for the former two, the batched listing for the latter). System discovery uses the raw login-shell environment so Cherry's directories and `MISE_*` settings cannot make a Cherry executable look like a system executable.
 
 Snapshots are weakly consistent by design: they do not wait on the mutation mutex. The custom registry, operation cache, mise output, and filesystem may change while a snapshot is assembled. Consumers must treat a snapshot as a display/execution decision for that moment, refresh on `binary.availability_changed`, and drive update/uninstall/repair from `application`, never from `availability` alone.
 
@@ -65,6 +74,8 @@ Remove is one custom-tool product flow: it first attempts verified backend clean
 Install and remove mutations are serialized with the custom registry and mise process operations. Per-tool active-operation guards deduplicate an identical install and reject conflicting install/remove requests before they overwrite each other's state.
 
 There are two install routes. `installByName({ name, targetVersion? })` resolves the code-owned fixed recipe or the persisted custom definition and applies it against the live `application` fact — it never writes Preference. An already-applied tool is a no-op (or a one-shot version update when a target is given); an externally satisfied (bundled/system) tool is a logged no-op so a race converges; a `conflict`/`unknown` state rejects without mutating; a backend failure records a failed operation. `addCustomTool(definition)` is the only route that accepts an arbitrary recipe: it validates grammar and collisions, then persists the definition to the registry **before** any backend work, so the tool stays defined and retry-able even if the install fails. An already-applied tool short-circuits only when its active version provably satisfies `requestedVersion` (or none was requested); a mismatched or unprovable version runs the targeted installation. Neither route ever rewrites the persisted definition with a resolved/installed version.
+
+After a one-shot version update is installed and proven runnable, BinaryManager runs a tool-filtered `mise prune <tool>` to remove older versions that are no longer referenced by mise configuration. It then reshims and verifies the active executable again. A prune command failure is logged without turning the already-successful update into a failed install; fresh installs and name-only repair operations do not run this cleanup.
 
 Both publish `installing` before waiting for the global mutation lock and clear or fail the operation under it. A failed operation carries `{ status, action, error }` plus, for a failed one-shot update, the `targetVersion` it was applying — so Retry repeats the same targeted update instead of degrading to a name-only no-op. It never carries a recipe, because the recipe is always re-resolvable from the fixed catalog or the custom registry.
 

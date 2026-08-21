@@ -128,6 +128,16 @@ describe('useMigrationProgress', () => {
     expect(result.current.progress.summary?.durationMs).toBe(3_250)
   })
 
+  it('cleans up only its own progress listener on unmount', async () => {
+    const { unmount } = renderHook(() => useMigrationProgress())
+    await waitFor(() => expect(progressHandler).toBeDefined())
+
+    unmount()
+
+    expect(cleanup).toHaveBeenCalledOnce()
+    expect(removeAllListeners).not.toHaveBeenCalled()
+  })
+
   it('maps save diagnostics to its IPC channel and exact payload', async () => {
     const { result } = renderHook(() => useMigrationActions())
 

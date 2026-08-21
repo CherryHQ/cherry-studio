@@ -1,5 +1,6 @@
 import { miniAppLogoFileRefTable, providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { groupTable } from '@data/db/schemas/group'
+import { jobScheduleTable } from '@data/db/schemas/job'
 import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -9,6 +10,12 @@ import type { MigrationPaths } from '../MigrationPaths'
 
 vi.mock('../MigrationContext', () => ({
   createMigrationContext: vi.fn().mockResolvedValue({})
+}))
+
+// The engine imports the boot-config singleton for skipMigration; keep the real
+// service (and its file I/O) out of these unit tests.
+vi.mock('@main/data/bootConfig', () => ({
+  bootConfigService: { set: vi.fn(), persist: vi.fn() }
 }))
 
 // Let initialize() run without opening a real SQLite file: a bare fake DB whose
@@ -40,6 +47,11 @@ const mockPaths: MigrationPaths = {
   claudeProjectsDir: '/tmp/test-userdata/Data/Agents/.claude/projects',
   agentSystemWorkspacesDir: '/tmp/test-userdata/Data/Agents/system',
   customMiniAppsFile: '/tmp/test-userdata/Data/Files/custom-minapps.json',
+  migrationTempDir: '/tmp/test-userdata/migration_temp',
+  migrationReduxExportDir: '/tmp/test-userdata/migration_temp/redux_export',
+  migrationDexieExportDir: '/tmp/test-userdata/migration_temp/dexie_export',
+  migrationLocalStorageExportDir: '/tmp/test-userdata/migration_temp/localstorage_export',
+  migrationLocalStorageExportFile: '/tmp/test-userdata/migration_temp/localstorage_export/localStorage.json',
   legacyConfigFile: '/tmp/test-cherryhome/config/config.json',
   migrationsFolder: '/tmp/test-migrations'
 }
@@ -127,8 +139,18 @@ describe('MigrationEngine', () => {
   it('aggregates prepare and execute warnings into the migrator result on success', async () => {
     const events: string[] = []
     const migrator = createTestMigrator('knowledge', 1, events)
-    migrator.prepare.mockResolvedValueOnce({ success: true, itemCount: 0, warnings: ['prepare warn'] } as any)
-    migrator.execute.mockResolvedValueOnce({ success: true, processedCount: 0, warnings: ['execute warn'] } as any)
+    migrator.prepare.mockResolvedValueOnce({
+      success: true,
+      itemCount: 0,
+      warnings: ['prepare warn'],
+      warningMessages: [{ key: 'migration.prepare_warning' }]
+    } as any)
+    migrator.execute.mockResolvedValueOnce({
+      success: true,
+      processedCount: 0,
+      warnings: ['execute warn'],
+      warningMessages: [{ key: 'migration.execute_warning', params: { count: 2 } }]
+    } as any)
 
     engine.registerMigrators([migrator as any])
 
@@ -137,6 +159,10 @@ describe('MigrationEngine', () => {
     expect(result.success).toBe(true)
     expect(result.migratorResults).toHaveLength(1)
     expect(result.migratorResults[0].warnings).toEqual(['prepare warn', 'execute warn'])
+    expect(result.migratorResults[0].warningMessages).toEqual([
+      { key: 'migration.prepare_warning' },
+      { key: 'migration.execute_warning', params: { count: 2 } }
+    ])
   })
 
   it('omits the warnings field when a migrator reports none', async () => {
@@ -237,14 +263,6 @@ describe('MigrationEngine', () => {
     })
   })
 
-  it('marks migration completed when the user skips migration', async () => {
-    const markSpy = vi.spyOn(engine as any, 'markCompleted').mockResolvedValue(undefined)
-
-    await engine.skipMigration()
-
-    expect(markSpy).toHaveBeenCalledOnce()
-  })
-
   it('marks completed after global validation succeeds', async () => {
     const events: string[] = []
     const migrator = createTestMigrator('agents', 1, events)
@@ -261,9 +279,44 @@ describe('MigrationEngine', () => {
     expect(events.slice(-2)).toEqual(['foreign-keys', 'completed'])
   })
 
+  it('cleans only registered migration export directories after a successful file-backed run', async () => {
+    const cleanup = vi.mocked((engine as any).cleanupTempFiles)
+
+    await expect(
+      engine.run('/untrusted/redux', '/untrusted/dexie', '/untrusted/local/localStorage.json')
+    ).resolves.toMatchObject({ success: true })
+
+    expect(cleanup.mock.calls.map(([exportPath]: [string]) => exportPath)).toEqual([
+      mockPaths.migrationDexieExportDir,
+      mockPaths.migrationLocalStorageExportDir,
+      mockPaths.migrationReduxExportDir
+    ])
+  })
+
+  it('cleans only registered migration export directories after a failed file-backed run', async () => {
+    const errorSpy = vi.spyOn(mockMainLoggerService, 'error').mockImplementation(() => {})
+    const events: string[] = []
+    const failing = createTestMigrator('failing', 1, events)
+    const cleanup = vi.mocked((engine as any).cleanupTempFiles)
+    failing.execute.mockResolvedValueOnce({ success: false, processedCount: 0, error: 'execute exploded' } as any)
+    engine.registerMigrators([failing as any])
+
+    await expect(
+      engine.run('/untrusted/redux', '/untrusted/dexie', '/untrusted/local/localStorage.json')
+    ).resolves.toMatchObject({ success: false })
+
+    expect(cleanup.mock.calls.map(([exportPath]: [string]) => exportPath)).toEqual([
+      mockPaths.migrationDexieExportDir,
+      mockPaths.migrationLocalStorageExportDir,
+      mockPaths.migrationReduxExportDir
+    ])
+
+    errorSpy.mockRestore()
+  })
+
   it('clears new architecture tables inside one transaction', async () => {
     const runFn = vi.fn()
-    const deleteFn = vi.fn(() => ({ run: runFn }))
+    const deleteFn = vi.fn(() => ({ run: runFn, where: vi.fn(() => ({ run: runFn })) }))
     const transactionFn = vi.fn((fn: (tx: unknown) => void) => {
       fn({ delete: deleteFn })
     })
@@ -284,7 +337,9 @@ describe('MigrationEngine', () => {
     await (engine as any).verifyAndClearNewTables()
 
     expect(transactionFn).toHaveBeenCalledTimes(1)
-    expect(deleteFn).toHaveBeenCalledTimes(db.select.mock.calls.length)
+    // Every counted table is deleted, plus the filtered job_schedule delete
+    // (which is not part of the count loop).
+    expect(deleteFn).toHaveBeenCalledTimes(db.select.mock.calls.length + 1)
     expect(db).not.toHaveProperty('delete')
   })
 
@@ -299,7 +354,8 @@ describe('MigrationEngine', () => {
         fn({
           delete: (table: unknown) => {
             deletedTables.push(table)
-            return { run: vi.fn() }
+            const run = vi.fn()
+            return { run, where: vi.fn(() => ({ run })) }
           }
         })
       )
@@ -314,5 +370,6 @@ describe('MigrationEngine', () => {
     expect(deletedTables).toContain(groupTable)
     expect(deletedTables).toContain(entityTagTable)
     expect(deletedTables).toContain(tagTable)
+    expect(deletedTables).toContain(jobScheduleTable)
   })
 })

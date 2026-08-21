@@ -1,7 +1,13 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
-import { SettingGroup, SettingsContentBody, SettingsContentColumn } from '../SettingsPrimitives'
+import {
+  SettingDescription,
+  SettingGroup,
+  SettingHelpText,
+  SettingsContentBody,
+  SettingsContentColumn
+} from '../SettingsPrimitives'
 
 describe('settings page containers', () => {
   it.each([
@@ -35,5 +41,17 @@ describe('SettingGroup', () => {
     expect(screen.getByTestId('setting-group')).toHaveClass('border-t', 'pt-3')
     expect(screen.getByTestId('setting-group')).not.toHaveClass('rounded-xl', 'bg-card', 'p-4')
     expect(screen.getByTestId('setting-group').style.backgroundColor).toBe('')
+  })
+})
+
+describe('settings copy', () => {
+  it.each([
+    ['description', SettingDescription],
+    ['help text', SettingHelpText]
+  ])('uses the readable secondary foreground for %s', (_, Component) => {
+    render(<Component data-testid="settings-copy">Content</Component>)
+
+    expect(screen.getByTestId('settings-copy')).toHaveClass('text-muted-foreground')
+    expect(screen.getByTestId('settings-copy')).not.toHaveClass('text-foreground-tertiary')
   })
 })

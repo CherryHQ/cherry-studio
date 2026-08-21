@@ -5,7 +5,7 @@ import type {
   QuickPanelOpenOptions,
   QuickPanelTriggerInfo
 } from '@renderer/components/QuickPanel'
-import type { ReactNode } from 'react'
+import type { ReactElement, ReactNode } from 'react'
 
 export type ComposerToolLauncherKind = 'command' | 'panel' | 'dialog' | 'group'
 
@@ -38,6 +38,7 @@ export interface ComposerToolLauncher {
   label: ReactNode | string
   description?: ReactNode | string
   tooltip?: ReactNode | string
+  tooltipAnchor?: ReactElement
   disabledReason?: ReactNode | string
   searchAliases?: readonly string[]
   icon: ReactNode | string

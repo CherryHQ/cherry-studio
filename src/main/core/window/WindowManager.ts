@@ -686,6 +686,10 @@ export class WindowManager extends BaseService {
     return this.initDataStore.get(windowId) ?? null
   }
 
+  public clearInitData(windowId: string): void {
+    this.initDataStore.delete(windowId)
+  }
+
   /**
    * Push fresh init data to a single already-open window and notify its
    * renderer in-place, reusing the same IpcApi event (`window.reused`)
@@ -1371,6 +1375,11 @@ export class WindowManager extends BaseService {
           event.preventDefault()
           void shell.openExternal(url)
         }
+      } else {
+        // Non-web schemes (file:, custom protocols) have no legitimate in-window
+        // navigation path; deny like the window-open handler denies non-http(s) popups.
+        event.preventDefault()
+        logger.warn(`Blocked navigation to untrusted URL scheme: ${url}`)
       }
     })
 

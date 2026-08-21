@@ -8,8 +8,9 @@
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 import * as z from 'zod'
 
+import { ContextSettingsOverrideSchema } from './contextSettings'
 import { GroupIdSchema } from './group'
-import { UniqueModelIdSchema } from './model'
+import { ReasoningSummarySchema, ServiceTierSelectionSchema, UniqueModelIdSchema } from './model'
 
 // ============================================================================
 // Sub-Schemas
@@ -18,6 +19,20 @@ import { UniqueModelIdSchema } from './model'
 /** MCP server interaction mode */
 export const McpModeSchema = z.enum(['disabled', 'auto', 'manual'])
 export type McpMode = z.infer<typeof McpModeSchema>
+
+/**
+ * Effective mcpMode when `settings.mcpMode` is unset. Single source of truth —
+ * main's resolver, the renderer helper, and the composer MCP selector must all
+ * agree, or the same assistant resolves different tool sets per layer
+ * (runtime-test finding #6). 'manual' = only explicitly linked servers.
+ */
+export const DEFAULT_MCP_MODE: McpMode = 'manual'
+
+/** Accepted range for `settings.maxToolCalls`. The editor's spinner bounds and main's
+ *  `resolveToolCallLimit` validation must agree, or a value the UI accepts silently
+ *  falls back to the default at request time. */
+export const MIN_TOOL_CALLS = 1
+export const MAX_TOOL_CALLS = 1000
 
 /**
  * Assistant settings — inference parameters + context source toggles.
@@ -45,12 +60,17 @@ export const AssistantSettingsSchema = z.object({
   streamOutput: z.boolean(),
   /** Canonical reasoning selection; endpoint profiles own provider-specific wire values. */
   reasoning_effort: ReasoningEffortOptionSchema,
+  /** Summary verbosity, where the endpoint carries one. Absent = the endpoint's own default. */
+  reasoning_summary: ReasoningSummarySchema.optional(),
+  /** Provider request service tier. Endpoint registry owns native wire values. */
+  service_tier: ServiceTierSelectionSchema.optional(),
   // -- Tool use --
   mcpMode: McpModeSchema,
   maxToolCalls: z.number().int().positive(),
   enableMaxToolCalls: z.boolean(),
 
   // -- Context sources --
+  /** One switch for the web tool group (search + URL fetch), whichever side executes it. */
   enableWebSearch: z.boolean(),
   /** Offer the `generate_image` tool to the model (needs a painting model in Settings › Default Model). */
   enableGenerateImage: z.boolean(),
@@ -68,7 +88,13 @@ export const AssistantSettingsSchema = z.object({
       z.object({ name: z.string(), type: z.literal('boolean'), value: z.boolean() }),
       z.object({ name: z.string(), type: z.literal('json'), value: z.unknown() })
     ])
-  )
+  ),
+
+  /** Per-assistant context-settings override (P2-D assistant layer). Absent or
+   *  `null` = inherit the global `chat.context_settings.*` preferences. `null`
+   *  is the wire form for "clear the override" — JSON drops `undefined` keys,
+   *  and the resolver's `??` chain treats null/undefined alike. */
+  contextSettings: ContextSettingsOverrideSchema.nullable().optional()
 })
 export type AssistantSettings = z.infer<typeof AssistantSettingsSchema>
 
@@ -82,8 +108,8 @@ export const DEFAULT_ASSISTANT_SETTINGS: AssistantSettings = {
   enableMaxTokens: false,
   streamOutput: true,
   reasoning_effort: 'default',
-  mcpMode: 'auto',
-  maxToolCalls: 20,
+  mcpMode: DEFAULT_MCP_MODE,
+  maxToolCalls: 100,
   enableMaxToolCalls: true,
   enableWebSearch: false,
   enableGenerateImage: false,

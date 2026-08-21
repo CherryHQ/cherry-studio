@@ -135,7 +135,7 @@ const PaintingStrip: FC<PaintingStripProps> = ({
             deleteLabel={t('paintings.button.delete.image.label')}
           />
         ))}
-        {hasMore && <Loader2 className="mx-auto size-4 shrink-0 animate-spin text-muted-foreground/60" aria-hidden />}
+        {hasMore && <Loader2 className="mx-auto size-4 shrink-0 animate-spin text-foreground-tertiary" aria-hidden />}
       </div>
 
       <style>{`

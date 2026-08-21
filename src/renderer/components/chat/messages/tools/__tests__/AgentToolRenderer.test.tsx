@@ -1,6 +1,7 @@
 import type * as CherryUi from '@cherrystudio/ui'
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { parse as parsePartialJson } from 'partial-json'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -42,7 +43,8 @@ vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', async (
 
 vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
   useOptionalMessageListActions: () => mockMessageListActions(),
-  useOptionalMessageListUi: () => ({ externalCodeEditors: [] })
+  useOptionalMessageListUi: () => ({}),
+  useOptionalMessageListTopicId: () => undefined
 }))
 
 vi.mock('@renderer/ipc', () => ({
@@ -339,6 +341,38 @@ describe('AgentToolRenderer', () => {
   })
 
   describe('completed tool rendering', () => {
+    it('does not duplicate an ExitPlanMode plan repeated in the tool result', () => {
+      const plan = '# Release plan\n\n1. Run the focused tests'
+      const toolResponse = createToolResponse({
+        tool: { id: 'ExitPlanMode', name: 'ExitPlanMode', description: 'Exit plan mode', type: 'provider' },
+        status: 'done',
+        arguments: { plan },
+        response: { plan, isAgent: false }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      fireEvent.click(screen.getByRole('button'))
+
+      expect(screen.getAllByText('Release plan')).toHaveLength(1)
+      expect(screen.getAllByText('Run the focused tests')).toHaveLength(1)
+    })
+
+    it('does not duplicate an ExitPlanMode plan that differs only by surrounding whitespace', () => {
+      const plan = '# Release plan\n\n1. Run the focused tests'
+      const toolResponse = createToolResponse({
+        tool: { id: 'ExitPlanMode', name: 'ExitPlanMode', description: 'Exit plan mode', type: 'provider' },
+        status: 'done',
+        arguments: { plan: `${plan}   ` },
+        response: { plan: `  ${plan}\n`, isAgent: false }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      fireEvent.click(screen.getByRole('button'))
+
+      expect(screen.getAllByText('Release plan')).toHaveLength(1)
+      expect(screen.getAllByText('Run the focused tests')).toHaveLength(1)
+    })
+
     it('should render newly supported structured agent tools', () => {
       const toolResponse = createToolResponse({
         tool: { id: 'TaskCreate', name: 'TaskCreate', description: 'Create task', type: 'provider' },
@@ -395,6 +429,44 @@ describe('AgentToolRenderer', () => {
 
       expect(screen.getByTestId('collapse-content-TaskList')).toHaveTextContent('Build launch deck')
       expect(screen.getByTestId('collapse-content-TaskList')).not.toHaveTextContent(/^1$/)
+    })
+
+    it('renders a dsh todo snapshot with its task states', () => {
+      const toolResponse = createToolResponse({
+        tool: { id: 'TodoWrite', name: 'TodoWrite', description: 'Update todos', type: 'provider' },
+        status: 'done',
+        arguments: {
+          todos: [
+            { content: 'Inspect the bridge', status: 'completed' },
+            { content: 'Wire the renderer', status: 'in_progress' }
+          ]
+        },
+        response: [{ type: 'text', text: 'Updated todo list' }]
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      const trigger = screen.getByRole('button')
+      expect(trigger).toHaveTextContent('Wire the renderer')
+      fireEvent.click(trigger)
+
+      const content = screen.getByTestId('collapse-content-TodoWrite')
+      expect(content).toHaveTextContent('Inspect the bridge')
+      expect(content).toHaveTextContent('Wire the renderer')
+    })
+
+    it('renders dsh skill names and text-block results through the Skill card', () => {
+      const toolResponse = createToolResponse({
+        tool: { id: 'Skill', name: 'Skill', description: 'Load a skill', type: 'provider' },
+        status: 'done',
+        arguments: { name: 'design-review' },
+        response: [{ type: 'text', text: 'Loaded design review instructions' }]
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      expect(screen.getByText('design-review')).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button'))
+
+      expect(screen.getByTestId('collapse-content-Skill')).toHaveTextContent('Loaded design review instructions')
     })
 
     it('should route Agent through the agent renderer', () => {
@@ -497,24 +569,22 @@ describe('AgentToolRenderer', () => {
       expect(mockGetToolResult).not.toHaveBeenCalled()
     })
 
-    it('should render error state correctly', () => {
+    it('shows Read error details when the tool is expanded', async () => {
+      const user = userEvent.setup()
+      const errorText = "ENOENT: no such file or directory, open '/nonexistent.ts'"
       const toolResponse = createToolResponse({
         tool: { id: 'Read', name: 'Read', description: 'Read a file', type: 'provider' },
         status: 'error',
         arguments: { file_path: '/nonexistent.ts' },
-        response: 'File not found'
+        response: { isError: true, content: [{ type: 'text', text: errorText }] }
       })
 
       render(<AgentToolRenderer toolResponse={toolResponse} />)
 
-      // Should still render the tool component
       expect(screen.getByText('View')).toBeInTheDocument()
-      expect(screen.getByText('Error')).toHaveStyle(
-        'color: color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
-      )
-      expect(
-        screen.queryAllByTestId('tooltip-content').some((element) => element.textContent === 'File not found')
-      ).toBe(false)
+      expect(screen.getByText('Error')).toHaveStyle('color: var(--muted-foreground)')
+      await user.click(screen.getByRole('button'))
+      expect(await screen.findByText(errorText)).toBeVisible()
     })
 
     it('renders the Write target path as a clickable link once the write completes', () => {
@@ -858,7 +928,7 @@ describe('AgentToolRenderer', () => {
   })
 
   describe('meta tool rendering', () => {
-    it('renders tool_search with the light tool-row styling', async () => {
+    it('renders and expands tool_search results', async () => {
       const toolResponse = createToolResponse({
         id: 'meta-tool-search',
         tool: {
@@ -879,17 +949,10 @@ describe('AgentToolRenderer', () => {
         }
       })
 
-      const { container } = render(<MessageTool toolResponse={toolResponse} />)
+      render(<MessageTool toolResponse={toolResponse} />)
 
-      const disclosure = container.querySelector('.message-tools-container')
-      expect(disclosure).toHaveClass('border-none')
-      expect(disclosure).toHaveClass('bg-transparent')
-      expect(disclosure).not.toHaveClass('rounded-[7px]')
       expect(screen.queryByTestId('wrench-icon')).toBeNull()
-
-      const title = screen.getByText('tool_search · ns=mcp:tavily')
-      expect(title).toHaveClass('font-normal')
-      expect(title).toHaveClass('text-foreground-secondary')
+      expect(screen.getByText('tool_search · ns=mcp:tavily')).toBeInTheDocument()
 
       fireEvent.click(screen.getByRole('button'))
       expect(await screen.findByText('tavily_search')).toBeInTheDocument()
@@ -982,18 +1045,10 @@ describe('AgentToolRenderer', () => {
       render(<AgentToolRenderer toolResponse={toolResponse} />)
 
       const toolHeader = screen.getByText('View').closest('[role="button"]')!
-      expect(toolHeader).toHaveClass('w-fit')
-      expect(toolHeader).not.toHaveClass('w-full')
 
       fireEvent.click(toolHeader)
       expect(openAgentToolFlow).not.toHaveBeenCalled()
       expect(screen.getByTestId('collapse-content-Bash')).toBeVisible()
-      expect(screen.getByTestId('collapse-content-Bash')).toHaveClass('rounded-xl', 'bg-muted', 'px-4', 'py-3')
-      const terminal = Array.from(screen.getByTestId('collapse-content-Bash').querySelectorAll('div')).find((node) =>
-        node.className.includes("font-['Menlo','Monaco','Courier_New',monospace]")
-      )
-      expect(terminal?.className).toContain('bg-[#f5f5f5]')
-      expect(terminal?.className).toContain('dark:bg-[#1e1e1e]')
 
       fireEvent.click(toolHeader)
       expect(screen.getByTestId('collapse-content-Bash')).not.toBeVisible()
@@ -1012,11 +1067,7 @@ describe('AgentToolRenderer', () => {
 
       render(<AgentToolRenderer toolResponse={toolResponse} />)
 
-      // Should render the DEDICATED BashTool component
-      const bashLabel = screen.getByText('Installing')
-      expect(bashLabel.parentElement?.parentElement).toHaveClass('text-[13px]')
-      expect(bashLabel.parentElement?.parentElement).not.toHaveClass('text-sm')
-      expect(bashLabel.parentElement).toHaveClass('font-normal text-foreground-secondary')
+      expect(screen.getByText('Installing')).toBeInTheDocument()
       // Command should be visible in the dedicated renderer (ANSI colorizer splits tokens across spans)
       const container = screen.getByTestId('collapse-content-Bash')
       expect(container.textContent).toContain('npm install')

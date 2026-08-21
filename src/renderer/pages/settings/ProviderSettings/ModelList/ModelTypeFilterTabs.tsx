@@ -1,4 +1,4 @@
-import { Tabs, TabsList, TabsTrigger } from '@cherrystudio/ui'
+import { HorizontalScrollContainer, Tabs, TabsList, TabsTrigger } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 import { ArrowUpDown, AudioLines, Boxes, Image, type LucideIcon, Mic, Speech, Type, Video } from 'lucide-react'
 import { useEffect, useState, useTransition } from 'react'
@@ -94,40 +94,47 @@ export function ModelTypeFilterTabs({
       value={optimisticValue}
       onValueChange={handleValueChange}
       className={cn(modelSyncClasses.manageTabs, className)}>
-      <TabsList className={cn(modelSyncClasses.manageTabsList, listClassName)}>
-        <TabsTrigger value="all" className={modelSyncClasses.manageTabsTrigger}>
-          <span className="truncate">{t('models.all')}</span>
-          <span className={modelSyncClasses.manageTabCount} aria-hidden>
-            {counts.all}
-          </span>
-        </TabsTrigger>
-        {extraTabs.map((tab) => (
-          <TabsTrigger
-            key={tab.value}
-            value={tab.value}
-            className={cn(
-              modelSyncClasses.manageTabsTrigger,
-              tab.destructive && modelSyncClasses.manageTabsTriggerDestructive
-            )}>
-            <span className="truncate">{tab.label}</span>
-            <span className={cn(modelSyncClasses.manageTabCount, tab.destructive && 'text-error-text')} aria-hidden>
-              {tab.count}
+      <HorizontalScrollContainer
+        className="w-full flex-none"
+        scrollLeftLabel={t('settings.models.filter.scroll_left')}
+        scrollRightLabel={t('settings.models.filter.scroll_right')}>
+        <TabsList className={cn(modelSyncClasses.manageTabsList, listClassName)}>
+          <TabsTrigger value="all" className={modelSyncClasses.manageTabsTrigger}>
+            <span className="truncate">{t('models.all')}</span>
+            <span className={modelSyncClasses.manageTabCount} aria-hidden>
+              {counts.all}
             </span>
           </TabsTrigger>
-        ))}
-        {MODEL_TYPE_FILTERS.map((filter) => {
-          const Icon = CAPABILITY_FILTER_ICONS[filter]
-          return (
-            <TabsTrigger key={filter} value={filter} className={modelSyncClasses.manageTabsTrigger}>
-              <Icon className="size-3.5 shrink-0" aria-hidden />
-              <span className="truncate">{t(CAPABILITY_FILTER_LABEL_KEYS[filter])}</span>
-              <span className={modelSyncClasses.manageTabCount} aria-hidden>
-                {counts[filter]}
+          {extraTabs.map((tab) => (
+            <TabsTrigger
+              key={tab.value}
+              value={tab.value}
+              className={cn(
+                modelSyncClasses.manageTabsTrigger,
+                tab.destructive && modelSyncClasses.manageTabsTriggerDestructive
+              )}>
+              <span className="truncate">{tab.label}</span>
+              <span
+                className={cn(modelSyncClasses.manageTabCount, tab.destructive && 'text-error-subtle-foreground')}
+                aria-hidden>
+                {tab.count}
               </span>
             </TabsTrigger>
-          )
-        })}
-      </TabsList>
+          ))}
+          {MODEL_TYPE_FILTERS.map((filter) => {
+            const Icon = CAPABILITY_FILTER_ICONS[filter]
+            return (
+              <TabsTrigger key={filter} value={filter} className={modelSyncClasses.manageTabsTrigger}>
+                <Icon className="size-3.5 shrink-0" aria-hidden />
+                <span className="truncate">{t(CAPABILITY_FILTER_LABEL_KEYS[filter])}</span>
+                <span className={modelSyncClasses.manageTabCount} aria-hidden>
+                  {counts[filter]}
+                </span>
+              </TabsTrigger>
+            )
+          })}
+        </TabsList>
+      </HorizontalScrollContainer>
     </Tabs>
   )
 }

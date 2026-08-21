@@ -24,25 +24,27 @@ import type { InsertUserProviderRow, StoredEndpointConfigOverride } from '@data/
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { ensureCherryAiDefaultProviderAndModelTx } from '@data/db/seeding/seeders/cherryaiDefaultModelSeeder'
 import { assignOrderKeysByScope, assignOrderKeysInSequence } from '@data/migration/v2/utils/orderKey'
-import {
-  diffApiFeatures,
-  matchesModelPricingBaseline,
-  synthesizePresetFromOverride
-} from '@data/services/ProviderRegistryService'
+import { matchesModelPricingBaseline, synthesizePresetFromOverride } from '@data/services/ProviderRegistryService'
 import { generateOrderKeySequenceBetween } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import type { Model as LegacyModel, Provider as LegacyProvider } from '@main/data/migration/legacyTypes'
+import { isRetiredProvider } from '@main/data/retiredProviders'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { providerLogoRef } from '@shared/data/types/file'
 import { createUniqueModelId, isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import type { ApiFeatures } from '@shared/data/types/provider'
+import type { EndpointDialect } from '@shared/data/types/provider'
 import { desc, eq, ne, sql } from 'drizzle-orm'
 import { isEqual } from 'es-toolkit/compat'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
-import { type OldLlmSettings, transformModel, transformProvider } from './mappings/ProviderModelMappings'
+import {
+  buildProviderApiKeys,
+  type OldLlmSettings,
+  transformModel,
+  transformProvider
+} from './mappings/ProviderModelMappings'
 import v1ProviderModelBaselineJson from './mappings/v1-provider-model-baseline.json'
 import { legacyChatModelToUniqueId } from './transformers/ModelTransformers'
 import {
@@ -58,13 +60,11 @@ import { recoverV1ProviderLogoIconKey } from './utils/providerLogoCompat'
 const logger = loggerService.withContext('ProviderModelMigrator')
 
 const BATCH_SIZE = 100
-const RETIRED_PROVIDER_IDS = new Set(['cephalon', 'tokenflux'])
 /** Defaults materialized for non-system providers by final-v1 migrations 127, 129, and 132. */
-const V1_CUSTOM_PROVIDER_API_FEATURES_BASELINE = {
-  arrayContent: true,
+const V1_CUSTOM_PROVIDER_DIALECT_BASELINE = {
   streamOptions: true,
   developerRole: false
-} satisfies ApiFeatures
+} satisfies EndpointDialect
 
 function inferCherryInEndpointTypes(modelId: string): EndpointType[] {
   const normalizedModelId = modelId.trim().toLowerCase()
@@ -101,7 +101,6 @@ interface V1ProviderBaseline {
   type: LegacyProvider['type']
   apiHost?: string
   anthropicApiHost?: string
-  isNotSupportArrayContent: boolean
   isNotSupportDeveloperRole: boolean
   isNotSupportStreamOptions: boolean
   models: Record<string, V1ModelBaseline>
@@ -259,7 +258,6 @@ export class ProviderModelMigrator extends BaseMigrator {
       apiKey: '',
       apiHost: baseline.apiHost ?? '',
       anthropicApiHost: baseline.anthropicApiHost,
-      isNotSupportArrayContent: baseline.isNotSupportArrayContent,
       isNotSupportDeveloperRole: baseline.isNotSupportDeveloperRole,
       isNotSupportStreamOptions: baseline.isNotSupportStreamOptions,
       models: Object.values(baseline.models).map((model) => ({
@@ -295,16 +293,25 @@ export class ProviderModelMigrator extends BaseMigrator {
       })
     }
     const v1Row = v1Provider ? transformProvider(v1Provider, {}) : null
-    const apiFeaturesBaseline = legacy.isSystem === true ? v1Row?.apiFeatures : V1_CUSTOM_PROVIDER_API_FEATURES_BASELINE
 
     const endpointConfigs: Partial<Record<EndpointType, StoredEndpointConfigOverride>> = {}
     for (const [key, config] of Object.entries(row.endpointConfigs ?? {})) {
       const endpointType = key as EndpointType
       const v1Config = v1Row?.endpointConfigs?.[endpointType]
+      const override: StoredEndpointConfigOverride = {}
       if (config?.baseUrl !== undefined && config.baseUrl !== v1Config?.baseUrl) {
-        endpointConfigs[endpointType] = { baseUrl: config.baseUrl }
-      } else if (!v1Config) {
-        endpointConfigs[endpointType] = {}
+        override.baseUrl = config.baseUrl
+      }
+      const dialectBaseline =
+        v1Config?.dialect ?? (legacy.isSystem === true ? undefined : V1_CUSTOM_PROVIDER_DIALECT_BASELINE)
+      const dialect = Object.fromEntries(
+        Object.entries(config?.dialect ?? {}).filter(
+          ([flag, value]) => value !== dialectBaseline?.[flag as keyof EndpointDialect]
+        )
+      )
+      if (Object.keys(dialect).length > 0) override.dialect = dialect
+      if (Object.keys(override).length > 0 || !v1Config) {
+        endpointConfigs[endpointType] = override
       }
     }
 
@@ -312,20 +319,20 @@ export class ProviderModelMigrator extends BaseMigrator {
       ...row,
       endpointConfigs: Object.keys(endpointConfigs).length > 0 ? endpointConfigs : null,
       defaultChatEndpoint:
-        v1Row && row.defaultChatEndpoint === v1Row.defaultChatEndpoint ? null : row.defaultChatEndpoint,
-      apiFeatures: apiFeaturesBaseline ? diffApiFeatures(row.apiFeatures, apiFeaturesBaseline) : row.apiFeatures
+        v1Row && row.defaultChatEndpoint === v1Row.defaultChatEndpoint ? null : row.defaultChatEndpoint
     }
   }
 
   /**
    * Project a legacy model snapshot into sparse preset deltas.
    *
-   * Registry matching follows the runtime path: resolve the effective preset
-   * provider, use its provider-model override, and synthesize provider-exclusive
-   * models when no global model entry exists. User ownership is then compared
-   * with the pinned final-v1 provider/model snapshot. For a model absent from
-   * that snapshot, only `capabilities[].isUserSelected` is provable provenance;
-   * all other fields inherit the current registry.
+   * Registry matching follows the runtime path: a provider preset enables its
+   * provider-model override, while global model matching remains available to
+   * fully custom providers. Provider-exclusive models are synthesized only from
+   * a valid preset provider's override. User ownership is then compared with the
+   * pinned final-v1 provider/model snapshot. For a model absent from that
+   * snapshot, only `capabilities[].isUserSelected` is provable provenance; all
+   * other fields inherit the current registry.
    */
   private projectModelDeltaRow(
     row: Omit<InsertUserModelRow, 'orderKey'>,
@@ -333,16 +340,33 @@ export class ProviderModelMigrator extends BaseMigrator {
     legacy: LegacyModel
   ): Omit<InsertUserModelRow, 'orderKey'> {
     const presetProvider = this.resolveEffectivePresetProvider(providerRow)
-    if (!presetProvider) return row
-
     const endpointTypes =
-      row.endpointTypes ?? (presetProvider.id === 'cherryin' ? inferCherryInEndpointTypes(row.modelId) : null)
+      row.endpointTypes ?? (presetProvider?.id === 'cherryin' ? inferCherryInEndpointTypes(row.modelId) : null)
     const loader = this.getLoader()
-    const registryOverride = loader.findOverride(presetProvider.id, row.modelId)
+    const registryOverride = presetProvider ? loader.findOverride(presetProvider.id, row.modelId) : null
     const presetModel: ProtoModelConfig | null =
       loader.findModel(registryOverride?.modelId ?? row.modelId) ??
       (registryOverride ? synthesizePresetFromOverride(registryOverride) : null)
     if (!presetModel) return endpointTypes === row.endpointTypes ? row : { ...row, endpointTypes }
+
+    const hasExplicitCapabilitySelection =
+      legacy.capabilities?.some(
+        (capability) => capability.type !== 'web_search' && capability.isUserSelected !== undefined
+      ) ?? false
+    if (!presetProvider) {
+      return {
+        ...row,
+        presetModelId: presetModel.id,
+        capabilities: hasExplicitCapabilitySelection ? row.capabilities : null,
+        inputModalities: null,
+        outputModalities: null,
+        contextWindow: null,
+        maxInputTokens: null,
+        maxOutputTokens: null,
+        reasoning: null,
+        parameters: null
+      }
+    }
 
     const v1Model = V1_PROVIDER_MODEL_BASELINE.providers[presetProvider.id]?.models[row.modelId]
     const v1Row = v1Model
@@ -356,8 +380,6 @@ export class ProviderModelMigrator extends BaseMigrator {
           row.providerId
         )
       : null
-    const hasExplicitCapabilitySelection =
-      legacy.capabilities?.some((capability) => capability.isUserSelected !== undefined) ?? false
     const endpointTypesAreV1Delta = v1Row ? !isEqual(endpointTypes, v1Row.endpointTypes) : false
     const endpointTypesNeedFallback = endpointTypes !== null && !isEqual(endpointTypes, registryOverride?.endpointTypes)
 
@@ -417,6 +439,11 @@ export class ProviderModelMigrator extends BaseMigrator {
             logger.warn('Model with missing or empty id skipped', { providerId: provider.id, name: model?.name })
             continue
           }
+          if (!createModelId(provider.id, model.id)) {
+            skippedInvalidModels++
+            logger.warn('Model with invalid id skipped', { providerId: provider.id, modelId: model.id })
+            continue
+          }
           if (seenModelIds.has(model.id)) {
             skippedDuplicateModels++
             logger.warn('Duplicate model id skipped', { providerId: provider.id, modelId: model.id })
@@ -437,7 +464,7 @@ export class ProviderModelMigrator extends BaseMigrator {
           skippedManagedProviders++
           continue
         }
-        if (RETIRED_PROVIDER_IDS.has(provider.id)) {
+        if (isRetiredProvider(provider.id, provider.presetProviderId)) {
           skippedRetiredProviders++
           continue
         }
@@ -479,7 +506,7 @@ export class ProviderModelMigrator extends BaseMigrator {
         warnings.push(`Skipped ${skippedInvalidId} provider(s) with missing or empty id`)
       }
       if (skippedInvalidModels > 0) {
-        warnings.push(`Skipped ${skippedInvalidModels} model(s) with missing or empty id`)
+        warnings.push(`Skipped ${skippedInvalidModels} model(s) with invalid id`)
       }
       if (skippedDuplicateModels > 0) {
         warnings.push(`Skipped ${skippedDuplicateModels} duplicate model(s)`)
@@ -533,7 +560,14 @@ export class ProviderModelMigrator extends BaseMigrator {
         // for built-in providers, initials for custom ones).
         const logo = ctx.sources.dexieSettings.get<string>(`image://provider-${provider.id}`)
         const logoFile = logo
-          ? await prepareBase64ImageFileEntry(ctx.paths.filesDataDir, providerLogoSlot(provider.id), logo)
+          ? await prepareBase64ImageFileEntry(
+              ctx.paths.filesDataDir,
+              providerLogoSlot(provider.id),
+              logo,
+              // Ref-backed slot (`provider_logo`), same as the live `bindLogoImage`
+              // path: reclaim when the provider is deleted or its logo replaced.
+              'delete_when_unreferenced'
+            )
           : null
         if (logoFile) {
           providerLogoFiles.push(logoFile)
@@ -695,6 +729,12 @@ export class ProviderModelMigrator extends BaseMigrator {
       for (const provider of sampleProviders) {
         const sourceProvider = this.providers.find((item) => item.id === provider.providerId)
         if (sourceProvider?.apiKey && (!provider.apiKeys || provider.apiKeys.length === 0)) {
+          if (buildProviderApiKeys(sourceProvider, this.settings).length === 0) {
+            logger.warn('Legacy provider API key contained no migratable entries; continuing without API keys', {
+              providerId: provider.providerId
+            })
+            continue
+          }
           errors.push({
             key: `missing_api_key_${provider.providerId}`,
             message: `Provider ${provider.providerId} should include migrated API keys`

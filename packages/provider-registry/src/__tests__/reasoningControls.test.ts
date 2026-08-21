@@ -107,7 +107,8 @@ describe('inferReasoningControls (ingest-time heuristics)', () => {
       ]
     ],
     ['glm-4.6', [{ kind: 'toggle' }]],
-    ['gemma-4-27b-it', [{ kind: 'effort', values: ['minimal', 'high'] }]],
+    ['gemma4:31b', [{ kind: 'toggle' }]],
+    ['gemma-4-31b-it', [{ kind: 'toggle' }]],
     ['mistral-small-2603', [{ kind: 'effort', values: ['none', 'high'] }]],
     // provider-namespaced ids are normalized before matching
     ['deepseek/deepseek-v4', [{ kind: 'effort', values: ['none', 'high', 'max'] }]],

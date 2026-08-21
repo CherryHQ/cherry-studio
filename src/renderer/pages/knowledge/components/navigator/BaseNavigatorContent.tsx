@@ -58,8 +58,8 @@ const BaseNavigatorContent = ({
           {t('common.loading')}
         </div>
       ) : sections.length === 0 || (flatSection && flatSection.items.length === 0) ? (
-        // The navigator only mounts once a base exists (zero bases takes over the whole
-        // page), so an empty list here can only mean the search matched nothing.
+        // KnowledgePage normally owns the zero-base empty state; keep a defensive fallback
+        // for a transient empty collection while navigator data changes.
         <EmptyState preset="no-result" title={t('common.no_results')} compact className="h-full" />
       ) : flatSection ? (
         <div className="space-y-1">

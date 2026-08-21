@@ -23,6 +23,7 @@ interface Props {
   disabled?: boolean
   portalContainer?: HTMLElement | null
   onCreateGroup?: () => void
+  triggerClassName?: string
 }
 
 const GROUP_SELECT_VALUE_PREFIX = 'group:'
@@ -45,7 +46,8 @@ export const GroupSelector: FC<Props> = ({
   error,
   disabled,
   portalContainer,
-  onCreateGroup
+  onCreateGroup,
+  triggerClassName
 }) => {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
@@ -88,6 +90,7 @@ export const GroupSelector: FC<Props> = ({
           size="sm"
           className={cn(
             'w-full',
+            triggerClassName,
             value &&
               '[&_svg]:transition-opacity group-focus-within/group-select:[&_svg]:opacity-0 group-hover/group-select:[&_svg]:opacity-0'
           )}
@@ -118,7 +121,7 @@ export const GroupSelector: FC<Props> = ({
             event.stopPropagation()
             onChange(null)
           }}
-          className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-2.5 flex size-5 min-h-0 shrink-0 items-center justify-center rounded-full bg-transparent p-0 text-muted-foreground/70 opacity-0 shadow-none transition-[background-color,color,opacity] hover:bg-muted hover:text-foreground focus-visible:pointer-events-auto focus-visible:opacity-100 active:bg-muted group-focus-within/group-select:pointer-events-auto group-focus-within/group-select:opacity-100 group-hover/group-select:pointer-events-auto group-hover/group-select:opacity-100">
+          className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-2.5 flex size-5 min-h-0 shrink-0 items-center justify-center rounded-full bg-transparent p-0 text-muted-foreground opacity-0 shadow-none transition-[background-color,color,opacity] hover:bg-muted hover:text-foreground focus-visible:pointer-events-auto focus-visible:opacity-100 active:bg-muted group-focus-within/group-select:pointer-events-auto group-focus-within/group-select:opacity-100 group-hover/group-select:pointer-events-auto group-hover/group-select:opacity-100">
           <X size={12} />
         </Button>
       ) : null}

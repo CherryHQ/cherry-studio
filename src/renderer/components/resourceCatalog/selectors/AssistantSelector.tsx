@@ -9,8 +9,9 @@ import { useGroups } from '@renderer/hooks/useGroups'
 import { usePins } from '@renderer/hooks/usePins'
 import { toast } from '@renderer/services/toast'
 import type { ResourceEditDialogTarget } from '@renderer/types/resourceCatalog'
-import { buildCreateAssistantDto, isSelectableAssistantModel } from '@renderer/utils/resourceCatalog'
+import { buildCreateAssistantDto } from '@renderer/utils/resourceCatalog'
 import type { Assistant } from '@shared/data/types/assistant'
+import { isNonChatModel } from '@shared/utils/model'
 import { lazy, type ReactElement, Suspense, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -236,7 +237,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
       isSubmitting={isCreatingAssistant}
       onOpenChange={handleCreateDialogOpenChange}
       onSubmit={handleSubmitCreate}
-      modelFilter={isSelectableAssistantModel}
+      modelFilter={(candidate) => !isNonChatModel(candidate)}
     />
   )
 

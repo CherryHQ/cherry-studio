@@ -1,4 +1,7 @@
 import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { createFilePathHandle } from '@shared/utils/file'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -18,9 +21,16 @@ export function useAgentWorkspaceWarning(workspacePath: string | undefined, enab
     let cancelled = false
     void (async () => {
       try {
-        const isDirectory = await window.api.file.isDirectory(workspacePath)
+        const meta = await ipcApi.request(
+          'file.get_metadata',
+          createFilePathHandle(AbsoluteFilePathSchema.parse(workspacePath))
+        )
         if (cancelled) return
-        setWarning(isDirectory ? undefined : t('agent.session.workspace_status.inaccessible', { path: workspacePath }))
+        setWarning(
+          meta?.kind === 'directory'
+            ? undefined
+            : t('agent.session.workspace_status.inaccessible', { path: workspacePath })
+        )
       } catch (error) {
         logger.warn('Failed to check agent workspace path status', error as Error)
         if (!cancelled) setWarning(undefined)

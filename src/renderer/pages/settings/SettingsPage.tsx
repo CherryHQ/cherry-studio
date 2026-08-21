@@ -18,6 +18,7 @@ import {
   CalendarClock,
   Cloud,
   Command,
+  Crop,
   FileBox,
   FileCode,
   HardDrive,
@@ -52,7 +53,7 @@ const SettingsPage: FC = () => {
       data-ui="settings.view"
       className={cn(
         'flex min-h-0 flex-1 flex-col dark:[--settings-group-background:var(--background-subtle)]',
-        isMacTransparentWindow ? 'bg-transparent' : 'bg-white dark:bg-background'
+        isMacTransparentWindow ? 'bg-transparent' : 'bg-background'
       )}>
       <div className="flex min-h-0 flex-1 flex-row">
         <div
@@ -140,6 +141,14 @@ const SettingsPage: FC = () => {
               <MenuItem
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}
+                icon={<Settings2 />}
+                label={t('settings.general.common.title')}
+                active={isActive('/settings/general')}
+                onClick={() => go('/settings/general')}
+              />
+              <MenuItem
+                className={settingsSubmenuItemClassName}
+                labelClassName={settingsSubmenuItemLabelClassName}
                 icon={<Palette />}
                 label={t('settings.appearance.title')}
                 active={isActive('/settings/appearance')}
@@ -211,16 +220,16 @@ const SettingsPage: FC = () => {
                 active={isActive('/settings/selection-assistant')}
                 onClick={() => go('/settings/selection-assistant')}
               />
-              <MenuDivider className={settingsSubmenuDividerClassName} />
-              <div className={settingsSubmenuSectionTitleClassName}>{t('settings.menuGroups.system')}</div>
               <MenuItem
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}
-                icon={<Settings2 />}
-                label={t('settings.system.title')}
-                active={isActive('/settings/system')}
-                onClick={() => go('/settings/system')}
+                icon={<Crop />}
+                label={t('settings.screenshot.title')}
+                active={isActive('/settings/screenshot')}
+                onClick={() => go('/settings/screenshot')}
               />
+              <MenuDivider className={settingsSubmenuDividerClassName} />
+              <div className={settingsSubmenuSectionTitleClassName}>{t('settings.menuGroups.system')}</div>
               <MenuItem
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}

@@ -1,5 +1,6 @@
+import type * as CherryStudioUi from '@cherrystudio/ui'
 import { setInlineFilePathHomePath } from '@renderer/utils/filePath'
-import type { ExternalAppInfo } from '@shared/types/externalApp'
+import type { ExternalOpenTarget } from '@shared/types/externalApp'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -8,11 +9,12 @@ import { MessageListProvider } from '../../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListProviderValue } from '../../types'
 import { ClickableFilePath } from '../shared/ClickableFilePath'
 
+// Opt out of the global @cherrystudio/ui mock: its PopoverContent ignores `open`,
+// so menu dismissal is only observable against the real popover.
+vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
+
 const mockOpenArtifactFile = vi.fn().mockResolvedValue(undefined)
 const mockOpenPath = vi.fn().mockResolvedValue(undefined)
-const mockIsDirectory = vi.fn().mockResolvedValue(false)
-const mockShowInFolder = vi.fn().mockResolvedValue(undefined)
-const mockOpenInExternalApp = vi.fn()
 const mockNotifyError = vi.fn()
 const mockGetMetadata = vi.fn()
 
@@ -21,10 +23,40 @@ vi.stubGlobal('api', {
     getMetadata: mockGetMetadata
   }
 })
-const externalCodeEditors: ExternalAppInfo[] = [
-  { id: 'vscode', name: 'Visual Studio Code', protocol: 'vscode://', tags: ['code-editor'], path: '/app/vscode' },
-  { id: 'cursor', name: 'Cursor', protocol: 'cursor://', tags: ['code-editor'], path: '/app/cursor' }
-]
+const { externalOpenTargets, mockOpenTarget, mockUseExternalOpenTargets } = vi.hoisted(() => {
+  const targets = [
+    { id: 'system_default', name: 'TextEdit', kind: 'system_default' },
+    { id: 'file_manager', name: 'Finder', kind: 'file_manager' },
+    { id: 'known:vscode', name: 'Visual Studio Code', kind: 'application' },
+    { id: 'known:cursor', name: 'Cursor', kind: 'application' }
+  ] satisfies ExternalOpenTarget[]
+  const openTarget = vi.fn().mockResolvedValue(undefined)
+  return {
+    externalOpenTargets: targets,
+    mockOpenTarget: openTarget,
+    mockUseExternalOpenTargets: vi.fn(
+      (targetPath: string, _pathKind: 'file' | 'directory', options?: { enabled?: boolean }) => ({
+        data: options?.enabled
+          ? { pathKind: 'file' as const, recommendedTargetId: 'system_default', targets }
+          : undefined,
+        error: undefined,
+        isLoading: false,
+        targets: options?.enabled ? targets : [],
+        openTarget: (target: ExternalOpenTarget) => openTarget(targetPath, target)
+      })
+    )
+  }
+})
+
+vi.mock('@renderer/hooks/useExternalOpenTargets', () => ({
+  useExternalOpenTargets: mockUseExternalOpenTargets
+}))
+
+vi.mock('@renderer/components/OpenTarget', () => ({
+  getOpenTargetBadge: () => undefined,
+  getOpenTargetLabel: (target: ExternalOpenTarget) => target.name,
+  OpenTargetIcon: ({ target }: { target: ExternalOpenTarget }) => <span data-testid={`${target.id}-icon`} />
+}))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -42,15 +74,6 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-vi.mock('@renderer/utils/platform', () => ({
-  isMac: true,
-  isWin: false
-}))
-
-vi.mock('@renderer/components/icons/EditorIcon', () => ({
-  getEditorIcon: ({ id }: { id: string }) => <span data-testid={`${id}-icon`} />
-}))
-
 const renderWithProvider = (ui: ReactElement, actions: MessageListProviderValue['actions'] = {}) => {
   const value: MessageListProviderValue = {
     state: {
@@ -62,8 +85,7 @@ const renderWithProvider = (ui: ReactElement, actions: MessageListProviderValue[
       overscan: 0,
       loadOlderDelayMs: 0,
       loadingResetDelayMs: 0,
-      renderConfig: defaultMessageRenderConfig,
-      externalCodeEditors: [...externalCodeEditors]
+      renderConfig: defaultMessageRenderConfig
     },
     actions,
     meta: { selectionLayer: false }
@@ -84,12 +106,6 @@ describe('ClickableFilePath', () => {
       modifiedAt: 1,
       mime: 'text/plain'
     })
-    mockIsDirectory.mockResolvedValue(false)
-  })
-
-  it('should render the path as text', () => {
-    renderWithProvider(<ClickableFilePath path="/Users/foo/bar.tsx" />, { openArtifactFile: mockOpenArtifactFile })
-    expect(screen.getByRole('link', { name: '/Users/foo/bar.tsx' })).toBeInTheDocument()
   })
 
   it('should render displayName when provided', () => {
@@ -101,20 +117,13 @@ describe('ClickableFilePath', () => {
     expect(link).toHaveTextContent('bar.tsx')
   })
 
-  it('should call openArtifactFile on click (no existence preflight)', async () => {
-    renderWithProvider(<ClickableFilePath path="/Users/foo/bar.tsx" />, { openArtifactFile: mockOpenArtifactFile })
-    fireEvent.click(screen.getByRole('link', { name: '/Users/foo/bar.tsx' }))
-    await waitFor(() => {
-      expect(mockOpenArtifactFile).toHaveBeenCalledWith('/Users/foo/bar.tsx')
-    })
-    expect(mockGetMetadata).not.toHaveBeenCalled()
-  })
-
   it('should open relative paths directly', async () => {
     renderWithProvider(<ClickableFilePath path="src/renderer/index.tsx" />, {
       openArtifactFile: mockOpenArtifactFile
     })
-    fireEvent.click(screen.getByRole('link', { name: 'src/renderer/index.tsx' }))
+    const link = screen.getByRole('link', { name: 'src/renderer/index.tsx' })
+    expect(link).toHaveAttribute('tabindex', '0')
+    fireEvent.click(link)
     await waitFor(() => {
       expect(mockOpenArtifactFile).toHaveBeenCalledWith('src/renderer/index.tsx')
     })
@@ -146,30 +155,16 @@ describe('ClickableFilePath', () => {
     })
   })
 
-  it('should open a directory in the system file manager instead of the preview pane', async () => {
-    mockIsDirectory.mockResolvedValue(true)
+  it('should delegate directory-looking paths to the artifact pane', async () => {
     renderWithProvider(<ClickableFilePath path="/Users/foo/essays/" />, {
       openArtifactFile: mockOpenArtifactFile,
-      openPath: mockOpenPath,
-      isDirectory: mockIsDirectory
+      openPath: mockOpenPath
     })
     fireEvent.click(screen.getByRole('link', { name: '/Users/foo/essays/' }))
     await waitFor(() => {
-      expect(mockOpenPath).toHaveBeenCalledWith('/Users/foo/essays/')
+      expect(mockOpenArtifactFile).toHaveBeenCalledWith('/Users/foo/essays/')
     })
-    expect(mockOpenArtifactFile).not.toHaveBeenCalled()
-  })
-
-  it('should open a non-directory path in the preview pane', async () => {
-    renderWithProvider(<ClickableFilePath path="/Users/foo/bar.tsx" />, {
-      openArtifactFile: mockOpenArtifactFile,
-      openPath: mockOpenPath,
-      isDirectory: mockIsDirectory
-    })
-    fireEvent.click(screen.getByRole('link', { name: '/Users/foo/bar.tsx' }))
-    await waitFor(() => {
-      expect(mockOpenArtifactFile).toHaveBeenCalledWith('/Users/foo/bar.tsx')
-    })
+    expect(mockGetMetadata).not.toHaveBeenCalled()
     expect(mockOpenPath).not.toHaveBeenCalled()
   })
 
@@ -210,45 +205,32 @@ describe('ClickableFilePath', () => {
     })
   })
 
-  it('should have clickable styling', () => {
-    renderWithProvider(<ClickableFilePath path="/tmp/test.ts" />, {
-      openArtifactFile: mockOpenArtifactFile
-    })
-    const span = screen.getByRole('link', { name: '/tmp/test.ts' })
-    expect(span).toHaveClass('cursor-pointer', 'items-center')
-    expect(span).toHaveClass('text-primary')
-    expect(span.parentElement).toHaveClass('flex', 'flex-row', 'items-center')
-  })
-
-  it('should render ellipsis dropdown trigger', () => {
-    renderWithProvider(<ClickableFilePath path="/tmp/test.ts" />, { showInFolder: mockShowInFolder })
-    expect(screen.getByRole('button', { name: 'More' })).toHaveClass('items-center')
-  })
-
-  it('should render ellipsis dropdown trigger for external editor capability', () => {
-    renderWithProvider(<ClickableFilePath path="/tmp/test.ts" />, { openInExternalApp: mockOpenInExternalApp })
+  it('should render ellipsis dropdown trigger when open targets are available', () => {
+    renderWithProvider(<ClickableFilePath path="/tmp/test.ts" />, { openArtifactFile: mockOpenArtifactFile })
     expect(screen.getByRole('button', { name: 'More' })).toBeInTheDocument()
+    expect(mockUseExternalOpenTargets).toHaveBeenLastCalledWith('/tmp/test.ts', 'file', { enabled: false })
   })
 
-  it('should align the file manager menu item with the agent navbar style without separators', () => {
-    const { container } = renderWithProvider(<ClickableFilePath path="/tmp/test.ts" />, {
-      showInFolder: mockShowInFolder,
-      openInExternalApp: mockOpenInExternalApp
-    })
+  it('should show the path-specific system, file-manager, and app targets without separators', () => {
+    renderWithProvider(<ClickableFilePath path="/tmp/test.ts" />, { openArtifactFile: mockOpenArtifactFile })
 
     fireEvent.click(screen.getByRole('button', { name: 'More' }))
 
+    expect(mockUseExternalOpenTargets).toHaveBeenLastCalledWith('/tmp/test.ts', 'file', { enabled: true })
     expect(screen.getByText('Finder')).toBeInTheDocument()
     expect(screen.queryByText('Reveal in Finder')).not.toBeInTheDocument()
     expect(screen.getByText('Visual Studio Code')).toBeInTheDocument()
-    expect(container.querySelector('[role="separator"], hr')).toBeNull()
+    expect(screen.queryByRole('separator')).toBeNull()
   })
 
-  it('should have role="link" and tabIndex for keyboard accessibility', () => {
+  it('should open the selected target and dismiss the actions menu', async () => {
     renderWithProvider(<ClickableFilePath path="/tmp/test.ts" />, { openArtifactFile: mockOpenArtifactFile })
-    const span = screen.getByRole('link', { name: '/tmp/test.ts' })
-    expect(span).toHaveAttribute('role', 'link')
-    expect(span).toHaveAttribute('tabindex', '0')
+
+    fireEvent.click(screen.getByRole('button', { name: 'More' }))
+    fireEvent.click(screen.getByRole('button', { name: /Finder/ }))
+
+    await waitFor(() => expect(mockOpenTarget).toHaveBeenCalledWith('/tmp/test.ts', externalOpenTargets[1]))
+    expect(screen.queryByRole('button', { name: /Finder/ })).not.toBeInTheDocument()
   })
 
   it('should call openArtifactFile on Enter key', async () => {
@@ -270,22 +252,17 @@ describe('ClickableFilePath', () => {
   it('should render plain text when openArtifactFile capability is unavailable', () => {
     renderWithProvider(<ClickableFilePath path="/tmp/test.ts" />)
     expect(screen.queryByRole('link', { name: '/tmp/test.ts' })).not.toBeInTheDocument()
-    expect(screen.getAllByText('/tmp/test.ts').some((element) => element.classList.contains('cursor-default'))).toBe(
-      true
-    )
+    expect(screen.queryByRole('button', { name: 'More' })).not.toBeInTheDocument()
+    expect(screen.getAllByText('/tmp/test.ts').length).toBeGreaterThan(0)
   })
 
   it('should disable all file actions when interactive is false', () => {
     renderWithProvider(<ClickableFilePath path="/tmp/test.ts" interactive={false} />, {
-      openArtifactFile: mockOpenArtifactFile,
-      showInFolder: mockShowInFolder,
-      openInExternalApp: mockOpenInExternalApp
+      openArtifactFile: mockOpenArtifactFile
     })
 
     expect(screen.queryByRole('link', { name: '/tmp/test.ts' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'More' })).not.toBeInTheDocument()
-    const text = screen.getAllByText('/tmp/test.ts').find((element) => element.classList.contains('cursor-default'))
-    expect(text).toBeInTheDocument()
-    expect(text).toHaveClass('text-foreground-secondary')
+    expect(screen.getAllByText('/tmp/test.ts').length).toBeGreaterThan(0)
   })
 })

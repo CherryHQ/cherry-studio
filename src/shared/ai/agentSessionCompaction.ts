@@ -1,12 +1,13 @@
-export type AgentSessionCompactionTrigger = 'manual' | 'auto'
+import type { CompactionAnchorData, CompactionTrigger } from './compaction'
 
-export interface AgentSessionCompactionAnchorData {
-  trigger: AgentSessionCompactionTrigger
-  completedAt: string
-  preTokens?: number
-  postTokens?: number
-  durationMs?: number
-}
+export type AgentSessionCompactionTrigger = CompactionTrigger
+
+/**
+ * Agent-session view of the shared anchor payload — same part, `phase:
+ * 'agent-session'`. Kept as a named alias so the session code reads in its own
+ * vocabulary while the UI has exactly one anchor shape to render.
+ */
+export type AgentSessionCompactionAnchorData = CompactionAnchorData
 
 // The cache state is read only for `status` (the composer's "compacting" indicator). Completed-run
 // metrics reach the UI via the `data-compaction-anchor` message chunk (see MessagePartsRenderer), and

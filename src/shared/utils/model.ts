@@ -41,9 +41,6 @@ export const isRerankModel = (model: { capabilities?: readonly unknown[] | null 
 export const isFunctionCallingModel = (model: Model): boolean =>
   model.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL)
 
-/** Check if model supports web search */
-export const isWebSearchModel = (model: Model): boolean => model.capabilities.includes(MODEL_CAPABILITY.WEB_SEARCH)
-
 /** Check if model supports image generation */
 export const isGenerateImageModel = (model: Model): boolean =>
   model.capabilities.includes(MODEL_CAPABILITY.IMAGE_GENERATION)
@@ -166,6 +163,34 @@ export const isMaxTemperatureOneModel = (model: Model): boolean => {
 // ---------------------------------------------------------------------------
 // Model family checks (lightweight ID-based, safe for runtime)
 // ---------------------------------------------------------------------------
+
+/**
+ * Whether the model accepts dynamically-loaded tool declarations (the mechanism behind
+ * Claude Code's ToolSearch: `tool_reference` blocks / `system` messages carrying a `tools`
+ * array injected mid-conversation).
+ *
+ * Claude Code forces ToolSearch on for every non-first-party host when Cherry sets
+ * `ENABLE_TOOL_SEARCH=auto` (see settingsBuilder). Most Anthropic-compatible providers
+ * simply ignore unknown content blocks, but Moonshot's Anthropic endpoint rejects them on
+ * every model except Kimi K3 with `400 Invalid request: tokenization failed`
+ * (https://platform.kimi.com/docs/guide/use-dynamic-tool-loading). Kimi K3 ids resolve to
+ * `k3`/`kimi-k3*`/... — everything else in the Kimi family is excluded.
+ *
+ * Input is a raw API model id (e.g. `kimi-for-coding`); namespace prefixes (`provider:id`)
+ * and Claude Code's `[1m]` suffix are stripped before matching.
+ */
+export const supportsDynamicallyLoadedTools = (apiModelId: string): boolean => {
+  // Strip the gateway namespace prefix (`providerId:apiModelId`) and Claude Code's `[1m]`
+  // context suffix before matching — both wrap the raw API model id this check targets.
+  const bareId =
+    apiModelId
+      .replace(/\[1m\]$/i, '')
+      .split(':')
+      .pop() ?? ''
+  const id = getLowerBaseModelName(bareId)
+  if (!VENDOR_PATTERNS.kimi.test(id)) return true
+  return /^(?:k3|kimi-k3)(?:[-_.]|$)/i.test(id)
+}
 
 // Vendor identity checks all delegate to `VENDOR_PATTERNS` in
 // `@cherrystudio/provider-registry`. Do NOT inline new regex here —
@@ -315,13 +340,6 @@ export const isSupportedThinkingTokenQwenModel = (model: Model): boolean => {
   return isSupportedThinkingTokenModel(model)
 }
 
-/** Check if model supports OpenRouter built-in web search */
-export const isOpenRouterBuiltInWebSearchModel = (model: Model): boolean => {
-  if (model.providerId !== 'openrouter') return false
-  const id = getLowerBaseModelName(getRawModelId(model))
-  return isOpenAIWebSearchChatCompletionOnlyModel(model) || id.includes('sonar')
-}
-
 /** Check if model is a pure image generation model (no tool use) */
 export const isPureGenerateImageModel = (model: Model): boolean => {
   if (!isGenerateImageModel(model) && !isTextToImageModel(model)) return false
@@ -428,10 +446,15 @@ export const groupQwenModels = <T extends Pick<Model, 'id'> & Partial<Pick<Model
 export const GEMINI_FLASH_MODEL_REGEX = /gemini.*flash/i
 
 // ---------------------------------------------------------------------------
-// Internal helper: extract raw model ID from Model
+// Extract the raw (wire) model ID from a Model
 // ---------------------------------------------------------------------------
 
-function getRawModelId(model: Model): string {
+/**
+ * The wire id every id-based predicate must key off. `apiModelId` is optional
+ * on the runtime Model, so reading it alone silently misidentifies models whose
+ * unique id carries the wire name instead.
+ */
+export function getRawModelId(model: Model): string {
   return model.apiModelId ?? parseUniqueModelId(model.id).modelId
 }
 
@@ -445,18 +468,3 @@ function getRawModelId(model: Model): string {
  * check by `isGPT5SeriesModel` already, so no extra ID filter is needed.
  */
 export const isGPT5SeriesReasoningModel = (model: Model): boolean => isGPT5SeriesModel(model) && isReasoningModel(model)
-
-// ---------------------------------------------------------------------------
-// Web search variants
-// ---------------------------------------------------------------------------
-
-/**
- * OpenAI model with native web-search capability.
- *
- * Composition: `isOpenAIModel(model) && isWebSearchModel(model)`. The
- * vendor gate keeps the check from matching Gemini / Claude searches;
- * `isWebSearchModel` reads the `WEB_SEARCH` capability the registry /
- * bridge populates (which encodes the specific SKU exclusions such as
- * `gpt-4o-image`, `gpt-4.1-nano`, `gpt-5-chat`).
- */
-export const isOpenAIWebSearchModel = (model: Model): boolean => isOpenAIModel(model) && isWebSearchModel(model)

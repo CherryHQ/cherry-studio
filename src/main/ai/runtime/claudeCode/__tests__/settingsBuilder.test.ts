@@ -1,24 +1,47 @@
-import { mkdir, mkdtemp, rm, symlink } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import type * as NodeModule from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 
 import {
-  CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES,
-  toCherryBuiltinRuntimeName
-} from '@main/ai/tools/adapters/claudeCode/cherryBuiltinApproval'
+  listBuiltinToolPolicies,
+  toCherryBuiltinRuntimeName,
+  toMcpRuntimeName
+} from '@main/ai/toolApproval/builtinToolPolicy'
 import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
-import { CHANNEL_SECURITY_PROMPT } from '@shared/ai/claudecode/constants'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({ approval: 'required' }).map(toMcpRuntimeName)
+const BYPASSABLE_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({
+  approval: 'required',
+  bypassApproval: 'lift'
+}).map(toMcpRuntimeName)
+const NON_BYPASSABLE_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({
+  approval: 'required',
+  bypassApproval: 'enforce'
+}).map(toMcpRuntimeName)
+const NON_HOST_MCP_SERVERS: ReadonlySet<string> = new Set(['cherry-tools', 'agent-memory', 'skills'])
+const NON_ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({
+  approval: 'required',
+  mountedServers: NON_HOST_MCP_SERVERS
+}).map(toMcpRuntimeName)
+const ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({ approval: 'required' })
+  .filter((entry) => !NON_HOST_MCP_SERVERS.has(entry.serverName))
+  .map(toMcpRuntimeName)
 
 const mocks = vi.hoisted(() => ({
   getAgent: vi.fn(),
+  getBuiltinAgentPluginDirectory: vi.fn(),
+  loadBuiltinAgentDefinition: vi.fn(),
+  createAssistantServer: vi.fn(() => ({ mcpServer: {} })),
+  createAssistantFileToolsServer: vi.fn(() => ({ mcpServer: {} })),
   listSkills: vi.fn(),
   listLocalSkillFolderNames: vi.fn(),
   getSkillPluginDirectory: vi.fn(),
+  checkSkillRuntimeDependencies: vi.fn(),
   modelGetByKey: vi.fn(),
   findBySessionId: vi.fn(),
-  createSdkMcpServerInstance: vi.fn(),
+  createMcpBridgeServer: vi.fn(),
   createToolPolicySnapshot: vi.fn(),
   warmToolsCache: vi.fn<(serverId: string) => Promise<void>>(async () => undefined),
   listMcpTools: vi.fn(),
@@ -28,6 +51,7 @@ const mocks = vi.hoisted(() => ({
   applicationGet: vi.fn(),
   applicationGetPath: vi.fn(),
   getShellEnv: vi.fn(),
+  refreshShellEnv: vi.fn(),
   getBinaryPath: vi.fn(),
   getProxyEnvironment: vi.fn(),
   getPathStatus: vi.fn(),
@@ -40,6 +64,9 @@ const mocks = vi.hoisted(() => ({
   approvalRegister: vi.fn(),
   recordToolExecutionTiming: vi.fn(),
   rtkRewrite: vi.fn(),
+  createAgentsMdLoader: vi.fn(),
+  loadAgentsMdInitialContext: vi.fn(),
+  agentsMdHook: vi.fn(async () => ({})),
   platform: { isMac: false },
   isWin: false
 }))
@@ -97,22 +124,33 @@ vi.mock('@main/ai/skills/SkillService', () => ({
   }
 }))
 
+vi.mock('../skillDependencies', () => ({
+  SKILL_TOOL_NAME: 'Skill',
+  buildPluginDirectoryIndex: vi.fn(async () => new Map()),
+  checkSkillRuntimeDependencies: mocks.checkSkillRuntimeDependencies
+}))
+
 vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
-  isProvisioned: vi.fn(() => true),
-  loadBuiltinAgentDefinition: vi.fn(),
+  getBuiltinAgentPluginDirectory: mocks.getBuiltinAgentPluginDirectory,
+  loadBuiltinAgentDefinition: mocks.loadBuiltinAgentDefinition,
   provisionBuiltinAgent: vi.fn()
 }))
 
 vi.mock('@main/ai/agents/prompt', () => ({
-  PromptBuilder: vi.fn(() => ({ buildSystemPrompt: mocks.buildPrompt }))
+  PromptBuilder: vi.fn(() => ({
+    buildPromptParts: mocks.buildPrompt,
+    buildMemoriesSection: vi.fn(async () => undefined)
+  }))
 }))
 
-vi.mock('@main/ai/mcp/servers/assistant', () => ({
-  default: vi.fn(() => ({ mcpServer: {} }))
+vi.mock('@main/ai/mcp/servers/assistant', () => ({ default: mocks.createAssistantServer }))
+
+vi.mock('@main/ai/mcp/servers/AssistantFileToolsServer', () => ({
+  AssistantFileToolsServer: mocks.createAssistantFileToolsServer
 }))
 
-vi.mock('@main/ai/runtime/claudeCode/createSdkMcpServerInstance', () => ({
-  createSdkMcpServerInstance: mocks.createSdkMcpServerInstance
+vi.mock('@main/ai/mcp/createMcpBridgeServer', () => ({
+  createMcpBridgeServer: mocks.createMcpBridgeServer
 }))
 
 vi.mock('@main/ai/tools/adapters/claudeCode/agentTools', () => ({
@@ -121,7 +159,10 @@ vi.mock('@main/ai/tools/adapters/claudeCode/agentTools', () => ({
 
 vi.mock('@application', () => ({
   application: {
-    get: mocks.applicationGet,
+    // Session-keyed live state always resolves to the one real service instance (created below),
+    // so the many per-test `applicationGet` overrides don't each have to register it.
+    get: (name: string) =>
+      name === 'ClaudeCodeSessionStateService' ? sessionStateService : mocks.applicationGet(name),
     getPath: mocks.applicationGetPath
   }
 }))
@@ -137,6 +178,8 @@ vi.mock('@main/core/platform', () => ({
 }))
 
 vi.mock('@main/services/proxy/proxyEnv', () => ({
+  CHERRY_NODE_PROXY_BYPASS_RULES_ENV: 'CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES',
+  CHERRY_NODE_PROXY_RULES_ENV: 'CHERRY_STUDIO_NODE_PROXY_RULES',
   getProxyEnvironment: mocks.getProxyEnvironment
 }))
 
@@ -178,26 +221,49 @@ vi.mock('@main/utils/rtk', () => ({
 }))
 
 vi.mock('@main/utils/shellEnv', () => ({
-  getShellEnv: mocks.getShellEnv
+  getShellEnv: mocks.getShellEnv,
+  refreshShellEnv: mocks.refreshShellEnv
 }))
 
-vi.mock('../ToolApprovalRegistry', () => ({
+vi.mock('@main/ai/toolApproval/ToolApprovalRegistry', () => ({
   toolApprovalRegistry: {
     abort: vi.fn(),
     register: mocks.approvalRegister
   }
 }))
 
-const { buildClaudeCodeSessionSettings, disposeToolPolicySnapshot, registerMcpSessionCatalogSync } = await import(
-  '../settingsBuilder'
-)
+vi.mock('../AgentsMdLoader', () => ({
+  AgentsMdLoader: {
+    create: mocks.createAgentsMdLoader
+  }
+}))
+
+const {
+  assertClaudeCodeWorkspaceDirectory,
+  buildClaudeCodeSessionSettings,
+  disposeToolPolicySnapshot,
+  prepareClaudeCodeWorkspaceDirectory,
+  registerMcpSessionCatalogSync
+} = await import('../settingsBuilder')
+const { ClaudeCodeSessionStateService } = await import('../ClaudeCodeSessionStateService')
+// One real instance per test file — the facade resolves it via application.get, and the real Maps
+// preserve the warm-pool resolve-by-id semantics the Bug A/Bug B and dispose tests exercise.
+const sessionStateService = new ClaudeCodeSessionStateService()
+
+function systemPromptText(systemPrompt: unknown): string {
+  if (typeof systemPrompt === 'string') return systemPrompt
+  if (Array.isArray(systemPrompt)) return systemPrompt.join('\n')
+  if (systemPrompt && typeof systemPrompt === 'object' && 'append' in systemPrompt) {
+    const append = (systemPrompt as { append?: unknown }).append
+    return typeof append === 'string' ? append : ''
+  }
+  return ''
+}
 
 describe('buildClaudeCodeSessionSettings', () => {
   beforeEach(() => {
-    // The per-session snapshot registry is module-level state; reset session-1 (reused across
-    // tests) so each build creates a fresh snapshot instead of refreshing a prior test's instance.
-    disposeToolPolicySnapshot('session-1')
     vi.clearAllMocks()
+    mocks.approvalRegister.mockReturnValue(true)
     mocks.resolveRequire.mockImplementation((specifier: string) => {
       if (specifier === '@anthropic-ai/claude-agent-sdk') return '/sdk/index.js'
       return `/native/${specifier}/claude`
@@ -226,6 +292,12 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.listMcpTools.mockReturnValue([])
     mocks.onToolsCacheUpdated.mockReturnValue({ dispose: mocks.mcpSubscriptionDispose })
     mocks.findByIdOrName.mockImplementation((idOrName: string) => ({ id: idOrName, name: idOrName }))
+    mocks.loadAgentsMdInitialContext.mockResolvedValue(undefined)
+    mocks.agentsMdHook.mockResolvedValue({})
+    mocks.createAgentsMdLoader.mockResolvedValue({
+      loadInitialContext: mocks.loadAgentsMdInitialContext,
+      createPreToolUseHook: () => mocks.agentsMdHook
+    })
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'PreferenceService') {
         return { get: vi.fn(() => undefined) }
@@ -241,27 +313,34 @@ describe('buildClaudeCodeSessionSettings', () => {
         // Default to a live interactive turn so the approval path is exercised; the out-of-turn and
         // headless gates are asserted by tests that override this.
         return {
-          isCurrentTurnHeadless: () => false,
-          hasLiveTurnStream: () => true,
+          getInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'stream' }),
           recordToolExecutionTiming: mocks.recordToolExecutionTiming
         }
       }
       throw new Error(`Unexpected application.get(${name})`)
     })
+    // The per-session snapshot registry is service-held state shared across tests; reset session-1
+    // (reused throughout) so each build creates a fresh snapshot instead of refreshing a prior
+    // test's instance. Must run after the application.get implementation above is in place.
+    disposeToolPolicySnapshot('session-1')
     mocks.applicationGetPath.mockImplementation((key: string) => `/app/${key}`)
     mocks.platform.isMac = false
     mocks.getShellEnv.mockResolvedValue({})
+    mocks.refreshShellEnv.mockResolvedValue({})
     mocks.getBinaryPath.mockResolvedValue('/usr/local/bin/bun')
     mocks.getProxyEnvironment.mockReturnValue({})
     mocks.getPathStatus.mockResolvedValue({ ok: true, kind: 'directory' })
     mocks.ensureAgentDataDirectory.mockImplementation(async (root: string, agentId: string) => path.join(root, agentId))
-    mocks.buildPrompt.mockResolvedValue('soul prompt')
+    mocks.buildPrompt.mockResolvedValue({ base: { kind: 'native' }, context: 'soul prompt' })
     mocks.getAppLanguage.mockReturnValue('en-US')
     mocks.rtkRewrite.mockResolvedValue(null)
     mocks.isWin = false
     mocks.listSkills.mockResolvedValue([])
     mocks.listLocalSkillFolderNames.mockResolvedValue([])
     mocks.getSkillPluginDirectory.mockReturnValue('/app/feature.agents.claude.root')
+    mocks.checkSkillRuntimeDependencies.mockResolvedValue({})
+    mocks.getBuiltinAgentPluginDirectory.mockReturnValue(undefined)
+    mocks.loadBuiltinAgentDefinition.mockReturnValue(undefined)
   })
 
   it.each(['PostToolUse', 'PostToolUseFailure'] as const)(
@@ -305,20 +384,320 @@ describe('buildClaudeCodeSessionSettings', () => {
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
-    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never, { fastMode: true })
 
     expect(mocks.listSkills).toHaveBeenCalledWith({ agentId: 'agent-1' })
     expect(mocks.listLocalSkillFolderNames).toHaveBeenCalledWith('/workspace/project')
     expect(settings.cwd).toBe('/workspace/project')
-    expect(settings.additionalDirectories).toEqual(['/app/feature.agents.data/agent-1'])
+    expect(settings.additionalDirectories).toEqual([path.join('/app/feature.agents.data', 'agent-1')])
     expect(mocks.buildPrompt).toHaveBeenCalledWith(
       '/workspace/project',
       expect.anything(),
       true,
-      '/app/feature.agents.data/agent-1'
+      path.join('/app/feature.agents.data', 'agent-1')
     )
-    expect(settings.systemPrompt as string).toContain('"/workspace/project"')
-    expect(settings.settings).toMatchObject({ autoCompactEnabled: true })
+    expect(settings.systemPrompt).toMatchObject({ type: 'preset', preset: 'claude_code' })
+    expect(systemPromptText(settings.systemPrompt)).not.toContain('## Current Workspace')
+    expect(settings.settings).toMatchObject({ autoCompactEnabled: true, autoMemoryEnabled: false, fastMode: true })
+    expect(settings).not.toHaveProperty('fastMode')
+    expect(settings.forwardSubagentText).toBe(true)
+  })
+
+  async function runSkillDependencyHook(hookName: 'toolGuardHook' | 'skillDependencyAdvisoryHook') {
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+
+    const hook = settings.hooks?.PreToolUse?.[0]?.hooks.find((candidate) => candidate.name === hookName)
+    return hook?.(
+      {
+        hook_event_name: 'PreToolUse',
+        tool_name: 'Skill',
+        tool_input: { skill: 'parallel-web-search', args: 'latest React release' }
+      } as never,
+      'tool-use-1',
+      {} as never
+    )
+  }
+
+  it('denies a skill before forked execution when a declared dependency is provably absent', async () => {
+    mocks.checkSkillRuntimeDependencies.mockResolvedValue({
+      deny: 'Skill "parallel-web-search" cannot run: its forked subagent "parallel:parallel-subagent" is not installed.'
+    })
+
+    expect(await runSkillDependencyHook('toolGuardHook')).toEqual({
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'deny',
+        permissionDecisionReason:
+          'Skill "parallel-web-search" cannot run: its forked subagent "parallel:parallel-subagent" is not installed.'
+      }
+    })
+  })
+
+  it('lets an unresolved dependency through as context instead of a permission decision', async () => {
+    mocks.checkSkillRuntimeDependencies.mockResolvedValue({
+      warning: 'Skill "parallel-web-search" may be missing runtime dependencies.'
+    })
+
+    expect(await runSkillDependencyHook('skillDependencyAdvisoryHook')).toEqual({
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        additionalContext: 'Skill "parallel-web-search" may be missing runtime dependencies.'
+      }
+    })
+  })
+
+  it('appends root AGENTS.md context and wires lazy nested-instruction loading', async () => {
+    mocks.loadAgentsMdInitialContext.mockResolvedValue('ROOT AGENTS INSTRUCTIONS')
+
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+
+    expect(mocks.createAgentsMdLoader).toHaveBeenCalledWith('/workspace/project')
+    expect(systemPromptText(settings.systemPrompt)).toContain('ROOT AGENTS INSTRUCTIONS')
+    expect(settings.hooks?.PreToolUse?.[0]?.hooks).toContain(mocks.agentsMdHook)
+  })
+
+  // The 400 this whole path exists to prevent: a turn is billed `input + max_tokens` against the
+  // context limit, so the declared budget plus the pinned request must never exceed the window.
+  it.each([
+    ['1M window, cap restating it (deepseek-v4-pro)', 1_048_600, 1_048_600],
+    ['1M window, real 393K cap (deepseek-v4-flash)', 1_048_576, 393_216],
+    ['1M window, no declared cap', 1_048_576, undefined],
+    ['256K window, 64K cap', 262_144, 64_000],
+    ['128K window, cap at half the window', 128_000, 64_000],
+    ['exactly at the Claude Code floor', 100_000, 8_192]
+  ])('keeps the budget plus its pinned request inside the window (%s)', async (_l, contextWindow, maxOutputTokens) => {
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never,
+      { contextWindow, maxOutputTokens }
+    )
+
+    const budget = (settings.settings as { autoCompactWindow?: number }).autoCompactWindow ?? 0
+    const pinned = Number(settings.env?.CLAUDE_CODE_MAX_OUTPUT_TOKENS)
+    // The window is declared as itself; only the budget carries the reservation.
+    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_CONTEXT_TOKENS: String(contextWindow) })
+    expect(pinned).toBeGreaterThanOrEqual(8_192)
+    // 33,000 is the CLI's own reserve, which moves the trigger below the declared budget.
+    expect(budget - 33_000 + pinned).toBeLessThanOrEqual(contextWindow)
+  })
+
+  // #18318: the budget subtracted the model's declared cap whole, which for the 83 catalog entries
+  // that restate their context window drove it to zero and floored a 1M model at 100K.
+  it('does not collapse a 1M model to the compaction floor', async () => {
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never,
+      { contextWindow: 1_048_600, maxOutputTokens: 1_048_600 }
+    )
+
+    expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBeGreaterThan(800_000)
+  })
+
+  // The CLI has no table for third-party models, so without the pin they would request its generic
+  // 32,000 however much the model actually supports.
+  it('pins a third-party output cap the CLI cannot know', async () => {
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never,
+      { contextWindow: 1_048_576, maxOutputTokens: 65_536 }
+    )
+
+    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_OUTPUT_TOKENS: '65536' })
+  })
+
+  it('never pins above the ceiling the CLI would clamp to anyway', async () => {
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never,
+      { contextWindow: 1_048_576, maxOutputTokens: 393_216 }
+    )
+
+    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_OUTPUT_TOKENS: '128000' })
+  })
+
+  it('defaults the compaction trigger percentage and lets an agent env override win', async () => {
+    // No context window declared — the percentage still applies.
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never,
+      {}
+    )
+    expect(settings.env).toMatchObject({ CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: '80' })
+
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      instructions: 'Follow instructions.',
+      model: 'anthropic::claude-sonnet',
+      planModel: 'anthropic::claude-sonnet',
+      smallModel: 'anthropic::claude-haiku',
+      mcps: [],
+      allowedTools: [],
+      configuration: { env_vars: { CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: '60' } }
+    })
+    const overridden = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never,
+      {}
+    )
+    expect(overridden.env).toMatchObject({ CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: '60' })
+  })
+
+  it('floors the budget at the Claude Code minimum instead of dropping the setting', async () => {
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never,
+      { contextWindow: 128_000 }
+    )
+
+    // The declared 64,000 plus a floored budget would outrun the window, so the request is held to
+    // the CLI default and the budget floors rather than being omitted.
+    expect(settings.settings).toMatchObject({ autoCompactEnabled: true, autoCompactWindow: 100_000 })
+    expect(settings.env).toMatchObject({
+      CLAUDE_CODE_MAX_CONTEXT_TOKENS: '128000'
+    })
+  })
+
+  it('clamps the auto-compact window above Claude Code limits without shrinking the declared window', async () => {
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never,
+      // Wide enough that the budget would exceed the SDK's accepted maximum.
+      { contextWindow: 2_000_000 }
+    )
+
+    expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(1_000_000)
+    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_CONTEXT_TOKENS: '2000000' })
+  })
+
+  it.each([undefined, 64_000, 99_999])(
+    'omits a model context window below Claude Code limits (%s)',
+    async (contextWindow) => {
+      const settings = await buildClaudeCodeSessionSettings(
+        {
+          id: 'session-1',
+          agentId: 'agent-1',
+          modelId: 'anthropic::claude-sonnet',
+          workspace: { type: 'user', path: '/workspace/project' }
+        } as never,
+        {} as never,
+        { contextWindow }
+      )
+
+      expect(settings.settings).toMatchObject({ autoCompactEnabled: true })
+      expect(settings.settings).not.toHaveProperty('autoCompactWindow')
+      expect(settings.env).not.toHaveProperty('CLAUDE_CODE_MAX_CONTEXT_TOKENS')
+      // Without a budget there is nothing to reserve against, so the CLI keeps its own output default.
+      expect(settings.env).not.toHaveProperty('CLAUDE_CODE_MAX_OUTPUT_TOKENS')
+    }
+  )
+
+  // The SDK rejects a window outside 100K-1M, so both boundaries must land inside it.
+  it.each([100_000, 1_000_000])('accepts the inclusive Claude Code boundary %i', async (contextWindow) => {
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never,
+      { contextWindow }
+    )
+
+    const budget = (settings.settings as { autoCompactWindow?: number }).autoCompactWindow
+    expect(budget).toBeGreaterThanOrEqual(100_000)
+    expect(budget).toBeLessThanOrEqual(1_000_000)
+    // At the inclusive floor the window leaves no room above the budget; the request must stay
+    // usable rather than collapse to a token.
+    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_CONTEXT_TOKENS: String(contextWindow) })
+  })
+
+  // The CLI clamps `max_tokens` here, so pinning anything higher would reserve room no request can
+  // consume — which is how a catalog cap that restates the window used to reach the budget.
+  it('preserves an explicit maximum context window environment override', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      instructions: 'Follow instructions.',
+      model: 'anthropic::claude-sonnet',
+      planModel: 'anthropic::claude-sonnet',
+      smallModel: 'anthropic::claude-haiku',
+      mcps: [],
+      allowedTools: [],
+      configuration: { env_vars: { CLAUDE_CODE_MAX_CONTEXT_TOKENS: '131072' } }
+    })
+
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never,
+      { contextWindow: 256_000 }
+    )
+
+    // The explicit override wins for the env var; the budget still tracks the real window.
+    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_CONTEXT_TOKENS: '131072' })
+    expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBeGreaterThan(131_072)
   })
 
   it('builds configured MCP bridges from the request snapshot instead of re-reading edited rows', async () => {
@@ -353,7 +732,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       agent as never
     )
 
-    expect(mocks.createSdkMcpServerInstance).toHaveBeenCalledWith('mcp-1', materializedServer)
+    expect(mocks.createMcpBridgeServer).toHaveBeenCalledWith('mcp-1', materializedServer)
   })
 
   it('loads the user setting source so managed skills under CLAUDE_CONFIG_DIR can be discovered', async () => {
@@ -367,6 +746,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
     expect(settings.settingSources).toEqual(['user', 'project', 'local'])
+    expect(settings.settings).toMatchObject({ fastMode: false })
   })
 
   it('whitelists by directory name only, excludes disabled, never lets a shared SKILL.md name leak through', async () => {
@@ -443,10 +823,142 @@ describe('buildClaudeCodeSessionSettings', () => {
     })
   })
 
+  it('adds loopback bypass rules to the final Agent proxy environment', async () => {
+    const proxyUrl = 'http://remote-proxy.example:7890'
+    mocks.getProxyEnvironment.mockReturnValue({
+      HTTP_PROXY: proxyUrl,
+      HTTPS_PROXY: proxyUrl
+    })
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      instructions: 'Follow instructions.',
+      model: 'anthropic::claude-sonnet',
+      planModel: 'anthropic::claude-sonnet',
+      smallModel: 'anthropic::claude-haiku',
+      mcps: [],
+      allowedTools: [],
+      configuration: { env_vars: { no_proxy: 'service.internal; LOCALHOST' } }
+    })
+
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+
+    expect(settings.env).toMatchObject({
+      HTTP_PROXY: proxyUrl,
+      HTTPS_PROXY: proxyUrl,
+      no_proxy: 'service.internal,LOCALHOST,127.0.0.1,::1,[::1]',
+      NO_PROXY: 'service.internal,LOCALHOST,127.0.0.1,::1,[::1]'
+    })
+  })
+
+  it('refreshes a cached Cherry proxy after the current proxy is disabled', async () => {
+    const staleProxyUrl = 'http://stale-cherry-proxy.example:7890'
+    mocks.getShellEnv.mockResolvedValue({
+      CHERRY_STUDIO_NODE_PROXY_RULES: staleProxyUrl,
+      CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES: 'stale.internal',
+      HTTP_PROXY: staleProxyUrl,
+      HTTPS_PROXY: staleProxyUrl,
+      http_proxy: staleProxyUrl,
+      https_proxy: staleProxyUrl,
+      ALL_PROXY: staleProxyUrl,
+      all_proxy: staleProxyUrl,
+      grpc_proxy: staleProxyUrl,
+      NO_PROXY: 'stale.internal',
+      no_proxy: 'stale.internal'
+    })
+    mocks.getProxyEnvironment.mockReturnValue({})
+
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+
+    expect(settings.env).not.toHaveProperty('CHERRY_STUDIO_NODE_PROXY_RULES')
+    expect(settings.env).not.toHaveProperty('CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES')
+    expect(settings.env).not.toHaveProperty('HTTP_PROXY')
+    expect(settings.env).not.toHaveProperty('HTTPS_PROXY')
+    expect(settings.env).not.toHaveProperty('NO_PROXY')
+    expect(settings.env).not.toHaveProperty('no_proxy')
+    expect(mocks.refreshShellEnv).toHaveBeenCalledOnce()
+  })
+
+  it('preserves an equal user-owned proxy value produced by the refreshed login shell', async () => {
+    const proxyUrl = 'http://stale-cherry-proxy.example:7890'
+    mocks.getShellEnv.mockResolvedValue({
+      CHERRY_STUDIO_NODE_PROXY_RULES: proxyUrl,
+      CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES: 'stale.internal',
+      HTTP_PROXY: proxyUrl,
+      HTTPS_PROXY: proxyUrl,
+      NO_PROXY: 'stale.internal'
+    })
+    mocks.refreshShellEnv.mockResolvedValue({
+      HTTP_PROXY: proxyUrl,
+      NO_PROXY: 'stale.internal'
+    })
+    mocks.getProxyEnvironment.mockReturnValue({})
+
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+
+    expect(settings.env).toMatchObject({
+      HTTP_PROXY: proxyUrl,
+      NO_PROXY: 'stale.internal,localhost,127.0.0.1,::1,[::1]',
+      no_proxy: 'stale.internal,localhost,127.0.0.1,::1,[::1]'
+    })
+    expect(settings.env).not.toHaveProperty('HTTPS_PROXY')
+    expect(settings.env).not.toHaveProperty('CHERRY_STUDIO_NODE_PROXY_RULES')
+    expect(settings.env).not.toHaveProperty('CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES')
+    expect(mocks.refreshShellEnv).toHaveBeenCalledOnce()
+  })
+
+  it('does not refresh when cached Cherry markers match the current proxy', async () => {
+    const proxyUrl = 'http://current-cherry-proxy.example:7890'
+    const currentProxyEnvironment = {
+      CHERRY_STUDIO_NODE_PROXY_RULES: proxyUrl,
+      CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES: '',
+      HTTP_PROXY: proxyUrl
+    }
+    mocks.getShellEnv.mockResolvedValue(currentProxyEnvironment)
+    mocks.getProxyEnvironment.mockReturnValue(currentProxyEnvironment)
+
+    await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+
+    expect(mocks.refreshShellEnv).not.toHaveBeenCalled()
+  })
+
   it('denies a disabled tool via a PreToolUse hook so the gate fires in all permission modes', async () => {
     mocks.createToolPolicySnapshot.mockResolvedValue({
       resolve: vi.fn(),
       isDisabled: vi.fn((tool: string) => tool === 'Bash'),
+      getPermissionMode: vi.fn(() => undefined),
       update: vi.fn(),
       setPermissionMode: vi.fn()
     })
@@ -484,6 +996,227 @@ describe('buildClaudeCodeSessionSettings', () => {
           'deny'
       )
     ).toBe(true)
+  })
+
+  it('blocks permanent deletion and destructive Bash for protected built-in Agents', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      configuration: { builtin_role: 'assistant', permission_mode: 'bypassPermissions' }
+    })
+    const assistantSettings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+    const hookOutputs = async (settings: typeof assistantSettings, toolName: string, toolInput: unknown) =>
+      Promise.all(
+        (settings.hooks?.PreToolUse?.[0]?.hooks ?? []).map((hook) =>
+          hook(
+            { hook_event_name: 'PreToolUse', tool_name: toolName, tool_input: toolInput } as never,
+            'tool-use-1',
+            {} as never
+          )
+        )
+      )
+    const denyReasonOf = async (settings: typeof assistantSettings, toolName: string, toolInput: unknown) => {
+      const outputs = (await hookOutputs(settings, toolName, toolInput)) as Array<{
+        hookSpecificOutput?: { permissionDecision?: string; permissionDecisionReason?: string }
+      }>
+      return outputs.find((out) => out?.hookSpecificOutput?.permissionDecision === 'deny')?.hookSpecificOutput
+        ?.permissionDecisionReason
+    }
+
+    for (const [toolName, toolInput] of [
+      ['Bash', { command: 'rm -rf ./output' }],
+      ['mcp__filesystem__delete', { path: 'output' }]
+    ] as const) {
+      await expect(denyReasonOf(assistantSettings, toolName, toolInput)).resolves.toContain(
+        'mcp__assistant-files__move_to_trash'
+      )
+    }
+    await expect(denyReasonOf(assistantSettings, 'Bash', { command: 'pnpm test' })).resolves.toBeUndefined()
+
+    mocks.getAgent.mockReturnValue({
+      id: 'support-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      configuration: { builtin_role: 'support', permission_mode: 'bypassPermissions' }
+    })
+    const supportSettings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-support',
+        agentId: 'support-1',
+        modelId: 'anthropic::claude-sonnet',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+    await expect(denyReasonOf(supportSettings, 'Bash', { command: 'rm -rf ./output' })).resolves.toContain(
+      'must never permanently delete data'
+    )
+
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-2',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      configuration: { permission_mode: 'bypassPermissions' }
+    })
+    const normalSettings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-normal',
+        agentId: 'agent-2',
+        modelId: 'anthropic::claude-sonnet',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+    await expect(denyReasonOf(normalSettings, 'Bash', { command: 'rm -rf ./output' })).resolves.toBeUndefined()
+  })
+
+  it('gates Support and Assistant Bash per mode: ask interactively, lifted by bypassPermissions, denied headless', async () => {
+    let interactionState = { currentTurn: 'interactive', userResponse: 'stream' }
+    // The guard reads the LIVE permission mode from the session snapshot, so a warm connection
+    // honors a mid-session mode switch; drive it through this mutable fn.
+    let permissionMode: string | undefined = undefined
+    mocks.createToolPolicySnapshot.mockResolvedValue({
+      resolve: vi.fn(),
+      isDisabled: vi.fn(() => false),
+      getPermissionMode: vi.fn(() => permissionMode),
+      update: vi.fn(),
+      setPermissionMode: vi.fn()
+    })
+    mocks.applicationGet.mockImplementation((name: string) => {
+      if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
+      if (name === 'McpCatalogService') {
+        return {
+          listTools: mocks.listMcpTools,
+          warmToolsCache: mocks.warmToolsCache,
+          onToolsCacheUpdated: mocks.onToolsCacheUpdated
+        }
+      }
+      if (name === 'AgentSessionRuntimeService') {
+        return {
+          getInteractionState: () => interactionState,
+          recordToolExecutionTiming: mocks.recordToolExecutionTiming
+        }
+      }
+      throw new Error(`Unexpected application.get(${name})`)
+    })
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      configuration: { builtin_role: 'support', permission_mode: 'bypassPermissions' }
+    })
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+    const hooks = settings.hooks?.PreToolUse?.[0]?.hooks ?? []
+    const permissionDecisions = async (toolName: string, toolInput: Record<string, unknown>) =>
+      Promise.all(
+        hooks.map(async (hook) => {
+          const output = await hook(
+            { hook_event_name: 'PreToolUse', tool_name: toolName, tool_input: toolInput } as never,
+            'tool-use-1',
+            {} as never
+          )
+          return (output as { hookSpecificOutput?: { permissionDecision?: string } }).hookSpecificOutput
+            ?.permissionDecision
+        })
+      )
+
+    const directGhCommand = 'gh issue create --repo CherryHQ/cherry-studio --title "Bug" --body-file report.md'
+    const bashCommands = [
+      directGhCommand,
+      `bash -lc 'gh issue create --repo CherryHQ/cherry-studio --title "Bug" --body-file report.md'`,
+      'pnpm test'
+    ]
+    // Interactive default mode: every Support Bash call requires a live per-call decision.
+    for (const command of bashCommands) {
+      await expect(permissionDecisions('Bash', { command })).resolves.toContain('ask')
+    }
+
+    // bypassPermissions is the user's explicit opt-out of per-call approval: the ask disappears.
+    // (Net behavior is unchanged — before the guard table, the hook's ask was auto-pierced by the
+    // mode in canUseTool; now it is simply not raised.)
+    permissionMode = 'bypassPermissions'
+    for (const command of bashCommands) {
+      await expect(permissionDecisions('Bash', { command })).resolves.not.toContain('ask')
+    }
+
+    // Headless denial is not an approval and survives bypassPermissions.
+    interactionState = { currentTurn: 'headless', userResponse: 'unavailable' }
+    for (const command of bashCommands) {
+      await expect(permissionDecisions('Bash', { command })).resolves.toContain('deny')
+    }
+    permissionMode = undefined
+    for (const command of bashCommands) {
+      await expect(permissionDecisions('Bash', { command })).resolves.toContain('deny')
+    }
+    await expect(permissionDecisions('Write', { file_path: 'feedback.md', content: 'draft' })).resolves.not.toContain(
+      'deny'
+    )
+    await expect(permissionDecisions('mcp__assistant__product_info', {})).resolves.not.toContain('deny')
+
+    mocks.getAgent.mockReturnValue({
+      id: 'assistant-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      configuration: { builtin_role: 'assistant', permission_mode: 'bypassPermissions' }
+    })
+    interactionState = { currentTurn: 'interactive', userResponse: 'stream' }
+    const assistantSettings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-assistant',
+        agentId: 'assistant-1',
+        modelId: 'anthropic::claude-sonnet',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+    const assistantHooks = assistantSettings.hooks?.PreToolUse?.[0]?.hooks ?? []
+    const assistantDecisions = async (command: string) =>
+      Promise.all(
+        assistantHooks.map(async (hook) => {
+          const output = await hook(
+            { hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command } } as never,
+            'tool-use-assistant',
+            {} as never
+          )
+          return (output as { hookSpecificOutput?: { permissionDecision?: string } }).hookSpecificOutput
+            ?.permissionDecision
+        })
+      )
+
+    // Assistant feedback submission: ask in default mode, lifted by bypass, denied headless.
+    await expect(assistantDecisions(directGhCommand)).resolves.toContain('ask')
+    await expect(assistantDecisions('pnpm test')).resolves.not.toContain('ask')
+    permissionMode = 'bypassPermissions'
+    await expect(assistantDecisions(directGhCommand)).resolves.not.toContain('ask')
+    interactionState = { currentTurn: 'headless', userResponse: 'unavailable' }
+    await expect(assistantDecisions(directGhCommand)).resolves.toContain('deny')
   })
 
   it('forces file-tool paths outside the session workspace through approval', async () => {
@@ -532,6 +1265,38 @@ describe('buildClaudeCodeSessionSettings', () => {
     await expect(permissionDecisions('Glob', { path: '/workspace/project' })).resolves.not.toContain('ask')
     await expect(permissionDecisions('Glob', {})).resolves.not.toContain('ask')
     await expect(permissionDecisions('Bash', { command: 'cat /outside/read.txt' })).resolves.not.toContain('ask')
+  })
+
+  it('lifts the workspace-escape ask under bypassPermissions (net-equivalent: the mode auto-pierced it before)', async () => {
+    mocks.createToolPolicySnapshot.mockResolvedValue({
+      resolve: vi.fn(),
+      isDisabled: vi.fn(() => false),
+      getPermissionMode: vi.fn(() => 'bypassPermissions'),
+      update: vi.fn(),
+      setPermissionMode: vi.fn()
+    })
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+    const decisions = await Promise.all(
+      (settings.hooks?.PreToolUse?.[0]?.hooks ?? []).map(async (hook) => {
+        const output = await hook(
+          { hook_event_name: 'PreToolUse', tool_name: 'Edit', tool_input: { file_path: '/outside/edit.txt' } } as never,
+          'tool-use-1',
+          {} as never
+        )
+        return (output as { hookSpecificOutput?: { permissionDecision?: string } }).hookSpecificOutput
+          ?.permissionDecision
+      })
+    )
+    expect(decisions).not.toContain('ask')
+    expect(decisions).not.toContain('deny')
   })
 
   it.runIf(process.platform !== 'win32')(
@@ -585,6 +1350,65 @@ describe('buildClaudeCodeSessionSettings', () => {
     }
   )
 
+  it('lifts ordinary approvals under bypassPermissions but preserves the delegation ceiling', async () => {
+    let permissionMode: string | undefined = undefined
+    mocks.createToolPolicySnapshot.mockResolvedValue({
+      resolve: vi.fn(),
+      isDisabled: vi.fn(() => false),
+      getPermissionMode: vi.fn(() => permissionMode),
+      update: vi.fn(),
+      setPermissionMode: vi.fn()
+    })
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      configuration: { builtin_role: 'assistant', permission_mode: 'bypassPermissions' }
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+    const hooks = settings.hooks?.PreToolUse?.[0]?.hooks ?? []
+    const permissionDecisions = async (toolName: string) =>
+      Promise.all(
+        hooks.map(async (hook) => {
+          const output = await hook(
+            { hook_event_name: 'PreToolUse', tool_name: toolName, tool_input: {} } as never,
+            'tool-use-1',
+            {} as never
+          )
+          return (output as { hookSpecificOutput?: { permissionDecision?: string } }).hookSpecificOutput
+            ?.permissionDecision
+        })
+      )
+
+    expect(settings.permissionMode).toBe('bypassPermissions')
+    const requiredTools = APPROVAL_REQUIRED_RUNTIME_NAMES
+    // Default mode (live snapshot mode undefined): the explicit per-call approval list always asks.
+    for (const toolName of requiredTools) {
+      await expect(permissionDecisions(toolName)).resolves.toContain('ask')
+    }
+    // Full Access lifts ordinary per-call approval, but cross-Session delegation still asks.
+    permissionMode = 'bypassPermissions'
+    for (const toolName of BYPASSABLE_APPROVAL_REQUIRED_RUNTIME_NAMES) {
+      await expect(permissionDecisions(toolName)).resolves.not.toContain('ask')
+    }
+    for (const toolName of NON_BYPASSABLE_APPROVAL_REQUIRED_RUNTIME_NAMES) {
+      await expect(permissionDecisions(toolName)).resolves.toContain('ask')
+    }
+    permissionMode = undefined
+    for (const toolName of ['Bash', 'mcp__assistant__navigate', 'mcp__assistant__product_info']) {
+      await expect(permissionDecisions(toolName)).resolves.not.toContain('ask')
+    }
+  })
+
   it('passes agent disabledTools through to SDK disallowedTools', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
@@ -606,7 +1430,144 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     expect(settings.disallowedTools).toEqual(expect.arrayContaining(['Bash', 'Read']))
     // The injected cherry-tools/agent-memory servers are always pre-approved via the allowlist.
-    expect(settings.allowedTools).toEqual(expect.arrayContaining(['mcp__cherry-tools__cron', 'mcp__agent-memory__*']))
+    expect(settings.allowedTools).toEqual(
+      expect.arrayContaining(['mcp__cherry-tools__cron', 'mcp__agent-memory__memory'])
+    )
+  })
+
+  it('does not auto-approve disabled MCP tools', async () => {
+    const disabledTools = ['mcp__cherry-tools__web_fetch', 'mcp__agent-memory__memory']
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      disabledTools,
+      configuration: {}
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+    expect(settings.disallowedTools).toEqual(expect.arrayContaining(disabledTools))
+    for (const toolName of disabledTools) expect(settings.allowedTools).not.toContain(toolName)
+    expect(settings.allowedTools).toContain('mcp__cherry-tools__web_search')
+  })
+
+  it('appends web-only citation guidance to the system prompt by default', async () => {
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+    const systemPrompt = systemPromptText(settings.systemPrompt)
+    expect(systemPrompt).toContain('## Citations')
+    expect(systemPrompt).toContain('mcp__cherry-tools__web_search')
+    expect(systemPrompt).not.toContain('mcp__cherry-tools__kb_search')
+  })
+
+  it('includes kb_search in citation guidance when the agent has bound knowledge bases', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      knowledgeBaseIds: ['kb-1'],
+      configuration: {}
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+    expect(systemPromptText(settings.systemPrompt)).toContain('mcp__cherry-tools__kb_search')
+  })
+
+  // The kb_* tools are exposed from the resolved scope, so an unbound Agent still gets them from the
+  // frozen composer selection alone — the guidance has to follow, or those results never get cited.
+  it('includes kb_search in citation guidance for a composer-only selection on an unbound Agent', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      knowledgeBaseIds: [],
+      configuration: {}
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never, {
+      knowledgeBaseIds: ['kb-selected']
+    })
+
+    expect(systemPromptText(settings.systemPrompt)).toContain('mcp__cherry-tools__kb_search')
+  })
+
+  it('omits citation guidance when both web tools are disabled and no knowledge base is bound', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      disabledTools: ['mcp__cherry-tools__web_search', 'mcp__cherry-tools__web_fetch'],
+      configuration: {}
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+    expect(systemPromptText(settings.systemPrompt)).not.toContain('## Citations')
+  })
+
+  it('omits citation guidance when dependency propagation blocks every lookup tool', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      knowledgeBaseIds: ['kb-1'],
+      disabledTools: ['mcp__cherry-tools__web_search', 'mcp__cherry-tools__web_fetch', 'mcp__cherry-tools__kb_search'],
+      configuration: {}
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+    expect(settings.disallowedTools).toEqual(expect.arrayContaining(['mcp__cherry-tools__kb_read']))
+    expect(systemPromptText(settings.systemPrompt)).not.toContain('## Citations')
   })
 
   it('composes disallowedTools: globals + EnterWorktree (no .git cwd) + dedup', async () => {
@@ -682,11 +1643,11 @@ describe('buildClaudeCodeSessionSettings', () => {
   })
 
   it('denies interactive no-responder tools at tool fire time for the current headless turn', async () => {
-    const isCurrentTurnHeadless = vi.fn(() => true)
+    const getInteractionState = vi.fn(() => ({ currentTurn: 'headless', userResponse: 'unavailable' }))
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
       if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
-      if (name === 'AgentSessionRuntimeService') return { isCurrentTurnHeadless, hasLiveTurnStream: () => true }
+      if (name === 'AgentSessionRuntimeService') return { getInteractionState }
       throw new Error(`Unexpected application.get(${name})`)
     })
     const session = {
@@ -697,7 +1658,14 @@ describe('buildClaudeCodeSessionSettings', () => {
     }
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
-    for (const toolName of ['AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode', 'EnterWorktree']) {
+    const toolsRequiringAResponder = [
+      'AskUserQuestion',
+      'EnterPlanMode',
+      'ExitPlanMode',
+      'EnterWorktree',
+      ...NON_ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES
+    ]
+    for (const toolName of toolsRequiringAResponder) {
       const result = await settings.canUseTool?.(toolName, {}, {
         signal: { aborted: false },
         toolUseID: 'tool-use-1'
@@ -709,18 +1677,131 @@ describe('buildClaudeCodeSessionSettings', () => {
           'This channel or scheduled turn has no interactive responder, so proceed without asking the user and state your assumptions instead.'
       })
     }
-    expect(isCurrentTurnHeadless).toHaveBeenCalledWith('session-1')
+    expect(getInteractionState).toHaveBeenCalledWith('session-1')
+  })
+
+  it('lifts the fire-time headless denial under bypassPermissions only for liftable approvals', async () => {
+    const getInteractionState = vi.fn(() => ({ currentTurn: 'headless', userResponse: 'unavailable' }))
+    mocks.applicationGet.mockImplementation((name: string) => {
+      if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
+      if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
+      if (name === 'AgentSessionRuntimeService') return { getInteractionState }
+      throw new Error(`Unexpected application.get(${name})`)
+    })
+    mocks.createToolPolicySnapshot.mockResolvedValue({
+      resolve: vi.fn(),
+      isDisabled: vi.fn(() => false),
+      getPermissionMode: vi.fn(() => 'bypassPermissions'),
+      update: vi.fn(),
+      setPermissionMode: vi.fn()
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+    const decide = (toolName: string) =>
+      settings.canUseTool?.(toolName, {}, { signal: { aborted: false }, toolUseID: 'tool-use-1' } as never)
+
+    const liftable = listBuiltinToolPolicies({
+      approval: 'required',
+      bypassApproval: 'lift',
+      mountedServers: NON_HOST_MCP_SERVERS
+    }).map(toMcpRuntimeName)
+    for (const toolName of liftable) {
+      await expect(decide(toolName)).resolves.toEqual({ behavior: 'allow', updatedInput: {} })
+    }
+    // The delegation ceiling and tools whose whole function is a user-authored answer still deny.
+    for (const toolName of [...NON_BYPASSABLE_APPROVAL_REQUIRED_RUNTIME_NAMES, 'AskUserQuestion', 'EnterPlanMode']) {
+      await expect(decide(toolName)).resolves.toEqual({
+        behavior: 'deny',
+        message:
+          'This channel or scheduled turn has no interactive responder, so proceed without asking the user and state your assumptions instead.'
+      })
+    }
+  })
+
+  it('surfaces the normalized ExitPlanMode plan before denying a headless turn', async () => {
+    mocks.applicationGet.mockImplementation((name: string) => {
+      if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
+      if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
+      if (name === 'AgentSessionRuntimeService') {
+        return { getInteractionState: () => ({ currentTurn: 'headless', userResponse: 'unavailable' }) }
+      }
+      throw new Error(`Unexpected application.get(${name})`)
+    })
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+    const emitInput = vi.fn()
+    settings.approvalEmitter!.emitInput = emitInput
+    const input = { plan: '# Release plan\n\n1. Add the regression test' }
+
+    const result = await settings.canUseTool?.('ExitPlanMode', input, {
+      signal: { aborted: false },
+      toolUseID: 'exit-plan-1'
+    } as never)
+
+    expect(emitInput).toHaveBeenCalledWith({
+      toolCallId: 'exit-plan-1',
+      toolName: 'ExitPlanMode',
+      input
+    })
+    expect(result).toEqual({
+      behavior: 'deny',
+      message:
+        'This channel or scheduled turn has no interactive responder, so proceed without asking the user and state your assumptions instead.'
+    })
+  })
+
+  it('surfaces the normalized ExitPlanMode plan before requesting interactive approval', async () => {
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+    const emitInput = vi.fn()
+    const emit = vi.fn()
+    settings.approvalEmitter!.emitInput = emitInput
+    settings.approvalEmitter!.emit = emit
+    const input = { plan: '# Release plan\n\n1. Add the regression test' }
+
+    void settings.canUseTool?.('ExitPlanMode', input, {
+      signal: { aborted: false },
+      toolUseID: 'exit-plan-1'
+    } as never)
+
+    expect(emitInput).toHaveBeenCalledWith({
+      toolCallId: 'exit-plan-1',
+      toolName: 'ExitPlanMode',
+      input
+    })
+    expect(emit).toHaveBeenCalledWith(expect.objectContaining({ toolCallId: 'exit-plan-1', input }))
+    expect(emitInput.mock.invocationCallOrder[0]).toBeLessThan(emit.mock.invocationCallOrder[0])
   })
 
   it('denies interactive no-responder tools via PreToolUse so the gate fires under bypassPermissions', async () => {
     // The SDK skips `canUseTool` for auto-approved paths (bypassPermissions / acceptEdits), so the
     // per-turn denial must also run as a PreToolUse hook (which fires in every permission mode) or a
     // headless bypass run could reach AskUserQuestion / EnterPlanMode and stall on a prompt no one answers.
-    const isCurrentTurnHeadless = vi.fn(() => true)
+    const getInteractionState = vi.fn(() => ({ currentTurn: 'headless', userResponse: 'unavailable' }))
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
       if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
-      if (name === 'AgentSessionRuntimeService') return { isCurrentTurnHeadless, hasLiveTurnStream: () => true }
+      if (name === 'AgentSessionRuntimeService') return { getInteractionState }
       throw new Error(`Unexpected application.get(${name})`)
     })
     const session = {
@@ -745,15 +1826,123 @@ describe('buildClaudeCodeSessionSettings', () => {
         expect.objectContaining({ hookSpecificOutput: expect.objectContaining({ permissionDecision: 'deny' }) })
       )
     }
-    expect(isCurrentTurnHeadless).toHaveBeenCalledWith('session-1')
+    for (const toolName of NON_ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES) {
+      const results = await Promise.all(
+        (settings.hooks?.PreToolUse?.[0]?.hooks ?? []).map((hook) =>
+          hook(
+            { hook_event_name: 'PreToolUse', tool_name: toolName, tool_input: {} } as never,
+            'tool-use-1',
+            {} as never
+          )
+        )
+      )
+      expect(results).toContainEqual(
+        expect.objectContaining({ hookSpecificOutput: expect.objectContaining({ permissionDecision: 'deny' }) })
+      )
+      expect(results).not.toContainEqual(
+        expect.objectContaining({ hookSpecificOutput: expect.objectContaining({ permissionDecision: 'ask' }) })
+      )
+    }
+    expect(getInteractionState).toHaveBeenCalledWith('session-1')
   })
 
-  it('forces AskUserQuestion through approval without denying other interactive tools', async () => {
-    const isCurrentTurnHeadless = vi.fn(() => false)
+  it('surfaces a headless ExitPlanMode plan from PreToolUse before bypassPermissions denies it', async () => {
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
       if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
-      if (name === 'AgentSessionRuntimeService') return { isCurrentTurnHeadless, hasLiveTurnStream: () => true }
+      if (name === 'AgentSessionRuntimeService') {
+        return { getInteractionState: () => ({ currentTurn: 'headless', userResponse: 'unavailable' }) }
+      }
+      throw new Error(`Unexpected application.get(${name})`)
+    })
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+    const emitInput = vi.fn()
+    settings.approvalEmitter!.emitInput = emitInput
+    const input = { plan: '# Headless plan' }
+
+    await Promise.all(
+      (settings.hooks?.PreToolUse?.[0]?.hooks ?? []).map((hook) =>
+        hook(
+          { hook_event_name: 'PreToolUse', tool_name: 'ExitPlanMode', tool_input: input } as never,
+          'exit-plan-hook-1',
+          {} as never
+        )
+      )
+    )
+
+    expect(emitInput).toHaveBeenCalledWith({
+      toolCallId: 'exit-plan-hook-1',
+      toolName: 'ExitPlanMode',
+      input
+    })
+  })
+
+  it.each(['bypassPermissions', 'acceptEdits'] as const)(
+    'surfaces an interactive ExitPlanMode plan from PreToolUse under %s',
+    async (permissionMode) => {
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        type: 'claude-code',
+        instructions: 'Follow instructions.',
+        model: 'anthropic::claude-sonnet',
+        planModel: 'anthropic::claude-sonnet',
+        smallModel: 'anthropic::claude-haiku',
+        mcps: [],
+        allowedTools: [],
+        configuration: { permission_mode: permissionMode }
+      })
+      const settings = await buildClaudeCodeSessionSettings(
+        {
+          id: 'session-1',
+          agentId: 'agent-1',
+          modelId: 'anthropic::claude-sonnet',
+          workspace: { type: 'user', path: '/workspace/project' }
+        } as never,
+        {} as never
+      )
+      const emitInput = vi.fn()
+      settings.approvalEmitter!.emitInput = emitInput
+      const input = { plan: '# Interactive plan' }
+
+      const results = await Promise.all(
+        (settings.hooks?.PreToolUse?.[0]?.hooks ?? []).map((hook) =>
+          hook(
+            { hook_event_name: 'PreToolUse', tool_name: 'ExitPlanMode', tool_input: input } as never,
+            'exit-plan-hook-1',
+            {} as never
+          )
+        )
+      )
+
+      expect(settings.permissionMode).toBe(permissionMode)
+      expect(results).not.toContainEqual(
+        expect.objectContaining({
+          hookSpecificOutput: expect.objectContaining({ permissionDecision: expect.stringMatching(/ask|deny/) })
+        })
+      )
+      expect(emitInput).toHaveBeenCalledTimes(1)
+      expect(emitInput).toHaveBeenCalledWith({
+        toolCallId: 'exit-plan-hook-1',
+        toolName: 'ExitPlanMode',
+        input
+      })
+    }
+  )
+
+  it('forces AskUserQuestion through approval without denying other interactive tools', async () => {
+    const getInteractionState = vi.fn(() => ({ currentTurn: 'interactive', userResponse: 'stream' }))
+    mocks.applicationGet.mockImplementation((name: string) => {
+      if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
+      if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
+      if (name === 'AgentSessionRuntimeService') return { getInteractionState }
       throw new Error(`Unexpected application.get(${name})`)
     })
     const session = {
@@ -792,11 +1981,11 @@ describe('buildClaudeCodeSessionSettings', () => {
   })
 
   it('denies mutating config actions via PreToolUse for the current headless turn', async () => {
-    const isCurrentTurnHeadless = vi.fn(() => true)
+    const getInteractionState = vi.fn(() => ({ currentTurn: 'headless', userResponse: 'unavailable' }))
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
       if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
-      if (name === 'AgentSessionRuntimeService') return { isCurrentTurnHeadless, hasLiveTurnStream: () => true }
+      if (name === 'AgentSessionRuntimeService') return { getInteractionState }
       throw new Error(`Unexpected application.get(${name})`)
     })
     const session = {
@@ -836,18 +2025,23 @@ describe('buildClaudeCodeSessionSettings', () => {
   it.each([
     { permissionMode: 'default', headless: false, shouldDeny: false },
     { permissionMode: 'acceptEdits', headless: false, shouldDeny: false },
+    { permissionMode: 'auto', headless: false, shouldDeny: false },
     { permissionMode: 'bypassPermissions', headless: false, shouldDeny: false },
     { permissionMode: 'default', headless: true, shouldDeny: true },
     { permissionMode: 'acceptEdits', headless: true, shouldDeny: true },
+    { permissionMode: 'auto', headless: true, shouldDeny: true },
     { permissionMode: 'bypassPermissions', headless: true, shouldDeny: false }
   ])(
     'applies SDK skill-install permission semantics ($permissionMode, headless=$headless)',
     async ({ permissionMode, headless, shouldDeny }) => {
-      const isCurrentTurnHeadless = vi.fn(() => headless)
+      const getInteractionState = vi.fn(() => ({
+        currentTurn: headless ? 'headless' : 'interactive',
+        userResponse: headless ? 'unavailable' : 'stream'
+      }))
       mocks.applicationGet.mockImplementation((name: string) => {
         if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
         if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
-        if (name === 'AgentSessionRuntimeService') return { isCurrentTurnHeadless }
+        if (name === 'AgentSessionRuntimeService') return { getInteractionState }
         throw new Error(`Unexpected application.get(${name})`)
       })
       mocks.createToolPolicySnapshot.mockResolvedValue({
@@ -892,11 +2086,11 @@ describe('buildClaudeCodeSessionSettings', () => {
 
   it('uses the live permission mode when a warm session switches to bypassPermissions', async () => {
     let permissionMode = 'default'
-    const isCurrentTurnHeadless = vi.fn(() => true)
+    const getInteractionState = vi.fn(() => ({ currentTurn: 'headless', userResponse: 'unavailable' }))
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
       if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
-      if (name === 'AgentSessionRuntimeService') return { isCurrentTurnHeadless }
+      if (name === 'AgentSessionRuntimeService') return { getInteractionState }
       throw new Error(`Unexpected application.get(${name})`)
     })
     mocks.createToolPolicySnapshot.mockResolvedValue({
@@ -935,11 +2129,11 @@ describe('buildClaudeCodeSessionSettings', () => {
   })
 
   it('keeps AskUserQuestion pending when the current permission mode auto-approves tools', async () => {
-    const isCurrentTurnHeadless = vi.fn(() => false)
+    const getInteractionState = vi.fn(() => ({ currentTurn: 'interactive', userResponse: 'stream' }))
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
       if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
-      if (name === 'AgentSessionRuntimeService') return { isCurrentTurnHeadless, hasLiveTurnStream: () => true }
+      if (name === 'AgentSessionRuntimeService') return { getInteractionState }
       throw new Error(`Unexpected application.get(${name})`)
     })
     mocks.getAgent.mockReturnValue({
@@ -983,7 +2177,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     } as never)
     void pending
 
-    expect(isCurrentTurnHeadless).toHaveBeenCalledWith('session-1')
+    expect(getInteractionState).toHaveBeenCalledWith('session-1')
     expect(settings.permissionMode).toBe('bypassPermissions')
     expect(mocks.approvalRegister).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -995,11 +2189,36 @@ describe('buildClaudeCodeSessionSettings', () => {
     )
     expect(emit).toHaveBeenCalledWith(
       expect.objectContaining({
-        type: 'tool-approval-request',
         toolCallId: 'tool-use-1',
+        toolName: 'AskUserQuestion',
+        input,
+        presentation: 'stream',
         providerMetadata: { cherry: { transport: 'claude-agent', toolName: 'AskUserQuestion' } }
       })
     )
+  })
+
+  it('does not emit an approval request when registration settles synchronously', async () => {
+    mocks.approvalRegister.mockReturnValueOnce(false)
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'anthropic::claude-sonnet',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+    const emit = vi.fn()
+    settings.approvalEmitter!.emit = emit
+
+    void settings.canUseTool?.('AskUserQuestion', { questions: [] }, {
+      signal: { aborted: false },
+      toolUseID: 'settled-tool-use'
+    } as never)
+
+    expect(mocks.approvalRegister).toHaveBeenCalledOnce()
+    expect(emit).not.toHaveBeenCalled()
   })
 
   it('keeps AskUserQuestion available for channel-linked interactive sessions', async () => {
@@ -1016,7 +2235,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.disallowedTools ?? []).not.toContain('AskUserQuestion')
   })
 
-  it('assistant role adds interactive no-responder tools to disallowedTools', async () => {
+  it('does not disable normal interactive tools merely because the Agent is built in', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       type: 'claude-code',
@@ -1034,12 +2253,12 @@ describe('buildClaudeCodeSessionSettings', () => {
     }
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
-    expect(settings.disallowedTools ?? []).toEqual(
+    expect(settings.disallowedTools ?? []).not.toEqual(
       expect.arrayContaining(['AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode', 'EnterWorktree'])
     )
   })
 
-  it('loads the private skill plugin for the built-in Assistant while keeping setting sources isolated', async () => {
+  it('loads the private skill plugin for the built-in Assistant without restricting normal setting sources', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       type: 'claude-code',
@@ -1050,6 +2269,10 @@ describe('buildClaudeCodeSessionSettings', () => {
       configuration: { builtin_role: 'assistant' }
     })
     mocks.listSkills.mockResolvedValue([{ id: 'skill-1', folderName: 'system-skill', isEnabled: true }])
+    mocks.getBuiltinAgentPluginDirectory.mockReturnValue('/app/feature.agents.builtin/cherry-assistant/.claude')
+    mocks.loadBuiltinAgentDefinition.mockReturnValue({
+      skills: ['cherry-assistant-guide', 'faq-collector']
+    })
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
@@ -1059,13 +2282,83 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
-    expect(settings.settingSources).toEqual([])
+    expect(settings.settingSources).toEqual(['user', 'project', 'local'])
     expect(settings.plugins).toContainEqual({
       type: 'local',
       path: '/app/feature.agents.claude.root',
       skipMcpDiscovery: true
     })
-    expect(settings.skills).toContain('system-skill')
+    expect(settings.plugins).toContainEqual({
+      type: 'local',
+      path: '/app/feature.agents.builtin/cherry-assistant/.claude',
+      skipMcpDiscovery: true
+    })
+    expect(settings.skills).toEqual(expect.arrayContaining(['system-skill', 'cherry-assistant-guide', 'faq-collector']))
+    expect(settings.mcpServers?.skills).toBeDefined()
+    expect(settings.allowedTools).toContain('mcp__skills__search_skills')
+  })
+
+  it('restricts Cherry Support to its bundled skills without marketplace access', async () => {
+    const workspacePath = await mkdtemp(path.join(os.tmpdir(), 'support-skill-source-'))
+    const workspacePluginManifest = path.join(
+      workspacePath,
+      '.claude',
+      'plugins',
+      'same-name-skills',
+      '.claude-plugin',
+      'plugin.json'
+    )
+    await mkdir(path.dirname(workspacePluginManifest), { recursive: true })
+    await writeFile(workspacePluginManifest, '{"name":"same-name-skills"}')
+    mocks.getAgent.mockReturnValue({
+      id: 'support-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      disabledTools: [],
+      configuration: { builtin_role: 'support' }
+    })
+    mocks.listSkills.mockResolvedValue([{ id: 'skill-1', folderName: 'issue-reporter', isEnabled: true }])
+    mocks.listLocalSkillFolderNames.mockResolvedValue(['faq-collector'])
+    mocks.loadBuiltinAgentDefinition.mockReturnValue({
+      skills: ['cherry-assistant-guide', 'faq-collector', 'cherry-studio-feedback', 'issue-reporter']
+    })
+    mocks.getBuiltinAgentPluginDirectory.mockReturnValue('/app/feature.agents.builtin/cherry-assistant/.claude')
+    const session = {
+      id: 'session-1',
+      agentId: 'support-1',
+      modelId: 'anthropic::claude-sonnet',
+      workspace: { type: 'user', path: workspacePath }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+    await rm(workspacePath, { recursive: true, force: true })
+
+    expect(settings.skills).toEqual([
+      'cherry-assistant-builtin:cherry-assistant-guide',
+      'cherry-assistant-builtin:faq-collector',
+      'cherry-assistant-builtin:cherry-studio-feedback',
+      'cherry-assistant-builtin:issue-reporter'
+    ])
+    expect(settings.plugins).toEqual([
+      {
+        type: 'local',
+        path: '/app/feature.agents.builtin/cherry-assistant/.claude',
+        skipMcpDiscovery: true
+      }
+    ])
+    expect(settings.settingSources).toEqual([])
+    expect(mocks.listSkills).not.toHaveBeenCalled()
+    expect(mocks.listLocalSkillFolderNames).not.toHaveBeenCalled()
+    expect(settings.mcpServers?.skills).toBeUndefined()
+    expect(settings.allowedTools).not.toContain('mcp__skills__search_skills')
+    expect(mocks.createAssistantServer).toHaveBeenCalledWith('anthropic::claude-sonnet', [
+      'navigate',
+      'diagnose',
+      'product_info',
+      'apply_setting'
+    ])
   })
 
   it('injects and auto-approves Assistant MCP tools for a local assistant session', async () => {
@@ -1088,20 +2381,41 @@ describe('buildClaudeCodeSessionSettings', () => {
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
     expect(settings.mcpServers?.assistant).toBeDefined()
-    // Only navigate is pre-approved. diagnose reads local logs/source/config and must go through
-    // per-call approval — a namespace wildcard would silently re-include it.
+    expect(settings.mcpServers?.['assistant-files']).toBeDefined()
+    // Only read-only Assistant tools are pre-approved. Mutations and diagnose use per-call approval.
     expect(settings.allowedTools).toContain('mcp__assistant__navigate')
+    expect(settings.allowedTools).toContain('mcp__assistant__product_info')
+    expect(settings.allowedTools).toContain('mcp__assistant-files__read_file')
+    expect(settings.allowedTools).not.toContain('mcp__assistant__apply_setting')
+    expect(settings.allowedTools).not.toContain('mcp__assistant__create_agent')
     expect(settings.allowedTools).not.toContain('mcp__assistant__*')
     expect(settings.allowedTools).not.toContain('mcp__assistant__diagnose')
+    expect(settings.allowedTools).not.toContain('mcp__assistant-files__save_attachment')
+    expect(settings.allowedTools).not.toContain('mcp__assistant-files__move_to_trash')
+    expect(settings.allowedTools).not.toContain('mcp__assistant-files__*')
     const snapshotOptions = mocks.createToolPolicySnapshot.mock.calls.at(-1)?.[1]
     expect(snapshotOptions.autoAllowRuntimeNames).toContain('mcp__assistant__navigate')
+    expect(snapshotOptions.autoAllowRuntimeNames).toContain('mcp__assistant__product_info')
+    expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__apply_setting')
+    expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__create_agent')
     expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__diagnose')
+    expect(snapshotOptions.autoAllowRuntimeNameExceptions).toEqual(
+      expect.arrayContaining(ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES)
+    )
     expect(snapshotOptions.autoAllowRuntimeNamePrefixes ?? []).toEqual([])
+    expect(mocks.createAssistantServer).toHaveBeenCalledWith('anthropic::claude-sonnet', undefined)
+    expect(mocks.createAssistantFileToolsServer).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      workspacePath: '/workspace/project'
+    })
 
     const cherryServer = (settings.mcpServers?.['cherry-tools'] as any)?.instance
     const handlers = cherryServer.server._requestHandlers
     const listed = await handlers.get('tools/list')({ method: 'tools/list', params: {} }, {})
-    expect(listed.tools.map((tool: { name: string }) => tool.name)).not.toContain('cli_list')
+    expect(listed.tools.map((tool: { name: string }) => tool.name)).toEqual(
+      expect.arrayContaining(['kb_search', 'kb_read', 'kb_list', 'kb_manage', 'cli_list', 'cli_search', 'cli_install'])
+    )
+    expect(systemPromptText(settings.systemPrompt)).toContain('mcp__cherry-tools__kb_search')
   })
 
   it('exposes CLI management tools to a normal Agent session', async () => {
@@ -1146,8 +2460,9 @@ describe('buildClaudeCodeSessionSettings', () => {
     })
 
     expect(settings.mcpServers?.assistant).toBeDefined()
+    expect(settings.mcpServers?.['assistant-files']).toBeDefined()
     expect(settings.allowedTools).toContain('mcp__assistant__navigate')
-    expect(settings.systemPrompt).not.toContain(CHANNEL_SECURITY_PROMPT)
+    expect(settings.allowedTools).toContain('mcp__assistant-files__read_file')
     expect(mocks.findBySessionId).not.toHaveBeenCalled()
   })
 
@@ -1172,9 +2487,100 @@ describe('buildClaudeCodeSessionSettings', () => {
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
     expect(settings.mcpServers?.assistant).toBeUndefined()
+    expect(settings.mcpServers?.['assistant-files']).toBeUndefined()
     expect(settings.allowedTools).not.toContain('mcp__assistant__navigate')
+    expect(settings.allowedTools).not.toContain('mcp__assistant__product_info')
+    expect(settings.allowedTools).not.toContain('mcp__assistant-files__read_file')
     const snapshotOptions = mocks.createToolPolicySnapshot.mock.calls.at(-1)?.[1]
     expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__navigate')
+  })
+
+  it('keeps Support product info in channel sessions while denying unattended diagnostics and all-KB access', async () => {
+    mocks.findBySessionId.mockReturnValue({ id: 'channel-1', sessionId: 'session-1' })
+    mocks.applicationGet.mockImplementation((name: string) => {
+      if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
+      if (name === 'McpCatalogService') {
+        return {
+          listTools: mocks.listMcpTools,
+          warmToolsCache: mocks.warmToolsCache,
+          onToolsCacheUpdated: mocks.onToolsCacheUpdated
+        }
+      }
+      if (name === 'AgentSessionRuntimeService') {
+        return {
+          getInteractionState: () => ({ currentTurn: 'headless', userResponse: 'unavailable' }),
+          recordToolExecutionTiming: mocks.recordToolExecutionTiming
+        }
+      }
+      throw new Error(`Unexpected application.get(${name})`)
+    })
+    mocks.getAgent.mockReturnValue({
+      id: 'support-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      knowledgeBaseIds: [],
+      allowedTools: [],
+      disabledTools: [],
+      configuration: { builtin_role: 'support' }
+    })
+
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'support-1',
+        modelId: 'anthropic::claude-sonnet',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+
+    expect(settings.mcpServers?.assistant).toBeDefined()
+    expect(settings.mcpServers?.['assistant-files']).toBeDefined()
+    expect(settings.allowedTools).toContain('mcp__assistant__product_info')
+    expect(settings.allowedTools).not.toContain('mcp__assistant__diagnose')
+    await expect(
+      settings.canUseTool?.('mcp__assistant__diagnose', {}, {
+        signal: { aborted: false },
+        toolUseID: 'diagnose-1'
+      } as never)
+    ).resolves.toMatchObject({ behavior: 'deny' })
+    await expect(
+      settings.canUseTool?.('mcp__assistant__product_info', {}, {
+        signal: { aborted: false },
+        toolUseID: 'product-info-1'
+      } as never)
+    ).resolves.toMatchObject({ behavior: 'allow' })
+
+    const cherryServer = (settings.mcpServers?.['cherry-tools'] as any)?.instance
+    const listed = await cherryServer.server._requestHandlers.get('tools/list')(
+      { method: 'tools/list', params: {} },
+      {}
+    )
+    expect(listed.tools.map((tool: { name: string }) => tool.name)).not.toEqual(
+      expect.arrayContaining(['kb_search', 'kb_read', 'kb_list', 'kb_manage'])
+    )
+  })
+
+  it('does not inject a Cherry Assistant-only contract on every submitted prompt', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      disabledTools: [],
+      configuration: { builtin_role: 'assistant' }
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'anthropic::claude-sonnet',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+    expect(settings.hooks?.UserPromptSubmit).toBeUndefined()
   })
 
   it('wires a PreToolUse steer hook that drains the holder and injects it as additionalContext', async () => {
@@ -1192,8 +2598,9 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.steerHolder).toBeDefined()
 
     const preToolUse = settings.hooks?.PreToolUse?.[0]?.hooks
-    // interactiveToolPermissionHook + headlessConfigMutationHook + headlessSkillInstallHook + disabledToolHook + workspacePathHook + dependencyIsolationHook + rtkRewriteHook + steerHook
-    expect(preToolUse).toHaveLength(8)
+    // toolGuardHook (the declarative guard table) + skillDependencyAdvisoryHook + agentsMdHook +
+    // rtkRewriteHook + steerHook
+    expect(preToolUse).toHaveLength(5)
 
     const steerHook = preToolUse?.find((hook) => hook.name === 'steerHook') as unknown as (input: {
       hook_event_name: string
@@ -1280,10 +2687,10 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     await buildClaudeCodeSessionSettings(session as never, {} as never)
 
-    // settingsBuilder must derive the approval exceptions from the shared constant and pass them to the
-    // snapshot. The agentTools test proves those options gate kb_manage; this proves settingsBuilder
-    // actually supplies them — dropping `.map(toCherryBuiltinRuntimeName)` or the exceptions fails here.
-    const exceptions = CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map(toCherryBuiltinRuntimeName)
+    // settingsBuilder must derive approval exceptions from policy entries and pass them to the
+    // snapshot. The agentTools test proves those options gate kb_manage; this proves the adapter
+    // actually supplies the derived boundary format.
+    const exceptions = NON_ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES
     expect(exceptions).toContain(toCherryBuiltinRuntimeName(KB_MANAGE_TOOL_NAME))
     expect(mocks.createToolPolicySnapshot).toHaveBeenCalledWith(
       expect.anything(),
@@ -1298,7 +2705,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(snapshotOptions.autoAllowRuntimeNamePrefixes ?? []).toEqual([])
   })
 
-  it('redacts proxy credentials and URL components in the assembled assistant context', async () => {
+  it('does not inject an environment snapshot into the built-in Assistant prompt', async () => {
     const preferenceGet = vi.fn((key: string) => {
       if (key === 'app.proxy.url') return 'http://user:pass@proxy.example:8080/path?token=secret#frag'
       return undefined
@@ -1326,13 +2733,8 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
-    expect(typeof settings.systemPrompt).toBe('string')
-    const proxyLine = (settings.systemPrompt as string).split('\n').find((line) => line.startsWith('- Proxy:'))
-    expect(proxyLine).toBe('- Proxy: http://proxy.example:8080')
-    expect(proxyLine).not.toContain('user')
-    expect(proxyLine).not.toContain('pass')
-    expect(proxyLine).not.toContain('token=secret')
-    expect(proxyLine).not.toContain('/path')
+    expect(systemPromptText(settings.systemPrompt)).not.toContain('## Current Environment')
+    expect(systemPromptText(settings.systemPrompt)).not.toContain('proxy.example')
   })
 
   // Warm-pool correctness: hooks baked at prewarm must resolve session state by id at fire-time, so
@@ -1370,6 +2772,7 @@ describe('buildClaudeCodeSessionSettings', () => {
         const snap = {
           resolve: vi.fn(),
           isDisabled: (tool: string) => disabled.has(tool),
+          getPermissionMode: vi.fn(() => undefined),
           update: vi.fn(async () => {
             disabled.add('Bash')
           }),
@@ -1432,7 +2835,13 @@ describe('buildClaudeCodeSessionSettings', () => {
       const pending = prewarm.canUseTool!('SomeTool', {}, { signal: { aborted: false }, toolUseID: 'tu-1' } as never)
       void pending
       expect(boundEmit).toHaveBeenCalledTimes(1)
-      expect(boundEmit).toHaveBeenCalledWith(expect.objectContaining({ type: 'tool-approval-request' }))
+      expect(boundEmit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          toolCallId: 'tu-1',
+          toolName: 'SomeTool',
+          presentation: 'stream'
+        })
+      )
     })
 
     it('disposeToolPolicySnapshot evicts the snapshot so the next build recreates it (dispose)', async () => {
@@ -1442,16 +2851,13 @@ describe('buildClaudeCodeSessionSettings', () => {
       expect(mocks.createToolPolicySnapshot).toHaveBeenCalledTimes(2)
     })
 
-    // A background agent keeps running after its turn's result, and since SDK 0.3.186 its permission
-    // prompts reach `canUseTool` instead of being auto-denied. The approval chunk would be dropped by
-    // the connection event loop (no live turn stream), so the promise must not be left pending.
-    it('denies an approval requested after the turn ended instead of hanging (out-of-turn)', async () => {
-      const hasLiveTurnStream = vi.fn(() => false)
+    it('still denies a main-agent approval requested after its turn ended', async () => {
+      const getInteractionState = vi.fn(() => ({ currentTurn: 'interactive', userResponse: 'message' }))
       mocks.applicationGet.mockImplementation((name: string) => {
         if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
         if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
         if (name === 'AgentSessionRuntimeService') {
-          return { isCurrentTurnHeadless: () => false, hasLiveTurnStream }
+          return { getInteractionState }
         }
         throw new Error(`Unexpected application.get(${name})`)
       })
@@ -1469,10 +2875,232 @@ describe('buildClaudeCodeSessionSettings', () => {
         message:
           'This tool call arrived after its turn had already ended, so no one can approve it. Request it again in your next turn if you still need it.'
       })
-      expect(hasLiveTurnStream).toHaveBeenCalledWith('warm-e')
+      expect(getInteractionState).toHaveBeenCalledWith('warm-e')
       // Nothing was emitted or registered, so no promise is left for a responder that will never come.
       expect(emit).not.toHaveBeenCalled()
       expect(mocks.approvalRegister).not.toHaveBeenCalled()
+    })
+
+    it('auto-approves an ordinary background-agent request after the parent turn ended', async () => {
+      const getInteractionState = vi.fn(() => ({ currentTurn: 'interactive', userResponse: 'message' }))
+      mocks.applicationGet.mockImplementation((name: string) => {
+        if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
+        if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
+        if (name === 'AgentSessionRuntimeService') {
+          return { getInteractionState }
+        }
+        throw new Error(`Unexpected application.get(${name})`)
+      })
+      const settings = await buildClaudeCodeSessionSettings(sessionWith('warm-bg-auto'), {} as never)
+
+      await expect(
+        settings.canUseTool!('Read', { file_path: '/outside/file' }, {
+          signal: { aborted: false },
+          toolUseID: 'tu-bg-auto',
+          agentID: 'subagent-1'
+        } as never)
+      ).resolves.toEqual({ behavior: 'allow', updatedInput: { file_path: '/outside/file' } })
+      expect(getInteractionState).toHaveBeenCalledWith('warm-bg-auto')
+      expect(mocks.approvalRegister).not.toHaveBeenCalled()
+    })
+
+    it('auto-approves an ordinary background-agent request while the parent turn is still live', async () => {
+      mocks.applicationGet.mockImplementation((name: string) => {
+        if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
+        if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
+        if (name === 'AgentSessionRuntimeService') {
+          return {
+            getInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'stream' })
+          }
+        }
+        throw new Error(`Unexpected application.get(${name})`)
+      })
+      const settings = await buildClaudeCodeSessionSettings(sessionWith('warm-bg-live'), {} as never)
+
+      await expect(
+        settings.canUseTool!('Bash', { command: 'pwd' }, {
+          signal: { aborted: false },
+          toolUseID: 'tu-bg-live',
+          agentID: 'subagent-1'
+        } as never)
+      ).resolves.toEqual({ behavior: 'allow', updatedInput: { command: 'pwd' } })
+      expect(mocks.approvalRegister).not.toHaveBeenCalled()
+    })
+
+    it.each(['session_create', 'session_send'])(
+      'requires live approval when a background agent calls %s',
+      async (toolName) => {
+        mocks.applicationGet.mockImplementation((name: string) => {
+          if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
+          if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
+          if (name === 'AgentSessionRuntimeService') {
+            return {
+              getInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'stream' })
+            }
+          }
+          throw new Error(`Unexpected application.get(${name})`)
+        })
+        const settings = await buildClaudeCodeSessionSettings(sessionWith('warm-bg-delegation'), {} as never)
+        const emit = vi.fn()
+        settings.approvalEmitter!.emit = emit
+
+        void settings.canUseTool!(toCherryBuiltinRuntimeName(toolName), { target_session_id: 'target' }, {
+          signal: { aborted: false },
+          toolUseID: 'tu-bg-delegation',
+          agentID: 'subagent-1'
+        } as never)
+        await Promise.resolve()
+
+        expect(mocks.approvalRegister).toHaveBeenCalledWith(
+          expect.objectContaining({
+            sessionId: 'warm-bg-delegation',
+            toolCallId: 'tu-bg-delegation',
+            presentation: 'message'
+          })
+        )
+        expect(emit).toHaveBeenCalledWith(expect.objectContaining({ toolName: toCherryBuiltinRuntimeName(toolName) }))
+      }
+    )
+
+    // A channel/scheduled turn has no approval UI, so an ordinary tool must not be denied for
+    // lacking a responder — but an interactive turn on the same session must still prompt.
+    it.each([
+      ['headless', { behavior: 'allow', updatedInput: { command: 'pwd' } }, false],
+      ['interactive', undefined, true]
+    ] as const)('resolves an ordinary tool per turn kind: %s', async (currentTurn, expected, registers) => {
+      const getInteractionState = vi.fn(() => ({
+        currentTurn,
+        userResponse: currentTurn === 'headless' ? 'unavailable' : 'stream'
+      }))
+      mocks.applicationGet.mockImplementation((name: string) => {
+        if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
+        if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
+        if (name === 'AgentSessionRuntimeService') return { getInteractionState }
+        throw new Error(`Unexpected application.get(${name})`)
+      })
+      const settings = await buildClaudeCodeSessionSettings(sessionWith(`warm-${currentTurn}`), {} as never)
+      settings.approvalEmitter!.emit = vi.fn()
+
+      const call = settings.canUseTool!('Bash', { command: 'pwd' }, {
+        signal: { aborted: false },
+        toolUseID: `tu-${currentTurn}`
+      } as never)
+
+      if (expected) await expect(call).resolves.toEqual(expected)
+      expect(mocks.approvalRegister).toHaveBeenCalledTimes(registers ? 1 : 0)
+    })
+
+    it('emits an independent AskUserQuestion interaction for a background agent', () => {
+      mocks.applicationGet.mockImplementation((name: string) => {
+        if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
+        if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
+        if (name === 'AgentSessionRuntimeService') {
+          return {
+            getInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'message' })
+          }
+        }
+        throw new Error(`Unexpected application.get(${name})`)
+      })
+      const input = {
+        questions: [{ question: 'Choose a database', options: [{ label: 'SQLite' }], multiSelect: false }]
+      }
+
+      return buildClaudeCodeSessionSettings(sessionWith('warm-bg-question'), {} as never).then((settings) => {
+        const emit = vi.fn()
+        settings.approvalEmitter!.emit = emit
+        void settings.canUseTool!('AskUserQuestion', input, {
+          signal: { aborted: false },
+          toolUseID: 'tu-bg-question',
+          agentID: 'subagent-1'
+        } as never)
+
+        expect(mocks.approvalRegister).toHaveBeenCalledWith(
+          expect.objectContaining({
+            sessionId: 'warm-bg-question',
+            toolCallId: 'tu-bg-question',
+            presentation: 'message'
+          })
+        )
+        expect(emit).toHaveBeenCalledWith(
+          expect.objectContaining({
+            toolCallId: 'tu-bg-question',
+            toolName: 'AskUserQuestion',
+            input,
+            presentation: 'message'
+          })
+        )
+      })
+    })
+
+    it('emits an independent AskUserQuestion interaction for an interactive background wake', () => {
+      mocks.applicationGet.mockImplementation((name: string) => {
+        if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
+        if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
+        if (name === 'AgentSessionRuntimeService') {
+          return {
+            getInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'message' })
+          }
+        }
+        throw new Error(`Unexpected application.get(${name})`)
+      })
+      const input = {
+        questions: [{ question: 'Continue with the migration?', options: [{ label: 'Continue' }], multiSelect: false }]
+      }
+
+      return buildClaudeCodeSessionSettings(sessionWith('warm-wake-question'), {} as never).then((settings) => {
+        const emit = vi.fn()
+        settings.approvalEmitter!.emit = emit
+        void settings.canUseTool!('AskUserQuestion', input, {
+          signal: { aborted: false },
+          toolUseID: 'tu-wake-question'
+        } as never)
+
+        expect(mocks.approvalRegister).toHaveBeenCalledWith(
+          expect.objectContaining({
+            sessionId: 'warm-wake-question',
+            toolCallId: 'tu-wake-question',
+            presentation: 'message'
+          })
+        )
+        expect(emit).toHaveBeenCalledWith(
+          expect.objectContaining({
+            toolCallId: 'tu-wake-question',
+            toolName: 'AskUserQuestion',
+            input,
+            presentation: 'message'
+          })
+        )
+      })
+    })
+
+    it('keeps a background AskUserQuestion independent from a concurrently live main turn', () => {
+      mocks.applicationGet.mockImplementation((name: string) => {
+        if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
+        if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
+        if (name === 'AgentSessionRuntimeService') {
+          return {
+            getInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'stream' })
+          }
+        }
+        throw new Error(`Unexpected application.get(${name})`)
+      })
+      return buildClaudeCodeSessionSettings(sessionWith('warm-bg-live-question'), {} as never).then((settings) => {
+        const emit = vi.fn()
+        settings.approvalEmitter!.emit = emit
+
+        void settings.canUseTool!('AskUserQuestion', { questions: [] }, {
+          signal: { aborted: false },
+          toolUseID: 'tu-bg-live-question',
+          agentID: 'subagent-1'
+        } as never)
+
+        expect(emit).toHaveBeenCalledWith(
+          expect.objectContaining({
+            toolCallId: 'tu-bg-live-question',
+            presentation: 'message'
+          })
+        )
+      })
     })
 
     it('still auto-approves a background tool call after the turn ended (out-of-turn allow)', async () => {
@@ -1488,7 +3116,9 @@ describe('buildClaudeCodeSessionSettings', () => {
         if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
         if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
         if (name === 'AgentSessionRuntimeService') {
-          return { isCurrentTurnHeadless: () => false, hasLiveTurnStream: () => false }
+          return {
+            getInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'message' })
+          }
         }
         throw new Error(`Unexpected application.get(${name})`)
       })
@@ -1571,7 +3201,7 @@ describe('buildClaudeCodeSessionSettings', () => {
 
       expect(settings.env).not.toHaveProperty('ANTHROPIC_API_KEY')
       // application.getPath('sys.home') is mocked to '/app/sys.home'.
-      expect(settings.env!.CLAUDE_CONFIG_DIR).toBe('/app/sys.home/.claude')
+      expect(settings.env!.CLAUDE_CONFIG_DIR).toBe(path.join('/app/sys.home', '.claude'))
     })
 
     it('falls back CLAUDE_CONFIG_DIR to ~/.claude when the shell exports it empty', async () => {
@@ -1584,7 +3214,7 @@ describe('buildClaudeCodeSessionSettings', () => {
         { id: 'claude-code', authMethods: ['external-cli'] } as never
       )
 
-      expect(settings.env!.CLAUDE_CONFIG_DIR).toBe('/app/sys.home/.claude')
+      expect(settings.env!.CLAUDE_CONFIG_DIR).toBe(path.join('/app/sys.home', '.claude'))
     })
 
     it('leaves CLAUDE_CONFIG_DIR unset on macOS so the Agent SDK can read the Keychain login', async () => {
@@ -1672,6 +3302,82 @@ describe('buildClaudeCodeSessionSettings', () => {
       await expect(buildClaudeCodeSessionSettings(session as never, {} as never)).rejects.toThrow()
 
       expect(mocks.warmToolsCache).not.toHaveBeenCalled()
+    })
+
+    it('retries inaccessible workspace paths but fails missing paths and files permanently', async () => {
+      mocks.getPathStatus.mockResolvedValueOnce({ ok: false, reason: 'inaccessible', code: 'EIO' })
+      await expect(assertClaudeCodeWorkspaceDirectory('session-1', '/workspace/project')).rejects.toMatchObject({
+        retryable: true
+      })
+
+      mocks.getPathStatus.mockResolvedValueOnce({ ok: false, reason: 'inaccessible', code: 'EACCES' })
+      await expect(assertClaudeCodeWorkspaceDirectory('session-1', '/workspace/project')).rejects.toMatchObject({
+        retryable: false
+      })
+
+      mocks.getPathStatus.mockResolvedValueOnce({ ok: false, reason: 'missing' })
+      await expect(assertClaudeCodeWorkspaceDirectory('session-1', '/workspace/project')).rejects.toMatchObject({
+        retryable: false
+      })
+
+      mocks.getPathStatus.mockResolvedValueOnce({ ok: true, kind: 'file' })
+      await expect(assertClaudeCodeWorkspaceDirectory('session-1', '/workspace/project')).rejects.toMatchObject({
+        retryable: false
+      })
+    })
+
+    it.each([
+      ['EIO', true],
+      ['EACCES', false]
+    ] as const)('classifies system-workspace %s failures by errno', async (code, retryable) => {
+      mocks.ensureAgentStorageDirectory.mockRejectedValueOnce(Object.assign(new Error(code), { code }))
+
+      await expect(
+        prepareClaudeCodeWorkspaceDirectory({
+          id: 'session-1',
+          workspace: { type: 'system', path: '/app/feature.agents.system_workspaces/session-1' }
+        } as never)
+      ).rejects.toMatchObject({ retryable })
+    })
+
+    it('bounds a stalled workspace probe and classifies the timeout as retryable', async () => {
+      vi.useFakeTimers()
+      try {
+        mocks.getPathStatus.mockReturnValueOnce(new Promise(() => undefined))
+        const validation = assertClaudeCodeWorkspaceDirectory('session-1', '/workspace/stalled')
+        const assertion = expect(validation).rejects.toMatchObject({ retryable: true })
+
+        await vi.advanceTimersByTimeAsync(5_001)
+
+        await assertion
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('shares one underlying path probe across repeated timeout windows', async () => {
+      vi.useFakeTimers()
+      try {
+        let resolveProbe!: (status: { ok: true; kind: 'directory' }) => void
+        mocks.getPathStatus.mockReturnValueOnce(
+          new Promise((resolve) => {
+            resolveProbe = resolve
+          })
+        )
+
+        const first = assertClaudeCodeWorkspaceDirectory('session-1', '/workspace/single-flight')
+        const firstAssertion = expect(first).rejects.toMatchObject({ retryable: true })
+        await vi.advanceTimersByTimeAsync(5_001)
+        await firstAssertion
+
+        const second = assertClaudeCodeWorkspaceDirectory('session-1', '/workspace/single-flight')
+        expect(mocks.getPathStatus).toHaveBeenCalledOnce()
+        resolveProbe({ ok: true, kind: 'directory' })
+
+        await expect(second).resolves.toBeUndefined()
+      } finally {
+        vi.useRealTimers()
+      }
     })
 
     it('overlaps MCP warming with independent environment construction', async () => {

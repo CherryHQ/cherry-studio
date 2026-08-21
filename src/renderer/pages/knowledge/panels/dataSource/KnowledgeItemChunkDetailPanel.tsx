@@ -29,17 +29,17 @@ const KnowledgeItemChunkCard = ({ chunk }: { chunk: KnowledgeItemChunk }) => {
   const { t } = useTranslation()
 
   return (
-    <div className="rounded-lg border border-border-subtle transition-all hover:border-border-hover">
+    <div className="rounded-lg border border-border-subtle transition-all hover:border-border-strong">
       <div className="flex items-center gap-2 px-3 py-2">
-        <span className="flex size-5 shrink-0 items-center justify-center rounded bg-accent text-foreground-muted text-xs leading-4">
+        <span className="flex size-5 shrink-0 items-center justify-center rounded bg-accent text-foreground-tertiary text-xs leading-4">
           {chunk.metadata.chunkIndex + 1}
         </span>
-        <span className="flex-1 text-foreground-muted text-xs leading-4">
+        <span className="flex-1 text-foreground-tertiary text-xs leading-4">
           {chunk.metadata.tokenCount} {t('knowledge.rag.tokens_unit')}
         </span>
       </div>
       <div className="px-3 pb-3">
-        <p className="line-clamp-2 text-foreground-secondary text-sm leading-relaxed">{chunk.content}</p>
+        <p className="line-clamp-2 text-muted-foreground text-sm leading-relaxed">{chunk.content}</p>
       </div>
     </div>
   )
@@ -48,7 +48,7 @@ const KnowledgeItemChunkCard = ({ chunk }: { chunk: KnowledgeItemChunk }) => {
 const renderChunk = (chunk: KnowledgeItemChunk) => <KnowledgeItemChunkCard chunk={chunk} />
 
 const KnowledgeItemChunkState = ({ children }: { children: ReactNode }) => (
-  <div className="flex min-h-full items-center justify-center px-4 py-10 text-center text-foreground-muted text-sm leading-5">
+  <div className="flex min-h-full items-center justify-center px-4 py-10 text-center text-foreground-tertiary text-sm leading-5">
     {children}
   </div>
 )
@@ -125,7 +125,7 @@ const KnowledgeItemChunkDetailPanel = ({
           variant="ghost"
           size="icon-sm"
           aria-label={t('common.back')}
-          className="size-5 min-h-5 min-w-5 rounded p-0 text-foreground-muted shadow-none transition-colors hover:bg-accent hover:text-foreground"
+          className="size-5 min-h-5 min-w-5 rounded p-0 text-muted-foreground shadow-none transition-colors hover:bg-accent hover:text-foreground"
           onClick={onBack}>
           <ArrowLeft className="size-3.5" />
         </Button>
@@ -138,7 +138,7 @@ const KnowledgeItemChunkDetailPanel = ({
           <span className="block truncate text-foreground text-sm leading-5">
             {viewModel?.title ?? t('common.loading')}
           </span>
-          <div className="flex items-center gap-2 text-foreground-muted text-xs leading-4">
+          <div className="flex items-center gap-2 text-foreground-tertiary text-xs leading-4">
             <span>{chunksCountMeta}</span>
           </div>
         </div>

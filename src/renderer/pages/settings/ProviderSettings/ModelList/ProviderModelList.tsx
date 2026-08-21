@@ -50,7 +50,6 @@ const ProviderModelList: React.FC<ProviderModelListProps> = ({ providerId, disab
     <>
       <div className={modelListClasses.headerBlock}>
         <ModelListHeader
-          isBusy={toolbarDisabled}
           hasNoModels={modelList.header.hasNoModels}
           searchText={modelList.header.searchText}
           setSearchText={modelList.header.setSearchText}
@@ -67,6 +66,7 @@ const ProviderModelList: React.FC<ProviderModelListProps> = ({ providerId, disab
           })}
         />
         <ModelListSections
+          provider={providerMeta.provider}
           isLoading={modelList.sections.isLoading}
           hasNoModels={modelList.sections.hasNoModels}
           hasVisibleModels={modelList.sections.hasVisibleModels}

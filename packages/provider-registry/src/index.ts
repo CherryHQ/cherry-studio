@@ -12,7 +12,9 @@ export {
   MODEL_CAPABILITY,
   objectValues,
   REASONING_EFFORT,
-  REASONING_EFFORT_ORDER
+  REASONING_EFFORT_ORDER,
+  SERVER_TOOL,
+  SERVER_TOOL_MODEL_SCOPE
 } from './schemas/enums'
 
 // Runtime schemas (zod) — needed by shared types that compose them
@@ -34,11 +36,18 @@ export type {
   EndpointType,
   Modality,
   ModelCapability,
-  ReasoningEffort
+  ReasoningEffort,
+  ServerTool,
+  ServerToolModelScope
 } from './schemas/enums'
 
 // Schema-inferred types (replaces proto types)
-export { REASONING_FORMAT_PROFILES } from './reasoningProfiles'
+export {
+  configureOpenAIResponsesSummary,
+  openaiResponsesSummaryWire,
+  REASONING_FORMAT_PROFILES,
+  selectFormatWire
+} from './reasoningProfiles'
 export type {
   ImageGenerationMode,
   ImageGenerationSupport,
@@ -50,18 +59,33 @@ export type {
   ReasoningSupport as ProtoReasoningSupport,
   ReasoningControl,
   ReasoningSupport,
+  ReasoningWireDialect,
   SupportSpec
 } from './schemas/model'
 export { ReasoningControlSchema } from './schemas/model'
 export type {
+  EndpointDialect,
   ProviderConfig as ProtoProviderConfig,
   ProviderReasoningFormat as ProtoProviderReasoningFormat,
   ProviderConfig,
   ProviderReasoningFormat,
   ReasoningFormatType,
-  RegistryEndpointConfig
+  RegistryEndpointConfig,
+  ServerToolConfig,
+  ServiceTierDelivery,
+  ServiceTierOptions,
+  ServiceTierRequestControl,
+  ServiceTierSelection
 } from './schemas/provider'
-export { REASONING_FORMAT_TYPES } from './schemas/provider'
+export {
+  FastModeTransportSchema,
+  REASONING_FORMAT_TYPES,
+  ServerToolConfigSchema,
+  ServiceTierDeliverySchema,
+  ServiceTierOptionsSchema,
+  ServiceTierRequestControlSchema,
+  ServiceTierSelectionSchema
+} from './schemas/provider'
 export type {
   ProviderModelOverride as ProtoProviderModelOverride,
   ProviderModelOverride,
@@ -85,7 +109,13 @@ export type { DerivedReasoningFields } from './utils/reasoningControls'
 export { deriveLegacyReasoningFields } from './utils/reasoningControls'
 
 // Model ID normalization utilities
-export { normalizeModelId } from './utils/normalize'
+export {
+  normalizeModelId,
+  stripBedrockDottedVendorPrefix,
+  stripBedrockRevision,
+  stripDateSnapshot,
+  stripVariantQuantDateSuffixes
+} from './utils/normalize'
 
 // Pure lookup and transformation utilities (no fs dependency)
 export type { ModelLookupResult, PersistedEndpointConfig } from './registry-utils'
@@ -110,3 +140,5 @@ export {
   inferReasoningMembership,
   inferReasoningOwnedBy
 } from './patterns/reasoning-heuristics'
+export { isWebSearchEffortUnsupported, supportsServerToolFunctionMixing } from './patterns/serverToolConstraints'
+export { isServerToolModelEligible } from './patterns/serverToolModelEligibility'
