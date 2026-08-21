@@ -64,7 +64,11 @@ jobs:
 
           RELEASE_PAGES="$(gh api --paginate --slurp "repos/$REPO/releases?per_page=100")"
           LATEST_PUBLISHED="$(jq -c '
-            [.[][] | select(.draft == false and .published_at != null)] |
+            [.[][] | select(
+              .draft == false and
+              .published_at != null and
+              (.tag_name | test("^v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?$"))
+            )] |
             sort_by(.published_at) | last // empty
           ' <<< "$RELEASE_PAGES")"
           if [ -z "$LATEST_PUBLISHED" ]; then

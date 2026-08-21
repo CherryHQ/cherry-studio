@@ -36,9 +36,9 @@ Defaults to `patch` if no version is specified. Always echo the resolved target 
    ```bash
    git rev-parse --verify refs/tags/v{current-version}
    ```
-   Stop if it is missing. Confirm that it is also the latest published, non-draft GitHub Release:
+   Stop if it is missing. Confirm that it is also the latest published, non-draft GitHub Release whose tag is strict `v<semver>`; non-semver preview releases are never a release baseline:
    ```bash
-   gh release list --exclude-drafts --limit 1 --json tagName --jq '.[0].tagName'
+   gh release list --limit 1000 --json isDraft,publishedAt,tagName --jq '[.[] | select(.isDraft == false and (.tagName | test("^v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?$"))] | sort_by(.publishedAt) | last | .tagName // empty'
    ```
    Stop on a mismatch: the latest Post Release metadata PR must be merged into `main` before another release is prepared.
 5. Compute the new version based on the argument:

@@ -2,6 +2,7 @@
 description: Maintainer runbook for preparing, validating, hotfixing, publishing, and synchronizing release branches
 sources:
   - .github/workflows/prepare-release.yml
+  - .github/workflows/preview-release.yml
   - .github/workflows/release.yml
   - .github/workflows/backport-release-fixes.yml
   - .github/workflows/post-release.yml
@@ -19,6 +20,7 @@ The release branch is the source of every installer and release asset. `main` re
 
 | Stage | Source | Workflow | Result |
 | --- | --- | --- | --- |
+| Preview | Any trusted repository branch | **Preview Release** | Creates an isolated draft GitHub Release for internal testing |
 | Prepare | `main` | **Pre Release** | Creates `release/v<version>` with a signed release metadata commit |
 | Validate | `release/v<version>` | **CI** | Validates the exact release branch commit |
 | Build | `release/v<version>` | **Release** | Moves the draft tag to the validated commit and uploads artifacts |
@@ -26,6 +28,20 @@ The release branch is the source of every installer and release asset. `main` re
 | Publish | `release/v<version>` | **Release** (`publish`) | Revalidates and publishes the current draft |
 | Synchronize | Published GitHub Release | **Post Release** | Opens a metadata-only `release-sync/v<version>` pull request |
 | Close | `release-sync/v<version>` | **CI** | Validates the metadata pull request before it is merged into `main` |
+
+## Internal Preview Builds
+
+Use **Preview Release** when a maintainer needs installable packages from an unreleased feature branch for internal testing:
+
+1. Open **Actions** → **Preview Release** → **Run workflow**.
+2. Select `main` in the workflow branch selector. The workflow definition and its permissions must always come from `main`.
+3. Enter the trusted same-repository source branch in the `branch` input.
+4. Select `all`, `windows`, `mac`, or `linux`, then run the workflow.
+5. Open the resulting draft under **Releases** and download its installers.
+
+Every selected platform builds the same resolved source commit. The package version is changed only inside the runner to `<base-version>-preview.g<commit>`. After every selected platform succeeds, the workflow creates or updates `preview-<branch>-<commit>` as a draft prerelease and uploads the installers there.
+
+Preview builds use packaging secrets, so never run this workflow for an untrusted branch. Their non-semantic-version tags do not match `v<version>` or have a corresponding `release/v<version>` branch, so they are excluded from formal release preparation, hotfix backports, and Post Release. They do not acquire the `release-state` lock and cannot be published by the formal **Release** workflow.
 
 ## Before Starting
 
@@ -226,6 +242,7 @@ If the metadata files already match `main`, **Post Release** exits without openi
 
 ## Invariants
 
+- Build internal feature previews only with **Preview Release** from a trusted same-repository branch; preview draft releases never become formal release state.
 - Build and publish from `release/v<version>`, never from `main`.
 - Merge every hotfix into `main` before backporting it to the release branch.
 - Merge hotfixes into the release branch through a backport pull request, never through an automatic direct commit.
