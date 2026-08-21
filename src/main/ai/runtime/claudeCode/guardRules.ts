@@ -83,7 +83,8 @@ const userDataSqliteWrite = async (ctx: ToolGuardContext): Promise<GuardHit | nu
       ctx.cwd,
       application.getPath('app.userdata'),
       application.getPath('app.database.file'),
-      application.getPath('sys.home')
+      application.getPath('sys.home'),
+      ctx.signal
     ))
       ? {}
       : null
@@ -98,7 +99,8 @@ const userDataSqliteWrite = async (ctx: ToolGuardContext): Promise<GuardHit | nu
     ctx.cwd,
     application.getPath('app.userdata'),
     application.getPath('app.database.file'),
-    application.getPath('sys.home')
+    application.getPath('sys.home'),
+    ctx.signal
   ))
     ? {}
     : null
@@ -116,7 +118,7 @@ const pathOutsideAllowedRoots = async (ctx: ToolGuardContext): Promise<GuardHit 
   // Glob/Grep intentionally omit `path` to search from cwd. Let the SDK validate missing or
   // malformed required fields for the other tools rather than duplicating their schemas here.
   if (typeof requestedPath !== 'string' || !requestedPath.trim()) return null
-  if (await isPathWithinAllowedRoots(ctx.cwd, ctx.agentDataPath, requestedPath)) return null
+  if (await isPathWithinAllowedRoots(ctx.cwd, ctx.agentDataPath, requestedPath, ctx.signal)) return null
   return { evidence: requestedPath }
 }
 

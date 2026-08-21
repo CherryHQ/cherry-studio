@@ -1,3 +1,4 @@
+import * as fs from 'node:fs'
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -453,6 +454,15 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
         {
           cwd: systemWorkspace,
           command: 'cd "$HOME/Library/Application Support/CherryStudio/Data/KnowledgeBase" && sqlite3 knowledge.sqlite'
+        },
+        {
+          cwd: systemWorkspace,
+          command: 'cd -- "$HOME/Library/Application Support/CherryStudio/Data" && sqlite3 cherrystudio.sqlite'
+        },
+        {
+          cwd: systemWorkspace,
+          command:
+            'cd -P -- "$HOME/Library/Application Support/CherryStudio/Data/KnowledgeBase" && sqlite3 knowledge.sqlite'
         }
       ]
 
@@ -529,6 +539,42 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
       await expect(
         evaluate(makeCtx({ toolName: 'Write', cwd: systemWorkspace, input: { file_path: workspaceLink } }))
       ).resolves.toBeUndefined()
+    })
+
+    it.runIf(process.platform !== 'win32')('fails closed for cyclic symlinks', async () => {
+      const cyclicLink = path.join(systemWorkspace, 'loop.sqlite')
+      await symlink(path.basename(cyclicLink), cyclicLink)
+      const readlink = fs.promises.readlink.bind(fs.promises)
+      let readlinkCalls = 0
+      const readlinkSpy = vi.spyOn(fs.promises, 'readlink').mockImplementation(async (target) => {
+        readlinkCalls++
+        if (readlinkCalls > 4) throw new Error('symlink traversal did not terminate')
+        return readlink(target)
+      })
+
+      try {
+        await expect(
+          evaluate(makeCtx({ toolName: 'Write', cwd: systemWorkspace, input: { file_path: cyclicLink } }))
+        ).resolves.toMatchObject({ effect: 'deny', ruleId: 'user-data-sqlite-write' })
+        expect(readlinkCalls).toBeLessThanOrEqual(4)
+
+        const callsBeforeAbort = readlinkCalls
+        const controller = new AbortController()
+        controller.abort()
+        await expect(
+          evaluate(
+            makeCtx({
+              toolName: 'Write',
+              cwd: systemWorkspace,
+              input: { file_path: cyclicLink },
+              signal: controller.signal
+            })
+          )
+        ).resolves.toMatchObject({ effect: 'deny', ruleId: 'user-data-sqlite-write' })
+        expect(readlinkCalls).toBe(callsBeforeAbort)
+      } finally {
+        readlinkSpy.mockRestore()
+      }
     })
   })
 
