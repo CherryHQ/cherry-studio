@@ -92,6 +92,7 @@
   "common": {
     "channel_available_commands": "Verfügbare Befehle:",
     "channel_command_processing_error": "⚠️ Beim Verarbeiten des Befehls ist ein Fehler aufgetreten. Bitte versuchen Sie es später erneut.",
+    "channel_message_dropped": "⚠️ Diese Nachricht wurde nicht zugestellt. Bitte versuchen Sie es erneut oder überprüfen Sie die Kanaleinstellungen.",
     "channel_message_processing_error": "⚠️ Beim Verarbeiten Ihrer Nachricht ist ein Fehler aufgetreten. Bitte versuchen Sie es später erneut.",
     "channel_new_session_created": "Neue Sitzung erstellt.",
     "channel_no_active_session": "Keine aktive Sitzung.",

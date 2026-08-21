@@ -92,6 +92,7 @@
   "common": {
     "channel_available_commands": "Comandos disponibles:",
     "channel_command_processing_error": "⚠️ Se produjo un error al procesar el comando. Inténtalo de nuevo más tarde.",
+    "channel_message_dropped": "⚠️ Este mensaje no se entregó. Inténtalo de nuevo o revisa la configuración del canal.",
     "channel_message_processing_error": "⚠️ Se produjo un error al procesar tu mensaje. Inténtalo de nuevo más tarde.",
     "channel_new_session_created": "Nueva sesión creada.",
     "channel_no_active_session": "No hay ninguna sesión activa.",
