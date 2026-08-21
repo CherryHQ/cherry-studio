@@ -1,4 +1,4 @@
-import { Button, Input, Tooltip } from '@cherrystudio/ui'
+import { Button, InputNumber, Tooltip } from '@cherrystudio/ui'
 import ProviderField from '@renderer/pages/settings/ProviderSettings/primitives/ProviderField'
 import { drawerClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { useTranslation } from 'react-i18next'
@@ -91,14 +91,14 @@ function TokenLimitField({
           )
         })}
       </div>
-      <Input
-        type="text"
-        inputMode="numeric"
+      <InputNumber
+        min={1}
+        step={1}
         aria-label={title}
-        value={value}
+        value={value === '' ? null : Number(value)}
         placeholder={placeholder}
         className={drawerClasses.input}
-        onChange={(event) => onChange(event.target.value.replace(/[^\d]/g, ''))}
+        onChange={(next) => onChange(next === null ? '' : String(next))}
         onBlur={() => onCommit?.(value)}
       />
     </ProviderField>
