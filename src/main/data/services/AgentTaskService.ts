@@ -6,7 +6,6 @@
  * transaction primitives used by workspace deletion.
  */
 
-import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import type { DbOrTx } from '@data/db/types'
 import { agentChannelService } from '@data/services/AgentChannelService'
@@ -30,7 +29,6 @@ import {
 } from '@shared/data/api/schemas/agentWorkspaces'
 import type { JobScheduleSnapshot, JobSnapshot, JobStatus } from '@shared/data/api/schemas/jobs'
 import type { ListOptions } from '@shared/data/api/types'
-import { sql } from 'drizzle-orm'
 
 const AGENT_TASK_TYPE = 'agent.task' as const
 const HEARTBEAT_TASK_NAME = 'heartbeat'
@@ -127,16 +125,6 @@ function deriveStatus(snapshot: JobScheduleSnapshot): 'active' | 'paused' | 'com
 
 function toTaskRunDisplayStatus(status: JobStatus): TaskRunDisplayStatus {
   return status === 'pending' || status === 'delayed' ? 'running' : status
-}
-
-type TaskScheduleRunStateRow = {
-  scheduleId: string
-}
-
-type TerminalTaskRunSummaryRow = {
-  scheduleId: string
-  status: JobStatus
-  finishedAt: number
 }
 
 export class AgentTaskService {
@@ -253,79 +241,14 @@ export class AgentTaskService {
   }
 
   private getRunSummariesByScheduleIds(scheduleIds: readonly string[]): Map<string, TaskRunSummary> {
-    const uniqueScheduleIds = [...new Set(scheduleIds)]
-    if (uniqueScheduleIds.length === 0) return new Map()
-
-    const db = application.get('DbService').getDb()
-    const scheduleIdParams = () =>
-      sql.join(
-        uniqueScheduleIds.map((scheduleId) => sql`(${scheduleId})`),
-        sql`, `
-      )
-
-    // Global running concurrency is fixed at 50, so this status-index scan is
-    // bounded independently of pending schedule backlog.
-    const runningRows = db.all<TaskScheduleRunStateRow>(sql`
-      SELECT schedule_id AS "scheduleId"
-      FROM job INDEXED BY job_status_idx
-      WHERE status = 'running'
-        AND type = ${AGENT_TASK_TYPE}
-        AND schedule_id IN (${sql.join(
-          uniqueScheduleIds.map((scheduleId) => sql`${scheduleId}`),
-          sql`, `
-        )})
-    `)
-
-    // Active rows have finished_at=NULL; the existing composite index makes
-    // each EXISTS a single seek even with an unbounded pending backlog.
-    const unfinishedRows = db.all<TaskScheduleRunStateRow>(sql`
-      WITH requested_schedules(schedule_id) AS (VALUES ${scheduleIdParams()})
-      SELECT requested.schedule_id AS "scheduleId"
-      FROM requested_schedules AS requested
-      WHERE EXISTS (
-        SELECT 1
-        FROM job INDEXED BY job_schedule_id_finished_at_idx
-        WHERE job.schedule_id = requested.schedule_id
-          AND job.finished_at IS NULL
-          AND job.type = ${AGENT_TASK_TYPE}
-        LIMIT 1
-      )
-    `)
-
-    const terminalRows = db.all<TerminalTaskRunSummaryRow>(sql`
-      WITH requested_schedules(schedule_id) AS (VALUES ${scheduleIdParams()})
-      SELECT
-        requested.schedule_id AS "scheduleId",
-        terminal.status,
-        terminal.finished_at AS "finishedAt"
-      FROM requested_schedules AS requested
-      JOIN job AS terminal ON terminal.id = (
-        SELECT candidate.id
-        FROM job AS candidate INDEXED BY job_schedule_id_finished_at_idx
-        WHERE candidate.schedule_id = requested.schedule_id
-          AND candidate.finished_at IS NOT NULL
-          AND candidate.status IN ('completed', 'failed', 'cancelled')
-          AND candidate.type = ${AGENT_TASK_TYPE}
-        ORDER BY candidate.finished_at DESC
-        LIMIT 1
-      )
-    `)
-
-    const runningScheduleIds = new Set(runningRows.map((row) => row.scheduleId))
-    const unfinishedScheduleIds = new Set(unfinishedRows.map((row) => row.scheduleId))
-    const terminalByScheduleId = new Map(terminalRows.map((row) => [row.scheduleId, row]))
-
     return new Map(
-      uniqueScheduleIds.flatMap((scheduleId): Array<[string, TaskRunSummary]> => {
-        if (runningScheduleIds.has(scheduleId)) return [[scheduleId, { status: 'running' }]]
-        if (unfinishedScheduleIds.has(scheduleId)) return [[scheduleId, { status: 'queued' }]]
-
-        const terminal = terminalByScheduleId.get(scheduleId)
-        if (!terminal) return []
-        if (terminal.status !== 'completed' && terminal.status !== 'failed' && terminal.status !== 'cancelled')
-          return []
-        return [[scheduleId, { status: terminal.status, finishedAt: timestampToISO(terminal.finishedAt) }]]
-      })
+      [...jobService.getRunStatesByScheduleIds(AGENT_TASK_TYPE, scheduleIds)].map(
+        ([scheduleId, runState]): [string, TaskRunSummary] => {
+          if (runState.kind === 'running') return [scheduleId, { status: 'running' }]
+          if (runState.kind === 'unfinished') return [scheduleId, { status: 'queued' }]
+          return [scheduleId, { status: runState.status, finishedAt: timestampToISO(runState.finishedAt) }]
+        }
+      )
     )
   }
 

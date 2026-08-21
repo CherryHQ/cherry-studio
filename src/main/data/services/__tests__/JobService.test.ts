@@ -7,8 +7,9 @@ import { jobService } from '@data/services/JobService'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import type { FileEntryId } from '@shared/data/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
-import { describe, expect, it } from 'vitest'
+import { eq, type SQL } from 'drizzle-orm'
+import { SQLiteSyncDialect } from 'drizzle-orm/sqlite-core'
+import { describe, expect, it, vi } from 'vitest'
 
 const baseRow = (overrides: Partial<InsertJobRow> = {}): InsertJobRow => ({
   type: 'test.echo',
@@ -119,6 +120,134 @@ describe('JobService.list/count filters', () => {
 
     expect(jobService.list({ type: [] })).toHaveLength(2)
     expect(jobService.count({ type: [] })).toBe(2)
+  })
+})
+
+describe('JobService.getRunStatesByScheduleIds', () => {
+  const dbh = setupTestDatabase()
+
+  const createSchedule = (name: string) =>
+    jobScheduleService.create({
+      type: 'agent.task',
+      name,
+      trigger: { kind: 'interval', ms: 60_000 },
+      jobInputTemplate: {},
+      catchUpPolicy: { kind: 'skip-missed' }
+    })
+
+  it('returns one prioritized run state per requested schedule', () => {
+    const runningSchedule = createSchedule('running-summary')
+    const unfinishedSchedule = createSchedule('unfinished-summary')
+    const terminalSchedule = createSchedule('terminal-summary')
+    const emptySchedule = createSchedule('empty-summary')
+    const now = Date.now()
+
+    jobService.create(
+      baseRow({
+        type: 'agent.task',
+        status: 'completed',
+        scheduleId: runningSchedule.id,
+        startedAt: now - 3_000,
+        finishedAt: now - 2_000
+      })
+    )
+    jobService.create(baseRow({ type: 'agent.task', status: 'pending', scheduleId: runningSchedule.id }))
+    jobService.create(
+      baseRow({ type: 'agent.task', status: 'running', scheduleId: runningSchedule.id, startedAt: now - 1_000 })
+    )
+
+    jobService.create(
+      baseRow({
+        type: 'agent.task',
+        status: 'failed',
+        scheduleId: unfinishedSchedule.id,
+        startedAt: now - 3_000,
+        finishedAt: now - 2_000
+      })
+    )
+    jobService.create(baseRow({ type: 'agent.task', status: 'delayed', scheduleId: unfinishedSchedule.id }))
+
+    jobService.create(
+      baseRow({
+        type: 'agent.task',
+        status: 'failed',
+        scheduleId: terminalSchedule.id,
+        startedAt: now - 4_000,
+        finishedAt: now - 3_000
+      })
+    )
+    jobService.create(
+      baseRow({
+        type: 'agent.task',
+        status: 'cancelled',
+        scheduleId: terminalSchedule.id,
+        startedAt: now - 2_000,
+        finishedAt: now - 1_000
+      })
+    )
+    jobService.create(baseRow({ type: 'other.type', status: 'running', scheduleId: terminalSchedule.id }))
+
+    expect(
+      jobService.getRunStatesByScheduleIds('agent.task', [
+        runningSchedule.id,
+        unfinishedSchedule.id,
+        terminalSchedule.id,
+        emptySchedule.id,
+        runningSchedule.id
+      ])
+    ).toEqual(
+      new Map([
+        [runningSchedule.id, { kind: 'running' }],
+        [unfinishedSchedule.id, { kind: 'unfinished' }],
+        [terminalSchedule.id, { kind: 'terminal', status: 'cancelled', finishedAt: now - 1_000 }]
+      ])
+    )
+  })
+
+  it('uses bounded index seeks instead of ranking retained schedule history', () => {
+    const schedule = createSchedule('run-state-query-plan')
+    const now = Date.now()
+    dbh.db
+      .insert(jobTable)
+      .values(
+        Array.from({ length: 500 }, (_, index) => ({
+          id: `0198a000-0000-7000-8000-${String(index + 1).padStart(12, '0')}`,
+          type: 'agent.task',
+          status: index === 499 ? ('completed' as const) : ('pending' as const),
+          queue: 'agent:test',
+          scheduleId: schedule.id,
+          scheduledAt: now + index,
+          startedAt: index === 499 ? now + index : null,
+          finishedAt: index === 499 ? now + index + 1 : null,
+          maxAttempts: 1,
+          input: {},
+          createdAt: now + index,
+          updatedAt: now + index
+        }))
+      )
+      .run()
+
+    const allSpy = vi.spyOn(dbh.db, 'all')
+    jobService.getRunStatesByScheduleIds('agent.task', [schedule.id])
+
+    const dialect = new SQLiteSyncDialect({ casing: 'snake_case' })
+    const queries = allSpy.mock.calls.map(([query]) => dialect.sqlToQuery(query as SQL))
+    const plans = queries.flatMap(({ sql: query, params }) =>
+      dbh.sqlite
+        .prepare(`EXPLAIN QUERY PLAN ${query}`)
+        .all(...params)
+        .map((row) => (row as { detail: string }).detail)
+    )
+
+    expect(queries).toHaveLength(3)
+    expect(queries.some(({ sql: query }) => /row_number/i.test(query))).toBe(false)
+    expect(plans.some((detail) => /USE TEMP B-TREE/i.test(detail))).toBe(false)
+    expect(plans).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('job_status_idx'),
+        expect.stringContaining('job_schedule_id_finished_at_idx')
+      ])
+    )
   })
 })
 
