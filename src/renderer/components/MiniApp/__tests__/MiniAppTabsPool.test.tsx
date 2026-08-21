@@ -1,5 +1,5 @@
 import type { MiniApp } from '@shared/data/types/miniApp'
-import { render } from '@testing-library/react'
+import { act, render } from '@testing-library/react'
 import { useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -10,16 +10,21 @@ vi.mock('@renderer/components/MiniApp/WebviewContainer', () => ({
   default: ({
     appid,
     url,
-    onSetRefCallback
+    onSetRefCallback,
+    onFocusChange
   }: {
     appid: string
     url: string
     onSetRefCallback: (appid: string, el: HTMLElement | null) => void
+    onFocusChange?: (appid: string, focused: boolean) => void
   }) => (
     // Forward the ref like the real container does — the pool drives pane
     // visibility through `ref.style.display`.
     <div
-      ref={(el) => onSetRefCallback(appid, el)}
+      ref={(el) => {
+        onSetRefCallback(appid, el)
+        if (onFocusChange) mocks.focusHandlers.set(appid, onFocusChange)
+      }}
       data-mini-app-id={appid}
       data-testid={`webview-${appid}`}
       data-url={url}
@@ -45,7 +50,15 @@ const mocks = vi.hoisted(() => ({
   setOpenedKeepAliveMiniApps: vi.fn(),
   tabs: [] as { id: string; url: string; isDormant?: boolean; isPinned?: boolean }[],
   activeTabId: '',
-  clearWebviewState: vi.fn()
+  clearWebviewState: vi.fn(),
+  focusHandlers: new Map<string, (appid: string, focused: boolean) => void>(),
+  contextKeys: [] as Array<{ key: string; value: unknown }>
+}))
+
+vi.mock('@renderer/hooks/command', () => ({
+  useCommandContextKey: (key: string, value: unknown) => {
+    mocks.contextKeys.push({ key, value })
+  }
 }))
 
 vi.mock('@renderer/hooks/useMiniApps', () => ({
@@ -108,6 +121,58 @@ describe('MiniAppTabsPool', () => {
     mocks.tabs = []
     mocks.activeTabId = ''
     mocks.clearWebviewState.mockReset()
+    mocks.focusHandlers.clear()
+    mocks.contextKeys = []
+  })
+
+  /** Latest value the pool published for `webview.focused`. */
+  const focusedKey = () => mocks.contextKeys.filter((e) => e.key === 'webview.focused').at(-1)?.value
+
+  it('keeps webview.focused set when another pane mounts behind the focused one', () => {
+    mocks.openedKeepAliveMiniApps = [stubApp('alpha')]
+    mocks.currentMiniAppId = 'alpha'
+    mocks.tabs = [{ id: 't1', url: '/app/mini-app/alpha' }]
+    mocks.activeTabId = 't1'
+
+    const { rerender } = render(<MiniAppTabsPool />)
+    expect(focusedKey()).toBe(false)
+
+    act(() => {
+      mocks.focusHandlers.get('alpha')!('alpha', true)
+    })
+    expect(focusedKey()).toBe(true)
+
+    // Opening a second MiniApp mounts another pane while alpha still holds focus.
+    // Per-pane registration made the newcomer's `false` win and handed Escape back
+    // to app.fullscreen.exit.
+    mocks.openedKeepAliveMiniApps = [stubApp('alpha'), stubApp('bravo')]
+    act(() => {
+      rerender(<MiniAppTabsPool />)
+    })
+    expect(focusedKey()).toBe(true)
+
+    act(() => {
+      mocks.focusHandlers.get('alpha')!('alpha', false)
+    })
+    expect(focusedKey()).toBe(false)
+  })
+
+  it('ignores a stale blur from a pane that no longer holds focus', () => {
+    mocks.openedKeepAliveMiniApps = [stubApp('alpha'), stubApp('bravo')]
+    mocks.currentMiniAppId = 'alpha'
+    mocks.tabs = [{ id: 't1', url: '/app/mini-app/alpha' }]
+    mocks.activeTabId = 't1'
+
+    render(<MiniAppTabsPool />)
+
+    // Focus moves alpha -> bravo; alpha's blur can land after bravo's focus.
+    act(() => {
+      mocks.focusHandlers.get('alpha')!('alpha', true)
+      mocks.focusHandlers.get('bravo')!('bravo', true)
+      mocks.focusHandlers.get('alpha')!('alpha', false)
+    })
+
+    expect(focusedKey()).toBe(true)
   })
 
   it('renders webviews in stable appId-sorted order regardless of LRU order', () => {

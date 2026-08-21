@@ -44,8 +44,7 @@ function buildProviderOptions(
     selection: effort,
     model,
     profile: reasoningProfile.wire,
-    maxTokens,
-    assistantSummary: provider.settings?.summaryText
+    maxTokens
   })
   return buildResolvedReasoningProviderOptions({
     aiSdkProviderId,

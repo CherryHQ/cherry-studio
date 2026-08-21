@@ -9745,7 +9745,8 @@
             }
           }
         }
-      }
+      },
+      "supportsFastMode": true
     },
     {
       "apiModelId": "doubao-seed-2-0-mini-260428",
@@ -9829,7 +9830,8 @@
             }
           }
         }
-      }
+      },
+      "supportsFastMode": true
     },
     {
       "apiModelId": "doubao-seed-2-0-pro-260215",
@@ -9913,7 +9915,8 @@
             }
           }
         }
-      }
+      },
+      "supportsFastMode": true
     },
     {
       "apiModelId": "doubao-seed-2-1-pro-260628",
@@ -10003,7 +10006,8 @@
             }
           }
         }
-      }
+      },
+      "supportsFastMode": true
     },
     {
       "apiModelId": "doubao-seed-2-1-turbo-260628",
@@ -10093,7 +10097,8 @@
             }
           }
         }
-      }
+      },
+      "supportsFastMode": true
     },
     {
       "apiModelId": "doubao-seed-character-260628",
@@ -15567,7 +15572,12 @@
           "perMillionTokens": 0.6
         }
       },
-      "providerId": "groq"
+      "providerId": "groq",
+      "requestControls": {
+        "serviceTier": {
+          "options": ["standard", "auto", "fast", "flex"]
+        }
+      }
     },
     {
       "apiModelId": "openai/gpt-oss-20b",
@@ -15586,7 +15596,12 @@
           "perMillionTokens": 0.3
         }
       },
-      "providerId": "groq"
+      "providerId": "groq",
+      "requestControls": {
+        "serviceTier": {
+          "options": ["standard", "auto", "fast", "flex"]
+        }
+      }
     },
     {
       "apiModelId": "openai/gpt-oss-safeguard-20b",
@@ -15633,7 +15648,12 @@
           "perMillionTokens": 0.79
         }
       },
-      "providerId": "groq"
+      "providerId": "groq",
+      "requestControls": {
+        "serviceTier": {
+          "options": ["standard", "auto", "fast", "flex"]
+        }
+      }
     },
     {
       "apiModelId": "meta-llama/llama-prompt-guard-2-22m",
