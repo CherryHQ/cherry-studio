@@ -134,6 +134,8 @@ export function buildPathRegistry() {
     'feature.mcp.workspace': path.join(appUserDataData, 'Workspace'),
     // MCP memory server's knowledge-graph JSON for the built-in MCP server
     'feature.mcp.memory_file': path.join(CHERRY_HOME, 'config', 'memory.json'),
+    // Server catalog `@cherry/mcp-auto-install` reads when a custom registry is configured
+    'feature.mcp.registry_file': path.join(CHERRY_HOME, 'config', 'mcp-registry.json'),
 
     // Copilot token
     'feature.copilot.token_file': path.join(CHERRY_HOME, 'config', '.copilot_token'),

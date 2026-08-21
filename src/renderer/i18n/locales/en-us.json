@@ -3490,6 +3490,12 @@
         "title": "Hide"
       }
     },
+    "split": {
+      "already_open": "Already shown in the other pane",
+      "choose": "Choose a mini app to show alongside",
+      "close": "Close split view",
+      "open": "Split view"
+    },
     "title": "MiniApp",
     "unpin_failed": "Failed to unpin mini-app",
     "update_partial_failure": "{{failed}} of {{total}} updates failed"
@@ -3601,6 +3607,7 @@
     }
   },
   "navigate": {
+    "model_settings": "Go to model settings",
     "provider_settings": "Go to provider settings"
   },
   "notes": {
@@ -4520,6 +4527,10 @@
         "custom": "Custom Action",
         "delete_confirm": "Are you sure you want to delete this custom action?",
         "drag_hint": "Drag to reorder. Move above to enable action ({{enabled}}/{{max}})",
+        "models": {
+          "default_description": "Used by Explain, Summarize, Refine, and custom actions that use the default model.",
+          "translate_description": "Used to generate translations. Automatic language detection may also use the quick model."
+        },
         "reset": {
           "button": "Reset",
           "confirm": "Are you sure you want to reset to default actions? Custom actions will not be deleted.",
@@ -6207,8 +6218,9 @@
       "provider_key_confirm_title": "Add {{provider}} API Key",
       "provider_name": "Provider Name",
       "quick_assistant_default_tag": "Default",
-      "quick_assistant_model": "Quick Assistant Model",
+      "quick_assistant_response_settings": "Response Settings",
       "quick_assistant_selection": "Select Assistant",
+      "quick_assistant_usage_method": "Usage Method",
       "quick_model": {
         "description": "Model used for simple tasks such as conversation naming and keyword extraction",
         "label": "Quick Model",

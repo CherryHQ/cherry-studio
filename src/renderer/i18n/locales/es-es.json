@@ -3490,6 +3490,12 @@
         "title": "Ocultar"
       }
     },
+    "split": {
+      "already_open": "Ya se muestra en el otro panel",
+      "choose": "Elige una miniaplicación para mostrar al lado",
+      "close": "Cerrar vista dividida",
+      "open": "Vista dividida"
+    },
     "title": "Mini programa",
     "unpin_failed": "Error al desanclar la miniaplicación",
     "update_partial_failure": "{{failed}} de {{total}} actualizaciones fallaron"
@@ -3601,6 +3607,7 @@
     }
   },
   "navigate": {
+    "model_settings": "Ir a la configuración de modelos",
     "provider_settings": "Ir a la configuración del proveedor"
   },
   "notes": {
@@ -4520,6 +4527,10 @@
         "custom": "Función personalizada",
         "delete_confirm": "¿Está seguro de que desea eliminar esta función personalizada?",
         "drag_hint": "Arrastre para ordenar, muévalo hacia arriba para habilitar la función ({{enabled}}/{{max}})",
+        "models": {
+          "default_description": "Se usa en Explicar, Resumir, Mejorar y en las acciones personalizadas que utilizan el modelo predeterminado.",
+          "translate_description": "Se usa para generar traducciones. La detección automática del idioma también puede usar el modelo rápido."
+        },
         "reset": {
           "button": "Restablecer",
           "confirm": "¿Está seguro de que desea restablecer a las funciones predeterminadas? Las funciones personalizadas no se eliminarán.",
@@ -6207,8 +6218,9 @@
       "provider_key_confirm_title": "Agregar clave API para {{provider}}",
       "provider_name": "Nombre del proveedor",
       "quick_assistant_default_tag": "Predeterminado",
-      "quick_assistant_model": "Modelo del asistente rápido",
+      "quick_assistant_response_settings": "Configuración de respuesta",
       "quick_assistant_selection": "Seleccionar asistente",
+      "quick_assistant_usage_method": "Método de uso",
       "quick_model": {
         "description": "El modelo rápido es utilizado para realizar tareas sencillas como nombrar temas, extraer palabras clave de búsqueda, etc.",
         "label": "Modelo rápido",

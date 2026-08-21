@@ -3490,6 +3490,12 @@
         "title": "Ascunde"
       }
     },
+    "split": {
+      "already_open": "Se afișează deja în celălalt panou",
+      "choose": "Alege o miniaplicație de afișat alături",
+      "close": "Închide vizualizarea divizată",
+      "open": "Vizualizare divizată"
+    },
     "title": "MiniApp",
     "unpin_failed": "Nu s-a reușit dezancorarea mini-aplicației",
     "update_partial_failure": "{{failed}} din {{total}} actualizări au eșuat"
@@ -3601,6 +3607,7 @@
     }
   },
   "navigate": {
+    "model_settings": "Accesează setările modelelor",
     "provider_settings": "Mergi la setările furnizorului"
   },
   "notes": {
@@ -4520,6 +4527,10 @@
         "custom": "Acțiune personalizată",
         "delete_confirm": "Ești sigur că vrei să ștergi această acțiune personalizată?",
         "drag_hint": "Trage pentru a reordona. Mută deasupra pentru a activa acțiunea ({{enabled}}/{{max}})",
+        "models": {
+          "default_description": "Folosit de acțiunile Explică, Rezumă, Îmbunătățește și de acțiunile personalizate care utilizează modelul implicit.",
+          "translate_description": "Folosit pentru generarea traducerilor. Detectarea automată a limbii poate utiliza și modelul rapid."
+        },
         "reset": {
           "button": "Resetează",
           "confirm": "Ești sigur că vrei să resetezi la acțiunile implicite? Acțiunile personalizate nu vor fi șterse.",
@@ -6207,8 +6218,9 @@
       "provider_key_confirm_title": "Adaugă cheia API pentru {{provider}}",
       "provider_name": "Nume furnizor",
       "quick_assistant_default_tag": "Implicit",
-      "quick_assistant_model": "Model asistent rapid",
+      "quick_assistant_response_settings": "Setări de răspuns",
       "quick_assistant_selection": "Selectează asistent",
+      "quick_assistant_usage_method": "Metodă de utilizare",
       "quick_model": {
         "description": "Model folosit pentru sarcini simple, cum ar fi numirea subiectelor și extragerea cuvintelor cheie",
         "label": "Model rapid",
