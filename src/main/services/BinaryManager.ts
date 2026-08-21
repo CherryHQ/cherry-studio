@@ -147,6 +147,14 @@ function toShimStem(file: string): string {
   return isWin ? path.basename(file, path.extname(file)).toLowerCase() : file
 }
 
+/** Whether a shim file is present and executable, by the platform's rules. */
+function isExecutableShim(shimPath: string): Promise<boolean> {
+  return fsp.access(shimPath, isWin ? fs.constants.F_OK : fs.constants.X_OK).then(
+    () => true,
+    () => false
+  )
+}
+
 function isPathWithin(root: string, candidate: string): boolean {
   const normalizedRoot = isWin ? path.resolve(root).toLowerCase() : path.resolve(root)
   const normalizedCandidate = isWin ? path.resolve(candidate).toLowerCase() : path.resolve(candidate)
@@ -612,12 +620,12 @@ export class BinaryManager extends BaseService {
 
     const names = new Set([...definitions.keys(), ...bundledNames, ...Object.keys(operations)])
     const shimsDir = getBinaryShimsDir()
-    const shimNames = new Set<string>()
+    const shimNames = new Map<string, string>()
     try {
       for (const entry of await fsp.readdir(shimsDir, { withFileTypes: true })) {
         if (!entry.isFile() && !entry.isSymbolicLink()) continue
         if (isWin && !['.exe', '.cmd', '.bat'].includes(path.extname(entry.name).toLowerCase())) continue
-        shimNames.add(toShimStem(entry.name))
+        shimNames.set(toShimStem(entry.name), path.join(shimsDir, entry.name))
       }
     } catch {
       // A fresh profile has no shims directory until its first managed install.
@@ -653,7 +661,14 @@ export class BinaryManager extends BaseService {
         await Promise.all(
           shimlessTools.map(async (name) => {
             const bins = await this.resolveToolBinNames(definitions.get(name)!.tool)
-            return bins.some((bin) => shimNames.has(toShimStem(bin))) ? name : null
+            const shims = bins.flatMap((bin) => {
+              const shimPath = shimNames.get(toShimStem(bin))
+              return shimPath ? [shimPath] : []
+            })
+            // Same permission bar the snapshot predicate applies: a present but
+            // non-executable shim is not a runnable path.
+            const executable = await Promise.all(shims.map((shimPath) => isExecutableShim(shimPath)))
+            return executable.some(Boolean) ? name : null
           })
         )
       ).filter((name): name is string => name !== null)
@@ -1010,11 +1025,7 @@ export class BinaryManager extends BaseService {
   private async resolveRunnableShim(name: string, tool: string): Promise<{ path: string; canonical: string } | null> {
     const shimsDir = getBinaryShimsDir()
     const ownShim = path.join(shimsDir, getBinaryName(name))
-    const hasOwnShim = await fsp.access(ownShim, isWin ? fs.constants.F_OK : fs.constants.X_OK).then(
-      () => true,
-      () => false
-    )
-    if (hasOwnShim) {
+    if (await isExecutableShim(ownShim)) {
       const canonical = await this.resolveManagedBinaryPath(name)
       return canonical ? { path: ownShim, canonical } : null
     }
@@ -1028,7 +1039,9 @@ export class BinaryManager extends BaseService {
     }
     for (const binary of await this.resolveToolBinNames(tool)) {
       const shimPath = shims.get(toShimStem(binary))
-      if (!shimPath) continue
+      // A shim file that is present but not executable is not a runnable path,
+      // exactly as for the tool's own name.
+      if (!shimPath || !(await isExecutableShim(shimPath))) continue
       const resolved = await this.resolveMiseBinaryForTool(binary, tool)
       if (resolved) return { path: shimPath, canonical: resolved.canonicalPath }
     }

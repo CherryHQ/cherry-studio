@@ -603,6 +603,46 @@ describe('BinaryManager', () => {
       })
     })
 
+    it('reports broken when the exposed bin has a shim that is not executable', async () => {
+      // `mise which` resolving the target says nothing about the shim Cherry puts
+      // on PATH: a present-but-unexecutable shim is not a runnable path.
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      manifestRef.value = [{ name: 'rust', tool: 'core:rust' }]
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls') {
+          return {
+            stdout: JSON.stringify({
+              rust: [{ version: '1.98.0', active: true, install_path: '/mock/cargo/bin' }]
+            }),
+            stderr: ''
+          }
+        }
+        if (args[0] === 'which' && args[1] === 'rust') throw new Error('rust is not a mise bin')
+        if (args[0] === 'which') return { stdout: `/mock/cargo/bin/${args[1]}\n`, stderr: '' }
+        if (args[0] === 'bin-paths') {
+          return { stdout: JSON.stringify([{ name: 'cargo', path: '/mock/cargo/bin/cargo' }]), stderr: '' }
+        }
+        return { stdout: '', stderr: '' }
+      })
+      ;(mockFsp.access as any).mockImplementation(async (candidate: string, mode: number) => {
+        if (candidate === '/mock/feature.binary.data/shims/rust') throw new Error('ENOENT')
+        // The shim file exists, but carries no execute bit.
+        if (candidate === '/mock/feature.binary.data/shims/cargo' && mode === mockFs.constants.X_OK) {
+          throw new Error('EACCES')
+        }
+      })
+      ;(mockFsp.readdir as any).mockImplementation(async () => ['cargo'])
+
+      await expect(service.getToolSnapshots(['rust'])).resolves.toMatchObject({
+        rust: {
+          availability: { source: 'none' },
+          application: { status: 'broken', version: '1.98.0' }
+        }
+      })
+    })
+
     it('reports broken when no bin the recipe exposes has a shim', async () => {
       // The exposed-bin fallback must not turn a lost shim into a runnable tool:
       // with nothing shimmed, the recipe is not reachable on Cherry's PATH.
@@ -3376,6 +3416,33 @@ describe('BinaryManager', () => {
         status: 'ready',
         version: '1.98.0'
       })
+    })
+
+    it('does not report ready when the exposed shim is not executable', async () => {
+      manifestRef.value = [{ name: 'rust', tool: 'core:rust' }]
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls')
+          return { stdout: JSON.stringify({ rust: [{ version: '1.98.0', active: true }] }), stderr: '' }
+        if (args[0] === 'bin-paths') {
+          return { stdout: JSON.stringify([{ name: 'cargo', path: '/mock/cargo/bin/cargo' }]), stderr: '' }
+        }
+        return { stdout: '', stderr: '' }
+      })
+      ;(mockFsp.readdir as any).mockImplementation(async () => [
+        { name: 'cargo', isFile: () => true, isSymbolicLink: () => false }
+      ])
+      ;(mockFsp.access as any).mockImplementation(async (candidate: string, mode: number) => {
+        if (candidate === '/mock/feature.binary.data/shims/cargo' && mode === mockFs.constants.X_OK) {
+          throw new Error('EACCES')
+        }
+      })
+
+      await expect(service.getToolInventory()).resolves.toContainEqual(
+        expect.objectContaining({ name: 'rust', status: 'failed' })
+      )
     })
 
     it('reads live state on every inventory call instead of caching snapshots', async () => {
