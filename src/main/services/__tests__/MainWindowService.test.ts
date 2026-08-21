@@ -854,8 +854,15 @@ describe('MainWindowService', () => {
   })
 
   describe('quoteToMainWindow routing', () => {
+    // The main-window leg defers its send via setTimeout(100); fake timers make
+    // that callback reachable at assertion time instead of leaking past the test.
     beforeEach(() => {
+      vi.useFakeTimers()
       ;(svc as any).mainWindow = win
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
     })
 
     it('routes quotes originating from a detached SubWindow into that sub window', () => {
@@ -882,6 +889,8 @@ describe('MainWindowService', () => {
       // showMainWindow focuses the main window so the quote lands in its composer.
       expect(win.show).toHaveBeenCalled()
       expect(win.focus).toHaveBeenCalled()
+      vi.advanceTimersByTime(100)
+      expect(win.webContents.send).toHaveBeenCalledWith(IpcChannel.App_QuoteToMain, 'Selected text')
     })
 
     it('routes quotes from a non-SubWindow helper window (selection toolbar) to the main window', () => {
@@ -892,6 +901,8 @@ describe('MainWindowService', () => {
 
       expect(win.show).toHaveBeenCalled()
       expect(win.focus).toHaveBeenCalled()
+      vi.advanceTimersByTime(100)
+      expect(win.webContents.send).toHaveBeenCalledWith(IpcChannel.App_QuoteToMain, 'Selected text')
     })
 
     it('falls back to the main window when the sender window cannot be resolved', () => {
@@ -901,6 +912,8 @@ describe('MainWindowService', () => {
 
       expect(win.show).toHaveBeenCalled()
       expect(win.focus).toHaveBeenCalled()
+      vi.advanceTimersByTime(100)
+      expect(win.webContents.send).toHaveBeenCalledWith(IpcChannel.App_QuoteToMain, 'Selected text')
     })
 
     it('falls back to the main window when the SubWindow has been destroyed', () => {
@@ -915,6 +928,8 @@ describe('MainWindowService', () => {
       expect(subWindow.webContents.send).not.toHaveBeenCalled()
       expect(win.show).toHaveBeenCalled()
       expect(win.focus).toHaveBeenCalled()
+      vi.advanceTimersByTime(100)
+      expect(win.webContents.send).toHaveBeenCalledWith(IpcChannel.App_QuoteToMain, 'Selected text')
     })
   })
 })
