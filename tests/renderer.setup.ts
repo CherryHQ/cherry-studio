@@ -230,8 +230,6 @@ vi.mock('@cherrystudio/ui', () => {
       }
       return React.createElement('button', buttonProps, startContent, children)
     },
-    ButtonGroup: ({ children, attached: _attached, orientation, ...props }) =>
-      React.createElement('div', { ...props, role: 'group', 'data-orientation': orientation }, children),
     ConfirmDialog: ({ cancelText, confirmText, content, description, onConfirm, onOpenChange, open, title }) =>
       open
         ? React.createElement(
