@@ -51,7 +51,7 @@ export function useUsageData({
   const costTotals = useMemo(() => timelineQueryResult.data?.costTotals ?? [], [timelineQueryResult.data?.costTotals])
   const activeCostTotal = selectCostTotal(costTotals, selectedCurrency)
   const costCurrency = activeCostTotal?.currency
-  const queryCurrency = costCurrency ?? CURRENCY.USD
+  const queryCurrency = costCurrency ?? selectedCurrency ?? CURRENCY.USD
 
   const overviewStatsQuery = useMemo(
     () => ({

@@ -131,7 +131,6 @@ function UsageSettings() {
   const [persistedRollup, setRollup] = usePersistCache('settings.usage.rollup')
   const [topCount, setTopCount] = usePersistCache('settings.usage.top_count')
   const [persistedCurrency, setSelectedCurrency] = usePersistCache('settings.usage.currency')
-  const [heatmapMetric, setHeatmapMetric] = usePersistCache('settings.usage.heatmap_metric')
   const selectedCurrency = persistedCurrency ?? undefined
   const chartType: UsageChartType =
     selectedChartType === 'line' || selectedChartType === 'pie' ? selectedChartType : 'bar'
@@ -503,8 +502,6 @@ function UsageSettings() {
             <UsagePanel>
               <UsageHeatmap
                 buckets={timelineBuckets}
-                metric={heatmapMetric}
-                onMetricChange={setHeatmapMetric}
                 costCurrency={costCurrency}
                 isLoading={timelineLoading}
                 range={windowRange}

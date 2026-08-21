@@ -1,4 +1,5 @@
 import { Button, NormalTooltip, Skeleton } from '@cherrystudio/ui'
+import { usePersistCache } from '@data/hooks/useCache'
 import { formatCompactNumber } from '@renderer/utils/number'
 import { cn } from '@renderer/utils/style'
 import { getLocaleFirstDayOfWeek } from '@renderer/utils/time'
@@ -132,8 +133,6 @@ function useElementWidth() {
 
 interface UsageHeatmapProps {
   buckets: AiUsageRecordTimelineBucket[]
-  metric: UsageHeatmapMetric
-  onMetricChange: (metric: UsageHeatmapMetric) => void
   costCurrency?: string | null
   isLoading?: boolean
   range?: { from?: number; to?: number }
@@ -147,15 +146,9 @@ const intensityClassNames: Record<0 | 1 | 2 | 3 | 4, string> = {
   4: 'bg-primary'
 }
 
-export default function UsageHeatmap({
-  buckets,
-  metric,
-  onMetricChange,
-  costCurrency,
-  isLoading,
-  range
-}: UsageHeatmapProps) {
+export default function UsageHeatmap({ buckets, costCurrency, isLoading, range }: UsageHeatmapProps) {
   const { t, i18n } = useTranslation()
+  const [metric, setMetric] = usePersistCache('settings.usage.heatmap_metric')
   const { ref: heatmapRef, width: heatmapWidth } = useElementWidth()
 
   const firstDayOfWeek = useMemo(() => getLocaleFirstDayOfWeek(i18n.resolvedLanguage), [i18n.resolvedLanguage])
@@ -227,7 +220,7 @@ export default function UsageHeatmap({
                 variant="ghost"
                 size="sm"
                 aria-pressed={isActive}
-                onClick={() => onMetricChange(option.value)}
+                onClick={() => setMetric(option.value)}
                 className={cn(
                   'px-1 text-sm hover:bg-transparent',
                   isActive ? 'font-medium text-foreground' : 'text-foreground-tertiary hover:text-muted-foreground'
